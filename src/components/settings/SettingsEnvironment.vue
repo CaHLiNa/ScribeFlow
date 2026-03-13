@@ -13,39 +13,22 @@
         </div>
 
         <div v-if="lang.info.found" class="env-lang-details">
-          <div class="env-lang-path">{{ lang.info.path }}</div>
+          <div v-if="lang.key !== 'python'" class="env-lang-path">{{ lang.info.path }}</div>
           <template v-if="lang.key === 'python'">
             <div class="env-python-stack">
               <div v-if="lang.info.candidates?.length" class="env-compact-block">
-                <div class="env-inline-row env-inline-row-top">
-                  <span class="env-control-label">{{ t('Python interpreter') }}</span>
-                  <div class="env-select-shell">
-                    <select class="env-select" :value="lang.info.selectedPath || ''" @change="onPythonInterpreterChange">
-                      <option v-for="candidate in lang.info.candidates" :key="candidate.path" :value="candidate.path">
-                        {{ formatPythonCandidateTitle(candidate) }}
-                      </option>
-                    </select>
-                    <span class="env-select-caret" aria-hidden="true">
-                      <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
-                        <path d="M1 3l4 4 4-4z" />
-                      </svg>
-                    </span>
-                  </div>
+                <div class="env-select-shell env-select-shell-full">
+                  <select class="env-select" :value="lang.info.selectedPath || ''" @change="onPythonInterpreterChange">
+                    <option v-for="candidate in lang.info.candidates" :key="candidate.path" :value="candidate.path">
+                      {{ formatPythonCandidateTitle(candidate) }}
+                    </option>
+                  </select>
+                  <span class="env-select-caret" aria-hidden="true">
+                    <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+                      <path d="M1 3l4 4 4-4z" />
+                    </svg>
+                  </span>
                 </div>
-                <div class="env-inline-path">{{ selectedPythonPath }}</div>
-              </div>
-
-              <div class="env-inline-row env-inline-row-compact">
-                <div class="env-input-shell env-input-shell-slim">
-                  <input
-                    v-model="customPythonPathDraft"
-                    class="env-path-input"
-                    :placeholder="t('Custom Python path')"
-                  />
-                </div>
-                <button class="env-install-btn" type="button" @click="saveCustomPythonPath">
-                  {{ t('Use Path') }}
-                </button>
               </div>
 
               <div class="env-lang-kernel-row env-lang-kernel-row-soft">
@@ -123,7 +106,6 @@
       </div>
       <div class="env-compact-block env-compact-block-offset">
         <div class="env-inline-row env-inline-row-top">
-          <span class="env-control-label">{{ t('Compiler') }}</span>
           <div class="env-select-shell">
             <select class="env-select" :value="latexStore.compilerPreference" @change="onCompilerPreferenceChange">
               <option value="auto">{{ t('Auto (prefer System TeX)') }}</option>
@@ -167,7 +149,6 @@
         </div>
       </template>
 
-      <!-- Downloading state -->
       <template v-else-if="latexStore.downloading">
         <div class="env-lang-header">
           <span class="env-lang-dot warn"></span>
@@ -181,7 +162,6 @@
         </div>
       </template>
 
-      <!-- Not installed state -->
       <template v-else>
         <div class="env-lang-header">
           <span class="env-lang-dot none"></span>
@@ -198,7 +178,6 @@
         </div>
       </template>
 
-      <!-- Error state -->
       <div v-if="latexStore.downloadError" class="env-install-error env-install-error-inline">
         {{ latexStore.downloadError }}
         <button class="env-install-btn env-install-btn-inline" @click="latexStore.downloadTectonic()">
@@ -226,13 +205,6 @@ const envLanguages = computed(() => [
   { key: 'r', label: 'R', info: envStore.languages.r },
   { key: 'julia', label: 'Julia', info: envStore.languages.julia },
 ])
-
-const selectedPythonCandidate = computed(() => {
-  const selectedPath = envStore.languages.python.selectedPath
-  return envStore.languages.python.candidates?.find((candidate) => candidate.path === selectedPath) || null
-})
-
-const selectedPythonPath = computed(() => selectedPythonCandidate.value?.path || envStore.languages.python.selectedPath || envStore.languages.python.path || '')
 
 const latexPreferenceLabel = computed(() => {
   if (latexStore.compilerPreference === 'system') return t('System TeX (latexmk)')
@@ -375,6 +347,7 @@ onMounted(() => {
 
 .env-compact-block-offset {
   margin-top: 12px;
+  padding-left: 16px;
 }
 
 .env-inline-row {
@@ -401,6 +374,11 @@ onMounted(() => {
   position: relative;
   min-width: min(320px, 100%);
   flex: 1;
+}
+
+.env-select-shell-full {
+  width: 100%;
+  min-width: 0;
 }
 
 .env-select {
@@ -441,15 +419,6 @@ onMounted(() => {
   color: var(--fg-muted);
   pointer-events: none;
   transform: translateY(-50%);
-}
-
-.env-inline-path {
-  font-size: 10px;
-  color: var(--fg-muted);
-  font-family: var(--font-mono);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  word-break: break-all;
 }
 
 .env-input-shell {
