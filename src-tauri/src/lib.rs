@@ -5,8 +5,8 @@ mod kernel;
 mod latex;
 mod model_sync;
 mod pdf_translate;
-mod pty;
 mod process_utils;
+mod pty;
 mod typst_export;
 mod usage_db;
 
@@ -442,6 +442,7 @@ pub fn run() {
             typst_export::export_md_to_pdf,
             typst_export::is_typst_available,
             typst_export::check_typst_compiler,
+            typst_export::download_typst,
             typst_export::compile_typst_file,
             usage_db::usage_record,
             usage_db::usage_query_month,

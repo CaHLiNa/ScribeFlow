@@ -465,9 +465,7 @@ pub async fn check_tectonic(app: tauri::AppHandle) -> Result<TectonicStatus, Str
 }
 
 #[tauri::command]
-pub async fn check_latex_compilers(
-    app: tauri::AppHandle,
-) -> Result<LatexCompilerStatus, String> {
+pub async fn check_latex_compilers(app: tauri::AppHandle) -> Result<LatexCompilerStatus, String> {
     Ok(LatexCompilerStatus {
         tectonic: BinaryStatus {
             installed: find_tectonic(&app, None).is_some(),

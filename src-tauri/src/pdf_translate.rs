@@ -400,11 +400,16 @@ async fn install_dependencies(app: &AppHandle, python: &Path) -> Result<(), Stri
 
     let mut errors = Vec::new();
     for (label, args) in attempts {
-        emit_env_log(app, &format!("Installing translator dependencies via {label}..."));
+        emit_env_log(
+            app,
+            &format!("Installing translator dependencies via {label}..."),
+        );
 
         let mut cmd = background_tokio_command(python);
         apply_runtime_env(&mut cmd)?;
-        cmd.args(&args).stdout(Stdio::piped()).stderr(Stdio::piped());
+        cmd.args(&args)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
 
         let mut child = cmd
             .spawn()
@@ -451,7 +456,10 @@ async fn install_dependencies(app: &AppHandle, python: &Path) -> Result<(), Stri
 
 async fn setup_runtime(app: &AppHandle, base_python_path: Option<String>) -> Result<(), String> {
     let Some(base_python) = resolve_base_python(base_python_path).await else {
-        return Err("Python 3.10+ was not found. Choose a Python interpreter in Settings > System first.".to_string());
+        return Err(
+            "Python 3.10+ was not found. Choose a Python interpreter in Settings > System first."
+                .to_string(),
+        );
     };
 
     let venv = venv_dir()?;
@@ -488,7 +496,10 @@ async fn setup_runtime(app: &AppHandle, base_python_path: Option<String>) -> Res
     install_dependencies(app, &venv_python).await?;
 
     if ready_translator_python().await.is_none() {
-        return Err("Translator environment was created, but required modules are still missing.".to_string());
+        return Err(
+            "Translator environment was created, but required modules are still missing."
+                .to_string(),
+        );
     }
 
     emit_env_progress(app, "Translation runtime is ready.", 100);
@@ -746,7 +757,9 @@ async fn run_translation_task(
                     } else {
                         task.status = "failed".to_string();
                         task.progress = task.progress.max(1.0);
-                        task.message = "Translation process finished, but no output PDF was detected.".to_string();
+                        task.message =
+                            "Translation process finished, but no output PDF was detected."
+                                .to_string();
                     }
                 }
             }) {

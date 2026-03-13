@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { invoke } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
 import { useWorkspaceStore } from './workspace'
 import { t } from '../i18n'
 
@@ -84,6 +85,9 @@ export const useTypstStore = defineStore('typst', {
     compilerPath: null,
     checkingCompiler: false,
     lastCompilerCheckAt: 0,
+    downloading: false,
+    downloadProgress: 0,
+    downloadError: null,
     exporting: {}, // { [path]: 'exporting' | 'done' | 'error' }
     compileState: {}, // { [typPath]: { status, errors, warnings, pdfPath, log, durationMs, lastCompiled } }
     pdfSettings: {}, // { [relativePath]: PdfSettings }
@@ -114,6 +118,28 @@ export const useTypstStore = defineStore('typst', {
       } finally {
         this.lastCompilerCheckAt = Date.now()
         this.checkingCompiler = false
+      }
+    },
+
+    async downloadTypst() {
+      this.downloading = true
+      this.downloadProgress = 0
+      this.downloadError = null
+
+      const unlisten = await listen('typst-download-progress', (event) => {
+        this.downloadProgress = event.payload.percent
+      })
+
+      try {
+        const path = await invoke('download_typst')
+        this.available = true
+        this.compilerPath = path
+        await this.checkCompiler(true)
+      } catch (e) {
+        this.downloadError = typeof e === 'string' ? e : e.message || 'Download failed'
+      } finally {
+        unlisten()
+        this.downloading = false
       }
     },
 

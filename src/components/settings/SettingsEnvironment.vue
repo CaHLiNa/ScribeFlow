@@ -87,8 +87,8 @@
     </div>
 
     <div class="env-actions">
-      <button class="env-redetect-btn" :disabled="envStore.detecting || latexStore.checkingCompilers || typstStore.checkingCompiler" @click="redetectSystem">
-        {{ envStore.detecting || latexStore.checkingCompilers || typstStore.checkingCompiler ? t('Checking...') : t('Re-detect') }}
+      <button class="env-redetect-btn" :disabled="envStore.detecting || latexStore.checkingCompilers || typstStore.checkingCompiler || typstStore.downloading" @click="redetectSystem">
+        {{ envStore.detecting || latexStore.checkingCompilers || typstStore.checkingCompiler || typstStore.downloading ? t('Checking...') : t('Re-detect') }}
       </button>
       <span v-if="!envStore.detected" class="env-hint-text">{{ t('Not yet detected') }}</span>
       <span v-else class="env-hint-text">{{ t('Last detected this session') }}</span>
@@ -190,17 +190,54 @@
     <p class="settings-hint">{{ t('Compile .typ files with the local Typst CLI.') }}</p>
 
     <div class="env-lang-card">
-      <div class="env-lang-header">
-        <span class="env-lang-dot" :class="typstStore.available ? 'good' : 'none'"></span>
-        <span class="env-lang-name">Typst</span>
-        <span v-if="typstStore.available" class="env-lang-version">{{ t('Installed') }}</span>
-        <span v-else class="env-lang-missing">{{ t('Not found') }}</span>
-      </div>
-      <div v-if="typstStore.compilerPath" class="env-lang-details">
-        <div class="env-lang-path">{{ typstStore.compilerPath }}</div>
-      </div>
-      <div class="env-lang-hint env-hint-inline">
-        {{ t('Use the Typst CLI to compile .typ files directly to PDF.') }}
+      <template v-if="typstStore.available">
+        <div class="env-lang-header">
+          <span class="env-lang-dot good"></span>
+          <span class="env-lang-name">Typst</span>
+          <span class="env-lang-version">{{ t('Installed') }}</span>
+        </div>
+        <div v-if="typstStore.compilerPath" class="env-lang-details">
+          <div class="env-lang-path">{{ typstStore.compilerPath }}</div>
+        </div>
+        <div class="env-lang-hint env-hint-inline">
+          {{ t('Use the Typst CLI to compile .typ files directly to PDF.') }}
+        </div>
+      </template>
+
+      <template v-else-if="typstStore.downloading">
+        <div class="env-lang-header">
+          <span class="env-lang-dot warn"></span>
+          <span class="env-lang-name">Typst</span>
+          <span class="env-lang-version">{{ t('Downloading... {progress}%', { progress: typstStore.downloadProgress }) }}</span>
+        </div>
+        <div class="tectonic-progress env-progress-shell">
+          <div class="tectonic-progress-bar">
+            <div class="tectonic-progress-fill" :style="{ width: typstStore.downloadProgress + '%' }"></div>
+          </div>
+        </div>
+      </template>
+
+      <template v-else>
+        <div class="env-lang-header">
+          <span class="env-lang-dot none"></span>
+          <span class="env-lang-name">Typst</span>
+          <span class="env-lang-missing">{{ t('Not installed') }}</span>
+        </div>
+        <div class="env-lang-hint env-hint-inline">
+          {{ t('Typst compiles .typ files to PDF. A one-time download is required.') }}
+        </div>
+        <div class="env-action-row">
+          <button class="env-install-btn" @click="typstStore.downloadTypst()">
+            {{ t('Download Typst') }}
+          </button>
+        </div>
+      </template>
+
+      <div v-if="typstStore.downloadError" class="env-install-error env-install-error-inline">
+        {{ typstStore.downloadError }}
+        <button class="env-install-btn env-install-btn-inline" @click="typstStore.downloadTypst()">
+          {{ t('Retry') }}
+        </button>
       </div>
     </div>
 

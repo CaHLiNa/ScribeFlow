@@ -1,9 +1,11 @@
+use futures_util::StreamExt;
 use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Options, Parser, Tag, TagEnd};
 use reqwest::header::CONTENT_TYPE;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
+use std::io::Write;
 use std::path::{Path, PathBuf};
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 use url::Url;
 use uuid::Uuid;
 
@@ -53,9 +55,66 @@ pub struct PdfSettings {
     pub bib_style: Option<String>, // "apa", "chicago", "ieee", "harvard", "vancouver"
 }
 
-/// 5-tier binary discovery for Typst (mirrors find_tectonic in latex.rs)
+fn shoulders_bin_dir() -> Option<PathBuf> {
+    dirs::home_dir().map(|h| h.join(".shoulders").join("bin"))
+}
+
+fn typst_binary_name() -> &'static str {
+    if cfg!(target_os = "windows") {
+        "typst.exe"
+    } else {
+        "typst"
+    }
+}
+
+fn typst_download_target_triple() -> Result<&'static str, String> {
+    if cfg!(target_os = "macos") && cfg!(target_arch = "aarch64") {
+        Ok("aarch64-apple-darwin")
+    } else if cfg!(target_os = "macos") && cfg!(target_arch = "x86_64") {
+        Ok("x86_64-apple-darwin")
+    } else if cfg!(target_os = "linux") && cfg!(target_arch = "aarch64") {
+        Ok("aarch64-unknown-linux-musl")
+    } else if cfg!(target_os = "linux") && cfg!(target_arch = "x86_64") {
+        Ok("x86_64-unknown-linux-musl")
+    } else if cfg!(target_os = "windows") && cfg!(target_arch = "aarch64") {
+        Ok("aarch64-pc-windows-msvc")
+    } else if cfg!(target_os = "windows") && cfg!(target_arch = "x86_64") {
+        Ok("x86_64-pc-windows-msvc")
+    } else {
+        Err("Unsupported platform".to_string())
+    }
+}
+
+const TYPST_VERSION: &str = "0.14.2";
+
+fn typst_download_url() -> Result<(String, bool), String> {
+    let triple = typst_download_target_triple()?;
+    let is_zip = triple.ends_with("windows-msvc");
+    let ext = if is_zip { "zip" } else { "tar.xz" };
+    Ok((
+        format!(
+            "https://github.com/typst/typst/releases/download/v{}/typst-{}.{}",
+            TYPST_VERSION, triple, ext
+        ),
+        is_zip,
+    ))
+}
+
+fn typst_not_found_message() -> String {
+    "Typst not found. Download it in Settings or install it manually.".to_string()
+}
+
+/// 6-tier binary discovery for Typst (mirrors find_tectonic in latex.rs)
 fn find_typst(app: &tauri::AppHandle) -> Option<String> {
-    // 1. Bundled sidecar (production)
+    // 1. App-managed install (~/.shoulders/bin/typst)
+    if let Some(bin_dir) = shoulders_bin_dir() {
+        let path = bin_dir.join(typst_binary_name());
+        if path.exists() {
+            return Some(path.to_string_lossy().to_string());
+        }
+    }
+
+    // 2. Bundled sidecar (production)
     if let Ok(exe) = std::env::current_exe() {
         if let Some(exe_dir) = exe.parent() {
             let sidecar = exe_dir.join("typst");
@@ -70,7 +129,7 @@ fn find_typst(app: &tauri::AppHandle) -> Option<String> {
         }
     }
 
-    // 2. Resource dir (Tauri v2 bundled resources)
+    // 3. Resource dir (Tauri v2 bundled resources)
     if let Ok(resource_dir) = app.path().resource_dir() {
         let sidecar = resource_dir.join("binaries").join("typst");
         if sidecar.exists() {
@@ -78,7 +137,7 @@ fn find_typst(app: &tauri::AppHandle) -> Option<String> {
         }
     }
 
-    // 3. Dev mode: src-tauri/binaries/
+    // 4. Dev mode: src-tauri/binaries/
     if let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") {
         let triple = current_target_triple();
         let dev_path = Path::new(&manifest_dir)
@@ -89,7 +148,7 @@ fn find_typst(app: &tauri::AppHandle) -> Option<String> {
         }
     }
 
-    // 4. Common system install locations
+    // 5. Common system install locations
     let candidates = [
         "/opt/homebrew/bin/typst",
         "/usr/local/bin/typst",
@@ -107,7 +166,7 @@ fn find_typst(app: &tauri::AppHandle) -> Option<String> {
         }
     }
 
-    // 5. Shell lookup fallback
+    // 6. Shell lookup fallback
     #[cfg(unix)]
     {
         let output = background_command("/bin/bash")
@@ -137,6 +196,157 @@ fn find_typst(app: &tauri::AppHandle) -> Option<String> {
     }
 
     None
+}
+
+#[tauri::command]
+pub async fn download_typst(app: tauri::AppHandle) -> Result<String, String> {
+    let bin_dir =
+        shoulders_bin_dir().ok_or_else(|| "Cannot determine home directory".to_string())?;
+    std::fs::create_dir_all(&bin_dir).map_err(|e| format!("Cannot create directory: {}", e))?;
+
+    let (url, is_zip) = typst_download_url()?;
+    eprintln!("[typst] Downloading from: {}", url);
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(300))
+        .build()
+        .map_err(|e| format!("HTTP client error: {}", e))?;
+
+    let response = client
+        .get(&url)
+        .header("User-Agent", "Altals/1.0")
+        .send()
+        .await
+        .map_err(|e| format!("Download failed: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("Download failed with HTTP {}", response.status()));
+    }
+
+    let total_bytes = response.content_length().unwrap_or(0);
+    let total_mb = total_bytes as f64 / 1_048_576.0;
+
+    let archive_ext = if is_zip { "zip" } else { "tar.xz" };
+    let archive_path = bin_dir.join(format!("typst-download.{}", archive_ext));
+    let mut archive_file = std::fs::File::create(&archive_path)
+        .map_err(|e| format!("Cannot create temp file: {}", e))?;
+
+    let mut downloaded: u64 = 0;
+    let mut last_pct: u32 = 0;
+    let mut stream = response.bytes_stream();
+
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(|e| format!("Download error: {}", e))?;
+        archive_file
+            .write_all(&chunk)
+            .map_err(|e| format!("Write error: {}", e))?;
+        downloaded += chunk.len() as u64;
+
+        let pct = if total_bytes > 0 {
+            ((downloaded as f64 / total_bytes as f64) * 100.0) as u32
+        } else {
+            0
+        };
+
+        if pct != last_pct {
+            last_pct = pct;
+            let _ = app.emit(
+                "typst-download-progress",
+                serde_json::json!({
+                    "percent": pct,
+                    "downloaded_mb": format!("{:.1}", downloaded as f64 / 1_048_576.0),
+                    "total_mb": format!("{:.1}", total_mb),
+                }),
+            );
+        }
+    }
+
+    drop(archive_file);
+    eprintln!("[typst] Download complete: {} bytes", downloaded);
+
+    let extract_dir = bin_dir.join(format!("typst-{}", Uuid::new_v4()));
+    std::fs::create_dir_all(&extract_dir)
+        .map_err(|e| format!("Cannot create extraction directory: {}", e))?;
+
+    if is_zip {
+        #[cfg(windows)]
+        {
+            let status = background_command("powershell")
+                .args(&[
+                    "-NoProfile",
+                    "-Command",
+                    &format!(
+                        "Expand-Archive -Path '{}' -DestinationPath '{}' -Force",
+                        archive_path.display(),
+                        extract_dir.display(),
+                    ),
+                ])
+                .status()
+                .map_err(|e| format!("Extract failed: {}", e))?;
+            if !status.success() {
+                return Err("Failed to extract zip archive".to_string());
+            }
+        }
+        #[cfg(not(windows))]
+        {
+            return Err("Zip extraction not supported on this platform".to_string());
+        }
+    } else {
+        let status = background_command("tar")
+            .args(&[
+                "xf",
+                &archive_path.to_string_lossy(),
+                "-C",
+                &extract_dir.to_string_lossy(),
+            ])
+            .status()
+            .map_err(|e| format!("Extract failed: {}", e))?;
+        if !status.success() {
+            return Err("Failed to extract tar archive".to_string());
+        }
+    }
+
+    let _ = std::fs::remove_file(&archive_path);
+
+    let release_dir_name = format!("typst-{}", typst_download_target_triple()?);
+    let extracted_binary = extract_dir.join(release_dir_name).join(typst_binary_name());
+    if !extracted_binary.exists() {
+        let _ = std::fs::remove_dir_all(&extract_dir);
+        return Err(format!(
+            "Binary not found after extraction at {}",
+            extracted_binary.display()
+        ));
+    }
+
+    let dest_path = bin_dir.join(typst_binary_name());
+    if dest_path.exists() {
+        let _ = std::fs::remove_file(&dest_path);
+    }
+    std::fs::copy(&extracted_binary, &dest_path)
+        .map_err(|e| format!("Failed to install Typst: {}", e))?;
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&dest_path, std::fs::Permissions::from_mode(0o755))
+            .map_err(|e| format!("Failed to set permissions: {}", e))?;
+    }
+
+    let _ = std::fs::remove_dir_all(&extract_dir);
+
+    let result = dest_path.to_string_lossy().to_string();
+    eprintln!("[typst] Installed to: {}", result);
+
+    let _ = app.emit(
+        "typst-download-progress",
+        serde_json::json!({
+            "percent": 100,
+            "downloaded_mb": format!("{:.1}", total_mb),
+            "total_mb": format!("{:.1}", total_mb),
+        }),
+    );
+
+    Ok(result)
 }
 
 /// Find the bundled fonts directory (for --font-path)
@@ -297,7 +507,10 @@ fn markdown_to_typst(markdown: &str, image_overrides: &HashMap<String, String>) 
                         .get(dest_url.as_ref())
                         .map(String::as_str)
                         .unwrap_or(dest_url.as_ref());
-                    output.push_str(&format!("#image(\"{}\")", escape_typst_string(resolved_url)));
+                    output.push_str(&format!(
+                        "#image(\"{}\")",
+                        escape_typst_string(resolved_url)
+                    ));
                 }
                 Tag::Table(alignments) => {
                     table_cols = alignments.len();
@@ -623,7 +836,12 @@ fn infer_image_extension(url: &str, content_type: Option<&str>) -> &'static str 
         }
     }
 
-    match content_type.unwrap_or_default().split(';').next().unwrap_or_default() {
+    match content_type
+        .unwrap_or_default()
+        .split(';')
+        .next()
+        .unwrap_or_default()
+    {
         "image/png" => "png",
         "image/jpeg" => "jpg",
         "image/svg+xml" => "svg",
@@ -963,8 +1181,7 @@ pub async fn export_md_to_pdf(
     app: tauri::AppHandle,
 ) -> Result<ExportResult, String> {
     let settings = settings.unwrap_or_default();
-    let typst_bin = find_typst(&app)
-        .ok_or_else(|| "Typst not found. Install with: brew install typst".to_string())?;
+    let typst_bin = find_typst(&app).ok_or_else(typst_not_found_message)?;
 
     // Read markdown file
     let md_content = std::fs::read_to_string(&md_path)
@@ -1053,8 +1270,7 @@ pub async fn compile_typst_file(
     typ_path: String,
     app: tauri::AppHandle,
 ) -> Result<TypstCompileResult, String> {
-    let typst_bin = find_typst(&app)
-        .ok_or_else(|| "Typst not found. Install with: brew install typst".to_string())?;
+    let typst_bin = find_typst(&app).ok_or_else(typst_not_found_message)?;
     let typ_pathbuf = PathBuf::from(&typ_path);
     if !typ_pathbuf.exists() {
         return Err(format!("Typst file not found: {}", typ_path));
@@ -1067,10 +1283,10 @@ pub async fn compile_typst_file(
 mod tests {
     use super::*;
     use std::collections::HashMap;
-    use std::io::{Read, Write};
-    use std::net::TcpListener;
     use std::ffi::OsStr;
     use std::fs;
+    use std::io::{Read, Write};
+    use std::net::TcpListener;
     use std::path::PathBuf;
     use std::thread;
     use uuid::Uuid;
@@ -1139,10 +1355,10 @@ mod tests {
     #[tokio::test]
     async fn downloads_remote_images_before_typst_export() {
         const PNG_BYTES: &[u8] = &[
-            137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0,
-            0, 1, 8, 6, 0, 0, 0, 31, 21, 196, 137, 0, 0, 0, 13, 73, 68, 65, 84, 120, 156, 99,
-            248, 207, 192, 240, 31, 0, 5, 0, 1, 255, 137, 153, 61, 29, 0, 0, 0, 0, 73, 69, 78,
-            68, 174, 66, 96, 130,
+            137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1,
+            8, 6, 0, 0, 0, 31, 21, 196, 137, 0, 0, 0, 13, 73, 68, 65, 84, 120, 156, 99, 248, 207,
+            192, 240, 31, 0, 5, 0, 1, 255, 137, 153, 61, 29, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66,
+            96, 130,
         ];
 
         let listener = TcpListener::bind("127.0.0.1:0").expect("bind test http server");

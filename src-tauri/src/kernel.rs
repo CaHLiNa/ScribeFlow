@@ -350,10 +350,7 @@ fn python_candidate_paths() -> Vec<String> {
 }
 
 fn read_python_version(python: &str) -> Option<String> {
-    let output = background_command(python)
-        .arg("--version")
-        .output()
-        .ok()?;
+    let output = background_command(python).arg("--version").output().ok()?;
     let text = if output.stdout.is_empty() {
         String::from_utf8_lossy(&output.stderr).to_string()
     } else {
@@ -468,7 +465,9 @@ pub fn discover_python_interpreters() -> Result<Vec<PythonInterpreter>, String> 
     interpreters.sort_by(|a, b| {
         b.has_ipykernel
             .cmp(&a.has_ipykernel)
-            .then_with(|| python_display_path_score(&b.path).cmp(&python_display_path_score(&a.path)))
+            .then_with(|| {
+                python_display_path_score(&b.path).cmp(&python_display_path_score(&a.path))
+            })
             .then_with(|| a.path.cmp(&b.path))
     });
 
