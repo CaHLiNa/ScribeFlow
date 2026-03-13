@@ -15,11 +15,18 @@ function fail(message) {
 }
 
 function run(command, args, options = {}) {
+  const stdio = options.capture || options.stdoutToStderr
+    ? ['inherit', 'pipe', 'pipe']
+    : 'inherit'
   const result = spawnSync(command, args, {
-    stdio: options.capture ? 'pipe' : 'inherit',
+    stdio,
     cwd: options.cwd || repoRoot,
     encoding: 'utf8',
   })
+  if (options.stdoutToStderr) {
+    if (result.stdout) process.stderr.write(result.stdout)
+    if (result.stderr) process.stderr.write(result.stderr)
+  }
   if (result.status !== 0) {
     const stderr = result.stderr?.trim()
     const stdout = result.stdout?.trim()
@@ -146,7 +153,7 @@ function main() {
       '-format',
       'UDZO',
       outputPath,
-    ])
+    ], { stdoutToStderr: true })
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true })
   }
