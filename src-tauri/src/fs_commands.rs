@@ -1,12 +1,13 @@
 use base64::{engine::general_purpose::STANDARD, Engine};
 use notify::{Config, Event, RecommendedWatcher, RecursiveMode, Watcher};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::Path;
 use std::sync::Mutex;
 use tauri::Emitter;
 
+use crate::app_dirs;
 use crate::process_utils::background_command;
 
 pub const ALLOWED_HOSTS: &[&str] = &[
@@ -222,7 +223,7 @@ pub async fn path_exists(path: String) -> Result<bool, String> {
 pub async fn watch_directory(
     app: tauri::AppHandle,
     state: tauri::State<'_, WatcherState>,
-    path: String,
+    paths: Vec<String>,
 ) -> Result<(), String> {
     let app_clone = app.clone();
 
@@ -248,9 +249,27 @@ pub async fn watch_directory(
     )
     .map_err(|e| e.to_string())?;
 
-    watcher
-        .watch(Path::new(&path), RecursiveMode::Recursive)
-        .map_err(|e| e.to_string())?;
+    let mut watched = false;
+    let mut seen = HashSet::new();
+    for path in paths {
+        if path.trim().is_empty() || !seen.insert(path.clone()) {
+            continue;
+        }
+
+        let path_ref = Path::new(&path);
+        if !path_ref.exists() {
+            continue;
+        }
+
+        watcher
+            .watch(path_ref, RecursiveMode::Recursive)
+            .map_err(|e| e.to_string())?;
+        watched = true;
+    }
+
+    if !watched {
+        return Err("No valid directories to watch".to_string());
+    }
 
     *state.watcher.lock().unwrap() = Some(watcher);
     Ok(())
@@ -485,11 +504,7 @@ fn strip_html(html: &str) -> String {
 
 #[tauri::command]
 pub async fn get_global_config_dir() -> Result<String, String> {
-    let home = dirs::home_dir().ok_or("Cannot find home directory")?;
-    let dir = home.join(".shoulders");
-    if !dir.exists() {
-        std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    }
+    let dir = app_dirs::data_root_dir()?;
     Ok(dir.to_string_lossy().to_string())
 }
 

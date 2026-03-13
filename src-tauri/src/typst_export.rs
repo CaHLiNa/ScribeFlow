@@ -9,6 +9,7 @@ use tauri::{Emitter, Manager};
 use url::Url;
 use uuid::Uuid;
 
+use crate::app_dirs;
 use crate::process_utils::background_command;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -55,8 +56,8 @@ pub struct PdfSettings {
     pub bib_style: Option<String>, // "apa", "chicago", "ieee", "harvard", "vancouver"
 }
 
-fn shoulders_bin_dir() -> Option<PathBuf> {
-    dirs::home_dir().map(|h| h.join(".shoulders").join("bin"))
+fn altals_bin_dir() -> Option<PathBuf> {
+    app_dirs::bin_dir().ok()
 }
 
 fn typst_binary_name() -> &'static str {
@@ -106,8 +107,8 @@ fn typst_not_found_message() -> String {
 
 /// 6-tier binary discovery for Typst (mirrors find_tectonic in latex.rs)
 fn find_typst(app: &tauri::AppHandle) -> Option<String> {
-    // 1. App-managed install (~/.shoulders/bin/typst)
-    if let Some(bin_dir) = shoulders_bin_dir() {
+    // 1. App-managed install (~/.altals/bin/typst)
+    for bin_dir in app_dirs::candidate_bin_dirs() {
         let path = bin_dir.join(typst_binary_name());
         if path.exists() {
             return Some(path.to_string_lossy().to_string());
@@ -200,8 +201,7 @@ fn find_typst(app: &tauri::AppHandle) -> Option<String> {
 
 #[tauri::command]
 pub async fn download_typst(app: tauri::AppHandle) -> Result<String, String> {
-    let bin_dir =
-        shoulders_bin_dir().ok_or_else(|| "Cannot determine home directory".to_string())?;
+    let bin_dir = altals_bin_dir().ok_or_else(|| "Cannot determine home directory".to_string())?;
     std::fs::create_dir_all(&bin_dir).map_err(|e| format!("Cannot create directory: {}", e))?;
 
     let (url, is_zip) = typst_download_url()?;

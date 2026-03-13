@@ -14,13 +14,12 @@ impl Default for UsageDbState {
 }
 
 fn get_db_path() -> Result<String, String> {
-    let home = dirs::home_dir().ok_or("Cannot find home directory")?;
-    let shoulders_dir = home.join(".shoulders");
-    if !shoulders_dir.exists() {
-        std::fs::create_dir_all(&shoulders_dir)
-            .map_err(|e| format!("Failed to create ~/.shoulders: {}", e))?;
+    let altals_dir = crate::app_dirs::data_root_dir()?;
+    if !altals_dir.exists() {
+        std::fs::create_dir_all(&altals_dir)
+            .map_err(|e| format!("Failed to create ~/.altals: {}", e))?;
     }
-    Ok(shoulders_dir.join("usage.db").to_string_lossy().to_string())
+    Ok(altals_dir.join("usage.db").to_string_lossy().to_string())
 }
 
 fn ensure_connection(state: &UsageDbState) -> Result<(), String> {

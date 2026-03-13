@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use tauri::Emitter;
 
+use crate::app_dirs;
 use crate::process_utils::background_command;
 
 pub struct LatexState {
@@ -54,8 +55,8 @@ pub struct LatexCompilerStatus {
     pub system_tex: BinaryStatus,
 }
 
-fn shoulders_bin_dir() -> Option<PathBuf> {
-    dirs::home_dir().map(|h| h.join(".shoulders").join("bin"))
+fn altals_bin_dir() -> Option<PathBuf> {
+    app_dirs::bin_dir().ok()
 }
 
 fn tectonic_binary_name() -> &'static str {
@@ -73,8 +74,8 @@ fn find_tectonic(_app: &tauri::AppHandle, custom_path: Option<&str>) -> Option<S
         }
     }
 
-    // 1. App-managed install (~/.shoulders/bin/tectonic)
-    if let Some(bin_dir) = shoulders_bin_dir() {
+    // 1. App-managed install (~/.altals/bin/tectonic)
+    for bin_dir in app_dirs::candidate_bin_dirs() {
         let path = bin_dir.join(tectonic_binary_name());
         if path.exists() {
             return Some(path.to_string_lossy().to_string());
@@ -511,8 +512,7 @@ fn tectonic_download_url() -> Result<(String, bool), String> {
 
 #[tauri::command]
 pub async fn download_tectonic(app: tauri::AppHandle) -> Result<String, String> {
-    let bin_dir =
-        shoulders_bin_dir().ok_or_else(|| "Cannot determine home directory".to_string())?;
+    let bin_dir = altals_bin_dir().ok_or_else(|| "Cannot determine home directory".to_string())?;
     std::fs::create_dir_all(&bin_dir).map_err(|e| format!("Cannot create directory: {}", e))?;
 
     let (url, is_zip) = tectonic_download_url()?;

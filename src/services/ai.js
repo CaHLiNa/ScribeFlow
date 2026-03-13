@@ -49,7 +49,7 @@ function smartTruncate(text, maxLen, mode) {
  *
  * @param {string} before - Text before cursor (up to 5000 chars)
  * @param {string} after - Text after cursor (up to 1000 chars)
- * @param {string} systemPrompt - System prompt from .shoulders/system.md
+ * @param {string} systemPrompt - System prompt from external Altals workspace metadata
  * @param {object} workspace - Workspace store instance
  * @param {string} [instructions] - User instructions from _instructions.md
  * @returns {Promise<{suggestions: string[], usage: object|null}>}

@@ -1,5 +1,5 @@
 /**
- * Editor state persistence: save/restore pane tree to .shoulders/editor-state.json
+ * Editor state persistence: save/restore pane tree to external Altals metadata storage.
  *
  * Optimistic restore: sets the pane tree immediately for instant UI, then validates
  * tabs in parallel and prunes invalid ones after the fact.

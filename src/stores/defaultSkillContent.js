@@ -1,5 +1,5 @@
 // Default SKILL.md content for the altals-meta skill.
-// This is auto-generated into .project/skills/altals-meta/SKILL.md for new workspaces.
+// This is auto-generated into Altals-managed workspace metadata for new workspaces.
 // Update this source first if the in-app manual changes.
 
 export default `# Altals - App Reference
@@ -37,8 +37,8 @@ Altals is a local-first desktop workspace for research writing, references, codi
 
 ## References
 
-- Reference library lives in \`.project/references/library.json\`.
-- PDFs and extracted full text live in \`.project/references/pdfs/\` and \`.project/references/fulltext/\`.
+- Reference library lives in \`~/.altals/workspaces/<workspace-hash>/project/references/library.json\`.
+- PDFs and extracted full text live in \`~/.altals/workspaces/<workspace-hash>/project/references/pdfs/\` and \`~/.altals/workspaces/<workspace-hash>/project/references/fulltext/\`.
 - Import paths include DOI, BibTeX, RIS, CSL-JSON, plain citation text, and PDF drop.
 - Citations are Pandoc-style, for example \`[@smith2024]\`.
 
@@ -64,8 +64,8 @@ Altals uses the user's own provider keys.
 
 ### Storage
 - Global key storage is managed by the desktop app and OS keychain when available.
-- Model definitions live in \`~/.shoulders/models.json\` for compatibility with the current app internals.
-- Workspace-private AI state currently lives in \`.shoulders/\`.
+- Model definitions live in \`~/.altals/models.json\`.
+- Workspace-private AI state lives in \`~/.altals/workspaces/<workspace-hash>/\`, outside the user's project folder.
 
 ---
 
@@ -99,11 +99,11 @@ Altals uses the user's own provider keys.
 
 | Path | Purpose |
 | --- | --- |
-| \`.project/\` | Shared project data |
-| \`.project/references/\` | Reference library and PDF assets |
-| \`.project/skills/\` | Workspace skills |
-| \`.shoulders/\` | Current compatibility directory for private AI state |
-| \`.project/instructions.md\` | Default project instructions injected into AI requests |
+| \`~/.altals/workspaces/<workspace-hash>/project/\` | Workspace project data managed by Altals |
+| \`~/.altals/workspaces/<workspace-hash>/project/references/\` | Reference library and PDF assets |
+| \`~/.altals/workspaces/<workspace-hash>/project/skills/\` | Workspace skills |
+| \`~/.altals/workspaces/<workspace-hash>/\` | Private AI state for the workspace |
+| \`~/.altals/workspaces/<workspace-hash>/project/instructions.md\` | Default project instructions injected into AI requests |
 | \`_instructions.md\` | Optional user-created override file, still recognized if you make it manually |
 
 ---

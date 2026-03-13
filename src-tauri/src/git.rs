@@ -40,7 +40,7 @@ pub async fn git_init(path: String) -> Result<(), String> {
     if !gitignore_path.exists() {
         std::fs::write(
             &gitignore_path,
-            ".shoulders/\n.project/references/fulltext/\nnode_modules/\n.DS_Store\n",
+            "node_modules/\n.DS_Store\n",
         )
         .map_err(|e| e.to_string())?;
     }
@@ -409,13 +409,6 @@ pub async fn git_diff_summary(
         Err(_) => String::new(),
     };
 
-    // Filter out .shoulders/ paths from stat
-    let stat = stat
-        .lines()
-        .filter(|line| !line.trim_start().starts_with(".shoulders/"))
-        .collect::<Vec<_>>()
-        .join("\n");
-
     // Build per-file diffs
     let mut diffs = Vec::new();
     let num_deltas = diff.deltas().len();
@@ -431,11 +424,6 @@ pub async fn git_diff_summary(
             .path()
             .map(|p| p.to_string_lossy().to_string())
             .unwrap_or_else(|| "unknown".to_string());
-
-        // Skip .shoulders/ config noise
-        if file_path.starts_with(".shoulders/") {
-            continue;
-        }
 
         // Get patch for this specific file
         if let Ok(patch) = git2::Patch::from_diff(&diff, i) {

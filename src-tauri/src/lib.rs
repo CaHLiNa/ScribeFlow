@@ -1,3 +1,4 @@
+mod app_dirs;
 mod chat;
 mod fs_commands;
 mod git;

@@ -88,10 +88,12 @@ export function buildBaseSystemPrompt(workspace) {
   prompt += `\n\nToday: ${today}`
   prompt += `\nWorkspace: ${workspace.path}`
 
-  // Workspace structure (static — helps agent find references, skills, etc.)
-  prompt += `\n\n# Workspace Structure`
-  prompt += `\n- \`.project/references/\` — library.json (CSL-JSON metadata), pdfs/, fulltext/`
-  prompt += `\n- \`.project/skills/\` — domain-specific skill files`
+  if (workspace.projectDir) {
+    prompt += `\n\n# Altals Metadata`
+    prompt += `\nThese paths live outside the user's project folder in Altals-managed storage.`
+    prompt += `\n- \`${workspace.projectDir}/references/\` — library.json (CSL-JSON metadata), pdfs/, fulltext/`
+    prompt += `\n- \`${workspace.projectDir}/skills/\` — domain-specific skill files`
+  }
 
   // Skills manifest
   if (workspace.skillsManifest?.length > 0) {

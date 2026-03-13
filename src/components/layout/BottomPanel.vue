@@ -393,7 +393,7 @@ async function buildReplCommand(code, language) {
   if (!needsTempFile) return code + '\n'
 
   const ext = LANG_EXT[language] || '.txt'
-  const tmp = `/tmp/.shoulders-run-${Date.now()}${ext}`
+  const tmp = `/tmp/.altals-run-${Date.now()}${ext}`
   await invoke('write_file', { path: tmp, content: code })
 
   switch (language) {

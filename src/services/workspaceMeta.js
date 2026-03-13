@@ -86,19 +86,10 @@ export async function buildWorkspaceMeta(workspacePath) {
 
     const diff = await gitDiffSummary(workspacePath)
     if (diff && (diff.stat || diff.diffs.length > 0)) {
-      // Filter out .shoulders/ config directory noise
-      const filteredDiffs = diff.diffs.filter(d => !d.file.startsWith('.shoulders/'))
-      let filteredStat = diff.stat
-      if (filteredStat) {
-        filteredStat = filteredStat.split('\n')
-          .filter(line => !line.trimStart().startsWith('.shoulders/'))
-          .join('\n')
-      }
-
-      if (filteredStat || filteredDiffs.length > 0) {
+      if (diff.stat || diff.diffs.length > 0) {
         let gitSection = 'Recent changes:\n'
-        if (filteredStat) gitSection += filteredStat + '\n'
-        for (const d of filteredDiffs) {
+        if (diff.stat) gitSection += diff.stat + '\n'
+        for (const d of diff.diffs) {
           gitSection += `\n--- ${d.file}\n${d.diff}`
         }
         parts.push(gitSection.trimEnd())

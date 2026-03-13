@@ -366,27 +366,22 @@ export async function configureGitUser(repoPath, githubUser) {
   await gitSetUser(repoPath, name, email)
 }
 
-// ── Ensure .shoulders/ and .project/references/fulltext/ are in .gitignore ──
+// ── Remove legacy Altals ignore entries that no longer belong in the workspace ──
 
 export async function ensureGitignore(repoPath) {
   try {
     const gitignorePath = `${repoPath}/.gitignore`
     let content = await invoke('read_file', { path: gitignorePath }).catch(() => '')
-    let changed = false
-
-    if (!content.includes('.shoulders/')) {
-      content = content.trimEnd() + '\n.shoulders/\n'
-      changed = true
-    }
-
-    // Ensure fulltext/ is ignored (extracted PDF text, not useful in git)
-    if (!content.includes('.project/references/fulltext/')) {
-      content = content.trimEnd() + '\n.project/references/fulltext/\n'
-      changed = true
-    }
+    const normalized = content
+      .split('\n')
+      .filter(line => !['.shoulders/', '.project/references/fulltext/'].includes(line.trim()))
+      .join('\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .replace(/^\n+/, '')
+    const changed = normalized !== content
 
     if (changed) {
-      await invoke('write_file', { path: gitignorePath, content })
+      await invoke('write_file', { path: gitignorePath, content: normalized })
     }
   } catch (e) {
     console.warn('[sync] Failed to update .gitignore:', e)

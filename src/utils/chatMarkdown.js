@@ -99,12 +99,12 @@ export const TOOL_LABELS = {
  */
 export function isSkillRead(name, input) {
   if (name !== 'read_file' || !input?.path) return false
-  return input.path.includes('.project/skills/') && input.path.endsWith('/SKILL.md')
+  return input.path.includes('/skills/') && input.path.endsWith('/SKILL.md')
 }
 
 /**
  * Extract a human-readable skill name from a skill file path.
- * e.g. ".project/skills/altals-meta/SKILL.md" → "Altals Meta"
+ * e.g. "/Users/name/.altals/.../skills/altals-meta/SKILL.md" → "Altals Meta"
  */
 export function getSkillDisplayName(input) {
   if (!input?.path) return 'Skill'

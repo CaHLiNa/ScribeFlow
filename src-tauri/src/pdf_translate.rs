@@ -85,8 +85,7 @@ fn now_iso() -> String {
 }
 
 fn global_config_dir() -> Result<PathBuf, String> {
-    let home = dirs::home_dir().ok_or("Cannot find home directory")?;
-    let dir = home.join(".shoulders");
+    let dir = crate::app_dirs::data_root_dir()?;
     if !dir.exists() {
         fs::create_dir_all(&dir).map_err(|e| format!("Cannot create global config dir: {e}"))?;
     }
