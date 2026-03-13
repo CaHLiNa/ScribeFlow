@@ -170,16 +170,6 @@
       <span v-else-if="texStatus === 'success'" class="text-[11px]" style="color: var(--success, #4ade80);">
         ● {{ texDuration }}
       </span>
-      <button v-else-if="texStatus === 'error'" ref="errorBadgeEl"
-        class="h-6 px-1.5 flex items-center gap-1 rounded text-[11px] hover:bg-[var(--bg-hover)] cursor-pointer"
-        style="color: var(--error, #f87171);"
-        @click="toggleErrorPanel"
-      >
-        ✕ {{ texErrorLabel }}
-        <span v-if="texWarningCount > 0" class="ml-0.5" style="color: var(--warning, #fbbf24);">
-          {{ texWarningLabel }}
-        </span>
-      </button>
 
       <!-- Compile button -->
       <button
@@ -222,36 +212,6 @@
         {{ t('Sync') }}
       </button>
     </div>
-
-    <!-- LaTeX error panel (teleported to body to escape overflow) -->
-    <Teleport to="body">
-      <div v-if="texErrorPanelOpen && texAllIssues.length > 0" class="tex-error-panel"
-           :style="texErrorPanelStyle" @mousedown.stop>
-        <div v-for="(issue, i) in texAllIssues" :key="i"
-             class="flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-[var(--bg-hover)] cursor-pointer"
-             @click="jumpToTexLine(issue.line)">
-          <span :style="{ color: issue.severity === 'error' ? 'var(--error, #f87171)' : 'var(--warning, #fbbf24)' }">
-            {{ issue.severity === 'error' ? '✕' : '⚠' }}
-          </span>
-          <span v-if="issue.line" class="tabular-nums shrink-0" style="color: var(--fg-muted);">L{{ issue.line }}</span>
-          <span class="flex-1 truncate" style="color: var(--fg-primary);">{{ issue.message }}</span>
-          <button v-if="isLatexCompilerMissing(issue)"
-            class="shrink-0 px-1.5 py-0.5 rounded text-[10px] hover:bg-[var(--bg-tertiary)]"
-            style="color: var(--accent); border: 1px solid var(--border);"
-            @click.stop="openLatexCompilerSettings"
-            :title="t('Open Settings to configure LaTeX compiler')">
-            {{ t('Settings') }} ▸
-          </button>
-          <button v-else-if="issue.severity === 'error'"
-            class="shrink-0 px-1.5 py-0.5 rounded text-[10px] hover:bg-[var(--bg-tertiary)]"
-            style="color: var(--accent); border: 1px solid var(--border);"
-            @click.stop="$emit('ask-ai-fix', issue)"
-            :title="t('Ask AI to fix')">
-            {{ t('Ask AI') }} ▸
-          </button>
-        </div>
-      </div>
-    </Teleport>
 
     <!-- Pane actions -->
     <div class="flex items-center gap-0.5 px-1 shrink-0">
@@ -318,11 +278,10 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, watch, nextTick } from 'vue'
 import { useEditorStore } from '../../stores/editor'
 import { useReferencesStore } from '../../stores/references'
 import { useLatexStore } from '../../stores/latex'
-import { useWorkspaceStore } from '../../stores/workspace'
 import { useTypstStore } from '../../stores/typst'
 import { isReferencePath, referenceKeyFromPath, isRunnable, isRmdOrQmd, isLatex, isMarkdown, isPreviewPath, isChatTab, getChatSessionId, isNewTab, getViewerType } from '../../utils/fileTypes'
 import { useCommentsStore } from '../../stores/comments'
@@ -337,13 +296,12 @@ const props = defineProps({
   paneId: { type: String, default: '' },
 })
 
-const emit = defineEmits(['select-tab', 'close-tab', 'split-vertical', 'split-horizontal', 'close-pane', 'run-code', 'run-file', 'render-document', 'compile-tex', 'sync-tex', 'ask-ai-fix', 'preview-markdown', 'export-pdf', 'new-tab'])
+const emit = defineEmits(['select-tab', 'close-tab', 'split-vertical', 'split-horizontal', 'close-pane', 'run-code', 'run-file', 'render-document', 'compile-tex', 'sync-tex', 'preview-markdown', 'export-pdf', 'new-tab'])
 
-const workspace = useWorkspaceStore()
 const typstStore = useTypstStore()
 const chatStore = useChatStore()
 const commentsStore = useCommentsStore()
-const { t, isZh } = useI18n()
+const { t } = useI18n()
 
 // Comment margin toggle
 const showCommentToggle = computed(() => {
@@ -401,87 +359,12 @@ const latexStore = useLatexStore()
 const showCompileButtons = computed(() => props.activeTab && isLatex(props.activeTab))
 const texState = computed(() => props.activeTab ? latexStore.stateForFile(props.activeTab) : null)
 const texStatus = computed(() => texState.value?.status || null)
-const texErrors = computed(() => texState.value?.errors || [])
-const texWarnings = computed(() => texState.value?.warnings || [])
-const texErrorCount = computed(() => texErrors.value.length)
-const texWarningCount = computed(() => texWarnings.value.length)
-const texAllIssues = computed(() => [...texErrors.value, ...texWarnings.value])
 const texDuration = computed(() => {
   const ms = texState.value?.durationMs
   if (!ms) return t('Compiled')
   if (ms < 1000) return `${ms}ms`
   return `${(ms / 1000).toFixed(1)}s`
 })
-const texErrorLabel = computed(() => (
-  isZh.value
-    ? `${texErrorCount.value} 个错误`
-    : `${texErrorCount.value} error${texErrorCount.value === 1 ? '' : 's'}`
-))
-const texWarningLabel = computed(() => (
-  isZh.value
-    ? `${texWarningCount.value} 个警告`
-    : `${texWarningCount.value} warning${texWarningCount.value === 1 ? '' : 's'}`
-))
-
-// Error panel dropdown
-const texErrorPanelOpen = ref(false)
-const errorBadgeEl = ref(null)
-const texErrorPanelStyle = computed(() => {
-  if (!errorBadgeEl.value) return { display: 'none' }
-  const rect = errorBadgeEl.value.getBoundingClientRect()
-  return {
-    position: 'fixed',
-    top: (rect.bottom + 4) + 'px',
-    left: Math.max(4, rect.left - 100) + 'px',
-    zIndex: 9999,
-  }
-})
-
-function toggleErrorPanel() {
-  texErrorPanelOpen.value = !texErrorPanelOpen.value
-}
-
-function jumpToTexLine(line) {
-  if (!line) return
-  window.dispatchEvent(new CustomEvent('latex-backward-sync', {
-    detail: { file: props.activeTab, line },
-  }))
-  texErrorPanelOpen.value = false
-}
-
-function isLatexCompilerMissing(issue) {
-  if (!issue || issue.severity !== 'error') return false
-  const msg = String(issue.message || '').toLowerCase()
-  return msg.includes('tectonic not found')
-    || msg.includes('system tex compiler not found')
-    || msg.includes('no latex compiler found')
-}
-
-function openLatexCompilerSettings() {
-  texErrorPanelOpen.value = false
-  workspace.openSettings('system')
-}
-
-// Auto-open error panel when compile fails
-watch(texStatus, (status, prev) => {
-  if (status === 'error' && prev !== 'error') {
-    texErrorPanelOpen.value = true
-  } else if (status === 'success') {
-    texErrorPanelOpen.value = false
-  }
-})
-
-// Close error panel on outside click
-function onDocClick(e) {
-  if (texErrorPanelOpen.value && errorBadgeEl.value && !errorBadgeEl.value.contains(e.target)) {
-    const panel = document.querySelector('.tex-error-panel')
-    if (panel && !panel.contains(e.target)) {
-      texErrorPanelOpen.value = false
-    }
-  }
-}
-onMounted(() => document.addEventListener('mousedown', onDocClick))
-onUnmounted(() => document.removeEventListener('mousedown', onDocClick))
 
 const editorStore = useEditorStore()
 const referencesStore = useReferencesStore()
@@ -806,19 +689,5 @@ function updateDropIndicator(mouseX) {
 }
 @keyframes tex-spin {
   to { transform: rotate(360deg); }
-}
-</style>
-
-<style>
-.tex-error-panel {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
-  max-height: 240px;
-  min-width: 320px;
-  max-width: 520px;
-  overflow-y: auto;
-  padding: 4px 0;
 }
 </style>

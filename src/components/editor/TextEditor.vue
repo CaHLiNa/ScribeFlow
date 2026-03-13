@@ -585,11 +585,6 @@ onMounted(async () => {
   // Set initial merge view if there are pending edits
   showMergeViewIfNeeded()
 
-  // LaTeX: trigger initial compile on open
-  if (isTex) {
-    latexStore.scheduleAutoCompile(props.filePath)
-  }
-
   // Native click handler for wiki link + citation navigation (markdown only)
   if (isMd) {
     editorContainer.value.addEventListener('click', handleWikiLinkClick)

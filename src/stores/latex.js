@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { ensureBibFile } from '../services/latexBib'
+import { t } from '../i18n'
 
 const COMPILER_CHECK_CACHE_MS = 5000
 
@@ -20,6 +21,68 @@ const clearLegacyLatexSettings = () => {
   } catch {}
 }
 
+function fileNameForLog(texPath = '') {
+  return String(texPath).split('/').pop() || texPath
+}
+
+function formatIssue(issue) {
+  const line = issue?.line ? `L${issue.line}: ` : ''
+  return `${line}${issue?.message || ''}`.trim()
+}
+
+function buildLatexTerminalOutput(texPath, result) {
+  const errors = Array.isArray(result.errors) ? result.errors : []
+  const warnings = Array.isArray(result.warnings) ? result.warnings : []
+  const lines = [
+    `[LaTeX] ${fileNameForLog(texPath)}`,
+    result.success
+      ? t('Compilation succeeded in {duration}', { duration: `${result.duration_ms || 0}ms` })
+      : t('Compilation failed'),
+    `${t('Errors')}: ${errors.length}`,
+    `${t('Warnings')}: ${warnings.length}`,
+  ]
+
+  if (errors.length > 0) {
+    lines.push('')
+    lines.push(t('Errors'))
+    for (const issue of errors) {
+      lines.push(`- ${formatIssue(issue)}`)
+    }
+  }
+
+  if (warnings.length > 0) {
+    lines.push('')
+    lines.push(t('Warnings'))
+    for (const issue of warnings) {
+      lines.push(`- ${formatIssue(issue)}`)
+    }
+  }
+
+  const rawLog = String(result.log || '').trim()
+  if (rawLog) {
+    lines.push('')
+    lines.push(`----- ${t('Full log')} -----`)
+    lines.push(rawLog)
+  }
+
+  return `${lines.join('\n')}\n`
+}
+
+function pushLatexLogToTerminal(texPath, result) {
+  if (typeof window === 'undefined') return
+  const shouldOpenTerminal = !result.success
+    || (Array.isArray(result.errors) && result.errors.length > 0)
+  window.dispatchEvent(new CustomEvent('terminal-log', {
+    detail: {
+      key: 'latex-log',
+      label: 'LaTeX',
+      text: buildLatexTerminalOutput(texPath, result),
+      clear: true,
+      open: shouldOpenTerminal,
+    },
+  }))
+}
+
 export const useLatexStore = defineStore('latex', {
   state: () => {
     clearLegacyLatexSettings()
@@ -27,7 +90,7 @@ export const useLatexStore = defineStore('latex', {
     // Per-file compile state: { [texPath]: { status, errors, warnings, pdfPath, synctexPath, log, durationMs, lastCompiled } }
     compileState: {},
     // Whether auto-compile on save is enabled
-    autoCompile: true,
+    autoCompile: false,
     // Debounce timers per file
     _timers: {},
     // Recompile flags per file (set when compile is requested while one is running)
@@ -96,6 +159,8 @@ export const useLatexStore = defineStore('latex', {
     },
 
     async compile(texPath) {
+      this.cancelAutoCompile(texPath)
+
       // If already compiling, set recompile flag and return
       const current = this.compileState[texPath]
       if (current?.status === 'compiling') {
@@ -136,6 +201,7 @@ export const useLatexStore = defineStore('latex', {
         window.dispatchEvent(new CustomEvent('latex-compile-done', {
           detail: { texPath, ...result },
         }))
+        pushLatexLogToTerminal(texPath, result)
 
         // If recompile was requested during compilation, compile again
         if (this._recompileNeeded[texPath]) {
@@ -149,6 +215,13 @@ export const useLatexStore = defineStore('latex', {
           errors: [{ line: null, message: err, severity: 'error' }],
           warnings: [],
         }
+        pushLatexLogToTerminal(texPath, {
+          success: false,
+          duration_ms: 0,
+          errors: [{ line: null, message: err, severity: 'error' }],
+          warnings: [],
+          log: String(err || ''),
+        })
       }
     },
 

@@ -18,6 +18,7 @@ const props = defineProps({
   spawnCmd: { type: String, default: null },
   spawnArgs: { type: Array, default: () => [] },
   language: { type: String, default: null },
+  mode: { type: String, default: 'shell' },
 })
 
 const workspace = useWorkspaceStore()
@@ -41,8 +42,9 @@ async function initXterm() {
     fontFamily: "'JetBrains Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace",
     fontSize: 13,
     lineHeight: 1.4,
-    cursorBlink: true,
+    cursorBlink: props.mode !== 'log',
     scrollback: 10000,
+    disableStdin: props.mode === 'log',
   })
 
   fitAddon = new FitAddon()
@@ -68,11 +70,13 @@ async function initXterm() {
   })
   resizeObserver.observe(terminalContainer.value)
 
-  terminal.onData((data) => {
-    if (ptyId !== null) {
-      invoke('pty_write', { id: ptyId, data }).catch(console.error)
-    }
-  })
+  if (props.mode !== 'log') {
+    terminal.onData((data) => {
+      if (ptyId !== null) {
+        invoke('pty_write', { id: ptyId, data }).catch(console.error)
+      }
+    })
+  }
 
   terminal.onResize(({ cols, rows }) => {
     if (ptyId !== null) {
@@ -82,6 +86,7 @@ async function initXterm() {
 }
 
 async function spawnTerminal() {
+  if (props.mode === 'log') return
   if (!workspace.path || !terminal) return
 
   try {
@@ -139,7 +144,7 @@ onMounted(async () => {
   await nextTick()
   if (terminalContainer.value) {
     await initXterm()
-    if (workspace.path) {
+    if (workspace.path && props.mode !== 'log') {
       await spawnTerminal()
     }
   }
@@ -182,6 +187,12 @@ defineExpose({
         await new Promise(r => setTimeout(r, 10))
       }
     }
+  },
+  writeOutput(data, options = {}) {
+    if (!terminal) return
+    const text = String(data ?? '').replace(/\r?\n/g, '\r\n')
+    if (options.clear) terminal.reset()
+    terminal.write(text)
   },
 })
 

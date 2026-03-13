@@ -21,7 +21,6 @@
       @render-document="handleRenderDocument"
       @compile-tex="handleCompileTex"
       @sync-tex="handleSyncTex"
-      @ask-ai-fix="handleAskAiFix"
       @preview-markdown="handlePreviewMarkdown"
       @export-pdf="handleExportPdf"
       @new-tab="editorStore.openNewTab(paneId)"
@@ -381,24 +380,6 @@ function handleSyncTex() {
   }))
 }
 
-async function handleAskAiFix(err) {
-  if (!props.activeTab) return
-  let context = ''
-  try {
-    const content = filesStore.fileContents[props.activeTab] || await filesStore.readFile(props.activeTab)
-    if (content && err.line) {
-      const lines = content.split('\n')
-      const start = Math.max(0, err.line - 6)
-      const end = Math.min(lines.length, err.line + 5)
-      context = lines.slice(start, end).map((l, i) => `${start + i + 1}: ${l}`).join('\n')
-    }
-  } catch {}
-  const fileName = props.activeTab.split('/').pop()
-  const lineInfo = err.line ? ` line ${err.line}` : ''
-  const message = `LaTeX compilation error in ${fileName}${lineInfo}:\n\`\`\`\n${err.message}\n\`\`\`\n${context ? `Code around the error:\n\`\`\`tex\n${context}\n\`\`\`\n` : ''}Briefly explain what this means, then fix it.`
-  editorStore.openChatBeside({ prefill: message })
-}
-
 function handlePreviewMarkdown() {
   if (!props.activeTab) return
   const previewPath = `preview:${props.activeTab}`
@@ -565,4 +546,3 @@ function closePane() {
 
 defineExpose({ startComment })
 </script>
-

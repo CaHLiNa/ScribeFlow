@@ -99,6 +99,7 @@
         :spawnCmd="term.spawnCmd || null"
         :spawnArgs="term.spawnArgs || []"
         :language="term.language || null"
+        :mode="term.kind === 'log' ? 'log' : 'shell'"
       />
     </div>
   </div>
@@ -292,6 +293,10 @@ function findLanguageTerminal(language) {
   return terminals.findIndex(t => t.language === language)
 }
 
+function findTerminalByKey(key) {
+  return terminals.findIndex(t => t.key === key)
+}
+
 function addLanguageTerminal(language) {
   const config = getLanguageConfig(language)
   if (!config) return -1
@@ -335,6 +340,51 @@ function onFocusLanguageTerminal(e) {
       if (term) { term.refitTerminal(); term.focus() }
     })
   }
+}
+
+function addLogTerminal(key, label) {
+  const existing = findTerminalByKey(key)
+  if (existing !== -1) {
+    if (label) terminals[existing].label = label
+    return existing
+  }
+
+  const num = termNextId++
+  terminals.push({
+    id: num,
+    key,
+    kind: 'log',
+    label,
+  })
+  const idx = terminals.length - 1
+  activeTerminal.value = idx
+  return idx
+}
+
+function writeTextToTerminal(idx, text, { clear = false, retries = 6 } = {}) {
+  nextTick(() => {
+    const term = terminalRefs[idx]
+    if (!term) {
+      if (retries > 0) {
+        setTimeout(() => writeTextToTerminal(idx, text, { clear, retries: retries - 1 }), 50)
+      }
+      return
+    }
+    term.writeOutput(text, { clear })
+  })
+}
+
+function onTerminalLog(e) {
+  const { key, label, text, clear = false, open = true } = e.detail || {}
+  if (!key || !text) return
+
+  ensureInitialized()
+  const idx = addLogTerminal(key, label || key)
+  if (idx === -1) return
+
+  activeTerminal.value = idx
+  if (open) workspace.openBottomPanel()
+  writeTextToTerminal(idx, text, { clear })
 }
 
 const LANG_EXT = { r: '.R', python: '.py', julia: '.jl' }
@@ -386,12 +436,14 @@ onMounted(() => {
   window.addEventListener('create-language-terminal', onCreateLanguageTerminal)
   window.addEventListener('focus-language-terminal', onFocusLanguageTerminal)
   window.addEventListener('send-to-repl', onSendToRepl)
+  window.addEventListener('terminal-log', onTerminalLog)
 })
 
 onUnmounted(() => {
   window.removeEventListener('create-language-terminal', onCreateLanguageTerminal)
   window.removeEventListener('focus-language-terminal', onFocusLanguageTerminal)
   window.removeEventListener('send-to-repl', onSendToRepl)
+  window.removeEventListener('terminal-log', onTerminalLog)
 })
 
 defineExpose({

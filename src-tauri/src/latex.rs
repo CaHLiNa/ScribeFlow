@@ -233,7 +233,14 @@ fn parse_latex_output(output: &str) -> (Vec<LatexError>, Vec<LatexError>) {
                 message: message.to_string(),
                 severity: "error".to_string(),
             });
-        } else if trimmed.contains("LaTeX Warning:") {
+        } else if trimmed.contains("LaTeX Warning:")
+            || (trimmed.starts_with("Package ") && trimmed.contains(" Warning:"))
+            || (trimmed.starts_with("Class ") && trimmed.contains(" Warning:"))
+            || trimmed.starts_with("Overfull ")
+            || trimmed.starts_with("Underfull ")
+            || trimmed.contains("undefined references")
+            || trimmed.contains("Label(s) may have changed")
+        {
             warnings.push(LatexError {
                 line: None,
                 message: trimmed.to_string(),

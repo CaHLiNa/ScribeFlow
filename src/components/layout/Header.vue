@@ -1,25 +1,16 @@
 <template>
-  <header class="grid items-center select-none shrink-0 relative"
+  <header class="header-root grid items-center select-none shrink-0 relative"
     data-tauri-drag-region
-    :style="{
-      gridTemplateColumns: '1fr auto 1fr',
-      background: 'var(--bg-secondary)',
-      borderBottom: '1px solid var(--border)',
-      paddingLeft: isMac ? '78px' : '12px',
-      paddingRight: '8px',
-      height: '38px',
-    }"
+    :style="headerStyle"
   >
     <!-- Left: hamburger menu -->
     <div class="flex items-center" data-tauri-drag-region>
       <button
         ref="menuBtnRef"
-        class="w-7 h-7 flex items-center justify-center rounded-md border-none bg-transparent cursor-pointer transition-colors"
-        style="color: var(--fg-muted);"
+        class="header-menu-button flex items-center justify-center border-none bg-transparent cursor-pointer"
+        :style="menuButtonStyle"
         :title="t('Menu')"
         @click="toggleMenu"
-        @mouseover="$event.currentTarget.style.background='var(--bg-hover)';$event.currentTarget.style.color='var(--fg-primary)'"
-        @mouseout="$event.currentTarget.style.background='transparent';$event.currentTarget.style.color='var(--fg-muted)'"
       >
         <IconMenu2 :size="16" :stroke-width="1.5" />
       </button>
@@ -179,12 +170,30 @@ const emit = defineEmits(['open-settings', 'open-folder', 'open-workspace', 'clo
 const workspace = useWorkspaceStore()
 const editorStore = useEditorStore()
 const { t } = useI18n()
+const isMacTitlebarCompact = ref(false)
 
 // Hamburger menu
 const menuBtnRef = ref(null)
 const menuDropdownRef = ref(null)
 const menuOpen = ref(false)
 const recents = computed(() => workspace.getRecentWorkspaces().slice(0, 5))
+let currentWindowHandle = null
+let unlistenWindowResize = null
+let syncChromeFrame = null
+
+const headerStyle = computed(() => ({
+  gridTemplateColumns: '1fr auto 1fr',
+  background: 'var(--bg-secondary)',
+  borderBottom: '1px solid var(--border)',
+  paddingLeft: isMac ? '78px' : '12px',
+  paddingRight: '8px',
+  height: '38px',
+}))
+
+const menuButtonStyle = computed(() => ({
+  transform: isMac && isMacTitlebarCompact.value ? 'translateX(-66px)' : 'translateX(0)',
+  zIndex: isMac && isMacTitlebarCompact.value ? 2 : 1,
+}))
 
 const menuStyle = computed(() => {
   if (!menuBtnRef.value) return {}
@@ -195,6 +204,36 @@ const menuStyle = computed(() => {
     minWidth: '200px',
   }
 })
+
+async function getNativeWindowHandle() {
+  if (!isMac || typeof window === 'undefined' || !window.__TAURI_INTERNALS__) return null
+  if (currentWindowHandle) return currentWindowHandle
+
+  const { getCurrentWindow } = await import('@tauri-apps/api/window')
+  currentWindowHandle = getCurrentWindow()
+  return currentWindowHandle
+}
+
+async function syncMacChromeState() {
+  const nativeWindow = await getNativeWindowHandle()
+  if (!nativeWindow) {
+    isMacTitlebarCompact.value = false
+    return
+  }
+
+  const fullscreen = await nativeWindow.isFullscreen().catch(() => false)
+  isMacTitlebarCompact.value = fullscreen
+}
+
+function queueMacChromeStateSync() {
+  if (!isMac || typeof window === 'undefined') return
+  if (syncChromeFrame != null) return
+
+  syncChromeFrame = window.requestAnimationFrame(async () => {
+    syncChromeFrame = null
+    await syncMacChromeState()
+  })
+}
 
 function toggleMenu() {
   menuOpen.value = !menuOpen.value
@@ -233,10 +272,35 @@ function onClickOutsideMenu(e) {
 
 onMounted(() => {
   document.addEventListener('mousedown', onClickOutsideMenu)
+  queueMacChromeStateSync()
+
+  if (!isMac || typeof window === 'undefined') return
+
+  window.addEventListener('resize', queueMacChromeStateSync)
+
+  getNativeWindowHandle()
+    .then(async (nativeWindow) => {
+      if (!nativeWindow?.onResized) return
+      unlistenWindowResize = await nativeWindow.onResized(() => {
+        queueMacChromeStateSync()
+      })
+    })
+    .catch(() => {})
 })
 
 onUnmounted(() => {
   document.removeEventListener('mousedown', onClickOutsideMenu)
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('resize', queueMacChromeStateSync)
+    if (syncChromeFrame != null) {
+      window.cancelAnimationFrame(syncChromeFrame)
+      syncChromeFrame = null
+    }
+  }
+  if (unlistenWindowResize) {
+    unlistenWindowResize()
+    unlistenWindowResize = null
+  }
 })
 
 // Search
@@ -324,3 +388,20 @@ function focusSearch() {
 
 defineExpose({ focusSearch })
 </script>
+
+<style scoped>
+.header-menu-button {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  color: var(--fg-muted);
+  transition:
+    color 150ms ease,
+    background-color 150ms ease;
+}
+
+.header-menu-button:hover {
+  background: var(--bg-hover);
+  color: var(--fg-primary);
+}
+</style>

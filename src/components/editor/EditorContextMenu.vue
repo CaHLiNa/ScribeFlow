@@ -22,6 +22,14 @@
           <span class="ml-auto" style="color: var(--fg-muted); font-size: 11px;">&#x21E7;&#x2318;L</span>
         </div>
         <div class="context-menu-separator"></div>
+        <div class="context-menu-item" @click="askAI">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3l1.9 4.6L18.5 9l-4.6 1.9L12 15.5l-1.9-4.6L5.5 9l4.6-1.4z"/>
+            <path d="M18 14l.9 2.1L21 17l-2.1.9L18 20l-.9-2.1L15 17l2.1-.9z"/>
+          </svg>
+          {{ t('Ask AI') }}
+        </div>
+        <div class="context-menu-separator"></div>
         <div class="context-menu-item" @click="cut">{{ t('Cut') }}</div>
         <div class="context-menu-item" @click="copy">{{ t('Copy') }}</div>
         <div class="context-menu-item" @click="paste">{{ t('Paste') }}</div>
@@ -136,6 +144,36 @@ function addComment() {
   window.dispatchEvent(new CustomEvent('comment-create', {
     detail: { paneId: pane?.id }
   }))
+  emit('close')
+}
+
+function askAI() {
+  const selection = props.view?.state?.selection?.main
+  if (!props.view || !selection || selection.from === selection.to) {
+    emit('close')
+    return
+  }
+
+  const doc = props.view.state.doc
+  const text = doc.sliceString(selection.from, selection.to, '\n')
+  const beforeStart = Math.max(0, selection.from - 200)
+  const afterEnd = Math.min(doc.length, selection.to + 200)
+  const contextBefore = selection.from > 0
+    ? doc.sliceString(beforeStart, selection.from, '\n')
+    : ''
+  const contextAfter = selection.to < doc.length
+    ? doc.sliceString(selection.to, afterEnd, '\n')
+    : ''
+
+  editorStore.openChatBeside({
+    selection: {
+      file: props.filePath,
+      text,
+      contextBefore,
+      contextAfter,
+    },
+  })
+
   emit('close')
 }
 
