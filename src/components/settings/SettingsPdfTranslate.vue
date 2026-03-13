@@ -139,8 +139,8 @@
           <div class="pdft-runtime-label">{{ t('Status') }}</div>
           <div class="pdft-runtime-value" :class="runtimeClass">{{ pdfTranslateStore.runtimeLabel }}</div>
         </div>
-        <button class="key-save-btn" @click="refreshRuntimeStatus">
-          {{ t('Refresh') }}
+        <button class="key-save-btn" :disabled="pdfTranslateStore.runtimeRefreshing" @click="refreshRuntimeStatus(true)">
+          {{ pdfTranslateStore.runtimeRefreshing ? t('Checking...') : t('Refresh') }}
         </button>
       </div>
 
@@ -296,13 +296,41 @@ async function saveSettings() {
   markSaved()
 }
 
-async function refreshRuntimeStatus() {
-  await pdfTranslateStore.refreshRuntimeStatus()
+async function refreshRuntimeStatus(force = false) {
+  await pdfTranslateStore.refreshRuntimeStatus({ force })
 }
 
 async function prepareRuntime() {
   await saveSettings()
   await pdfTranslateStore.setupRuntime()
+}
+
+function scheduleAfterFirstPaint(task) {
+  const run = () => {
+    Promise.resolve(task()).catch(() => {})
+  }
+
+  if (typeof window !== 'undefined') {
+    window.requestAnimationFrame(() => {
+      if (typeof window.requestIdleCallback === 'function') {
+        window.requestIdleCallback(run, { timeout: 600 })
+      } else {
+        window.setTimeout(run, 80)
+      }
+    })
+    return
+  }
+
+  run()
+}
+
+function warmPdfTranslatePanel() {
+  scheduleAfterFirstPaint(async () => {
+    if (!envStore.detected && !envStore.detecting) {
+      await envStore.detect()
+    }
+    await pdfTranslateStore.refreshRuntimeStatus({ force: true })
+  })
 }
 
 watch(() => pdfTranslateStore.settings, syncDraft, { deep: true })
@@ -320,12 +348,9 @@ watch(compatibleModelGroups, () => {
 }, { immediate: true, deep: true })
 
 onMounted(async () => {
-  if (!envStore.detected && !envStore.detecting) {
-    try { await envStore.detect() } catch {}
-  }
   await pdfTranslateStore.loadSettings()
   syncDraft()
-  await pdfTranslateStore.refreshRuntimeStatus()
+  warmPdfTranslatePanel()
 })
 </script>
 

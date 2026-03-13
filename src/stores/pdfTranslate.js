@@ -13,6 +13,7 @@ import {
 } from '../services/modelCatalog'
 
 const DEFAULT_QPS = 8
+const RUNTIME_STATUS_CACHE_MS = 60 * 1000
 
 const DEFAULT_SETTINGS = () => ({
   modelId: '',
@@ -75,6 +76,9 @@ export const usePdfTranslateStore = defineStore('pdfTranslate', {
     setupProgress: 0,
     setupMessage: '',
     setupLogs: [],
+    runtimeRefreshing: false,
+    lastRuntimeCheckAt: 0,
+    lastRuntimePythonPath: '',
     autoOpenTaskIds: {},
     _taskUnlisten: null,
     _envProgressUnlisten: null,
@@ -366,20 +370,39 @@ export const usePdfTranslateStore = defineStore('pdfTranslate', {
       }
     },
 
-    async refreshRuntimeStatus() {
+    async refreshRuntimeStatus(options = {}) {
+      const { force = false, ensureEnvironment = false } = options || {}
       await this.ensureListeners()
       const envStore = useEnvironmentStore()
-      if (!envStore.detected && !envStore.detecting) {
+
+      if (this.runtimeRefreshing) return this.runtimeStatus
+
+      if (ensureEnvironment && !envStore.detected && !envStore.detecting) {
         try { await envStore.detect() } catch {}
       }
 
+      const basePythonPath = envStore.selectedInterpreterPath('python') || null
+      if (
+        !force
+        && this.lastRuntimeCheckAt
+        && this.lastRuntimePythonPath === (basePythonPath || '')
+        && Date.now() - this.lastRuntimeCheckAt < RUNTIME_STATUS_CACHE_MS
+      ) {
+        return this.runtimeStatus
+      }
+
+      this.runtimeRefreshing = true
       try {
         const status = await invoke('pdf_translate_check_env_status', {
-          basePythonPath: envStore.selectedInterpreterPath('python') || null,
+          basePythonPath,
         })
         this.runtimeStatus = status || { status: 'NotInitialized' }
       } catch (error) {
         this.runtimeStatus = { status: 'Error', data: error?.message || String(error) }
+      } finally {
+        this.lastRuntimeCheckAt = Date.now()
+        this.lastRuntimePythonPath = basePythonPath || ''
+        this.runtimeRefreshing = false
       }
       return this.runtimeStatus
     },
@@ -407,7 +430,7 @@ export const usePdfTranslateStore = defineStore('pdfTranslate', {
         return status
       } finally {
         this.setupInProgress = false
-        await this.refreshRuntimeStatus()
+        await this.refreshRuntimeStatus({ force: true })
       }
     },
 
@@ -462,7 +485,10 @@ export const usePdfTranslateStore = defineStore('pdfTranslate', {
         }))
       }
 
-      const runtimeStatus = await this.refreshRuntimeStatus()
+      const runtimeStatus = await this.refreshRuntimeStatus({
+        force: true,
+        ensureEnvironment: true,
+      })
       if (runtimeStatus?.status !== 'Ready') {
         throw new Error(t('Prepare the PDF translation runtime in Settings > PDF Translation first.'))
       }

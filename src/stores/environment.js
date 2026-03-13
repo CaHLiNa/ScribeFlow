@@ -2,6 +2,8 @@ import { defineStore } from 'pinia'
 import { invoke } from '@tauri-apps/api/core'
 import { t } from '../i18n'
 
+const DETECTION_CACHE_MS = 5 * 60 * 1000
+
 const readStoredValue = (key, fallback = '') => {
   try {
     return localStorage.getItem(key) || fallback
@@ -33,6 +35,7 @@ export const useEnvironmentStore = defineStore('environment', {
     customPythonPath: readStoredValue('env.customPythonPath'),
     detected: false,
     detecting: false,
+    lastDetectedAt: 0,
     installing: null,
     installOutput: '',
     installError: '',
@@ -71,8 +74,17 @@ export const useEnvironmentStore = defineStore('environment', {
   },
 
   actions: {
-    async detect() {
+    async detect(force = false) {
       if (this.detecting) return
+      if (
+        !force
+        && this.detected
+        && this.lastDetectedAt
+        && Date.now() - this.lastDetectedAt < DETECTION_CACHE_MS
+      ) {
+        return this.languages
+      }
+
       this.detecting = true
 
       try {
@@ -107,6 +119,8 @@ export const useEnvironmentStore = defineStore('environment', {
         }
 
         this.detected = true
+        this.lastDetectedAt = Date.now()
+        return this.languages
       } finally {
         this.detecting = false
       }

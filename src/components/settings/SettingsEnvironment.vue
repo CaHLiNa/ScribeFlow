@@ -87,8 +87,8 @@
     </div>
 
     <div class="env-actions">
-      <button class="env-redetect-btn" :disabled="envStore.detecting" @click="envStore.detect()">
-        {{ envStore.detecting ? t('Detecting...') : t('Re-detect') }}
+      <button class="env-redetect-btn" :disabled="envStore.detecting || latexStore.checkingCompilers" @click="redetectSystem">
+        {{ envStore.detecting || latexStore.checkingCompilers ? t('Checking...') : t('Re-detect') }}
       </button>
       <span v-if="!envStore.detected" class="env-hint-text">{{ t('Not yet detected') }}</span>
       <span v-else class="env-hint-text">{{ t('Last detected this session') }}</span>
@@ -247,20 +247,37 @@ function onCompilerPreferenceChange(event) {
   latexStore.setCompilerPreference(event.target.value)
 }
 
-function warmSystemChecks() {
+async function redetectSystem() {
+  await Promise.all([
+    envStore.detect(true),
+    latexStore.checkCompilers(true),
+  ])
+}
+
+function scheduleAfterFirstPaint(task) {
   const run = () => {
-    if (!envStore.detected && !envStore.detecting) envStore.detect()
-    if (!latexStore.checkingCompilers) latexStore.checkCompilers()
+    Promise.resolve(task()).catch(() => {})
   }
 
   if (typeof window !== 'undefined') {
     window.requestAnimationFrame(() => {
-      window.setTimeout(run, 0)
+      if (typeof window.requestIdleCallback === 'function') {
+        window.requestIdleCallback(run, { timeout: 600 })
+      } else {
+        window.setTimeout(run, 80)
+      }
     })
     return
   }
 
   run()
+}
+
+function warmSystemChecks() {
+  scheduleAfterFirstPaint(() => Promise.all([
+    envStore.detect(),
+    latexStore.checkCompilers(),
+  ]))
 }
 
 watch(() => envStore.customPythonPath, (value) => {

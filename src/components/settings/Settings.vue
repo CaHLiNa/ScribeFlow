@@ -32,7 +32,7 @@
           <SettingsTools v-if="activeSection === 'tools'" />
           <SettingsPdfTranslate v-if="activeSection === 'pdf-translate'" />
           <SettingsGitHub v-if="activeSection === 'github'" />
-          <SettingsEnvironment v-if="visible" v-show="activeSection === 'system'" />
+          <SettingsEnvironment v-if="activeSection === 'system'" />
           <SettingsUsage v-if="activeSection === 'usage'" />
           <SettingsUpdates v-if="activeSection === 'updates'" />
         </div>
@@ -53,8 +53,6 @@ import SettingsEnvironment from './SettingsEnvironment.vue'
 import SettingsUsage from './SettingsUsage.vue'
 import SettingsGitHub from './SettingsGitHub.vue'
 import SettingsUpdates from './SettingsUpdates.vue'
-import { useEnvironmentStore } from '../../stores/environment'
-import { useLatexStore } from '../../stores/latex'
 import { useI18n } from '../../i18n'
 
 const props = defineProps({
@@ -64,24 +62,12 @@ const props = defineProps({
 defineEmits(['close'])
 
 const activeSection = ref('theme')
-const envStore = useEnvironmentStore()
-const latexStore = useLatexStore()
 const { t } = useI18n()
 
 watch(() => props.visible, (v) => {
   if (v && props.initialSection) {
     activeSection.value = props.initialSection
   }
-
-  if (!v || typeof window === 'undefined') return
-
-  window.requestAnimationFrame(() => {
-    window.setTimeout(() => {
-      if (!props.visible) return
-      if (!envStore.detected && !envStore.detecting) envStore.detect()
-      if (!latexStore.checkingCompilers) latexStore.checkCompilers()
-    }, 0)
-  })
 })
 
 const sections = [

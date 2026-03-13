@@ -4,7 +4,7 @@ import { listen } from '@tauri-apps/api/event'
 import { ensureBibFile } from '../services/latexBib'
 import { t } from '../i18n'
 
-const COMPILER_CHECK_CACHE_MS = 5000
+const COMPILER_CHECK_CACHE_MS = 5 * 60 * 1000
 
 const readStoredValue = (key, fallback) => {
   try {
