@@ -143,6 +143,9 @@ fn apply_runtime_env(cmd: &mut tokio::process::Command) -> Result<(), String> {
         .env("XDG_CACHE_HOME", &xdg_cache_home)
         .env("TIKTOKEN_CACHE_DIR", &tiktoken_cache_dir)
         .env("USERPROFILE", &runtime_home)
+        .env("PYTHONIOENCODING", "utf-8")
+        .env("PYTHONUTF8", "1")
+        .env("PYTHONUNBUFFERED", "1")
         .env("PDFMT_ORIGINAL_HOME", original_home);
     Ok(())
 }

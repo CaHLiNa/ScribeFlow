@@ -40,6 +40,24 @@ STARTUP_IDLE_TIMEOUT_SECONDS = 60.0
 RUNNING_IDLE_TIMEOUT_SECONDS = 300.0
 
 
+def configure_stdio() -> None:
+    for stream_name in ("stdout", "stderr"):
+        stream = getattr(sys, stream_name, None)
+        if stream is None or not hasattr(stream, "reconfigure"):
+            continue
+        try:
+            stream.reconfigure(
+                encoding="utf-8",
+                errors="backslashreplace",
+                line_buffering=True,
+            )
+        except (OSError, ValueError):
+            continue
+
+
+configure_stdio()
+
+
 def emit(event: dict[str, Any]) -> None:
     print(json.dumps(event, ensure_ascii=False), flush=True)
 

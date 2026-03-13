@@ -37,6 +37,7 @@ export const useEnvironmentStore = defineStore('environment', {
     detecting: false,
     lastDetectedAt: 0,
     installing: null,
+    lastInstallLanguage: null,
     installOutput: '',
     installError: '',
   }),
@@ -74,6 +75,61 @@ export const useEnvironmentStore = defineStore('environment', {
   },
 
   actions: {
+    _isWindows() {
+      if (typeof navigator === 'undefined') return false
+      const platform = navigator.userAgentData?.platform || navigator.platform || navigator.userAgent || ''
+      return /win/i.test(platform)
+    },
+
+    _stdoutOnly(output) {
+      const text = String(output || '')
+      const marker = '\n--- stderr ---\n'
+      const idx = text.indexOf(marker)
+      return idx >= 0 ? text.slice(0, idx) : text
+    },
+
+    _primaryOutputText(output) {
+      const stdout = this._stdoutOnly(output).trim()
+      if (stdout) return stdout
+
+      const text = String(output || '')
+      const marker = '\n--- stderr ---\n'
+      const idx = text.indexOf(marker)
+      return idx >= 0 ? text.slice(idx + marker.length).trim() : stdout
+    },
+
+    _firstOutputLine(output) {
+      return String(output || '')
+        .split(/\r?\n/)
+        .map(line => line.trim())
+        .find(Boolean) || ''
+    },
+
+    async _detectCommandPath(cmd, fallbackCmd = null) {
+      const candidates = [cmd, fallbackCmd].filter(Boolean)
+      for (const candidate of candidates) {
+        const query = this._isWindows()
+          ? `where.exe ${candidate} 2>NUL`
+          : `command -v ${candidate} 2>/dev/null`
+        const output = await this._run(query)
+        const path = this._firstOutputLine(this._stdoutOnly(output))
+        if (path) return path
+      }
+      return ''
+    },
+
+    _kernelLanguage(kernel) {
+      const language = String(kernel?.language || '').trim().toLowerCase()
+      if (language === 'python' || language === 'r' || language === 'julia') return language
+
+      const name = String(kernel?.name || '').toLowerCase()
+      const display = String(kernel?.display || '').toLowerCase()
+      if (name.includes('python') || display.includes('python')) return 'python'
+      if (name === 'ir' || display === 'r' || display.startsWith('r ') || display.includes(' r ')) return 'r'
+      if (name.includes('julia') || display.includes('julia')) return 'julia'
+      return ''
+    },
+
     async detect(force = false) {
       if (this.detecting) return
       if (
@@ -104,15 +160,14 @@ export const useEnvironmentStore = defineStore('environment', {
 
         // Match kernels to languages via `jupyter kernelspec list`
         for (const k of kernels) {
-          const name = k.name.toLowerCase()
-          const display = k.display.toLowerCase()
-          if (name.includes('python') || display.includes('python')) {
+          const language = this._kernelLanguage(k)
+          if (language === 'python') {
             this.languages.python.hasKernel = true
             if (!this.languages.python.kernelName) this.languages.python.kernelName = k.name
-          } else if (name === 'ir' || display.includes(' r ') || display === 'r') {
+          } else if (language === 'r') {
             this.languages.r.hasKernel = true
             this.languages.r.kernelName = k.name
-          } else if (name.includes('julia') || display.includes('julia')) {
+          } else if (language === 'julia') {
             this.languages.julia.hasKernel = true
             this.languages.julia.kernelName = k.name
           }
@@ -138,18 +193,13 @@ export const useEnvironmentStore = defineStore('environment', {
     async _detectLang(cmd, fallbackCmd, versionRegex) {
       const result = { found: false, path: null, version: null }
       try {
-        let pathOut = await this._run(`which ${cmd} 2>/dev/null`)
-        let path = pathOut.trim()
-        if (!path && fallbackCmd) {
-          pathOut = await this._run(`which ${fallbackCmd} 2>/dev/null`)
-          path = pathOut.trim()
-        }
+        const path = await this._detectCommandPath(cmd, fallbackCmd)
         if (!path) return result
         result.found = true
         result.path = path
 
-        const verOut = await this._run(`"${path}" --version 2>&1`)
-        const vMatch = verOut.match(versionRegex)
+        const verOut = await this._run(`${this._quoteShell(path)} --version 2>&1`)
+        const vMatch = this._primaryOutputText(verOut).match(versionRegex)
         if (vMatch) result.version = vMatch[1]
       } catch { /* not found */ }
       return result
@@ -159,14 +209,13 @@ export const useEnvironmentStore = defineStore('environment', {
     async _detectJupyter() {
       const result = { found: false, path: null, version: null }
       try {
-        const pathOut = await this._run('which jupyter 2>/dev/null')
-        const path = pathOut.trim()
+        const path = await this._detectCommandPath('jupyter')
         if (!path) return result
         result.found = true
         result.path = path
 
         const verOut = await this._run('jupyter --version 2>&1')
-        const match = verOut.match(/jupyter_core\s*:\s*(\d+\.\d+\.\d+)/)
+        const match = this._primaryOutputText(verOut).match(/jupyter_core\s*:\s*(\d+\.\d+\.\d+)/)
         if (match) result.version = match[1]
       } catch { /* not found */ }
       return result
@@ -180,6 +229,7 @@ export const useEnvironmentStore = defineStore('environment', {
           name: k.name,
           path: k.path,
           display: k.display_name || k.name,
+          language: k.language || '',
         }))
       } catch {
         return []
@@ -195,7 +245,11 @@ export const useEnvironmentStore = defineStore('environment', {
     },
 
     _quoteShell(value) {
-      return `'${String(value).replace(/'/g, `'\"'\"'`)}'`
+      const text = String(value)
+      if (this._isWindows()) {
+        return `"${text.replace(/"/g, '\\"').replace(/%/g, '%%')}"`
+      }
+      return `'${text.replace(/'/g, `'\"'\"'`)}'`
     },
 
     _pythonCandidateIdentity(candidate) {
@@ -251,7 +305,7 @@ export const useEnvironmentStore = defineStore('environment', {
 
       const quoted = this._quoteShell(trimmed)
       const versionOut = await this._run(`${quoted} --version 2>&1`)
-      const versionMatch = versionOut.match(/Python (\d+\.\d+\.\d+)/)
+      const versionMatch = this._primaryOutputText(versionOut).match(/Python (\d+\.\d+\.\d+)/)
       const kernelOut = await this._run(`${quoted} -m ipykernel_launcher --version 2>&1`)
       const hasIpykernel = kernelOut.trim().length > 0
         && !/No module named|ModuleNotFoundError|not found|can't open file/i.test(kernelOut)
@@ -292,11 +346,7 @@ export const useEnvironmentStore = defineStore('environment', {
       deduped = [...merged.values()]
 
       const selected = deduped.find(item => item.path === preferred || item.resolved_path === preferred) || deduped[0] || null
-      const anyPythonKernel = kernels.some(k => {
-        const name = String(k.name || '').toLowerCase()
-        const display = String(k.display || '').toLowerCase()
-        return name.includes('python') || display.includes('python')
-      })
+      const anyPythonKernel = kernels.some(k => this._kernelLanguage(k) === 'python')
 
       return {
         ...DEFAULT_LANG_STATE(),
@@ -305,11 +355,7 @@ export const useEnvironmentStore = defineStore('environment', {
         version: selected?.version || null,
         hasKernel: anyPythonKernel,
         selectedHasKernel: selected?.has_ipykernel === true,
-        kernelName: kernels.find(k => {
-          const name = String(k.name || '').toLowerCase()
-          const display = String(k.display || '').toLowerCase()
-          return name.includes('python') || display.includes('python')
-        })?.name || null,
+        kernelName: kernels.find(k => this._kernelLanguage(k) === 'python')?.name || null,
         candidates: deduped,
         selectedPath: selected?.path || null,
       }
@@ -317,8 +363,8 @@ export const useEnvironmentStore = defineStore('environment', {
 
     _currentPythonKernelDescriptors() {
       if (!this.languages.python.hasKernel) return []
-      if (!this.languages.python.kernelName) return [{ name: 'python', display: 'python' }]
-      return [{ name: this.languages.python.kernelName, display: 'python' }]
+      if (!this.languages.python.kernelName) return [{ name: 'python', display: 'python', language: 'python' }]
+      return [{ name: this.languages.python.kernelName, display: 'python', language: 'python' }]
     },
 
     async selectPythonInterpreter(path) {
@@ -358,6 +404,7 @@ export const useEnvironmentStore = defineStore('environment', {
      */
     async installKernel(language) {
       this.installing = language
+      this.lastInstallLanguage = language
       this.installOutput = ''
       this.installError = ''
 
@@ -388,8 +435,8 @@ export const useEnvironmentStore = defineStore('environment', {
         const output = await this._run(cmd)
         this.installOutput = output
 
-        // Re-detect to update status
-        await this.detect()
+        // Force a fresh probe so a successful install is reflected immediately.
+        await this.detect(true)
 
         const success = language === 'python'
           ? this.languages.python.selectedHasKernel === true

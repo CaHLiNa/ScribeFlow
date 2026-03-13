@@ -60,14 +60,30 @@ export class ChunkKernelBridge {
   _findSpec(language) {
     const kernelStore = useKernelStore()
     const specs = kernelStore.kernelspecs
-    const patterns = LANG_SPEC_PATTERNS[language] || [language]
+    const targetLanguage = String(language || '').toLowerCase()
+    const patterns = LANG_SPEC_PATTERNS[targetLanguage] || [targetLanguage]
+
+    const byLanguage = specs.find(s => String(s.language || '').toLowerCase() === targetLanguage)
+    if (byLanguage) return byLanguage.name
 
     for (const pattern of patterns) {
-      const match = specs.find(s => s.name.toLowerCase().includes(pattern))
+      const normalizedPattern = String(pattern || '').toLowerCase()
+      const match = specs.find((s) => {
+        const name = String(s.name || '').toLowerCase()
+        const displayName = String(s.display_name || '').toLowerCase()
+
+        if (targetLanguage === 'r' && (normalizedPattern === 'r' || normalizedPattern === 'ir')) {
+          return name === 'ir'
+            || name === 'r'
+            || displayName === 'r'
+            || displayName.startsWith('r ')
+            || displayName.includes(' (r')
+        }
+
+        return name.includes(normalizedPattern) || displayName.includes(normalizedPattern)
+      })
       if (match) return match.name
     }
-    const byLang = specs.find(s => s.language?.toLowerCase() === language)
-    if (byLang) return byLang.name
     return null
   }
 

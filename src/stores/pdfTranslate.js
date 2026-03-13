@@ -38,12 +38,16 @@ function normalizeMode(value) {
 }
 
 function dirname(path) {
-  const idx = String(path || '').lastIndexOf('/')
-  return idx >= 0 ? path.slice(0, idx) : '.'
+  const normalized = String(path || '').replace(/\\/g, '/')
+  const idx = normalized.lastIndexOf('/')
+  if (idx < 0) return '.'
+  const dir = normalized.slice(0, idx)
+  if (/^[A-Za-z]:$/.test(dir)) return `${dir}/`
+  return dir || '/'
 }
 
 function fileNameForLog(path = '') {
-  return String(path || '').split('/').pop() || path
+  return String(path || '').split(/[\\/]/).pop() || path
 }
 
 function normalizeOpenAiCompatibleBaseUrl(url = '') {

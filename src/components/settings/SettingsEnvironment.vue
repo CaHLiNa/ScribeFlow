@@ -80,7 +80,7 @@
           </div>
         </template>
 
-        <div v-if="envStore.installing === lang.key && envStore.installError" class="env-install-error">
+        <div v-if="envStore.lastInstallLanguage === lang.key && envStore.installError" class="env-install-error">
           {{ envStore.installError }}
         </div>
       </div>

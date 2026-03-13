@@ -462,15 +462,6 @@ pub fn discover_python_interpreters() -> Result<Vec<PythonInterpreter>, String> 
         }
     }
 
-    interpreters.sort_by(|a, b| {
-        b.has_ipykernel
-            .cmp(&a.has_ipykernel)
-            .then_with(|| {
-                python_display_path_score(&b.path).cmp(&python_display_path_score(&a.path))
-            })
-            .then_with(|| a.path.cmp(&b.path))
-    });
-
     Ok(interpreters)
 }
 
