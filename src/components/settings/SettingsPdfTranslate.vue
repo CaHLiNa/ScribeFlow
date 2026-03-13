@@ -91,6 +91,12 @@
           <span class="pdft-label">{{ t('QPS') }}</span>
           <input v-model.number="draft.qps" type="number" min="1" max="32" class="pdft-input" />
         </label>
+
+        <label class="pdft-field">
+          <span class="pdft-label">{{ t('Worker pool') }}</span>
+          <input v-model.number="draft.poolMaxWorkers" type="number" min="0" max="1000" class="pdft-input" />
+          <span class="pdft-field-hint">{{ t('0 uses auto-mapping or upstream default') }}</span>
+        </label>
       </div>
 
       <div class="advanced-toggle" @click="showAdvanced = !showAdvanced">
@@ -101,6 +107,13 @@
       </div>
 
       <div v-if="showAdvanced" class="pdft-advanced">
+        <label class="pdft-toggle">
+          <input v-model="draft.autoMapPoolMaxWorkers" type="checkbox" />
+          <span>{{ t('Auto-map worker pool from QPS') }}</span>
+        </label>
+        <p class="pdft-inline-hint">
+          {{ t('When enabled, the runtime uses qps * 10 (capped at 1000) unless you set a worker pool explicitly.') }}
+        </p>
         <label class="pdft-toggle">
           <input v-model="draft.translateTableText" type="checkbox" />
           <span>{{ t('Translate table text') }}</span>
@@ -152,18 +165,29 @@
       <div class="pdft-runtime-actions">
         <button
           class="key-save-btn"
-          :disabled="pdfTranslateStore.setupInProgress"
+          :disabled="runtimeBusy"
           @click="prepareRuntime"
         >
           {{ pdfTranslateStore.setupInProgress ? t('Preparing...') : t('Prepare Runtime') }}
         </button>
-        <span v-if="pdfTranslateStore.setupInProgress" class="pdft-progress-text">
-          {{ pdfTranslateStore.setupMessage || t('Preparing translation runtime') }}
+        <button
+          class="key-save-btn"
+          :disabled="runtimeBusy || pdfTranslateStore.runtimeStatus?.status !== 'Ready'"
+          @click="warmupRuntime"
+        >
+          {{ pdfTranslateStore.warmupInProgress ? t('Warming up...') : t('Warm Up Runtime') }}
+        </button>
+        <span v-if="runtimeBusy" class="pdft-progress-text">
+          {{ runtimeProgressLabel }}
           <span v-if="pdfTranslateStore.setupProgress > 0"> · {{ pdfTranslateStore.setupProgress }}%</span>
         </span>
       </div>
 
-      <div v-if="pdfTranslateStore.setupInProgress" class="pdft-progress-track">
+      <p class="pdft-inline-hint">
+        {{ t('Warmup downloads translator assets so the first translation starts faster.') }}
+      </p>
+
+      <div v-if="runtimeBusy" class="pdft-progress-track">
         <div class="pdft-progress-fill" :style="{ width: `${pdfTranslateStore.setupProgress}%` }"></div>
       </div>
 
@@ -172,7 +196,7 @@
       </div>
 
       <div v-if="pdfTranslateStore.setupLogs.length > 0" class="pdft-log-shell">
-        <div class="pdft-log-title">{{ t('Setup log') }}</div>
+        <div class="pdft-log-title">{{ t('Runtime log') }}</div>
         <pre class="pdft-log">{{ pdfTranslateStore.setupLogs.join('\n') }}</pre>
       </div>
     </div>
@@ -199,6 +223,8 @@ const draft = reactive({
   langOut: 'zh',
   mode: 'dual',
   qps: 8,
+  poolMaxWorkers: 0,
+  autoMapPoolMaxWorkers: true,
   ocrWorkaround: false,
   autoEnableOcrWorkaround: false,
   noWatermarkMode: false,
@@ -243,6 +269,11 @@ const runtimeClass = computed(() => {
 
 const runtimeError = computed(() => (
   pdfTranslateStore.runtimeStatus?.status === 'Error' ? pdfTranslateStore.runtimeStatus.data : ''
+))
+const runtimeBusy = computed(() => pdfTranslateStore.setupInProgress || pdfTranslateStore.warmupInProgress)
+const runtimeProgressLabel = computed(() => (
+  pdfTranslateStore.setupMessage
+  || (pdfTranslateStore.warmupInProgress ? t('Warming up translation runtime') : t('Preparing translation runtime'))
 ))
 
 function syncDraft() {
@@ -303,6 +334,10 @@ async function refreshRuntimeStatus(force = false) {
 async function prepareRuntime() {
   await saveSettings()
   await pdfTranslateStore.setupRuntime()
+}
+
+async function warmupRuntime() {
+  await pdfTranslateStore.warmupRuntime()
 }
 
 function scheduleAfterFirstPaint(task) {
@@ -372,6 +407,12 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+.pdft-field-hint,
+.pdft-inline-hint {
+  font-size: 11px;
+  color: var(--fg-muted);
 }
 
 .pdft-label {

@@ -13,6 +13,8 @@ import {
 } from '../services/modelCatalog'
 
 const DEFAULT_QPS = 8
+const DEFAULT_POOL_MAX_WORKERS = 0
+const MAX_POOL_MAX_WORKERS = 1000
 const RUNTIME_STATUS_CACHE_MS = 60 * 1000
 
 const DEFAULT_SETTINGS = () => ({
@@ -21,6 +23,8 @@ const DEFAULT_SETTINGS = () => ({
   langOut: 'zh',
   mode: 'dual',
   qps: DEFAULT_QPS,
+  poolMaxWorkers: DEFAULT_POOL_MAX_WORKERS,
+  autoMapPoolMaxWorkers: true,
   ocrWorkaround: false,
   autoEnableOcrWorkaround: false,
   noWatermarkMode: false,
@@ -31,6 +35,12 @@ function clampQps(value) {
   const parsed = Number.parseInt(value, 10)
   if (Number.isNaN(parsed)) return DEFAULT_QPS
   return Math.max(1, Math.min(parsed, 32))
+}
+
+function clampPoolMaxWorkers(value) {
+  const parsed = Number.parseInt(value, 10)
+  if (Number.isNaN(parsed)) return DEFAULT_POOL_MAX_WORKERS
+  return Math.max(0, Math.min(parsed, MAX_POOL_MAX_WORKERS))
 }
 
 function normalizeMode(value) {
@@ -77,6 +87,7 @@ export const usePdfTranslateStore = defineStore('pdfTranslate', {
     taskOrder: [],
     runtimeStatus: { status: 'NotInitialized' },
     setupInProgress: false,
+    warmupInProgress: false,
     setupProgress: 0,
     setupMessage: '',
     setupLogs: [],
@@ -145,6 +156,8 @@ export const usePdfTranslateStore = defineStore('pdfTranslate', {
       next.langOut = typeof next.langOut === 'string' && next.langOut.trim() ? next.langOut.trim() : 'zh'
       next.mode = normalizeMode(next.mode)
       next.qps = clampQps(next.qps)
+      next.poolMaxWorkers = clampPoolMaxWorkers(next.poolMaxWorkers)
+      next.autoMapPoolMaxWorkers = next.autoMapPoolMaxWorkers !== false
       next.ocrWorkaround = next.ocrWorkaround === true
       next.autoEnableOcrWorkaround = next.autoEnableOcrWorkaround === true
       next.noWatermarkMode = next.noWatermarkMode === true
@@ -411,6 +424,12 @@ export const usePdfTranslateStore = defineStore('pdfTranslate', {
       return this.runtimeStatus
     },
 
+    _beginRuntimeOperation(message) {
+      this.setupProgress = 0
+      this.setupMessage = message
+      this.setupLogs = []
+    },
+
     async setupRuntime() {
       await this.ensureListeners()
       const envStore = useEnvironmentStore()
@@ -418,10 +437,12 @@ export const usePdfTranslateStore = defineStore('pdfTranslate', {
         try { await envStore.detect() } catch {}
       }
 
+      if (this.setupInProgress || this.warmupInProgress) {
+        return this.runtimeStatus
+      }
+
       this.setupInProgress = true
-      this.setupProgress = 0
-      this.setupMessage = t('Preparing translation runtime')
-      this.setupLogs = []
+      this._beginRuntimeOperation(t('Preparing translation runtime'))
 
       try {
         const status = await invoke('pdf_translate_setup_env', {
@@ -434,6 +455,37 @@ export const usePdfTranslateStore = defineStore('pdfTranslate', {
         return status
       } finally {
         this.setupInProgress = false
+        await this.refreshRuntimeStatus({ force: true })
+      }
+    },
+
+    async warmupRuntime() {
+      await this.ensureListeners()
+
+      if (this.setupInProgress || this.warmupInProgress) {
+        return this.runtimeStatus
+      }
+
+      const runtimeStatus = await this.refreshRuntimeStatus({
+        force: true,
+        ensureEnvironment: true,
+      })
+      if (runtimeStatus?.status !== 'Ready') {
+        throw new Error(t('Prepare the PDF translation runtime in Settings > PDF Translation first.'))
+      }
+
+      this.warmupInProgress = true
+      this._beginRuntimeOperation(t('Warming up translation runtime'))
+
+      try {
+        const status = await invoke('pdf_translate_warmup_env')
+        this.runtimeStatus = status || { status: 'Ready' }
+        if (status?.status === 'Error') {
+          throw new Error(status.data || t('Failed to warm up translation runtime'))
+        }
+        return status
+      } finally {
+        this.warmupInProgress = false
         await this.refreshRuntimeStatus({ force: true })
       }
     },
@@ -507,6 +559,8 @@ export const usePdfTranslateStore = defineStore('pdfTranslate', {
         model: model.model || model.id,
         baseUrl: this._translationBaseUrlForModel(model),
         qps: this.settings.qps,
+        poolMaxWorkers: this.settings.poolMaxWorkers,
+        autoMapPoolMaxWorkers: this.settings.autoMapPoolMaxWorkers,
         mode: this.settings.mode,
         ocrWorkaround: this.settings.ocrWorkaround,
         autoEnableOcrWorkaround: this.settings.autoEnableOcrWorkaround,

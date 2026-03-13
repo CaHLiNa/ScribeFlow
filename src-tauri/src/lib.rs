@@ -437,6 +437,7 @@ pub fn run() {
             pdf_translate::pdf_translate_list_tasks,
             pdf_translate::pdf_translate_check_env_status,
             pdf_translate::pdf_translate_setup_env,
+            pdf_translate::pdf_translate_warmup_env,
             pdf_translate::pdf_translate_start,
             pdf_translate::pdf_translate_cancel,
             model_sync::model_sync_list_openai_models,

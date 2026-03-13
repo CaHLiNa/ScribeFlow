@@ -52,6 +52,8 @@ pub struct TranslationRequest {
     model: Option<String>,
     base_url: Option<String>,
     qps: Option<u32>,
+    pool_max_workers: Option<u32>,
+    auto_map_pool_max_workers: Option<bool>,
     primary_font_family: Option<String>,
     use_alternating_pages_dual: Option<bool>,
     ocr_workaround: Option<bool>,
@@ -233,7 +235,7 @@ async fn can_import_modules(python: &Path) -> bool {
 import importlib
 import sys
 
-required = ("pdf2zh_next", "idna")
+required = ("pdf2zh_next", "babeldoc", "idna")
 for name in required:
     importlib.import_module(name)
 print("ok")
@@ -380,6 +382,7 @@ async fn install_dependencies(app: &AppHandle, python: &Path) -> Result<(), Stri
                 "install".to_string(),
                 "-U".to_string(),
                 "pdf2zh-next".to_string(),
+                "babeldoc".to_string(),
                 "idna".to_string(),
             ],
         ),
@@ -391,6 +394,7 @@ async fn install_dependencies(app: &AppHandle, python: &Path) -> Result<(), Stri
                 "install".to_string(),
                 "-U".to_string(),
                 "pdf2zh-next".to_string(),
+                "babeldoc".to_string(),
                 "idna".to_string(),
                 "-i".to_string(),
                 "https://pypi.tuna.tsinghua.edu.cn/simple".to_string(),
@@ -508,6 +512,62 @@ async fn setup_runtime(app: &AppHandle, base_python_path: Option<String>) -> Res
     Ok(())
 }
 
+async fn warmup_runtime(app: &AppHandle) -> Result<(), String> {
+    let Some(python) = ready_translator_python().await else {
+        return Err(
+            "Translation runtime is not ready. Open Settings > PDF Translation and prepare the environment first."
+                .to_string(),
+        );
+    };
+
+    emit_env_progress(app, "Warming up translation runtime...", 5);
+    emit_env_log(app, "Running babeldoc warmup...");
+
+    let mut cmd = background_tokio_command(&python);
+    apply_runtime_env(&mut cmd)?;
+    cmd.arg("-m")
+        .arg("babeldoc.main")
+        .arg("--warmup")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| format!("Failed to start translator warmup: {e}"))?;
+
+    if let Some(stdout) = child.stdout.take() {
+        let app = app.clone();
+        tauri::async_runtime::spawn(async move {
+            let mut reader = BufReader::new(stdout).lines();
+            while let Ok(Some(line)) = reader.next_line().await {
+                emit_env_log(&app, &line);
+            }
+        });
+    }
+
+    if let Some(stderr) = child.stderr.take() {
+        let app = app.clone();
+        tauri::async_runtime::spawn(async move {
+            let mut reader = BufReader::new(stderr).lines();
+            while let Ok(Some(line)) = reader.next_line().await {
+                emit_env_log(&app, &line);
+            }
+        });
+    }
+
+    let status = child
+        .wait()
+        .await
+        .map_err(|e| format!("Failed while waiting for translator warmup: {e}"))?;
+
+    if !status.success() {
+        return Err(format!("Translator warmup failed: {status}"));
+    }
+
+    emit_env_progress(app, "Translation runtime is warmed up.", 100);
+    Ok(())
+}
+
 async fn run_translation_task(
     app: AppHandle,
     state: PdfTranslateState,
@@ -576,6 +636,15 @@ async fn run_translation_task(
         .arg(request.qps.unwrap_or(DEFAULT_QPS).max(1).to_string())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
+
+    if let Some(pool_max_workers) = request.pool_max_workers.filter(|value| *value > 0) {
+        cmd.arg("--pool-max-workers")
+            .arg(pool_max_workers.to_string());
+    }
+    if let Some(auto_map_pool_max_workers) = request.auto_map_pool_max_workers {
+        cmd.arg("--auto-map-pool-max-workers")
+            .arg(auto_map_pool_max_workers.to_string());
+    }
 
     if let Some(api_key) = request.api_key.as_ref().filter(|v| !v.trim().is_empty()) {
         cmd.arg("--api-key").arg(api_key.trim());
@@ -827,6 +896,17 @@ pub async fn pdf_translate_setup_env(
 ) -> Result<EnvStatus, String> {
     emit_env_progress(&app, "Checking Python environment...", 5);
     match setup_runtime(&app, base_python_path).await {
+        Ok(()) => Ok(EnvStatus::Ready),
+        Err(error) => {
+            emit_env_log(&app, &error);
+            Ok(EnvStatus::Error(error))
+        }
+    }
+}
+
+#[tauri::command]
+pub async fn pdf_translate_warmup_env(app: AppHandle) -> Result<EnvStatus, String> {
+    match warmup_runtime(&app).await {
         Ok(()) => Ok(EnvStatus::Ready),
         Err(error) => {
             emit_env_log(&app, &error);

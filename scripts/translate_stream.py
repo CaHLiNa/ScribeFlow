@@ -34,6 +34,7 @@ ENGINE_ALIASES: dict[str, str] = {
 SUPPORTED_ENGINES = ("openai", "gemini", "deepseek", "kimi", "zhipu")
 MIN_QPS = 1
 MAX_QPS = 32
+MAX_POOL_MAX_WORKERS = 1000
 SENSITIVE_ARG_KEYS = {"--api-key"}
 HEARTBEAT_INTERVAL_SECONDS = 5.0
 STARTUP_IDLE_TIMEOUT_SECONDS = 60.0
@@ -110,6 +111,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--model")
     parser.add_argument("--base-url")
     parser.add_argument("--qps", type=int, default=8)
+    parser.add_argument("--pool-max-workers", type=int)
+    parser.add_argument("--auto-map-pool-max-workers", type=parse_bool)
     parser.add_argument("--primary-font-family")
     parser.add_argument("--use-alternating-pages-dual", type=parse_bool)
     parser.add_argument("--ocr-workaround", type=parse_bool)
@@ -136,6 +139,18 @@ def normalize_engine_name(engine: str | None) -> str:
     if not raw:
         return "openai"
     return ENGINE_ALIASES.get(raw, ENGINE_ALIASES.get(raw.lower(), raw.lower()))
+
+
+def resolve_pool_max_workers(args: argparse.Namespace) -> int | None:
+    explicit_pool = args.pool_max_workers
+    if explicit_pool is not None and explicit_pool > 0:
+        return min(explicit_pool, MAX_POOL_MAX_WORKERS)
+
+    if args.auto_map_pool_max_workers:
+        qps = max(MIN_QPS, min(args.qps, MAX_QPS))
+        return min(qps * 10, MAX_POOL_MAX_WORKERS)
+
+    return None
 
 
 def _can_use_as_home(home_dir: Path) -> bool:
@@ -614,6 +629,9 @@ async def run() -> int:
         "output": str(output_dir),
         "qps": max(MIN_QPS, min(args.qps, MAX_QPS)),
     }
+    resolved_pool_max_workers = resolve_pool_max_workers(args)
+    if resolved_pool_max_workers is not None:
+        translation_kwargs["pool_max_workers"] = resolved_pool_max_workers
     if args.primary_font_family:
         font_family = args.primary_font_family.strip().lower()
         if font_family and font_family != "auto":
