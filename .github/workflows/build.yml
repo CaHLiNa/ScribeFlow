@@ -27,11 +27,6 @@ jobs:
             artifact-label: macos-arm64
             rust-target: aarch64-apple-darwin
             tauri-args: --target aarch64-apple-darwin --bundles app,dmg --no-sign
-          - platform: macos-latest
-            label: macOS Intel
-            artifact-label: macos-x64
-            rust-target: x86_64-apple-darwin
-            tauri-args: --target x86_64-apple-darwin --bundles app,dmg --no-sign
           - platform: ubuntu-22.04
             label: Linux
             artifact-label: linux
