@@ -1,7 +1,7 @@
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use git2::{
-    Cred, DiffOptions, FetchOptions, IndexAddOption, Oid, PushOptions, RemoteCallbacks,
-    Repository, Signature, Sort, StatusOptions,
+    Cred, DiffOptions, FetchOptions, IndexAddOption, Oid, PushOptions, RemoteCallbacks, Repository,
+    Signature, Sort, StatusOptions,
 };
 use serde::Serialize;
 use std::path::Path;
@@ -15,7 +15,8 @@ pub async fn git_clone(url: String, target_path: String) -> Result<(), String> {
     Repository::clone(&url, &target_path).map_err(|e| {
         let msg = e.message().to_string();
         // Return user-friendly messages for common errors
-        if msg.contains("unexpected http status code: 404") || msg.contains("repository not found") {
+        if msg.contains("unexpected http status code: 404") || msg.contains("repository not found")
+        {
             "Repository not found. Check the URL and try again.".to_string()
         } else if msg.contains("authentication") || msg.contains("401") || msg.contains("403") {
             "Authentication failed. This may be a private repository.".to_string()
@@ -72,22 +73,17 @@ pub async fn git_add_all(repo_path: String) -> Result<(), String> {
 #[tauri::command]
 pub async fn git_commit(repo_path: String, message: String) -> Result<String, String> {
     let repo = open_repo(&repo_path)?;
-    let sig =
-        Signature::now("Altals", "altals@local").map_err(|e| e.message().to_string())?;
+    let sig = Signature::now("Altals", "altals@local").map_err(|e| e.message().to_string())?;
 
     let mut index = repo.index().map_err(|e| e.message().to_string())?;
-    let tree_oid = index
-        .write_tree()
-        .map_err(|e| e.message().to_string())?;
+    let tree_oid = index.write_tree().map_err(|e| e.message().to_string())?;
     let tree = repo
         .find_tree(tree_oid)
         .map_err(|e| e.message().to_string())?;
 
     let parent_commit = match repo.head() {
         Ok(head) => {
-            let commit = head
-                .peel_to_commit()
-                .map_err(|e| e.message().to_string())?;
+            let commit = head.peel_to_commit().map_err(|e| e.message().to_string())?;
             Some(commit)
         }
         Err(_) => None, // Initial commit — no parent
@@ -106,8 +102,7 @@ pub async fn git_commit(repo_path: String, message: String) -> Result<String, St
 pub async fn git_status(repo_path: String) -> Result<String, String> {
     let repo = open_repo(&repo_path)?;
     let mut opts = StatusOptions::new();
-    opts.include_untracked(true)
-        .recurse_untracked_dirs(true);
+    opts.include_untracked(true).recurse_untracked_dirs(true);
 
     let statuses = repo
         .statuses(Some(&mut opts))
@@ -189,10 +184,10 @@ pub async fn git_log(
     let limit = limit.unwrap_or(50);
 
     let mut revwalk = repo.revwalk().map_err(|e| e.message().to_string())?;
+    revwalk.push_head().map_err(|e| e.message().to_string())?;
     revwalk
-        .push_head()
+        .set_sorting(Sort::TIME)
         .map_err(|e| e.message().to_string())?;
-    revwalk.set_sorting(Sort::TIME).map_err(|e| e.message().to_string())?;
 
     let rel_path = file_path.as_ref().map(|fp| {
         if fp.starts_with(&repo_path) {
@@ -211,17 +206,12 @@ pub async fn git_log(
         }
 
         let oid = oid_result.map_err(|e| e.message().to_string())?;
-        let commit = repo
-            .find_commit(oid)
-            .map_err(|e| e.message().to_string())?;
+        let commit = repo.find_commit(oid).map_err(|e| e.message().to_string())?;
 
         // If filtering by file, check if this commit changed the file
         if let Some(ref rel) = rel_path {
             let tree = commit.tree().map_err(|e| e.message().to_string())?;
-            let current_blob_id = tree
-                .get_path(Path::new(rel))
-                .ok()
-                .map(|entry| entry.id());
+            let current_blob_id = tree.get_path(Path::new(rel)).ok().map(|entry| entry.id());
 
             // On first commit, just record the blob id and include it
             if prev_blob_id.is_none() && entries.is_empty() {
@@ -243,7 +233,10 @@ pub async fn git_log(
         let offset_mins = time.offset_minutes();
         let dt = chrono::DateTime::from_timestamp(secs, 0)
             .unwrap_or_default()
-            .with_timezone(&chrono::FixedOffset::east_opt(offset_mins * 60).unwrap_or(chrono::FixedOffset::east_opt(0).unwrap()));
+            .with_timezone(
+                &chrono::FixedOffset::east_opt(offset_mins * 60)
+                    .unwrap_or(chrono::FixedOffset::east_opt(0).unwrap()),
+            );
 
         entries.push(LogEntry {
             hash: oid.to_string(),
@@ -264,15 +257,15 @@ pub async fn git_show_file(
     let repo = open_repo(&repo_path)?;
 
     let rel_path = if file_path.starts_with(&repo_path) {
-        file_path[repo_path.len()..].trim_start_matches('/').to_string()
+        file_path[repo_path.len()..]
+            .trim_start_matches('/')
+            .to_string()
     } else {
         file_path.clone()
     };
 
     let oid = Oid::from_str(&commit_hash).map_err(|e| e.message().to_string())?;
-    let commit = repo
-        .find_commit(oid)
-        .map_err(|e| e.message().to_string())?;
+    let commit = repo.find_commit(oid).map_err(|e| e.message().to_string())?;
     let tree = commit.tree().map_err(|e| e.message().to_string())?;
     let entry = tree
         .get_path(Path::new(&rel_path))
@@ -281,8 +274,7 @@ pub async fn git_show_file(
         .find_blob(entry.id())
         .map_err(|e| e.message().to_string())?;
 
-    String::from_utf8(blob.content().to_vec())
-        .map_err(|_| "File is not valid UTF-8".to_string())
+    String::from_utf8(blob.content().to_vec()).map_err(|_| "File is not valid UTF-8".to_string())
 }
 
 #[tauri::command]
@@ -294,15 +286,15 @@ pub async fn git_show_file_base64(
     let repo = open_repo(&repo_path)?;
 
     let rel_path = if file_path.starts_with(&repo_path) {
-        file_path[repo_path.len()..].trim_start_matches('/').to_string()
+        file_path[repo_path.len()..]
+            .trim_start_matches('/')
+            .to_string()
     } else {
         file_path.clone()
     };
 
     let oid = Oid::from_str(&commit_hash).map_err(|e| e.message().to_string())?;
-    let commit = repo
-        .find_commit(oid)
-        .map_err(|e| e.message().to_string())?;
+    let commit = repo.find_commit(oid).map_err(|e| e.message().to_string())?;
     let tree = commit.tree().map_err(|e| e.message().to_string())?;
     let entry = tree
         .get_path(Path::new(&rel_path))
@@ -320,14 +312,8 @@ pub async fn git_diff(repo_path: String) -> Result<String, String> {
 
     let head_tree = match repo.head() {
         Ok(head) => {
-            let commit = head
-                .peel_to_commit()
-                .map_err(|e| e.message().to_string())?;
-            Some(
-                commit
-                    .tree()
-                    .map_err(|e| e.message().to_string())?,
-            )
+            let commit = head.peel_to_commit().map_err(|e| e.message().to_string())?;
+            Some(commit.tree().map_err(|e| e.message().to_string())?)
         }
         Err(_) => None,
     };
@@ -357,14 +343,8 @@ pub async fn git_diff_stat(repo_path: String) -> Result<String, String> {
 
     let head_tree = match repo.head() {
         Ok(head) => {
-            let commit = head
-                .peel_to_commit()
-                .map_err(|e| e.message().to_string())?;
-            Some(
-                commit
-                    .tree()
-                    .map_err(|e| e.message().to_string())?,
-            )
+            let commit = head.peel_to_commit().map_err(|e| e.message().to_string())?;
+            Some(commit.tree().map_err(|e| e.message().to_string())?)
         }
         Err(_) => None,
     };
@@ -476,8 +456,7 @@ pub async fn git_diff_summary(
                             }
                             if let Ok(line) = patch.line_in_hunk(h, l) {
                                 let origin = line.origin();
-                                let content =
-                                    std::str::from_utf8(line.content()).unwrap_or("");
+                                let content = std::str::from_utf8(line.content()).unwrap_or("");
                                 let formatted = if origin == '+' || origin == '-' || origin == ' ' {
                                     format!("{}{}", origin, content.trim_end())
                                 } else {
@@ -510,8 +489,7 @@ fn get_working_diff(repo: &Repository) -> Result<Option<git2::Diff<'_>>, git2::E
 
     let mut opts = DiffOptions::new();
     opts.context_lines(2);
-    let diff =
-        repo.diff_tree_to_workdir_with_index(head_tree.as_ref(), Some(&mut opts))?;
+    let diff = repo.diff_tree_to_workdir_with_index(head_tree.as_ref(), Some(&mut opts))?;
 
     // Check if there are any deltas
     if diff.deltas().len() == 0 {
@@ -594,22 +572,20 @@ pub async fn git_push(
     opts.remote_callbacks(callbacks);
 
     let refspec = format!("refs/heads/{}:refs/heads/{}", branch, branch);
-    remote_obj
-        .push(&[&refspec], Some(&mut opts))
-        .map_err(|e| {
-            let msg = e.message().to_string();
-            if msg.contains("non-fast-forward")
-                || msg.contains("cannot fast-forward")
-                || msg.contains("cannot push")
-                || msg.contains("not present locally")
-            {
-                "CONFLICT: Remote has changes that conflict with your local commits.".to_string()
-            } else if msg.contains("authentication") || msg.contains("401") || msg.contains("403") {
-                "Authentication failed. Please reconnect your GitHub account.".to_string()
-            } else {
-                format!("Push failed: {}", msg)
-            }
-        })?;
+    remote_obj.push(&[&refspec], Some(&mut opts)).map_err(|e| {
+        let msg = e.message().to_string();
+        if msg.contains("non-fast-forward")
+            || msg.contains("cannot fast-forward")
+            || msg.contains("cannot push")
+            || msg.contains("not present locally")
+        {
+            "CONFLICT: Remote has changes that conflict with your local commits.".to_string()
+        } else if msg.contains("authentication") || msg.contains("401") || msg.contains("403") {
+            "Authentication failed. Please reconnect your GitHub account.".to_string()
+        } else {
+            format!("Push failed: {}", msg)
+        }
+    })?;
 
     Ok(())
 }
@@ -640,11 +616,7 @@ pub async fn git_push_branch(
 }
 
 #[tauri::command]
-pub async fn git_fetch(
-    repo_path: String,
-    remote: String,
-    token: String,
-) -> Result<(), String> {
+pub async fn git_fetch(repo_path: String, remote: String, token: String) -> Result<(), String> {
     let repo = open_repo(&repo_path)?;
     let mut remote_obj = repo
         .find_remote(&remote)
@@ -735,9 +707,7 @@ pub async fn git_pull_ff(
         .map_err(|e| e.message().to_string())?;
 
     let head = repo.head().map_err(|e| e.message().to_string())?;
-    let head_commit = head
-        .peel_to_commit()
-        .map_err(|e| e.message().to_string())?;
+    let head_commit = head.peel_to_commit().map_err(|e| e.message().to_string())?;
 
     // Check if fast-forward is possible
     let (_, behind) = repo
@@ -750,7 +720,9 @@ pub async fn git_pull_ff(
 
     // Check that local is not ahead (would require merge)
     let analysis = repo
-        .merge_analysis(&[&repo.find_annotated_commit(fetch_commit.id()).map_err(|e| e.message().to_string())?])
+        .merge_analysis(&[&repo
+            .find_annotated_commit(fetch_commit.id())
+            .map_err(|e| e.message().to_string())?])
         .map_err(|e| e.message().to_string())?;
 
     if !analysis.0.is_fast_forward() && !analysis.0.is_up_to_date() {
@@ -830,9 +802,7 @@ pub async fn git_merge_remote(
         .unwrap_or_else(|_| Signature::now("Altals", "altals@local").unwrap());
 
     let mut index = repo.index().map_err(|e| e.message().to_string())?;
-    let tree_oid = index
-        .write_tree()
-        .map_err(|e| e.message().to_string())?;
+    let tree_oid = index.write_tree().map_err(|e| e.message().to_string())?;
     let tree = repo
         .find_tree(tree_oid)
         .map_err(|e| e.message().to_string())?;
@@ -860,11 +830,7 @@ pub async fn git_merge_remote(
 }
 
 #[tauri::command]
-pub async fn git_set_user(
-    repo_path: String,
-    name: String,
-    email: String,
-) -> Result<(), String> {
+pub async fn git_set_user(repo_path: String, name: String, email: String) -> Result<(), String> {
     let repo = open_repo(&repo_path)?;
     let mut config = repo.config().map_err(|e| e.message().to_string())?;
     config

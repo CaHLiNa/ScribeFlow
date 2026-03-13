@@ -5,11 +5,11 @@
     style="background: rgba(224,175,104,0.08); border-bottom: 1px solid var(--border); height: 28px;"
   >
     <span class="text-xs" style="color: var(--warning);">
-      {{ changeCount }} tracked change{{ changeCount !== 1 ? 's' : '' }}
+      {{ t(changeCount === 1 ? '{count} tracked change' : '{count} tracked changes', { count: changeCount }) }}
     </span>
     <div class="flex gap-1.5">
-      <button class="review-bar-btn review-bar-accept" @click="acceptAll">Accept All</button>
-      <button class="review-bar-btn review-bar-reject" @click="rejectAll">Reject All</button>
+      <button class="review-bar-btn review-bar-accept" @click="acceptAll">{{ t('Accept All') }}</button>
+      <button class="review-bar-btn review-bar-reject" @click="rejectAll">{{ t('Reject All') }}</button>
     </div>
   </div>
 </template>
@@ -18,6 +18,7 @@
 import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { useEditorStore } from '../../stores/editor'
 import { trackChangesHelpers } from 'superdoc'
+import { useI18n } from '../../i18n'
 
 const props = defineProps({
   filePath: { type: String, required: true },
@@ -26,6 +27,7 @@ const props = defineProps({
 
 const editorStore = useEditorStore()
 const changeCount = ref(0)
+const { t } = useI18n()
 
 let editorUnsubscribe = null
 

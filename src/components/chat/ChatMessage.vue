@@ -12,18 +12,18 @@
         <button v-if="isOverflowing && !userExpanded"
           class="chat-show-more ui-text-sm"
           @click="userExpanded = true">
-          show more
+          {{ t('Show more') }}
         </button>
         <button v-if="isOverflowing && userExpanded"
           class="chat-show-more ui-text-sm"
           @click="userExpanded = false">
-          show less
+          {{ t('Show less') }}
         </button>
         <button
           v-if="copyableText"
           class="chat-msg-copy opacity-0 group-hover:opacity-100 transition-opacity"
           @click="copyContent"
-          :title="copied ? 'Copied!' : 'Copy message'">
+          :title="copied ? t('Copied!') : t('Copy message')">
           <svg v-if="!copied" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
             <rect x="5" y="5" width="8" height="8" rx="1"/>
             <path d="M3 11V3a1 1 0 011-1h8"/>
@@ -45,7 +45,7 @@
         </button>
         <button v-if="contextData && contextData.text"
           class="chat-context-chip" @click="openFile(contextData.file)"
-          :title="'Selection from ' + (contextData.file || '').split('/').pop()">
+          :title="t('Selection from {file}', { file: (contextData.file || '').split('/').pop() })">
           <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M6 3l-4 5 4 5M10 3l4 5-4 5"/>
           </svg>
@@ -69,9 +69,9 @@
               <path d="M2 1l4 3-4 3z"/>
             </svg>
             <span v-if="isReasoningActive(idx)">
-              Thinking<span class="thinking-dots"><span>.</span><span>.</span><span>.</span></span>
+              {{ t('Thinking') }}<span class="thinking-dots"><span>.</span><span>.</span><span>.</span></span>
             </span>
-            <span v-else>Thought process</span>
+            <span v-else>{{ t('Thought process') }}</span>
           </button>
           <div v-if="expandedThinking[idx]" class="mt-1 pl-2 ui-text-sm chat-md chat-thinking-content"
             style="color: var(--fg-muted); border-left: 2px solid var(--border); padding-left: 8px;"
@@ -103,7 +103,7 @@
         v-if="copyableText"
         class="chat-msg-copy opacity-0 group-hover:opacity-100 transition-opacity"
         @click="copyContent"
-        :title="copied ? 'Copied!' : 'Copy message'">
+        :title="copied ? t('Copied!') : t('Copy message')">
         <svg v-if="!copied" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
           <rect x="5" y="5" width="8" height="8" rx="1"/>
           <path d="M3 11V3a1 1 0 011-1h8"/>
@@ -123,8 +123,10 @@ import ToolCallLine from './ToolCallLine.vue'
 import { renderMarkdown } from '../../utils/chatMarkdown'
 import { useEditorStore } from '../../stores/editor'
 import { useChatStore } from '../../stores/chat'
+import { useI18n } from '../../i18n'
 const editorStore = useEditorStore()
 const chatStore = useChatStore()
+const { t } = useI18n()
 
 const props = defineProps({
   message: { type: Object, required: true },

@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
+import { useEnvironmentStore } from './environment'
 
 export const useKernelStore = defineStore('kernel', {
   state: () => ({
@@ -37,10 +38,15 @@ export const useKernelStore = defineStore('kernel', {
     async launch(specName) {
       const spec = this.kernelspecs.find(s => s.name === specName)
       if (!spec) throw new Error(`Kernelspec "${specName}" not found`)
+      const envStore = useEnvironmentStore()
+      const pythonPath = typeof spec.language === 'string' && spec.language.toLowerCase() === 'python'
+        ? envStore.selectedInterpreterPath('python')
+        : null
 
       const kernelId = await invoke('kernel_launch', {
         specName: spec.name,
         specPath: spec.path,
+        pythonPath,
       })
 
       this.kernels[kernelId] = {

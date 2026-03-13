@@ -6,14 +6,14 @@
       <!-- Empty state -->
       <div v-if="!hasOutlineSupport" class="flex-1 flex items-center justify-center px-4">
         <div class="text-center ui-text-xl" style="color: var(--fg-muted);">
-          <div class="mb-2">No outline</div>
-          <div style="opacity: 0.6;">Add headings to your document to create an outline.</div>
+          <div class="mb-2">{{ t('No outline') }}</div>
+          <div style="opacity: 0.6;">{{ t('Add headings to your document to create an outline.') }}</div>
         </div>
       </div>
 
 
       <div v-else-if="headings.length === 0" class="px-3 py-3 text-[11px]" style="color: var(--fg-muted);">
-        No headings
+        {{ t('No headings') }}
       </div>
       <div v-else class="flex-1 overflow-y-auto py-1">
         <div
@@ -41,6 +41,7 @@ import { useEditorStore } from '../../stores/editor'
 import { useFilesStore } from '../../stores/files'
 import { useLinksStore, parseHeadings } from '../../stores/links'
 import { isMarkdown, isLatex, getViewerType } from '../../utils/fileTypes'
+import { useI18n } from '../../i18n'
 
 const props = defineProps({
   collapsed: { type: Boolean, default: false },
@@ -51,6 +52,7 @@ defineEmits(['toggle-collapse'])
 const editorStore = useEditorStore()
 const filesStore = useFilesStore()
 const linksStore = useLinksStore()
+const { t } = useI18n()
 
 // Determine if active file supports outline
 // Use overrideActiveFile prop when provided (e.g., from right sidebar when chat tab is focused)

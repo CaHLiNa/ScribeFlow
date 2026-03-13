@@ -56,12 +56,12 @@
           class="h-7 px-2 flex items-center gap-1 shrink-0 cursor-pointer hover:bg-[var(--bg-hover)]"
           style="color: var(--fg-muted);"
           @click="addTerminal"
-          title="New terminal"
+          :title="t('New terminal')"
         >
           <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M8 3v10M3 8h10"/>
           </svg>
-          <span class="text-[11px]">New Terminal</span>
+          <span class="text-[11px]">{{ t('New Terminal') }}</span>
         </button>
 
         <!-- Drop indicator line -->
@@ -73,7 +73,7 @@
         class="w-7 h-7 flex items-center justify-center shrink-0 hover:bg-[var(--bg-hover)]"
         style="color: var(--fg-muted);"
         @click="workspace.toggleBottomPanel()"
-        title="Close terminal panel"
+        :title="t('Close terminal panel')"
       >
         <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5">
           <path d="M2 2l6 6M8 2l-6 6"/>
@@ -110,8 +110,10 @@ import { useWorkspaceStore } from '../../stores/workspace'
 import { getLanguageConfig } from '../../services/codeRunner'
 import { invoke } from '@tauri-apps/api/core'
 import Terminal from './Terminal.vue'
+import { useI18n } from '../../i18n'
 
 const workspace = useWorkspaceStore()
+const { t } = useI18n()
 
 // Lazy init: don't mount terminals until first open
 const hasEverOpened = ref(workspace.bottomPanelOpen)
@@ -138,9 +140,13 @@ const termGhostX = ref(0)
 const termGhostY = ref(0)
 const termGhostLabel = ref('')
 
+function defaultTerminalLabel(number) {
+  return t('Terminal {number}', { number })
+}
+
 // Seed first terminal if panel was already open from a previous session
 if (hasEverOpened.value && terminals.length === 0) {
-  terminals.push({ id: termNextId++, label: 'Terminal 1' })
+  terminals.push({ id: termNextId++, label: defaultTerminalLabel(1) })
   activeTerminal.value = 0
 }
 
@@ -149,7 +155,7 @@ watch(() => workspace.bottomPanelOpen, (open) => {
   if (open) {
     if (!hasEverOpened.value) hasEverOpened.value = true
     if (terminals.length === 0) {
-      terminals.push({ id: termNextId++, label: 'Terminal 1' })
+      terminals.push({ id: termNextId++, label: defaultTerminalLabel(1) })
       activeTerminal.value = 0
     }
   }
@@ -169,7 +175,7 @@ function ensureInitialized() {
 
 function addTerminal() {
   const num = termNextId++
-  terminals.push({ id: num, label: `Terminal ${num}` })
+  terminals.push({ id: num, label: defaultTerminalLabel(num) })
   activeTerminal.value = terminals.length - 1
 }
 
@@ -392,7 +398,7 @@ defineExpose({
   focusTerminal() {
     ensureInitialized()
     if (terminals.length === 0) {
-      terminals.push({ id: termNextId++, label: 'Terminal 1' })
+      terminals.push({ id: termNextId++, label: defaultTerminalLabel(1) })
       activeTerminal.value = 0
     }
     workspace.openBottomPanel()

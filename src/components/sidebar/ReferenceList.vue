@@ -12,7 +12,7 @@
         >
           <path d="M6 4l4 4-4 4"/>
         </svg>
-        <span class="text-[11px] font-medium uppercase tracking-wider">References</span>
+        <span class="text-[11px] font-medium uppercase tracking-wider">{{ t('References') }}</span>
       </div>
       <span
         v-if="referencesStore.refCount > 0"
@@ -30,13 +30,13 @@
           ref="exportBtnEl"
           class="h-5 px-1.5 flex items-center gap-1 rounded text-[11px] hover:opacity-80"
           :style="{ color: 'var(--fg-muted)' }"
-          title="Export references"
+          :title="t('Export references')"
           @click.stop="toggleExportMenu"
         >
           <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M8 10V2M4 6l4-4 4 4M2 13h12"/>
           </svg>
-          Export
+          {{ t('Export') }}
         </button>
       </div>
 
@@ -45,32 +45,32 @@
         <template v-if="showExportMenu">
           <div class="fixed inset-0 z-50" @click="showExportMenu = false"></div>
           <div class="context-menu z-50" :style="exportMenuPos">
-            <div class="context-menu-section">Export as .bib</div>
+            <div class="context-menu-section">{{ t('Export as .bib') }}</div>
             <div class="context-menu-item" @click="saveExport('bib', null)">
-              All ({{ referencesStore.refCount }})
+              {{ t('All ({count})', { count: referencesStore.refCount }) }}
             </div>
             <div v-if="citedCount > 0" class="context-menu-item" @click="saveExport('bib', [...referencesStore.citedKeys])">
-              Cited only ({{ citedCount }})
+              {{ t('Cited only ({count})', { count: citedCount }) }}
             </div>
             <div v-if="searchQuery.trim()" class="context-menu-item" @click="saveExport('bib', filteredRefs.map(r => r._key))">
-              Filtered ({{ filteredRefs.length }})
+              {{ t('Filtered ({count})', { count: filteredRefs.length }) }}
             </div>
             <div v-if="referencesStore.selectedKeys.size > 0" class="context-menu-item" @click="saveExport('bib', [...referencesStore.selectedKeys])">
-              Selected ({{ referencesStore.selectedKeys.size }})
+              {{ t('Selected ({count})', { count: referencesStore.selectedKeys.size }) }}
             </div>
             <div class="context-menu-separator"></div>
-            <div class="context-menu-section">Export as .ris</div>
+            <div class="context-menu-section">{{ t('Export as .ris') }}</div>
             <div class="context-menu-item" @click="saveExport('ris', null)">
-              All ({{ referencesStore.refCount }})
+              {{ t('All ({count})', { count: referencesStore.refCount }) }}
             </div>
             <div v-if="citedCount > 0" class="context-menu-item" @click="saveExport('ris', [...referencesStore.citedKeys])">
-              Cited only ({{ citedCount }})
+              {{ t('Cited only ({count})', { count: citedCount }) }}
             </div>
             <div v-if="searchQuery.trim()" class="context-menu-item" @click="saveExport('ris', filteredRefs.map(r => r._key))">
-              Filtered ({{ filteredRefs.length }})
+              {{ t('Filtered ({count})', { count: filteredRefs.length }) }}
             </div>
             <div v-if="referencesStore.selectedKeys.size > 0" class="context-menu-item" @click="saveExport('ris', [...referencesStore.selectedKeys])">
-              Selected ({{ referencesStore.selectedKeys.size }})
+              {{ t('Selected ({count})', { count: referencesStore.selectedKeys.size }) }}
             </div>
           </div>
         </template>
@@ -88,7 +88,7 @@
             v-model="searchQuery"
             class="flex-1 px-1 py-0.5 ui-text-md outline-none bg-transparent"
             style="color: var(--fg-primary);"
-            placeholder="Search references..."
+            :placeholder="t('Search references...')"
             autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
             @focus="searchFocused = true"
             @blur="searchFocused = false"
@@ -97,13 +97,13 @@
         <button
           class="shrink-0 h-5 px-1.5 flex items-center gap-0.5 rounded ui-text-sm hover:bg-[var(--bg-hover)]"
           :style="{ color: 'var(--fg-muted)' }"
-          title="Add reference"
+          :title="t('Add reference')"
           @click.stop="showAddDialog = true"
         >
           <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M8 3v10M3 8h10"/>
           </svg>
-          Add
+          {{ t('Add') }}
         </button>
       </div>
 
@@ -123,7 +123,7 @@
                 v-model="styleSearchQuery"
                 class="w-full px-1.5 py-0.5 ui-text-md rounded border outline-none"
                 :style="{ background: 'var(--bg-tertiary)', color: 'var(--fg-primary)', borderColor: 'var(--border)' }"
-                placeholder="Search styles..."
+                :placeholder="t('Search styles...')"
                 autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
                 @keydown.escape.stop="showStyleMenu = false"
               />
@@ -140,7 +140,7 @@
               <span v-if="style.category" class="ui-text-xs ml-2 opacity-50">{{ style.category }}</span>
             </div>
             <div v-if="filteredStyles.length === 0" class="px-3 py-2 ui-text-md" style="color: var(--fg-muted);">
-              No matching styles
+              {{ t('No matching styles') }}
             </div>
             <!-- Add custom style -->
             <div
@@ -151,7 +151,7 @@
               <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" style="flex-shrink: 0;">
                 <path d="M8 3v10M3 8h10"/>
               </svg>
-              <span class="ml-1 ui-text-md">Add custom style (.csl)...</span>
+              <span class="ml-1 ui-text-md">{{ t('Add custom style (.csl)...') }}</span>
             </div>
           </div>
         </template>
@@ -164,7 +164,7 @@
           ref="sortBtnEl"
           class="w-5 h-5 flex items-center justify-center rounded shrink-0 hover:opacity-80"
           :style="{ color: 'var(--fg-muted)' }"
-          title="Sort references"
+          :title="t('Sort references')"
           @click.stop="toggleSortMenu"
         >
           <IconArrowsSort :size="13" :stroke-width="1.5" />
@@ -175,7 +175,7 @@
           ref="filterBtnEl"
           class="h-5 px-1.5 flex items-center gap-0.5 rounded shrink-0 ui-text-sm hover:opacity-80"
           :style="{ color: citedFilter !== 'all' ? 'var(--accent)' : 'var(--fg-muted)' }"
-          title="Filter references"
+          :title="t('Filter references')"
           @click.stop="toggleFilterMenu"
         >
           {{ filterLabel }}
@@ -209,7 +209,7 @@
           ref="styleBtnEl"
           class="h-5 px-1.5 flex items-center gap-0.5 rounded shrink-0 ui-text-sm hover:opacity-80"
           :style="{ color: 'var(--fg-muted)' }"
-          title="Citation style"
+          :title="t('Citation style')"
           @click.stop="toggleStyleMenu"
         >
           <span
@@ -273,7 +273,7 @@
             </div>
             <div class="ref-import-spinner shrink-0"></div>
           </div>
-          <div class="ui-text-sm mt-0.5" :style="{ color: 'var(--fg-muted)' }">Importing...</div>
+          <div class="ui-text-sm mt-0.5" :style="{ color: 'var(--fg-muted)' }">{{ t('Importing...') }}</div>
         </div>
 
         <ReferenceItem
@@ -293,9 +293,9 @@
           class="px-3 py-4 text-center ui-text-md"
           :style="{ color: 'var(--fg-muted)' }"
         >
-          <template v-if="searchQuery">No matching references</template>
+          <template v-if="searchQuery">{{ t('No matching references') }}</template>
           <template v-else>
-            Drop PDFs, .bib, .ris, or .json files here
+            {{ t('Drop PDFs, .bib, .ris, or .json files here') }}
           </template>
         </div>
 
@@ -305,7 +305,7 @@
           class="absolute inset-0 flex items-center justify-center pointer-events-none z-10"
           :style="{ background: 'rgba(122, 162, 247, 0.1)', border: '2px dashed var(--accent)' }"
         >
-          <span class="ui-text-base" :style="{ color: 'var(--accent)' }">Drop files to import</span>
+          <span class="ui-text-base" :style="{ color: 'var(--accent)' }">{{ t('Drop files to import') }}</span>
         </div>
       </div>
     </template>
@@ -351,6 +351,7 @@ import { IconSearch, IconArrowsSort } from '@tabler/icons-vue'
 import ReferenceItem from './ReferenceItem.vue'
 import ReferenceContextMenu from './ReferenceContextMenu.vue'
 import AddReferenceDialog from './AddReferenceDialog.vue'
+import { useI18n } from '../../i18n'
 
 const props = defineProps({
   collapsed: { type: Boolean, default: false },
@@ -360,6 +361,7 @@ const emits = defineEmits(['toggle-collapse'])
 const referencesStore = useReferencesStore()
 const editorStore = useEditorStore()
 const workspace = useWorkspaceStore()
+const { t } = useI18n()
 
 const rootEl = ref(null)
 const searchQuery = ref('')
@@ -399,15 +401,15 @@ const filterMenuPosState = ref({ position: 'fixed', left: '0px', top: '0px' })
 const filterMenuPos = computed(() => filterMenuPosState.value)
 
 const filterOptions = computed(() => [
-  { value: 'all', label: `All (${searchedRefs.value.length})` },
-  { value: 'cited', label: `Cited (${citedCount.value})` },
-  { value: 'notCited', label: `Not cited (${notCitedCount.value})` },
+  { value: 'all', label: t('All ({count})', { count: searchedRefs.value.length }) },
+  { value: 'cited', label: t('Cited ({count})', { count: citedCount.value }) },
+  { value: 'notCited', label: t('Not cited ({count})', { count: notCitedCount.value }) },
 ])
 
 const filterLabel = computed(() => {
-  if (citedFilter.value === 'cited') return `Cited ${citedCount.value}`
-  if (citedFilter.value === 'notCited') return `Not cited ${notCitedCount.value}`
-  return `All ${searchedRefs.value.length}`
+  if (citedFilter.value === 'cited') return t('Cited {count}', { count: citedCount.value })
+  if (citedFilter.value === 'notCited') return t('Not cited {count}', { count: notCitedCount.value })
+  return t('All {count}', { count: searchedRefs.value.length })
 })
 
 function toggleFilterMenu() {
@@ -432,21 +434,21 @@ const exportMenuPos = computed(() => exportMenuPosState.value)
 const importToast = ref(null)
 let toastTimer = null
 
-const sortOptions = [
-  { value: 'addedAt-desc', label: 'Date added (newest)', field: 'addedAt', dir: 'desc' },
-  { value: 'addedAt-asc', label: 'Date added (oldest)', field: 'addedAt', dir: 'asc' },
-  { value: 'author-asc', label: 'Author A \u2192 Z', field: 'author', dir: 'asc' },
-  { value: 'author-desc', label: 'Author Z \u2192 A', field: 'author', dir: 'desc' },
-  { value: 'year-desc', label: 'Year (newest)', field: 'year', dir: 'desc' },
-  { value: 'year-asc', label: 'Year (oldest)', field: 'year', dir: 'asc' },
-  { value: 'title-asc', label: 'Title A \u2192 Z', field: 'title', dir: 'asc' },
-  { value: 'title-desc', label: 'Title Z \u2192 A', field: 'title', dir: 'desc' },
-]
+const sortOptions = computed(() => [
+  { value: 'addedAt-desc', label: t('Date added (newest)'), field: 'addedAt', dir: 'desc' },
+  { value: 'addedAt-asc', label: t('Date added (oldest)'), field: 'addedAt', dir: 'asc' },
+  { value: 'author-asc', label: t('Author A → Z'), field: 'author', dir: 'asc' },
+  { value: 'author-desc', label: t('Author Z → A'), field: 'author', dir: 'desc' },
+  { value: 'year-desc', label: t('Year (newest)'), field: 'year', dir: 'desc' },
+  { value: 'year-asc', label: t('Year (oldest)'), field: 'year', dir: 'asc' },
+  { value: 'title-asc', label: t('Title A → Z'), field: 'title', dir: 'asc' },
+  { value: 'title-desc', label: t('Title Z → A'), field: 'title', dir: 'desc' },
+])
 
 const currentSortKey = computed(() => `${referencesStore.sortBy}-${referencesStore.sortDir}`)
 
 function applySortOption(value) {
-  const opt = sortOptions.find(o => o.value === value)
+  const opt = sortOptions.value.find(o => o.value === value)
   if (opt) {
     referencesStore.sortBy = opt.field
     referencesStore.sortDir = opt.dir
@@ -538,7 +540,7 @@ async function addCustomStyle() {
     referencesStore.setCitationStyle(id)
 
     showToast(0, 0)
-    importToast.value = { text: `Added style: ${meta.title}`, hasAdded: true }
+    importToast.value = { text: t('Added style: {title}', { title: meta.title }), hasAdded: true }
     clearTimeout(toastTimer)
     toastTimer = setTimeout(() => { importToast.value = null }, 4000)
   } catch (e) {
@@ -582,7 +584,7 @@ async function saveExport(format, keys) {
 
   const ext = format === 'ris' ? 'ris' : 'bib'
   const path = await save({
-    title: `Export references as .${ext}`,
+    title: t('Export references as .{ext}', { ext }),
     defaultPath: `references.${ext}`,
     filters: [{ name: format === 'ris' ? 'RIS' : 'BibTeX', extensions: [ext] }],
   })
@@ -593,8 +595,12 @@ async function saveExport(format, keys) {
 
 function showToast(added, duplicates) {
   const parts = []
-  if (added > 0) parts.push(`${added} added`)
-  if (duplicates > 0) parts.push(`${duplicates} duplicate${duplicates > 1 ? 's' : ''} skipped`)
+  if (added > 0) {
+    parts.push(t('{count} added', { count: added }))
+  }
+  if (duplicates > 0) {
+    parts.push(t(duplicates === 1 ? '{count} duplicate skipped' : '{count} duplicates skipped', { count: duplicates }))
+  }
   if (parts.length === 0) return
   importToast.value = { text: parts.join(', '), hasAdded: added > 0 }
   clearTimeout(toastTimer)
@@ -699,9 +705,9 @@ async function deleteRef(key) {
     ? [...referencesStore.selectedKeys]
     : [key]
   const msg = keys.length === 1
-    ? `Delete reference @${keys[0]}?`
-    : `Delete ${keys.length} references?`
-  const yes = await ask(msg, { title: 'Confirm Delete', kind: 'warning' })
+    ? t('Delete reference @{key}?', { key: keys[0] })
+    : t('Delete {count} references?', { count: keys.length })
+  const yes = await ask(msg, { title: t('Confirm Delete'), kind: 'warning' })
   if (yes) {
     referencesStore.removeReferences(keys)
   }
@@ -806,7 +812,7 @@ async function onRefFileDrop(event) {
       await invoke('write_file', { path: `${workspace.projectDir}/styles/${id}.csl`, content: xml })
       await referencesStore._loadUserStyles(workspace.projectDir)
       referencesStore.setCitationStyle(id)
-      importToast.value = { text: `Added style: ${meta.title}`, hasAdded: true }
+      importToast.value = { text: t('Added style: {title}', { title: meta.title }), hasAdded: true }
       clearTimeout(toastTimer)
       toastTimer = setTimeout(() => { importToast.value = null }, 4000)
     } catch (e) {

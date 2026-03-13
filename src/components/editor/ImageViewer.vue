@@ -2,10 +2,10 @@
   <div class="h-full flex flex-col overflow-hidden">
     <!-- Toolbar -->
     <div class="flex items-center gap-2 px-3 py-1 border-b" style="background: var(--bg-secondary); border-color: var(--border); color: var(--fg-secondary);">
-      <button class="img-btn" @click="zoomOut" title="Zoom out">−</button>
+      <button class="img-btn" @click="zoomOut" :title="t('Zoom out')">−</button>
       <span class="text-xs tabular-nums" style="min-width: 3em; text-align: center;">{{ Math.round(zoom * 100) }}%</span>
-      <button class="img-btn" @click="zoomIn" title="Zoom in">+</button>
-      <button class="img-btn text-xs" @click="resetView" title="Reset to actual size">Fit</button>
+      <button class="img-btn" @click="zoomIn" :title="t('Zoom in')">+</button>
+      <button class="img-btn text-xs" @click="resetView" :title="t('Reset to actual size')">{{ isZh ? '适配' : 'Fit' }}</button>
       <span class="mx-2 text-xs" style="color: var(--fg-muted);">|</span>
       <span v-if="naturalSize" class="text-xs" style="color: var(--fg-muted);">{{ naturalSize }}</span>
       <span v-if="error" class="text-xs ml-auto" style="color: var(--error);">{{ error }}</span>
@@ -30,7 +30,7 @@
         draggable="false"
         @load="onImgLoad"
       />
-      <div v-else-if="loading" class="flex items-center justify-center h-full text-sm" style="color: var(--fg-muted);">Loading image...</div>
+      <div v-else-if="loading" class="flex items-center justify-center h-full text-sm" style="color: var(--fg-muted);">{{ t('Loading image...') }}</div>
     </div>
   </div>
 </template>
@@ -39,12 +39,14 @@
 import { ref, nextTick, onMounted, onUnmounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { getMimeType } from '../../utils/fileTypes'
+import { useI18n } from '../../i18n'
 
 const props = defineProps({
   filePath: { type: String, required: true },
   paneId: { type: String, required: true },
 })
 
+const { t, isZh } = useI18n()
 const viewport = ref(null)
 const imgEl = ref(null)
 const dataUrl = ref(null)

@@ -5,7 +5,7 @@
     <div class="overflow-y-auto" style="max-height: 240px;">
       <!-- Models section -->
       <template v-if="filteredModels.length > 0">
-        <div class="px-2 pt-1.5 pb-0.5 ui-text-sm uppercase tracking-wider" style="color: var(--fg-muted);">Model</div>
+        <div class="px-2 pt-1.5 pb-0.5 ui-text-sm uppercase tracking-wider" style="color: var(--fg-muted);">{{ t('Model') }}</div>
         <div v-for="(m, i) in filteredModels" :key="'model-' + m.id"
           class="px-2 py-1.5 ui-text-base cursor-pointer flex items-center gap-2"
           :style="{
@@ -45,7 +45,7 @@
       <!-- Empty state -->
       <div v-if="filteredModels.length === 0 && filteredFiles.length === 0"
         class="px-2 py-3 ui-text-base text-center" style="color: var(--fg-muted);">
-        No files found
+        {{ t('No files found') }}
       </div>
     </div>
   </div>
@@ -55,6 +55,7 @@
 import { ref, computed, watch } from 'vue'
 import { useFilesStore } from '../../stores/files'
 import { useWorkspaceStore } from '../../stores/workspace'
+import { useI18n } from '../../i18n'
 
 const props = defineProps({
   filter: { type: String, default: '' },
@@ -65,6 +66,7 @@ const emit = defineEmits(['select', 'select-model', 'close'])
 const filesStore = useFilesStore()
 const workspace = useWorkspaceStore()
 const selectedIdx = ref(0)
+const { t } = useI18n()
 
 const filteredModels = computed(() => {
   if (!props.filter || !props.models.length) return []

@@ -438,7 +438,27 @@ function handleAltZ(e) {
 }
 
 function handleFocusSearch() { headerRef.value?.focusSearch() }
-function handleNewFile() { leftSidebarRef.value?.createNewFile('.md') }
+function handleNewFile() {
+  if (!workspace.isOpen) return
+  leftSidebarRef.value?.createNewFile('.md')
+}
+function handleOpenFolder() { pickWorkspace() }
+async function handleCloseFolder() {
+  if (!workspace.isOpen) return
+  await closeWorkspace()
+}
+function handleOpenSettings(e) {
+  const section = e?.detail?.section ?? null
+  workspace.openSettings(section)
+}
+function handleToggleLeftSidebar() {
+  if (!workspace.isOpen) return
+  workspace.toggleLeftSidebar()
+}
+function handleToggleTerminal() {
+  if (!workspace.isOpen) return
+  workspace.toggleBottomPanel()
+}
 
 // Refresh file tree when window regains focus (catches files added via Finder etc.)
 let lastFocusRefresh = 0
@@ -458,6 +478,11 @@ onMounted(() => {
   window.addEventListener('chat-prefill', handleChatPrefill)
   window.addEventListener('app:focus-search', handleFocusSearch)
   window.addEventListener('app:new-file', handleNewFile)
+  window.addEventListener('app:open-folder', handleOpenFolder)
+  window.addEventListener('app:close-folder', handleCloseFolder)
+  window.addEventListener('app:open-settings', handleOpenSettings)
+  window.addEventListener('app:toggle-left-sidebar', handleToggleLeftSidebar)
+  window.addEventListener('app:toggle-terminal', handleToggleTerminal)
 })
 
 onUnmounted(() => {
@@ -467,6 +492,11 @@ onUnmounted(() => {
   window.removeEventListener('chat-prefill', handleChatPrefill)
   window.removeEventListener('app:focus-search', handleFocusSearch)
   window.removeEventListener('app:new-file', handleNewFile)
+  window.removeEventListener('app:open-folder', handleOpenFolder)
+  window.removeEventListener('app:close-folder', handleCloseFolder)
+  window.removeEventListener('app:open-settings', handleOpenSettings)
+  window.removeEventListener('app:toggle-left-sidebar', handleToggleLeftSidebar)
+  window.removeEventListener('app:toggle-terminal', handleToggleTerminal)
   workspace.cleanup()
   filesStore.cleanup()
   reviews.cleanup()
@@ -501,7 +531,7 @@ async function forceSaveAndCommit() {
     const hasChanges = status && status.trim().length > 0
 
     if (!hasChanges) {
-      footerRef.value?.showCenterMessage('All saved (no changes)')
+      footerRef.value?.showCenterMessage(t('All saved (no changes)'))
       return
     }
 
@@ -515,17 +545,17 @@ async function forceSaveAndCommit() {
     } else {
       const now = new Date()
       const ts = now.toISOString().replace('T', ' ').slice(0, 16)
-      commitMessage = `Save: ${ts}`
+      commitMessage = t('Save: {ts}', { ts })
     }
 
     await gitCommit(workspace.path, commitMessage)
   } catch (e) {
     const errStr = String(e)
     if (errStr.includes('nothing to commit')) {
-      footerRef.value?.showCenterMessage('All saved (no changes)')
+      footerRef.value?.showCenterMessage(t('All saved (no changes)'))
     } else {
       console.error('Save+commit error:', e)
-      footerRef.value?.showSaveMessage('Saved (commit failed)')
+      footerRef.value?.showSaveMessage(t('Saved (commit failed)'))
     }
   }
 }

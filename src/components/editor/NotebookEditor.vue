@@ -25,21 +25,21 @@
       </span>
 
       <div class="flex items-center gap-1 ml-1">
-        <button class="nb-toolbar-btn" @click="runAllCells" :disabled="mode === 'none'" title="Run all cells">
+        <button class="nb-toolbar-btn" @click="runAllCells" :disabled="mode === 'none'" :title="t('Run all cells')">
           <svg width="10" height="10" viewBox="0 0 20 16" fill="currentColor"><polygon points="2,2 10,8 2,14"/><polygon points="10,2 18,8 10,14"/></svg>
-          Run All
+          {{ t('Run All') }}
         </button>
-        <button v-if="mode === 'jupyter'" class="nb-toolbar-btn" @click="restartKernel" :disabled="!kernelId" title="Restart kernel">
-          Restart
+        <button v-if="mode === 'jupyter'" class="nb-toolbar-btn" @click="restartKernel" :disabled="!kernelId" :title="t('Restart kernel')">
+          {{ t('Restart') }}
         </button>
-        <button class="nb-toolbar-btn" @click="clearAllOutputs" title="Clear all outputs">
-          Clear
+        <button class="nb-toolbar-btn" @click="clearAllOutputs" :title="t('Clear all outputs')">
+          {{ t('Clear') }}
         </button>
       </div>
 
       <span class="ml-auto text-[10px]" style="color: var(--fg-muted);">
-        {{ cells.length }} cells
-        <template v-if="saving"> &middot; Saving...</template>
+        {{ t('{count} cells', { count: cells.length }) }}
+        <template v-if="saving"> &middot; {{ t('Saving...') }}</template>
       </span>
     </div>
 
@@ -53,20 +53,20 @@
         >
           <!-- Current language info -->
           <div class="nb-pop-section">
-            <div class="nb-pop-label">Notebook Language</div>
+            <div class="nb-pop-label">{{ t('Notebook Language') }}</div>
             <div class="nb-pop-value">{{ langDisplayName }}</div>
           </div>
 
           <!-- Status details -->
           <div class="nb-pop-section">
-            <div class="nb-pop-label">Status</div>
+            <div class="nb-pop-label">{{ t('Status') }}</div>
             <div v-if="mode === 'jupyter'" class="nb-pop-status nb-pop-status-good">
               <span class="nb-pop-dot good"></span>
-              Jupyter kernel ready
+              {{ t('Jupyter kernel ready') }}
             </div>
             <div v-else class="nb-pop-status nb-pop-status-none">
               <span class="nb-pop-dot none"></span>
-              No Jupyter kernel
+              {{ t('No Jupyter kernel') }}
               <div class="nb-pop-hint">{{ envStore.installHint(notebookLanguage) }}</div>
             </div>
           </div>
@@ -81,7 +81,7 @@
 
           <!-- Kernel picker (jupyter mode) -->
           <div v-if="mode === 'jupyter'" class="nb-pop-section">
-            <div class="nb-pop-label">Kernel</div>
+            <div class="nb-pop-label">{{ t('Kernel') }}</div>
             <select
               v-model="selectedSpec"
               class="nb-pop-select"
@@ -95,7 +95,7 @@
           <!-- Re-detect link -->
           <div class="nb-pop-footer">
             <button class="nb-pop-link" @click="redetect" :disabled="envStore.detecting">
-              {{ envStore.detecting ? 'Detecting...' : 'Re-detect languages' }}
+              {{ envStore.detecting ? t('Detecting...') : t('Re-detect languages') }}
             </button>
           </div>
         </div>
@@ -110,24 +110,24 @@
           <path d="M7 8l3 3-3 3" opacity="0.7"/><line x1="13" y1="14" x2="17" y2="14" opacity="0.7"/>
         </svg>
       </div>
-      <div class="nb-setup-title">Set up {{ langDisplayName }} for notebooks</div>
+      <div class="nb-setup-title">{{ t('Set up {language} for notebooks', { language: langDisplayName }) }}</div>
       <div class="nb-setup-desc">
-        Running notebook cells requires a Jupyter kernel.
-        {{ envStore.jupyter.found ? '' : 'Jupyter was not found on your system.' }}
+        {{ t('Running notebook cells requires a Jupyter kernel.') }}
+        {{ envStore.jupyter.found ? '' : t('Jupyter was not found on your system.') }}
       </div>
 
       <div class="nb-setup-steps">
         <div v-if="!envStore.jupyter.found" class="nb-setup-step">
           <span class="nb-setup-step-num">1</span>
           <div>
-            <div class="nb-setup-step-title">Install Jupyter</div>
+            <div class="nb-setup-step-title">{{ t('Install Jupyter') }}</div>
             <code class="nb-setup-code">pip3 install jupyter</code>
           </div>
         </div>
         <div class="nb-setup-step">
           <span class="nb-setup-step-num">{{ envStore.jupyter.found ? '1' : '2' }}</span>
           <div>
-            <div class="nb-setup-step-title">Install the {{ langDisplayName }} kernel</div>
+            <div class="nb-setup-step-title">{{ t('Install the {language} kernel', { language: langDisplayName }) }}</div>
             <code class="nb-setup-code">{{ envStore.installCommand(notebookLanguage) }}</code>
           </div>
         </div>
@@ -139,10 +139,10 @@
           :disabled="envStore.installing === notebookLanguage"
           @click="handleInstallKernel"
         >
-          {{ envStore.installing === notebookLanguage ? 'Installing...' : `Install ${kernelPackageName} now` }}
+          {{ envStore.installing === notebookLanguage ? t('Installing...') : t('Install {package} now', { package: kernelPackageName }) }}
         </button>
         <button class="nb-setup-redetect" @click="redetect" :disabled="envStore.detecting">
-          {{ envStore.detecting ? 'Checking...' : 'Re-check' }}
+          {{ envStore.detecting ? t('Checking...') : t('Re-check') }}
         </button>
       </div>
 
@@ -183,8 +183,8 @@
 
         <!-- Add cell button -->
         <div class="flex gap-2 justify-center mt-3">
-          <button class="nb-add-cell-btn" @click="addCell(cells.length, 'code')">+ Code</button>
-          <button class="nb-add-cell-btn" @click="addCell(cells.length, 'markdown')">+ Markdown</button>
+          <button class="nb-add-cell-btn" @click="addCell(cells.length, 'code')">{{ t('+ Code') }}</button>
+          <button class="nb-add-cell-btn" @click="addCell(cells.length, 'markdown')">{{ t('+ Markdown') }}</button>
         </div>
       </div>
     </div>
@@ -202,6 +202,7 @@ import { useReviewsStore } from '../../stores/reviews'
 import { useEnvironmentStore } from '../../stores/environment'
 import { parseNotebook, serializeNotebook, generateCellId, getNotebookLanguage } from '../../utils/notebookFormat'
 import NotebookCell from './NotebookCell.vue'
+import { useI18n } from '../../i18n'
 
 const props = defineProps({
   filePath: { type: String, required: true },
@@ -214,6 +215,7 @@ const editorStore = useEditorStore()
 const kernelStore = useKernelStore()
 const reviews = useReviewsStore()
 const envStore = useEnvironmentStore()
+const { t } = useI18n()
 
 // Notebook state
 const cells = reactive([])
@@ -318,9 +320,9 @@ const statusDotClass = computed(() => ({
 }))
 
 const kernelStatusLabel = computed(() => {
-  if (!kernelId.value) return 'No kernel'
+  if (!kernelId.value) return t('No kernel')
   const k = kernelStore.kernels[kernelId.value]
-  return k ? k.status : 'disconnected'
+  return k ? k.status : t('disconnected')
 })
 
 const kernelStatusStyle = computed(() => {
@@ -533,7 +535,7 @@ async function ensureKernel() {
       await kernelStore.discover()
     }
     if (kernelspecs.value.length === 0) {
-      throw new Error('No Jupyter kernels available')
+      throw new Error(t('No Jupyter kernels available'))
     }
     selectedSpec.value = kernelspecs.value[0].name
   }
@@ -566,8 +568,8 @@ async function runCell(index) {
   if (mode.value !== 'jupyter') {
     cell.outputs = [{
       output_type: 'error',
-      ename: 'No Kernel',
-      evalue: 'Set up a Jupyter kernel to run cells. Click the status chip in the toolbar.',
+      ename: t('No Kernel'),
+      evalue: t('Set up a Jupyter kernel to run cells. Click the status chip in the toolbar.'),
       traceback: [],
     }]
     return { outputs: cell.outputs, success: false }
@@ -589,7 +591,7 @@ async function runCell(index) {
   } catch (e) {
     cell.outputs = [{
       output_type: 'error',
-      ename: 'ExecutionError',
+      ename: t('ExecutionError'),
       evalue: e.message || String(e),
       traceback: [e.message || String(e)],
     }]
@@ -660,20 +662,20 @@ function onRunNotebookCell(e) {
   const { path, index } = e.detail || {}
   if (path !== props.filePath) return
   runCell(index).then(result => {
-    const outputText = (result?.outputs || []).map(o => {
-      if (o.output_type === 'stream') return Array.isArray(o.text) ? o.text.join('') : o.text
-      if (o.output_type === 'execute_result' || o.output_type === 'display_data') {
-        return o.data?.['text/plain'] ? (Array.isArray(o.data['text/plain']) ? o.data['text/plain'].join('') : o.data['text/plain']) : '[rich output]'
-      }
-      if (o.output_type === 'error') return `${o.ename}: ${o.evalue}`
-      return ''
+        const outputText = (result?.outputs || []).map(o => {
+          if (o.output_type === 'stream') return Array.isArray(o.text) ? o.text.join('') : o.text
+          if (o.output_type === 'execute_result' || o.output_type === 'display_data') {
+        return o.data?.['text/plain'] ? (Array.isArray(o.data['text/plain']) ? o.data['text/plain'].join('') : o.data['text/plain']) : `[${t('rich output')}]`
+          }
+          if (o.output_type === 'error') return `${o.ename}: ${o.evalue}`
+          return ''
     }).join('\n')
 
     window.dispatchEvent(new CustomEvent('cell-execution-complete', {
       detail: {
         path,
         index,
-        output: outputText || '(no output)',
+        output: outputText || `(${t('no output')})`,
         success: result?.success !== false,
         error: result?.success === false ? outputText : null,
       },
@@ -691,7 +693,7 @@ function onRunAllNotebookCells(e) {
         const out = c.outputs.map(o => {
           if (o.output_type === 'error') return `ERROR: ${o.ename}: ${o.evalue}`
           if (o.output_type === 'stream') return (Array.isArray(o.text) ? o.text.join('') : o.text).slice(0, 200)
-          return '[output]'
+          return `[${t('output')}]`
         }).join('\n')
         return `Cell ${i}: ${out.slice(0, 300)}`
       }).join('\n\n')
@@ -699,7 +701,7 @@ function onRunAllNotebookCells(e) {
     window.dispatchEvent(new CustomEvent('all-cells-execution-complete', {
       detail: {
         path,
-        summary: summary || 'All cells executed (no output)',
+        summary: summary || t('All cells executed (no output)'),
       },
     }))
   })

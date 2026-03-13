@@ -5,7 +5,7 @@
     style="background: rgba(224, 175, 104, 0.08); border-bottom: 1px solid var(--border); height: 28px;"
   >
     <span class="text-xs" style="color: var(--warning);">
-      {{ fileEdits.length }} cell change{{ fileEdits.length !== 1 ? 's' : '' }}
+      {{ t(fileEdits.length === 1 ? '{count} cell change' : '{count} cell changes', { count: fileEdits.length }) }}
     </span>
     <div class="flex items-center gap-1.5">
       <button
@@ -13,14 +13,14 @@
         @click="reviews.acceptAllForFile(filePath)"
       >
         <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3,8 7,12 13,4"/></svg>
-        Accept All
+        {{ t('Accept All') }}
       </button>
       <button
         class="review-bar-btn review-bar-reject"
         @click="reviews.rejectAllForFile(filePath)"
       >
         <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="3" x2="13" y2="13"/><line x1="13" y1="3" x2="3" y2="13"/></svg>
-        Reject All
+        {{ t('Reject All') }}
       </button>
     </div>
   </div>
@@ -29,12 +29,14 @@
 <script setup>
 import { computed } from 'vue'
 import { useReviewsStore } from '../../stores/reviews'
+import { useI18n } from '../../i18n'
 
 const props = defineProps({
   filePath: { type: String, default: null },
 })
 
 const reviews = useReviewsStore()
+const { t } = useI18n()
 
 const fileEdits = computed(() => {
   if (!props.filePath) return []

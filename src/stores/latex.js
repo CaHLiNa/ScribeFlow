@@ -3,25 +3,48 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { ensureBibFile } from '../services/latexBib'
 
+const COMPILER_CHECK_CACHE_MS = 5000
+
+const readStoredValue = (key, fallback) => {
+  try {
+    const value = localStorage.getItem(key)
+    return value == null ? fallback : value
+  } catch {
+    return fallback
+  }
+}
+
+const clearLegacyLatexSettings = () => {
+  try {
+    localStorage.removeItem('latex.customSystemTexPath')
+  } catch {}
+}
+
 export const useLatexStore = defineStore('latex', {
-  state: () => ({
+  state: () => {
+    clearLegacyLatexSettings()
+    return ({
     // Per-file compile state: { [texPath]: { status, errors, warnings, pdfPath, synctexPath, log, durationMs, lastCompiled } }
     compileState: {},
-    // Whether Tectonic is enabled (global toggle)
-    tectonicEnabled: true,
     // Whether auto-compile on save is enabled
     autoCompile: true,
     // Debounce timers per file
     _timers: {},
     // Recompile flags per file (set when compile is requested while one is running)
     _recompileNeeded: {},
+    compilerPreference: readStoredValue('latex.compilerPreference', 'auto'),
     // Tectonic install state
     tectonicInstalled: false,
     tectonicPath: null,
+    systemTexInstalled: false,
+    systemTexPath: null,
+    checkingCompilers: false,
+    lastCompilerCheckAt: 0,
     downloading: false,
     downloadProgress: 0,
     downloadError: null,
-  }),
+  })
+  },
 
   getters: {
     stateForFile: (state) => (texPath) => {
@@ -40,11 +63,25 @@ export const useLatexStore = defineStore('latex', {
     warningsForFile: (state) => (texPath) => {
       return state.compileState[texPath]?.warnings || []
     },
+
+    hasAvailableCompiler: (state) => {
+      if (state.compilerPreference === 'system') return state.systemTexInstalled
+      if (state.compilerPreference === 'tectonic') return state.tectonicInstalled
+      return state.systemTexInstalled || state.tectonicInstalled
+    },
+
+    activeCompilerLabel: (state) => {
+      if (state.compilerPreference === 'system') return 'System TeX'
+      if (state.compilerPreference === 'tectonic') return 'Tectonic'
+      if (state.systemTexInstalled) return 'System TeX'
+      if (state.tectonicInstalled) return 'Tectonic'
+      return null
+    },
   },
 
   actions: {
     scheduleAutoCompile(texPath) {
-      if (!this.tectonicEnabled || !this.autoCompile) return
+      if (!this.autoCompile) return
 
       // Clear existing timer for this file
       if (this._timers[texPath]) {
@@ -59,8 +96,6 @@ export const useLatexStore = defineStore('latex', {
     },
 
     async compile(texPath) {
-      if (!this.tectonicEnabled) return
-
       // If already compiling, set recompile flag and return
       const current = this.compileState[texPath]
       if (current?.status === 'compiling') {
@@ -80,7 +115,11 @@ export const useLatexStore = defineStore('latex', {
         // Generate .bib file from reference library before compiling
         try { await ensureBibFile(texPath) } catch {}
 
-        const result = await invoke('compile_latex', { texPath })
+        const result = await invoke('compile_latex', {
+          texPath,
+          compilerPreference: this.compilerPreference,
+          customTectonicPath: null,
+        })
 
         this.compileState[texPath] = {
           status: result.success ? 'success' : 'error',
@@ -113,22 +152,11 @@ export const useLatexStore = defineStore('latex', {
       }
     },
 
-    async setTectonicEnabled(enabled) {
-      this.tectonicEnabled = enabled
+    setCompilerPreference(preference) {
+      this.compilerPreference = preference
       try {
-        await invoke('set_tectonic_enabled', { enabled })
-      } catch (e) {
-        console.error('Failed to set tectonic enabled:', e)
-      }
-    },
-
-    async loadTectonicEnabled() {
-      try {
-        this.tectonicEnabled = await invoke('is_tectonic_enabled')
-      } catch (e) {
-        // Default to true if command fails
-        this.tectonicEnabled = true
-      }
+        localStorage.setItem('latex.compilerPreference', preference)
+      } catch {}
     },
 
     cancelAutoCompile(texPath) {
@@ -153,15 +181,29 @@ export const useLatexStore = defineStore('latex', {
       this.compileState = {}
     },
 
-    async checkTectonic() {
+    async checkCompilers(force = false) {
+      if (this.checkingCompilers) return
+      if (!force && this.lastCompilerCheckAt && Date.now() - this.lastCompilerCheckAt < COMPILER_CHECK_CACHE_MS) return
+      this.checkingCompilers = true
       try {
-        const result = await invoke('check_tectonic')
-        this.tectonicInstalled = result.installed
-        this.tectonicPath = result.path || null
+        const result = await invoke('check_latex_compilers')
+        this.tectonicInstalled = result.tectonic?.installed === true
+        this.tectonicPath = result.tectonic?.path || null
+        this.systemTexInstalled = result.systemTex?.installed === true
+        this.systemTexPath = result.systemTex?.path || null
       } catch {
         this.tectonicInstalled = false
         this.tectonicPath = null
+        this.systemTexInstalled = false
+        this.systemTexPath = null
+      } finally {
+        this.lastCompilerCheckAt = Date.now()
+        this.checkingCompilers = false
       }
+    },
+
+    async checkTectonic() {
+      await this.checkCompilers(true)
     },
 
     async downloadTectonic() {
@@ -177,6 +219,7 @@ export const useLatexStore = defineStore('latex', {
         const path = await invoke('download_tectonic')
         this.tectonicInstalled = true
         this.tectonicPath = path
+        await this.checkCompilers(true)
       } catch (e) {
         this.downloadError = typeof e === 'string' ? e : e.message || 'Download failed'
       } finally {

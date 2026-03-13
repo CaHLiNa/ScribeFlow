@@ -1,4 +1,4 @@
-use rusqlite::{Connection, params};
+use rusqlite::{params, Connection};
 use std::sync::Mutex;
 
 pub struct UsageDbState {
@@ -57,8 +57,9 @@ fn ensure_connection(state: &UsageDbState) -> Result<(), String> {
         CREATE TABLE IF NOT EXISTS usage_settings (
             key TEXT PRIMARY KEY,
             value TEXT
-        );"
-    ).map_err(|e| format!("Failed to create schema: {}", e))?;
+        );",
+    )
+    .map_err(|e| format!("Failed to create schema: {}", e))?;
 
     *guard = Some(conn);
     Ok(())
@@ -151,29 +152,47 @@ pub fn usage_query_month(
         COALESCE(SUM(output_tokens), 0)
         FROM usage_calls WHERE timestamp LIKE ?1";
 
-    let (total_cost, calls, shoulders_cost, direct_cost, shoulders_calls, direct_calls, total_input_tokens, total_output_tokens) = if let Some(ref ws) = workspace {
+    let (
+        total_cost,
+        calls,
+        shoulders_cost,
+        direct_cost,
+        shoulders_calls,
+        direct_calls,
+        total_input_tokens,
+        total_output_tokens,
+    ) = if let Some(ref ws) = workspace {
         conn.query_row(
             &format!("{} AND workspace = ?2", totals_sql),
             params![month_prefix, ws],
-            |row| Ok((
-                row.get::<_, f64>(0)?, row.get::<_, i64>(1)?,
-                row.get::<_, f64>(2)?, row.get::<_, f64>(3)?,
-                row.get::<_, i64>(4)?, row.get::<_, i64>(5)?,
-                row.get::<_, i64>(6)?, row.get::<_, i64>(7)?,
-            )),
+            |row| {
+                Ok((
+                    row.get::<_, f64>(0)?,
+                    row.get::<_, i64>(1)?,
+                    row.get::<_, f64>(2)?,
+                    row.get::<_, f64>(3)?,
+                    row.get::<_, i64>(4)?,
+                    row.get::<_, i64>(5)?,
+                    row.get::<_, i64>(6)?,
+                    row.get::<_, i64>(7)?,
+                ))
+            },
         )
     } else {
-        conn.query_row(
-            totals_sql,
-            params![month_prefix],
-            |row| Ok((
-                row.get::<_, f64>(0)?, row.get::<_, i64>(1)?,
-                row.get::<_, f64>(2)?, row.get::<_, f64>(3)?,
-                row.get::<_, i64>(4)?, row.get::<_, i64>(5)?,
-                row.get::<_, i64>(6)?, row.get::<_, i64>(7)?,
-            )),
-        )
-    }.map_err(|e| format!("Query failed: {}", e))?;
+        conn.query_row(totals_sql, params![month_prefix], |row| {
+            Ok((
+                row.get::<_, f64>(0)?,
+                row.get::<_, i64>(1)?,
+                row.get::<_, f64>(2)?,
+                row.get::<_, f64>(3)?,
+                row.get::<_, i64>(4)?,
+                row.get::<_, i64>(5)?,
+                row.get::<_, i64>(6)?,
+                row.get::<_, i64>(7)?,
+            ))
+        })
+    }
+    .map_err(|e| format!("Query failed: {}", e))?;
 
     // By feature
     let by_feature = query_breakdown(conn, &month_prefix, workspace.as_deref(), GroupBy::Feature)?;
@@ -234,7 +253,9 @@ fn query_breakdown(
         )
     };
 
-    let mut stmt = conn.prepare(&sql).map_err(|e| format!("Prepare failed: {}", e))?;
+    let mut stmt = conn
+        .prepare(&sql)
+        .map_err(|e| format!("Prepare failed: {}", e))?;
 
     let mut result = Vec::new();
 
@@ -255,10 +276,14 @@ fn query_breakdown(
     };
 
     if let Some(ws) = workspace {
-        let rows = stmt.query(params![month_prefix, ws]).map_err(|e| format!("Query failed: {}", e))?;
+        let rows = stmt
+            .query(params![month_prefix, ws])
+            .map_err(|e| format!("Query failed: {}", e))?;
         process_rows(rows)?;
     } else {
-        let rows = stmt.query(params![month_prefix]).map_err(|e| format!("Query failed: {}", e))?;
+        let rows = stmt
+            .query(params![month_prefix])
+            .map_err(|e| format!("Query failed: {}", e))?;
         process_rows(rows)?;
     }
 
@@ -292,7 +317,9 @@ pub fn usage_query_monthly_trend(
          GROUP BY month ORDER BY month DESC LIMIT ?1"
     };
 
-    let mut stmt = conn.prepare(sql).map_err(|e| format!("Prepare failed: {}", e))?;
+    let mut stmt = conn
+        .prepare(sql)
+        .map_err(|e| format!("Prepare failed: {}", e))?;
     let mut result = Vec::new();
 
     let mut process_rows = |rows: rusqlite::Rows<'_>| -> Result<(), String> {
@@ -309,10 +336,14 @@ pub fn usage_query_monthly_trend(
     };
 
     if let Some(ref ws) = workspace {
-        let rows = stmt.query(params![ws, count]).map_err(|e| format!("Query failed: {}", e))?;
+        let rows = stmt
+            .query(params![ws, count])
+            .map_err(|e| format!("Query failed: {}", e))?;
         process_rows(rows)?;
     } else {
-        let rows = stmt.query(params![count]).map_err(|e| format!("Query failed: {}", e))?;
+        let rows = stmt
+            .query(params![count])
+            .map_err(|e| format!("Query failed: {}", e))?;
         process_rows(rows)?;
     }
 
@@ -357,7 +388,9 @@ pub fn usage_query_daily_trend(
          GROUP BY day ORDER BY day ASC"
     };
 
-    let mut stmt = conn.prepare(sql).map_err(|e| format!("Prepare failed: {}", e))?;
+    let mut stmt = conn
+        .prepare(sql)
+        .map_err(|e| format!("Prepare failed: {}", e))?;
     let mut result = Vec::new();
 
     let mut process_rows = |rows: rusqlite::Rows<'_>| -> Result<(), String> {
@@ -374,10 +407,14 @@ pub fn usage_query_daily_trend(
     };
 
     if let Some(ref ws) = workspace {
-        let rows = stmt.query(params![month_prefix, ws]).map_err(|e| format!("Query failed: {}", e))?;
+        let rows = stmt
+            .query(params![month_prefix, ws])
+            .map_err(|e| format!("Query failed: {}", e))?;
         process_rows(rows)?;
     } else {
-        let rows = stmt.query(params![month_prefix]).map_err(|e| format!("Query failed: {}", e))?;
+        let rows = stmt
+            .query(params![month_prefix])
+            .map_err(|e| format!("Query failed: {}", e))?;
         process_rows(rows)?;
     }
 
@@ -419,7 +456,8 @@ pub fn usage_set_setting(
     conn.execute(
         "INSERT OR REPLACE INTO usage_settings (key, value) VALUES (?1, ?2)",
         params![key, value],
-    ).map_err(|e| format!("Failed to set setting: {}", e))?;
+    )
+    .map_err(|e| format!("Failed to set setting: {}", e))?;
 
     Ok(())
 }

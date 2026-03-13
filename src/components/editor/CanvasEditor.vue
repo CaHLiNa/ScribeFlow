@@ -35,7 +35,7 @@
     <div class="canvas-toolbar">
       <button
         class="toolbar-btn"
-        title="Add text node"
+        :title="t('Add text node')"
         draggable="true"
         @dragstart="e => e.dataTransfer.setData('application/x-canvas-node', 'text')"
         @click="addNodeAtCenter('text')"
@@ -44,7 +44,7 @@
       </button>
       <button
         class="toolbar-btn"
-        title="Add prompt node"
+        :title="t('Add prompt node')"
         draggable="true"
         @dragstart="e => e.dataTransfer.setData('application/x-canvas-node', 'prompt')"
         @click="addNodeAtCenter('prompt')"
@@ -53,7 +53,7 @@
       </button>
       <button
         class="toolbar-btn"
-        title="Add label"
+        :title="t('Add label')"
         draggable="true"
         @dragstart="e => e.dataTransfer.setData('application/x-canvas-node', 'label')"
         @click="addNodeAtCenter('label')"
@@ -62,7 +62,7 @@
       </button>
       <button
         class="toolbar-btn"
-        title="Add group / frame"
+        :title="t('Add group / frame')"
         draggable="true"
         @dragstart="e => e.dataTransfer.setData('application/x-canvas-node', 'group')"
         @click="addNodeAtCenter('group')"
@@ -73,7 +73,7 @@
 
     <!-- Empty state -->
     <div v-if="nodes.length === 0 && !loading" class="empty-state">
-      Double-click to start thinking.
+      {{ t('Double-click to start thinking.') }}
     </div>
 
     <!-- Context menu -->
@@ -118,6 +118,7 @@ import { useFilesStore } from '../../stores/files'
 import { useCanvasStore } from '../../stores/canvas'
 import { parseCanvas, serializeCanvas } from '../../utils/canvasFormat'
 import { nanoid } from '../../stores/utils'
+import { useI18n } from '../../i18n'
 import TextNodeVue from '../canvas/TextNode.vue'
 import PromptNodeVue from '../canvas/PromptNode.vue'
 import FileNodeVue from '../canvas/FileNode.vue'
@@ -133,6 +134,7 @@ const props = defineProps({
 
 const filesStore = useFilesStore()
 const canvasStore = useCanvasStore()
+const { t } = useI18n()
 
 const nodes = ref([])
 const edges = ref([])

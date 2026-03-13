@@ -14,7 +14,7 @@
     <div v-if="data.preview" class="file-preview">{{ data.preview }}</div>
 
     <!-- Click hint -->
-    <div class="file-hint">Click to open</div>
+    <div class="file-hint">{{ t('Click to open') }}</div>
 
     <!-- Connection handles -->
     <Handle type="target" :position="Position.Top" class="canvas-handle" />
@@ -28,6 +28,7 @@ import { Handle, Position } from '@vue-flow/core'
 import { useEditorStore } from '../../stores/editor'
 import { getFileIconName } from '../../utils/fileTypes'
 import * as Icons from '@tabler/icons-vue'
+import { useI18n } from '../../i18n'
 
 const props = defineProps({
   id: { type: String, required: true },
@@ -36,9 +37,10 @@ const props = defineProps({
 })
 
 const editorStore = useEditorStore()
+const { t } = useI18n()
 
 const fileName = computed(() => {
-  if (!props.data.filePath) return 'Unknown file'
+  if (!props.data.filePath) return t('Unknown file')
   return props.data.filePath.split('/').pop() || props.data.filePath
 })
 

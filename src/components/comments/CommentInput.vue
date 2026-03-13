@@ -68,7 +68,7 @@
       <button
         class="p-1 rounded bg-transparent border-none cursor-pointer flex items-center transition-colors"
         style="color: var(--fg-muted);"
-        title="Attach file (@)"
+        :title="t('Attach file (@)')"
         @mousedown.prevent
         @click="triggerAtMention"
       >
@@ -87,7 +87,7 @@
         :style="{ opacity: canSave ? 1 : 0.5, cursor: canSave ? 'pointer' : 'default' }"
         @click="handleSave"
       >
-        Save
+        {{ t('Save') }}
       </button>
 
       <!-- Submit button (save + send to AI) -->
@@ -98,7 +98,7 @@
         :style="{ opacity: canSave ? 1 : 0.5, cursor: canSave ? 'pointer' : 'default' }"
         @click="handleSaveAndSubmit"
       >
-        Submit
+        {{ t('Submit') }}
       </button>
     </div>
 
@@ -125,6 +125,7 @@
 import { ref, computed, onMounted, nextTick } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import FileRefPopover from '../shared/FileRefPopover.vue'
+import { useI18n } from '../../i18n'
 
 const props = defineProps({
   placeholder: { type: String, default: 'Type a comment...' },
@@ -134,6 +135,7 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['save', 'save-and-submit', 'cancel'])
+const { t } = useI18n()
 
 const inputText = ref('')
 const textareaRef = ref(null)
@@ -251,10 +253,10 @@ async function onFileSelected(file) {
   try {
     const content = await invoke('read_file', { path: file.path })
     attachedFiles.value[idx].content = content.length > 50000
-      ? content.slice(0, 50000) + '\n... [truncated at 50KB]'
+      ? content.slice(0, 50000) + '\n... [截断至 50KB]'
       : content
   } catch (e) {
-    attachedFiles.value[idx].content = `[Error reading file: ${e}]`
+    attachedFiles.value[idx].content = `[读取文件失败：${e}]`
   }
   attachedFiles.value[idx].loading = false
 

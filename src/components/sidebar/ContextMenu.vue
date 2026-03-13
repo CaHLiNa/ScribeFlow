@@ -6,47 +6,47 @@
         <template v-if="!entry || entry.is_dir">
           <div class="context-menu-item" @click="$emit('create', { ext: null, isDir: true })">
             <IconFolderPlus :size="14" :stroke-width="1.5" />
-            <span class="flex-1">New Folder</span>
+            <span class="flex-1">{{ t('New Folder') }}</span>
           </div>
           <div class="context-menu-item" @click="$emit('create', { ext: null })">
             <IconFilePlus :size="14" :stroke-width="1.5" />
-            <span class="flex-1">New File...</span>
+            <span class="flex-1">{{ t('New File...') }}</span>
           </div>
           <div class="context-menu-separator"></div>
           <div class="context-menu-item" @click="$emit('create', { ext: '.md' })">
             <IconFileText :size="14" :stroke-width="1.5" />
-            <span class="flex-1">Markdown</span>
+            <span class="flex-1">{{ t('Markdown') }}</span>
             <span class="context-menu-ext">.md</span>
           </div>
           <div class="context-menu-item" @click="$emit('create', { ext: '.docx' })">
             <IconFileText :size="14" :stroke-width="1.5" />
-            <span class="flex-1">Word</span>
+            <span class="flex-1">{{ t('Word') }}</span>
             <span class="context-menu-ext">.docx</span>
           </div>
           <div class="context-menu-item" @click="$emit('create', { ext: '.tex' })">
             <IconMath :size="14" :stroke-width="1.5" />
-            <span class="flex-1">LaTeX</span>
+            <span class="flex-1">{{ t('LaTeX') }}</span>
             <span class="context-menu-ext">.tex</span>
           </div>
           <div class="context-menu-item" @click="$emit('create', { ext: '.canvas' })">
             <IconVectorSpline :size="14" :stroke-width="1.5" />
-            <span class="flex-1">Canvas</span>
+            <span class="flex-1">{{ t('Canvas') }}</span>
             <span class="context-menu-ext">.canvas</span>
           </div>
           <div class="context-menu-separator"></div>
           <div class="context-menu-item" @click="$emit('create', { ext: '.R' })">
             <IconCode :size="14" :stroke-width="1.5" />
-            <span class="flex-1">R Script</span>
+            <span class="flex-1">{{ t('R Script') }}</span>
             <span class="context-menu-ext">.R</span>
           </div>
           <div class="context-menu-item" @click="$emit('create', { ext: '.py' })">
             <IconBrandPython :size="14" :stroke-width="1.5" />
-            <span class="flex-1">Python</span>
+            <span class="flex-1">{{ t('Python') }}</span>
             <span class="context-menu-ext">.py</span>
           </div>
           <div class="context-menu-item" @click="$emit('create', { ext: '.ipynb' })">
             <IconNotebook :size="14" :stroke-width="1.5" />
-            <span class="flex-1">Notebook</span>
+            <span class="flex-1">{{ t('Notebook') }}</span>
             <span class="context-menu-ext">.ipynb</span>
           </div>
         </template>
@@ -56,36 +56,36 @@
           <div v-if="entry.is_dir" class="context-menu-separator"></div>
           <div class="context-menu-item" @click="$emit('rename', entry)">
             <IconPencil :size="14" :stroke-width="1.5" />
-            Rename
+            {{ t('Rename') }}
           </div>
           <div class="context-menu-item" @click="$emit('duplicate', entry)">
             <IconCopy :size="14" :stroke-width="1.5" />
-            Duplicate
+            {{ t('Duplicate') }}
           </div>
           <div class="context-menu-item context-menu-item-danger" @click="$emit('delete', entry)">
             <IconTrash :size="14" :stroke-width="1.5" />
-            Delete
+            {{ t('Delete') }}
           </div>
         </template>
 
         <div v-if="selectedCount > 1" class="context-menu-separator"></div>
         <div v-if="selectedCount > 1" class="context-menu-item context-menu-item-danger" @click="$emit('delete-selected')">
           <IconTrash :size="14" :stroke-width="1.5" />
-          Delete {{ selectedCount }} Selected
+          {{ t('Delete {count} selected', { count: selectedCount }) }}
         </div>
 
         <template v-if="entry && !entry.is_dir">
           <div class="context-menu-separator"></div>
           <div class="context-menu-item" @click="$emit('version-history', entry)">
             <IconClock :size="14" :stroke-width="1.5" />
-            Version History
+            {{ t('Version History') }}
           </div>
         </template>
 
         <template v-if="isImportable">
           <div class="context-menu-item" @click="$emit('import-to-refs', entry)">
             <IconBook2 :size="14" :stroke-width="1.5" />
-            Import to References
+            {{ t('Import to References') }}
           </div>
         </template>
 
@@ -109,9 +109,11 @@ import {
   IconExternalLink, IconBook2, IconVectorSpline,
 } from '@tabler/icons-vue'
 import { isMac } from '../../platform'
+import { useI18n } from '../../i18n'
 
 const isWindows = /Win/.test(navigator.platform)
-const revealLabel = isMac ? 'Reveal in Finder' : isWindows ? 'Show in Explorer' : 'Open in File Manager'
+const { t } = useI18n()
+const revealLabel = isMac ? t('Reveal in Finder') : isWindows ? t('Show in Explorer') : t('Open in File Manager')
 
 const props = defineProps({
   x: { type: Number, required: true },

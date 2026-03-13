@@ -3,7 +3,7 @@
   <div v-if="mode === 'create'" class="comment-panel" :style="panelPosition" ref="panelRef">
     <CommentInput
       ref="createInputRef"
-      placeholder="Type your comment..."
+      :placeholder="t('Type your comment...')"
       :autofocus="true"
       :show-submit="true"
       @save="handleCreate"
@@ -16,14 +16,14 @@
   <div v-else-if="comment" class="comment-panel" :style="panelPosition" ref="panelRef">
     <!-- Header -->
     <div class="comment-panel-header">
-      <span class="truncate flex-1 mr-2" style="min-width: 0;">Comment on "{{ truncate(comment.anchorText, 40) }}"</span>
+      <span class="truncate flex-1 mr-2" style="min-width: 0;">{{ t('Comment on "{text}"', { text: truncate(comment.anchorText, 40) }) }}</span>
       <div class="flex items-center gap-0.5 shrink-0">
         <!-- More menu (contains delete) -->
         <div class="relative" ref="moreMenuRef">
           <button
             class="w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--bg-hover)] bg-transparent border-none cursor-pointer"
             style="color: var(--fg-muted);"
-            title="More actions"
+            :title="t('More actions')"
             @click.stop="showMoreMenu = !showMoreMenu"
           >
             <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
@@ -45,7 +45,7 @@
               <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
                 <path d="M3 4.5h10M6 4.5V3a1 1 0 011-1h2a1 1 0 011 1v1.5M5 4.5v8a1 1 0 001 1h4a1 1 0 001-1v-8"/>
               </svg>
-              Delete comment
+              {{ t('Delete comment') }}
             </button>
           </div>
         </div>
@@ -67,7 +67,7 @@
       <!-- Original comment -->
       <div class="comment-panel-reply">
         <div class="comment-panel-reply-author">
-          {{ comment.author === 'ai' ? 'AI' : 'You' }}
+          {{ comment.author === 'ai' ? 'AI' : t('You') }}
         </div>
         <div class="comment-panel-reply-text">{{ comment.text }}</div>
         <div class="comment-panel-reply-time">{{ formatTime(comment.createdAt) }}</div>
@@ -78,10 +78,10 @@
           <div class="comment-diff-new">{{ comment.proposedEdit.newText }}</div>
           <div class="comment-diff-actions">
             <template v-if="!rootEditStatus">
-              <button class="comment-btn-primary" @click="applyEdit(comment.id)">Apply</button>
-              <button class="comment-btn-secondary" @click="dismissEdit(comment.id)">Dismiss</button>
+              <button class="comment-btn-primary" @click="applyEdit(comment.id)">{{ t('Apply') }}</button>
+              <button class="comment-btn-secondary" @click="dismissEdit(comment.id)">{{ t('Dismiss edit') }}</button>
             </template>
-            <span v-else-if="rootEditStatus.status === 'applied'" style="color: var(--success);">Applied</span>
+            <span v-else-if="rootEditStatus.status === 'applied'" style="color: var(--success);">{{ t('Applied') }}</span>
             <span v-else-if="rootEditStatus.status === 'error'" style="color: var(--error);">{{ rootEditStatus.error }}</span>
           </div>
         </div>
@@ -90,7 +90,7 @@
       <!-- Replies -->
       <div v-for="reply in comment.replies" :key="reply.id" class="comment-panel-reply">
         <div class="comment-panel-reply-author">
-          {{ reply.author === 'ai' ? 'AI' : 'You' }}
+          {{ reply.author === 'ai' ? 'AI' : t('You') }}
         </div>
         <div class="comment-panel-reply-text">{{ reply.text }}</div>
         <div class="comment-panel-reply-time">{{ formatTime(reply.timestamp) }}</div>
@@ -101,10 +101,10 @@
           <div class="comment-diff-new">{{ reply.proposedEdit.newText }}</div>
           <div class="comment-diff-actions">
             <template v-if="!getReplyEditStatus(reply.id)">
-              <button class="comment-btn-primary" @click="applyEdit(comment.id, reply.id)">Apply</button>
-              <button class="comment-btn-secondary" @click="dismissEdit(comment.id, reply.id)">Dismiss</button>
+              <button class="comment-btn-primary" @click="applyEdit(comment.id, reply.id)">{{ t('Apply') }}</button>
+              <button class="comment-btn-secondary" @click="dismissEdit(comment.id, reply.id)">{{ t('Dismiss edit') }}</button>
             </template>
-            <span v-else-if="getReplyEditStatus(reply.id)?.status === 'applied'" style="color: var(--success);">Applied</span>
+            <span v-else-if="getReplyEditStatus(reply.id)?.status === 'applied'" style="color: var(--success);">{{ t('Applied') }}</span>
             <span v-else-if="getReplyEditStatus(reply.id)?.status === 'error'" style="color: var(--error);">{{ getReplyEditStatus(reply.id).error }}</span>
           </div>
         </div>
@@ -121,7 +121,7 @@
         <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
           <path d="M3 8.5l3.5 3.5 6.5-7"/>
         </svg>
-        {{ comment.status === 'resolved' ? 'Reopen' : 'Resolve' }}
+        {{ comment.status === 'resolved' ? t('Reopen') : t('Resolve comment') }}
       </button>
     </div>
 
@@ -129,7 +129,7 @@
     <div style="padding: 8px 12px; border-top: 1px solid var(--border);">
       <CommentInput
         ref="replyInputRef"
-        placeholder="Reply..."
+        :placeholder="t('Reply...')"
         @save="handleReply"
         @cancel="$emit('close')"
       />
@@ -142,6 +142,7 @@
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useCommentsStore } from '../../stores/comments'
 import CommentInput from './CommentInput.vue'
+import { useI18n, formatRelativeFromNow } from '../../i18n'
 
 const props = defineProps({
   comment: { type: Object, default: null },
@@ -157,6 +158,7 @@ const props = defineProps({
 const emit = defineEmits(['close', 'comment-created'])
 
 const commentsStore = useCommentsStore()
+const { t } = useI18n()
 
 const panelRef = ref(null)
 const createInputRef = ref(null)
@@ -309,16 +311,7 @@ function truncate(text, maxLen) {
 }
 
 function formatTime(isoString) {
-  if (!isoString) return ''
-  const diff = Date.now() - new Date(isoString).getTime()
-  const sec = Math.floor(diff / 1000)
-  if (sec < 60) return 'just now'
-  const min = Math.floor(sec / 60)
-  if (min < 60) return `${min}m ago`
-  const hr = Math.floor(min / 60)
-  if (hr < 24) return `${hr}h ago`
-  const days = Math.floor(hr / 24)
-  return `${days}d ago`
+  return formatRelativeFromNow(isoString)
 }
 
 // ─── Click outside to close ───────────────────────────────────────

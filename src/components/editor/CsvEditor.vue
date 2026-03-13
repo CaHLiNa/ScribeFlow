@@ -3,7 +3,7 @@
     <!-- Toolbar -->
     <div class="flex items-center gap-2 px-3 py-1 border-b" style="background: var(--bg-secondary); border-color: var(--border); color: var(--fg-secondary);">
       <span class="text-xs tabular-nums" style="color: var(--fg-muted);">{{ dimensions }}</span>
-      <span v-if="saving" class="text-xs ml-2" style="color: var(--fg-muted);">Saving...</span>
+      <span v-if="saving" class="text-xs ml-2" style="color: var(--fg-muted);">{{ t('Saving...') }}</span>
       <span v-if="error" class="text-xs ml-auto" style="color: var(--error);">{{ error }}</span>
     </div>
 
@@ -20,6 +20,7 @@ import Handsontable from 'handsontable'
 import 'handsontable/dist/handsontable.full.min.css'
 import Papa from 'papaparse'
 import { useFilesStore } from '../../stores/files'
+import { useI18n } from '../../i18n'
 
 const props = defineProps({
   filePath: { type: String, required: true },
@@ -27,6 +28,7 @@ const props = defineProps({
 })
 
 const files = useFilesStore()
+const { t } = useI18n()
 const hotWrapper = ref(null)
 const hotContainer = ref(null)
 const dimensions = ref('')

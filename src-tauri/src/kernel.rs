@@ -43,6 +43,14 @@ pub struct KernelSpec {
     pub path: String,
 }
 
+#[derive(Serialize, Clone)]
+pub struct PythonInterpreter {
+    pub path: String,
+    pub resolved_path: String,
+    pub version: Option<String>,
+    pub has_ipykernel: bool,
+}
+
 #[derive(Deserialize)]
 struct KernelSpecJson {
     display_name: Option<String>,
@@ -156,7 +164,8 @@ pub fn kernel_discover() -> Result<Vec<KernelSpec>, String> {
             if let Ok(json) = serde_json::from_str::<serde_json::Value>(&json_str) {
                 if let Some(kernelspecs) = json.get("kernelspecs").and_then(|v| v.as_object()) {
                     for (name, info) in kernelspecs {
-                        let resource_dir = info.get("resource_dir")
+                        let resource_dir = info
+                            .get("resource_dir")
                             .and_then(|v| v.as_str())
                             .unwrap_or("")
                             .to_string();
@@ -247,6 +256,223 @@ fn read_kernelspec(dir: &Path) -> Option<KernelSpec> {
     })
 }
 
+fn command_output(cmd: &str, args: &[&str]) -> Option<std::process::Output> {
+    std::process::Command::new(cmd).args(args).output().ok()
+}
+
+fn python_candidate_paths() -> Vec<String> {
+    let home = get_home_dir();
+    let mut candidates: Vec<String> = Vec::new();
+
+    #[cfg(unix)]
+    {
+        if let Some(output) =
+            command_output("/bin/bash", &["-lc", "which -a python3 python 2>/dev/null"])
+        {
+            if output.status.success() {
+                for line in String::from_utf8_lossy(&output.stdout).lines() {
+                    let path = line.trim();
+                    if !path.is_empty() {
+                        candidates.push(path.to_string());
+                    }
+                }
+            }
+        }
+    }
+
+    let pyenv_root = std::env::var("PYENV_ROOT").unwrap_or_else(|_| format!("{}/.pyenv", home));
+    candidates.push(format!("{}/shims/python3", pyenv_root));
+    candidates.push(format!("{}/shims/python", pyenv_root));
+
+    if let Ok(prefix) = std::env::var("CONDA_PREFIX") {
+        candidates.push(format!("{}/bin/python3", prefix));
+        candidates.push(format!("{}/bin/python", prefix));
+    }
+
+    for dir in &["miniconda3", "miniforge3", "mambaforge", "anaconda3"] {
+        candidates.push(format!("{}/{}/bin/python3", home, dir));
+        candidates.push(format!("{}/{}/bin/python", home, dir));
+    }
+
+    candidates.push("/opt/homebrew/bin/python3".to_string());
+    candidates.push("/usr/local/bin/python3".to_string());
+
+    for minor in (9..=15).rev() {
+        candidates.push(format!("{}/Library/Python/3.{}/bin/python3", home, minor));
+        candidates.push(format!(
+            "/Library/Frameworks/Python.framework/Versions/3.{}/bin/python3",
+            minor
+        ));
+        candidates.push(format!("/usr/local/bin/python3.{}", minor));
+        candidates.push(format!("/usr/bin/python3.{}", minor));
+    }
+
+    candidates.push("/usr/bin/python3".to_string());
+    candidates.push("/usr/bin/python".to_string());
+    candidates.push(format!("{}/.local/bin/python3", home));
+
+    #[cfg(target_os = "windows")]
+    {
+        candidates.push("py".to_string());
+        candidates.push("python".to_string());
+        candidates.push("python3".to_string());
+        for minor in (8..=14).rev() {
+            candidates.push(format!(
+                "{}\\AppData\\Local\\Programs\\Python\\Python3{}\\python.exe",
+                home, minor
+            ));
+            candidates.push(format!("C:\\Python3{}\\python.exe", minor));
+        }
+        for dir in &["miniconda3", "miniforge3", "Anaconda3"] {
+            candidates.push(format!("{}\\{}\\python.exe", home, dir));
+        }
+    }
+
+    let mut unique = Vec::new();
+    for candidate in candidates {
+        if candidate.trim().is_empty() || unique.contains(&candidate) {
+            continue;
+        }
+
+        let exists = if candidate == "py" || candidate == "python" || candidate == "python3" {
+            true
+        } else {
+            Path::new(&candidate).exists()
+        };
+
+        if exists {
+            unique.push(candidate);
+        }
+    }
+    unique
+}
+
+fn read_python_version(python: &str) -> Option<String> {
+    let output = std::process::Command::new(python)
+        .arg("--version")
+        .output()
+        .ok()?;
+    let text = if output.stdout.is_empty() {
+        String::from_utf8_lossy(&output.stderr).to_string()
+    } else {
+        String::from_utf8_lossy(&output.stdout).to_string()
+    };
+    let version = text.strip_prefix("Python ")?.trim();
+    if version.is_empty() {
+        None
+    } else {
+        Some(version.to_string())
+    }
+}
+
+fn read_python_resolved_path(python: &str) -> Option<String> {
+    let output = std::process::Command::new(python)
+        .args([
+            "-c",
+            "import os, sys; print(os.path.realpath(sys.executable))",
+        ])
+        .output()
+        .ok()?;
+
+    if !output.status.success() {
+        return None;
+    }
+
+    let resolved = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if resolved.is_empty() {
+        None
+    } else {
+        Some(resolved)
+    }
+}
+
+fn python_display_path_score(path: &str) -> i32 {
+    let mut score = 0;
+
+    if Path::new(path).is_absolute() {
+        score += 100;
+    }
+    if path.contains("/opt/homebrew/bin/")
+        || path.contains("/usr/local/bin/")
+        || path.contains("/bin/python")
+    {
+        score += 40;
+    }
+    if path.contains("/Cellar/") {
+        score -= 25;
+    }
+    if path.contains("/.pyenv/shims/") {
+        score -= 10;
+    }
+    if path == "python" || path == "python3" || path == "py" {
+        score -= 120;
+    }
+
+    score - (path.len() as i32 / 12)
+}
+
+fn path_looks_like_python(cmd: &str) -> bool {
+    let lower = cmd.to_lowercase();
+    let file_name = Path::new(cmd)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or(&lower)
+        .to_lowercase();
+
+    file_name == "python"
+        || file_name == "python3"
+        || file_name.starts_with("python3.")
+        || lower == "py"
+        || lower == "python"
+        || lower == "python3"
+        || lower.starts_with("python3.")
+}
+
+#[tauri::command]
+pub fn discover_python_interpreters() -> Result<Vec<PythonInterpreter>, String> {
+    let mut interpreters: Vec<PythonInterpreter> = Vec::new();
+
+    for candidate in python_candidate_paths() {
+        let version = read_python_version(&candidate);
+        let has_ipykernel = has_ipykernel(&candidate);
+        if version.is_some() || has_ipykernel {
+            let resolved_path =
+                read_python_resolved_path(&candidate).unwrap_or_else(|| candidate.clone());
+
+            if let Some(existing) = interpreters
+                .iter_mut()
+                .find(|item| item.resolved_path == resolved_path)
+            {
+                if python_display_path_score(&candidate) > python_display_path_score(&existing.path)
+                {
+                    existing.path = candidate;
+                }
+                if existing.version.is_none() {
+                    existing.version = version.clone();
+                }
+                existing.has_ipykernel |= has_ipykernel;
+                continue;
+            }
+
+            interpreters.push(PythonInterpreter {
+                path: candidate,
+                resolved_path,
+                version,
+                has_ipykernel,
+            });
+        }
+    }
+
+    interpreters.sort_by(|a, b| {
+        b.has_ipykernel
+            .cmp(&a.has_ipykernel)
+            .then_with(|| python_display_path_score(&b.path).cmp(&python_display_path_score(&a.path)))
+            .then_with(|| a.path.cmp(&b.path))
+    });
+
+    Ok(interpreters)
+}
+
 /// Check if a Python binary has ipykernel installed.
 fn has_ipykernel(python: &str) -> bool {
     std::process::Command::new(python)
@@ -260,83 +486,30 @@ fn has_ipykernel(python: &str) -> bool {
 
 /// Find a Python interpreter that has ipykernel installed.
 /// Probes in priority order: bare command, pyenv, conda, homebrew, system, user-local.
-fn find_python_with_ipykernel(bare_cmd: &str) -> Result<String, String> {
-    let home = get_home_dir();
+fn find_python_with_ipykernel(bare_cmd: &str, preferred: Option<&str>) -> Result<String, String> {
+    if let Some(preferred) = preferred.filter(|value| !value.trim().is_empty()) {
+        if has_ipykernel(preferred) {
+            return Ok(preferred.to_string());
+        }
+        return Err(format!(
+            "Selected Python interpreter does not have ipykernel installed: {}\nInstall it from Settings > System, then try again.",
+            preferred
+        ));
+    }
 
     // 1. Bare command as-is (from kernel.json) — already on PATH
     if has_ipykernel(bare_cmd) {
         return Ok(bare_cmd.to_string());
     }
-    eprintln!("[kernel] Bare '{}' lacks ipykernel, probing alternatives...", bare_cmd);
-
-    let mut candidates: Vec<String> = Vec::new();
-
-    // 2. pyenv shims
-    let pyenv_root = std::env::var("PYENV_ROOT")
-        .unwrap_or_else(|_| format!("{}/.pyenv", home));
-    candidates.push(format!("{}/shims/python3", pyenv_root));
-    candidates.push(format!("{}/shims/python", pyenv_root));
-
-    // 3. conda / miniconda / miniforge / mambaforge
-    if let Ok(prefix) = std::env::var("CONDA_PREFIX") {
-        candidates.push(format!("{}/bin/python3", prefix));
-        candidates.push(format!("{}/bin/python", prefix));
-    }
-    for dir in &["miniconda3", "miniforge3", "mambaforge", "anaconda3"] {
-        candidates.push(format!("{}/{}/bin/python3", home, dir));
-    }
-
-    // 4. Homebrew (macOS)
-    candidates.push("/opt/homebrew/bin/python3".to_string());
-    candidates.push("/usr/local/bin/python3".to_string());
-
-    // 5. macOS per-version (~/Library/Python and /Library/Frameworks)
-    for minor in (9..=15).rev() {
-        candidates.push(format!(
-            "{}/Library/Python/3.{}/bin/python3",
-            home, minor
-        ));
-        candidates.push(format!(
-            "/Library/Frameworks/Python.framework/Versions/3.{}/bin/python3",
-            minor
-        ));
-    }
-
-    // 6. System Python
-    candidates.push("/usr/bin/python3".to_string());
-    candidates.push("/usr/bin/python".to_string());
-
-    // 7. Linux per-version
-    for minor in (8..=14).rev() {
-        candidates.push(format!("/usr/bin/python3.{}", minor));
-    }
-
-    // 8. User-local (Unix)
-    candidates.push(format!("{}/.local/bin/python3", home));
-
-    // 9. Windows-specific paths
-    #[cfg(target_os = "windows")]
-    {
-        candidates.push("py".to_string());
-        candidates.push("py -3".to_string());
-        for minor in (8..=14).rev() {
-            candidates.push(format!("{}\\AppData\\Local\\Programs\\Python\\Python3{}\\python.exe", home, minor));
-            candidates.push(format!("C:\\Python3{}\\python.exe", minor));
-        }
-        for dir in &["miniconda3", "miniforge3", "Anaconda3"] {
-            candidates.push(format!("{}\\{}\\python.exe", home, dir));
-        }
-        candidates.push(format!("{}\\scoop\\apps\\python\\current\\python.exe", home));
-    }
+    eprintln!(
+        "[kernel] Bare '{}' lacks ipykernel, probing alternatives...",
+        bare_cmd
+    );
 
     // Probe each candidate: exists check first (cheap), then ipykernel check
-    for candidate in &candidates {
-        let path = Path::new(candidate);
-        if !path.exists() {
-            continue;
-        }
-        if has_ipykernel(candidate) {
-            return Ok(candidate.clone());
+    for candidate in python_candidate_paths() {
+        if has_ipykernel(&candidate) {
+            return Ok(candidate);
         }
     }
 
@@ -388,6 +561,7 @@ pub async fn kernel_launch(
     state: tauri::State<'_, KernelState>,
     spec_name: String,
     spec_path: String,
+    python_path: Option<String>,
 ) -> Result<String, String> {
     // Read kernel.json to get argv
     let kernel_json_path = format!("{}/kernel.json", spec_path);
@@ -401,15 +575,39 @@ pub async fn kernel_launch(
     // Resolve bare python/python3 to the correct interpreter with ipykernel.
     // kernel.json often uses bare "python" or "python3" which may resolve to a
     // different Python than the one that installed ipykernel (e.g. Homebrew vs system).
-    if !argv.is_empty() {
-        let cmd = &argv[0];
-        let is_bare_python = cmd == "python" || cmd == "python3"
-            || cmd.starts_with("python3.");
-        if is_bare_python {
-            match find_python_with_ipykernel(cmd) {
+    if !argv.is_empty()
+        && spec
+            .language
+            .as_deref()
+            .map(|v| v.eq_ignore_ascii_case("python"))
+            == Some(true)
+    {
+        let cmd = argv[0].clone();
+        let preferred = python_path.as_deref();
+        if let Some(preferred_path) = preferred.filter(|value| !value.trim().is_empty()) {
+            if !has_ipykernel(preferred_path) {
+                return Err(format!(
+                    "Selected Python interpreter does not have ipykernel installed: {}\nInstall it from Settings > System, then try again.",
+                    preferred_path
+                ));
+            }
+            if path_looks_like_python(&cmd) {
+                if preferred_path != cmd {
+                    eprintln!(
+                        "[kernel] Overriding '{}' → '{}' (user-selected)",
+                        cmd, preferred_path
+                    );
+                }
+                argv[0] = preferred_path.to_string();
+            }
+        } else if path_looks_like_python(&cmd) {
+            match find_python_with_ipykernel(&cmd, None) {
                 Ok(resolved) => {
-                    if resolved != *cmd {
-                        eprintln!("[kernel] Resolved '{}' → '{}' (has ipykernel)", cmd, resolved);
+                    if resolved != cmd {
+                        eprintln!(
+                            "[kernel] Resolved '{}' → '{}' (has ipykernel)",
+                            cmd, resolved
+                        );
                     }
                     argv[0] = resolved;
                 }
@@ -488,7 +686,10 @@ pub async fn kernel_launch(
                             use std::io::Read;
                             let _ = stderr.read_to_string(&mut stderr_text);
                             if !stderr_text.is_empty() {
-                                eprintln!("[kernel] stderr: {}", &stderr_text[..stderr_text.len().min(2000)]);
+                                eprintln!(
+                                    "[kernel] stderr: {}",
+                                    &stderr_text[..stderr_text.len().min(2000)]
+                                );
                             }
                         }
                         // Parse stderr for actionable hints
@@ -504,7 +705,11 @@ pub async fn kernel_launch(
                         return Err(format!(
                             "Kernel process exited with status: {}.{}{}",
                             status,
-                            if stderr_text.is_empty() { String::new() } else { format!("\n{}", &stderr_text[..stderr_text.len().min(500)]) },
+                            if stderr_text.is_empty() {
+                                String::new()
+                            } else {
+                                format!("\n{}", &stderr_text[..stderr_text.len().min(500)])
+                            },
                             hint,
                         ));
                     }
@@ -635,7 +840,11 @@ pub async fn kernel_execute(
     kernel_id: String,
     code: String,
 ) -> Result<String, String> {
-    eprintln!("[kernel] kernel_execute called for kernel_id={}, code_len={}", kernel_id, code.len());
+    eprintln!(
+        "[kernel] kernel_execute called for kernel_id={}, code_len={}",
+        kernel_id,
+        code.len()
+    );
     let (conn_info, key) = {
         let kernels = state.kernels.lock().unwrap();
         let instance = kernels.get(&kernel_id).ok_or("Kernel not found")?;
@@ -672,7 +881,10 @@ pub async fn kernel_execute(
     // Send via DEALER socket
     let mut socket: zeromq::DealerSocket = zeromq::DealerSocket::new();
     eprintln!("[kernel] Connecting DEALER to {}", addr);
-    socket.connect(&addr).await.map_err(|e| format!("Failed to connect shell: {}", e))?;
+    socket
+        .connect(&addr)
+        .await
+        .map_err(|e| format!("Failed to connect shell: {}", e))?;
 
     // Small delay to let ZMQ async handshake complete before sending
     tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
@@ -793,7 +1005,10 @@ pub async fn kernel_complete(
     };
 
     let mut socket: zeromq::DealerSocket = zeromq::DealerSocket::new();
-    socket.connect(&addr).await.map_err(|e| format!("Failed to connect shell: {}", e))?;
+    socket
+        .connect(&addr)
+        .await
+        .map_err(|e| format!("Failed to connect shell: {}", e))?;
 
     let zmq_msg = zeromq::ZmqMessage::try_from(
         msg.into_iter()

@@ -19,7 +19,7 @@
       ref="textareaRef"
       class="prompt-textarea nopan nodrag"
       :value="data.content"
-      placeholder="Ask a question..."
+      :placeholder="t('Ask a question...')"
       @input="onInput"
       @blur="editing = false"
       @keydown.stop="onKeydown"
@@ -30,7 +30,7 @@
       class="prompt-display"
       @dblclick.stop="startEditing"
     >
-      {{ data.content || 'Double-click to write a prompt...' }}
+      {{ data.content || t('Double-click to write a prompt...') }}
     </div>
 
     <!-- Bottom bar: model + run count + run button -->
@@ -45,7 +45,7 @@
         :disabled="!data.content?.trim() || isStreaming"
         @mousedown.stop
         @click.stop="runPrompt"
-        :title="isStreaming ? 'Streaming...' : 'Run (⌘↵)'"
+        :title="isStreaming ? t('Streaming...') : t('Run ({shortcut})', { shortcut: '⌘↵' })"
       >
         <svg v-if="!isStreaming" width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
           <polygon points="6,3 20,12 6,21" />
@@ -88,6 +88,7 @@ import { Handle, Position } from '@vue-flow/core'
 import { NodeResizer } from '@vue-flow/node-resizer'
 import { useCanvasStore } from '../../stores/canvas'
 import { useWorkspaceStore } from '../../stores/workspace'
+import { useI18n } from '../../i18n'
 
 const props = defineProps({
   id: { type: String, required: true },
@@ -97,6 +98,7 @@ const props = defineProps({
 
 const canvasStore = useCanvasStore()
 const workspace = useWorkspaceStore()
+const { t } = useI18n()
 const textareaRef = ref(null)
 const modelLabelRef = ref(null)
 const editing = ref(false)

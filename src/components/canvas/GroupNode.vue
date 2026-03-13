@@ -16,7 +16,7 @@
     <input
       class="group-title-input nopan nodrag"
       :value="data.title"
-      placeholder="Group..."
+      :placeholder="t('Group...')"
       @input="e => emit('update', { title: e.target.value })"
       @keydown.stop
       @mousedown.stop
@@ -27,6 +27,7 @@
 <script setup>
 import { inject } from 'vue'
 import { NodeResizer } from '@vue-flow/node-resizer'
+import { useI18n } from '../../i18n'
 
 const props = defineProps({
   id: { type: String, required: true },
@@ -36,6 +37,7 @@ const props = defineProps({
 
 const canvasNodeUpdate = inject('canvasNodeUpdate', null)
 const canvasNodeResize = inject('canvasNodeResize', null)
+const { t } = useI18n()
 
 function emit(event, payload) {
   if (event === 'update' && canvasNodeUpdate) canvasNodeUpdate(props.id, payload)

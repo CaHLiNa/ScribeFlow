@@ -3,27 +3,27 @@
     <div v-if="visible" class="pdf-settings-backdrop" @mousedown.self="$emit('close')"></div>
     <div v-if="visible" class="pdf-settings-popover" :style="posStyle">
       <div class="pdf-settings-header">
-        <span>PDF Settings</span>
+        <span>{{ t('PDF Settings') }}</span>
         <button class="pdf-close" @click="$emit('close')">&times;</button>
       </div>
 
       <!-- Template -->
-      <label class="pdf-label">Template</label>
+      <label class="pdf-label">{{ t('Template') }}</label>
       <div class="pdf-templates">
         <button
-          v-for="t in templates"
-          :key="t.id"
+          v-for="template in templates"
+          :key="template.id"
           class="pdf-template-btn"
-          :class="{ active: local.template === t.id }"
-          @click="local.template = t.id"
-          :title="t.desc"
+          :class="{ active: local.template === template.id }"
+          @click="local.template = template.id"
+          :title="template.desc"
         >
-          {{ t.label }}
+          {{ template.label }}
         </button>
       </div>
 
       <!-- Font -->
-      <label class="pdf-label">Font</label>
+      <label class="pdf-label">{{ t('Font') }}</label>
       <select v-model="local.font" class="pdf-select">
         <option v-for="f in fonts" :key="f" :value="f">{{ f }}</option>
       </select>
@@ -31,47 +31,48 @@
       <!-- Font size + Page size row -->
       <div class="pdf-row mt-2">
         <div class="pdf-col">
-          <label class="pdf-label">Size</label>
+          <label class="pdf-label">{{ t('Size') }}</label>
           <select v-model.number="local.font_size" class="pdf-select">
             <option v-for="s in fontSizes" :key="s" :value="s">{{ s }}pt</option>
           </select>
         </div>
         <div class="pdf-col">
-          <label class="pdf-label">Page</label>
+          <label class="pdf-label">{{ t('Page') }}</label>
           <select v-model="local.page_size" class="pdf-select">
             <option value="a4">A4</option>
-            <option value="us-letter">US Letter</option>
+            <option value="us-letter">{{ t('US Letter') }}</option>
             <option value="a5">A5</option>
           </select>
         </div>
         <div class="pdf-col">
-          <label class="pdf-label">Margins</label>
+          <label class="pdf-label">{{ t('Margins') }}</label>
           <select v-model="local.margins" class="pdf-select">
-            <option value="narrow">Narrow</option>
-            <option value="normal">Normal</option>
-            <option value="wide">Wide</option>
+            <option value="narrow">{{ t('Narrow') }}</option>
+            <option value="normal">{{ t('Normal') }}</option>
+            <option value="wide">{{ t('Wide') }}</option>
           </select>
         </div>
         <div class="pdf-col">
-          <label class="pdf-label">Spacing</label>
+          <label class="pdf-label">{{ t('Spacing') }}</label>
           <select v-model="local.spacing" class="pdf-select">
-            <option value="compact">Compact</option>
-            <option value="normal">Normal</option>
-            <option value="relaxed">Relaxed</option>
+            <option value="compact">{{ t('Compact') }}</option>
+            <option value="normal">{{ t('Normal') }}</option>
+            <option value="relaxed">{{ t('Relaxed') }}</option>
           </select>
         </div>
       </div>
 
       <!-- Export button -->
       <button class="pdf-export-btn" @click="doExport">
-        Create PDF
+        {{ t('Create PDF') }}
       </button>
     </div>
   </Teleport>
 </template>
 
 <script setup>
-import { ref, reactive, watch } from 'vue'
+import { ref, reactive, watch, computed } from 'vue'
+import { useI18n } from '../../i18n'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -80,14 +81,15 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['close', 'export'])
+const { t } = useI18n()
 
-const templates = [
-  { id: 'clean', label: 'Clean', desc: 'Minimal, no numbering — good for notes and drafts' },
-  { id: 'academic', label: 'Academic', desc: 'Numbered sections, indented paragraphs — papers and essays' },
-  { id: 'report', label: 'Report', desc: 'Numbered sections, page numbers, chapter breaks' },
-  { id: 'letter', label: 'Letter', desc: 'Left-aligned, no justification — correspondence' },
-  { id: 'compact', label: 'Compact', desc: 'Two-column, small font — reference sheets and handouts' },
-]
+const templates = computed(() => [
+  { id: 'clean', label: t('Clean'), desc: t('Minimal, no numbering — good for notes and drafts') },
+  { id: 'academic', label: t('Academic'), desc: t('Numbered sections, indented paragraphs — papers and essays') },
+  { id: 'report', label: t('Report'), desc: t('Numbered sections, page numbers, chapter breaks') },
+  { id: 'letter', label: t('Letter'), desc: t('Left-aligned, no justification — correspondence') },
+  { id: 'compact', label: t('Compact'), desc: t('Two-column, small font — reference sheets and handouts') },
+])
 
 const fonts = [
   'STIX Two Text',

@@ -20,14 +20,14 @@
           class="w-5 h-5 flex items-center justify-center rounded hover:opacity-80"
           style="color: var(--fg-muted);"
           @click.stop="collapseAllFolders"
-          title="Collapse All Folders">
+          :title="t('Collapse All Folders')">
           <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M14 4.27c.6.35 1 .99 1 1.73v5c0 2.21-1.79 4-4 4H6c-.74 0-1.38-.4-1.73-1H11c1.65 0 3-1.35 3-3zM9.5 7a.5.5 0 0 1 0 1h-4a.5.5 0 0 1 0-1z"/><path fill-rule="evenodd" d="M11 2c1.103 0 2 .897 2 2v7c0 1.103-.897 2-2 2H4c-1.103 0-2-.897-2-2V4c0-1.103.897-2 2-2zM4 3c-.551 0-1 .449-1 1v7c0 .552.449 1 1 1h7c.551 0 1-.448 1-1V4c0-.551-.449-1-1-1z" clip-rule="evenodd"/></svg>
         </button>
         <button
           class="w-5 h-5 flex items-center justify-center rounded hover:opacity-80"
           style="color: var(--fg-muted);"
           @click.stop="activateFilter"
-          title="Filter Files (⌘F)">
+          :title="t('Filter Files ({shortcut})', { shortcut: `${modKey}+F` })">
           <IconSearch :size="14" :stroke-width="1.5" />
         </button>
         <button
@@ -35,9 +35,9 @@
           class="h-5 flex items-center gap-0.5 rounded px-1 hover:opacity-80 text-[11px]"
           style="color: var(--fg-muted);"
           @click.stop="toggleNewMenu"
-          title="New File or Folder">
+          :title="t('New File or Folder')">
           <IconPlus :size="12" :stroke-width="2" />
-          <span>New</span>
+          <span>{{ t('New') }}</span>
         </button>
       </div>
     </div>
@@ -53,7 +53,7 @@
           v-model="filterQuery"
           class="flex-1 px-1 py-0.5 text-xs outline-none bg-transparent"
           style="color: var(--fg-primary);"
-          placeholder="Filter files..."
+          :placeholder="t('Filter files...')"
           autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
           @keydown="handleFilterKeydown"
         />
@@ -122,14 +122,14 @@
       <!-- External drop zone indicator (root level) -->
       <div v-if="externalDragOver" class="mx-2 my-1 py-2 rounded border-2 border-dashed text-center text-xs"
         style="border-color: var(--accent); color: var(--accent); opacity: 0.6;">
-        Drop files here
+        {{ t('Drop files here') }}
       </div>
 
       <div v-if="filterActive && filterQuery && filterMatches.length === 0" class="px-3 py-4 text-xs" style="color: var(--fg-muted);">
-        No matches
+        {{ t('No matches') }}
       </div>
       <div v-else-if="displayTree.length === 0 && !renaming.active" class="px-3 py-4 text-xs" style="color: var(--fg-muted);">
-        No files yet
+        {{ t('No files yet') }}
       </div>
     </div>
 
@@ -157,47 +157,47 @@
         <div class="context-menu" :style="newMenuStyle">
           <div class="context-menu-item" @click="handleNewMenuCreate({ ext: null, isDir: true })">
             <IconFolderPlus :size="14" :stroke-width="1.5" />
-            <span class="flex-1">New Folder</span>
+            <span class="flex-1">{{ t('New Folder') }}</span>
           </div>
           <div class="context-menu-item" @click="handleNewMenuCreate({ ext: null })">
             <IconFilePlus :size="14" :stroke-width="1.5" />
-            <span class="flex-1">New File...</span>
+            <span class="flex-1">{{ t('New File...') }}</span>
           </div>
           <div class="context-menu-separator"></div>
           <div class="context-menu-item" @click="handleNewMenuCreate({ ext: '.md' })">
             <IconFileText :size="14" :stroke-width="1.5" />
-            <span class="flex-1">Markdown</span>
+            <span class="flex-1">{{ t('Markdown') }}</span>
             <span class="context-menu-ext">.md</span>
           </div>
           <div class="context-menu-item" @click="handleNewMenuCreate({ ext: '.docx' })">
             <IconFileText :size="14" :stroke-width="1.5" />
-            <span class="flex-1">Word</span>
+            <span class="flex-1">{{ t('Word') }}</span>
             <span class="context-menu-ext">.docx</span>
           </div>
           <div class="context-menu-item" @click="handleNewMenuCreate({ ext: '.tex' })">
             <IconMath :size="14" :stroke-width="1.5" />
-            <span class="flex-1">LaTeX</span>
+            <span class="flex-1">{{ t('LaTeX') }}</span>
             <span class="context-menu-ext">.tex</span>
           </div>
           <div class="context-menu-item" @click="handleNewMenuCreate({ ext: '.canvas' })">
             <IconVectorSpline :size="14" :stroke-width="1.5" />
-            <span class="flex-1">Canvas</span>
+            <span class="flex-1">{{ t('Canvas') }}</span>
             <span class="context-menu-ext">.canvas</span>
           </div>
           <div class="context-menu-separator"></div>
           <div class="context-menu-item" @click="handleNewMenuCreate({ ext: '.R' })">
             <IconCode :size="14" :stroke-width="1.5" />
-            <span class="flex-1">R Script</span>
+            <span class="flex-1">{{ t('R Script') }}</span>
             <span class="context-menu-ext">.R</span>
           </div>
           <div class="context-menu-item" @click="handleNewMenuCreate({ ext: '.py' })">
             <IconBrandPython :size="14" :stroke-width="1.5" />
-            <span class="flex-1">Python</span>
+            <span class="flex-1">{{ t('Python') }}</span>
             <span class="context-menu-ext">.py</span>
           </div>
           <div class="context-menu-item" @click="handleNewMenuCreate({ ext: '.ipynb' })">
             <IconNotebook :size="14" :stroke-width="1.5" />
-            <span class="flex-1">Notebook</span>
+            <span class="flex-1">{{ t('Notebook') }}</span>
             <span class="context-menu-ext">.ipynb</span>
           </div>
         </div>
@@ -222,13 +222,14 @@ import { useFilesStore } from '../../stores/files'
 import { useEditorStore } from '../../stores/editor'
 import { useWorkspaceStore } from '../../stores/workspace'
 import FileTreeItem from './FileTreeItem.vue'
-import { isMod } from '../../platform'
+import { isMod, modKey } from '../../platform'
 import ContextMenu from './ContextMenu.vue'
 import {
   IconSearch, IconX, IconPlus, IconFileText, IconNotebook, IconMath,
   IconCode, IconBrandPython, IconFilePlus, IconFolderPlus, IconVectorSpline,
 } from '@tabler/icons-vue'
 import { ask } from '@tauri-apps/plugin-dialog'
+import { useI18n } from '../../i18n'
 
 const props = defineProps({
   collapsed: { type: Boolean, default: false },
@@ -238,9 +239,10 @@ const emit = defineEmits(['version-history', 'toggle-collapse'])
 const files = useFilesStore()
 const editor = useEditorStore()
 const workspace = useWorkspaceStore()
+const { t } = useI18n()
 
 const workspaceName = computed(() => {
-  if (!workspace.path) return 'Explorer'
+  if (!workspace.path) return t('Explorer')
   return workspace.path.split('/').pop()
 })
 
@@ -877,7 +879,7 @@ async function createTypedFile(dir, ext) {
   }
 
   // Generate unique default name — check both in-memory list and disk
-  const baseName = 'Untitled'
+  const baseName = t('Untitled')
   let name = `${baseName}${ext}`
   let i = 2
   while (
@@ -959,7 +961,7 @@ function startInlineCreate(dir, isDir) {
   renaming.isDir = isDir
   renaming.autoExtension = ''
   renaming.parentDir = dir
-  renaming.value = isDir ? 'new-folder' : ''
+  renaming.value = isDir ? t('new-folder') : ''
   renaming.originalPath = ''
 
   nextTick(() => {
@@ -1033,7 +1035,7 @@ function cancelRename() {
 }
 
 async function handleDelete(entry) {
-  const yes = await ask(`Delete "${entry.name}"?`, { title: 'Confirm Delete', kind: 'warning' })
+  const yes = await ask(t('Delete "{name}"?', { name: entry.name }), { title: t('Confirm Delete'), kind: 'warning' })
   if (yes) {
     await files.deletePath(entry.path)
   }
@@ -1043,9 +1045,9 @@ async function handleDeleteSelected() {
   const paths = [...selectedPaths]
   if (paths.length === 0) return
   const msg = paths.length === 1
-    ? `Delete "${paths[0].split('/').pop()}"?`
-    : `Delete ${paths.length} items?`
-  const yes = await ask(msg, { title: 'Confirm Delete', kind: 'warning' })
+    ? t('Delete "{name}"?', { name: paths[0].split('/').pop() })
+    : t('Delete {count} items?', { count: paths.length })
+  const yes = await ask(msg, { title: t('Confirm Delete'), kind: 'warning' })
   if (yes) {
     for (const path of paths) {
       await files.deletePath(path)

@@ -8,7 +8,7 @@
       <button
         class="p-1 rounded cursor-pointer"
         style="color: var(--fg-muted);"
-        title="Close pane"
+        :title="t('Close pane')"
         @click="editorStore.collapsePane(paneId)"
       >
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -92,6 +92,7 @@ import { useFilesStore } from '../../stores/files'
 import { useChatStore } from '../../stores/chat'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { isMarkdown } from '../../utils/fileTypes'
+import { useI18n, formatRelativeFromNow } from '../../i18n'
 import ChatInput from '../chat/ChatInput.vue'
 
 const props = defineProps({
@@ -102,6 +103,7 @@ const editorStore = useEditorStore()
 const filesStore  = useFilesStore()
 const chatStore   = useChatStore()
 const workspace   = useWorkspaceStore()
+const { t } = useI18n()
 
 // ─── Refs ──────────────────────────────────────────────────────────
 
@@ -115,18 +117,18 @@ const chatsLimit      = ref(10)
 // ─── Tab definitions ───────────────────────────────────────────────
 
 const TABS = [
-  { id: 'quick',     label: 'Start' },
-  { id: 'recent',    label: 'Files' },
-  { id: 'new',       label: 'Create' },
-  { id: 'chats',     label: 'Chats' },
-  { id: 'suggested', label: 'Suggested' },
+  { id: 'quick',     label: t('Start') },
+  { id: 'recent',    label: t('Files') },
+  { id: 'new',       label: t('Create') },
+  { id: 'chats',     label: t('Chats') },
+  { id: 'suggested', label: t('Suggested') },
 ]
 
 const fileTypes = [
-  { ext: '.md',    label: 'Markdown' },
+  { ext: '.md',    label: t('Markdown') },
   { ext: '.tex',   label: 'LaTeX' },
-  { ext: '.docx',  label: 'Word document' },
-  { ext: '.ipynb', label: 'Jupyter notebook' },
+  { ext: '.docx',  label: t('Word document') },
+  { ext: '.ipynb', label: t('Jupyter notebook') },
   { ext: '.py',    label: 'Python' },
 ]
 
@@ -149,33 +151,33 @@ const quickActions = computed(() => {
 
   if (isMarkdown(path) || path.endsWith('.tex') || path.endsWith('.docx')) {
     return [
-      { label: `Proofread ${name}`,              prompt: 'Proofread this document for clarity, grammar, and academic tone.',                                  file: path },
-      { label: `Find argument gaps in ${name}`,  prompt: 'Identify logical gaps, unsupported claims, or missing evidence in this document.',                  file: path },
-      { label: `Summarise ${name}`,              prompt: 'Summarise the key arguments and contributions in this document.',                                   file: path },
-      { label: `Peer review ${name}`,            prompt: 'Conduct a thorough peer review: assess originality, methodology, clarity, and impact.',             file: path },
-      { label: `Check citation coverage`,        prompt: 'Are all major claims backed by citations? Identify where references are missing or weak.',          file: path },
-      { label: `Improve transitions in ${name}`, prompt: 'Strengthen the flow between sections and improve paragraph coherence throughout the document.',     file: path },
-      { label: `Shorten and tighten ${name}`,    prompt: 'Trim redundancy and tighten prose while preserving the meaning and academic register.',             file: path },
+      { label: t('Proofread {name}', { name }),              prompt: t('Proofread this document for clarity, grammar, and academic tone.'),                                  file: path },
+      { label: t('Find argument gaps in {name}', { name }),  prompt: t('Identify logical gaps, unsupported claims, or missing evidence in this document.'),                  file: path },
+      { label: t('Summarise {name}', { name }),              prompt: t('Summarise the key arguments and contributions in this document.'),                                   file: path },
+      { label: t('Peer review {name}', { name }),            prompt: t('Conduct a thorough peer review: assess originality, methodology, clarity, and impact.'),             file: path },
+      { label: t('Check citation coverage'),                 prompt: t('Are all major claims backed by citations? Identify where references are missing or weak.'),          file: path },
+      { label: t('Improve transitions in {name}', { name }), prompt: t('Strengthen the flow between sections and improve paragraph coherence throughout the document.'),     file: path },
+      { label: t('Shorten and tighten {name}', { name }),    prompt: t('Trim redundancy and tighten prose while preserving the meaning and academic register.'),             file: path },
     ]
   }
   if (path.endsWith('.ipynb') || path.endsWith('.py') || path.endsWith('.r') || path.endsWith('.R') || path.endsWith('.jl')) {
     return [
-      { label: `Explain ${name}`,                prompt: 'Explain what this code does and why — for someone new to this project.',                           file: path },
-      { label: `Debug ${name}`,                  prompt: 'Help me debug this code. Identify errors and suggest fixes.',                                      file: path },
-      { label: `Document ${name}`,               prompt: 'Add clear docstrings and inline comments explaining functions, parameters, and key logic.',         file: path },
-      { label: `Review code quality in ${name}`, prompt: 'Review code quality: clarity, style, error handling, and maintainability.',                        file: path },
-      { label: `Check reproducibility`,          prompt: 'Is this notebook reproducible? Identify missing data, dependencies, or unclear instructions.',      file: path },
-      { label: `Optimise ${name}`,               prompt: 'Suggest concrete ways to make this code faster or more memory-efficient.',                         file: path },
-      { label: `Interpret results`,              prompt: 'What do the outputs and plots show? Suggest visualisations or next steps.',                         file: path },
+      { label: t('Explain {name}', { name }),                prompt: t('Explain what this code does and why — for someone new to this project.'),                           file: path },
+      { label: t('Debug {name}', { name }),                  prompt: t('Help me debug this code. Identify errors and suggest fixes.'),                                      file: path },
+      { label: t('Document {name}', { name }),               prompt: t('Add clear docstrings and inline comments explaining functions, parameters, and key logic.'),         file: path },
+      { label: t('Review code quality in {name}', { name }), prompt: t('Review code quality: clarity, style, error handling, and maintainability.'),                        file: path },
+      { label: t('Check reproducibility'),                   prompt: t('Is this notebook reproducible? Identify missing data, dependencies, or unclear instructions.'),      file: path },
+      { label: t('Optimise {name}', { name }),               prompt: t('Suggest concrete ways to make this code faster or more memory-efficient.'),                         file: path },
+      { label: t('Interpret results'),                       prompt: t('What do the outputs and plots show? Suggest visualisations or next steps.'),                         file: path },
     ]
   }
   if (path.endsWith('.csv') || path.endsWith('.tsv')) {
     return [
-      { label: `Describe ${name}`,               prompt: 'Describe this dataset: variables, types, missing values, and sample size.',                         file: path },
-      { label: `Find patterns in ${name}`,       prompt: 'What are the key patterns, correlations, or outliers in this data?',                               file: path },
-      { label: `Data quality check`,             prompt: 'Are there missing values, duplicates, or data type issues I should fix?',                          file: path },
-      { label: `Suggest visualisations`,         prompt: 'What charts or plots would best communicate the key findings in this data?',                        file: path },
-      { label: `Statistical summary`,            prompt: 'Compute and interpret descriptive statistics for each column in this dataset.',                     file: path },
+      { label: t('Describe {name}', { name }),               prompt: t('Describe this dataset: variables, types, missing values, and sample size.'),                         file: path },
+      { label: t('Find patterns in {name}', { name }),       prompt: t('What are the key patterns, correlations, or outliers in this data?'),                               file: path },
+      { label: t('Data quality check'),                      prompt: t('Are there missing values, duplicates, or data type issues I should fix?'),                          file: path },
+      { label: t('Suggest visualisations'),                  prompt: t('What charts or plots would best communicate the key findings in this data?'),                        file: path },
+      { label: t('Statistical summary'),                     prompt: t('Compute and interpret descriptive statistics for each column in this dataset.'),                     file: path },
     ]
   }
   return []
@@ -198,15 +200,15 @@ const quickItems = computed(() => {
       label: fileName(f.path),
       meta: relativeTime(f.openedAt),
       group: 'recent',
-      groupHeader: i === 0 ? 'Recent files' : null,
+      groupHeader: i === 0 ? t('Recent files') : null,
       action: () => openFile(f.path),
     })
   }
   items.push({
-    label: 'Markdown',
+    label: t('Markdown'),
     meta: '.md',
     group: 'new',
-    groupHeader: 'Create',
+    groupHeader: t('Create'),
     action: () => createNewFile('.md'),
   })
   const suggestions = quickActions.value.slice(0, 2)
@@ -215,7 +217,7 @@ const quickItems = computed(() => {
     items.push({
       label: a.label,
       group: 'suggested',
-      groupHeader: i === 0 ? 'Suggested' : null,
+      groupHeader: i === 0 ? t('Suggested') : null,
       muted: true,
       action: () => sendQuickAction(a),
     })
@@ -250,7 +252,7 @@ const currentItems = computed(() => {
       }))
       if (allChats.value.length > chatsLimit.value) {
         items.push({
-          label: 'Show more',
+          label: t('Show more'),
           muted: true,
           action: () => { chatsLimit.value += 10 },
         })
@@ -352,18 +354,7 @@ function fileName(path) {
 }
 
 function relativeTime(ts) {
-  if (!ts) return ''
-  const val = typeof ts === 'number' ? ts : new Date(ts).getTime()
-  const diff = Date.now() - val
-  const sec  = Math.floor(diff / 1000)
-  if (sec < 60) return 'just now'
-  const min = Math.floor(sec / 60)
-  if (min < 60) return `${min}m ago`
-  const hr = Math.floor(min / 60)
-  if (hr < 24) return `${hr}h ago`
-  const days = Math.floor(hr / 24)
-  if (days < 30) return `${days}d ago`
-  return `${Math.floor(days / 30)}mo ago`
+  return formatRelativeFromNow(ts)
 }
 
 // ─── Navigation ────────────────────────────────────────────────────

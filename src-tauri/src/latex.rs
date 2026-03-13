@@ -39,15 +39,39 @@ pub struct CompileResult {
     pub duration_ms: u64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BinaryStatus {
+    pub installed: bool,
+    pub path: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LatexCompilerStatus {
+    pub tectonic: BinaryStatus,
+    pub system_tex: BinaryStatus,
+}
+
 fn shoulders_bin_dir() -> Option<PathBuf> {
     dirs::home_dir().map(|h| h.join(".shoulders").join("bin"))
 }
 
 fn tectonic_binary_name() -> &'static str {
-    if cfg!(target_os = "windows") { "tectonic.exe" } else { "tectonic" }
+    if cfg!(target_os = "windows") {
+        "tectonic.exe"
+    } else {
+        "tectonic"
+    }
 }
 
-fn find_tectonic(_app: &tauri::AppHandle) -> Option<String> {
+fn find_tectonic(_app: &tauri::AppHandle, custom_path: Option<&str>) -> Option<String> {
+    if let Some(path) = custom_path.filter(|value| !value.trim().is_empty()) {
+        if Path::new(path).exists() {
+            return Some(path.to_string());
+        }
+    }
+
     // 1. App-managed install (~/.shoulders/bin/tectonic)
     if let Some(bin_dir) = shoulders_bin_dir() {
         let path = bin_dir.join(tectonic_binary_name());
@@ -93,13 +117,13 @@ fn find_tectonic(_app: &tauri::AppHandle) -> Option<String> {
     }
     #[cfg(windows)]
     {
-        let output = Command::new("where")
-            .arg("tectonic")
-            .output()
-            .ok()?;
+        let output = Command::new("where").arg("tectonic").output().ok()?;
         if output.status.success() {
             let path = String::from_utf8_lossy(&output.stdout)
-                .lines().next()?.trim().to_string();
+                .lines()
+                .next()?
+                .trim()
+                .to_string();
             if !path.is_empty() {
                 return Some(path);
             }
@@ -109,7 +133,52 @@ fn find_tectonic(_app: &tauri::AppHandle) -> Option<String> {
     None
 }
 
-fn parse_tectonic_output(output: &str) -> (Vec<LatexError>, Vec<LatexError>) {
+fn find_system_tex() -> Option<String> {
+    #[cfg(unix)]
+    {
+        let candidates = [
+            "/Library/TeX/texbin/latexmk",
+            "/opt/homebrew/bin/latexmk",
+            "/usr/local/bin/latexmk",
+            "/usr/bin/latexmk",
+        ];
+        for path in &candidates {
+            if Path::new(path).exists() {
+                return Some(path.to_string());
+            }
+        }
+
+        let output = Command::new("/bin/bash")
+            .args(["-lc", "which latexmk"])
+            .output()
+            .ok()?;
+        if output.status.success() {
+            let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if !path.is_empty() {
+                return Some(path);
+            }
+        }
+    }
+
+    #[cfg(windows)]
+    {
+        let output = Command::new("where").arg("latexmk").output().ok()?;
+        if output.status.success() {
+            let path = String::from_utf8_lossy(&output.stdout)
+                .lines()
+                .next()?
+                .trim()
+                .to_string();
+            if !path.is_empty() {
+                return Some(path);
+            }
+        }
+    }
+
+    None
+}
+
+fn parse_latex_output(output: &str) -> (Vec<LatexError>, Vec<LatexError>) {
     let mut errors = Vec::new();
     let mut warnings = Vec::new();
 
@@ -157,9 +226,32 @@ fn parse_tectonic_output(output: &str) -> (Vec<LatexError>, Vec<LatexError>) {
                 }
             }
         }
+        // latexmk/file-line-error format: ./main.tex:42: Undefined control sequence.
+        else if let Some((line_num, message)) = extract_file_line_error(trimmed) {
+            errors.push(LatexError {
+                line: Some(line_num),
+                message: message.to_string(),
+                severity: "error".to_string(),
+            });
+        } else if trimmed.contains("LaTeX Warning:") {
+            warnings.push(LatexError {
+                line: None,
+                message: trimmed.to_string(),
+                severity: "warning".to_string(),
+            });
+        }
     }
 
     (errors, warnings)
+}
+
+fn extract_file_line_error(line: &str) -> Option<(u32, &str)> {
+    let parts: Vec<&str> = line.splitn(3, ':').collect();
+    if parts.len() < 3 {
+        return None;
+    }
+    let line_num = parts[1].trim().parse::<u32>().ok()?;
+    Some((line_num, parts[2].trim()))
 }
 
 fn extract_line_number(msg: &str) -> (Option<u32>, &str) {
@@ -174,20 +266,109 @@ fn extract_line_number(msg: &str) -> (Option<u32>, &str) {
     (None, msg)
 }
 
+fn build_compile_result(
+    tex: &Path,
+    output: std::process::Output,
+    start: std::time::Instant,
+) -> CompileResult {
+    let dir = tex.parent().unwrap_or_else(|| Path::new("."));
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    let full_log = format!("{}\n{}", stdout, stderr);
+    let (mut errors, warnings) = parse_latex_output(&full_log);
+
+    let stem = tex.file_stem().unwrap_or_default().to_string_lossy();
+    let pdf_path = dir.join(format!("{}.pdf", stem));
+    let synctex_path = dir.join(format!("{}.synctex.gz", stem));
+    let success = output.status.success() && pdf_path.exists();
+
+    if !success && errors.is_empty() {
+        let message = full_log
+            .lines()
+            .rev()
+            .find(|line| !line.trim().is_empty())
+            .unwrap_or("Compilation failed.")
+            .trim()
+            .to_string();
+        errors.push(LatexError {
+            line: None,
+            message,
+            severity: "error".to_string(),
+        });
+    }
+
+    CompileResult {
+        success,
+        pdf_path: if pdf_path.exists() {
+            Some(pdf_path.to_string_lossy().to_string())
+        } else {
+            None
+        },
+        synctex_path: if synctex_path.exists() {
+            Some(synctex_path.to_string_lossy().to_string())
+        } else {
+            None
+        },
+        errors,
+        warnings,
+        log: full_log,
+        duration_ms: start.elapsed().as_millis() as u64,
+    }
+}
+
+fn compile_with_tectonic(
+    tectonic_path: &str,
+    tex_path: &str,
+    start: std::time::Instant,
+) -> Result<CompileResult, String> {
+    let tex = Path::new(tex_path);
+    let dir = tex.parent().ok_or("Invalid tex path")?;
+    eprintln!("[latex] Using tectonic at: {}", tectonic_path);
+    eprintln!("[latex] Compiling: {} in dir: {}", tex_path, dir.display());
+
+    let output = Command::new(tectonic_path)
+        .args(["-X", "compile", "--synctex", "--keep-logs", tex_path])
+        .current_dir(dir)
+        .output()
+        .map_err(|e| format!("Failed to run tectonic: {}", e))?;
+
+    Ok(build_compile_result(tex, output, start))
+}
+
+fn compile_with_system_tex(
+    system_tex_path: &str,
+    tex_path: &str,
+    start: std::time::Instant,
+) -> Result<CompileResult, String> {
+    let tex = Path::new(tex_path);
+    let dir = tex.parent().ok_or("Invalid tex path")?;
+    eprintln!("[latex] Using system TeX at: {}", system_tex_path);
+    eprintln!("[latex] Compiling: {} in dir: {}", tex_path, dir.display());
+
+    let output = Command::new(system_tex_path)
+        .args([
+            "-pdf",
+            "-interaction=nonstopmode",
+            "-synctex=1",
+            "-file-line-error",
+            "-halt-on-error",
+            tex_path,
+        ])
+        .current_dir(dir)
+        .output()
+        .map_err(|e| format!("Failed to run system TeX compiler: {}", e))?;
+
+    Ok(build_compile_result(tex, output, start))
+}
+
 #[tauri::command]
 pub async fn compile_latex(
     app: tauri::AppHandle,
     state: tauri::State<'_, LatexState>,
     tex_path: String,
+    compiler_preference: Option<String>,
+    custom_tectonic_path: Option<String>,
 ) -> Result<CompileResult, String> {
-    // Check if enabled
-    {
-        let enabled = state.enabled.lock().unwrap();
-        if !*enabled {
-            return Err("Tectonic is disabled. Enable it in Settings.".to_string());
-        }
-    }
-
     // Check if already compiling this file
     {
         let mut compiling = state.compiling.lock().unwrap();
@@ -200,59 +381,34 @@ pub async fn compile_latex(
     let start = std::time::Instant::now();
 
     let result = (|| -> Result<CompileResult, String> {
-        let tectonic_path = find_tectonic(&app)
-            .ok_or_else(|| "Tectonic not found. Install it or check Settings.".to_string())?;
-        eprintln!("[latex] Using tectonic at: {}", tectonic_path);
+        let preference = compiler_preference.unwrap_or_else(|| "auto".to_string());
+        let system_tex = find_system_tex();
+        let tectonic = find_tectonic(&app, custom_tectonic_path.as_deref());
 
-        let tex = Path::new(&tex_path);
-        let dir = tex.parent().ok_or("Invalid tex path")?;
-        eprintln!("[latex] Compiling: {} in dir: {}", tex_path, dir.display());
-
-        let output = Command::new(&tectonic_path)
-            .args(&[
-                "-X", "compile",
-                "--synctex",
-                "--keep-logs",
-                &tex_path,
-            ])
-            .current_dir(dir)
-            .output()
-            .map_err(|e| format!("Failed to run tectonic: {}", e))?;
-
-        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-        let full_log = format!("{}\n{}", stdout, stderr);
-        eprintln!("[latex] exit status: {}", output.status);
-        eprintln!("[latex] stdout: {}", stdout);
-        eprintln!("[latex] stderr: {}", stderr);
-
-        let (errors, warnings) = parse_tectonic_output(&full_log);
-
-        let stem = tex.file_stem().unwrap_or_default().to_string_lossy();
-        let pdf_path = dir.join(format!("{}.pdf", stem));
-        let synctex_path = dir.join(format!("{}.synctex.gz", stem));
-        eprintln!("[latex] PDF expected at: {} exists: {}", pdf_path.display(), pdf_path.exists());
-
-        let success = output.status.success() && pdf_path.exists();
-        let duration_ms = start.elapsed().as_millis() as u64;
-
-        Ok(CompileResult {
-            success,
-            pdf_path: if pdf_path.exists() {
-                Some(pdf_path.to_string_lossy().to_string())
-            } else {
-                None
-            },
-            synctex_path: if synctex_path.exists() {
-                Some(synctex_path.to_string_lossy().to_string())
-            } else {
-                None
-            },
-            errors,
-            warnings,
-            log: full_log,
-            duration_ms,
-        })
+        match preference.as_str() {
+            "system" | "system-tex" => {
+                let system_tex = system_tex.ok_or_else(|| {
+                    "System TeX compiler not found. Install MacTeX or TeX Live and try again."
+                        .to_string()
+                })?;
+                compile_with_system_tex(&system_tex, &tex_path, start)
+            }
+            "tectonic" => {
+                let tectonic = tectonic.ok_or_else(|| {
+                    "Tectonic not found. Install it or choose System TeX in Settings.".to_string()
+                })?;
+                compile_with_tectonic(&tectonic, &tex_path, start)
+            }
+            _ => {
+                if let Some(system_tex) = system_tex {
+                    compile_with_system_tex(&system_tex, &tex_path, start)
+                } else if let Some(tectonic) = tectonic {
+                    compile_with_tectonic(&tectonic, &tex_path, start)
+                } else {
+                    Err("No LaTeX compiler found. Install MacTeX/TeX Live, or install Tectonic in Settings.".to_string())
+                }
+            }
+        }
     })();
 
     // Clear compiling flag
@@ -275,9 +431,7 @@ pub async fn set_tectonic_enabled(
 }
 
 #[tauri::command]
-pub async fn is_tectonic_enabled(
-    state: tauri::State<'_, LatexState>,
-) -> Result<bool, String> {
+pub async fn is_tectonic_enabled(state: tauri::State<'_, LatexState>) -> Result<bool, String> {
     let flag = state.enabled.lock().unwrap();
     Ok(*flag)
 }
@@ -289,13 +443,33 @@ pub struct TectonicStatus {
 }
 
 #[tauri::command]
-pub async fn check_tectonic(
-    app: tauri::AppHandle,
-) -> Result<TectonicStatus, String> {
-    match find_tectonic(&app) {
-        Some(path) => Ok(TectonicStatus { installed: true, path: Some(path) }),
-        None => Ok(TectonicStatus { installed: false, path: None }),
+pub async fn check_tectonic(app: tauri::AppHandle) -> Result<TectonicStatus, String> {
+    match find_tectonic(&app, None) {
+        Some(path) => Ok(TectonicStatus {
+            installed: true,
+            path: Some(path),
+        }),
+        None => Ok(TectonicStatus {
+            installed: false,
+            path: None,
+        }),
     }
+}
+
+#[tauri::command]
+pub async fn check_latex_compilers(
+    app: tauri::AppHandle,
+) -> Result<LatexCompilerStatus, String> {
+    Ok(LatexCompilerStatus {
+        tectonic: BinaryStatus {
+            installed: find_tectonic(&app, None).is_some(),
+            path: find_tectonic(&app, None),
+        },
+        system_tex: BinaryStatus {
+            installed: find_system_tex().is_some(),
+            path: find_system_tex(),
+        },
+    })
 }
 
 const TECTONIC_VERSION: &str = "0.15.0";
@@ -306,15 +480,22 @@ fn tectonic_download_url() -> Result<(String, bool), String> {
         TECTONIC_VERSION, TECTONIC_VERSION
     );
 
-    let arch = if cfg!(target_arch = "aarch64") { "aarch64" }
-               else if cfg!(target_arch = "x86_64") { "x86_64" }
-               else { return Err("Unsupported architecture".to_string()) };
+    let arch = if cfg!(target_arch = "aarch64") {
+        "aarch64"
+    } else if cfg!(target_arch = "x86_64") {
+        "x86_64"
+    } else {
+        return Err("Unsupported architecture".to_string());
+    };
 
     if cfg!(target_os = "macos") {
         Ok((format!("{}-{}-apple-darwin.tar.gz", base, arch), false))
     } else if cfg!(target_os = "linux") {
         // Use musl build for static linking (no glibc dependency)
-        Ok((format!("{}-{}-unknown-linux-musl.tar.gz", base, arch), false))
+        Ok((
+            format!("{}-{}-unknown-linux-musl.tar.gz", base, arch),
+            false,
+        ))
     } else if cfg!(target_os = "windows") {
         Ok((format!("{}-{}-pc-windows-msvc.zip", base, arch), true))
     } else {
@@ -323,13 +504,10 @@ fn tectonic_download_url() -> Result<(String, bool), String> {
 }
 
 #[tauri::command]
-pub async fn download_tectonic(
-    app: tauri::AppHandle,
-) -> Result<String, String> {
-    let bin_dir = shoulders_bin_dir()
-        .ok_or_else(|| "Cannot determine home directory".to_string())?;
-    std::fs::create_dir_all(&bin_dir)
-        .map_err(|e| format!("Cannot create directory: {}", e))?;
+pub async fn download_tectonic(app: tauri::AppHandle) -> Result<String, String> {
+    let bin_dir =
+        shoulders_bin_dir().ok_or_else(|| "Cannot determine home directory".to_string())?;
+    std::fs::create_dir_all(&bin_dir).map_err(|e| format!("Cannot create directory: {}", e))?;
 
     let (url, is_zip) = tectonic_download_url()?;
     eprintln!("[tectonic] Downloading from: {}", url);
@@ -402,7 +580,8 @@ pub async fn download_tectonic(
         {
             let status = Command::new("powershell")
                 .args(&[
-                    "-NoProfile", "-Command",
+                    "-NoProfile",
+                    "-Command",
                     &format!(
                         "Expand-Archive -Path '{}' -DestinationPath '{}' -Force",
                         archive_path.display(),
@@ -422,7 +601,12 @@ pub async fn download_tectonic(
     } else {
         // Unix: use tar to extract
         let status = Command::new("tar")
-            .args(&["xzf", &archive_path.to_string_lossy(), "-C", &bin_dir.to_string_lossy()])
+            .args(&[
+                "xzf",
+                &archive_path.to_string_lossy(),
+                "-C",
+                &bin_dir.to_string_lossy(),
+            ])
             .status()
             .map_err(|e| format!("Extract failed: {}", e))?;
         if !status.success() {
@@ -435,7 +619,10 @@ pub async fn download_tectonic(
 
     // Verify binary exists
     if !dest_path.exists() {
-        return Err(format!("Binary not found after extraction at {}", dest_path.display()));
+        return Err(format!(
+            "Binary not found after extraction at {}",
+            dest_path.display()
+        ));
     }
 
     // Set executable permission on Unix
@@ -566,8 +753,8 @@ fn forward_sync(
     line: u32,
 ) -> Result<serde_json::Value, String> {
     // Find the node closest to the given line in the given file
-    let tex_canonical = std::fs::canonicalize(tex_path)
-        .unwrap_or_else(|_| Path::new(tex_path).to_path_buf());
+    let tex_canonical =
+        std::fs::canonicalize(tex_path).unwrap_or_else(|_| Path::new(tex_path).to_path_buf());
 
     let mut best: Option<&SyncNode> = None;
     let mut best_dist: u32 = u32::MAX;

@@ -28,7 +28,7 @@
         v-if="data.title !== null && data.title !== undefined"
         class="node-title-input nopan nodrag"
         :value="data.title"
-        placeholder="Title..."
+        :placeholder="t('Title...')"
         @input="e => emit('update', { title: e.target.value })"
         @keydown.stop
         @mousedown.stop
@@ -64,7 +64,7 @@
       <button
         v-if="data.aiGenerated && data._parentPromptId && !isStreaming"
         class="regenerate-btn nopan nodrag"
-        title="Regenerate"
+        :title="t('Regenerate')"
         @mousedown.stop
         @click.stop="regenerate"
       >
@@ -90,6 +90,7 @@ import { ref, computed, nextTick, watch, inject } from 'vue'
 import { Handle, Position } from '@vue-flow/core'
 import { NodeResizer } from '@vue-flow/node-resizer'
 import { renderMarkdown } from '../../utils/chatMarkdown'
+import { useI18n } from '../../i18n'
 
 const props = defineProps({
   id: { type: String, required: true },
@@ -100,6 +101,7 @@ const props = defineProps({
 const canvasNodeUpdate = inject('canvasNodeUpdate', null)
 const canvasNodeResize = inject('canvasNodeResize', null)
 const canvasRegenerate = inject('canvasRegenerate', null)
+const { t } = useI18n()
 
 function emit(event, payload) {
   if (event === 'update' && canvasNodeUpdate) canvasNodeUpdate(props.id, payload)
@@ -119,7 +121,7 @@ const isStreaming = computed(() => {
 })
 
 const renderedContent = computed(() => {
-  if (!props.data.content) return '<span class="placeholder">Double-click to edit</span>'
+  if (!props.data.content) return `<span class="placeholder">${t('Double-click to edit')}</span>`
   return renderMarkdown(props.data.content)
 })
 

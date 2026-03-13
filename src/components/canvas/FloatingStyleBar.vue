@@ -9,7 +9,7 @@
       <button
         v-if="canToggleType"
         class="bar-btn"
-        :title="isPrompt ? 'Switch to text node' : 'Switch to prompt node'"
+        :title="isPrompt ? t('Switch to text node') : t('Switch to prompt node')"
         @click="$emit('toggle-type')"
       >
         <svg v-if="isPrompt" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -26,7 +26,7 @@
       <div v-if="canShowColor" class="picker-wrap">
         <button
           class="bar-btn"
-          title="Color"
+          :title="t('Color')"
           @click.stop="togglePopover('color')"
         >
           <span class="color-dot" :style="{ background: currentColorCss }" />
@@ -38,7 +38,7 @@
             class="color-swatch"
             :class="{ active: currentColor === color.value }"
             :style="{ background: color.bg }"
-            :title="color.label"
+            :title="t(color.label)"
             @click="$emit('update-style', { color: color.value }); activePopover = null"
           />
         </div>
@@ -48,7 +48,7 @@
       <div v-if="canShowBorder" class="picker-wrap">
         <button
           class="bar-btn"
-          title="Border"
+          :title="t('Border')"
           @click.stop="togglePopover('border')"
         >
           <div class="border-indicator" :style="{ borderWidth: currentBorderPx }" />
@@ -62,7 +62,7 @@
             @click="$emit('update-style', { borderWidth: bw.value }); activePopover = null"
           >
             <div class="border-preview" :style="{ borderWidth: bw.px }" />
-            <span class="popover-label">{{ bw.label }}</span>
+            <span class="popover-label">{{ t(bw.label) }}</span>
           </button>
         </div>
       </div>
@@ -71,7 +71,7 @@
       <div v-if="canShowFont" class="picker-wrap">
         <button
           class="bar-btn text-btn"
-          title="Font size"
+          :title="t('Font size')"
           @click.stop="togglePopover('font')"
         >
           {{ currentFontDisplay }}
@@ -84,7 +84,7 @@
             :class="{ active: currentFont === fs.value }"
             @click="$emit('update-style', { fontSize: fs.value }); activePopover = null"
           >
-            <span class="popover-label" :style="{ fontSize: fs.previewSize }">{{ fs.label }}</span>
+            <span class="popover-label" :style="{ fontSize: fs.previewSize }">{{ t(fs.label) }}</span>
           </button>
         </div>
       </div>
@@ -93,7 +93,7 @@
       <div v-if="canShowAlign" class="picker-wrap">
         <button
           class="bar-btn"
-          title="Text alignment"
+          :title="t('Text alignment')"
           @click.stop="togglePopover('align')"
         >
           <svg v-if="currentAlign === 'center'" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 6h16M7 10h10M4 14h16M7 18h10"/></svg>
@@ -103,15 +103,15 @@
         <div v-if="activePopover === 'align'" class="popover" @click.stop>
           <button class="popover-btn" :class="{ active: currentAlign === 'left' }" @click="$emit('update-style', { textAlign: 'left' }); activePopover = null">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 6h16M4 10h10M4 14h16M4 18h10"/></svg>
-            <span class="popover-label">Left</span>
+            <span class="popover-label">{{ t('Left') }}</span>
           </button>
           <button class="popover-btn" :class="{ active: currentAlign === 'center' }" @click="$emit('update-style', { textAlign: 'center' }); activePopover = null">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 6h16M7 10h10M4 14h16M7 18h10"/></svg>
-            <span class="popover-label">Center</span>
+            <span class="popover-label">{{ t('Center') }}</span>
           </button>
           <button class="popover-btn" :class="{ active: currentAlign === 'right' }" @click="$emit('update-style', { textAlign: 'right' }); activePopover = null">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 6h16M10 10h10M4 14h16M10 18h10"/></svg>
-            <span class="popover-label">Right</span>
+            <span class="popover-label">{{ t('Right') }}</span>
           </button>
         </div>
       </div>
@@ -123,7 +123,7 @@
         v-if="canShowTextControls"
         class="bar-btn"
         :class="{ active: hasTitle }"
-        title="Toggle title"
+        :title="t('Toggle title')"
         @click="$emit('toggle-title')"
       >
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -135,7 +135,7 @@
       <button
         v-if="canShowTextControls"
         class="bar-btn"
-        title="Expand to full content"
+        :title="t('Expand to full content')"
         @click="$emit('expand-height')"
       >
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -145,7 +145,7 @@
       <button
         v-if="canShowTextControls"
         class="bar-btn"
-        title="Collapse to compact"
+        :title="t('Collapse to compact')"
         @click="$emit('collapse-height')"
       >
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -156,7 +156,7 @@
       <div class="bar-sep" />
 
       <!-- Delete -->
-      <button class="bar-btn delete-btn" title="Delete" @click="$emit('delete')">
+      <button class="bar-btn delete-btn" :title="t('Delete')" @click="$emit('delete')">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
           <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14z" />
         </svg>
@@ -167,6 +167,7 @@
 
 <script setup>
 import { computed, ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { useI18n } from '../../i18n'
 
 const props = defineProps({
   nodes: { type: Array, required: true },
@@ -175,6 +176,7 @@ const props = defineProps({
 defineEmits(['update-style', 'delete', 'toggle-type', 'toggle-title', 'expand-height', 'collapse-height'])
 
 const activePopover = ref(null)
+const { t } = useI18n()
 
 function togglePopover(name) {
   activePopover.value = activePopover.value === name ? null : name

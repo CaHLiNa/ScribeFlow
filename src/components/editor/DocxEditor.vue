@@ -44,14 +44,14 @@
           <textarea
             ref="commentTextarea"
             class="docx-comment-textarea"
-            placeholder="Add a comment..."
+            :placeholder="t('Add a comment...')"
             v-model="commentInput.text"
             @keydown.enter.meta="submitComment"
             @keydown.escape="cancelComment"
           ></textarea>
           <div class="docx-comment-footer">
-            <button class="docx-comment-btn" @click="cancelComment">Cancel</button>
-            <button class="docx-comment-btn docx-comment-btn-primary" @click="submitComment" :disabled="!commentInput.text.trim()">Comment</button>
+            <button class="docx-comment-btn" @click="cancelComment">{{ t('Cancel') }}</button>
+            <button class="docx-comment-btn docx-comment-btn-primary" @click="submitComment" :disabled="!commentInput.text.trim()">{{ t('Comment') }}</button>
           </div>
         </div>
       </div>
@@ -85,6 +85,7 @@ import { createDocxGhostExtension, ghostPluginKey } from '../../editor/docxGhost
 import { createHeadingNormalizeExtension } from '../../editor/docxHeadingNormalize'
 import { prescanDocxForZotero, postProcessCitationsOrdered, getCitationMeta, setCitationMeta, loadCitationMeta, persistCitationMeta, isCitationHref, citationIdFromHref, reformatAllCitations, removeCitationLink, insertNewCitation, getAllCitedKeys, hasBibliography, insertBibliography, refreshBibliography, createCitationMarkGuardExtension } from '../../services/docxCitationImporter'
 import { extractDocumentText } from '../../services/docxContext'
+import { useI18n } from '../../i18n'
 import DocxToolbar from './DocxToolbar.vue'
 import DocxContextMenu from './DocxContextMenu.vue'
 import CitationPalette from './CitationPalette.vue'
@@ -100,6 +101,7 @@ const workspace = useWorkspaceStore()
 const editorStore = useEditorStore()
 const filesStore = useFilesStore()
 const referencesStore = useReferencesStore()
+const { t } = useI18n()
 
 const rootEl = ref(null)
 const editorEl = ref(null)

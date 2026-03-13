@@ -70,7 +70,7 @@
         :value="newItemValue"
         class="w-full px-1 py-0.5 rounded border outline-none"
         style="background: var(--bg-tertiary); color: var(--fg-primary); border-color: var(--accent); font-size: var(--ui-font-size);"
-        :placeholder="newItemIsDir ? 'folder name' : 'document name'"
+        :placeholder="newItemIsDir ? t('folder name') : t('document name')"
         autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
         @input="$emit('rename-input-change', $event.target.value)"
         @keydown.enter.stop="$emit('rename-input-submit')"
@@ -125,6 +125,7 @@ import { useEditorStore } from '../../stores/editor'
 import { useReviewsStore } from '../../stores/reviews'
 import { isMod } from '../../platform'
 import { getFileIconName } from '../../utils/fileTypes'
+import { useI18n } from '../../i18n'
 
 const props = defineProps({
   entry: { type: Object, required: true },
@@ -150,6 +151,7 @@ const emit = defineEmits([
 const files = useFilesStore()
 const editor = useEditorStore()
 const reviews = useReviewsStore()
+const { t } = useI18n()
 
 const renameInputEl = ref(null)
 const newItemInput = ref(null)

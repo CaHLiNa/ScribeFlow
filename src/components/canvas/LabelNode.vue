@@ -22,7 +22,7 @@
       ref="inputRef"
       class="label-input nopan nodrag"
       :value="data.content"
-      placeholder="Label..."
+      :placeholder="t('Label...')"
       @input="onInput"
       @blur="editing = false"
       @keydown.stop="onKeydown"
@@ -33,7 +33,7 @@
       class="label-display"
       @dblclick.stop="startEditing"
     >
-      {{ data.content || 'Label' }}
+      {{ data.content || t('Label') }}
     </div>
   </div>
 </template>
@@ -41,6 +41,7 @@
 <script setup>
 import { ref, nextTick, inject } from 'vue'
 import { NodeResizer } from '@vue-flow/node-resizer'
+import { useI18n } from '../../i18n'
 
 const props = defineProps({
   id: { type: String, required: true },
@@ -50,6 +51,7 @@ const props = defineProps({
 
 const canvasNodeUpdate = inject('canvasNodeUpdate', null)
 const canvasNodeResize = inject('canvasNodeResize', null)
+const { t } = useI18n()
 
 function emit(event, payload) {
   if (event === 'update' && canvasNodeUpdate) canvasNodeUpdate(props.id, payload)

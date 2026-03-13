@@ -6,11 +6,11 @@
          style="background: var(--bg-secondary); border-color: var(--border);">
       <button v-if="errorCount > 0" class="latex-btn text-xs" @click="toggleErrors"
               style="color: var(--error, #f87171);">
-        {{ errorCount }} error{{ errorCount !== 1 ? 's' : '' }}
+        {{ formatIssueCount(errorCount, 'error', 'errors') }}
       </button>
       <button v-if="warningCount > 0" class="latex-btn text-xs" @click="toggleErrors"
               style="color: var(--warning, #fbbf24);">
-        {{ warningCount }} warning{{ warningCount !== 1 ? 's' : '' }}
+        {{ formatIssueCount(warningCount, 'warning', 'warnings') }}
       </button>
     </div>
 
@@ -23,8 +23,8 @@
         <span style="color: var(--error, #f87171);">&#x2716;</span>
         <span v-if="err.line" class="tabular-nums" style="color: var(--fg-muted);">L{{ err.line }}</span>
         <span class="flex-1 truncate" style="color: var(--fg-primary);">{{ err.message }}</span>
-        <button class="latex-btn text-[11px]" @click.stop="askAiToFix(err)" title="Ask AI to fix this error">
-          Ask AI &#x25B8;
+        <button class="latex-btn text-[11px]" @click.stop="askAiToFix(err)" :title="t('Ask AI to fix this error')">
+          {{ t('Ask AI ▸') }}
         </button>
       </div>
       <div v-for="(warn, i) in warnings" :key="'w' + i"
@@ -49,13 +49,13 @@
       <div v-else class="flex items-center justify-center h-full" style="color: var(--fg-muted);">
         <div class="text-center text-sm">
           <div v-if="compileStatus === 'compiling'">
-            Compiling…
+            {{ t('Compiling…') }}
           </div>
-          <div v-else-if="!latexStore.tectonicEnabled">
-            Tectonic is disabled. Enable it in Settings.
+          <div v-else-if="!latexStore.hasAvailableCompiler">
+            {{ t('No LaTeX compiler configured. Choose one in Settings > System.') }}
           </div>
           <div v-else>
-            No PDF yet — click Compile in the .tex tab
+            {{ t('No PDF yet — click Compile in the .tex tab') }}
           </div>
         </div>
       </div>
@@ -69,6 +69,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { useLatexStore } from '../../stores/latex'
 import { useChatStore } from '../../stores/chat'
 import { useFilesStore } from '../../stores/files'
+import { useI18n } from '../../i18n'
 import PdfViewer from './PdfViewer.vue'
 
 const props = defineProps({
@@ -79,6 +80,7 @@ const props = defineProps({
 const latexStore = useLatexStore()
 const chatStore = useChatStore()
 const filesStore = useFilesStore()
+const { t } = useI18n()
 
 // Derive .tex path from .pdf path
 const texPath = computed(() => {
@@ -97,6 +99,12 @@ const hasPdf = ref(false)
 const pdfViewerRef = ref(null)
 const errorsVisible = ref(false)
 const pdfReloadKey = ref(0)
+
+function formatIssueCount(count, singularKey, pluralKey) {
+  return count === 1
+    ? t(`{count} ${singularKey}`, { count })
+    : t(`{count} ${pluralKey}`, { count })
+}
 
 function toggleErrors() {
   errorsVisible.value = !errorsVisible.value
@@ -182,6 +190,7 @@ function handleCursorResponse(e) {
 }
 
 onMounted(() => {
+  latexStore.checkCompilers()
   window.addEventListener('latex-compile-done', handleCompileDone)
   window.addEventListener('latex-cursor-response', handleCursorResponse)
   checkPdfExists()

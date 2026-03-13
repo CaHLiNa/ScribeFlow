@@ -11,13 +11,13 @@
     <!-- Line 1: Title + indicators -->
     <div class="flex items-center gap-1">
       <div class="flex-1 min-w-0 ui-text-base truncate" :style="{ color: 'var(--fg-secondary)' }">
-        {{ reference.title || 'Untitled' }}
+        {{ reference.title || t('Untitled') }}
       </div>
       <!-- Copy citation button (hover) -->
       <button
         class="shrink-0 w-4 h-4 flex items-center justify-center rounded opacity-0 group-hover:opacity-100 transition-opacity"
         :style="{ color: copied ? 'var(--success)' : 'var(--fg-muted)' }"
-        title="Copy citation"
+        :title="t('Copy citation')"
         @click.stop="copyCitation"
       >
         <svg v-if="!copied" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -27,7 +27,7 @@
           <path d="M3 8l3 3 7-7"/>
         </svg>
       </button>
-      <span v-if="isCited" class="shrink-0 inline-block w-[5px] h-[5px] rounded-full" :style="{ background: 'var(--success)' }" title="Cited in document"></span>
+      <span v-if="isCited" class="shrink-0 inline-block w-[5px] h-[5px] rounded-full" :style="{ background: 'var(--success)' }" :title="t('Cited in document')"></span>
       <svg v-if="reference._pdfFile" class="shrink-0" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" :style="{ color: 'var(--fg-muted)' }">
         <path d="M9 1H4a1 1 0 00-1 1v12a1 1 0 001 1h8a1 1 0 001-1V5L9 1z"/>
         <path d="M9 1v4h4"/>
@@ -44,6 +44,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { useReferencesStore } from '../../stores/references'
+import { useI18n } from '../../i18n'
 
 const props = defineProps({
   reference: { type: Object, required: true },
@@ -64,12 +65,13 @@ function copyCitation() {
 const emit = defineEmits(['click', 'context-menu', 'drag-start'])
 
 const referencesStore = useReferencesStore()
+const { t } = useI18n()
 
 const isActive = computed(() => referencesStore.activeKey === props.reference._key)
 
 const authorLine = computed(() => {
   const authors = props.reference.author || []
-  if (authors.length === 0) return 'Unknown'
+  if (authors.length === 0) return t('Unknown')
   const first = authors[0].family || authors[0].given || ''
   if (authors.length === 1) return first
   if (authors.length === 2) return `${first} & ${authors[1].family || ''}`

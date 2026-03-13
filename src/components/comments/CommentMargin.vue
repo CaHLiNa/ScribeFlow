@@ -7,7 +7,7 @@
           class="comment-toggle-btn"
           :class="{ 'comment-toggle-btn-on': showResolved }"
           @click="toggleShowResolved"
-          :title="showResolved ? 'Hide resolved' : 'Show resolved'"
+          :title="showResolved ? t('Hide resolved') : t('Show resolved')"
         >
           <IconEye v-if="showResolved" :size="13" :stroke-width="1.5" />
           <IconEyeOff v-else :size="13" :stroke-width="1.5" />
@@ -18,10 +18,10 @@
           :class="{ 'comment-add-btn-active': hasSelection }"
           :disabled="!hasSelection"
           @click="handleAddComment"
-          :title="hasSelection ? 'Add comment on selection' : 'Select text in the editor first'"
+          :title="hasSelection ? t('Add comment on selection') : t('Select text in the editor first')"
         >
           <IconPlus :size="11" :stroke-width="2.5" />
-          <span>Add</span>
+          <span>{{ t('Add') }}</span>
         </button>
       </div>
     </div>
@@ -45,7 +45,7 @@
           fontSize: 'calc(var(--ui-font-size, 13px) - 2px)',
         }"
       >
-        Select text and press<br>
+        {{ t('Select text and press') }}<br>
         <kbd
           :style="{
             display: 'inline-block',
@@ -59,7 +59,7 @@
             color: 'var(--fg-secondary)',
           }"
         >{{ modKey }}+Shift+L</kbd><br>
-        to add a comment
+        {{ t('to add a comment') }}
       </div>
     </div>
 
@@ -69,7 +69,7 @@
         class="comment-btn-primary comment-submit-full"
         @click="handleSubmit"
       >
-        Submit {{ unresolvedCount }}
+        {{ t('Submit {count}', { count: unresolvedCount }) }}
       </button>
     </div>
   </div>
@@ -81,6 +81,7 @@ import { IconPlus, IconEye, IconEyeOff } from '@tabler/icons-vue'
 import { useCommentsStore } from '../../stores/comments'
 import CommentCard from './CommentCard.vue'
 import { modKey } from '../../platform'
+import { useI18n } from '../../i18n'
 
 const props = defineProps({
   filePath: { type: String, required: true },
@@ -89,6 +90,7 @@ const props = defineProps({
 })
 
 const commentsStore = useCommentsStore()
+const { t } = useI18n()
 
 const showResolved = computed(() => commentsStore.showResolved)
 

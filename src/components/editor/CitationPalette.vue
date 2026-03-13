@@ -15,9 +15,9 @@
             <template v-if="entry.ref">
               <span class="cp-author">{{ formatAuthor(entry.ref) }}</span>
               <span v-if="getYear(entry.ref)" class="cp-year">({{ getYear(entry.ref) }})</span>
-              <span class="cp-title">{{ entry.ref.title || 'Untitled' }}</span>
+              <span class="cp-title">{{ entry.ref.title || t('Untitled') }}</span>
             </template>
-            <span v-else class="cp-missing">Reference not found</span>
+            <span v-else class="cp-missing">{{ t('Reference not found') }}</span>
           </div>
           <div class="cp-entry-line2">
             <span class="cp-key">@{{ entry.key }}</span>
@@ -33,7 +33,7 @@
                 class="cp-ebtn"
                 :disabled="idx === 0"
                 @mousedown.prevent="moveUp(idx)"
-                title="Move up"
+                :title="t('Move up')"
               >
                 <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 6l3-3 3 3"/></svg>
               </button>
@@ -41,14 +41,14 @@
                 class="cp-ebtn"
                 :disabled="idx === editEntries.length - 1"
                 @mousedown.prevent="moveDown(idx)"
-                title="Move down"
+                :title="t('Move down')"
               >
                 <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4l3 3 3-3"/></svg>
               </button>
               <button
                 class="cp-ebtn cp-ebtn-rm"
                 @mousedown.prevent="removeFromGroup(idx)"
-                title="Remove"
+                :title="t('Remove')"
               >
                 <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 2l6 6M8 2l-6 6"/></svg>
               </button>
@@ -71,13 +71,13 @@
               <span class="cp-author">{{ formatAuthor(r) }}</span>
               <span v-if="getYear(r)" class="cp-year">({{ getYear(r) }})</span>
               <span class="cp-sep"> — </span>
-              <span class="cp-title">{{ r.title || 'Untitled' }}</span>
+              <span class="cp-title">{{ r.title || t('Untitled') }}</span>
             </div>
             <div class="cp-line2">@{{ r._key }}</div>
           </div>
         </template>
-        <div v-else-if="query" class="cp-empty">No matching references</div>
-        <div v-else-if="!referencesStore.library.length" class="cp-empty">No references yet</div>
+        <div v-else-if="query" class="cp-empty">{{ t('No matching references') }}</div>
+        <div v-else-if="!referencesStore.library.length" class="cp-empty">{{ t('No references yet') }}</div>
       </div>
 
       <!-- ═══ EDIT MODE: Add Another Reference ═══ -->
@@ -86,7 +86,7 @@
           ref="addInputEl"
           v-model="addQuery"
           class="cp-add-input"
-          placeholder="Search library to add..."
+          :placeholder="t('Search library to add...')"
           autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
           @keydown="handleAddKeydown"
         />
@@ -102,7 +102,7 @@
               <span class="cp-author">{{ formatAuthor(r) }}</span>
               <span v-if="getYear(r)" class="cp-year">({{ getYear(r) }})</span>
               <span class="cp-sep"> — </span>
-              <span class="cp-title">{{ r.title || 'Untitled' }}</span>
+              <span class="cp-title">{{ r.title || t('Untitled') }}</span>
             </div>
             <div class="cp-line2">@{{ r._key }}</div>
           </div>
@@ -111,26 +111,26 @@
 
       <!-- ═══ IMPORT SECTION ═══ -->
       <div v-if="showImport" class="cp-import">
-        <div class="cp-import-hdr">Add New Reference</div>
+        <div class="cp-import-hdr">{{ t('Add New Reference') }}</div>
         <textarea
           ref="importTextEl"
           v-model="importText"
           class="cp-import-ta"
-          placeholder="Paste DOI, BibTeX, RIS, or title..."
+          :placeholder="t('Paste DOI, BibTeX, RIS, or title...')"
           rows="2"
           @keydown.meta.enter="doImport"
           @keydown.ctrl.enter="doImport"
           @keydown.stop
         ></textarea>
         <div class="cp-import-bar">
-          <span v-if="importLoading" class="cp-import-status">Looking up...</span>
+          <span v-if="importLoading" class="cp-import-status">{{ t('Looking up...') }}</span>
           <span v-else-if="importErrors.length" class="cp-import-err">{{ importErrors[0] }}</span>
           <div class="flex-1"></div>
           <button
             class="cp-btn-accent"
             :disabled="importLoading || !importText.trim()"
             @mousedown.prevent="doImport"
-          >{{ importLoading ? 'Looking up...' : 'Look up' }}</button>
+          >{{ importLoading ? t('Looking up...') : t('Look up') }}</button>
         </div>
 
         <div v-if="importResults.length" class="cp-import-results">
@@ -139,7 +139,7 @@
               <span class="cp-author">{{ formatAuthor(r.csl) }}</span>
               <span v-if="getYear(r.csl)" class="cp-year">({{ getYear(r.csl) }})</span>
               <span class="cp-sep"> — </span>
-              <span class="cp-title">{{ r.csl.title || 'Untitled' }}</span>
+              <span class="cp-title">{{ r.csl.title || t('Untitled') }}</span>
             </div>
             <div v-if="r.csl['container-title']" class="cp-import-meta">
               <span class="cp-import-journal">{{ r.csl['container-title'] }}</span>
@@ -150,13 +150,13 @@
             </div>
             <div class="cp-import-acts">
               <template v-if="r.existingKey && !r.added">
-                <span class="cp-import-exists">Already in library</span>
+                <span class="cp-import-exists">{{ t('Already in library') }}</span>
               </template>
               <template v-else-if="!r.added">
-                <button class="cp-btn-accent" @mousedown.prevent="addAndCite(r)">Add &amp; Cite</button>
-                <button class="cp-btn-ghost" @mousedown.prevent="addToLibraryOnly(r)">Add to Library</button>
+                <button class="cp-btn-accent" @mousedown.prevent="addAndCite(r)">{{ t('Add & Cite') }}</button>
+                <button class="cp-btn-ghost" @mousedown.prevent="addToLibraryOnly(r)">{{ t('Add to Library') }}</button>
               </template>
-              <span v-else class="cp-import-done">Added</span>
+              <span v-else class="cp-import-done">{{ t('Added') }}</span>
             </div>
           </div>
         </div>
@@ -164,7 +164,7 @@
 
       <!-- ═══ FOOTER ═══ -->
       <div class="cp-footer" @mousedown.prevent="toggleImport">
-        <span>{{ showImport ? 'Back to search' : 'Import new reference...' }}</span>
+        <span>{{ showImport ? t('Back to search') : t('Import new reference...') }}</span>
         <span v-if="!showImport" class="cp-plus">+</span>
       </div>
 
@@ -177,6 +177,7 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useReferencesStore } from '../../stores/references'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { importFromText } from '../../services/referenceImport'
+import { useI18n } from '../../i18n'
 
 // ─── Props & Emits ──────────────────────────────────────────
 
@@ -195,6 +196,7 @@ const emit = defineEmits(['insert', 'update', 'close'])
 
 const referencesStore = useReferencesStore()
 const workspace = useWorkspaceStore()
+const { t } = useI18n()
 
 // ─── Refs ───────────────────────────────────────────────────
 
@@ -270,7 +272,12 @@ function getYear(r) {
 }
 
 function confidenceLabel(c) {
-  return { verified: 'Verified', matched: 'Matched', unverified: 'Unverified', failed: 'Failed' }[c] || ''
+  return {
+    verified: t('Verified'),
+    matched: t('Matched'),
+    unverified: t('Unverified'),
+    failed: t('Failed'),
+  }[c] || ''
 }
 
 // ─── Insert Mode Actions ────────────────────────────────────

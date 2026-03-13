@@ -1,6 +1,8 @@
 // Code Runner — sends code from the editor to language REPLs in the right panel.
 // Uses window.dispatchEvent for cross-component communication (existing pattern).
 
+import { useEnvironmentStore } from '../stores/environment'
+
 const LANGUAGE_CONFIG = {
   r: { cmd: 'R', args: ['--interactive', '--no-save'], label: 'R' },
   python: { cmd: 'python3', args: ['-i'], label: 'Python' },
@@ -20,7 +22,18 @@ const EXT_LANGUAGE_MAP = {
 }
 
 export function getLanguageConfig(language) {
-  return LANGUAGE_CONFIG[language] || null
+  const config = LANGUAGE_CONFIG[language]
+  if (!config) return null
+
+  if (language === 'python') {
+    const envStore = useEnvironmentStore()
+    const pythonPath = envStore.selectedInterpreterPath('python')
+    if (pythonPath) {
+      return { ...config, cmd: pythonPath }
+    }
+  }
+
+  return config
 }
 
 export function getLanguageForFile(filePath) {

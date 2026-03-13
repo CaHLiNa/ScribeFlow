@@ -5,17 +5,17 @@
         <!-- Clipboard -->
         <div class="docx-ctx-item" @click="execCmd('cut')">
           <IconCut :size="14" />
-          <span>Cut</span>
+          <span>{{ t('Cut') }}</span>
           <span class="docx-ctx-shortcut">Cmd+X</span>
         </div>
         <div class="docx-ctx-item" @click="execCmd('copy')">
           <IconCopy :size="14" />
-          <span>Copy</span>
+          <span>{{ t('Copy') }}</span>
           <span class="docx-ctx-shortcut">Cmd+C</span>
         </div>
         <div class="docx-ctx-item" @click="execCmd('paste')">
           <IconClipboard :size="14" />
-          <span>Paste</span>
+          <span>{{ t('Paste') }}</span>
           <span class="docx-ctx-shortcut">Cmd+V</span>
         </div>
 
@@ -24,22 +24,22 @@
         <!-- Formatting -->
         <div class="docx-ctx-item" @click="toggle('toggleBold')">
           <IconBold :size="14" />
-          <span>Bold</span>
+          <span>{{ t('Bold') }}</span>
           <IconCheck v-if="isBold" :size="12" class="docx-ctx-check" />
         </div>
         <div class="docx-ctx-item" @click="toggle('toggleItalic')">
           <IconItalic :size="14" />
-          <span>Italic</span>
+          <span>{{ t('Italic') }}</span>
           <IconCheck v-if="isItalic" :size="12" class="docx-ctx-check" />
         </div>
         <div class="docx-ctx-item" @click="toggle('toggleUnderline')">
           <IconUnderline :size="14" />
-          <span>Underline</span>
+          <span>{{ t('Underline') }}</span>
           <IconCheck v-if="isUnderline" :size="12" class="docx-ctx-check" />
         </div>
         <div class="docx-ctx-item" @click="clearFormatting">
           <IconClearFormatting :size="14" />
-          <span>Clear Formatting</span>
+          <span>{{ t('Clear Formatting') }}</span>
         </div>
 
         <div class="context-menu-separator"></div>
@@ -47,7 +47,7 @@
         <!-- Native comment -->
         <div class="docx-ctx-item" @click="addNativeComment" :class="{ 'docx-ctx-disabled': !hasSelection }">
           <IconMessage :size="14" />
-          <span>Comment</span>
+          <span>{{ t('Comment') }}</span>
         </div>
 
         <div class="context-menu-separator"></div>
@@ -55,7 +55,7 @@
         <!-- Ask AI (only with selection) -->
         <div class="docx-ctx-item" @click="askAI" :class="{ 'docx-ctx-disabled': !hasSelection }">
           <IconSparkles :size="14" />
-          <span>Ask AI</span>
+          <span>{{ t('Ask AI') }}</span>
           <span class="docx-ctx-shortcut">&#x21E7;&#x2318;L</span>
         </div>
 
@@ -64,11 +64,11 @@
           <div class="context-menu-separator"></div>
           <div class="docx-ctx-item" @click="insertCitation">
             <IconQuote :size="14" />
-            <span>Insert Citation</span>
+            <span>{{ t('Insert Citation') }}</span>
           </div>
           <div v-if="hasCitations" class="docx-ctx-item" @click="doBibliography">
             <IconListNumbers :size="14" />
-            <span>Insert Bibliography</span>
+            <span>{{ t('Insert Bibliography') }}</span>
           </div>
         </template>
 
@@ -77,11 +77,11 @@
           <div class="context-menu-separator"></div>
           <div class="docx-ctx-item docx-ctx-accept" @click="acceptChange">
             <IconCheck :size="14" />
-            <span>Accept Change</span>
+            <span>{{ t('Accept Change') }}</span>
           </div>
           <div class="docx-ctx-item docx-ctx-reject" @click="rejectChange">
             <IconX :size="14" />
-            <span>Reject Change</span>
+            <span>{{ t('Reject Change') }}</span>
           </div>
         </template>
       </div>
@@ -98,6 +98,7 @@ import {
 } from '@tabler/icons-vue'
 import { useEditorStore } from '../../stores/editor'
 import { useWorkspaceStore } from '../../stores/workspace'
+import { useI18n } from '../../i18n'
 import { useReferencesStore } from '../../stores/references'
 import { getAllCitationIds, hasBibliography, insertBibliography, refreshBibliography } from '../../services/docxCitationImporter'
 
@@ -113,6 +114,7 @@ const emit = defineEmits(['close', 'add-comment'])
 
 const editorStore = useEditorStore()
 const workspace = useWorkspaceStore()
+const { t } = useI18n()
 const referencesStore = useReferencesStore()
 
 // Access raw editor directly — superdoc is markRaw'd, no Vue Proxy.

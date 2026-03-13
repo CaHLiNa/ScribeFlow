@@ -10,7 +10,7 @@
     >
       <div class="version-modal">
         <!-- Modal-level close button -->
-        <button class="version-close-btn" @click="$emit('close')" title="Close (Esc)">
+        <button class="version-close-btn" @click="$emit('close')" :title="t('Close (Esc)')">
           <IconX :size="18" :stroke-width="1.5" />
         </button>
 
@@ -18,13 +18,13 @@
         <div class="version-list">
           <div class="px-3 py-2 text-xs font-medium uppercase tracking-wider"
             style="color: var(--fg-muted); border-bottom: 1px solid var(--border);">
-            History: {{ fileName }}
+            {{ t('History: {fileName}', { fileName }) }}
           </div>
           <div v-if="loading" class="px-3 py-4 text-xs" style="color: var(--fg-muted);">
-            Loading...
+            {{ t('Loading...') }}
           </div>
           <div v-else-if="commits.length === 0" class="px-3 py-4 text-xs" style="color: var(--fg-muted);">
-            No history yet
+            {{ t('No history yet') }}
           </div>
           <div
             v-for="(commit, idx) in commits"
@@ -33,7 +33,7 @@
             :class="{ active: idx === selectedIndex, 'version-item-named': isNamedSnapshot(commit.message) }"
             @click="selectVersion(idx)"
           >
-            <div class="timestamp">{{ formatDate(commit.date) }}</div>
+            <div class="timestamp">{{ formatDisplayDate(commit.date) }}</div>
             <div class="message" :class="{ 'version-named-message': isNamedSnapshot(commit.message) }">
               <svg v-if="isNamedSnapshot(commit.message)" class="version-bookmark-icon" width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M3 1.5A1.5 1.5 0 014.5 0h7A1.5 1.5 0 0113 1.5v14a.5.5 0 01-.77.42L8 13.06l-4.23 2.86A.5.5 0 013 15.5V1.5z"/></svg>
               {{ commit.message }}
@@ -45,7 +45,7 @@
         <div class="version-preview">
           <div v-if="selectedCommit" class="version-preview-header">
             <span class="text-xs" style="color: var(--fg-muted);">
-              {{ formatDate(selectedCommit.date) }}
+              {{ formatDisplayDate(selectedCommit.date) }}
               <span v-if="selectedCommit.message" style="margin-left: 8px; color: var(--fg-muted); opacity: 0.7;">
                 {{ selectedCommit.message }}
               </span>
@@ -54,13 +54,13 @@
 
           <!-- Loading state -->
           <div v-if="previewLoading" class="version-empty-state">
-            <div class="text-xs" style="color: var(--fg-muted);">Loading preview...</div>
+            <div class="text-xs" style="color: var(--fg-muted);">{{ t('Loading preview...') }}</div>
           </div>
           <!-- Empty state -->
           <div v-else-if="!selectedCommit" class="version-empty-state">
-            <div style="color: var(--fg-muted); font-size: 13px;">Select a version to preview</div>
+            <div style="color: var(--fg-muted); font-size: 13px;">{{ t('Select a version to preview') }}</div>
             <div style="color: var(--fg-muted); opacity: 0.5; font-size: 11px; margin-top: 6px;">
-              Click a commit on the left
+              {{ t('Click a commit on the left') }}
             </div>
           </div>
           <!-- Preview content -->
@@ -75,14 +75,14 @@
               :disabled="!selectedCommit"
               @click="copyContent"
             >
-              {{ copyFeedback ? 'Copied!' : 'Copy content' }}
+              {{ copyFeedback ? t('Copied!') : t('Copy content') }}
             </button>
             <button
               class="version-action-btn version-action-restore"
               :disabled="!selectedCommit"
               @click="restoreVersion"
             >
-              Restore this version
+              {{ t('Restore this version') }}
             </button>
           </div>
         </div>
@@ -106,6 +106,7 @@ import { getViewerType } from '../utils/fileTypes'
 import { base64ToFile } from '../utils/docxBridge'
 import { invoke } from '@tauri-apps/api/core'
 import { ask } from '@tauri-apps/plugin-dialog'
+import { useI18n, formatDate as formatLocaleDate } from '../i18n'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -117,6 +118,7 @@ const emit = defineEmits(['close'])
 const workspace = useWorkspaceStore()
 const editorStore = useEditorStore()
 const filesStore = useFilesStore()
+const { t } = useI18n()
 const previewContainer = ref(null)
 const overlayEl = ref(null)
 
@@ -192,7 +194,7 @@ async function selectVersion(idx) {
     }
   } catch (e) {
     console.error('Failed to show version:', e)
-    previewContent.value = 'Could not load this version.'
+    previewContent.value = t('Could not load this version.')
     previewLoading.value = false
   }
 }
@@ -269,7 +271,13 @@ async function restoreVersion() {
   const commit = selectedCommit.value
   if (!commit || !workspace.path) return
 
-  const yes = await ask(`Restore "${fileName.value}" to version from ${formatDate(commit.date)}?`, { title: 'Confirm Restore', kind: 'warning' })
+  const yes = await ask(
+    t('Restore "{fileName}" to version from {date}?', {
+      fileName: fileName.value,
+      date: formatDisplayDate(commit.date),
+    }),
+    { title: t('Confirm Restore'), kind: 'warning' },
+  )
   if (!yes) {
     return
   }
@@ -302,11 +310,11 @@ function isNamedSnapshot(message) {
   return !message.startsWith('Auto:') && !message.startsWith('Save:')
 }
 
-function formatDate(dateStr) {
+function formatDisplayDate(dateStr) {
   if (!dateStr) return ''
   const d = new Date(dateStr)
   if (isNaN(d.getTime())) return dateStr // Fallback to raw string
-  return d.toLocaleString('en-US', {
+  return formatLocaleDate(d, {
     month: 'short',
     day: 'numeric',
     hour: '2-digit',

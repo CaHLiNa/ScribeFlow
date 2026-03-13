@@ -39,7 +39,7 @@
           <path d="M9 1v4h4"/>
         </template>
       </svg>
-      <span class="tool-label">{{ isSkill ? 'Loaded skill' : toolLabel(toolName) }}</span>
+      <span class="tool-label">{{ isSkill ? t('Loaded skill') : toolLabel(toolName) }}</span>
       <span v-if="filePath" class="tool-context tool-context-link"
             @click.stop="openFile" :title="filePath">
         {{ toolContext(toolName, toolInput) }}
@@ -50,10 +50,10 @@
     <div class="chat-tool-detail" :class="{ expanded }">
       <div class="chat-tool-detail-inner">
         <div v-if="expanded">
-          <div class="chat-tool-detail-label">Input</div>
+          <div class="chat-tool-detail-label">{{ t('Input') }}</div>
           <pre class="chat-code-block ui-text-sm whitespace-pre-wrap mb-2">{{ formatToolInput(toolInput) }}</pre>
           <div v-if="toolOutput">
-            <div class="chat-tool-detail-label">Output</div>
+            <div class="chat-tool-detail-label">{{ t('Output') }}</div>
             <pre class="chat-code-block ui-text-sm whitespace-pre-wrap max-h-32 overflow-y-auto">{{ truncateOutput(toolOutput) }}</pre>
           </div>
           <div v-if="errorText" class="mt-1 ui-text-sm" style="color: var(--error);">{{ errorText }}</div>
@@ -70,6 +70,7 @@ import { TOOL_LABELS, getToolContext, getToolIcon, isSkillRead, getToolFilePath 
 import { useEditorStore } from '../../stores/editor'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useToastStore } from '../../stores/toast'
+import { useI18n } from '../../i18n'
 
 const props = defineProps({
   // UIMessage tool part (new format)
@@ -79,6 +80,7 @@ const props = defineProps({
 })
 
 const expanded = ref(false)
+const { t } = useI18n()
 
 // ─── Unified accessors (support both part and tc props) ──────────
 
@@ -139,7 +141,7 @@ async function openFile() {
   if (exists) {
     editorStore.openFile(absolute)
   } else {
-    toastStore.show(`File not found: ${absolute.split('/').pop()}`, { type: 'error', duration: 3000 })
+    toastStore.show(t('File not found: {name}', { name: absolute.split('/').pop() }), { type: 'error', duration: 3000 })
   }
 }
 
@@ -152,7 +154,7 @@ const statusClass = computed(() => {
 
 // ─── Helpers ──────────────────────────────────────────────────────
 
-function toolLabel(name) { return TOOL_LABELS[name] || name }
+function toolLabel(name) { return t(TOOL_LABELS[name] || name) }
 function toolContext(name, input) { return getToolContext(name, input) }
 function formatToolInput(input) {
   if (!input) return '{}'

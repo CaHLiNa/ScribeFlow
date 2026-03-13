@@ -60,7 +60,10 @@ pub async fn pty_spawn(
         cmd_builder.env("PS1", "\\W \\$ ");
     }
 
-    let _child = pair.slave.spawn_command(cmd_builder).map_err(|e| e.to_string())?;
+    let _child = pair
+        .slave
+        .spawn_command(cmd_builder)
+        .map_err(|e| e.to_string())?;
 
     // Drop the slave - we only need the master
     drop(pair.slave);
@@ -101,10 +104,7 @@ pub async fn pty_spawn(
             }
         }
         // PTY closed - notify frontend
-        let _ = app_clone.emit(
-            &format!("pty-exit-{}", id),
-            serde_json::json!({ "id": id }),
-        );
+        let _ = app_clone.emit(&format!("pty-exit-{}", id), serde_json::json!({ "id": id }));
     });
 
     Ok(id)

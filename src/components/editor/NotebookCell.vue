@@ -20,34 +20,34 @@
           [{{ running ? '*' : (cell.executionCount || ' ') }}]
         </span>
         <!-- Type badge -->
-        <span class="cell-type-badge">{{ cell.type === 'code' ? 'Code' : 'Md' }}</span>
+        <span class="cell-type-badge">{{ cell.type === 'code' ? t('Code') : (isZh ? '文' : 'Md') }}</span>
       </div>
       <div class="cell-toolbar-right" v-if="!hasPendingState">
-        <button v-if="cell.type === 'code'" class="cell-btn cell-btn-run" @click.stop="$emit('run')" title="Run cell (Shift+Enter)">
+        <button v-if="cell.type === 'code'" class="cell-btn cell-btn-run" @click.stop="$emit('run')" :title="t('Run cell ({shortcut})', { shortcut: 'Shift+Enter' })">
           <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor"><polygon points="4,2 14,8 4,14"/></svg>
         </button>
-        <button class="cell-btn" @click.stop="$emit('add-above')" title="Add cell above">
+        <button class="cell-btn" @click.stop="$emit('add-above')" :title="t('Add cell above')">
           <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
             <line x1="8" y1="3" x2="8" y2="13"/><line x1="3" y1="8" x2="13" y2="8"/>
           </svg>
           <svg width="6" height="6" viewBox="0 0 8 8" fill="currentColor"><path d="M4 1L1 5h6z"/></svg>
         </button>
-        <button class="cell-btn" @click.stop="$emit('add-below')" title="Add cell below">
+        <button class="cell-btn" @click.stop="$emit('add-below')" :title="t('Add cell below')">
           <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
             <line x1="8" y1="3" x2="8" y2="13"/><line x1="3" y1="8" x2="13" y2="8"/>
           </svg>
           <svg width="6" height="6" viewBox="0 0 8 8" fill="currentColor"><path d="M4 7L1 3h6z"/></svg>
         </button>
-        <button class="cell-btn" @click.stop="$emit('toggle-type')" title="Toggle code/markdown">
+        <button class="cell-btn" @click.stop="$emit('toggle-type')" :title="t('Toggle code/markdown')">
           {{ cell.type === 'code' ? 'M↓' : '</>' }}
         </button>
-        <button class="cell-btn" @click.stop="$emit('move-up')" :disabled="index === 0" title="Move up">
+        <button class="cell-btn" @click.stop="$emit('move-up')" :disabled="index === 0" :title="t('Move up')">
           <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor"><path d="M8 3L3 9h10z"/></svg>
         </button>
-        <button class="cell-btn" @click.stop="$emit('move-down')" title="Move down">
+        <button class="cell-btn" @click.stop="$emit('move-down')" :title="t('Move down')">
           <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor"><path d="M8 13L3 7h10z"/></svg>
         </button>
-        <button class="cell-btn cell-btn-delete" @click.stop="$emit('delete')" title="Delete cell">
+        <button class="cell-btn cell-btn-delete" @click.stop="$emit('delete')" :title="t('Delete cell')">
           <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
             <line x1="3" y1="3" x2="13" y2="13"/><line x1="13" y1="3" x2="3" y2="13"/>
           </svg>
@@ -72,16 +72,16 @@
     <!-- Review action bar (visible when any pending state) -->
     <div v-if="hasPendingState" class="cell-review-bar">
       <span class="cell-review-label">
-        {{ pendingAdd ? 'New cell' : pendingDelete ? 'Cell will be deleted' : 'Cell edited' }}
+        {{ pendingAdd ? t('New cell') : pendingDelete ? t('Cell will be deleted') : t('Cell edited') }}
       </span>
       <div class="cell-review-actions">
         <button class="review-bar-btn review-bar-accept" @click.stop="$emit('accept-edit', editId)">
           <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3,8 7,12 13,4"/></svg>
-          Accept
+          {{ t('Accept') }}
         </button>
         <button class="review-bar-btn review-bar-reject" @click.stop="$emit('reject-edit', editId)">
           <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="3" x2="13" y2="13"/><line x1="13" y1="3" x2="3" y2="13"/></svg>
-          Reject
+          {{ t('Reject') }}
         </button>
       </div>
     </div>
@@ -97,6 +97,7 @@ import { createEditorExtensions, createEditorState } from '../../editor/setup'
 import { ghostSuggestionExtension } from '../../editor/ghostSuggestion'
 import { mergeViewExtension, reconfigureMergeView } from '../../editor/diffOverlay'
 import { useWorkspaceStore } from '../../stores/workspace'
+import { useI18n } from '../../i18n'
 import CellOutput from './CellOutput.vue'
 import { computeMinimalChange } from '../../utils/textDiff'
 
@@ -121,6 +122,7 @@ const emit = defineEmits([
 const hasPendingState = computed(() => !!props.pendingEdit || props.pendingDelete || props.pendingAdd)
 
 const workspace = useWorkspaceStore()
+const { t, isZh } = useI18n()
 
 const editorContainer = ref(null)
 const editing = ref(false) // for markdown cells: edit mode
@@ -131,7 +133,7 @@ const renderedMarkdown = computed(() => {
   const c = props.cell
   if (c.type !== 'markdown') return ''
   const src = c.source || ''
-  if (!src.trim()) return '<p style="color: var(--fg-muted); font-style: italic;">Double-click to edit</p>'
+  if (!src.trim()) return `<p style="color: var(--fg-muted); font-style: italic;">${t('Double-click to edit')}</p>`
   return renderSimpleMarkdown(src)
 })
 

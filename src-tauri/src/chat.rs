@@ -60,10 +60,7 @@ pub async fn chat_stream(
         let client = match client {
             Ok(c) => c,
             Err(e) => {
-                let _ = app_clone.emit(
-                    &error_event,
-                    serde_json::json!({ "error": e.to_string() }),
-                );
+                let _ = app_clone.emit(&error_event, serde_json::json!({ "error": e.to_string() }));
                 return;
             }
         };
@@ -77,10 +74,7 @@ pub async fn chat_stream(
         let response = match req.send().await {
             Ok(r) => r,
             Err(e) => {
-                let _ = app_clone.emit(
-                    &error_event,
-                    serde_json::json!({ "error": e.to_string() }),
-                );
+                let _ = app_clone.emit(&error_event, serde_json::json!({ "error": e.to_string() }));
                 return;
             }
         };
@@ -138,7 +132,10 @@ pub async fn chat_stream(
 }
 
 #[tauri::command]
-pub async fn chat_abort(state: tauri::State<'_, ChatState>, session_id: String) -> Result<(), String> {
+pub async fn chat_abort(
+    state: tauri::State<'_, ChatState>,
+    session_id: String,
+) -> Result<(), String> {
     let sessions = state.sessions.lock().unwrap();
     if let Some(session) = sessions.get(&session_id) {
         let _ = session.cancel_tx.send(true);
@@ -147,7 +144,10 @@ pub async fn chat_abort(state: tauri::State<'_, ChatState>, session_id: String) 
 }
 
 #[tauri::command]
-pub async fn chat_cleanup(state: tauri::State<'_, ChatState>, session_id: String) -> Result<(), String> {
+pub async fn chat_cleanup(
+    state: tauri::State<'_, ChatState>,
+    session_id: String,
+) -> Result<(), String> {
     let mut sessions = state.sessions.lock().unwrap();
     sessions.remove(&session_id);
     Ok(())

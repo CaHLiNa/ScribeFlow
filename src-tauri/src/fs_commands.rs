@@ -1,4 +1,4 @@
-use base64::{Engine, engine::general_purpose::STANDARD};
+use base64::{engine::general_purpose::STANDARD, Engine};
 use notify::{Config, Event, RecommendedWatcher, RecursiveMode, Watcher};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -19,9 +19,9 @@ pub const ALLOWED_HOSTS: &[&str] = &[
 ];
 
 pub fn validate_url_host(raw_url: &str) -> Result<(), String> {
-    let parsed = url::Url::parse(raw_url)
-        .map_err(|e| format!("Invalid URL: {}", e))?;
-    let host = parsed.host_str()
+    let parsed = url::Url::parse(raw_url).map_err(|e| format!("Invalid URL: {}", e))?;
+    let host = parsed
+        .host_str()
         .ok_or_else(|| "URL has no host".to_string())?;
 
     // Allow localhost / 127.0.0.1 in debug builds only
@@ -140,7 +140,9 @@ pub async fn write_file(path: String, content: String) -> Result<(), String> {
 
 #[tauri::command]
 pub async fn write_file_base64(path: String, data: String) -> Result<(), String> {
-    let bytes = STANDARD.decode(&data).map_err(|e| format!("Base64 decode error: {}", e))?;
+    let bytes = STANDARD
+        .decode(&data)
+        .map_err(|e| format!("Base64 decode error: {}", e))?;
     fs::write(&path, &bytes).map_err(|e| format!("Write error: {}", e))
 }
 
@@ -219,24 +221,22 @@ pub async fn watch_directory(
     let app_clone = app.clone();
 
     let mut watcher = RecommendedWatcher::new(
-        move |res: Result<Event, notify::Error>| {
-            match res {
-                Ok(event) => {
-                    let paths: Vec<String> = event
-                        .paths
-                        .iter()
-                        .map(|p| p.to_string_lossy().to_string())
-                        .collect();
-                    let _ = app_clone.emit(
-                        "fs-change",
-                        serde_json::json!({
-                            "kind": format!("{:?}", event.kind),
-                            "paths": paths,
-                        }),
-                    );
-                }
-                Err(e) => eprintln!("[fs-watch] error: {:?}", e),
+        move |res: Result<Event, notify::Error>| match res {
+            Ok(event) => {
+                let paths: Vec<String> = event
+                    .paths
+                    .iter()
+                    .map(|p| p.to_string_lossy().to_string())
+                    .collect();
+                let _ = app_clone.emit(
+                    "fs-change",
+                    serde_json::json!({
+                        "kind": format!("{:?}", event.kind),
+                        "paths": paths,
+                    }),
+                );
             }
+            Err(e) => eprintln!("[fs-watch] error: {:?}", e),
         },
         Config::default(),
     )
@@ -308,7 +308,11 @@ pub struct SearchResult {
 }
 
 #[tauri::command]
-pub async fn search_file_contents(dir: String, query: String, max_results: usize) -> Result<Vec<SearchResult>, String> {
+pub async fn search_file_contents(
+    dir: String,
+    query: String,
+    max_results: usize,
+) -> Result<Vec<SearchResult>, String> {
     let query_lower = query.to_lowercase();
     let mut results = Vec::new();
     search_dir_contents(Path::new(&dir), &query_lower, &mut results, max_results)?;
@@ -349,7 +353,12 @@ pub async fn run_shell_command(cwd: String, command: String) -> Result<String, S
     Ok(result)
 }
 
-fn search_dir_contents(dir: &Path, query: &str, results: &mut Vec<SearchResult>, max_results: usize) -> Result<(), String> {
+fn search_dir_contents(
+    dir: &Path,
+    query: &str,
+    results: &mut Vec<SearchResult>,
+    max_results: usize,
+) -> Result<(), String> {
     if results.len() >= max_results {
         return Ok(());
     }
@@ -481,11 +490,10 @@ pub async fn get_global_config_dir() -> Result<String, String> {
 fn is_searchable_text(name: &str) -> bool {
     let name_lower = name.to_lowercase();
     let extensions = [
-        ".md", ".txt", ".js", ".ts", ".jsx", ".tsx", ".py", ".r", ".rs",
-        ".json", ".yaml", ".yml", ".toml", ".html", ".css", ".tex", ".bib",
-        ".sh", ".sql", ".rmd", ".xml", ".vue", ".svelte", ".go", ".java",
-        ".c", ".cpp", ".h", ".hpp", ".rb", ".php", ".swift", ".kt",
-        ".lua", ".zig", ".env", ".csv", ".tsv", ".ini", ".cfg", ".conf",
+        ".md", ".txt", ".js", ".ts", ".jsx", ".tsx", ".py", ".r", ".rs", ".json", ".yaml", ".yml",
+        ".toml", ".html", ".css", ".tex", ".bib", ".sh", ".sql", ".rmd", ".xml", ".vue", ".svelte",
+        ".go", ".java", ".c", ".cpp", ".h", ".hpp", ".rb", ".php", ".swift", ".kt", ".lua", ".zig",
+        ".env", ".csv", ".tsv", ".ini", ".cfg", ".conf",
     ];
     extensions.iter().any(|ext| name_lower.ends_with(ext))
 }

@@ -1,4 +1,4 @@
-use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd, HeadingLevel, CodeBlockKind};
+use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Options, Parser, Tag, TagEnd};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::process::Command;
@@ -23,13 +23,13 @@ pub struct ExportResult {
 /// PDF export settings passed from frontend
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PdfSettings {
-    pub template: Option<String>,   // "clean", "academic", "report", "letter", "compact"
-    pub font: Option<String>,       // font family name
-    pub font_size: Option<f32>,     // in pt
-    pub page_size: Option<String>,  // "a4", "us-letter", "a5"
-    pub margins: Option<String>,    // "normal", "narrow", "wide"
-    pub spacing: Option<String>,    // "compact", "normal", "relaxed"
-    pub bib_style: Option<String>,  // "apa", "chicago", "ieee", "harvard", "vancouver"
+    pub template: Option<String>, // "clean", "academic", "report", "letter", "compact"
+    pub font: Option<String>,     // font family name
+    pub font_size: Option<f32>,   // in pt
+    pub page_size: Option<String>, // "a4", "us-letter", "a5"
+    pub margins: Option<String>,  // "normal", "narrow", "wide"
+    pub spacing: Option<String>,  // "compact", "normal", "relaxed"
+    pub bib_style: Option<String>, // "apa", "chicago", "ieee", "harvard", "vancouver"
 }
 
 /// 5-tier binary discovery for Typst (mirrors find_tectonic in latex.rs)
@@ -102,13 +102,13 @@ fn find_typst(app: &tauri::AppHandle) -> Option<String> {
     }
     #[cfg(windows)]
     {
-        let output = Command::new("where")
-            .arg("typst")
-            .output()
-            .ok()?;
+        let output = Command::new("where").arg("typst").output().ok()?;
         if output.status.success() {
             let path = String::from_utf8_lossy(&output.stdout)
-                .lines().next()?.trim().to_string();
+                .lines()
+                .next()?
+                .trim()
+                .to_string();
             if !path.is_empty() {
                 return Some(path);
             }
@@ -122,7 +122,10 @@ fn find_typst(app: &tauri::AppHandle) -> Option<String> {
 fn find_font_dir(app: &tauri::AppHandle) -> Option<String> {
     // 1. Dev mode: public/fonts/ relative to CARGO_MANIFEST_DIR (src-tauri/)
     if let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") {
-        let dev_fonts = Path::new(&manifest_dir).join("..").join("public").join("fonts");
+        let dev_fonts = Path::new(&manifest_dir)
+            .join("..")
+            .join("public")
+            .join("fonts");
         if dev_fonts.is_dir() {
             if let Ok(canonical) = dev_fonts.canonicalize() {
                 return Some(canonical.to_string_lossy().to_string());
@@ -146,13 +149,22 @@ fn find_font_dir(app: &tauri::AppHandle) -> Option<String> {
 }
 
 fn current_target_triple() -> String {
-    let arch = if cfg!(target_arch = "aarch64") { "aarch64" }
-               else if cfg!(target_arch = "x86_64") { "x86_64" }
-               else { "unknown" };
-    let os = if cfg!(target_os = "macos") { "apple-darwin" }
-             else if cfg!(target_os = "linux") { "unknown-linux-gnu" }
-             else if cfg!(target_os = "windows") { "pc-windows-msvc" }
-             else { "unknown" };
+    let arch = if cfg!(target_arch = "aarch64") {
+        "aarch64"
+    } else if cfg!(target_arch = "x86_64") {
+        "x86_64"
+    } else {
+        "unknown"
+    };
+    let os = if cfg!(target_os = "macos") {
+        "apple-darwin"
+    } else if cfg!(target_os = "linux") {
+        "unknown-linux-gnu"
+    } else if cfg!(target_os = "windows") {
+        "pc-windows-msvc"
+    } else {
+        "unknown"
+    };
     format!("{arch}-{os}")
 }
 
@@ -251,23 +263,33 @@ fn markdown_to_typst(markdown: &str) -> String {
                 Tag::Strikethrough => {
                     output.push_str("#strike[");
                 }
-                Tag::Link { dest_url, title: _, .. } => {
+                Tag::Link {
+                    dest_url, title: _, ..
+                } => {
                     // We'll collect link text, then close with URL
                     output.push_str(&format!("#link(\"{}\")[", escape_typst_string(&dest_url)));
                 }
-                Tag::Image { dest_url, title: _, .. } => {
+                Tag::Image {
+                    dest_url, title: _, ..
+                } => {
                     output.push_str(&format!("#image(\"{}\")", escape_typst_string(&dest_url)));
                 }
                 Tag::Table(alignments) => {
                     table_cols = alignments.len();
-                    let cols = alignments.iter().map(|a| match a {
-                        pulldown_cmark::Alignment::Left => "left",
-                        pulldown_cmark::Alignment::Center => "center",
-                        pulldown_cmark::Alignment::Right => "right",
-                        pulldown_cmark::Alignment::None => "auto",
-                    }).collect::<Vec<_>>().join(", ");
-                    output.push_str(&format!("#table(\n  columns: ({}),\n",
-                        "1fr, ".repeat(table_cols).trim_end_matches(", ")));
+                    let cols = alignments
+                        .iter()
+                        .map(|a| match a {
+                            pulldown_cmark::Alignment::Left => "left",
+                            pulldown_cmark::Alignment::Center => "center",
+                            pulldown_cmark::Alignment::Right => "right",
+                            pulldown_cmark::Alignment::None => "auto",
+                        })
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    output.push_str(&format!(
+                        "#table(\n  columns: ({}),\n",
+                        "1fr, ".repeat(table_cols).trim_end_matches(", ")
+                    ));
                     output.push_str(&format!("  align: ({}),\n", cols));
                 }
                 Tag::TableHead => {
@@ -297,7 +319,11 @@ fn markdown_to_typst(markdown: &str) -> String {
                     if code_lang.is_empty() {
                         output.push_str(&format!("```\n{}\n```\n\n", code_buf.trim_end()));
                     } else {
-                        output.push_str(&format!("```{}\n{}\n```\n\n", code_lang, code_buf.trim_end()));
+                        output.push_str(&format!(
+                            "```{}\n{}\n```\n\n",
+                            code_lang,
+                            code_buf.trim_end()
+                        ));
                     }
                 }
                 TagEnd::List(_) => {
@@ -452,7 +478,9 @@ fn preprocess_citations(markdown: &str) -> String {
                     }
                     if !keys.is_empty() {
                         for (j, key) in keys.iter().enumerate() {
-                            if j > 0 { result.push(' '); }
+                            if j > 0 {
+                                result.push(' ');
+                            }
                             // Use \x01 placeholder instead of @ so that
                             // escape_typst_markup can safely escape all other @
                             // signs without breaking intentional citations.
@@ -543,14 +571,15 @@ fn wrap_in_template(content: &str, bib_path: Option<&str>, settings: &PdfSetting
     match template {
         "academic" => {
             doc.push_str(&format!(
-r#"#set page(paper: {page_setting}, margin: {margin_setting})
+                r#"#set page(paper: {page_setting}, margin: {margin_setting})
 #set text(font: "{font}", size: {font_size}pt)
 #set par(justify: true, leading: 0.55em, first-line-indent: 1em)
 #set heading(numbering: "1.1  ")
 #show heading.where(level: 1): it => {{ v(1em); text(size: 1.3em, weight: "bold", it); v(0.5em) }}
 #show heading.where(level: 2): it => {{ v(0.8em); text(size: 1.1em, weight: "bold", it); v(0.4em) }}
 
-"#));
+"#
+            ));
         }
         "report" => {
             doc.push_str(&format!(
@@ -564,32 +593,35 @@ r#"#set page(paper: {page_setting}, margin: {margin_setting}, numbering: "1")
         }
         "letter" => {
             doc.push_str(&format!(
-r#"#set page(paper: {page_setting}, margin: (x: 2.5cm, top: 2.5cm, bottom: 2cm))
+                r#"#set page(paper: {page_setting}, margin: (x: 2.5cm, top: 2.5cm, bottom: 2cm))
 #set text(font: "{font}", size: {font_size}pt)
 #set par(justify: false, leading: 0.65em)
 #set heading(numbering: none)
 
-"#));
+"#
+            ));
         }
         "compact" => {
             doc.push_str(&format!(
-r#"#set page(paper: {page_setting}, margin: (x: 1.5cm, y: 1.5cm), columns: 2)
+                r#"#set page(paper: {page_setting}, margin: (x: 1.5cm, y: 1.5cm), columns: 2)
 #set text(font: "{font}", size: 9pt)
 #set par(justify: true, leading: 0.5em)
 #set heading(numbering: none)
 #show heading.where(level: 1): it => {{ text(size: 1.2em, weight: "bold", it); v(0.3em) }}
 
-"#));
+"#
+            ));
         }
         _ => {
             // "clean" — the default
             doc.push_str(&format!(
-r#"#set page(paper: {page_setting}, margin: {margin_setting})
+                r#"#set page(paper: {page_setting}, margin: {margin_setting})
 #set text(font: "{font}", size: {font_size}pt)
 #set par(justify: true, leading: 0.65em)
 #set heading(numbering: none)
 
-"#));
+"#
+            ));
         }
     }
 
@@ -609,7 +641,10 @@ r#"#set page(paper: {page_setting}, margin: {margin_setting})
             "vancouver" => "vancouver",
             other => other, // "apa" or custom CSL path
         };
-        doc.push_str(&format!("#set bibliography(style: \"{}\")\n\n", escape_typst_string(style)));
+        doc.push_str(&format!(
+            "#set bibliography(style: \"{}\")\n\n",
+            escape_typst_string(style)
+        ));
     }
 
     doc.push_str(content);
@@ -710,8 +745,7 @@ pub async fn export_md_to_pdf(
     let typ_path = md_pathbuf.with_extension("typ");
     let pdf_path = md_pathbuf.with_extension("pdf");
 
-    std::fs::write(&typ_path, &full_doc)
-        .map_err(|e| format!("Failed to write .typ: {}", e))?;
+    std::fs::write(&typ_path, &full_doc).map_err(|e| format!("Failed to write .typ: {}", e))?;
 
     // If bib_path provided, copy it next to .typ for Typst to find
     // (Typst resolves bibliography paths relative to the .typ file)
@@ -724,7 +758,8 @@ pub async fn export_md_to_pdf(
     }
     cmd.args(&[&*typ_path.to_string_lossy(), &*pdf_path.to_string_lossy()]);
     cmd.current_dir(md_pathbuf.parent().unwrap_or(Path::new(".")));
-    let output = cmd.output()
+    let output = cmd
+        .output()
         .map_err(|e| format!("Failed to run typst: {}", e))?;
 
     let duration_ms = start.elapsed().as_millis() as u64;

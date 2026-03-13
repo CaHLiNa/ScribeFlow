@@ -8,7 +8,7 @@
       >
         <!-- Header -->
         <div class="flex items-center px-4 py-3" :style="{ borderBottom: '1px solid var(--border)' }">
-          <span class="text-sm font-medium" :style="{ color: 'var(--fg-primary)' }">Add Reference</span>
+          <span class="text-sm font-medium" :style="{ color: 'var(--fg-primary)' }">{{ t('Add Reference') }}</span>
           <div class="flex-1"></div>
           <button
             class="w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--bg-hover)]"
@@ -33,7 +33,7 @@
               borderColor: inputFocused ? 'var(--accent)' : 'var(--border)',
               minHeight: '80px',
             }"
-            placeholder="Paste a DOI, BibTeX, RIS, citation text, or drag files here..."
+            :placeholder="t('Paste a DOI, BibTeX, RIS, citation text, or drag files here...')"
             @focus="inputFocused = true"
             @blur="inputFocused = false"
             @keydown.meta.enter="lookup"
@@ -46,7 +46,7 @@
             class="absolute inset-0 flex items-center justify-center pointer-events-none rounded-lg"
             :style="{ background: 'rgba(122, 162, 247, 0.1)', border: '2px dashed var(--accent)' }"
           >
-            <span class="text-xs" :style="{ color: 'var(--accent)' }">Drop files to import</span>
+            <span class="text-xs" :style="{ color: 'var(--accent)' }">{{ t('Drop files to import') }}</span>
           </div>
 
           <div class="flex items-center mt-2">
@@ -64,7 +64,7 @@
               :disabled="loading || !inputText.trim()"
               @click="lookup"
             >
-              {{ loading ? 'Looking up...' : 'Look up' }}
+              {{ loading ? t('Looking up...') : t('Look up') }}
             </button>
           </div>
         </div>
@@ -72,7 +72,7 @@
         <!-- Results -->
         <div v-if="results.length > 0" class="border-t" :style="{ borderColor: 'var(--border)' }">
           <div class="px-4 py-1.5 text-[10px] font-medium uppercase tracking-wider" :style="{ color: 'var(--fg-muted)' }">
-            Results
+            {{ t('Results') }}
           </div>
           <div class="overflow-y-auto" style="max-height: 280px;">
             <div
@@ -85,9 +85,9 @@
                 <span class="text-[10px] px-1.5 py-0.5 rounded-full" :class="confidenceClass(r.confidence)">
                   {{ confidenceLabel(r.confidence) }}
                 </span>
-                <span class="ref-key-badge">{{ r.csl._key || 'auto' }}</span>
+                <span class="ref-key-badge">{{ r.csl._key || t('auto') }}</span>
               </div>
-              <div class="text-xs mb-0.5" :style="{ color: 'var(--fg-primary)' }">{{ r.csl.title || 'Untitled' }}</div>
+              <div class="text-xs mb-0.5" :style="{ color: 'var(--fg-primary)' }">{{ r.csl.title || t('Untitled') }}</div>
               <div class="text-[10px]" :style="{ color: 'var(--fg-muted)' }">
                 {{ formatAuthors(r.csl) }}{{ r.csl.issued?.['date-parts']?.[0]?.[0] ? ' (' + r.csl.issued['date-parts'][0][0] + ')' : '' }}
                 <template v-if="r.csl['container-title']"> — {{ r.csl['container-title'] }}</template>
@@ -95,20 +95,20 @@
               <div v-if="r.csl.DOI" class="text-[10px] mt-0.5" :style="{ color: 'var(--fg-muted)' }">DOI: {{ r.csl.DOI }}</div>
               <div class="flex items-center justify-end gap-2 mt-1.5">
                 <template v-if="r.existingKey && !r.added">
-                  <span class="text-[10px] px-1.5 py-0.5 rounded-full" :style="{ background: 'var(--bg-tertiary)', color: 'var(--fg-muted)' }">Already in library</span>
+                  <span class="text-[10px] px-1.5 py-0.5 rounded-full" :style="{ background: 'var(--bg-tertiary)', color: 'var(--fg-muted)' }">{{ t('Already in library') }}</span>
                   <button
                     class="text-[11px] underline"
                     :style="{ color: 'var(--accent)' }"
                     @click="viewExisting(r.existingKey)"
-                  >View</button>
+                  >{{ t('View') }}</button>
                 </template>
                 <button
                   v-else-if="!r.added"
                   class="px-2.5 py-0.5 text-[11px] rounded"
                   :style="{ background: 'var(--accent)', color: 'var(--bg-primary)' }"
                   @click="addResult(r)"
-                >Add</button>
-                <span v-else class="text-[11px]" :style="{ color: 'var(--success)' }">Added</span>
+                >{{ t('Add') }}</button>
+                <span v-else class="text-[11px]" :style="{ color: 'var(--success)' }">{{ t('Added') }}</span>
               </div>
             </div>
           </div>
@@ -118,9 +118,9 @@
               class="w-full py-1.5 text-xs rounded"
               :style="{ background: 'var(--accent)', color: 'var(--bg-primary)' }"
               @click="addAll"
-            >Add {{ newCount }} reference{{ newCount > 1 ? 's' : '' }}</button>
+            >{{ addAllLabel }}</button>
             <div v-if="dupCount > 0" class="text-[10px] mt-1 text-center" :style="{ color: 'var(--fg-muted)' }">
-              {{ dupCount }} already in library
+              {{ t('{count} already in library', { count: dupCount }) }}
             </div>
           </div>
         </div>
@@ -140,21 +140,25 @@ import { useReferencesStore } from '../../stores/references'
 import { useEditorStore } from '../../stores/editor'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { importFromText, importFromPdf } from '../../services/referenceImport'
+import { modKey } from '../../platform'
+import { useI18n } from '../../i18n'
 
 const emit = defineEmits(['close'])
 
 const referencesStore = useReferencesStore()
 const editorStore = useEditorStore()
 const workspace = useWorkspaceStore()
+const { t } = useI18n()
 
 const inputEl = ref(null)
 const inputText = ref('')
 const inputFocused = ref(false)
 const loading = ref(false)
 const dropActive = ref(false)
-const statusText = ref('Cmd+Enter to look up')
+const statusText = ref(t('Press {shortcut} to look up', { shortcut: `${modKey}+Enter` }))
 const results = ref([])
 const errors = ref([])
+const addAllLabel = computed(() => t(newCount.value === 1 ? 'Add {count} reference' : 'Add {count} references', { count: newCount.value }))
 
 // --- PDF drop via custom events (routed by FileTree) ---
 
@@ -170,7 +174,7 @@ async function onRefFileDrop(event) {
   // Handle text format files
   for (const filePath of textPaths) {
     loading.value = true
-    statusText.value = `Importing ${filePath.split('/').pop()}...`
+    statusText.value = t('Importing {name}...', { name: filePath.split('/').pop() })
     try {
       const { invoke } = await import('@tauri-apps/api/core')
       const content = await invoke('read_file', { path: filePath })
@@ -180,10 +184,10 @@ async function onRefFileDrop(event) {
       }
       errors.value.push(...importErrors)
       if (importResults.length > 0) {
-        statusText.value = `Found ${importResults.length} reference${importResults.length > 1 ? 's' : ''}`
+        statusText.value = t(importResults.length === 1 ? 'Found {count} reference' : 'Found {count} references', { count: importResults.length })
       }
     } catch (e) {
-      errors.value.push(`Failed: ${filePath.split('/').pop()} - ${e.message}`)
+      errors.value.push(t('Failed: {name} - {error}', { name: filePath.split('/').pop(), error: e.message }))
     }
     loading.value = false
   }
@@ -191,7 +195,7 @@ async function onRefFileDrop(event) {
   if (pdfPaths.length === 0) return
 
   loading.value = true
-  statusText.value = 'Importing PDF...'
+  statusText.value = t('Importing PDF...')
 
   for (const filePath of pdfPaths) {
     const result = await importFromPdf(filePath, workspace, referencesStore)
@@ -202,7 +206,7 @@ async function onRefFileDrop(event) {
         status: result.confidence,
         added: true,
       })
-      statusText.value = `Imported: @${result.key}`
+      statusText.value = t('Imported: @{key}', { key: result.key })
     }
   }
 
@@ -236,7 +240,7 @@ async function lookup() {
   if (!inputText.value.trim() || loading.value) return
 
   loading.value = true
-  statusText.value = 'Looking up...'
+  statusText.value = t('Looking up...')
   results.value = []
   errors.value = []
 
@@ -249,15 +253,15 @@ async function lookup() {
     errors.value = importErrors
 
     if (importResults.length > 0) {
-      statusText.value = `Found ${importResults.length} reference${importResults.length > 1 ? 's' : ''}`
+      statusText.value = t(importResults.length === 1 ? 'Found {count} reference' : 'Found {count} references', { count: importResults.length })
     } else if (importErrors.length > 0) {
-      statusText.value = 'Lookup failed'
+      statusText.value = t('Lookup failed')
     } else {
-      statusText.value = 'No results found'
+      statusText.value = t('No results found')
     }
   } catch (e) {
     errors.value = [e.message]
-    statusText.value = 'Error'
+    statusText.value = t('Error')
   }
 
   loading.value = false
@@ -303,6 +307,11 @@ function confidenceClass(confidence) {
 }
 
 function confidenceLabel(confidence) {
-  return { verified: 'Verified via CrossRef', matched: 'Matched via CrossRef', unverified: 'Unverified', failed: 'Failed' }[confidence] || confidence
+  return {
+    verified: t('Verified via CrossRef'),
+    matched: t('Matched via CrossRef'),
+    unverified: t('Unverified'),
+    failed: t('Failed'),
+  }[confidence] || confidence
 }
 </script>

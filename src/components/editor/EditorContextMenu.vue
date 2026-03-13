@@ -18,17 +18,17 @@
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
           </svg>
-          Add Comment
+          {{ t('Add Comment') }}
           <span class="ml-auto" style="color: var(--fg-muted); font-size: 11px;">&#x21E7;&#x2318;L</span>
         </div>
         <div class="context-menu-separator"></div>
-        <div class="context-menu-item" @click="cut">Cut</div>
-        <div class="context-menu-item" @click="copy">Copy</div>
-        <div class="context-menu-item" @click="paste">Paste</div>
+        <div class="context-menu-item" @click="cut">{{ t('Cut') }}</div>
+        <div class="context-menu-item" @click="copy">{{ t('Copy') }}</div>
+        <div class="context-menu-item" @click="paste">{{ t('Paste') }}</div>
       </template>
       <template v-else>
-        <div class="context-menu-item" @click="paste">Paste</div>
-        <div class="context-menu-item" @click="selectAll">Select All</div>
+        <div class="context-menu-item" @click="paste">{{ t('Paste') }}</div>
+        <div class="context-menu-item" @click="selectAll">{{ t('Select All') }}</div>
       </template>
     </div>
   </Teleport>
@@ -39,6 +39,7 @@ import { ref, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { useEditorStore } from '../../stores/editor'
 import { useCommentsStore } from '../../stores/comments'
+import { useI18n } from '../../i18n'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -53,6 +54,7 @@ const props = defineProps({
 const emit = defineEmits(['close'])
 const editorStore = useEditorStore()
 const commentsStore = useCommentsStore()
+const { t } = useI18n()
 
 const spellSuggestions = ref([])
 // Word range in the document for replacement

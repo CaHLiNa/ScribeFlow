@@ -9,21 +9,21 @@
         <!-- Pane context -->
         <template v-if="type === 'pane'">
           <button class="ctx-item" @click="$emit('add-text-node')">
-            <span class="ctx-label">Add text node</span>
-            <span class="ctx-shortcut">Dbl-click</span>
+            <span class="ctx-label">{{ t('Add text node') }}</span>
+            <span class="ctx-shortcut">{{ isZh ? '双击' : 'Dbl-click' }}</span>
           </button>
           <button class="ctx-item" @click="$emit('add-prompt-node')">
-            <span class="ctx-label">Add prompt node</span>
+            <span class="ctx-label">{{ t('Add prompt node') }}</span>
           </button>
           <button class="ctx-item" @click="$emit('add-label-node')">
-            <span class="ctx-label">Add label</span>
+            <span class="ctx-label">{{ t('Add label') }}</span>
           </button>
           <button class="ctx-item" @click="$emit('add-group-node')">
-            <span class="ctx-label">Add group / frame</span>
+            <span class="ctx-label">{{ t('Add group / frame') }}</span>
           </button>
           <div class="ctx-sep" />
           <button class="ctx-item" @click="$emit('select-all')">
-            <span class="ctx-label">Select all</span>
+            <span class="ctx-label">{{ t('Select all') }}</span>
             <span class="ctx-shortcut">{{ modKey }}+A</span>
           </button>
         </template>
@@ -31,12 +31,12 @@
         <!-- Node context -->
         <template v-if="type === 'node'">
           <button class="ctx-item" @click="$emit('duplicate-selected')">
-            <span class="ctx-label">Duplicate</span>
+            <span class="ctx-label">{{ t('Duplicate') }}</span>
             <span class="ctx-shortcut">{{ modKey }}+D</span>
           </button>
           <div class="ctx-sep" />
           <button class="ctx-item ctx-danger" @click="$emit('delete-selected')">
-            <span class="ctx-label">Delete</span>
+            <span class="ctx-label">{{ t('Delete') }}</span>
             <span class="ctx-shortcut">Del</span>
           </button>
         </template>
@@ -44,7 +44,7 @@
         <!-- Edge context -->
         <template v-if="type === 'edge'">
           <button class="ctx-item ctx-danger" @click="$emit('delete-selected')">
-            <span class="ctx-label">Delete edge</span>
+            <span class="ctx-label">{{ t('Delete edge') }}</span>
           </button>
         </template>
       </div>
@@ -54,6 +54,9 @@
 
 <script setup>
 import { modKey } from '../../platform'
+import { useI18n } from '../../i18n'
+
+const { t, isZh } = useI18n()
 
 defineProps({
   x: { type: Number, required: true },

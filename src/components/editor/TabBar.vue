@@ -60,7 +60,7 @@
       <button
         class="flex items-center justify-center w-6 h-6 mx-0.5 shrink-0 rounded hover:bg-[var(--bg-hover)]"
         style="color: var(--fg-muted);"
-        title="New Tab"
+        :title="t('New Tab')"
         @click="$emit('new-tab')"
         @mousedown.stop
       >
@@ -77,37 +77,37 @@
         class="h-6 px-2 flex items-center gap-1 rounded text-[11px] hover:bg-[var(--bg-hover)]"
         style="color: var(--success, #4ade80);"
         @click="$emit('run-code')"
-        title="Run selection or line (Cmd+Enter)"
+        :title="t('Run selection or line ({shortcut})', { shortcut: `${modKey}+Enter` })"
       >
         <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
           <path d="M4 2l10 6-10 6V2z"/>
         </svg>
-        Run
+        {{ t('Run') }}
       </button>
       <button
         class="h-6 px-2 flex items-center gap-1 rounded text-[11px] hover:bg-[var(--bg-hover)]"
         style="color: var(--success, #4ade80);"
         @click="$emit('run-file')"
-        title="Run entire file (Shift+Cmd+Enter)"
+        :title="t('Run entire file ({shortcut})', { shortcut: `Shift+${modKey}+Enter` })"
       >
         <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
           <path d="M2 2l6 6-6 6V2z"/>
           <path d="M8 2l6 6-6 6V2z"/>
         </svg>
-        Run All
+        {{ t('Run All') }}
       </button>
       <button
         v-if="showRenderButton"
         class="h-6 px-2 flex items-center gap-1 rounded text-[11px] hover:bg-[var(--bg-hover)]"
         style="color: var(--accent);"
         @click="$emit('render-document')"
-        title="Render document"
+        :title="t('Render document')"
       >
         <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
           <rect x="2" y="2" width="12" height="12" rx="1"/>
           <path d="M5 5h6M5 8h6M5 11h3"/>
         </svg>
-        Render
+        {{ t('Render') }}
       </button>
     </div>
 
@@ -117,34 +117,34 @@
         class="h-6 px-2 flex items-center gap-1 rounded text-[11px] hover:bg-[var(--bg-hover)]"
         style="color: var(--accent);"
         @click="$emit('preview-markdown')"
-        title="Preview rendered markdown"
+        :title="t('Preview rendered markdown')"
       >
         <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
           <rect x="1" y="2" width="14" height="12" rx="1.5"/>
           <path d="M8 2v12"/>
           <path d="M10.5 7l1.5 1.5L10.5 10"/>
         </svg>
-        Preview
+        {{ t('Preview') }}
       </button>
       <button
         class="h-6 px-2 flex items-center gap-1 rounded text-[11px] hover:bg-[var(--bg-hover)]"
         style="color: var(--fg-muted);"
         @click="$emit('export-pdf')"
-        title="Create PDF"
+        :title="t('Create PDF')"
       >
         <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
           <rect x="2" y="1" width="12" height="14" rx="1.5"/>
           <path d="M5 5h6M5 8h4"/>
           <text x="5" y="13" font-size="4.5" fill="currentColor" stroke="none" font-weight="bold">PDF</text>
         </svg>
-        Create PDF
+        {{ t('Create PDF') }}
       </button>
       <button
         ref="pdfSettingsBtnEl"
         class="h-6 w-5 flex items-center justify-center rounded text-[11px] hover:bg-[var(--bg-hover)]"
         style="color: var(--fg-muted);"
         @click="togglePdfSettings"
-        title="PDF export settings"
+        :title="t('PDF export settings')"
       >
         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="12" cy="12" r="3"/>
@@ -165,7 +165,7 @@
       <!-- Status indicator -->
       <span v-if="texStatus === 'compiling'" class="flex items-center gap-1 text-[11px]" style="color: var(--fg-muted);">
         <span class="tex-spinner"></span>
-        Compiling…
+        {{ t('Compiling...') }}
       </span>
       <span v-else-if="texStatus === 'success'" class="text-[11px]" style="color: var(--success, #4ade80);">
         ● {{ texDuration }}
@@ -175,9 +175,9 @@
         style="color: var(--error, #f87171);"
         @click="toggleErrorPanel"
       >
-        ✕ {{ texErrorCount }} error{{ texErrorCount !== 1 ? 's' : '' }}
+        ✕ {{ texErrorLabel }}
         <span v-if="texWarningCount > 0" class="ml-0.5" style="color: var(--warning, #fbbf24);">
-          {{ texWarningCount }} warn
+          {{ texWarningLabel }}
         </span>
       </button>
 
@@ -187,12 +187,12 @@
         style="color: var(--success, #4ade80);"
         @click="$emit('compile-tex')"
         :disabled="texStatus === 'compiling'"
-        title="Compile LaTeX"
+        :title="t('Compile LaTeX')"
       >
         <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
           <path d="M4 2l10 6-10 6V2z"/>
         </svg>
-        Compile
+        {{ t('Compile') }}
       </button>
 
       <!-- Auto-compile toggle -->
@@ -200,13 +200,13 @@
         class="h-6 px-1.5 flex items-center gap-1 rounded text-[11px] hover:bg-[var(--bg-hover)]"
         :style="{ color: latexStore.autoCompile ? 'var(--success, #4ade80)' : 'var(--fg-muted)' }"
         @click="latexStore.autoCompile = !latexStore.autoCompile"
-        :title="latexStore.autoCompile ? 'Auto-compile: ON (click to disable)' : 'Auto-compile: OFF (click to enable)'"
+        :title="latexStore.autoCompile ? t('Auto-compile: ON (click to disable)') : t('Auto-compile: OFF (click to enable)')"
       >
         <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
           <path d="M14 8A6 6 0 1 1 8 2" />
           <path d="M8 2v3l2.5-1.5" fill="none" />
         </svg>
-        Auto
+        {{ t('Auto') }}
       </button>
 
       <!-- Forward sync button -->
@@ -214,12 +214,12 @@
         class="h-6 px-2 flex items-center gap-1 rounded text-[11px] hover:bg-[var(--bg-hover)]"
         style="color: var(--accent);"
         @click="$emit('sync-tex')"
-        title="Sync to PDF position"
+        :title="t('Sync to PDF position')"
       >
         <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M2 8h12M10 4l4 4-4 4"/>
         </svg>
-        Sync
+        {{ t('Sync') }}
       </button>
     </div>
 
@@ -235,19 +235,19 @@
           </span>
           <span v-if="issue.line" class="tabular-nums shrink-0" style="color: var(--fg-muted);">L{{ issue.line }}</span>
           <span class="flex-1 truncate" style="color: var(--fg-primary);">{{ issue.message }}</span>
-          <button v-if="isTectonicMissing(issue)"
+          <button v-if="isLatexCompilerMissing(issue)"
             class="shrink-0 px-1.5 py-0.5 rounded text-[10px] hover:bg-[var(--bg-tertiary)]"
             style="color: var(--accent); border: 1px solid var(--border);"
-            @click.stop="openTectonicSettings"
-            title="Open Settings to install Tectonic">
-            Settings ▸
+            @click.stop="openLatexCompilerSettings"
+            :title="t('Open Settings to configure LaTeX compiler')">
+            {{ t('Settings') }} ▸
           </button>
           <button v-else-if="issue.severity === 'error'"
             class="shrink-0 px-1.5 py-0.5 rounded text-[10px] hover:bg-[var(--bg-tertiary)]"
             style="color: var(--accent); border: 1px solid var(--border);"
             @click.stop="$emit('ask-ai-fix', issue)"
-            title="Ask AI to fix">
-            Ask AI ▸
+            :title="t('Ask AI to fix')">
+            {{ t('Ask AI') }} ▸
           </button>
         </div>
       </div>
@@ -261,7 +261,7 @@
         class="w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--bg-hover)] relative"
         :style="{ color: commentsStore.isMarginVisible(activeTab) ? 'var(--accent)' : 'var(--fg-muted)' }"
         @click="commentsStore.toggleMargin(activeTab)"
-        title="Toggle comments"
+        :title="t('Toggle comments')"
       >
         <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
           <path d="M3 2.5h10a1.5 1.5 0 011.5 1.5v6a1.5 1.5 0 01-1.5 1.5H9.414l-2.707 2.707a.5.5 0 01-.854-.354V11.5H3A1.5 1.5 0 011.5 10V4A1.5 1.5 0 013 2.5z"/>
@@ -278,7 +278,7 @@
         class="w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--bg-hover)]"
         style="color: var(--fg-muted);"
         @click="$emit('split-vertical')"
-        :title="`Split vertically (${modKey} + J)`"
+        :title="t('Split vertical ({shortcut})', { shortcut: `${modKey} + J` })"
       >
         <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
           <rect x="1" y="2" width="14" height="12" rx="1.5"/>
@@ -289,7 +289,7 @@
         class="w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--bg-hover)]"
         style="color: var(--fg-muted);"
         @click="$emit('split-horizontal')"
-        title="Split horizontally"
+        :title="t('Split horizontal')"
       >
         <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
           <rect x="1" y="2" width="14" height="12" rx="1.5"/>
@@ -300,7 +300,7 @@
         class="w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--bg-hover)]"
         style="color: var(--fg-muted);"
         @click="$emit('close-pane')"
-        title="Close pane"
+        :title="t('Close pane')"
       >
         <svg width="12" height="12" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5">
           <path d="M2 2l6 6M8 2l-6 6"/>
@@ -329,6 +329,7 @@ import { useCommentsStore } from '../../stores/comments'
 import { useChatStore } from '../../stores/chat'
 import PdfSettingsPopover from './PdfSettingsPopover.vue'
 import { modKey } from '../../platform'
+import { useI18n } from '../../i18n'
 
 const props = defineProps({
   tabs: { type: Array, required: true },
@@ -342,6 +343,7 @@ const workspace = useWorkspaceStore()
 const typstStore = useTypstStore()
 const chatStore = useChatStore()
 const commentsStore = useCommentsStore()
+const { t, isZh } = useI18n()
 
 // Comment margin toggle
 const showCommentToggle = computed(() => {
@@ -406,10 +408,20 @@ const texWarningCount = computed(() => texWarnings.value.length)
 const texAllIssues = computed(() => [...texErrors.value, ...texWarnings.value])
 const texDuration = computed(() => {
   const ms = texState.value?.durationMs
-  if (!ms) return 'Compiled'
+  if (!ms) return t('Compiled')
   if (ms < 1000) return `${ms}ms`
   return `${(ms / 1000).toFixed(1)}s`
 })
+const texErrorLabel = computed(() => (
+  isZh.value
+    ? `${texErrorCount.value} 个错误`
+    : `${texErrorCount.value} error${texErrorCount.value === 1 ? '' : 's'}`
+))
+const texWarningLabel = computed(() => (
+  isZh.value
+    ? `${texWarningCount.value} 个警告`
+    : `${texWarningCount.value} warning${texWarningCount.value === 1 ? '' : 's'}`
+))
 
 // Error panel dropdown
 const texErrorPanelOpen = ref(false)
@@ -437,13 +449,15 @@ function jumpToTexLine(line) {
   texErrorPanelOpen.value = false
 }
 
-function isTectonicMissing(issue) {
+function isLatexCompilerMissing(issue) {
   if (!issue || issue.severity !== 'error') return false
   const msg = String(issue.message || '').toLowerCase()
-  return msg.includes('tectonic not found') || msg.includes('tectonic is disabled')
+  return msg.includes('tectonic not found')
+    || msg.includes('system tex compiler not found')
+    || msg.includes('no latex compiler found')
 }
 
-function openTectonicSettings() {
+function openLatexCompilerSettings() {
   texErrorPanelOpen.value = false
   workspace.openSettings('system')
 }
@@ -499,7 +513,7 @@ const ghostY = ref(0)
 const ghostLabel = ref('')
 
 function fileName(path) {
-  if (isNewTab(path)) return 'New Tab'
+  if (isNewTab(path)) return t('New Tab')
   if (isChatTab(path)) {
     const sid = getChatSessionId(path)
     const session = chatStore.sessions.find(s => s.id === sid)
@@ -512,7 +526,7 @@ function fileName(path) {
       const label = meta.label
       return label.length > 28 ? label.slice(0, 26) + '...' : label
     }
-    return 'New chat'
+    return t('New chat')
   }
   if (isReferencePath(path)) {
     const key = referenceKeyFromPath(path)

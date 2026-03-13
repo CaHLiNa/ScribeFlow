@@ -4,22 +4,22 @@
       <!-- Group 0: History + Zoom (always visible — never overflows) -->
       <div class="dtb-mgroup" ref="mg0">
         <div class="dtb-group">
-          <button class="dtb-btn" title="Undo" @click="cmd('undo')" :disabled="!canUndo">
+          <button class="dtb-btn" :title="t('Undo')" @click="cmd('undo')" :disabled="!canUndo">
             <IconArrowBackUp :size="16" />
           </button>
-          <button class="dtb-btn" title="Redo" @click="cmd('redo')" :disabled="!canRedo">
+          <button class="dtb-btn" :title="t('Redo')" @click="cmd('redo')" :disabled="!canRedo">
             <IconArrowForwardUp :size="16" />
           </button>
         </div>
         <div class="dtb-sep"></div>
         <div class="dtb-group dtb-zoom-group">
-          <button class="dtb-btn dtb-zoom-btn" title="Zoom Out" @click="workspace.docxZoomOut()" :disabled="workspace.docxZoomPercent <= 50">
+          <button class="dtb-btn dtb-zoom-btn" :title="t('Zoom Out')" @click="workspace.docxZoomOut()" :disabled="workspace.docxZoomPercent <= 50">
             <IconMinus :size="14" />
           </button>
-          <button class="dtb-btn dtb-zoom-pct" title="Zoom" @click.stop="toggleDropdown('zoom', $event)" ref="zoomBtn">
+          <button class="dtb-btn dtb-zoom-pct" :title="t('Zoom')" @click.stop="toggleDropdown('zoom', $event)" ref="zoomBtn">
             <span class="dtb-label">{{ workspace.docxZoomPercent }}%</span>
           </button>
-          <button class="dtb-btn dtb-zoom-btn" title="Zoom In" @click="workspace.docxZoomIn()" :disabled="workspace.docxZoomPercent >= 200">
+          <button class="dtb-btn dtb-zoom-btn" :title="t('Zoom In')" @click="workspace.docxZoomIn()" :disabled="workspace.docxZoomPercent >= 200">
             <IconPlus :size="14" />
           </button>
         </div>
@@ -29,8 +29,8 @@
       <div class="dtb-mgroup" ref="mg1">
         <div class="dtb-sep"></div>
         <div class="dtb-group">
-          <button class="dtb-btn dtb-dropdown-trigger" title="Paragraph Style" @click.stop="toggleDropdown('styles', $event)" ref="stylesBtn" style="width:100px">
-            <span class="dtb-label">{{ currentStyle || 'Styles' }}</span>
+          <button class="dtb-btn dtb-dropdown-trigger" :title="t('Paragraph Style')" @click.stop="toggleDropdown('styles', $event)" ref="stylesBtn" style="width:100px">
+            <span class="dtb-label">{{ currentStyle || t('Styles') }}</span>
             <IconChevronDown :size="12" />
           </button>
         </div>
@@ -40,11 +40,11 @@
       <div class="dtb-mgroup" ref="mg2">
         <div class="dtb-sep"></div>
         <div class="dtb-group">
-          <button class="dtb-btn dtb-dropdown-trigger" title="Font" @click.stop="toggleDropdown('font', $event)" ref="fontBtn" style="width:110px">
-            <span class="dtb-label">{{ currentFont || 'Font' }}</span>
+          <button class="dtb-btn dtb-dropdown-trigger" :title="t('Font')" @click.stop="toggleDropdown('font', $event)" ref="fontBtn" style="width:110px">
+            <span class="dtb-label">{{ currentFont || t('Font') }}</span>
             <IconChevronDown :size="12" />
           </button>
-          <button class="dtb-btn dtb-dropdown-trigger" title="Font Size" @click.stop="toggleDropdown('size', $event)" ref="sizeBtn">
+          <button class="dtb-btn dtb-dropdown-trigger" :title="t('Font Size')" @click.stop="toggleDropdown('size', $event)" ref="sizeBtn">
             <span class="dtb-label">{{ currentSize || '12' }}</span>
             <IconChevronDown :size="12" />
           </button>
@@ -55,27 +55,27 @@
       <div class="dtb-mgroup" ref="mg3">
         <div class="dtb-sep"></div>
         <div class="dtb-group">
-          <button class="dtb-btn" :class="{ active: isBold }" title="Bold (Cmd+B)" @click="cmd('toggleBold')">
+          <button class="dtb-btn" :class="{ active: isBold }" :title="t('Bold ({shortcut})', { shortcut: 'Cmd+B' })" @click="cmd('toggleBold')">
             <IconBold :size="16" />
           </button>
-          <button class="dtb-btn" :class="{ active: isItalic }" title="Italic (Cmd+I)" @click="cmd('toggleItalic')">
+          <button class="dtb-btn" :class="{ active: isItalic }" :title="t('Italic ({shortcut})', { shortcut: 'Cmd+I' })" @click="cmd('toggleItalic')">
             <IconItalic :size="16" />
           </button>
-          <button class="dtb-btn" :class="{ active: isUnderline }" title="Underline (Cmd+U)" @click="cmd('toggleUnderline')">
+          <button class="dtb-btn" :class="{ active: isUnderline }" :title="t('Underline ({shortcut})', { shortcut: 'Cmd+U' })" @click="cmd('toggleUnderline')">
             <IconUnderline :size="16" />
           </button>
-          <button class="dtb-btn" :class="{ active: isStrike }" title="Strikethrough" @click="cmd('toggleStrike')">
+          <button class="dtb-btn" :class="{ active: isStrike }" :title="t('Strikethrough')" @click="cmd('toggleStrike')">
             <IconStrikethrough :size="16" />
           </button>
-          <button class="dtb-btn dtb-color-btn" title="Text Color" @click.stop="toggleDropdown('color', $event)" ref="colorBtn">
+          <button class="dtb-btn dtb-color-btn" :title="t('Text Color')" @click.stop="toggleDropdown('color', $event)" ref="colorBtn">
             <IconLetterA :size="16" />
             <span class="dtb-color-bar" :style="{ background: currentColor || 'var(--fg-primary)' }"></span>
           </button>
-          <button class="dtb-btn dtb-color-btn" title="Highlight Color" @click.stop="toggleDropdown('highlight', $event)" ref="highlightBtn">
+          <button class="dtb-btn dtb-color-btn" :title="t('Highlight Color')" @click.stop="toggleDropdown('highlight', $event)" ref="highlightBtn">
             <IconHighlight :size="16" />
             <span class="dtb-color-bar" :style="{ background: currentHighlight || '#ffd43b' }"></span>
           </button>
-          <button class="dtb-btn" title="Clear Formatting" @click="clearFormat">
+          <button class="dtb-btn" :title="t('Clear Formatting')" @click="clearFormat">
             <IconClearFormatting :size="16" />
           </button>
         </div>
@@ -85,9 +85,9 @@
       <div class="dtb-mgroup" ref="mg4">
         <div class="dtb-sep"></div>
         <div class="dtb-group">
-          <button class="dtb-btn dtb-dropdown-trigger" :class="{ active: documentMode === 'suggesting' }" title="Document Mode" @click.stop="toggleDropdown('mode', $event)" ref="modeBtn">
+          <button class="dtb-btn dtb-dropdown-trigger" :class="{ active: documentMode === 'suggesting' }" :title="t('Document Mode')" @click.stop="toggleDropdown('mode', $event)" ref="modeBtn">
             <IconPencil :size="16" />
-            <span class="dtb-label">{{ documentMode === 'suggesting' ? 'Suggesting' : 'Editing' }}</span>
+            <span class="dtb-label">{{ documentMode === 'suggesting' ? t('Suggesting') : t('Editing') }}</span>
             <IconChevronDown :size="12" />
           </button>
         </div>
@@ -97,23 +97,23 @@
       <div class="dtb-mgroup" ref="mg5">
         <div class="dtb-sep"></div>
         <div class="dtb-group">
-          <button class="dtb-btn dtb-dropdown-trigger" title="Alignment" @click.stop="toggleDropdown('align', $event)" ref="alignBtn">
+          <button class="dtb-btn dtb-dropdown-trigger" :title="t('Alignment')" @click.stop="toggleDropdown('align', $event)" ref="alignBtn">
             <component :is="alignIcon" :size="16" />
             <IconChevronDown :size="12" />
           </button>
-          <button class="dtb-btn" :class="{ active: isBullet }" title="Bullet List" @click="cmd('toggleBulletList')">
+          <button class="dtb-btn" :class="{ active: isBullet }" :title="t('Bullet List')" @click="cmd('toggleBulletList')">
             <IconList :size="16" />
           </button>
-          <button class="dtb-btn" :class="{ active: isOrdered }" title="Numbered List" @click="cmd('toggleOrderedList')">
+          <button class="dtb-btn" :class="{ active: isOrdered }" :title="t('Numbered List')" @click="cmd('toggleOrderedList')">
             <IconListNumbers :size="16" />
           </button>
-          <button class="dtb-btn" title="Decrease Indent" @click="cmd('decreaseTextIndent')">
+          <button class="dtb-btn" :title="t('Decrease Indent')" @click="cmd('decreaseTextIndent')">
             <IconIndentDecrease :size="16" />
           </button>
-          <button class="dtb-btn" title="Increase Indent" @click="cmd('increaseTextIndent')">
+          <button class="dtb-btn" :title="t('Increase Indent')" @click="cmd('increaseTextIndent')">
             <IconIndentIncrease :size="16" />
           </button>
-          <button class="dtb-btn dtb-dropdown-trigger" title="Line Height" @click.stop="toggleDropdown('lineHeight', $event)" ref="lineHeightBtn">
+          <button class="dtb-btn dtb-dropdown-trigger" :title="t('Line Height')" @click.stop="toggleDropdown('lineHeight', $event)" ref="lineHeightBtn">
             <IconLineHeight :size="16" />
             <IconChevronDown :size="12" />
           </button>
@@ -124,16 +124,16 @@
       <div class="dtb-mgroup" ref="mg6">
         <div class="dtb-sep"></div>
         <div class="dtb-group">
-          <button class="dtb-btn" title="Insert Link" @click.stop="toggleDropdown('link', $event)" ref="linkBtn">
+          <button class="dtb-btn" :title="t('Insert Link')" @click.stop="toggleDropdown('link', $event)" ref="linkBtn">
             <IconLink :size="16" />
           </button>
-          <button class="dtb-btn" title="Insert Image" @click="insertImage">
+          <button class="dtb-btn" :title="t('Insert Image')" @click="insertImage">
             <IconPhoto :size="16" />
           </button>
-          <button class="dtb-btn" title="Insert Table" @click.stop="toggleDropdown('table', $event)" ref="tableBtn">
+          <button class="dtb-btn" :title="t('Insert Table')" @click.stop="toggleDropdown('table', $event)" ref="tableBtn">
             <IconTable :size="16" />
           </button>
-          <button class="dtb-btn" :title="hasBib ? 'Refresh Bibliography' : 'Insert Bibliography'" @click="insertOrRefreshBibliography">
+          <button class="dtb-btn" :title="hasBib ? t('Refresh Bibliography') : t('Insert Bibliography')" @click="insertOrRefreshBibliography">
             <component :is="hasBib ? IconRefresh : IconBlockquote" :size="16" />
           </button>
         </div>
@@ -143,28 +143,28 @@
       <div class="dtb-mgroup" ref="mg7" v-if="showTrackChanges">
         <div class="dtb-sep"></div>
         <div class="dtb-group">
-          <button class="dtb-btn" :class="{ active: isTrackChangesActive }" title="Toggle Track Changes" @click="toggleTrackChanges">
+          <button class="dtb-btn" :class="{ active: isTrackChangesActive }" :title="t('Toggle Track Changes')" @click="toggleTrackChanges">
             <IconGitMerge :size="16" />
           </button>
           <span v-if="trackedChangeCount > 0" class="dtb-badge">{{ trackedChangeCount }}</span>
-          <button class="dtb-btn" title="Previous Change" @click="goToPrevChange" :disabled="!hasAnyTrackedChanges">
+          <button class="dtb-btn" :title="t('Previous Change')" @click="goToPrevChange" :disabled="!hasAnyTrackedChanges">
             <IconArrowLeft :size="14" />
           </button>
-          <button class="dtb-btn" title="Next Change" @click="goToNextChange" :disabled="!hasAnyTrackedChanges">
+          <button class="dtb-btn" :title="t('Next Change')" @click="goToNextChange" :disabled="!hasAnyTrackedChanges">
             <IconArrowRight :size="14" />
           </button>
           <div class="dtb-sep" style="height:16px; margin:0 3px;"></div>
-          <button class="dtb-btn dtb-accept" title="Accept Change" @click="acceptChange" :disabled="!hasTrackedChange">
+          <button class="dtb-btn dtb-accept" :title="t('Accept Change')" @click="acceptChange" :disabled="!hasTrackedChange">
             <IconCheck :size="16" />
           </button>
-          <button class="dtb-btn dtb-reject" title="Reject Change" @click="rejectChange" :disabled="!hasTrackedChange">
+          <button class="dtb-btn dtb-reject" :title="t('Reject Change')" @click="rejectChange" :disabled="!hasTrackedChange">
             <IconX :size="16" />
           </button>
           <div class="dtb-sep" style="height:16px; margin:0 3px;"></div>
-          <button class="dtb-btn dtb-accept" title="Accept All Changes" @click="acceptAllChanges" :disabled="!hasAnyTrackedChanges">
+          <button class="dtb-btn dtb-accept" :title="t('Accept All Changes')" @click="acceptAllChanges" :disabled="!hasAnyTrackedChanges">
             <IconChecks :size="16" />
           </button>
-          <button class="dtb-btn dtb-reject" title="Reject All Changes" @click="rejectAllChanges" :disabled="!hasAnyTrackedChanges">
+          <button class="dtb-btn dtb-reject" :title="t('Reject All Changes')" @click="rejectAllChanges" :disabled="!hasAnyTrackedChanges">
             <IconSquareX :size="16" />
           </button>
         </div>
@@ -172,7 +172,7 @@
 
       <!-- Overflow button (before spacer so it sits next to last visible group) -->
       <button v-show="overflowGroups.length > 0" class="dtb-btn dtb-overflow-btn" ref="overflowBtn"
-        @click.stop="toggleOverflow($event)" title="More tools">
+        @click.stop="toggleOverflow($event)" :title="t('More tools')">
         <IconDots :size="16" />
       </button>
 
@@ -190,7 +190,7 @@
           :style="{ fontFamily: f.fallback }"
           @click="setFont(f.name)"
         >{{ f.name }}</div>
-        <div v-if="!availableFonts.length" class="dtb-popover-item" style="opacity:0.5; cursor:default;">No fonts available</div>
+        <div v-if="!availableFonts.length" class="dtb-popover-item" style="opacity:0.5; cursor:default;">{{ t('No fonts available') }}</div>
       </div>
 
       <!-- Zoom Preset Dropdown -->
@@ -212,7 +212,7 @@
           :style="getStylePreview(s)"
           @click="setStyle(s.id)"
         >{{ s.definition?.attrs?.name || s.id }}</div>
-        <div v-if="!documentStyles.length" class="dtb-popover-item" style="opacity:0.5; cursor:default;">No styles in document</div>
+        <div v-if="!documentStyles.length" class="dtb-popover-item" style="opacity:0.5; cursor:default;">{{ t('No styles in document') }}</div>
       </div>
 
       <!-- Font Size Dropdown -->
@@ -237,7 +237,7 @@
             @click="setColor(c)"
           ></button>
         </div>
-        <button class="dtb-popover-item" style="margin-top:4px" @click="clearColor">Clear Color</button>
+        <button class="dtb-popover-item" style="margin-top:4px" @click="clearColor">{{ t('Clear Color') }}</button>
       </div>
 
       <!-- Highlight Color Picker -->
@@ -252,22 +252,22 @@
             @click="setHighlight(c)"
           ></button>
         </div>
-        <button class="dtb-popover-item" style="margin-top:4px" @click="clearHighlight">No Highlight</button>
+        <button class="dtb-popover-item" style="margin-top:4px" @click="clearHighlight">{{ t('No Highlight') }}</button>
       </div>
 
       <!-- Alignment Dropdown -->
       <div v-if="openDropdown === 'align'" class="dtb-popover dtb-popover-narrow" :style="dropdownPos" @mousedown.prevent>
         <div class="dtb-popover-item" :class="{ active: currentAlign === 'left' }" @click="setAlign('left')">
-          <IconAlignLeft :size="16" /> Left
+          <IconAlignLeft :size="16" /> {{ t('Left') }}
         </div>
         <div class="dtb-popover-item" :class="{ active: currentAlign === 'center' }" @click="setAlign('center')">
-          <IconAlignCenter :size="16" /> Center
+          <IconAlignCenter :size="16" /> {{ t('Center') }}
         </div>
         <div class="dtb-popover-item" :class="{ active: currentAlign === 'right' }" @click="setAlign('right')">
-          <IconAlignRight :size="16" /> Right
+          <IconAlignRight :size="16" /> {{ t('Right') }}
         </div>
         <div class="dtb-popover-item" :class="{ active: currentAlign === 'justify' }" @click="setAlign('justify')">
-          <IconAlignJustified :size="16" /> Justify
+          <IconAlignJustified :size="16" /> {{ t('Justify') }}
         </div>
       </div>
 
@@ -278,7 +278,7 @@
           class="dtb-popover-item"
           :class="{ active: currentLineHeight == lh.value }"
           @click="setLineHeight(lh.value)"
-        >{{ lh.label }}</div>
+        >{{ t(lh.label) }}</div>
       </div>
 
       <!-- Link Input -->
@@ -293,14 +293,14 @@
           @keydown.escape="closeDropdown"
         />
         <div class="dtb-link-actions">
-          <button class="dtb-link-btn" @click="applyLink" :disabled="!linkUrl.trim()">Apply</button>
-          <button class="dtb-link-btn" @click="closeDropdown">Cancel</button>
+          <button class="dtb-link-btn" @click="applyLink" :disabled="!linkUrl.trim()">{{ t('Apply') }}</button>
+          <button class="dtb-link-btn" @click="closeDropdown">{{ t('Cancel') }}</button>
         </div>
       </div>
 
       <!-- Table Grid Selector -->
       <div v-if="openDropdown === 'table'" class="dtb-popover dtb-table-popover" :style="dropdownPos" @mousedown.prevent>
-        <div class="dtb-table-label">{{ tableHover.r ? `${tableHover.r} × ${tableHover.c}` : 'Insert Table' }}</div>
+        <div class="dtb-table-label">{{ tableHover.r ? `${tableHover.r} × ${tableHover.c}` : t('Insert Table') }}</div>
         <div class="dtb-table-grid">
           <div
             v-for="r in 6" :key="r"
@@ -320,10 +320,10 @@
       <!-- Mode Dropdown -->
       <div v-if="openDropdown === 'mode'" class="dtb-popover dtb-popover-narrow" :style="dropdownPos" @mousedown.prevent>
         <div class="dtb-popover-item" :class="{ active: documentMode === 'editing' }" @click="setMode('editing')">
-          <IconPencil :size="16" /> Editing
+          <IconPencil :size="16" /> {{ t('Editing') }}
         </div>
         <div class="dtb-popover-item" :class="{ active: documentMode === 'suggesting' }" @click="setMode('suggesting')">
-          <IconPencilCheck :size="16" /> Suggesting
+          <IconPencilCheck :size="16" /> {{ t('Suggesting') }}
         </div>
       </div>
 
@@ -331,36 +331,36 @@
       <div v-if="showOverflowPopover" class="dtb-popover dtb-overflow-popover" :style="overflowPopoverPos" @mousedown.prevent>
         <!-- Mode (group 4) -->
         <div v-if="overflowGroups.includes(4)" class="dtb-overflow-section">
-          <div class="dtb-overflow-label">Mode</div>
+          <div class="dtb-overflow-label">{{ t('Mode') }}</div>
           <div class="dtb-group">
             <button class="dtb-btn dtb-dropdown-trigger" :class="{ active: documentMode === 'suggesting' }" @click.stop="toggleDropdown('mode', $event, true)">
               <IconPencil :size="16" />
-              <span class="dtb-label">{{ documentMode === 'suggesting' ? 'Suggesting' : 'Editing' }}</span>
+              <span class="dtb-label">{{ documentMode === 'suggesting' ? t('Suggesting') : t('Editing') }}</span>
               <IconChevronDown :size="12" />
             </button>
           </div>
         </div>
         <!-- Paragraph (group 5) -->
         <div v-if="overflowGroups.includes(5)" class="dtb-overflow-section">
-          <div class="dtb-overflow-label">Paragraph</div>
+          <div class="dtb-overflow-label">{{ t('Paragraph') }}</div>
           <div class="dtb-group">
-            <button class="dtb-btn dtb-dropdown-trigger" title="Alignment" @click.stop="toggleDropdown('align', $event, true)">
+            <button class="dtb-btn dtb-dropdown-trigger" :title="t('Alignment')" @click.stop="toggleDropdown('align', $event, true)">
               <component :is="alignIcon" :size="16" />
               <IconChevronDown :size="12" />
             </button>
-            <button class="dtb-btn" :class="{ active: isBullet }" title="Bullet List" @click="cmd('toggleBulletList')">
+            <button class="dtb-btn" :class="{ active: isBullet }" :title="t('Bullet List')" @click="cmd('toggleBulletList')">
               <IconList :size="16" />
             </button>
-            <button class="dtb-btn" :class="{ active: isOrdered }" title="Numbered List" @click="cmd('toggleOrderedList')">
+            <button class="dtb-btn" :class="{ active: isOrdered }" :title="t('Numbered List')" @click="cmd('toggleOrderedList')">
               <IconListNumbers :size="16" />
             </button>
-            <button class="dtb-btn" title="Decrease Indent" @click="cmd('decreaseTextIndent')">
+            <button class="dtb-btn" :title="t('Decrease Indent')" @click="cmd('decreaseTextIndent')">
               <IconIndentDecrease :size="16" />
             </button>
-            <button class="dtb-btn" title="Increase Indent" @click="cmd('increaseTextIndent')">
+            <button class="dtb-btn" :title="t('Increase Indent')" @click="cmd('increaseTextIndent')">
               <IconIndentIncrease :size="16" />
             </button>
-            <button class="dtb-btn dtb-dropdown-trigger" title="Line Height" @click.stop="toggleDropdown('lineHeight', $event, true)">
+            <button class="dtb-btn dtb-dropdown-trigger" :title="t('Line Height')" @click.stop="toggleDropdown('lineHeight', $event, true)">
               <IconLineHeight :size="16" />
               <IconChevronDown :size="12" />
             </button>
@@ -368,48 +368,48 @@
         </div>
         <!-- Insert (group 6) -->
         <div v-if="overflowGroups.includes(6)" class="dtb-overflow-section">
-          <div class="dtb-overflow-label">Insert</div>
+          <div class="dtb-overflow-label">{{ t('Insert') }}</div>
           <div class="dtb-group">
-            <button class="dtb-btn" title="Insert Link" @click.stop="toggleDropdown('link', $event, true)">
+            <button class="dtb-btn" :title="t('Insert Link')" @click.stop="toggleDropdown('link', $event, true)">
               <IconLink :size="16" />
             </button>
-            <button class="dtb-btn" title="Insert Image" @click="insertImage">
+            <button class="dtb-btn" :title="t('Insert Image')" @click="insertImage">
               <IconPhoto :size="16" />
             </button>
-            <button class="dtb-btn" title="Insert Table" @click.stop="toggleDropdown('table', $event, true)">
+            <button class="dtb-btn" :title="t('Insert Table')" @click.stop="toggleDropdown('table', $event, true)">
               <IconTable :size="16" />
             </button>
-            <button class="dtb-btn" :title="hasBib ? 'Refresh Bibliography' : 'Insert Bibliography'" @click="insertOrRefreshBibliography">
+            <button class="dtb-btn" :title="hasBib ? t('Refresh Bibliography') : t('Insert Bibliography')" @click="insertOrRefreshBibliography">
               <component :is="hasBib ? IconRefresh : IconBlockquote" :size="16" />
             </button>
           </div>
         </div>
         <!-- Track Changes (group 7) -->
         <div v-if="showTrackChanges && overflowGroups.includes(7)" class="dtb-overflow-section">
-          <div class="dtb-overflow-label">Track Changes</div>
+          <div class="dtb-overflow-label">{{ t('Track Changes') }}</div>
           <div class="dtb-group">
-            <button class="dtb-btn" :class="{ active: isTrackChangesActive }" title="Toggle Track Changes" @click="toggleTrackChanges">
+            <button class="dtb-btn" :class="{ active: isTrackChangesActive }" :title="t('Toggle Track Changes')" @click="toggleTrackChanges">
               <IconGitMerge :size="16" />
             </button>
             <span v-if="trackedChangeCount > 0" class="dtb-badge">{{ trackedChangeCount }}</span>
-            <button class="dtb-btn" title="Previous Change" @click="goToPrevChange" :disabled="!hasAnyTrackedChanges">
+            <button class="dtb-btn" :title="t('Previous Change')" @click="goToPrevChange" :disabled="!hasAnyTrackedChanges">
               <IconArrowLeft :size="14" />
             </button>
-            <button class="dtb-btn" title="Next Change" @click="goToNextChange" :disabled="!hasAnyTrackedChanges">
+            <button class="dtb-btn" :title="t('Next Change')" @click="goToNextChange" :disabled="!hasAnyTrackedChanges">
               <IconArrowRight :size="14" />
             </button>
             <div class="dtb-sep" style="height:16px; margin:0 3px;"></div>
-            <button class="dtb-btn dtb-accept" title="Accept Change" @click="acceptChange" :disabled="!hasTrackedChange">
+            <button class="dtb-btn dtb-accept" :title="t('Accept Change')" @click="acceptChange" :disabled="!hasTrackedChange">
               <IconCheck :size="16" />
             </button>
-            <button class="dtb-btn dtb-reject" title="Reject Change" @click="rejectChange" :disabled="!hasTrackedChange">
+            <button class="dtb-btn dtb-reject" :title="t('Reject Change')" @click="rejectChange" :disabled="!hasTrackedChange">
               <IconX :size="16" />
             </button>
             <div class="dtb-sep" style="height:16px; margin:0 3px;"></div>
-            <button class="dtb-btn dtb-accept" title="Accept All Changes" @click="acceptAllChanges" :disabled="!hasAnyTrackedChanges">
+            <button class="dtb-btn dtb-accept" :title="t('Accept All Changes')" @click="acceptAllChanges" :disabled="!hasAnyTrackedChanges">
               <IconChecks :size="16" />
             </button>
-            <button class="dtb-btn dtb-reject" title="Reject All Changes" @click="rejectAllChanges" :disabled="!hasAnyTrackedChanges">
+            <button class="dtb-btn dtb-reject" :title="t('Reject All Changes')" @click="rejectAllChanges" :disabled="!hasAnyTrackedChanges">
               <IconSquareX :size="16" />
             </button>
           </div>
@@ -443,6 +443,7 @@ import { trackChangesHelpers } from 'superdoc'
 import { hasBibliography, insertBibliography, refreshBibliography } from '../../services/docxCitationImporter'
 import { useReferencesStore } from '../../stores/references'
 import { useWorkspaceStore } from '../../stores/workspace'
+import { useI18n } from '../../i18n'
 
 const props = defineProps({
   superdoc: { type: Object, default: null },
@@ -452,6 +453,7 @@ const props = defineProps({
 const emit = defineEmits(['mode-change'])
 const referencesStore = useReferencesStore()
 const workspace = useWorkspaceStore()
+const { t } = useI18n()
 
 // --- Raw editor access (no Vue Proxy — SuperDoc uses #private fields) ---
 // Parent guarantees activeEditor exists by the time this component mounts.

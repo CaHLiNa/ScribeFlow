@@ -14,9 +14,60 @@
 
         <div v-if="lang.info.found" class="env-lang-details">
           <div class="env-lang-path">{{ lang.info.path }}</div>
-          <div class="env-lang-kernel-row">
+          <template v-if="lang.key === 'python'">
+            <div class="env-python-stack">
+              <div v-if="lang.info.candidates?.length" class="env-compact-block">
+                <div class="env-inline-row env-inline-row-top">
+                  <span class="env-control-label">{{ t('Python interpreter') }}</span>
+                  <div class="env-select-shell">
+                    <select class="env-select" :value="lang.info.selectedPath || ''" @change="onPythonInterpreterChange">
+                      <option v-for="candidate in lang.info.candidates" :key="candidate.path" :value="candidate.path">
+                        {{ formatPythonCandidateTitle(candidate) }}
+                      </option>
+                    </select>
+                    <span class="env-select-caret" aria-hidden="true">
+                      <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+                        <path d="M1 3l4 4 4-4z" />
+                      </svg>
+                    </span>
+                  </div>
+                </div>
+                <div class="env-inline-path">{{ selectedPythonPath }}</div>
+              </div>
+
+              <div class="env-inline-row env-inline-row-compact">
+                <div class="env-input-shell env-input-shell-slim">
+                  <input
+                    v-model="customPythonPathDraft"
+                    class="env-path-input"
+                    :placeholder="t('Custom Python path')"
+                  />
+                </div>
+                <button class="env-install-btn" type="button" @click="saveCustomPythonPath">
+                  {{ t('Use Path') }}
+                </button>
+              </div>
+
+              <div class="env-lang-kernel-row env-lang-kernel-row-soft">
+                <span>{{ t('Jupyter kernel') }}</span>
+                <span v-if="kernelInstalledFor(lang)" class="env-kernel-badge env-kernel-yes">{{ t('Installed') }}</span>
+                <template v-else>
+                  <span class="env-kernel-badge env-kernel-no">{{ t('Not installed') }}</span>
+                  <button
+                    class="env-install-btn"
+                    type="button"
+                    :disabled="envStore.installing === lang.key"
+                    @click="envStore.installKernel(lang.key)"
+                  >
+                    {{ envStore.installing === lang.key ? t('Installing...') : t('Install') }}
+                  </button>
+                </template>
+              </div>
+            </div>
+          </template>
+          <div v-else class="env-lang-kernel-row">
             <span>{{ t('Jupyter kernel') }}</span>
-            <span v-if="lang.info.hasKernel" class="env-kernel-badge env-kernel-yes">{{ t('Installed') }}</span>
+            <span v-if="kernelInstalledFor(lang)" class="env-kernel-badge env-kernel-yes">{{ t('Installed') }}</span>
             <template v-else>
               <span class="env-kernel-badge env-kernel-no">{{ t('Not installed') }}</span>
               <button
@@ -31,6 +82,20 @@
         </div>
 
         <div v-else class="env-lang-hint">{{ envStore.installHint(lang.key) }}</div>
+        <template v-if="lang.key === 'python' && !lang.info.found">
+          <div class="env-inline-row env-inline-row-compact env-inline-row-missing">
+            <div class="env-input-shell env-input-shell-slim">
+              <input
+                v-model="customPythonPathDraft"
+                class="env-path-input"
+                :placeholder="t('Custom Python path')"
+              />
+            </div>
+            <button class="env-install-btn" type="button" @click="saveCustomPythonPath">
+              {{ t('Use Path') }}
+            </button>
+          </div>
+        </template>
 
         <div v-if="envStore.installing === lang.key && envStore.installError" class="env-install-error">
           {{ envStore.installError }}
@@ -47,25 +112,55 @@
     </div>
 
     <!-- LaTeX Compiler -->
-    <h3 class="settings-section-title" style="margin-top: 24px;">{{ t('LaTeX Compiler') }}</h3>
-    <p class="settings-hint">{{ t('Tectonic compiles .tex files to PDF. A one-time download is required.') }}</p>
+    <h3 class="settings-section-title env-section-offset">{{ t('LaTeX Compiler') }}</h3>
+    <p class="settings-hint">{{ t('Choose which compiler Altals uses for .tex files.') }}</p>
 
     <div class="env-lang-card">
-      <!-- Installed state -->
+      <div class="env-lang-header">
+        <span class="env-lang-dot" :class="latexHeaderDotClass"></span>
+        <span class="env-lang-name">{{ t('Compiler') }}</span>
+        <span class="env-lang-version">{{ latexPreferenceLabel }}</span>
+      </div>
+      <div class="env-compact-block env-compact-block-offset">
+        <div class="env-inline-row env-inline-row-top">
+          <span class="env-control-label">{{ t('Compiler') }}</span>
+          <div class="env-select-shell">
+            <select class="env-select" :value="latexStore.compilerPreference" @change="onCompilerPreferenceChange">
+              <option value="auto">{{ t('Auto (prefer System TeX)') }}</option>
+              <option value="system">{{ t('System TeX (latexmk)') }}</option>
+              <option value="tectonic">Tectonic</option>
+            </select>
+            <span class="env-select-caret" aria-hidden="true">
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+                <path d="M1 3l4 4 4-4z" />
+              </svg>
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="env-lang-card">
+      <div class="env-lang-header">
+        <span class="env-lang-dot" :class="latexStore.systemTexInstalled ? 'good' : 'none'"></span>
+        <span class="env-lang-name">{{ t('System TeX') }}</span>
+        <span v-if="latexStore.systemTexInstalled" class="env-lang-version">{{ t('Installed') }}</span>
+        <span v-else class="env-lang-missing">{{ t('Not found') }}</span>
+      </div>
+      <div v-if="latexStore.systemTexInstalled" class="env-lang-details">
+        <div class="env-lang-path">{{ latexStore.systemTexPath }}</div>
+      </div>
+      <div class="env-lang-hint env-hint-inline">
+        {{ t('Use your MacTeX / TeX Live installation through latexmk.') }}
+      </div>
+    </div>
+
+    <div class="env-lang-card">
       <template v-if="latexStore.tectonicInstalled">
         <div class="env-lang-header">
-          <span class="env-lang-dot" :class="latexStore.tectonicEnabled ? 'good' : 'none'"></span>
+          <span class="env-lang-dot good"></span>
           <span class="env-lang-name">Tectonic</span>
-          <span v-if="latexStore.tectonicEnabled" class="env-lang-version">{{ t('Installed') }}</span>
-          <span v-else class="env-lang-missing">{{ t('Disabled') }}</span>
-          <div style="flex: 1;"></div>
-          <button
-            class="tool-toggle-switch"
-            :class="{ on: latexStore.tectonicEnabled }"
-            @click="latexStore.setTectonicEnabled(!latexStore.tectonicEnabled)"
-          >
-            <span class="tool-toggle-knob"></span>
-          </button>
+          <span class="env-lang-version">{{ t('Installed') }}</span>
         </div>
         <div class="env-lang-details">
           <div class="env-lang-path">{{ latexStore.tectonicPath }}</div>
@@ -79,7 +174,7 @@
           <span class="env-lang-name">Tectonic</span>
           <span class="env-lang-version">{{ t('Downloading... {progress}%', { progress: latexStore.downloadProgress }) }}</span>
         </div>
-        <div class="tectonic-progress" style="margin: 8px 16px 4px;">
+        <div class="tectonic-progress env-progress-shell">
           <div class="tectonic-progress-bar">
             <div class="tectonic-progress-fill" :style="{ width: latexStore.downloadProgress + '%' }"></div>
           </div>
@@ -93,10 +188,10 @@
           <span class="env-lang-name">Tectonic</span>
           <span class="env-lang-missing">{{ t('Not installed') }}</span>
         </div>
-        <div class="env-lang-hint" style="margin-top: 4px; padding-left: 16px;">
-          {{ t('PDF compilation for LaTeX requires Tectonic, a modern TeX engine. One-time ~15MB download.') }}
+        <div class="env-lang-hint env-hint-inline">
+          {{ t('Use the built-in lightweight compiler when you do not want a full TeX distribution.') }}
         </div>
-        <div style="padding-left: 16px; margin-top: 8px;">
+        <div class="env-action-row">
           <button class="env-install-btn" @click="latexStore.downloadTectonic()">
             {{ t('Download Tectonic') }}
           </button>
@@ -104,9 +199,9 @@
       </template>
 
       <!-- Error state -->
-      <div v-if="latexStore.downloadError" class="env-install-error" style="margin: 6px 16px;">
+      <div v-if="latexStore.downloadError" class="env-install-error env-install-error-inline">
         {{ latexStore.downloadError }}
-        <button class="env-install-btn" style="margin-left: 8px;" @click="latexStore.downloadTectonic()">
+        <button class="env-install-btn env-install-btn-inline" @click="latexStore.downloadTectonic()">
           {{ t('Retry') }}
         </button>
       </div>
@@ -116,7 +211,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useEnvironmentStore } from '../../stores/environment'
 import { useLatexStore } from '../../stores/latex'
 import { useI18n } from '../../i18n'
@@ -124,6 +219,7 @@ import { useI18n } from '../../i18n'
 const envStore = useEnvironmentStore()
 const latexStore = useLatexStore()
 const { t } = useI18n()
+const customPythonPathDraft = ref(envStore.customPythonPath || '')
 
 const envLanguages = computed(() => [
   { key: 'python', label: 'Python', info: envStore.languages.python },
@@ -131,15 +227,76 @@ const envLanguages = computed(() => [
   { key: 'julia', label: 'Julia', info: envStore.languages.julia },
 ])
 
+const selectedPythonCandidate = computed(() => {
+  const selectedPath = envStore.languages.python.selectedPath
+  return envStore.languages.python.candidates?.find((candidate) => candidate.path === selectedPath) || null
+})
+
+const selectedPythonPath = computed(() => selectedPythonCandidate.value?.path || envStore.languages.python.selectedPath || envStore.languages.python.path || '')
+
+const latexPreferenceLabel = computed(() => {
+  if (latexStore.compilerPreference === 'system') return t('System TeX (latexmk)')
+  if (latexStore.compilerPreference === 'tectonic') return 'Tectonic'
+  return t('Auto (prefer System TeX)')
+})
+
+const latexHeaderDotClass = computed(() => {
+  if (latexStore.compilerPreference === 'system') return latexStore.systemTexInstalled ? 'good' : 'none'
+  if (latexStore.compilerPreference === 'tectonic') return latexStore.tectonicInstalled ? 'good' : 'none'
+  return latexStore.systemTexInstalled || latexStore.tectonicInstalled ? 'good' : 'warn'
+})
+
 function envLangDotClass(lang) {
-  if (lang.info.hasKernel) return 'good'
+  if (kernelInstalledFor(lang)) return 'good'
   if (lang.info.found) return 'warn'
   return 'none'
 }
 
+function kernelInstalledFor(lang) {
+  return lang.key === 'python' ? lang.info.selectedHasKernel : lang.info.hasKernel
+}
+
+function formatPythonCandidateTitle(candidate) {
+  if (!candidate) return 'Python'
+  const version = candidate.version ? `Python ${candidate.version}` : 'Python'
+  const kernel = candidate.has_ipykernel ? t('Installed') : t('Not installed')
+  return `${version} · ${kernel}`
+}
+
+async function onPythonInterpreterChange(event) {
+  await envStore.selectPythonInterpreter(event.target.value)
+}
+
+async function saveCustomPythonPath() {
+  await envStore.saveCustomPythonPath(customPythonPathDraft.value)
+}
+
+function onCompilerPreferenceChange(event) {
+  latexStore.setCompilerPreference(event.target.value)
+}
+
+function warmSystemChecks() {
+  const run = () => {
+    if (!envStore.detected && !envStore.detecting) envStore.detect()
+    if (!latexStore.checkingCompilers) latexStore.checkCompilers()
+  }
+
+  if (typeof window !== 'undefined') {
+    window.requestAnimationFrame(() => {
+      window.setTimeout(run, 0)
+    })
+    return
+  }
+
+  run()
+}
+
+watch(() => envStore.customPythonPath, (value) => {
+  customPythonPathDraft.value = value || ''
+})
+
 onMounted(() => {
-  if (!envStore.detected) envStore.detect()
-  latexStore.checkTectonic()
+  warmSystemChecks()
 })
 </script>
 
@@ -159,7 +316,7 @@ onMounted(() => {
   font-size: 10px;
   color: var(--fg-muted);
   font-family: var(--font-mono);
-  margin-bottom: 6px;
+  margin-bottom: 10px;
 }
 
 .env-lang-kernel-row {
@@ -168,6 +325,165 @@ onMounted(() => {
   gap: 8px;
   font-size: 11px;
   color: var(--fg-secondary);
+  flex-wrap: wrap;
+}
+
+.env-control-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.01)),
+    var(--bg-secondary);
+}
+
+.env-control-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.env-control-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.env-control-label {
+  font-size: 11px;
+  color: var(--fg-secondary);
+}
+
+.env-python-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.env-compact-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.env-compact-block-offset {
+  margin-top: 12px;
+}
+
+.env-inline-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.env-inline-row-top {
+  justify-content: space-between;
+}
+
+.env-inline-row-compact {
+  align-items: stretch;
+}
+
+.env-inline-row-missing {
+  margin-top: 10px;
+  padding-left: 16px;
+}
+
+.env-select-shell {
+  position: relative;
+  min-width: min(320px, 100%);
+  flex: 1;
+}
+
+.env-select {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  min-width: 0;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-primary);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
+  color: var(--fg-primary);
+  font-size: 11px;
+  line-height: 1.2;
+  padding: 8px 34px 8px 10px;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.env-select:hover {
+  border-color: rgba(255, 255, 255, 0.14);
+  background: color-mix(in srgb, var(--bg-primary) 92%, white);
+}
+
+.env-select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.env-select-caret {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg-muted);
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.env-inline-path {
+  font-size: 10px;
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: break-all;
+}
+
+.env-input-shell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.env-path-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--fg-primary);
+  font-size: 11px;
+  padding: 0;
+}
+
+.env-path-input:focus {
+  outline: none;
+}
+
+.env-input-shell:focus-within {
+  border-color: var(--accent);
+}
+
+.env-input-shell-slim {
+  flex: 1;
+  min-width: min(260px, 100%);
+  padding: 8px 10px;
 }
 
 .env-kernel-badge {
@@ -185,6 +501,10 @@ onMounted(() => {
 .env-kernel-no {
   background: rgba(226, 185, 61, 0.1);
   color: var(--warning, #e2b93d);
+}
+
+.env-lang-kernel-row-soft {
+  padding-top: 2px;
 }
 
 .env-install-btn {
@@ -215,6 +535,14 @@ onMounted(() => {
   background: rgba(247, 118, 142, 0.1);
   color: var(--error);
   font-size: 10px;
+}
+
+.env-install-error-inline {
+  margin: 10px 16px 0;
+}
+
+.env-install-btn-inline {
+  margin-left: 8px;
 }
 
 .env-actions {
@@ -250,6 +578,27 @@ onMounted(() => {
   color: var(--fg-muted);
 }
 
+.env-section-offset {
+  margin-top: 24px;
+}
+
+.env-hint-inline {
+  margin-top: 4px;
+  padding-left: 16px;
+}
+
+.env-progress-shell {
+  margin: 10px 16px 4px;
+}
+
+.env-action-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 16px;
+  margin-top: 10px;
+}
+
 .tectonic-progress-bar {
   height: 4px;
   border-radius: 2px;
@@ -261,5 +610,25 @@ onMounted(() => {
   height: 100%;
   background: var(--accent);
   transition: width 0.2s ease;
+}
+
+@media (max-width: 720px) {
+  .env-inline-row-top {
+    align-items: stretch;
+  }
+
+  .env-select-shell {
+    min-width: 100%;
+  }
+
+  .env-input-shell {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .env-input-shell .env-install-btn,
+  .env-action-row .env-install-btn {
+    width: 100%;
+  }
 }
 </style>

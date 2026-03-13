@@ -11,13 +11,13 @@
         <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
           <path d="M8 1l7 13H1L8 1zM8 6v3M8 11h0"/>
         </svg>
-        <span>Unverified — review metadata before citing</span>
+        <span>{{ t('Unverified — review metadata before citing') }}</span>
         <button
           class="ml-auto px-2 py-0.5 rounded text-[10px]"
           :style="{ background: 'var(--warning)', color: 'var(--bg-primary)' }"
           @click="confirmRef"
         >
-          Confirm
+          {{ t('Confirm') }}
         </button>
       </div>
 
@@ -32,7 +32,7 @@
         >
           <path d="M6 4l4 4-4 4"/>
         </svg>
-        <span class="text-[11px] font-medium" :style="{ color: 'var(--fg-secondary)' }">Details</span>
+        <span class="text-[11px] font-medium" :style="{ color: 'var(--fg-secondary)' }">{{ t('Details') }}</span>
         <span class="ref-key-badge text-[10px] ml-1">@{{ ref._key }}</span>
         <!-- Collapsed summary -->
         <span v-if="!detailsOpen" class="text-[11px] ml-2 truncate flex-1" :style="{ color: 'var(--fg-muted)' }">
@@ -46,7 +46,7 @@
             :style="{ borderColor: copyFlash ? 'var(--success)' : 'var(--border)', color: copyFlash ? 'var(--success)' : 'var(--fg-secondary)' }"
             @click="handleCopyAs(copyFormat)"
           >
-            {{ copyFlash ? 'Copied!' : 'Copy' }}
+            {{ copyFlash ? t('Copied!') : t('Copy') }}
           </button>
           <select
             :value="copyFormat"
@@ -67,7 +67,7 @@
           :style="{ color: 'var(--error)' }"
           @click.stop="deleteRef"
         >
-          Delete
+          {{ t('Delete') }}
         </button>
       </div>
 
@@ -76,7 +76,7 @@
         <div class="px-3 pb-3 space-y-2.5">
           <!-- Title -->
           <div>
-            <label class="ref-detail-label">Title</label>
+            <label class="ref-detail-label">{{ t('Title') }}</label>
             <input
               :value="ref.title"
               class="ref-detail-input"
@@ -87,16 +87,16 @@
           <!-- Authors + Year row -->
           <div class="flex gap-2">
             <div class="flex-1">
-              <label class="ref-detail-label">Authors</label>
+              <label class="ref-detail-label">{{ t('Authors') }}</label>
               <input
                 :value="authorsString"
                 class="ref-detail-input"
-                placeholder="Last, First and Last, First"
+                :placeholder="t('Last, First and Last, First')"
                 @change="updateAuthors($event.target.value)"
               />
             </div>
             <div class="w-20">
-              <label class="ref-detail-label">Year</label>
+              <label class="ref-detail-label">{{ t('Year') }}</label>
               <input
                 :value="year"
                 class="ref-detail-input"
@@ -109,24 +109,24 @@
           <!-- Type + Journal row -->
           <div class="flex gap-2">
             <div class="w-40">
-              <label class="ref-detail-label">Type</label>
+              <label class="ref-detail-label">{{ t('Reference Type') }}</label>
               <select
                 :value="ref.type"
                 class="ref-detail-input ref-type-select"
                 @change="update('type', $event.target.value)"
               >
-                <option value="article-journal">Journal Article</option>
-                <option value="paper-conference">Conference Paper</option>
-                <option value="book">Book</option>
-                <option value="chapter">Book Chapter</option>
-                <option value="thesis">Thesis</option>
-                <option value="report">Report</option>
-                <option value="article">Preprint / Article</option>
-                <option value="webpage">Webpage</option>
+                <option value="article-journal">{{ t('Journal Article') }}</option>
+                <option value="paper-conference">{{ t('Conference Paper') }}</option>
+                <option value="book">{{ t('Book') }}</option>
+                <option value="chapter">{{ t('Book Chapter') }}</option>
+                <option value="thesis">{{ t('Thesis') }}</option>
+                <option value="report">{{ t('Report') }}</option>
+                <option value="article">{{ t('Preprint / Article') }}</option>
+                <option value="webpage">{{ t('Webpage') }}</option>
               </select>
             </div>
             <div class="flex-1">
-              <label class="ref-detail-label">Journal / Conference</label>
+              <label class="ref-detail-label">{{ t('Journal / Conference') }}</label>
               <input
                 :value="ref['container-title']"
                 class="ref-detail-input"
@@ -138,15 +138,15 @@
           <!-- Volume / Issue / Pages / DOI row -->
           <div class="flex gap-2">
             <div class="w-16">
-              <label class="ref-detail-label">Vol</label>
+              <label class="ref-detail-label">{{ t('Vol') }}</label>
               <input :value="ref.volume" class="ref-detail-input" @change="update('volume', $event.target.value)" />
             </div>
             <div class="w-16">
-              <label class="ref-detail-label">Issue</label>
+              <label class="ref-detail-label">{{ t('Issue') }}</label>
               <input :value="ref.issue" class="ref-detail-input" @change="update('issue', $event.target.value)" />
             </div>
             <div class="w-20">
-              <label class="ref-detail-label">Pages</label>
+              <label class="ref-detail-label">{{ t('Pages') }}</label>
               <input :value="ref.page" class="ref-detail-input" @change="update('page', $event.target.value)" />
             </div>
             <div class="flex-1">
@@ -157,18 +157,18 @@
 
           <!-- Tags -->
           <div>
-            <label class="ref-detail-label">Tags</label>
+            <label class="ref-detail-label">{{ t('Tags') }}</label>
             <input
               :value="(ref._tags || []).join(', ')"
               class="ref-detail-input"
-              placeholder="comma-separated"
+              :placeholder="t('comma-separated')"
               @change="updateTags($event.target.value)"
             />
           </div>
 
           <!-- Extra fields (publisher, URL, ISBN, etc.) -->
           <div v-if="extraFields.length > 0">
-            <label class="ref-detail-label">Other fields</label>
+            <label class="ref-detail-label">{{ t('Other fields') }}</label>
             <div class="space-y-1">
               <div v-for="f in extraFields" :key="f.key" class="flex gap-1.5 items-start">
                 <span class="text-[10px] w-20 shrink-0 text-right pt-[3px]" :style="{ color: 'var(--fg-muted)' }">{{ f.label }}</span>
@@ -187,7 +187,7 @@
               class="text-[10px] hover:underline"
               :style="{ color: 'var(--fg-muted)' }"
               @click="addingField = true"
-            >+ Add field</button>
+            >{{ t('+ Add field') }}</button>
           </div>
           <div v-else class="flex gap-1.5 items-center">
             <select
@@ -195,13 +195,13 @@
               class="ref-type-select text-[11px]"
               style="width: 100px;"
             >
-              <option value="" disabled>Field...</option>
+              <option value="" disabled>{{ t('Field...') }}</option>
               <option v-for="opt in addableFields" :key="opt.key" :value="opt.key">{{ opt.label }}</option>
             </select>
             <input
               v-model="newFieldValue"
               class="ref-detail-input flex-1"
-              placeholder="Value"
+              :placeholder="t('Value')"
               @keydown.enter="confirmAddField"
             />
             <button
@@ -209,17 +209,17 @@
               :style="{ color: 'var(--accent)' }"
               :disabled="!newFieldKey || !newFieldValue"
               @click="confirmAddField"
-            >Add</button>
+            >{{ t('Add') }}</button>
             <button
               class="text-[10px] px-1 py-0.5 rounded hover:bg-[var(--bg-hover)]"
               :style="{ color: 'var(--fg-muted)' }"
               @click="addingField = false; newFieldKey = ''; newFieldValue = ''"
-            >Cancel</button>
+            >{{ t('Cancel') }}</button>
           </div>
 
           <!-- Abstract (collapsible) -->
           <div v-if="ref.abstract">
-            <label class="ref-detail-label">Abstract</label>
+            <label class="ref-detail-label">{{ t('Abstract') }}</label>
             <div class="text-[11px] leading-relaxed" :style="{ color: 'var(--fg-secondary)' }">
               <template v-if="!abstractExpanded">
                 <span class="ref-abstract-clamped">{{ ref.abstract }}</span>
@@ -228,7 +228,7 @@
                   class="text-[10px] ml-1 hover:underline"
                   :style="{ color: 'var(--accent)' }"
                   @click="abstractExpanded = true"
-                >read more</button>
+                >{{ t('read more') }}</button>
               </template>
               <template v-else>
                 <span>{{ ref.abstract }}</span>
@@ -236,14 +236,14 @@
                   class="text-[10px] ml-1 hover:underline"
                   :style="{ color: 'var(--accent)' }"
                   @click="abstractExpanded = false"
-                >collapse</button>
+                >{{ t('collapse') }}</button>
               </template>
             </div>
           </div>
 
           <!-- Cited in -->
           <div v-if="citedInFiles.length > 0">
-            <label class="ref-detail-label">Cited in {{ citedInFiles.length }} file{{ citedInFiles.length !== 1 ? 's' : '' }}</label>
+            <label class="ref-detail-label">{{ citedInLabel }}</label>
             <div class="flex flex-wrap gap-x-3 gap-y-0.5">
               <span
                 v-for="file in citedInFiles"
@@ -272,13 +272,13 @@
         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.4;">
           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
         </svg>
-        <span class="text-[11px]">No PDF attached</span>
+        <span class="text-[11px]">{{ t('No PDF attached') }}</span>
         <button
           class="px-3 py-1 text-[11px] rounded border hover:bg-[var(--bg-hover)]"
           :style="{ borderColor: 'var(--border)', color: 'var(--fg-secondary)' }"
           @click="attachPdf"
         >
-          Attach PDF...
+          {{ t('Attach PDF...') }}
         </button>
       </div>
     </div>
@@ -286,7 +286,7 @@
 
   <!-- Deleted / not found -->
   <div v-else class="flex items-center justify-center h-full text-[11px]" :style="{ color: 'var(--fg-muted)' }">
-    Reference not found
+    {{ t('Reference not found') }}
   </div>
 </template>
 
@@ -298,6 +298,7 @@ import { useWorkspaceStore } from '../../stores/workspace'
 import { formatReference } from '../../services/citationFormatter'
 import { ask, open } from '@tauri-apps/plugin-dialog'
 import PdfViewer from './PdfViewer.vue'
+import { useI18n } from '../../i18n'
 
 const props = defineProps({
   refKey: { type: String, required: true },
@@ -307,6 +308,7 @@ const props = defineProps({
 const referencesStore = useReferencesStore()
 const editorStore = useEditorStore()
 const workspace = useWorkspaceStore()
+const { t } = useI18n()
 
 const detailsOpen = vRef(!referencesStore.getByKey(props.refKey)?._pdfFile)
 const abstractExpanded = vRef(false)
@@ -318,16 +320,16 @@ const newFieldKey = vRef('')
 const newFieldValue = vRef('')
 
 const ADDABLE_FIELDS = [
-  { key: 'publisher', label: 'Publisher' },
+  { key: 'publisher', label: t('Publisher') },
   { key: 'URL', label: 'URL' },
   { key: 'ISBN', label: 'ISBN' },
   { key: 'ISSN', label: 'ISSN' },
-  { key: 'language', label: 'Language' },
-  { key: 'edition', label: 'Edition' },
-  { key: 'note', label: 'Note' },
-  { key: 'collection-title', label: 'Series' },
-  { key: 'number-of-pages', label: 'Page count' },
-  { key: 'source', label: 'Source' },
+  { key: 'language', label: t('Language') },
+  { key: 'edition', label: t('Edition') },
+  { key: 'note', label: t('Note') },
+  { key: 'collection-title', label: t('Series') },
+  { key: 'number-of-pages', label: t('Page count') },
+  { key: 'source', label: t('Source') },
 ]
 
 const addableFields = computed(() => {
@@ -341,6 +343,7 @@ const pdfPath = computed(() => {
   if (!ref.value?._pdfFile) return null
   return `${workspace.projectDir}/references/pdfs/${ref.value._pdfFile}`
 })
+const citedInLabel = computed(() => t(citedInFiles.value.length === 1 ? 'Cited in {count} file' : 'Cited in {count} files', { count: citedInFiles.value.length }))
 
 const authorsString = computed(() => {
   if (!ref.value?.author) return ''
@@ -355,7 +358,7 @@ const year = computed(() => {
 
 const authorLine = computed(() => {
   const authors = ref.value?.author || []
-  if (authors.length === 0) return 'Unknown'
+  if (authors.length === 0) return t('Unknown')
   const first = authors[0].family || authors[0].given || ''
   if (authors.length === 1) return first
   if (authors.length === 2) return `${first} & ${authors[1].family || ''}`
@@ -369,17 +372,17 @@ const MAIN_FIELDS = new Set([
 ])
 
 const EXTRA_LABELS = {
-  publisher: 'Publisher',
+  publisher: t('Publisher'),
   URL: 'URL',
   ISBN: 'ISBN',
   ISSN: 'ISSN',
-  editor: 'Editor',
-  edition: 'Edition',
-  note: 'Note',
-  language: 'Language',
-  'collection-title': 'Series',
-  'number-of-pages': 'Pages',
-  source: 'Source',
+  editor: t('Editor'),
+  edition: t('Edition'),
+  note: t('Note'),
+  language: t('Language'),
+  'collection-title': t('Series'),
+  'number-of-pages': t('Pages'),
+  source: t('Source'),
 }
 
 const extraFields = computed(() => {
@@ -478,7 +481,7 @@ function confirmAddField() {
 
 async function deleteRef() {
   if (!ref.value) return
-  const yes = await ask(`Delete reference @${ref.value._key}?`, { title: 'Confirm Delete', kind: 'warning' })
+  const yes = await ask(t('Delete reference @{key}?', { key: ref.value._key }), { title: t('Confirm Delete'), kind: 'warning' })
   if (yes) {
     referencesStore.removeReference(ref.value._key)
     // Tab auto-closes via the watcher above
