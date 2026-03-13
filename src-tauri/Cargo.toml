@@ -5,7 +5,11 @@ edition = "2021"
 
 [lib]
 name = "altals_lib"
-crate-type = ["lib", "cdylib", "staticlib"]
+crate-type = ["lib", "cdylib"]
+
+[profile.dev]
+debug = 1
+incremental = false
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
