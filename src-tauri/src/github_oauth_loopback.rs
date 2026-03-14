@@ -12,6 +12,7 @@ use url::Url;
 use uuid::Uuid;
 
 const LOOPBACK_TIMEOUT: Duration = Duration::from_secs(5 * 60);
+const LOOPBACK_COMPLETION_GRACE: Duration = Duration::from_secs(8);
 const SESSION_NOT_FOUND_ERROR: &str = "GitHub loopback callback expired. Please try connecting again.";
 
 #[derive(Default)]
@@ -146,16 +147,22 @@ fn run_loopback_listener(
     session_id: String,
     expires_at: Instant,
 ) {
+    let mut completion_deadline = None;
+
     loop {
-        if Instant::now() >= expires_at {
-            store_loopback_result(
-                &sessions,
-                &session_id,
-                GitHubOAuthLoopbackResult {
-                    token: None,
-                    error: Some("GitHub loopback timed out".into()),
-                },
-            );
+        let now = Instant::now();
+        let active_deadline = completion_deadline.unwrap_or(expires_at);
+        if now >= active_deadline {
+            if completion_deadline.is_none() {
+                store_loopback_result(
+                    &sessions,
+                    &session_id,
+                    GitHubOAuthLoopbackResult {
+                        token: None,
+                        error: Some("GitHub loopback timed out".into()),
+                    },
+                );
+            }
             return;
         }
 
@@ -163,8 +170,11 @@ fn run_loopback_listener(
             Ok((mut stream, _)) => {
                 if let Some(result) = read_loopback_request(&mut stream, &session_id) {
                     write_loopback_response(&mut stream, result.error.is_none());
-                    store_loopback_result(&sessions, &session_id, result);
-                    return;
+                    if completion_deadline.is_none() {
+                        store_loopback_result(&sessions, &session_id, result);
+                        completion_deadline = Some(Instant::now() + LOOPBACK_COMPLETION_GRACE);
+                    }
+                    continue;
                 }
 
                 write_not_found_response(&mut stream);

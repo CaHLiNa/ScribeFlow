@@ -84,6 +84,8 @@ function buildLoopbackHtml(url, title, message) {
   <script>
     const target = ${JSON.stringify(url)}
     let attempts = 0
+    let delivered = false
+    let topLevelNavigated = false
 
     function withCacheBust(urlValue) {
       const next = new URL(urlValue)
@@ -91,8 +93,18 @@ function buildLoopbackHtml(url, title, message) {
       return next.toString()
     }
 
+    function markDelivered() {
+      delivered = true
+    }
+
+    function navigateTopLevel() {
+      if (delivered || topLevelNavigated) return
+      topLevelNavigated = true
+      window.location.assign(withCacheBust(target))
+    }
+
     function deliverToLoopback() {
-      if (attempts >= 6) return
+      if (attempts >= 6 || delivered) return
       attempts += 1
 
       const nextTarget = withCacheBust(target)
@@ -103,7 +115,9 @@ function buildLoopbackHtml(url, title, message) {
           mode: 'no-cors',
           cache: 'no-store',
           credentials: 'omit',
-        }).catch(() => {})
+        })
+          .then(() => { markDelivered() })
+          .catch(() => {})
       } catch {}
 
       try {
@@ -118,6 +132,7 @@ function buildLoopbackHtml(url, title, message) {
         const iframe = document.createElement('iframe')
         iframe.style.display = 'none'
         iframe.src = nextTarget
+        iframe.onload = () => { markDelivered() }
         document.body.appendChild(iframe)
         setTimeout(() => iframe.remove(), 5000)
       } catch {}
@@ -126,8 +141,9 @@ function buildLoopbackHtml(url, title, message) {
     deliverToLoopback()
     setTimeout(deliverToLoopback, 250)
     setTimeout(deliverToLoopback, 1000)
+    setTimeout(navigateTopLevel, 1500)
     setTimeout(deliverToLoopback, 2500)
-    setTimeout(deliverToLoopback, 5000)
+    setTimeout(navigateTopLevel, 3500)
   </script>
 </body>
 </html>`

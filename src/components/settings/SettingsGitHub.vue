@@ -239,6 +239,21 @@ function getGitHubAuthTransport() {
   return import.meta.env.DEV ? 'loopback' : 'deep-link'
 }
 
+let nativeWindowHandle = null
+
+async function focusAltalsWindow() {
+  if (typeof window === 'undefined' || !window.__TAURI_INTERNALS__) return
+  try {
+    if (!nativeWindowHandle) {
+      const { getCurrentWindow } = await import('@tauri-apps/api/window')
+      nativeWindowHandle = getCurrentWindow()
+    }
+
+    await nativeWindowHandle.show().catch(() => {})
+    await nativeWindowHandle.setFocus().catch(() => {})
+  } catch {}
+}
+
 const repoDisplayName = computed(() => {
   const url = workspace.remoteUrl
   const match = url.match(/github\.com[/:]([^/]+\/[^/.]+)/)
@@ -325,6 +340,7 @@ async function handleConnect() {
 
     if (tokenData?.token) {
       await workspace.connectGitHub(tokenData)
+      await focusAltalsWindow()
     } else {
       error.value = t('Connection timed out. Please try again.')
     }
