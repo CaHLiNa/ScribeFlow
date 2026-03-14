@@ -2,6 +2,7 @@ mod app_dirs;
 mod chat;
 mod fs_commands;
 mod git;
+mod github_oauth_loopback;
 mod kernel;
 mod latex;
 mod model_sync;
@@ -357,6 +358,7 @@ pub fn run() {
         .manage(pty::PtyState::default())
         .manage(fs_commands::WatcherState::default())
         .manage(chat::ChatState::default())
+        .manage(github_oauth_loopback::GitHubOAuthLoopbackState::default())
         .manage(kernel::KernelState::default())
         .manage(latex::LatexState::default())
         .manage(pdf_translate::PdfTranslateState::default())
@@ -400,6 +402,8 @@ pub fn run() {
             git::git_remote_add,
             git::git_remote_get_url,
             git::git_remote_remove,
+            github_oauth_loopback::github_oauth_start_loopback,
+            github_oauth_loopback::github_oauth_poll_loopback,
             git::git_push,
             git::git_push_branch,
             git::git_fetch,

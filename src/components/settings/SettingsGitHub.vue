@@ -235,7 +235,8 @@ function isLocalhostOrigin(value = '') {
 }
 
 function getGitHubAuthTransport() {
-  return isLocalhostOrigin(githubAuthOrigin.value) ? 'poll' : 'deep-link'
+  if (isLocalhostOrigin(githubAuthOrigin.value)) return 'poll'
+  return import.meta.env.DEV ? 'loopback' : 'deep-link'
 }
 
 const repoDisplayName = computed(() => {
@@ -286,6 +287,7 @@ async function handleConnect() {
   error.value = ''
   loading.value = true
   let deepLinkWaiter = null
+  let loopbackWaiter = null
   try {
     if (!githubAuthOrigin.value) {
       error.value = t('GitHub sign-in is not configured in this build yet. Please use a release with a configured auth service, or connect with a Personal Access Token.')
@@ -299,17 +301,27 @@ async function handleConnect() {
     crypto.getRandomValues(arr)
     const state = Array.from(arr, b => b.toString(16).padStart(2, '0')).join('')
     const transport = getGitHubAuthTransport()
+    let returnTo = ''
 
     if (transport === 'deep-link') {
       const { createGitHubAuthDeepLinkWaiter } = await import('../../services/githubAuthDeepLink')
       deepLinkWaiter = await createGitHubAuthDeepLinkWaiter(state)
+    } else if (transport === 'loopback') {
+      const { createGitHubAuthLoopbackWaiter } = await import('../../services/githubAuthLoopback')
+      loopbackWaiter = await createGitHubAuthLoopbackWaiter()
+      returnTo = loopbackWaiter.returnTo
     }
 
-    await open(`${githubAuthOrigin.value}/api/v1/auth/github/connect?state=${state}&transport=${transport}`)
+    const params = new URLSearchParams({ state, transport })
+    if (returnTo) params.set('return_to', returnTo)
+
+    await open(`${githubAuthOrigin.value}/api/v1/auth/github/connect?${params.toString()}`)
 
     const tokenData = transport === 'deep-link'
       ? await deepLinkWaiter?.promise
-      : await pollForGitHubToken(state)
+      : transport === 'loopback'
+        ? await loopbackWaiter?.promise
+        : await pollForGitHubToken(state)
 
     if (tokenData?.token) {
       await workspace.connectGitHub(tokenData)
@@ -318,6 +330,7 @@ async function handleConnect() {
     }
   } catch (e) {
     deepLinkWaiter?.cancel?.()
+    loopbackWaiter?.cancel?.()
     console.error('[github] Connect failed:', e)
     error.value = String(e.message || e)
   }

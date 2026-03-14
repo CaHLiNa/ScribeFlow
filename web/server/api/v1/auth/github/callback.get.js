@@ -35,6 +35,14 @@ function buildDeepLinkUrl({ state, token, error = '' }) {
   return `altals://auth/github?${params.toString()}`
 }
 
+function buildLoopbackReturnUrl(baseUrl, { state, token, error = '' }) {
+  const url = new URL(baseUrl)
+  url.searchParams.set('state', state)
+  if (token) url.searchParams.set('token', token)
+  if (error) url.searchParams.set('error', error)
+  return url.toString()
+}
+
 function buildDeepLinkHtml(url, title, message) {
   const safeUrl = url.replace(/&/g, '&amp;')
   return `<!DOCTYPE html>
@@ -52,6 +60,74 @@ function buildDeepLinkHtml(url, title, message) {
     const target = ${JSON.stringify(url)}
     window.location.replace(target)
     setTimeout(() => { window.location.href = target }, 800)
+  </script>
+</body>
+</html>`
+}
+
+function buildLoopbackHtml(url, title, message) {
+  const safeUrl = url.replace(/&/g, '&amp;')
+  return `<!DOCTYPE html>
+<html>
+<head><title>${escapeHtml(title)}</title></head>
+<body style="font-family: -apple-system, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #1a1b26; color: #c0caf5;">
+  <div style="text-align: center; max-width: 460px; padding: 24px;">
+    <h2 style="margin: 0 0 12px;">${escapeHtml(title)}</h2>
+    <p style="margin: 0 0 18px; line-height: 1.5;">${escapeHtml(message)}</p>
+    <p style="margin: 0 0 20px; line-height: 1.5; color: #a9b1d6;">
+      Altals should finish connecting in a moment. If it does not, click the button below once.
+    </p>
+    <a href="${safeUrl}" style="display: inline-block; padding: 10px 16px; border-radius: 999px; background: #9ece6a; color: #1a1b26; text-decoration: none; font-weight: 600;">
+      Retry Local Callback
+    </a>
+  </div>
+  <script>
+    const target = ${JSON.stringify(url)}
+    let attempts = 0
+
+    function withCacheBust(urlValue) {
+      const next = new URL(urlValue)
+      next.searchParams.set('_ts', String(Date.now()))
+      return next.toString()
+    }
+
+    function deliverToLoopback() {
+      if (attempts >= 6) return
+      attempts += 1
+
+      const nextTarget = withCacheBust(target)
+
+      try {
+        fetch(nextTarget, {
+          method: 'GET',
+          mode: 'no-cors',
+          cache: 'no-store',
+          credentials: 'omit',
+        }).catch(() => {})
+      } catch {}
+
+      try {
+        const img = new Image()
+        img.style.display = 'none'
+        img.src = nextTarget
+        document.body.appendChild(img)
+        setTimeout(() => img.remove(), 5000)
+      } catch {}
+
+      try {
+        const iframe = document.createElement('iframe')
+        iframe.style.display = 'none'
+        iframe.src = nextTarget
+        document.body.appendChild(iframe)
+        setTimeout(() => iframe.remove(), 5000)
+      } catch {}
+    }
+
+    deliverToLoopback()
+    setTimeout(deliverToLoopback, 250)
+    setTimeout(deliverToLoopback, 1000)
+    setTimeout(deliverToLoopback, 2500)
+    setTimeout(deliverToLoopback, 5000)
   </script>
 </body>
 </html>`
@@ -78,7 +154,7 @@ export default defineEventHandler(async (event) => {
     return { error: 'Invalid or expired OAuth state. Please try connecting again.' }
   }
 
-  const { originalState, transport } = verifiedState
+  const { originalState, transport, returnTo } = verifiedState
 
   if (githubError) {
     const message = String(githubErrorDescription || githubError)
@@ -87,6 +163,15 @@ export default defineEventHandler(async (event) => {
       setHeader(event, 'Content-Type', 'text/html')
       return buildDeepLinkHtml(
         buildDeepLinkUrl({ state: originalState, error: message }),
+        'GitHub Authorization Canceled',
+        'Return to Altals to retry the connection.'
+      )
+    }
+    if (transport === 'loopback' && returnTo) {
+      setHeader(event, 'Cache-Control', 'no-store')
+      setHeader(event, 'Content-Type', 'text/html')
+      return buildLoopbackHtml(
+        buildLoopbackReturnUrl(returnTo, { state: originalState, error: message }),
         'GitHub Authorization Canceled',
         'Return to Altals to retry the connection.'
       )
@@ -144,6 +229,15 @@ export default defineEventHandler(async (event) => {
     setHeader(event, 'Content-Type', 'text/html')
     return buildDeepLinkHtml(
       buildDeepLinkUrl({ state: originalState, token: ghToken }),
+      'GitHub Connected',
+      'Altals is ready to finish connecting your GitHub account.'
+    )
+  }
+  if (transport === 'loopback' && returnTo) {
+    setHeader(event, 'Cache-Control', 'no-store')
+    setHeader(event, 'Content-Type', 'text/html')
+    return buildLoopbackHtml(
+      buildLoopbackReturnUrl(returnTo, { state: originalState, token: ghToken }),
       'GitHub Connected',
       'Altals is ready to finish connecting your GitHub account.'
     )

@@ -52,14 +52,18 @@ Required desktop env for OAuth:
 
 - `VITE_GITHUB_AUTH_ORIGIN`
 
+The repo root `.env` is gitignored and can hold your default local development value.
+
 Example:
 
 ```bash
-VITE_GITHUB_AUTH_ORIGIN=https://<your-project>.vercel.app npm run tauri dev
+printf '\nVITE_GITHUB_AUTH_ORIGIN=https://altals.vercel.app\n' >> .env
+npm run tauri dev
 ```
 
 Desktop development and release builds both use `VITE_GITHUB_AUTH_ORIGIN`.
-When this origin is public, GitHub returns through the `altals://` deep link.
+When this origin is public, release builds return through the `altals://` deep link.
+`npm run tauri dev` uses a local loopback callback so public OAuth also works during development.
 Use `http://localhost:3000` only if you intentionally self-host the bridge locally and point the app at it.
 
 ## Public GitHub login
