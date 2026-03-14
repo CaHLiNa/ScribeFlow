@@ -124,6 +124,9 @@ const citPalette = reactive({
   groupTo: 0,
 })
 
+const TYPST_CITATION_RE = /@([a-zA-Z][\w.-]*)/g
+const TYPST_CITATION_GROUP_RE = /@[a-zA-Z][\w.-]*(?:\s+@[a-zA-Z][\w.-]*)*/g
+
 function openCitationPaletteAtSelection(editorView = view, options = {}) {
   if (!editorView) return false
 
@@ -169,16 +172,17 @@ function onCitInsert({ keys, stayOpen, latexCommand }) {
     // Transition to edit mode: find the just-inserted citation group
     const cursor = view.state.selection.main.head
     const line = view.state.doc.lineAt(cursor)
-    CITATION_GROUP_RE.lastIndex = 0
+    const matcher = isTyp ? TYPST_CITATION_GROUP_RE : CITATION_GROUP_RE
+    matcher.lastIndex = 0
     let match
-    while ((match = CITATION_GROUP_RE.exec(line.text)) !== null) {
+    while ((match = matcher.exec(line.text)) !== null) {
       const gFrom = line.from + match.index
       const gTo = gFrom + match[0].length
       if (cursor >= gFrom && cursor <= gTo) {
         citPalette.mode = 'edit'
         citPalette.groupFrom = gFrom
         citPalette.groupTo = gTo
-        citPalette.cites = parseCitationGroup(match[0])
+        citPalette.cites = isTyp ? parseTypstCitationGroup(match[0]) : parseCitationGroup(match[0])
         citPalette.query = ''
         return
       }
@@ -197,6 +201,18 @@ function onCitUpdate({ cites }) {
     const keys = cites.map(c => c.key)
     const cmd = citPalette.latexCommand || 'cite'
     const text = `\\${cmd}{${keys.join(', ')}}`
+    view.dispatch({
+      changes: { from: citPalette.groupFrom, to: citPalette.groupTo, insert: text },
+    })
+    citPalette.groupTo = citPalette.groupFrom + text.length
+  } else if (isTyp) {
+    if (cites.length === 0) {
+      view.dispatch({
+        changes: { from: citPalette.groupFrom, to: citPalette.groupTo, insert: '' },
+      })
+      return
+    }
+    const text = cites.map(c => `@${c.key}`).join(' ')
     view.dispatch({
       changes: { from: citPalette.groupFrom, to: citPalette.groupTo, insert: text },
     })
@@ -243,6 +259,16 @@ function parseCitationGroup(text) {
     const afterKey = part.substring(part.indexOf(keyMatch[0]) + keyMatch[0].length).replace(/^[\s,]+/, '')
     const prefix = part.substring(0, part.indexOf(keyMatch[0])).trim()
     cites.push({ key, locator: afterKey, prefix })
+  }
+  return cites
+}
+
+function parseTypstCitationGroup(text) {
+  TYPST_CITATION_RE.lastIndex = 0
+  const cites = []
+  let match
+  while ((match = TYPST_CITATION_RE.exec(text)) !== null) {
+    cites.push({ key: match[1], locator: '', prefix: '' })
   }
   return cites
 }
@@ -775,6 +801,10 @@ onMounted(async () => {
     editorContainer.value.addEventListener('click', handleLatexCitationClick)
   }
 
+  if (isTyp) {
+    editorContainer.value.addEventListener('click', handleTypstCitationClick)
+  }
+
   // Comment-click handler (gutter dot + range clicks)
   editorContainer.value.addEventListener('comment-click', handleCommentClick)
 
@@ -982,6 +1012,40 @@ function handleLatexCitationClick(event) {
       citPalette.cites = cites
       citPalette.query = ''
       citPalette.latexCommand = cmdName
+      citPalette.insideBrackets = true
+      event.preventDefault()
+      event.stopPropagation()
+      return
+    }
+  }
+}
+
+function handleTypstCitationClick(event) {
+  if (!view) return
+  if (event.metaKey || event.ctrlKey) return
+
+  const pos = view.posAtCoords({ x: event.clientX, y: event.clientY })
+  if (pos === null) return
+
+  const line = view.state.doc.lineAt(pos)
+
+  TYPST_CITATION_GROUP_RE.lastIndex = 0
+  let match
+  while ((match = TYPST_CITATION_GROUP_RE.exec(line.text)) !== null) {
+    const mFrom = line.from + match.index
+    const mTo = mFrom + match[0].length
+    if (pos >= mFrom && pos < mTo) {
+      const cites = parseTypstCitationGroup(match[0])
+      const coords = view.coordsAtPos(mFrom)
+      citPalette.show = true
+      citPalette.mode = 'edit'
+      citPalette.x = event.clientX
+      citPalette.y = (coords?.bottom ?? event.clientY) + 2
+      citPalette.groupFrom = mFrom
+      citPalette.groupTo = mTo
+      citPalette.cites = cites
+      citPalette.query = ''
+      citPalette.latexCommand = null
       citPalette.insideBrackets = true
       event.preventDefault()
       event.stopPropagation()
@@ -1283,6 +1347,12 @@ onUnmounted(() => {
   if (isMd) {
     editorContainer.value?.removeEventListener('click', handleWikiLinkClick)
     editorContainer.value?.removeEventListener('click', handleCitationClick)
+  }
+  if (isTex) {
+    editorContainer.value?.removeEventListener('click', handleLatexCitationClick)
+  }
+  if (isTyp) {
+    editorContainer.value?.removeEventListener('click', handleTypstCitationClick)
   }
   if (isTex && backwardSyncHandler) {
     window.removeEventListener('latex-backward-sync', backwardSyncHandler)

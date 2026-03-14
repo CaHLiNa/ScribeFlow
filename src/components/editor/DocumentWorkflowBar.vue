@@ -43,7 +43,6 @@
       <button v-else class="workflow-primary-btn" @click="$emit('primary-action')">
         {{ primaryLabel }}
       </button>
-
       <button
         v-if="uiState.kind !== 'markdown' && showPreviewButton"
         class="workflow-secondary-btn"

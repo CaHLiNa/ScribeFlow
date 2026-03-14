@@ -12,23 +12,30 @@
       </div>
 
 
-      <div v-else-if="headings.length === 0" class="px-3 py-3 ui-text-xs" style="color: var(--fg-muted);">
+      <div v-else-if="outlineItems.length === 0" class="px-3 py-3 ui-text-xs" style="color: var(--fg-muted);">
         {{ t('No headings') }}
       </div>
       <div v-else class="flex-1 overflow-y-auto py-1">
         <div
-          v-for="(h, i) in headings"
+          v-for="(item, i) in outlineItems"
           :key="i"
           class="flex items-center py-0.5 px-2 cursor-pointer select-none rounded-sm hover:bg-[var(--bg-hover)]"
-          :class="{ 'bg-[var(--bg-hover)]': i === activeHeadingIndex }"
+          :class="{ 'bg-[var(--bg-hover)]': i === activeOutlineIndex }"
           :style="{
-            paddingLeft: (h.level - 1) * 12 + 8 + 'px',
-            color: i === activeHeadingIndex ? 'var(--fg-primary)' : 'var(--fg-secondary)',
+            paddingLeft: (item.level - 1) * 12 + 8 + 'px',
+            color: i === activeOutlineIndex ? 'var(--fg-primary)' : 'var(--fg-secondary)',
             fontSize: 'var(--ui-font-size)',
           }"
-          @click="navigateToHeading(h)"
+          @click="navigateToOutlineItem(item)"
         >
-          <span class="truncate">{{ h.text }}</span>
+          <span
+            v-if="item.kind && item.kind !== 'heading'"
+            class="shrink-0 mr-2 uppercase tracking-wide"
+            style="color: var(--fg-muted); font-size: 11px; font-weight: 600;"
+          >
+            {{ getOutlineKindLabel(item.kind) }}
+          </span>
+          <span class="truncate">{{ item.text }}</span>
         </div>
       </div>
     
@@ -36,11 +43,12 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { computed } from 'vue'
 import { useEditorStore } from '../../stores/editor'
 import { useFilesStore } from '../../stores/files'
 import { useLinksStore, parseHeadings } from '../../stores/links'
 import { isMarkdown, isLatex, isTypst, getViewerType } from '../../utils/fileTypes'
+import { parseTypstOutlineItems } from '../../editor/typstSupport/utils'
 import { useI18n } from '../../i18n'
 
 const props = defineProps({
@@ -73,7 +81,7 @@ const fileType = computed(() => {
 const hasOutlineSupport = computed(() => fileType.value !== null)
 
 // Extract headings based on file type
-const headings = computed(() => {
+const outlineItems = computed(() => {
   const path = activeFile.value
   if (!path || !fileType.value) return []
 
@@ -98,7 +106,7 @@ const headings = computed(() => {
   if (ft === 'typst') {
     const content = filesStore.fileContents[path]
     if (!content) return []
-    return parseTypstHeadings(content)
+    return parseTypstOutlineItems(content)
   }
 
   if (ft === 'notebook') {
@@ -116,15 +124,15 @@ const headings = computed(() => {
 })
 
 // Current heading highlight (for CM6 files)
-const activeHeadingIndex = computed(() => {
+const activeOutlineIndex = computed(() => {
   const ft = fileType.value
   if (!ft || ft === 'docx') return -1
   const offset = editorStore.cursorOffset
   if (offset == null) return -1
 
   let lastIdx = -1
-  for (let i = 0; i < headings.value.length; i++) {
-    if (headings.value[i].offset <= offset) {
+  for (let i = 0; i < outlineItems.value.length; i++) {
+    if (outlineItems.value[i].offset <= offset) {
       lastIdx = i
     } else {
       break
@@ -150,16 +158,6 @@ function parseLatexHeadings(content) {
     })
   }
   return result
-}
-
-function parseTypstHeadings(content) {
-  const headings = []
-  const re = /^(={1,6})\s+(.+)$/gm
-  let m
-  while ((m = re.exec(content)) !== null) {
-    headings.push({ text: m[2].trim(), level: m[1].length, offset: m.index })
-  }
-  return headings
 }
 
 function parseNotebookHeadings(content) {
@@ -213,7 +211,7 @@ function parseDocxHeadings(path) {
 
 // --- Navigation ---
 
-function navigateToHeading(heading) {
+function navigateToOutlineItem(item) {
   const path = activeFile.value
   if (!path) return
 
@@ -223,7 +221,7 @@ function navigateToHeading(heading) {
     // Find CM6 editor view for the active pane
     const view = editorStore.getEditorView(editorStore.activePaneId, path)
     if (!view) return
-    const pos = Math.min(heading.offset, view.state.doc.length)
+    const pos = Math.min(item.offset, view.state.doc.length)
     view.dispatch({
       selection: { anchor: pos },
       effects: [
@@ -236,9 +234,9 @@ function navigateToHeading(heading) {
   }
 
   if (ft === 'notebook') {
-    if (heading.cellIndex != null) {
+    if (item.cellIndex != null) {
       window.dispatchEvent(new CustomEvent('notebook-scroll-to-cell', {
-        detail: { path, cellIndex: heading.cellIndex },
+        detail: { path, cellIndex: item.cellIndex },
       }))
     }
   }
@@ -248,12 +246,12 @@ function navigateToHeading(heading) {
     if (!superdoc?.activeEditor) return
     try {
       // Set PM selection at heading position
-      superdoc.activeEditor.commands.setTextSelection(heading.offset)
+      superdoc.activeEditor.commands.setTextSelection(item.offset)
 
       // Scroll visible painted layer — text-search approach for DOCX navigation
       const wrapper = document.querySelector('.docx-editor .overflow-auto')
       if (!wrapper) return
-      const needle = (heading.text || '').replace(/\s+/g, ' ').trim().toLowerCase()
+      const needle = (item.text || '').replace(/\s+/g, ' ').trim().toLowerCase()
       if (needle) {
         const lines = wrapper.querySelectorAll('.superdoc-line')
         for (const line of lines) {
@@ -271,5 +269,12 @@ function navigateToHeading(heading) {
       }, 100)
     } catch { /* ignore */ }
   }
+}
+
+function getOutlineKindLabel(kind) {
+  if (kind === 'figure') return 'Fig'
+  if (kind === 'table') return 'Tbl'
+  if (kind === 'label') return 'Lbl'
+  return ''
 }
 </script>
