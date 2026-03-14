@@ -1,40 +1,47 @@
 <template>
   <Teleport to="body">
     <div v-if="visible" class="settings-overlay" @click.self="$emit('close')">
-      <div class="settings-modal">
-        <!-- Left nav -->
-        <div class="settings-nav">
-          <div class="settings-nav-header">
-            {{ t('Settings') }}
-            <button class="settings-close" @click="$emit('close')">
-              <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M1 1l8 8M9 1L1 9"/></svg>
-            </button>
+      <div ref="modalRef" class="settings-modal" :style="modalStyle">
+        <div class="settings-titlebar" @mousedown="startModalDrag">
+          <div class="settings-titlebar-copy">
+            <span class="settings-titlebar-eyebrow">{{ t('Settings') }}</span>
+            <span class="settings-titlebar-title">{{ activeSectionLabel }}</span>
           </div>
-          <template v-for="(item, i) in sections" :key="item.id || `sep-${i}`">
-            <div v-if="item.separator" class="settings-nav-separator"></div>
-            <button
-              v-else
-              class="settings-nav-item"
-              :class="{ active: activeSection === item.id }"
-              @click="activeSection = item.id"
-            >
-              <component :is="item.icon" :size="16" :stroke-width="1.5" />
-              {{ item.label }}
-            </button>
-          </template>
+          <button class="settings-close" type="button" @mousedown.stop @click="$emit('close')">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M1 1l8 8M9 1L1 9"/></svg>
+          </button>
         </div>
 
-        <!-- Main content -->
-        <div class="settings-content">
-          <SettingsTheme v-if="activeSection === 'theme'" />
-          <SettingsEditor v-if="activeSection === 'editor'" />
-          <SettingsModels v-if="activeSection === 'models'" />
-          <SettingsTools v-if="activeSection === 'tools'" />
-          <SettingsPdfTranslate v-if="activeSection === 'pdf-translate'" />
-          <SettingsGitHub v-if="activeSection === 'github'" />
-          <SettingsEnvironment v-if="activeSection === 'system'" />
-          <SettingsUsage v-if="activeSection === 'usage'" />
-          <SettingsUpdates v-if="activeSection === 'updates'" />
+        <div class="settings-shell">
+          <!-- Left nav -->
+          <div class="settings-nav">
+            <div class="settings-nav-header">{{ t('Settings') }}</div>
+            <template v-for="(item, i) in sections" :key="item.id || `sep-${i}`">
+              <div v-if="item.separator" class="settings-nav-separator"></div>
+              <button
+                v-else
+                class="settings-nav-item"
+                :class="{ active: activeSection === item.id }"
+                @click="activeSection = item.id"
+              >
+                <component :is="item.icon" :size="16" :stroke-width="1.5" />
+                {{ item.label }}
+              </button>
+            </template>
+          </div>
+
+          <!-- Main content -->
+          <div class="settings-content">
+            <SettingsTheme v-if="activeSection === 'theme'" />
+            <SettingsEditor v-if="activeSection === 'editor'" />
+            <SettingsModels v-if="activeSection === 'models'" />
+            <SettingsTools v-if="activeSection === 'tools'" />
+            <SettingsPdfTranslate v-if="activeSection === 'pdf-translate'" />
+            <SettingsGitHub v-if="activeSection === 'github'" />
+            <SettingsEnvironment v-if="activeSection === 'system'" />
+            <SettingsUsage v-if="activeSection === 'usage'" />
+            <SettingsUpdates v-if="activeSection === 'updates'" />
+          </div>
         </div>
       </div>
     </div>
@@ -42,7 +49,7 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { IconPalette, IconEdit, IconKey, IconTool, IconCpu, IconChartBar, IconBrandGithub, IconRefresh, IconFileTypePdf } from '@tabler/icons-vue'
 import SettingsTheme from './SettingsTheme.vue'
 import SettingsEditor from './SettingsEditor.vue'
@@ -62,12 +69,27 @@ const props = defineProps({
 defineEmits(['close'])
 
 const activeSection = ref('theme')
+const modalRef = ref(null)
+const modalPosition = ref({ x: 0, y: 0 })
 const { t } = useI18n()
+let dragState = null
 
-watch(() => props.visible, (v) => {
+const modalStyle = computed(() => ({
+  left: `${modalPosition.value.x}px`,
+  top: `${modalPosition.value.y}px`,
+}))
+
+watch(() => props.visible, async (v) => {
   if (v && props.initialSection) {
     activeSection.value = props.initialSection
   }
+
+  if (v) {
+    await centerModal()
+    return
+  }
+
+  stopModalDrag()
 })
 
 const sections = [
@@ -83,6 +105,86 @@ const sections = [
   { id: 'usage', label: t('Usage'), icon: IconChartBar },
   { id: 'updates', label: t('Updates'), icon: IconRefresh },
 ]
+
+const activeSectionLabel = computed(() =>
+  sections.find(item => item.id === activeSection.value)?.label ?? t('Settings')
+)
+
+function clampModalPosition(x, y) {
+  const rect = modalRef.value?.getBoundingClientRect()
+  const width = rect?.width ?? 760
+  const height = rect?.height ?? 640
+  const margin = 16
+  const maxX = Math.max(margin, window.innerWidth - width - margin)
+  const maxY = Math.max(margin, window.innerHeight - height - margin)
+
+  return {
+    x: Math.min(Math.max(x, margin), maxX),
+    y: Math.min(Math.max(y, margin), maxY),
+  }
+}
+
+async function centerModal() {
+  await nextTick()
+  if (!modalRef.value) return
+
+  const rect = modalRef.value.getBoundingClientRect()
+  modalPosition.value = clampModalPosition(
+    (window.innerWidth - rect.width) / 2,
+    (window.innerHeight - rect.height) / 2
+  )
+}
+
+function startModalDrag(event) {
+  if (event.button !== 0 || !modalRef.value) return
+
+  const interactiveTarget = event.target.closest('button, input, textarea, select, a')
+  if (interactiveTarget) return
+
+  const rect = modalRef.value.getBoundingClientRect()
+  dragState = {
+    offsetX: event.clientX - rect.left,
+    offsetY: event.clientY - rect.top,
+  }
+
+  document.body.classList.add('settings-dragging')
+  document.addEventListener('mousemove', onModalDragMove)
+  document.addEventListener('mouseup', stopModalDrag)
+  event.preventDefault()
+}
+
+function onModalDragMove(event) {
+  if (!dragState) return
+
+  modalPosition.value = clampModalPosition(
+    event.clientX - dragState.offsetX,
+    event.clientY - dragState.offsetY
+  )
+}
+
+function stopModalDrag() {
+  if (!dragState) return
+
+  dragState = null
+  document.body.classList.remove('settings-dragging')
+  document.removeEventListener('mousemove', onModalDragMove)
+  document.removeEventListener('mouseup', stopModalDrag)
+}
+
+function handleWindowResize() {
+  if (!props.visible) return
+
+  modalPosition.value = clampModalPosition(modalPosition.value.x, modalPosition.value.y)
+}
+
+onMounted(() => {
+  window.addEventListener('resize', handleWindowResize)
+})
+
+onBeforeUnmount(() => {
+  stopModalDrag()
+  window.removeEventListener('resize', handleWindowResize)
+})
 </script>
 
 <style scoped>
@@ -90,13 +192,11 @@ const sections = [
   position: fixed;
   inset: 0;
   z-index: 10000;
-  display: flex;
-  justify-content: center;
-  align-items: center;
   background: rgba(0, 0, 0, 0.6);
 }
 
 .settings-modal {
+  position: absolute;
   width: 760px;
   max-width: 90vw;
   height: 640px;
@@ -106,7 +206,51 @@ const sections = [
   border-radius: 10px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
   display: flex;
+  flex-direction: column;
   overflow: hidden;
+}
+
+.settings-titlebar {
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 12px 0 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-secondary);
+  user-select: none;
+  cursor: grab;
+}
+
+.settings-titlebar-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.settings-titlebar-eyebrow {
+  font-size: var(--ui-font-caption);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--fg-muted);
+}
+
+.settings-titlebar-title {
+  font-size: var(--ui-font-title);
+  font-weight: 600;
+  color: var(--fg-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.settings-shell {
+  flex: 1;
+  min-height: 0;
+  display: flex;
 }
 
 .settings-close {
@@ -121,6 +265,7 @@ const sections = [
   color: var(--fg-muted);
   cursor: pointer;
   padding: 0;
+  flex-shrink: 0;
 }
 
 .settings-close:hover {
@@ -136,12 +281,12 @@ const sections = [
   display: flex;
   flex-direction: column;
   gap: 2px;
+  background: var(--bg-secondary);
 }
 
 .settings-nav-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   font-size: var(--ui-font-caption);
   font-weight: 600;
   text-transform: uppercase;
@@ -183,6 +328,7 @@ const sections = [
 /* Main content */
 .settings-content {
   flex: 1;
+  min-width: 0;
   padding: 20px 24px;
   overflow-y: auto;
 }
@@ -418,5 +564,14 @@ const sections = [
 
 .settings-modal .settings-link:hover {
   text-decoration: underline;
+}
+
+body.settings-dragging,
+body.settings-dragging * {
+  user-select: none !important;
+}
+
+body.settings-dragging .settings-titlebar {
+  cursor: grabbing;
 }
 </style>
