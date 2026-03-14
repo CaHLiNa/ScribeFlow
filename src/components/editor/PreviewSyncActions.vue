@@ -22,13 +22,6 @@
       {{ t('Jump to Source') }}
     </button>
     <button
-      v-if="canToggleProblems"
-      class="workflow-action-btn"
-      @click="$emit('toggle-problems')"
-    >
-      {{ problemsExpanded ? t('Hide problems') : t('Show problems') }}
-    </button>
-    <button
       v-if="canViewLog"
       class="workflow-action-btn workflow-action-btn-accent"
       @click="$emit('view-log')"
@@ -45,12 +38,10 @@ defineProps({
   canRevealPreview: { type: Boolean, default: false },
   canJumpToPreview: { type: Boolean, default: false },
   canJumpToSource: { type: Boolean, default: false },
-  canToggleProblems: { type: Boolean, default: false },
   canViewLog: { type: Boolean, default: false },
-  problemsExpanded: { type: Boolean, default: false },
 })
 
-defineEmits(['reveal-preview', 'jump-preview', 'jump-source', 'toggle-problems', 'view-log'])
+defineEmits(['reveal-preview', 'jump-preview', 'jump-source', 'view-log'])
 
 const { t } = useI18n()
 </script>

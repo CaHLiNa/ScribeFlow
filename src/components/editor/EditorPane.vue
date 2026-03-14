@@ -36,22 +36,11 @@
       v-if="activeTab && workflowUiState"
       :ui-state="workflowUiState"
       :can-view-log="workflowCanViewLog"
-      :problems-expanded="workflowProblemsExpanded"
       :status-text="workflowStatusText"
       :status-tone="workflowStatusTone"
       @primary-action="handleWorkflowPrimaryAction"
       @reveal-preview="handleWorkflowRevealPreview"
       @create-pdf="handleExportPdf"
-      @toggle-problems="handleWorkflowToggleProblems"
-      @view-log="handleWorkflowViewLog"
-    />
-    <DocumentProblemsPanel
-      v-if="activeTab && workflowProblems.length > 0"
-      :problems="workflowProblems"
-      :expanded="workflowProblemsExpanded"
-      :can-view-log="workflowCanViewLog"
-      @toggle="handleWorkflowToggleProblems"
-      @focus-problem="handleWorkflowFocusProblem"
       @view-log="handleWorkflowViewLog"
     />
 
@@ -192,7 +181,6 @@ const LatexPdfViewer = defineAsyncComponent(() => import('./LatexPdfViewer.vue')
 const TypstPdfViewer = defineAsyncComponent(() => import('./TypstPdfViewer.vue'))
 const MarkdownPreview = defineAsyncComponent(() => import('./MarkdownPreview.vue'))
 const DocumentWorkflowBar = defineAsyncComponent(() => import('./DocumentWorkflowBar.vue'))
-const DocumentProblemsPanel = defineAsyncComponent(() => import('./DocumentProblemsPanel.vue'))
 const ChatPanel = defineAsyncComponent(() => import('../chat/ChatPanel.vue'))
 const CommentMargin = defineAsyncComponent(() => import('../comments/CommentMargin.vue'))
 const CommentPanel = defineAsyncComponent(() => import('../comments/CommentPanel.vue'))
@@ -296,8 +284,6 @@ function handleCommentScrollTo(e) {
 const isActive = computed(() => editorStore.activePaneId === props.paneId)
 const viewerType = computed(() => props.activeTab ? getViewerType(props.activeTab) : null)
 const workflowUiState = computed(() => props.activeTab ? workflowStore.getUiStateForFile(props.activeTab) : null)
-const workflowProblems = computed(() => props.activeTab ? workflowStore.getProblemsForFile(props.activeTab) : [])
-const workflowProblemsExpanded = computed(() => props.activeTab ? workflowStore.isProblemPanelExpanded(props.activeTab) : false)
 const workflowCanViewLog = computed(() => {
   const kind = workflowUiState.value?.kind
   return kind === 'latex' || kind === 'typst'
@@ -336,7 +322,6 @@ const workflowStatusText = computed(() => {
 const workflowStatusTone = computed(() => {
   if (!workflowUiState.value) return 'muted'
   if (workflowUiState.value.phase === 'compiling' || workflowUiState.value.phase === 'rendering') return 'running'
-  if (workflowUiState.value.phase === 'error') return 'error'
   if (workflowUiState.value.phase === 'ready') return 'success'
   return 'muted'
 })
@@ -556,18 +541,9 @@ async function handleWorkflowRevealPreview() {
   })
 }
 
-function handleWorkflowToggleProblems() {
-  if (!props.activeTab) return
-  workflowStore.toggleProblemPanel(props.activeTab)
-}
-
 function handleWorkflowViewLog() {
   if (!props.activeTab) return
   workflowStore.openLogForFile(props.activeTab)
-}
-
-function handleWorkflowFocusProblem(problem) {
-  workflowStore.focusProblem(problem)
 }
 
 async function handleExportPdf(settingsOverride) {

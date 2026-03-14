@@ -65,7 +65,6 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
     previewBindings: {},
     markdownPreviewState: {},
     markdownPdfState: {},
-    problemPanelExpanded: {},
     _isReconciling: false,
     _lastTrigger: null,
   }),
@@ -145,21 +144,6 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
 
     isDetached(sourcePath) {
       return !!this.session.detachedSources[sourcePath]
-    },
-
-    setProblemPanelExpanded(sourcePath, expanded) {
-      this.problemPanelExpanded = {
-        ...this.problemPanelExpanded,
-        [sourcePath]: expanded,
-      }
-    },
-
-    toggleProblemPanel(sourcePath) {
-      this.setProblemPanelExpanded(sourcePath, !this.problemPanelExpanded[sourcePath])
-    },
-
-    isProblemPanelExpanded(sourcePath) {
-      return !!this.problemPanelExpanded[sourcePath]
     },
 
     setMarkdownPreviewState(sourcePath, state) {
@@ -466,7 +450,6 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
       this.previewBindings = {}
       this.markdownPreviewState = {}
       this.markdownPdfState = {}
-      this.problemPanelExpanded = {}
       this._isReconciling = false
       this._lastTrigger = null
     },

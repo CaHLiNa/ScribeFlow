@@ -4,17 +4,13 @@
       <span class="workflow-kind">{{ kindLabel }}</span>
       <span class="workflow-separator">·</span>
       <span class="workflow-preview">{{ previewLabel }}</span>
-      <span class="workflow-separator">·</span>
-      <span class="workflow-phase">{{ phaseLabel }}</span>
+      <template v-if="phaseLabel">
+        <span class="workflow-separator">·</span>
+        <span class="workflow-phase">{{ phaseLabel }}</span>
+      </template>
       <span v-if="statusText" class="workflow-status" :class="statusClass">
         <span class="workflow-status-dot"></span>
         {{ statusText }}
-      </span>
-      <span v-if="uiState.errorCount > 0" class="workflow-count workflow-count-error">
-        {{ t('Errors') }} {{ uiState.errorCount }}
-      </span>
-      <span v-if="uiState.warningCount > 0" class="workflow-count workflow-count-warning">
-        {{ t('Warnings') }} {{ uiState.warningCount }}
       </span>
     </div>
 
@@ -51,13 +47,6 @@
         {{ previewButtonLabel }}
       </button>
       <button
-        v-if="uiState.canShowProblems"
-        class="workflow-secondary-btn"
-        @click="$emit('toggle-problems')"
-      >
-        {{ problemsExpanded ? t('Hide problems') : t('Show problems') }}
-      </button>
-      <button
         v-if="canViewLog"
         class="workflow-secondary-btn workflow-secondary-btn-accent"
         @click="$emit('view-log')"
@@ -77,7 +66,6 @@ import { useI18n } from '../../i18n'
 const props = defineProps({
   uiState: { type: Object, required: true },
   canViewLog: { type: Boolean, default: false },
-  problemsExpanded: { type: Boolean, default: false },
   statusText: { type: String, default: '' },
   statusTone: { type: String, default: 'muted' },
 })
@@ -86,7 +74,6 @@ defineEmits([
   'primary-action',
   'reveal-preview',
   'create-pdf',
-  'toggle-problems',
   'view-log',
 ])
 
@@ -107,7 +94,7 @@ const previewLabel = computed(() => {
 const phaseLabel = computed(() => {
   if (props.uiState.phase === 'compiling') return t('Compiling...')
   if (props.uiState.phase === 'rendering') return t('Rendering...')
-  if (props.uiState.phase === 'error') return t('Errors')
+  if (props.uiState.phase === 'error') return ''
   if (props.uiState.phase === 'ready') return t('Ready')
   return t('Idle')
 })
@@ -163,20 +150,6 @@ const statusClass = computed(() => ({
 
 .workflow-separator {
   opacity: 0.45;
-}
-
-.workflow-count {
-  padding: 0 6px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-}
-
-.workflow-count-error {
-  color: var(--error);
-}
-
-.workflow-count-warning {
-  color: var(--warning);
 }
 
 .workflow-status {
