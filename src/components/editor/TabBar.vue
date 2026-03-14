@@ -111,154 +111,6 @@
       </button>
     </div>
 
-    <!-- Markdown actions (for .md files) -->
-    <div v-if="showMarkdownButtons" class="flex items-center gap-0.5 px-1.5 shrink-0 border-r" style="border-color: var(--border);">
-      <button
-        class="h-6 px-2 flex items-center gap-1 rounded ui-text-xs hover:bg-[var(--bg-hover)]"
-        style="color: var(--accent);"
-        @click="$emit('preview-markdown')"
-        :title="t('Preview rendered markdown')"
-      >
-        <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-          <rect x="1" y="2" width="14" height="12" rx="1.5"/>
-          <path d="M8 2v12"/>
-          <path d="M10.5 7l1.5 1.5L10.5 10"/>
-        </svg>
-        {{ t('Preview') }}
-      </button>
-      <button
-        class="h-6 px-2 flex items-center gap-1 rounded ui-text-xs hover:bg-[var(--bg-hover)]"
-        style="color: var(--fg-muted);"
-        @click="$emit('export-pdf')"
-        :title="t('Create PDF')"
-      >
-        <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-          <rect x="2" y="1" width="12" height="14" rx="1.5"/>
-          <path d="M5 5h6M5 8h4"/>
-          <text x="5" y="13" font-size="4.5" fill="currentColor" stroke="none" font-weight="bold">PDF</text>
-        </svg>
-        {{ t('Create PDF') }}
-      </button>
-      <button
-        ref="pdfSettingsBtnEl"
-        class="h-6 w-5 flex items-center justify-center rounded ui-text-xs hover:bg-[var(--bg-hover)]"
-        style="color: var(--fg-muted);"
-        @click="togglePdfSettings"
-        :title="t('PDF export settings')"
-      >
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="3"/>
-          <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
-        </svg>
-      </button>
-      <PdfSettingsPopover
-        :visible="pdfSettingsOpen"
-        :anchorRect="pdfSettingsRect"
-        :settings="pdfCurrentSettings"
-        @close="pdfSettingsOpen = false"
-        @export="onPdfSettingsExport"
-      />
-    </div>
-
-    <!-- LaTeX actions (for .tex files) -->
-    <div v-if="showCompileButtons" class="flex items-center gap-1 px-1.5 shrink-0 border-r relative" style="border-color: var(--border);">
-      <!-- Status indicator -->
-      <span v-if="texStatus === 'compiling'" class="flex items-center gap-1 ui-text-xs" style="color: var(--fg-muted);">
-        <span class="tex-spinner"></span>
-        {{ texCompilingLabel }}
-      </span>
-      <span v-else-if="texStatus === 'success'" class="ui-text-xs" style="color: var(--success, #4ade80);">
-        ● {{ texDuration }}
-      </span>
-
-      <!-- Compile button -->
-      <button
-        class="h-6 px-2 flex items-center gap-1 rounded ui-text-xs hover:bg-[var(--bg-hover)]"
-        style="color: var(--success, #4ade80);"
-        @click="$emit('compile-tex')"
-        :disabled="texStatus === 'compiling'"
-        :title="t('Compile LaTeX')"
-      >
-        <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
-          <path d="M4 2l10 6-10 6V2z"/>
-        </svg>
-        {{ t('Compile') }}
-      </button>
-
-      <!-- Auto-compile toggle -->
-      <button
-        class="h-6 px-1.5 flex items-center gap-1 rounded ui-text-xs hover:bg-[var(--bg-hover)]"
-        :style="{ color: latexStore.autoCompile ? 'var(--success, #4ade80)' : 'var(--fg-muted)' }"
-        @click="latexStore.autoCompile = !latexStore.autoCompile"
-        :title="latexStore.autoCompile ? t('Auto-compile: ON (click to disable)') : t('Auto-compile: OFF (click to enable)')"
-      >
-        <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-          <path d="M14 8A6 6 0 1 1 8 2" />
-          <path d="M8 2v3l2.5-1.5" fill="none" />
-        </svg>
-        {{ t('Auto') }}
-      </button>
-
-      <button
-        class="h-6 px-2 flex items-center gap-1 rounded ui-text-xs hover:bg-[var(--bg-hover)]"
-        style="color: var(--accent);"
-        @click="$emit('preview-pdf')"
-        :title="t('Open PDF preview')"
-      >
-        <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-          <path d="M3 1.5h7l3 3V14a1 1 0 0 1-1 1H3.75a1 1 0 0 1-1-1V2.5a1 1 0 0 1 1-1Z"/>
-          <path d="M10 1.5V5h3"/>
-          <path d="M4.75 8.25h1.5a1.25 1.25 0 0 1 0 2.5h-1.5z"/>
-          <path d="M8 10.75v-2.5h1.2a1.25 1.25 0 0 1 0 2.5z"/>
-          <path d="M11.1 8.25h1.65"/>
-          <path d="M11.1 9.5h1.35"/>
-          <path d="M11.1 10.75h1.65"/>
-        </svg>
-        {{ t('PDF') }}
-      </button>
-    </div>
-
-    <!-- Typst actions (for .typ files) -->
-    <div v-if="showTypstCompileButtons" class="flex items-center gap-1 px-1.5 shrink-0 border-r relative" style="border-color: var(--border);">
-      <span v-if="typstStatus === 'compiling'" class="flex items-center gap-1 ui-text-xs" style="color: var(--fg-muted);">
-        <span class="tex-spinner"></span>
-        {{ t('Compiling...') }}
-      </span>
-      <span v-else-if="typstStatus === 'success'" class="ui-text-xs" style="color: var(--success, #4ade80);">
-        ● {{ typstDuration }}
-      </span>
-
-      <button
-        class="h-6 px-2 flex items-center gap-1 rounded ui-text-xs hover:bg-[var(--bg-hover)]"
-        style="color: var(--success, #4ade80);"
-        @click="$emit('compile-typst')"
-        :disabled="typstStatus === 'compiling'"
-        :title="t('Compile Typst')"
-      >
-        <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
-          <path d="M4 2l10 6-10 6V2z"/>
-        </svg>
-        {{ t('Compile') }}
-      </button>
-      <button
-        class="h-6 px-2 flex items-center gap-1 rounded ui-text-xs hover:bg-[var(--bg-hover)]"
-        style="color: var(--accent);"
-        @click="$emit('preview-pdf')"
-        :title="t('Open PDF preview')"
-      >
-        <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-          <path d="M3 1.5h7l3 3V14a1 1 0 0 1-1 1H3.75a1 1 0 0 1-1-1V2.5a1 1 0 0 1 1-1Z"/>
-          <path d="M10 1.5V5h3"/>
-          <path d="M4.75 8.25h1.5a1.25 1.25 0 0 1 0 2.5h-1.5z"/>
-          <path d="M8 10.75v-2.5h1.2a1.25 1.25 0 0 1 0 2.5z"/>
-          <path d="M11.1 8.25h1.65"/>
-          <path d="M11.1 9.5h1.35"/>
-          <path d="M11.1 10.75h1.65"/>
-        </svg>
-        {{ t('PDF') }}
-      </button>
-    </div>
-
     <!-- PDF translation actions -->
     <div v-if="showPdfTranslateButtons" class="flex items-center gap-1 px-1.5 shrink-0 border-r" style="border-color: var(--border);">
       <span
@@ -353,13 +205,10 @@
 import { ref, reactive, computed, watch, nextTick } from 'vue'
 import { useEditorStore } from '../../stores/editor'
 import { useReferencesStore } from '../../stores/references'
-import { useLatexStore } from '../../stores/latex'
-import { useTypstStore } from '../../stores/typst'
-import { isReferencePath, referenceKeyFromPath, isRunnable, isRmdOrQmd, isLatex, isMarkdown, isPreviewPath, isChatTab, getChatSessionId, isNewTab, getViewerType, isTypst } from '../../utils/fileTypes'
+import { isReferencePath, referenceKeyFromPath, isRunnable, isRmdOrQmd, isChatTab, getChatSessionId, isNewTab, getViewerType, isPreviewPath } from '../../utils/fileTypes'
 import { useCommentsStore } from '../../stores/comments'
 import { useChatStore } from '../../stores/chat'
 import { usePdfTranslateStore } from '../../stores/pdfTranslate'
-import PdfSettingsPopover from './PdfSettingsPopover.vue'
 import { modKey } from '../../platform'
 import { useI18n } from '../../i18n'
 
@@ -371,7 +220,6 @@ const props = defineProps({
 
 const emit = defineEmits(['select-tab', 'close-tab', 'split-vertical', 'split-horizontal', 'close-pane', 'run-code', 'run-file', 'render-document', 'compile-tex', 'compile-typst', 'preview-pdf', 'preview-markdown', 'export-pdf', 'translate-pdf', 'new-tab'])
 
-const typstStore = useTypstStore()
 const chatStore = useChatStore()
 const commentsStore = useCommentsStore()
 const pdfTranslateStore = usePdfTranslateStore()
@@ -388,33 +236,6 @@ const commentBadgeCount = computed(() => {
   return commentsStore.unresolvedCount(props.activeTab)
 })
 
-// PDF settings popover
-const pdfSettingsOpen = ref(false)
-const pdfSettingsBtnEl = ref(null)
-const pdfSettingsRect = ref(null)
-const pdfCurrentSettings = computed(() =>
-  props.activeTab ? typstStore.getSettings(props.activeTab) : {}
-)
-
-function togglePdfSettings() {
-  if (pdfSettingsOpen.value) {
-    pdfSettingsOpen.value = false
-    return
-  }
-  if (pdfSettingsBtnEl.value) {
-    pdfSettingsRect.value = pdfSettingsBtnEl.value.getBoundingClientRect()
-  }
-  pdfSettingsOpen.value = true
-}
-
-function onPdfSettingsExport(settings) {
-  if (props.activeTab) {
-    typstStore.setSettings(props.activeTab, settings)
-  }
-  pdfSettingsOpen.value = false
-  emit('export-pdf', settings)
-}
-
 function isChatStreaming(path) {
   if (!isChatTab(path)) return false
   const sid = getChatSessionId(path)
@@ -426,7 +247,6 @@ function isChatStreaming(path) {
 
 const showRunButtons = computed(() => props.activeTab && isRunnable(props.activeTab))
 const showRenderButton = computed(() => props.activeTab && isRmdOrQmd(props.activeTab))
-const showMarkdownButtons = computed(() => props.activeTab && isMarkdown(props.activeTab) && !isPreviewPath(props.activeTab))
 const showPdfTranslateButtons = computed(() => props.activeTab && getViewerType(props.activeTab) === 'pdf')
 const pdfTranslateTask = computed(() => props.activeTab ? pdfTranslateStore.latestTaskForInput(props.activeTab) : null)
 const pdfTranslateStatus = computed(() => {
@@ -447,42 +267,6 @@ const pdfTranslateStatusColor = computed(() => {
   if (status === 'failed') return 'var(--error)'
   if (status === 'canceled') return 'var(--fg-muted)'
   return 'var(--fg-muted)'
-})
-
-// LaTeX compile buttons
-const latexStore = useLatexStore()
-const showCompileButtons = computed(() => props.activeTab && isLatex(props.activeTab))
-const texState = computed(() => props.activeTab ? latexStore.stateForFile(props.activeTab) : null)
-const texStatus = computed(() => texState.value?.status || null)
-function latexEngineDisplayLabel() {
-  const backend = String(texState.value?.compiler_backend || '')
-  if (backend.includes('xelatex')) return 'XeLaTeX'
-  if (backend.includes('lualatex')) return 'LuaLaTeX'
-  if (backend.includes('pdflatex')) return 'pdfLaTeX'
-  if (backend.includes('tectonic')) return 'Tectonic'
-
-  if (latexStore.compilerPreference === 'tectonic') return 'Tectonic'
-  if (latexStore.enginePreference === 'xelatex') return 'XeLaTeX'
-  if (latexStore.enginePreference === 'lualatex') return 'LuaLaTeX'
-  if (latexStore.enginePreference === 'pdflatex') return 'pdfLaTeX'
-  return 'LaTeX'
-}
-const texEngineLabel = computed(() => latexEngineDisplayLabel())
-const texCompilingLabel = computed(() => `${texEngineLabel.value} ${t('Compiling...')}`)
-const texDuration = computed(() => {
-  const ms = texState.value?.durationMs
-  if (!ms) return t('Compiled')
-  if (ms < 1000) return `${ms}ms`
-  return `${(ms / 1000).toFixed(1)}s`
-})
-const showTypstCompileButtons = computed(() => props.activeTab && isTypst(props.activeTab))
-const typstState = computed(() => props.activeTab ? typstStore.stateForFile(props.activeTab) : null)
-const typstStatus = computed(() => typstState.value?.status || null)
-const typstDuration = computed(() => {
-  const ms = typstState.value?.durationMs
-  if (!ms) return t('Compiled')
-  if (ms < 1000) return `${ms}ms`
-  return `${(ms / 1000).toFixed(1)}s`
 })
 
 const editorStore = useEditorStore()

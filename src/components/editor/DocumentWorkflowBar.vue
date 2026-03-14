@@ -6,6 +6,10 @@
       <span class="workflow-preview">{{ previewLabel }}</span>
       <span class="workflow-separator">·</span>
       <span class="workflow-phase">{{ phaseLabel }}</span>
+      <span v-if="statusText" class="workflow-status" :class="statusClass">
+        <span class="workflow-status-dot"></span>
+        {{ statusText }}
+      </span>
       <span v-if="uiState.errorCount > 0" class="workflow-count workflow-count-error">
         {{ t('Errors') }} {{ uiState.errorCount }}
       </span>
@@ -15,40 +19,52 @@
     </div>
 
     <div class="workflow-controls">
-      <div v-if="uiState.kind === 'markdown'" class="workflow-toggle-group">
+      <template v-if="uiState.kind === 'markdown'">
         <button
-          class="workflow-toggle-btn"
-          :class="{ 'workflow-toggle-btn-active': uiState.previewKind === 'html' }"
-          @click="$emit('set-preview-kind', 'html')"
+          class="workflow-primary-btn"
+          @click="$emit('primary-action')"
         >
-          HTML
+          {{ t('Preview') }}
         </button>
         <button
-          class="workflow-toggle-btn"
-          :class="{ 'workflow-toggle-btn-active': uiState.previewKind === 'pdf' }"
-          @click="$emit('set-preview-kind', 'pdf')"
+          class="workflow-secondary-btn"
+          @click="$emit('reveal-preview')"
         >
           PDF
         </button>
-      </div>
+        <button
+          class="workflow-secondary-btn"
+          @click="$emit('create-pdf')"
+        >
+          {{ t('Create PDF') }}
+        </button>
+      </template>
 
-      <button class="workflow-primary-btn" @click="$emit('primary-action')">
+      <button v-else class="workflow-primary-btn" @click="$emit('primary-action')">
         {{ primaryLabel }}
       </button>
 
-      <PreviewSyncActions
-        :can-reveal-preview="uiState.canRevealPreview"
-        :can-jump-to-preview="uiState.forwardSync !== 'none'"
-        :can-jump-to-source="false"
-        :can-toggle-problems="uiState.canShowProblems"
-        :can-view-log="canViewLog"
-        :problems-expanded="problemsExpanded"
-        @reveal-preview="$emit('reveal-preview')"
-        @jump-preview="$emit('jump-preview')"
-        @jump-source="$emit('jump-source')"
-        @toggle-problems="$emit('toggle-problems')"
-        @view-log="$emit('view-log')"
-      />
+      <button
+        v-if="uiState.kind !== 'markdown' && showPreviewButton"
+        class="workflow-secondary-btn"
+        @click="$emit('reveal-preview')"
+      >
+        {{ previewButtonLabel }}
+      </button>
+      <button
+        v-if="uiState.canShowProblems"
+        class="workflow-secondary-btn"
+        @click="$emit('toggle-problems')"
+      >
+        {{ problemsExpanded ? t('Hide problems') : t('Show problems') }}
+      </button>
+      <button
+        v-if="canViewLog"
+        class="workflow-secondary-btn workflow-secondary-btn-accent"
+        @click="$emit('view-log')"
+      >
+        {{ t('View log') }}
+      </button>
 
       <slot />
     </div>
@@ -58,22 +74,21 @@
 <script setup>
 import { computed } from 'vue'
 import { useI18n } from '../../i18n'
-import PreviewSyncActions from './PreviewSyncActions.vue'
 
 const props = defineProps({
   uiState: { type: Object, required: true },
   canViewLog: { type: Boolean, default: false },
   problemsExpanded: { type: Boolean, default: false },
+  statusText: { type: String, default: '' },
+  statusTone: { type: String, default: 'muted' },
 })
 
 defineEmits([
   'primary-action',
   'reveal-preview',
-  'jump-preview',
-  'jump-source',
+  'create-pdf',
   'toggle-problems',
   'view-log',
-  'set-preview-kind',
 ])
 
 const { t } = useI18n()
@@ -85,7 +100,10 @@ const kindLabel = computed(() => {
   return ''
 })
 
-const previewLabel = computed(() => props.uiState.previewKind === 'pdf' ? 'PDF' : 'HTML')
+const previewLabel = computed(() => {
+  if (props.uiState.kind === 'markdown') return t('Preview')
+  return props.uiState.previewKind === 'pdf' ? 'PDF' : 'HTML'
+})
 
 const phaseLabel = computed(() => {
   if (props.uiState.phase === 'compiling') return t('Compiling...')
@@ -99,11 +117,25 @@ const primaryLabel = computed(() => {
   if (props.uiState.kind === 'latex' || props.uiState.kind === 'typst') {
     return t('Compile')
   }
-  if (props.uiState.kind === 'markdown' && props.uiState.previewKind === 'pdf') {
-    return t('Create PDF')
-  }
   return t('Preview')
 })
+
+const showPreviewButton = computed(() => (
+  props.uiState.kind === 'latex'
+  || props.uiState.kind === 'typst'
+  || props.uiState.previewKind === 'pdf'
+))
+
+const previewButtonLabel = computed(() => (
+  props.uiState.previewKind === 'pdf' ? 'PDF' : t('Preview')
+))
+
+const statusClass = computed(() => ({
+  'workflow-status-success': props.statusTone === 'success',
+  'workflow-status-warning': props.statusTone === 'warning',
+  'workflow-status-error': props.statusTone === 'error',
+  'workflow-status-running': props.statusTone === 'running',
+}))
 </script>
 
 <style scoped>
@@ -148,6 +180,38 @@ const primaryLabel = computed(() => {
   color: var(--warning);
 }
 
+.workflow-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  height: auto;
+  color: var(--fg-muted);
+}
+
+.workflow-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.workflow-status-success {
+  color: var(--success, #4ade80);
+}
+
+.workflow-status-warning {
+  color: var(--warning);
+}
+
+.workflow-status-error {
+  color: var(--error);
+}
+
+.workflow-status-running {
+  color: var(--fg-muted);
+}
+
 .workflow-controls {
   display: flex;
   align-items: center;
@@ -155,17 +219,8 @@ const primaryLabel = computed(() => {
   margin-left: auto;
 }
 
-.workflow-toggle-group {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  padding: 2px;
-  border-radius: 7px;
-  background: var(--bg-hover);
-}
-
-.workflow-toggle-btn,
-.workflow-primary-btn {
+.workflow-primary-btn,
+.workflow-secondary-btn {
   height: 22px;
   padding: 0 8px;
   border-radius: 6px;
@@ -175,18 +230,20 @@ const primaryLabel = computed(() => {
   color: var(--fg-muted);
 }
 
-.workflow-toggle-btn-active {
-  background: var(--bg-primary);
-  color: var(--fg-primary);
-  border-color: var(--border);
-}
-
 .workflow-primary-btn {
-  color: var(--accent);
+  color: var(--success, #4ade80);
 }
 
 .workflow-primary-btn:hover,
-.workflow-toggle-btn:hover {
+.workflow-secondary-btn:hover {
   background: var(--bg-hover);
+}
+
+.workflow-secondary-btn {
+  color: var(--accent);
+}
+
+.workflow-secondary-btn-accent {
+  color: var(--accent);
 }
 </style>

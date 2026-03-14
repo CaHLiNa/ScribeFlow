@@ -32,6 +32,28 @@
     <ReviewBar v-if="activeTab && viewerType === 'text'" :filePath="activeTab" />
     <DocxReviewBar v-else-if="activeTab && viewerType === 'docx'" :filePath="activeTab" :paneId="paneId" />
     <NotebookReviewBar v-else-if="activeTab && viewerType === 'notebook'" :filePath="activeTab" />
+    <DocumentWorkflowBar
+      v-if="activeTab && workflowUiState"
+      :ui-state="workflowUiState"
+      :can-view-log="workflowCanViewLog"
+      :problems-expanded="workflowProblemsExpanded"
+      :status-text="workflowStatusText"
+      :status-tone="workflowStatusTone"
+      @primary-action="handleWorkflowPrimaryAction"
+      @reveal-preview="handleWorkflowRevealPreview"
+      @create-pdf="handleExportPdf"
+      @toggle-problems="handleWorkflowToggleProblems"
+      @view-log="handleWorkflowViewLog"
+    />
+    <DocumentProblemsPanel
+      v-if="activeTab && workflowProblems.length > 0"
+      :problems="workflowProblems"
+      :expanded="workflowProblemsExpanded"
+      :can-view-log="workflowCanViewLog"
+      @toggle="handleWorkflowToggleProblems"
+      @focus-problem="handleWorkflowFocusProblem"
+      @view-log="handleWorkflowViewLog"
+    />
 
     <!-- Editor or empty state -->
     <div class="flex-1 overflow-hidden relative" ref="editorContainerRef"
@@ -140,7 +162,7 @@
 </template>
 
 <script setup>
-import { computed, ref, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
+import { computed, ref, onMounted, onUnmounted, defineAsyncComponent, watch } from 'vue'
 import { useEditorStore } from '../../stores/editor'
 import { useFilesStore } from '../../stores/files'
 import { useChatStore } from '../../stores/chat'
@@ -169,6 +191,8 @@ const NotebookReviewBar = defineAsyncComponent(() => import('./NotebookReviewBar
 const LatexPdfViewer = defineAsyncComponent(() => import('./LatexPdfViewer.vue'))
 const TypstPdfViewer = defineAsyncComponent(() => import('./TypstPdfViewer.vue'))
 const MarkdownPreview = defineAsyncComponent(() => import('./MarkdownPreview.vue'))
+const DocumentWorkflowBar = defineAsyncComponent(() => import('./DocumentWorkflowBar.vue'))
+const DocumentProblemsPanel = defineAsyncComponent(() => import('./DocumentProblemsPanel.vue'))
 const ChatPanel = defineAsyncComponent(() => import('../chat/ChatPanel.vue'))
 const CommentMargin = defineAsyncComponent(() => import('../comments/CommentMargin.vue'))
 const CommentPanel = defineAsyncComponent(() => import('../comments/CommentPanel.vue'))
@@ -271,6 +295,51 @@ function handleCommentScrollTo(e) {
 
 const isActive = computed(() => editorStore.activePaneId === props.paneId)
 const viewerType = computed(() => props.activeTab ? getViewerType(props.activeTab) : null)
+const workflowUiState = computed(() => props.activeTab ? workflowStore.getUiStateForFile(props.activeTab) : null)
+const workflowProblems = computed(() => props.activeTab ? workflowStore.getProblemsForFile(props.activeTab) : [])
+const workflowProblemsExpanded = computed(() => props.activeTab ? workflowStore.isProblemPanelExpanded(props.activeTab) : false)
+const workflowCanViewLog = computed(() => {
+  const kind = workflowUiState.value?.kind
+  return kind === 'latex' || kind === 'typst'
+})
+const workflowStatusText = computed(() => {
+  if (!props.activeTab || !workflowUiState.value) return ''
+
+  if (workflowUiState.value.kind === 'latex') {
+    const state = latexStore.stateForFile(props.activeTab)
+    if (state?.status === 'compiling') return t('Compiling...')
+    if (state?.status === 'success') {
+      const ms = state?.durationMs
+      if (!ms) return t('Compiled')
+      if (ms < 1000) return `${ms}ms`
+      return `${(ms / 1000).toFixed(1)}s`
+    }
+  }
+
+  if (workflowUiState.value.kind === 'typst') {
+    const state = typstStore.stateForFile(props.activeTab)
+    if (state?.status === 'compiling') return t('Compiling...')
+    if (state?.status === 'success') {
+      const ms = state?.durationMs
+      if (!ms) return t('Compiled')
+      if (ms < 1000) return `${ms}ms`
+      return `${(ms / 1000).toFixed(1)}s`
+    }
+  }
+
+  if (workflowUiState.value.kind === 'markdown' && workflowUiState.value.phase === 'rendering') {
+    return t('Rendering...')
+  }
+
+  return ''
+})
+const workflowStatusTone = computed(() => {
+  if (!workflowUiState.value) return 'muted'
+  if (workflowUiState.value.phase === 'compiling' || workflowUiState.value.phase === 'rendering') return 'running'
+  if (workflowUiState.value.phase === 'error') return 'error'
+  if (workflowUiState.value.phase === 'ready') return 'success'
+  return 'muted'
+})
 
 const refKey = computed(() => props.activeTab && isReferencePath(props.activeTab) ? referenceKeyFromPath(props.activeTab) : null)
 // Check if this PDF has a corresponding .tex source (for LaTeX PDF viewer)
@@ -394,10 +463,6 @@ async function handleCompileTex() {
 async function handleCompileTypst() {
   if (!props.activeTab || !isTypst(props.activeTab)) return
   await typstStore.compile(props.activeTab)
-  const state = typstStore.stateForFile(props.activeTab)
-  if (state?.status === 'success' && state.pdfPath) {
-    ensurePdfOpen(state.pdfPath)
-  }
 }
 
 async function handleTranslatePdf() {
@@ -428,9 +493,11 @@ function handlePreviewPdf() {
   }
 
   if (isTypst(props.activeTab)) {
-    const state = typstStore.stateForFile(props.activeTab)
-    const pdfPath = state?.pdfPath || props.activeTab.replace(/\.typ$/i, '.pdf')
-    ensurePdfOpen(pdfPath)
+    workflowStore.revealPreview(props.activeTab, {
+      previewKind: 'pdf',
+      sourcePaneId: props.paneId,
+      trigger: 'typst-preview-button',
+    })
   }
 }
 
@@ -442,6 +509,65 @@ function handlePreviewMarkdown() {
     sourcePaneId: props.paneId,
     trigger: 'markdown-preview-button',
   })
+}
+
+function handleWorkflowPrimaryAction() {
+  if (!workflowUiState.value || !props.activeTab) return
+
+  if (workflowUiState.value.kind === 'latex') {
+    handleCompileTex()
+    return
+  }
+  if (workflowUiState.value.kind === 'typst') {
+    handleCompileTypst()
+    return
+  }
+  handlePreviewMarkdown()
+}
+
+async function handleWorkflowRevealPreview() {
+  if (!workflowUiState.value || !props.activeTab) return
+
+  if (workflowUiState.value.kind === 'markdown') {
+    try {
+      const { invoke } = await import('@tauri-apps/api/core')
+      const pdfPath = props.activeTab.replace(/\.(md|rmd|qmd)$/i, '.pdf')
+      const hasPdf = await invoke('path_exists', { path: pdfPath })
+      if (hasPdf) {
+        workflowStore.revealPreview(props.activeTab, {
+          previewKind: 'pdf',
+          sourcePaneId: props.paneId,
+          trigger: 'workflow-reveal-markdown-pdf',
+        })
+        return
+      }
+    } catch {
+      // Fall back to HTML preview if existence check fails.
+    }
+
+    handlePreviewMarkdown()
+    return
+  }
+
+  workflowStore.revealPreview(props.activeTab, {
+    previewKind: workflowUiState.value.previewKind,
+    sourcePaneId: props.paneId,
+    trigger: 'workflow-reveal-preview',
+  })
+}
+
+function handleWorkflowToggleProblems() {
+  if (!props.activeTab) return
+  workflowStore.toggleProblemPanel(props.activeTab)
+}
+
+function handleWorkflowViewLog() {
+  if (!props.activeTab) return
+  workflowStore.openLogForFile(props.activeTab)
+}
+
+function handleWorkflowFocusProblem(problem) {
+  workflowStore.focusProblem(problem)
 }
 
 async function handleExportPdf(settingsOverride) {
@@ -614,8 +740,21 @@ function handleTypstCompileDone(e) {
   const { typPath, pdf_path, success } = e.detail || {}
   if (!success || !pdf_path) return
   if (!props.tabs.includes(typPath)) return
-  ensurePdfOpen(pdf_path)
+  workflowStore.ensurePreviewForSource(typPath, {
+    previewKind: 'pdf',
+    activatePreview: false,
+    sourcePaneId: props.paneId,
+    trigger: 'typst-compile-success',
+  })
 }
+
+watch(
+  [() => props.activeTab, () => editorStore.activePaneId],
+  () => {
+    workflowStore.reconcile({ trigger: 'editor-pane-sync' })
+  },
+  { immediate: true },
+)
 
 onMounted(() => {
   window.addEventListener('latex-compile-done', handleLatexCompileDone)

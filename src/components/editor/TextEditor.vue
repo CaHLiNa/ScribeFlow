@@ -55,8 +55,7 @@ import { latexCitationsExtension, LATEX_CITE_RE } from '../../editor/latexCitati
 import { latexCommandCompletionSource } from '../../editor/latexAutocomplete'
 import {
   supportsTypstEditorSupport,
-  createTypstCompletionSource,
-  typstHighlightExtension,
+  createTypstEditorSupport,
 } from '../../editor/typstSupport'
 import {
   normalizeTypstDiagnostics,
@@ -370,6 +369,11 @@ async function loadLanguageExtension() {
   if (isMd) {
     const { markdown, markdownLanguage } = await import('@codemirror/lang-markdown')
     return markdown({ base: markdownLanguage, codeLanguages: languages })
+  }
+  if (isTyp) {
+    // Typst support is provided by our dedicated editor bundle instead of
+    // the generic language-data registry fallback.
+    return null
   }
   // Try to match by filename from the language-data registry
   const matched = languages.filter((lang) => {
@@ -723,16 +727,9 @@ onMounted(async () => {
 
   // Typst-only extensions
   if (supportsTypstSupport) {
-    const completionSources = [createTypstCompletionSource({ referencesStore })]
-
-    extraExtensions.push(...typstHighlightExtension({
+    extraExtensions.push(...createTypstEditorSupport({
       getReferenceByKey: (key) => referencesStore.getByKey(key),
-    }))
-    extraExtensions.push(autocompletion({
-      override: completionSources,
-      activateOnTyping: true,
-      activateOnTypingDelay: 0,
-      defaultKeymap: true,
+      referencesStore,
     }))
   }
 
