@@ -69,6 +69,10 @@ export function isTypst(path) {
   return getExt(path) === 'typ'
 }
 
+export function isWorkflowMarkdown(path) {
+  return getExt(path) === 'md'
+}
+
 export function isImage(path) {
   const ext = getExt(path)
   return IMAGE_EXTS.includes(ext)

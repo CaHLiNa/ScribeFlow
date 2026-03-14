@@ -91,6 +91,55 @@ export const shouldersTheme = EditorView.theme(
         color: 'var(--fg-primary)',
       },
     },
+    '.cm-typst-heading-mark': {
+      color: 'var(--hl-heading-minor)',
+      fontWeight: '700',
+    },
+    '.cm-typst-heading-text': {
+      color: 'var(--hl-heading)',
+      fontWeight: '700',
+    },
+    '.cm-typst-command-mark': {
+      color: 'var(--hl-keyword)',
+      fontWeight: '700',
+    },
+    '.cm-typst-command': {
+      color: 'var(--hl-function)',
+    },
+    '.cm-typst-citation': {
+      color: 'var(--accent)',
+      fontWeight: '600',
+    },
+    '.cm-typst-label': {
+      color: 'var(--hl-attribute)',
+      fontWeight: '600',
+    },
+    '.cm-typst-label-ref': {
+      color: 'var(--hl-link)',
+      textDecoration: 'underline dotted',
+    },
+    '.cm-typst-comment': {
+      color: 'var(--hl-comment)',
+      fontStyle: 'italic',
+    },
+    '.cm-typst-string': {
+      color: 'var(--hl-string)',
+    },
+    '.cm-typst-math': {
+      color: 'var(--hl-number)',
+    },
+    '.cm-typst-diagnostic-line': {
+      backgroundColor: 'rgba(245, 158, 11, 0.08)',
+    },
+    '.cm-typst-diagnostic-line-error': {
+      boxShadow: 'inset 3px 0 0 rgba(239, 68, 68, 0.75)',
+    },
+    '.cm-typst-diagnostic-line-warning': {
+      boxShadow: 'inset 3px 0 0 rgba(245, 158, 11, 0.7)',
+    },
+    '.cm-typst-diagnostic-line-active': {
+      backgroundColor: 'rgba(239, 68, 68, 0.12)',
+    },
   },
   { dark: true }
 )

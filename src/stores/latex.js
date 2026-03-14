@@ -245,6 +245,28 @@ export const useLatexStore = defineStore('latex', {
       delete this._recompileNeeded[texPath]
     },
 
+    openCompileLog(texPath) {
+      if (typeof window === 'undefined') return
+      const state = this.compileState[texPath]
+      if (!state) return
+
+      window.dispatchEvent(new CustomEvent('terminal-log', {
+        detail: {
+          key: 'latex-log',
+          label: 'LaTeX',
+          text: buildLatexTerminalOutput(texPath, {
+            success: state.status === 'success',
+            errors: state.errors || [],
+            warnings: state.warnings || [],
+            log: state.log || '',
+            duration_ms: state.durationMs || 0,
+          }),
+          clear: true,
+          open: true,
+        },
+      }))
+    },
+
     cleanup() {
       for (const texPath of Object.keys(this._timers)) {
         clearTimeout(this._timers[texPath])

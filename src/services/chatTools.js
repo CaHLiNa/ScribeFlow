@@ -6,7 +6,8 @@ import { useEditorStore } from '../stores/editor'
 import { useFilesStore } from '../stores/files'
 import { nanoid } from '../stores/utils'
 import { extractDocumentText, extractBlockList } from './docxContext'
-import { isMultimodalImage, isPdf, getMimeType, isTypst } from '../utils/fileTypes'
+import { isMultimodalImage, isPdf, getMimeType } from '../utils/fileTypes'
+import { buildCitationText } from '../editor/citationSyntax'
 
 // External tools that transmit data to third-party services
 export const EXTERNAL_TOOLS = ['web_search', 'search_papers', 'fetch_url', 'add_reference']
@@ -602,16 +603,11 @@ export function getAiTools(workspace) {
         if (!pane?.activeTab) return 'No active editor.'
         const view = editorStore.getEditorView(pane.id, pane.activeTab)
         if (!view) return 'No active text editor.'
-        const isTexFile = pane.activeTab.endsWith('.tex') || pane.activeTab.endsWith('.latex')
-        const cite = isTexFile
-          ? `\\cite{${key}}`
-          : isTypst(pane.activeTab)
-            ? `@${key}`
-            : `[@${key}]`
-        const pos = view.state.selection.main.head
+        const cite = buildCitationText(pane.activeTab, key)
+        const selection = view.state.selection.main
         view.dispatch({
-          changes: { from: pos, to: pos, insert: cite },
-          selection: { anchor: pos + cite.length },
+          changes: { from: selection.from, to: selection.to, insert: cite },
+          selection: { anchor: selection.from + cite.length },
         })
         return `Inserted ${cite} at cursor.`
       },

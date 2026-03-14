@@ -464,6 +464,35 @@ export const useEditorStore = defineStore('editor', {
       return null
     },
 
+    findRightNeighborLeaf(paneId) {
+      const walk = (node, trail = []) => {
+        if (!node) return null
+        if (node.type === 'leaf') {
+          return node.id === paneId ? [...trail, node] : null
+        }
+        for (const child of node.children || []) {
+          const found = walk(child, [...trail, node])
+          if (found) return found
+        }
+        return null
+      }
+
+      const trail = walk(this.paneTree)
+      if (!trail || trail.length < 2) return null
+
+      for (let i = trail.length - 2; i >= 0; i -= 1) {
+        const parent = trail[i]
+        const child = trail[i + 1]
+        if (parent?.type !== 'split' || parent.direction !== 'vertical') continue
+        const idx = (parent.children || []).findIndex(candidate => candidate === child)
+        if (idx === 0 && parent.children?.[1]) {
+          return this.findFirstLeaf(parent.children[1])
+        }
+      }
+
+      return null
+    },
+
     splitPane(direction) {
       const pane = this.findPane(this.paneTree, this.activePaneId)
       if (!pane) return
@@ -536,6 +565,37 @@ export const useEditorStore = defineStore('editor', {
       this.activePaneId = paneId
       this.saveEditorState()
       return newPaneId
+    },
+
+    openFileInPane(path, paneId, options = {}) {
+      const pane = this.findPane(this.paneTree, paneId)
+      if (!pane) return null
+
+      if (pane.tabs.includes(path)) {
+        pane.activeTab = path
+      } else {
+        const shouldReplaceNewTab = options.replaceNewTab !== false
+          && pane.activeTab
+          && isNewTab(pane.activeTab)
+        if (shouldReplaceNewTab) {
+          const idx = pane.tabs.indexOf(pane.activeTab)
+          if (idx !== -1) {
+            pane.tabs.splice(idx, 1, path)
+          } else {
+            pane.tabs.push(path)
+          }
+        } else {
+          pane.tabs.push(path)
+        }
+        pane.activeTab = path
+      }
+
+      if (options.activatePane) {
+        this.activePaneId = paneId
+      }
+
+      this.saveEditorState()
+      return paneId
     },
 
     setActivePane(paneId) {

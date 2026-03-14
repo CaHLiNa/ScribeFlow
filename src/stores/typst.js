@@ -256,6 +256,28 @@ export const useTypstStore = defineStore('typst', {
       }
     },
 
+    openCompileLog(filePath) {
+      if (typeof window === 'undefined') return
+      const state = this.compileState[filePath]
+      if (!state) return
+
+      window.dispatchEvent(new CustomEvent('terminal-log', {
+        detail: {
+          key: 'typst-log',
+          label: 'Typst',
+          text: buildTypstTerminalOutput(filePath, {
+            success: state.status === 'success',
+            errors: state.errors || [],
+            warnings: state.warnings || [],
+            log: state.log || '',
+            duration_ms: state.durationMs || 0,
+          }),
+          clear: true,
+          open: true,
+        },
+      }))
+    },
+
     clearState(filePath) {
       delete this.compileState[filePath]
     },

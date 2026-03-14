@@ -161,6 +161,7 @@ import {
 } from '@tabler/icons-vue'
 import { isMac, modKey } from '../../platform'
 import { useI18n } from '../../i18n'
+import { buildCitationText } from '../../editor/citationSyntax'
 
 import SearchResults from '../SearchResults.vue'
 
@@ -359,11 +360,11 @@ function onSelectCitation(key) {
   if (pane?.activeTab) {
     const view = editorStore.getEditorView(pane.id, pane.activeTab)
     if (view) {
-      const cite = `[@${key}]`
-      const pos = view.state.selection.main.head
+      const cite = buildCitationText(pane.activeTab, key)
+      const selection = view.state.selection.main
       view.dispatch({
-        changes: { from: pos, to: pos, insert: cite },
-        selection: { anchor: pos + cite.length },
+        changes: { from: selection.from, to: selection.to, insert: cite },
+        selection: { anchor: selection.from + cite.length },
       })
       view.focus()
     }

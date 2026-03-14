@@ -194,6 +194,7 @@
           <div class="flex justify-between"><span>{{ t('Split vertical') }}</span><kbd>{{ modKey }}+\</kbd></div>
           <div class="flex justify-between"><span>{{ t('Split horizontal') }}</span><kbd>{{ modKey }}+Shift+\</kbd></div>
           <div class="flex justify-between"><span>{{ t('Add comment') }}</span><kbd>{{ modKey }}+Shift+L</kbd></div>
+          <div class="flex justify-between"><span>{{ t('Insert citation') }}</span><kbd>{{ modKey }}+Shift+C</kbd></div>
           <div class="flex justify-between"><span>{{ t('Toggle terminal') }}</span><kbd>{{ modKey }}+`</kbd></div>
           <div class="flex justify-between"><span>{{ t('Zoom in') }}</span><kbd>{{ modKey }}+=</kbd></div>
           <div class="flex justify-between"><span>{{ t('Zoom out') }}</span><kbd>{{ modKey }}+-</kbd></div>

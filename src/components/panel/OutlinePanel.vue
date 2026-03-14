@@ -219,7 +219,7 @@ function navigateToHeading(heading) {
 
   const ft = fileType.value
 
-  if (ft === 'markdown' || ft === 'latex') {
+  if (ft === 'markdown' || ft === 'latex' || ft === 'typst') {
     // Find CM6 editor view for the active pane
     const view = editorStore.getEditorView(editorStore.activePaneId, path)
     if (!view) return

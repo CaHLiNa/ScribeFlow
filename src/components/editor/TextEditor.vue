@@ -1,5 +1,7 @@
 <template>
-  <div ref="editorContainer" class="h-full w-full overflow-hidden" :class="{ 'cm-prose-file': isMd }" :data-editor-filepath="props.filePath" @contextmenu.prevent="onContextMenu"></div>
+  <div class="typst-editor-shell h-full w-full" :class="{ 'cm-prose-file': isMd }" :data-editor-filepath="props.filePath">
+    <div ref="editorContainer" class="min-h-0 flex-1 w-full overflow-hidden" @contextmenu.prevent="onContextMenu"></div>
+  </div>
   <EditorContextMenu
     :visible="ctxMenu.show"
     :x="ctxMenu.x"
@@ -25,7 +27,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { Prec } from '@codemirror/state'
 import { EditorView, keymap } from '@codemirror/view'
 import { languages } from '@codemirror/language-data'
@@ -37,6 +39,7 @@ import { useCommentsStore } from '../../stores/comments'
 import { wikiLinksExtension } from '../../editor/wikiLinks'
 import { livePreviewExtension } from '../../editor/livePreview'
 import { citationsExtension, CITATION_GROUP_RE, CITE_KEY_RE } from '../../editor/citations'
+import { buildCitationText, supportsCitationInsertion } from '../../editor/citationSyntax'
 import CitationPalette from './CitationPalette.vue'
 import { autocompletion } from '@codemirror/autocomplete'
 import { useFilesStore } from '../../stores/files'
@@ -45,12 +48,31 @@ import { useWorkspaceStore } from '../../stores/workspace'
 import { useReviewsStore } from '../../stores/reviews'
 import { useLinksStore } from '../../stores/links'
 import { useReferencesStore } from '../../stores/references'
-import { isMarkdown, isLatex, isImage, isRunnable, getLanguage, isRmdOrQmd, relativePath } from '../../utils/fileTypes'
+import { useTypstStore } from '../../stores/typst'
+import { isMarkdown, isLatex, isTypst, isImage, isRunnable, getLanguage, isRmdOrQmd, relativePath } from '../../utils/fileTypes'
 import { useLatexStore } from '../../stores/latex'
 import { latexCitationsExtension, LATEX_CITE_RE } from '../../editor/latexCitations'
 import { latexCommandCompletionSource } from '../../editor/latexAutocomplete'
+import {
+  supportsTypstEditorSupport,
+  createTypstCompletionSource,
+  typstHighlightExtension,
+} from '../../editor/typstSupport'
+import {
+  normalizeTypstDiagnostics,
+  getPrimaryTypstDiagnostic,
+  buildTypstDiagnosticSignature,
+  getTypstStatusTransition,
+  shouldAutoJumpTypstDiagnostic,
+} from '../../editor/typstDiagnostics'
+import {
+  createTypstDiagnosticsExtension,
+  updateTypstDiagnostics,
+  focusTypstDiagnostic,
+} from '../../editor/typstEditorIntegration'
 import EditorContextMenu from './EditorContextMenu.vue'
 import { computeMinimalChange } from '../../utils/textDiff'
+import { useI18n } from '../../i18n'
 
 const props = defineProps({
   filePath: { type: String, required: true },
@@ -66,8 +88,10 @@ const workspace = useWorkspaceStore()
 const reviews = useReviewsStore()
 const linksStore = useLinksStore()
 const referencesStore = useReferencesStore()
+const typstStore = useTypstStore()
 const latexStore = useLatexStore()
 const commentsStore = useCommentsStore()
+const { t } = useI18n()
 
 const ctxMenu = reactive({ show: false, x: 0, y: 0, hasSelection: false })
 
@@ -101,27 +125,46 @@ const citPalette = reactive({
   groupTo: 0,
 })
 
+function openCitationPaletteAtSelection(editorView = view, options = {}) {
+  if (!editorView) return false
+
+  const selection = editorView.state.selection.main
+  const anchorPos = selection.head
+  const coords = editorView.coordsAtPos(anchorPos)
+  if (!coords) return false
+
+  citPalette.show = true
+  citPalette.mode = 'insert'
+  citPalette.x = coords.left
+  citPalette.y = coords.bottom + 2
+  citPalette.query = options.query || ''
+  citPalette.triggerFrom = options.triggerFrom ?? selection.from
+  citPalette.triggerTo = options.triggerTo ?? selection.to
+  citPalette.insideBrackets = options.insideBrackets ?? false
+  citPalette.latexCommand = options.latexCommand ?? (isTex ? 'cite' : null)
+  citPalette.cites = []
+  return true
+}
+
 function onCitInsert({ keys, stayOpen, latexCommand }) {
   if (!view || !keys.length) return
   const key = keys[0]
+  const insertFrom = citPalette.triggerFrom
+  const insertTo = citPalette.triggerTo
+  let text = ''
 
-  if (isTex && latexCommand) {
-    // LaTeX: \citep{key} or add key to existing \citep{existing, key}
-    const text = citPalette.insideBrackets
+  if (citPalette.insideBrackets) {
+    text = isTex && latexCommand
       ? key
-      : `\\${latexCommand}{${key}}`
-    view.dispatch({
-      changes: { from: citPalette.triggerFrom, to: citPalette.triggerTo, insert: text },
-    })
+      : `@${key}`
   } else {
-    // Markdown: [@key] or just @key inside existing brackets
-    const text = citPalette.insideBrackets
-      ? `@${key}`
-      : `[@${key}]`
-    view.dispatch({
-      changes: { from: citPalette.triggerFrom, to: citPalette.triggerTo, insert: text },
-    })
+    text = buildCitationText(props.filePath, key, { latexCommand: latexCommand || 'cite' })
   }
+
+  view.dispatch({
+    changes: { from: insertFrom, to: insertTo, insert: text },
+    selection: { anchor: insertFrom + text.length },
+  })
 
   if (stayOpen) {
     // Transition to edit mode: find the just-inserted citation group
@@ -171,7 +214,7 @@ function onCitUpdate({ cites }) {
     const parts = cites.map(c => {
       let part = ''
       if (c.prefix) part += c.prefix + ' '
-      part += 'var(--ui-font-tiny)' + c.key
+      part += '@' + c.key
       if (c.locator) part += ', ' + c.locator
       return part
     })
@@ -205,15 +248,123 @@ function parseCitationGroup(text) {
   return cites
 }
 
+function getTypstDiagnosticLabel(diagnostic) {
+  if (diagnostic?.line) {
+    return t('Ln {line}', { line: diagnostic.line })
+  }
+  return t('No line info')
+}
+
+function clearTypstDiagnosticsUi() {
+  typstUi.diagnostics = []
+  typstUi.activeSignature = ''
+  typstUi.expanded = false
+  typstUi.userMovedSinceLastJump = false
+  if (view) {
+    updateTypstDiagnostics(view, [], { activeSignature: '' })
+  }
+}
+
+function applyTypstDiagnosticsState(result, options = {}) {
+  const diagnostics = normalizeTypstDiagnostics(props.filePath, result)
+    .map(diagnostic => ({
+      ...diagnostic,
+      _signature: buildTypstDiagnosticSignature(diagnostic),
+    }))
+
+  const nextStatus = options.status ?? (result?.success ? 'success' : diagnostics.length ? 'error' : null)
+  const statusTransition = getTypstStatusTransition(typstUi.lastCompileStatus, nextStatus)
+  typstUi.lastCompileStatus = nextStatus
+
+  if (diagnostics.length === 0) {
+    clearTypstDiagnosticsUi()
+    return
+  }
+
+  const primary = getPrimaryTypstDiagnostic(diagnostics)
+  const preservedActive = diagnostics.find(diagnostic => diagnostic._signature === typstUi.activeSignature) || null
+  const defaultDiagnostic = preservedActive || primary || diagnostics[0] || null
+  const nextSignature = defaultDiagnostic?._signature || ''
+  const shouldJump = options.allowAutoJump !== false
+    && shouldAutoJumpTypstDiagnostic(typstUi.lastAutoJumpSignature, primary, {
+      statusTransition,
+      userMovedSinceLastJump: typstUi.userMovedSinceLastJump,
+      nextSignature: primary?._signature || '',
+    })
+
+  typstUi.diagnostics = diagnostics
+  typstUi.activeSignature = nextSignature
+  typstUi.expanded = typstUi.expanded && diagnostics.length > 1
+  if (view) {
+    updateTypstDiagnostics(view, diagnostics, { activeSignature: nextSignature })
+  }
+
+  if (shouldJump && view && primary) {
+    typstUi.activeSignature = primary._signature
+    typstUi.jumpInFlight = true
+    focusTypstDiagnostic(view, primary, { center: true })
+    typstUi.jumpInFlight = false
+    typstUi.lastAutoJumpSignature = primary._signature
+    typstUi.userMovedSinceLastJump = false
+  }
+}
+
+function focusSelectedTypstDiagnostic(diagnostic) {
+  const signature = diagnostic?._signature || buildTypstDiagnosticSignature(diagnostic)
+  typstUi.activeSignature = signature
+  if (view) {
+    updateTypstDiagnostics(view, typstUi.diagnostics, { activeSignature: signature })
+    typstUi.jumpInFlight = true
+    focusTypstDiagnostic(view, diagnostic, { center: true })
+    typstUi.jumpInFlight = false
+  }
+}
+
+function openTypstCompileLog() {
+  typstStore.openCompileLog(props.filePath)
+}
+
+function focusEditorLine(lineNumber, options = {}) {
+  if (!view || !lineNumber) return
+  const safeLine = Math.max(1, Math.min(lineNumber, view.state.doc.lines))
+  const line = view.state.doc.line(safeLine)
+  view.dispatch({
+    selection: { anchor: line.from },
+    effects: EditorView.scrollIntoView(line.from, { y: options.center ? 'center' : 'nearest', yMargin: 80 }),
+  })
+  view.focus()
+}
+
 let view = null
 let rmdKernelBridge = null
 let chunkExecuteHandler = null
 let chunkExecuteAllHandler = null
+let workflowFocusProblemHandler = null
 const isMd = isMarkdown(props.filePath)
 const isTex = isLatex(props.filePath)
+const isTyp = isTypst(props.filePath)
+const supportsCitations = supportsCitationInsertion(props.filePath)
+const supportsTypstSupport = supportsTypstEditorSupport(props.filePath)
 const fileIsRunnable = isRunnable(props.filePath)
 const fileLanguage = getLanguage(props.filePath)
 const fileIsRmdOrQmd = isRmdOrQmd(props.filePath)
+const typstUi = reactive({
+  diagnostics: [],
+  activeSignature: '',
+  expanded: false,
+  lastCompileStatus: null,
+  lastAutoJumpSignature: '',
+  jumpInFlight: false,
+  userMovedSinceLastJump: false,
+})
+
+const activeTypstDiagnostic = computed(() => (
+  typstUi.diagnostics.find(diagnostic => diagnostic._signature === typstUi.activeSignature)
+  || typstUi.diagnostics[0]
+  || null
+))
+
+const typstAdditionalCount = computed(() => Math.max(0, typstUi.diagnostics.length - 1))
 
 async function loadLanguageExtension() {
   if (isMd) {
@@ -275,8 +426,26 @@ onMounted(async () => {
         const sel = update.state.selection.main
         emit('selection-change', sel.from !== sel.to)
       }
+      if (isTyp && update.selectionSet && !typstUi.jumpInFlight) {
+        const head = update.state.selection.main.head
+        editorStore.cursorOffset = head
+        typstUi.userMovedSinceLastJump = true
+      }
     }),
   ]
+
+  if (isTyp) {
+    extraExtensions.push(...createTypstDiagnosticsExtension())
+  }
+
+  if (supportsCitations) {
+    extraExtensions.push(Prec.highest(keymap.of([
+      {
+        key: 'Mod-Shift-c',
+        run: (editorView) => openCitationPaletteAtSelection(editorView),
+      },
+    ])))
+  }
 
   // Code runner keybindings for runnable files
   if (fileIsRunnable) {
@@ -473,16 +642,15 @@ onMounted(async () => {
     const citations = citationsExtension(referencesStore, {
       isOpen: () => citPalette.show,
       onOpen: ({ x, y, query, triggerFrom, triggerTo, insideBrackets }) => {
-        citPalette.show = true
-        citPalette.mode = 'insert'
+        openCitationPaletteAtSelection(view, {
+          query,
+          triggerFrom,
+          triggerTo,
+          insideBrackets,
+          latexCommand: null,
+        })
         citPalette.x = x
         citPalette.y = y
-        citPalette.query = query
-        citPalette.triggerFrom = triggerFrom
-        citPalette.triggerTo = triggerTo
-        citPalette.insideBrackets = insideBrackets
-        citPalette.latexCommand = null
-        citPalette.cites = []
       },
       onQueryChange: (query, cursorPos) => {
         citPalette.query = query
@@ -519,16 +687,15 @@ onMounted(async () => {
     const latexCitations = latexCitationsExtension(referencesStore, {
       isOpen: () => citPalette.show,
       onOpen: ({ x, y, query, triggerFrom, triggerTo, insideBrackets, latexCommand }) => {
-        citPalette.show = true
-        citPalette.mode = 'insert'
+        openCitationPaletteAtSelection(view, {
+          query,
+          triggerFrom,
+          triggerTo,
+          insideBrackets,
+          latexCommand,
+        })
         citPalette.x = x
         citPalette.y = y
-        citPalette.query = query
-        citPalette.triggerFrom = triggerFrom
-        citPalette.triggerTo = triggerTo
-        citPalette.insideBrackets = insideBrackets
-        citPalette.latexCommand = latexCommand
-        citPalette.cites = []
       },
       onQueryChange: (query, cursorPos, newTriggerFrom) => {
         citPalette.query = query
@@ -546,6 +713,21 @@ onMounted(async () => {
     // LaTeX command autocomplete (citations now use palette)
     completionSources.push(latexCommandCompletionSource)
 
+    extraExtensions.push(autocompletion({
+      override: completionSources,
+      activateOnTyping: true,
+      activateOnTypingDelay: 0,
+      defaultKeymap: true,
+    }))
+  }
+
+  // Typst-only extensions
+  if (supportsTypstSupport) {
+    const completionSources = [createTypstCompletionSource({ referencesStore })]
+
+    extraExtensions.push(...typstHighlightExtension({
+      getReferenceByKey: (key) => referencesStore.getByKey(key),
+    }))
     extraExtensions.push(autocompletion({
       override: completionSources,
       activateOnTyping: true,
@@ -607,6 +789,16 @@ onMounted(async () => {
 
   // Initial comment sync
   syncCommentsToEditor(view)
+
+  if (isTyp) {
+    const existingState = typstStore.stateForFile(props.filePath)
+    if (existingState) {
+      applyTypstDiagnosticsState(existingState, {
+        status: existingState.status,
+        allowAutoJump: false,
+      })
+    }
+  }
 })
 
 // LaTeX: backward sync listener (PDF → editor line jump)
@@ -644,6 +836,41 @@ if (isTex) {
   })
 
 }
+
+let typstCompileDoneHandler = null
+if (isTyp) {
+  typstCompileDoneHandler = (e) => {
+    const { typPath } = e.detail || {}
+    if (typPath !== props.filePath) return
+    applyTypstDiagnosticsState(e.detail || {}, {
+      status: e.detail?.success ? 'success' : 'error',
+      allowAutoJump: editorStore.activeTab === props.filePath,
+    })
+  }
+  window.addEventListener('typst-compile-done', typstCompileDoneHandler)
+}
+
+workflowFocusProblemHandler = (event) => {
+  const problem = event.detail || {}
+  if (!view || problem.sourcePath !== props.filePath) return
+
+  if (isTyp) {
+    const matchingDiagnostic = typstUi.diagnostics.find(diagnostic => (
+      diagnostic.line === (problem.line ?? null)
+      && diagnostic.message === (problem.message || '')
+    ))
+    if (matchingDiagnostic) {
+      focusSelectedTypstDiagnostic(matchingDiagnostic)
+      return
+    }
+  }
+
+  if (problem.line) {
+    focusEditorLine(problem.line, { center: true })
+  }
+}
+
+window.addEventListener('document-workflow-focus-problem', workflowFocusProblemHandler)
 
 // Wiki link click navigation (plain click navigates, like Obsidian)
 function handleWikiLinkClick(event) {
@@ -1063,6 +1290,12 @@ onUnmounted(() => {
   if (isTex && backwardSyncHandler) {
     window.removeEventListener('latex-backward-sync', backwardSyncHandler)
   }
+  if (isTyp && typstCompileDoneHandler) {
+    window.removeEventListener('typst-compile-done', typstCompileDoneHandler)
+  }
+  if (workflowFocusProblemHandler) {
+    window.removeEventListener('document-workflow-focus-problem', workflowFocusProblemHandler)
+  }
   if (chunkExecuteHandler) {
     editorContainer.value?.removeEventListener('chunk-execute', chunkExecuteHandler)
     editorContainer.value?.removeEventListener('chunk-execute-all', chunkExecuteAllHandler)
@@ -1079,3 +1312,137 @@ onUnmounted(() => {
   }
 })
 </script>
+
+<style scoped>
+.typst-editor-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  background: var(--bg-primary);
+}
+
+.typst-diagnostics-banner {
+  flex-shrink: 0;
+  border-bottom: 1px solid rgba(239, 68, 68, 0.22);
+  background:
+    linear-gradient(180deg, rgba(120, 20, 20, 0.2), rgba(120, 20, 20, 0.08)),
+    var(--bg-secondary);
+}
+
+.typst-diagnostics-banner-warning {
+  border-bottom-color: rgba(245, 158, 11, 0.22);
+  background:
+    linear-gradient(180deg, rgba(120, 82, 18, 0.2), rgba(120, 82, 18, 0.08)),
+    var(--bg-secondary);
+}
+
+.typst-diagnostics-banner-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+}
+
+.typst-diagnostics-banner-copy {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.typst-diagnostics-pill {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(239, 68, 68, 0.15);
+  color: #fecaca;
+  font-size: var(--ui-font-label);
+  font-weight: 700;
+}
+
+.typst-diagnostics-pill-warning {
+  background: rgba(245, 158, 11, 0.16);
+  color: #fde68a;
+}
+
+.typst-diagnostics-message {
+  min-width: 0;
+  color: var(--fg-primary);
+  font-size: var(--ui-font-body);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.typst-diagnostics-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.typst-diagnostics-btn {
+  border: 0;
+  background: transparent;
+  color: var(--fg-muted);
+  cursor: pointer;
+  font-size: var(--ui-font-label);
+  line-height: 1.2;
+}
+
+.typst-diagnostics-btn:hover {
+  color: var(--fg-primary);
+}
+
+.typst-diagnostics-btn-accent {
+  color: var(--accent);
+}
+
+.typst-diagnostics-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 180px;
+  overflow-y: auto;
+  padding: 0 8px 8px;
+}
+
+.typst-diagnostic-item {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 10px;
+  width: 100%;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg-secondary);
+  cursor: pointer;
+  padding: 7px 8px;
+  text-align: left;
+}
+
+.typst-diagnostic-item:hover,
+.typst-diagnostic-item-active {
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--fg-primary);
+}
+
+.typst-diagnostic-item-warning .typst-diagnostic-item-line {
+  color: #fcd34d;
+}
+
+.typst-diagnostic-item-line {
+  color: var(--fg-muted);
+  font-size: var(--ui-font-caption);
+}
+
+.typst-diagnostic-item-message {
+  min-width: 0;
+  font-size: var(--ui-font-label);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+</style>

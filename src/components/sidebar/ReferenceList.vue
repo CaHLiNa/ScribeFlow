@@ -351,8 +351,8 @@ import { IconSearch, IconArrowsSort } from '@tabler/icons-vue'
 import ReferenceItem from './ReferenceItem.vue'
 import ReferenceContextMenu from './ReferenceContextMenu.vue'
 import AddReferenceDialog from './AddReferenceDialog.vue'
-import { isTypst } from '../../utils/fileTypes'
 import { useI18n } from '../../i18n'
+import { buildCitationText } from '../../editor/citationSyntax'
 
 const props = defineProps({
   collapsed: { type: Boolean, default: false },
@@ -666,7 +666,7 @@ function copyCitation(key) {
 
 function copyMultiCitation() {
   const keys = [...referencesStore.selectedKeys]
-  const cite = `[${keys.map(k => 'var(--ui-font-tiny)' + k).join('; ')}]`
+  const cite = buildCitationText(editorStore.activeTab, keys)
   navigator.clipboard.writeText(cite)
   contextMenu.show = false
 }
@@ -721,20 +721,8 @@ function handleDragStart({ key, event }) {
     ? [...referencesStore.selectedKeys]
     : [key]
 
-  // Detect citation syntax based on the active text target.
   const activeTab = editorStore.activeTab
-  const isTexTarget = activeTab && (activeTab.endsWith('.tex') || activeTab.endsWith('.latex'))
-  const isTypstTarget = activeTab && isTypst(activeTab)
-
-  const citeText = isTexTarget
-    ? (selected.length === 1
-        ? `\\cite{${selected[0]}}`
-        : `\\cite{${selected.join(', ')}}`)
-    : isTypstTarget
-      ? selected.map(k => `@${k}`).join(' ')
-    : (selected.length === 1
-        ? `[@${selected[0]}]`
-        : `[${selected.map(k => 'var(--ui-font-tiny)' + k).join('; ')}]`)
+  const citeText = buildCitationText(activeTab, selected)
 
   const ghost = document.createElement('div')
   ghost.className = 'tab-ghost'

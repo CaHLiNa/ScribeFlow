@@ -411,11 +411,9 @@ function handlePreviewMarkdown() {
   if (!props.activeTab) return
   const previewPath = `preview:${props.activeTab}`
 
-  // Check if preview already open in any pane
   const leaves = getAllLeaves(editorStore.paneTree)
   if (leaves.some(p => p.tabs.includes(previewPath))) return
 
-  // Use activePaneId (always a leaf) — props.paneId may point to a split after prior operations
   const sourcePaneId = editorStore.activePaneId
   editorStore.splitPaneWith(sourcePaneId, 'vertical', previewPath)
 }
@@ -520,11 +518,9 @@ async function handleExportPdf(settingsOverride) {
 }
 
 function ensurePdfOpen(pdfPath) {
-  // Check if PDF is already open in any pane
   const leaves = getAllLeaves(editorStore.paneTree)
   if (leaves.some(p => p.tabs.includes(pdfPath))) return
 
-  // Use activePaneId (always a leaf) — props.paneId may point to a split after prior operations
   const sourcePaneId = editorStore.activePaneId
   editorStore.splitPaneWith(sourcePaneId, 'vertical', pdfPath)
 }
@@ -535,11 +531,9 @@ function getAllLeaves(node) {
   return (node.children || []).flatMap(getAllLeaves)
 }
 
-// Auto-open PDF on first successful auto-compile for .tex files in this pane
 function handleLatexCompileDone(e) {
   const { texPath, pdf_path, success } = e.detail || {}
   if (!success || !pdf_path) return
-  // Only handle if the .tex file is in THIS pane
   if (!props.tabs.includes(texPath)) return
   ensurePdfOpen(pdf_path)
 }
