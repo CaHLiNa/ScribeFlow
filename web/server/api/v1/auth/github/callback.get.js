@@ -1,8 +1,10 @@
 // GET /api/v1/auth/github/callback?code=xxx&state=xxx
 // GitHub redirects here after user authorizes the OAuth app
-// Exchanges the code for a GitHub access token, stores it for desktop polling
+// Exchanges the code for a GitHub access token, then either stores it for polling
+// (dev) or redirects back to the desktop app via altals:// (production)
 
-import { hashValue, setGitHubToken, markCodeUsed, isCodeUsed, verifyOAuthNonce } from '../../../../utils/githubTokenStore.js'
+import { hashValue, setGitHubToken, markCodeUsed, isCodeUsed } from '../../../../utils/githubTokenStore.js'
+import { verifySignedOAuthState } from '../../../../utils/githubOAuthState.js'
 
 const SUCCESS_HTML = `<!DOCTYPE html>
 <html>
@@ -17,42 +19,96 @@ const SUCCESS_HTML = `<!DOCTYPE html>
 </body>
 </html>`
 
+function escapeHtml(value = '') {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+function buildDeepLinkUrl({ state, token, error = '' }) {
+  const params = new URLSearchParams({ state })
+  if (token) params.set('token', token)
+  if (error) params.set('error', error)
+  return `altals://auth/github?${params.toString()}`
+}
+
+function buildDeepLinkHtml(url, title, message) {
+  const safeUrl = url.replace(/&/g, '&amp;')
+  return `<!DOCTYPE html>
+<html>
+<head><title>${escapeHtml(title)}</title></head>
+<body style="font-family: -apple-system, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #1a1b26; color: #c0caf5;">
+  <div style="text-align: center; max-width: 420px; padding: 24px;">
+    <h2 style="margin: 0 0 12px;">${escapeHtml(title)}</h2>
+    <p style="margin: 0 0 18px; line-height: 1.5;">${escapeHtml(message)}</p>
+    <a href="${safeUrl}" style="display: inline-block; padding: 10px 16px; border-radius: 999px; background: #9ece6a; color: #1a1b26; text-decoration: none; font-weight: 600;">
+      Return to Altals
+    </a>
+  </div>
+  <script>
+    const target = ${JSON.stringify(url)}
+    window.location.replace(target)
+    setTimeout(() => { window.location.href = target }, 800)
+  </script>
+</body>
+</html>`
+}
+
 export default defineEventHandler(async (event) => {
   const query = getQuery(event)
-  const { code, state: combinedState } = query
+  const {
+    code,
+    state: signedState,
+    error: githubError,
+    error_description: githubErrorDescription,
+  } = query
+  const config = useRuntimeConfig()
 
-  if (!code || !combinedState) {
+  if (!signedState) {
     setResponseStatus(event, 400)
-    return { error: 'Missing code or state' }
+    return { error: 'Missing state' }
+  }
+
+  const verifiedState = verifySignedOAuthState(signedState, config)
+  if (!verifiedState) {
+    setResponseStatus(event, 403)
+    return { error: 'Invalid or expired OAuth state. Please try connecting again.' }
+  }
+
+  const { originalState, transport } = verifiedState
+
+  if (githubError) {
+    const message = String(githubErrorDescription || githubError)
+    if (transport === 'deep-link') {
+      setHeader(event, 'Cache-Control', 'no-store')
+      setHeader(event, 'Content-Type', 'text/html')
+      return buildDeepLinkHtml(
+        buildDeepLinkUrl({ state: originalState, error: message }),
+        'GitHub Authorization Canceled',
+        'Return to Altals to retry the connection.'
+      )
+    }
+
+    setResponseStatus(event, 400)
+    return { error: message }
+  }
+
+  if (!code) {
+    setResponseStatus(event, 400)
+    return { error: 'Missing code' }
   }
 
   // Guard against double-hit (browser can fire callback twice)
-  // Check this before nonce verification since nonce is one-time-use
+  // This is only a best-effort optimization; GitHub also rejects reused codes.
   if (isCodeUsed(code)) {
     setHeader(event, 'Content-Type', 'text/html')
     return SUCCESS_HTML
   }
 
-  // Parse combined state: "originalState:nonce"
-  const colonIdx = combinedState.lastIndexOf(':')
-  if (colonIdx === -1) {
-    setResponseStatus(event, 400)
-    return { error: 'Invalid state parameter' }
-  }
-
-  const originalState = combinedState.slice(0, colonIdx)
-  const nonce = combinedState.slice(colonIdx + 1)
-
-  // Verify the server-side nonce (CSRF protection)
-  const verifiedState = verifyOAuthNonce(nonce)
-  if (!verifiedState || verifiedState !== originalState) {
-    setResponseStatus(event, 403)
-    return { error: 'Invalid or expired OAuth state. Please try connecting again.' }
-  }
-
   markCodeUsed(code)
-
-  const config = useRuntimeConfig()
 
   // Exchange code for GitHub access token
   let ghToken
@@ -83,6 +139,16 @@ export default defineEventHandler(async (event) => {
     return { error: 'No access token received from GitHub' }
   }
 
+  if (transport === 'deep-link') {
+    setHeader(event, 'Cache-Control', 'no-store')
+    setHeader(event, 'Content-Type', 'text/html')
+    return buildDeepLinkHtml(
+      buildDeepLinkUrl({ state: originalState, token: ghToken }),
+      'GitHub Connected',
+      'Altals is ready to finish connecting your GitHub account.'
+    )
+  }
+
   // Fetch GitHub user info
   let ghUser
   try {
@@ -108,6 +174,7 @@ export default defineEventHandler(async (event) => {
     avatarUrl: ghUser.avatar_url,
   })
 
+  setHeader(event, 'Cache-Control', 'no-store')
   setHeader(event, 'Content-Type', 'text/html')
   return SUCCESS_HTML
 })

@@ -1,12 +1,13 @@
-// GET /api/v1/auth/github/connect?state=xxx
+// GET /api/v1/auth/github/connect?state=xxx&transport=poll|deep-link
 // Redirects to GitHub OAuth consent screen
-// Generates a server-side nonce bound to the state for CSRF protection
+// Uses a signed state payload so callback verification works across server instances
 
-import { createOAuthNonce } from '../../../../utils/githubTokenStore.js'
+import { createSignedOAuthState } from '../../../../utils/githubOAuthState.js'
 
 export default defineEventHandler(async (event) => {
   const query = getQuery(event)
   const state = query.state
+  const transport = query.transport === 'deep-link' ? 'deep-link' : 'poll'
 
   if (!state) {
     setResponseStatus(event, 400)
@@ -21,15 +22,11 @@ export default defineEventHandler(async (event) => {
     return { error: 'GitHub OAuth not configured' }
   }
 
-  // Generate a server-side nonce and bind it to the original state
-  const nonce = createOAuthNonce(state)
-  // Combine original state + nonce so GitHub returns both in the callback
-  const combinedState = `${state}:${nonce}`
-
   const redirectUri = `${config.baseUrl}/api/v1/auth/github/callback`
   const scope = 'repo read:user user:email'
+  const signedState = createSignedOAuthState({ originalState: state, transport }, config)
 
-  const url = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${encodeURIComponent(combinedState)}`
+  const url = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${encodeURIComponent(signedState)}`
 
   return sendRedirect(event, url)
 })

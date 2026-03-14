@@ -37,6 +37,7 @@ GitHub OAuth bridge:
 
 ```bash
 cd web
+cp .env.example .env
 npm install
 npm run dev
 ```
@@ -54,8 +55,12 @@ Required desktop env for OAuth:
 Example:
 
 ```bash
-VITE_GITHUB_AUTH_ORIGIN=http://localhost:3000 npm run tauri dev
+VITE_GITHUB_AUTH_ORIGIN=https://<your-project>.vercel.app npm run tauri dev
 ```
+
+Desktop development and release builds both use `VITE_GITHUB_AUTH_ORIGIN`.
+When this origin is public, GitHub returns through the `altals://` deep link.
+Use `http://localhost:3000` only if you intentionally self-host the bridge locally and point the app at it.
 
 ## Public GitHub login
 
@@ -70,11 +75,13 @@ Recommended production setup:
    - `NUXT_BASE_URL=https://<your-project>.vercel.app`
    - `NUXT_GITHUB_CLIENT_ID=<your client id>`
    - `NUXT_GITHUB_CLIENT_SECRET=<your client secret>`
-5. Set desktop release builds to:
+5. Set desktop development and release builds to:
    - `VITE_GITHUB_AUTH_ORIGIN=https://<your-project>.vercel.app`
-6. Keep using `http://localhost:3000` only for local development
+6. Leave the in-app override empty unless you intentionally want a different bridge
 
 End users do not need to create their own OAuth App or run a local bridge.
+
+Desktop release builds return from GitHub through the `altals://` deep link instead of polling the bridge. This avoids relying on in-memory bridge state in deployed environments.
 
 Nuxt on Vercel works with zero extra framework config, and Vercel will keep deploying this bridge from Git once the project is imported.
 

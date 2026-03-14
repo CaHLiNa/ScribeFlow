@@ -179,7 +179,7 @@ const GITHUB_AUTH_ORIGIN_STORAGE_KEY = 'githubAuthOrigin'
 const loading = ref(false)
 const error = ref('')
 const showPat = ref(false)
-const showBridgeSettings = ref(import.meta.env.DEV)
+const showBridgeSettings = ref(false)
 const patValue = ref('')
 const showCreate = ref(false)
 const showLink = ref(false)
@@ -206,15 +206,36 @@ function normalizeOrigin(value = '') {
 }
 
 function buildGitHubAuthOrigin() {
-  return normalizeOrigin(import.meta.env.VITE_GITHUB_AUTH_ORIGIN || (import.meta.env.DEV ? 'http://localhost:3000' : ''))
+  return normalizeOrigin(import.meta.env.VITE_GITHUB_AUTH_ORIGIN || '')
+}
+
+function shouldIgnoreSavedGitHubAuthOrigin(savedOrigin = '') {
+  const builtInOrigin = buildGitHubAuthOrigin()
+  return Boolean(savedOrigin)
+    && isLocalhostOrigin(savedOrigin)
+    && Boolean(builtInOrigin)
+    && !isLocalhostOrigin(builtInOrigin)
 }
 
 function loadSavedGitHubAuthOrigin() {
   try {
-    return normalizeOrigin(localStorage.getItem(GITHUB_AUTH_ORIGIN_STORAGE_KEY) || '')
+    const savedOrigin = normalizeOrigin(localStorage.getItem(GITHUB_AUTH_ORIGIN_STORAGE_KEY) || '')
+    if (shouldIgnoreSavedGitHubAuthOrigin(savedOrigin)) {
+      localStorage.removeItem(GITHUB_AUTH_ORIGIN_STORAGE_KEY)
+      return ''
+    }
+    return savedOrigin
   } catch {
     return ''
   }
+}
+
+function isLocalhostOrigin(value = '') {
+  return /^https?:\/\/(localhost|127(?:\.\d+){3})(:\d+)?$/i.test(String(value || ''))
+}
+
+function getGitHubAuthTransport() {
+  return isLocalhostOrigin(githubAuthOrigin.value) ? 'poll' : 'deep-link'
 }
 
 const repoDisplayName = computed(() => {
@@ -264,6 +285,7 @@ async function openInBrowser(url) {
 async function handleConnect() {
   error.value = ''
   loading.value = true
+  let deepLinkWaiter = null
   try {
     if (!githubAuthOrigin.value) {
       error.value = t('GitHub sign-in is not configured in this build yet. Please use a release with a configured auth service, or connect with a Personal Access Token.')
@@ -276,17 +298,26 @@ async function handleConnect() {
     const arr = new Uint8Array(16)
     crypto.getRandomValues(arr)
     const state = Array.from(arr, b => b.toString(16).padStart(2, '0')).join('')
+    const transport = getGitHubAuthTransport()
 
-    await open(`${githubAuthOrigin.value}/api/v1/auth/github/connect?state=${state}`)
+    if (transport === 'deep-link') {
+      const { createGitHubAuthDeepLinkWaiter } = await import('../../services/githubAuthDeepLink')
+      deepLinkWaiter = await createGitHubAuthDeepLinkWaiter(state)
+    }
 
-    // Poll for the GitHub token after the OAuth callback stores it.
-    const tokenData = await pollForGitHubToken(state)
+    await open(`${githubAuthOrigin.value}/api/v1/auth/github/connect?state=${state}&transport=${transport}`)
+
+    const tokenData = transport === 'deep-link'
+      ? await deepLinkWaiter?.promise
+      : await pollForGitHubToken(state)
+
     if (tokenData?.token) {
       await workspace.connectGitHub(tokenData)
     } else {
       error.value = t('Connection timed out. Please try again.')
     }
   } catch (e) {
+    deepLinkWaiter?.cancel?.()
     console.error('[github] Connect failed:', e)
     error.value = String(e.message || e)
   }
