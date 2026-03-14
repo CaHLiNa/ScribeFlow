@@ -197,6 +197,11 @@ pub async fn read_file_base64(path: String) -> Result<String, String> {
 }
 
 #[tauri::command]
+pub async fn read_file_binary(path: String) -> Result<Vec<u8>, String> {
+    run_blocking(move || fs::read(&path).map_err(|e| e.to_string())).await
+}
+
+#[tauri::command]
 pub async fn write_file(path: String, content: String) -> Result<(), String> {
     run_blocking(move || fs::write(&path, &content).map_err(|e| e.to_string())).await
 }

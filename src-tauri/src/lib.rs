@@ -374,6 +374,7 @@ pub fn run() {
             fs_commands::read_dir_recursive,
             fs_commands::read_file,
             fs_commands::read_file_base64,
+            fs_commands::read_file_binary,
             fs_commands::write_file,
             fs_commands::write_file_base64,
             fs_commands::create_file,

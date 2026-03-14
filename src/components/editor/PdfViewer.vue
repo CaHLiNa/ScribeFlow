@@ -270,8 +270,12 @@ const pdfUi = reactive({
   searchEntireWord: false,
 })
 
-let currentBlobUrl = null
 let syncTimer = null
+let loadRequestId = 0
+let iframeListenersAttached = false
+let resolveViewerReady = null
+let rejectViewerReady = null
+let viewerReadyPromise = null
 
 const LIGHT_THEMES = new Set(['light', 'one-light', 'humane', 'solarized'])
 const isDark = computed(() => !LIGHT_THEMES.has(workspace.theme))
@@ -338,6 +342,13 @@ function clearSyncTimer() {
     window.clearInterval(syncTimer)
     syncTimer = null
   }
+}
+
+function resetViewerReadyPromise() {
+  viewerReadyPromise = new Promise((resolve, reject) => {
+    resolveViewerReady = resolve
+    rejectViewerReady = reject
+  })
 }
 
 function getPdfWindow() {
@@ -636,13 +647,19 @@ function handleIframeDoubleClick(event) {
 async function onIframeLoad() {
   const win = getPdfWindow()
   const app = getPdfApp()
-  if (!win || !app) return
+  if (!win || !app) {
+    rejectViewerReady?.(new Error('PDF viewer failed to initialize'))
+    return
+  }
 
   try {
     if (app.initializedPromise) {
       await app.initializedPromise
     }
-  } catch {}
+  } catch (error) {
+    rejectViewerReady?.(error)
+    return
+  }
 
   applyTheme()
   injectViewerOverrides()
@@ -650,33 +667,38 @@ async function onIframeLoad() {
   clearSyncTimer()
   syncTimer = window.setInterval(syncPdfUi, 250)
 
-  try {
-    win.document.addEventListener('mousedown', () => {
-      iframeRef.value?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
-    })
-    win.document.addEventListener('dblclick', handleIframeDoubleClick)
-    win.document.addEventListener('keydown', (e) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'w') {
-        e.preventDefault()
-        document.dispatchEvent(new KeyboardEvent('keydown', {
-          key: e.key,
-          code: e.code,
-          metaKey: e.metaKey,
-          ctrlKey: e.ctrlKey,
-          shiftKey: e.shiftKey,
-          altKey: e.altKey,
-          bubbles: true,
-          cancelable: true,
-        }))
-        return
-      }
+  if (!iframeListenersAttached) {
+    try {
+      win.document.addEventListener('mousedown', () => {
+        iframeRef.value?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+      })
+      win.document.addEventListener('dblclick', handleIframeDoubleClick)
+      win.document.addEventListener('keydown', (e) => {
+        if ((e.metaKey || e.ctrlKey) && e.key === 'w') {
+          e.preventDefault()
+          document.dispatchEvent(new KeyboardEvent('keydown', {
+            key: e.key,
+            code: e.code,
+            metaKey: e.metaKey,
+            ctrlKey: e.ctrlKey,
+            shiftKey: e.shiftKey,
+            altKey: e.altKey,
+            bubbles: true,
+            cancelable: true,
+          }))
+          return
+        }
 
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') {
-        e.preventDefault()
-        openSearch()
-      }
-    })
-  } catch {}
+        if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') {
+          e.preventDefault()
+          openSearch()
+        }
+      })
+      iframeListenersAttached = true
+    } catch {}
+  }
+
+  resolveViewerReady?.(app)
 }
 
 function scrollToPage(pageNumber) {
@@ -711,25 +733,34 @@ function scrollToLocation(pageNumber, x, y) {
 watch(isDark, applyTheme)
 
 async function loadPdf() {
+  const requestId = ++loadRequestId
   loading.value = true
   error.value = null
   clearSyncTimer()
   resetPdfUi()
-
-  if (currentBlobUrl) {
-    URL.revokeObjectURL(currentBlobUrl)
-    currentBlobUrl = null
-  }
+  iframeListenersAttached = false
 
   try {
-    const base64 = await invoke('read_file_base64', { path: props.filePath })
-    const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0))
-    currentBlobUrl = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }))
-    viewerSrc.value = `/pdfjs-viewer/web/viewer.html?file=${encodeURIComponent(currentBlobUrl)}`
+    const bytes = await invoke('read_file_binary', { path: props.filePath })
+    if (requestId !== loadRequestId) return
+    const uint8Array = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes)
+    resetViewerReadyPromise()
+    viewerSrc.value = `/pdfjs-viewer/web/viewer.html?instance=${requestId}`
+    const app = await viewerReadyPromise
+    if (requestId !== loadRequestId) return
+    await app.open({ data: uint8Array })
+    if (requestId !== loadRequestId) {
+      await app.close().catch(() => {})
+      return
+    }
+    syncPdfUi()
   } catch (e) {
+    if (requestId !== loadRequestId) return
     error.value = e.toString()
   } finally {
-    loading.value = false
+    if (requestId === loadRequestId) {
+      loading.value = false
+    }
   }
 }
 
@@ -738,14 +769,22 @@ function handlePdfUpdated(event) {
 }
 
 onMounted(() => {
+  resetViewerReadyPromise()
   window.addEventListener('pdf-updated', handlePdfUpdated)
   loadPdf()
 })
 
 onUnmounted(() => {
+  loadRequestId += 1
   window.removeEventListener('pdf-updated', handlePdfUpdated)
   clearSyncTimer()
-  if (currentBlobUrl) URL.revokeObjectURL(currentBlobUrl)
+  const app = getPdfApp()
+  if (app?.close) {
+    app.close().catch(() => {})
+  }
+  viewerReadyPromise = null
+  resolveViewerReady = null
+  rejectViewerReady = null
 })
 
 watch(() => props.filePath, loadPdf)
