@@ -16723,6 +16723,8 @@ class ViewsManager extends Sidebar {
     this.viewsManagerCurrentOutlineButton = viewsManagerCurrentOutlineButton;
     this.viewsManagerHeaderLabel = viewsManagerHeaderLabel;
     this.eventBus = eventBus;
+    this._transitionFallbackId = 0;
+    this._transitionToken = 0;
     this.menu = new Menu(viewsManagerSelectorOptions, viewsManagerSelectorButton, [thumbnailButton, outlineButton, attachmentsButton, layersButton]);
     ViewsManager.#l10nDescription ||= Object.freeze({
       pagesTitle: "pdfjs-views-manager-pages-title",
@@ -16820,13 +16822,19 @@ class ViewsManager extends Sidebar {
     if (this.isOpen) {
       return;
     }
+    const transitionToken = ++this._transitionToken;
+    this._cancelTransitionFallback();
     this.isOpen = true;
     this.onResizing(this.width);
     this._sidebar.hidden = false;
     toggleExpandedBtn(this.toggleButton, true);
     this.switchView(this.active);
     queueMicrotask(() => {
+      if (transitionToken !== this._transitionToken || !this.isOpen) {
+        return;
+      }
       this.outerContainer.classList.add("viewsManagerMoving", "viewsManagerOpen");
+      this._scheduleTransitionFallback(transitionToken);
     });
     if (this.active === SidebarView.THUMBS) {
       this.onUpdateThumbnails();
@@ -16839,11 +16847,13 @@ class ViewsManager extends Sidebar {
     if (!this.isOpen) {
       return;
     }
+    const transitionToken = ++this._transitionToken;
+    this._cancelTransitionFallback();
     this.isOpen = false;
-    this._sidebar.hidden = true;
     toggleExpandedBtn(this.toggleButton, false);
     this.outerContainer.classList.add("viewsManagerMoving");
     this.outerContainer.classList.remove("viewsManagerOpen");
+    this._scheduleTransitionFallback(transitionToken);
     this.onToggled();
     this.#dispatchEvent();
     if (evt?.detail > 0) {
@@ -16851,7 +16861,6 @@ class ViewsManager extends Sidebar {
     }
   }
   toggle(evt = null) {
-    super.toggle();
     if (this.isOpen) {
       this.close(evt);
     } else {
@@ -16881,17 +16890,43 @@ class ViewsManager extends Sidebar {
       this.toggleButton.setAttribute("data-l10n-id", ViewsManager.#l10nDescription.toggleButton);
     }
   }
+  _cancelTransitionFallback() {
+    if (this._transitionFallbackId) {
+      cancelAnimationFrame(this._transitionFallbackId);
+      this._transitionFallbackId = 0;
+    }
+  }
+  _finishTransition(token) {
+    if (token !== this._transitionToken) {
+      return;
+    }
+    this.outerContainer.classList.remove("viewsManagerMoving");
+    if (!this.isOpen) {
+      this._sidebar.hidden = true;
+    }
+    this.eventBus.dispatch("resize", {
+      source: this
+    });
+  }
+  _scheduleTransitionFallback(token) {
+    const hasTransition = getComputedStyle(this.sidebarContainer).transitionDuration.split(",").some(value => parseFloat(value) > 0);
+    if (hasTransition) {
+      return;
+    }
+    this._cancelTransitionFallback();
+    this._transitionFallbackId = requestAnimationFrame(() => {
+      this._transitionFallbackId = 0;
+      this._finishTransition(token);
+    });
+  }
   #addEventListeners() {
     const {
-      eventBus,
-      outerContainer
+      eventBus
     } = this;
     this.sidebarContainer.addEventListener("transitionend", evt => {
       if (evt.target === this.sidebarContainer) {
-        outerContainer.classList.remove("viewsManagerMoving");
-        eventBus.dispatch("resize", {
-          source: this
-        });
+        this._cancelTransitionFallback();
+        this._finishTransition(this._transitionToken);
       }
     });
     this.thumbnailButton.addEventListener("click", () => {
