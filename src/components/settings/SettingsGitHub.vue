@@ -105,34 +105,7 @@
 
       <div v-if="error" class="gh-error">{{ error }}</div>
 
-      <p class="gh-hint">{{ t('Altals uses an official GitHub authorization page. Most users do not need to change anything here.') }}</p>
-
-      <div class="gh-bridge-status">
-        <span class="gh-bridge-status-label">{{ t('Auth service') }}</span>
-        <span class="gh-bridge-status-value">{{ githubAuthOrigin || t('Not configured') }}</span>
-      </div>
-
-      <div class="gh-bridge-section">
-        <button class="gh-pat-toggle" @click="showBridgeSettings = !showBridgeSettings">
-          {{ showBridgeSettings ? t('Hide') : t('Override Auth Service URL') }}
-        </button>
-        <div v-if="showBridgeSettings" class="gh-bridge-form">
-          <p class="gh-hint">{{ t('Only change this if you are developing Altals locally or using a self-hosted auth bridge.') }}</p>
-          <div class="key-input-row">
-            <input
-              v-model="authOriginDraft"
-              class="key-input"
-              type="url"
-              placeholder="http://localhost:3000"
-              @keydown.enter="handleSaveAuthOrigin"
-            />
-            <button class="key-save-btn" :disabled="loading" @click="handleSaveAuthOrigin">
-              {{ t('Save Auth Service URL') }}
-            </button>
-          </div>
-          <p class="gh-hint">{{ t('Leave blank to use the built-in default auth service.') }}</p>
-        </div>
-      </div>
+      <p class="gh-hint">{{ t('Altals will open the official GitHub authorization page in your browser.') }}</p>
 
       <!-- OAuth connect -->
       <div class="keys-actions">
@@ -174,12 +147,10 @@ import { formatRelativeFromNow, useI18n } from '../../i18n'
 
 const workspace = useWorkspaceStore()
 const { t } = useI18n()
-const GITHUB_AUTH_ORIGIN_STORAGE_KEY = 'githubAuthOrigin'
 
 const loading = ref(false)
 const error = ref('')
 const showPat = ref(false)
-const showBridgeSettings = ref(false)
 const patValue = ref('')
 const showCreate = ref(false)
 const showLink = ref(false)
@@ -187,10 +158,9 @@ const newRepoName = ref('')
 const newRepoPrivate = ref(true)
 const repos = ref([])
 const reposLoading = ref(false)
-const savedGitHubAuthOrigin = ref(loadSavedGitHubAuthOrigin())
-const authOriginDraft = ref(savedGitHubAuthOrigin.value || buildGitHubAuthOrigin())
 
 onMounted(async () => {
+  clearLegacyGitHubAuthOrigin()
   loading.value = true
   try {
     await workspace.ensureGitHubInitialized()
@@ -209,24 +179,11 @@ function buildGitHubAuthOrigin() {
   return normalizeOrigin(import.meta.env.VITE_GITHUB_AUTH_ORIGIN || '')
 }
 
-function shouldIgnoreSavedGitHubAuthOrigin(savedOrigin = '') {
-  const builtInOrigin = buildGitHubAuthOrigin()
-  return Boolean(savedOrigin)
-    && isLocalhostOrigin(savedOrigin)
-    && Boolean(builtInOrigin)
-    && !isLocalhostOrigin(builtInOrigin)
-}
-
-function loadSavedGitHubAuthOrigin() {
+function clearLegacyGitHubAuthOrigin() {
   try {
-    const savedOrigin = normalizeOrigin(localStorage.getItem(GITHUB_AUTH_ORIGIN_STORAGE_KEY) || '')
-    if (shouldIgnoreSavedGitHubAuthOrigin(savedOrigin)) {
-      localStorage.removeItem(GITHUB_AUTH_ORIGIN_STORAGE_KEY)
-      return ''
-    }
-    return savedOrigin
+    localStorage.removeItem('githubAuthOrigin')
   } catch {
-    return ''
+    // Ignore storage cleanup failures.
   }
 }
 
@@ -260,7 +217,7 @@ const repoDisplayName = computed(() => {
   return match ? match[1] : url
 })
 
-const githubAuthOrigin = computed(() => normalizeOrigin(savedGitHubAuthOrigin.value || buildGitHubAuthOrigin()))
+const githubAuthOrigin = computed(() => buildGitHubAuthOrigin())
 
 const repoHtmlUrl = computed(() => {
   const name = repoDisplayName.value
@@ -373,20 +330,6 @@ async function pollForGitHubToken(state) {
     } catch {}
   }
   return null
-}
-
-function handleSaveAuthOrigin() {
-  const normalized = normalizeOrigin(authOriginDraft.value)
-  savedGitHubAuthOrigin.value = normalized
-  authOriginDraft.value = normalized || buildGitHubAuthOrigin()
-  try {
-    if (normalized) {
-      localStorage.setItem(GITHUB_AUTH_ORIGIN_STORAGE_KEY, normalized)
-    } else {
-      localStorage.removeItem(GITHUB_AUTH_ORIGIN_STORAGE_KEY)
-    }
-  } catch {}
-  error.value = ''
 }
 
 async function handlePatConnect() {
@@ -520,38 +463,6 @@ async function handleSyncNow() {
 
 .gh-section {
   margin-top: 4px;
-}
-
-.gh-bridge-section {
-  margin: 16px 0;
-}
-
-.gh-bridge-status {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--bg-primary);
-  margin-bottom: 12px;
-}
-
-.gh-bridge-status-label {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--fg-muted);
-}
-
-.gh-bridge-status-value {
-  font-size: 12px;
-  color: var(--fg-primary);
-  word-break: break-all;
-}
-
-.gh-bridge-form {
-  margin-top: 10px;
 }
 
 .gh-section-label {
