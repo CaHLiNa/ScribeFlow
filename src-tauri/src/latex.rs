@@ -43,6 +43,10 @@ pub struct CompileResult {
     pub warnings: Vec<LatexError>,
     pub log: String,
     pub duration_ms: u64,
+    pub compiler_backend: Option<String>,
+    pub command_preview: Option<String>,
+    pub requested_program: Option<String>,
+    pub requested_program_applied: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -53,6 +57,14 @@ struct LatexCompileStreamPayload {
     clear: bool,
     header: bool,
     open: bool,
+}
+
+#[derive(Debug, Clone)]
+struct LatexCompileMeta {
+    compiler_backend: String,
+    command_preview: String,
+    requested_program: Option<String>,
+    requested_program_applied: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -289,12 +301,33 @@ fn extract_line_number(msg: &str) -> (Option<u32>, &str) {
     (None, msg)
 }
 
+fn read_requested_program(tex_path: &str) -> Option<String> {
+    let content = std::fs::read_to_string(tex_path).ok()?;
+    for line in content.lines().take(20) {
+        let trimmed = line.trim();
+        if !trimmed.starts_with('%') {
+            continue;
+        }
+        let lowered = trimmed.to_ascii_lowercase();
+        if !lowered.contains("!tex program") {
+            continue;
+        }
+        let value = trimmed.split('=').nth(1)?.trim().to_ascii_lowercase();
+        if value.is_empty() {
+            return None;
+        }
+        return Some(value);
+    }
+    None
+}
+
 fn build_compile_result_from_logs(
     tex: &Path,
     status_success: bool,
     stdout: String,
     stderr: String,
     start: std::time::Instant,
+    meta: LatexCompileMeta,
 ) -> CompileResult {
     let dir = tex.parent().unwrap_or_else(|| Path::new("."));
     let full_log = format!("{}\n{}", stdout, stderr);
@@ -336,6 +369,10 @@ fn build_compile_result_from_logs(
         warnings,
         log: full_log,
         duration_ms: start.elapsed().as_millis() as u64,
+        compiler_backend: Some(meta.compiler_backend),
+        command_preview: Some(meta.command_preview),
+        requested_program: meta.requested_program,
+        requested_program_applied: meta.requested_program_applied,
     }
 }
 
@@ -344,6 +381,7 @@ async fn compile_with_tectonic(
     tectonic_path: &str,
     tex_path: &str,
     start: std::time::Instant,
+    requested_program: Option<String>,
 ) -> Result<CompileResult, String> {
     let tex = Path::new(tex_path);
     let dir = tex.parent().ok_or("Invalid tex path")?;
@@ -354,7 +392,17 @@ async fn compile_with_tectonic(
     command.args(["-X", "compile", "--synctex", "--keep-logs", tex_path]);
     command.current_dir(dir);
 
-    run_latex_command_with_streaming(app, command, tex_path, start).await
+    let meta = LatexCompileMeta {
+        compiler_backend: "tectonic".to_string(),
+        command_preview: format!(
+            "{} -X compile --synctex --keep-logs {}",
+            tectonic_path, tex_path
+        ),
+        requested_program,
+        requested_program_applied: false,
+    };
+
+    run_latex_command_with_streaming(app, command, tex_path, start, meta).await
 }
 
 async fn run_latex_command_with_streaming(
@@ -362,6 +410,7 @@ async fn run_latex_command_with_streaming(
     mut command: tokio::process::Command,
     tex_path: &str,
     start: std::time::Instant,
+    meta: LatexCompileMeta,
 ) -> Result<CompileResult, String> {
     let tex = Path::new(tex_path);
     let stdout_log = Arc::new(Mutex::new(String::new()));
@@ -371,6 +420,32 @@ async fn run_latex_command_with_streaming(
     let mut child = command
         .spawn()
         .map_err(|e| format!("Failed to start LaTeX compiler: {}", e))?;
+
+    let mut intro = vec![
+        format!("Compiler backend: {}", meta.compiler_backend),
+        format!("Command: {}", meta.command_preview),
+    ];
+    if let Some(program) = &meta.requested_program {
+        intro.push(format!(
+            "Magic comment: % !TEX program = {} ({})",
+            program,
+            if meta.requested_program_applied {
+                "applied"
+            } else {
+                "detected but not applied"
+            }
+        ));
+    }
+    let _ = app.emit(
+        LATEX_COMPILE_STREAM_EVENT,
+        LatexCompileStreamPayload {
+            tex_path: tex_path.to_string(),
+            line: intro.join("\n"),
+            clear: false,
+            header: true,
+            open: false,
+        },
+    );
 
     let stdout_task = if let Some(stdout) = child.stdout.take() {
         let app = app.clone();
@@ -446,6 +521,7 @@ async fn run_latex_command_with_streaming(
         stdout,
         stderr,
         start,
+        meta,
     ))
 }
 
@@ -454,15 +530,29 @@ async fn compile_with_system_tex(
     system_tex_path: &str,
     tex_path: &str,
     start: std::time::Instant,
+    requested_program: Option<String>,
+    engine_preference: Option<String>,
 ) -> Result<CompileResult, String> {
     let tex = Path::new(tex_path);
     let dir = tex.parent().ok_or("Invalid tex path")?;
     eprintln!("[latex] Using system TeX at: {}", system_tex_path);
     eprintln!("[latex] Compiling: {} in dir: {}", tex_path, dir.display());
 
+    let preferred_engine = requested_program
+        .clone()
+        .or_else(|| engine_preference.filter(|value| !value.trim().is_empty() && value != "auto"));
+
+    let (engine_flag, requested_program_applied, compiler_backend) =
+        match preferred_engine.as_deref() {
+            Some("xelatex") => ("-xelatex", true, "system-latexmk-xelatex"),
+            Some("lualatex") => ("-lualatex", true, "system-latexmk-lualatex"),
+            Some("pdflatex") => ("-pdf", true, "system-latexmk-pdflatex"),
+            _ => ("-pdf", false, "system-latexmk"),
+        };
+
     let mut command = background_tokio_command(system_tex_path);
     command.args([
-            "-pdf",
+            engine_flag,
             "-interaction=nonstopmode",
             "-synctex=1",
             "-file-line-error",
@@ -471,7 +561,17 @@ async fn compile_with_system_tex(
         ]);
     command.current_dir(dir);
 
-    run_latex_command_with_streaming(app, command, tex_path, start).await
+    let meta = LatexCompileMeta {
+        compiler_backend: compiler_backend.to_string(),
+        command_preview: format!(
+            "{} {} -interaction=nonstopmode -synctex=1 -file-line-error -halt-on-error {}",
+            system_tex_path, engine_flag, tex_path
+        ),
+        requested_program,
+        requested_program_applied,
+    };
+
+    run_latex_command_with_streaming(app, command, tex_path, start, meta).await
 }
 
 #[tauri::command]
@@ -480,6 +580,7 @@ pub async fn compile_latex(
     state: tauri::State<'_, LatexState>,
     tex_path: String,
     compiler_preference: Option<String>,
+    engine_preference: Option<String>,
     custom_tectonic_path: Option<String>,
 ) -> Result<CompileResult, String> {
     // Check if already compiling this file
@@ -492,6 +593,8 @@ pub async fn compile_latex(
     }
 
     let start = std::time::Instant::now();
+    let requested_program = read_requested_program(&tex_path);
+    let engine_preference = engine_preference.unwrap_or_else(|| "auto".to_string());
 
     let preference = compiler_preference.unwrap_or_else(|| "auto".to_string());
     let system_tex = find_system_tex();
@@ -503,19 +606,19 @@ pub async fn compile_latex(
                 "System TeX compiler not found. Install MacTeX or TeX Live and try again."
                     .to_string()
             })?;
-            compile_with_system_tex(&app, &system_tex, &tex_path, start).await
+            compile_with_system_tex(&app, &system_tex, &tex_path, start, requested_program.clone(), Some(engine_preference.clone())).await
         }
         "tectonic" => {
             let tectonic = tectonic.ok_or_else(|| {
                 "Tectonic not found. Install it or choose System TeX in Settings.".to_string()
             })?;
-            compile_with_tectonic(&app, &tectonic, &tex_path, start).await
+            compile_with_tectonic(&app, &tectonic, &tex_path, start, requested_program.clone()).await
         }
         _ => {
             if let Some(system_tex) = system_tex {
-                compile_with_system_tex(&app, &system_tex, &tex_path, start).await
+                compile_with_system_tex(&app, &system_tex, &tex_path, start, requested_program.clone(), Some(engine_preference.clone())).await
             } else if let Some(tectonic) = tectonic {
-                compile_with_tectonic(&app, &tectonic, &tex_path, start).await
+                compile_with_tectonic(&app, &tectonic, &tex_path, start, requested_program.clone()).await
             } else {
                 Err("No LaTeX compiler found. Install MacTeX/TeX Live, or install Tectonic in Settings.".to_string())
             }

@@ -38,12 +38,17 @@ function buildLatexTerminalOutput(texPath, result, { includeRawLog = true } = {}
   const warnings = Array.isArray(result.warnings) ? result.warnings : []
   const lines = [
     `[LaTeX] ${fileNameForLog(texPath)}`,
+    result.compiler_backend ? `${t('Compiler')}: ${result.compiler_backend}` : null,
+    result.command_preview ? `${t('Command')}: ${result.command_preview}` : null,
+    result.requested_program
+      ? `${t('Magic comment')}: % !TEX program = ${result.requested_program} (${result.requested_program_applied ? t('applied') : t('detected but not applied')})`
+      : null,
     result.success
       ? t('Compilation succeeded in {duration}', { duration: `${result.duration_ms || 0}ms` })
       : t('Compilation failed'),
     `${t('Errors')}: ${errors.length}`,
     `${t('Warnings')}: ${warnings.length}`,
-  ]
+  ].filter(Boolean)
 
   if (errors.length > 0) {
     lines.push('')
@@ -134,6 +139,7 @@ export const useLatexStore = defineStore('latex', {
     // Recompile flags per file (set when compile is requested while one is running)
     _recompileNeeded: {},
     compilerPreference: readStoredValue('latex.compilerPreference', 'auto'),
+    enginePreference: readStoredValue('latex.enginePreference', 'auto'),
     // Tectonic install state
     tectonicInstalled: false,
     tectonicPath: null,
@@ -229,6 +235,7 @@ export const useLatexStore = defineStore('latex', {
         const result = await invoke('compile_latex', {
           texPath,
           compilerPreference: this.compilerPreference,
+          enginePreference: this.enginePreference,
           customTectonicPath: null,
         })
 
@@ -275,6 +282,13 @@ export const useLatexStore = defineStore('latex', {
       this.compilerPreference = preference
       try {
         localStorage.setItem('latex.compilerPreference', preference)
+      } catch {}
+    },
+
+    setEnginePreference(preference) {
+      this.enginePreference = preference
+      try {
+        localStorage.setItem('latex.enginePreference', preference)
       } catch {}
     },
 

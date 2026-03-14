@@ -380,40 +380,14 @@ function addSharedShellTerminal() {
   return terminals.length - 1
 }
 
-function buildTerminalLogCommand(label, text, { clear = false } = {}) {
+function buildTerminalLogText(label, text, { clear = false } = {}) {
   const body = String(text ?? '').replace(/\r\n/g, '\n')
-  let delimiter = 'ALTALS_LOG_EOF'
-  while (body.includes(delimiter)) {
-    delimiter += '_X'
-  }
-
   const lines = []
-  if (clear) lines.push('clear')
-  lines.push(`printf '\\n\\033[1;36m[%s]\\033[0m\\n' ${JSON.stringify(label)}`)
-  lines.push(`cat <<'${delimiter}'`)
-  lines.push(body)
-  lines.push(delimiter)
+  if (!clear) lines.push('')
+  lines.push(`[${label}]`)
+  lines.push(body.trimEnd())
   lines.push('')
-  return `${lines.join('\n')}\n`
-}
-
-function buildTerminalStreamCommand(text, { clear = false, headerLabel = '' } = {}) {
-  const body = String(text ?? '').replace(/\r\n/g, '\n')
-  let delimiter = 'ALTALS_STREAM_EOF'
-  while (body.includes(delimiter)) {
-    delimiter += '_X'
-  }
-
-  const lines = []
-  if (clear) lines.push('clear')
-  if (headerLabel) {
-    lines.push(`printf '\\n\\033[1;36m[%s]\\033[0m\\n' ${JSON.stringify(headerLabel)}`)
-  }
-  lines.push(`cat <<'${delimiter}'`)
-  lines.push(body)
-  lines.push(delimiter)
-  lines.push('')
-  return `${lines.join('\n')}\n`
+  return lines.join('\n')
 }
 
 function writeTextToTerminal(idx, text, { clear = false, retries = 6 } = {}) {
@@ -430,7 +404,7 @@ function writeTextToTerminal(idx, text, { clear = false, retries = 6 } = {}) {
 }
 
 function writeLogToShellTerminal(idx, label, text, { clear = false, retries = 8 } = {}) {
-  nextTick(async () => {
+  nextTick(() => {
     const term = terminalRefs[idx]
     if (!term) {
       if (retries > 0) {
@@ -438,16 +412,12 @@ function writeLogToShellTerminal(idx, label, text, { clear = false, retries = 8 
       }
       return
     }
-
-    const ok = await term.writeToPty(buildTerminalLogCommand(label, text, { clear }))
-    if (!ok && retries > 0) {
-      setTimeout(() => writeLogToShellTerminal(idx, label, text, { clear, retries: retries - 1 }), 100)
-    }
+    term.writeOutput(buildTerminalLogText(label, text, { clear }), { clear })
   })
 }
 
 function writeStreamToShellTerminal(idx, text, { clear = false, headerLabel = '', retries = 8 } = {}) {
-  nextTick(async () => {
+  nextTick(() => {
     const term = terminalRefs[idx]
     if (!term) {
       if (retries > 0) {
@@ -459,15 +429,8 @@ function writeStreamToShellTerminal(idx, text, { clear = false, headerLabel = ''
       }
       return
     }
-
-    const ok = await term.writeToPty(buildTerminalStreamCommand(text, { clear, headerLabel }))
-    if (!ok && retries > 0) {
-      setTimeout(() => writeStreamToShellTerminal(idx, text, {
-        clear,
-        headerLabel,
-        retries: retries - 1,
-      }), 100)
-    }
+    const prefix = headerLabel ? `\n[${headerLabel}]\n` : ''
+    term.writeOutput(`${prefix}${String(text ?? '').replace(/\r\n/g, '\n')}`, { clear })
   })
 }
 

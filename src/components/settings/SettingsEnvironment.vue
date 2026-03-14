@@ -124,6 +124,43 @@
 
     <div class="env-lang-card">
       <div class="env-lang-header">
+        <span class="env-lang-dot" :class="latexEngineDotClass"></span>
+        <span class="env-lang-name">{{ t('LaTeX Engine') }}</span>
+        <span class="env-lang-version">{{ latexEngineLabel }}</span>
+      </div>
+      <div class="env-compact-block env-compact-block-offset">
+        <div class="env-inline-row env-inline-row-top">
+          <div class="env-select-shell">
+            <select
+              class="env-select"
+              :value="latexStore.enginePreference"
+              :disabled="latexStore.compilerPreference === 'tectonic'"
+              @change="onEnginePreferenceChange"
+            >
+              <option value="auto">{{ t('Auto') }}</option>
+              <option value="xelatex">XeLaTeX</option>
+              <option value="pdflatex">pdfLaTeX</option>
+              <option value="lualatex">LuaLaTeX</option>
+            </select>
+            <span class="env-select-caret" aria-hidden="true">
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+                <path d="M1 3l4 4 4-4z" />
+              </svg>
+            </span>
+          </div>
+        </div>
+        <div class="env-lang-hint env-hint-inline">
+          {{
+            latexStore.compilerPreference === 'tectonic'
+              ? t('Tectonic chooses its own engine behavior. This setting applies to System TeX only.')
+              : t('Used when no % !TEX program = ... magic comment is present.')
+          }}
+        </div>
+      </div>
+    </div>
+
+    <div class="env-lang-card">
+      <div class="env-lang-header">
         <span class="env-lang-dot" :class="latexStore.systemTexInstalled ? 'good' : 'none'"></span>
         <span class="env-lang-name">{{ t('System TeX') }}</span>
         <span v-if="latexStore.systemTexInstalled" class="env-lang-version">{{ t('Installed') }}</span>
@@ -275,6 +312,19 @@ const latexHeaderDotClass = computed(() => {
   return latexStore.systemTexInstalled || latexStore.tectonicInstalled ? 'good' : 'warn'
 })
 
+const latexEngineLabel = computed(() => {
+  if (latexStore.enginePreference === 'xelatex') return 'XeLaTeX'
+  if (latexStore.enginePreference === 'pdflatex') return 'pdfLaTeX'
+  if (latexStore.enginePreference === 'lualatex') return 'LuaLaTeX'
+  return t('Auto')
+})
+
+const latexEngineDotClass = computed(() => {
+  if (latexStore.compilerPreference === 'tectonic') return 'warn'
+  if (latexStore.compilerPreference === 'system') return latexStore.systemTexInstalled ? 'good' : 'none'
+  return latexStore.systemTexInstalled ? 'good' : 'warn'
+})
+
 function envLangDotClass(lang) {
   if (kernelInstalledFor(lang)) return 'good'
   if (lang.info.found) return 'warn'
@@ -302,6 +352,10 @@ async function saveCustomPythonPath() {
 
 function onCompilerPreferenceChange(event) {
   latexStore.setCompilerPreference(event.target.value)
+}
+
+function onEnginePreferenceChange(event) {
+  latexStore.setEnginePreference(event.target.value)
 }
 
 async function redetectSystem() {

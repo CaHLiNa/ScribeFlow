@@ -165,7 +165,7 @@
       <!-- Status indicator -->
       <span v-if="texStatus === 'compiling'" class="flex items-center gap-1 ui-text-xs" style="color: var(--fg-muted);">
         <span class="tex-spinner"></span>
-        {{ t('Compiling...') }}
+        {{ texCompilingLabel }}
       </span>
       <span v-else-if="texStatus === 'success'" class="ui-text-xs" style="color: var(--success, #4ade80);">
         ● {{ texDuration }}
@@ -454,6 +454,21 @@ const latexStore = useLatexStore()
 const showCompileButtons = computed(() => props.activeTab && isLatex(props.activeTab))
 const texState = computed(() => props.activeTab ? latexStore.stateForFile(props.activeTab) : null)
 const texStatus = computed(() => texState.value?.status || null)
+function latexEngineDisplayLabel() {
+  const backend = String(texState.value?.compiler_backend || '')
+  if (backend.includes('xelatex')) return 'XeLaTeX'
+  if (backend.includes('lualatex')) return 'LuaLaTeX'
+  if (backend.includes('pdflatex')) return 'pdfLaTeX'
+  if (backend.includes('tectonic')) return 'Tectonic'
+
+  if (latexStore.compilerPreference === 'tectonic') return 'Tectonic'
+  if (latexStore.enginePreference === 'xelatex') return 'XeLaTeX'
+  if (latexStore.enginePreference === 'lualatex') return 'LuaLaTeX'
+  if (latexStore.enginePreference === 'pdflatex') return 'pdfLaTeX'
+  return 'LaTeX'
+}
+const texEngineLabel = computed(() => latexEngineDisplayLabel())
+const texCompilingLabel = computed(() => `${texEngineLabel.value} ${t('Compiling...')}`)
 const texDuration = computed(() => {
   const ms = texState.value?.durationMs
   if (!ms) return t('Compiled')
