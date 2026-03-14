@@ -469,7 +469,7 @@ function handleVisibilityChange() {
     const now = Date.now()
     if (now - lastFocusRefresh < 2000) return
     lastFocusRefresh = now
-    filesStore.loadFileTree()
+    filesStore.loadFileTree({ suppressErrors: true })
   }
 }
 

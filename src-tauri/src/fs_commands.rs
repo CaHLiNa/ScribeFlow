@@ -6,6 +6,7 @@ use std::fs;
 use std::path::Path;
 use std::sync::Mutex;
 use tauri::Emitter;
+use tokio::task;
 
 use crate::app_dirs;
 use crate::process_utils::background_command;
@@ -75,16 +76,22 @@ fn build_file_tree(dir: &Path) -> Result<Vec<FileEntry>, String> {
         let entry = entry.map_err(|e| e.to_string())?;
         let path = entry.path();
         let name = entry.file_name().to_string_lossy().to_string();
+        let metadata = fs::symlink_metadata(&path).map_err(|e| e.to_string())?;
+        let file_type = metadata.file_type();
+        let is_symlink = file_type.is_symlink();
+        let is_dir = file_type.is_dir();
 
         // Skip hidden directories, node_modules, target, .DS_Store
-        if name.starts_with('.') && path.is_dir() {
+        if name.starts_with('.') && is_dir {
             continue;
         }
         if name == "node_modules" || name == "target" || name == ".DS_Store" {
             continue;
         }
+        if is_symlink {
+            continue;
+        }
 
-        let is_dir = path.is_dir();
         let children = if is_dir {
             Some(build_file_tree(&path)?)
         } else {
@@ -92,8 +99,8 @@ fn build_file_tree(dir: &Path) -> Result<Vec<FileEntry>, String> {
         };
 
         let modified = if !is_dir {
-            fs::metadata(&path)
-                .and_then(|m| m.modified())
+            metadata
+                .modified()
                 .ok()
                 .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
                 .map(|d| d.as_secs())
@@ -124,74 +131,138 @@ fn build_file_tree(dir: &Path) -> Result<Vec<FileEntry>, String> {
     Ok(entries)
 }
 
+async fn run_blocking<F, T>(operation: F) -> Result<T, String>
+where
+    F: FnOnce() -> Result<T, String> + Send + 'static,
+    T: Send + 'static,
+{
+    task::spawn_blocking(operation)
+        .await
+        .map_err(|e| format!("Background task failed: {}", e))?
+}
+
 #[tauri::command]
 pub async fn read_dir_recursive(path: String) -> Result<Vec<FileEntry>, String> {
-    build_file_tree(Path::new(&path))
+    eprintln!("[fs] read_dir_recursive start path={}", path);
+    let started = std::time::Instant::now();
+    let path_for_read = path.clone();
+    let result = run_blocking(move || build_file_tree(Path::new(&path_for_read))).await;
+    match &result {
+        Ok(entries) => eprintln!(
+            "[fs] read_dir_recursive ok path={} entries={} elapsed_ms={}",
+            path,
+            entries.len(),
+            started.elapsed().as_millis()
+        ),
+        Err(error) => eprintln!(
+            "[fs] read_dir_recursive err path={} elapsed_ms={} error={}",
+            path,
+            started.elapsed().as_millis(),
+            error
+        ),
+    }
+    result
 }
 
 #[tauri::command]
 pub async fn read_file(path: String) -> Result<String, String> {
-    fs::read_to_string(&path).map_err(|e| e.to_string())
+    eprintln!("[fs] read_file start path={}", path);
+    let started = std::time::Instant::now();
+    let path_for_read = path.clone();
+    let result = run_blocking(move || fs::read_to_string(&path_for_read).map_err(|e| e.to_string())).await;
+    match &result {
+        Ok(content) => eprintln!(
+            "[fs] read_file ok path={} bytes={} elapsed_ms={}",
+            path,
+            content.len(),
+            started.elapsed().as_millis()
+        ),
+        Err(error) => eprintln!(
+            "[fs] read_file err path={} elapsed_ms={} error={}",
+            path,
+            started.elapsed().as_millis(),
+            error
+        ),
+    }
+    result
 }
 
 #[tauri::command]
 pub async fn read_file_base64(path: String) -> Result<String, String> {
-    let bytes = fs::read(&path).map_err(|e| e.to_string())?;
-    Ok(STANDARD.encode(&bytes))
+    run_blocking(move || {
+        let bytes = fs::read(&path).map_err(|e| e.to_string())?;
+        Ok(STANDARD.encode(&bytes))
+    })
+    .await
 }
 
 #[tauri::command]
 pub async fn write_file(path: String, content: String) -> Result<(), String> {
-    fs::write(&path, &content).map_err(|e| e.to_string())
+    run_blocking(move || fs::write(&path, &content).map_err(|e| e.to_string())).await
 }
 
 #[tauri::command]
 pub async fn write_file_base64(path: String, data: String) -> Result<(), String> {
-    let bytes = STANDARD
-        .decode(&data)
-        .map_err(|e| format!("Base64 decode error: {}", e))?;
-    fs::write(&path, &bytes).map_err(|e| format!("Write error: {}", e))
+    run_blocking(move || {
+        let bytes = STANDARD
+            .decode(&data)
+            .map_err(|e| format!("Base64 decode error: {}", e))?;
+        fs::write(&path, &bytes).map_err(|e| format!("Write error: {}", e))
+    })
+    .await
 }
 
 #[tauri::command]
 pub async fn create_file(path: String, content: String) -> Result<(), String> {
-    if Path::new(&path).exists() {
-        return Err("File already exists".to_string());
-    }
-    fs::write(&path, &content).map_err(|e| e.to_string())
+    run_blocking(move || {
+        if Path::new(&path).exists() {
+            return Err("File already exists".to_string());
+        }
+        fs::write(&path, &content).map_err(|e| e.to_string())
+    })
+    .await
 }
 
 #[tauri::command]
 pub async fn create_dir(path: String) -> Result<(), String> {
-    fs::create_dir_all(&path).map_err(|e| e.to_string())
+    run_blocking(move || fs::create_dir_all(&path).map_err(|e| e.to_string())).await
 }
 
 #[tauri::command]
 pub async fn rename_path(old_path: String, new_path: String) -> Result<(), String> {
-    fs::rename(&old_path, &new_path).map_err(|e| e.to_string())
+    run_blocking(move || fs::rename(&old_path, &new_path).map_err(|e| e.to_string())).await
 }
 
 #[tauri::command]
 pub async fn delete_path(path: String) -> Result<(), String> {
-    let p = Path::new(&path);
-    if p.is_dir() {
-        fs::remove_dir_all(p).map_err(|e| e.to_string())
-    } else {
-        fs::remove_file(p).map_err(|e| e.to_string())
-    }
+    run_blocking(move || {
+        let p = Path::new(&path);
+        if p.is_dir() {
+            fs::remove_dir_all(p).map_err(|e| e.to_string())
+        } else {
+            fs::remove_file(p).map_err(|e| e.to_string())
+        }
+    })
+    .await
 }
 
 #[tauri::command]
 pub async fn copy_file(src: String, dest: String) -> Result<(), String> {
-    fs::copy(&src, &dest).map_err(|e| e.to_string())?;
-    Ok(())
+    run_blocking(move || {
+        fs::copy(&src, &dest).map_err(|e| e.to_string())?;
+        Ok(())
+    })
+    .await
 }
 
 #[tauri::command]
 pub async fn copy_dir(src: String, dest: String) -> Result<(), String> {
-    let src = Path::new(&src);
-    let dest = Path::new(&dest);
-    copy_dir_recursive(src, dest).map_err(|e| e.to_string())
+    run_blocking(move || {
+        let src = Path::new(&src);
+        let dest = Path::new(&dest);
+        copy_dir_recursive(src, dest).map_err(|e| e.to_string())
+    })
+    .await
 }
 
 fn copy_dir_recursive(src: &Path, dest: &Path) -> std::io::Result<()> {
@@ -216,7 +287,9 @@ pub async fn is_directory(path: String) -> Result<bool, String> {
 
 #[tauri::command]
 pub async fn path_exists(path: String) -> Result<bool, String> {
-    Ok(Path::new(&path).exists())
+    let exists = Path::new(&path).exists();
+    eprintln!("[fs] path_exists path={} exists={}", path, exists);
+    Ok(exists)
 }
 
 #[tauri::command]
@@ -225,6 +298,7 @@ pub async fn watch_directory(
     state: tauri::State<'_, WatcherState>,
     paths: Vec<String>,
 ) -> Result<(), String> {
+    eprintln!("[fs-watch] watch_directory start paths={:?}", paths);
     let app_clone = app.clone();
 
     let mut watcher = RecommendedWatcher::new(
@@ -268,10 +342,12 @@ pub async fn watch_directory(
     }
 
     if !watched {
+        eprintln!("[fs-watch] watch_directory err no-valid-directories");
         return Err("No valid directories to watch".to_string());
     }
 
     *state.watcher.lock().unwrap() = Some(watcher);
+    eprintln!("[fs-watch] watch_directory ok");
     Ok(())
 }
 
@@ -338,10 +414,13 @@ pub async fn search_file_contents(
     query: String,
     max_results: usize,
 ) -> Result<Vec<SearchResult>, String> {
-    let query_lower = query.to_lowercase();
-    let mut results = Vec::new();
-    search_dir_contents(Path::new(&dir), &query_lower, &mut results, max_results)?;
-    Ok(results)
+    run_blocking(move || {
+        let query_lower = query.to_lowercase();
+        let mut results = Vec::new();
+        search_dir_contents(Path::new(&dir), &query_lower, &mut results, max_results)?;
+        Ok(results)
+    })
+    .await
 }
 
 #[tauri::command]
@@ -403,16 +482,26 @@ fn search_dir_contents(
         };
         let path = entry.path();
         let name = entry.file_name().to_string_lossy().to_string();
+        let metadata = match fs::symlink_metadata(&path) {
+            Ok(m) => m,
+            Err(_) => continue,
+        };
+        let file_type = metadata.file_type();
+        let is_symlink = file_type.is_symlink();
+        let is_dir = file_type.is_dir();
 
         // Skip hidden dirs, node_modules, target
-        if name.starts_with('.') && path.is_dir() {
+        if name.starts_with('.') && is_dir {
             continue;
         }
         if name == "node_modules" || name == "target" {
             continue;
         }
+        if is_symlink {
+            continue;
+        }
 
-        if path.is_dir() {
+        if is_dir {
             search_dir_contents(&path, query, results, max_results)?;
         } else if is_searchable_text(&name) {
             if let Ok(content) = fs::read_to_string(&path) {
@@ -505,7 +594,9 @@ fn strip_html(html: &str) -> String {
 #[tauri::command]
 pub async fn get_global_config_dir() -> Result<String, String> {
     let dir = app_dirs::data_root_dir()?;
-    Ok(dir.to_string_lossy().to_string())
+    let value = dir.to_string_lossy().to_string();
+    eprintln!("[app-dirs] get_global_config_dir={}", value);
+    Ok(value)
 }
 
 fn is_searchable_text(name: &str) -> bool {

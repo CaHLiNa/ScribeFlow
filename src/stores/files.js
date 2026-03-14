@@ -4,6 +4,22 @@ import { listen } from '@tauri-apps/api/event'
 import { useWorkspaceStore } from './workspace'
 import { isBinaryFile } from '../utils/fileTypes'
 
+function flattenFileTree(entries = []) {
+  const files = []
+  const walk = (items) => {
+    for (const entry of items) {
+      if (!entry.is_dir) {
+        files.push(entry)
+      }
+      if (entry.children) {
+        walk(entry.children)
+      }
+    }
+  }
+  walk(entries)
+  return files
+}
+
 // Minimal valid DOCX — includes styles, numbering, settings, custom props
 // (SuperDoc's export pipeline requires all of these or it silently fails)
 const EMPTY_DOCX_BASE64 = 'UEsDBAoAAAAIAM9mUFze+2IhKAEAALIDAAATAAAAW0NvbnRlbnRfVHlwZXNdLnhtbLWTyU7DMBCG7zyF5WuVuHBACDXtgeUIPZQHMM6ktfAmz6Q0b8+kiYqESnugHO35l09jebbYeSe2kNHGUMnrcioFBBNrG9aVfFs9F3dSIOlQaxcDVLIDlIv51WzVJUDB5oCV3BCle6XQbMBrLGOCwJMmZq+Jj3mtkjYfeg3qZjq9VSYGgkAF9RlyPnuERreOxNOOrweQDA6leBiEfVcldUrOGk08V9tQ/2gpxoaSnXsNbmzCCQukOtrQT34vGH2vvJlsaxBLnelFe1apz5hrVUfTenaWp2OOcMamsQYO/j4t5WgAkVfuXXmYeG3D5BwHUucAL08x5J6vByI2/AfAmHwWIbT+HTJLL89wiD4FwfZljgmVaZGi/zPFEFMwSIJM9vsR1P7Lzb8AUEsDBAoAAAAAAM9mUFwAAAAAAAAAAAAAAAAGAAAAX3JlbHMvUEsDBAoAAAAIAM9mUFxt9HMEzgAAAL0BAAALAAAAX3JlbHMvLnJlbHOtkLFOAzEMhneeIvLey7UDQqi5LgipG0LlAaLEdxdxiaPYBfr2eKCIog4MjLZ/f/7k7e4jL+YNGycqDtZdDwZLoJjK5ODl8Li6A8PiS/QLFXRwQobdcLN9xsWL7vCcKhuFFHYwi9R7aznMmD13VLHoZKSWvWjZJlt9ePUT2k3f39r2kwHDBdPso4O2j2swh1PFv7BpHFPABwrHjEWunPiVULJvE4qDd2rRxq92p1iw1202/2kTjiyUV7XpdpOkj/0WUpcnbZ8zZyV78fXhE1BLAwQKAAAAAADPZlBcAAAAAAAAAAAAAAAABQAAAHdvcmQvUEsDBAoAAAAIAM9mUFyv0oiIuAEAAAsFAAARAAAAd29yZC9kb2N1bWVudC54bWylVM2OmzAQvvcpkO+JIUrbFQrZQ1et9tCqUtoHcIwBa22PZRto+vQdwEBWlap0c8EeZuabb/58ePylVdIJ5yWYgmTblCTCcCilqQvy88fnzQNJfGCmZAqMKMhFePJ4fHfo8xJ4q4UJCSIYn/eWF6QJweaUet4IzfxWS+7AQxW2HDSFqpJc0B5cSXdplo4364AL7zHcJ2Y65kmE03+jgRUGlRU4zQKKrqaauZfWbhDdsiDPUslwQez0wwwDBWmdySPEZiE0uOQToXjMHu6WuJPLU6zAGJE6oZADGN9Iu6bxVjRUNjNI968kOq3I0oJbopWO9VhuraZAr5vwNCkXxCy9oYADxOJxC4XXMWcmmkmzBt6/ZZqua1HfN45fHLR2RZP3oT2blwVrWKP/wIo9uk7N30fm1DCL8655/lwbcOyskBFWPOlttidH3O0zlJfhtOPnuxuPU7gokfR5x1RBvg3tVIQeDzRa0GjuBQ/Roz79RnsciWy32+PL0ucN3t8/4J1OBl+Zw78BcHKz/WTiZN2EVTxDCKBXWYnqStsIVgpc2Y+7UawAwpVYt2EU08hzpkbnDOn6jB3/AFBLAwQKAAAAAADPZlBcAAAAAAAAAAAAAAAACwAAAHdvcmQvX3JlbHMvUEsDBAoAAAAIAM9mUFy2j+SG0QAAACMCAAAcAAAAd29yZC9fcmVscy9kb2N1bWVudC54bWwucmVsc62Rz2oCQQyH732KIXd3VoVSirNeRPAq2weYzmb/4E5mmERx374D1VZBSg8ek5Dv95Gs1mc/qhMmHgIZmBclKCQXmoE6Ax/1dvYGisVSY8dAaGBChnX1strjaCXvcD9EVhlCbKAXie9as+vRWy5CRMqTNiRvJZep09G6g+1QL8ryVadbBlR3TLVrDKRdMwdVTxH/ww5tOzjcBHf0SPIgQrNMY/ZXtU0dioHvusgc0I/jF0+NR5F811uBS+cvheUzFejoPzHlyF+Hn9ZVQt/9tvoCUEsDBAoAAAAIAM9mUFzXmM8I1wEAACgFAAAPAAAAd29yZC9zdHlsZXMueG1stVPbbtswDH3fVxh6Tx17XZEZdYqgQ7ACw1as6wfQsmILkyVNlONmXz9JviyXrgsK9MnmMXkOeUhf3zw1Itoyg1zJnCQXcxIxSVXJZZWTxx/r2YJEaEGWIJRkOdkxJDfLd9ddhnYnGEauXmLW5aS2VmdxjLRmDeCF0ky6bxtlGrAuNFXcKVNqoyhDdPSNiNP5/CpugEsy0DT0HJ4GzM9Wz6hqNFhecMHtLnCRqKHZXSWVgUK4Zrvkkixdq6Win9gGWmHRh+beDOEQhcdaSYtRlwFSznNyC4IXhhOHMEC7Qg4HYL2SeJhG8W8Ye0r87dAtiJyklyNyi8eYAFmNGJOzx4dDyQkqeOn0wMweVr4wHjqPj+fRx1EQ1kB50IGNZcZt+mruSQX3S00/fByD7603DlqrBhE9iOzTxieWhmNwFHanXbkGA5UBXXvWsk9zkj4KiXdlTr76hYqwHgkNGx0Y4ODMr3VYet9HKPyP1ET+mYG/4OSEvu4/REmvUACy8pt8TlyyJ/tyU5O5qrXeui9bMRbM982bTqw4uor36elV9Njecl8zd/rPudO3nTs5a+508czfsDhvblq7wak74RdOazjM+9Ei/2efODIkRVNWFNIOjm18w+UfUEsDBAoAAAAIAM9mUFwcoHSTDQEAAHYCAAASAAAAd29yZC9udW1iZXJpbmcueG1snZLBboMwDIbvewqUOwSmapoQ0MOmSbtvDxBCgGixHSUB1rdf2kK3adJU9ZREtr//t+Nq/wkmmZXzmrBmRZazRKGkTuNQs/e3l/SRJT4I7IQhVDU7KM/2zV21lDhBq1zMSyICfblYWbMxBFty7uWoQPgMtHTkqQ+ZJODU91oqvpDr+H1e5KebdSSV95HzJHAWnq04+EsjqzAGe3IgQny6gYNwH5NNI92KoFttdDhEdv6wYahmk8NyRaQXQ8eS8mxoPbYKd43uueSZ5AQKw0mRO2WiB0I/avvdxq20GBw3yPxfEzOYLW+5Ruz30MFschovmGJ3y08efYAsXwckJ1oTlyWCksUWO9ZU/MfCNF9QSwMECgAAAAgAz2ZQXMCCv4sOAQAAwQEAABEAAAB3b3JkL3NldHRpbmdzLnhtbI2QzW4CMQyE732Kle+QBfVPKxYOSJV6aC/QBzDZLERN4sgxbHn7GgpCVS+9JbJnvvHMFl8xVAfHxVNqYTKuoXLJUufTtoWP9ctoGaoimDoMlFwLR1dgMb+bDU1xIrpVKnVIpRla2Inkxphidy5iGVN2SWc9cUTRL2/NQNxlJutKUWkMZlrXjyaiT3CxifY/PhH5c59HlmJG8RsfvBzPXlBF27xuEzFugsYdJvcw17Cd63EfZI2blVCuhuaAoYWnaQ3mNLY7ZLTieJXRarIlJWEK172O3kmWCmMNflGc0bfX6qcNVSSMCv4V7Y06Bzras/9zXfSWqVAvY5UY6ntv3bknuNInDyekuTHNrfz5N1BLAwQKAAAAAADPZlBcAAAAAAAAAAAAAAAACQAAAGRvY1Byb3BzL1BLAwQKAAAACADPZlBc4dYAgJcAAADxAAAAEwAAAGRvY1Byb3BzL2N1c3RvbS54bWydzrEKwjAUheHdpwjZ21QHkdK0izg7VPeQ3rYBc2/ITYt9eyOC7o6HHz5O0z39Q6wQ2RFquS8rKQAtDQ4nLW/9pThJwcngYB6EoOUGLLt211wjBYjJAYssIGs5pxRqpdjO4A2XOWMuI0VvUp5xUjSOzsKZ7OIBkzpU1VHZhRP5Inw5+fHqNf1LDmTf7/jebyF7baN+Z9sXUEsBAhQACgAAAAgAz2ZQXN77YiEoAQAAsgMAABMAAAAAAAAAAAAAAAAAAAAAAFtDb250ZW50X1R5cGVzXS54bWxQSwECFAAKAAAAAADPZlBcAAAAAAAAAAAAAAAABgAAAAAAAAAAABAAAABZAQAAX3JlbHMvUEsBAhQACgAAAAgAz2ZQXG30cwTOAAAAvQEAAAsAAAAAAAAAAAAAAAAAfQEAAF9yZWxzLy5yZWxzUEsBAhQACgAAAAAAz2ZQXAAAAAAAAAAAAAAAAAUAAAAAAAAAAAAQAAAAdAIAAHdvcmQvUEsBAhQACgAAAAgAz2ZQXK/SiIi4AQAACwUAABEAAAAAAAAAAAAAAAAAlwIAAHdvcmQvZG9jdW1lbnQueG1sUEsBAhQACgAAAAAAz2ZQXAAAAAAAAAAAAAAAAAsAAAAAAAAAAAAQAAAAfgQAAHdvcmQvX3JlbHMvUEsBAhQACgAAAAgAz2ZQXLaP5IbRAAAAIwIAABwAAAAAAAAAAAAAAAAApwQAAHdvcmQvX3JlbHMvZG9jdW1lbnQueG1sLnJlbHNQSwECFAAKAAAACADPZlBc15jPCNcBAAAoBQAADwAAAAAAAAAAAAAAAACyBQAAd29yZC9zdHlsZXMueG1sUEsBAhQACgAAAAgAz2ZQXBygdJMNAQAAdgIAABIAAAAAAAAAAAAAAAAAtgcAAHdvcmQvbnVtYmVyaW5nLnhtbFBLAQIUAAoAAAAIAM9mUFzAgr+LDgEAAMEBAAARAAAAAAAAAAAAAAAAAPMIAAB3b3JkL3NldHRpbmdzLnhtbFBLAQIUAAoAAAAAAM9mUFwAAAAAAAAAAAAAAAAJAAAAAAAAAAAAEAAAADAKAABkb2NQcm9wcy9QSwECFAAKAAAACADPZlBc4dYAgJcAAADxAAAAEwAAAAAAAAAAAAAAAABXCgAAZG9jUHJvcHMvY3VzdG9tLnhtbFBLBQYAAAAADAAMANcCAAAfCwAAAAA='
@@ -11,42 +27,43 @@ const EMPTY_DOCX_BASE64 = 'UEsDBAoAAAAIAM9mUFze+2IhKAEAALIDAAATAAAAW0NvbnRlbnRfV
 export const useFilesStore = defineStore('files', {
   state: () => ({
     tree: [],
+    flatFilesCache: [],
     expandedDirs: new Set(),
     activeFilePath: null,
     fileContents: {}, // cache: path → content
     deletingPaths: new Set(), // paths currently being deleted (prevents save-on-unmount race)
     unlisten: null,
+    lastLoadError: null,
   }),
 
   getters: {
     // Flat list of all files for search
-    flatFiles: (state) => {
-      const files = []
-      const walk = (entries) => {
-        for (const entry of entries) {
-          if (!entry.is_dir) {
-            files.push(entry)
-          }
-          if (entry.children) {
-            walk(entry.children)
-          }
-        }
-      }
-      walk(state.tree)
-      return files
-    },
+    flatFiles: (state) => state.flatFilesCache,
   },
 
   actions: {
-    async loadFileTree() {
+    _setTree(tree = []) {
+      this.tree = tree
+      this.flatFilesCache = flattenFileTree(tree)
+    },
+
+    async loadFileTree(options = {}) {
       const workspace = useWorkspaceStore()
       if (!workspace.path) return
+      const { suppressErrors = false } = options
 
       try {
-        this.tree = await invoke('read_dir_recursive', { path: workspace.path })
+        const tree = await invoke('read_dir_recursive', { path: workspace.path })
+        this._setTree(tree)
+        this.lastLoadError = null
+        return tree
       } catch (e) {
         console.error('Failed to load file tree:', e)
-        this.tree = []
+        this.lastLoadError = e
+        if (!suppressErrors) {
+          throw e
+        }
+        return this.tree
       }
     },
 
@@ -87,7 +104,7 @@ export const useFilesStore = defineStore('files', {
           const changedPaths = [...accumulatedPaths]
           accumulatedPaths = new Set()
 
-          await this.loadFileTree()
+          await this.loadFileTree({ suppressErrors: true })
 
           // Reload any open files that changed externally
           const { useEditorStore } = await import('./editor')
@@ -118,7 +135,8 @@ export const useFilesStore = defineStore('files', {
           const newTree = await invoke('read_dir_recursive', { path: workspace.path })
           const newJson = JSON.stringify(newTree)
           if (newJson !== lastTreeJson) {
-            this.tree = newTree
+            this._setTree(newTree)
+            this.lastLoadError = null
             lastTreeJson = newJson
           }
         } catch (e) { /* workspace may have closed */ }
@@ -459,10 +477,11 @@ export const useFilesStore = defineStore('files', {
         clearInterval(this._pollTimer)
         this._pollTimer = null
       }
-      this.tree = []
+      this._setTree([])
       this.expandedDirs = new Set()
       this.activeFilePath = null
       this.fileContents = {}
+      this.lastLoadError = null
     },
   },
 })
