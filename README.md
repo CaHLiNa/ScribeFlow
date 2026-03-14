@@ -92,3 +92,17 @@ Nuxt on Vercel works with zero extra framework config, and Vercel will keep depl
 ## Repository
 
 - GitHub: [CaHLiNa/Altals](https://github.com/CaHLiNa/Altals)
+
+## Documentation
+
+For current maintenance, start with this minimal doc set:
+
+- [docs/_MAP.md](docs/_MAP.md)
+- [docs/architecture.md](docs/architecture.md)
+- [docs/building.md](docs/building.md)
+- [docs/git-system.md](docs/git-system.md)
+- [docs/markdown-system.md](docs/markdown-system.md)
+- [docs/tex-system.md](docs/tex-system.md)
+- [docs/terminal-system.md](docs/terminal-system.md)
+
+Historical Shoulders material is kept under [docs/legacy/](docs/legacy/README.md) for reference only.

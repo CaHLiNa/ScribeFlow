@@ -1,5 +1,8 @@
 # Paper Triage (`web/pages/triage/`)
 
+> **Legacy Shoulders documentation.**
+> This file documents the historical Shoulders paper triage system and is kept only for reference.
+
 > **STATUS: WORK IN PROGRESS.** This feature is under active development. Not production-ready. Pipeline is functional but the dashboard UI, assessment schema, and author lookup are being iterated on. Expect breaking changes to the assessment JSON structure, DB schema, and frontend layout.
 
 Desk triage tool on shoulde.rs: editors upload a PDF or DOCX manuscript and receive a structured editorial assessment. Extracts paper metadata (title, authors, abstract), verifies references against Crossref/OpenAlex, runs AI content detection (Pangram), finds related work, looks up author profiles on OpenAlex, and produces a structured AI assessment. Cost ~$0.40/paper, ~3 minutes. No account required.

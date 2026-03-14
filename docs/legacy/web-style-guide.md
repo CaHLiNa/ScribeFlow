@@ -1,5 +1,8 @@
 # Shoulders — Website Style Guide
 
+> **Legacy Shoulders documentation.**
+> This style guide belongs to the historical Shoulders website and is not a current Altals product UI reference.
+
 Reference document for the website design system (./web/*)
 See `docs/brand.md` for full brand identity, voice, and emotional register.
 

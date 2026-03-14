@@ -144,7 +144,7 @@ The following gotchas apply to the **server-side** proxy in `web/server/` (`prox
 - **Google model in URL**: Google's API URL includes the model name (`/models/{model}:generateContent`). The server reads `x-shoulders-model` to construct this.
 - **`anthropic-beta` header forwarding**: The proxy forwards this header from the client to Anthropic upstream — needed for thinking/extended output features.
 - **Non-streaming returns upstream JSON as-is**: No `_shoulders` metadata is injected into the response body (native SDKs may reject unknown fields). Balance updates come from streaming calls and periodic refresh.
-- See [web-backend.md](web-backend.md) for full proxy architecture.
+- Historical hosted-proxy details live in [legacy/web-backend.md](legacy/web-backend.md).
 
 ### PDF tool results must be text, not document blocks
 Sending a base64 PDF as a `document` block inside a tool result causes Claude to not see the content and call the same tool repeatedly. Use extracted text for PDF tool results. The AI SDK tool `execute` functions in `chatTools.js` return text content, not raw PDF blocks.

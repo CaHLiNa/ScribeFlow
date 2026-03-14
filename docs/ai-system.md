@@ -256,7 +256,7 @@ const result = await generateText({
 // result.toolCalls[0].args.suggestions → ['completion 1', 'completion 2', 'completion 3']
 ```
 
-Model selection: `resolveApiAccess({ strategy: 'ghost' })` tries Haiku → Gemini Flash Lite → GPT-5 Nano → Shoulders.
+Model selection: `resolveApiAccess({ strategy: 'ghost' })` tries Haiku → Gemini Flash Lite → GPT-5 Nano, then falls back according to the current API access configuration.
 
 ---
 
@@ -274,7 +274,7 @@ Summary: Margin annotations anchored to text ranges. Pure data store (no Chat co
 - `aiParseReferences(text)` — extract structured citations from text
 - `aiExtractPdfMetadata(text)` — extract metadata from PDF text
 
-Both use `resolveApiAccess({ strategy: 'cheapest' })` (Gemini Flash Lite → Haiku → GPT-5 Nano → Shoulders).
+Both use `resolveApiAccess({ strategy: 'cheapest' })` (Gemini Flash Lite → Haiku → GPT-5 Nano, then the configured fallback path if available).
 
 ---
 
@@ -286,22 +286,22 @@ Both use `resolveApiAccess({ strategy: 'cheapest' })` (Gemini Flash Lite → Hai
 
 ---
 
-## Shoulders Proxy
+## Historical Hosted Proxy Note
 
-The Shoulders proxy (`shoulde.rs/api/v1/proxy`) is **transparent**: native provider format in, native provider format out. The client creates real provider SDKs and the server just routes, bills, and injects server-side API keys.
+The upstream Shoulders project used a hosted transparent proxy for provider routing and billing. Altals is now documented as a local-first desktop app and should not treat that hosted proxy as part of the default current architecture.
 
 ### How it works
 
 ```
 Client (native SDK format)
-  → tauriFetch → Rust chat_stream → Shoulders proxy
-    → reads x-shoulders-provider, x-shoulders-model, x-shoulders-stream headers
+  → tauriFetch → Rust chat_stream → hosted proxy
+    → reads provider/model/stream routing headers
     → adds server-side API key (x-api-key / Authorization / ?key=)
     → forwards body as-is to upstream provider
     → streams raw SSE bytes back unchanged
     → extracts usage from SSE for billing
-    → injects shoulders_balance trailer event
-  ← tauriFetch filters shoulders_balance, returns ReadableStream
+    → injects provider-specific bookkeeping events
+  ← tauriFetch filters bookkeeping events, returns ReadableStream
 ← AI SDK parses native SSE format
 ```
 
@@ -311,17 +311,17 @@ The fetch wrapper in `aiSdk.js` adds three routing headers:
 
 | Header | Purpose | Example |
 |---|---|---|
-| `x-shoulders-provider` | Which upstream to call | `anthropic`, `openai`, `google` |
-| `x-shoulders-model` | Model ID (server needs for Google URL construction) | `gemini-3.1-flash-lite-preview` |
-| `x-shoulders-stream` | Whether the request is streaming | `1` or `0` |
+| `x-shoulders-provider` | Historical upstream routing header | `anthropic`, `openai`, `google` |
+| `x-shoulders-model` | Historical model routing header | `gemini-3.1-flash-lite-preview` |
+| `x-shoulders-stream` | Historical streaming routing header | `1` or `0` |
 
 ### Gotchas
 
 - **Auth per provider**: Anthropic uses `authToken` (Bearer), OpenAI uses `apiKey` (Bearer), Google uses dummy `apiKey` + explicit `Authorization: Bearer` header. See [Model creation](#model-creation-aisdkjs) above.
 - **URL stripping**: SDK appends provider paths (`/messages`, `/responses`, `/models/...`). The fetch wrapper strips these since the proxy expects a single URL.
-- **Balance events**: Shoulders injects `{"type":"shoulders_balance",...}` into the SSE stream after the upstream closes. Filtered out in `tauriFetch.js` before reaching the SDK (would crash the UIMessageStream validator). Balance data dispatched as a `shoulders-balance` CustomEvent on `window`.
-- **Proxy URL**: Single source of truth in `apiClient.js:SHOULDERS_PROXY_URL`.
-- **Token refresh**: `resolveApiAccess()` is async — calls `workspace.ensureFreshToken()` before returning Shoulders access (15-min JWT).
+- **Balance events**: historical Shoulders deployments injected `{"type":"shoulders_balance",...}` into the SSE stream after the upstream closed. This is legacy behavior, not the default Altals architecture.
+- **Proxy URL**: if you are tracing historical hosted-proxy code paths, start from `apiClient.js:SHOULDERS_PROXY_URL`.
+- **Token refresh**: historical hosted access used `resolveApiAccess()` plus `workspace.ensureFreshToken()` before returning hosted proxy credentials.
 
 ## Vue Reactivity Gotchas
 

@@ -1,8 +1,11 @@
 # Web Backend (`web/`)
 
+> **Legacy Shoulders documentation.**
+> Most of this file describes the historical hosted Shoulders web backend. In current Altals, `web/` is primarily the small GitHub OAuth bridge referenced from [README.md](../../README.md).
+
 Nuxt 4 app serving the Shoulders API: user auth, AI proxy with credit tracking, telemetry, admin dashboard, and peer review tool. SQLite + Drizzle ORM. Deployed as a Node server behind Caddy on `shoulde.rs`.
 
-> **Peer Review** — Free promotional tool at `/review`. Full documentation: [`peer-review.md`](peer-review.md).
+> **Peer Review** — Free promotional tool at `/review`. Full documentation: [`web-peer-review.md`](web-peer-review.md).
 
 ---
 
@@ -19,7 +22,7 @@ Nuxt 4 app serving the Shoulders API: user auth, AI proxy with credit tracking, 
 - Enterprise form: `web/server/api/v1/contact.post.js` — stores in DB + emails notification
 - Client-side auth: `web/composables/useAuth.js` — localStorage-backed state
 - Tauri app auth: `src/services/shouldersAuth.js` (keychain, polling, deep link), `apiClient.js` (Shoulders proxy fallback)
-- Auth docs: [auth-system.md](auth-system.md) — token architecture, desktop login flow, production checklist
+- Auth docs: [auth-system.md](auth-system.md) — historical token architecture, desktop login flow, production checklist
 - Telemetry client: `src/services/telemetry.js` — opt-in, batched events
 - Deploy: `web/deploy/` — systemd, Caddyfile, backup script
 - CI: `.github/workflows/deploy-web.yml`
@@ -317,7 +320,7 @@ Protected by `ADMIN_KEY` env var. Login sets httpOnly cookie (JWT, 24h).
 
 ### Peer Review (`/api/review/`)
 
-No authentication required. Full documentation: [`peer-review.md`](peer-review.md).
+No authentication required. Full documentation: [`web-peer-review.md`](web-peer-review.md).
 
 | Method | Path | Description |
 |---|---|---|

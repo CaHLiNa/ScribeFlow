@@ -1,5 +1,8 @@
 # Peer Review (`web/pages/review/`)
 
+> **Legacy Shoulders documentation.**
+> This file documents the historical Shoulders web peer-review system and is kept only for reference.
+
 Free promotional tool on shoulde.rs: users upload a .docx or .pdf, receive an AI-powered peer review with a structured report and inline comments anchored to specific passages. No account required. Reviews expire after 7 days.
 
 

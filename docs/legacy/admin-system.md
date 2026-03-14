@@ -1,5 +1,8 @@
 # Admin System
 
+> **Legacy Shoulders documentation.**
+> This file documents the historical Shoulders admin backend and dashboard. It is kept for reference and is not part of the current default Altals maintenance surface.
+
 The admin dashboard (`/admin/*`) provides internal monitoring for the Shoulders web backend — users, API calls, peer reviews, deck shares, enterprise enquiries, and page analytics.
 
 ---

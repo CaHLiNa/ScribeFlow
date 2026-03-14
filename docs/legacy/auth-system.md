@@ -1,6 +1,8 @@
 # Auth System
 
-> Note: this is historical Shoulders auth documentation kept for reference. Altals public GitHub login does not use this hosted account system; it uses the minimal GitHub OAuth bridge described in [README.md](../README.md) and [git-system.md](git-system.md).
+> **Legacy Shoulders documentation.**
+> This file is kept for historical reference only. It does **not** describe the default current Altals product surface.
+> Current Altals public GitHub login uses the minimal GitHub OAuth bridge described in [README.md](../../README.md) and [git-system.md](../git-system.md).
 
 Desktop + web authentication for Shoulders. Refresh token rotation with theft detection, desktop login via browser, OS keychain storage.
 
