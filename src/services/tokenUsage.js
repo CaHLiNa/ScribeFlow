@@ -68,6 +68,62 @@ const tokenPrices = {
   },
 }
 
+function safeTokenCount(value) {
+  const count = Number(value)
+  if (!Number.isFinite(count) || count <= 0) return 0
+  return Math.round(count)
+}
+
+/**
+ * Convert pdf2zh_next finish-event token usage into our normalized usage shape.
+ *
+ * pdf2zh_next reports:
+ * {
+ *   main: { total, prompt, completion, cache_hit_prompt },
+ *   term: { total, prompt, completion, cache_hit_prompt }
+ * }
+ *
+ * We aggregate both buckets because they are billed as part of the same
+ * translation request flow from Altals' perspective.
+ *
+ * @param {object|null|undefined} tokenUsage
+ * @returns {object|null}
+ */
+export function normalizePdfTokenUsage(tokenUsage) {
+  if (!tokenUsage || typeof tokenUsage !== 'object') return null
+
+  let prompt = 0
+  let completion = 0
+  let cacheHitPrompt = 0
+  let total = 0
+
+  for (const key of ['main', 'term']) {
+    const bucket = tokenUsage[key]
+    if (!bucket || typeof bucket !== 'object') continue
+    prompt += safeTokenCount(bucket.prompt)
+    completion += safeTokenCount(bucket.completion)
+    cacheHitPrompt += safeTokenCount(bucket.cache_hit_prompt)
+    total += safeTokenCount(bucket.total)
+  }
+
+  if (prompt <= 0 && completion <= 0 && total <= 0) return null
+
+  const inputTotal = prompt
+  const inputCacheHit = Math.min(inputTotal, cacheHitPrompt)
+  const output = completion
+
+  return {
+    input_cache_miss: Math.max(0, inputTotal - inputCacheHit),
+    input_cache_hit: inputCacheHit,
+    input_cache_write: 0,
+    input_total: inputTotal,
+    output,
+    thinking: 0,
+    total: Math.max(total, inputTotal + output),
+    cost: 0,
+  }
+}
+
 /**
  * Map a full API model ID to a pricing key.
  * Strips date suffixes to match our pricing table keys.

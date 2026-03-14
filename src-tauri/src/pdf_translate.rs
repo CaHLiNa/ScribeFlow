@@ -31,6 +31,8 @@ pub enum EnvStatus {
 pub struct TranslationTask {
     id: String,
     input_path: String,
+    provider: Option<String>,
+    model: Option<String>,
     status: String,
     progress: f32,
     message: String,
@@ -48,6 +50,7 @@ pub struct TranslationRequest {
     lang_in: String,
     lang_out: String,
     engine: String,
+    provider: Option<String>,
     api_key: Option<String>,
     model: Option<String>,
     base_url: Option<String>,
@@ -927,6 +930,8 @@ pub fn pdf_translate_start(
     let task = TranslationTask {
         id: task_id.clone(),
         input_path: request.input_path.clone(),
+        provider: request.provider.clone(),
+        model: request.model.clone(),
         status: "queued".to_string(),
         progress: 0.0,
         message: "Task created".to_string(),

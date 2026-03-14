@@ -11,6 +11,7 @@ import {
   providerLabel,
   providerSupportsPdfTranslation,
 } from '../services/modelCatalog'
+import { calculateCost, normalizePdfTokenUsage } from '../services/tokenUsage'
 
 const DEFAULT_QPS = 8
 const DEFAULT_POOL_MAX_WORKERS = 0
@@ -96,6 +97,7 @@ export const usePdfTranslateStore = defineStore('pdfTranslate', {
     lastRuntimeCheckAt: 0,
     lastRuntimePythonPath: '',
     autoOpenTaskIds: {},
+    usageRecordedTaskIds: {},
     _taskUnlisten: null,
     _envProgressUnlisten: null,
     _envLogUnlisten: null,
@@ -283,12 +285,40 @@ export const usePdfTranslateStore = defineStore('pdfTranslate', {
       editorStore.openFile(outputPath)
     },
 
+    _recordTaskUsage(payload) {
+      const task = payload?.task || payload
+      const rawEvent = payload?.rawEvent
+      if (!task?.id || rawEvent?.type !== 'finish') return
+      if (this.usageRecordedTaskIds[task.id]) return
+
+      const usage = normalizePdfTokenUsage(rawEvent.token_usage)
+      if (!usage) return
+
+      usage.cost = calculateCost(usage, task.model, task.provider)
+      this.usageRecordedTaskIds[task.id] = true
+
+      import('./usage')
+        .then(({ useUsageStore }) => {
+          useUsageStore().record({
+            usage,
+            feature: 'pdf-translate',
+            provider: task.provider || 'unknown',
+            modelId: task.model || 'unknown',
+          })
+        })
+        .catch((error) => {
+          delete this.usageRecordedTaskIds[task.id]
+          console.warn('Failed to record PDF translation usage:', error)
+        })
+    },
+
     _applyTaskPayload(payload, allowAutoOpen = false) {
       const task = payload?.task || payload
       if (!task?.id) return
       const previousTask = this.tasks[task.id] ? { ...this.tasks[task.id] } : null
       this._upsertTask(task)
       this._syncTerminalLog(previousTask, payload)
+      this._recordTaskUsage(payload)
 
       if (allowAutoOpen && task.status === 'completed' && this.autoOpenTaskIds[task.id]) {
         delete this.autoOpenTaskIds[task.id]
@@ -557,6 +587,7 @@ export const usePdfTranslateStore = defineStore('pdfTranslate', {
         langIn: this.settings.langIn,
         langOut: this.settings.langOut,
         engine: getPdfTranslationEngine(model.provider) || 'openai',
+        provider: model.provider,
         apiKey,
         model: model.model || model.id,
         baseUrl: this._translationBaseUrlForModel(model),
