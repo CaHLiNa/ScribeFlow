@@ -24,7 +24,6 @@
       @preview-pdf="handlePreviewPdf"
       @preview-markdown="handlePreviewMarkdown"
       @export-pdf="handleExportPdf"
-      @translate-pdf="handleTranslatePdf"
       @new-tab="editorStore.openNewTab(paneId)"
     />
 
@@ -33,11 +32,15 @@
     <DocxReviewBar v-else-if="activeTab && viewerType === 'docx'" :filePath="activeTab" :paneId="paneId" />
     <NotebookReviewBar v-else-if="activeTab && viewerType === 'notebook'" :filePath="activeTab" />
     <div
-      v-if="activeTab && workflowUiState"
+      v-if="showDocumentHeader"
       class="document-header-stack"
-      :class="{ 'document-header-stack-with-subbar': workflowPdfToolbarTargetSelector }"
+      :class="{
+        'document-header-stack-with-subbar': pdfToolbarTargetSelector,
+        'document-header-stack-subbar-only': !workflowUiState && pdfToolbarTargetSelector,
+      }"
     >
       <DocumentWorkflowBar
+        v-if="workflowUiState"
         :ui-state="workflowUiState"
         :can-view-log="workflowCanViewLog"
         :status-text="workflowStatusText"
@@ -48,9 +51,10 @@
         @view-log="handleWorkflowViewLog"
       />
       <div
-        v-if="workflowPdfToolbarTargetSelector"
+        v-if="pdfToolbarTargetSelector"
         :id="pdfToolbarTargetId"
         class="document-header-subbar"
+        :class="{ 'document-header-subbar-standalone': !workflowUiState }"
       />
     </div>
 
@@ -73,21 +77,21 @@
         :key="activeTab"
         :filePath="activeTab"
         :paneId="paneId"
-        :toolbar-target-selector="workflowPdfToolbarTargetSelector"
+        :toolbar-target-selector="pdfToolbarTargetSelector"
       />
       <TypstPdfViewer
         v-else-if="activeTab && viewerType === 'pdf' && hasTypstSource"
         :key="activeTab"
         :filePath="activeTab"
         :paneId="paneId"
-        :toolbar-target-selector="workflowPdfToolbarTargetSelector"
+        :toolbar-target-selector="pdfToolbarTargetSelector"
       />
       <PdfViewer
         v-else-if="activeTab && viewerType === 'pdf'"
         :key="activeTab"
         :filePath="activeTab"
         :paneId="paneId"
-        :toolbar-target-selector="workflowPdfToolbarTargetSelector"
+        :toolbar-target-selector="pdfToolbarTargetSelector"
       />
       <CsvEditor
         v-else-if="activeTab && viewerType === 'csv'"
@@ -171,7 +175,6 @@ import { useChatStore } from '../../stores/chat'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useToastStore } from '../../stores/toast'
 import { useCommentsStore } from '../../stores/comments'
-import { usePdfTranslateStore } from '../../stores/pdfTranslate'
 import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { EditorView } from '@codemirror/view'
 import { getViewerType, isReferencePath, referenceKeyFromPath, getLanguage, isLatex, isRmdOrQmd, isChatTab, getChatSessionId, isTypst } from '../../utils/fileTypes'
@@ -216,15 +219,17 @@ const latexStore = useLatexStore()
 const typstStore = useTypstStore()
 const toastStore = useToastStore()
 const commentsStore = useCommentsStore()
-const pdfTranslateStore = usePdfTranslateStore()
 const workflowStore = useDocumentWorkflowStore()
 const { t } = useI18n()
 
 const pdfToolbarTargetId = computed(() => `pdf-toolbar-slot-${String(props.paneId || 'pane').replace(/[^a-zA-Z0-9_-]/g, '-')}`)
-const workflowPdfToolbarTargetSelector = computed(() => (
-  props.activeTab && workflowUiState.value && viewerType.value === 'pdf'
+const pdfToolbarTargetSelector = computed(() => (
+  props.activeTab && viewerType.value === 'pdf'
     ? `#${pdfToolbarTargetId.value}`
     : ''
+))
+const showDocumentHeader = computed(() => (
+  !!props.activeTab && (!!workflowUiState.value || !!pdfToolbarTargetSelector.value)
 ))
 
 // ── Comment state ──────────────────────────────────────────────────
@@ -468,23 +473,6 @@ async function handleCompileTex() {
 async function handleCompileTypst() {
   if (!props.activeTab || !isTypst(props.activeTab)) return
   await typstStore.compile(props.activeTab)
-}
-
-async function handleTranslatePdf() {
-  if (!props.activeTab || viewerType.value !== 'pdf') return
-
-  try {
-    await pdfTranslateStore.startTranslation(props.activeTab)
-    const name = props.activeTab.split('/').pop()
-    toastStore.show(t('Started translating {name}', { name }), {
-      type: 'success',
-      duration: 2500,
-    })
-  } catch (error) {
-    const message = error?.message || String(error)
-    toastStore.show(message, { type: 'error', duration: 5000 })
-    workspace.openSettings('pdf-translate')
-  }
 }
 
 function handlePreviewPdf() {
@@ -786,6 +774,7 @@ defineExpose({ startComment })
 
 <style scoped>
 .document-header-stack {
+  --document-header-row-height: 24px;
   flex: none;
   display: flex;
   flex-direction: column;
@@ -797,12 +786,22 @@ defineExpose({ startComment })
   border-bottom: 1px solid var(--border);
 }
 
+.document-header-stack-subbar-only {
+  border-bottom: 1px solid var(--border);
+}
+
 .document-header-subbar {
   display: flex;
   width: 100%;
+  height: var(--document-header-row-height);
   min-width: 0;
   box-sizing: border-box;
   min-height: 0;
+  border-top: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
   overflow: visible;
+}
+
+.document-header-subbar-standalone {
+  border-top: 0;
 }
 </style>

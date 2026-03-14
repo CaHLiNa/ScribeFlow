@@ -7,221 +7,195 @@
         :class="{ 'pdf-toolbar-wrap-embedded': !!toolbarTargetSelector }"
       >
         <div class="pdf-toolbar">
-        <div class="pdf-toolbar-group">
-          <button
-            class="pdf-toolbar-btn"
-            :class="{ 'pdf-toolbar-btn-active': pdfUi.sidebarOpen }"
-            :disabled="!pdfUi.ready"
-            title="Toggle sidebar"
-            @click="toggleSidebar"
-          >
-            <component :is="sidebarIcon" :size="14" :stroke-width="1.6" />
-          </button>
-          <button
-            class="pdf-toolbar-btn"
-            :class="{ 'pdf-toolbar-btn-active': pdfUi.searchOpen }"
-            :disabled="!pdfUi.ready"
-            title="Search"
-            @click="toggleSearch"
-          >
-            <IconSearch :size="14" :stroke-width="1.6" />
-          </button>
-          <div v-if="pdfUi.searchOpen" class="pdf-search-inline">
-            <input
-              ref="searchInputRef"
-              v-model="pdfUi.searchQuery"
-              class="pdf-toolbar-input pdf-toolbar-search"
-              type="text"
-              spellcheck="false"
-              placeholder="Search"
-              @input="onSearchInput"
-              @keydown.enter.prevent="searchAgain(false)"
-              @keydown.shift.enter.prevent="searchAgain(true)"
-            />
-            <button
-              class="pdf-toolbar-btn pdf-toolbar-btn-sm"
-              :disabled="!pdfUi.ready || !pdfUi.searchQuery"
-              title="Previous match"
-              @click="searchAgain(true)"
-            >
-              <IconChevronUp :size="12" :stroke-width="1.8" />
-            </button>
-            <button
-              class="pdf-toolbar-btn pdf-toolbar-btn-sm"
-              :disabled="!pdfUi.ready || !pdfUi.searchQuery"
-              title="Next match"
-              @click="searchAgain(false)"
-            >
-              <IconChevronDown :size="12" :stroke-width="1.8" />
-            </button>
-            <span v-if="pdfUi.searchResultText" class="pdf-toolbar-hint">{{ pdfUi.searchResultText }}</span>
+          <div class="pdf-toolbar-left">
+            <div class="pdf-toolbar-group">
+              <button
+                class="pdf-toolbar-btn"
+                :class="{ 'pdf-toolbar-btn-active': pdfUi.sidebarOpen }"
+                :disabled="!pdfUi.ready"
+                :title="t('Toggle sidebar')"
+                @click="toggleSidebar"
+              >
+                <component :is="sidebarIcon" :size="14" :stroke-width="1.6" />
+              </button>
+              <button
+                class="pdf-toolbar-btn"
+                :class="{ 'pdf-toolbar-btn-active': pdfUi.searchOpen }"
+                :disabled="!pdfUi.ready"
+                :title="t('Search')"
+                @click="toggleSearch"
+              >
+                <IconSearch :size="14" :stroke-width="1.6" />
+              </button>
+            </div>
+
+            <div class="pdf-toolbar-separator"></div>
+
+            <div class="pdf-toolbar-group">
+              <button
+                class="pdf-toolbar-btn"
+                :disabled="!pdfUi.ready || !pdfUi.canGoPrevious"
+                :title="t('Previous page')"
+                @click="goPreviousPage"
+              >
+                <IconChevronUp :size="13" :stroke-width="1.8" />
+              </button>
+              <button
+                class="pdf-toolbar-btn"
+                :disabled="!pdfUi.ready || !pdfUi.canGoNext"
+                :title="t('Next page')"
+                @click="goNextPage"
+              >
+                <IconChevronDown :size="13" :stroke-width="1.8" />
+              </button>
+              <div class="pdf-page-indicator">
+                <input
+                  ref="pageInputRef"
+                  v-model="pageInput"
+                  class="pdf-toolbar-input pdf-page-input"
+                  type="text"
+                  inputmode="numeric"
+                  spellcheck="false"
+                  :disabled="!pdfUi.ready"
+                  @keydown.enter.prevent="commitPageNumber"
+                  @blur="commitPageNumber"
+                />
+                <span class="pdf-toolbar-label">/ {{ pdfUi.pagesCount || 0 }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="pdf-toolbar-center">
+            <div class="pdf-toolbar-group pdf-toolbar-group-scale">
+              <button
+                class="pdf-toolbar-btn"
+                :disabled="!pdfUi.ready || !pdfUi.canZoomOut"
+                :title="t('Zoom out')"
+                @click="zoomOut"
+              >
+                <IconMinus :size="13" :stroke-width="1.8" />
+              </button>
+              <button
+                class="pdf-toolbar-btn"
+                :disabled="!pdfUi.ready || !pdfUi.canZoomIn"
+                :title="t('Zoom in')"
+                @click="zoomIn"
+              >
+                <IconPlus :size="13" :stroke-width="1.8" />
+              </button>
+              <select
+                v-model="pdfUi.scaleValue"
+                class="pdf-toolbar-select"
+                :disabled="!pdfUi.ready || scaleOptions.length === 0"
+                @change="applyScale"
+              >
+                <option
+                  v-for="option in scaleOptions"
+                  :key="option.value"
+                  :value="option.value"
+                >
+                  {{ option.label }}
+                </option>
+              </select>
+            </div>
+          </div>
+
+          <div class="pdf-toolbar-right">
+            <div class="pdf-toolbar-group pdf-toolbar-group-translate">
+              <span
+                v-if="translateStatus"
+                class="pdf-translate-status"
+                :title="translateTask?.message || ''"
+                :style="{ color: translateStatusColor }"
+              >
+                {{ translateStatus }}
+              </span>
+              <button
+                class="pdf-translate-btn"
+                :disabled="translateTask?.status === 'running'"
+                :style="{ color: translateTask?.status === 'failed' ? 'var(--error)' : 'var(--accent)' }"
+                :title="t('Translate this PDF')"
+                @click="translatePdf"
+              >
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="M2.5 3.5h11v9h-11z"/>
+                  <path d="M5 6.5h1.5M5 9h4"/>
+                  <path d="M9.5 5.75l2 4.5M10 9.25h3"/>
+                </svg>
+                <span>{{ translateTask?.status === 'running' ? t('Translating...') : t('Translate') }}</span>
+              </button>
+            </div>
           </div>
         </div>
-
-        <div class="pdf-toolbar-separator"></div>
-
-        <div class="pdf-toolbar-group">
+        <div v-if="pdfUi.searchOpen" class="pdf-search-popover">
+          <input
+            ref="searchInputRef"
+            v-model="pdfUi.searchQuery"
+            class="pdf-toolbar-input pdf-toolbar-search"
+            type="text"
+            spellcheck="false"
+            :placeholder="t('Find in document...')"
+            @input="onSearchInput"
+            @keydown.enter.prevent="searchAgain(false)"
+            @keydown.shift.enter.prevent="searchAgain(true)"
+            @keydown.esc.prevent="closeSearch"
+          />
           <button
-            class="pdf-toolbar-btn"
-            :disabled="!pdfUi.ready || !pdfUi.canGoPrevious"
-            title="Previous page"
-            @click="goPreviousPage"
+            class="pdf-toolbar-btn pdf-toolbar-btn-sm"
+            :disabled="!pdfUi.ready || !pdfUi.searchQuery"
+            :title="t('Previous match')"
+            @click="searchAgain(true)"
           >
-            <IconChevronUp :size="13" :stroke-width="1.8" />
+            <IconChevronLeft :size="12" :stroke-width="1.8" />
           </button>
           <button
-            class="pdf-toolbar-btn"
-            :disabled="!pdfUi.ready || !pdfUi.canGoNext"
-            title="Next page"
-            @click="goNextPage"
+            class="pdf-toolbar-btn pdf-toolbar-btn-sm"
+            :disabled="!pdfUi.ready || !pdfUi.searchQuery"
+            :title="t('Next match')"
+            @click="searchAgain(false)"
           >
-            <IconChevronDown :size="13" :stroke-width="1.8" />
+            <IconChevronRight :size="12" :stroke-width="1.8" />
           </button>
-          <div class="pdf-page-indicator">
-            <input
-              ref="pageInputRef"
-              v-model="pageInput"
-              class="pdf-toolbar-input pdf-page-input"
-              type="text"
-              inputmode="numeric"
-              spellcheck="false"
-              :disabled="!pdfUi.ready"
-              @keydown.enter.prevent="commitPageNumber"
-              @blur="commitPageNumber"
-            />
-            <span class="pdf-toolbar-label">/ {{ pdfUi.pagesCount || 0 }}</span>
-          </div>
-        </div>
-
-        <div class="pdf-toolbar-separator"></div>
-
-        <div class="pdf-toolbar-group">
+          <span v-if="pdfUi.searchResultText" class="pdf-toolbar-hint">{{ pdfUi.searchResultText }}</span>
           <button
-            class="pdf-toolbar-btn"
-            :disabled="!pdfUi.ready || !pdfUi.canZoomOut"
-            title="Zoom out"
-            @click="zoomOut"
+            class="pdf-search-toggle"
+            :class="{ 'pdf-search-toggle-active': pdfUi.searchHighlightAll }"
+            @click="toggleSearchOption('searchHighlightAll')"
           >
-            <IconMinus :size="13" :stroke-width="1.8" />
+            {{ t('Highlight All') }}
           </button>
           <button
-            class="pdf-toolbar-btn"
-            :disabled="!pdfUi.ready || !pdfUi.canZoomIn"
-            title="Zoom in"
-            @click="zoomIn"
+            class="pdf-search-toggle"
+            :class="{ 'pdf-search-toggle-active': pdfUi.searchCaseSensitive }"
+            @click="toggleSearchOption('searchCaseSensitive')"
           >
-            <IconPlus :size="13" :stroke-width="1.8" />
-          </button>
-          <select
-            v-model="pdfUi.scaleValue"
-            class="pdf-toolbar-select"
-            :disabled="!pdfUi.ready || scaleOptions.length === 0"
-            @change="applyScale"
-          >
-            <option
-              v-for="option in scaleOptions"
-              :key="option.value"
-              :value="option.value"
-            >
-              {{ option.label }}
-            </option>
-          </select>
-        </div>
-
-        <div class="pdf-toolbar-spacer"></div>
-
-        <div class="pdf-toolbar-group">
-          <button
-            class="pdf-toolbar-btn"
-            :class="{ 'pdf-toolbar-btn-active': pdfUi.annotationMode === ANNOTATION_MODES.HIGHLIGHT }"
-            :disabled="!pdfUi.ready || !pdfUi.canHighlight"
-            title="Highlight"
-            @click="setAnnotationMode(ANNOTATION_MODES.HIGHLIGHT)"
-          >
-            <IconHighlight :size="14" :stroke-width="1.6" />
+            {{ t('Match Case') }}
           </button>
           <button
-            class="pdf-toolbar-btn"
-            :class="{ 'pdf-toolbar-btn-active': pdfUi.annotationMode === ANNOTATION_MODES.FREETEXT }"
-            :disabled="!pdfUi.ready || !pdfUi.canFreeText"
-            title="Text"
-            @click="setAnnotationMode(ANNOTATION_MODES.FREETEXT)"
+            class="pdf-search-toggle"
+            :class="{ 'pdf-search-toggle-active': pdfUi.searchMatchDiacritics }"
+            @click="toggleSearchOption('searchMatchDiacritics')"
           >
-            <IconLetterT :size="14" :stroke-width="1.6" />
+            {{ t('Match Diacritics') }}
           </button>
           <button
-            class="pdf-toolbar-btn"
-            :class="{ 'pdf-toolbar-btn-active': pdfUi.annotationMode === ANNOTATION_MODES.INK }"
-            :disabled="!pdfUi.ready || !pdfUi.canInk"
-            title="Draw"
-            @click="setAnnotationMode(ANNOTATION_MODES.INK)"
+            class="pdf-search-toggle"
+            :class="{ 'pdf-search-toggle-active': pdfUi.searchEntireWord }"
+            @click="toggleSearchOption('searchEntireWord')"
           >
-            <IconBrush :size="14" :stroke-width="1.6" />
-          </button>
-          <button
-            class="pdf-toolbar-btn"
-            :class="{ 'pdf-toolbar-btn-active': pdfUi.annotationMode === ANNOTATION_MODES.STAMP }"
-            :disabled="!pdfUi.ready || !pdfUi.canStamp"
-            title="Stamp"
-            @click="setAnnotationMode(ANNOTATION_MODES.STAMP)"
-          >
-            <IconPhoto :size="14" :stroke-width="1.6" />
+            {{ t('Whole Words') }}
           </button>
         </div>
-
-        <div class="pdf-toolbar-separator"></div>
-
-        <div class="pdf-toolbar-group pdf-toolbar-group-menu">
-          <button
-            ref="menuButtonRef"
-            class="pdf-toolbar-btn"
-            :class="{ 'pdf-toolbar-btn-active': moreMenuOpen }"
-            :disabled="!pdfUi.ready"
-            title="More"
-            @mousedown.stop
-            @click.stop="toggleMoreMenu"
-          >
-            <IconDots :size="14" :stroke-width="1.6" />
-          </button>
-        </div>
-        </div>
-      </div>
-    </Teleport>
-    <Teleport to="body">
-      <div
-        v-if="moreMenuOpen"
-        ref="menuPopupRef"
-        class="pdf-toolbar-menu pdf-toolbar-menu-floating"
-        :style="menuStyle"
-        @mousedown.stop
-        @click.stop
-      >
-        <button class="pdf-toolbar-menu-item" @click="printPdf">
-          <IconPrinter :size="13" :stroke-width="1.6" />
-          <span>Print</span>
-        </button>
-        <button class="pdf-toolbar-menu-item" @click="downloadPdf">
-          <IconDownload :size="13" :stroke-width="1.6" />
-          <span>Download</span>
-        </button>
-        <button class="pdf-toolbar-menu-item" @click="rotateClockwise">
-          <IconRotateClockwise2 :size="13" :stroke-width="1.6" />
-          <span>Rotate Clockwise</span>
-        </button>
-        <button class="pdf-toolbar-menu-item" @click="rotateCounterClockwise">
-          <IconRotate2 :size="13" :stroke-width="1.6" />
-          <span>Rotate Counterclockwise</span>
-        </button>
       </div>
     </Teleport>
 
     <div v-if="loading" class="flex items-center justify-center h-full text-sm"
          style="color: var(--fg-muted);">
-      Loading PDF...
+      {{ t('Loading PDF...') }}
     </div>
     <div v-else-if="error" class="flex items-center justify-center h-full text-sm"
          style="color: var(--fg-muted);">
-      Could not load PDF
+      {{ t('Could not load PDF') }}
     </div>
     <iframe
       v-else-if="viewerSrc"
@@ -237,24 +211,20 @@
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted, watch, defineExpose, defineEmits, nextTick } from 'vue'
 import {
-  IconBrush,
   IconChevronDown,
+  IconChevronLeft,
+  IconChevronRight,
   IconChevronUp,
-  IconDots,
-  IconDownload,
-  IconHighlight,
   IconLayoutSidebarLeftCollapse,
   IconLayoutSidebarLeftExpand,
-  IconLetterT,
   IconMinus,
-  IconPhoto,
   IconPlus,
-  IconPrinter,
-  IconRotate2,
-  IconRotateClockwise2,
   IconSearch,
 } from '@tabler/icons-vue'
 import { invoke } from '@tauri-apps/api/core'
+import { useI18n } from '../../i18n'
+import { usePdfTranslateStore } from '../../stores/pdfTranslate'
+import { useToastStore } from '../../stores/toast'
 import { useWorkspaceStore } from '../../stores/workspace'
 
 const emit = defineEmits(['dblclick-page'])
@@ -265,32 +235,20 @@ const props = defineProps({
   toolbarTargetSelector: { type: String, default: '' },
 })
 
-const ANNOTATION_MODES = Object.freeze({
-  NONE: 0,
-  FREETEXT: 3,
-  HIGHLIGHT: 9,
-  STAMP: 13,
-  INK: 15,
-})
-
 const PDF_VIEWER_OVERRIDE_STYLE_ID = 'altals-pdf-viewer-overrides'
 
 const workspace = useWorkspaceStore()
+const pdfTranslateStore = usePdfTranslateStore()
+const toastStore = useToastStore()
+const { t } = useI18n()
 const iframeRef = ref(null)
 const viewerSrc = ref(null)
 const loading = ref(true)
 const error = ref(null)
 const searchInputRef = ref(null)
 const pageInputRef = ref(null)
-const menuButtonRef = ref(null)
-const menuPopupRef = ref(null)
 const pageInput = ref('1')
 const scaleOptions = ref([])
-const moreMenuOpen = ref(false)
-const moreMenuPosition = reactive({
-  top: 0,
-  left: 0,
-})
 
 const pdfUi = reactive({
   ready: false,
@@ -306,11 +264,10 @@ const pdfUi = reactive({
   searchOpen: false,
   searchQuery: '',
   searchResultText: '',
-  annotationMode: ANNOTATION_MODES.NONE,
-  canHighlight: false,
-  canFreeText: false,
-  canInk: false,
-  canStamp: false,
+  searchHighlightAll: true,
+  searchCaseSensitive: false,
+  searchMatchDiacritics: false,
+  searchEntireWord: false,
 })
 
 let currentBlobUrl = null
@@ -321,10 +278,28 @@ const isDark = computed(() => !LIGHT_THEMES.has(workspace.theme))
 const sidebarIcon = computed(() => (
   pdfUi.sidebarOpen ? IconLayoutSidebarLeftCollapse : IconLayoutSidebarLeftExpand
 ))
-const menuStyle = computed(() => ({
-  top: `${moreMenuPosition.top}px`,
-  left: `${moreMenuPosition.left}px`,
-}))
+const translateTask = computed(() => (
+  props.filePath ? pdfTranslateStore.latestTaskForInput(props.filePath) : null
+))
+const translateStatus = computed(() => {
+  const task = translateTask.value
+  if (!task) return ''
+  if (task.status === 'running') {
+    const pct = Number.isFinite(task.progress) ? Math.round(task.progress) : 0
+    return `${pct}%`
+  }
+  if (task.status === 'completed') return t('Ready')
+  if (task.status === 'failed') return t('Failed')
+  if (task.status === 'canceled') return t('Canceled')
+  return ''
+})
+const translateStatusColor = computed(() => {
+  const status = translateTask.value?.status
+  if (status === 'completed') return 'var(--success, #4ade80)'
+  if (status === 'failed') return 'var(--error)'
+  if (status === 'running') return 'var(--accent)'
+  return 'var(--fg-muted)'
+})
 
 function resetPdfUi() {
   pdfUi.ready = false
@@ -337,38 +312,15 @@ function resetPdfUi() {
   pdfUi.scaleValue = 'auto'
   pdfUi.scaleLabel = 'Automatic Zoom'
   pdfUi.sidebarOpen = false
+  pdfUi.searchOpen = false
+  pdfUi.searchQuery = ''
   pdfUi.searchResultText = ''
-  pdfUi.annotationMode = ANNOTATION_MODES.NONE
-  pdfUi.canHighlight = false
-  pdfUi.canFreeText = false
-  pdfUi.canInk = false
-  pdfUi.canStamp = false
+  pdfUi.searchHighlightAll = true
+  pdfUi.searchCaseSensitive = false
+  pdfUi.searchMatchDiacritics = false
+  pdfUi.searchEntireWord = false
   pageInput.value = '1'
   scaleOptions.value = []
-  moreMenuOpen.value = false
-}
-
-function updateMoreMenuPosition() {
-  if (!moreMenuOpen.value) return
-
-  const buttonRect = menuButtonRef.value?.getBoundingClientRect?.()
-  if (!buttonRect) return
-
-  const menuWidth = menuPopupRef.value?.offsetWidth || 170
-  const menuHeight = menuPopupRef.value?.offsetHeight || 0
-  const viewportPadding = 8
-
-  let left = buttonRect.right - menuWidth
-  left = Math.max(viewportPadding, Math.min(left, window.innerWidth - menuWidth - viewportPadding))
-
-  let top = buttonRect.bottom + 6
-  if (menuHeight > 0) {
-    top = Math.min(top, window.innerHeight - menuHeight - viewportPadding)
-  }
-  top = Math.max(viewportPadding, top)
-
-  moreMenuPosition.top = Math.round(top)
-  moreMenuPosition.left = Math.round(left)
 }
 
 function clearSyncTimer() {
@@ -418,11 +370,6 @@ function normalizeScaleOptions(select) {
   const customOption = options.find(option => option.value === 'custom')
   if (customOption && customOption.label) return options
   return options.filter(option => option.value !== 'custom')
-}
-
-function isButtonAvailable(doc, id) {
-  const button = doc?.getElementById(id)
-  return !!button && !button.disabled && !button.closest('[hidden]')
 }
 
 function applyTheme() {
@@ -514,11 +461,6 @@ function syncPdfUi() {
   pdfUi.sidebarOpen = typeof viewsManager?.isOpen === 'boolean'
     ? viewsManager.isOpen
     : toggleButton?.getAttribute('aria-expanded') === 'true'
-  pdfUi.annotationMode = Number(app.pdfViewer.annotationEditorMode ?? ANNOTATION_MODES.NONE)
-  pdfUi.canHighlight = isButtonAvailable(doc, 'editorHighlightButton')
-  pdfUi.canFreeText = isButtonAvailable(doc, 'editorFreeTextButton')
-  pdfUi.canInk = isButtonAvailable(doc, 'editorInkButton')
-  pdfUi.canStamp = isButtonAvailable(doc, 'editorStampButton')
   pdfUi.searchResultText = [findResultsCount?.textContent, findMsg?.textContent]
     .map(value => (value || '').trim())
     .filter(Boolean)
@@ -550,41 +492,46 @@ function openSearch() {
   nextTick(() => searchInputRef.value?.focus())
 }
 
-function toggleSearch() {
-  pdfUi.searchOpen = !pdfUi.searchOpen
-  if (pdfUi.searchOpen) {
-    nextTick(() => searchInputRef.value?.focus())
-  }
+function closeSearch() {
+  pdfUi.searchOpen = false
 }
 
-function onSearchInput() {
+function toggleSearch() {
+  if (pdfUi.searchOpen) {
+    closeSearch()
+    return
+  }
+  openSearch()
+}
+
+function dispatchFind(type = '', findPrevious = false) {
   const app = getPdfApp()
   if (!app?.eventBus) return
   app.eventBus.dispatch('find', {
     source: app,
-    type: '',
+    type,
     query: pdfUi.searchQuery,
-    caseSensitive: false,
-    entireWord: false,
-    highlightAll: true,
-    findPrevious: false,
-    matchDiacritics: false,
+    caseSensitive: pdfUi.searchCaseSensitive,
+    entireWord: pdfUi.searchEntireWord,
+    highlightAll: pdfUi.searchHighlightAll,
+    findPrevious,
+    matchDiacritics: pdfUi.searchMatchDiacritics,
   })
 }
 
+function onSearchInput() {
+  dispatchFind('')
+}
+
 function searchAgain(findPrevious = false) {
-  const app = getPdfApp()
-  if (!app?.eventBus || !pdfUi.searchQuery) return
-  app.eventBus.dispatch('find', {
-    source: app,
-    type: 'again',
-    query: pdfUi.searchQuery,
-    caseSensitive: false,
-    entireWord: false,
-    highlightAll: true,
-    findPrevious,
-    matchDiacritics: false,
-  })
+  if (!pdfUi.searchQuery) return
+  dispatchFind('again', findPrevious)
+}
+
+function toggleSearchOption(key) {
+  pdfUi[key] = !pdfUi[key]
+  if (!pdfUi.searchQuery) return
+  dispatchFind('')
 }
 
 function toggleSidebar() {
@@ -647,65 +594,21 @@ function applyScale() {
   syncPdfUi()
 }
 
-function setAnnotationMode(mode) {
-  const buttonIds = {
-    [ANNOTATION_MODES.HIGHLIGHT]: 'editorHighlightButton',
-    [ANNOTATION_MODES.FREETEXT]: 'editorFreeTextButton',
-    [ANNOTATION_MODES.INK]: 'editorInkButton',
-    [ANNOTATION_MODES.STAMP]: 'editorStampButton',
+async function translatePdf() {
+  if (!props.filePath || translateTask.value?.status === 'running') return
+
+  try {
+    await pdfTranslateStore.startTranslation(props.filePath)
+    const name = props.filePath.split('/').pop()
+    toastStore.show(t('Started translating {name}', { name }), {
+      type: 'success',
+      duration: 2500,
+    })
+  } catch (translateError) {
+    const message = translateError?.message || String(translateError)
+    toastStore.show(message, { type: 'error', duration: 5000 })
+    workspace.openSettings('pdf-translate')
   }
-  const targetButtonId = buttonIds[mode]
-  if (targetButtonId && clickPdfElement(targetButtonId)) return
-
-  const targetMode = pdfUi.annotationMode === mode ? ANNOTATION_MODES.NONE : mode
-  dispatchPdfEvent('switchannotationeditormode', { mode: targetMode })
-}
-
-function printPdf() {
-  moreMenuOpen.value = false
-  if (!clickPdfElement('printButton', 'secondaryPrint')) {
-    dispatchPdfEvent('print')
-  }
-}
-
-function downloadPdf() {
-  moreMenuOpen.value = false
-  if (!clickPdfElement('downloadButton', 'secondaryDownload')) {
-    dispatchPdfEvent('download')
-  }
-}
-
-function rotateClockwise() {
-  moreMenuOpen.value = false
-  if (!clickPdfElement('pageRotateCw')) {
-    dispatchPdfEvent('rotatecw')
-  }
-}
-
-function rotateCounterClockwise() {
-  moreMenuOpen.value = false
-  if (!clickPdfElement('pageRotateCcw')) {
-    dispatchPdfEvent('rotateccw')
-  }
-}
-
-function toggleMoreMenu() {
-  moreMenuOpen.value = !moreMenuOpen.value
-  if (moreMenuOpen.value) {
-    nextTick(updateMoreMenuPosition)
-  }
-}
-
-function handleDocumentPointerDown(event) {
-  if (!moreMenuOpen.value) return
-  if (menuButtonRef.value?.contains(event.target)) return
-  if (menuPopupRef.value?.contains(event.target)) return
-  moreMenuOpen.value = false
-}
-
-function handleWindowMetricsChange() {
-  if (!moreMenuOpen.value) return
-  nextTick(updateMoreMenuPosition)
 }
 
 function handleIframeDoubleClick(event) {
@@ -825,16 +728,12 @@ function handlePdfUpdated(event) {
 }
 
 onMounted(() => {
-  document.addEventListener('mousedown', handleDocumentPointerDown)
   window.addEventListener('pdf-updated', handlePdfUpdated)
-  window.addEventListener('resize', handleWindowMetricsChange)
   loadPdf()
 })
 
 onUnmounted(() => {
-  document.removeEventListener('mousedown', handleDocumentPointerDown)
   window.removeEventListener('pdf-updated', handlePdfUpdated)
-  window.removeEventListener('resize', handleWindowMetricsChange)
   clearSyncTimer()
   if (currentBlobUrl) URL.revokeObjectURL(currentBlobUrl)
 })
@@ -850,37 +749,65 @@ defineExpose({
 <style scoped>
 .pdf-toolbar-wrap {
   flex: none;
+  position: relative;
   width: 100%;
+  height: 100%;
   min-width: 0;
   box-sizing: border-box;
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border);
-  overflow-x: auto;
-  overflow-y: visible;
-  scrollbar-width: none;
-}
-
-.pdf-toolbar-wrap::-webkit-scrollbar {
-  display: none;
+  overflow: visible;
 }
 
 .pdf-toolbar-wrap-embedded {
   border-bottom: 0;
-  border-top: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  border-top: 0;
   position: relative;
   z-index: 4;
 }
 
 .pdf-toolbar {
+  position: relative;
   display: flex;
   align-items: center;
-  width: max-content;
-  min-width: 100%;
+  justify-content: space-between;
+  width: 100%;
+  min-height: var(--document-header-row-height, 24px);
   box-sizing: border-box;
+  padding: 0 6px;
+  overflow-x: auto;
+  overflow-y: visible;
+  scrollbar-width: none;
+}
+
+.pdf-toolbar::-webkit-scrollbar {
+  display: none;
+}
+
+.pdf-toolbar-left,
+.pdf-toolbar-right {
+  display: flex;
+  align-items: center;
   gap: 6px;
-  min-height: 24px;
-  padding: 1px 6px;
-  overflow: visible;
+  min-width: 0;
+  flex: 1 1 0;
+}
+
+.pdf-toolbar-right {
+  justify-content: flex-end;
+}
+
+.pdf-toolbar-center {
+  position: absolute;
+  inset: 0 auto 0 50%;
+  display: flex;
+  align-items: center;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.pdf-toolbar-center > * {
+  pointer-events: auto;
 }
 
 .pdf-toolbar-group {
@@ -888,15 +815,6 @@ defineExpose({
   align-items: center;
   gap: 4px;
   flex: none;
-}
-
-.pdf-toolbar-group-menu {
-  position: relative;
-}
-
-.pdf-toolbar-spacer {
-  flex: 1 1 auto;
-  min-width: 4px;
 }
 
 .pdf-toolbar-separator {
@@ -995,41 +913,89 @@ defineExpose({
   font-size: 11px;
 }
 
-.pdf-search-inline {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.pdf-toolbar-menu {
-  z-index: 9999;
-  min-width: 160px;
-  padding: 4px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: color-mix(in srgb, var(--bg-secondary) 94%, var(--bg-primary));
-  box-shadow: 0 10px 24px rgb(0 0 0 / 0.18);
-}
-
-.pdf-toolbar-menu-floating {
-  position: fixed;
-}
-
-.pdf-toolbar-menu-item {
-  display: flex;
-  align-items: center;
+.pdf-toolbar-group-translate {
   gap: 8px;
-  width: 100%;
-  padding: 6px 8px;
+}
+
+.pdf-toolbar-group-scale {
+  gap: 6px;
+}
+
+.pdf-search-popover {
+  position: absolute;
+  top: calc(var(--document-header-row-height, 24px) + 6px);
+  left: 6px;
+  z-index: 24;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: max-content;
+  max-width: calc(100% - 12px);
+  box-sizing: border-box;
+  padding: 6px;
+  min-height: 32px;
+  border: 1px solid color-mix(in srgb, var(--border) 92%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg-secondary) 96%, var(--bg-primary));
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.pdf-search-popover::-webkit-scrollbar {
+  display: none;
+}
+
+.pdf-search-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 22px;
+  padding: 0 10px;
   border-radius: 6px;
-  border: 0;
+  border: 1px solid transparent;
   background: transparent;
   color: var(--fg-primary);
   font-size: var(--ui-font-caption);
-  text-align: left;
+  white-space: nowrap;
 }
 
-.pdf-toolbar-menu-item:hover {
+.pdf-search-toggle:hover {
   background: var(--bg-hover);
+}
+
+.pdf-search-toggle-active {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 28%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.pdf-translate-status {
+  color: var(--fg-muted);
+  font-size: var(--ui-font-caption);
+  white-space: nowrap;
+}
+
+.pdf-translate-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 20px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  font-size: var(--ui-font-caption);
+  color: var(--accent);
+}
+
+.pdf-translate-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.pdf-translate-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
 }
 </style>

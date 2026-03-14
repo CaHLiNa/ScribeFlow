@@ -130,6 +130,7 @@ const statusClass = computed(() => ({
   align-items: center;
   gap: 10px;
   width: 100%;
+  height: var(--document-header-row-height, 28px);
   min-width: 0;
   box-sizing: border-box;
   padding: 0 6px;
