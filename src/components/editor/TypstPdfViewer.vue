@@ -6,6 +6,7 @@
         :key="pdfReloadKey"
         :filePath="pdfPath"
         :paneId="paneId"
+        :toolbar-target-selector="toolbarTargetSelector"
       />
       <div v-else class="flex items-center justify-center h-full" style="color: var(--fg-muted);">
         <div class="text-center text-sm">
@@ -38,6 +39,7 @@ import PdfViewer from './PdfViewer.vue'
 const props = defineProps({
   filePath: { type: String, required: true },
   paneId: { type: String, required: true },
+  toolbarTargetSelector: { type: String, default: '' },
 })
 
 const typstStore = useTypstStore()

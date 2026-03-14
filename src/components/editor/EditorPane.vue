@@ -32,17 +32,27 @@
     <ReviewBar v-if="activeTab && viewerType === 'text'" :filePath="activeTab" />
     <DocxReviewBar v-else-if="activeTab && viewerType === 'docx'" :filePath="activeTab" :paneId="paneId" />
     <NotebookReviewBar v-else-if="activeTab && viewerType === 'notebook'" :filePath="activeTab" />
-    <DocumentWorkflowBar
+    <div
       v-if="activeTab && workflowUiState"
-      :ui-state="workflowUiState"
-      :can-view-log="workflowCanViewLog"
-      :status-text="workflowStatusText"
-      :status-tone="workflowStatusTone"
-      @primary-action="handleWorkflowPrimaryAction"
-      @reveal-preview="handleWorkflowRevealPreview"
-      @create-pdf="handleExportPdf"
-      @view-log="handleWorkflowViewLog"
-    />
+      class="document-header-stack"
+      :class="{ 'document-header-stack-with-subbar': workflowPdfToolbarTargetSelector }"
+    >
+      <DocumentWorkflowBar
+        :ui-state="workflowUiState"
+        :can-view-log="workflowCanViewLog"
+        :status-text="workflowStatusText"
+        :status-tone="workflowStatusTone"
+        @primary-action="handleWorkflowPrimaryAction"
+        @reveal-preview="handleWorkflowRevealPreview"
+        @create-pdf="handleExportPdf"
+        @view-log="handleWorkflowViewLog"
+      />
+      <div
+        v-if="workflowPdfToolbarTargetSelector"
+        :id="pdfToolbarTargetId"
+        class="document-header-subbar"
+      />
+    </div>
 
     <!-- Editor or empty state -->
     <div class="flex-1 overflow-hidden relative" ref="editorContainerRef"
@@ -63,18 +73,21 @@
         :key="activeTab"
         :filePath="activeTab"
         :paneId="paneId"
+        :toolbar-target-selector="workflowPdfToolbarTargetSelector"
       />
       <TypstPdfViewer
         v-else-if="activeTab && viewerType === 'pdf' && hasTypstSource"
         :key="activeTab"
         :filePath="activeTab"
         :paneId="paneId"
+        :toolbar-target-selector="workflowPdfToolbarTargetSelector"
       />
       <PdfViewer
         v-else-if="activeTab && viewerType === 'pdf'"
         :key="activeTab"
         :filePath="activeTab"
         :paneId="paneId"
+        :toolbar-target-selector="workflowPdfToolbarTargetSelector"
       />
       <CsvEditor
         v-else-if="activeTab && viewerType === 'csv'"
@@ -206,6 +219,13 @@ const commentsStore = useCommentsStore()
 const pdfTranslateStore = usePdfTranslateStore()
 const workflowStore = useDocumentWorkflowStore()
 const { t } = useI18n()
+
+const pdfToolbarTargetId = computed(() => `pdf-toolbar-slot-${String(props.paneId || 'pane').replace(/[^a-zA-Z0-9_-]/g, '-')}`)
+const workflowPdfToolbarTargetSelector = computed(() => (
+  props.activeTab && workflowUiState.value && viewerType.value === 'pdf'
+    ? `#${pdfToolbarTargetId.value}`
+    : ''
+))
 
 // ── Comment state ──────────────────────────────────────────────────
 const hasEditorSelection = ref(false)
@@ -763,3 +783,26 @@ function closePane() {
 
 defineExpose({ startComment })
 </script>
+
+<style scoped>
+.document-header-stack {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  z-index: 4;
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+}
+
+.document-header-subbar {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  min-height: 0;
+  overflow: visible;
+}
+</style>

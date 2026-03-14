@@ -8,6 +8,7 @@
         :key="pdfReloadKey"
         :filePath="pdfPath"
         :paneId="paneId"
+        :toolbar-target-selector="toolbarTargetSelector"
         @dblclick-page="handleBackwardSync"
       />
       <div v-else class="flex items-center justify-center h-full" style="color: var(--fg-muted);">
@@ -41,6 +42,7 @@ import PdfViewer from './PdfViewer.vue'
 const props = defineProps({
   filePath: { type: String, required: true }, // The .pdf path
   paneId: { type: String, required: true },
+  toolbarTargetSelector: { type: String, default: '' },
 })
 
 const latexStore = useLatexStore()

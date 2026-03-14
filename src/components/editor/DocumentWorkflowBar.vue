@@ -129,7 +129,9 @@ const statusClass = computed(() => ({
   display: flex;
   align-items: center;
   gap: 10px;
+  width: 100%;
   min-width: 0;
+  box-sizing: border-box;
   padding: 0 6px;
 }
 
