@@ -485,6 +485,8 @@ bun run db:migrate   # Run drizzle migrations
 
 ## Deployment
 
+> Note: Altals public GitHub login does not use the full hosted Shoulders stack described below. For current Altals releases, the only hosted requirement is the minimal `web/` GitHub OAuth bridge, typically deployed on Vercel with the project Root Directory set to `web/`.
+
 1. VPS with Node.js 20+, Caddy, SQLite3
 2. Clone repo, `cd web && bun install && bun run build`
 3. Copy `.env.example` → `.env`, fill in secrets

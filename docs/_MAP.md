@@ -36,10 +36,10 @@ These are hard-won lessons from this codebase. Violating any of them causes subt
 | SQLite infrastructure | [sqlite-infrastructure.md](sqlite-infrastructure.md) | Reusable pattern: lazy init, WAL mode, managed state, schema conventions, frontend store pattern |
 | Ghost suggestions (deep) | [ghost-work.md](ghost-work.md) | SuperDoc rendering pipeline, run node creation, mark vs runProperties, debugging, prompt engineering |
 | Gotchas & lessons | [gotchas.md](gotchas.md) | Full details, file paths, and additional edge cases beyond the summary above |
-| **Web backend** | [web-backend.md](web-backend.md) | Nuxt server: auth, AI proxy, credits, contact form, telemetry, admin dashboard, email (Resend), deployment |
+| **Web backend** | [web-backend.md](web-backend.md) | Historical Shoulders Nuxt backend reference plus notes about the remaining Altals GitHub OAuth bridge deployment. |
 | **Peer review** | [web-peer-review.md](web-peer-review.md) | Free promo tool: .docx/.pdf upload → multi-agent AI review (gatekeeper + technical/editorial/reference-checker reviewers + report writer), inline comments with Google Docs-style positioning, Typst PDF export, guidance document system. PDF intake via Z OCR API (GLM-OCR). |
 | **Paper triage** | [web-triage.md](web-triage.md) | **WIP.** Desk triage for journal editors: PDF/DOCX upload → metadata extraction, reference verification, AI detection, novelty search, author lookup (OpenAlex), structured assessment. ~$0.40/paper, ~3 minutes. |
-| **Auth system** | [auth-system.md](auth-system.md) | Refresh token rotation, desktop login (polling + deep link), OS keychain, production checklist, debugging |
+| **Auth system** | [auth-system.md](auth-system.md) | Historical Shoulders auth stack reference. Altals public GitHub login now uses the minimal OAuth bridge documented in README and git-system.md. |
 | **Admin system** | [admin-system.md](admin-system.md) | Admin dashboard (JWT cookie auth, CSRF), 7 pages (dashboard, users, calls, reviews, decks, analytics), anonymous page view tracking, all admin API endpoints |
 | **Auto-updates** | [building.md](building.md#auto-updates) | tauri-plugin-updater, signing keypair, version bump, server endpoint, platform notes |
 

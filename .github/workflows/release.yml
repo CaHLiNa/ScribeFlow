@@ -118,6 +118,34 @@ jobs:
       - name: Validate tag matches project version
         run: node scripts/version-utils.mjs check-tag "${{ needs.prepare-release.outputs.tag }}"
 
+      - name: Verify GitHub auth origin is configured for release
+        shell: bash
+        run: |
+          ORIGIN="${{ vars.VITE_GITHUB_AUTH_ORIGIN }}"
+
+          if [ -z "$ORIGIN" ]; then
+            echo "VITE_GITHUB_AUTH_ORIGIN is not configured."
+            echo "Set it to your public GitHub OAuth bridge origin, for example https://your-project.vercel.app."
+            exit 1
+          fi
+
+          case "$ORIGIN" in
+            https://*) ;;
+            *)
+              echo "VITE_GITHUB_AUTH_ORIGIN must use https for public release builds."
+              echo "Current value: $ORIGIN"
+              exit 1
+              ;;
+          esac
+
+          case "$ORIGIN" in
+            https://localhost*|https://127.0.0.1*|http://localhost*|http://127.0.0.1*)
+              echo "VITE_GITHUB_AUTH_ORIGIN cannot point at localhost for public release builds."
+              echo "Current value: $ORIGIN"
+              exit 1
+              ;;
+          esac
+
       - name: Install Rust toolchain
         if: matrix.rust-target == ''
         uses: dtolnay/rust-toolchain@stable

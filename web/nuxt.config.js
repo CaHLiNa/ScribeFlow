@@ -12,20 +12,16 @@ export default defineNuxtConfig({
     githubClientSecret: '',
   },
 
-  nitro: {
-    preset: 'node-server',
-  },
-
   devtools: false,
 
   app: {
     head: {
-      title: 'Altals GitHub Auth',
+      title: 'Altals GitHub OAuth Bridge',
       htmlAttrs: { lang: 'en' },
       meta: [
         { charset: 'utf-8' },
         { name: 'viewport', content: 'width=device-width, initial-scale=1' },
-        { name: 'description', content: 'Minimal GitHub OAuth bridge for the Altals desktop app.' },
+        { name: 'description', content: 'Minimal GitHub OAuth bridge for the Altals desktop app, ready for Vercel deployment.' },
       ],
       link: [
         { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },

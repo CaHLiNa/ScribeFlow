@@ -105,24 +105,33 @@
 
       <div v-if="error" class="gh-error">{{ error }}</div>
 
+      <p class="gh-hint">{{ t('Altals uses an official GitHub authorization page. Most users do not need to change anything here.') }}</p>
+
+      <div class="gh-bridge-status">
+        <span class="gh-bridge-status-label">{{ t('Auth service') }}</span>
+        <span class="gh-bridge-status-value">{{ githubAuthOrigin || t('Not configured') }}</span>
+      </div>
+
       <div class="gh-bridge-section">
-        <h4 class="gh-section-label">{{ t('OAuth bridge') }}</h4>
-        <p class="gh-hint">{{ t('Set the GitHub OAuth bridge URL used to open authorization and poll for the token.') }}</p>
-        <div class="key-input-row">
-          <input
-            v-model="authOriginDraft"
-            class="key-input"
-            type="url"
-            placeholder="http://localhost:3000"
-            @keydown.enter="handleSaveAuthOrigin"
-          />
-          <button class="key-save-btn" :disabled="loading" @click="handleSaveAuthOrigin">
-            {{ t('Save Bridge URL') }}
-          </button>
+        <button class="gh-pat-toggle" @click="showBridgeSettings = !showBridgeSettings">
+          {{ showBridgeSettings ? t('Hide') : t('Override Auth Service URL') }}
+        </button>
+        <div v-if="showBridgeSettings" class="gh-bridge-form">
+          <p class="gh-hint">{{ t('Only change this if you are developing Altals locally or using a self-hosted auth bridge.') }}</p>
+          <div class="key-input-row">
+            <input
+              v-model="authOriginDraft"
+              class="key-input"
+              type="url"
+              placeholder="http://localhost:3000"
+              @keydown.enter="handleSaveAuthOrigin"
+            />
+            <button class="key-save-btn" :disabled="loading" @click="handleSaveAuthOrigin">
+              {{ t('Save Auth Service URL') }}
+            </button>
+          </div>
+          <p class="gh-hint">{{ t('Leave blank to use the built-in default auth service.') }}</p>
         </div>
-        <p class="gh-hint">{{ t('Leave blank to fall back to the bundled default.') }}</p>
-        <p v-if="githubAuthOrigin" class="gh-hint">{{ t('Current bridge: {origin}', { origin: githubAuthOrigin }) }}</p>
-        <p v-else class="gh-hint">{{ t('No GitHub OAuth bridge is configured yet.') }}</p>
       </div>
 
       <!-- OAuth connect -->
@@ -170,6 +179,7 @@ const GITHUB_AUTH_ORIGIN_STORAGE_KEY = 'githubAuthOrigin'
 const loading = ref(false)
 const error = ref('')
 const showPat = ref(false)
+const showBridgeSettings = ref(import.meta.env.DEV)
 const patValue = ref('')
 const showCreate = ref(false)
 const showLink = ref(false)
@@ -245,7 +255,7 @@ async function handleConnect() {
   loading.value = true
   try {
     if (!githubAuthOrigin.value) {
-      error.value = t('GitHub OAuth bridge is not configured. Set an OAuth bridge URL below or define VITE_GITHUB_AUTH_ORIGIN and try again.')
+      error.value = t('GitHub sign-in is not configured in this build yet. Please use a release with a configured auth service, or connect with a Personal Access Token.')
       loading.value = false
       return
     }
@@ -440,6 +450,34 @@ async function handleSyncNow() {
 
 .gh-bridge-section {
   margin: 16px 0;
+}
+
+.gh-bridge-status {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-primary);
+  margin-bottom: 12px;
+}
+
+.gh-bridge-status-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--fg-muted);
+}
+
+.gh-bridge-status-value {
+  font-size: 12px;
+  color: var(--fg-primary);
+  word-break: break-all;
+}
+
+.gh-bridge-form {
+  margin-top: 10px;
 }
 
 .gh-section-label {

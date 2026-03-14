@@ -257,6 +257,8 @@ fn make_callbacks(token: &str) -> RemoteCallbacks<'_> {
 }
 ```
 
+For public desktop releases, Altals is expected to use a small Altals-owned GitHub OAuth bridge deployed at a stable public origin such as `https://<project>.vercel.app`. In practice, the bridge lives in the repository `web/` app and can be imported into Vercel with its Root Directory set to `web`. The desktop build reads this origin from `VITE_GITHUB_AUTH_ORIGIN`, opens the bridge in the browser, then polls it for the GitHub token payload. This keeps the GitHub OAuth client secret on the bridge instead of bundling it into the desktop app. Release automation should treat a missing or localhost-only `VITE_GITHUB_AUTH_ORIGIN` as a misconfiguration, because shipping that build would surface the "GitHub sign-in is not configured" error in Settings.
+
 ### User Journeys
 
 | Journey | What Happens | User Sees |

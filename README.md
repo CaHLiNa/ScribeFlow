@@ -57,6 +57,27 @@ Example:
 VITE_GITHUB_AUTH_ORIGIN=http://localhost:3000 npm run tauri dev
 ```
 
+## Public GitHub login
+
+For public distribution, deploy `web/` to a small public host such as Vercel and point desktop builds at that URL.
+
+Recommended production setup:
+
+1. Create one Altals-owned GitHub OAuth App
+2. Set its callback URL to `https://<your-project>.vercel.app/api/v1/auth/github/callback`
+3. Import this repository into Vercel and set the Project Root Directory to `web`
+4. Configure the Vercel project with:
+   - `NUXT_BASE_URL=https://<your-project>.vercel.app`
+   - `NUXT_GITHUB_CLIENT_ID=<your client id>`
+   - `NUXT_GITHUB_CLIENT_SECRET=<your client secret>`
+5. Set desktop release builds to:
+   - `VITE_GITHUB_AUTH_ORIGIN=https://<your-project>.vercel.app`
+6. Keep using `http://localhost:3000` only for local development
+
+End users do not need to create their own OAuth App or run a local bridge.
+
+Nuxt on Vercel works with zero extra framework config, and Vercel will keep deploying this bridge from Git once the project is imported.
+
 ## Repository
 
 - GitHub: [CaHLiNa/Altals](https://github.com/CaHLiNa/Altals)
