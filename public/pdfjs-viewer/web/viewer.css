@@ -6500,7 +6500,7 @@ button.hasPopupMenu[aria-expanded="false"] + menu{
         }
 
 .missingThumbnailImage:is(:is(:is(:is(#viewsManager #viewsManagerContent) #thumbnailsView) > .thumbnail) > .thumbnailImage){
-            content-visibility:hidden;
+            content-visibility:visible;
           }
 
 :is(:is(:is(:is(#viewsManager #viewsManagerContent) #thumbnailsView) > .thumbnail) > .thumbnailImage):hover{
@@ -6526,6 +6526,216 @@ button.hasPopupMenu[aria-expanded="false"] + menu{
             background-color:var(--image-dragging-placeholder-bg);
             box-shadow:none !important;
           }
+
+/* Altals: PDF sidebar refresh */
+#viewsManager{
+  --sidebar-width:296px;
+  --sidebar-max-width:min(36vw, 360px);
+  --sidebar-border-radius:0;
+  --sidebar-padding:0;
+  --sidebar-border-color:rgb(255 255 255 / 0.06);
+  --sidebar-box-shadow:none;
+  --text-color:#cccccc;
+  --button-fg:#cccccc;
+  --button-bg:transparent;
+  --button-hover-bg:#2a2d2e;
+  --button-active-bg:#37373d;
+  --button-border-color:transparent;
+  --button-hover-border-color:transparent;
+  --button-active-border-color:transparent;
+  --button-focus-no-bg:#094771;
+  --button-focus-outline-color:#007fd4;
+  --button-focus-border-color:#007fd4;
+  --status-border-color:transparent;
+  --status-actions-bg:transparent;
+  --status-undo-bg:#37373d;
+  --status-waiting-bg:#37373d;
+  --indicator-color:#3794ff;
+  --indicator-warning-color:#cca700;
+  --status-warning-bg:rgb(204 167 0 / 0.14);
+  --header-shadow:none;
+  --image-border-width:1px;
+  --image-border-color:rgb(255 255 255 / 0.08);
+  --image-hover-border-color:rgb(255 255 255 / 0.14);
+  --image-current-border-color:#007fd4;
+  --image-current-focused-outline-color:#007fd4;
+  --image-page-number-bg:transparent;
+  --image-page-number-fg:#8b949e;
+  --image-current-page-number-bg:transparent;
+  --image-current-page-number-fg:#ffffff;
+  --image-shadow:0 0 0 1px var(--image-border-color);
+  --image-hover-shadow:0 0 0 1px var(--image-hover-border-color);
+  --image-current-shadow:0 0 0 1px var(--image-current-border-color);
+  --image-dragging-placeholder-bg:#2a2d2e;
+  --multiple-dragging-text-color:#ffffff;
+  color:var(--text-color);
+  font-family:"Segoe UI","Segoe WPC","PingFang SC","Hiragino Sans GB","Microsoft YaHei UI",sans-serif;
+  background:#181818;
+  backdrop-filter:none;
+  will-change:inset-inline-start;
+}
+
+#viewsManager #viewsManagerHeader{
+  position:sticky;
+  top:0;
+  z-index:4;
+  background:#181818;
+  border-bottom:1px solid rgb(255 255 255 / 0.06);
+}
+
+:is(#viewsManager #viewsManagerHeader) .viewsManagerLabel{
+  font-family:"Segoe UI","Segoe WPC","PingFang SC","Hiragino Sans GB","Microsoft YaHei UI",sans-serif;
+  font-size:13px;
+  font-weight:600;
+  letter-spacing:0;
+  color:#cccccc;
+}
+
+:is(#viewsManager #viewsManagerHeader) #viewsManagerTitle{
+  min-height:40px;
+  gap:8px;
+  padding:8px 12px;
+  align-items:center;
+}
+
+:is(:is(#viewsManager #viewsManagerHeader) #viewsManagerTitle) #viewsManagerSelector{
+  width:32px;
+  height:30px;
+  flex:0 0 auto;
+}
+
+:is(:is(:is(#viewsManager #viewsManagerHeader) #viewsManagerTitle) #viewsManagerSelector) > button,
+:is(:is(#viewsManager #viewsManagerHeader) #viewsManagerTitle) #viewsManagerAddFileButton,
+:is(:is(#viewsManager #viewsManagerHeader) #viewsManagerTitle) #viewsManagerCurrentOutlineButton{
+  border:1px solid transparent;
+  border-radius:4px;
+  background:transparent;
+  box-shadow:none;
+}
+
+:is(:is(:is(#viewsManager #viewsManagerHeader) #viewsManagerTitle) #viewsManagerSelector) > button::after{
+  margin-left:4px;
+  opacity:0.72;
+}
+
+:is(#viewsManager #viewsManagerHeader) #viewsManagerHeaderLabel{
+  flex:1 1 auto;
+  min-width:0;
+}
+
+:is(#viewsManager #viewsManagerHeader) #viewsManagerStatus{
+  border:none;
+  padding:0 12px 8px;
+  background:transparent;
+  box-sizing:border-box;
+}
+
+:is(:is(#viewsManager #viewsManagerHeader) #viewsManagerStatus) > div{
+  min-height:28px;
+  padding-inline:0;
+  border-radius:0;
+  border:none;
+  box-shadow:none;
+}
+
+:is(:is(#viewsManager #viewsManagerHeader) #viewsManagerStatus) .viewsManagerStatusLabel{
+  font-family:"Segoe UI","Segoe WPC","PingFang SC","Hiragino Sans GB","Microsoft YaHei UI",sans-serif;
+  font-size:11px;
+  font-weight:500;
+  letter-spacing:0;
+  text-transform:none;
+  color:#8b949e;
+}
+
+:is(:is(#viewsManager #viewsManagerHeader) #viewsManagerStatus) #viewsManagerStatusAction{
+  background:transparent;
+}
+
+#viewsManager #viewsManagerContent{
+  padding:6px 0 12px;
+  scrollbar-gutter:stable;
+  contain:layout paint style;
+}
+
+:is(#viewsManager #viewsManagerContent) #thumbnailsView{
+  --thumbnail-width:156px;
+  display:block;
+  padding:0 6px 12px;
+}
+
+:is(:is(#viewsManager #viewsManagerContent) #thumbnailsView) > .thumbnail{
+  width:100%;
+  box-sizing:border-box;
+  padding:8px 10px 20px;
+  margin:0 0 2px;
+  border-radius:6px;
+  background:transparent;
+  border:1px solid transparent;
+  box-shadow:none;
+  transition:background-color 120ms ease, border-color 120ms ease;
+  contain:layout paint style;
+  content-visibility:auto;
+  contain-intrinsic-size:220px;
+}
+
+:is(:is(:is(#viewsManager #viewsManagerContent) #thumbnailsView) > .thumbnail):hover{
+  transform:none;
+  border-color:rgb(255 255 255 / 0.04);
+  background:#2a2d2e;
+  box-shadow:none;
+}
+
+:is(:is(:is(#viewsManager #viewsManagerContent) #thumbnailsView) > .thumbnail):has([aria-current="page"]){
+  border-color:#007fd4;
+  background:#37373d;
+  box-shadow:none;
+}
+
+:is(:is(:is(#viewsManager #viewsManagerContent) #thumbnailsView) > .thumbnail):not(.isDragging)::after{
+  bottom:6px;
+  inset-inline-start:10px;
+  inset-inline-end:auto;
+  min-width:auto;
+  height:auto;
+  padding:0;
+  border:none;
+  border-radius:0;
+  background:transparent;
+  box-shadow:none;
+  font-family:"Segoe UI","Segoe WPC","PingFang SC","Hiragino Sans GB","Microsoft YaHei UI",sans-serif;
+  font-size:11px;
+  font-weight:500;
+  line-height:1;
+  letter-spacing:0;
+  color:var(--image-page-number-fg);
+}
+
+:is(:is(:is(#viewsManager #viewsManagerContent) #thumbnailsView) > .thumbnail) > .thumbnailImage{
+  width:min(var(--thumbnail-width), calc(100% - 12px));
+  margin:0 auto;
+  display:block;
+  border-radius:2px;
+  background:#1f1f1f;
+  box-shadow:var(--image-shadow);
+  object-fit:contain;
+  transition:box-shadow 120ms ease, filter 120ms ease, background 120ms ease;
+}
+
+:is(:is(:is(:is(#viewsManager #viewsManagerContent) #thumbnailsView) > .thumbnail) > .thumbnailImage):hover{
+  transform:none;
+}
+
+:is(:is(:is(#viewsManager #viewsManagerContent) #thumbnailsView) > .thumbnail):has([aria-current="page"])::after{
+  color:var(--image-current-page-number-fg);
+}
+
+.missingThumbnailImage:is(:is(:is(:is(#viewsManager #viewsManagerContent) #thumbnailsView) > .thumbnail) > .thumbnailImage){
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 0.025) 0%, rgb(255 255 255 / 0.01) 100%),
+    repeating-linear-gradient(180deg, transparent 0 14px, rgb(255 255 255 / 0.024) 14px 15px);
+  background-color:#1f1f1f;
+  box-shadow:var(--image-shadow);
+}
 
 .draggingThumbnail:is(:is(:is(:is(#viewsManager #viewsManagerContent) #thumbnailsView) > .thumbnail) > .thumbnailImage){
             position:absolute;

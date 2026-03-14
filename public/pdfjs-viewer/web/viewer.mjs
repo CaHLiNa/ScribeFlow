@@ -10129,8 +10129,8 @@ class PDFThumbnailViewer {
       last,
       views
     } = this.#getVisibleThumbs();
+    let shouldScroll = views.length === 0;
     if (views.length > 0) {
-      let shouldScroll = false;
       if (pageNumber <= this.#pagesMapper.getPageNumber(first.id) || pageNumber >= this.#pagesMapper.getPageNumber(last.id)) {
         shouldScroll = true;
       } else {
@@ -10146,11 +10146,30 @@ class PDFThumbnailViewer {
           break;
         }
       }
-      if (shouldScroll) {
-        thumbnailView.div.scrollIntoView(SCROLL_OPTIONS);
-      }
+    }
+    if (shouldScroll) {
+      thumbnailView.div.scrollIntoView(SCROLL_OPTIONS);
     }
     this._currentPageNumber = pageNumber;
+  }
+  ensureThumbnailRendered(pageNumber) {
+    if (!this.pdfDocument) {
+      return Promise.resolve(false);
+    }
+    const thumbnailView = this._thumbnails[pageNumber - 1];
+    if (!thumbnailView) {
+      return Promise.resolve(false);
+    }
+    if (thumbnailView.renderingState === RenderingStates.FINISHED) {
+      return Promise.resolve(true);
+    }
+    return this.#ensurePdfPageLoaded(thumbnailView).then(pdfPage => {
+      if (!pdfPage || thumbnailView.renderingState === RenderingStates.FINISHED) {
+        return !!pdfPage;
+      }
+      this.renderingQueue.renderView(thumbnailView);
+      return true;
+    });
   }
   get pagesRotation() {
     return this._pagesRotation;
@@ -16725,6 +16744,7 @@ class ViewsManager extends Sidebar {
     this.eventBus = eventBus;
     this._transitionFallbackId = 0;
     this._transitionToken = 0;
+    this._pendingThumbsUpdateId = 0;
     this.menu = new Menu(viewsManagerSelectorOptions, viewsManagerSelectorButton, [thumbnailButton, outlineButton, attachmentsButton, layersButton]);
     ViewsManager.#l10nDescription ||= Object.freeze({
       pagesTitle: "pdfjs-views-manager-pages-title",
@@ -16836,9 +16856,6 @@ class ViewsManager extends Sidebar {
       this.outerContainer.classList.add("viewsManagerMoving", "viewsManagerOpen");
       this._scheduleTransitionFallback(transitionToken);
     });
-    if (this.active === SidebarView.THUMBS) {
-      this.onUpdateThumbnails();
-    }
     this.onToggled();
     this.#dispatchEvent();
     this.#hideUINotification();
@@ -16849,6 +16866,7 @@ class ViewsManager extends Sidebar {
     }
     const transitionToken = ++this._transitionToken;
     this._cancelTransitionFallback();
+    this._cancelPendingThumbnailsUpdate();
     this.isOpen = false;
     toggleExpandedBtn(this.toggleButton, false);
     this.outerContainer.classList.add("viewsManagerMoving");
@@ -16896,6 +16914,26 @@ class ViewsManager extends Sidebar {
       this._transitionFallbackId = 0;
     }
   }
+  _cancelPendingThumbnailsUpdate() {
+    if (this._pendingThumbsUpdateId) {
+      cancelAnimationFrame(this._pendingThumbsUpdateId);
+      this._pendingThumbsUpdateId = 0;
+    }
+  }
+  _scheduleThumbnailsUpdate() {
+    if (!this.isOpen || this.active !== SidebarView.THUMBS) {
+      return;
+    }
+    this._cancelPendingThumbnailsUpdate();
+    this._pendingThumbsUpdateId = requestAnimationFrame(() => {
+      this._pendingThumbsUpdateId = 0;
+      if (!this.isOpen || this.active !== SidebarView.THUMBS) {
+        return;
+      }
+      this.onUpdateThumbnails?.();
+      this.onToggled?.();
+    });
+  }
   _finishTransition(token) {
     if (token !== this._transitionToken) {
       return;
@@ -16907,6 +16945,7 @@ class ViewsManager extends Sidebar {
     this.eventBus.dispatch("resize", {
       source: this
     });
+    this._scheduleThumbnailsUpdate();
   }
   _scheduleTransitionFallback(token) {
     const hasTransition = getComputedStyle(this.sidebarContainer).transitionDuration.split(",").some(value => parseFloat(value) > 0);
@@ -17335,6 +17374,7 @@ const PDFViewerApplication = {
     linkService.setViewer(pdfViewer);
     pdfScriptingManager.setViewer(pdfViewer);
     if (appConfig.viewsManager?.thumbnailsView) {
+      const enableSplitMerge = AppOptions.get("enableSplitMerge");
       this.pdfThumbnailViewer = new PDFThumbnailViewer({
         container: appConfig.viewsManager.thumbnailsView,
         eventBus,
@@ -17345,9 +17385,12 @@ const PDFViewerApplication = {
         pageColors,
         abortSignal,
         enableHWA,
-        enableSplitMerge: AppOptions.get("enableSplitMerge"),
+        enableSplitMerge,
         manageMenu: appConfig.viewsManager.manageMenu
       });
+      if (!enableSplitMerge) {
+        appConfig.viewsManager.status?.setAttribute("hidden", "true");
+      }
       renderingQueue.setThumbnailViewer(this.pdfThumbnailViewer);
     }
     if (!this.isViewerEmbedded && !AppOptions.get("disableHistory")) {
@@ -17444,15 +17487,38 @@ const PDFViewerApplication = {
       let thumbnailRefreshFrame = 0;
       let thumbnailRefreshToken = 0;
       this.viewsManager.onUpdateThumbnails = () => {
+        const thumbnailViewer = this.pdfThumbnailViewer;
+        if (!thumbnailViewer) {
+          return;
+        }
+        const currentPageNumber = pdfViewer.currentPageNumber;
         const documentRef = this.pdfDocument;
-        const cachedPageViews = pdfViewer.getCachedPageViews().filter(pageView => pageView.renderingState === RenderingStates.FINISHED);
+        const cachedPageViews = pdfViewer.getCachedPageViews().filter(pageView => pageView.renderingState === RenderingStates.FINISHED).sort((left, right) => {
+          const leftDistance = Math.abs(left.id - currentPageNumber);
+          const rightDistance = Math.abs(right.id - currentPageNumber);
+          return leftDistance - rightDistance || left.id - right.id;
+        });
         const refreshToken = ++thumbnailRefreshToken;
         if (thumbnailRefreshFrame) {
           cancelAnimationFrame(thumbnailRefreshFrame);
           thumbnailRefreshFrame = 0;
         }
+        thumbnailViewer.scrollThumbnailIntoView(currentPageNumber);
+        void thumbnailViewer.ensureThumbnailRendered(currentPageNumber);
+        const currentPageView = pdfViewer.getPageView(currentPageNumber - 1);
+        if (currentPageView?.renderingState === RenderingStates.FINISHED) {
+          thumbnailViewer.getThumbnail(currentPageNumber - 1)?.setImage(currentPageView);
+        }
         if (cachedPageViews.length === 0) {
-          this.pdfThumbnailViewer?.scrollThumbnailIntoView(pdfViewer.currentPageNumber);
+          thumbnailRefreshFrame = requestAnimationFrame(() => {
+            if (refreshToken !== thumbnailRefreshToken || documentRef !== this.pdfDocument) {
+              thumbnailRefreshFrame = 0;
+              return;
+            }
+            thumbnailViewer.scrollThumbnailIntoView(currentPageNumber);
+            void thumbnailViewer.ensureThumbnailRendered(currentPageNumber);
+            thumbnailRefreshFrame = 0;
+          });
           return;
         }
         let index = 0;
@@ -17464,14 +17530,15 @@ const PDFViewerApplication = {
           const start = performance.now();
           while (index < cachedPageViews.length && performance.now() - start < 6) {
             const pageView = cachedPageViews[index++];
-            this.pdfThumbnailViewer.getThumbnail(pageView.id - 1)?.setImage(pageView);
+            thumbnailViewer.getThumbnail(pageView.id - 1)?.setImage(pageView);
           }
           if (index < cachedPageViews.length) {
             thumbnailRefreshFrame = requestAnimationFrame(flushCachedThumbnails);
             return;
           }
           thumbnailRefreshFrame = 0;
-          this.pdfThumbnailViewer?.scrollThumbnailIntoView(pdfViewer.currentPageNumber);
+          thumbnailViewer.scrollThumbnailIntoView(currentPageNumber);
+          void thumbnailViewer.ensureThumbnailRendered(currentPageNumber);
         };
         thumbnailRefreshFrame = requestAnimationFrame(flushCachedThumbnails);
       };
@@ -18253,7 +18320,7 @@ const PDFViewerApplication = {
   },
   forceRendering() {
     this.pdfRenderingQueue.printing = !!this.printService;
-    this.pdfRenderingQueue.isThumbnailViewEnabled = this.viewsManager?.visibleView === SidebarView.THUMBS;
+    this.pdfRenderingQueue.isThumbnailViewEnabled = this.viewsManager?.visibleView === SidebarView.THUMBS && !this.viewsManager?.outerContainer.classList.contains("viewsManagerMoving");
     this.pdfRenderingQueue.renderHighestPriority();
   },
   beforePrint() {
@@ -19260,6 +19327,7 @@ function getViewerConfiguration() {
       viewsManagerAddFileButton: document.getElementById("viewsManagerAddFileButton"),
       viewsManagerCurrentOutlineButton: document.getElementById("viewsManagerCurrentOutlineButton"),
       viewsManagerHeaderLabel: document.getElementById("viewsManagerHeaderLabel"),
+      status: document.getElementById("viewsManagerStatus"),
       manageMenu: {
         button: document.getElementById("viewsManagerStatusActionButton"),
         menu: document.getElementById("viewsManagerStatusActionOptions"),
