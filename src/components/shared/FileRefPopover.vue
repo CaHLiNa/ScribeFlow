@@ -68,6 +68,15 @@ const workspace = useWorkspaceStore()
 const selectedIdx = ref(0)
 const { t } = useI18n()
 
+async function ensureFilesReady() {
+  if (!workspace.path) return
+  try {
+    await filesStore.ensureFlatFilesReady()
+  } catch (error) {
+    console.warn('[chat-file-mention] ensureFlatFilesReady failed:', error)
+  }
+}
+
 const filteredModels = computed(() => {
   if (!props.filter || !props.models.length) return []
   const q = props.filter.toLowerCase()
@@ -124,6 +133,14 @@ function confirmSelection() {
 watch(() => props.filter, () => {
   selectedIdx.value = 0
 })
+
+watch(
+  () => workspace.path,
+  () => {
+    ensureFilesReady()
+  },
+  { immediate: true },
+)
 
 defineExpose({ selectNext, selectPrev, confirmSelection })
 </script>
