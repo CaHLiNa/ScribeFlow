@@ -12,7 +12,7 @@
         :title="t('Menu')"
         @click="toggleMenu"
       >
-        <IconMenu2 :size="16" :stroke-width="1.5" />
+        <IconMenu2 :size="HEADER_ICON_SIZE" :stroke-width="1.5" />
       </button>
     </div>
 
@@ -56,11 +56,11 @@
           background: 'var(--bg-primary)',
           border: '1px solid ' + (searchFocused ? 'var(--fg-muted)' : 'var(--border)'),
           width: '320px',
-          height: '26px',
+          height: `${HEADER_SEARCH_HEIGHT}px`,
           transition: 'border-color 150ms',
         }"
       >
-        <IconSearch :size="13" :stroke-width="1.5"
+        <IconSearch :size="HEADER_SEARCH_ICON_SIZE" :stroke-width="1.5"
           class="shrink-0 ml-2"
           :style="{ color: searchFocused ? 'var(--fg-secondary)' : 'var(--fg-muted)' }" />
         <input
@@ -69,9 +69,9 @@
           class="flex-1 bg-transparent border-none outline-none px-2"
           :style="{
             color: 'var(--fg-primary)',
-            fontSize: 'var(--ui-font-body)',
+            fontSize: 'var(--ui-font-label)',
             fontFamily: 'inherit',
-            height: '24px',
+            height: `${HEADER_SEARCH_INPUT_HEIGHT}px`,
           }"
           :placeholder="searchPlaceholder"
           autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
@@ -101,7 +101,7 @@
     <!-- Right: sidebar toggles + settings -->
     <div class="flex items-center gap-0.5 justify-self-end" data-tauri-drag-region>
       <button
-        class="w-7 h-7 flex items-center justify-center rounded-md border-none bg-transparent cursor-pointer transition-colors"
+        class="header-chrome-button flex items-center justify-center border-none bg-transparent cursor-pointer transition-colors"
         :style="{ color: workspace.leftSidebarOpen ? 'var(--fg-primary)' : 'var(--fg-muted)' }"
         @click="workspace.toggleLeftSidebar()"
         :title="t('Toggle sidebar ({shortcut})', { shortcut: `${modKey}+B` })"
@@ -110,11 +110,11 @@
       >
         <component
           :is="workspace.leftSidebarOpen ? IconLayoutSidebarFilled : IconLayoutSidebar"
-          :size="16" :stroke-width="1.5"
+          :size="HEADER_ICON_SIZE" :stroke-width="1.5"
         />
       </button>
       <button
-        class="w-7 h-7 flex items-center justify-center rounded-md border-none bg-transparent cursor-pointer transition-colors"
+        class="header-chrome-button flex items-center justify-center border-none bg-transparent cursor-pointer transition-colors"
         :style="{ color: workspace.rightSidebarOpen ? 'var(--fg-primary)' : 'var(--fg-muted)' }"
         @click="workspace.toggleRightSidebar()"
         :title="t('Toggle right panel ({shortcut})', { shortcut: `${modKey}+J` })"
@@ -123,28 +123,28 @@
       >
         <component
           :is="workspace.rightSidebarOpen ? IconLayoutSidebarRightFilled : IconLayoutSidebarRight"
-          :size="16" :stroke-width="1.5"
+          :size="HEADER_ICON_SIZE" :stroke-width="1.5"
         />
       </button>
       <button
-        class="w-7 h-7 flex items-center justify-center rounded-md border-none bg-transparent cursor-pointer transition-colors"
+        class="header-chrome-button flex items-center justify-center border-none bg-transparent cursor-pointer transition-colors"
         :style="{ color: workspace.bottomPanelOpen ? 'var(--fg-primary)' : 'var(--fg-muted)' }"
         @click="workspace.toggleBottomPanel()"
         :title="t('Toggle terminal ({shortcut})', { shortcut: `${modKey}+\`` })"
         @mouseover="$event.currentTarget.style.background='var(--bg-hover)'"
         @mouseout="$event.currentTarget.style.background='transparent'"
       >
-        <IconTerminal2 :size="16" :stroke-width="1.5" />
+        <IconTerminal2 :size="HEADER_ICON_SIZE" :stroke-width="1.5" />
       </button>
       <button
-        class="w-7 h-7 flex items-center justify-center rounded-md border-none bg-transparent cursor-pointer transition-colors"
+        class="header-chrome-button flex items-center justify-center border-none bg-transparent cursor-pointer transition-colors"
         style="color: var(--fg-muted);"
         @click="$emit('open-settings')"
         :title="t('Settings ({shortcut})', { shortcut: `${modKey}+,` })"
         @mouseover="$event.currentTarget.style.background='var(--bg-hover)';$event.currentTarget.style.color='var(--fg-primary)'"
         @mouseout="$event.currentTarget.style.background='transparent';$event.currentTarget.style.color='var(--fg-muted)'"
       >
-        <IconSettings :size="16" :stroke-width="1.5" />
+        <IconSettings :size="HEADER_ICON_SIZE" :stroke-width="1.5" />
       </button>
     </div>
   </header>
@@ -152,6 +152,7 @@
 
 <script setup>
 import { ref, computed, nextTick, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useEditorStore } from '../../stores/editor'
 import {
@@ -171,27 +172,43 @@ const workspace = useWorkspaceStore()
 const editorStore = useEditorStore()
 const { t } = useI18n()
 const isMacTitlebarCompact = ref(false)
+const isMacDesktop = isMac
+  && typeof window !== 'undefined'
+  && !!window.__TAURI_INTERNALS__
+
+const HEADER_HEIGHT = 32
+const HEADER_ICON_SIZE = 14
+const HEADER_SEARCH_HEIGHT = 24
+const HEADER_SEARCH_INPUT_HEIGHT = 22
+const HEADER_SEARCH_ICON_SIZE = 12
+const DEFAULT_HEADER_SIDE_PADDING = 12
+const MAC_TRAFFIC_LIGHT_PADDING = 64
+const MAC_COMPACT_MENU_OFFSET = MAC_TRAFFIC_LIGHT_PADDING - DEFAULT_HEADER_SIDE_PADDING
 
 // Hamburger menu
 const menuBtnRef = ref(null)
 const menuDropdownRef = ref(null)
 const menuOpen = ref(false)
 const recents = computed(() => workspace.getRecentWorkspaces().slice(0, 5))
-let currentWindowHandle = null
+const currentWindowHandle = isMacDesktop ? getCurrentWindow() : null
 let unlistenWindowResize = null
 let syncChromeFrame = null
+
+function toPx(value) {
+  return `${Math.round(value * 100) / 100}px`
+}
 
 const headerStyle = computed(() => ({
   gridTemplateColumns: '1fr auto 1fr',
   background: 'var(--bg-secondary)',
   borderBottom: '1px solid var(--border)',
-  paddingLeft: isMac ? '78px' : '12px',
+  paddingLeft: isMac ? toPx(MAC_TRAFFIC_LIGHT_PADDING) : toPx(DEFAULT_HEADER_SIDE_PADDING),
   paddingRight: '8px',
-  height: '38px',
+  height: `${HEADER_HEIGHT}px`,
 }))
 
 const menuButtonStyle = computed(() => ({
-  transform: isMac && isMacTitlebarCompact.value ? 'translateX(-66px)' : 'translateX(0)',
+  transform: isMac && isMacTitlebarCompact.value ? `translateX(-${MAC_COMPACT_MENU_OFFSET}px)` : 'translateX(0)',
   zIndex: isMac && isMacTitlebarCompact.value ? 2 : 1,
 }))
 
@@ -205,17 +222,8 @@ const menuStyle = computed(() => {
   }
 })
 
-async function getNativeWindowHandle() {
-  if (!isMac || typeof window === 'undefined' || !window.__TAURI_INTERNALS__) return null
-  if (currentWindowHandle) return currentWindowHandle
-
-  const { getCurrentWindow } = await import('@tauri-apps/api/window')
-  currentWindowHandle = getCurrentWindow()
-  return currentWindowHandle
-}
-
 async function syncMacChromeState() {
-  const nativeWindow = await getNativeWindowHandle()
+  const nativeWindow = currentWindowHandle
   if (!nativeWindow) {
     isMacTitlebarCompact.value = false
     return
@@ -226,7 +234,7 @@ async function syncMacChromeState() {
 }
 
 function queueMacChromeStateSync() {
-  if (!isMac || typeof window === 'undefined') return
+  if (!isMacDesktop || typeof window === 'undefined') return
   if (syncChromeFrame != null) return
 
   syncChromeFrame = window.requestAnimationFrame(async () => {
@@ -274,18 +282,15 @@ onMounted(() => {
   document.addEventListener('mousedown', onClickOutsideMenu)
   queueMacChromeStateSync()
 
-  if (!isMac || typeof window === 'undefined') return
+  if (!isMacDesktop || typeof window === 'undefined') return
 
   window.addEventListener('resize', queueMacChromeStateSync)
 
-  getNativeWindowHandle()
-    .then(async (nativeWindow) => {
-      if (!nativeWindow?.onResized) return
-      unlistenWindowResize = await nativeWindow.onResized(() => {
-        queueMacChromeStateSync()
-      })
-    })
-    .catch(() => {})
+  currentWindowHandle?.onResized(() => {
+    queueMacChromeStateSync()
+  }).then((unlisten) => {
+    unlistenWindowResize = unlisten
+  }).catch(() => {})
 })
 
 onUnmounted(() => {
@@ -391,13 +396,19 @@ defineExpose({ focusSearch })
 
 <style scoped>
 .header-menu-button {
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
   color: var(--fg-muted);
   transition:
     color 150ms ease,
     background-color 150ms ease;
+}
+
+.header-chrome-button {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
 }
 
 .header-menu-button:hover {

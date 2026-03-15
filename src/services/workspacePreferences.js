@@ -1,3 +1,5 @@
+import { getCurrentWebview } from '@tauri-apps/api/webview'
+
 const THEME_CLASSES = [
   'theme-light',
   'theme-monokai',
@@ -217,7 +219,6 @@ export async function applyWorkspaceAppZoom(percent) {
   const isTauriWebview = typeof window !== 'undefined' && !!window.__TAURI_INTERNALS__?.metadata?.currentWebview
   if (isTauriWebview) {
     try {
-      const { getCurrentWebview } = await import('@tauri-apps/api/webview')
       await getCurrentWebview().setZoom(nextValue / 100)
       return
     } catch (error) {

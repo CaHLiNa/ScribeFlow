@@ -104,6 +104,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useWorkspaceStore } from './stores/workspace'
 import { useFilesStore } from './stores/files'
@@ -174,6 +175,8 @@ const versionHistoryFile = ref('')
 let backgroundWorkspaceLoadTimer = null
 let backgroundWorkspaceTaskTimers = []
 let workspaceLoadGeneration = 0
+let unlistenWindowFocusChange = null
+const isTauriDesktop = typeof window !== 'undefined' && !!window.__TAURI_INTERNALS__
 const {
   leftSidebarWidth,
   rightSidebarWidth,
@@ -215,8 +218,22 @@ function scheduleWorkspaceBackgroundTask(delayMs, generation, targetPath, task, 
   return timer
 }
 
+async function setupDesktopWindowFocusRefresh() {
+  if (!isTauriDesktop) return
+  try {
+    unlistenWindowFocusChange = await getCurrentWindow().onFocusChanged(({ payload: focused }) => {
+      if (!focused) return
+      refreshWorkspaceStateAfterVisibility('window-focus')
+    })
+  } catch (error) {
+    console.warn('[workspace] failed to listen for native focus changes:', error)
+  }
+}
+
 // Startup
 onMounted(async () => {
+  await setupDesktopWindowFocusRefresh()
+
   // Telemetry: app launched
   events.appOpen()
 
@@ -609,15 +626,27 @@ function handleToggleTerminal() {
 
 // Refresh file tree when window regains focus (catches files added via Finder etc.)
 let lastFocusRefresh = 0
+function shouldSkipFocusRefresh() {
+  return Date.now() - (workspace._lastAppZoomInteractionAt || 0) < 1500
+}
+
+function refreshWorkspaceStateAfterVisibility(reason = 'visibility') {
+  if (!workspace.isOpen) return
+  if (shouldSkipFocusRefresh()) return
+
+  const now = Date.now()
+  if (now - lastFocusRefresh < 2000) return
+  lastFocusRefresh = now
+
+  filesStore.refreshVisibleTree({ suppressErrors: true, reason, announce: true })
+    .then(() => reconcileCriticalWorkspaceState({ announce: true }))
+    .catch(() => {})
+}
+
 function handleVisibilityChange() {
-  if (document.visibilityState === 'visible' && workspace.isOpen) {
-    const now = Date.now()
-    if (now - lastFocusRefresh < 2000) return
-    lastFocusRefresh = now
-    filesStore.refreshVisibleTree({ suppressErrors: true, reason: 'visibility', announce: true })
-      .then(() => reconcileCriticalWorkspaceState({ announce: true }))
-      .catch(() => {})
-  }
+  if (isTauriDesktop) return
+  if (document.visibilityState !== 'visible') return
+  refreshWorkspaceStateAfterVisibility('visibility')
 }
 
 onMounted(() => {
@@ -649,6 +678,10 @@ onUnmounted(() => {
   window.removeEventListener('app:open-settings', handleOpenSettings)
   window.removeEventListener('app:toggle-left-sidebar', handleToggleLeftSidebar)
   window.removeEventListener('app:toggle-terminal', handleToggleTerminal)
+  if (unlistenWindowFocusChange) {
+    unlistenWindowFocusChange()
+    unlistenWindowFocusChange = null
+  }
   workspace.cleanup()
   filesStore.cleanup()
   reviews.cleanup()

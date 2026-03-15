@@ -113,6 +113,7 @@ export const useWorkspaceStore = defineStore('workspace', {
     skillsManifest: null,  // Array<{ name, description, path }> | null
     _workspaceBootstrapPromise: null,
     _workspaceBootstrapGeneration: 0,
+    _lastAppZoomInteractionAt: 0,
   }),
 
   getters: {
@@ -483,21 +484,25 @@ export const useWorkspaceStore = defineStore('workspace', {
     },
 
     async zoomIn() {
+      this._lastAppZoomInteractionAt = Date.now()
       this.appZoomPercent = increaseWorkspaceZoom(this.appZoomPercent)
       await this.applyAppZoom()
     },
 
     async zoomOut() {
+      this._lastAppZoomInteractionAt = Date.now()
       this.appZoomPercent = decreaseWorkspaceZoom(this.appZoomPercent)
       await this.applyAppZoom()
     },
 
     async resetZoom() {
+      this._lastAppZoomInteractionAt = Date.now()
       this.appZoomPercent = resetWorkspaceZoom()
       await this.applyAppZoom()
     },
 
     async setZoomPercent(pct) {
+      this._lastAppZoomInteractionAt = Date.now()
       this.appZoomPercent = setWorkspaceZoomPercent(pct)
       await this.applyAppZoom()
     },

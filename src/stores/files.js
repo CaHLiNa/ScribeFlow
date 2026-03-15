@@ -946,7 +946,7 @@ export const useFilesStore = defineStore('files', {
       }
 
       if (!announce) return
-      if (reason === 'visibility') {
+      if (reason === 'visibility' || reason === 'window-focus') {
         useUxStatusStore().showOnce('files-reconcile-visibility', t('Refreshing workspace state...'), {
           type: 'info',
           duration: 1800,
