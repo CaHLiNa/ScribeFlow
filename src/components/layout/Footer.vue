@@ -71,7 +71,7 @@
         </button>
         <button
           ref="zoomTriggerRef"
-          class="min-w-[36px] text-center ui-text-xs px-0.5 bg-transparent border-none cursor-pointer transition-colors"
+          class="w-[4.5ch] text-center ui-text-xs px-0.5 bg-transparent border-none cursor-pointer transition-colors"
           :style="{ color: zoomPercent !== 100 ? 'var(--accent)' : 'var(--fg-muted)' }"
           style="font-family: inherit;"
           @click="toggleZoomPopover"
@@ -313,6 +313,7 @@ import { useUsageStore } from '../../stores/usage'
 import { useToastStore } from '../../stores/toast'
 import { useUxStatusStore } from '../../stores/uxStatus'
 import { getBillingRoute } from '../../services/apiClient'
+import { APP_ZOOM_PRESETS } from '../../services/workspacePreferences'
 import { modKey, altKey } from '../../platform'
 import { useI18n } from '../../i18n'
 import SyncPopover from './SyncPopover.vue'
@@ -346,8 +347,8 @@ const showConflictDialog = ref(false)
 const showZoomPopover = ref(false)
 const zoomTriggerRef = ref(null)
 const zoomPopoverPos = ref({})
-const zoomPresets = [75, 80, 90, 100, 110, 125, 150]
-const zoomPercent = computed(() => Math.round(workspace.editorFontSize / 14 * 100))
+const zoomPresets = APP_ZOOM_PRESETS
+const zoomPercent = computed(() => workspace.appZoomPercent || 100)
 
 // Save confirmation state (center section swap)
 const saveConfirmationActive = ref(false)
@@ -508,8 +509,8 @@ function toggleZoomPopover() {
   }
 }
 
-function selectZoom(level) {
-  workspace.setZoomPercent(level)
+async function selectZoom(level) {
+  await workspace.setZoomPercent(level)
   showZoomPopover.value = false
 }
 

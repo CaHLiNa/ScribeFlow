@@ -14,6 +14,26 @@ const PROSE_FONT_STACKS = {
   mono: "'JetBrains Mono', 'Menlo', 'Consolas', monospace",
 }
 
+const DEFAULT_EDITOR_FONT_SIZE = 14
+const DEFAULT_UI_FONT_SIZE = 13
+const DEFAULT_DOCX_ZOOM_PERCENT = 100
+const DEFAULT_APP_ZOOM_PERCENT = 100
+const APP_ZOOM_KEY = 'appZoomPercent'
+
+export const APP_ZOOM_PRESETS = [75, 80, 90, 100, 110, 125, 150]
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value))
+}
+
+function hasStoredValue(key) {
+  try {
+    return localStorage.getItem(key) !== null
+  } catch {
+    return false
+  }
+}
+
 function readString(key, fallback = '') {
   try {
     return localStorage.getItem(key) || fallback
@@ -57,7 +77,66 @@ function writeValue(key, value) {
   }
 }
 
+function normalizeAppZoomPercent(value) {
+  const parsed = Math.round(Number(value) || DEFAULT_APP_ZOOM_PERCENT)
+  return clamp(parsed, APP_ZOOM_PRESETS[0], APP_ZOOM_PRESETS[APP_ZOOM_PRESETS.length - 1])
+}
+
+function nearestAppZoomPreset(value) {
+  const normalized = normalizeAppZoomPercent(value)
+  return APP_ZOOM_PRESETS.reduce((closest, preset) => (
+    Math.abs(preset - normalized) < Math.abs(closest - normalized) ? preset : closest
+  ), APP_ZOOM_PRESETS[0])
+}
+
+function migrateLegacyFooterZoom(editorFontSize, uiFontSize, appZoomPercent) {
+  if (appZoomPercent !== null) {
+    return {
+      editorFontSize,
+      uiFontSize,
+      appZoomPercent,
+    }
+  }
+
+  const hasLegacyFontZoom = (
+    editorFontSize !== DEFAULT_EDITOR_FONT_SIZE
+    || uiFontSize !== DEFAULT_UI_FONT_SIZE
+  )
+
+  if (!hasLegacyFontZoom) {
+    return {
+      editorFontSize,
+      uiFontSize,
+      appZoomPercent: DEFAULT_APP_ZOOM_PERCENT,
+    }
+  }
+
+  const legacyPercent = Math.round(((
+    editorFontSize / DEFAULT_EDITOR_FONT_SIZE
+  ) + (
+    uiFontSize / DEFAULT_UI_FONT_SIZE
+  )) / 2 * 100)
+  const migratedZoomPercent = nearestAppZoomPreset(legacyPercent)
+
+  writeValue(APP_ZOOM_KEY, migratedZoomPercent)
+  writeValue('editorFontSize', DEFAULT_EDITOR_FONT_SIZE)
+  writeValue('uiFontSize', DEFAULT_UI_FONT_SIZE)
+
+  return {
+    editorFontSize: DEFAULT_EDITOR_FONT_SIZE,
+    uiFontSize: DEFAULT_UI_FONT_SIZE,
+    appZoomPercent: migratedZoomPercent,
+  }
+}
+
 export function createWorkspacePreferenceState() {
+  const editorFontSize = readNumber('editorFontSize', DEFAULT_EDITOR_FONT_SIZE)
+  const uiFontSize = readNumber('uiFontSize', DEFAULT_UI_FONT_SIZE)
+  const storedAppZoomPercent = hasStoredValue(APP_ZOOM_KEY)
+    ? normalizeAppZoomPercent(readNumber(APP_ZOOM_KEY, DEFAULT_APP_ZOOM_PERCENT))
+    : null
+  const zoomState = migrateLegacyFooterZoom(editorFontSize, uiFontSize, storedAppZoomPercent)
+
   return {
     leftSidebarOpen: readBoolean('leftSidebarOpen', true),
     rightSidebarOpen: readTrueOnlyBoolean('rightSidebarOpen'),
@@ -69,10 +148,11 @@ export function createWorkspacePreferenceState() {
     softWrap: readBoolean('softWrap', true),
     wrapColumn: readNumber('wrapColumn', 0),
     spellcheck: readBoolean('spellcheck', true),
-    editorFontSize: readNumber('editorFontSize', 14),
-    uiFontSize: readNumber('uiFontSize', 13),
+    editorFontSize: zoomState.editorFontSize,
+    uiFontSize: zoomState.uiFontSize,
+    appZoomPercent: zoomState.appZoomPercent,
     proseFont: readString('proseFont', 'inter'),
-    docxZoomPercent: readNumber('docxZoomPercent', 100),
+    docxZoomPercent: readNumber('docxZoomPercent', DEFAULT_DOCX_ZOOM_PERCENT),
     theme: readString('theme', 'default'),
   }
 }
@@ -100,32 +180,53 @@ export function setDocxZoomPreference(value) {
   return nextValue
 }
 
-export function increaseWorkspaceZoom(editorFontSize, uiFontSize) {
-  return {
-    editorFontSize: Math.min(24, editorFontSize + 1),
-    uiFontSize: Math.min(20, uiFontSize + 1),
-  }
+export function increaseWorkspaceZoom(currentPercent) {
+  const normalized = normalizeAppZoomPercent(currentPercent)
+  return APP_ZOOM_PRESETS.find(preset => preset > normalized) || APP_ZOOM_PRESETS[APP_ZOOM_PRESETS.length - 1]
 }
 
-export function decreaseWorkspaceZoom(editorFontSize, uiFontSize) {
-  return {
-    editorFontSize: Math.max(10, editorFontSize - 1),
-    uiFontSize: Math.max(9, uiFontSize - 1),
+export function decreaseWorkspaceZoom(currentPercent) {
+  const normalized = normalizeAppZoomPercent(currentPercent)
+  for (let idx = APP_ZOOM_PRESETS.length - 1; idx >= 0; idx -= 1) {
+    if (APP_ZOOM_PRESETS[idx] < normalized) {
+      return APP_ZOOM_PRESETS[idx]
+    }
   }
+  return APP_ZOOM_PRESETS[0]
 }
 
 export function resetWorkspaceZoom() {
-  return {
-    editorFontSize: 14,
-    uiFontSize: 13,
-  }
+  return DEFAULT_APP_ZOOM_PERCENT
 }
 
 export function setWorkspaceZoomPercent(percent) {
-  return {
-    editorFontSize: Math.max(10, Math.min(24, Math.round(14 * percent / 100))),
-    uiFontSize: Math.max(9, Math.min(20, Math.round(13 * percent / 100))),
+  const nextValue = normalizeAppZoomPercent(percent)
+  writeValue(APP_ZOOM_KEY, nextValue)
+  return nextValue
+}
+
+export async function applyWorkspaceAppZoom(percent) {
+  const nextValue = normalizeAppZoomPercent(percent)
+  writeValue(APP_ZOOM_KEY, nextValue)
+
+  if (typeof document === 'undefined') return
+
+  const root = document.documentElement
+  root.style.removeProperty('zoom')
+
+  const isTauriWebview = typeof window !== 'undefined' && !!window.__TAURI_INTERNALS__?.metadata?.currentWebview
+  if (isTauriWebview) {
+    try {
+      const { getCurrentWebview } = await import('@tauri-apps/api/webview')
+      await getCurrentWebview().setZoom(nextValue / 100)
+      return
+    } catch (error) {
+      console.warn('[workspace] failed to apply native app zoom:', error)
+      return
+    }
   }
+
+  root.style.zoom = String(nextValue / 100)
 }
 
 export function applyWorkspaceFontSizes(editorFontSize, uiFontSize) {

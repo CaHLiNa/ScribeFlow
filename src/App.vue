@@ -220,10 +220,11 @@ onMounted(async () => {
   // Telemetry: app launched
   events.appOpen()
 
-  // Restore saved theme + font sizes + prose font
+  // Restore saved theme + editor font sizes + prose font + app zoom
   workspace.restoreTheme()
   workspace.applyFontSizes()
   workspace.restoreProseFont()
+  await workspace.applyAppZoom()
 
   // Try to restore last workspace
   const lastWorkspace = localStorage.getItem('lastWorkspace')
@@ -521,20 +522,20 @@ function handleKeydown(e) {
     return
   }
 
-  // Cmd+= / Cmd+-: Zoom in/out (CSS vars — DOCX page zoom is in its own toolbar)
+  // Cmd+= / Cmd+-: App zoom in/out (DOCX page zoom is in its own toolbar)
   if (isMod(e) && (e.key === '=' || e.key === '+')) {
     e.preventDefault()
-    workspace.zoomIn()
+    void workspace.zoomIn()
     return
   }
   if (isMod(e) && e.key === '-') {
     e.preventDefault()
-    workspace.zoomOut()
+    void workspace.zoomOut()
     return
   }
   if (isMod(e) && e.key === '0') {
     e.preventDefault()
-    workspace.resetZoom()
+    void workspace.resetZoom()
     return
   }
 

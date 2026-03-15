@@ -51,6 +51,7 @@ import {
   unlinkWorkspaceRepo,
 } from '../services/workspaceGitHub'
 import {
+  applyWorkspaceAppZoom,
   applyWorkspaceFontSizes,
   createWorkspacePreferenceState,
   decreaseWorkspaceZoom,
@@ -481,32 +482,24 @@ export const useWorkspaceStore = defineStore('workspace', {
       this.spellcheck = toggleStoredBoolean(this.spellcheck, 'spellcheck')
     },
 
-    zoomIn() {
-      const nextZoom = increaseWorkspaceZoom(this.editorFontSize, this.uiFontSize)
-      this.editorFontSize = nextZoom.editorFontSize
-      this.uiFontSize = nextZoom.uiFontSize
-      this.applyFontSizes()
+    async zoomIn() {
+      this.appZoomPercent = increaseWorkspaceZoom(this.appZoomPercent)
+      await this.applyAppZoom()
     },
 
-    zoomOut() {
-      const nextZoom = decreaseWorkspaceZoom(this.editorFontSize, this.uiFontSize)
-      this.editorFontSize = nextZoom.editorFontSize
-      this.uiFontSize = nextZoom.uiFontSize
-      this.applyFontSizes()
+    async zoomOut() {
+      this.appZoomPercent = decreaseWorkspaceZoom(this.appZoomPercent)
+      await this.applyAppZoom()
     },
 
-    resetZoom() {
-      const nextZoom = resetWorkspaceZoom()
-      this.editorFontSize = nextZoom.editorFontSize
-      this.uiFontSize = nextZoom.uiFontSize
-      this.applyFontSizes()
+    async resetZoom() {
+      this.appZoomPercent = resetWorkspaceZoom()
+      await this.applyAppZoom()
     },
 
-    setZoomPercent(pct) {
-      const nextZoom = setWorkspaceZoomPercent(pct)
-      this.editorFontSize = nextZoom.editorFontSize
-      this.uiFontSize = nextZoom.uiFontSize
-      this.applyFontSizes()
+    async setZoomPercent(pct) {
+      this.appZoomPercent = setWorkspaceZoomPercent(pct)
+      await this.applyAppZoom()
     },
 
     setDocxZoom(pct) {
@@ -527,6 +520,10 @@ export const useWorkspaceStore = defineStore('workspace', {
 
     applyFontSizes() {
       applyWorkspaceFontSizes(this.editorFontSize, this.uiFontSize)
+    },
+
+    async applyAppZoom() {
+      await applyWorkspaceAppZoom(this.appZoomPercent)
     },
 
     setProseFont(name) {
