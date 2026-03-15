@@ -37,19 +37,19 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { Prec } from '@codemirror/state'
 import { EditorView, keymap } from '@codemirror/view'
 import { languages } from '@codemirror/language-data'
 import { createEditorExtensions, createEditorState, wrapCompartment, spellCheckCompartment, columnWidthCompartment, columnWidthExtension } from '../../editor/setup'
 import { ghostSuggestionExtension } from '../../editor/ghostSuggestion'
-import { mergeViewExtension, reconfigureMergeView, computeOriginalContent } from '../../editor/diffOverlay'
-import { commentsExtension, addComment, removeComment, updateComment, setActiveComment, commentField } from '../../editor/comments'
+import { mergeViewExtension } from '../../editor/diffOverlay'
+import { commentsExtension } from '../../editor/comments'
 import { useCommentsStore } from '../../stores/comments'
 import { wikiLinksExtension } from '../../editor/wikiLinks'
 import { livePreviewExtension } from '../../editor/livePreview'
-import { citationsExtension, CITATION_GROUP_RE, CITE_KEY_RE } from '../../editor/citations'
-import { buildCitationText, supportsCitationInsertion } from '../../editor/citationSyntax'
+import { citationsExtension } from '../../editor/citations'
+import { supportsCitationInsertion } from '../../editor/citationSyntax'
 import CitationPalette from './CitationPalette.vue'
 import { autocompletion } from '@codemirror/autocomplete'
 import { useFilesStore } from '../../stores/files'
@@ -60,28 +60,19 @@ import { useLinksStore } from '../../stores/links'
 import { useReferencesStore } from '../../stores/references'
 import { sendCode, runFile } from '../../services/codeRunner'
 import { useTypstStore } from '../../stores/typst'
-import { isMarkdown, isLatex, isTypst, isImage, isRunnable, getLanguage, isRmdOrQmd, relativePath } from '../../utils/fileTypes'
+import { isMarkdown, isLatex, isTypst, isRunnable, getLanguage, isRmdOrQmd } from '../../utils/fileTypes'
 import { useLatexStore } from '../../stores/latex'
-import { latexCitationsExtension, LATEX_CITE_RE } from '../../editor/latexCitations'
+import { latexCitationsExtension } from '../../editor/latexCitations'
 import { latexCommandCompletionSource } from '../../editor/latexAutocomplete'
 import {
   supportsTypstEditorSupport,
   createTypstEditorSupport,
 } from '../../editor/typstSupport'
-import {
-  normalizeTypstDiagnostics,
-  getPrimaryTypstDiagnostic,
-  buildTypstDiagnosticSignature,
-  getTypstStatusTransition,
-  shouldAutoJumpTypstDiagnostic,
-} from '../../editor/typstDiagnostics'
-import {
-  createTypstDiagnosticsExtension,
-  updateTypstDiagnostics,
-  focusTypstDiagnostic,
-} from '../../editor/typstEditorIntegration'
+import { createTypstDiagnosticsExtension } from '../../editor/typstEditorIntegration'
 import EditorContextMenu from './EditorContextMenu.vue'
-import { computeMinimalChange } from '../../utils/textDiff'
+import { useTextEditorCitations } from '../../composables/useTextEditorCitations'
+import { useTypstDiagnostics } from '../../composables/useTypstDiagnostics'
+import { useTextEditorBridges } from '../../composables/useTextEditorBridges'
 import { useI18n } from '../../i18n'
 
 const props = defineProps({
@@ -104,7 +95,75 @@ const commentsStore = useCommentsStore()
 const { t } = useI18n()
 const loadError = computed(() => files.getFileLoadError(props.filePath))
 
+let view = null
+let rmdKernelBridge = null
+let chunkExecuteHandler = null
+let chunkExecuteAllHandler = null
+let backwardSyncHandler = null
+let latexCursorRequestHandler = null
+let cleanupTypstWindowListeners = null
+
+const isMd = isMarkdown(props.filePath)
+const isTex = isLatex(props.filePath)
+const isTyp = isTypst(props.filePath)
+const supportsCitations = supportsCitationInsertion(props.filePath)
+const supportsTypstSupport = supportsTypstEditorSupport(props.filePath)
+const fileIsRunnable = isRunnable(props.filePath)
+const fileLanguage = getLanguage(props.filePath)
+const fileIsRmdOrQmd = isRmdOrQmd(props.filePath)
+
 const ctxMenu = reactive({ show: false, x: 0, y: 0, hasSelection: false })
+
+const getView = () => view
+
+const {
+  citPalette,
+  openCitationPaletteAtSelection,
+  onCitInsert,
+  onCitUpdate,
+  onCitClose,
+  handleCitationClick,
+  handleLatexCitationClick,
+  handleTypstCitationClick,
+  createMarkdownCitationHandlers,
+  createLatexCitationHandlers,
+} = useTextEditorCitations({
+  filePath: props.filePath,
+  getView,
+  isLatexFile: isTex,
+  isTypstFile: isTyp,
+  t,
+})
+
+const {
+  typstUi,
+  focusEditorLine,
+  handleEditorSelectionChange,
+  hydrateTypstDiagnostics,
+  registerWindowListeners: registerTypstWindowListeners,
+} = useTypstDiagnostics({
+  filePath: props.filePath,
+  getView,
+  typstStore,
+  editorStore,
+  t,
+})
+
+const {
+  handleCommentClick,
+  syncCommentsToEditor,
+  pushCommentPositionsToStore,
+  showMergeViewIfNeeded,
+} = useTextEditorBridges({
+  filePath: props.filePath,
+  editorContainer,
+  getView,
+  files,
+  reviews,
+  commentsStore,
+  isMarkdownFile: isMd,
+  isLatexFile: isTex,
+})
 
 function onContextMenu(e) {
   ctxMenu.x = e.clientX
@@ -118,290 +177,6 @@ function onContextMenu(e) {
   }
   ctxMenu.show = true
 }
-
-// ── Citation Palette state ──────────────────────────────────
-const citPalette = reactive({
-  show: false,
-  mode: 'insert',
-  x: 0,
-  y: 0,
-  query: '',
-  cites: [],
-  latexCommand: null,
-  triggerFrom: 0,
-  triggerTo: 0,
-  insideBrackets: false,
-  // For edit mode: group boundaries
-  groupFrom: 0,
-  groupTo: 0,
-})
-
-const TYPST_CITATION_RE = /@([a-zA-Z][\w.-]*)/g
-const TYPST_CITATION_GROUP_RE = /@[a-zA-Z][\w.-]*(?:\s+@[a-zA-Z][\w.-]*)*/g
-
-function openCitationPaletteAtSelection(editorView = view, options = {}) {
-  if (!editorView) return false
-
-  const selection = editorView.state.selection.main
-  const anchorPos = selection.head
-  const coords = editorView.coordsAtPos(anchorPos)
-  if (!coords) return false
-
-  citPalette.show = true
-  citPalette.mode = 'insert'
-  citPalette.x = coords.left
-  citPalette.y = coords.bottom + 2
-  citPalette.query = options.query || ''
-  citPalette.triggerFrom = options.triggerFrom ?? selection.from
-  citPalette.triggerTo = options.triggerTo ?? selection.to
-  citPalette.insideBrackets = options.insideBrackets ?? false
-  citPalette.latexCommand = options.latexCommand ?? (isTex ? 'cite' : null)
-  citPalette.cites = []
-  return true
-}
-
-function onCitInsert({ keys, stayOpen, latexCommand }) {
-  if (!view || !keys.length) return
-  const key = keys[0]
-  const insertFrom = citPalette.triggerFrom
-  const insertTo = citPalette.triggerTo
-  let text = ''
-
-  if (citPalette.insideBrackets) {
-    text = isTex && latexCommand
-      ? key
-      : `@${key}`
-  } else {
-    text = buildCitationText(props.filePath, key, { latexCommand: latexCommand || 'cite' })
-  }
-
-  view.dispatch({
-    changes: { from: insertFrom, to: insertTo, insert: text },
-    selection: { anchor: insertFrom + text.length },
-  })
-
-  if (stayOpen) {
-    // Transition to edit mode: find the just-inserted citation group
-    const cursor = view.state.selection.main.head
-    const line = view.state.doc.lineAt(cursor)
-    const matcher = isTyp ? TYPST_CITATION_GROUP_RE : CITATION_GROUP_RE
-    matcher.lastIndex = 0
-    let match
-    while ((match = matcher.exec(line.text)) !== null) {
-      const gFrom = line.from + match.index
-      const gTo = gFrom + match[0].length
-      if (cursor >= gFrom && cursor <= gTo) {
-        citPalette.mode = 'edit'
-        citPalette.groupFrom = gFrom
-        citPalette.groupTo = gTo
-        citPalette.cites = isTyp ? parseTypstCitationGroup(match[0]) : parseCitationGroup(match[0])
-        citPalette.query = ''
-        return
-      }
-    }
-  }
-
-  citPalette.show = false
-  view.focus()
-}
-
-function onCitUpdate({ cites }) {
-  if (!view) return
-
-  if (isTex) {
-    // LaTeX: reconstruct \command{key1, key2}
-    const keys = cites.map(c => c.key)
-    const cmd = citPalette.latexCommand || 'cite'
-    const text = `\\${cmd}{${keys.join(', ')}}`
-    view.dispatch({
-      changes: { from: citPalette.groupFrom, to: citPalette.groupTo, insert: text },
-    })
-    citPalette.groupTo = citPalette.groupFrom + text.length
-  } else if (isTyp) {
-    if (cites.length === 0) {
-      view.dispatch({
-        changes: { from: citPalette.groupFrom, to: citPalette.groupTo, insert: '' },
-      })
-      return
-    }
-    const text = cites.map(c => `@${c.key}`).join(' ')
-    view.dispatch({
-      changes: { from: citPalette.groupFrom, to: citPalette.groupTo, insert: text },
-    })
-    citPalette.groupTo = citPalette.groupFrom + text.length
-  } else {
-    // Markdown: reconstruct [prefix @key1, locator1; prefix @key2, locator2]
-    if (cites.length === 0) {
-      // Remove entire citation group
-      view.dispatch({
-        changes: { from: citPalette.groupFrom, to: citPalette.groupTo, insert: '' },
-      })
-      return
-    }
-    const parts = cites.map(c => {
-      let part = ''
-      if (c.prefix) part += c.prefix + ' '
-      part += '@' + c.key
-      if (c.locator) part += ', ' + c.locator
-      return part
-    })
-    const text = '[' + parts.join('; ') + ']'
-    view.dispatch({
-      changes: { from: citPalette.groupFrom, to: citPalette.groupTo, insert: text },
-    })
-    citPalette.groupTo = citPalette.groupFrom + text.length
-  }
-}
-
-function onCitClose() {
-  citPalette.show = false
-  view?.focus()
-}
-
-function parseCitationGroup(text) {
-  const inner = text.slice(1, -1) // strip [ ]
-  // Split on ; or , when followed by @ (lookahead keeps the @)
-  // This handles both standard Pandoc (;) and common comma-separated citations
-  const parts = inner.split(/\s*;\s*|\s*,\s*(?=@)/).map(s => s.trim()).filter(Boolean)
-  const cites = []
-  for (const part of parts) {
-    const keyMatch = part.match(/@([a-zA-Z][\w]*)/)
-    if (!keyMatch) continue
-    const key = keyMatch[1]
-    const afterKey = part.substring(part.indexOf(keyMatch[0]) + keyMatch[0].length).replace(/^[\s,]+/, '')
-    const prefix = part.substring(0, part.indexOf(keyMatch[0])).trim()
-    cites.push({ key, locator: afterKey, prefix })
-  }
-  return cites
-}
-
-function parseTypstCitationGroup(text) {
-  TYPST_CITATION_RE.lastIndex = 0
-  const cites = []
-  let match
-  while ((match = TYPST_CITATION_RE.exec(text)) !== null) {
-    cites.push({ key: match[1], locator: '', prefix: '' })
-  }
-  return cites
-}
-
-function getTypstDiagnosticLabel(diagnostic) {
-  if (diagnostic?.line) {
-    return t('Ln {line}', { line: diagnostic.line })
-  }
-  return t('No line info')
-}
-
-function clearTypstDiagnosticsUi() {
-  typstUi.diagnostics = []
-  typstUi.activeSignature = ''
-  typstUi.expanded = false
-  typstUi.userMovedSinceLastJump = false
-  if (view) {
-    updateTypstDiagnostics(view, [], { activeSignature: '' })
-  }
-}
-
-function applyTypstDiagnosticsState(result, options = {}) {
-  const diagnostics = normalizeTypstDiagnostics(props.filePath, result)
-    .map(diagnostic => ({
-      ...diagnostic,
-      _signature: buildTypstDiagnosticSignature(diagnostic),
-    }))
-
-  const nextStatus = options.status ?? (result?.success ? 'success' : diagnostics.length ? 'error' : null)
-  const statusTransition = getTypstStatusTransition(typstUi.lastCompileStatus, nextStatus)
-  typstUi.lastCompileStatus = nextStatus
-
-  if (diagnostics.length === 0) {
-    clearTypstDiagnosticsUi()
-    return
-  }
-
-  const primary = getPrimaryTypstDiagnostic(diagnostics)
-  const preservedActive = diagnostics.find(diagnostic => diagnostic._signature === typstUi.activeSignature) || null
-  const defaultDiagnostic = preservedActive || primary || diagnostics[0] || null
-  const nextSignature = defaultDiagnostic?._signature || ''
-  const shouldJump = options.allowAutoJump !== false
-    && shouldAutoJumpTypstDiagnostic(typstUi.lastAutoJumpSignature, primary, {
-      statusTransition,
-      userMovedSinceLastJump: typstUi.userMovedSinceLastJump,
-      nextSignature: primary?._signature || '',
-    })
-
-  typstUi.diagnostics = diagnostics
-  typstUi.activeSignature = nextSignature
-  typstUi.expanded = typstUi.expanded && diagnostics.length > 1
-  if (view) {
-    updateTypstDiagnostics(view, diagnostics, { activeSignature: nextSignature })
-  }
-
-  if (shouldJump && view && primary) {
-    typstUi.activeSignature = primary._signature
-    typstUi.jumpInFlight = true
-    focusTypstDiagnostic(view, primary, { center: true })
-    typstUi.jumpInFlight = false
-    typstUi.lastAutoJumpSignature = primary._signature
-    typstUi.userMovedSinceLastJump = false
-  }
-}
-
-function focusSelectedTypstDiagnostic(diagnostic) {
-  const signature = diagnostic?._signature || buildTypstDiagnosticSignature(diagnostic)
-  typstUi.activeSignature = signature
-  if (view) {
-    updateTypstDiagnostics(view, typstUi.diagnostics, { activeSignature: signature })
-    typstUi.jumpInFlight = true
-    focusTypstDiagnostic(view, diagnostic, { center: true })
-    typstUi.jumpInFlight = false
-  }
-}
-
-function openTypstCompileLog() {
-  typstStore.openCompileLog(props.filePath)
-}
-
-function focusEditorLine(lineNumber, options = {}) {
-  if (!view || !lineNumber) return
-  const safeLine = Math.max(1, Math.min(lineNumber, view.state.doc.lines))
-  const line = view.state.doc.line(safeLine)
-  view.dispatch({
-    selection: { anchor: line.from },
-    effects: EditorView.scrollIntoView(line.from, { y: options.center ? 'center' : 'nearest', yMargin: 80 }),
-  })
-  view.focus()
-}
-
-let view = null
-let rmdKernelBridge = null
-let chunkExecuteHandler = null
-let chunkExecuteAllHandler = null
-let workflowFocusProblemHandler = null
-const isMd = isMarkdown(props.filePath)
-const isTex = isLatex(props.filePath)
-const isTyp = isTypst(props.filePath)
-const supportsCitations = supportsCitationInsertion(props.filePath)
-const supportsTypstSupport = supportsTypstEditorSupport(props.filePath)
-const fileIsRunnable = isRunnable(props.filePath)
-const fileLanguage = getLanguage(props.filePath)
-const fileIsRmdOrQmd = isRmdOrQmd(props.filePath)
-const typstUi = reactive({
-  diagnostics: [],
-  activeSignature: '',
-  expanded: false,
-  lastCompileStatus: null,
-  lastAutoJumpSignature: '',
-  jumpInFlight: false,
-  userMovedSinceLastJump: false,
-})
-
-const activeTypstDiagnostic = computed(() => (
-  typstUi.diagnostics.find(diagnostic => diagnostic._signature === typstUi.activeSignature)
-  || typstUi.diagnostics[0]
-  || null
-))
-
-const typstAdditionalCount = computed(() => Math.max(0, typstUi.diagnostics.length - 1))
 
 async function loadLanguageExtension() {
   if (isMd) {
@@ -472,9 +247,7 @@ onMounted(async () => {
         emit('selection-change', sel.from !== sel.to)
       }
       if (isTyp && update.selectionSet && !typstUi.jumpInFlight) {
-        const head = update.state.selection.main.head
-        editorStore.cursorOffset = head
-        typstUi.userMovedSinceLastJump = true
+        handleEditorSelectionChange(update.state.selection.main.head)
       }
     }),
   ]
@@ -684,26 +457,7 @@ onMounted(async () => {
 
     const citations = citationsExtension(referencesStore, {
       isOpen: () => citPalette.show,
-      onOpen: ({ x, y, query, triggerFrom, triggerTo, insideBrackets }) => {
-        openCitationPaletteAtSelection(view, {
-          query,
-          triggerFrom,
-          triggerTo,
-          insideBrackets,
-          latexCommand: null,
-        })
-        citPalette.x = x
-        citPalette.y = y
-      },
-      onQueryChange: (query, cursorPos) => {
-        citPalette.query = query
-        citPalette.triggerTo = cursorPos
-      },
-      onDismiss: () => {
-        if (citPalette.show && citPalette.mode === 'insert') {
-          citPalette.show = false
-        }
-      },
+      ...createMarkdownCitationHandlers(),
     })
     extraExtensions.push(...citations.extensions)
 
@@ -729,27 +483,7 @@ onMounted(async () => {
 
     const latexCitations = latexCitationsExtension(referencesStore, {
       isOpen: () => citPalette.show,
-      onOpen: ({ x, y, query, triggerFrom, triggerTo, insideBrackets, latexCommand }) => {
-        openCitationPaletteAtSelection(view, {
-          query,
-          triggerFrom,
-          triggerTo,
-          insideBrackets,
-          latexCommand,
-        })
-        citPalette.x = x
-        citPalette.y = y
-      },
-      onQueryChange: (query, cursorPos, newTriggerFrom) => {
-        citPalette.query = query
-        citPalette.triggerTo = cursorPos
-        if (newTriggerFrom !== undefined) citPalette.triggerFrom = newTriggerFrom
-      },
-      onDismiss: () => {
-        if (citPalette.show && citPalette.mode === 'insert') {
-          citPalette.show = false
-        }
-      },
+      ...createLatexCitationHandlers(),
     })
     extraExtensions.push(...latexCitations.extensions)
 
@@ -799,6 +533,7 @@ onMounted(async () => {
 
   // Register view
   editorStore.registerEditorView(props.paneId, props.filePath, view)
+  cleanupTypstWindowListeners = registerTypstWindowListeners(isTyp)
 
   // Set initial merge view if there are pending edits
   showMergeViewIfNeeded()
@@ -831,86 +566,31 @@ onMounted(async () => {
   syncCommentsToEditor(view)
 
   if (isTyp) {
-    const existingState = typstStore.stateForFile(props.filePath)
-    if (existingState) {
-      applyTypstDiagnosticsState(existingState, {
-        status: existingState.status,
-        allowAutoJump: false,
-      })
+    hydrateTypstDiagnostics()
+  }
+
+  if (isTex) {
+    backwardSyncHandler = (event) => {
+      const { file, line } = event.detail || {}
+      if (file && !props.filePath.endsWith(file.split('/').pop())) return
+      if (line && line > 0) {
+        focusEditorLine(line, { center: true })
+      }
     }
+
+    latexCursorRequestHandler = (event) => {
+      if (!view || event.detail?.texPath !== props.filePath) return
+      const pos = view.state.selection.main.head
+      const line = view.state.doc.lineAt(pos).number
+      window.dispatchEvent(new CustomEvent('latex-cursor-response', {
+        detail: { texPath: props.filePath, line },
+      }))
+    }
+
+    window.addEventListener('latex-backward-sync', backwardSyncHandler)
+    window.addEventListener('latex-request-cursor', latexCursorRequestHandler)
   }
 })
-
-// LaTeX: backward sync listener (PDF → editor line jump)
-let backwardSyncHandler = null
-if (isTex) {
-  backwardSyncHandler = (e) => {
-    if (!view) return
-    const { file, line } = e.detail || {}
-    // Only respond if this is our file
-    if (file && !props.filePath.endsWith(file.split('/').pop())) return
-    if (line && line > 0) {
-      const docLine = view.state.doc.line(Math.min(line, view.state.doc.lines))
-      view.dispatch({
-        selection: { anchor: docLine.from },
-        scrollIntoView: true,
-        effects: EditorView.scrollIntoView(docLine.from, { y: 'center' }),
-      })
-      // Brief highlight
-      view.dispatch({
-        effects: EditorView.scrollIntoView(docLine.from, { y: 'center' }),
-      })
-    }
-  }
-  window.addEventListener('latex-backward-sync', backwardSyncHandler)
-
-  // Respond to forward-sync requests from PDF viewer
-  window.addEventListener('latex-request-cursor', (e) => {
-    if (!view) return
-    if (e.detail?.texPath !== props.filePath) return
-    const pos = view.state.selection.main.head
-    const line = view.state.doc.lineAt(pos).number
-    window.dispatchEvent(new CustomEvent('latex-cursor-response', {
-      detail: { texPath: props.filePath, line },
-    }))
-  })
-
-}
-
-let typstCompileDoneHandler = null
-if (isTyp) {
-  typstCompileDoneHandler = (e) => {
-    const { typPath } = e.detail || {}
-    if (typPath !== props.filePath) return
-    applyTypstDiagnosticsState(e.detail || {}, {
-      status: e.detail?.success ? 'success' : 'error',
-      allowAutoJump: editorStore.activeTab === props.filePath,
-    })
-  }
-  window.addEventListener('typst-compile-done', typstCompileDoneHandler)
-}
-
-workflowFocusProblemHandler = (event) => {
-  const problem = event.detail || {}
-  if (!view || problem.sourcePath !== props.filePath) return
-
-  if (isTyp) {
-    const matchingDiagnostic = typstUi.diagnostics.find(diagnostic => (
-      diagnostic.line === (problem.line ?? null)
-      && diagnostic.message === (problem.message || '')
-    ))
-    if (matchingDiagnostic) {
-      focusSelectedTypstDiagnostic(matchingDiagnostic)
-      return
-    }
-  }
-
-  if (problem.line) {
-    focusEditorLine(problem.line, { center: true })
-  }
-}
-
-window.addEventListener('document-workflow-focus-problem', workflowFocusProblemHandler)
 
 // Wiki link click navigation (plain click navigates, like Obsidian)
 function handleWikiLinkClick(event) {
@@ -959,266 +639,6 @@ function handleWikiLinkClick(event) {
     }
   }
 }
-
-// Citation click: opens CitationPalette in edit mode
-function handleCitationClick(event) {
-  if (!view) return
-  if (event.metaKey || event.ctrlKey) return
-
-  const pos = view.posAtCoords({ x: event.clientX, y: event.clientY })
-  if (pos === null) return
-
-  const line = view.state.doc.lineAt(pos)
-
-  CITATION_GROUP_RE.lastIndex = 0
-  let match
-  while ((match = CITATION_GROUP_RE.exec(line.text)) !== null) {
-    const mFrom = line.from + match.index
-    const mTo = mFrom + match[0].length
-    if (pos >= mFrom && pos < mTo) {
-      const cites = parseCitationGroup(match[0])
-      const coords = view.coordsAtPos(mFrom)
-      citPalette.show = true
-      citPalette.mode = 'edit'
-      citPalette.x = event.clientX
-      citPalette.y = (coords?.bottom ?? event.clientY) + 2
-      citPalette.groupFrom = mFrom
-      citPalette.groupTo = mTo
-      citPalette.cites = cites
-      citPalette.query = ''
-      citPalette.latexCommand = null
-      citPalette.insideBrackets = true
-      event.preventDefault()
-      event.stopPropagation()
-      return
-    }
-  }
-}
-
-// LaTeX citation click: opens CitationPalette in edit mode
-function handleLatexCitationClick(event) {
-  if (!view) return
-  if (event.metaKey || event.ctrlKey) return
-
-  const pos = view.posAtCoords({ x: event.clientX, y: event.clientY })
-  if (pos === null) return
-
-  const line = view.state.doc.lineAt(pos)
-
-  LATEX_CITE_RE.lastIndex = 0
-  let match
-  while ((match = LATEX_CITE_RE.exec(line.text)) !== null) {
-    const mFrom = line.from + match.index
-    const mTo = mFrom + match[0].length
-    if (pos >= mFrom && pos < mTo) {
-      const cmdName = match[1]
-      const keysStr = match[2]
-      const keys = keysStr.split(',').map(k => k.trim()).filter(Boolean)
-      const cites = keys.map(key => ({ key, locator: '', prefix: '' }))
-      const coords = view.coordsAtPos(mFrom)
-      citPalette.show = true
-      citPalette.mode = 'edit'
-      citPalette.x = event.clientX
-      citPalette.y = (coords?.bottom ?? event.clientY) + 2
-      citPalette.groupFrom = mFrom
-      citPalette.groupTo = mTo
-      citPalette.cites = cites
-      citPalette.query = ''
-      citPalette.latexCommand = cmdName
-      citPalette.insideBrackets = true
-      event.preventDefault()
-      event.stopPropagation()
-      return
-    }
-  }
-}
-
-function handleTypstCitationClick(event) {
-  if (!view) return
-  if (event.metaKey || event.ctrlKey) return
-
-  const pos = view.posAtCoords({ x: event.clientX, y: event.clientY })
-  if (pos === null) return
-
-  const line = view.state.doc.lineAt(pos)
-
-  TYPST_CITATION_GROUP_RE.lastIndex = 0
-  let match
-  while ((match = TYPST_CITATION_GROUP_RE.exec(line.text)) !== null) {
-    const mFrom = line.from + match.index
-    const mTo = mFrom + match[0].length
-    if (pos >= mFrom && pos < mTo) {
-      const cites = parseTypstCitationGroup(match[0])
-      const coords = view.coordsAtPos(mFrom)
-      citPalette.show = true
-      citPalette.mode = 'edit'
-      citPalette.x = event.clientX
-      citPalette.y = (coords?.bottom ?? event.clientY) + 2
-      citPalette.groupFrom = mFrom
-      citPalette.groupTo = mTo
-      citPalette.cites = cites
-      citPalette.query = ''
-      citPalette.latexCommand = null
-      citPalette.insideBrackets = true
-      event.preventDefault()
-      event.stopPropagation()
-      return
-    }
-  }
-}
-
-// ── Comment sync ───────────────────────────────────────────────────
-function handleCommentClick(event) {
-  const commentId = event.detail?.commentId
-  if (commentId) {
-    commentsStore.setActiveComment(commentId)
-    if (view) {
-      view.dispatch({ effects: setActiveComment.of(commentId) })
-    }
-    // Auto-show margin if hidden
-    if (!commentsStore.isMarginVisible(props.filePath)) {
-      commentsStore.toggleMargin(props.filePath)
-    }
-  }
-}
-
-function syncCommentsToEditor(editorView) {
-  if (!editorView) return
-
-  const storeComments = commentsStore.commentsForFile(props.filePath)
-  const cmState = editorView.state.field(commentField)
-  const cmComments = cmState.comments
-  const effects = []
-
-  // Add comments that are in store but not in CM
-  for (const sc of storeComments) {
-    const existing = cmComments.find(c => c.id === sc.id)
-    if (!existing) {
-      effects.push(addComment.of({
-        id: sc.id,
-        from: Math.min(sc.range.from, editorView.state.doc.length),
-        to: Math.min(sc.range.to, editorView.state.doc.length),
-        status: sc.status,
-        author: sc.author,
-      }))
-    }
-  }
-
-  // Remove comments that are in CM but not in store
-  for (const cc of cmComments) {
-    if (!storeComments.find(sc => sc.id === cc.id)) {
-      effects.push(removeComment.of(cc.id))
-    }
-  }
-
-  // Update comments whose status changed
-  for (const sc of storeComments) {
-    const existing = cmComments.find(c => c.id === sc.id)
-    if (existing && existing.status !== sc.status) {
-      effects.push(updateComment.of({ id: sc.id, status: sc.status }))
-    }
-  }
-
-  // Sync active comment
-  if (cmState.activeId !== commentsStore.activeCommentId) {
-    effects.push(setActiveComment.of(commentsStore.activeCommentId))
-  }
-
-  if (effects.length) {
-    editorView.dispatch({ effects })
-  }
-}
-
-function pushCommentPositionsToStore(editorView) {
-  const cmState = editorView.state.field(commentField)
-  for (const cc of cmState.comments) {
-    commentsStore.updateRange(cc.id, cc.from, cc.to)
-  }
-}
-
-// Watch comment store → sync to CM
-watch(
-  () => commentsStore.commentsForFile(props.filePath),
-  () => { if (view) syncCommentsToEditor(view) },
-  { deep: true }
-)
-
-// Watch active comment → sync highlight to CM
-watch(
-  () => commentsStore.activeCommentId,
-  (newId) => {
-    if (view) {
-      view.dispatch({ effects: setActiveComment.of(newId) })
-    }
-  }
-)
-
-// Watch for pending edits changes → toggle merge view
-// Uses nextTick to ensure the fileContents watcher (which updates the editor
-// content) has run first — otherwise computeOriginalContent sees stale content
-// and computes original === current, skipping the merge view on the first edit.
-watch(
-  () => reviews.editsForFile(props.filePath),
-  async () => {
-    await nextTick()
-    showMergeViewIfNeeded()
-  },
-  { deep: true }
-)
-
-let mergeViewActive = false
-
-function showMergeViewIfNeeded() {
-  if (!view) return
-  const edits = reviews.editsForFile(props.filePath)
-
-  if (edits.length > 0) {
-    const currentContent = view.state.doc.toString()
-    const original = computeOriginalContent(currentContent, edits)
-
-    if (original !== currentContent) {
-      mergeViewActive = true
-      reconfigureMergeView(view, original, () => {
-        mergeViewActive = false
-        reconfigureMergeView(view, null)
-        // Sync editor content to disk (handles rejected chunks where disk still has new text)
-        const finalContent = view.state.doc.toString()
-        files.saveFile(props.filePath, finalContent)
-        for (const edit of reviews.editsForFile(props.filePath)) {
-          reviews.acceptEdit(edit.id)
-        }
-      })
-    } else if (mergeViewActive) {
-      mergeViewActive = false
-      reconfigureMergeView(view, null)
-    }
-  } else if (mergeViewActive) {
-    mergeViewActive = false
-    reconfigureMergeView(view, null)
-  }
-}
-
-// Watch for external file changes
-watch(
-  () => files.fileContents[props.filePath],
-  (newContent) => {
-    if (!view || newContent === undefined) return
-    const currentContent = view.state.doc.toString()
-    const change = computeMinimalChange(currentContent, newContent)
-    if (change) {
-      // Tear down merge view before replacing document to avoid
-      // stale mark decorations (RangeError: Mark decorations may not be empty)
-      if (mergeViewActive) {
-        mergeViewActive = false
-        reconfigureMergeView(view, null)
-      }
-      view.dispatch({ changes: change })
-    }
-    // Always check merge view — even when content didn't change in the editor,
-    // pending edits may have been added in the same reactive flush
-    showMergeViewIfNeeded()
-  }
-)
 
 // Watch for soft wrap toggle
 watch(
@@ -1282,81 +702,7 @@ if (isMd) {
   )
 }
 
-// File tree drag → editor drop (overlay blocks CM6 mouse events during drag)
-let dropOverlay = null
-let dropCursor = null
-let draggedFilePaths = []
-
-function buildInsertText(paths) {
-  const lines = paths.map(p => {
-    const relPath = relativePath(props.filePath, p)
-    const fileName = p.split('/').pop()
-    const nameNoExt = fileName.includes('.') ? fileName.substring(0, fileName.lastIndexOf('.')) : fileName
-    if (isMd) return isImage(p) ? `![${nameNoExt}](${relPath})` : `[${fileName}](${relPath})`
-    if (isTex) return isImage(p) ? `\\includegraphics{${relPath}}` : `\\input{${relPath}}`
-    return relPath
-  })
-  return lines.join('\n')
-}
-
-function onFileTreeDragStart(ev) {
-  draggedFilePaths = ev.detail?.paths || []
-  if (!draggedFilePaths.length || !editorContainer.value) return
-  // Create transparent overlay to block CM6 mouse events
-  dropOverlay = document.createElement('div')
-  dropOverlay.style.cssText = 'position:absolute;inset:0;z-index:50;cursor:copy;'
-  editorContainer.value.style.position = 'relative'
-  editorContainer.value.appendChild(dropOverlay)
-  // Drop cursor line
-  dropCursor = document.createElement('div')
-  dropCursor.style.cssText = 'position:absolute;width:2px;pointer-events:none;background:var(--accent);z-index:51;opacity:0.8;display:none;'
-  editorContainer.value.appendChild(dropCursor)
-  dropOverlay.addEventListener('mousemove', onOverlayMouseMove)
-  dropOverlay.addEventListener('mouseup', onOverlayMouseUp)
-}
-
-function onOverlayMouseMove(ev) {
-  if (!view || !dropCursor) return
-  const pos = view.posAtCoords({ x: ev.clientX, y: ev.clientY })
-  if (pos === null) { dropCursor.style.display = 'none'; return }
-  const coords = view.coordsAtPos(pos)
-  if (!coords) { dropCursor.style.display = 'none'; return }
-  const rect = editorContainer.value.getBoundingClientRect()
-  dropCursor.style.display = ''
-  dropCursor.style.left = (coords.left - rect.left) + 'px'
-  dropCursor.style.top = (coords.top - rect.top) + 'px'
-  dropCursor.style.height = (coords.bottom - coords.top) + 'px'
-}
-
-function onOverlayMouseUp(ev) {
-  if (view && draggedFilePaths.length) {
-    const pos = view.posAtCoords({ x: ev.clientX, y: ev.clientY })
-    if (pos !== null) {
-      const text = buildInsertText(draggedFilePaths)
-      if (text) {
-        view.dispatch({
-          changes: { from: pos, to: pos, insert: text },
-          selection: { anchor: pos + text.length },
-        })
-        view.focus()
-      }
-    }
-  }
-}
-
-function onFileTreeDragEnd() {
-  draggedFilePaths = []
-  if (dropOverlay) { dropOverlay.remove(); dropOverlay = null }
-  if (dropCursor) { dropCursor.remove(); dropCursor = null }
-}
-
-window.addEventListener('filetree-drag-start', onFileTreeDragStart)
-window.addEventListener('filetree-drag-end', onFileTreeDragEnd)
-
 onUnmounted(() => {
-  window.removeEventListener('filetree-drag-start', onFileTreeDragStart)
-  window.removeEventListener('filetree-drag-end', onFileTreeDragEnd)
-  onFileTreeDragEnd()
   if (isMd) {
     editorContainer.value?.removeEventListener('click', handleWikiLinkClick)
     editorContainer.value?.removeEventListener('click', handleCitationClick)
@@ -1367,14 +713,17 @@ onUnmounted(() => {
   if (isTyp) {
     editorContainer.value?.removeEventListener('click', handleTypstCitationClick)
   }
-  if (isTex && backwardSyncHandler) {
+  if (cleanupTypstWindowListeners) {
+    cleanupTypstWindowListeners()
+    cleanupTypstWindowListeners = null
+  }
+  if (backwardSyncHandler) {
     window.removeEventListener('latex-backward-sync', backwardSyncHandler)
+    backwardSyncHandler = null
   }
-  if (isTyp && typstCompileDoneHandler) {
-    window.removeEventListener('typst-compile-done', typstCompileDoneHandler)
-  }
-  if (workflowFocusProblemHandler) {
-    window.removeEventListener('document-workflow-focus-problem', workflowFocusProblemHandler)
+  if (latexCursorRequestHandler) {
+    window.removeEventListener('latex-request-cursor', latexCursorRequestHandler)
+    latexCursorRequestHandler = null
   }
   if (chunkExecuteHandler) {
     editorContainer.value?.removeEventListener('chunk-execute', chunkExecuteHandler)
