@@ -4,20 +4,16 @@ import { listen } from '@tauri-apps/api/event'
 import { useWorkspaceStore } from './workspace'
 import { isBinaryFile } from '../utils/fileTypes'
 
-function flattenFileTree(entries = []) {
-  const files = []
-  const walk = (items) => {
-    for (const entry of items) {
-      if (!entry.is_dir) {
-        files.push(entry)
-      }
-      if (Array.isArray(entry.children)) {
-        walk(entry.children)
-      }
-    }
-  }
-  walk(entries)
-  return files
+function cloneRootEntries(entries = []) {
+  return entries.map((entry) => {
+    const { children, ...rest } = entry
+    return { ...rest }
+  })
+}
+
+function collectRootExpandedDirs(entries = [], expandedDirs = new Set()) {
+  const rootDirPaths = new Set(entries.filter(entry => entry?.is_dir).map(entry => entry.path))
+  return [...expandedDirs].filter(path => rootDirPaths.has(path))
 }
 
 function patchTreeEntry(entries = [], targetPath, updater) {
@@ -113,9 +109,8 @@ export const useFilesStore = defineStore('files', {
       const targetWorkspace = workspacePath || useWorkspaceStore().path
       if (!targetWorkspace) return
       this.treeCacheByWorkspace[targetWorkspace] = {
-        tree: this.tree,
-        flatFiles: this.flatFilesCache,
-        flatFilesReady: this.flatFilesReady,
+        tree: cloneRootEntries(this.tree),
+        rootExpandedDirs: collectRootExpandedDirs(this.tree, this.expandedDirs),
       }
     },
 
@@ -123,7 +118,7 @@ export const useFilesStore = defineStore('files', {
       const { preserveFlatFiles = false } = options
       this.tree = tree
       if (!preserveFlatFiles) {
-        this.flatFilesCache = flattenFileTree(tree)
+        this.flatFilesCache = []
         this.flatFilesReady = false
       }
       this._cacheWorkspaceSnapshot(workspacePath)
@@ -153,11 +148,31 @@ export const useFilesStore = defineStore('files', {
       if (!workspacePath) return false
       const cached = this.treeCacheByWorkspace[workspacePath]
       if (!cached?.tree) return false
-      this.tree = cached.tree
-      this.flatFilesCache = cached.flatFiles || flattenFileTree(cached.tree)
-      this.flatFilesReady = !!cached.flatFilesReady
+      this.tree = cloneRootEntries(cached.tree)
+      this.flatFilesCache = []
+      this.flatFilesReady = false
+      this.expandedDirs = new Set(cached.rootExpandedDirs || [])
       this.lastLoadError = null
       return true
+    },
+
+    async restoreCachedExpandedDirs(workspacePath, options = {}) {
+      if (!workspacePath) return
+      const cached = this.treeCacheByWorkspace[workspacePath]
+      const rootExpandedDirs = Array.isArray(cached?.rootExpandedDirs) ? cached.rootExpandedDirs : []
+      const { maxDirs = 6 } = options
+
+      for (const dirPath of rootExpandedDirs.slice(0, maxDirs)) {
+        if (useWorkspaceStore().path !== workspacePath) return
+        try {
+          await this.ensureDirLoaded(dirPath)
+          this.expandedDirs.add(dirPath)
+        } catch {
+          // Directory may have disappeared or become inaccessible.
+        }
+      }
+
+      this._cacheWorkspaceSnapshot(workspacePath)
     },
 
     async indexWorkspaceFiles(options = {}) {
@@ -233,11 +248,9 @@ export const useFilesStore = defineStore('files', {
         const tree = await invoke('read_dir_shallow', { path: workspace.path })
         const nextTree = mergePreservingLoadedChildren(tree, this.tree)
         this._setTree(nextTree, workspace.path, { preserveFlatFiles: true })
-        if (!this.flatFilesCache.length) {
-          this.flatFilesCache = flattenFileTree(nextTree)
-          this.flatFilesReady = false
-          this._cacheWorkspaceSnapshot(workspace.path)
-        }
+        this.flatFilesCache = []
+        this.flatFilesReady = false
+        this._cacheWorkspaceSnapshot(workspace.path)
         this.lastLoadError = null
         return nextTree
       } catch (e) {
@@ -387,7 +400,13 @@ export const useFilesStore = defineStore('files', {
 
           for (const changedPath of changedPaths) {
             if (openFiles.has(changedPath)) {
-              await this.reloadFile(changedPath)
+              if (changedPath.toLowerCase().endsWith('.pdf')) {
+                window.dispatchEvent(new CustomEvent('pdf-updated', {
+                  detail: { path: changedPath },
+                }))
+              } else {
+                await this.reloadFile(changedPath)
+              }
             }
             // Update wiki link index for changed .md files
             if (changedPath.endsWith('.md')) {
@@ -438,7 +457,7 @@ export const useFilesStore = defineStore('files', {
         await this.ensureDirLoaded(expandPath, { force: true })
         this.expandedDirs.add(expandPath)
       }
-      this._cacheWorkspaceSnapshot()
+      this.flatFilesCache = []
       this.flatFilesReady = false
       this._cacheWorkspaceSnapshot()
     },
@@ -469,6 +488,12 @@ export const useFilesStore = defineStore('files', {
     },
 
     async reloadFile(path) {
+      if (path.toLowerCase().endsWith('.pdf')) {
+        window.dispatchEvent(new CustomEvent('pdf-updated', {
+          detail: { path },
+        }))
+        return null
+      }
       const content = await this.readFile(path)
       // The editor will detect this change via the store
       return content

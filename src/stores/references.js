@@ -248,6 +248,17 @@ export const useReferencesStore = defineStore('references', {
       if (this._unlisten) { this._unlisten(); this._unlisten = null }
     },
 
+    cleanup() {
+      this.stopWatching()
+      this.library = []
+      this.keyMap = {}
+      this.initialized = false
+      this.loading = false
+      this.activeKey = null
+      this.selectedKeys = new Set()
+      this.citationStyle = 'apa'
+    },
+
     async setCitationStyle(style) {
       this.citationStyle = style
       const workspace = useWorkspaceStore()

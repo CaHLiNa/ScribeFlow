@@ -165,6 +165,38 @@ const versionHistoryFile = ref('')
 const rightSidebarPreSnapWidth = ref(null)
 let sidebarWidthSaveTimer = null
 let backgroundWorkspaceLoadTimer = null
+let backgroundWorkspaceTaskTimers = []
+let workspaceLoadGeneration = 0
+
+function normalizeWorkspacePath(path = '') {
+  const normalized = String(path || '').replace(/\/+$/, '')
+  return normalized || '/'
+}
+
+function cancelWorkspaceBackgroundTasks() {
+  if (backgroundWorkspaceLoadTimer) {
+    clearTimeout(backgroundWorkspaceLoadTimer)
+    backgroundWorkspaceLoadTimer = null
+  }
+  for (const timer of backgroundWorkspaceTaskTimers) {
+    clearTimeout(timer)
+  }
+  backgroundWorkspaceTaskTimers = []
+}
+
+function scheduleWorkspaceBackgroundTask(delayMs, generation, targetPath, task, label) {
+  const timer = window.setTimeout(async () => {
+    backgroundWorkspaceTaskTimers = backgroundWorkspaceTaskTimers.filter(value => value !== timer)
+    if (generation !== workspaceLoadGeneration || workspace.path !== targetPath) return
+    try {
+      await task()
+    } catch (error) {
+      console.warn(`[workspace] Background task failed (${label}):`, error)
+    }
+  }, delayMs)
+  backgroundWorkspaceTaskTimers.push(timer)
+  return timer
+}
 
 // Startup
 onMounted(async () => {
@@ -216,11 +248,14 @@ async function openWorkspace(path, options = {}) {
   if (!skipBookmarkActivation) {
     targetPath = await activateWorkspaceBookmark(path)
   }
+  targetPath = normalizeWorkspacePath(targetPath)
 
-  if (backgroundWorkspaceLoadTimer) {
-    clearTimeout(backgroundWorkspaceLoadTimer)
-    backgroundWorkspaceLoadTimer = null
+  if (workspace.isOpen && normalizeWorkspacePath(workspace.path) === targetPath) {
+    return
   }
+
+  cancelWorkspaceBackgroundTasks()
+  const loadGeneration = ++workspaceLoadGeneration
 
   // Close any currently open workspace first
   if (workspace.isOpen) {
@@ -243,19 +278,54 @@ async function openWorkspace(path, options = {}) {
         console.warn('[workspace] Background file tree refresh failed:', error)
       })
     }
-    await editorStore.restoreEditorState()
     if (editorStore.allOpenFiles.size === 0) editorStore.openNewTab()
 
     // Background: don't block the editor opening
-    filesStore.startWatching()
-    reviews.startWatching()
-    chatStore.loadSessions()
-    commentsStore.loadComments()
-    referencesStore.loadLibrary()
-    typstStore.loadSettings()
-    typstStore.checkCompiler()
+    scheduleWorkspaceBackgroundTask(hadCachedTree ? 30 : 90, loadGeneration, targetPath, async () => {
+      const restored = await editorStore.restoreEditorState()
+      if (loadGeneration !== workspaceLoadGeneration || workspace.path !== targetPath) return
+      if (!restored && editorStore.allOpenFiles.size === 0) {
+        editorStore.openNewTab()
+      }
+    }, 'editor.restoreEditorState')
+    scheduleWorkspaceBackgroundTask(hadCachedTree ? 40 : 120, loadGeneration, targetPath, async () => {
+      await loadTreePromise.catch(() => {})
+      if (loadGeneration !== workspaceLoadGeneration || workspace.path !== targetPath) return
+      await filesStore.restoreCachedExpandedDirs(targetPath)
+    }, 'files.restoreCachedExpandedDirs')
+    scheduleWorkspaceBackgroundTask(0, loadGeneration, targetPath, () => filesStore.startWatching(), 'files.startWatching')
+    scheduleWorkspaceBackgroundTask(40, loadGeneration, targetPath, async () => {
+      await workspace.ensureWorkspaceBootstrapReady(targetPath)
+      if (loadGeneration !== workspaceLoadGeneration || workspace.path !== targetPath) return
+      await reviews.startWatching()
+    }, 'reviews.startWatching')
+    scheduleWorkspaceBackgroundTask(100, loadGeneration, targetPath, async () => {
+      await workspace.ensureWorkspaceBootstrapReady(targetPath)
+      if (loadGeneration !== workspaceLoadGeneration || workspace.path !== targetPath) return
+      await commentsStore.loadComments()
+    }, 'comments.loadComments')
+    scheduleWorkspaceBackgroundTask(180, loadGeneration, targetPath, async () => {
+      await workspace.ensureWorkspaceBootstrapReady(targetPath)
+      if (loadGeneration !== workspaceLoadGeneration || workspace.path !== targetPath) return
+      await chatStore.loadSessions()
+    }, 'chat.loadSessions')
+    scheduleWorkspaceBackgroundTask(280, loadGeneration, targetPath, async () => {
+      await workspace.ensureWorkspaceBootstrapReady(targetPath)
+      if (loadGeneration !== workspaceLoadGeneration || workspace.path !== targetPath) return
+      await referencesStore.loadLibrary()
+    }, 'references.loadLibrary')
+    scheduleWorkspaceBackgroundTask(380, loadGeneration, targetPath, async () => {
+      await workspace.ensureWorkspaceBootstrapReady(targetPath)
+      if (loadGeneration !== workspaceLoadGeneration || workspace.path !== targetPath) return
+      await typstStore.loadSettings()
+    }, 'typst.loadSettings')
+    scheduleWorkspaceBackgroundTask(620, loadGeneration, targetPath, async () => {
+      await workspace.ensureWorkspaceBootstrapReady(targetPath)
+      if (loadGeneration !== workspaceLoadGeneration || workspace.path !== targetPath) return
+      await typstStore.checkCompiler()
+    }, 'typst.checkCompiler')
     backgroundWorkspaceLoadTimer = window.setTimeout(() => {
-      if (workspace.path !== targetPath) return
+      if (loadGeneration !== workspaceLoadGeneration || workspace.path !== targetPath) return
       backgroundWorkspaceLoadTimer = null
     }, 600)
   } catch (e) {
@@ -272,11 +342,9 @@ async function openWorkspace(path, options = {}) {
 }
 
 async function closeWorkspace() {
+  workspaceLoadGeneration += 1
+  cancelWorkspaceBackgroundTasks()
   const closingWorkspacePath = workspace.path
-  if (backgroundWorkspaceLoadTimer) {
-    clearTimeout(backgroundWorkspaceLoadTimer)
-    backgroundWorkspaceLoadTimer = null
-  }
 
   // Save editor state before cleanup resets the pane tree
   await editorStore.saveEditorStateImmediate()
@@ -284,11 +352,16 @@ async function closeWorkspace() {
   filesStore.cleanup()
   reviews.cleanup()
   linksStore.cleanup()
-  await kernelStore.shutdownAll()
+  chatStore.cleanup()
+  commentsStore.cleanup()
+  referencesStore.cleanup()
+  void kernelStore.shutdownAll().catch((error) => {
+    console.warn('[workspace] kernel shutdown failed:', error)
+  })
   latexStore.cleanup()
   typstStore.cleanup()
   await workspace.closeWorkspace()
-  await releaseWorkspaceBookmark(closingWorkspacePath)
+  void releaseWorkspaceBookmark(closingWorkspacePath)
 }
 
 
@@ -526,10 +599,8 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  if (backgroundWorkspaceLoadTimer) {
-    clearTimeout(backgroundWorkspaceLoadTimer)
-    backgroundWorkspaceLoadTimer = null
-  }
+  workspaceLoadGeneration += 1
+  cancelWorkspaceBackgroundTasks()
   document.removeEventListener('keydown', handleKeydown)
   document.removeEventListener('keydown', handleAltZ, true)
   document.removeEventListener('visibilitychange', handleVisibilityChange)
@@ -545,6 +616,9 @@ onUnmounted(() => {
   filesStore.cleanup()
   reviews.cleanup()
   linksStore.cleanup()
+  chatStore.cleanup()
+  commentsStore.cleanup()
+  referencesStore.cleanup()
 })
 
 // Force save + commit

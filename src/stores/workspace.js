@@ -129,6 +129,8 @@ export const useWorkspaceStore = defineStore('workspace', {
     syncTimer: null,
     // Skills
     skillsManifest: null,  // Array<{ name, description, path }> | null
+    _workspaceBootstrapPromise: null,
+    _workspaceBootstrapGeneration: 0,
   }),
 
   getters: {
@@ -155,49 +157,61 @@ export const useWorkspaceStore = defineStore('workspace', {
       this.workspaceId = this.globalConfigDir ? await hashWorkspacePath(path) : ''
       this.workspaceDataDir = resolveWorkspaceDataDir(this.globalConfigDir, this.workspaceId)
       this.claudeConfigDir = resolveClaudeConfigDir(this.globalConfigDir)
+      this._workspaceBootstrapGeneration += 1
+      const bootstrapGeneration = this._workspaceBootstrapGeneration
+      this._workspaceBootstrapPromise = this._bootstrapWorkspace(path, bootstrapGeneration)
+      this._workspaceBootstrapPromise.catch((error) => {
+        if (bootstrapGeneration !== this._workspaceBootstrapGeneration || this.path !== path) return
+        console.warn('[workspace] bootstrap failed:', error)
+      })
 
-      // Keep workspace opening resilient: metadata/bootstrap failures should not
-      // block the user from opening a readable folder on desktop builds.
+      // Persist last workspace + add to recents
       try {
-        await this.initWorkspaceDataDir()
-      } catch (error) {
-        logWorkspaceBootstrapWarning('initWorkspaceDataDir', error)
+        localStorage.setItem('lastWorkspace', path)
+        this.addRecent(path)
+      } catch (e) { /* ignore */ }
+
+      // Telemetry
+      import('../services/telemetry').then(({ events }) => events.workspaceOpen())
+    },
+
+    async _bootstrapWorkspace(path, generation) {
+      const isStale = () => generation !== this._workspaceBootstrapGeneration || this.path !== path
+      const runStep = async (label, fn) => {
+        if (isStale()) return false
+        try {
+          await fn()
+          return !isStale()
+        } catch (error) {
+          logWorkspaceBootstrapWarning(label, error)
+          return !isStale()
+        }
       }
 
-      try {
-        await this.initProjectDir()
-      } catch (error) {
-        logWorkspaceBootstrapWarning('initProjectDir', error)
-      }
-
-      try {
-        await this.installEditHooks()
-      } catch (error) {
-        logWorkspaceBootstrapWarning('installEditHooks', error)
-      }
-
-      try {
-        await this.loadSettings()
-      } catch (error) {
-        logWorkspaceBootstrapWarning('loadSettings', error)
-      }
+      if (!(await runStep('initWorkspaceDataDir', () => this.initWorkspaceDataDir()))) return
+      if (!(await runStep('initProjectDir', () => this.initProjectDir()))) return
+      if (!(await runStep('installEditHooks', () => this.installEditHooks()))) return
+      if (!(await runStep('loadSettings', () => this.loadSettings()))) return
 
       let fsWatchReady = false
-      try {
-        // The workspace root is watched shallowly; explorer children load on demand.
-        // Altals-owned metadata stays recursive so internal state updates still propagate.
-        await invoke('watch_directory', {
-          paths: [path, this.workspaceDataDir].filter(Boolean),
-          recursivePaths: [this.workspaceDataDir].filter(Boolean),
-        })
-        fsWatchReady = true
-      } catch (error) {
-        logWorkspaceBootstrapWarning('watch_directory', error)
+      if (!isStale()) {
+        try {
+          await invoke('watch_directory', {
+            paths: [path, this.workspaceDataDir].filter(Boolean),
+            recursivePaths: [this.workspaceDataDir].filter(Boolean),
+          })
+          fsWatchReady = true
+        } catch (error) {
+          logWorkspaceBootstrapWarning('watch_directory', error)
+        }
       }
 
-      if (fsWatchReady) {
+      if (fsWatchReady && !isStale()) {
         try {
-          // Hot-reload _instructions.md on change
+          if (this._instructionsUnlisten) {
+            this._instructionsUnlisten()
+            this._instructionsUnlisten = null
+          }
           this._instructionsUnlisten = await listen('fs-change', (event) => {
             const paths = event.payload?.paths || []
             const instructionsPaths = [
@@ -213,25 +227,29 @@ export const useWorkspaceStore = defineStore('workspace', {
         }
       }
 
-      // Load usage data
-      import('./usage').then(({ useUsageStore }) => {
-        const usageStore = useUsageStore()
-        usageStore.loadSettings()
-        usageStore.loadMonth()
-        usageStore.loadTrend()
-      })
+      if (!isStale()) {
+        import('./usage').then(({ useUsageStore }) => {
+          if (isStale()) return
+          const usageStore = useUsageStore()
+          usageStore.loadSettings()
+          usageStore.loadMonth()
+          usageStore.loadTrend()
+        })
+      }
 
-      // Start git auto-commit only for eligible repositories.
-      void this.startAutoCommit()
+      if (!isStale()) {
+        void this.startAutoCommit()
+      }
+    },
 
-      // Persist last workspace + add to recents
-      try {
-        localStorage.setItem('lastWorkspace', path)
-        this.addRecent(path)
-      } catch (e) { /* ignore */ }
-
-      // Telemetry
-      import('../services/telemetry').then(({ events }) => events.workspaceOpen())
+    async ensureWorkspaceBootstrapReady(path = this.path) {
+      if (!path) return
+      const promise = this._workspaceBootstrapPromise
+      if (!promise) return
+      await promise
+      if (path !== this.path) {
+        throw new Error('Workspace changed during bootstrap')
+      }
     },
 
     // Recent workspaces (persisted in localStorage, max 10)
@@ -255,6 +273,8 @@ export const useWorkspaceStore = defineStore('workspace', {
     },
 
     async closeWorkspace() {
+      this._workspaceBootstrapGeneration += 1
+      this._workspaceBootstrapPromise = null
       await this.cleanup()
       this.path = null
       this.systemPrompt = ''
@@ -276,6 +296,7 @@ export const useWorkspaceStore = defineStore('workspace', {
       this.syncConflictBranch = null
       this.lastSyncTime = null
       this.remoteUrl = ''
+      this._workspaceBootstrapPromise = null
       localStorage.removeItem('lastWorkspace')
     },
 
@@ -1433,6 +1454,8 @@ exit 0
     },
 
     async cleanup() {
+      this._workspaceBootstrapGeneration += 1
+      this._workspaceBootstrapPromise = null
       this.stopAutoCommit()
       this.stopSyncTimer()
       if (this._instructionsUnlisten) {

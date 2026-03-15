@@ -1,18 +1,14 @@
 <template>
   <div class="h-full flex flex-col overflow-hidden">
     <Teleport :to="toolbarTargetSelector || 'body'" :disabled="!toolbarTargetSelector">
-      <div
-        v-if="viewerSrc && !error"
-        class="pdf-toolbar-wrap"
-        :class="{ 'pdf-toolbar-wrap-embedded': !!toolbarTargetSelector }"
-      >
+      <div v-if="!error" class="pdf-toolbar-wrap" :class="{ 'pdf-toolbar-wrap-embedded': !!toolbarTargetSelector }">
         <div class="pdf-toolbar">
           <div class="pdf-toolbar-left">
             <div class="pdf-toolbar-group">
               <button
                 class="pdf-toolbar-btn"
                 :class="{ 'pdf-toolbar-btn-active': pdfUi.sidebarOpen }"
-                :disabled="!pdfUi.ready"
+                :disabled="!pdfUi.ready || !pdfUi.sidebarSupported"
                 :title="t('Toggle sidebar')"
                 @click="toggleSidebar"
               >
@@ -127,6 +123,7 @@
             </div>
           </div>
         </div>
+
         <div v-if="pdfUi.searchOpen" class="pdf-search-popover">
           <input
             ref="searchInputRef"
@@ -190,14 +187,14 @@
     </Teleport>
 
     <div class="relative flex-1 overflow-hidden">
-      <iframe
-        v-if="viewerSrc"
-        ref="iframeRef"
-        :src="viewerSrc"
-        class="w-full h-full border-0"
-        style="display: block;"
-        @load="onIframeLoad"
-      />
+      <div
+        ref="viewerContainerRef"
+        class="pdf-stage altals-pdf-stage"
+        @dblclick="handleViewerDoubleClick"
+      >
+        <div ref="viewerRef" class="pdfViewer"></div>
+      </div>
+
       <div
         v-if="loading"
         class="absolute inset-0 flex items-center justify-center text-sm"
@@ -217,7 +214,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted, watch, defineExpose, defineEmits, nextTick } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch, defineExpose, defineEmits, nextTick, shallowRef } from 'vue'
 import {
   IconChevronDown,
   IconChevronLeft,
@@ -230,33 +227,62 @@ import {
   IconSearch,
 } from '@tabler/icons-vue'
 import { invoke } from '@tauri-apps/api/core'
+import * as pdfjsLib from 'pdfjs-dist'
+import { EventBus, PDFLinkService, PDFFindController, PDFViewer } from 'pdfjs-dist/web/pdf_viewer.mjs'
+import 'pdfjs-dist/web/pdf_viewer.css'
 import { useI18n } from '../../i18n'
 import { usePdfTranslateStore } from '../../stores/pdfTranslate'
 import { useToastStore } from '../../stores/toast'
 import { useWorkspaceStore } from '../../stores/workspace'
 
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/build/pdf.worker.mjs',
+  import.meta.url,
+).href
+
 const emit = defineEmits(['dblclick-page'])
 
 const props = defineProps({
   filePath: { type: String, required: true },
-  paneId:   { type: String, required: true },
+  paneId: { type: String, required: true },
   toolbarTargetSelector: { type: String, default: '' },
 })
 
-const PDF_VIEWER_OVERRIDE_STYLE_ID = 'altals-pdf-viewer-overrides'
+const PDF_SCALE_PRESETS = [
+  'auto',
+  'page-width',
+  'page-fit',
+  'page-actual',
+  '0.5',
+  '0.75',
+  '1',
+  '1.25',
+  '1.5',
+  '2',
+  '3',
+]
+const MIN_SCALE = 0.3
+const MAX_SCALE = 5
+const FIND_STATE = {
+  FOUND: 0,
+  NOT_FOUND: 1,
+  WRAPPED: 2,
+  PENDING: 3,
+}
 
 const workspace = useWorkspaceStore()
 const pdfTranslateStore = usePdfTranslateStore()
 const toastStore = useToastStore()
 const { t } = useI18n()
-const iframeRef = ref(null)
-const viewerSrc = ref(null)
-const loading = ref(true)
-const error = ref(null)
+
+const viewerContainerRef = ref(null)
+const viewerRef = ref(null)
 const searchInputRef = ref(null)
 const pageInputRef = ref(null)
 const pageInput = ref('1')
-const scaleOptions = ref([])
+const loading = ref(true)
+const error = ref(null)
+const pdfSession = shallowRef(null)
 
 const pdfUi = reactive({
   ready: false,
@@ -266,9 +292,10 @@ const pdfUi = reactive({
   canGoNext: false,
   canZoomOut: false,
   canZoomIn: false,
-  scaleValue: 'auto',
-  scaleLabel: t('Automatic Zoom'),
+  scaleValue: 'page-width',
+  scaleLabel: '',
   sidebarOpen: false,
+  sidebarSupported: false,
   searchOpen: false,
   searchQuery: '',
   searchResultText: '',
@@ -278,13 +305,8 @@ const pdfUi = reactive({
   searchEntireWord: false,
 })
 
-let syncTimer = null
 let loadRequestId = 0
-let iframeListenersAttached = false
-let currentBlobUrl = null
 
-const LIGHT_THEMES = new Set(['light', 'one-light', 'humane', 'solarized'])
-const isDark = computed(() => !LIGHT_THEMES.has(workspace.theme))
 const sidebarIcon = computed(() => (
   pdfUi.sidebarOpen ? IconLayoutSidebarLeftCollapse : IconLayoutSidebarLeftExpand
 ))
@@ -310,15 +332,55 @@ const translateStatusColor = computed(() => {
   if (status === 'running') return 'var(--accent)'
   return 'var(--fg-muted)'
 })
+const scaleOptions = computed(() => {
+  const options = PDF_SCALE_PRESETS.map((value) => ({
+    value,
+    label: localizeScaleLabel(value),
+  }))
+  const currentValue = String(pdfUi.scaleValue || '').trim()
+  if (!currentValue || options.some(option => option.value === currentValue)) {
+    return options
+  }
+  return [
+    ...options,
+    {
+      value: currentValue,
+      label: localizeScaleLabel(currentValue, getPdfViewer()?.currentScale || 1),
+    },
+  ]
+})
 
-function localizeScaleLabel(label) {
-  const normalized = String(label || '').trim()
-  if (!normalized) return normalized
-  if (normalized === 'Automatic Zoom') return t('Automatic Zoom')
-  if (normalized === 'Actual Size') return t('Actual Size')
-  if (normalized === 'Page Fit') return t('Page Fit')
-  if (normalized === 'Page Width') return t('Page Width')
-  return normalized
+function getPdfViewer() {
+  return pdfSession.value?.pdfViewer || null
+}
+
+function getPdfLinkService() {
+  return pdfSession.value?.linkService || null
+}
+
+function getPdfEventBus() {
+  return pdfSession.value?.eventBus || null
+}
+
+function localizeScaleLabel(value, numericScale = null) {
+  switch (String(value || '').trim()) {
+    case 'auto':
+      return t('Automatic Zoom')
+    case 'page-width':
+      return t('Page Width')
+    case 'page-fit':
+      return t('Page Fit')
+    case 'page-actual':
+      return t('Actual Size')
+    default: {
+      const parsed = Number.parseFloat(value)
+      if (Number.isFinite(parsed)) {
+        const percent = Math.round((numericScale ?? parsed) * 100)
+        return `${percent}%`
+      }
+      return String(value || '')
+    }
+  }
 }
 
 function resetPdfUi() {
@@ -329,9 +391,10 @@ function resetPdfUi() {
   pdfUi.canGoNext = false
   pdfUi.canZoomOut = false
   pdfUi.canZoomIn = false
-  pdfUi.scaleValue = 'auto'
-  pdfUi.scaleLabel = t('Automatic Zoom')
+  pdfUi.scaleValue = 'page-width'
+  pdfUi.scaleLabel = t('Page Width')
   pdfUi.sidebarOpen = false
+  pdfUi.sidebarSupported = false
   pdfUi.searchOpen = false
   pdfUi.searchQuery = ''
   pdfUi.searchResultText = ''
@@ -340,171 +403,220 @@ function resetPdfUi() {
   pdfUi.searchMatchDiacritics = false
   pdfUi.searchEntireWord = false
   pageInput.value = '1'
-  scaleOptions.value = []
-}
-
-function clearSyncTimer() {
-  if (syncTimer) {
-    window.clearInterval(syncTimer)
-    syncTimer = null
-  }
-}
-
-function getPdfWindow() {
-  return iframeRef.value?.contentWindow || null
-}
-
-function getPdfDocument() {
-  return iframeRef.value?.contentDocument || null
-}
-
-function getPdfApp() {
-  return getPdfWindow()?.PDFViewerApplication || null
-}
-
-function getPdfElement(...ids) {
-  const doc = getPdfDocument()
-  if (!doc) return null
-  for (const id of ids) {
-    const element = doc.getElementById(id)
-    if (element) return element
-  }
-  return null
-}
-
-function clickPdfElement(...ids) {
-  const element = getPdfElement(...ids)
-  if (!element || element.disabled) return false
-  element.click()
-  syncPdfUi()
-  return true
-}
-
-function normalizeScaleOptions(select) {
-  const options = Array.from(select?.options || [])
-    .filter(option => option.value)
-    .map(option => ({
-      value: option.value,
-      label: localizeScaleLabel(option.textContent),
-    }))
-  const customOption = options.find(option => option.value === 'custom')
-  if (customOption && customOption.label) return options
-  return options.filter(option => option.value !== 'custom')
-}
-
-function applyTheme() {
-  const doc = getPdfDocument()
-  if (!doc?.documentElement) return
-  doc.documentElement.style.setProperty('color-scheme', isDark.value ? 'dark' : 'light')
-}
-
-function injectViewerOverrides() {
-  const doc = getPdfDocument()
-  if (!doc?.head || doc.getElementById(PDF_VIEWER_OVERRIDE_STYLE_ID)) return
-
-  const style = doc.createElement('style')
-  style.id = PDF_VIEWER_OVERRIDE_STYLE_ID
-  style.textContent = `
-    :root { --toolbar-height: 0px !important; }
-    .toolbar,
-    #toolbarContainer,
-    #toolbarViewer,
-    #toolbarViewerLeft,
-    #toolbarViewerMiddle,
-    #toolbarViewerRight,
-    #toolbarViewerLeft > :not(#viewsManager),
-    #secondaryToolbar,
-    #findbar,
-    #editorHighlightParamsToolbar,
-    #editorFreeTextParamsToolbar,
-    #editorInkParamsToolbar,
-    #editorStampParamsToolbar {
-      display: none !important;
-    }
-    .toolbar,
-    #toolbarContainer,
-    #toolbarViewer,
-    #toolbarViewerLeft {
-      display: flex !important;
-      min-height: 0 !important;
-      height: 0 !important;
-      padding: 0 !important;
-      border: 0 !important;
-      background: transparent !important;
-      box-shadow: none !important;
-      overflow: visible !important;
-    }
-    #toolbarViewerLeft {
-      position: relative !important;
-      gap: 0 !important;
-    }
-    #viewsManager {
-      top: 0 !important;
-      z-index: 40 !important;
-      pointer-events: auto !important;
-    }
-    #viewerContainer {
-      inset: 0 !important;
-    }
-    #sidebarContent {
-      inset-block: 0 !important;
-    }
-    #toolbarContainer #loadingBar {
-      top: 0 !important;
-    }
-  `
-  doc.head.appendChild(style)
 }
 
 function syncPdfUi() {
-  const app = getPdfApp()
-  const doc = getPdfDocument()
-  if (!app?.pdfViewer || !doc) return
-
-  const previousButton = doc.getElementById('previous')
-  const nextButton = doc.getElementById('next')
-  const zoomOutButton = doc.getElementById('zoomOutButton')
-  const zoomInButton = doc.getElementById('zoomInButton')
-  const scaleSelect = doc.getElementById('scaleSelect')
-  const findResultsCount = doc.getElementById('findResultsCount')
-  const findMsg = doc.getElementById('findMsg')
-  const toggleButton = doc.getElementById('viewsManagerToggleButton')
-  const viewsManager = app.viewsManager
-
-  pdfUi.ready = true
-  pdfUi.pageNumber = Number(app.page || 1)
-  pdfUi.pagesCount = Number(app.pagesCount || 0)
-  pdfUi.canGoPrevious = !!previousButton && !previousButton.disabled
-  pdfUi.canGoNext = !!nextButton && !nextButton.disabled
-  pdfUi.canZoomOut = !!zoomOutButton && !zoomOutButton.disabled
-  pdfUi.canZoomIn = !!zoomInButton && !zoomInButton.disabled
-  pdfUi.sidebarOpen = typeof viewsManager?.isOpen === 'boolean'
-    ? viewsManager.isOpen
-    : toggleButton?.getAttribute('aria-expanded') === 'true'
-  pdfUi.searchResultText = [findResultsCount?.textContent, findMsg?.textContent]
-    .map(value => (value || '').trim())
-    .filter(Boolean)
-    .join(' ')
-
-  if (scaleSelect) {
-    const nextOptions = normalizeScaleOptions(scaleSelect)
-    if (nextOptions.length > 0) {
-      scaleOptions.value = nextOptions
-    }
-    pdfUi.scaleValue = scaleSelect.value || 'auto'
-    pdfUi.scaleLabel = localizeScaleLabel(scaleSelect.options[scaleSelect.selectedIndex]?.textContent) || pdfUi.scaleLabel
+  const viewer = getPdfViewer()
+  const session = pdfSession.value
+  if (!viewer || !session?.pdfDocument) {
+    pdfUi.ready = false
+    return
   }
 
+  const pageNumber = Number(viewer.currentPageNumber || 1)
+  const pagesCount = Number(viewer.pagesCount || session.pdfDocument.numPages || 0)
+  const currentScale = Number(viewer.currentScale || 1)
+  const currentScaleValue = String(viewer.currentScaleValue || pdfUi.scaleValue || 'page-width')
+
+  pdfUi.ready = true
+  pdfUi.pageNumber = pageNumber
+  pdfUi.pagesCount = pagesCount
+  pdfUi.canGoPrevious = pageNumber > 1
+  pdfUi.canGoNext = pageNumber < pagesCount
+  pdfUi.canZoomOut = currentScale > MIN_SCALE
+  pdfUi.canZoomIn = currentScale < MAX_SCALE
+  pdfUi.scaleValue = currentScaleValue
+  pdfUi.scaleLabel = localizeScaleLabel(currentScaleValue, currentScale)
+
   if (document.activeElement !== pageInputRef.value) {
-    pageInput.value = String(pdfUi.pageNumber || 1)
+    pageInput.value = String(pageNumber || 1)
   }
 }
 
-function dispatchPdfEvent(type, detail = {}) {
-  const app = getPdfApp()
-  if (!app?.eventBus) return
-  app.eventBus.dispatch(type, { source: app, ...detail })
-  syncPdfUi()
+function updateSearchResultText(event = {}) {
+  const matchesCount = event.matchesCount || { current: 0, total: 0 }
+  const total = Number(matchesCount.total || 0)
+  const current = Number(matchesCount.current || 0)
+
+  if (event.state === FIND_STATE.PENDING) {
+    pdfUi.searchResultText = t('Searching...')
+    return
+  }
+  if (event.state === FIND_STATE.NOT_FOUND) {
+    pdfUi.searchResultText = t('Phrase not found')
+    return
+  }
+  if (event.state === FIND_STATE.WRAPPED) {
+    pdfUi.searchResultText = event.previous
+      ? t('Reached top of document, continued from bottom')
+      : t('Reached end of document, continued from top')
+    return
+  }
+  if (total > 0) {
+    pdfUi.searchResultText = `${current} / ${total}`
+    return
+  }
+  pdfUi.searchResultText = ''
+}
+
+function attachViewerListeners(session, requestId) {
+  const { eventBus, pdfViewer } = session
+
+  eventBus.on('pagesinit', () => {
+    if (requestId !== loadRequestId) return
+    pdfViewer.currentScaleValue = pdfUi.scaleValue || 'page-width'
+    syncPdfUi()
+  })
+
+  eventBus.on('pagerendered', () => {
+    if (requestId !== loadRequestId) return
+    loading.value = false
+    syncPdfUi()
+  }, { once: true })
+
+  eventBus.on('pagesloaded', () => {
+    if (requestId !== loadRequestId) return
+    syncPdfUi()
+  })
+
+  eventBus.on('pagechanging', () => {
+    if (requestId !== loadRequestId) return
+    syncPdfUi()
+  })
+
+  eventBus.on('scalechanging', () => {
+    if (requestId !== loadRequestId) return
+    syncPdfUi()
+  })
+
+  eventBus.on('updatefindmatchescount', (event) => {
+    if (requestId !== loadRequestId) return
+    updateSearchResultText(event)
+    syncPdfUi()
+  })
+
+  eventBus.on('updatefindcontrolstate', (event) => {
+    if (requestId !== loadRequestId) return
+    updateSearchResultText(event)
+    syncPdfUi()
+  })
+}
+
+async function cleanupPdfSession() {
+  const session = pdfSession.value
+  pdfSession.value = null
+
+  if (viewerRef.value) {
+    viewerRef.value.replaceChildren()
+  }
+
+  if (!session) return
+
+  try {
+    session.abortController?.abort()
+  } catch {}
+
+  try {
+    session.findController?.setDocument(null)
+  } catch {}
+
+  try {
+    session.linkService?.setDocument(null, null)
+  } catch {}
+
+  try {
+    session.pdfViewer?.setDocument(null)
+    session.pdfViewer?.cleanup?.()
+  } catch {}
+
+  try {
+    await session.loadingTask?.destroy?.()
+  } catch {}
+}
+
+async function buildViewerSession(requestId, bytes) {
+  await nextTick()
+  if (requestId !== loadRequestId || !viewerContainerRef.value || !viewerRef.value) return null
+
+  const eventBus = new EventBus()
+  const linkService = new PDFLinkService({ eventBus })
+  const findController = new PDFFindController({ eventBus, linkService })
+  const abortController = new AbortController()
+  const pdfViewer = new PDFViewer({
+    container: viewerContainerRef.value,
+    viewer: viewerRef.value,
+    eventBus,
+    linkService,
+    findController,
+    removePageBorders: true,
+    abortSignal: abortController.signal,
+  })
+
+  linkService.setViewer(pdfViewer)
+
+  const loadingTask = pdfjsLib.getDocument({ data: bytes })
+  const session = {
+    requestId,
+    eventBus,
+    linkService,
+    findController,
+    pdfViewer,
+    loadingTask,
+    abortController,
+    pdfDocument: null,
+  }
+  pdfSession.value = session
+  attachViewerListeners(session, requestId)
+  return session
+}
+
+async function loadPdf() {
+  const requestId = ++loadRequestId
+  loading.value = true
+  error.value = null
+  resetPdfUi()
+  await cleanupPdfSession()
+
+  try {
+    const rawBytes = await invoke('read_file_binary', { path: props.filePath })
+    if (requestId !== loadRequestId) return
+
+    const bytes = rawBytes instanceof Uint8Array ? rawBytes : new Uint8Array(rawBytes)
+    const session = await buildViewerSession(requestId, bytes)
+    if (!session || requestId !== loadRequestId) return
+
+    const pdfDocument = await session.loadingTask.promise
+    if (requestId !== loadRequestId) {
+      await session.loadingTask.destroy().catch(() => {})
+      return
+    }
+
+    session.pdfDocument = pdfDocument
+    session.linkService.setDocument(pdfDocument, null)
+    await session.pdfViewer.setDocument(pdfDocument)
+    syncPdfUi()
+  } catch (e) {
+    if (requestId !== loadRequestId) return
+    error.value = e?.message || String(e)
+    loading.value = false
+    await cleanupPdfSession()
+  }
+}
+
+function dispatchFind(type = '', findPrevious = false) {
+  const eventBus = getPdfEventBus()
+  if (!eventBus) return
+
+  eventBus.dispatch('find', {
+    source: getPdfViewer(),
+    type,
+    query: pdfUi.searchQuery,
+    caseSensitive: pdfUi.searchCaseSensitive,
+    entireWord: pdfUi.searchEntireWord,
+    highlightAll: pdfUi.searchHighlightAll,
+    findPrevious,
+    matchDiacritics: pdfUi.searchMatchDiacritics,
+  })
 }
 
 function openSearch() {
@@ -524,22 +636,11 @@ function toggleSearch() {
   openSearch()
 }
 
-function dispatchFind(type = '', findPrevious = false) {
-  const app = getPdfApp()
-  if (!app?.eventBus) return
-  app.eventBus.dispatch('find', {
-    source: app,
-    type,
-    query: pdfUi.searchQuery,
-    caseSensitive: pdfUi.searchCaseSensitive,
-    entireWord: pdfUi.searchEntireWord,
-    highlightAll: pdfUi.searchHighlightAll,
-    findPrevious,
-    matchDiacritics: pdfUi.searchMatchDiacritics,
-  })
-}
-
 function onSearchInput() {
+  if (!pdfUi.searchQuery) {
+    pdfUi.searchResultText = ''
+    return
+  }
   dispatchFind('')
 }
 
@@ -555,62 +656,52 @@ function toggleSearchOption(key) {
 }
 
 function toggleSidebar() {
-  const viewsManager = getPdfApp()?.viewsManager
-  if (typeof viewsManager?.toggle === 'function') {
-    viewsManager.toggle()
-    syncPdfUi()
-    return
-  }
-  clickPdfElement('viewsManagerToggleButton')
+  if (!pdfUi.sidebarSupported) return
 }
 
 function goPreviousPage() {
-  if (!clickPdfElement('previous')) {
-    dispatchPdfEvent('previouspage')
-  }
+  const viewer = getPdfViewer()
+  if (!viewer || !pdfUi.canGoPrevious) return
+  viewer.currentPageNumber = Math.max(1, pdfUi.pageNumber - 1)
+  syncPdfUi()
 }
 
 function goNextPage() {
-  if (!clickPdfElement('next')) {
-    dispatchPdfEvent('nextpage')
-  }
+  const viewer = getPdfViewer()
+  if (!viewer || !pdfUi.canGoNext) return
+  viewer.currentPageNumber = Math.min(pdfUi.pagesCount, pdfUi.pageNumber + 1)
+  syncPdfUi()
 }
 
 function commitPageNumber() {
-  const app = getPdfApp()
+  const viewer = getPdfViewer()
   const nextPage = Number(pageInput.value)
-  if (!app || !Number.isInteger(nextPage) || nextPage < 1 || nextPage > pdfUi.pagesCount) {
+  if (!viewer || !Number.isInteger(nextPage) || nextPage < 1 || nextPage > pdfUi.pagesCount) {
     pageInput.value = String(pdfUi.pageNumber || 1)
     return
   }
-  app.page = nextPage
+  viewer.currentPageNumber = nextPage
   syncPdfUi()
 }
 
 function zoomOut() {
-  if (!clickPdfElement('zoomOutButton')) {
-    dispatchPdfEvent('zoomout')
-  }
+  const viewer = getPdfViewer()
+  if (!viewer) return
+  viewer.currentScale = Math.max(MIN_SCALE, Number(viewer.currentScale || 1) / 1.1)
+  syncPdfUi()
 }
 
 function zoomIn() {
-  if (!clickPdfElement('zoomInButton')) {
-    dispatchPdfEvent('zoomin')
-  }
+  const viewer = getPdfViewer()
+  if (!viewer) return
+  viewer.currentScale = Math.min(MAX_SCALE, Number(viewer.currentScale || 1) * 1.1)
+  syncPdfUi()
 }
 
 function applyScale() {
-  const scaleSelect = getPdfElement('scaleSelect')
-  if (scaleSelect && !scaleSelect.disabled) {
-    scaleSelect.value = pdfUi.scaleValue
-    scaleSelect.dispatchEvent(new Event('change', { bubbles: true }))
-    syncPdfUi()
-    return
-  }
-
-  const app = getPdfApp()
-  if (!app?.pdfViewer) return
-  app.pdfViewer.currentScaleValue = pdfUi.scaleValue
+  const viewer = getPdfViewer()
+  if (!viewer) return
+  viewer.currentScaleValue = pdfUi.scaleValue
   syncPdfUi()
 }
 
@@ -631,7 +722,7 @@ async function translatePdf() {
   }
 }
 
-function handleIframeDoubleClick(event) {
+function handleViewerDoubleClick(event) {
   const pageElement = event.target?.closest?.('.page[data-page-number]')
   if (!pageElement) return
 
@@ -643,132 +734,48 @@ function handleIframeDoubleClick(event) {
   })
 }
 
-async function onIframeLoad() {
-  const win = getPdfWindow()
-  const app = getPdfApp()
-  if (!win || !app) {
-    error.value = t('Could not load PDF')
-    loading.value = false
-    return
-  }
-
-  try {
-    if (app.initializedPromise) {
-      await app.initializedPromise
-    }
-  } catch (error) {
-    error.value = error?.message || String(error)
-    loading.value = false
-    return
-  }
-
-  applyTheme()
-  injectViewerOverrides()
-  syncPdfUi()
-  clearSyncTimer()
-  syncTimer = window.setInterval(syncPdfUi, 250)
-  loading.value = false
-
-  if (!iframeListenersAttached) {
-    try {
-      win.document.addEventListener('mousedown', () => {
-        iframeRef.value?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
-      })
-      win.document.addEventListener('dblclick', handleIframeDoubleClick)
-      win.document.addEventListener('keydown', (e) => {
-        if ((e.metaKey || e.ctrlKey) && e.key === 'w') {
-          e.preventDefault()
-          document.dispatchEvent(new KeyboardEvent('keydown', {
-            key: e.key,
-            code: e.code,
-            metaKey: e.metaKey,
-            ctrlKey: e.ctrlKey,
-            shiftKey: e.shiftKey,
-            altKey: e.altKey,
-            bubbles: true,
-            cancelable: true,
-          }))
-          return
-        }
-
-        if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') {
-          e.preventDefault()
-          openSearch()
-        }
-      })
-      iframeListenersAttached = true
-    } catch {}
-  }
-
-}
-
 function scrollToPage(pageNumber) {
   const targetPage = Number(pageNumber)
   if (!Number.isInteger(targetPage) || targetPage < 1) return
-
-  const app = getPdfApp()
-  if (!app?.pdfLinkService?.goToPage) return
-
-  app.pdfLinkService.goToPage(targetPage)
+  const linkService = getPdfLinkService()
+  if (linkService?.goToPage) {
+    linkService.goToPage(targetPage)
+    syncPdfUi()
+  }
 }
 
 function scrollToLocation(pageNumber, x, y) {
   const targetPage = Number(pageNumber)
   if (!Number.isInteger(targetPage) || targetPage < 1) return
 
-  const xCoord = Number(x)
-  const yCoord = Number(y)
-  const app = getPdfApp()
-  if (!app?.pdfLinkService) return
-
-  if (Number.isFinite(xCoord) && Number.isFinite(yCoord) && typeof app.pdfLinkService.goToXY === 'function') {
-    app.pdfLinkService.goToXY(targetPage, xCoord, yCoord)
+  const viewer = getPdfViewer()
+  if (!viewer?.scrollPageIntoView) {
+    scrollToPage(targetPage)
     return
   }
 
-  if (typeof app.pdfLinkService.goToPage === 'function') {
-    app.pdfLinkService.goToPage(targetPage)
-  }
-}
-
-watch(isDark, applyTheme)
-
-async function loadPdf() {
-  const requestId = ++loadRequestId
-  loading.value = true
-  error.value = null
-  clearSyncTimer()
-  resetPdfUi()
-  iframeListenersAttached = false
-
-  try {
-    if (currentBlobUrl) {
-      URL.revokeObjectURL(currentBlobUrl)
-      currentBlobUrl = null
-    }
-
-    viewerSrc.value = null
-    await nextTick()
-    if (requestId !== loadRequestId) return
-
-    const bytes = await invoke('read_file_binary', { path: props.filePath })
-    if (requestId !== loadRequestId) return
-    const uint8Array = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes)
-    currentBlobUrl = URL.createObjectURL(new Blob([uint8Array], { type: 'application/pdf' }))
-    viewerSrc.value = `/pdfjs-viewer/web/viewer.html?file=${encodeURIComponent(currentBlobUrl)}&instance=${requestId}`
-  } catch (e) {
-    if (requestId !== loadRequestId) return
-    error.value = e.toString()
-    viewerSrc.value = null
-  } finally {
-    if (requestId === loadRequestId && error.value) {
-      loading.value = false
-    }
-  }
+  const xCoord = Number(x)
+  const yCoord = Number(y)
+  const destArray = [
+    null,
+    { name: 'XYZ' },
+    Number.isFinite(xCoord) ? xCoord : null,
+    Number.isFinite(yCoord) ? yCoord : null,
+    null,
+  ]
+  viewer.scrollPageIntoView({
+    pageNumber: targetPage,
+    destArray,
+    allowNegativeOffset: true,
+    ignoreDestinationZoom: true,
+  })
+  syncPdfUi()
 }
 
 function handlePdfUpdated(event) {
-  if (event.detail?.path === props.filePath) loadPdf()
+  if (event.detail?.path === props.filePath) {
+    loadPdf()
+  }
 }
 
 onMounted(() => {
@@ -776,21 +783,15 @@ onMounted(() => {
   loadPdf()
 })
 
-onUnmounted(() => {
+onUnmounted(async () => {
   loadRequestId += 1
   window.removeEventListener('pdf-updated', handlePdfUpdated)
-  clearSyncTimer()
-  const app = getPdfApp()
-  if (app?.close) {
-    app.close().catch(() => {})
-  }
-  if (currentBlobUrl) {
-    URL.revokeObjectURL(currentBlobUrl)
-    currentBlobUrl = null
-  }
+  await cleanupPdfSession()
 })
 
-watch(() => props.filePath, loadPdf)
+watch(() => props.filePath, () => {
+  loadPdf()
+})
 
 defineExpose({
   scrollToPage,
@@ -1049,5 +1050,25 @@ defineExpose({
 .pdf-translate-btn:disabled {
   opacity: 0.55;
   cursor: default;
+}
+
+.pdf-stage {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  background: var(--bg-primary);
+}
+
+.pdf-stage :deep(.pdfViewer) {
+  position: relative;
+  min-height: 100%;
+}
+
+.pdf-stage :deep(.pdfViewer.removePageBorders .page) {
+  margin: 12px auto;
+}
+
+.pdf-stage :deep(.page) {
+  box-shadow: none;
 }
 </style>

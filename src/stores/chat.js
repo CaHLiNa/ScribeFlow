@@ -656,6 +656,20 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  function cleanup() {
+    for (const [, chat] of chatInstances) {
+      try { chat.stop() } catch {}
+    }
+    chatInstances.clear()
+    _chatVersion.value++
+    sessions.value = []
+    activeSessionId.value = null
+    allSessionsMeta.value = []
+    pendingPrefill.value = null
+    pendingSelection.value = null
+    _richHtmlMap.value = Object.create(null)
+  }
+
   // ─── Title Generation ──────────────────────────────────────────
 
   function _maybeGenerateTitle(session) {
@@ -768,6 +782,8 @@ export const useChatStore = defineStore('chat', () => {
     // Persistence
     loadSessions,
     saveSession,
+
+    // Lifecycle
+    cleanup,
   }
 })
-

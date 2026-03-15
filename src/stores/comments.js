@@ -240,6 +240,18 @@ export const useCommentsStore = defineStore('comments', () => {
     }
   }
 
+  function cleanup() {
+    if (_saveTimer) {
+      clearTimeout(_saveTimer)
+      _saveTimer = null
+    }
+    comments.value = []
+    activeCommentId.value = null
+    marginVisible.value = {}
+    showResolved.value = false
+    editStatuses.value = {}
+  }
+
   // ─── Submit to Chat ──────────────────────────────────────────────
 
   async function submitToChat(filePath) {
@@ -340,6 +352,7 @@ export const useCommentsStore = defineStore('comments', () => {
 
     // Persistence
     loadComments,
+    cleanup,
 
     // Chat integration
     submitToChat,
