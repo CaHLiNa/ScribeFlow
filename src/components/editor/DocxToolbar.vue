@@ -423,25 +423,25 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { toRef } from 'vue'
 import {
   IconArrowBackUp, IconArrowForwardUp,
   IconBold, IconItalic, IconUnderline, IconStrikethrough,
   IconLetterA, IconHighlight,
-  IconAlignLeft, IconAlignCenter, IconAlignRight, IconAlignJustified,
   IconList, IconListNumbers, IconIndentDecrease, IconIndentIncrease, IconLineHeight,
   IconLink, IconPhoto, IconTable, IconBlockquote,
   IconCheck, IconChecks, IconX, IconSquareX, IconChevronDown,
-  IconPencil, IconPencilCheck,
+  IconPencil,
   IconArrowLeft, IconArrowRight, IconGitMerge, IconRefresh,
   IconClearFormatting,
   IconDots,
   IconMinus, IconPlus,
 } from '@tabler/icons-vue'
-import { invoke } from '@tauri-apps/api/core'
-import { open } from '@tauri-apps/plugin-dialog'
 import { trackChangesHelpers } from 'superdoc'
-import { hasBibliography, insertBibliography, refreshBibliography } from '../../services/docxCitationImporter'
+import { insertBibliography, refreshBibliography } from '../../services/docxCitationImporter'
+import { pickDocxImageDataUrl } from '../../services/docxImage'
+import { useDocxToolbarState } from '../../composables/useDocxToolbarState'
+import { useDocxToolbarUi } from '../../composables/useDocxToolbarUi'
 import { useReferencesStore } from '../../stores/references'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useI18n } from '../../i18n'
@@ -455,375 +455,87 @@ const emit = defineEmits(['mode-change'])
 const referencesStore = useReferencesStore()
 const workspace = useWorkspaceStore()
 const { t } = useI18n()
+const documentModeRef = toRef(props, 'documentMode')
 
 // --- Raw editor access (no Vue Proxy — SuperDoc uses #private fields) ---
 // Parent guarantees activeEditor exists by the time this component mounts.
 function getEditor() {
   return props.superdoc?.activeEditor || null
 }
-// For template v-if, track readiness via a simple ref toggled in onMounted
-const editor = ref(null)
-
-// --- Formatting state ---
-const isBold = ref(false)
-const isItalic = ref(false)
-const isUnderline = ref(false)
-const isStrike = ref(false)
-const isBullet = ref(false)
-const isOrdered = ref(false)
-const currentFont = ref('')
-const currentSize = ref('')
-const currentColor = ref('')
-const currentHighlight = ref('')
-const currentAlign = ref('left')
-const currentLineHeight = ref('')
-const hasTrackedChange = ref(false)
-const hasAnyTrackedChanges = ref(false)
-const trackedChangeCount = ref(0)
-const isTrackChangesActive = ref(false)
-const hasBib = ref(false)
-const canUndo = ref(false)
-const canRedo = ref(false)
-const currentStyle = ref('')
-const documentStyles = ref([])
-
-// --- Dropdown state ---
-const openDropdown = ref(null)
-const dropdownPos = ref({})
-const linkUrl = ref('')
-const tableHover = ref({ r: 0, c: 0 })
-
-// Refs for button positions
-const stylesBtn = ref(null)
-const fontBtn = ref(null)
-const sizeBtn = ref(null)
-const colorBtn = ref(null)
-const highlightBtn = ref(null)
-const alignBtn = ref(null)
-const lineHeightBtn = ref(null)
-const linkBtn = ref(null)
-const tableBtn = ref(null)
-const modeBtn = ref(null)
-const linkInput = ref(null)
-const zoomBtn = ref(null)
-
-// --- Overflow state ---
-const overflowGroups = ref([])
-const showOverflowPopover = ref(false)
-const overflowPopoverPos = ref({})
-const toolbarRow = ref(null)
-const overflowBtn = ref(null)
-const mg0 = ref(null)
-const mg1 = ref(null)
-const mg2 = ref(null)
-const mg3 = ref(null)
-const mg4 = ref(null)
-const mg5 = ref(null)
-const mg6 = ref(null)
-const mg7 = ref(null)
-
-const showTrackChanges = computed(() =>
-  props.documentMode === 'suggesting' || hasAnyTrackedChanges.value || isTrackChangesActive.value
-)
-
-// --- Static data ---
-
-// Font catalog — alphabetical. Shipped fonts (we bundle @font-face) are always available.
-// System fonts are checked at runtime via document.fonts.check().
-const FONT_CATALOG = [
-  { name: 'Arial', fallback: 'Arial, Helvetica, sans-serif', shipped: false },
-  { name: 'Calibri', fallback: 'Calibri, sans-serif', shipped: false },
-  { name: 'Cambria', fallback: 'Cambria, Georgia, serif', shipped: false },
-  { name: 'Courier New', fallback: '"Courier New", Courier, monospace', shipped: false },
-  { name: 'Geist', fallback: 'Geist, sans-serif', shipped: true },
-  { name: 'Georgia', fallback: 'Georgia, serif', shipped: false },
-  { name: 'Helvetica', fallback: 'Helvetica, Arial, sans-serif', shipped: false },
-  { name: 'Inter', fallback: 'Inter, sans-serif', shipped: true },
-  { name: 'JetBrains Mono', fallback: '"JetBrains Mono", monospace', shipped: true },
-  { name: 'Lora', fallback: 'Lora, serif', shipped: true },
-  { name: 'Palatino', fallback: '"Palatino Linotype", Palatino, serif', shipped: false },
-  { name: 'STIX Two Text', fallback: '"STIX Two Text", serif', shipped: true },
-  { name: 'Times New Roman', fallback: '"Times New Roman", Times, serif', shipped: false },
-  { name: 'Verdana', fallback: 'Verdana, Geneva, sans-serif', shipped: false },
-]
-
-// Availability detection — only show fonts that actually render
-const availableFonts = ref(FONT_CATALOG) // default to all; filtered in onMounted
-
-const zoomPresets = [50, 75, 100, 125, 150, 200]
-
-const fontSizes = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36, 48, 72]
-
-const textColors = [
-  '#1a1a1a', '#434343', '#666666', '#999999', '#cccccc',
-  '#f7768e', '#ff9e64', '#e0af68', '#9ece6a', '#73daca',
-  '#7dcfff', '#7aa2f7', '#bb9af7', '#c0caf5', '#a9b1d6',
-  '#db4b4b', '#ff7a2e', '#d4a037', '#5fba7d', '#449dab',
-  '#2e7de9', '#5a4fcf', '#9854c2', '#8b5cf6', '#6366f1',
-]
-
-const highlightColors = [
-  '#ffd43b', '#a3e635', '#67e8f9', '#818cf8', '#f472b6',
-  '#fbbf24', '#4ade80', '#22d3ee', '#a78bfa', '#fb923c',
-  '#fef08a', '#bbf7d0', '#bae6fd', '#c4b5fd', '#fecdd3',
-]
-
-const lineHeights = [
-  { label: 'Single', value: 1 },
-  { label: '1.15', value: 1.15 },
-  { label: '1.5', value: 1.5 },
-  { label: 'Double', value: 2 },
-  { label: '2.5', value: 2.5 },
-  { label: '3', value: 3 },
-]
-
-const alignIcon = computed(() => {
-  const map = { left: IconAlignLeft, center: IconAlignCenter, right: IconAlignRight, justify: IconAlignJustified }
-  return map[currentAlign.value] || IconAlignLeft
+const {
+  editor,
+  isBold,
+  isItalic,
+  isUnderline,
+  isStrike,
+  isBullet,
+  isOrdered,
+  currentFont,
+  currentSize,
+  currentColor,
+  currentHighlight,
+  currentAlign,
+  currentLineHeight,
+  hasTrackedChange,
+  hasAnyTrackedChanges,
+  trackedChangeCount,
+  isTrackChangesActive,
+  hasBib,
+  canUndo,
+  canRedo,
+  currentStyle,
+  documentStyles,
+  showTrackChanges,
+  syncState,
+} = useDocxToolbarState({
+  getEditor,
+  documentModeRef,
 })
 
-function getStylePreview(style) {
-  const css = {}
-  const defs = style?.definition?.styles || {}
-  // Font size from style definition, with fallbacks by ID
-  if (defs['font-size']) {
-    css.fontSize = defs['font-size']
-  } else {
-    const id = (style?.id || '').toLowerCase()
-    if (id === 'heading1') css.fontSize = '20px'
-    else if (id === 'heading2') css.fontSize = '17px'
-    else if (id === 'heading3') css.fontSize = '15px'
-    else if (id.startsWith('heading')) css.fontSize = '13px'
-    else if (id === 'title') css.fontSize = '22px'
-    else if (id === 'subtitle') css.fontSize = '15px'
-    else css.fontSize = '13px'
-  }
-  if (defs.bold && defs.bold !== '0' && defs.bold !== false) css.fontWeight = 'bold'
-  else if (/heading/i.test(style?.id)) css.fontWeight = 'bold'
-  if (defs.italic && defs.italic !== '0' && defs.italic !== false) css.fontStyle = 'italic'
-  if (defs.color) css.color = defs.color
-  else if (/subtitle/i.test(style?.id)) css.color = 'var(--fg-muted)'
-  if (defs['font-family']) css.fontFamily = defs['font-family']
-  if (/title/i.test(style?.id) && !/subtitle/i.test(style?.id) && !css.fontWeight) css.fontWeight = '300'
-  return css
-}
-
-// Sort styles: headings by level, then common styles, then alphabetical
-const STYLE_ORDER = ['Normal', 'Title', 'Subtitle', 'Heading1', 'Heading2', 'Heading3', 'Heading4', 'Heading5', 'Heading6', 'Quote', 'IntenseQuote', 'Caption', 'ListParagraph']
-function styleSort(a, b) {
-  const ai = STYLE_ORDER.indexOf(a.id)
-  const bi = STYLE_ORDER.indexOf(b.id)
-  if (ai !== -1 && bi !== -1) return ai - bi
-  if (ai !== -1) return -1
-  if (bi !== -1) return 1
-  const nameA = a.definition?.attrs?.name || a.id
-  const nameB = b.definition?.attrs?.name || b.id
-  return nameA.localeCompare(nameB)
-}
-
-// --- State sync ---
-function syncState() {
-  const ed = getEditor()
-  if (!ed) return
-
-  isBold.value = ed.isActive('bold')
-  isItalic.value = ed.isActive('italic')
-  isUnderline.value = ed.isActive('underline')
-  isStrike.value = ed.isActive('strike')
-  isBullet.value = ed.isActive('bulletList')
-  isOrdered.value = ed.isActive('orderedList')
-
-  const attrs = ed.getAttributes('textStyle')
-  const rawFont = attrs?.fontFamily?.replace(/['"]/g, '') || ''
-  currentFont.value = rawFont.split(',')[0].trim()
-  // Parse font size — could be '12pt', '16px', or just a number
-  const rawSize = attrs?.fontSize
-  if (rawSize) {
-    const num = parseFloat(rawSize)
-    currentSize.value = isNaN(num) ? '' : String(Math.round(num))
-  } else {
-    currentSize.value = ''
-  }
-  currentColor.value = attrs?.color || ''
-  currentHighlight.value = ed.getAttributes('highlight')?.color || ''
-
-  // Alignment
-  const pAttrs = ed.getAttributes('paragraph')
-  currentAlign.value = pAttrs?.textAlign || 'left'
-
-  // Line height
-  currentLineHeight.value = pAttrs?.lineHeight || ''
-
-  // Current style detection — SuperDoc uses paragraph nodes with paragraphProperties.styleId
-  const { $from } = ed.state.selection
-  let curStyleId = ''
-  for (let d = $from.depth; d >= 0; d--) {
-    if ($from.node(d).type.name === 'paragraph') {
-      curStyleId = $from.node(d).attrs?.paragraphProperties?.styleId || ''
-      break
-    }
-  }
-  if (curStyleId) {
-    const match = documentStyles.value.find(s => s.id === curStyleId)
-    currentStyle.value = match?.definition?.attrs?.name || curStyleId
-  } else {
-    currentStyle.value = 'Normal'
-  }
-
-  // Track changes — at cursor
-  hasTrackedChange.value = ed.isActive('trackInsert') || ed.isActive('trackDelete') || ed.isActive('trackFormat')
-
-  // Track changes — document-wide (for Accept All / Reject All visibility)
-  try {
-    const changes = trackChangesHelpers.getTrackChanges(ed.state)
-    const count = Array.isArray(changes) ? changes.length : 0
-    trackedChangeCount.value = count
-    hasAnyTrackedChanges.value = count > 0
-  } catch {
-    hasAnyTrackedChanges.value = hasTrackedChange.value
-    trackedChangeCount.value = 0
-  }
-
-  // Track changes toggle state — read from the TrackChangesBase plugin state
-  try {
-    const plugins = ed.view?.state?.plugins || []
-    const tcPlugin = plugins.find(p => p.spec?.key?.key === 'TrackChangesBase$')
-    const tcState = tcPlugin?.getState?.(ed.state)
-    isTrackChangesActive.value = tcState?.isTrackChangesActive ?? (props.documentMode === 'suggesting')
-  } catch {
-    isTrackChangesActive.value = props.documentMode === 'suggesting'
-  }
-
-  // Bibliography presence
-  try {
-    hasBib.value = hasBibliography(ed.view.state.doc)
-  } catch {
-    hasBib.value = false
-  }
-
-  // Undo/redo
-  canUndo.value = ed.can().undo()
-  canRedo.value = ed.can().redo()
-}
-
-function refreshStyles() {
-  const ed = getEditor()
-  if (!ed?.helpers?.linkedStyles?.getStyles) return
-  try {
-    const all = ed.helpers.linkedStyles.getStyles()
-    documentStyles.value = (Array.isArray(all) ? all : []).filter(s => s.type === 'paragraph').sort(styleSort)
-  } catch {
-    // styles not available yet
-  }
-}
-
-// --- Overflow measurement ---
-function measureOverflow() {
-  if (!toolbarRow.value) return
-
-  const refs = [mg0, mg1, mg2, mg3, mg4, mg5, mg6, mg7]
-  const els = []
-  for (let i = 0; i < refs.length; i++) {
-    if (refs[i].value) els.push({ idx: i, el: refs[i].value })
-  }
-  if (!els.length) return
-
-  // Show all for measurement
-  els.forEach(({ el }) => { el.style.display = '' })
-  void toolbarRow.value.offsetWidth
-
-  const containerWidth = toolbarRow.value.clientWidth
-  let totalWidth = 0
-  const widths = []
-  for (const { el } of els) {
-    const w = el.offsetWidth
-    widths.push(w)
-    totalWidth += w
-  }
-
-  const hidden = []
-  if (totalWidth > containerWidth) {
-    const available = containerWidth - 40 // reserve for overflow button
-    let used = 0
-    let overflowing = false
-    for (let i = 0; i < els.length; i++) {
-      if (overflowing) {
-        hidden.push(els[i].idx)
-        continue
-      }
-      used += widths[i]
-      if (used > available && els[i].idx > 0) {
-        overflowing = true
-        hidden.push(els[i].idx)
-      }
-    }
-  }
-
-  for (const { idx, el } of els) {
-    el.style.display = hidden.includes(idx) ? 'none' : ''
-  }
-  overflowGroups.value = hidden
-}
-
-let resizeObserver = null
-let rafId = null
-
-watch(showTrackChanges, () => { nextTick(measureOverflow) })
-
-// --- Wire editor events on mount (parent guarantees activeEditor exists) ---
-let boundSync = null
-
-onMounted(async () => {
-  const ed = getEditor()
-  if (!ed) return
-  editor.value = true // flip template guard
-  boundSync = syncState
-  ed.on('selectionUpdate', boundSync)
-  ed.on('update', boundSync)
-  ed.on('update', refreshStyles)
-  refreshStyles()
-  syncState()
-
-  // Font availability detection — shipped fonts always available, system fonts checked at runtime
-  try {
-    await document.fonts.ready
-    availableFonts.value = FONT_CATALOG.filter(f =>
-      f.shipped || document.fonts.check(`16px "${f.name}"`)
-    )
-  } catch {
-    // Fallback: show all fonts
-    availableFonts.value = FONT_CATALOG
-  }
-
-  // Overflow measurement — must be in nextTick because editor.value=true
-  // triggers a re-render; toolbarRow ref isn't available until DOM updates.
-  resizeObserver = new ResizeObserver(() => {
-    if (rafId) cancelAnimationFrame(rafId)
-    rafId = requestAnimationFrame(measureOverflow)
-  })
-  nextTick(() => {
-    measureOverflow()
-    if (toolbarRow.value) {
-      resizeObserver.observe(toolbarRow.value)
-    }
-  })
-})
-
-onUnmounted(() => {
-  const ed = getEditor()
-  if (ed && boundSync) {
-    ed.off('selectionUpdate', boundSync)
-    ed.off('update', boundSync)
-    ed.off('update', refreshStyles)
-  }
-  if (resizeObserver) {
-    resizeObserver.disconnect()
-    resizeObserver = null
-  }
-  if (rafId) {
-    cancelAnimationFrame(rafId)
-    rafId = null
-  }
+const {
+  openDropdown,
+  dropdownPos,
+  linkUrl,
+  tableHover,
+  stylesBtn,
+  fontBtn,
+  sizeBtn,
+  colorBtn,
+  highlightBtn,
+  alignBtn,
+  lineHeightBtn,
+  linkBtn,
+  tableBtn,
+  modeBtn,
+  linkInput,
+  zoomBtn,
+  overflowGroups,
+  showOverflowPopover,
+  overflowPopoverPos,
+  toolbarRow,
+  overflowBtn,
+  mg0,
+  mg1,
+  mg2,
+  mg3,
+  mg4,
+  mg5,
+  mg6,
+  mg7,
+  availableFonts,
+  zoomPresets,
+  fontSizes,
+  textColors,
+  highlightColors,
+  lineHeights,
+  alignIcon,
+  getStylePreview,
+  toggleOverflow,
+  toggleDropdown,
+  closeDropdown,
+} = useDocxToolbarUi({
+  currentAlign,
+  showTrackChanges,
 })
 
 // --- Commands ---
@@ -832,75 +544,6 @@ function cmd(name, ...args) {
   if (!ed?.commands?.[name]) return
   ed.commands[name](...args)
   ed.view?.focus()
-}
-
-// --- Overflow popover (independent from dropdown state) ---
-function toggleOverflow(event) {
-  if (showOverflowPopover.value) {
-    showOverflowPopover.value = false
-    return
-  }
-  openDropdown.value = null
-  showOverflowPopover.value = true
-  const btn = overflowBtn.value || event?.currentTarget
-  if (btn) {
-    const rect = btn.getBoundingClientRect()
-    // Clamp left so popover stays within viewport (estimate ~300px wide)
-    const left = Math.max(8, Math.min(rect.left, window.innerWidth - 308))
-    overflowPopoverPos.value = {
-      position: 'fixed',
-      left: left + 'px',
-      top: (rect.bottom + 4) + 'px',
-      zIndex: 10000,
-    }
-  }
-}
-
-// --- Dropdown management ---
-// keepOverflow=true when triggered from inside the overflow popover
-function toggleDropdown(name, event, keepOverflow = false) {
-  if (!keepOverflow) showOverflowPopover.value = false
-  if (openDropdown.value === name) {
-    openDropdown.value = null
-    return
-  }
-  openDropdown.value = name
-  // Position relative to trigger button
-  const refMap = {
-    styles: stylesBtn, font: fontBtn, size: sizeBtn, color: colorBtn, highlight: highlightBtn,
-    align: alignBtn, lineHeight: lineHeightBtn, link: linkBtn, table: tableBtn, mode: modeBtn,
-    zoom: zoomBtn,
-  }
-  let btn = refMap[name]?.value
-  // If the ref'd button is hidden (overflowed), use the event target
-  if (btn && btn.offsetParent === null && event) {
-    btn = event.currentTarget
-  }
-  if (!btn && event) {
-    btn = event.currentTarget
-  }
-  if (btn) {
-    const rect = btn.getBoundingClientRect()
-    dropdownPos.value = {
-      position: 'fixed',
-      left: rect.left + 'px',
-      top: (rect.bottom + 4) + 'px',
-      zIndex: 10001,
-    }
-  }
-  // Focus link input after mount
-  if (name === 'link') {
-    nextTick(() => linkInput.value?.focus())
-  }
-  if (name === 'table') {
-    tableHover.value = { r: 0, c: 0 }
-  }
-}
-
-function closeDropdown() {
-  openDropdown.value = null
-  showOverflowPopover.value = false
-  linkUrl.value = ''
 }
 
 // --- Font ---
@@ -977,14 +620,8 @@ function applyLink() {
 // --- Image ---
 async function insertImage() {
   try {
-    const path = await open({
-      filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'] }],
-    })
-    if (!path) return
-    const base64 = await invoke('read_file_base64', { path })
-    const ext = path.split('.').pop().toLowerCase()
-    const mime = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml' }[ext] || 'image/png'
-    const src = `data:${mime};base64,${base64}`
+    const src = await pickDocxImageDataUrl()
+    if (!src) return
     const ed = getEditor()
     if (ed?.commands?.setImage) {
       ed.commands.setImage({ src })

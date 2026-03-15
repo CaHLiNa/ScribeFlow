@@ -337,16 +337,17 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, reactive, computed } from 'vue'
 import { useReferencesStore } from '../../stores/references'
 import { useEditorStore } from '../../stores/editor'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { formatReference } from '../../services/citationFormatter'
-import { getAvailableStyles, getStyleName, setUserStyles } from '../../services/citationStyleRegistry'
-import { importFromPdf, importFromText } from '../../services/referenceImport'
+import { getAvailableStyles, getStyleName } from '../../services/citationStyleRegistry'
+import { saveReferenceExport } from '../../services/referenceFiles'
+import { useReferenceListUi } from '../../composables/useReferenceListUi'
+import { useReferenceImports } from '../../composables/useReferenceImports'
 import { isMod } from '../../platform'
-import { ask, open, save } from '@tauri-apps/plugin-dialog'
-import { invoke } from '@tauri-apps/api/core'
+import { ask } from '@tauri-apps/plugin-dialog'
 import { IconSearch, IconArrowsSort } from '@tabler/icons-vue'
 import ReferenceItem from './ReferenceItem.vue'
 import ReferenceContextMenu from './ReferenceContextMenu.vue'
@@ -357,7 +358,7 @@ import { buildCitationText } from '../../editor/citationSyntax'
 const props = defineProps({
   collapsed: { type: Boolean, default: false },
 })
-const emits = defineEmits(['toggle-collapse'])
+defineEmits(['toggle-collapse'])
 
 const referencesStore = useReferencesStore()
 const editorStore = useEditorStore()
@@ -366,98 +367,7 @@ const { t } = useI18n()
 
 const rootEl = ref(null)
 const searchQuery = ref('')
-const searchFocused = ref(false)
-const showAddDialog = ref(false)
-const dropActive = ref(false)
-const importing = reactive([])
-let importId = 0
-const showSortMenu = ref(false)
 const sortMenuEl = ref(null)
-const sortBtnEl = ref(null)
-
-// Style picker
-const showStyleMenu = ref(false)
-const styleBtnEl = ref(null)
-const styleSearchEl = ref(null)
-const styleSearchQuery = ref('')
-
-const activeStyleName = computed(() => getStyleName(referencesStore.citationStyle))
-
-
-
-const filteredStyles = computed(() => {
-  const all = getAvailableStyles()
-  if (!styleSearchQuery.value.trim()) return all
-  const q = styleSearchQuery.value.toLowerCase()
-  return all.filter(s =>
-    s.name.toLowerCase().includes(q) || (s.category || '').toLowerCase().includes(q)
-  )
-})
-
-// Cited filter
-const citedFilter = ref('all') // 'all' | 'cited' | 'notCited'
-const showFilterMenu = ref(false)
-const filterBtnEl = ref(null)
-const filterMenuPosState = ref({ position: 'fixed', left: '0px', top: '0px' })
-const filterMenuPos = computed(() => filterMenuPosState.value)
-
-const filterOptions = computed(() => [
-  { value: 'all', label: t('All ({count})', { count: searchedRefs.value.length }) },
-  { value: 'cited', label: t('Cited ({count})', { count: citedCount.value }) },
-  { value: 'notCited', label: t('Not cited ({count})', { count: notCitedCount.value }) },
-])
-
-const filterLabel = computed(() => {
-  if (citedFilter.value === 'cited') return t('Cited {count}', { count: citedCount.value })
-  if (citedFilter.value === 'notCited') return t('Not cited {count}', { count: notCitedCount.value })
-  return t('All {count}', { count: searchedRefs.value.length })
-})
-
-function toggleFilterMenu() {
-  showFilterMenu.value = !showFilterMenu.value
-  if (showFilterMenu.value && filterBtnEl.value) {
-    const rect = filterBtnEl.value.getBoundingClientRect()
-    filterMenuPosState.value = {
-      position: 'fixed',
-      left: rect.left + 'px',
-      top: (rect.bottom + 2) + 'px',
-    }
-  }
-}
-
-// Export menu
-const showExportMenu = ref(false)
-const exportBtnEl = ref(null)
-const exportMenuPosState = ref({ position: 'fixed', left: '0px', top: '0px' })
-const exportMenuPos = computed(() => exportMenuPosState.value)
-
-// Import status toast
-const importToast = ref(null)
-let toastTimer = null
-
-const sortOptions = computed(() => [
-  { value: 'addedAt-desc', label: t('Date added (newest)'), field: 'addedAt', dir: 'desc' },
-  { value: 'addedAt-asc', label: t('Date added (oldest)'), field: 'addedAt', dir: 'asc' },
-  { value: 'author-asc', label: t('Author A → Z'), field: 'author', dir: 'asc' },
-  { value: 'author-desc', label: t('Author Z → A'), field: 'author', dir: 'desc' },
-  { value: 'year-desc', label: t('Year (newest)'), field: 'year', dir: 'desc' },
-  { value: 'year-asc', label: t('Year (oldest)'), field: 'year', dir: 'asc' },
-  { value: 'title-asc', label: t('Title A → Z'), field: 'title', dir: 'asc' },
-  { value: 'title-desc', label: t('Title Z → A'), field: 'title', dir: 'desc' },
-])
-
-const currentSortKey = computed(() => `${referencesStore.sortBy}-${referencesStore.sortDir}`)
-
-function applySortOption(value) {
-  const opt = sortOptions.value.find(o => o.value === value)
-  if (opt) {
-    referencesStore.sortBy = opt.field
-    referencesStore.sortDir = opt.dir
-  }
-}
-
-const sortMenuPos = computed(() => sortMenuPosState.value)
-const sortMenuPosState = ref({ position: 'fixed', left: '0px', top: '0px' })
 
 const contextMenu = reactive({
   show: false,
@@ -479,6 +389,50 @@ const notCitedCount = computed(() =>
   searchedRefs.value.length - citedCount.value
 )
 
+const {
+  searchFocused,
+  showAddDialog,
+  showSortMenu,
+  sortBtnEl,
+  sortMenuPos,
+  showStyleMenu,
+  styleBtnEl,
+  styleSearchEl,
+  styleSearchQuery,
+  styleMenuPos,
+  citedFilter,
+  showFilterMenu,
+  filterBtnEl,
+  filterMenuPos,
+  showExportMenu,
+  exportBtnEl,
+  exportMenuPos,
+  importToast,
+  activeStyleName,
+  filteredStyles,
+  filterOptions,
+  filterLabel,
+  sortOptions,
+  currentSortKey,
+  applySortOption,
+  toggleFilterMenu,
+  toggleStyleMenu,
+  selectStyle,
+  toggleSortMenu,
+  toggleExportMenu,
+  showImportMessage,
+  showImportSummary,
+} = useReferenceListUi({
+  referencesStore,
+  searchQueryRef: searchQuery,
+  searchedRefs,
+  citedCount,
+  notCitedCount,
+  t,
+  getAvailableStyles,
+  getStyleName,
+})
+
 const filteredRefs = computed(() => {
   if (citedFilter.value === 'cited') {
     return searchedRefs.value.filter(r => referencesStore.citedKeys.has(r._key))
@@ -489,90 +443,17 @@ const filteredRefs = computed(() => {
   return searchedRefs.value
 })
 
-// --- Style menu ---
-
-const styleMenuPosState = ref({ position: 'fixed', left: '0px', top: '0px' })
-const styleMenuPos = computed(() => styleMenuPosState.value)
-
-function toggleStyleMenu() {
-  showStyleMenu.value = !showStyleMenu.value
-  styleSearchQuery.value = ''
-  if (showStyleMenu.value && styleBtnEl.value) {
-    const rect = styleBtnEl.value.getBoundingClientRect()
-    styleMenuPosState.value = {
-      position: 'fixed',
-      left: rect.left + 'px',
-      top: (rect.bottom + 2) + 'px',
-    }
-    nextTick(() => styleSearchEl.value?.focus())
-  }
-}
-
-function selectStyle(id) {
-  referencesStore.setCitationStyle(id)
-  showStyleMenu.value = false
-}
+const { dropActive, importing, importCustomStyle } = useReferenceImports({
+  referencesStore,
+  workspace,
+  t,
+  showImportMessage,
+  showImportSummary,
+})
 
 async function addCustomStyle() {
   showStyleMenu.value = false
-  const selected = await open({
-    multiple: false,
-    filters: [{ name: 'CSL Style', extensions: ['csl'] }],
-  })
-  if (!selected) return
-
-  try {
-    const { parseCslMetadata, deriveStyleId } = await import('../../utils/cslParser')
-    const xml = await invoke('read_file', { path: selected })
-    const meta = parseCslMetadata(xml)
-    const id = deriveStyleId(meta.id, meta.title)
-    const filename = `${id}.csl`
-
-    // Copy to .project/styles/
-    const destPath = `${workspace.projectDir}/styles/${filename}`
-    await invoke('write_file', { path: destPath, content: xml })
-
-    // Re-load user styles
-    await referencesStore._loadUserStyles(workspace.projectDir)
-
-    // Auto-select the newly added style
-    referencesStore.setCitationStyle(id)
-
-    showToast(0, 0)
-    importToast.value = { text: t('Added style: {title}', { title: meta.title }), hasAdded: true }
-    clearTimeout(toastTimer)
-    toastTimer = setTimeout(() => { importToast.value = null }, 4000)
-  } catch (e) {
-    console.warn('Failed to import CSL style:', e)
-  }
-}
-
-// --- Sort menu ---
-
-function toggleSortMenu() {
-  showSortMenu.value = !showSortMenu.value
-  if (showSortMenu.value && sortBtnEl.value) {
-    const rect = sortBtnEl.value.getBoundingClientRect()
-    sortMenuPosState.value = {
-      position: 'fixed',
-      left: rect.left + 'px',
-      top: (rect.bottom + 2) + 'px',
-    }
-  }
-}
-
-// --- Export menu ---
-
-function toggleExportMenu() {
-  showExportMenu.value = !showExportMenu.value
-  if (showExportMenu.value && exportBtnEl.value) {
-    const rect = exportBtnEl.value.getBoundingClientRect()
-    exportMenuPosState.value = {
-      position: 'fixed',
-      left: rect.left + 'px',
-      top: (rect.bottom + 2) + 'px',
-    }
-  }
+  await importCustomStyle()
 }
 
 async function saveExport(format, keys) {
@@ -580,30 +461,12 @@ async function saveExport(format, keys) {
   const content = format === 'ris'
     ? referencesStore.exportRis(keys)
     : referencesStore.exportBibTeX(keys)
-
   const ext = format === 'ris' ? 'ris' : 'bib'
-  const path = await save({
+  await saveReferenceExport({
+    format,
     title: t('Export references as .{ext}', { ext }),
-    defaultPath: `references.${ext}`,
-    filters: [{ name: format === 'ris' ? 'RIS' : 'BibTeX', extensions: [ext] }],
+    content,
   })
-  if (path) {
-    await invoke('write_file', { path, content })
-  }
-}
-
-function showToast(added, duplicates) {
-  const parts = []
-  if (added > 0) {
-    parts.push(t('{count} added', { count: added }))
-  }
-  if (duplicates > 0) {
-    parts.push(t(duplicates === 1 ? '{count} duplicate skipped' : '{count} duplicates skipped', { count: duplicates }))
-  }
-  if (parts.length === 0) return
-  importToast.value = { text: parts.join(', '), hasAdded: added > 0 }
-  clearTimeout(toastTimer)
-  toastTimer = setTimeout(() => { importToast.value = null }, 4000)
 }
 
 // --- Selection ---
@@ -762,103 +625,4 @@ function handleDragStart({ key, event }) {
   document.addEventListener('mousemove', onMouseMove)
   document.addEventListener('mouseup', onMouseUp)
 }
-
-// --- PDF drop via custom events (routed by FileTree) ---
-
-function onRefDragOver() {
-  dropActive.value = true
-}
-
-function onRefDragLeave() {
-  dropActive.value = false
-}
-
-async function onRefFileDrop(event) {
-  dropActive.value = false
-  const { paths } = event.detail
-  if (!paths?.length) return
-
-  let totalAdded = 0
-  let totalDuplicates = 0
-  const TEXT_EXTS = ['.bib', '.ris', '.json', '.nbib', '.enw', '.txt']
-  const pdfs = []
-  const textFiles = []
-  const cslFiles = []
-
-  for (const p of paths) {
-    const lower = p.toLowerCase()
-    if (lower.endsWith('.pdf')) pdfs.push(p)
-    else if (lower.endsWith('.csl')) cslFiles.push(p)
-    else if (TEXT_EXTS.some(ext => lower.endsWith(ext))) textFiles.push(p)
-  }
-
-  // Handle .csl style files (import as citation styles, not references)
-  for (const filePath of cslFiles) {
-    try {
-      const { parseCslMetadata, deriveStyleId } = await import('../../utils/cslParser')
-      const xml = await invoke('read_file', { path: filePath })
-      const meta = parseCslMetadata(xml)
-      const id = deriveStyleId(meta.id, meta.title)
-      await invoke('write_file', { path: `${workspace.projectDir}/styles/${id}.csl`, content: xml })
-      await referencesStore._loadUserStyles(workspace.projectDir)
-      referencesStore.setCitationStyle(id)
-      importToast.value = { text: t('Added style: {title}', { title: meta.title }), hasAdded: true }
-      clearTimeout(toastTimer)
-      toastTimer = setTimeout(() => { importToast.value = null }, 4000)
-    } catch (e) {
-      console.warn('CSL import failed:', filePath, e)
-    }
-  }
-
-  // Handle text format files (.bib, .ris, .json, .nbib, .enw, .txt)
-  for (const filePath of textFiles) {
-    const id = ++importId
-    const name = filePath.split('/').pop()
-    importing.push({ id, name })
-    try {
-      const content = await invoke('read_file', { path: filePath })
-      const result = await importFromText(content, workspace)
-      if (result.results?.length > 0) {
-        const report = referencesStore.addReferences(result.results.map(r => r.csl))
-        totalAdded += report.added.length
-        totalDuplicates += report.duplicates.length
-      }
-    } catch (e) {
-      console.warn('File import failed:', filePath, e)
-    }
-    const idx = importing.findIndex(i => i.id === id)
-    if (idx !== -1) importing.splice(idx, 1)
-  }
-
-  // Handle PDF files (in parallel with optimistic placeholders)
-  const pdfPromises = pdfs.map(async (filePath) => {
-    const id = ++importId
-    const name = filePath.split('/').pop()
-    importing.push({ id, name })
-    try {
-      const result = await importFromPdf(filePath, workspace, referencesStore)
-      if (result) totalAdded++
-      else totalDuplicates++
-    } catch (e) {
-      console.warn('PDF import failed:', filePath, e)
-    }
-    const idx = importing.findIndex(i => i.id === id)
-    if (idx !== -1) importing.splice(idx, 1)
-  })
-
-  await Promise.all(pdfPromises)
-  showToast(totalAdded, totalDuplicates)
-}
-
-onMounted(() => {
-  window.addEventListener('ref-drag-over', onRefDragOver)
-  window.addEventListener('ref-drag-leave', onRefDragLeave)
-  window.addEventListener('ref-file-drop', onRefFileDrop)
-})
-
-onUnmounted(() => {
-  window.removeEventListener('ref-drag-over', onRefDragOver)
-  window.removeEventListener('ref-drag-leave', onRefDragLeave)
-  window.removeEventListener('ref-file-drop', onRefFileDrop)
-})
 </script>
