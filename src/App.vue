@@ -214,7 +214,6 @@ onMounted(async () => {
   const lastWorkspace = localStorage.getItem('lastWorkspace')
   if (lastWorkspace) {
     try {
-      const { invoke } = await import('@tauri-apps/api/core')
       const restoredWorkspace = await activateWorkspaceBookmark(lastWorkspace)
       const exists = await invoke('path_exists', { path: restoredWorkspace })
       if (exists) {

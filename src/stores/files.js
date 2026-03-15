@@ -4,6 +4,8 @@ import { listen } from '@tauri-apps/api/event'
 import { useWorkspaceStore } from './workspace'
 import { formatFileError } from '../utils/errorMessages'
 import { isBinaryFile } from '../utils/fileTypes'
+import { extractTextFromPdf } from '../utils/pdfMetadata'
+import { useToastStore } from './toast'
 
 function cloneRootEntries(entries = []) {
   return entries.map((entry) => {
@@ -712,7 +714,6 @@ export const useFilesStore = defineStore('files', {
       // PDF: extract text and cache it (for chat dedup and @file refs)
       if (path.toLowerCase().endsWith('.pdf')) {
         try {
-          const { extractTextFromPdf } = await import('../utils/pdfMetadata')
           const text = await extractTextFromPdf(path)
           this.fileContents[path] = text
           this._clearFileLoadError(path)
@@ -763,7 +764,6 @@ export const useFilesStore = defineStore('files', {
         }
       } catch (e) {
         console.error('Failed to save file:', e)
-        const { useToastStore } = await import('./toast')
         useToastStore().showOnce(`save:${path}`, formatFileError('save', path, e), { type: 'error', duration: 5000 })
       }
     },
@@ -777,7 +777,6 @@ export const useFilesStore = defineStore('files', {
           // Check for collision (write_file_base64 would silently overwrite)
           const exists = await invoke('path_exists', { path: fullPath })
           if (exists) {
-            const { useToastStore } = await import('./toast')
             useToastStore().showOnce(`create:${fullPath}`, `"${name}" already exists`, { type: 'error', duration: 4000 })
             return null
           }
@@ -786,7 +785,6 @@ export const useFilesStore = defineStore('files', {
           return fullPath
         } catch (e) {
           console.error('Failed to create DOCX:', e)
-          const { useToastStore } = await import('./toast')
           useToastStore().showOnce(`create:${fullPath}`, `Failed to create "${name}"`, { type: 'error', duration: 4000 })
           return null
         }
@@ -812,7 +810,6 @@ export const useFilesStore = defineStore('files', {
         return fullPath
       } catch (e) {
         console.error('Failed to create file:', e)
-        const { useToastStore } = await import('./toast')
         useToastStore().showOnce(`create:${fullPath}`, `"${name}" already exists`, { type: 'error', duration: 4000 })
         return null
       }
@@ -879,7 +876,6 @@ export const useFilesStore = defineStore('files', {
       if (oldPath !== newPath) {
         const exists = await invoke('path_exists', { path: newPath })
         if (exists) {
-          const { useToastStore } = await import('./toast')
           const name = newPath.split('/').pop()
           useToastStore().showOnce(`rename:${newPath}`, `"${name}" already exists`, { type: 'error', duration: 4000 })
           return false

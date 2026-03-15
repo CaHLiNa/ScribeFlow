@@ -5,7 +5,9 @@ import { useReviewsStore } from '../stores/reviews'
 import { useEditorStore } from '../stores/editor'
 import { useFilesStore } from '../stores/files'
 import { nanoid } from '../stores/utils'
+import { lookupByDoi } from './crossref'
 import { extractDocumentText, extractBlockList } from './docxContext'
+import { parseBibtex } from '../utils/bibtexParser'
 import { isMultimodalImage, isPdf, getMimeType } from '../utils/fileTypes'
 import { buildCitationText } from '../editor/citationSyntax'
 
@@ -571,7 +573,6 @@ export function getAiTools(workspace) {
         const trimmed = raw.trim()
 
         if (/^@\w+\s*\{/.test(trimmed)) {
-          const { parseBibtex } = await import('../utils/bibtexParser')
           const entries = parseBibtex(trimmed)
           if (!entries || entries.length === 0) return 'Failed to parse BibTeX input.'
           const results = []
@@ -587,7 +588,6 @@ export function getAiTools(workspace) {
           return results.join('\n')
         }
 
-        const { lookupByDoi } = await import('./crossref')
         const doi = trimmed.replace(/^https?:\/\/doi\.org\//, '').replace(/^doi:\s*/i, '')
         const csl = await lookupByDoi(doi)
         if (!csl) return `DOI not found: ${doi}`

@@ -58,6 +58,7 @@ import { useWorkspaceStore } from '../../stores/workspace'
 import { useReviewsStore } from '../../stores/reviews'
 import { useLinksStore } from '../../stores/links'
 import { useReferencesStore } from '../../stores/references'
+import { sendCode, runFile } from '../../services/codeRunner'
 import { useTypstStore } from '../../stores/typst'
 import { isMarkdown, isLatex, isTypst, isImage, isRunnable, getLanguage, isRmdOrQmd, relativePath } from '../../utils/fileTypes'
 import { useLatexStore } from '../../stores/latex'
@@ -493,8 +494,6 @@ onMounted(async () => {
 
   // Code runner keybindings for runnable files
   if (fileIsRunnable) {
-    const { sendCode, runFile } = await import('../../services/codeRunner')
-
     if (fileIsRmdOrQmd) {
       // .Rmd/.qmd: chunk-aware execution with inline outputs
       const { chunkField: cf, chunkAtPosition, extractAllChunkCode } = await import('../../editor/codeChunks')

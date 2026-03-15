@@ -182,6 +182,7 @@
 
 <script setup>
 import { computed, ref, onMounted, onUnmounted, defineAsyncComponent, watch } from 'vue'
+import { invoke } from '@tauri-apps/api/core'
 import { useEditorStore } from '../../stores/editor'
 import { useFilesStore } from '../../stores/files'
 import { useChatStore } from '../../stores/chat'
@@ -192,6 +193,7 @@ import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { EditorView } from '@codemirror/view'
 import { getViewerType, isReferencePath, referenceKeyFromPath, getLanguage, isLatex, isRmdOrQmd, isChatTab, getChatSessionId, isTypst } from '../../utils/fileTypes'
 import { sendCode, runFile, renderDocument } from '../../services/codeRunner'
+import { ensureBibFile } from '../../services/latexBib'
 import { useLatexStore } from '../../stores/latex'
 import { useTypstStore } from '../../stores/typst'
 import { useI18n } from '../../i18n'
@@ -537,7 +539,6 @@ async function handleWorkflowRevealPreview() {
 
   if (workflowUiState.value.kind === 'markdown') {
     try {
-      const { invoke } = await import('@tauri-apps/api/core')
       const pdfPath = props.activeTab.replace(/\.(md|rmd|qmd)$/i, '.pdf')
       const hasPdf = await invoke('path_exists', { path: pdfPath })
       if (hasPdf) {
@@ -575,12 +576,6 @@ async function handleExportPdf(settingsOverride) {
     problems: [],
   })
   try {
-    const { invoke } = await import('@tauri-apps/api/core')
-    const { useTypstStore } = await import('../../stores/typst')
-    const { useWorkspaceStore } = await import('../../stores/workspace')
-    const typstStore = useTypstStore()
-    const workspace = useWorkspaceStore()
-
     // For .Rmd/.qmd: knit first (execute chunks, produce clean .md), then export that
     let mdPathForExport = props.activeTab
     let tempMdPath = null
@@ -632,7 +627,6 @@ async function handleExportPdf(settingsOverride) {
     // Generate .bib file from reference library (reuses LaTeX pipeline)
     let bibPath = null
     try {
-      const { ensureBibFile } = await import('../../services/latexBib')
       bibPath = await ensureBibFile(props.activeTab)
     } catch (e) {
       // No references or bib generation failed — continue without

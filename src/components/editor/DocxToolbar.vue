@@ -439,6 +439,7 @@ import {
   IconMinus, IconPlus,
 } from '@tabler/icons-vue'
 import { invoke } from '@tauri-apps/api/core'
+import { open } from '@tauri-apps/plugin-dialog'
 import { trackChangesHelpers } from 'superdoc'
 import { hasBibliography, insertBibliography, refreshBibliography } from '../../services/docxCitationImporter'
 import { useReferencesStore } from '../../stores/references'
@@ -976,7 +977,6 @@ function applyLink() {
 // --- Image ---
 async function insertImage() {
   try {
-    const { open } = await import('@tauri-apps/plugin-dialog')
     const path = await open({
       filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'] }],
     })

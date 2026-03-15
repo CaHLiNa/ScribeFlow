@@ -1,8 +1,11 @@
 import { defineStore } from 'pinia'
 import { invoke } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
+import { setUserStyles } from '../services/citationStyleRegistry'
 import { events } from '../services/telemetry'
 import { useWorkspaceStore } from './workspace'
 import { useFilesStore } from './files'
+import { extractTextFromPdf } from '../utils/pdfMetadata'
 
 export const useReferencesStore = defineStore('references', {
   state: () => ({
@@ -179,7 +182,6 @@ export const useReferencesStore = defineStore('references', {
       if (cslFiles.length === 0) return
 
       const { parseCslMetadata, deriveStyleId } = await import('../utils/cslParser')
-      const { setUserStyles } = await import('../services/citationStyleRegistry')
 
       const styles = []
       for (const entry of cslFiles) {
@@ -230,8 +232,6 @@ export const useReferencesStore = defineStore('references', {
       const workspace = useWorkspaceStore()
       if (!workspace.projectDir) return
       if (this._unlisten) this._unlisten()
-
-      const { listen } = await import('@tauri-apps/api/event')
 
       this._unlisten = await listen('fs-change', async (event) => {
         const paths = event.payload?.paths || []
@@ -475,7 +475,6 @@ export const useReferencesStore = defineStore('references', {
 
       // Extract text for full-text search
       try {
-        const { extractTextFromPdf } = await import('../utils/pdfMetadata')
         const text = await extractTextFromPdf(destPdf)
         if (text) {
           await invoke('write_file', {

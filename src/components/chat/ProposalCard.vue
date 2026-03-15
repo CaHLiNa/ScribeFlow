@@ -34,6 +34,7 @@
 <script setup>
 import { reactive } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
+import { lookupByDoi } from '../../services/crossref'
 
 const props = defineProps({
   prompt: { type: String, required: true },
@@ -56,7 +57,6 @@ async function selectOption(opt, index) {
   // Add to library in background if doi present
   if (opt.doi) {
     try {
-      const { lookupByDoi } = await import('../../services/crossref')
       const { useReferencesStore } = await import('../../stores/references')
       const refsStore = useReferencesStore()
       const csl = await lookupByDoi(opt.doi)

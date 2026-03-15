@@ -342,10 +342,10 @@ import { useReferencesStore } from '../../stores/references'
 import { useEditorStore } from '../../stores/editor'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { formatReference } from '../../services/citationFormatter'
-import { getAvailableStyles, getStyleName } from '../../services/citationStyleRegistry'
+import { getAvailableStyles, getStyleName, setUserStyles } from '../../services/citationStyleRegistry'
 import { importFromPdf, importFromText } from '../../services/referenceImport'
 import { isMod } from '../../platform'
-import { ask, save } from '@tauri-apps/plugin-dialog'
+import { ask, open, save } from '@tauri-apps/plugin-dialog'
 import { invoke } from '@tauri-apps/api/core'
 import { IconSearch, IconArrowsSort } from '@tabler/icons-vue'
 import ReferenceItem from './ReferenceItem.vue'
@@ -515,7 +515,6 @@ function selectStyle(id) {
 
 async function addCustomStyle() {
   showStyleMenu.value = false
-  const { open } = await import('@tauri-apps/plugin-dialog')
   const selected = await open({
     multiple: false,
     filters: [{ name: 'CSL Style', extensions: ['csl'] }],
@@ -524,7 +523,6 @@ async function addCustomStyle() {
 
   try {
     const { parseCslMetadata, deriveStyleId } = await import('../../utils/cslParser')
-    const { setUserStyles, getAvailableStyles: getAllStyles } = await import('../../services/citationStyleRegistry')
     const xml = await invoke('read_file', { path: selected })
     const meta = parseCslMetadata(xml)
     const id = deriveStyleId(meta.id, meta.title)

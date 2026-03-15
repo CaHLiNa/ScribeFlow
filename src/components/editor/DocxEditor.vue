@@ -79,6 +79,7 @@ import { useWorkspaceStore } from '../../stores/workspace'
 import { useEditorStore } from '../../stores/editor'
 import { useFilesStore } from '../../stores/files'
 import { useReferencesStore } from '../../stores/references'
+import { useToastStore } from '../../stores/toast'
 import { base64ToFile, blobToBase64, base64ToUint8Array } from '../../utils/docxBridge'
 import { createDocxAIProvider } from '../../services/docxProvider'
 import { createDocxGhostExtension, ghostPluginKey } from '../../editor/docxGhost'
@@ -460,7 +461,6 @@ onMounted(async () => {
     window.addEventListener('docx-insert-bibliography', handleInsertBibliographyEvent)
   } catch (e) {
     console.error('Failed to load DOCX:', e)
-    const { useToastStore } = await import('../../stores/toast')
     useToastStore().show(formatFileError('load', props.filePath, e), { type: 'error', duration: 5000 })
   }
 })
@@ -608,7 +608,6 @@ async function saveNow() {
     persistCitationMeta(props.filePath)
   } catch (e) {
     console.error('DOCX save error:', e)
-    const { useToastStore } = await import('../../stores/toast')
     useToastStore().showOnce(`save:${props.filePath}`, formatFileError('save', props.filePath, e), { type: 'error', duration: 5000 })
   } finally {
     isSaving = false

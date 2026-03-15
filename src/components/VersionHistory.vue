@@ -101,6 +101,7 @@ import { shouldersTheme, shouldersHighlighting } from '../editor/theme'
 import { useWorkspaceStore } from '../stores/workspace'
 import { useEditorStore } from '../stores/editor'
 import { useFilesStore } from '../stores/files'
+import { useToastStore } from '../stores/toast'
 import { gitLog, gitShow, gitShowBase64 } from '../services/git'
 import { getViewerType } from '../utils/fileTypes'
 import { base64ToFile } from '../utils/docxBridge'
@@ -300,7 +301,6 @@ async function restoreVersion() {
     emit('close')
   } catch (e) {
     console.error('Failed to restore:', e)
-    const { useToastStore } = await import('../stores/toast')
     useToastStore().show(formatFileError('restore', props.filePath, e), { type: 'error', duration: 5000 })
   }
 }

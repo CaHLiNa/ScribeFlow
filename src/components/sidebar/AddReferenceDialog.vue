@@ -136,6 +136,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { invoke } from '@tauri-apps/api/core'
 import { useReferencesStore } from '../../stores/references'
 import { useEditorStore } from '../../stores/editor'
 import { useWorkspaceStore } from '../../stores/workspace'
@@ -176,7 +177,6 @@ async function onRefFileDrop(event) {
     loading.value = true
     statusText.value = t('Importing {name}...', { name: filePath.split('/').pop() })
     try {
-      const { invoke } = await import('@tauri-apps/api/core')
       const content = await invoke('read_file', { path: filePath })
       const { results: importResults, errors: importErrors } = await importFromText(content, workspace)
       for (const r of importResults) {

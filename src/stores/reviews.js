@@ -5,6 +5,7 @@ import { useWorkspaceStore } from './workspace'
 import { useFilesStore } from './files'
 import { useEditorStore } from './editor'
 import { formatFileError } from '../utils/errorMessages'
+import { useToastStore } from './toast'
 
 const NOTEBOOK_TOOLS = ['NotebookEditCell', 'NotebookAddCell', 'NotebookDeleteCell']
 
@@ -153,7 +154,6 @@ export const useReviewsStore = defineStore('reviews', {
         await this.savePendingEdits()
       } catch (e) {
         console.warn('Failed to revert edit:', e)
-        const { useToastStore } = await import('./toast')
         useToastStore().show(formatFileError('restore', edit.file_path, e), { type: 'error', duration: 5000 })
       }
     },

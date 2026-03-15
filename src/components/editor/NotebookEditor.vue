@@ -200,6 +200,7 @@ import { useEditorStore } from '../../stores/editor'
 import { useKernelStore } from '../../stores/kernel'
 import { useReviewsStore } from '../../stores/reviews'
 import { useEnvironmentStore } from '../../stores/environment'
+import { useToastStore } from '../../stores/toast'
 import { formatFileError } from '../../utils/errorMessages'
 import { parseNotebook, serializeNotebook, generateCellId, getNotebookLanguage } from '../../utils/notebookFormat'
 import NotebookCell from './NotebookCell.vue'
@@ -445,7 +446,6 @@ async function saveNotebook() {
     }
   } catch (e) {
     console.error('Notebook save failed:', e)
-    const { useToastStore } = await import('../../stores/toast')
     useToastStore().showOnce(`save:${props.filePath}`, formatFileError('save', props.filePath, e), { type: 'error', duration: 5000 })
   } finally {
     saving.value = false

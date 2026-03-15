@@ -15,15 +15,19 @@
 | 多个模块把仅文件内使用的 helper 暴露成公共 API，增加维护噪音 | 将内部 helper 改回私有函数，缩小维护面而不改行为 | `src/services/citationStyleRegistry.js`, `src/services/crossref.js`, `src/services/documentWorkflow/policy.js`, `src/services/documentWorkflow/reconcile.js`, `src/services/workspacePermissions.js`, `src/stores/links.js`, `src/utils/chatMarkdown.js`, `src/i18n/index.js`, `src/services/telemetry.js`, `src/services/apiClient.js`, `src/services/chatModels.js` |
 | 推送后续扫中仍发现少量断链兼容层和废弃实现 | 删除 `chatTools` 旧兼容导出、移除 `docxCitationImporter` 被 `postProcessCitationsOrdered` 替代的旧 Phase 2，并继续收拢 `modelCatalog` 内部 helper | `src/services/chatTools.js`, `src/services/docxCitationImporter.js`, `src/services/modelCatalog.js` |
 | 构建 warning 中存在可安全收缩的动态/静态导入混用 | 统一 `telemetry` 与 `errorMessages` 的引用方式，减少无意义 chunk warning 噪音 | `src/App.vue`, `src/components/VersionHistory.vue`, `src/components/editor/DocxEditor.vue`, `src/components/editor/NotebookEditor.vue`, `src/editor/ghostSuggestion.js`, `src/stores/chat.js`, `src/stores/editor.js`, `src/stores/files.js`, `src/stores/references.js`, `src/stores/reviews.js`, `src/stores/typst.js`, `src/stores/workspace.js` |
+| 构建 warning 里还残留一批无状态工具模块的动态/静态混用 | 继续统一 `core`、`plugin-dialog`、`event`、`citationStyleRegistry`、`crossref`、`bibtexParser`、`codeRunner`、`latexBib`、`pdfMetadata`、`toast`、`tauriFetch` 的引用方式，进一步压缩 warning 面 | `src/App.vue`, `src/components/VersionHistory.vue`, `src/components/chat/ProposalCard.vue`, `src/components/editor/DocxEditor.vue`, `src/components/editor/DocxToolbar.vue`, `src/components/editor/EditorPane.vue`, `src/components/editor/NotebookEditor.vue`, `src/components/editor/ReferenceView.vue`, `src/components/editor/TextEditor.vue`, `src/components/shared/RichTextInput.vue`, `src/components/sidebar/AddReferenceDialog.vue`, `src/components/sidebar/ReferenceList.vue`, `src/services/chatTools.js`, `src/services/citationFormatterCSL.js`, `src/stores/chat.js`, `src/stores/files.js`, `src/stores/references.js`, `src/stores/reviews.js` |
 
 ## Verification Findings
-- 共完成 7 轮“改完即测”验证。
+- 共完成 10 轮成功的“改完即测”验证。
 - 每一轮都运行了：
   - `npm run build`
   - `cargo check --manifest-path src-tauri/Cargo.toml`
 - 最后一轮的最新结果仍然是：
   - 根前端 `npm run build` 通过
   - Rust `cargo check --manifest-path src-tauri/Cargo.toml` 通过
+- 本轮续扫中有 1 次中间构建失败：
+  - 原因是把 `createTauriFetch()` 误写成不存在的命名导出 `tauriFetch`
+  - 已按最小修正恢复，并在修正后重新完成完整验证
 - 额外复盘扫描结果：
   - 从 `src/main.js` 出发的前端不可达文件扫描结果为空
   - Tauri `generate_handler!` 中“已注册但前端未调用命令”扫描结果为空
@@ -37,6 +41,7 @@
 - 仓库仍然缺少自动化测试，本轮只能用构建/编译验证兜底，无法替代全链路交互回归。
 - 仍存在较多 “dynamic import + static import 混用” 的 Vite 警告，说明还有进一步的代码分块/依赖整理空间，但这已进入主链路重构风险区。
 - 其中 `telemetry.js` 与 `errorMessages.js` 两组混用告警已在续扫中消失，剩余 warning 主要集中在 stores 相互依赖、Tauri API 包装层和引用/预览子系统。
+- 第二轮续扫后，`core`、`plugin-dialog`、`event`、`citationStyleRegistry`、`crossref`、`bibtexParser`、`codeRunner`、`latexBib`、`pdfMetadata`、`toast`、`tauriFetch` 这些 warning 已消失；当前剩余项基本都是 store 间状态回路、`workspace/usage` 互相引用和包级分块问题。
 - 主包体依旧很大，尤其 `superdoc` 和主 `index` chunk；这是后续性能/构建优化议题，不属于本轮“安全清屎山”范围。
 
 ## Decisions Made

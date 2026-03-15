@@ -5,6 +5,7 @@
  * It loads citeproc-js (~500KB), the requested .csl file, and locale XML,
  * then formats citations/bibliographies via the CSL engine.
  */
+import { invoke } from '@tauri-apps/api/core'
 
 // Cache CSL engine instances by style ID
 const engineCache = new Map()
@@ -33,7 +34,6 @@ async function loadStyleXml(styleId) {
 
   // Fallback: try user styles in .project/styles/
   try {
-    const { invoke } = await import('@tauri-apps/api/core')
     const { useWorkspaceStore } = await import('../stores/workspace')
     const workspace = useWorkspaceStore()
     if (workspace.projectDir) {

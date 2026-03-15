@@ -107,6 +107,33 @@
   - `src/stores/typst.js`
   - `src/stores/workspace.js`
 
+### Follow-up Continuation 2: Import Consolidation
+- **Status:** complete
+- Actions taken:
+  - 统一 `@tauri-apps/api/core`、`@tauri-apps/plugin-dialog`、`@tauri-apps/api/event` 的引用方式，删除仅制造 warning 的动态导入
+  - 统一 `citationStyleRegistry`、`crossref`、`bibtexParser`、`codeRunner`、`latexBib`、`pdfMetadata`、`toast`、`tauriFetch` 的引用方式
+  - 构建中途发现一次真实问题：`tauriFetch` 被误当成命名导出；已定位到 `createTauriFetch()` 才是正确导出，并最小修正
+  - 在修正后重新执行完整验证，确认本轮整理未引入回归
+- Files created/modified:
+  - `src/App.vue`
+  - `src/components/VersionHistory.vue`
+  - `src/components/chat/ProposalCard.vue`
+  - `src/components/editor/DocxEditor.vue`
+  - `src/components/editor/DocxToolbar.vue`
+  - `src/components/editor/EditorPane.vue`
+  - `src/components/editor/NotebookEditor.vue`
+  - `src/components/editor/ReferenceView.vue`
+  - `src/components/editor/TextEditor.vue`
+  - `src/components/shared/RichTextInput.vue`
+  - `src/components/sidebar/AddReferenceDialog.vue`
+  - `src/components/sidebar/ReferenceList.vue`
+  - `src/services/chatTools.js`
+  - `src/services/citationFormatterCSL.js`
+  - `src/stores/chat.js`
+  - `src/stores/files.js`
+  - `src/stores/references.js`
+  - `src/stores/reviews.js`
+
 ## Test Results
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|
@@ -124,15 +151,22 @@
 | Rust 检查 Round 6 | `cargo check --manifest-path src-tauri/Cargo.toml` | 统一 `telemetry` 引用方式后仍可编译 | 通过 | 通过 |
 | 前端构建 Round 7 | `npm run build` | 统一 `errorMessages` 引用方式后仍可构建 | 通过，且对应 warning 消失 | 通过 |
 | Rust 检查 Round 7 | `cargo check --manifest-path src-tauri/Cargo.toml` | 统一 `errorMessages` 引用方式后仍可编译 | 通过 | 通过 |
+| 前端构建 Round 8 | `npm run build` | 第一批 import consolidation 后仍可构建 | 通过，且多组 warning 消失 | 通过 |
+| Rust 检查 Round 8 | `cargo check --manifest-path src-tauri/Cargo.toml` | 第一批 import consolidation 后仍可编译 | 通过 | 通过 |
+| 前端构建 Round 9 | `npm run build` | 第二批 import consolidation 后仍可构建 | 通过，且更多 warning 消失 | 通过 |
+| Rust 检查 Round 9 | `cargo check --manifest-path src-tauri/Cargo.toml` | 第二批 import consolidation 后仍可编译 | 通过 | 通过 |
+| 前端构建 Round 10 | `npm run build` | 修正 `createTauriFetch()` 导出使用后仍可构建 | 通过，且 `toast/tauriFetch` warning 消失 | 通过 |
+| Rust 检查 Round 10 | `cargo check --manifest-path src-tauri/Cargo.toml` | 修正 `createTauriFetch()` 导出使用后仍可编译 | 通过 | 通过 |
 
 ## Error Log
 | Timestamp | Error | Attempt | Resolution |
 |-----------|-------|---------|------------|
-| 暂无 | - | - | - |
+| 本轮续扫中 | `src/stores/chat.js` 错误导入不存在的 `tauriFetch` 命名导出，导致 `npm run build` 失败 | 读取 `src/services/tauriFetch.js` 导出定义并比对调用方 | 改为导入 `createTauriFetch` 并在调用处实例化，复跑构建通过 |
 
 ## Current State
 - 本轮大清理已经完成一个安全收束点。
 - 主入口不可达文件扫描为空。
 - Tauri 已注册但前端未调用的命令扫描为空。
 - `telemetry.js` 与 `errorMessages.js` 两组动态/静态导入混用 warning 已清掉。
-- 目前剩余更高价值但更高风险的工作，已经转向 stores 互相依赖、Tauri API 包装层、引用/预览子系统的动态导入整理，以及主链路抽象重构。
+- 第二轮续扫后，`core`、`plugin-dialog`、`event`、`citationStyleRegistry`、`crossref`、`bibtexParser`、`codeRunner`、`latexBib`、`pdfMetadata`、`toast`、`tauriFetch` 的混用 warning 也已清掉。
+- 目前剩余更高价值但更高风险的工作，已经集中在 stores 互相依赖、`workspace/usage` 状态回路、`documentWorkflow`/`files` 交叉依赖，以及包级分块优化。

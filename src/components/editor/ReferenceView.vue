@@ -292,10 +292,12 @@
 
 <script setup>
 import { ref as vRef, computed, watch, onMounted } from 'vue'
+import { invoke } from '@tauri-apps/api/core'
 import { useReferencesStore } from '../../stores/references'
 import { useEditorStore } from '../../stores/editor'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { formatReference } from '../../services/citationFormatter'
+import { getFormatter } from '../../services/citationStyleRegistry'
 import { ask, open } from '@tauri-apps/plugin-dialog'
 import PdfViewer from './PdfViewer.vue'
 import { useI18n } from '../../i18n'
@@ -458,7 +460,6 @@ async function handleCopyAs(style) {
   if (style === 'bibtex') {
     text = referencesStore.exportBibTeX([ref.value._key])
   } else {
-    const { getFormatter } = await import('../../services/citationStyleRegistry')
     const formatter = getFormatter(style)
     const result = formatter.formatReference(ref.value)
     text = result instanceof Promise ? await result : result
@@ -496,7 +497,6 @@ async function attachPdf() {
   if (!selected || !ref.value) return
 
   // Copy PDF to references/pdfs/ and update the reference
-  const { invoke } = await import('@tauri-apps/api/core')
   const fileName = selected.split('/').pop()
   const destDir = `${workspace.projectDir}/references/pdfs`
   await invoke('create_dir', { path: destDir })

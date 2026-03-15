@@ -11,6 +11,7 @@ import { generateText } from 'ai'
 import { getContextWindow, getThinkingConfig } from '../services/chatModels'
 import { buildBaseSystemPrompt } from '../services/systemPrompt'
 import { events } from '../services/telemetry'
+import { createTauriFetch } from '../services/tauriFetch'
 import { calculateCost } from '../services/tokenUsage'
 import { cleanPartsForStorage } from '../services/aiSdk'
 import { createChatTransport } from '../services/chatTransport'
@@ -709,8 +710,7 @@ export const useChatStore = defineStore('chat', () => {
     if (!userText) return
 
     try {
-      const tauriFetch = (await import('../services/tauriFetch')).tauriFetch
-      const model = createModel(access, tauriFetch)
+      const model = createModel(access, createTauriFetch())
 
       const result = await generateText({
         model,
