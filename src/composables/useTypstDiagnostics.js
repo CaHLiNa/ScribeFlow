@@ -11,9 +11,22 @@ import {
   updateTypstDiagnostics,
   focusTypstDiagnostic,
 } from '../editor/typstEditorIntegration'
+import {
+  closeTinymistDocument,
+  ensureTinymistDocument,
+  subscribeTinymistDiagnostics,
+  subscribeTinymistStatus,
+  updateTinymistDocument,
+} from '../services/tinymist/session'
+import {
+  getTinymistDiagnosticsStatus,
+  normalizeTinymistDiagnostics,
+} from '../services/tinymist/diagnostics'
+
+const TINYMIST_SYNC_DEBOUNCE_MS = 180
 
 export function useTypstDiagnostics(options) {
-  const { filePath, getView, typstStore, editorStore } = options
+  const { filePath, getView, typstStore, editorStore, getWorkspacePath } = options
 
   const typstUi = reactive({
     diagnostics: [],
@@ -23,7 +36,14 @@ export function useTypstDiagnostics(options) {
     lastAutoJumpSignature: '',
     jumpInFlight: false,
     userMovedSinceLastJump: false,
+    diagnosticsProvider: 'compile',
+    tinymistActive: false,
   })
+
+  let tinymistSyncTimer = null
+  let cleanupTinymistDiagnostics = null
+  let cleanupTinymistStatus = null
+  let tinymistDocumentOpen = false
 
   function clearTypstDiagnosticsUi() {
     typstUi.diagnostics = []
@@ -36,24 +56,28 @@ export function useTypstDiagnostics(options) {
     }
   }
 
-  function applyTypstDiagnosticsState(result, options = {}) {
-    const diagnostics = normalizeTypstDiagnostics(filePath, result).map((diagnostic) => ({
+  function applyNormalizedDiagnostics(diagnostics, options = {}) {
+    const normalized = diagnostics.map((diagnostic) => ({
       ...diagnostic,
       _signature: buildTypstDiagnosticSignature(diagnostic),
     }))
 
-    const nextStatus = options.status ?? (result?.success ? 'success' : diagnostics.length ? 'error' : null)
+    const nextStatus = options.status ?? (
+      normalized.some(diagnostic => diagnostic.severity === 'error')
+        ? 'error'
+        : 'success'
+    )
     const statusTransition = getTypstStatusTransition(typstUi.lastCompileStatus, nextStatus)
     typstUi.lastCompileStatus = nextStatus
 
-    if (diagnostics.length === 0) {
+    if (normalized.length === 0) {
       clearTypstDiagnosticsUi()
       return
     }
 
-    const primary = getPrimaryTypstDiagnostic(diagnostics)
-    const preservedActive = diagnostics.find((diagnostic) => diagnostic._signature === typstUi.activeSignature) || null
-    const defaultDiagnostic = preservedActive || primary || diagnostics[0] || null
+    const primary = getPrimaryTypstDiagnostic(normalized)
+    const preservedActive = normalized.find((diagnostic) => diagnostic._signature === typstUi.activeSignature) || null
+    const defaultDiagnostic = preservedActive || primary || normalized[0] || null
     const nextSignature = defaultDiagnostic?._signature || ''
     const shouldJump = options.allowAutoJump !== false
       && shouldAutoJumpTypstDiagnostic(typstUi.lastAutoJumpSignature, primary, {
@@ -62,13 +86,13 @@ export function useTypstDiagnostics(options) {
         nextSignature: primary?._signature || '',
       })
 
-    typstUi.diagnostics = diagnostics
+    typstUi.diagnostics = normalized
     typstUi.activeSignature = nextSignature
-    typstUi.expanded = typstUi.expanded && diagnostics.length > 1
+    typstUi.expanded = typstUi.expanded && normalized.length > 1
 
     const view = getView()
     if (view) {
-      updateTypstDiagnostics(view, diagnostics, { activeSignature: nextSignature })
+      updateTypstDiagnostics(view, normalized, { activeSignature: nextSignature })
     }
 
     if (shouldJump && view && primary) {
@@ -79,6 +103,23 @@ export function useTypstDiagnostics(options) {
       typstUi.lastAutoJumpSignature = primary._signature
       typstUi.userMovedSinceLastJump = false
     }
+  }
+
+  function applyTypstDiagnosticsState(result, options = {}) {
+    typstUi.diagnosticsProvider = 'compile'
+    applyNormalizedDiagnostics(normalizeTypstDiagnostics(filePath, result), {
+      ...options,
+      status: options.status ?? (result?.success ? 'success' : 'error'),
+    })
+  }
+
+  function applyTinymistDiagnosticsState(rawDiagnostics = [], options = {}) {
+    const normalized = normalizeTinymistDiagnostics(filePath, rawDiagnostics)
+    typstUi.diagnosticsProvider = 'tinymist'
+    applyNormalizedDiagnostics(normalized, {
+      ...options,
+      status: options.status ?? getTinymistDiagnosticsStatus(normalized),
+    })
   }
 
   function focusSelectedTypstDiagnostic(diagnostic) {
@@ -112,6 +153,7 @@ export function useTypstDiagnostics(options) {
   }
 
   function hydrateTypstDiagnostics() {
+    if (typstUi.tinymistActive) return
     const existingState = typstStore.stateForFile(filePath)
     if (!existingState) return
 
@@ -124,6 +166,7 @@ export function useTypstDiagnostics(options) {
   function handleTypstCompileDone(event) {
     const { typPath } = event.detail || {}
     if (typPath !== filePath) return
+    if (typstUi.tinymistActive) return
 
     applyTypstDiagnosticsState(event.detail || {}, {
       status: event.detail?.success ? 'success' : 'error',
@@ -152,6 +195,66 @@ export function useTypstDiagnostics(options) {
     }
   }
 
+  async function connectTinymistDocument(text) {
+    if (cleanupTinymistStatus == null) {
+      cleanupTinymistStatus = subscribeTinymistStatus((status) => {
+        typstUi.tinymistActive = status.available === true
+        if (!status.available && typstUi.diagnosticsProvider === 'tinymist') {
+          hydrateTypstDiagnostics()
+        }
+      })
+    }
+
+    const connected = await ensureTinymistDocument(filePath, text, {
+      workspacePath: getWorkspacePath?.() || null,
+    })
+    if (!connected) return false
+
+    tinymistDocumentOpen = true
+    typstUi.tinymistActive = true
+    applyTinymistDiagnosticsState([], {
+      allowAutoJump: false,
+      status: 'success',
+    })
+
+    if (cleanupTinymistDiagnostics == null) {
+      cleanupTinymistDiagnostics = subscribeTinymistDiagnostics(filePath, (diagnostics) => {
+        applyTinymistDiagnosticsState(diagnostics, {
+          allowAutoJump: editorStore.activeTab === filePath,
+        })
+      })
+    }
+
+    return true
+  }
+
+  function scheduleTinymistSync(text) {
+    if (!typstUi.tinymistActive || !tinymistDocumentOpen) return
+    clearTimeout(tinymistSyncTimer)
+    tinymistSyncTimer = setTimeout(() => {
+      void updateTinymistDocument(filePath, text).catch(() => {})
+    }, TINYMIST_SYNC_DEBOUNCE_MS)
+  }
+
+  async function disconnectTinymistDocument() {
+    clearTimeout(tinymistSyncTimer)
+    tinymistSyncTimer = null
+
+    if (cleanupTinymistDiagnostics) {
+      cleanupTinymistDiagnostics()
+      cleanupTinymistDiagnostics = null
+    }
+    if (cleanupTinymistStatus) {
+      cleanupTinymistStatus()
+      cleanupTinymistStatus = null
+    }
+    if (tinymistDocumentOpen) {
+      await closeTinymistDocument(filePath)
+      tinymistDocumentOpen = false
+    }
+    typstUi.tinymistActive = false
+  }
+
   function registerWindowListeners(isTypstFile) {
     if (isTypstFile) {
       window.addEventListener('typst-compile-done', handleTypstCompileDone)
@@ -170,9 +273,12 @@ export function useTypstDiagnostics(options) {
     typstUi,
     applyTypstDiagnosticsState,
     clearTypstDiagnosticsUi,
+    connectTinymistDocument,
+    disconnectTinymistDocument,
     focusEditorLine,
     handleEditorSelectionChange,
     hydrateTypstDiagnostics,
     registerWindowListeners,
+    scheduleTinymistSync,
   }
 }

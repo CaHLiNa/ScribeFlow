@@ -1,6 +1,11 @@
 import { snippetCompletion } from '@codemirror/autocomplete'
 import { createTypstSnippetCompletions } from './snippets.js'
 import { collectTypstReferenceOptions } from './utils.js'
+import { requestTinymistCompletion } from '../../services/tinymist/session.js'
+import {
+  getTinymistCompletionPosition,
+  normalizeTinymistCompletionResult,
+} from '../../services/tinymist/completion.js'
 
 const HASH_OPTIONS = [
   snippetCompletion('#set page(paper: "${paper}", margin: (${margin_x}, ${margin_y}))', {
@@ -114,7 +119,7 @@ function linePrefixBefore(text, from) {
   return text.slice(0, from).trim()
 }
 
-export function createTypstCompletionSource(options = {}) {
+function createLocalTypstCompletionSource(options = {}) {
   const { referencesStore } = options
 
   return (context) => {
@@ -163,6 +168,52 @@ export function createTypstCompletionSource(options = {}) {
       options: WORD_OPTIONS,
       validFor: /[\w-]*/,
     }
+  }
+}
+
+function mergeCompletionResults(primary, secondary) {
+  if (!primary) return secondary
+  if (!secondary) return primary
+
+  const seen = new Set()
+  const options = []
+  for (const option of [...primary.options, ...secondary.options]) {
+    const signature = `${option.label}::${option.detail || ''}`
+    if (seen.has(signature)) continue
+    seen.add(signature)
+    options.push(option)
+  }
+
+  return {
+    from: Math.min(primary.from ?? secondary.from ?? 0, secondary.from ?? primary.from ?? 0),
+    options,
+    filter: primary.filter === false || secondary.filter === false ? false : undefined,
+    validFor: primary.validFor || secondary.validFor,
+  }
+}
+
+export function createTypstCompletionSource(options = {}) {
+  const localCompletionSource = createLocalTypstCompletionSource(options)
+
+  return async (context) => {
+    const localResult = localCompletionSource(context)
+    if (localResult?.filter === false) {
+      return localResult
+    }
+
+    if (!options.filePath) {
+      return localResult
+    }
+
+    const tinymistResult = await requestTinymistCompletion(
+      options.filePath,
+      getTinymistCompletionPosition(context.state, context.pos),
+      { triggerKind: 1 },
+    )
+    if (context.aborted) return null
+
+    const normalizedTinymist = normalizeTinymistCompletionResult(context, tinymistResult)
+    return mergeCompletionResults(normalizedTinymist, localResult)
   }
 }
 

@@ -127,10 +127,7 @@ pub fn workspace_clear_allowed_roots(
     Ok(())
 }
 
-pub fn ensure_workspace_cwd(
-    state: &WorkspaceScopeState,
-    cwd: &str,
-) -> Result<PathBuf, String> {
+pub fn ensure_workspace_cwd(state: &WorkspaceScopeState, cwd: &str) -> Result<PathBuf, String> {
     let canonical = canonicalize_for_scope(Path::new(cwd))?;
     if state.is_allowed_workspace_path(&canonical)? {
         Ok(canonical)
@@ -265,9 +262,10 @@ pub fn canonicalize_for_scope(path: &Path) -> Result<PathBuf, String> {
             ));
         };
         suffix.push(name);
-        current = current.parent().map(Path::to_path_buf).ok_or_else(|| {
-            format!("Path has no existing ancestor: {}", normalized.display())
-        })?;
+        current = current
+            .parent()
+            .map(Path::to_path_buf)
+            .ok_or_else(|| format!("Path has no existing ancestor: {}", normalized.display()))?;
     }
 
     let mut canonical = std::fs::canonicalize(&current)
@@ -338,7 +336,8 @@ mod tests {
             data_dir: Some(canonicalize_for_scope(&data_root).unwrap()),
         };
 
-        let workspace_file = resolve_allowed_scoped_path(&state, "workspace", "docs/file.pdf").unwrap();
+        let workspace_file =
+            resolve_allowed_scoped_path(&state, "workspace", "docs/file.pdf").unwrap();
         let data_file = resolve_allowed_scoped_path(&state, "data", "references/file.pdf").unwrap();
 
         assert!(workspace_file.ends_with("docs/file.pdf"));

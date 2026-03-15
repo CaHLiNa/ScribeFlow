@@ -20,7 +20,9 @@
     :file-path="props.filePath"
     :view="view"
     :spellcheck-enabled="isMd && workspace.spellcheck"
+    :show-format-document="isTyp && typstUi.tinymistActive"
     @close="ctxMenu.show = false"
+    @format-document="handleFormatDocument"
   />
   <CitationPalette
     v-if="citPalette.show"
@@ -54,11 +56,14 @@ import CitationPalette from './CitationPalette.vue'
 import { autocompletion } from '@codemirror/autocomplete'
 import { useFilesStore } from '../../stores/files'
 import { useEditorStore } from '../../stores/editor'
+import { useToastStore } from '../../stores/toast'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useReviewsStore } from '../../stores/reviews'
 import { useLinksStore } from '../../stores/links'
 import { useReferencesStore } from '../../stores/references'
 import { sendCode, runFile } from '../../services/codeRunner'
+import { requestTinymistFormatting } from '../../services/tinymist/session'
+import { applyTinymistTextEdits } from '../../services/tinymist/textEdits'
 import { useTypstStore } from '../../stores/typst'
 import { isMarkdown, isLatex, isTypst, isRunnable, getLanguage, isRmdOrQmd } from '../../utils/fileTypes'
 import { useLatexStore } from '../../stores/latex'
@@ -89,6 +94,7 @@ const workspace = useWorkspaceStore()
 const reviews = useReviewsStore()
 const linksStore = useLinksStore()
 const referencesStore = useReferencesStore()
+const toastStore = useToastStore()
 const typstStore = useTypstStore()
 const latexStore = useLatexStore()
 const commentsStore = useCommentsStore()
@@ -138,15 +144,19 @@ const {
 
 const {
   typstUi,
+  connectTinymistDocument,
+  disconnectTinymistDocument,
   focusEditorLine,
   handleEditorSelectionChange,
   hydrateTypstDiagnostics,
   registerWindowListeners: registerTypstWindowListeners,
+  scheduleTinymistSync,
 } = useTypstDiagnostics({
   filePath: props.filePath,
   getView,
   typstStore,
   editorStore,
+  getWorkspacePath: () => workspace.path,
   t,
 })
 
@@ -177,6 +187,34 @@ function onContextMenu(e) {
     view.dispatch({ effects: spellCheckCompartment.reconfigure([]) })
   }
   ctxMenu.show = true
+}
+
+async function handleFormatDocument() {
+  if (!isTyp || !view) return
+
+  if (!typstUi.tinymistActive) {
+    toastStore.showOnce('tinymist-format-unavailable', t('Tinymist is not available for formatting.'), {
+      type: 'error',
+      duration: 4000,
+    }, 5000)
+    return
+  }
+
+  try {
+    const edits = await requestTinymistFormatting(props.filePath, {
+      tabSize: 2,
+      insertSpaces: true,
+    })
+    if (!Array.isArray(edits) || edits.length === 0) return
+    applyTinymistTextEdits(view, edits)
+  } catch (error) {
+    toastStore.showOnce('tinymist-format-failed', t('Typst formatting failed: {error}', {
+      error: error?.message || String(error || ''),
+    }), {
+      type: 'error',
+      duration: 5000,
+    }, 3000)
+  }
 }
 
 async function loadLanguageExtension() {
@@ -246,6 +284,9 @@ onMounted(async () => {
       if (update.selectionSet || update.docChanged) {
         const sel = update.state.selection.main
         emit('selection-change', sel.from !== sel.to)
+      }
+      if (isTyp && update.docChanged) {
+        scheduleTinymistSync(update.state.doc.toString())
       }
       if (isTyp && update.selectionSet && !typstUi.jumpInFlight) {
         handleEditorSelectionChange(update.state.selection.main.head)
@@ -502,9 +543,26 @@ onMounted(async () => {
   // Typst-only extensions
   if (supportsTypstSupport) {
     extraExtensions.push(...createTypstEditorSupport({
+      filePath: props.filePath,
       getReferenceByKey: (key) => referencesStore.getByKey(key),
       referencesStore,
     }))
+    extraExtensions.push(Prec.highest(keymap.of([
+      {
+        key: 'Mod-Shift-f',
+        run: () => {
+          void handleFormatDocument()
+          return true
+        },
+      },
+      {
+        key: 'Shift-Alt-f',
+        run: () => {
+          void handleFormatDocument()
+          return true
+        },
+      },
+    ])))
   }
 
   const extensions = createEditorExtensions({
@@ -621,6 +679,7 @@ function activateEditorRuntime() {
   syncCommentsToEditor(view)
   if (isTyp) {
     hydrateTypstDiagnostics()
+    void connectTinymistDocument(view.state.doc.toString())
   }
   requestAnimationFrame(() => {
     view?.requestMeasure?.()
@@ -756,6 +815,9 @@ if (isMd) {
 
 onUnmounted(() => {
   deactivateEditorRuntime()
+  if (isTyp) {
+    void disconnectTinymistDocument()
+  }
   if (rmdKernelBridge) {
     rmdKernelBridge.shutdown()
     rmdKernelBridge = null

@@ -33,10 +33,18 @@
         <div class="context-menu-item" @click="cut">{{ t('Cut') }}</div>
         <div class="context-menu-item" @click="copy">{{ t('Copy') }}</div>
         <div class="context-menu-item" @click="paste">{{ t('Paste') }}</div>
+        <template v-if="showFormatDocument">
+          <div class="context-menu-separator"></div>
+          <div class="context-menu-item" @click="formatDocument">{{ t('Format Document') }}</div>
+        </template>
       </template>
       <template v-else>
         <div class="context-menu-item" @click="paste">{{ t('Paste') }}</div>
         <div class="context-menu-item" @click="selectAll">{{ t('Select All') }}</div>
+        <template v-if="showFormatDocument">
+          <div class="context-menu-separator"></div>
+          <div class="context-menu-item" @click="formatDocument">{{ t('Format Document') }}</div>
+        </template>
       </template>
     </div>
   </Teleport>
@@ -57,9 +65,10 @@ const props = defineProps({
   filePath: { type: String, default: '' },
   view: { type: Object, default: null },
   spellcheckEnabled: { type: Boolean, default: false },
+  showFormatDocument: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['close'])
+const emit = defineEmits(['close', 'format-document'])
 const editorStore = useEditorStore()
 const commentsStore = useCommentsStore()
 const { t } = useI18n()
@@ -79,7 +88,10 @@ watch(() => props.visible, async (show) => {
   }
 
   // Position
-  const menuW = 200, menuH = props.hasSelection ? 280 : 80
+  const menuW = 200
+  const menuH = props.hasSelection
+    ? (props.showFormatDocument ? 320 : 280)
+    : (props.showFormatDocument ? 120 : 80)
   const x = Math.min(props.x, window.innerWidth - menuW - 8)
   const y = Math.min(props.y, window.innerHeight - menuH - 8)
   menuStyle.value = { left: x + 'px', top: y + 'px' }
@@ -198,6 +210,11 @@ function selectAll() {
       selection: { anchor: 0, head: props.view.state.doc.length },
     })
   }
+  emit('close')
+}
+
+function formatDocument() {
+  emit('format-document')
   emit('close')
 }
 </script>

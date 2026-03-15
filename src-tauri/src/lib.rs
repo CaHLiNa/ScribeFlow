@@ -10,20 +10,19 @@ mod pdf_translate;
 mod process_utils;
 mod pty;
 mod security;
+mod tinymist;
 mod typst_export;
 mod usage_db;
 mod workspace_access;
 
+use percent_encoding::percent_decode_str;
 use std::fs;
 use std::path::Path;
-use percent_encoding::percent_decode_str;
 use tauri::http::{header, Response, StatusCode};
 use tauri::{AppHandle, Manager, Runtime};
 
 #[cfg(target_os = "macos")]
-use tauri::{
-    menu::{AboutMetadata, Menu, MenuItem, SubmenuBuilder},
-};
+use tauri::menu::{AboutMetadata, Menu, MenuItem, SubmenuBuilder};
 
 /// Enable macOS spellcheck for WKWebView (must run before webview init)
 #[cfg(target_os = "macos")]
@@ -114,7 +113,11 @@ fn workspace_protocol_response(
 }
 
 fn workspace_protocol_error(status: StatusCode, message: impl Into<String>) -> Response<Vec<u8>> {
-    workspace_protocol_response(status, "text/plain; charset=utf-8", message.into().into_bytes())
+    workspace_protocol_response(
+        status,
+        "text/plain; charset=utf-8",
+        message.into().into_bytes(),
+    )
 }
 
 fn parse_workspace_protocol_request_path(request_path: &str) -> Result<(String, String), String> {
@@ -585,6 +588,8 @@ pub fn run() {
             typst_export::check_typst_compiler,
             typst_export::download_typst,
             typst_export::compile_typst_file,
+            tinymist::check_tinymist_binary,
+            tinymist::download_tinymist,
             usage_db::usage_record,
             usage_db::usage_query_month,
             usage_db::usage_query_monthly_trend,

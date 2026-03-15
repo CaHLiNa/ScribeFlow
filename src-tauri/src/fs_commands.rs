@@ -275,7 +275,8 @@ pub async fn read_file(path: String, max_bytes: Option<u64>) -> Result<String, S
     eprintln!("[fs] read_file start path={}", path);
     let started = std::time::Instant::now();
     let path_for_read = path.clone();
-    let result = run_blocking(move || read_text_file_with_limit(Path::new(&path_for_read), max_bytes)).await;
+    let result =
+        run_blocking(move || read_text_file_with_limit(Path::new(&path_for_read), max_bytes)).await;
     match &result {
         Ok(content) => eprintln!(
             "[fs] read_file ok path={} bytes={} elapsed_ms={}",
@@ -639,8 +640,13 @@ fn parse_workspace_command(command: &str) -> Result<(String, Vec<String>), Strin
     }
 
     let forbidden_fragments = ["&&", "||", ";", "|", ">", "<", "`", "$("];
-    if forbidden_fragments.iter().any(|fragment| trimmed.contains(fragment)) {
-        return Err("Command chaining, pipes, redirects, and substitutions are not allowed".to_string());
+    if forbidden_fragments
+        .iter()
+        .any(|fragment| trimmed.contains(fragment))
+    {
+        return Err(
+            "Command chaining, pipes, redirects, and substitutions are not allowed".to_string(),
+        );
     }
 
     let parts = shell_words::split(trimmed)
@@ -683,12 +689,24 @@ fn parse_workspace_command(command: &str) -> Result<(String, Vec<String>), Strin
         "osascript",
     ];
     if forbidden_programs.contains(&program_name.as_str()) {
-        return Err(format!("Program is not allowed in workspace command mode: {program_name}"));
+        return Err(format!(
+            "Program is not allowed in workspace command mode: {program_name}"
+        ));
     }
 
-    let eval_flags = ["-c", "-C", "/C", "-command", "-encodedcommand", "--eval", "-e"];
+    let eval_flags = [
+        "-c",
+        "-C",
+        "/C",
+        "-command",
+        "-encodedcommand",
+        "--eval",
+        "-e",
+    ];
     if args.iter().any(|arg| eval_flags.contains(&arg.as_str())) {
-        return Err("Inline code-evaluation flags are not allowed in workspace command mode".to_string());
+        return Err(
+            "Inline code-evaluation flags are not allowed in workspace command mode".to_string(),
+        );
     }
 
     Ok((program, args))

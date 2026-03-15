@@ -3,15 +3,15 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 #[cfg(target_os = "macos")]
-use objc2::AnyThread;
-#[cfg(target_os = "macos")]
 use objc2::rc::Retained;
 #[cfg(target_os = "macos")]
 use objc2::runtime::Bool;
 #[cfg(target_os = "macos")]
+use objc2::AnyThread;
+#[cfg(target_os = "macos")]
 use objc2_foundation::{
-    NSData, NSDataBase64DecodingOptions, NSDataBase64EncodingOptions, NSError, NSString, NSURL,
-    NSURLBookmarkCreationOptions, NSURLBookmarkResolutionOptions,
+    NSData, NSDataBase64DecodingOptions, NSDataBase64EncodingOptions, NSError, NSString,
+    NSURLBookmarkCreationOptions, NSURLBookmarkResolutionOptions, NSURL,
 };
 
 #[derive(Default)]
@@ -45,8 +45,7 @@ fn ns_error_to_string(error: &NSError) -> String {
 
 #[cfg(target_os = "macos")]
 fn workspace_url_from_path(path: &str) -> Result<Retained<NSURL>, String> {
-    NSURL::from_directory_path(path)
-        .ok_or_else(|| format!("Invalid workspace path: {}", path))
+    NSURL::from_directory_path(path).ok_or_else(|| format!("Invalid workspace path: {}", path))
 }
 
 #[cfg(target_os = "macos")]

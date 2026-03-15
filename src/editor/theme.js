@@ -91,6 +91,39 @@ export const shouldersTheme = EditorView.theme(
         color: 'var(--fg-primary)',
       },
     },
+    '.cm-tooltip.cm-tinymist-hover': {
+      maxWidth: '420px',
+      padding: '0',
+      overflow: 'hidden',
+    },
+    '.cm-tinymist-hover__body': {
+      padding: '10px 12px',
+      lineHeight: '1.5',
+      fontSize: 'var(--ui-font-size)',
+    },
+    '.cm-tinymist-hover__body p': {
+      margin: '0 0 8px 0',
+    },
+    '.cm-tinymist-hover__body p:last-child': {
+      marginBottom: '0',
+    },
+    '.cm-tinymist-hover__body pre': {
+      margin: '8px 0 0 0',
+      padding: '8px 10px',
+      borderRadius: '6px',
+      backgroundColor: 'var(--bg-primary)',
+      overflowX: 'auto',
+      fontFamily: 'var(--font-mono)',
+      fontSize: 'var(--ui-font-code)',
+    },
+    '.cm-tinymist-hover__body code': {
+      fontFamily: 'var(--font-mono)',
+      fontSize: 'var(--ui-font-code)',
+    },
+    '.cm-tinymist-hover__body a': {
+      color: 'var(--hl-link)',
+      textDecoration: 'underline',
+    },
     '.cm-typst-heading-mark': {
       color: 'var(--hl-heading-minor)',
       fontWeight: '700',

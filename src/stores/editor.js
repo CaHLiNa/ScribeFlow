@@ -698,6 +698,13 @@ export const useEditorStore = defineStore('editor', {
       return this.editorViews[`${paneId}:${path}`]
     },
 
+    getAnyEditorView(path) {
+      for (const [key, view] of Object.entries(this.editorViews)) {
+        if (key.endsWith(`:${path}`)) return view
+      }
+      return null
+    },
+
     registerSuperdoc(paneId, path, superdoc, _reserved, aiActions) {
       this.superdocInstances[`${paneId}:${path}`] = { superdoc, aiActions }
     },

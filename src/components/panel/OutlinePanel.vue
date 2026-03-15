@@ -43,12 +43,17 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useEditorStore } from '../../stores/editor'
 import { useFilesStore } from '../../stores/files'
 import { useLinksStore, parseHeadings } from '../../stores/links'
 import { isMarkdown, isLatex, isTypst, getViewerType } from '../../utils/fileTypes'
 import { parseTypstOutlineItems } from '../../editor/typstSupport/utils'
+import {
+  subscribeTinymistDocumentSymbols,
+  subscribeTinymistStatus,
+} from '../../services/tinymist/session'
+import { normalizeTinymistDocumentSymbols } from '../../services/tinymist/symbols'
 import { useI18n } from '../../i18n'
 
 const props = defineProps({
@@ -61,6 +66,12 @@ const editorStore = useEditorStore()
 const filesStore = useFilesStore()
 const linksStore = useLinksStore()
 const { t } = useI18n()
+const tinymistAvailable = ref(false)
+const tinymistOutlineItems = ref([])
+const tinymistOutlineLoaded = ref(false)
+
+let cleanupTinymistStatus = null
+let cleanupTinymistSymbols = null
 
 // Determine if active file supports outline
 // Use overrideActiveFile prop when provided (e.g., from right sidebar when chat tab is focused)
@@ -79,6 +90,34 @@ const fileType = computed(() => {
 })
 
 const hasOutlineSupport = computed(() => fileType.value !== null)
+
+function currentDocumentText(path) {
+  const view = editorStore.getAnyEditorView(path)
+  if (view) {
+    return view.state.doc.toString()
+  }
+  return filesStore.fileContents[path] || ''
+}
+
+function resetTinymistOutline() {
+  tinymistOutlineLoaded.value = false
+  tinymistOutlineItems.value = []
+}
+
+function bindTinymistOutline(path) {
+  if (cleanupTinymistSymbols) {
+    cleanupTinymistSymbols()
+    cleanupTinymistSymbols = null
+  }
+
+  resetTinymistOutline()
+  if (!path) return
+
+  cleanupTinymistSymbols = subscribeTinymistDocumentSymbols(path, (symbols) => {
+    tinymistOutlineItems.value = normalizeTinymistDocumentSymbols(currentDocumentText(path), symbols)
+    tinymistOutlineLoaded.value = true
+  })
+}
 
 // Extract headings based on file type
 const outlineItems = computed(() => {
@@ -104,7 +143,10 @@ const outlineItems = computed(() => {
   }
 
   if (ft === 'typst') {
-    const content = filesStore.fileContents[path]
+    if (tinymistAvailable.value && tinymistOutlineLoaded.value) {
+      return tinymistOutlineItems.value
+    }
+    const content = currentDocumentText(path)
     if (!content) return []
     return parseTypstOutlineItems(content)
   }
@@ -277,4 +319,41 @@ function getOutlineKindLabel(kind) {
   if (kind === 'label') return 'Lbl'
   return ''
 }
+
+onMounted(() => {
+  cleanupTinymistStatus = subscribeTinymistStatus((status) => {
+    tinymistAvailable.value = status.available === true
+    if (!tinymistAvailable.value) {
+      resetTinymistOutline()
+    }
+  })
+})
+
+watch(
+  () => [activeFile.value, fileType.value],
+  ([path, ft]) => {
+    if (ft === 'typst') {
+      bindTinymistOutline(path)
+      return
+    }
+
+    if (cleanupTinymistSymbols) {
+      cleanupTinymistSymbols()
+      cleanupTinymistSymbols = null
+    }
+    resetTinymistOutline()
+  },
+  { immediate: true },
+)
+
+onUnmounted(() => {
+  if (cleanupTinymistStatus) {
+    cleanupTinymistStatus()
+    cleanupTinymistStatus = null
+  }
+  if (cleanupTinymistSymbols) {
+    cleanupTinymistSymbols()
+    cleanupTinymistSymbols = null
+  }
+})
 </script>

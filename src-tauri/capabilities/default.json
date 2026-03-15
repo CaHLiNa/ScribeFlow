@@ -14,6 +14,38 @@
     "dialog:allow-confirm",
     "deep-link:default",
     "shell:allow-open",
+    {
+      "identifier": "shell:allow-spawn",
+      "allow": [
+        {
+          "name": "tinymist-lsp",
+          "cmd": "tinymist",
+          "args": ["lsp"]
+        },
+        {
+          "name": "tinymist-lsp-managed",
+          "cmd": "$HOME/.altals/bin/tinymist",
+          "args": ["lsp"]
+        },
+        {
+          "name": "tinymist-lsp-managed-win",
+          "cmd": "$HOME/.altals/bin/tinymist.exe",
+          "args": ["lsp"]
+        },
+        {
+          "name": "tinymist-lsp-legacy",
+          "cmd": "$HOME/.shoulders/bin/tinymist",
+          "args": ["lsp"]
+        },
+        {
+          "name": "tinymist-lsp-legacy-win",
+          "cmd": "$HOME/.shoulders/bin/tinymist.exe",
+          "args": ["lsp"]
+        }
+      ]
+    },
+    "shell:allow-stdin-write",
+    "shell:allow-kill",
     "process:allow-restart"
   ]
 }

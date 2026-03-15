@@ -1188,7 +1188,8 @@ pub async fn export_md_to_pdf(
     custom_typst_path: Option<String>,
 ) -> Result<ExportResult, String> {
     let settings = settings.unwrap_or_default();
-    let typst_bin = find_typst(&app, custom_typst_path.as_deref()).ok_or_else(typst_not_found_message)?;
+    let typst_bin =
+        find_typst(&app, custom_typst_path.as_deref()).ok_or_else(typst_not_found_message)?;
 
     // Read markdown file
     let md_content = std::fs::read_to_string(&md_path)
@@ -1276,7 +1277,8 @@ pub async fn compile_typst_file(
     app: tauri::AppHandle,
     custom_typst_path: Option<String>,
 ) -> Result<TypstCompileResult, String> {
-    let typst_bin = find_typst(&app, custom_typst_path.as_deref()).ok_or_else(typst_not_found_message)?;
+    let typst_bin =
+        find_typst(&app, custom_typst_path.as_deref()).ok_or_else(typst_not_found_message)?;
     let typ_pathbuf = PathBuf::from(&typ_path);
     if !typ_pathbuf.exists() {
         return Err(format!("Typst file not found: {}", typ_path));

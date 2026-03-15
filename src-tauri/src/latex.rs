@@ -556,13 +556,13 @@ async fn compile_with_system_tex(
 
     let mut command = background_tokio_command(system_tex_path);
     command.args([
-            engine_flag,
-            "-interaction=nonstopmode",
-            "-synctex=1",
-            "-file-line-error",
-            "-halt-on-error",
-            tex_path,
-        ]);
+        engine_flag,
+        "-interaction=nonstopmode",
+        "-synctex=1",
+        "-file-line-error",
+        "-halt-on-error",
+        tex_path,
+    ]);
     command.current_dir(dir);
 
     let meta = LatexCompileMeta {
@@ -611,19 +611,37 @@ pub async fn compile_latex(
                 "System TeX compiler not found. Install MacTeX or TeX Live and try again."
                     .to_string()
             })?;
-            compile_with_system_tex(&app, &system_tex, &tex_path, start, requested_program.clone(), Some(engine_preference.clone())).await
+            compile_with_system_tex(
+                &app,
+                &system_tex,
+                &tex_path,
+                start,
+                requested_program.clone(),
+                Some(engine_preference.clone()),
+            )
+            .await
         }
         "tectonic" => {
             let tectonic = tectonic.ok_or_else(|| {
                 "Tectonic not found. Install it or choose System TeX in Settings.".to_string()
             })?;
-            compile_with_tectonic(&app, &tectonic, &tex_path, start, requested_program.clone()).await
+            compile_with_tectonic(&app, &tectonic, &tex_path, start, requested_program.clone())
+                .await
         }
         _ => {
             if let Some(system_tex) = system_tex {
-                compile_with_system_tex(&app, &system_tex, &tex_path, start, requested_program.clone(), Some(engine_preference.clone())).await
+                compile_with_system_tex(
+                    &app,
+                    &system_tex,
+                    &tex_path,
+                    start,
+                    requested_program.clone(),
+                    Some(engine_preference.clone()),
+                )
+                .await
             } else if let Some(tectonic) = tectonic {
-                compile_with_tectonic(&app, &tectonic, &tex_path, start, requested_program.clone()).await
+                compile_with_tectonic(&app, &tectonic, &tex_path, start, requested_program.clone())
+                    .await
             } else {
                 Err("No LaTeX compiler found. Install MacTeX/TeX Live, or install Tectonic in Settings.".to_string())
             }

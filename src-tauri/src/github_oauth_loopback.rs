@@ -13,7 +13,8 @@ use uuid::Uuid;
 
 const LOOPBACK_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 const LOOPBACK_COMPLETION_GRACE: Duration = Duration::from_secs(8);
-const SESSION_NOT_FOUND_ERROR: &str = "GitHub loopback callback expired. Please try connecting again.";
+const SESSION_NOT_FOUND_ERROR: &str =
+    "GitHub loopback callback expired. Please try connecting again.";
 
 #[derive(Default)]
 pub struct GitHubOAuthLoopbackState {
@@ -130,9 +131,7 @@ pub fn github_oauth_poll_loopback(
     })
 }
 
-fn cleanup_expired_sessions(
-    sessions: &Arc<Mutex<HashMap<String, GitHubOAuthLoopbackSession>>>,
-) {
+fn cleanup_expired_sessions(sessions: &Arc<Mutex<HashMap<String, GitHubOAuthLoopbackSession>>>) {
     let Ok(mut sessions) = sessions.lock() else {
         return;
     };

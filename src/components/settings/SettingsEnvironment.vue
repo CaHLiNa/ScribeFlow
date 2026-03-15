@@ -100,8 +100,8 @@
     </div>
 
     <div class="env-actions">
-      <button class="env-redetect-btn" :disabled="envStore.detecting || latexStore.checkingCompilers || typstStore.checkingCompiler || typstStore.downloading" @click="redetectSystem">
-        {{ envStore.detecting || latexStore.checkingCompilers || typstStore.checkingCompiler || typstStore.downloading ? t('Checking...') : t('Re-detect') }}
+      <button class="env-redetect-btn" :disabled="envStore.detecting || latexStore.checkingCompilers || typstStore.checkingCompiler || typstStore.downloading || tinymistStore.checkingBinary || tinymistStore.downloading" @click="redetectSystem">
+        {{ envStore.detecting || latexStore.checkingCompilers || typstStore.checkingCompiler || typstStore.downloading || tinymistStore.checkingBinary || tinymistStore.downloading ? t('Checking...') : t('Re-detect') }}
       </button>
       <span v-if="!envStore.detected" class="env-hint-text">{{ t('Not yet detected') }}</span>
       <span v-else class="env-hint-text">{{ t('Last detected this session') }}</span>
@@ -315,6 +315,61 @@
       </div>
     </div>
 
+    <h3 class="settings-section-title env-section-offset">{{ t('Tinymist Editor Support') }}</h3>
+    <p class="settings-hint">{{ t('Optional Typst language service for diagnostics, outline, navigation, and completions.') }}</p>
+
+    <div class="env-lang-card">
+      <template v-if="tinymistStore.available">
+        <div class="env-lang-header">
+          <span class="env-lang-dot good"></span>
+          <span class="env-lang-name">Tinymist</span>
+          <span class="env-lang-version">{{ t('Installed') }}</span>
+        </div>
+        <div v-if="tinymistStore.binaryPath" class="env-lang-details">
+          <div class="env-lang-path">{{ tinymistStore.binaryPath }}</div>
+        </div>
+        <div class="env-lang-hint env-hint-inline">
+          {{ t('Use Tinymist to power Typst diagnostics, outline, and editor intelligence.') }}
+        </div>
+      </template>
+
+      <template v-else-if="tinymistStore.downloading">
+        <div class="env-lang-header">
+          <span class="env-lang-dot warn"></span>
+          <span class="env-lang-name">Tinymist</span>
+          <span class="env-lang-version">{{ t('Downloading... {progress}%', { progress: tinymistStore.downloadProgress }) }}</span>
+        </div>
+        <div class="tectonic-progress env-progress-shell">
+          <div class="tectonic-progress-bar">
+            <div class="tectonic-progress-fill" :style="{ width: tinymistStore.downloadProgress + '%' }"></div>
+          </div>
+        </div>
+      </template>
+
+      <template v-else>
+        <div class="env-lang-header">
+          <span class="env-lang-dot none"></span>
+          <span class="env-lang-name">Tinymist</span>
+          <span class="env-lang-missing">{{ t('Not installed') }}</span>
+        </div>
+        <div class="env-lang-hint env-hint-inline">
+          {{ t('Tinymist is optional, but it improves Typst editing with live diagnostics and navigation.') }}
+        </div>
+        <div class="env-action-row">
+          <button class="env-install-btn" @click="tinymistStore.downloadTinymist()">
+            {{ t('Download Tinymist') }}
+          </button>
+        </div>
+      </template>
+
+      <div v-if="tinymistStore.downloadError" class="env-install-error env-install-error-inline">
+        {{ tinymistStore.downloadError }}
+        <button class="env-install-btn env-install-btn-inline" @click="tinymistStore.downloadTinymist()">
+          {{ t('Retry') }}
+        </button>
+      </div>
+    </div>
+
   </div>
 </template>
 
@@ -322,11 +377,13 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useEnvironmentStore } from '../../stores/environment'
 import { useLatexStore } from '../../stores/latex'
+import { useTinymistStore } from '../../stores/tinymist'
 import { useTypstStore } from '../../stores/typst'
 import { useI18n } from '../../i18n'
 
 const envStore = useEnvironmentStore()
 const latexStore = useLatexStore()
+const tinymistStore = useTinymistStore()
 const typstStore = useTypstStore()
 const { t } = useI18n()
 const customPythonPathDraft = ref(envStore.customPythonPath || '')
@@ -410,6 +467,7 @@ async function redetectSystem() {
     envStore.detect(true),
     latexStore.checkCompilers(true),
     typstStore.checkCompiler(true),
+    tinymistStore.checkBinary(true),
   ])
 }
 
@@ -437,6 +495,7 @@ function warmSystemChecks() {
     envStore.detect(),
     latexStore.checkCompilers(),
     typstStore.checkCompiler(),
+    tinymistStore.checkBinary(),
   ]))
 }
 
