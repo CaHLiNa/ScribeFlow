@@ -1,23 +1,22 @@
-import { isLatex, isMarkdown, isTypst } from '../utils/fileTypes'
+import { getDocumentAdapterForFile } from '../services/documentWorkflow/adapters/index.js'
+
+function defaultCitationText(keys) {
+  const joined = keys.map(key => `@${key}`).join('; ')
+  return `[${joined}]`
+}
 
 export function supportsCitationInsertion(filePath) {
   if (!filePath) return false
-  return isMarkdown(filePath) || isLatex(filePath) || isTypst(filePath)
+  return !!getDocumentAdapterForFile(filePath)?.citationSyntax?.supportsInsertion?.(filePath)
 }
 
 export function buildCitationText(filePath, keys, options = {}) {
   const list = (Array.isArray(keys) ? keys : [keys]).filter(Boolean)
   if (list.length === 0) return ''
 
-  if (filePath && isLatex(filePath)) {
-    const command = options.latexCommand || 'cite'
-    return `\\${command}{${list.join(', ')}}`
+  const adapter = getDocumentAdapterForFile(filePath)
+  if (adapter?.citationSyntax?.buildText) {
+    return adapter.citationSyntax.buildText(filePath, list, options)
   }
-
-  if (filePath && isTypst(filePath)) {
-    return list.map(key => `@${key}`).join(' ')
-  }
-
-  const joined = list.map(key => `@${key}`).join('; ')
-  return `[${joined}]`
+  return defaultCitationText(list)
 }

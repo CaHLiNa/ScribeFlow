@@ -10,30 +10,24 @@ import {
   isDocumentWorkflowSource,
 } from '../services/documentWorkflow/policy.js'
 import {
+  getDocumentAdapterByKind,
+  getDocumentAdapterForWorkflow,
+  listWorkflowDocumentAdapters,
+} from '../services/documentWorkflow/adapters/index.js'
+import {
   findWorkflowPreviewPane,
   reconcileDocumentWorkflow,
 } from '../services/documentWorkflow/reconcile.js'
-import {
-  buildMarkdownWorkflowProblems,
-  buildMarkdownWorkflowUiState,
-} from '../services/documentWorkflow/adapters/markdown.js'
-import {
-  buildLatexWorkflowProblems,
-  buildLatexWorkflowUiState,
-} from '../services/documentWorkflow/adapters/latex.js'
-import {
-  buildTypstWorkflowProblems,
-  buildTypstWorkflowUiState,
-} from '../services/documentWorkflow/adapters/typst.js'
 
 const PREFS_KEY = 'documentWorkflow.previewPrefs'
 
 function defaultPrefs() {
-  return {
-    markdown: { preferredPreview: 'html' },
-    latex: { preferredPreview: 'pdf' },
-    typst: { preferredPreview: 'pdf' },
-  }
+  return Object.fromEntries(
+    listWorkflowDocumentAdapters()
+      .map(adapter => [adapter.kind, adapter.preview?.defaultKind || null])
+      .filter(([, previewKind]) => !!previewKind)
+      .map(([kind, previewKind]) => [kind, { preferredPreview: previewKind }]),
+  )
 }
 
 function readPrefs() {
@@ -46,6 +40,33 @@ function readPrefs() {
     }
   } catch {
     return defaultPrefs()
+  }
+}
+
+function buildAdapterContext(workflowStore, filePath) {
+  const adapter = getDocumentAdapterForWorkflow(filePath)
+  if (!adapter) {
+    return {
+      adapter: null,
+      workflowStore,
+      latexStore: null,
+      typstStore: null,
+      previewKind: null,
+      previewAvailable: false,
+    }
+  }
+
+  const previewKind = workflowStore.session.activeFile === filePath
+    ? (workflowStore.session.previewKind || workflowStore.getPreferredPreviewKind(adapter.kind))
+    : workflowStore.getPreferredPreviewKind(adapter.kind)
+
+  return {
+    adapter,
+    workflowStore,
+    latexStore: useLatexStore(),
+    typstStore: useTypstStore(),
+    previewKind,
+    previewAvailable: workflowStore.hasPreviewForSource(filePath, previewKind),
   }
 }
 
@@ -86,6 +107,8 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
 
     setPreferredPreviewKind(kind, previewKind) {
       if (!kind || !previewKind) return
+      const adapter = getDocumentAdapterByKind(kind)
+      if (!adapter?.preview?.supportedKinds?.includes(previewKind)) return
       this.previewPrefs = {
         ...this.previewPrefs,
         [kind]: {
@@ -211,11 +234,81 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
       }
     },
 
+    getOpenPreviewPathForSource(sourcePath, previewKind = null) {
+      if (!sourcePath) return null
+      const binding = this.findPreviewBindingForSource(sourcePath, previewKind)
+      if (binding?.previewPath) return binding.previewPath
+      if (
+        this.session.previewSourcePath === sourcePath
+        && this.session.previewPaneId
+        && (!previewKind || this.session.previewKind === previewKind)
+      ) {
+        return this.getPreviewPathForSource(sourcePath, previewKind || this.session.previewKind)
+      }
+      return null
+    },
+
     getPreviewPathForSource(sourcePath, previewKind = null) {
       const kind = getDocumentWorkflowKind(sourcePath)
       if (!kind) return null
       const resolvedKind = previewKind || this.getPreferredPreviewKind(kind)
       return createWorkflowPreviewPath(sourcePath, kind, resolvedKind)
+    },
+
+    closePreviewForSource(sourcePath, options = {}) {
+      const editorStore = useEditorStore()
+      const kind = getDocumentWorkflowKind(sourcePath)
+      if (!kind) return null
+
+      const previewKind = options.previewKind || this.getPreferredPreviewKind(kind)
+      const previewPath = this.getOpenPreviewPathForSource(sourcePath, previewKind)
+      if (!previewPath) return null
+
+      this.handlePreviewClosed(previewPath)
+      editorStore.closeFileFromAllPanes(previewPath)
+
+      if (options.reconcile !== false) {
+        this.reconcile({
+          trigger: options.trigger || 'close-preview',
+          previewKindOverride: previewKind,
+        })
+      }
+
+      return {
+        type: 'closed-preview',
+        kind,
+        sourcePath,
+        previewKind,
+        previewPath,
+      }
+    },
+
+    togglePreviewForSource(sourcePath, options = {}) {
+      const kind = getDocumentWorkflowKind(sourcePath)
+      if (!kind) return null
+
+      const previewKind = options.previewKind || this.getPreferredPreviewKind(kind)
+      if (this.hasPreviewForSource(sourcePath, previewKind)) {
+        return this.closePreviewForSource(sourcePath, {
+          previewKind,
+          trigger: options.closeTrigger || options.trigger || 'toggle-preview-close',
+          reconcile: options.reconcile,
+        })
+      }
+
+      if (options.activatePreview === false) {
+        return this.ensurePreviewForSource(sourcePath, {
+          ...options,
+          previewKind,
+          trigger: options.openTrigger || options.trigger || 'toggle-preview-open',
+        })
+      }
+
+      return this.revealPreview(sourcePath, {
+        ...options,
+        previewKind,
+        trigger: options.openTrigger || options.trigger || 'toggle-preview-open',
+      })
     },
 
     setSessionState(payload) {
@@ -281,72 +374,18 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
     },
 
     openLogForFile(filePath) {
-      const kind = getDocumentWorkflowKind(filePath)
-      if (kind === 'latex') {
-        useLatexStore().openCompileLog(filePath)
-      } else if (kind === 'typst') {
-        useTypstStore().openCompileLog(filePath)
-      }
+      const context = buildAdapterContext(this, filePath)
+      context.adapter?.compile?.openLog?.(filePath, context)
     },
 
     getProblemsForFile(filePath) {
-      const kind = getDocumentWorkflowKind(filePath)
-      if (!kind) return []
-
-      if (kind === 'markdown') {
-        const previewKind = this.session.activeFile === filePath
-          ? (this.session.previewKind || this.getPreferredPreviewKind(kind))
-          : this.getPreferredPreviewKind(kind)
-        const state = previewKind === 'pdf'
-          ? this.markdownPdfState[filePath]
-          : this.markdownPreviewState[filePath]
-        return buildMarkdownWorkflowProblems(filePath, state)
-      }
-
-      if (kind === 'latex') {
-        return buildLatexWorkflowProblems(filePath, useLatexStore().stateForFile(filePath))
-      }
-
-      if (kind === 'typst') {
-        return buildTypstWorkflowProblems(filePath, useTypstStore().stateForFile(filePath))
-      }
-
-      return []
+      const context = buildAdapterContext(this, filePath)
+      return context.adapter?.getProblems?.(filePath, context) || []
     },
 
     getUiStateForFile(filePath) {
-      const kind = getDocumentWorkflowKind(filePath)
-      if (!kind) return null
-
-      const previewKind = this.session.activeFile === filePath
-        ? (this.session.previewKind || this.getPreferredPreviewKind(kind))
-        : this.getPreferredPreviewKind(kind)
-      const previewAvailable = this.hasPreviewForSource(filePath, previewKind)
-
-      if (kind === 'markdown') {
-        return buildMarkdownWorkflowUiState({
-          previewKind,
-          previewAvailable,
-          htmlState: this.markdownPreviewState[filePath] || {},
-          pdfState: this.markdownPdfState[filePath] || {},
-        })
-      }
-
-      if (kind === 'latex') {
-        return buildLatexWorkflowUiState(
-          useLatexStore().stateForFile(filePath) || {},
-          { previewAvailable },
-        )
-      }
-
-      if (kind === 'typst') {
-        return buildTypstWorkflowUiState(
-          useTypstStore().stateForFile(filePath) || {},
-          { previewAvailable },
-        )
-      }
-
-      return null
+      const context = buildAdapterContext(this, filePath)
+      return context.adapter?.getUiState?.(filePath, context) || null
     },
 
     reconcile(options = {}) {

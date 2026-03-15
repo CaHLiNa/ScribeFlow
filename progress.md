@@ -215,6 +215,31 @@
   - `src/components/layout/Header.vue`
   - `vite.config.js`
 
+### Follow-up Continuation 7: Document Adapter Formalization
+- **Status:** complete
+- Actions taken:
+  - 新增 `docs/plans/2026-03-16-document-adapters-design.md` 与 `docs/plans/2026-03-16-document-adapters.md`，把 `DocumentAdapter / CompileAdapter` 的边界、迁移范围和执行步骤固定下来
+  - 新增 `src/services/documentWorkflow/adapters/contracts.js` 与 `src/services/documentWorkflow/adapters/index.js`，正式建立 adapter contract 与 registry
+  - 让 `src/services/documentWorkflow/policy.js` 改为通过 adapter.preview 读取默认 preview、创建 preview path 和推断 preview kind
+  - 扩展 `src/services/documentWorkflow/adapters/{markdown,latex,typst}.js`，为三种文档格式补齐 preview、citationSyntax、compile、problems、uiState 五类正式接口
+  - 将 Markdown PDF 导出链路从 `useEditorPaneWorkflow.js` 下沉到 markdown adapter 的 `CompileAdapter`，保留现有错误回写、toast、chat fix prompt 与 PDF reveal 行为
+  - 让 `src/stores/documentWorkflow.js` 改成通过 adapter registry 读取默认 preview prefs、problems、uiState 和 compile log，而不是继续手写 `kind` 分支
+  - 让 `src/editor/citationSyntax.js` 改成通过 adapter.citationSyntax 分发，统一 Markdown / LaTeX / Typst 的 citation 插入规则入口
+  - 让 `src/composables/useEditorPaneWorkflow.js` 改成优先通过 adapter 调用 compile / reveal / view-log / status text，并把 compile done 事件处理收敛到 preview 同步
+  - 重新执行前端构建，确认本轮抽象正式化没有打坏主链路
+- Files created/modified:
+  - `docs/plans/2026-03-16-document-adapters-design.md`
+  - `docs/plans/2026-03-16-document-adapters.md`
+  - `src/services/documentWorkflow/adapters/contracts.js`
+  - `src/services/documentWorkflow/adapters/index.js`
+  - `src/services/documentWorkflow/adapters/markdown.js`
+  - `src/services/documentWorkflow/adapters/latex.js`
+  - `src/services/documentWorkflow/adapters/typst.js`
+  - `src/services/documentWorkflow/policy.js`
+  - `src/stores/documentWorkflow.js`
+  - `src/editor/citationSyntax.js`
+  - `src/composables/useEditorPaneWorkflow.js`
+
 ## Test Results
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|
@@ -262,6 +287,7 @@
 | Rust 检查 Round 21 | `cargo check --manifest-path src-tauri/Cargo.toml` | 细分 vendor 试验后 Rust 仍可编译 | 通过 | 通过 |
 | 前端构建 Round 22 | `npm run build` | 回退有循环 warning 的 `codemirror` 细拆后仍可构建 | 通过，且循环 chunk warning 消失 | 通过 |
 | Rust 检查 Round 22 | `cargo check --manifest-path src-tauri/Cargo.toml` | 最终分包方案下 Rust 仍可编译 | 通过 | 通过 |
+| 前端构建 Round 23 | `npm run build` | `DocumentAdapter / CompileAdapter` 正式化后仍可构建 | 通过，且 workflow 主链路保持可编译 | 通过 |
 
 ## Error Log
 | Timestamp | Error | Attempt | Resolution |

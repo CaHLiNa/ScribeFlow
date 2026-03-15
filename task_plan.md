@@ -70,3 +70,4 @@ Complete
 - 当前构建剩余告警只剩超大 chunk；这已经是分包与包体优化问题，不再属于低风险状态解藕范围。
 - 第六轮续扫进入分包与包体优化：根壳层和工作区重视图已切成异步入口，`Settings`/`LeftSidebar`/`RightPanel` 做了二级按需加载，`manualChunks` 已把 `vue`、`ai`、`codemirror-data`、`markdown`、`citations`、`pdf-viewer`、`xterm`、`handsontable`、`superdoc` 等重依赖切成稳定 vendor 包。
 - 当前主入口包已从约 `3.68 MB` 压到约 `379 KB`，根样式入口也从约 `496 KB` 压到约 `79 KB`；剩余超大 chunk 主要来自近单体第三方依赖：`superdoc`、`codemirror`、`handsontable` 和 `pdfjs` 核心。
+- 最新续扫已把文档工作流中原本半成品的统一抽象正式化成 `DocumentAdapter / CompileAdapter`：`compile / diagnostics / preview / citationSyntax` 现在都能通过 adapter registry 收口，`documentWorkflow` store 与 `useEditorPaneWorkflow` 不再需要分别知道三套格式细节。

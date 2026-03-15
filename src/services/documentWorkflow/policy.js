@@ -1,11 +1,7 @@
-function extOf(path = '') {
-  const source = String(path)
-    .replace(/^preview:/, '')
-    .split('/')
-    .pop() || ''
-  const dot = source.lastIndexOf('.')
-  return dot > 0 ? source.slice(dot + 1).toLowerCase() : ''
-}
+import {
+  getDocumentAdapterByKind,
+  getDocumentAdapterForWorkflow,
+} from './adapters/index.js'
 
 export function getDocumentWorkflowKind(path) {
   if (!path || typeof path !== 'string') return null
@@ -18,11 +14,7 @@ export function getDocumentWorkflowKind(path) {
     return null
   }
 
-  const ext = extOf(path)
-  if (ext === 'md') return 'markdown'
-  if (ext === 'tex' || ext === 'latex') return 'latex'
-  if (ext === 'typ') return 'typst'
-  return null
+  return getDocumentAdapterForWorkflow(path)?.kind || null
 }
 
 export function isDocumentWorkflowSource(path) {
@@ -30,44 +22,27 @@ export function isDocumentWorkflowSource(path) {
 }
 
 function getDefaultWorkflowPreviewKind(kind) {
-  if (kind === 'markdown') return 'html'
-  if (kind === 'latex' || kind === 'typst') return 'pdf'
-  return null
+  return getDocumentAdapterByKind(kind)?.preview?.defaultKind || null
 }
 
 export function getPreferredWorkflowPreviewKind(kind, prefs = {}) {
   const preferred = prefs?.[kind]?.preferredPreview
-  return preferred || getDefaultWorkflowPreviewKind(kind)
+  const adapter = getDocumentAdapterByKind(kind)
+  const supportedKinds = adapter?.preview?.supportedKinds || []
+  if (preferred && supportedKinds.includes(preferred)) return preferred
+  return getDefaultWorkflowPreviewKind(kind)
 }
 
 export function createWorkflowPreviewPath(sourcePath, kind, previewKind) {
-  if (!sourcePath || !kind || !previewKind) return null
-
-  if (kind === 'markdown') {
-    if (previewKind === 'html') return `preview:${sourcePath}`
-    if (previewKind === 'pdf') return sourcePath.replace(/\.md$/i, '.pdf')
-  }
-
-  if (kind === 'latex' && previewKind === 'pdf') {
-    return sourcePath.replace(/\.(tex|latex)$/i, '.pdf')
-  }
-
-  if (kind === 'typst' && previewKind === 'pdf') {
-    return sourcePath.replace(/\.typ$/i, '.pdf')
-  }
-
-  return null
+  if (!sourcePath) return null
+  const adapter = (kind ? getDocumentAdapterByKind(kind) : null) || getDocumentAdapterForWorkflow(sourcePath)
+  const resolvedPreviewKind = previewKind || adapter?.preview?.defaultKind || null
+  if (!adapter?.preview || !resolvedPreviewKind) return null
+  return adapter.preview.createPath(sourcePath, resolvedPreviewKind)
 }
 
 export function inferWorkflowPreviewKind(sourcePath, previewPath) {
-  const kind = getDocumentWorkflowKind(sourcePath)
-  if (!kind || !previewPath) return null
-
-  if (previewPath === createWorkflowPreviewPath(sourcePath, kind, 'html')) {
-    return 'html'
-  }
-  if (previewPath === createWorkflowPreviewPath(sourcePath, kind, 'pdf')) {
-    return 'pdf'
-  }
-  return null
+  const adapter = getDocumentAdapterForWorkflow(sourcePath)
+  if (!adapter?.preview || !previewPath) return null
+  return adapter.preview.inferKind(sourcePath, previewPath)
 }
