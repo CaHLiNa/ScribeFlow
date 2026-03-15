@@ -96,7 +96,6 @@ import { ref, computed, watch, shallowRef, markRaw, onUnmounted, nextTick } from
 import { IconX } from '@tabler/icons-vue'
 import { EditorView } from '@codemirror/view'
 import { EditorState } from '@codemirror/state'
-import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
 import { shouldersTheme, shouldersHighlighting } from '../editor/theme'
 import { useWorkspaceStore } from '../stores/workspace'
 import { useEditorStore } from '../stores/editor'
@@ -156,6 +155,19 @@ function destroyPreview() {
   }
 }
 
+async function createMarkdownPreviewState(content) {
+  const { markdown, markdownLanguage } = await import('@codemirror/lang-markdown')
+  return EditorState.create({
+    doc: content,
+    extensions: [
+      EditorView.editable.of(false),
+      markdown({ base: markdownLanguage }),
+      shouldersTheme,
+      shouldersHighlighting,
+    ],
+  })
+}
+
 watch(() => props.visible, async (v) => {
   if (v && props.filePath) {
     await loadHistory()
@@ -210,15 +222,7 @@ async function selectVersionText(commit) {
   if (previewContainer.value) {
     destroyPreview()
 
-    const state = EditorState.create({
-      doc: content,
-      extensions: [
-        EditorView.editable.of(false),
-        markdown({ base: markdownLanguage }),
-        shouldersTheme,
-        shouldersHighlighting,
-      ],
-    })
+    const state = await createMarkdownPreviewState(content)
 
     previewView = new EditorView({
       state,

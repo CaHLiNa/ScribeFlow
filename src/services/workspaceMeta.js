@@ -1,5 +1,6 @@
 import { useEditorStore } from '../stores/editor'
 import { useFilesStore } from '../stores/files'
+import { useReferencesStore } from '../stores/references'
 import { gitDiffSummary, gitBranch } from './git'
 import { isChatTab, isNewTab } from '../utils/fileTypes'
 
@@ -60,7 +61,6 @@ export async function buildWorkspaceMeta(workspacePath) {
 
   // Reference library summary
   try {
-    const { useReferencesStore } = await import('../stores/references')
     const refsStore = useReferencesStore()
     if (refsStore.library.length > 0) {
       const count = refsStore.library.length

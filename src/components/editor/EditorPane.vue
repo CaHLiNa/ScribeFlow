@@ -190,6 +190,7 @@ import { useWorkspaceStore } from '../../stores/workspace'
 import { useToastStore } from '../../stores/toast'
 import { useCommentsStore } from '../../stores/comments'
 import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
+import { useReferencesStore } from '../../stores/references'
 import { EditorView } from '@codemirror/view'
 import { getViewerType, isReferencePath, referenceKeyFromPath, getLanguage, isLatex, isRmdOrQmd, isChatTab, getChatSessionId, isTypst } from '../../utils/fileTypes'
 import { sendCode, runFile, renderDocument } from '../../services/codeRunner'
@@ -235,6 +236,7 @@ const typstStore = useTypstStore()
 const toastStore = useToastStore()
 const commentsStore = useCommentsStore()
 const workflowStore = useDocumentWorkflowStore()
+const referencesStore = useReferencesStore()
 const { t } = useI18n()
 
 const pdfToolbarTargetId = computed(() => `pdf-toolbar-slot-${String(props.paneId || 'pane').replace(/[^a-zA-Z0-9_-]/g, '-')}`)
@@ -597,8 +599,7 @@ async function handleExportPdf(settingsOverride) {
 
     // Inject citation style from references store if not already set
     if (!settings.bib_style) {
-      const { useReferencesStore } = await import('../../stores/references')
-      settings.bib_style = useReferencesStore().citationStyle
+      settings.bib_style = referencesStore.citationStyle
     }
 
     // For non-built-in styles, copy .csl file next to the .typ and pass filename

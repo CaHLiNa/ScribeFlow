@@ -1,16 +1,16 @@
 import { invoke } from '@tauri-apps/api/core'
+import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs'
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/legacy/build/pdf.worker.mjs',
+  import.meta.url
+).href
 
 /**
  * Extract text from a PDF with spatial-aware layout reconstruction.
  * Handles two-column layouts, detects paragraphs and headings.
  */
 export async function extractTextFromPdf(filePath) {
-  const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs')
-  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-    'pdfjs-dist/legacy/build/pdf.worker.mjs',
-    import.meta.url
-  ).href
-
   const base64 = await invoke('read_file_base64', { path: filePath })
   const data = Uint8Array.from(atob(base64), c => c.charCodeAt(0))
   const pdf = await pdfjsLib.getDocument({ data }).promise
@@ -183,12 +183,6 @@ function _buildParagraphs(lines, medianGap, bodyFontSize) {
  * Tier 2: AI extraction from first ~3000 chars
  */
 export async function extractFromPdf(filePath) {
-  const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs')
-  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-    'pdfjs-dist/legacy/build/pdf.worker.mjs',
-    import.meta.url
-  ).href
-
   const base64 = await invoke('read_file_base64', { path: filePath })
   const data = Uint8Array.from(atob(base64), c => c.charCodeAt(0))
   const pdf = await pdfjsLib.getDocument({ data }).promise

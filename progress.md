@@ -134,6 +134,22 @@
   - `src/stores/references.js`
   - `src/stores/reviews.js`
 
+### Follow-up Continuation 3: Store-edge Warning Cleanup
+- **Status:** complete
+- Actions taken:
+  - 将 `references` store 在组件与服务边界上的 5 处动态导入改为静态引用，消除 `references.js` 的 mixed import warning
+  - 将 `VersionHistory.vue` 里的 `@codemirror/lang-markdown` 改成真正按需加载，消除该包 warning
+  - 将 `pdfMetadata.js` 统一到与 `PdfViewer.vue` 相同的 `pdfjs` 入口，消除 `pdfjs-dist/legacy/build/pdf.mjs` warning
+  - 重新执行前端构建与 Rust 检查，确认本轮改动未引入回归
+- Files created/modified:
+  - `src/components/chat/ProposalCard.vue`
+  - `src/components/editor/EditorPane.vue`
+  - `src/components/VersionHistory.vue`
+  - `src/services/chatTools.js`
+  - `src/services/editorPersistence.js`
+  - `src/services/workspaceMeta.js`
+  - `src/utils/pdfMetadata.js`
+
 ## Test Results
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|
@@ -157,6 +173,10 @@
 | Rust 检查 Round 9 | `cargo check --manifest-path src-tauri/Cargo.toml` | 第二批 import consolidation 后仍可编译 | 通过 | 通过 |
 | 前端构建 Round 10 | `npm run build` | 修正 `createTauriFetch()` 导出使用后仍可构建 | 通过，且 `toast/tauriFetch` warning 消失 | 通过 |
 | Rust 检查 Round 10 | `cargo check --manifest-path src-tauri/Cargo.toml` | 修正 `createTauriFetch()` 导出使用后仍可编译 | 通过 | 通过 |
+| 前端构建 Round 11 | `npm run build` | `references` 与 `@codemirror/lang-markdown` 统一加载方式后仍可构建 | 通过，且两组 warning 消失 | 通过 |
+| Rust 检查 Round 11 | `cargo check --manifest-path src-tauri/Cargo.toml` | `references` 与 `@codemirror/lang-markdown` 续扫后仍可编译 | 通过 | 通过 |
+| 前端构建 Round 12 | `npm run build` | `pdfjs-dist/legacy/build/pdf.mjs` 统一加载方式后仍可构建 | 通过，且 `pdfjs` warning 消失 | 通过 |
+| Rust 检查 Round 12 | `cargo check --manifest-path src-tauri/Cargo.toml` | `pdfjs` 续扫后仍可编译 | 通过 | 通过 |
 
 ## Error Log
 | Timestamp | Error | Attempt | Resolution |
@@ -169,4 +189,5 @@
 - Tauri 已注册但前端未调用的命令扫描为空。
 - `telemetry.js` 与 `errorMessages.js` 两组动态/静态导入混用 warning 已清掉。
 - 第二轮续扫后，`core`、`plugin-dialog`、`event`、`citationStyleRegistry`、`crossref`、`bibtexParser`、`codeRunner`、`latexBib`、`pdfMetadata`、`toast`、`tauriFetch` 的混用 warning 也已清掉。
+- 第三轮续扫后，`references.js`、`@codemirror/lang-markdown`、`pdfjs-dist/legacy/build/pdf.mjs` 的混用 warning 也已清掉。
 - 目前剩余更高价值但更高风险的工作，已经集中在 stores 互相依赖、`workspace/usage` 状态回路、`documentWorkflow`/`files` 交叉依赖，以及包级分块优化。

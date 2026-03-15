@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { useReviewsStore } from '../stores/reviews'
 import { useEditorStore } from '../stores/editor'
 import { useFilesStore } from '../stores/files'
+import { useReferencesStore } from '../stores/references'
 import { nanoid } from '../stores/utils'
 import { lookupByDoi } from './crossref'
 import { extractDocumentText, extractBlockList } from './docxContext'
@@ -536,7 +537,6 @@ export function getAiTools(workspace) {
         query: z.string().describe('Search query'),
       }),
       execute: async ({ query }) => {
-        const { useReferencesStore } = await import('../stores/references')
         const refsStore = useReferencesStore()
         const matches = refsStore.searchRefs(query)
         if (matches.length === 0) return 'No matching references found.'
@@ -554,7 +554,6 @@ export function getAiTools(workspace) {
         key: z.string().describe('The citation key (e.g. "vaswani2017")'),
       }),
       execute: async ({ key }) => {
-        const { useReferencesStore } = await import('../stores/references')
         const refsStore = useReferencesStore()
         const ref = refsStore.getByKey(key)
         if (!ref) return `Reference @${key} not found.`
@@ -568,7 +567,6 @@ export function getAiTools(workspace) {
         input: z.string().describe('A DOI string or BibTeX entry/entries'),
       }),
       execute: async ({ input: raw }) => {
-        const { useReferencesStore } = await import('../stores/references')
         const refsStore = useReferencesStore()
         const trimmed = raw.trim()
 
@@ -629,7 +627,6 @@ export function getAiTools(workspace) {
         updates: z.record(z.string(), z.any()).describe('CSL-JSON fields to update'),
       }),
       execute: async ({ key, updates }) => {
-        const { useReferencesStore } = await import('../stores/references')
         const refsStore = useReferencesStore()
         if (!refsStore.getByKey(key)) return `Reference @${key} not found.`
         const ok = refsStore.updateReference(key, updates)
