@@ -22,7 +22,7 @@ const DEFAULT_DOCX_ZOOM_PERCENT = 100
 const DEFAULT_APP_ZOOM_PERCENT = 100
 const APP_ZOOM_KEY = 'appZoomPercent'
 
-export const APP_ZOOM_PRESETS = [75, 80, 90, 100, 110, 125, 150]
+export const APP_ZOOM_PRESETS = [80, 90, 100, 110, 125, 150]
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value))
@@ -79,7 +79,7 @@ function writeValue(key, value) {
   }
 }
 
-function normalizeAppZoomPercent(value) {
+export function normalizeAppZoomPercent(value) {
   const parsed = Math.round(Number(value) || DEFAULT_APP_ZOOM_PERCENT)
   return clamp(parsed, APP_ZOOM_PRESETS[0], APP_ZOOM_PRESETS[APP_ZOOM_PRESETS.length - 1])
 }

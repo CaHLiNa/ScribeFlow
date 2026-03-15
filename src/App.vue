@@ -4,9 +4,6 @@
     <Header
       ref="headerRef"
       @open-settings="workspace.openSettings()"
-      @open-folder="pickWorkspace"
-      @open-workspace="openWorkspace"
-      @close-folder="closeWorkspace"
     />
 
     <!-- Launcher (no workspace open) -->
@@ -29,6 +26,9 @@
           <LeftSidebar
             ref="leftSidebarRef"
             @version-history="openVersionHistory"
+            @open-folder="pickWorkspace"
+            @open-workspace="openWorkspace"
+            @close-folder="closeWorkspace"
           />
         </div>
 

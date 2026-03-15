@@ -3,51 +3,7 @@
     data-tauri-drag-region
     :style="headerStyle"
   >
-    <!-- Left: hamburger menu -->
-    <div class="flex items-center" data-tauri-drag-region>
-      <button
-        ref="menuBtnRef"
-        class="header-menu-button flex items-center justify-center border-none bg-transparent cursor-pointer"
-        :style="menuButtonStyle"
-        :title="t('Menu')"
-        @click="toggleMenu"
-      >
-        <IconMenu2 :size="HEADER_ICON_SIZE" :stroke-width="1.5" />
-      </button>
-    </div>
-
-    <!-- Hamburger dropdown -->
-    <Teleport to="body">
-      <div v-if="menuOpen" ref="menuDropdownRef" class="context-menu" :style="menuStyle">
-        <div class="context-menu-item" @click="doOpenFolder">
-          {{ t('Open Folder...') }}
-          <span class="context-menu-ext" style="opacity: 1;">{{ modKey }}+O</span>
-        </div>
-        <template v-if="recents.length">
-          <div class="context-menu-separator"></div>
-          <div class="context-menu-section">{{ t('Recent') }}</div>
-          <div
-            v-for="r in recents"
-            :key="r.path"
-            class="context-menu-item"
-            @click="doOpenWorkspace(r.path)"
-          >
-            {{ r.name }}
-          </div>
-        </template>
-        <template v-if="workspace.isOpen">
-          <div class="context-menu-separator"></div>
-          <div class="context-menu-item" @click="doCloseFolder">
-            {{ t('Close Folder') }}
-          </div>
-        </template>
-        <div class="context-menu-separator"></div>
-        <div class="context-menu-item" @click="doSettings">
-          {{ t('Settings...') }}
-          <span class="context-menu-ext" style="opacity: 1;">{{ modKey }}+,</span>
-        </div>
-      </div>
-    </Teleport>
+    <div data-tauri-drag-region></div>
 
     <!-- Center: search input -->
     <div class="relative">
@@ -151,14 +107,13 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
-import { getCurrentWindow } from '@tauri-apps/api/window'
+import { ref, computed, nextTick, defineAsyncComponent } from 'vue'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useEditorStore } from '../../stores/editor'
 import {
   IconLayoutSidebar, IconLayoutSidebarFilled,
   IconLayoutSidebarRight, IconLayoutSidebarRightFilled,
-  IconSettings, IconSearch, IconMenu2, IconTerminal2,
+  IconSettings, IconSearch, IconTerminal2,
 } from '@tabler/icons-vue'
 import { isMac, modKey } from '../../platform'
 import { useI18n } from '../../i18n'
@@ -166,12 +121,11 @@ import { buildCitationText } from '../../editor/citationSyntax'
 
 const SearchResults = defineAsyncComponent(() => import('../SearchResults.vue'))
 
-const emit = defineEmits(['open-settings', 'open-folder', 'open-workspace', 'close-folder'])
+const emit = defineEmits(['open-settings'])
 
 const workspace = useWorkspaceStore()
 const editorStore = useEditorStore()
 const { t } = useI18n()
-const isMacTitlebarCompact = ref(false)
 const isMacDesktop = isMac
   && typeof window !== 'undefined'
   && !!window.__TAURI_INTERNALS__
@@ -182,131 +136,31 @@ const HEADER_SEARCH_HEIGHT = 24
 const HEADER_SEARCH_INPUT_HEIGHT = 22
 const HEADER_SEARCH_ICON_SIZE = 12
 const DEFAULT_HEADER_SIDE_PADDING = 12
-const MAC_TRAFFIC_LIGHT_PADDING = 64
-const MAC_COMPACT_MENU_OFFSET = MAC_TRAFFIC_LIGHT_PADDING - DEFAULT_HEADER_SIDE_PADDING
-
-// Hamburger menu
-const menuBtnRef = ref(null)
-const menuDropdownRef = ref(null)
-const menuOpen = ref(false)
-const recents = computed(() => workspace.getRecentWorkspaces().slice(0, 5))
-const currentWindowHandle = isMacDesktop ? getCurrentWindow() : null
-let unlistenWindowResize = null
-let syncChromeFrame = null
+const MAC_TRAFFIC_LIGHT_SAFE_PADDING = 72
 
 function toPx(value) {
   return `${Math.round(value * 100) / 100}px`
 }
 
+const appZoomScale = computed(() => {
+  const percent = Math.max(Number(workspace.appZoomPercent) || 100, 80)
+  return percent / 100
+})
+
+const macHeaderLeftPadding = computed(() => {
+  if (!isMac) return DEFAULT_HEADER_SIDE_PADDING
+  if (!isMacDesktop) return MAC_TRAFFIC_LIGHT_SAFE_PADDING
+  return MAC_TRAFFIC_LIGHT_SAFE_PADDING / appZoomScale.value
+})
+
 const headerStyle = computed(() => ({
   gridTemplateColumns: '1fr auto 1fr',
   background: 'var(--bg-secondary)',
   borderBottom: '1px solid var(--border)',
-  paddingLeft: isMac ? toPx(MAC_TRAFFIC_LIGHT_PADDING) : toPx(DEFAULT_HEADER_SIDE_PADDING),
+  paddingLeft: isMac ? toPx(macHeaderLeftPadding.value) : toPx(DEFAULT_HEADER_SIDE_PADDING),
   paddingRight: '8px',
   height: `${HEADER_HEIGHT}px`,
 }))
-
-const menuButtonStyle = computed(() => ({
-  transform: isMac && isMacTitlebarCompact.value ? `translateX(-${MAC_COMPACT_MENU_OFFSET}px)` : 'translateX(0)',
-  zIndex: isMac && isMacTitlebarCompact.value ? 2 : 1,
-}))
-
-const menuStyle = computed(() => {
-  if (!menuBtnRef.value) return {}
-  const rect = menuBtnRef.value.getBoundingClientRect()
-  return {
-    top: rect.bottom + 4 + 'px',
-    left: rect.left + 'px',
-    minWidth: '200px',
-  }
-})
-
-async function syncMacChromeState() {
-  const nativeWindow = currentWindowHandle
-  if (!nativeWindow) {
-    isMacTitlebarCompact.value = false
-    return
-  }
-
-  const fullscreen = await nativeWindow.isFullscreen().catch(() => false)
-  isMacTitlebarCompact.value = fullscreen
-}
-
-function queueMacChromeStateSync() {
-  if (!isMacDesktop || typeof window === 'undefined') return
-  if (syncChromeFrame != null) return
-
-  syncChromeFrame = window.requestAnimationFrame(async () => {
-    syncChromeFrame = null
-    await syncMacChromeState()
-  })
-}
-
-function toggleMenu() {
-  menuOpen.value = !menuOpen.value
-}
-
-function closeMenu() {
-  menuOpen.value = false
-}
-
-function doOpenFolder() {
-  closeMenu()
-  emit('open-folder')
-}
-
-function doOpenWorkspace(path) {
-  closeMenu()
-  emit('open-workspace', path)
-}
-
-function doCloseFolder() {
-  closeMenu()
-  emit('close-folder')
-}
-
-function doSettings() {
-  closeMenu()
-  emit('open-settings')
-}
-
-function onClickOutsideMenu(e) {
-  if (!menuOpen.value) return
-  if (menuBtnRef.value?.contains(e.target)) return
-  if (menuDropdownRef.value?.contains(e.target)) return
-  closeMenu()
-}
-
-onMounted(() => {
-  document.addEventListener('mousedown', onClickOutsideMenu)
-  queueMacChromeStateSync()
-
-  if (!isMacDesktop || typeof window === 'undefined') return
-
-  window.addEventListener('resize', queueMacChromeStateSync)
-
-  currentWindowHandle?.onResized(() => {
-    queueMacChromeStateSync()
-  }).then((unlisten) => {
-    unlistenWindowResize = unlisten
-  }).catch(() => {})
-})
-
-onUnmounted(() => {
-  document.removeEventListener('mousedown', onClickOutsideMenu)
-  if (typeof window !== 'undefined') {
-    window.removeEventListener('resize', queueMacChromeStateSync)
-    if (syncChromeFrame != null) {
-      window.cancelAnimationFrame(syncChromeFrame)
-      syncChromeFrame = null
-    }
-  }
-  if (unlistenWindowResize) {
-    unlistenWindowResize()
-    unlistenWindowResize = null
-  }
-})
 
 // Search
 const searchInputRef = ref(null)
@@ -395,24 +249,9 @@ defineExpose({ focusSearch })
 </script>
 
 <style scoped>
-.header-menu-button {
-  width: 24px;
-  height: 24px;
-  border-radius: 6px;
-  color: var(--fg-muted);
-  transition:
-    color 150ms ease,
-    background-color 150ms ease;
-}
-
 .header-chrome-button {
   width: 24px;
   height: 24px;
   border-radius: 6px;
-}
-
-.header-menu-button:hover {
-  background: var(--bg-hover);
-  color: var(--fg-primary);
 }
 </style>

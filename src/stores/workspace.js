@@ -56,6 +56,7 @@ import {
   createWorkspacePreferenceState,
   decreaseWorkspaceZoom,
   increaseWorkspaceZoom,
+  normalizeAppZoomPercent,
   persistStoredString,
   resetWorkspaceZoom,
   restoreWorkspaceTheme,
@@ -528,6 +529,7 @@ export const useWorkspaceStore = defineStore('workspace', {
     },
 
     async applyAppZoom() {
+      this.appZoomPercent = normalizeAppZoomPercent(this.appZoomPercent)
       await applyWorkspaceAppZoom(this.appZoomPercent)
     },
 

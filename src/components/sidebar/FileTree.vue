@@ -16,6 +16,14 @@
       </div>
       <div v-if="!collapsed" class="flex items-center gap-1 shrink-0">
         <button
+          ref="workspaceMenuBtnEl"
+          class="w-5 h-5 flex items-center justify-center rounded hover:opacity-80"
+          style="color: var(--fg-muted);"
+          @click.stop="toggleWorkspaceMenu"
+          :title="t('Workspace Menu')">
+          <IconMenu2 :size="14" :stroke-width="1.5" />
+        </button>
+        <button
           class="w-5 h-5 flex items-center justify-center rounded hover:opacity-80"
           style="color: var(--fg-muted);"
           @click.stop="collapseAllFolders"
@@ -156,6 +164,39 @@
       @import-to-refs="handleImportToRefs"
     />
 
+    <!-- Workspace dropdown menu -->
+    <Teleport to="body">
+      <div v-if="workspaceMenuOpen" class="fixed inset-0 z-50" @click="workspaceMenuOpen = false">
+        <div class="context-menu" :style="workspaceMenuStyle">
+          <div class="context-menu-item" @click="handleWorkspaceMenuOpenFolder">
+            {{ t('Open Folder...') }}
+            <span class="context-menu-ext" style="opacity: 1;">{{ modKey }}+O</span>
+          </div>
+          <template v-if="recentWorkspaces.length">
+            <div class="context-menu-separator"></div>
+            <div class="context-menu-section">{{ t('Recent') }}</div>
+            <div
+              v-for="recent in recentWorkspaces"
+              :key="recent.path"
+              class="context-menu-item"
+              @click="handleWorkspaceMenuOpenRecent(recent.path)"
+            >
+              {{ recent.name }}
+            </div>
+          </template>
+          <div class="context-menu-separator"></div>
+          <div class="context-menu-item" @click="handleWorkspaceMenuSettings">
+            {{ t('Settings...') }}
+            <span class="context-menu-ext" style="opacity: 1;">{{ modKey }}+,</span>
+          </div>
+          <div class="context-menu-separator"></div>
+          <div class="context-menu-item" @click="handleWorkspaceMenuCloseFolder">
+            {{ t('Close Folder') }}
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
     <!-- "+ New" dropdown menu -->
     <Teleport to="body">
       <div v-if="newMenuOpen" class="fixed inset-0 z-50" @click="newMenuOpen = false">
@@ -229,7 +270,7 @@ import { isMod, modKey } from '../../platform'
 import ContextMenu from './ContextMenu.vue'
 import {
   IconSearch, IconX, IconPlus, IconFileText, IconNotebook, IconMath,
-  IconCode, IconBrandPython, IconFilePlus, IconFolderPlus,
+  IconCode, IconBrandPython, IconFilePlus, IconFolderPlus, IconMenu2,
 } from '@tabler/icons-vue'
 import { ask } from '@tauri-apps/plugin-dialog'
 import { useI18n } from '../../i18n'
@@ -240,7 +281,7 @@ import { useFileTreeDrag } from '../../composables/useFileTreeDrag'
 const props = defineProps({
   collapsed: { type: Boolean, default: false },
 })
-const emit = defineEmits(['version-history', 'toggle-collapse'])
+const emit = defineEmits(['version-history', 'toggle-collapse', 'open-folder', 'open-workspace', 'close-folder'])
 
 const files = useFilesStore()
 const editor = useEditorStore()
@@ -251,11 +292,14 @@ const workspaceName = computed(() => {
   if (!workspace.path) return t('Explorer')
   return workspace.path.split('/').pop()
 })
+const recentWorkspaces = computed(() => workspace.getRecentWorkspaces().slice(0, 5))
 
 const treeContainer = ref(null)
 const renameInput = ref(null)
 const filterInputEl = ref(null)
+const workspaceMenuBtnEl = ref(null)
 const newBtnEl = ref(null)
+const workspaceMenuOpen = ref(false)
 const newMenuOpen = ref(false)
 const contextMenu = reactive({ show: false, x: 0, y: 0, entry: null })
 
@@ -347,6 +391,20 @@ function showContextMenuOnEmpty(event) {
   contextMenu.entry = null
 }
 
+const workspaceMenuStyle = computed(() => {
+  if (!workspaceMenuBtnEl.value) return {}
+  const rect = workspaceMenuBtnEl.value.getBoundingClientRect()
+  const menuWidth = 220
+  const estimatedHeight = 180 + recentWorkspaces.value.length * 28
+  const maxX = window.innerWidth - menuWidth - 8
+  const maxY = window.innerHeight - estimatedHeight - 8
+  return {
+    left: Math.min(rect.left, maxX) + 'px',
+    top: Math.min(rect.bottom + 2, maxY) + 'px',
+    minWidth: `${menuWidth}px`,
+  }
+})
+
 // Computed style for the "+ New" dropdown (anchored below the button)
 const newMenuStyle = computed(() => {
   if (!newBtnEl.value) return {}
@@ -361,12 +419,44 @@ const newMenuStyle = computed(() => {
   }
 })
 
+function toggleWorkspaceMenu() {
+  workspaceMenuOpen.value = !workspaceMenuOpen.value
+  if (workspaceMenuOpen.value) {
+    newMenuOpen.value = false
+  }
+}
+
 function toggleNewMenu() {
+  workspaceMenuOpen.value = false
   newMenuOpen.value = !newMenuOpen.value
 }
 
 function collapseAllFolders() {
   files.expandedDirs.clear()
+}
+
+function closeWorkspaceMenu() {
+  workspaceMenuOpen.value = false
+}
+
+function handleWorkspaceMenuOpenFolder() {
+  closeWorkspaceMenu()
+  emit('open-folder')
+}
+
+function handleWorkspaceMenuOpenRecent(path) {
+  closeWorkspaceMenu()
+  emit('open-workspace', path)
+}
+
+function handleWorkspaceMenuCloseFolder() {
+  closeWorkspaceMenu()
+  emit('close-folder')
+}
+
+function handleWorkspaceMenuSettings() {
+  closeWorkspaceMenu()
+  workspace.openSettings()
 }
 
 // Unified creation handler — creates a typed file and starts inline rename

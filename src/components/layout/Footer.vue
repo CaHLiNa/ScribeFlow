@@ -313,7 +313,7 @@ import { useUsageStore } from '../../stores/usage'
 import { useToastStore } from '../../stores/toast'
 import { useUxStatusStore } from '../../stores/uxStatus'
 import { getBillingRoute } from '../../services/apiClient'
-import { APP_ZOOM_PRESETS } from '../../services/workspacePreferences'
+import { APP_ZOOM_PRESETS, normalizeAppZoomPercent } from '../../services/workspacePreferences'
 import { modKey, altKey } from '../../platform'
 import { useI18n } from '../../i18n'
 import SyncPopover from './SyncPopover.vue'
@@ -348,7 +348,7 @@ const showZoomPopover = ref(false)
 const zoomTriggerRef = ref(null)
 const zoomPopoverPos = ref({})
 const zoomPresets = APP_ZOOM_PRESETS
-const zoomPercent = computed(() => workspace.appZoomPercent || 100)
+const zoomPercent = computed(() => normalizeAppZoomPercent(workspace.appZoomPercent || 100))
 
 // Save confirmation state (center section swap)
 const saveConfirmationActive = ref(false)
