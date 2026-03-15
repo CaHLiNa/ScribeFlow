@@ -11,13 +11,78 @@ function flattenFileTree(entries = []) {
       if (!entry.is_dir) {
         files.push(entry)
       }
-      if (entry.children) {
+      if (Array.isArray(entry.children)) {
         walk(entry.children)
       }
     }
   }
   walk(entries)
   return files
+}
+
+function patchTreeEntry(entries = [], targetPath, updater) {
+  let changed = false
+  const nextEntries = entries.map((entry) => {
+    if (entry.path === targetPath) {
+      changed = true
+      return updater(entry)
+    }
+
+    if (Array.isArray(entry.children)) {
+      const nextChildren = patchTreeEntry(entry.children, targetPath, updater)
+      if (nextChildren !== entry.children) {
+        changed = true
+        return { ...entry, children: nextChildren }
+      }
+    }
+
+    return entry
+  })
+
+  return changed ? nextEntries : entries
+}
+
+function mergePreservingLoadedChildren(nextEntries = [], previousEntries = []) {
+  const previousByPath = new Map(previousEntries.map(entry => [entry.path, entry]))
+  return nextEntries.map((entry) => {
+    const previous = previousByPath.get(entry.path)
+    if (!entry.is_dir || !previous?.is_dir) {
+      return entry
+    }
+
+    if (Array.isArray(previous.children)) {
+      if (!Array.isArray(entry.children)) {
+        return {
+          ...entry,
+          children: previous.children,
+        }
+      }
+      return {
+        ...entry,
+        children: mergePreservingLoadedChildren(entry.children, previous.children),
+      }
+    }
+
+    return entry
+  })
+}
+
+function collectLoadedDirectoryPaths(entries = [], paths = []) {
+  for (const entry of entries) {
+    if (!entry.is_dir || !Array.isArray(entry.children)) continue
+    paths.push(entry.path)
+    collectLoadedDirectoryPaths(entry.children, paths)
+  }
+  return paths
+}
+
+function normalizeTreeSnapshot(entries = []) {
+  return entries.map((entry) => ({
+    path: entry.path,
+    is_dir: entry.is_dir,
+    modified: entry.modified ?? null,
+    children: Array.isArray(entry.children) ? normalizeTreeSnapshot(entry.children) : null,
+  }))
 }
 
 // Minimal valid DOCX — includes styles, numbering, settings, custom props
@@ -28,6 +93,8 @@ export const useFilesStore = defineStore('files', {
   state: () => ({
     tree: [],
     flatFilesCache: [],
+    flatFilesReady: false,
+    treeCacheByWorkspace: {},
     expandedDirs: new Set(),
     activeFilePath: null,
     fileContents: {}, // cache: path → content
@@ -42,29 +109,236 @@ export const useFilesStore = defineStore('files', {
   },
 
   actions: {
-    _setTree(tree = []) {
+    _cacheWorkspaceSnapshot(workspacePath = null) {
+      const targetWorkspace = workspacePath || useWorkspaceStore().path
+      if (!targetWorkspace) return
+      this.treeCacheByWorkspace[targetWorkspace] = {
+        tree: this.tree,
+        flatFiles: this.flatFilesCache,
+        flatFilesReady: this.flatFilesReady,
+      }
+    },
+
+    _setTree(tree = [], workspacePath = null, options = {}) {
+      const { preserveFlatFiles = false } = options
       this.tree = tree
-      this.flatFilesCache = flattenFileTree(tree)
+      if (!preserveFlatFiles) {
+        this.flatFilesCache = flattenFileTree(tree)
+        this.flatFilesReady = false
+      }
+      this._cacheWorkspaceSnapshot(workspacePath)
+    },
+
+    _setFlatFiles(flatFiles = [], workspacePath = null) {
+      this.flatFilesCache = flatFiles
+      this.flatFilesReady = true
+      this._cacheWorkspaceSnapshot(workspacePath)
+    },
+
+    _findEntry(path) {
+      const walk = (entries = []) => {
+        for (const entry of entries) {
+          if (entry.path === path) return entry
+          if (Array.isArray(entry.children)) {
+            const found = walk(entry.children)
+            if (found) return found
+          }
+        }
+        return null
+      }
+      return walk(this.tree)
+    },
+
+    restoreCachedTree(workspacePath) {
+      if (!workspacePath) return false
+      const cached = this.treeCacheByWorkspace[workspacePath]
+      if (!cached?.tree) return false
+      this.tree = cached.tree
+      this.flatFilesCache = cached.flatFiles || flattenFileTree(cached.tree)
+      this.flatFilesReady = !!cached.flatFilesReady
+      this.lastLoadError = null
+      return true
+    },
+
+    async indexWorkspaceFiles(options = {}) {
+      const workspace = useWorkspaceStore()
+      if (!workspace.path) return []
+
+      const {
+        delayMs = 0,
+        force = false,
+      } = options
+
+      const workspacePath = workspace.path
+      if (!force && this.flatFilesReady && this.treeCacheByWorkspace[workspacePath]?.flatFilesReady) {
+        return this.flatFilesCache
+      }
+
+      if (!force && this._flatFilesPromise && this._flatFilesWorkspace === workspacePath) {
+        return this._flatFilesPromise
+      }
+
+      if (this._flatFilesTimer) {
+        clearTimeout(this._flatFilesTimer)
+        this._flatFilesTimer = null
+      }
+
+      const generation = (this._flatFilesGeneration || 0) + 1
+      this._flatFilesGeneration = generation
+      this._flatFilesWorkspace = workspacePath
+
+      this._flatFilesPromise = new Promise((resolve, reject) => {
+        this._flatFilesTimer = window.setTimeout(async () => {
+          this._flatFilesTimer = null
+          try {
+            const flatFiles = await invoke('list_files_recursive', { path: workspacePath })
+            if (this._flatFilesGeneration !== generation || useWorkspaceStore().path !== workspacePath) {
+              resolve([])
+              return
+            }
+            this._setFlatFiles(flatFiles, workspacePath)
+            resolve(flatFiles)
+          } catch (error) {
+            if (this._flatFilesGeneration === generation) {
+              this.flatFilesReady = false
+            }
+            reject(error)
+          } finally {
+            if (this._flatFilesGeneration === generation) {
+              this._flatFilesPromise = null
+            }
+          }
+        }, delayMs)
+      })
+
+      return this._flatFilesPromise
+    },
+
+    async ensureFlatFilesReady(options = {}) {
+      return this.indexWorkspaceFiles({
+        delayMs: 0,
+        ...options,
+      })
     },
 
     async loadFileTree(options = {}) {
       const workspace = useWorkspaceStore()
       if (!workspace.path) return
-      const { suppressErrors = false } = options
+      const {
+        suppressErrors = false,
+        keepCurrentTreeOnError = false,
+      } = options
 
       try {
-        const tree = await invoke('read_dir_recursive', { path: workspace.path })
-        this._setTree(tree)
+        const tree = await invoke('read_dir_shallow', { path: workspace.path })
+        const nextTree = mergePreservingLoadedChildren(tree, this.tree)
+        this._setTree(nextTree, workspace.path, { preserveFlatFiles: true })
+        if (!this.flatFilesCache.length) {
+          this.flatFilesCache = flattenFileTree(nextTree)
+          this.flatFilesReady = false
+          this._cacheWorkspaceSnapshot(workspace.path)
+        }
         this.lastLoadError = null
-        return tree
+        return nextTree
       } catch (e) {
         console.error('Failed to load file tree:', e)
         this.lastLoadError = e
         if (!suppressErrors) {
           throw e
         }
+        return keepCurrentTreeOnError ? this.tree : []
+      }
+    },
+
+    async ensureDirLoaded(path, options = {}) {
+      const entry = this._findEntry(path)
+      if (!entry?.is_dir) return []
+      const { force = false } = options
+
+      if (!force && Array.isArray(entry.children)) {
+        return entry.children
+      }
+
+      if (!this._dirLoadPromises) this._dirLoadPromises = new Map()
+      const existingPromise = this._dirLoadPromises.get(path)
+      if (existingPromise && !force) {
+        return existingPromise
+      }
+
+      const loadPromise = (async () => {
+        const children = await invoke('read_dir_shallow', { path })
+        this.tree = patchTreeEntry(this.tree, path, (current) => ({
+          ...current,
+          children: mergePreservingLoadedChildren(children, current.children || []),
+        }))
+        this._cacheWorkspaceSnapshot()
+        return children
+      })()
+
+      this._dirLoadPromises.set(path, loadPromise)
+      try {
+        return await loadPromise
+      } finally {
+        this._dirLoadPromises.delete(path)
+      }
+    },
+
+    async refreshVisibleTree(options = {}) {
+      const workspace = useWorkspaceStore()
+      if (!workspace.path) return this.tree
+      const { suppressErrors = false } = options
+
+      try {
+        let nextTree = await invoke('read_dir_shallow', { path: workspace.path })
+        nextTree = mergePreservingLoadedChildren(nextTree, this.tree)
+
+        const loadedDirectories = collectLoadedDirectoryPaths(this.tree)
+          .filter(path => path !== workspace.path)
+          .sort((a, b) => a.length - b.length)
+
+        for (const dirPath of loadedDirectories) {
+          try {
+            const previousEntry = this._findEntry(dirPath)
+            const children = await invoke('read_dir_shallow', { path: dirPath })
+            nextTree = patchTreeEntry(nextTree, dirPath, (current) => ({
+              ...current,
+              children: mergePreservingLoadedChildren(children, previousEntry?.children || current.children || []),
+            }))
+          } catch (error) {
+            // Directory may have been removed; keep refresh resilient.
+          }
+        }
+
+        const previousSnapshot = JSON.stringify(normalizeTreeSnapshot(this.tree))
+        const nextSnapshot = JSON.stringify(normalizeTreeSnapshot(nextTree))
+        if (previousSnapshot !== nextSnapshot) {
+          this._setTree(nextTree, workspace.path, { preserveFlatFiles: true })
+        }
+        this.lastLoadError = null
+        return this.tree
+      } catch (error) {
+        console.error('Failed to refresh visible file tree:', error)
+        this.lastLoadError = error
+        if (!suppressErrors) throw error
         return this.tree
       }
+    },
+
+    async revealPath(path) {
+      const workspace = useWorkspaceStore()
+      if (!workspace.path || !path.startsWith(workspace.path)) return
+
+      const relativePath = path.slice(workspace.path.length).replace(/^\/+/, '')
+      if (!relativePath) return
+
+      const parts = relativePath.split('/').filter(Boolean)
+      let currentPath = workspace.path
+      for (let i = 0; i < parts.length - 1; i++) {
+        currentPath = `${currentPath}/${parts[i]}`
+        await this.ensureDirLoaded(currentPath)
+        this.expandedDirs.add(currentPath)
+      }
+      this._cacheWorkspaceSnapshot()
     },
 
     async startWatching() {
@@ -104,7 +378,7 @@ export const useFilesStore = defineStore('files', {
           const changedPaths = [...accumulatedPaths]
           accumulatedPaths = new Set()
 
-          await this.loadFileTree({ suppressErrors: true })
+          await this.refreshVisibleTree({ suppressErrors: true })
 
           // Reload any open files that changed externally
           const { useEditorStore } = await import('./editor')
@@ -126,33 +400,47 @@ export const useFilesStore = defineStore('files', {
       })
 
       // Periodic poll as fallback — catches events the notify watcher may miss
-      // Only updates this.tree when the tree actually changed (avoids unnecessary Vue re-renders)
-      let lastTreeJson = JSON.stringify(this.tree)
+      // Only refreshes the visible tree and background index, not the entire workspace recursively.
+      let lastTreeJson = JSON.stringify(normalizeTreeSnapshot(this.tree))
       this._pollTimer = setInterval(async () => {
         const workspace = useWorkspaceStore()
         if (!workspace.path) return
         try {
-          const newTree = await invoke('read_dir_recursive', { path: workspace.path })
-          const newJson = JSON.stringify(newTree)
+          await this.refreshVisibleTree({ suppressErrors: true })
+          const newJson = JSON.stringify(normalizeTreeSnapshot(this.tree))
           if (newJson !== lastTreeJson) {
-            this._setTree(newTree)
-            this.lastLoadError = null
             lastTreeJson = newJson
           }
         } catch (e) { /* workspace may have closed */ }
       }, 5000)
     },
 
-    toggleDir(path) {
+    async toggleDir(path) {
       if (this.expandedDirs.has(path)) {
         this.expandedDirs.delete(path)
+        this._cacheWorkspaceSnapshot()
       } else {
+        await this.ensureDirLoaded(path)
         this.expandedDirs.add(path)
+        this._cacheWorkspaceSnapshot()
       }
     },
 
     isDirExpanded(path) {
       return this.expandedDirs.has(path)
+    },
+
+    async syncTreeAfterMutation(options = {}) {
+      const { expandPath = null } = options
+      await this.refreshVisibleTree({ suppressErrors: true })
+      const workspacePath = useWorkspaceStore().path
+      if (expandPath && expandPath !== workspacePath) {
+        await this.ensureDirLoaded(expandPath, { force: true })
+        this.expandedDirs.add(expandPath)
+      }
+      this._cacheWorkspaceSnapshot()
+      this.flatFilesReady = false
+      this._cacheWorkspaceSnapshot()
     },
 
     async readFile(path) {
@@ -219,7 +507,7 @@ export const useFilesStore = defineStore('files', {
             return null
           }
           await invoke('write_file_base64', { path: fullPath, data: EMPTY_DOCX_BASE64 })
-          await this.loadFileTree()
+          await this.syncTreeAfterMutation({ expandPath: dirPath })
           return fullPath
         } catch (e) {
           console.error('Failed to create DOCX:', e)
@@ -245,7 +533,7 @@ export const useFilesStore = defineStore('files', {
       }
       try {
         await invoke('create_file', { path: fullPath, content })
-        await this.loadFileTree()
+        await this.syncTreeAfterMutation({ expandPath: dirPath })
         return fullPath
       } catch (e) {
         console.error('Failed to create file:', e)
@@ -288,7 +576,7 @@ export const useFilesStore = defineStore('files', {
         } else {
           await invoke('copy_file', { src: path, dest: newPath })
         }
-        await this.loadFileTree()
+        await this.syncTreeAfterMutation({ expandPath: dir })
         return newPath
       } catch (e) {
         console.error('Failed to duplicate:', e)
@@ -300,8 +588,10 @@ export const useFilesStore = defineStore('files', {
       const fullPath = `${dirPath}/${name}`
       try {
         await invoke('create_dir', { path: fullPath })
-        await this.loadFileTree()
+        await this.syncTreeAfterMutation({ expandPath: dirPath })
         this.expandedDirs.add(fullPath)
+        await this.ensureDirLoaded(fullPath, { force: true })
+        this._cacheWorkspaceSnapshot()
         return fullPath
       } catch (e) {
         console.error('Failed to create folder:', e)
@@ -322,7 +612,7 @@ export const useFilesStore = defineStore('files', {
       }
       try {
         await invoke('rename_path', { oldPath, newPath })
-        await this.loadFileTree()
+        await this.syncTreeAfterMutation({ expandPath: newPath.substring(0, newPath.lastIndexOf('/')) })
 
         // Update active file if it was renamed
         if (this.activeFilePath === oldPath) {
@@ -383,7 +673,7 @@ export const useFilesStore = defineStore('files', {
 
       try {
         await invoke('rename_path', { oldPath: srcPath, newPath: destPath })
-        await this.loadFileTree()
+        await this.syncTreeAfterMutation({ expandPath: destDir })
 
         // Update wiki links
         const { useLinksStore } = await import('./links')
@@ -428,7 +718,7 @@ export const useFilesStore = defineStore('files', {
         } else {
           await invoke('copy_file', { src: srcPath, dest: destPath })
         }
-        await this.loadFileTree()
+        await this.syncTreeAfterMutation({ expandPath: destDir })
         return { path: destPath, isDir }
       } catch (e) {
         console.error('Failed to copy external file:', e)
@@ -440,7 +730,7 @@ export const useFilesStore = defineStore('files', {
       try {
         this.deletingPaths.add(path)
         await invoke('delete_path', { path })
-        await this.loadFileTree()
+        await this.syncTreeAfterMutation()
 
         // Close all tabs for the deleted file
         const { useEditorStore } = await import('./editor')
@@ -477,7 +767,19 @@ export const useFilesStore = defineStore('files', {
         clearInterval(this._pollTimer)
         this._pollTimer = null
       }
-      this._setTree([])
+      if (this._flatFilesTimer) {
+        clearTimeout(this._flatFilesTimer)
+        this._flatFilesTimer = null
+      }
+      this._flatFilesGeneration = (this._flatFilesGeneration || 0) + 1
+      this._flatFilesPromise = null
+      this._flatFilesWorkspace = null
+      if (this._dirLoadPromises) {
+        this._dirLoadPromises.clear()
+      }
+      this.tree = []
+      this.flatFilesCache = []
+      this.flatFilesReady = false
       this.expandedDirs = new Set()
       this.activeFilePath = null
       this.fileContents = {}

@@ -80,7 +80,7 @@
     </div>
 
     <!-- Children (if expanded directory) -->
-    <template v-if="entry.is_dir && isExpanded && entry.children">
+    <template v-if="!suppressChildren && entry.is_dir && isExpanded && entry.children !== null && entry.children !== undefined">
       <FileTreeItem
         v-for="child in entry.children"
         :key="child.path"
@@ -139,6 +139,7 @@ const props = defineProps({
   filterQuery: { type: String, default: '' },
   forceExpand: { type: Boolean, default: false },
   filterHighlightPath: { type: String, default: '' },
+  suppressChildren: { type: Boolean, default: false },
 })
 
 const emit = defineEmits([
@@ -293,12 +294,12 @@ function handleNativeDrop(e) {
   emit('external-drop', { dir: props.entry.path, files: e.dataTransfer.files })
 }
 
-function handleClick(event) {
+async function handleClick(event) {
   // Always emit select-file for multi-select tracking
   emit('select-file', { path: props.entry.path, event })
 
   if (props.entry.is_dir) {
-    files.toggleDir(props.entry.path)
+    await files.toggleDir(props.entry.path)
   } else if (!event.shiftKey && !isMod(event)) {
     // Only open file on plain click (not multi-select)
     emit('open-file', props.entry.path)

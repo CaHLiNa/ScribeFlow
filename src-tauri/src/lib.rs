@@ -11,6 +11,7 @@ mod process_utils;
 mod pty;
 mod typst_export;
 mod usage_db;
+mod workspace_access;
 
 #[cfg(target_os = "macos")]
 use tauri::{
@@ -362,7 +363,8 @@ pub fn run() {
         .manage(kernel::KernelState::default())
         .manage(latex::LatexState::default())
         .manage(pdf_translate::PdfTranslateState::default())
-        .manage(usage_db::UsageDbState::default());
+        .manage(usage_db::UsageDbState::default())
+        .manage(workspace_access::WorkspaceAccessState::default());
 
     #[cfg(target_os = "macos")]
     let builder = builder
@@ -371,7 +373,9 @@ pub fn run() {
 
     builder
         .invoke_handler(tauri::generate_handler![
+            fs_commands::read_dir_shallow,
             fs_commands::read_dir_recursive,
+            fs_commands::list_files_recursive,
             fs_commands::read_file,
             fs_commands::read_file_base64,
             fs_commands::read_file_binary,
@@ -417,6 +421,9 @@ pub fn run() {
             fs_commands::run_shell_command,
             fs_commands::fetch_url_content,
             fs_commands::get_global_config_dir,
+            workspace_access::macos_create_workspace_bookmark,
+            workspace_access::macos_activate_workspace_bookmark,
+            workspace_access::macos_release_workspace_access,
             pty::pty_spawn,
             pty::pty_write,
             pty::pty_resize,

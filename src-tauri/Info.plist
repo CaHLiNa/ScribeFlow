@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>NSDesktopFolderUsageDescription</key>
+  <string>Altals 需要访问你的桌面文件夹来打开和恢复工作区。</string>
+  <key>NSDocumentsFolderUsageDescription</key>
+  <string>Altals 需要访问你的文档文件夹来打开和恢复工作区。</string>
+  <key>NSDownloadsFolderUsageDescription</key>
+  <string>Altals 需要访问你的下载文件夹来打开和恢复工作区。</string>
+</dict>
+</plist>

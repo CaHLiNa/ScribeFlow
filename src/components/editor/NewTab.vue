@@ -113,6 +113,9 @@ const selectedModelId = ref(workspace.selectedModelId || null)
 const activeTabId     = ref('quick')
 const selectedIdx     = ref(0)
 const chatsLimit      = ref(10)
+const recentFiles     = ref([])
+
+let recentFilesGeneration = 0
 
 // ─── Tab definitions ───────────────────────────────────────────────
 
@@ -136,8 +139,7 @@ const fileTypes = [
 // ─── Data computeds ────────────────────────────────────────────────
 
 const allRecentFiles = computed(() => {
-  const flatPaths = new Set(filesStore.flatFiles.map(f => f.path))
-  return editorStore.recentFiles.filter(entry => flatPaths.has(entry.path))
+  return recentFiles.value
 })
 
 const allChats = computed(() =>
@@ -287,6 +289,17 @@ watch(activeTabId, () => {
   chatsLimit.value = 10
 })
 
+watch(
+  () => editorStore.recentFiles.map(entry => `${entry.path}:${entry.openedAt}`).join('|'),
+  () => {
+    refreshRecentFiles().catch((error) => {
+      console.warn('[newtab] refreshRecentFiles failed:', error)
+      recentFiles.value = []
+    })
+  },
+  { immediate: true },
+)
+
 // ─── Tab navigation ────────────────────────────────────────────────
 
 function setTab(id) {
@@ -356,6 +369,30 @@ function fileName(path) {
 
 function relativeTime(ts) {
   return formatRelativeFromNow(ts)
+}
+
+async function refreshRecentFiles() {
+  const generation = ++recentFilesGeneration
+  const entries = [...editorStore.recentFiles]
+
+  if (entries.length === 0) {
+    recentFiles.value = []
+    return
+  }
+
+  const results = await Promise.all(
+    entries.map(async (entry) => {
+      try {
+        const exists = await invoke('path_exists', { path: entry.path })
+        return exists ? entry : null
+      } catch {
+        return null
+      }
+    }),
+  )
+
+  if (generation !== recentFilesGeneration) return
+  recentFiles.value = results.filter(Boolean)
 }
 
 // ─── Navigation ────────────────────────────────────────────────────
@@ -438,6 +475,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  recentFilesGeneration += 1
   window.removeEventListener('keydown', handleKeydown)
 })
 </script>

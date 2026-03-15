@@ -161,6 +161,7 @@ export const useLinksStore = defineStore('links', {
       const workspace = useWorkspaceStore()
       const filesStore = useFilesStore()
       if (!workspace.path) return
+      await filesStore.ensureFlatFilesReady()
       const scanGeneration = ++this._scanGeneration
       const workspacePath = workspace.path
 
@@ -222,6 +223,7 @@ export const useLinksStore = defineStore('links', {
       const workspace = useWorkspaceStore()
       const filesStore = useFilesStore()
       if (!workspace.path) return
+      await filesStore.ensureFlatFilesReady()
 
       const oldName = fileNameFromPath(oldPath)
       const newName = fileNameFromPath(newPath)

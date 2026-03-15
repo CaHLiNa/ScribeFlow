@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
-import { gitInit, gitAdd, gitCommit, gitStatus, gitRemoteGetUrl } from '../services/git'
+import { gitAdd, gitCommit, gitStatus, gitRemoteGetUrl } from '../services/git'
 import {
   getDefaultModelsConfig,
   getProviderDefaultUrl,
@@ -11,8 +11,11 @@ import {
 } from '../services/modelCatalog'
 import DEFAULT_SKILL_CONTENT from './defaultSkillContent.js'
 import { DEFAULT_PROJECT_INSTRUCTIONS } from '../constants/instructionsTemplate.js'
+import { removeWorkspaceBookmark } from '../services/workspacePermissions'
 
 const DEFAULT_INSTRUCTIONS_TEMPLATE = DEFAULT_PROJECT_INSTRUCTIONS.replace(/\r\n/g, '\n').trim()
+
+let cachedHomeDir = undefined
 
 async function hashWorkspacePath(value = '') {
   const bytes = new TextEncoder().encode(String(value || ''))
@@ -42,6 +45,22 @@ function resolveSkillPath(projectDir = '', rawPath = '') {
 
 function normalizeFileContent(value = '') {
   return String(value).replace(/\r\n/g, '\n')
+}
+
+function normalizePathValue(value = '') {
+  const normalized = String(value || '').replace(/\/+$/, '')
+  return normalized || '/'
+}
+
+async function getHomeDirCached() {
+  if (cachedHomeDir !== undefined) return cachedHomeDir
+  try {
+    const { homeDir } = await import('@tauri-apps/api/path')
+    cachedHomeDir = normalizePathValue(await homeDir())
+  } catch {
+    cachedHomeDir = ''
+  }
+  return cachedHomeDir
 }
 
 function stripInstructionComments(raw = '') {
@@ -165,8 +184,12 @@ export const useWorkspaceStore = defineStore('workspace', {
 
       let fsWatchReady = false
       try {
-        // Watch both the real workspace and Altals-owned external metadata
-        await invoke('watch_directory', { paths: [path, this.workspaceDataDir].filter(Boolean) })
+        // The workspace root is watched shallowly; explorer children load on demand.
+        // Altals-owned metadata stays recursive so internal state updates still propagate.
+        await invoke('watch_directory', {
+          paths: [path, this.workspaceDataDir].filter(Boolean),
+          recursivePaths: [this.workspaceDataDir].filter(Boolean),
+        })
         fsWatchReady = true
       } catch (error) {
         logWorkspaceBootstrapWarning('watch_directory', error)
@@ -198,8 +221,8 @@ export const useWorkspaceStore = defineStore('workspace', {
         usageStore.loadTrend()
       })
 
-      // Start git auto-commit
-      this.startAutoCommit()
+      // Start git auto-commit only for eligible repositories.
+      void this.startAutoCommit()
 
       // Persist last workspace + add to recents
       try {
@@ -228,6 +251,7 @@ export const useWorkspaceStore = defineStore('workspace', {
     removeRecent(path) {
       const recents = this.getRecentWorkspaces().filter(r => r.path !== path)
       localStorage.setItem('recentWorkspaces', JSON.stringify(recents))
+      removeWorkspaceBookmark(path)
     },
 
     async closeWorkspace() {
@@ -1137,9 +1161,9 @@ exit 0
       }
     },
 
-    startAutoCommit() {
+    async startAutoCommit() {
       this.stopAutoCommit()
-      if (!this.path) return
+      if (!(await this._canAutoCommitWorkspace())) return
 
       this.gitAutoCommitTimer = setInterval(async () => {
         await this.autoCommit()
@@ -1153,15 +1177,19 @@ exit 0
       }
     },
 
-    async autoCommit() {
-      if (!this.path) return
-      try {
-        // Check if git is initialized
-        const gitExists = await invoke('path_exists', { path: `${this.path}/.git` })
-        if (!gitExists) {
-          await gitInit(this.path)
-        }
+    async _canAutoCommitWorkspace(path = this.path) {
+      if (!path) return false
+      const normalizedPath = normalizePathValue(path)
+      const normalizedHome = await getHomeDirCached()
+      if (normalizedHome && normalizedPath === normalizedHome) {
+        return false
+      }
+      return this._pathExists(`${normalizedPath}/.git`)
+    },
 
+    async autoCommit() {
+      if (!(await this._canAutoCommitWorkspace())) return
+      try {
         // Stage all changes
         await gitAdd(this.path)
 
@@ -1412,7 +1440,6 @@ exit 0
         this._instructionsUnlisten = null
       }
       if (this.path) {
-        await this.autoCommit()
         await invoke('unwatch_directory').catch((error) => {
           console.warn('[workspace] unwatch_directory failed:', error)
         })

@@ -119,6 +119,11 @@ import { useToastStore } from './stores/toast'
 import { gitAdd, gitCommit, gitStatus } from './services/git'
 import { isMod } from './platform'
 import { isChatTab, isNewTab, getViewerType } from './utils/fileTypes'
+import {
+  activateWorkspaceBookmark,
+  captureWorkspaceBookmark,
+  releaseWorkspaceBookmark,
+} from './services/workspacePermissions'
 
 import Header from './components/layout/Header.vue'
 import Footer from './components/layout/Footer.vue'
@@ -176,9 +181,10 @@ onMounted(async () => {
   if (lastWorkspace) {
     try {
       const { invoke } = await import('@tauri-apps/api/core')
-      const exists = await invoke('path_exists', { path: lastWorkspace })
+      const restoredWorkspace = await activateWorkspaceBookmark(lastWorkspace)
+      const exists = await invoke('path_exists', { path: restoredWorkspace })
       if (exists) {
-        await openWorkspace(lastWorkspace)
+        await openWorkspace(restoredWorkspace, { skipBookmarkActivation: true })
         return
       }
     } catch (e) {
@@ -199,11 +205,18 @@ async function pickWorkspace() {
   })
 
   if (selected) {
-    await openWorkspace(selected)
+    const bookmarkedPath = await captureWorkspaceBookmark(selected)
+    await openWorkspace(bookmarkedPath, { skipBookmarkActivation: true })
   }
 }
 
-async function openWorkspace(path) {
+async function openWorkspace(path, options = {}) {
+  const { skipBookmarkActivation = false } = options
+  let targetPath = path
+  if (!skipBookmarkActivation) {
+    targetPath = await activateWorkspaceBookmark(path)
+  }
+
   if (backgroundWorkspaceLoadTimer) {
     clearTimeout(backgroundWorkspaceLoadTimer)
     backgroundWorkspaceLoadTimer = null
@@ -215,11 +228,21 @@ async function openWorkspace(path) {
   }
 
   try {
-    await workspace.openWorkspace(path)
-    editorStore.loadRecentFiles(path)
+    await workspace.openWorkspace(targetPath)
+    editorStore.loadRecentFiles(targetPath)
 
-    // Load the file tree first so restored PDF/preview tabs resolve to a stable viewer branch.
-    await filesStore.loadFileTree()
+    const hadCachedTree = filesStore.restoreCachedTree(targetPath)
+    const loadTreePromise = filesStore.loadFileTree({
+      suppressErrors: hadCachedTree,
+      keepCurrentTreeOnError: hadCachedTree,
+    })
+    if (!hadCachedTree) {
+      await loadTreePromise
+    } else {
+      loadTreePromise.catch((error) => {
+        console.warn('[workspace] Background file tree refresh failed:', error)
+      })
+    }
     await editorStore.restoreEditorState()
     if (editorStore.allOpenFiles.size === 0) editorStore.openNewTab()
 
@@ -232,10 +255,7 @@ async function openWorkspace(path) {
     typstStore.loadSettings()
     typstStore.checkCompiler()
     backgroundWorkspaceLoadTimer = window.setTimeout(() => {
-      if (workspace.path !== path) return
-      linksStore.fullScan().catch((scanError) => {
-        console.warn('[workspace] linksStore.fullScan failed:', scanError)
-      })
+      if (workspace.path !== targetPath) return
       backgroundWorkspaceLoadTimer = null
     }, 600)
   } catch (e) {
@@ -252,6 +272,7 @@ async function openWorkspace(path) {
 }
 
 async function closeWorkspace() {
+  const closingWorkspacePath = workspace.path
   if (backgroundWorkspaceLoadTimer) {
     clearTimeout(backgroundWorkspaceLoadTimer)
     backgroundWorkspaceLoadTimer = null
@@ -267,6 +288,7 @@ async function closeWorkspace() {
   latexStore.cleanup()
   typstStore.cleanup()
   await workspace.closeWorkspace()
+  await releaseWorkspaceBookmark(closingWorkspacePath)
 }
 
 
@@ -485,7 +507,7 @@ function handleVisibilityChange() {
     const now = Date.now()
     if (now - lastFocusRefresh < 2000) return
     lastFocusRefresh = now
-    filesStore.loadFileTree({ suppressErrors: true })
+    filesStore.refreshVisibleTree({ suppressErrors: true })
   }
 }
 

@@ -208,11 +208,7 @@ export const useEditorStore = defineStore('editor', {
       const workspace = useWorkspaceStore()
       const files = useFilesStore()
       if (!workspace.path || !path.startsWith(workspace.path)) return
-      let dir = path.substring(0, path.lastIndexOf('/'))
-      while (dir.length > workspace.path.length) {
-        files.expandedDirs.add(dir)
-        dir = dir.substring(0, dir.lastIndexOf('/'))
-      }
+      void files.revealPath(path)
     },
 
     /**

@@ -68,6 +68,70 @@ impl Default for WatcherState {
     }
 }
 
+fn should_skip_entry(name: &str, is_dir: bool, is_symlink: bool) -> bool {
+    if is_symlink {
+        return true;
+    }
+    if name.starts_with('.') && is_dir {
+        return true;
+    }
+    matches!(name, "node_modules" | "target" | ".DS_Store")
+}
+
+fn sort_entries(entries: &mut [FileEntry]) {
+    entries.sort_by(|a, b| {
+        if a.is_dir == b.is_dir {
+            a.name.to_lowercase().cmp(&b.name.to_lowercase())
+        } else if a.is_dir {
+            std::cmp::Ordering::Less
+        } else {
+            std::cmp::Ordering::Greater
+        }
+    });
+}
+
+fn file_modified_timestamp(metadata: &fs::Metadata, is_dir: bool) -> Option<u64> {
+    if is_dir {
+        return None;
+    }
+
+    metadata
+        .modified()
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_secs())
+}
+
+fn read_dir_shallow_entries(dir: &Path) -> Result<Vec<FileEntry>, String> {
+    let mut entries = Vec::new();
+    let read_dir = fs::read_dir(dir).map_err(|e| e.to_string())?;
+
+    for entry in read_dir {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let path = entry.path();
+        let name = entry.file_name().to_string_lossy().to_string();
+        let metadata = fs::symlink_metadata(&path).map_err(|e| e.to_string())?;
+        let file_type = metadata.file_type();
+        let is_symlink = file_type.is_symlink();
+        let is_dir = file_type.is_dir();
+
+        if should_skip_entry(&name, is_dir, is_symlink) {
+            continue;
+        }
+
+        entries.push(FileEntry {
+            name,
+            path: path.to_string_lossy().to_string(),
+            is_dir,
+            children: None,
+            modified: file_modified_timestamp(&metadata, is_dir),
+        });
+    }
+
+    sort_entries(&mut entries);
+    Ok(entries)
+}
+
 fn build_file_tree(dir: &Path) -> Result<Vec<FileEntry>, String> {
     let mut entries = Vec::new();
     let read_dir = fs::read_dir(dir).map_err(|e| e.to_string())?;
@@ -81,14 +145,7 @@ fn build_file_tree(dir: &Path) -> Result<Vec<FileEntry>, String> {
         let is_symlink = file_type.is_symlink();
         let is_dir = file_type.is_dir();
 
-        // Skip hidden directories, node_modules, target, .DS_Store
-        if name.starts_with('.') && is_dir {
-            continue;
-        }
-        if name == "node_modules" || name == "target" || name == ".DS_Store" {
-            continue;
-        }
-        if is_symlink {
+        if should_skip_entry(&name, is_dir, is_symlink) {
             continue;
         }
 
@@ -98,37 +155,50 @@ fn build_file_tree(dir: &Path) -> Result<Vec<FileEntry>, String> {
             None
         };
 
-        let modified = if !is_dir {
-            metadata
-                .modified()
-                .ok()
-                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-                .map(|d| d.as_secs())
-        } else {
-            None
-        };
-
         entries.push(FileEntry {
             name,
             path: path.to_string_lossy().to_string(),
             is_dir,
             children,
-            modified,
+            modified: file_modified_timestamp(&metadata, is_dir),
         });
     }
 
-    // Sort: directories first, then alphabetical
-    entries.sort_by(|a, b| {
-        if a.is_dir == b.is_dir {
-            a.name.to_lowercase().cmp(&b.name.to_lowercase())
-        } else if a.is_dir {
-            std::cmp::Ordering::Less
-        } else {
-            std::cmp::Ordering::Greater
-        }
-    });
-
+    sort_entries(&mut entries);
     Ok(entries)
+}
+
+fn collect_files_recursive(dir: &Path, files: &mut Vec<FileEntry>) -> Result<(), String> {
+    let read_dir = fs::read_dir(dir).map_err(|e| e.to_string())?;
+
+    for entry in read_dir {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let path = entry.path();
+        let name = entry.file_name().to_string_lossy().to_string();
+        let metadata = fs::symlink_metadata(&path).map_err(|e| e.to_string())?;
+        let file_type = metadata.file_type();
+        let is_symlink = file_type.is_symlink();
+        let is_dir = file_type.is_dir();
+
+        if should_skip_entry(&name, is_dir, is_symlink) {
+            continue;
+        }
+
+        if is_dir {
+            collect_files_recursive(&path, files)?;
+            continue;
+        }
+
+        files.push(FileEntry {
+            name,
+            path: path.to_string_lossy().to_string(),
+            is_dir: false,
+            children: None,
+            modified: file_modified_timestamp(&metadata, false),
+        });
+    }
+
+    Ok(())
 }
 
 async fn run_blocking<F, T>(operation: F) -> Result<T, String>
@@ -162,6 +232,24 @@ pub async fn read_dir_recursive(path: String) -> Result<Vec<FileEntry>, String> 
         ),
     }
     result
+}
+
+#[tauri::command]
+pub async fn read_dir_shallow(path: String) -> Result<Vec<FileEntry>, String> {
+    let path_for_read = path.clone();
+    run_blocking(move || read_dir_shallow_entries(Path::new(&path_for_read))).await
+}
+
+#[tauri::command]
+pub async fn list_files_recursive(path: String) -> Result<Vec<FileEntry>, String> {
+    let path_for_read = path.clone();
+    run_blocking(move || {
+        let mut files = Vec::new();
+        collect_files_recursive(Path::new(&path_for_read), &mut files)?;
+        files.sort_by(|a, b| a.path.to_lowercase().cmp(&b.path.to_lowercase()));
+        Ok(files)
+    })
+    .await
 }
 
 #[tauri::command]
@@ -302,9 +390,12 @@ pub async fn watch_directory(
     app: tauri::AppHandle,
     state: tauri::State<'_, WatcherState>,
     paths: Vec<String>,
+    recursive_paths: Option<Vec<String>>,
 ) -> Result<(), String> {
     eprintln!("[fs-watch] watch_directory start paths={:?}", paths);
     let app_clone = app.clone();
+    let recursive_paths = recursive_paths.unwrap_or_default();
+    let recursive_set: HashSet<String> = recursive_paths.into_iter().collect();
 
     let mut watcher = RecommendedWatcher::new(
         move |res: Result<Event, notify::Error>| match res {
@@ -340,8 +431,14 @@ pub async fn watch_directory(
             continue;
         }
 
+        let recursive_mode = if recursive_set.contains(&path) {
+            RecursiveMode::Recursive
+        } else {
+            RecursiveMode::NonRecursive
+        };
+
         watcher
-            .watch(path_ref, RecursiveMode::Recursive)
+            .watch(path_ref, recursive_mode)
             .map_err(|e| e.to_string())?;
         watched = true;
     }

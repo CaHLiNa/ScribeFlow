@@ -75,6 +75,7 @@
       @contextmenu.prevent="showContextMenuOnEmpty"
       @keydown="handleTreeKeydown"
       @mouseup="onTreeMouseUp"
+      @scroll="onTreeScroll"
     >
       <!-- Inline input for new file at root level -->
       <div v-if="renaming.active && renaming.isNew && renaming.parentDir === workspace.path"
@@ -91,32 +92,37 @@
         />
       </div>
 
-      <FileTreeItem
-        v-for="entry in displayTree"
-        :key="entry.path"
-        :entry="entry"
-        :depth="0"
-        :renamingPath="renaming.active && !renaming.isNew ? renaming.originalPath : null"
-        :newItemParent="renaming.active && renaming.isNew ? renaming.parentDir : null"
-        :newItemValue="renaming.value"
-        :newItemIsDir="renaming.isDir"
-        :selectedPaths="selectedPaths"
-        :dragOverDir="dragOverDir"
-        :filterQuery="filterActive ? filterQuery : ''"
-        :forceExpand="filterActive && !!filterQuery"
-        :filterHighlightPath="filterHighlightPath"
-        @open-file="openFile"
-        @select-file="onSelectFile"
-        @context-menu="showContextMenu"
-        @start-rename-input="onStartRenameInput"
-        @rename-input-change="(v) => renaming.value = v"
-        @rename-input-submit="finishRename"
-        @rename-input-cancel="cancelRename"
-        @drag-start="onDragStart"
-        @drag-over-dir="(dir) => dragOverDir = dir"
-        @drag-leave-dir="onDragLeaveDir"
-        @drop-on-dir="onDropOnDir"
-      />
+      <div v-if="visibleRows.length > 0" class="relative" :style="{ height: totalTreeHeight + 'px' }">
+        <div :style="{ transform: `translateY(${virtualOffset}px)` }">
+          <FileTreeItem
+            v-for="row in virtualRows"
+            :key="row.entry.path"
+            :entry="row.entry"
+            :depth="row.depth"
+            :renamingPath="renaming.active && !renaming.isNew ? renaming.originalPath : null"
+            :newItemParent="renaming.active && renaming.isNew ? renaming.parentDir : null"
+            :newItemValue="renaming.value"
+            :newItemIsDir="renaming.isDir"
+            :selectedPaths="selectedPaths"
+            :dragOverDir="dragOverDir"
+            :filterQuery="filterActive ? filterQuery : ''"
+            :forceExpand="filterActive && !!filterQuery"
+            :filterHighlightPath="filterHighlightPath"
+            :suppressChildren="true"
+            @open-file="openFile"
+            @select-file="onSelectFile"
+            @context-menu="showContextMenu"
+            @start-rename-input="onStartRenameInput"
+            @rename-input-change="(v) => renaming.value = v"
+            @rename-input-submit="finishRename"
+            @rename-input-cancel="cancelRename"
+            @drag-start="onDragStart"
+            @drag-over-dir="(dir) => dragOverDir = dir"
+            @drag-leave-dir="onDragLeaveDir"
+            @drop-on-dir="onDropOnDir"
+          />
+        </div>
+      </div>
 
       <!-- External drop zone indicator (root level) -->
       <div v-if="externalDragOver" class="mx-2 my-1 py-2 rounded border-2 border-dashed text-center text-xs"
@@ -127,7 +133,7 @@
       <div v-if="filterActive && filterQuery && filterMatches.length === 0" class="px-3 py-4 text-xs" style="color: var(--fg-muted);">
         {{ t('No matches') }}
       </div>
-      <div v-else-if="displayTree.length === 0 && !renaming.active" class="px-3 py-4 text-xs" style="color: var(--fg-muted);">
+      <div v-else-if="visibleRows.length === 0 && !renaming.active" class="px-3 py-4 text-xs" style="color: var(--fg-muted);">
         {{ t('No files yet') }}
       </div>
     </div>
@@ -251,6 +257,10 @@ const filterInputEl = ref(null)
 const newBtnEl = ref(null)
 const newMenuOpen = ref(false)
 const contextMenu = reactive({ show: false, x: 0, y: 0, entry: null })
+const treeScrollTop = ref(0)
+
+const TREE_ROW_HEIGHT = 24
+const TREE_OVERSCAN = 12
 
 // Filter state
 const filterActive = ref(false)
@@ -270,19 +280,42 @@ const renaming = reactive({
 const selectedPaths = reactive(new Set())
 let lastSelectedPath = null // anchor for shift+click range selection
 
-// Flat list of visible paths (respects expanded/collapsed dirs) for shift+click range
-function getVisiblePaths() {
-  const result = []
-  const walk = (entries) => {
-    for (const entry of entries) {
-      result.push(entry.path)
-      if (entry.is_dir && entry.children && files.isDirExpanded(entry.path)) {
-        walk(entry.children)
-      }
+function flattenVisibleRows(entries, depth = 0, rows = [], options = {}) {
+  const { expandAll = false } = options
+  for (const entry of entries) {
+    rows.push({ entry, depth })
+    if (entry.is_dir && Array.isArray(entry.children) && (expandAll || files.isDirExpanded(entry.path))) {
+      flattenVisibleRows(entry.children, depth + 1, rows, options)
     }
   }
-  walk(displayTree.value)
-  return result
+  return rows
+}
+
+const visibleRows = computed(() => flattenVisibleRows(displayTree.value, 0, [], {
+  expandAll: filterActive.value && !!filterQuery.value,
+}))
+
+const visiblePathIndexMap = computed(() => {
+  const map = new Map()
+  visibleRows.value.forEach((row, index) => map.set(row.entry.path, index))
+  return map
+})
+
+const virtualStart = computed(() => Math.max(0, Math.floor(treeScrollTop.value / TREE_ROW_HEIGHT) - TREE_OVERSCAN))
+const virtualEnd = computed(() => Math.min(
+  visibleRows.value.length,
+  Math.ceil((treeScrollTop.value + (treeContainer.value?.clientHeight || 0)) / TREE_ROW_HEIGHT) + TREE_OVERSCAN,
+))
+const virtualRows = computed(() => visibleRows.value.slice(virtualStart.value, virtualEnd.value))
+const virtualOffset = computed(() => virtualStart.value * TREE_ROW_HEIGHT)
+const totalTreeHeight = computed(() => visibleRows.value.length * TREE_ROW_HEIGHT)
+
+function getVisiblePaths() {
+  return visibleRows.value.map(row => row.entry.path)
+}
+
+function onTreeScroll(event) {
+  treeScrollTop.value = event.target?.scrollTop || 0
 }
 
 // Internal drag state
@@ -350,7 +383,7 @@ function onSelectFile({ path, event }) {
 }
 
 // Keyboard handling
-function handleTreeKeydown(e) {
+async function handleTreeKeydown(e) {
   if (renaming.active) return
 
   // Arrow Up: move cursor to previous visible item
@@ -370,7 +403,7 @@ function handleTreeKeydown(e) {
   // Arrow Right: expand dir or move down
   if (e.key === 'ArrowRight') {
     e.preventDefault()
-    handleArrowRight()
+    await handleArrowRight()
     return
   }
 
@@ -384,7 +417,7 @@ function handleTreeKeydown(e) {
   // Space: open file or toggle dir
   if (e.key === ' ') {
     e.preventDefault()
-    handleSpace()
+    await handleSpace()
     return
   }
 
@@ -435,8 +468,17 @@ function selectSinglePath(path) {
   selectedPaths.add(path)
   lastSelectedPath = path
   nextTick(() => {
-    const el = treeContainer.value?.querySelector(`[data-path="${CSS.escape(path)}"]`)
-    if (el) el.scrollIntoView({ block: 'nearest' })
+    const index = visiblePathIndexMap.value.get(path)
+    if (index == null || !treeContainer.value) return
+    const rowTop = index * TREE_ROW_HEIGHT
+    const rowBottom = rowTop + TREE_ROW_HEIGHT
+    const viewportTop = treeContainer.value.scrollTop
+    const viewportBottom = viewportTop + treeContainer.value.clientHeight
+    if (rowTop < viewportTop) {
+      treeContainer.value.scrollTop = rowTop
+    } else if (rowBottom > viewportBottom) {
+      treeContainer.value.scrollTop = rowBottom - treeContainer.value.clientHeight
+    }
   })
 }
 
@@ -459,13 +501,13 @@ function navigateTree(delta) {
 }
 
 // Arrow Right: expand collapsed dir, or move to next item
-function handleArrowRight() {
+async function handleArrowRight() {
   const currentPath = lastSelectedPath || (selectedPaths.size > 0 ? [...selectedPaths][0] : null)
   if (!currentPath) { navigateTree(1); return }
 
   const entry = findEntry(currentPath)
   if (entry?.is_dir && !files.isDirExpanded(currentPath)) {
-    files.expandedDirs.add(currentPath)
+    await files.toggleDir(currentPath)
   } else {
     navigateTree(1)
   }
@@ -489,7 +531,7 @@ function handleArrowLeft() {
 }
 
 // Space: open file or toggle directory
-function handleSpace() {
+async function handleSpace() {
   const currentPath = lastSelectedPath || (selectedPaths.size > 0 ? [...selectedPaths][0] : null)
   if (!currentPath) return
 
@@ -497,7 +539,7 @@ function handleSpace() {
   if (!entry) return
 
   if (entry.is_dir) {
-    files.toggleDir(entry.path)
+    await files.toggleDir(entry.path)
   } else {
     editor.openFile(entry.path)
   }
@@ -507,7 +549,7 @@ function findEntry(path) {
   const walk = (entries) => {
     for (const e of entries) {
       if (e.path === path) return e
-      if (e.children) {
+      if (Array.isArray(e.children)) {
         const found = walk(e.children)
         if (found) return found
       }
@@ -529,7 +571,7 @@ function filterTreeEntries(entries, query) {
       if (target.includes(q)) {
         // Dir name matches — keep it with ALL children
         result.push(entry)
-      } else if (entry.children) {
+      } else if (Array.isArray(entry.children)) {
         const filteredChildren = filterTreeEntries(entry.children, query)
         if (filteredChildren.length > 0) {
           result.push({ ...entry, children: filteredChildren })
@@ -546,7 +588,7 @@ function filterTreeEntries(entries, query) {
 
 function collectFileMatches(entries, result) {
   for (const entry of entries) {
-    if (entry.is_dir && entry.children) {
+    if (entry.is_dir && Array.isArray(entry.children)) {
       collectFileMatches(entry.children, result)
     } else if (!entry.is_dir) {
       result.push(entry)

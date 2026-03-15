@@ -113,6 +113,9 @@ let searchTimer = null
 // Ensure chat session metadata is loaded
 onMounted(() => {
   chatStore.loadAllSessionsMeta()
+  files.ensureFlatFilesReady().catch((error) => {
+    console.warn('[search-results] ensureFlatFilesReady failed:', error)
+  })
 })
 
 const titleMatches = computed(() => {
