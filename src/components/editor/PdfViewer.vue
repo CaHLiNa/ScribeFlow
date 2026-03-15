@@ -318,6 +318,7 @@ const {
   viewerRef,
   sidebarScrollRef,
   pageInputRef,
+  workspace,
   t,
 })
 

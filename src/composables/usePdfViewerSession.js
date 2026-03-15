@@ -4,7 +4,7 @@ import {
   IconLayoutSidebarLeftExpand,
 } from '@tabler/icons-vue'
 import { EventBus, PDFLinkService, PDFViewer } from 'pdfjs-dist/legacy/web/pdf_viewer.mjs'
-import { createPdfLoadingTask, openPdfExternalUrl, readPdfBinary } from '../services/pdfDocument'
+import { createPdfLoadingTaskForWorkspace, openPdfExternalUrl } from '../services/pdfDocument'
 
 const PDF_SCALE_PRESETS = [
   'auto',
@@ -60,6 +60,7 @@ export function usePdfViewerSession(options) {
     viewerRef,
     sidebarScrollRef,
     pageInputRef,
+    workspace,
     t,
   } = options
 
@@ -71,6 +72,7 @@ export function usePdfViewerSession(options) {
   const outlineLoading = ref(false)
   const outlineResolved = ref(false)
   const pageThumbnails = ref([])
+  const reloadVersion = ref(0)
 
   const pdfUi = reactive({
     ready: false,
@@ -459,7 +461,7 @@ export function usePdfViewerSession(options) {
     } catch {}
   }
 
-  async function buildViewerSession(requestId, bytes) {
+  async function buildViewerSession(requestId) {
     await nextTick()
     if (requestId !== loadRequestId || !viewerContainerRef.value || !viewerRef.value) return null
 
@@ -477,7 +479,9 @@ export function usePdfViewerSession(options) {
 
     linkService.setViewer(pdfViewer)
 
-    const loadingTask = createPdfLoadingTask(bytes)
+    const loadingTask = createPdfLoadingTaskForWorkspace(filePathRef.value, workspace, {
+      version: reloadVersion.value,
+    })
     const session = {
       requestId,
       eventBus,
@@ -527,9 +531,7 @@ export function usePdfViewerSession(options) {
     await cleanupPdfSession()
 
     try {
-      const bytes = await readPdfBinary(filePathRef.value)
-      if (requestId !== loadRequestId) return
-      const session = await buildViewerSession(requestId, bytes)
+      const session = await buildViewerSession(requestId)
       if (!session || requestId !== loadRequestId) return
 
       const pdfDocument = await session.loadingTask.promise
@@ -671,6 +673,7 @@ export function usePdfViewerSession(options) {
 
   function handlePdfUpdated(event) {
     if (event.detail?.path === filePathRef.value) {
+      reloadVersion.value += 1
       loadPdf()
     }
   }
@@ -705,6 +708,7 @@ export function usePdfViewerSession(options) {
   })
 
   watch(filePathRef, () => {
+    reloadVersion.value = 0
     loadPdf()
   })
 
