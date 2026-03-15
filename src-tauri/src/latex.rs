@@ -159,7 +159,13 @@ fn find_tectonic(_app: &tauri::AppHandle, custom_path: Option<&str>) -> Option<S
     None
 }
 
-fn find_system_tex() -> Option<String> {
+fn find_system_tex(custom_path: Option<&str>) -> Option<String> {
+    if let Some(path) = custom_path.filter(|value| !value.trim().is_empty()) {
+        if Path::new(path).exists() {
+            return Some(path.to_string());
+        }
+    }
+
     #[cfg(unix)]
     {
         let candidates = [
@@ -579,6 +585,7 @@ pub async fn compile_latex(
     tex_path: String,
     compiler_preference: Option<String>,
     engine_preference: Option<String>,
+    custom_system_tex_path: Option<String>,
     custom_tectonic_path: Option<String>,
 ) -> Result<CompileResult, String> {
     // Check if already compiling this file
@@ -595,7 +602,7 @@ pub async fn compile_latex(
     let engine_preference = engine_preference.unwrap_or_else(|| "auto".to_string());
 
     let preference = compiler_preference.unwrap_or_else(|| "auto".to_string());
-    let system_tex = find_system_tex();
+    let system_tex = find_system_tex(custom_system_tex_path.as_deref());
     let tectonic = find_tectonic(&app, custom_tectonic_path.as_deref());
 
     let result = match preference.as_str() {
@@ -633,15 +640,19 @@ pub async fn compile_latex(
 }
 
 #[tauri::command]
-pub async fn check_latex_compilers(app: tauri::AppHandle) -> Result<LatexCompilerStatus, String> {
+pub async fn check_latex_compilers(
+    app: tauri::AppHandle,
+    custom_system_tex_path: Option<String>,
+    custom_tectonic_path: Option<String>,
+) -> Result<LatexCompilerStatus, String> {
     Ok(LatexCompilerStatus {
         tectonic: BinaryStatus {
-            installed: find_tectonic(&app, None).is_some(),
-            path: find_tectonic(&app, None),
+            installed: find_tectonic(&app, custom_tectonic_path.as_deref()).is_some(),
+            path: find_tectonic(&app, custom_tectonic_path.as_deref()),
         },
         system_tex: BinaryStatus {
-            installed: find_system_tex().is_some(),
-            path: find_system_tex(),
+            installed: find_system_tex(custom_system_tex_path.as_deref()).is_some(),
+            path: find_system_tex(custom_system_tex_path.as_deref()),
         },
     })
 }

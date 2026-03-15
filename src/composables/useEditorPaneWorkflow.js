@@ -1,6 +1,12 @@
 import { computed, onMounted, onUnmounted, watch } from 'vue'
 import { getLanguage, isChatTab, getChatSessionId, isLatex, isRmdOrQmd, isTypst } from '../utils/fileTypes'
 import { sendCode, runFile, renderDocument } from '../services/codeRunner'
+import {
+  ensureLanguageExecutionReady,
+  ensureLatexCompileReady,
+  ensureMarkdownPdfExportReady,
+  ensureTypstCompileReady,
+} from '../services/environmentPreflight'
 import { ensureBibFile } from '../services/latexBib'
 import {
   cleanupMarkdownExportArtifacts,
@@ -115,7 +121,7 @@ export function useEditorPaneWorkflow(options) {
     editorStore.splitPaneWith(sourcePaneId, 'vertical', pdfPath)
   }
 
-  function handleRunCode() {
+  async function handleRunCode() {
     if (!activeTabRef.value) return
     const lang = getLanguage(activeTabRef.value)
     if (!lang) return
@@ -126,6 +132,7 @@ export function useEditorPaneWorkflow(options) {
     const selection = state.selection.main
 
     if (isRmdOrQmd(activeTabRef.value)) {
+      if (!(await ensureLanguageExecutionReady(lang))) return
       import('../editor/codeChunks').then(({ chunkField, chunkAtPosition }) => {
         const chunks = state.field(chunkField)
         const chunk = chunkAtPosition(chunks, state.doc, selection.head)
@@ -155,31 +162,33 @@ export function useEditorPaneWorkflow(options) {
         })
       }
     }
-    if (code) sendCode(code, lang)
+    if (code) await sendCode(code, lang)
   }
 
-  function handleRunFile() {
+  async function handleRunFile() {
     if (!activeTabRef.value) return
     const lang = getLanguage(activeTabRef.value)
     if (!lang) return
 
     if (isRmdOrQmd(activeTabRef.value)) {
+      if (!(await ensureLanguageExecutionReady(lang))) return
       const editorView = editorStore.getEditorView(paneIdRef.value, activeTabRef.value)
       if (!editorView) return
       editorView.dom.dispatchEvent(new CustomEvent('chunk-execute-all', { bubbles: true }))
       return
     }
 
-    runFile(activeTabRef.value, lang)
+    await runFile(activeTabRef.value, lang)
   }
 
-  function handleRenderDocument() {
+  async function handleRenderDocument() {
     if (!activeTabRef.value) return
-    renderDocument(activeTabRef.value)
+    await renderDocument(activeTabRef.value)
   }
 
   async function handleCompileTex() {
     if (!activeTabRef.value || !isLatex(activeTabRef.value)) return
+    if (!(await ensureLatexCompileReady())) return
     await latexStore.compile(activeTabRef.value)
     const state = latexStore.stateForFile(activeTabRef.value)
     if (state?.status === 'success' && state.pdfPath) {
@@ -189,6 +198,7 @@ export function useEditorPaneWorkflow(options) {
 
   async function handleCompileTypst() {
     if (!activeTabRef.value || !isTypst(activeTabRef.value)) return
+    if (!(await ensureTypstCompileReady())) return
     await typstStore.compile(activeTabRef.value)
   }
 
@@ -272,6 +282,7 @@ export function useEditorPaneWorkflow(options) {
 
   async function handleExportPdf(settingsOverride) {
     if (!activeTabRef.value) return
+    if (!(await ensureMarkdownPdfExportReady())) return
 
     workflowStore.setMarkdownPdfState(activeTabRef.value, {
       status: 'rendering',

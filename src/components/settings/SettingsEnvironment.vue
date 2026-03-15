@@ -46,6 +46,19 @@
                   </button>
                 </template>
               </div>
+
+              <div class="env-inline-row env-inline-row-compact env-inline-row-offset">
+                <div class="env-input-shell env-input-shell-slim">
+                  <input
+                    v-model="customPythonPathDraft"
+                    class="env-path-input"
+                    :placeholder="t('Conda / venv Python path')"
+                  />
+                </div>
+                <button class="env-install-btn" type="button" @click="saveCustomPythonPath">
+                  {{ t('Use Path') }}
+                </button>
+              </div>
             </div>
           </template>
           <div v-else class="env-lang-kernel-row">
@@ -172,6 +185,18 @@
       <div class="env-lang-hint env-hint-inline">
         {{ t('Use your MacTeX / TeX Live installation through latexmk.') }}
       </div>
+      <div class="env-action-row env-action-row-stack">
+        <div class="env-input-shell env-input-shell-slim env-input-shell-grow">
+          <input
+            v-model="customSystemTexPathDraft"
+            class="env-path-input"
+            :placeholder="t('Custom latexmk path')"
+          />
+        </div>
+        <button class="env-install-btn" type="button" @click="saveCustomSystemTexPath">
+          {{ t('Use Path') }}
+        </button>
+      </div>
     </div>
 
     <div class="env-lang-card">
@@ -276,6 +301,18 @@
           {{ t('Retry') }}
         </button>
       </div>
+      <div class="env-action-row env-action-row-stack">
+        <div class="env-input-shell env-input-shell-slim env-input-shell-grow">
+          <input
+            v-model="customTypstPathDraft"
+            class="env-path-input"
+            :placeholder="t('Custom Typst path')"
+          />
+        </div>
+        <button class="env-install-btn" type="button" @click="saveCustomTypstPath">
+          {{ t('Use Path') }}
+        </button>
+      </div>
     </div>
 
   </div>
@@ -293,6 +330,8 @@ const latexStore = useLatexStore()
 const typstStore = useTypstStore()
 const { t } = useI18n()
 const customPythonPathDraft = ref(envStore.customPythonPath || '')
+const customSystemTexPathDraft = ref(latexStore.customSystemTexPath || '')
+const customTypstPathDraft = ref(typstStore.customCompilerPath || '')
 
 const envLanguages = computed(() => [
   { key: 'python', label: 'Python', info: envStore.languages.python },
@@ -350,6 +389,14 @@ async function saveCustomPythonPath() {
   await envStore.saveCustomPythonPath(customPythonPathDraft.value)
 }
 
+async function saveCustomSystemTexPath() {
+  await latexStore.setCustomSystemTexPath(customSystemTexPathDraft.value)
+}
+
+async function saveCustomTypstPath() {
+  await typstStore.setCustomCompilerPath(customTypstPathDraft.value)
+}
+
 function onCompilerPreferenceChange(event) {
   latexStore.setCompilerPreference(event.target.value)
 }
@@ -395,6 +442,14 @@ function warmSystemChecks() {
 
 watch(() => envStore.customPythonPath, (value) => {
   customPythonPathDraft.value = value || ''
+})
+
+watch(() => latexStore.customSystemTexPath, (value) => {
+  customSystemTexPathDraft.value = value || ''
+})
+
+watch(() => typstStore.customCompilerPath, (value) => {
+  customTypstPathDraft.value = value || ''
 })
 
 onMounted(() => {
@@ -606,6 +661,10 @@ onMounted(() => {
   padding-top: 2px;
 }
 
+.env-inline-row-offset {
+  margin-top: 8px;
+}
+
 .env-install-btn {
   padding: 2px 10px;
   border-radius: 4px;
@@ -696,6 +755,14 @@ onMounted(() => {
   gap: 8px;
   padding-left: 16px;
   margin-top: 10px;
+}
+
+.env-action-row-stack {
+  align-items: stretch;
+}
+
+.env-input-shell-grow {
+  flex: 1;
 }
 
 .tectonic-progress-bar {

@@ -58,7 +58,7 @@
     <!-- CENTER: zoom control OR save confirmation OR transient message (crossfade) -->
     <div class="footer-center justify-self-center">
       <!-- Zoom controls (default) -->
-      <div class="footer-center-layer" :class="{ 'footer-center-hidden': saveConfirmationActive || centerMessage }">
+      <div class="footer-center-layer" :class="{ 'footer-center-hidden': saveConfirmationActive || centerMessage || uxStatusEntry }">
         <button
           class="w-5 h-5 flex items-center justify-center rounded cursor-pointer transition-colors border-none bg-transparent"
           style="color: var(--fg-muted);"
@@ -112,6 +112,23 @@
         <span class="flex items-center gap-1.5 ui-text-sm" style="color: var(--success);">
           <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3.5 3.5 6.5-7"/></svg>
           {{ centerMessage }}
+        </span>
+      </div>
+
+      <div class="footer-center-layer" :class="{ 'footer-center-hidden': !!centerMessage || saveConfirmationActive || !uxStatusEntry }">
+        <span class="flex items-center gap-1.5 ui-text-sm" :style="{ color: uxStatusColor }">
+          <svg v-if="uxStatusEntry?.type === 'success'" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3.5 3.5 6.5-7"/></svg>
+          <svg v-else-if="uxStatusEntry?.type === 'error' || uxStatusEntry?.type === 'warning'" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5l5.5 9.5H2.5L8 2.5z"/><path d="M8 6v3"/><path d="M8 11.25h.01"/></svg>
+          <svg v-else width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5.5"/><path d="M8 6v2.5"/><path d="M8 10.75h.01"/></svg>
+          <span>{{ uxStatusEntry?.message }}</span>
+          <button
+            v-if="uxStatusEntry?.action"
+            class="bg-transparent border-none cursor-pointer underline ui-text-sm"
+            :style="{ color: 'var(--accent)' }"
+            @click="handleUxStatusAction"
+          >
+            {{ uxStatusEntry.action.label }}
+          </button>
         </span>
       </div>
     </div>
@@ -294,6 +311,7 @@ import { useReviewsStore } from '../../stores/reviews'
 import { useEditorStore } from '../../stores/editor'
 import { useUsageStore } from '../../stores/usage'
 import { useToastStore } from '../../stores/toast'
+import { useUxStatusStore } from '../../stores/uxStatus'
 import { getBillingRoute } from '../../services/apiClient'
 import { modKey, altKey } from '../../platform'
 import { useI18n } from '../../i18n'
@@ -309,6 +327,7 @@ const reviews = useReviewsStore()
 const editorStore = useEditorStore()
 const usageStore = useUsageStore()
 const toastStore = useToastStore()
+const uxStatusStore = useUxStatusStore()
 const { t } = useI18n()
 
 const stats = ref({ words: 0, chars: 0, selWords: 0, selChars: 0 })
@@ -339,6 +358,7 @@ let saveConfirmationResolve = null
 // Transient center message (e.g. "All saved (no changes)")
 const centerMessage = ref('')
 let centerMessageTimer = null
+const uxStatusEntry = computed(() => uxStatusStore.current)
 
 // Model-aware billing route
 const billingRoute = computed(() => {
@@ -352,6 +372,15 @@ const footerBillingVisible = computed(() => {
   if (!route) return false
   if (route.route === 'direct') return usageStore.showCostEstimates && usageStore.directCost > 0
   return false
+})
+
+const uxStatusColor = computed(() => {
+  switch (uxStatusEntry.value?.type) {
+    case 'success': return 'var(--success)'
+    case 'error': return 'var(--error)'
+    case 'warning': return 'var(--warning)'
+    default: return 'var(--fg-secondary)'
+  }
 })
 
 function formatCost(val) {
@@ -513,6 +542,15 @@ function showCenterMessage(msg, duration = 2000) {
   centerMessageTimer = setTimeout(() => {
     centerMessage.value = ''
   }, duration)
+}
+
+function handleUxStatusAction() {
+  const action = uxStatusEntry.value?.action
+  if (!action) return
+  if (action.type === 'open-settings') {
+    emit('open-settings', action.section ?? null)
+  }
+  uxStatusStore.clear(uxStatusEntry.value?.id)
 }
 
 function beginSaveConfirmation() {

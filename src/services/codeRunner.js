@@ -2,6 +2,10 @@
 // Uses window.dispatchEvent for cross-component communication (existing pattern).
 
 import { useEnvironmentStore } from '../stores/environment'
+import {
+  ensureDocumentRenderReady,
+  ensureLanguageExecutionReady,
+} from './environmentPreflight'
 
 const LANGUAGE_CONFIG = {
   r: { cmd: 'R', args: ['--interactive', '--no-save'], label: 'R' },
@@ -47,8 +51,9 @@ function ensureSession(language) {
 /**
  * Send code to a language REPL. If no REPL exists, one is auto-created first.
  */
-export function sendCode(code, language) {
+export async function sendCode(code, language) {
   if (!code || !language) return
+  if (!(await ensureLanguageExecutionReady(language))) return
   // Ensure the REPL exists (no-op if already running)
   ensureSession(language)
   // Small delay to let the terminal spawn if needed
@@ -60,8 +65,9 @@ export function sendCode(code, language) {
 /**
  * Run an entire file by wrapping it in the language's source command.
  */
-export function runFile(filePath, language) {
+export async function runFile(filePath, language) {
   if (!filePath || !language) return
+  if (!(await ensureLanguageExecutionReady(language))) return
   // Never source() .Rmd/.qmd files — use chunk extraction instead
   const ext = (filePath.split('/').pop() || '').split('.').pop()?.toLowerCase()
   if (ext === 'rmd' || ext === 'qmd') return
@@ -79,24 +85,25 @@ export function runFile(filePath, language) {
     default:
       return
   }
-  sendCode(code, language)
+  await sendCode(code, language)
 }
 
 /**
  * Render an Rmd/qmd document. Dispatched as a shell command to the language REPL.
  */
-export function renderDocument(filePath) {
+export async function renderDocument(filePath) {
+  if (!(await ensureDocumentRenderReady(filePath))) return
   const name = filePath.split('/').pop() || ''
   const ext = name.substring(name.lastIndexOf('.') + 1).toLowerCase()
 
   if (ext === 'qmd') {
     // Quarto render — use shell terminal, not R REPL
+    ensureSession('__shell__')
     window.dispatchEvent(new CustomEvent('send-to-repl', {
       detail: { code: `quarto render "${filePath}"`, language: '__shell__' }
     }))
-    ensureSession('__shell__')
   } else {
     // Rmd → rmarkdown::render via R
-    sendCode(`rmarkdown::render("${filePath}")`, 'r')
+    await sendCode(`rmarkdown::render("${filePath}")`, 'r')
   }
 }

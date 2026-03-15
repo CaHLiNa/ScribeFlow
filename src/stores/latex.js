@@ -20,7 +20,7 @@ const readStoredValue = (key, fallback) => {
 
 const clearLegacyLatexSettings = () => {
   try {
-    localStorage.removeItem('latex.customSystemTexPath')
+    localStorage.removeItem('latex.customLatexmkPath')
   } catch {}
 }
 
@@ -140,6 +140,7 @@ export const useLatexStore = defineStore('latex', {
     _recompileNeeded: {},
     compilerPreference: readStoredValue('latex.compilerPreference', 'auto'),
     enginePreference: readStoredValue('latex.enginePreference', 'auto'),
+    customSystemTexPath: readStoredValue('latex.customSystemTexPath', ''),
     // Tectonic install state
     tectonicInstalled: false,
     tectonicPath: null,
@@ -236,6 +237,7 @@ export const useLatexStore = defineStore('latex', {
           texPath,
           compilerPreference: this.compilerPreference,
           enginePreference: this.enginePreference,
+          customSystemTexPath: this.customSystemTexPath || null,
           customTectonicPath: null,
         })
 
@@ -292,6 +294,19 @@ export const useLatexStore = defineStore('latex', {
       } catch {}
     },
 
+    async setCustomSystemTexPath(path) {
+      this.customSystemTexPath = String(path || '').trim()
+      try {
+        if (this.customSystemTexPath) {
+          localStorage.setItem('latex.customSystemTexPath', this.customSystemTexPath)
+        } else {
+          localStorage.removeItem('latex.customSystemTexPath')
+        }
+      } catch {}
+      this.lastCompilerCheckAt = 0
+      await this.checkCompilers(true)
+    },
+
     cancelAutoCompile(texPath) {
       if (this._timers[texPath]) {
         clearTimeout(this._timers[texPath])
@@ -341,7 +356,10 @@ export const useLatexStore = defineStore('latex', {
       if (!force && this.lastCompilerCheckAt && Date.now() - this.lastCompilerCheckAt < COMPILER_CHECK_CACHE_MS) return
       this.checkingCompilers = true
       try {
-        const result = await invoke('check_latex_compilers')
+        const result = await invoke('check_latex_compilers', {
+          customSystemTexPath: this.customSystemTexPath || null,
+          customTectonicPath: null,
+        })
         this.tectonicInstalled = result.tectonic?.installed === true
         this.tectonicPath = result.tectonic?.path || null
         this.systemTexInstalled = result.systemTex?.installed === true

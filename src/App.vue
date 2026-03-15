@@ -117,6 +117,7 @@ import { useTypstStore } from './stores/typst'
 import { useLatexStore } from './stores/latex'
 import { useKernelStore } from './stores/kernel'
 import { useToastStore } from './stores/toast'
+import { useUxStatusStore } from './stores/uxStatus'
 import { gitAdd, gitCommit, gitStatus } from './services/git'
 import { isMod } from './platform'
 import { isChatTab, isNewTab, getViewerType } from './utils/fileTypes'
@@ -135,6 +136,10 @@ import ToastContainer from './components/layout/ToastContainer.vue'
 import { useI18n } from './i18n'
 import { events } from './services/telemetry'
 import { useAppShellLayout } from './composables/useAppShellLayout'
+import {
+  reconcileCriticalWorkspaceState,
+  resetCriticalWorkspaceState,
+} from './services/criticalWorkspaceState'
 
 const LeftSidebar = defineAsyncComponent(() => import('./components/sidebar/LeftSidebar.vue'))
 const RightPanel = defineAsyncComponent(() => import('./components/panel/RightPanel.vue'))
@@ -155,6 +160,7 @@ const typstStore = useTypstStore()
 const latexStore = useLatexStore()
 const kernelStore = useKernelStore()
 const toastStore = useToastStore()
+const uxStatusStore = useUxStatusStore()
 const { t } = useI18n()
 
 const footerRef = ref(null)
@@ -266,6 +272,11 @@ async function openWorkspace(path, options = {}) {
 
   cancelWorkspaceBackgroundTasks()
   const loadGeneration = ++workspaceLoadGeneration
+  const workspaceName = targetPath.split('/').pop() || targetPath
+  const workspaceStatusId = uxStatusStore.show(t('Opening {name}...', { name: workspaceName }), {
+    type: 'info',
+    duration: 0,
+  })
 
   // Close any currently open workspace first
   if (workspace.isOpen) {
@@ -342,11 +353,15 @@ async function openWorkspace(path, options = {}) {
       if (loadGeneration !== workspaceLoadGeneration || workspace.path !== targetPath) return
       backgroundWorkspaceLoadTimer = null
     }, 600)
+    uxStatusStore.success(t('Workspace ready'), { duration: 1800 })
   } catch (e) {
     console.error('Failed to open workspace:', e)
     await closeWorkspace()
+    uxStatusStore.error(t('Failed to open workspace'), { duration: 4000 })
     toastStore.show(t('Failed to open workspace: {error}', { error: e.message || e }), { type: 'error', duration: 8000 })
     return
+  } finally {
+    uxStatusStore.clear(workspaceStatusId)
   }
 
   // Show setup wizard on first launch
@@ -375,6 +390,7 @@ async function closeWorkspace() {
   latexStore.cleanup()
   typstStore.cleanup()
   await workspace.closeWorkspace()
+  resetCriticalWorkspaceState(closingWorkspacePath)
   await invoke('workspace_clear_allowed_roots').catch((error) => {
     console.warn('[workspace] failed to clear allowed roots:', error)
   })
@@ -597,7 +613,9 @@ function handleVisibilityChange() {
     const now = Date.now()
     if (now - lastFocusRefresh < 2000) return
     lastFocusRefresh = now
-    filesStore.refreshVisibleTree({ suppressErrors: true })
+    filesStore.refreshVisibleTree({ suppressErrors: true, reason: 'visibility', announce: true })
+      .then(() => reconcileCriticalWorkspaceState({ announce: true }))
+      .catch(() => {})
   }
 }
 

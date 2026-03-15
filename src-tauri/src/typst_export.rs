@@ -106,7 +106,13 @@ fn typst_not_found_message() -> String {
 }
 
 /// 6-tier binary discovery for Typst (mirrors find_tectonic in latex.rs)
-fn find_typst(app: &tauri::AppHandle) -> Option<String> {
+fn find_typst(app: &tauri::AppHandle, custom_path: Option<&str>) -> Option<String> {
+    if let Some(path) = custom_path.filter(|value| !value.trim().is_empty()) {
+        if Path::new(path).exists() {
+            return Some(path.to_string());
+        }
+    }
+
     // 1. App-managed install (~/.altals/bin/typst)
     for bin_dir in app_dirs::candidate_bin_dirs() {
         let path = bin_dir.join(typst_binary_name());
@@ -1179,9 +1185,10 @@ pub async fn export_md_to_pdf(
     bib_path: Option<String>,
     settings: Option<PdfSettings>,
     app: tauri::AppHandle,
+    custom_typst_path: Option<String>,
 ) -> Result<ExportResult, String> {
     let settings = settings.unwrap_or_default();
-    let typst_bin = find_typst(&app).ok_or_else(typst_not_found_message)?;
+    let typst_bin = find_typst(&app, custom_typst_path.as_deref()).ok_or_else(typst_not_found_message)?;
 
     // Read markdown file
     let md_content = std::fs::read_to_string(&md_path)
@@ -1252,8 +1259,11 @@ pub async fn export_md_to_pdf(
 }
 
 #[tauri::command]
-pub async fn check_typst_compiler(app: tauri::AppHandle) -> Result<TypstCompilerStatus, String> {
-    let path = find_typst(&app);
+pub async fn check_typst_compiler(
+    app: tauri::AppHandle,
+    custom_typst_path: Option<String>,
+) -> Result<TypstCompilerStatus, String> {
+    let path = find_typst(&app, custom_typst_path.as_deref());
     Ok(TypstCompilerStatus {
         installed: path.is_some(),
         path,
@@ -1264,8 +1274,9 @@ pub async fn check_typst_compiler(app: tauri::AppHandle) -> Result<TypstCompiler
 pub async fn compile_typst_file(
     typ_path: String,
     app: tauri::AppHandle,
+    custom_typst_path: Option<String>,
 ) -> Result<TypstCompileResult, String> {
-    let typst_bin = find_typst(&app).ok_or_else(typst_not_found_message)?;
+    let typst_bin = find_typst(&app, custom_typst_path.as_deref()).ok_or_else(typst_not_found_message)?;
     let typ_pathbuf = PathBuf::from(&typ_path);
     if !typ_pathbuf.exists() {
         return Err(format!("Typst file not found: {}", typ_path));

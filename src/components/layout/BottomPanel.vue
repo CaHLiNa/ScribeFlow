@@ -331,6 +331,14 @@ function onCreateLanguageTerminal(e) {
   const { language } = e.detail || {}
   if (!language) return
   ensureInitialized()
+  if (language === '__shell__') {
+    const idx = addSharedShellTerminal()
+    if (idx !== -1) {
+      activeTerminal.value = idx
+      workspace.openBottomPanel()
+    }
+    return
+  }
   const idx = addLanguageTerminal(language)
   if (idx !== -1) {
     activeTerminal.value = idx
@@ -500,6 +508,14 @@ function onSendToRepl(e) {
   if (!code || !language) return
 
   ensureInitialized()
+  if (language === '__shell__') {
+    const idx = addSharedShellTerminal()
+    if (idx === -1) return
+    activeTerminal.value = idx
+    workspace.openBottomPanel()
+    nextTick(() => sendCodeToTerminal(idx, code, language))
+    return
+  }
   let idx = findLanguageTerminal(language)
   if (idx === -1) {
     idx = addLanguageTerminal(language)

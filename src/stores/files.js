@@ -25,7 +25,9 @@ import {
 import { formatFileError } from '../utils/errorMessages'
 import { isBinaryFile } from '../utils/fileTypes'
 import { extractTextFromPdf } from '../utils/pdfMetadata'
+import { t } from '../i18n'
 import { useToastStore } from './toast'
+import { useUxStatusStore } from './uxStatus'
 
 function cloneRootEntries(entries = []) {
   return entries.map((entry) => {
@@ -173,6 +175,13 @@ export const useFilesStore = defineStore('files', {
     deletingPaths: new Set(), // paths currently being deleted (prevents save-on-unmount race)
     unlisten: null,
     lastLoadError: null,
+    reconcileState: {
+      inProgress: false,
+      reason: '',
+      lastStartedAt: 0,
+      lastCompletedAt: 0,
+      lastError: '',
+    },
   }),
 
   getters: {
@@ -335,7 +344,7 @@ export const useFilesStore = defineStore('files', {
           return
         }
         try {
-          await this.refreshVisibleTree({ suppressErrors: true })
+          await this.refreshVisibleTree({ suppressErrors: true, reason: 'poll' })
         } catch {
           // Workspace may have closed between scheduling and execution.
         } finally {
@@ -513,7 +522,12 @@ export const useFilesStore = defineStore('files', {
     async _refreshVisibleTreeOnce(options = {}) {
       const workspace = useWorkspaceStore()
       if (!workspace.path) return this.tree
-      const { suppressErrors = false } = options
+      const {
+        suppressErrors = false,
+        reason = 'manual',
+        announce = false,
+      } = options
+      this._beginReconcile(reason, { announce })
 
       try {
         let nextTree = await invoke('read_dir_shallow', { path: workspace.path })
@@ -554,10 +568,12 @@ export const useFilesStore = defineStore('files', {
           this._setTree(nextTree, workspace.path, { preserveFlatFiles: true })
         }
         this.lastLoadError = null
+        this._finishReconcile(reason)
         return this.tree
       } catch (error) {
         console.error('Failed to refresh visible file tree:', error)
         this.lastLoadError = error
+        this._failReconcile(reason, error, { suppressErrors })
         if (!suppressErrors) throw error
         return this.tree
       }
@@ -641,7 +657,7 @@ export const useFilesStore = defineStore('files', {
           accumulatedPaths = new Set()
 
           if (workspace.path && changedPaths.some(path => path.startsWith(workspace.path))) {
-            await this.refreshVisibleTree({ suppressErrors: true })
+            await this.refreshVisibleTree({ suppressErrors: true, reason: 'watch' })
           }
 
           await handleExternalFileChanges(this, changedPaths)
@@ -669,7 +685,7 @@ export const useFilesStore = defineStore('files', {
 
     async syncTreeAfterMutation(options = {}) {
       const { expandPath = null } = options
-      await this.refreshVisibleTree({ suppressErrors: true })
+      await this.refreshVisibleTree({ suppressErrors: true, reason: 'mutation' })
       const workspacePath = useWorkspaceStore().path
       if (expandPath && expandPath !== workspacePath) {
         await this.ensureDirLoaded(expandPath, { force: true })
@@ -911,6 +927,62 @@ export const useFilesStore = defineStore('files', {
       this.fileLoadErrors = {}
       this.pdfSourceKinds = {}
       this.lastLoadError = null
+      this.reconcileState = {
+        inProgress: false,
+        reason: '',
+        lastStartedAt: 0,
+        lastCompletedAt: 0,
+        lastError: '',
+      }
+    },
+
+    _beginReconcile(reason = 'manual', { announce = false } = {}) {
+      this.reconcileState = {
+        ...this.reconcileState,
+        inProgress: true,
+        reason,
+        lastStartedAt: Date.now(),
+        lastError: '',
+      }
+
+      if (!announce) return
+      if (reason === 'visibility') {
+        useUxStatusStore().showOnce('files-reconcile-visibility', t('Refreshing workspace state...'), {
+          type: 'info',
+          duration: 1800,
+        }, 6000)
+      }
+    },
+
+    _finishReconcile(reason = 'manual') {
+      this.reconcileState = {
+        ...this.reconcileState,
+        inProgress: false,
+        reason,
+        lastCompletedAt: Date.now(),
+        lastError: '',
+      }
+    },
+
+    _failReconcile(reason = 'manual', error, { suppressErrors = false } = {}) {
+      this.reconcileState = {
+        ...this.reconcileState,
+        inProgress: false,
+        reason,
+        lastError: error?.message || String(error || ''),
+      }
+
+      if (!suppressErrors) return
+
+      const message = t('Workspace refresh failed. Some external changes may appear late.')
+      useUxStatusStore().showOnce('files-reconcile-failed', message, {
+        type: 'warning',
+        duration: 5000,
+      }, 12000)
+      useToastStore().showOnce('files-reconcile-failed', message, {
+        type: 'warning',
+        duration: 6000,
+      }, 12000)
     },
   },
 })

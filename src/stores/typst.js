@@ -7,6 +7,15 @@ import { t } from '../i18n'
 
 const COMPILER_CHECK_CACHE_MS = 5 * 60 * 1000
 
+const readStoredValue = (key, fallback = '') => {
+  try {
+    const value = localStorage.getItem(key)
+    return value == null ? fallback : value
+  } catch {
+    return fallback
+  }
+}
+
 // Default PDF settings
 const DEFAULTS = {
   template: 'clean',
@@ -84,6 +93,7 @@ export const useTypstStore = defineStore('typst', {
   state: () => ({
     available: false,
     compilerPath: null,
+    customCompilerPath: readStoredValue('typst.customCompilerPath', ''),
     checkingCompiler: false,
     lastCompilerCheckAt: 0,
     downloading: false,
@@ -110,7 +120,9 @@ export const useTypstStore = defineStore('typst', {
       if (!force && this.lastCompilerCheckAt && Date.now() - this.lastCompilerCheckAt < COMPILER_CHECK_CACHE_MS) return
       this.checkingCompiler = true
       try {
-        const result = await invoke('check_typst_compiler')
+        const result = await invoke('check_typst_compiler', {
+          customTypstPath: this.customCompilerPath || null,
+        })
         this.available = result?.installed === true
         this.compilerPath = result?.path || null
       } catch {
@@ -190,6 +202,7 @@ export const useTypstStore = defineStore('typst', {
           mdPath,
           bibPath: bibPath || null,
           settings: settings || null,
+          customTypstPath: this.customCompilerPath || null,
         })
         this.exporting[mdPath] = result.success ? 'done' : 'error'
         if (result.success) events.exportPdf()
@@ -209,7 +222,10 @@ export const useTypstStore = defineStore('typst', {
       }
 
       try {
-        const result = await invoke('compile_typst_file', { typPath: filePath })
+        const result = await invoke('compile_typst_file', {
+          typPath: filePath,
+          customTypstPath: this.customCompilerPath || null,
+        })
         this.compileState[filePath] = {
           status: result.success ? 'success' : 'error',
           errors: result.errors,
@@ -281,6 +297,19 @@ export const useTypstStore = defineStore('typst', {
 
     clearState(filePath) {
       delete this.compileState[filePath]
+    },
+
+    async setCustomCompilerPath(path) {
+      this.customCompilerPath = String(path || '').trim()
+      try {
+        if (this.customCompilerPath) {
+          localStorage.setItem('typst.customCompilerPath', this.customCompilerPath)
+        } else {
+          localStorage.removeItem('typst.customCompilerPath')
+        }
+      } catch {}
+      this.lastCompilerCheckAt = 0
+      await this.checkCompiler(true)
     },
 
     cleanup() {
