@@ -17,7 +17,7 @@
     <div class="workflow-controls">
       <template v-if="uiState.kind === 'markdown'">
         <button
-          class="workflow-primary-btn"
+          class="workflow-secondary-btn"
           @click="$emit('primary-action')"
         >
           {{ t('Preview') }}
@@ -113,7 +113,7 @@ const showPreviewButton = computed(() => (
 ))
 
 const previewButtonLabel = computed(() => (
-  props.uiState.previewKind === 'pdf' ? 'PDF' : t('Preview')
+  t('Preview')
 ))
 
 const statusClass = computed(() => ({
