@@ -232,6 +232,8 @@ function buildDecorations(view, isEnabled, getFilePath) {
 
   const builder = new RangeSetBuilder()
   const { state } = view
+  const hasExpandedSelection = state.selection.ranges.some((range) => range.from !== range.to)
+  if (hasExpandedSelection) return Decoration.none
   const cursorLine = state.doc.lineAt(state.selection.main.head).number
 
   // Additional cursor lines from all selection ranges

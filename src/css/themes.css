@@ -46,8 +46,9 @@
   --hl-bracket: #89ddff;
 
   /* Editor */
-  --editor-active-line: rgba(36, 40, 59, 0.5);
+  --editor-active-line: rgba(36, 40, 59, 0.28);
   --editor-selection: rgba(122, 162, 247, 0.2);
+  --editor-selection-match: rgba(122, 162, 247, 0.1);
   --editor-bracket-match: rgba(122, 162, 247, 0.2);
   --editor-bracket-border: rgba(122, 162, 247, 0.5);
   --editor-search-match: rgba(224, 175, 104, 0.3);
@@ -172,8 +173,9 @@
   --hl-punctuation: #383a42;
   --hl-bracket: #383a42;
 
-  --editor-active-line: rgba(95, 158, 160, 0.06);
+  --editor-active-line: rgba(95, 158, 160, 0.045);
   --editor-selection: rgba(95, 158, 160, 0.2);
+  --editor-selection-match: rgba(95, 158, 160, 0.1);
   --editor-bracket-match: rgba(95, 158, 160, 0.25);
   --editor-bracket-border: rgba(95, 158, 160, 0.5);
   --editor-search-match: rgba(239, 108, 0, 0.2);
@@ -232,8 +234,9 @@
   --hl-punctuation: #f8f8f2;
   --hl-bracket: #f8f8f2;
 
-  --editor-active-line: rgba(62, 61, 50, 0.6);
+  --editor-active-line: rgba(62, 61, 50, 0.28);
   --editor-selection: rgba(253, 151, 31, 0.2);
+  --editor-selection-match: rgba(253, 151, 31, 0.1);
   --editor-bracket-match: rgba(253, 151, 31, 0.25);
   --editor-bracket-border: rgba(253, 151, 31, 0.5);
   --editor-search-match: rgba(230, 219, 116, 0.3);
@@ -292,8 +295,9 @@
   --hl-punctuation: #eceff4;
   --hl-bracket: #eceff4;
 
-  --editor-active-line: rgba(67, 76, 94, 0.5);
+  --editor-active-line: rgba(67, 76, 94, 0.24);
   --editor-selection: rgba(136, 192, 208, 0.2);
+  --editor-selection-match: rgba(136, 192, 208, 0.1);
   --editor-bracket-match: rgba(136, 192, 208, 0.25);
   --editor-bracket-border: rgba(136, 192, 208, 0.5);
   --editor-search-match: rgba(235, 203, 139, 0.3);
@@ -352,8 +356,9 @@
   --hl-punctuation: #586e75;
   --hl-bracket: #586e75;
 
-  --editor-active-line: rgba(38, 139, 210, 0.06);
+  --editor-active-line: rgba(38, 139, 210, 0.05);
   --editor-selection: rgba(38, 139, 210, 0.15);
+  --editor-selection-match: rgba(38, 139, 210, 0.08);
   --editor-bracket-match: rgba(38, 139, 210, 0.2);
   --editor-bracket-border: rgba(38, 139, 210, 0.4);
   --editor-search-match: rgba(181, 137, 0, 0.2);
@@ -413,8 +418,9 @@
   --hl-punctuation: #7a7268;
   --hl-bracket: #7a7268;
 
-  --editor-active-line: rgba(181, 98, 58, 0.04);
+  --editor-active-line: rgba(181, 98, 58, 0.05);
   --editor-selection: rgba(181, 98, 58, 0.12);
+  --editor-selection-match: rgba(181, 98, 58, 0.07);
   --editor-bracket-match: rgba(181, 98, 58, 0.15);
   --editor-bracket-border: rgba(181, 98, 58, 0.3);
   --editor-search-match: rgba(196, 149, 48, 0.18);
@@ -473,8 +479,9 @@
   --hl-punctuation: #383a42;
   --hl-bracket: #383a42;
 
-  --editor-active-line: rgba(64, 120, 242, 0.06);
+  --editor-active-line: rgba(64, 120, 242, 0.05);
   --editor-selection: rgba(64, 120, 242, 0.15);
+  --editor-selection-match: rgba(64, 120, 242, 0.08);
   --editor-bracket-match: rgba(64, 120, 242, 0.2);
   --editor-bracket-border: rgba(64, 120, 242, 0.4);
   --editor-search-match: rgba(193, 132, 1, 0.2);
@@ -533,8 +540,9 @@
   --hl-punctuation: #f8f8f2;
   --hl-bracket: #f8f8f2;
 
-  --editor-active-line: rgba(68, 71, 90, 0.6);
+  --editor-active-line: rgba(68, 71, 90, 0.28);
   --editor-selection: rgba(189, 147, 249, 0.2);
+  --editor-selection-match: rgba(189, 147, 249, 0.1);
   --editor-bracket-match: rgba(189, 147, 249, 0.25);
   --editor-bracket-border: rgba(189, 147, 249, 0.5);
   --editor-search-match: rgba(241, 250, 140, 0.2);

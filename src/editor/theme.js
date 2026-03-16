@@ -24,6 +24,16 @@ export const shouldersTheme = EditorView.theme(
     '.cm-selectionBackground, &.cm-focused .cm-selectionBackground, ::selection': {
       backgroundColor: 'var(--editor-selection) !important',
     },
+    '.cm-selectionMatch': {
+      backgroundColor: 'var(--editor-selection-match)',
+    },
+    '.cm-selectionMatch.cm-selectionMatch-main': {
+      backgroundColor: 'var(--editor-selection-match)',
+      outline: '1px solid color-mix(in srgb, var(--editor-selection-match) 70%, var(--accent) 30%)',
+    },
+    '.cm-searchMatch .cm-selectionMatch': {
+      backgroundColor: 'transparent',
+    },
     '.cm-gutters': {
       backgroundColor: 'var(--bg-primary)',
       color: 'var(--fg-muted)',

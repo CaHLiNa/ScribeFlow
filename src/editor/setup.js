@@ -1,10 +1,11 @@
 import { EditorState, Compartment } from '@codemirror/state'
-import { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter, drawSelection, dropCursor, rectangularSelection, crosshairCursor } from '@codemirror/view'
+import { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter, drawSelection, dropCursor, rectangularSelection, crosshairCursor, Decoration, ViewPlugin } from '@codemirror/view'
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
 import { bracketMatching, indentOnInput, foldGutter, foldKeymap, syntaxHighlighting, defaultHighlightStyle } from '@codemirror/language'
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete'
-import { searchKeymap, highlightSelectionMatches } from '@codemirror/search'
+import { searchKeymap, SearchCursor } from '@codemirror/search'
 import { shouldersTheme, shouldersHighlighting } from './theme'
+import { shouldHighlightSelectionMatches } from './selectionHighlightPolicy'
 
 // Shared compartment for line wrapping - reconfigured when user toggles soft wrap
 export const wrapCompartment = new Compartment()
@@ -14,6 +15,59 @@ export const spellCheckCompartment = new Compartment()
 
 // Shared compartment for wrap column width - constrains content to N characters
 export const columnWidthCompartment = new Compartment()
+
+const SELECTION_HIGHLIGHT_MAX_MATCHES = 100
+const selectionMatchMark = Decoration.mark({ class: 'cm-selectionMatch' })
+
+function buildSelectionMatchDecorations(view) {
+  const { state } = view
+  const selection = state.selection
+  if (selection.ranges.length !== 1) return Decoration.none
+
+  const range = selection.main
+  if (range.empty) return Decoration.none
+
+  const selectedText = state.sliceDoc(range.from, range.to)
+  const shouldHighlight = shouldHighlightSelectionMatches({
+    hasSelection: true,
+    isSingleLine: !/[\r\n]/.test(selectedText),
+    selectedTextLength: selectedText.length,
+  })
+
+  if (!shouldHighlight) return Decoration.none
+
+  const decorations = []
+  for (const visibleRange of view.visibleRanges) {
+    const cursor = new SearchCursor(state.doc, selectedText, visibleRange.from, visibleRange.to)
+    while (!cursor.next().done) {
+      const { from, to } = cursor.value
+      if (from >= range.to || to <= range.from) {
+        decorations.push(selectionMatchMark.range(from, to))
+      }
+      if (decorations.length > SELECTION_HIGHLIGHT_MAX_MATCHES) {
+        return Decoration.none
+      }
+    }
+  }
+
+  return decorations.length ? Decoration.set(decorations) : Decoration.none
+}
+
+function selectionMatchesLikeVSCode() {
+  return ViewPlugin.fromClass(class {
+    constructor(view) {
+      this.decorations = buildSelectionMatchDecorations(view)
+    }
+
+    update(update) {
+      if (update.selectionSet || update.docChanged || update.viewportChanged) {
+        this.decorations = buildSelectionMatchDecorations(update.view)
+      }
+    }
+  }, {
+    decorations: (plugin) => plugin.decorations,
+  })
+}
 
 export function columnWidthExtension(col) {
   if (col > 0) {
@@ -111,7 +165,7 @@ export function createEditorExtensions({ onSave, onCursorChange, onStats, softWr
     closeBrackets(),
     rectangularSelection(),
     crosshairCursor(),
-    highlightSelectionMatches(),
+    selectionMatchesLikeVSCode(),
 
     // Language (dynamic — passed by caller)
     ...(languageExtension ? [languageExtension] : []),
