@@ -589,16 +589,20 @@ function handleDragStart({ key, event }) {
     ? [...referencesStore.selectedKeys]
     : [key]
 
-  const activeTab = editorStore.activeTab
-  const citeText = buildCitationText(activeTab, selected)
+  const ghostLabel = selected.length === 1
+    ? `@${selected[0]}`
+    : `${selected.length} refs`
 
   const ghost = document.createElement('div')
   ghost.className = 'tab-ghost'
-  ghost.textContent = citeText
+  ghost.textContent = ghostLabel
   ghost.style.left = event.clientX + 'px'
   ghost.style.top = event.clientY + 'px'
   document.body.appendChild(ghost)
   document.body.classList.add('tab-dragging')
+  window.dispatchEvent(new CustomEvent('reference-drag-start', {
+    detail: { keys: [...selected] },
+  }))
 
   const onMouseMove = (ev) => {
     ghost.style.left = ev.clientX + 'px'
@@ -610,23 +614,9 @@ function handleDragStart({ key, event }) {
     document.body.classList.remove('tab-dragging')
     document.removeEventListener('mousemove', onMouseMove)
     document.removeEventListener('mouseup', onMouseUp)
-
-    const target = document.elementFromPoint(ev.clientX, ev.clientY)
-    const cmContent = target?.closest('.cm-content')
-    if (cmContent) {
-      const editorEl = cmContent.closest('.cm-editor')
-      if (editorEl?.cmView?.view) {
-        const view = editorEl.cmView.view
-        const pos = view.posAtCoords({ x: ev.clientX, y: ev.clientY })
-        if (pos !== null) {
-          view.dispatch({
-            changes: { from: pos, to: pos, insert: citeText },
-            selection: { anchor: pos + citeText.length },
-          })
-          view.focus()
-        }
-      }
-    }
+    window.dispatchEvent(new CustomEvent('reference-drag-end', {
+      detail: { keys: [...selected], x: ev.clientX, y: ev.clientY },
+    }))
   }
 
   document.addEventListener('mousemove', onMouseMove)

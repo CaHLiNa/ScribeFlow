@@ -2,6 +2,7 @@ import { nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { addComment, removeComment, updateComment, setActiveComment, commentField } from '../editor/comments'
 import { reconfigureMergeView, computeOriginalContent } from '../editor/diffOverlay'
 import { buildInsertText } from '../editor/textEditorInteractions'
+import { buildReferenceDropText } from '../editor/referenceDrop'
 import { computeMinimalChange } from '../utils/textDiff'
 
 export function useTextEditorBridges(options) {
@@ -20,6 +21,7 @@ export function useTextEditorBridges(options) {
   let dropOverlay = null
   let dropCursor = null
   let draggedFilePaths = []
+  let draggedReferenceKeys = []
 
   function handleCommentClick(event) {
     const commentId = event.detail?.commentId
@@ -115,9 +117,19 @@ export function useTextEditorBridges(options) {
     }
   }
 
-  function onFileTreeDragStart(event) {
-    draggedFilePaths = event.detail?.paths || []
-    if (!draggedFilePaths.length || !editorContainer.value) return
+  function cleanupDropOverlay() {
+    if (dropOverlay) {
+      dropOverlay.remove()
+      dropOverlay = null
+    }
+    if (dropCursor) {
+      dropCursor.remove()
+      dropCursor = null
+    }
+  }
+
+  function ensureDropOverlay() {
+    if (!editorContainer.value || dropOverlay) return
 
     dropOverlay = document.createElement('div')
     dropOverlay.style.cssText = 'position:absolute;inset:0;z-index:50;cursor:copy;'
@@ -130,6 +142,20 @@ export function useTextEditorBridges(options) {
 
     dropOverlay.addEventListener('mousemove', onOverlayMouseMove)
     dropOverlay.addEventListener('mouseup', onOverlayMouseUp)
+  }
+
+  function onFileTreeDragStart(event) {
+    draggedFilePaths = event.detail?.paths || []
+    draggedReferenceKeys = []
+    if (!draggedFilePaths.length) return
+    ensureDropOverlay()
+  }
+
+  function onReferenceDragStart(event) {
+    draggedReferenceKeys = event.detail?.keys || []
+    draggedFilePaths = []
+    if (!buildReferenceDropText(filePath, draggedReferenceKeys)) return
+    ensureDropOverlay()
   }
 
   function onOverlayMouseMove(event) {
@@ -157,16 +183,18 @@ export function useTextEditorBridges(options) {
 
   function onOverlayMouseUp(event) {
     const view = getView()
-    if (!view || !draggedFilePaths.length) return
+    if (!view) return
 
     const pos = view.posAtCoords({ x: event.clientX, y: event.clientY })
     if (pos === null) return
 
-    const text = buildInsertText(draggedFilePaths, {
-      filePath,
-      isMarkdownFile,
-      isLatexFile,
-    })
+    const text = draggedReferenceKeys.length > 0
+      ? buildReferenceDropText(filePath, draggedReferenceKeys)
+      : buildInsertText(draggedFilePaths, {
+        filePath,
+        isMarkdownFile,
+        isLatexFile,
+      })
     if (!text) return
 
     view.dispatch({
@@ -178,14 +206,12 @@ export function useTextEditorBridges(options) {
 
   function onFileTreeDragEnd() {
     draggedFilePaths = []
-    if (dropOverlay) {
-      dropOverlay.remove()
-      dropOverlay = null
-    }
-    if (dropCursor) {
-      dropCursor.remove()
-      dropCursor = null
-    }
+    cleanupDropOverlay()
+  }
+
+  function onReferenceDragEnd() {
+    draggedReferenceKeys = []
+    cleanupDropOverlay()
   }
 
   watch(
@@ -238,12 +264,17 @@ export function useTextEditorBridges(options) {
   onMounted(() => {
     window.addEventListener('filetree-drag-start', onFileTreeDragStart)
     window.addEventListener('filetree-drag-end', onFileTreeDragEnd)
+    window.addEventListener('reference-drag-start', onReferenceDragStart)
+    window.addEventListener('reference-drag-end', onReferenceDragEnd)
   })
 
   onUnmounted(() => {
     window.removeEventListener('filetree-drag-start', onFileTreeDragStart)
     window.removeEventListener('filetree-drag-end', onFileTreeDragEnd)
+    window.removeEventListener('reference-drag-start', onReferenceDragStart)
+    window.removeEventListener('reference-drag-end', onReferenceDragEnd)
     onFileTreeDragEnd()
+    onReferenceDragEnd()
   })
 
   return {
