@@ -332,6 +332,7 @@
       @export-selected="exportSelected"
       @copy-formatted="copyFormatted"
       @delete="deleteRef"
+      @delete-global="deleteGlobalRef"
     />
 
     <!-- Add dialog -->
@@ -385,7 +386,7 @@ const contextMenu = reactive({
 
 const searchedRefs = computed(() => {
   if (!searchQuery.value.trim()) return referencesStore.sortedLibrary
-  return referencesStore.searchRefs(searchQuery.value)
+  return referencesStore.searchGlobalRefs(searchQuery.value)
 })
 
 const citedCount = computed(() =>
@@ -506,6 +507,7 @@ function handleItemClick({ key, event }) {
     referencesStore.selectedKeys.clear()
     referencesStore.selectedKeys.add(key)
     referencesStore.activeKey = key
+    referencesStore.addKeyToWorkspace(key)
     editorStore.openFile(`ref:@${key}`)
     lastClickedIndex.value = clickedIndex
   }
@@ -541,6 +543,7 @@ function copyMultiCitation() {
 
 function openPdf(key) {
   contextMenu.show = false
+  referencesStore.addKeyToWorkspace(key)
   const pdfPath = referencesStore.pdfPathForKey(key)
   if (pdfPath) {
     editorStore.openFile(pdfPath)
@@ -550,6 +553,7 @@ function openPdf(key) {
 function viewDetails(key) {
   contextMenu.show = false
   referencesStore.activeKey = key
+  referencesStore.addKeyToWorkspace(key)
   editorStore.openFile(`ref:@${key}`)
 }
 
@@ -569,15 +573,31 @@ function copyFormatted(key) {
 
 async function deleteRef(key) {
   contextMenu.show = false
-  const keys = referencesStore.selectedKeys.size > 1
+  const keys = (referencesStore.selectedKeys.size > 1
     ? [...referencesStore.selectedKeys]
     : [key]
+  ).filter((item) => referencesStore.hasKeyInWorkspace(item))
+  if (keys.length === 0) return
   const msg = keys.length === 1
     ? t('Remove reference @{key} from this project?', { key: keys[0] })
     : t('Remove {count} references from this project?', { count: keys.length })
   const yes = await ask(msg, { title: t('Confirm Remove'), kind: 'warning' })
   if (yes) {
     referencesStore.removeReferences(keys)
+  }
+}
+
+async function deleteGlobalRef(key) {
+  contextMenu.show = false
+  const keys = referencesStore.selectedKeys.size > 1
+    ? [...referencesStore.selectedKeys]
+    : [key]
+  const msg = keys.length === 1
+    ? t('Delete reference @{key} from the global library?', { key: keys[0] })
+    : t('Delete {count} references from the global library?', { count: keys.length })
+  const yes = await ask(msg, { title: t('Confirm Global Delete'), kind: 'warning' })
+  if (yes) {
+    await referencesStore.removeReferencesFromGlobal(keys)
   }
 }
 

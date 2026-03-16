@@ -523,7 +523,7 @@ export function getAiTools(workspace) {
       }),
       execute: async ({ query }) => {
         const refsStore = useReferencesStore()
-        const matches = refsStore.searchRefs(query)
+        const matches = refsStore.searchGlobalRefs(query)
         if (matches.length === 0) return 'No matching references found.'
         return matches.slice(0, 20).map(r => {
           const authors = (r.author || []).map(a => a.family || '').join(', ')
@@ -596,6 +596,7 @@ export function getAiTools(workspace) {
         if (!pane?.activeTab) return 'No active editor.'
         const view = editorStore.getEditorView(pane.id, pane.activeTab)
         if (!view) return 'No active text editor.'
+        refsStore.addKeyToWorkspace(key)
         const cite = insertCitationWithAssist({
           view,
           filePath: pane.activeTab,

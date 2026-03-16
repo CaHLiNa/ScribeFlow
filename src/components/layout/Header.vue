@@ -111,6 +111,7 @@ import { ref, computed, nextTick, defineAsyncComponent } from 'vue'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useEditorStore } from '../../stores/editor'
 import { useToastStore } from '../../stores/toast'
+import { useReferencesStore } from '../../stores/references'
 import {
   IconLayoutSidebar, IconLayoutSidebarFilled,
   IconLayoutSidebarRight, IconLayoutSidebarRightFilled,
@@ -127,6 +128,7 @@ const emit = defineEmits(['open-settings'])
 const workspace = useWorkspaceStore()
 const editorStore = useEditorStore()
 const toastStore = useToastStore()
+const referencesStore = useReferencesStore()
 const { t } = useI18n()
 const isMacDesktop = isMac
   && typeof window !== 'undefined'
@@ -221,6 +223,7 @@ function onSelectCitation(key) {
   if (pane?.activeTab) {
     const view = editorStore.getEditorView(pane.id, pane.activeTab)
     if (view) {
+      referencesStore.addKeyToWorkspace(key)
       insertCitationWithAssist({
         view,
         filePath: pane.activeTab,

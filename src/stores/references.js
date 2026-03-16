@@ -220,6 +220,8 @@ export const useReferencesStore = defineStore('references', {
 
     sortedLibrary: (state) => sortReferences(state.library, state.sortBy, state.sortDir),
 
+    sortedGlobalLibrary: (state) => sortReferences(state.globalLibrary, state.sortBy, state.sortDir),
+
     // Citation index: key → [filePaths] that cite it
     citedIn: (state) => {
       const filesStore = useFilesStore()
@@ -486,6 +488,19 @@ export const useReferencesStore = defineStore('references', {
       this.keyMap = buildKeyMapFromList(workspaceView.library)
     },
 
+    async _deleteReferenceAsset(path) {
+      if (!path) return false
+      try {
+        const exists = await invoke('path_exists', { path })
+        if (!exists) return false
+        await invoke('delete_path', { path })
+        return true
+      } catch (error) {
+        console.warn('Failed to delete reference asset:', path, error)
+        return false
+      }
+    },
+
     async _ensureReferenceStorageReady() {
       const workspace = useWorkspaceStore()
       if (!workspace.projectDir || !workspace.globalConfigDir) return
@@ -692,6 +707,10 @@ export const useReferencesStore = defineStore('references', {
       return true
     },
 
+    hasKeyInWorkspace(key) {
+      return !!key && this.workspaceKeys.includes(key)
+    },
+
     removeReference(key) {
       if (!this.workspaceKeys.includes(key)) return false
       this.workspaceKeys = this.workspaceKeys.filter((item) => item !== key)
@@ -710,11 +729,64 @@ export const useReferencesStore = defineStore('references', {
       }
     },
 
+    async removeReferenceFromGlobal(key) {
+      const removed = await this.removeReferencesFromGlobal([key])
+      return removed.length > 0
+    },
+
+    async removeReferencesFromGlobal(keys) {
+      const uniqueKeys = Array.from(new Set((keys || []).filter(Boolean)))
+      if (uniqueKeys.length === 0) return []
+
+      const workspace = useWorkspaceStore()
+      const removeSet = new Set()
+      const assetPaths = []
+
+      for (const key of uniqueKeys) {
+        const idx = this.globalKeyMap[key]
+        if (idx === undefined) continue
+        const ref = this.globalLibrary[idx]
+        removeSet.add(key)
+        if (workspace.globalConfigDir && ref?._pdfFile) {
+          assetPaths.push(resolveGlobalReferencePdfPath(workspace.globalConfigDir, ref._pdfFile))
+        }
+        if (workspace.globalConfigDir && ref?._textFile) {
+          assetPaths.push(resolveGlobalReferenceFulltextPath(workspace.globalConfigDir, ref._textFile))
+        }
+      }
+
+      if (removeSet.size === 0) return []
+
+      this.globalLibrary = this.globalLibrary.filter((ref) => !removeSet.has(referenceKey(ref)))
+      this.workspaceKeys = this.workspaceKeys.filter((key) => !removeSet.has(key))
+
+      if (this.activeKey && removeSet.has(this.activeKey)) {
+        this.activeKey = null
+      }
+      for (const key of removeSet) {
+        this.selectedKeys.delete(key)
+      }
+
+      this._syncWorkspaceView()
+
+      for (const path of assetPaths) {
+        await this._deleteReferenceAsset(path)
+      }
+
+      await this._writeLibraries()
+      return [...removeSet]
+    },
+
     // --- Search ---
 
     searchRefs(query) {
       if (!query || !query.trim()) return this.sortedLibrary
       return filterReferences(this.library, query)
+    },
+
+    searchGlobalRefs(query) {
+      if (!query || !query.trim()) return this.sortedGlobalLibrary
+      return sortReferences(filterReferences(this.globalLibrary, query), this.sortBy, this.sortDir)
     },
 
     // --- Key generation ---

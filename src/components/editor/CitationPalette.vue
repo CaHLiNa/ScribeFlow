@@ -231,7 +231,7 @@ const isEdit = computed(() => internalMode.value === 'edit')
 
 const filteredResults = computed(() => {
   if (!props.query?.trim()) return referencesStore.sortedLibrary.slice(0, 20)
-  return referencesStore.searchRefs(props.query.trim()).slice(0, 20)
+  return referencesStore.searchGlobalRefs(props.query.trim()).slice(0, 20)
 })
 
 const editEntries = computed(() =>
@@ -244,7 +244,7 @@ const editEntries = computed(() =>
 const addResults = computed(() => {
   if (!addQuery.value.trim()) return []
   const cited = new Set(editCites.value.map(c => c.key))
-  return referencesStore.searchRefs(addQuery.value.trim())
+  return referencesStore.searchGlobalRefs(addQuery.value.trim())
     .filter(r => !cited.has(r._key))
     .slice(0, 10)
 })
@@ -283,6 +283,7 @@ function confidenceLabel(c) {
 // ─── Insert Mode Actions ────────────────────────────────────
 
 function selectResult(key, stayOpen = false) {
+  referencesStore.addKeyToWorkspace(key)
   if (stayOpen) {
     emit('insert', { keys: [key], stayOpen: true, latexCommand: props.latexCommand })
     internalMode.value = 'edit'
@@ -297,6 +298,7 @@ function selectResult(key, stayOpen = false) {
 // ─── Edit Mode Actions ──────────────────────────────────────
 
 function addToGroup(key) {
+  referencesStore.addKeyToWorkspace(key)
   editCites.value.push({ key, locator: '', prefix: '' })
   addQuery.value = ''
   addSelectedIdx.value = 0

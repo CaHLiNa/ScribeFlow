@@ -68,13 +68,19 @@
             <option value="bibtex">BibTeX</option>
           </select>
         </div>
-        <span class="mx-1 ui-text-micro" :style="{ color: 'var(--border)' }">|</span>
+        <button
+          class="px-1.5 py-0.5 ui-text-xs rounded hover:bg-[var(--bg-hover)]"
+          :style="{ color: 'var(--fg-muted)' }"
+          @click.stop="deleteRef"
+        >
+          {{ t('Remove from this project') }}
+        </button>
         <button
           class="px-1.5 py-0.5 ui-text-xs rounded hover:bg-[var(--bg-hover)]"
           :style="{ color: 'var(--error)' }"
-          @click.stop="deleteRef"
+          @click.stop="deleteRefGlobally"
         >
-          {{ t('Delete') }}
+          {{ t('Delete from global library') }}
         </button>
       </div>
 
@@ -609,6 +615,21 @@ async function deleteRef() {
     if (removed) {
       editorStore.closeTab(props.paneId, `ref:@${props.refKey}`)
     }
+  }
+}
+
+async function deleteRefGlobally() {
+  if (!ref.value) return
+  const key = ref.value._key
+  const yes = await ask(
+    t('Delete reference @{key} from the global library?', { key }),
+    { title: t('Confirm Global Delete'), kind: 'warning' },
+  )
+  if (!yes) return
+
+  const removed = await referencesStore.removeReferenceFromGlobal(key)
+  if (removed) {
+    editorStore.closeTab(props.paneId, `ref:@${props.refKey}`)
   }
 }
 

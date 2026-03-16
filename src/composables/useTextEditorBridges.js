@@ -5,6 +5,7 @@ import { buildInsertText } from '../editor/textEditorInteractions'
 import { buildReferenceDropText } from '../editor/referenceDrop'
 import { insertCitationWithAssist } from '../services/latexCitationAssist'
 import { computeMinimalChange } from '../utils/textDiff'
+import { useReferencesStore } from '../stores/references'
 
 export function useTextEditorBridges(options) {
   const {
@@ -25,6 +26,7 @@ export function useTextEditorBridges(options) {
   let dropCursor = null
   let draggedFilePaths = []
   let draggedReferenceKeys = []
+  const referencesStore = useReferencesStore()
 
   function handleCommentClick(event) {
     const commentId = event.detail?.commentId
@@ -201,6 +203,9 @@ export function useTextEditorBridges(options) {
     if (!text) return
 
     if (draggedReferenceKeys.length > 0) {
+      for (const key of draggedReferenceKeys) {
+        referencesStore.addKeyToWorkspace(key)
+      }
       insertCitationWithAssist({
         view,
         filePath,

@@ -60,7 +60,14 @@
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M2 4h12M5.33 4V2.67a1.33 1.33 0 011.34-1.34h2.66a1.33 1.33 0 011.34 1.34V4M12.67 4v9.33a1.33 1.33 0 01-1.34 1.34H4.67a1.33 1.33 0 01-1.34-1.34V4"/>
           </svg>
-          {{ selectedCount > 1 ? t('Delete {count} selected', { count: selectedCount }) : t('Delete') }}
+          {{ selectedCount > 1 ? t('Remove {count} from this project', { count: selectedCount }) : t('Remove from this project') }}
+        </div>
+
+        <div class="context-menu-item context-menu-item-danger" @click="$emit('delete-global', refKey)">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M2 4h12M5.33 4V2.67a1.33 1.33 0 011.34-1.34h2.66a1.33 1.33 0 011.34 1.34V4M12.67 4v9.33a1.33 1.33 0 01-1.34 1.34H4.67a1.33 1.33 0 01-1.34-1.34V4"/>
+          </svg>
+          {{ selectedCount > 1 ? t('Delete {count} from global library', { count: selectedCount }) : t('Delete from global library') }}
         </div>
       </div>
     </div>
@@ -82,6 +89,6 @@ defineProps({
 
 defineEmits([
   'close', 'copy-citation', 'copy-multi-citation', 'open-pdf',
-  'view-details', 'export-selected', 'copy-formatted', 'delete',
+  'view-details', 'export-selected', 'copy-formatted', 'delete', 'delete-global',
 ])
 </script>

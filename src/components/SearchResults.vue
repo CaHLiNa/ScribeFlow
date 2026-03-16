@@ -150,7 +150,7 @@ const titleMatches = computed(() => {
 const refMatches = computed(() => {
   const q = props.query.trim()
   if (q.length < 2) return []
-  return referencesStore.searchRefs(q).slice(0, 8)
+  return referencesStore.searchGlobalRefs(q).slice(0, 8)
 })
 
 const chatMatches = computed(() => {

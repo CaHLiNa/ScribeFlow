@@ -241,7 +241,7 @@ export function collectTypstReferenceOptions({ referencesStore, documentText = '
   }
 
   const refs = referencesStore
-    ? (normalizedQuery ? referencesStore.searchRefs(normalizedQuery) : referencesStore.sortedLibrary || referencesStore.library || [])
+    ? (normalizedQuery ? referencesStore.searchGlobalRefs(normalizedQuery) : referencesStore.sortedLibrary || referencesStore.library || [])
     : []
 
   for (const ref of refs) {
