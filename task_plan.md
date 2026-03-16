@@ -1,3 +1,47 @@
+## Active Task: 8 周主链路补完路线图落地
+
+### Goal
+把用户给出的 8 周路线图落成一份贴着 Altals 当前代码结构的执行方案，重点确认四个阶段对应的现有基础、明显缺口、实现依赖与建议切入顺序；在设计确认前不直接进入功能开发。
+
+### Current Phase
+Scope Alignment
+
+### Planned Phases
+#### Phase A: Context Mapping
+- [x] 读取现有 README、package、近期计划记录与最近提交
+- [x] 抽查 references / PDF / execution / DOCX-review 四条链路的关键模块
+- [x] 汇总“已有基础 / 缺口 / 风险 / 依赖”
+- **Status:** complete
+
+#### Phase B: Scope Alignment
+- [x] 基于代码现状评估用户 8 周路线图的可执行性
+- [x] 识别是否有更适合先做的基础设施项
+- [x] 向用户确认是“保留原四阶段结构”还是“按真实缺口重排优先级”
+- **Status:** complete
+
+#### Phase C: Design & Handoff
+- [x] 产出贴仓库的设计/实施建议
+- [x] 写入 design doc 与 implementation plan
+- [ ] 等待用户选择执行方式
+- **Status:** in_progress
+
+### Key Questions
+1. 当前 references / PDF / notebook / DOCX-review 各自已经做到多深？
+2. 用户给出的阶段顺序是否需要根据现有实现基础微调？
+3. 现阶段最合适的起点，是先补 references library，还是先收口某个跨链路基础模型？
+
+### Decisions Made
+| Decision | Rationale |
+|----------|-----------|
+| 先做仓库现状映射，再评价路线图 | 这份路线图已经足够明确，当前最需要的是贴代码库校准，而不是空泛补充 |
+| 设计确认前不直接进入大规模功能实现 | `brainstorming` 要求先完成设计澄清与用户确认 |
+| 延续已有 planning files，而不是新建并行文件 | 便于保留项目级工作记忆，同时把当前任务单独标为 active |
+
+### Errors Encountered
+| Error | Attempt | Resolution |
+|-------|---------|------------|
+| 暂无 | - | - |
+
 # Task Plan: 全局冗余代码清理与归并
 
 ## Goal

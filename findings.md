@@ -1,3 +1,35 @@
+# Active Findings: 2026-03-16 路线图贴仓库校准
+
+## Initial Context
+- 仓库 README 与 `package.json` 已明确项目定位为 local-first desktop workspace，覆盖 writing、references、code、AI-assisted research workflows。
+- 当前版本号为 `0.2.18`，与用户提到的 release 节奏一致。
+- 近期已完成一轮大规模清理、分包与 document adapter formalization，这意味着当前更适合补主链路可信度，而不是继续横向扩张。
+
+## Early Signals
+- `src/components/sidebar/ReferenceList.vue`、`src/components/editor/ReferenceView.vue`、`src/services/referenceImport.js`、`src/services/referenceFiles.js`、`src/utils/bibtexParser.js`、`src/utils/risParser.js` 表明 references 已有基础，但是否达到“文献库”级别还需进一步抽查。
+- `src/components/editor/PdfViewer.vue`、`src/components/editor/DocumentPdfViewer.vue`、`src/services/pdfDocument.js`、`src/utils/pdfMetadata.js` 表明 PDF 已进入主工作流，但 annotation / note / backlink 能力未知。
+- `src/components/editor/NotebookEditor.vue`、`src/components/editor/NotebookCell.vue`、`src/editor/chunkOutputs.js`、`src/services/chunkKernelBridge.js`、`src/services/environmentPreflight.js` 表明代码执行与环境检测已有基础。
+- `src/components/editor/DocxEditor.vue`、`src/components/editor/DocxReviewBar.vue`、`src/components/comments/*`、`src/components/VersionHistory.vue`、`src/editor/diffOverlay.js` 表明 DOCX 与审阅系统已有显著基础，需要判断离“可交付”还有多远。
+
+## Updated Findings After Core File Review
+- `references` 这条线已经不是“只有 citation picker”阶段了：有持久化文献库（`references/library.json`）、排序、全文搜索字段、`ReferenceView` 详情面板、BibTeX/RIS/DOI/CSL-JSON/PDF 导入、去重、PDF 绑定和 `citedIn` 反查。
+- references 当前最大的缺口不是“从 0 到 1”，而是“库治理”：去重规则偏轻量（DOI 精确匹配 + 标题相似度），没有显式的冲突预览/合并 UI，也没有批量导入时的逐字段保留策略。
+- `PDF` 当前更接近“高质量查看器”：有页码、缩放、目录、缩略图、双击定位、翻译入口，以及基于 `pdfjs` 的文本提取工具；但没看到持久化 annotation、摘录卡片、文稿回链、图表截图资产等研究工作流能力。
+- `Notebook / chunk execution` 已有 kernel 检测、环境探测、Jupyter 执行、review 集成、chunk 输出渲染，但状态模型仍停在 `running/done/error`，没有“结果已过期 / 依赖失效 / 嵌入结果可追溯”的科研复现层。
+- `DOCX` 当前基础明显强于路线图假设：已有 suggesting 模式、tracked changes 的 accept/reject、原生 comment 输入、Zotero citation import、bibliography refresh、版本预览；但缺少 round-trip 透明度、段落级 diff 视图、clean/review 双导出这些“交付安全感”层的产品化收口。
+- 用户已明确允许“按真实缺口重排优先级”，因此后续方案不再强行保留原始阶段顺序。
+
+## Design Decision
+- 采用“缺口优先”的克制版路线：
+  - Week 1-2: PDF research input foundation
+  - Week 3-4: reference governance + PDF coupling
+  - Week 5-6: execution provenance + stale results
+  - Week 7-8: DOCX delivery confidence
+- 不在 8 周内先做统一 research object 大底座，避免抽象先行吞掉主链路交付。
+- 正式文档已写入：
+  - `/Users/math173sr/Documents/GitHub项目/Altals/docs/plans/2026-03-16-research-core-roadmap-design.md`
+  - `/Users/math173sr/Documents/GitHub项目/Altals/docs/plans/2026-03-16-research-core-roadmap.md`
+
 # Findings & Decisions
 
 ## Requirements
