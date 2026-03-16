@@ -207,7 +207,10 @@ async function onRefFileDrop(event) {
 
   for (const filePath of pdfPaths) {
     const result = await importFromPdf(filePath, workspace, referencesStore)
-    if (result) {
+    if (result?.status === 'error') {
+      errors.value.push(t('Failed to import PDF: {error}', { error: result.error }))
+      statusText.value = t('PDF import failed')
+    } else if (result) {
       if (result.status === 'duplicate' && result.pdfAttached) {
         statusText.value = t('Attached PDF to @{key}', { key: result.key })
       } else if (result.status === 'duplicate') {
@@ -343,6 +346,7 @@ function translateImportError(message) {
   if (text === 'No valid RIS entries found') return t('No valid RIS entries found')
   if (text === 'No valid CSL-JSON entries found') return t('No valid CSL-JSON entries found')
   if (text === 'Could not extract references from text') return t('Could not extract references from text')
+  if (text === 'PDF import failed') return t('PDF import failed')
 
   const doiMatch = text.match(/^DOI not found: (.+)$/)
   if (doiMatch) {

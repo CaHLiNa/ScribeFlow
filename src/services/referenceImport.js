@@ -5,6 +5,12 @@ import { extractFromPdf } from '../utils/pdfMetadata'
 import { aiParseReferences, aiExtractPdfMetadata } from './refAi'
 import { invoke } from '@tauri-apps/api/core'
 
+function toImportErrorMessage(error, fallback = 'Import failed') {
+  if (error instanceof Error && error.message) return error.message
+  if (typeof error === 'string' && error.trim()) return error
+  return fallback
+}
+
 /**
  * Import references from text input.
  * Auto-detects: DOI, BibTeX, RIS, CSL-JSON, batch DOI, or falls back to AI extraction.
@@ -379,6 +385,14 @@ export async function importFromPdf(filePath, workspace, referencesStore) {
     }
   } catch (e) {
     console.error('PDF import failed:', e)
-    return null
+    return {
+      csl: null,
+      confidence: 'failed',
+      key: null,
+      status: 'error',
+      existingKey: null,
+      pdfAttached: false,
+      error: toImportErrorMessage(e, 'PDF import failed'),
+    }
   }
 }

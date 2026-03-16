@@ -6,6 +6,7 @@ import { events } from '../services/telemetry'
 import { useWorkspaceStore } from './workspace'
 import { useFilesStore } from './files'
 import { extractTextFromPdf } from '../utils/pdfMetadata'
+import { buildReferenceKey } from '../utils/referenceKeys'
 
 function normalizeDoi(value) {
   return String(value || '')
@@ -471,32 +472,7 @@ export const useReferencesStore = defineStore('references', {
     // --- Key generation ---
 
     generateKey(cslJson) {
-      let base = ''
-
-      // Author family name
-      const firstAuthor = cslJson.author?.[0]
-      if (firstAuthor?.family) {
-        base = firstAuthor.family.toLowerCase()
-          .replace(/[^a-z]/g, '')
-      } else {
-        base = 'ref'
-      }
-
-      // Year
-      const year = cslJson.issued?.['date-parts']?.[0]?.[0]
-      if (year) base += year
-
-      // Ensure uniqueness with a/b/c suffixes
-      if (!this.keyMap[base]) return base
-
-      for (let i = 0; i < 26; i++) {
-        const suffix = String.fromCharCode(97 + i) // a, b, c...
-        const candidate = base + suffix
-        if (!this.keyMap[candidate]) return candidate
-      }
-
-      // Fallback: add random chars
-      return base + Math.random().toString(36).slice(2, 5)
+      return buildReferenceKey(cslJson, new Set(Object.keys(this.keyMap)))
     },
 
     // --- Dedup ---

@@ -295,7 +295,13 @@
         >
           <template v-if="searchQuery">{{ t('No matching references') }}</template>
           <template v-else>
-            {{ t('Drop PDFs, .bib, .ris, or .json files here') }}
+            <div>{{ t('Drop PDFs, .bib, .ris, or .json files here') }}</div>
+            <div class="mt-2 ui-text-xs">
+              {{ t('Tip: click Add to paste DOI, BibTeX, RIS, or citation text.') }}
+            </div>
+            <div class="mt-1 ui-text-xs">
+              {{ t('To cite: Markdown `[@`, LaTeX `\\cite{}`, Typst `@`, or press {shortcut}.', { shortcut: `${modKey}+Shift+C` }) }}
+            </div>
           </template>
         </div>
 
@@ -346,7 +352,7 @@ import { getAvailableStyles, getStyleName } from '../../services/citationStyleRe
 import { saveReferenceExport } from '../../services/referenceFiles'
 import { useReferenceListUi } from '../../composables/useReferenceListUi'
 import { useReferenceImports } from '../../composables/useReferenceImports'
-import { isMod } from '../../platform'
+import { isMod, modKey } from '../../platform'
 import { ask } from '@tauri-apps/plugin-dialog'
 import { IconSearch, IconArrowsSort } from '@tabler/icons-vue'
 import ReferenceItem from './ReferenceItem.vue'
@@ -521,7 +527,8 @@ function handleContextMenu({ event, ref: refData }) {
 }
 
 function copyCitation(key) {
-  navigator.clipboard.writeText(`[@${key}]`)
+  const citation = buildCitationText(editorStore.activeTab, key)
+  navigator.clipboard.writeText(citation)
   contextMenu.show = false
 }
 

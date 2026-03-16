@@ -44,6 +44,8 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { useReferencesStore } from '../../stores/references'
+import { useEditorStore } from '../../stores/editor'
+import { buildCitationText } from '../../editor/citationSyntax'
 import { useI18n } from '../../i18n'
 
 const props = defineProps({
@@ -56,7 +58,8 @@ const copied = ref(false)
 let copiedTimer = null
 
 function copyCitation() {
-  navigator.clipboard.writeText(`[@${props.reference._key}]`)
+  const citation = buildCitationText(editorStore.activeTab, props.reference._key)
+  navigator.clipboard.writeText(citation)
   copied.value = true
   clearTimeout(copiedTimer)
   copiedTimer = setTimeout(() => { copied.value = false }, 1200)
@@ -65,6 +68,7 @@ function copyCitation() {
 const emit = defineEmits(['click', 'context-menu', 'drag-start'])
 
 const referencesStore = useReferencesStore()
+const editorStore = useEditorStore()
 const { t } = useI18n()
 
 const isActive = computed(() => referencesStore.activeKey === props.reference._key)

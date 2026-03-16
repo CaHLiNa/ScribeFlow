@@ -52,6 +52,7 @@ export function useReferenceImports(options) {
 
     let totalAdded = 0
     let totalDuplicates = 0
+    let totalFailed = 0
     const textExts = ['.bib', '.ris', '.json', '.nbib', '.enw', '.txt']
     const pdfs = []
     const textFiles = []
@@ -97,9 +98,16 @@ export function useReferenceImports(options) {
       importing.push({ id, name })
       try {
         const result = await importFromPdf(filePath, workspace, referencesStore)
-        if (result) totalAdded += 1
-        else totalDuplicates += 1
+        if (result?.status === 'error') {
+          totalFailed += 1
+          console.warn('PDF import failed:', filePath, result.error)
+        } else if (result?.status === 'duplicate') {
+          totalDuplicates += 1
+        } else if (result) {
+          totalAdded += 1
+        }
       } catch (error) {
+        totalFailed += 1
         console.warn('PDF import failed:', filePath, error)
       }
       const index = importing.findIndex((item) => item.id === id)
@@ -107,7 +115,7 @@ export function useReferenceImports(options) {
     })
 
     await Promise.all(pdfPromises)
-    showImportSummary(totalAdded, totalDuplicates)
+    showImportSummary(totalAdded, totalDuplicates, totalFailed)
   }
 
   onMounted(() => {

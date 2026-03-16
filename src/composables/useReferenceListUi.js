@@ -142,13 +142,16 @@ export function useReferenceListUi(options) {
     }, 4000)
   }
 
-  function showImportSummary(added, duplicates) {
+  function showImportSummary(added, duplicates, failed = 0) {
     const parts = []
     if (added > 0) {
       parts.push(t('{count} added', { count: added }))
     }
     if (duplicates > 0) {
       parts.push(t(duplicates === 1 ? '{count} duplicate skipped' : '{count} duplicates skipped', { count: duplicates }))
+    }
+    if (failed > 0) {
+      parts.push(t(failed === 1 ? '{count} import failed' : '{count} imports failed', { count: failed }))
     }
     if (!parts.length) return
     showImportMessage(parts.join(', '), added > 0)
