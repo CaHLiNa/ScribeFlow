@@ -487,6 +487,8 @@ const ZH_MESSAGES = {
   'Reached the beginning and continued from the end': '已到开头，并从末尾继续',
   'Reached the end and continued from the beginning': '已到末尾，并从开头继续',
   '{current} of {total}': '第 {current} / {total} 个',
+  'More than {limit} matches': '超过 {limit} 个匹配',
+  'Match diacritics': '匹配变音符号',
   'Save the current PDF selection as an annotation': '将当前 PDF 选区保存为高亮标注',
   'Add highlight': '添加高亮',
   'Highlights': '高亮',

@@ -20,7 +20,9 @@
                 :class="{ 'pdf-toolbar-btn-active': pdfFind.open }"
                 :disabled="!pdfUi.ready"
                 :title="t('Find in PDF')"
-                @click="openPdfFindBar"
+                :aria-expanded="String(pdfFind.open)"
+                :aria-controls="`pdfjs-findbar-${paneId}`"
+                @click="togglePdfFindBar"
               >
                 <IconSearch :size="13" :stroke-width="1.8" />
               </button>
@@ -142,89 +144,83 @@
       <div class="pdf-reader-shell" @keydown.capture="handleReaderKeydown">
         <div
           ref="findBarRef"
-          class="pdf-findbar-shell hidden"
+          :id="`pdfjs-findbar-${paneId}`"
+          class="hidden pdfjs-findbar pdfjs-toolbarHorizontalGroup"
           @mousedown.stop
           @click.stop
         >
-            <div class="pdf-findbar-row">
-              <span class="pdf-findbar-input-shell">
-                <IconSearch :size="13" :stroke-width="1.8" class="pdf-findbar-icon" />
+            <div class="pdfjs-findInputContainer pdfjs-toolbarHorizontalGroup">
+              <span class="pdfjs-loadingInput pdfjs-toolbarHorizontalGroup">
                 <input
                   ref="findInputRef"
-                  class="pdf-findbar-input"
+                  class="pdfjs-toolbarField pdfjs-findInput"
                   type="text"
                   :placeholder="t('Search in PDF')"
                   spellcheck="false"
                 >
               </span>
-              <div class="pdf-findbar-actions">
+              <div class="pdfjs-toolbarHorizontalGroup">
                 <button
                   ref="findPreviousButtonRef"
-                  class="pdf-findbar-nav"
+                  class="pdfjs-toolbarButton"
                   type="button"
-                  :disabled="!pdfFind.query.trim()"
                   :title="t('Previous match')"
                 >
-                  <IconChevronUp :size="13" :stroke-width="1.8" />
+                  <span>{{ t('Previous match') }}</span>
                 </button>
-                <div class="pdf-findbar-separator"></div>
+                <div class="pdfjs-splitToolbarButtonSeparator"></div>
                 <button
                   ref="findNextButtonRef"
-                  class="pdf-findbar-nav"
+                  class="pdfjs-toolbarButton"
                   type="button"
-                  :disabled="!pdfFind.query.trim()"
                   :title="t('Next match')"
                 >
-                  <IconChevronDown :size="13" :stroke-width="1.8" />
-                </button>
-                <button
-                  type="button"
-                  class="pdf-findbar-close"
-                  :title="t('Close search')"
-                  @click="closePdfFindBar"
-                >
-                  <IconX :size="13" :stroke-width="1.8" />
+                  <span>{{ t('Next match') }}</span>
                 </button>
               </div>
             </div>
 
-            <div class="pdf-findbar-options">
-              <label class="pdf-findbar-option">
+            <div class="pdfjs-findbarOptionsOneContainer pdfjs-toolbarHorizontalGroup">
+              <div class="pdfjs-toggleButton pdfjs-toolbarLabel">
                 <input
                   ref="findHighlightAllRef"
+                  :id="`pdfjs-findHighlightAll-${paneId}`"
                   type="checkbox"
-                  :checked="pdfFind.highlightAll"
                 >
-                <span>{{ t('Highlight all matches') }}</span>
-              </label>
-              <label class="pdf-findbar-option">
+                <label :for="`pdfjs-findHighlightAll-${paneId}`">{{ t('Highlight all matches') }}</label>
+              </div>
+              <div class="pdfjs-toggleButton pdfjs-toolbarLabel">
                 <input
                   ref="findMatchCaseRef"
+                  :id="`pdfjs-findMatchCase-${paneId}`"
                   type="checkbox"
-                  :checked="pdfFind.matchCase"
                 >
-                <span>{{ t('Match case') }}</span>
-              </label>
-              <label class="pdf-findbar-option">
-                <input
-                  ref="findEntireWordRef"
-                  type="checkbox"
-                  :checked="pdfFind.entireWord"
-                >
-                <span>{{ t('Match whole words') }}</span>
-              </label>
-              <input
-                ref="findMatchDiacriticsRef"
-                class="pdf-findbar-hidden-toggle"
-                type="checkbox"
-                tabindex="-1"
-                aria-hidden="true"
-              >
+                <label :for="`pdfjs-findMatchCase-${paneId}`">{{ t('Match case') }}</label>
+              </div>
             </div>
 
-            <div class="pdf-findbar-meta" aria-live="polite">
-              <span ref="findResultsCountRef" class="pdf-findbar-count"></span>
-              <span ref="findMessageRef" class="pdf-findbar-status"></span>
+            <div class="pdfjs-findbarOptionsTwoContainer pdfjs-toolbarHorizontalGroup">
+              <div class="pdfjs-toggleButton pdfjs-toolbarLabel">
+                <input
+                  ref="findMatchDiacriticsRef"
+                  :id="`pdfjs-findMatchDiacritics-${paneId}`"
+                  type="checkbox"
+                >
+                <label :for="`pdfjs-findMatchDiacritics-${paneId}`">{{ t('Match diacritics') }}</label>
+              </div>
+              <div class="pdfjs-toggleButton pdfjs-toolbarLabel">
+                <input
+                  ref="findEntireWordRef"
+                  :id="`pdfjs-findEntireWord-${paneId}`"
+                  type="checkbox"
+                >
+                <label :for="`pdfjs-findEntireWord-${paneId}`">{{ t('Match whole words') }}</label>
+              </div>
+            </div>
+
+            <div class="pdfjs-findbarMessageContainer pdfjs-toolbarHorizontalGroup" aria-live="polite">
+              <span ref="findResultsCountRef" class="pdfjs-toolbarLabel"></span>
+              <span ref="findMessageRef" class="pdfjs-toolbarLabel"></span>
             </div>
         </div>
 
@@ -456,7 +452,6 @@ import {
   IconMinus,
   IconPlus,
   IconSearch,
-  IconX,
 } from '@tabler/icons-vue'
 import 'pdfjs-dist/legacy/web/pdf_viewer.css'
 import { useI18n } from '../../i18n'
@@ -531,8 +526,6 @@ const {
   convertPageOffsetToSyncTexPoint,
   openFind,
   closeFind,
-  findNext,
-  findPrevious,
 } = usePdfViewerSession({
   filePathRef,
   viewerContainerRef,
@@ -1051,15 +1044,15 @@ function handleViewerDoubleClick(event) {
 }
 
 function openPdfFindBar() {
+  openFind()
+}
+
+function togglePdfFindBar() {
   if (pdfFind.open) {
     closeFind()
     return
   }
-  openFind()
-}
-
-function closePdfFindBar() {
-  closeFind()
+  openPdfFindBar()
 }
 
 function handleReaderKeydown(event) {
@@ -1074,17 +1067,7 @@ function handleReaderKeydown(event) {
 
   if (event.key === 'Escape') {
     event.preventDefault()
-    closePdfFindBar()
-    return
-  }
-
-  if (event.key === 'Enter' && event.target !== findInputRef.value) {
-    event.preventDefault()
-    if (event.shiftKey) {
-      findPrevious()
-    } else {
-      findNext()
-    }
+    closeFind()
   }
 }
 
@@ -1494,138 +1477,177 @@ defineExpose({
   min-height: 0;
 }
 
-.pdf-findbar-shell {
+.pdfjs-toolbarHorizontalGroup {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 0;
+}
+
+.pdfjs-findbar {
+  --input-horizontal-padding: 4px;
+  --findbar-padding: 2px;
   position: absolute;
   top: 12px;
-  right: 12px;
+  left: 12px;
   z-index: 9;
-  width: min(520px, calc(100% - 24px));
-  display: grid;
-  gap: 8px;
-  padding: 10px;
-  border-radius: 12px;
+  width: min(460px, calc(100% - 24px));
+  max-width: calc(100% - 24px);
+  min-width: min(360px, calc(100% - 24px));
+  min-height: 32px;
+  height: auto;
+  padding: 0;
+  border-radius: 10px;
   border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
   background: color-mix(in srgb, var(--bg-secondary) 94%, var(--bg-primary));
+  box-sizing: border-box;
+  flex-wrap: wrap;
+  justify-content: flex-start;
   box-shadow: 0 14px 34px rgba(0, 0, 0, 0.2);
   backdrop-filter: blur(12px);
 }
 
-.pdf-findbar-shell.hidden {
-  display: none;
+.pdfjs-findbar > * {
+  min-height: 32px;
+  padding: var(--findbar-padding);
+  width: 100%;
 }
 
-.pdf-findbar-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.pdf-findbar-input-shell {
-  display: flex;
-  align-items: center;
+.pdfjs-findInputContainer {
+  margin-inline-start: 2px;
   gap: 8px;
   min-width: 0;
   flex: 1 1 auto;
-  padding: 0 10px;
-  border-radius: 9px;
-  border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
-  background: color-mix(in srgb, var(--bg-primary) 84%, var(--bg-secondary));
 }
 
-.pdf-findbar-icon {
-  flex: none;
-  color: var(--fg-muted);
-}
-
-.pdf-findbar-input {
-  width: 100%;
+.pdfjs-loadingInput {
+  position: relative;
   min-width: 0;
-  height: 30px;
-  border: 0;
-  background: transparent;
+  flex: 1 1 auto;
+}
+
+.pdfjs-toolbarField {
+  width: 220px;
+  min-width: min(220px, 100%);
+  max-width: 100%;
+  height: calc(32px - 2 * var(--findbar-padding));
+  padding: 5px var(--input-horizontal-padding);
+  border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--bg-primary) 88%, var(--bg-secondary));
   color: var(--fg-primary);
   font-size: var(--ui-font-caption);
   outline: none;
 }
 
-.pdf-findbar-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 0;
+.pdfjs-toolbarField::placeholder {
+  color: color-mix(in srgb, var(--fg-muted) 78%, transparent);
 }
 
-.pdf-findbar-separator {
-  width: 1px;
-  height: 14px;
-  background: color-mix(in srgb, var(--border) 82%, transparent);
+.pdfjs-toolbarField[data-status="notFound"] {
+  border-color: color-mix(in srgb, var(--error) 55%, transparent);
+  background: color-mix(in srgb, var(--error) 14%, var(--bg-primary));
 }
 
-.pdf-findbar-options {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
+.pdfjs-toolbarField[data-status="pending"] {
+  border-color: color-mix(in srgb, var(--accent) 42%, transparent);
 }
 
-.pdf-findbar-option {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--fg-muted);
-  font-size: var(--ui-font-caption);
-}
-
-.pdf-findbar-option input {
-  accent-color: var(--accent);
-}
-
-.pdf-findbar-hidden-toggle {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
-  pointer-events: none;
-}
-
-.pdf-findbar-meta {
-  display: flex;
-  align-items: center;
-  min-height: 18px;
-  gap: 10px;
-}
-
-.pdf-findbar-count {
-  color: var(--fg-primary);
-  font-size: var(--ui-font-caption);
-  font-weight: 600;
-}
-
-.pdf-findbar-status {
-  color: var(--fg-muted);
-  font-size: var(--ui-font-micro);
-}
-
-.pdf-findbar-nav,
-.pdf-findbar-close {
+.pdfjs-toolbarButton {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  min-width: 0;
+  height: calc(32px - 2 * var(--findbar-padding));
+  padding: 0 8px;
+  border: 0;
   border-radius: 7px;
-  border: 1px solid transparent;
   background: transparent;
   color: var(--fg-muted);
+  font-size: var(--ui-font-caption);
+  white-space: nowrap;
 }
 
-.pdf-findbar-nav:hover:not(:disabled),
-.pdf-findbar-close:hover:not(:disabled) {
+.pdfjs-toolbarButton:hover:not(:disabled) {
   background: var(--bg-hover);
   color: var(--fg-primary);
 }
 
-.pdf-findbar-nav:disabled {
+.pdfjs-toolbarButton:disabled {
   opacity: 0.45;
   cursor: default;
+}
+
+.pdfjs-splitToolbarButtonSeparator {
+  width: 1px;
+  height: 14px;
+  margin: 0 2px;
+  background: color-mix(in srgb, var(--border) 82%, transparent);
+}
+
+.pdfjs-findbarOptionsOneContainer,
+.pdfjs-findbarOptionsTwoContainer {
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+
+.pdfjs-toggleButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--bg-primary) 74%, var(--bg-secondary));
+  color: var(--fg-muted);
+  font-size: var(--ui-font-caption);
+  white-space: nowrap;
+}
+
+.pdfjs-toggleButton input {
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.pdfjs-toggleButton label {
+  cursor: pointer;
+}
+
+.pdfjs-toolbarLabel {
+  color: var(--fg-muted);
+  font-size: var(--ui-font-caption);
+}
+
+.pdfjs-findbarMessageContainer {
+  display: none;
+  gap: 6px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.pdfjs-findbarMessageContainer:has(> :not(:empty)) {
+  display: inline-flex;
+}
+
+.pdfjs-findbarMessageContainer > :first-child:not(:empty) {
+  color: var(--fg-primary);
+  font-weight: 600;
+}
+
+.pdfjs-findbarMessageContainer > :last-child[data-status="notFound"] {
+  color: var(--error);
+  font-weight: 600;
+}
+
+.pdfjs-findbar.wrapContainers {
+  flex-direction: column;
+  align-items: flex-start;
+  width: min(420px, calc(100% - 24px));
+}
+
+.pdfjs-findbar.wrapContainers .pdfjs-toolbarHorizontalGroup {
+  flex-wrap: wrap;
 }
 
 .pdf-translate-status {
@@ -1801,17 +1823,6 @@ defineExpose({
   transform: translateX(-10px);
 }
 
-.pdf-findbar-enter-active,
-.pdf-findbar-leave-active {
-  transition: opacity 0.16s ease, transform 0.16s ease;
-}
-
-.pdf-findbar-enter-from,
-.pdf-findbar-leave-to {
-  opacity: 0;
-  transform: translateY(-8px);
-}
-
 .pdf-annotation-list {
   display: flex;
   flex-direction: column;
@@ -1943,19 +1954,13 @@ defineExpose({
 }
 
 @media (max-width: 880px) {
-  .pdf-findbar-shell {
+  .pdfjs-findbar {
     left: 12px;
     right: 12px;
     width: auto;
   }
 
-  .pdf-findbar-row {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .pdf-findbar-meta {
-    min-width: 0;
+  .pdfjs-findbar .pdfjs-toolbarHorizontalGroup {
     flex-wrap: wrap;
   }
 }

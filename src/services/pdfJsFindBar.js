@@ -1,5 +1,7 @@
 import { FindState } from 'pdfjs-dist/legacy/web/pdf_viewer.mjs'
 
+const MATCHES_COUNT_LIMIT = 1000
+
 function toggleExpandedButton(button, expanded, view = null) {
   button?.classList?.toggle('toggled', expanded)
   if (button) {
@@ -32,15 +34,14 @@ function mapState(state) {
   }
 }
 
-export class PdfFindBarBridge {
+export class PdfJsFindBar {
   #mainContainer
   #resizeObserver
   #onStateChange
-  #onDispatch
   #t
   #abortController
 
-  constructor(options, mainContainer, eventBus, t, onStateChange = () => {}, onDispatch = null) {
+  constructor(options, mainContainer, eventBus, t, onStateChange = () => {}) {
     this.opened = false
     this.bar = options.bar
     this.toggleButton = options.toggleButton
@@ -56,7 +57,6 @@ export class PdfFindBarBridge {
     this.eventBus = eventBus
     this.#mainContainer = mainContainer
     this.#onStateChange = onStateChange
-    this.#onDispatch = typeof onDispatch === 'function' ? onDispatch : null
     this.#t = t
     this.#abortController = new AbortController()
 
@@ -75,8 +75,6 @@ export class PdfFindBarBridge {
       [this.entireWord, 'entirewordchange'],
       [this.matchDiacritics, 'diacriticmatchingchange'],
     ])
-
-    toggleExpandedButton(this.toggleButton, false, this.bar)
 
     this.findField?.addEventListener('input', () => {
       this.dispatchEvent('')
@@ -109,6 +107,7 @@ export class PdfFindBarBridge {
       }, { signal: this.#abortController.signal })
     }
 
+    toggleExpandedButton(this.toggleButton, false, this.bar)
     this.#syncState({
       open: false,
       query: this.findField?.value || '',
@@ -137,9 +136,13 @@ export class PdfFindBarBridge {
     })
   }
 
+  reset() {
+    this.updateUIState()
+  }
+
   dispatchEvent(type = '', findPrevious = false) {
     const query = this.findField?.value || ''
-    const patch = {
+    this.#syncState({
       query,
       open: this.opened,
       highlightAll: !!this.highlightAll?.checked,
@@ -149,22 +152,7 @@ export class PdfFindBarBridge {
       pending: Boolean(query.trim()),
       status: query.trim() ? 'pending' : 'idle',
       wrappedPrevious: false,
-    }
-    this.#syncState(patch)
-
-    if (this.#onDispatch) {
-      this.#onDispatch({
-        source: this,
-        type,
-        query,
-        caseSensitive: !!this.caseSensitive?.checked,
-        entireWord: !!this.entireWord?.checked,
-        highlightAll: !!this.highlightAll?.checked,
-        findPrevious,
-        matchDiacritics: !!this.matchDiacritics?.checked,
-      })
-      return
-    }
+    })
 
     this.eventBus.dispatch('find', {
       source: this,
@@ -178,47 +166,57 @@ export class PdfFindBarBridge {
     })
   }
 
-  updateResultsCount(matchesCount = {}) {
-    const normalized = normalizeMatchesCount(matchesCount)
-    if (this.findResultsCount) {
-      this.findResultsCount.textContent = normalized.total > 0
-        ? this.#t('{current} of {total}', normalized)
-        : ''
-    }
-    this.#syncState({ matchesCount: normalized })
-  }
-
   updateUIState(state, previous = false, matchesCount = {}) {
     const normalized = normalizeMatchesCount(matchesCount)
-    const mode = mapState(state)
     let message = ''
+    let status = ''
 
-    if (state === FindState.PENDING) {
-      message = this.#t('Searching PDF...')
-    } else if (state === FindState.NOT_FOUND) {
-      message = this.#t('No matches found')
-    } else if (state === FindState.WRAPPED) {
-      message = previous
-        ? this.#t('Reached the beginning and continued from the end')
-        : this.#t('Reached the end and continued from the beginning')
+    switch (state) {
+      case FindState.PENDING:
+        message = this.#t('Searching PDF...')
+        status = 'pending'
+        break
+      case FindState.NOT_FOUND:
+        message = this.#t('No matches found')
+        status = 'notFound'
+        break
+      case FindState.WRAPPED:
+        message = previous
+          ? this.#t('Reached the beginning and continued from the end')
+          : this.#t('Reached the end and continued from the beginning')
+        break
+      default:
+        break
     }
 
     if (this.findField) {
-      this.findField.dataset.status = state === FindState.PENDING ? 'pending' : state === FindState.NOT_FOUND ? 'notFound' : ''
+      this.findField.dataset.status = status
       this.findField.setAttribute('aria-invalid', String(state === FindState.NOT_FOUND))
     }
 
     if (this.findMsg) {
-      this.findMsg.dataset.status = state === FindState.PENDING ? 'pending' : state === FindState.NOT_FOUND ? 'notFound' : ''
+      this.findMsg.dataset.status = status
       this.findMsg.textContent = message
     }
 
     this.updateResultsCount(normalized)
     this.#syncState({
       pending: state === FindState.PENDING,
-      status: mode,
-      wrappedPrevious: mode === 'wrapped' ? !!previous : false,
+      status: mapState(state),
+      wrappedPrevious: state === FindState.WRAPPED ? !!previous : false,
     })
+  }
+
+  updateResultsCount(matchesCount = {}) {
+    const normalized = normalizeMatchesCount(matchesCount)
+    if (this.findResultsCount) {
+      this.findResultsCount.textContent = normalized.total > MATCHES_COUNT_LIMIT
+        ? this.#t('More than {limit} matches', { limit: MATCHES_COUNT_LIMIT })
+        : normalized.total > 0
+          ? this.#t('{current} of {total}', normalized)
+          : ''
+    }
+    this.#syncState({ matchesCount: normalized })
   }
 
   open() {

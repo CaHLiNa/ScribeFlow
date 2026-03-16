@@ -6,9 +6,9 @@ import {
 import { EventBus, FindState, PDFFindController, PDFLinkService, PDFViewer } from 'pdfjs-dist/legacy/web/pdf_viewer.mjs'
 import { createPdfLoadingTaskForWorkspace, openPdfExternalUrl } from '../services/pdfDocument'
 import { mapPdfFindControlState, normalizePdfFindMatchesCount } from '../services/pdfFindState'
-import { PdfFindBarBridge } from '../services/pdfFindBarBridge'
+import { PdfJsFindBar } from '../services/pdfJsFindBar'
 import { normalizePdfOutlineTree } from '../services/pdfOutlineTree'
-import { readPdfTextContent } from '../utils/pdfTextContent'
+import { patchPdfDocumentTextContent } from '../utils/pdfTextContent'
 
 const PDF_SCALE_PRESETS = [
   'auto',
@@ -256,259 +256,6 @@ export function usePdfViewerSession(options) {
     })
   }
 
-  function createManualFindController(session) {
-    return {
-      highlightMatches: false,
-      pageMatches: [],
-      pageMatchesLength: [],
-      selected: {
-        pageIdx: -1,
-        matchIdx: -1,
-      },
-      state: {
-        highlightAll: false,
-      },
-      scrollMatchIntoView({ element = null, pageIndex = -1, matchIndex = -1 } = {}) {
-        if (!element) return
-        if (pageIndex !== this.selected.pageIdx || matchIndex !== this.selected.matchIdx) return
-        window.requestAnimationFrame(() => {
-          element.scrollIntoView({
-            block: 'center',
-            inline: 'nearest',
-            behavior: 'auto',
-          })
-        })
-      },
-    }
-  }
-
-  function attachManualFindController(session) {
-    const viewer = session?.pdfViewer
-    const controller = session?.manualFindController
-    if (!viewer?._pages || !controller) return
-    for (const pageView of viewer._pages) {
-      if (pageView?._textHighlighter) {
-        pageView._textHighlighter.findController = controller
-      }
-    }
-  }
-
-  function resetManualFindMatches(session, { keepQuery = true } = {}) {
-    const controller = session?.manualFindController
-    if (!controller) return
-    controller.highlightMatches = false
-    controller.state.highlightAll = false
-    controller.selected.pageIdx = -1
-    controller.selected.matchIdx = -1
-    controller.pageMatches.length = 0
-    controller.pageMatchesLength.length = 0
-    attachManualFindController(session)
-    session?.eventBus?.dispatch('updatetextlayermatches', {
-      source: controller,
-      pageIndex: -1,
-    })
-    updatePdfFindState({
-      pending: false,
-      status: keepQuery && pdfFind.query.trim() ? 'found' : 'idle',
-      matchesCount: { current: 0, total: 0 },
-      wrappedPrevious: false,
-    })
-  }
-
-  function normalizeSearchText(value, caseSensitive) {
-    const text = String(value || '')
-    return caseSensitive ? text : text.toLocaleLowerCase()
-  }
-
-  function isWholeWordBoundary(content, startIndex, length) {
-    const left = startIndex > 0 ? content[startIndex - 1] : ''
-    const right = startIndex + length < content.length ? content[startIndex + length] : ''
-    const wordCharPattern = /[\p{L}\p{N}_]/u
-    const leftIsWord = left ? wordCharPattern.test(left) : false
-    const rightIsWord = right ? wordCharPattern.test(right) : false
-    return !leftIsWord && !rightIsWord
-  }
-
-  function findMatchesInText(content, query, { caseSensitive = false, entireWord = false } = {}) {
-    const source = String(content || '')
-    const needle = String(query || '')
-    if (!needle) return []
-
-    const haystack = normalizeSearchText(source, caseSensitive)
-    const target = normalizeSearchText(needle, caseSensitive)
-    if (!target) return []
-
-    const matches = []
-    let startIndex = 0
-    while (startIndex <= haystack.length) {
-      const foundIndex = haystack.indexOf(target, startIndex)
-      if (foundIndex === -1) break
-      if (!entireWord || isWholeWordBoundary(source, foundIndex, needle.length)) {
-        matches.push(foundIndex)
-      }
-      startIndex = foundIndex + Math.max(target.length, 1)
-    }
-    return matches
-  }
-
-  async function ensureManualFindIndex(session, requestId) {
-    if (!session?.pdfDocument) return []
-    if (!session.manualFindIndexPromise) {
-      session.manualFindIndexPromise = (async () => {
-        const totalPages = Number(session.pdfDocument?.numPages || 0)
-        const pages = Array.from({ length: totalPages }, () => ({ text: '', length: 0 }))
-        for (let index = 0; index < totalPages; index += 1) {
-          if (requestId !== loadRequestId || session !== pdfSession.value) return pages
-          try {
-            const page = await session.pdfDocument.getPage(index + 1)
-            const textContent = await readPdfTextContent(page, { disableNormalization: true })
-            const text = textContent.items.map((item) => item?.str || '').join('')
-            pages[index] = {
-              text,
-              length: text.length,
-            }
-          } catch (searchError) {
-            console.warn(`[pdf] failed to index text for page ${index + 1}:`, searchError)
-          }
-        }
-        return pages
-      })()
-    }
-    return session.manualFindIndexPromise
-  }
-
-  function updateManualFindUi(session, {
-    state,
-    previous = false,
-    current = 0,
-    total = 0,
-  } = {}) {
-    const normalizedCount = normalizePdfFindMatchesCount({ current, total })
-    session?.findBar?.updateUIState(state, previous, normalizedCount)
-    updatePdfFindState({
-      pending: state === FindState.PENDING,
-      status: mapPdfFindControlState({
-        state,
-        previous,
-        matchesCount: normalizedCount,
-        rawQuery: pdfFind.query,
-      }, {
-        pendingState: FindState.PENDING,
-        foundState: FindState.FOUND,
-        notFoundState: FindState.NOT_FOUND,
-        wrappedState: FindState.WRAPPED,
-      }).mode,
-      matchesCount: normalizedCount,
-      wrappedPrevious: state === FindState.WRAPPED ? !!previous : false,
-    })
-  }
-
-  async function runManualFind(state = {}) {
-    const session = pdfSession.value
-    if (!session?.manualFindController || !session?.pdfDocument) return
-
-    const query = String(state.query ?? pdfFind.query ?? '').trim()
-    updatePdfFindState({
-      query,
-      highlightAll: !!state.highlightAll,
-      matchCase: !!state.caseSensitive,
-      entireWord: !!state.entireWord,
-      matchDiacritics: !!state.matchDiacritics,
-    })
-
-    if (!query) {
-      resetManualFindMatches(session, { keepQuery: false })
-      session.findBar?.updateResultsCount({ current: 0, total: 0 })
-      return
-    }
-
-    updateManualFindUi(session, {
-      state: FindState.PENDING,
-      previous: !!state.findPrevious,
-      current: 0,
-      total: 0,
-    })
-
-    const indexPages = await ensureManualFindIndex(session, session.requestId)
-    if (session !== pdfSession.value || session.requestId !== loadRequestId) return
-
-    const controller = session.manualFindController
-    const pageMatches = indexPages.map((page) => findMatchesInText(page.text, query, {
-      caseSensitive: !!state.caseSensitive,
-      entireWord: !!state.entireWord,
-    }))
-    const pageMatchesLength = pageMatches.map((matches) => matches.map(() => query.length))
-    const flatMatches = []
-    pageMatches.forEach((matches, pageIdx) => {
-      matches.forEach((_, matchIdx) => {
-        flatMatches.push({ pageIdx, matchIdx })
-      })
-    })
-
-    controller.pageMatches.length = 0
-    controller.pageMatches.push(...pageMatches)
-    controller.pageMatchesLength.length = 0
-    controller.pageMatchesLength.push(...pageMatchesLength)
-    controller.highlightMatches = true
-    controller.state.highlightAll = !!state.highlightAll
-    attachManualFindController(session)
-
-    if (flatMatches.length === 0) {
-      controller.selected.pageIdx = -1
-      controller.selected.matchIdx = -1
-      session.eventBus.dispatch('updatetextlayermatches', {
-        source: controller,
-        pageIndex: -1,
-      })
-      updateManualFindUi(session, {
-        state: FindState.NOT_FOUND,
-        previous: !!state.findPrevious,
-        current: 0,
-        total: 0,
-      })
-      return
-    }
-
-    let selectedFlatIndex = 0
-    let wrapped = false
-    const currentFlatIndex = flatMatches.findIndex((match) => (
-      match.pageIdx === controller.selected.pageIdx && match.matchIdx === controller.selected.matchIdx
-    ))
-    if (state.type === 'again' && currentFlatIndex !== -1) {
-      selectedFlatIndex = currentFlatIndex + (state.findPrevious ? -1 : 1)
-      if (selectedFlatIndex < 0) {
-        selectedFlatIndex = flatMatches.length - 1
-        wrapped = true
-      } else if (selectedFlatIndex >= flatMatches.length) {
-        selectedFlatIndex = 0
-        wrapped = true
-      }
-    } else if (state.findPrevious) {
-      selectedFlatIndex = flatMatches.length - 1
-    }
-
-    const selectedMatch = flatMatches[selectedFlatIndex]
-    controller.selected.pageIdx = selectedMatch.pageIdx
-    controller.selected.matchIdx = selectedMatch.matchIdx
-
-    const targetPageNumber = selectedMatch.pageIdx + 1
-    if (pdfUi.pageNumber !== targetPageNumber) {
-      scrollToPage(targetPageNumber)
-    }
-
-    session.eventBus.dispatch('updatetextlayermatches', {
-      source: controller,
-      pageIndex: -1,
-    })
-
-    updateManualFindUi(session, {
-      state: wrapped ? FindState.WRAPPED : FindState.FOUND,
-      previous: !!state.findPrevious,
-      current: selectedFlatIndex + 1,
-      total: flatMatches.length,
-    })
-  }
-
   function dispatchFindRequest(type = '', { findPrevious = false } = {}) {
     const session = pdfSession.value
     session?.findBar?.dispatchEvent(type, findPrevious)
@@ -519,11 +266,7 @@ export function usePdfViewerSession(options) {
   }
 
   function closeFind() {
-    const session = pdfSession.value
-    session?.findBar?.close()
-    if (session) {
-      resetManualFindMatches(session)
-    }
+    pdfSession.value?.findBar?.close()
   }
 
   function updateFindQuery(query) {
@@ -889,14 +632,12 @@ export function usePdfViewerSession(options) {
     eventBus.on('pagerendered', () => {
       if (requestId !== loadRequestId) return
       loading.value = false
-      attachManualFindController(session)
       syncPdfUi()
       applyPendingScrollLocation()
     }, { once: true })
 
     eventBus.on('pagesloaded', () => {
       if (requestId !== loadRequestId) return
-      attachManualFindController(session)
       syncPdfUi()
       applyPendingScrollLocation()
       if (pdfFind.query.trim()) {
@@ -916,13 +657,7 @@ export function usePdfViewerSession(options) {
 
     eventBus.on('textlayerrendered', () => {
       if (requestId !== loadRequestId) return
-      attachManualFindController(session)
-      if (session.manualFindController?.highlightMatches) {
-        eventBus.dispatch('updatetextlayermatches', {
-          source: session.manualFindController,
-          pageIndex: -1,
-        })
-      }
+      syncPdfUi()
     })
 
     eventBus.on('updatefindmatchescount', ({ matchesCount } = {}) => {
@@ -1013,10 +748,7 @@ export function usePdfViewerSession(options) {
       abortController,
       pdfDocument: null,
       findBar: null,
-      manualFindController: createManualFindController(null),
-      manualFindIndexPromise: null,
     }
-    session.manualFindController = createManualFindController(session)
     if (
       viewerContainerRef.value
       && findBarRef?.value
@@ -1030,7 +762,7 @@ export function usePdfViewerSession(options) {
       && findPreviousButtonRef?.value
       && findNextButtonRef?.value
     ) {
-      session.findBar = new PdfFindBarBridge({
+      session.findBar = new PdfJsFindBar({
         bar: findBarRef.value,
         toggleButton: findToggleButtonRef?.value || null,
         findField: findInputRef.value,
@@ -1042,7 +774,7 @@ export function usePdfViewerSession(options) {
         findResultsCount: findResultsCountRef.value,
         findPreviousButton: findPreviousButtonRef.value,
         findNextButton: findNextButtonRef.value,
-      }, viewerContainerRef.value, eventBus, t, updatePdfFindState, runManualFind)
+      }, viewerContainerRef.value, eventBus, t, updatePdfFindState)
     }
     pdfSession.value = session
     attachViewerListeners(session, requestId)
@@ -1087,7 +819,7 @@ export function usePdfViewerSession(options) {
       const session = await buildViewerSession(requestId)
       if (!session || requestId !== loadRequestId) return
 
-      const pdfDocument = await session.loadingTask.promise
+      const pdfDocument = patchPdfDocumentTextContent(await session.loadingTask.promise)
       if (requestId !== loadRequestId) {
         await session.loadingTask.destroy().catch(() => {})
         return
@@ -1096,7 +828,6 @@ export function usePdfViewerSession(options) {
       session.pdfDocument = pdfDocument
       session.linkService.setDocument(pdfDocument, null)
       await session.pdfViewer.setDocument(pdfDocument)
-      attachManualFindController(session)
       syncPdfUi()
       void loadOutline(session, requestId)
     } catch (loadError) {
