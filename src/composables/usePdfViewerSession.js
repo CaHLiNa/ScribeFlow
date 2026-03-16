@@ -8,6 +8,7 @@ import { createPdfLoadingTaskForWorkspace, openPdfExternalUrl } from '../service
 import { mapPdfFindControlState, normalizePdfFindMatchesCount } from '../services/pdfFindState'
 import { PdfFindBarBridge } from '../services/pdfFindBarBridge'
 import { normalizePdfOutlineTree } from '../services/pdfOutlineTree'
+import { readPdfTextContent } from '../utils/pdfTextContent'
 
 const PDF_SCALE_PRESETS = [
   'auto',
@@ -360,7 +361,7 @@ export function usePdfViewerSession(options) {
           if (requestId !== loadRequestId || session !== pdfSession.value) return pages
           try {
             const page = await session.pdfDocument.getPage(index + 1)
-            const textContent = await page.getTextContent({ disableNormalization: true })
+            const textContent = await readPdfTextContent(page, { disableNormalization: true })
             const text = textContent.items.map((item) => item?.str || '').join('')
             pages[index] = {
               text,

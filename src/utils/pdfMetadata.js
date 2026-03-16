@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs'
+import { readPdfTextContent } from './pdfTextContent'
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/legacy/build/pdf.worker.mjs',
@@ -18,7 +19,7 @@ export async function extractTextFromPdf(filePath) {
   const pages = []
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i)
-    const textContent = await page.getTextContent()
+    const textContent = await readPdfTextContent(page)
     const viewport = page.getViewport({ scale: 1.0 })
     const pageText = _extractPageText(textContent.items, viewport.width, viewport.height)
     if (pageText.trim()) pages.push(pageText)
@@ -192,7 +193,7 @@ export async function extractFromPdf(filePath) {
   const maxPages = Math.min(3, pdf.numPages)
   for (let i = 1; i <= maxPages; i++) {
     const page = await pdf.getPage(i)
-    const textContent = await page.getTextContent()
+    const textContent = await readPdfTextContent(page)
     textPages.push(textContent.items.map(item => item.str).join(' '))
   }
   const firstText = textPages.join('\n\n')
@@ -201,7 +202,7 @@ export async function extractFromPdf(filePath) {
   const allPages = [...textPages]
   for (let i = maxPages + 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i)
-    const textContent = await page.getTextContent()
+    const textContent = await readPdfTextContent(page)
     allPages.push(textContent.items.map(item => item.str).join(' '))
   }
   const fullText = allPages.join('\n\n')
