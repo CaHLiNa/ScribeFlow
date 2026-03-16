@@ -505,6 +505,10 @@ export const useWorkspaceStore = defineStore('workspace', {
       this.spellcheck = toggleStoredBoolean(this.spellcheck, 'spellcheck')
     },
 
+    togglePdfThemedPages() {
+      this.pdfThemedPages = toggleStoredBoolean(this.pdfThemedPages, 'pdfThemedPages')
+    },
+
     async zoomIn() {
       this._lastAppZoomInteractionAt = Date.now()
       this.appZoomPercent = increaseWorkspaceZoom(this.appZoomPercent)

@@ -155,6 +155,7 @@ export function createWorkspacePreferenceState() {
     appZoomPercent: zoomState.appZoomPercent,
     proseFont: readString('proseFont', 'inter'),
     docxZoomPercent: readNumber('docxZoomPercent', DEFAULT_DOCX_ZOOM_PERCENT),
+    pdfThemedPages: readTrueOnlyBoolean('pdfThemedPages'),
     theme: readString('theme', 'default'),
   }
 }

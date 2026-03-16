@@ -3,6 +3,10 @@ import { computed, ref } from 'vue'
 const ZH_MESSAGES = {
   'Settings': '设置',
   'Theme': '主题',
+  'PDF viewer': 'PDF 查看器',
+  'Display options for PDF reading.': '控制 PDF 阅读器的显示方式。',
+  'Themed PDF pages': '主题化 PDF 页面',
+  'Use app theme colors for PDF pages and thumbnails. This changes rendered PDF colors and may shift images or charts.': '让 PDF 页面和缩略图跟随应用主题显示。这会改变渲染后的 PDF 颜色，图片或图表可能会有偏色。',
   'Editor': '编辑器',
   'Models': '模型',
   'Provider': '提供商',

@@ -33,6 +33,29 @@
         </div>
       </button>
     </div>
+
+    <h3 class="settings-section-title theme-subsection-title">{{ t('PDF viewer') }}</h3>
+    <p class="settings-hint">{{ t('Display options for PDF reading.') }}</p>
+
+    <div class="env-lang-card theme-option-card">
+      <div class="env-lang-header">
+        <span class="env-lang-dot" :class="workspace.pdfThemedPages ? 'good' : 'none'"></span>
+        <span class="env-lang-name">{{ t('Themed PDF pages') }}</span>
+        <span v-if="workspace.pdfThemedPages" class="theme-option-status">{{ t('Enabled') }}</span>
+        <span v-else class="theme-option-status theme-option-status-off">{{ t('Disabled') }}</span>
+        <div style="flex: 1;"></div>
+        <button
+          class="tool-toggle-switch"
+          :class="{ on: workspace.pdfThemedPages }"
+          @click="workspace.togglePdfThemedPages()"
+        >
+          <span class="tool-toggle-knob"></span>
+        </button>
+      </div>
+      <div class="theme-option-hint">
+        {{ t('Use app theme colors for PDF pages and thumbnails. This changes rendered PDF colors and may shift images or charts.') }}
+      </div>
+    </div>
   </div>
 </template>
 
@@ -160,6 +183,10 @@ const themes = [
   gap: 12px;
 }
 
+.theme-subsection-title {
+  margin-top: 24px;
+}
+
 .theme-card {
   background: var(--bg-primary);
   border: 2px solid var(--border);
@@ -221,5 +248,26 @@ const themes = [
   width: 10px;
   height: 10px;
   border-radius: 50%;
+}
+
+.theme-option-card {
+  margin-top: 0;
+}
+
+.theme-option-status {
+  font-size: var(--ui-font-caption);
+  color: var(--fg-muted);
+}
+
+.theme-option-status-off {
+  opacity: 0.8;
+}
+
+.theme-option-hint {
+  margin-top: 6px;
+  padding-left: 16px;
+  color: var(--fg-muted);
+  font-size: var(--ui-font-caption);
+  line-height: 1.45;
 }
 </style>

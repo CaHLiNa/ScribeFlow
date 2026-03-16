@@ -141,7 +141,11 @@
     </Teleport>
 
     <div class="relative flex-1 overflow-hidden">
-      <div class="pdf-reader-shell" @keydown.capture="handleReaderKeydown">
+      <div
+        class="pdf-reader-shell"
+        :class="{ 'pdf-reader-shell-themed-pages': workspace.pdfThemedPages }"
+        @keydown.capture="handleReaderKeydown"
+      >
         <div
           ref="findBarRef"
           :id="`pdfjs-findbar-${paneId}`"
@@ -1287,6 +1291,27 @@ defineExpose({
   overflow: hidden;
 }
 
+.pdf-reader-shell-themed-pages {
+  --pdf-themed-page-bg: color-mix(in srgb, var(--bg-secondary) 75%, #343b47);
+  --pdf-themed-page-border: color-mix(in srgb, var(--border) 74%, transparent);
+  --pdf-themed-page-shadow: 0 0 0 1px var(--pdf-themed-page-border), 0 12px 28px rgba(39, 36, 36, 0.26);
+  --pdf-themed-canvas-filter: invert(0.86) hue-rotate(180deg) brightness(0.98) contrast(0.88) saturate(0.78);
+  --pdf-themed-thumb-bg: color-mix(in srgb, var(--bg-secondary) 84%, #282d36);
+  --pdf-themed-thumb-shadow: 0 8px 18px rgba(0, 0, 0, 0.2);
+}
+
+:global(.theme-light) .pdf-reader-shell-themed-pages,
+:global(.theme-one-light) .pdf-reader-shell-themed-pages,
+:global(.theme-solarized) .pdf-reader-shell-themed-pages,
+:global(.theme-humane) .pdf-reader-shell-themed-pages {
+  --pdf-themed-page-bg: color-mix(in srgb, var(--bg-primary) 80%, #efe6d8);
+  --pdf-themed-page-border: color-mix(in srgb, var(--border) 86%, transparent);
+  --pdf-themed-page-shadow: 0 0 0 1px var(--pdf-themed-page-border), 0 8px 18px rgba(15, 23, 42, 0.06);
+  --pdf-themed-canvas-filter: brightness(0.96) contrast(0.92) sepia(0.1) saturate(0.86);
+  --pdf-themed-thumb-bg: color-mix(in srgb, var(--bg-primary) 78%, #f3ebdf);
+  --pdf-themed-thumb-shadow: 0 6px 14px rgba(15, 23, 42, 0.05);
+}
+
 .pdf-sidebar-shell {
   display: flex;
   flex-direction: column;
@@ -1427,11 +1452,21 @@ defineExpose({
   box-shadow: 0 6px 14px rgba(0, 0, 0, 0.12);
 }
 
+.pdf-reader-shell-themed-pages .pdf-page-thumb {
+  border-color: var(--pdf-themed-page-border);
+  background: var(--pdf-themed-thumb-bg);
+  box-shadow: var(--pdf-themed-thumb-shadow);
+}
+
 .pdf-page-thumb-image {
   display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.pdf-reader-shell-themed-pages .pdf-page-thumb-image {
+  filter: var(--pdf-themed-canvas-filter);
 }
 
 .pdf-page-thumb-skeleton {
@@ -1458,6 +1493,10 @@ defineExpose({
   font-size: 11px;
   line-height: 1.35;
   background: color-mix(in srgb, var(--bg-secondary) 85%, white);
+}
+
+.pdf-reader-shell-themed-pages .pdf-page-thumb-fallback {
+  background: var(--pdf-themed-thumb-bg);
 }
 
 .pdf-page-label {
@@ -1740,6 +1779,15 @@ defineExpose({
 .pdf-stage :deep(.page) {
   position: relative;
   box-shadow: none;
+}
+
+.pdf-reader-shell-themed-pages .pdf-stage :deep(.page) {
+  --page-bg-color: var(--pdf-themed-page-bg);
+  box-shadow: var(--pdf-themed-page-shadow);
+}
+
+.pdf-reader-shell-themed-pages .pdf-stage :deep(.canvasWrapper canvas) {
+  filter: var(--pdf-themed-canvas-filter);
 }
 
 .pdf-stage :deep(.textLayer .highlight) {
