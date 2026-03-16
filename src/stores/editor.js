@@ -4,7 +4,7 @@ import { nanoid } from './utils'
 import { useFilesStore } from './files'
 import { useWorkspaceStore } from './workspace'
 import { useChatStore } from './chat'
-import { isChatTab, getChatSessionId, isNewTab } from '../utils/fileTypes'
+import { isChatTab, getChatSessionId, isNewTab, getViewerType } from '../utils/fileTypes'
 import { saveState, loadState, findInvalidTabs } from '../services/editorPersistence'
 import { events } from '../services/telemetry'
 
@@ -14,6 +14,87 @@ import { events } from '../services/telemetry'
 
 // Debounce timer for editor state persistence
 let _saveStateTimer = null
+
+function fileBasename(path) {
+  return String(path || '').split('/').pop() || ''
+}
+
+function fileExtension(path) {
+  const name = fileBasename(path)
+  const dot = name.lastIndexOf('.')
+  return dot > 0 ? name.slice(dot + 1).toLowerCase() : ''
+}
+
+function isResearchInsertableTextPath(path) {
+  return ['md', 'markdown', 'txt', 'tex', 'latex', 'typ', 'rmd', 'qmd'].includes(fileExtension(path))
+}
+
+function buildResearchSourceLine(note = {}, annotation = null) {
+  const sourceRef = note?.sourceRef || annotation?.sourceRef || {}
+  const parts = []
+  const page = Number(annotation?.page || sourceRef?.page || 0)
+  if (Number.isInteger(page) && page > 0) {
+    parts.push(`page ${page}`)
+  }
+  const referenceKey = annotation?.referenceKey || sourceRef?.referenceKey || null
+  if (referenceKey) {
+    parts.push(`[@${referenceKey}]`)
+  } else if (sourceRef?.pdfPath) {
+    parts.push(fileBasename(sourceRef.pdfPath))
+  }
+  const sourceId = sourceRef?.annotationId || annotation?.id || null
+  if (sourceId) {
+    parts.push(`source_ref: ${sourceId}`)
+  }
+  return parts.join(' | ')
+}
+
+function buildTextResearchNoteSnippet(note = {}, annotation = null) {
+  const quote = String(note?.quote || annotation?.quote || '').trim()
+  const comment = String(note?.comment || '').trim()
+  const sourceLine = buildResearchSourceLine(note, annotation)
+  const sourceRefPayload = note?.sourceRef || null
+
+  const segments = []
+  if (quote) {
+    segments.push(
+      quote
+        .split(/\r?\n/)
+        .map((line) => `> ${line}`)
+        .join('\n'),
+    )
+  }
+  if (comment) {
+    segments.push(`Note: ${comment}`)
+  }
+  if (sourceLine) {
+    segments.push(`Source: ${sourceLine}`)
+  }
+  if (sourceRefPayload) {
+    segments.push(`<!-- source_ref: ${JSON.stringify(sourceRefPayload)} -->`)
+  }
+
+  return `\n\n${segments.join('\n\n')}\n\n`
+}
+
+function buildDocxResearchNoteSnippet(note = {}, annotation = null) {
+  const quote = String(note?.quote || annotation?.quote || '').trim()
+  const comment = String(note?.comment || '').trim()
+  const sourceLine = buildResearchSourceLine(note, annotation)
+  const segments = []
+
+  if (quote) {
+    segments.push(`"${quote}"`)
+  }
+  if (comment) {
+    segments.push(`Note: ${comment}`)
+  }
+  if (sourceLine) {
+    segments.push(`Source: ${sourceLine}`)
+  }
+
+  return `${segments.join('\n\n')}\n\n`
+}
 
 export const useEditorStore = defineStore('editor', {
   state: () => ({
@@ -739,6 +820,101 @@ export const useEditorStore = defineStore('editor', {
         if (key.endsWith(`:${path}`)) return this.superdocInstances[key].aiActions
       }
       return null
+    },
+
+    findPreferredResearchInsertTarget() {
+      const activePath = this.activeTab
+      const activePaneId = this.activePaneId
+      const activeViewerType = activePath ? getViewerType(activePath) : null
+
+      if (activeViewerType === 'text' && isResearchInsertableTextPath(activePath) && this.getEditorView(activePaneId, activePath)) {
+        return { paneId: activePaneId, path: activePath, viewerType: activeViewerType }
+      }
+      if (activeViewerType === 'docx' && this.getSuperdoc(activePaneId, activePath)) {
+        return { paneId: activePaneId, path: activePath, viewerType: activeViewerType }
+      }
+
+      const candidates = []
+      const walk = (node) => {
+        if (!node) return
+        if (node.type === 'leaf') {
+          const path = node.activeTab
+          if (!path) return
+          const viewerType = getViewerType(path)
+          if (viewerType === 'text' && isResearchInsertableTextPath(path) && this.getEditorView(node.id, path)) {
+            candidates.push({ paneId: node.id, path, viewerType })
+          }
+          if (viewerType === 'docx' && this.getSuperdoc(node.id, path)) {
+            candidates.push({ paneId: node.id, path, viewerType })
+          }
+          return
+        }
+        if (node.type === 'split' && Array.isArray(node.children)) {
+          node.children.forEach(walk)
+        }
+      }
+
+      walk(this.paneTree)
+      return candidates[0] || null
+    },
+
+    insertResearchNoteIntoManuscript(note, annotation = null) {
+      const target = this.findPreferredResearchInsertTarget()
+      if (!target) {
+        return {
+          ok: false,
+          reason: 'no-target',
+        }
+      }
+
+      if (target.viewerType === 'text') {
+        const view = this.getEditorView(target.paneId, target.path)
+        if (!view?.state) {
+          return { ok: false, reason: 'missing-editor-view', ...target }
+        }
+
+        const selection = view.state.selection.main
+        const snippet = buildTextResearchNoteSnippet(note, annotation)
+        view.dispatch({
+          changes: { from: selection.from, to: selection.to, insert: snippet },
+          selection: { anchor: selection.from + snippet.length },
+          scrollIntoView: true,
+        })
+        view.focus?.()
+        return {
+          ok: true,
+          ...target,
+        }
+      }
+
+      if (target.viewerType === 'docx') {
+        const superdoc = this.getSuperdoc(target.paneId, target.path)
+        const editor = superdoc?.activeEditor
+        if (!editor) {
+          return { ok: false, reason: 'missing-superdoc', ...target }
+        }
+
+        const snippet = buildDocxResearchNoteSnippet(note, annotation)
+        if (typeof editor.commands?.insertContent === 'function') {
+          editor.commands.insertContent(snippet)
+        } else if (editor.view?.dispatch && editor.state?.tr) {
+          const { from, to } = editor.state.selection
+          editor.view.dispatch(editor.state.tr.insertText(snippet, from, to))
+        } else {
+          return { ok: false, reason: 'unsupported-docx-editor', ...target }
+        }
+        editor.view?.focus?.()
+        return {
+          ok: true,
+          ...target,
+        }
+      }
+
+      return {
+        ok: false,
+        reason: 'unsupported-target',
+        ...target,
+      }
     },
 
     bumpDocxUpdate() {

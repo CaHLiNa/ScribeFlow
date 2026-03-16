@@ -122,6 +122,9 @@ export const useWorkspaceStore = defineStore('workspace', {
     altalsDir: (state) => state.workspaceDataDir || null,
     shouldersDir: (state) => state.workspaceDataDir || null,
     projectDir: (state) => state.workspaceDataDir ? `${state.workspaceDataDir}/project` : null,
+    researchArtifactsPath: (state) => (
+      state.workspaceDataDir ? `${state.workspaceDataDir}/project/research-artifacts.json` : null
+    ),
     claudeDir: (state) => state.claudeConfigDir || null,
     claudeHooksDir: (state) => state.globalConfigDir ? `${state.globalConfigDir}/claude-hooks` : null,
     legacyShouldersDir: (state) => state.path ? `${state.path}/.shoulders` : null,

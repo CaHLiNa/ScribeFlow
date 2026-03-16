@@ -168,6 +168,18 @@ export async function initProjectDir({
 
   await invoke('create_dir', { path: `${projectDir}/styles` }).catch(() => {})
 
+  const researchArtifactsPath = `${projectDir}/research-artifacts.json`
+  if (!(await pathExists(researchArtifactsPath))) {
+    await invoke('write_file', {
+      path: researchArtifactsPath,
+      content: JSON.stringify({
+        version: 1,
+        annotations: [],
+        notes: [],
+      }, null, 2),
+    })
+  }
+
   const skillsDir = `${projectDir}/skills`
   if (!(await pathExists(skillsDir))) {
     await invoke('create_dir', { path: skillsDir })

@@ -88,6 +88,17 @@
           </div>
 
           <div class="pdf-toolbar-right">
+            <div v-if="pendingSelection" class="pdf-toolbar-group">
+              <button
+                class="pdf-annotation-btn"
+                :title="t('Save the current PDF selection as an annotation')"
+                @mousedown.prevent
+                @click="createAnnotationFromSelection"
+              >
+                <span>{{ t('Add highlight') }}</span>
+              </button>
+            </div>
+
             <div class="pdf-toolbar-group pdf-toolbar-group-translate">
               <span
                 v-if="translateStatus"
@@ -124,6 +135,7 @@
             ref="viewerContainerRef"
             class="pdf-stage altals-pdf-stage"
             @dblclick="handleViewerDoubleClick"
+            @mouseup="handleViewerMouseUp"
           >
             <div ref="viewerRef" class="pdfViewer"></div>
           </div>
@@ -152,6 +164,15 @@
                 @click="selectSidebarMode('pages')"
               >
                 {{ t('Page View') }}
+              </button>
+              <button
+                type="button"
+                class="pdf-sidebar-tab"
+                :class="{ 'pdf-sidebar-tab-active': pdfUi.sidebarMode === 'annotations' }"
+                :disabled="!pdfUi.pagesSupported"
+                @click="selectSidebarMode('annotations')"
+              >
+                {{ t('Highlights') }}
               </button>
             </div>
 
@@ -189,7 +210,7 @@
             </div>
 
             <div
-              v-else
+              v-else-if="pdfUi.sidebarMode === 'pages'"
               ref="sidebarScrollRef"
               class="pdf-page-list"
             >
@@ -228,6 +249,81 @@
                 <div class="pdf-page-label">{{ t('Page {page}', { page: thumbnail.pageNumber }) }}</div>
               </button>
             </div>
+
+            <div
+              v-else
+              class="pdf-annotation-list"
+            >
+              <div v-if="pendingSelection" class="pdf-annotation-pending">
+                <div class="pdf-annotation-pending-label">{{ t('Selection ready') }}</div>
+                <div class="pdf-annotation-pending-quote">{{ pendingSelection.quote }}</div>
+                <button
+                  type="button"
+                  class="pdf-annotation-primary"
+                  @mousedown.prevent
+                  @click="createAnnotationFromSelection"
+                >
+                  {{ t('Create highlight on page {page}', { page: pendingSelection.page }) }}
+                </button>
+              </div>
+
+              <div
+                v-if="currentPdfAnnotations.length === 0"
+                class="pdf-annotation-empty"
+              >
+                <div>{{ t('No highlights yet') }}</div>
+                <div class="pdf-annotation-empty-hint">
+                  {{ t('Select text in the PDF, then save it as a highlight.') }}
+                </div>
+              </div>
+
+              <div
+                v-for="annotation in currentPdfAnnotations"
+                v-else
+                :key="annotation.id"
+                class="pdf-annotation-item"
+                tabindex="0"
+                :class="{ 'pdf-annotation-item-active': annotation.id === activeAnnotationId }"
+                @click="focusAnnotation(annotation)"
+                @keydown.enter.prevent="focusAnnotation(annotation)"
+              >
+                <div class="pdf-annotation-item-header">
+                  <span class="pdf-annotation-page">{{ t('Page {page}', { page: annotation.page }) }}</span>
+                  <span class="pdf-annotation-date">{{ formatAnnotationTimestamp(annotation.updatedAt || annotation.createdAt) }}</span>
+                </div>
+                <div class="pdf-annotation-quote">{{ annotation.quote }}</div>
+                <div class="pdf-annotation-actions">
+                  <span class="pdf-annotation-open">{{ t('Jump to quote') }}</span>
+                  <button
+                    type="button"
+                    class="pdf-annotation-delete"
+                    :title="t('Delete highlight')"
+                    @click.stop="deleteAnnotation(annotation)"
+                  >
+                    {{ t('Delete') }}
+                  </button>
+                </div>
+                <div class="pdf-annotation-note-shell" @click.stop>
+                  <button
+                    v-if="!noteForAnnotation(annotation.id)"
+                    type="button"
+                    class="pdf-annotation-note-create"
+                    @click="createNoteFromAnnotation(annotation)"
+                  >
+                    {{ t('Create note') }}
+                  </button>
+                  <ResearchNoteCard
+                    v-else
+                    :note="noteForAnnotation(annotation.id)"
+                    :annotation="annotation"
+                    :is-active="noteForAnnotation(annotation.id)?.id === activeNoteId"
+                    @update-comment="updateNoteComment(noteForAnnotation(annotation.id), $event)"
+                    @insert="insertNoteIntoManuscript(annotation)"
+                    @delete="deleteNote(noteForAnnotation(annotation.id))"
+                  />
+                </div>
+              </div>
+            </div>
           </aside>
         </Transition>
       </div>
@@ -254,7 +350,7 @@
 </template>
 
 <script setup>
-import { ref, computed, toRef } from 'vue'
+import { ref, computed, toRef, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import {
   IconChevronDown,
   IconChevronUp,
@@ -266,7 +362,11 @@ import { useI18n } from '../../i18n'
 import { usePdfTranslateStore } from '../../stores/pdfTranslate'
 import { useToastStore } from '../../stores/toast'
 import { useWorkspaceStore } from '../../stores/workspace'
+import { useResearchArtifactsStore } from '../../stores/researchArtifacts'
+import { useEditorStore } from '../../stores/editor'
 import { usePdfViewerSession } from '../../composables/usePdfViewerSession'
+import { createPdfQuoteAnchor } from '../../services/pdfAnchors'
+import ResearchNoteCard from './ResearchNoteCard.vue'
 
 const emit = defineEmits(['dblclick-page'])
 
@@ -274,11 +374,14 @@ const props = defineProps({
   filePath: { type: String, required: true },
   paneId: { type: String, required: true },
   toolbarTargetSelector: { type: String, default: '' },
+  referenceKey: { type: String, default: '' },
 })
 
 const workspace = useWorkspaceStore()
 const pdfTranslateStore = usePdfTranslateStore()
 const toastStore = useToastStore()
+const researchArtifactsStore = useResearchArtifactsStore()
+const editorStore = useEditorStore()
 const { t } = useI18n()
 const filePathRef = toRef(props, 'filePath')
 
@@ -323,6 +426,13 @@ const {
   t,
 })
 
+const currentPdfAnnotations = computed(() => (
+  filePathRef.value ? researchArtifactsStore.annotationsForPdf(filePathRef.value) : []
+))
+const activeAnnotationId = computed(() => researchArtifactsStore.activeAnnotationId || null)
+const activeNoteId = computed(() => researchArtifactsStore.activeNoteId || null)
+const pendingSelection = ref(null)
+
 const translateTask = computed(() => (
   filePathRef.value ? pdfTranslateStore.latestTaskForInput(filePathRef.value) : null
 ))
@@ -345,6 +455,416 @@ const translateStatusColor = computed(() => {
   if (status === 'running') return 'var(--accent)'
   return 'var(--fg-muted)'
 })
+
+let annotationRenderScheduled = false
+let annotationMutationObserver = null
+
+function normalizeSelectionText(value) {
+  return String(value || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function roundRectValue(value) {
+  return Math.round(Number(value || 0) * 10000) / 10000
+}
+
+function resolvePageElement(node) {
+  const element = node?.nodeType === Node.ELEMENT_NODE ? node : node?.parentElement
+  return element?.closest?.('.page[data-page-number]') || null
+}
+
+function normalizeRectToPage(clientRect, pageRect) {
+  const pageWidth = Math.max(Number(pageRect?.width || 0), 1)
+  const pageHeight = Math.max(Number(pageRect?.height || 0), 1)
+  const left = Math.max(0, Number(clientRect?.left || 0) - pageRect.left)
+  const top = Math.max(0, Number(clientRect?.top || 0) - pageRect.top)
+  const right = Math.min(pageWidth, Number(clientRect?.right || 0) - pageRect.left)
+  const bottom = Math.min(pageHeight, Number(clientRect?.bottom || 0) - pageRect.top)
+  const width = right - left
+  const height = bottom - top
+
+  if (width < 1 || height < 1) return null
+
+  return {
+    left: roundRectValue(left / pageWidth),
+    top: roundRectValue(top / pageHeight),
+    width: roundRectValue(width / pageWidth),
+    height: roundRectValue(height / pageHeight),
+  }
+}
+
+function extractQuoteContext(pageText, quote) {
+  const normalizedPageText = normalizeSelectionText(pageText)
+  const normalizedQuote = normalizeSelectionText(quote)
+  if (!normalizedPageText || !normalizedQuote) {
+    return { prefix: '', suffix: '' }
+  }
+
+  const quoteIndex = normalizedPageText.indexOf(normalizedQuote)
+  if (quoteIndex === -1) {
+    return { prefix: '', suffix: '' }
+  }
+
+  const prefixStart = Math.max(0, quoteIndex - 120)
+  const suffixStart = quoteIndex + normalizedQuote.length
+
+  return {
+    prefix: normalizedPageText.slice(prefixStart, quoteIndex).trim(),
+    suffix: normalizedPageText.slice(suffixStart, suffixStart + 120).trim(),
+  }
+}
+
+function buildSelectionRect(range, pageElement, pageNumber) {
+  const pageRect = pageElement?.getBoundingClientRect?.()
+  if (!pageRect) return null
+
+  const normalizedRects = Array.from(range.getClientRects())
+    .map((rect) => normalizeRectToPage(rect, pageRect))
+    .filter(Boolean)
+
+  if (normalizedRects.length === 0) {
+    const fallbackRect = normalizeRectToPage(range.getBoundingClientRect(), pageRect)
+    if (fallbackRect) normalizedRects.push(fallbackRect)
+  }
+
+  if (normalizedRects.length === 0) return null
+
+  const bounds = normalizedRects.reduce((acc, rect) => {
+    const right = rect.left + rect.width
+    const bottom = rect.top + rect.height
+    return {
+      left: Math.min(acc.left, rect.left),
+      top: Math.min(acc.top, rect.top),
+      right: Math.max(acc.right, right),
+      bottom: Math.max(acc.bottom, bottom),
+    }
+  }, {
+    left: Number.POSITIVE_INFINITY,
+    top: Number.POSITIVE_INFINITY,
+    right: 0,
+    bottom: 0,
+  })
+
+  const pageWidth = Math.max(Number(pageRect.width || 0), 1)
+  const pageHeight = Math.max(Number(pageRect.height || 0), 1)
+  const localX = ((bounds.left + (bounds.right - bounds.left) / 2) * pageWidth)
+  const localY = ((bounds.top + (bounds.bottom - bounds.top) / 2) * pageHeight)
+  const focusPoint = convertPageOffsetToSyncTexPoint(pageNumber, localX, localY)
+
+  return {
+    rects: normalizedRects,
+    bounds: {
+      left: roundRectValue(bounds.left),
+      top: roundRectValue(bounds.top),
+      width: roundRectValue(bounds.right - bounds.left),
+      height: roundRectValue(bounds.bottom - bounds.top),
+    },
+    focusPoint: focusPoint
+      ? {
+        x: focusPoint.x,
+        y: focusPoint.y,
+      }
+      : null,
+  }
+}
+
+function clearPendingSelection({ clearDomSelection = false } = {}) {
+  pendingSelection.value = null
+  if (!clearDomSelection) return
+  try {
+    window.getSelection()?.removeAllRanges?.()
+  } catch {}
+}
+
+function capturePendingSelection(showFeedback = true) {
+  const selection = window.getSelection()
+  if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+    clearPendingSelection()
+    return
+  }
+
+  const range = selection.getRangeAt(0)
+  const commonNode = range.commonAncestorContainer?.nodeType === Node.ELEMENT_NODE
+    ? range.commonAncestorContainer
+    : range.commonAncestorContainer?.parentElement
+  if (!commonNode || !viewerContainerRef.value?.contains(commonNode)) {
+    clearPendingSelection()
+    return
+  }
+
+  const pageElement = resolvePageElement(range.startContainer)
+  const endPageElement = resolvePageElement(range.endContainer)
+  const quote = normalizeSelectionText(selection.toString())
+
+  if (!quote) {
+    clearPendingSelection()
+    return
+  }
+
+  if (!pageElement || !endPageElement || pageElement !== endPageElement) {
+    clearPendingSelection()
+    if (showFeedback) {
+      toastStore.showOnce(
+        `pdf-selection:${filePathRef.value}:single-page`,
+        t('Please keep PDF highlights within a single page.'),
+        { type: 'error', duration: 3500 },
+        5000,
+      )
+    }
+    return
+  }
+
+  const pageNumber = Number(pageElement.dataset.pageNumber || 0)
+  if (!Number.isInteger(pageNumber) || pageNumber < 1) {
+    clearPendingSelection()
+    return
+  }
+
+  const { prefix, suffix } = extractQuoteContext(pageElement.textContent || '', quote)
+  pendingSelection.value = {
+    page: pageNumber,
+    quote,
+    prefix,
+    suffix,
+    selectionRect: buildSelectionRect(range, pageElement, pageNumber),
+  }
+}
+
+function handleDocumentSelectionChange() {
+  const selection = window.getSelection()
+  if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+    clearPendingSelection()
+    return
+  }
+
+  const range = selection.getRangeAt(0)
+  const commonNode = range.commonAncestorContainer?.nodeType === Node.ELEMENT_NODE
+    ? range.commonAncestorContainer
+    : range.commonAncestorContainer?.parentElement
+  if (!commonNode || !viewerContainerRef.value?.contains(commonNode)) {
+    clearPendingSelection()
+  }
+}
+
+function handleViewerMouseUp() {
+  window.requestAnimationFrame(() => {
+    capturePendingSelection(true)
+  })
+}
+
+function openAnnotationsSidebar() {
+  selectSidebarMode('annotations')
+  if (!pdfUi.sidebarOpen) {
+    toggleSidebar()
+  }
+}
+
+function focusAnnotation(annotation) {
+  if (!annotation) return
+  researchArtifactsStore.setActiveAnnotation(annotation.id)
+  clearPendingSelection({ clearDomSelection: true })
+
+  const focusPoint = annotation.anchor?.selectionRect?.focusPoint
+  if (Number.isFinite(focusPoint?.x) && Number.isFinite(focusPoint?.y)) {
+    scrollToLocation(annotation.page, focusPoint.x, focusPoint.y)
+    return
+  }
+
+  scrollToPage(annotation.page)
+}
+
+function noteForAnnotation(annotationId) {
+  return researchArtifactsStore.noteForAnnotation(annotationId)
+}
+
+function createNoteFromAnnotation(annotation) {
+  if (!annotation?.id) return null
+  const existing = noteForAnnotation(annotation.id)
+  if (existing) {
+    researchArtifactsStore.setActiveNote(existing.id)
+    return existing
+  }
+
+  const note = researchArtifactsStore.createResearchNote({
+    sourceAnnotationId: annotation.id,
+    quote: annotation.quote,
+    comment: '',
+    sourceRef: {
+      type: 'pdf_annotation',
+      annotationId: annotation.id,
+      referenceKey: annotation.referenceKey || props.referenceKey || null,
+      pdfPath: annotation.pdfPath || filePathRef.value,
+      page: annotation.page,
+    },
+  })
+  researchArtifactsStore.setActiveNote(note.id)
+  toastStore.show(t('Created note from page {page}', { page: annotation.page }), {
+    type: 'success',
+    duration: 2200,
+  })
+  return note
+}
+
+function updateNoteComment(note, comment) {
+  if (!note?.id) return
+  researchArtifactsStore.updateResearchNote(note.id, { comment })
+}
+
+function deleteNote(note) {
+  if (!note?.id) return
+  researchArtifactsStore.removeResearchNote(note.id)
+  toastStore.show(t('Note deleted'), {
+    type: 'success',
+    duration: 2000,
+  })
+}
+
+function insertNoteIntoManuscript(annotation) {
+  if (!annotation?.id) return
+  const note = noteForAnnotation(annotation.id) || createNoteFromAnnotation(annotation)
+  if (!note) return
+
+  const result = editorStore.insertResearchNoteIntoManuscript(note, annotation)
+  if (!result?.ok) {
+    toastStore.show(
+      t('Open a text or DOCX manuscript in another pane to insert this note.'),
+      { type: 'error', duration: 4200 },
+    )
+    return
+  }
+
+  researchArtifactsStore.updateResearchNote(note.id, {
+    insertedInto: {
+      path: result.path,
+      paneId: result.paneId,
+      viewerType: result.viewerType,
+      insertedAt: new Date().toISOString(),
+    },
+  })
+  researchArtifactsStore.setActiveNote(note.id)
+  toastStore.show(t('Inserted note into {name}', {
+    name: result.path.split('/').pop() || result.path,
+  }), {
+    type: 'success',
+    duration: 2600,
+  })
+}
+
+function deleteAnnotation(annotation) {
+  if (!annotation?.id) return
+  researchArtifactsStore.removeAnnotation(annotation.id)
+  toastStore.show(t('Highlight deleted'), {
+    type: 'success',
+    duration: 2200,
+  })
+  scheduleRenderAnnotationHighlights()
+}
+
+async function createAnnotationFromSelection() {
+  const selection = pendingSelection.value
+  if (!selection || !filePathRef.value) return
+
+  const anchor = createPdfQuoteAnchor({
+    pdfPath: filePathRef.value,
+    referenceKey: props.referenceKey || null,
+    page: selection.page,
+    quote: selection.quote,
+    prefix: selection.prefix,
+    suffix: selection.suffix,
+    selectionRect: selection.selectionRect,
+  })
+
+  const annotation = researchArtifactsStore.createAnnotation({
+    pdfPath: filePathRef.value,
+    referenceKey: props.referenceKey || null,
+    page: selection.page,
+    quote: selection.quote,
+    anchor,
+  })
+
+  researchArtifactsStore.setActiveAnnotation(annotation.id)
+  clearPendingSelection({ clearDomSelection: true })
+  openAnnotationsSidebar()
+  await nextTick()
+  scheduleRenderAnnotationHighlights()
+  focusAnnotation(annotation)
+  toastStore.show(t('Saved highlight on page {page}', { page: annotation.page }), {
+    type: 'success',
+    duration: 2400,
+  })
+}
+
+function formatAnnotationTimestamp(value) {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
+function clearRenderedAnnotationHighlights() {
+  viewerRef.value
+    ?.querySelectorAll?.('.altals-pdf-annotation-highlight')
+    ?.forEach((element) => element.remove())
+}
+
+function renderAnnotationHighlights() {
+  clearRenderedAnnotationHighlights()
+  if (!viewerRef.value || loading.value) return
+
+  currentPdfAnnotations.value.forEach((annotation) => {
+    const rects = annotation.anchor?.selectionRect?.rects
+    if (!Array.isArray(rects) || rects.length === 0) return
+
+    const pageNumber = Number(annotation.page || annotation.anchor?.page || 0)
+    if (!Number.isInteger(pageNumber) || pageNumber < 1) return
+
+    const pageElement = viewerRef.value.querySelector(`.page[data-page-number="${pageNumber}"]`)
+    if (!pageElement) return
+
+    rects.forEach((rect) => {
+      if (
+        !Number.isFinite(rect?.left) ||
+        !Number.isFinite(rect?.top) ||
+        !Number.isFinite(rect?.width) ||
+        !Number.isFinite(rect?.height)
+      ) return
+      const highlight = document.createElement('div')
+      highlight.className = 'altals-pdf-annotation-highlight'
+      if (annotation.id === activeAnnotationId.value) {
+        highlight.classList.add('altals-pdf-annotation-highlight-active')
+      }
+      highlight.dataset.annotationId = annotation.id
+      highlight.style.left = `${rect.left * 100}%`
+      highlight.style.top = `${rect.top * 100}%`
+      highlight.style.width = `${rect.width * 100}%`
+      highlight.style.height = `${rect.height * 100}%`
+      pageElement.appendChild(highlight)
+    })
+  })
+}
+
+function scheduleRenderAnnotationHighlights() {
+  if (annotationRenderScheduled) return
+  annotationRenderScheduled = true
+  window.requestAnimationFrame(() => {
+    annotationRenderScheduled = false
+    renderAnnotationHighlights()
+  })
+}
+
+function isHighlightOnlyMutation(record) {
+  const nodes = [
+    ...Array.from(record.addedNodes || []),
+    ...Array.from(record.removedNodes || []),
+  ]
+  return nodes.length > 0 && nodes.every((node) => (
+    node?.nodeType === Node.ELEMENT_NODE && node.classList?.contains('altals-pdf-annotation-highlight')
+  ))
+}
 
 async function translatePdf() {
   if (!filePathRef.value || translateTask.value?.status === 'running') return
@@ -378,6 +898,50 @@ function handleViewerDoubleClick(event) {
     y: syncTexPoint?.y ?? localY,
   })
 }
+
+onMounted(() => {
+  document.addEventListener('selectionchange', handleDocumentSelectionChange)
+  if (typeof MutationObserver === 'function' && viewerRef.value) {
+    annotationMutationObserver = new MutationObserver((records) => {
+      if (records.every(isHighlightOnlyMutation)) return
+      scheduleRenderAnnotationHighlights()
+    })
+    annotationMutationObserver.observe(viewerRef.value, {
+      childList: true,
+      subtree: true,
+    })
+  }
+})
+
+onUnmounted(() => {
+  document.removeEventListener('selectionchange', handleDocumentSelectionChange)
+  annotationMutationObserver?.disconnect()
+  annotationMutationObserver = null
+  clearRenderedAnnotationHighlights()
+  clearPendingSelection({ clearDomSelection: true })
+})
+
+watch(
+  () => [
+    loading.value,
+    pdfUi.pageNumber,
+    pdfUi.scaleValue,
+    currentPdfAnnotations.value.length,
+    activeAnnotationId.value,
+  ],
+  () => {
+    scheduleRenderAnnotationHighlights()
+  },
+)
+
+watch(currentPdfAnnotations, () => {
+  scheduleRenderAnnotationHighlights()
+}, { deep: true })
+
+watch(filePathRef, () => {
+  clearPendingSelection({ clearDomSelection: true })
+  scheduleRenderAnnotationHighlights()
+})
 
 defineExpose({
   scrollToPage,
@@ -768,6 +1332,31 @@ defineExpose({
   cursor: default;
 }
 
+.pdf-annotation-btn,
+.pdf-annotation-primary,
+.pdf-annotation-delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  font-size: var(--ui-font-caption);
+  transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+}
+
+.pdf-annotation-btn,
+.pdf-annotation-primary {
+  height: 20px;
+  padding: 0 10px;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
+  background: color-mix(in srgb, var(--accent) 11%, transparent);
+  color: var(--accent);
+}
+
+.pdf-annotation-btn:hover,
+.pdf-annotation-primary:hover {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
 .pdf-stage {
   position: absolute;
   inset: 0;
@@ -787,6 +1376,24 @@ defineExpose({
 .pdf-stage :deep(.page) {
   position: relative;
   box-shadow: none;
+}
+
+.pdf-stage :deep(.altals-pdf-annotation-highlight) {
+  position: absolute;
+  pointer-events: none;
+  border-radius: 3px;
+  background: color-mix(in srgb, #facc15 32%, transparent);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, #facc15 24%, transparent),
+    0 1px 0 rgba(255, 255, 255, 0.18);
+  z-index: 6;
+}
+
+.pdf-stage :deep(.altals-pdf-annotation-highlight-active) {
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
 .pdf-stage :deep(.altals-pdf-sync-highlight) {
@@ -853,5 +1460,135 @@ defineExpose({
 .pdf-sidebar-overlay-leave-to {
   opacity: 0;
   transform: translateX(-10px);
+}
+
+.pdf-annotation-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 10px;
+}
+
+.pdf-annotation-empty {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px dashed color-mix(in srgb, var(--border) 88%, transparent);
+  color: var(--fg-secondary);
+  font-size: var(--ui-font-caption);
+  background: color-mix(in srgb, var(--bg-primary) 78%, var(--bg-secondary));
+}
+
+.pdf-annotation-empty-hint {
+  color: var(--fg-muted);
+}
+
+.pdf-annotation-pending {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+  background: color-mix(in srgb, var(--accent) 7%, var(--bg-primary));
+}
+
+.pdf-annotation-pending-label {
+  font-size: var(--ui-font-caption);
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.pdf-annotation-pending-quote,
+.pdf-annotation-quote {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  color: var(--fg-primary);
+  font-size: var(--ui-font-caption);
+  line-height: 1.45;
+  text-align: left;
+}
+
+.pdf-annotation-item {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
+  background: color-mix(in srgb, var(--bg-primary) 80%, var(--bg-secondary));
+  text-align: left;
+  transition: border-color 0.16s ease, background-color 0.16s ease, transform 0.16s ease;
+}
+
+.pdf-annotation-item:hover {
+  background: color-mix(in srgb, var(--bg-hover) 72%, var(--bg-primary));
+  border-color: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.pdf-annotation-item-active {
+  border-color: color-mix(in srgb, var(--accent) 26%, transparent);
+  background: color-mix(in srgb, var(--accent) 7%, var(--bg-primary));
+}
+
+.pdf-annotation-item-header,
+.pdf-annotation-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.pdf-annotation-page,
+.pdf-annotation-open {
+  color: var(--accent);
+  font-size: var(--ui-font-caption);
+  font-weight: 600;
+}
+
+.pdf-annotation-date {
+  color: var(--fg-muted);
+  font-size: var(--ui-font-micro);
+}
+
+.pdf-annotation-delete {
+  height: 18px;
+  padding: 0 8px;
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  background: transparent;
+  color: var(--fg-muted);
+}
+
+.pdf-annotation-delete:hover {
+  color: var(--error);
+  border-color: color-mix(in srgb, var(--error) 24%, transparent);
+  background: color-mix(in srgb, var(--error) 10%, transparent);
+}
+
+.pdf-annotation-note-shell {
+  display: grid;
+  gap: 8px;
+}
+
+.pdf-annotation-note-create {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 22px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, transparent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  color: var(--accent);
+  font-size: var(--ui-font-caption);
+  transition: background-color 0.16s ease, border-color 0.16s ease;
+}
+
+.pdf-annotation-note-create:hover {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
 }
 </style>

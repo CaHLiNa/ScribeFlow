@@ -267,6 +267,7 @@
         :key="pdfPath"
         :filePath="pdfPath"
         :paneId="paneId"
+        :referenceKey="refKey"
       />
       <div v-else class="flex flex-col items-center justify-center h-full gap-3" :style="{ color: 'var(--fg-muted)' }">
         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.4;">

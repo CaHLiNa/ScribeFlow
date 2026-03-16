@@ -114,6 +114,7 @@ import { useCommentsStore } from './stores/comments'
 import { useLinksStore } from './stores/links'
 import { useChatStore } from './stores/chat'
 import { useReferencesStore } from './stores/references'
+import { useResearchArtifactsStore } from './stores/researchArtifacts'
 import { useTypstStore } from './stores/typst'
 import { useLatexStore } from './stores/latex'
 import { useKernelStore } from './stores/kernel'
@@ -157,6 +158,7 @@ const commentsStore = useCommentsStore()
 const linksStore = useLinksStore()
 const chatStore = useChatStore()
 const referencesStore = useReferencesStore()
+const researchArtifactsStore = useResearchArtifactsStore()
 const typstStore = useTypstStore()
 const latexStore = useLatexStore()
 const kernelStore = useKernelStore()
@@ -350,9 +352,14 @@ async function openWorkspace(path, options = {}) {
     scheduleWorkspaceBackgroundTask(180, loadGeneration, targetPath, async () => {
       await workspace.ensureWorkspaceBootstrapReady(targetPath)
       if (loadGeneration !== workspaceLoadGeneration || workspace.path !== targetPath) return
+      await researchArtifactsStore.loadResearchArtifacts()
+    }, 'researchArtifacts.loadResearchArtifacts')
+    scheduleWorkspaceBackgroundTask(220, loadGeneration, targetPath, async () => {
+      await workspace.ensureWorkspaceBootstrapReady(targetPath)
+      if (loadGeneration !== workspaceLoadGeneration || workspace.path !== targetPath) return
       await chatStore.loadSessions()
     }, 'chat.loadSessions')
-    scheduleWorkspaceBackgroundTask(280, loadGeneration, targetPath, async () => {
+    scheduleWorkspaceBackgroundTask(300, loadGeneration, targetPath, async () => {
       await workspace.ensureWorkspaceBootstrapReady(targetPath)
       if (loadGeneration !== workspaceLoadGeneration || workspace.path !== targetPath) return
       await referencesStore.loadLibrary()
@@ -402,6 +409,7 @@ async function closeWorkspace() {
   chatStore.cleanup()
   commentsStore.cleanup()
   referencesStore.cleanup()
+  researchArtifactsStore.cleanup()
   void kernelStore.shutdownAll().catch((error) => {
     console.warn('[workspace] kernel shutdown failed:', error)
   })
@@ -689,6 +697,7 @@ onUnmounted(() => {
   chatStore.cleanup()
   commentsStore.cleanup()
   referencesStore.cleanup()
+  researchArtifactsStore.cleanup()
 })
 
 // Force save + commit

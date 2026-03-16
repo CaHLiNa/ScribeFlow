@@ -1,3 +1,72 @@
+# Active Findings: 2026-03-16 路线图贴仓库校准
+
+## Initial Context
+- 仓库 README 与 `package.json` 已明确项目定位为 local-first desktop workspace，覆盖 writing、references、code、AI-assisted research workflows。
+- 当前版本号为 `0.2.18`，与用户提到的 release 节奏一致。
+- 近期已完成一轮大规模清理、分包与 document adapter formalization，这意味着当前更适合补主链路可信度，而不是继续横向扩张。
+
+## Early Signals
+- `src/components/sidebar/ReferenceList.vue`、`src/components/editor/ReferenceView.vue`、`src/services/referenceImport.js`、`src/services/referenceFiles.js`、`src/utils/bibtexParser.js`、`src/utils/risParser.js` 表明 references 已有基础，但是否达到“文献库”级别还需进一步抽查。
+- `src/components/editor/PdfViewer.vue`、`src/components/editor/DocumentPdfViewer.vue`、`src/services/pdfDocument.js`、`src/utils/pdfMetadata.js` 表明 PDF 已进入主工作流，但 annotation / note / backlink 能力未知。
+- `src/components/editor/NotebookEditor.vue`、`src/components/editor/NotebookCell.vue`、`src/editor/chunkOutputs.js`、`src/services/chunkKernelBridge.js`、`src/services/environmentPreflight.js` 表明代码执行与环境检测已有基础。
+- `src/components/editor/DocxEditor.vue`、`src/components/editor/DocxReviewBar.vue`、`src/components/comments/*`、`src/components/VersionHistory.vue`、`src/editor/diffOverlay.js` 表明 DOCX 与审阅系统已有显著基础，需要判断离“可交付”还有多远。
+
+## Updated Findings After Core File Review
+- `references` 这条线已经不是“只有 citation picker”阶段了：有持久化文献库（`references/library.json`）、排序、全文搜索字段、`ReferenceView` 详情面板、BibTeX/RIS/DOI/CSL-JSON/PDF 导入、去重、PDF 绑定和 `citedIn` 反查。
+- references 当前最大的缺口不是“从 0 到 1”，而是“库治理”：去重规则偏轻量（DOI 精确匹配 + 标题相似度），没有显式的冲突预览/合并 UI，也没有批量导入时的逐字段保留策略。
+- `PDF` 当前更接近“高质量查看器”：有页码、缩放、目录、缩略图、双击定位、翻译入口，以及基于 `pdfjs` 的文本提取工具；但没看到持久化 annotation、摘录卡片、文稿回链、图表截图资产等研究工作流能力。
+- `Notebook / chunk execution` 已有 kernel 检测、环境探测、Jupyter 执行、review 集成、chunk 输出渲染，但状态模型仍停在 `running/done/error`，没有“结果已过期 / 依赖失效 / 嵌入结果可追溯”的科研复现层。
+- `DOCX` 当前基础明显强于路线图假设：已有 suggesting 模式、tracked changes 的 accept/reject、原生 comment 输入、Zotero citation import、bibliography refresh、版本预览；但缺少 round-trip 透明度、段落级 diff 视图、clean/review 双导出这些“交付安全感”层的产品化收口。
+- 用户已明确允许“按真实缺口重排优先级”，因此后续方案不再强行保留原始阶段顺序。
+
+## Design Decision
+- 采用“缺口优先”的克制版路线：
+  - Week 1-2: PDF research input foundation
+  - Week 3-4: reference governance + PDF coupling
+  - Week 5-6: execution provenance + stale results
+  - Week 7-8: DOCX delivery confidence
+- 不在 8 周内先做统一 research object 大底座，避免抽象先行吞掉主链路交付。
+- 正式文档已写入：
+  - `/Users/math173sr/Documents/GitHub项目/Altals/docs/plans/2026-03-16-research-core-roadmap-design.md`
+  - `/Users/math173sr/Documents/GitHub项目/Altals/docs/plans/2026-03-16-research-core-roadmap.md`
+
+## Task 1 Findings
+- `workspace.projectDir` 已经是项目级持久化的天然落点，适合放 `research-artifacts.json`，不需要新建额外目录层级。
+- `App.vue` 已经有标准的 workspace open 后延迟加载 store、close / unmount 时 cleanup 的模式，最适合把 `researchArtifacts` 接进来。
+- 第一版 `researchArtifacts` 采用单文件 schema：`{ version, annotations, notes }`，既满足 phase 1 持久化契约，也给后续扩展留出版本位。
+- `pdfAnchors.js` 先采用 `page + quote + prefix + suffix (+ selectionRect)` 的最小锚点策略，避免一开始就把实现绑死在脆弱的 viewport 坐标上。
+- Task 1 已完成的实现文件：
+  - `/Users/math173sr/Documents/GitHub项目/Altals/.worktrees/research-input-foundation/src/stores/researchArtifacts.js`
+  - `/Users/math173sr/Documents/GitHub项目/Altals/.worktrees/research-input-foundation/src/services/pdfAnchors.js`
+  - `/Users/math173sr/Documents/GitHub项目/Altals/.worktrees/research-input-foundation/src/services/workspaceBootstrap.js`
+  - `/Users/math173sr/Documents/GitHub项目/Altals/.worktrees/research-input-foundation/src/stores/workspace.js`
+  - `/Users/math173sr/Documents/GitHub项目/Altals/.worktrees/research-input-foundation/src/App.vue`
+
+## Task 2 Findings
+- `PdfViewer.vue` 现有 sidebar / toolbar 壳已经足够承载第一版 annotation workflow，没必要为了 highlights 单独拆新路由级面板。
+- PDF annotation 的第一版锚点可以同时持有两种信息：
+  - 文本匹配所需的 `quote + prefix + suffix`
+  - 回跳与重绘所需的 `selectionRect.rects + focusPoint`
+- 把 highlights 直接画成 page-level overlay，而不是改 PDF.js text layer，本轮风险明显更低，也更容易跟现有 `scrollToLocation()` 对接。
+- Task 2 已完成的实现文件：
+  - `/Users/math173sr/Documents/GitHub项目/Altals/.worktrees/research-input-foundation/src/components/editor/PdfViewer.vue`
+  - `/Users/math173sr/Documents/GitHub项目/Altals/.worktrees/research-input-foundation/src/composables/usePdfViewerSession.js`
+  - `/Users/math173sr/Documents/GitHub项目/Altals/.worktrees/research-input-foundation/src/components/editor/ReferenceView.vue`
+
+## Task 3 Findings
+- note card 没必要先独立成大面板；直接挂在 annotation card 下，最符合“读 -> 摘 -> 写”的连续操作。
+- manuscript insert 不能简单用“任意文本编辑器”兜底，否则很容易把摘录落进代码文件；第一版应只命中更像手稿的已打开编辑器：`md/tex/typ/qmd/rmd/docx`。
+- `editorStore` 已经掌握可见 editor view / superdoc 实例，适合作为跨编辑器插入层，避免在 `PdfViewer` 里分支处理 CodeMirror 和 SuperDoc。
+- 第一版 `source_ref` 落地策略：
+  - notes 侧保存结构化 `sourceRef`
+  - text manuscript 插入时追加 HTML comment 形式的 `source_ref`
+  - docx manuscript 先插入可见来源行，保证来源不会静默丢失
+- Task 3 已完成的实现文件：
+  - `/Users/math173sr/Documents/GitHub项目/Altals/.worktrees/research-input-foundation/src/components/editor/ResearchNoteCard.vue`
+  - `/Users/math173sr/Documents/GitHub项目/Altals/.worktrees/research-input-foundation/src/components/editor/PdfViewer.vue`
+  - `/Users/math173sr/Documents/GitHub项目/Altals/.worktrees/research-input-foundation/src/stores/editor.js`
+  - `/Users/math173sr/Documents/GitHub项目/Altals/.worktrees/research-input-foundation/src/stores/researchArtifacts.js`
+
 # Findings & Decisions
 
 ## Requirements

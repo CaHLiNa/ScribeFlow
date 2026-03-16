@@ -240,7 +240,7 @@ export function usePdfViewerSession(options) {
     if (outlineResolved.value && !pdfUi.outlineSupported && pdfUi.pagesSupported && pdfUi.sidebarMode === 'outline') {
       pdfUi.sidebarMode = 'pages'
     }
-    if (!pdfUi.pagesSupported && pdfUi.sidebarMode === 'pages') {
+    if (!pdfUi.pagesSupported && (pdfUi.sidebarMode === 'pages' || pdfUi.sidebarMode === 'annotations')) {
       pdfUi.sidebarMode = 'outline'
     }
   }
@@ -687,6 +687,7 @@ export function usePdfViewerSession(options) {
   function selectSidebarMode(mode) {
     if (mode === 'outline' && !pdfUi.outlineSupported && !outlineLoading.value) return
     if (mode === 'pages' && !pdfUi.pagesSupported) return
+    if (mode === 'annotations' && !pdfUi.pagesSupported) return
     pdfUi.sidebarMode = mode
   }
 

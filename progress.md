@@ -1,3 +1,60 @@
+# Session: 2026-03-16 路线图贴仓库校准
+
+## Status
+- **Status:** in_progress
+
+## Actions taken
+- 读取 `using-superpowers`、`planning-with-files`、`brainstorming` 技能说明，确认本轮先做上下文映射与设计澄清。
+- 检查仓库根目录、`git status`、最近 5 个提交、README、`package.json`。
+- 发现项目根已有 `task_plan.md`、`findings.md`、`progress.md`，并以追加 active task 的方式延续项目级工作记忆。
+- 记录当前路线图校准任务的目标、阶段、关键问题与初始发现。
+- 抽查 `references`、`PDF`、`notebook/runtime`、`DOCX/review` 四条主链路的核心文档与入口文件。
+- 确认 references 与 DOCX/review 的现有实现深度明显高于路线图原始假设，而 PDF annotation 与研究回链仍是最大缺口。
+- 将 `task_plan.md` 的当前阶段推进到 `Scope Alignment`，等待用户确认是否允许按仓库真实缺口重排 8 周优先级。
+- 用户已确认允许按真实缺口重排；下一步进入“提出 2-3 种重排方案 + 推荐方案”的设计阶段。
+- 已提出三种重排方案，并给出推荐：采用“缺口优先”的克制版路线，先补 `PDF 选区 -> 持久化锚点 -> note card -> 回到 PDF -> 插入手稿`，再补 references 治理、execution provenance、DOCX 交付层。
+- 新增 `docs/plans/2026-03-16-research-core-roadmap-design.md`，把重排原因、架构选择、阶段目标、验收标准和风险控制正式落盘。
+- 新增 `docs/plans/2026-03-16-research-core-roadmap.md`，把 8 周路线拆成 9 个可执行任务，并标注目标文件、验证命令和建议提交边界。
+
+## Execution Session: Task 1 in worktree
+
+- **Worktree:** `/Users/math173sr/Documents/GitHub项目/Altals/.worktrees/research-input-foundation`
+- **Branch:** `codex/research-input-foundation`
+- Actions taken:
+  - 按 `using-git-worktrees` 创建隔离 worktree，并把 roadmap 设计文档同步进去。
+  - 检查 `workspace.projectDir`、`workspaceBootstrap` 和 `App.vue` 的生命周期接入点。
+  - 新增 `src/stores/researchArtifacts.js`，提供 `annotations / notes` 的项目级持久化、load/save/cleanup 和基础 CRUD。
+  - 新增 `src/services/pdfAnchors.js`，定义第一版 PDF quote anchor contract 与 fingerprint helper。
+  - 在 `src/services/workspaceBootstrap.js` 中初始化 `project/research-artifacts.json`。
+  - 在 `src/stores/workspace.js` 中增加 `researchArtifactsPath` getter。
+  - 在 `src/App.vue` 中把 `researchArtifacts` 接入 workspace open 后的 background load 和 close / unmount cleanup。
+
+## Execution Session: Tasks 2-3 in worktree
+
+- **Worktree:** `/Users/math173sr/Documents/GitHub项目/Altals/.worktrees/research-input-foundation`
+- **Branch:** `codex/research-input-foundation`
+- Actions taken:
+  - 在 `PdfViewer.vue` 中增加 PDF 选区捕获、保存 highlight 的 toolbar 入口，以及 `outline / pages / highlights` 三态 sidebar。
+  - 把 annotation 保存到 `researchArtifacts`，并在 PDF page 上用 overlay 重绘高亮；点击 annotation 可回跳原页与原句。
+  - 把 `ReferenceView.vue` 的 `referenceKey` 传给 `PdfViewer`，让 PDF highlight 从第一天起就能带上文献来源。
+  - 新增 `ResearchNoteCard.vue`，让 annotation 可以直接生成 note、编辑备注并尝试插入 manuscript。
+  - 扩展 `editorStore`，新增跨编辑器 manuscript insert：优先命中已打开的 `md / tex / typ / qmd / rmd / docx` 编辑器，向 CodeMirror / SuperDoc 插入摘录与来源标记。
+  - 扩展 `researchArtifacts` store，增加 `noteForAnnotation`、`setActiveNote` 等 note helper。
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| 前端构建 | `npm run build` | 新增 research artifacts 底座后前端仍可构建 | 通过 | 通过 |
+| Rust 检查 | `cargo check --manifest-path src-tauri/Cargo.toml` | 新增前端持久化接入后 Rust 仍可编译 | 通过 | 通过 |
+| 前端构建 | `npm run build` | PDF annotation capture 与回跳 UI 接入后仍可构建 | 通过 | 通过 |
+| Rust 检查 | `cargo check --manifest-path src-tauri/Cargo.toml` | Task 2 期间未改 Rust，边界仍可编译 | 通过 | 通过 |
+| 前端构建 | `npm run build` | note card 与 manuscript insert 接入后仍可构建 | 通过 | 通过 |
+
+## Files created/modified
+- `task_plan.md`
+- `findings.md`
+- `progress.md`
+
 # Progress Log
 
 ## Session: 2026-03-15
