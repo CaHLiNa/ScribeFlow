@@ -209,8 +209,9 @@ export async function applyWorkspaceAppZoom(percent) {
   const root = document.documentElement
   root.style.removeProperty('zoom')
 
+  const isMacWebKit = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || '')
   const isTauriWebview = typeof window !== 'undefined' && !!window.__TAURI_INTERNALS__?.metadata?.currentWebview
-  if (isTauriWebview) {
+  if (isTauriWebview && !isMacWebKit) {
     try {
       await getCurrentWebview().setZoom(nextValue / 100)
       return
