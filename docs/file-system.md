@@ -108,11 +108,10 @@ The editor watches `files.fileContents[filePath]` and updates the CodeMirror doc
 The file tree supports inline editing (VS Code style):
 
 ### Create Flow (Typed)
-1. User clicks "+ New" dropdown (header) or right-click → selects a file type (Markdown, Word, LaTeX, etc.)
+1. User clicks "+ New" dropdown (header) or right-click → selects a file type (Markdown, LaTeX, Typst, notebook, etc.)
 2. `createTypedFile(dir, ext)` expands the target directory and generates a unique name (`Untitled.md`, `Untitled 2.md`, etc.)
 3. `files.createFile()` writes the file with type-specific templates:
    - `.md` → `# Title\n\n`
-   - `.docx` → valid OOXML binary template (base64-embedded in `files.js`)
    - `.ipynb` → JSON notebook with one empty code cell
    - `.tex` → `\documentclass{article}` + `\maketitle` starter
    - Other extensions → empty file

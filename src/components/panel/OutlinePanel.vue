@@ -85,7 +85,6 @@ const fileType = computed(() => {
   if (vt === 'text' && isMarkdown(path)) return 'markdown'
   if (vt === 'text' && isLatex(path)) return 'latex'
   if (vt === 'text' && isTypst(path)) return 'typst'
-  if (vt === 'docx') return 'docx'
   if (vt === 'notebook') return 'notebook'
   return null
 })
@@ -158,18 +157,13 @@ const outlineItems = computed(() => {
     return parseNotebookHeadings(content)
   }
 
-  if (ft === 'docx') {
-    void editorStore.docxUpdateCount // reactive trigger — bumped on every DOCX editor update (incl. style changes)
-    return parseDocxHeadings(path)
-  }
-
   return []
 })
 
 // Current heading highlight (for CM6 files)
 const activeOutlineIndex = computed(() => {
   const ft = fileType.value
-  if (!ft || ft === 'docx') return -1
+  if (!ft) return -1
   const offset = editorStore.cursorOffset
   if (offset == null) return -1
 
@@ -231,27 +225,6 @@ function parseNotebookHeadings(content) {
   return result
 }
 
-function parseDocxHeadings(path) {
-  const superdoc = editorStore.getAnySuperdoc(path)
-  if (!superdoc?.activeEditor) return []
-
-  const result = []
-  superdoc.activeEditor.state.doc.descendants((node, pos) => {
-    if (node.type.name === 'paragraph') {
-      const styleId = node.attrs?.paragraphProperties?.styleId || ''
-      const match = styleId.match(/^Heading(\d+)$/i)
-      if (match) {
-        result.push({
-          text: node.textContent || '(untitled)',
-          level: parseInt(match[1], 10),
-          offset: pos,
-        })
-      }
-    }
-  })
-  return result
-}
-
 // --- Navigation ---
 
 function navigateToOutlineItem(item) {
@@ -282,35 +255,6 @@ function navigateToOutlineItem(item) {
         detail: { path, cellIndex: item.cellIndex },
       }))
     }
-  }
-
-  if (ft === 'docx') {
-    const superdoc = editorStore.getAnySuperdoc(path)
-    if (!superdoc?.activeEditor) return
-    try {
-      // Set PM selection at heading position
-      superdoc.activeEditor.commands.setTextSelection(item.offset)
-
-      // Scroll visible painted layer — text-search approach for DOCX navigation
-      const wrapper = document.querySelector('.docx-editor .overflow-auto')
-      if (!wrapper) return
-      const needle = (item.text || '').replace(/\s+/g, ' ').trim().toLowerCase()
-      if (needle) {
-        const lines = wrapper.querySelectorAll('.superdoc-line')
-        for (const line of lines) {
-          const lineText = (line.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase()
-          if (lineText.includes(needle)) {
-            line.scrollIntoView({ behavior: 'smooth', block: 'center' })
-            return
-          }
-        }
-      }
-      // Fallback: wait for painter to update caret, then scroll to it
-      setTimeout(() => {
-        const caret = wrapper.querySelector('.presentation-editor__selection-caret')
-        if (caret) caret.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      }, 100)
-    } catch { /* ignore */ }
   }
 }
 

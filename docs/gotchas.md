@@ -238,18 +238,9 @@ In `FileTreeItem.vue`, the inline create input must appear AFTER the folder's `.
 ## Binary Files
 
 ### Base64 bridge with chunked conversion
-Large binary files (DOCX, images) transferred between Rust and JS via base64. JavaScript `String.fromCharCode()` is called in 8192-byte chunks to avoid call stack size limits.
+Large binary files (images, PDFs, and other non-text assets) transferred between Rust and JS via base64 should be converted in chunks. JavaScript `String.fromCharCode()` is called in 8192-byte chunks to avoid call stack size limits.
 
 Relevant commands: `read_file_base64`, `write_file_base64`.
-
-### SuperDoc is code-split (3.2MB)
-SuperDoc's bundle is loaded via `defineAsyncComponent` and dynamic `import('superdoc')` to avoid blocking initial page load.
-
-### SuperDoc bundles a duplicate Vue runtime
-Suppressed via `console.warn` filter in `src/main.js`. Harmless — dev-mode only.
-
-### DOCX text cache
-`filesStore.fileContents[path]` holds extracted text for .docx files (not binary), enabling search and chat tools to read content without parsing the binary each time.
 
 ---
 
@@ -273,11 +264,6 @@ Bracketed paste (`\x1b[200~`...`\x1b[201~`) does NOT work — R's readline in th
 
 **Applied in:** `NotebookCell.vue` — Shift+Enter and Mod+Enter (run cell) are both wrapped in `Prec.highest` to beat `insertBlankLine`.
 
-### Cmd+B conflict with SuperDoc bold
-Global Cmd+B toggles the sidebar, but .docx files need it for bold formatting.
-
-**Fix:** `App.vue` checks `editorStore.activeTab?.endsWith('.docx')` and returns early to let SuperDoc handle it.
-
 ### `mousedown.prevent` keeps textarea focused
 Popover buttons near text inputs use `@mousedown.prevent` so clicking them doesn't blur the textarea.
 
@@ -288,7 +274,7 @@ Popover buttons near text inputs use `@mousedown.prevent` so clicking them doesn
 ### Custom window events for decoupled components
 When components can't share a direct parent-child relationship (editor gutter → right panel, citation click → reference detail), communication uses `window.dispatchEvent(new CustomEvent(...))`.
 
-Events in use: `open-reference-detail`, `ref-drag-over`, `ref-drag-leave`, `ref-file-drop`, `filetree-drag-start` (detail: `{ paths }`), `filetree-drag-end`, `docx-save-now`, `docx-content-changed` (on wrapperEl, not window), `notebook-scroll-to-cell`.
+Events in use: `open-reference-detail`, `ref-drag-over`, `ref-drag-leave`, `ref-file-drop`, `filetree-drag-start` (detail: `{ paths }`), `filetree-drag-end`, `notebook-scroll-to-cell`.
 
 ### `.shoulders/.direct-mode` is a flag file
 Its existence (not content) toggles direct mode. Checked by both the frontend (reviews store) and the Claude Code shell hook.
@@ -315,123 +301,6 @@ Each CodeMirror instance in `NotebookCell.vue` gets its own `ghostSuggestionExte
 
 ---
 
-## SuperDoc (DOCX Editing)
+## Removed Capability: DOCX / SuperDoc
 
-Full details in [superdoc-system.md](superdoc-system.md). Key traps:
-
-### NEVER use `absolute inset-0` on SuperDoc's mount div
-SuperDoc's painter uses coordinate calculations (likely `getBoundingClientRect()`, `offsetTop`, scroll positions) for cursor positioning, arrow key navigation, and click-to-position mapping. When the mount div is `position: absolute; inset: 0`, these calculations break — the cursor jumps erratically on arrow keys, skips lines, and oscillates between positions. This happens even on empty documents with just a few empty paragraphs.
-
-**Fix:** Use a plain flow-layout div (no `position: absolute`) for the SuperDoc mount. The parent can still be `position: relative; overflow: auto` for scrolling — just don't absolutely position the editor div itself.
-
-### ProseMirror decorations are invisible
-SuperDoc's ProseMirror EditorView is at `position: fixed; left: -9999px; opacity: 0`. Widget decorations render in hidden DOM. Use floating Vue overlays positioned at `.presentation-editor__selection-caret` instead.
-
-### "Jump to" / `scrollIntoView` doesn't work for DOCX
-PM `tr.scrollIntoView()` and `editor.commands.scrollIntoView()` only scroll the hidden view (x:-9999). The visible painted DOM has its own scroll container (the `overflow-auto` wrapper div). `presentationEditor.scrollToPosition()` exists but returns `false` in our embedded setup (viewport host resolution issue).
-
-**Fix:** Text-search `.superdoc-line` elements in the visible DOM for the target text, then call `line.scrollIntoView({ behavior: 'smooth', block: 'center' })`. Fallback: wait ~100ms for the painter to update the visible caret (`.presentation-editor__selection-caret`), then scroll the caret. See `OutlinePanel.vue:navigateToHeading()`.
-
-When navigating from another file (editor not yet mounted), brute-force retry 4 times at 0ms, 500ms, 1000ms, 1500ms.
-
-### No auto-scroll while typing in DOCX
-SuperDoc has no built-in "keep caret visible" mechanism. Unlike CodeMirror, the layout engine doesn't auto-scroll when the cursor moves past the viewport edge.
-
-**Fix:** In DocxEditor's `selectionUpdate` handler, use `requestAnimationFrame` to check if `.presentation-editor__selection-caret` is within the wrapper's viewport bounds (with 20px margin). If outside, call `caret.scrollIntoView({ behavior: 'auto', block: 'nearest' })`. Use `'auto'` (not `'smooth'`) for instant response while typing.
-
-### DOCX attribute-only changes don't trigger reactive updates
-Changing paragraph style (e.g. Normal → Heading 1), font, color, or other attributes doesn't alter `doc.textContent`. If a computed property uses `filesStore.fileContents[path]` as its reactive trigger, it won't re-evaluate because the cached text is identical.
-
-**Fix:** `editorStore.docxUpdateCount` is a reactive counter bumped on every DOCX editor `update` event (including attribute-only changes). Use `void editorStore.docxUpdateCount` as the reactive trigger instead of `filesStore.fileContents[path]` when you need to react to any document change, not just text changes. See `OutlinePanel.vue:headings` computed.
-
-### DOCX gutter indicators must be floating overlays
-No CM-style `gutter()` API exists for the painted DOM. Indicators use floating overlays positioned by text-searching `.superdoc-line` elements for the anchor text. Same sibling-overlay pattern as ghost loading dots. Fallback to `range.from / docSize` ratio when text not found.
-
-### SuperDoc is NOT TipTap
-Zero `@tiptap` dependencies. Import extensions from `superdoc/super-editor`, not `@tiptap/core`. Method is `addPmPlugins()` not `addProseMirrorPlugins()`. Config key is `editorExtensions` not `extensions`.
-
-### Vue overlays must be siblings, not children
-SuperDoc manages its container's DOM. Vue overlays inside the SuperDoc mount div cause `parent.insertBefore` errors. Make overlays siblings of the SuperDoc container, wrapped in a shared relative parent.
-
-### `superdoc.activeEditor` may be null after construction
-Wait for `superdoc.on('ready', ...)` before accessing `activeEditor`. Small docs may set it synchronously — check both.
-
-### Page margins are not CSS
-No padding/margin wrapper for content area. Margins are baked into `.superdoc-fragment` absolute positioning. Use fragment `getBoundingClientRect()` for content area bounds.
-
-### Custom atom nodes cause layout bugs
-SuperDoc's layout engine has a hardcoded `ATOMIC_INLINE_TYPES` set: `image`, `hardBreak`, `lineBreak`, `page-number`, `total-page-number`, `indexEntry`, `tab`, `footnoteReference`, `passthroughInline`, `bookmarkEnd`, `fieldAnnotation`. Custom atom nodes NOT in this set get incorrect positioning — cursor jumps, text reflows, and glitchy rendering. Don't create custom inline atom nodes.
-
-### DOM overlay injection into painted layer is fragile
-Injecting `<span>` elements as siblings of SuperDoc's leaf text runs (`[data-pm-start][data-pm-end]`) technically works for rendering, but:
-- SuperDoc repaints on every edit, removing injected DOM — requires MutationObserver to re-inject, causing visible flicker
-- SuperDoc's invisible editing surface sits on top of the painted layer — `e.target` on click is the surface, never the injected element. `document.elementsFromPoint()` can find buried elements but is unreliable
-- `pointer-events: auto` + `z-index: 200000` on overlays still gets intercepted by SuperDoc's capture-phase handlers
-
-**Verdict:** Only use for non-interactive indicators (comment markers). For clickable inline elements, use the link mark approach.
-
-### Link mark is the only reliable inline clickable element
-SuperDoc's `link` is a PM Mark (not a Node). The layout engine renders it natively as `<a class="superdoc-link">` in the painted DOM. Clicks dispatch `superdoc-link-click` CustomEvent with `href`, `clientX`, `clientY` in `e.detail`. This is the ONLY inline element that gets reliable click handling through SuperDoc's dual-layer architecture.
-
-### `sanitizeHref` blocks custom protocols (no config hook)
-SuperDoc's DomPainter calls `sanitizeHref(link.href)` with NO config argument. Only `http`, `https`, `mailto`, `tel`, `sms` are allowed. Custom protocols like `cite:` return `null` → link is "blocked" → rendered as `<span>` (not `<a>`) with `data-link-blocked="true"` and `aria-label="Invalid link - not clickable"`. Blocked links never get the `superdoc-link` class and never dispatch `superdoc-link-click`.
-
-The Tiptap Link Mark has a `protocols` option, but the DomPainter path is separate and has no external config.
-
-**Fix:** Use `https://cite.local/{id}` — passes protocol validation, renders as a proper `<a>`, click events fire normally. Intercept in the `superdoc-link-click` handler by checking the href prefix.
-
-### DOCX field codes span multiple PM depths
-Zotero field codes in ProseMirror have display text inside a `run` node (depth=2) with field markers (`fldChar begin/instrText/separate/end`) as siblings at paragraph level (depth=1). Replacing only the display text range leaves the field markers intact — SuperDoc regenerates the original text.
-
-**Fix:** `expandToFieldBoundary(doc, from, to)` walks backward/forward through non-text inline atoms at the text level, then falls back to parent (paragraph) level if the text is inside a `run` wrapper. Must absorb ALL surrounding field code atoms to fully remove the field structure.
-
-### XML entities in DOCX field codes must be decoded before parsing
-DOCX field code instruction text preserves XML entities (`&quot;` → `"`, `&amp;` → `&`). The brace-counting JSON parser for CSL_CITATION data fails if entities aren't decoded first. Decode order matters: `&amp;` must be last to avoid double-decoding.
-
----
-
-## SuperDoc Citation System (SuperCite)
-
-Architecture summary for the working Zotero citation import system:
-
-1. **Phase 1** (pre-scan): Parse DOCX ZIP with JSZip, extract `ADDIN ZOTERO_ITEM CSL_CITATION` field codes
-2. **Phase 2** (post-process): After SuperDoc loads, find display text in PM doc, expand to field boundaries, replace with link-marked text (`href: "https://cite.local/{id}"`)
-3. **Metadata**: Citation data (cites array, Zotero JSON) stored in a separate `citationMetaMap`, persisted to localStorage — the link mark only carries the ID via href
-4. **Click handling**: Listen for `superdoc-link-click` on wrapperEl (capture phase), check href prefix, open `DocxCitationPopover`
-5. **Editing**: Popover updates metadata + replaces display text via `updateCitationText()` (finds link range, creates new text node with same link mark)
-6. **Save**: No strip/restore needed — link marks export as DOCX hyperlinks natively
-
-**Failed approaches** (in order):
-1. Custom `citation` atom node + NodeView → not in `ATOMIC_INLINE_TYPES`, layout engine can't position it
-2. Custom atom node + DOM overlay injection → flicker on every edit, clicks intercepted by editing surface
-3. Link mark with `cite:` protocol → protocol blocked by `sanitizeHref`, rendered as inert `<span>`
-4. Link mark with `https://cite.local/` protocol → **works** ✓
-
-### SuperDoc's comment sidebar is unusable when embedded in a fixed container
-SuperDoc renders its `CommentDialog` inside a 320px sidebar (`.superdoc__right-sidebar`) that's a flex sibling of the editor layers (`.superdoc__layers`). The root `.superdoc` div is `display: flex`. When embedding SuperDoc in a fixed-size container (`absolute inset-0`), this sidebar overflows the container and gets clipped — the dialog is in the DOM but invisible.
-
-The native floating "+" button triggers `showAddComment()` (in `comments-store.js`) which sets `pendingComment` in the store → the sidebar renders via `v-if="showCommentsSidebar"` → `CommentDialog` mounts with `autoFocus: true`. This flow assumes SuperDoc controls its own flex layout and can grow to accommodate the sidebar. When embedded, it can't.
-
-Additionally, `showAddComment` has a bug at line 406: `activeComment.value = pendingComment.value.commentID` uses uppercase `D`, but `useComment()` returns `commentId` (lowercase `d`). The native button recovers because `CommentDialog.onMounted → setFocus()` re-sets `activeComment` with the correct property.
-
-**Fix:** Don't use the sidebar at all. Use `ed.commands.addComment()` — the public API documented at `docs.superdoc.dev/extensions/comments`. Show your own input dialog (Teleported to `<body>`), then call:
-```js
-ed.commands.addComment({ content: text, author: 'User', authorEmail: 'user@local' })
-```
-This adds the ProseMirror comment mark at the current selection AND emits `commentsUpdate` on the editor, which SuperDoc.vue's `onEditorCommentsUpdate` handler catches to add the comment to the store. No store manipulation, no sidebar, no layout issues. Comments are fully tracked (marks, highlighting, DOCX export).
-
-**Key requirements:** The ProseMirror selection must be active (non-collapsed) when calling `addComment`. Right-click collapses the selection, so save it in a capture-phase `mousedown` handler and restore it before calling the API.
-
-### Citation cursor bleed: styling comes from run properties, not marks
-After inserting a citation, text typed immediately after inherits the hyperlink's blue color + underline. The link mark is correctly bounded (the `<a>` ends at the closing bracket), and the typed text renders in a separate `<span>` — but the `<span>` still has `color: rgb(5,99,193)` and `text-decoration: underline`.
-
-**Root cause:** The typed text enters the same OOXML `run` node as the citation. The run's `runProperties` include hyperlink styling (color, underline, rStyle). SuperDoc's `calculateInlineRunPropertiesPlugin` applies these properties to ALL text in the run, regardless of ProseMirror marks.
-
-**What doesn't work:**
-- `setStoredMarks([])` — run properties override stored marks
-- `removeMark()` in `appendTransaction` — the link mark was never on the bleed text; styling comes from `runProperties`, not marks
-- `handleTextInput` plugin prop — SuperDoc intercepts input before ProseMirror's standard `handleTextInput` fires
-
-**What works:**
-1. **CSS** (immediate visual fix): `a.superdoc-link[href^="https://cite.local/"] + span` overrides the inherited blue/underline on sibling `<span>` elements painted by the DomPainter
-2. **`appendTransaction` with run splitting** (fixes the model): Detect text after a citation link range that shares the same run (`findRunDepth` + `offsetInRun < runContent.size`), then split the run into `[citationRun | cleanRun]` with `cleanRunProperties()` stripping `color`, `underline`, `u`, and `rStyle`. Same run-splitting technique as `docxGhost.js`.
+DOCX editing, review, version preview, and DOCX-specific AI tooling were removed from the current Altals product. Historical investigation notes should stay only in archived planning or legacy material.

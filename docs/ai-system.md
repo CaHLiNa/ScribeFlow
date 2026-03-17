@@ -57,7 +57,6 @@ zod                   — Schema validation for tool inputSchema
 | **Ghost** | |
 | `services/ai.js` | `getGhostSuggestions()` — `generateText()` with `suggest_completions` tool |
 | `editor/ghostSuggestion.js` | `++` trigger, state field, inline widgets |
-| `editor/docxGhost.js` | SuperDoc ghost (ProseMirror plugin) |
 | **Comments** | |
 | `stores/comments.js` | Document comments: pure CRUD data store, persistence |
 | `editor/comments.js` | Gutter markers, anchor highlights, position mapping |
@@ -275,14 +274,6 @@ Summary: Margin annotations anchored to text ranges. Pure data store (no Chat co
 - `aiExtractPdfMetadata(text)` — extract metadata from PDF text
 
 Both use `resolveApiAccess({ strategy: 'cheapest' })` (Gemini Flash Lite → Haiku → GPT-5 Nano, then the configured fallback path if available).
-
----
-
-## DOCX AI Provider
-
-`docxProvider.js` creates a provider for SuperDoc's `@superdoc-dev/ai` AIActions:
-- `getCompletion()` → `generateText()`
-- `streamCompletion()` → `streamText()` with async generator yielding `textStream` chunks
 
 ---
 

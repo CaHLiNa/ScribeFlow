@@ -1,8 +1,5 @@
-/* Context menu — !important needed because SuperDoc's style.css (loaded
-   dynamically for DOCX editing) defines its own .context-menu with
-   background:white / z-index:50 / color:#47484a.  In production the
-   late-loaded chunk wins the cascade, breaking dark-theme colors and
-   z-index stacking (backdrop covers the menu, stealing clicks). */
+/* Context menu — !important keeps the shared menu styles above viewer-specific
+   CSS so dark-theme colors and z-index stacking stay stable. */
 .context-menu {
   position: fixed !important;
   z-index: 1000 !important;
@@ -269,13 +266,6 @@
 }
 .version-action-restore:not(:disabled):hover {
   background: rgba(247, 118, 142, 0.2);
-}
-.version-docx-container {
-  overflow-y: auto;
-  background: var(--bg-primary);
-}
-.version-docx-container .superdoc {
-  min-height: 100%;
 }
 
 /* Keyboard shortcut badges */

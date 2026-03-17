@@ -10,7 +10,6 @@ import { useToastStore } from '../stores/toast'
 import { nanoid } from '../stores/utils'
 import { lookupByDoi } from './crossref'
 import { appendUnresolvedCommentsToContent } from './documentComments'
-import { extractDocumentText, extractBlockList } from './docxContext'
 import { parseBibtex } from '../utils/bibtexParser'
 import { isMultimodalImage, isPdf, getMimeType } from '../utils/fileTypes'
 import { t } from '../i18n/index.js'
@@ -234,7 +233,7 @@ export function getAiTools(workspace) {
     }),
 
     read_file: tool({
-      description: 'Read the contents of a file. Supports text files, images (visual analysis via AI), PDFs (native document understanding), and DOCX (when open). For .docx files, returns numbered paragraphs (¶1, ¶2 …) — use these numbers with edit_file. Use this instead of run_command for reading files.',
+      description: 'Read the contents of a file. Supports text files, images (visual analysis via AI), and PDFs (native document understanding). Use this instead of run_command for reading files.',
       inputSchema: z.object({
         path: z.string().describe('File path relative to workspace'),
       }),
@@ -243,13 +242,7 @@ export function getAiTools(workspace) {
         if (!readPath) return PATH_ERROR
 
         if (readPath.endsWith('.docx')) {
-          const sd = useEditorStore().getAnySuperdoc(readPath)
-          if (sd?.activeEditor) {
-            const blocks = extractBlockList(sd.activeEditor.state)
-            if (!blocks.length) return '[DOCX file is empty or has no readable paragraphs.]'
-            return blocks.map(b => `¶${b.num}: ${b.text}`).join('\n')
-          }
-          return '[DOCX file not open. Open it in the editor for AI to read.]'
+          return 'Error: DOCX files are no longer supported in Altals.'
         }
 
         if (readPath.toLowerCase().endsWith('.ipynb')) {
@@ -333,6 +326,9 @@ export function getAiTools(workspace) {
       execute: async ({ path, content }) => {
         const resolved = _resolvePath(path, workspace)
         if (!resolved) return PATH_ERROR
+        if (resolved.endsWith('.docx')) {
+          return 'Error: DOCX files are no longer supported in Altals.'
+        }
 
         const reviews = useReviewsStore()
         const filesStore = useFilesStore()
@@ -369,51 +365,21 @@ export function getAiTools(workspace) {
     }),
 
     edit_file: tool({
-      description: 'Edit an existing file. For text files: provide old_string (exact match) and new_string. For .docx files: use paragraph_number (from read_file output) and new_content instead — old_string/new_string do not work on DOCX.',
+      description: 'Edit an existing text file. Provide old_string (exact match) and new_string.',
       inputSchema: z.object({
         path: z.string().describe('File path relative to workspace'),
         old_string: z.string().optional().describe('Text files: exact string to replace (must be unique in the file)'),
         new_string: z.string().optional().describe('Text files: replacement text'),
-        paragraph_number: z.number().int().optional().describe('DOCX only: paragraph number from read_file output (¶N)'),
-        new_content: z.string().optional().describe('DOCX only: replacement text for the paragraph'),
       }),
-      execute: async ({ path, old_string, new_string, paragraph_number, new_content }) => {
+      execute: async ({ path, old_string, new_string }) => {
         const resolved = _resolvePath(path, workspace)
         if (!resolved) return PATH_ERROR
 
         const reviews = useReviewsStore()
         const filesStore = useFilesStore()
 
-        // DOCX files: paragraph-based replacement via SuperDoc
         if (resolved.endsWith('.docx')) {
-          // Guard against the old string-match approach being used for DOCX
-          if (old_string !== undefined || new_string !== undefined) {
-            return 'Error: DOCX files use paragraph addressing, not string matching. Call read_file first to get paragraph numbers (¶1, ¶2…), then call edit_file with paragraph_number and new_content.'
-          }
-          if (paragraph_number === undefined || new_content === undefined) {
-            return 'Error: DOCX files require paragraph_number and new_content. Call read_file first to see the document structure.'
-          }
-
-          const sd = useEditorStore().getAnySuperdoc(resolved)
-          if (!sd?.activeEditor) return 'Error: DOCX file must be open in the editor to edit.'
-
-          const blocks = extractBlockList(sd.activeEditor.state)
-          const target = blocks.find(b => b.num === paragraph_number)
-          if (!target) {
-            return `Error: Paragraph ${paragraph_number} not found (document has ${blocks.length} paragraphs). Re-read the file — paragraph numbers change after edits.`
-          }
-
-          // Use suggesting mode to create a tracked change when review is active
-          const prevMode = sd._documentMode ?? 'editing'
-          if (!reviews.directMode) sd.setDocumentMode('suggesting')
-          try {
-            sd.activeEditor.commands.replaceNodeWithHTML(target.node, `<p>${new_content}</p>`)
-          } finally {
-            if (!reviews.directMode) sd.setDocumentMode(prevMode)
-          }
-
-          filesStore.fileContents[resolved] = extractDocumentText(sd.activeEditor.state)
-          return `Edited DOCX paragraph ${paragraph_number}${!reviews.directMode ? ' (tracked change — review in editor)' : ''}: ${resolved}`
+          return 'Error: DOCX files are no longer supported in Altals.'
         }
 
         if (old_string === undefined || new_string === undefined) {
@@ -484,7 +450,7 @@ export function getAiTools(workspace) {
     }),
 
     search_content: tool({
-      description: 'Search for text across files in the workspace (case-insensitive). Open .docx files are searched from their cached text; closed .docx files are not searchable.',
+      description: 'Search for text across files in the workspace (case-insensitive).',
       inputSchema: z.object({
         query: z.string().describe('Text to search for'),
         max_results: z.number().optional().describe('Maximum results (default 20)'),
@@ -497,19 +463,6 @@ export function getAiTools(workspace) {
           maxResults: limit,
         })
         const hits = results.map(r => `${r.path}:${r.line}: ${r.text}`)
-
-        // Also search open DOCX files from their cached text content
-        // (DOCX is binary — Rust cannot search it; the cache holds extracted plain text)
-        const filesStore = useFilesStore()
-        const queryLower = query.toLowerCase()
-        for (const [p, content] of Object.entries(filesStore.fileContents)) {
-          if (!p.endsWith('.docx') || typeof content !== 'string') continue
-          content.split('\n').forEach((line, i) => {
-            if (line.toLowerCase().includes(queryLower))
-              hits.push(`${p}:${i + 1}: ${line.trim()}`)
-          })
-        }
-
         return hits.slice(0, limit).join('\n') || 'No results found.'
       },
     }),

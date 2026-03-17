@@ -29,7 +29,6 @@
 
     <!-- File-specific review bar -->
     <ReviewBar v-if="activeTab && viewerType === 'text'" :filePath="activeTab" />
-    <DocxReviewBar v-else-if="activeTab && viewerType === 'docx'" :filePath="activeTab" :paneId="paneId" />
     <NotebookReviewBar v-else-if="activeTab && viewerType === 'notebook'" :filePath="activeTab" />
     <div
       v-if="showDocumentHeader"
@@ -88,13 +87,10 @@
         :filePath="activeTab"
         :paneId="paneId"
       />
-      <DocxEditor
-        v-else-if="activeTab && viewerType === 'docx'"
+      <UnsupportedFilePane
+        v-else-if="activeTab && viewerType === 'unsupported-binary'"
         :key="activeTab"
         :filePath="activeTab"
-        :paneId="paneId"
-        @cursor-change="(pos) => $emit('cursor-change', pos)"
-        @editor-stats="(stats) => $emit('editor-stats', stats)"
       />
       <ImageViewer
         v-else-if="activeTab && viewerType === 'image'"
@@ -178,8 +174,7 @@ const TextEditor = defineAsyncComponent(() => import('./TextEditor.vue'))
 const DocumentPdfViewer = defineAsyncComponent(() => import('./DocumentPdfViewer.vue'))
 const CsvEditor = defineAsyncComponent(() => import('./CsvEditor.vue'))
 const ImageViewer = defineAsyncComponent(() => import('./ImageViewer.vue'))
-const DocxEditor = defineAsyncComponent(() => import('./DocxEditor.vue'))
-const DocxReviewBar = defineAsyncComponent(() => import('./DocxReviewBar.vue'))
+const UnsupportedFilePane = defineAsyncComponent(() => import('./UnsupportedFilePane.vue'))
 const ReferenceView = defineAsyncComponent(() => import('./ReferenceView.vue'))
 const NotebookEditor = defineAsyncComponent(() => import('./NotebookEditor.vue'))
 const NotebookReviewBar = defineAsyncComponent(() => import('./NotebookReviewBar.vue'))
