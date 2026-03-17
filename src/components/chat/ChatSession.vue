@@ -173,7 +173,7 @@ const suggestionChips = computed(() => {
   const chips = []
 
   if (file) {
-    if (isMarkdown(file) || file.endsWith('.docx') || file.endsWith('.tex') || file.endsWith('.typ')) {
+    if (isMarkdown(file) || file.endsWith('.tex') || file.endsWith('.typ')) {
       chips.push({ text: 'Proofread this document' })
       chips.push({ text: 'Emulate a critical peer reviewer' })
       chips.push({ text: 'Summarise the key arguments' })

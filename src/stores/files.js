@@ -710,7 +710,7 @@ export const useFilesStore = defineStore('files', {
           return null
         }
       }
-      // Other binary files (DOCX, images) are handled by their own viewers
+      // Other binary files are handled by dedicated viewers or fallbacks.
       if (isBinaryFile(path)) return null
       try {
         const content = await readWorkspaceTextFile(path, maxBytes)

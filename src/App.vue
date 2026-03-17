@@ -430,7 +430,8 @@ function handleKeydown(e) {
       // In a file → new file of same type
       const dot = tab.lastIndexOf('.')
       const ext = dot > 0 ? tab.substring(dot) : '.md'
-      leftSidebarRef.value?.createNewFile(ext)
+      const nextExt = ext.toLowerCase() === '.docx' ? '.md' : ext
+      leftSidebarRef.value?.createNewFile(nextExt)
     } else {
       // NewTab or no tab → new markdown
       leftSidebarRef.value?.createNewFile('.md')
@@ -438,10 +439,10 @@ function handleKeydown(e) {
     return
   }
 
-  // Cmd+B: Toggle left sidebar (but not for DOCX/MD — they use Cmd+B for bold)
+  // Cmd+B: Toggle left sidebar (Markdown keeps Cmd+B for bold)
   if (isMod(e) && e.key === 'b') {
     const tab = editorStore.activeTab
-    if (tab?.endsWith('.docx') || tab?.endsWith('.md')) return // let editor handle bold
+    if (tab?.endsWith('.md')) return // let editor handle bold
     e.preventDefault()
     workspace.toggleLeftSidebar()
     return
@@ -526,7 +527,7 @@ function handleKeydown(e) {
     return
   }
 
-  // Cmd+= / Cmd+-: App zoom in/out (DOCX page zoom is in its own toolbar)
+  // Cmd+= / Cmd+-: App zoom in/out
   if (isMod(e) && (e.key === '=' || e.key === '+')) {
     e.preventDefault()
     void workspace.zoomIn()
@@ -697,11 +698,6 @@ async function forceSaveAndCommit() {
     for (const filePath of openFiles) {
       // Skip virtual paths (reference tabs, chat tabs, preview tabs, new tabs)
       if (filePath.startsWith('ref:@') || filePath.startsWith('chat:') || filePath.startsWith('preview:') || filePath.startsWith('newtab:')) continue
-      // DOCX files: trigger binary save via custom event
-      if (filePath.endsWith('.docx')) {
-        window.dispatchEvent(new CustomEvent('docx-save-now', { detail: { path: filePath } }))
-        continue
-      }
       const content = filesStore.fileContents[filePath]
       if (content !== undefined) {
         await filesStore.saveFile(filePath, content)

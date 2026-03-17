@@ -18,7 +18,6 @@ const PROSE_FONT_STACKS = {
 
 const DEFAULT_EDITOR_FONT_SIZE = 14
 const DEFAULT_UI_FONT_SIZE = 13
-const DEFAULT_DOCX_ZOOM_PERCENT = 100
 const DEFAULT_APP_ZOOM_PERCENT = 100
 const APP_ZOOM_KEY = 'appZoomPercent'
 
@@ -154,7 +153,6 @@ export function createWorkspacePreferenceState() {
     uiFontSize: zoomState.uiFontSize,
     appZoomPercent: zoomState.appZoomPercent,
     proseFont: readString('proseFont', 'inter'),
-    docxZoomPercent: readNumber('docxZoomPercent', DEFAULT_DOCX_ZOOM_PERCENT),
     pdfThemedPages: readTrueOnlyBoolean('pdfThemedPages'),
     theme: readString('theme', 'default'),
   }
@@ -174,12 +172,6 @@ export function persistStoredString(key, value) {
 export function setWrapColumnPreference(value) {
   const nextValue = Math.max(0, parseInt(value, 10) || 0)
   writeValue('wrapColumn', nextValue)
-  return nextValue
-}
-
-export function setDocxZoomPreference(value) {
-  const nextValue = Math.max(50, Math.min(200, Math.round(value)))
-  writeValue('docxZoomPercent', nextValue)
   return nextValue
 }
 

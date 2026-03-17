@@ -393,7 +393,7 @@ export function formatInlineCitation(cslJson, style = 'apa', num) {
 
 /**
  * Format a single reference as rich segments: [{ text: string, italic: boolean }, ...]
- * Used by DOCX bibliography builder for real italic marks instead of *asterisks*.
+ * Used by bibliography/export flows that need real italic segments instead of *asterisks*.
  */
 export function formatReferenceRich(cslJson, style = 'apa', num) {
   const formatter = richStyles[style] || richStyles.apa

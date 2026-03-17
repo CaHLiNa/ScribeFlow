@@ -68,7 +68,6 @@ import {
   persistStoredString,
   resetWorkspaceZoom,
   restoreWorkspaceTheme,
-  setDocxZoomPreference,
   setWorkspaceTheme,
   setWorkspaceProseFont,
   setWorkspaceZoomPercent,
@@ -531,22 +530,6 @@ export const useWorkspaceStore = defineStore('workspace', {
       this._lastAppZoomInteractionAt = Date.now()
       this.appZoomPercent = setWorkspaceZoomPercent(pct)
       await this.applyAppZoom()
-    },
-
-    setDocxZoom(pct) {
-      this.docxZoomPercent = setDocxZoomPreference(pct)
-    },
-
-    docxZoomIn() {
-      this.setDocxZoom(this.docxZoomPercent + 10)
-    },
-
-    docxZoomOut() {
-      this.setDocxZoom(this.docxZoomPercent - 10)
-    },
-
-    resetDocxZoom() {
-      this.setDocxZoom(100)
     },
 
     applyFontSizes() {

@@ -19,9 +19,7 @@ For the reusable SQLite infrastructure pattern, see [sqlite-infrastructure.md](s
 | `src/stores/chat.js` | Records after each streaming response (tool_use + done paths) |
 | (removed — tasks.js replaced by comments.js, which has no streaming/usage) |
 | `src/editor/ghostSuggestion.js` | Records after each ghost suggestion API call |
-| `src/editor/docxGhost.js` | Records after each DOCX ghost suggestion API call |
 | `src/services/refAi.js` | Records after each reference parsing/extraction call |
-| `src/services/docxProvider.js` | Records for both non-streaming and streaming DOCX AI calls |
 | `src/stores/canvas.js` | Records after each canvas node AI generation (×2 locations) |
 | **UI** | |
 | `src/components/layout/Footer.vue` | Toggleable monthly cost display (click opens Settings) |
@@ -35,9 +33,8 @@ For the reusable SQLite infrastructure pattern, see [sqlite-infrastructure.md](s
   ──────────                   ──────────────              ─────────────
   chat.js        ──┐
   ghostSuggest.  ──┼──record()─▶┌──────────┐          ┌──────────────────┐
-  docxGhost.js   ──┤            │ usage.js ├─invoke()─▶ usage_db.rs     │
   refAi.js       ──┤            │ (Pinia)  │◀─invoke()─│                 │
-  docxProvider   ──┘            └────┬─────┘          │ ~/.shoulders/   │
+  canvas.js      ──┘            └────┬─────┘          │ ~/.shoulders/   │
                                      │                 │   usage.db      │
                               reactive getters        └──────────────────┘
                            ┌────────┴────────┐
@@ -59,7 +56,7 @@ CREATE TABLE usage_calls (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   timestamp TEXT NOT NULL,           -- ISO 8601
   workspace TEXT,                    -- workspace path (for per-project filtering)
-  feature TEXT NOT NULL,             -- chat | ghost | references | docx
+  feature TEXT NOT NULL,             -- chat | ghost | references | canvas
   provider TEXT NOT NULL,            -- anthropic | openai | google | shoulders
   model TEXT NOT NULL,               -- full model ID as sent to API
   input_tokens INTEGER DEFAULT 0,
@@ -123,7 +120,7 @@ Sonnet and Gemini Pro have higher rates for prompts >200K tokens. `resolveModelP
 
 ## How Recording Works
 
-### Streaming calls (chat, canvas, docx streaming)
+### Streaming calls (chat, canvas)
 
 ```
 AI SDK streamText() / ToolLoopAgent begins
@@ -141,7 +138,7 @@ invoke('usage_record', ...) → INSERT into SQLite
 usageStore.loadMonth() + loadTrend() → refresh reactive getters
 ```
 
-### Non-streaming calls (ghost, references, docx non-streaming)
+### Non-streaming calls (ghost, references)
 
 ```
 AI SDK generateText() returns result
@@ -158,10 +155,9 @@ usageStore.record({ usage, feature, provider: access.provider, modelId })
 | Feature | Source | Model |
 |---|---|---|
 | `chat` | Chat sessions (including comment-submitted requests) | User-selected |
-| `ghost` | Ghost suggestions (markdown + DOCX) | claude-haiku-4-5 |
+| `ghost` | Ghost suggestions in text editors | claude-haiku-4-5 |
 | `canvas` | Canvas node AI generation | User-selected |
 | `references` | Reference parsing, PDF metadata extraction | Cheapest available |
-| `docx` | SuperDoc AI actions (non-streaming + streaming) | User-selected |
 
 ## Usage Store (`usage.js`)
 
