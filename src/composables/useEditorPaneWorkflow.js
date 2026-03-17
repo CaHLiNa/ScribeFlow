@@ -33,11 +33,8 @@ export function useEditorPaneWorkflow(options) {
   const pdfToolbarTargetId = computed(() => (
     `pdf-toolbar-slot-${String(paneIdRef.value || 'pane').replace(/[^a-zA-Z0-9_-]/g, '-')}`
   ))
-  const pdfToolbarTargetSelector = computed(() => (
-    activeTabRef.value && viewerTypeRef.value === 'pdf'
-      ? `#${pdfToolbarTargetId.value}`
-      : ''
-  ))
+  // PDF viewer now renders its own in-frame toolbar, so the outer subbar slot should stay disabled.
+  const pdfToolbarTargetSelector = computed(() => '')
   const showDocumentHeader = computed(() => (
     !!activeTabRef.value && (!!workflowUiState.value || !!pdfToolbarTargetSelector.value)
   ))
