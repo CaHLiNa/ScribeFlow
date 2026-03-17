@@ -21,6 +21,10 @@ Altals is a local-first desktop workspace for research writing, references, codi
 - Split panes, tabbed editing, live preview, search and replace.
 - PDF export via Typst with citations from the local reference library.
 
+### DOCX
+- Native \`.docx\` editing with SuperDoc.
+- Comments, tracked change compatible workflows, AI-assisted editing, and inline suggestions.
+
 ### LaTeX
 - Built-in Tectonic support.
 - SyncTeX navigation and bibliography generation.

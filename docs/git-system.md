@@ -54,7 +54,7 @@ node_modules/
 ## Manual Save & Commit (Cmd+S)
 
 `App.vue:forceSaveAndCommit()`:
-1. Saves all open text files to disk via `filesStore.saveFile`
+1. Saves all open files to disk (DOCX via `docx-save-now` event, text via `filesStore.saveFile`)
 2. Runs `git add -A` — freezes the staged snapshot
 3. Runs `git status` — if no changes, shows "All saved (no changes)" in footer center and returns
 4. Shows **save confirmation** in footer center: `✓ Saved · Name this version`
@@ -96,6 +96,7 @@ All functions call dedicated Rust commands via `invoke()`. No CLI git dependency
 | `gitBranch(repoPath)` | `git_branch` | Current branch name |
 | `gitLog(repoPath, filePath?, limit?)` | `git_log` | Commit history, optional file filter |
 | `gitShow(repoPath, hash, filePath)` | `git_show_file` | File content at commit (text) |
+| `gitShowBase64(repoPath, hash, filePath)` | `git_show_file_base64` | File content at commit (binary, e.g. .docx) |
 | `gitDiff(repoPath)` | `git_diff` | Working copy diff (patch format) |
 | `gitDiffSummary(repoPath, maxFiles?, maxLines?)` | `git_diff_summary` | Abbreviated diff for AI context |
 
@@ -127,7 +128,7 @@ Strategy:
 5. Filters out `.shoulders/` paths from stat and diffs
 
 ### Path Handling
-`gitShow` converts absolute paths to relative (strip workspace prefix) because git expects paths relative to the repo root.
+`gitShow` and `gitShowBase64` convert absolute paths to relative (strip workspace prefix) because git expects paths relative to the repo root.
 
 ## Version History (`VersionHistory.vue`)
 
@@ -143,7 +144,10 @@ Modal dialog showing git history for a specific file.
 
 **Text files:** Loads content via `gitShow()`, renders in a read-only CodeMirror editor with theme and markdown highlighting. "Copy" button copies historical content to clipboard.
 
-- "Restore" button writes the historical text content back to the file (with confirmation dialog)
+**DOCX files:** Loads binary content via `gitShowBase64()`, converts to a File object via `base64ToFile()`, renders in a read-only SuperDoc instance (`documentMode: 'viewing'`). SuperDoc is dynamically imported. Copy button is hidden (binary content).
+
+- "Restore" button writes the historical content back to the file (with confirmation dialog)
+- For docx, restore uses `write_file_base64` and forces a tab close/reopen cycle to remount DocxEditor
 
 ### Access Points
 - Context menu on a file in the sidebar → "Version History"
@@ -270,7 +274,7 @@ For public desktop releases, Altals is expected to use a small Altals-owned GitH
 
 1. **Git is via `git2` crate, not system git.** Vendored libgit2 + vendored OpenSSL. No PATH dependency. Adds ~1.5–2MB to binary — acceptable for HTTPS-everywhere without system dependencies.
 2. **`git add -A` stages everything.** The `.gitignore` prevents `.shoulders/` and `node_modules/` from being committed. API keys live in `~/.shoulders/keys.env` (outside the workspace).
-3. **Restore writes directly** via `invoke('write_file')` rather than using `git checkout`, which was chosen for reliability.
+3. **Restore writes directly** via `invoke('write_file')` (text) or `invoke('write_file_base64')` (binary) rather than using `git checkout`, which was chosen for reliability.
 4. **Auto-merge before escalation.** The sync system always tries `git_merge_remote` before creating a conflict branch. Only real textual conflicts (same lines edited) escalate.
 5. **Conflict branches are created at most once.** `handleConflict()` guards against re-entry — if already in conflict state, it returns early instead of creating duplicate branches.
-6. **Binary previews are intentionally limited.** The current product only restores and previews text history inside Altals.
+6. **Binary file support.** `git_show_file_base64` in Rust base64-encodes blob content, enabling version history for `.docx` and other binary formats.

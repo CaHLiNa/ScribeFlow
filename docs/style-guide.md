@@ -12,6 +12,7 @@
 | `src/css/editor.css` | CodeMirror widget styles (ghost, diff, tasks, wiki links) |
 | `src/css/components.css` | Global component styles (context menu, quick open, version history, kbd) |
 | `src/css/handsontable.css` | Handsontable (CSV editor) theme overrides |
+| `src/css/superdoc.css` | SuperDoc (DOCX editor) theme overrides |
 | `src/css/xterm.css` | xterm.js (terminal) theme overrides |
 | `src/editor/theme.js` | CodeMirror theme + syntax highlighting (uses CSS vars) |
 | `src/themes/terminal.js` | xterm.js color objects per theme (hex, not CSS vars — canvas needs literal values) |
@@ -69,7 +70,7 @@ Self-hosted variable fonts in `public/fonts/`, declared in `src/css/fonts.css`:
 - `--font-sans`: `'Inter', system-ui, sans-serif` — body default, inherited everywhere
 - `--font-mono`: `'JetBrains Mono', 'Menlo', 'Consolas', monospace` — used via `var(--font-mono)` wherever code/mono is needed
 - `--font-prose`: `'Inter', system-ui, sans-serif` — prose editing font for `.md` files (default Inter; user-selectable via Settings → Editor). Overridden at runtime by `workspace.setProseFont()` via `document.documentElement.style.setProperty`.
-- `--ui-font`: alias for `--font-sans` — used for general UI text overrides where components cannot inherit cleanly
+- `--ui-font`: alias for `--font-sans` — used in SuperDoc/DOCX overrides
 
 Only set `font-family` explicitly when switching to mono. Sans inherits from body. Exception: `Terminal.vue` hardcodes the font string because xterm.js renders to canvas and can't resolve CSS vars.
 

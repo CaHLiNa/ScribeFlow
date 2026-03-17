@@ -40,6 +40,13 @@ export async function gitShow(repoPath, commitHash, filePath) {
 }
 
 /**
+ * Get file content at a specific commit as base64 (for binary files like .docx).
+ */
+export async function gitShowBase64(repoPath, commitHash, filePath) {
+  return invoke('git_show_file_base64', { repoPath, commitHash, filePath })
+}
+
+/**
  * Get abbreviated diff summary for workspace context.
  * Returns { stat: string, diffs: [{file, diff}] }
  */

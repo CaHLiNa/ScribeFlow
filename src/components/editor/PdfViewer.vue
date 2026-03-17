@@ -881,7 +881,7 @@ function insertNoteIntoManuscript(annotation) {
   const result = editorStore.insertResearchNoteIntoManuscript(note, annotation)
   if (!result?.ok) {
     toastStore.show(
-      t('Open a text manuscript in another pane to insert this note.'),
+      t('Open a text or DOCX manuscript in another pane to insert this note.'),
       { type: 'error', duration: 4200 },
     )
     return

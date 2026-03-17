@@ -131,6 +131,7 @@ const fileTypes = [
   { ext: '.md',    label: t('Markdown') },
   { ext: '.tex',   label: 'LaTeX' },
   { ext: '.typ',   label: 'Typst' },
+  { ext: '.docx',  label: t('Word document') },
   { ext: '.ipynb', label: t('Jupyter notebook') },
   { ext: '.py',    label: 'Python' },
 ]
@@ -151,7 +152,7 @@ const quickActions = computed(() => {
   const name = fileName(file.path)
   const path = file.path
 
-  if (isMarkdown(path) || path.endsWith('.tex') || path.endsWith('.typ')) {
+  if (isMarkdown(path) || path.endsWith('.tex') || path.endsWith('.typ') || path.endsWith('.docx')) {
     return [
       { label: t('Proofread {name}', { name }),              prompt: t('Proofread this document for clarity, grammar, and academic tone.'),                                  file: path },
       { label: t('Find argument gaps in {name}', { name }),  prompt: t('Identify logical gaps, unsupported claims, or missing evidence in this document.'),                  file: path },

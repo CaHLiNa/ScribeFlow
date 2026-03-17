@@ -45,7 +45,7 @@ PDF Export     — pulldown-cmark → Typst markup → template → typst compil
 
 Each function reads the selection, checks if the wrapper already exists, and dispatches an insert or delete transaction.
 
-**Note:** `Cmd+B` is intercepted at the `App.vue` level for sidebar toggle. The handler returns early for `.md` files, letting the editor handle it.
+**Note:** `Cmd+B` is intercepted at the `App.vue` level for sidebar toggle. The handler returns early for `.md` and `.docx` files, letting the editor handle it.
 
 ---
 

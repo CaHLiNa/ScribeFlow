@@ -77,12 +77,14 @@ No sidebars, no footer. Header is always visible (hamburger menu works in both s
 | `src/components/editor/ChatPanel.vue` | Chat session rendered as an editor tab (`chat:*` paths) |
 | `src/components/editor/NewTab.vue` | Empty pane state: recent files, quick actions |
 | `src/components/editor/ReviewBar.vue` | Pending edits banner (text files) |
+| `src/components/editor/DocxReviewBar.vue` | Pending edits banner (DOCX files) |
 | `src/components/editor/NotebookReviewBar.vue` | Pending edits banner (notebooks) |
 | `src/components/editor/EditorContextMenu.vue` | Right-click: Ask AI, Add Comment, clipboard, spell suggestions |
+| `src/components/editor/DocxContextMenu.vue` | Right-click context menu for DOCX editor |
 | **Right panel** | |
 | `src/components/right/RightPanel.vue` | Right sidebar: Outline / Terminal / Backlinks tabs |
 | `src/components/layout/BottomPanel.vue` | Bottom panel: multi-tab terminals (primary terminal location), language REPLs |
-| `src/components/sidebar/OutlinePanel.vue` | Document outline (headings for `.md` / `.tex` / `.typ` / `.ipynb`), rendered in RightPanel |
+| `src/components/sidebar/OutlinePanel.vue` | Document outline (headings for .md/.tex/.docx/.ipynb), rendered in RightPanel |
 | `src/components/right/ChatMessage.vue` | Message renderer (shared by ChatPanel) |
 | `src/utils/chatMarkdown.js` | Shared markdown pipeline: `renderMarkdown()`, `TOOL_LABELS`, `getToolContext()`, `getToolIcon()` |
 | `src/components/right/ChatInput.vue` | Chat input with @file refs, model picker, context chips (used by ChatPanel) |
@@ -130,7 +132,7 @@ Two storage mechanisms: **localStorage** for global UI preferences, **`.shoulder
 | State | Reason |
 |---|---|
 | Terminal processes | Cannot survive process exit |
-| Editor view instances (CodeMirror) | Recreated when components mount |
+| Editor view instances (CodeMirror, SuperDoc) | Recreated when components mount |
 | Cursor positions | Marginal value for the complexity |
 | Dirty files set | Transient; auto-save handles it |
 | PDF viewer zoom/page | Session-only convenience state |
@@ -228,7 +230,7 @@ Plus the capability `"core:window:allow-start-dragging"` in `capabilities/defaul
 - `rightSidebarPreSnapWidth` remembers the width before snap for toggling back
 - **Three tabs**: Outline, Terminal, Backlinks (Backlinks only shown when active file has backlinks)
 - Active tab persisted in localStorage (`rightPanelTab`)
-- **Outline**: Document headings (`.md`/`.tex`/`.typ`/`.ipynb`), click to navigate. Tracks a `documentTab` computed that falls back to last non-chat tab when a chat is focused. Uses `OutlinePanel` from `src/components/sidebar/`.
+- **Outline**: Document headings (`.md`/`.tex`/`.docx`/`.ipynb`), click to navigate. Tracks a `documentTab` computed that falls back to last non-chat tab when a chat is focused. Uses `OutlinePanel` from `src/components/sidebar/`.
 - **Terminal**: Multi-tab xterm.js terminals with drag-reorder, rename, language REPL support (R/Python/Julia). Terminal processes preserved via `v-show`. Note: the right panel still has a Terminal tab, but the primary terminal experience is now in the **BottomPanel** (see below).
 - **Backlinks**: Files linking to the active document via `[[wiki links]]`.
 
@@ -380,6 +382,7 @@ Same menu used by both the header button and the right-click context menu (on fo
 | New Folder | — | directory |
 | New File... | — | inline rename, user types name+extension |
 | Markdown | `.md` | `# Title\n\n` |
+| Word | `.docx` | valid OOXML binary |
 | LaTeX | `.tex` | `\documentclass` starter |
 | R Script | `.R` | empty |
 | Python | `.py` | empty |

@@ -215,6 +215,11 @@
             <span class="flex-1">{{ t('Markdown') }}</span>
             <span class="context-menu-ext">.md</span>
           </div>
+          <div class="context-menu-item" @click="handleNewMenuCreate({ ext: '.docx' })">
+            <IconFileText :size="14" :stroke-width="1.5" />
+            <span class="flex-1">{{ t('Word') }}</span>
+            <span class="context-menu-ext">.docx</span>
+          </div>
           <div class="context-menu-item" @click="handleNewMenuCreate({ ext: '.tex' })">
             <IconMath :size="14" :stroke-width="1.5" />
             <span class="flex-1">{{ t('LaTeX') }}</span>
@@ -304,7 +309,7 @@ const renaming = reactive({
   originalPath: '',
   isNew: false,
   isDir: false,
-  autoExtension: '', // e.g. '.md', '.tex' — auto-appended if user omits extension
+  autoExtension: '', // e.g. '.md', '.docx' — auto-appended if user omits extension
   parentDir: '',
 })
 

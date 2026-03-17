@@ -18,7 +18,7 @@ The editor is built on CodeMirror 6 with custom extensions. The pane/tab layout 
 | `src/components/editor/PdfViewer.vue` | PDF display via embedded Firefox PDF.js viewer (full-featured: sidebar, annotations, text selection, search) |
 | `src/components/editor/CsvEditor.vue` | CSV/TSV editing (Handsontable) |
 | `src/components/editor/ImageViewer.vue` | Image display with zoom/pan |
-| `src/components/editor/UnsupportedFilePane.vue` | Explicit fallback for legacy unsupported files |
+| `src/components/editor/DocxEditor.vue` | DOCX editing (SuperDoc) |
 | `src/utils/fileTypes.js` | File type detection, viewer routing, icon mapping |
 | `src/components/editor/EditorContextMenu.vue` | Right-click context menu (Ask AI, Add Comment, clipboard) |
 | `src/components/editor/EditorPane.vue` | Pane container with TabBar |
@@ -347,7 +347,7 @@ A second compartment (`columnWidthCompartment`) constrains `.cm-content` to a `m
 | `PdfViewer` | `.pdf` | Embeds the Firefox PDF.js viewer app via iframe (blob URL). Full-featured: thumbnails sidebar, page navigation, text selection, Cmd+F search, annotations, highlights, zoom. Theme follows app (dark/light). |
 | `CsvEditor` | `.csv`, `.tsv` | Handsontable grid, auto-save on debounce |
 | `ImageViewer` | `.png`, `.jpg`, `.gif`, `.svg`, etc. | Opens at 1:1 (actual size), zoom/pan with mouse, Fit button and double-click reset to 1:1 |
-| `UnsupportedFilePane` | legacy `.docx` | Explicit unsupported state so removed formats do not fall back to the text editor |
+| `DocxEditor` | `.docx` | SuperDoc (ProseMirror-based), see [superdoc-system.md](superdoc-system.md) |
 | `NewTab` | `newtab:` prefix | Recent files, recent chats, chat input, quick file creation |
 | `ChatPanel` | `chat:` prefix | AI chat session |
 

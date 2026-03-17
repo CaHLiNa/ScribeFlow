@@ -49,7 +49,7 @@ export function getViewerType(path) {
   const ext = getExt(path)
   if (PDF_EXTS.includes(ext)) return 'pdf'
   if (CSV_EXTS.includes(ext)) return 'csv'
-  if (DOCX_EXTS.includes(ext)) return 'unsupported-binary'
+  if (DOCX_EXTS.includes(ext)) return 'docx'
   if (IMAGE_EXTS.includes(ext)) return 'image'
   if (ext === 'ipynb') return 'notebook'
   return 'text'

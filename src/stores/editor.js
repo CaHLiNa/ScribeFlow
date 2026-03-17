@@ -79,6 +79,25 @@ function buildTextResearchNoteSnippet(targetPath, note = {}, annotation = null) 
   return `\n\n${segments.join('\n\n')}\n\n`
 }
 
+function buildDocxResearchNoteSnippet(targetPath, note = {}, annotation = null) {
+  const quote = String(note?.quote || annotation?.quote || '').trim()
+  const comment = String(note?.comment || '').trim()
+  const sourceLine = buildResearchSourceLine(targetPath, note, annotation)
+  const segments = []
+
+  if (quote) {
+    segments.push(`"${quote}"`)
+  }
+  if (comment) {
+    segments.push(`Note: ${comment}`)
+  }
+  if (sourceLine) {
+    segments.push(`Source: ${sourceLine}`)
+  }
+
+  return `${segments.join('\n\n')}\n\n`
+}
+
 export const useEditorStore = defineStore('editor', {
   state: () => ({
     paneTree: {
@@ -92,8 +111,12 @@ export const useEditorStore = defineStore('editor', {
     dirtyFiles: new Set(),
     // Editor view instances (not persisted)
     editorViews: {},
+    // SuperDoc instances: key = `${paneId}:${path}` -> { superdoc, aiActions }
+    superdocInstances: {},
     // Cursor offset in the active editor (for outline highlight)
     cursorOffset: 0,
+    // Bumped on every DOCX editor update (triggers outline re-eval even for attribute-only changes)
+    docxUpdateCount: 0,
     // Recent files per workspace (persisted to localStorage)
     recentFiles: [],  // { path, openedAt }
     // Last pane the user viewed that had a chat or newtab as its active tab
@@ -775,12 +798,41 @@ export const useEditorStore = defineStore('editor', {
       return views
     },
 
+    registerSuperdoc(paneId, path, superdoc, _reserved, aiActions) {
+      this.superdocInstances[`${paneId}:${path}`] = { superdoc, aiActions }
+    },
+
+    unregisterSuperdoc(paneId, path) {
+      delete this.superdocInstances[`${paneId}:${path}`]
+    },
+
+    getSuperdoc(paneId, path) {
+      return this.superdocInstances[`${paneId}:${path}`]?.superdoc
+    },
+
+    getAnySuperdoc(path) {
+      for (const key in this.superdocInstances) {
+        if (key.endsWith(`:${path}`)) return this.superdocInstances[key].superdoc
+      }
+      return null
+    },
+
+    getAnyAiActions(path) {
+      for (const key in this.superdocInstances) {
+        if (key.endsWith(`:${path}`)) return this.superdocInstances[key].aiActions
+      }
+      return null
+    },
+
     findPreferredResearchInsertTarget() {
       const activePath = this.activeTab
       const activePaneId = this.activePaneId
       const activeViewerType = activePath ? getViewerType(activePath) : null
 
       if (activeViewerType === 'text' && isResearchInsertableTextPath(activePath) && this.getEditorView(activePaneId, activePath)) {
+        return { paneId: activePaneId, path: activePath, viewerType: activeViewerType }
+      }
+      if (activeViewerType === 'docx' && this.getSuperdoc(activePaneId, activePath)) {
         return { paneId: activePaneId, path: activePath, viewerType: activeViewerType }
       }
 
@@ -792,6 +844,9 @@ export const useEditorStore = defineStore('editor', {
           if (!path) return
           const viewerType = getViewerType(path)
           if (viewerType === 'text' && isResearchInsertableTextPath(path) && this.getEditorView(node.id, path)) {
+            candidates.push({ paneId: node.id, path, viewerType })
+          }
+          if (viewerType === 'docx' && this.getSuperdoc(node.id, path)) {
             candidates.push({ paneId: node.id, path, viewerType })
           }
           return
@@ -864,6 +919,29 @@ export const useEditorStore = defineStore('editor', {
         }
       }
 
+      if (target.viewerType === 'docx') {
+        const superdoc = this.getSuperdoc(target.paneId, target.path)
+        const editor = superdoc?.activeEditor
+        if (!editor) {
+          return { ok: false, reason: 'missing-superdoc', ...target }
+        }
+
+        const snippet = buildDocxResearchNoteSnippet(target.path, note, annotation)
+        if (typeof editor.commands?.insertContent === 'function') {
+          editor.commands.insertContent(snippet)
+        } else if (editor.view?.dispatch && editor.state?.tr) {
+          const { from, to } = editor.state.selection
+          editor.view.dispatch(editor.state.tr.insertText(snippet, from, to))
+        } else {
+          return { ok: false, reason: 'unsupported-docx-editor', ...target }
+        }
+        editor.view?.focus?.()
+        return {
+          ok: true,
+          ...target,
+        }
+      }
+
       return {
         ok: false,
         reason: 'unsupported-target',
@@ -910,6 +988,10 @@ export const useEditorStore = defineStore('editor', {
         ok: true,
         ...target,
       }
+    },
+
+    bumpDocxUpdate() {
+      this.docxUpdateCount++
     },
 
     recordFileOpen(path) {
@@ -1008,12 +1090,19 @@ export const useEditorStore = defineStore('editor', {
       }
       this.editorViews = {}
 
+      // Destroy all SuperDoc instances
+      for (const key of Object.keys(this.superdocInstances)) {
+        try { this.superdocInstances[key]?.superdoc?.destroy() } catch (e) { /* may already be gone */ }
+      }
+      this.superdocInstances = {}
+
       // Reset pane tree to initial empty state
       this.paneTree = { type: 'leaf', id: 'pane-root', tabs: [], activeTab: null }
       this.activePaneId = 'pane-root'
       this.dirtyFiles = new Set()
       this.recentFiles = []
       this.cursorOffset = 0
+      this.docxUpdateCount = 0
       this.restoreGeneration += 1
     },
   },

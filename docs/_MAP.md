@@ -17,6 +17,8 @@ Read these first when working on the current product:
 | Terminal & runners | [terminal-system.md](terminal-system.md) | PTY terminal, REPLs, code execution |
 | Markdown | [markdown-system.md](markdown-system.md) | Markdown editing, preview, export flow |
 | LaTeX | [tex-system.md](tex-system.md) | LaTeX compile flow, compiler selection, PDF behavior |
+| DOCX / SuperDoc | [superdoc-system.md](superdoc-system.md) | DOCX editor architecture and constraints |
+| SuperDoc API reference | [superdoc-toc.md](superdoc-toc.md) | Local API reference for SuperDoc work |
 | Typst / PDF export | [markdown-system.md](markdown-system.md), [tex-system.md](tex-system.md) | Current Typst export and document preview flow |
 
 ## Current System Docs
@@ -36,6 +38,9 @@ These still describe live Altals subsystems:
 - [sqlite-infrastructure.md](sqlite-infrastructure.md)
 - [state-management.md](state-management.md)
 - [style-guide.md](style-guide.md)
+- [supercite-system.md](supercite-system.md)
+- [superdoc-system.md](superdoc-system.md)
+- [superdoc-toc.md](superdoc-toc.md)
 - [terminal-system.md](terminal-system.md)
 - [tex-system.md](tex-system.md)
 - [ui-layout.md](ui-layout.md)
@@ -51,6 +56,7 @@ If you need to change a specific area, start here:
 - Terminal behavior or PTY integration: [terminal-system.md](terminal-system.md)
 - GitHub sync or OAuth bridge assumptions: [git-system.md](git-system.md)
 - File tree, reads, writes, watchers: [file-system.md](file-system.md)
+- DOCX editing: [superdoc-system.md](superdoc-system.md)
 - Editor pane/tab behavior: [editor-system.md](editor-system.md)
 - Cross-store state: [state-management.md](state-management.md)
 
