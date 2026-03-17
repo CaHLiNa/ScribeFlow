@@ -116,7 +116,7 @@
           ref="importTextEl"
           v-model="importText"
           class="cp-import-ta"
-          :placeholder="t('Paste DOI, BibTeX, RIS, or title...')"
+          :placeholder="t('Paste DOI / BibTeX / RIS / title...')"
           rows="2"
           @keydown.meta.enter="doImport"
           @keydown.ctrl.enter="doImport"

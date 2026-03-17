@@ -33,7 +33,7 @@
               borderColor: inputFocused ? 'var(--accent)' : 'var(--border)',
               minHeight: '80px',
             }"
-            :placeholder="t('Paste a DOI, BibTeX, RIS, citation text, or drag files here...')"
+            :placeholder="t('Paste DOI / BibTeX / RIS / citation...')"
             @focus="inputFocused = true"
             @blur="inputFocused = false"
             @keydown.meta.enter="lookup"
@@ -50,7 +50,7 @@
           </div>
 
           <div class="flex items-center mt-2">
-            <span class="ui-text-micro" :style="{ color: 'var(--fg-muted)' }">
+            <span v-if="statusText" class="ui-text-micro" :style="{ color: 'var(--fg-muted)' }">
               {{ statusText }}
             </span>
             <div class="flex-1"></div>
@@ -105,7 +105,6 @@ import { useReferencesStore } from '../../stores/references'
 import { useEditorStore } from '../../stores/editor'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { importFromText, importFromPdf } from '../../services/referenceImport'
-import { modKey } from '../../platform'
 import { useI18n } from '../../i18n'
 import ReferenceImportPreviewDialog from './ReferenceImportPreviewDialog.vue'
 import ReferenceMergeDialog from './ReferenceMergeDialog.vue'
@@ -122,7 +121,7 @@ const inputText = ref('')
 const inputFocused = ref(false)
 const loading = ref(false)
 const dropActive = ref(false)
-const statusText = ref(t('Press {shortcut} to look up', { shortcut: `${modKey}+Enter` }))
+const statusText = ref('')
 const errors = ref([])
 const previewItems = ref([])
 const previewOpen = ref(false)
