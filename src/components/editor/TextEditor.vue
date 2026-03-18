@@ -59,6 +59,7 @@ import { wikiLinksExtension } from '../../editor/wikiLinks'
 import { livePreviewExtension } from '../../editor/livePreview'
 import { citationsExtension } from '../../editor/citations'
 import { createMarkdownDraftEditorExtensions } from '../../editor/markdownDraftAssist'
+import { createMarkdownDraftSnippetSource } from '../../editor/markdownSnippets'
 import {
   formatCurrentMarkdownTable,
   hasMarkdownTableAtCursor,
@@ -986,6 +987,7 @@ onMounted(async () => {
   // Markdown-only extensions
   if (isMd) {
     const completionSources = []
+    completionSources.push(createMarkdownDraftSnippetSource(t))
 
     const wikiLinks = wikiLinksExtension({
       resolveLink: (target, fromPath) => linksStore.resolveLink(target, fromPath),
@@ -1006,7 +1008,8 @@ onMounted(async () => {
     })
     extraExtensions.push(...citations.extensions)
 
-    // Single autocompletion instance with wiki links only (citations use palette now)
+    // Single autocompletion instance with markdown draft snippets + wiki links.
+    // Citations still use the palette flow.
     extraExtensions.push(autocompletion({
       override: completionSources,
       activateOnTyping: true,

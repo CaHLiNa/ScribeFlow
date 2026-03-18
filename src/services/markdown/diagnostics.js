@@ -3,6 +3,7 @@ import { normalizeProblems } from '../documentIntelligence/diagnostics.js'
 import { parseMarkdownDraft } from './parser.js'
 
 const RAW_HTML_MESSAGE = 'Raw HTML may not migrate cleanly to Typst/LaTeX export.'
+const CITE_KEY_RE = /@([a-zA-Z][\w:-]*)/g
 
 function nodePosition(node) {
   return {
@@ -97,9 +98,23 @@ function isBareCitationBoundary(prevChar = '') {
   return !prevChar || /\s|[({\u3000]/.test(prevChar)
 }
 
-function scanBareCitationDiagnostics(sourcePath, content = '') {
+function advancePosition(source = '', line = 1, column = 1) {
+  let nextLine = line
+  let nextColumn = column
+  for (const char of String(source || '')) {
+    if (char === '\n') {
+      nextLine += 1
+      nextColumn = 1
+    } else {
+      nextColumn += 1
+    }
+  }
+  return { line: nextLine, column: nextColumn }
+}
+
+function scanCitationEntries(content = '') {
   const source = String(content || '')
-  const problems = []
+  const entries = []
   let inFence = false
   let line = 1
   let column = 1
@@ -139,6 +154,30 @@ function scanBareCitationDiagnostics(sourcePath, content = '') {
       continue
     }
 
+    if (!inFence && char === '[') {
+      const close = source.indexOf(']', i + 1)
+      if (close !== -1) {
+        const inner = source.slice(i + 1, close)
+        CITE_KEY_RE.lastIndex = 0
+        let keyMatch
+        while ((keyMatch = CITE_KEY_RE.exec(inner)) !== null) {
+          entries.push({
+            key: keyMatch[1],
+            bare: false,
+            line,
+            column: column + 1 + keyMatch.index,
+            raw: keyMatch[0],
+          })
+        }
+        const consumed = source.slice(i, close + 1)
+        const next = advancePosition(consumed, line, column)
+        i = close + 1
+        line = next.line
+        column = next.column
+        continue
+      }
+    }
+
     if (!inFence && char === '@' && /[A-Za-z]/.test(source[i + 1] || '')) {
       const prevChar = source[i - 1] || ''
       if (isBareCitationBoundary(prevChar)) {
@@ -146,14 +185,11 @@ function scanBareCitationDiagnostics(sourcePath, content = '') {
         while (/[\w:-]/.test(source[j] || '')) j += 1
         const key = source.slice(i + 1, j)
         if (key) {
-          problems.push({
-            sourcePath,
+          entries.push({
+            key,
+            bare: true,
             line,
             column,
-            severity: 'warning',
-            message: `Prefer [@${key}] in Markdown drafts instead of bare @${key}.`,
-            origin: 'draft',
-            actionable: true,
             raw: `@${key}`,
           })
           const consumed = j - i
@@ -175,16 +211,52 @@ function scanBareCitationDiagnostics(sourcePath, content = '') {
     column += 1
   }
 
+  return entries
+}
+
+function collectCitationDiagnostics(sourcePath, content = '', options = {}) {
+  const entries = scanCitationEntries(content)
+  const problems = []
+  const referenceKeys = new Set((options.referenceKeys || []).filter(Boolean))
+
+  for (const entry of entries) {
+    if (entry.bare) {
+      problems.push({
+        sourcePath,
+        line: entry.line,
+        column: entry.column,
+        severity: 'warning',
+        message: `Prefer [@${entry.key}] in Markdown drafts instead of bare @${entry.key}.`,
+        origin: 'draft',
+        actionable: true,
+        raw: entry.raw,
+      })
+    }
+
+    if (entry.key && !referenceKeys.has(entry.key)) {
+      problems.push({
+        sourcePath,
+        line: entry.line,
+        column: entry.column,
+        severity: 'warning',
+        message: `Unknown citation key: ${entry.key}.`,
+        origin: 'draft',
+        actionable: true,
+        raw: entry.raw,
+      })
+    }
+  }
+
   return problems
 }
 
-export function buildMarkdownDraftProblems(sourcePath, content = '') {
+export function buildMarkdownDraftProblems(sourcePath, content = '', options = {}) {
   const tree = parseMarkdownDraft(content)
   const problems = [
     ...collectHeadingDiagnostics(tree, sourcePath),
     ...collectHtmlDiagnostics(tree, sourcePath),
     ...collectFootnoteDiagnostics(tree, sourcePath),
-    ...scanBareCitationDiagnostics(sourcePath, content),
+    ...collectCitationDiagnostics(sourcePath, content, options),
   ]
 
   return normalizeProblems(problems, {

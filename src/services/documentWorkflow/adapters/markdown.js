@@ -371,6 +371,7 @@ export const markdownDocumentAdapter = {
     const draftProblems = buildMarkdownDraftProblems(
       filePath,
       context.filesStore?.fileContents?.[filePath] || '',
+      { referenceKeys: context.referencesStore?.allKeys || [] },
     )
     return [
       ...draftProblems,
@@ -383,6 +384,7 @@ export const markdownDocumentAdapter = {
     const draftProblems = buildMarkdownDraftProblems(
       filePath,
       context.filesStore?.fileContents?.[filePath] || '',
+      { referenceKeys: context.referencesStore?.allKeys || [] },
     )
     return buildMarkdownWorkflowUiState({
       previewAvailable: !!context.workflowStore?.hasPreviewForSource(filePath, 'html'),
