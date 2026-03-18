@@ -660,6 +660,8 @@ let annotationRenderScheduled = false
 let annotationMutationObserver = null
 let pendingScrollLocation = null
 let sidebarStateObserver = null
+let sidebarInitialViewResolved = false
+let sidebarEverOpened = false
 
 const LIGHT_THEMES = new Set(['light', 'one-light', 'humane', 'solarized'])
 const isDark = computed(() => !LIGHT_THEMES.has(workspace.theme))
@@ -791,6 +793,8 @@ function resetPdfUi() {
   pdfUi.searchEntireWord = false
   pdfUi.sidebarView = 'thumbnails'
   pdfUi.sidebarCanFocusCurrentOutline = false
+  sidebarInitialViewResolved = false
+  sidebarEverOpened = false
   pageInputValue.value = '1'
   scaleOptions.value = []
   searchDraft.value = ''
@@ -1112,6 +1116,35 @@ function syncSidebarTabState(viewKey) {
     || !!element.closest?.('[hidden]')
     || !!element.disabled
     || element.getAttribute?.('aria-disabled') === 'true'
+}
+
+function maybeResolveInitialSidebarViewPreference() {
+  if (sidebarInitialViewResolved || sidebarEverOpened) return
+
+  const app = getPdfApp()
+  const viewsManager = app?.viewsManager
+  if (!viewsManager || !app?.pdfDocument || Number(app.pagesCount || 0) <= 0) return
+
+  const activeView = resolveSidebarView(viewsManager)
+  if (activeView && activeView !== 'thumbnails') {
+    sidebarInitialViewResolved = true
+    return
+  }
+
+  const outlineButton = getPdfElement(PDF_SIDEBAR_VIEW_BUTTON_IDS.outlines)
+  if (outlineButton && !outlineButton.disabled && !outlineButton.hidden) {
+    outlineButton.click()
+    syncPdfUi()
+    sidebarInitialViewResolved = true
+    return
+  }
+
+  const attachmentsButton = getPdfElement(PDF_SIDEBAR_VIEW_BUTTON_IDS.attachments)
+  if (attachmentsButton && !attachmentsButton.disabled && !attachmentsButton.hidden) {
+    attachmentsButton.click()
+    syncPdfUi()
+    sidebarInitialViewResolved = true
+  }
 }
 
 function setPdfElementText(id, label) {
@@ -1877,6 +1910,9 @@ function syncPdfUi() {
   pdfUi.sidebarOpen = typeof viewsManager?.isOpen === 'boolean'
     ? viewsManager.isOpen
     : toggleButton?.getAttribute('aria-expanded') === 'true'
+  if (pdfUi.sidebarOpen) {
+    sidebarEverOpened = true
+  }
   pdfUi.sidebarView = resolveSidebarView(viewsManager)
   pdfUi.sidebarCanFocusCurrentOutline = !!currentOutlineButton && !currentOutlineButton.hidden && !currentOutlineButton.disabled
   if (!usingExternalToolbar.value) {
@@ -1934,6 +1970,7 @@ function syncPdfUi() {
   syncSidebarTabState('outlines')
   syncSidebarTabState('attachments')
   syncSidebarTabState('layers')
+  maybeResolveInitialSidebarViewPreference()
   syncExternalControlState()
   syncPdfViewerLocalizedLabels()
   syncEmbeddedSidebarShell()
@@ -2710,6 +2747,12 @@ async function onIframeLoad() {
       doc.addEventListener('pointerdown', handleIframePointerDown, true)
       doc.addEventListener('mouseup', handleViewerMouseUp)
       doc.addEventListener('selectionchange', handleViewerSelectionChange)
+      app.eventBus?._on?.('outlineloaded', () => {
+        maybeResolveInitialSidebarViewPreference()
+      })
+      app.eventBus?._on?.('attachmentsloaded', () => {
+        maybeResolveInitialSidebarViewPreference()
+      })
       doc.addEventListener('keydown', (event) => {
         if ((event.metaKey || event.ctrlKey) && event.key === 'w') {
           event.preventDefault()
