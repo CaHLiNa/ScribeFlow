@@ -277,13 +277,16 @@ export const useTypstStore = defineStore('typst', {
       }
     },
 
-    async exportToPdf(mdPath, bibPath, settings) {
+    async exportToPdf(mdPath, bibPath, settings, options = {}) {
       this.exporting[mdPath] = 'exporting'
       try {
         const result = await invoke('export_md_to_pdf', {
           mdPath,
           bibPath: bibPath || null,
           settings: settings || null,
+          markdownContentOverride: typeof options.markdownContentOverride === 'string'
+            ? options.markdownContentOverride
+            : null,
           customTypstPath: this.customCompilerPath || null,
         })
         this.exporting[mdPath] = result.success ? 'done' : 'error'

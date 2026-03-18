@@ -212,21 +212,22 @@ function handleClick(e) {
 .md-preview-container {
   height: 100%;
   overflow-y: auto;
-  padding: 24px;
+  padding: 28px 24px 48px;
   background: var(--bg-primary);
   color: var(--fg-primary);
 }
 
 .md-preview-content {
-  max-width: 800px;
+  max-width: 860px;
   margin: 0 auto;
-  line-height: 1.7;
+  line-height: 1.82;
   font-family: 'Geist', var(--font-sans);
-  font-size: var(--editor-font-size, 14px);
+  font-size: calc(var(--editor-font-size, 14px) + 0.5px);
+  color: var(--fg-primary);
 }
 
 .md-preview-error {
-  max-width: 800px;
+  max-width: 860px;
   margin: 24px auto 0;
   padding: 16px;
   border: 1px solid var(--border);
@@ -244,9 +245,9 @@ function handleClick(e) {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 16px;
+  padding: 9px 16px;
   margin-bottom: 12px;
-  max-width: 800px;
+  max-width: 860px;
   margin-left: auto;
   margin-right: auto;
   font-size: var(--ui-font-label);
@@ -259,10 +260,24 @@ function handleClick(e) {
   display: flex;
   gap: 3px;
 }
+
+@media (max-width: 900px) {
+  .md-preview-container {
+    padding: 20px 18px 36px;
+  }
+}
 </style>
 
 <style>
 /* Prose styles for markdown preview — must be global to reach v-html content */
+.md-preview-content > :first-child {
+  margin-top: 0 !important;
+}
+
+.md-preview-content > :last-child {
+  margin-bottom: 0 !important;
+}
+
 .md-preview-content h1,
 .md-preview-content h2,
 .md-preview-content h3,
@@ -271,16 +286,21 @@ function handleClick(e) {
 .md-preview-content h6 {
   color: var(--hl-heading, var(--fg-primary));
   font-family: var(--font-sans, system-ui, sans-serif);
-  margin: 1.5em 0 0.5em;
-  line-height: 1.3;
+  margin: 1.8em 0 0.55em;
+  line-height: 1.22;
+  letter-spacing: -0.02em;
 }
-.md-preview-content h1 { font-size: 2em; border-bottom: 1px solid var(--border); padding-bottom: 0.3em; }
-.md-preview-content h2 { font-size: 1.5em; border-bottom: 1px solid var(--border); padding-bottom: 0.2em; }
-.md-preview-content h3 { font-size: 1.25em; }
-.md-preview-content h4 { font-size: 1.1em; }
+.md-preview-content h1 { font-size: 2.18em; border-bottom: 1px solid color-mix(in srgb, var(--border) 75%, transparent); padding-bottom: 0.38em; }
+.md-preview-content h2 { font-size: 1.7em; border-bottom: 1px solid color-mix(in srgb, var(--border) 65%, transparent); padding-bottom: 0.28em; }
+.md-preview-content h3 { font-size: 1.34em; }
+.md-preview-content h4 { font-size: 1.14em; }
+.md-preview-content h5,
+.md-preview-content h6 {
+  color: var(--fg-secondary);
+}
 
 .md-preview-content p {
-  margin: 0.8em 0;
+  margin: 0.92em 0;
 }
 
 .md-preview-content a {
@@ -309,33 +329,36 @@ function handleClick(e) {
 .md-preview-content code {
   font-family: var(--font-mono, 'SF Mono', 'Fira Code', monospace);
   font-size: 0.9em;
-  padding: 0.15em 0.4em;
-  border-radius: 3px;
-  background: var(--bg-secondary);
+  padding: 0.18em 0.42em;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--bg-secondary) 82%, transparent);
   color: var(--hl-string, #e9967a);
+  border: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
 }
 
 .md-preview-content pre {
-  margin: 1em 0;
-  padding: 12px 16px;
-  border-radius: 6px;
-  background: var(--bg-secondary);
+  margin: 1.15em 0;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--bg-secondary) 90%, transparent);
   overflow-x: auto;
   border: 1px solid var(--border);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 4%, transparent);
 }
 .md-preview-content pre code {
   padding: 0;
   background: none;
   font-size: 0.85em;
   color: var(--fg-primary);
+  border: none;
 }
 
 .md-preview-content blockquote {
-  margin: 1em 0;
-  padding: 0.5em 1em;
+  margin: 1.1em 0;
+  padding: 0.7em 1em 0.7em 1.1em;
   border-left: 3px solid var(--accent);
-  background: var(--bg-secondary);
-  border-radius: 0 4px 4px 0;
+  background: color-mix(in srgb, var(--bg-secondary) 84%, transparent);
+  border-radius: 0 10px 10px 0;
   color: var(--fg-secondary, var(--fg-muted));
 }
 .md-preview-content blockquote p {
@@ -344,11 +367,11 @@ function handleClick(e) {
 
 .md-preview-content ul,
 .md-preview-content ol {
-  padding-left: 1.5em;
-  margin: 0.8em 0;
+  padding-left: 1.65em;
+  margin: 0.92em 0;
 }
 .md-preview-content li {
-  margin: 0.25em 0;
+  margin: 0.34em 0;
 }
 .md-preview-content li > p {
   margin: 0.4em 0;
@@ -363,23 +386,30 @@ function handleClick(e) {
 .md-preview-content table {
   border-collapse: collapse;
   width: 100%;
-  margin: 1em 0;
+  margin: 1.15em 0;
+  overflow: hidden;
+  border-radius: 12px;
+  border-style: hidden;
+  box-shadow: 0 0 0 1px var(--border);
+  background: color-mix(in srgb, var(--bg-secondary) 35%, transparent);
 }
 .md-preview-content th,
 .md-preview-content td {
   border: 1px solid var(--border);
-  padding: 6px 12px;
+  padding: 9px 12px;
   text-align: left;
+  vertical-align: top;
 }
 .md-preview-content th {
-  background: var(--bg-secondary);
+  background: color-mix(in srgb, var(--bg-secondary) 82%, transparent);
   font-weight: 600;
 }
 
 .md-preview-content img {
   max-width: 100%;
-  border-radius: 4px;
-  margin: 1em 0;
+  border-radius: 12px;
+  margin: 1.2em 0;
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
 }
 
 /* Wiki links */
@@ -395,9 +425,9 @@ function handleClick(e) {
 
 /* Citations */
 .md-preview-content .md-preview-citation {
-  color: var(--accent);
+  color: color-mix(in srgb, var(--accent) 82%, var(--fg-primary));
   cursor: pointer;
-  font-style: italic;
+  font-weight: 500;
 }
 .md-preview-content .md-preview-citation:hover {
   text-decoration: underline;
@@ -405,10 +435,25 @@ function handleClick(e) {
 
 /* Footnotes */
 .md-preview-content .footnotes {
-  margin-top: 2em;
-  padding-top: 1em;
+  margin-top: 2.6em;
+  padding-top: 1.1em;
   border-top: 1px solid var(--border);
-  font-size: 0.9em;
+  font-size: 0.92em;
+  color: var(--fg-secondary);
+}
+
+.md-preview-content .footnote-ref,
+.md-preview-content .footnote-backref {
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.md-preview-content .footnotes ol {
+  padding-left: 1.35em;
+}
+
+.md-preview-content .footnotes li {
+  margin: 0.55em 0;
 }
 
 /* Highlight.js theme mapping — uses existing editor CSS vars */
@@ -437,9 +482,10 @@ function handleClick(e) {
 
 /* KaTeX styles */
 .md-preview-content .katex-display {
-  margin: 1em 0;
+  margin: 1.25em 0;
   overflow-x: auto;
   overflow-y: hidden;
+  padding: 0.2em 0;
 }
 .md-preview-content .katex {
   font-size: 1.1em;

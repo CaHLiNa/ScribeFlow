@@ -409,7 +409,7 @@ fn current_target_triple() -> String {
 fn markdown_to_typst(markdown: &str, image_overrides: &HashMap<String, String>) -> String {
     // Pre-process: convert Pandoc citations BEFORE parsing, because pulldown-cmark
     // consumes the [] brackets and the citation pattern is lost.
-    let preprocessed = preprocess_citations(markdown);
+    let (preprocessed, _) = preprocess_citations(markdown);
 
     let mut opts = Options::empty();
     opts.insert(Options::ENABLE_TABLES);
@@ -651,13 +651,31 @@ fn markdown_to_typst(markdown: &str, image_overrides: &HashMap<String, String>) 
     output.replace('\x01', "@")
 }
 
-/// Pre-process raw markdown to convert Pandoc citations to Typst citations
-/// BEFORE pulldown-cmark parses it (the parser eats the brackets).
-/// `[@key]` → `@key`, `[@k1; @k2]` → `@k1 @k2`
-/// Skips fenced code blocks and inline code.
-fn preprocess_citations(markdown: &str) -> String {
+fn is_citation_key_char(ch: char) -> bool {
+    ch.is_ascii_alphanumeric() || matches!(ch, '_' | ':' | '-')
+}
+
+fn is_bare_citation_boundary(prev: Option<char>) -> bool {
+    match prev {
+        None => true,
+        Some(ch) => ch.is_whitespace() || matches!(ch, '(' | '[' | '{' | '\u{3000}'),
+    }
+}
+
+fn push_backtick_run(result: &mut String, count: usize) {
+    for _ in 0..count {
+        result.push('`');
+    }
+}
+
+/// Pre-process raw markdown to convert citation syntax to Typst citations
+/// BEFORE pulldown-cmark parses it (the parser eats the [] brackets).
+/// `[@key]` → `@key`, `[@k1; @k2]` → `@k1 @k2`, `@key` → `@key`
+/// Skips fenced code blocks and inline code spans.
+fn preprocess_citations(markdown: &str) -> (String, bool) {
     let mut result = String::with_capacity(markdown.len());
     let mut in_code_fence = false;
+    let mut found_citations = false;
 
     for line in markdown.lines() {
         let trimmed = line.trim_start();
@@ -678,14 +696,23 @@ fn preprocess_citations(markdown: &str) -> String {
         while i < chars.len() {
             // Skip inline code
             if chars[i] == '`' {
-                result.push('`');
-                i += 1;
-                while i < chars.len() && chars[i] != '`' {
-                    result.push(chars[i]);
-                    i += 1;
+                let mut tick_count = 1;
+                while i + tick_count < chars.len() && chars[i + tick_count] == '`' {
+                    tick_count += 1;
                 }
-                if i < chars.len() {
-                    result.push('`');
+                push_backtick_run(&mut result, tick_count);
+                i += tick_count;
+                while i < chars.len() {
+                    let mut closing_count = 0;
+                    while i + closing_count < chars.len() && chars[i + closing_count] == '`' {
+                        closing_count += 1;
+                    }
+                    if closing_count == tick_count {
+                        push_backtick_run(&mut result, tick_count);
+                        i += tick_count;
+                        break;
+                    }
+                    result.push(chars[i]);
                     i += 1;
                 }
                 continue;
@@ -712,6 +739,7 @@ fn preprocess_citations(markdown: &str) -> String {
                         }
                     }
                     if !keys.is_empty() {
+                        found_citations = true;
                         for (j, key) in keys.iter().enumerate() {
                             if j > 0 {
                                 result.push(' ');
@@ -734,6 +762,24 @@ fn preprocess_citations(markdown: &str) -> String {
                     }
                     break;
                 }
+            } else if chars[i] == '@'
+                && i + 1 < chars.len()
+                && chars[i + 1].is_ascii_alphabetic()
+                && is_bare_citation_boundary(i.checked_sub(1).and_then(|idx| chars.get(idx).copied()))
+            {
+                let mut j = i + 1;
+                while j < chars.len() && is_citation_key_char(chars[j]) {
+                    j += 1;
+                }
+                if j > i + 1 {
+                    found_citations = true;
+                    result.push('\x01');
+                    for ch in &chars[i + 1..j] {
+                        result.push(*ch);
+                    }
+                    i = j;
+                    continue;
+                }
             } else {
                 result.push(chars[i]);
                 i += 1;
@@ -747,7 +793,7 @@ fn preprocess_citations(markdown: &str) -> String {
         result.pop();
     }
 
-    result
+    (result, found_citations)
 }
 
 fn escape_typst_string(s: &str) -> String {
@@ -1184,6 +1230,7 @@ pub async fn export_md_to_pdf(
     md_path: String,
     bib_path: Option<String>,
     settings: Option<PdfSettings>,
+    markdown_content_override: Option<String>,
     app: tauri::AppHandle,
     custom_typst_path: Option<String>,
 ) -> Result<ExportResult, String> {
@@ -1191,9 +1238,13 @@ pub async fn export_md_to_pdf(
     let typst_bin =
         find_typst(&app, custom_typst_path.as_deref()).ok_or_else(typst_not_found_message)?;
 
-    // Read markdown file
-    let md_content = std::fs::read_to_string(&md_path)
-        .map_err(|e| format!("Failed to read {}: {}", md_path, e))?;
+    // Read markdown file unless frontend provided an override based on current draft content.
+    let md_content = if let Some(override_content) = markdown_content_override {
+        override_content
+    } else {
+        std::fs::read_to_string(&md_path)
+            .map_err(|e| format!("Failed to read {}: {}", md_path, e))?
+    };
 
     // Download remote markdown images so Typst receives local file paths.
     let (image_overrides, temp_asset_dir) = materialize_remote_images(&md_content).await?;
@@ -1203,7 +1254,7 @@ pub async fn export_md_to_pdf(
 
     // Only include bibliography if the document actually cites references
     // and the bib file has real entries
-    let doc_has_citations = md_content.contains("[@");
+    let (_, doc_has_citations) = preprocess_citations(&md_content);
     let effective_bib: Option<String> = if !doc_has_citations {
         None
     } else {
@@ -1358,6 +1409,30 @@ mod tests {
                 result.err().unwrap_or_default()
             );
         }
+    }
+
+    #[test]
+    fn preserves_bare_markdown_citations_for_typst_export() {
+        let typst = markdown_to_typst(
+            "Draft with @doe2024 and [@roe2025; @smith2026]. Email test@example.com should stay text.",
+            &HashMap::new(),
+        );
+
+        assert!(typst.contains("@doe2024"));
+        assert!(typst.contains("@roe2025 @smith2026"));
+        assert!(!typst.contains("\\@doe2024"));
+        assert!(typst.contains("test\\@example.com"));
+    }
+
+    #[test]
+    fn does_not_rewrite_citations_inside_inline_code() {
+        let (preprocessed, has_citations) =
+            preprocess_citations("Use `@literal` in code, but cite @doe2024 in prose.");
+
+        assert!(has_citations);
+        assert!(preprocessed.contains("`@literal`"));
+        assert!(preprocessed.contains("\x01doe2024"));
+        assert!(!preprocessed.contains("\x01literal"));
     }
 
     #[tokio::test]

@@ -1,5 +1,6 @@
 import { EditorView, Decoration, ViewPlugin } from '@codemirror/view'
 import { syntaxTree } from '@codemirror/language'
+export { extractMarkdownCitationKeys } from '../services/markdown/citations.js'
 // CitationPalette replaces old CM6 autocomplete — trigger plugin notifies Vue
 
 /**
@@ -26,32 +27,10 @@ function isInCodeContext(state, from, to) {
 }
 
 // Matches citation groups: [@key], [@key1; @key2], [see @key, p. 42]
-const CITATION_GROUP_RE = /\[([^\[\]]*@[a-zA-Z][\w]*[^\[\]]*)\]/g
+const CITATION_GROUP_RE = /\[([^\[\]]*@[a-zA-Z][\w:-]*[^\[\]]*)\]/g
 
 // Matches individual @key inside a group
-const CITE_KEY_RE = /@([a-zA-Z][\w]*)/g
-
-export function extractMarkdownCitationKeys(text = '') {
-  const keys = []
-  const seen = new Set()
-  const source = String(text || '')
-
-  CITATION_GROUP_RE.lastIndex = 0
-  let match
-  while ((match = CITATION_GROUP_RE.exec(source)) !== null) {
-    CITE_KEY_RE.lastIndex = 0
-    let keyMatch
-    while ((keyMatch = CITE_KEY_RE.exec(match[1])) !== null) {
-      const key = keyMatch[1]
-      if (!seen.has(key)) {
-        seen.add(key)
-        keys.push(key)
-      }
-    }
-  }
-
-  return keys
-}
+const CITE_KEY_RE = /@([a-zA-Z][\w:-]*)/g
 
 /**
  * ViewPlugin that decorates citation groups in the viewport.

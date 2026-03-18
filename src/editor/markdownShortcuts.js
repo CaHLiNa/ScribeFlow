@@ -1,4 +1,5 @@
 import { keymap } from '@codemirror/view'
+import { formatCurrentMarkdownTable, insertMarkdownTable } from './markdownTables'
 
 /**
  * Toggle wrapper characters around the selection (e.g., **bold**, *italic*).
@@ -121,6 +122,9 @@ export function markdownShortcuts() {
     { key: 'Mod-Shift-x', run: (v) => toggleWrap(v, '~~') },
     { key: 'Mod-e', run: (v) => toggleWrap(v, '`') },
     { key: 'Mod-k', run: (v) => insertLink(v) },
+    { key: 'Mod-Alt-t', run: (v) => insertMarkdownTable(v) },
+    { key: 'Mod-Shift-f', run: (v) => formatCurrentMarkdownTable(v) },
+    { key: 'Shift-Alt-f', run: (v) => formatCurrentMarkdownTable(v) },
     { key: 'Mod-Shift-.', run: (v) => toggleLinePrefix(v, '> ') },
     { key: 'Mod-Shift-7', run: (v) => toggleLinePrefix(v, '1. ') },
     { key: 'Mod-Shift-8', run: (v) => toggleLinePrefix(v, '- ') },

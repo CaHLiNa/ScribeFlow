@@ -50,6 +50,13 @@
         <div class="context-menu-item" @click="cut">{{ t('Cut') }}</div>
         <div class="context-menu-item" @click="copy">{{ t('Copy') }}</div>
         <div class="context-menu-item" @click="paste">{{ t('Paste') }}</div>
+        <template v-if="showMarkdownInsertTable">
+          <div class="context-menu-separator"></div>
+          <div class="context-menu-item" @click="insertMarkdownTable">{{ t('Insert Table') }}</div>
+        </template>
+        <template v-if="showMarkdownFormatTable">
+          <div class="context-menu-item" @click="formatMarkdownTable">{{ t('Format Table') }}</div>
+        </template>
         <template v-if="showFormatDocument">
           <div class="context-menu-separator"></div>
           <div class="context-menu-item" @click="formatDocument">{{ t('Format Document') }}</div>
@@ -58,6 +65,13 @@
       <template v-else>
         <div class="context-menu-item" @click="paste">{{ t('Paste') }}</div>
         <div class="context-menu-item" @click="selectAll">{{ t('Select All') }}</div>
+        <template v-if="showMarkdownInsertTable">
+          <div class="context-menu-separator"></div>
+          <div class="context-menu-item" @click="insertMarkdownTable">{{ t('Insert Table') }}</div>
+        </template>
+        <template v-if="showMarkdownFormatTable">
+          <div class="context-menu-item" @click="formatMarkdownTable">{{ t('Format Table') }}</div>
+        </template>
         <template v-if="showFormatDocument">
           <div class="context-menu-separator"></div>
           <div class="context-menu-item" @click="formatDocument">{{ t('Format Document') }}</div>
@@ -83,10 +97,18 @@ const props = defineProps({
   view: { type: Object, default: null },
   spellcheckEnabled: { type: Boolean, default: false },
   showFormatDocument: { type: Boolean, default: false },
+  showMarkdownInsertTable: { type: Boolean, default: false },
+  showMarkdownFormatTable: { type: Boolean, default: false },
   typstCodeActions: { type: Array, default: () => [] },
 })
 
-const emit = defineEmits(['close', 'format-document', 'apply-typst-code-action'])
+const emit = defineEmits([
+  'close',
+  'format-document',
+  'insert-markdown-table',
+  'format-markdown-table',
+  'apply-typst-code-action',
+])
 const editorStore = useEditorStore()
 const commentsStore = useCommentsStore()
 const { t } = useI18n()
@@ -153,6 +175,8 @@ watch(
     props.typstCodeActions.length,
     props.hasSelection,
     props.showFormatDocument,
+    props.showMarkdownInsertTable,
+    props.showMarkdownFormatTable,
   ],
   async ([show]) => {
     if (!show) return
@@ -279,6 +303,16 @@ function selectAll() {
 
 function formatDocument() {
   emit('format-document')
+  emit('close')
+}
+
+function formatMarkdownTable() {
+  emit('format-markdown-table')
+  emit('close')
+}
+
+function insertMarkdownTable() {
+  emit('insert-markdown-table')
   emit('close')
 }
 

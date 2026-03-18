@@ -3,15 +3,18 @@ import { ensureMarkdownPdfExportReady } from '../../environmentPreflight.js'
 import { ensureBibFile } from '../../latexBib.js'
 import {
   cleanupMarkdownExportArtifacts,
+  cleanupMarkdownExportArtifactsInDir,
   markdownPdfPathExists,
   materializeCustomCslStyle,
   writeMarkdownExportFile,
 } from '../../markdownPdfExport.js'
+import { buildMarkdownDraftProblems } from '../../markdown/diagnostics.js'
+import { normalizeMarkdownDraftForExport } from '../../markdown/normalize.js'
 
 const BUILTIN_TYPST_STYLES = ['apa', 'chicago', 'ieee', 'harvard', 'vancouver']
 
 function isMarkdownWorkflowSource(filePath = '') {
-  return /\.md$/i.test(filePath)
+  return isMarkdown(filePath)
 }
 
 function defaultCitationText(keys) {
@@ -27,7 +30,7 @@ function buildMarkdownPdfProblems(sourcePath, errors = []) {
     column: error?.column || null,
     severity: error?.severity || 'error',
     message: error?.message || String(error),
-    origin: 'preview',
+    origin: 'export',
     actionable: true,
     raw: error?.raw || error?.message || String(error),
   }))
@@ -56,32 +59,54 @@ export function buildMarkdownWorkflowProblems(sourcePath, state = {}) {
 }
 
 export function buildMarkdownWorkflowUiState({
-  previewKind = 'html',
   previewAvailable = false,
+  exportAvailable = false,
+  draftProblems = [],
   htmlState = {},
   pdfState = {},
 }) {
-  const state = previewKind === 'pdf' ? pdfState : htmlState
-  const problems = buildMarkdownWorkflowProblems('', state)
+  const problems = [
+    ...draftProblems,
+    ...buildMarkdownWorkflowProblems('', htmlState),
+    ...buildMarkdownWorkflowProblems('', pdfState),
+  ]
   const { errorCount, warningCount } = summarizeProblems(problems)
 
   let phase = 'idle'
-  if (state?.status === 'rendering') phase = 'rendering'
-  else if (state?.status === 'error') phase = 'error'
-  else if (previewAvailable || state?.status === 'ready') phase = 'ready'
+  if (htmlState?.status === 'rendering') phase = 'rendering'
+  else if (htmlState?.status === 'error') phase = 'error'
+  else if (previewAvailable || htmlState?.status === 'ready') phase = 'ready'
+
+  let exportPhase = 'idle'
+  if (pdfState?.status === 'rendering') exportPhase = 'exporting'
+  else if (pdfState?.status === 'error') exportPhase = 'error'
+  else if (exportAvailable || pdfState?.status === 'ready') exportPhase = 'ready'
 
   return {
     kind: 'markdown',
-    previewKind,
+    previewKind: 'html',
     phase,
+    exportPhase,
     errorCount,
     warningCount,
     canShowProblems: errorCount > 0 || warningCount > 0,
-    canRevealPreview: previewAvailable,
-    forwardSync: previewKind === 'html' ? 'approximate' : 'reveal-only',
+    canRevealPreview: true,
+    exportAvailable,
+    forwardSync: 'approximate',
     backwardSync: false,
-    primaryAction: previewKind === 'pdf' ? 'compile' : 'refresh',
+    primaryAction: 'refresh',
   }
+}
+
+export function buildMarkdownWorkflowStatusText({
+  htmlState = {},
+  pdfState = {},
+}, t = (value) => value) {
+  if (pdfState?.status === 'rendering') return t('Exporting PDF...')
+  if (pdfState?.status === 'error') return t('PDF export failed')
+  if (htmlState?.status === 'rendering') return t('Rendering...')
+  if (htmlState?.status === 'error') return t('Preview failed')
+  return ''
 }
 
 const markdownPreviewAdapter = {
@@ -164,6 +189,13 @@ const markdownCompileAdapter = {
     return buildMarkdownWorkflowProblems(filePath, this.stateForFile(filePath, context) || {})
   },
 
+  getStatusText(filePath, context) {
+    return buildMarkdownWorkflowStatusText({
+      htmlState: context.workflowStore?.markdownPreviewState?.[filePath] || {},
+      pdfState: this.stateForFile(filePath, context) || {},
+    }, context.t)
+  },
+
   getArtifactPath(filePath, context) {
     return this.stateForFile(filePath, context)?.pdfPath || filePath.replace(/\.(md|rmd|qmd)$/i, '.pdf')
   },
@@ -191,18 +223,20 @@ const markdownCompileAdapter = {
 
     let mdPathForExport = filePath
     let tempMdPath = null
+    const exportDir = filePath.substring(0, filePath.lastIndexOf('/'))
+    let markdownContentOverride = context.filesStore?.fileContents?.[filePath] || null
 
     try {
       if (isRmdOrQmd(filePath)) {
         const content = context.filesStore?.fileContents?.[filePath]
         if (content) {
           const { knitRmd } = await import('../../rmdKnit.js')
-          tempMdPath = filePath.replace(/\.(rmd|qmd)$/i, '.md')
-          const imageDir = filePath.substring(0, filePath.lastIndexOf('/'))
-          const knitted = await knitRmd(content, workspace.path, { imageDir })
-          await writeMarkdownExportFile(tempMdPath, knitted)
-          mdPathForExport = tempMdPath
+          markdownContentOverride = await knitRmd(content, workspace.path, { imageDir: exportDir })
         }
+      }
+
+      if (typeof markdownContentOverride === 'string') {
+        markdownContentOverride = normalizeMarkdownDraftForExport(markdownContentOverride)
       }
 
       const settings = {
@@ -233,7 +267,9 @@ const markdownCompileAdapter = {
         // Continue without bibliography.
       }
 
-      const result = await typstStore.exportToPdf(mdPathForExport, bibPath, settings)
+      const result = await typstStore.exportToPdf(mdPathForExport, bibPath, settings, {
+        markdownContentOverride,
+      })
 
       if (result?.success && result.pdf_path) {
         workflowStore.setMarkdownPdfState(filePath, {
@@ -290,7 +326,7 @@ const markdownCompileAdapter = {
           column: null,
           severity: 'error',
           message: error?.message || String(error),
-          origin: 'preview',
+          origin: 'export',
           actionable: true,
           raw: error?.stack || String(error),
         }],
@@ -306,6 +342,10 @@ const markdownCompileAdapter = {
       if (tempMdPath) {
         try {
           await cleanupMarkdownExportArtifacts(tempMdPath)
+        } catch {}
+      } else if (isRmdOrQmd(filePath)) {
+        try {
+          await cleanupMarkdownExportArtifactsInDir(exportDir)
         } catch {}
       }
     }
@@ -328,17 +368,30 @@ export const markdownDocumentAdapter = {
   compile: markdownCompileAdapter,
 
   getProblems(filePath, context = {}) {
-    const previewKind = context.previewKind || 'html'
-    if (previewKind === 'pdf') {
-      return markdownCompileAdapter.getDiagnostics(filePath, context)
-    }
-    return buildMarkdownWorkflowProblems(filePath, context.workflowStore?.markdownPreviewState?.[filePath] || {})
+    const draftProblems = buildMarkdownDraftProblems(
+      filePath,
+      context.filesStore?.fileContents?.[filePath] || '',
+    )
+    return [
+      ...draftProblems,
+      ...buildMarkdownWorkflowProblems(filePath, context.workflowStore?.markdownPreviewState?.[filePath] || {}),
+      ...markdownCompileAdapter.getDiagnostics(filePath, context),
+    ]
   },
 
   getUiState(filePath, context = {}) {
+    const draftProblems = buildMarkdownDraftProblems(
+      filePath,
+      context.filesStore?.fileContents?.[filePath] || '',
+    )
     return buildMarkdownWorkflowUiState({
-      previewKind: context.previewKind || 'html',
-      previewAvailable: !!context.previewAvailable,
+      previewAvailable: !!context.workflowStore?.hasPreviewForSource(filePath, 'html'),
+      exportAvailable: !!(
+        context.workflowStore?.hasPreviewForSource(filePath, 'pdf')
+        || context.workflowStore?.markdownPdfState?.[filePath]?.pdfPath
+        || context.workflowStore?.markdownPdfState?.[filePath]?.status === 'ready'
+      ),
+      draftProblems,
       htmlState: context.workflowStore?.markdownPreviewState?.[filePath] || {},
       pdfState: context.workflowStore?.markdownPdfState?.[filePath] || {},
     })

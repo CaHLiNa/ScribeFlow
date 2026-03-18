@@ -46,6 +46,7 @@
         :status-tone="workflowStatusTone"
         @primary-action="handleWorkflowPrimaryAction"
         @reveal-preview="handleWorkflowRevealPreview"
+        @reveal-pdf="handleWorkflowRevealPdf"
         @create-pdf="handleExportPdf"
         @view-log="handleWorkflowViewLog"
       />
@@ -254,6 +255,7 @@ const {
   handlePreviewMarkdown,
   handleWorkflowPrimaryAction,
   handleWorkflowRevealPreview,
+  handleWorkflowRevealPdf,
   handleWorkflowViewLog,
   handleExportPdf,
 } = useEditorPaneWorkflow({

@@ -17,22 +17,23 @@
     <div class="workflow-controls">
       <template v-if="uiState.kind === 'markdown'">
         <button
-          class="workflow-secondary-btn"
+          class="workflow-primary-btn"
           @click="$emit('primary-action')"
         >
-          {{ t('Preview') }}
+          {{ t('Draft') }}
         </button>
         <button
+          v-if="uiState.exportAvailable"
           class="workflow-secondary-btn"
-          @click="$emit('reveal-preview')"
+          @click="$emit('reveal-pdf')"
         >
-          PDF
+          {{ t('View PDF') }}
         </button>
         <button
-          class="workflow-secondary-btn"
+          class="workflow-secondary-btn workflow-secondary-btn-accent"
           @click="$emit('create-pdf')"
         >
-          {{ t('Create PDF') }}
+          {{ t('Export PDF') }}
         </button>
       </template>
 
@@ -73,6 +74,7 @@ const props = defineProps({
 defineEmits([
   'primary-action',
   'reveal-preview',
+  'reveal-pdf',
   'create-pdf',
   'view-log',
 ])
@@ -87,7 +89,7 @@ const kindLabel = computed(() => {
 })
 
 const previewLabel = computed(() => {
-  if (props.uiState.kind === 'markdown') return t('Preview')
+  if (props.uiState.kind === 'markdown') return t('Draft')
   return props.uiState.previewKind === 'pdf' ? 'PDF' : 'HTML'
 })
 

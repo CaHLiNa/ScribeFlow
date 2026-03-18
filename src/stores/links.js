@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { invoke } from '@tauri-apps/api/core'
 import { useWorkspaceStore } from './workspace'
 import { useFilesStore } from './files'
+import { extractMarkdownHeadingTexts } from '../services/markdown/parser.js'
 
 // --- Pure helpers ---
 
@@ -41,13 +42,7 @@ function parseWikiLinks(content) {
 }
 
 export function parseHeadings(content) {
-  const headings = []
-  const re = /^(#{1,6})\s+(.+)$/gm
-  let m
-  while ((m = re.exec(content)) !== null) {
-    headings.push({ text: m[2].trim(), level: m[1].length, offset: m.index })
-  }
-  return headings
+  return extractMarkdownHeadingTexts(content)
 }
 
 function fileNameFromPath(path) {

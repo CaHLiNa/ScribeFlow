@@ -69,6 +69,7 @@ import {
 import { normalizeTinymistDocumentSymbols } from '../../services/tinymist/symbols'
 import { buildTypstOutlineItems, buildTypstProjectOutlineItems } from '../../services/typst/outline'
 import { buildLatexOutlineItems } from '../../services/latex/outline'
+import { buildMarkdownOutlineItems } from '../../services/markdown/outline'
 import { useI18n } from '../../i18n'
 
 const props = defineProps({
@@ -231,13 +232,9 @@ const outlineItems = computed(() => {
   const ft = fileType.value
 
   if (ft === 'markdown') {
-    // Use links store structured headings (already indexed)
-    const structured = linksStore.structuredHeadingsForFile(path)
-    if (structured.length > 0) return structured
-    // Fallback: parse from content cache
-    const content = filesStore.fileContents[path]
+    const content = currentDocumentText(path)
     if (!content) return []
-    return parseHeadings(content)
+    return buildMarkdownOutlineItems(content)
   }
 
   if (ft === 'latex') {

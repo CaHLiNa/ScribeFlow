@@ -44,15 +44,17 @@ export function useEditorPaneWorkflow(options) {
   })
   const workflowStatusText = computed(() => {
     if (!activeTabRef.value || !workflowUiState.value) return ''
-
-    if (workflowUiState.value.kind === 'markdown' && workflowUiState.value.phase === 'rendering') {
-      return t('Rendering...')
-    }
-
     return activeCompileAdapter.value?.getStatusText?.(activeTabRef.value, buildAdapterContext()) || ''
   })
   const workflowStatusTone = computed(() => {
     if (!workflowUiState.value) return 'muted'
+    if (workflowUiState.value.kind === 'markdown') {
+      if (workflowUiState.value.exportPhase === 'exporting' || workflowUiState.value.phase === 'rendering') return 'running'
+      if (workflowUiState.value.phase === 'error') return 'error'
+      if (workflowUiState.value.exportPhase === 'error') return 'warning'
+      if (workflowUiState.value.phase === 'ready' || workflowUiState.value.exportPhase === 'ready') return 'success'
+      return 'muted'
+    }
     if (workflowUiState.value.phase === 'compiling' || workflowUiState.value.phase === 'rendering') return 'running'
     if (workflowUiState.value.phase === 'queued') return 'warning'
     if (workflowUiState.value.phase === 'error') return 'error'
@@ -193,11 +195,25 @@ export function useEditorPaneWorkflow(options) {
 
   async function handleWorkflowRevealPreview() {
     if (!workflowUiState.value || !activeTabRef.value) return
+    if (workflowUiState.value.kind === 'markdown') {
+      handlePreviewMarkdown()
+      return
+    }
     await workflowStore.togglePreviewForSource(activeTabRef.value, {
       previewKind: workflowUiState.value.previewKind,
       activatePreview: true,
       sourcePaneId: paneIdRef.value,
       trigger: 'workflow-toggle-preview',
+    })
+  }
+
+  async function handleWorkflowRevealPdf() {
+    if (!activeTabRef.value || activeDocumentAdapter.value?.kind !== 'markdown') return
+    await activeDocumentAdapter.value?.preview?.reveal?.(activeTabRef.value, buildAdapterContext(), {
+      previewKind: 'pdf',
+      activatePreview: true,
+      sourcePaneId: paneIdRef.value,
+      trigger: 'markdown-workflow-reveal-pdf',
     })
   }
 
@@ -240,6 +256,7 @@ export function useEditorPaneWorkflow(options) {
     handlePreviewMarkdown,
     handleWorkflowPrimaryAction,
     handleWorkflowRevealPreview,
+    handleWorkflowRevealPdf,
     handleWorkflowViewLog,
     handleExportPdf,
   }

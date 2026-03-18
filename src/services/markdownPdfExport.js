@@ -23,9 +23,18 @@ export async function materializeCustomCslStyle(sourcePath, styleId) {
 
 export async function cleanupMarkdownExportArtifacts(tempMdPath) {
   if (!tempMdPath) return
+  await cleanupMarkdownExportArtifactsInDir(
+    tempMdPath.substring(0, tempMdPath.lastIndexOf('/')),
+    { tempFilePath: tempMdPath },
+  )
+}
 
-  await invoke('delete_path', { path: tempMdPath }).catch(() => {})
-  const dir = tempMdPath.substring(0, tempMdPath.lastIndexOf('/'))
+export async function cleanupMarkdownExportArtifactsInDir(dir, options = {}) {
+  if (!dir) return
+
+  if (options.tempFilePath) {
+    await invoke('delete_path', { path: options.tempFilePath }).catch(() => {})
+  }
 
   try {
     const entries = await invoke('read_dir_shallow', { path: dir })

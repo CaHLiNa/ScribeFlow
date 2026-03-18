@@ -21,10 +21,14 @@
     :view="view"
     :spellcheck-enabled="isMd && workspace.spellcheck"
     :show-format-document="isTex || (isTyp && typstUi.tinymistActive)"
+    :show-markdown-insert-table="isMd"
+    :show-markdown-format-table="ctxMenu.showMarkdownFormatTable"
     :typst-code-actions="ctxMenu.typstCodeActions"
     @close="closeContextMenu"
     @apply-typst-code-action="handleApplyTypstCodeAction"
     @format-document="handleFormatDocument"
+    @insert-markdown-table="handleInsertMarkdownTable"
+    @format-markdown-table="handleFormatMarkdownTable"
   />
   <CitationPalette
     v-if="citPalette.show"
@@ -54,6 +58,12 @@ import { useCommentsStore } from '../../stores/comments'
 import { wikiLinksExtension } from '../../editor/wikiLinks'
 import { livePreviewExtension } from '../../editor/livePreview'
 import { citationsExtension } from '../../editor/citations'
+import { createMarkdownDraftEditorExtensions } from '../../editor/markdownDraftAssist'
+import {
+  formatCurrentMarkdownTable,
+  hasMarkdownTableAtCursor,
+  insertMarkdownTable,
+} from '../../editor/markdownTables'
 import { supportsCitationInsertion } from '../../editor/citationSyntax'
 import { resultProvenanceBadgesExtension } from '../../editor/resultProvenanceBadges'
 import CitationPalette from './CitationPalette.vue'
@@ -149,6 +159,7 @@ const ctxMenu = reactive({
   x: 0,
   y: 0,
   hasSelection: false,
+  showMarkdownFormatTable: false,
   typstCodeActions: [],
   requestId: 0,
 })
@@ -319,6 +330,7 @@ function onContextMenu(e) {
 
   pendingContextMenuState = null
   ctxMenu.show = true
+  ctxMenu.showMarkdownFormatTable = !!(isMd && view && hasMarkdownTableAtCursor(view.state))
   ctxMenu.typstCodeActions = []
   ctxMenu.requestId += 1
   void loadTypstContextMenuCodeActions()
@@ -326,6 +338,7 @@ function onContextMenu(e) {
 
 function closeContextMenu() {
   ctxMenu.show = false
+  ctxMenu.showMarkdownFormatTable = false
   ctxMenu.typstCodeActions = []
   ctxMenu.requestId += 1
 }
@@ -473,6 +486,16 @@ async function handleFormatDocument() {
       duration: 5000,
     }, 3000)
   }
+}
+
+function handleFormatMarkdownTable() {
+  if (!view || !isMd) return
+  formatCurrentMarkdownTable(view)
+}
+
+function handleInsertMarkdownTable() {
+  if (!view || !isMd) return
+  insertMarkdownTable(view)
 }
 
 async function requestFormattedTypstContent(content, options = {}) {
@@ -997,6 +1020,10 @@ onMounted(async () => {
 
     // Live preview (hide markdown syntax when cursor is elsewhere)
     extraExtensions.push(...livePreviewExtension(() => workspace.livePreviewEnabled, () => props.filePath))
+    extraExtensions.push(...createMarkdownDraftEditorExtensions({
+      referencesStore,
+      t,
+    }))
   }
 
   // LaTeX-only extensions
