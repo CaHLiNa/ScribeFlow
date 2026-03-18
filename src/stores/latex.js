@@ -7,7 +7,7 @@ import { useReferencesStore } from './references'
 import { useWorkspaceStore } from './workspace'
 import { t } from '../i18n'
 import { resolveCachedLatexRootPath, resolveLatexCompileTarget } from '../services/latex/root'
-import { resolveLatexProjectGraph } from '../services/latex/projectGraph'
+import { resolveLatexAffectedRootTargets, resolveLatexProjectGraph } from '../services/latex/projectGraph'
 
 const COMPILER_CHECK_CACHE_MS = 5 * 60 * 1000
 const TOOL_CHECK_CACHE_MS = 5 * 60 * 1000
@@ -147,6 +147,7 @@ export const useLatexStore = defineStore('latex', {
     compileState: {},
     // Whether auto-compile on save is enabled
     autoCompile: readStoredBoolean('latex.autoCompile', false),
+    formatOnSave: readStoredBoolean('latex.formatOnSave', false),
     // Debounce timers keyed by compile target
     _timers: {},
     // Recompile flags keyed by compile target
@@ -414,6 +415,13 @@ export const useLatexStore = defineStore('latex', {
       } catch {}
     },
 
+    setFormatOnSave(enabled) {
+      this.formatOnSave = enabled === true
+      try {
+        localStorage.setItem('latex.formatOnSave', this.formatOnSave ? 'true' : 'false')
+      } catch {}
+    },
+
     async setCustomSystemTexPath(path) {
       this.customSystemTexPath = String(path || '').trim()
       try {
@@ -474,6 +482,38 @@ export const useLatexStore = defineStore('latex', {
       this.cancelAutoCompile(texPath)
       delete this._recompileNeeded[texPath]
       this.clearForwardSync(texPath)
+    },
+
+    async scheduleAutoBuildForPath(filePath, options = {}) {
+      if (!filePath) return []
+      const lowerPath = String(filePath).toLowerCase()
+
+      if (lowerPath.endsWith('.tex') || lowerPath.endsWith('.latex')) {
+        await this.scheduleAutoCompile(filePath, options)
+        return [filePath]
+      }
+
+      if (!lowerPath.endsWith('.bib')) {
+        return []
+      }
+
+      if (!this.autoCompile) return []
+
+      const filesStore = useFilesStore()
+      const referencesStore = useReferencesStore()
+      const workspaceStore = useWorkspaceStore()
+      const affectedRoots = await resolveLatexAffectedRootTargets(filePath, {
+        filesStore,
+        referencesStore,
+        workspacePath: workspaceStore.path,
+      }).catch(() => [])
+
+      for (const target of affectedRoots) {
+        if (!target?.rootPath) continue
+        await this.scheduleAutoCompile(target.rootPath)
+      }
+
+      return affectedRoots
     },
 
     openCompileLog(texPath) {

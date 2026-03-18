@@ -165,6 +165,24 @@
 
     <div class="env-lang-card">
       <div class="env-lang-header">
+        <span class="env-lang-dot" :class="latexStore.formatOnSave ? 'good' : 'warn'"></span>
+        <span class="env-lang-name">{{ t('Format on save') }}</span>
+        <span class="env-lang-version">{{ latexStore.formatOnSave ? t('Enabled') : t('Disabled') }}</span>
+      </div>
+      <div class="env-action-row env-action-row-between">
+        <span class="env-toggle-copy">{{ t('Automatically format LaTeX files with latexindent before saving when available.') }}</span>
+        <button
+          class="tool-toggle-switch"
+          :class="{ on: latexStore.formatOnSave }"
+          @click="latexStore.setFormatOnSave(!latexStore.formatOnSave)"
+        >
+          <span class="tool-toggle-knob"></span>
+        </button>
+      </div>
+    </div>
+
+    <div class="env-lang-card">
+      <div class="env-lang-header">
         <span class="env-lang-dot" :class="latexStore.systemTexInstalled ? 'good' : 'none'"></span>
         <span class="env-lang-name">{{ t('System TeX') }}</span>
         <span v-if="latexStore.systemTexInstalled" class="env-lang-version">{{ t('Installed') }}</span>

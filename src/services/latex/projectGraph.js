@@ -88,6 +88,14 @@ function hasKnownExtension(path = '') {
   return ['.tex', '.latex', '.bib'].includes(extnamePath(path))
 }
 
+function isLatexSourcePath(path = '') {
+  return ['.tex', '.latex'].includes(extnamePath(path))
+}
+
+function isBibliographyPath(path = '') {
+  return extnamePath(path) === '.bib'
+}
+
 function candidatePathsFor(baseDir, rawPath, extensions = []) {
   const cleaned = stripTexQuotes(rawPath)
   if (!cleaned) return []
@@ -629,4 +637,42 @@ export async function resolveLatexProjectContext(sourcePath, options = {}) {
 export function buildRelativeLatexInputPath(fromFilePath, targetPath) {
   const relative = relativePathBetween(fromFilePath, targetPath)
   return stripExtension(relative)
+}
+
+export async function resolveLatexAffectedRootTargets(changedPath, options = {}) {
+  const normalizedChangedPath = normalizeFsPath(changedPath)
+  if (!normalizedChangedPath) return []
+  if (!isLatexSourcePath(normalizedChangedPath) && !isBibliographyPath(normalizedChangedPath)) {
+    return []
+  }
+
+  const workspaceFiles = await listWorkspaceFiles({
+    ...options,
+    sourcePath: normalizedChangedPath,
+  })
+  const latexFiles = workspaceFiles.filter(path => isLatexSourcePath(path))
+  const graphOptions = {
+    ...options,
+    flatFiles: workspaceFiles,
+  }
+
+  const affectedRoots = new Map()
+  for (const filePath of latexFiles) {
+    const graph = await resolveLatexProjectGraph(filePath, graphOptions).catch(() => null)
+    if (!graph?.rootPath) continue
+
+    const touchesSource = graph.projectPaths?.includes(normalizedChangedPath)
+    const touchesBibliography = graph.bibliographyFiles?.includes(normalizedChangedPath)
+    if (!touchesSource && !touchesBibliography) continue
+
+    if (!affectedRoots.has(graph.rootPath)) {
+      affectedRoots.set(graph.rootPath, {
+        sourcePath: graph.rootPath,
+        rootPath: graph.rootPath,
+        previewPath: graph.previewPath || buildPreviewPath(graph.rootPath),
+      })
+    }
+  }
+
+  return [...affectedRoots.values()]
 }

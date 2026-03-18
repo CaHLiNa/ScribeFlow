@@ -65,6 +65,10 @@ export function isLatex(path) {
   return ext === 'tex' || ext === 'latex'
 }
 
+export function isBibFile(path) {
+  return getExt(path) === 'bib'
+}
+
 export function isTypst(path) {
   return getExt(path) === 'typ'
 }

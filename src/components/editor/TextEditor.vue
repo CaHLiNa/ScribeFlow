@@ -68,7 +68,7 @@ import { sendCode, runFile } from '../../services/codeRunner'
 import { requestTinymistFormatting } from '../../services/tinymist/session'
 import { applyTinymistTextEdits } from '../../services/tinymist/textEdits'
 import { useTypstStore } from '../../stores/typst'
-import { isMarkdown, isLatex, isTypst, isRunnable, getLanguage, isRmdOrQmd } from '../../utils/fileTypes'
+import { isMarkdown, isLatex, isTypst, isRunnable, getLanguage, isRmdOrQmd, isBibFile } from '../../utils/fileTypes'
 import { useLatexStore } from '../../stores/latex'
 import { latexCitationsExtension } from '../../editor/latexCitations'
 import { createLatexCompletionSource } from '../../editor/latexAutocomplete'
@@ -119,9 +119,12 @@ let editorRuntimeActive = false
 let pendingContextMenuState = null
 let contextMenuRestoreFrame = null
 let contextMenuRestoreTimeout = null
+let latexNormalizedSaveContent = null
+let latexFormatOnSaveInFlight = false
 
 const isMd = isMarkdown(props.filePath)
 const isTex = isLatex(props.filePath)
+const isBib = isBibFile(props.filePath)
 const isTyp = isTypst(props.filePath)
 const supportsCitations = supportsCitationInsertion(props.filePath)
 const supportsTypstSupport = supportsTypstEditorSupport(props.filePath)
@@ -354,6 +357,62 @@ async function handleFormatDocument() {
       type: 'error',
       duration: 5000,
     }, 3000)
+  }
+}
+
+async function persistEditorContent(content) {
+  if (isTex) {
+    if (latexNormalizedSaveContent != null && content === latexNormalizedSaveContent) {
+      latexNormalizedSaveContent = null
+      return
+    }
+
+    let nextContent = content
+    if (latexStore.formatOnSave && latexStore.hasLatexFormatter && !latexFormatOnSaveInFlight) {
+      try {
+        latexFormatOnSaveInFlight = true
+        const formatted = await latexStore.formatDocument(props.filePath, content)
+        if (typeof formatted === 'string' && formatted !== content) {
+          nextContent = formatted
+          latexNormalizedSaveContent = formatted
+          if (view && view.state.doc.toString() !== formatted) {
+            const selection = view.state.selection.main
+            view.dispatch({
+              changes: {
+                from: 0,
+                to: view.state.doc.length,
+                insert: formatted,
+              },
+              selection: {
+                anchor: Math.min(selection.anchor, formatted.length),
+                head: Math.min(selection.head, formatted.length),
+              },
+            })
+          }
+        }
+      } catch (error) {
+        toastStore.showOnce('latex-format-on-save-failed', t('LaTeX format on save failed: {error}', {
+          error: error?.message || String(error || ''),
+        }), {
+          type: 'error',
+          duration: 5000,
+        }, 3000)
+      } finally {
+        latexFormatOnSaveInFlight = false
+      }
+    }
+
+    await files.saveFile(props.filePath, nextContent)
+    void latexStore.scheduleAutoBuildForPath(props.filePath, {
+      sourceContent: nextContent,
+    })
+    return
+  }
+
+  await files.saveFile(props.filePath, content)
+
+  if (isBib) {
+    void latexStore.scheduleAutoBuildForPath(props.filePath)
   }
 }
 
@@ -831,12 +890,7 @@ onMounted(async () => {
     wrapColumn: workspace.wrapColumn,
     languageExtension: langExt,
     onSave: (content) => {
-      void files.saveFile(props.filePath, content)
-      if (isTex) {
-        void latexStore.scheduleAutoCompile(props.filePath, {
-          sourceContent: content,
-        })
-      }
+      void persistEditorContent(content)
     },
     onCursorChange: (pos) => {
       emit('cursor-change', pos)
