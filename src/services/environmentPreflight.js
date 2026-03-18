@@ -140,10 +140,6 @@ export async function ensureTypstCompileReady() {
   return showBlockedFeedback('missing-typst', t('Typst CLI not found. Install or download it in Environment settings.'))
 }
 
-export async function ensureMarkdownPdfExportReady() {
-  return ensureTypstCompileReady()
-}
-
 export async function getEnvironmentHealthSummary() {
   const envStore = useEnvironmentStore()
   const latexStore = useLatexStore()

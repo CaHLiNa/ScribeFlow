@@ -207,28 +207,9 @@ export function useEditorPaneWorkflow(options) {
     })
   }
 
-  async function handleWorkflowRevealPdf() {
-    if (!activeTabRef.value || activeDocumentAdapter.value?.kind !== 'markdown') return
-    await activeDocumentAdapter.value?.preview?.reveal?.(activeTabRef.value, buildAdapterContext(), {
-      previewKind: 'pdf',
-      activatePreview: true,
-      sourcePaneId: paneIdRef.value,
-      trigger: 'markdown-workflow-reveal-pdf',
-    })
-  }
-
   function handleWorkflowViewLog() {
     if (!activeTabRef.value) return
     activeCompileAdapter.value?.openLog?.(activeTabRef.value, buildAdapterContext())
-  }
-
-  async function handleExportPdf(settingsOverride) {
-    if (!activeTabRef.value || activeDocumentAdapter.value?.kind !== 'markdown') return
-    await activeCompileAdapter.value?.compile?.(activeTabRef.value, buildAdapterContext(), {
-      settingsOverride,
-      sourcePaneId: paneIdRef.value,
-      trigger: 'markdown-export-pdf',
-    })
   }
 
   watch(
@@ -256,8 +237,6 @@ export function useEditorPaneWorkflow(options) {
     handlePreviewMarkdown,
     handleWorkflowPrimaryAction,
     handleWorkflowRevealPreview,
-    handleWorkflowRevealPdf,
     handleWorkflowViewLog,
-    handleExportPdf,
   }
 }

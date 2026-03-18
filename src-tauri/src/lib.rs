@@ -587,7 +587,6 @@ pub fn run() {
             pdf_translate::pdf_translate_start,
             pdf_translate::pdf_translate_cancel,
             model_sync::model_sync_list_openai_models,
-            typst_export::export_md_to_pdf,
             typst_export::check_typst_compiler,
             typst_export::download_typst,
             typst_export::compile_typst_file,

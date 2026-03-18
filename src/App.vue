@@ -344,11 +344,6 @@ async function openWorkspace(path, options = {}) {
       if (loadGeneration !== workspaceLoadGeneration || workspace.path !== targetPath) return
       await referencesStore.loadLibrary()
     }, 'references.loadLibrary')
-    scheduleWorkspaceBackgroundTask(380, loadGeneration, targetPath, async () => {
-      await workspace.ensureWorkspaceBootstrapReady(targetPath)
-      if (loadGeneration !== workspaceLoadGeneration || workspace.path !== targetPath) return
-      await typstStore.loadSettings()
-    }, 'typst.loadSettings')
     scheduleWorkspaceBackgroundTask(620, loadGeneration, targetPath, async () => {
       await workspace.ensureWorkspaceBootstrapReady(targetPath)
       if (loadGeneration !== workspaceLoadGeneration || workspace.path !== targetPath) return

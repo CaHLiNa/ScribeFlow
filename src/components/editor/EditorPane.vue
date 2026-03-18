@@ -23,7 +23,6 @@
       @compile-typst="handleCompileTypst"
       @preview-pdf="handlePreviewPdf"
       @preview-markdown="handlePreviewMarkdown"
-      @export-pdf="handleExportPdf"
       @new-tab="editorStore.openNewTab(paneId)"
     />
 
@@ -46,8 +45,6 @@
         :status-tone="workflowStatusTone"
         @primary-action="handleWorkflowPrimaryAction"
         @reveal-preview="handleWorkflowRevealPreview"
-        @reveal-pdf="handleWorkflowRevealPdf"
-        @create-pdf="handleExportPdf"
         @view-log="handleWorkflowViewLog"
       />
       <div
@@ -255,9 +252,7 @@ const {
   handlePreviewMarkdown,
   handleWorkflowPrimaryAction,
   handleWorkflowRevealPreview,
-  handleWorkflowRevealPdf,
   handleWorkflowViewLog,
-  handleExportPdf,
 } = useEditorPaneWorkflow({
   paneIdRef,
   tabsRef,

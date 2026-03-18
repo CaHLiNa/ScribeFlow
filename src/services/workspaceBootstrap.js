@@ -167,14 +167,12 @@ export async function initProjectDir({
     await copyDirIfMissing(`${legacyProjectDir}/styles`, `${projectDir}/styles`)
     await copyDirIfMissing(`${legacyProjectDir}/skills`, `${projectDir}/skills`)
     await copyFileIfMissing(`${legacyProjectDir}/citation-style.json`, `${projectDir}/citation-style.json`)
-    await copyFileIfMissing(`${legacyProjectDir}/pdf-settings.json`, `${projectDir}/pdf-settings.json`)
     await copyFileIfMissing(`${legacyProjectDir}/instructions.md`, `${projectDir}/instructions.md`)
   }
 
   if (legacyShouldersDir && legacyShouldersDir !== altalsDir && await pathExists(legacyShouldersDir)) {
     await copyDirIfMissing(`${legacyShouldersDir}/references`, `${projectDir}/references`)
     await copyDirIfMissing(`${legacyShouldersDir}/styles`, `${projectDir}/styles`)
-    await copyFileIfMissing(`${legacyShouldersDir}/pdf-settings.json`, `${projectDir}/pdf-settings.json`)
     await copyFileIfMissing(`${legacyShouldersDir}/citation-style.json`, `${projectDir}/citation-style.json`)
   }
 

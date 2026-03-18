@@ -20,20 +20,7 @@
           class="workflow-primary-btn"
           @click="$emit('primary-action')"
         >
-          {{ t('Draft') }}
-        </button>
-        <button
-          v-if="uiState.exportAvailable"
-          class="workflow-secondary-btn"
-          @click="$emit('reveal-pdf')"
-        >
-          {{ t('View PDF') }}
-        </button>
-        <button
-          class="workflow-secondary-btn workflow-secondary-btn-accent"
-          @click="$emit('create-pdf')"
-        >
-          {{ t('Export PDF') }}
+          {{ t('Preview') }}
         </button>
       </template>
 
@@ -74,8 +61,6 @@ const props = defineProps({
 defineEmits([
   'primary-action',
   'reveal-preview',
-  'reveal-pdf',
-  'create-pdf',
   'view-log',
 ])
 
@@ -89,7 +74,7 @@ const kindLabel = computed(() => {
 })
 
 const previewLabel = computed(() => {
-  if (props.uiState.kind === 'markdown') return t('Draft')
+  if (props.uiState.kind === 'markdown') return t('Preview')
   return props.uiState.previewKind === 'pdf' ? 'PDF' : 'HTML'
 })
 

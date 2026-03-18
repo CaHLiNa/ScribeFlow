@@ -100,7 +100,6 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
     },
     previewBindings: {},
     markdownPreviewState: {},
-    markdownPdfState: {},
     _isReconciling: false,
     _lastTrigger: null,
   }),
@@ -195,25 +194,11 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
       }
     },
 
-    setMarkdownPdfState(sourcePath, state) {
-      if (!sourcePath) return
-      this.markdownPdfState = {
-        ...this.markdownPdfState,
-        [sourcePath]: {
-          ...(this.markdownPdfState[sourcePath] || {}),
-          ...state,
-        },
-      }
-    },
-
     clearMarkdownStates(sourcePath) {
       if (!sourcePath) return
       const nextPreview = { ...this.markdownPreviewState }
-      const nextPdf = { ...this.markdownPdfState }
       delete nextPreview[sourcePath]
-      delete nextPdf[sourcePath]
       this.markdownPreviewState = nextPreview
-      this.markdownPdfState = nextPdf
     },
 
     getSourcePathForPreview(previewPath) {
@@ -515,7 +500,6 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
       }
       this.previewBindings = {}
       this.markdownPreviewState = {}
-      this.markdownPdfState = {}
       this._isReconciling = false
       this._lastTrigger = null
     },

@@ -191,7 +191,7 @@ const props = defineProps({
   paneId: { type: String, default: '' },
 })
 
-const emit = defineEmits(['select-tab', 'close-tab', 'split-vertical', 'split-horizontal', 'close-pane', 'run-code', 'run-file', 'render-document', 'compile-tex', 'compile-typst', 'preview-pdf', 'preview-markdown', 'export-pdf', 'new-tab'])
+const emit = defineEmits(['select-tab', 'close-tab', 'split-vertical', 'split-horizontal', 'close-pane', 'run-code', 'run-file', 'render-document', 'compile-tex', 'compile-typst', 'preview-pdf', 'preview-markdown', 'new-tab'])
 
 const chatStore = useChatStore()
 const commentsStore = useCommentsStore()
