@@ -213,8 +213,8 @@ export function buildTypstWorkflowUiState(options = {}) {
     warningCount,
     canShowProblems: errorCount > 0 || warningCount > 0,
     canRevealPreview: !!previewAvailable,
-    forwardSync: 'reveal-only',
-    backwardSync: false,
+    forwardSync: 'precise',
+    backwardSync: true,
     primaryAction: 'compile',
   }
 }

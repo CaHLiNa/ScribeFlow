@@ -96,6 +96,8 @@ import {
   supportsTinymistTypstEditor as supportsTypstEditorSupport,
   createTinymistTypstEditorExtensions as createTypstEditorSupport,
 } from '../../services/tinymist/editor'
+import { rememberPendingMarkdownForwardSync } from '../../services/markdown/previewSync.js'
+import { rememberPendingTypstForwardSync } from '../../services/typst/previewSync.js'
 import { createTypstDiagnosticsExtension } from '../../editor/typstEditorIntegration'
 import EditorContextMenu from './EditorContextMenu.vue'
 import { useTextEditorCitations } from '../../composables/useTextEditorCitations'
@@ -133,6 +135,8 @@ let chunkExecuteAllHandler = null
 let syncChunkProvenance = null
 let backwardSyncHandler = null
 let latexCursorRequestHandler = null
+let markdownCursorRequestHandler = null
+let typstCursorRequestHandler = null
 let cleanupTypstWindowListeners = null
 let editorRuntimeActive = false
 let pendingContextMenuState = null
@@ -1151,6 +1155,54 @@ function ensureLatexWindowHandlers() {
   }
 }
 
+function ensureMarkdownWindowHandlers() {
+  if (!isMd) return
+  if (!markdownCursorRequestHandler) {
+    markdownCursorRequestHandler = (event) => {
+      if (!view || event.detail?.sourcePath !== props.filePath) return
+      const pos = view.state.selection.main.head
+      const location = getMarkdownSyncLocation(pos)
+      if (!location) return
+      rememberPendingMarkdownForwardSync({
+        sourcePath: props.filePath,
+        line: location.line,
+        offset: location.offset,
+      })
+      window.dispatchEvent(new CustomEvent('markdown-forward-sync-location', {
+        detail: {
+          sourcePath: props.filePath,
+          line: location.line,
+          offset: location.offset,
+        },
+      }))
+    }
+  }
+}
+
+function ensureTypstWindowHandlers() {
+  if (!isTyp) return
+  if (!typstCursorRequestHandler) {
+    typstCursorRequestHandler = (event) => {
+      if (!view || event.detail?.sourcePath !== props.filePath) return
+      const pos = view.state.selection.main.head
+      const location = getTypstSyncLocation(pos)
+      if (!location) return
+      rememberPendingTypstForwardSync({
+        sourcePath: props.filePath,
+        line: location.line,
+        character: location.character,
+      })
+      window.dispatchEvent(new CustomEvent('typst-forward-sync-location', {
+        detail: {
+          sourcePath: props.filePath,
+          line: location.line,
+          character: location.character,
+        },
+      }))
+    }
+  }
+}
+
 function attachEditorRuntimeListeners() {
   editorContainer.value?.addEventListener('mousedown', handleContextMenuMouseDown, true)
   if (isMd) {
@@ -1164,6 +1216,7 @@ function attachEditorRuntimeListeners() {
   if (isTyp) {
     editorContainer.value?.addEventListener('click', handleDefinitionClick)
     editorContainer.value?.addEventListener('click', handleTypstCitationClick)
+    editorContainer.value?.addEventListener('dblclick', handleTypstSourceDoubleClick)
   }
   editorContainer.value?.addEventListener('comment-click', handleCommentClick)
   if (chunkExecuteHandler) {
@@ -1172,6 +1225,14 @@ function attachEditorRuntimeListeners() {
   }
   if (isTyp && !cleanupTypstWindowListeners) {
     cleanupTypstWindowListeners = registerTypstWindowListeners(isTyp)
+  }
+  if (isMd) {
+    ensureMarkdownWindowHandlers()
+    window.addEventListener('markdown-request-cursor', markdownCursorRequestHandler)
+  }
+  if (isTyp) {
+    ensureTypstWindowHandlers()
+    window.addEventListener('typst-request-cursor', typstCursorRequestHandler)
   }
   if (isTex) {
     ensureLatexWindowHandlers()
@@ -1193,6 +1254,7 @@ function detachEditorRuntimeListeners() {
   if (isTyp) {
     editorContainer.value?.removeEventListener('click', handleDefinitionClick)
     editorContainer.value?.removeEventListener('click', handleTypstCitationClick)
+    editorContainer.value?.removeEventListener('dblclick', handleTypstSourceDoubleClick)
   }
   editorContainer.value?.removeEventListener('comment-click', handleCommentClick)
   if (chunkExecuteHandler) {
@@ -1202,6 +1264,12 @@ function detachEditorRuntimeListeners() {
   if (cleanupTypstWindowListeners) {
     cleanupTypstWindowListeners()
     cleanupTypstWindowListeners = null
+  }
+  if (markdownCursorRequestHandler) {
+    window.removeEventListener('markdown-request-cursor', markdownCursorRequestHandler)
+  }
+  if (typstCursorRequestHandler) {
+    window.removeEventListener('typst-request-cursor', typstCursorRequestHandler)
   }
   if (backwardSyncHandler) {
     window.removeEventListener('latex-backward-sync', backwardSyncHandler)
@@ -1312,6 +1380,36 @@ function handleLatexSourceDoubleClick(event) {
   latexStore.requestForwardSync(props.filePath, location.line, location.column)
 }
 
+function handleTypstSourceDoubleClick(event) {
+  if (!isTyp || !view || event.button !== 0) return
+
+  const pos = view.posAtCoords({ x: event.clientX, y: event.clientY })
+  if (pos === null) return
+
+  const location = getTypstSyncLocation(pos)
+  if (!location) return
+
+  workflowStore.ensurePreviewForSource(props.filePath, {
+    previewKind: 'pdf',
+    activatePreview: false,
+    sourcePaneId: props.paneId,
+    trigger: 'typst-source-dblclick',
+  })
+
+  rememberPendingTypstForwardSync({
+    sourcePath: props.filePath,
+    line: location.line,
+    character: location.character,
+  })
+  window.dispatchEvent(new CustomEvent('typst-forward-sync-location', {
+    detail: {
+      sourcePath: props.filePath,
+      line: location.line,
+      character: location.character,
+    },
+  }))
+}
+
 function getLatexSyncLocation(pos) {
   if (!view || !Number.isInteger(pos)) return null
   const line = view.state.doc.lineAt(pos)
@@ -1320,6 +1418,26 @@ function getLatexSyncLocation(pos) {
     line: line.number,
     // SyncTeX accepts 1-based columns; use 0 only when unavailable.
     column: Math.max(1, pos - line.from + 1),
+  }
+}
+
+function getMarkdownSyncLocation(pos) {
+  if (!view || !Number.isInteger(pos)) return null
+  const line = view.state.doc.lineAt(pos)
+  if (!line?.number || line.number < 1) return null
+  return {
+    line: line.number,
+    offset: Math.max(0, pos),
+  }
+}
+
+function getTypstSyncLocation(pos) {
+  if (!view || !Number.isInteger(pos)) return null
+  const line = view.state.doc.lineAt(pos)
+  if (!line?.number || line.number < 1) return null
+  return {
+    line: Math.max(0, line.number - 1),
+    character: Math.max(0, pos - line.from),
   }
 }
 
@@ -1385,6 +1503,8 @@ onUnmounted(() => {
   clearContextMenuRestoreHandles()
   backwardSyncHandler = null
   latexCursorRequestHandler = null
+  markdownCursorRequestHandler = null
+  typstCursorRequestHandler = null
 })
 </script>
 

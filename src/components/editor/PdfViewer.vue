@@ -3594,6 +3594,7 @@ watch(() => locale.value, () => {
 })
 
 defineExpose({
+  getCurrentPageNumber: () => Number(pdfUi.pageNumber || 1),
   scrollToPage,
   scrollToLocation,
 })

@@ -593,6 +593,8 @@ pub fn run() {
             typst_export::compile_typst_file,
             tinymist::check_tinymist_binary,
             tinymist::download_tinymist,
+            tinymist::typst_preview_wait_for_jump,
+            tinymist::typst_preview_send_src_point,
             usage_db::usage_record,
             usage_db::usage_query_month,
             usage_db::usage_query_monthly_trend,

@@ -5,6 +5,7 @@ import {
   ensureLanguageExecutionReady,
 } from '../services/environmentPreflight'
 import { getDocumentAdapterForFile } from '../services/documentWorkflow/adapters/index.js'
+import { rememberPendingMarkdownForwardSync } from '../services/markdown/previewSync.js'
 
 export function useEditorPaneWorkflow(options) {
   const {
@@ -169,14 +170,40 @@ export function useEditorPaneWorkflow(options) {
     })
   }
 
-  function handlePreviewMarkdown() {
+  function dispatchMarkdownForwardSyncFromEditor() {
     if (!activeTabRef.value) return
-    workflowStore.togglePreviewForSource(activeTabRef.value, {
+    const editorView = editorStore.getEditorView(paneIdRef.value, activeTabRef.value)
+      || editorStore.getAnyEditorView(activeTabRef.value)
+    if (!editorView?.state?.doc) return
+
+    const pos = editorView.state.selection.main.head
+    const line = editorView.state.doc.lineAt(pos)
+    if (!line?.number || line.number < 1) return
+
+    const detail = {
+      sourcePath: activeTabRef.value,
+      line: line.number,
+      offset: Math.max(0, pos),
+    }
+
+    rememberPendingMarkdownForwardSync(detail)
+    window.dispatchEvent(new CustomEvent('markdown-forward-sync-location', {
+      detail,
+    }))
+  }
+
+  async function handlePreviewMarkdown() {
+    if (!activeTabRef.value) return
+    const hadPreview = workflowStore.hasPreviewForSource(activeTabRef.value, 'html')
+    await workflowStore.togglePreviewForSource(activeTabRef.value, {
       previewKind: 'html',
       activatePreview: true,
       sourcePaneId: paneIdRef.value,
       trigger: 'markdown-preview-toggle',
     })
+    if (!hadPreview) {
+      dispatchMarkdownForwardSyncFromEditor()
+    }
   }
 
   async function handleWorkflowPrimaryAction() {
@@ -190,7 +217,7 @@ export function useEditorPaneWorkflow(options) {
       await handleCompileTypst()
       return
     }
-    handlePreviewMarkdown()
+    await handlePreviewMarkdown()
   }
 
   async function handleWorkflowRevealPreview() {

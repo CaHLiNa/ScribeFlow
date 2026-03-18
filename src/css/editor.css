@@ -9,8 +9,11 @@
 /* Prose font for .md files */
 .cm-prose-file .cm-content {
   font-family: var(--font-prose);
-  line-height: 1.75;
+  line-height: 1.45;
   font-variant-ligatures: normal;
+}
+.cm-prose-file .cm-line {
+  line-height: 1.45;
 }
 /* Keep inline code spans monospace within prose documents */
 .cm-prose-file .cm-content .tok-monospace,

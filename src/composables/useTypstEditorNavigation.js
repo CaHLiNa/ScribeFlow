@@ -1,5 +1,4 @@
 import { reactive } from 'vue'
-import { EditorView } from '@codemirror/view'
 import {
   requestTinymistDefinition,
   requestTinymistReferences,
@@ -16,8 +15,12 @@ import {
   tinymistRangeToOffsets,
 } from '../services/tinymist/textEdits'
 import { applyTinymistWorkspaceEdit } from '../services/tinymist/workspaceEdit'
+import {
+  focusTypstSourceLocation,
+  revealTypstSourceLocation,
+  waitForTypstEditorView,
+} from '../services/typst/reveal.js'
 
-const VIEW_WAIT_TIMEOUT_MS = 1500
 const sharedReferenceCycle = {
   items: [],
   index: -1,
@@ -75,39 +78,10 @@ export function useTypstEditorNavigation(options) {
     return false
   }
 
-  async function waitForEditorView(targetPath) {
-    const startedAt = Date.now()
-    let targetView = editorStore.getAnyEditorView(targetPath)
-
-    while (!targetView && Date.now() - startedAt < VIEW_WAIT_TIMEOUT_MS) {
-      await new Promise((resolve) => window.setTimeout(resolve, 16))
-      targetView = editorStore.getAnyEditorView(targetPath)
-    }
-
-    return targetView
-  }
-
   function focusTinymistRange(targetView, location, options = {}) {
-    const offsets = location?.offsets || (() => {
-      const range = location?.targetSelectionRange || location?.range
-      return tinymistRangeToOffsets(targetView.state, range)
-    })()
-    if (!offsets) return false
-
     tinymistNavUi.jumpInFlight = true
     try {
-      targetView.dispatch({
-        selection: {
-          anchor: offsets.from,
-          head: offsets.to,
-        },
-        effects: EditorView.scrollIntoView(offsets.from, {
-          y: options.center === false ? 'nearest' : 'center',
-          yMargin: 80,
-        }),
-      })
-      targetView.focus()
-      return true
+      return focusTypstSourceLocation(targetView, location, options)
     } finally {
       tinymistNavUi.jumpInFlight = false
     }
@@ -119,10 +93,12 @@ export function useTypstEditorNavigation(options) {
 
     editorStore.openFile(targetPath)
     const targetView = targetPath === filePath
-      ? (getView() || await waitForEditorView(targetPath))
-      : await waitForEditorView(targetPath)
+      ? (getView() || await waitForTypstEditorView(editorStore, targetPath))
+      : await waitForTypstEditorView(editorStore, targetPath)
 
     if (!targetView) {
+      const revealed = await revealTypstSourceLocation(editorStore, location, options)
+      if (revealed) return true
       toastStore.show(
         t('Could not open {location}.', { location: formatTinymistLocationLabel(location) }),
         { type: 'error', duration: 4500 },
@@ -381,6 +357,7 @@ export function useTypstEditorNavigation(options) {
     buildDefinitionKeymap,
     handleDefinitionClick,
     handleNavigationSelectionChange,
+    revealTinymistLocation,
     renameSymbolAtCursor,
     tinymistNavUi,
   }

@@ -16,12 +16,18 @@
       <div>{{ loadError.message }}</div>
       <div v-if="loadError.detail" class="md-preview-error-detail">{{ loadError.detail }}</div>
     </div>
-    <div v-else class="md-preview-content" v-html="renderedHtml" @click="handleClick"></div>
+    <div
+      v-else
+      class="md-preview-content"
+      v-html="renderedHtml"
+      @click="handleClick"
+      @dblclick="handleDoubleClick"
+    ></div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useFilesStore } from '../../stores/files'
 import { useEditorStore } from '../../stores/editor'
 import { useWorkspaceStore } from '../../stores/workspace'
@@ -29,6 +35,12 @@ import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { useReferencesStore } from '../../stores/references'
 import { useLinksStore } from '../../stores/links'
 import { renderPreview } from '../../utils/markdownPreview'
+import { revealMarkdownSourceLocation } from '../../services/markdown/reveal.js'
+import {
+  clearPendingMarkdownForwardSync,
+  rememberPendingMarkdownForwardSync,
+  takePendingMarkdownForwardSync,
+} from '../../services/markdown/previewSync.js'
 import { isRmdOrQmd } from '../../utils/fileTypes'
 
 const props = defineProps({
@@ -57,6 +69,110 @@ let knittedMarkdown = null  // Cache of last knitted output
 // Debounced render
 let renderTimer = null
 const renderedHtml = ref('')
+let flashTimer = null
+
+function getSourceAnchors() {
+  return [...(containerEl.value?.querySelectorAll?.('.md-preview-source-anchor[data-source-start-offset]') || [])]
+}
+
+function readAnchorLocation(element) {
+  if (!element) return null
+  const startOffset = Number(element.dataset.sourceStartOffset ?? -1)
+  const endOffset = Number(element.dataset.sourceEndOffset ?? -1)
+  const startLine = Number(element.dataset.sourceStartLine ?? -1)
+  if (!Number.isFinite(startOffset) || startOffset < 0) return null
+  return {
+    filePath: sourcePath.value,
+    line: Number.isFinite(startLine) && startLine > 0 ? startLine : 1,
+    offset: startOffset,
+    startOffset,
+    endOffset: Number.isFinite(endOffset) && endOffset >= startOffset ? endOffset : startOffset,
+  }
+}
+
+function findBestAnchor(detail = {}) {
+  const anchors = getSourceAnchors()
+  if (anchors.length === 0) return null
+
+  const targetOffset = Number(detail.offset ?? -1)
+  const targetLine = Number(detail.line ?? -1)
+
+  if (Number.isFinite(targetOffset) && targetOffset >= 0) {
+    const containing = anchors
+      .map(element => ({
+        element,
+        start: Number(element.dataset.sourceStartOffset ?? -1),
+        end: Number(element.dataset.sourceEndOffset ?? -1),
+      }))
+      .filter(({ start, end }) => start >= 0 && end >= start)
+      .filter(({ start, end }) => targetOffset >= start && targetOffset <= end)
+      .sort((left, right) => ((left.end - left.start) - (right.end - right.start)))
+
+    if (containing[0]?.element) return containing[0].element
+
+    const nearestBefore = anchors
+      .map(element => ({
+        element,
+        start: Number(element.dataset.sourceStartOffset ?? -1),
+      }))
+      .filter(({ start }) => start >= 0 && start <= targetOffset)
+      .sort((left, right) => right.start - left.start)
+
+    if (nearestBefore[0]?.element) return nearestBefore[0].element
+  }
+
+  if (Number.isFinite(targetLine) && targetLine > 0) {
+    const containing = anchors
+      .map(element => ({
+        element,
+        start: Number(element.dataset.sourceStartLine ?? -1),
+        end: Number(element.dataset.sourceEndLine ?? -1),
+      }))
+      .filter(({ start, end }) => start > 0 && end >= start)
+      .filter(({ start, end }) => targetLine >= start && targetLine <= end)
+      .sort((left, right) => ((left.end - left.start) - (right.end - right.start)))
+
+    if (containing[0]?.element) return containing[0].element
+  }
+
+  return anchors[0] || null
+}
+
+function flashAnchor(element) {
+  if (!element) return
+  if (flashTimer) {
+    window.clearTimeout(flashTimer)
+    flashTimer = null
+  }
+  containerEl.value?.querySelectorAll?.('.md-preview-source-anchor-active')?.forEach((node) => {
+    node.classList.remove('md-preview-source-anchor-active')
+  })
+  element.classList.add('md-preview-source-anchor-active')
+  flashTimer = window.setTimeout(() => {
+    element.classList.remove('md-preview-source-anchor-active')
+    flashTimer = null
+  }, 1200)
+}
+
+function scrollToSourceLocation(detail = {}) {
+  const anchor = findBestAnchor(detail)
+  if (!anchor) return false
+  flashAnchor(anchor)
+  anchor.scrollIntoView({
+    block: 'center',
+    inline: 'nearest',
+    behavior: 'smooth',
+  })
+  return true
+}
+
+function flushPendingForwardSync() {
+  const detail = takePendingMarkdownForwardSync(sourcePath.value)
+  if (!detail) return
+  if (!scrollToSourceLocation(detail)) {
+    rememberPendingMarkdownForwardSync(detail)
+  }
+}
 
 async function doRender() {
   if (loadError.value) {
@@ -83,6 +199,8 @@ async function doRender() {
   try {
     const result = renderPreview(md, referencesStore, referencesStore.citationStyle)
     renderedHtml.value = result instanceof Promise ? await result : result
+    await nextTick()
+    flushPendingForwardSync()
     workflowStore.setMarkdownPreviewState(sourcePath.value, {
       status: 'ready',
       problems: [],
@@ -177,7 +295,29 @@ onMounted(async () => {
   } else {
     doRender()
   }
+
+  window.addEventListener('markdown-forward-sync-location', handleForwardSyncRequest)
 })
+
+onUnmounted(() => {
+  window.removeEventListener('markdown-forward-sync-location', handleForwardSyncRequest)
+  if (flashTimer) {
+    window.clearTimeout(flashTimer)
+    flashTimer = null
+  }
+})
+
+function handleForwardSyncRequest(event) {
+  const detail = event.detail || {}
+  if (detail.sourcePath !== sourcePath.value) return
+  void nextTick(() => {
+    if (scrollToSourceLocation(detail)) {
+      clearPendingMarkdownForwardSync(detail)
+    } else {
+      rememberPendingMarkdownForwardSync(detail)
+    }
+  })
+}
 
 function handleClick(e) {
   // Wiki link navigation
@@ -206,6 +346,30 @@ function handleClick(e) {
     return
   }
 }
+
+async function handleDoubleClick(e) {
+  const target = e.target instanceof Element ? e.target : e.target?.parentElement
+  if (!target) return
+  if (target.closest('.md-preview-wikilink, .md-preview-citation, a[href]')) return
+
+  const anchor = target.closest('.md-preview-source-anchor[data-source-start-offset]')
+  const location = readAnchorLocation(anchor)
+  if (!location) return
+
+  e.preventDefault()
+  e.stopPropagation()
+
+  const preferredSourcePaneId = (
+    editorStore.findPaneWithTab(sourcePath.value)?.id
+    || (workflowStore.session.previewSourcePath === sourcePath.value ? workflowStore.session.sourcePaneId : null)
+    || null
+  )
+
+  await revealMarkdownSourceLocation(editorStore, location, {
+    center: true,
+    paneId: preferredSourcePaneId,
+  })
+}
 </script>
 
 <style scoped>
@@ -224,6 +388,19 @@ function handleClick(e) {
   font-family: 'Geist', var(--font-sans);
   font-size: calc(var(--editor-font-size, 14px) + 0.5px);
   color: var(--fg-primary);
+}
+
+:deep(.md-preview-source-anchor-active) {
+  animation: md-preview-source-flash 1.2s ease;
+}
+
+@keyframes md-preview-source-flash {
+  0% {
+    background: color-mix(in srgb, var(--accent) 22%, transparent);
+  }
+  100% {
+    background: transparent;
+  }
 }
 
 .md-preview-error {
@@ -369,12 +546,28 @@ function handleClick(e) {
 .md-preview-content ol {
   padding-left: 1.65em;
   margin: 0.92em 0;
+  list-style-position: outside;
+}
+.md-preview-content ul {
+  list-style-type: disc;
+}
+.md-preview-content ol {
+  list-style-type: decimal;
 }
 .md-preview-content li {
   margin: 0.34em 0;
+  display: list-item;
 }
 .md-preview-content li > p {
   margin: 0.4em 0;
+}
+.md-preview-content li > ul {
+  margin: 0.28em 0;
+  list-style-type: circle;
+}
+.md-preview-content li > ol {
+  margin: 0.28em 0;
+  list-style-type: lower-alpha;
 }
 
 .md-preview-content hr {

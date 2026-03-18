@@ -1,8 +1,10 @@
-use futures_util::StreamExt;
+use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use tauri::Emitter;
+use tokio::time::{timeout, Duration};
+use tokio_tungstenite::{connect_async, tungstenite::Message};
 
 use crate::app_dirs;
 use crate::process_utils::background_command;
@@ -21,6 +23,14 @@ pub struct TinymistBinaryStatus {
     pub installed: bool,
     pub path: Option<String>,
     pub launch_command: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TypstPreviewJumpPoint {
+    pub page: u32,
+    pub x: f32,
+    pub y: f32,
 }
 
 #[derive(Debug, Clone)]
@@ -338,4 +348,114 @@ pub async fn download_tinymist(app: tauri::AppHandle) -> Result<String, String> 
     );
 
     Ok(result)
+}
+
+async fn connect_preview_data_plane(
+    port: u16,
+) -> Result<
+    tokio_tungstenite::WebSocketStream<
+        tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+    >,
+    String,
+> {
+    let endpoint = format!("ws://127.0.0.1:{port}/");
+    let (mut socket, _) = connect_async(&endpoint)
+        .await
+        .map_err(|e| format!("Cannot connect to Tinymist preview websocket: {e}"))?;
+
+    socket
+        .send(Message::Text("current".to_string().into()))
+        .await
+        .map_err(|e| format!("Cannot initialize Tinymist preview websocket: {e}"))?;
+
+    Ok(socket)
+}
+
+fn split_preview_message(data: &[u8]) -> Option<(String, String)> {
+    let comma_index = data.iter().position(|value| *value == b',')?;
+    let kind = std::str::from_utf8(&data[..comma_index]).ok()?.to_string();
+    let payload = String::from_utf8(data[comma_index + 1..].to_vec()).ok()?;
+    Some((kind, payload))
+}
+
+fn parse_jump_positions(payload: &str) -> Vec<TypstPreviewJumpPoint> {
+    payload
+        .split(',')
+        .filter_map(|entry| {
+            let mut parts = entry.split_whitespace();
+            let page = parts.next()?.parse::<u32>().ok()?;
+            let x = parts.next()?.parse::<f32>().ok()?;
+            let y = parts.next()?.parse::<f32>().ok()?;
+            Some(TypstPreviewJumpPoint { page, x, y })
+        })
+        .collect()
+}
+
+#[tauri::command]
+pub async fn typst_preview_wait_for_jump(
+    port: u16,
+    timeout_ms: Option<u64>,
+) -> Result<Vec<TypstPreviewJumpPoint>, String> {
+    let wait_duration = Duration::from_millis(timeout_ms.unwrap_or(2500));
+    let mut socket = connect_preview_data_plane(port).await?;
+
+    let wait_result = timeout(wait_duration, async {
+        while let Some(message) = socket.next().await {
+            match message {
+                Ok(Message::Binary(data)) => {
+                    let Some((kind, payload)) = split_preview_message(&data) else {
+                        continue;
+                    };
+                    if kind == "jump" || kind == "viewport" {
+                        let positions = parse_jump_positions(&payload);
+                        if !positions.is_empty() {
+                            return Ok(positions);
+                        }
+                    }
+                }
+                Ok(Message::Text(text)) => {
+                    if text.trim() == "current not available" {
+                        return Err("Tinymist preview is not ready yet".to_string());
+                    }
+                }
+                Ok(Message::Close(_)) => {
+                    return Err("Tinymist preview websocket closed unexpectedly".to_string());
+                }
+                Ok(_) => {}
+                Err(error) => {
+                    return Err(format!("Tinymist preview websocket error: {error}"));
+                }
+            }
+        }
+
+        Err("Tinymist preview websocket ended unexpectedly".to_string())
+    })
+    .await
+    .map_err(|_| "Timed out waiting for Tinymist preview jump".to_string())?;
+
+    let _ = socket.close(None).await;
+    wait_result
+}
+
+#[tauri::command]
+pub async fn typst_preview_send_src_point(
+    port: u16,
+    page: u32,
+    x: f32,
+    y: f32,
+) -> Result<(), String> {
+    let mut socket = connect_preview_data_plane(port).await?;
+    let payload = serde_json::json!({
+        "page_no": page,
+        "x": x,
+        "y": y,
+    });
+
+    socket
+        .send(Message::Text(format!("src-point {payload}").into()))
+        .await
+        .map_err(|e| format!("Cannot send Typst preview source point: {e}"))?;
+
+    let _ = socket.close(None).await;
+    Ok(())
 }

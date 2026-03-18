@@ -92,8 +92,8 @@ export function buildMarkdownWorkflowUiState({
     canShowProblems: errorCount > 0 || warningCount > 0,
     canRevealPreview: true,
     exportAvailable,
-    forwardSync: 'approximate',
-    backwardSync: false,
+    forwardSync: 'precise',
+    backwardSync: true,
     primaryAction: 'refresh',
   }
 }
@@ -155,11 +155,11 @@ const markdownPreviewAdapter = {
       })
     }
 
-    return this.ensure(sourcePath, context, {
+    return context.workflowStore?.revealPreview(sourcePath, {
       ...options,
       activatePreview: options.activatePreview !== false,
       previewKind: 'html',
-    })
+    }) || null
   },
 }
 

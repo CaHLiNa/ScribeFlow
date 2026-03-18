@@ -378,6 +378,18 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
         }))
       }
 
+      if (options.jump && result.kind === 'typst') {
+        window.dispatchEvent(new CustomEvent('typst-request-cursor', {
+          detail: { sourcePath },
+        }))
+      }
+
+      if (options.jump && result.kind === 'markdown' && result.previewKind === 'html') {
+        window.dispatchEvent(new CustomEvent('markdown-request-cursor', {
+          detail: { sourcePath },
+        }))
+      }
+
       return result
     },
 

@@ -107,6 +107,16 @@ function buildInitializeParams(workspacePath) {
     workspaceFolders: rootUri
       ? [{ uri: rootUri, name: workspaceNameFromPath(workspacePath) }]
       : [],
+    initializationOptions: {
+      customizedShowDocument: true,
+      supportHtmlInMarkdown: true,
+      supportClientCodelens: true,
+      supportExtendedCodeAction: true,
+      triggerSuggest: true,
+      triggerSuggestAndParameterHints: true,
+      triggerParameterHints: true,
+      delegateFsRequests: false,
+    },
     capabilities: {
       workspace: {
         workspaceFolders: true,
@@ -202,6 +212,7 @@ class TinymistSession {
     this.diagnosticSubscribers = new Map()
     this.symbolSubscribers = new Map()
     this.semanticTokenSubscribers = new Map()
+    this.notificationSubscribers = new Map()
     this.statusSubscribers = new Set()
     this.available = null
     this.lastError = ''
@@ -277,6 +288,27 @@ class TinymistSession {
       listeners.delete(listener)
       if (listeners.size === 0) {
         this.semanticTokenSubscribers.delete(key)
+      }
+    }
+  }
+
+  subscribeNotification(method, listener) {
+    const key = String(method || '')
+    if (!key || typeof listener !== 'function') {
+      return () => {}
+    }
+
+    if (!this.notificationSubscribers.has(key)) {
+      this.notificationSubscribers.set(key, new Set())
+    }
+
+    const listeners = this.notificationSubscribers.get(key)
+    listeners.add(listener)
+
+    return () => {
+      listeners.delete(listener)
+      if (listeners.size === 0) {
+        this.notificationSubscribers.delete(key)
       }
     }
   }
@@ -734,6 +766,18 @@ class TinymistSession {
     }
   }
 
+  async executeCommand(command, args = [], options = {}) {
+    const ready = await this.ensureStarted({
+      workspacePath: options.workspacePath || null,
+    })
+    if (!ready || !this.started || !this.child) return null
+
+    return this.request('workspace/executeCommand', {
+      command,
+      arguments: Array.isArray(args) ? args : [],
+    })
+  }
+
   async request(method, params) {
     const id = this.nextRequestId
     this.nextRequestId += 1
@@ -824,6 +868,18 @@ class TinymistSession {
 
     if (message?.method === 'textDocument/publishDiagnostics') {
       this.handlePublishDiagnostics(message.params || {})
+      return
+    }
+
+    const listeners = this.notificationSubscribers.get(String(message?.method || ''))
+    if (!listeners || listeners.size === 0) return
+
+    for (const listener of listeners) {
+      try {
+        listener(message.params, message)
+      } catch {
+        // Keep the session alive if a subscriber fails.
+      }
     }
   }
 
@@ -942,4 +998,12 @@ export function requestTinymistWorkspaceSymbols(query, options = {}) {
 
 export function requestTinymistFormatting(filePath, options = {}) {
   return sharedSession.requestFormatting(filePath, options)
+}
+
+export function requestTinymistExecuteCommand(command, args = [], options = {}) {
+  return sharedSession.executeCommand(command, args, options)
+}
+
+export function subscribeTinymistNotification(method, listener) {
+  return sharedSession.subscribeNotification(method, listener)
 }
