@@ -126,6 +126,7 @@ import {
   reconcileCriticalWorkspaceState,
   resetCriticalWorkspaceState,
 } from './services/criticalWorkspaceState'
+import { openExternalHttpUrl, resolveExternalHttpAnchor } from './services/externalLinks'
 
 const LeftSidebar = defineAsyncComponent(() => import('./components/sidebar/LeftSidebar.vue'))
 const BottomPanel = defineAsyncComponent(() => import('./components/layout/BottomPanel.vue'))
@@ -643,8 +644,32 @@ function handleOpenVersionHistoryEvent(event) {
   openVersionHistory({ path })
 }
 
+function handleExternalLinkActivation(event) {
+  if (event.defaultPrevented) return
+  const match = resolveExternalHttpAnchor(event.target, document.baseURI)
+  if (!match) return
+  event.preventDefault()
+  event.stopPropagation()
+  openExternalHttpUrl(match.url).catch((error) => {
+    console.warn('[external-links] failed to open external url:', error)
+  })
+}
+
+function handleExternalLinkKeydown(event) {
+  if (event.defaultPrevented || event.key !== 'Enter') return
+  const match = resolveExternalHttpAnchor(event.target, document.baseURI)
+  if (!match) return
+  event.preventDefault()
+  event.stopPropagation()
+  openExternalHttpUrl(match.url).catch((error) => {
+    console.warn('[external-links] failed to open external url:', error)
+  })
+}
+
 onMounted(() => {
+  document.addEventListener('click', handleExternalLinkActivation)
   document.addEventListener('keydown', handleKeydown)
+  document.addEventListener('keydown', handleExternalLinkKeydown)
   document.addEventListener('keydown', handleAltZ, true)
   document.addEventListener('visibilitychange', handleVisibilityChange)
   window.addEventListener('chat-prefill', handleChatPrefill)
@@ -662,7 +687,9 @@ onUnmounted(() => {
   workspaceLoadGeneration += 1
   cancelWorkspaceBackgroundTasks()
   cleanupAppShellLayout()
+  document.removeEventListener('click', handleExternalLinkActivation)
   document.removeEventListener('keydown', handleKeydown)
+  document.removeEventListener('keydown', handleExternalLinkKeydown)
   document.removeEventListener('keydown', handleAltZ, true)
   document.removeEventListener('visibilitychange', handleVisibilityChange)
   window.removeEventListener('chat-prefill', handleChatPrefill)

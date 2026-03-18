@@ -632,6 +632,7 @@ import { usePdfTranslateStore } from '../../stores/pdfTranslate'
 import { useResearchArtifactsStore } from '../../stores/researchArtifacts'
 import { useToastStore } from '../../stores/toast'
 import { useWorkspaceStore } from '../../stores/workspace'
+import { openExternalHttpUrl, resolveExternalHttpAnchor } from '../../services/externalLinks'
 import { createPdfQuoteAnchor } from '../../services/pdfAnchors'
 import ResearchNoteCard from './ResearchNoteCard.vue'
 
@@ -647,6 +648,11 @@ const props = defineProps({
 const PDF_VIEWER_THEME_STYLE_ID = 'altals-pdf-viewer-theme'
 const PDF_EMBEDDED_SIDEBAR_SHELL_ID = 'altalsViewsManagerShell'
 const PDF_EMBEDDED_ANNOTATIONS_VIEW_ID = 'altalsAnnotationsView'
+const EDITOR_TOOL_BUTTON_TO_PANEL = Object.freeze({
+  editorFreeTextButton: 'freetext',
+  editorInkButton: 'ink',
+  editorStampButton: 'stamp',
+})
 
 const workspace = useWorkspaceStore()
 const toastStore = useToastStore()
@@ -1265,6 +1271,20 @@ function syncMenuItemState(id) {
   state.label = translatedLabelKey
     ? t(translatedLabelKey)
     : (element?.textContent?.trim?.() || state.label || id)
+}
+
+function syncActiveEditorToolPanel() {
+  const activeEditorPanel = Object.entries(EDITOR_TOOL_BUTTON_TO_PANEL)
+    .find(([buttonId]) => toolbarButtons[buttonId]?.active)?.[1] || ''
+
+  if (activeEditorPanel) {
+    activeToolbarPanel.value = activeEditorPanel
+    return
+  }
+
+  if (['freetext', 'ink', 'stamp'].includes(activeToolbarPanel.value)) {
+    activeToolbarPanel.value = ''
+  }
 }
 
 function syncExternalControlState() {
@@ -2396,6 +2416,7 @@ function syncPdfUi() {
   syncToolbarButtonState('printButton')
   syncToolbarButtonState('downloadButton')
   syncToolbarButtonState('secondaryToolbarToggleButton')
+  syncActiveEditorToolPanel()
   syncMenuItemState('secondaryOpenFile')
   syncMenuItemState('secondaryPrint')
   syncMenuItemState('secondaryDownload')
@@ -2611,10 +2632,13 @@ function proxyPdfButton(id) {
 
 function activateEditorTool(buttonId, panel) {
   const state = toolbarButtons[buttonId]
-  if (!state?.active) {
-    proxyPdfButton(buttonId)
+  const wasActive = !!state?.active
+  proxyPdfButton(buttonId)
+  if (wasActive) {
+    closeSearch()
+    activeToolbarPanel.value = ''
+    return
   }
-  editorToolsExpanded.value = false
   toggleToolbarPanel(panel)
 }
 
@@ -2932,6 +2956,30 @@ function handleViewerContextMenu(event) {
   pdfContextMenu.selectedText = getViewerSelectedText()
   pdfContextMenu.hasPendingSelection = !!pendingSelection.value
   pdfContextMenu.show = true
+}
+
+function handleViewerExternalLinkClick(event) {
+  if (event.defaultPrevented) return
+  const doc = event.currentTarget
+  const match = resolveExternalHttpAnchor(event.target, doc?.baseURI)
+  if (!match) return
+  event.preventDefault()
+  event.stopPropagation()
+  openExternalHttpUrl(match.url, doc?.baseURI).catch((error) => {
+    console.warn('[pdf] failed to open external url:', error)
+  })
+}
+
+function handleViewerExternalLinkKeydown(event) {
+  if (event.defaultPrevented || event.key !== 'Enter') return
+  const doc = event.currentTarget
+  const match = resolveExternalHttpAnchor(event.target, doc?.baseURI)
+  if (!match) return
+  event.preventDefault()
+  event.stopPropagation()
+  openExternalHttpUrl(match.url, doc?.baseURI).catch((error) => {
+    console.warn('[pdf] failed to open external url:', error)
+  })
 }
 
 function openAnnotationsPanel() {
@@ -3350,6 +3398,7 @@ async function onIframeLoad() {
   if (!iframeListenersAttached) {
     try {
       const doc = win.document
+      doc.addEventListener('click', handleViewerExternalLinkClick)
       doc.addEventListener('dblclick', handleIframeDoubleClick)
       doc.addEventListener('pointerdown', handleIframePointerDown, true)
       doc.addEventListener('mouseup', handleViewerMouseUp)
@@ -3361,7 +3410,15 @@ async function onIframeLoad() {
       app.eventBus?._on?.('attachmentsloaded', () => {
         maybeResolveInitialSidebarViewPreference()
       })
+      app.eventBus?._on?.('annotationeditormodechanged', () => {
+        syncPdfUi()
+      })
       doc.addEventListener('keydown', (event) => {
+        handleViewerExternalLinkKeydown(event)
+        if (event.defaultPrevented) {
+          return
+        }
+
         if ((event.metaKey || event.ctrlKey) && event.key === 'w') {
           event.preventDefault()
           document.dispatchEvent(new KeyboardEvent('keydown', {
