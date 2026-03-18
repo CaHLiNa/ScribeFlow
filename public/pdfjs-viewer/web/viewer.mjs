@@ -9705,6 +9705,36 @@ class Menu {
 const DRAW_UPSCALE_FACTOR = 2;
 const MAX_NUM_SCALING_STEPS = 3;
 const THUMBNAIL_WIDTH = 126;
+function createThumbnailPlaceholderDataUrl(width, height) {
+  const safeWidth = Math.max(48, Math.round(width || THUMBNAIL_WIDTH));
+  const safeHeight = Math.max(64, Math.round(height || THUMBNAIL_WIDTH * 1.414));
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="${safeWidth}" height="${safeHeight}" viewBox="0 0 ${safeWidth} ${safeHeight}">
+      <defs>
+        <linearGradient id="paper" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#ffffff"/>
+          <stop offset="100%" stop-color="#f5f7fb"/>
+        </linearGradient>
+        <filter id="blur" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur stdDeviation="1.8"/>
+        </filter>
+      </defs>
+      <rect width="${safeWidth}" height="${safeHeight}" rx="3" fill="url(#paper)"/>
+      <g filter="url(#blur)" opacity="0.92">
+        <rect x="${Math.round(safeWidth * 0.12)}" y="${Math.round(safeHeight * 0.12)}" width="${Math.round(safeWidth * 0.58)}" height="${Math.max(8, Math.round(safeHeight * 0.03))}" rx="3" fill="#d9e0ef"/>
+        <rect x="${Math.round(safeWidth * 0.12)}" y="${Math.round(safeHeight * 0.19)}" width="${Math.round(safeWidth * 0.72)}" height="${Math.max(6, Math.round(safeHeight * 0.018))}" rx="3" fill="#e5eaf4"/>
+        <rect x="${Math.round(safeWidth * 0.12)}" y="${Math.round(safeHeight * 0.245)}" width="${Math.round(safeWidth * 0.62)}" height="${Math.max(6, Math.round(safeHeight * 0.018))}" rx="3" fill="#e6ebf5"/>
+        <rect x="${Math.round(safeWidth * 0.12)}" y="${Math.round(safeHeight * 0.34)}" width="${Math.round(safeWidth * 0.76)}" height="${Math.max(5, Math.round(safeHeight * 0.015))}" rx="3" fill="#e7ebf3"/>
+        <rect x="${Math.round(safeWidth * 0.12)}" y="${Math.round(safeHeight * 0.39)}" width="${Math.round(safeWidth * 0.74)}" height="${Math.max(5, Math.round(safeHeight * 0.015))}" rx="3" fill="#e7ebf3"/>
+        <rect x="${Math.round(safeWidth * 0.12)}" y="${Math.round(safeHeight * 0.44)}" width="${Math.round(safeWidth * 0.52)}" height="${Math.max(5, Math.round(safeHeight * 0.015))}" rx="3" fill="#e7ebf3"/>
+        <rect x="${Math.round(safeWidth * 0.12)}" y="${Math.round(safeHeight * 0.56)}" width="${Math.round(safeWidth * 0.68)}" height="${Math.max(5, Math.round(safeHeight * 0.015))}" rx="3" fill="#e7ebf3"/>
+        <rect x="${Math.round(safeWidth * 0.12)}" y="${Math.round(safeHeight * 0.61)}" width="${Math.round(safeWidth * 0.74)}" height="${Math.max(5, Math.round(safeHeight * 0.015))}" rx="3" fill="#e7ebf3"/>
+        <rect x="${Math.round(safeWidth * 0.12)}" y="${Math.round(safeHeight * 0.66)}" width="${Math.round(safeWidth * 0.46)}" height="${Math.max(5, Math.round(safeHeight * 0.015))}" rx="3" fill="#e7ebf3"/>
+      </g>
+    </svg>
+  `;
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}
 class TempImageFactory {
   static getCanvas(width, height) {
     let tempCanvas;
@@ -9773,6 +9803,7 @@ class PDFThumbnailView {
     image.tabIndex = -1;
     image.draggable = false;
     this.#updateDims();
+    this.#setPlaceholderImage();
     imageContainer.append(image);
     container.append(imageContainer);
   }
@@ -9793,6 +9824,16 @@ class PDFThumbnailView {
     this.scale = canvasWidth / width;
     this.image.style.height = `${canvasHeight}px`;
   }
+  #setPlaceholderImage() {
+    const {
+      image,
+      canvasWidth,
+      canvasHeight
+    } = this;
+    image.src = createThumbnailPlaceholderDataUrl(canvasWidth, canvasHeight);
+    image.removeAttribute("data-l10n-id");
+    image.removeAttribute("data-l10n-args");
+  }
   setPdfPage(pdfPage) {
     this.pdfPage = pdfPage;
     this.pdfPageRotate = pdfPage.rotate;
@@ -9811,13 +9852,13 @@ class PDFThumbnailView {
       image
     } = this;
     const url = image.src;
-    if (url) {
+    if (url?.startsWith("blob:")) {
       URL.revokeObjectURL(url);
-      image.removeAttribute("data-l10n-id");
-      image.removeAttribute("data-l10n-args");
-      image.src = "";
-      this.image.classList.add("missingThumbnailImage");
     }
+    image.removeAttribute("data-l10n-id");
+    image.removeAttribute("data-l10n-args");
+    this.image.classList.add("missingThumbnailImage");
+    this.#setPlaceholderImage();
   }
   update({
     rotation = null
@@ -17484,63 +17525,18 @@ const PDFViewerApplication = {
         l10n
       });
       this.viewsManager.onToggled = this.forceRendering.bind(this);
-      let thumbnailRefreshFrame = 0;
-      let thumbnailRefreshToken = 0;
       this.viewsManager.onUpdateThumbnails = () => {
         const thumbnailViewer = this.pdfThumbnailViewer;
         if (!thumbnailViewer) {
           return;
         }
         const currentPageNumber = pdfViewer.currentPageNumber;
-        const documentRef = this.pdfDocument;
-        const cachedPageViews = pdfViewer.getCachedPageViews().filter(pageView => pageView.renderingState === RenderingStates.FINISHED).sort((left, right) => {
-          const leftDistance = Math.abs(left.id - currentPageNumber);
-          const rightDistance = Math.abs(right.id - currentPageNumber);
-          return leftDistance - rightDistance || left.id - right.id;
-        });
-        const refreshToken = ++thumbnailRefreshToken;
-        if (thumbnailRefreshFrame) {
-          cancelAnimationFrame(thumbnailRefreshFrame);
-          thumbnailRefreshFrame = 0;
-        }
         thumbnailViewer.scrollThumbnailIntoView(currentPageNumber);
         void thumbnailViewer.ensureThumbnailRendered(currentPageNumber);
         const currentPageView = pdfViewer.getPageView(currentPageNumber - 1);
         if (currentPageView?.renderingState === RenderingStates.FINISHED) {
           thumbnailViewer.getThumbnail(currentPageNumber - 1)?.setImage(currentPageView);
         }
-        if (cachedPageViews.length === 0) {
-          thumbnailRefreshFrame = requestAnimationFrame(() => {
-            if (refreshToken !== thumbnailRefreshToken || documentRef !== this.pdfDocument) {
-              thumbnailRefreshFrame = 0;
-              return;
-            }
-            thumbnailViewer.scrollThumbnailIntoView(currentPageNumber);
-            void thumbnailViewer.ensureThumbnailRendered(currentPageNumber);
-            thumbnailRefreshFrame = 0;
-          });
-          return;
-        }
-        let index = 0;
-        const flushCachedThumbnails = () => {
-          if (refreshToken !== thumbnailRefreshToken || documentRef !== this.pdfDocument) {
-            thumbnailRefreshFrame = 0;
-            return;
-          }
-          const start = performance.now();
-          while (index < cachedPageViews.length && performance.now() - start < 6) {
-            const pageView = cachedPageViews[index++];
-            thumbnailViewer.getThumbnail(pageView.id - 1)?.setImage(pageView);
-          }
-          if (index < cachedPageViews.length) {
-            thumbnailRefreshFrame = requestAnimationFrame(flushCachedThumbnails);
-            return;
-          }
-          thumbnailRefreshFrame = 0;
-          thumbnailViewer.scrollThumbnailIntoView(currentPageNumber);
-          void thumbnailViewer.ensureThumbnailRendered(currentPageNumber);
-        };
-        thumbnailRefreshFrame = requestAnimationFrame(flushCachedThumbnails);
       };
     }
   },
