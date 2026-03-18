@@ -1,5 +1,411 @@
 <template>
   <div class="h-full flex flex-col overflow-hidden">
+    <Teleport v-if="toolbarTargetSelector" :to="toolbarTargetSelector">
+      <div
+        ref="toolbarShellRef"
+        class="pdf-toolbar-wrap pdf-toolbar-wrap-embedded"
+        @mousedown="markPaneActive"
+      >
+        <div class="pdf-toolbar">
+          <div class="pdf-toolbar-left">
+            <div class="pdf-toolbar-group">
+              <button
+                type="button"
+                class="pdf-toolbar-btn"
+                :class="{ 'pdf-toolbar-btn-active': pdfUi.sidebarOpen }"
+                :title="pdfUi.sidebarOpen ? t('Hide sidebar') : t('Show sidebar')"
+                :disabled="!pdfUi.ready"
+                @click="toggleSidebar"
+              >
+                <component :is="sidebarIcon" :size="13" :stroke-width="1.8" />
+              </button>
+              <div class="pdf-toolbar-separator"></div>
+              <button
+                type="button"
+                class="pdf-toolbar-btn"
+                :class="{ 'pdf-toolbar-btn-active': searchOpen }"
+                :title="t('Search')"
+                :disabled="!pdfUi.ready"
+                @click="toggleSearch"
+              >
+                <IconSearch :size="13" :stroke-width="1.8" />
+              </button>
+              <div class="pdf-toolbar-separator"></div>
+              <button
+                type="button"
+                class="pdf-toolbar-btn"
+                :title="t('Previous page')"
+                :disabled="!pdfUi.canGoPrevious"
+                @click="goToPreviousPage"
+              >
+                <IconChevronLeft :size="13" :stroke-width="1.8" />
+              </button>
+              <button
+                type="button"
+                class="pdf-toolbar-btn"
+                :title="t('Next page')"
+                :disabled="!pdfUi.canGoNext"
+                @click="goToNextPage"
+              >
+                <IconChevronRight :size="13" :stroke-width="1.8" />
+              </button>
+            </div>
+          </div>
+
+          <div class="pdf-toolbar-center">
+            <div class="pdf-toolbar-group pdf-page-indicator">
+              <input
+                ref="pageInputRef"
+                v-model="pageInputValue"
+                type="text"
+                inputmode="numeric"
+                class="pdf-toolbar-input pdf-page-input"
+                :disabled="!pdfUi.ready"
+                @focus="markPaneActive"
+                @keydown.enter.prevent="submitPageNumber"
+                @blur="submitPageNumber"
+              />
+              <span class="pdf-toolbar-label">{{ t('of {count}', { count: pdfUi.pagesCount || 0 }) }}</span>
+            </div>
+
+            <div class="pdf-toolbar-separator"></div>
+
+            <div class="pdf-toolbar-group">
+              <button
+                type="button"
+                class="pdf-toolbar-btn"
+                :title="t('Zoom out')"
+                :disabled="!pdfUi.canZoomOut"
+                @click="zoomOut"
+              >
+                <IconMinus :size="13" :stroke-width="1.8" />
+              </button>
+              <button
+                type="button"
+                class="pdf-toolbar-btn"
+                :title="t('Zoom in')"
+                :disabled="!pdfUi.canZoomIn"
+                @click="zoomIn"
+              >
+                <IconPlus :size="13" :stroke-width="1.8" />
+              </button>
+            </div>
+
+            <div class="pdf-toolbar-group pdf-toolbar-group-scale">
+              <select
+                class="pdf-toolbar-select"
+                :value="pdfUi.scaleValue"
+                :disabled="!pdfUi.ready || scaleOptions.length === 0"
+                @focus="markPaneActive"
+                @change="handleScaleSelectChange"
+              >
+                <option
+                  v-for="option in scaleOptions"
+                  :key="option.value"
+                  :value="option.value"
+                >
+                  {{ option.label }}
+                </option>
+              </select>
+            </div>
+          </div>
+
+          <div class="pdf-toolbar-right">
+            <div class="pdf-toolbar-group">
+              <button
+                v-if="toolbarButtons.editorHighlightButton.visible"
+                type="button"
+                class="pdf-toolbar-btn"
+                :class="{ 'pdf-toolbar-btn-active': toolbarButtons.editorHighlightButton.active || activeToolbarPanel === 'highlight' }"
+                :title="t('Highlight')"
+                :disabled="toolbarButtons.editorHighlightButton.disabled"
+                @click="activateEditorTool('editorHighlightButton', 'highlight')"
+              >
+                <IconHighlight :size="13" :stroke-width="1.8" />
+              </button>
+              <button
+                v-if="toolbarButtons.editorFreeTextButton.visible"
+                type="button"
+                class="pdf-toolbar-btn"
+                :class="{ 'pdf-toolbar-btn-active': toolbarButtons.editorFreeTextButton.active || activeToolbarPanel === 'freetext' }"
+                :title="t('Text')"
+                :disabled="toolbarButtons.editorFreeTextButton.disabled"
+                @click="activateEditorTool('editorFreeTextButton', 'freetext')"
+              >
+                <IconLetterT :size="13" :stroke-width="1.8" />
+              </button>
+              <button
+                v-if="toolbarButtons.editorInkButton.visible"
+                type="button"
+                class="pdf-toolbar-btn"
+                :class="{ 'pdf-toolbar-btn-active': toolbarButtons.editorInkButton.active || activeToolbarPanel === 'ink' }"
+                :title="t('Ink')"
+                :disabled="toolbarButtons.editorInkButton.disabled"
+                @click="activateEditorTool('editorInkButton', 'ink')"
+              >
+                <IconPencil :size="13" :stroke-width="1.8" />
+              </button>
+              <button
+                v-if="toolbarButtons.editorStampButton.visible"
+                type="button"
+                class="pdf-toolbar-btn"
+                :class="{ 'pdf-toolbar-btn-active': toolbarButtons.editorStampButton.active || activeToolbarPanel === 'stamp' }"
+                :title="t('Stamp')"
+                :disabled="toolbarButtons.editorStampButton.disabled"
+                @click="activateEditorTool('editorStampButton', 'stamp')"
+              >
+                <IconPhoto :size="13" :stroke-width="1.8" />
+              </button>
+              <div
+                v-if="toolbarButtons.editorHighlightButton.visible || toolbarButtons.editorFreeTextButton.visible || toolbarButtons.editorInkButton.visible || toolbarButtons.editorStampButton.visible"
+                class="pdf-toolbar-separator"
+              ></div>
+              <button
+                v-if="toolbarButtons.printButton.visible"
+                type="button"
+                class="pdf-toolbar-btn"
+                :title="t('Print')"
+                :disabled="toolbarButtons.printButton.disabled"
+                @click="proxyPdfButton('printButton')"
+              >
+                <IconPrinter :size="13" :stroke-width="1.8" />
+              </button>
+              <button
+                v-if="toolbarButtons.downloadButton.visible"
+                type="button"
+                class="pdf-toolbar-btn"
+                :title="t('Download')"
+                :disabled="toolbarButtons.downloadButton.disabled"
+                @click="proxyPdfButton('downloadButton')"
+              >
+                <IconDownload :size="13" :stroke-width="1.8" />
+              </button>
+              <div
+                v-if="toolbarButtons.printButton.visible || toolbarButtons.downloadButton.visible"
+                class="pdf-toolbar-separator"
+              ></div>
+              <button
+                v-if="toolbarButtons.secondaryToolbarToggleButton.visible"
+                type="button"
+                class="pdf-toolbar-btn"
+                :class="{ 'pdf-toolbar-btn-active': activeToolbarPanel === 'tools' }"
+                :title="t('Tools')"
+                :disabled="toolbarButtons.secondaryToolbarToggleButton.disabled"
+                @click="toggleToolsMenu"
+              >
+                <IconTool :size="13" :stroke-width="1.8" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="searchOpen" class="pdf-search-popover">
+          <input
+            ref="searchInputRef"
+            v-model="searchDraft"
+            type="text"
+            class="pdf-toolbar-input pdf-toolbar-search"
+            :placeholder="t('Search in PDF')"
+            @focus="markPaneActive"
+            @keydown.enter.prevent="runSearch(false)"
+          />
+          <button
+            type="button"
+            class="pdf-toolbar-btn pdf-toolbar-btn-sm"
+            :disabled="!searchDraft.trim()"
+            :title="t('Previous match')"
+            @click="runSearch(true)"
+          >
+            <IconChevronUp :size="12" :stroke-width="1.8" />
+          </button>
+          <button
+            type="button"
+            class="pdf-toolbar-btn pdf-toolbar-btn-sm"
+            :disabled="!searchDraft.trim()"
+            :title="t('Next match')"
+            @click="runSearch(false)"
+          >
+            <IconChevronDown :size="12" :stroke-width="1.8" />
+          </button>
+          <button
+            type="button"
+            class="pdf-search-toggle"
+            :class="{ 'pdf-search-toggle-active': pdfUi.searchHighlightAll }"
+            @click="toggleSearchOption('searchHighlightAll')"
+          >
+            {{ t('Highlight all') }}
+          </button>
+          <button
+            type="button"
+            class="pdf-search-toggle"
+            :class="{ 'pdf-search-toggle-active': pdfUi.searchCaseSensitive }"
+            @click="toggleSearchOption('searchCaseSensitive')"
+          >
+            {{ t('Match case') }}
+          </button>
+          <button
+            type="button"
+            class="pdf-search-toggle"
+            :class="{ 'pdf-search-toggle-active': pdfUi.searchMatchDiacritics }"
+            @click="toggleSearchOption('searchMatchDiacritics')"
+          >
+            {{ t('Match diacritics') }}
+          </button>
+          <button
+            type="button"
+            class="pdf-search-toggle"
+            :class="{ 'pdf-search-toggle-active': pdfUi.searchEntireWord }"
+            @click="toggleSearchOption('searchEntireWord')"
+          >
+            {{ t('Whole words') }}
+          </button>
+          <span v-if="pdfUi.searchResultText" class="pdf-toolbar-hint">{{ pdfUi.searchResultText }}</span>
+        </div>
+
+        <div v-if="activeToolbarPanel === 'highlight'" class="pdf-toolbar-popover pdf-toolbar-popover-right">
+          <div class="pdf-toolbar-popover-title">{{ t('Highlight') }}</div>
+          <div v-if="highlightColorOptions.length" class="pdf-color-grid">
+            <button
+              v-for="option in highlightColorOptions"
+              :key="option.value"
+              type="button"
+              class="pdf-color-swatch-btn"
+              :class="{ 'pdf-color-swatch-btn-active': option.selected }"
+              :title="option.label || option.value"
+              @click="setHighlightColor(option.value)"
+            >
+              <span class="pdf-color-swatch" :style="{ backgroundColor: option.value }"></span>
+            </button>
+          </div>
+          <label class="pdf-toolbar-field">
+            <span class="pdf-toolbar-hint">{{ t('Thickness') }}</span>
+            <input
+              type="range"
+              min="8"
+              max="24"
+              step="1"
+              :value="editorParams.highlightThickness"
+              @input="setPdfInputValue('editorFreeHighlightThickness', $event.target.value)"
+            >
+          </label>
+          <button
+            type="button"
+            class="pdf-search-toggle"
+            :class="{ 'pdf-search-toggle-active': editorParams.highlightShowAll }"
+            @click="toggleHighlightShowAll"
+          >
+            {{ t('Show all') }}
+          </button>
+        </div>
+
+        <div v-if="activeToolbarPanel === 'freetext'" class="pdf-toolbar-popover pdf-toolbar-popover-right">
+          <div class="pdf-toolbar-popover-title">{{ t('Text') }}</div>
+          <label class="pdf-toolbar-field">
+            <span class="pdf-toolbar-hint">{{ t('Color') }}</span>
+            <input
+              type="color"
+              class="pdf-color-input"
+              :value="editorParams.freeTextColor"
+              @input="setPdfInputValue('editorFreeTextColor', $event.target.value)"
+            >
+          </label>
+          <label class="pdf-toolbar-field">
+            <span class="pdf-toolbar-hint">{{ t('Font size') }}</span>
+            <input
+              type="range"
+              min="5"
+              max="100"
+              step="1"
+              :value="editorParams.freeTextFontSize"
+              @input="setPdfInputValue('editorFreeTextFontSize', $event.target.value)"
+            >
+          </label>
+        </div>
+
+        <div v-if="activeToolbarPanel === 'ink'" class="pdf-toolbar-popover pdf-toolbar-popover-right">
+          <div class="pdf-toolbar-popover-title">{{ t('Ink') }}</div>
+          <label class="pdf-toolbar-field">
+            <span class="pdf-toolbar-hint">{{ t('Color') }}</span>
+            <input
+              type="color"
+              class="pdf-color-input"
+              :value="editorParams.inkColor"
+              @input="setPdfInputValue('editorInkColor', $event.target.value)"
+            >
+          </label>
+          <label class="pdf-toolbar-field">
+            <span class="pdf-toolbar-hint">{{ t('Thickness') }}</span>
+            <input
+              type="range"
+              min="1"
+              max="20"
+              step="1"
+              :value="editorParams.inkThickness"
+              @input="setPdfInputValue('editorInkThickness', $event.target.value)"
+            >
+          </label>
+          <label class="pdf-toolbar-field">
+            <span class="pdf-toolbar-hint">{{ t('Opacity') }}</span>
+            <input
+              type="range"
+              min="0.05"
+              max="1"
+              step="0.05"
+              :value="editorParams.inkOpacity"
+              @input="setPdfInputValue('editorInkOpacity', $event.target.value)"
+            >
+          </label>
+        </div>
+
+        <div v-if="activeToolbarPanel === 'stamp'" class="pdf-toolbar-popover pdf-toolbar-popover-right">
+          <div class="pdf-toolbar-popover-title">{{ t('Stamp') }}</div>
+          <button
+            type="button"
+            class="pdf-toolbar-menu-item"
+            @click="runToolMenuCommand('editorStampAddImage')"
+          >
+            {{ editorParams.stampAddLabel || t('Add image') }}
+          </button>
+        </div>
+
+        <div v-if="activeToolbarPanel === 'tools'" class="pdf-toolbar-popover pdf-toolbar-popover-menu">
+          <button v-if="toolMenuItems.secondaryOpenFile.visible" type="button" class="pdf-toolbar-menu-item" :disabled="toolMenuItems.secondaryOpenFile.disabled" @click="runToolMenuCommand('secondaryOpenFile')">{{ toolMenuItems.secondaryOpenFile.label }}</button>
+          <button v-if="toolMenuItems.secondaryPrint.visible" type="button" class="pdf-toolbar-menu-item" :disabled="toolMenuItems.secondaryPrint.disabled" @click="runToolMenuCommand('secondaryPrint')">{{ toolMenuItems.secondaryPrint.label }}</button>
+          <button v-if="toolMenuItems.secondaryDownload.visible" type="button" class="pdf-toolbar-menu-item" :disabled="toolMenuItems.secondaryDownload.disabled" @click="runToolMenuCommand('secondaryDownload')">{{ toolMenuItems.secondaryDownload.label }}</button>
+          <div v-if="toolMenuItems.secondaryOpenFile.visible || toolMenuItems.secondaryPrint.visible || toolMenuItems.secondaryDownload.visible" class="pdf-toolbar-menu-separator"></div>
+
+          <button v-if="toolMenuItems.presentationMode.visible" type="button" class="pdf-toolbar-menu-item" :disabled="toolMenuItems.presentationMode.disabled" @click="runToolMenuCommand('presentationMode')">{{ toolMenuItems.presentationMode.label }}</button>
+          <button v-if="toolMenuItems.viewBookmark.visible" type="button" class="pdf-toolbar-menu-item" :disabled="toolMenuItems.viewBookmark.disabled" @click="runToolMenuCommand('viewBookmark')">{{ toolMenuItems.viewBookmark.label }}</button>
+          <div v-if="toolMenuItems.presentationMode.visible || toolMenuItems.viewBookmark.visible" class="pdf-toolbar-menu-separator"></div>
+
+          <button v-if="toolMenuItems.firstPage.visible" type="button" class="pdf-toolbar-menu-item" :disabled="toolMenuItems.firstPage.disabled" @click="runToolMenuCommand('firstPage')">{{ toolMenuItems.firstPage.label }}</button>
+          <button v-if="toolMenuItems.lastPage.visible" type="button" class="pdf-toolbar-menu-item" :disabled="toolMenuItems.lastPage.disabled" @click="runToolMenuCommand('lastPage')">{{ toolMenuItems.lastPage.label }}</button>
+          <div v-if="toolMenuItems.firstPage.visible || toolMenuItems.lastPage.visible" class="pdf-toolbar-menu-separator"></div>
+
+          <button v-if="toolMenuItems.pageRotateCw.visible" type="button" class="pdf-toolbar-menu-item" :disabled="toolMenuItems.pageRotateCw.disabled" @click="runToolMenuCommand('pageRotateCw')">{{ toolMenuItems.pageRotateCw.label }}</button>
+          <button v-if="toolMenuItems.pageRotateCcw.visible" type="button" class="pdf-toolbar-menu-item" :disabled="toolMenuItems.pageRotateCcw.disabled" @click="runToolMenuCommand('pageRotateCcw')">{{ toolMenuItems.pageRotateCcw.label }}</button>
+          <div v-if="toolMenuItems.pageRotateCw.visible || toolMenuItems.pageRotateCcw.visible" class="pdf-toolbar-menu-separator"></div>
+
+          <button v-if="toolMenuItems.cursorSelectTool.visible" type="button" class="pdf-toolbar-menu-item" :class="{ 'pdf-toolbar-menu-item-active': toolMenuItems.cursorSelectTool.active }" :disabled="toolMenuItems.cursorSelectTool.disabled" @click="runToolMenuCommand('cursorSelectTool')">{{ toolMenuItems.cursorSelectTool.label }}</button>
+          <button v-if="toolMenuItems.cursorHandTool.visible" type="button" class="pdf-toolbar-menu-item" :class="{ 'pdf-toolbar-menu-item-active': toolMenuItems.cursorHandTool.active }" :disabled="toolMenuItems.cursorHandTool.disabled" @click="runToolMenuCommand('cursorHandTool')">{{ toolMenuItems.cursorHandTool.label }}</button>
+          <div v-if="toolMenuItems.cursorSelectTool.visible || toolMenuItems.cursorHandTool.visible" class="pdf-toolbar-menu-separator"></div>
+
+          <button v-if="toolMenuItems.scrollPage.visible" type="button" class="pdf-toolbar-menu-item" :class="{ 'pdf-toolbar-menu-item-active': toolMenuItems.scrollPage.active }" :disabled="toolMenuItems.scrollPage.disabled" @click="runToolMenuCommand('scrollPage')">{{ toolMenuItems.scrollPage.label }}</button>
+          <button v-if="toolMenuItems.scrollVertical.visible" type="button" class="pdf-toolbar-menu-item" :class="{ 'pdf-toolbar-menu-item-active': toolMenuItems.scrollVertical.active }" :disabled="toolMenuItems.scrollVertical.disabled" @click="runToolMenuCommand('scrollVertical')">{{ toolMenuItems.scrollVertical.label }}</button>
+          <button v-if="toolMenuItems.scrollHorizontal.visible" type="button" class="pdf-toolbar-menu-item" :class="{ 'pdf-toolbar-menu-item-active': toolMenuItems.scrollHorizontal.active }" :disabled="toolMenuItems.scrollHorizontal.disabled" @click="runToolMenuCommand('scrollHorizontal')">{{ toolMenuItems.scrollHorizontal.label }}</button>
+          <button v-if="toolMenuItems.scrollWrapped.visible" type="button" class="pdf-toolbar-menu-item" :class="{ 'pdf-toolbar-menu-item-active': toolMenuItems.scrollWrapped.active }" :disabled="toolMenuItems.scrollWrapped.disabled" @click="runToolMenuCommand('scrollWrapped')">{{ toolMenuItems.scrollWrapped.label }}</button>
+          <div v-if="toolMenuItems.scrollPage.visible || toolMenuItems.scrollVertical.visible || toolMenuItems.scrollHorizontal.visible || toolMenuItems.scrollWrapped.visible" class="pdf-toolbar-menu-separator"></div>
+
+          <button v-if="toolMenuItems.spreadNone.visible" type="button" class="pdf-toolbar-menu-item" :class="{ 'pdf-toolbar-menu-item-active': toolMenuItems.spreadNone.active }" :disabled="toolMenuItems.spreadNone.disabled" @click="runToolMenuCommand('spreadNone')">{{ toolMenuItems.spreadNone.label }}</button>
+          <button v-if="toolMenuItems.spreadOdd.visible" type="button" class="pdf-toolbar-menu-item" :class="{ 'pdf-toolbar-menu-item-active': toolMenuItems.spreadOdd.active }" :disabled="toolMenuItems.spreadOdd.disabled" @click="runToolMenuCommand('spreadOdd')">{{ toolMenuItems.spreadOdd.label }}</button>
+          <button v-if="toolMenuItems.spreadEven.visible" type="button" class="pdf-toolbar-menu-item" :class="{ 'pdf-toolbar-menu-item-active': toolMenuItems.spreadEven.active }" :disabled="toolMenuItems.spreadEven.disabled" @click="runToolMenuCommand('spreadEven')">{{ toolMenuItems.spreadEven.label }}</button>
+          <div v-if="toolMenuItems.spreadNone.visible || toolMenuItems.spreadOdd.visible || toolMenuItems.spreadEven.visible" class="pdf-toolbar-menu-separator"></div>
+
+          <button v-if="toolMenuItems.documentProperties.visible" type="button" class="pdf-toolbar-menu-item" :disabled="toolMenuItems.documentProperties.disabled" @click="runToolMenuCommand('documentProperties')">{{ toolMenuItems.documentProperties.label }}</button>
+        </div>
+      </div>
+    </Teleport>
+
     <div class="relative flex-1 overflow-hidden">
       <iframe
         v-if="viewerSrc"
@@ -126,7 +532,24 @@
 
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, toRef, watch } from 'vue'
-import { IconChevronRight } from '@tabler/icons-vue'
+import {
+  IconChevronLeft,
+  IconChevronDown,
+  IconChevronRight,
+  IconChevronUp,
+  IconDownload,
+  IconHighlight,
+  IconLayoutSidebarLeftCollapse,
+  IconLayoutSidebarLeftExpand,
+  IconLetterT,
+  IconMinus,
+  IconPencil,
+  IconPhoto,
+  IconPlus,
+  IconPrinter,
+  IconSearch,
+  IconTool,
+} from '@tabler/icons-vue'
 import { invoke } from '@tauri-apps/api/core'
 import { useI18n } from '../../i18n'
 import { useEditorStore } from '../../stores/editor'
@@ -141,6 +564,7 @@ const emit = defineEmits(['dblclick-page'])
 const props = defineProps({
   filePath: { type: String, required: true },
   paneId: { type: String, required: true },
+  toolbarTargetSelector: { type: String, default: '' },
   referenceKey: { type: String, default: '' },
 })
 
@@ -150,15 +574,24 @@ const workspace = useWorkspaceStore()
 const toastStore = useToastStore()
 const researchArtifactsStore = useResearchArtifactsStore()
 const editorStore = useEditorStore()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const filePathRef = toRef(props, 'filePath')
 
 const iframeRef = ref(null)
+const searchInputRef = ref(null)
+const pageInputRef = ref(null)
+const toolbarShellRef = ref(null)
 const viewerSrc = ref(null)
 const loading = ref(true)
 const error = ref(null)
 const annotationsOpen = ref(false)
 const pendingSelection = ref(null)
+const searchOpen = ref(false)
+const searchDraft = ref('')
+const pageInputValue = ref('1')
+const scaleOptions = ref([])
+const activeToolbarPanel = ref('')
+const highlightColorOptions = ref([])
 
 const pdfUi = reactive({
   ready: false,
@@ -178,6 +611,31 @@ const pdfUi = reactive({
   searchCaseSensitive: false,
   searchMatchDiacritics: false,
   searchEntireWord: false,
+})
+
+const usingExternalToolbar = computed(() => !!props.toolbarTargetSelector)
+const sidebarIcon = computed(() => (
+  pdfUi.sidebarOpen ? IconLayoutSidebarLeftCollapse : IconLayoutSidebarLeftExpand
+))
+const toolbarButtons = reactive({
+  editorHighlightButton: createToolbarButtonState(),
+  editorFreeTextButton: createToolbarButtonState(),
+  editorInkButton: createToolbarButtonState(),
+  editorStampButton: createToolbarButtonState(),
+  printButton: createToolbarButtonState(),
+  downloadButton: createToolbarButtonState(),
+  secondaryToolbarToggleButton: createToolbarButtonState(),
+})
+const toolMenuItems = reactive(createToolMenuState())
+const editorParams = reactive({
+  highlightThickness: 12,
+  highlightShowAll: true,
+  freeTextColor: '#000000',
+  freeTextFontSize: 10,
+  inkColor: '#000000',
+  inkThickness: 1,
+  inkOpacity: 1,
+  stampAddLabel: '',
 })
 
 let syncTimer = null
@@ -212,6 +670,53 @@ function localizeScaleLabel(label) {
   return normalized
 }
 
+function getPdfViewerLocaleParam() {
+  const normalized = String(locale.value || 'en-US').trim().toLowerCase()
+  return normalized || 'en-us'
+}
+
+function createToolbarButtonState() {
+  return {
+    visible: false,
+    disabled: true,
+    active: false,
+    expanded: false,
+  }
+}
+
+function createToolMenuState() {
+  return {
+    secondaryOpenFile: createLabeledMenuItemState(),
+    secondaryPrint: createLabeledMenuItemState(),
+    secondaryDownload: createLabeledMenuItemState(),
+    presentationMode: createLabeledMenuItemState(),
+    viewBookmark: createLabeledMenuItemState(),
+    firstPage: createLabeledMenuItemState(),
+    lastPage: createLabeledMenuItemState(),
+    pageRotateCw: createLabeledMenuItemState(),
+    pageRotateCcw: createLabeledMenuItemState(),
+    cursorSelectTool: createLabeledMenuItemState(),
+    cursorHandTool: createLabeledMenuItemState(),
+    scrollPage: createLabeledMenuItemState(),
+    scrollVertical: createLabeledMenuItemState(),
+    scrollHorizontal: createLabeledMenuItemState(),
+    scrollWrapped: createLabeledMenuItemState(),
+    spreadNone: createLabeledMenuItemState(),
+    spreadOdd: createLabeledMenuItemState(),
+    spreadEven: createLabeledMenuItemState(),
+    documentProperties: createLabeledMenuItemState(),
+  }
+}
+
+function createLabeledMenuItemState() {
+  return {
+    visible: false,
+    disabled: true,
+    active: false,
+    label: '',
+  }
+}
+
 function resetPdfUi() {
   pdfUi.ready = false
   pdfUi.pageNumber = 1
@@ -230,6 +735,18 @@ function resetPdfUi() {
   pdfUi.searchCaseSensitive = false
   pdfUi.searchMatchDiacritics = false
   pdfUi.searchEntireWord = false
+  pageInputValue.value = '1'
+  scaleOptions.value = []
+  searchDraft.value = ''
+  searchOpen.value = false
+  activeToolbarPanel.value = ''
+  highlightColorOptions.value = []
+  Object.keys(toolbarButtons).forEach((id) => {
+    Object.assign(toolbarButtons[id], createToolbarButtonState())
+  })
+  Object.keys(toolMenuItems).forEach((id) => {
+    Object.assign(toolMenuItems[id], createLabeledMenuItemState())
+  })
 }
 
 function clearSyncTimer() {
@@ -298,6 +815,99 @@ function getPageView(pageNumber) {
   return viewer._pages?.[targetPage - 1] || null
 }
 
+function isPdfElementVisible(element) {
+  if (!element) return false
+  if (element.hidden || element.closest?.('[hidden]')) return false
+  const win = getPdfWindow()
+  let current = element
+  while (current && current.nodeType === Node.ELEMENT_NODE) {
+    const style = win?.getComputedStyle?.(current)
+    if (style && (style.display === 'none' || style.visibility === 'hidden')) {
+      return false
+    }
+    current = current.parentElement
+  }
+  return true
+}
+
+function getPdfViewportWidth() {
+  return Number(
+    getPdfDocument()?.documentElement?.clientWidth
+    || getPdfDocument()?.body?.clientWidth
+    || iframeRef.value?.clientWidth
+    || 0
+  )
+}
+
+function isPdfResponsiveVisible(element) {
+  if (!element) return false
+  if (element.hidden || element.closest?.('[hidden]')) return false
+  if (element.classList?.contains('hidden')) return false
+
+  const viewportWidth = getPdfViewportWidth()
+  if (!viewportWidth) return true
+
+  const isHiddenMedium = element.classList?.contains('hiddenMediumView') || !!element.closest?.('.hiddenMediumView')
+  const isVisibleMedium = element.classList?.contains('visibleMediumView') || !!element.closest?.('.visibleMediumView')
+  const isHiddenSmall = element.classList?.contains('hiddenSmallView') || !!element.closest?.('.hiddenSmallView')
+  const isScaleSelect = element.id === 'scaleSelectContainer' || !!element.closest?.('#scaleSelectContainer')
+
+  if (viewportWidth <= 750 && isHiddenMedium) return false
+  if (viewportWidth > 750 && isVisibleMedium) return false
+  if (viewportWidth <= 690 && isHiddenSmall) return false
+  if (viewportWidth <= 560 && isScaleSelect) return false
+
+  return true
+}
+
+function syncToolbarButtonState(id) {
+  const element = getPdfElement(id)
+  const state = toolbarButtons[id]
+  if (!state) return
+
+  state.visible = isPdfElementVisible(element)
+  state.disabled = !element || !!element.disabled
+  state.active = !!element?.classList?.contains('toggled') || element?.getAttribute?.('aria-pressed') === 'true'
+  state.expanded = element?.getAttribute?.('aria-expanded') === 'true'
+}
+
+function syncMenuItemState(id) {
+  const element = getPdfElement(id)
+  const state = toolMenuItems[id]
+  if (!state) return
+
+  state.visible = isPdfResponsiveVisible(element)
+  state.disabled = !element || element.getAttribute?.('aria-disabled') === 'true' || !!element.disabled || element.getAttribute?.('href') === '#'
+  state.active = !!element?.classList?.contains('toggled') || element?.getAttribute?.('aria-checked') === 'true' || element?.getAttribute?.('aria-pressed') === 'true'
+  state.label = element?.textContent?.trim?.() || state.label || id
+}
+
+function syncExternalControlState() {
+  const highlightThickness = getPdfElement('editorFreeHighlightThickness')
+  const highlightShowAll = getPdfElement('editorHighlightShowAll')
+  const freeTextColor = getPdfElement('editorFreeTextColor')
+  const freeTextFontSize = getPdfElement('editorFreeTextFontSize')
+  const inkColor = getPdfElement('editorInkColor')
+  const inkThickness = getPdfElement('editorInkThickness')
+  const inkOpacity = getPdfElement('editorInkOpacity')
+  const stampAddImage = getPdfElement('editorStampAddImage')
+  const colorButtons = Array.from(getPdfDocument()?.querySelectorAll?.('#editorHighlightColorPicker .dropdown > button') || [])
+
+  editorParams.highlightThickness = Number(highlightThickness?.valueAsNumber || highlightThickness?.value || 12)
+  editorParams.highlightShowAll = highlightShowAll?.getAttribute?.('aria-pressed') === 'true'
+  editorParams.freeTextColor = freeTextColor?.value || editorParams.freeTextColor
+  editorParams.freeTextFontSize = Number(freeTextFontSize?.valueAsNumber || freeTextFontSize?.value || 10)
+  editorParams.inkColor = inkColor?.value || editorParams.inkColor
+  editorParams.inkThickness = Number(inkThickness?.valueAsNumber || inkThickness?.value || 1)
+  editorParams.inkOpacity = Number(inkOpacity?.valueAsNumber || inkOpacity?.value || 1)
+  editorParams.stampAddLabel = stampAddImage?.textContent?.trim?.() || editorParams.stampAddLabel || t('Add image')
+  highlightColorOptions.value = colorButtons.map(button => ({
+    value: String(button.getAttribute('data-color') || '').toUpperCase(),
+    label: button.getAttribute('title') || button.textContent?.trim() || '',
+    selected: button.getAttribute('aria-selected') === 'true',
+  }))
+}
+
 function getPageHeightInPdfPoints(pageView) {
   const rawHeight = Number(pageView?.viewport?.rawDims?.pageHeight)
   if (Number.isFinite(rawHeight) && rawHeight > 0) return rawHeight
@@ -350,12 +960,15 @@ function markPaneActive() {
 function createToolbarStyleText() {
   const bgPrimary = readAppCssVar('--bg-primary', isDark.value ? '#2c313c' : '#ffffff')
   const bgSecondary = readAppCssVar('--bg-secondary', isDark.value ? '#343b47' : '#f3f6fb')
+  const bgTertiary = readAppCssVar('--bg-tertiary', isDark.value ? '#3b4452' : '#edf1f6')
   const bgHover = readAppCssVar('--bg-hover', isDark.value ? 'rgba(255, 255, 255, 0.08)' : 'rgba(15, 23, 42, 0.06)')
   const border = readAppCssVar('--border', isDark.value ? 'rgba(148, 163, 184, 0.18)' : 'rgba(148, 163, 184, 0.26)')
   const fgPrimary = readAppCssVar('--fg-primary', isDark.value ? '#f7f9fc' : '#1f2937')
   const fgSecondary = readAppCssVar('--fg-secondary', isDark.value ? '#c7d0dc' : '#4b5563')
   const fgMuted = readAppCssVar('--fg-muted', isDark.value ? '#8b98ab' : '#6b7280')
   const accent = readAppCssVar('--accent', '#60a5fa')
+  const uiFontSize = readAppCssVar('--ui-font-size', '12px')
+  const uiFontCaption = readAppCssVar('--ui-font-caption', '11px')
   const shadow = isDark.value
     ? '0 10px 26px rgba(15, 23, 42, 0.32)'
     : '0 10px 26px rgba(15, 23, 42, 0.10)'
@@ -382,205 +995,412 @@ function createToolbarStyleText() {
     `)
     : ''
 
+  const viewerChromeCss = usingExternalToolbar.value
+    ? `
+      :root,
+      html,
+      html[data-toolbar-density="compact"],
+      html[data-toolbar-density="touch"] {
+        --toolbar-height: 0px;
+        --toolbar-vertical-padding: 0px;
+        --toolbar-horizontal-padding: 0px;
+        --main-color: ${fgPrimary};
+        --toolbar-bg-color: ${bgSecondary};
+        --sidebar-toolbar-bg-color: ${bgSecondary};
+        --toolbar-border-color: ${border};
+        --toolbar-border-bottom: 0;
+        --toolbar-box-shadow: none;
+        --toolbarSidebar-box-shadow: none;
+        --toolbarSidebar-border-bottom: 0;
+        --toolbar-icon-bg-color: ${fgSecondary};
+        --toolbar-icon-hover-bg-color: ${fgPrimary};
+        --button-hover-color: ${bgHover};
+        --separator-color: ${border};
+        --toggled-btn-color: ${fgPrimary};
+        --toggled-btn-bg-color: color-mix(in srgb, ${accent} 16%, ${bgPrimary});
+        --dropdown-btn-bg-color: ${bgPrimary};
+        --field-color: ${fgPrimary};
+        --field-bg-color: ${bgPrimary};
+        --field-border-color: ${border};
+        --doorhanger-bg-color: ${bgSecondary};
+        --doorhanger-border-color: ${border};
+        --doorhanger-hover-color: ${fgPrimary};
+        --doorhanger-separator-color: ${border};
+      }
+
+      body {
+        background-color: ${bgSecondary};
+      }
+
+      #toolbarContainer {
+        position: absolute !important;
+        inset: 0 0 auto 0 !important;
+        z-index: 24 !important;
+        height: 24px !important;
+        min-height: 24px !important;
+        padding: 0 6px !important;
+        border: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        overflow: visible !important;
+        pointer-events: none !important;
+      }
+
+      #toolbarContainer #toolbarViewer,
+      #toolbarContainer #toolbarViewerLeft,
+      #toolbarContainer #toolbarViewerMiddle,
+      #toolbarContainer #toolbarViewerRight {
+        height: 100% !important;
+        min-height: 24px !important;
+        align-items: center !important;
+        overflow: visible !important;
+      }
+
+      #toolbarSidebar {
+        display: none !important;
+      }
+
+      #toolbarContainer #toolbarViewerLeft > :not(#viewsManager),
+      #toolbarContainer #toolbarViewerMiddle > *,
+      #toolbarContainer #toolbarViewerRight > * {
+        opacity: 0 !important;
+        pointer-events: none !important;
+      }
+
+      #toolbarContainer .toolbarButtonWithContainer,
+      #toolbarContainer #viewsManager {
+        overflow: visible !important;
+      }
+
+      #toolbarContainer #viewsManager,
+      #toolbarContainer #viewsManager * {
+        pointer-events: auto !important;
+      }
+
+      #findbar,
+      #secondaryToolbar,
+      .editorParamsToolbar {
+        position: fixed !important;
+        inset: -10000px auto auto -10000px !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+        box-shadow: none !important;
+      }
+
+      #viewerContainer {
+        inset: 0 !important;
+      }
+
+      #outerContainer {
+        --altals-views-manager-width: 300px !important;
+        --altals-views-manager-effective-width: min(var(--altals-views-manager-width), calc(100vw - 16px)) !important;
+        --viewsManager-width: var(--altals-views-manager-width) !important;
+      }
+
+      #sidebarContent {
+        inset-block: 0 0 !important;
+      }
+
+      #viewsManager {
+        --sidebar-width: var(--altals-views-manager-effective-width) !important;
+        --sidebar-max-width: min(34vw, 360px);
+        --text-color: ${fgPrimary};
+        --button-fg: ${fgMuted};
+        --button-bg: transparent;
+        --button-hover-bg: ${bgHover};
+        --button-active-bg: color-mix(in srgb, ${accent} 12%, transparent);
+        --button-border-color: transparent;
+        --button-hover-border-color: transparent;
+        --button-active-border-color: color-mix(in srgb, ${accent} 30%, transparent);
+        --button-focus-no-bg: ${bgHover};
+        --button-focus-outline-color: color-mix(in srgb, ${accent} 72%, transparent);
+        --button-focus-border-color: color-mix(in srgb, ${accent} 42%, transparent);
+        --status-border-color: color-mix(in srgb, ${border} 88%, transparent);
+        --status-actions-bg: transparent;
+        --status-undo-bg: color-mix(in srgb, ${accent} 8%, ${bgSecondary});
+        --status-waiting-bg: color-mix(in srgb, ${bgTertiary} 78%, ${bgSecondary});
+        --indicator-color: ${accent};
+        --indicator-warning-color: ${accent};
+        --status-warning-bg: color-mix(in srgb, ${accent} 8%, ${bgSecondary});
+        --header-shadow: none !important;
+        --image-border-width: 1px;
+        --image-border-color: color-mix(in srgb, ${border} 92%, transparent);
+        --image-hover-border-color: color-mix(in srgb, ${border} 70%, transparent);
+        --image-current-border-color: color-mix(in srgb, ${accent} 60%, transparent);
+        --image-current-focused-outline-color: ${accent};
+        --image-page-number-bg: transparent;
+        --image-page-number-fg: ${fgMuted};
+        --image-current-page-number-bg: transparent;
+        --image-current-page-number-fg: ${fgPrimary};
+        --image-shadow: 0 0 0 1px var(--image-border-color);
+        --image-hover-shadow: 0 0 0 1px var(--image-hover-border-color);
+        --image-current-shadow: 0 0 0 1px var(--image-current-border-color);
+        --image-dragging-placeholder-bg: ${bgTertiary};
+        --multiple-dragging-text-color: ${fgPrimary};
+        --treeitem-color: ${fgSecondary};
+        --treeitem-bg-color: ${bgHover};
+        --treeitem-hover-color: ${fgPrimary};
+        --treeitem-selected-color: ${fgPrimary};
+        --treeitem-selected-bg-color: color-mix(in srgb, ${accent} 12%, transparent);
+        --header-shadow: none !important;
+        position: fixed !important;
+        inset-block: 0 !important;
+        inset-inline-start: calc(-1 * var(--altals-views-manager-effective-width) - 8px) !important;
+        height: auto !important;
+        max-height: none !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: stretch !important;
+        width: var(--sidebar-width) !important;
+        min-width: 0 !important;
+        max-width: var(--sidebar-width) !important;
+        flex: 0 0 var(--sidebar-width) !important;
+        padding: 0 !important;
+        padding-block: 0 !important;
+        color: ${fgPrimary} !important;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", sans-serif !important;
+        background: color-mix(in srgb, ${bgSecondary} 96%, ${bgPrimary}) !important;
+        border-radius: 0 !important;
+        border: 0 !important;
+        border-inline-end: 1px solid color-mix(in srgb, ${border} 88%, transparent) !important;
+        box-shadow: none !important;
+        box-sizing: border-box !important;
+        overflow: hidden !important;
+        backdrop-filter: none !important;
+      }
+
+      #outerContainer.viewsManagerOpen #viewsManager {
+        inset-inline-start: 0 !important;
+        visibility: visible !important;
+      }
+
+      #outerContainer.viewsManagerOpen #viewerContainer:not(.pdfPresentationMode) {
+        inset-inline-start: 0 !important;
+      }
+
+      #viewsManager .sidebarResizer {
+        display: none !important;
+      }
+
+      #loadingBar {
+        top: 0 !important;
+      }
+    `
+    : `
+      :root,
+      html,
+      html[data-toolbar-density="compact"],
+      html[data-toolbar-density="touch"] {
+        --toolbar-height: 24px;
+        --toolbar-vertical-padding: 0px;
+        --toolbar-horizontal-padding: 6px;
+        --main-color: ${fgPrimary};
+        --toolbar-bg-color: ${bgSecondary};
+        --sidebar-toolbar-bg-color: ${bgSecondary};
+        --toolbar-border-color: ${border};
+        --toolbar-border-bottom: 1px solid ${border};
+        --toolbar-box-shadow: none;
+        --toolbarSidebar-box-shadow: none;
+        --toolbarSidebar-border-bottom: 1px solid ${border};
+        --toolbar-icon-bg-color: ${fgSecondary};
+        --toolbar-icon-hover-bg-color: ${fgPrimary};
+        --button-hover-color: ${bgHover};
+        --separator-color: ${border};
+        --toggled-btn-color: ${fgPrimary};
+        --toggled-btn-bg-color: color-mix(in srgb, ${accent} 16%, ${bgPrimary});
+        --dropdown-btn-bg-color: ${bgPrimary};
+        --field-color: ${fgPrimary};
+        --field-bg-color: ${bgPrimary};
+        --field-border-color: ${border};
+        --doorhanger-bg-color: ${bgSecondary};
+        --doorhanger-border-color: ${border};
+        --doorhanger-hover-color: ${fgPrimary};
+        --doorhanger-separator-color: ${border};
+      }
+
+      body {
+        background-color: ${bgSecondary};
+      }
+
+      #toolbarContainer,
+      #toolbarSidebar {
+        height: 24px !important;
+        min-height: 24px !important;
+        padding: 0 6px !important;
+        box-sizing: border-box;
+        background-color: ${bgSecondary} !important;
+      }
+
+      #toolbarContainer {
+        border-bottom: 1px solid ${border};
+      }
+
+      #toolbarSidebar {
+        border-bottom: 1px solid ${border};
+        box-shadow: none;
+      }
+
+      #toolbarContainer #toolbarViewer {
+        height: 100%;
+        align-items: center;
+      }
+
+      #toolbarViewerLeft,
+      #toolbarViewerMiddle,
+      #toolbarViewerRight {
+        align-items: center;
+        gap: 6px;
+      }
+
+      .toolbarButton,
+      .toolbarButtonWithContainer {
+        height: 20px;
+      }
+
+      .toolbarButton {
+        width: 20px;
+        border-radius: 6px;
+        border: 1px solid transparent;
+      }
+
+      .toolbarButtonWithContainer {
+        height: 20px;
+      }
+
+      .toolbarButton::before {
+        width: 14px;
+        height: 14px;
+      }
+
+      .toolbarField {
+        height: 20px;
+        padding: 0 8px;
+        border-radius: 6px;
+        background-color: color-mix(in srgb, ${bgPrimary} 82%, ${bgSecondary});
+        border-color: ${border};
+        color: ${fgPrimary};
+        font-size: 11px;
+        line-height: 1;
+      }
+
+      .toolbarField::placeholder {
+        color: ${fgMuted};
+      }
+
+      .toolbarButton:is(:hover,:focus-visible) {
+        background-color: ${bgHover};
+      }
+
+      .toolbarButton.toggled {
+        color: ${accent};
+        border-color: color-mix(in srgb, ${accent} 35%, transparent);
+        background-color: color-mix(in srgb, ${accent} 14%, transparent);
+      }
+
+      .toolbarButton.toggled::before {
+        background-color: ${accent};
+      }
+
+      .toolbarButtonSpacer {
+        width: 1px !important;
+        height: 12px !important;
+        background: color-mix(in srgb, ${border} 85%, transparent);
+      }
+
+      .splitToolbarButtonSeparator {
+        height: 12px;
+        align-self: center;
+        opacity: 1;
+      }
+
+      #pageNumber {
+        width: 36px;
+        text-align: center;
+        font-size: 11px;
+        font-weight: 600;
+      }
+
+      #numPages,
+      .toolbarLabel,
+      #findResultsCount,
+      #findMsg {
+        color: ${fgSecondary};
+        font-size: 11px;
+      }
+
+      #scaleSelectContainer {
+        height: 20px;
+        min-width: 120px;
+        overflow: hidden;
+        border: 1px solid ${border};
+        border-radius: 6px;
+        background-color: color-mix(in srgb, ${bgPrimary} 82%, ${bgSecondary});
+      }
+
+      #scaleSelect {
+        height: 100%;
+        padding-inline: 8px 24px;
+        border: 0;
+        background: transparent;
+        color: ${fgPrimary};
+        font-size: 11px;
+      }
+
+      #findbar {
+        margin-top: 8px;
+        min-width: 360px;
+        max-width: calc(100vw - 16px);
+        border: 1px solid ${border};
+        border-radius: 10px;
+        background-color: ${bgSecondary};
+        box-shadow: ${shadow};
+      }
+
+      #findbar #findInputContainer {
+        margin-inline-start: 0;
+      }
+
+      #findbar #findInput {
+        width: 200px;
+        color: ${fgPrimary};
+      }
+
+      #findbar #findbarMessageContainer {
+        gap: 6px;
+      }
+
+      #findbar #findResultsCount {
+        color: ${fgMuted};
+        background: transparent;
+        padding-inline: 0;
+      }
+
+      #findbar .toggleButton {
+        display: inline-flex;
+        align-items: center;
+        padding-inline: 8px;
+      }
+
+      #findbar .toggleButton:has(> input:checked) {
+        background-color: color-mix(in srgb, ${accent} 14%, ${bgPrimary});
+        color: ${fgPrimary};
+      }
+
+      #findbar .toggleButton:is(:hover, :has(> input:focus-visible)) {
+        background-color: ${bgHover};
+        color: ${fgPrimary};
+      }
+
+      #secondaryToolbar,
+      .toolbarButtonWithContainer .editorParamsToolbar,
+      #findbar {
+        border-radius: 10px;
+        box-shadow: ${shadow};
+      }
+    `
+
   return `
-    :root {
-      --toolbar-height: 24px;
-      --toolbar-vertical-padding: 0px;
-      --toolbar-horizontal-padding: 6px;
-      --main-color: ${fgPrimary};
-      --toolbar-bg-color: ${bgSecondary};
-      --sidebar-toolbar-bg-color: ${bgSecondary};
-      --toolbar-border-color: ${border};
-      --toolbar-border-bottom: 1px solid ${border};
-      --toolbar-box-shadow: none;
-      --toolbarSidebar-box-shadow: none;
-      --toolbarSidebar-border-bottom: 1px solid ${border};
-      --toolbar-icon-bg-color: ${fgSecondary};
-      --toolbar-icon-hover-bg-color: ${fgPrimary};
-      --button-hover-color: ${bgHover};
-      --separator-color: ${border};
-      --toggled-btn-color: ${fgPrimary};
-      --toggled-btn-bg-color: color-mix(in srgb, ${accent} 16%, ${bgPrimary});
-      --dropdown-btn-bg-color: ${bgPrimary};
-      --field-color: ${fgPrimary};
-      --field-bg-color: ${bgPrimary};
-      --field-border-color: ${border};
-      --doorhanger-bg-color: ${bgSecondary};
-      --doorhanger-border-color: ${border};
-      --doorhanger-hover-color: ${fgPrimary};
-      --doorhanger-separator-color: ${border};
-    }
-
-    body {
-      background-color: ${bgSecondary};
-    }
-
-    #toolbarContainer,
-    #toolbarSidebar {
-      background-color: ${bgSecondary} !important;
-    }
-
-    #toolbarContainer {
-      padding: 0 6px;
-    }
-
-    #toolbarContainer #toolbarViewer {
-      align-items: center;
-    }
-
-    #toolbarViewerLeft,
-    #toolbarViewerMiddle,
-    #toolbarViewerRight {
-      align-items: center;
-      gap: 6px;
-    }
-
-    .toolbarButton,
-    .toolbarButtonWithContainer {
-      height: 20px;
-    }
-
-    .toolbarButton {
-      width: 20px;
-      border-radius: 6px;
-      border: 1px solid transparent;
-    }
-
-    .toolbarButtonWithContainer {
-      height: 20px;
-    }
-
-    .toolbarButton::before {
-      width: 14px;
-      height: 14px;
-    }
-
-    .toolbarField {
-      height: 20px;
-      padding: 0 8px;
-      border-radius: 6px;
-      background-color: color-mix(in srgb, ${bgPrimary} 82%, ${bgSecondary});
-      border-color: ${border};
-      color: ${fgPrimary};
-      font-size: 11px;
-      line-height: 1;
-    }
-
-    .toolbarField::placeholder {
-      color: ${fgMuted};
-    }
-
-    .toolbarButton:is(:hover,:focus-visible) {
-      background-color: ${bgHover};
-    }
-
-    .toolbarButton.toggled {
-      color: ${accent};
-      border-color: color-mix(in srgb, ${accent} 35%, transparent);
-      background-color: color-mix(in srgb, ${accent} 14%, transparent);
-    }
-
-    .toolbarButton.toggled::before {
-      background-color: ${accent};
-    }
-
-    .toolbarButtonSpacer {
-      width: 1px !important;
-      height: 12px !important;
-      background: color-mix(in srgb, ${border} 85%, transparent);
-    }
-
-    .splitToolbarButtonSeparator {
-      height: 12px;
-      align-self: center;
-      opacity: 1;
-    }
-
-    #pageNumber {
-      width: 36px;
-      text-align: center;
-      font-size: 11px;
-      font-weight: 600;
-    }
-
-    #numPages,
-    .toolbarLabel,
-    #findResultsCount,
-    #findMsg {
-      color: ${fgSecondary};
-      font-size: 11px;
-    }
-
-    #scaleSelectContainer {
-      height: 20px;
-      min-width: 120px;
-      overflow: hidden;
-      border: 1px solid ${border};
-      border-radius: 6px;
-      background-color: color-mix(in srgb, ${bgPrimary} 82%, ${bgSecondary});
-    }
-
-    #scaleSelect {
-      height: 100%;
-      padding-inline: 8px 24px;
-      border: 0;
-      background: transparent;
-      color: ${fgPrimary};
-      font-size: 11px;
-    }
-
-    #findbar {
-      margin-top: 8px;
-      min-width: 360px;
-      max-width: calc(100vw - 16px);
-      border: 1px solid ${border};
-      border-radius: 10px;
-      background-color: ${bgSecondary};
-      box-shadow: ${shadow};
-    }
-
-    #findbar #findInputContainer {
-      margin-inline-start: 0;
-    }
-
-    #findbar #findInput {
-      width: 200px;
-      color: ${fgPrimary};
-    }
-
-    #findbar #findbarMessageContainer {
-      gap: 6px;
-    }
-
-    #findbar #findResultsCount {
-      color: ${fgMuted};
-      background: transparent;
-      padding-inline: 0;
-    }
-
-    #findbar .toggleButton {
-      display: inline-flex;
-      align-items: center;
-      padding-inline: 8px;
-    }
-
-    #findbar .toggleButton:has(> input:checked) {
-      background-color: color-mix(in srgb, ${accent} 14%, ${bgPrimary});
-      color: ${fgPrimary};
-    }
-
-    #findbar .toggleButton:is(:hover, :has(> input:focus-visible)) {
-      background-color: ${bgHover};
-      color: ${fgPrimary};
-    }
-
-    #secondaryToolbar,
-    .toolbarButtonWithContainer .editorParamsToolbar,
-    #findbar {
-      border-radius: 10px;
-      box-shadow: ${shadow};
-    }
-
+    ${viewerChromeCss}
     ${pageThemeCss}
   `
 }
@@ -599,6 +1419,24 @@ function applyTheme() {
   }
 
   style.textContent = createToolbarStyleText()
+}
+
+function syncViewerAppZoom() {
+  const doc = getPdfDocument()
+  if (!doc?.documentElement) return
+
+  const hostZoom = typeof document !== 'undefined'
+    ? (document.documentElement.style.zoom || '')
+    : ''
+
+  if (hostZoom) {
+    doc.documentElement.style.zoom = hostZoom
+    doc.body?.style?.setProperty('zoom', hostZoom)
+    return
+  }
+
+  doc.documentElement.style.removeProperty('zoom')
+  doc.body?.style?.removeProperty('zoom')
 }
 
 function syncPdfUi() {
@@ -632,12 +1470,18 @@ function syncPdfUi() {
   pdfUi.sidebarOpen = typeof viewsManager?.isOpen === 'boolean'
     ? viewsManager.isOpen
     : toggleButton?.getAttribute('aria-expanded') === 'true'
-  pdfUi.searchOpen = !!findbar && !findbar.classList.contains('hidden')
-  pdfUi.searchQuery = findInput?.value || ''
-  pdfUi.searchHighlightAll = !!findHighlightAll?.checked
-  pdfUi.searchCaseSensitive = !!findMatchCase?.checked
-  pdfUi.searchMatchDiacritics = !!findMatchDiacritics?.checked
-  pdfUi.searchEntireWord = !!findEntireWord?.checked
+  if (!usingExternalToolbar.value) {
+    pdfUi.searchOpen = !!findbar && !findbar.classList.contains('hidden')
+    pdfUi.searchQuery = findInput?.value || ''
+    pdfUi.searchHighlightAll = !!findHighlightAll?.checked
+    pdfUi.searchCaseSensitive = !!findMatchCase?.checked
+    pdfUi.searchMatchDiacritics = !!findMatchDiacritics?.checked
+    pdfUi.searchEntireWord = !!findEntireWord?.checked
+    searchDraft.value = pdfUi.searchQuery
+  } else {
+    pdfUi.searchOpen = searchOpen.value
+    pdfUi.searchQuery = searchDraft.value
+  }
   pdfUi.searchResultText = [findResultsCount?.textContent, findMsg?.textContent]
     .map(value => (value || '').trim())
     .filter(Boolean)
@@ -646,6 +1490,41 @@ function syncPdfUi() {
   if (scaleSelect) {
     pdfUi.scaleValue = scaleSelect.value || 'auto'
     pdfUi.scaleLabel = localizeScaleLabel(scaleSelect.options[scaleSelect.selectedIndex]?.textContent) || pdfUi.scaleLabel
+    scaleOptions.value = normalizeScaleOptions(scaleSelect)
+  } else {
+    scaleOptions.value = []
+  }
+
+  syncToolbarButtonState('editorHighlightButton')
+  syncToolbarButtonState('editorFreeTextButton')
+  syncToolbarButtonState('editorInkButton')
+  syncToolbarButtonState('editorStampButton')
+  syncToolbarButtonState('printButton')
+  syncToolbarButtonState('downloadButton')
+  syncToolbarButtonState('secondaryToolbarToggleButton')
+  syncMenuItemState('secondaryOpenFile')
+  syncMenuItemState('secondaryPrint')
+  syncMenuItemState('secondaryDownload')
+  syncMenuItemState('presentationMode')
+  syncMenuItemState('viewBookmark')
+  syncMenuItemState('firstPage')
+  syncMenuItemState('lastPage')
+  syncMenuItemState('pageRotateCw')
+  syncMenuItemState('pageRotateCcw')
+  syncMenuItemState('cursorSelectTool')
+  syncMenuItemState('cursorHandTool')
+  syncMenuItemState('scrollPage')
+  syncMenuItemState('scrollVertical')
+  syncMenuItemState('scrollHorizontal')
+  syncMenuItemState('scrollWrapped')
+  syncMenuItemState('spreadNone')
+  syncMenuItemState('spreadOdd')
+  syncMenuItemState('spreadEven')
+  syncMenuItemState('documentProperties')
+  syncExternalControlState()
+
+  if (pageInputRef.value !== document.activeElement) {
+    pageInputValue.value = String(pdfUi.pageNumber || 1)
   }
 }
 
@@ -657,31 +1536,177 @@ function dispatchPdfEvent(type, detail = {}) {
 }
 
 function openSearch() {
-  const doc = getPdfDocument()
-  const findbar = doc?.getElementById('findbar')
-  if (findbar?.classList.contains('hidden')) {
-    clickPdfElement('viewFindButton')
+  activeToolbarPanel.value = ''
+  if (!usingExternalToolbar.value) {
+    const doc = getPdfDocument()
+    const findbar = doc?.getElementById('findbar')
+    if (findbar?.classList.contains('hidden')) {
+      clickPdfElement('viewFindButton')
+    }
+    syncPdfUi()
+    window.requestAnimationFrame(() => {
+      doc?.getElementById('findInput')?.focus()
+    })
+    return
   }
-  syncPdfUi()
-  window.requestAnimationFrame(() => {
-    doc?.getElementById('findInput')?.focus()
+
+  searchOpen.value = true
+  searchDraft.value = pdfUi.searchQuery || searchDraft.value
+  pdfUi.searchOpen = true
+  nextTick(() => {
+    searchInputRef.value?.focus()
+    searchInputRef.value?.select?.()
   })
 }
 
 function closeSearch() {
-  const findbar = getPdfElement('findbar')
-  if (findbar && !findbar.classList.contains('hidden')) {
-    clickPdfElement('viewFindButton')
+  if (!usingExternalToolbar.value) {
+    const findbar = getPdfElement('findbar')
+    if (findbar && !findbar.classList.contains('hidden')) {
+      clickPdfElement('viewFindButton')
+    }
+    pdfUi.searchOpen = false
+    return
   }
+
+  searchOpen.value = false
   pdfUi.searchOpen = false
 }
 
 function toggleSearch() {
-  if (pdfUi.searchOpen) {
+  if (searchOpen.value || pdfUi.searchOpen) {
     closeSearch()
     return
   }
   openSearch()
+}
+
+function toggleToolbarPanel(panel) {
+  closeSearch()
+  activeToolbarPanel.value = activeToolbarPanel.value === panel ? '' : panel
+}
+
+function toggleSidebar() {
+  clickPdfElement('viewsManagerToggleButton')
+}
+
+function goToPreviousPage() {
+  clickPdfElement('previous')
+}
+
+function goToNextPage() {
+  clickPdfElement('next')
+}
+
+function zoomOut() {
+  clickPdfElement('zoomOutButton')
+}
+
+function zoomIn() {
+  clickPdfElement('zoomInButton')
+}
+
+function submitPageNumber() {
+  const targetPage = Number.parseInt(String(pageInputValue.value || '').trim(), 10)
+  if (!Number.isInteger(targetPage) || targetPage < 1) {
+    pageInputValue.value = String(pdfUi.pageNumber || 1)
+    return
+  }
+  scrollToPage(targetPage)
+}
+
+function handleScaleSelectChange(event) {
+  const nextValue = String(event?.target?.value || '').trim()
+  const scaleSelect = getPdfElement('scaleSelect')
+  if (!nextValue || !scaleSelect) return
+  scaleSelect.value = nextValue
+  scaleSelect.dispatchEvent(new Event('change', { bubbles: true }))
+  syncPdfUi()
+}
+
+function dispatchExternalSearch({ findPrevious = false, type = '' } = {}) {
+  const query = String(searchDraft.value || '').trim()
+  pdfUi.searchQuery = query
+  dispatchPdfEvent('find', {
+    type,
+    query,
+    phraseSearch: true,
+    caseSensitive: pdfUi.searchCaseSensitive,
+    entireWord: pdfUi.searchEntireWord,
+    highlightAll: pdfUi.searchHighlightAll,
+    findPrevious,
+    matchDiacritics: pdfUi.searchMatchDiacritics,
+  })
+}
+
+function runSearch(findPrevious = false) {
+  if (!searchDraft.value.trim()) return
+  dispatchExternalSearch({
+    findPrevious,
+    type: findPrevious ? 'again' : '',
+  })
+}
+
+function toggleSearchOption(key) {
+  if (!(key in pdfUi)) return
+  pdfUi[key] = !pdfUi[key]
+  if (!searchDraft.value.trim()) return
+  dispatchExternalSearch()
+}
+
+function proxyPdfButton(id) {
+  clickPdfElement(id)
+}
+
+function activateEditorTool(buttonId, panel) {
+  const state = toolbarButtons[buttonId]
+  if (!state?.active) {
+    proxyPdfButton(buttonId)
+  }
+  toggleToolbarPanel(panel)
+}
+
+function toggleToolsMenu() {
+  toggleToolbarPanel('tools')
+}
+
+function setPdfInputValue(id, value, eventName = 'input') {
+  const element = getPdfElement(id)
+  if (!element) return
+  element.value = String(value)
+  element.dispatchEvent(new Event(eventName, { bubbles: true }))
+  syncPdfUi()
+}
+
+function setHighlightColor(color) {
+  const targetColor = String(color || '').toUpperCase()
+  const button = getPdfDocument()?.querySelector?.(`#editorHighlightColorPicker .dropdown > button[data-color="${targetColor}"]`)
+  button?.click?.()
+  syncPdfUi()
+}
+
+function toggleHighlightShowAll() {
+  getPdfElement('editorHighlightShowAll')?.click?.()
+  syncPdfUi()
+}
+
+function runToolMenuCommand(id) {
+  getPdfElement(id)?.click?.()
+  syncPdfUi()
+  activeToolbarPanel.value = ''
+}
+
+function handleIframePointerDown() {
+  closeSearch()
+  activeToolbarPanel.value = ''
+}
+
+function handleGlobalPointerDown(event) {
+  const toolbarShell = toolbarShellRef.value
+  if (!toolbarShell) return
+  if (toolbarShell.contains(event.target)) return
+  closeSearch()
+  activeToolbarPanel.value = ''
 }
 
 function roundRectValue(value) {
@@ -1254,6 +2279,7 @@ async function onIframeLoad() {
   }
 
   applyTheme()
+  syncViewerAppZoom()
   clearIframePointerGuards()
   syncPdfUi()
   clearSyncTimer()
@@ -1264,6 +2290,7 @@ async function onIframeLoad() {
     try {
       const doc = win.document
       doc.addEventListener('dblclick', handleIframeDoubleClick)
+      doc.addEventListener('pointerdown', handleIframePointerDown, true)
       doc.addEventListener('mouseup', handleViewerMouseUp)
       doc.addEventListener('selectionchange', handleViewerSelectionChange)
       doc.addEventListener('keydown', (event) => {
@@ -1288,7 +2315,13 @@ async function onIframeLoad() {
           return
         }
 
-        if (event.key === 'Escape' && pdfUi.searchOpen) {
+        if (event.key === 'Escape' && activeToolbarPanel.value) {
+          event.preventDefault()
+          activeToolbarPanel.value = ''
+          return
+        }
+
+        if (event.key === 'Escape' && (searchOpen.value || pdfUi.searchOpen)) {
           event.preventDefault()
           closeSearch()
         }
@@ -1320,7 +2353,11 @@ async function loadPdf() {
     if (requestId !== loadRequestId) return
     const uint8Array = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes)
     resetViewerReadyPromise()
-    viewerSrc.value = `/pdfjs-viewer/web/viewer.html?instance=${requestId}`
+    const params = new URLSearchParams({
+      instance: String(requestId),
+      locale: getPdfViewerLocaleParam(),
+    })
+    viewerSrc.value = `/pdfjs-viewer/web/viewer.html?${params.toString()}`
     const app = await viewerReadyPromise
     if (requestId !== loadRequestId) return
     await app.open({ data: uint8Array })
@@ -1350,12 +2387,14 @@ onMounted(() => {
   resetViewerReadyPromise()
   clearIframePointerGuards()
   window.addEventListener('pdf-updated', handlePdfUpdated)
+  document.addEventListener('pointerdown', handleGlobalPointerDown, true)
   loadPdf()
 })
 
 onUnmounted(() => {
   loadRequestId += 1
   window.removeEventListener('pdf-updated', handlePdfUpdated)
+  document.removeEventListener('pointerdown', handleGlobalPointerDown, true)
   clearSyncTimer()
   clearSyncHighlight()
   annotationMutationObserver?.disconnect()
@@ -1373,6 +2412,9 @@ onUnmounted(() => {
 
 watch(isDark, applyTheme)
 watch(() => workspace.pdfThemedPages, applyTheme)
+watch(() => workspace.appZoomPercent, () => {
+  syncViewerAppZoom()
+})
 
 watch(
   () => [
@@ -1392,6 +2434,10 @@ watch(currentPdfAnnotations, () => {
 }, { deep: true })
 
 watch(filePathRef, () => {
+  loadPdf()
+})
+
+watch(() => locale.value, () => {
   loadPdf()
 })
 
@@ -1427,6 +2473,7 @@ defineExpose({
   align-items: center;
   justify-content: space-between;
   width: 100%;
+  height: 100%;
   min-height: var(--document-header-row-height, 24px);
   box-sizing: border-box;
   padding: 0 6px;
@@ -1444,6 +2491,7 @@ defineExpose({
   display: flex;
   align-items: center;
   gap: 6px;
+  height: 100%;
   min-width: 0;
   flex: 1 1 0;
 }
@@ -1457,6 +2505,7 @@ defineExpose({
   inset: 0 auto 0 50%;
   display: flex;
   align-items: center;
+  height: 100%;
   transform: translateX(-50%);
   pointer-events: none;
 }
@@ -1599,6 +2648,139 @@ defineExpose({
 
 .pdf-search-popover::-webkit-scrollbar {
   display: none;
+}
+
+.pdf-toolbar-popover {
+  position: absolute;
+  top: calc(var(--document-header-row-height, 24px) + 6px);
+  z-index: 24;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 220px;
+  max-width: min(280px, calc(100vw - 12px));
+  box-sizing: border-box;
+  padding: 8px;
+  border: 1px solid color-mix(in srgb, var(--border) 92%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg-secondary) 96%, var(--bg-primary));
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(10px);
+}
+
+.pdf-toolbar-popover-right,
+.pdf-toolbar-popover-menu {
+  right: 6px;
+}
+
+.pdf-toolbar-popover-menu {
+  width: max-content;
+  min-width: 220px;
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.pdf-toolbar-popover-menu::-webkit-scrollbar {
+  display: none;
+}
+
+.pdf-toolbar-popover-title {
+  color: var(--fg-primary);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.pdf-toolbar-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pdf-toolbar-field input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.pdf-color-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.pdf-color-swatch-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  transition: background-color 0.16s ease, border-color 0.16s ease;
+}
+
+.pdf-color-swatch-btn:hover {
+  background: var(--bg-hover);
+}
+
+.pdf-color-swatch-btn-active {
+  border-color: color-mix(in srgb, var(--accent) 36%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.pdf-color-swatch {
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--border) 92%, transparent);
+}
+
+.pdf-color-input {
+  width: 100%;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg-primary) 82%, var(--bg-secondary));
+}
+
+.pdf-toolbar-menu-item {
+  display: inline-flex;
+  align-items: center;
+  width: 100%;
+  min-height: 26px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg-primary);
+  font-size: var(--ui-font-caption);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.pdf-toolbar-menu-item:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.pdf-toolbar-menu-item:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.pdf-toolbar-menu-item-active {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 28%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.pdf-toolbar-menu-separator {
+  width: 100%;
+  height: 1px;
+  background: color-mix(in srgb, var(--border) 88%, transparent);
 }
 
 .pdf-search-toggle {

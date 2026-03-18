@@ -6590,28 +6590,28 @@ button.hasPopupMenu[aria-expanded="false"] + menu{
   position:sticky;
   top:0;
   z-index:4;
-  background:#181818;
-  border-bottom:1px solid rgb(255 255 255 / 0.06);
+  background:rgb(52 59 71 / 0.98);
+  border-bottom:1px solid rgb(148 163 184 / 0.14);
 }
 
 :is(#viewsManager #viewsManagerHeader) .viewsManagerLabel{
   font-family:"Segoe UI","Segoe WPC","PingFang SC","Hiragino Sans GB","Microsoft YaHei UI",sans-serif;
-  font-size: var(--viewer-font-body);
+  font-size:12px;
   font-weight:600;
   letter-spacing:0;
-  color:#cccccc;
+  color:#d8e1ee;
 }
 
 :is(#viewsManager #viewsManagerHeader) #viewsManagerTitle{
-  min-height:40px;
-  gap:8px;
-  padding:8px 12px;
+  min-height:34px;
+  gap:6px;
+  padding:6px 10px;
   align-items:center;
 }
 
 :is(:is(#viewsManager #viewsManagerHeader) #viewsManagerTitle) #viewsManagerSelector{
-  width:32px;
-  height:30px;
+  width:26px;
+  height:26px;
   flex:0 0 auto;
 }
 
@@ -6627,6 +6627,108 @@ button.hasPopupMenu[aria-expanded="false"] + menu{
 :is(:is(:is(#viewsManager #viewsManagerHeader) #viewsManagerTitle) #viewsManagerSelector) > button::after{
   margin-left:4px;
   opacity:0.72;
+}
+
+:is(:is(:is(#viewsManager #viewsManagerHeader) #viewsManagerTitle) #viewsManagerSelector) > .popupMenu{
+  width:176px;
+  min-width:176px;
+  max-width:176px;
+  margin-top:4px;
+  padding:4px;
+  border-radius:8px;
+  border:1px solid rgb(148 163 184 / 0.14);
+  background:rgb(52 59 71 / 0.98);
+  box-shadow:0 8px 18px rgb(15 23 42 / 0.16);
+  -webkit-backdrop-filter:blur(12px);
+          backdrop-filter:blur(12px);
+}
+
+:is(:is(:is(:is(#viewsManager #viewsManagerHeader) #viewsManagerTitle) #viewsManagerSelector) > .popupMenu).withMark{
+  --menu-mark-icon-size:0;
+}
+
+:is(:is(:is(:is(#viewsManager #viewsManagerHeader) #viewsManagerTitle) #viewsManagerSelector) > .popupMenu) > li{
+  height:auto;
+  padding-inline:0;
+  margin:0;
+  border:0;
+  border-radius:6px;
+  background:transparent;
+}
+
+:is(:is(:is(:is(#viewsManager #viewsManagerHeader) #viewsManagerTitle) #viewsManagerSelector) > .popupMenu) > li:has(button.selected)::before{
+  content:none;
+}
+
+:is(:is(:is(:is(#viewsManager #viewsManagerHeader) #viewsManagerTitle) #viewsManagerSelector) > .popupMenu) > li:hover{
+  background:rgb(255 255 255 / 0.05);
+}
+
+:is(:is(:is(:is(#viewsManager #viewsManagerHeader) #viewsManagerTitle) #viewsManagerSelector) > .popupMenu) > li:has(button.selected){
+  background:rgb(96 165 250 / 0.10);
+}
+
+:is(:is(:is(:is(#viewsManager #viewsManagerHeader) #viewsManagerTitle) #viewsManagerSelector) > .popupMenu) > li:active{
+  background:rgb(255 255 255 / 0.08);
+}
+
+:is(:is(:is(:is(#viewsManager #viewsManagerHeader) #viewsManagerTitle) #viewsManagerSelector) > .popupMenu) > li:has(> button:focus-visible){
+  background:rgb(255 255 255 / 0.05);
+  outline:2px solid rgb(96 165 250 / 0.24);
+  outline-offset:1px;
+}
+
+:is(:is(:is(:is(#viewsManager #viewsManagerHeader) #viewsManagerTitle) #viewsManagerSelector) > .popupMenu) > li:has(button:disabled){
+  opacity:0.52;
+}
+
+:is(:is(:is(:is(#viewsManager #viewsManagerHeader) #viewsManagerTitle) #viewsManagerSelector) > .popupMenu) > li > button{
+  min-height:28px;
+  padding:0 8px;
+  gap:7px;
+  border-radius:6px;
+}
+
+:is(:is(:is(:is(:is(#viewsManager #viewsManagerHeader) #viewsManagerTitle) #viewsManagerSelector) > .popupMenu) > li > button):not(.noIcon)::before{
+  width:13px;
+  height:13px;
+  background-color:#aeb9cb;
+}
+
+:is(:is(:is(:is(#viewsManager #viewsManagerHeader) #viewsManagerTitle) #viewsManagerSelector) > .popupMenu) > li > button > span{
+  color:#d5deeb;
+  font-family:"Segoe UI","Segoe WPC","PingFang SC","Hiragino Sans GB","Microsoft YaHei UI",sans-serif;
+  font-size:11.5px;
+  font-weight:540;
+  letter-spacing:0;
+  background:transparent;
+}
+
+:is(:is(:is(:is(#viewsManager #viewsManagerHeader) #viewsManagerTitle) #viewsManagerSelector) > .popupMenu) > li:hover > button > span{
+  color:#f6f8fc;
+  background:transparent;
+}
+
+:is(:is(:is(:is(:is(#viewsManager #viewsManagerHeader) #viewsManagerTitle) #viewsManagerSelector) > .popupMenu) > li:hover > button):not(.noIcon)::before{
+  background-color:#edf3fb;
+}
+
+:is(:is(:is(:is(#viewsManager #viewsManagerHeader) #viewsManagerTitle) #viewsManagerSelector) > .popupMenu) > li:has(button.selected) > button > span{
+  color:#eef5ff;
+  background:transparent;
+}
+
+:is(:is(:is(:is(:is(#viewsManager #viewsManagerHeader) #viewsManagerTitle) #viewsManagerSelector) > .popupMenu) > li:has(button.selected) > button):not(.noIcon)::before{
+  background-color:#cddfff;
+}
+
+:is(:is(:is(:is(#viewsManager #viewsManagerHeader) #viewsManagerTitle) #viewsManagerSelector) > .popupMenu) > li:has(button:disabled) > button > span{
+  color:#7f8999;
+  background:transparent;
+}
+
+:is(:is(:is(:is(:is(#viewsManager #viewsManagerHeader) #viewsManagerTitle) #viewsManagerSelector) > .popupMenu) > li:has(button:disabled) > button):not(.noIcon)::before{
+  background-color:#7f8999;
 }
 
 :is(#viewsManager #viewsManagerHeader) #viewsManagerHeaderLabel{
