@@ -1,10 +1,9 @@
 <template>
-  <div>
+  <div class="env-page env-page-compact">
     <h3 class="settings-section-title">{{ t('System') }}</h3>
-    <p class="settings-hint">{{ t('System tools and compilers detected on your machine.') }}</p>
 
     <div class="env-languages">
-      <div v-for="lang in envLanguages" :key="lang.key" class="env-lang-card">
+      <div v-for="lang in envLanguages" :key="lang.key" class="env-lang-card" :class="envLangCardClass(lang)">
         <div class="env-lang-header">
           <span class="env-lang-dot" :class="envLangDotClass(lang)"></span>
           <span class="env-lang-name">{{ lang.label }}</span>
@@ -13,7 +12,6 @@
         </div>
 
         <div v-if="lang.info.found" class="env-lang-details">
-          <div v-if="lang.key !== 'python'" class="env-lang-path">{{ lang.info.path }}</div>
           <template v-if="lang.key === 'python'">
             <div class="env-python-stack">
               <div v-if="lang.info.candidates?.length" class="env-compact-block">
@@ -65,7 +63,6 @@
           </div>
         </div>
 
-        <div v-else class="env-lang-hint">{{ envStore.installHint(lang.key) }}</div>
         <div v-if="envStore.lastInstallLanguage === lang.key && envStore.installError" class="env-install-error">
           {{ envStore.installError }}
         </div>
@@ -82,306 +79,284 @@
 
     <!-- LaTeX Compiler -->
     <h3 class="settings-section-title env-section-offset">{{ t('LaTeX Compiler') }}</h3>
-    <p class="settings-hint">{{ t('Choose which compiler Altals uses for .tex files.') }}</p>
 
-    <div class="env-lang-card">
-      <div class="env-lang-header">
-        <span class="env-lang-dot" :class="latexHeaderDotClass"></span>
-        <span class="env-lang-name">{{ t('Compiler') }}</span>
-        <span class="env-lang-version">{{ latexPreferenceLabel }}</span>
-      </div>
-      <div class="env-compact-block env-compact-block-offset">
-        <div class="env-inline-row env-inline-row-top">
-          <div class="env-select-shell">
-            <select class="env-select" :value="latexStore.compilerPreference" @change="onCompilerPreferenceChange">
-              <option value="auto">{{ t('Auto (prefer System TeX)') }}</option>
-              <option value="system">{{ t('System TeX (latexmk)') }}</option>
-              <option value="tectonic">Tectonic</option>
-            </select>
-            <span class="env-select-caret" aria-hidden="true">
-              <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
-                <path d="M1 3l4 4 4-4z" />
-              </svg>
-            </span>
+    <div class="env-section-grid">
+      <div class="env-lang-card">
+        <div class="env-lang-header">
+          <span class="env-lang-dot" :class="latexHeaderDotClass"></span>
+          <span class="env-lang-name">{{ t('Compiler') }}</span>
+          <span class="env-lang-version">{{ latexPreferenceLabel }}</span>
+        </div>
+        <div class="env-compact-block env-compact-block-offset">
+          <div class="env-inline-row env-inline-row-top">
+            <div class="env-select-shell">
+              <select class="env-select" :value="latexStore.compilerPreference" @change="onCompilerPreferenceChange">
+                <option value="auto">{{ t('Auto (prefer System TeX)') }}</option>
+                <option value="system">{{ t('System TeX (latexmk)') }}</option>
+                <option value="tectonic">Tectonic</option>
+              </select>
+              <span class="env-select-caret" aria-hidden="true">
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+                  <path d="M1 3l4 4 4-4z" />
+                </svg>
+              </span>
+            </div>
           </div>
         </div>
       </div>
-    </div>
 
-    <div class="env-lang-card">
-      <div class="env-lang-header">
-        <span class="env-lang-dot" :class="latexEngineDotClass"></span>
-        <span class="env-lang-name">{{ t('LaTeX Engine') }}</span>
-        <span class="env-lang-version">{{ latexEngineLabel }}</span>
-      </div>
-      <div class="env-compact-block env-compact-block-offset">
-        <div class="env-inline-row env-inline-row-top">
-          <div class="env-select-shell">
-            <select
-              class="env-select"
-              :value="latexStore.enginePreference"
-              :disabled="latexStore.compilerPreference === 'tectonic'"
-              @change="onEnginePreferenceChange"
-            >
-              <option value="auto">{{ t('Auto') }}</option>
-              <option value="xelatex">XeLaTeX</option>
-              <option value="pdflatex">pdfLaTeX</option>
-              <option value="lualatex">LuaLaTeX</option>
-            </select>
-            <span class="env-select-caret" aria-hidden="true">
-              <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
-                <path d="M1 3l4 4 4-4z" />
-              </svg>
-            </span>
+      <div class="env-lang-card">
+        <div class="env-lang-header">
+          <span class="env-lang-dot" :class="latexEngineDotClass"></span>
+          <span class="env-lang-name">{{ t('LaTeX Engine') }}</span>
+          <span class="env-lang-version">{{ latexEngineLabel }}</span>
+        </div>
+        <div class="env-compact-block env-compact-block-offset">
+          <div class="env-inline-row env-inline-row-top">
+            <div class="env-select-shell">
+              <select
+                class="env-select"
+                :value="latexStore.enginePreference"
+                :disabled="latexStore.compilerPreference === 'tectonic'"
+                @change="onEnginePreferenceChange"
+              >
+                <option value="auto">{{ t('Auto') }}</option>
+                <option value="xelatex">XeLaTeX</option>
+                <option value="pdflatex">pdfLaTeX</option>
+                <option value="lualatex">LuaLaTeX</option>
+              </select>
+              <span class="env-select-caret" aria-hidden="true">
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+                  <path d="M1 3l4 4 4-4z" />
+                </svg>
+              </span>
+            </div>
           </div>
         </div>
-        <div class="env-lang-hint env-hint-inline">
-          {{
-            latexStore.compilerPreference === 'tectonic'
-              ? t('Tectonic chooses its own engine behavior. This setting applies to System TeX only.')
-              : t('Used when no % !TEX program = ... magic comment is present.')
-          }}
-        </div>
       </div>
-    </div>
 
-    <div class="env-lang-card">
-      <div class="env-lang-header">
-        <span class="env-lang-dot" :class="latexStore.autoCompile ? 'good' : 'warn'"></span>
-        <span class="env-lang-name">{{ t('Compile on save') }}</span>
-        <span class="env-lang-version">{{ latexStore.autoCompile ? t('Enabled') : t('Disabled') }}</span>
-      </div>
-      <div class="env-action-row env-action-row-between">
-        <span class="env-toggle-copy">{{ t('Automatically compile the resolved root document after saving a LaTeX file.') }}</span>
-        <button
-          class="tool-toggle-switch"
-          :class="{ on: latexStore.autoCompile }"
-          @click="latexStore.setAutoCompile(!latexStore.autoCompile)"
-        >
-          <span class="tool-toggle-knob"></span>
-        </button>
-      </div>
-    </div>
-
-    <div class="env-lang-card">
-      <div class="env-lang-header">
-        <span class="env-lang-dot" :class="latexStore.formatOnSave ? 'good' : 'warn'"></span>
-        <span class="env-lang-name">{{ t('Format on save') }}</span>
-        <span class="env-lang-version">{{ latexStore.formatOnSave ? t('Enabled') : t('Disabled') }}</span>
-      </div>
-      <div class="env-action-row env-action-row-between">
-        <span class="env-toggle-copy">{{ t('Automatically format LaTeX files with latexindent before saving when available.') }}</span>
-        <button
-          class="tool-toggle-switch"
-          :class="{ on: latexStore.formatOnSave }"
-          @click="latexStore.setFormatOnSave(!latexStore.formatOnSave)"
-        >
-          <span class="tool-toggle-knob"></span>
-        </button>
-      </div>
-    </div>
-
-    <div class="env-lang-card">
-      <div class="env-lang-header">
-        <span class="env-lang-dot" :class="latexStore.systemTexInstalled ? 'good' : 'none'"></span>
-        <span class="env-lang-name">{{ t('System TeX') }}</span>
-        <span v-if="latexStore.systemTexInstalled" class="env-lang-version">{{ t('Installed') }}</span>
-        <span v-else class="env-lang-missing">{{ t('Not found') }}</span>
-      </div>
-      <div v-if="latexStore.systemTexInstalled" class="env-lang-details">
-        <div class="env-lang-path">{{ latexStore.systemTexPath }}</div>
-      </div>
-      <div class="env-lang-hint env-hint-inline">
-        {{ t('Use your MacTeX / TeX Live installation through latexmk.') }}
-      </div>
-    </div>
-
-    <div class="env-lang-card">
-      <template v-if="latexStore.tectonicInstalled">
+      <div class="env-lang-card env-card-span-full">
         <div class="env-lang-header">
-          <span class="env-lang-dot good"></span>
-          <span class="env-lang-name">Tectonic</span>
-          <span class="env-lang-version">{{ t('Installed') }}</span>
+          <span class="env-lang-dot" :class="latexBuildRecipeDotClass"></span>
+          <span class="env-lang-name">{{ t('Build recipe') }}</span>
+          <span class="env-lang-version">{{ latexStore.buildRecipeLabel }}</span>
         </div>
-        <div class="env-lang-details">
-          <div class="env-lang-path">{{ latexStore.tectonicPath }}</div>
-        </div>
-      </template>
-
-      <template v-else-if="latexStore.downloading">
-        <div class="env-lang-header">
-          <span class="env-lang-dot warn"></span>
-          <span class="env-lang-name">Tectonic</span>
-          <span class="env-lang-version">{{ t('Downloading... {progress}%', { progress: latexStore.downloadProgress }) }}</span>
-        </div>
-        <div class="tectonic-progress env-progress-shell">
-          <div class="tectonic-progress-bar">
-            <div class="tectonic-progress-fill" :style="{ width: latexStore.downloadProgress + '%' }"></div>
+        <div class="env-compact-block env-compact-block-offset">
+          <div class="env-inline-row env-inline-row-top">
+            <div class="env-select-shell">
+              <select class="env-select" :value="latexStore.buildRecipe" @change="onBuildRecipeChange">
+                <option
+                  v-for="option in latexBuildRecipeOptions"
+                  :key="option.value"
+                  :value="option.value"
+                >
+                  {{ option.label }}
+                </option>
+              </select>
+              <span class="env-select-caret" aria-hidden="true">
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+                  <path d="M1 3l4 4 4-4z" />
+                </svg>
+              </span>
+            </div>
           </div>
         </div>
-      </template>
+      </div>
 
-      <template v-else>
+      <div class="env-lang-card">
         <div class="env-lang-header">
-          <span class="env-lang-dot none"></span>
-          <span class="env-lang-name">Tectonic</span>
-          <span class="env-lang-missing">{{ t('Not installed') }}</span>
-        </div>
-        <div class="env-lang-hint env-hint-inline">
-          {{ t('Use the built-in lightweight compiler when you do not want a full TeX distribution.') }}
-        </div>
-        <div class="env-action-row">
-          <button class="env-install-btn" @click="latexStore.downloadTectonic()">
-            {{ t('Download Tectonic') }}
+          <span class="env-lang-dot" :class="latexStore.autoCompile ? 'good' : 'warn'"></span>
+          <span class="env-lang-name">{{ t('Compile on save') }}</span>
+          <span class="env-lang-version">{{ latexStore.autoCompile ? t('Enabled') : t('Disabled') }}</span>
+          <div style="flex: 1;"></div>
+          <button
+            class="tool-toggle-switch"
+            :class="{ on: latexStore.autoCompile }"
+            @click="latexStore.setAutoCompile(!latexStore.autoCompile)"
+          >
+            <span class="tool-toggle-knob"></span>
           </button>
         </div>
-      </template>
+      </div>
 
-      <div v-if="latexStore.downloadError" class="env-install-error env-install-error-inline">
-        {{ latexStore.downloadError }}
-        <button class="env-install-btn env-install-btn-inline" @click="latexStore.downloadTectonic()">
-          {{ t('Retry') }}
-        </button>
+      <div class="env-lang-card">
+        <div class="env-lang-header">
+          <span class="env-lang-dot" :class="latexStore.formatOnSave ? 'good' : 'warn'"></span>
+          <span class="env-lang-name">{{ t('Format on save') }}</span>
+          <span class="env-lang-version">{{ latexStore.formatOnSave ? t('Enabled') : t('Disabled') }}</span>
+          <div style="flex: 1;"></div>
+          <button
+            class="tool-toggle-switch"
+            :class="{ on: latexStore.formatOnSave }"
+            @click="latexStore.setFormatOnSave(!latexStore.formatOnSave)"
+          >
+            <span class="tool-toggle-knob"></span>
+          </button>
+        </div>
+      </div>
+
+      <div class="env-lang-card">
+        <div class="env-lang-header">
+          <span class="env-lang-dot" :class="latexStore.systemTexInstalled ? 'good' : 'none'"></span>
+          <span class="env-lang-name">{{ t('System TeX') }}</span>
+          <span v-if="latexStore.systemTexInstalled" class="env-lang-version">{{ t('Installed') }}</span>
+          <span v-else class="env-lang-missing">{{ t('Not found') }}</span>
+        </div>
+      </div>
+
+      <div class="env-lang-card">
+        <template v-if="latexStore.tectonicInstalled">
+          <div class="env-lang-header">
+            <span class="env-lang-dot good"></span>
+            <span class="env-lang-name">Tectonic</span>
+            <span class="env-lang-version">{{ t('Installed') }}</span>
+          </div>
+        </template>
+
+        <template v-else-if="latexStore.downloading">
+          <div class="env-lang-header">
+            <span class="env-lang-dot warn"></span>
+            <span class="env-lang-name">Tectonic</span>
+            <span class="env-lang-version">{{ t('Downloading... {progress}%', { progress: latexStore.downloadProgress }) }}</span>
+          </div>
+          <div class="tectonic-progress env-progress-shell">
+            <div class="tectonic-progress-bar">
+              <div class="tectonic-progress-fill" :style="{ width: latexStore.downloadProgress + '%' }"></div>
+            </div>
+          </div>
+        </template>
+
+        <template v-else>
+          <div class="env-lang-header">
+            <span class="env-lang-dot none"></span>
+            <span class="env-lang-name">Tectonic</span>
+            <span class="env-lang-missing">{{ t('Not installed') }}</span>
+          </div>
+          <div class="env-action-row">
+            <button class="env-install-btn" @click="latexStore.downloadTectonic()">
+              {{ t('Download Tectonic') }}
+            </button>
+          </div>
+        </template>
+
+        <div v-if="latexStore.downloadError" class="env-install-error env-install-error-inline">
+          {{ latexStore.downloadError }}
+          <button class="env-install-btn env-install-btn-inline" @click="latexStore.downloadTectonic()">
+            {{ t('Retry') }}
+          </button>
+        </div>
       </div>
     </div>
 
     <h3 class="settings-section-title env-section-offset">{{ t('LaTeX Tools') }}</h3>
-    <p class="settings-hint">{{ t('Optional LaTeX utilities for linting and formatting.') }}</p>
 
-    <div class="env-lang-card">
-      <div class="env-lang-header">
-        <span class="env-lang-dot" :class="latexStore.chktexInstalled ? 'good' : 'none'"></span>
-        <span class="env-lang-name">ChkTeX</span>
-        <span v-if="latexStore.chktexInstalled" class="env-lang-version">{{ t('Installed') }}</span>
-        <span v-else class="env-lang-missing">{{ t('Not found') }}</span>
+    <div class="env-section-grid">
+      <div class="env-lang-card">
+        <div class="env-lang-header">
+          <span class="env-lang-dot" :class="latexStore.chktexInstalled ? 'good' : 'none'"></span>
+          <span class="env-lang-name">ChkTeX</span>
+          <span v-if="latexStore.chktexInstalled" class="env-lang-version">{{ t('Installed') }}</span>
+          <span v-else class="env-lang-missing">{{ t('Not found') }}</span>
+        </div>
       </div>
-      <div v-if="latexStore.chktexInstalled" class="env-lang-details">
-        <div class="env-lang-path">{{ latexStore.chktexPath }}</div>
-      </div>
-      <div class="env-lang-hint env-hint-inline">
-        {{ t('Lint your LaTeX files for common mistakes and style issues.') }}
-      </div>
-    </div>
 
-    <div class="env-lang-card">
-      <div class="env-lang-header">
-        <span class="env-lang-dot" :class="latexStore.latexindentInstalled ? 'good' : 'none'"></span>
-        <span class="env-lang-name">latexindent</span>
-        <span v-if="latexStore.latexindentInstalled" class="env-lang-version">{{ t('Installed') }}</span>
-        <span v-else class="env-lang-missing">{{ t('Not found') }}</span>
-      </div>
-      <div v-if="latexStore.latexindentInstalled" class="env-lang-details">
-        <div class="env-lang-path">{{ latexStore.latexindentPath }}</div>
-      </div>
-      <div class="env-lang-hint env-hint-inline">
-        {{ t('Format LaTeX documents with the standard latexindent tool.') }}
+      <div class="env-lang-card">
+        <div class="env-lang-header">
+          <span class="env-lang-dot" :class="latexStore.latexindentInstalled ? 'good' : 'none'"></span>
+          <span class="env-lang-name">latexindent</span>
+          <span v-if="latexStore.latexindentInstalled" class="env-lang-version">{{ t('Installed') }}</span>
+          <span v-else class="env-lang-missing">{{ t('Not found') }}</span>
+        </div>
       </div>
     </div>
 
     <h3 class="settings-section-title env-section-offset">Typst</h3>
-    <p class="settings-hint">{{ t('Compilation and editor tooling for .typ files.') }}</p>
 
-    <div class="env-lang-card">
-      <template v-if="typstStore.available">
-        <div class="env-lang-header">
-          <span class="env-lang-dot good"></span>
-          <span class="env-lang-name">Typst</span>
-          <span class="env-lang-version">{{ t('Installed') }}</span>
-        </div>
-        <div v-if="typstStore.compilerPath" class="env-lang-details">
-          <div class="env-lang-path">{{ typstStore.compilerPath }}</div>
-        </div>
-        <div class="env-lang-hint env-hint-inline">
-          {{ t('Use the Typst CLI to compile .typ files directly to PDF.') }}
-        </div>
-      </template>
-
-      <template v-else-if="typstStore.downloading">
-        <div class="env-lang-header">
-          <span class="env-lang-dot warn"></span>
-          <span class="env-lang-name">Typst</span>
-          <span class="env-lang-version">{{ t('Downloading... {progress}%', { progress: typstStore.downloadProgress }) }}</span>
-        </div>
-        <div class="tectonic-progress env-progress-shell">
-          <div class="tectonic-progress-bar">
-            <div class="tectonic-progress-fill" :style="{ width: typstStore.downloadProgress + '%' }"></div>
+    <div class="env-section-grid">
+      <div class="env-lang-card">
+        <template v-if="typstStore.available">
+          <div class="env-lang-header">
+            <span class="env-lang-dot good"></span>
+            <span class="env-lang-name">Typst</span>
+            <span class="env-lang-version">{{ t('Installed') }}</span>
           </div>
-        </div>
-      </template>
+        </template>
 
-      <template v-else>
-        <div class="env-lang-header">
-          <span class="env-lang-dot none"></span>
-          <span class="env-lang-name">Typst</span>
-          <span class="env-lang-missing">{{ t('Not installed') }}</span>
-        </div>
-        <div class="env-lang-hint env-hint-inline">
-          {{ t('Typst compiles .typ files to PDF. A one-time download is required.') }}
-        </div>
-        <div class="env-action-row">
-          <button class="env-install-btn" @click="typstStore.downloadTypst()">
-            {{ t('Download Typst') }}
+        <template v-else-if="typstStore.downloading">
+          <div class="env-lang-header">
+            <span class="env-lang-dot warn"></span>
+            <span class="env-lang-name">Typst</span>
+            <span class="env-lang-version">{{ t('Downloading... {progress}%', { progress: typstStore.downloadProgress }) }}</span>
+          </div>
+          <div class="tectonic-progress env-progress-shell">
+            <div class="tectonic-progress-bar">
+              <div class="tectonic-progress-fill" :style="{ width: typstStore.downloadProgress + '%' }"></div>
+            </div>
+          </div>
+        </template>
+
+        <template v-else>
+          <div class="env-lang-header">
+            <span class="env-lang-dot none"></span>
+            <span class="env-lang-name">Typst</span>
+            <span class="env-lang-missing">{{ t('Not installed') }}</span>
+          </div>
+          <div class="env-action-row">
+            <button class="env-install-btn" @click="typstStore.downloadTypst()">
+              {{ t('Download Typst') }}
+            </button>
+          </div>
+        </template>
+
+        <div v-if="typstStore.downloadError" class="env-install-error env-install-error-inline">
+          {{ typstStore.downloadError }}
+          <button class="env-install-btn env-install-btn-inline" @click="typstStore.downloadTypst()">
+            {{ t('Retry') }}
           </button>
         </div>
-      </template>
-
-      <div v-if="typstStore.downloadError" class="env-install-error env-install-error-inline">
-        {{ typstStore.downloadError }}
-        <button class="env-install-btn env-install-btn-inline" @click="typstStore.downloadTypst()">
-          {{ t('Retry') }}
-        </button>
       </div>
-    </div>
 
-    <div class="env-lang-card">
-      <template v-if="tinymistStore.available">
-        <div class="env-lang-header">
-          <span class="env-lang-dot good"></span>
-          <span class="env-lang-name">Tinymist</span>
-          <span class="env-lang-version">{{ t('Installed') }}</span>
-        </div>
-        <div v-if="tinymistStore.binaryPath" class="env-lang-details">
-          <div class="env-lang-path">{{ tinymistStore.binaryPath }}</div>
-        </div>
-        <div class="env-lang-hint env-hint-inline">
-          {{ t('Use Tinymist to power Typst diagnostics, outline, and editor intelligence.') }}
-        </div>
-      </template>
-
-      <template v-else-if="tinymistStore.downloading">
-        <div class="env-lang-header">
-          <span class="env-lang-dot warn"></span>
-          <span class="env-lang-name">Tinymist</span>
-          <span class="env-lang-version">{{ t('Downloading... {progress}%', { progress: tinymistStore.downloadProgress }) }}</span>
-        </div>
-        <div class="tectonic-progress env-progress-shell">
-          <div class="tectonic-progress-bar">
-            <div class="tectonic-progress-fill" :style="{ width: tinymistStore.downloadProgress + '%' }"></div>
+      <div class="env-lang-card">
+        <template v-if="tinymistStore.available">
+          <div class="env-lang-header">
+            <span class="env-lang-dot good"></span>
+            <span class="env-lang-name">Tinymist</span>
+            <span class="env-lang-version">{{ t('Installed') }}</span>
           </div>
-        </div>
-      </template>
+        </template>
 
-      <template v-else>
-        <div class="env-lang-header">
-          <span class="env-lang-dot none"></span>
-          <span class="env-lang-name">Tinymist</span>
-          <span class="env-lang-missing">{{ t('Not installed') }}</span>
-        </div>
-        <div class="env-lang-hint env-hint-inline">
-          {{ t('Tinymist is optional, but it improves Typst editing with live diagnostics and navigation.') }}
-        </div>
-        <div class="env-action-row">
-          <button class="env-install-btn" @click="tinymistStore.downloadTinymist()">
-            {{ t('Download Tinymist') }}
+        <template v-else-if="tinymistStore.downloading">
+          <div class="env-lang-header">
+            <span class="env-lang-dot warn"></span>
+            <span class="env-lang-name">Tinymist</span>
+            <span class="env-lang-version">{{ t('Downloading... {progress}%', { progress: tinymistStore.downloadProgress }) }}</span>
+          </div>
+          <div class="tectonic-progress env-progress-shell">
+            <div class="tectonic-progress-bar">
+              <div class="tectonic-progress-fill" :style="{ width: tinymistStore.downloadProgress + '%' }"></div>
+            </div>
+          </div>
+        </template>
+
+        <template v-else>
+          <div class="env-lang-header">
+            <span class="env-lang-dot none"></span>
+            <span class="env-lang-name">Tinymist</span>
+            <span class="env-lang-missing">{{ t('Not installed') }}</span>
+          </div>
+          <div class="env-action-row">
+            <button class="env-install-btn" @click="tinymistStore.downloadTinymist()">
+              {{ t('Download Tinymist') }}
+            </button>
+          </div>
+        </template>
+
+        <div v-if="tinymistStore.downloadError" class="env-install-error env-install-error-inline">
+          {{ tinymistStore.downloadError }}
+          <button class="env-install-btn env-install-btn-inline" @click="tinymistStore.downloadTinymist()">
+            {{ t('Retry') }}
           </button>
         </div>
-      </template>
-
-      <div v-if="tinymistStore.downloadError" class="env-install-error env-install-error-inline">
-        {{ tinymistStore.downloadError }}
-        <button class="env-install-btn env-install-btn-inline" @click="tinymistStore.downloadTinymist()">
-          {{ t('Retry') }}
-        </button>
       </div>
     </div>
 
@@ -391,7 +366,7 @@
 <script setup>
 import { computed, onMounted } from 'vue'
 import { useEnvironmentStore } from '../../stores/environment'
-import { useLatexStore } from '../../stores/latex'
+import { LATEX_BUILD_RECIPE_OPTIONS, formatLatexBuildRecipeLabel, useLatexStore } from '../../stores/latex'
 import { useTinymistStore } from '../../stores/tinymist'
 import { useTypstStore } from '../../stores/typst'
 import { useI18n } from '../../i18n'
@@ -433,6 +408,25 @@ const latexEngineDotClass = computed(() => {
   return latexStore.systemTexInstalled ? 'good' : 'warn'
 })
 
+const latexBuildRecipeDotClass = computed(() => {
+  if (latexStore.compilerPreference === 'tectonic') return 'warn'
+  if (latexStore.compilerPreference === 'system') return latexStore.systemTexInstalled ? 'good' : 'none'
+  return latexStore.systemTexInstalled ? 'good' : 'warn'
+})
+
+const latexBuildRecipeOptions = computed(() => (
+  LATEX_BUILD_RECIPE_OPTIONS.map(value => ({
+    value,
+    label: formatLatexBuildRecipeLabel(value, t),
+  }))
+))
+
+function envLangCardClass(lang) {
+  return {
+    'env-card-span-full': lang.key === 'python' && lang.info.found,
+  }
+}
+
 function envLangDotClass(lang) {
   if (kernelInstalledFor(lang)) return 'good'
   if (lang.info.found) return 'warn'
@@ -460,6 +454,10 @@ function onCompilerPreferenceChange(event) {
 
 function onEnginePreferenceChange(event) {
   latexStore.setEnginePreference(event.target.value)
+}
+
+function onBuildRecipeChange(event) {
+  latexStore.setBuildRecipe(event.target.value)
 }
 
 async function redetectSystem() {
@@ -508,28 +506,59 @@ onMounted(() => {
 
 <style scoped>
 .env-languages {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
 
+.env-section-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.env-card-span-full {
+  grid-column: 1 / -1;
+}
+
+.env-lang-card {
+  padding: 8px 10px;
+}
+
+.env-lang-header {
+  min-height: 24px;
+}
+
+.env-lang-name {
+  font-size: var(--ui-font-label);
+}
+
+.env-lang-version,
+.env-lang-missing {
+  font-size: var(--ui-font-micro);
+}
+
 .env-lang-details {
-  margin-top: 6px;
-  padding-left: 16px;
+  margin-top: 4px;
+  padding-left: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .env-lang-path {
   font-size: var(--ui-font-micro);
   color: var(--fg-muted);
   font-family: var(--font-mono);
-  margin-bottom: 10px;
+  margin-bottom: 0;
+  line-height: 1.45;
 }
 
 .env-lang-kernel-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: var(--ui-font-caption);
+  font-size: var(--ui-font-micro);
   color: var(--fg-secondary);
   flex-wrap: wrap;
 }
@@ -569,19 +598,19 @@ onMounted(() => {
 .env-python-stack {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  margin-top: 4px;
+  gap: 6px;
+  margin-top: 0;
 }
 
 .env-compact-block {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
 }
 
 .env-compact-block-offset {
-  margin-top: 12px;
-  padding-left: 16px;
+  margin-top: 8px;
+  padding-left: 22px;
 }
 
 .env-inline-row {
@@ -620,7 +649,7 @@ onMounted(() => {
   -webkit-appearance: none;
   width: 100%;
   min-width: 0;
-  border-radius: 8px;
+  border-radius: 7px;
   border: 1px solid var(--border);
   background: var(--bg-primary);
   backdrop-filter: none;
@@ -629,7 +658,7 @@ onMounted(() => {
   color: var(--fg-primary);
   font-size: var(--ui-font-caption);
   line-height: 1.2;
-  padding: 8px 34px 8px 10px;
+  padding: 6px 30px 6px 9px;
   transition: border-color 0.15s ease, background 0.15s ease;
 }
 
@@ -659,8 +688,8 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px;
-  border-radius: 8px;
+  padding: 7px 9px;
+  border-radius: 7px;
   border: 1px solid var(--border);
   background: rgba(255, 255, 255, 0.02);
 }
@@ -686,7 +715,7 @@ onMounted(() => {
 .env-input-shell-slim {
   flex: 1;
   min-width: min(260px, 100%);
-  padding: 8px 10px;
+  padding: 7px 9px;
 }
 
 .env-kernel-badge {
@@ -711,11 +740,11 @@ onMounted(() => {
 }
 
 .env-inline-row-offset {
-  margin-top: 8px;
+  margin-top: 6px;
 }
 
 .env-install-btn {
-  padding: 2px 10px;
+  padding: 2px 8px;
   border-radius: 4px;
   border: 1px solid var(--accent);
   background: rgba(122, 162, 247, 0.1);
@@ -745,7 +774,7 @@ onMounted(() => {
 }
 
 .env-install-error-inline {
-  margin: 10px 16px 0;
+  margin: 8px 0 0 22px;
 }
 
 .env-install-btn-inline {
@@ -753,10 +782,11 @@ onMounted(() => {
 }
 
 .env-actions {
-  margin-top: 16px;
+  margin-top: 14px;
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-wrap: wrap;
 }
 
 .env-redetect-btn {
@@ -786,24 +816,25 @@ onMounted(() => {
 }
 
 .env-section-offset {
-  margin-top: 24px;
+  margin-top: 20px;
 }
 
 .env-hint-inline {
-  margin-top: 4px;
-  padding-left: 16px;
+  margin-top: 3px;
+  padding-left: 22px;
+  line-height: 1.45;
 }
 
 .env-progress-shell {
-  margin: 10px 16px 4px;
+  margin: 8px 0 2px 22px;
 }
 
 .env-action-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding-left: 16px;
-  margin-top: 10px;
+  padding-left: 22px;
+  margin-top: 8px;
 }
 
 .env-action-row-between {
@@ -821,7 +852,7 @@ onMounted(() => {
 .env-toggle-copy {
   font-size: var(--ui-font-caption);
   color: var(--fg-secondary);
-  line-height: 1.5;
+  line-height: 1.4;
 }
 
 .tectonic-progress-bar {
@@ -835,6 +866,106 @@ onMounted(() => {
   height: 100%;
   background: var(--accent);
   transition: width 0.2s ease;
+}
+
+/* Stronger compact overrides so shared settings styles do not visually win. */
+.env-page-compact .settings-section-title {
+  margin-bottom: 12px;
+}
+
+.env-page-compact .settings-hint {
+  margin: -6px 0 12px;
+}
+
+.env-page-compact .env-languages,
+.env-page-compact .env-section-grid {
+  gap: 6px;
+}
+
+.env-page-compact .env-lang-card {
+  padding: 6px 8px;
+  border-radius: 6px;
+}
+
+.env-page-compact .env-lang-header {
+  gap: 6px;
+  min-height: 20px;
+}
+
+.env-page-compact .env-lang-name {
+  font-size: var(--ui-font-caption);
+  font-weight: 600;
+}
+
+.env-page-compact .env-lang-version,
+.env-page-compact .env-lang-missing {
+  font-size: var(--ui-font-micro);
+}
+
+.env-page-compact .env-lang-details,
+.env-page-compact .env-hint-inline,
+.env-page-compact .env-action-row,
+.env-page-compact .env-compact-block-offset {
+  padding-left: 14px;
+}
+
+.env-page-compact .env-lang-details {
+  margin-top: 3px;
+  gap: 4px;
+}
+
+.env-page-compact .env-lang-hint {
+  margin-top: 3px;
+  line-height: 1.35;
+}
+
+.env-page-compact .env-lang-path {
+  line-height: 1.35;
+}
+
+.env-page-compact .env-python-stack {
+  gap: 4px;
+}
+
+.env-page-compact .env-lang-kernel-row {
+  gap: 6px;
+}
+
+.env-page-compact .env-select {
+  padding: 5px 28px 5px 8px;
+  font-size: var(--ui-font-micro);
+}
+
+.env-page-compact .env-input-shell,
+.env-page-compact .env-input-shell-slim {
+  padding: 6px 8px;
+}
+
+.env-page-compact .env-redetect-btn {
+  padding: 4px 12px;
+}
+
+.env-page-compact .env-actions {
+  margin-top: 12px;
+}
+
+.env-page-compact .env-section-offset {
+  margin-top: 16px;
+}
+
+.env-page-compact .env-progress-shell {
+  margin: 6px 0 2px 14px;
+}
+
+.env-page-compact .env-install-error-inline {
+  margin: 6px 0 0 14px;
+}
+
+@media (max-width: 620px) {
+  .env-languages,
+  .env-section-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 @media (max-width: 720px) {

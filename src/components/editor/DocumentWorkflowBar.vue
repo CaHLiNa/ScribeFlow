@@ -93,6 +93,7 @@ const previewLabel = computed(() => {
 
 const phaseLabel = computed(() => {
   if (props.uiState.phase === 'compiling') return t('Compiling...')
+  if (props.uiState.phase === 'queued') return t('Queued')
   if (props.uiState.phase === 'rendering') return t('Rendering...')
   if (props.uiState.phase === 'error') return ''
   if (props.uiState.phase === 'ready') return t('Ready')

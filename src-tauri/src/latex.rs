@@ -729,6 +729,56 @@ async fn run_command_with_stdin(
     ))
 }
 
+fn normalize_build_recipe(recipe: Option<&str>) -> &'static str {
+    match recipe
+        .map(|value| value.trim().to_ascii_lowercase())
+        .as_deref()
+    {
+        Some("shell-escape") => "shell-escape",
+        Some("clean-build") => "clean-build",
+        Some("shell-escape-clean") => "shell-escape-clean",
+        _ => "default",
+    }
+}
+
+fn build_latexmk_recipe_args(recipe: Option<&str>) -> Vec<&'static str> {
+    match normalize_build_recipe(recipe) {
+        "shell-escape" => vec!["-shell-escape"],
+        "clean-build" => vec!["-gg"],
+        "shell-escape-clean" => vec!["-shell-escape", "-gg"],
+        _ => Vec::new(),
+    }
+}
+
+fn parse_build_extra_args(extra_args: Option<&str>) -> Result<Vec<String>, String> {
+    let trimmed = extra_args.unwrap_or("").trim();
+    if trimmed.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    shell_words::split(trimmed)
+        .map_err(|error| format!("Invalid LaTeX build extra args: {}", error))
+}
+
+fn preview_command_arg(arg: &str) -> String {
+    if !arg.is_empty()
+        && arg
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || "/._-=:,+".contains(ch))
+    {
+        return arg.to_string();
+    }
+
+    format!("'{}'", arg.replace('\'', r"'\''"))
+}
+
+fn build_command_preview(program: &str, args: &[String]) -> String {
+    std::iter::once(preview_command_arg(program))
+        .chain(args.iter().map(|arg| preview_command_arg(arg)))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 fn read_requested_program(tex_path: &str) -> Option<String> {
     let content = std::fs::read_to_string(tex_path).ok()?;
     for line in content.lines().take(20) {
@@ -813,22 +863,29 @@ async fn compile_with_tectonic(
     tex_path: &str,
     start: std::time::Instant,
     requested_program: Option<String>,
+    build_extra_args: Option<String>,
 ) -> Result<CompileResult, String> {
     let tex = Path::new(tex_path);
     let dir = tex.parent().ok_or("Invalid tex path")?;
     eprintln!("[latex] Using tectonic at: {}", tectonic_path);
     eprintln!("[latex] Compiling: {} in dir: {}", tex_path, dir.display());
 
+    let mut args = vec![
+        "-X".to_string(),
+        "compile".to_string(),
+        "--synctex".to_string(),
+        "--keep-logs".to_string(),
+    ];
+    args.extend(parse_build_extra_args(build_extra_args.as_deref())?);
+    args.push(tex_path.to_string());
+
     let mut command = background_tokio_command(tectonic_path);
-    command.args(["-X", "compile", "--synctex", "--keep-logs", tex_path]);
+    command.args(args.iter().map(|arg| arg.as_str()));
     command.current_dir(dir);
 
     let meta = LatexCompileMeta {
         compiler_backend: "tectonic".to_string(),
-        command_preview: format!(
-            "{} -X compile --synctex --keep-logs {}",
-            tectonic_path, tex_path
-        ),
+        command_preview: build_command_preview(tectonic_path, &args),
         requested_program,
         requested_program_applied: false,
     };
@@ -963,6 +1020,8 @@ async fn compile_with_system_tex(
     start: std::time::Instant,
     requested_program: Option<String>,
     engine_preference: Option<String>,
+    build_recipe: Option<String>,
+    build_extra_args: Option<String>,
 ) -> Result<CompileResult, String> {
     let tex = Path::new(tex_path);
     let dir = tex.parent().ok_or("Invalid tex path")?;
@@ -981,23 +1040,28 @@ async fn compile_with_system_tex(
             _ => ("-pdf", false, "system-latexmk"),
         };
 
+    let mut args = vec![
+        engine_flag.to_string(),
+        "-interaction=nonstopmode".to_string(),
+        "-synctex=1".to_string(),
+        "-file-line-error".to_string(),
+        "-halt-on-error".to_string(),
+    ];
+    args.extend(
+        build_latexmk_recipe_args(build_recipe.as_deref())
+            .into_iter()
+            .map(String::from),
+    );
+    args.extend(parse_build_extra_args(build_extra_args.as_deref())?);
+    args.push(tex_path.to_string());
+
     let mut command = background_tokio_command(system_tex_path);
-    command.args([
-        engine_flag,
-        "-interaction=nonstopmode",
-        "-synctex=1",
-        "-file-line-error",
-        "-halt-on-error",
-        tex_path,
-    ]);
+    command.args(args.iter().map(|arg| arg.as_str()));
     command.current_dir(dir);
 
     let meta = LatexCompileMeta {
         compiler_backend: compiler_backend.to_string(),
-        command_preview: format!(
-            "{} {} -interaction=nonstopmode -synctex=1 -file-line-error -halt-on-error {}",
-            system_tex_path, engine_flag, tex_path
-        ),
+        command_preview: build_command_preview(system_tex_path, &args),
         requested_program,
         requested_program_applied,
     };
@@ -1012,6 +1076,8 @@ pub async fn compile_latex(
     tex_path: String,
     compiler_preference: Option<String>,
     engine_preference: Option<String>,
+    build_recipe: Option<String>,
+    build_extra_args: Option<String>,
     custom_system_tex_path: Option<String>,
     custom_tectonic_path: Option<String>,
 ) -> Result<CompileResult, String> {
@@ -1045,6 +1111,8 @@ pub async fn compile_latex(
                 start,
                 requested_program.clone(),
                 Some(engine_preference.clone()),
+                build_recipe.clone(),
+                build_extra_args.clone(),
             )
             .await
         }
@@ -1052,8 +1120,15 @@ pub async fn compile_latex(
             let tectonic = tectonic.ok_or_else(|| {
                 "Tectonic not found. Install it or choose System TeX in Settings.".to_string()
             })?;
-            compile_with_tectonic(&app, &tectonic, &tex_path, start, requested_program.clone())
-                .await
+            compile_with_tectonic(
+                &app,
+                &tectonic,
+                &tex_path,
+                start,
+                requested_program.clone(),
+                build_extra_args.clone(),
+            )
+            .await
         }
         _ => {
             if let Some(system_tex) = system_tex {
@@ -1064,11 +1139,20 @@ pub async fn compile_latex(
                     start,
                     requested_program.clone(),
                     Some(engine_preference.clone()),
+                    build_recipe.clone(),
+                    build_extra_args.clone(),
                 )
                 .await
             } else if let Some(tectonic) = tectonic {
-                compile_with_tectonic(&app, &tectonic, &tex_path, start, requested_program.clone())
-                    .await
+                compile_with_tectonic(
+                    &app,
+                    &tectonic,
+                    &tex_path,
+                    start,
+                    requested_program.clone(),
+                    build_extra_args.clone(),
+                )
+                .await
             } else {
                 Err("No LaTeX compiler found. Install MacTeX/TeX Live, or install Tectonic in Settings.".to_string())
             }
@@ -1768,8 +1852,9 @@ fn backward_sync(
 #[cfg(test)]
 mod tests {
     use super::{
-        backward_sync, build_synctex_view_input, forward_sync, parse_chktex_output,
-        parse_synctex_content, parse_synctex_edit_output, parse_synctex_view_output,
+        backward_sync, build_latexmk_recipe_args, build_synctex_view_input, forward_sync,
+        parse_build_extra_args, parse_chktex_output, parse_synctex_content,
+        parse_synctex_edit_output, parse_synctex_view_output,
     };
 
     const SAMPLE_SYNCTEX: &str = r#"SyncTeX Version:1
@@ -1936,5 +2021,37 @@ SyncTeX result end
 
         assert_eq!(diagnostics.len(), 1);
         assert_eq!(diagnostics[0].severity, "error");
+    }
+
+    #[test]
+    fn maps_shell_escape_clean_recipe_to_latexmk_flags() {
+        let args = build_latexmk_recipe_args(Some("shell-escape-clean"));
+        assert_eq!(args, vec!["-shell-escape", "-gg"]);
+    }
+
+    #[test]
+    fn ignores_unknown_recipe_values() {
+        let args = build_latexmk_recipe_args(Some("unknown"));
+        assert!(args.is_empty());
+    }
+
+    #[test]
+    fn parses_build_extra_args_with_shell_words() {
+        let args = parse_build_extra_args(Some("--outdir build '--jobname=main draft'"))
+            .expect("extra args should parse");
+        assert_eq!(
+            args,
+            vec![
+                "--outdir".to_string(),
+                "build".to_string(),
+                "--jobname=main draft".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_build_extra_args() {
+        let error = parse_build_extra_args(Some("\"unterminated")).expect_err("parse should fail");
+        assert!(error.contains("Invalid LaTeX build extra args"));
     }
 }

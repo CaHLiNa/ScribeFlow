@@ -54,6 +54,7 @@ export function useEditorPaneWorkflow(options) {
   const workflowStatusTone = computed(() => {
     if (!workflowUiState.value) return 'muted'
     if (workflowUiState.value.phase === 'compiling' || workflowUiState.value.phase === 'rendering') return 'running'
+    if (workflowUiState.value.phase === 'queued') return 'warning'
     if (workflowUiState.value.phase === 'ready') return 'success'
     return 'muted'
   })

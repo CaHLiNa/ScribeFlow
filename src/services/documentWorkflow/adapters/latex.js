@@ -3,13 +3,45 @@ import { ensureLatexCompileReady } from '../../environmentPreflight.js'
 import { buildLatexLintProblems, buildLatexProjectProblemsSync } from '../../latex/diagnostics.js'
 import { resolveCachedLatexPreviewPath } from '../../latex/root.js'
 
-function formatCompileDuration(state = {}, t = (value) => value) {
-  if (state?.status === 'compiling') return t('Compiling...')
+function buildRecipeStatusSuffix(context = {}, state = {}, queueState = null) {
+  const recipe = state?.buildRecipe || queueState?.recipe || 'default'
+  const extraArgs = state?.buildExtraArgs || queueState?.buildExtraArgs || ''
+  const parts = []
+
+  if (recipe && recipe !== 'default') {
+    parts.push(context.latexStore?.buildRecipeLabelFor?.(recipe) || recipe)
+  }
+  if (extraArgs) {
+    parts.push(context.t?.('Custom args') || 'Custom args')
+  }
+
+  return parts.join(' · ')
+}
+
+function appendStatusSuffix(base, context = {}, state = {}, queueState = null) {
+  const suffix = buildRecipeStatusSuffix(context, state, queueState)
+  return suffix ? `${base} · ${suffix}` : base
+}
+
+function formatCompileDuration(state = {}, context = {}, queueState = null) {
+  const t = context.t || ((value) => value)
+  if (state?.status === 'compiling') {
+    const base = queueState?.pendingCount > 0
+      ? `${t('Compiling...')} · ${t('Queued +{count}', { count: queueState.pendingCount })}`
+      : t('Compiling...')
+    return appendStatusSuffix(base, context, state, queueState)
+  }
+  if (queueState?.phase === 'scheduled' || queueState?.phase === 'queued') {
+    return appendStatusSuffix(t('Queued'), context, state, queueState)
+  }
   if (state?.status !== 'success') return ''
   const ms = state?.durationMs
-  if (!ms) return t('Compiled')
-  if (ms < 1000) return `${ms}ms`
-  return `${(ms / 1000).toFixed(1)}s`
+  const durationText = !ms
+    ? t('Compiled')
+    : ms < 1000
+      ? `${ms}ms`
+      : `${(ms / 1000).toFixed(1)}s`
+  return appendStatusSuffix(durationText, context, state, queueState)
 }
 
 export function buildLatexWorkflowProblems(sourcePath, state = {}) {
@@ -49,6 +81,7 @@ export function buildLatexWorkflowUiState(state = {}, options = {}) {
 
   let phase = 'idle'
   if (state?.status === 'compiling') phase = 'compiling'
+  else if (options.queuePhase === 'scheduled' || options.queuePhase === 'queued') phase = 'queued'
   else if (state?.status === 'error') phase = 'error'
   else if (options.previewAvailable || state?.status === 'success') phase = 'ready'
 
@@ -135,7 +168,9 @@ const latexCompileAdapter = {
   },
 
   getStatusText(filePath, context) {
-    return formatCompileDuration(this.stateForFile(filePath, context) || {}, context.t)
+    const state = this.stateForFile(filePath, context) || {}
+    const queueState = context.latexStore?.queueStateForFile?.(filePath) || null
+    return formatCompileDuration(state, context, queueState)
   },
 
   openLog(filePath, context) {
@@ -171,10 +206,14 @@ export const latexDocumentAdapter = {
     const problems = this.getProblems(filePath, context)
     const errorCount = problems.filter(problem => problem.severity === 'error').length
     const warningCount = problems.filter(problem => problem.severity === 'warning').length
+    const queueState = context.latexStore?.queueStateForFile?.(filePath) || null
     return {
       ...buildLatexWorkflowUiState(
         latexCompileAdapter.stateForFile(filePath, context) || {},
-        { previewAvailable: !!context.previewAvailable },
+        {
+          previewAvailable: !!context.previewAvailable,
+          queuePhase: queueState?.phase || null,
+        },
       ),
       errorCount,
       warningCount,
