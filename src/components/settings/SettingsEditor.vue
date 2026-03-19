@@ -107,6 +107,38 @@
 
       <div class="env-lang-card">
         <div class="env-lang-header">
+          <span class="env-lang-dot" :class="latexStore.autoCompile ? 'good' : 'warn'"></span>
+          <span class="env-lang-name">{{ t('LaTeX compile on save') }}</span>
+          <span class="env-lang-version">{{ latexStore.autoCompile ? t('Enabled') : t('Disabled') }}</span>
+          <div style="flex: 1;"></div>
+          <button
+            class="tool-toggle-switch"
+            :class="{ on: latexStore.autoCompile }"
+            @click="latexStore.setAutoCompile(!latexStore.autoCompile)"
+          >
+            <span class="tool-toggle-knob"></span>
+          </button>
+        </div>
+      </div>
+
+      <div class="env-lang-card">
+        <div class="env-lang-header">
+          <span class="env-lang-dot" :class="latexStore.formatOnSave ? 'good' : 'warn'"></span>
+          <span class="env-lang-name">{{ t('LaTeX format on save') }}</span>
+          <span class="env-lang-version">{{ latexStore.formatOnSave ? t('Enabled') : t('Disabled') }}</span>
+          <div style="flex: 1;"></div>
+          <button
+            class="tool-toggle-switch"
+            :class="{ on: latexStore.formatOnSave }"
+            @click="latexStore.setFormatOnSave(!latexStore.formatOnSave)"
+          >
+            <span class="tool-toggle-knob"></span>
+          </button>
+        </div>
+      </div>
+
+      <div class="env-lang-card">
+        <div class="env-lang-header">
           <span class="env-lang-dot" :class="typstStore.inlayHints ? 'good' : 'warn'"></span>
           <span class="env-lang-name">{{ t('Typst inlay hints') }}</span>
           <span class="env-lang-version">{{ typstStore.inlayHints ? t('Enabled') : t('Disabled') }}</span>
@@ -176,11 +208,13 @@
 import { ref, computed } from 'vue'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useTypstStore } from '../../stores/typst'
+import { useLatexStore } from '../../stores/latex'
 import { GHOST_MODELS } from '../../services/apiClient'
 import { useI18n } from '../../i18n'
 
 const workspace = useWorkspaceStore()
 const typstStore = useTypstStore()
+const latexStore = useLatexStore()
 const { t } = useI18n()
 
 const proseFonts = [

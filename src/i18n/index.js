@@ -143,6 +143,8 @@ const ZH_MESSAGES = {
   'System TeX': '系统 TeX',
   'Compile on save': '保存时编译',
   'Format on save': '保存时格式化',
+  'LaTeX compile on save': 'LaTeX 保存时编译',
+  'LaTeX format on save': 'LaTeX 保存时格式化',
   'Typst compile on save': 'Typst 保存时编译',
   'Typst format on save': 'Typst 保存时格式化',
   'Typst inlay hints': 'Typst 内联提示',
