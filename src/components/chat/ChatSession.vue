@@ -104,9 +104,11 @@
         :estimatedTokens="estimatedTokens"
         :contextWindow="getContextWindow(session.modelId, workspace)"
         :compact="compact"
+        :toolItems="chatInputToolItems"
         @send="onSend"
         @abort="onAbort"
         @update-model="onUpdateModel"
+        @launch-task="onLaunchTask"
       />
     </div>
   </div>
@@ -122,6 +124,8 @@ import { useAiArtifactsStore } from '../../stores/aiArtifacts'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useEditorStore } from '../../stores/editor'
 import { getContextWindow } from '../../services/chatModels'
+import { launchAiTask } from '../../services/ai/launch'
+import { getChatInputToolItems } from '../../services/ai/taskCatalog'
 import { isMarkdown } from '../../utils/fileTypes'
 import { formatChatApiError } from '../../utils/errorMessages'
 import { renderMarkdown } from '../../utils/chatMarkdown'
@@ -131,6 +135,8 @@ const props = defineProps({
   session: { type: Object, required: true },
   sessionMeta: { type: Object, default: null },
   compact: { type: Boolean, default: false },
+  paneId: { type: String, default: '' },
+  surface: { type: String, default: 'pane' },
 })
 
 const workspace   = useWorkspaceStore()
@@ -229,6 +235,13 @@ const suggestionChips = computed(() => {
   return chips
 })
 
+const chatInputToolItems = computed(() => (
+  getChatInputToolItems({
+    currentPath: editorStore.preferredContextPath || lastDocumentTab.value || '',
+    t,
+  })
+))
+
 function setSuggestion(text) {
   window.dispatchEvent(new CustomEvent('chat-set-input', { detail: { message: text } }))
 }
@@ -244,6 +257,21 @@ const isAutoScrolling  = ref(true)
 function onSend(payload) {
   chatStore.sendMessage(props.session.id, payload)
   nextTick(() => scrollToBottom())
+}
+
+async function onLaunchTask(item) {
+  if (!item?.task) return
+  await launchAiTask({
+    editorStore,
+    chatStore,
+    paneId: props.surface === 'pane' ? props.paneId : null,
+    surface: props.surface,
+    modelId: props.session.modelId,
+    task: {
+      ...item.task,
+      label: item.label || item.task.label,
+    },
+  })
 }
 
 function onAbort() {

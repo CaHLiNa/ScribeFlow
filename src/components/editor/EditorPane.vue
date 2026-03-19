@@ -42,12 +42,15 @@
         :ui-state="toolbarUiState"
         :status-text="workflowStatusText"
         :status-tone="workflowStatusTone"
+        :show-run-buttons="showToolbarRunButtons"
         :show-comment-toggle="showCommentToolbar"
         :comment-active="isCommentToolbarActive"
         :comment-badge-count="commentToolbarBadgeCount"
         @primary-action="handleWorkflowPrimaryAction"
         @reveal-preview="handleWorkflowRevealPreview"
         @reveal-pdf="handleWorkflowRevealPdf"
+        @run-code="handleRunCode"
+        @run-file="handleRunFile"
         @diagnose-with-ai="handleWorkflowDiagnoseWithAi"
         @fix-with-ai="handleWorkflowFixWithAi"
         @toggle-comments="toggleCommentToolbar"
@@ -172,12 +175,13 @@ import { useToastStore } from '../../stores/toast'
 import { useCommentsStore } from '../../stores/comments'
 import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { useReferencesStore } from '../../stores/references'
-import { getViewerType, isReferencePath, referenceKeyFromPath, isChatTab, getChatSessionId } from '../../utils/fileTypes'
+import { getViewerType, isReferencePath, referenceKeyFromPath, isChatTab, getChatSessionId, isRunnable } from '../../utils/fileTypes'
 import { useLatexStore } from '../../stores/latex'
 import { useTypstStore } from '../../stores/typst'
 import { useI18n } from '../../i18n'
 import { useEditorPaneComments } from '../../composables/useEditorPaneComments'
 import { useEditorPaneWorkflow } from '../../composables/useEditorPaneWorkflow'
+import { confirmUnsavedChanges } from '../../services/unsavedChanges'
 import TabBar from './TabBar.vue'
 import ReviewBar from './ReviewBar.vue'
 const TextEditor = defineAsyncComponent(() => import('./TextEditor.vue'))
@@ -226,6 +230,11 @@ const viewerType = computed(() => props.activeTab ? getViewerType(props.activeTa
 const viewerTypeRef = viewerType
 const refKey = computed(() => props.activeTab && isReferencePath(props.activeTab) ? referenceKeyFromPath(props.activeTab) : null)
 const showCommentToolbar = computed(() => !!props.activeTab && viewerType.value === 'text')
+const showToolbarRunButtons = computed(() => (
+  !!props.activeTab
+  && viewerType.value === 'text'
+  && isRunnable(props.activeTab)
+))
 const isCommentToolbarActive = computed(() => (
   !!props.activeTab && commentsStore.isMarginVisible(props.activeTab)
 ))
@@ -304,7 +313,10 @@ function selectTab(path) {
   editorStore.setActiveTab(props.paneId, path)
 }
 
-function closeTab(path) {
+async function closeTab(path) {
+  const result = await confirmUnsavedChanges([path])
+  if (result.choice === 'cancel') return
+
   // Auto-save chat sessions on tab close
   if (isChatTab(path)) {
     const sid = getChatSessionId(path)
@@ -326,9 +338,14 @@ function splitHorizontal() {
   editorStore.openNewTab(newPaneId)
 }
 
-function closePane() {
+async function closePane() {
   const pane = editorStore.findPane(editorStore.paneTree, props.paneId)
   if (!pane) return
+  const result = await confirmUnsavedChanges(pane.tabs || [], {
+    message: t('These files have unsaved changes and will be closed with this pane.'),
+  })
+  if (result.choice === 'cancel') return
+
   for (const tab of pane.tabs || []) {
     workflowStore.handlePreviewClosed(tab)
   }

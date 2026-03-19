@@ -911,6 +911,33 @@ fn build_command_preview(program: &str, args: &[String]) -> String {
         .join(" ")
 }
 
+fn tex_command_locale() -> &'static str {
+    if cfg!(target_os = "macos") {
+        "en_US.UTF-8"
+    } else {
+        "C.UTF-8"
+    }
+}
+
+fn apply_tex_locale_tokio(command: &mut tokio::process::Command) {
+    let locale = tex_command_locale();
+    command.env("LANG", locale);
+    command.env("LC_CTYPE", locale);
+}
+
+fn apply_tex_locale_std(command: &mut std::process::Command) {
+    let locale = tex_command_locale();
+    command.env("LANG", locale);
+    command.env("LC_CTYPE", locale);
+}
+
+fn tex_command_argument(tex: &Path, fallback: &str) -> String {
+    tex.file_name()
+        .map(|value| value.to_string_lossy().to_string())
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| fallback.to_string())
+}
+
 fn read_requested_program(tex_path: &str) -> Option<String> {
     let content = std::fs::read_to_string(tex_path).ok()?;
     for line in content.lines().take(20) {
@@ -999,6 +1026,7 @@ async fn compile_with_tectonic(
 ) -> Result<CompileResult, String> {
     let tex = Path::new(tex_path);
     let dir = tex.parent().ok_or("Invalid tex path")?;
+    let tex_arg = tex_command_argument(tex, tex_path);
     eprintln!("[latex] Using tectonic at: {}", tectonic_path);
     eprintln!("[latex] Compiling: {} in dir: {}", tex_path, dir.display());
 
@@ -1009,11 +1037,12 @@ async fn compile_with_tectonic(
         "--keep-logs".to_string(),
     ];
     args.extend(parse_build_extra_args(build_extra_args.as_deref())?);
-    args.push(tex_path.to_string());
+    args.push(tex_arg);
 
     let mut command = background_tokio_command(tectonic_path);
     command.args(args.iter().map(|arg| arg.as_str()));
     command.current_dir(dir);
+    apply_tex_locale_tokio(&mut command);
 
     let meta = LatexCompileMeta {
         compiler_backend: "tectonic".to_string(),
@@ -1069,7 +1098,7 @@ async fn run_latex_command_with_streaming(
             line: intro.join("\n"),
             clear: true,
             header: true,
-            open: true,
+            open: false,
             status: Some("running".to_string()),
         },
     );
@@ -1166,6 +1195,7 @@ async fn compile_with_system_tex(
 ) -> Result<CompileResult, String> {
     let tex = Path::new(tex_path);
     let dir = tex.parent().ok_or("Invalid tex path")?;
+    let tex_arg = tex_command_argument(tex, tex_path);
     eprintln!("[latex] Using system TeX at: {}", system_tex_path);
     eprintln!("[latex] Compiling: {} in dir: {}", tex_path, dir.display());
 
@@ -1194,11 +1224,12 @@ async fn compile_with_system_tex(
             .map(String::from),
     );
     args.extend(parse_build_extra_args(build_extra_args.as_deref())?);
-    args.push(tex_path.to_string());
+    args.push(tex_arg);
 
     let mut command = background_tokio_command(system_tex_path);
     command.args(args.iter().map(|arg| arg.as_str()));
     command.current_dir(dir);
+    apply_tex_locale_tokio(&mut command);
 
     let meta = LatexCompileMeta {
         compiler_backend: compiler_backend.to_string(),
@@ -1357,12 +1388,14 @@ pub async fn run_chktex(
 
     let tex = Path::new(&tex_path);
     let dir = tex.parent().ok_or("Invalid tex path")?;
+    let tex_arg = tex_command_argument(tex, &tex_path);
     let source_content = read_or_use_source_content(&tex_path, content).await?;
 
     let chktexrc = discover_chktexrc(&tex_path, workspace_path.as_deref());
 
     let mut command = background_tokio_command(&chktex);
     command.current_dir(dir);
+    apply_tex_locale_tokio(&mut command);
     command.args(default_chktex_args());
     if let Some(rc_path) = chktexrc.as_ref() {
         command.arg("-l");
@@ -1371,7 +1404,7 @@ pub async fn run_chktex(
     command.args([
         "-I0",
         "-p",
-        &tex_path,
+        &tex_arg,
         "-f%f\x1f%l\x1f%c\x1f%k\x1f%n\x1f%m\n",
     ]);
 
@@ -1409,6 +1442,7 @@ pub async fn format_latex_document(
 
     let mut command = background_tokio_command(&latexindent);
     command.current_dir(dir);
+    apply_tex_locale_tokio(&mut command);
     command.arg(format!("-g={}", latexindent_null_path()));
     command.arg("-");
 
@@ -1743,7 +1777,9 @@ fn run_synctex_view_cli(
     column: u32,
 ) -> Result<serde_json::Value, String> {
     let input = build_synctex_view_input(tex_path, line, column);
-    let output = background_command(synctex_binary)
+    let mut command = background_command(synctex_binary);
+    apply_tex_locale_std(&mut command);
+    let output = command
         .args(["view", "-i", &input, "-o", pdf_path])
         .output()
         .map_err(|e| format!("Failed to run synctex view: {}", e))?;
@@ -1770,7 +1806,9 @@ fn run_synctex_edit_cli(
     y: f64,
 ) -> Result<serde_json::Value, String> {
     let location = format!("{}:{:.6}:{:.6}:{}", page.max(1), x, y, pdf_path);
-    let output = background_command(synctex_binary)
+    let mut command = background_command(synctex_binary);
+    apply_tex_locale_std(&mut command);
+    let output = command
         .args(["edit", "-o", &location])
         .output()
         .map_err(|e| format!("Failed to run synctex edit: {}", e))?;

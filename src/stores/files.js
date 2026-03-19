@@ -745,9 +745,11 @@ export const useFilesStore = defineStore('files', {
 
         // Update wiki link index (markdown only)
         syncSavedMarkdownLinks(path)
+        return true
       } catch (e) {
         console.error('Failed to save file:', e)
         useToastStore().showOnce(`save:${path}`, formatFileError('save', path, e), { type: 'error', duration: 5000 })
+        return false
       }
     },
 

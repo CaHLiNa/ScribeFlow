@@ -535,7 +535,7 @@ async fn run_typst_compile(
             line: intro,
             clear: true,
             header: true,
-            open: true,
+            open: false,
             status: Some("running".to_string()),
         },
     );

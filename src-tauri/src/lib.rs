@@ -526,6 +526,7 @@ pub fn run() {
             fs_commands::watch_directory,
             fs_commands::unwatch_directory,
             fs_commands::proxy_api_call,
+            git::git_init,
             git::git_clone,
             git::git_add_all,
             git::git_commit,

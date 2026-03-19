@@ -21,7 +21,7 @@
             @keydown.enter="submit"
           />
           <p class="snapshot-helper">
-            {{ t('Your files auto-save. Use this dialog to create named checkpoints in Version History.') }}<br />
+            {{ t('Use this dialog to create named checkpoints in Version History.') }}<br />
           </p>
           <button class="snapshot-btn" @click="submit">{{ t('Save') }}</button>
         </div>

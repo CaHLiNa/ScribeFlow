@@ -1,50 +1,76 @@
 <template>
   <div class="notebook-editor h-full flex flex-col overflow-hidden">
     <!-- Toolbar -->
-    <div class="notebook-toolbar flex items-center gap-2 px-3 py-1.5 border-b shrink-0"
-      style="background: var(--bg-secondary); border-color: var(--border);">
+    <div class="notebook-toolbar shrink-0">
+      <div class="notebook-toolbar-inner">
 
-      <!-- Status chip (replaces kernel dropdown) -->
-      <button
-        ref="statusChipRef"
-        class="nb-status-chip"
-        :class="statusChipClass"
-        @click="toggleStatusPopover"
-      >
-        <span class="nb-status-dot" :class="statusDotClass"></span>
-        {{ statusChipLabel }}
-        <svg width="8" height="8" viewBox="0 0 10 10" fill="currentColor" style="margin-left: 2px; opacity: 0.6;">
-          <path d="M2 3.5l3 3 3-3z"/>
-        </svg>
-      </button>
+        <!-- Status chip (replaces kernel dropdown) -->
+        <button
+          ref="statusChipRef"
+          class="nb-status-chip"
+          :class="statusChipClass"
+          @click="toggleStatusPopover"
+          :title="statusChipLabel"
+          :aria-label="statusChipLabel"
+        >
+          <span class="nb-status-dot" :class="statusDotClass"></span>
+          {{ statusChipLabel }}
+          <IconChevronDown :size="12" :stroke-width="1.8" class="nb-status-chip-caret" />
+        </button>
 
-      <!-- Kernel status (when Jupyter mode and kernel active) -->
-      <span v-if="mode === 'jupyter' && kernelId" class="ui-text-micro px-1.5 py-0.5 rounded font-medium"
-        :style="kernelStatusStyle">
-        {{ kernelStatusLabel }}
-      </span>
+        <!-- Kernel status (when Jupyter mode and kernel active) -->
+        <span v-if="mode === 'jupyter' && kernelId" class="ui-text-micro px-1.5 py-0.5 rounded font-medium"
+          :style="kernelStatusStyle">
+          {{ kernelStatusLabel }}
+        </span>
 
-      <div class="flex items-center gap-1 ml-1">
-        <button class="nb-toolbar-btn" @click="runAllCells" :disabled="mode === 'none'" :title="t('Run all cells')">
-          <svg width="10" height="10" viewBox="0 0 20 16" fill="currentColor"><polygon points="2,2 10,8 2,14"/><polygon points="10,2 18,8 10,14"/></svg>
-          {{ t('Run All') }}
-        </button>
-        <button v-if="mode === 'jupyter'" class="nb-toolbar-btn" @click="restartKernel" :disabled="!kernelId" :title="t('Restart kernel')">
-          {{ t('Restart') }}
-        </button>
-        <button class="nb-toolbar-btn" @click="clearAllOutputs" :title="t('Clear all outputs')">
-          {{ t('Clear') }}
-        </button>
-        <button class="nb-toolbar-btn" @click="handleAskAi" :title="t('Ask AI about this notebook')">
-          <IconSparkles :size="12" :stroke-width="1.9" />
-          {{ t('Ask AI') }}
-        </button>
+        <div class="nb-toolbar-actions">
+          <button
+            class="nb-toolbar-btn nb-toolbar-btn-primary"
+            @click="runAllCells"
+            :disabled="mode === 'none'"
+            :title="t('Run all cells')"
+            :aria-label="t('Run all cells')"
+          >
+            <IconPlayerTrackNext :size="14" :stroke-width="1.8" />
+          </button>
+          <button
+            v-if="mode === 'jupyter'"
+            class="nb-toolbar-btn nb-toolbar-btn-muted"
+            @click="restartKernel"
+            :disabled="!kernelId"
+            :title="t('Restart kernel')"
+            :aria-label="t('Restart kernel')"
+          >
+            <IconRefresh :size="14" :stroke-width="1.8" />
+          </button>
+          <button
+            class="nb-toolbar-btn nb-toolbar-btn-muted"
+            @click="clearAllOutputs"
+            :title="t('Clear all outputs')"
+            :aria-label="t('Clear all outputs')"
+          >
+            <IconClearAll :size="14" :stroke-width="1.8" />
+          </button>
+          <button
+            class="nb-toolbar-btn nb-toolbar-btn-accent"
+            @click="handleAskAi"
+            :title="t('Ask AI about this notebook')"
+            :aria-label="t('Ask AI about this notebook')"
+          >
+            <IconSparkles :size="14" :stroke-width="1.8" />
+          </button>
+        </div>
+
+        <span
+          class="nb-toolbar-meta ml-auto"
+          :title="t('{count} cells', { count: cells.length })"
+        >
+          <IconLayoutList :size="13" :stroke-width="1.8" />
+          <span>{{ cells.length }}</span>
+          <template v-if="saving"> &middot; {{ t('Saving...') }}</template>
+        </span>
       </div>
-
-      <span class="ml-auto ui-text-micro" style="color: var(--fg-muted);">
-        {{ t('{count} cells', { count: cells.length }) }}
-        <template v-if="saving"> &middot; {{ t('Saving...') }}</template>
-      </span>
     </div>
 
     <!-- Status popover (Teleported to body to avoid overflow-hidden clipping) -->
@@ -172,7 +198,7 @@
 
     <!-- Cell list -->
     <div class="flex-1 overflow-y-auto" ref="cellsContainer">
-      <div class="max-w-[900px] mx-auto pt-4 pb-40 px-4">
+      <div class="notebook-cells-wrap">
         <NotebookCell
           v-for="(cell, idx) in displayCells"
           :key="cell.id"
@@ -218,7 +244,14 @@
 </template>
 
 <script setup>
-import { IconSparkles } from '@tabler/icons-vue'
+import {
+  IconChevronDown,
+  IconClearAll,
+  IconLayoutList,
+  IconPlayerTrackNext,
+  IconRefresh,
+  IconSparkles,
+} from '@tabler/icons-vue'
 import NotebookCell from './NotebookCell.vue'
 import { useNotebookEditor } from '../../composables/useNotebookEditor'
 import { useI18n } from '../../i18n'
@@ -301,36 +334,79 @@ function healthStatusClass(status) {
 </script>
 
 <style scoped>
+.notebook-editor {
+  --notebook-content-width: 932px;
+}
+
 .notebook-toolbar {
+  width: 100%;
+  background: var(--bg-primary);
+  box-sizing: border-box;
+}
+
+.notebook-toolbar-inner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  max-width: var(--notebook-content-width);
+  min-height: var(--document-header-row-height, 28px);
+  margin: 0 auto;
+  padding: 0 16px;
+  box-sizing: border-box;
+  height: var(--document-header-row-height, 28px);
+  min-height: var(--document-header-row-height, 28px);
   font-size: var(--ui-font-label);
 }
 
 /* Status chip */
 .nb-status-chip {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 3px 10px;
-  border-radius: 12px;
+  height: 22px;
+  padding: 0 10px;
+  border-radius: 999px;
   border: 1px solid var(--border);
-  background: var(--bg-primary);
+  background: transparent;
   color: var(--fg-secondary);
   font-size: var(--ui-font-caption);
   cursor: pointer;
-  transition: all 0.15s;
+  transition:
+    background-color 0.14s ease,
+    border-color 0.14s ease,
+    color 0.14s ease,
+    box-shadow 0.14s ease,
+    transform 0.1s ease;
   white-space: nowrap;
 }
 
 .nb-status-chip:hover {
-  border-color: var(--fg-muted);
+  border-color: color-mix(in srgb, var(--success, #4ade80) 24%, var(--border));
+  background: color-mix(in srgb, var(--success, #4ade80) 8%, transparent);
+}
+
+.nb-status-chip:active {
+  transform: translateY(0.5px) scale(0.99);
+}
+
+.nb-status-chip:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 34%, transparent);
 }
 
 .nb-chip-jupyter {
-  border-color: rgba(80, 250, 123, 0.3);
+  border-color: color-mix(in srgb, var(--success, #4ade80) 32%, var(--border));
+  color: var(--fg-primary);
 }
 
 .nb-chip-none {
-  border-color: rgba(247, 118, 142, 0.3);
+  border-color: color-mix(in srgb, var(--error, #f7768e) 28%, var(--border));
+}
+
+.nb-status-chip-caret {
+  margin-left: 2px;
+  opacity: 0.72;
 }
 
 .nb-status-dot {
@@ -680,28 +756,86 @@ function healthStatusClass(status) {
 }
 
 /* Toolbar buttons */
-.nb-toolbar-btn {
-  display: flex;
+.nb-toolbar-actions {
+  display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
-  border: none;
+  gap: 6px;
+  margin-left: 4px;
+}
+
+.nb-toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 24px;
+  height: 22px;
+  padding: 0;
+  border-radius: 6px;
+  border: 1px solid transparent;
   background: transparent;
   color: var(--fg-muted);
   cursor: pointer;
-  border-radius: 4px;
-  font-size: var(--ui-font-caption);
-  transition: background 0.1s, color 0.1s;
+  transition:
+    background-color 0.14s ease,
+    border-color 0.14s ease,
+    color 0.14s ease,
+    transform 0.1s ease,
+    box-shadow 0.14s ease;
 }
 
-.nb-toolbar-btn:hover {
-  background: var(--bg-hover);
-  color: var(--fg-primary);
+.nb-toolbar-btn-primary {
+  color: var(--success, #4ade80);
+}
+
+.nb-toolbar-btn-accent {
+  color: var(--accent);
+}
+
+.nb-toolbar-btn-muted {
+  color: var(--fg-muted);
+}
+
+.nb-toolbar-btn-primary:hover {
+  background: color-mix(in srgb, var(--success, #4ade80) 10%, transparent);
+  border-color: color-mix(in srgb, var(--success, #4ade80) 28%, var(--border));
+}
+
+.nb-toolbar-btn-accent:hover,
+.nb-toolbar-btn-muted:hover {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 24%, var(--border));
+}
+
+.nb-toolbar-btn:active {
+  transform: translateY(0.5px) scale(0.98);
+}
+
+.nb-toolbar-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 34%, transparent);
 }
 
 .nb-toolbar-btn:disabled {
   opacity: 0.4;
   cursor: default;
+  pointer-events: none;
+}
+
+.nb-toolbar-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--fg-muted);
+  font-size: var(--ui-font-micro);
+}
+
+.notebook-cells-wrap {
+  width: 100%;
+  max-width: var(--notebook-content-width);
+  margin: 0 auto;
+  padding: 16px 16px 160px;
+  box-sizing: border-box;
 }
 
 .nb-add-cell-btn {

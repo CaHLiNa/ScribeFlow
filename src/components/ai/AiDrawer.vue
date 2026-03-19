@@ -50,6 +50,8 @@
           :session="session"
           :sessionMeta="sessionMeta"
           :compact="isCompact"
+          paneId="ai-drawer"
+          surface="drawer"
         />
         <div
           v-else

@@ -41,13 +41,32 @@
             </svg>
           </button>
 
+          <button
+            ref="contextButtonRef"
+            class="chat-input-chip ui-text-lg px-1.5 py-0.5 rounded cursor-pointer bg-transparent border-none flex items-center gap-1"
+            style="color: var(--fg-muted);"
+            :title="contextButtonTitle"
+            @click.stop="toggleContextMenu">
+            <IconFocus2 :size="13" :stroke-width="1.6" />
+          </button>
+
+          <button
+            ref="toolsButtonRef"
+            class="chat-input-chip ui-text-lg px-1.5 py-0.5 rounded cursor-pointer bg-transparent border-none flex items-center gap-1"
+            style="color: var(--fg-muted);"
+            :title="t('Tools')"
+            @click.stop="toggleToolsMenu">
+            <IconSparkles :size="13" :stroke-width="1.6" />
+          </button>
+
           <!-- Model picker -->
           <button
             ref="modelButtonRef"
             class="chat-input-model ui-text-lg px-1.5 py-0.5 rounded cursor-pointer bg-transparent border-none flex items-center gap-1"
             style="color: var(--fg-muted);"
+            :title="currentModelName"
             @click.stop="toggleModelPicker">
-            {{ currentModelName }}
+            <span class="chat-input-model-label">{{ compact ? compactModelName : currentModelName }}</span>
             <svg width="8" height="8" viewBox="0 0 10 10" fill="currentColor">
               <path d="M1 3l4 4 4-4z"/>
             </svg>
@@ -59,9 +78,9 @@
             :style="reviews.directMode
               ? { color: 'var(--warning)' }
               : { color: 'var(--fg-muted)', opacity: '0.6' }"
-            :title="t('Controls how AI-suggested edits are applied - affects all AI features')"
+            :title="reviewButtonTitle"
             @click="reviews.toggleDirectMode()">
-            {{ reviews.directMode ? t('Auto-apply') : t('Review changes') }}
+            <IconPencil :size="13" :stroke-width="1.7" />
           </button>
         </div>
 
@@ -166,12 +185,60 @@
         </div>
       </template>
     </Teleport>
+
+    <Teleport to="body">
+      <template v-if="showContextMenu">
+        <div class="fixed inset-0 z-[90]" @click="showContextMenu = false"></div>
+        <div
+          class="fixed z-[100] rounded border py-1 chat-input-menu"
+          :style="contextMenuPos"
+          style="background: var(--bg-secondary); border-color: var(--border); box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+          <button
+            v-for="option in contextScopeOptions"
+            :key="option.id"
+            class="chat-input-menu-item"
+            :class="{ active: selectedContextScope === option.id }"
+            :disabled="option.disabled"
+            @click="selectContextScope(option.id)"
+          >
+            <div class="chat-input-menu-copy">
+              <div class="chat-input-menu-title">{{ option.label }}</div>
+              <div class="chat-input-menu-description">{{ option.description }}</div>
+            </div>
+            <span v-if="selectedContextScope === option.id" class="chat-input-menu-check">&#10003;</span>
+          </button>
+        </div>
+      </template>
+    </Teleport>
+
+    <Teleport to="body">
+      <template v-if="showToolsMenu">
+        <div class="fixed inset-0 z-[90]" @click="showToolsMenu = false"></div>
+        <div
+          class="fixed z-[100] rounded border py-1 chat-input-menu"
+          :style="toolsMenuPos"
+          style="background: var(--bg-secondary); border-color: var(--border); box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+          <button
+            v-for="item in props.toolItems"
+            :key="item.label"
+            class="chat-input-menu-item"
+            @click="launchTool(item)"
+          >
+            <div class="chat-input-menu-copy">
+              <div class="chat-input-menu-title">{{ item.label }}</div>
+              <div v-if="item.description" class="chat-input-menu-description">{{ item.description }}</div>
+            </div>
+          </button>
+        </div>
+      </template>
+    </Teleport>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
-import { IconNotes } from '@tabler/icons-vue'
+import { invoke } from '@tauri-apps/api/core'
+import { IconFocus2, IconNotes, IconPencil, IconSparkles } from '@tabler/icons-vue'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useEditorStore } from '../../stores/editor'
 import { useUsageStore } from '../../stores/usage'
@@ -180,6 +247,8 @@ import { useReviewsStore } from '../../stores/reviews'
 import { getBillingRoute } from '../../services/apiClient'
 import { useI18n } from '../../i18n'
 import { findModelById, groupModelsByProvider } from '../../services/modelCatalog'
+import { extractTextFromPdf } from '../../utils/pdfMetadata'
+import { getViewerType, isAiLauncher, isChatTab, isNewTab, isPreviewPath, isReferencePath, previewSourcePathFromPath } from '../../utils/fileTypes'
 import RichTextInput from '../shared/RichTextInput.vue'
 
 const props = defineProps({
@@ -189,9 +258,10 @@ const props = defineProps({
   contextWindow:    { type: Number,  default: 200000 },
   sessionId:        { type: String,  default: '' },
   compact:          { type: Boolean, default: false },
+  toolItems:        { type: Array,   default: () => [] },
 })
 
-const emit = defineEmits(['send', 'abort', 'update-model'])
+const emit = defineEmits(['send', 'abort', 'update-model', 'launch-task'])
 
 const workspace   = useWorkspaceStore()
 const editorStore = useEditorStore()
@@ -206,15 +276,71 @@ const isLightTheme = computed(() =>
   ['light', 'one-light', 'humane', 'solarized'].includes(workspace.theme)
 )
 
-const richInputRef    = ref(null)
-const modelButtonRef  = ref(null)
-const isFocused       = ref(false)
-const hasContent      = ref(false)   // tracks whether richInput is empty (for canSend)
-const showModelPicker = ref(false)
+const richInputRef     = ref(null)
+const modelButtonRef   = ref(null)
+const contextButtonRef = ref(null)
+const toolsButtonRef   = ref(null)
+const isFocused        = ref(false)
+const hasContent       = ref(false)   // tracks whether richInput is empty (for canSend)
+const showModelPicker  = ref(false)
+const showContextMenu  = ref(false)
+const showToolsMenu    = ref(false)
 const modelDropdownPos = ref({})
+const contextMenuPos   = ref({})
+const toolsMenuPos     = ref({})
 const selectedProviderId = ref('')
+const selectedContextScope = ref('auto')
 
 const canSend = computed(() => hasContent.value && !isOverBudget.value)
+const hasWorkspaceContext = computed(() => !!workspace.path)
+const activeContextPath = computed(() => {
+  const activeTab = editorStore.activePane?.activeTab || ''
+  if (activeTab && !isAiLauncher(activeTab) && !isNewTab(activeTab) && !isChatTab(activeTab) && !isReferencePath(activeTab)) {
+    return isPreviewPath(activeTab) ? previewSourcePathFromPath(activeTab) : activeTab
+  }
+  return editorStore.preferredContextPath || ''
+})
+const contextScopeOptions = computed(() => ([
+  {
+    id: 'auto',
+    label: t('Auto context'),
+    shortLabel: t('Auto'),
+    description: t('Use the most relevant current context automatically'),
+    disabled: false,
+  },
+  {
+    id: 'selection',
+    label: t('Current selection'),
+    shortLabel: t('Selection'),
+    description: t('Prefer the active editor selection when available'),
+    disabled: false,
+  },
+  {
+    id: 'file',
+    label: t('Current file'),
+    shortLabel: t('File'),
+    description: t('Attach the current file as the main context'),
+    disabled: !activeContextPath.value,
+  },
+  {
+    id: 'workspace',
+    label: t('Workspace'),
+    shortLabel: t('Workspace'),
+    description: t('Treat the current workspace as the main context'),
+    disabled: !hasWorkspaceContext.value,
+  },
+]))
+const currentContextScopeLabel = computed(() => {
+  const option = contextScopeOptions.value.find((item) => item.id === selectedContextScope.value)
+  return option?.shortLabel || option?.label || t('Auto')
+})
+const compactModelName = computed(() => currentModelName.value.replace(/\s*\([^)]*\)\s*$/, '').trim() || currentModelName.value)
+const contextButtonTitle = computed(() => t('Context scope') + `: ${currentContextScopeLabel.value}`)
+const reviewButtonTitle = computed(() => (
+  reviews.directMode
+    ? `${t('Auto-apply')} · ${t('Controls how AI-suggested edits are applied - affects all AI features')}`
+    : `${t('Review changes')} · ${t('Controls how AI-suggested edits are applied - affects all AI features')}`
+))
 
 // Keep hasContent in sync with RichTextInput changes
 function onRichInput() {
@@ -370,6 +496,8 @@ function selectModel(m) {
 }
 
 function toggleModelPicker() {
+  showContextMenu.value = false
+  showToolsMenu.value = false
   if (showModelPicker.value) {
     showModelPicker.value = false
     return
@@ -388,43 +516,145 @@ function toggleModelPicker() {
   showModelPicker.value = true
 }
 
+function positionMenu(buttonRef, target) {
+  const el = buttonRef?.value
+  if (!el) return
+  const rect = el.getBoundingClientRect()
+  target.value = {
+    bottom: (window.innerHeight - rect.top + 4) + 'px',
+    left: rect.left + 'px',
+    minWidth: `${Math.max(rect.width, 190)}px`,
+    maxWidth: `${Math.min(320, window.innerWidth - rect.left - 12)}px`,
+  }
+}
+
+function toggleContextMenu() {
+  showModelPicker.value = false
+  showToolsMenu.value = false
+  if (showContextMenu.value) {
+    showContextMenu.value = false
+    return
+  }
+  positionMenu(contextButtonRef, contextMenuPos)
+  showContextMenu.value = true
+}
+
+function toggleToolsMenu() {
+  showModelPicker.value = false
+  showContextMenu.value = false
+  if (showToolsMenu.value) {
+    showToolsMenu.value = false
+    return
+  }
+  positionMenu(toolsButtonRef, toolsMenuPos)
+  showToolsMenu.value = true
+}
+
+function closeTransientMenus() {
+  showModelPicker.value = false
+  showContextMenu.value = false
+  showToolsMenu.value = false
+}
+
+function selectContextScope(scopeId) {
+  selectedContextScope.value = scopeId
+  showContextMenu.value = false
+}
+
+function launchTool(item) {
+  if (!item?.task) return
+  showToolsMenu.value = false
+  emit('launch-task', item)
+}
+
 // ─── Actions ──────────────────────────────────────────────────────────────────
 
 function triggerAtMention() {
   richInputRef.value?.triggerAtMention()
 }
 
-function send() {
+async function send() {
   if (props.isStreaming || isOverBudget.value) return
   if (!richInputRef.value) return
 
   const { text, fileRefs, context } = richInputRef.value.extractPayload()
+  let finalText = text
+  const finalFileRefs = [...fileRefs]
 
-  // Auto-capture editor selection if no explicit context pill
   let finalContext = context
-  if (!finalContext) {
-    const pane = editorStore.activePane
-    if (pane && pane.activeTab) {
-      const view = editorStore.getEditorView(pane.id, pane.activeTab)
-      if (view) {
-        const sel = view.state.selection.main
-        if (sel.from !== sel.to) {
-          finalContext = {
-            file:      pane.activeTab,
-            selection: true,
-            text:      view.state.sliceDoc(sel.from, sel.to),
-          }
-        }
-      }
-    }
+  if (!finalContext && (selectedContextScope.value === 'auto' || selectedContextScope.value === 'selection' || selectedContextScope.value === 'workspace')) {
+    finalContext = buildActiveSelectionContext()
   }
 
-  if (!text && fileRefs.length === 0) return
+  const resolvedPath = activeContextPath.value
+
+  if (selectedContextScope.value === 'file' && resolvedPath) {
+    const fileRef = await buildActiveFileRef(resolvedPath)
+    if (fileRef && !finalFileRefs.some((ref) => ref.path === fileRef.path)) {
+      finalFileRefs.unshift(fileRef)
+    }
+    finalText = prependScopeDirective(finalText, 'file', resolvedPath, t('Use this file as the primary context.'))
+  }
+
+  if (selectedContextScope.value === 'workspace' && workspace.path) {
+    finalText = prependScopeDirective(finalText, 'workspace', workspace.path, t('Use the current workspace as the primary context and browse related files when needed.'))
+  }
+
+  if (!finalText && finalFileRefs.length === 0) return
 
   const richHtml = richInputRef.value.getSerializedHtml()
-  emit('send', { text, fileRefs, context: finalContext, richHtml })
+  emit('send', { text: finalText, fileRefs: finalFileRefs, context: finalContext, richHtml })
   richInputRef.value.clear()
   hasContent.value = false
+  closeTransientMenus()
+}
+
+function buildActiveSelectionContext() {
+  const path = activeContextPath.value
+  if (!path) return null
+  const view = editorStore.getAnyEditorView(path)
+  if (!view) return null
+  const sel = view.state.selection.main
+  if (!sel || sel.from === sel.to) return null
+  return {
+    file: path,
+    selection: true,
+    text: view.state.sliceDoc(sel.from, sel.to),
+  }
+}
+
+async function buildActiveFileRef(path) {
+  if (!path) return null
+  const viewerType = getViewerType(path)
+  if (viewerType === 'chat' || viewerType === 'ai-launcher' || viewerType === 'newtab' || viewerType === 'reference') return null
+  try {
+    if (viewerType === 'pdf') {
+      const content = await extractTextFromPdf(path)
+      return { path, content }
+    }
+    const view = editorStore.getAnyEditorView(path)
+    if (view && viewerType === 'text') {
+      return { path, content: view.state.doc.toString() }
+    }
+    const content = await invoke('read_file', { path })
+    return { path, content }
+  } catch (error) {
+    console.warn('[chat-input] buildActiveFileRef failed:', error)
+    return null
+  }
+}
+
+function escapeXmlAttribute(value = '') {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+}
+
+function prependScopeDirective(text, mode, path, instruction) {
+  const directive = `<scope mode="${escapeXmlAttribute(mode)}" path="${escapeXmlAttribute(path || '')}">${instruction}</scope>`
+  return [directive, text].filter(Boolean).join('\n\n')
 }
 
 function handleModelSelect(modelId) {
@@ -466,13 +696,39 @@ defineExpose({ focus })
   min-width: 0;
 }
 
+.chat-input-actions-left {
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+
 .chat-input-actions-right {
   margin-left: auto;
 }
 
 .chat-input-model,
-.chat-input-review {
+.chat-input-review,
+.chat-input-chip {
   min-width: 0;
+}
+
+.chat-input-chip,
+.chat-input-review {
+  width: 28px;
+  height: 28px;
+  justify-content: center;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.chat-input-model {
+  max-width: 190px;
+}
+
+.chat-input-model-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .chat-input-compact .chat-input-actions {
@@ -490,8 +746,69 @@ defineExpose({ focus })
 }
 
 .chat-input-compact .chat-input-model,
-.chat-input-compact .chat-input-review {
+.chat-input-compact .chat-input-review,
+.chat-input-compact .chat-input-chip {
   white-space: normal;
+}
+
+.chat-input-compact .chat-input-actions-left {
+  gap: 2px;
+}
+
+.chat-input-compact .chat-input-model {
+  max-width: 128px;
+}
+
+.chat-input-menu {
+  min-width: 220px;
+}
+
+.chat-input-menu-item {
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: var(--fg-secondary);
+  text-align: left;
+  padding: 8px 12px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.chat-input-menu-item:hover,
+.chat-input-menu-item.active {
+  background: var(--bg-hover);
+  color: var(--fg-primary);
+}
+
+.chat-input-menu-item:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.chat-input-menu-copy {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.chat-input-menu-title {
+  font-size: var(--ui-font-label);
+}
+
+.chat-input-menu-description {
+  margin-top: 2px;
+  font-size: var(--ui-font-caption);
+  color: var(--fg-muted);
+  white-space: normal;
+  line-height: 1.35;
+}
+
+.chat-input-menu-check {
+  color: var(--accent);
+  font-size: var(--ui-font-label);
+  line-height: 1.3;
 }
 
 .model-picker-shell {

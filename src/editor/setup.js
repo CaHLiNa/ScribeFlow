@@ -92,6 +92,13 @@ function autoSaveExtension(onSave) {
   })
 }
 
+function documentChangeExtension(onDocChanged) {
+  return EditorView.updateListener.of((update) => {
+    if (!update.docChanged) return
+    onDocChanged(update.state.doc.toString())
+  })
+}
+
 /**
  * Create cursor position listener extension.
  * Calls `onCursorChange({ line, col })` when cursor moves.
@@ -139,7 +146,17 @@ function editorStatsExtension(onStats) {
  * Create the full set of CodeMirror extensions.
  * Pass a languageExtension for syntax highlighting (or null for plain text).
  */
-export function createEditorExtensions({ onSave, onCursorChange, onStats, softWrap = true, wrapColumn = 0, languageExtension = null, extraExtensions = [] }) {
+export function createEditorExtensions({
+  onSave,
+  onDocChanged,
+  onCursorChange,
+  onStats,
+  softWrap = true,
+  wrapColumn = 0,
+  languageExtension = null,
+  extraExtensions = [],
+  autoSaveEnabled = true,
+}) {
   return [
     // Soft wrap (toggleable via compartment)
     wrapCompartment.of(softWrap ? EditorView.lineWrapping : []),
@@ -182,8 +199,10 @@ export function createEditorExtensions({ onSave, onCursorChange, onStats, softWr
       ...foldKeymap,
     ]),
 
+    ...(onDocChanged ? [documentChangeExtension(onDocChanged)] : []),
+
     // Auto-save
-    ...(onSave ? [autoSaveExtension(onSave)] : []),
+    ...(onSave && autoSaveEnabled ? [autoSaveExtension(onSave)] : []),
 
     // Cursor tracking
     ...(onCursorChange ? [cursorPositionExtension(onCursorChange)] : []),

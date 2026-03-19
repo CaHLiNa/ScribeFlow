@@ -110,6 +110,7 @@ export function createWorkspacePreferenceState() {
     leftSidebarOpen: readBoolean('leftSidebarOpen', true),
     rightSidebarOpen: readTrueOnlyBoolean('rightSidebarOpen'),
     bottomPanelOpen: readTrueOnlyBoolean('bottomPanelOpen'),
+    autoSave: readBoolean('autoSave', true),
     selectedModelId: readString('lastModelId'),
     ghostModelId: readString('ghostModelId'),
     ghostEnabled: readBoolean('ghostEnabled', true),

@@ -11,6 +11,13 @@ fn open_repo(repo_path: &str) -> Result<Repository, String> {
 }
 
 #[tauri::command]
+pub async fn git_init(repo_path: String) -> Result<(), String> {
+    Repository::init(&repo_path)
+        .map(|_| ())
+        .map_err(|e| e.message().to_string())
+}
+
+#[tauri::command]
 pub async fn git_clone(url: String, target_path: String) -> Result<(), String> {
     Repository::clone(&url, &target_path).map_err(|e| {
         let msg = e.message().to_string();

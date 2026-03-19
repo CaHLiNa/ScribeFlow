@@ -60,6 +60,26 @@
         <IconFileTypePdf :size="14" :stroke-width="1.8" />
       </button>
       <button
+        v-if="showRunButtons"
+        class="workflow-primary-btn"
+        type="button"
+        :title="t('Run selection or line ({shortcut})', { shortcut: `${modKey}+Enter` })"
+        :aria-label="t('Run selection or line ({shortcut})', { shortcut: `${modKey}+Enter` })"
+        @click="$emit('run-code')"
+      >
+        <IconPlayerPlay :size="14" :stroke-width="1.8" />
+      </button>
+      <button
+        v-if="showRunButtons"
+        class="workflow-primary-btn"
+        type="button"
+        :title="t('Run entire file ({shortcut})', { shortcut: `Shift+${modKey}+Enter` })"
+        :aria-label="t('Run entire file ({shortcut})', { shortcut: `Shift+${modKey}+Enter` })"
+        @click="$emit('run-file')"
+      >
+        <IconPlayerTrackNext :size="14" :stroke-width="1.8" />
+      </button>
+      <button
         v-if="showCommentToggle"
         class="workflow-secondary-btn workflow-comment-btn"
         :class="{ 'workflow-comment-btn-active': commentActive }"
@@ -78,7 +98,6 @@
           {{ commentBadgeCount > 9 ? '9+' : commentBadgeCount }}
         </span>
       </button>
-      <slot />
       <div
         v-if="showAiGroup"
         class="workflow-ai-group"
@@ -130,15 +149,18 @@ import {
   IconEye,
   IconFileTypePdf,
   IconPlayerPlay,
+  IconPlayerTrackNext,
   IconSearch,
   IconSparkles,
 } from '@tabler/icons-vue'
+import { modKey } from '../../platform'
 import { useI18n } from '../../i18n'
 
 const props = defineProps({
   uiState: { type: Object, default: null },
   statusText: { type: String, default: '' },
   statusTone: { type: String, default: 'muted' },
+  showRunButtons: { type: Boolean, default: false },
   showCommentToggle: { type: Boolean, default: false },
   commentActive: { type: Boolean, default: false },
   commentBadgeCount: { type: Number, default: 0 },
@@ -148,6 +170,8 @@ const emit = defineEmits([
   'primary-action',
   'reveal-preview',
   'reveal-pdf',
+  'run-code',
+  'run-file',
   'diagnose-with-ai',
   'fix-with-ai',
   'toggle-comments',
@@ -350,15 +374,38 @@ const statusClass = computed(() => ({
   font-size: var(--ui-font-caption);
   color: var(--fg-muted);
   white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color 0.14s ease,
+    border-color 0.14s ease,
+    color 0.14s ease,
+    transform 0.1s ease,
+    box-shadow 0.14s ease;
 }
 
 .workflow-primary-btn {
   color: var(--success, #4ade80);
 }
 
-.workflow-primary-btn:hover,
+.workflow-primary-btn:hover {
+  background: color-mix(in srgb, var(--success, #4ade80) 10%, transparent);
+  border-color: color-mix(in srgb, var(--success, #4ade80) 28%, var(--border));
+}
+
 .workflow-secondary-btn:hover {
-  background: var(--bg-hover);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 24%, var(--border));
+}
+
+.workflow-primary-btn:active,
+.workflow-secondary-btn:active {
+  transform: translateY(0.5px) scale(0.98);
+}
+
+.workflow-primary-btn:focus-visible,
+.workflow-secondary-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 34%, transparent);
 }
 
 .workflow-secondary-btn {

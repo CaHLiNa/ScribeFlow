@@ -55,6 +55,7 @@
 import { ref, computed, watch } from 'vue'
 import { useFilesStore } from '../../stores/files'
 import { useWorkspaceStore } from '../../stores/workspace'
+import { useEditorStore } from '../../stores/editor'
 import { useI18n } from '../../i18n'
 
 const props = defineProps({
@@ -65,8 +66,11 @@ const emit = defineEmits(['select', 'select-model', 'close'])
 
 const filesStore = useFilesStore()
 const workspace = useWorkspaceStore()
+const editorStore = useEditorStore()
 const selectedIdx = ref(0)
 const { t } = useI18n()
+
+const FILE_RESULT_LIMIT = 40
 
 async function ensureFilesReady() {
   if (!workspace.path) return
@@ -85,17 +89,131 @@ const filteredModels = computed(() => {
   )
 })
 
+function isWorkspaceFilePath(path = '') {
+  if (!path || !workspace.path) return false
+  return path === workspace.path || path.startsWith(`${workspace.path}/`)
+}
+
+function basename(path = '') {
+  return String(path || '').split('/').pop() || ''
+}
+
+function buildFileEntry(path = '') {
+  return {
+    name: basename(path),
+    path,
+  }
+}
+
+const workspaceFiles = computed(() => {
+  const map = new Map()
+
+  for (const entry of filesStore.flatFiles || []) {
+    if (!isWorkspaceFilePath(entry?.path) || entry?.is_dir) continue
+    map.set(entry.path, entry)
+  }
+
+  const extraPaths = [
+    ...editorStore.allOpenFiles,
+    ...editorStore.recentFiles.map(entry => entry.path),
+    ...Object.keys(filesStore.fileContents || {}),
+  ]
+
+  for (const path of extraPaths) {
+    if (!isWorkspaceFilePath(path) || map.has(path)) continue
+    map.set(path, buildFileEntry(path))
+  }
+
+  return [...map.values()]
+})
+
+const openFileBoosts = computed(() => {
+  const boosts = new Map()
+  let rank = 30
+  for (const path of editorStore.allOpenFiles) {
+    if (!isWorkspaceFilePath(path)) continue
+    boosts.set(path, Math.max(boosts.get(path) || 0, rank))
+    rank = Math.max(10, rank - 2)
+  }
+  return boosts
+})
+
+const recentFileBoosts = computed(() => {
+  const boosts = new Map()
+  let rank = 24
+  for (const entry of editorStore.recentFiles) {
+    const path = entry?.path
+    if (!isWorkspaceFilePath(path)) continue
+    boosts.set(path, Math.max(boosts.get(path) || 0, rank))
+    rank = Math.max(6, rank - 1)
+  }
+  return boosts
+})
+
+function scoreFile(file, rawQuery = '') {
+  const query = String(rawQuery || '').trim().toLowerCase()
+  const path = String(file?.path || '')
+  const name = String(file?.name || basename(path)).toLowerCase()
+  const rel = relativePath(path).toLowerCase()
+  const segments = rel.split('/').filter(Boolean)
+  const tokens = query.split(/\s+/).filter(Boolean)
+
+  if (!query) {
+    let score = 0
+    if (path === editorStore.preferredContextPath) score += 120
+    score += openFileBoosts.value.get(path) || 0
+    score += recentFileBoosts.value.get(path) || 0
+    if (segments.length <= 2) score += 8
+    return score
+  }
+
+  let score = 0
+
+  if (name === query) score += 800
+  if (rel === query) score += 700
+  if (name.startsWith(query)) score += 420
+  if (segments.some(segment => segment.toLowerCase() === query)) score += 320
+  if (segments.some(segment => segment.toLowerCase().startsWith(query))) score += 260
+  if (rel.startsWith(query)) score += 220
+  if (name.includes(query)) score += 180
+  if (rel.includes(query)) score += 120
+
+  for (const token of tokens) {
+    if (!token) continue
+    if (name.includes(token)) score += 40
+    if (rel.includes(token)) score += 25
+    if (segments.some(segment => segment.toLowerCase().startsWith(token))) score += 20
+  }
+
+  if (path === editorStore.preferredContextPath) score += 70
+  score += openFileBoosts.value.get(path) || 0
+  score += recentFileBoosts.value.get(path) || 0
+
+  if (!name.includes(query) && !rel.includes(query) && tokens.length > 0) {
+    const allTokensMatched = tokens.every(token =>
+      name.includes(token) || rel.includes(token),
+    )
+    if (!allTokensMatched) return -1
+  }
+
+  return score
+}
+
 const filteredFiles = computed(() => {
-  const files = filesStore.flatFiles
-  const q = props.filter.toLowerCase()
-  if (!q) return files.slice(0, 20)
-  return files
-    .filter(f => {
-      const name = f.name.toLowerCase()
-      const path = f.path.toLowerCase()
-      return name.includes(q) || path.includes(q)
+  const q = props.filter.toLowerCase().trim()
+  return workspaceFiles.value
+    .map((file) => ({
+      ...file,
+      _score: scoreFile(file, q),
+    }))
+    .filter(file => file._score >= 0)
+    .sort((a, b) => {
+      if (b._score !== a._score) return b._score - a._score
+      const aRel = relativePath(a.path).toLowerCase()
+      const bRel = relativePath(b.path).toLowerCase()
+      return aRel.localeCompare(bRel)
     })
-    .slice(0, 20)
+    .slice(0, FILE_RESULT_LIMIT)
 })
 
 const totalItems = computed(() => filteredModels.value.length + filteredFiles.value.length)

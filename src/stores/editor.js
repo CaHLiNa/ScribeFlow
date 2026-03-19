@@ -778,6 +778,10 @@ export const useEditorStore = defineStore('editor', {
       if (this.lastContextPath === oldPath) {
         this.lastContextPath = newPath
       }
+      if (this.dirtyFiles.has(oldPath)) {
+        this.dirtyFiles.delete(oldPath)
+        this.dirtyFiles.add(newPath)
+      }
       this.saveEditorState()
     },
 
@@ -794,6 +798,7 @@ export const useEditorStore = defineStore('editor', {
       for (const pane of leaves) {
         this.closeTab(pane.id, path)
       }
+      this.clearFileDirty(path)
     },
 
     switchTab(delta) {
@@ -988,6 +993,60 @@ export const useEditorStore = defineStore('editor', {
       this.recentFiles.unshift({ path, openedAt: Date.now() })
       if (this.recentFiles.length > 20) this.recentFiles.length = 20
       this._persistRecentFiles()
+    },
+
+    markFileDirty(path) {
+      if (!path || this.dirtyFiles.has(path)) return
+      this.dirtyFiles.add(path)
+    },
+
+    clearFileDirty(path) {
+      if (!path || !this.dirtyFiles.has(path)) return
+      this.dirtyFiles.delete(path)
+    },
+
+    isFileDirty(path) {
+      return !!path && this.dirtyFiles.has(path)
+    },
+
+    getDirtyFiles(paths = null) {
+      const dirty = [...this.dirtyFiles]
+      if (!Array.isArray(paths) || paths.length === 0) return dirty
+      const allowed = new Set(paths)
+      return dirty.filter(path => allowed.has(path))
+    },
+
+    async persistPath(path) {
+      if (!path) return false
+
+      const view = this.getAnyEditorView(path)
+      if (view?.altalsPersist) {
+        return (await view.altalsPersist()) !== false
+      }
+
+      if (view?.state?.doc) {
+        const files = useFilesStore()
+        const saved = await files.saveFile(path, view.state.doc.toString())
+        if (saved) this.clearFileDirty(path)
+        return saved
+      }
+
+      const files = useFilesStore()
+      const content = files.fileContents[path]
+      if (typeof content !== 'string') return false
+      const saved = await files.saveFile(path, content)
+      if (saved) this.clearFileDirty(path)
+      return saved
+    },
+
+    async persistPaths(paths = []) {
+      const targets = Array.from(new Set(paths.filter(Boolean)))
+      let success = true
+      for (const path of targets) {
+        const saved = await this.persistPath(path)
+        if (!saved) success = false
+      }
+      return success
     },
 
     loadRecentFiles(workspacePath) {

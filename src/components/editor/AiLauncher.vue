@@ -80,8 +80,10 @@
           :modelId="selectedModelId"
           :estimatedTokens="null"
           :compact="compact"
+          :toolItems="chatInputToolItems"
           @send="sendChat"
           @update-model="selectModel"
+          @launch-task="handleLaunchTask"
         />
       </div>
     </div>
@@ -97,7 +99,7 @@ import { useAiDrawerStore } from '../../stores/aiDrawer'
 import { useChatStore } from '../../stores/chat'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useI18n, formatRelativeFromNow } from '../../i18n'
-import { getAiCapabilityItems, getAiLauncherItems } from '../../services/ai/taskCatalog'
+import { getAiCapabilityItems, getAiLauncherItems, getChatInputToolItems } from '../../services/ai/taskCatalog'
 import { launchAiTask, startAiConversation } from '../../services/ai/launch'
 import ChatInput from '../chat/ChatInput.vue'
 
@@ -166,6 +168,13 @@ const capabilityItems = computed(() => {
     action: () => runAiTask(item.task, item.label),
   }))
 })
+
+const chatInputToolItems = computed(() => (
+  getChatInputToolItems({
+    currentPath: currentContextPath.value,
+    t,
+  })
+))
 
 const currentItems = computed(() => {
   if (activeTabId.value === 'capabilities') {
@@ -355,6 +364,11 @@ async function runAiTask(task, label) {
       label,
     },
   })
+}
+
+async function handleLaunchTask(item) {
+  if (!item?.task) return
+  await runAiTask(item.task, item.label || item.task.label)
 }
 
 function selectModel(modelId) {

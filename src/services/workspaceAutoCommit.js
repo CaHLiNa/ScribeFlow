@@ -1,4 +1,4 @@
-import { gitAdd, gitCommit, gitStatus } from './git'
+import { gitAdd, gitCommit, gitInit, gitStatus } from './git'
 import { pathExists } from './workspaceBootstrap'
 import { getHomeDirCached, normalizePathValue } from './workspacePaths'
 
@@ -10,6 +10,24 @@ export async function canAutoCommitWorkspace(path = '') {
     return false
   }
   return pathExists(`${normalizedPath}/.git`)
+}
+
+export async function ensureWorkspaceHistoryRepo(path = '') {
+  if (!path) return { ok: false, reason: 'missing' }
+
+  const normalizedPath = normalizePathValue(path)
+  const normalizedHome = await getHomeDirCached()
+  if (normalizedHome && normalizedPath === normalizedHome) {
+    return { ok: false, reason: 'home' }
+  }
+
+  const hasRepo = await pathExists(`${normalizedPath}/.git`)
+  if (hasRepo) {
+    return { ok: true, initialized: false }
+  }
+
+  await gitInit(normalizedPath)
+  return { ok: true, initialized: true }
 }
 
 export async function runWorkspaceAutoCommit(path = '') {

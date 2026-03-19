@@ -153,6 +153,7 @@ let latexNormalizedSaveContent = null
 let latexFormatOnSaveInFlight = false
 let typstNormalizedSaveContent = null
 let typstFormatOnSaveInFlight = false
+let lastPersistedContent = ''
 
 const isMd = isMarkdown(props.filePath)
 const isTex = isLatex(props.filePath)
@@ -531,18 +532,24 @@ async function requestFormattedTypstContent(content, options = {}) {
 }
 
 async function persistEditorContent(content) {
+  const currentContent = typeof content === 'string'
+    ? content
+    : (view ? view.state.doc.toString() : '')
+
   if (isTex) {
-    if (latexNormalizedSaveContent != null && content === latexNormalizedSaveContent) {
+    if (latexNormalizedSaveContent != null && currentContent === latexNormalizedSaveContent) {
       latexNormalizedSaveContent = null
-      return
+      lastPersistedContent = currentContent
+      editorStore.clearFileDirty(props.filePath)
+      return true
     }
 
-    let nextContent = content
+    let nextContent = currentContent
     if (latexStore.formatOnSave && latexStore.hasLatexFormatter && !latexFormatOnSaveInFlight) {
       try {
         latexFormatOnSaveInFlight = true
-        const formatted = await latexStore.formatDocument(props.filePath, content)
-        if (typeof formatted === 'string' && formatted !== content) {
+        const formatted = await latexStore.formatDocument(props.filePath, currentContent)
+        if (typeof formatted === 'string' && formatted !== currentContent) {
           nextContent = formatted
           latexNormalizedSaveContent = formatted
           if (view && view.state.doc.toString() !== formatted) {
@@ -572,25 +579,30 @@ async function persistEditorContent(content) {
       }
     }
 
-    await files.saveFile(props.filePath, nextContent)
+    const saved = await files.saveFile(props.filePath, nextContent)
+    if (!saved) return false
+    lastPersistedContent = nextContent
+    editorStore.clearFileDirty(props.filePath)
     void latexStore.scheduleAutoBuildForPath(props.filePath, {
       sourceContent: nextContent,
     })
-    return
+    return true
   }
 
   if (isTyp) {
-    if (typstNormalizedSaveContent != null && content === typstNormalizedSaveContent) {
+    if (typstNormalizedSaveContent != null && currentContent === typstNormalizedSaveContent) {
       typstNormalizedSaveContent = null
-      return
+      lastPersistedContent = currentContent
+      editorStore.clearFileDirty(props.filePath)
+      return true
     }
 
-    let nextContent = content
+    let nextContent = currentContent
     if (typstStore.formatOnSave && !typstFormatOnSaveInFlight) {
       try {
         typstFormatOnSaveInFlight = true
-        const formatted = await requestFormattedTypstContent(content)
-        if (typeof formatted === 'string' && formatted !== content) {
+        const formatted = await requestFormattedTypstContent(currentContent)
+        if (typeof formatted === 'string' && formatted !== currentContent) {
           nextContent = formatted
           typstNormalizedSaveContent = formatted
           if (view && view.state.doc.toString() !== formatted) {
@@ -620,18 +632,33 @@ async function persistEditorContent(content) {
       }
     }
 
-    await files.saveFile(props.filePath, nextContent)
+    const saved = await files.saveFile(props.filePath, nextContent)
+    if (!saved) return false
+    lastPersistedContent = nextContent
+    editorStore.clearFileDirty(props.filePath)
     void typstStore.scheduleAutoBuildForPath(props.filePath, {
       sourceContent: nextContent,
     })
-    return
+    return true
   }
 
-  await files.saveFile(props.filePath, content)
+  const saved = await files.saveFile(props.filePath, currentContent)
+  if (!saved) return false
+  lastPersistedContent = currentContent
+  editorStore.clearFileDirty(props.filePath)
 
   if (isBib) {
     void latexStore.scheduleAutoBuildForPath(props.filePath)
   }
+  return true
+}
+
+function handleDocumentChanged(content) {
+  if (content === lastPersistedContent) {
+    editorStore.clearFileDirty(props.filePath)
+    return
+  }
+  editorStore.markFileDirty(props.filePath)
 }
 
 async function loadLanguageExtension() {
@@ -681,6 +708,8 @@ onMounted(async () => {
     return
   }
   if (content === null) content = ''
+  lastPersistedContent = content
+  editorStore.clearFileDirty(props.filePath)
   if (isTex) {
     void latexStore.checkTools().catch(() => {})
     void latexStore.refreshLint(props.filePath, {
@@ -1127,6 +1156,8 @@ onMounted(async () => {
     softWrap: workspace.softWrap,
     wrapColumn: workspace.wrapColumn,
     languageExtension: langExt,
+    autoSaveEnabled: workspace.autoSave,
+    onDocChanged: handleDocumentChanged,
     onSave: (content) => {
       void persistEditorContent(content)
     },
@@ -1145,6 +1176,8 @@ onMounted(async () => {
     state,
     parent: editorContainer.value,
   })
+  view.altalsPersist = async () => persistEditorContent(view?.state.doc.toString() || '')
+  view.altalsGetContent = () => view?.state.doc.toString() || ''
 
   activateEditorRuntime()
 })

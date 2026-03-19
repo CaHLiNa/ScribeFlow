@@ -1,5 +1,9 @@
 import { invoke } from '@tauri-apps/api/core'
 
+export async function gitInit(repoPath) {
+  return invoke('git_init', { repoPath })
+}
+
 export async function gitAdd(repoPath) {
   return invoke('git_add_all', { repoPath })
 }

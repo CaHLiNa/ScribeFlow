@@ -79,33 +79,9 @@
       </button>
     </div>
 
-    <!-- Run actions (for runnable files) -->
-    <div v-if="showRunButtons" class="flex items-center gap-0.5 px-1 shrink-0 border-r" style="border-color: var(--border);">
+    <!-- Run actions (for renderable files) -->
+    <div v-if="showRenderButton" class="flex items-center gap-0.5 px-1 shrink-0 border-r" style="border-color: var(--border);">
       <button
-        class="h-6 px-2 flex items-center gap-1 rounded ui-text-xs hover:bg-[var(--bg-hover)]"
-        style="color: var(--success, #4ade80);"
-        @click="$emit('run-code')"
-        :title="t('Run selection or line ({shortcut})', { shortcut: `${modKey}+Enter` })"
-      >
-        <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
-          <path d="M4 2l10 6-10 6V2z"/>
-        </svg>
-        {{ t('Run') }}
-      </button>
-      <button
-        class="h-6 px-2 flex items-center gap-1 rounded ui-text-xs hover:bg-[var(--bg-hover)]"
-        style="color: var(--success, #4ade80);"
-        @click="$emit('run-file')"
-        :title="t('Run entire file ({shortcut})', { shortcut: `Shift+${modKey}+Enter` })"
-      >
-        <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
-          <path d="M2 2l6 6-6 6V2z"/>
-          <path d="M8 2l6 6-6 6V2z"/>
-        </svg>
-        {{ t('Run All') }}
-      </button>
-      <button
-        v-if="showRenderButton"
         class="h-6 px-2 flex items-center gap-1 rounded ui-text-xs hover:bg-[var(--bg-hover)]"
         style="color: var(--accent);"
         @click="$emit('render-document')"
@@ -173,7 +149,6 @@ import { useReferencesStore } from '../../stores/references'
 import {
   isReferencePath,
   referenceKeyFromPath,
-  isRunnable,
   isRmdOrQmd,
   isChatTab,
   getChatSessionId,
@@ -184,7 +159,6 @@ import {
   previewSourcePathFromPath,
 } from '../../utils/fileTypes'
 import { useChatStore } from '../../stores/chat'
-import { modKey } from '../../platform'
 import { useI18n } from '../../i18n'
 
 const props = defineProps({
@@ -193,7 +167,7 @@ const props = defineProps({
   paneId: { type: String, default: '' },
 })
 
-const emit = defineEmits(['select-tab', 'close-tab', 'split-vertical', 'split-horizontal', 'close-pane', 'run-code', 'run-file', 'render-document', 'compile-tex', 'compile-typst', 'preview-pdf', 'preview-markdown', 'new-tab'])
+const emit = defineEmits(['select-tab', 'close-tab', 'split-vertical', 'split-horizontal', 'close-pane', 'render-document', 'compile-tex', 'compile-typst', 'preview-pdf', 'preview-markdown', 'new-tab'])
 
 const aiWorkbench = useAiWorkbenchStore()
 const chatStore = useChatStore()
@@ -208,7 +182,6 @@ function isChatStreaming(path) {
   return status === 'submitted' || status === 'streaming'
 }
 
-const showRunButtons = computed(() => props.activeTab && isRunnable(props.activeTab))
 const showRenderButton = computed(() => props.activeTab && isRmdOrQmd(props.activeTab))
 const editorStore = useEditorStore()
 const referencesStore = useReferencesStore()

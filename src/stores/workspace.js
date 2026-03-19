@@ -474,6 +474,10 @@ export const useWorkspaceStore = defineStore('workspace', {
       this.bottomPanelOpen = toggleStoredBoolean(this.bottomPanelOpen, 'bottomPanelOpen')
     },
 
+    toggleAutoSave() {
+      this.autoSave = toggleStoredBoolean(this.autoSave, 'autoSave')
+    },
+
     openBottomPanel() {
       if (!this.bottomPanelOpen) {
         this.bottomPanelOpen = persistStoredString('bottomPanelOpen', true)

@@ -95,6 +95,8 @@
     <!-- Settings Modal -->
     <Settings :visible="workspace.settingsOpen" :initialSection="workspace.settingsSection" @close="workspace.closeSettings()" />
 
+    <UnsavedChangesDialog />
+
     <!-- Setup Wizard (first-time) -->
     <SetupWizard :visible="setupWizardVisible" @close="setupWizardVisible = false" />
 
@@ -147,6 +149,8 @@ import {
 } from './services/criticalWorkspaceState'
 import { openExternalHttpUrl, resolveExternalHttpAnchor } from './services/externalLinks'
 import { releaseOpencodeWorkspaceInstance, shutdownOpencodeSidecar } from './services/ai/opencodeSidecar'
+import { confirmUnsavedChanges } from './services/unsavedChanges'
+import { ensureWorkspaceHistoryRepo } from './services/workspaceAutoCommit'
 
 const LeftSidebar = defineAsyncComponent(() => import('./components/sidebar/LeftSidebar.vue'))
 const BottomPanel = defineAsyncComponent(() => import('./components/layout/BottomPanel.vue'))
@@ -154,6 +158,7 @@ const VersionHistory = defineAsyncComponent(() => import('./components/VersionHi
 const Settings = defineAsyncComponent(() => import('./components/settings/Settings.vue'))
 const SetupWizard = defineAsyncComponent(() => import('./components/SetupWizard.vue'))
 const AiDrawer = defineAsyncComponent(() => import('./components/ai/AiDrawer.vue'))
+const UnsavedChangesDialog = defineAsyncComponent(() => import('./components/UnsavedChangesDialog.vue'))
 
 const workspace = useWorkspaceStore()
 const filesStore = useFilesStore()
@@ -305,7 +310,11 @@ async function openWorkspace(path, options = {}) {
 
   // Close any currently open workspace first
   if (workspace.isOpen) {
-    await closeWorkspace()
+    const closed = await closeWorkspace()
+    if (!closed) {
+      uxStatusStore.clear(workspaceStatusId)
+      return
+    }
   }
 
   try {
@@ -381,7 +390,7 @@ async function openWorkspace(path, options = {}) {
     uxStatusStore.success(t('Workspace ready'), { duration: 1800 })
   } catch (e) {
     console.error('Failed to open workspace:', e)
-    await closeWorkspace()
+    await closeWorkspace({ skipUnsavedCheck: true })
     uxStatusStore.error(t('Failed to open workspace'), { duration: 4000 })
     toastStore.show(t('Failed to open workspace: {error}', { error: e.message || e }), { type: 'error', duration: 8000 })
     return
@@ -395,7 +404,15 @@ async function openWorkspace(path, options = {}) {
   }
 }
 
-async function closeWorkspace() {
+async function closeWorkspace(options = {}) {
+  const { skipUnsavedCheck = false } = options
+  if (!skipUnsavedCheck) {
+    const result = await confirmUnsavedChanges([...editorStore.allOpenFiles], {
+      message: t('These files have unsaved changes and will be closed with the workspace.'),
+    })
+    if (result.choice === 'cancel') return false
+  }
+
   workspaceLoadGeneration += 1
   cancelWorkspaceBackgroundTasks()
   const closingWorkspacePath = workspace.path
@@ -426,15 +443,16 @@ async function closeWorkspace() {
     console.warn('[workspace] failed to clear allowed roots:', error)
   })
   void releaseWorkspaceBookmark(closingWorkspacePath)
+  return true
 }
 
 
 // Keyboard shortcuts
-function handleKeydown(e) {
+async function handleKeydown(e) {
   // Cmd+S: Force save + commit
   if (isMod(e) && e.key === 's') {
     e.preventDefault()
-    forceSaveAndCommit()
+    await forceSaveAndCommit()
     return
   }
 
@@ -515,6 +533,8 @@ function handleKeydown(e) {
     const pane = editorStore.activePane
     if (!pane) return
     if (pane.activeTab) {
+      const result = await confirmUnsavedChanges([pane.activeTab])
+      if (result.choice === 'cancel') return
       editorStore.closeTab(pane.id, pane.activeTab)
     } else {
       // No tabs — collapse pane if it's not the root
@@ -750,6 +770,24 @@ async function forceSaveAndCommit() {
   if (!workspace.path) return
 
   try {
+    const historyRepo = await ensureWorkspaceHistoryRepo(workspace.path)
+    if (!historyRepo.ok) {
+      toastStore.show(t('Version History is not available for the home folder.'), {
+        type: 'warning',
+        duration: 5000,
+      })
+      return
+    }
+    if (historyRepo.initialized) {
+      void workspace.startAutoCommit()
+    }
+
+    const dirtyPaths = editorStore.getDirtyFiles([...editorStore.allOpenFiles])
+    if (dirtyPaths.length > 0) {
+      const saved = await editorStore.persistPaths(dirtyPaths)
+      if (!saved) return
+    }
+
     // Save all open files by triggering a flush on every editor view
     const openFiles = editorStore.allOpenFiles
     for (const filePath of openFiles) {
@@ -757,7 +795,8 @@ async function forceSaveAndCommit() {
       if (filePath.startsWith('ref:@') || filePath.startsWith('chat:') || isPreviewPath(filePath) || filePath.startsWith('newtab:') || isAiLauncher(filePath)) continue
       const content = filesStore.fileContents[filePath]
       if (content !== undefined) {
-        await filesStore.saveFile(filePath, content)
+        const saved = await filesStore.saveFile(filePath, content)
+        if (!saved) return
       }
     }
 
@@ -810,8 +849,30 @@ function onEditorStats(stats) {
 
 // Version history
 function openVersionHistory(entry) {
-  versionHistoryFile.value = entry.path
-  versionHistoryVisible.value = true
+  if (!workspace.path) return
+  ensureWorkspaceHistoryRepo(workspace.path)
+    .then((result) => {
+      if (!result.ok) {
+        toastStore.show(t('Version History is not available for the home folder.'), {
+          type: 'warning',
+          duration: 5000,
+        })
+        return
+      }
+      if (result.initialized) {
+        void workspace.startAutoCommit()
+      }
+      versionHistoryFile.value = entry.path
+      versionHistoryVisible.value = true
+    })
+    .catch((error) => {
+      toastStore.show(t('Failed to initialize Version History: {error}', {
+        error: error?.message || String(error || ''),
+      }), {
+        type: 'error',
+        duration: 6000,
+      })
+    })
 }
 
 

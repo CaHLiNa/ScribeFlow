@@ -28,6 +28,23 @@
       <!-- Soft Wrap -->
       <div class="env-lang-card">
         <div class="env-lang-header">
+          <span class="env-lang-dot" :class="workspace.autoSave ? 'good' : 'warn'"></span>
+          <span class="env-lang-name">{{ t('Auto Save') }}</span>
+          <span class="env-lang-version">{{ workspace.autoSave ? t('Enabled') : t('Disabled') }}</span>
+          <div style="flex: 1;"></div>
+          <button
+            class="tool-toggle-switch"
+            :class="{ on: workspace.autoSave }"
+            @click="workspace.toggleAutoSave()"
+          >
+            <span class="tool-toggle-knob"></span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Soft Wrap -->
+      <div class="env-lang-card">
+        <div class="env-lang-header">
           <span class="env-lang-dot" :class="workspace.softWrap ? 'good' : 'none'"></span>
           <span class="env-lang-name">{{ t('Soft Wrap') }}</span>
           <span v-if="workspace.softWrap" class="env-lang-version">{{ t('Enabled') }}</span>

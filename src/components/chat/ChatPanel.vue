@@ -6,6 +6,8 @@
       :key="sessionId"
       :session="session"
       :sessionMeta="sessionMeta"
+      :paneId="paneId"
+      surface="pane"
     />
     <div v-else class="flex items-center justify-center h-full ui-text-base" style="color: var(--fg-muted);">
       Loading chat session...

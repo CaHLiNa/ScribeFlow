@@ -668,6 +668,86 @@ export function getAiCapabilityItems({ currentPath = '', t }) {
   })).filter((item) => !!item.task)
 }
 
+export function getChatInputToolItems({ currentPath = '', t }) {
+  return [
+    {
+      label: t('Search academic papers'),
+      description: t('Search papers and propose the strongest candidates'),
+      task: {
+        action: 'prefill',
+        role: 'researcher',
+        toolProfile: 'researcher',
+        taskId: 'research.paper-search',
+        source: 'chat-input',
+        entryContext: 'chat-input',
+        label: t('Search academic papers'),
+        prompt: t('Help me search academic papers for this topic. Prefer using search_papers first, then present the best candidates with create_proposal.'),
+      },
+    },
+    {
+      label: t('Web Research'),
+      description: t('Investigate websites and online sources'),
+      task: {
+        action: 'prefill',
+        role: 'researcher',
+        toolProfile: 'researcher',
+        taskId: 'research.web',
+        source: 'chat-input',
+        entryContext: 'chat-input',
+        label: t('Web Research'),
+        prompt: t('Help me investigate external websites and online sources for this topic. Use web_search and fetch_url when useful.'),
+      },
+    },
+    {
+      label: t('Reference maintenance'),
+      description: t('Clean up metadata, duplicates, and citation readiness'),
+      task: createReferenceMaintenanceTask({
+        source: 'chat-input',
+        entryContext: 'chat-input',
+        label: t('Reference maintenance'),
+      }),
+    },
+    {
+      label: currentPath && (isLatex(currentPath) || isTypst(currentPath))
+        ? t('Compile & Diagnose')
+        : t('Compile assistant'),
+      description: currentPath && (isLatex(currentPath) || isTypst(currentPath))
+        ? t('Diagnose the current TeX / Typst document')
+        : t('Inspect LaTeX or Typst compile problems'),
+      task: currentPath && (isLatex(currentPath) || isTypst(currentPath))
+        ? createTexTypDiagnoseTask({
+          filePath: currentPath,
+          source: 'chat-input',
+          entryContext: 'chat-input',
+          label: t('Compile & Diagnose'),
+        })
+        : createCompileAssistantTask({
+          source: 'chat-input',
+          entryContext: 'chat-input',
+          label: t('Compile assistant'),
+        }),
+    },
+    {
+      label: currentPath.endsWith('.ipynb') ? t('Notebook AI') : t('Notebook assistant'),
+      description: currentPath.endsWith('.ipynb')
+        ? t('Inspect the current notebook with notebook tools')
+        : t('Read, edit, and run notebook cells'),
+      task: currentPath.endsWith('.ipynb')
+        ? createNotebookAssistantTask({
+          filePath: currentPath,
+          source: 'chat-input',
+          entryContext: 'chat-input',
+          label: t('Notebook AI'),
+        })
+        : createNotebookExplorerTask({
+          source: 'chat-input',
+          entryContext: 'chat-input',
+          label: t('Notebook AI'),
+        }),
+    },
+  ]
+}
+
 export function createTexTypFixTask({ filePath, label = '', source = 'launcher', entryContext = 'document' } = {}) {
   return {
     action: 'send',
