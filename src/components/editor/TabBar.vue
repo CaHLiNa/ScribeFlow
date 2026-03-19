@@ -121,25 +121,6 @@
 
     <!-- Pane actions -->
     <div class="flex items-center gap-0.5 px-1 shrink-0">
-      <!-- Comment margin toggle (for text files) -->
-      <button
-        v-if="showCommentToggle"
-        class="w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--bg-hover)] relative"
-        :style="{ color: commentsStore.isMarginVisible(activeTab) ? 'var(--accent)' : 'var(--fg-muted)' }"
-        @click="commentsStore.toggleMargin(activeTab)"
-        :title="t('Toggle comments')"
-      >
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-          <path d="M3 2.5h10a1.5 1.5 0 011.5 1.5v6a1.5 1.5 0 01-1.5 1.5H9.414l-2.707 2.707a.5.5 0 01-.854-.354V11.5H3A1.5 1.5 0 011.5 10V4A1.5 1.5 0 013 2.5z"/>
-        </svg>
-        <span
-          v-if="commentBadgeCount > 0"
-          class="absolute -top-0.5 -right-0.5 min-w-[12px] h-3 flex items-center justify-center rounded-full text-white"
-          style="font-size: var(--ui-font-tiny); font-weight: 600; background: var(--accent); padding: 0 2px;"
-        >
-          {{ commentBadgeCount > 9 ? '9+' : commentBadgeCount }}
-        </span>
-      </button>
       <button
         class="w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--bg-hover)]"
         style="color: var(--fg-muted);"
@@ -202,7 +183,6 @@ import {
   isPreviewPath,
   previewSourcePathFromPath,
 } from '../../utils/fileTypes'
-import { useCommentsStore } from '../../stores/comments'
 import { useChatStore } from '../../stores/chat'
 import { modKey } from '../../platform'
 import { useI18n } from '../../i18n'
@@ -217,19 +197,7 @@ const emit = defineEmits(['select-tab', 'close-tab', 'split-vertical', 'split-ho
 
 const aiWorkbench = useAiWorkbenchStore()
 const chatStore = useChatStore()
-const commentsStore = useCommentsStore()
 const { t } = useI18n()
-
-// Comment margin toggle
-const showCommentToggle = computed(() => {
-  if (!props.activeTab) return false
-  return getViewerType(props.activeTab) === 'text'
-})
-
-const commentBadgeCount = computed(() => {
-  if (!props.activeTab) return 0
-  return commentsStore.unresolvedCount(props.activeTab)
-})
 
 function isChatStreaming(path) {
   if (!isChatTab(path)) return false

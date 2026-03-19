@@ -98,6 +98,7 @@
 import { ref, computed, nextTick, defineAsyncComponent } from 'vue'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useEditorStore } from '../../stores/editor'
+import { useAiDrawerStore } from '../../stores/aiDrawer'
 import { useToastStore } from '../../stores/toast'
 import { useReferencesStore } from '../../stores/references'
 import {
@@ -108,7 +109,6 @@ import { isMac, modKey } from '../../platform'
 import { useI18n } from '../../i18n'
 import { insertCitationWithAssist } from '../../services/latexCitationAssist'
 import { tinymistRangeToOffsets } from '../../services/tinymist/textEdits'
-import { hasAiLauncherOpen, toggleAiLauncher } from '../../services/ai/launch'
 
 const SearchResults = defineAsyncComponent(() => import('../SearchResults.vue'))
 
@@ -116,6 +116,7 @@ const emit = defineEmits(['open-settings'])
 
 const workspace = useWorkspaceStore()
 const editorStore = useEditorStore()
+const aiDrawer = useAiDrawerStore()
 const toastStore = useToastStore()
 const referencesStore = useReferencesStore()
 const { t } = useI18n()
@@ -163,8 +164,8 @@ const query = ref('')
 const searchFocused = ref(false)
 
 const showResults = computed(() => searchFocused.value || query.value.length > 0)
-const aiLauncherOpen = computed(() => hasAiLauncherOpen(editorStore))
-const aiButtonTitle = computed(() => (aiLauncherOpen.value ? t('Close AI') : t('Open AI')))
+const aiLauncherOpen = computed(() => aiDrawer.open)
+const aiButtonTitle = computed(() => (aiDrawer.open ? t('Close AI') : t('Open AI')))
 
 const searchPlaceholder = computed(() => t('Go to file...'))
 
@@ -231,16 +232,13 @@ function onSelectCitation(key) {
 }
 
 function onSelectChat(sessionId) {
-  editorStore.openChat({ sessionId })
+  aiDrawer.openSession(sessionId)
   query.value = ''
   searchInputRef.value?.blur()
 }
 
 function handleOpenAi() {
-  toggleAiLauncher({
-    editorStore,
-    beside: true,
-  })
+  aiDrawer.toggle()
 }
 
 async function waitForEditorView(targetPath) {

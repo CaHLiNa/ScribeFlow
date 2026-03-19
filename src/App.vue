@@ -42,12 +42,30 @@
         <!-- Center: Editor panes + bottom panel -->
         <div class="flex-1 flex flex-col overflow-hidden" style="min-width: 200px;">
           <!-- Pane container -->
-          <div class="flex-1 overflow-hidden">
+          <div class="flex-1 overflow-hidden relative">
             <PaneContainer
               :node="editorStore.paneTree"
               @cursor-change="onCursorChange"
               @editor-stats="onEditorStats"
             />
+            <div
+              v-if="workspace.rightSidebarOpen"
+              class="absolute inset-y-0 right-0 z-20 flex items-stretch px-2 py-2 pointer-events-none"
+            >
+              <div class="pointer-events-auto flex items-stretch h-full">
+                <ResizeHandle
+                  direction="vertical"
+                  @resize="onRightResize"
+                  @dblclick="onRightResizeSnap"
+                />
+                <div
+                  class="h-full overflow-hidden"
+                  :style="{ width: rightSidebarWidth + 'px' }"
+                >
+                  <AiDrawer />
+                </div>
+              </div>
+            </div>
           </div>
 
           <!-- Bottom panel resize handle -->
@@ -99,6 +117,7 @@ import { useLinksStore } from './stores/links'
 import { useChatStore } from './stores/chat'
 import { useReferencesStore } from './stores/references'
 import { useResearchArtifactsStore } from './stores/researchArtifacts'
+import { useAiDrawerStore } from './stores/aiDrawer'
 import { useTypstStore } from './stores/typst'
 import { useLatexStore } from './stores/latex'
 import { useKernelStore } from './stores/kernel'
@@ -134,6 +153,7 @@ const BottomPanel = defineAsyncComponent(() => import('./components/layout/Botto
 const VersionHistory = defineAsyncComponent(() => import('./components/VersionHistory.vue'))
 const Settings = defineAsyncComponent(() => import('./components/settings/Settings.vue'))
 const SetupWizard = defineAsyncComponent(() => import('./components/SetupWizard.vue'))
+const AiDrawer = defineAsyncComponent(() => import('./components/ai/AiDrawer.vue'))
 
 const workspace = useWorkspaceStore()
 const filesStore = useFilesStore()
@@ -144,6 +164,7 @@ const linksStore = useLinksStore()
 const chatStore = useChatStore()
 const referencesStore = useReferencesStore()
 const researchArtifactsStore = useResearchArtifactsStore()
+const aiDrawerStore = useAiDrawerStore()
 const typstStore = useTypstStore()
 const latexStore = useLatexStore()
 const kernelStore = useKernelStore()
@@ -165,8 +186,11 @@ let unlistenWindowFocusChange = null
 const isTauriDesktop = typeof window !== 'undefined' && !!window.__TAURI_INTERNALS__
 const {
   leftSidebarWidth,
+  rightSidebarWidth,
   bottomPanelHeight,
   onLeftResize,
+  onRightResize,
+  onRightResizeSnap,
   onBottomResize,
   cleanupAppShellLayout,
 } = useAppShellLayout()
@@ -559,13 +583,19 @@ function handleKeydown(e) {
       e.preventDefault()
       return
     }
+    if (workspace.rightSidebarOpen) {
+      aiDrawerStore.close()
+      e.preventDefault()
+      return
+    }
   }
 }
 
 function handleChatPrefill(e) {
   const { message } = e.detail || {}
   if (!message) return
-  editorStore.openChatBeside({ prefill: message })
+  aiDrawerStore.openLauncher()
+  chatStore.pendingPrefill = message
 }
 
 // Alt+Z: capture phase so it fires before CodeMirror consumes the event

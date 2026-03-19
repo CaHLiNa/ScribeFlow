@@ -23,12 +23,11 @@
       </span>
       <div class="flex-1"></div>
 
-        <div v-if="!collapsed" class="flex items-center gap-1">
-        <!-- Export button -->
+      <div v-if="!collapsed" class="flex items-center gap-0.5">
         <button
           v-if="referencesStore.refCount > 0"
           ref="exportBtnEl"
-          class="h-5 px-1.5 flex items-center gap-1 rounded ui-text-xs hover:opacity-80"
+          class="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--bg-hover)]"
           :style="{ color: 'var(--fg-muted)' }"
           :title="t('Export references')"
           @click.stop="toggleExportMenu"
@@ -36,7 +35,22 @@
           <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M8 10V2M4 6l4-4 4 4M2 13h12"/>
           </svg>
-          {{ t('Export') }}
+        </button>
+        <button
+          class="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--bg-hover)]"
+          :style="{ color: 'var(--fg-muted)' }"
+          :title="t('Add reference')"
+          @click.stop="showAddDialog = true"
+        >
+          <IconPlus :size="11" :stroke-width="2" />
+        </button>
+        <button
+          class="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--bg-hover)]"
+          :style="{ color: 'var(--fg-muted)' }"
+          :title="t('Reference maintenance')"
+          @click.stop="openReferenceAi"
+        >
+          <IconSparkles :size="11" :stroke-width="1.8" />
         </button>
       </div>
 
@@ -79,9 +93,9 @@
 
     <!-- Content -->
     <template v-if="!collapsed">
-      <!-- Search + Add button row -->
-      <div class="flex items-center gap-1 px-2 py-1 shrink-0">
-        <div class="flex-1 min-w-0 flex items-center rounded border px-1 overflow-hidden"
+      <!-- Search row -->
+      <div class="px-2 py-1 shrink-0">
+        <div class="w-full min-w-0 flex items-center rounded border px-1 overflow-hidden"
           :style="{ background: 'var(--bg-tertiary)', borderColor: searchFocused ? 'var(--accent)' : 'var(--border)' }">
           <IconSearch :size="12" :stroke-width="1.5" style="color: var(--fg-muted); flex-shrink: 0;" />
           <input
@@ -94,36 +108,6 @@
             @blur="searchFocused = false"
           />
         </div>
-        <button
-          class="shrink-0 h-5 px-1.5 flex items-center gap-0.5 rounded ui-text-sm hover:bg-[var(--bg-hover)]"
-          :style="{ color: 'var(--fg-muted)' }"
-          :title="t('Add reference')"
-          @click.stop="showAddDialog = true"
-        >
-          <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M8 3v10M3 8h10"/>
-          </svg>
-          {{ t('Add') }}
-        </button>
-        <button
-          class="shrink-0 h-5 px-1.5 flex items-center gap-1 rounded ui-text-sm hover:bg-[var(--bg-hover)]"
-          :style="{ color: 'var(--fg-muted)' }"
-          :title="t('Reference maintenance')"
-          @click.stop="openReferenceAi"
-        >
-          <IconSparkles :size="11" :stroke-width="1.8" />
-          {{ t('Ask AI') }}
-        </button>
-        <button
-          v-if="canCompareSelected"
-          class="shrink-0 h-5 px-1.5 flex items-center gap-1 rounded ui-text-sm hover:bg-[var(--bg-hover)]"
-          :style="{ color: 'var(--fg-muted)' }"
-          :title="t('Compare selected')"
-          @click.stop="compareSelectedReferences"
-        >
-          <IconGitCompare :size="11" :stroke-width="1.8" />
-          {{ t('Compare selected') }}
-        </button>
       </div>
 
       <!-- Style picker dropdown (Teleported) -->
@@ -176,7 +160,7 @@
         </template>
       </Teleport>
 
-      <!-- Sort + filter | style (single compact row) -->
+      <!-- Sort + filter | compare | style -->
       <div v-if="referencesStore.refCount > 0" class="flex items-center gap-1 px-2 pt-1 pb-0.5 shrink-0">
         <!-- Sort button -->
         <button
@@ -201,6 +185,17 @@
           <svg width="6" height="4" viewBox="0 0 8 5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="flex-shrink: 0;">
             <path d="M1 1l3 3 3-3"/>
           </svg>
+        </button>
+
+        <button
+          v-if="canCompareSelected"
+          class="h-5 px-1.5 flex items-center gap-1 rounded shrink-0 ui-text-sm hover:opacity-80"
+          :style="{ color: 'var(--fg-muted)' }"
+          :title="t('Compare selected')"
+          @click.stop="compareSelectedReferences"
+        >
+          <IconGitCompare :size="11" :stroke-width="1.8" />
+          {{ t('Compare selected') }}
         </button>
 
         <!-- Filter menu (Teleported) -->
@@ -371,7 +366,7 @@ import { launchAiTask } from '../../services/ai/launch'
 import { createReferenceCompareTask, createReferenceMaintenanceTask } from '../../services/ai/taskCatalog'
 import { isMod } from '../../platform'
 import { ask } from '@tauri-apps/plugin-dialog'
-import { IconSearch, IconArrowsSort, IconSparkles, IconGitCompare } from '@tabler/icons-vue'
+import { IconSearch, IconArrowsSort, IconSparkles, IconGitCompare, IconPlus } from '@tabler/icons-vue'
 import ReferenceItem from './ReferenceItem.vue'
 import ReferenceContextMenu from './ReferenceContextMenu.vue'
 import AddReferenceDialog from './AddReferenceDialog.vue'

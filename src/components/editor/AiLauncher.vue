@@ -89,6 +89,7 @@ import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { useEditorStore } from '../../stores/editor'
 import { useAiWorkbenchStore } from '../../stores/aiWorkbench'
+import { useAiDrawerStore } from '../../stores/aiDrawer'
 import { useChatStore } from '../../stores/chat'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useI18n, formatRelativeFromNow } from '../../i18n'
@@ -97,13 +98,15 @@ import { launchAiTask, startAiConversation } from '../../services/ai/launch'
 import ChatInput from '../chat/ChatInput.vue'
 
 const props = defineProps({
-  paneId: { type: String, required: true },
+  paneId: { type: String, default: '' },
+  surface: { type: String, default: 'pane' },
 })
 
 const editorStore = useEditorStore()
 const aiWorkbench = useAiWorkbenchStore()
 const chatStore = useChatStore()
 const workspace = useWorkspaceStore()
+const aiDrawer = useAiDrawerStore()
 const { t } = useI18n()
 
 const chatInputRef = ref(null)
@@ -299,8 +302,14 @@ async function refreshRecentFiles() {
 }
 
 function openChat(sessionId) {
-  editorStore.setActivePane(props.paneId)
   chatStore.reopenSession(sessionId, { skipArchive: true })
+  if (props.surface === 'drawer') {
+    nextTick(() => {
+      aiDrawer.openSession(sessionId)
+    })
+    return
+  }
+  editorStore.setActivePane(props.paneId)
   nextTick(() => {
     editorStore.openChat({ sessionId, paneId: props.paneId })
   })
@@ -310,6 +319,9 @@ function deleteChat(sessionId) {
   if (!sessionId) return
   editorStore.closeFileFromAllPanes(`chat:${sessionId}`)
   chatStore.deleteSession(sessionId)
+  if (props.surface === 'drawer' && aiDrawer.sessionId === sessionId) {
+    aiDrawer.openLauncher()
+  }
 }
 
 async function sendChat({ text, fileRefs, context }) {
@@ -317,7 +329,8 @@ async function sendChat({ text, fileRefs, context }) {
   await startAiConversation({
     editorStore,
     chatStore,
-    paneId: props.paneId,
+    paneId: props.surface === 'pane' ? props.paneId : null,
+    surface: props.surface,
     modelId: selectedModelId.value,
     text,
     fileRefs,
@@ -329,7 +342,8 @@ async function runAiTask(task, label) {
   await launchAiTask({
     editorStore,
     chatStore,
-    paneId: props.paneId,
+    paneId: props.surface === 'pane' ? props.paneId : null,
+    surface: props.surface,
     modelId: selectedModelId.value,
     task: {
       ...task,
@@ -344,11 +358,15 @@ function selectModel(modelId) {
 }
 
 onMounted(() => {
-  window.addEventListener('keydown', handleKeydown)
+  if (props.surface === 'pane') {
+    window.addEventListener('keydown', handleKeydown)
+  }
 })
 
 onUnmounted(() => {
   recentFilesGeneration += 1
-  window.removeEventListener('keydown', handleKeydown)
+  if (props.surface === 'pane') {
+    window.removeEventListener('keydown', handleKeydown)
+  }
 })
 </script>

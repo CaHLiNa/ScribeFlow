@@ -39,12 +39,11 @@
         </button>
         <button
           ref="newBtnEl"
-          class="h-5 flex items-center gap-0.5 rounded px-1 hover:opacity-80 ui-text-xs"
+          class="w-5 h-5 flex items-center justify-center rounded hover:opacity-80"
           style="color: var(--fg-muted);"
           @click.stop="toggleNewMenu"
           :title="t('New File or Folder')">
           <IconPlus :size="12" :stroke-width="2" />
-          <span>{{ t('New') }}</span>
         </button>
       </div>
     </div>

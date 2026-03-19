@@ -460,6 +460,16 @@ export const useWorkspaceStore = defineStore('workspace', {
       this.rightSidebarOpen = toggleStoredBoolean(this.rightSidebarOpen, 'rightSidebarOpen')
     },
 
+    openRightSidebar() {
+      if (this.rightSidebarOpen) return
+      this.rightSidebarOpen = persistStoredString('rightSidebarOpen', true)
+    },
+
+    closeRightSidebar() {
+      if (!this.rightSidebarOpen) return
+      this.rightSidebarOpen = persistStoredString('rightSidebarOpen', false)
+    },
+
     toggleBottomPanel() {
       this.bottomPanelOpen = toggleStoredBoolean(this.bottomPanelOpen, 'bottomPanelOpen')
     },

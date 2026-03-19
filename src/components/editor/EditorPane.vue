@@ -30,29 +30,33 @@
     <ReviewBar v-if="activeTab && viewerType === 'text'" :filePath="activeTab" />
     <NotebookReviewBar v-else-if="activeTab && viewerType === 'notebook'" :filePath="activeTab" />
     <div
-      v-if="showDocumentHeader"
+      v-if="showEditorHeader"
       class="document-header-stack"
       :class="{
         'document-header-stack-with-subbar': pdfToolbarTargetSelector,
-        'document-header-stack-subbar-only': !workflowUiState && pdfToolbarTargetSelector,
+        'document-header-stack-subbar-only': !toolbarUiState && pdfToolbarTargetSelector,
       }"
     >
       <DocumentWorkflowBar
-        v-if="workflowUiState"
-        :ui-state="workflowUiState"
+        v-if="toolbarUiState"
+        :ui-state="toolbarUiState"
         :status-text="workflowStatusText"
         :status-tone="workflowStatusTone"
+        :show-comment-toggle="showCommentToolbar"
+        :comment-active="isCommentToolbarActive"
+        :comment-badge-count="commentToolbarBadgeCount"
         @primary-action="handleWorkflowPrimaryAction"
         @reveal-preview="handleWorkflowRevealPreview"
         @reveal-pdf="handleWorkflowRevealPdf"
         @diagnose-with-ai="handleWorkflowDiagnoseWithAi"
         @fix-with-ai="handleWorkflowFixWithAi"
+        @toggle-comments="toggleCommentToolbar"
       />
       <div
         v-if="pdfToolbarTargetSelector"
         :id="pdfToolbarTargetId"
         class="document-header-subbar"
-        :class="{ 'document-header-subbar-standalone': !workflowUiState }"
+        :class="{ 'document-header-subbar-standalone': !toolbarUiState }"
       />
     </div>
 
@@ -221,6 +225,21 @@ const isActive = computed(() => editorStore.activePaneId === props.paneId)
 const viewerType = computed(() => props.activeTab ? getViewerType(props.activeTab) : null)
 const viewerTypeRef = viewerType
 const refKey = computed(() => props.activeTab && isReferencePath(props.activeTab) ? referenceKeyFromPath(props.activeTab) : null)
+const showCommentToolbar = computed(() => !!props.activeTab && viewerType.value === 'text')
+const isCommentToolbarActive = computed(() => (
+  !!props.activeTab && commentsStore.isMarginVisible(props.activeTab)
+))
+const commentToolbarBadgeCount = computed(() => (
+  props.activeTab ? commentsStore.unresolvedCount(props.activeTab) : 0
+))
+const toolbarUiState = computed(() => {
+  if (workflowUiState.value) return workflowUiState.value
+  if (showCommentToolbar.value) return { kind: 'text' }
+  return null
+})
+const showEditorHeader = computed(() => (
+  !!toolbarUiState.value || !!pdfToolbarTargetSelector.value
+))
 const TEXT_EDITOR_CACHE_MAX = 4
 
 const editorContainerRef = ref(null)
@@ -324,6 +343,11 @@ function closePane() {
 
   // Directly collapse this pane so sibling expands to fill space
   editorStore.collapsePane(props.paneId)
+}
+
+function toggleCommentToolbar() {
+  if (!props.activeTab || viewerType.value !== 'text') return
+  commentsStore.toggleMargin(props.activeTab)
 }
 
 defineExpose({ startComment })

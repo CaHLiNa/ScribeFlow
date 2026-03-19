@@ -1,6 +1,7 @@
 import { nextTick } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { t } from '../../i18n'
+import { useAiDrawerStore } from '../../stores/aiDrawer'
 import { isAiLauncher } from '../../utils/fileTypes.js'
 import { createSelectionAskTask } from './taskCatalog'
 import { prepareTexTypFixTask } from './texTypFixer'
@@ -22,7 +23,17 @@ function createAiSession({ chatStore, modelId, label, ai }) {
   return { sessionId, session }
 }
 
-async function openAiSession({ editorStore, sessionId, paneId, beside = false, selection, prefill }) {
+async function openAiSession({ editorStore, chatStore, sessionId, paneId, beside = false, selection, prefill, surface = 'drawer' }) {
+  if (surface === 'drawer') {
+    const aiDrawer = useAiDrawerStore()
+    chatStore.activeSessionId = sessionId
+    if (prefill) chatStore.pendingPrefill = prefill
+    if (selection) chatStore.pendingSelection = selection
+    aiDrawer.openSession(sessionId)
+    await nextTick()
+    return sessionId
+  }
+
   if (beside) {
     editorStore.openChatBeside({ sessionId, selection, prefill })
   } else {
@@ -38,7 +49,12 @@ function dispatchPrefill(message) {
   window.dispatchEvent(new CustomEvent('chat-set-input', { detail: { message } }))
 }
 
-export function openAiLauncher({ editorStore, beside = true, paneId } = {}) {
+export function openAiLauncher({ editorStore, beside = true, paneId, surface = 'drawer' } = {}) {
+  if (surface === 'drawer') {
+    useAiDrawerStore().openLauncher()
+    return
+  }
+
   const existing = typeof editorStore?._findLeaf === 'function'
     ? editorStore._findLeaf((node) => node.activeTab && isAiLauncher(node.activeTab))
     : null
@@ -73,14 +89,26 @@ function collectAiLauncherTabs(node, result = []) {
 }
 
 export function hasAiLauncherOpen(editorStore) {
+  const aiDrawer = useAiDrawerStore()
+  if (aiDrawer.open) return true
   if (!editorStore?.paneTree) return false
   return collectAiLauncherTabs(editorStore.paneTree).length > 0
 }
 
-export function toggleAiLauncher({ editorStore, beside = true, paneId } = {}) {
+export function toggleAiLauncher({ editorStore, beside = true, paneId, surface = 'drawer' } = {}) {
+  if (surface === 'drawer') {
+    const aiDrawer = useAiDrawerStore()
+    if (aiDrawer.open) {
+      aiDrawer.close()
+      return
+    }
+    aiDrawer.openLauncher()
+    return
+  }
+
   const tabs = collectAiLauncherTabs(editorStore?.paneTree)
   if (tabs.length === 0) {
-    openAiLauncher({ editorStore, beside, paneId })
+    openAiLauncher({ editorStore, beside, paneId, surface })
     return
   }
 
@@ -94,6 +122,7 @@ export async function startAiConversation({
   chatStore,
   paneId,
   beside = false,
+  surface = 'drawer',
   modelId,
   text,
   fileRefs,
@@ -115,7 +144,7 @@ export async function startAiConversation({
     },
   })
 
-  await openAiSession({ editorStore, sessionId, paneId, beside })
+  await openAiSession({ editorStore, chatStore, sessionId, paneId, beside, surface })
 
   await chatStore.sendMessage(sessionId, {
     text,
@@ -132,6 +161,7 @@ export async function prefillAiConversation({
   chatStore,
   paneId,
   beside = false,
+  surface = 'drawer',
   modelId,
   message,
   label,
@@ -150,8 +180,10 @@ export async function prefillAiConversation({
     },
   })
 
-  await openAiSession({ editorStore, sessionId, paneId, beside })
-  dispatchPrefill(message)
+  await openAiSession({ editorStore, chatStore, sessionId, paneId, beside, surface, prefill: message })
+  if (surface !== 'drawer') {
+    dispatchPrefill(message)
+  }
   return sessionId
 }
 
@@ -160,6 +192,7 @@ export async function launchAiTask({
   chatStore,
   paneId,
   beside = false,
+  surface = 'drawer',
   modelId,
   task,
 }) {
@@ -176,6 +209,7 @@ export async function launchAiTask({
       chatStore,
       paneId,
       beside,
+      surface,
       modelId,
       message: nextTask.prompt,
       label: nextTask.label,
@@ -201,6 +235,7 @@ export async function launchAiTask({
     chatStore,
     paneId,
     beside,
+    surface,
     modelId,
     text: nextTask.prompt,
     fileRefs,
