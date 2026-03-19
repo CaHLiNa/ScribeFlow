@@ -4,9 +4,9 @@ import { useCommentsStore } from '../stores/comments'
 import { useEditorStore } from '../stores/editor'
 import { useFilesStore } from '../stores/files'
 import { useWorkspaceStore } from '../stores/workspace'
-import { appendUnresolvedCommentsToContent } from './documentComments'
+import { appendDocumentComments, appendUnresolvedCommentsToContent } from './documentComments'
 import { launchAiTask } from './ai/launch'
-import { createCommentReviewTask } from './ai/taskCatalog'
+import { createCommentReviewTask, createCommentThreadTask } from './ai/taskCatalog'
 import { t } from '../i18n'
 
 function getEditStatusKey(commentId, replyId = null) {
@@ -121,6 +121,70 @@ export async function submitCommentsToChat(filePath) {
     task: {
       ...task,
       fileRefs: [fileRef],
+    },
+  })
+}
+
+function collectCommentThreadFileRefs(comment, commentFileRef) {
+  const refs = [commentFileRef]
+  const seen = new Set(commentFileRef?.path ? [commentFileRef.path] : [])
+
+  const sources = [
+    ...(comment?.fileRefs || []),
+    ...(comment?.replies || []).flatMap((reply) => reply.fileRefs || []),
+  ]
+
+  for (const fileRef of sources) {
+    if (!fileRef?.path || seen.has(fileRef.path)) continue
+    seen.add(fileRef.path)
+    refs.push(fileRef)
+  }
+
+  return refs
+}
+
+export async function submitCommentThreadToChat(commentId, { paneId, beside = true } = {}) {
+  const commentsStore = useCommentsStore()
+  const comment = commentsStore.comments.find((item) => item.id === commentId)
+  if (!comment) return
+
+  const workspace = useWorkspaceStore()
+  const filesStore = useFilesStore()
+  const chatStore = useChatStore()
+  const editorStore = useEditorStore()
+
+  const relativePath = workspace?.path
+    ? comment.filePath.replace(workspace.path + '/', '')
+    : comment.filePath
+
+  let fileContent = ''
+  try {
+    fileContent = filesStore.fileContents[comment.filePath] || await invoke('read_file', { path: comment.filePath })
+  } catch {}
+
+  const commentFileRef = {
+    path: comment.filePath,
+    content: appendDocumentComments(fileContent, [comment], {
+      includeReplies: true,
+      includeAnchorText: true,
+      escapeText: true,
+    }),
+  }
+
+  const task = createCommentThreadTask({
+    relativePath,
+    source: 'comment-thread',
+    entryContext: 'comment-thread',
+  })
+
+  await launchAiTask({
+    editorStore,
+    chatStore,
+    paneId,
+    beside,
+    task: {
+      ...task,
+      fileRefs: collectCommentThreadFileRefs(comment, commentFileRef),
     },
   })
 }

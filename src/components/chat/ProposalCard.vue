@@ -7,6 +7,15 @@
           <span class="proposal-option-title">{{ opt.title }}</span>
         </div>
         <div class="proposal-option-desc">{{ opt.description }}</div>
+        <div v-if="proposalMeta(opt).length" class="proposal-option-meta">
+          <span
+            v-for="meta in proposalMeta(opt)"
+            :key="meta"
+            class="proposal-meta-chip"
+          >
+            {{ meta }}
+          </span>
+        </div>
         <div class="proposal-option-actions">
           <button
             v-if="opt.url || opt.doi"
@@ -22,17 +31,39 @@
           >
             {{ t('Select') }}
           </button>
-          <span v-else class="proposal-selected">
+          <button
+            v-else
+            class="proposal-btn proposal-btn-secondary"
+            @click="toggleSelection(i)"
+          >
             {{ t('Selected') }} ✓
-          </span>
+          </button>
         </div>
+      </div>
+    </div>
+    <div v-if="selectedCount > 0" class="proposal-footer">
+      <span class="proposal-selected-count">{{ t('{count} selected', { count: selectedCount }) }}</span>
+      <div class="proposal-footer-actions">
+        <button
+          v-if="selectedCount >= 2"
+          class="proposal-btn proposal-btn-select"
+          @click="compareSelected"
+        >
+          {{ t('Compare selected') }}
+        </button>
+        <button
+          class="proposal-btn proposal-btn-open"
+          @click="clearSelection"
+        >
+          {{ t('Clear selection') }}
+        </button>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { reactive } from 'vue'
+import { computed, reactive } from 'vue'
 import { lookupByDoi } from '../../services/crossref'
 import { useReferencesStore } from '../../stores/references'
 import { useI18n } from '../../i18n'
@@ -42,18 +73,41 @@ const props = defineProps({
   options: { type: Array, required: true },
 })
 
-const emit = defineEmits(['select'])
+const emit = defineEmits(['select', 'compare'])
 
 const selectedIndices = reactive(new Set())
 const { t } = useI18n()
+const selectedCount = computed(() => selectedIndices.size)
+
+function proposalMeta(opt) {
+  const items = []
+  if (opt.doi) items.push(`DOI: ${opt.doi}`)
+  if (opt.url) {
+    try {
+      const url = new URL(opt.url)
+      items.push(url.hostname.replace(/^www\./, ''))
+    } catch {
+      items.push(opt.url)
+    }
+  }
+  return items
+}
 
 async function openUrl(url) {
   const { open } = await import('@tauri-apps/plugin-shell')
   open(url).catch(() => {})
 }
 
-async function selectOption(opt, index) {
+function toggleSelection(index) {
+  if (selectedIndices.has(index)) {
+    selectedIndices.delete(index)
+    return
+  }
   selectedIndices.add(index)
+}
+
+async function selectOption(opt, index) {
+  toggleSelection(index)
   emit('select', opt.title)
 
   // Add to library in background if doi present
@@ -71,6 +125,16 @@ async function selectOption(opt, index) {
       console.warn('Failed to add reference:', e)
     }
   }
+}
+
+function compareSelected() {
+  const selected = props.options.filter((_, index) => selectedIndices.has(index))
+  if (selected.length < 2) return
+  emit('compare', selected)
+}
+
+function clearSelection() {
+  selectedIndices.clear()
 }
 </script>
 
@@ -125,6 +189,24 @@ async function selectOption(opt, index) {
   margin-bottom: 6px;
 }
 
+.proposal-option-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.proposal-meta-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--bg-tertiary);
+  color: var(--fg-muted);
+  font-size: calc(var(--ui-font-size) - 3px);
+}
+
 .proposal-option-actions {
   display: flex;
   gap: 6px;
@@ -158,9 +240,34 @@ async function selectOption(opt, index) {
   background: rgba(122, 162, 247, 0.18);
 }
 
-.proposal-selected {
-  font-size: calc(var(--ui-font-size) - 2px);
-  font-weight: 500;
+.proposal-btn-secondary {
   color: var(--success);
+  border-color: color-mix(in srgb, var(--success) 40%, var(--border));
+}
+
+.proposal-btn-secondary:hover {
+  border-color: var(--success);
+  color: var(--success);
+}
+
+.proposal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg-tertiary) 65%, transparent);
+}
+
+.proposal-selected-count {
+  font-size: calc(var(--ui-font-size) - 2px);
+  color: var(--fg-muted);
+}
+
+.proposal-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 </style>

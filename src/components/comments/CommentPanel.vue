@@ -112,7 +112,15 @@
     </div>
 
     <!-- Resolve action -->
-    <div class="comment-panel-resolve" style="padding: 4px 12px; border-top: 1px solid var(--border);">
+    <div class="comment-panel-resolve flex items-center justify-between gap-2" style="padding: 4px 12px; border-top: 1px solid var(--border);">
+      <button
+        class="comment-btn-secondary"
+        type="button"
+        :title="t('Ask AI about this comment')"
+        @click="handleAskAi"
+      >
+        {{ t('Ask AI') }}
+      </button>
       <button
         class="comment-resolve-btn"
         :class="{ 'comment-resolve-btn-resolved': comment.status === 'resolved' }"
@@ -141,7 +149,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useCommentsStore } from '../../stores/comments'
-import { applyCommentProposedEdit, submitCommentsToChat } from '../../services/commentActions'
+import { applyCommentProposedEdit, submitCommentThreadToChat, submitCommentsToChat } from '../../services/commentActions'
 import CommentInput from './CommentInput.vue'
 import { useI18n, formatRelativeFromNow } from '../../i18n'
 
@@ -278,6 +286,14 @@ function handleResolve() {
     commentsStore.resolveComment(props.comment.id)
   }
   emit('close')
+}
+
+function handleAskAi() {
+  if (!props.comment) return
+  submitCommentThreadToChat(props.comment.id, {
+    paneId: props.paneId,
+    beside: true,
+  })
 }
 
 function handleDelete() {

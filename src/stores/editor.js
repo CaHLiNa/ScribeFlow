@@ -4,7 +4,7 @@ import { nanoid } from './utils'
 import { useFilesStore } from './files'
 import { useWorkspaceStore } from './workspace'
 import { useChatStore } from './chat'
-import { isAiLauncher, isChatTab, getChatSessionId, isNewTab, getViewerType, isPreviewPath } from '../utils/fileTypes'
+import { isAiLauncher, isChatTab, getChatSessionId, isNewTab, getViewerType, isPreviewPath, isReferencePath } from '../utils/fileTypes'
 import { saveState, loadState, findInvalidTabs } from '../services/editorPersistence'
 import { events } from '../services/telemetry'
 import { buildCitationText } from '../editor/citationSyntax'
@@ -19,6 +19,14 @@ let _saveStateTimer = null
 
 function isLauncherTab(path) {
   return isNewTab(path) || isAiLauncher(path)
+}
+
+function isContextCandidatePath(path) {
+  return !!path
+    && !isChatTab(path)
+    && !isLauncherTab(path)
+    && !isPreviewPath(path)
+    && !isReferencePath(path)
 }
 
 function fileBasename(path) {
@@ -100,6 +108,8 @@ export const useEditorStore = defineStore('editor', {
     cursorOffset: 0,
     // Recent files per workspace (persisted to localStorage)
     recentFiles: [],  // { path, openedAt }
+    // Last real file the user focused; used by AI launcher context resolution
+    lastContextPath: null,
     // Last pane the user viewed that had a chat or newtab as its active tab
     lastChatPaneId: null,
     // Invalidate async restore validation work when switching workspaces.
@@ -135,6 +145,24 @@ export const useEditorStore = defineStore('editor', {
       return state.recentFiles
         .filter(entry => flatPaths.has(entry.path))
         .slice(0, 5)
+    },
+
+    preferredContextPath(state) {
+      const activePane = this.findPane(state.paneTree, state.activePaneId)
+      if (isContextCandidatePath(activePane?.activeTab)) {
+        return activePane.activeTab
+      }
+
+      if (isContextCandidatePath(state.lastContextPath) && this.findPaneWithTab(state.lastContextPath)) {
+        return state.lastContextPath
+      }
+
+      const openLeaf = this._findLeaf((node) => isContextCandidatePath(node.activeTab))
+      if (isContextCandidatePath(openLeaf?.activeTab)) {
+        return openLeaf.activeTab
+      }
+
+      return state.recentFiles.find((entry) => isContextCandidatePath(entry.path))?.path || null
     },
   },
 
@@ -184,6 +212,11 @@ export const useEditorStore = defineStore('editor', {
       return this._findLeaf(n => !n.activeTab || !isChatTab(n.activeTab))
     },
 
+    _rememberContextPath(path) {
+      if (!isContextCandidatePath(path)) return
+      this.lastContextPath = path
+    },
+
     /**
      * Walk the pane tree and return the first leaf matching a predicate.
      */
@@ -208,6 +241,7 @@ export const useEditorStore = defineStore('editor', {
       // If already open in this pane, switch to it
       if (pane.tabs.includes(path)) {
         pane.activeTab = path
+        this._rememberContextPath(path)
         if (!isChatTab(path)) this.recordFileOpen(path)
         this.saveEditorState()
         return
@@ -221,6 +255,7 @@ export const useEditorStore = defineStore('editor', {
         if (existingPane) {
           existingPane.activeTab = path
           this.activePaneId = existingPane.id
+          this._rememberContextPath(path)
           if (!isChatTab(path)) this.recordFileOpen(path)
           this.saveEditorState()
           return
@@ -239,6 +274,7 @@ export const useEditorStore = defineStore('editor', {
           }
           altPane.activeTab = path
           this.activePaneId = altPane.id
+          this._rememberContextPath(path)
           if (!isChatTab(path)) this.recordFileOpen(path)
           this.saveEditorState()
           return
@@ -248,6 +284,7 @@ export const useEditorStore = defineStore('editor', {
         const newPaneId = this.splitPaneWith(this.activePaneId, 'vertical', path)
         // Move focus to the new file pane
         if (newPaneId) this.activePaneId = newPaneId
+        this._rememberContextPath(path)
         if (!isChatTab(path)) this.recordFileOpen(path)
         return
       }
@@ -263,6 +300,7 @@ export const useEditorStore = defineStore('editor', {
         pane.tabs.push(path)
       }
       pane.activeTab = path
+      this._rememberContextPath(path)
       if (!isChatTab(path)) this.recordFileOpen(path)
       this._revealInTree(path)
       this.saveEditorState()
@@ -490,6 +528,7 @@ export const useEditorStore = defineStore('editor', {
       if (pane.activeTab === path) {
         if (pane.tabs.length > 0) {
           pane.activeTab = pane.tabs[Math.min(idx, pane.tabs.length - 1)]
+          this._rememberContextPath(pane.activeTab)
         } else {
           pane.activeTab = null
         }
@@ -674,6 +713,7 @@ export const useEditorStore = defineStore('editor', {
 
       if (options.activatePane) {
         this.activePaneId = paneId
+        this._rememberContextPath(path)
       }
 
       this.saveEditorState()
@@ -687,6 +727,7 @@ export const useEditorStore = defineStore('editor', {
         if (isChatTab(pane.activeTab) || isLauncherTab(pane.activeTab)) {
           this.lastChatPaneId = paneId
         }
+        this._rememberContextPath(pane.activeTab)
         if (isChatTab(pane.activeTab)) {
           const sid = getChatSessionId(pane.activeTab)
           if (sid) useChatStore().activeSessionId = sid
@@ -702,6 +743,7 @@ export const useEditorStore = defineStore('editor', {
       if (isChatTab(path) || isLauncherTab(path)) {
         this.lastChatPaneId = paneId
       }
+      this._rememberContextPath(path)
       if (isChatTab(path)) {
         const sid = getChatSessionId(path)
         if (sid) useChatStore().activeSessionId = sid
@@ -733,6 +775,9 @@ export const useEditorStore = defineStore('editor', {
         entry.path = newPath
         this._persistRecentFiles()
       }
+      if (this.lastContextPath === oldPath) {
+        this.lastContextPath = newPath
+      }
       this.saveEditorState()
     },
 
@@ -757,6 +802,7 @@ export const useEditorStore = defineStore('editor', {
       const idx = pane.tabs.indexOf(pane.activeTab)
       const next = (idx + delta + pane.tabs.length) % pane.tabs.length
       pane.activeTab = pane.tabs[next]
+      this._rememberContextPath(pane.activeTab)
     },
 
     reorderTabs(paneId, fromIdx, toIdx) {
@@ -996,6 +1042,14 @@ export const useEditorStore = defineStore('editor', {
         this.activePaneId = firstLeaf?.id || 'pane-root'
       }
 
+      const restoredActivePane = this.findPane(this.paneTree, this.activePaneId)
+      if (isContextCandidatePath(restoredActivePane?.activeTab)) {
+        this.lastContextPath = restoredActivePane.activeTab
+      } else {
+        const firstContextLeaf = this._findLeaf((node) => isContextCandidatePath(node.activeTab))
+        this.lastContextPath = firstContextLeaf?.activeTab || null
+      }
+
       // Background: validate all tabs in parallel, close any that are gone
       findInvalidTabs(workspace.shouldersDir, this.paneTree).then(invalidTabs => {
         if (
@@ -1036,6 +1090,7 @@ export const useEditorStore = defineStore('editor', {
       this.activePaneId = 'pane-root'
       this.dirtyFiles = new Set()
       this.recentFiles = []
+      this.lastContextPath = null
       this.cursorOffset = 0
       this.restoreGeneration += 1
     },

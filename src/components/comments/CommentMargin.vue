@@ -34,6 +34,7 @@
         :comment="comment"
         :active="comment.id === commentsStore.activeCommentId"
         @click="handleCardClick(comment)"
+        @ask-ai="handleAskAi(comment)"
       />
 
       <!-- Empty state -->
@@ -79,7 +80,7 @@
 import { computed } from 'vue'
 import { IconPlus, IconEye, IconEyeOff } from '@tabler/icons-vue'
 import { useCommentsStore } from '../../stores/comments'
-import { submitCommentsToChat } from '../../services/commentActions'
+import { submitCommentThreadToChat, submitCommentsToChat } from '../../services/commentActions'
 import CommentCard from './CommentCard.vue'
 import { modKey } from '../../platform'
 import { useI18n } from '../../i18n'
@@ -120,6 +121,15 @@ function handleAddComment() {
   window.dispatchEvent(new CustomEvent('comment-create', {
     detail: { paneId: props.paneId },
   }))
+}
+
+function handleAskAi(comment) {
+  if (!comment?.id) return
+  commentsStore.setActiveComment(comment.id)
+  submitCommentThreadToChat(comment.id, {
+    paneId: props.paneId,
+    beside: true,
+  })
 }
 
 function toggleShowResolved() {

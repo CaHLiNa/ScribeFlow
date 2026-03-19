@@ -88,6 +88,7 @@
             :prompt="getProposalData(part).prompt"
             :options="getProposalData(part).options"
             @select="(title) => $emit('proposal-select', title)"
+            @compare="(options) => $emit('proposal-compare', options)"
           />
           <ArtifactCard
             v-else-if="getArtifactData(part)"
@@ -142,7 +143,7 @@ const props = defineProps({
   isLastAssistant: { type: Boolean, default: false },
 })
 
-defineEmits(['proposal-select'])
+defineEmits(['proposal-select', 'proposal-compare'])
 
 const expandedThinking = reactive({})
 const copied = ref(false)

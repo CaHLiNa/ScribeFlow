@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import { Command } from '@tauri-apps/plugin-shell'
+import { t } from '../../i18n'
 import { getHomeDirCached, normalizePathValue } from '../workspacePaths'
 
 const DEFAULT_IDLE_DISPOSE_MS = 2 * 60 * 1000
@@ -162,7 +163,7 @@ async function waitForServer(endpoint, workspace, abortSignal) {
         signal: abortSignal,
       })
       if (response.ok) return true
-      lastError = new Error(`Sidecar health check failed (${response.status})`)
+      lastError = new Error(t('Sidecar health check failed ({status})', { status: response.status }))
     } catch (error) {
       lastError = error
     }
@@ -170,7 +171,7 @@ async function waitForServer(endpoint, workspace, abortSignal) {
     await new Promise((resolve) => window.setTimeout(resolve, 200))
   }
 
-  throw lastError || new Error('Timed out while waiting for the opencode sidecar to start.')
+  throw lastError || new Error(t('Timed out while waiting for the opencode sidecar to start.'))
 }
 
 async function stopManagedSidecar() {
@@ -238,7 +239,7 @@ async function tryLaunchPlan(plan, workspace, endpoint, abortSignal) {
       throw new Error(String(commandError))
     }
     if (closePayload && closePayload.code !== 0) {
-      throw new Error(`opencode sidecar exited (${closePayload.code}) before becoming ready.`)
+      throw new Error(t('opencode sidecar exited ({code}) before becoming ready.', { code: closePayload.code }))
     }
     throw error
   }
@@ -266,7 +267,7 @@ async function startManagedSidecar(workspace, abortSignal) {
   runtimeState.startPromise = (async () => {
     const plans = await buildLaunchPlans(workspace, port, env)
     if (plans.length === 0) {
-      throw new Error('No opencode launch plan is available. Configure a global opencode install or a local opencode-dev repo path.')
+      throw new Error(t('No opencode launch plan is available. Configure a global opencode install or a local opencode-dev repo path.'))
     }
 
     let lastError = null
@@ -281,7 +282,7 @@ async function startManagedSidecar(workspace, abortSignal) {
       }
     }
 
-    throw lastError || new Error('Failed to launch the opencode sidecar.')
+    throw lastError || new Error(t('Failed to launch the opencode sidecar.'))
   })()
 
   try {

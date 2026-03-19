@@ -57,6 +57,7 @@
             :sessionId="session.id"
             :isLastAssistant="msg.id === lastAssistantId"
             @proposal-select="onProposalSelect"
+            @proposal-compare="onProposalCompare"
           />
         </div>
       </div>
@@ -72,7 +73,7 @@
             class="mt-2 px-2.5 py-1 rounded ui-text-base border-none cursor-pointer"
             style="background: var(--bg-tertiary); color: var(--fg-secondary);"
             @click="dismissError">
-            Dismiss
+            {{ t('Dismiss') }}
           </button>
         </div>
       </div>
@@ -210,19 +211,19 @@ const suggestionChips = computed(() => {
 
   if (file) {
     if (isMarkdown(file) || file.endsWith('.tex') || file.endsWith('.typ')) {
-      chips.push({ text: 'Proofread this document' })
-      chips.push({ text: 'Emulate a critical peer reviewer' })
-      chips.push({ text: 'Summarise the key arguments' })
+      chips.push({ text: t('Proofread this document') })
+      chips.push({ text: t('Emulate a critical peer reviewer') })
+      chips.push({ text: t('Summarise the key arguments') })
     } else if (file.startsWith('ref:')) {
-      chips.push({ text: 'Summarise the main points' })
-      chips.push({ text: 'Find related papers' })
+      chips.push({ text: t('Summarise the main points') })
+      chips.push({ text: t('Find related papers') })
     } else if (file.endsWith('.py') || file.endsWith('.r') || file.endsWith('.R') || file.endsWith('.ipynb')) {
-      chips.push({ text: 'Explain this code' })
-      chips.push({ text: 'Help me debug this' })
+      chips.push({ text: t('Explain this code') })
+      chips.push({ text: t('Help me debug this') })
     }
   }
 
-  chips.push({ text: 'Help me think about...' })
+  chips.push({ text: t('Help me think about...') })
   return chips
 })
 
@@ -249,6 +250,26 @@ function onAbort() {
 
 function onProposalSelect(title) {
   chatStore.sendMessage(props.session.id, { text: `Selected: ${title}` })
+  nextTick(() => scrollToBottom())
+}
+
+function formatProposalOption(option, index) {
+  const parts = [`${index + 1}. ${option.title}`]
+  if (option.description) parts.push(option.description)
+  if (option.doi) parts.push(`DOI: ${option.doi}`)
+  if (option.url) parts.push(`URL: ${option.url}`)
+  return parts.join('\n')
+}
+
+function onProposalCompare(options) {
+  if (!Array.isArray(options) || options.length < 2) return
+  const prompt = [
+    t('Compare these selected sources and explain where each one fits best:'),
+    '',
+    ...options.map((option, index) => formatProposalOption(option, index)),
+  ].join('\n\n')
+
+  chatStore.sendMessage(props.session.id, { text: prompt })
   nextTick(() => scrollToBottom())
 }
 

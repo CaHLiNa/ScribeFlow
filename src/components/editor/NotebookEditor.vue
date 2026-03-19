@@ -35,6 +35,10 @@
         <button class="nb-toolbar-btn" @click="clearAllOutputs" :title="t('Clear all outputs')">
           {{ t('Clear') }}
         </button>
+        <button class="nb-toolbar-btn" @click="handleAskAi" :title="t('Ask AI about this notebook')">
+          <IconSparkles :size="12" :stroke-width="1.9" />
+          {{ t('Ask AI') }}
+        </button>
       </div>
 
       <span class="ml-auto ui-text-micro" style="color: var(--fg-muted);">
@@ -214,9 +218,14 @@
 </template>
 
 <script setup>
+import { IconSparkles } from '@tabler/icons-vue'
 import NotebookCell from './NotebookCell.vue'
 import { useNotebookEditor } from '../../composables/useNotebookEditor'
 import { useI18n } from '../../i18n'
+import { useChatStore } from '../../stores/chat'
+import { useEditorStore } from '../../stores/editor'
+import { launchAiTask } from '../../services/ai/launch'
+import { createNotebookAssistantTask } from '../../services/ai/taskCatalog'
 
 const props = defineProps({
   filePath: { type: String, required: true },
@@ -224,6 +233,8 @@ const props = defineProps({
 })
 
 const { t } = useI18n()
+const editorStore = useEditorStore()
+const chatStore = useChatStore()
 const {
   cells,
   activeCell,
@@ -266,6 +277,21 @@ const {
   rejectPendingEdit,
   insertCellResult,
 } = useNotebookEditor(props)
+
+async function handleAskAi() {
+  if (!props.filePath) return
+  await launchAiTask({
+    editorStore,
+    chatStore,
+    paneId: props.paneId,
+    beside: true,
+    task: createNotebookAssistantTask({
+      filePath: props.filePath,
+      source: 'notebook-toolbar',
+      entryContext: 'notebook-toolbar',
+    }),
+  })
+}
 
 function healthStatusClass(status) {
   if (status === 'available') return 'good'

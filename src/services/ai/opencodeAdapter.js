@@ -1,4 +1,5 @@
 import { createUIMessageStream } from 'ai'
+import { t } from '../../i18n'
 import {
   ensureOpencodeEndpoint,
   markOpencodeWorkspaceBusy,
@@ -147,7 +148,7 @@ function writeOpencodeParts(writer, parts = []) {
         writer.write({
           type: 'tool-output-error',
           toolCallId,
-          errorText: part.state?.error || 'Tool execution failed.',
+          errorText: part.state?.error || t('Tool execution failed.'),
         })
       }
       continue
@@ -186,7 +187,7 @@ async function opencodeFetch(endpoint, path, { method = 'GET', body, directory, 
 
   if (!response.ok) {
     const errorText = await response.text().catch(() => '')
-    const error = new Error(errorText || `opencode request failed (${response.status})`)
+    const error = new Error(errorText || t('opencode request failed ({status})', { status: response.status }))
     error.status = response.status
     throw error
   }
@@ -209,7 +210,7 @@ async function ensureRuntimeSession(config, endpoint, directory, abortSignal) {
   })
 
   const sessionID = created?.id
-  if (!sessionID) throw new Error('Failed to create an opencode session.')
+  if (!sessionID) throw new Error(t('Failed to create an opencode session.'))
 
   config?.onRuntimeMeta?.({
     runtimeSessionId: sessionID,

@@ -1,22 +1,5 @@
 <template>
   <div class="flex flex-col h-full" style="background: var(--bg-primary);">
-    <div
-      v-if="paneId !== 'pane-root'"
-      class="flex items-center justify-end h-7 shrink-0 border-b px-1"
-      style="border-color: var(--border);"
-    >
-      <button
-        class="p-1 rounded cursor-pointer"
-        style="color: var(--fg-muted);"
-        :title="t('Close pane')"
-        @click="editorStore.collapsePane(paneId)"
-      >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M18 6L6 18M6 6l12 12"/>
-        </svg>
-      </button>
-    </div>
-
     <div class="flex-1 overflow-y-auto min-h-0" ref="itemListRef">
       <div class="w-full mx-auto pb-10" style="max-width: min(80ch, 90%); padding-top: clamp(1rem, 20vh, 8rem);">
         <div class="flex gap-5 mb-6 pl-5">
@@ -39,24 +22,49 @@
             :class="i > 0 ? 'mt-4' : ''"
             style="color: var(--fg-muted);"
           >{{ item.groupHeader }}</div>
-          <button
-            class="newtab-item flex items-center gap-2 w-full border-none bg-transparent text-left py-1.5 cursor-pointer transition-colors duration-75"
-            :style="{ color: selectedIdx === i ? 'var(--fg-primary)' : (item.muted ? 'var(--fg-muted)' : 'var(--fg-secondary)') }"
-            @click="activate(item)"
+          <div
+            class="group flex items-center gap-1"
             @mouseenter="selectedIdx = i"
           >
-            <span
-              class="w-3 shrink-0 leading-none select-none"
-              style="font-size: var(--ui-font-title);"
-              :style="{ color: selectedIdx === i ? 'var(--fg-muted)' : 'transparent' }"
-            >›</span>
-            <span class="flex-1 ui-text-title truncate min-w-0">{{ item.label }}</span>
-            <span
-              v-if="item.meta"
-              class="ui-text-label shrink-0 whitespace-nowrap mx-4"
+            <button
+              class="newtab-item flex items-center gap-2 flex-1 border-none bg-transparent text-left py-1.5 cursor-pointer transition-colors duration-75"
+              :style="{ color: selectedIdx === i ? 'var(--fg-primary)' : (item.muted ? 'var(--fg-muted)' : 'var(--fg-secondary)') }"
+              @click="activate(item)"
+            >
+              <span
+                class="w-3 shrink-0 leading-none select-none"
+                style="font-size: var(--ui-font-title);"
+                :style="{ color: selectedIdx === i ? 'var(--fg-muted)' : 'transparent' }"
+              >›</span>
+              <div class="flex-1 min-w-0 flex flex-col">
+                <span class="ui-text-title truncate min-w-0">{{ item.label }}</span>
+                <span
+                  v-if="item.description"
+                  class="ui-text-label truncate min-w-0 mt-0.5"
+                  style="color: var(--fg-muted);"
+                >{{ item.description }}</span>
+              </div>
+              <span
+                v-if="item.meta"
+                class="ui-text-label shrink-0 whitespace-nowrap mx-4"
+                style="color: var(--fg-muted);"
+              >{{ item.meta }}</span>
+            </button>
+            <button
+              v-if="item.deleteAction"
+              class="w-6 h-6 shrink-0 flex items-center justify-center rounded border-none bg-transparent cursor-pointer transition-opacity duration-100"
+              :class="selectedIdx === i ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'"
               style="color: var(--fg-muted);"
-            >{{ item.meta }}</span>
-          </button>
+              :title="item.deleteTitle || t('Delete chat')"
+              @click.stop="item.deleteAction()"
+              @mousedown.stop
+              @mouseenter="selectedIdx = i"
+            >
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M2 2l6 6M8 2l-6 6"/>
+              </svg>
+            </button>
+          </div>
         </template>
       </div>
     </div>
@@ -84,7 +92,7 @@ import { useAiWorkbenchStore } from '../../stores/aiWorkbench'
 import { useChatStore } from '../../stores/chat'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useI18n, formatRelativeFromNow } from '../../i18n'
-import { getAiLauncherItems } from '../../services/ai/taskCatalog'
+import { getAiCapabilityItems, getAiLauncherItems } from '../../services/ai/taskCatalog'
 import { launchAiTask, startAiConversation } from '../../services/ai/launch'
 import ChatInput from '../chat/ChatInput.vue'
 
@@ -110,12 +118,14 @@ let recentFilesGeneration = 0
 
 const TABS = [
   { id: 'ai', label: t('AI') },
+  { id: 'capabilities', label: t('Capabilities') },
   { id: 'chats', label: t('Chats') },
 ]
 
 const visibleTabs = computed(() => TABS)
 
 const allRecentFiles = computed(() => recentFiles.value)
+const currentContextPath = computed(() => editorStore.preferredContextPath || '')
 
 const allChats = computed(() =>
   [...chatStore.allSessionsMeta].sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))
@@ -123,6 +133,7 @@ const allChats = computed(() =>
 
 const aiItems = computed(() => {
   return getAiLauncherItems({
+    currentPath: currentContextPath.value,
     recentFiles: allRecentFiles.value,
     t,
   }).map((item) => ({
@@ -134,12 +145,31 @@ const aiItems = computed(() => {
   }))
 })
 
+const capabilityItems = computed(() => {
+  return getAiCapabilityItems({
+    currentPath: currentContextPath.value,
+    t,
+  }).map((item) => ({
+    label: item.label,
+    description: item.description,
+    meta: item.meta,
+    groupHeader: item.groupHeader,
+    muted: false,
+    action: () => runAiTask(item.task, item.label),
+  }))
+})
+
 const currentItems = computed(() => {
+  if (activeTabId.value === 'capabilities') {
+    return capabilityItems.value
+  }
   if (activeTabId.value === 'chats') {
     const visible = allChats.value.slice(0, chatsLimit.value)
     const items = visible.map((session) => ({
       label: session.label,
       meta: relativeTime(session.updatedAt),
+      deleteAction: () => deleteChat(session.id),
+      deleteTitle: t('Delete chat'),
       action: () => openChat(session.id),
     }))
     if (allChats.value.length > chatsLimit.value) {
@@ -158,6 +188,13 @@ watch(activeTabId, () => {
   selectedIdx.value = 0
   chatsLimit.value = 10
   aiWorkbench.launcherTab = activeTabId.value
+})
+
+watch(currentItems, (items) => {
+  const max = Math.max(0, items.length - 1)
+  if (selectedIdx.value > max) {
+    selectedIdx.value = max
+  }
 })
 
 watch(
@@ -214,6 +251,15 @@ function handleKeydown(e) {
     case 'ArrowUp': e.preventDefault(); moveSelection(-1); break
     case 'ArrowDown': e.preventDefault(); moveSelection(1); break
     case 'Enter': e.preventDefault(); activateSelected(); break
+    case 'Backspace':
+    case 'Delete': {
+      const item = currentItems.value[selectedIdx.value]
+      if (activeTabId.value === 'chats' && item?.deleteAction) {
+        e.preventDefault()
+        item.deleteAction()
+      }
+      break
+    }
     default:
       if (e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey) {
         e.preventDefault()
@@ -258,6 +304,12 @@ function openChat(sessionId) {
   nextTick(() => {
     editorStore.openChat({ sessionId, paneId: props.paneId })
   })
+}
+
+function deleteChat(sessionId) {
+  if (!sessionId) return
+  editorStore.closeFileFromAllPanes(`chat:${sessionId}`)
+  chatStore.deleteSession(sessionId)
 }
 
 async function sendChat({ text, fileRefs, context }) {

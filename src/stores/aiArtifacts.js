@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { collectArtifactsFromMessage } from '../services/ai/artifacts'
+import { t } from '../i18n'
 
 export const useAiArtifactsStore = defineStore('aiArtifacts', () => {
   const bySession = ref({})
@@ -14,7 +15,7 @@ export const useAiArtifactsStore = defineStore('aiArtifacts', () => {
 
     const context = {
       role: session?._ai?.role || 'general',
-      label: session?._ai?.label || session?.label || 'AI',
+      label: session?._ai?.label || session?.label || t('AI'),
       artifactIntent: session?._ai?.artifactIntent || null,
       filePath: session?._ai?.filePath || null,
       sourceFile: session?._ai?.filePath || null,

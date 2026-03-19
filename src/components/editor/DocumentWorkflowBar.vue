@@ -58,6 +58,16 @@
         <IconFileTypePdf :size="14" :stroke-width="1.8" />
       </button>
       <button
+        v-if="showAiDiagnoseButton"
+        class="workflow-secondary-btn"
+        type="button"
+        :title="t('Diagnose with AI')"
+        :aria-label="t('Diagnose with AI')"
+        @click="$emit('diagnose-with-ai')"
+      >
+        <IconSearch :size="14" :stroke-width="1.8" />
+      </button>
+      <button
         v-if="showAiFixButton"
         class="workflow-secondary-btn workflow-secondary-btn-accent"
         type="button"
@@ -78,6 +88,7 @@ import {
   IconEye,
   IconFileTypePdf,
   IconPlayerPlay,
+  IconSearch,
   IconSparkles,
 } from '@tabler/icons-vue'
 import { useI18n } from '../../i18n'
@@ -92,6 +103,7 @@ defineEmits([
   'primary-action',
   'reveal-preview',
   'reveal-pdf',
+  'diagnose-with-ai',
   'fix-with-ai',
 ])
 
@@ -148,6 +160,10 @@ const showPdfButton = computed(() => (
 ))
 
 const showAiFixButton = computed(() => (
+  props.uiState.kind === 'latex' || props.uiState.kind === 'typst'
+))
+
+const showAiDiagnoseButton = computed(() => (
   props.uiState.kind === 'latex' || props.uiState.kind === 'typst'
 ))
 

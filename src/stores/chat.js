@@ -16,6 +16,7 @@ import { noApiKeyMessage, formatChatApiError } from '../utils/errorMessages'
 import { useAiArtifactsStore } from './aiArtifacts'
 import { generateWorkspaceText } from '../services/ai/textGeneration'
 import { buildChatRuntimeConfig } from '../services/ai/runtimeConfig'
+import { t } from '../i18n'
 
 // Chat instances live OUTSIDE Pinia (non-reactive container).
 // Each Chat's internal messages/status use Vue ref() — reactive when accessed.
@@ -51,7 +52,7 @@ function smartLabel(text) {
     .replace(/\n/g, ' ')
     .trim()
 
-  if (!clean) return 'New chat'
+  if (!clean) return t('New chat')
   if (clean.length <= 40) return clean
 
   const slice = clean.slice(0, 40)
@@ -325,7 +326,7 @@ export const useChatStore = defineStore('chat', () => {
     const id = nanoid(12)
     const session = {
       id,
-      label: `Chat ${sessions.value.length + 1}`,
+      label: t('Chat {number}', { number: sessions.value.length + 1 }),
       modelId: modelId || defaultModel,
       messages: [], // For UI display — overridden by Chat instance once created
       status: 'idle',
@@ -370,13 +371,12 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   function deleteSession(id) {
-    const session = sessions.value.find(s => s.id === id)
-    if (!session) return
+    const session = sessions.value.find(s => s.id === id) || null
+    const metaIdx = allSessionsMeta.value.findIndex((meta) => meta.id === id)
 
     _stopArtifactSync(id)
     useAiArtifactsStore().clearSession(id)
 
-    // Stop Chat instance
     const chat = chatInstances.get(id)
     if (chat) {
       try { chat.stop() } catch {}
@@ -384,8 +384,16 @@ export const useChatStore = defineStore('chat', () => {
       _chatVersion.value++
     }
 
-    const idx = sessions.value.indexOf(session)
-    sessions.value.splice(idx, 1)
+    if (session) {
+      const idx = sessions.value.indexOf(session)
+      if (idx !== -1) {
+        sessions.value.splice(idx, 1)
+      }
+    }
+
+    if (metaIdx !== -1) {
+      allSessionsMeta.value.splice(metaIdx, 1)
+    }
 
     // Delete persisted file
     const workspace = useWorkspaceStore()
@@ -461,7 +469,7 @@ export const useChatStore = defineStore('chat', () => {
           const data = JSON.parse(content)
           meta.push({
             id: data.id,
-            label: data.label || 'Untitled',
+            label: data.label || t('Untitled'),
             updatedAt: data.updatedAt || data.createdAt,
             messageCount: data.messages?.length || 0,
             _aiTitle: data._aiTitle || false,
@@ -788,7 +796,7 @@ export const useChatStore = defineStore('chat', () => {
       const { text } = await generateWorkspaceText({
         workspace,
         strategy: 'ghost',
-        system: 'Generate a concise title (3-8 words) and 3-5 search keywords for this conversation. Return as JSON: {"title": "...", "keywords": ["...", "..."]}. No quotes or punctuation at the end of the title.',
+        system: t('Generate a concise title (3-8 words) and 3-5 search keywords for this conversation. Return as JSON: {"title": "...", "keywords": ["...", "..."]}. No quotes or punctuation at the end of the title.'),
         prompt: `User: ${userText}\n\nAssistant: ${assistantText}`,
         feature: null,
         maxTokens: 256,

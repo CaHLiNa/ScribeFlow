@@ -105,6 +105,25 @@
           </svg>
           {{ t('Add') }}
         </button>
+        <button
+          class="shrink-0 h-5 px-1.5 flex items-center gap-1 rounded ui-text-sm hover:bg-[var(--bg-hover)]"
+          :style="{ color: 'var(--fg-muted)' }"
+          :title="t('Reference maintenance')"
+          @click.stop="openReferenceAi"
+        >
+          <IconSparkles :size="11" :stroke-width="1.8" />
+          {{ t('Ask AI') }}
+        </button>
+        <button
+          v-if="canCompareSelected"
+          class="shrink-0 h-5 px-1.5 flex items-center gap-1 rounded ui-text-sm hover:bg-[var(--bg-hover)]"
+          :style="{ color: 'var(--fg-muted)' }"
+          :title="t('Compare selected')"
+          @click.stop="compareSelectedReferences"
+        >
+          <IconGitCompare :size="11" :stroke-width="1.8" />
+          {{ t('Compare selected') }}
+        </button>
       </div>
 
       <!-- Style picker dropdown (Teleported) -->
@@ -341,15 +360,18 @@
 import { ref, reactive, computed } from 'vue'
 import { useReferencesStore } from '../../stores/references'
 import { useEditorStore } from '../../stores/editor'
+import { useChatStore } from '../../stores/chat'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { formatReference } from '../../services/citationFormatter'
 import { getAvailableStyles, getStyleName } from '../../services/citationStyleRegistry'
 import { saveReferenceExport } from '../../services/referenceFiles'
 import { useReferenceListUi } from '../../composables/useReferenceListUi'
 import { useReferenceImports } from '../../composables/useReferenceImports'
+import { launchAiTask } from '../../services/ai/launch'
+import { createReferenceCompareTask, createReferenceMaintenanceTask } from '../../services/ai/taskCatalog'
 import { isMod } from '../../platform'
 import { ask } from '@tauri-apps/plugin-dialog'
-import { IconSearch, IconArrowsSort } from '@tabler/icons-vue'
+import { IconSearch, IconArrowsSort, IconSparkles, IconGitCompare } from '@tabler/icons-vue'
 import ReferenceItem from './ReferenceItem.vue'
 import ReferenceContextMenu from './ReferenceContextMenu.vue'
 import AddReferenceDialog from './AddReferenceDialog.vue'
@@ -363,6 +385,7 @@ defineEmits(['toggle-collapse'])
 
 const referencesStore = useReferencesStore()
 const editorStore = useEditorStore()
+const chatStore = useChatStore()
 const workspace = useWorkspaceStore()
 const { t } = useI18n()
 
@@ -444,6 +467,9 @@ const filteredRefs = computed(() => {
   return searchedRefs.value
 })
 
+const selectedReferenceKeys = computed(() => [...referencesStore.selectedKeys].filter(Boolean))
+const canCompareSelected = computed(() => selectedReferenceKeys.value.length >= 2)
+
 const { dropActive, importing, importCustomStyle } = useReferenceImports({
   referencesStore,
   workspace,
@@ -455,6 +481,35 @@ const { dropActive, importing, importCustomStyle } = useReferenceImports({
 async function addCustomStyle() {
   showStyleMenu.value = false
   await importCustomStyle()
+}
+
+async function openReferenceAi() {
+  await launchAiTask({
+    editorStore,
+    chatStore,
+    paneId: editorStore.activePaneId || null,
+    beside: true,
+    task: createReferenceMaintenanceTask({
+      source: 'reference-list',
+      entryContext: 'reference-list',
+      focusKeys: selectedReferenceKeys.value,
+    }),
+  })
+}
+
+async function compareSelectedReferences() {
+  if (!canCompareSelected.value) return
+  await launchAiTask({
+    editorStore,
+    chatStore,
+    paneId: editorStore.activePaneId || null,
+    beside: true,
+    task: createReferenceCompareTask({
+      refKeys: selectedReferenceKeys.value,
+      source: 'reference-list',
+      entryContext: 'reference-list',
+    }),
+  })
 }
 
 async function saveExport(format, keys) {

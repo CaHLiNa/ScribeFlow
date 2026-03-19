@@ -1,5 +1,6 @@
 import { tool } from 'ai'
 import { z } from 'zod'
+import { t } from '../../i18n'
 import { generateWorkspaceText, resolveTextAccess } from './textGeneration'
 
 const GHOST_TIMEOUT_MS = 15000
@@ -7,7 +8,7 @@ const GHOST_TIMEOUT_MS = 15000
 async function withTimeout(promise, ms) {
   let timer
   const timeout = new Promise((_, reject) => {
-    timer = setTimeout(() => reject(new Error('Ghost suggestion timed out')), ms)
+    timer = setTimeout(() => reject(new Error(t('Ghost suggestion timed out'))), ms)
   })
   try {
     return await Promise.race([promise, timeout])

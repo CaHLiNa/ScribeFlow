@@ -163,6 +163,7 @@
         </svg>
       </button>
       <button
+        v-if="paneId !== 'pane-root'"
         class="w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--bg-hover)]"
         style="color: var(--fg-muted);"
         @click="$emit('close-pane')"

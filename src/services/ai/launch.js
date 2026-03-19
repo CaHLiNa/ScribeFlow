@@ -1,5 +1,6 @@
 import { nextTick } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
+import { t } from '../../i18n'
 import { isAiLauncher } from '../../utils/fileTypes.js'
 import { createSelectionAskTask } from './taskCatalog'
 import { prepareTexTypFixTask } from './texTypFixer'
@@ -109,7 +110,7 @@ export async function startAiConversation({
       role: 'general',
       taskId: 'chat.freeform',
       source: 'launcher-input',
-      label: label || 'General chat',
+      label: label || t('General chat'),
       toolProfile: null,
     },
   })
@@ -144,7 +145,7 @@ export async function prefillAiConversation({
       role: 'general',
       taskId: 'chat.prefill',
       source: 'launcher',
-      label: label || 'General chat',
+      label: label || t('General chat'),
       toolProfile: null,
     },
   })

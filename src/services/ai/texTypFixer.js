@@ -130,13 +130,21 @@ function buildDiagnosisPrompt(artifact = null) {
 
 function buildFixerPrompt(task = {}, diagnosisArtifact = null) {
   const taskPrompt = cleanText(task.prompt)
-  const instructions = [
-    taskPrompt || 'Fix this TeX / Typst source file with the smallest safe patch.',
-    'Use the attached source file and the compile diagnosis below as your starting point.',
-    'Prefer local syntax and structural fixes over broad rewrites.',
-    'When you make edits, run `compile_document` on the same file before you finish so the result is verified.',
-    'If the remaining issue needs a content decision or a larger restructure, stop and explain the blocker instead of guessing.',
-  ]
+  const diagnoseOnly = task?.artifactIntent === 'compile_diagnosis' || task?.taskId === 'diagnose.tex-typ'
+  const instructions = diagnoseOnly
+    ? [
+        taskPrompt || t('Run a compile diagnosis for this source file, explain the reported problems, and do not edit anything unless I ask for a fix.'),
+        t('Use the attached source file and the compile diagnosis below as your starting point.'),
+        t('Explain the reported compile problems in priority order.'),
+        t('Do not edit the source file unless the user explicitly asks for a fix.'),
+      ]
+    : [
+        taskPrompt || t('Fix this TeX / Typst source file with the smallest safe patch.'),
+        t('Use the attached source file and the compile diagnosis below as your starting point.'),
+        t('Prefer local syntax and structural fixes over broad rewrites.'),
+        t('When you make edits, run `compile_document` on the same file before you finish so the result is verified.'),
+        t('If the remaining issue needs a content decision or a larger restructure, stop and explain the blocker instead of guessing.'),
+      ]
   const diagnosisText = buildDiagnosisPrompt(diagnosisArtifact)
   return diagnosisText ? `${instructions.join('\n')}\n\n${diagnosisText}` : instructions.join('\n')
 }
@@ -157,14 +165,14 @@ export function isTexTypFixablePath(filePath = '') {
 
 export async function collectTexTypFixerDiagnosis(filePath, options = {}) {
   if (!isTexTypFixablePath(filePath)) {
-    throw new Error('Only .tex and .typ files can be sent to the TeX / Typst fixer.')
+    throw new Error(t('Only .tex and .typ files can be sent to the TeX / Typst fixer.'))
   }
 
   const context = options.context || buildAdapterContext()
   const adapter = getDocumentAdapterForFile(filePath)
   const compileAdapter = adapter?.compile || null
   if (!compileAdapter) {
-    throw new Error('No compile adapter is available for this file.')
+    throw new Error(t('No compile adapter is available for this file.'))
   }
 
   let compilerReady = true

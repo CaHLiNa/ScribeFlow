@@ -1,22 +1,5 @@
 <template>
   <div class="flex flex-col h-full" style="background: var(--bg-primary);">
-    <div
-      v-if="paneId !== 'pane-root'"
-      class="flex items-center justify-end h-7 shrink-0 border-b px-1"
-      style="border-color: var(--border);"
-    >
-      <button
-        class="p-1 rounded cursor-pointer"
-        style="color: var(--fg-muted);"
-        :title="t('Close pane')"
-        @click="editorStore.collapsePane(paneId)"
-      >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M18 6L6 18M6 6l12 12"/>
-        </svg>
-      </button>
-    </div>
-
     <div class="flex-1 overflow-y-auto min-h-0" ref="itemListRef">
       <div class="w-full mx-auto pb-10" style="max-width: min(80ch, 90%); padding-top: clamp(1rem, 20vh, 8rem);">
         <div class="flex gap-5 mb-6 pl-5">

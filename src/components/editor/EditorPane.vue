@@ -45,6 +45,7 @@
         @primary-action="handleWorkflowPrimaryAction"
         @reveal-preview="handleWorkflowRevealPreview"
         @reveal-pdf="handleWorkflowRevealPdf"
+        @diagnose-with-ai="handleWorkflowDiagnoseWithAi"
         @fix-with-ai="handleWorkflowFixWithAi"
       />
       <div
@@ -261,6 +262,7 @@ const {
   handleWorkflowPrimaryAction,
   handleWorkflowRevealPreview,
   handleWorkflowRevealPdf,
+  handleWorkflowDiagnoseWithAi,
   handleWorkflowFixWithAi,
 } = useEditorPaneWorkflow({
   paneIdRef,
@@ -308,6 +310,9 @@ function splitHorizontal() {
 function closePane() {
   const pane = editorStore.findPane(editorStore.paneTree, props.paneId)
   if (!pane) return
+  for (const tab of pane.tabs || []) {
+    workflowStore.handlePreviewClosed(tab)
+  }
 
   const parent = editorStore.findParent(editorStore.paneTree, pane.id)
   if (!parent) {

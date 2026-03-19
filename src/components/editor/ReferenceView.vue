@@ -44,6 +44,13 @@
           <button
             class="px-2 py-0.5 ui-text-micro rounded border hover:bg-[var(--bg-hover)] transition-colors"
             :style="{ borderColor: 'var(--border)', color: 'var(--fg-secondary)' }"
+            @click="askAiAboutReference"
+          >
+            {{ t('Ask AI') }}
+          </button>
+          <button
+            class="px-2 py-0.5 ui-text-micro rounded border hover:bg-[var(--bg-hover)] transition-colors"
+            :style="{ borderColor: 'var(--border)', color: 'var(--fg-secondary)' }"
             @click="pdfPath ? openPdf() : attachPdf()"
           >
             {{ pdfPath ? t('Open PDF') : t('Attach PDF...') }}
@@ -368,10 +375,13 @@ import { ref as vRef, computed, watch, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { useReferencesStore } from '../../stores/references'
 import { useEditorStore } from '../../stores/editor'
+import { useChatStore } from '../../stores/chat'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useFilesStore } from '../../stores/files'
 import { formatReference } from '../../services/citationFormatter'
 import { getFormatter } from '../../services/citationStyleRegistry'
+import { launchAiTask } from '../../services/ai/launch'
+import { createReferenceAuditTask } from '../../services/ai/taskCatalog'
 import { ask, open } from '@tauri-apps/plugin-dialog'
 import { useI18n } from '../../i18n'
 import { auditReferenceUsage } from '../../services/referenceAudit'
@@ -383,6 +393,7 @@ const props = defineProps({
 
 const referencesStore = useReferencesStore()
 const editorStore = useEditorStore()
+const chatStore = useChatStore()
 const workspace = useWorkspaceStore()
 const filesStore = useFilesStore()
 const { t } = useI18n()
@@ -600,6 +611,21 @@ function confirmAddField() {
   newFieldKey.value = ''
   newFieldValue.value = ''
   addingField.value = false
+}
+
+async function askAiAboutReference() {
+  if (!ref.value?._key) return
+  await launchAiTask({
+    editorStore,
+    chatStore,
+    paneId: props.paneId,
+    beside: true,
+    task: createReferenceAuditTask({
+      refKey: ref.value._key,
+      source: 'reference-view',
+      entryContext: 'reference-view',
+    }),
+  })
 }
 
 function openPdf() {
