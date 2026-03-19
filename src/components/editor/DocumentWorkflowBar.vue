@@ -57,17 +57,6 @@
       >
         <IconFileTypePdf :size="14" :stroke-width="1.8" />
       </button>
-      <button
-        v-if="canViewLog"
-        class="workflow-secondary-btn workflow-secondary-btn-accent"
-        type="button"
-        :title="t('View log')"
-        :aria-label="t('View log')"
-        @click="$emit('view-log')"
-      >
-        <IconFileText :size="14" :stroke-width="1.8" />
-      </button>
-
       <slot />
     </div>
   </div>
@@ -77,7 +66,6 @@
 import { computed } from 'vue'
 import {
   IconEye,
-  IconFileText,
   IconFileTypePdf,
   IconPlayerPlay,
 } from '@tabler/icons-vue'
@@ -85,7 +73,6 @@ import { useI18n } from '../../i18n'
 
 const props = defineProps({
   uiState: { type: Object, required: true },
-  canViewLog: { type: Boolean, default: false },
   statusText: { type: String, default: '' },
   statusTone: { type: String, default: 'muted' },
 })
@@ -94,7 +81,6 @@ defineEmits([
   'primary-action',
   'reveal-preview',
   'reveal-pdf',
-  'view-log',
 ])
 
 const { t } = useI18n()

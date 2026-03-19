@@ -37,6 +37,9 @@
         <TerminalFindWidget
           :visible="terminalStore.find.visible"
           :model-value="terminalStore.find.query"
+          :case-sensitive="terminalStore.find.caseSensitive"
+          :whole-word="terminalStore.find.wholeWord"
+          :regex="terminalStore.find.regex"
           @update:model-value="updateFindQuery"
           @next="findNext"
           @previous="findPrevious"
@@ -303,13 +306,16 @@ defineExpose({
 
 <style scoped>
 .terminal-workbench {
-  background: var(--bg-primary);
+  background: color-mix(in srgb, var(--bg-primary) 96%, black 4%);
 }
 
 .terminal-body {
   background:
-    radial-gradient(circle at top right, color-mix(in srgb, var(--accent) 8%, transparent), transparent 28%),
-    linear-gradient(180deg, color-mix(in srgb, var(--bg-primary) 88%, black 12%), var(--bg-primary));
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--bg-primary) 98%, black 2%),
+      color-mix(in srgb, var(--bg-primary) 95%, black 5%)
+    );
 }
 
 .terminal-group-shell.has-left-border {

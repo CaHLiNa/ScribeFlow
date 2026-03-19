@@ -2,6 +2,7 @@
   <div class="terminal-group h-full min-h-0 min-w-0" @mousedown="emit('activate-group', group.id)">
     <TerminalSurface
       v-if="group.activeInstanceId"
+      :key="group.activeInstanceId"
       ref="surfaceRef"
       :instance-id="group.activeInstanceId"
       @contextmenu="emit('surface-contextmenu', { event: $event, instanceId: group.activeInstanceId })"

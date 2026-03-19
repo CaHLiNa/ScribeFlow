@@ -12,9 +12,9 @@
     />
     <button class="terminal-find-btn" type="button" @click="emit('previous')">↑</button>
     <button class="terminal-find-btn" type="button" @click="emit('next')">↓</button>
-    <button class="terminal-find-btn" type="button" @click="emit('toggle-case')">Aa</button>
-    <button class="terminal-find-btn" type="button" @click="emit('toggle-word')">W</button>
-    <button class="terminal-find-btn" type="button" @click="emit('toggle-regex')">.*</button>
+    <button class="terminal-find-btn" :class="{ 'is-active': caseSensitive }" type="button" @click="emit('toggle-case')">Aa</button>
+    <button class="terminal-find-btn" :class="{ 'is-active': wholeWord }" type="button" @click="emit('toggle-word')">W</button>
+    <button class="terminal-find-btn" :class="{ 'is-active': regex }" type="button" @click="emit('toggle-regex')">.*</button>
     <button class="terminal-find-btn" type="button" @click="emit('close')">×</button>
   </div>
 </template>
@@ -29,6 +29,18 @@ const props = defineProps({
     default: '',
   },
   visible: {
+    type: Boolean,
+    default: false,
+  },
+  caseSensitive: {
+    type: Boolean,
+    default: false,
+  },
+  wholeWord: {
+    type: Boolean,
+    default: false,
+  },
+  regex: {
     type: Boolean,
     default: false,
   },
@@ -61,9 +73,9 @@ watch(
 
 <style scoped>
 .terminal-find-widget {
-  background: color-mix(in srgb, var(--bg-secondary) 96%, transparent);
-  border-color: color-mix(in srgb, var(--border) 80%, transparent);
-  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.22);
+  background: color-mix(in srgb, var(--bg-secondary) 98%, transparent);
+  border-color: color-mix(in srgb, var(--border) 86%, transparent);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.28);
   color: var(--fg-primary);
 }
 
@@ -81,7 +93,7 @@ watch(
   width: 24px;
   height: 24px;
   border: none;
-  border-radius: 4px;
+  border-radius: 3px;
   background: transparent;
   color: var(--fg-muted);
   font-size: var(--ui-font-caption);
@@ -90,5 +102,10 @@ watch(
 .terminal-find-btn:hover {
   background: var(--bg-hover);
   color: var(--fg-primary);
+}
+
+.terminal-find-btn.is-active {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
 }
 </style>

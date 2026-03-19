@@ -2,7 +2,7 @@
   <Teleport to="body">
     <div v-if="visible" class="fixed inset-0 z-[120]" @mousedown="emit('close')">
       <div
-        class="terminal-context-menu fixed min-w-[180px] rounded-md border py-1"
+        class="terminal-context-menu fixed min-w-[180px] rounded-sm border py-1"
         :style="{ left: `${x}px`, top: `${y}px` }"
         @mousedown.stop
       >
@@ -34,9 +34,9 @@ const emit = defineEmits(['close', 'select'])
 
 <style scoped>
 .terminal-context-menu {
-  background: color-mix(in srgb, var(--bg-secondary) 98%, transparent);
-  border-color: color-mix(in srgb, var(--border) 88%, transparent);
-  box-shadow: 0 16px 38px rgba(0, 0, 0, 0.28);
+  background: color-mix(in srgb, var(--bg-secondary) 99%, transparent);
+  border-color: color-mix(in srgb, var(--border) 90%, transparent);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.32);
 }
 
 .terminal-context-item {
@@ -47,7 +47,7 @@ const emit = defineEmits(['close', 'select'])
   color: var(--fg-primary);
   font-size: var(--ui-font-label);
   text-align: left;
-  padding: 7px 12px;
+  padding: 7px 12px 7px 10px;
 }
 
 .terminal-context-item:hover:not(:disabled) {

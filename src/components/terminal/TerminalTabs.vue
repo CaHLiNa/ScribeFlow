@@ -1,51 +1,82 @@
 <template>
   <div class="terminal-tabs flex min-w-0 items-center border-b">
-    <div ref="tabsContainerRef" class="flex min-w-0 flex-1 items-center overflow-x-auto scrollbar-hidden relative">
-      <button
+    <div ref="tabsContainerRef" class="terminal-tabs-scroll relative flex min-w-0 flex-1 items-stretch overflow-x-auto scrollbar-hidden">
+      <div
         v-for="(instance, index) in instances"
         :key="instance.id"
         :ref="(element) => setTabRef(instance.id, element)"
         class="terminal-tab group"
-        :class="{ 'is-active': instance.id === activeInstanceId, 'is-dragging': dragIndex === index }"
+        :class="{
+          'is-active': instance.id === activeInstanceId,
+          'is-dragging': dragIndex === index,
+          'is-tool': isToolInstance(instance),
+        }"
         :title="instance.cwd || instance.label"
+        role="button"
+        tabindex="0"
         @mousedown="onMouseDown(index, $event)"
         @mouseenter="onMouseEnter(index)"
         @click="emit('activate', instance.id)"
+        @keydown.enter.prevent="emit('activate', instance.id)"
+        @keydown.space.prevent="emit('activate', instance.id)"
         @contextmenu.prevent="emit('tab-contextmenu', { event: $event, instanceId: instance.id })"
         @dblclick="startRename(instance)"
       >
-        <span class="terminal-tab-dot" :class="statusClass(instance)" />
-        <template v-if="renameInstanceId === instance.id">
-          <input
-            ref="renameInputRef"
-            v-model="renameValue"
-            class="terminal-tab-input"
-            @keydown.enter.prevent="finishRename"
-            @keydown.escape.prevent="cancelRename"
-            @blur="finishRename"
-            @click.stop
-          />
-        </template>
-        <template v-else>
-          <span class="truncate">{{ instance.label }}</span>
-        </template>
-        <button class="terminal-tab-close" type="button" @click.stop="emit('close', instance.id)">×</button>
-      </button>
+        <span class="terminal-tab-accent" />
+        <span class="terminal-tab-badge" :class="badgeClass(instance)">
+          {{ badgeText(instance) }}
+        </span>
 
-      <button class="terminal-action-btn terminal-tab-new" type="button" @click="emit('new')">
-        ＋
+        <div class="terminal-tab-copy min-w-0 flex-1">
+          <template v-if="renameInstanceId === instance.id">
+            <input
+              ref="renameInputRef"
+              v-model="renameValue"
+              class="terminal-tab-input"
+              @keydown.enter.prevent="finishRename"
+              @keydown.escape.prevent="cancelRename"
+              @blur="finishRename"
+              @click.stop
+            />
+          </template>
+          <template v-else>
+            <span class="terminal-tab-label truncate">{{ instance.label }}</span>
+          </template>
+        </div>
+
+        <span class="terminal-tab-status" :class="statusClass(instance)" />
+
+        <button class="terminal-tab-close" type="button" @click.stop="emit('close', instance.id)">
+          <IconX :size="12" :stroke-width="1.8" />
+        </button>
+      </div>
+
+      <button class="terminal-inline-action" type="button" :title="t('New terminal')" @click="emit('new')">
+        <IconPlus :size="13" :stroke-width="1.8" />
       </button>
 
       <div v-if="dropIndicatorLeft !== null" class="terminal-tab-drop" :style="{ left: `${dropIndicatorLeft}px` }" />
     </div>
 
     <div class="terminal-actions flex shrink-0 items-center">
-      <button class="terminal-action-btn" type="button" @click="emit('new')" :title="t('New terminal')">＋</button>
-      <button class="terminal-action-btn" type="button" @click="emit('split')" :disabled="!activeInstanceId" :title="t('Split terminal')">⫶</button>
-      <button class="terminal-action-btn" type="button" @click="emit('find')" :disabled="!activeInstanceId" :title="t('Find')">⌕</button>
-      <button class="terminal-action-btn" type="button" @click="emit('clear')" :disabled="!activeInstanceId" :title="t('Clear')">⌫</button>
-      <button class="terminal-action-btn" type="button" @click="emit('kill')" :disabled="!activeInstanceId" :title="t('Kill terminal')">×</button>
-      <button class="terminal-action-btn" type="button" @click="emit('panel-close')" :title="t('Close terminal panel')">▾</button>
+      <button class="terminal-action-btn" type="button" :title="t('New terminal')" @click="emit('new')">
+        <IconPlus :size="14" :stroke-width="1.8" />
+      </button>
+      <button class="terminal-action-btn" type="button" :disabled="!activeInstanceId" :title="t('Split terminal')" @click="emit('split')">
+        <IconColumns :size="14" :stroke-width="1.8" />
+      </button>
+      <button class="terminal-action-btn" type="button" :disabled="!activeInstanceId" :title="t('Find')" @click="emit('find')">
+        <IconSearch :size="14" :stroke-width="1.8" />
+      </button>
+      <button class="terminal-action-btn" type="button" :disabled="!activeInstanceId" :title="t('Clear')" @click="emit('clear')">
+        <IconClearAll :size="14" :stroke-width="1.8" />
+      </button>
+      <button class="terminal-action-btn is-danger" type="button" :disabled="!activeInstanceId" :title="t('Kill terminal')" @click="emit('kill')">
+        <IconTrash :size="14" :stroke-width="1.8" />
+      </button>
+      <button class="terminal-action-btn" type="button" :title="t('Close terminal panel')" @click="emit('panel-close')">
+        <IconChevronDown :size="14" :stroke-width="1.8" />
+      </button>
     </div>
 
     <Teleport to="body">
@@ -58,6 +89,15 @@
 
 <script setup>
 import { nextTick, ref } from 'vue'
+import {
+  IconChevronDown,
+  IconClearAll,
+  IconColumns,
+  IconPlus,
+  IconSearch,
+  IconTrash,
+  IconX,
+} from '@tabler/icons-vue'
 import { useI18n } from '../../i18n'
 
 const props = defineProps({
@@ -109,6 +149,34 @@ function setTabRef(id, element) {
 function tabElementByIndex(index) {
   const instance = props.instances[index]
   return instance ? tabElements.get(instance.id) || null : null
+}
+
+function badgeFor(instance) {
+  if (instance.key === 'tool-latex-terminal') return { text: 'TEX', tone: 'latex' }
+  if (instance.key === 'tool-typst-terminal') return { text: 'TYP', tone: 'typst' }
+  if (instance.key === 'shared-shell-terminal') return { text: 'SH', tone: 'shell' }
+  if (instance.key === 'shared-build-terminal') return { text: 'LOG', tone: 'log' }
+  if (instance.kind === 'repl') {
+    if (instance.language === 'python') return { text: 'PY', tone: 'python' }
+    if (instance.language === 'julia') return { text: 'JL', tone: 'julia' }
+    if (instance.language === 'r') return { text: 'R', tone: 'r' }
+  }
+  if (instance.kind === 'log') return { text: 'LOG', tone: 'log' }
+  return { text: 'TERM', tone: 'shell' }
+}
+
+function badgeText(instance) {
+  return badgeFor(instance).text
+}
+
+function badgeClass(instance) {
+  return `tone-${badgeFor(instance).tone}`
+}
+
+function isToolInstance(instance) {
+  return instance.key === 'tool-latex-terminal'
+    || instance.key === 'tool-typst-terminal'
+    || instance.key === 'shared-build-terminal'
 }
 
 function statusClass(instance) {
@@ -222,73 +290,112 @@ function onMouseEnter(index) {
 
 <style scoped>
 .terminal-tabs {
-  min-height: 32px;
-  background: color-mix(in srgb, var(--bg-secondary) 96%, transparent);
-  border-color: color-mix(in srgb, var(--border) 82%, transparent);
+  min-height: 34px;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--bg-secondary) 98%, transparent),
+      color-mix(in srgb, var(--bg-secondary) 92%, black 8%)
+    );
+  border-color: color-mix(in srgb, var(--border) 86%, transparent);
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--border) 78%, transparent);
+}
+
+.terminal-tab,
+.terminal-inline-action {
+  position: relative;
+  flex-shrink: 0;
+  border-right: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
 }
 
 .terminal-tab {
-  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
-  min-width: 88px;
-  max-width: 220px;
-  height: 32px;
-  padding: 0 10px;
-  border: none;
-  background: transparent;
+  min-width: 118px;
+  max-width: 240px;
+  height: 34px;
+  padding: 0 10px 0 12px;
   color: var(--fg-muted);
-  font-size: var(--ui-font-caption);
-  flex-shrink: 0;
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease, opacity 140ms ease;
+  outline: none;
+}
+
+.terminal-tab:hover,
+.terminal-inline-action:hover {
+  background: color-mix(in srgb, var(--bg-hover) 72%, transparent);
 }
 
 .terminal-tab.is-active {
-  background: var(--bg-primary);
+  background: color-mix(in srgb, var(--bg-primary) 96%, black 4%);
   color: var(--fg-primary);
 }
 
+.terminal-tab.is-active .terminal-tab-label,
+.terminal-tab.is-tool .terminal-tab-label {
+  font-weight: 600;
+}
+
+.terminal-tab.is-active,
+.terminal-tab:focus-visible {
+  box-shadow: inset 0 2px 0 var(--accent);
+}
+
 .terminal-tab.is-dragging {
-  opacity: 0.35;
+  opacity: 0.32;
 }
 
-.terminal-tab-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 999px;
-  flex-shrink: 0;
-  background: color-mix(in srgb, var(--fg-muted) 70%, transparent);
+.terminal-tab-accent {
+  display: none;
 }
 
-.terminal-tab-dot.is-busy {
-  background: var(--accent);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent);
-}
-
-.terminal-tab-dot.is-success {
-  background: var(--success);
-}
-
-.terminal-tab-dot.is-error {
-  background: var(--error);
-}
-
-.terminal-tab-close,
-.terminal-action-btn {
-  border: none;
-  background: transparent;
-  color: var(--fg-muted);
+.terminal-tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 16px;
+  padding: 0 5px;
   border-radius: 4px;
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  background: color-mix(in srgb, var(--bg-tertiary, var(--bg-secondary)) 82%, transparent);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  color: var(--fg-muted);
 }
 
-.terminal-tab-close {
-  width: 18px;
-  height: 18px;
-  opacity: 0;
+.terminal-tab-badge.tone-shell {
+  color: color-mix(in srgb, var(--fg-primary) 74%, var(--accent));
 }
 
-.terminal-tab:hover .terminal-tab-close {
-  opacity: 1;
+.terminal-tab-badge.tone-log {
+  color: color-mix(in srgb, var(--warning) 84%, var(--fg-primary));
+}
+
+.terminal-tab-badge.tone-python,
+.terminal-tab-badge.tone-julia,
+.terminal-tab-badge.tone-r,
+.terminal-tab-badge.tone-latex,
+.terminal-tab-badge.tone-typst {
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--border));
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--accent);
+}
+
+.terminal-tab-copy {
+  min-width: 0;
+}
+
+.terminal-tab-label {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--ui-font-caption);
 }
 
 .terminal-tab-input {
@@ -299,48 +406,110 @@ function onMouseEnter(index) {
   background: transparent;
   color: inherit;
   font-size: inherit;
+  font-weight: 600;
+}
+
+.terminal-tab-status {
+  margin-left: auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  background: color-mix(in srgb, var(--fg-muted) 42%, transparent);
+  transition: transform 140ms ease, background 140ms ease, box-shadow 140ms ease;
+}
+
+.terminal-tab-status.is-busy {
+  background: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.terminal-tab-status.is-success {
+  background: var(--success);
+}
+
+.terminal-tab-status.is-error {
+  background: var(--error);
+}
+
+.terminal-tab-close,
+.terminal-inline-action,
+.terminal-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--fg-muted);
+}
+
+.terminal-tab-close {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity 120ms ease, background 120ms ease, color 120ms ease;
+}
+
+.terminal-tab.is-active .terminal-tab-close,
+.terminal-tab:hover .terminal-tab-close {
+  opacity: 1;
+}
+
+.terminal-tab-close:hover,
+.terminal-inline-action:hover,
+.terminal-action-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--bg-hover) 85%, transparent);
+  color: var(--fg-primary);
+}
+
+.terminal-inline-action {
+  width: 34px;
+  height: 34px;
+}
+
+.terminal-actions {
+  gap: 2px;
+  padding: 0 6px;
+  border-left: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
 }
 
 .terminal-action-btn {
   width: 28px;
   height: 28px;
-  font-size: var(--ui-font-caption);
+  border-radius: 5px;
+  transition: background 120ms ease, color 120ms ease, opacity 120ms ease;
 }
 
-.terminal-action-btn:hover:not(:disabled),
-.terminal-tab-close:hover {
-  background: var(--bg-hover);
-  color: var(--fg-primary);
+.terminal-action-btn.is-danger:hover:not(:disabled) {
+  color: var(--error);
 }
 
 .terminal-action-btn:disabled {
-  opacity: 0.45;
-}
-
-.terminal-tab-new {
-  margin-right: 4px;
+  opacity: 0.42;
 }
 
 .terminal-tab-drop {
   position: absolute;
-  top: 4px;
-  bottom: 4px;
+  top: 5px;
+  bottom: 5px;
   width: 2px;
   background: var(--accent);
   border-radius: 999px;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
 }
 
 .terminal-tab-ghost {
   position: fixed;
   z-index: 130;
-  transform: translate(12px, 12px);
+  transform: translate(14px, 14px);
   pointer-events: none;
   border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
-  background: color-mix(in srgb, var(--bg-secondary) 96%, transparent);
+  background: color-mix(in srgb, var(--bg-secondary) 98%, transparent);
   color: var(--fg-primary);
-  border-radius: 6px;
-  padding: 6px 10px;
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+  border-radius: 4px;
+  padding: 7px 10px;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.3);
   font-size: var(--ui-font-caption);
 }
 </style>

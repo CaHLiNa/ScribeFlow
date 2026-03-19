@@ -40,13 +40,11 @@
       <DocumentWorkflowBar
         v-if="workflowUiState"
         :ui-state="workflowUiState"
-        :can-view-log="workflowCanViewLog"
         :status-text="workflowStatusText"
         :status-tone="workflowStatusTone"
         @primary-action="handleWorkflowPrimaryAction"
         @reveal-preview="handleWorkflowRevealPreview"
         @reveal-pdf="handleWorkflowRevealPdf"
-        @view-log="handleWorkflowViewLog"
       />
       <div
         v-if="pdfToolbarTargetSelector"
@@ -248,7 +246,6 @@ const {
   pdfToolbarTargetSelector,
   showDocumentHeader,
   workflowUiState,
-  workflowCanViewLog,
   workflowStatusText,
   workflowStatusTone,
   handleRunCode,
@@ -261,7 +258,6 @@ const {
   handleWorkflowPrimaryAction,
   handleWorkflowRevealPreview,
   handleWorkflowRevealPdf,
-  handleWorkflowViewLog,
 } = useEditorPaneWorkflow({
   paneIdRef,
   tabsRef,

@@ -39,9 +39,6 @@ export function useEditorPaneWorkflow(options) {
   const showDocumentHeader = computed(() => (
     !!activeTabRef.value && (!!workflowUiState.value || !!pdfToolbarTargetSelector.value)
   ))
-  const workflowCanViewLog = computed(() => {
-    return !!workflowUiState.value && !!activeCompileAdapter.value?.openLog
-  })
   const workflowStatusText = computed(() => {
     if (!activeTabRef.value || !workflowUiState.value) return ''
     return activeCompileAdapter.value?.getStatusText?.(activeTabRef.value, buildAdapterContext()) || ''
@@ -408,11 +405,6 @@ export function useEditorPaneWorkflow(options) {
     }
   }
 
-  function handleWorkflowViewLog() {
-    if (!activeTabRef.value) return
-    activeCompileAdapter.value?.openLog?.(activeTabRef.value, buildAdapterContext())
-  }
-
   watch(
     [activeTabRef, () => editorStore.activePaneId],
     () => {
@@ -426,7 +418,6 @@ export function useEditorPaneWorkflow(options) {
     pdfToolbarTargetSelector,
     showDocumentHeader,
     workflowUiState,
-    workflowCanViewLog,
     workflowStatusText,
     workflowStatusTone,
     handleRunCode,
@@ -439,6 +430,5 @@ export function useEditorPaneWorkflow(options) {
     handleWorkflowPrimaryAction,
     handleWorkflowRevealPreview,
     handleWorkflowRevealPdf,
-    handleWorkflowViewLog,
   }
 }
