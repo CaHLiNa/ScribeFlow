@@ -637,6 +637,10 @@ async function loadLanguageExtension() {
     const { markdown, markdownLanguage } = await import('@codemirror/lang-markdown')
     return markdown({ base: markdownLanguage, codeLanguages: languages })
   }
+  if (isTex) {
+    const { altalsLatexLanguage } = await import('../../editor/latexLanguage')
+    return altalsLatexLanguage
+  }
   if (isTyp) {
     // Typst support is provided by our dedicated editor bundle instead of
     // the generic language-data registry fallback.

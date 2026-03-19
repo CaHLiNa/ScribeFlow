@@ -677,6 +677,137 @@ fn parse_chktex_output(output: &str) -> Vec<LatexError> {
     diagnostics
 }
 
+fn default_chktex_args() -> Vec<&'static str> {
+    vec!["-wall", "-n22", "-n30", "-e16", "-q"]
+}
+
+fn discover_chktexrc(tex_path: &str, workspace_path: Option<&str>) -> Option<PathBuf> {
+    let tex_dir = Path::new(tex_path).parent()?;
+    let workspace_root = workspace_path
+        .filter(|value| !value.trim().is_empty())
+        .map(PathBuf::from);
+
+    let mut current = Some(tex_dir.to_path_buf());
+    while let Some(dir) = current {
+        let candidate = dir.join(".chktexrc");
+        if candidate.exists() {
+            return Some(candidate);
+        }
+
+        if workspace_root.as_ref().is_some_and(|root| dir == *root) {
+            break;
+        }
+        current = dir.parent().map(Path::to_path_buf);
+    }
+
+    global_chktexrc()
+}
+
+fn global_chktexrc() -> Option<PathBuf> {
+    #[cfg(windows)]
+    {
+        for value in [
+            std::env::var("CHKTEXRC").ok().map(|dir| PathBuf::from(dir).join("chktexrc")),
+            std::env::var("CHKTEX_HOME").ok().map(|dir| PathBuf::from(dir).join("chktexrc")),
+            std::env::var("EMTEXDIR")
+                .ok()
+                .map(|dir| PathBuf::from(dir).join("data").join("chktexrc")),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            if value.exists() {
+                return Some(value);
+            }
+        }
+    }
+
+    #[cfg(not(windows))]
+    {
+        for value in [
+            std::env::var("HOME").ok().map(|dir| PathBuf::from(dir).join(".chktexrc")),
+            std::env::var("LOGDIR").ok().map(|dir| PathBuf::from(dir).join(".chktexrc")),
+            std::env::var("CHKTEXRC").ok().map(|dir| PathBuf::from(dir).join(".chktexrc")),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            if value.exists() {
+                return Some(value);
+            }
+        }
+    }
+
+    None
+}
+
+fn read_chktex_tab_size(rc_path: Option<&Path>) -> Option<usize> {
+    let path = rc_path?;
+    let contents = std::fs::read_to_string(path).ok()?;
+    let tab_size_re = Regex::new(r"(?m)^\s*TabSize\s*=\s*(\d+)\s*$").ok()?;
+    let captures = tab_size_re.captures(&contents)?;
+    captures.get(1)?.as_str().parse::<usize>().ok()
+}
+
+fn convert_chktex_column(column: u32, line: &str, tab_size: usize) -> u32 {
+    if column <= 1 {
+        return column;
+    }
+
+    let target = column.saturating_sub(1) as usize;
+    let mut consumed = 0usize;
+    let mut visual_column = 0usize;
+
+    for ch in line.chars() {
+        if consumed >= target {
+            break;
+        }
+        let width = if ch == '\t' {
+            tab_size
+        } else {
+            ch.len_utf8()
+        };
+        consumed += width;
+        visual_column += 1;
+    }
+
+    (visual_column + 1) as u32
+}
+
+fn adjust_chktex_columns_for_source(
+    diagnostics: &mut [LatexError],
+    tex_path: &str,
+    source_content: &str,
+    tab_size: usize,
+) {
+    let source_lines: Vec<&str> = source_content.lines().collect();
+    let tex_path = Path::new(tex_path);
+
+    for diagnostic in diagnostics.iter_mut() {
+        let Some(line) = diagnostic.line else {
+            continue;
+        };
+        let Some(column) = diagnostic.column else {
+            continue;
+        };
+        let line_index = line.saturating_sub(1) as usize;
+        let Some(line_text) = source_lines.get(line_index) else {
+            continue;
+        };
+
+        let matches_source = diagnostic.file.as_deref().is_none_or(|file| {
+            let diagnostic_path = Path::new(file);
+            diagnostic_path == tex_path
+                || diagnostic_path.file_name() == tex_path.file_name()
+        });
+        if !matches_source {
+            continue;
+        }
+
+        diagnostic.column = Some(convert_chktex_column(column, line_text, tab_size));
+    }
+}
+
 async fn read_or_use_source_content(
     tex_path: &str,
     content: Option<String>,
@@ -1207,6 +1338,7 @@ pub async fn run_chktex(
     tex_path: String,
     content: Option<String>,
     custom_system_tex_path: Option<String>,
+    workspace_path: Option<String>,
 ) -> Result<Vec<LatexError>, String> {
     let chktex = match find_chktex(custom_system_tex_path.as_deref()) {
         Some(path) => path,
@@ -1217,18 +1349,26 @@ pub async fn run_chktex(
     let dir = tex.parent().ok_or("Invalid tex path")?;
     let source_content = read_or_use_source_content(&tex_path, content).await?;
 
+    let chktexrc = discover_chktexrc(&tex_path, workspace_path.as_deref());
+
     let mut command = background_tokio_command(&chktex);
     command.current_dir(dir);
+    command.args(default_chktex_args());
+    if let Some(rc_path) = chktexrc.as_ref() {
+        command.arg("-l");
+        command.arg(rc_path.as_os_str());
+    }
     command.args([
-        "-q",
         "-I0",
         "-p",
         &tex_path,
         "-f%f\x1f%l\x1f%c\x1f%k\x1f%n\x1f%m\n",
     ]);
 
-    let (status, stdout, stderr) = run_command_with_stdin(command, source_content).await?;
-    let diagnostics = parse_chktex_output(&stdout);
+    let (status, stdout, stderr) = run_command_with_stdin(command, source_content.clone()).await?;
+    let mut diagnostics = parse_chktex_output(&stdout);
+    let tab_size = read_chktex_tab_size(chktexrc.as_deref()).unwrap_or(8);
+    adjust_chktex_columns_for_source(&mut diagnostics, &tex_path, &source_content, tab_size);
 
     if !diagnostics.is_empty() || status.success() {
         return Ok(diagnostics);
@@ -1852,9 +1992,10 @@ fn backward_sync(
 #[cfg(test)]
 mod tests {
     use super::{
-        backward_sync, build_latexmk_recipe_args, build_synctex_view_input, forward_sync,
-        parse_build_extra_args, parse_chktex_output, parse_synctex_content,
-        parse_synctex_edit_output, parse_synctex_view_output,
+        adjust_chktex_columns_for_source, backward_sync, build_latexmk_recipe_args,
+        build_synctex_view_input, convert_chktex_column, forward_sync, parse_build_extra_args,
+        parse_chktex_output, parse_synctex_content, parse_synctex_edit_output,
+        parse_synctex_view_output, LatexError,
     };
 
     const SAMPLE_SYNCTEX: &str = r#"SyncTeX Version:1
@@ -2021,6 +2162,26 @@ SyncTeX result end
 
         assert_eq!(diagnostics.len(), 1);
         assert_eq!(diagnostics[0].severity, "error");
+    }
+
+    #[test]
+    fn converts_chktex_columns_for_utf8_content() {
+        let mut diagnostics = vec![LatexError {
+            file: Some("/tmp/main.tex".to_string()),
+            line: Some(1),
+            column: Some(4),
+            message: "ChkTeX 1: test".to_string(),
+            severity: "warning".to_string(),
+            raw: None,
+        }];
+
+        adjust_chktex_columns_for_source(&mut diagnostics, "/tmp/main.tex", "第a", 8);
+        assert_eq!(diagnostics[0].column, Some(2));
+    }
+
+    #[test]
+    fn converts_chktex_columns_for_tabs() {
+        assert_eq!(convert_chktex_column(9, "\tfoo", 8), 2);
     }
 
     #[test]

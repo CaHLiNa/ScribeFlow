@@ -765,10 +765,12 @@ export const useLatexStore = defineStore('latex', {
       const sourceContent = options.sourceContent ?? useFilesStore().fileContents?.[texPath] ?? null
 
       try {
+        const workspaceStore = useWorkspaceStore()
         const diagnostics = await invoke('run_chktex', {
           texPath,
           content: sourceContent,
           customSystemTexPath: this.customSystemTexPath || null,
+          workspacePath: workspaceStore.path || null,
         })
         this.lintState[texPath] = {
           status: 'ready',
