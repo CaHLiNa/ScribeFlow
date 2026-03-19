@@ -219,7 +219,7 @@ onMounted(async () => {
   // Telemetry: app launched
   events.appOpen()
 
-  // Restore saved theme + editor font sizes + prose font + app zoom
+  // Restore saved theme + editor font sizes + prose font
   workspace.restoreTheme()
   workspace.applyFontSizes()
   workspace.restoreProseFont()
@@ -520,23 +520,6 @@ function handleKeydown(e) {
     window.dispatchEvent(new CustomEvent('comment-create', {
       detail: { paneId: pane.id }
     }))
-    return
-  }
-
-  // Cmd+= / Cmd+-: App zoom in/out
-  if (isMod(e) && (e.key === '=' || e.key === '+')) {
-    e.preventDefault()
-    void workspace.zoomIn()
-    return
-  }
-  if (isMod(e) && e.key === '-') {
-    e.preventDefault()
-    void workspace.zoomOut()
-    return
-  }
-  if (isMod(e) && e.key === '0') {
-    e.preventDefault()
-    void workspace.resetZoom()
     return
   }
 

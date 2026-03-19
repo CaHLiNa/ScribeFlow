@@ -57,41 +57,7 @@
 
     <!-- CENTER: zoom control OR save confirmation OR transient message (crossfade) -->
     <div class="footer-center justify-self-center">
-      <!-- Zoom controls (default) -->
-      <div class="footer-center-layer" :class="{ 'footer-center-hidden': saveConfirmationActive || centerMessage || uxStatusEntry }">
-        <button
-          class="w-5 h-5 flex items-center justify-center rounded cursor-pointer transition-colors border-none bg-transparent"
-          style="color: var(--fg-muted);"
-          @click="workspace.zoomOut()"
-          :title="t('Zoom out ({shortcut})', { shortcut: `${modKey}+-` })"
-          @mouseover="$event.target.style.color='var(--fg-primary)'"
-          @mouseout="$event.target.style.color='var(--fg-muted)'"
-        >
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 5h6"/></svg>
-        </button>
-        <button
-          ref="zoomTriggerRef"
-          class="w-[4.5ch] text-center ui-text-xs px-0.5 bg-transparent border-none cursor-pointer transition-colors"
-          :style="{ color: zoomPercent !== 100 ? 'var(--accent)' : 'var(--fg-muted)' }"
-          style="font-family: inherit;"
-          @click="toggleZoomPopover"
-          :title="t('Zoom level ({shortcut})', { shortcut: `${modKey}+0` })"
-          @mouseover="$event.target.style.color='var(--fg-primary)'"
-          @mouseout="$event.target.style.color = zoomPercent !== 100 ? 'var(--accent)' : 'var(--fg-muted)'"
-        >
-          {{ zoomPercent }}%
-        </button>
-        <button
-          class="w-5 h-5 flex items-center justify-center rounded cursor-pointer transition-colors border-none bg-transparent"
-          style="color: var(--fg-muted);"
-          @click="workspace.zoomIn()"
-          :title="t('Zoom in ({shortcut})', { shortcut: `${modKey}+=` })"
-          @mouseover="$event.target.style.color='var(--fg-primary)'"
-          @mouseout="$event.target.style.color='var(--fg-muted)'"
-        >
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M5 2v6M2 5h6"/></svg>
-        </button>
-      </div>
+      <div class="footer-center-layer" :class="{ 'footer-center-hidden': saveConfirmationActive || centerMessage || uxStatusEntry }"></div>
 
       <!-- Save confirmation (shown during 8s window) -->
       <div class="footer-center-layer flex items-center gap-1" :class="{ 'footer-center-hidden': !saveConfirmationActive }">
@@ -212,9 +178,6 @@
           <div class="flex justify-between"><span>{{ t('Add comment') }}</span><kbd>{{ modKey }}+Shift+L</kbd></div>
           <div class="flex justify-between"><span>{{ t('Insert citation') }}</span><kbd>{{ modKey }}+Shift+C</kbd></div>
           <div class="flex justify-between"><span>{{ t('Toggle terminal') }}</span><kbd>{{ modKey }}+`</kbd></div>
-          <div class="flex justify-between"><span>{{ t('Zoom in') }}</span><kbd>{{ modKey }}+=</kbd></div>
-          <div class="flex justify-between"><span>{{ t('Zoom out') }}</span><kbd>{{ modKey }}+-</kbd></div>
-          <div class="flex justify-between"><span>{{ t('Reset zoom') }}</span><kbd>{{ modKey }}+0</kbd></div>
           <div class="flex justify-between"><span>{{ t('Toggle word wrap') }}</span><kbd>{{ altKey }}+Z</kbd></div>
           <div class="mt-2 pt-2" style="border-top: 1px solid var(--border); color: var(--fg-muted);">{{ t('File Explorer') }}</div>
           <div class="flex justify-between"><span>{{ t('Navigate') }}</span><kbd>↑ / ↓</kbd></div>
@@ -227,26 +190,6 @@
           <div class="flex justify-between"><span>{{ t('Accept') }}</span><kbd>Tab / Enter / Right</kbd></div>
           <div class="flex justify-between"><span>{{ t('Cycle') }}</span><kbd>Up / Down</kbd></div>
           <div class="flex justify-between"><span>{{ t('Cancel') }}</span><kbd>Esc / Left / click</kbd></div>
-        </div>
-      </div>
-    </div>
-  </Teleport>
-
-  <!-- Zoom level popover -->
-  <Teleport to="body">
-    <div v-if="showZoomPopover" class="fixed inset-0 z-50" @click="showZoomPopover = false">
-      <div class="fixed z-50 rounded-lg border overflow-hidden"
-        :style="zoomPopoverPos"
-        style="background: var(--bg-secondary); border-color: var(--border); box-shadow: 0 8px 24px rgba(0,0,0,0.4); width: 120px;"
-        @click.stop>
-        <div class="py-1">
-          <div v-for="level in zoomPresets" :key="level"
-            class="px-3 py-1.5 ui-text-sm cursor-pointer flex items-center justify-between hover:bg-[var(--bg-hover)]"
-            :style="{ color: level === zoomPercent ? 'var(--accent)' : 'var(--fg-secondary)' }"
-            @click="selectZoom(level)">
-            <span>{{ level }}%</span>
-            <span v-if="level === 100" class="ui-text-xs" style="color: var(--fg-muted);">{{ t('default') }}</span>
-          </div>
         </div>
       </div>
     </div>
@@ -312,7 +255,6 @@ import { useUsageStore } from '../../stores/usage'
 import { useToastStore } from '../../stores/toast'
 import { useUxStatusStore } from '../../stores/uxStatus'
 import { getBillingRoute } from '../../services/apiClient'
-import { APP_ZOOM_PRESETS, normalizeAppZoomPercent } from '../../services/workspacePreferences'
 import { modKey, altKey } from '../../platform'
 import { useI18n } from '../../i18n'
 import SyncPopover from './SyncPopover.vue'
@@ -343,11 +285,6 @@ const showSyncPopover = ref(false)
 const syncTriggerRef = ref(null)
 const syncPopoverPos = ref({})
 const showConflictDialog = ref(false)
-const showZoomPopover = ref(false)
-const zoomTriggerRef = ref(null)
-const zoomPopoverPos = ref({})
-const zoomPresets = APP_ZOOM_PRESETS
-const zoomPercent = computed(() => normalizeAppZoomPercent(workspace.appZoomPercent || 100))
 
 // Save confirmation state (center section swap)
 const saveConfirmationActive = ref(false)
@@ -491,26 +428,6 @@ function togglePendingPopover() {
       }
     })
   }
-}
-
-function toggleZoomPopover() {
-  showZoomPopover.value = !showZoomPopover.value
-  if (showZoomPopover.value) {
-    nextTick(() => {
-      const rect = zoomTriggerRef.value?.getBoundingClientRect()
-      if (rect) {
-        zoomPopoverPos.value = {
-          bottom: (window.innerHeight - rect.top + 4) + 'px',
-          left: (rect.left + rect.width / 2 - 60) + 'px',
-        }
-      }
-    })
-  }
-}
-
-async function selectZoom(level) {
-  await workspace.setZoomPercent(level)
-  showZoomPopover.value = false
 }
 
 function openPendingFile(file) {

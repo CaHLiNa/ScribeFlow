@@ -1529,7 +1529,7 @@ function createToolbarStyleText() {
       .pdfViewer.removePageBorders,
       .pdfViewer:is(.scrollHorizontal, .scrollWrapped),
       .spread {
-        margin-inline: 0 !important;
+        margin-inline: auto !important;
       }
 
       .pdfViewer .page,
@@ -1539,7 +1539,7 @@ function createToolbarStyleText() {
       .pdfViewer.removePageBorders .spread .page,
       .pdfViewer.removePageBorders:is(.scrollHorizontal, .scrollWrapped) .page {
         margin: 0 auto 0 !important;
-        margin-inline: 0 !important;
+        margin-inline: auto !important;
         border: 0 !important;
       }
     `
@@ -2377,16 +2377,6 @@ function applyTheme() {
 function syncViewerAppZoom() {
   const doc = getPdfDocument()
   if (!doc?.documentElement) return
-
-  const hostZoom = typeof document !== 'undefined'
-    ? (document.documentElement.style.zoom || '')
-    : ''
-
-  if (hostZoom) {
-    doc.documentElement.style.zoom = hostZoom
-    doc.body?.style?.setProperty('zoom', hostZoom)
-    return
-  }
 
   doc.documentElement.style.removeProperty('zoom')
   doc.body?.style?.removeProperty('zoom')
@@ -3694,10 +3684,6 @@ onUnmounted(() => {
 
 watch(isDark, applyTheme)
 watch(() => workspace.pdfThemedPages, applyTheme)
-watch(() => workspace.appZoomPercent, () => {
-  syncViewerAppZoom()
-})
-
 watch(
   () => [
     loading.value,

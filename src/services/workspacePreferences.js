@@ -21,7 +21,7 @@ const DEFAULT_UI_FONT_SIZE = 13
 const DEFAULT_APP_ZOOM_PERCENT = 100
 const APP_ZOOM_KEY = 'appZoomPercent'
 
-export const APP_ZOOM_PRESETS = [80, 90, 100, 110, 125, 150]
+export const APP_ZOOM_PRESETS = [100]
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value))
@@ -91,42 +91,10 @@ function nearestAppZoomPreset(value) {
 }
 
 function migrateLegacyFooterZoom(editorFontSize, uiFontSize, appZoomPercent) {
-  if (appZoomPercent !== null) {
-    return {
-      editorFontSize,
-      uiFontSize,
-      appZoomPercent,
-    }
-  }
-
-  const hasLegacyFontZoom = (
-    editorFontSize !== DEFAULT_EDITOR_FONT_SIZE
-    || uiFontSize !== DEFAULT_UI_FONT_SIZE
-  )
-
-  if (!hasLegacyFontZoom) {
-    return {
-      editorFontSize,
-      uiFontSize,
-      appZoomPercent: DEFAULT_APP_ZOOM_PERCENT,
-    }
-  }
-
-  const legacyPercent = Math.round(((
-    editorFontSize / DEFAULT_EDITOR_FONT_SIZE
-  ) + (
-    uiFontSize / DEFAULT_UI_FONT_SIZE
-  )) / 2 * 100)
-  const migratedZoomPercent = nearestAppZoomPreset(legacyPercent)
-
-  writeValue(APP_ZOOM_KEY, migratedZoomPercent)
-  writeValue('editorFontSize', DEFAULT_EDITOR_FONT_SIZE)
-  writeValue('uiFontSize', DEFAULT_UI_FONT_SIZE)
-
   return {
-    editorFontSize: DEFAULT_EDITOR_FONT_SIZE,
-    uiFontSize: DEFAULT_UI_FONT_SIZE,
-    appZoomPercent: migratedZoomPercent,
+    editorFontSize,
+    uiFontSize,
+    appZoomPercent: appZoomPercent ?? DEFAULT_APP_ZOOM_PERCENT,
   }
 }
 
@@ -218,23 +186,13 @@ export async function applyWorkspaceAppZoom(percent) {
   root.style.removeProperty('zoom')
 
   const isTauriWebview = typeof window !== 'undefined' && !!window.__TAURI_INTERNALS__?.metadata?.currentWebview
-  const isMacWebKit = isAppleWebKitPlatform()
-  if (isTauriWebview && !isMacWebKit) {
-    try {
-      await getCurrentWebview().setZoom(nextValue / 100)
-      return
-    } catch (error) {
-      console.warn('[workspace] failed to apply native app zoom:', error)
-    }
-  }
-
   if (isTauriWebview) {
     try {
       await getCurrentWebview().setZoom(1)
-    } catch {}
+    } catch (error) {
+      console.warn('[workspace] failed to reset native app zoom:', error)
+    }
   }
-
-  root.style.zoom = String(nextValue / 100)
 }
 
 export function applyWorkspaceFontSizes(editorFontSize, uiFontSize) {
