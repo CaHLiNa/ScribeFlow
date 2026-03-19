@@ -1,10 +1,10 @@
 <template>
-  <div class="flex flex-col h-full">
+  <div class="chat-session flex flex-col h-full" :class="{ 'chat-session-compact': compact }">
     <!-- Messages area -->
     <div ref="messagesRef" class="flex-1 overflow-y-auto pt-4 pb-8 flex flex-col" @scroll="onScroll">
       <div v-if="sessionMeta" class="max-w-[80ch] mx-auto w-full px-3 pb-3">
         <div
-          class="inline-flex items-center gap-2 rounded-full border px-2.5 py-1"
+          class="chat-session-badge inline-flex items-center gap-2 rounded-full border px-2.5 py-1"
           style="background: var(--bg-secondary); border-color: var(--border);"
         >
           <span
@@ -103,6 +103,7 @@
         :sessionId="session.id"
         :estimatedTokens="estimatedTokens"
         :contextWindow="getContextWindow(session.modelId, workspace)"
+        :compact="compact"
         @send="onSend"
         @abort="onAbort"
         @update-model="onUpdateModel"
@@ -129,6 +130,7 @@ import { useI18n } from '../../i18n'
 const props = defineProps({
   session: { type: Object, required: true },
   sessionMeta: { type: Object, default: null },
+  compact: { type: Boolean, default: false },
 })
 
 const workspace   = useWorkspaceStore()
@@ -358,5 +360,15 @@ defineExpose({ focus })
 }
 .chip-row:hover .gutter {
   color: var(--fg-muted);
+}
+
+.chat-session-badge {
+  flex-wrap: wrap;
+}
+
+.chat-session-compact .chat-session-badge {
+  width: 100%;
+  border-radius: 12px;
+  row-gap: 6px;
 }
 </style>

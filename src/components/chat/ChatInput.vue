@@ -1,5 +1,5 @@
 <template>
-  <div class="px-2 pb-2 pt-1">
+  <div class="chat-input px-2 pb-2 pt-1" :class="{ 'chat-input-compact': compact }">
     <!-- Container: rounded border -->
     <div
       class="rounded-md border transition-all"
@@ -26,89 +26,90 @@
       </div>
 
       <!-- Bottom action row: [@] [Model ▾] ———spacer——— [token donut] [Send] -->
-      <div class="flex items-center px-1.5 pb-1.5 gap-1">
-        <!-- @ button -->
-        <button
-          class="p-1 rounded bg-transparent border-none cursor-pointer flex items-center transition-colors"
-          style="color: var(--fg-muted);"
-          :title="t('Attach file (@)')"
-          @mousedown.prevent
-          @click="triggerAtMention">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="4"/>
-            <path d="M16 8v5a3 3 0 006 0v-1a10 10 0 10-3.92 7.94"/>
-          </svg>
-        </button>
+      <div class="chat-input-actions px-1.5 pb-1.5">
+        <div class="chat-input-actions-left">
+          <!-- @ button -->
+          <button
+            class="p-1 rounded bg-transparent border-none cursor-pointer flex items-center transition-colors"
+            style="color: var(--fg-muted);"
+            :title="t('Attach file (@)')"
+            @mousedown.prevent
+            @click="triggerAtMention">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="4"/>
+              <path d="M16 8v5a3 3 0 006 0v-1a10 10 0 10-3.92 7.94"/>
+            </svg>
+          </button>
 
-        <!-- Model picker -->
-        <button
-          ref="modelButtonRef"
-          class="ui-text-lg px-1.5 py-0.5 rounded cursor-pointer bg-transparent border-none flex items-center gap-1"
-          style="color: var(--fg-muted);"
-          @click.stop="toggleModelPicker">
-          {{ currentModelName }}
-          <svg width="8" height="8" viewBox="0 0 10 10" fill="currentColor">
-            <path d="M1 3l4 4 4-4z"/>
-          </svg>
-        </button>
+          <!-- Model picker -->
+          <button
+            ref="modelButtonRef"
+            class="chat-input-model ui-text-lg px-1.5 py-0.5 rounded cursor-pointer bg-transparent border-none flex items-center gap-1"
+            style="color: var(--fg-muted);"
+            @click.stop="toggleModelPicker">
+            {{ currentModelName }}
+            <svg width="8" height="8" viewBox="0 0 10 10" fill="currentColor">
+              <path d="M1 3l4 4 4-4z"/>
+            </svg>
+          </button>
 
-        <!-- Review mode toggle -->
-        <button
-          class="ui-text-lg px-1.5 py-0.5 rounded cursor-pointer bg-transparent border-none flex items-center"
-          :style="reviews.directMode
-            ? { color: 'var(--warning)' }
-            : { color: 'var(--fg-muted)', opacity: '0.6' }"
-          :title="t('Controls how AI-suggested edits are applied - affects all AI features')"
-          @click="reviews.toggleDirectMode()">
-          {{ reviews.directMode ? t('Auto-apply') : t('Review changes') }}
-        </button>
-
-        <!-- Spacer -->
-        <div class="flex-1"></div>
-
-        <!-- Budget reached label -->
-        <span v-if="isOverBudget" class="ui-text-lg" style="color: var(--error); margin-right: 4px;">{{ t('Budget reached') }}</span>
-
-        <!-- Token donut -->
-        <div v-if="props.estimatedTokens !== null"
-          class="shrink-0 flex items-center token-donut-wrap px-1">
-          <svg width="18" height="18" viewBox="0 0 20 20">
-            <circle cx="10" cy="10" r="7" fill="none"
-              stroke="var(--border)" stroke-width="3" />
-            <circle cx="10" cy="10" r="7" fill="none"
-              :stroke="donutColor" stroke-width="3"
-              stroke-linecap="round"
-              :stroke-dasharray="donutCircumference"
-              :stroke-dashoffset="donutOffset"
-              style="transform: rotate(-90deg); transform-origin: center; transition: stroke-dashoffset 0.3s ease;" />
-          </svg>
-          <span class="token-donut-tip">{{ tokenTooltip }}</span>
+          <!-- Review mode toggle -->
+          <button
+            class="chat-input-review ui-text-lg px-1.5 py-0.5 rounded cursor-pointer bg-transparent border-none flex items-center"
+            :style="reviews.directMode
+              ? { color: 'var(--warning)' }
+              : { color: 'var(--fg-muted)', opacity: '0.6' }"
+            :title="t('Controls how AI-suggested edits are applied - affects all AI features')"
+            @click="reviews.toggleDirectMode()">
+            {{ reviews.directMode ? t('Auto-apply') : t('Review changes') }}
+          </button>
         </div>
 
-        <!-- Send button -->
-        <button
-          v-if="!isStreaming"
-          class="shrink-0 w-7 h-7 rounded flex items-center justify-center border-none cursor-pointer transition-colors mx-1"
-          :style="{
-            background: canSend ? 'var(--accent)' : 'var(--bg-tertiary)',
-            color: canSend ? 'var(--bg-primary)' : 'var(--fg-muted)',
-          }"
-          :disabled="!canSend"
-          @click="send">
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M2.5 2.5l11 5.5-11 5.5V9.5L9 8l-6.5-1.5z"/>
-          </svg>
-        </button>
-        <!-- Stop button -->
-        <button
-          v-else
-          class="shrink-0 w-7 h-7 rounded flex items-center justify-center border-none cursor-pointer ml-1"
-          style="background: var(--error); color: white;"
-          @click="$emit('abort')">
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
-            <rect x="1" y="1" width="8" height="8" rx="1"/>
-          </svg>
-        </button>
+        <div class="chat-input-actions-right">
+          <!-- Budget reached label -->
+          <span v-if="isOverBudget" class="ui-text-lg" style="color: var(--error); margin-right: 4px;">{{ t('Budget reached') }}</span>
+
+          <!-- Token donut -->
+          <div v-if="props.estimatedTokens !== null"
+            class="shrink-0 flex items-center token-donut-wrap px-1">
+            <svg width="18" height="18" viewBox="0 0 20 20">
+              <circle cx="10" cy="10" r="7" fill="none"
+                stroke="var(--border)" stroke-width="3" />
+              <circle cx="10" cy="10" r="7" fill="none"
+                :stroke="donutColor" stroke-width="3"
+                stroke-linecap="round"
+                :stroke-dasharray="donutCircumference"
+                :stroke-dashoffset="donutOffset"
+                style="transform: rotate(-90deg); transform-origin: center; transition: stroke-dashoffset 0.3s ease;" />
+            </svg>
+            <span class="token-donut-tip">{{ tokenTooltip }}</span>
+          </div>
+
+          <!-- Send button -->
+          <button
+            v-if="!isStreaming"
+            class="shrink-0 w-7 h-7 rounded flex items-center justify-center border-none cursor-pointer transition-colors mx-1"
+            :style="{
+              background: canSend ? 'var(--accent)' : 'var(--bg-tertiary)',
+              color: canSend ? 'var(--bg-primary)' : 'var(--fg-muted)',
+            }"
+            :disabled="!canSend"
+            @click="send">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M2.5 2.5l11 5.5-11 5.5V9.5L9 8l-6.5-1.5z"/>
+            </svg>
+          </button>
+          <!-- Stop button -->
+          <button
+            v-else
+            class="shrink-0 w-7 h-7 rounded flex items-center justify-center border-none cursor-pointer ml-1"
+            style="background: var(--error); color: white;"
+            @click="$emit('abort')">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+              <rect x="1" y="1" width="8" height="8" rx="1"/>
+            </svg>
+          </button>
+        </div>
       </div>
     </div>
 
@@ -187,6 +188,7 @@ const props = defineProps({
   estimatedTokens:  { type: Number,  default: null },
   contextWindow:    { type: Number,  default: 200000 },
   sessionId:        { type: String,  default: '' },
+  compact:          { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['send', 'abort', 'update-model'])
@@ -450,6 +452,48 @@ defineExpose({ focus })
 </script>
 
 <style scoped>
+.chat-input-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chat-input-actions-left,
+.chat-input-actions-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.chat-input-actions-right {
+  margin-left: auto;
+}
+
+.chat-input-model,
+.chat-input-review {
+  min-width: 0;
+}
+
+.chat-input-compact .chat-input-actions {
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+
+.chat-input-compact .chat-input-actions-left,
+.chat-input-compact .chat-input-actions-right {
+  width: 100%;
+}
+
+.chat-input-compact .chat-input-actions-right {
+  justify-content: flex-end;
+}
+
+.chat-input-compact .chat-input-model,
+.chat-input-compact .chat-input-review {
+  white-space: normal;
+}
+
 .model-picker-shell {
   display: grid;
   grid-template-columns: 132px minmax(0, 1fr);

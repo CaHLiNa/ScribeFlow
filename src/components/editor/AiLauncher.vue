@@ -1,8 +1,8 @@
 <template>
-  <div class="flex flex-col h-full" style="background: var(--bg-primary);">
+  <div class="ai-launcher flex flex-col h-full" :class="{ 'ai-launcher-compact': compact }" style="background: var(--bg-primary);">
     <div class="flex-1 overflow-y-auto min-h-0" ref="itemListRef">
-      <div class="w-full mx-auto pb-10" style="max-width: min(80ch, 90%); padding-top: clamp(1rem, 20vh, 8rem);">
-        <div class="flex gap-5 mb-6 pl-5">
+      <div class="ai-launcher-shell w-full mx-auto pb-10">
+        <div class="ai-launcher-tabs">
           <button
             v-for="tab in visibleTabs"
             :key="tab.id"
@@ -18,7 +18,7 @@
         <template v-for="(item, i) in currentItems" :key="activeTabId + '-' + i">
           <div
             v-if="item.groupHeader"
-            class="ui-text-caption font-semibold tracking-[0.06em] uppercase pl-5 pb-1"
+            class="ai-launcher-group ui-text-caption font-semibold tracking-[0.06em] uppercase pb-1"
             :class="i > 0 ? 'mt-4' : ''"
             style="color: var(--fg-muted);"
           >{{ item.groupHeader }}</div>
@@ -27,7 +27,8 @@
             @mouseenter="selectedIdx = i"
           >
             <button
-              class="newtab-item flex items-center gap-2 flex-1 border-none bg-transparent text-left py-1.5 cursor-pointer transition-colors duration-75"
+              class="newtab-item ai-launcher-item flex gap-2 flex-1 border-none bg-transparent text-left py-1.5 cursor-pointer transition-colors duration-75"
+              :class="compact ? 'items-start flex-wrap' : 'items-center'"
               :style="{ color: selectedIdx === i ? 'var(--fg-primary)' : (item.muted ? 'var(--fg-muted)' : 'var(--fg-secondary)') }"
               @click="activate(item)"
             >
@@ -37,16 +38,18 @@
                 :style="{ color: selectedIdx === i ? 'var(--fg-muted)' : 'transparent' }"
               >›</span>
               <div class="flex-1 min-w-0 flex flex-col">
-                <span class="ui-text-title truncate min-w-0">{{ item.label }}</span>
+                <span class="ui-text-title min-w-0" :class="compact ? 'whitespace-normal break-words' : 'truncate'">{{ item.label }}</span>
                 <span
                   v-if="item.description"
-                  class="ui-text-label truncate min-w-0 mt-0.5"
+                  class="ui-text-label min-w-0 mt-0.5"
+                  :class="compact ? 'whitespace-normal break-words' : 'truncate'"
                   style="color: var(--fg-muted);"
                 >{{ item.description }}</span>
               </div>
               <span
                 v-if="item.meta"
-                class="ui-text-label shrink-0 whitespace-nowrap mx-4"
+                class="ui-text-label shrink-0"
+                :class="compact ? 'w-full ml-5 mt-0.5 whitespace-normal break-words' : 'whitespace-nowrap mx-4'"
                 style="color: var(--fg-muted);"
               >{{ item.meta }}</span>
             </button>
@@ -70,12 +73,13 @@
     </div>
 
     <div class="shrink-0 flex justify-center">
-      <div class="w-full max-w-[80ch]">
+      <div class="w-full ai-launcher-input-shell">
         <ChatInput
           ref="chatInputRef"
           :isStreaming="false"
           :modelId="selectedModelId"
           :estimatedTokens="null"
+          :compact="compact"
           @send="sendChat"
           @update-model="selectModel"
         />
@@ -100,6 +104,7 @@ import ChatInput from '../chat/ChatInput.vue'
 const props = defineProps({
   paneId: { type: String, default: '' },
   surface: { type: String, default: 'pane' },
+  compact: { type: Boolean, default: false },
 })
 
 const editorStore = useEditorStore()
@@ -370,3 +375,45 @@ onUnmounted(() => {
   }
 })
 </script>
+
+<style scoped>
+.ai-launcher-shell {
+  max-width: min(80ch, 90%);
+  padding-top: clamp(1rem, 20vh, 8rem);
+}
+
+.ai-launcher-tabs {
+  display: flex;
+  gap: 1.25rem;
+  margin-bottom: 1.5rem;
+  padding-left: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.ai-launcher-group {
+  padding-left: 1.25rem;
+}
+
+.ai-launcher-input-shell {
+  max-width: 80ch;
+}
+
+.ai-launcher-compact .ai-launcher-shell {
+  max-width: calc(100% - 16px);
+  padding-top: 1rem;
+}
+
+.ai-launcher-compact .ai-launcher-tabs {
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  padding-left: 0.75rem;
+}
+
+.ai-launcher-compact .ai-launcher-group {
+  padding-left: 0.75rem;
+}
+
+.ai-launcher-compact .ai-launcher-input-shell {
+  max-width: calc(100% - 8px);
+}
+</style>

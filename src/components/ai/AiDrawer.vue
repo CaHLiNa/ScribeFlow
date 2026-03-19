@@ -1,5 +1,10 @@
 <template>
-  <div class="ai-drawer h-full flex flex-col" style="background: var(--bg-primary);">
+  <div
+    ref="drawerRef"
+    class="ai-drawer h-full flex flex-col"
+    :class="{ 'ai-drawer-compact': isCompact }"
+    style="background: var(--bg-primary);"
+  >
     <div class="ai-drawer-header">
       <div class="ai-drawer-header-left">
         <button
@@ -36,6 +41,7 @@
         v-if="drawer.view === 'launcher'"
         pane-id="ai-drawer"
         surface="drawer"
+        :compact="isCompact"
       />
       <div v-else class="h-full">
         <ChatSession
@@ -43,6 +49,7 @@
           :key="session.id"
           :session="session"
           :sessionMeta="sessionMeta"
+          :compact="isCompact"
         />
         <div
           v-else
@@ -57,7 +64,7 @@
 </template>
 
 <script setup>
-import { computed, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useAiDrawerStore } from '../../stores/aiDrawer'
 import { useAiWorkbenchStore } from '../../stores/aiWorkbench'
 import { useChatStore } from '../../stores/chat'
@@ -69,6 +76,11 @@ const drawer = useAiDrawerStore()
 const aiWorkbench = useAiWorkbenchStore()
 const chatStore = useChatStore()
 const { t } = useI18n()
+const drawerRef = ref(null)
+const drawerWidth = ref(0)
+let resizeObserver = null
+
+const isCompact = computed(() => drawerWidth.value > 0 && drawerWidth.value < 430)
 
 const session = computed(() => (
   drawer.sessionId
@@ -110,6 +122,23 @@ watch(
   },
   { immediate: true },
 )
+
+onMounted(() => {
+  if (typeof ResizeObserver === 'undefined') return
+  resizeObserver = new ResizeObserver((entries) => {
+    const entry = entries?.[0]
+    if (!entry) return
+    drawerWidth.value = entry.contentRect?.width || 0
+  })
+  if (drawerRef.value) {
+    resizeObserver.observe(drawerRef.value)
+  }
+})
+
+onUnmounted(() => {
+  resizeObserver?.disconnect?.()
+  resizeObserver = null
+})
 </script>
 
 <style scoped>
@@ -121,7 +150,7 @@ watch(
 }
 
 .ai-drawer-header {
-  height: 32px;
+  min-height: 32px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -143,6 +172,7 @@ watch(
   min-width: 0;
   display: flex;
   align-items: baseline;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
@@ -151,16 +181,16 @@ watch(
   font-size: var(--ui-font-label);
   font-weight: 600;
   color: var(--fg-primary);
-  white-space: nowrap;
+  white-space: normal;
+  line-height: 1.35;
 }
 
 .ai-drawer-meta {
   min-width: 0;
   font-size: var(--ui-font-caption);
   color: var(--fg-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  line-height: 1.35;
 }
 
 .ai-drawer-icon-btn {
@@ -180,5 +210,17 @@ watch(
 .ai-drawer-icon-btn:hover {
   background: var(--bg-hover);
   color: var(--fg-primary);
+}
+
+.ai-drawer-compact .ai-drawer-header {
+  align-items: flex-start;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+.ai-drawer-compact .ai-drawer-title-wrap {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
 }
 </style>
