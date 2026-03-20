@@ -77,15 +77,7 @@
 
             <div class="library-editor-actions">
               <button type="button" class="library-inline-button" @click="exitEditMode">
-                {{ t('Back to list') }}
-              </button>
-              <button
-                v-if="activePdfPath"
-                type="button"
-                class="library-inline-button"
-                @click="openReferencePdf(activeRef._key)"
-              >
-                {{ t('Open PDF') }}
+                {{ t('Back to overview') }}
               </button>
             </div>
           </div>
@@ -94,6 +86,7 @@
             <ReferenceView
               :refKey="activeRef._key"
               :embedded="true"
+              :library-embedded="true"
               @close-embedded="handleEmbeddedEditorClose"
             />
           </div>
@@ -102,14 +95,6 @@
 
       <template v-else>
         <main class="library-main">
-          <div class="library-main-header">
-            <div class="library-main-heading">
-              <div class="library-main-title-row">
-                <h2 class="library-main-title">{{ t('Global library') }}</h2>
-              </div>
-            </div>
-          </div>
-
           <div class="library-toolbar">
             <div class="library-toolbar-row">
               <div class="library-search-shell">
@@ -131,6 +116,10 @@
                 <option value="title-asc">{{ t('Title A → Z') }}</option>
                 <option value="author-asc">{{ t('Author A → Z') }}</option>
               </select>
+
+              <button type="button" class="library-inline-button is-primary" @click="showImportDialog = true">
+                {{ t('Import references') }}
+              </button>
             </div>
 
             <div v-if="selectedTags.length > 0" class="library-filter-row">
@@ -176,12 +165,6 @@
                 />
                 <button type="button" class="library-inline-button" @click="applyTagAction('add')">
                   {{ t('Add tags') }}
-                </button>
-                <button type="button" class="library-inline-button" @click="applyTagAction('replace')">
-                  {{ t('Replace tags') }}
-                </button>
-                <button type="button" class="library-inline-button" @click="applyTagAction('remove')">
-                  {{ t('Remove tags') }}
                 </button>
               </div>
             </div>
@@ -272,19 +255,34 @@
 
         <aside class="library-detail">
           <div class="library-pane-header">
-            <div class="library-section-label">{{ t('Reference detail') }}</div>
+            <div class="library-section-label">{{ t('Overview') }}</div>
             <div v-if="activeRef" class="library-detail-toolbar">
               <button type="button" class="library-inline-button" @click="enterEditMode(activeRef._key)">
-                {{ t('View Details') }}
+                {{ t('Edit metadata') }}
               </button>
-              <button
-                v-if="activePdfPath"
-                type="button"
-                class="library-inline-button"
-                @click="openReferencePdf(activeRef._key)"
-              >
-                {{ t('Open PDF') }}
-              </button>
+              <div ref="detailMenuRef" class="library-menu-wrap">
+                <button
+                  type="button"
+                  class="library-menu-button"
+                  :title="t('More actions')"
+                  @click.stop="showDetailMenu = !showDetailMenu"
+                >
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                    <circle cx="4" cy="8" r="1.2" />
+                    <circle cx="8" cy="8" r="1.2" />
+                    <circle cx="12" cy="8" r="1.2" />
+                  </svg>
+                </button>
+                <div v-if="showDetailMenu" class="library-menu-panel">
+                  <button
+                    type="button"
+                    class="library-menu-item danger"
+                    @click="deleteActiveReferenceGlobally"
+                  >
+                    {{ t('Delete from global library') }}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -309,17 +307,29 @@
               <div class="library-detail-grid">
                 <div class="library-detail-label">{{ t('Key') }}</div>
                 <div class="library-detail-value">@{{ activeRef._key }}</div>
+                <div class="library-detail-label">{{ t('Year') }}</div>
+                <div class="library-detail-value">{{ extractYear(activeRef) || t('None') }}</div>
+                <div class="library-detail-label">{{ t('Journal / Conference') }}</div>
+                <div class="library-detail-value">{{ containerLabel(activeRef) || t('None') }}</div>
                 <div class="library-detail-label">DOI</div>
                 <div class="library-detail-value">{{ activeRef.DOI || t('None') }}</div>
-                <div class="library-detail-label">{{ t('Scope') }}</div>
+                <div class="library-detail-label">{{ t('Cited in') }}</div>
                 <div class="library-detail-value">
-                  {{ isInCurrentProject(activeRef._key) ? t('In current project') : t('Global only') }}
+                  {{ activeCitedCount > 0 ? t('Cited in {count} files', { count: activeCitedCount }) : t('Not cited') }}
                 </div>
               </div>
 
               <div class="library-detail-actions">
                 <button type="button" class="library-inline-button" @click="toggleProjectMembership(activeRef._key)">
                   {{ isInCurrentProject(activeRef._key) ? t('Remove from this project') : t('Add to project') }}
+                </button>
+                <button
+                  v-if="activePdfPath"
+                  type="button"
+                  class="library-quiet-button"
+                  @click="openReferencePdf(activeRef._key)"
+                >
+                  {{ t('Open PDF') }}
                 </button>
               </div>
             </div>
@@ -376,15 +386,22 @@
         </aside>
       </template>
     </div>
+
+    <AddReferenceDialog
+      v-if="showImportDialog"
+      @close="showImportDialog = false"
+    />
   </div>
 </template>
 
 <script setup>
-import { computed, defineAsyncComponent, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, watch } from 'vue'
+import { ask } from '@tauri-apps/plugin-dialog'
 import { useReferencesStore } from '../../stores/references'
 import { useEditorStore } from '../../stores/editor'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useI18n } from '../../i18n'
+import AddReferenceDialog from '../sidebar/AddReferenceDialog.vue'
 
 const ReferenceView = defineAsyncComponent(() => import('../editor/ReferenceView.vue'))
 
@@ -400,6 +417,9 @@ const selectedTags = ref([])
 const selectedKeys = ref([])
 const tagActionInput = ref('')
 const detailTagsInput = ref('')
+const showImportDialog = ref(false)
+const showDetailMenu = ref(false)
+const detailMenuRef = ref(null)
 
 const workspaceName = computed(() => workspace.path?.split('/').pop() || t('No workspace'))
 const allRefs = computed(() => referencesStore.globalLibrary || [])
@@ -417,13 +437,6 @@ const viewOptions = computed(() => ([
   { id: 'needs-review', label: t('Needs review'), count: allRefs.value.filter((refItem) => !!refItem._needsReview).length },
   { id: 'untagged', label: t('Untagged'), count: allRefs.value.filter((refItem) => !refItem._tags || refItem._tags.length === 0).length },
 ]))
-
-const activeViewLabel = computed(() => {
-  return viewOptions.value.find((item) => item.id === activeView.value)?.label || t('All references')
-})
-
-const projectRefsCount = computed(() => referencesStore.workspaceKeys.length)
-const refsWithPdfCount = computed(() => allRefs.value.filter((refItem) => !!refItem._pdfFile).length)
 
 const scopeFilteredRefs = computed(() => {
   switch (activeView.value) {
@@ -510,8 +523,14 @@ const activePdfPath = computed(() => {
   return referencesStore.pdfPathForKey(activeRef.value._key)
 })
 
+const activeCitedCount = computed(() => {
+  if (!activeRef.value?._key) return 0
+  return referencesStore.citedIn[activeRef.value._key]?.length || 0
+})
+
 watch(activeRef, (refItem) => {
   detailTagsInput.value = (refItem?._tags || []).join(', ')
+  showDetailMenu.value = false
 }, { immediate: true })
 
 watch(filteredRefs, (refs) => {
@@ -661,9 +680,47 @@ function saveDetailTags() {
   referencesStore.replaceTagsForReferences([activeRef.value._key], parseTags(detailTagsInput.value))
 }
 
+async function deleteActiveReferenceGlobally() {
+  if (!activeRef.value?._key) return
+  showDetailMenu.value = false
+  const key = activeRef.value._key
+  const yes = await ask(
+    t('Delete reference @{key} from the global library?', { key }),
+    { title: t('Confirm Global Delete'), kind: 'warning' },
+  )
+  if (!yes) return
+  await referencesStore.removeReferenceFromGlobal(key)
+}
+
 function returnToWorkspace() {
   workspace.showEditorSurface()
 }
+
+function onDocumentMousedown(event) {
+  if (!showDetailMenu.value) return
+  const menuEl = detailMenuRef.value
+  if (!menuEl || !(event.target instanceof Node)) return
+  if (!menuEl.contains(event.target)) {
+    showDetailMenu.value = false
+  }
+}
+
+function onDocumentKeydown(event) {
+  if (event.key === 'Escape' && showDetailMenu.value) {
+    event.preventDefault()
+    showDetailMenu.value = false
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('mousedown', onDocumentMousedown, true)
+  document.addEventListener('keydown', onDocumentKeydown, true)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('mousedown', onDocumentMousedown, true)
+  document.removeEventListener('keydown', onDocumentKeydown, true)
+})
 </script>
 
 <style scoped>
@@ -716,7 +773,6 @@ function returnToWorkspace() {
 .library-detail-tag-edit,
 .library-editor-actions,
 .library-editor-title-row,
-.library-main-title-row,
 .library-main-meta,
 .library-detail-pill-row {
   display: flex;
@@ -744,7 +800,6 @@ function returnToWorkspace() {
   color: var(--fg-muted);
 }
 
-.library-main-title,
 .library-editor-title,
 .library-detail-title,
 .library-empty-title {
@@ -797,32 +852,10 @@ function returnToWorkspace() {
   background: var(--bg-primary);
 }
 
-.library-main-header,
 .library-toolbar,
 .library-editor-toolbar,
 .library-pane-header {
   border-bottom: 1px solid var(--border);
-}
-
-.library-main-header {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 6px;
-  padding: 10px 12px 8px;
-  background: var(--bg-secondary);
-}
-
-.library-main-heading {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-
-.library-main-title {
-  font-size: 18px;
-  line-height: 1.2;
 }
 
 .library-back-button {
@@ -935,6 +968,68 @@ function returnToWorkspace() {
   min-width: 180px;
 }
 
+.library-menu-wrap {
+  position: relative;
+}
+
+.library-menu-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg-muted);
+  transition: background-color 120ms, color 120ms;
+}
+
+.library-menu-button:hover {
+  background: var(--bg-hover);
+  color: var(--fg-primary);
+}
+
+.library-menu-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 20;
+  min-width: 164px;
+  padding: 4px 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
+}
+
+.library-menu-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 28px;
+  padding: 0 10px;
+  border: none;
+  background: transparent;
+  color: var(--fg-secondary);
+  font-size: 12px;
+  text-align: left;
+}
+
+.library-menu-item:hover {
+  background: var(--bg-hover);
+  color: var(--fg-primary);
+}
+
+.library-menu-item.danger {
+  color: var(--error);
+}
+
+.library-menu-item.danger:hover {
+  background: color-mix(in srgb, var(--error) 10%, var(--bg-hover));
+  color: var(--error);
+}
+
 .library-nav-item,
 .library-tag-row,
 .library-inline-button,
@@ -974,6 +1069,17 @@ function returnToWorkspace() {
 .library-filter-chip:hover {
   background: var(--bg-hover);
   color: var(--fg-primary);
+}
+
+.library-inline-button.is-primary {
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
+  background: color-mix(in srgb, var(--accent) 18%, var(--bg-primary));
+  color: var(--accent);
+}
+
+.library-inline-button.is-primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 24%, var(--bg-hover));
+  color: var(--accent);
 }
 
 .library-nav-item.is-active,
@@ -1278,10 +1384,6 @@ function returnToWorkspace() {
 
   .library-editor-stage {
     grid-column: auto;
-  }
-
-  .library-main-header {
-    flex-direction: column;
   }
 }
 </style>

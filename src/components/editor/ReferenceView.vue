@@ -41,54 +41,67 @@
         <div class="flex-1" v-if="detailsOpen"></div>
         <!-- Actions -->
         <div class="flex items-center gap-1 ml-auto" @click.stop>
-          <button
-            class="px-2 py-0.5 ui-text-micro rounded border hover:bg-[var(--bg-hover)] transition-colors"
-            :style="{ borderColor: 'var(--border)', color: 'var(--fg-secondary)' }"
-            @click="askAiAboutReference"
-          >
-            {{ t('Ask AI') }}
-          </button>
-          <button
-            class="px-2 py-0.5 ui-text-micro rounded border hover:bg-[var(--bg-hover)] transition-colors"
-            :style="{ borderColor: 'var(--border)', color: 'var(--fg-secondary)' }"
-            @click="pdfPath ? openPdf() : attachPdf()"
-          >
-            {{ pdfPath ? t('Open PDF') : t('Attach PDF...') }}
-          </button>
-          <button
-            class="px-2 py-0.5 ui-text-micro rounded border hover:bg-[var(--bg-hover)] transition-colors"
-            :style="{ borderColor: copyFlash ? 'var(--success)' : 'var(--border)', color: copyFlash ? 'var(--success)' : 'var(--fg-secondary)' }"
-            @click="handleCopyAs(copyFormat)"
-          >
-            {{ copyFlash ? t('Copied!') : t('Copy') }}
-          </button>
-          <select
-            :value="copyFormat"
-            class="ref-type-select"
-            @change="copyFormat = $event.target.value; handleCopyAs($event.target.value)"
-          >
-            <option value="apa">APA</option>
-            <option value="chicago">Chicago</option>
-            <option value="ieee">IEEE</option>
-            <option value="harvard">Harvard</option>
-            <option value="vancouver">Vancouver</option>
-            <option value="bibtex">BibTeX</option>
-          </select>
+          <template v-if="libraryEmbedded">
+            <button
+              class="px-2 py-0.5 ui-text-micro rounded border hover:bg-[var(--bg-hover)] transition-colors"
+              :style="{ borderColor: 'var(--border)', color: 'var(--fg-secondary)' }"
+              @click="pdfPath ? openPdf() : attachPdf()"
+            >
+              {{ pdfPath ? t('Open PDF') : t('Attach PDF...') }}
+            </button>
+          </template>
+          <template v-else>
+            <button
+              class="px-2 py-0.5 ui-text-micro rounded border hover:bg-[var(--bg-hover)] transition-colors"
+              :style="{ borderColor: 'var(--border)', color: 'var(--fg-secondary)' }"
+              @click="askAiAboutReference"
+            >
+              {{ t('Ask AI') }}
+            </button>
+            <button
+              class="px-2 py-0.5 ui-text-micro rounded border hover:bg-[var(--bg-hover)] transition-colors"
+              :style="{ borderColor: 'var(--border)', color: 'var(--fg-secondary)' }"
+              @click="pdfPath ? openPdf() : attachPdf()"
+            >
+              {{ pdfPath ? t('Open PDF') : t('Attach PDF...') }}
+            </button>
+            <button
+              class="px-2 py-0.5 ui-text-micro rounded border hover:bg-[var(--bg-hover)] transition-colors"
+              :style="{ borderColor: copyFlash ? 'var(--success)' : 'var(--border)', color: copyFlash ? 'var(--success)' : 'var(--fg-secondary)' }"
+              @click="handleCopyAs(copyFormat)"
+            >
+              {{ copyFlash ? t('Copied!') : t('Copy') }}
+            </button>
+            <select
+              :value="copyFormat"
+              class="ref-type-select"
+              @change="copyFormat = $event.target.value; handleCopyAs($event.target.value)"
+            >
+              <option value="apa">APA</option>
+              <option value="chicago">Chicago</option>
+              <option value="ieee">IEEE</option>
+              <option value="harvard">Harvard</option>
+              <option value="vancouver">Vancouver</option>
+              <option value="bibtex">BibTeX</option>
+            </select>
+          </template>
         </div>
-        <button
-          class="px-1.5 py-0.5 ui-text-xs rounded hover:bg-[var(--bg-hover)]"
-          :style="{ color: 'var(--fg-muted)' }"
-          @click.stop="deleteRef"
-        >
-          {{ t('Remove from this project') }}
-        </button>
-        <button
-          class="px-1.5 py-0.5 ui-text-xs rounded hover:bg-[var(--bg-hover)]"
-          :style="{ color: 'var(--error)' }"
-          @click.stop="deleteRefGlobally"
-        >
-          {{ t('Delete from global library') }}
-        </button>
+        <template v-if="!libraryEmbedded">
+          <button
+            class="px-1.5 py-0.5 ui-text-xs rounded hover:bg-[var(--bg-hover)]"
+            :style="{ color: 'var(--fg-muted)' }"
+            @click.stop="deleteRef"
+          >
+            {{ t('Remove from this project') }}
+          </button>
+          <button
+            class="px-1.5 py-0.5 ui-text-xs rounded hover:bg-[var(--bg-hover)]"
+            :style="{ color: 'var(--error)' }"
+            @click.stop="deleteRefGlobally"
+          >
+            {{ t('Delete from global library') }}
+          </button>
+        </template>
       </div>
 
     </div>
@@ -401,6 +414,7 @@ const props = defineProps({
   refKey: { type: String, required: true },
   paneId: { type: String, default: '' },
   embedded: { type: Boolean, default: false },
+  libraryEmbedded: { type: Boolean, default: false },
 })
 const emit = defineEmits(['close-embedded'])
 
@@ -411,6 +425,7 @@ const workspace = useWorkspaceStore()
 const filesStore = useFilesStore()
 const toastStore = useToastStore()
 const { t } = useI18n()
+const libraryEmbedded = computed(() => props.embedded && props.libraryEmbedded)
 
 const detailsOpen = vRef(true)
 const abstractExpanded = vRef(false)
