@@ -163,6 +163,12 @@ export const useWorkspaceStore = defineStore('workspace', {
       this.workspaceId = this.globalConfigDir ? await hashWorkspacePath(path) : ''
       this.workspaceDataDir = resolveWorkspaceDataDir(this.globalConfigDir, this.workspaceId)
       this.claudeConfigDir = resolveClaudeConfigDir(this.globalConfigDir)
+      await invoke('workspace_set_allowed_roots', {
+        workspaceRoot: path,
+        dataDir: this.workspaceDataDir || null,
+        globalConfigDir: this.globalConfigDir || null,
+        claudeConfigDir: this.claudeConfigDir || null,
+      })
       this._workspaceBootstrapGeneration += 1
       const bootstrapGeneration = this._workspaceBootstrapGeneration
       this._workspaceBootstrapPromise = this._bootstrapWorkspace(path, bootstrapGeneration)
@@ -237,7 +243,7 @@ export const useWorkspaceStore = defineStore('workspace', {
         loadWorkspaceUsage(isStale)
       }
 
-      if (!isStale()) {
+      if (!isStale() && await this._canAutoCommitWorkspace(path)) {
         void this.startAutoCommit()
       }
     },
@@ -744,7 +750,7 @@ export const useWorkspaceStore = defineStore('workspace', {
       if (!result) return
       this.remoteUrl = result.remoteUrl
       this.syncStatus = result.syncStatus
-      if (result.historyRepo?.initialized || result.historyRepo?.seeded) {
+      if (result.historyRepo?.autoCommitEnabled) {
         void this.startAutoCommit()
       }
       this.startSyncTimer()

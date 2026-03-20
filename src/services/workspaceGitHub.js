@@ -134,6 +134,7 @@ export async function linkWorkspaceRepo(path = '', cloneUrl = '') {
   const historyRepo = await ensureWorkspaceHistoryRepo(path, {
     seedInitialCommit: true,
     seedMessage: 'Initial snapshot',
+    enableAutoCommit: true,
   })
   if (!historyRepo?.ok) {
     throw new Error('Failed to initialize a local Git repository for this workspace.')

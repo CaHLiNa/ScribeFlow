@@ -50,6 +50,18 @@ async function copyDirIfMissing(src, dest) {
   return true
 }
 
+async function hasMigrationOverlap(pairs = []) {
+  for (const pair of pairs) {
+    const src = pair?.src
+    const dest = pair?.dest
+    if (!src || !dest) continue
+    if (await pathExists(src) && await pathExists(dest)) {
+      return true
+    }
+  }
+  return false
+}
+
 export async function initWorkspaceDataDir({
   altalsDir,
   legacyDir,
@@ -160,6 +172,23 @@ export async function initProjectDir({
 }) {
   if (!projectDir) return
 
+  const legacyProjectOverlap = legacyProjectDir
+    ? await hasMigrationOverlap([
+      { src: `${legacyProjectDir}/references`, dest: `${projectDir}/references` },
+      { src: `${legacyProjectDir}/styles`, dest: `${projectDir}/styles` },
+      { src: `${legacyProjectDir}/skills`, dest: `${projectDir}/skills` },
+      { src: `${legacyProjectDir}/citation-style.json`, dest: `${projectDir}/citation-style.json` },
+      { src: `${legacyProjectDir}/instructions.md`, dest: `${projectDir}/instructions.md` },
+    ])
+    : false
+  const legacyShouldersOverlap = legacyShouldersDir
+    ? await hasMigrationOverlap([
+      { src: `${legacyShouldersDir}/references`, dest: `${projectDir}/references` },
+      { src: `${legacyShouldersDir}/styles`, dest: `${projectDir}/styles` },
+      { src: `${legacyShouldersDir}/citation-style.json`, dest: `${projectDir}/citation-style.json` },
+    ])
+    : false
+
   await invoke('create_dir', { path: projectDir })
 
   if (legacyProjectDir && legacyProjectDir !== projectDir && await pathExists(legacyProjectDir)) {
@@ -232,11 +261,15 @@ export async function initProjectDir({
     })
   }
 
-  if (legacyProjectDir && legacyProjectDir !== projectDir && await pathExists(legacyProjectDir)) {
+  if (legacyProjectDir && legacyProjectDir !== projectDir && await pathExists(legacyProjectDir) && !legacyProjectOverlap) {
     await invoke('delete_path', { path: legacyProjectDir }).catch(() => {})
+  } else if (legacyProjectOverlap) {
+    console.warn('[workspace] legacy project dir retained because overlapping migrated targets already exist:', legacyProjectDir)
   }
-  if (legacyShouldersDir && legacyShouldersDir !== altalsDir && await pathExists(legacyShouldersDir)) {
+  if (legacyShouldersDir && legacyShouldersDir !== altalsDir && await pathExists(legacyShouldersDir) && !legacyShouldersOverlap) {
     await invoke('delete_path', { path: legacyShouldersDir }).catch(() => {})
+  } else if (legacyShouldersOverlap) {
+    console.warn('[workspace] legacy shoulders dir retained because overlapping migrated targets already exist:', legacyShouldersDir)
   }
 
   if (typeof migrateAutoInstructions === 'function') {

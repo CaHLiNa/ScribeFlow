@@ -322,6 +322,8 @@ async function openWorkspace(path, options = {}) {
     await invoke('workspace_set_allowed_roots', {
       workspaceRoot: targetPath,
       dataDir: workspace.workspaceDataDir || null,
+      globalConfigDir: workspace.globalConfigDir || null,
+      claudeConfigDir: workspace.claudeConfigDir || null,
     })
     editorStore.loadRecentFiles(targetPath)
 
@@ -373,7 +375,7 @@ async function openWorkspace(path, options = {}) {
       if (loadGeneration !== workspaceLoadGeneration || workspace.path !== targetPath) return
       await chatStore.loadSessions()
     }, 'chat.loadSessions')
-    scheduleWorkspaceBackgroundTask(300, loadGeneration, targetPath, async () => {
+    scheduleWorkspaceBackgroundTask(0, loadGeneration, targetPath, async () => {
       await workspace.ensureWorkspaceBootstrapReady(targetPath)
       if (loadGeneration !== workspaceLoadGeneration || workspace.path !== targetPath) return
       await referencesStore.loadLibrary()
@@ -778,7 +780,7 @@ async function forceSaveAndCommit() {
       })
       return
     }
-    if (historyRepo.initialized) {
+    if (historyRepo.autoCommitEnabled) {
       void workspace.startAutoCommit()
     }
 
@@ -853,6 +855,7 @@ function openVersionHistory(entry) {
   ensureWorkspaceHistoryRepo(workspace.path, {
     seedInitialCommit: true,
     seedMessage: t('Initial snapshot'),
+    enableAutoCommit: true,
   })
     .then((result) => {
       if (!result.ok) {
@@ -862,7 +865,7 @@ function openVersionHistory(entry) {
         })
         return
       }
-      if (result.initialized || result.seeded) {
+      if (result.autoCommitEnabled) {
         void workspace.startAutoCommit()
       }
       versionHistoryFile.value = entry.path

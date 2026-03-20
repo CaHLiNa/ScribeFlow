@@ -47,43 +47,47 @@ function loadGitHubTokenFromLocalStorage() {
   }
 }
 
-function storeGitHubTokenInLocalStorage(data) {
+function clearLegacyGitHubTokenFromLocalStorage() {
   try {
-    localStorage.setItem('githubToken', JSON.stringify(data))
+    localStorage.removeItem('githubToken')
   } catch {
-    // Ignore storage failures.
+    // Ignore cleanup failures.
   }
 }
 
 export async function storeGitHubToken(data) {
-  storeGitHubTokenInLocalStorage(data)
   try {
     await invoke('keychain_set', { key: GITHUB_KEYCHAIN_KEY, value: JSON.stringify(data) })
   } catch {
-    console.warn('[security] OS keychain unavailable — GitHub token stored in plaintext localStorage')
+    console.warn('[security] OS keychain unavailable — GitHub token will only persist for this app session')
   }
+  clearLegacyGitHubTokenFromLocalStorage()
 }
 
-export async function loadGitHubToken(options = {}) {
-  const localOnly = options?.localOnly === true
-  const cached = loadGitHubTokenFromLocalStorage()
-  if (cached) return cached
-  if (localOnly) return null
-
+export async function loadGitHubToken(_options = {}) {
   try {
     const raw = await invoke('keychain_get', { key: GITHUB_KEYCHAIN_KEY })
     if (raw) {
-      const parsed = JSON.parse(raw)
-      storeGitHubTokenInLocalStorage(parsed)
-      return parsed
+      clearLegacyGitHubTokenFromLocalStorage()
+      return JSON.parse(raw)
     }
   } catch {}
-  return null
+
+  const legacy = loadGitHubTokenFromLocalStorage()
+  if (!legacy) return null
+
+  clearLegacyGitHubTokenFromLocalStorage()
+  try {
+    await invoke('keychain_set', { key: GITHUB_KEYCHAIN_KEY, value: JSON.stringify(legacy) })
+  } catch {
+    console.warn('[security] Found a legacy GitHub token in localStorage but could not migrate it to the OS keychain')
+  }
+  return legacy
 }
 
 export async function clearGitHubToken() {
   try { await invoke('keychain_delete', { key: GITHUB_KEYCHAIN_KEY }) } catch {}
-  try { localStorage.removeItem('githubToken') } catch {}
+  clearLegacyGitHubTokenFromLocalStorage()
 }
 
 // ── GitHub API helpers (via Tauri HTTP proxy) ──

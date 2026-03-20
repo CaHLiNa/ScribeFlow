@@ -76,6 +76,45 @@ fn run_git_text(repo_path: &str, args: &[String]) -> Result<String, String> {
     }
 }
 
+fn run_git_commit_text(
+    repo_path: &str,
+    message: &str,
+    fallback_identity: Option<(&str, &str)>,
+) -> Result<String, String> {
+    let normalized = normalize_repo_path(repo_path)?;
+    let mut command = background_command("git");
+    command
+        .arg("-C")
+        .arg(&normalized)
+        .arg("commit")
+        .arg("-m")
+        .arg(message);
+
+    if let Some((name, email)) = fallback_identity {
+        command
+            .env("GIT_AUTHOR_NAME", name)
+            .env("GIT_AUTHOR_EMAIL", email)
+            .env("GIT_COMMITTER_NAME", name)
+            .env("GIT_COMMITTER_EMAIL", email);
+    }
+
+    let output = command.output().map_err(|e| e.to_string())?;
+    if output.status.success() {
+        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        Err(if !stderr.is_empty() { stderr } else { stdout })
+    }
+}
+
+fn is_missing_git_identity_error(message: &str) -> bool {
+    let lower = message.to_lowercase();
+    lower.contains("author identity unknown")
+        || lower.contains("unable to auto-detect email address")
+        || lower.contains("please tell me who you are")
+}
+
 fn is_git_conflict_error(message: &str) -> bool {
     let lower = message.to_lowercase();
     lower.contains("non-fast-forward")
@@ -256,27 +295,13 @@ pub async fn git_add_all(repo_path: String) -> Result<(), String> {
 
 #[tauri::command]
 pub async fn git_commit(repo_path: String, message: String) -> Result<String, String> {
-    let _ = run_git_text(
-        &repo_path,
-        &[
-            String::from("config"),
-            String::from("user.name"),
-            String::from("Altals"),
-        ],
-    );
-    let _ = run_git_text(
-        &repo_path,
-        &[
-            String::from("config"),
-            String::from("user.email"),
-            String::from("altals@local"),
-        ],
-    );
+    if let Err(error) = run_git_commit_text(&repo_path, &message, None) {
+        if !is_missing_git_identity_error(&error) {
+            return Err(error);
+        }
 
-    run_git_text(
-        &repo_path,
-        &[String::from("commit"), String::from("-m"), message],
-    )?;
+        run_git_commit_text(&repo_path, &message, Some(("Altals", "altals@local")))?;
+    }
 
     let head = run_git_text(
         &repo_path,

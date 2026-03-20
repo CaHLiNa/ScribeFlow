@@ -14,6 +14,7 @@ import {
   resolveGlobalReferenceLibraryPath,
   resolveGlobalReferencePdfPath,
   resolveGlobalReferencePdfsDir,
+  resolveGlobalReferencesDir,
   resolveGlobalReferenceFulltextDir,
   resolveLegacyWorkspaceReferenceFulltextDir,
   resolveLegacyWorkspaceReferenceLibraryPath,
@@ -210,6 +211,7 @@ export const useReferencesStore = defineStore('references', {
     sortBy: 'addedAt',  // field name: 'addedAt' | 'author' | 'year' | 'title'
     sortDir: 'desc',    // 'asc' | 'desc'
     citationStyle: 'apa',
+    _loadGeneration: 0,
   }),
 
   getters: {
@@ -290,66 +292,119 @@ export const useReferencesStore = defineStore('references', {
   actions: {
     // --- Persistence ---
 
-    async loadLibrary() {
+    _captureWorkspaceContext() {
       const workspace = useWorkspaceStore()
-      if (!workspace.projectDir || !workspace.globalConfigDir) return
+      return {
+        workspacePath: workspace.path || '',
+        projectDir: workspace.projectDir || '',
+        globalConfigDir: workspace.globalConfigDir || '',
+      }
+    },
+
+    _matchesWorkspaceContext(context) {
+      if (!context?.workspacePath || !context?.projectDir || !context?.globalConfigDir) return false
+      const workspace = useWorkspaceStore()
+      return (
+        workspace.path === context.workspacePath
+        && workspace.projectDir === context.projectDir
+        && workspace.globalConfigDir === context.globalConfigDir
+      )
+    },
+
+    _beginLoadContext() {
+      const context = this._captureWorkspaceContext()
+      if (!this._matchesWorkspaceContext(context)) return null
+      this._loadGeneration += 1
+      return {
+        ...context,
+        generation: this._loadGeneration,
+      }
+    },
+
+    _isLoadStale(context) {
+      if (!context) return true
+      return context.generation !== this._loadGeneration || !this._matchesWorkspaceContext(context)
+    },
+
+    async loadLibrary() {
+      const context = this._beginLoadContext()
+      if (!context) return
 
       this.loading = true
 
       try {
-        await this._ensureReferenceStorageReady()
-        let globalLibrary = await readJsonArray(resolveGlobalReferenceLibraryPath(workspace.globalConfigDir))
-        let workspaceCollection = await readWorkspaceReferenceCollection(resolveWorkspaceReferenceCollectionPath(workspace.projectDir))
+        try {
+          await this._ensureReferenceStorageReady(context)
+          if (this._isLoadStale(context)) return
 
-        const migration = await this._migrateLegacyWorkspaceData({
-          globalLibrary,
-          workspaceKeys: workspaceCollection.keys,
-        })
+          let globalLibrary = await readJsonArray(resolveGlobalReferenceLibraryPath(context.globalConfigDir))
+          if (this._isLoadStale(context)) return
 
-        globalLibrary = migration.globalLibrary
-        workspaceCollection = {
-          ...workspaceCollection,
-          keys: migration.workspaceKeys,
+          let workspaceCollection = await readWorkspaceReferenceCollection(resolveWorkspaceReferenceCollectionPath(context.projectDir))
+          if (this._isLoadStale(context)) return
+
+          const migration = await this._migrateLegacyWorkspaceData(context, {
+            globalLibrary,
+            workspaceKeys: workspaceCollection.keys,
+          })
+          if (this._isLoadStale(context)) return
+
+          globalLibrary = migration.globalLibrary
+          workspaceCollection = {
+            ...workspaceCollection,
+            keys: migration.workspaceKeys,
+          }
+
+          this.globalLibrary = globalLibrary
+          this.globalKeyMap = buildKeyMapFromList(globalLibrary)
+          const workspaceView = buildWorkspaceLibrary(globalLibrary, this.globalKeyMap, workspaceCollection.keys)
+          this.library = workspaceView.library
+          this.workspaceKeys = workspaceView.keys
+          this.keyMap = buildKeyMapFromList(workspaceView.library)
+
+          if (migration.didChange) {
+            await this._writeLibraries(context)
+            if (this._isLoadStale(context)) return
+          }
+        } catch (e) {
+          if (this._isLoadStale(context)) return
+          console.warn('Failed to load reference library:', e)
+          this.library = []
+          this.keyMap = {}
+          this.globalLibrary = []
+          this.globalKeyMap = {}
+          this.workspaceKeys = []
         }
 
-        this.globalLibrary = globalLibrary
-        this.globalKeyMap = buildKeyMapFromList(globalLibrary)
-        const workspaceView = buildWorkspaceLibrary(globalLibrary, this.globalKeyMap, workspaceCollection.keys)
-        this.library = workspaceView.library
-        this.workspaceKeys = workspaceView.keys
-        this.keyMap = buildKeyMapFromList(workspaceView.library)
+        if (this._isLoadStale(context)) return
 
-        if (migration.didChange) {
-          await this._writeLibraries()
+        // Load persisted citation style
+        try {
+          const stylePath = `${context.projectDir}/citation-style.json`
+          const exists = await invoke('path_exists', { path: stylePath })
+          if (exists) {
+            const raw = await invoke('read_file', { path: stylePath })
+            const data = JSON.parse(raw)
+            if (data.citationStyle) this.citationStyle = data.citationStyle
+          }
+        } catch { /* use default */ }
+
+        if (this._isLoadStale(context)) return
+
+        // Load user-added CSL styles from .project/styles/
+        try {
+          await this._loadUserStyles(context.projectDir)
+        } catch { /* no user styles */ }
+
+        if (this._isLoadStale(context)) return
+
+        this.initialized = true
+        await this.startWatching(context)
+      } finally {
+        if (!this._isLoadStale(context)) {
+          this.loading = false
         }
-      } catch (e) {
-        console.warn('Failed to load reference library:', e)
-        this.library = []
-        this.keyMap = {}
-        this.globalLibrary = []
-        this.globalKeyMap = {}
-        this.workspaceKeys = []
       }
-
-      // Load persisted citation style
-      try {
-        const stylePath = `${workspace.projectDir}/citation-style.json`
-        const exists = await invoke('path_exists', { path: stylePath })
-        if (exists) {
-          const raw = await invoke('read_file', { path: stylePath })
-          const data = JSON.parse(raw)
-          if (data.citationStyle) this.citationStyle = data.citationStyle
-        }
-      } catch { /* use default */ }
-
-      // Load user-added CSL styles from .project/styles/
-      try {
-        await this._loadUserStyles(workspace.projectDir)
-      } catch { /* no user styles */ }
-
-      this.initialized = true
-      this.loading = false
-      this.startWatching()
     },
 
     async _loadUserStyles(baseDir) {
@@ -387,20 +442,21 @@ export const useReferencesStore = defineStore('references', {
 
     _saveTimer: null,
     async saveLibrary() {
+      const context = this._captureWorkspaceContext()
       clearTimeout(this._saveTimer)
-      this._saveTimer = setTimeout(() => this._doSave(), 500)
+      this._saveTimer = setTimeout(() => this._doSave(context), 500)
     },
 
-    async _doSave() {
-      await this._writeLibraries()
+    async _doSave(context = this._captureWorkspaceContext()) {
+      if (!this._matchesWorkspaceContext(context)) return
+      await this._writeLibraries(context)
     },
 
-    async _writeLibraries() {
-      const workspace = useWorkspaceStore()
-      if (!workspace.projectDir || !workspace.globalConfigDir) return
+    async _writeLibraries(context = this._captureWorkspaceContext()) {
+      if (!context?.projectDir || !context?.globalConfigDir) return
 
-      const globalLibraryPath = resolveGlobalReferenceLibraryPath(workspace.globalConfigDir)
-      const workspaceCollectionPath = resolveWorkspaceReferenceCollectionPath(workspace.projectDir)
+      const globalLibraryPath = resolveGlobalReferenceLibraryPath(context.globalConfigDir)
+      const workspaceCollectionPath = resolveWorkspaceReferenceCollectionPath(context.projectDir)
       try {
         this._markSelfWrite(globalLibraryPath)
         await invoke('write_file', {
@@ -420,14 +476,14 @@ export const useReferencesStore = defineStore('references', {
       }
     },
 
-    async startWatching() {
-      const workspace = useWorkspaceStore()
-      if (!workspace.projectDir || !workspace.globalConfigDir) return
+    async startWatching(context = this._captureWorkspaceContext()) {
+      if (!this._matchesWorkspaceContext(context)) return
       if (this._unlisten) this._unlisten()
 
-      const globalLibraryPath = resolveGlobalReferenceLibraryPath(workspace.globalConfigDir)
-      const workspaceCollectionPath = resolveWorkspaceReferenceCollectionPath(workspace.projectDir)
+      const globalLibraryPath = resolveGlobalReferenceLibraryPath(context.globalConfigDir)
+      const workspaceCollectionPath = resolveWorkspaceReferenceCollectionPath(context.projectDir)
       this._unlisten = await listen('fs-change', async (event) => {
+        if (!this._matchesWorkspaceContext(context)) return
         const paths = event.payload?.paths || []
         const relevant = paths.filter((path) => path === globalLibraryPath || path === workspaceCollectionPath)
         if (relevant.length === 0) return
@@ -448,12 +504,16 @@ export const useReferencesStore = defineStore('references', {
     },
 
     cleanup() {
+      clearTimeout(this._saveTimer)
+      this._saveTimer = null
       this.stopWatching()
+      this._loadGeneration += 1
       this.library = []
       this.keyMap = {}
       this.globalLibrary = []
       this.globalKeyMap = {}
       this.workspaceKeys = []
+      this._selfWriteCounts = {}
       this.initialized = false
       this.loading = false
       this.activeKey = null
@@ -509,17 +569,16 @@ export const useReferencesStore = defineStore('references', {
       }
     },
 
-    async _ensureReferenceStorageReady() {
-      const workspace = useWorkspaceStore()
-      if (!workspace.projectDir || !workspace.globalConfigDir) return
+    async _ensureReferenceStorageReady(context = this._captureWorkspaceContext()) {
+      if (!context?.projectDir || !context?.globalConfigDir) return
 
-      const globalPdfsDir = resolveGlobalReferencePdfsDir(workspace.globalConfigDir)
-      const globalFulltextDir = resolveGlobalReferenceFulltextDir(workspace.globalConfigDir)
-      const globalLibraryPath = resolveGlobalReferenceLibraryPath(workspace.globalConfigDir)
-      const workspaceRefsDir = resolveWorkspaceReferencesDir(workspace.projectDir)
-      const workspaceCollectionPath = resolveWorkspaceReferenceCollectionPath(workspace.projectDir)
+      const globalPdfsDir = resolveGlobalReferencePdfsDir(context.globalConfigDir)
+      const globalFulltextDir = resolveGlobalReferenceFulltextDir(context.globalConfigDir)
+      const globalLibraryPath = resolveGlobalReferenceLibraryPath(context.globalConfigDir)
+      const workspaceRefsDir = resolveWorkspaceReferencesDir(context.projectDir)
+      const workspaceCollectionPath = resolveWorkspaceReferenceCollectionPath(context.projectDir)
 
-      await invoke('create_dir', { path: workspace.globalReferencesDir }).catch(() => {})
+      await invoke('create_dir', { path: resolveGlobalReferencesDir(context.globalConfigDir) }).catch(() => {})
       await invoke('create_dir', { path: globalPdfsDir }).catch(() => {})
       await invoke('create_dir', { path: globalFulltextDir }).catch(() => {})
       await invoke('create_dir', { path: workspaceRefsDir }).catch(() => {})
@@ -541,9 +600,8 @@ export const useReferencesStore = defineStore('references', {
       }
     },
 
-    async _migrateLegacyWorkspaceData({ globalLibrary = [], workspaceKeys = [] } = {}) {
-      const workspace = useWorkspaceStore()
-      const legacyLibraryPath = resolveLegacyWorkspaceReferenceLibraryPath(workspace.projectDir)
+    async _migrateLegacyWorkspaceData(context = this._captureWorkspaceContext(), { globalLibrary = [], workspaceKeys = [] } = {}) {
+      const legacyLibraryPath = resolveLegacyWorkspaceReferenceLibraryPath(context.projectDir)
       const legacyRefs = await readJsonArray(legacyLibraryPath)
       if (legacyRefs.length === 0) {
         return {
@@ -579,7 +637,7 @@ export const useReferencesStore = defineStore('references', {
           didChange = true
         }
 
-        const assetChanged = await this._migrateLegacyReferenceAssets(targetRef, legacyRef, key)
+        const assetChanged = await this._migrateLegacyReferenceAssets(context, targetRef, legacyRef, key)
         if (assetChanged) didChange = true
       }
 
@@ -590,18 +648,17 @@ export const useReferencesStore = defineStore('references', {
       }
     },
 
-    async _migrateLegacyReferenceAssets(targetRef, legacyRef, key) {
-      const workspace = useWorkspaceStore()
-      if (!workspace.projectDir || !workspace.globalConfigDir) return false
+    async _migrateLegacyReferenceAssets(context = this._captureWorkspaceContext(), targetRef, legacyRef, key) {
+      if (!context?.projectDir || !context?.globalConfigDir) return false
 
       let changed = false
-      const legacyPdfsDir = resolveLegacyWorkspaceReferencePdfsDir(workspace.projectDir)
-      const legacyFulltextDir = resolveLegacyWorkspaceReferenceFulltextDir(workspace.projectDir)
+      const legacyPdfsDir = resolveLegacyWorkspaceReferencePdfsDir(context.projectDir)
+      const legacyFulltextDir = resolveLegacyWorkspaceReferenceFulltextDir(context.projectDir)
 
       if (legacyRef?._pdfFile && !targetRef?._pdfFile) {
         const copied = await copyFileIfPresent(
           `${legacyPdfsDir}/${legacyRef._pdfFile}`,
-          resolveGlobalReferencePdfPath(workspace.globalConfigDir, `${key}.pdf`),
+          resolveGlobalReferencePdfPath(context.globalConfigDir, `${key}.pdf`),
         )
         if (copied) {
           targetRef._pdfFile = `${key}.pdf`
@@ -612,7 +669,7 @@ export const useReferencesStore = defineStore('references', {
       if (legacyRef?._textFile && !targetRef?._textFile) {
         const copied = await copyFileIfPresent(
           `${legacyFulltextDir}/${legacyRef._textFile}`,
-          resolveGlobalReferenceFulltextPath(workspace.globalConfigDir, `${key}.txt`),
+          resolveGlobalReferenceFulltextPath(context.globalConfigDir, `${key}.txt`),
         )
         if (copied) {
           targetRef._textFile = `${key}.txt`

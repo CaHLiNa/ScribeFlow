@@ -15,6 +15,8 @@ pub struct WorkspaceScopeState {
 struct AllowedRoots {
     workspace_root: Option<PathBuf>,
     data_dir: Option<PathBuf>,
+    global_config_dir: Option<PathBuf>,
+    claude_config_dir: Option<PathBuf>,
 }
 
 impl Default for WorkspaceScopeState {
@@ -59,6 +61,28 @@ impl WorkspaceScopeState {
         let root = self.allowed_workspace_root()?;
         Ok(is_within_root(path, &root))
     }
+
+    fn has_registered_roots(&self) -> Result<bool, String> {
+        let roots = self.allowed_roots()?;
+        Ok(roots.workspace_root.is_some()
+            || roots.data_dir.is_some()
+            || roots.global_config_dir.is_some()
+            || roots.claude_config_dir.is_some())
+    }
+
+    fn is_within_any_allowed_root(&self, path: &Path) -> Result<bool, String> {
+        let roots = self.allowed_roots()?;
+        let is_allowed = [
+            roots.workspace_root.as_ref(),
+            roots.data_dir.as_ref(),
+            roots.global_config_dir.as_ref(),
+            roots.claude_config_dir.as_ref(),
+        ]
+        .into_iter()
+        .flatten()
+        .any(|root| is_within_root(path, root));
+        Ok(is_allowed)
+    }
 }
 
 fn prepare_allowed_directory(path: &Path, create_if_missing: bool) -> Result<PathBuf, String> {
@@ -80,6 +104,8 @@ fn prepare_allowed_directory(path: &Path, create_if_missing: bool) -> Result<Pat
 pub fn workspace_set_allowed_roots(
     workspace_root: String,
     data_dir: Option<String>,
+    global_config_dir: Option<String>,
+    claude_config_dir: Option<String>,
     state: tauri::State<'_, WorkspaceScopeState>,
 ) -> Result<(), String> {
     let canonical_workspace_root = prepare_allowed_directory(Path::new(&workspace_root), false)
@@ -104,6 +130,32 @@ pub fn workspace_set_allowed_roots(
         _ => None,
     };
 
+    let canonical_global_config_dir = match global_config_dir {
+        Some(path) if !path.trim().is_empty() => Some(
+            prepare_allowed_directory(Path::new(&path), true).map_err(|error| {
+                if error.starts_with("Allowed root is not a directory:") {
+                    error.replacen("Allowed root", "Global config directory", 1)
+                } else {
+                    error
+                }
+            })?,
+        ),
+        _ => None,
+    };
+
+    let canonical_claude_config_dir = match claude_config_dir {
+        Some(path) if !path.trim().is_empty() => Some(
+            prepare_allowed_directory(Path::new(&path), true).map_err(|error| {
+                if error.starts_with("Allowed root is not a directory:") {
+                    error.replacen("Allowed root", "Claude config directory", 1)
+                } else {
+                    error
+                }
+            })?,
+        ),
+        _ => None,
+    };
+
     let mut guard = state
         .allowed_roots
         .lock()
@@ -111,6 +163,8 @@ pub fn workspace_set_allowed_roots(
     *guard = AllowedRoots {
         workspace_root: Some(canonical_workspace_root),
         data_dir: canonical_data_dir,
+        global_config_dir: canonical_global_config_dir,
+        claude_config_dir: canonical_claude_config_dir,
     };
     Ok(())
 }
@@ -134,6 +188,25 @@ pub fn ensure_workspace_cwd(state: &WorkspaceScopeState, cwd: &str) -> Result<Pa
     } else {
         Err(format!(
             "Path is outside the active workspace: {}",
+            canonical.display()
+        ))
+    }
+}
+
+pub fn ensure_allowed_mutation_path(
+    state: &WorkspaceScopeState,
+    path: &Path,
+) -> Result<PathBuf, String> {
+    if !state.has_registered_roots()? {
+        return Err("No active workspace roots are registered".to_string());
+    }
+
+    let canonical = canonicalize_for_scope(path)?;
+    if state.is_within_any_allowed_root(&canonical)? {
+        Ok(canonical)
+    } else {
+        Err(format!(
+            "Path is outside the allowed workspace roots: {}",
             canonical.display()
         ))
     }
@@ -334,6 +407,7 @@ mod tests {
         *state.allowed_roots.lock().unwrap() = AllowedRoots {
             workspace_root: Some(canonicalize_for_scope(&workspace_root).unwrap()),
             data_dir: Some(canonicalize_for_scope(&data_root).unwrap()),
+            ..Default::default()
         };
 
         let workspace_file =
@@ -356,6 +430,7 @@ mod tests {
         *state.allowed_roots.lock().unwrap() = AllowedRoots {
             workspace_root: Some(canonicalize_for_scope(&workspace_root).unwrap()),
             data_dir: None,
+            ..Default::default()
         };
 
         let err = resolve_allowed_scoped_path(&state, "workspace", "../outside.pdf").unwrap_err();
@@ -373,6 +448,7 @@ mod tests {
         *state.allowed_roots.lock().unwrap() = AllowedRoots {
             workspace_root: Some(canonicalize_for_scope(&workspace_root).unwrap()),
             data_dir: None,
+            ..Default::default()
         };
 
         let err = resolve_allowed_scoped_path(&state, "data", "references/file.pdf").unwrap_err();
