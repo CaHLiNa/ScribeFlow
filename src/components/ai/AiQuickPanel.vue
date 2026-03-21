@@ -3,14 +3,14 @@
     <div class="flex-1 min-h-0 overflow-y-auto">
       <div class="ai-quick-shell">
         <div class="ai-quick-context">
-          <div class="ai-quick-eyebrow">{{ t('Quick AI') }}</div>
+          <div class="ai-quick-eyebrow">{{ t('Workflow starts') }}</div>
           <div class="ai-quick-context-label">
             {{ contextLabel }}
           </div>
         </div>
 
         <div v-if="quickItems.length" class="ai-quick-section">
-          <div class="ai-quick-section-title">{{ t('Quick actions') }}</div>
+          <div class="ai-quick-section-title">{{ t('Workflow starters') }}</div>
           <div class="ai-quick-actions">
             <button
               v-for="item in quickItems"
@@ -19,7 +19,12 @@
               @click="runQuickItem(item)"
             >
               <div class="ai-quick-action-label">{{ item.label }}</div>
-              <div v-if="item.meta" class="ai-quick-action-meta">{{ item.meta }}</div>
+              <div v-if="item.description || item.task?.description" class="ai-quick-action-description">
+                {{ item.description || item.task?.description }}
+              </div>
+              <div v-if="item.meta || item.task?.meta" class="ai-quick-action-meta">
+                {{ item.meta || item.task?.meta }}
+              </div>
             </button>
           </div>
         </div>
@@ -51,7 +56,7 @@ import { useChatStore } from '../../stores/chat'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useI18n } from '../../i18n'
 import { getChatInputToolItems, getQuickAiItems } from '../../services/ai/taskCatalog'
-import { launchAiTask, startAiConversation } from '../../services/ai/launch'
+import { launchAiTask, launchWorkflowTask, startAiConversation } from '../../services/ai/launch'
 import ChatInput from '../chat/ChatInput.vue'
 
 const props = defineProps({
@@ -105,15 +110,26 @@ async function sendChat({ text, fileRefs, context }) {
 
 async function runQuickItem(item) {
   if (!item?.task) return
+  const task = {
+    ...item.task,
+    label: item.label || item.task.label,
+  }
+  if (task.action === 'workflow') {
+    await launchWorkflowTask({
+      editorStore,
+      chatStore,
+      surface: 'drawer',
+      modelId: selectedModelId.value,
+      task,
+    })
+    return
+  }
   await launchAiTask({
     editorStore,
     chatStore,
     surface: 'drawer',
     modelId: selectedModelId.value,
-    task: {
-      ...item.task,
-      label: item.label || item.task.label,
-    },
+    task,
   })
 }
 
@@ -204,6 +220,13 @@ defineExpose({ focus })
   margin-top: 3px;
   font-size: 11px;
   color: var(--fg-muted);
+  line-height: 1.4;
+}
+
+.ai-quick-action-description {
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--fg-secondary);
   line-height: 1.4;
 }
 

@@ -40,18 +40,18 @@
               <div class="flex-1 min-w-0 flex flex-col">
                 <span class="ui-text-title min-w-0" :class="compact ? 'whitespace-normal break-words' : 'truncate'">{{ item.label }}</span>
                 <span
-                  v-if="item.description"
+                  v-if="item.description || item.task?.description"
                   class="ui-text-label min-w-0 mt-0.5"
                   :class="compact ? 'whitespace-normal break-words' : 'truncate'"
                   style="color: var(--fg-muted);"
-                >{{ item.description }}</span>
+                >{{ item.description || item.task?.description }}</span>
               </div>
               <span
-                v-if="item.meta"
+                v-if="item.meta || item.task?.meta"
                 class="ui-text-label shrink-0"
                 :class="compact ? 'w-full ml-5 mt-0.5 whitespace-normal break-words' : 'whitespace-nowrap mx-4'"
                 style="color: var(--fg-muted);"
-              >{{ item.meta }}</span>
+              >{{ item.meta || item.task?.meta }}</span>
             </button>
             <button
               v-if="item.deleteAction"
@@ -100,7 +100,7 @@ import { useChatStore } from '../../stores/chat'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useI18n, formatRelativeFromNow } from '../../i18n'
 import { getAiCapabilityItems, getAiLauncherItems, getChatInputToolItems } from '../../services/ai/taskCatalog'
-import { launchAiTask, startAiConversation } from '../../services/ai/launch'
+import { launchAiTask, launchWorkflowTask, startAiConversation } from '../../services/ai/launch'
 import ChatInput from '../chat/ChatInput.vue'
 
 const props = defineProps({
@@ -360,16 +360,27 @@ async function sendChat({ text, fileRefs, context }) {
 }
 
 async function runAiTask(task, label) {
+  const nextTask = {
+    ...task,
+    label,
+  }
+  if (nextTask.action === 'workflow') {
+    return await launchWorkflowTask({
+      editorStore,
+      chatStore,
+      paneId: props.surface === 'pane' ? props.paneId : null,
+      surface: props.surface,
+      modelId: selectedModelId.value,
+      task: nextTask,
+    })
+  }
   await launchAiTask({
     editorStore,
     chatStore,
     paneId: props.surface === 'pane' ? props.paneId : null,
     surface: props.surface,
     modelId: selectedModelId.value,
-    task: {
-      ...task,
-      label,
-    },
+    task: nextTask,
   })
 }
 

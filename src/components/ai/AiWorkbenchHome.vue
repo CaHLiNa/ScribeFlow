@@ -6,10 +6,10 @@
     <div class="ai-workbench-home-scroll flex-1 min-h-0 overflow-y-auto">
       <div class="ai-workbench-home-shell">
         <section class="ai-workbench-hero-panel">
-          <div class="ai-workbench-hero-kicker">{{ t('AI Workspace') }}</div>
-          <h1 class="ai-workbench-hero-title">{{ t('How should AI help next?') }}</h1>
+          <div class="ai-workbench-hero-kicker">{{ t('AI workflow workspace') }}</div>
+          <h1 class="ai-workbench-hero-title">{{ t('Start a workflow, not just a chat') }}</h1>
           <p class="ai-workbench-hero-description">
-            {{ t('Use AI sessions that stay attached to the current project and file context.') }}
+            {{ t('Launch project-aware workflows from the current file or workspace, or fall back to General chat for open-ended help.') }}
           </p>
           <div class="ai-workbench-hero-meta">
             <span class="ai-workbench-meta-pill">{{ workspaceName }}</span>
@@ -20,13 +20,13 @@
         <section class="ai-workbench-collaboration-stage">
           <div class="ai-workbench-collaboration-main">
             <div class="ai-workbench-section-header">
-              <div class="ai-workbench-section-title">{{ t('Start from current project') }}</div>
+              <div class="ai-workbench-section-title">{{ t('Workflow starts from current project') }}</div>
             </div>
             <div class="ai-workbench-collaboration-title">
-              {{ t('Choose a starting move, then continue the conversation below.') }}
+              {{ t('Choose a workflow run, then continue in the session below.') }}
             </div>
             <div class="ai-workbench-collaboration-copy">
-              {{ t('Use the current file or project as the starting point for longer AI work.') }}
+              {{ t('Review, search, or diagnose from the current file and project context.') }}
             </div>
 
             <div v-if="primaryStarterTasks.length" class="ai-workbench-starter-grid">
@@ -37,7 +37,10 @@
                 @click="runTask(item)"
               >
                 <div class="ai-workbench-starter-label">{{ item.label }}</div>
-                <div v-if="item.meta" class="ai-workbench-starter-meta">{{ item.meta }}</div>
+                <div v-if="item.description || item.task?.description" class="ai-workbench-starter-description">
+                  {{ item.description || item.task?.description }}
+                </div>
+                <div v-if="item.meta || item.task?.meta" class="ai-workbench-starter-meta">{{ item.meta || item.task?.meta }}</div>
               </button>
             </div>
           </div>
@@ -52,7 +55,7 @@
             </div>
 
             <div v-if="secondaryStarterTasks.length" class="ai-workbench-side-section">
-              <div class="ai-workbench-section-title">{{ t('More starting points') }}</div>
+              <div class="ai-workbench-section-title">{{ t('More workflow starts') }}</div>
               <div class="ai-workbench-side-list">
                 <button
                   v-for="item in secondaryStarterTasks"
@@ -61,7 +64,10 @@
                   @click="runTask(item)"
                 >
                   <span class="ai-workbench-side-item-label">{{ item.label }}</span>
-                  <span v-if="item.meta" class="ai-workbench-side-item-meta">{{ item.meta }}</span>
+                  <span v-if="item.description || item.task?.description" class="ai-workbench-side-item-description">
+                    {{ item.description || item.task?.description }}
+                  </span>
+                  <span v-if="item.meta || item.task?.meta" class="ai-workbench-side-item-meta">{{ item.meta || item.task?.meta }}</span>
                 </button>
               </div>
             </div>
@@ -87,7 +93,7 @@
                   @click="runTask(item)"
                 >
                   <span class="ai-workbench-workflow-item-label">{{ item.label }}</span>
-                  <span v-if="item.meta" class="ai-workbench-workflow-item-meta">{{ item.meta }}</span>
+                  <span v-if="item.meta || item.task?.meta" class="ai-workbench-workflow-item-meta">{{ item.meta || item.task?.meta }}</span>
                 </button>
               </div>
             </div>
@@ -119,7 +125,7 @@ import { useEditorStore } from '../../stores/editor'
 import { useChatStore } from '../../stores/chat'
 import { useI18n } from '../../i18n'
 import { getAiLauncherItems, getChatInputToolItems, getQuickAiItems } from '../../services/ai/taskCatalog'
-import { launchAiTask, startAiConversation } from '../../services/ai/launch'
+import { launchAiTask, launchWorkflowTask, startAiConversation } from '../../services/ai/launch'
 import ChatInput from '../chat/ChatInput.vue'
 
 const props = defineProps({
@@ -189,14 +195,14 @@ function uniqueByTask(items = []) {
 const starterTasks = computed(() => {
   const preferredTaskIds = [
     'review.current-draft',
-    'citation.current-draft',
-    'chat.general',
-    'writer.continue',
     'research.paper-search',
+    'citation.current-draft',
     'citation.prefill',
     'code.prefill',
-    'pdf.summarise',
+    'chat.general',
+    'writer.continue',
     'code.explain-current',
+    'pdf.summarise',
   ]
 
   const combined = uniqueByTask([...quickItems.value, ...launcherItems.value])
@@ -251,15 +257,26 @@ const workflowSections = computed(() => {
 
 async function runTask(item) {
   if (!item?.task) return
+  const task = {
+    ...item.task,
+    label: item.label || item.task.label,
+  }
+  if (task.action === 'workflow') {
+    await launchWorkflowTask({
+      editorStore,
+      chatStore,
+      surface: 'workbench',
+      modelId: selectedModelId.value,
+      task,
+    })
+    return
+  }
   await launchAiTask({
     editorStore,
     chatStore,
     surface: 'workbench',
     modelId: selectedModelId.value,
-    task: {
-      ...item.task,
-      label: item.label || item.task.label,
-    },
+    task,
   })
 }
 
@@ -550,6 +567,17 @@ defineExpose({ focus })
   font-size: var(--ai-workbench-meta-size);
   line-height: 1.45;
   color: var(--fg-muted);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.ai-workbench-side-item-description,
+.ai-workbench-starter-description {
+  min-width: 0;
+  margin-top: 4px;
+  font-size: var(--ai-workbench-meta-size);
+  line-height: 1.45;
+  color: var(--fg-secondary);
   overflow-wrap: anywhere;
   word-break: break-word;
 }

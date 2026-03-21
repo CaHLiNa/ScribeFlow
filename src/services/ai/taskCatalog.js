@@ -6,6 +6,7 @@ import {
   categoryHasExternal,
   categoryToolCount,
 } from './toolRegistry.js'
+import { getWorkflowTemplate } from './workflowRuns/templates.js'
 
 function fileName(path) {
   return String(path || '').split('/').pop() || path
@@ -39,7 +40,10 @@ function createWorkflowTaskDescriptor({
   artifactIntent = null,
   fileRefs = null,
   richHtml = null,
+  meta = '',
+  description = '',
 } = {}) {
+  const boundaryCopy = workflowTemplateId ? buildWorkflowBoundaryCopy(workflowTemplateId, translate) : null
   return {
     action: 'workflow',
     workflowTemplateId,
@@ -55,7 +59,72 @@ function createWorkflowTaskDescriptor({
     artifactIntent,
     fileRefs: Array.isArray(fileRefs) ? fileRefs : null,
     richHtml: richHtml || null,
+    meta: meta || boundaryCopy?.meta || null,
+    description: description || boundaryCopy?.description || null,
   }
+}
+
+export function buildWorkflowBoundaryCopy(workflowTemplateId, t = translate) {
+  let template = null
+  try {
+    template = getWorkflowTemplate(workflowTemplateId)
+  } catch {
+    return {
+      meta: t('Workflow'),
+      description: t('Auto-runs as a workflow, then pauses when needed.'),
+    }
+  }
+
+  const approvalLabel = template.approvalTypes.includes('apply_patch')
+    ? t('patch approval')
+    : template.approvalTypes.includes('accept_sources')
+      ? t('source approval')
+      : ''
+
+  const actionLabel = template.id === 'draft.review-revise'
+    ? t('review')
+    : template.id === 'references.search-intake'
+      ? t('search and intake')
+      : t('diagnosis and fix suggestions')
+
+  if (template.id === 'draft.review-revise') {
+    return {
+      meta: t('Workflow · review first'),
+      description: t('Auto-runs review, then pauses for patch approval.'),
+    }
+  }
+
+  if (template.id === 'references.search-intake') {
+    return {
+      meta: t('Workflow · source approval'),
+      description: t('Auto-runs search and intake, then pauses for source approval.'),
+    }
+  }
+
+  if (template.id === 'code.debug-current') {
+    return {
+      meta: t('Workflow · no edit-by-default'),
+      description: t('Auto-runs diagnosis and fix suggestions without editing files by default.'),
+    }
+  }
+
+  return {
+    meta: template.approvalTypes.length
+      ? t('Workflow · {approval}', { approval: approvalLabel || t('approval') })
+      : t('Workflow · auto-runs'),
+    description: approvalLabel
+      ? t('Auto-runs {action}, then pauses for {approval}.', {
+        action: actionLabel,
+        approval: approvalLabel,
+      })
+      : t('Auto-runs {action} as a workflow.', { action: actionLabel }),
+  }
+}
+
+function appendUniqueTask(items, nextItem) {
+  const key = nextItem?.task?.taskId || nextItem?.label
+  if (!key || items.some((item) => (item?.task?.taskId || item?.label) === key)) return
+  items.push(nextItem)
 }
 
 function buildWritingTasks(path, t) {
@@ -229,32 +298,8 @@ function buildContextTasks(path, t) {
 function buildWorkflowSections(t) {
   return [
     {
-      header: t('General'),
-      items: [
-        {
-          label: t('General chat'),
-          task: {
-            action: 'prefill',
-            role: 'general',
-            taskId: 'chat.general',
-            prompt: t('Help me think through this research task.'),
-          },
-        },
-      ],
-    },
-    {
       header: t('Writing'),
       items: [
-        {
-          label: t('Continue writing'),
-          task: {
-            action: 'prefill',
-            role: 'writer',
-            toolProfile: 'writer',
-            taskId: 'writer.continue',
-            prompt: t('Help me continue writing this section. Start by asking what I am working on.'),
-          },
-        },
         {
           label: t('Review current draft'),
           task: createWorkflowTaskDescriptor({
@@ -267,21 +312,21 @@ function buildWorkflowSections(t) {
             prompt: t('Act as a critical peer reviewer. Review this draft for originality, logic, clarity, and evidence:'),
           }),
         },
+        {
+          label: t('Continue writing'),
+          task: {
+            action: 'prefill',
+            role: 'writer',
+            toolProfile: 'writer',
+            taskId: 'writer.continue',
+            prompt: t('Help me continue writing this section. Start by asking what I am working on.'),
+          },
+        },
       ],
     },
     {
       header: t('Research'),
       items: [
-        {
-          label: t('Literature review'),
-          task: {
-            action: 'prefill',
-            role: 'researcher',
-            toolProfile: 'researcher',
-            taskId: 'research.literature-review',
-            prompt: t('Help me run a literature review around this topic:'),
-          },
-        },
         {
           label: t('Search academic papers'),
           task: createWorkflowTaskDescriptor({
@@ -292,6 +337,16 @@ function buildWorkflowSections(t) {
             label: t('Search academic papers'),
             prompt: t('Help me search academic papers for this topic. Prefer using search_papers first, then present the best candidates with create_proposal.'),
           }),
+        },
+        {
+          label: t('Literature review'),
+          task: {
+            action: 'prefill',
+            role: 'researcher',
+            toolProfile: 'researcher',
+            taskId: 'research.literature-review',
+            prompt: t('Help me run a literature review around this topic:'),
+          },
         },
         {
           label: t('Web Research'),
@@ -376,6 +431,20 @@ function buildWorkflowSections(t) {
         },
       ],
     },
+    {
+      header: t('General'),
+      items: [
+        {
+          label: t('General chat'),
+          task: {
+            action: 'prefill',
+            role: 'general',
+            taskId: 'chat.general',
+            prompt: t('Help me think through this research task.'),
+          },
+        },
+      ],
+    },
   ]
 }
 
@@ -410,30 +479,74 @@ export function getAiLauncherItems({ currentPath = '', recentFiles = [], t }) {
 export function getQuickAiItems({ currentPath = '', recentFiles = [], t }) {
   const primaryPath = currentPath || recentFiles[0]?.path || ''
   const contextItems = buildContextTasks(primaryPath, t).slice(0, 3)
+  const quickItems = [...contextItems]
 
   const quickWorkflowItems = [
     {
-      label: t('General chat'),
-      task: {
-        action: 'prefill',
-        role: 'general',
-        taskId: 'chat.general',
-        prompt: t('Help me think through this research task.'),
-      },
+      label: t('Review current draft'),
+      task: createWorkflowTaskDescriptor({
+        workflowTemplateId: 'draft.review-revise',
+        role: 'reviewer',
+        toolProfile: 'reviewer',
+        taskId: 'review.current-draft',
+        artifactIntent: 'review',
+        label: t('Review current draft'),
+        prompt:
+          t('Review this draft for argument quality, clarity, structure, and academic tone. Point out concrete revision opportunities.'),
+      }),
     },
     {
-      label: t('Web Research'),
-      task: {
-        action: 'prefill',
-        role: 'researcher',
-        toolProfile: 'researcher',
-        taskId: 'research.web',
-        prompt: t('Help me investigate external websites and online sources for this topic. Use web_search and fetch_url when useful.'),
-      },
+      label: t('Search academic papers'),
+      task: createWorkflowTaskDescriptor({
+        workflowTemplateId: 'references.search-intake',
+        role: 'citation_librarian',
+        toolProfile: 'citation_librarian',
+        taskId: 'research.paper-search',
+        label: t('Search academic papers'),
+        prompt:
+          t('Help me search academic papers for this topic. Prefer using search_papers first, then present the best candidates with create_proposal.'),
+      }),
+    },
+    {
+      label: t('Citation help'),
+      task: createWorkflowTaskDescriptor({
+        workflowTemplateId: 'references.search-intake',
+        role: 'citation_librarian',
+        toolProfile: 'citation_librarian',
+        taskId: 'citation.prefill',
+        artifactIntent: 'citation_set',
+        label: t('Citation help'),
+        prompt: t('Help me find and integrate citations for this section or claim:'),
+      }),
+    },
+    {
+      label: t('Code assistant'),
+      task: createWorkflowTaskDescriptor({
+        workflowTemplateId: 'code.debug-current',
+        role: 'code_assistant',
+        toolProfile: 'code_assistant',
+        taskId: 'code.prefill',
+        label: t('Code assistant'),
+        prompt: t('Help me with this research code, notebook, or debugging task:'),
+      }),
     },
   ]
 
-  return [...contextItems, ...quickWorkflowItems]
+  for (const item of quickWorkflowItems) {
+    appendUniqueTask(quickItems, item)
+  }
+
+  appendUniqueTask(quickItems, {
+    label: t('General chat'),
+    task: {
+      action: 'prefill',
+      role: 'general',
+      taskId: 'chat.general',
+      prompt: t('Help me think through this research task.'),
+    },
+  })
+
+  return quickItems
 }
 
 export function createCommentReviewTask({ filePath, relativePath, count, label = '' }) {

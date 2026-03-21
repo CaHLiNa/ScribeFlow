@@ -2,7 +2,12 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 
 import { createWorkflowPlan } from '../src/services/ai/workflowRuns/planner.js'
-import { getAiLauncherItems, getChatInputToolItems } from '../src/services/ai/taskCatalog.js'
+import {
+  buildWorkflowBoundaryCopy,
+  getAiLauncherItems,
+  getChatInputToolItems,
+  getQuickAiItems,
+} from '../src/services/ai/taskCatalog.js'
 import {
   WORKFLOW_TEMPLATE_IDS,
   WORKFLOW_TEMPLATES,
@@ -124,6 +129,36 @@ test('current draft review launcher entry maps to the draft review workflow', ()
   assert.equal(task.role, 'reviewer')
   assert.equal(task.toolProfile, 'reviewer')
   assert.equal(task.filePath, '/tmp/draft.md')
+  assert.match(task.description || '', /patch approval/i)
+  assert.match(task.meta || '', /Workflow/i)
+})
+
+test('quick items prioritize workflow starts and keep general chat as the only free chat entry', () => {
+  const items = getQuickAiItems({ t })
+  const taskIds = items.map((item) => item.task?.taskId)
+  const actions = items.map((item) => item.task?.action)
+
+  assert.deepEqual(taskIds.slice(0, 4), [
+    'review.current-draft',
+    'research.paper-search',
+    'citation.prefill',
+    'code.prefill',
+  ])
+  assert.ok(taskIds.includes('chat.general'))
+  assert.equal(taskIds.includes('research.web'), false)
+  assert.equal(items.find((item) => item.task?.taskId === 'chat.general')?.task?.action, 'prefill')
+  assert.deepEqual(actions.slice(0, 4), ['workflow', 'workflow', 'workflow', 'workflow'])
+})
+
+test('workflow boundary copy exposes auto-run and approval boundaries', () => {
+  const reviewCopy = buildWorkflowBoundaryCopy('draft.review-revise', t)
+  const referenceCopy = buildWorkflowBoundaryCopy('references.search-intake', t)
+  const codeCopy = buildWorkflowBoundaryCopy('code.debug-current', t)
+
+  assert.match(reviewCopy.description, /patch approval/i)
+  assert.match(referenceCopy.description, /source approval/i)
+  assert.match(codeCopy.description, /without editing files/i)
+  assert.match(reviewCopy.meta, /workflow/i)
 })
 
 test('paper search and citation help launcher entries map to workflow descriptors', () => {
