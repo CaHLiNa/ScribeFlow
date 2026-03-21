@@ -1,15 +1,19 @@
-import { randomUUID } from 'node:crypto'
-
 const RUN_STATUSES = new Set(['draft', 'planned', 'running', 'waiting_user', 'completed', 'failed'])
 const STEP_STATUSES = new Set(['pending', 'running', 'completed', 'failed'])
 const CHECKPOINT_STATUSES = new Set(['open', 'resolved'])
+
+let idCounter = 0
 
 function now() {
   return new Date().toISOString()
 }
 
 function createId(prefix) {
-  return `${prefix}-${randomUUID()}`
+  const browserUUID = globalThis.crypto?.randomUUID?.()
+  if (browserUUID) return `${prefix}-${browserUUID}`
+
+  idCounter += 1
+  return `${prefix}-${Date.now().toString(36)}-${idCounter.toString(36)}`
 }
 
 function clone(value) {
@@ -101,6 +105,10 @@ function anyOpenCheckpoint(run) {
   return (run.checkpoints || []).some((checkpoint) => checkpoint.status === 'open')
 }
 
+function firstOpenCheckpoint(run) {
+  return (run.checkpoints || []).find((checkpoint) => checkpoint.status === 'open') || null
+}
+
 function allStepsCompleted(run) {
   return (run.steps || []).length > 0 && run.steps.every((step) => step.status === 'completed')
 }
@@ -114,17 +122,21 @@ function withRunUpdate(run, patch = {}) {
 }
 
 function withStepUpdate(run, stepId, updater) {
+  const base = clone(run)
   let matched = false
-  const steps = (run.steps || []).map((step) => {
+  const steps = (base.steps || []).map((step) => {
     if (step.id !== stepId) return step
     matched = true
     return updater(step)
   })
-  if (!matched) return clone(run)
+  if (!matched) return { run: base, matched: false }
   return {
-    ...clone(run),
-    steps,
-    updatedAt: now(),
+    run: {
+      ...base,
+      steps,
+      updatedAt: now(),
+    },
+    matched: true,
   }
 }
 
@@ -180,42 +192,57 @@ export function markRunFailed(run, error = null) {
 
 export function markStepRunning(run, stepId) {
   const startedAt = now()
-  return withStepUpdate(run, stepId, (step) => ({
+  const result = withStepUpdate(run, stepId, (step) => ({
     ...step,
     status: 'running',
     attemptCount: (Number(step.attemptCount) || 0) + 1,
     startedAt: step.startedAt || startedAt,
     error: null,
   }))
+  if (!result.matched) return result.run
+  return {
+    ...result.run,
+    currentStepId: stepId,
+  }
 }
 
 export function markStepCompleted(run, stepId) {
   const completedAt = now()
-  const nextRun = withStepUpdate(run, stepId, (step) => ({
+  const result = withStepUpdate(run, stepId, (step) => ({
     ...step,
     status: 'completed',
     completedAt,
     error: null,
   }))
-
+  if (!result.matched) return result.run
+  const nextRun = result.run
   if (anyOpenCheckpoint(nextRun)) return nextRun
   if (allStepsCompleted(nextRun)) {
-    return markRunCompleted(nextRun)
+    return {
+      ...markRunCompleted(nextRun),
+      currentStepId: null,
+    }
   }
   return withRunUpdate(nextRun, {
     status: nextRun.status === 'failed' ? 'failed' : 'running',
+    currentStepId: nextRun.currentStepId === stepId ? null : nextRun.currentStepId,
   })
 }
 
 export function markStepFailed(run, stepId, error = null) {
   const failedAt = now()
+  const result = withStepUpdate(run, stepId, (step) => ({
+    ...step,
+    status: 'failed',
+    failedAt,
+    error: normalizeError(error),
+  }))
+  if (!result.matched) return result.run
   return markRunFailed(
-    withStepUpdate(run, stepId, (step) => ({
-      ...step,
-      status: 'failed',
-      failedAt,
-      error: normalizeError(error),
-    })),
+    {
+      ...result.run,
+      currentStepId: result.run.currentStepId === stepId ? null : result.run.currentStepId,
+    },
     error,
   )
 }
@@ -251,11 +278,13 @@ export function resolveCheckpoint(run, checkpointId, resolution = {}) {
 
   if (!matched) return clone(run)
 
+  const openCheckpoint = firstOpenCheckpoint({ ...run, checkpoints })
   const nextRun = {
     ...clone(run),
     checkpoints,
-    currentCheckpointId: null,
-    status: allStepsCompleted({ ...run, checkpoints }) ? 'completed' : 'running',
+    currentCheckpointId: openCheckpoint ? openCheckpoint.id : null,
+    currentStepId: openCheckpoint ? openCheckpoint.stepId || run.currentStepId || null : run.currentStepId || null,
+    status: openCheckpoint ? 'waiting_user' : (allStepsCompleted({ ...run, checkpoints }) ? 'completed' : 'running'),
     updatedAt: resolvedAt,
   }
 
