@@ -7,6 +7,7 @@ import {
   getAiLauncherItems,
   getChatInputToolItems,
   getQuickAiItems,
+  getWorkflowFirstStarterItems,
 } from '../src/services/ai/taskCatalog.js'
 import {
   WORKFLOW_TEMPLATE_IDS,
@@ -160,6 +161,46 @@ test('quick items prioritize workflow starts and keep general chat as the only f
   assert.equal(taskIds.includes('research.web'), false)
   assert.equal(items.find((item) => item.task?.taskId === 'chat.general')?.task?.action, 'prefill')
   assert.deepEqual(actions.slice(0, 4), ['workflow', 'workflow', 'workflow', 'workflow'])
+})
+
+test('starter ordering keeps context-specific entries ahead of generic entries in draft, code, and pdf contexts', () => {
+  const draftItems = getWorkflowFirstStarterItems({
+    currentPath: '/tmp/draft.md',
+    t,
+  })
+  const codeItems = getWorkflowFirstStarterItems({
+    currentPath: '/tmp/code.py',
+    t,
+  })
+  const pdfItems = getWorkflowFirstStarterItems({
+    currentPath: '/tmp/paper.pdf',
+    t,
+  })
+  const pdfQuickItems = getQuickAiItems({
+    currentPath: '/tmp/paper.pdf',
+    t,
+  })
+  const pdfLauncherItems = getAiLauncherItems({
+    currentPath: '/tmp/paper.pdf',
+    t,
+  })
+
+  assert.equal(draftItems[0].task?.taskId, 'review.current-draft')
+  assert.equal(draftItems[0].task?.action, 'workflow')
+  assert.equal(codeItems[0].task?.taskId, 'code.explain-current')
+  assert.equal(codeItems[0].task?.action, 'workflow')
+  assert.equal(pdfItems[0].task?.taskId, 'pdf.summarise')
+  assert.equal(pdfItems[0].task?.action, 'send')
+  assert.deepEqual(pdfQuickItems.slice(0, 4).map((item) => item.task?.action), [
+    'workflow',
+    'workflow',
+    'workflow',
+    'workflow',
+  ])
+  assert.equal(pdfLauncherItems[0].task?.action, 'workflow')
+  assert.ok(pdfLauncherItems.findIndex((item) => item.task?.taskId === 'pdf.summarise') > 0)
+  assert.ok(codeItems.findIndex((item) => item.task?.taskId === 'code.reproducibility') > 0)
+  assert.ok(pdfItems.findIndex((item) => item.task?.taskId === 'research.paper-search') > 0)
 })
 
 test('workflow boundary copy exposes auto-run and approval boundaries', () => {

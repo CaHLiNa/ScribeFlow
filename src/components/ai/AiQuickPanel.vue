@@ -14,7 +14,7 @@
           <div class="ai-quick-actions">
             <button
               v-for="item in quickItems"
-              :key="item.label"
+              :key="item.task?.taskId || item.label"
               class="ai-quick-action"
               @click="runQuickItem(item)"
             >

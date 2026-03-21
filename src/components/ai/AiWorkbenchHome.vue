@@ -124,7 +124,11 @@ import { useWorkspaceStore } from '../../stores/workspace'
 import { useEditorStore } from '../../stores/editor'
 import { useChatStore } from '../../stores/chat'
 import { useI18n } from '../../i18n'
-import { getAiLauncherItems, getChatInputToolItems, getQuickAiItems } from '../../services/ai/taskCatalog'
+import {
+  getAiLauncherItems,
+  getChatInputToolItems,
+  getWorkflowFirstStarterItems,
+} from '../../services/ai/taskCatalog'
 import { launchAiTask, launchWorkflowTask, startAiConversation } from '../../services/ai/launch'
 import ChatInput from '../chat/ChatInput.vue'
 
@@ -167,14 +171,6 @@ const launcherItems = computed(() => (
   })
 ))
 
-const quickItems = computed(() => (
-  getQuickAiItems({
-    currentPath: currentContextPath.value,
-    recentFiles: recentFiles.value,
-    t,
-  })
-))
-
 const chatInputToolItems = computed(() => (
   getChatInputToolItems({
     currentPath: currentContextPath.value,
@@ -182,44 +178,13 @@ const chatInputToolItems = computed(() => (
   })
 ))
 
-function uniqueByTask(items = []) {
-  const seen = new Set()
-  return items.filter((item) => {
-    const key = item?.task?.taskId || item?.label
-    if (!key || seen.has(key)) return false
-    seen.add(key)
-    return true
-  })
-}
-
 const starterTasks = computed(() => {
-  const preferredTaskIds = [
-    'review.current-draft',
-    'research.paper-search',
-    'citation.current-draft',
-    'citation.prefill',
-    'code.prefill',
-    'chat.general',
-    'writer.continue',
-    'code.explain-current',
-    'pdf.summarise',
-  ]
-
-  const combined = uniqueByTask([...quickItems.value, ...launcherItems.value])
-  const ordered = []
-
-  for (const taskId of preferredTaskIds) {
-    const found = combined.find((item) => item?.task?.taskId === taskId)
-    if (found) ordered.push(found)
-  }
-
-  for (const item of combined) {
-    if (ordered.length >= 6) break
-    if (ordered.some((entry) => (entry.task?.taskId || entry.label) === (item.task?.taskId || item.label))) continue
-    ordered.push(item)
-  }
-
-  return ordered.slice(0, 6)
+  return getWorkflowFirstStarterItems({
+    currentPath: currentContextPath.value,
+    recentFiles: recentFiles.value,
+    t,
+    limit: 6,
+  })
 })
 
 const primaryStarterTasks = computed(() => starterTasks.value.slice(0, 4))

@@ -127,6 +127,68 @@ function appendUniqueTask(items, nextItem) {
   items.push(nextItem)
 }
 
+function isWorkflowTaskItem(item) {
+  return item?.task?.action === 'workflow'
+}
+
+function taskFamily(item) {
+  return String(item?.task?.taskId || '').split('.')[0] || ''
+}
+
+function uniqueTaskItems(items = []) {
+  const seen = new Set()
+  const unique = []
+  for (const item of items) {
+    const key = item?.task?.taskId || item?.label
+    if (!key || seen.has(key)) continue
+    seen.add(key)
+    unique.push(item)
+  }
+  return unique
+}
+
+export function getWorkflowFirstStarterItems({ currentPath = '', recentFiles = [], t, limit = 6 } = {}) {
+  const combined = uniqueTaskItems([
+    ...getQuickAiItems({ currentPath, recentFiles, t }),
+    ...getAiLauncherItems({ currentPath, recentFiles, t }),
+  ])
+  const contextWorkflowItems = []
+  const contextNonWorkflowItems = []
+  const genericItems = []
+  const genericWorkflowItems = []
+  const genericNonWorkflowItems = []
+  const contextFamilies = new Set()
+
+  for (const item of combined) {
+    if (item?.task?.filePath) {
+      contextFamilies.add(taskFamily(item))
+      if (isWorkflowTaskItem(item)) {
+        contextWorkflowItems.push(item)
+      } else {
+        contextNonWorkflowItems.push(item)
+      }
+    } else {
+      genericItems.push(item)
+    }
+  }
+
+  for (const item of genericItems) {
+    if (contextFamilies.has(taskFamily(item))) continue
+    if (isWorkflowTaskItem(item)) {
+      genericWorkflowItems.push(item)
+    } else {
+      genericNonWorkflowItems.push(item)
+    }
+  }
+
+  return [
+    ...contextWorkflowItems,
+    ...contextNonWorkflowItems,
+    ...genericWorkflowItems,
+    ...genericNonWorkflowItems,
+  ].slice(0, limit)
+}
+
 function buildWritingTasks(path, t) {
   const name = fileName(path)
   const items = [
@@ -453,7 +515,10 @@ export function getAiLauncherItems({ currentPath = '', recentFiles = [], t }) {
   const primaryPath = currentPath || recentFiles[0]?.path || ''
 
   const contextItems = buildContextTasks(primaryPath, t)
-  contextItems.forEach((item, index) => {
+  const workflowContextItems = contextItems.filter(isWorkflowTaskItem)
+  const nonWorkflowContextItems = contextItems.filter((item) => !isWorkflowTaskItem(item))
+
+  workflowContextItems.forEach((item, index) => {
     items.push({
       ...item,
       groupHeader: index === 0 ? t('Current context') : null,
@@ -473,13 +538,26 @@ export function getAiLauncherItems({ currentPath = '', recentFiles = [], t }) {
     })
   })
 
+  if (nonWorkflowContextItems.length) {
+    const contextHeader = workflowContextItems.length > 0 ? t('More context') : t('Current context')
+    nonWorkflowContextItems.forEach((item, index) => {
+      items.push({
+        ...item,
+        groupHeader: index === 0 ? contextHeader : null,
+        muted: true,
+      })
+    })
+  }
+
   return items
 }
 
 export function getQuickAiItems({ currentPath = '', recentFiles = [], t }) {
   const primaryPath = currentPath || recentFiles[0]?.path || ''
-  const contextItems = buildContextTasks(primaryPath, t).slice(0, 3)
-  const quickItems = [...contextItems]
+  const contextItems = buildContextTasks(primaryPath, t)
+  const workflowContextItems = contextItems.filter(isWorkflowTaskItem)
+  const nonWorkflowContextItems = contextItems.filter((item) => !isWorkflowTaskItem(item)).slice(0, 3)
+  const quickItems = []
 
   const quickWorkflowItems = [
     {
@@ -532,7 +610,14 @@ export function getQuickAiItems({ currentPath = '', recentFiles = [], t }) {
     },
   ]
 
+  for (const item of workflowContextItems) {
+    appendUniqueTask(quickItems, item)
+  }
   for (const item of quickWorkflowItems) {
+    appendUniqueTask(quickItems, item)
+  }
+
+  for (const item of nonWorkflowContextItems) {
     appendUniqueTask(quickItems, item)
   }
 
