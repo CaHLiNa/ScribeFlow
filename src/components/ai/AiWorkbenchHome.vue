@@ -199,6 +199,16 @@ function classifyWorkflow(item) {
   return 'general'
 }
 
+function uniqueByTask(items = []) {
+  const seen = new Set()
+  return items.filter((item) => {
+    const key = item?.task?.workflowTemplateId || item?.task?.taskId || item?.label
+    if (!key || seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
 const workflowSections = computed(() => {
   const buckets = [
     { id: 'writing', title: t('Writing'), items: [] },

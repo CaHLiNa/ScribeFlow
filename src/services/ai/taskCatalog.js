@@ -147,6 +147,18 @@ function uniqueTaskItems(items = []) {
   return unique
 }
 
+function starterItemKey(item) {
+  const task = item?.task || {}
+  const family = taskFamily(item)
+  const label = String(item?.label || task.label || '').trim().toLowerCase()
+
+  if (task.action === 'workflow' || task.workflowTemplateId) {
+    return `wf:${task.workflowTemplateId || label}:${family}`
+  }
+
+  return `task:${family}:${label}:${task.taskId || label}`
+}
+
 export function getWorkflowFirstStarterItems({ currentPath = '', recentFiles = [], t, limit = 6 } = {}) {
   const combined = uniqueTaskItems([
     ...getQuickAiItems({ currentPath, recentFiles, t }),
@@ -158,14 +170,22 @@ export function getWorkflowFirstStarterItems({ currentPath = '', recentFiles = [
   const genericWorkflowItems = []
   const genericNonWorkflowItems = []
   const contextFamilies = new Set()
+  const seenKeys = new Set()
+
+  function pushStarter(item, target) {
+    const key = starterItemKey(item)
+    if (seenKeys.has(key)) return
+    seenKeys.add(key)
+    target.push(item)
+  }
 
   for (const item of combined) {
     if (item?.task?.filePath) {
       contextFamilies.add(taskFamily(item))
       if (isWorkflowTaskItem(item)) {
-        contextWorkflowItems.push(item)
+        pushStarter(item, contextWorkflowItems)
       } else {
-        contextNonWorkflowItems.push(item)
+        pushStarter(item, contextNonWorkflowItems)
       }
     } else {
       genericItems.push(item)
@@ -175,9 +195,9 @@ export function getWorkflowFirstStarterItems({ currentPath = '', recentFiles = [
   for (const item of genericItems) {
     if (contextFamilies.has(taskFamily(item))) continue
     if (isWorkflowTaskItem(item)) {
-      genericWorkflowItems.push(item)
+      pushStarter(item, genericWorkflowItems)
     } else {
-      genericNonWorkflowItems.push(item)
+      pushStarter(item, genericNonWorkflowItems)
     }
   }
 

@@ -203,6 +203,18 @@ test('starter ordering keeps context-specific entries ahead of generic entries i
   assert.ok(pdfItems.findIndex((item) => item.task?.taskId === 'research.paper-search') > 0)
 })
 
+test('starter list dedupes repeated review entries when there is no current file', () => {
+  const items = getWorkflowFirstStarterItems({ t })
+  const reviewLabels = items.filter((item) => item.label === 'Review current draft')
+  const reviewTaskIds = items
+    .map((item) => item.task?.taskId)
+    .filter((taskId) => taskId === 'review.current-draft' || taskId === 'review.prefill')
+
+  assert.equal(reviewLabels.length, 1)
+  assert.equal(reviewTaskIds.length, 1)
+  assert.equal(items.find((item) => item.task?.taskId === 'review.current-draft')?.task?.workflowTemplateId, 'draft.review-revise')
+})
+
 test('workflow boundary copy exposes auto-run and approval boundaries', () => {
   const reviewCopy = buildWorkflowBoundaryCopy('draft.review-revise', t)
   const referenceCopy = buildWorkflowBoundaryCopy('references.search-intake', t)
