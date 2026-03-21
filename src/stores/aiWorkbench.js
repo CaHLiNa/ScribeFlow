@@ -1,6 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { t } from '../i18n'
+import { hydrateSessionWorkflow, useAiWorkflowRunsStore } from './aiWorkflowRuns'
+import { describeWorkflowHeader } from '../components/ai/workflowUi.js'
 
 const ROLE_BADGES = {
   general: 'chat',
@@ -42,9 +44,17 @@ function roleTitle(role) {
     return 'Altals runtime'
   }
 
+  function resolveSessionWorkflow(session) {
+    if (!session?.id) return hydrateSessionWorkflow(session?._workflow)
+    const workflowRuns = useAiWorkflowRunsStore()
+    return workflowRuns.getRunForSession(session.id) || hydrateSessionWorkflow(session._workflow)
+  }
+
   function describeSession(session) {
     const ai = session?._ai
     if (!ai) return null
+    const workflow = resolveSessionWorkflow(session)
+    const workflowHeader = describeWorkflowHeader(workflow)
 
     return {
       label: ai.label || session.label || 'AI',
@@ -55,6 +65,9 @@ function roleTitle(role) {
       runtimeTitle: t(runtimeTitle(ai.runtimeId)),
       source: ai.source || 'chat',
       taskId: ai.taskId || null,
+      workflowLabel: workflowHeader?.title || null,
+      workflowStatus: workflowHeader?.status || null,
+      workflowStepLabel: workflowHeader?.currentStepLabel || null,
     }
   }
 

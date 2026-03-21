@@ -33,6 +33,24 @@
         </div>
       </div>
 
+      <div v-if="workflow" class="max-w-[80ch] mx-auto w-full px-3 pb-4">
+        <div class="chat-workflow-stack">
+          <AiWorkflowRunHeader
+            :workflow="workflow"
+            :surface="surface"
+            :compact="compact"
+          />
+          <AiWorkflowCheckpointCard
+            v-if="pendingCheckpoint"
+            :workflow="workflow"
+            :checkpoint="pendingCheckpoint"
+            :session-id="session.id"
+            :surface="surface"
+            :compact="compact"
+          />
+        </div>
+      </div>
+
       <div v-if="artifacts.length" class="max-w-[80ch] mx-auto w-full px-3 pb-4">
         <div class="chat-artifact-header ui-text-label">{{ t('Artifacts') }}</div>
         <div class="chat-artifact-list">
@@ -138,8 +156,11 @@ import { ref, computed, watch, nextTick } from 'vue'
 import ChatMessage from './ChatMessage.vue'
 import ChatInput from './ChatInput.vue'
 import ArtifactCard from '../ai/ArtifactCard.vue'
+import AiWorkflowRunHeader from '../ai/AiWorkflowRunHeader.vue'
+import AiWorkflowCheckpointCard from '../ai/AiWorkflowCheckpointCard.vue'
 import { useChatStore } from '../../stores/chat'
 import { useAiArtifactsStore } from '../../stores/aiArtifacts'
+import { hydrateSessionWorkflow, useAiWorkflowRunsStore } from '../../stores/aiWorkflowRuns'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useEditorStore } from '../../stores/editor'
 import { getContextWindow } from '../../services/chatModels'
@@ -149,6 +170,7 @@ import { isMarkdown } from '../../utils/fileTypes'
 import { formatChatApiError } from '../../utils/errorMessages'
 import { renderMarkdown } from '../../utils/chatMarkdown'
 import { useI18n } from '../../i18n'
+import { getPendingCheckpoint } from '../ai/workflowUi.js'
 
 const props = defineProps({
   session: { type: Object, required: true },
@@ -162,6 +184,7 @@ const workspace   = useWorkspaceStore()
 const editorStore = useEditorStore()
 const chatStore   = useChatStore()
 const aiArtifacts = useAiArtifactsStore()
+const aiWorkflowRuns = useAiWorkflowRunsStore()
 const { t } = useI18n()
 
 // ─── Chat instance reactive state ─────────────────────────────────
@@ -176,6 +199,14 @@ const messages = computed(() => {
 })
 
 const artifacts = computed(() => aiArtifacts.artifactsForSession(props.session.id))
+
+const workflow = computed(() => (
+  aiWorkflowRuns.getRunForSession(props.session.id)
+  || hydrateSessionWorkflow(props.session._workflow)
+  || null
+))
+
+const pendingCheckpoint = computed(() => getPendingCheckpoint(workflow.value))
 
 const lastAssistantId = computed(() => {
   for (let i = messages.value.length - 1; i >= 0; i--) {
@@ -374,6 +405,12 @@ defineExpose({ focus })
 }
 
 .chat-artifact-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.chat-workflow-stack {
   display: flex;
   flex-direction: column;
   gap: 10px;
