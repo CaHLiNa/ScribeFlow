@@ -286,8 +286,8 @@ function buildWorkflowSections(t) {
           label: t('Search academic papers'),
           task: createWorkflowTaskDescriptor({
             workflowTemplateId: 'references.search-intake',
-            role: 'researcher',
-            toolProfile: 'researcher',
+            role: 'citation_librarian',
+            toolProfile: 'citation_librarian',
             taskId: 'research.paper-search',
             label: t('Search academic papers'),
             prompt: t('Help me search academic papers for this topic. Prefer using search_papers first, then present the best candidates with create_proposal.'),
@@ -806,16 +806,16 @@ export function getChatInputToolItems({ currentPath = '', t }) {
     {
       label: t('Search academic papers'),
       description: t('Search papers and propose the strongest candidates'),
-      task: {
-        action: 'prefill',
-        role: 'researcher',
-        toolProfile: 'researcher',
+      task: createWorkflowTaskDescriptor({
+        workflowTemplateId: 'references.search-intake',
+        role: 'citation_librarian',
+        toolProfile: 'citation_librarian',
         taskId: 'research.paper-search',
         source: 'chat-input',
         entryContext: 'chat-input',
         label: t('Search academic papers'),
         prompt: t('Help me search academic papers for this topic. Prefer using search_papers first, then present the best candidates with create_proposal.'),
-      },
+      }),
     },
     {
       label: t('Web Research'),

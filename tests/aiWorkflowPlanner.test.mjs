@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 
 import { createWorkflowPlan } from '../src/services/ai/workflowRuns/planner.js'
-import { getAiLauncherItems } from '../src/services/ai/taskCatalog.js'
+import { getAiLauncherItems, getChatInputToolItems } from '../src/services/ai/taskCatalog.js'
 import {
   WORKFLOW_TEMPLATE_IDS,
   WORKFLOW_TEMPLATES,
@@ -134,14 +134,27 @@ test('paper search and citation help launcher entries map to workflow descriptor
   assert.ok(paperSearchTask)
   assert.equal(paperSearchTask.action, 'workflow')
   assert.equal(paperSearchTask.workflowTemplateId, 'references.search-intake')
-  assert.equal(paperSearchTask.role, 'researcher')
-  assert.equal(paperSearchTask.toolProfile, 'researcher')
+  assert.equal(paperSearchTask.role, 'citation_librarian')
+  assert.equal(paperSearchTask.toolProfile, 'citation_librarian')
 
   assert.ok(citationTask)
   assert.equal(citationTask.action, 'workflow')
   assert.equal(citationTask.workflowTemplateId, 'references.search-intake')
   assert.equal(citationTask.role, 'citation_librarian')
   assert.equal(citationTask.toolProfile, 'citation_librarian')
+})
+
+test('chat input paper search entry maps to the reference intake workflow with template-aligned role', () => {
+  const items = getChatInputToolItems({ t })
+  const task = findTask(items, 'research.paper-search')
+
+  assert.ok(task)
+  assert.equal(task.action, 'workflow')
+  assert.equal(task.workflowTemplateId, 'references.search-intake')
+  assert.equal(task.role, 'citation_librarian')
+  assert.equal(task.toolProfile, 'citation_librarian')
+  assert.equal(task.source, 'chat-input')
+  assert.equal(task.entryContext, 'chat-input')
 })
 
 test('general chat launcher entry remains a normal chat prefill task', () => {
