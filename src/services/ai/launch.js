@@ -307,6 +307,7 @@ export async function startWorkflowRun({
     await aiWorkflowRuns.runExecutor({
       runId: workflow.run.id,
       sessionId: sessionState.sessionId,
+      queueIfRunning: false,
     })
   }
 

@@ -44,7 +44,11 @@ function createFakeChatStore(sessionId) {
       return chat
     },
     async saveSession(id) {
-      saves.push(id)
+      const session = sessions.find((item) => item.id === id) || null
+      saves.push({
+        id,
+        workflow: clone(session?._workflow || null),
+      })
     },
   }
 }
@@ -181,6 +185,7 @@ test('store auto-executes launched workflow runs and persists visible chat conte
   assert.equal(openCheckpoint?.type, 'apply_patch')
   assert.ok(chatStore.getChatInstance('session-auto-run').state.messagesRef.value.length > 0)
   assert.ok(chatStore.saves.length > 0)
+  assert.equal(chatStore.saves.at(-1)?.id, 'session-auto-run')
 })
 
 test('checkpoint resolution resumes execution through the remaining workflow steps', async () => {
@@ -221,6 +226,51 @@ test('checkpoint resolution resumes execution through the remaining workflow ste
   assert.equal(completed.run.steps[5].status, 'completed')
   assert.ok(chatStore.getChatInstance('session-resume').state.messagesRef.value.length > 0)
   assert.ok(chatStore.saves.length >= 2)
+})
+
+test('checkpoint resolution persists the resolved snapshot before executor finishes the run', async () => {
+  setActivePinia(createPinia())
+  const store = useAiWorkflowRunsStore()
+  const chatStore = createFakeChatStore('session-durable')
+  const plan = createWorkflowPlan({ templateId: 'draft.review-revise' })
+  const waitingRun = createCheckpoint(plan.run, {
+    stepId: plan.run.steps[4].id,
+    type: 'apply_patch',
+    label: 'Apply patch',
+  })
+
+  store.configureExecutor({ chatStore })
+  store.restoreSessionWorkflow('session-durable', {
+    ...plan,
+    run: waitingRun,
+  })
+
+  const updated = store.applyCheckpointDecision({
+    runId: waitingRun.id,
+    decision: { action: 'apply' },
+    resolvedBy: 'reviewer',
+  })
+
+  assert.equal(updated.run.checkpoints[0].status, 'resolved')
+
+  const resolvedSave = await waitFor(() => {
+    const matched = chatStore.saves.find((entry) =>
+      entry.id === 'session-durable' &&
+      entry.workflow?.run?.status === 'running' &&
+      entry.workflow?.run?.checkpoints?.[0]?.status === 'resolved' &&
+      entry.workflow?.run?.currentCheckpointId === null,
+    )
+    assert.ok(matched)
+    return matched
+  })
+
+  assert.deepEqual(resolvedSave.workflow.run.checkpoints[0].payload, { action: 'apply' })
+
+  await waitFor(() => {
+    const workflow = store.getRun(waitingRun.id)
+    assert.equal(workflow.run.status, 'completed')
+    return workflow
+  })
 })
 
 test('chat persistence helpers include serialized workflow snapshots in saved data', () => {

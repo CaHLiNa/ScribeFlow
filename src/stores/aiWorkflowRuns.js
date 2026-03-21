@@ -158,12 +158,35 @@ export const useAiWorkflowRunsStore = defineStore('aiWorkflowRuns', () => {
     }
   }
 
-  async function runExecutor({ runId, sessionId = null } = {}) {
+  async function persistRunSnapshot({ runId, sessionId = null, chatStore = null } = {}) {
+    const targetRunId = String(runId || '').trim()
+    if (!targetRunId) return null
+
+    const boundSessionId = sessionId || getSessionIdForRun(targetRunId) || null
+    if (!boundSessionId) return getRun(targetRunId)
+
+    const resolvedChatStore = chatStore || await resolveExecutorChatStore()
+    const session = Array.isArray(resolvedChatStore?.sessions)
+      ? resolvedChatStore.sessions.find((item) => item?.id === boundSessionId) || null
+      : null
+    if (!session) return getRun(targetRunId)
+
+    syncRunToSession(session)
+    if (typeof resolvedChatStore?.saveSession === 'function') {
+      await resolvedChatStore.saveSession(boundSessionId)
+    }
+
+    return getRun(targetRunId)
+  }
+
+  async function runExecutor({ runId, sessionId = null, queueIfRunning = true } = {}) {
     if (!runId) return null
 
     const existing = executionByRunId.get(runId)
     if (existing) {
-      rerunAfterExecution.add(runId)
+      if (queueIfRunning) {
+        rerunAfterExecution.add(runId)
+      }
       return existing
     }
 
@@ -296,7 +319,11 @@ export const useAiWorkflowRunsStore = defineStore('aiWorkflowRuns', () => {
     }
     const sessionId = getSessionIdForRun(runId)
     if (sessionId) {
-      void runExecutor({ runId, sessionId })
+      void (async () => {
+        const chatStore = await resolveExecutorChatStore()
+        await persistRunSnapshot({ runId, sessionId, chatStore })
+        await runExecutor({ runId, sessionId, queueIfRunning: true })
+      })()
     }
     return getRun(runId)
   }
@@ -356,6 +383,7 @@ export const useAiWorkflowRunsStore = defineStore('aiWorkflowRuns', () => {
     createRunFromTemplate,
     replaceRun,
     configureExecutor,
+    persistRunSnapshot,
     runExecutor,
     bindRunToSession,
     clearSessionBinding,
