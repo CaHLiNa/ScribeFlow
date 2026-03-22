@@ -1,0 +1,1 @@
+export const TEXT_FILE_READ_LIMIT_BYTES = 10 * 1024 * 1024

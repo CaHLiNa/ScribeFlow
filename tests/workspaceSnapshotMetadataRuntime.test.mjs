@@ -49,7 +49,56 @@ test('workspace snapshot metadata runtime derives titles and capabilities from s
     payload: {
       manifestPath: '/workspace/.altals/snapshots/payloads/payload123/manifest.json',
       fileCount: 2,
+      skippedCount: 1,
       capturedAt: '2026-03-22T10:13:10Z',
+      captureScope: 'project-text-set',
+    },
+  }
+  const loadedRestorableWorkspaceSnapshot = {
+    ...restorableWorkspaceSnapshot,
+    id: 'local:workspace:loaded123',
+    sourceId: 'loaded123',
+    payload: {
+      manifestPath: '/workspace/.altals/snapshots/payloads/loaded123/manifest.json',
+      fileCount: 2,
+      skippedCount: 0,
+      capturedAt: '2026-03-22T10:13:20Z',
+      captureScope: 'loaded-workspace-text',
+    },
+  }
+  const legacyRestorableWorkspaceSnapshot = {
+    ...restorableWorkspaceSnapshot,
+    id: 'local:workspace:legacy123',
+    sourceId: 'legacy123',
+    payload: {
+      manifestPath: '/workspace/.altals/snapshots/payloads/legacy123/manifest.json',
+      fileCount: 1,
+      skippedCount: 0,
+      capturedAt: '2026-03-22T10:13:30Z',
+    },
+  }
+  const skippedOnlyWorkspaceSnapshot = {
+    ...restorableWorkspaceSnapshot,
+    id: 'local:workspace:skipped123',
+    sourceId: 'skipped123',
+    payload: {
+      manifestPath: '/workspace/.altals/snapshots/payloads/skipped123/manifest.json',
+      fileCount: 0,
+      skippedCount: 1,
+      capturedAt: '2026-03-22T10:13:40Z',
+      captureScope: 'project-text-set',
+    },
+  }
+  const emptyTrackedWorkspaceSnapshot = {
+    ...restorableWorkspaceSnapshot,
+    id: 'local:workspace:empty123',
+    sourceId: 'empty123',
+    payload: {
+      manifestPath: '/workspace/.altals/snapshots/payloads/empty123/manifest.json',
+      fileCount: 0,
+      skippedCount: 0,
+      capturedAt: '2026-03-22T10:13:50Z',
+      captureScope: 'project-text-set',
     },
   }
 
@@ -84,8 +133,18 @@ test('workspace snapshot metadata runtime derives titles and capabilities from s
     canCopy: false,
   })
   assert.deepEqual(getWorkspaceSnapshotCapabilities(restorableWorkspaceSnapshot), {
-    canPreview: false,
+    canPreview: true,
     canRestore: true,
+    canCopy: false,
+  })
+  assert.deepEqual(getWorkspaceSnapshotCapabilities(skippedOnlyWorkspaceSnapshot), {
+    canPreview: false,
+    canRestore: false,
+    canCopy: false,
+  })
+  assert.deepEqual(getWorkspaceSnapshotCapabilities(emptyTrackedWorkspaceSnapshot), {
+    canPreview: false,
+    canRestore: false,
     canCopy: false,
   })
   assert.deepEqual(createWorkspaceSnapshotMetadata({ snapshot: restorableWorkspaceSnapshot }).payload, {
@@ -93,8 +152,26 @@ test('workspace snapshot metadata runtime derives titles and capabilities from s
     kind: 'workspace-text-v1',
     manifestPath: '/workspace/.altals/snapshots/payloads/payload123/manifest.json',
     fileCount: 2,
+    skippedCount: 1,
     capturedAt: '2026-03-22T10:13:10.000Z',
+    captureScope: 'project-text-set',
   })
+  assert.equal(
+    createWorkspaceSnapshotMetadata({ snapshot: loadedRestorableWorkspaceSnapshot }).payload?.captureScope,
+    'loaded-workspace-text',
+  )
+  assert.equal(
+    createWorkspaceSnapshotMetadata({ snapshot: legacyRestorableWorkspaceSnapshot }).payload?.captureScope,
+    'open-workspace-files',
+  )
+  assert.equal(
+    createWorkspaceSnapshotMetadata({ snapshot: skippedOnlyWorkspaceSnapshot }).payload?.skippedCount,
+    1,
+  )
+  assert.equal(
+    createWorkspaceSnapshotMetadata({ snapshot: emptyTrackedWorkspaceSnapshot }).payload?.fileCount,
+    0,
+  )
 })
 
 test('workspace snapshot metadata runtime attaches metadata and reuses matching attached metadata', () => {

@@ -1,7 +1,17 @@
 import { createWorkspaceHistoryAvailabilityRuntime } from './workspaceHistoryAvailabilityRuntime.js'
 import { createWorkspaceHistoryPointRuntime } from './workspaceHistoryPointRuntime.js'
-import { createWorkspaceLocalSnapshotPayloadRuntime } from './workspaceLocalSnapshotPayloadRuntime.js'
+import {
+  createWorkspaceLocalSnapshotPayloadRuntime,
+  getWorkspaceSnapshotPayloadCaptureScope,
+  getWorkspaceSnapshotPayloadSkippedCount,
+  isLoadedWorkspaceTextPayload,
+  isProjectTextSetPayload,
+} from './workspaceLocalSnapshotPayloadRuntime.js'
 import { createWorkspaceLocalSnapshotStoreRuntime } from './workspaceLocalSnapshotStoreRuntime.js'
+import { createWorkspaceSnapshotDeletionRuntime } from './workspaceSnapshotDeletionRuntime.js'
+import { createWorkspaceSnapshotDiffRuntime } from './workspaceSnapshotDiffRuntime.js'
+import { createWorkspaceSnapshotFileApplyRuntime } from './workspaceSnapshotFileApplyRuntime.js'
+import { createWorkspaceSnapshotPreviewRuntime } from './workspaceSnapshotPreviewRuntime.js'
 import {
   attachWorkspaceSnapshotMetadata,
   attachWorkspaceSnapshotMetadataList,
@@ -16,22 +26,16 @@ import {
   isNamedWorkspaceSnapshot,
 } from './workspaceSnapshotRuntime.js'
 
-function getSnapshotEditorViewsForPath(editorViews = {}, filePath = '') {
-  if (!editorViews || !filePath) {
-    return []
-  }
-
-  return Object.entries(editorViews)
-    .filter(([key]) => key.endsWith(`:${filePath}`))
-    .map(([, view]) => view)
-}
-
 export function createWorkspaceSnapshotOperations({
   availabilityRuntime = createWorkspaceHistoryAvailabilityRuntime(),
   historyPointRuntime = createWorkspaceHistoryPointRuntime({
     availabilityRuntime,
   }),
   snapshotRuntime = createWorkspaceSnapshotRuntime(),
+  previewRuntime = createWorkspaceSnapshotPreviewRuntime(),
+  deletionRuntime = createWorkspaceSnapshotDeletionRuntime(),
+  diffRuntime = createWorkspaceSnapshotDiffRuntime(),
+  fileApplyRuntime = createWorkspaceSnapshotFileApplyRuntime(),
   localSnapshotPayloadRuntime = createWorkspaceLocalSnapshotPayloadRuntime(),
   localSnapshotStoreRuntime = createWorkspaceLocalSnapshotStoreRuntime(),
   attachSnapshotMetadataImpl = attachWorkspaceSnapshotMetadata,
@@ -195,38 +199,166 @@ export function createWorkspaceSnapshotOperations({
     })
   }
 
+  async function loadWorkspaceSavePointPreviewSummary({
+    workspace,
+    snapshot = null,
+    filesStore,
+    editorStore,
+  } = {}) {
+    if (!workspace?.path || !workspace?.workspaceDataDir || !snapshot) {
+      return null
+    }
+
+    return previewRuntime.loadWorkspaceSnapshotPreviewSummary({
+      workspacePath: workspace.path,
+      workspaceDataDir: workspace.workspaceDataDir,
+      snapshot,
+      filesStore,
+      editorStore,
+    })
+  }
+
+  async function loadWorkspaceSavePointFilePreview({
+    workspace,
+    snapshot = null,
+    filePath = '',
+  } = {}) {
+    if (!workspace?.path || !workspace?.workspaceDataDir || !snapshot || !filePath) {
+      return null
+    }
+
+    return diffRuntime.loadWorkspaceSnapshotFilePreview({
+      workspacePath: workspace.path,
+      workspaceDataDir: workspace.workspaceDataDir,
+      snapshot,
+      filePath,
+    })
+  }
+
   async function restoreWorkspaceSavePoint({
     workspace,
     filesStore,
     editorStore,
     snapshot = null,
+    targetPaths = [],
+    removeAddedFiles = false,
   } = {}) {
     if (!workspace?.path || !workspace?.workspaceDataDir || !snapshot) {
       return { restored: false, reason: 'missing-input' }
     }
 
-    return localSnapshotPayloadRuntime.restoreWorkspaceSnapshotPayload({
+    const payloadResult = await localSnapshotPayloadRuntime.restoreWorkspaceSnapshotPayload({
       workspacePath: workspace.path,
       workspaceDataDir: workspace.workspaceDataDir,
       snapshot,
-      applyFileContent: async (filePath, content) => {
-        const saved = await filesStore?.saveFile?.(filePath, content)
-        if (!saved) {
-          return false
-        }
+      targetPaths,
+      applyFileContent: async (filePath, content) =>
+        fileApplyRuntime.applyWorkspaceSnapshotFileContent({
+          filesStore,
+          editorStore,
+          filePath,
+          content,
+        }),
+    })
+    if (payloadResult?.reason && payloadResult.reason !== '' && payloadResult.reason !== 'missing-targets') {
+      return payloadResult
+    }
 
-        const openViews = getSnapshotEditorViewsForPath(editorStore?.editorViews, filePath)
-        for (const view of openViews) {
-          await view?.altalsApplyExternalContent?.(content)
+    let deleteResult = {
+      removed: false,
+      removedFiles: [],
+    }
+    if (removeAddedFiles && (!Array.isArray(targetPaths) || targetPaths.length === 0)) {
+      deleteResult = await deletionRuntime.removeWorkspaceSnapshotAddedFiles({
+        workspacePath: workspace.path,
+        workspaceDataDir: workspace.workspaceDataDir,
+        snapshot,
+        filesStore,
+        editorStore,
+      })
+      if (deleteResult?.reason && deleteResult.reason !== '' && deleteResult.reason !== 'missing-targets') {
+        return {
+          restored: false,
+          reason: deleteResult.reason,
+          restoredFiles: payloadResult?.restoredFiles || [],
+          removedFiles: deleteResult?.removedFiles || [],
+          filePath: deleteResult?.filePath || '',
+          manifest: deleteResult?.manifest || payloadResult?.manifest,
         }
+      }
+    }
 
-        if (openViews.length === 0 && editorStore?.allOpenFiles?.has?.(filePath)) {
-          await filesStore?.reloadFile?.(filePath)
-        }
+    return {
+      restored: !!(payloadResult?.restored || deleteResult?.removed),
+      restoredFiles: payloadResult?.restoredFiles || [],
+      removedFiles: deleteResult?.removedFiles || [],
+      manifest: payloadResult?.manifest || deleteResult?.manifest,
+    }
+  }
 
-        editorStore?.clearFileDirty?.(filePath)
-        return true
-      },
+  async function restoreWorkspaceSavePointFile({
+    workspace,
+    filesStore,
+    editorStore,
+    snapshot = null,
+    filePath = '',
+  } = {}) {
+    if (!filePath) {
+      return { restored: false, reason: 'missing-input' }
+    }
+
+    return restoreWorkspaceSavePoint({
+      workspace,
+      filesStore,
+      editorStore,
+      snapshot,
+      targetPaths: [filePath],
+    })
+  }
+
+  async function applyWorkspaceSavePointFilePreviewContent({
+    workspace,
+    filesStore,
+    editorStore,
+    snapshot = null,
+    filePath = '',
+    content = '',
+  } = {}) {
+    if (!workspace?.path || !snapshot || !filePath || typeof content !== 'string') {
+      return { applied: false, reason: 'missing-input' }
+    }
+
+    const applied = await fileApplyRuntime.applyWorkspaceSnapshotFileContent({
+      filesStore,
+      editorStore,
+      filePath,
+      content,
+    })
+    return {
+      applied,
+      reason: applied ? '' : 'apply-failed',
+      filePath,
+    }
+  }
+
+  async function removeWorkspaceSavePointAddedFile({
+    workspace,
+    filesStore,
+    editorStore,
+    snapshot = null,
+    filePath = '',
+  } = {}) {
+    if (!workspace?.path || !workspace?.workspaceDataDir || !snapshot || !filePath) {
+      return { removed: false, reason: 'missing-input' }
+    }
+
+    return deletionRuntime.removeWorkspaceSnapshotAddedFiles({
+      workspacePath: workspace.path,
+      workspaceDataDir: workspace.workspaceDataDir,
+      snapshot,
+      filesStore,
+      editorStore,
+      targetPaths: [filePath],
     })
   }
 
@@ -238,7 +370,12 @@ export function createWorkspaceSnapshotOperations({
     loadFileVersionHistoryPreview,
     restoreFileVersionHistoryEntry,
     loadWorkspaceSavePointPayloadManifest,
+    loadWorkspaceSavePointPreviewSummary,
+    loadWorkspaceSavePointFilePreview,
     restoreWorkspaceSavePoint,
+    restoreWorkspaceSavePointFile,
+    applyWorkspaceSavePointFilePreviewContent,
+    removeWorkspaceSavePointAddedFile,
   }
 }
 
@@ -251,7 +388,12 @@ export const listWorkspaceSavePoints = workspaceSnapshotOperations.listWorkspace
 export const loadFileVersionHistoryPreview = workspaceSnapshotOperations.loadFileVersionHistoryPreview
 export const restoreFileVersionHistoryEntry = workspaceSnapshotOperations.restoreFileVersionHistoryEntry
 export const loadWorkspaceSavePointPayloadManifest = workspaceSnapshotOperations.loadWorkspaceSavePointPayloadManifest
+export const loadWorkspaceSavePointPreviewSummary = workspaceSnapshotOperations.loadWorkspaceSavePointPreviewSummary
+export const loadWorkspaceSavePointFilePreview = workspaceSnapshotOperations.loadWorkspaceSavePointFilePreview
 export const restoreWorkspaceSavePoint = workspaceSnapshotOperations.restoreWorkspaceSavePoint
+export const restoreWorkspaceSavePointFile = workspaceSnapshotOperations.restoreWorkspaceSavePointFile
+export const applyWorkspaceSavePointFilePreviewContent = workspaceSnapshotOperations.applyWorkspaceSavePointFilePreviewContent
+export const removeWorkspaceSavePointAddedFile = workspaceSnapshotOperations.removeWorkspaceSavePointAddedFile
 
 export {
   attachWorkspaceSnapshotMetadata,
@@ -261,5 +403,9 @@ export {
   createWorkspaceSnapshotRecord,
   getWorkspaceSnapshotDisplayMessage,
   getWorkspaceSnapshotTitle,
+  getWorkspaceSnapshotPayloadCaptureScope,
+  getWorkspaceSnapshotPayloadSkippedCount,
+  isLoadedWorkspaceTextPayload,
+  isProjectTextSetPayload,
   isNamedWorkspaceSnapshot,
 }

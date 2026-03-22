@@ -1,7 +1,7 @@
-import { useDocumentWorkflowStore } from '../stores/documentWorkflow'
-import { useEditorStore } from '../stores/editor'
-import { useLinksStore } from '../stores/links'
-import { useReviewsStore } from '../stores/reviews'
+import { useDocumentWorkflowStore } from '../stores/documentWorkflow.js'
+import { useEditorStore } from '../stores/editor.js'
+import { useLinksStore } from '../stores/links.js'
+import { useReviewsStore } from '../stores/reviews.js'
 
 export function getWorkflowSourcePathForPreview(previewPath) {
   return useDocumentWorkflowStore().getSourcePathForPreview(previewPath)

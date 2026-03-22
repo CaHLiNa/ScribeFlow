@@ -12,10 +12,11 @@ function normalizeSnapshotValue(value = '') {
 export function getWorkspaceSnapshotCapabilities(snapshot = null) {
   const isFileSnapshot = isFileWorkspaceSnapshot(snapshot)
   const payload = createWorkspaceSnapshotPayloadMeta(snapshot?.payload)
+  const hasRestorablePayload = (payload?.fileCount || 0) > 0
 
   return {
-    canPreview: isFileSnapshot,
-    canRestore: isFileSnapshot || !!payload,
+    canPreview: isFileSnapshot || hasRestorablePayload,
+    canRestore: isFileSnapshot || hasRestorablePayload,
     canCopy: isFileSnapshot,
   }
 }

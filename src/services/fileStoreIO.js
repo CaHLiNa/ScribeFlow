@@ -1,7 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
-import { getWorkflowSourcePathForPreview } from './fileStoreEffects'
-
-export const TEXT_FILE_READ_LIMIT_BYTES = 10 * 1024 * 1024
+import { TEXT_FILE_READ_LIMIT_BYTES } from '../domains/files/workspaceTextFileLimits.js'
+import { getWorkflowSourcePathForPreview } from './fileStoreEffects.js'
 
 async function pathExists(path) {
   return invoke('path_exists', { path })

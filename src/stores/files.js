@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { useWorkspaceStore } from './workspace'
+import { TEXT_FILE_READ_LIMIT_BYTES } from '../domains/files/workspaceTextFileLimits.js'
 import {
   handleDeletedPathEffects,
   handleExternalFileChanges,
@@ -20,7 +21,6 @@ import {
   readWorkspaceTextFile,
   renameWorkspacePath as renameWorkspaceEntry,
   saveWorkspaceTextFile,
-  TEXT_FILE_READ_LIMIT_BYTES,
 } from '../services/fileStoreIO'
 import {
   buildFlatFilesStatePatch,

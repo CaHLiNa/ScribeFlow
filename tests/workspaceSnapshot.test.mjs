@@ -69,13 +69,22 @@ test('workspace snapshot operations record workspace save points into the local 
         return {
           manifestPath: '/workspace/.altals/snapshots/payloads/abc123/manifest.json',
           fileCount: 2,
+          skippedCount: 1,
           capturedAt: '2026-03-22T10:11:30Z',
+          captureScope: 'project-text-set',
         }
       },
     },
     localSnapshotStoreRuntime: {
       recordWorkspaceSavePoint: async ({ workspaceDataDir, snapshot }) => {
-        calls.push(['record', workspaceDataDir, snapshot.sourceId, snapshot.payload?.fileCount || 0])
+        calls.push([
+          'record',
+          workspaceDataDir,
+          snapshot.sourceId,
+          snapshot.payload?.fileCount || 0,
+          snapshot.payload?.skippedCount || 0,
+          snapshot.payload?.captureScope || '',
+        ])
         return {
           id: 'local:workspace:abc123',
           backend: 'local',
@@ -108,7 +117,7 @@ test('workspace snapshot operations record workspace save points into the local 
 
   assert.deepEqual(calls, [
     ['payload', '/workspace/demo', '/workspace/.altals', 'abc123'],
-    ['record', '/workspace/.altals', 'abc123', 2],
+    ['record', '/workspace/.altals', 'abc123', 2, 1, 'project-text-set'],
   ])
   assert.equal(result?.snapshot?.id, 'local:workspace:abc123')
   assert.equal(result?.snapshot?.metadata?.backend, 'local')
@@ -217,6 +226,12 @@ test('workspace snapshot operations delegate explicit file/workspace list and fi
       loadFileVersionHistoryPreview: loadPreview,
       restoreFileVersionHistoryEntry: restoreEntry,
     },
+    diffRuntime: {
+      loadWorkspaceSnapshotFilePreview: async (input) => {
+        calls.push(['workspace-preview', input.snapshot?.sourceId, input.filePath])
+        return { status: 'modified', file: { path: input.filePath } }
+      },
+    },
   })
 
   const snapshots = await operations.listFileVersionHistory({
@@ -231,6 +246,14 @@ test('workspace snapshot operations delegate explicit file/workspace list and fi
     workspacePath: '/workspace/demo',
     filePath: '/workspace/demo/draft.md',
     snapshot: { sourceId: 'abc123' },
+  })
+  const workspacePreview = await operations.loadWorkspaceSavePointFilePreview({
+    workspace: {
+      path: '/workspace/demo',
+      workspaceDataDir: '/workspace/.altals',
+    },
+    snapshot: { sourceId: 'workspace123' },
+    filePath: '/workspace/demo/draft.md',
   })
   const restored = await operations.restoreFileVersionHistoryEntry({
     workspacePath: '/workspace/demo',
@@ -288,11 +311,18 @@ test('workspace snapshot operations delegate explicit file/workspace list and fi
     },
   }])
   assert.equal(preview, '# preview')
+  assert.deepEqual(workspacePreview, {
+    status: 'modified',
+    file: {
+      path: '/workspace/demo/draft.md',
+    },
+  })
   assert.deepEqual(restored, { restored: true })
   assert.deepEqual(calls, [
     ['list-file', '/workspace/demo', '/workspace/demo/draft.md', ''],
     ['list-workspace', '/workspace/demo', '', '/workspace/.altals'],
     ['preview', 'abc123'],
+    ['workspace-preview', 'workspace123', '/workspace/demo/draft.md'],
     ['restore', 'abc123'],
   ])
 })
@@ -301,8 +331,8 @@ test('workspace snapshot operations restore workspace save points through the lo
   const calls = []
   const operations = createWorkspaceSnapshotOperations({
     localSnapshotPayloadRuntime: {
-      restoreWorkspaceSnapshotPayload: async ({ workspacePath, workspaceDataDir, snapshot, applyFileContent }) => {
-        calls.push(['restore-payload', workspacePath, workspaceDataDir, snapshot.sourceId])
+      restoreWorkspaceSnapshotPayload: async ({ workspacePath, workspaceDataDir, snapshot, targetPaths, applyFileContent }) => {
+        calls.push(['restore-payload', workspacePath, workspaceDataDir, snapshot.sourceId, targetPaths])
         const applied = await applyFileContent('/workspace/demo/draft.md', '# Restored draft')
         return {
           restored: applied !== false,
@@ -352,13 +382,179 @@ test('workspace snapshot operations restore workspace save points through the lo
   assert.deepEqual(result, {
     restored: true,
     restoredFiles: ['/workspace/demo/draft.md'],
+    removedFiles: [],
+    manifest: undefined,
   })
   assert.deepEqual(editorUpdates, ['# Restored draft'])
   assert.deepEqual(calls, [
-    ['restore-payload', '/workspace/demo', '/workspace/.altals', 'abc123'],
+    ['restore-payload', '/workspace/demo', '/workspace/.altals', 'abc123', []],
     ['saveFile', '/workspace/demo/draft.md', '# Restored draft'],
     ['clearDirty', '/workspace/demo/draft.md'],
   ])
+})
+
+test('workspace snapshot operations can remove added project-text files during full workspace save-point restore without using git history', async () => {
+  const calls = []
+  const operations = createWorkspaceSnapshotOperations({
+    localSnapshotPayloadRuntime: {
+      restoreWorkspaceSnapshotPayload: async ({ snapshot }) => {
+        calls.push(['restore-payload', snapshot.sourceId])
+        return {
+          restored: false,
+          restoredFiles: [],
+          manifest: {
+            workspacePath: '/workspace/demo',
+            files: [],
+            skippedFiles: [],
+          },
+        }
+      },
+    },
+    deletionRuntime: {
+      removeWorkspaceSnapshotAddedFiles: async ({ workspacePath, workspaceDataDir, snapshot }) => {
+        calls.push(['remove-added', workspacePath, workspaceDataDir, snapshot.sourceId])
+        return {
+          removed: true,
+          removedFiles: ['/workspace/demo/new.md'],
+          manifest: {
+            workspacePath: '/workspace/demo',
+            files: [],
+            skippedFiles: [],
+          },
+        }
+      },
+    },
+  })
+
+  const result = await operations.restoreWorkspaceSavePoint({
+    workspace: {
+      path: '/workspace/demo',
+      workspaceDataDir: '/workspace/.altals',
+    },
+    snapshot: {
+      sourceId: 'abc123',
+    },
+    filesStore: {},
+    editorStore: {},
+    removeAddedFiles: true,
+  })
+
+  assert.deepEqual(calls, [
+    ['restore-payload', 'abc123'],
+    ['remove-added', '/workspace/demo', '/workspace/.altals', 'abc123'],
+  ])
+  assert.deepEqual(result, {
+    restored: true,
+    restoredFiles: [],
+    removedFiles: ['/workspace/demo/new.md'],
+    manifest: {
+      workspacePath: '/workspace/demo',
+      files: [],
+      skippedFiles: [],
+    },
+  })
+})
+
+test('workspace snapshot operations expose an explicit selected-file workspace restore seam without using git history restore', async () => {
+  const calls = []
+  const operations = createWorkspaceSnapshotOperations({
+    localSnapshotPayloadRuntime: {
+      restoreWorkspaceSnapshotPayload: async ({ workspacePath, workspaceDataDir, snapshot, targetPaths }) => {
+        calls.push(['restore-payload', workspacePath, workspaceDataDir, snapshot.sourceId, targetPaths])
+        return {
+          restored: true,
+          restoredFiles: targetPaths,
+        }
+      },
+    },
+  })
+
+  const result = await operations.restoreWorkspaceSavePointFile({
+    workspace: {
+      path: '/workspace/demo',
+      workspaceDataDir: '/workspace/.altals',
+    },
+    snapshot: {
+      sourceId: 'abc123',
+    },
+    filePath: '/workspace/demo/notes.md',
+  })
+
+  assert.deepEqual(calls, [
+    ['restore-payload', '/workspace/demo', '/workspace/.altals', 'abc123', ['/workspace/demo/notes.md']],
+  ])
+  assert.deepEqual(result, {
+    restored: true,
+    restoredFiles: ['/workspace/demo/notes.md'],
+    removedFiles: [],
+    manifest: undefined,
+  })
+})
+
+test('workspace snapshot operations expose an explicit chunk-apply seam for workspace save-point file previews', async () => {
+  const calls = []
+  const operations = createWorkspaceSnapshotOperations({
+    fileApplyRuntime: {
+      applyWorkspaceSnapshotFileContent: async ({ filePath, content }) => {
+        calls.push(['apply-file', filePath, content])
+        return true
+      },
+    },
+  })
+
+  const result = await operations.applyWorkspaceSavePointFilePreviewContent({
+    workspace: {
+      path: '/workspace/demo',
+    },
+    snapshot: {
+      sourceId: 'abc123',
+    },
+    filePath: '/workspace/demo/notes.md',
+    content: '# merged preview result',
+  })
+
+  assert.deepEqual(calls, [
+    ['apply-file', '/workspace/demo/notes.md', '# merged preview result'],
+  ])
+  assert.deepEqual(result, {
+    applied: true,
+    reason: '',
+    filePath: '/workspace/demo/notes.md',
+  })
+})
+
+test('workspace snapshot operations expose an explicit remove-added-file seam for workspace save-point restore', async () => {
+  const calls = []
+  const operations = createWorkspaceSnapshotOperations({
+    deletionRuntime: {
+      removeWorkspaceSnapshotAddedFiles: async ({ workspacePath, workspaceDataDir, snapshot, targetPaths }) => {
+        calls.push(['remove-added', workspacePath, workspaceDataDir, snapshot.sourceId, targetPaths])
+        return {
+          removed: true,
+          removedFiles: targetPaths,
+        }
+      },
+    },
+  })
+
+  const result = await operations.removeWorkspaceSavePointAddedFile({
+    workspace: {
+      path: '/workspace/demo',
+      workspaceDataDir: '/workspace/.altals',
+    },
+    snapshot: {
+      sourceId: 'abc123',
+    },
+    filePath: '/workspace/demo/new.md',
+  })
+
+  assert.deepEqual(calls, [
+    ['remove-added', '/workspace/demo', '/workspace/.altals', 'abc123', ['/workspace/demo/new.md']],
+  ])
+  assert.deepEqual(result, {
+    removed: true,
+    removedFiles: ['/workspace/demo/new.md'],
+  })
 })
 
 test('workspace snapshot operations can load workspace save-point payload manifests for the browser surface', async () => {
@@ -394,5 +590,70 @@ test('workspace snapshot operations can load workspace save-point payload manife
       { path: '/workspace/demo/draft.md', relativePath: 'draft.md' },
       { path: '/workspace/demo/notes.md', relativePath: 'notes.md' },
     ],
+  })
+})
+
+test('workspace snapshot operations can load workspace save-point preview summaries for the browser surface', async () => {
+  const calls = []
+  const operations = createWorkspaceSnapshotOperations({
+    previewRuntime: {
+      loadWorkspaceSnapshotPreviewSummary: async ({ workspacePath, workspaceDataDir, snapshot, filesStore, editorStore }) => {
+        calls.push([workspacePath, workspaceDataDir, snapshot.sourceId, filesStore?.id || '', editorStore?.id || ''])
+        return {
+          counts: {
+            unchanged: 1,
+            modified: 1,
+            missing: 0,
+            unreadable: 0,
+            tooLarge: 0,
+            added: 1,
+          },
+          entries: [{
+            path: '/workspace/demo/draft.md',
+            relativePath: 'draft.md',
+            status: 'modified',
+          }],
+          addedEntries: [{
+            path: '/workspace/demo/new.md',
+            relativePath: 'new.md',
+            status: 'added',
+          }],
+        }
+      },
+    },
+  })
+
+  const summary = await operations.loadWorkspaceSavePointPreviewSummary({
+    workspace: {
+      path: '/workspace/demo',
+      workspaceDataDir: '/workspace/.altals',
+    },
+    snapshot: {
+      sourceId: 'abc123',
+    },
+    filesStore: { id: 'files' },
+    editorStore: { id: 'editor' },
+  })
+
+  assert.deepEqual(calls, [['/workspace/demo', '/workspace/.altals', 'abc123', 'files', 'editor']])
+  assert.deepEqual(summary, {
+    counts: {
+      unchanged: 1,
+      modified: 1,
+      missing: 0,
+      unreadable: 0,
+      tooLarge: 0,
+      added: 1,
+    },
+    entries: [{
+      path: '/workspace/demo/draft.md',
+      relativePath: 'draft.md',
+      status: 'modified',
+    }],
+    addedEntries: [{
+      path: '/workspace/demo/new.md',
+      relativePath: 'new.md',
+      status: 'added',
+    }],
   })
 })

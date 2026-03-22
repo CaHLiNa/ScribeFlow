@@ -125,7 +125,9 @@ test('workspace snapshot runtime lists only manifest-backed workspace save point
           payload: {
             manifestPath: '/workspace/.altals/snapshots/payloads/workspace123/manifest.json',
             fileCount: 2,
+            skippedCount: 1,
             capturedAt: '2026-03-22T10:13:10Z',
+            captureScope: 'project-text-set',
           },
         }]
       },
@@ -174,7 +176,9 @@ test('workspace snapshot runtime lists only manifest-backed workspace save point
       payload: {
         manifestPath: '/workspace/.altals/snapshots/payloads/workspace123/manifest.json',
         fileCount: 2,
+        skippedCount: 1,
         capturedAt: '2026-03-22T10:13:10Z',
+        captureScope: 'project-text-set',
       },
     },
   ])

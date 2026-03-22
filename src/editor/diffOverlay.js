@@ -16,8 +16,15 @@ export function mergeViewExtension() {
  * Reconfigure the merge view to show diffs against the original document.
  * Call with null to disable the merge view.
  */
-export function reconfigureMergeView(view, originalContent, onAllResolved) {
-  if (!originalContent) {
+export function reconfigureMergeView(view, originalContent, onAllResolved, options = {}) {
+  const {
+    gutter = true,
+    highlightChanges = true,
+    mergeControls = true,
+    syntaxHighlightDeletions = false,
+  } = options
+
+  if (originalContent === null || originalContent === undefined) {
     view.dispatch({
       effects: mergeViewCompartment.reconfigure([]),
     })
@@ -28,13 +35,15 @@ export function reconfigureMergeView(view, originalContent, onAllResolved) {
     effects: mergeViewCompartment.reconfigure([
       unifiedMergeView({
         original: Text.of(originalContent.split('\n')),
-        gutter: true,
-        highlightChanges: true,
-        syntaxHighlightDeletions: false,
-        mergeControls: true,
+        gutter,
+        highlightChanges,
+        syntaxHighlightDeletions,
+        mergeControls,
       }),
-      // Plugin that detects when all chunks are resolved
-      chunkWatcherPlugin(onAllResolved),
+      ...(onAllResolved ? [
+        // Plugin that detects when all chunks are resolved
+        chunkWatcherPlugin(onAllResolved),
+      ] : []),
     ]),
   })
 }

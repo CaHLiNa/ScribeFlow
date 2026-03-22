@@ -12,8 +12,8 @@ Current overall assessment:
 - Phase 1 is substantially advanced but not fully closed.
 - Phase 2 has completed its currently highest-value `editor` slice and should no longer be extended for cosmetic cleanup.
 - Phase 3 is now in active execution with both the `documentWorkflow` preview/open/reconcile runtime and the build/diagnostic visibility seam landed and validated.
-- Phase 4 is now also in active early execution with the history-repo readiness plus explicit history availability, history-point intent, Footer prompt state, file preparation, message semantics, and commit execution slices landed and validated.
-- Repository state was re-audited on 2026-03-22; the current in-flight refactor state includes landed `editor`, `documentWorkflow`, and early safety-model runtime/service extractions plus targeted tests.
+- Phase 4 is complete for the current planned scope: explicit history-point intent, Git-backed snapshot metadata/manifest seams, local workspace-save-point indexing, app-managed payload restore, project-text-set capture, preview/diff/apply flows, and in-scope added-file removal are all landed and validated.
+- Repository state was re-audited on 2026-03-22; the current in-flight refactor state includes landed `editor`, `documentWorkflow`, and the current planned Phase 4 safety-model runtime/service extractions plus targeted tests.
 
 ## Product Direction
 
@@ -165,7 +165,7 @@ The largest remaining frontend architectural bottlenecks include:
 - `src/stores/reviews.js`
 - `src/components/editor/PdfViewer.vue`
 
-`references` and `editor` have both now had their highest-value currently identified Phase 2 slices extracted, and `documentWorkflow` has now had its first main-loop slice extracted; the next higher-value repository need sits in early Phase 4 safety-model cleanup and then the remaining Phase 3 build/review loop.
+`references` and `editor` have both now had their highest-value currently identified Phase 2 slices extracted, and `documentWorkflow` has now had its first main-loop slice extracted; the next higher-value repository need has shifted back to the remaining Phase 3 build/review loop now that the current planned Phase 4 safety-model slices have landed.
 
 ##### Document workflow status
 
@@ -194,10 +194,17 @@ The first concrete safety-model split has landed:
 - `src/domains/changes/workspaceSnapshotManifestRuntime.js` now owns persisted snapshot manifest trailers so explicit workspace save points can retain `scope` / `kind` metadata above raw Git message heuristics even when they later appear in file-scoped Git history.
 - `src/domains/changes/workspaceLocalSnapshotStoreRuntime.js` now owns the local workspace-save-point index path plus record/backfill behavior under `workspaceDataDir`.
 - `src/domains/changes/workspaceLocalSnapshotPayloadRuntime.js` now owns payload-manifest paths plus app-managed capture/load/restore behavior for payload-backed workspace save points.
+- `src/domains/changes/workspaceSnapshotProjectTextRuntime.js` now owns the filtered project-text candidate set used by workspace save-point payload capture.
+- `src/domains/changes/workspaceSnapshotPreviewRuntime.js` now owns current-workspace preview summaries for payload-backed workspace save points without routing those previews through Git history.
+- `src/domains/changes/workspaceSnapshotDiffRuntime.js` now owns per-file diff/content preview data for modified or missing payload-backed workspace save-point files, including the full content needed for the new local patch/diff editor surface without routing those previews through Git history.
+- `src/domains/changes/workspaceSnapshotFileApplyRuntime.js` now owns app-managed file writes plus open-editor synchronization for workspace snapshot restore and chunk-level preview apply flows, so chunk application does not bypass the normal save/reload/editor-update path.
+- `src/domains/changes/workspaceSnapshotDeletionRuntime.js` now owns in-scope added-file detection/removal for payload-backed workspace save points inside the current filtered `project-text-set`, so full restore no longer ignores newly added project-text files.
 - `src/domains/changes/workspaceAutoCommitRuntime.js` now owns auto-commit marker enablement, workspace eligibility gating, shared auto-message construction, and timed Git add/status/commit execution behind the service shell.
 - `src/domains/changes/workspaceVersionHistoryRuntime.js` now owns Git-backed history list/load/restore IO so `VersionHistory.vue` no longer performs those side effects directly.
 - `src/domains/git/workspaceRepoLinkRuntime.js` now owns local history bootstrap plus remote-link preparation ordering, so `workspaceGitHub.js` no longer inlines history repo creation, auto-commit enablement, remote setup, and initial auto-commit sequencing.
 - `src/app/changes/snapshotLabelPromptRuntime.js` plus `src/app/changes/useSnapshotLabelPrompt.js` now own Footer snapshot-label prompt timers, dialog visibility, and pending confirmation resolution instead of leaving that UI state embedded in `Footer.vue`.
+- `src/domains/files/workspaceTextFileLimits.js` now carries the shared text-read byte limit so payload/runtime tests do not need to import `fileStoreIO` just to reuse that limit.
+- `src/domains/changes/workspaceLocalSnapshotPayloadRuntime.js` now also preserves empty `project-text-set` payload manifests, so a workspace save point can still model an in-scope empty state for later added-file removal instead of silently behaving like “no payload exists”.
 
 This is now a cleaner explicit boundary: shared filesystem existence checks come from `src/services/pathExists.js`, so the safety split no longer depends on a temporary dynamic-import workaround to stay testable.
 
@@ -425,6 +432,7 @@ Observed repository reality as of 2026-03-22:
 
 - `docs/REFACTOR_BLUEPRINT.md` remains the primary execution document.
 - `docs/OPERATIONS.md` and `docs/GIT_AND_SNAPSHOTS.md` now exist and document the current Phase 3/4 boundaries truthfully.
+- `docs/DATA_MODEL.md` now exists and documents the explicit snapshot record/index/payload seams truthfully.
 - `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/DOMAINS.md`, and the other required documents still do not exist.
 - The repository still lacks a broader top-level architecture map for the remaining domain/store boundaries outside the two newly created Phase 3/4 docs.
 
@@ -433,13 +441,12 @@ Required docs such as the following are still missing:
 - `docs/PRODUCT.md`
 - `docs/ARCHITECTURE.md`
 - `docs/DOMAINS.md`
-- `docs/DATA_MODEL.md`
 - `docs/BUILD_SYSTEM.md`
 - `docs/AI_SYSTEM.md`
 - `docs/CONTRIBUTING.md`
 - `docs/TESTING.md`
 
-At the moment, `docs/REFACTOR_BLUEPRINT.md` is the only clearly established refactor doc.
+At the moment, the most established active refactor docs are `docs/REFACTOR_BLUEPRINT.md`, `docs/OPERATIONS.md`, `docs/DATA_MODEL.md`, and `docs/GIT_AND_SNAPSHOTS.md`.
 
 ### Safety model observations
 
@@ -452,7 +459,7 @@ Important remaining coupling:
 - Git-based safety expectations
 - named "snapshot" UI semantics now use a shared history-message runtime, an explicit history-point operation wrapper, and a dedicated Footer prompt seam, but the backend is still Git-backed rather than a first-class app-level snapshot store
 
-This means autosave, local snapshot, git commit, and remote sync are still not sufficiently separated.
+This means autosave, local snapshot, git commit, and remote sync are much more explicit than before, but still not fully separated because explicit workspace save points still create Git commits for the underlying content state and remote sync still rides on the same repository.
 
 ## Phase Plan
 
@@ -547,7 +554,7 @@ Goal:
 - weaken Git’s role as implicit safety layer
 
 Status:
-- In progress, early stage
+- Complete for the current planned scope
 
 What has already happened:
 - `src/services/workspaceHistoryRepo.js` established
@@ -560,6 +567,14 @@ What has already happened:
 - `src/domains/changes/workspaceHistoryAvailabilityRuntime.js` established for explicit history availability checks and optional auto-commit enablement
 - `src/domains/changes/workspaceHistoryPointRuntime.js` established for explicit history-point intent resolution and orchestration across the new safety seams
 - `src/app/changes/snapshotLabelPromptRuntime.js` / `src/app/changes/useSnapshotLabelPrompt.js` established for explicit Footer history-point prompt state
+- `src/domains/changes/workspaceSnapshotRuntime.js`, `workspaceSnapshotMetadataRuntime.js`, and `workspaceSnapshotManifestRuntime.js` established for explicit snapshot records, metadata, and persisted manifest trailers above raw Git history
+- `src/domains/changes/workspaceLocalSnapshotStoreRuntime.js` and `workspaceLocalSnapshotPayloadRuntime.js` established for local workspace-save-point indexing plus app-managed payload capture/load/restore under `workspaceDataDir`
+- `src/domains/changes/workspaceSnapshotProjectTextRuntime.js` established so payload capture broadens to the current filtered `project-text-set` without becoming a whole-workspace rewind
+- `src/domains/changes/workspaceSnapshotPreviewRuntime.js`, `workspaceSnapshotDiffRuntime.js`, and `src/components/WorkspaceSnapshotDiffEditor.vue` established for app-managed preview summary, full diff surface, and chunk-level apply/restore without routing workspace preview through Git history
+- `src/domains/changes/workspaceSnapshotFileApplyRuntime.js` established so preview-apply and payload restore both reuse the same app-managed file-write/editor-sync seam
+- `src/domains/changes/workspaceSnapshotDeletionRuntime.js` established so payload-backed full restore can remove newly added in-scope project-text files without using `git checkout`
+- empty `project-text-set` payload manifests are now preserved so later preview/remove flows can still represent “no in-scope files existed at this save point”
+- file version history remains a separate Git-backed path through `workspaceVersionHistoryRuntime.js` and `VersionHistory.vue`
 
 Exit criteria:
 - explicit safety model documented
@@ -810,6 +825,24 @@ Exit criteria:
 - 2026-03-22 execution cycle: continuing Phase 4 by defining the first app-managed workspace-snapshot payload manifest and restore runtime without using `git checkout` or raw commit rewinds as the restore path
 - 2026-03-22 execution cycle: the first restore slice is intentionally narrow and should restore only explicitly captured workspace-save-point payload files rather than inventing a whole-workspace rewind in one jump
 - 2026-03-22 execution cycle: after landing the first payload/restore seam, the next narrow follow-up is exposing payload manifest summary in the workspace-snapshot browser so restore transparency improves alongside restore capability
+- 2026-03-22 execution cycle: continuing Phase 4 by broadening workspace save-point payload capture from the initial open-file set toward the current loaded workspace text set while keeping restore app-managed and distinct from Git-backed file history
+- 2026-03-22 execution cycle: the payload-backed workspace save-point seam now captures the current loaded workspace text set, persists an explicit payload `captureScope`, and surfaces that boundary in the workspace snapshot browser instead of leaving it implicit
+- 2026-03-22 execution cycle: continuing Phase 4 by tightening the loaded-workspace-text payload boundary so PDF/binary/non-document paths do not leak into workspace save-point payloads through cached text fallbacks
+- 2026-03-22 execution cycle: the loaded-workspace-text payload boundary is now explicit in code, so cached PDF extraction text and other binary/non-document paths no longer count as workspace snapshot payload candidates
+- 2026-03-22 execution cycle: continuing Phase 4 by extracting an explicit project-text candidate seam so workspace save-point payload capture can broaden from the filtered loaded set to a broader project text set without falling back to ad hoc whole-project rewinds
+- 2026-03-22 execution cycle: the project-text candidate seam is now landed, and payload-backed workspace save points now capture a filtered `project-text-set` derived from loaded text candidates plus the workspace flat-file index
+- 2026-03-22 execution cycle: `workspaceTextFileLimits.js` is now extracted so snapshot payload capture can reuse the shared text read limit without importing the `fileStoreIO -> fileStoreEffects -> editor` chain during Node runtime tests
+- 2026-03-22 execution cycle: broadened `project-text-set` capture is now transparent, because payload manifests record skipped/unreadable candidates and the workspace snapshot browser exposes that coverage instead of silently dropping it
+- 2026-03-22 execution cycle: workspace save points now also expose a current-workspace preview summary above the payload manifest, so restore decisions are no longer made from capture counts alone
+- 2026-03-22 execution cycle: workspace save points now also expose a per-file diff/content preview excerpt for modified or missing payload-backed files without routing preview through Git history
+- 2026-03-22 execution cycle: workspace save-point restore can now target the selected file in the dedicated workspace snapshot browser instead of forcing every restore through the all-captured-files path
+- 2026-03-22 execution cycle: selected-file workspace restore is now exposed as an explicit workspace snapshot operation seam instead of leaving the public app boundary on a generic `targetPaths` parameter bridge
+- 2026-03-22 execution cycle: workspace save-point preview is now upgraded from excerpt cards to a fuller local patch/diff editor surface without routing preview through Git history
+- 2026-03-22 execution cycle: the chunk-level apply/restore slice has now landed inside that diff surface without adding delete semantics or collapsing back into Git history
+- 2026-03-22 execution cycle: workspace save-point diff review now supports explicit chunk-level apply/restore inside the app-managed snapshot boundary, while still avoiding delete semantics and Git-based workspace rewinds
+- 2026-03-22 execution cycle: continuing Phase 4 by defining delete semantics only for the current app-managed `project-text-set` scope so full workspace save-point restore can remove newly added in-scope files without becoming a whole-workspace rewind
+- 2026-03-22 execution cycle: continuing Phase 4 by preserving empty `project-text-set` payload manifests so delete semantics can still restore a save point that originally had no in-scope text files
+- 2026-03-22 execution cycle: the current planned Phase 4 scope is now being closed after `project-text-set` added-file removal and empty-payload-manifest preservation landed; the next repository focus shifts back to the remaining Phase 3 build/review loop
 
 ## Completed
 
@@ -1176,6 +1209,101 @@ Exit criteria:
   - `node --test tests/workspaceLocalSnapshotPayloadRuntime.test.mjs tests/workspaceLocalSnapshotStoreRuntime.test.mjs tests/workspaceSnapshotMetadataRuntime.test.mjs tests/workspaceSnapshotRuntime.test.mjs tests/workspaceSnapshot.test.mjs`
   - `node --test tests/*.test.mjs`
   - `npm run build`
+- Broadened `src/domains/changes/workspaceLocalSnapshotPayloadRuntime.js` from the initial open-file-only payload set to the current loaded workspace text set and persisted explicit payload `captureScope` metadata for both local records and payload manifests
+- Rerouted `src/components/WorkspaceSnapshotBrowser.vue` so payload-backed workspace save points now expose their capture-scope boundary instead of showing all payload-backed entries as if they had identical restore semantics
+- Expanded `tests/workspaceLocalSnapshotPayloadRuntime.test.mjs`, `tests/workspaceSnapshotMetadataRuntime.test.mjs`, and `tests/workspaceSnapshot.test.mjs` to validate loaded-cache payload capture, capture-scope persistence, and backward-compatible older payload metadata behavior
+- Validated the twenty-seventh safety-model slice with:
+  - `node --test tests/workspaceLocalSnapshotPayloadRuntime.test.mjs tests/workspaceSnapshotMetadataRuntime.test.mjs tests/workspaceSnapshot.test.mjs tests/workspaceSnapshotRuntime.test.mjs tests/workspaceLocalSnapshotStoreRuntime.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
+- Tightened `src/domains/changes/workspaceLocalSnapshotPayloadRuntime.js` so the loaded-workspace-text payload set now explicitly excludes PDF/binary/non-document paths instead of relying on generic cached-string membership
+- Expanded `tests/workspaceLocalSnapshotPayloadRuntime.test.mjs` again to validate that cached PDF extraction text and opened PDF paths do not leak into workspace save-point payload capture
+- Validated the twenty-eighth safety-model slice with:
+  - `node --test tests/workspaceLocalSnapshotPayloadRuntime.test.mjs tests/workspaceSnapshot.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
+- Established `src/domains/changes/workspaceSnapshotProjectTextRuntime.js`
+- Established `src/domains/files/workspaceTextFileLimits.js`
+- Broadened `src/domains/changes/workspaceLocalSnapshotPayloadRuntime.js` from the filtered loaded-workspace-text set to a filtered `project-text-set` assembled from loaded text candidates plus the workspace flat-file index, while keeping workspace restore app-managed and separate from Git-backed file-history restore
+- Rerouted `src/stores/files.js` and `src/services/fileStoreIO.js` to the shared `workspaceTextFileLimits` module so payload/runtime tests no longer depend on `fileStoreIO -> fileStoreEffects -> editor store` just to resolve the text read limit
+- Rerouted `src/components/WorkspaceSnapshotBrowser.vue` and snapshot metadata/tests so payload-backed workspace save points now expose the new `project-text-set` capture scope instead of presenting broadened project capture as if it were still the narrower loaded-only boundary
+- Added `tests/workspaceSnapshotProjectTextRuntime.test.mjs` and expanded `tests/workspaceLocalSnapshotPayloadRuntime.test.mjs`, `tests/workspaceSnapshotMetadataRuntime.test.mjs`, `tests/workspaceSnapshotRuntime.test.mjs`, and `tests/workspaceSnapshot.test.mjs` to validate project-text candidate filtering, flat-file-index broadening, payload capture-scope persistence, and workspace/browser integration
+- Validated the twenty-ninth safety-model slice with:
+  - `node --test tests/workspaceSnapshotProjectTextRuntime.test.mjs tests/workspaceLocalSnapshotPayloadRuntime.test.mjs tests/workspaceSnapshotMetadataRuntime.test.mjs tests/workspaceSnapshotRuntime.test.mjs tests/workspaceSnapshot.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
+- Broadened `src/domains/changes/workspaceLocalSnapshotPayloadRuntime.js` again so payload metadata/manifests now record `skippedCount` plus `skippedFiles` for unreadable or over-limit project-text candidates, including skipped-only payload manifests when nothing restorable was captured
+- Tightened `src/domains/changes/workspaceSnapshotMetadataRuntime.js` so workspace save points with skipped-only payload manifests remain explainable but do not falsely advertise local restore capability
+- Rerouted `src/components/WorkspaceSnapshotBrowser.vue` so it now loads payload manifests for any payload-backed save point, lists skipped files with simple reasons, and distinguishes skipped-only save points from older no-payload entries
+- Expanded `tests/workspaceLocalSnapshotPayloadRuntime.test.mjs`, `tests/workspaceSnapshotMetadataRuntime.test.mjs`, `tests/workspaceSnapshotRuntime.test.mjs`, and `tests/workspaceSnapshot.test.mjs` to validate skipped-candidate recording, skipped-only payload manifests, and restore-capability gating
+- Updated `docs/DATA_MODEL.md`, `docs/OPERATIONS.md`, and `docs/GIT_AND_SNAPSHOTS.md` again to describe skipped payload coverage truthfully
+- Validated the thirtieth safety-model slice with:
+  - `node --test tests/workspaceLocalSnapshotPayloadRuntime.test.mjs tests/workspaceSnapshotMetadataRuntime.test.mjs tests/workspaceSnapshotRuntime.test.mjs tests/workspaceSnapshot.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
+- Established `src/domains/changes/workspaceSnapshotPreviewRuntime.js`
+- Rerouted `src/domains/changes/workspaceSnapshot.js` and `src/components/WorkspaceSnapshotBrowser.vue` so workspace save points can now load a current-workspace preview summary through the shared snapshot boundary instead of relying only on payload manifest counts
+- Added `tests/workspaceSnapshotPreviewRuntime.test.mjs` and expanded `tests/workspaceSnapshot.test.mjs` to validate preview-summary comparison counts and the new app-facing preview-summary operation seam
+- Updated `docs/DATA_MODEL.md`, `docs/OPERATIONS.md`, and `docs/GIT_AND_SNAPSHOTS.md` again to describe the new workspace save-point preview-summary boundary truthfully
+- Validated the thirty-first safety-model slice with:
+  - `node --test tests/workspaceSnapshotPreviewRuntime.test.mjs tests/workspaceSnapshot.test.mjs tests/workspaceLocalSnapshotPayloadRuntime.test.mjs tests/workspaceSnapshotMetadataRuntime.test.mjs tests/workspaceSnapshotRuntime.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
+- Established `src/domains/changes/workspaceSnapshotDiffRuntime.js`
+- Tightened `src/domains/changes/workspaceSnapshotMetadataRuntime.js` so payload-backed workspace save points now advertise preview capability alongside restore capability
+- Rerouted `src/domains/changes/workspaceSnapshot.js` and `src/components/WorkspaceSnapshotBrowser.vue` so payload-backed workspace save points can now load per-file diff/content preview excerpts for modified or missing files through the shared workspace snapshot boundary instead of relying only on aggregate comparison counts
+- Added `tests/workspaceSnapshotDiffRuntime.test.mjs` and expanded `tests/workspaceSnapshotMetadataRuntime.test.mjs` / `tests/workspaceSnapshot.test.mjs` to validate per-file preview excerpts, preview capability metadata, and the new app-facing workspace save-point file-preview operation seam
+- Updated `docs/DATA_MODEL.md`, `docs/OPERATIONS.md`, and `docs/GIT_AND_SNAPSHOTS.md` again to describe the new per-file workspace save-point preview boundary truthfully
+- Validated the thirty-second safety-model slice with:
+  - `node --test tests/workspaceSnapshotDiffRuntime.test.mjs tests/workspaceSnapshotPreviewRuntime.test.mjs tests/workspaceSnapshotMetadataRuntime.test.mjs tests/workspaceSnapshot.test.mjs tests/workspaceSnapshotRuntime.test.mjs tests/workspaceLocalSnapshotPayloadRuntime.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
+- Narrowed `src/domains/changes/workspaceLocalSnapshotPayloadRuntime.js` so payload-backed workspace restore can now replay either all captured files or an explicit selected subset without routing restore through Git history
+- Rerouted `src/components/WorkspaceSnapshotBrowser.vue` so payload-backed workspace save points now expose a `Restore this file` action beside the existing all-files restore path, and refresh the local preview summary after targeted restore instead of closing blindly
+- Expanded `tests/workspaceLocalSnapshotPayloadRuntime.test.mjs` and `tests/workspaceSnapshot.test.mjs` to validate selected-file payload restore and selected-file workspace save-point restore through the shared snapshot boundary
+- Updated `docs/DATA_MODEL.md`, `docs/OPERATIONS.md`, and `docs/GIT_AND_SNAPSHOTS.md` again to describe the new selected-file restore behavior truthfully
+- Validated the thirty-third safety-model slice with:
+  - `node --test tests/workspaceLocalSnapshotPayloadRuntime.test.mjs tests/workspaceSnapshot.test.mjs tests/workspaceSnapshotDiffRuntime.test.mjs tests/workspaceSnapshotPreviewRuntime.test.mjs tests/workspaceSnapshotRuntime.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
+- Rerouted `src/domains/changes/workspaceSnapshot.js` and `src/components/WorkspaceSnapshotBrowser.vue` so selected-file workspace restore now goes through an explicit `restoreWorkspaceSavePointFile(...)` operation seam instead of leaving the app-facing restore surface on a generic `targetPaths` parameter bridge
+- Expanded `tests/workspaceSnapshot.test.mjs` again to validate the explicit selected-file workspace restore operation seam
+- Updated `docs/DATA_MODEL.md`, `docs/OPERATIONS.md`, and `docs/GIT_AND_SNAPSHOTS.md` again to describe the explicit selected-file restore seam truthfully
+- Validated the thirty-fourth safety-model slice with:
+  - `node --test tests/workspaceSnapshot.test.mjs tests/workspaceLocalSnapshotPayloadRuntime.test.mjs tests/workspaceSnapshotDiffRuntime.test.mjs tests/workspaceSnapshotPreviewRuntime.test.mjs tests/workspaceSnapshotRuntime.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
+- Tightened `src/editor/diffOverlay.js` so the shared merge-view helper can now reconfigure read-only diff surfaces without merge controls, and so empty-string originals still render as valid diffs instead of disabling the diff view
+- Established `src/components/WorkspaceSnapshotDiffEditor.vue`
+- Expanded `src/domains/changes/workspaceSnapshotDiffRuntime.js` so selected-file workspace save-point previews now include the full saved/current content needed for the new patch/diff editor surface instead of only excerpt cards
+- Rerouted `src/components/WorkspaceSnapshotBrowser.vue` so selected-file workspace save-point preview now renders through the dedicated local diff editor instead of paired excerpt blocks
+- Expanded `tests/workspaceSnapshotDiffRuntime.test.mjs` again to validate the fuller file-preview payload returned to the new diff editor surface
+- Updated `docs/DATA_MODEL.md`, `docs/OPERATIONS.md`, and `docs/GIT_AND_SNAPSHOTS.md` again to describe the upgraded workspace save-point diff surface truthfully
+- Validated the thirty-fifth safety-model slice with:
+  - `node --test tests/workspaceSnapshotDiffRuntime.test.mjs tests/workspaceSnapshot.test.mjs tests/workspaceLocalSnapshotPayloadRuntime.test.mjs tests/workspaceSnapshotPreviewRuntime.test.mjs tests/workspaceSnapshotMetadataRuntime.test.mjs tests/workspaceSnapshotRuntime.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
+- Established `src/domains/changes/workspaceSnapshotFileApplyRuntime.js`
+- Rerouted `src/domains/changes/workspaceSnapshot.js` so payload-backed workspace snapshot restore and the new chunk-level preview apply path both reuse the same app-managed file-write/editor-sync seam instead of duplicating inline save/reload logic
+- Rerouted `src/components/WorkspaceSnapshotBrowser.vue` and `src/components/WorkspaceSnapshotDiffEditor.vue` so the local workspace snapshot diff surface now exposes explicit chunk-level apply/restore through merge controls plus a dedicated apply action without routing those writes through Git history
+- Added `tests/workspaceSnapshotFileApplyRuntime.test.mjs` and expanded `tests/workspaceSnapshot.test.mjs` to validate the new file-apply runtime plus the explicit chunk-apply workspace snapshot operation seam
+- Updated `docs/DATA_MODEL.md`, `docs/OPERATIONS.md`, and `docs/GIT_AND_SNAPSHOTS.md` again to describe the new chunk-level workspace save-point apply/restore boundary truthfully
+- Validated the thirty-sixth safety-model slice with:
+  - `node --test tests/workspaceSnapshotFileApplyRuntime.test.mjs tests/workspaceSnapshot.test.mjs tests/workspaceSnapshotDiffRuntime.test.mjs tests/workspaceLocalSnapshotPayloadRuntime.test.mjs tests/workspaceSnapshotPreviewRuntime.test.mjs tests/workspaceSnapshotMetadataRuntime.test.mjs tests/workspaceSnapshotRuntime.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
+- Established `src/domains/changes/workspaceSnapshotDeletionRuntime.js`
+- Extended `src/domains/changes/workspaceSnapshotPreviewRuntime.js`, `src/domains/changes/workspaceSnapshot.js`, and `src/components/WorkspaceSnapshotBrowser.vue` so payload-backed workspace save points now surface added-after-save-point entries and can remove one or all newly added in-scope `project-text-set` files without using Git history or `git checkout`
+- Added `tests/workspaceSnapshotDeletionRuntime.test.mjs` and expanded `tests/workspaceSnapshotPreviewRuntime.test.mjs` / `tests/workspaceSnapshot.test.mjs` to validate added-entry detection, targeted removal, and full-restore removal behavior
+- Adjusted `src/domains/changes/workspaceLocalSnapshotPayloadRuntime.js` so payload metadata/manifests can now persist even when the current filtered `project-text-set` is empty, preserving an explicit empty in-scope save-point state instead of silently dropping the payload
+- Expanded `tests/workspaceLocalSnapshotPayloadRuntime.test.mjs` and `tests/workspaceSnapshotMetadataRuntime.test.mjs` to validate empty payload-manifest persistence and the corresponding metadata capability gating
+- Updated `docs/DATA_MODEL.md`, `docs/OPERATIONS.md`, and `docs/GIT_AND_SNAPSHOTS.md` again to describe added-file removal and empty-manifest preservation truthfully
+- Validated the thirty-seventh and thirty-eighth safety-model slices with:
+  - `node --test tests/workspaceSnapshotDeletionRuntime.test.mjs tests/workspaceSnapshotPreviewRuntime.test.mjs tests/workspaceSnapshot.test.mjs tests/workspaceLocalSnapshotPayloadRuntime.test.mjs tests/workspaceSnapshotRuntime.test.mjs`
+  - `node --test tests/workspaceLocalSnapshotPayloadRuntime.test.mjs tests/workspaceSnapshotMetadataRuntime.test.mjs tests/workspaceSnapshotDeletionRuntime.test.mjs tests/workspaceSnapshotPreviewRuntime.test.mjs tests/workspaceSnapshot.test.mjs tests/workspaceSnapshotRuntime.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
+- Re-audited the current planned Phase 4 closure after the delete-removal and empty-manifest slices, and reran fresh full validation with `node --test tests/*.test.mjs` (`317/317` passing) plus `npm run build`
 - Established `src/domains/reference/referenceLibraryRuntime.js`
 - Moved reference library save scheduling, self-write bookkeeping, fs-change listener lifecycle, and three-file persistence behind the new runtime module
 - Reduced `src/stores/references.js` from 1089 lines to 1027 lines
@@ -1275,19 +1403,22 @@ Exit criteria:
 - `editor` still owns close/move/layout shell logic, but the major currently identified routing knot is now extracted; staying in Phase 2 there risks slipping into lower-value cleanup
 - `documentWorkflow` is thinner after the preview/open/reconcile extraction, but the build/review loop is still not yet documented or split into clear operations
 - The safety model is cleaner now, and workspace save points have a first app-managed payload manifest plus restore seam above the Git-backed snapshot/history boundary, but that restore coverage is still intentionally narrow
-- Snapshot scope is now explicit (`workspace` vs `file`), and restore semantics are now split: file-scoped version history remains Git-backed while payload-backed workspace save points restore only their captured file set
+- Snapshot scope is now explicit (`workspace` vs `file`), and restore semantics are now split: file-scoped version history remains Git-backed while payload-backed workspace save points restore only the current filtered project text set
 - Older/backfilled workspace save points can still appear in the browser without a local restore payload
-- The next high-value snapshot step is now deciding how far the payload-backed workspace restore set should expand beyond the current explicitly captured files so Phase 4 keeps moving on safety semantics instead of falling back to lower-value naming cleanup
+- Older payload-backed workspace save points can still exist with the legacy open-files-only capture scope
+- Older payload-backed workspace save points can still exist with the intermediate loaded-workspace-text capture scope
+- The current `project-text-set` payload boundary is broader than the loaded set, but it still depends on flat-file index freshness, text-read limits, and explicit path filtering rather than representing a whole-project rewind
+- Workspace save-point preview/restore now models captured-file replay, chunk-level apply/restore, and in-scope added-file removal inside the filtered `project-text-set`, but it still is not a whole-workspace rewind and does not delete files outside that explicit scope
 - Backend flattening is still untouched and could become harder if frontend assumptions harden further
 - The architecture docs are still missing even though frontend domain boundaries are now multiplying; this remains a shared-understanding risk
 
 ## Next Recommended Slice
 
-1. Decide whether workspace save points should keep restoring only explicitly captured files or broaden toward a larger project text set
-2. Keep the current `workspace` vs `file` scope distinction explicit: workspace payload restore should stay separate from Git-backed file-history restore
-3. Validate the next payload-scope slice with the relevant history/snapshot tests plus `node --test tests/*.test.mjs` and `npm run build`
-4. Update `docs/DATA_MODEL.md`, `docs/OPERATIONS.md`, and `docs/GIT_AND_SNAPSHOTS.md` again to describe the broadened payload boundary truthfully
-5. Avoid drifting back into lower-value naming cleanup now that the app/public snapshot surfaces are aligned
+1. Continue Phase 3, not more cosmetic Phase 2 cleanup and not more speculative Phase 4 expansion
+2. Extract document build execution out of `src/composables/useEditorPaneWorkflow.js` and other UI-facing glue into a shared document operation seam above the existing `documentWorkflowBuildRuntime.js`
+3. Keep reusing the current document adapters and preserve adapter-specific log/problem/preview behavior while build launch moves behind that shared operation entry
+4. Validate with targeted document-workflow runtime tests, `node --test tests/*.test.mjs`, and `npm run build`
+5. Leave workspace snapshot restore separate from Git-backed file-history restore; do not reopen Phase 4 unless a new safety-model decision is truly required
 
 ## Validation Checklist
 
@@ -1341,7 +1472,7 @@ Exit criteria:
 - The first Phase 3 slice has now started the document preview loop as an explicit domain runtime rather than leaving it buried inside the store.
 - The first Phase 4 slice has now started separating history bootstrap from auto-commit, and the immediate shared-utility cleanup has removed the dynamic-import workaround before it could harden into new accidental complexity.
 - The next two Phase 4 slices separated pre-history file preparation and explicit history commit execution from the old `workspaceHistory.js` bridge; that bridge is now gone, and the remaining safety-model gap has shifted from ad hoc snapshot metadata to persisted manifest metadata above the new Git-backed boundary.
-- The repository now has a first shared snapshot operation boundary plus explicit `workspace` vs `file` scope, explicit derived snapshot metadata, persisted manifest metadata, a local workspace-save-point index, and a first payload-backed workspace restore seam; the next gap is deciding how broadly that payload should capture project state without collapsing back into raw Git rewinds.
+- The repository now has a first shared snapshot operation boundary plus explicit `workspace` vs `file` scope, explicit derived snapshot metadata, persisted manifest metadata, a local workspace-save-point index, and a payload-backed workspace restore seam that now covers a filtered project text set with explicit skipped-coverage metadata plus a workspace-level preview summary; the next gap is deepening that summary into per-file content diff/preview without collapsing back into raw Git rewinds.
 - `files` was the highest-value target through the runtime extraction sequence, but after the mutation slice landed it is no longer the clearest bottleneck.
 - After the refresh/runtime extraction, `files` still contains a second narrow orchestration seam around watch/poll scheduling and activity hooks; that is the best candidate if we continue in the same domain.
 - After the watch/runtime extraction, the highest-value remaining `files` slice is tree hydration/loading rather than more watch logic.

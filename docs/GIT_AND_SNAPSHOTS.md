@@ -13,7 +13,7 @@ The current implementation does not fully separate these concepts yet. This file
 
 ## Current Truth
 
-Altals now has a first explicit history-repo boundary, a local workspace-snapshot index, and a first app-managed restorable payload for captured workspace save-point files.
+Altals now has a first explicit history-repo boundary, a local workspace-snapshot index, and an app-managed workspace save-point payload/restore surface for a filtered project text set, including in-scope added-file removal, behind explicit workspace save points.
 
 Today:
 
@@ -21,7 +21,10 @@ Today:
 - named workspace save points still create Git commits
 - explicit workspace save points now stamp a small manifest trailer into the Git-backed history subject
 - explicit workspace save points now also record a local index entry under `workspaceDataDir`
-- explicit workspace save points can now capture a local payload manifest plus per-file content payload for explicitly captured files
+- explicit workspace save points can now capture a local payload manifest plus per-file content payload for a filtered project text set in the current workspace
+- that `project-text-set` payload boundary is assembled from loaded text candidates plus the workspace flat-file index, then filtered to exclude PDF/binary/non-document/support-only paths even if they have cached string content or appear in the raw index
+- payload capture now also records skipped project-text candidates so unreadable or over-limit files remain visible in the save-point metadata instead of disappearing silently
+- payload capture now also preserves empty `project-text-set` manifests so a later restore can still model the in-scope empty state of a save point
 - Git history is the current recovery/history backend
 - remote sync is layered on top of the same Git repository
 
@@ -68,7 +71,7 @@ Current flow:
 7. `git status`
 8. create an explicit commit
 9. record a workspace-save-point entry in the local snapshot index when `workspaceDataDir` is available
-10. capture a local payload manifest plus per-file payload files for the explicitly captured restore set
+10. capture a local payload manifest plus per-file payload files for the current filtered project text set, excluding PDF/binary/non-document/support-only paths
 
 This is useful, but it means explicit save history is still coupled to Git commit behavior for the underlying content state.
 
@@ -107,9 +110,24 @@ The current snapshot UI is not a separate snapshot backend.
 `src/domains/changes/workspaceLocalSnapshotPayloadRuntime.js` now owns the first restorable payload slice:
 
 - resolve payload manifest/content paths under `workspaceDataDir/snapshots/payloads/*`
-- capture text payload files for explicitly captured workspace save-point files
+- capture text payload files for the current filtered project text set inside the workspace
+- reuse `src/domains/changes/workspaceSnapshotProjectTextRuntime.js` so project-text candidate collection stays outside the payload/runtime shell
+- exclude PDF/binary/non-document/support-only paths from that broadened set even when other parts of the app cache string content for them
+- persist the current payload capture scope alongside the payload manifest metadata
+- persist skipped project-text candidates plus simple capture-failure reasons alongside the payload manifest metadata
+- persist an empty payload manifest when the current `project-text-set` is empty so the save point can still represent an in-scope empty state
 - write a payload manifest that describes the captured files
 - restore those captured files without using `git checkout`
+
+`src/domains/changes/workspaceSnapshotPreviewRuntime.js` now owns the aggregate current-workspace comparison summary for payload-backed workspace save points.
+
+`src/domains/changes/workspaceSnapshotDiffRuntime.js` now owns the selected-file full diff/content preview surface for modified or missing payload-backed workspace save-point files.
+
+`src/components/WorkspaceSnapshotDiffEditor.vue` now renders that save-point file preview as a local patch/diff editor surface using the shared merge-view helper instead of paired excerpt cards.
+
+`src/domains/changes/workspaceSnapshotFileApplyRuntime.js` now owns writing merged snapshot preview content back through the normal file-save/editor-sync path, so chunk-level apply does not bypass the app-managed workspace snapshot boundary.
+
+`src/domains/changes/workspaceSnapshotDeletionRuntime.js` now owns listing and removing files that were added after the selected save point but still fall inside the current filtered `project-text-set`, so full restore no longer has to ignore those files or collapse back into a Git rewind.
 
 `src/app/changes/snapshotLabelPromptRuntime.js` plus `src/app/changes/useSnapshotLabelPrompt.js` now isolate the Footer prompt timer, dialog visibility, and pending label resolution from the rest of the Footer status UI.
 
@@ -146,9 +164,10 @@ The app-facing file-history entry points are now explicit:
 
 `src/components/WorkspaceSnapshotBrowser.vue` is now the dedicated user-facing browser for repo-wide workspace save points.
 
-Its current app-facing feed entry point is:
+Its current app-facing entry points are:
 
 - `listWorkspaceSavePoints({ workspacePath, workspaceDataDir })`
+- `restoreWorkspaceSavePointFile({ workspace, snapshot, filePath, ... })`
 
 Its lower runtime entry point is now also explicit:
 
@@ -160,6 +179,14 @@ That feed now reads a local workspace-save-point index under `workspaceDataDir/s
 
 - loads the payload manifest summary for payload-backed workspace save points
 - shows which captured files belong to the selected save point
+- shows whether the selected save point uses the new `project-text-set` capture scope or one of the older narrower payload scopes
+- shows which project-text candidates were skipped during capture and explains skipped-only save points without presenting them as restorable
+- shows a current-workspace comparison summary for captured files before restore, without routing that preview through Git history
+- shows files that were added after the selected save point inside the current filtered `project-text-set`
+- shows a selected-file patch/diff editor for modified or missing captured files before restore, without routing that preview through Git history
+- lets the user use chunk controls inside that diff surface and apply the merged text result back to the selected workspace file without routing that write through Git history
+- lets the user restore the selected captured file without forcing the rest of the payload set to restore in the same action
+- lets the user remove one added in-scope file, or remove all added in-scope files during full restore, without using `git checkout`
 - restores those captured files through the new app-managed payload runtime
 
 Older/backfilled workspace save points can still appear without a local payload.
@@ -213,10 +240,12 @@ Current state:
 - explicit workspace save points now also persist a small manifest trailer in Git-backed history subjects
 - explicit workspace save points now also persist into a local workspace-save-point index under `workspaceDataDir`
 - the workspace snapshot browser now reads that local index and backfills older manifest-backed Git entries into it
-- explicit workspace save points can now also persist a local payload manifest plus payload files for the captured restore set
+- explicit workspace save points can now also persist a local payload manifest plus payload files for the current filtered project text set
 - workspace-level restore now exists for payload-backed save points without using raw Git rewinds
+- workspace-level restore now also models removal of newly added in-scope project-text files and can preserve an explicitly empty in-scope save point through empty payload manifests
 - backend behavior for workspace save points still resolves to Git commit creation for the underlying content state
-- payload capture is still intentionally narrow and currently covers only the explicitly captured file set rather than the whole workspace
+- payload capture is still intentionally narrow and currently covers a filtered project text set rather than the whole workspace
+- that project text set is now explicitly filtered so cached PDF extraction text and other binary/non-document/support-only paths do not leak into workspace save-point payloads
 
 This is the largest remaining safety-model gap.
 
@@ -244,12 +273,14 @@ Remote sync is more explicit than before, but it is not yet independent from loc
 
 The main current risks are:
 
-- workspace restore currently covers only explicitly captured payload files, not the whole workspace
+- workspace restore currently covers only the filtered project text set, not the whole workspace
 - explicit save history and auto-commit still both feed Git history directly
 - remote link/setup can also influence local history behavior
 - users and maintainers can still misread Git history as the whole safety model
 - older/backfilled workspace save points may exist in the browser without a local restore payload
-- workspace-level preview/diff still does not exist above the payload manifest summary
+- older payload-backed workspace save points may still carry the narrower `open-workspace-files` or `loaded-workspace-text` capture scope
+- workspace save-point file preview is now app-managed and uses a fuller patch/diff editor surface with explicit chunk-level apply/restore semantics
+- workspace save points can now replay one captured file, the whole captured set, or remove newly added in-scope files, but they still do not provide a whole-workspace rewind beyond the filtered `project-text-set`
 
 ## Target Direction
 
@@ -264,10 +295,12 @@ That target has landed only partially.
 
 ## Next Safety Slice
 
-The next Phase 4 slice is no longer defining whether a first restorable payload/restore seam should exist. That slice has landed.
+The current planned Phase 4 scope is now complete.
 
-The remaining high-value gap is deciding and implementing the next payload-scope expansion. The recommended next step is:
+If safety-model work resumes later, the next non-trivial decision is no longer a narrow wrapper extraction; it is whether Altals should ever support a broader whole-workspace rewind beyond the current filtered `project-text-set`.
 
-1. decide whether workspace save points should keep restoring only explicitly captured files or broaden toward a larger project text set
-2. keep the current `workspace` vs `file` scope distinction explicit instead of collapsing workspace restore back into file history
+The immediate next repository slice should shift back to Phase 3:
+
+1. extract document build execution out of UI-facing composables and into a shared document operation seam
+2. keep the current `workspace` vs `file` restore distinction explicit
 3. continue avoiding `git checkout` or raw commit rewinds as the default workspace-snapshot restore path

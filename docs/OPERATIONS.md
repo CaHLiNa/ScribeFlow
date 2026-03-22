@@ -98,16 +98,34 @@ Current behavior:
 - explicit snapshot creation now routes through `workspaceSnapshot.js`, which persists dirty/open files before committing through the lower history-point/runtime seam
 - explicit workspace save points now persist a Git-backed manifest trailer through `workspaceSnapshotManifestRuntime.js` so `scope` / `kind` metadata survives later history listing
 - explicit workspace save points now also record a local index entry under `workspaceDataDir/snapshots/workspace-save-points.json`
-- explicit workspace save points can now also capture a local payload manifest plus per-file payload files for the explicitly captured restore set
+- explicit workspace save points can now also capture a local payload manifest plus per-file payload files for a filtered `project-text-set` inside the current workspace
+- `workspaceSnapshotProjectTextRuntime.js` now assembles that `project-text-set` from loaded text candidates plus the workspace flat-file index instead of stopping at already loaded files
+- that broadened project text set is explicitly filtered so PDF/binary/non-document/support-only paths do not enter workspace payload capture through cached string fallbacks or raw index membership
+- payload metadata now preserves an explicit `captureScope` so workspace restore semantics stay visible above the raw payload files
+- payload metadata and payload manifests now also preserve skipped coverage so unreadable or over-limit project-text candidates do not disappear silently
 - Footer prompt state for naming that history point is now isolated behind the `snapshotLabelPromptRuntime` / `useSnapshotLabelPrompt` app-layer seam
 - file version history now opens through `openFileVersionHistoryBrowser(...)` and lists through `listFileVersionHistory(...)`
 - repo-wide workspace save points now list through `listWorkspaceSavePoints({ workspacePath, workspaceDataDir })` and surface in `WorkspaceSnapshotBrowser.vue`
 - repo-wide workspace save points can now also load payload-manifest summaries through `loadWorkspaceSavePointPayloadManifest(...)`
+- repo-wide workspace save points can now also load a current-workspace preview summary through `loadWorkspaceSavePointPreviewSummary(...)`
+- repo-wide workspace save points can now also load a selected-file full diff/content preview through `loadWorkspaceSavePointFilePreview(...)`
+- repo-wide workspace save-point preview summaries now also surface `addedEntries` for in-scope project-text files that were added after the selected save point
 - file version history preview/restore now route through `loadFileVersionHistoryPreview(...)` / `restoreFileVersionHistoryEntry(...)`
 - payload-backed workspace save points can now restore their captured files through `restoreWorkspaceSavePoint(...)`
+- payload-backed workspace save points can now also restore the currently inspected captured file through the same app-managed payload boundary, still without routing restore through Git history
+- that selected-file restore path is now explicit at the app boundary through `restoreWorkspaceSavePointFile(...)`
+- the workspace snapshot operation boundary now also exposes `applyWorkspaceSavePointFilePreviewContent(...)` so chunk-level diff decisions can write merged text back through the same app-managed file-write/editor-sync path instead of a browser-local shortcut
+- the workspace snapshot operation boundary now also exposes `removeWorkspaceSavePointAddedFile(...)` so added in-scope project-text files can be removed through the same app-managed workspace save-point boundary instead of Git history
 - the lower snapshot runtime now mirrors that separation through `listFileVersionHistoryEntries(...)`, `listWorkspaceSavePointEntries(...)`, `loadFileVersionHistoryPreview(...)`, and `restoreFileVersionHistoryEntry(...)`
 - the lower snapshot runtime now also backfills manifest-backed Git workspace save points into the local index so the workspace browser does not remain a new-records-only surface
-- `WorkspaceSnapshotBrowser.vue` now lists the captured files for payload-backed save points and exposes a dedicated restore action for them
+- `WorkspaceSnapshotBrowser.vue` now lists the captured files for payload-backed save points, exposes a dedicated restore action for them, and distinguishes the newer `project-text-set` payload scope from the older loaded/open-only payload scopes
+- `WorkspaceSnapshotBrowser.vue` now also lists skipped payload candidates and explains skipped-only save points without falsely offering a restore button
+- `WorkspaceSnapshotBrowser.vue` now also shows a current-workspace comparison summary for captured files before restore, without routing that preview through Git history
+- `WorkspaceSnapshotBrowser.vue` now also shows files added after the selected save point inside the current filtered `project-text-set` and allows targeted removal for them
+- `WorkspaceSnapshotBrowser.vue` now also lets the user inspect a selected modified or missing captured file through a local patch/diff editor before restore, without routing that preview through Git history
+- `WorkspaceSnapshotBrowser.vue` now also lets the user use merge-view chunk controls inside that diff editor and apply the resulting merged content back to the workspace file without routing that write through Git history
+- `WorkspaceSnapshotBrowser.vue` now also exposes a `Restore this file` action for the currently inspected captured file and refreshes the local preview surface after that targeted restore
+- full workspace save-point restore can now also remove added in-scope project-text files when the selected save point represents an earlier filtered `project-text-set` state
 - created save points are currently workspace-scoped snapshots, while version-history browsing still yields file-scoped snapshots plus any manifest-backed workspace save points that touched the current file
 - restore actions still operate through Git history for file-scoped snapshots
 
@@ -141,18 +159,19 @@ The main missing pieces are:
 - no single operation layer shared by UI, AI, and commands
 - save/build/review operations are still split between stores, composables, and services
 - build execution is still launched from UI-facing composables instead of a shared document operation entry
-- workspace snapshot restore currently covers only the explicitly captured payload file set
-- change review is still partly Git-first because file preview/restore remains Git-backed and workspace save-point preview is still manifest-summary-only
+- workspace snapshot restore currently covers only the current filtered `project-text-set`, not a whole-project rewind
+- that `project-text-set` boundary is broader than the loaded-only path but still narrower than the whole workspace, which keeps workspace restore separate from PDF extraction and other non-document side paths
+- change review is still partly Git-first because file preview/restore remains Git-backed even though workspace save-point review now has local chunk-level apply/restore
+- workspace save-point preview/restore now covers captured-file replay, chunk-level apply, and in-scope added-file removal, but it still does not provide a whole-project rewind
 
 ## Next Operation Work
 
-The next operation-oriented refactor should stay in Phase 4 and focus on the safety model boundary, not on more cosmetic Phase 2 store cleanup.
+The current planned Phase 4 operation work is complete.
 
-The most useful next operation target is to decide how the payload-backed workspace restore seam should expand so:
+The next operation-oriented refactor should shift back to Phase 3 and focus on the document build/review loop, not on more cosmetic Phase 2 cleanup.
 
-- explicit workspace save points
-- per-file version history
-- preview/restore affordances
-- Footer save-point creation
+The most useful next operation target is now:
 
-keep improving recovery confidence without collapsing workspace restore back into a hidden Git-checkout path.
+- extract build execution out of `src/composables/useEditorPaneWorkflow.js` and other UI-facing glue into a shared document operation seam
+- keep the current adapter-backed log/problem/preview behavior intact while build launch moves behind that operation boundary
+- leave workspace save-point restore separate from Git-backed file version history restore
