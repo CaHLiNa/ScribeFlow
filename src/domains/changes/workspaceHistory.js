@@ -1,5 +1,9 @@
 import { gitAdd, gitCommit, gitStatus } from '../../services/git'
-import { ensureWorkspaceHistoryRepo } from '../../services/workspaceAutoCommit'
+import { ensureWorkspaceHistoryRepo } from '../../services/workspaceHistoryRepo.js'
+import {
+  canAutoCommitWorkspace,
+  enableWorkspaceAutoCommit,
+} from '../../services/workspaceAutoCommit'
 import { isAiLauncher, isLibraryPath, isPreviewPath } from '../../utils/fileTypes'
 
 async function ensureHistoryRepo({ workspace, options = {}, onUnavailable, onAutoCommitEnabled }) {
@@ -8,10 +12,18 @@ async function ensureHistoryRepo({ workspace, options = {}, onUnavailable, onAut
     onUnavailable?.()
     return null
   }
-  if (result.autoCommitEnabled) {
+
+  let autoCommitEnabled = await canAutoCommitWorkspace(workspace.path).catch(() => false)
+  if (options.enableAutoCommit && !autoCommitEnabled) {
+    autoCommitEnabled = await enableWorkspaceAutoCommit(workspace.path).catch(() => false)
+  }
+  if (autoCommitEnabled) {
     onAutoCommitEnabled?.()
   }
-  return result
+  return {
+    ...result,
+    autoCommitEnabled,
+  }
 }
 
 export async function saveWorkspaceHistoryCommit({

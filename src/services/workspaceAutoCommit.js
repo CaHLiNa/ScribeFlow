@@ -1,6 +1,6 @@
-import { gitAdd, gitCommit, gitInit, gitLog, gitStatus } from './git'
+import { gitAdd, gitCommit, gitStatus } from './git'
 import { invoke } from '@tauri-apps/api/core'
-import { pathExists } from './workspaceBootstrap'
+import { pathExists } from './pathExists.js'
 import { getHomeDirCached, normalizePathValue } from './workspacePaths'
 
 const AUTO_COMMIT_MARKER = 'altals-auto-commit-enabled'
@@ -28,53 +28,6 @@ export async function canAutoCommitWorkspace(path = '') {
     return false
   }
   return pathExists(autoCommitMarkerPath(normalizedPath))
-}
-
-export async function ensureWorkspaceHistoryRepo(path = '', options = {}) {
-  const {
-    seedInitialCommit = false,
-    seedMessage = 'Initial snapshot',
-    enableAutoCommit: shouldEnableAutoCommit = false,
-  } = options
-  if (!path) return { ok: false, reason: 'missing' }
-
-  const normalizedPath = normalizePathValue(path)
-  const normalizedHome = await getHomeDirCached()
-  if (normalizedHome && normalizedPath === normalizedHome) {
-    return { ok: false, reason: 'home' }
-  }
-
-  const hasRepo = await pathExists(`${normalizedPath}/.git`)
-  let initialized = false
-  if (hasRepo) {
-    initialized = false
-  } else {
-    await gitInit(normalizedPath)
-    initialized = true
-  }
-
-  let autoCommitEnabled = await canAutoCommitWorkspace(normalizedPath)
-  if (shouldEnableAutoCommit && !autoCommitEnabled) {
-    autoCommitEnabled = await enableWorkspaceAutoCommit(normalizedPath).catch(() => false)
-  }
-
-  if (!seedInitialCommit) {
-    return { ok: true, initialized, seeded: false, autoCommitEnabled }
-  }
-
-  const commits = await gitLog(normalizedPath, null, 1)
-  if (commits.length > 0) {
-    return { ok: true, initialized, seeded: false, autoCommitEnabled }
-  }
-
-  await gitAdd(normalizedPath)
-  const status = await gitStatus(normalizedPath)
-  if (!status.trim()) {
-    return { ok: true, initialized, seeded: false, empty: true, autoCommitEnabled }
-  }
-
-  await gitCommit(normalizedPath, seedMessage)
-  return { ok: true, initialized, seeded: true, autoCommitEnabled }
 }
 
 export async function runWorkspaceAutoCommit(path = '') {

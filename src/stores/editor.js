@@ -24,8 +24,6 @@ import {
   splitPaneNode,
 } from '../domains/editor/paneTreeLayout'
 import {
-  activateOrOpenPaneTab,
-  appendFreshPaneTab,
   closePaneTab,
   movePaneTab,
   reorderPaneTabs as reorderEditorPaneTabs,
@@ -68,6 +66,7 @@ import {
   restoreLegacyEditorSurface,
   validateRestoredEditorTabs,
 } from '../domains/editor/editorRestoreRuntime'
+import { createEditorOpenRoutingRuntime } from '../domains/editor/editorOpenRoutingRuntime'
 
 // Pane tree: either a leaf (has tabs) or a split (has children)
 // { type: 'leaf', id, tabs: [path, ...], activeTab: path }
@@ -187,10 +186,6 @@ export const useEditorStore = defineStore('editor', {
       return findEditorPaneWithTab(this.paneTree, tabPath)
     },
 
-    _findNonChatPane() {
-      return this._findLeaf(n => !n.activeTab || (!isChatTab(n.activeTab) && !isAiWorkbenchPath(n.activeTab)))
-    },
-
     _rememberContextPath(path) {
       if (!isContextCandidatePath(path)) return
       this.lastContextPath = path
@@ -203,59 +198,58 @@ export const useEditorStore = defineStore('editor', {
       return findEditorLeaf(this.paneTree, predicate)
     },
 
+    _getEditorOpenRoutingRuntime() {
+      if (!this._editorOpenRoutingRuntime) {
+        this._editorOpenRoutingRuntime = createEditorOpenRoutingRuntime({
+          getActivePaneId: () => this.activePaneId,
+          setActivePaneId: (paneId) => {
+            this.activePaneId = paneId
+          },
+          getLastChatPaneId: () => this.lastChatPaneId,
+          setLastChatPaneId: (paneId) => {
+            this.lastChatPaneId = paneId
+          },
+          findPane: (paneId) => this.findPane(this.paneTree, paneId),
+          findPaneWithTab: (tabPath) => this.findPaneWithTab(tabPath),
+          findLeaf: (predicate) => this._findLeaf(predicate),
+          splitPaneWith: (paneId, direction, tab) => this.splitPaneWith(paneId, direction, tab),
+          rememberContextPath: (path) => this._rememberContextPath(path),
+          recordFileOpen: (path) => this.recordFileOpen(path),
+          revealInTree: (path) => this._revealInTree(path),
+          saveEditorState: () => this.saveEditorState(),
+          createChatSession: () => useChatStore().createSession(),
+          setActiveChatSessionId: (sessionId) => {
+            useChatStore().activeSessionId = sessionId
+          },
+          setPendingChatPrefill: (value) => {
+            useChatStore().pendingPrefill = value
+          },
+          setPendingChatSelection: (value) => {
+            useChatStore().pendingSelection = value
+          },
+          dispatchChatPrefill: (message) => {
+            nextTick(() => {
+              window.dispatchEvent(new CustomEvent('chat-set-input', {
+                detail: { message },
+              }))
+            })
+          },
+          dispatchChatSelection: (selection) => {
+            nextTick(() => {
+              window.dispatchEvent(new CustomEvent('chat-with-selection', {
+                detail: selection,
+              }))
+            })
+          },
+          createNewTabPath: () => `newtab:${nanoid()}`,
+          createAiLauncherPath: () => `ai-launcher:${nanoid()}`,
+        })
+      }
+      return this._editorOpenRoutingRuntime
+    },
+
     openFile(path) {
-      const pane = this.findPane(this.paneTree, this.activePaneId)
-      if (!pane) return
-
-      // If already open in this pane, switch to it
-      if (pane.tabs.includes(path)) {
-        activateOrOpenPaneTab(pane, path)
-        this._rememberContextPath(path)
-        if (!isChatTab(path) && !isLibraryPath(path) && !isAiWorkbenchPath(path)) this.recordFileOpen(path)
-        this.saveEditorState()
-        return
-      }
-
-      // Smart routing: if the active pane is showing a chat, route file to a
-      // different pane so the conversation isn't buried. Focus stays on chat.
-      if (pane.activeTab && (isChatTab(pane.activeTab) || isAiWorkbenchPath(pane.activeTab)) && !isChatTab(path) && !isAiWorkbenchPath(path)) {
-        // File already open in another pane — switch to it there
-        const existingPane = this.findPaneWithTab(path)
-        if (existingPane) {
-          existingPane.activeTab = path
-          this.activePaneId = existingPane.id
-          this._rememberContextPath(path)
-          if (!isChatTab(path) && !isLibraryPath(path) && !isAiWorkbenchPath(path)) this.recordFileOpen(path)
-          this.saveEditorState()
-          return
-        }
-
-        // Find a non-chat pane to host the file
-        const altPane = this._findNonChatPane()
-        if (altPane && altPane.id !== pane.id) {
-          activateOrOpenPaneTab(altPane, path)
-          this.activePaneId = altPane.id
-          this._rememberContextPath(path)
-          if (!isChatTab(path) && !isLibraryPath(path) && !isAiWorkbenchPath(path)) this.recordFileOpen(path)
-          this.saveEditorState()
-          return
-        }
-
-        // Only one pane (the chat pane) — split and open file beside it.
-        const newPaneId = this.splitPaneWith(this.activePaneId, 'vertical', path)
-        // Move focus to the new file pane
-        if (newPaneId) this.activePaneId = newPaneId
-        this._rememberContextPath(path)
-        if (!isChatTab(path) && !isLibraryPath(path) && !isAiWorkbenchPath(path)) this.recordFileOpen(path)
-        return
-      }
-
-      // Normal flow: open in active pane
-      activateOrOpenPaneTab(pane, path)
-      this._rememberContextPath(path)
-      if (!isChatTab(path) && !isLibraryPath(path) && !isAiWorkbenchPath(path)) this.recordFileOpen(path)
-      this._revealInTree(path)
-      this.saveEditorState()
+      return this._getEditorOpenRoutingRuntime().openFile(path)
     },
 
     openAiWorkbenchSurface(viewId = 'workspace') {
@@ -327,41 +321,7 @@ export const useEditorStore = defineStore('editor', {
      * @param {Object} options - { sessionId?, prefill?, selection?, paneId? }
      */
     openChat(options = {}) {
-      const chatStore = useChatStore()
-      const sessionId = options.sessionId || chatStore.createSession()
-      const tabPath = `chat:${sessionId}`
-
-      // Check if this chat tab is already open in any pane
-      const existingPane = this.findPaneWithTab(tabPath)
-      if (existingPane) {
-        this.activePaneId = existingPane.id
-        existingPane.activeTab = tabPath
-        chatStore.activeSessionId = sessionId
-        if (options.prefill) {
-          nextTick(() => window.dispatchEvent(new CustomEvent('chat-set-input', { detail: { message: options.prefill } })))
-        }
-        if (options.selection) {
-          nextTick(() => window.dispatchEvent(new CustomEvent('chat-with-selection', { detail: options.selection })))
-        }
-        return
-      }
-
-      // Open in specified pane or active pane
-      const targetPane = options.paneId
-        ? this.findPane(this.paneTree, options.paneId)
-        : this.findPane(this.paneTree, this.activePaneId)
-      if (targetPane) {
-        activateOrOpenPaneTab(targetPane, tabPath)
-        this.activePaneId = targetPane.id
-        this.lastChatPaneId = targetPane.id
-      }
-
-      chatStore.activeSessionId = sessionId
-      this.saveEditorState()
-
-      // Store for ChatInput to consume on mount (async component may not be mounted yet)
-      if (options.prefill) chatStore.pendingPrefill = options.prefill
-      if (options.selection) chatStore.pendingSelection = options.selection
+      return this._getEditorOpenRoutingRuntime().openChat(options)
     },
 
     /**
@@ -370,38 +330,7 @@ export const useEditorStore = defineStore('editor', {
      * @param {Object} options - { sessionId?, prefill?, selection? }
      */
     openChatBeside(options = {}) {
-      // 1. Last chat pane the user looked at — if still showing a chat or newtab
-      const lastPane = this.lastChatPaneId && this.findPane(this.paneTree, this.lastChatPaneId)
-      if (lastPane?.activeTab && (isChatTab(lastPane.activeTab) || isLauncherTab(lastPane.activeTab))) {
-        if (isChatTab(lastPane.activeTab)) {
-          const sid = getChatSessionId(lastPane.activeTab)
-          return this.openChat({ ...options, sessionId: sid, paneId: lastPane.id })
-        }
-        // Launcher tab — openChat will replace it
-        return this.openChat({ ...options, paneId: lastPane.id })
-      }
-
-      // 2. Any pane currently showing a chat or launcher tab
-      const visible = this._findLeaf(n => n.activeTab && (isChatTab(n.activeTab) || isLauncherTab(n.activeTab)))
-      if (visible) {
-        if (isChatTab(visible.activeTab)) {
-          const sid = getChatSessionId(visible.activeTab)
-          return this.openChat({ ...options, sessionId: sid, paneId: visible.id })
-        }
-        return this.openChat({ ...options, paneId: visible.id })
-      }
-
-      // 3. No chat or newtab visible — split and create new
-      const chatStore = useChatStore()
-      const sid = options.sessionId || chatStore.createSession()
-      const tabPath = `chat:${sid}`
-      const newPaneId = this.splitPaneWith(this.activePaneId, 'vertical', tabPath)
-
-      chatStore.activeSessionId = sid
-      if (newPaneId) this.lastChatPaneId = newPaneId
-
-      if (options.prefill) chatStore.pendingPrefill = options.prefill
-      if (options.selection) chatStore.pendingSelection = options.selection
+      return this._getEditorOpenRoutingRuntime().openChatBeside(options)
     },
 
     /**
@@ -409,26 +338,11 @@ export const useEditorStore = defineStore('editor', {
      * Always creates a fresh tab — Cmd+T should behave like a browser.
      */
     openNewTab(paneId) {
-      const targetPane = paneId
-        ? this.findPane(this.paneTree, paneId)
-        : this.findPane(this.paneTree, this.activePaneId)
-      if (!targetPane) return
-
-      const tabPath = `newtab:${nanoid()}`
-      appendFreshPaneTab(targetPane, tabPath)
-      this.saveEditorState()
+      return this._getEditorOpenRoutingRuntime().openNewTab(paneId)
     },
 
     openAiLauncher(paneId) {
-      const targetPane = paneId
-        ? this.findPane(this.paneTree, paneId)
-        : this.findPane(this.paneTree, this.activePaneId)
-      if (!targetPane) return
-
-      const tabPath = `ai-launcher:${nanoid()}`
-      appendFreshPaneTab(targetPane, tabPath)
-      this.lastChatPaneId = targetPane.id
-      this.saveEditorState()
+      return this._getEditorOpenRoutingRuntime().openAiLauncher(paneId)
     },
 
     /**
@@ -568,18 +482,7 @@ export const useEditorStore = defineStore('editor', {
     },
 
     openFileInPane(path, paneId, options = {}) {
-      const pane = this.findPane(this.paneTree, paneId)
-      if (!pane) return null
-
-      activateOrOpenPaneTab(pane, path, { replaceLauncher: options.replaceNewTab !== false })
-
-      if (options.activatePane) {
-        this.activePaneId = paneId
-        this._rememberContextPath(path)
-      }
-
-      this.saveEditorState()
-      return paneId
+      return this._getEditorOpenRoutingRuntime().openFileInPane(path, paneId, options)
     },
 
     setActivePane(paneId) {

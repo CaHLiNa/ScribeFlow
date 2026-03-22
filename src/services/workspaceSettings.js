@@ -6,7 +6,7 @@ import {
   mergeWithDefaultModelsConfig,
   providerSupportsModelSync,
 } from './modelCatalog'
-import { pathExists } from './workspaceBootstrap'
+import { pathExists } from './pathExists.js'
 import { resolveSkillPath } from './workspacePaths'
 
 function parseEnvContent(content = '', options = {}) {

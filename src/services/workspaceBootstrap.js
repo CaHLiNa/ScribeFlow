@@ -8,6 +8,7 @@ import {
   resolveWorkspaceReferenceCollectionPath,
   resolveWorkspaceReferencesDir,
 } from './referenceLibraryPaths'
+import { pathExists } from './pathExists.js'
 
 const DEFAULT_SYSTEM_PROMPT = `You are a writing assistant integrated into Altals, a markdown editor.
 
@@ -24,15 +25,6 @@ When reviewing text:
 
 export function logWorkspaceBootstrapWarning(step, error) {
   console.warn(`[workspace] ${step} failed:`, error)
-}
-
-export async function pathExists(path) {
-  if (!path) return false
-  try {
-    return await invoke('path_exists', { path })
-  } catch {
-    return false
-  }
 }
 
 async function copyFileIfMissing(src, dest) {

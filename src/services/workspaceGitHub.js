@@ -1,6 +1,7 @@
 import { gitRemoteGetUrl } from './git'
+import { ensureWorkspaceHistoryRepo } from './workspaceHistoryRepo.js'
 import {
-  ensureWorkspaceHistoryRepo,
+  enableWorkspaceAutoCommit,
   runWorkspaceAutoCommit as performWorkspaceAutoCommit,
 } from './workspaceAutoCommit'
 
@@ -134,11 +135,11 @@ export async function linkWorkspaceRepo(path = '', cloneUrl = '') {
   const historyRepo = await ensureWorkspaceHistoryRepo(path, {
     seedInitialCommit: true,
     seedMessage: 'Initial snapshot',
-    enableAutoCommit: true,
   })
   if (!historyRepo?.ok) {
     throw new Error('Failed to initialize a local Git repository for this workspace.')
   }
+  const autoCommitEnabled = await enableWorkspaceAutoCommit(path).catch(() => false)
 
   await setupRemote(path, cloneUrl)
   await ensureGitignore(path)
@@ -146,7 +147,10 @@ export async function linkWorkspaceRepo(path = '', cloneUrl = '') {
   return {
     remoteUrl: cloneUrl,
     syncStatus: 'idle',
-    historyRepo,
+    historyRepo: {
+      ...historyRepo,
+      autoCommitEnabled,
+    },
   }
 }
 

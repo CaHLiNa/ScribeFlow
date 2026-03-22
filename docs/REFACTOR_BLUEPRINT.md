@@ -10,9 +10,10 @@ Current overall assessment:
 
 - Phase 0 is effectively complete.
 - Phase 1 is substantially advanced but not fully closed.
-- Phase 2 is meaningfully underway with `files`, `workspace`, `terminal`, and `chat` all substantially reduced, and the active store split now re-focused on `references`.
-- Phase 3 onward are still mostly ahead of us and should not be treated as already in execution.
-- Repository state was re-audited on 2026-03-22; the current in-flight refactor state includes the landed `references` library/load/migration runtime extractions plus their targeted tests.
+- Phase 2 has completed its currently highest-value `editor` slice and should no longer be extended for cosmetic cleanup.
+- Phase 3 is now in early execution with the first `documentWorkflow` preview/open/reconcile runtime extraction landed and validated.
+- Phase 4 is now also in early execution with the first history-repo vs auto-commit separation slice landed and its immediate `pathExists` cleanup follow-up validated.
+- Repository state was re-audited on 2026-03-22; the current in-flight refactor state includes landed `editor`, `documentWorkflow`, and early safety-model runtime/service extractions plus targeted tests.
 
 ## Product Direction
 
@@ -98,6 +99,8 @@ The current strongest signs of progress are:
 - `references` and `editor` have both gone through first-round store/domain extraction.
 - `references` has now also entered a second-round runtime extraction sequence.
 - `files` and `workspace` have both gone through repeated runtime extraction cycles and are no longer the clearest Phase 2 bottlenecks.
+- `src/domains/document/documentWorkflowRuntime.js` now marks the first concrete Phase 3 main-loop boundary.
+- `src/services/workspaceHistoryRepo.js` now marks the first concrete Phase 4 safety-model boundary, separating history repo bootstrap from auto-commit execution.
 
 ### Frontend current state
 
@@ -141,6 +144,7 @@ The editor store has already had these responsibilities extracted into domain mo
 - pane tree / layout
 - pane tab mutation
 - surface switching
+- pane/file/chat/launcher open routing
 - persistence runtime
 - editor view registry
 - dirty persistence bridge
@@ -148,19 +152,36 @@ The editor store has already had these responsibilities extracted into domain mo
 - cleanup runtime
 - restore runtime
 
-The editor store is now much smaller and is no longer the highest-priority refactor target.
+`src/domains/editor/editorOpenRoutingRuntime.js` now carries pane/file/chat/new-tab/AI-launcher open-routing decisions, including side-pane reuse and split-right fallback behavior.
+
+The editor store is now 756 lines after the open-routing extraction, and the remaining editor logic is no longer the highest-value place to keep spending Phase 2 effort.
 
 #### Remaining large frontend bottlenecks
 
 The largest remaining frontend architectural bottlenecks include:
 
-- `src/stores/references.js`
-- `src/stores/editor.js`
 - `src/stores/latex.js`
 - `src/stores/pdfTranslate.js`
+- `src/stores/reviews.js`
 - `src/components/editor/PdfViewer.vue`
 
-`references` has now gone through a full second-round extraction sequence and is no longer the active Phase 2 target; the next high-value store boundary should shift to `editor`.
+`references` and `editor` have both now had their highest-value currently identified Phase 2 slices extracted, and `documentWorkflow` has now had its first main-loop slice extracted; the next higher-value repository need sits in early Phase 4 safety-model cleanup and then the remaining Phase 3 build/review loop.
+
+##### Document workflow status
+
+`src/domains/document/documentWorkflowRuntime.js` now carries preview-pane reuse, split-right fallback, preview-session state updates, jump-to-preview routing, and reconcile/close-preview orchestration.
+
+`src/stores/documentWorkflow.js` is now 400 lines after this extraction, down from 521 lines, and the store is beginning to resemble a thinner shell around state plus smaller action wrappers rather than the whole preview loop.
+
+##### Safety model status
+
+The first concrete safety-model split has landed:
+
+- `src/services/workspaceHistoryRepo.js` now owns history-repo existence/init plus optional initial seed commit behavior.
+- `src/services/workspaceAutoCommit.js` now focuses on marker checks, explicit enablement, and commit execution rather than repo bootstrap.
+- `src/domains/changes/workspaceHistory.js` and `src/services/workspaceGitHub.js` now compose history-repo readiness and auto-commit enablement explicitly at the caller boundary.
+
+This is now a cleaner explicit boundary: shared filesystem existence checks come from `src/services/pathExists.js`, so the safety split no longer depends on a temporary dynamic-import workaround to stay testable.
 
 Current `files`-specific audit notes:
 
@@ -470,7 +491,7 @@ Completed phase slices:
 - `workspace` repeated runtime extraction sequence completed for the current phase focus
 
 Current next target:
-- `src/stores/editor.js`
+- Phase 2 no longer has a clearly higher-value active target; further work here should happen only if a non-cosmetic seam appears
 
 Exit criteria:
 - third large store/domain split begun and validated
@@ -488,7 +509,12 @@ Goal:
 - unify diagnostics and visibility of outcomes
 
 Status:
-- Not yet meaningfully started
+- In progress, early stage
+
+What has already happened:
+- `src/domains/document/documentWorkflowRuntime.js` established
+- preview open/reconcile orchestration moved out of `src/stores/documentWorkflow.js`
+- targeted runtime tests added for preview-pane reuse, split-right fallback, ready-preview reuse, and reconcile behavior
 
 Exit criteria:
 - coherent main loop documented
@@ -502,8 +528,13 @@ Goal:
 - weaken Git’s role as implicit safety layer
 
 Status:
-- Not yet started in code
-- partially identified in audit
+- In progress, early stage
+
+What has already happened:
+- `src/services/workspaceHistoryRepo.js` established
+- history-repo init/seed behavior moved out of `src/services/workspaceAutoCommit.js`
+- explicit auto-commit enablement moved to caller composition in `workspaceHistory` and `workspaceGitHub`
+- targeted service tests added for repo init/seed and home-directory guard behavior
 
 Exit criteria:
 - explicit safety model documented
@@ -620,9 +651,12 @@ Exit criteria:
 - [x] Validate the `references` CRUD/import runtime slice with targeted tests and build verification
 - [x] Extract the `references` asset/runtime slice into `src/domains/reference/*`
 - [x] Validate the `references` asset/runtime slice with targeted tests and build verification
-- [ ] Audit `src/stores/editor.js` in detail and identify the cleanest next extraction seam after the existing first-round split
-- [ ] Extract the next `editor` runtime/domain slice into `src/domains/editor/*`
-- [ ] Validate the next `editor` slice with targeted tests and build verification
+- [x] Audit `src/stores/editor.js` in detail and identify the cleanest next extraction seam after the existing first-round split
+- [x] Extract the next `editor` runtime/domain slice into `src/domains/editor/*`
+- [x] Validate the next `editor` slice with targeted tests and build verification
+- [x] Audit `src/stores/documentWorkflow.js` and identify the first concrete Phase 3 main-loop extraction seam
+- [x] Extract the first `documentWorkflow` runtime/domain slice into `src/domains/document/*`
+- [x] Validate the first `documentWorkflow` slice with targeted tests and build verification
 
 ### Product and architecture docs
 
@@ -633,9 +667,13 @@ Exit criteria:
 
 ### Safety model
 
-- [ ] Document the current coupling between auto-commit and history/version flows
+- [x] Document the current coupling between auto-commit and history/version flows
 - [ ] Create `docs/GIT_AND_SNAPSHOTS.md`
-- [ ] Identify a concrete first code slice for separating safety responsibilities
+- [x] Identify a concrete first code slice for separating safety responsibilities
+- [x] Extract the first history-repo bootstrap slice away from `workspaceAutoCommit`
+- [x] Validate the first safety-model slice with targeted tests and build verification
+- [x] Remove the temporary dynamic-import workaround introduced in `workspaceHistoryRepo` and keep the safety split statically testable
+- [ ] Extract the next Phase 3 document build/diagnostic slice so preview, compile status, and review visibility continue converging toward one main loop
 
 ### Backend planning
 
@@ -690,6 +728,9 @@ Exit criteria:
 - `references` mutation/runtime is now also extracted; the next execution cycle stays in `references` for CRUD/import coordination before considering a shift to another store
 - `references` CRUD/runtime is now also extracted; the next execution cycle should decide whether asset/runtime is still a safe final `references` slice before shifting to another store
 - `references` asset/runtime is now also extracted; the second-round `references` sequence is complete enough that the next execution cycle should shift Phase 2 focus to `editor`
+- `editor` open-routing/runtime is now also extracted; reassessment shows the remaining editor shell is lower-value than starting the Phase 3 document preview/build/review loop
+- `documentWorkflow` preview/open/reconcile runtime is now also extracted; the next execution cycle should decide whether the remaining main-loop priority is build/review flow work or the first safety-model cleanup follow-up
+- `workspaceHistoryRepo` is now extracted as a first safety-model boundary, and the shared `pathExists` cleanup has removed its temporary dynamic-import workaround; the next execution cycle should shift back to the next concrete Phase 3 main-loop seam
 
 ## Completed
 
@@ -947,6 +988,37 @@ Exit criteria:
   - `node --test tests/referenceAssetRuntime.test.mjs tests/referenceCrudRuntime.test.mjs tests/referenceMutationRuntime.test.mjs tests/referenceWorkspaceViewRuntime.test.mjs tests/referenceMigrationRuntime.test.mjs tests/referenceLibraryLoadRuntime.test.mjs tests/referenceLibraryRuntime.test.mjs`
   - `node --test tests/*.test.mjs`
   - `npm run build`
+- Established `src/domains/editor/editorOpenRoutingRuntime.js`
+- Moved `openFile`, `openChat`, `openChatBeside`, `openNewTab`, `openAiLauncher`, and `openFileInPane` routing/orchestration behind the new editor runtime module
+- Reduced `src/stores/editor.js` from 853 lines to 756 lines
+- Added `tests/editorOpenRoutingRuntime.test.mjs` to validate chat/file side-pane routing, launcher replacement semantics, and preview-pane opening outside the Pinia store shell
+- Validated the second `editor` slice with:
+  - `node --test tests/editorOpenRoutingRuntime.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
+- Established `src/domains/document/documentWorkflowRuntime.js`
+- Moved `closePreviewForSource`, `ensurePreviewForSource`, `revealPreview`, and `reconcile` orchestration behind the new document runtime module
+- Reduced `src/stores/documentWorkflow.js` from 521 lines to 400 lines
+- Added `tests/documentWorkflowRuntime.test.mjs` to validate preview-pane reuse, split-right fallback, ready-preview reuse, jump-to-preview routing, and close-preview reconcile behavior outside the Pinia store shell
+- Validated the first `documentWorkflow` slice with:
+  - `node --test tests/documentWorkflowRuntime.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
+- Established `src/services/workspaceHistoryRepo.js`
+- Moved history-repo existence/init and initial seed-commit behavior out of `src/services/workspaceAutoCommit.js`
+- Updated `src/domains/changes/workspaceHistory.js` and `src/services/workspaceGitHub.js` to compose history readiness and auto-commit enablement explicitly
+- Added `tests/workspaceHistoryRepo.test.mjs` to validate repo initialization, initial seed commit behavior, empty-workspace no-op behavior, and home-directory guard behavior outside the previous mixed auto-commit service
+- Validated the first safety-model slice with:
+  - `node --test tests/workspaceHistoryRepo.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
+- Established `src/services/pathExists.js` as a shared filesystem existence helper rather than sourcing that check from `workspaceBootstrap`
+- Removed the temporary dynamic-import workaround from `src/services/workspaceHistoryRepo.js` and restored static service dependencies
+- Rerouted `workspaceBootstrap`, `workspaceAutoCommit`, and `workspaceSettings` to the shared `pathExists` helper so workspace safety and settings flows no longer depend on bootstrap as an accidental utility boundary
+- Validated the safety cleanup follow-up with:
+  - `node --test tests/workspaceHistoryRepo.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
 
 ## Blocked / Risks
 
@@ -962,17 +1034,19 @@ Exit criteria:
 - `terminal` is now mostly a thin shell around runtime accessors and local find-state setters; further extraction there risks becoming cosmetic rather than architectural
 - `chat` is no longer one of the highest-value remaining Phase 2 seams; its remaining store logic is now mostly runtime accessors, getters, and a thinner shell
 - `references` is much thinner after its seventh second-round slice, but still keeps thin UI/helper wrappers that are lower-value than shifting to a different large store
-- `editor` is again the largest remaining Pinia store and still owns several pane-routing/open-close behaviors that look extractable even after the first-round split
+- `editor` still owns close/move/layout shell logic, but the major currently identified routing knot is now extracted; staying in Phase 2 there risks slipping into lower-value cleanup
+- `documentWorkflow` is thinner after the preview/open/reconcile extraction, but the build/review loop is still not yet documented or split into clear operations
+- The first safety-model slice is cleaner now, but the repository still lacks first-class documentation for autosave, local history, git commit, and remote sync boundaries
 - Backend flattening is still untouched and could become harder if frontend assumptions harden further
 - The architecture docs are still missing even though frontend domain boundaries are now multiplying; this remains a shared-understanding risk
 
 ## Next Recommended Slice
 
-1. Audit `src/stores/editor.js` and extract the pane/surface open-routing seam around `openFile`, `openChat`, `openChatBeside`, `openNewTab`, `openAiLauncher`, and `openFileInPane`
-2. Reuse the existing editor first-round modules so the next slice stays focused on routing/orchestration rather than reopening persistence or restore logic
-3. Preserve current chat/new-tab side-pane routing behavior and active-pane semantics while making open-routing behavior testable outside the Pinia shell
-4. Validate with targeted editor/runtime tests plus `node --test tests/*.test.mjs` and `npm run build`
-5. Update this blueprint based on the actual editor-routing result and then decide whether to stay in `editor` for another slice or shift to `latex`
+1. Continue Phase 3 by extracting the document build/diagnostic seam from `src/stores/documentWorkflow.js`, centered on `buildAdapterContext`, `openLogForFile`, `getProblemsForFile`, `getUiStateForFile`, and adjacent compile/review visibility wiring
+2. Reuse the existing document adapters so the slice strengthens the main loop instead of inventing a parallel build abstraction
+3. Preserve current adapter-specific log opening, problem focus, and preview UI-state behavior while making compile/review visibility testable outside the Pinia shell
+4. Validate with targeted document-workflow runtime tests plus `node --test tests/*.test.mjs` and `npm run build`
+5. Update this blueprint again based on whether that slice is enough to justify `docs/OPERATIONS.md` / `docs/GIT_AND_SNAPSHOTS.md` as the next paired documentation effort
 
 ## Validation Checklist
 
@@ -1022,6 +1096,9 @@ Exit criteria:
 - The refactor correctly began by reducing root-level orchestration before attacking every large store at once.
 - `references` was a good first store/domain split because it allowed meaningful logic extraction without immediately entangling the entire workspace lifecycle.
 - `editor` was a reasonable second large split, and after the extended `references` re-entry it is now the highest-value remaining store to revisit.
+- The repository has now correctly stopped extending Phase 2 after the `editor` open-routing seam; the next work should stay in Phase 3/4 unless a genuinely non-cosmetic store seam appears.
+- The first Phase 3 slice has now started the document preview loop as an explicit domain runtime rather than leaving it buried inside the store.
+- The first Phase 4 slice has now started separating history bootstrap from auto-commit, and the immediate shared-utility cleanup has removed the dynamic-import workaround before it could harden into new accidental complexity.
 - `files` was the highest-value target through the runtime extraction sequence, but after the mutation slice landed it is no longer the clearest bottleneck.
 - After the refresh/runtime extraction, `files` still contains a second narrow orchestration seam around watch/poll scheduling and activity hooks; that is the best candidate if we continue in the same domain.
 - After the watch/runtime extraction, the highest-value remaining `files` slice is tree hydration/loading rather than more watch logic.

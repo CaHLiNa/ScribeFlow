@@ -18,6 +18,7 @@ import {
   getDocumentAdapterForWorkflow,
   listWorkflowDocumentAdapters,
 } from '../services/documentWorkflow/adapters/index.js'
+import { createDocumentWorkflowRuntime } from '../domains/document/documentWorkflowRuntime.js'
 import {
   findWorkflowPreviewPane,
   reconcileDocumentWorkflow,
@@ -110,6 +111,56 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
   },
 
   actions: {
+    _getDocumentWorkflowRuntime() {
+      if (!this._documentWorkflowRuntime) {
+        this._documentWorkflowRuntime = createDocumentWorkflowRuntime({
+          getSession: () => this.session,
+          getPreviewPrefs: () => this.previewPrefs,
+          getPreviewBinding: (previewPath) => this.getPreviewBinding(previewPath),
+          inferPreviewKind: (sourcePath, previewPath) => this.inferPreviewKind(sourcePath, previewPath),
+          bindPreview: (binding) => this.bindPreview(binding),
+          getOpenPreviewPathForSource: (sourcePath, previewKind) => this.getOpenPreviewPathForSource(sourcePath, previewKind),
+          getPreferredPreviewKind: (kind) => this.getPreferredPreviewKind(kind),
+          clearDetached: (sourcePath) => this.clearDetached(sourcePath),
+          handlePreviewClosed: (previewPath) => this.handlePreviewClosed(previewPath),
+          setSessionState: (payload) => this.setSessionState(payload),
+          getIsReconciling: () => this._isReconciling,
+          setIsReconciling: (value) => {
+            this._isReconciling = value
+          },
+          setLastTrigger: (value) => {
+            this._lastTrigger = value
+          },
+          getEditorStore: () => useEditorStore(),
+          getDocumentWorkflowKindImpl: getDocumentWorkflowKind,
+          reconcileDocumentWorkflowImpl: reconcileDocumentWorkflow,
+          findWorkflowPreviewPaneImpl: findWorkflowPreviewPane,
+          jumpPreviewToCursor: ({ kind, previewKind, sourcePath }) => {
+            if (kind === 'latex') {
+              window.dispatchEvent(new CustomEvent('latex-request-cursor', {
+                detail: { texPath: sourcePath },
+              }))
+              return
+            }
+
+            if (kind === 'typst') {
+              window.dispatchEvent(new CustomEvent('typst-request-cursor', {
+                detail: { sourcePath },
+              }))
+              return
+            }
+
+            if (kind === 'markdown' && previewKind === 'html') {
+              window.dispatchEvent(new CustomEvent('markdown-request-cursor', {
+                detail: { sourcePath },
+              }))
+            }
+          },
+        })
+      }
+      return this._documentWorkflowRuntime
+    },
+
     persistPrefs() {
       try {
         localStorage.setItem(PREFS_KEY, JSON.stringify(this.previewPrefs))
@@ -257,31 +308,7 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
     },
 
     closePreviewForSource(sourcePath, options = {}) {
-      const editorStore = useEditorStore()
-      const kind = getDocumentWorkflowKind(sourcePath)
-      if (!kind) return null
-
-      const previewKind = options.previewKind || this.getPreferredPreviewKind(kind)
-      const previewPath = this.getOpenPreviewPathForSource(sourcePath, previewKind)
-      if (!previewPath) return null
-
-      this.handlePreviewClosed(previewPath)
-      editorStore.closeFileFromAllPanes(previewPath)
-
-      if (options.reconcile !== false) {
-        this.reconcile({
-          trigger: options.trigger || 'close-preview',
-          previewKindOverride: previewKind,
-        })
-      }
-
-      return {
-        type: 'closed-preview',
-        kind,
-        sourcePath,
-        previewKind,
-        previewPath,
-      }
+      return this._getDocumentWorkflowRuntime().closePreviewForSource(sourcePath, options)
     },
 
     togglePreviewForSource(sourcePath, options = {}) {
@@ -320,63 +347,11 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
     },
 
     ensurePreviewForSource(sourcePath, options = {}) {
-      const editorStore = useEditorStore()
-      const kind = getDocumentWorkflowKind(sourcePath)
-      if (!kind) return null
-      const previewKind = options.previewKind || this.getPreferredPreviewKind(kind)
-      this.clearDetached(sourcePath)
-      const previousActivePaneId = editorStore.activePaneId
-      const previousActiveTab = editorStore.activeTab
-      editorStore.activePaneId = options.sourcePaneId || editorStore.activePaneId
-      const result = this.reconcile({
-        trigger: options.trigger || 'manual-open-preview',
-        force: true,
-        previewKindOverride: previewKind,
-      })
-      if (!options.activatePreview) {
-        editorStore.activePaneId = previousActivePaneId
-        if (previousActiveTab && previousActivePaneId) {
-          editorStore.setActiveTab(previousActivePaneId, previousActiveTab)
-        }
-      } else if (result?.previewPaneId && result.previewPath) {
-        editorStore.openFileInPane(result.previewPath, result.previewPaneId, { activatePane: true })
-      }
-      return result
+      return this._getDocumentWorkflowRuntime().ensurePreviewForSource(sourcePath, options)
     },
 
     revealPreview(sourcePath, options = {}) {
-      const result = this.ensurePreviewForSource(sourcePath, {
-        force: true,
-        activatePreview: true,
-        previewKind: options.previewKind,
-        sourcePaneId: options.sourcePaneId,
-        trigger: options.trigger || 'reveal-preview',
-      })
-
-      if (!result?.previewPaneId || !result?.previewPath) return result
-
-      const editorStore = useEditorStore()
-      editorStore.openFileInPane(result.previewPath, result.previewPaneId, { activatePane: true })
-
-      if (options.jump && result.kind === 'latex') {
-        window.dispatchEvent(new CustomEvent('latex-request-cursor', {
-          detail: { texPath: sourcePath },
-        }))
-      }
-
-      if (options.jump && result.kind === 'typst') {
-        window.dispatchEvent(new CustomEvent('typst-request-cursor', {
-          detail: { sourcePath },
-        }))
-      }
-
-      if (options.jump && result.kind === 'markdown' && result.previewKind === 'html') {
-        window.dispatchEvent(new CustomEvent('markdown-request-cursor', {
-          detail: { sourcePath },
-        }))
-      }
-
-      return result
+      return this._getDocumentWorkflowRuntime().revealPreview(sourcePath, options)
     },
 
     focusProblem(problem) {
@@ -402,103 +377,7 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
     },
 
     reconcile(options = {}) {
-      if (this._isReconciling) return null
-      const editorStore = useEditorStore()
-      this._isReconciling = true
-      try {
-        const result = reconcileDocumentWorkflow({
-          activeFile: editorStore.activeTab,
-          activePaneId: editorStore.activePaneId,
-          paneTree: editorStore.paneTree,
-          trigger: options.trigger || 'manual',
-          workflowStore: this,
-          force: options.force === true,
-          previewKindOverride: options.previewKindOverride || null,
-        })
-        this._lastTrigger = result?.trigger || options.trigger || 'manual'
-
-        if (!result || result.type === 'inactive') {
-          this.setSessionState({
-            activeFile: null,
-            activeKind: null,
-            sourcePaneId: editorStore.activePaneId,
-            previewPaneId: null,
-            previewKind: null,
-            previewSourcePath: null,
-            state: 'inactive',
-          })
-          return result
-        }
-
-        if (result.type === 'detached') {
-          this.setSessionState({
-            activeFile: result.sourcePath,
-            activeKind: result.kind,
-            sourcePaneId: result.sourcePaneId,
-            previewPaneId: null,
-            previewKind: result.previewKind,
-            previewSourcePath: result.sourcePath,
-            state: 'detached-by-user',
-          })
-          return result
-        }
-
-        if (result.type === 'source-only') {
-          this.setSessionState({
-            activeFile: result.sourcePath,
-            activeKind: result.kind,
-            sourcePaneId: result.sourcePaneId,
-            previewPaneId: null,
-            previewKind: result.previewKind,
-            previewSourcePath: result.sourcePath,
-            state: 'source-only',
-          })
-          return result
-        }
-
-        let previewPaneId = result.previewPaneId
-        let previewPath = result.previewPath
-
-        if (result.type === 'open-neighbor' && previewPaneId && previewPath) {
-          editorStore.openFileInPane(previewPath, previewPaneId, { activatePane: false })
-        } else if (result.type === 'split-right' && previewPath) {
-          previewPaneId = editorStore.splitPaneWith(result.sourcePaneId, 'vertical', previewPath)
-        } else if (result.type === 'ready-existing' && previewPaneId && previewPath && options.force) {
-          editorStore.openFileInPane(previewPath, previewPaneId, { activatePane: false })
-        }
-
-        if (previewPath) {
-          const previewLeaf = findWorkflowPreviewPane(editorStore.paneTree, previewPath)
-          if (previewLeaf?.id) {
-            previewPaneId = previewLeaf.id
-          }
-          this.bindPreview({
-            previewPath,
-            sourcePath: result.sourcePath,
-            previewKind: result.previewKind,
-            kind: result.kind,
-            paneId: previewPaneId,
-          })
-        }
-
-        this.setSessionState({
-          activeFile: result.sourcePath,
-          activeKind: result.kind,
-          sourcePaneId: result.sourcePaneId,
-          previewPaneId: previewPaneId || null,
-          previewKind: result.previewKind,
-          previewSourcePath: result.sourcePath,
-          state: previewPaneId ? 'ready' : result.state,
-        })
-
-        return {
-          ...result,
-          previewPaneId: previewPaneId || null,
-          previewPath,
-        }
-      } finally {
-        this._isReconciling = false
-      }
+      return this._getDocumentWorkflowRuntime().reconcile(options)
     },
 
     cleanup() {

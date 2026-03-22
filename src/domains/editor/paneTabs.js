@@ -1,4 +1,4 @@
-import { isAiLauncher, isNewTab } from '../../utils/fileTypes'
+import { isAiLauncher, isNewTab } from '../../utils/fileTypes.js'
 
 function isLauncherTab(path) {
   return isNewTab(path) || isAiLauncher(path)
