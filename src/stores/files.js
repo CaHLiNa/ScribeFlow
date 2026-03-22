@@ -29,82 +29,18 @@ import {
   buildWorkspaceTreeCacheSnapshot,
   replayCachedExpandedDirs,
 } from '../domains/files/fileTreeCacheRuntime'
+import {
+  createVisibleTreeRefreshRuntime,
+  mergePreservingLoadedChildren,
+  patchTreeEntry,
+} from '../domains/files/fileTreeRefreshRuntime'
+import { createFileTreeWatchRuntime } from '../domains/files/fileTreeWatchRuntime'
 import { formatFileError } from '../utils/errorMessages'
 import { isBinaryFile } from '../utils/fileTypes'
 import { extractTextFromPdf } from '../utils/pdfMetadata'
 import { t } from '../i18n'
 import { useToastStore } from './toast'
 import { useUxStatusStore } from './uxStatus'
-
-function patchTreeEntry(entries = [], targetPath, updater) {
-  let changed = false
-  const nextEntries = entries.map((entry) => {
-    if (entry.path === targetPath) {
-      changed = true
-      return updater(entry)
-    }
-
-    if (Array.isArray(entry.children)) {
-      const nextChildren = patchTreeEntry(entry.children, targetPath, updater)
-      if (nextChildren !== entry.children) {
-        changed = true
-        return { ...entry, children: nextChildren }
-      }
-    }
-
-    return entry
-  })
-
-  return changed ? nextEntries : entries
-}
-
-function mergePreservingLoadedChildren(nextEntries = [], previousEntries = []) {
-  const previousByPath = new Map(previousEntries.map(entry => [entry.path, entry]))
-  return nextEntries.map((entry) => {
-    const previous = previousByPath.get(entry.path)
-    if (!entry.is_dir || !previous?.is_dir) {
-      return entry
-    }
-
-    if (Array.isArray(previous.children)) {
-      if (!Array.isArray(entry.children)) {
-        return {
-          ...entry,
-          children: previous.children,
-        }
-      }
-      return {
-        ...entry,
-        children: mergePreservingLoadedChildren(entry.children, previous.children),
-      }
-    }
-
-    return entry
-  })
-}
-
-function collectLoadedDirectoryPaths(entries = [], paths = []) {
-  for (const entry of entries) {
-    if (!entry.is_dir || !Array.isArray(entry.children)) continue
-    paths.push(entry.path)
-    collectLoadedDirectoryPaths(entry.children, paths)
-  }
-  return paths
-}
-
-function normalizeTreeSnapshot(entries = []) {
-  return entries.map((entry) => ({
-    path: entry.path,
-    is_dir: entry.is_dir,
-    modified: entry.modified ?? null,
-    children: Array.isArray(entry.children) ? normalizeTreeSnapshot(entry.children) : null,
-  }))
-}
-
-const ACTIVE_TREE_POLL_INTERVAL_MS = 5000
-const IDLE_TREE_POLL_INTERVAL_MS = 20000
-const TREE_ACTIVITY_WINDOW_MS = 30000
-const TREE_REFRESH_CONCURRENCY = 6
 
 function formatBytes(bytes = 0) {
   if (!Number.isFinite(bytes) || bytes <= 0) return '0 B'
@@ -139,23 +75,6 @@ function parseFileReadError(path, error) {
   }
 }
 
-async function mapWithConcurrency(items, limit, mapper) {
-  const results = new Array(items.length)
-  let nextIndex = 0
-
-  async function worker() {
-    while (nextIndex < items.length) {
-      const currentIndex = nextIndex
-      nextIndex += 1
-      results[currentIndex] = await mapper(items[currentIndex], currentIndex)
-    }
-  }
-
-  const workers = Array.from({ length: Math.min(limit, items.length) }, () => worker())
-  await Promise.all(workers)
-  return results
-}
-
 export const useFilesStore = defineStore('files', {
   state: () => ({
     tree: [],
@@ -168,7 +87,6 @@ export const useFilesStore = defineStore('files', {
     fileLoadErrors: {}, // cache: path -> { code, message, detail, raw, ... }
     pdfSourceKinds: {}, // cache: pdf path -> { status, kind }
     deletingPaths: new Set(), // paths currently being deleted (prevents save-on-unmount race)
-    unlisten: null,
     lastLoadError: null,
     reconcileState: {
       inProgress: false,
@@ -219,6 +137,25 @@ export const useFilesStore = defineStore('files', {
     _setPdfSourceState(path, state) {
       if (!path) return
       this.pdfSourceKinds[path] = state
+    },
+
+    _getVisibleTreeRefreshRuntime() {
+      if (!this._visibleTreeRefreshRuntime) {
+        this._visibleTreeRefreshRuntime = createVisibleTreeRefreshRuntime({
+          getWorkspacePath: () => useWorkspaceStore().path,
+          getCurrentTree: () => this.tree,
+          findCurrentEntry: (path) => this._findEntry(path),
+          readDirShallow: (path) => invoke('read_dir_shallow', { path }),
+          applyTree: (tree, workspacePath, options = {}) => this._setTree(tree, workspacePath, options),
+          setLastLoadError: (error) => {
+            this.lastLoadError = error
+          },
+          beginReconcile: (reason, options = {}) => this._beginReconcile(reason, options),
+          finishReconcile: (reason) => this._finishReconcile(reason),
+          failReconcile: (reason, error, options = {}) => this._failReconcile(reason, error, options),
+        })
+      }
+      return this._visibleTreeRefreshRuntime
     },
 
     invalidatePdfSourceForPath(path) {
@@ -284,62 +221,30 @@ export const useFilesStore = defineStore('files', {
     },
 
     noteTreeActivity() {
-      this._lastTreeActivityAt = Date.now()
-      if (useWorkspaceStore().path) {
-        this._scheduleNextTreePoll()
+      this._getFileTreeWatchRuntime().noteTreeActivity()
+    },
+
+    _getFileTreeWatchRuntime() {
+      if (!this._fileTreeWatchRuntime) {
+        this._fileTreeWatchRuntime = createFileTreeWatchRuntime({
+          getWorkspaceContext: () => {
+            const workspace = useWorkspaceStore()
+            return {
+              path: workspace.path,
+              workspaceDataDir: workspace.workspaceDataDir,
+            }
+          },
+          refreshVisibleTree: (options = {}) => this.refreshVisibleTree(options),
+          handleExternalFileChanges: (changedPaths) => handleExternalFileChanges(this, changedPaths),
+          listenToFsChange: (handler) => listen('fs-change', handler),
+          onFsEvent: (kind, paths) => {
+            if (import.meta.env.DEV) {
+              console.debug('[fs-watch]', kind, paths)
+            }
+          },
+        })
       }
-    },
-
-    _setupTreePollingActivityHooks() {
-      this._teardownTreePollingActivityHooks()
-      const markActivity = () => this.noteTreeActivity()
-      const visibilityHandler = () => this._scheduleNextTreePoll()
-      this._treeActivityHandlers = { markActivity, visibilityHandler }
-      window.addEventListener('focus', markActivity)
-      window.addEventListener('mousedown', markActivity, true)
-      window.addEventListener('keydown', markActivity, true)
-      document.addEventListener('visibilitychange', visibilityHandler)
-    },
-
-    _teardownTreePollingActivityHooks() {
-      if (!this._treeActivityHandlers) return
-      const { markActivity, visibilityHandler } = this._treeActivityHandlers
-      window.removeEventListener('focus', markActivity)
-      window.removeEventListener('mousedown', markActivity, true)
-      window.removeEventListener('keydown', markActivity, true)
-      document.removeEventListener('visibilitychange', visibilityHandler)
-      this._treeActivityHandlers = null
-    },
-
-    _scheduleNextTreePoll() {
-      if (this._pollTimer) {
-        clearTimeout(this._pollTimer)
-        this._pollTimer = null
-      }
-
-      const workspace = useWorkspaceStore()
-      if (!workspace.path) return
-      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
-
-      const lastActivityAt = this._lastTreeActivityAt || 0
-      const isActive = Date.now() - lastActivityAt <= TREE_ACTIVITY_WINDOW_MS
-      const delayMs = isActive ? ACTIVE_TREE_POLL_INTERVAL_MS : IDLE_TREE_POLL_INTERVAL_MS
-
-      this._pollTimer = window.setTimeout(async () => {
-        this._pollTimer = null
-        const activeWorkspace = useWorkspaceStore()
-        if (!activeWorkspace.path || (typeof document !== 'undefined' && document.visibilityState !== 'visible')) {
-          this._scheduleNextTreePoll()
-          return
-        }
-        try {
-          await this.refreshVisibleTree({ suppressErrors: true, reason: 'poll' })
-        } catch {
-          // Workspace may have closed between scheduling and execution.
-        } finally {
-          this._scheduleNextTreePoll()
-        }
-      }, delayMs)
+      return this._fileTreeWatchRuntime
     },
 
     _findEntry(path) {
@@ -499,86 +404,8 @@ export const useFilesStore = defineStore('files', {
       }
     },
 
-    async _refreshVisibleTreeOnce(options = {}) {
-      const workspace = useWorkspaceStore()
-      if (!workspace.path) return this.tree
-      const {
-        suppressErrors = false,
-        reason = 'manual',
-        announce = false,
-      } = options
-      this._beginReconcile(reason, { announce })
-
-      try {
-        let nextTree = await invoke('read_dir_shallow', { path: workspace.path })
-        nextTree = mergePreservingLoadedChildren(nextTree, this.tree)
-
-        const loadedDirectories = collectLoadedDirectoryPaths(this.tree)
-          .filter(path => path !== workspace.path)
-          .sort((a, b) => a.length - b.length)
-
-        const directoryResults = await mapWithConcurrency(
-          loadedDirectories,
-          TREE_REFRESH_CONCURRENCY,
-          async (dirPath) => {
-            try {
-              const children = await invoke('read_dir_shallow', { path: dirPath })
-              return { dirPath, children }
-            } catch {
-              return null
-            }
-          },
-        )
-
-        for (const result of directoryResults) {
-          if (!result) continue
-          const previousEntry = this._findEntry(result.dirPath)
-          nextTree = patchTreeEntry(nextTree, result.dirPath, (current) => ({
-            ...current,
-            children: mergePreservingLoadedChildren(
-              result.children,
-              previousEntry?.children || current.children || [],
-            ),
-          }))
-        }
-
-        const previousSnapshot = JSON.stringify(normalizeTreeSnapshot(this.tree))
-        const nextSnapshot = JSON.stringify(normalizeTreeSnapshot(nextTree))
-        if (previousSnapshot !== nextSnapshot) {
-          this._setTree(nextTree, workspace.path, { preserveFlatFiles: true })
-        }
-        this.lastLoadError = null
-        this._finishReconcile(reason)
-        return this.tree
-      } catch (error) {
-        console.error('Failed to refresh visible file tree:', error)
-        this.lastLoadError = error
-        this._failReconcile(reason, error, { suppressErrors })
-        if (!suppressErrors) throw error
-        return this.tree
-      }
-    },
-
     async refreshVisibleTree(options = {}) {
-      if (this._refreshVisibleTreePromise) {
-        this._refreshVisibleTreeQueued = true
-        return this._refreshVisibleTreePromise
-      }
-
-      const refreshLoop = async () => {
-        do {
-          this._refreshVisibleTreeQueued = false
-          await this._refreshVisibleTreeOnce(options)
-        } while (this._refreshVisibleTreeQueued)
-        return this.tree
-      }
-
-      this._refreshVisibleTreePromise = refreshLoop()
-      try {
-        return await this._refreshVisibleTreePromise
-      } finally {
-        this._refreshVisibleTreePromise = null
-      }
+      return this._getVisibleTreeRefreshRuntime().refreshVisibleTree(options)
     },
 
     async revealPath(path) {
@@ -599,53 +426,7 @@ export const useFilesStore = defineStore('files', {
     },
 
     async startWatching() {
-      // Listen for filesystem changes
-      if (this.unlisten) {
-        this.unlisten()
-      }
-      if (this._pollTimer) {
-        clearTimeout(this._pollTimer)
-        this._pollTimer = null
-      }
-      this._setupTreePollingActivityHooks()
-      this.noteTreeActivity()
-
-      let debounceTimer = null
-      let accumulatedPaths = new Set()
-      const workspace = useWorkspaceStore()
-      this.unlisten = await listen('fs-change', async (event) => {
-        const paths = (event.payload?.paths || []).filter((path) => {
-          if (workspace.path && path.startsWith(workspace.path)) {
-            const rel = path.slice(workspace.path.length)
-            return !rel.startsWith('/.git/')
-          }
-          return !!(workspace.workspaceDataDir && path.startsWith(workspace.workspaceDataDir))
-        })
-        if (paths.length === 0) return
-
-        if (import.meta.env.DEV) {
-          console.debug('[fs-watch]', event.payload?.kind, paths)
-        }
-        this.noteTreeActivity()
-        // Accumulate paths across debounced events so none are lost
-        for (const p of paths) accumulatedPaths.add(p)
-
-        // Debounce rapid fs events (e.g. auto-save triggering its own watch)
-        clearTimeout(debounceTimer)
-        debounceTimer = setTimeout(async () => {
-          const changedPaths = [...accumulatedPaths]
-          accumulatedPaths = new Set()
-
-          if (workspace.path && changedPaths.some(path => path.startsWith(workspace.path))) {
-            await this.refreshVisibleTree({ suppressErrors: true, reason: 'watch' })
-          }
-
-          await handleExternalFileChanges(this, changedPaths)
-        }, 300)
-      })
-
-      // Fallback poll stays low-frequency and only runs while the app is visible.
-      this._scheduleNextTreePoll()
+      await this._getFileTreeWatchRuntime().startWatching()
     },
 
     async toggleDir(path) {
@@ -881,15 +662,8 @@ export const useFilesStore = defineStore('files', {
     },
 
     cleanup() {
-      if (this.unlisten) {
-        this.unlisten()
-        this.unlisten = null
-      }
-      if (this._pollTimer) {
-        clearTimeout(this._pollTimer)
-        this._pollTimer = null
-      }
-      this._teardownTreePollingActivityHooks()
+      this._fileTreeWatchRuntime?.stopWatching?.()
+      this._fileTreeWatchRuntime = null
       if (this._flatFilesTimer) {
         clearTimeout(this._flatFilesTimer)
         this._flatFilesTimer = null
@@ -897,9 +671,8 @@ export const useFilesStore = defineStore('files', {
       this._flatFilesGeneration = (this._flatFilesGeneration || 0) + 1
       this._flatFilesPromise = null
       this._flatFilesWorkspace = null
-      this._refreshVisibleTreePromise = null
-      this._refreshVisibleTreeQueued = false
-      this._lastTreeActivityAt = 0
+      this._visibleTreeRefreshRuntime?.reset?.()
+      this._visibleTreeRefreshRuntime = null
       if (this._dirLoadPromises) {
         this._dirLoadPromises.clear()
       }

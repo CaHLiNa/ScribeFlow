@@ -758,22 +758,12 @@ Do not stop after docs-only edits unless truly blocked.
 Do not stop after planning.
 Do not stop after one slice if more safe slices remain in the current phase.
 
-# 26. Required Subagent Trigger
+# 26. Subagent Policy
 
-If there are 2 to 4 independent workstreams with low merge/conflict risk, use subagents.
+Do not use subagents by default.
 
-Subagents should be used especially for:
-- docs cleanup and terminology cleanup
-- test-gap audits and validation scaffolding
-- isolated store/module extraction planning
-- dead code / legacy path audits
-- independent narrow domain splits
+Prefer a single main agent working through repeated, narrow, validated refactor slices.
 
-Do not wait for the user to explicitly request subagents if the repository state clearly supports safe parallel work.
+Only use subagents if the user explicitly requests them for a specific task.
 
-The main coordinating agent must still:
-- update `docs/REFACTOR_BLUEPRINT.md`
-- assign workstreams
-- integrate results
-- resolve conflicts
-- report final validation
+Do not introduce subagents if they would increase coordination overhead, slow down execution, or fragment architectural judgment.

@@ -12,6 +12,7 @@ Current overall assessment:
 - Phase 1 is substantially advanced but not fully closed.
 - Phase 2 is meaningfully underway with two major store/domain reductions already completed.
 - Phase 3 onward are still mostly ahead of us and should not be treated as already in execution.
+- Repository state was re-audited on 2026-03-22; the git worktree was clean at the start of this execution cycle.
 
 ## Product Direction
 
@@ -182,6 +183,12 @@ This means the backend has not yet entered the target command/core/service/model
 
 Current docs are still incomplete.
 
+Observed repository reality as of 2026-03-22:
+
+- `docs/REFACTOR_BLUEPRINT.md` is still the only substantive top-level architecture/refactor document in `docs/`.
+- `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/DOMAINS.md`, `docs/OPERATIONS.md`, and the other required documents still do not exist.
+- The repository currently has no additional markdown architecture map to explain how the newly extracted frontend domain modules relate to the remaining large stores.
+
 Required docs such as the following are still missing:
 
 - `docs/PRODUCT.md`
@@ -339,7 +346,10 @@ Exit criteria:
 - [x] Audit `src/stores/files.js` in detail and identify the cleanest first extraction slice
 - [x] Create `src/domains/files/*` or equivalent runtime boundary for the first `files` slice
 - [x] Validate the first `files` extraction with build verification
-- [ ] Decide whether the next slice stays in `files` or shifts to `workspace`
+- [x] Decide whether the next slice stays in `files` or shifts to `workspace`
+- [x] Extract the `files` refresh/runtime orchestration slice into `src/domains/files/*`
+- [x] Validate the `files` refresh/runtime extraction with targeted runtime tests and build verification
+- [ ] Decide whether the next safe slice remains in `files` watch/poll orchestration or shifts to `workspace`
 
 ### Product and architecture docs
 
@@ -376,6 +386,8 @@ Exit criteria:
 - transition of store-boundary reduction focus toward `files`
 - `files` detailed audit completed; first narrow slice selected as tree cache / workspace snapshot runtime
 - `files` first runtime extraction has landed; focus remains on `files` for at least one more slice before reevaluating `workspace`
+- 2026-03-22 execution cycle: re-auditing `files` refresh/runtime orchestration, docs truthfulness, and validation gaps before the next code slice lands
+- `files` refresh/runtime orchestration has now been extracted into a dedicated domain runtime module; next decision is whether to continue with watch/poll orchestration in the same domain
 
 ## Completed
 
@@ -411,6 +423,13 @@ Exit criteria:
 - Moved `files` tree cache snapshotting, cached tree restore, and cached expanded-dir replay behind the new runtime module
 - Reduced `src/stores/files.js` from 996 lines to 976 lines
 - Validated the `files` slice with a fresh successful `npm run build`
+- Established `src/domains/files/fileTreeRefreshRuntime.js`
+- Moved loaded-directory traversal, tree snapshot diffing, and queued visible-tree refresh orchestration behind the new runtime module
+- Reduced `src/stores/files.js` from 976 lines to 839 lines
+- Added `tests/fileTreeRefreshRuntime.test.mjs` to validate merge/patch helpers and queued refresh behavior outside the Pinia store shell
+- Validated the refresh/runtime slice with:
+  - `node --test tests/fileTreeRefreshRuntime.test.mjs`
+  - `npm run build`
 
 ## Blocked / Risks
 
@@ -421,16 +440,16 @@ Exit criteria:
 - `references` still retains watcher/self-write/load-generation/state-sync responsibilities that should eventually move into clearer infra/runtime boundaries
 - `files` may already have partial helper boundaries (`fileStoreIO` / `fileStoreEffects`) that can either help the migration or hide remaining coupling
 - `files` refresh runtime remains more coupled than cache/snapshot state; pulling refresh logic first would widen blast radius compared with extracting the cache/runtime boundary
-- `files` still retains refreshVisibleTree/reconcile/watch orchestration in the store; that remains the highest-risk remaining area in this domain split
+- `files` now delegates visible-tree refresh execution to a domain runtime, but watch/poll lifecycle wiring still lives in the store and remains the clearest remaining `files` orchestration knot
 - Backend flattening is still untouched and could become harder if frontend assumptions harden further
 
 ## Next Recommended Slice
 
-1. Keep `src/stores/files.js` as the current large store/domain reduction target
-2. Extract exactly one narrow next slice: refresh/runtime orchestration
-3. Move loaded-directory traversal, tree snapshot diffing, and queued visible-tree refresh loop into `src/domains/files/*` or equivalent runtime module
-4. Keep watch wiring and reconcile UX as thin store bridges unless the extraction naturally clarifies them
-5. Validate with build verification
+1. Reevaluate `src/stores/files.js` after the refresh/runtime extraction
+2. If the blast radius remains narrow, extract one more `files` slice: watch/poll orchestration and activity tracking
+3. Keep reconcile UX state updates as store-local bridges unless the extraction naturally clarifies them
+4. Add or extend targeted runtime tests when logic becomes pure enough to validate outside the UI shell
+5. Validate with targeted tests plus `npm run build`
 6. Update this blueprint based on the actual migration result
 7. Only then decide whether to keep pushing `files` or redirect to `workspace`
 
@@ -443,9 +462,10 @@ Exit criteria:
 - [x] `editor` first-round split is documented
 - [x] current bottlenecks are explicitly named
 - [x] next recommended slice is explicit
+- [x] `files` refresh/runtime extraction is documented truthfully
 - [ ] core architecture docs have been created
 - [ ] safety model has been documented as a first-class system
-- [ ] testing/validation story is stronger than build-only checks
+- [x] testing/validation story is stronger than build-only checks for the current `files` slice
 - [ ] backend layering migration has begun
 
 ## Migration Notes
@@ -454,6 +474,8 @@ Exit criteria:
 - `references` was a good first store/domain split because it allowed meaningful logic extraction without immediately entangling the entire workspace lifecycle.
 - `editor` was a reasonable second large split, and it now appears to be past the highest-value extraction stage for the current phase.
 - `files` is now the highest-value next target because it remains large, central, and only partially bounded by earlier helper modules.
+- The next slice should remain in `files`, not shift to `workspace`, because `files` still contains an isolated refresh/runtime loop that can be extracted without widening workspace bootstrap coupling.
+- After the refresh/runtime extraction, `files` still contains a second narrow orchestration seam around watch/poll scheduling and activity hooks; that is the best candidate if we continue in the same domain.
 - `workspace` should likely remain behind `files` unless the `files` audit reveals that the next safe slice is actually blocked on workspace boundaries.
 - `PdfViewer.vue` is large enough to deserve future attention, but it should not displace the more structurally important `files` migration unless product work proves otherwise.
 - Missing documentation is now a repository-level risk, not just a nice-to-have, because the codebase is accumulating new boundaries without a matching shared architectural map.
