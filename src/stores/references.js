@@ -34,6 +34,12 @@ import {
   sortReferences,
 } from '../domains/reference/referenceSearchExport'
 import { createReferenceLibraryRuntime } from '../domains/reference/referenceLibraryRuntime'
+import { createReferenceLibraryLoadRuntime } from '../domains/reference/referenceLibraryLoadRuntime'
+import { createReferenceAssetRuntime } from '../domains/reference/referenceAssetRuntime'
+import { createReferenceCrudRuntime } from '../domains/reference/referenceCrudRuntime'
+import { createReferenceMigrationRuntime } from '../domains/reference/referenceMigrationRuntime'
+import { createReferenceMutationRuntime } from '../domains/reference/referenceMutationRuntime'
+import { createReferenceWorkspaceViewRuntime } from '../domains/reference/referenceWorkspaceViewRuntime'
 import {
   auditReferenceImportCandidate,
   buildMergedReference,
@@ -224,147 +230,232 @@ export const useReferencesStore = defineStore('references', {
       return this._referenceLibraryRuntime
     },
 
+    _getReferenceLibraryLoadRuntime() {
+      if (!this._referenceLibraryLoadRuntime) {
+        this._referenceLibraryLoadRuntime = createReferenceLibraryLoadRuntime({
+          getWorkspacePath: () => useWorkspaceStore().path,
+          getProjectDir: () => useWorkspaceStore().projectDir,
+          getGlobalConfigDir: () => useWorkspaceStore().globalConfigDir,
+          getLoadGeneration: () => this._loadGeneration,
+          setLoadGeneration: (value) => {
+            this._loadGeneration = value
+          },
+          getGlobalLibrary: () => this.globalLibrary,
+          getActiveKey: () => this.activeKey,
+          setLoading: (value) => {
+            this.loading = value
+          },
+          setGlobalLibrary: (value) => {
+            this.globalLibrary = value
+          },
+          setGlobalKeyMap: (value) => {
+            this.globalKeyMap = value
+          },
+          setCollections: (value) => {
+            this.collections = value
+          },
+          setSavedViews: (value) => {
+            this.savedViews = value
+          },
+          setLibrary: (value) => {
+            this.library = value
+          },
+          setWorkspaceKeys: (value) => {
+            this.workspaceKeys = value
+          },
+          setKeyMap: (value) => {
+            this.keyMap = value
+          },
+          setActiveKey: (value) => {
+            this.activeKey = value
+          },
+          setLibraryDetailMode: (value) => {
+            this.libraryDetailMode = value
+          },
+          setCitationStyle: (value) => {
+            this.citationStyle = value
+          },
+          setInitialized: (value) => {
+            this.initialized = value
+          },
+          ensureReferenceStorageReady,
+          readJsonArray: (globalConfigDir) => readJsonArray(resolveGlobalReferenceLibraryPath(globalConfigDir)),
+          readWorkspaceReferenceCollection: (projectDir) => readWorkspaceReferenceCollection(resolveWorkspaceReferenceCollectionPath(projectDir)),
+          readFileIfExists: (globalConfigDir) => readFileIfExists(resolveGlobalReferenceWorkbenchPath(globalConfigDir)),
+          parseGlobalReferenceWorkbench,
+          sanitizeReferenceWorkbenchState,
+          migrateLegacyWorkspaceData: (context, payload) => this._migrateLegacyWorkspaceData(context, payload),
+          sanitizeReferenceRecord,
+          referenceKey,
+          buildKeyMapFromList,
+          buildWorkspaceLibrary,
+          writeLibraries: (context) => this._getReferenceLibraryRuntime().writeLibraries(context),
+          deleteLegacyWorkspaceReferenceLibrary,
+          loadPersistedCitationStyle,
+          loadReferenceUserStyles,
+          startWatching: (context) => this._getReferenceLibraryRuntime().startWatching(context),
+        })
+      }
+      return this._referenceLibraryLoadRuntime
+    },
+
+    _getReferenceMigrationRuntime() {
+      if (!this._referenceMigrationRuntime) {
+        this._referenceMigrationRuntime = createReferenceMigrationRuntime({
+          captureWorkspaceContext: () => this._captureWorkspaceContext(),
+          readJsonArray,
+          resolveLegacyWorkspaceReferenceLibraryPath,
+          resolveLegacyWorkspaceReferencePdfsDir,
+          resolveLegacyWorkspaceReferenceFulltextDir,
+          resolveGlobalReferencePdfPath,
+          resolveGlobalReferenceFulltextPath,
+          buildReferenceKey,
+          referenceKey,
+          cloneReferenceValue,
+          buildKeyMapFromList,
+          copyFileIfPresent,
+          pathExists: (path) => invoke('path_exists', { path }),
+          deletePath: (path) => invoke('delete_path', { path }),
+        })
+      }
+      return this._referenceMigrationRuntime
+    },
+
+    _getReferenceWorkspaceViewRuntime() {
+      if (!this._referenceWorkspaceViewRuntime) {
+        this._referenceWorkspaceViewRuntime = createReferenceWorkspaceViewRuntime({
+          getGlobalLibrary: () => this.globalLibrary,
+          setGlobalLibrary: (value) => {
+            this.globalLibrary = value
+          },
+          setGlobalKeyMap: (value) => {
+            this.globalKeyMap = value
+          },
+          getWorkspaceKeys: () => this.workspaceKeys,
+          setWorkspaceKeys: (value) => {
+            this.workspaceKeys = value
+          },
+          setLibrary: (value) => {
+            this.library = value
+          },
+          setKeyMap: (value) => {
+            this.keyMap = value
+          },
+          getActiveKey: () => this.activeKey,
+          setActiveKey: (value) => {
+            this.activeKey = value
+          },
+          setLibraryDetailMode: (value) => {
+            this.libraryDetailMode = value
+          },
+          getSelectedKeys: () => this.selectedKeys,
+          setSelectedKeys: (value) => {
+            this.selectedKeys = value
+          },
+          buildKeyMapFromList,
+          buildWorkspaceLibrary,
+          referenceKey,
+          saveLibrary: () => this.saveLibrary(),
+        })
+      }
+      return this._referenceWorkspaceViewRuntime
+    },
+
+    _getReferenceMutationRuntime() {
+      if (!this._referenceMutationRuntime) {
+        this._referenceMutationRuntime = createReferenceMutationRuntime({
+          getGlobalLibrary: () => this.globalLibrary,
+          getGlobalKeyMap: () => this.globalKeyMap,
+          getCollections: () => this.collections,
+          setCollections: (value) => {
+            this.collections = value
+          },
+          getSavedViews: () => this.savedViews,
+          setSavedViews: (value) => {
+            this.savedViews = value
+          },
+          commitGlobalReferenceMutations: (changed) => this._commitGlobalReferenceMutations(changed),
+          commitWorkbenchMutations: (changed) => this._commitWorkbenchMutations(changed),
+          createReferenceWorkbenchCollection,
+          deleteReferenceWorkbenchCollection,
+          createReferenceSavedView,
+          deleteReferenceSavedView,
+          addReferenceCollection,
+          removeReferenceCollection,
+          toggleReferenceCollection,
+          updateReferenceWorkflowField,
+          addReferenceTags,
+          replaceReferenceTags,
+          removeReferenceTags,
+        })
+      }
+      return this._referenceMutationRuntime
+    },
+
+    _getReferenceCrudRuntime() {
+      if (!this._referenceCrudRuntime) {
+        this._referenceCrudRuntime = createReferenceCrudRuntime({
+          getGlobalLibrary: () => this.globalLibrary,
+          getGlobalKeyMap: () => this.globalKeyMap,
+          getWorkspaceKeys: () => this.workspaceKeys,
+          setWorkspaceKeys: (value) => {
+            this.workspaceKeys = value
+          },
+          getByKey: (key) => this.getByKey(key),
+          syncWorkspaceView: () => this._syncWorkspaceView(),
+          saveLibrary: () => this.saveLibrary(),
+          generateKey: (ref) => this.generateKey(ref),
+          auditImportCandidate: (ref) => this.auditImportCandidate(ref),
+          addKeyToWorkspace: (key) => this.addKeyToWorkspace(key),
+          prepareReferenceImport,
+          buildMergedReference,
+          trackReferenceImport: (method) => events.refImport(method),
+        })
+      }
+      return this._referenceCrudRuntime
+    },
+
+    _getReferenceAssetRuntime() {
+      if (!this._referenceAssetRuntime) {
+        this._referenceAssetRuntime = createReferenceAssetRuntime({
+          getGlobalLibrary: () => this.globalLibrary,
+          getGlobalKeyMap: () => this.globalKeyMap,
+          getGlobalConfigDir: () => useWorkspaceStore().globalConfigDir,
+          applyGlobalRemoval: (keys) => this._getReferenceWorkspaceViewRuntime().applyGlobalRemoval(keys),
+          deleteReferenceAsset: (path) => this._deleteReferenceAsset(path),
+          writeLibraries: () => this._writeLibraries(),
+          updateReference: (key, updates) => this.updateReference(key, updates),
+          resolveGlobalReferencePdfPath,
+          resolveGlobalReferenceFulltextPath,
+          resolveGlobalReferencePdfsDir,
+          resolveGlobalReferenceFulltextDir,
+          invoke,
+          extractTextFromPdf,
+        })
+      }
+      return this._referenceAssetRuntime
+    },
+
     // --- Persistence ---
 
     _captureWorkspaceContext() {
-      const workspace = useWorkspaceStore()
-      return {
-        workspacePath: workspace.path || '',
-        projectDir: workspace.projectDir || '',
-        globalConfigDir: workspace.globalConfigDir || '',
-      }
+      return this._getReferenceLibraryLoadRuntime().captureWorkspaceContext()
     },
 
     _matchesWorkspaceContext(context) {
-      if (!context?.workspacePath || !context?.projectDir || !context?.globalConfigDir) return false
-      const workspace = useWorkspaceStore()
-      return (
-        workspace.path === context.workspacePath
-        && workspace.projectDir === context.projectDir
-        && workspace.globalConfigDir === context.globalConfigDir
-      )
+      return this._getReferenceLibraryLoadRuntime().matchesWorkspaceContext(context)
     },
 
     _beginLoadContext() {
-      const context = this._captureWorkspaceContext()
-      if (!this._matchesWorkspaceContext(context)) return null
-      this._loadGeneration += 1
-      return {
-        ...context,
-        generation: this._loadGeneration,
-      }
+      return this._getReferenceLibraryLoadRuntime().beginLoadContext()
     },
 
     _isLoadStale(context) {
-      if (!context) return true
-      return context.generation !== this._loadGeneration || !this._matchesWorkspaceContext(context)
+      return this._getReferenceLibraryLoadRuntime().isLoadStale(context)
     },
 
     async loadLibrary() {
-      const context = this._beginLoadContext()
-      if (!context) return
-
-      this.loading = true
-
-      try {
-        try {
-          await ensureReferenceStorageReady(context)
-          if (this._isLoadStale(context)) return
-
-          let globalLibrary = await readJsonArray(resolveGlobalReferenceLibraryPath(context.globalConfigDir))
-          if (this._isLoadStale(context)) return
-
-          let workspaceCollection = await readWorkspaceReferenceCollection(resolveWorkspaceReferenceCollectionPath(context.projectDir))
-          if (this._isLoadStale(context)) return
-
-          const workbenchState = sanitizeReferenceWorkbenchState(
-            parseGlobalReferenceWorkbench(
-              await readFileIfExists(resolveGlobalReferenceWorkbenchPath(context.globalConfigDir))
-            )
-          )
-          if (this._isLoadStale(context)) return
-
-          const migration = await this._migrateLegacyWorkspaceData(context, {
-            globalLibrary,
-            workspaceKeys: workspaceCollection.keys,
-          })
-          if (this._isLoadStale(context)) return
-
-          globalLibrary = migration.globalLibrary
-          workspaceCollection = {
-            ...workspaceCollection,
-            keys: migration.workspaceKeys,
-          }
-          const validCollectionIds = new Set(workbenchState.collections.map((entry) => entry.id))
-          globalLibrary = globalLibrary
-            .map((ref) => {
-              const nextRef = sanitizeReferenceRecord(ref)
-              if (validCollectionIds.size > 0 && Array.isArray(nextRef._collections)) {
-                nextRef._collections = nextRef._collections.filter((id) => validCollectionIds.has(id))
-                if (nextRef._collections.length === 0) delete nextRef._collections
-              } else {
-                delete nextRef._collections
-              }
-              return nextRef
-            })
-            .filter((ref) => !!referenceKey(ref))
-
-          this.globalLibrary = globalLibrary
-          this.globalKeyMap = buildKeyMapFromList(globalLibrary)
-          this.collections = workbenchState.collections
-          this.savedViews = workbenchState.savedViews
-          const workspaceView = buildWorkspaceLibrary(globalLibrary, this.globalKeyMap, workspaceCollection.keys)
-          this.library = workspaceView.library
-          this.workspaceKeys = workspaceView.keys
-          this.keyMap = buildKeyMapFromList(workspaceView.library)
-          if (this.activeKey && this.globalKeyMap[this.activeKey] === undefined) {
-            this.activeKey = null
-            this.libraryDetailMode = 'browse'
-          }
-
-          if (migration.didChange) {
-            await this._writeLibraries(context)
-            if (this._isLoadStale(context)) return
-          }
-
-          if (migration.legacyLibraryFound) {
-            await deleteLegacyWorkspaceReferenceLibrary(context)
-            if (this._isLoadStale(context)) return
-          }
-        } catch (e) {
-          if (this._isLoadStale(context)) return
-          console.warn('Failed to load reference library:', e)
-          this.library = []
-          this.keyMap = {}
-          this.workspaceKeys = []
-          if (!Array.isArray(this.globalLibrary) || this.globalLibrary.length === 0) {
-            this.globalLibrary = []
-            this.globalKeyMap = {}
-            this.collections = []
-            this.savedViews = []
-          } else {
-            this.globalKeyMap = buildKeyMapFromList(this.globalLibrary)
-          }
-        }
-
-        if (this._isLoadStale(context)) return
-
-        const citationStyle = await loadPersistedCitationStyle(context.projectDir)
-        if (citationStyle) this.citationStyle = citationStyle
-
-        if (this._isLoadStale(context)) return
-
-        await loadReferenceUserStyles(context.projectDir).catch(() => {})
-
-        if (this._isLoadStale(context)) return
-
-        this.initialized = true
-        await this.startWatching(context)
-      } finally {
-        if (!this._isLoadStale(context)) {
-          this.loading = false
-        }
-      }
+      return this._getReferenceLibraryLoadRuntime().loadLibrary()
     },
 
     async saveLibrary(options = {}) {
@@ -423,350 +514,101 @@ export const useReferencesStore = defineStore('references', {
     },
 
     _syncWorkspaceView() {
-      this.globalKeyMap = buildKeyMapFromList(this.globalLibrary)
-      const workspaceView = buildWorkspaceLibrary(this.globalLibrary, this.globalKeyMap, this.workspaceKeys)
-      this.library = workspaceView.library
-      this.workspaceKeys = workspaceView.keys
-      this.keyMap = buildKeyMapFromList(workspaceView.library)
-      if (this.activeKey && this.globalKeyMap[this.activeKey] === undefined) {
-        this.activeKey = null
-        this.libraryDetailMode = 'browse'
-      }
+      return this._getReferenceWorkspaceViewRuntime().syncWorkspaceView()
     },
 
     async _deleteReferenceAsset(path) {
-      if (!path) return false
-      try {
-        const exists = await invoke('path_exists', { path })
-        if (!exists) return false
-        await invoke('delete_path', { path })
-        return true
-      } catch (error) {
-        console.warn('Failed to delete reference asset:', path, error)
-        return false
-      }
+      return this._getReferenceMigrationRuntime().deleteReferenceAsset(path)
     },
 
     async _migrateLegacyWorkspaceData(context = this._captureWorkspaceContext(), { globalLibrary = [], workspaceKeys = [] } = {}) {
-      const legacyLibraryPath = resolveLegacyWorkspaceReferenceLibraryPath(context.projectDir)
-      const legacyRefs = await readJsonArray(legacyLibraryPath)
-      if (legacyRefs.length === 0) {
-        return {
-          globalLibrary,
-          workspaceKeys,
-          didChange: false,
-          legacyLibraryFound: false,
-        }
-      }
-
-      const nextGlobalLibrary = [...globalLibrary]
-      const nextWorkspaceKeys = [...workspaceKeys]
-      const nextGlobalKeyMap = buildKeyMapFromList(nextGlobalLibrary)
-      let didChange = false
-
-      for (const legacyRef of legacyRefs) {
-        const key = referenceKey(legacyRef) || buildReferenceKey(legacyRef, new Set(Object.keys(nextGlobalKeyMap)))
-        let targetRef = nextGlobalKeyMap[key] !== undefined ? nextGlobalLibrary[nextGlobalKeyMap[key]] : null
-
-        if (!targetRef) {
-          const nextRef = {
-            ...cloneReferenceValue(legacyRef),
-            _key: key,
-            id: key,
-          }
-          nextGlobalLibrary.push(nextRef)
-          nextGlobalKeyMap[key] = nextGlobalLibrary.length - 1
-          targetRef = nextRef
-          didChange = true
-        }
-
-        if (!nextWorkspaceKeys.includes(key)) {
-          nextWorkspaceKeys.push(key)
-          didChange = true
-        }
-
-        const assetChanged = await this._migrateLegacyReferenceAssets(context, targetRef, legacyRef, key)
-        if (assetChanged) didChange = true
-      }
-
-      return {
-        globalLibrary: nextGlobalLibrary,
-        workspaceKeys: nextWorkspaceKeys,
-        didChange,
-        legacyLibraryFound: true,
-      }
+      return this._getReferenceMigrationRuntime().migrateLegacyWorkspaceData(context, { globalLibrary, workspaceKeys })
     },
 
     async _migrateLegacyReferenceAssets(context = this._captureWorkspaceContext(), targetRef, legacyRef, key) {
-      if (!context?.projectDir || !context?.globalConfigDir) return false
-
-      let changed = false
-      const legacyPdfsDir = resolveLegacyWorkspaceReferencePdfsDir(context.projectDir)
-      const legacyFulltextDir = resolveLegacyWorkspaceReferenceFulltextDir(context.projectDir)
-
-      if (legacyRef?._pdfFile && !targetRef?._pdfFile) {
-        const copied = await copyFileIfPresent(
-          `${legacyPdfsDir}/${legacyRef._pdfFile}`,
-          resolveGlobalReferencePdfPath(context.globalConfigDir, `${key}.pdf`),
-        )
-        if (copied) {
-          targetRef._pdfFile = `${key}.pdf`
-          changed = true
-        }
-      }
-
-      if (legacyRef?._textFile && !targetRef?._textFile) {
-        const copied = await copyFileIfPresent(
-          `${legacyFulltextDir}/${legacyRef._textFile}`,
-          resolveGlobalReferenceFulltextPath(context.globalConfigDir, `${key}.txt`),
-        )
-        if (copied) {
-          targetRef._textFile = `${key}.txt`
-          changed = true
-        }
-      }
-
-      return changed
+      return this._getReferenceMigrationRuntime().migrateLegacyReferenceAssets(context, targetRef, legacyRef, key)
     },
 
     // --- CRUD ---
 
     addReference(cslJson) {
-      const nextRef = prepareReferenceImport(cslJson, {
-        generateKey: (ref) => this.generateKey(ref),
-      })
-
-      const duplicateAudit = this.auditImportCandidate(nextRef)
-      if (duplicateAudit.existingKey) {
-        this.addKeyToWorkspace(duplicateAudit.existingKey)
-        return {
-          key: duplicateAudit.existingKey,
-          status: 'duplicate',
-          existingKey: duplicateAudit.existingKey,
-          matchType: duplicateAudit.matchType,
-        }
-      }
-
-      if (!nextRef._addedAt) {
-        nextRef._addedAt = new Date().toISOString()
-      }
-
-      this.globalLibrary.push(nextRef)
-      this.workspaceKeys.push(nextRef._key)
-      this._syncWorkspaceView()
-      this.saveLibrary()
-      events.refImport(nextRef._importMethod || 'manual')
-
-      return { key: nextRef._key, status: 'added' }
+      return this._getReferenceCrudRuntime().addReference(cslJson)
     },
 
     addReferences(cslArray) {
-      const report = { added: [], duplicates: [], errors: [] }
-      for (const csl of cslArray) {
-        try {
-          const result = this.addReference({ ...csl })
-          if (result.status === 'added') report.added.push(result.key)
-          else report.duplicates.push(result.existingKey || result.key)
-        } catch (e) {
-          report.errors.push({ csl, error: e.message })
-        }
-      }
-      return report
+      return this._getReferenceCrudRuntime().addReferences(cslArray)
     },
 
     updateReference(key, updates) {
-      const idx = this.globalKeyMap[key]
-      if (idx === undefined) return false
-
-      Object.assign(this.globalLibrary[idx], updates)
-
-      if (updates._key && updates._key !== key) {
-        this.globalLibrary[idx].id = updates._key
-        this.workspaceKeys = this.workspaceKeys.map((item) => (item === key ? updates._key : item))
-      }
-
-      this._syncWorkspaceView()
-      this.saveLibrary()
-      return true
+      return this._getReferenceCrudRuntime().updateReference(key, updates)
     },
 
     _commitGlobalReferenceMutations(changed = false) {
-      if (!changed) return 0
-      this._syncWorkspaceView()
-      this.saveLibrary()
-      return 1
+      return this._getReferenceWorkspaceViewRuntime().commitGlobalReferenceMutations(changed)
     },
 
     _commitWorkbenchMutations(changed = false) {
-      if (!changed) return 0
-      this.saveLibrary()
-      return 1
+      return this._getReferenceWorkspaceViewRuntime().commitWorkbenchMutations(changed)
     },
 
     createCollection(nameRaw = '') {
-      const result = createReferenceWorkbenchCollection(this.collections, nameRaw)
-      if (!result.ok) return result
-      if (result.duplicated) {
-        return { ok: true, collection: result.collection, duplicated: true }
-      }
-      this.collections = result.collections
-      this.saveLibrary()
-      return { ok: true, collection: result.collection, duplicated: false }
+      return this._getReferenceMutationRuntime().createCollection(nameRaw)
     },
 
     deleteCollection(collectionId = '') {
-      const result = deleteReferenceWorkbenchCollection({
-        collections: this.collections,
-        globalLibrary: this.globalLibrary,
-        savedViews: this.savedViews,
-        collectionId,
-      })
-      if (!result.ok) return false
-
-      this.collections = result.collections
-      this.savedViews = result.savedViews
-      this._commitGlobalReferenceMutations(result.changedGlobalLibrary)
-      this.saveLibrary()
-      return true
+      return this._getReferenceMutationRuntime().deleteCollection(collectionId)
     },
 
     addCollectionToReferences(keys = [], collectionId = '') {
-      const id = String(collectionId || '').trim()
-      if (!id || !this.collections.some((entry) => entry.id === id)) return 0
-
-      let changed = false
-      for (const key of new Set((keys || []).filter(Boolean))) {
-        const idx = this.globalKeyMap[key]
-        if (idx === undefined) continue
-        changed = addReferenceCollection(this.globalLibrary[idx], id) || changed
-      }
-      return this._commitGlobalReferenceMutations(changed)
+      return this._getReferenceMutationRuntime().addCollectionToReferences(keys, collectionId)
     },
 
     removeCollectionFromReferences(keys = [], collectionId = '') {
-      const id = String(collectionId || '').trim()
-      if (!id) return 0
-
-      let changed = false
-      for (const key of new Set((keys || []).filter(Boolean))) {
-        const idx = this.globalKeyMap[key]
-        if (idx === undefined) continue
-        changed = removeReferenceCollection(this.globalLibrary[idx], id) || changed
-      }
-      return this._commitGlobalReferenceMutations(changed)
+      return this._getReferenceMutationRuntime().removeCollectionFromReferences(keys, collectionId)
     },
 
     toggleCollectionForReference(key, collectionId = '') {
-      const id = String(collectionId || '').trim()
-      if (!id) return false
-      const idx = this.globalKeyMap[key]
-      if (idx === undefined) return false
-      const changed = toggleReferenceCollection(this.globalLibrary[idx], id)
-      if (!changed) return false
-      this._syncWorkspaceView()
-      this.saveLibrary()
-      return true
+      return this._getReferenceMutationRuntime().toggleCollectionForReference(key, collectionId)
     },
 
     createSavedView({ name = '', filters = {} } = {}) {
-      const result = createReferenceSavedView(this.savedViews, { name, filters })
-      if (!result.ok) return result
-      if (result.duplicated) {
-        return { ok: true, savedView: result.savedView, duplicated: true }
-      }
-      this.savedViews = result.savedViews
-      this.saveLibrary()
-      return { ok: true, savedView: result.savedView, duplicated: false }
+      return this._getReferenceMutationRuntime().createSavedView({ name, filters })
     },
 
     deleteSavedView(savedViewId = '') {
-      const result = deleteReferenceSavedView(this.savedViews, savedViewId)
-      if (!result.ok) return false
-      this.savedViews = result.savedViews
-      this.saveLibrary()
-      return true
+      return this._getReferenceMutationRuntime().deleteSavedView(savedViewId)
     },
 
     setReadingState(keys = [], state = '') {
-      let changed = false
-      for (const key of new Set((keys || []).filter(Boolean))) {
-        const idx = this.globalKeyMap[key]
-        if (idx === undefined) continue
-        changed = updateReferenceWorkflowField(this.globalLibrary[idx], '_readingState', state) || changed
-      }
-      return this._commitGlobalReferenceMutations(changed)
+      return this._getReferenceMutationRuntime().setReadingState(keys, state)
     },
 
     setPriority(keys = [], priority = '') {
-      let changed = false
-      for (const key of new Set((keys || []).filter(Boolean))) {
-        const idx = this.globalKeyMap[key]
-        if (idx === undefined) continue
-        changed = updateReferenceWorkflowField(this.globalLibrary[idx], '_priority', priority) || changed
-      }
-      return this._commitGlobalReferenceMutations(changed)
+      return this._getReferenceMutationRuntime().setPriority(keys, priority)
     },
 
     setRating(keys = [], rating = 0) {
-      let changed = false
-      for (const key of new Set((keys || []).filter(Boolean))) {
-        const idx = this.globalKeyMap[key]
-        if (idx === undefined) continue
-        changed = updateReferenceWorkflowField(this.globalLibrary[idx], '_rating', rating) || changed
-      }
-      return this._commitGlobalReferenceMutations(changed)
+      return this._getReferenceMutationRuntime().setRating(keys, rating)
     },
 
     saveReferenceSummary(key, summary = '') {
-      const idx = this.globalKeyMap[key]
-      if (idx === undefined) return false
-      if (!updateReferenceWorkflowField(this.globalLibrary[idx], '_summary', summary)) return false
-      this._syncWorkspaceView()
-      this.saveLibrary()
-      return true
+      return this._getReferenceMutationRuntime().saveReferenceSummary(key, summary)
     },
 
     saveReferenceReadingNote(key, note = '') {
-      const idx = this.globalKeyMap[key]
-      if (idx === undefined) return false
-      if (!updateReferenceWorkflowField(this.globalLibrary[idx], '_readingNote', note)) return false
-      this._syncWorkspaceView()
-      this.saveLibrary()
-      return true
+      return this._getReferenceMutationRuntime().saveReferenceReadingNote(key, note)
     },
 
     addTagsToReferences(keys = [], tags = []) {
-      let changed = false
-      for (const key of new Set((keys || []).filter(Boolean))) {
-        const idx = this.globalKeyMap[key]
-        if (idx === undefined) continue
-        changed = addReferenceTags(this.globalLibrary[idx], tags) || changed
-      }
-
-      return this._commitGlobalReferenceMutations(changed)
+      return this._getReferenceMutationRuntime().addTagsToReferences(keys, tags)
     },
 
     replaceTagsForReferences(keys = [], tags = []) {
-      let changed = false
-
-      for (const key of new Set((keys || []).filter(Boolean))) {
-        const idx = this.globalKeyMap[key]
-        if (idx === undefined) continue
-        changed = replaceReferenceTags(this.globalLibrary[idx], tags) || changed
-      }
-
-      return this._commitGlobalReferenceMutations(changed)
+      return this._getReferenceMutationRuntime().replaceTagsForReferences(keys, tags)
     },
 
     removeTagsFromReferences(keys = [], tags = []) {
-      let changed = false
-      for (const key of new Set((keys || []).filter(Boolean))) {
-        const idx = this.globalKeyMap[key]
-        if (idx === undefined) continue
-        changed = removeReferenceTags(this.globalLibrary[idx], tags) || changed
-      }
-
-      return this._commitGlobalReferenceMutations(changed)
+      return this._getReferenceMutationRuntime().removeTagsFromReferences(keys, tags)
     },
 
     renameReferenceKey(oldKey, nextKeyRaw) {
@@ -793,46 +635,16 @@ export const useReferencesStore = defineStore('references', {
         return { ok: false, error: 'Citation key already exists.' }
       }
 
-      this.globalLibrary[idx]._key = nextKey
-      this.globalLibrary[idx].id = nextKey
-      this.workspaceKeys = this.workspaceKeys.map((item) => (item === oldKey ? nextKey : item))
-
-      if (this.activeKey === oldKey) {
-        this.activeKey = nextKey
-      }
-      if (this.selectedKeys.has(oldKey)) {
-        const nextSelected = new Set(this.selectedKeys)
-        nextSelected.delete(oldKey)
-        nextSelected.add(nextKey)
-        this.selectedKeys = nextSelected
-      }
-
-      this._syncWorkspaceView()
-      this.saveLibrary()
+      this._getReferenceWorkspaceViewRuntime().applyRenamedReferenceKey(oldKey, nextKey)
       return { ok: true, key: nextKey, oldKey, changed: true }
     },
 
     mergeReference(existingKey, importedRef, fieldSelections = {}) {
-      const existingRef = this.getByKey(existingKey)
-      if (!existingRef || !importedRef) return { status: 'missing' }
-
-      const merged = buildMergedReference(existingRef, importedRef, fieldSelections)
-      if (!merged) return { status: 'missing' }
-
-      this.updateReference(existingKey, merged)
-      return {
-        status: 'merged',
-        key: existingKey,
-        ref: this.getByKey(existingKey),
-      }
+      return this._getReferenceCrudRuntime().mergeReference(existingKey, importedRef, fieldSelections)
     },
 
     addKeyToWorkspace(key) {
-      if (!key || this.workspaceKeys.includes(key)) return false
-      this.workspaceKeys.push(key)
-      this._syncWorkspaceView()
-      this.saveLibrary()
-      return true
+      return this._getReferenceWorkspaceViewRuntime().addKeyToWorkspace(key)
     },
 
     focusReferenceInLibrary(key, options = {}) {
@@ -857,18 +669,7 @@ export const useReferencesStore = defineStore('references', {
     },
 
     removeReference(key) {
-      if (!this.workspaceKeys.includes(key)) return false
-      this.workspaceKeys = this.workspaceKeys.filter((item) => item !== key)
-      this._syncWorkspaceView()
-
-      if (this.activeKey === key) {
-        this.activeKey = null
-        this.libraryDetailMode = 'browse'
-      }
-      this.selectedKeys.delete(key)
-
-      this.saveLibrary()
-      return true
+      return this._getReferenceWorkspaceViewRuntime().removeReference(key)
     },
 
     removeReferences(keys) {
@@ -883,46 +684,7 @@ export const useReferencesStore = defineStore('references', {
     },
 
     async removeReferencesFromGlobal(keys) {
-      const uniqueKeys = Array.from(new Set((keys || []).filter(Boolean)))
-      if (uniqueKeys.length === 0) return []
-
-      const workspace = useWorkspaceStore()
-      const removeSet = new Set()
-      const assetPaths = []
-
-      for (const key of uniqueKeys) {
-        const idx = this.globalKeyMap[key]
-        if (idx === undefined) continue
-        const ref = this.globalLibrary[idx]
-        removeSet.add(key)
-        if (workspace.globalConfigDir && ref?._pdfFile) {
-          assetPaths.push(resolveGlobalReferencePdfPath(workspace.globalConfigDir, ref._pdfFile))
-        }
-        if (workspace.globalConfigDir && ref?._textFile) {
-          assetPaths.push(resolveGlobalReferenceFulltextPath(workspace.globalConfigDir, ref._textFile))
-        }
-      }
-
-      if (removeSet.size === 0) return []
-
-      this.globalLibrary = this.globalLibrary.filter((ref) => !removeSet.has(referenceKey(ref)))
-      this.workspaceKeys = this.workspaceKeys.filter((key) => !removeSet.has(key))
-      if (this.activeKey && removeSet.has(this.activeKey)) {
-        this.activeKey = null
-        this.libraryDetailMode = 'browse'
-      }
-      for (const key of removeSet) {
-        this.selectedKeys.delete(key)
-      }
-
-      this._syncWorkspaceView()
-
-      for (const path of assetPaths) {
-        await this._deleteReferenceAsset(path)
-      }
-
-      await this._writeLibraries()
-      return [...removeSet]
+      return this._getReferenceAssetRuntime().removeReferencesFromGlobal(keys)
     },
 
     // --- Search ---
@@ -960,35 +722,7 @@ export const useReferencesStore = defineStore('references', {
     // --- PDF storage ---
 
     async storePdf(key, sourcePath) {
-      const workspace = useWorkspaceStore()
-      if (!workspace.globalConfigDir) return
-
-      const pdfsDir = resolveGlobalReferencePdfsDir(workspace.globalConfigDir)
-      const textDir = resolveGlobalReferenceFulltextDir(workspace.globalConfigDir)
-      const destPdf = resolveGlobalReferencePdfPath(workspace.globalConfigDir, `${key}.pdf`)
-
-      try {
-        await invoke('create_dir', { path: pdfsDir }).catch(() => {})
-        await invoke('copy_file', { src: sourcePath, dest: destPdf })
-        this.updateReference(key, { _pdfFile: `${key}.pdf` })
-      } catch (e) {
-        console.warn('Failed to store PDF:', e)
-      }
-
-      // Extract text for full-text search
-      try {
-        const text = await extractTextFromPdf(destPdf)
-        if (text) {
-          await invoke('create_dir', { path: textDir }).catch(() => {})
-          await invoke('write_file', {
-            path: resolveGlobalReferenceFulltextPath(workspace.globalConfigDir, `${key}.txt`),
-            content: text,
-          })
-          this.updateReference(key, { _textFile: `${key}.txt` })
-        }
-      } catch (e) {
-        console.warn('Failed to extract PDF text:', e)
-      }
+      return this._getReferenceAssetRuntime().storePdf(key, sourcePath)
     },
 
     // --- Export ---

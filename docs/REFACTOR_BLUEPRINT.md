@@ -10,9 +10,9 @@ Current overall assessment:
 
 - Phase 0 is effectively complete.
 - Phase 1 is substantially advanced but not fully closed.
-- Phase 2 is meaningfully underway with `files`, `workspace`, and `terminal` all substantially reduced and the active store split now focused on `chat`.
+- Phase 2 is meaningfully underway with `files`, `workspace`, `terminal`, and `chat` all substantially reduced, and the active store split now re-focused on `references`.
 - Phase 3 onward are still mostly ahead of us and should not be treated as already in execution.
-- Repository state was re-audited on 2026-03-22; the worktree was clean at the start of this execution cycle and the pushed `files` / `workspace` runtime extractions are now the repository baseline.
+- Repository state was re-audited on 2026-03-22; the current in-flight refactor state includes the landed `references` library/load/migration runtime extractions plus their targeted tests.
 
 ## Product Direction
 
@@ -96,6 +96,7 @@ The current strongest signs of progress are:
 - `App.vue` has already been reduced significantly and no longer carries as much direct orchestration as before.
 - `src/domains/changes` has been established as an early domain boundary.
 - `references` and `editor` have both gone through first-round store/domain extraction.
+- `references` has now also entered a second-round runtime extraction sequence.
 - `files` and `workspace` have both gone through repeated runtime extraction cycles and are no longer the clearest Phase 2 bottlenecks.
 
 ### Frontend current state
@@ -124,8 +125,14 @@ The references store has already had these responsibilities extracted into domai
 The store has now also begun a second-round extraction:
 
 - `src/domains/reference/referenceLibraryRuntime.js` now carries save scheduling, self-write bookkeeping, fs-change listener lifecycle, and three-file library/workbench/workspace collection persistence.
+- `src/domains/reference/referenceLibraryLoadRuntime.js` now carries workspace context capture, stale-generation guards, load sequencing, hydrated state application, and post-load watcher startup.
+- `src/domains/reference/referenceMigrationRuntime.js` now carries legacy workspace-library import, legacy asset relocation, and safe asset deletion behavior.
+- `src/domains/reference/referenceWorkspaceViewRuntime.js` now carries workspace/global view synchronization, membership-state repair, and save-on-mutation commit helpers.
+- `src/domains/reference/referenceMutationRuntime.js` now carries collection/saved-view mutation coordination plus workflow/tag updates.
+- `src/domains/reference/referenceCrudRuntime.js` now carries add/import/update/merge coordination.
+- `src/domains/reference/referenceAssetRuntime.js` now carries global asset deletion and PDF/fulltext storage flows.
 
-The store still retains mostly store-specific load generation, context matching, migration, and workspace-view sync responsibilities.
+The store is now mostly a thinner shell around focus/detail-mode state, search/export helpers, path lookup helpers, and a smaller set of direct UI bridges.
 
 ##### Editor domain status
 
@@ -147,13 +154,13 @@ The editor store is now much smaller and is no longer the highest-priority refac
 
 The largest remaining frontend architectural bottlenecks include:
 
-- `src/stores/files.js`
-- `src/stores/workspace.js`
-- `src/stores/chat.js`
-- `src/stores/terminal.js`
+- `src/stores/references.js`
+- `src/stores/editor.js`
+- `src/stores/latex.js`
+- `src/stores/pdfTranslate.js`
 - `src/components/editor/PdfViewer.vue`
 
-`references` is now the active Phase 2 extraction target for second-round store reduction, and `chat` is no longer the active bottleneck after its live-instance/runtime slice landed.
+`references` has now gone through a full second-round extraction sequence and is no longer the active Phase 2 target; the next high-value store boundary should shift to `editor`.
 
 Current `files`-specific audit notes:
 
@@ -202,22 +209,46 @@ Current `files`-specific audit notes:
 
 Current `references`-specific audit notes:
 
-- `src/stores/references.js` is now 1027 lines after the new library-runtime slice and remains the largest remaining Pinia store.
+- `src/stores/references.js` is now 761 lines after the library/runtime, load/runtime, migration/runtime, workspace-view/runtime, mutation/runtime, CRUD/runtime, and asset/runtime slices.
 - `src/domains/reference/referenceLibraryRuntime.js` now carries:
   - delayed save scheduling
   - self-write bookkeeping
   - fs-change listener lifecycle
   - global/workbench/workspace collection writes
-- The store still directly mixes several distinct concerns:
-  - workspace context capture / stale-generation guards
-  - loadLibrary migration and hydration sequencing
+- `src/domains/reference/referenceLibraryLoadRuntime.js` now carries:
+  - workspace context capture/match
+  - stale-generation guards
+  - loadLibrary orchestration
+  - hydrated state application
+  - citation-style/user-style postload handling
+- `src/domains/reference/referenceMigrationRuntime.js` now carries:
+  - safe asset deletion
+  - legacy workspace-library import
+  - legacy PDF/fulltext relocation into global storage
+- `src/domains/reference/referenceWorkspaceViewRuntime.js` now carries:
   - workspace/global view synchronization
-- The cleanest next `references` seam is load/runtime orchestration:
-  - `_captureWorkspaceContext`
-  - `_matchesWorkspaceContext`
-  - `_beginLoadContext`
-  - `_isLoadStale`
-  - `loadLibrary`
+  - save-on-mutation commit helpers
+  - workspace membership add/remove and key-rename state repair
+  - global-removal active/selection cleanup
+- `src/domains/reference/referenceMutationRuntime.js` now carries:
+  - collection and saved-view mutation coordination
+  - workflow field updates
+  - summary/reading-note saves
+  - reference tag mutation helpers
+- `src/domains/reference/referenceCrudRuntime.js` now carries:
+  - add/addMany reference import flows
+  - duplicate detection and workspace re-attach behavior
+  - update/rename-through-update state persistence
+  - mergeReference coordination
+- `src/domains/reference/referenceAssetRuntime.js` now carries:
+  - global reference removal with asset cleanup
+  - PDF copy/import orchestration
+  - extracted fulltext writeback
+- The store still directly mixes several distinct concerns:
+  - focus/detail-mode UI bridges
+  - search/export/path helpers
+  - thin wrapper methods around extracted runtimes
+- `references` is now thin enough that the next high-value Phase 2 slice should shift away from it.
 
 Current `workspace`-specific audit notes:
 
@@ -439,7 +470,7 @@ Completed phase slices:
 - `workspace` repeated runtime extraction sequence completed for the current phase focus
 
 Current next target:
-- `src/stores/chat.js`
+- `src/stores/editor.js`
 
 Exit criteria:
 - third large store/domain split begun and validated
@@ -577,8 +608,21 @@ Exit criteria:
 - [x] Audit `src/stores/references.js` in detail and identify the cleanest second-round extraction slice
 - [x] Extract the `references` library save/watch/self-write slice into `src/domains/reference/*`
 - [x] Validate the `references` library save/watch/self-write slice with targeted tests and build verification
-- [ ] Extract the `references` load/runtime slice into `src/domains/reference/*`
-- [ ] Validate the `references` load/runtime slice with targeted tests and build verification
+- [x] Extract the `references` load/runtime slice into `src/domains/reference/*`
+- [x] Validate the `references` load/runtime slice with targeted tests and build verification
+- [x] Extract the `references` legacy migration/runtime slice into `src/domains/reference/*`
+- [x] Validate the `references` legacy migration/runtime slice with targeted tests and build verification
+- [x] Extract the `references` workspace/global view sync runtime slice into `src/domains/reference/*`
+- [x] Validate the `references` workspace/global view sync runtime slice with targeted tests and build verification
+- [x] Extract the `references` mutation/runtime slice for collections, saved views, workflow fields, and tags into `src/domains/reference/*`
+- [x] Validate the `references` mutation/runtime slice with targeted tests and build verification
+- [x] Extract the `references` CRUD/import runtime slice into `src/domains/reference/*`
+- [x] Validate the `references` CRUD/import runtime slice with targeted tests and build verification
+- [x] Extract the `references` asset/runtime slice into `src/domains/reference/*`
+- [x] Validate the `references` asset/runtime slice with targeted tests and build verification
+- [ ] Audit `src/stores/editor.js` in detail and identify the cleanest next extraction seam after the existing first-round split
+- [ ] Extract the next `editor` runtime/domain slice into `src/domains/editor/*`
+- [ ] Validate the next `editor` slice with targeted tests and build verification
 
 ### Product and architecture docs
 
@@ -640,6 +684,12 @@ Exit criteria:
 - `chat` runtime-config is now also extracted; the next execution cycle stays in `chat` for live Chat instance wiring before deciding whether the store is now thin enough to shift focus back to another boundary
 - `chat` live-instance/runtime is now also extracted; the next execution cycle should shift Phase 2 focus away from `chat` because the remaining store shell is mostly accessors/getters rather than another large orchestration knot
 - `references` library save/watch/self-write runtime is now also extracted; the next execution cycle stays in `references` for load-generation/runtime rather than jumping to another store too early
+- `references` load/runtime is now also extracted; the next execution cycle stays in `references` for legacy migration/runtime rather than shifting away before the main remaining knot is split
+- `references` legacy migration/runtime is now also extracted; the next execution cycle stays in `references` for workspace/global view synchronization before considering a shift to another store
+- `references` workspace/global view runtime is now also extracted; the next execution cycle stays in `references` for mutation-heavy library operations before considering a shift to another store
+- `references` mutation/runtime is now also extracted; the next execution cycle stays in `references` for CRUD/import coordination before considering a shift to another store
+- `references` CRUD/runtime is now also extracted; the next execution cycle should decide whether asset/runtime is still a safe final `references` slice before shifting to another store
+- `references` asset/runtime is now also extracted; the second-round `references` sequence is complete enough that the next execution cycle should shift Phase 2 focus to `editor`
 
 ## Completed
 
@@ -855,14 +905,55 @@ Exit criteria:
   - `node --test tests/referenceLibraryRuntime.test.mjs`
   - `node --test tests/*.test.mjs`
   - `npm run build`
+- Established `src/domains/reference/referenceLibraryLoadRuntime.js`
+- Moved workspace context capture, stale-generation guards, load sequencing, hydrated state application, and post-load watcher startup behind the new runtime module
+- Reduced `src/stores/references.js` from 1027 lines to 976 lines
+- Added `tests/referenceLibraryLoadRuntime.test.mjs` to validate state hydration, stale-generation guards, and invalid-context no-op behavior outside the Pinia store shell
+- Validated the second second-round references slice with:
+  - `node --test tests/referenceLibraryLoadRuntime.test.mjs tests/referenceLibraryRuntime.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
+- Established `src/domains/reference/referenceMigrationRuntime.js`
+- Moved safe asset deletion, legacy workspace-library import, and legacy PDF/fulltext relocation behind the new runtime module
+- Reduced `src/stores/references.js` from 976 lines to 916 lines
+- Added `tests/referenceMigrationRuntime.test.mjs` to validate legacy-library import, asset relocation, and delete-if-exists behavior outside the Pinia store shell
+- Validated the third second-round references slice with:
+  - `node --test tests/referenceMigrationRuntime.test.mjs tests/referenceLibraryLoadRuntime.test.mjs tests/referenceLibraryRuntime.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
+- Established `src/domains/reference/referenceWorkspaceViewRuntime.js`
+- Moved workspace/global view synchronization, save-on-mutation commit helpers, workspace membership add/remove, and global-removal state cleanup behind the new runtime module
+- Reduced `src/stores/references.js` from 916 lines to 904 lines
+- Added `tests/referenceWorkspaceViewRuntime.test.mjs` to validate workspace-view sync, save-on-change commit behavior, key rename propagation, workspace membership changes, and global-removal cleanup outside the Pinia store shell
+- Validated the fourth second-round references slice with:
+  - `node --test tests/referenceWorkspaceViewRuntime.test.mjs tests/referenceMigrationRuntime.test.mjs tests/referenceLibraryLoadRuntime.test.mjs tests/referenceLibraryRuntime.test.mjs`
+- Established `src/domains/reference/referenceMutationRuntime.js`
+- Moved collection/saved-view mutation coordination, workflow field updates, summary/note saves, and tag mutation helpers behind the new runtime module
+- Reduced `src/stores/references.js` from 904 lines to 830 lines
+- Added `tests/referenceMutationRuntime.test.mjs` to validate workbench mutation persistence, collection deletion/global commit routing, and workflow/tag mutation commits outside the Pinia store shell
+- Validated the fifth second-round references slice with:
+  - `node --test tests/referenceMutationRuntime.test.mjs tests/referenceWorkspaceViewRuntime.test.mjs tests/referenceMigrationRuntime.test.mjs tests/referenceLibraryLoadRuntime.test.mjs tests/referenceLibraryRuntime.test.mjs`
+- Established `src/domains/reference/referenceCrudRuntime.js`
+- Moved add/addMany import flow, duplicate detection, update persistence, and merge coordination behind the new runtime module
+- Reduced `src/stores/references.js` from 830 lines to 796 lines
+- Added `tests/referenceCrudRuntime.test.mjs` to validate add/import flow, duplicate re-attach behavior, batch import error reporting, and merge/update persistence outside the Pinia store shell
+- Validated the sixth second-round references slice with:
+  - `node --test tests/referenceCrudRuntime.test.mjs tests/referenceMutationRuntime.test.mjs tests/referenceWorkspaceViewRuntime.test.mjs tests/referenceMigrationRuntime.test.mjs tests/referenceLibraryLoadRuntime.test.mjs tests/referenceLibraryRuntime.test.mjs`
+- Established `src/domains/reference/referenceAssetRuntime.js`
+- Moved global reference removal, asset deletion orchestration, PDF copy/import, and fulltext extraction/writeback behind the new runtime module
+- Reduced `src/stores/references.js` from 796 lines to 761 lines
+- Added `tests/referenceAssetRuntime.test.mjs` to validate global-removal asset cleanup, PDF storage/update behavior, and no-config no-op behavior outside the Pinia store shell
+- Validated the seventh second-round references slice with:
+  - `node --test tests/referenceAssetRuntime.test.mjs tests/referenceCrudRuntime.test.mjs tests/referenceMutationRuntime.test.mjs tests/referenceWorkspaceViewRuntime.test.mjs tests/referenceMigrationRuntime.test.mjs tests/referenceLibraryLoadRuntime.test.mjs tests/referenceLibraryRuntime.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
 
 ## Blocked / Risks
 
 - Workspace open/close still touches multiple stores and services, so careless reordering can introduce regressions
 - Auto-commit and history/version flows are still coupled
 - `PdfViewer.vue` remains extremely large and highly coupled, but is not yet the best next target
-- Validation is still heavily dependent on build checks and manual confidence rather than systematic tests
-- `references` still retains watcher/self-write/load-generation/state-sync responsibilities that should eventually move into clearer infra/runtime boundaries
+- Validation is still heavily dependent on build checks and manual confidence rather than systematic tests outside the growing runtime test surface
 - `files` may already have partial helper boundaries (`fileStoreIO` / `fileStoreEffects`) that can either help the migration or hide remaining coupling
 - `files` refresh runtime remains more coupled than cache/snapshot state; pulling refresh logic first would widen blast radius compared with extracting the cache/runtime boundary
 - `files` now delegates visible-tree refresh execution, watch/poll lifecycle orchestration, tree hydration/loading, flat-file indexing, file content/PDF handling, entry-creation/import flows, and rename/move/delete coordination to domain runtimes; the store is no longer the clearest next extraction target
@@ -870,17 +961,18 @@ Exit criteria:
 - The remaining `workspace` logic is lower-value than before, so there is risk of slipping into cosmetic preference-wrapper extraction instead of moving to the next genuinely large store
 - `terminal` is now mostly a thin shell around runtime accessors and local find-state setters; further extraction there risks becoming cosmetic rather than architectural
 - `chat` is no longer one of the highest-value remaining Phase 2 seams; its remaining store logic is now mostly runtime accessors, getters, and a thinner shell
-- `references` remains large after its first second-round slice and still keeps load-generation/context-matching/migration/state-sync logic in the store shell, so it remains the clearest Phase 2 re-entry point
+- `references` is much thinner after its seventh second-round slice, but still keeps thin UI/helper wrappers that are lower-value than shifting to a different large store
+- `editor` is again the largest remaining Pinia store and still owns several pane-routing/open-close behaviors that look extractable even after the first-round split
 - Backend flattening is still untouched and could become harder if frontend assumptions harden further
 - The architecture docs are still missing even though frontend domain boundaries are now multiplying; this remains a shared-understanding risk
 
 ## Next Recommended Slice
 
-1. Extract the `references` load/runtime slice around workspace context capture, stale-generation guards, migration sequencing, and hydrated library/workbench state application
-2. Reuse the new `referenceLibraryRuntime` for persistence/watch concerns so the next slice stays focused on loading rather than mixing save logic back in
-3. Preserve current legacy migration, citation-style load, and user-style preload behavior while making load sequencing testable outside the Pinia shell
-4. Validate with targeted references runtime tests plus `node --test tests/*.test.mjs` and `npm run build`
-5. Update this blueprint based on the actual migration result and then decide whether to stay in `references` for workspace-view sync or shift to the next boundary
+1. Audit `src/stores/editor.js` and extract the pane/surface open-routing seam around `openFile`, `openChat`, `openChatBeside`, `openNewTab`, `openAiLauncher`, and `openFileInPane`
+2. Reuse the existing editor first-round modules so the next slice stays focused on routing/orchestration rather than reopening persistence or restore logic
+3. Preserve current chat/new-tab side-pane routing behavior and active-pane semantics while making open-routing behavior testable outside the Pinia shell
+4. Validate with targeted editor/runtime tests plus `node --test tests/*.test.mjs` and `npm run build`
+5. Update this blueprint based on the actual editor-routing result and then decide whether to stay in `editor` for another slice or shift to `latex`
 
 ## Validation Checklist
 
@@ -914,16 +1006,22 @@ Exit criteria:
 - [x] `chat` runtime-config extraction is documented truthfully
 - [x] `chat` live-instance/runtime extraction is documented truthfully
 - [x] `references` library-runtime extraction is documented truthfully
+- [x] `references` load-runtime extraction is documented truthfully
+- [x] `references` migration-runtime extraction is documented truthfully
+- [x] `references` workspace-view runtime extraction is documented truthfully
+- [x] `references` mutation-runtime extraction is documented truthfully
+- [x] `references` CRUD-runtime extraction is documented truthfully
+- [x] `references` asset-runtime extraction is documented truthfully
 - [ ] core architecture docs have been created
 - [ ] safety model has been documented as a first-class system
-- [x] testing/validation story is stronger than build-only checks for the current `files` and `workspace` slices
+- [x] testing/validation story is stronger than build-only checks for the current `files`, `workspace`, and `references` slices
 - [ ] backend layering migration has begun
 
 ## Migration Notes
 
 - The refactor correctly began by reducing root-level orchestration before attacking every large store at once.
 - `references` was a good first store/domain split because it allowed meaningful logic extraction without immediately entangling the entire workspace lifecycle.
-- `editor` was a reasonable second large split, and it now appears to be past the highest-value extraction stage for the current phase.
+- `editor` was a reasonable second large split, and after the extended `references` re-entry it is now the highest-value remaining store to revisit.
 - `files` was the highest-value target through the runtime extraction sequence, but after the mutation slice landed it is no longer the clearest bottleneck.
 - After the refresh/runtime extraction, `files` still contains a second narrow orchestration seam around watch/poll scheduling and activity hooks; that is the best candidate if we continue in the same domain.
 - After the watch/runtime extraction, the highest-value remaining `files` slice is tree hydration/loading rather than more watch logic.
@@ -952,7 +1050,13 @@ Exit criteria:
 - The sixth `chat` slice has now landed as `chatLiveInstanceRuntime`, and it confirmed that the remaining watch/recovery bridges can move out cleanly without changing the public store surface.
 - With six `chat` slices landed, the store is now mostly a thin shell; the next Phase 2 move should re-enter `references` rather than extracting lower-value wrappers from `chat`, `terminal`, or `workspace`.
 - The first second-round `references` slice has now landed as `referenceLibraryRuntime`, and it confirmed that save/watch/self-write orchestration can move out cleanly without widening into migration or workspace-view sync behavior.
-- After the library-runtime extraction, the next best `references` seam is load/runtime orchestration rather than ad hoc view-sync helpers because the remaining complexity still clusters around stale-generation and migration flow control.
+- The second second-round `references` slice has now landed as `referenceLibraryLoadRuntime`, and it confirmed that load sequencing can move out cleanly while continuing to reuse the new library runtime for persistence/watch concerns.
+- The third second-round `references` slice has now landed as `referenceMigrationRuntime`, and it confirmed that legacy-library import plus asset relocation can move out cleanly while continuing to reuse the load runtime for sequencing.
+- The fourth second-round `references` slice has now landed as `referenceWorkspaceViewRuntime`, and it confirmed that workspace/global view sync plus membership-state repair can move out cleanly while continuing to reuse the library runtime for persistence.
+- The fifth second-round `references` slice has now landed as `referenceMutationRuntime`, and it confirmed that collection/workflow/tag mutation coordination can move out cleanly while continuing to reuse the workspace-view runtime for save-on-mutation behavior.
+- The sixth second-round `references` slice has now landed as `referenceCrudRuntime`, and it confirmed that add/import/update/merge behavior can move out cleanly while continuing to reuse the workspace-view runtime for save-on-mutation behavior.
+- The seventh second-round `references` slice has now landed as `referenceAssetRuntime`, and it confirmed that asset deletion plus PDF/fulltext storage can move out cleanly while continuing to reuse the CRUD/runtime for update persistence.
+- With the asset runtime landed, the current `references` sequence is complete enough that further work there would risk turning cosmetic; the next best Phase 2 move is to re-enter `editor`.
 - The repository can now validate `files` runtime slices with focused `node:test` coverage instead of relying on build-only confidence.
 - The repository can now also validate `workspace` runtime slices with focused `node:test` coverage instead of relying on build-only confidence for sync/settings/bootstrap behavior.
 - `PdfViewer.vue` is large enough to deserve future attention, but it should not displace the more structurally important `files` migration unless product work proves otherwise.
