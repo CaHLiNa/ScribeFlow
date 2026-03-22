@@ -4,29 +4,77 @@ import { nanoid } from './utils'
 import { useFilesStore } from './files'
 import { useWorkspaceStore } from './workspace'
 import { useChatStore } from './chat'
-import { isAiLauncher, isAiWorkbenchPath, isChatTab, getChatSessionId, isLibraryPath, isNewTab, getViewerType, isPreviewPath, isReferencePath } from '../utils/fileTypes'
-import { saveState, loadState, findInvalidTabs } from '../services/editorPersistence'
+import { isAiLauncher, isAiWorkbenchPath, isChatTab, getChatSessionId, isLibraryPath, isNewTab, isPreviewPath, isReferencePath } from '../utils/fileTypes'
 import { events } from '../services/telemetry'
-import { buildCitationText } from '../editor/citationSyntax'
-import { buildExecutionResultSnippet } from '../services/executionResultInsert'
+import {
+  closeEditorSurface,
+  collectLegacySurfaceTabs,
+  openEditorSurface,
+  toggleEditorSurface,
+} from '../domains/editor/editorSurfaces'
+import {
+  collapsePaneNode,
+  findFirstLeaf as findFirstEditorLeaf,
+  findLeaf as findEditorLeaf,
+  findPane as findEditorPane,
+  findPaneWithTab as findEditorPaneWithTab,
+  findParent as findEditorParent,
+  findRightNeighborLeaf as findRightEditorNeighborLeaf,
+  ROOT_PANE_ID,
+  splitPaneNode,
+} from '../domains/editor/paneTreeLayout'
+import {
+  activateOrOpenPaneTab,
+  appendFreshPaneTab,
+  closePaneTab,
+  movePaneTab,
+  reorderPaneTabs as reorderEditorPaneTabs,
+} from '../domains/editor/paneTabs'
+import {
+  buildRecentFilesAfterOpen,
+  cancelEditorStateSave,
+  flushEditorStateSave,
+  loadEditorStateSnapshot,
+  loadRecentFilesForWorkspace,
+  persistRecentFilesForWorkspace,
+  scheduleEditorStateSave,
+} from '../domains/editor/editorPersistenceRuntime'
+import {
+  findPreferredTextInsertTarget,
+  getAnyRegisteredEditorView,
+  getRegisteredEditorView,
+  getRegisteredEditorViewsForPath,
+  registerEditorView as registerEditorRuntimeView,
+  unregisterEditorView as unregisterEditorRuntimeView,
+} from '../domains/editor/editorViewRegistry'
+import {
+  clearDirtyPath,
+  collectDirtyPaths,
+  hasDirtyPath,
+  markDirtyPath,
+  persistEditorPath,
+  persistEditorPaths,
+} from '../domains/editor/editorDirtyPersistence'
+import {
+  insertExecutionResultIntoEditor,
+  insertResearchNoteIntoEditor,
+} from '../domains/editor/editorInsertActions'
+import {
+  createEmptyEditorRuntimeState,
+  destroyEditorRuntimeViews,
+} from '../domains/editor/editorCleanupRuntime'
+import {
+  deriveRestoredEditorRuntimeState,
+  restoreLegacyEditorSurface,
+  validateRestoredEditorTabs,
+} from '../domains/editor/editorRestoreRuntime'
 
 // Pane tree: either a leaf (has tabs) or a split (has children)
 // { type: 'leaf', id, tabs: [path, ...], activeTab: path }
 // { type: 'split', direction: 'horizontal'|'vertical', ratio: 0.5, children: [pane, pane] }
 
-// Debounce timer for editor state persistence
-let _saveStateTimer = null
-
 function isLauncherTab(path) {
   return isNewTab(path) || isAiLauncher(path)
-}
-
-function libraryPathForView(viewId = 'global') {
-  return `library:${viewId || 'global'}`
-}
-
-function aiWorkbenchPathForView(viewId = 'workspace') {
-  return viewId === 'workspace' ? 'ai-launcher:workspace' : `ai-launcher:${viewId || 'workspace'}`
 }
 
 function isContextCandidatePath(path) {
@@ -38,12 +86,8 @@ function isContextCandidatePath(path) {
     && !isReferencePath(path)
 }
 
-function fileBasename(path) {
-  return String(path || '').split('/').pop() || ''
-}
-
 function fileExtension(path) {
-  const name = fileBasename(path)
+  const name = String(path || '').split('/').pop() || ''
   const dot = name.lastIndexOf('.')
   return dot > 0 ? name.slice(dot + 1).toLowerCase() : ''
 }
@@ -52,63 +96,15 @@ function isResearchInsertableTextPath(path) {
   return ['md', 'markdown', 'txt', 'tex', 'latex', 'typ', 'rmd', 'qmd'].includes(fileExtension(path))
 }
 
-function buildResearchSourceLine(targetPath, note = {}, annotation = null) {
-  const sourceRef = note?.sourceRef || annotation?.sourceRef || {}
-  const parts = []
-  const page = Number(annotation?.page || sourceRef?.page || 0)
-  if (Number.isInteger(page) && page > 0) {
-    parts.push(`page ${page}`)
-  }
-  const referenceKey = annotation?.referenceKey || sourceRef?.referenceKey || null
-  if (referenceKey) {
-    parts.push(buildCitationText(targetPath, referenceKey))
-  } else if (sourceRef?.pdfPath) {
-    parts.push(fileBasename(sourceRef.pdfPath))
-  }
-  const sourceId = sourceRef?.annotationId || annotation?.id || null
-  if (sourceId) {
-    parts.push(`source_ref: ${sourceId}`)
-  }
-  return parts.join(' | ')
-}
-
-function buildTextResearchNoteSnippet(targetPath, note = {}, annotation = null) {
-  const quote = String(note?.quote || annotation?.quote || '').trim()
-  const comment = String(note?.comment || '').trim()
-  const sourceLine = buildResearchSourceLine(targetPath, note, annotation)
-  const sourceRefPayload = note?.sourceRef || null
-
-  const segments = []
-  if (quote) {
-    segments.push(
-      quote
-        .split(/\r?\n/)
-        .map((line) => `> ${line}`)
-        .join('\n'),
-    )
-  }
-  if (comment) {
-    segments.push(`Note: ${comment}`)
-  }
-  if (sourceLine) {
-    segments.push(`Source: ${sourceLine}`)
-  }
-  if (sourceRefPayload) {
-    segments.push(`<!-- source_ref: ${JSON.stringify(sourceRefPayload)} -->`)
-  }
-
-  return `\n\n${segments.join('\n\n')}\n\n`
-}
-
 export const useEditorStore = defineStore('editor', {
   state: () => ({
     paneTree: {
       type: 'leaf',
-      id: 'pane-root',
+      id: ROOT_PANE_ID,
       tabs: [],
       activeTab: null,
     },
-    activePaneId: 'pane-root',
+    activePaneId: ROOT_PANE_ID,
     // Track which editors have unsaved changes
     dirtyFiles: new Set(),
     // Editor view instances (not persisted)
@@ -177,44 +173,18 @@ export const useEditorStore = defineStore('editor', {
 
   actions: {
     findPane(node, id) {
-      if (!node) return null
-      if (node.type === 'leaf' && node.id === id) return node
-      if (node.type === 'split' && node.children) {
-        for (const child of node.children) {
-          const found = this.findPane(child, id)
-          if (found) return found
-        }
-      }
-      return null
+      return findEditorPane(node, id)
     },
 
     findParent(node, id, parent = null) {
-      if (!node) return null
-      if (node.type === 'leaf' && node.id === id) return parent
-      if (node.type === 'split' && node.children) {
-        for (const child of node.children) {
-          const found = this.findParent(child, id, node)
-          if (found !== null) return found
-        }
-      }
-      return null
+      return findEditorParent(node, id, parent)
     },
 
     /**
      * Walk the pane tree and return the first leaf containing tabPath.
      */
     findPaneWithTab(tabPath) {
-      const walk = (node) => {
-        if (node.type === 'leaf' && node.tabs.includes(tabPath)) return node
-        if (node.type === 'split' && node.children) {
-          for (const child of node.children) {
-            const found = walk(child)
-            if (found) return found
-          }
-        }
-        return null
-      }
-      return walk(this.paneTree)
+      return findEditorPaneWithTab(this.paneTree, tabPath)
     },
 
     _findNonChatPane() {
@@ -230,17 +200,7 @@ export const useEditorStore = defineStore('editor', {
      * Walk the pane tree and return the first leaf matching a predicate.
      */
     _findLeaf(predicate) {
-      const walk = (node) => {
-        if (node.type === 'leaf' && predicate(node)) return node
-        if (node.type === 'split' && node.children) {
-          for (const child of node.children) {
-            const found = walk(child)
-            if (found) return found
-          }
-        }
-        return null
-      }
-      return walk(this.paneTree)
+      return findEditorLeaf(this.paneTree, predicate)
     },
 
     openFile(path) {
@@ -249,7 +209,7 @@ export const useEditorStore = defineStore('editor', {
 
       // If already open in this pane, switch to it
       if (pane.tabs.includes(path)) {
-        pane.activeTab = path
+        activateOrOpenPaneTab(pane, path)
         this._rememberContextPath(path)
         if (!isChatTab(path) && !isLibraryPath(path) && !isAiWorkbenchPath(path)) this.recordFileOpen(path)
         this.saveEditorState()
@@ -273,15 +233,7 @@ export const useEditorStore = defineStore('editor', {
         // Find a non-chat pane to host the file
         const altPane = this._findNonChatPane()
         if (altPane && altPane.id !== pane.id) {
-          const newtabIdx = altPane.activeTab && isLauncherTab(altPane.activeTab)
-            ? altPane.tabs.indexOf(altPane.activeTab)
-            : -1
-          if (newtabIdx !== -1) {
-            altPane.tabs.splice(newtabIdx, 1, path)
-          } else {
-            altPane.tabs.push(path)
-          }
-          altPane.activeTab = path
+          activateOrOpenPaneTab(altPane, path)
           this.activePaneId = altPane.id
           this._rememberContextPath(path)
           if (!isChatTab(path) && !isLibraryPath(path) && !isAiWorkbenchPath(path)) this.recordFileOpen(path)
@@ -299,16 +251,7 @@ export const useEditorStore = defineStore('editor', {
       }
 
       // Normal flow: open in active pane
-      // Replace newtab if it's the active tab (like Chrome replacing blank tab)
-      const newtabIdx = pane.activeTab && isLauncherTab(pane.activeTab)
-        ? pane.tabs.indexOf(pane.activeTab)
-        : -1
-      if (newtabIdx !== -1) {
-        pane.tabs.splice(newtabIdx, 1, path)
-      } else {
-        pane.tabs.push(path)
-      }
-      pane.activeTab = path
+      activateOrOpenPaneTab(pane, path)
       this._rememberContextPath(path)
       if (!isChatTab(path) && !isLibraryPath(path) && !isAiWorkbenchPath(path)) this.recordFileOpen(path)
       this._revealInTree(path)
@@ -316,69 +259,53 @@ export const useEditorStore = defineStore('editor', {
     },
 
     openAiWorkbenchSurface(viewId = 'workspace') {
-      this.pruneLegacySurfaceTabs()
-      useWorkspaceStore().openAiSurface()
-      return 'surface:ai'
+      return openEditorSurface({
+        workspace: useWorkspaceStore(),
+        surface: 'ai',
+        pruneLegacySurfaceTabs: () => this.pruneLegacySurfaceTabs(),
+      })
     },
 
     closeAiWorkbenchSurface(viewId = 'workspace') {
-      if (useWorkspaceStore().primarySurface !== 'ai') return false
-      useWorkspaceStore().openWorkspaceSurface()
-      return true
+      return closeEditorSurface({
+        workspace: useWorkspaceStore(),
+        surface: 'ai',
+      })
     },
 
     toggleAiWorkbenchSurface(viewId = 'workspace') {
-      const workspace = useWorkspaceStore()
-      if (workspace.primarySurface === 'ai') {
-        workspace.openWorkspaceSurface()
-        return false
-      }
-      this.pruneLegacySurfaceTabs()
-      workspace.openAiSurface()
-      return true
+      return toggleEditorSurface({
+        workspace: useWorkspaceStore(),
+        surface: 'ai',
+        pruneLegacySurfaceTabs: () => this.pruneLegacySurfaceTabs(),
+      })
     },
 
     openLibrarySurface(viewId = 'global') {
-      this.pruneLegacySurfaceTabs()
-      useWorkspaceStore().openLibrarySurface()
-      return 'surface:library'
+      return openEditorSurface({
+        workspace: useWorkspaceStore(),
+        surface: 'library',
+        pruneLegacySurfaceTabs: () => this.pruneLegacySurfaceTabs(),
+      })
     },
 
     closeLibrarySurface(viewId = 'global') {
-      if (useWorkspaceStore().primarySurface !== 'library') return false
-      useWorkspaceStore().openWorkspaceSurface()
-      return true
+      return closeEditorSurface({
+        workspace: useWorkspaceStore(),
+        surface: 'library',
+      })
     },
 
     toggleLibrarySurface(viewId = 'global') {
-      const workspace = useWorkspaceStore()
-      if (workspace.primarySurface === 'library') {
-        workspace.openWorkspaceSurface()
-        return false
-      }
-      this.pruneLegacySurfaceTabs()
-      workspace.openLibrarySurface()
-      return true
+      return toggleEditorSurface({
+        workspace: useWorkspaceStore(),
+        surface: 'library',
+        pruneLegacySurfaceTabs: () => this.pruneLegacySurfaceTabs(),
+      })
     },
 
     pruneLegacySurfaceTabs() {
-      const legacyTabs = []
-      const walk = (node) => {
-        if (!node) return
-        if (node.type === 'leaf') {
-          for (const tab of node.tabs || []) {
-            if (isLibraryPath(tab) || isAiWorkbenchPath(tab)) {
-              legacyTabs.push({ paneId: node.id, tab })
-            }
-          }
-          return
-        }
-        for (const child of node.children || []) {
-          walk(child)
-        }
-      }
-
-      walk(this.paneTree)
+      const legacyTabs = collectLegacySurfaceTabs(this.paneTree)
       if (legacyTabs.length === 0) return false
 
       for (const entry of legacyTabs) {
@@ -424,18 +351,7 @@ export const useEditorStore = defineStore('editor', {
         ? this.findPane(this.paneTree, options.paneId)
         : this.findPane(this.paneTree, this.activePaneId)
       if (targetPane) {
-        if (!targetPane.tabs.includes(tabPath)) {
-          // Replace newtab if it's the active tab
-          const newtabIdx = targetPane.activeTab && isLauncherTab(targetPane.activeTab)
-            ? targetPane.tabs.indexOf(targetPane.activeTab)
-            : -1
-          if (newtabIdx !== -1) {
-            targetPane.tabs.splice(newtabIdx, 1, tabPath)
-          } else {
-            targetPane.tabs.push(tabPath)
-          }
-        }
-        targetPane.activeTab = tabPath
+        activateOrOpenPaneTab(targetPane, tabPath)
         this.activePaneId = targetPane.id
         this.lastChatPaneId = targetPane.id
       }
@@ -499,8 +415,7 @@ export const useEditorStore = defineStore('editor', {
       if (!targetPane) return
 
       const tabPath = `newtab:${nanoid()}`
-      targetPane.tabs.push(tabPath)
-      targetPane.activeTab = tabPath
+      appendFreshPaneTab(targetPane, tabPath)
       this.saveEditorState()
     },
 
@@ -511,8 +426,7 @@ export const useEditorStore = defineStore('editor', {
       if (!targetPane) return
 
       const tabPath = `ai-launcher:${nanoid()}`
-      targetPane.tabs.push(tabPath)
-      targetPane.activeTab = tabPath
+      appendFreshPaneTab(targetPane, tabPath)
       this.lastChatPaneId = targetPane.id
       this.saveEditorState()
     },
@@ -561,26 +475,12 @@ export const useEditorStore = defineStore('editor', {
         }
       }
 
-      // Remove from source
-      const fromIdx = fromPane.tabs.indexOf(tabPath)
-      if (fromIdx === -1) return
-      fromPane.tabs.splice(fromIdx, 1)
-
-      // Update source active tab
-      if (fromPane.activeTab === tabPath) {
-        fromPane.activeTab = fromPane.tabs.length > 0
-          ? fromPane.tabs[Math.min(fromIdx, fromPane.tabs.length - 1)]
-          : null
-      }
-
-      // Insert into target
-      const clampedIdx = Math.min(insertIdx, toPane.tabs.length)
-      toPane.tabs.splice(clampedIdx, 0, tabPath)
-      toPane.activeTab = tabPath
+      const result = movePaneTab(fromPane, toPane, tabPath, insertIdx)
+      if (!result.moved) return
       this.activePaneId = toPaneId
 
       // Collapse empty non-root panes
-      if (fromPane.tabs.length === 0) {
+      if (result.sourceEmpty) {
         const parent = this.findParent(this.paneTree, fromPane.id)
         if (parent) this.collapsePane(fromPane.id)
       }
@@ -592,8 +492,8 @@ export const useEditorStore = defineStore('editor', {
       const pane = this.findPane(this.paneTree, paneId)
       if (!pane) return
 
-      const idx = pane.tabs.indexOf(path)
-      if (idx === -1) return
+      const existingIdx = pane.tabs.indexOf(path)
+      if (existingIdx === -1) return
 
       // Auto-save chat sessions on tab close
       if (isChatTab(path)) {
@@ -603,20 +503,14 @@ export const useEditorStore = defineStore('editor', {
         }
       }
 
-      pane.tabs.splice(idx, 1)
-
-      // Update active tab
-      if (pane.activeTab === path) {
-        if (pane.tabs.length > 0) {
-          pane.activeTab = pane.tabs[Math.min(idx, pane.tabs.length - 1)]
-          this._rememberContextPath(pane.activeTab)
-        } else {
-          pane.activeTab = null
-        }
+      const result = closePaneTab(pane, path)
+      if (!result.closed) return
+      if (result.activeTab) {
+        this._rememberContextPath(result.activeTab)
       }
 
       // If pane is now empty: collapse split panes; root pane shows EmptyPane
-      if (pane.tabs.length === 0) {
+      if (result.isEmpty) {
         const parent = this.findParent(this.paneTree, pane.id)
         if (parent) {
           this.collapsePane(pane.id)
@@ -627,72 +521,18 @@ export const useEditorStore = defineStore('editor', {
     },
 
     collapsePane(paneId) {
-      const parent = this.findParent(this.paneTree, paneId)
-      if (!parent || parent.type !== 'split') return
-
-      // Find sibling
-      const idx = parent.children.findIndex(
-        (c) => c.type === 'leaf' && c.id === paneId
-      )
-      if (idx === -1) return
-
-      const sibling = parent.children[1 - idx]
-
-      // Replace parent with sibling
-      Object.keys(parent).forEach((k) => delete parent[k])
-      Object.assign(parent, sibling)
-
-      // Update active pane if needed
-      if (this.activePaneId === paneId) {
-        if (sibling.type === 'leaf') {
-          this.activePaneId = sibling.id
-        } else {
-          // Find first leaf in sibling
-          const firstLeaf = this.findFirstLeaf(sibling)
-          if (firstLeaf) this.activePaneId = firstLeaf.id
-        }
-      }
+      const result = collapsePaneNode(this.paneTree, paneId, this.activePaneId)
+      if (!result.collapsed) return
+      this.activePaneId = result.activePaneId
       this.saveEditorState()
     },
 
     findFirstLeaf(node) {
-      if (node.type === 'leaf') return node
-      if (node.children) {
-        for (const child of node.children) {
-          const leaf = this.findFirstLeaf(child)
-          if (leaf) return leaf
-        }
-      }
-      return null
+      return findFirstEditorLeaf(node)
     },
 
     findRightNeighborLeaf(paneId) {
-      const walk = (node, trail = []) => {
-        if (!node) return null
-        if (node.type === 'leaf') {
-          return node.id === paneId ? [...trail, node] : null
-        }
-        for (const child of node.children || []) {
-          const found = walk(child, [...trail, node])
-          if (found) return found
-        }
-        return null
-      }
-
-      const trail = walk(this.paneTree)
-      if (!trail || trail.length < 2) return null
-
-      for (let i = trail.length - 2; i >= 0; i -= 1) {
-        const parent = trail[i]
-        const child = trail[i + 1]
-        if (parent?.type !== 'split' || parent.direction !== 'vertical') continue
-        const idx = (parent.children || []).findIndex(candidate => candidate === child)
-        if (idx === 0 && parent.children?.[1]) {
-          return this.findFirstLeaf(parent.children[1])
-        }
-      }
-
-      return null
+      return findRightEditorNeighborLeaf(this.paneTree, paneId)
     },
 
     splitPane(direction) {
@@ -700,33 +540,11 @@ export const useEditorStore = defineStore('editor', {
       if (!pane) return
 
       const newPaneId = `pane-${nanoid()}`
-
-      // Clone current pane data
-      const currentData = {
-        type: 'leaf',
-        id: pane.id,
-        tabs: [...pane.tabs],
-        activeTab: pane.activeTab,
-      }
-
-      const newPane = {
-        type: 'leaf',
-        id: newPaneId,
-        tabs: [],
-        activeTab: null,
-      }
-
-      // Transform current pane into a split
-      Object.keys(pane).forEach((k) => delete pane[k])
-      Object.assign(pane, {
-        type: 'split',
-        direction,
-        ratio: 0.5,
-        children: [currentData, newPane],
-      })
+      const newPane = splitPaneNode(pane, direction, newPaneId)
+      if (!newPane) return
 
       // Focus the new pane
-      this.activePaneId = newPaneId
+      this.activePaneId = newPane.id
       this.saveEditorState()
     },
 
@@ -740,57 +558,20 @@ export const useEditorStore = defineStore('editor', {
       if (!pane) return null
 
       const newPaneId = `pane-${nanoid()}`
-
-      const currentData = {
-        type: 'leaf',
-        id: pane.id,
-        tabs: [...pane.tabs],
-        activeTab: pane.activeTab,
-      }
-
-      const newPane = {
-        type: 'leaf',
-        id: newPaneId,
-        tabs: [tab],
-        activeTab: tab,
-      }
-
-      Object.keys(pane).forEach((k) => delete pane[k])
-      Object.assign(pane, {
-        type: 'split',
-        direction,
-        ratio: 0.5,
-        children: [currentData, newPane],
-      })
+      const newPane = splitPaneNode(pane, direction, newPaneId, [tab], tab)
+      if (!newPane) return null
 
       // Keep focus on the original pane
       this.activePaneId = paneId
       this.saveEditorState()
-      return newPaneId
+      return newPane.id
     },
 
     openFileInPane(path, paneId, options = {}) {
       const pane = this.findPane(this.paneTree, paneId)
       if (!pane) return null
 
-      if (pane.tabs.includes(path)) {
-        pane.activeTab = path
-      } else {
-        const shouldReplaceNewTab = options.replaceNewTab !== false
-          && pane.activeTab
-          && isLauncherTab(pane.activeTab)
-        if (shouldReplaceNewTab) {
-          const idx = pane.tabs.indexOf(pane.activeTab)
-          if (idx !== -1) {
-            pane.tabs.splice(idx, 1, path)
-          } else {
-            pane.tabs.push(path)
-          }
-        } else {
-          pane.tabs.push(path)
-        }
-        pane.activeTab = path
-      }
+      activateOrOpenPaneTab(pane, path, { replaceLauncher: options.replaceNewTab !== false })
 
       if (options.activatePane) {
         this.activePaneId = paneId
@@ -894,271 +675,129 @@ export const useEditorStore = defineStore('editor', {
     reorderTabs(paneId, fromIdx, toIdx) {
       const pane = this.findPane(this.paneTree, paneId)
       if (!pane || fromIdx === toIdx) return
-      const [moved] = pane.tabs.splice(fromIdx, 1)
-      pane.tabs.splice(toIdx, 0, moved)
+      if (!reorderEditorPaneTabs(pane, fromIdx, toIdx)) return
       this.saveEditorState()
     },
 
     registerEditorView(paneId, path, view) {
-      const key = `${paneId}:${path}`
-      this.editorViews[key] = view
+      registerEditorRuntimeView(this.editorViews, paneId, path, view)
     },
 
     unregisterEditorView(paneId, path) {
-      const key = `${paneId}:${path}`
-      delete this.editorViews[key]
+      unregisterEditorRuntimeView(this.editorViews, paneId, path)
     },
 
     getEditorView(paneId, path) {
-      return this.editorViews[`${paneId}:${path}`]
+      return getRegisteredEditorView(this.editorViews, paneId, path)
     },
 
     getAnyEditorView(path) {
-      for (const [key, view] of Object.entries(this.editorViews)) {
-        if (key.endsWith(`:${path}`)) return view
-      }
-      return null
+      return getAnyRegisteredEditorView(this.editorViews, path)
     },
 
     getEditorViewsForPath(path) {
-      const views = []
-      for (const [key, view] of Object.entries(this.editorViews)) {
-        if (key.endsWith(`:${path}`)) {
-          views.push(view)
-        }
-      }
-      return views
+      return getRegisteredEditorViewsForPath(this.editorViews, path)
     },
 
     findPreferredResearchInsertTarget() {
-      const activePath = this.activeTab
-      const activePaneId = this.activePaneId
-      const activeViewerType = activePath ? getViewerType(activePath) : null
-
-      if (activeViewerType === 'text' && isResearchInsertableTextPath(activePath) && this.getEditorView(activePaneId, activePath)) {
-        return { paneId: activePaneId, path: activePath, viewerType: activeViewerType }
-      }
-
-      const candidates = []
-      const walk = (node) => {
-        if (!node) return
-        if (node.type === 'leaf') {
-          const path = node.activeTab
-          if (!path) return
-          const viewerType = getViewerType(path)
-          if (viewerType === 'text' && isResearchInsertableTextPath(path) && this.getEditorView(node.id, path)) {
-            candidates.push({ paneId: node.id, path, viewerType })
-          }
-          return
-        }
-        if (node.type === 'split' && Array.isArray(node.children)) {
-          node.children.forEach(walk)
-        }
-      }
-
-      walk(this.paneTree)
-      return candidates[0] || null
+      return findPreferredTextInsertTarget({
+        paneTree: this.paneTree,
+        activePaneId: this.activePaneId,
+        editorViews: this.editorViews,
+        isInsertablePath: isResearchInsertableTextPath,
+      })
     },
 
     findPreferredExecutionResultTarget() {
-      const activePath = this.activeTab
-      const activePaneId = this.activePaneId
-      const activeViewerType = activePath ? getViewerType(activePath) : null
-
-      if (activeViewerType === 'text' && isResearchInsertableTextPath(activePath) && this.getEditorView(activePaneId, activePath)) {
-        return { paneId: activePaneId, path: activePath, viewerType: activeViewerType }
-      }
-
-      const candidates = []
-      const walk = (node) => {
-        if (!node) return
-        if (node.type === 'leaf') {
-          const path = node.activeTab
-          if (!path) return
-          const viewerType = getViewerType(path)
-          if (viewerType === 'text' && isResearchInsertableTextPath(path) && this.getEditorView(node.id, path)) {
-            candidates.push({ paneId: node.id, path, viewerType })
-          }
-          return
-        }
-        if (node.type === 'split' && Array.isArray(node.children)) {
-          node.children.forEach(walk)
-        }
-      }
-
-      walk(this.paneTree)
-      return candidates[0] || null
+      return findPreferredTextInsertTarget({
+        paneTree: this.paneTree,
+        activePaneId: this.activePaneId,
+        editorViews: this.editorViews,
+        isInsertablePath: isResearchInsertableTextPath,
+      })
     },
 
     insertResearchNoteIntoManuscript(note, annotation = null) {
-      const target = this.findPreferredResearchInsertTarget()
-      if (!target) {
-        return {
-          ok: false,
-          reason: 'no-target',
-        }
-      }
-
-      if (target.viewerType === 'text') {
-        const view = this.getEditorView(target.paneId, target.path)
-        if (!view?.state) {
-          return { ok: false, reason: 'missing-editor-view', ...target }
-        }
-
-        const selection = view.state.selection.main
-        const snippet = buildTextResearchNoteSnippet(target.path, note, annotation)
-        view.dispatch({
-          changes: { from: selection.from, to: selection.to, insert: snippet },
-          selection: { anchor: selection.from + snippet.length },
-          scrollIntoView: true,
-        })
-        view.focus?.()
-        return {
-          ok: true,
-          ...target,
-        }
-      }
-
-      return {
-        ok: false,
-        reason: 'unsupported-target',
-        ...target,
-      }
+      return insertResearchNoteIntoEditor({
+        target: this.findPreferredResearchInsertTarget(),
+        editorViews: this.editorViews,
+        note,
+        annotation,
+      })
     },
 
     async insertExecutionResultIntoManuscript({ outputs = [], provenance = {} } = {}) {
-      const target = this.findPreferredExecutionResultTarget()
-      if (!target) {
-        return {
-          ok: false,
-          reason: 'no-target',
-        }
-      }
-
-      const view = this.getEditorView(target.paneId, target.path)
-      if (!view?.state) {
-        return {
-          ok: false,
-          reason: 'missing-editor-view',
-          ...target,
-        }
-      }
-
-      const snippetResult = await buildExecutionResultSnippet(target.path, outputs, provenance)
-      if (!snippetResult.ok) {
-        return {
-          ok: false,
-          reason: snippetResult.reason,
-          ...target,
-        }
-      }
-
-      const selection = view.state.selection.main
-      view.dispatch({
-        changes: { from: selection.from, to: selection.to, insert: snippetResult.snippet },
-        selection: { anchor: selection.from + snippetResult.snippet.length },
-        scrollIntoView: true,
+      return insertExecutionResultIntoEditor({
+        target: this.findPreferredExecutionResultTarget(),
+        editorViews: this.editorViews,
+        outputs,
+        provenance,
       })
-      view.focus?.()
-
-      return {
-        ok: true,
-        ...target,
-      }
     },
 
     recordFileOpen(path) {
       if (path.startsWith('ref:@') || isPreviewPath(path) || isChatTab(path) || isLauncherTab(path)) return
       events.fileOpen(path.split('.').pop())
-      this.recentFiles = this.recentFiles.filter(e => e.path !== path)
-      this.recentFiles.unshift({ path, openedAt: Date.now() })
-      if (this.recentFiles.length > 20) this.recentFiles.length = 20
+      this.recentFiles = buildRecentFilesAfterOpen(this.recentFiles, path)
       this._persistRecentFiles()
     },
 
     markFileDirty(path) {
-      if (!path || this.dirtyFiles.has(path)) return
-      this.dirtyFiles.add(path)
+      markDirtyPath(this.dirtyFiles, path)
     },
 
     clearFileDirty(path) {
-      if (!path || !this.dirtyFiles.has(path)) return
-      this.dirtyFiles.delete(path)
+      clearDirtyPath(this.dirtyFiles, path)
     },
 
     isFileDirty(path) {
-      return !!path && this.dirtyFiles.has(path)
+      return hasDirtyPath(this.dirtyFiles, path)
     },
 
     getDirtyFiles(paths = null) {
-      const dirty = [...this.dirtyFiles]
-      if (!Array.isArray(paths) || paths.length === 0) return dirty
-      const allowed = new Set(paths)
-      return dirty.filter(path => allowed.has(path))
+      return collectDirtyPaths(this.dirtyFiles, paths)
     },
 
     async persistPath(path) {
-      if (!path) return false
-
-      const view = this.getAnyEditorView(path)
-      if (view?.altalsPersist) {
-        return (await view.altalsPersist()) !== false
-      }
-
-      if (view?.state?.doc) {
-        const files = useFilesStore()
-        const saved = await files.saveFile(path, view.state.doc.toString())
-        if (saved) this.clearFileDirty(path)
-        return saved
-      }
-
-      const files = useFilesStore()
-      const content = files.fileContents[path]
-      if (typeof content !== 'string') return false
-      const saved = await files.saveFile(path, content)
-      if (saved) this.clearFileDirty(path)
-      return saved
+      return persistEditorPath({
+        path,
+        editorViews: this.editorViews,
+        filesStore: useFilesStore(),
+        onPersisted: (savedPath) => this.clearFileDirty(savedPath),
+      })
     },
 
     async persistPaths(paths = []) {
-      const targets = Array.from(new Set(paths.filter(Boolean)))
-      let success = true
-      for (const path of targets) {
-        const saved = await this.persistPath(path)
-        if (!saved) success = false
-      }
-      return success
+      return persistEditorPaths(paths, (path) => this.persistPath(path))
     },
 
     loadRecentFiles(workspacePath) {
-      try {
-        const stored = localStorage.getItem(`recentFiles:${workspacePath}`)
-        this.recentFiles = stored ? JSON.parse(stored) : []
-      } catch {
-        this.recentFiles = []
-      }
+      this.recentFiles = loadRecentFilesForWorkspace(workspacePath)
     },
 
     _persistRecentFiles() {
       const workspace = useWorkspaceStore()
-      if (!workspace.path) return
-      localStorage.setItem(`recentFiles:${workspace.path}`, JSON.stringify(this.recentFiles))
+      persistRecentFilesForWorkspace(workspace.path, this.recentFiles)
     },
 
     // ====== Editor state persistence ======
 
     /** Debounced save — called by actions that mutate pane tree or active pane. */
     saveEditorState() {
-      clearTimeout(_saveStateTimer)
-      _saveStateTimer = setTimeout(() => {
-        saveState(useWorkspaceStore().shouldersDir, this.paneTree, this.activePaneId)
-      }, 500)
+      scheduleEditorStateSave({
+        shouldersDir: useWorkspaceStore().shouldersDir,
+        paneTree: this.paneTree,
+        activePaneId: this.activePaneId,
+      })
     },
 
     /** Immediate save (no debounce). Call before workspace close. */
     async saveEditorStateImmediate() {
-      clearTimeout(_saveStateTimer)
-      await saveState(useWorkspaceStore().shouldersDir, this.paneTree, this.activePaneId)
+      await flushEditorStateSave({
+        shouldersDir: useWorkspaceStore().shouldersDir,
+        paneTree: this.paneTree,
+        activePaneId: this.activePaneId,
+      })
     },
 
     /**
@@ -1167,78 +806,48 @@ export const useEditorStore = defineStore('editor', {
      */
     async restoreEditorState() {
       const workspace = useWorkspaceStore()
-      const state = await loadState(workspace.shouldersDir)
+      const state = await loadEditorStateSnapshot(workspace.shouldersDir)
       if (!state) return false
+
       const restoreGeneration = ++this.restoreGeneration
       const restoredWorkspacePath = workspace.path
       const restoredShouldersDir = workspace.shouldersDir
 
-      // Optimistic: apply immediately — UI renders now
-      this.paneTree = state.paneTree
-      if (state.activePaneId && this.findPane(this.paneTree, state.activePaneId)) {
-        this.activePaneId = state.activePaneId
-      } else {
-        const firstLeaf = this.findFirstLeaf(this.paneTree)
-        this.activePaneId = firstLeaf?.id || 'pane-root'
-      }
+      Object.assign(this, deriveRestoredEditorRuntimeState({
+        state,
+        isContextCandidatePath,
+      }))
 
-      if (state.legacyPrimarySurface === 'library') {
-        workspace.openLibrarySurface()
-      } else if (state.legacyPrimarySurface === 'ai') {
-        workspace.openAiSurface()
-      }
+      restoreLegacyEditorSurface(workspace, state.legacyPrimarySurface)
 
-      const restoredActivePane = this.findPane(this.paneTree, this.activePaneId)
-      if (isContextCandidatePath(restoredActivePane?.activeTab)) {
-        this.lastContextPath = restoredActivePane.activeTab
-      } else {
-        const firstContextLeaf = this._findLeaf((node) => isContextCandidatePath(node.activeTab))
-        this.lastContextPath = firstContextLeaf?.activeTab || null
-      }
-
-      // Background: validate all tabs in parallel, close any that are gone
-      findInvalidTabs(workspace.shouldersDir, this.paneTree).then(invalidTabs => {
-        if (
-          restoreGeneration !== this.restoreGeneration
-          || workspace.path !== restoredWorkspacePath
-          || workspace.shouldersDir !== restoredShouldersDir
-        ) {
-          return
-        }
-        if (invalidTabs.size === 0) return
-        for (const tab of invalidTabs) {
-          this.closeFileFromAllPanes(tab)
-        }
-        // If active pane was emptied, fall back
-        if (!this.findPane(this.paneTree, this.activePaneId)) {
-          const firstLeaf = this.findFirstLeaf(this.paneTree)
-          this.activePaneId = firstLeaf?.id || 'pane-root'
-        }
-      }).catch(e => {
-        console.error('[editor] Background tab validation failed:', e)
+      void validateRestoredEditorTabs({
+        shouldersDir: workspace.shouldersDir,
+        paneTree: this.paneTree,
+        isStillCurrent: () => (
+          restoreGeneration === this.restoreGeneration
+          && workspace.path === restoredWorkspacePath
+          && workspace.shouldersDir === restoredShouldersDir
+        ),
+        closeInvalidTab: (tab) => this.closeFileFromAllPanes(tab),
+        isActivePaneMissing: () => !this.findPane(this.paneTree, this.activePaneId),
+        resolveFallbackActivePaneId: () => this.findFirstLeaf(this.paneTree)?.id || ROOT_PANE_ID,
+        onActivePaneResolved: (paneId) => {
+          this.activePaneId = paneId
+        },
+        onError: (error) => {
+          console.error('[editor] Background tab validation failed:', error)
+        },
       })
 
       return true
     },
 
     cleanup() {
-      clearTimeout(_saveStateTimer)
-      _saveStateTimer = null
-
-      // Destroy all CodeMirror EditorView instances
-      for (const key of Object.keys(this.editorViews)) {
-        try { this.editorViews[key]?.destroy() } catch (e) { /* component may already be unmounted */ }
-      }
-      this.editorViews = {}
-
-      // Reset pane tree to initial empty state
-      this.paneTree = { type: 'leaf', id: 'pane-root', tabs: [], activeTab: null }
-      this.activePaneId = 'pane-root'
-      this.dirtyFiles = new Set()
-      this.recentFiles = []
-      this.lastContextPath = null
-      this.cursorOffset = 0
-      this.restoreGeneration += 1
+      cancelEditorStateSave()
+      destroyEditorRuntimeViews(this.editorViews)
+      Object.assign(this, createEmptyEditorRuntimeState({
+        restoreGeneration: this.restoreGeneration + 1,
+      }))
     },
   },
 })
