@@ -21,16 +21,8 @@
       />
     </template>
 
-    <div v-else class="flex flex-col h-full overflow-hidden">
-      <div
-        class="flex items-center h-7 shrink-0 px-2 select-none border-b"
-        :style="{ color: 'var(--fg-muted)', borderColor: 'var(--border)' }"
-      >
-        <span class="ui-text-xs font-medium uppercase tracking-wider">{{ t('Outline') }}</span>
-      </div>
-      <div class="flex-1 min-h-0">
-        <OutlinePanel embedded />
-      </div>
+    <div v-else class="flex-1 min-h-0 overflow-hidden">
+      <OutlinePanel embedded />
     </div>
   </div>
 </template>

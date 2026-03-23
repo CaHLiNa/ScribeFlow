@@ -1,28 +1,45 @@
 <template>
   <nav
-    class="workbench-rail flex h-full w-11 shrink-0 flex-col items-center gap-1.5 border-r px-1.5 py-3"
+    class="workbench-rail flex h-full w-11 shrink-0 flex-col items-center gap-1.5 border-r px-1.5 pt-1.5 pb-1.5"
     :aria-label="t('Project navigation')"
   >
-    <button
-      v-for="entry in entries"
-      :key="entry.key"
-      type="button"
-      class="workbench-rail-button"
-      :class="{ 'is-active': activeKey === entry.key }"
-      :title="entry.title"
-      :aria-label="entry.label"
-      @click="activate(entry.key)"
-    >
-      <component :is="entry.icon" :size="18" :stroke-width="1.7" />
-    </button>
+    <div class="flex w-full flex-col items-center gap-1.5">
+      <button
+        v-for="entry in entries"
+        :key="entry.key"
+        type="button"
+        class="workbench-rail-button"
+        :class="{ 'is-active': activeKey === entry.key }"
+        :title="entry.title"
+        :aria-label="entry.label"
+        @click="activate(entry.key)"
+      >
+        <component :is="entry.icon" :size="18" :stroke-width="1.7" />
+      </button>
+    </div>
+
+    <div class="mt-auto flex w-full flex-col items-center">
+      <button
+        type="button"
+        class="workbench-rail-button"
+        :title="t('Settings ({shortcut})', { shortcut: `${modKey}+,` })"
+        :aria-label="t('Settings')"
+        @click="$emit('open-settings')"
+      >
+        <IconSettings :size="18" :stroke-width="1.7" />
+      </button>
+    </div>
   </nav>
 </template>
 
 <script setup>
 import { computed } from 'vue'
-import { IconBook2, IconFolder, IconSparkles } from '@tabler/icons-vue'
+import { IconBook2, IconHome, IconSettings, IconSparkles } from '@tabler/icons-vue'
 import { useWorkspaceStore } from '../../stores/workspace'
+import { modKey } from '../../platform'
 import { useI18n } from '../../i18n'
+
+defineEmits(['open-settings'])
 
 const workspace = useWorkspaceStore()
 const { t } = useI18n()
@@ -32,7 +49,7 @@ const entries = computed(() => ([
     key: 'workspace',
     label: t('Project'),
     title: t('Open project workspace'),
-    icon: IconFolder,
+    icon: IconHome,
   },
   {
     key: 'library',

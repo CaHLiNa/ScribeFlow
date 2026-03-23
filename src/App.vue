@@ -5,7 +5,6 @@
       ref="headerRef"
       :left-sidebar-width="leftSidebarWidth"
       :left-rail-width="WORKBENCH_RAIL_WIDTH"
-      @open-settings="workspace.openSettings()"
     />
 
     <!-- Launcher (no workspace open) -->
@@ -18,7 +17,7 @@
     <!-- Main content area (workspace open) -->
     <template v-if="workspace.isOpen">
       <div class="flex flex-1 overflow-hidden">
-        <WorkbenchRail class="shrink-0" />
+        <WorkbenchRail class="shrink-0" @open-settings="workspace.openSettings()" />
 
         <!-- Left sidebar: active project panel -->
         <div

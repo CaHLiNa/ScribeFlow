@@ -40,8 +40,7 @@
 
     <div class="header-project-slot" data-tauri-drag-region></div>
 
-    <!-- Right: AI + settings -->
-      <div class="flex items-center gap-0.5 justify-self-end" data-tauri-drag-region>
+    <div class="flex items-center gap-0.5 justify-self-end" data-tauri-drag-region>
       <button
         v-if="!workspace.isAiSurface"
         class="header-chrome-button flex items-center justify-center border-none bg-transparent cursor-pointer transition-colors"
@@ -52,16 +51,6 @@
         @mouseout="$event.currentTarget.style.background='transparent'"
       >
         <IconSparkles :size="HEADER_ICON_SIZE" :stroke-width="1.5" />
-      </button>
-      <button
-        class="header-chrome-button flex items-center justify-center border-none bg-transparent cursor-pointer transition-colors"
-        style="color: var(--fg-muted);"
-        @click="$emit('open-settings')"
-        :title="t('Settings ({shortcut})', { shortcut: `${modKey}+,` })"
-        @mouseover="$event.currentTarget.style.background='var(--bg-hover)';$event.currentTarget.style.color='var(--fg-primary)'"
-        @mouseout="$event.currentTarget.style.background='transparent';$event.currentTarget.style.color='var(--fg-muted)'"
-      >
-        <IconSettings :size="HEADER_ICON_SIZE" :stroke-width="1.5" />
       </button>
     </div>
   </header>
@@ -134,7 +123,7 @@ import {
   IconListTree,
   IconLayoutSidebar,
   IconLayoutSidebarLeftCollapse,
-  IconSettings, IconSearch, IconSparkles,
+  IconSearch, IconSparkles,
 } from '@tabler/icons-vue'
 import { isMac, modKey } from '../../platform'
 import { useI18n } from '../../i18n'
@@ -147,7 +136,6 @@ const props = defineProps({
   leftSidebarWidth: { type: Number, default: 0 },
   leftRailWidth: { type: Number, default: 44 },
 })
-const emit = defineEmits(['open-settings'])
 
 const workspace = useWorkspaceStore()
 const editorStore = useEditorStore()
@@ -168,8 +156,6 @@ const HEADER_SEARCH_INPUT_HEIGHT = 22
 const HEADER_SEARCH_ICON_SIZE = 12
 const HEADER_BUTTON_SIZE = 30
 const HEADER_BUTTON_INSET = 8
-const MAC_TRAFFIC_LIGHT_BUTTON_GAP = 8
-const COLLAPSED_RAIL_BUTTON_GAP = 0
 const SIDEBAR_PANEL_GROUP_GAP = 8
 const DEFAULT_HEADER_SIDE_PADDING = 12
 const MAC_TRAFFIC_LIGHT_SAFE_PADDING = 72
@@ -230,14 +216,16 @@ const sidebarPanelEntries = computed(() => ([
   },
 ]))
 
-const sidebarPanelTabsStyle = computed(() => {
+const sidebarPanelAnchorLeft = computed(() => {
   const railBoundary = (Number(props.leftRailWidth) || 44) + SIDEBAR_PANEL_GROUP_GAP
-  const leftBoundary = hasVisibleTrafficLights.value
+  return hasVisibleTrafficLights.value
     ? Math.max(macHeaderLeftPadding.value, railBoundary)
     : railBoundary
+})
 
+const sidebarPanelTabsStyle = computed(() => {
   return {
-    left: toPx(leftBoundary),
+    left: toPx(sidebarPanelAnchorLeft.value),
   }
 })
 
@@ -246,11 +234,8 @@ const sidebarCollapseButtonStyle = computed(() => {
     + Math.max(Number(props.leftSidebarWidth) || 0, 0)
     - HEADER_BUTTON_SIZE
     - HEADER_BUTTON_INSET
-  const collapsedBoundary = hasVisibleTrafficLights.value
-    ? macHeaderLeftPadding.value + MAC_TRAFFIC_LIGHT_BUTTON_GAP
-    : (Number(props.leftRailWidth) || 4) + COLLAPSED_RAIL_BUTTON_GAP
   const leftBoundary = Math.max(
-    workspace.leftSidebarOpen ? expandedBoundary : collapsedBoundary,
+    workspace.leftSidebarOpen ? expandedBoundary : sidebarPanelAnchorLeft.value,
     0,
   )
 
