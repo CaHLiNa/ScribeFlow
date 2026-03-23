@@ -130,6 +130,8 @@ The resizable left sidebar also now resolves its minimum width against the large
 
 The old quick-AI header button plus right-side drawer are no longer the active shell pattern. The right inspector is now also a surface-aware shell host: the workspace surface uses `Outline` / `Backlinks`, the library surface uses one shell-level `Details` inspector instead of keeping its own embedded detail column inside `GlobalLibraryWorkbench.vue`, and the AI surface still intentionally has no always-on right inspector yet. The right toggle now stays flush to the inspector's live left edge while the panel buttons stay pinned to the far-right header chrome, the inspector minimum width is derived from that mirrored shell geometry instead of a fixed pixel floor, and AI launch entry points that previously defaulted to the drawer now route into the dedicated AI workbench surface instead. During right-sidebar resize, only that mirrored toggle tracks the live edge; the panel buttons remain pinned in the right chrome group rather than participating in drag-time reflow.
 
+Library-originated `Open PDF` actions now also explicitly switch back to the workspace surface before opening the file in the editor, so the document opens inside the project workbench instead of leaving the user visually stranded on the library surface.
+
 The empty-pane / new-tab workspace starter has also been reframed from a generic welcome surface into a restrained academic dashboard that reuses existing project metrics, recent-material history, and workbench entry points instead of inventing a synthetic system-status layer.
 
 #### Large store reduction progress

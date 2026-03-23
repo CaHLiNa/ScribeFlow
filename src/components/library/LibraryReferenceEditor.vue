@@ -173,8 +173,10 @@ import { computed } from 'vue'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useReferencesStore } from '../../stores/references'
 import { useEditorStore } from '../../stores/editor'
+import { useWorkspaceStore } from '../../stores/workspace'
 import { useToastStore } from '../../stores/toast'
 import { useI18n } from '../../i18n'
+import { openReferencePdfInWorkspace } from '../../domains/reference/referenceNavigation'
 
 const props = defineProps({
   refKey: { type: String, required: true },
@@ -182,6 +184,7 @@ const props = defineProps({
 
 const referencesStore = useReferencesStore()
 const editorStore = useEditorStore()
+const workspace = useWorkspaceStore()
 const toastStore = useToastStore()
 const { t } = useI18n()
 
@@ -254,8 +257,12 @@ function confirmRef() {
 }
 
 function openPdf() {
-  if (!pdfPath.value) return
-  editorStore.openFile(pdfPath.value)
+  openReferencePdfInWorkspace({
+    key: props.refKey,
+    referencesStore,
+    editorStore,
+    workspace,
+  })
 }
 
 async function attachPdf() {

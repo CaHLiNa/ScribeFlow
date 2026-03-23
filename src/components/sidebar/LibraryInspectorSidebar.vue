@@ -99,11 +99,14 @@
 import { computed } from 'vue'
 import { useReferencesStore } from '../../stores/references'
 import { useEditorStore } from '../../stores/editor'
+import { useWorkspaceStore } from '../../stores/workspace'
 import { useI18n } from '../../i18n'
 import { useLibraryWorkbenchUi } from '../../composables/useLibraryWorkbenchUi'
+import { openReferencePdfInWorkspace } from '../../domains/reference/referenceNavigation'
 
 const referencesStore = useReferencesStore()
 const editorStore = useEditorStore()
+const workspace = useWorkspaceStore()
 const { t } = useI18n()
 const {
   activeRef,
@@ -130,10 +133,12 @@ async function toggleProjectMembership(key) {
 }
 
 function openReferencePdf(key) {
-  if (!key) return
-  const pdfPath = referencesStore.pdfPathForKey(key)
-  if (!pdfPath) return
-  editorStore.openFile(pdfPath)
+  openReferencePdfInWorkspace({
+    key,
+    referencesStore,
+    editorStore,
+    workspace,
+  })
 }
 
 function enterEditMode(key) {

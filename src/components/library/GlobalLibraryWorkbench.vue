@@ -217,6 +217,7 @@ import { useEditorStore } from '../../stores/editor'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useI18n } from '../../i18n'
 import { useLibraryWorkbenchUi } from '../../composables/useLibraryWorkbenchUi'
+import { openReferencePdfInWorkspace } from '../../domains/reference/referenceNavigation'
 import AddReferenceDialog from '../sidebar/AddReferenceDialog.vue'
 import SurfaceContextMenu from '../shared/SurfaceContextMenu.vue'
 
@@ -467,10 +468,12 @@ async function toggleProjectMembership(key) {
 }
 
 function openReferencePdf(key) {
-  if (!key) return
-  const pdfPath = referencesStore.pdfPathForKey(key)
-  if (!pdfPath) return
-  editorStore.openFile(pdfPath)
+  openReferencePdfInWorkspace({
+    key,
+    referencesStore,
+    editorStore,
+    workspace,
+  })
 }
 
 function applyTagAction(action) {
