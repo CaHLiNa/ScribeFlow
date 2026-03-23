@@ -3,58 +3,26 @@
     data-tauri-drag-region
     :style="headerStyle"
   >
-    <div class="header-surface-slot" data-tauri-drag-region>
-      <div
-        v-if="workspace.isOpen"
-        class="header-surface-switcher"
-      >
-        <button
-          type="button"
-          class="header-surface-button"
-          :class="{ 'is-active': workspace.primarySurface === 'workspace' }"
-          :title="t('Open project workspace')"
-          @click="focusWorkspaceSurface"
-        >
-          <span class="header-surface-label">{{ t('Project') }}</span>
-        </button>
-        <button
-          type="button"
-          class="header-surface-button"
-          :class="{ 'is-active': workspace.primarySurface === 'library' }"
-          :title="t('Open global library')"
-          @click="openLibrary"
-        >
-          <IconBook2 :size="11" :stroke-width="1.7" />
-          <span class="header-surface-label">{{ t('Library') }}</span>
-        </button>
-        <button
-          type="button"
-          class="header-surface-button"
-          :class="{ 'is-active': workspace.primarySurface === 'ai' }"
-          :title="t('Open AI workspace')"
-          @click="openAiWorkbench"
-        >
-          <IconSparkles :size="11" :stroke-width="1.7" />
-          <span class="header-surface-label">{{ t('AI') }}</span>
-        </button>
-      </div>
-    </div>
+    <button
+      v-if="workspace.isOpen"
+      class="header-chrome-button header-sidebar-collapse-button flex items-center justify-center border-none bg-transparent cursor-pointer transition-colors"
+      :style="sidebarCollapseButtonStyle"
+      :title="t('Toggle sidebar ({shortcut})', { shortcut: `${modKey}+B` })"
+      @click="workspace.toggleLeftSidebar()"
+      @mouseover="$event.currentTarget.style.background='var(--bg-hover)'"
+      @mouseout="$event.currentTarget.style.background='transparent'"
+    >
+      <component
+        :is="workspace.leftSidebarOpen ? IconLayoutSidebarLeftCollapse : IconLayoutSidebar"
+        :size="HEADER_ICON_SIZE"
+        :stroke-width="1.5"
+      />
+    </button>
 
-    <!-- Right: sidebar toggles + settings -->
+    <div class="header-project-slot" data-tauri-drag-region></div>
+
+    <!-- Right: AI + settings -->
       <div class="flex items-center gap-0.5 justify-self-end" data-tauri-drag-region>
-      <button
-        class="header-chrome-button flex items-center justify-center border-none bg-transparent cursor-pointer transition-colors"
-        :style="{ color: workspace.leftSidebarOpen ? 'var(--fg-primary)' : 'var(--fg-muted)' }"
-        @click="workspace.toggleLeftSidebar()"
-        :title="t('Toggle sidebar ({shortcut})', { shortcut: `${modKey}+B` })"
-        @mouseover="$event.currentTarget.style.background='var(--bg-hover)'"
-        @mouseout="$event.currentTarget.style.background='transparent'"
-      >
-        <component
-          :is="workspace.leftSidebarOpen ? IconLayoutSidebarFilled : IconLayoutSidebar"
-          :size="HEADER_ICON_SIZE" :stroke-width="1.5"
-        />
-      </button>
       <button
         v-if="!workspace.isAiSurface"
         class="header-chrome-button flex items-center justify-center border-none bg-transparent cursor-pointer transition-colors"
@@ -142,8 +110,9 @@ import { useAiWorkbenchStore } from '../../stores/aiWorkbench'
 import { useToastStore } from '../../stores/toast'
 import { useReferencesStore } from '../../stores/references'
 import {
-  IconLayoutSidebar, IconLayoutSidebarFilled,
-  IconBook2, IconSettings, IconSearch, IconSparkles,
+  IconLayoutSidebar,
+  IconLayoutSidebarLeftCollapse,
+  IconSettings, IconSearch, IconSparkles,
 } from '@tabler/icons-vue'
 import { isMac, modKey } from '../../platform'
 import { useI18n } from '../../i18n'
@@ -152,6 +121,10 @@ import { tinymistRangeToOffsets } from '../../services/tinymist/textEdits'
 
 const SearchResults = defineAsyncComponent(() => import('../SearchResults.vue'))
 
+const props = defineProps({
+  leftSidebarWidth: { type: Number, default: 0 },
+  leftRailWidth: { type: Number, default: 44 },
+})
 const emit = defineEmits(['open-settings'])
 
 const workspace = useWorkspaceStore()
@@ -167,14 +140,19 @@ const isMacDesktop = isMac
 const isTauriDesktop = typeof window !== 'undefined' && !!window.__TAURI_INTERNALS__
 
 const HEADER_HEIGHT = 30
-const HEADER_ICON_SIZE = 12
+const HEADER_ICON_SIZE = 18
 const HEADER_SEARCH_HEIGHT = 24
 const HEADER_SEARCH_INPUT_HEIGHT = 22
 const HEADER_SEARCH_ICON_SIZE = 12
+const HEADER_BUTTON_SIZE = 30
+const HEADER_BUTTON_INSET = 8
+const MAC_TRAFFIC_LIGHT_BUTTON_GAP = 8
+const COLLAPSED_RAIL_BUTTON_GAP = 0
 const DEFAULT_HEADER_SIDE_PADDING = 12
 const MAC_TRAFFIC_LIGHT_SAFE_PADDING = 72
 const EDITOR_WAIT_TIMEOUT_MS = 1500
 const FULLSCREEN_HEADER_LEFT_PADDING = 12
+const headerCommandTop = `${HEADER_HEIGHT + 8}px`
 
 function toPx(value) {
   return `${Math.round(value * 100) / 100}px`
@@ -195,6 +173,8 @@ const macHeaderLeftPadding = computed(() => {
   return MAC_TRAFFIC_LIGHT_SAFE_PADDING / appZoomScale.value
 })
 
+const hasVisibleTrafficLights = computed(() => isMacDesktop && !isNativeFullscreen.value)
+
 const headerStyle = computed(() => ({
   gridTemplateColumns: '1fr auto',
   background: 'var(--bg-secondary)',
@@ -203,6 +183,25 @@ const headerStyle = computed(() => ({
   paddingRight: '8px',
   height: `${HEADER_HEIGHT}px`,
 }))
+
+const sidebarCollapseButtonStyle = computed(() => {
+  const expandedBoundary = (Number(props.leftRailWidth) || 44)
+    + Math.max(Number(props.leftSidebarWidth) || 0, 0)
+    - HEADER_BUTTON_SIZE
+    - HEADER_BUTTON_INSET
+  const collapsedBoundary = hasVisibleTrafficLights.value
+    ? macHeaderLeftPadding.value + MAC_TRAFFIC_LIGHT_BUTTON_GAP
+    : (Number(props.leftRailWidth) || 4) + COLLAPSED_RAIL_BUTTON_GAP
+  const leftBoundary = Math.max(
+    workspace.leftSidebarOpen ? expandedBoundary : collapsedBoundary,
+    0,
+  )
+
+  return {
+    left: toPx(leftBoundary),
+    color: 'var(--fg-muted)',
+  }
+})
 
 // Search
 const searchInputRef = ref(null)
@@ -214,7 +213,6 @@ const searchOpen = ref(false)
 const showResults = computed(() => searchOpen.value)
 const aiLauncherOpen = computed(() => aiDrawer.open)
 const aiButtonTitle = computed(() => (aiDrawer.open ? t('Close Quick AI') : t('Open Quick AI')))
-
 const searchPlaceholder = computed(() => t('Go to file...'))
 
 function onFocus() {
@@ -285,44 +283,6 @@ function onSelectChat(sessionId) {
 
 function handleOpenAi() {
   aiDrawer.toggle()
-}
-
-function focusWorkspaceSurface() {
-  if (!workspace.isOpen) return
-  workspace.openWorkspaceSurface()
-  const targetPath = editorStore.preferredContextPath || ''
-  if (targetPath) {
-    const existingPane = editorStore.findPaneWithTab(targetPath)
-    if (existingPane) {
-      existingPane.activeTab = targetPath
-      editorStore.activePaneId = existingPane.id
-      editorStore.saveEditorState()
-      return
-    }
-
-    editorStore.openFileInPane(targetPath, editorStore.activePaneId, {
-      activatePane: true,
-      replaceNewTab: false,
-    })
-    return
-  }
-
-  const activePaneId = editorStore.activePaneId
-  if (activePaneId) {
-    editorStore.openNewTab(activePaneId)
-    return
-  }
-  editorStore.openNewTab()
-}
-
-function openAiWorkbench() {
-  if (!workspace.isOpen) return
-  workspace.openAiSurface()
-}
-
-function openLibrary() {
-  if (!workspace.isOpen) return
-  workspace.openLibrarySurface()
 }
 
 async function waitForEditorView(targetPath) {
@@ -406,7 +366,7 @@ defineExpose({ focusSearch })
 </script>
 
 <style scoped>
-.header-surface-slot {
+.header-project-slot {
   display: flex;
   align-items: center;
   justify-content: flex-start;
@@ -414,58 +374,18 @@ defineExpose({ focusSearch })
   height: 100%;
 }
 
-.header-surface-switcher {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  height: auto;
-  padding: 0;
-  border: none;
-  border-radius: 0;
-  background: transparent;
-  flex-wrap: nowrap;
-}
-
-.header-surface-button {
-  width: clamp(56px, 5.6vw, 68px);
-  height: 22px;
-  padding: 0 clamp(6px, 0.8vw, 10px);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--bg-primary) 90%, var(--bg-secondary));
-  color: var(--fg-muted);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  cursor: pointer;
-  transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
-  position: relative;
-  box-sizing: border-box;
-}
-
-.header-surface-button:hover {
-  background: color-mix(in srgb, var(--bg-hover) 70%, var(--bg-primary));
-  color: var(--fg-secondary);
-}
-
-.header-surface-button.is-active {
-  border-color: color-mix(in srgb, var(--accent) 34%, var(--border));
-  background: color-mix(in srgb, var(--accent) 11%, var(--bg-primary));
-  color: var(--fg-primary);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 10%, transparent);
-}
-
-.header-surface-label {
-  font-size: clamp(10px, 0.92vw, 11px);
-  font-weight: 600;
-  letter-spacing: 0.02em;
-}
-
 .header-chrome-button {
-  width: 20px;
-  height: 20px;
-  border-radius: 6px;
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+}
+
+.header-sidebar-collapse-button {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  transform: translateY(-50%);
+  transition: background-color 140ms ease, color 140ms ease;
 }
 
 .header-root {
@@ -481,7 +401,7 @@ defineExpose({ focusSearch })
 
 .header-command-shell {
   position: fixed;
-  top: 38px;
+  top: v-bind(headerCommandTop);
   left: 50%;
   transform: translateX(-50%);
   width: min(560px, calc(100vw - 28px));

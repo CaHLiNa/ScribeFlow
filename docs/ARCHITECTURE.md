@@ -33,6 +33,7 @@ This layer now carries app-facing orchestration close to the shell, including:
 - teardown handling
 - footer/status coordination
 - snapshot prompt and workspace-history entry actions
+- persistent shell navigation composition for project/library/AI surface selection
 
 This layer is thinner than the old `App.vue`-centric shape, but it is still not a full operation layer.
 

@@ -3,6 +3,8 @@
     <!-- Header (always visible) -->
     <Header
       ref="headerRef"
+      :left-sidebar-width="leftSidebarWidth"
+      :left-rail-width="WORKBENCH_RAIL_WIDTH"
       @open-settings="workspace.openSettings()"
     />
 
@@ -16,6 +18,8 @@
     <!-- Main content area (workspace open) -->
     <template v-if="workspace.isOpen">
       <div class="flex flex-1 overflow-hidden">
+        <WorkbenchRail class="shrink-0" />
+
         <!-- Left sidebar: File tree + References -->
         <div
           v-if="workspace.leftSidebarOpen"
@@ -147,6 +151,7 @@ import { useToastStore } from './stores/toast'
 import Header from './components/layout/Header.vue'
 import Footer from './components/layout/Footer.vue'
 import ResizeHandle from './components/layout/ResizeHandle.vue'
+import WorkbenchRail from './components/layout/WorkbenchRail.vue'
 import PaneContainer from './components/editor/PaneContainer.vue'
 import Launcher from './components/Launcher.vue'
 import ToastContainer from './components/layout/ToastContainer.vue'
@@ -189,6 +194,7 @@ const bottomPanelRef = ref(null)
 const workspaceSnapshotBrowserVisible = ref(false)
 const fileVersionHistoryVisible = ref(false)
 const fileVersionHistoryFile = ref('')
+const WORKBENCH_RAIL_WIDTH = 44
 const {
   leftSidebarWidth,
   rightSidebarWidth,

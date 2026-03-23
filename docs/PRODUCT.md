@@ -26,7 +26,7 @@ It combines:
 The strongest landed loop today is still document-heavy:
 
 1. open a local workspace folder
-2. browse project files and references
+2. navigate between project, library, and AI surfaces from one shell
 3. edit Markdown / LaTeX / Typst or related project files
 4. build and preview outputs
 5. inspect file history or workspace save points

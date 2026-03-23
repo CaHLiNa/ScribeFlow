@@ -118,6 +118,8 @@ The current strongest signs of progress are:
 
 The root app component has already been reduced through extraction of several orchestration modules, including workspace lifecycle, shell event bridge, workspace history actions, teardown handling, and footer status sync.
 
+A narrow persistent left rail for `Project` / `Library` / `AI` navigation has now also landed as a shell-level component, replacing the previous header-level primary-surface switcher without reintroducing broader orchestration into `App.vue`; the left-sidebar toggle affordance now lives as one persistent control in the global header, tracking the live left-sidebar edge while expanded and snapping back to the traffic-light/left-rail anchor when collapsed instead of duplicating a second toggle in the top-right chrome.
+
 #### Large store reduction progress
 
 Two major store reductions have already happened:
