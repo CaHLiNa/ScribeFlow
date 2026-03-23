@@ -3,6 +3,25 @@
     data-tauri-drag-region
     :style="headerStyle"
   >
+    <div
+      v-if="showSidebarPanelTabs"
+      class="header-sidebar-panel-tabs"
+      :style="sidebarPanelTabsStyle"
+    >
+      <button
+        v-for="entry in sidebarPanelEntries"
+        :key="entry.key"
+        type="button"
+        class="header-chrome-button header-sidebar-panel-button flex items-center justify-center border-none cursor-pointer"
+        :class="{ 'is-active': workspace.leftSidebarPanel === entry.key }"
+        :title="entry.title"
+        :aria-label="entry.label"
+        @click="workspace.setLeftSidebarPanel(entry.key)"
+      >
+        <component :is="entry.icon" :size="HEADER_ICON_SIZE" :stroke-width="1.6" />
+      </button>
+    </div>
+
     <button
       v-if="workspace.isOpen"
       class="header-chrome-button header-sidebar-collapse-button flex items-center justify-center border-none bg-transparent cursor-pointer transition-colors"
@@ -110,6 +129,9 @@ import { useAiWorkbenchStore } from '../../stores/aiWorkbench'
 import { useToastStore } from '../../stores/toast'
 import { useReferencesStore } from '../../stores/references'
 import {
+  IconBook2,
+  IconFolder,
+  IconListTree,
   IconLayoutSidebar,
   IconLayoutSidebarLeftCollapse,
   IconSettings, IconSearch, IconSparkles,
@@ -148,6 +170,7 @@ const HEADER_BUTTON_SIZE = 30
 const HEADER_BUTTON_INSET = 8
 const MAC_TRAFFIC_LIGHT_BUTTON_GAP = 8
 const COLLAPSED_RAIL_BUTTON_GAP = 0
+const SIDEBAR_PANEL_GROUP_GAP = 8
 const DEFAULT_HEADER_SIDE_PADDING = 12
 const MAC_TRAFFIC_LIGHT_SAFE_PADDING = 72
 const EDITOR_WAIT_TIMEOUT_MS = 1500
@@ -183,6 +206,40 @@ const headerStyle = computed(() => ({
   paddingRight: '8px',
   height: `${HEADER_HEIGHT}px`,
 }))
+
+const showSidebarPanelTabs = computed(() => workspace.isOpen && workspace.leftSidebarOpen)
+
+const sidebarPanelEntries = computed(() => ([
+  {
+    key: 'files',
+    label: t('Project files'),
+    title: t('Project files'),
+    icon: IconFolder,
+  },
+  {
+    key: 'references',
+    label: t('References'),
+    title: t('References'),
+    icon: IconBook2,
+  },
+  {
+    key: 'outline',
+    label: t('Outline'),
+    title: t('Outline'),
+    icon: IconListTree,
+  },
+]))
+
+const sidebarPanelTabsStyle = computed(() => {
+  const railBoundary = (Number(props.leftRailWidth) || 44) + SIDEBAR_PANEL_GROUP_GAP
+  const leftBoundary = hasVisibleTrafficLights.value
+    ? Math.max(macHeaderLeftPadding.value, railBoundary)
+    : railBoundary
+
+  return {
+    left: toPx(leftBoundary),
+  }
+})
 
 const sidebarCollapseButtonStyle = computed(() => {
   const expandedBoundary = (Number(props.leftRailWidth) || 44)
@@ -386,6 +443,35 @@ defineExpose({ focusSearch })
   z-index: 2;
   transform: translateY(-50%);
   transition: background-color 140ms ease, color 140ms ease;
+}
+
+.header-sidebar-panel-tabs {
+  position: absolute;
+  top: 50%;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transform: translateY(-50%);
+}
+
+.header-sidebar-panel-button {
+  background: transparent;
+  color: var(--fg-muted);
+  transition: background-color 140ms ease, color 140ms ease, opacity 140ms ease;
+  opacity: 0.88;
+}
+
+.header-sidebar-panel-button:hover {
+  background: color-mix(in srgb, var(--bg-hover) 38%, transparent);
+  color: var(--fg-secondary);
+  opacity: 1;
+}
+
+.header-sidebar-panel-button.is-active {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  color: var(--fg-primary);
+  opacity: 1;
 }
 
 .header-root {

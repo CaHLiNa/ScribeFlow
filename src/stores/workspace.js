@@ -500,6 +500,11 @@ export const useWorkspaceStore = defineStore('workspace', {
       this.leftSidebarOpen = toggleStoredBoolean(this.leftSidebarOpen, 'leftSidebarOpen')
     },
 
+    setLeftSidebarPanel(panel) {
+      const next = ['files', 'references', 'outline'].includes(panel) ? panel : 'files'
+      this.leftSidebarPanel = persistStoredString('leftSidebarPanel', next)
+    },
+
     setPrimarySurface(surface) {
       const next = ['workspace', 'library', 'ai'].includes(surface) ? surface : 'workspace'
       this.primarySurface = persistStoredString('primarySurface', next)

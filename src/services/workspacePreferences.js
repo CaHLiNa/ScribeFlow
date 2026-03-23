@@ -43,6 +43,11 @@ function readString(key, fallback = '') {
   }
 }
 
+function readEnum(key, allowedValues = [], fallback) {
+  const value = readString(key, fallback)
+  return allowedValues.includes(value) ? value : fallback
+}
+
 function readBoolean(key, fallback = false, falseValue = 'false') {
   try {
     const raw = localStorage.getItem(key)
@@ -109,6 +114,7 @@ export function createWorkspacePreferenceState() {
   return {
     primarySurface: readString('primarySurface', 'workspace'),
     leftSidebarOpen: readBoolean('leftSidebarOpen', true),
+    leftSidebarPanel: readEnum('leftSidebarPanel', ['files', 'references', 'outline'], 'files'),
     rightSidebarOpen: readTrueOnlyBoolean('rightSidebarOpen'),
     bottomPanelOpen: readTrueOnlyBoolean('bottomPanelOpen'),
     autoSave: readBoolean('autoSave', true),

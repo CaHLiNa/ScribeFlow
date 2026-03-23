@@ -5,8 +5,13 @@
       class="flex items-center h-7 shrink-0 px-2 gap-1 select-none"
       :style="{ color: 'var(--fg-muted)', borderBottom: collapsed ? 'none' : '1px solid var(--border)' }"
     >
-      <div class="flex items-center gap-1 cursor-pointer min-w-0 flex-1" @click="$emit('toggle-collapse')">
+      <div
+        class="flex items-center gap-1 min-w-0 flex-1"
+        :class="{ 'cursor-pointer': headingCollapsible }"
+        @click="headingCollapsible ? $emit('toggle-collapse') : null"
+      >
         <svg
+          v-if="headingCollapsible"
           width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"
           :style="{ transform: collapsed ? '' : 'rotate(90deg)', transition: 'transform 0.1s' }"
         >
@@ -274,6 +279,7 @@ import { useFileTreeDrag } from '../../composables/useFileTreeDrag'
 
 const props = defineProps({
   collapsed: { type: Boolean, default: false },
+  headingCollapsible: { type: Boolean, default: true },
   headingLabel: { type: String, default: '' },
 })
 const emit = defineEmits(['file-version-history', 'toggle-collapse', 'open-folder', 'open-workspace', 'close-folder'])

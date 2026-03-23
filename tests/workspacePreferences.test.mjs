@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 
 import {
   createWorkspacePreferenceState,
+  persistStoredString,
   toggleStoredBoolean,
 } from '../src/services/workspacePreferences.js'
 
@@ -47,6 +48,34 @@ test('pdf themed pages preference is restored and persisted through the shared b
     const toggled = toggleStoredBoolean(restored.pdfThemedPages, 'pdfThemedPages')
     assert.equal(toggled, false)
     assert.equal(globalThis.localStorage.getItem('pdfThemedPages'), 'false')
+  } finally {
+    globalThis.localStorage = previousLocalStorage
+  }
+})
+
+test('left sidebar panel preference defaults to files and restores valid saved modes', () => {
+  const previousLocalStorage = globalThis.localStorage
+  globalThis.localStorage = createMockStorage()
+
+  try {
+    const defaults = createWorkspacePreferenceState()
+    assert.equal(defaults.leftSidebarPanel, 'files')
+
+    persistStoredString('leftSidebarPanel', 'outline')
+    const restored = createWorkspacePreferenceState()
+    assert.equal(restored.leftSidebarPanel, 'outline')
+  } finally {
+    globalThis.localStorage = previousLocalStorage
+  }
+})
+
+test('invalid left sidebar panel preference falls back to files', () => {
+  const previousLocalStorage = globalThis.localStorage
+  globalThis.localStorage = createMockStorage({ leftSidebarPanel: 'invalid' })
+
+  try {
+    const restored = createWorkspacePreferenceState()
+    assert.equal(restored.leftSidebarPanel, 'files')
   } finally {
     globalThis.localStorage = previousLocalStorage
   }

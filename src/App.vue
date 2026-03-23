@@ -20,7 +20,7 @@
       <div class="flex flex-1 overflow-hidden">
         <WorkbenchRail class="shrink-0" />
 
-        <!-- Left sidebar: File tree + References -->
+        <!-- Left sidebar: active project panel -->
         <div
           v-if="workspace.leftSidebarOpen"
           data-sidebar="left"

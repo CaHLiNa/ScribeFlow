@@ -5,8 +5,13 @@
       class="flex items-center h-7 shrink-0 px-2 gap-1 select-none"
       :style="{ color: 'var(--fg-muted)', }"
     >
-      <div class="flex items-center gap-1 cursor-pointer" @click="$emit('toggle-collapse')">
+      <div
+        class="flex items-center gap-1"
+        :class="{ 'cursor-pointer': headingCollapsible }"
+        @click="headingCollapsible ? $emit('toggle-collapse') : null"
+      >
         <svg
+          v-if="headingCollapsible"
           width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"
           :style="{ transform: collapsed ? '' : 'rotate(90deg)', transition: 'transform 0.1s' }"
         >
@@ -375,6 +380,7 @@ import { buildCitationText } from '../../editor/citationSyntax'
 
 const props = defineProps({
   collapsed: { type: Boolean, default: false },
+  headingCollapsible: { type: Boolean, default: true },
   headingLabel: { type: String, default: '' },
 })
 defineEmits(['toggle-collapse'])
