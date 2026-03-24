@@ -8,36 +8,21 @@
       <div class="env-lang-card">
         <div class="env-lang-header">
           <span class="env-lang-dot" :class="compatibleModels.length > 0 ? 'good' : 'none'"></span>
-          <span class="env-lang-name">{{ t('Model') }}</span>
+          <span class="env-lang-name">{{ t('Translation defaults') }}</span>
           <span class="env-lang-version">{{ modelSummary }}</span>
         </div>
 
         <div class="pdft-form-grid pdft-section-pad">
-          <label class="pdft-field">
-            <span class="pdft-label">{{ t('Provider') }}</span>
-            <div class="pdft-select-shell">
-              <select v-model="selectedProviderId" class="pdft-select" :disabled="compatibleModelGroups.length === 0">
-                <option v-if="compatibleModelGroups.length === 0" value="">{{ t('No compatible models available') }}</option>
-                <option v-for="group in compatibleModelGroups" :key="group.provider" :value="group.provider">
-                  {{ group.label }}
-                </option>
-              </select>
-              <span class="pdft-caret" aria-hidden="true">
-                <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
-                  <path d="M1 3l4 4 4-4z" />
-                </svg>
-              </span>
-            </div>
-          </label>
-
-          <label class="pdft-field">
+          <label class="pdft-field pdft-field-span-2">
             <span class="pdft-label">{{ t('Model') }}</span>
             <div class="pdft-select-shell">
-              <select v-model="draft.modelId" class="pdft-select" :disabled="selectedProviderModels.length === 0">
-                <option v-if="selectedProviderModels.length === 0" value="">{{ t('No compatible models available') }}</option>
-                <option v-for="model in selectedProviderModels" :key="model.id" :value="model.id">
-                  {{ model.name }}
-                </option>
+              <select v-model="draft.modelId" class="pdft-select" :disabled="compatibleModels.length === 0">
+                <option v-if="compatibleModels.length === 0" value="">{{ t('No compatible models available') }}</option>
+                <optgroup v-for="group in compatibleModelGroups" :key="group.provider" :label="group.label">
+                  <option v-for="model in group.models" :key="model.id" :value="model.id">
+                    {{ model.name }}
+                  </option>
+                </optgroup>
               </select>
               <span class="pdft-caret" aria-hidden="true">
                 <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
@@ -46,21 +31,7 @@
               </span>
             </div>
           </label>
-        </div>
 
-        <p v-if="compatibleModels.length === 0" class="pdft-inline-warning pdft-section-pad">
-          {{ t('PDF translation supports any configured provider with a PDF translation engine. Configure one in Settings > Models first.') }}
-        </p>
-      </div>
-
-      <div class="env-lang-card">
-        <div class="env-lang-header">
-          <span class="env-lang-dot good"></span>
-          <span class="env-lang-name">{{ t('Languages') }}</span>
-          <span class="env-lang-version">{{ languageSummary }}</span>
-        </div>
-
-        <div class="pdft-form-grid pdft-section-pad">
           <label class="pdft-field">
             <span class="pdft-label">{{ t('Source language') }}</span>
             <div class="pdft-select-shell">
@@ -92,83 +63,66 @@
               </span>
             </div>
           </label>
-        </div>
-      </div>
 
-      <div class="env-lang-card">
-        <div class="pdft-card-head">
-          <div class="env-lang-header pdft-card-header-row">
-            <span class="env-lang-dot good"></span>
-            <span class="env-lang-name">{{ t('Output mode') }}</span>
-            <span class="pdft-summary-badge">{{ outputModeLabel }}</span>
-          </div>
-        </div>
+          <label class="pdft-field">
+            <span class="pdft-label">{{ t('Output mode') }}</span>
+            <div class="pdft-select-shell">
+              <select v-model="draft.mode" class="pdft-select">
+                <option v-for="option in outputModes" :key="option.value" :value="option.value">
+                  {{ option.label }}
+                </option>
+              </select>
+              <span class="pdft-caret" aria-hidden="true">
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+                  <path d="M1 3l4 4 4-4z" />
+                </svg>
+              </span>
+            </div>
+          </label>
 
-        <div class="pdft-choice-grid pdft-section-pad" role="radiogroup" :aria-label="t('Output mode')">
-          <button
-            v-for="option in outputModes"
-            :key="option.value"
-            type="button"
-            class="pdft-choice-btn"
-            :class="{ active: draft.mode === option.value }"
-            @click="draft.mode = option.value"
-          >
-            {{ option.label }}
-          </button>
-        </div>
-      </div>
+          <label class="pdft-field">
+            <span class="pdft-label">{{ t('Bilingual layout') }}</span>
+            <div class="pdft-select-shell">
+              <select v-model="draft.dualLayout" class="pdft-select" :disabled="draft.mode === 'mono'">
+                <option v-for="option in dualLayouts" :key="option.value" :value="option.value">
+                  {{ option.label }}
+                </option>
+              </select>
+              <span class="pdft-caret" aria-hidden="true">
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+                  <path d="M1 3l4 4 4-4z" />
+                </svg>
+              </span>
+            </div>
+          </label>
 
-      <div class="env-lang-card">
-        <div class="pdft-card-head">
-          <div class="env-lang-header pdft-card-header-row">
-            <span class="env-lang-dot good"></span>
-            <span class="env-lang-name">{{ t('Bilingual layout') }}</span>
-            <span class="pdft-summary-badge">{{ dualLayoutLabel }}</span>
-          </div>
-        </div>
-
-        <div class="pdft-choice-grid pdft-section-pad" role="radiogroup" :aria-label="t('Bilingual layout')">
-          <button
-            v-for="option in dualLayouts"
-            :key="option.value"
-            type="button"
-            class="pdft-choice-btn"
-            :class="{ active: draft.dualLayout === option.value }"
-            @click="draft.dualLayout = option.value"
-          >
-            {{ option.label }}
-          </button>
-        </div>
-      </div>
-
-      <div class="env-lang-card">
-        <div class="pdft-card-head">
-          <div class="env-lang-header pdft-card-header-row">
-            <span class="env-lang-dot" :class="draft.fontFamily === 'auto' ? 'none' : 'good'"></span>
-            <span class="env-lang-name">{{ t('Primary font family') }}</span>
-            <span class="pdft-summary-badge">{{ fontFamilyLabel }}</span>
-          </div>
+          <label class="pdft-field pdft-field-span-2">
+            <span class="pdft-label">{{ t('Primary font family') }}</span>
+            <div class="pdft-select-shell">
+              <select v-model="draft.fontFamily" class="pdft-select">
+                <option v-for="option in fontFamilies" :key="option.value" :value="option.value">
+                  {{ option.label }}
+                </option>
+              </select>
+              <span class="pdft-caret" aria-hidden="true">
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+                  <path d="M1 3l4 4 4-4z" />
+                </svg>
+              </span>
+            </div>
+          </label>
         </div>
 
-        <div class="pdft-choice-grid pdft-section-pad" role="radiogroup" :aria-label="t('Primary font family')">
-          <button
-            v-for="option in fontFamilies"
-            :key="option.value"
-            type="button"
-            class="pdft-choice-btn"
-            :class="{ active: draft.fontFamily === option.value }"
-            @click="draft.fontFamily = option.value"
-          >
-            {{ option.label }}
-          </button>
-        </div>
+        <p v-if="compatibleModels.length === 0" class="pdft-inline-warning pdft-section-pad">
+          {{ t('PDF translation supports any configured provider with a PDF translation engine. Configure one in Settings > Models first.') }}
+        </p>
       </div>
 
       <div class="env-lang-card">
         <div class="env-lang-header">
-          <span class="env-lang-dot" :class="draft.autoMapPoolMaxWorkers ? 'good' : 'warn'"></span>
-          <span class="env-lang-name">{{ t('Throughput') }}</span>
-          <span class="env-lang-version">{{ throughputSummary }}</span>
+          <span class="env-lang-dot" :class="draft.enhanceCompatibility ? 'warn' : 'good'"></span>
+          <span class="env-lang-name">{{ t('Processing options') }}</span>
+          <span class="env-lang-version">{{ processingSummary }}</span>
         </div>
 
         <div class="pdft-form-grid pdft-section-pad">
@@ -180,119 +134,36 @@
           <label class="pdft-field">
             <span class="pdft-label">{{ t('Worker pool') }}</span>
             <input v-model.number="draft.poolMaxWorkers" type="number" min="0" max="1000" class="pdft-input" />
+            <span class="pdft-field-hint">{{ t('0 uses auto-mapping or upstream default') }}</span>
+          </label>
+
+          <label class="pdft-field pdft-field-span-2">
+            <span class="pdft-label">{{ t('OCR fallback') }}</span>
+            <div class="pdft-select-shell">
+              <select v-model="ocrModeValue" class="pdft-select">
+                <option v-for="option in ocrModes" :key="option.value" :value="option.value">
+                  {{ option.label }}
+                </option>
+              </select>
+              <span class="pdft-caret" aria-hidden="true">
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+                  <path d="M1 3l4 4 4-4z" />
+                </svg>
+              </span>
+            </div>
           </label>
         </div>
 
-        <div class="pdft-inline-setting pdft-section-pad">
-          <div class="pdft-inline-label">{{ t('Auto-map worker pool from QPS') }}</div>
-          <button
-            class="tool-toggle-switch"
-            :class="{ on: draft.autoMapPoolMaxWorkers }"
-            @click="draft.autoMapPoolMaxWorkers = !draft.autoMapPoolMaxWorkers"
-          >
-            <span class="tool-toggle-knob"></span>
-          </button>
-        </div>
-      </div>
-
-      <div class="env-lang-card">
-        <div class="env-lang-header">
-          <span class="env-lang-dot" :class="draft.enhanceCompatibility ? 'warn' : 'none'"></span>
-          <span class="env-lang-name">{{ t('Enhance compatibility') }}</span>
-          <span class="env-lang-version">{{ draft.enhanceCompatibility ? t('Enabled') : t('Disabled') }}</span>
-          <div class="pdft-card-spacer"></div>
-          <button
-            class="tool-toggle-switch"
-            :class="{ on: draft.enhanceCompatibility }"
-            @click="draft.enhanceCompatibility = !draft.enhanceCompatibility"
-          >
-            <span class="tool-toggle-knob"></span>
-          </button>
-        </div>
-      </div>
-
-      <div class="env-lang-card">
-        <div class="env-lang-header">
-          <span class="env-lang-dot" :class="draft.translateTableText ? 'good' : 'none'"></span>
-          <span class="env-lang-name">{{ t('Translate table text') }}</span>
-          <span class="env-lang-version">{{ draft.translateTableText ? t('Enabled') : t('Disabled') }}</span>
-          <div class="pdft-card-spacer"></div>
-          <button
-            class="tool-toggle-switch"
-            :class="{ on: draft.translateTableText }"
-            @click="draft.translateTableText = !draft.translateTableText"
-          >
-            <span class="tool-toggle-knob"></span>
-          </button>
-        </div>
-      </div>
-
-      <div class="env-lang-card">
-        <div class="pdft-card-head">
-          <div class="env-lang-header pdft-card-header-row">
-            <span class="env-lang-dot" :class="ocrMode === 'off' ? 'none' : 'warn'"></span>
-            <span class="env-lang-name">{{ t('OCR fallback') }}</span>
-            <span class="pdft-summary-badge">{{ ocrModeLabel }}</span>
+        <div class="pdft-toggle-grid pdft-section-pad">
+          <div v-for="field in topLevelToggleFields" :key="field.key" class="pdft-toggle-row">
+            <div class="pdft-inline-copy">
+              <div class="pdft-inline-label">{{ t(field.labelKey) }}</div>
+              <div v-if="field.hintKey" class="pdft-field-hint">{{ t(field.hintKey) }}</div>
+            </div>
+            <button class="tool-toggle-switch" :class="{ on: draft[field.key] }" @click="draft[field.key] = !draft[field.key]">
+              <span class="tool-toggle-knob"></span>
+            </button>
           </div>
-        </div>
-
-        <div class="pdft-choice-grid pdft-section-pad" role="radiogroup" :aria-label="t('OCR fallback')">
-          <button
-            type="button"
-            class="pdft-choice-btn"
-            :class="{ active: ocrMode === 'off' }"
-            @click="setOcrMode('off')"
-          >
-            {{ t('Off') }}
-          </button>
-          <button
-            type="button"
-            class="pdft-choice-btn"
-            :class="{ active: ocrMode === 'manual' }"
-            @click="setOcrMode('manual')"
-          >
-            {{ t('Manual') }}
-          </button>
-          <button
-            type="button"
-            class="pdft-choice-btn"
-            :class="{ active: ocrMode === 'auto' }"
-            @click="setOcrMode('auto')"
-          >
-            {{ t('Automatic') }}
-          </button>
-        </div>
-      </div>
-
-      <div class="env-lang-card">
-        <div class="env-lang-header">
-          <span class="env-lang-dot" :class="draft.noWatermarkMode ? 'good' : 'none'"></span>
-          <span class="env-lang-name">{{ t('Prefer no-watermark outputs when available') }}</span>
-          <span class="env-lang-version">{{ draft.noWatermarkMode ? t('Enabled') : t('Disabled') }}</span>
-          <div class="pdft-card-spacer"></div>
-          <button
-            class="tool-toggle-switch"
-            :class="{ on: draft.noWatermarkMode }"
-            @click="draft.noWatermarkMode = !draft.noWatermarkMode"
-          >
-            <span class="tool-toggle-knob"></span>
-          </button>
-        </div>
-      </div>
-
-      <div class="env-lang-card">
-        <div class="env-lang-header">
-          <span class="env-lang-dot" :class="draft.saveAutoExtractedGlossary ? 'warn' : 'none'"></span>
-          <span class="env-lang-name">{{ t('Save automatically extracted glossary (CSV)') }}</span>
-          <span class="env-lang-version">{{ draft.saveAutoExtractedGlossary ? t('Enabled') : t('Disabled') }}</span>
-          <div class="pdft-card-spacer"></div>
-          <button
-            class="tool-toggle-switch"
-            :class="{ on: draft.saveAutoExtractedGlossary }"
-            @click="draft.saveAutoExtractedGlossary = !draft.saveAutoExtractedGlossary"
-          >
-            <span class="tool-toggle-knob"></span>
-          </button>
         </div>
       </div>
 
@@ -327,17 +198,19 @@
               </label>
             </div>
 
-            <div class="pdft-inline-setting" v-for="field in qualityToggleFields" :key="field.key">
-              <div class="pdft-inline-copy">
-                <div class="pdft-inline-label">{{ t(field.labelKey) }}</div>
-                <div v-if="field.hintKey" class="pdft-field-hint">{{ t(field.hintKey) }}</div>
+            <div class="pdft-toggle-grid">
+              <div v-for="field in qualityToggleFields" :key="field.key" class="pdft-toggle-row">
+                <div class="pdft-inline-copy">
+                  <div class="pdft-inline-label">{{ t(field.labelKey) }}</div>
+                  <div v-if="field.hintKey" class="pdft-field-hint">{{ t(field.hintKey) }}</div>
+                </div>
+                <button class="tool-toggle-switch" :class="{ on: draft[field.key] }" @click="draft[field.key] = !draft[field.key]">
+                  <span class="tool-toggle-knob"></span>
+                </button>
               </div>
-              <button class="tool-toggle-switch" :class="{ on: draft[field.key] }" @click="draft[field.key] = !draft[field.key]">
-                <span class="tool-toggle-knob"></span>
-              </button>
             </div>
 
-            <label v-for="field in qualityTextFields" :key="field.key" class="pdft-field pdft-field-block">
+            <label v-for="field in qualityTextFields" :key="field.key" class="pdft-field pdft-field-span-2">
               <span class="pdft-label">{{ t(field.labelKey) }}</span>
               <textarea
                 v-model="draft[field.key]"
@@ -354,7 +227,7 @@
             <div class="pdft-inline-label">{{ t('Layout & segmentation') }}</div>
 
             <div class="pdft-form-grid">
-              <label v-for="field in layoutTextFields" :key="field.key" class="pdft-field">
+              <label v-for="field in layoutTextFields" :key="field.key" class="pdft-field pdft-field-span-2">
                 <span class="pdft-label">{{ t(field.labelKey) }}</span>
                 <input
                   v-model="draft[field.key]"
@@ -380,14 +253,16 @@
               </label>
             </div>
 
-            <div class="pdft-inline-setting" v-for="field in layoutToggleFields" :key="field.key">
-              <div class="pdft-inline-copy">
-                <div class="pdft-inline-label">{{ t(field.labelKey) }}</div>
-                <div v-if="field.hintKey" class="pdft-field-hint">{{ t(field.hintKey) }}</div>
+            <div class="pdft-toggle-grid">
+              <div v-for="field in layoutToggleFields" :key="field.key" class="pdft-toggle-row">
+                <div class="pdft-inline-copy">
+                  <div class="pdft-inline-label">{{ t(field.labelKey) }}</div>
+                  <div v-if="field.hintKey" class="pdft-field-hint">{{ t(field.hintKey) }}</div>
+                </div>
+                <button class="tool-toggle-switch" :class="{ on: draft[field.key] }" @click="draft[field.key] = !draft[field.key]">
+                  <span class="tool-toggle-knob"></span>
+                </button>
               </div>
-              <button class="tool-toggle-switch" :class="{ on: draft[field.key] }" @click="draft[field.key] = !draft[field.key]">
-                <span class="tool-toggle-knob"></span>
-              </button>
             </div>
           </div>
 
@@ -421,14 +296,16 @@
               </label>
             </div>
 
-            <div class="pdft-inline-setting" v-for="field in formulaToggleFields" :key="field.key">
-              <div class="pdft-inline-copy">
-                <div class="pdft-inline-label">{{ t(field.labelKey) }}</div>
-                <div v-if="field.hintKey" class="pdft-field-hint">{{ t(field.hintKey) }}</div>
+            <div class="pdft-toggle-grid">
+              <div v-for="field in formulaToggleFields" :key="field.key" class="pdft-toggle-row">
+                <div class="pdft-inline-copy">
+                  <div class="pdft-inline-label">{{ t(field.labelKey) }}</div>
+                  <div v-if="field.hintKey" class="pdft-field-hint">{{ t(field.hintKey) }}</div>
+                </div>
+                <button class="tool-toggle-switch" :class="{ on: draft[field.key] }" @click="draft[field.key] = !draft[field.key]">
+                  <span class="tool-toggle-knob"></span>
+                </button>
               </div>
-              <button class="tool-toggle-switch" :class="{ on: draft[field.key] }" @click="draft[field.key] = !draft[field.key]">
-                <span class="tool-toggle-knob"></span>
-              </button>
             </div>
           </div>
         </div>
@@ -506,17 +383,38 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { usePdfTranslateStore } from '../../stores/pdfTranslate'
 import { useEnvironmentStore } from '../../stores/environment'
 import { useI18n } from '../../i18n'
-import { findModelById, getFirstModelForProvider, groupModelsByProvider } from '../../services/modelCatalog'
+import { findModelById, groupModelsByProvider, providerLabel } from '../../services/modelCatalog'
 import { createDefaultPdfTranslateSettings } from '../../domains/document/pdfTranslateRuntime'
 
 const { t } = useI18n()
 const pdfTranslateStore = usePdfTranslateStore()
 const envStore = useEnvironmentStore()
 const saved = ref(false)
-const selectedProviderId = ref('')
 const showAdvancedTuning = ref(false)
 
 const draft = reactive(createDefaultPdfTranslateSettings())
+
+const topLevelToggleFields = [
+  {
+    key: 'enhanceCompatibility',
+    labelKey: 'Enhance compatibility',
+  },
+  {
+    key: 'autoEnhanceFormulaDensePages',
+    labelKey: 'Auto-enhance formula-dense pages',
+    hintKey: 'If a formula-heavy page looks fragmented after the first pass, Altals retries with safer layout protection automatically.',
+  },
+  {
+    key: 'translateTableText',
+    labelKey: 'Translate table text',
+    hintKey: 'Translate detected table content when supported.',
+  },
+  {
+    key: 'autoMapPoolMaxWorkers',
+    labelKey: 'Auto-map worker pool from QPS',
+    hintKey: 'When enabled, the runtime uses qps * 10 (capped at 1000) unless you set a worker pool explicitly.',
+  },
+]
 
 const qualityNumberFields = [
   {
@@ -567,6 +465,11 @@ const qualityToggleFields = [
     key: 'ignoreCache',
     labelKey: 'Ignore translation cache',
     hintKey: 'Force a fresh translation even if cached results exist.',
+  },
+  {
+    key: 'saveAutoExtractedGlossary',
+    labelKey: 'Save automatically extracted glossary (CSV)',
+    hintKey: 'When enabled, Altals keeps a glossary CSV beside the translated PDF.',
   },
 ]
 
@@ -623,6 +526,11 @@ const layoutToggleFields = [
     key: 'onlyIncludeTranslatedPage',
     labelKey: 'Only include translated pages',
     hintKey: 'Omit untouched pages from the generated output when page ranges are used.',
+  },
+  {
+    key: 'noWatermarkMode',
+    labelKey: 'Prefer no-watermark outputs when available',
+    hintKey: 'Prefer cleaner PDF outputs when the translation runtime can produce them.',
   },
 ]
 
@@ -712,6 +620,7 @@ const sourceLanguages = computed(() => ([
   { value: 'pt', label: t('Portuguese (pt)') },
 ]))
 
+const targetLanguages = computed(() => sourceLanguages.value.filter(item => item.value !== 'auto'))
 const outputModes = computed(() => ([
   { value: 'mono', label: t('Translated only') },
   { value: 'dual', label: t('Bilingual PDF') },
@@ -727,20 +636,15 @@ const fontFamilies = computed(() => ([
   { value: 'sans-serif', label: t('Sans-serif') },
   { value: 'script', label: t('Script') },
 ]))
+const ocrModes = computed(() => ([
+  { value: 'off', label: t('Off') },
+  { value: 'manual', label: t('Manual') },
+  { value: 'auto', label: t('Automatic') },
+]))
 
-const targetLanguages = computed(() => sourceLanguages.value.filter(item => item.value !== 'auto'))
 const compatibleModels = computed(() => pdfTranslateStore.compatibleModels)
 const compatibleModelGroups = computed(() => groupModelsByProvider(compatibleModels.value))
-const selectedProviderGroup = computed(() => (
-  compatibleModelGroups.value.find(group => group.provider === selectedProviderId.value)
-  || compatibleModelGroups.value[0]
-  || null
-))
-const selectedProviderModels = computed(() => selectedProviderGroup.value?.models || [])
-const selectedProviderLabel = computed(() => selectedProviderGroup.value?.label || t('Not configured'))
-const selectedModelLabel = computed(() => (
-  selectedProviderModels.value.find(model => model.id === draft.modelId)?.name || t('Not configured')
-))
+const selectedModel = computed(() => findModelById(compatibleModels.value, draft.modelId))
 
 const runtimeDotClass = computed(() => {
   const status = pdfTranslateStore.runtimeStatus?.status
@@ -764,27 +668,31 @@ function optionLabel(options, value, fallback = '') {
 }
 
 const modelSummary = computed(() => (
-  compatibleModels.value.length === 0
-    ? t('Not configured')
-    : `${selectedProviderLabel.value} · ${selectedModelLabel.value}`
+  selectedModel.value
+    ? `${providerLabel(selectedModel.value.provider)} · ${selectedModel.value.name}`
+    : t('Not configured')
 ))
 
-const languageSummary = computed(() => (
-  `${optionLabel(sourceLanguages.value, draft.langIn, draft.langIn)} -> ${optionLabel(targetLanguages.value, draft.langOut, draft.langOut)}`
+const throughputSummary = computed(() => (
+  draft.autoMapPoolMaxWorkers
+    ? `${draft.qps} QPS · ${t('Auto')}`
+    : `${draft.qps} QPS`
 ))
 
-const outputModeLabel = computed(() => optionLabel(outputModes.value, draft.mode, draft.mode))
-const dualLayoutLabel = computed(() => optionLabel(dualLayouts.value, draft.dualLayout, draft.dualLayout))
-const fontFamilyLabel = computed(() => optionLabel(fontFamilies.value, draft.fontFamily, draft.fontFamily))
-const throughputSummary = computed(() => `${draft.qps} QPS`)
-const ocrMode = computed(() => (
-  draft.autoEnableOcrWorkaround ? 'auto' : draft.ocrWorkaround ? 'manual' : 'off'
-))
-const ocrModeLabel = computed(() => {
-  if (ocrMode.value === 'auto') return t('Automatic')
-  if (ocrMode.value === 'manual') return t('Manual')
-  return t('Off')
+const ocrModeValue = computed({
+  get() {
+    if (draft.autoEnableOcrWorkaround) return 'auto'
+    if (draft.ocrWorkaround) return 'manual'
+    return 'off'
+  },
+  set(mode) {
+    draft.ocrWorkaround = mode === 'manual'
+    draft.autoEnableOcrWorkaround = mode === 'auto'
+  },
 })
+
+const ocrModeLabel = computed(() => optionLabel(ocrModes.value, ocrModeValue.value, ocrModeValue.value))
+const processingSummary = computed(() => `${ocrModeLabel.value} · ${throughputSummary.value}`)
 
 const advancedSettingsCustomized = computed(() => (
   advancedSettingKeys.some((key) => JSON.stringify(draft[key]) !== JSON.stringify(defaultPdfTranslateSettings[key]))
@@ -792,6 +700,17 @@ const advancedSettingsCustomized = computed(() => (
 const advancedSummaryLabel = computed(() => (
   advancedSettingsCustomized.value ? t('Customized') : t('Defaults')
 ))
+
+function ensureModelSelection() {
+  if (compatibleModels.value.length === 0) {
+    draft.modelId = ''
+    return
+  }
+
+  if (!selectedModel.value) {
+    draft.modelId = compatibleModels.value.find(model => model.default)?.id || compatibleModels.value[0]?.id || ''
+  }
+}
 
 function draftSnapshot() {
   return JSON.parse(JSON.stringify(draft))
@@ -801,35 +720,6 @@ const isDirty = computed(() => JSON.stringify(draftSnapshot()) !== JSON.stringif
 
 function syncDraft() {
   Object.assign(draft, createDefaultPdfTranslateSettings(), pdfTranslateStore.settings)
-}
-
-function preferredProviderId() {
-  return findModelById(compatibleModels.value, draft.modelId)?.provider
-    || compatibleModelGroups.value[0]?.provider
-    || ''
-}
-
-function ensureProviderSelection(preferCurrent = false) {
-  if (compatibleModelGroups.value.length === 0) {
-    selectedProviderId.value = ''
-    if (draft.modelId) draft.modelId = ''
-    return
-  }
-
-  const hasSelected = compatibleModelGroups.value.some(group => group.provider === selectedProviderId.value)
-  if (preferCurrent || !hasSelected) {
-    selectedProviderId.value = preferredProviderId()
-  }
-
-  const currentModel = findModelById(compatibleModels.value, draft.modelId)
-  if (!currentModel || currentModel.provider !== selectedProviderId.value) {
-    draft.modelId = getFirstModelForProvider(compatibleModels.value, selectedProviderId.value)?.id || ''
-  }
-}
-
-function setOcrMode(mode) {
-  draft.ocrWorkaround = mode === 'manual'
-  draft.autoEnableOcrWorkaround = mode === 'auto'
 }
 
 function markSaved() {
@@ -888,22 +778,13 @@ function warmPdfTranslatePanel() {
 }
 
 watch(() => pdfTranslateStore.settings, syncDraft, { deep: true })
-watch(() => draft.modelId, () => {
-  ensureProviderSelection(true)
-})
-watch(selectedProviderId, (providerId, previousProviderId) => {
-  if (!providerId || providerId === previousProviderId) return
-  const currentModel = findModelById(compatibleModels.value, draft.modelId)
-  if (currentModel?.provider === providerId) return
-  draft.modelId = getFirstModelForProvider(compatibleModels.value, providerId)?.id || ''
-})
-watch(compatibleModelGroups, () => {
-  ensureProviderSelection()
-}, { immediate: true, deep: true })
+watch(compatibleModels, ensureModelSelection, { immediate: true, deep: true })
+watch(() => draft.modelId, ensureModelSelection)
 
 onMounted(async () => {
   await pdfTranslateStore.loadSettings()
   syncDraft()
+  ensureModelSelection()
   warmPdfTranslatePanel()
 })
 </script>
@@ -937,10 +818,6 @@ onMounted(async () => {
   min-width: 0;
 }
 
-.pdft-card-spacer {
-  flex: 1;
-}
-
 .pdft-section-pad {
   padding-left: 14px;
 }
@@ -957,6 +834,10 @@ onMounted(async () => {
   flex-direction: column;
   gap: 4px;
   min-width: 0;
+}
+
+.pdft-field-span-2 {
+  grid-column: 1 / -1;
 }
 
 .pdft-label,
@@ -1074,55 +955,23 @@ onMounted(async () => {
   border-color: rgba(247, 118, 142, 0.18);
 }
 
-.pdft-choice-grid {
-  margin-top: 8px;
+.pdft-toggle-grid {
+  margin-top: 10px;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 6px;
-}
-
-.pdft-choice-btn {
-  min-height: 32px;
-  padding: 6px 8px;
-  border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01)),
-    var(--bg-primary);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
-  font-size: var(--ui-font-label);
-  font-family: inherit;
-  color: var(--fg-secondary);
-  font-weight: 600;
-  text-align: center;
-  cursor: pointer;
-  transition: background 150ms, color 150ms, border-color 150ms;
-}
-
-.pdft-choice-btn:hover {
-  border-color: rgba(255, 255, 255, 0.18);
-  background: var(--bg-hover);
-  color: var(--fg-primary);
-}
-
-.pdft-choice-btn.active {
-  background: linear-gradient(180deg, rgba(122, 162, 247, 0.95), rgba(122, 162, 247, 0.82));
-  border-color: var(--accent);
-  color: #fff;
-  box-shadow:
-    0 0 0 1px rgba(122, 162, 247, 0.14),
-    inset 0 1px 0 rgba(255, 255, 255, 0.16);
-}
-
-.pdft-inline-setting {
-  margin-top: 8px;
-}
-
-.pdft-inline-setting {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
+}
+
+.pdft-toggle-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: color-mix(in srgb, var(--bg-secondary) 82%, transparent);
 }
 
 .pdft-inline-copy {
@@ -1142,15 +991,11 @@ onMounted(async () => {
 .pdft-advanced-group {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   padding: 10px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
   background: color-mix(in srgb, var(--bg-secondary) 80%, transparent);
-}
-
-.pdft-field-block {
-  margin-top: 2px;
 }
 
 .pdft-inline-warning {
@@ -1208,50 +1053,43 @@ onMounted(async () => {
 }
 
 .pdft-toolbar-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 26px;
-  padding: 4px 9px;
-  border-radius: 4px;
+  min-height: 24px;
+  padding: 0 9px;
+  border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  background: var(--bg-primary);
+  background: transparent;
   color: var(--fg-secondary);
-  font-size: var(--ui-font-caption);
+  font-size: var(--ui-font-micro);
   cursor: pointer;
-  transition: border-color 0.15s, color 0.15s, background 0.15s;
-  white-space: nowrap;
-  flex-shrink: 0;
-  align-self: flex-start;
-}
-
-.pdft-toolbar-btn:hover {
-  border-color: rgba(255, 255, 255, 0.2);
-  color: var(--fg-primary);
-  background: var(--bg-hover);
 }
 
 .pdft-toolbar-btn:disabled {
-  opacity: 0.5;
-  cursor: wait;
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.pdft-save-row {
+  margin-top: 4px;
+  justify-content: flex-end;
 }
 
 .pdft-action-btn--save {
   width: auto;
+  min-width: 124px;
 }
 
 .pdft-progress-track {
-  margin: 8px 14px 0;
-  height: 4px;
+  margin-top: 8px;
+  height: 6px;
   border-radius: 999px;
-  background: var(--bg-tertiary);
+  background: rgba(255, 255, 255, 0.08);
   overflow: hidden;
 }
 
 .pdft-progress-fill {
   height: 100%;
-  background: var(--accent);
-  transition: width 0.2s ease;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(122, 162, 247, 0.9), rgba(122, 162, 247, 0.55));
 }
 
 .pdft-runtime-error {
@@ -1263,76 +1101,27 @@ onMounted(async () => {
 
 .pdft-log-shell {
   margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid var(--border);
 }
 
 .pdft-log {
-  margin: 4px 0 0;
+  margin: 6px 0 0;
+  padding: 8px 10px;
   max-height: 180px;
   overflow: auto;
-  border-radius: 6px;
-  background: var(--bg-secondary);
-  padding: 8px 10px;
-  font-family: var(--font-mono);
-  font-size: var(--ui-font-micro);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.18);
+  color: var(--fg-secondary);
+  font-size: 11px;
   line-height: 1.5;
-  color: var(--fg-muted);
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
-.pdft-save-row {
-  justify-content: flex-end;
-  align-items: center;
-  gap: 8px;
-}
-
-.env-lang-dot.bad {
-  background: var(--error);
-}
-
-.pdft-shell-compact :deep(.settings-section-title) {
-  margin-bottom: 10px;
-}
-
-.pdft-shell-compact :deep(.env-lang-card) {
-  padding: 8px 10px;
-  border-radius: 6px;
-}
-
-.pdft-shell-compact :deep(.env-lang-header) {
-  gap: 6px;
-  min-height: 20px;
-}
-
-.pdft-shell-compact :deep(.env-lang-name) {
-  font-size: var(--ui-font-caption);
-  font-weight: 600;
-}
-
-.pdft-shell-compact :deep(.env-lang-version) {
-  font-size: var(--ui-font-micro);
-}
-
-@media (max-width: 640px) {
+@media (max-width: 700px) {
   .pdft-form-grid,
+  .pdft-toggle-grid,
   .pdft-runtime-actions {
-    grid-template-columns: 1fr;
-  }
-
-  .pdft-inline-setting,
-  .pdft-save-row {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .pdft-choice-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 420px) {
-  .pdft-choice-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 </style>

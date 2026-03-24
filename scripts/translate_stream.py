@@ -6,10 +6,12 @@ from __future__ import annotations
 import argparse
 import asyncio
 import contextlib
+from dataclasses import dataclass
 import importlib
 import json
 import os
 import platform
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -40,6 +42,19 @@ HEARTBEAT_INTERVAL_SECONDS = 5.0
 STARTUP_IDLE_TIMEOUT_SECONDS = 60.0
 RUNNING_IDLE_TIMEOUT_SECONDS = 300.0
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+for search_path in (SCRIPT_DIR, SCRIPT_DIR.parent):
+    search_path_str = str(search_path)
+    if search_path_str not in sys.path:
+        sys.path.insert(0, search_path_str)
+
+from pdf_translate_formula_guard import (  # noqa: E402
+    analyze_pdf_text_metrics,
+    build_formula_safe_retry_pdf_kwargs,
+    decide_formula_safe_retry,
+    retry_profile_already_applied,
+)
+
 
 def configure_stdio() -> None:
     for stream_name in ("stdout", "stderr"):
@@ -57,6 +72,13 @@ def configure_stdio() -> None:
 
 
 configure_stdio()
+
+
+@dataclass
+class StreamRunResult:
+    exit_code: int
+    finish_event: dict[str, Any] | None = None
+    error_event: dict[str, Any] | None = None
 
 
 def emit(event: dict[str, Any]) -> None:
@@ -121,6 +143,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--save-auto-extracted-glossary", type=parse_bool)
     parser.add_argument("--no-auto-extract-glossary", type=parse_bool)
     parser.add_argument("--enhance-compatibility", type=parse_bool)
+    parser.add_argument("--auto-enhance-formula-dense-pages", type=parse_bool)
     parser.add_argument("--translate-table-text", type=parse_bool)
     parser.add_argument("--only-include-translated-page", type=parse_bool)
     parser.add_argument("--translation-extra-json")
@@ -581,6 +604,89 @@ def guess_output_paths(
     )
 
 
+def select_analysis_output_path(translate_result: dict[str, Any] | None, mode: str) -> str | None:
+    result = translate_result or {}
+    mono_output = result.get("mono_pdf_path") or result.get("no_watermark_mono_pdf_path")
+    dual_output = result.get("dual_pdf_path") or result.get("no_watermark_dual_pdf_path")
+
+    if mode == "mono":
+        return mono_output or dual_output
+    if mode == "dual":
+        return dual_output or mono_output
+    return dual_output or mono_output
+
+
+def collect_translation_artifacts(finish_event: dict[str, Any] | None) -> dict[str, Path]:
+    result = (finish_event or {}).get("translate_result") or {}
+    artifacts: dict[str, Path] = {}
+
+    for key in (
+        "mono_pdf_path",
+        "dual_pdf_path",
+        "no_watermark_mono_pdf_path",
+        "no_watermark_dual_pdf_path",
+        "auto_extracted_glossary_path",
+    ):
+        raw_path = clean(result.get(key))
+        if raw_path:
+            artifacts[key] = Path(raw_path)
+
+    return artifacts
+
+
+def backup_translation_artifacts(artifacts: dict[str, Path]) -> tuple[Path | None, dict[str, tuple[Path, Path]]]:
+    existing_artifacts = {
+        key: path
+        for key, path in artifacts.items()
+        if path.exists() and path.is_file()
+    }
+    if not existing_artifacts:
+        return None, {}
+
+    backup_dir = Path(tempfile.mkdtemp(prefix="pdf-translate-formula-retry-"))
+    backups: dict[str, tuple[Path, Path]] = {}
+    for key, path in existing_artifacts.items():
+        backup_path = backup_dir / f"{key}{path.suffix}"
+        shutil.copy2(path, backup_path)
+        backups[key] = (path, backup_path)
+
+    return backup_dir, backups
+
+
+def restore_translation_artifacts(backups: dict[str, tuple[Path, Path]]) -> None:
+    for original_path, backup_path in backups.values():
+        original_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(backup_path, original_path)
+
+
+def cleanup_translation_artifact_backup(backup_dir: Path | None) -> None:
+    if backup_dir is None:
+        return
+    shutil.rmtree(backup_dir, ignore_errors=True)
+
+
+def build_formula_retry_event(decision: Any) -> dict[str, Any]:
+    return {
+        "type": "progress_update",
+        "stage": "检测到公式密集页面存在版面碎裂，正在使用更保守的公式保护参数重试…",
+        "overall_progress": 96.0,
+        "formula_safe_retry": True,
+        "formula_safe_retry_reason": decision.reason,
+        "formula_safe_retry_metrics": decision.to_log_dict(),
+    }
+
+
+def build_formula_retry_fallback_event(reason: str) -> dict[str, Any]:
+    return {
+        "type": "progress_update",
+        "stage": "公式保护重试未成功，已保留首次翻译结果。",
+        "overall_progress": 97.0,
+        "formula_safe_retry": True,
+        "formula_safe_retry_fallback": True,
+        "formula_safe_retry_reason": reason,
+    }
+
+
 async def process_event_stream(
     event_stream: Any,
     *,
@@ -593,11 +699,15 @@ async def process_event_stream(
     heartbeat_interval_seconds: float = HEARTBEAT_INTERVAL_SECONDS,
     startup_idle_timeout_seconds: float = STARTUP_IDLE_TIMEOUT_SECONDS,
     running_idle_timeout_seconds: float = RUNNING_IDLE_TIMEOUT_SECONDS,
-) -> int:
+    emit_errors: bool = True,
+    defer_finish: bool = False,
+) -> StreamRunResult:
     loop = asyncio.get_running_loop()
     last_event_time = loop.time()
     has_received_event = False
     has_finish_event = False
+    finish_event: dict[str, Any] | None = None
+    error_event: dict[str, Any] | None = None
     pending_next = asyncio.create_task(anext(event_stream))
 
     try:
@@ -614,8 +724,15 @@ async def process_event_stream(
                     else startup_idle_timeout_seconds
                 )
                 if idle_seconds >= idle_timeout:
-                    emit_func(build_timeout_error_event(idle_seconds, has_received_event))
-                    return 1
+                    timeout_event = build_timeout_error_event(idle_seconds, has_received_event)
+                    error_event = timeout_event
+                    if emit_errors:
+                        emit_func(timeout_event)
+                    return StreamRunResult(
+                        exit_code=1,
+                        finish_event=finish_event,
+                        error_event=error_event,
+                    )
                 emit_func(build_heartbeat_event(idle_seconds, has_received_event))
                 continue
 
@@ -627,9 +744,18 @@ async def process_event_stream(
             has_received_event = True
             last_event_time = loop.time()
             serialized = serialize_event(event, keep_glossary=keep_glossary)
-            if serialized.get("type") == "finish":
+            event_type = serialized.get("type")
+            if event_type == "finish":
                 has_finish_event = True
-            emit_func(serialized)
+                finish_event = serialized
+                if not defer_finish:
+                    emit_func(serialized)
+            elif event_type == "error":
+                error_event = serialized
+                if emit_errors:
+                    emit_func(serialized)
+            else:
+                emit_func(serialized)
             pending_next = asyncio.create_task(anext(event_stream))
     finally:
         if pending_next and not pending_next.done():
@@ -646,34 +772,35 @@ async def process_event_stream(
             mode=mode,
         )
         if mono_path or dual_path:
-            emit_func(
-                {
-                    "type": "finish",
-                    "synthetic_finish": True,
-                    "translate_result": {
-                        "original_pdf_path": str(input_path),
-                        "mono_pdf_path": mono_path,
-                        "dual_pdf_path": dual_path,
-                        "no_watermark_mono_pdf_path": None,
-                        "no_watermark_dual_pdf_path": None,
-                        "auto_extracted_glossary_path": None,
-                        "total_seconds": None,
-                        "peak_memory_usage": None,
-                    },
-                }
-            )
-            return 0
-
-        emit_func(
-            {
-                "type": "error",
-                "error": "翻译流程异常结束：未收到 finish 事件且未检测到输出文件。",
-                "error_type": "TranslationIncompleteError",
+            finish_event = {
+                "type": "finish",
+                "synthetic_finish": True,
+                "translate_result": {
+                    "original_pdf_path": str(input_path),
+                    "mono_pdf_path": mono_path,
+                    "dual_pdf_path": dual_path,
+                    "no_watermark_mono_pdf_path": None,
+                    "no_watermark_dual_pdf_path": None,
+                    "auto_extracted_glossary_path": None,
+                    "total_seconds": None,
+                    "peak_memory_usage": None,
+                },
             }
-        )
-        return 1
+            if not defer_finish:
+                emit_func(finish_event)
+            return StreamRunResult(exit_code=0, finish_event=finish_event, error_event=error_event)
 
-    return 0
+        incomplete_error = {
+            "type": "error",
+            "error": "翻译流程异常结束：未收到 finish 事件且未检测到输出文件。",
+            "error_type": "TranslationIncompleteError",
+        }
+        error_event = error_event or incomplete_error
+        if emit_errors:
+            emit_func(incomplete_error)
+        return StreamRunResult(exit_code=1, finish_event=finish_event, error_event=error_event)
+
+    return StreamRunResult(exit_code=0, finish_event=finish_event, error_event=error_event)
 
 
 async def run() -> int:
@@ -705,65 +832,145 @@ async def run() -> int:
     provider_extra = parse_json_object(args.provider_extra_json, "--provider-extra-json")
 
     engine_settings = build_engine_settings(args, provider_extra=provider_extra)
-
-    translation_kwargs = filter_model_kwargs(TranslationSettings, {
-        **translation_extra,
-        "lang_in": args.lang_in,
-        "lang_out": args.lang_out,
-        "output": str(output_dir),
-        "qps": max(MIN_QPS, min(args.qps, MAX_QPS)),
-    })
-    resolved_pool_max_workers = resolve_pool_max_workers(args)
-    if resolved_pool_max_workers is not None:
-        translation_kwargs["pool_max_workers"] = resolved_pool_max_workers
-    if args.primary_font_family:
-        font_family = args.primary_font_family.strip().lower()
-        if font_family and font_family != "auto":
-            translation_kwargs["primary_font_family"] = font_family
-    if args.save_auto_extracted_glossary is not None:
-        translation_kwargs["save_auto_extracted_glossary"] = args.save_auto_extracted_glossary
-    if args.no_auto_extract_glossary is not None:
-        translation_kwargs["no_auto_extract_glossary"] = args.no_auto_extract_glossary
-
     final_no_dual = args.mode == "mono"
     final_no_mono = args.mode == "dual"
     keep_glossary = args.save_auto_extracted_glossary is True
+    auto_enhance_formula_dense_pages = args.auto_enhance_formula_dense_pages is not False
 
-    pdf_kwargs = filter_model_kwargs(PDFSettings, {
-        **pdf_extra,
-        "no_dual": final_no_dual,
-        "no_mono": final_no_mono,
-    })
-    if args.use_alternating_pages_dual is not None:
-        pdf_kwargs["use_alternating_pages_dual"] = args.use_alternating_pages_dual
-    if args.enhance_compatibility is not None:
-        pdf_kwargs["enhance_compatibility"] = args.enhance_compatibility
-    if args.translate_table_text is not None:
-        pdf_kwargs["translate_table_text"] = args.translate_table_text
-    if args.ocr_workaround is not None:
-        pdf_kwargs["ocr_workaround"] = args.ocr_workaround
-    if args.auto_enable_ocr_workaround is not None:
-        pdf_kwargs["auto_enable_ocr_workaround"] = args.auto_enable_ocr_workaround
-    if args.only_include_translated_page is not None:
-        pdf_kwargs["only_include_translated_page"] = args.only_include_translated_page
-    if args.no_watermark_mode is not None:
-        pdf_kwargs["watermark_output_mode"] = "no_watermark" if args.no_watermark_mode else "watermarked"
+    def build_settings(
+        *,
+        pdf_kwargs_override: dict[str, Any] | None = None,
+    ) -> tuple[Any, dict[str, Any]]:
+        translation_kwargs = filter_model_kwargs(TranslationSettings, {
+            **translation_extra,
+            "lang_in": args.lang_in,
+            "lang_out": args.lang_out,
+            "output": str(output_dir),
+            "qps": max(MIN_QPS, min(args.qps, MAX_QPS)),
+        })
+        resolved_pool_max_workers = resolve_pool_max_workers(args)
+        if resolved_pool_max_workers is not None:
+            translation_kwargs["pool_max_workers"] = resolved_pool_max_workers
+        if args.primary_font_family:
+            font_family = args.primary_font_family.strip().lower()
+            if font_family and font_family != "auto":
+                translation_kwargs["primary_font_family"] = font_family
+        if args.save_auto_extracted_glossary is not None:
+            translation_kwargs["save_auto_extracted_glossary"] = args.save_auto_extracted_glossary
+        if args.no_auto_extract_glossary is not None:
+            translation_kwargs["no_auto_extract_glossary"] = args.no_auto_extract_glossary
 
-    settings = SettingsModel(
-        basic=BasicSettings(input_files={str(input_path)}),
-        translation=TranslationSettings(**translation_kwargs),
-        pdf=PDFSettings(**pdf_kwargs),
-        translate_engine_settings=engine_settings,
-    )
+        pdf_kwargs = filter_model_kwargs(PDFSettings, {
+            **pdf_extra,
+            "no_dual": final_no_dual,
+            "no_mono": final_no_mono,
+        })
+        if args.use_alternating_pages_dual is not None:
+            pdf_kwargs["use_alternating_pages_dual"] = args.use_alternating_pages_dual
+        if args.enhance_compatibility is not None:
+            pdf_kwargs["enhance_compatibility"] = args.enhance_compatibility
+        if args.translate_table_text is not None:
+            pdf_kwargs["translate_table_text"] = args.translate_table_text
+        if args.ocr_workaround is not None:
+            pdf_kwargs["ocr_workaround"] = args.ocr_workaround
+        if args.auto_enable_ocr_workaround is not None:
+            pdf_kwargs["auto_enable_ocr_workaround"] = args.auto_enable_ocr_workaround
+        if args.only_include_translated_page is not None:
+            pdf_kwargs["only_include_translated_page"] = args.only_include_translated_page
+        if args.no_watermark_mode is not None:
+            pdf_kwargs["watermark_output_mode"] = "no_watermark" if args.no_watermark_mode else "watermarked"
+        if pdf_kwargs_override:
+            pdf_kwargs = filter_model_kwargs(PDFSettings, {
+                **pdf_kwargs,
+                **pdf_kwargs_override,
+            })
 
-    return await process_event_stream(
-        do_translate_async_stream(settings, input_path),
+        settings = SettingsModel(
+            basic=BasicSettings(input_files={str(input_path)}),
+            translation=TranslationSettings(**translation_kwargs),
+            pdf=PDFSettings(**pdf_kwargs),
+            translate_engine_settings=engine_settings,
+        )
+        return settings, pdf_kwargs
+
+    initial_settings, initial_pdf_kwargs = build_settings()
+    initial_result = await process_event_stream(
+        do_translate_async_stream(initial_settings, input_path),
         input_path=input_path,
         output_dir=output_dir,
         lang_out=args.lang_out,
         mode=args.mode,
         keep_glossary=keep_glossary,
+        defer_finish=True,
     )
+
+    if initial_result.exit_code != 0 or not initial_result.finish_event:
+        return initial_result.exit_code
+
+    if (
+        not auto_enhance_formula_dense_pages
+        or retry_profile_already_applied(initial_pdf_kwargs)
+    ):
+        emit(initial_result.finish_event)
+        return 0
+
+    analysis_output_path = select_analysis_output_path(
+        initial_result.finish_event.get("translate_result"),
+        args.mode,
+    )
+    if not analysis_output_path:
+        emit(initial_result.finish_event)
+        return 0
+
+    input_metrics = analyze_pdf_text_metrics(
+        input_path,
+        page_spec=initial_pdf_kwargs.get("pages"),
+    )
+    output_metrics = analyze_pdf_text_metrics(
+        analysis_output_path,
+        max_pages=6,
+    )
+    retry_decision = decide_formula_safe_retry(input_metrics, output_metrics)
+
+    if not retry_decision.should_retry:
+        emit(initial_result.finish_event)
+        return 0
+
+    emit(build_formula_retry_event(retry_decision))
+
+    retry_backup_dir, retry_backups = backup_translation_artifacts(
+        collect_translation_artifacts(initial_result.finish_event)
+    )
+    retry_settings, _ = build_settings(
+        pdf_kwargs_override=build_formula_safe_retry_pdf_kwargs(initial_pdf_kwargs)
+    )
+
+    try:
+        retry_result = await process_event_stream(
+            do_translate_async_stream(retry_settings, input_path),
+            input_path=input_path,
+            output_dir=output_dir,
+            lang_out=args.lang_out,
+            mode=args.mode,
+            keep_glossary=keep_glossary,
+            defer_finish=True,
+            emit_errors=False,
+        )
+        if retry_result.exit_code == 0 and retry_result.finish_event:
+            cleanup_translation_artifact_backup(retry_backup_dir)
+            emit(retry_result.finish_event)
+            return 0
+
+        restore_translation_artifacts(retry_backups)
+        emit(build_formula_retry_fallback_event(
+            retry_result.error_event.get("error_type", "retry-failed")
+            if retry_result.error_event
+            else "retry-failed"
+        ))
+        emit(initial_result.finish_event)
+        return 0
+    finally:
+        cleanup_translation_artifact_backup(retry_backup_dir)
 
 
 async def main() -> int:

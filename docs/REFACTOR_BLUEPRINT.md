@@ -200,6 +200,8 @@ The largest remaining frontend architectural bottlenecks include:
 
 The PDF translation settings surfaces now also expose higher-value upstream quality/layout controls (`custom system prompt`, raw glossary text, page ranges, segmentation/layout toggles, formula/scanned-PDF fallbacks, provider JSON/reasoning/temperature controls), while `src-tauri/src/pdf_translate.rs` plus `scripts/translate_stream.py` stay as a filtered pass-through that only forwards fields supported by the installed `pdf2zh_next` models.
 
+That backend pass-through is no longer purely one-shot for formula-heavy papers: `scripts/pdf_translate_formula_guard.py` now gives `translate_stream.py` a narrow retry-policy seam that detects formula-dense inputs plus suspicious translated inline-math fragmentation, then reruns the same task with a more conservative layout-protection profile before the final `finish` event is emitted.
+
 ##### Document workflow status
 
 `src/domains/document/documentWorkflowRuntime.js` now carries preview-pane reuse, split-right fallback, preview-session state updates, jump-to-preview routing, and reconcile/close-preview orchestration.

@@ -22,6 +22,7 @@ test('pdf translate runtime normalizes persisted settings and falls back to a co
     ocrWorkaround: true,
     autoEnableOcrWorkaround: true,
     enhanceCompatibility: 'yes',
+    autoEnhanceFormulaDensePages: false,
     translateTableText: false,
     saveAutoExtractedGlossary: true,
   }, {
@@ -43,6 +44,7 @@ test('pdf translate runtime normalizes persisted settings and falls back to a co
     ocrWorkaround: true,
     autoEnableOcrWorkaround: false,
     enhanceCompatibility: false,
+    autoEnhanceFormulaDensePages: false,
     translateTableText: false,
     saveAutoExtractedGlossary: true,
   })
@@ -122,6 +124,7 @@ test('pdf translate runtime builds requests with glossary and layout flags align
     autoEnableOcrWorkaround: false,
     noWatermarkMode: false,
     enhanceCompatibility: true,
+    autoEnhanceFormulaDensePages: true,
     translateTableText: true,
     saveAutoExtractedGlossary: false,
     noAutoExtractGlossary: true,

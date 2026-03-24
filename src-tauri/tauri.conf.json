@@ -29,7 +29,8 @@
     "createUpdaterArtifacts": false,
     "resources": [
       "../public/fonts",
-      "../scripts/translate_stream.py"
+      "../scripts/translate_stream.py",
+      "../scripts/pdf_translate_formula_guard.py"
     ],
     "icon": [
       "icons/32x32.png",

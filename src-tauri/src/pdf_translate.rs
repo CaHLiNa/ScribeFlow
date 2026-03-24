@@ -66,6 +66,7 @@ pub struct TranslationRequest {
     save_auto_extracted_glossary: Option<bool>,
     no_auto_extract_glossary: Option<bool>,
     enhance_compatibility: Option<bool>,
+    auto_enhance_formula_dense_pages: Option<bool>,
     translate_table_text: Option<bool>,
     only_include_translated_page: Option<bool>,
     translation_extra: Option<HashMap<String, Value>>,
@@ -696,6 +697,10 @@ async fn run_translation_task(
     if let Some(enhance_compatibility) = request.enhance_compatibility {
         cmd.arg("--enhance-compatibility")
             .arg(enhance_compatibility.to_string());
+    }
+    if let Some(auto_enhance_formula_dense_pages) = request.auto_enhance_formula_dense_pages {
+        cmd.arg("--auto-enhance-formula-dense-pages")
+            .arg(auto_enhance_formula_dense_pages.to_string());
     }
     if let Some(translate_table_text) = request.translate_table_text {
         cmd.arg("--translate-table-text")

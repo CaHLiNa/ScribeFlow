@@ -145,6 +145,7 @@ export function createDefaultPdfTranslateSettings() {
     autoEnableOcrWorkaround: false,
     noWatermarkMode: false,
     enhanceCompatibility: false,
+    autoEnhanceFormulaDensePages: true,
     translateTableText: true,
     saveAutoExtractedGlossary: false,
     minTextLength: PDF_TRANSLATE_DEFAULT_MIN_TEXT_LENGTH,
@@ -205,6 +206,7 @@ export function normalizePdfTranslateSettings(
   next.autoEnableOcrWorkaround = next.autoEnableOcrWorkaround === true
   next.noWatermarkMode = next.noWatermarkMode === true
   next.enhanceCompatibility = next.enhanceCompatibility === true
+  next.autoEnhanceFormulaDensePages = next.autoEnhanceFormulaDensePages !== false
   next.translateTableText = next.translateTableText !== false
   next.saveAutoExtractedGlossary = next.saveAutoExtractedGlossary === true
   next.minTextLength = clampInteger(next.minTextLength, {
@@ -309,6 +311,7 @@ export function buildPdfTranslateRequest({
     autoEnableOcrWorkaround: normalizedSettings.autoEnableOcrWorkaround,
     noWatermarkMode: normalizedSettings.noWatermarkMode,
     enhanceCompatibility: normalizedSettings.enhanceCompatibility,
+    autoEnhanceFormulaDensePages: normalizedSettings.autoEnhanceFormulaDensePages,
     translateTableText: normalizedSettings.translateTableText,
     saveAutoExtractedGlossary: normalizedSettings.saveAutoExtractedGlossary,
     noAutoExtractGlossary: normalizedSettings.saveAutoExtractedGlossary !== true,
