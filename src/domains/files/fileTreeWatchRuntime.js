@@ -1,6 +1,6 @@
-const ACTIVE_TREE_POLL_INTERVAL_MS = 5000
-const IDLE_TREE_POLL_INTERVAL_MS = 20000
-const TREE_ACTIVITY_WINDOW_MS = 30000
+const ACTIVE_TREE_POLL_INTERVAL_MS = 15000
+const IDLE_TREE_POLL_INTERVAL_MS = 60000
+const TREE_ACTIVITY_WINDOW_MS = 15000
 const WATCH_DEBOUNCE_MS = 300
 
 export function filterRelevantFileWatchPaths(paths = [], { workspacePath = '', workspaceDataDir = '' } = {}) {
@@ -49,10 +49,8 @@ export function createFileTreeWatchRuntime({
 
   function teardownActivityHooks() {
     if (!activityHandlers) return
-    const { markActivity, visibilityHandler } = activityHandlers
-    removeWindowListener('focus', markActivity)
-    removeWindowListener('mousedown', markActivity, true)
-    removeWindowListener('keydown', markActivity, true)
+    const { focusHandler, visibilityHandler } = activityHandlers
+    removeWindowListener('focus', focusHandler)
     removeDocumentListener('visibilitychange', visibilityHandler)
     activityHandlers = null
   }
@@ -94,12 +92,10 @@ export function createFileTreeWatchRuntime({
 
   function setupActivityHooks() {
     teardownActivityHooks()
-    const markActivity = () => noteTreeActivity()
+    const focusHandler = () => noteTreeActivity()
     const visibilityHandler = () => scheduleNextTreePoll()
-    activityHandlers = { markActivity, visibilityHandler }
-    addWindowListener('focus', markActivity)
-    addWindowListener('mousedown', markActivity, true)
-    addWindowListener('keydown', markActivity, true)
+    activityHandlers = { focusHandler, visibilityHandler }
+    addWindowListener('focus', focusHandler)
     addDocumentListener('visibilitychange', visibilityHandler)
   }
 

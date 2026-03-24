@@ -65,24 +65,16 @@
         <!-- Center: Editor panes + bottom panel -->
         <div class="app-shell-main flex-1 flex flex-col overflow-hidden" style="min-width: 200px;">
           <div class="flex-1 overflow-hidden relative">
-            <template v-if="workspace.isWorkspaceSurface">
-              <PaneContainer
-                :node="editorStore.paneTree"
+            <KeepAlive :max="3">
+              <component
+                :is="activeWorkbenchComponent"
+                :key="activeWorkbenchCacheKey"
+                v-bind="activeWorkbenchProps"
+                :class="activeWorkbenchClass"
                 @cursor-change="onCursorChange"
                 @editor-stats="onEditorStats"
               />
-            </template>
-
-            <GlobalLibraryWorkbench
-              v-else-if="workspace.isLibrarySurface"
-              class="h-full min-h-0 w-full"
-            />
-
-            <AiWorkbenchSurface
-              v-else-if="workspace.isAiSurface"
-              class="h-full min-h-0 w-full"
-            />
-
+            </KeepAlive>
           </div>
 
           <template v-if="workspace.isWorkspaceSurface">
@@ -162,7 +154,7 @@
 </template>
 
 <script setup>
-import { ref, computed, defineAsyncComponent } from 'vue'
+import { ref, computed, defineAsyncComponent, KeepAlive } from 'vue'
 import { useWorkspaceStore } from './stores/workspace'
 import { useFilesStore } from './stores/files'
 import { useEditorStore } from './stores/editor'
@@ -223,6 +215,22 @@ const WORKBENCH_RAIL_WIDTH = 44
 const supportsRightSidebar = computed(() => (
   workspace.isOpen
   && !workspace.isAiSurface
+))
+const activeWorkbenchComponent = computed(() => {
+  if (workspace.isLibrarySurface) return GlobalLibraryWorkbench
+  if (workspace.isAiSurface) return AiWorkbenchSurface
+  return PaneContainer
+})
+const activeWorkbenchCacheKey = computed(() => workspace.primarySurface || 'workspace')
+const activeWorkbenchProps = computed(() => (
+  workspace.isWorkspaceSurface
+    ? { node: editorStore.paneTree }
+    : {}
+))
+const activeWorkbenchClass = computed(() => (
+  workspace.isWorkspaceSurface
+    ? 'h-full min-h-0 w-full'
+    : 'h-full min-h-0 w-full'
 ))
 const {
   leftSidebarWidth,

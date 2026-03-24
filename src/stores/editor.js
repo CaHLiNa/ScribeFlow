@@ -486,6 +486,7 @@ export const useEditorStore = defineStore('editor', {
     },
 
     setActivePane(paneId) {
+      if (this.activePaneId === paneId) return
       this.activePaneId = paneId
       const pane = this.findPane(this.paneTree, paneId)
       if (pane?.activeTab) {

@@ -75,9 +75,9 @@ test('file tree watch runtime debounces fs-change events and triggers refresh fo
   await runtime.startWatching()
 
   assert.ok(fsChangeHandler)
-  assert.equal(windowListeners.length, 3)
+  assert.equal(windowListeners.length, 1)
   assert.equal(documentListeners.length, 1)
-  assert.ok(timers.some(timer => timer.delayMs === 5000))
+  assert.ok(timers.some(timer => timer.delayMs === 15000))
 
   await fsChangeHandler({
     payload: {
@@ -102,7 +102,7 @@ test('file tree watch runtime debounces fs-change events and triggers refresh fo
 
   currentVisibility = 'hidden'
   runtime.noteTreeActivity()
-  assert.equal(timers.filter(timer => timer.delayMs === 5000 || timer.delayMs === 20000).length >= 1, true)
+  assert.equal(timers.filter(timer => timer.delayMs === 15000 || timer.delayMs === 60000).length >= 1, true)
 
   runtime.stopWatching()
   assert.equal(unlistenCalls, 1)

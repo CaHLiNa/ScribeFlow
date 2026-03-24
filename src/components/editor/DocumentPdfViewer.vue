@@ -63,6 +63,7 @@ const pdfSourceKind = computed(() => boundSourceKind.value || pdfSourceState.val
 
 async function ensurePdfSourceKind(force = false) {
   if (!props.filePath?.toLowerCase().endsWith('.pdf')) return
+  if (boundSourceKind.value && !force) return
   try {
     await filesStore.ensurePdfSourceKind(props.filePath, { force })
   } catch (error) {
@@ -74,13 +75,8 @@ watch(
   () => props.filePath,
   (filePath) => {
     if (!filePath) return
-    void ensurePdfSourceKind(true)
+    void ensurePdfSourceKind(false)
   },
   { immediate: true },
 )
-
-watch(previewSourcePath, () => {
-  if (!props.filePath) return
-  void ensurePdfSourceKind(true)
-})
 </script>

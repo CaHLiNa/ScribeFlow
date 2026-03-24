@@ -785,7 +785,7 @@ const editorParams = reactive({
   stampAddLabel: '',
 })
 
-let syncTimer = null
+let pdfUiSyncFrame = null
 let syncHighlightTimer = null
 let activeSyncHighlightEl = null
 let loadRequestId = 0
@@ -990,9 +990,17 @@ function resetPdfUi() {
 }
 
 function clearSyncTimer() {
-  if (!syncTimer) return
-  window.clearInterval(syncTimer)
-  syncTimer = null
+  if (pdfUiSyncFrame === null) return
+  window.cancelAnimationFrame(pdfUiSyncFrame)
+  pdfUiSyncFrame = null
+}
+
+function schedulePdfUiSync() {
+  if (pdfUiSyncFrame !== null) return
+  pdfUiSyncFrame = window.requestAnimationFrame(() => {
+    pdfUiSyncFrame = null
+    syncPdfUi()
+  })
 }
 
 function clearSyncHighlight() {
@@ -1136,7 +1144,7 @@ function syncEmbeddedSidebarView() {
 }
 
 function syncSidebarShellStateFromContainer() {
-  syncPdfUi()
+  schedulePdfUiSync()
 }
 
 function attachSidebarStateObserver() {
@@ -1365,7 +1373,7 @@ function maybeResolveInitialSidebarViewPreference() {
   const outlineButton = getPdfElement(PDF_SIDEBAR_VIEW_BUTTON_IDS.outlines)
   if (outlineButton && !outlineButton.disabled && !outlineButton.hidden) {
     outlineButton.click()
-    syncPdfUi()
+    schedulePdfUiSync()
     sidebarInitialViewResolved = true
     return
   }
@@ -1373,7 +1381,7 @@ function maybeResolveInitialSidebarViewPreference() {
   const attachmentsButton = getPdfElement(PDF_SIDEBAR_VIEW_BUTTON_IDS.attachments)
   if (attachmentsButton && !attachmentsButton.disabled && !attachmentsButton.hidden) {
     attachmentsButton.click()
-    syncPdfUi()
+    schedulePdfUiSync()
     sidebarInitialViewResolved = true
   }
 }
@@ -1436,7 +1444,7 @@ function clickPdfElement(...ids) {
   const element = getPdfElement(...ids)
   if (!element || element.disabled) return false
   element.click()
-  syncPdfUi()
+  schedulePdfUiSync()
   return true
 }
 
@@ -2490,7 +2498,7 @@ function dispatchPdfEvent(type, detail = {}) {
   const app = getPdfApp()
   if (!app?.eventBus) return
   app.eventBus.dispatch(type, { source: app, ...detail })
-  syncPdfUi()
+  schedulePdfUiSync()
 }
 
 function openSearch() {
@@ -2502,7 +2510,7 @@ function openSearch() {
     if (findbar?.classList.contains('hidden')) {
       clickPdfElement('viewFindButton')
     }
-    syncPdfUi()
+    schedulePdfUiSync()
     window.requestAnimationFrame(() => {
       doc?.getElementById('findInput')?.focus()
     })
@@ -2580,7 +2588,7 @@ function handleScaleSelectChange(event) {
   if (!nextValue || !scaleSelect) return
   scaleSelect.value = nextValue
   scaleSelect.dispatchEvent(new Event('change', { bubbles: true }))
-  syncPdfUi()
+  schedulePdfUiSync()
 }
 
 function dispatchExternalSearch({ findPrevious = false, type = '' } = {}) {
@@ -2693,12 +2701,12 @@ function setPdfInputValue(id, value, eventName = 'input') {
   if (!element) return
   element.value = String(value)
   element.dispatchEvent(new Event(eventName, { bubbles: true }))
-  syncPdfUi()
+  schedulePdfUiSync()
 }
 
 function runToolMenuCommand(id) {
   getPdfElement(id)?.click?.()
-  syncPdfUi()
+  schedulePdfUiSync()
   activeToolbarPanel.value = ''
 }
 
@@ -3474,7 +3482,7 @@ function scrollToLocation(pageNumber, x, y, options = {}) {
       : null
     app.pdfLinkService.goToPage(targetPage)
   }
-  syncPdfUi()
+  schedulePdfUiSync()
 }
 
 async function onIframeLoad() {
@@ -3503,19 +3511,28 @@ async function onIframeLoad() {
   attachSidebarStateObserver()
   clearSyncTimer()
   clearSyncHighlight()
-  syncTimer = window.setInterval(syncPdfUi, 250)
 
   if (!iframeListenersAttached) {
     try {
       const doc = win.document
       const bindPdfEvent = app.eventBus?.on?.bind(app.eventBus)
         || app.eventBus?._on?.bind(app.eventBus)
+      const scheduleUiSyncFromViewerEvent = () => {
+        schedulePdfUiSync()
+      }
       doc.addEventListener('click', handleViewerExternalLinkClick)
       doc.addEventListener('dblclick', handleIframeDoubleClick)
       doc.addEventListener('pointerdown', handleIframePointerDown, true)
       doc.addEventListener('mouseup', handleViewerMouseUp)
       doc.addEventListener('selectionchange', handleViewerSelectionChange)
       doc.addEventListener('contextmenu', handleViewerContextMenu)
+      bindPdfEvent?.('pagechanging', scheduleUiSyncFromViewerEvent)
+      bindPdfEvent?.('scalechanging', scheduleUiSyncFromViewerEvent)
+      bindPdfEvent?.('scalechanged', scheduleUiSyncFromViewerEvent)
+      bindPdfEvent?.('rotationchanging', scheduleUiSyncFromViewerEvent)
+      bindPdfEvent?.('sidebarviewchanged', scheduleUiSyncFromViewerEvent)
+      bindPdfEvent?.('updatefindmatchescount', scheduleUiSyncFromViewerEvent)
+      bindPdfEvent?.('updatefindcontrolstate', scheduleUiSyncFromViewerEvent)
       bindPdfEvent?.('outlineloaded', () => {
         maybeResolveInitialSidebarViewPreference()
       })
@@ -3523,7 +3540,7 @@ async function onIframeLoad() {
         maybeResolveInitialSidebarViewPreference()
       })
       bindPdfEvent?.('annotationeditormodechanged', () => {
-        syncPdfUi()
+        schedulePdfUiSync()
       })
       bindPdfEvent?.('pagerendered', () => {
         applyPendingSyncHighlight()
