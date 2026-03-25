@@ -1,5 +1,5 @@
 <template>
-  <div class="flex flex-col h-full" :class="embedded ? 'pt-0' : 'pt-2'" style="background: var(--bg-secondary);">
+  <div class="flex flex-col h-full" :class="embedded ? 'pt-0' : 'pt-2'" style="background: var(--bg-primary);">
 
     <!-- Content -->
       

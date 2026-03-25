@@ -9,27 +9,11 @@
     data-tauri-drag-region
     :style="headerStyle"
   >
-    <div
-      v-if="showSidebarPanelTabs"
-      class="header-sidebar-panel-tabs is-left"
-    >
-      <button
-        v-for="entry in sidebarPanelEntries"
-        :key="entry.key"
-        type="button"
-        class="header-chrome-button header-sidebar-panel-button flex items-center justify-center border-none cursor-pointer"
-        :class="{ 'is-active': workspace.leftSidebarPanel === entry.key }"
-        :title="entry.title"
-        :aria-label="entry.label"
-        @click="workspace.setLeftSidebarPanel(entry.key)"
-      >
-        <component :is="entry.icon" :size="HEADER_ICON_SIZE" :stroke-width="1.6" />
-      </button>
-    </div>
-
-    <button
+    <ShellChromeButton
       v-if="workspace.isOpen"
-      class="header-chrome-button header-sidebar-collapse-button flex items-center justify-center border-none bg-transparent cursor-pointer transition-colors"
+      class="header-sidebar-toggle-button"
+      :active="workspace.leftSidebarOpen"
+      :aria-label="t('Toggle sidebar ({shortcut})', { shortcut: `${modKey}+B` })"
       :title="t('Toggle sidebar ({shortcut})', { shortcut: `${modKey}+B` })"
       @click="workspace.toggleLeftSidebar()"
     >
@@ -38,40 +22,24 @@
         :size="HEADER_ICON_SIZE"
         :stroke-width="1.5"
       />
-    </button>
+    </ShellChromeButton>
 
     <div class="header-project-slot" data-tauri-drag-region></div>
 
-    <div
-      v-if="showInspectorPanelTabs"
-      class="header-sidebar-panel-tabs is-right"
-    >
-      <button
-        v-for="entry in inspectorPanelEntries"
-        :key="entry.key"
-        type="button"
-        class="header-chrome-button header-inspector-panel-button flex items-center justify-center border-none cursor-pointer"
-        :class="{ 'is-active': activeInspectorPanel === entry.key }"
-        :title="entry.title"
-        :aria-label="entry.label"
-        @click="handleSelectRightSidebarPanel(entry.key)"
-      >
-        <component :is="entry.icon" :size="HEADER_ICON_SIZE" :stroke-width="1.6" />
-      </button>
-    </div>
-
-    <button
-      v-if="workspace.isOpen && inspectorPanelEntries.length > 0"
-      class="header-chrome-button header-inspector-collapse-button flex items-center justify-center border-none bg-transparent cursor-pointer transition-colors"
+    <ShellChromeButton
+      v-if="workspace.isOpen && inspectorAvailable"
+      class="header-inspector-toggle-button"
+      :active="workspace.rightSidebarOpen"
+      :aria-label="t('Toggle right sidebar')"
       :title="t('Toggle right sidebar')"
-      @click="workspace.toggleRightSidebar()"
+      @click="toggleRightSidebar"
     >
       <component
         :is="workspace.rightSidebarOpen ? IconLayoutSidebarRightCollapse : IconLayoutSidebarRight"
         :size="HEADER_ICON_SIZE"
         :stroke-width="1.5"
       />
-    </button>
+    </ShellChromeButton>
 
     <div class="header-right-slot" data-tauri-drag-region>
     </div>
@@ -82,36 +50,30 @@
       <div class="header-command-overlay" @click="closeSearchPalette"></div>
       <div class="header-command-shell">
         <div class="header-command-panel">
-          <div
-            class="header-command-input-wrap"
-            :style="{
-              borderColor: searchFocused ? 'var(--fg-muted)' : 'var(--border)',
-            }"
+          <UiInput
+            ref="searchInputRef"
+            v-model="query"
+            shell-class="header-command-input-wrap"
+            :placeholder="searchPlaceholder"
+            autocomplete="off"
+            autocorrect="off"
+            autocapitalize="off"
+            spellcheck="false"
+            @keydown="onSearchKeydown"
           >
-            <IconSearch
-              :size="HEADER_SEARCH_ICON_SIZE"
-              :stroke-width="1.5"
-              class="shrink-0"
-              :style="{ color: searchFocused ? 'var(--fg-secondary)' : 'var(--fg-muted)' }"
-            />
-            <input
-              ref="searchInputRef"
-              v-model="query"
-              class="header-command-input"
-              :style="{ height: `${HEADER_SEARCH_INPUT_HEIGHT}px` }"
-              :placeholder="searchPlaceholder"
-              autocomplete="off"
-              autocorrect="off"
-              autocapitalize="off"
-              spellcheck="false"
-              @focus="onFocus"
-              @blur="onBlur"
-              @keydown="onSearchKeydown"
-            />
-            <kbd class="shrink-0" style="padding: 0 4px; line-height: 16px;">
-              {{ modKey }}+P
-            </kbd>
-          </div>
+            <template #prefix>
+              <IconSearch
+                :size="HEADER_SEARCH_ICON_SIZE"
+                :stroke-width="1.5"
+                class="header-command-search-icon shrink-0"
+              />
+            </template>
+            <template #suffix>
+              <kbd class="ui-kbd shrink-0">
+                {{ modKey }}+P
+              </kbd>
+            </template>
+          </UiInput>
 
           <div class="header-command-results">
             <SearchResults
@@ -139,19 +101,11 @@ import { useAiWorkbenchStore } from '../../stores/aiWorkbench'
 import { useToastStore } from '../../stores/toast'
 import { useReferencesStore } from '../../stores/references'
 import {
-  IconBook2,
-  IconFileDescription,
-  IconFolder,
-  IconLayoutList,
   IconLayoutSidebarRight,
   IconLayoutSidebarRightCollapse,
-  IconListTree,
-  IconLink,
   IconLayoutSidebar,
   IconLayoutSidebarLeftCollapse,
-  IconMessages,
   IconSearch,
-  IconTag,
 } from '@tabler/icons-vue'
 import { isMac, modKey } from '../../platform'
 import { useI18n } from '../../i18n'
@@ -159,15 +113,15 @@ import { insertCitationWithAssist } from '../../services/latexCitationAssist'
 import {
   resolveHeaderChromeLayout,
 } from '../../shared/headerChromeGeometry.js'
-import { normalizeWorkbenchInspectorPanel } from '../../shared/workbenchInspectorPanels.js'
+import { getWorkbenchInspectorChromeEntries } from '../../shared/workbenchChromeEntries.js'
 import { tinymistRangeToOffsets } from '../../services/tinymist/textEdits'
+import ShellChromeButton from '../shared/ShellChromeButton.vue'
+import UiInput from '../shared/ui/UiInput.vue'
 
 const SearchResults = defineAsyncComponent(() => import('../SearchResults.vue'))
 
 const props = defineProps({
-  leftSidebarWidth: { type: Number, default: 0 },
   leftRailWidth: { type: Number, default: 44 },
-  rightSidebarWidth: { type: Number, default: 0 },
   leftSidebarResizing: { type: Boolean, default: false },
   rightSidebarResizing: { type: Boolean, default: false },
 })
@@ -185,10 +139,7 @@ const isTauriDesktop = typeof window !== 'undefined' && !!window.__TAURI_INTERNA
 
 const HEADER_HEIGHT = 30
 const HEADER_ICON_SIZE = 18
-const HEADER_SEARCH_HEIGHT = 24
-const HEADER_SEARCH_INPUT_HEIGHT = 22
 const HEADER_SEARCH_ICON_SIZE = 12
-const HEADER_BUTTON_SIZE = 30
 const HEADER_BUTTON_INSET = 8
 const HEADER_RIGHT_PADDING = 8
 const DEFAULT_HEADER_SIDE_PADDING = 12
@@ -223,136 +174,34 @@ const headerLeftPadding = computed(() => (
 
 const headerStyle = computed(() => ({
   gridTemplateColumns: '1fr auto',
-  background: 'var(--bg-secondary)',
+  background: 'var(--bg-primary)',
   borderBottom: '1px solid var(--border)',
   paddingLeft: toPx(headerLeftPadding.value),
   paddingRight: toPx(HEADER_RIGHT_PADDING),
   height: `${HEADER_HEIGHT}px`,
-  '--header-left-panel-tabs-left': toPx(headerChromeLayout.value.leftPanelTabsLeft),
-  '--header-left-collapse-left': toPx(headerChromeLayout.value.leftCollapseLeft),
-  '--header-right-panel-tabs-right': toPx(headerChromeLayout.value.rightPanelTabsRight),
-  '--header-right-collapse-right': toPx(headerChromeLayout.value.rightCollapseRight),
+  '--header-left-toggle-left': toPx(headerChromeLayout.value.leftToggleLeft),
+  '--header-right-toggle-right': toPx(headerChromeLayout.value.rightToggleRight),
 }))
-
-const showSidebarPanelTabs = computed(() => workspace.isOpen && workspace.leftSidebarOpen)
-
-const sidebarPanelEntries = computed(() => {
-  if (workspace.isLibrarySurface) {
-    return [
-      {
-        key: 'library-views',
-        label: t('Library views'),
-        title: t('Library views'),
-        icon: IconLayoutList,
-      },
-      {
-        key: 'library-tags',
-        label: t('Library tags'),
-        title: t('Library tags'),
-        icon: IconTag,
-      },
-    ]
-  }
-
-  if (workspace.isAiSurface) {
-    return [
-      {
-        key: 'ai-chats',
-        label: t('Recent chats'),
-        title: t('Recent chats'),
-        icon: IconMessages,
-      },
-    ]
-  }
-
-  return [
-    {
-      key: 'files',
-      label: t('Project files'),
-      title: t('Project files'),
-      icon: IconFolder,
-    },
-    {
-      key: 'references',
-      label: t('References'),
-      title: t('References'),
-      icon: IconBook2,
-    },
-  ]
-})
 
 const headerChromeLayout = computed(() => resolveHeaderChromeLayout({
-    hasVisibleTrafficLights: hasVisibleTrafficLights.value,
-    macSafePadding: macHeaderLeftPadding.value,
-    railBoundary: Number(props.leftRailWidth) || 44,
-    leftSidebarWidth: Number(props.leftSidebarWidth) || 0,
-    leftSidebarOpen: workspace.leftSidebarOpen,
-    rightSidebarWidth: Number(props.rightSidebarWidth) || 0,
-    rightSidebarOpen: workspace.rightSidebarOpen,
-    buttonWidth: HEADER_BUTTON_SIZE,
-    buttonInset: HEADER_BUTTON_INSET,
+  hasVisibleTrafficLights: hasVisibleTrafficLights.value,
+  macSafePadding: macHeaderLeftPadding.value,
+  railBoundary: Number(props.leftRailWidth) || 44,
+  buttonInset: HEADER_BUTTON_INSET,
 }))
-
-const showInspectorPanelTabs = computed(() => (
-  workspace.isOpen
-  && inspectorPanelEntries.value.length > 0
-  && workspace.rightSidebarOpen
+const inspectorEntries = computed(() => (
+  getWorkbenchInspectorChromeEntries(t, workspace.primarySurface)
 ))
-
-const inspectorPanelEntries = computed(() => {
-  if (workspace.isLibrarySurface) {
-    return [
-      {
-        key: 'library-details',
-        label: t('Details'),
-        title: t('Details'),
-        icon: IconFileDescription,
-      },
-    ]
-  }
-
-  if (!workspace.isWorkspaceSurface) {
-    return []
-  }
-
-  return [
-    {
-      key: 'outline',
-      label: t('Outline'),
-      title: t('Outline'),
-      icon: IconListTree,
-    },
-    {
-      key: 'backlinks',
-      label: t('Backlinks'),
-      title: t('Backlinks'),
-      icon: IconLink,
-    },
-  ]
-})
+const inspectorAvailable = computed(() => inspectorEntries.value.length > 0)
 
 // Search
 const searchInputRef = ref(null)
 const searchResultsRef = ref(null)
 const query = ref('')
-const searchFocused = ref(false)
 const searchOpen = ref(false)
 
 const showResults = computed(() => searchOpen.value)
 const searchPlaceholder = computed(() => t('Go to file...'))
-const activeInspectorPanel = computed(() => (
-  normalizeWorkbenchInspectorPanel(workspace.primarySurface, workspace.rightSidebarPanel)
-))
-
-function onFocus() {
-  searchFocused.value = true
-}
-
-function onBlur() {
-  window.setTimeout(() => {
-    searchFocused.value = false
-  }, 80)
-}
 
 function onSearchKeydown(e) {
   if (e.key === 'Escape') {
@@ -410,9 +259,9 @@ function onSelectChat(sessionId) {
   closeSearchPalette()
 }
 
-function handleSelectRightSidebarPanel(panel) {
-  workspace.setRightSidebarPanel(panel)
-  workspace.openRightSidebar()
+function toggleRightSidebar() {
+  if (!inspectorAvailable.value) return
+  workspace.toggleRightSidebar()
 }
 
 async function waitForEditorView(targetPath) {
@@ -461,7 +310,6 @@ function focusSearch() {
 
 function closeSearchPalette() {
   searchOpen.value = false
-  searchFocused.value = false
   query.value = ''
   searchInputRef.value?.blur()
 }
@@ -509,121 +357,28 @@ defineExpose({ focusSearch })
   height: 100%;
 }
 
-.header-chrome-button {
-  width: 30px;
-  height: 30px;
-  border-radius: 10px;
-}
-
-.header-sidebar-collapse-button {
+.header-sidebar-toggle-button {
   position: absolute;
   top: 50%;
   z-index: 2;
-  left: var(--header-left-collapse-left);
+  left: var(--header-left-toggle-left);
   transform: translateY(-50%);
-  background: transparent;
-  color: var(--fg-muted);
-  transition:
-    left 180ms cubic-bezier(0.22, 1, 0.36, 1),
-    background-color 140ms ease,
-    color 140ms ease;
-  will-change: left;
 }
 
-.header-inspector-collapse-button {
+.header-inspector-toggle-button {
   position: absolute;
   top: 50%;
   z-index: 2;
   left: auto;
-  right: var(--header-right-collapse-right);
+  right: var(--header-right-toggle-right);
   transform: translateY(-50%);
-  background: transparent;
-  color: var(--fg-muted);
-  transition:
-    right 180ms cubic-bezier(0.22, 1, 0.36, 1),
-    background-color 140ms ease,
-    color 140ms ease;
-  will-change: right;
-}
-
-.header-sidebar-collapse-button:hover,
-.header-inspector-collapse-button:hover {
-  background: color-mix(in srgb, var(--bg-hover) 38%, transparent);
-}
-
-.header-sidebar-collapse-button:focus-visible,
-.header-inspector-collapse-button:focus-visible {
-  outline: none;
-  background: color-mix(in srgb, var(--bg-hover) 24%, transparent);
-}
-
-.header-sidebar-panel-tabs {
-  position: absolute;
-  top: 50%;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  transform: translateY(-50%);
-  will-change: left, right;
-}
-
-.header-sidebar-panel-tabs.is-left {
-  left: var(--header-left-panel-tabs-left);
-  transition: left 180ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.header-sidebar-panel-tabs.is-right {
-  right: var(--header-right-panel-tabs-right);
-  transition: right 180ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.header-sidebar-panel-button {
-  background: transparent;
-  color: var(--fg-muted);
-  transition: background-color 140ms ease, color 140ms ease, opacity 140ms ease;
-  opacity: 0.88;
-}
-
-.header-sidebar-panel-button:hover {
-  background: color-mix(in srgb, var(--bg-hover) 38%, transparent);
-  color: var(--fg-secondary);
-  opacity: 1;
-}
-
-.header-sidebar-panel-button.is-active {
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
-  color: var(--fg-primary);
-  opacity: 1;
-}
-
-.header-inspector-panel-button {
-  background: transparent;
-  color: var(--fg-muted);
-  transition: background-color 140ms ease, color 140ms ease, opacity 140ms ease;
-  opacity: 0.88;
-}
-
-.header-inspector-panel-button:hover {
-  background: color-mix(in srgb, var(--bg-hover) 38%, transparent);
-  color: var(--fg-secondary);
-  opacity: 1;
-}
-
-.header-inspector-panel-button.is-active {
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
-  color: var(--fg-primary);
-  opacity: 1;
 }
 
 .header-root {
   align-items: center;
 }
 
-.header-root.is-resizing .header-sidebar-collapse-button,
-.header-root.is-resizing .header-inspector-collapse-button,
-.header-root.is-resizing .header-sidebar-panel-button,
-.header-root.is-resizing .header-inspector-panel-button {
+.header-root.is-resizing :deep(.shell-chrome-button) {
   transition: none !important;
 }
 
@@ -650,26 +405,14 @@ defineExpose({ focusSearch })
 }
 
 .header-command-input-wrap {
-  display: flex;
-  align-items: center;
-  gap: 8px;
   min-height: 34px;
-  padding: 0 10px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--bg-primary);
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.18);
+  border-radius: var(--radius-lg);
+  background: var(--surface-base);
+  box-shadow: var(--shadow-md);
 }
 
-.header-command-input {
-  flex: 1;
-  min-width: 0;
-  border: none;
-  outline: none;
-  background: transparent;
-  color: var(--fg-primary);
-  font-size: var(--ui-font-label);
-  font-family: inherit;
+.header-command-search-icon {
+  color: var(--text-muted);
 }
 
 .header-command-results {
@@ -699,7 +442,7 @@ defineExpose({ focusSearch })
   transform: none;
   width: 100%;
   max-height: min(62vh, 460px);
-  border-radius: 10px;
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.18);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
 }
 </style>

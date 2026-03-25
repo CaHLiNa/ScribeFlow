@@ -10,9 +10,7 @@
     <!-- Header (always visible) -->
     <Header
       ref="headerRef"
-      :left-sidebar-width="leftSidebarWidth"
       :left-rail-width="WORKBENCH_RAIL_WIDTH"
-      :right-sidebar-width="rightSidebarWidth"
       :left-sidebar-resizing="isLeftSidebarResizing"
       :right-sidebar-resizing="isRightSidebarResizing"
     />
@@ -308,31 +306,20 @@ useAppTeardown({
 <style scoped>
 .app-shell-sidebar {
   contain: layout paint;
-  will-change: width;
-  transform: translateZ(0);
-  backface-visibility: hidden;
-  transition:
-    width 180ms cubic-bezier(0.22, 1, 0.36, 1),
-    border-color 140ms ease;
+  transition: border-color 140ms ease;
 }
 
 .app-shell-sidebar > * {
   min-width: 100%;
   height: 100%;
-  opacity: 1;
-  transition:
-    transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 120ms ease;
 }
 
 .app-shell-sidebar-left.is-collapsed > * {
   opacity: 0;
-  transform: translateX(-10px);
 }
 
 .app-shell-sidebar-right.is-collapsed > * {
   opacity: 0;
-  transform: translateX(10px);
 }
 
 .app-shell-sidebar.is-collapsed {

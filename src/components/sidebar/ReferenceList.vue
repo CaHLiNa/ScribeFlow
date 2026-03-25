@@ -1,5 +1,5 @@
 <template>
-  <div ref="rootEl" data-ref-drop-zone class="flex flex-col h-full overflow-hidden" :style="{ background: 'var(--bg-secondary)' }">
+  <div ref="rootEl" data-ref-drop-zone class="flex flex-col h-full overflow-hidden" :style="{ background: 'var(--bg-primary)' }">
     <!-- Header -->
     <div
       class="flex items-center h-7 shrink-0 px-2 gap-1 select-none"
@@ -125,7 +125,7 @@
             style="width: 240px; max-height: 320px; overflow-y: auto;"
           >
             <!-- Search input (sticky, z-index to stay above scrolling items) -->
-            <div class="sticky top-0 z-10 px-2 py-1.5" style="background: var(--bg-secondary); border-bottom: 1px solid var(--border);">
+            <div class="sticky top-0 z-10 px-2 py-1.5" style="background: var(--bg-primary); border-bottom: 1px solid var(--border);">
               <input
                 ref="styleSearchEl"
                 v-model="styleSearchQuery"

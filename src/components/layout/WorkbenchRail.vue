@@ -88,7 +88,7 @@ function activate(key) {
 
 <style scoped>
 .workbench-rail {
-  background: var(--bg-secondary);
+  background: var(--bg-primary);
   border-color: var(--border);
 }
 
@@ -97,7 +97,7 @@ function activate(key) {
   width: 30px;
   height: 30px;
   border: none;
-  border-radius: 10px;
+  border-radius: 4px;
   background: transparent;
   color: var(--fg-muted);
   display: inline-flex;

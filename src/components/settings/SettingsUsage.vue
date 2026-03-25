@@ -4,24 +4,33 @@
 
     <!-- Month navigation -->
     <div class="month-nav">
-      <button class="month-nav-btn" @click="usageStore.navigateMonth(-1)">
-        <IconChevronLeft :size="16" :stroke-width="1.5" />
-      </button>
-      <span class="month-nav-label">{{ usageStore.selectedMonthLabel }}</span>
-      <button
+      <UiButton
         class="month-nav-btn"
+        variant="secondary"
+        size="icon-sm"
+        @click="usageStore.navigateMonth(-1)"
+      >
+        <IconChevronLeft :size="16" :stroke-width="1.5" />
+      </UiButton>
+      <span class="month-nav-label">{{ usageStore.selectedMonthLabel }}</span>
+      <UiButton
+        class="month-nav-btn"
+        variant="secondary"
+        size="icon-sm"
         :disabled="usageStore.isCurrentMonth"
         @click="usageStore.navigateMonth(1)"
       >
         <IconChevronRight :size="16" :stroke-width="1.5" />
-      </button>
-      <button
+      </UiButton>
+      <UiButton
         v-if="!usageStore.isCurrentMonth"
         class="month-nav-current"
+        variant="secondary"
+        size="sm"
         @click="usageStore.goToCurrentMonth()"
       >
         {{ t('Current month') }}
-      </button>
+      </UiButton>
     </div>
 
     <!-- Daily chart for selected month -->
@@ -36,23 +45,31 @@
           <line
             v-for="(g, i) in chart.gridlines"
             :key="'grid-' + i"
-            :x1="g.x1" :y1="g.y" :x2="g.x2" :y2="g.y"
+            :x1="g.x1"
+            :y1="g.y"
+            :x2="g.x2"
+            :y2="g.y"
             class="chart-gridline"
           />
           <!-- Baseline -->
           <line
-            :x1="chart.baseline.x1" :y1="chart.baseline.y"
-            :x2="chart.baseline.x2" :y2="chart.baseline.y"
+            :x1="chart.baseline.x1"
+            :y1="chart.baseline.y"
+            :x2="chart.baseline.x2"
+            :y2="chart.baseline.y"
             class="chart-baseline"
           />
           <!-- Y-axis labels -->
           <text
             v-for="(t, i) in chart.yTicks"
             :key="'y-' + i"
-            :x="t.x" :y="t.y + 3"
+            :x="t.x"
+            :y="t.y + 3"
             class="chart-y-label"
             text-anchor="end"
-          >{{ t.label }}</text>
+          >
+            {{ t.label }}
+          </text>
           <!-- Bars -->
           <g
             v-for="bar in chart.bars"
@@ -65,30 +82,38 @@
           >
             <!-- Invisible hit area for hover -->
             <rect
-              :x="bar.x" :y="chart.plotArea.y"
-              :width="bar.width" :height="chart.plotArea.height"
+              :x="bar.x"
+              :y="chart.plotArea.y"
+              :width="bar.width"
+              :height="chart.plotArea.height"
               fill="transparent"
             />
             <!-- Today marker — small accent line at baseline -->
             <rect
               v-if="bar.isToday"
-              :x="bar.x" :y="chart.baseline.y - 1"
-              :width="bar.width" :height="2"
+              :x="bar.x"
+              :y="chart.baseline.y - 1"
+              :width="bar.width"
+              :height="2"
               class="chart-today-marker"
             />
             <!-- Hosted segment (bottom) -->
             <rect
               v-if="bar.hostedH > 0"
-              :x="bar.x" :y="bar.hostedY"
-              :width="bar.width" :height="bar.hostedH"
+              :x="bar.x"
+              :y="bar.hostedY"
+              :width="bar.width"
+              :height="bar.hostedH"
               class="chart-bar-shoulders"
               rx="1.5"
             />
             <!-- Direct segment (stacked on top) -->
             <rect
               v-if="bar.directH > 0"
-              :x="bar.x" :y="bar.directY"
-              :width="bar.width" :height="bar.directH"
+              :x="bar.x"
+              :y="bar.directY"
+              :width="bar.width"
+              :height="bar.directH"
               class="chart-bar-direct"
               rx="1.5"
             />
@@ -97,11 +122,14 @@
           <text
             v-for="(l, i) in chart.xLabels"
             :key="'x-' + i"
-            :x="l.x" :y="l.y"
+            :x="l.x"
+            :y="l.y"
             class="chart-x-label"
             :class="{ 'is-today': l.isToday }"
             text-anchor="middle"
-          >{{ l.text }}</text>
+          >
+            {{ l.text }}
+          </text>
         </svg>
         <!-- HTML tooltip -->
         <div
@@ -117,12 +145,15 @@
           <div v-if="tooltip.direct > 0" class="chart-tooltip-total">
             {{ t('Estimated cost:') }} {{ tooltip.totalLabel }}
           </div>
-          <div v-if="tooltip.calls > 0" class="chart-tooltip-calls">{{ tooltip.calls }} {{ t('calls') }}</div>
+          <div v-if="tooltip.calls > 0" class="chart-tooltip-calls">
+            {{ tooltip.calls }} {{ t('calls') }}
+          </div>
         </div>
         <!-- Legend -->
         <div class="chart-legend">
           <span v-if="showDirect" class="chart-legend-item">
-            <span class="chart-legend-swatch swatch-direct"></span> {{ t('API keys') }}{{ usageStore.showCostEstimates ? ` (${t('est.')})` : '' }}
+            <span class="chart-legend-swatch swatch-direct"></span> {{ t('API keys')
+            }}{{ usageStore.showCostEstimates ? ` (${t('est.')})` : '' }}
           </span>
         </div>
       </div>
@@ -134,7 +165,9 @@
         <div class="usage-source-header">
           <span class="usage-source-title">{{ t('Your API keys') }}</span>
         </div>
-        <div class="usage-source-disclaimer">{{ t('Estimated from published rates. Check provider dashboards for actual charges.') }}</div>
+        <div class="usage-source-disclaimer">
+          {{ t('Estimated from published rates. Check provider dashboards for actual charges.') }}
+        </div>
 
         <!-- Summary line -->
         <div v-if="usageStore.directCalls > 0" class="usage-summary-line">
@@ -144,28 +177,42 @@
           </template>
           <span>{{ usageStore.directCalls.toLocaleString() }} {{ t('calls') }}</span>
           <span v-if="directTotalTokens > 0" class="usage-sep"> · </span>
-          <span v-if="directTotalTokens > 0">{{ formatTokens(directTotalTokens) }} {{ t('Tokens') }}</span>
+          <span v-if="directTotalTokens > 0"
+            >{{ formatTokens(directTotalTokens) }} {{ t('Tokens') }}</span
+          >
         </div>
         <div v-else class="usage-empty-hint">{{ t('No API key usage this month.') }}</div>
 
         <!-- Breakdown table with toggle -->
         <template v-if="directRows.length > 0">
-          <div class="usage-breakdown-tabs">
-            <button
-              class="usage-breakdown-tab"
-              :class="{ active: directView === 'feature' }"
+          <div class="usage-breakdown-tabs settings-segmented">
+            <UiButton
+              class="usage-breakdown-tab settings-segmented-btn"
+              variant="ghost"
+              size="sm"
+              :active="directView === 'feature'"
               @click="directView = 'feature'"
-            >{{ t('By feature') }}</button>
-            <button
-              class="usage-breakdown-tab"
-              :class="{ active: directView === 'model' }"
+            >
+              {{ t('By feature') }}
+            </UiButton>
+            <UiButton
+              class="usage-breakdown-tab settings-segmented-btn"
+              variant="ghost"
+              size="sm"
+              :active="directView === 'model'"
               @click="directView = 'model'"
-            >{{ t('By model') }}</button>
+            >
+              {{ t('By model') }}
+            </UiButton>
           </div>
           <div class="usage-table">
             <div class="usage-table-header" :style="{ gridTemplateColumns: directGridCols }">
-              <span class="usage-col-name">{{ directView === 'feature' ? t('Feature') : t('Model') }}</span>
-              <span v-if="usageStore.showCostEstimates" class="usage-col-num">{{ t('~Cost') }}</span>
+              <span class="usage-col-name">{{
+                directView === 'feature' ? t('Feature') : t('Model')
+              }}</span>
+              <span v-if="usageStore.showCostEstimates" class="usage-col-num">{{
+                t('~Cost')
+              }}</span>
               <span class="usage-col-num">{{ t('Tokens') }}</span>
               <span class="usage-col-num">{{ t('calls') }}</span>
             </div>
@@ -175,9 +222,17 @@
               class="usage-table-row"
               :style="{ gridTemplateColumns: directGridCols }"
             >
-              <span class="usage-col-name" :class="directView === 'model' ? 'usage-model-name' : 'usage-feature-name'">{{ row.name }}</span>
-              <span v-if="usageStore.showCostEstimates" class="usage-col-num">{{ row.direct_cost > 0 ? '~' + formatCost(row.direct_cost) : '—' }}</span>
-              <span class="usage-col-num">{{ formatTokens(row.input_tokens + row.output_tokens) }}</span>
+              <span
+                class="usage-col-name"
+                :class="directView === 'model' ? 'usage-model-name' : 'usage-feature-name'"
+                >{{ row.name }}</span
+              >
+              <span v-if="usageStore.showCostEstimates" class="usage-col-num">{{
+                row.direct_cost > 0 ? '~' + formatCost(row.direct_cost) : '—'
+              }}</span>
+              <span class="usage-col-num">{{
+                formatTokens(row.input_tokens + row.output_tokens)
+              }}</span>
               <span class="usage-col-num">{{ row.calls }}</span>
             </div>
           </div>
@@ -191,37 +246,35 @@
     </div>
 
     <!-- Display section -->
-    <h3 class="settings-section-title" style="margin-top: 24px;">{{ t('Display') }}</h3>
+    <h3 class="settings-section-title settings-usage-subtitle">{{ t('Display') }}</h3>
 
     <div class="display-toggles">
       <div class="env-lang-card">
         <div class="env-lang-header">
           <div>
             <span class="env-lang-name">{{ t('Show API key cost estimates') }}</span>
-            <p class="settings-hint" style="margin: 2px 0 0;">{{ t('Actual charges may differ significantly. Check provider dashboards.') }}</p>
+            <p class="settings-usage-inline-hint">
+              {{ t('Actual charges may differ significantly. Check provider dashboards.') }}
+            </p>
           </div>
-          <div style="flex: 1;"></div>
-          <button
-            class="tool-toggle-switch"
-            :class="{ on: usageStore.showCostEstimates }"
-            @click="usageStore.setShowCostEstimates(!usageStore.showCostEstimates)"
-          >
-            <span class="tool-toggle-knob"></span>
-          </button>
+          <div class="ui-flex-spacer"></div>
+          <UiSwitch
+            :model-value="usageStore.showCostEstimates"
+            :aria-label="t('Toggle API key cost estimates')"
+            @update:model-value="usageStore.setShowCostEstimates(!usageStore.showCostEstimates)"
+          />
         </div>
       </div>
 
-      <div class="env-lang-card" style="margin-top: 8px;">
+      <div class="env-lang-card settings-usage-display-card">
         <div class="env-lang-header">
           <span class="env-lang-name">{{ t('Show billing in footer') }}</span>
-          <div style="flex: 1;"></div>
-          <button
-            class="tool-toggle-switch"
-            :class="{ on: usageStore.showInFooter }"
-            @click="usageStore.setShowInFooter(!usageStore.showInFooter)"
-          >
-            <span class="tool-toggle-knob"></span>
-          </button>
+          <div class="ui-flex-spacer"></div>
+          <UiSwitch
+            :model-value="usageStore.showInFooter"
+            :aria-label="t('Toggle billing in footer')"
+            @update:model-value="usageStore.setShowInFooter(!usageStore.showInFooter)"
+          />
         </div>
       </div>
     </div>
@@ -236,6 +289,8 @@ import { useWorkspaceStore } from '../../stores/workspace'
 import { formatCost } from '../../services/tokenUsage'
 import { computeChartLayout } from '../../utils/usageChart'
 import { formatDate, useI18n } from '../../i18n'
+import UiButton from '../shared/ui/UiButton.vue'
+import UiSwitch from '../shared/ui/UiSwitch.vue'
 
 const usageStore = useUsageStore()
 const workspace = useWorkspaceStore()
@@ -302,12 +357,10 @@ const showDirect = computed(() => {
 })
 
 const directFeatures = computed(() =>
-  usageStore.byFeature.filter(r => r.direct_cost > 0 || r.calls > 0)
+  usageStore.byFeature.filter((r) => r.direct_cost > 0 || r.calls > 0)
 )
 
-const directModels = computed(() =>
-  usageStore.byModel.filter(r => r.direct_cost > 0)
-)
+const directModels = computed(() => usageStore.byModel.filter((r) => r.direct_cost > 0))
 
 const directRows = computed(() =>
   directView.value === 'feature' ? directFeatures.value : directModels.value
@@ -391,59 +444,27 @@ function formatTokens(n) {
 }
 
 .month-nav-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 5px;
-  border: 1px solid var(--border);
-  background: var(--bg-primary);
-  color: var(--fg-secondary);
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.month-nav-btn:hover:not(:disabled) {
-  background: var(--bg-hover);
-  color: var(--fg-primary);
-}
-
-.month-nav-btn:disabled {
-  opacity: 0.25;
-  cursor: default;
+  flex-shrink: 0;
 }
 
 .month-nav-label {
   font-size: var(--ui-font-title);
-  font-weight: 600;
-  color: var(--fg-primary);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
   min-width: 160px;
   text-align: center;
 }
 
 .month-nav-current {
   margin-left: 8px;
-  padding: 3px 10px;
-  border-radius: 10px;
-  border: 1px solid var(--border);
-  background: none;
-  color: var(--accent);
-  font-size: var(--ui-font-caption);
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.month-nav-current:hover {
-  background: var(--bg-hover);
 }
 
 /* Chart */
 .chart-container {
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
   padding: 10px 14px 8px;
-  background: var(--bg-primary);
+  background: var(--surface-base);
   margin-bottom: 4px;
   position: relative;
 }
@@ -457,27 +478,27 @@ function formatTokens(n) {
 
 /* SVG chart elements */
 .chart-gridline {
-  stroke: var(--border);
+  stroke: var(--border-subtle);
   stroke-width: 0.5;
   opacity: 0.5;
 }
 
 .chart-baseline {
-  stroke: var(--border);
+  stroke: var(--border-subtle);
   stroke-width: 1;
   opacity: 0.7;
 }
 
 .chart-y-label {
   font-size: var(--ui-font-fine);
-  fill: var(--fg-muted);
+  fill: var(--text-muted);
   font-variant-numeric: tabular-nums;
   font-family: inherit;
 }
 
 .chart-x-label {
   font-size: var(--ui-font-fine);
-  fill: var(--fg-muted);
+  fill: var(--text-muted);
   font-variant-numeric: tabular-nums;
   font-family: inherit;
   opacity: 0.6;
@@ -661,38 +682,11 @@ function formatTokens(n) {
 
 /* Breakdown toggle tabs */
 .usage-breakdown-tabs {
-  display: flex;
-  gap: 0;
   margin-bottom: 8px;
 }
 
 .usage-breakdown-tab {
-  padding: 3px 10px;
-  font-size: var(--ui-font-caption);
-  color: var(--fg-muted);
-  background: none;
-  border: 1px solid var(--border);
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.usage-breakdown-tab:first-child {
-  border-radius: 4px 0 0 4px;
-}
-
-.usage-breakdown-tab:last-child {
-  border-radius: 0 4px 4px 0;
-  border-left: none;
-}
-
-.usage-breakdown-tab.active {
-  background: var(--bg-tertiary, var(--bg-secondary));
-  color: var(--fg-primary);
-  font-weight: 500;
-}
-
-.usage-breakdown-tab:hover:not(.active) {
-  color: var(--fg-secondary);
+  min-height: 24px;
 }
 
 /* Tables */
@@ -776,5 +770,20 @@ function formatTokens(n) {
 .display-toggles {
   display: flex;
   flex-direction: column;
+}
+
+.settings-usage-subtitle {
+  margin-top: 24px;
+}
+
+.settings-usage-inline-hint {
+  margin: 2px 0 0;
+  font-size: var(--ui-font-caption);
+  color: var(--text-muted);
+  line-height: var(--line-height-regular);
+}
+
+.settings-usage-display-card {
+  margin-top: var(--space-2);
 }
 </style>

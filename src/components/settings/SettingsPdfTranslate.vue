@@ -15,106 +15,82 @@
         <div class="pdft-form-grid pdft-section-pad">
           <label class="pdft-field pdft-field-span-2">
             <span class="pdft-label">{{ t('Model') }}</span>
-            <div class="pdft-select-shell">
-              <select v-model="draft.modelId" class="pdft-select" :disabled="compatibleModels.length === 0">
-                <option v-if="compatibleModels.length === 0" value="">{{ t('No compatible models available') }}</option>
-                <optgroup v-for="group in compatibleModelGroups" :key="group.provider" :label="group.label">
-                  <option v-for="model in group.models" :key="model.id" :value="model.id">
-                    {{ model.name }}
-                  </option>
-                </optgroup>
-              </select>
-              <span class="pdft-caret" aria-hidden="true">
-                <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
-                  <path d="M1 3l4 4 4-4z" />
-                </svg>
-              </span>
-            </div>
+            <UiSelect
+              v-model="draft.modelId"
+              shell-class="pdft-select-shell"
+              :disabled="compatibleModels.length === 0"
+            >
+              <option v-if="compatibleModels.length === 0" value="">
+                {{ t('No compatible models available') }}
+              </option>
+              <optgroup
+                v-for="group in compatibleModelGroups"
+                :key="group.provider"
+                :label="group.label"
+              >
+                <option v-for="model in group.models" :key="model.id" :value="model.id">
+                  {{ model.name }}
+                </option>
+              </optgroup>
+            </UiSelect>
           </label>
 
           <label class="pdft-field">
             <span class="pdft-label">{{ t('Source language') }}</span>
-            <div class="pdft-select-shell">
-              <select v-model="draft.langIn" class="pdft-select">
-                <option v-for="option in sourceLanguages" :key="option.value" :value="option.value">
-                  {{ option.label }}
-                </option>
-              </select>
-              <span class="pdft-caret" aria-hidden="true">
-                <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
-                  <path d="M1 3l4 4 4-4z" />
-                </svg>
-              </span>
-            </div>
+            <UiSelect v-model="draft.langIn" shell-class="pdft-select-shell">
+              <option v-for="option in sourceLanguages" :key="option.value" :value="option.value">
+                {{ option.label }}
+              </option>
+            </UiSelect>
           </label>
 
           <label class="pdft-field">
             <span class="pdft-label">{{ t('Target language') }}</span>
-            <div class="pdft-select-shell">
-              <select v-model="draft.langOut" class="pdft-select">
-                <option v-for="option in targetLanguages" :key="option.value" :value="option.value">
-                  {{ option.label }}
-                </option>
-              </select>
-              <span class="pdft-caret" aria-hidden="true">
-                <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
-                  <path d="M1 3l4 4 4-4z" />
-                </svg>
-              </span>
-            </div>
+            <UiSelect v-model="draft.langOut" shell-class="pdft-select-shell">
+              <option v-for="option in targetLanguages" :key="option.value" :value="option.value">
+                {{ option.label }}
+              </option>
+            </UiSelect>
           </label>
 
           <label class="pdft-field">
             <span class="pdft-label">{{ t('Output mode') }}</span>
-            <div class="pdft-select-shell">
-              <select v-model="draft.mode" class="pdft-select">
-                <option v-for="option in outputModes" :key="option.value" :value="option.value">
-                  {{ option.label }}
-                </option>
-              </select>
-              <span class="pdft-caret" aria-hidden="true">
-                <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
-                  <path d="M1 3l4 4 4-4z" />
-                </svg>
-              </span>
-            </div>
+            <UiSelect v-model="draft.mode" shell-class="pdft-select-shell">
+              <option v-for="option in outputModes" :key="option.value" :value="option.value">
+                {{ option.label }}
+              </option>
+            </UiSelect>
           </label>
 
           <label class="pdft-field">
             <span class="pdft-label">{{ t('Bilingual layout') }}</span>
-            <div class="pdft-select-shell">
-              <select v-model="draft.dualLayout" class="pdft-select" :disabled="draft.mode === 'mono'">
-                <option v-for="option in dualLayouts" :key="option.value" :value="option.value">
-                  {{ option.label }}
-                </option>
-              </select>
-              <span class="pdft-caret" aria-hidden="true">
-                <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
-                  <path d="M1 3l4 4 4-4z" />
-                </svg>
-              </span>
-            </div>
+            <UiSelect
+              v-model="draft.dualLayout"
+              shell-class="pdft-select-shell"
+              :disabled="draft.mode === 'mono'"
+            >
+              <option v-for="option in dualLayouts" :key="option.value" :value="option.value">
+                {{ option.label }}
+              </option>
+            </UiSelect>
           </label>
 
           <label class="pdft-field pdft-field-span-2">
             <span class="pdft-label">{{ t('Primary font family') }}</span>
-            <div class="pdft-select-shell">
-              <select v-model="draft.fontFamily" class="pdft-select">
-                <option v-for="option in fontFamilies" :key="option.value" :value="option.value">
-                  {{ option.label }}
-                </option>
-              </select>
-              <span class="pdft-caret" aria-hidden="true">
-                <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
-                  <path d="M1 3l4 4 4-4z" />
-                </svg>
-              </span>
-            </div>
+            <UiSelect v-model="draft.fontFamily" shell-class="pdft-select-shell">
+              <option v-for="option in fontFamilies" :key="option.value" :value="option.value">
+                {{ option.label }}
+              </option>
+            </UiSelect>
           </label>
         </div>
 
         <p v-if="compatibleModels.length === 0" class="pdft-inline-warning pdft-section-pad">
-          {{ t('PDF translation supports any configured provider with a PDF translation engine. Configure one in Settings > Models first.') }}
+          {{
+            t(
+              'PDF translation supports any configured provider with a PDF translation engine. Configure one in Settings > Models first.'
+            )
+          }}
         </p>
       </div>
 
@@ -128,29 +104,34 @@
         <div class="pdft-form-grid pdft-section-pad">
           <label class="pdft-field">
             <span class="pdft-label">{{ t('QPS') }}</span>
-            <input v-model.number="draft.qps" type="number" min="1" max="32" class="pdft-input" />
+            <UiInput
+              v-model.number="draft.qps"
+              type="number"
+              min="1"
+              max="32"
+              shell-class="pdft-input-shell"
+            />
           </label>
 
           <label class="pdft-field">
             <span class="pdft-label">{{ t('Worker pool') }}</span>
-            <input v-model.number="draft.poolMaxWorkers" type="number" min="0" max="1000" class="pdft-input" />
+            <UiInput
+              v-model.number="draft.poolMaxWorkers"
+              type="number"
+              min="0"
+              max="1000"
+              shell-class="pdft-input-shell"
+            />
             <span class="pdft-field-hint">{{ t('0 uses auto-mapping or upstream default') }}</span>
           </label>
 
           <label class="pdft-field pdft-field-span-2">
             <span class="pdft-label">{{ t('OCR fallback') }}</span>
-            <div class="pdft-select-shell">
-              <select v-model="ocrModeValue" class="pdft-select">
-                <option v-for="option in ocrModes" :key="option.value" :value="option.value">
-                  {{ option.label }}
-                </option>
-              </select>
-              <span class="pdft-caret" aria-hidden="true">
-                <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
-                  <path d="M1 3l4 4 4-4z" />
-                </svg>
-              </span>
-            </div>
+            <UiSelect v-model="ocrModeValue" shell-class="pdft-select-shell">
+              <option v-for="option in ocrModes" :key="option.value" :value="option.value">
+                {{ option.label }}
+              </option>
+            </UiSelect>
           </label>
         </div>
 
@@ -160,9 +141,7 @@
               <div class="pdft-inline-label">{{ t(field.labelKey) }}</div>
               <div v-if="field.hintKey" class="pdft-field-hint">{{ t(field.hintKey) }}</div>
             </div>
-            <button class="tool-toggle-switch" :class="{ on: draft[field.key] }" @click="draft[field.key] = !draft[field.key]">
-              <span class="tool-toggle-knob"></span>
-            </button>
+            <UiSwitch v-model="draft[field.key]" :aria-label="t(field.labelKey)" />
           </div>
         </div>
       </div>
@@ -174,9 +153,14 @@
             <span class="env-lang-name">{{ t('Advanced translation & layout') }}</span>
             <span class="pdft-summary-badge">{{ advancedSummaryLabel }}</span>
           </div>
-          <button class="pdft-toolbar-btn" @click="showAdvancedTuning = !showAdvancedTuning">
+          <UiButton
+            class="pdft-toolbar-btn"
+            variant="secondary"
+            size="sm"
+            @click="showAdvancedTuning = !showAdvancedTuning"
+          >
             {{ showAdvancedTuning ? t('Hide') : t('Advanced') }}
-          </button>
+          </UiButton>
         </div>
 
         <div v-if="showAdvancedTuning" class="pdft-advanced-stack pdft-section-pad">
@@ -186,10 +170,10 @@
             <div class="pdft-form-grid">
               <label v-for="field in qualityNumberFields" :key="field.key" class="pdft-field">
                 <span class="pdft-label">{{ t(field.labelKey) }}</span>
-                <input
+                <UiInput
                   v-model.number="draft[field.key]"
                   type="number"
-                  class="pdft-input"
+                  shell-class="pdft-input-shell"
                   :min="field.min"
                   :max="field.max"
                   :step="field.step"
@@ -204,21 +188,23 @@
                   <div class="pdft-inline-label">{{ t(field.labelKey) }}</div>
                   <div v-if="field.hintKey" class="pdft-field-hint">{{ t(field.hintKey) }}</div>
                 </div>
-                <button class="tool-toggle-switch" :class="{ on: draft[field.key] }" @click="draft[field.key] = !draft[field.key]">
-                  <span class="tool-toggle-knob"></span>
-                </button>
+                <UiSwitch v-model="draft[field.key]" :aria-label="t(field.labelKey)" />
               </div>
             </div>
 
-            <label v-for="field in qualityTextFields" :key="field.key" class="pdft-field pdft-field-span-2">
+            <label
+              v-for="field in qualityTextFields"
+              :key="field.key"
+              class="pdft-field pdft-field-span-2"
+            >
               <span class="pdft-label">{{ t(field.labelKey) }}</span>
-              <textarea
+              <UiTextarea
                 v-model="draft[field.key]"
-                class="pdft-textarea"
+                shell-class="pdft-textarea-shell"
                 :rows="field.rows"
                 :placeholder="t(field.placeholderKey)"
                 spellcheck="false"
-              ></textarea>
+              />
               <span v-if="field.hintKey" class="pdft-field-hint">{{ t(field.hintKey) }}</span>
             </label>
           </div>
@@ -227,12 +213,16 @@
             <div class="pdft-inline-label">{{ t('Layout & segmentation') }}</div>
 
             <div class="pdft-form-grid">
-              <label v-for="field in layoutTextFields" :key="field.key" class="pdft-field pdft-field-span-2">
+              <label
+                v-for="field in layoutTextFields"
+                :key="field.key"
+                class="pdft-field pdft-field-span-2"
+              >
                 <span class="pdft-label">{{ t(field.labelKey) }}</span>
-                <input
+                <UiInput
                   v-model="draft[field.key]"
                   type="text"
-                  class="pdft-input"
+                  shell-class="pdft-input-shell"
                   :placeholder="t(field.placeholderKey)"
                   spellcheck="false"
                 />
@@ -241,10 +231,10 @@
 
               <label v-for="field in layoutNumberFields" :key="field.key" class="pdft-field">
                 <span class="pdft-label">{{ t(field.labelKey) }}</span>
-                <input
+                <UiInput
                   v-model.number="draft[field.key]"
                   type="number"
-                  class="pdft-input"
+                  shell-class="pdft-input-shell"
                   :min="field.min"
                   :max="field.max"
                   :step="field.step"
@@ -259,9 +249,7 @@
                   <div class="pdft-inline-label">{{ t(field.labelKey) }}</div>
                   <div v-if="field.hintKey" class="pdft-field-hint">{{ t(field.hintKey) }}</div>
                 </div>
-                <button class="tool-toggle-switch" :class="{ on: draft[field.key] }" @click="draft[field.key] = !draft[field.key]">
-                  <span class="tool-toggle-knob"></span>
-                </button>
+                <UiSwitch v-model="draft[field.key]" :aria-label="t(field.labelKey)" />
               </div>
             </div>
           </div>
@@ -272,10 +260,10 @@
             <div class="pdft-form-grid">
               <label v-for="field in formulaNumberFields" :key="field.key" class="pdft-field">
                 <span class="pdft-label">{{ t(field.labelKey) }}</span>
-                <input
+                <UiInput
                   v-model.number="draft[field.key]"
                   type="number"
-                  class="pdft-input"
+                  shell-class="pdft-input-shell"
                   :min="field.min"
                   :max="field.max"
                   :step="field.step"
@@ -285,10 +273,10 @@
 
               <label v-for="field in formulaTextFields" :key="field.key" class="pdft-field">
                 <span class="pdft-label">{{ t(field.labelKey) }}</span>
-                <input
+                <UiInput
                   v-model="draft[field.key]"
                   type="text"
-                  class="pdft-input"
+                  shell-class="pdft-input-shell"
                   :placeholder="t(field.placeholderKey)"
                   spellcheck="false"
                 />
@@ -302,9 +290,7 @@
                   <div class="pdft-inline-label">{{ t(field.labelKey) }}</div>
                   <div v-if="field.hintKey" class="pdft-field-hint">{{ t(field.hintKey) }}</div>
                 </div>
-                <button class="tool-toggle-switch" :class="{ on: draft[field.key] }" @click="draft[field.key] = !draft[field.key]">
-                  <span class="tool-toggle-knob"></span>
-                </button>
+                <UiSwitch v-model="draft[field.key]" :aria-label="t(field.labelKey)" />
               </div>
             </div>
           </div>
@@ -316,41 +302,54 @@
           <div class="env-lang-header pdft-card-header-row pdft-card-header-main">
             <span class="env-lang-dot" :class="runtimeDotClass"></span>
             <span class="env-lang-name">{{ t('Runtime') }}</span>
-            <span class="pdft-summary-badge" :class="[`tone-${runtimeDotClass}`]">{{ pdfTranslateStore.runtimeLabel }}</span>
+            <span class="pdft-summary-badge" :class="[`tone-${runtimeDotClass}`]">{{
+              pdfTranslateStore.runtimeLabel
+            }}</span>
           </div>
-          <button
+          <UiButton
             class="pdft-toolbar-btn"
-            :disabled="pdfTranslateStore.runtimeRefreshing"
+            variant="secondary"
+            size="sm"
+            :loading="pdfTranslateStore.runtimeRefreshing"
             @click="refreshRuntimeStatus(true)"
           >
             {{ pdfTranslateStore.runtimeRefreshing ? t('Checking...') : t('Refresh') }}
-          </button>
+          </UiButton>
         </div>
 
         <div class="pdft-runtime-actions pdft-section-pad">
-          <button
-            class="key-save-btn pdft-action-btn pdft-action-btn--primary"
+          <UiButton
+            class="pdft-action-btn"
+            variant="primary"
             :disabled="runtimeBusy"
+            :loading="pdfTranslateStore.setupInProgress"
             @click="prepareRuntime"
           >
             {{ pdfTranslateStore.setupInProgress ? t('Preparing...') : t('Prepare Runtime') }}
-          </button>
-          <button
-            class="pdft-action-btn pdft-action-btn--secondary"
+          </UiButton>
+          <UiButton
+            class="pdft-action-btn"
+            variant="secondary"
             :disabled="runtimeBusy || !runtimeReady"
+            :loading="pdfTranslateStore.warmupInProgress"
             @click="warmupRuntime"
           >
             {{ pdfTranslateStore.warmupInProgress ? t('Warming up...') : t('Warm Up Runtime') }}
-          </button>
+          </UiButton>
         </div>
 
         <div v-if="runtimeBusy" class="pdft-progress-meta pdft-section-pad">
           {{ runtimeProgressLabel }}
-          <span v-if="pdfTranslateStore.setupProgress > 0">· {{ pdfTranslateStore.setupProgress }}%</span>
+          <span v-if="pdfTranslateStore.setupProgress > 0"
+            >· {{ pdfTranslateStore.setupProgress }}%</span
+          >
         </div>
 
         <div v-if="runtimeBusy" class="pdft-progress-track">
-          <div class="pdft-progress-fill" :style="{ width: `${pdfTranslateStore.setupProgress}%` }"></div>
+          <div
+            class="pdft-progress-fill"
+            :style="{ width: `${pdfTranslateStore.setupProgress}%` }"
+          ></div>
         </div>
 
         <div v-if="runtimeError" class="pdft-runtime-error pdft-section-pad">
@@ -366,14 +365,15 @@
 
     <div class="keys-actions pdft-save-row">
       <span v-if="saved" class="pdft-save-hint">{{ t('Saved') }}</span>
-      <button
-        class="key-save-btn pdft-action-btn pdft-action-btn--save"
-        :class="{ saved }"
-        :disabled="pdfTranslateStore.saving || !isDirty"
+      <UiButton
+        class="pdft-action-btn pdft-action-btn--save"
+        :variant="saved ? 'secondary' : 'primary'"
+        :loading="pdfTranslateStore.saving"
+        :disabled="!isDirty"
         @click="saveSettings"
       >
         {{ pdfTranslateStore.saving ? t('Saving...') : saved ? t('Saved') : t('Save Settings') }}
-      </button>
+      </UiButton>
     </div>
   </div>
 </template>
@@ -385,6 +385,11 @@ import { useEnvironmentStore } from '../../stores/environment'
 import { useI18n } from '../../i18n'
 import { findModelById, groupModelsByProvider, providerLabel } from '../../services/modelCatalog'
 import { createDefaultPdfTranslateSettings } from '../../domains/document/pdfTranslateRuntime'
+import UiButton from '../shared/ui/UiButton.vue'
+import UiInput from '../shared/ui/UiInput.vue'
+import UiSelect from '../shared/ui/UiSelect.vue'
+import UiSwitch from '../shared/ui/UiSwitch.vue'
+import UiTextarea from '../shared/ui/UiTextarea.vue'
 
 const { t } = useI18n()
 const pdfTranslateStore = usePdfTranslateStore()
@@ -402,7 +407,8 @@ const topLevelToggleFields = [
   {
     key: 'autoEnhanceFormulaDensePages',
     labelKey: 'Auto-enhance formula-dense pages',
-    hintKey: 'If a formula-heavy page looks fragmented after the first pass, Altals retries with safer layout protection automatically.',
+    hintKey:
+      'If a formula-heavy page looks fragmented after the first pass, Altals retries with safer layout protection automatically.',
   },
   {
     key: 'translateTableText',
@@ -412,7 +418,8 @@ const topLevelToggleFields = [
   {
     key: 'autoMapPoolMaxWorkers',
     labelKey: 'Auto-map worker pool from QPS',
-    hintKey: 'When enabled, the runtime uses qps * 10 (capped at 1000) unless you set a worker pool explicitly.',
+    hintKey:
+      'When enabled, the runtime uses qps * 10 (capped at 1000) unless you set a worker pool explicitly.',
   },
 ]
 
@@ -592,20 +599,20 @@ const formulaToggleFields = [
 ]
 
 const advancedSettingKeys = [
-  ...qualityNumberFields.map(field => field.key),
-  ...qualityTextFields.map(field => field.key),
-  ...qualityToggleFields.map(field => field.key),
-  ...layoutNumberFields.map(field => field.key),
-  ...layoutTextFields.map(field => field.key),
-  ...layoutToggleFields.map(field => field.key),
-  ...formulaNumberFields.map(field => field.key),
-  ...formulaTextFields.map(field => field.key),
-  ...formulaToggleFields.map(field => field.key),
+  ...qualityNumberFields.map((field) => field.key),
+  ...qualityTextFields.map((field) => field.key),
+  ...qualityToggleFields.map((field) => field.key),
+  ...layoutNumberFields.map((field) => field.key),
+  ...layoutTextFields.map((field) => field.key),
+  ...layoutToggleFields.map((field) => field.key),
+  ...formulaNumberFields.map((field) => field.key),
+  ...formulaTextFields.map((field) => field.key),
+  ...formulaToggleFields.map((field) => field.key),
 ]
 
 const defaultPdfTranslateSettings = createDefaultPdfTranslateSettings()
 
-const sourceLanguages = computed(() => ([
+const sourceLanguages = computed(() => [
   { value: 'auto', label: t('Auto detect (auto)') },
   { value: 'zh', label: t('Chinese (zh)') },
   { value: 'zh-TW', label: t('Traditional Chinese (zh-TW)') },
@@ -618,29 +625,31 @@ const sourceLanguages = computed(() => ([
   { value: 'it', label: t('Italian (it)') },
   { value: 'ru', label: t('Russian (ru)') },
   { value: 'pt', label: t('Portuguese (pt)') },
-]))
+])
 
-const targetLanguages = computed(() => sourceLanguages.value.filter(item => item.value !== 'auto'))
-const outputModes = computed(() => ([
+const targetLanguages = computed(() =>
+  sourceLanguages.value.filter((item) => item.value !== 'auto')
+)
+const outputModes = computed(() => [
   { value: 'mono', label: t('Translated only') },
   { value: 'dual', label: t('Bilingual PDF') },
   { value: 'both', label: t('Create both') },
-]))
-const dualLayouts = computed(() => ([
+])
+const dualLayouts = computed(() => [
   { value: 'side-by-side', label: t('Left & Right') },
   { value: 'alternating-pages', label: t('Alternating pages') },
-]))
-const fontFamilies = computed(() => ([
+])
+const fontFamilies = computed(() => [
   { value: 'auto', label: t('Auto') },
   { value: 'serif', label: t('Serif') },
   { value: 'sans-serif', label: t('Sans-serif') },
   { value: 'script', label: t('Script') },
-]))
-const ocrModes = computed(() => ([
+])
+const ocrModes = computed(() => [
   { value: 'off', label: t('Off') },
   { value: 'manual', label: t('Manual') },
   { value: 'auto', label: t('Automatic') },
-]))
+])
 
 const compatibleModels = computed(() => pdfTranslateStore.compatibleModels)
 const compatibleModelGroups = computed(() => groupModelsByProvider(compatibleModels.value))
@@ -653,31 +662,34 @@ const runtimeDotClass = computed(() => {
   return 'warn'
 })
 
-const runtimeError = computed(() => (
+const runtimeError = computed(() =>
   pdfTranslateStore.runtimeStatus?.status === 'Error' ? pdfTranslateStore.runtimeStatus.data : ''
-))
-const runtimeBusy = computed(() => pdfTranslateStore.setupInProgress || pdfTranslateStore.warmupInProgress)
+)
+const runtimeBusy = computed(
+  () => pdfTranslateStore.setupInProgress || pdfTranslateStore.warmupInProgress
+)
 const runtimeReady = computed(() => pdfTranslateStore.runtimeStatus?.status === 'Ready')
-const runtimeProgressLabel = computed(() => (
-  pdfTranslateStore.setupMessage
-  || (pdfTranslateStore.warmupInProgress ? t('Warming up translation runtime') : t('Preparing translation runtime'))
-))
+const runtimeProgressLabel = computed(
+  () =>
+    pdfTranslateStore.setupMessage ||
+    (pdfTranslateStore.warmupInProgress
+      ? t('Warming up translation runtime')
+      : t('Preparing translation runtime'))
+)
 
 function optionLabel(options, value, fallback = '') {
-  return options.find(option => option.value === value)?.label || fallback
+  return options.find((option) => option.value === value)?.label || fallback
 }
 
-const modelSummary = computed(() => (
+const modelSummary = computed(() =>
   selectedModel.value
     ? `${providerLabel(selectedModel.value.provider)} · ${selectedModel.value.name}`
     : t('Not configured')
-))
+)
 
-const throughputSummary = computed(() => (
-  draft.autoMapPoolMaxWorkers
-    ? `${draft.qps} QPS · ${t('Auto')}`
-    : `${draft.qps} QPS`
-))
+const throughputSummary = computed(() =>
+  draft.autoMapPoolMaxWorkers ? `${draft.qps} QPS · ${t('Auto')}` : `${draft.qps} QPS`
+)
 
 const ocrModeValue = computed({
   get() {
@@ -691,15 +703,19 @@ const ocrModeValue = computed({
   },
 })
 
-const ocrModeLabel = computed(() => optionLabel(ocrModes.value, ocrModeValue.value, ocrModeValue.value))
+const ocrModeLabel = computed(() =>
+  optionLabel(ocrModes.value, ocrModeValue.value, ocrModeValue.value)
+)
 const processingSummary = computed(() => `${ocrModeLabel.value} · ${throughputSummary.value}`)
 
-const advancedSettingsCustomized = computed(() => (
-  advancedSettingKeys.some((key) => JSON.stringify(draft[key]) !== JSON.stringify(defaultPdfTranslateSettings[key]))
-))
-const advancedSummaryLabel = computed(() => (
+const advancedSettingsCustomized = computed(() =>
+  advancedSettingKeys.some(
+    (key) => JSON.stringify(draft[key]) !== JSON.stringify(defaultPdfTranslateSettings[key])
+  )
+)
+const advancedSummaryLabel = computed(() =>
   advancedSettingsCustomized.value ? t('Customized') : t('Defaults')
-))
+)
 
 function ensureModelSelection() {
   if (compatibleModels.value.length === 0) {
@@ -708,7 +724,10 @@ function ensureModelSelection() {
   }
 
   if (!selectedModel.value) {
-    draft.modelId = compatibleModels.value.find(model => model.default)?.id || compatibleModels.value[0]?.id || ''
+    draft.modelId =
+      compatibleModels.value.find((model) => model.default)?.id ||
+      compatibleModels.value[0]?.id ||
+      ''
   }
 }
 
@@ -716,7 +735,9 @@ function draftSnapshot() {
   return JSON.parse(JSON.stringify(draft))
 }
 
-const isDirty = computed(() => JSON.stringify(draftSnapshot()) !== JSON.stringify(pdfTranslateStore.settings))
+const isDirty = computed(
+  () => JSON.stringify(draftSnapshot()) !== JSON.stringify(pdfTranslateStore.settings)
+)
 
 function syncDraft() {
   Object.assign(draft, createDefaultPdfTranslateSettings(), pdfTranslateStore.settings)
@@ -860,66 +881,24 @@ onMounted(async () => {
 }
 
 .pdft-select-shell {
-  position: relative;
-}
-
-.pdft-select,
-.pdft-input {
-  appearance: none;
-  -webkit-appearance: none;
-  width: 100%;
-  min-width: 0;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  background: var(--bg-secondary);
-  color: var(--fg-primary);
   font-size: var(--ui-font-caption);
-  line-height: 1.2;
-  padding: 7px 30px 7px 9px;
-  transition: border-color 0.15s ease, background 0.15s ease;
 }
 
-.pdft-input {
-  padding-right: 9px;
-}
-
-.pdft-textarea {
-  width: 100%;
-  min-width: 0;
-  resize: vertical;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  background: var(--bg-secondary);
-  color: var(--fg-primary);
+.pdft-select-shell,
+.pdft-input-shell {
+  min-height: 30px;
   font-size: var(--ui-font-caption);
-  line-height: 1.5;
-  padding: 8px 9px;
-  transition: border-color 0.15s ease, background 0.15s ease;
+  background: var(--surface-base);
 }
 
-.pdft-select:hover,
-.pdft-input:hover,
-.pdft-textarea:hover {
-  border-color: rgba(255, 255, 255, 0.14);
+.pdft-textarea-shell {
+  font-size: var(--ui-font-caption);
 }
 
-.pdft-select:focus,
-.pdft-input:focus,
-.pdft-textarea:focus {
-  outline: none;
-  border-color: var(--accent);
-}
-
-.pdft-caret {
-  position: absolute;
-  top: 50%;
-  right: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--fg-muted);
-  pointer-events: none;
-  transform: translateY(-50%);
+.pdft-select-shell:hover,
+.pdft-input-shell:hover,
+.pdft-textarea-shell:hover {
+  border-color: var(--border-strong);
 }
 
 .pdft-summary-badge {
@@ -928,9 +907,9 @@ onMounted(async () => {
   min-height: 18px;
   padding: 0 7px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: color-mix(in srgb, var(--bg-secondary) 88%, white 12%);
-  color: var(--fg-secondary);
+  border: 1px solid var(--border-subtle);
+  background: color-mix(in srgb, var(--surface-muted) 88%, transparent);
+  color: var(--text-secondary);
   font-size: var(--ui-font-micro);
   font-weight: 600;
   line-height: 1;
@@ -963,15 +942,15 @@ onMounted(async () => {
 }
 
 .pdft-toggle-row {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
   gap: 10px;
   min-width: 0;
   padding: 8px 10px;
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  background: color-mix(in srgb, var(--bg-secondary) 82%, transparent);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  background: color-mix(in srgb, var(--surface-muted) 82%, transparent);
 }
 
 .pdft-inline-copy {
@@ -979,6 +958,11 @@ onMounted(async () => {
   flex-direction: column;
   gap: 2px;
   min-width: 0;
+}
+
+.pdft-toggle-row :deep(.ui-switch) {
+  flex-shrink: 0;
+  margin-top: 1px;
 }
 
 .pdft-advanced-stack {
@@ -993,9 +977,9 @@ onMounted(async () => {
   flex-direction: column;
   gap: 10px;
   padding: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--bg-secondary) 80%, transparent);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--surface-muted) 80%, transparent);
 }
 
 .pdft-inline-warning {
@@ -1014,58 +998,11 @@ onMounted(async () => {
 }
 
 .pdft-action-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   width: 100%;
-  min-height: 26px;
-  padding: 4px 9px;
-  font-size: var(--ui-font-caption);
-  white-space: nowrap;
-}
-
-.pdft-action-btn--primary {
-  min-height: 28px;
-  font-weight: 600;
-}
-
-.pdft-action-btn--secondary {
-  border-radius: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.01)),
-    var(--bg-primary);
-  color: var(--fg-secondary);
-  cursor: pointer;
-  transition: border-color 0.15s, color 0.15s, background 0.15s, box-shadow 0.15s;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
-}
-
-.pdft-action-btn--secondary:hover {
-  border-color: rgba(255, 255, 255, 0.2);
-  color: var(--fg-primary);
-  background: var(--bg-hover);
-}
-
-.pdft-action-btn--secondary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 .pdft-toolbar-btn {
-  min-height: 24px;
-  padding: 0 9px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: transparent;
-  color: var(--fg-secondary);
-  font-size: var(--ui-font-micro);
-  cursor: pointer;
-}
-
-.pdft-toolbar-btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
 }
 
 .pdft-save-row {
@@ -1082,14 +1019,18 @@ onMounted(async () => {
   margin-top: 8px;
   height: 6px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--surface-muted) 88%, transparent);
   overflow: hidden;
 }
 
 .pdft-progress-fill {
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, rgba(122, 162, 247, 0.9), rgba(122, 162, 247, 0.55));
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--accent) 92%, white 8%),
+    color-mix(in srgb, var(--accent) 58%, transparent)
+  );
 }
 
 .pdft-runtime-error {
@@ -1108,9 +1049,9 @@ onMounted(async () => {
   padding: 8px 10px;
   max-height: 180px;
   overflow: auto;
-  border-radius: 8px;
-  background: rgba(0, 0, 0, 0.18);
-  color: var(--fg-secondary);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--surface-muted) 86%, black 14%);
+  color: var(--text-secondary);
   font-size: 11px;
   line-height: 1.5;
   white-space: pre-wrap;

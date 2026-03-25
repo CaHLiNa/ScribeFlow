@@ -80,7 +80,7 @@ const isViewsPanel = computed(() => workspace.leftSidebarPanel === 'library-view
   flex-direction: column;
   height: 100%;
   min-height: 0;
-  background: color-mix(in srgb, var(--bg-secondary) 94%, var(--bg-primary));
+  background: color-mix(in srgb, var(--bg-primary) 94%, var(--bg-primary));
 }
 
 .library-shell-sidebar-section {

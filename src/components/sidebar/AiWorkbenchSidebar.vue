@@ -89,7 +89,7 @@ async function deleteChat(sessionId) {
   flex-direction: column;
   height: 100%;
   min-height: 0;
-  background: var(--bg-secondary);
+  background: var(--bg-primary);
 }
 
 .ai-shell-sidebar-top {

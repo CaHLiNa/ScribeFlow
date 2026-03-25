@@ -63,14 +63,14 @@ const firstChildStyle = computed(() => {
   if (props.node.type !== 'split') return {}
   const ratio = props.node.ratio || 0.5
   const prop = props.node.direction === 'horizontal' ? 'height' : 'width'
-  return { [prop]: `calc(${ratio * 100}% - 1.5px)` }
+  return { [prop]: `calc(${ratio * 100}% - 0.5px)` }
 })
 
 const secondChildStyle = computed(() => {
   if (props.node.type !== 'split') return {}
   const ratio = props.node.ratio || 0.5
   const prop = props.node.direction === 'horizontal' ? 'height' : 'width'
-  return { [prop]: `calc(${(1 - ratio) * 100}% - 1.5px)` }
+  return { [prop]: `calc(${(1 - ratio) * 100}% - 0.5px)` }
 })
 
 function handleResize(e) {

@@ -9,21 +9,18 @@
       @keydown.esc="$emit('close')"
     >
       <div class="version-modal">
-        <button class="version-close-btn" @click="$emit('close')" :title="t('Close (Esc)')">
+        <UiButton class="version-close-btn" variant="ghost" size="icon-sm" icon-only :title="t('Close (Esc)')" @click="$emit('close')">
           <IconX :size="18" :stroke-width="1.5" />
-        </button>
+        </UiButton>
 
         <div class="version-list">
-          <div
-            class="px-3 py-2 text-xs font-medium uppercase tracking-wider"
-            style="color: var(--fg-muted); border-bottom: 1px solid var(--border);"
-          >
+          <div class="workspace-version-list-heading px-3 py-2 text-xs font-medium uppercase tracking-wider">
             {{ t('Saved versions') }}
           </div>
-          <div v-if="loading" class="px-3 py-4 text-xs" style="color: var(--fg-muted);">
+          <div v-if="loading" class="workspace-version-list-empty px-3 py-4 text-xs">
             {{ t('Loading...') }}
           </div>
-          <div v-else-if="snapshots.length === 0" class="px-3 py-4 text-xs" style="color: var(--fg-muted);">
+          <div v-else-if="snapshots.length === 0" class="workspace-version-list-empty px-3 py-4 text-xs">
             {{ t('No saved versions yet') }}
           </div>
           <div
@@ -53,31 +50,31 @@
         <div class="version-preview">
           <div v-if="selectedSnapshot" class="version-preview-header">
             <div class="workspace-snapshot-headline">
-              <span class="text-xs" style="color: var(--fg-muted);">
+              <span class="workspace-snapshot-meta text-xs">
                 {{ formatDisplayDate(selectedSnapshot.createdAt) }}
               </span>
-              <span class="text-sm font-medium" style="color: var(--fg-primary);">
+              <span class="workspace-snapshot-title-copy text-sm font-medium">
                 {{ selectedSnapshotMetadata.title }}
               </span>
             </div>
           </div>
 
           <div v-if="loading" class="version-empty-state">
-            <div class="text-xs" style="color: var(--fg-muted);">{{ t('Loading...') }}</div>
+            <div class="workspace-version-empty-copy text-xs">{{ t('Loading...') }}</div>
           </div>
           <div v-else-if="!selectedSnapshot && snapshots.length === 0" class="version-empty-state">
-            <div style="color: var(--fg-muted); font-size: var(--ui-font-body);">
+            <div class="workspace-version-empty-copy">
               {{ t('No saved versions yet') }}
             </div>
-            <div style="color: var(--fg-muted); opacity: 0.6; font-size: var(--ui-font-caption); margin-top: 6px;">
+            <div class="workspace-version-empty-detail">
               {{ t('Create one with Save first, then browse it here.') }}
             </div>
           </div>
           <div v-else-if="!selectedSnapshot" class="version-empty-state">
-            <div style="color: var(--fg-muted); font-size: var(--ui-font-body);">
+            <div class="workspace-version-empty-copy">
               {{ t('Select a saved version') }}
             </div>
-            <div style="color: var(--fg-muted); opacity: 0.5; font-size: var(--ui-font-caption); margin-top: 6px;">
+            <div class="workspace-version-empty-detail workspace-version-empty-detail-faint">
               {{ t('Choose a workspace save point on the left.') }}
             </div>
           </div>
@@ -343,6 +340,7 @@ import {
   restoreWorkspaceSavePointFile,
 } from '../domains/changes/workspaceSnapshot.js'
 import { useI18n, formatDate as formatLocaleDate } from '../i18n'
+import UiButton from './shared/ui/UiButton.vue'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -1136,6 +1134,36 @@ function formatPreviewStatus(status) {
 
 .workspace-snapshot-action-remove:not(:disabled):hover {
   transform: translateY(-1px);
+}
+
+.workspace-version-list-heading,
+.workspace-version-list-empty,
+.workspace-snapshot-meta,
+.workspace-version-empty-copy,
+.workspace-version-empty-detail {
+  color: var(--text-muted);
+}
+
+.workspace-version-list-heading {
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.workspace-snapshot-title-copy {
+  color: var(--text-primary);
+}
+
+.workspace-version-empty-copy {
+  font-size: var(--ui-font-body);
+}
+
+.workspace-version-empty-detail {
+  margin-top: var(--space-2);
+  font-size: var(--ui-font-caption);
+  opacity: 0.72;
+}
+
+.workspace-version-empty-detail-faint {
+  opacity: 0.56;
 }
 
 </style>

@@ -1,5 +1,11 @@
 <template>
-  <div class="flex flex-col h-full overflow-hidden bg-[var(--bg-secondary)]">
+  <div class="left-shell-sidebar">
+    <SidebarChrome
+      :entries="sidebarEntries"
+      :active-key="activePanel"
+      @select="selectSidebarPanel"
+    />
+
     <KeepAlive :max="4">
       <component
         :is="activeSidebarView.component"
@@ -21,7 +27,9 @@ import { ref, defineAsyncComponent, computed, nextTick, KeepAlive } from 'vue'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useI18n } from '../../i18n'
 import { normalizeWorkbenchSidebarPanel } from '../../shared/workbenchSidebarPanels'
+import { getWorkbenchSidebarChromeEntries } from '../../shared/workbenchChromeEntries'
 import FileTree from './FileTree.vue'
+import SidebarChrome from '../shared/SidebarChrome.vue'
 
 const ReferenceList = defineAsyncComponent(() => import('./ReferenceList.vue'))
 const LibrarySidebar = defineAsyncComponent(() => import('./LibrarySidebar.vue'))
@@ -35,6 +43,9 @@ const activeSidebarRef = ref(null)
 const activePanel = computed(() => normalizeWorkbenchSidebarPanel(
   workspace.primarySurface,
   workspace.leftSidebarPanel,
+))
+const sidebarEntries = computed(() => (
+  getWorkbenchSidebarChromeEntries(t, workspace.primarySurface)
 ))
 const activeSidebarView = computed(() => {
   if (workspace.isWorkspaceSurface && activePanel.value !== 'references') {
@@ -99,6 +110,10 @@ async function focusFileTree(method, ...args) {
   activeSidebarRef.value?.[method]?.(...args)
 }
 
+function selectSidebarPanel(panel) {
+  workspace.setLeftSidebarPanel(panel)
+}
+
 // Expose FileTree methods for App.vue
 defineExpose({
   async createNewFile(ext = '.md') {
@@ -109,3 +124,14 @@ defineExpose({
   },
 })
 </script>
+
+<style scoped>
+.left-shell-sidebar {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--bg-primary);
+}
+</style>

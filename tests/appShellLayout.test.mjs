@@ -2,116 +2,152 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 
 import {
+  resolveMaximumLeftSidebarWidth,
+  resolveMaximumRightSidebarWidth,
   resolveMinimumLeftSidebarWidth,
   resolveMinimumRightSidebarWidth,
 } from '../src/composables/useAppShellLayout.js'
 
 test('left sidebar minimum width matches the references-to-files gap on standard chrome', () => {
-  const width = resolveMinimumLeftSidebarWidth({
-    railWidth: 44,
-    currentSidebarWidth: 240,
-    collapseButtonLeft: 246,
-    collapseButtonWidth: 30,
-    rightmostPanelRight: 108,
-    panelGap: 4,
-  })
+  const width = resolveMinimumLeftSidebarWidth()
 
-  assert.equal(width, 106)
+  assert.equal(width, 220)
 })
 
-test('left sidebar minimum width expands when the fixed panel group starts after mac traffic lights', () => {
+test('left sidebar minimum width adapts downward on smaller viewports', () => {
   const width = resolveMinimumLeftSidebarWidth({
-    railWidth: 44,
-    currentSidebarWidth: 240,
-    collapseButtonLeft: 246,
-    collapseButtonWidth: 30,
-    rightmostPanelRight: 136,
-    panelGap: 4,
+    viewportWidth: 900,
   })
 
-  assert.equal(width, 134)
+  assert.equal(width, 180)
 })
 
-test('left sidebar minimum width stays pinned to the shared maximum when the current surface only has one sidebar button', () => {
+test('left sidebar minimum width respects explicit larger overrides', () => {
   const width = resolveMinimumLeftSidebarWidth({
-    railWidth: 44,
-    currentSidebarWidth: 240,
-    collapseButtonLeft: 246,
-    collapseButtonWidth: 30,
-    rightmostPanelRight: 74,
-    panelGap: 4,
-    currentPanelCount: 1,
-    maxPanelCount: 2,
-    panelButtonWidth: 30,
+    minimumWidth: 220,
   })
 
-  assert.equal(width, 106)
+  assert.equal(width, 220)
 })
 
-test('left sidebar minimum width stays pinned to the shared maximum when the current surface has two sidebar buttons', () => {
+test('left sidebar minimum width still expands to fit wider shared chrome strips', () => {
   const width = resolveMinimumLeftSidebarWidth({
-    railWidth: 44,
-    currentSidebarWidth: 240,
-    collapseButtonLeft: 246,
-    collapseButtonWidth: 30,
-    rightmostPanelRight: 108,
-    panelGap: 4,
-    currentPanelCount: 2,
-    maxPanelCount: 2,
-    panelButtonWidth: 30,
+    minimumWidth: 40,
+    panelCount: 4,
   })
 
-  assert.equal(width, 106)
+  assert.equal(width, 148)
 })
 
-test('left sidebar minimum width falls back when chrome measurements are incomplete', () => {
+test('left sidebar minimum width falls back when overrides are invalid', () => {
   const width = resolveMinimumLeftSidebarWidth({
-    railWidth: 44,
-    currentSidebarWidth: 240,
-    collapseButtonLeft: NaN,
-    collapseButtonWidth: 30,
-    rightmostPanelRight: 170,
-    panelGap: 4,
+    minimumWidth: Number.NaN,
+    panelCount: 0,
   })
 
-  assert.equal(width, 160)
+  assert.equal(width, 220)
+})
+
+test('left sidebar maximum width uses the shared clamp ceiling', () => {
+  const width = resolveMaximumLeftSidebarWidth()
+
+  assert.equal(width, 420)
+})
+
+test('left sidebar maximum width shrinks with the app viewport', () => {
+  const width = resolveMaximumLeftSidebarWidth({
+    viewportWidth: 800,
+  })
+
+  assert.equal(width, 216)
+})
+
+test('left sidebar maximum width still respects the adaptive viewport ceiling when overrides are larger', () => {
+  const width = resolveMaximumLeftSidebarWidth({
+    viewportWidth: 800,
+    maximumWidth: 420,
+  })
+
+  assert.equal(width, 216)
+})
+
+test('left sidebar maximum width never drops below the minimum width', () => {
+  const width = resolveMaximumLeftSidebarWidth({
+    viewportWidth: 600,
+    maximumWidth: 180,
+  })
+
+  assert.equal(width, 176)
 })
 
 test('right sidebar minimum width mirrors the workspace inspector chrome width', () => {
-  const width = resolveMinimumRightSidebarWidth({
-    viewportWidth: 1000,
-    leftmostPanelLeft: 928,
-    collapseButtonWidth: 30,
-    panelGap: 4,
-    currentPanelCount: 2,
-    maxPanelCount: 2,
-    panelButtonWidth: 30,
-  })
+  const width = resolveMinimumRightSidebarWidth()
 
-  assert.equal(width, 106)
+  assert.equal(width, 260)
 })
 
-test('right sidebar minimum width stays pinned to the shared maximum when the current surface only has one inspector button', () => {
+test('right sidebar minimum width adapts downward on smaller viewports', () => {
   const width = resolveMinimumRightSidebarWidth({
     viewportWidth: 1000,
-    leftmostPanelLeft: 962,
-    collapseButtonWidth: 30,
-    panelGap: 4,
-    currentPanelCount: 1,
-    maxPanelCount: 2,
-    panelButtonWidth: 30,
   })
 
-  assert.equal(width, 106)
+  assert.equal(width, 220)
 })
 
-test('right sidebar minimum width falls back when inspector chrome measurements are incomplete', () => {
+test('right sidebar minimum width respects explicit larger overrides', () => {
   const width = resolveMinimumRightSidebarWidth({
-    viewportWidth: NaN,
-    leftmostPanelLeft: 928,
-    collapseButtonWidth: 30,
-    panelGap: 4,
+    minimumWidth: 280,
   })
 
-  assert.equal(width, 200)
+  assert.equal(width, 280)
+})
+
+test('right sidebar minimum width still expands to fit wider chrome strips', () => {
+  const width = resolveMinimumRightSidebarWidth({
+    minimumWidth: 20,
+    panelCount: 3,
+  })
+
+  assert.equal(width, 114)
+})
+
+test('right sidebar minimum width falls back when overrides are invalid', () => {
+  const width = resolveMinimumRightSidebarWidth({
+    minimumWidth: Number.NaN,
+    panelCount: 0,
+  })
+
+  assert.equal(width, 260)
+})
+
+test('right sidebar maximum width uses the shared clamp ceiling', () => {
+  const width = resolveMaximumRightSidebarWidth()
+
+  assert.equal(width, 460)
+})
+
+test('right sidebar maximum width shrinks with the app viewport', () => {
+  const width = resolveMaximumRightSidebarWidth({
+    viewportWidth: 800,
+  })
+
+  assert.equal(width, 240)
+})
+
+test('right sidebar maximum width still respects the adaptive viewport ceiling when overrides are larger', () => {
+  const width = resolveMaximumRightSidebarWidth({
+    viewportWidth: 800,
+    maximumWidth: 460,
+  })
+
+  assert.equal(width, 240)
+})
+
+test('right sidebar maximum width never drops below the minimum width', () => {
+  const width = resolveMaximumRightSidebarWidth({
+    viewportWidth: 640,
+    maximumWidth: 220,
+  })
+
+  assert.equal(width, 208)
 })
