@@ -65,6 +65,7 @@ This blueprint tracks the current refactor truth for Altals as a local-first, pr
 - March 25, 2026: restored the PDF translation settings surface to an intentional two-column layout by keeping dual columns but giving each toggle row a dedicated text column plus a fixed switch column so long labels wrap instead of collapsing the switch space.
 - March 25, 2026: audited literal `t('...')` usage across `src/` and filled the missing `ZH_MESSAGES` entries, bringing the current missing-key scan for the Chinese language pack down to zero.
 - March 25, 2026: extended the i18n audit to dynamic settings keys such as `labelKey`, `hintKey`, and `placeholderKey`, which caught the remaining untranslated PDF translation option copy and brought that scan to zero as well.
+- March 25, 2026: replaced the fixed sidebar width ceilings/floors in `useAppShellLayout` with viewport-adaptive width rules and resize-time re-clamping, so smaller app windows no longer let left/right sidebars consume a disproportionate share of the shell.
 
 ## Blocked / Risks
 
@@ -98,6 +99,7 @@ Validation status for the current slice:
 - Added shared `UiSelect` and `UiTextarea` primitives, then verified that the settings directory no longer contains raw `input`, `select`, or `textarea` controls.
 - Extended `UiButton` with active/raw-content support and verified that the settings directory no longer contains raw `button`, `input`, `select`, or `textarea` controls.
 - Re-scanned literal `t('...')` usage plus common dynamic i18n key fields across `src/` and verified the current Chinese language pack has zero missing keys for those calls.
+- Updated app-shell layout tests to cover viewport-adaptive sidebar minimum/maximum widths instead of only fixed pixel clamps.
 - `npm run lint` passes for the scoped frontend baseline surfaces.
 - `npm run format:check` passes for the scoped frontend baseline files and docs.
 - `node --test tests/workbenchChromeEntries.test.mjs tests/headerChromeGeometry.test.mjs tests/appShellLayout.test.mjs` passes.

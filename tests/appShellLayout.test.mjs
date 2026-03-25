@@ -14,6 +14,14 @@ test('left sidebar minimum width matches the references-to-files gap on standard
   assert.equal(width, 220)
 })
 
+test('left sidebar minimum width adapts downward on smaller viewports', () => {
+  const width = resolveMinimumLeftSidebarWidth({
+    viewportWidth: 900,
+  })
+
+  assert.equal(width, 180)
+})
+
 test('left sidebar minimum width respects explicit larger overrides', () => {
   const width = resolveMinimumLeftSidebarWidth({
     minimumWidth: 220,
@@ -46,19 +54,44 @@ test('left sidebar maximum width uses the shared clamp ceiling', () => {
   assert.equal(width, 420)
 })
 
+test('left sidebar maximum width shrinks with the app viewport', () => {
+  const width = resolveMaximumLeftSidebarWidth({
+    viewportWidth: 800,
+  })
+
+  assert.equal(width, 216)
+})
+
+test('left sidebar maximum width still respects the adaptive viewport ceiling when overrides are larger', () => {
+  const width = resolveMaximumLeftSidebarWidth({
+    viewportWidth: 800,
+    maximumWidth: 420,
+  })
+
+  assert.equal(width, 216)
+})
+
 test('left sidebar maximum width never drops below the minimum width', () => {
   const width = resolveMaximumLeftSidebarWidth({
-    minimumWidth: 220,
+    viewportWidth: 600,
     maximumWidth: 180,
   })
 
-  assert.equal(width, 220)
+  assert.equal(width, 176)
 })
 
 test('right sidebar minimum width mirrors the workspace inspector chrome width', () => {
   const width = resolveMinimumRightSidebarWidth()
 
   assert.equal(width, 260)
+})
+
+test('right sidebar minimum width adapts downward on smaller viewports', () => {
+  const width = resolveMinimumRightSidebarWidth({
+    viewportWidth: 1000,
+  })
+
+  assert.equal(width, 220)
 })
 
 test('right sidebar minimum width respects explicit larger overrides', () => {
@@ -93,11 +126,28 @@ test('right sidebar maximum width uses the shared clamp ceiling', () => {
   assert.equal(width, 460)
 })
 
+test('right sidebar maximum width shrinks with the app viewport', () => {
+  const width = resolveMaximumRightSidebarWidth({
+    viewportWidth: 800,
+  })
+
+  assert.equal(width, 240)
+})
+
+test('right sidebar maximum width still respects the adaptive viewport ceiling when overrides are larger', () => {
+  const width = resolveMaximumRightSidebarWidth({
+    viewportWidth: 800,
+    maximumWidth: 460,
+  })
+
+  assert.equal(width, 240)
+})
+
 test('right sidebar maximum width never drops below the minimum width', () => {
   const width = resolveMaximumRightSidebarWidth({
-    minimumWidth: 260,
+    viewportWidth: 640,
     maximumWidth: 220,
   })
 
-  assert.equal(width, 260)
+  assert.equal(width, 208)
 })
