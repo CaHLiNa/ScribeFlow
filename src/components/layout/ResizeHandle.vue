@@ -9,6 +9,7 @@
 
 <script setup>
 import { ref } from 'vue'
+import { setShellResizeActive } from '../../shared/shellResizeSignals'
 
 const props = defineProps({
   direction: { type: String, default: 'vertical' }, // 'vertical' (left/right) or 'horizontal' (top/bottom)
@@ -21,6 +22,7 @@ const dragging = ref(false)
 function startDrag(e) {
   dragging.value = true
   emit('resize-start')
+  setShellResizeActive(true, { source: 'layout-handle', direction: props.direction })
   const startX = e.clientX
   const startY = e.clientY
 
@@ -43,6 +45,7 @@ function startDrag(e) {
     document.body.style.cursor = ''
     document.body.style.userSelect = ''
     document.getElementById('resize-drag-iframe-block')?.remove()
+    setShellResizeActive(false, { source: 'layout-handle', direction: props.direction })
     emit('resize-end')
   }
 

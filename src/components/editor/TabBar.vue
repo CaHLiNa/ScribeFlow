@@ -1,25 +1,24 @@
 <template>
-  <div class="flex items-center h-7 shrink-0 relative px-1"
+  <div class="flex items-center h-8 shrink-0 relative"
     data-tab-bar
     :data-pane-id="paneId"
-    style="background: var(--bg-secondary); border-bottom: 1px solid var(--border);">
+    style="background: var(--bg-primary); border-bottom: 1px solid var(--border);">
     <!-- Tabs -->
-    <div ref="tabsContainer" class="flex-1 flex items-center h-full overflow-x-auto relative gap-0.5" data-tabs-area>
+    <div ref="tabsContainer" class="flex-1 flex items-center h-full overflow-x-auto relative" data-tabs-area>
       <div
         v-for="(tab, idx) in tabs"
         :key="tab"
         :ref="el => tabEls[idx] = el"
         data-tab-el
-        class="flex items-center h-[26px] mt-[1px] px-3 text-xs cursor-pointer shrink-0 border rounded-t-[6px] group"
+        class="flex items-center h-full px-4 text-xs cursor-pointer shrink-0 group border-r"
         :title="tabTitle(tab)"
         :style="{
-          borderColor: tab === activeTab ? 'var(--border)' : 'transparent',
-          background: tab === activeTab ? 'var(--bg-primary)' : 'transparent',
+          borderColor: 'var(--border)',
+          background: tab === activeTab ? 'var(--bg-primary)' : 'var(--bg-primary)',
           color: tab === activeTab ? 'var(--fg-primary)' : 'var(--fg-muted)',
-          borderBottomColor: tab === activeTab ? 'var(--bg-primary)' : 'transparent',
-          boxShadow: tab === activeTab ? 'inset 0 2px 0 var(--accent)' : 'none',
-          opacity: dragIdx === idx ? 0.3 : 1,
-          transition: 'opacity 0.15s, background-color 0.14s ease, border-color 0.14s ease, color 0.14s ease, box-shadow 0.14s ease',
+          boxShadow: tab === activeTab ? 'inset 0 -2px 0 var(--accent)' : 'none',
+          opacity: dragIdx === idx ? 0.3 : (tab === activeTab ? 1 : 0.7),
+          transition: 'opacity 0.15s, color 0.14s ease, box-shadow 0.14s ease',
         }"
         @mousedown="onMouseDown(idx, $event)"
         @mouseenter="onMouseEnter(idx)"

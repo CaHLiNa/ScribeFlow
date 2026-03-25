@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 import {
   resolveHeaderChromeLayout,
   resolveLeftSidebarChromeAnchor,
-  resolveRightSidebarChromeAnchor,
+  resolveRightHeaderChromeAnchor,
 } from '../src/shared/headerChromeGeometry.js'
 
 test('left sidebar chrome anchor snaps to the mac traffic-light safe padding in windowed mode', () => {
@@ -23,48 +23,32 @@ test('left sidebar chrome anchor falls back to the rail boundary in fullscreen',
   }), 44)
 })
 
-test('right sidebar expanded anchor preserves the inspector left-edge inset', () => {
-  assert.equal(resolveRightSidebarChromeAnchor({
-    sidebarWidth: 360,
-    buttonWidth: 30,
+test('right header chrome anchor stays pinned to the fixed inset', () => {
+  assert.equal(resolveRightHeaderChromeAnchor({
     buttonInset: 8,
-  }), 322)
+  }), 8)
 })
 
-test('header chrome layout keeps the first left slot stable in windowed macOS', () => {
+test('header chrome layout keeps the left toggle aligned with the mac traffic-light safe padding', () => {
   assert.deepEqual(resolveHeaderChromeLayout({
     hasVisibleTrafficLights: true,
     macSafePadding: 72,
     railBoundary: 44,
-    leftSidebarWidth: 240,
-    leftSidebarOpen: false,
-    rightSidebarWidth: 360,
-    rightSidebarOpen: false,
-    buttonWidth: 30,
     buttonInset: 8,
   }), {
-    leftPanelTabsLeft: 72,
-    leftCollapseLeft: 72,
-    rightPanelTabsRight: 0,
-    rightCollapseRight: 0,
+    leftToggleLeft: 72,
+    rightToggleRight: 8,
   })
 })
 
-test('header chrome layout keeps the live left and right edges stable while both sidebars are open', () => {
+test('header chrome layout falls back to the rail boundary when traffic lights are hidden', () => {
   assert.deepEqual(resolveHeaderChromeLayout({
-    hasVisibleTrafficLights: true,
+    hasVisibleTrafficLights: false,
     macSafePadding: 72,
     railBoundary: 44,
-    leftSidebarWidth: 240,
-    leftSidebarOpen: true,
-    rightSidebarWidth: 360,
-    rightSidebarOpen: true,
-    buttonWidth: 30,
     buttonInset: 8,
   }), {
-    leftPanelTabsLeft: 72,
-    leftCollapseLeft: 246,
-    rightPanelTabsRight: 0,
-    rightCollapseRight: 322,
+    leftToggleLeft: 44,
+    rightToggleRight: 8,
   })
 })

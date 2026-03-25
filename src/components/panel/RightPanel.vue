@@ -1,5 +1,5 @@
 <template>
-  <div class="flex flex-col h-full" style="background: var(--bg-secondary);">
+  <div class="flex flex-col h-full" style="background: var(--bg-primary);">
     <!-- Main tab bar (Outline / Backlinks) -->
     <div class="flex items-center h-7 border-b shrink-0" style="border-color: var(--border);">
       <button

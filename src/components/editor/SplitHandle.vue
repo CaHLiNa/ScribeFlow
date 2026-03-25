@@ -48,19 +48,39 @@ function startDrag(e) {
 <style scoped>
 .split-handle {
   z-index: 5;
+  background: transparent;
+  position: relative;
+}
+.split-handle::before {
+  content: '';
+  position: absolute;
   background: var(--border);
   transition: background 0.15s;
 }
 .split-handle.vertical {
-  width: 3px;
+  width: 5px;
+  margin: 0 -2px;
   cursor: col-resize;
 }
+.split-handle.vertical::before {
+  top: 0;
+  bottom: 0;
+  left: 2px;
+  width: 1px;
+}
 .split-handle.horizontal {
-  height: 3px;
+  height: 5px;
+  margin: -2px 0;
   cursor: row-resize;
 }
-.split-handle:hover,
-.split-handle.dragging {
+.split-handle.horizontal::before {
+  left: 0;
+  right: 0;
+  top: 2px;
+  height: 1px;
+}
+.split-handle:hover::before,
+.split-handle.dragging::before {
   background: var(--accent);
 }
 </style>

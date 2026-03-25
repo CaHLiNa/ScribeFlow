@@ -2,24 +2,46 @@
   <div class="theme-page theme-page-compact">
     <h3 class="settings-section-title">{{ t('Theme') }}</h3>
     <div class="theme-grid">
-      <button
+      <UiButton
         v-for="theme in themes"
         :key="theme.id"
-        class="theme-card"
-        :class="{ active: workspace.theme === theme.id }"
+        class="theme-card settings-choice-card"
+        variant="secondary"
+        size="sm"
+        block
+        content-mode="raw"
+        :active="workspace.theme === theme.id"
         @click="workspace.setTheme(theme.id)"
       >
         <!-- Mini preview -->
         <div class="theme-preview" :style="{ background: theme.colors.bgPrimary }">
           <!-- Sidebar -->
-          <div class="theme-preview-sidebar" :style="{ background: theme.colors.bgSecondary }"></div>
+          <div
+            class="theme-preview-sidebar"
+            :style="{ background: theme.colors.bgSecondary }"
+          ></div>
           <!-- Editor area -->
           <div class="theme-preview-editor">
-            <div class="theme-preview-line" :style="{ background: theme.colors.fgMuted, width: '60%' }"></div>
-            <div class="theme-preview-line" :style="{ background: theme.colors.accent, width: '45%' }"></div>
-            <div class="theme-preview-line" :style="{ background: theme.colors.fgMuted, width: '70%' }"></div>
-            <div class="theme-preview-line" :style="{ background: theme.colors.accentSecondary, width: '35%' }"></div>
-            <div class="theme-preview-line" :style="{ background: theme.colors.fgMuted, width: '55%' }"></div>
+            <div
+              class="theme-preview-line"
+              :style="{ background: theme.colors.fgMuted, width: '60%' }"
+            ></div>
+            <div
+              class="theme-preview-line"
+              :style="{ background: theme.colors.accent, width: '45%' }"
+            ></div>
+            <div
+              class="theme-preview-line"
+              :style="{ background: theme.colors.fgMuted, width: '70%' }"
+            ></div>
+            <div
+              class="theme-preview-line"
+              :style="{ background: theme.colors.accentSecondary, width: '35%' }"
+            ></div>
+            <div
+              class="theme-preview-line"
+              :style="{ background: theme.colors.fgMuted, width: '55%' }"
+            ></div>
           </div>
         </div>
         <!-- Label -->
@@ -31,7 +53,7 @@
           <span class="theme-dot" :style="{ background: theme.colors.success }"></span>
           <span class="theme-dot" :style="{ background: theme.colors.error }"></span>
         </div>
-      </button>
+      </UiButton>
     </div>
 
     <h3 class="settings-section-title theme-subsection-title">{{ t('PDF viewer') }}</h3>
@@ -42,14 +64,12 @@
         <span class="env-lang-name">{{ t('Themed PDF pages') }}</span>
         <span v-if="workspace.pdfThemedPages" class="theme-option-status">{{ t('Enabled') }}</span>
         <span v-else class="theme-option-status theme-option-status-off">{{ t('Disabled') }}</span>
-        <div style="flex: 1;"></div>
-        <button
-          class="tool-toggle-switch"
-          :class="{ on: workspace.pdfThemedPages }"
-          @click="workspace.togglePdfThemedPages()"
-        >
-          <span class="tool-toggle-knob"></span>
-        </button>
+        <div class="ui-flex-spacer"></div>
+        <UiSwitch
+          :model-value="workspace.pdfThemedPages"
+          :aria-label="t('Toggle themed PDF pages')"
+          @update:model-value="workspace.togglePdfThemedPages()"
+        />
       </div>
     </div>
   </div>
@@ -58,6 +78,8 @@
 <script setup>
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useI18n } from '../../i18n'
+import UiButton from '../shared/ui/UiButton.vue'
+import UiSwitch from '../shared/ui/UiSwitch.vue'
 
 const workspace = useWorkspaceStore()
 const { t } = useI18n()
@@ -184,21 +206,9 @@ const themes = [
 }
 
 .theme-card {
-  background: var(--bg-primary);
-  border: 2px solid var(--border);
-  border-radius: 8px;
-  padding: 8px;
-  cursor: pointer;
-  transition: border-color 0.15s;
-  text-align: left;
-}
-
-.theme-card:hover {
-  border-color: var(--fg-muted);
-}
-
-.theme-card.active {
-  border-color: var(--accent);
+  min-height: 0;
+  flex-direction: column;
+  align-items: stretch;
 }
 
 .theme-preview {
@@ -230,8 +240,8 @@ const themes = [
 
 .theme-label {
   font-size: var(--ui-font-label);
-  font-weight: 500;
-  color: var(--fg-primary);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
   margin-bottom: 3px;
 }
 
@@ -252,7 +262,7 @@ const themes = [
 
 .theme-option-status {
   font-size: var(--ui-font-caption);
-  color: var(--fg-muted);
+  color: var(--text-muted);
 }
 
 .theme-option-status-off {

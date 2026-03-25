@@ -1,5 +1,5 @@
 <template>
-  <div class="flex flex-col h-full" style="background: var(--bg-secondary);">
+  <div class="flex flex-col h-full" style="background: var(--bg-primary);">
     <!-- Header -->
     <div
       class="flex items-center h-7 shrink-0 px-2 gap-1 select-none"
@@ -690,7 +690,7 @@ defineExpose({
   flex-shrink: 0;
   padding: 0;
   border-top: 1px solid var(--border);
-  background: color-mix(in srgb, var(--bg-secondary) 94%, var(--bg-primary) 6%);
+  background: var(--bg-primary);
 }
 
 .workspace-footer-action-button {

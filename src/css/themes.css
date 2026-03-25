@@ -99,35 +99,130 @@
   --font-mono: 'JetBrains Mono', 'Menlo', 'Consolas', monospace;
   --font-prose: 'Inter', system-ui, sans-serif;
   --ui-font: var(--font-sans);
+
+  /* Semantic design tokens */
+  --text-primary: var(--fg-primary);
+  --text-secondary: var(--fg-secondary);
+  --text-muted: var(--fg-muted);
+  --surface-base: var(--bg-primary);
+  --surface-raised: var(--bg-secondary);
+  --surface-muted: var(--bg-tertiary);
+  --surface-hover: var(--bg-hover);
+  --border-subtle: color-mix(in srgb, var(--border) 82%, transparent);
+  --border-strong: color-mix(in srgb, var(--fg-muted) 32%, var(--border));
+  --overlay-backdrop: color-mix(in srgb, black 58%, transparent);
+  --focus-ring: color-mix(in srgb, var(--accent) 34%, transparent);
+
+  /* Spacing scale */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  /* Radius scale */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  /* Shadow scale */
+  --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.24);
+  --shadow-md: 0 12px 32px rgba(0, 0, 0, 0.32);
+  --shadow-lg: 0 20px 60px rgba(0, 0, 0, 0.44);
+
+  /* z-index scale */
+  --z-dropdown: 1000;
+  --z-modal: 1100;
+  --z-toast: 1200;
+
+  /* Typography scale */
+  --font-size-12: 12px;
+  --font-size-14: 14px;
+  --font-size-16: 16px;
+  --font-size-20: 20px;
+  --font-size-24: 24px;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --line-height-compact: 1.4;
+  --line-height-regular: 1.5;
+  --line-height-relaxed: 1.6;
 }
 
 /* Workbench typography follows a VS Code-style scale:
    caption 11, label 12, body 13, title 14, display 15 at default zoom. */
-.ui-text-tiny { font-size: var(--ui-font-tiny); }
-.ui-text-fine { font-size: var(--ui-font-fine); }
-.ui-text-micro { font-size: var(--ui-font-micro); }
-.ui-text-caption { font-size: var(--ui-font-caption); }
-.ui-text-label { font-size: var(--ui-font-label); }
-.ui-text-body { font-size: var(--ui-font-body); }
-.ui-text-title { font-size: var(--ui-font-title); }
-.ui-text-display { font-size: var(--ui-font-display); }
-.ui-text-display-sm { font-size: var(--ui-font-display-sm); }
-.ui-text-display-md { font-size: var(--ui-font-display-md); }
-.ui-text-display-lg { font-size: var(--ui-font-display-lg); }
-.ui-text-hero-xs { font-size: var(--ui-font-hero-xs); }
-.ui-text-hero-sm { font-size: var(--ui-font-hero-sm); }
-.ui-text-hero-md { font-size: var(--ui-font-hero-md); }
-.ui-text-hero-lg { font-size: var(--ui-font-hero-lg); }
-.ui-text-hero-xl { font-size: var(--ui-font-hero-xl); }
+.ui-text-tiny {
+  font-size: var(--ui-font-tiny);
+}
+.ui-text-fine {
+  font-size: var(--ui-font-fine);
+}
+.ui-text-micro {
+  font-size: var(--ui-font-micro);
+}
+.ui-text-caption {
+  font-size: var(--ui-font-caption);
+}
+.ui-text-label {
+  font-size: var(--ui-font-label);
+}
+.ui-text-body {
+  font-size: var(--ui-font-body);
+}
+.ui-text-title {
+  font-size: var(--ui-font-title);
+}
+.ui-text-display {
+  font-size: var(--ui-font-display);
+}
+.ui-text-display-sm {
+  font-size: var(--ui-font-display-sm);
+}
+.ui-text-display-md {
+  font-size: var(--ui-font-display-md);
+}
+.ui-text-display-lg {
+  font-size: var(--ui-font-display-lg);
+}
+.ui-text-hero-xs {
+  font-size: var(--ui-font-hero-xs);
+}
+.ui-text-hero-sm {
+  font-size: var(--ui-font-hero-sm);
+}
+.ui-text-hero-md {
+  font-size: var(--ui-font-hero-md);
+}
+.ui-text-hero-lg {
+  font-size: var(--ui-font-hero-lg);
+}
+.ui-text-hero-xl {
+  font-size: var(--ui-font-hero-xl);
+}
 
 /* Keep legacy helpers mapped to the new scale to avoid broad regressions. */
-.ui-text-xs  { font-size: var(--ui-font-caption); }
-.ui-text-sm  { font-size: var(--ui-font-label); }
-.ui-text-md  { font-size: var(--ui-font-caption); }
-.ui-text-base { font-size: var(--ui-font-body); }
-.ui-text-lg  { font-size: var(--ui-font-body); }
-.ui-text-xl  { font-size: var(--ui-font-title); }
-.ui-text-2xl { font-size: var(--ui-font-display); }
+.ui-text-xs {
+  font-size: var(--ui-font-caption);
+}
+.ui-text-sm {
+  font-size: var(--ui-font-label);
+}
+.ui-text-md {
+  font-size: var(--ui-font-caption);
+}
+.ui-text-base {
+  font-size: var(--ui-font-body);
+}
+.ui-text-lg {
+  font-size: var(--ui-font-body);
+}
+.ui-text-xl {
+  font-size: var(--ui-font-title);
+}
+.ui-text-2xl {
+  font-size: var(--ui-font-display);
+}
 
 /* ===== Light (Cadet Blue) ===== */
 .theme-light {

@@ -10,20 +10,19 @@
     >
       <div class="version-modal">
         <!-- Modal-level close button -->
-        <button class="version-close-btn" @click="$emit('close')" :title="t('Close (Esc)')">
+        <UiButton class="version-close-btn" variant="ghost" size="icon-sm" icon-only :title="t('Close (Esc)')" @click="$emit('close')">
           <IconX :size="18" :stroke-width="1.5" />
-        </button>
+        </UiButton>
 
         <!-- Version list -->
         <div class="version-list">
-          <div class="px-3 py-2 text-xs font-medium uppercase tracking-wider"
-            style="color: var(--fg-muted); border-bottom: 1px solid var(--border);">
+          <div class="version-list-heading px-3 py-2 text-xs font-medium uppercase tracking-wider">
             {{ t('File Version History: {fileName}', { fileName }) }}
           </div>
-          <div v-if="loading" class="px-3 py-4 text-xs" style="color: var(--fg-muted);">
+          <div v-if="loading" class="version-list-empty px-3 py-4 text-xs">
             {{ t('Loading...') }}
           </div>
-          <div v-else-if="snapshots.length === 0" class="px-3 py-4 text-xs" style="color: var(--fg-muted);">
+          <div v-else-if="snapshots.length === 0" class="version-list-empty px-3 py-4 text-xs">
             {{ t('No history yet') }}
           </div>
           <div
@@ -45,9 +44,9 @@
         <div class="version-preview">
           <div v-if="selectedSnapshot" class="version-preview-header">
             <div class="version-preview-headline">
-              <span class="text-xs" style="color: var(--fg-muted);">
+              <span class="version-preview-meta text-xs">
                 {{ formatDisplayDate(selectedSnapshot.createdAt) }}
-                <span v-if="selectedSnapshotMetadata.title" style="margin-left: 8px; color: var(--fg-muted); opacity: 0.7;">
+                <span v-if="selectedSnapshotMetadata.title" class="version-preview-meta version-preview-meta-muted">
                   {{ selectedSnapshotMetadata.title }}
                 </span>
               </span>
@@ -56,24 +55,24 @@
 
           <!-- Loading state -->
           <div v-if="previewLoading" class="version-empty-state">
-            <div class="text-xs" style="color: var(--fg-muted);">{{ t('Loading preview...') }}</div>
+            <div class="version-empty-copy text-xs">{{ t('Loading preview...') }}</div>
           </div>
           <div v-else-if="selectedSnapshot && isUnsupportedBinary" class="version-empty-state">
-            <div style="color: var(--fg-muted); font-size: var(--ui-font-body);">{{ t('Version preview is not available for this file type.') }}</div>
-            <div style="color: var(--fg-muted); opacity: 0.6; font-size: var(--ui-font-caption); margin-top: 6px;">
+            <div class="version-empty-copy">{{ t('Version preview is not available for this file type.') }}</div>
+            <div class="version-empty-detail">
               {{ t('DOCX files remain in history, but Altals no longer previews or restores them.') }}
             </div>
           </div>
           <div v-else-if="selectedSnapshot && !canPreviewSelectedSnapshot" class="version-empty-state">
-            <div style="color: var(--fg-muted); font-size: var(--ui-font-body);">{{ t('This saved version is not previewable from file history.') }}</div>
-            <div style="color: var(--fg-muted); opacity: 0.6; font-size: var(--ui-font-caption); margin-top: 6px;">
+            <div class="version-empty-copy">{{ t('This saved version is not previewable from file history.') }}</div>
+            <div class="version-empty-detail">
               {{ t('Workspace-level save points remain Git-backed, but this view only restores file-level history.') }}
             </div>
           </div>
           <!-- Empty state -->
           <div v-else-if="!selectedSnapshot" class="version-empty-state">
-            <div style="color: var(--fg-muted); font-size: var(--ui-font-body);">{{ t('Select a version to preview') }}</div>
-            <div style="color: var(--fg-muted); opacity: 0.5; font-size: var(--ui-font-caption); margin-top: 6px;">
+            <div class="version-empty-copy">{{ t('Select a version to preview') }}</div>
+            <div class="version-empty-detail version-empty-detail-faint">
               {{ t('Click a version on the left') }}
             </div>
           </div>
@@ -86,23 +85,22 @@
 
           <!-- Action footer -->
           <div class="version-preview-footer">
-            <button
+            <UiButton
               v-if="!isUnsupportedBinary"
-              class="version-action-btn version-action-copy"
-              :class="{ 'is-success': copyFeedback }"
+              variant="secondary"
               :disabled="!selectedSnapshot || !canCopySelectedSnapshot"
               @click="copyContent"
             >
               {{ copyFeedback ? t('Copied!') : t('Copy content') }}
-            </button>
-            <button
+            </UiButton>
+            <UiButton
               v-if="!isUnsupportedBinary"
-              class="version-action-btn version-action-restore"
+              variant="danger"
               :disabled="!selectedSnapshot || !canRestoreSelectedSnapshot"
               @click="restoreVersion"
             >
               {{ t('Restore this version') }}
-            </button>
+            </UiButton>
           </div>
         </div>
       </div>
@@ -130,6 +128,7 @@ import { getViewerType } from '../utils/fileTypes'
 import { formatFileError } from '../utils/errorMessages'
 import { ask } from '@tauri-apps/plugin-dialog'
 import { useI18n, formatDate as formatLocaleDate } from '../i18n'
+import UiButton from './shared/ui/UiButton.vue'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -349,5 +348,36 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   width: 100%;
+}
+
+.version-list-heading,
+.version-list-empty,
+.version-preview-meta,
+.version-empty-copy,
+.version-empty-detail {
+  color: var(--text-muted);
+}
+
+.version-list-heading {
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.version-preview-meta-muted {
+  margin-left: var(--space-2);
+  opacity: 0.72;
+}
+
+.version-empty-copy {
+  font-size: var(--ui-font-body);
+}
+
+.version-empty-detail {
+  margin-top: var(--space-2);
+  font-size: var(--ui-font-caption);
+  opacity: 0.72;
+}
+
+.version-empty-detail-faint {
+  opacity: 0.56;
 }
 </style>

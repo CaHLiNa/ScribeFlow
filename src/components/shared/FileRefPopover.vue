@@ -1,50 +1,88 @@
 <template>
-  <div class="rounded border"
-    style="background: var(--bg-secondary); border-color: var(--border); box-shadow: 0 -4px 12px rgba(0,0,0,0.3); max-height: 240px;"
-    @mousedown.prevent>
-    <div class="overflow-y-auto" style="max-height: 240px;">
+  <div
+    class="rounded border"
+    style="
+      background: var(--bg-secondary);
+      border-color: var(--border);
+      box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.3);
+      max-height: 240px;
+    "
+    @mousedown.prevent
+  >
+    <div class="overflow-y-auto" style="max-height: 240px">
       <!-- Models section -->
       <template v-if="filteredModels.length > 0">
-        <div class="px-2 pt-1.5 pb-0.5 ui-text-sm uppercase tracking-wider" style="color: var(--fg-muted);">{{ t('Model') }}</div>
-        <div v-for="(m, i) in filteredModels" :key="'model-' + m.id"
+        <div
+          class="px-2 pt-1.5 pb-0.5 ui-text-sm uppercase tracking-wider"
+          style="color: var(--fg-muted)"
+        >
+          {{ t('Model') }}
+        </div>
+        <div
+          v-for="(m, i) in filteredModels"
+          :key="'model-' + m.id"
           class="px-2 py-1.5 ui-text-base cursor-pointer flex items-center gap-2"
           :style="{
             background: i === selectedIdx ? 'var(--bg-hover)' : 'transparent',
             color: i === selectedIdx ? 'var(--fg-primary)' : 'var(--fg-secondary)',
           }"
           @click="$emit('select-model', m.id)"
-          @mouseenter="selectedIdx = i">
-          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="flex-shrink:0; opacity:0.6;">
-            <rect x="2" y="2" width="5" height="5" rx="1"/>
-            <rect x="9" y="2" width="5" height="5" rx="1"/>
-            <rect x="2" y="9" width="5" height="5" rx="1"/>
-            <rect x="9" y="9" width="5" height="5" rx="1"/>
+          @mouseenter="selectedIdx = i"
+        >
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            style="flex-shrink: 0; opacity: 0.6"
+          >
+            <rect x="2" y="2" width="5" height="5" rx="1" />
+            <rect x="9" y="2" width="5" height="5" rx="1" />
+            <rect x="2" y="9" width="5" height="5" rx="1" />
+            <rect x="9" y="9" width="5" height="5" rx="1" />
           </svg>
           <span class="truncate flex-1">{{ m.name }}</span>
         </div>
-        <div v-if="filteredFiles.length > 0" class="border-t mx-2 my-1" style="border-color: var(--border);"></div>
+        <div
+          v-if="filteredFiles.length > 0"
+          class="border-t mx-2 my-1"
+          style="border-color: var(--border)"
+        ></div>
       </template>
 
       <!-- Files section -->
       <template v-if="filteredFiles.length > 0">
-        <div v-for="(file, i) in filteredFiles" :key="file.path"
+        <div
+          v-for="(file, i) in filteredFiles"
+          :key="file.path"
           class="px-2 py-1.5 ui-text-base cursor-pointer flex items-center gap-2"
           :style="{
-            background: (filteredModels.length + i) === selectedIdx ? 'var(--bg-hover)' : 'transparent',
-            color: (filteredModels.length + i) === selectedIdx ? 'var(--fg-primary)' : 'var(--fg-secondary)',
+            background:
+              filteredModels.length + i === selectedIdx ? 'var(--bg-hover)' : 'transparent',
+            color:
+              filteredModels.length + i === selectedIdx
+                ? 'var(--fg-primary)'
+                : 'var(--fg-secondary)',
           }"
           @click="$emit('select', file)"
-          @mouseenter="selectedIdx = filteredModels.length + i">
-          <span class="truncate shrink-0" style="max-width: 50%;">{{ file.name }}</span>
-          <span class="ui-text-sm truncate" style="color: var(--fg-muted);">
+          @mouseenter="selectedIdx = filteredModels.length + i"
+        >
+          <span class="truncate shrink-0" style="max-width: 50%">{{ file.name }}</span>
+          <span class="ui-text-sm truncate" style="color: var(--fg-muted)">
             {{ folderPath(file.path) }}
           </span>
         </div>
       </template>
 
       <!-- Empty state -->
-      <div v-if="filteredModels.length === 0 && filteredFiles.length === 0"
-        class="px-2 py-3 ui-text-base text-center" style="color: var(--fg-muted);">
+      <div
+        v-if="filteredModels.length === 0 && filteredFiles.length === 0"
+        class="px-2 py-3 ui-text-base text-center"
+        style="color: var(--fg-muted)"
+      >
         {{ t('No files found') }}
       </div>
     </div>
@@ -60,7 +98,7 @@ import { useI18n } from '../../i18n'
 
 const props = defineProps({
   filter: { type: String, default: '' },
-  models: { type: Array,  default: () => [] },  // { id, name }[]
+  models: { type: Array, default: () => [] }, // { id, name }[]
 })
 const emit = defineEmits(['select', 'select-model', 'close'])
 
@@ -84,8 +122,8 @@ async function ensureFilesReady() {
 const filteredModels = computed(() => {
   if (!props.filter || !props.models.length) return []
   const q = props.filter.toLowerCase()
-  return props.models.filter(m =>
-    m.name.toLowerCase().includes(q) || m.id.toLowerCase().includes(q)
+  return props.models.filter(
+    (m) => m.name.toLowerCase().includes(q) || m.id.toLowerCase().includes(q)
   )
 })
 
@@ -95,7 +133,11 @@ function isWorkspaceFilePath(path = '') {
 }
 
 function basename(path = '') {
-  return String(path || '').split('/').pop() || ''
+  return (
+    String(path || '')
+      .split('/')
+      .pop() || ''
+  )
 }
 
 function buildFileEntry(path = '') {
@@ -115,7 +157,7 @@ const workspaceFiles = computed(() => {
 
   const extraPaths = [
     ...editorStore.allOpenFiles,
-    ...editorStore.recentFiles.map(entry => entry.path),
+    ...editorStore.recentFiles.map((entry) => entry.path),
     ...Object.keys(filesStore.fileContents || {}),
   ]
 
@@ -151,7 +193,9 @@ const recentFileBoosts = computed(() => {
 })
 
 function scoreFile(file, rawQuery = '') {
-  const query = String(rawQuery || '').trim().toLowerCase()
+  const query = String(rawQuery || '')
+    .trim()
+    .toLowerCase()
   const path = String(file?.path || '')
   const name = String(file?.name || basename(path)).toLowerCase()
   const rel = relativePath(path).toLowerCase()
@@ -172,8 +216,8 @@ function scoreFile(file, rawQuery = '') {
   if (name === query) score += 800
   if (rel === query) score += 700
   if (name.startsWith(query)) score += 420
-  if (segments.some(segment => segment.toLowerCase() === query)) score += 320
-  if (segments.some(segment => segment.toLowerCase().startsWith(query))) score += 260
+  if (segments.some((segment) => segment.toLowerCase() === query)) score += 320
+  if (segments.some((segment) => segment.toLowerCase().startsWith(query))) score += 260
   if (rel.startsWith(query)) score += 220
   if (name.includes(query)) score += 180
   if (rel.includes(query)) score += 120
@@ -182,7 +226,7 @@ function scoreFile(file, rawQuery = '') {
     if (!token) continue
     if (name.includes(token)) score += 40
     if (rel.includes(token)) score += 25
-    if (segments.some(segment => segment.toLowerCase().startsWith(token))) score += 20
+    if (segments.some((segment) => segment.toLowerCase().startsWith(token))) score += 20
   }
 
   if (path === editorStore.preferredContextPath) score += 70
@@ -190,9 +234,7 @@ function scoreFile(file, rawQuery = '') {
   score += recentFileBoosts.value.get(path) || 0
 
   if (!name.includes(query) && !rel.includes(query) && tokens.length > 0) {
-    const allTokensMatched = tokens.every(token =>
-      name.includes(token) || rel.includes(token),
-    )
+    const allTokensMatched = tokens.every((token) => name.includes(token) || rel.includes(token))
     if (!allTokensMatched) return -1
   }
 
@@ -206,7 +248,7 @@ const filteredFiles = computed(() => {
       ...file,
       _score: scoreFile(file, q),
     }))
-    .filter(file => file._score >= 0)
+    .filter((file) => file._score >= 0)
     .sort((a, b) => {
       if (b._score !== a._score) return b._score - a._score
       const aRel = relativePath(a.path).toLowerCase()
@@ -248,16 +290,19 @@ function confirmSelection() {
   }
 }
 
-watch(() => props.filter, () => {
-  selectedIdx.value = 0
-})
+watch(
+  () => props.filter,
+  () => {
+    selectedIdx.value = 0
+  }
+)
 
 watch(
   () => workspace.path,
   () => {
     ensureFilesReady()
   },
-  { immediate: true },
+  { immediate: true }
 )
 
 defineExpose({ selectNext, selectPrev, confirmSelection })

@@ -5,9 +5,13 @@ import { MAX_WORKBENCH_INSPECTOR_PANEL_COUNT } from '../shared/workbenchInspecto
 const DEFAULT_LEFT_SIDEBAR_WIDTH = 240
 const DEFAULT_RIGHT_SIDEBAR_WIDTH = 360
 const DEFAULT_BOTTOM_PANEL_HEIGHT = 250
-const FALLBACK_LEFT_SIDEBAR_MIN_WIDTH = 160
-const FALLBACK_RIGHT_SIDEBAR_MIN_WIDTH = 200
-const MAX_LEFT_SIDEBAR_WIDTH = 500
+const FALLBACK_LEFT_SIDEBAR_MIN_WIDTH = 220
+const FALLBACK_RIGHT_SIDEBAR_MIN_WIDTH = 260
+const FALLBACK_LEFT_SIDEBAR_MAX_WIDTH = 420
+const FALLBACK_RIGHT_SIDEBAR_MAX_WIDTH = 460
+const SHELL_CHROME_BUTTON_SIZE = 30
+const SHELL_CHROME_BUTTON_GAP = 4
+const SHELL_CHROME_HORIZONTAL_PADDING = 16
 
 const leftSidebarWidth = ref(readNumberFromStorage('leftSidebarWidth', DEFAULT_LEFT_SIDEBAR_WIDTH))
 const rightSidebarWidth = ref(readNumberFromStorage('rightSidebarWidth', DEFAULT_RIGHT_SIDEBAR_WIDTH))
@@ -49,186 +53,86 @@ function debounceSidebarWidthSave() {
   }, 300)
 }
 
-export function resolveMinimumLeftSidebarWidth(measurements = {}) {
-  const railWidth = Number(measurements.railWidth)
-  const currentSidebarWidth = Number(measurements.currentSidebarWidth)
-  const collapseButtonLeft = Number(measurements.collapseButtonLeft)
-  const collapseButtonWidth = Number(measurements.collapseButtonWidth)
-  const rightmostPanelRight = Number(measurements.rightmostPanelRight)
-  const panelGap = Number(measurements.panelGap)
-  const currentPanelCount = Number(measurements.currentPanelCount)
-  const maxPanelCount = Number(measurements.maxPanelCount)
-  const panelButtonWidth = Number(measurements.panelButtonWidth)
+function normalizeMinimumWidth(value, fallback) {
+  const normalizedValue = Number(value)
+  if (!Number.isFinite(normalizedValue)) return fallback
+  return Math.max(normalizedValue, 0)
+}
 
-  if (
-    !Number.isFinite(railWidth)
-    || !Number.isFinite(currentSidebarWidth)
-    || !Number.isFinite(collapseButtonLeft)
-    || !Number.isFinite(collapseButtonWidth)
-    || !Number.isFinite(rightmostPanelRight)
-    || !Number.isFinite(panelGap)
-  ) {
-    return FALLBACK_LEFT_SIDEBAR_MIN_WIDTH
-  }
+function normalizePanelCount(value, fallback) {
+  const normalizedValue = Number(value)
+  if (!Number.isFinite(normalizedValue) || normalizedValue <= 0) return fallback
+  return Math.max(Math.round(normalizedValue), 1)
+}
 
-  const inferredInset = railWidth + currentSidebarWidth - collapseButtonWidth - collapseButtonLeft
-  if (!Number.isFinite(inferredInset)) {
-    return FALLBACK_LEFT_SIDEBAR_MIN_WIDTH
-  }
+function normalizeMaximumWidth(value, fallback) {
+  const normalizedValue = Number(value)
+  if (!Number.isFinite(normalizedValue)) return fallback
+  return Math.max(normalizedValue, 0)
+}
 
-  const normalizedPanelGap = Math.max(panelGap, 0)
-  const normalizedCurrentPanelCount = Number.isFinite(currentPanelCount) && currentPanelCount > 0
-    ? currentPanelCount
-    : 1
-  const normalizedMaxPanelCount = Number.isFinite(maxPanelCount) && maxPanelCount > 0
-    ? Math.max(maxPanelCount, normalizedCurrentPanelCount)
-    : normalizedCurrentPanelCount
-  const extraPanels = Math.max(0, normalizedMaxPanelCount - normalizedCurrentPanelCount)
-  const effectiveRightmostPanelRight = Number.isFinite(panelButtonWidth) && panelButtonWidth > 0
-    ? rightmostPanelRight + extraPanels * (panelButtonWidth + normalizedPanelGap)
-    : rightmostPanelRight
+function resolveSidebarChromeMinimumWidth(panelCount) {
+  const normalizedPanelCount = normalizePanelCount(panelCount, 1)
+  return SHELL_CHROME_HORIZONTAL_PADDING
+    + normalizedPanelCount * SHELL_CHROME_BUTTON_SIZE
+    + Math.max(normalizedPanelCount - 1, 0) * SHELL_CHROME_BUTTON_GAP
+}
 
-  return Math.max(
-    0,
-    Math.ceil(
-      effectiveRightmostPanelRight
-      + normalizedPanelGap
-      - railWidth
-      + collapseButtonWidth
-      + Math.max(inferredInset, 0),
-    ),
+export function resolveMinimumLeftSidebarWidth(options = {}) {
+  const minimumWidth = normalizeMinimumWidth(
+    options.minimumWidth,
+    FALLBACK_LEFT_SIDEBAR_MIN_WIDTH,
   )
-}
-
-export function resolveMinimumRightSidebarWidth(measurements = {}) {
-  const viewportWidth = Number(measurements.viewportWidth)
-  const leftmostPanelLeft = Number(measurements.leftmostPanelLeft)
-  const collapseButtonWidth = Number(measurements.collapseButtonWidth)
-  const panelGap = Number(measurements.panelGap)
-  const currentPanelCount = Number(measurements.currentPanelCount)
-  const maxPanelCount = Number(measurements.maxPanelCount)
-  const panelButtonWidth = Number(measurements.panelButtonWidth)
-
-  if (
-    !Number.isFinite(viewportWidth)
-    || !Number.isFinite(leftmostPanelLeft)
-    || !Number.isFinite(collapseButtonWidth)
-    || !Number.isFinite(panelGap)
-  ) {
-    return FALLBACK_RIGHT_SIDEBAR_MIN_WIDTH
-  }
-
-  const normalizedPanelGap = Math.max(panelGap, 0)
-  const normalizedCurrentPanelCount = Number.isFinite(currentPanelCount) && currentPanelCount > 0
-    ? currentPanelCount
-    : 1
-  const normalizedMaxPanelCount = Number.isFinite(maxPanelCount) && maxPanelCount > 0
-    ? Math.max(maxPanelCount, normalizedCurrentPanelCount)
-    : normalizedCurrentPanelCount
-  const extraPanels = Math.max(0, normalizedMaxPanelCount - normalizedCurrentPanelCount)
-  const effectiveLeftmostPanelLeft = Number.isFinite(panelButtonWidth) && panelButtonWidth > 0
-    ? leftmostPanelLeft - extraPanels * (panelButtonWidth + normalizedPanelGap)
-    : leftmostPanelLeft
-
-  return Math.max(
-    0,
-    Math.ceil(
-      viewportWidth
-      - effectiveLeftmostPanelLeft
-      + normalizedPanelGap
-      + collapseButtonWidth,
-    ),
+  const panelCount = normalizePanelCount(
+    options.panelCount,
+    MAX_WORKBENCH_SIDEBAR_PANEL_COUNT,
   )
+
+  return Math.max(minimumWidth, resolveSidebarChromeMinimumWidth(panelCount))
 }
 
-function readLeftSidebarChromeMeasurements() {
-  if (typeof document === 'undefined') return null
+export function resolveMinimumRightSidebarWidth(options = {}) {
+  const minimumWidth = normalizeMinimumWidth(
+    options.minimumWidth,
+    FALLBACK_RIGHT_SIDEBAR_MIN_WIDTH,
+  )
+  const panelCount = normalizePanelCount(
+    options.panelCount,
+    MAX_WORKBENCH_INSPECTOR_PANEL_COUNT,
+  )
 
-  const railEl = document.querySelector('.workbench-rail')
-  const collapseButtonEl = document.querySelector('.header-sidebar-collapse-button')
-  const panelTabsEl = document.querySelector('.header-sidebar-panel-tabs.is-left')
-  const panelButtonEls = Array.from(document.querySelectorAll('.header-sidebar-panel-button'))
-
-  if (!railEl || !collapseButtonEl || !panelTabsEl || panelButtonEls.length === 0) {
-    return null
-  }
-
-  const rightmostPanelRect = panelButtonEls.at(-1)?.getBoundingClientRect()
-  const adjacentPanelRect = panelButtonEls.at(-2)?.getBoundingClientRect()
-  const collapseButtonRect = collapseButtonEl.getBoundingClientRect()
-  const railRect = railEl.getBoundingClientRect()
-  const panelTabsStyle = window.getComputedStyle(panelTabsEl)
-  const rawGap = parseFloat(panelTabsStyle.columnGap || panelTabsStyle.gap || '0')
-  const panelGap = rightmostPanelRect && adjacentPanelRect
-    ? rightmostPanelRect.left - adjacentPanelRect.right
-    : (Number.isFinite(rawGap) ? rawGap : 0)
-
-  if (!rightmostPanelRect || !adjacentPanelRect || !collapseButtonRect || !railRect) {
-    if (!rightmostPanelRect || !collapseButtonRect || !railRect) {
-      return null
-    }
-  }
-
-  return {
-    railWidth: railRect.width,
-    currentSidebarWidth: leftSidebarWidth.value,
-    collapseButtonLeft: collapseButtonRect.left,
-    collapseButtonWidth: collapseButtonRect.width,
-    rightmostPanelRight: rightmostPanelRect.right,
-    panelGap,
-    currentPanelCount: panelButtonEls.length,
-    maxPanelCount: MAX_WORKBENCH_SIDEBAR_PANEL_COUNT,
-    panelButtonWidth: rightmostPanelRect.width,
-  }
+  return Math.max(minimumWidth, resolveSidebarChromeMinimumWidth(panelCount))
 }
 
-function readRightSidebarChromeMeasurements() {
-  if (typeof document === 'undefined') return null
-
-  const collapseButtonEl = document.querySelector('.header-inspector-collapse-button')
-  const panelTabsEl = document.querySelector('.header-sidebar-panel-tabs.is-right')
-  const panelButtonEls = Array.from(document.querySelectorAll('.header-inspector-panel-button'))
-
-  if (!collapseButtonEl || !panelTabsEl || panelButtonEls.length === 0) {
-    return null
-  }
-
-  const leftmostPanelRect = panelButtonEls.at(0)?.getBoundingClientRect()
-  const rightmostPanelRect = panelButtonEls.at(-1)?.getBoundingClientRect()
-  const adjacentPanelRect = panelButtonEls.at(-2)?.getBoundingClientRect()
-  const collapseButtonRect = collapseButtonEl.getBoundingClientRect()
-  const panelTabsStyle = window.getComputedStyle(panelTabsEl)
-  const rawGap = parseFloat(panelTabsStyle.columnGap || panelTabsStyle.gap || '0')
-  const panelGap = rightmostPanelRect && adjacentPanelRect
-    ? rightmostPanelRect.left - adjacentPanelRect.right
-    : (Number.isFinite(rawGap) ? rawGap : 0)
-
-  if (!leftmostPanelRect || !rightmostPanelRect || !collapseButtonRect) {
-    return null
-  }
-
-  return {
-    viewportWidth: window.innerWidth,
-    leftmostPanelLeft: leftmostPanelRect.left,
-    collapseButtonWidth: collapseButtonRect.width,
-    panelGap,
-    currentPanelCount: panelButtonEls.length,
-    maxPanelCount: MAX_WORKBENCH_INSPECTOR_PANEL_COUNT,
-    panelButtonWidth: rightmostPanelRect.width,
-  }
+export function resolveMaximumLeftSidebarWidth(options = {}) {
+  const minimumWidth = resolveMinimumLeftSidebarWidth(options)
+  const maximumWidth = normalizeMaximumWidth(
+    options.maximumWidth,
+    FALLBACK_LEFT_SIDEBAR_MAX_WIDTH,
+  )
+  return Math.max(minimumWidth, maximumWidth)
 }
 
-function resolveDynamicLeftSidebarMinWidth() {
-  return resolveMinimumLeftSidebarWidth(readLeftSidebarChromeMeasurements() || {})
+export function resolveMaximumRightSidebarWidth(options = {}) {
+  const minimumWidth = resolveMinimumRightSidebarWidth(options)
+  const maximumWidth = normalizeMaximumWidth(
+    options.maximumWidth,
+    FALLBACK_RIGHT_SIDEBAR_MAX_WIDTH,
+  )
+  return Math.max(minimumWidth, maximumWidth)
 }
 
-function resolveDynamicRightSidebarMinWidth() {
-  return resolveMinimumRightSidebarWidth(readRightSidebarChromeMeasurements() || {})
+function normalizeSidebarWidth(value, fallback) {
+  const normalizedValue = Number(value)
+  if (!Number.isFinite(normalizedValue)) return fallback
+  return normalizedValue
 }
 
 function commitLeftSidebarWidth(value) {
-  const minWidth = resolveDynamicLeftSidebarMinWidth()
-  leftSidebarWidth.value = Math.max(minWidth, Math.min(MAX_LEFT_SIDEBAR_WIDTH, value))
+  const minWidth = resolveMinimumLeftSidebarWidth()
+  const maxWidth = resolveMaximumLeftSidebarWidth()
+  const nextWidth = normalizeSidebarWidth(value, DEFAULT_LEFT_SIDEBAR_WIDTH)
+  leftSidebarWidth.value = Math.max(minWidth, Math.min(maxWidth, nextWidth))
   debounceSidebarWidthSave()
 }
 
@@ -243,9 +147,10 @@ function scheduleLeftSidebarWidth(value) {
 }
 
 function commitRightSidebarWidth(value) {
-  const maxWidth = Math.floor(window.innerWidth * 0.8)
-  const minWidth = resolveDynamicRightSidebarMinWidth()
-  rightSidebarWidth.value = Math.max(minWidth, Math.min(maxWidth, value))
+  const minWidth = resolveMinimumRightSidebarWidth()
+  const maxWidth = resolveMaximumRightSidebarWidth()
+  const nextWidth = normalizeSidebarWidth(value, DEFAULT_RIGHT_SIDEBAR_WIDTH)
+  rightSidebarWidth.value = Math.max(minWidth, Math.min(maxWidth, nextWidth))
   debounceSidebarWidthSave()
 }
 

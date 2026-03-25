@@ -7,9 +7,28 @@
             <span class="settings-titlebar-eyebrow">{{ t('Settings') }}</span>
             <span class="settings-titlebar-title">{{ activeSectionLabel }}</span>
           </div>
-          <button class="settings-close" type="button" @mousedown.stop @click="$emit('close')">
-            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M1 1l8 8M9 1L1 9"/></svg>
-          </button>
+          <UiButton
+            class="settings-close"
+            variant="ghost"
+            size="icon-sm"
+            icon-only
+            type="button"
+            :title="t('Close')"
+            @mousedown.stop
+            @click="$emit('close')"
+          >
+            <svg
+              width="10"
+              height="10"
+              viewBox="0 0 10 10"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+            >
+              <path d="M1 1l8 8M9 1L1 9" />
+            </svg>
+          </UiButton>
         </div>
 
         <div class="settings-shell">
@@ -18,15 +37,20 @@
             <div class="settings-nav-header">{{ t('Settings') }}</div>
             <template v-for="(item, i) in sections" :key="item.id || `sep-${i}`">
               <div v-if="item.separator" class="settings-nav-separator"></div>
-              <button
+              <UiButton
                 v-else
                 class="settings-nav-item"
-                :class="{ active: activeSection === item.id }"
+                variant="ghost"
+                size="sm"
+                block
+                :active="activeSection === item.id"
                 @click="activeSection = item.id"
               >
-                <component :is="item.icon" :size="16" :stroke-width="1.5" />
+                <template #leading>
+                  <component :is="item.icon" :size="16" :stroke-width="1.5" />
+                </template>
                 {{ item.label }}
-              </button>
+              </UiButton>
             </template>
           </div>
 
@@ -41,9 +65,28 @@
 </template>
 
 <script setup>
-import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { IconPalette, IconEdit, IconKey, IconTool, IconCpu, IconChartBar, IconBrandGithub, IconRefresh, IconFileTypePdf } from '@tabler/icons-vue'
+import {
+  computed,
+  defineAsyncComponent,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch,
+} from 'vue'
+import {
+  IconPalette,
+  IconEdit,
+  IconKey,
+  IconTool,
+  IconCpu,
+  IconChartBar,
+  IconBrandGithub,
+  IconRefresh,
+  IconFileTypePdf,
+} from '@tabler/icons-vue'
 import { useI18n } from '../../i18n'
+import UiButton from '../shared/ui/UiButton.vue'
 
 const SettingsTheme = defineAsyncComponent(() => import('./SettingsTheme.vue'))
 const SettingsEditor = defineAsyncComponent(() => import('./SettingsEditor.vue'))
@@ -72,18 +115,21 @@ const modalStyle = computed(() => ({
   top: `${modalPosition.value.y}px`,
 }))
 
-watch(() => props.visible, async (v) => {
-  if (v && props.initialSection) {
-    activeSection.value = props.initialSection
-  }
+watch(
+  () => props.visible,
+  async (v) => {
+    if (v && props.initialSection) {
+      activeSection.value = props.initialSection
+    }
 
-  if (v) {
-    await centerModal()
-    return
-  }
+    if (v) {
+      await centerModal()
+      return
+    }
 
-  stopModalDrag()
-})
+    stopModalDrag()
+  }
+)
 
 const sections = [
   { id: 'theme', label: t('Theme'), icon: IconPalette },
@@ -111,12 +157,12 @@ const sectionComponents = {
   updates: SettingsUpdates,
 }
 
-const activeSectionLabel = computed(() =>
-  sections.find(item => item.id === activeSection.value)?.label ?? t('Settings')
+const activeSectionLabel = computed(
+  () => sections.find((item) => item.id === activeSection.value)?.label ?? t('Settings')
 )
 
-const activeSectionComponent = computed(() =>
-  sectionComponents[activeSection.value] || SettingsTheme
+const activeSectionComponent = computed(
+  () => sectionComponents[activeSection.value] || SettingsTheme
 )
 
 function clampModalPosition(x, y) {
@@ -200,8 +246,8 @@ onBeforeUnmount(() => {
 .settings-overlay {
   position: fixed;
   inset: 0;
-  z-index: 10000;
-  background: rgba(0, 0, 0, 0.6);
+  z-index: var(--z-modal);
+  background: var(--overlay-backdrop);
 }
 
 .settings-modal {
@@ -210,10 +256,10 @@ onBeforeUnmount(() => {
   max-width: 90vw;
   height: 640px;
   max-height: 90vh;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  background: var(--surface-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -224,10 +270,10 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding: 0 12px 0 16px;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-secondary);
+  gap: var(--space-4);
+  padding: 0 var(--space-3) 0 var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--surface-raised);
   user-select: none;
   cursor: grab;
 }
@@ -241,16 +287,16 @@ onBeforeUnmount(() => {
 
 .settings-titlebar-eyebrow {
   font-size: var(--ui-font-caption);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: var(--fg-muted);
+  color: var(--text-muted);
 }
 
 .settings-titlebar-title {
   font-size: var(--ui-font-title);
-  font-weight: 600;
-  color: var(--fg-primary);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -263,74 +309,52 @@ onBeforeUnmount(() => {
 }
 
 .settings-close {
-  width: 18px;
-  height: 18px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-  border: none;
-  background: none;
-  color: var(--fg-muted);
-  cursor: pointer;
-  padding: 0;
   flex-shrink: 0;
-}
-
-.settings-close:hover {
-  background: var(--bg-hover);
-  color: var(--fg-primary);
 }
 
 /* Left nav */
 .settings-nav {
   width: 160px;
-  border-right: 1px solid var(--border);
-  padding: 12px 8px;
+  border-right: 1px solid var(--border-subtle);
+  padding: var(--space-3) var(--space-2);
   display: flex;
   flex-direction: column;
   gap: 2px;
-  background: var(--bg-secondary);
+  background: var(--surface-raised);
 }
 
 .settings-nav-header {
   display: flex;
   align-items: center;
   font-size: var(--ui-font-caption);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: var(--fg-muted);
+  color: var(--text-muted);
   padding: 2px 8px 8px;
 }
 
 .settings-nav-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
-  border-radius: 5px;
-  font-size: var(--ui-font-body);
-  color: var(--fg-secondary);
-  background: none;
-  border: none;
-  cursor: pointer;
+  justify-content: flex-start;
+  padding: 0 8px;
+  min-height: 32px;
+  color: var(--text-secondary);
   text-align: left;
-  width: 100%;
+  font-size: var(--ui-font-body);
 }
 
-.settings-nav-item:hover {
-  background: var(--bg-hover);
+.settings-nav-item:hover:not(:disabled) {
+  background: var(--surface-hover);
 }
 
-.settings-nav-item.active {
-  background: var(--bg-tertiary);
-  color: var(--fg-primary);
+.settings-nav-item.is-active {
+  background: var(--surface-muted);
+  color: var(--text-primary);
 }
 
 .settings-nav-separator {
   height: 1px;
-  background: var(--border);
+  background: var(--border-subtle);
   margin: 4px 8px;
 }
 
@@ -338,7 +362,7 @@ onBeforeUnmount(() => {
 .settings-content {
   flex: 1;
   min-width: 0;
-  padding: 20px 24px;
+  padding: var(--space-5);
   overflow-y: auto;
 }
 </style>
@@ -347,21 +371,21 @@ onBeforeUnmount(() => {
 <style>
 .settings-modal .settings-section-title {
   font-size: var(--ui-font-title);
-  font-weight: 600;
-  color: var(--fg-primary);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
   margin-bottom: 16px;
 }
 
 .settings-modal .settings-hint {
   font-size: var(--ui-font-caption);
-  color: var(--fg-muted);
+  color: var(--text-muted);
   margin: -8px 0 16px;
 }
 
 .settings-modal .settings-hint code {
-  background: var(--bg-tertiary);
+  background: var(--surface-muted);
   padding: 1px 4px;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   font-family: var(--font-mono);
   font-size: var(--ui-font-micro);
 }
@@ -387,13 +411,13 @@ onBeforeUnmount(() => {
 
 .settings-modal .key-provider {
   font-size: var(--ui-font-label);
-  font-weight: 500;
-  color: var(--fg-primary);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
 }
 
 .settings-modal .key-env {
   font-size: var(--ui-font-micro);
-  color: var(--fg-muted);
+  color: var(--text-muted);
   font-family: var(--font-mono);
 }
 
@@ -402,45 +426,8 @@ onBeforeUnmount(() => {
   gap: 4px;
 }
 
-.settings-modal .key-input {
-  flex: 1;
-  padding: 6px 8px;
-  border-radius: 5px;
-  border: 1px solid var(--border);
-  background: var(--bg-primary);
-  color: var(--fg-primary);
-  font-size: var(--ui-font-label);
-  font-family: var(--font-mono);
-  outline: none;
-  transition: border-color 0.15s;
-}
-
-.settings-modal .key-input:focus {
-  border-color: var(--accent);
-}
-
-.settings-modal .key-input::placeholder {
-  color: var(--fg-muted);
-  opacity: 0.5;
-}
-
 .settings-modal .key-toggle {
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 5px;
-  border: 1px solid var(--border);
-  background: var(--bg-primary);
-  color: var(--fg-muted);
-  cursor: pointer;
   flex-shrink: 0;
-}
-
-.settings-modal .key-toggle:hover {
-  color: var(--fg-primary);
-  border-color: var(--fg-muted);
 }
 
 .settings-modal .keys-actions {
@@ -450,77 +437,137 @@ onBeforeUnmount(() => {
   gap: 10px;
 }
 
-.settings-modal .key-save-btn {
-  padding: 6px 16px;
-  border-radius: 5px;
-  border: 1px solid var(--accent);
-  background: rgba(122, 162, 247, 0.1);
-  color: var(--accent);
-  font-size: var(--ui-font-label);
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.settings-modal .key-save-btn:hover {
-  background: rgba(122, 162, 247, 0.2);
-}
-
-.settings-modal .key-save-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.settings-modal .key-save-btn.saved {
-  border-color: var(--success);
-  color: var(--success);
-  background: rgba(158, 206, 106, 0.1);
-}
-
 .settings-modal .key-saved-hint {
   font-size: var(--ui-font-caption);
-  color: var(--fg-muted);
+  color: var(--text-muted);
 }
 
-/* Shared toggle switch */
-.settings-modal .tool-toggle-switch {
-  width: 28px;
-  height: 14px;
-  border-radius: 7px;
-  background: var(--bg-tertiary);
-  border: none;
-  cursor: pointer;
-  position: relative;
-  flex-shrink: 0;
-  transition: background 0.15s;
+.settings-modal .settings-choice-grid {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.settings-modal .settings-choice-card {
+  justify-content: flex-start;
+  align-items: stretch;
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.settings-modal .settings-choice-card:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  background: var(--surface-hover);
+}
+
+.settings-modal .settings-choice-card.is-active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface-base));
+  color: var(--text-primary);
+}
+
+.settings-modal .settings-choice-card-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.settings-modal .settings-choice-card-title {
+  font-size: var(--ui-font-body);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+}
+
+.settings-modal .settings-choice-card-desc {
+  font-size: var(--ui-font-caption);
+  color: var(--text-muted);
+}
+
+.settings-modal .settings-choice-card-meta {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  margin-top: var(--space-1);
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: var(--ui-font-micro);
+  color: var(--text-muted);
+  background: var(--surface-muted);
+}
+
+.settings-modal .settings-choice-card-meta.is-good {
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+}
+
+.settings-modal .settings-segmented {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--surface-base);
+}
+
+.settings-modal .settings-segmented-btn {
+  min-height: 26px;
+  padding: 0 10px;
+  border-radius: calc(var(--radius-sm) - 1px);
+  color: var(--text-muted);
+}
+
+.settings-modal .settings-segmented-btn.is-active {
+  background: color-mix(in srgb, var(--surface-muted) 84%, transparent);
+  color: var(--text-primary);
+}
+
+.settings-modal .settings-list-button {
+  justify-content: flex-start;
+  width: 100%;
+  padding: 6px 8px;
+  text-align: left;
+}
+
+.settings-modal .settings-list-button.is-active {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+.settings-modal .settings-list-button-copy {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.settings-modal .settings-disclosure-button {
+  justify-content: flex-start;
+  gap: 6px;
   padding: 0;
+  min-height: 24px;
+  color: var(--text-muted);
 }
 
-.settings-modal .tool-toggle-switch.on {
-  background: var(--accent);
+.settings-modal .settings-disclosure-button:hover:not(:disabled) {
+  color: var(--text-secondary);
+  background: transparent;
 }
 
-.settings-modal .tool-toggle-knob {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: white;
-  transition: transform 0.15s;
+.settings-modal .settings-disclosure-icon {
+  transition: transform 0.15s ease;
 }
 
-.settings-modal .tool-toggle-switch.on .tool-toggle-knob {
-  transform: translateX(14px);
+.settings-modal .settings-disclosure-button.is-active .settings-disclosure-icon {
+  transform: rotate(90deg);
 }
 
 /* Shared card styles */
 .settings-modal .env-lang-card {
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
   padding: 10px 12px;
-  background: var(--bg-primary);
+  background: var(--surface-base);
 }
 
 .settings-modal .env-lang-header {
@@ -536,25 +583,32 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
 }
 
-.settings-modal .env-lang-dot.good { background: var(--success, #50fa7b); }
-.settings-modal .env-lang-dot.warn { background: var(--warning, #e2b93d); }
-.settings-modal .env-lang-dot.none { background: var(--fg-muted); opacity: 0.4; }
+.settings-modal .env-lang-dot.good {
+  background: var(--success, #50fa7b);
+}
+.settings-modal .env-lang-dot.warn {
+  background: var(--warning, #e2b93d);
+}
+.settings-modal .env-lang-dot.none {
+  background: var(--fg-muted);
+  opacity: 0.4;
+}
 
 .settings-modal .env-lang-name {
   font-size: var(--ui-font-body);
-  font-weight: 500;
-  color: var(--fg-primary);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
 }
 
 .settings-modal .env-lang-version {
   font-size: var(--ui-font-caption);
-  color: var(--fg-muted);
+  color: var(--text-muted);
   font-family: var(--font-mono);
 }
 
 .settings-modal .env-lang-missing {
   font-size: var(--ui-font-caption);
-  color: var(--fg-muted);
+  color: var(--text-muted);
   font-style: italic;
 }
 

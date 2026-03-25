@@ -20,7 +20,7 @@ export const ALL_WORKBENCH_INSPECTOR_PANELS = [
 ]
 
 export const MAX_WORKBENCH_INSPECTOR_PANEL_COUNT = Math.max(
-  ...Object.values(WORKBENCH_INSPECTOR_PANELS).map((panels) => panels.length),
+  ...Object.values(WORKBENCH_INSPECTOR_PANELS).map((panels) => panels.length)
 )
 
 export function normalizeWorkbenchInspectorPanel(surface = 'workspace', panel = '') {

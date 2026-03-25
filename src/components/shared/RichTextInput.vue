@@ -43,21 +43,21 @@ import { extractTextFromPdf } from '../../utils/pdfMetadata'
 import FileRefPopover from './FileRefPopover.vue'
 
 const props = defineProps({
-  placeholder:     { type: String,   default: 'Message... (@ to attach files)' },
-  disabled:        { type: Boolean,  default: false },
-  models:          { type: Array,    default: () => [] },   // { id, name }[] for @-model switching
-  onModelSelect:   { type: Function, default: null },       // callback(modelId) — avoids emit chain
+  placeholder: { type: String, default: 'Message... (@ to attach files)' },
+  disabled: { type: Boolean, default: false },
+  models: { type: Array, default: () => [] }, // { id, name }[] for @-model switching
+  onModelSelect: { type: Function, default: null }, // callback(modelId) — avoids emit chain
 })
 
 const emit = defineEmits(['submit', 'input', 'focus', 'blur'])
 
-const editorRef  = ref(null)
+const editorRef = ref(null)
 const popoverRef = ref(null)
 
 // @ popover state
-const showPopover  = ref(false)
+const showPopover = ref(false)
 const popoverFilter = ref('')
-const popoverPos   = ref({})
+const popoverPos = ref({})
 
 // Saved Range start for the @ trigger (so we know where to insert the pill)
 // { node: TextNode, offset: number } — the index of the '@' trigger character
@@ -104,8 +104,8 @@ function extractPayload() {
     } else if (node.nodeType === Node.ELEMENT_NODE) {
       const type = node.dataset?.type
       if (type === 'mention') {
-        const path    = node.dataset.path
-        const name    = node.dataset.name
+        const path = node.dataset.path
+        const name = node.dataset.name
         const content = node._loadedContent || ''
         fileRefs.push({ path, content })
         textParts.push(`@${name}`)
@@ -156,7 +156,7 @@ function triggerAtMention() {
     // Determine if we need a leading space
     let prefix = ''
     if (range.startContainer.nodeType === Node.TEXT_NODE) {
-      const text   = range.startContainer.textContent
+      const text = range.startContainer.textContent
       const offset = range.startOffset
       const charBefore = offset > 0 ? text[offset - 1] : null
       if (charBefore && !/\s/.test(charBefore)) prefix = ' '
@@ -258,7 +258,9 @@ async function insertFileMentions(files = []) {
   if (!el || props.disabled) return 0
 
   const existingPaths = new Set(
-    [...el.querySelectorAll('[data-type="mention"]')].map((node) => node.dataset.path).filter(Boolean),
+    [...el.querySelectorAll('[data-type="mention"]')]
+      .map((node) => node.dataset.path)
+      .filter(Boolean)
   )
   const uniqueFiles = files.filter((file) => {
     const path = file?.path
@@ -324,7 +326,17 @@ function getSerializedHtml() {
   return clone.innerHTML
 }
 
-defineExpose({ focus, clear, isEmpty, extractPayload, triggerAtMention, insertContextPill, insertFileMentions, setText, getSerializedHtml })
+defineExpose({
+  focus,
+  clear,
+  isEmpty,
+  extractPayload,
+  triggerAtMention,
+  insertContextPill,
+  insertFileMentions,
+  setText,
+  getSerializedHtml,
+})
 
 // ─── Internal: Event handlers ────────────────────────────────────────────────
 
@@ -347,20 +359,35 @@ function onInput() {
 function onKeydown(e) {
   // Route keys to popover when it's open
   if (showPopover.value) {
-    if (e.key === 'ArrowDown') { e.preventDefault(); popoverRef.value?.selectNext(); return }
-    if (e.key === 'ArrowUp')   { e.preventDefault(); popoverRef.value?.selectPrev(); return }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      popoverRef.value?.selectNext()
+      return
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      popoverRef.value?.selectPrev()
+      return
+    }
     if ((e.key === 'Enter' && !e.shiftKey) || e.key === 'Tab') {
       e.preventDefault()
       popoverRef.value?.confirmSelection()
       return
     }
-    if (e.key === 'Escape') { e.preventDefault(); closePopover(); return }
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      closePopover()
+      return
+    }
     // Other keys fall through to update filter text
   }
 
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault()
-    if (showPopover.value) { closePopover(); return }
+    if (showPopover.value) {
+      closePopover()
+      return
+    }
     emit('submit')
     return
   }
@@ -384,8 +411,11 @@ function onKeydown(e) {
       const sel = window.getSelection()
       const range = sel?.getRangeAt(0)
       // If cursor is in a trailing whitespace-only text node, remove it too
-      const trailingNode = (range?.startContainer.nodeType === Node.TEXT_NODE &&
-        /^\s*$/.test(range.startContainer.textContent)) ? range.startContainer : null
+      const trailingNode =
+        range?.startContainer.nodeType === Node.TEXT_NODE &&
+        /^\s*$/.test(range.startContainer.textContent)
+          ? range.startContainer
+          : null
       // Reposition cursor to end of node before the pill
       const before = pill.previousSibling
       if (trailingNode) trailingNode.remove()
@@ -478,8 +508,8 @@ function detectAtTrigger() {
   const sel = window.getSelection()
   if (!sel || !sel.isCollapsed || !sel.rangeCount) return
 
-  const range  = sel.getRangeAt(0)
-  const node   = range.startContainer
+  const range = sel.getRangeAt(0)
+  const node = range.startContainer
   const offset = range.startOffset
 
   if (node.nodeType !== Node.TEXT_NODE) return
@@ -499,21 +529,33 @@ function detectAtTrigger() {
 }
 
 function updatePopoverFilter() {
-  if (!atTriggerAnchor) { closePopover(); return }
+  if (!atTriggerAnchor) {
+    closePopover()
+    return
+  }
 
   const sel = window.getSelection()
-  if (!sel || !sel.isCollapsed || !sel.rangeCount) { closePopover(); return }
+  if (!sel || !sel.isCollapsed || !sel.rangeCount) {
+    closePopover()
+    return
+  }
 
-  const range       = sel.getRangeAt(0)
+  const range = sel.getRangeAt(0)
   const { node: triggerNode, offset: triggerOffset } = atTriggerAnchor
 
   // If cursor moved to a different node, close popover
-  if (range.startContainer !== triggerNode) { closePopover(); return }
+  if (range.startContainer !== triggerNode) {
+    closePopover()
+    return
+  }
 
   const filterText = triggerNode.textContent.substring(triggerOffset + 1, range.startOffset)
 
   // Close if whitespace is in the filter
-  if (filterText.includes(' ') || filterText.includes('\n')) { closePopover(); return }
+  if (filterText.includes(' ') || filterText.includes('\n')) {
+    closePopover()
+    return
+  }
 
   popoverFilter.value = filterText
 }
@@ -526,27 +568,33 @@ function openPopover() {
   if (!el) return
   const rect = el.getBoundingClientRect()
   popoverPos.value = {
-    bottom: (window.innerHeight - rect.top + 4) + 'px',
-    left:   rect.left + 'px',
-    width:  rect.width + 'px',
+    bottom: window.innerHeight - rect.top + 4 + 'px',
+    left: rect.left + 'px',
+    width: rect.width + 'px',
   }
   showPopover.value = true
 }
 
 function closePopover() {
   showPopover.value = false
-  atTriggerAnchor  = null
+  atTriggerAnchor = null
   popoverFilter.value = ''
 }
 
 async function onFileSelect(file) {
-  if (!atTriggerAnchor) { closePopover(); return }
+  if (!atTriggerAnchor) {
+    closePopover()
+    return
+  }
 
   const { node: triggerNode, offset: triggerOffset } = atTriggerAnchor
 
   // Get current cursor position
   const sel = window.getSelection()
-  if (!sel || !sel.rangeCount) { closePopover(); return }
+  if (!sel || !sel.rangeCount) {
+    closePopover()
+    return
+  }
   const curRange = sel.getRangeAt(0)
 
   // Build range from @ to current cursor and delete it
@@ -639,7 +687,7 @@ function buildMentionPillEl(file) {
 }
 
 function buildContextPillEl(context) {
-  const text    = (context.text || '').replace(/\s+/g, ' ').trim()
+  const text = (context.text || '').replace(/\s+/g, ' ').trim()
   const display = text.length > 32 ? text.slice(0, 30) + '…' : text
 
   const pill = document.createElement('span')
@@ -664,9 +712,10 @@ function buildContextPillEl(context) {
 async function loadPillContent(pill, file) {
   try {
     if (typeof file?.content === 'string') {
-      pill._loadedContent = file.content.length > 50000
-        ? file.content.slice(0, 50000) + '\n... [truncated at 50KB]'
-        : file.content
+      pill._loadedContent =
+        file.content.length > 50000
+          ? file.content.slice(0, 50000) + '\n... [truncated at 50KB]'
+          : file.content
       pill.dataset.loading = 'false'
       return
     }
@@ -677,9 +726,8 @@ async function loadPillContent(pill, file) {
     } else {
       content = await invoke('read_file', { path: file.path })
     }
-    pill._loadedContent = content.length > 50000
-      ? content.slice(0, 50000) + '\n... [truncated at 50KB]'
-      : content
+    pill._loadedContent =
+      content.length > 50000 ? content.slice(0, 50000) + '\n... [truncated at 50KB]' : content
     pill.dataset.loading = 'false'
   } catch (e) {
     pill._loadedContent = `[Error reading file: ${e}]`

@@ -367,7 +367,10 @@
       </div>
     </Teleport>
 
-    <div class="relative flex-1 overflow-hidden">
+    <div
+      class="pdf-viewer-shell relative flex-1 overflow-hidden"
+      :class="{ 'is-shell-resizing': shellResizeActive }"
+    >
       <Teleport v-if="annotationsSidebarTarget" :to="annotationsSidebarTarget">
         <section class="pdf-annotation-sidebar-shell" @mousedown="markPaneActive">
           <div class="pdf-annotation-list">
@@ -579,12 +582,18 @@
         v-if="viewerSrc"
         ref="iframeRef"
         :src="viewerSrc"
-        class="w-full h-full border-0"
+        class="pdf-viewer-frame w-full h-full border-0"
         tabindex="0"
         style="display: block;"
         @focus="markPaneActive"
         @load="onIframeLoad"
       />
+
+      <div
+        v-if="shellResizeActive && viewerSrc && !loading && !error"
+        class="pdf-resize-overlay"
+        aria-hidden="true"
+      ></div>
 
       <div
         v-if="loading"
@@ -634,6 +643,11 @@ import { useToastStore } from '../../stores/toast'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { openExternalHttpUrl, resolveExternalHttpAnchor } from '../../services/externalLinks'
 import { createPdfQuoteAnchor } from '../../services/pdfAnchors'
+import {
+  isShellResizeActive,
+  SHELL_RESIZE_END_EVENT,
+  SHELL_RESIZE_START_EVENT,
+} from '../../shared/shellResizeSignals'
 import ResearchNoteCard from './ResearchNoteCard.vue'
 
 const emit = defineEmits(['dblclick-page'])
@@ -680,6 +694,7 @@ const pageInputValue = ref('1')
 const scaleOptions = ref([])
 const activeToolbarPanel = ref('')
 const editorToolsExpanded = ref(false)
+const shellResizeActive = ref(false)
 const pdfContextMenu = reactive({
   show: false,
   x: 0,
@@ -786,6 +801,7 @@ const editorParams = reactive({
 })
 
 let pdfUiSyncFrame = null
+let deferredPdfUiSync = false
 let syncHighlightTimer = null
 let activeSyncHighlightEl = null
 let loadRequestId = 0
@@ -995,12 +1011,37 @@ function clearSyncTimer() {
   pdfUiSyncFrame = null
 }
 
-function schedulePdfUiSync() {
+function schedulePdfUiSync({ force = false } = {}) {
+  if (shellResizeActive.value && !force) {
+    deferredPdfUiSync = true
+    return
+  }
   if (pdfUiSyncFrame !== null) return
   pdfUiSyncFrame = window.requestAnimationFrame(() => {
     pdfUiSyncFrame = null
     syncPdfUi()
   })
+}
+
+function setPdfShellResizeActive(active) {
+  shellResizeActive.value = !!active
+  if (active) {
+    clearSyncTimer()
+    deferredPdfUiSync = true
+    return
+  }
+
+  if (!deferredPdfUiSync) return
+  deferredPdfUiSync = false
+  schedulePdfUiSync({ force: true })
+}
+
+function handleShellResizeStart() {
+  setPdfShellResizeActive(true)
+}
+
+function handleShellResizeEnd() {
+  setPdfShellResizeActive(false)
 }
 
 function clearSyncHighlight() {
@@ -3668,7 +3709,10 @@ function handlePdfUpdated(event) {
 onMounted(() => {
   resetViewerReadyPromise()
   clearIframePointerGuards()
+  shellResizeActive.value = isShellResizeActive()
   window.addEventListener('pdf-updated', handlePdfUpdated)
+  window.addEventListener(SHELL_RESIZE_START_EVENT, handleShellResizeStart)
+  window.addEventListener(SHELL_RESIZE_END_EVENT, handleShellResizeEnd)
   document.addEventListener('pointerdown', handleGlobalPointerDown, true)
   void pdfTranslateStore.ensureListeners().catch(() => {})
   void pdfTranslateStore.loadSettings().catch(() => {})
@@ -3681,6 +3725,8 @@ onUnmounted(() => {
   annotationsSidebarTarget.value = null
   sidebarViewOverride = ''
   window.removeEventListener('pdf-updated', handlePdfUpdated)
+  window.removeEventListener(SHELL_RESIZE_START_EVENT, handleShellResizeStart)
+  window.removeEventListener(SHELL_RESIZE_END_EVENT, handleShellResizeEnd)
   document.removeEventListener('pointerdown', handleGlobalPointerDown, true)
   clearSyncTimer()
   clearSyncHighlight()
@@ -3734,6 +3780,30 @@ defineExpose({
 </script>
 
 <style scoped>
+.pdf-viewer-shell {
+  min-height: 0;
+}
+
+.pdf-viewer-frame {
+  display: block;
+}
+
+.pdf-viewer-shell.is-shell-resizing .pdf-viewer-frame {
+  display: none !important;
+}
+
+.pdf-resize-overlay {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--bg-primary) 96%, transparent),
+      color-mix(in srgb, var(--bg-secondary) 88%, transparent)
+    );
+  pointer-events: none;
+}
+
 .pdf-toolbar-wrap {
   flex: none;
   position: relative;

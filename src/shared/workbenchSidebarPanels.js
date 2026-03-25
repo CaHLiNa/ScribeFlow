@@ -9,7 +9,7 @@ export const WORKBENCH_SIDEBAR_PANELS = {
 }
 
 export const MAX_WORKBENCH_SIDEBAR_PANEL_COUNT = Math.max(
-  ...Object.values(WORKBENCH_SIDEBAR_PANELS).map((panels) => panels.length),
+  ...Object.values(WORKBENCH_SIDEBAR_PANELS).map((panels) => panels.length)
 )
 
 export const DEFAULT_WORKBENCH_SIDEBAR_PANEL = {

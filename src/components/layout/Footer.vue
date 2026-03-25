@@ -1,6 +1,6 @@
 <template>
   <footer class="grid items-center px-3 ui-text-xs select-none shrink-0"
-    style="grid-template-columns: 1fr auto 1fr; background: var(--bg-secondary); border-top: 1px solid var(--border); color: var(--fg-muted); height: 26px; font-variant-numeric: tabular-nums;">
+    style="grid-template-columns: 1fr auto 1fr; background: var(--bg-primary); border-top: 1px solid var(--border); color: var(--fg-muted); height: 26px; font-variant-numeric: tabular-nums;">
 
     <!-- LEFT: word count + sync status -->
     <div class="flex items-center gap-2 justify-self-start whitespace-nowrap">

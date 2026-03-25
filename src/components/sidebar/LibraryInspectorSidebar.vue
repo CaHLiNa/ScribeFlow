@@ -157,7 +157,7 @@ function exitEditMode() {
   flex-direction: column;
   height: 100%;
   min-height: 0;
-  background: var(--bg-secondary);
+  background: var(--bg-primary);
   color: var(--fg-primary);
 }
 
@@ -258,7 +258,7 @@ function exitEditMode() {
   padding: 0 10px;
   border-radius: 10px;
   border: 1px solid var(--border);
-  background: var(--bg-secondary);
+  background: var(--bg-primary);
   font-size: 0.86rem;
   color: var(--fg-secondary);
   cursor: pointer;
@@ -268,7 +268,7 @@ function exitEditMode() {
 .library-inline-button:hover,
 .library-quiet-button:hover {
   border-color: color-mix(in srgb, var(--accent) 22%, var(--border));
-  background: color-mix(in srgb, var(--accent) 6%, var(--bg-secondary));
+  background: color-mix(in srgb, var(--accent) 6%, var(--bg-primary));
   color: var(--fg-primary);
 }
 

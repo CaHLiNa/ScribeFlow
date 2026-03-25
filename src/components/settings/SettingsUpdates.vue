@@ -2,22 +2,26 @@
   <div>
     <h3 class="settings-section-title">{{ t('Updates') }}</h3>
 
-    <div class="update-card">
+    <div class="update-card ui-surface-card">
       <div class="update-identity-row">
         <span class="env-lang-dot good"></span>
         <span class="update-app-name">Altals</span>
-        <div style="flex: 1;"></div>
+        <div class="ui-flex-spacer"></div>
         <span class="update-version-tag">v{{ appVersion }}</span>
       </div>
 
       <p class="update-copy">
-        {{ t('Automatic updates are disabled in this local build. Use the GitHub releases page when you want to download a newer version.') }}
+        {{
+          t(
+            'Automatic updates are disabled in this local build. Use the GitHub releases page when you want to download a newer version.'
+          )
+        }}
       </p>
 
       <div class="update-actions">
-        <button class="update-btn update-btn-primary" @click="openReleases">
+        <UiButton variant="primary" @click="openReleases">
           {{ t('Open Releases') }}
-        </button>
+        </UiButton>
       </div>
     </div>
   </div>
@@ -27,6 +31,7 @@
 import { ref, onMounted } from 'vue'
 import { getAppVersion, openReleasesPage } from '../../services/appUpdater'
 import { useI18n } from '../../i18n'
+import UiButton from '../shared/ui/UiButton.vue'
 
 const appVersion = ref('...')
 const { t } = useI18n()
@@ -42,62 +47,35 @@ onMounted(async () => {
 
 <style scoped>
 .update-card {
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--bg-primary);
-  padding: 12px;
+  padding: var(--space-3);
 }
 
 .update-identity-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .update-app-name {
   font-size: var(--ui-font-body);
-  color: var(--fg-secondary);
+  color: var(--text-secondary);
 }
 
 .update-version-tag {
   font-size: var(--ui-font-caption);
-  color: var(--fg-muted);
+  color: var(--text-muted);
   font-family: var(--font-mono);
 }
 
 .update-copy {
-  margin: 10px 0 0;
-  font-size: var(--ui-font-label);
-  line-height: 1.6;
-  color: var(--fg-secondary);
+  margin: var(--space-3) 0 0;
+  font-size: var(--ui-font-body);
+  line-height: var(--line-height-relaxed);
+  color: var(--text-secondary);
 }
 
 .update-actions {
-  margin-top: 12px;
+  margin-top: var(--space-3);
   padding-left: 14px;
-}
-
-.update-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: var(--ui-font-caption);
-  font-weight: 500;
-  padding: 4px 11px;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.15s;
-  white-space: nowrap;
-  font-family: var(--font-sans);
-}
-
-.update-btn-primary {
-  border: 1px solid var(--accent);
-  background: rgba(122, 162, 247, 0.1);
-  color: var(--accent);
-}
-
-.update-btn-primary:hover {
-  background: rgba(122, 162, 247, 0.2);
 }
 </style>

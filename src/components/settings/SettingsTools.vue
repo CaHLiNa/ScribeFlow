@@ -1,21 +1,36 @@
 <template>
   <div>
     <h3 class="settings-section-title">{{ t('AI Tools') }}</h3>
-    <p class="settings-hint" style="margin-bottom: 12px;">
-      {{ t('Control which tools the AI can use in chat. Disabled tools are hidden from the AI entirely.') }}
+    <p class="settings-hint settings-tools-intro">
+      {{
+        t(
+          'Control which tools the AI can use in chat. Disabled tools are hidden from the AI entirely.'
+        )
+      }}
     </p>
 
     <!-- Disable all external button -->
-    <button
+    <UiButton
       class="external-toggle-btn"
+      variant="secondary"
+      size="sm"
       :class="{ 'all-disabled': allExternalDisabled }"
       @click="disableAllExternal"
     >
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-      </svg>
+      <template #leading>
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+        >
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+        </svg>
+      </template>
       {{ allExternalDisabled ? t('All external tools disabled') : t('Disable all external tools') }}
-    </button>
+    </UiButton>
 
     <!-- Tool categories -->
     <div class="tool-categories">
@@ -23,15 +38,27 @@
         <!-- Category header -->
         <div class="tool-category-header" @click="toggleCategoryExpand(cat.id)">
           <div class="tool-category-left">
-            <svg :class="{ rotated: expandedCategories[cat.id] }" width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
-              <path d="M3 1l4 4-4 4z"/>
+            <svg
+              :class="{ rotated: expandedCategories[cat.id] }"
+              width="10"
+              height="10"
+              viewBox="0 0 10 10"
+              fill="currentColor"
+            >
+              <path d="M3 1l4 4-4 4z" />
             </svg>
             <span class="tool-category-name">{{ t(cat.label) }}</span>
-            <span class="tool-category-count">{{ categoryEnabledCount(cat) }}/{{ categoryToolCount(cat) }}</span>
+            <span class="tool-category-count"
+              >{{ categoryEnabledCount(cat) }}/{{ categoryToolCount(cat) }}</span
+            >
           </div>
           <div class="tool-category-right">
-            <span v-if="categoryAllLocal(cat)" class="tool-privacy-summary local">{{ t('All local') }}</span>
-            <span v-else-if="categoryHasExternal(cat)" class="tool-privacy-summary external">{{ t('External') }}</span>
+            <span v-if="categoryAllLocal(cat)" class="tool-privacy-summary local">{{
+              t('All local')
+            }}</span>
+            <span v-else-if="categoryHasExternal(cat)" class="tool-privacy-summary external">{{
+              t('External')
+            }}</span>
           </div>
         </div>
 
@@ -40,13 +67,11 @@
           <!-- Flat tools (no subgroups) -->
           <template v-if="cat.tools">
             <div v-for="tool in cat.tools" :key="tool.name" class="tool-row">
-              <button
-                class="tool-toggle-switch"
-                :class="{ on: !isToolDisabled(tool.name) }"
-                @click.stop="toggleTool(tool.name)"
-              >
-                <span class="tool-toggle-knob"></span>
-              </button>
+              <UiSwitch
+                :model-value="!isToolDisabled(tool.name)"
+                :aria-label="t('Toggle tool {name}', { name: tool.name })"
+                @update:model-value="toggleTool(tool.name)"
+              />
               <span class="tool-name">{{ tool.name }}</span>
               <span class="tool-desc">{{ t(tool.description) }}</span>
               <span v-if="tool.external" class="privacy-badge">{{ t(tool.external) }}</span>
@@ -58,17 +83,17 @@
             <div v-for="sg in cat.subgroups" :key="sg.label" class="tool-subgroup">
               <div class="tool-subgroup-label">{{ t(sg.label) }}</div>
               <div v-for="tool in sg.tools" :key="tool.name" class="tool-row">
-                <button
-                  class="tool-toggle-switch"
-                  :class="{ on: !isToolDisabled(tool.name) }"
-                  @click.stop="toggleTool(tool.name)"
-                >
-                  <span class="tool-toggle-knob"></span>
-                </button>
+                <UiSwitch
+                  :model-value="!isToolDisabled(tool.name)"
+                  :aria-label="t('Toggle tool {name}', { name: tool.name })"
+                  @update:model-value="toggleTool(tool.name)"
+                />
                 <span class="tool-name">{{ tool.name }}</span>
                 <span class="tool-desc">{{ t(tool.description) }}</span>
                 <span v-if="tool.external" class="privacy-badge">{{ t(tool.external) }}</span>
-                <span v-if="tool.name === 'run_command'" class="privacy-badge shell-warning">{{ t('workspace only') }}</span>
+                <span v-if="tool.name === 'run_command'" class="privacy-badge shell-warning">{{
+                  t('workspace only')
+                }}</span>
               </div>
             </div>
           </template>
@@ -78,7 +103,7 @@
 
     <!-- Search API Keys -->
     <div class="tools-key-section">
-      <h3 class="settings-section-title" style="margin-top: 20px;">{{ t('Search API Keys') }}</h3>
+      <h3 class="settings-section-title settings-tools-subtitle">{{ t('Search API Keys') }}</h3>
       <div class="keys-list">
         <div class="key-field">
           <label class="key-label">
@@ -86,61 +111,115 @@
             <span class="key-env">OPENALEX_API_KEY</span>
           </label>
           <div class="key-input-row">
-            <input
+            <UiInput
+              v-model="editOpenAlexKey"
               :type="openalexKeyVisible ? 'text' : 'password'"
-              :value="editOpenAlexKey"
-              @input="editOpenAlexKey = $event.target.value"
-              class="key-input"
+              monospace
               placeholder="openalex-..."
               spellcheck="false"
               autocomplete="off"
             />
-            <button class="key-toggle" @click="openalexKeyVisible = !openalexKeyVisible" :title="openalexKeyVisible ? t('Hide') : t('Show')">
-              <svg v-if="!openalexKeyVisible" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+            <UiButton
+              class="key-toggle"
+              variant="secondary"
+              size="icon-md"
+              icon-only
+              :title="openalexKeyVisible ? t('Hide') : t('Show')"
+              @click="openalexKeyVisible = !openalexKeyVisible"
+            >
+              <svg
+                v-if="!openalexKeyVisible"
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+              >
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                <circle cx="12" cy="12" r="3" />
               </svg>
-              <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/>
-                <line x1="1" y1="1" x2="23" y2="23"/>
+              <svg
+                v-else
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+              >
+                <path
+                  d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"
+                />
+                <line x1="1" y1="1" x2="23" y2="23" />
               </svg>
-            </button>
+            </UiButton>
           </div>
         </div>
-        <div class="key-field" style="margin-top: 10px;">
+        <div class="key-field settings-tools-key-field">
           <label class="key-label">
             <span class="key-provider">{{ t('Exa API Key') }}</span>
             <span class="key-env">EXA_API_KEY</span>
           </label>
           <div class="key-input-row">
-            <input
+            <UiInput
+              v-model="editSearchKey"
               :type="exaKeyVisible ? 'text' : 'password'"
-              :value="editSearchKey"
-              @input="editSearchKey = $event.target.value"
-              class="key-input"
+              monospace
               placeholder="exa-..."
               spellcheck="false"
               autocomplete="off"
             />
-            <button class="key-toggle" @click="exaKeyVisible = !exaKeyVisible" :title="exaKeyVisible ? t('Hide') : t('Show')">
-              <svg v-if="!exaKeyVisible" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+            <UiButton
+              class="key-toggle"
+              variant="secondary"
+              size="icon-md"
+              icon-only
+              :title="exaKeyVisible ? t('Hide') : t('Show')"
+              @click="exaKeyVisible = !exaKeyVisible"
+            >
+              <svg
+                v-if="!exaKeyVisible"
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+              >
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                <circle cx="12" cy="12" r="3" />
               </svg>
-              <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/>
-                <line x1="1" y1="1" x2="23" y2="23"/>
+              <svg
+                v-else
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+              >
+                <path
+                  d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"
+                />
+                <line x1="1" y1="1" x2="23" y2="23" />
               </svg>
-            </button>
+            </UiButton>
           </div>
         </div>
       </div>
-      <p class="settings-hint" style="margin-top: 8px;">
-        {{ t('Academic search uses') }} <span class="settings-link" @click="openExternal('https://openalex.org/settings/api')">OpenAlex</span> {{ t('(free key: ~1000 searches/day). Web search uses') }}
+      <p class="settings-hint settings-tools-hint">
+        {{ t('Academic search uses') }}
+        <span class="settings-link" @click="openExternal('https://openalex.org/settings/api')"
+          >OpenAlex</span
+        >
+        {{ t('(free key: ~1000 searches/day). Web search uses') }}
         <span class="settings-link" @click="openExternal('https://dashboard.exa.ai')">Exa</span>.
       </p>
       <div class="keys-actions">
-        <button class="key-save-btn" :class="{ saved: toolKeySaved }" @click="saveToolKeys">
+        <UiButton :variant="toolKeySaved ? 'secondary' : 'primary'" @click="saveToolKeys">
           {{ toolKeySaved ? t('Saved') : t('Save Keys') }}
-        </button>
+        </UiButton>
       </div>
     </div>
   </div>
@@ -148,7 +227,6 @@
 
 <script setup>
 import { ref, reactive, computed } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
 import { useWorkspaceStore } from '../../stores/workspace'
 import {
   TOOL_CATEGORIES,
@@ -159,6 +237,9 @@ import {
   categoryAllLocal,
 } from '../../services/ai/toolRegistry'
 import { useI18n } from '../../i18n'
+import UiButton from '../shared/ui/UiButton.vue'
+import UiInput from '../shared/ui/UiInput.vue'
+import UiSwitch from '../shared/ui/UiSwitch.vue'
 
 const workspace = useWorkspaceStore()
 const { t } = useI18n()
@@ -172,10 +253,12 @@ const editOpenAlexKey = ref(workspace.apiKeys?.OPENALEX_API_KEY || '')
 const toolCategories = TOOL_CATEGORIES
 
 const expandedCategories = reactive(
-  Object.fromEntries(TOOL_CATEGORIES.map(cat => {
-    const stored = localStorage.getItem(`tools-expanded-${cat.id}`)
-    return [cat.id, stored !== null ? stored === 'true' : !cat.defaultCollapsed]
-  }))
+  Object.fromEntries(
+    TOOL_CATEGORIES.map((cat) => {
+      const stored = localStorage.getItem(`tools-expanded-${cat.id}`)
+      return [cat.id, stored !== null ? stored === 'true' : !cat.defaultCollapsed]
+    })
+  )
 )
 
 function toggleCategoryExpand(catId) {
@@ -193,11 +276,11 @@ function toggleTool(name) {
 
 function categoryEnabledCount(cat) {
   const tools = getCategoryTools(cat)
-  return tools.filter(t => !isToolDisabled(t.name)).length
+  return tools.filter((t) => !isToolDisabled(t.name)).length
 }
 
 const allExternalDisabled = computed(() => {
-  return EXTERNAL_TOOLS.every(name => workspace.disabledTools?.includes(name))
+  return EXTERNAL_TOOLS.every((name) => workspace.disabledTools?.includes(name))
 })
 
 function disableAllExternal() {
@@ -232,7 +315,7 @@ async function saveToolKeys() {
     await workspace.saveGlobalKeys(merged)
     await workspace.loadSettings()
     toolKeySaved.value = true
-    setTimeout(() => toolKeySaved.value = false, 3000)
+    setTimeout(() => (toolKeySaved.value = false), 3000)
   } catch (e) {
     console.error('Failed to save tool keys:', e)
   }
@@ -246,10 +329,10 @@ async function saveToolKeys() {
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
-  border-radius: 5px;
-  border: 1px solid var(--border);
-  background: var(--bg-primary);
-  color: var(--fg-secondary);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-base);
+  color: var(--text-secondary);
   font-size: var(--ui-font-caption);
   cursor: pointer;
   transition: all 0.15s;
@@ -257,14 +340,14 @@ async function saveToolKeys() {
 }
 
 .external-toggle-btn:hover {
-  border-color: var(--fg-muted);
-  color: var(--fg-primary);
+  border-color: var(--border-strong);
+  color: var(--text-primary);
 }
 
 .external-toggle-btn.all-disabled {
   border-color: var(--success);
   color: var(--success);
-  background: rgba(158, 206, 106, 0.08);
+  background: color-mix(in srgb, var(--success) 8%, transparent);
 }
 
 /* Tool categories */
@@ -275,8 +358,8 @@ async function saveToolKeys() {
 }
 
 .tool-category {
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
   overflow: hidden;
 }
 
@@ -287,12 +370,12 @@ async function saveToolKeys() {
   padding: 7px 10px;
   cursor: pointer;
   user-select: none;
-  background: var(--bg-primary);
+  background: var(--surface-base);
   transition: background 0.1s;
 }
 
 .tool-category-header:hover {
-  background: var(--bg-hover);
+  background: var(--surface-hover);
 }
 
 .tool-category-left {
@@ -303,7 +386,7 @@ async function saveToolKeys() {
 
 .tool-category-left svg {
   transition: transform 0.15s;
-  color: var(--fg-muted);
+  color: var(--text-muted);
   flex-shrink: 0;
 }
 
@@ -313,13 +396,13 @@ async function saveToolKeys() {
 
 .tool-category-name {
   font-size: var(--ui-font-label);
-  font-weight: 500;
-  color: var(--fg-primary);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
 }
 
 .tool-category-count {
   font-size: var(--ui-font-micro);
-  color: var(--fg-muted);
+  color: var(--text-muted);
   font-family: var(--font-mono);
 }
 
@@ -336,19 +419,19 @@ async function saveToolKeys() {
 }
 
 .tool-privacy-summary.local {
-  color: var(--fg-muted);
-  background: var(--bg-tertiary);
+  color: var(--text-muted);
+  background: var(--surface-muted);
 }
 
 .tool-privacy-summary.external {
-  color: var(--warning, #e0af68);
-  background: rgba(224, 175, 104, 0.1);
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 12%, transparent);
 }
 
 .tool-category-body {
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--border-subtle);
   padding: 4px 0;
-  background: color-mix(in srgb, var(--bg-primary) 80%, transparent);
+  background: color-mix(in srgb, var(--surface-base) 80%, transparent);
 }
 
 /* Tool subgroups */
@@ -358,8 +441,8 @@ async function saveToolKeys() {
 
 .tool-subgroup-label {
   font-size: var(--ui-font-micro);
-  font-weight: 500;
-  color: var(--fg-muted);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.3px;
   padding: 6px 10px 2px 36px;
@@ -375,20 +458,20 @@ async function saveToolKeys() {
 }
 
 .tool-row:hover {
-  background: var(--bg-hover);
+  background: var(--surface-hover);
 }
 
 .tool-name {
   font-size: var(--ui-font-caption);
   font-family: var(--font-mono);
-  color: var(--fg-primary);
+  color: var(--text-primary);
   white-space: nowrap;
   min-width: 100px;
 }
 
 .tool-desc {
   font-size: var(--ui-font-caption);
-  color: var(--fg-muted);
+  color: var(--text-muted);
   flex: 1;
   white-space: nowrap;
   overflow: hidden;
@@ -399,22 +482,38 @@ async function saveToolKeys() {
   font-size: var(--ui-font-fine);
   padding: 1px 5px;
   border-radius: 8px;
-  color: var(--warning, #e0af68);
-  background: rgba(224, 175, 104, 0.1);
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 12%, transparent);
   white-space: nowrap;
   flex-shrink: 0;
   font-weight: 500;
 }
 
 .shell-warning {
-  color: var(--error, #f7768e);
-  background: rgba(247, 118, 142, 0.1);
+  color: var(--error);
+  background: color-mix(in srgb, var(--error) 12%, transparent);
 }
 
 .tools-key-section {
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--border-subtle);
   margin-top: 16px;
   padding-top: 4px;
+}
+
+.settings-tools-intro {
+  margin-bottom: var(--space-3);
+}
+
+.settings-tools-subtitle {
+  margin-top: 20px;
+}
+
+.settings-tools-key-field {
+  margin-top: 10px;
+}
+
+.settings-tools-hint {
+  margin-top: var(--space-2);
 }
 
 /* Tool status */

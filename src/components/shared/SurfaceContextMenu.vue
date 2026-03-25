@@ -52,15 +52,17 @@ const menuRef = ref(null)
 const menuWidth = ref(0)
 const menuHeight = ref(0)
 
-const normalizedGroups = computed(() => (
+const normalizedGroups = computed(() =>
   (props.groups || [])
     .map((group, index) => ({
       key: group?.key || `group-${index}`,
       label: group?.label || '',
-      items: Array.isArray(group?.items) ? group.items.filter((item) => !!item?.key && !!item?.label) : [],
+      items: Array.isArray(group?.items)
+        ? group.items.filter((item) => !!item?.key && !!item?.label)
+        : [],
     }))
     .filter((group) => group.items.length > 0)
-))
+)
 
 const menuStyle = computed(() => {
   const margin = 8
@@ -95,12 +97,16 @@ watch(
   () => props.visible,
   (visible) => {
     if (visible) syncSize()
-  },
+  }
 )
 
-watch(normalizedGroups, () => {
-  if (props.visible) syncSize()
-}, { deep: true })
+watch(
+  normalizedGroups,
+  () => {
+    if (props.visible) syncSize()
+  },
+  { deep: true }
+)
 
 onMounted(() => {
   window.addEventListener('keydown', handleKeydown)
