@@ -202,6 +202,7 @@ export function normalizeArtifactPayload(payload, context = {}) {
     artifact.status = cleanText(parsed.status || '')
     artifact.errorCount = Number(parsed.errorCount || 0)
     artifact.warningCount = Number(parsed.warningCount || 0)
+    artifact.durationMs = Number(parsed.durationMs || 0)
     artifact.compileTargetPath = cleanText(parsed.compileTargetPath || '')
     artifact.commandPreview = cleanText(parsed.commandPreview || '')
     artifact.problems = normalizeProblems(parsed.problems || parsed.items)

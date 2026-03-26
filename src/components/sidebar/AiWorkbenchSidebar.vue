@@ -121,9 +121,9 @@ async function deleteChat(sessionId) {
 }
 
 .ai-shell-sidebar-kicker {
-  font-size: 0.63rem;
+  font-size: var(--sidebar-font-kicker);
   font-weight: 600;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   line-height: 1;
   text-transform: uppercase;
   color: color-mix(in srgb, var(--fg-muted) 92%, var(--fg-primary));
@@ -132,7 +132,7 @@ async function deleteChat(sessionId) {
 .ai-shell-sidebar-primary {
   min-height: 20px;
   padding: 0 6px;
-  font-size: 0.72rem;
+  font-size: var(--sidebar-font-control);
   line-height: 1;
 }
 
@@ -144,7 +144,7 @@ async function deleteChat(sessionId) {
 }
 
 .ai-shell-sidebar-title {
-  font-size: 0.96rem;
+  font-size: var(--sidebar-font-title);
   line-height: 1.35;
   font-weight: 600;
   color: var(--fg-primary);
@@ -152,7 +152,7 @@ async function deleteChat(sessionId) {
 }
 
 .ai-shell-sidebar-copy {
-  font-size: 0.8rem;
+  font-size: var(--sidebar-font-body);
   line-height: 1.6;
   color: var(--fg-muted);
   overflow-wrap: anywhere;
@@ -198,7 +198,7 @@ async function deleteChat(sessionId) {
 
 .ai-shell-sidebar-chat-label {
   width: 100%;
-  font-size: 0.86rem;
+  font-size: var(--sidebar-font-item);
   line-height: 1.4;
   font-weight: 500;
   overflow: hidden;
@@ -207,7 +207,7 @@ async function deleteChat(sessionId) {
 }
 
 .ai-shell-sidebar-chat-meta {
-  font-size: 0.76rem;
+  font-size: var(--sidebar-font-meta);
   line-height: 1.4;
   color: var(--fg-muted);
 }
@@ -225,7 +225,7 @@ async function deleteChat(sessionId) {
 
 .ai-shell-sidebar-empty {
   padding: 4px 10px;
-  font-size: 0.8rem;
+  font-size: var(--sidebar-font-body);
   line-height: 1.6;
   color: var(--fg-muted);
 }

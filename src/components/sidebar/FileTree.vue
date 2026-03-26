@@ -24,9 +24,7 @@
         >
           <path d="M6 4l4 4-4 4" />
         </svg>
-        <span class="ui-text-xs font-medium uppercase tracking-wider truncate min-w-0">{{
-          headingLabel || workspaceName
-        }}</span>
+        <span class="ui-sidebar-kicker truncate min-w-0">{{ headingLabel || workspaceName }}</span>
       </div>
       <div v-if="!collapsed" class="flex items-center gap-1 shrink-0">
         <UiButton
@@ -50,17 +48,6 @@
           </svg>
         </UiButton>
         <UiButton
-          class="w-5 h-5 flex items-center justify-center rounded hover:opacity-80"
-          variant="ghost"
-          size="icon-xs"
-          icon-only
-          @click.stop="activateFilter"
-          :title="t('Filter Files ({shortcut})', { shortcut: `${modKey}+F` })"
-          :aria-label="t('Filter Files ({shortcut})', { shortcut: `${modKey}+F` })"
-        >
-          <IconSearch :size="14" :stroke-width="1.5" />
-        </UiButton>
-        <UiButton
           ref="newBtnEl"
           class="w-5 h-5 flex items-center justify-center rounded hover:opacity-80"
           variant="ghost"
@@ -76,13 +63,13 @@
     </div>
 
     <template v-if="!collapsed">
-      <!-- Filter input -->
-      <div v-if="filterActive" class="flex items-center gap-1 px-2 pb-1">
+      <!-- Search input -->
+      <div class="px-2 py-0.5 shrink-0">
         <UiInput
           ref="filterInputEl"
           v-model="filterQuery"
           size="sm"
-          shell-class="file-tree-filter-input"
+          class="file-tree-search-input"
           :placeholder="t('Filter files...')"
           autocomplete="off"
           autocorrect="off"
@@ -91,23 +78,7 @@
           @keydown="handleFilterKeydown"
         >
           <template #prefix>
-            <IconSearch :size="12" :stroke-width="1.5" class="file-tree-filter-icon" />
-          </template>
-          <template #suffix>
-            <span v-if="filterQuery" class="file-tree-filter-count ui-text-micro tabular-nums">
-              {{ filterMatches.length }}
-            </span>
-            <UiButton
-              class="file-tree-filter-close"
-              variant="ghost"
-              size="icon-xs"
-              icon-only
-              :title="t('Close')"
-              :aria-label="t('Close')"
-              @click="closeFilter"
-            >
-              <IconX :size="12" :stroke-width="1.5" />
-            </UiButton>
+            <IconSearch :size="12" :stroke-width="1.5" class="file-tree-search-icon" />
           </template>
         </UiInput>
       </div>
@@ -115,7 +86,7 @@
       <!-- Tree -->
       <div
         ref="treeContainer"
-        class="flex-1 overflow-y-auto overflow-x-hidden py-1 outline-none"
+        class="flex-1 overflow-y-auto overflow-x-hidden py-0.5 outline-none"
         tabindex="0"
         @contextmenu.prevent="showContextMenuOnEmpty"
         @keydown="handleTreeKeydown"
@@ -181,20 +152,20 @@
         <!-- External drop zone indicator (root level) -->
         <div
           v-if="externalDragOver"
-          class="file-tree-drop-indicator mx-2 my-1 py-2 rounded border-2 border-dashed text-center ui-text-xs"
+          class="file-tree-drop-indicator mx-2 my-1 py-2 rounded border-2 border-dashed text-center ui-sidebar-meta"
         >
           {{ t('Drop files here') }}
         </div>
 
         <div
           v-if="filterActive && filterQuery && filterMatches.length === 0"
-          class="file-tree-empty-state px-3 py-4 ui-text-xs"
+          class="file-tree-empty-state px-3 py-4 ui-sidebar-empty"
         >
           {{ t('No matches') }}
         </div>
         <div
           v-else-if="visibleRows.length === 0 && !renaming.active"
-          class="file-tree-empty-state px-3 py-4 ui-text-xs"
+          class="file-tree-empty-state px-3 py-4 ui-sidebar-empty"
         >
           {{ t('No files yet') }}
         </div>
@@ -338,7 +309,6 @@ import UiButton from '../shared/ui/UiButton.vue'
 import UiInput from '../shared/ui/UiInput.vue'
 import {
   IconSearch,
-  IconX,
   IconPlus,
   IconFileText,
   IconNotebook,
@@ -413,7 +383,6 @@ const {
   onSelectFile,
   handleFilterKeydown,
   activateFilter,
-  closeFilter,
   findEntry,
   getActivePath,
   handleTreeKeydown: rawHandleTreeKeydown,
@@ -424,7 +393,6 @@ const {
   treeContainer,
   filterInputEl,
   isMod,
-  t,
 })
 
 const {
@@ -797,17 +765,19 @@ defineExpose({
   transform: rotate(90deg);
 }
 
-.file-tree-filter-input {
-  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+.file-tree-search-input {
+  background: var(--bg-tertiary);
+  min-height: var(--sidebar-input-height);
+  padding-inline: 7px;
+  gap: var(--sidebar-inline-gap);
 }
 
-.file-tree-filter-icon,
-.file-tree-filter-count {
+.file-tree-search-input :deep(.ui-input-control) {
+  font-size: var(--sidebar-font-search);
+}
+
+.file-tree-search-icon {
   color: var(--text-muted);
-}
-
-.file-tree-filter-close {
-  margin-left: var(--space-1);
 }
 
 .file-tree-root-rename-row {
@@ -815,7 +785,7 @@ defineExpose({
 }
 
 .file-tree-rename-input {
-  font-size: var(--ui-font-label);
+  font-size: var(--sidebar-font-control);
   border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
 }
 
@@ -835,15 +805,15 @@ defineExpose({
 
 .workspace-footer-action {
   flex-shrink: 0;
-  padding: 0;
+  padding: 1px 0 0;
   border-top: 1px solid var(--border);
   background: var(--bg-primary);
 }
 
 .workspace-footer-action-button {
   position: relative;
-  min-height: 24px;
-  padding-inline: 36px;
+  min-height: var(--sidebar-row-height);
+  padding-inline: 30px;
   border: none;
   border-radius: 0;
   color: var(--fg-secondary);
@@ -855,17 +825,17 @@ defineExpose({
   text-overflow: ellipsis;
   white-space: nowrap;
   text-align: center;
-  font-size: var(--ui-font-md);
-  letter-spacing: 0.01em;
-  line-height: 1;
+  font-size: var(--sidebar-font-control);
+  letter-spacing: 0;
+  line-height: 1.1;
 }
 
 .workspace-footer-action-button :deep(.ui-button-trailing) {
   position: absolute;
-  right: 12px;
+  right: 10px;
   top: 50%;
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   color: var(--fg-muted);
   transform: translateY(-50%);
 }

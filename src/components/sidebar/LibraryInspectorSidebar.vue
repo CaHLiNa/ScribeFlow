@@ -200,15 +200,15 @@ function exitEditMode() {
 .library-inspector-kicker,
 .library-inspector-section-label,
 .library-inspector-label {
-  font-size: 0.68rem;
+  font-size: var(--sidebar-font-kicker);
   font-weight: 600;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--fg-muted);
 }
 
 .library-inspector-title {
-  font-size: 1.08rem;
+  font-size: var(--sidebar-font-title-strong);
   line-height: 1.35;
   font-weight: 600;
   color: var(--fg-primary);
@@ -218,7 +218,7 @@ function exitEditMode() {
 .library-inspector-value,
 .library-inspector-copy,
 .library-inspector-empty-copy {
-  font-size: 0.9rem;
+  font-size: var(--sidebar-font-body);
   line-height: 1.55;
   color: var(--fg-secondary);
 }
@@ -264,7 +264,7 @@ function exitEditMode() {
 }
 
 .library-inspector-empty-title {
-  font-size: 1rem;
+  font-size: var(--sidebar-font-title);
   font-weight: 600;
   color: var(--fg-primary);
 }
@@ -276,7 +276,7 @@ function exitEditMode() {
   justify-content: center;
   min-height: 26px;
   border-radius: 10px;
-  font-size: 0.86rem;
+  font-size: var(--sidebar-font-control);
 }
 
 .library-state-pill,
@@ -288,7 +288,7 @@ function exitEditMode() {
   border-radius: 9px;
   border: 1px solid var(--border);
   background: var(--bg-primary);
-  font-size: 0.8rem;
+  font-size: var(--sidebar-font-control);
   color: var(--fg-secondary);
 }
 
@@ -302,7 +302,7 @@ function exitEditMode() {
 }
 
 .library-muted-copy {
-  font-size: 0.86rem;
+  font-size: var(--sidebar-font-meta);
   color: var(--fg-muted);
 }
 </style>

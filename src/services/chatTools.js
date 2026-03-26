@@ -14,7 +14,7 @@ import { parseBibtex } from '../utils/bibtexParser'
 import { isMultimodalImage, isPdf, getMimeType } from '../utils/fileTypes'
 import { t } from '../i18n/index.js'
 import { insertCitationWithAssist } from './latexCitationAssist'
-import { EXTERNAL_TOOLS, TOOL_CATEGORIES } from './ai/toolRegistry'
+import { createFileToolSyncRuntime } from '../domains/files/fileToolSyncRuntime'
 import {
   buildCompileDocumentToolResult,
   collectTexTypFixerDiagnosis,
@@ -176,6 +176,10 @@ export function getAiTools(workspace, options = {}) {
   const allowedTools = Array.isArray(options.allowedTools) && options.allowedTools.length > 0
     ? new Set(options.allowedTools)
     : null
+  const fileToolSync = createFileToolSyncRuntime({
+    setInMemoryFileContent: (path, content) => useFilesStore().setInMemoryFileContent(path, content),
+    openFile: (path) => useEditorStore().openFile(path),
+  })
 
   const allTools = {
 
@@ -290,22 +294,24 @@ export function getAiTools(workspace, options = {}) {
         }
 
         const reviews = useReviewsStore()
-        const filesStore = useFilesStore()
 
         // Ensure parent directory exists
         const parentDir = resolved.split('/').slice(0, -1).join('/')
         if (parentDir) await invoke('create_dir', { path: parentDir })
 
         let oldContent = null
-        try { oldContent = await invoke('read_file', { path: resolved }) } catch {}
+        try {
+          oldContent = await invoke('read_file', { path: resolved })
+        } catch {
+          // Treat missing files as a normal create/overwrite case.
+        }
 
         await invoke('write_file', { path: resolved, content })
+        fileToolSync.syncTextFile(resolved, content, {
+          openInEditor: !reviews.directMode,
+        })
 
         if (!reviews.directMode) {
-          filesStore.fileContents[resolved] = content
-          const editorStore = useEditorStore()
-          editorStore.openFile(resolved)
-
           const editId = `chat-${Date.now()}-${nanoid(6)}`
           reviews.pendingEdits.push({
             id: editId,
@@ -340,7 +346,6 @@ export function getAiTools(workspace, options = {}) {
         if (!resolved) return PATH_ERROR
 
         const reviews = useReviewsStore()
-        const filesStore = useFilesStore()
 
         if (resolved.endsWith('.docx')) {
           return 'Error: DOCX files are no longer supported in Altals.'
@@ -359,12 +364,11 @@ export function getAiTools(workspace, options = {}) {
         // Use a function replacement to prevent $ patterns in new_string being interpreted as backreferences
         const newContent = currentContent.replace(fuzzyRegex, () => new_string)
         await invoke('write_file', { path: resolved, content: newContent })
+        fileToolSync.syncTextFile(resolved, newContent, {
+          openInEditor: !reviews.directMode,
+        })
 
         if (!reviews.directMode) {
-          filesStore.fileContents[resolved] = newContent
-          const editorStore = useEditorStore()
-          editorStore.openFile(resolved)
-
           const editId = `chat-${Date.now()}-${nanoid(6)}`
           reviews.pendingEdits.push({
             id: editId,
@@ -539,6 +543,7 @@ export function getAiTools(workspace, options = {}) {
       }),
       execute: async ({ key }) => {
         const editorStore = useEditorStore()
+        const refsStore = useReferencesStore()
         const toastStore = useToastStore()
         const pane = editorStore.activePane
         if (!pane?.activeTab) return 'No active editor.'

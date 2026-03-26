@@ -1,57 +1,38 @@
 <template>
-  <div class="flex flex-col h-full" :class="embedded ? 'pt-0' : 'pt-2'" style="background: var(--bg-primary);">
-
-    <!-- Content -->
-      
-      <!-- Empty state -->
-      <div v-if="!hasOutlineSupport" class="flex-1 flex items-center justify-center px-4">
-        <div class="text-center ui-text-xs" style="color: var(--fg-muted);">
-          <div class="mb-1">{{ t('No outline') }}</div>
-          <div class="ui-text-micro" style="opacity: 0.6;">{{ t('Add headings to your document to create an outline.') }}</div>
+  <div class="outline-panel" :class="{ 'outline-panel--embedded': embedded }">
+    <div v-if="!hasOutlineSupport" class="outline-panel-empty">
+      <div class="outline-panel-empty-copy text-center">
+        <div class="outline-panel-empty-title">{{ t('No outline') }}</div>
+        <div class="outline-panel-empty-hint">
+          {{ t('Add headings to your document to create an outline.') }}
         </div>
       </div>
+    </div>
 
+    <div v-else-if="groupedOutlineSections.length === 0" class="outline-panel-empty-copy px-3 py-3">
+      {{ t('No headings') }}
+    </div>
 
-      <div v-else-if="groupedOutlineSections.length === 0" class="px-3 py-3 ui-text-xs" style="color: var(--fg-muted);">
-        {{ t('No headings') }}
-      </div>
-      <div v-else class="flex-1 overflow-y-auto py-1">
+    <div v-else class="outline-panel-scroll">
+      <div v-for="section in groupedOutlineSections" :key="section.key" class="mb-2 last:mb-0">
+        <div class="outline-panel-section-label">
+          {{ section.title }}
+        </div>
         <div
-          v-for="section in groupedOutlineSections"
-          :key="section.key"
-          class="mb-2 last:mb-0"
+          v-for="item in section.items"
+          :key="outlineItemKey(item)"
+          class="outline-panel-row"
+          :class="{ 'is-active': outlineItemKey(item) === activeOutlineItemKey }"
+          :style="{ paddingLeft: getOutlineItemPadding(section.key, item) + 'px' }"
+          @click="navigateToOutlineItem(item)"
         >
-          <div
-            class="px-2 pt-1 pb-1 uppercase tracking-wide"
-            style="color: var(--fg-muted); font-size: 11px; font-weight: 600;"
-          >
-            {{ section.title }}
-          </div>
-          <div
-            v-for="item in section.items"
-            :key="outlineItemKey(item)"
-            class="flex items-center py-0.5 px-2 cursor-pointer select-none rounded-sm hover:bg-[var(--bg-hover)]"
-            :class="{ 'bg-[var(--bg-hover)]': outlineItemKey(item) === activeOutlineItemKey }"
-            :style="{
-              paddingLeft: getOutlineItemPadding(section.key, item) + 'px',
-              color: outlineItemKey(item) === activeOutlineItemKey ? 'var(--fg-primary)' : 'var(--fg-secondary)',
-              fontSize: 'var(--ui-font-caption)',
-              lineHeight: '1.25',
-            }"
-            @click="navigateToOutlineItem(item)"
-          >
-            <span
-              v-if="getOutlineKindLabel(item.kind)"
-              class="shrink-0 mr-2 uppercase tracking-wide"
-              style="color: var(--fg-muted); font-size: 11px; font-weight: 600;"
-            >
-              {{ getOutlineKindLabel(item.kind) }}
-            </span>
-            <span class="truncate">{{ item.text }}</span>
-          </div>
+          <span v-if="getOutlineKindLabel(item.kind)" class="outline-panel-kind">
+            {{ getOutlineKindLabel(item.kind) }}
+          </span>
+          <span class="truncate">{{ item.text }}</span>
         </div>
       </div>
-    
+    </div>
   </div>
 </template>
 
@@ -62,11 +43,8 @@ import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { useFilesStore } from '../../stores/files'
 import { useTypstStore } from '../../stores/typst'
 import { useWorkspaceStore } from '../../stores/workspace'
-import { useLinksStore, parseHeadings } from '../../stores/links'
 import { isMarkdown, isLatex, isTypst, getViewerType } from '../../utils/fileTypes'
-import {
-  subscribeTinymistDocumentSymbols,
-} from '../../services/tinymist/session'
+import { subscribeTinymistDocumentSymbols } from '../../services/tinymist/session'
 import { normalizeTinymistDocumentSymbols } from '../../services/tinymist/symbols'
 import { buildTypstOutlineItems, buildTypstProjectOutlineItems } from '../../services/typst/outline'
 import { buildLatexOutlineItems } from '../../services/latex/outline'
@@ -85,7 +63,6 @@ const workflowStore = useDocumentWorkflowStore()
 const filesStore = useFilesStore()
 const typstStore = useTypstStore()
 const workspaceStore = useWorkspaceStore()
-const linksStore = useLinksStore()
 const { t } = useI18n()
 const typstOutlineItems = ref([])
 const typstOutlineLoaded = ref(false)
@@ -125,7 +102,9 @@ function resolveOutlinePath(path) {
 
 // Determine if active file supports outline
 // Use overrideActiveFile prop when provided (e.g., from right sidebar when chat tab is focused)
-const activeFile = computed(() => resolveOutlinePath(props.overrideActiveFile || editorStore.activeTab))
+const activeFile = computed(() =>
+  resolveOutlinePath(props.overrideActiveFile || editorStore.activeTab)
+)
 
 const fileType = computed(() => {
   return outlineTypeForPath(activeFile.value)
@@ -153,7 +132,7 @@ function bindTinymistOutline(path) {
     typstStore.setTinymistOutlineItems(
       path,
       normalizeTinymistDocumentSymbols(currentDocumentText(path), symbols),
-      { loaded: true, tinymistBacked: true },
+      { loaded: true, tinymistBacked: true }
     )
     if (activeFile.value === path && fileType.value === 'typst') {
       void loadTypstOutline(path)
@@ -275,19 +254,21 @@ function outlineSectionKeyForItem(item = {}) {
 }
 
 const groupedOutlineSections = computed(() => {
-  return OUTLINE_SECTION_KEYS
-    .map(section => {
-      const items = outlineItems.value.filter(item => outlineSectionKeyForItem(item) === section.key)
-      return {
-        ...section,
-        title: t(section.titleKey),
-        items,
-      }
-    })
-    .filter(section => section.items.length > 0)
+  return OUTLINE_SECTION_KEYS.map((section) => {
+    const items = outlineItems.value.filter(
+      (item) => outlineSectionKeyForItem(item) === section.key
+    )
+    return {
+      ...section,
+      title: t(section.titleKey),
+      items,
+    }
+  }).filter((section) => section.items.length > 0)
 })
 
-const visibleOutlineItems = computed(() => outlineItems.value.filter(item => outlineSectionKeyForItem(item)))
+const visibleOutlineItems = computed(() =>
+  outlineItems.value.filter((item) => outlineSectionKeyForItem(item))
+)
 
 // Current heading highlight (for CM6 files)
 const activeOutlineItemKey = computed(() => {
@@ -312,7 +293,14 @@ const activeOutlineItemKey = computed(() => {
 // --- Heading parsers ---
 
 const LATEX_SECTION_RE = /^\\(part|chapter|section|subsection|subsubsection|paragraph)\{([^}]*)\}/gm
-const LATEX_LEVELS = { part: 1, chapter: 2, section: 3, subsection: 4, subsubsection: 5, paragraph: 6 }
+const LATEX_LEVELS = {
+  part: 1,
+  chapter: 2,
+  section: 3,
+  subsection: 4,
+  subsubsection: 5,
+  paragraph: 6,
+}
 
 function parseLatexHeadings(content) {
   const result = []
@@ -325,11 +313,9 @@ function parseLatexHeadings(content) {
       offset: m.index,
     })
   }
-  const baseLevel = result.length > 0
-    ? Math.min(...result.map(item => item.rawLevel))
-    : 1
+  const baseLevel = result.length > 0 ? Math.min(...result.map((item) => item.rawLevel)) : 1
 
-  return result.map(item => ({
+  return result.map((item) => ({
     text: item.text,
     level: Math.max(1, item.rawLevel - baseLevel + 1),
     displayLevel: Math.max(1, item.rawLevel - baseLevel + 1),
@@ -339,7 +325,11 @@ function parseLatexHeadings(content) {
 
 function parseNotebookHeadings(content) {
   let nb
-  try { nb = JSON.parse(content) } catch { return [] }
+  try {
+    nb = JSON.parse(content)
+  } catch {
+    return []
+  }
   if (!nb.cells) return []
 
   const result = []
@@ -347,7 +337,7 @@ function parseNotebookHeadings(content) {
   for (let ci = 0; ci < nb.cells.length; ci++) {
     const cell = nb.cells[ci]
     if (cell.cell_type === 'markdown') {
-      const src = Array.isArray(cell.source) ? cell.source.join('') : (cell.source || '')
+      const src = Array.isArray(cell.source) ? cell.source.join('') : cell.source || ''
       const re = /^(#{1,6})\s+(.+)$/gm
       let m
       while ((m = re.exec(src)) !== null) {
@@ -359,7 +349,7 @@ function parseNotebookHeadings(content) {
         })
       }
     }
-    const cellSrc = Array.isArray(cell.source) ? cell.source.join('') : (cell.source || '')
+    const cellSrc = Array.isArray(cell.source) ? cell.source.join('') : cell.source || ''
     charOffset += cellSrc.length + 1
   }
   return result
@@ -399,9 +389,11 @@ function navigateToOutlineItem(item) {
 
   if (ft === 'notebook') {
     if (item.cellIndex != null) {
-      window.dispatchEvent(new CustomEvent('notebook-scroll-to-cell', {
-        detail: { path, cellIndex: item.cellIndex },
-      }))
+      window.dispatchEvent(
+        new CustomEvent('notebook-scroll-to-cell', {
+          detail: { path, cellIndex: item.cellIndex },
+        })
+      )
     }
   }
 }
@@ -429,7 +421,12 @@ function outlineItemKey(item = {}) {
 }
 
 watch(
-  () => [activeFile.value, fileType.value, filesStore.fileContents[activeFile.value || ''] || '', workspaceStore.path],
+  () => [
+    activeFile.value,
+    fileType.value,
+    filesStore.fileContents[activeFile.value || ''] || '',
+    workspaceStore.path,
+  ],
   ([path, ft]) => {
     if (ft === 'typst') {
       bindTinymistOutline(path)
@@ -455,7 +452,7 @@ watch(
     resetTypstOutline()
     resetLatexOutline()
   },
-  { immediate: true },
+  { immediate: true }
 )
 
 onUnmounted(() => {
@@ -465,3 +462,89 @@ onUnmounted(() => {
   }
 })
 </script>
+
+<style scoped>
+.outline-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg-primary);
+  padding-top: 8px;
+}
+
+.outline-panel--embedded {
+  padding-top: 0;
+}
+
+.outline-panel-empty {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+}
+
+.outline-panel-empty-copy {
+  font-size: var(--sidebar-font-body);
+  line-height: 1.55;
+  color: var(--fg-muted);
+}
+
+.outline-panel-empty-title {
+  font-size: var(--sidebar-font-item);
+  line-height: 1.35;
+}
+
+.outline-panel-empty-hint {
+  margin-top: 4px;
+  font-size: var(--sidebar-font-meta);
+  line-height: 1.45;
+  opacity: 0.7;
+}
+
+.outline-panel-scroll {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.outline-panel-section-label {
+  padding: 4px 8px;
+  font-size: var(--sidebar-font-kicker);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+
+.outline-panel-row {
+  display: flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  user-select: none;
+  color: var(--fg-secondary);
+  font-size: var(--sidebar-font-item);
+  line-height: 1.25;
+}
+
+.outline-panel-row:hover,
+.outline-panel-row.is-active {
+  background: var(--bg-hover);
+}
+
+.outline-panel-row.is-active {
+  color: var(--fg-primary);
+}
+
+.outline-panel-kind {
+  margin-right: 8px;
+  flex-shrink: 0;
+  font-size: var(--sidebar-font-meta);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+</style>

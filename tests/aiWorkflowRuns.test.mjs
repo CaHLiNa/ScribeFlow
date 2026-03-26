@@ -158,6 +158,44 @@ test('store can move workflows into background mode and expose them for recovery
   assert.equal(synced.run.executionMode, 'background')
 })
 
+test('workflow run store can list the latest runs for a specific context file', () => {
+  setActivePinia(createPinia())
+  const store = useAiWorkflowRunsStore()
+
+  const draftRun = store.createRunFromTemplate({
+    templateId: 'draft.review-revise',
+    context: { currentFile: '/tmp/chapter.tex' },
+    autoRun: false,
+  })
+  const diagnoseRun = store.createRunFromTemplate({
+    templateId: 'compile.tex-typ-diagnose',
+    context: { currentFile: '/tmp/chapter.tex' },
+    autoRun: false,
+  })
+  store.createRunFromTemplate({
+    templateId: 'compile.tex-typ-fix',
+    context: { currentFile: '/tmp/other.tex' },
+    autoRun: false,
+  })
+
+  const fileRuns = store.listRunsForFile('/tmp/chapter.tex')
+  const compileRuns = store.listRunsForFile('/tmp/chapter.tex', {
+    templateIdPrefix: 'compile.tex-typ',
+  })
+  const latestCompileRun = store.findLatestRunForFile('/tmp/chapter.tex', {
+    templateIdPrefix: 'compile.tex-typ',
+  })
+
+  assert.equal(fileRuns.length, 2)
+  assert.deepEqual(
+    new Set(fileRuns.map((workflow) => workflow.run.id)),
+    new Set([draftRun.run.id, diagnoseRun.run.id]),
+  )
+  assert.equal(compileRuns.length, 1)
+  assert.equal(compileRuns[0].run.id, diagnoseRun.run.id)
+  assert.equal(latestCompileRun.run.id, diagnoseRun.run.id)
+})
+
 test('workflow sync does not restore stale session snapshots without an explicit binding', () => {
   setActivePinia(createPinia())
   const store = useAiWorkflowRunsStore()

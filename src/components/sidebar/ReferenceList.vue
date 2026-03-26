@@ -27,13 +27,11 @@
         >
           <path d="M6 4l4 4-4 4" />
         </svg>
-        <span class="ui-text-xs font-medium uppercase tracking-wider">{{
-          headingLabel || t('References')
-        }}</span>
+        <span class="ui-sidebar-kicker">{{ headingLabel || t('References') }}</span>
       </div>
       <span
         v-if="referencesStore.refCount > 0"
-        class="reference-count-badge ui-text-xs px-1.5 py-0.5 rounded-full"
+        class="reference-count-badge ui-sidebar-meta px-1.5 py-0.5 rounded-full"
       >
         {{ referencesStore.refCount }}
       </span>
@@ -150,7 +148,7 @@
     <!-- Content -->
     <template v-if="!collapsed">
       <!-- Search row -->
-      <div class="px-2 py-1 shrink-0">
+      <div class="px-2 py-0.5 shrink-0">
         <UiInput
           v-model="searchQuery"
           size="sm"
@@ -228,22 +226,19 @@
       </Teleport>
 
       <!-- Sort + filter | compare | style -->
-      <div
-        v-if="referencesStore.refCount > 0"
-        class="flex items-center gap-1 px-2 pt-1 pb-0.5 shrink-0"
-      >
+      <div v-if="referencesStore.refCount > 0" class="reference-toolbar-row shrink-0">
         <!-- Sort button -->
         <UiButton
           ref="sortBtnEl"
           variant="ghost"
-          size="icon-sm"
+          size="icon-xs"
           icon-only
           class="reference-toolbar-button shrink-0"
           :title="t('Sort references')"
           :aria-label="t('Sort references')"
           @click.stop="toggleSortMenu"
         >
-          <IconArrowsSort :size="13" :stroke-width="1.5" />
+          <IconArrowsSort :size="12" :stroke-width="1.6" />
         </UiButton>
 
         <!-- Filter dropdown -->
@@ -251,7 +246,7 @@
           ref="filterBtnEl"
           variant="ghost"
           size="sm"
-          class="reference-filter-button shrink-0 ui-text-micro"
+          class="reference-filter-button shrink-0"
           :active="citedFilter !== 'all'"
           :title="t('Filter references')"
           :aria-label="t('Filter references')"
@@ -280,7 +275,7 @@
           v-if="canCompareSelected"
           variant="ghost"
           size="sm"
-          class="reference-compare-button shrink-0 ui-text-micro"
+          class="reference-compare-button shrink-0"
           :title="t('Compare selected')"
           :aria-label="t('Compare selected')"
           @click.stop="compareSelectedReferences"
@@ -316,7 +311,7 @@
           ref="styleBtnEl"
           variant="ghost"
           size="sm"
-          class="reference-style-button shrink-0 ui-text-micro"
+          class="reference-style-button shrink-0"
           :title="t('Citation style')"
           :aria-label="t('Citation style')"
           @click.stop="toggleStyleMenu"
@@ -364,7 +359,7 @@
       <!-- Import status toast -->
       <div
         v-if="importToast"
-        class="reference-import-toast flex items-center gap-1.5 mx-2 mb-1 px-2 py-1 rounded ui-text-micro shrink-0"
+        class="reference-import-toast flex items-center gap-1.5 mx-2 mb-1 px-2 py-1 rounded ui-sidebar-body shrink-0"
       >
         <svg
           v-if="importToast.hasAdded"
@@ -385,12 +380,12 @@
         <!-- Importing placeholders -->
         <div v-for="imp in importing" :key="imp.id" class="py-1.5 px-2">
           <div class="flex items-center gap-1">
-            <div class="reference-import-name flex-1 min-w-0 ui-text-xs truncate">
+            <div class="reference-import-name flex-1 min-w-0 truncate">
               {{ imp.name }}
             </div>
             <div class="ref-import-spinner shrink-0"></div>
           </div>
-          <div class="reference-import-hint ui-text-micro mt-0.5">
+          <div class="reference-import-hint mt-0.5">
             {{ t('Importing...') }}
           </div>
         </div>
@@ -409,7 +404,7 @@
         <!-- Empty state -->
         <div
           v-if="filteredRefs.length === 0 && importing.length === 0"
-          class="reference-empty-state px-3 py-4 text-center ui-text-micro"
+          class="reference-empty-state px-3 py-4 text-center ui-sidebar-empty"
         >
           <template v-if="searchQuery">{{ t('No matching references') }}</template>
           <template v-else>
@@ -422,7 +417,7 @@
           v-if="dropActive"
           class="reference-drop-overlay absolute inset-0 flex items-center justify-center pointer-events-none z-10"
         >
-          <span class="reference-drop-overlay-label ui-text-xs">{{
+          <span class="reference-drop-overlay-label ui-sidebar-kicker">{{
             t('Drop files to import')
           }}</span>
         </div>
@@ -830,20 +825,32 @@ function handleDragStart({ key, event }) {
 }
 
 .reference-count-badge {
+  padding: 1px 5px;
   background: var(--bg-tertiary);
   color: var(--fg-muted);
+  line-height: 1.2;
 }
 
 .reference-toolbar-button {
   color: var(--fg-muted);
 }
 
+.reference-toolbar-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sidebar-inline-gap);
+  padding: 2px 8px 4px;
+}
+
 .reference-search-input {
   background: var(--bg-tertiary);
+  min-height: var(--sidebar-input-height);
+  padding-inline: 7px;
+  gap: var(--sidebar-inline-gap);
 }
 
 .reference-search-input :deep(.ui-input-control) {
-  font-size: var(--ui-font-micro);
+  font-size: var(--sidebar-font-search);
 }
 
 .reference-style-search-shell {
@@ -856,7 +863,16 @@ function handleDragStart({ key, event }) {
 }
 
 .reference-style-search :deep(.ui-input-control) {
-  font-size: var(--ui-font-micro);
+  font-size: var(--sidebar-font-search);
+}
+
+.reference-filter-button,
+.reference-compare-button,
+.reference-style-button {
+  min-height: var(--sidebar-row-height-tight);
+  border-radius: 6px;
+  padding-inline: 7px;
+  font-size: var(--sidebar-font-control);
 }
 
 .reference-style-menu {
@@ -895,7 +911,7 @@ function handleDragStart({ key, event }) {
 }
 
 .reference-style-label {
-  max-width: 100px;
+  max-width: 88px;
 }
 
 .reference-drop-overlay {
@@ -910,7 +926,12 @@ function handleDragStart({ key, event }) {
 
 .reference-import-name {
   color: var(--fg-muted);
+  font-size: var(--sidebar-font-item);
   line-height: 1.25;
+}
+
+.reference-import-hint {
+  font-size: var(--sidebar-font-meta);
 }
 
 .reference-drop-overlay-label {

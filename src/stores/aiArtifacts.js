@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { collectArtifactsFromMessage } from '../services/ai/artifacts'
-import { t } from '../i18n'
+import { collectArtifactsFromMessage } from '../services/ai/artifacts.js'
+import { t } from '../i18n/index.js'
 
 export const useAiArtifactsStore = defineStore('aiArtifacts', () => {
   const bySession = ref({})
@@ -33,6 +33,7 @@ export const useAiArtifactsStore = defineStore('aiArtifacts', () => {
     ]
     for (const message of messages || []) {
       if (message?.role !== 'assistant') continue
+      if (message?._workflowRunId) continue
       nextArtifacts.push(...collectArtifactsFromMessage(message, context))
     }
 

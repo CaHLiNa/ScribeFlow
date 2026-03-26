@@ -180,18 +180,24 @@ test('workflow launch helpers auto-send the real prompt before executor checkpoi
   })
   session._workflow = workflowRuns.syncRunToSession(session)
 
-  const workflowPayload = buildWorkflowSendPayload({ task, workflow })
+  const workflowPayload = buildWorkflowSendPayload({
+    task,
+    workflow,
+    hideFromTranscript: true,
+  })
   const sent = await autoSendWorkflowMessage({
     chatStore,
     sessionId,
     task,
     workflow,
+    hideFromTranscript: true,
   })
 
   assert.equal(sent, true)
   assert.equal(workflowPayload.text, 'Review this draft and stop before applying edits.')
   assert.equal(workflowPayload.fileRefs.length, 1)
   assert.equal(workflowPayload.preserveLabel, true)
+  assert.equal(workflowPayload.hideFromTranscript, true)
 
   await workflowRuns.runExecutor({
     runId: workflow.run.id,
@@ -203,6 +209,7 @@ test('workflow launch helpers auto-send the real prompt before executor checkpoi
   assert.equal(chatStore.sentMessages.length, 1)
   assert.equal(chatStore.sentMessages[0].payload.text, 'Review this draft and stop before applying edits.')
   assert.equal(chatStore.sentMessages[0].payload.preserveLabel, true)
+  assert.equal(chatStore.sentMessages[0].payload.hideFromTranscript, true)
   assert.equal(session.label, 'Review current draft')
   assert.equal(session._workflow.template.id, 'draft.review-revise')
   assert.equal(session._workflow.run.status, 'waiting_user')

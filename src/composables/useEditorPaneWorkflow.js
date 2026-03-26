@@ -179,21 +179,29 @@ export function useEditorPaneWorkflow(options) {
 
   async function handleWorkflowFixWithAi() {
     if (!activeTabRef.value) return
+    workspace.setRightSidebarPanel('document-run')
+    workspace.openRightSidebar()
     await workflowStore.launchWorkflowFixWithAiForFile(activeTabRef.value, {
       editorStore,
       chatStore,
       paneId: paneIdRef.value || null,
       beside: true,
+      source: 'document-run-inspector',
+      entryContext: 'document-run-inspector',
     })
   }
 
   async function handleWorkflowDiagnoseWithAi() {
     if (!activeTabRef.value) return
+    workspace.setRightSidebarPanel('document-run')
+    workspace.openRightSidebar()
     await workflowStore.launchWorkflowDiagnoseWithAiForFile(activeTabRef.value, {
       editorStore,
       chatStore,
       paneId: paneIdRef.value || null,
       beside: true,
+      source: 'document-run-inspector',
+      entryContext: 'document-run-inspector',
     })
   }
 

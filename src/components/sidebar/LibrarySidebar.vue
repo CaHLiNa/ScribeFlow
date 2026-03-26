@@ -1,9 +1,6 @@
 <template>
   <div class="library-shell-sidebar">
     <div v-if="isViewsPanel" class="library-shell-sidebar-section">
-      <div class="library-shell-sidebar-head is-simple">
-        <div class="library-shell-sidebar-kicker">{{ t('Views') }}</div>
-      </div>
       <div class="library-shell-sidebar-list is-views">
         <UiButton
           v-for="view in sidebarViewOptions"
@@ -23,20 +20,6 @@
     </div>
 
     <div v-else class="library-shell-sidebar-section grow">
-      <div class="library-shell-sidebar-head">
-        <div class="library-shell-sidebar-kicker">{{ t('Tags') }}</div>
-        <UiButton
-          v-if="selectedTags.length > 0"
-          type="button"
-          variant="ghost"
-          size="sm"
-          class="library-shell-sidebar-action"
-          @click="clearSelectedTags()"
-        >
-          {{ t('Clear') }}
-        </UiButton>
-      </div>
-
       <div v-if="tagFacets.length > 0" class="library-shell-sidebar-list is-tags">
         <UiButton
           v-for="tag in tagFacets"
@@ -62,11 +45,13 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useI18n } from '../../i18n'
 import { useLibraryWorkbenchUi } from '../../composables/useLibraryWorkbenchUi'
 import UiButton from '../shared/ui/UiButton.vue'
+
+const emit = defineEmits(['tag-selection-change'])
 
 const workspace = useWorkspaceStore()
 const { t } = useI18n()
@@ -81,6 +66,16 @@ const {
 } = useLibraryWorkbenchUi()
 
 const isViewsPanel = computed(() => workspace.leftSidebarPanel === 'library-views')
+
+watch(
+  () => selectedTags.value.length,
+  (count) => emit('tag-selection-change', count),
+  { immediate: true }
+)
+
+defineExpose({
+  clearSelectedTags,
+})
 </script>
 
 <style scoped>
@@ -97,39 +92,12 @@ const isViewsPanel = computed(() => workspace.leftSidebarPanel === 'library-view
   flex-direction: column;
   gap: 0;
   min-height: 0;
-  padding: 10px 0 0;
+  padding: 8px 0 0;
 }
 
 .library-shell-sidebar-section.grow {
   flex: 1;
-  padding-top: 12px;
-}
-
-.library-shell-sidebar-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 0 14px 8px;
-}
-
-.library-shell-sidebar-head.is-simple {
-  justify-content: flex-start;
-}
-
-.library-shell-sidebar-kicker {
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0.07em;
-  line-height: 1.3;
-  text-transform: uppercase;
-  color: color-mix(in srgb, var(--fg-muted) 92%, var(--fg-primary));
-}
-
-.library-shell-sidebar-action {
-  padding: 0;
-  font-size: 0.72rem;
-  line-height: 1.3;
+  padding-top: 10px;
 }
 
 .library-shell-sidebar-list {
@@ -137,30 +105,30 @@ const isViewsPanel = computed(() => workspace.leftSidebarPanel === 'library-view
   flex-direction: column;
   min-height: 0;
   overflow: auto;
-  padding-bottom: 8px;
+  gap: 2px;
+  padding: 0 8px 8px;
 }
 
 .library-shell-sidebar-list.is-views,
 .library-shell-sidebar-list.is-tags {
-  gap: 0;
+  gap: 2px;
 }
 
 .library-shell-sidebar-item {
   width: 100%;
-  min-height: 28px;
-  padding: 0 14px 0 16px;
+  min-height: var(--sidebar-row-height);
+  padding: 0 8px 0 10px;
   border: none;
-  border-radius: 0;
+  border-radius: 6px;
   background: transparent;
   color: var(--fg-muted);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  font-size: 0.84rem;
-  line-height: 1.45;
+  gap: 10px;
+  font-size: var(--sidebar-font-item);
+  line-height: 1.32;
   text-align: left;
-  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--border) 58%, transparent);
   transition:
     background-color 120ms ease,
     color 120ms ease,
@@ -168,14 +136,9 @@ const isViewsPanel = computed(() => workspace.leftSidebarPanel === 'library-view
 }
 
 .library-shell-sidebar-item.is-tag {
-  min-height: 24px;
-  padding: 0 14px 0 18px;
-  font-size: 0.77rem;
-}
-
-.library-shell-sidebar-list.is-views .library-shell-sidebar-item:first-child,
-.library-shell-sidebar-list.is-tags .library-shell-sidebar-item:first-child {
-  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--border) 74%, transparent);
+  min-height: var(--sidebar-row-height-tight);
+  padding: 0 8px 0 12px;
+  font-size: var(--sidebar-font-item);
 }
 
 .library-shell-sidebar-item:hover {
@@ -186,24 +149,26 @@ const isViewsPanel = computed(() => workspace.leftSidebarPanel === 'library-view
 .library-shell-sidebar-item.is-active {
   background: color-mix(in srgb, var(--accent) 6%, transparent);
   color: var(--fg-primary);
-  box-shadow:
-    inset 2px 0 0 color-mix(in srgb, var(--accent) 52%, transparent),
-    inset 0 1px 0 color-mix(in srgb, var(--border) 58%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
 .library-shell-sidebar-count {
-  min-width: 18px;
+  min-width: 16px;
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
-  font-size: 0.7rem;
+  font-size: var(--sidebar-font-meta);
   line-height: 1.3;
   color: var(--fg-muted);
 }
 
+.library-shell-sidebar-item.is-active .library-shell-sidebar-count {
+  color: var(--accent);
+}
+
 .library-shell-sidebar-empty {
-  padding: 6px 16px;
-  font-size: 0.8rem;
+  padding: 4px 14px 0;
+  font-size: var(--sidebar-font-body);
   line-height: 1.6;
   color: var(--fg-muted);
 }

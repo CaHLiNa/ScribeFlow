@@ -7,17 +7,29 @@ function hasPayloadContent(payload = {}) {
   return Boolean(payload.context?.text)
 }
 
-export function buildTaskSendPayload({ ai = null, text = '', fileRefs = [], context = null, richHtml = null } = {}) {
+export function buildTaskSendPayload({
+  ai = null,
+  text = '',
+  fileRefs = [],
+  context = null,
+  richHtml = null,
+  hideFromTranscript = false,
+} = {}) {
   return {
     text,
     fileRefs,
     context,
     richHtml,
     preserveLabel: shouldPreserveAiSessionLabel(ai),
+    hideFromTranscript,
   }
 }
 
-export function buildWorkflowSendPayload({ task = {}, workflow = null } = {}) {
+export function buildWorkflowSendPayload({
+  task = {},
+  workflow = null,
+  hideFromTranscript = false,
+} = {}) {
   const launchContext = workflow?.run?.context || {}
   return {
     text: launchContext.prompt || task.prompt || '',
@@ -25,14 +37,21 @@ export function buildWorkflowSendPayload({ task = {}, workflow = null } = {}) {
     context: task.context || null,
     richHtml: task.richHtml || launchContext.richHtml || null,
     preserveLabel: true,
+    hideFromTranscript,
   }
 }
 
-export async function autoSendWorkflowMessage({ chatStore, sessionId, task, workflow } = {}) {
+export async function autoSendWorkflowMessage({
+  chatStore,
+  sessionId,
+  task,
+  workflow,
+  hideFromTranscript = false,
+} = {}) {
   if (!sessionId || typeof chatStore?.sendMessage !== 'function') return false
   if (!workflow?.run?.context) return false
 
-  const payload = buildWorkflowSendPayload({ task, workflow })
+  const payload = buildWorkflowSendPayload({ task, workflow, hideFromTranscript })
   if (!hasPayloadContent(payload)) return false
 
   await chatStore.sendMessage(sessionId, payload)

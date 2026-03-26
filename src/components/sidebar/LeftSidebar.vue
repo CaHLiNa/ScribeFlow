@@ -22,14 +22,6 @@
           </ShellChromeButton>
           <ShellChromeButton
             size="icon-xs"
-            :title="t('Filter Files ({shortcut})', { shortcut: `${modKey}+F` })"
-            :aria-label="t('Filter Files ({shortcut})', { shortcut: `${modKey}+F` })"
-            @click="activateSidebarFilter"
-          >
-            <IconSearch :size="10" :stroke-width="1.5" />
-          </ShellChromeButton>
-          <ShellChromeButton
-            size="icon-xs"
             :title="t('New File or Folder')"
             :aria-label="t('New File or Folder')"
             @click="openSidebarCreateMenu"
@@ -74,6 +66,23 @@
             <IconSparkles :size="10" :stroke-width="1.7" />
           </ShellChromeButton>
         </template>
+
+        <template
+          v-else-if="
+            workspace.isLibrarySurface &&
+            activePanel === 'library-tags' &&
+            libraryTagSelectionCount > 0
+          "
+        >
+          <ShellChromeButton
+            size="icon-xs"
+            :title="t('Clear')"
+            :aria-label="t('Clear')"
+            @click="clearLibrarySelectedTags"
+          >
+            <IconX :size="10" :stroke-width="2" />
+          </ShellChromeButton>
+        </template>
       </template>
     </SidebarChrome>
 
@@ -88,6 +97,7 @@
         @open-folder="$emit('open-folder')"
         @open-workspace="$emit('open-workspace', $event)"
         @close-folder="$emit('close-folder')"
+        @tag-selection-change="updateLibraryTagSelectionCount"
       />
     </KeepAlive>
   </div>
@@ -95,7 +105,7 @@
 
 <script setup>
 import { ref, defineAsyncComponent, computed, nextTick } from 'vue'
-import { IconPlus, IconSearch, IconSparkles } from '@tabler/icons-vue'
+import { IconPlus, IconSparkles, IconX } from '@tabler/icons-vue'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useI18n } from '../../i18n'
 import { normalizeWorkbenchSidebarPanel } from '../../shared/workbenchSidebarPanels'
@@ -103,7 +113,6 @@ import { getWorkbenchSidebarChromeEntries } from '../../shared/workbenchChromeEn
 import FileTree from './FileTree.vue'
 import SidebarChrome from '../shared/SidebarChrome.vue'
 import ShellChromeButton from '../shared/ShellChromeButton.vue'
-import { modKey } from '../../platform'
 
 const ReferenceList = defineAsyncComponent(() => import('./ReferenceList.vue'))
 const LibrarySidebar = defineAsyncComponent(() => import('./LibrarySidebar.vue'))
@@ -114,6 +123,7 @@ defineEmits(['file-version-history', 'open-folder', 'open-workspace', 'close-fol
 const workspace = useWorkspaceStore()
 const { t } = useI18n()
 const activeSidebarRef = ref(null)
+const libraryTagSelectionCount = ref(0)
 const activePanel = computed(() =>
   normalizeWorkbenchSidebarPanel(workspace.primarySurface, workspace.leftSidebarPanel)
 )
@@ -195,10 +205,6 @@ function collapseSidebarFolders() {
   activeSidebarRef.value?.collapseAllFolders?.()
 }
 
-function activateSidebarFilter() {
-  activeSidebarRef.value?.activateFilter?.()
-}
-
 function openSidebarCreateMenu(event) {
   activeSidebarRef.value?.toggleCreateMenuFrom?.(actionAnchor(event))
 }
@@ -213,6 +219,14 @@ function openSidebarAddReferenceDialog() {
 
 function openSidebarReferenceMaintenance() {
   activeSidebarRef.value?.openReferenceAi?.()
+}
+
+function clearLibrarySelectedTags() {
+  activeSidebarRef.value?.clearSelectedTags?.()
+}
+
+function updateLibraryTagSelectionCount(count = 0) {
+  libraryTagSelectionCount.value = Number.isFinite(count) ? count : 0
 }
 
 // Expose FileTree methods for App.vue

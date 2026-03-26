@@ -56,7 +56,9 @@ export async function buildChatRuntimeConfig({ session, workspace } = {}) {
   try {
     const meta = await buildWorkspaceMeta(workspace?.path)
     if (meta) systemPrompt += '\n\n' + meta
-  } catch {}
+  } catch {
+    // Workspace metadata is optional for runtime config assembly.
+  }
   const workflowPrompt = buildWorkflowPrompt(session)
   if (workflowPrompt) systemPrompt += '\n\n' + workflowPrompt
   if (!access && runtimeId !== 'opencode') return null
@@ -76,5 +78,6 @@ export async function buildChatRuntimeConfig({ session, workspace } = {}) {
     toolRole: role,
     toolProfile: session?._ai?.toolProfile || null,
     allowedTools: session?._ai?.allowedTools || null,
+    initialToolChoice: session?._ai?.initialToolChoice || null,
   }
 }

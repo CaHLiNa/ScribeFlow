@@ -21,6 +21,7 @@ export function createChatRuntimeConfigRuntime({
       toolRole,
       toolProfile,
       allowedTools,
+      initialToolChoice,
       runtimeId,
       strictRuntime,
       runtimeSessionId,
@@ -44,6 +45,7 @@ export function createChatRuntimeConfigRuntime({
       toolRole,
       toolProfile,
       allowedTools,
+      initialToolChoice,
       onRuntimeMeta: (updates = {}) => {
         const liveSession = getLiveSession?.(session.id)
         if (!liveSession) return

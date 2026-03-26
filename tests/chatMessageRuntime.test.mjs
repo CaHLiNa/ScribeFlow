@@ -94,6 +94,19 @@ test('chat message runtime sends messages, auto-labels first chats, and stores r
   assert.equal(state.richHtml['u-1'], '<p>Hello</p>')
 })
 
+test('chat message runtime can hide internal launch prompts from the visible transcript', async () => {
+  const { chat, runtime, sentPayloads } = createHarness()
+
+  const sent = await runtime.sendMessage('s1', {
+    text: 'Internal workflow launch prompt',
+    hideFromTranscript: true,
+  })
+
+  assert.equal(sent, true)
+  assert.equal(sentPayloads.length, 1)
+  assert.equal(chat.state.messagesRef.value[0]._hiddenFromTranscript, true)
+})
+
 test('chat message runtime blocks sends for streaming chats and budget overflow', async () => {
   const { chat, runtime, sentPayloads, warnings } = createHarness()
 

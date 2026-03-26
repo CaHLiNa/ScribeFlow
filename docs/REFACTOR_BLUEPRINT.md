@@ -40,7 +40,7 @@ This blueprint tracks the current refactor truth for Altals as a local-first, pr
 
 ## In Progress
 
-- No active slice is currently in progress.
+- No active slice recorded. Update this section when the next refactor slice starts.
 
 ## Completed
 
@@ -100,6 +100,8 @@ This blueprint tracks the current refactor truth for Altals as a local-first, pr
 - March 26, 2026: normalized `NotebookEditor` status-chip popover chrome one step further by replacing composable-emitted kernel status style objects with explicit tone classes and tokenized badge/popover styling, so notebook surface state chrome now follows the same class-plus-token baseline as the surrounding workbench.
 - March 26, 2026: removed the last template-level static `style="..."` usage from `EditorPane` and cleaned the stale `TabBar` comment that still carried an inline style attribute, so the audited editor/sidebar/library main templates now only retain programmatic style strings in runtime renderers such as `CellOutput`.
 - March 26, 2026: extracted ANSI rich-output formatting from `CellOutput` into `src/domains/editor/cellOutputAnsiRuntime.js`, replaced runtime-generated `<span style="...">` output with class-based spans, and added focused tests so notebook/output renderer styling now follows the same tokenized CSS path as the rest of the baselined frontend.
+- March 26, 2026: replaced the project-file search toggle with a persistent file-tree search field, so the file sidebar now matches the calmer always-available reference-search pattern while keeping keyboard focus shortcuts and filtered tree highlighting intact.
+- March 26, 2026: tightened the persistent file-tree search styling by removing the extra shell-class binding and reducing the input text size, so the project-file search field now sits closer to the reference-search surface instead of reading larger or visually offset.
 
 ## Blocked / Risks
 
@@ -192,6 +194,20 @@ Validation status for the current slice:
 - `node --test tests/*.test.mjs` passes.
 - `npm run build` passes.
 - Release-workflow tag handling was updated and validated with local git-state checks against the current `v1.0.1` tag/HEAD mismatch scenario plus a YAML syntax parse.
+- Replaced the project-file search toggle with a persistent file-tree search field, then verified the slice with targeted ESLint, `node --test tests/*.test.mjs`, and `npm run build`.
+- Tightened the persistent file-tree search styling to align it more closely with the reference-search field, then re-ran targeted ESLint, `node --test tests/*.test.mjs`, and `npm run build`.
+- Tightened both the file-tree and reference-list search input typography again so the visible placeholder/input text now reads smaller and more consistent across the left sidebar chrome, then re-ran targeted ESLint, `node --test tests/*.test.mjs`, and `npm run build`.
+- Unified sidebar typography across the main left/right workbench panels by introducing shared sidebar font tokens and applying them to file tree, references, AI recent chats, library sidebars, outline, and backlinks so section kickers, list items, search inputs, and supporting metadata now follow one clearer hierarchy, then re-ran targeted ESLint, `node --test tests/*.test.mjs`, and `npm run build`.
+- Compacted the global library toolbar by turning sort/import into small square actions beside the search field, removed the redundant `Views` / `Tags` labels from the library sidebar, and tightened the file-tree/reference search field heights, then re-ran targeted ESLint, `node --test tests/*.test.mjs`, and `npm run build`.
+- Tightened sidebar density one step further by adding shared compact row/input tokens, compressing file-tree rows, reference rows, library-sidebar items, the workspace footer action, and the global-library toolbar spacing so the left workbench surfaces now share a calmer, more consistent physical rhythm, then re-ran targeted ESLint, `node --test tests/*.test.mjs`, and `npm run build`.
+- Moved the library tag-filter clear action out of the sidebar list area and into the shared left-sidebar top-right chrome, wiring the button to the existing selected-tag state so the library tags panel now follows the same utility-action placement as the workspace sidebar, then re-ran targeted ESLint, `node --test tests/*.test.mjs`, and `npm run build`.
+- Added a dedicated right-sidebar document run panel for TeX / Typst compile workflows, rewired the document AI diagnose/fix actions to open that panel first, and changed the document workflow launcher seam to keep those runs in the document surface instead of defaulting into the AI workbench chat surface.
+- Fixed the first document-run regression by restoring real hidden workflow prompt delivery, filtering hidden launch prompts out of the visible chat transcript, skipping synthetic workflow narration when deriving AI artifacts, preferring session-backed document-run results over workflow placeholder artifacts, and tightening the right-sidebar document-run button so it only appears for the currently active TeX / Typst document. Verified the slice with targeted ESLint, focused node tests for chat/workflow/artifact behavior, `node --test tests/*.test.mjs`, and `npm run build`.
+- Fixed the next document-run regression by restoring the full TeX / Typst fixer preparation step on the in-place document workflow launch path, so AI diagnose/fix runs now bootstrap with compile-aware context and the fix path explicitly instructs the model to edit the source through workspace tools instead of only describing the patch. Verified with targeted ESLint, focused document-workflow runtime tests, `node --test tests/*.test.mjs`, and `npm run build`.
+- Tightened the TeX / Typst in-place fix path again by propagating fix-task tool policy through session runtime config, requiring a tool-driven first step for fix sessions, and constraining those sessions to file-read/edit plus compile-verification tools so the model is pushed toward real source edits instead of prose-only repair advice. Verified with targeted ESLint, focused chat/runtime/document tests, `node --test tests/*.test.mjs`, and `npm run build`.
+- Fixed the next in-place repair regression by syncing AI text-file writes back into the live editor buffer even in direct-apply mode, so a successful `edit_file` / `write_file` patch now updates the visible TeX / Typst document immediately instead of leaving the open editor stale until a later reload.
+- Reworked the right-sidebar document-run panel into a sidebar-native layout with compact status blocks, condensed workflow metadata, shorter path display, and collapsed raw logs, replacing the previous full-card stacking that read like AI workbench content squeezed into a narrow inspector column.
+- Reduced document-run sidebar toggle jank by only keeping right-sidebar pane content mounted while the inspector is open, limiting sidebar artifact history to the newest outputs, and lazily mounting raw compile logs only after explicit expansion instead of attaching large log DOM during every shell resize.
 
 ## Migration Notes
 

@@ -13,7 +13,9 @@ function clone(value) {
   if (typeof structuredClone === 'function') {
     try {
       return structuredClone(value)
-    } catch {}
+    } catch {
+      // Fall back to JSON cloning below when structuredClone cannot handle the payload.
+    }
   }
   return JSON.parse(JSON.stringify(value))
 }
@@ -97,6 +99,11 @@ export function serializeSessionWorkflow(workflow = null) {
 
 function findOpenCheckpoint(run) {
   return (run?.checkpoints || []).find((checkpoint) => checkpoint?.status === 'open') || null
+}
+
+function resolveRunContextFile(workflow = null) {
+  const context = workflow?.run?.context || {}
+  return String(context.currentFile || context.file || '').trim()
 }
 
 function findCurrentStep(run) {
@@ -255,6 +262,40 @@ export const useAiWorkflowRunsStore = defineStore('aiWorkflowRuns', () => {
       .filter(Boolean)
   }
 
+  function listRunsForFile(filePath, { templateIdPrefix = '', includeFinal = true } = {}) {
+    const targetFile = String(filePath || '').trim()
+    if (!targetFile) return []
+
+    const activeStatuses = new Set(['draft', 'planned', 'running', 'waiting_user'])
+    const normalizedPrefix = String(templateIdPrefix || '').trim()
+
+    return Object.values(byRunId.value)
+      .filter((workflow) => {
+        const run = workflow?.run
+        if (!run?.id) return false
+        if (resolveRunContextFile(workflow) !== targetFile) return false
+        if (!includeFinal && !activeStatuses.has(String(run.status || ''))) return false
+        if (
+          normalizedPrefix
+          && !String(workflow?.template?.id || run.templateId || '').startsWith(normalizedPrefix)
+        ) {
+          return false
+        }
+        return true
+      })
+      .sort((left, right) => {
+        const leftTime = Date.parse(left?.run?.updatedAt || left?.run?.createdAt || 0)
+        const rightTime = Date.parse(right?.run?.updatedAt || right?.run?.createdAt || 0)
+        return rightTime - leftTime
+      })
+      .map((workflow) => serializeSessionWorkflow(workflow))
+      .filter(Boolean)
+  }
+
+  function findLatestRunForFile(filePath, options = {}) {
+    return listRunsForFile(filePath, options)[0] || null
+  }
+
   async function notifyRunStatusChange(previous, next) {
     if (typeof window === 'undefined') return
     if (!shouldNotifyRunStatus(previous, next)) return
@@ -282,7 +323,9 @@ export const useAiWorkflowRunsStore = defineStore('aiWorkflowRuns', () => {
         duration: 6000,
         action,
       })
-    } catch {}
+    } catch {
+      // Workflow status toasts are best-effort and should not break the store path.
+    }
   }
 
   function storeWorkflow(workflow) {
@@ -598,6 +641,8 @@ export const useAiWorkflowRunsStore = defineStore('aiWorkflowRuns', () => {
     getRunForSession,
     getSessionIdForRun,
     listBackgroundRuns,
+    listRunsForFile,
+    findLatestRunForFile,
     restoreSessionWorkflow,
     createRunFromTemplate,
     replaceRun,

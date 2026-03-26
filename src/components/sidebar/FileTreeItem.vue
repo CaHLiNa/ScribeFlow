@@ -1,7 +1,7 @@
 <template>
   <div>
     <div
-      class="file-tree-item-row flex items-center py-0.5 px-1 cursor-pointer select-none tree-item"
+      class="file-tree-item-row flex items-center cursor-pointer select-none tree-item"
       :class="{
         'bg-[var(--bg-hover)]': isActive || isSelected || isFilterHighlighted,
         'tree-item-dragover': entry.is_dir && dragOverDir === entry.path,
@@ -23,22 +23,22 @@
       <!-- Expand/collapse arrow for dirs -->
       <span
         v-if="entry.is_dir"
-        class="file-tree-item-icon w-5 h-5 flex items-center justify-center shrink-0"
+        class="file-tree-item-icon w-[18px] h-[18px] flex items-center justify-center shrink-0"
       >
         <IconChevronRight
-          :size="16"
+          :size="14"
           :class="{ 'rotate-90': isExpanded }"
           class="transition-transform duration-100"
         />
       </span>
-      <span v-else class="w-5 h-5 shrink-0"></span>
+      <span v-else class="w-[18px] h-[18px] shrink-0"></span>
 
       <!-- File icon (files only; dirs use chevron as sole indicator) -->
       <span
         v-if="!entry.is_dir"
-        class="file-tree-item-icon w-5 h-5 flex items-center justify-center shrink-0 mr-1"
+        class="file-tree-item-icon w-[18px] h-[18px] flex items-center justify-center shrink-0 mr-0.5"
       >
-        <component :is="fileIconComponent" :size="16" :stroke-width="1.5" />
+        <component :is="fileIconComponent" :size="14" :stroke-width="1.5" />
       </span>
 
       <!-- Name or rename input -->
@@ -80,7 +80,7 @@
     <!-- Inline new item input (inside folder, before children) -->
     <div
       v-if="entry.is_dir && isExpanded && newItemParent === entry.path"
-      class="file-tree-item-new-row flex items-center py-0.5 px-1"
+      class="file-tree-item-new-row flex items-center"
       :style="{ paddingLeft: (depth + 1) * 12 + 28 + 'px' }"
     >
       <UiInput
@@ -406,6 +406,8 @@ function handleContextMenu(event) {
 }
 
 .file-tree-item-row {
+  min-height: var(--sidebar-row-height-tight);
+  padding-right: 8px;
   color: var(--text-secondary);
 }
 
@@ -413,10 +415,15 @@ function handleContextMenu(event) {
   color: var(--text-muted);
 }
 
+.file-tree-item-new-row {
+  min-height: var(--sidebar-row-height-tight);
+  padding-right: 8px;
+}
+
 .file-tree-item-label {
   color: var(--text-secondary);
-  font-size: var(--ui-font-caption);
-  line-height: 1.25;
+  font-size: var(--sidebar-font-item);
+  line-height: 1.18;
 }
 
 .file-tree-item-label.is-active {
@@ -432,7 +439,7 @@ function handleContextMenu(event) {
 }
 
 .file-tree-item-rename-input {
-  font-size: var(--ui-font-label);
+  font-size: var(--sidebar-font-control);
   border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
 }
 </style>

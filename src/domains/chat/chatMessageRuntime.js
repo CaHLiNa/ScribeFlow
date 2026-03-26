@@ -10,6 +10,19 @@ export function createChatMessageRuntime({
   chatSendEvent,
   warn = console.warn,
 } = {}) {
+  async function waitForNewUserMessage(chat, userCountBefore = 0) {
+    let newUserMessage = null
+    for (let i = 0; i < 5 && !newUserMessage; i += 1) {
+      await nextTickImpl?.()
+      const messages = chat?.state?.messagesRef?.value || []
+      const users = messages.filter((message) => message.role === 'user')
+      if (users.length > userCountBefore) {
+        newUserMessage = users[users.length - 1]
+      }
+    }
+    return newUserMessage
+  }
+
   async function buildMessageTextAndFiles({ text, fileRefs, context }) {
     const textParts = []
     const files = []
@@ -44,7 +57,10 @@ export function createChatMessageRuntime({
     return { text: textParts.join('\n\n'), files }
   }
 
-  async function sendMessage(sessionId, { text, fileRefs, context, richHtml, preserveLabel = false }) {
+  async function sendMessage(
+    sessionId,
+    { text, fileRefs, context, richHtml, preserveLabel = false, hideFromTranscript = false },
+  ) {
     const session = getSession?.(sessionId)
     if (!session) {
       warn?.('[chat] sendMessage: session not found:', sessionId)
@@ -78,18 +94,13 @@ export function createChatMessageRuntime({
       chat.sendMessage({ text: messageText })
     }
 
-    if (richHtml) {
-      let newUserMessage = null
-      for (let i = 0; i < 5 && !newUserMessage; i++) {
-        await nextTickImpl?.()
-        const messages = chat.state.messagesRef.value
-        const users = messages.filter((message) => message.role === 'user')
-        if (users.length > userCountBefore) {
-          newUserMessage = users[users.length - 1]
-        }
-      }
-      if (newUserMessage) {
+    if (richHtml || hideFromTranscript) {
+      const newUserMessage = await waitForNewUserMessage(chat, userCountBefore)
+      if (newUserMessage && richHtml) {
         setRichHtml?.(newUserMessage.id, richHtml)
+      }
+      if (newUserMessage && hideFromTranscript) {
+        newUserMessage._hiddenFromTranscript = true
       }
     }
 

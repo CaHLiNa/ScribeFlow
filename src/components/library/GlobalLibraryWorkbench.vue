@@ -30,7 +30,7 @@
       <template v-else>
         <main class="library-main" @contextmenu="openTableEmptyContextMenu">
           <div class="library-toolbar">
-            <div class="library-toolbar-row">
+            <div class="library-toolbar-row library-toolbar-row--primary">
               <div class="library-search-shell">
                 <UiInput
                   v-model="searchQuery"
@@ -44,24 +44,56 @@
                 />
               </div>
 
-              <UiSelect v-model="sortKey" size="sm" class="library-select">
-                <option value="added-desc">{{ t('Date added (newest)') }}</option>
-                <option value="year-desc">{{ t('Year (newest)') }}</option>
-                <option value="year-asc">{{ t('Year (oldest)') }}</option>
-                <option value="title-asc">{{ t('Title A → Z') }}</option>
-                <option value="author-asc">{{ t('Author A → Z') }}</option>
-              </UiSelect>
+              <div class="library-toolbar-actions">
+                <UiButton
+                  ref="toolbarSortBtnEl"
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  icon-only
+                  class="library-toolbar-icon-button"
+                  :class="{ 'is-active': showToolbarSortMenu }"
+                  :title="activeSortLabel"
+                  :aria-label="activeSortLabel"
+                  @click="toggleToolbarSortMenu"
+                >
+                  <IconArrowsSort :size="12" :stroke-width="1.7" />
+                </UiButton>
 
-              <UiButton
-                type="button"
-                variant="primary"
-                size="sm"
-                class="library-inline-button"
-                @click="showImportDialog = true"
-              >
-                {{ t('Import references') }}
-              </UiButton>
+                <UiButton
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  icon-only
+                  class="library-toolbar-icon-button"
+                  :title="t('Import references')"
+                  :aria-label="t('Import references')"
+                  @click="showImportDialog = true"
+                >
+                  <IconPlus :size="12" :stroke-width="1.8" />
+                </UiButton>
+              </div>
             </div>
+
+            <Teleport to="body">
+              <template v-if="showToolbarSortMenu">
+                <div class="fixed inset-0 z-50" @click="showToolbarSortMenu = false"></div>
+                <div
+                  class="context-menu z-50 library-toolbar-sort-menu"
+                  :style="toolbarSortMenuPos"
+                >
+                  <div
+                    v-for="option in librarySortOptions"
+                    :key="option.id"
+                    class="context-menu-item"
+                    :class="{ 'library-toolbar-sort-option-active': sortKey === option.id }"
+                    @click="selectToolbarSort(option.id)"
+                  >
+                    {{ option.label }}
+                  </div>
+                </div>
+              </template>
+            </Teleport>
 
             <div v-if="selectedTags.length > 0" class="library-filter-row is-tag-summary">
               <div class="library-section-label">{{ t('Tags') }}</div>
@@ -269,6 +301,7 @@
 <script setup>
 import { computed, defineAsyncComponent, ref, watch } from 'vue'
 import { ask } from '@tauri-apps/plugin-dialog'
+import { IconArrowsSort, IconPlus } from '@tabler/icons-vue'
 import { useReferencesStore } from '../../stores/references'
 import { useEditorStore } from '../../stores/editor'
 import { useWorkspaceStore } from '../../stores/workspace'
@@ -331,6 +364,12 @@ const contextMenu = ref({
 })
 
 const isEditing = computed(() => referencesStore.libraryDetailMode === 'edit' && !!activeRef.value)
+const toolbarSortBtnEl = ref(null)
+const showToolbarSortMenu = ref(false)
+const toolbarSortMenuPos = ref({ position: 'fixed', left: '0px', top: '0px' })
+const activeSortLabel = computed(
+  () => librarySortOptions.value.find((option) => option.id === sortKey.value)?.label || t('Sort')
+)
 
 const contextMenuRef = computed(() => {
   if (!contextMenu.value.refKey) return null
@@ -453,7 +492,35 @@ watch(
 
 watch(isEditing, () => {
   closeContextMenu()
+  showToolbarSortMenu.value = false
 })
+
+function getToolbarAnchorPosition(anchor, menuWidth = 208) {
+  if (!anchor?.getBoundingClientRect) {
+    return { position: 'fixed', left: '0px', top: '0px' }
+  }
+
+  const rect = anchor.getBoundingClientRect()
+  const left = Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8))
+
+  return {
+    position: 'fixed',
+    left: `${left}px`,
+    top: `${rect.bottom + 4}px`,
+  }
+}
+
+function toggleToolbarSortMenu() {
+  showToolbarSortMenu.value = !showToolbarSortMenu.value
+  if (showToolbarSortMenu.value) {
+    toolbarSortMenuPos.value = getToolbarAnchorPosition(toolbarSortBtnEl.value)
+  }
+}
+
+function selectToolbarSort(nextSortKey) {
+  sortKey.value = nextSortKey
+  showToolbarSortMenu.value = false
+}
 
 function closeContextMenu() {
   contextMenu.value.visible = false
@@ -857,8 +924,8 @@ async function handleContextMenuSelect(actionKey) {
 .library-toolbar {
   display: flex;
   flex-direction: column;
-  gap: 7px;
-  padding: 10px 14px 9px;
+  gap: 5px;
+  padding: 8px 12px 7px;
   background: color-mix(in srgb, var(--bg-secondary) 82%, var(--bg-primary));
 }
 
@@ -866,9 +933,27 @@ async function handleContextMenuSelect(actionKey) {
   display: none;
 }
 
+.library-toolbar-row--primary {
+  flex-wrap: nowrap;
+  gap: 4px;
+}
+
 .library-search-shell {
   flex: 1 1 300px;
   min-width: 220px;
+}
+
+.library-toolbar-row--primary .library-search-shell {
+  flex: 1 1 auto;
+  flex-basis: auto;
+  min-width: 0;
+}
+
+.library-toolbar-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: 0 0 auto;
 }
 
 .library-search-input,
@@ -879,13 +964,49 @@ async function handleContextMenuSelect(actionKey) {
   font-size: var(--library-ui-size);
 }
 
+.library-search-input {
+  min-height: var(--sidebar-input-height);
+  padding-inline: 8px;
+}
+
+.library-search-input :deep(.ui-input-control) {
+  font-size: var(--sidebar-font-control);
+}
+
 .library-select {
   width: 164px;
 }
 
+.library-toolbar-icon-button {
+  border-color: color-mix(in srgb, var(--border) 88%, var(--fg-muted));
+  background: color-mix(in srgb, var(--bg-primary) 82%, var(--bg-hover));
+  color: var(--fg-muted);
+}
+
+.library-toolbar-icon-button:hover:not(:disabled) {
+  color: var(--fg-primary);
+  border-color: color-mix(in srgb, var(--accent) 24%, var(--border));
+  background: color-mix(in srgb, var(--bg-primary) 70%, var(--bg-hover));
+}
+
+.library-toolbar-icon-button.is-active {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.library-toolbar-sort-menu {
+  min-width: 208px;
+}
+
+.library-toolbar-sort-option-active {
+  color: var(--accent);
+  font-weight: 500;
+}
+
 .library-batch-row {
   display: flex;
-  padding-top: 7px;
+  padding-top: 5px;
   border-top: 1px solid var(--border);
 }
 
@@ -1459,8 +1580,8 @@ async function handleContextMenuSelect(actionKey) {
   }
 
   .library-toolbar {
-    gap: 5px;
-    padding: 9px 12px 8px;
+    gap: 4px;
+    padding: 7px 10px 7px;
   }
 
   .library-toolbar-row {

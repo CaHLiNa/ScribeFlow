@@ -1,13 +1,15 @@
 <template>
   <div class="right-shell-sidebar">
     <SidebarChrome
+      v-if="workspace.rightSidebarOpen"
       :entries="inspectorEntries"
       :active-key="activePanel"
       @select="selectInspectorPanel"
     />
 
-    <KeepAlive :max="3">
+    <KeepAlive :max="4">
       <component
+        v-if="workspace.rightSidebarOpen"
         :is="activeSidebarView.component"
         :key="activeSidebarView.key"
         v-bind="activeSidebarView.props"
@@ -19,36 +21,48 @@
 
 <script setup>
 import { computed, defineAsyncComponent, ref, watch } from 'vue'
+import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { useEditorStore } from '../../stores/editor'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { normalizeWorkbenchInspectorPanel } from '../../shared/workbenchInspectorPanels.js'
 import { getWorkbenchInspectorChromeEntries } from '../../shared/workbenchChromeEntries.js'
-import { isAiLauncher, isChatTab, isLibraryPath, isNewTab } from '../../utils/fileTypes'
+import { isAiLauncher, isChatTab, isLatex, isLibraryPath, isNewTab, isTypst } from '../../utils/fileTypes'
 import { useI18n } from '../../i18n'
 import SidebarChrome from '../shared/SidebarChrome.vue'
 
 const OutlinePanel = defineAsyncComponent(() => import('../panel/OutlinePanel.vue'))
 const Backlinks = defineAsyncComponent(() => import('../panel/Backlinks.vue'))
 const LibraryInspectorSidebar = defineAsyncComponent(() => import('./LibraryInspectorSidebar.vue'))
+const DocumentRunInspectorSidebar = defineAsyncComponent(() => import('./DocumentRunInspectorSidebar.vue'))
 
+const workflowStore = useDocumentWorkflowStore()
 const editorStore = useEditorStore()
 const workspace = useWorkspaceStore()
 const { t } = useI18n()
 
 const lastDocumentTab = ref(null)
 
-const activePanel = computed(() =>
-  normalizeWorkbenchInspectorPanel(workspace.primarySurface, workspace.rightSidebarPanel)
-)
-const inspectorEntries = computed(() =>
-  getWorkbenchInspectorChromeEntries(t, workspace.primarySurface)
-)
+function resolveDocumentSourcePath(path) {
+  if (!path) return ''
+  return workflowStore.getSourcePathForPreview(path) || path
+}
+
 const activeSidebarView = computed(() => {
   if (workspace.isLibrarySurface) {
     return {
       component: LibraryInspectorSidebar,
       key: 'library-details',
       props: {},
+    }
+  }
+
+  if (activePanel.value === 'document-run') {
+    return {
+      component: DocumentRunInspectorSidebar,
+      key: 'workspace-document-run',
+      props: {
+        overrideActiveFile: currentWorkspaceDocumentTab.value,
+      },
     }
   }
 
@@ -87,6 +101,46 @@ const documentTab = computed(() => {
   return lastDocumentTab.value
 })
 
+const currentWorkspaceDocumentTab = computed(() => {
+  const active = editorStore.activeTab
+  if (
+    active &&
+    !isChatTab(active) &&
+    !isAiLauncher(active) &&
+    !isNewTab(active) &&
+    !isLibraryPath(active)
+  ) {
+    return active
+  }
+  return ''
+})
+
+const showDocumentRunEntry = computed(() => {
+  if (workspace.primarySurface !== 'workspace') return false
+  const sourcePath = resolveDocumentSourcePath(currentWorkspaceDocumentTab.value)
+  if (!sourcePath) return false
+  return isLatex(sourcePath) || isTypst(sourcePath)
+})
+
+const activePanel = computed(() => {
+  const normalized = normalizeWorkbenchInspectorPanel(
+    workspace.primarySurface,
+    workspace.rightSidebarPanel
+  )
+  if (normalized === 'document-run' && !showDocumentRunEntry.value) {
+    return 'outline'
+  }
+  return normalized
+})
+
+const inspectorEntries = computed(() => {
+  const entries = getWorkbenchInspectorChromeEntries(t, workspace.primarySurface)
+  if (workspace.primarySurface !== 'workspace') return entries
+  return showDocumentRunEntry.value
+    ? entries
+    : entries.filter((entry) => entry.key !== 'document-run')
+})
+
 watch(
   () => editorStore.activeTab,
   (tab) => {
@@ -96,6 +150,12 @@ watch(
   },
   { flush: 'post', immediate: true }
 )
+
+watch(showDocumentRunEntry, (visible) => {
+  if (!visible && workspace.rightSidebarPanel === 'document-run') {
+    workspace.setRightSidebarPanel('outline')
+  }
+}, { immediate: true })
 
 function selectInspectorPanel(panel) {
   workspace.setRightSidebarPanel(panel)

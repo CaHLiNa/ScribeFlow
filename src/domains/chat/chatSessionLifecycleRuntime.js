@@ -63,6 +63,7 @@ export function createChatSessionLifecycleRuntime({
       runtimeSessionId: ai.runtimeSessionId || null,
       toolProfile: ai.toolProfile || null,
       allowedTools: Array.isArray(ai.allowedTools) && ai.allowedTools.length > 0 ? [...ai.allowedTools] : null,
+      initialToolChoice: ai.initialToolChoice || null,
       artifactIntent: ai.artifactIntent || null,
       entryContext: ai.entryContext || null,
       filePath: ai.filePath || null,

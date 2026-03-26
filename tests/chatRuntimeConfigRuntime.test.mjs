@@ -30,6 +30,7 @@ test('chat runtime config runtime updates runtime metadata on the live session',
       toolRole: 'general',
       toolProfile: null,
       allowedTools: ['search'],
+      initialToolChoice: 'required',
       runtimeId: 'native',
       strictRuntime: false,
       runtimeSessionId: 'runtime-1',
@@ -55,6 +56,7 @@ test('chat runtime config runtime updates runtime metadata on the live session',
     strictRuntime: true,
     runtimeSessionId: 'runtime-2',
   })
+  assert.equal(config.initialToolChoice, 'required')
 })
 
 test('chat runtime config runtime tracks input tokens and records usage with cost', async () => {

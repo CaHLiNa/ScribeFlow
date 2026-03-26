@@ -28,12 +28,6 @@ function problemLine(problem = {}) {
   return ''
 }
 
-function summarizeProblem(problem = {}) {
-  const line = problemLine(problem)
-  const location = line ? `${line}: ` : ''
-  return `${location}${cleanText(problem?.message || problem?.raw || '')}`.trim()
-}
-
 function normalizeProblem(problem = {}, fallbackFilePath = '') {
   return {
     sourcePath: cleanText(problem?.sourcePath || problem?.file || fallbackFilePath),
@@ -92,6 +86,7 @@ function buildCompileDiagnosisArtifact({
     status,
     errorCount,
     warningCount,
+    durationMs: Number.isFinite(compileState?.durationMs) ? Number(compileState.durationMs) : 0,
     compileTargetPath: cleanText(compileState?.compileTargetPath || filePath),
     commandPreview: cleanText(compileState?.commandPreview || ''),
     problems,
@@ -141,6 +136,8 @@ function buildFixerPrompt(task = {}, diagnosisArtifact = null) {
     : [
         taskPrompt || t('Fix this TeX / Typst source file with the smallest safe patch.'),
         t('Use the attached source file and the compile diagnosis below as your starting point.'),
+        t('Apply the fix by editing the source file with the available workspace edit tools instead of only describing the change.'),
+        t('Do not stop at a prose-only answer when a safe text edit is available. Read what you need, make the edit, then recompile the same file.'),
         t('Prefer local syntax and structural fixes over broad rewrites.'),
         t('When you make edits, run `compile_document` on the same file before you finish so the result is verified.'),
         t('If the remaining issue needs a content decision or a larger restructure, stop and explain the blocker instead of guessing.'),
@@ -186,17 +183,14 @@ export async function collectTexTypFixerDiagnosis(filePath, options = {}) {
     })
   }
 
-  let diagnostics = []
-  if (isLatex(filePath)) {
-    diagnostics = buildLatexWorkflowProblems(filePath, context.latexStore?.stateForFile(filePath) || {})
-  } else {
-    diagnostics = buildTypstWorkflowProblems(filePath, {
+  const diagnostics = isLatex(filePath)
+    ? buildLatexWorkflowProblems(filePath, context.latexStore?.stateForFile(filePath) || {})
+    : buildTypstWorkflowProblems(filePath, {
       compileState: context.typstStore?.stateForFile(filePath) || {},
       queueState: context.typstStore?.queueStateForFile(filePath) || null,
       liveState: context.typstStore?.liveStateForFile(filePath) || null,
       referencesStore: context.referencesStore || null,
     })
-  }
 
   const compileState = compileAdapter.stateForFile(filePath, context) || {}
   const artifact = buildCompileDiagnosisArtifact({

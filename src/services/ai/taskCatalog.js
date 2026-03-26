@@ -30,6 +30,8 @@ function createWorkflowTaskDescriptor({
   workflowTemplateId,
   role,
   toolProfile,
+  allowedTools = null,
+  initialToolChoice = null,
   taskId,
   source = 'launcher',
   entryContext = null,
@@ -49,6 +51,8 @@ function createWorkflowTaskDescriptor({
     workflowTemplateId,
     role,
     toolProfile: toolProfile || role || null,
+    allowedTools: Array.isArray(allowedTools) && allowedTools.length > 0 ? [...allowedTools] : null,
+    initialToolChoice: initialToolChoice || null,
     taskId: taskId || null,
     source,
     entryContext,
@@ -65,7 +69,7 @@ function createWorkflowTaskDescriptor({
 }
 
 export function buildWorkflowBoundaryCopy(workflowTemplateId, t = translate) {
-  let template = null
+  let template
   try {
     template = getWorkflowTemplate(workflowTemplateId)
   } catch {
@@ -1161,6 +1165,8 @@ export function createTexTypFixTask({ filePath, label = '', source = 'launcher',
     workflowTemplateId: 'compile.tex-typ-fix',
     role: 'tex_typ_fixer',
     toolProfile: 'tex_typ_fixer',
+    allowedTools: ['read_file', 'list_files', 'search_content', 'edit_file', 'write_file', 'compile_document'],
+    initialToolChoice: 'required',
     taskId: 'fix.tex-typ',
     artifactIntent: 'patch',
     source,

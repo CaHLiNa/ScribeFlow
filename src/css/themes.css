@@ -93,6 +93,18 @@
   --surface-font-detail: var(--ui-font-display-md);
   --surface-font-hero: var(--ui-font-hero-sm);
   --surface-font-hero-compact: var(--ui-font-hero-xs);
+  --sidebar-font-kicker: var(--ui-font-micro);
+  --sidebar-font-search: var(--ui-font-micro);
+  --sidebar-font-control: var(--ui-font-caption);
+  --sidebar-font-item: var(--ui-font-caption);
+  --sidebar-font-meta: var(--ui-font-micro);
+  --sidebar-font-body: var(--ui-font-caption);
+  --sidebar-font-title: var(--ui-font-body);
+  --sidebar-font-title-strong: var(--ui-font-title);
+  --sidebar-row-height: 24px;
+  --sidebar-row-height-tight: 22px;
+  --sidebar-input-height: 24px;
+  --sidebar-inline-gap: 4px;
 
   /* Font stacks — single source of truth */
   --font-sans: 'Inter', system-ui, sans-serif;
@@ -222,6 +234,58 @@
 }
 .ui-text-2xl {
   font-size: var(--ui-font-display);
+}
+
+.ui-sidebar-kicker {
+  font-size: var(--sidebar-font-kicker);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.ui-sidebar-title {
+  font-size: var(--sidebar-font-title);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.35;
+  color: var(--text-primary);
+}
+
+.ui-sidebar-title-strong {
+  font-size: var(--sidebar-font-title-strong);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.35;
+  color: var(--text-primary);
+}
+
+.ui-sidebar-item {
+  font-size: var(--sidebar-font-item);
+  line-height: 1.35;
+  color: var(--text-secondary);
+}
+
+.ui-sidebar-meta {
+  font-size: var(--sidebar-font-meta);
+  line-height: 1.35;
+  color: var(--text-muted);
+}
+
+.ui-sidebar-body {
+  font-size: var(--sidebar-font-body);
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+
+.ui-sidebar-control {
+  font-size: var(--sidebar-font-control);
+  line-height: 1.3;
+}
+
+.ui-sidebar-empty {
+  font-size: var(--sidebar-font-body);
+  line-height: 1.55;
+  color: var(--text-muted);
 }
 
 /* ===== Light (Cadet Blue) ===== */

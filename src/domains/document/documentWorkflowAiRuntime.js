@@ -5,14 +5,15 @@ function isDocumentAiTarget(filePath) {
 }
 
 export function createDocumentWorkflowAiRuntime({
-  launchAiTaskImpl = null,
+  startWorkflowRunImpl = null,
   createFixTaskImpl = null,
   createDiagnoseTaskImpl = null,
+  prepareTaskImpl = null,
 } = {}) {
-  async function resolveLaunchAiTask() {
-    if (launchAiTaskImpl) return launchAiTaskImpl
+  async function resolveStartWorkflowRun() {
+    if (startWorkflowRunImpl) return startWorkflowRunImpl
     const mod = await import('../../services/ai/launch.js')
-    return mod.launchAiTask
+    return mod.startWorkflowRun
   }
 
   async function resolveFixTaskCreator() {
@@ -27,43 +28,51 @@ export function createDocumentWorkflowAiRuntime({
     return mod.createTexTypDiagnoseTask
   }
 
+  async function resolveTaskPreparer() {
+    if (prepareTaskImpl) return prepareTaskImpl
+    const mod = await import('../../services/ai/texTypFixer.js')
+    return mod.prepareTexTypFixTask
+  }
+
   async function launchFixForFile(filePath, options = {}) {
     if (!isDocumentAiTarget(filePath)) return null
+    if (!options.chatStore) return null
 
-    const launchTask = await resolveLaunchAiTask()
+    const startWorkflowRun = await resolveStartWorkflowRun()
     const createFixTask = await resolveFixTaskCreator()
-    return launchTask({
-      editorStore: options.editorStore || null,
-      chatStore: options.chatStore || null,
-      paneId: options.paneId || null,
-      beside: options.beside !== false,
-      surface: options.surface || 'drawer',
+    const prepareTask = await resolveTaskPreparer()
+    return startWorkflowRun({
+      chatStore: options.chatStore,
       modelId: options.modelId,
-      task: createFixTask({
+      sessionId: options.sessionId || null,
+      autoSendMessage: true,
+      hideAutoSendMessage: true,
+      task: await prepareTask(createFixTask({
         filePath,
         source: options.source || 'document-workflow',
         entryContext: options.entryContext || 'document-workflow',
-      }),
+      })),
     })
   }
 
   async function launchDiagnoseForFile(filePath, options = {}) {
     if (!isDocumentAiTarget(filePath)) return null
+    if (!options.chatStore) return null
 
-    const launchTask = await resolveLaunchAiTask()
+    const startWorkflowRun = await resolveStartWorkflowRun()
     const createDiagnoseTask = await resolveDiagnoseTaskCreator()
-    return launchTask({
-      editorStore: options.editorStore || null,
-      chatStore: options.chatStore || null,
-      paneId: options.paneId || null,
-      beside: options.beside !== false,
-      surface: options.surface || 'drawer',
+    const prepareTask = await resolveTaskPreparer()
+    return startWorkflowRun({
+      chatStore: options.chatStore,
       modelId: options.modelId,
-      task: createDiagnoseTask({
+      sessionId: options.sessionId || null,
+      autoSendMessage: true,
+      hideAutoSendMessage: true,
+      task: await prepareTask(createDiagnoseTask({
         filePath,
         source: options.source || 'document-workflow',
         entryContext: options.entryContext || 'document-workflow',
-      }),
+      })),
     })
   }
 

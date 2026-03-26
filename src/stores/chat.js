@@ -5,14 +5,13 @@ import { Chat } from '@ai-sdk/vue'
 import { lastAssistantMessageIsCompleteWithToolCalls } from 'ai'
 import { nanoid } from './utils'
 import { useWorkspaceStore } from './workspace'
-import { getContextWindow } from '../services/chatModels'
 import { events } from '../services/telemetry'
 import { calculateCost } from '../services/tokenUsage'
 import { cleanPartsForStorage } from '../services/aiSdk'
 import { createChatTransport } from '../services/chatTransport'
 import { appendUnresolvedCommentsToContent } from '../services/documentComments'
 import { isUsageBudgetExceeded, recordUsageEntry } from '../services/usageAccess'
-import { noApiKeyMessage, formatChatApiError } from '../utils/errorMessages'
+import { noApiKeyMessage } from '../utils/errorMessages'
 import { useAiArtifactsStore } from './aiArtifacts'
 import { useAiWorkflowRunsStore } from './aiWorkflowRuns'
 import {
@@ -63,7 +62,9 @@ export const useChatStore = defineStore('chat', () => {
         getShouldersDir: () => useWorkspaceStore().shouldersDir,
         disposeAllChatInstances: () => {
           for (const [id, chat] of chatInstances) {
-            try { chat.stop() } catch {}
+            try { chat.stop() } catch {
+              // Best-effort cleanup during workspace/session reset.
+            }
             _stopArtifactSync(id)
           }
           chatInstances.clear()
@@ -131,7 +132,9 @@ export const useChatStore = defineStore('chat', () => {
         disposeChatInstance: (id) => {
           const chat = chatInstances.get(id)
           if (chat) {
-            try { chat.stop() } catch {}
+            try { chat.stop() } catch {
+              // Best-effort cleanup for a single disposed live chat instance.
+            }
             chatInstances.delete(id)
             _chatVersion.value++
           }
@@ -301,8 +304,18 @@ export const useChatStore = defineStore('chat', () => {
 
   // ─── Messaging ──────────────────────────────────────────────────
 
-  async function sendMessage(sessionId, { text, fileRefs, context, richHtml, preserveLabel = false }) {
-    return _getChatMessageRuntime().sendMessage(sessionId, { text, fileRefs, context, richHtml, preserveLabel })
+  async function sendMessage(
+    sessionId,
+    { text, fileRefs, context, richHtml, preserveLabel = false, hideFromTranscript = false },
+  ) {
+    return _getChatMessageRuntime().sendMessage(sessionId, {
+      text,
+      fileRefs,
+      context,
+      richHtml,
+      preserveLabel,
+      hideFromTranscript,
+    })
   }
 
   async function abortSession(sessionId) {

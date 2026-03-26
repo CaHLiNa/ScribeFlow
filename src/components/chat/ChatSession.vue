@@ -64,7 +64,7 @@
       </div>
 
       <!-- Empty state: suggestion chips -->
-      <div v-if="messages.length === 0" class="flex-1">
+      <div v-if="showSuggestionState" class="flex-1">
         <div class="max-w-[80ch] mx-auto w-full px-3" style="padding-top: max(3rem, 40vh);">
           <div class="chat-suggestion-panel">
             <div class="chat-suggestion-kicker">{{ t('Continue from here') }}</div>
@@ -191,12 +191,14 @@ const { t } = useI18n()
 
 const chat = computed(() => chatStore.getChatInstance(props.session.id))
 
-const messages = computed(() => {
+const rawMessages = computed(() => {
   if (chat.value) {
     return chat.value.state.messagesRef.value.filter(m => !m._isToolResult)
   }
   return (props.session.messages || []).filter(m => !m._isToolResult)
 })
+
+const messages = computed(() => rawMessages.value.filter((message) => !message._hiddenFromTranscript))
 
 const artifacts = computed(() => aiArtifacts.artifactsForSession(props.session.id))
 
@@ -204,6 +206,13 @@ const workflow = computed(() => (
   aiWorkflowRuns.getRunForSession(props.session.id)
   || hydrateSessionWorkflow(props.session._workflow)
   || null
+))
+
+const showSuggestionState = computed(() => (
+  messages.value.length === 0
+  && rawMessages.value.length === 0
+  && !workflow.value
+  && artifacts.value.length === 0
 ))
 
 const pendingCheckpoint = computed(() => getPendingCheckpoint(workflow.value))

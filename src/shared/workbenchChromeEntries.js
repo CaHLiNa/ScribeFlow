@@ -1,4 +1,5 @@
 import {
+  IconActivityHeartbeat,
   IconBook2,
   IconFileDescription,
   IconFolder,
@@ -62,6 +63,12 @@ const INSPECTOR_ENTRY_DEFINITIONS = {
       labelKey: 'Backlinks',
       titleKey: 'Backlinks',
       icon: IconLink,
+    },
+    {
+      key: 'document-run',
+      labelKey: 'Document run',
+      titleKey: 'Document run',
+      icon: IconActivityHeartbeat,
     },
   ],
   library: [

@@ -49,21 +49,13 @@ function collectFileMatches(entries, result) {
 }
 
 export function useFileTreeFilter(options) {
-  const {
-    files,
-    editor,
-    workspace,
-    treeContainer,
-    filterInputEl,
-    isMod,
-    t,
-  } = options
+  const { files, editor, workspace, treeContainer, filterInputEl, isMod } = options
 
   const treeScrollTop = ref(0)
   const containerHeight = ref(0)
   let treeResizeObserver = null
 
-  const filterActive = ref(false)
+  const filterActive = ref(true)
   const filterQuery = ref('')
   const filterSelectedIdx = ref(0)
   const selectedPaths = reactive(new Set())
@@ -81,14 +73,16 @@ export function useFileTreeFilter(options) {
     return matches
   })
 
-  const displayTree = computed(() => (
+  const displayTree = computed(() =>
     filterActive.value && filterQuery.value ? filteredTree.value : files.tree
-  ))
+  )
 
-  const visibleRows = computed(() => flattenVisibleRows(displayTree.value, 0, [], {
-    expandAll: filterActive.value && !!filterQuery.value,
-    isDirExpanded: (path) => files.isDirExpanded(path),
-  }))
+  const visibleRows = computed(() =>
+    flattenVisibleRows(displayTree.value, 0, [], {
+      expandAll: filterActive.value && !!filterQuery.value,
+      isDirExpanded: (path) => files.isDirExpanded(path),
+    })
+  )
 
   const visiblePathIndexMap = computed(() => {
     const map = new Map()
@@ -96,14 +90,15 @@ export function useFileTreeFilter(options) {
     return map
   })
 
-  const virtualStart = computed(() => Math.max(
-    0,
-    Math.floor(treeScrollTop.value / TREE_ROW_HEIGHT) - TREE_OVERSCAN,
-  ))
-  const virtualEnd = computed(() => Math.min(
-    visibleRows.value.length,
-    Math.ceil((treeScrollTop.value + containerHeight.value) / TREE_ROW_HEIGHT) + TREE_OVERSCAN,
-  ))
+  const virtualStart = computed(() =>
+    Math.max(0, Math.floor(treeScrollTop.value / TREE_ROW_HEIGHT) - TREE_OVERSCAN)
+  )
+  const virtualEnd = computed(() =>
+    Math.min(
+      visibleRows.value.length,
+      Math.ceil((treeScrollTop.value + containerHeight.value) / TREE_ROW_HEIGHT) + TREE_OVERSCAN
+    )
+  )
   const virtualRows = computed(() => visibleRows.value.slice(virtualStart.value, virtualEnd.value))
   const virtualOffset = computed(() => virtualStart.value * TREE_ROW_HEIGHT)
   const totalTreeHeight = computed(() => visibleRows.value.length * TREE_ROW_HEIGHT)
@@ -258,15 +253,16 @@ export function useFileTreeFilter(options) {
 
   function activateFilter() {
     filterActive.value = true
-    filterQuery.value = ''
-    filterSelectedIdx.value = 0
     nextTick(() => {
-      requestAnimationFrame(() => filterInputEl.value?.focus())
+      requestAnimationFrame(() => {
+        const input = filterInputEl.value
+        input?.focus?.()
+        input?.select?.()
+      })
     })
   }
 
   function closeFilter() {
-    filterActive.value = false
     filterQuery.value = ''
     filterSelectedIdx.value = 0
     nextTick(() => {
@@ -300,7 +296,8 @@ export function useFileTreeFilter(options) {
     if (event.key === 'ArrowUp') {
       event.preventDefault()
       if (filterMatches.value.length > 0) {
-        filterSelectedIdx.value = (filterSelectedIdx.value - 1 + filterMatches.value.length) % filterMatches.value.length
+        filterSelectedIdx.value =
+          (filterSelectedIdx.value - 1 + filterMatches.value.length) % filterMatches.value.length
       }
       return
     }

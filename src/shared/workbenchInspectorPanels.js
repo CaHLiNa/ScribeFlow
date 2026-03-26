@@ -1,4 +1,4 @@
-export const WORKSPACE_INSPECTOR_PANELS = ['outline', 'backlinks']
+export const WORKSPACE_INSPECTOR_PANELS = ['outline', 'backlinks', 'document-run']
 export const LIBRARY_INSPECTOR_PANELS = ['library-details']
 export const AI_INSPECTOR_PANELS = []
 

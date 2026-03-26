@@ -32,6 +32,8 @@ function buildTaskAiMeta(task = {}, fallbackLabel = '') {
     source: task.source || 'launcher',
     label: task.label || fallbackLabel || t('General chat'),
     toolProfile: task.toolProfile || task.role || null,
+    allowedTools: Array.isArray(task.allowedTools) && task.allowedTools.length > 0 ? [...task.allowedTools] : null,
+    initialToolChoice: task.initialToolChoice || null,
   }
 }
 
@@ -284,6 +286,8 @@ export async function startWorkflowRun({
   modelId,
   task,
   sessionId = null,
+  autoSendMessage = true,
+  hideAutoSendMessage = false,
 }) {
   if (!task?.workflowTemplateId) return null
 
@@ -309,12 +313,15 @@ export async function startWorkflowRun({
     sessionState.session._workflow = aiWorkflowRuns.syncRunToSession(sessionState.session)
   }
 
-  await autoSendWorkflowMessage({
-    chatStore,
-    sessionId: sessionState.sessionId,
-    task,
-    workflow,
-  })
+  if (autoSendMessage) {
+    await autoSendWorkflowMessage({
+      chatStore,
+      sessionId: sessionState.sessionId,
+      task,
+      workflow,
+      hideFromTranscript: hideAutoSendMessage,
+    })
+  }
 
   if (workflow?.run?.id && sessionState.sessionId) {
     await aiWorkflowRuns.runExecutor({

@@ -26,7 +26,7 @@ test('sidebar chrome entries follow the normalized workbench surface map', () =>
 test('inspector chrome entries expose workspace and library panels but no ai inspector', () => {
   assert.deepEqual(
     getWorkbenchInspectorChromeEntries(t, 'workspace').map((entry) => entry.key),
-    ['outline', 'backlinks'],
+    ['outline', 'backlinks', 'document-run'],
   )
   assert.deepEqual(
     getWorkbenchInspectorChromeEntries(t, 'library').map((entry) => entry.key),
@@ -42,4 +42,7 @@ test('chrome entry labels and titles are localized through the provided translat
   const translated = getWorkbenchSidebarChromeEntries((value) => `x:${value}`, 'workspace')
   assert.equal(translated[0].label, 'x:Project files')
   assert.equal(translated[1].title, 'x:References')
+
+  const translatedInspector = getWorkbenchInspectorChromeEntries((value) => `x:${value}`, 'workspace')
+  assert.equal(translatedInspector[2].label, 'x:Document run')
 })

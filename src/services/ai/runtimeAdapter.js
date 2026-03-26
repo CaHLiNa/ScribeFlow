@@ -41,33 +41,42 @@ function createLegacyAgent(config) {
     model,
     tools,
     instructions: config.systemPrompt,
+    toolChoice: config.toolChoice || 'auto',
     stopWhen: stepCountIs(config.maxSteps || 15),
     providerOptions,
     prepareStep({ steps, messages }) {
+      const preparedStep = {}
+      if (steps.length === 0 && config.initialToolChoice) {
+        preparedStep.toolChoice = config.initialToolChoice
+      }
+
       // Only re-inject native PDF parts from the last tool loop step.
       const lastStep = steps[steps.length - 1]
-      if (!lastStep) return undefined
+      if (!lastStep) {
+        return Object.keys(preparedStep).length > 0 ? preparedStep : undefined
+      }
 
       const pdfParts = []
-      for (const result of lastStep.toolResults) {
-        if (result.output?._type === 'pdf' && result.output.base64) {
+      for (const toolResult of lastStep.toolResults) {
+        if (toolResult.output?._type === 'pdf' && toolResult.output.base64) {
           pdfParts.push({
             type: 'file',
-            data: result.output.base64,
+            data: toolResult.output.base64,
             mediaType: 'application/pdf',
-            filename: result.output.filename,
+            filename: toolResult.output.filename,
           })
         }
       }
 
-      if (pdfParts.length === 0) return undefined
-
-      return {
-        messages: [
-          ...messages,
-          { role: 'user', content: pdfParts },
-        ],
+      if (pdfParts.length === 0) {
+        return Object.keys(preparedStep).length > 0 ? preparedStep : undefined
       }
+
+      preparedStep.messages = [
+        ...messages,
+        { role: 'user', content: pdfParts },
+      ]
+      return preparedStep
     },
     onStepFinish(event) {
       if (config.onUsage && event.usage) {

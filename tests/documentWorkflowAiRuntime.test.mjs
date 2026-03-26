@@ -6,12 +6,16 @@ import { createDocumentWorkflowAiRuntime } from '../src/domains/document/documen
 function createRuntime() {
   const fixTaskCalls = []
   const diagnoseTaskCalls = []
-  const launchCalls = []
+  const prepareTaskCalls = []
+  const startCalls = []
 
   const runtime = createDocumentWorkflowAiRuntime({
-    launchAiTaskImpl: async (payload) => {
-      launchCalls.push(payload)
-      return `session-${launchCalls.length}`
+    startWorkflowRunImpl: async (payload) => {
+      startCalls.push(payload)
+      return {
+        sessionId: `session-${startCalls.length}`,
+        workflow: { run: { id: `run-${startCalls.length}` } },
+      }
     },
     createFixTaskImpl: (options = {}) => {
       fixTaskCalls.push(options)
@@ -21,59 +25,68 @@ function createRuntime() {
       diagnoseTaskCalls.push(options)
       return { kind: 'diagnose', ...options }
     },
+    prepareTaskImpl: async (task = {}) => {
+      prepareTaskCalls.push(task)
+      return {
+        ...task,
+        prompt: `prepared:${task.kind}`,
+        _preparedTexTypFixer: true,
+      }
+    },
   })
 
   return {
     runtime,
     fixTaskCalls,
     diagnoseTaskCalls,
-    launchCalls,
+    prepareTaskCalls,
+    startCalls,
   }
 }
 
-test('document workflow ai runtime launches fix tasks through the existing workflow launcher with document-workflow metadata', async () => {
-  const { runtime, fixTaskCalls, launchCalls } = createRuntime()
-  const editorStore = { id: 'editor' }
+test('document workflow ai runtime starts fix workflows in-place with document-workflow metadata', async () => {
+  const { runtime, fixTaskCalls, prepareTaskCalls, startCalls } = createRuntime()
   const chatStore = { id: 'chat' }
 
   const result = await runtime.launchFixForFile('/workspace/main.tex', {
-    editorStore,
     chatStore,
-    paneId: 'pane-source',
-    beside: true,
+    sessionId: 'session-existing',
   })
 
-  assert.equal(result, 'session-1')
+  assert.equal(result.sessionId, 'session-1')
   assert.deepEqual(fixTaskCalls, [{
     filePath: '/workspace/main.tex',
     source: 'document-workflow',
     entryContext: 'document-workflow',
   }])
-  assert.deepEqual(launchCalls, [{
-    editorStore,
+  assert.deepEqual(prepareTaskCalls, [{
+    kind: 'fix',
+    filePath: '/workspace/main.tex',
+    source: 'document-workflow',
+    entryContext: 'document-workflow',
+  }])
+  assert.deepEqual(startCalls, [{
     chatStore,
-    paneId: 'pane-source',
-    beside: true,
-    surface: 'drawer',
     modelId: undefined,
+    sessionId: 'session-existing',
+    autoSendMessage: true,
+    hideAutoSendMessage: true,
     task: {
       kind: 'fix',
       filePath: '/workspace/main.tex',
       source: 'document-workflow',
       entryContext: 'document-workflow',
+      prompt: 'prepared:fix',
+      _preparedTexTypFixer: true,
     },
   }])
 })
 
-test('document workflow ai runtime launches diagnose tasks without changing the shared patch-first launcher semantics', async () => {
-  const { runtime, diagnoseTaskCalls, launchCalls } = createRuntime()
+test('document workflow ai runtime starts diagnose workflows without auto-opening chat surfaces', async () => {
+  const { runtime, diagnoseTaskCalls, prepareTaskCalls, startCalls } = createRuntime()
 
   await runtime.launchDiagnoseForFile('/workspace/main.typ', {
-    editorStore: { id: 'editor' },
     chatStore: { id: 'chat' },
-    paneId: 'pane-source',
-    beside: false,
-    surface: 'workbench',
     modelId: 'gpt-5.4',
   })
 
@@ -82,24 +95,31 @@ test('document workflow ai runtime launches diagnose tasks without changing the 
     source: 'document-workflow',
     entryContext: 'document-workflow',
   }])
-  assert.deepEqual(launchCalls, [{
-    editorStore: { id: 'editor' },
+  assert.deepEqual(prepareTaskCalls, [{
+    kind: 'diagnose',
+    filePath: '/workspace/main.typ',
+    source: 'document-workflow',
+    entryContext: 'document-workflow',
+  }])
+  assert.deepEqual(startCalls, [{
     chatStore: { id: 'chat' },
-    paneId: 'pane-source',
-    beside: false,
-    surface: 'workbench',
     modelId: 'gpt-5.4',
+    sessionId: null,
+    autoSendMessage: true,
+    hideAutoSendMessage: true,
     task: {
       kind: 'diagnose',
       filePath: '/workspace/main.typ',
       source: 'document-workflow',
       entryContext: 'document-workflow',
+      prompt: 'prepared:diagnose',
+      _preparedTexTypFixer: true,
     },
   }])
 })
 
 test('document workflow ai runtime ignores unsupported document types', async () => {
-  const { runtime, fixTaskCalls, diagnoseTaskCalls, launchCalls } = createRuntime()
+  const { runtime, fixTaskCalls, diagnoseTaskCalls, prepareTaskCalls, startCalls } = createRuntime()
 
   const fixResult = await runtime.launchFixForFile('/workspace/chapter.md')
   const diagnoseResult = await runtime.launchDiagnoseForFile('/workspace/chapter.md')
@@ -108,5 +128,20 @@ test('document workflow ai runtime ignores unsupported document types', async ()
   assert.equal(diagnoseResult, null)
   assert.deepEqual(fixTaskCalls, [])
   assert.deepEqual(diagnoseTaskCalls, [])
-  assert.deepEqual(launchCalls, [])
+  assert.deepEqual(prepareTaskCalls, [])
+  assert.deepEqual(startCalls, [])
+})
+
+test('document workflow ai runtime requires an explicit chat store for auditable workflow sessions', async () => {
+  const { runtime, fixTaskCalls, diagnoseTaskCalls, prepareTaskCalls, startCalls } = createRuntime()
+
+  const fixResult = await runtime.launchFixForFile('/workspace/main.tex')
+  const diagnoseResult = await runtime.launchDiagnoseForFile('/workspace/main.typ')
+
+  assert.equal(fixResult, null)
+  assert.equal(diagnoseResult, null)
+  assert.deepEqual(fixTaskCalls, [])
+  assert.deepEqual(diagnoseTaskCalls, [])
+  assert.deepEqual(prepareTaskCalls, [])
+  assert.deepEqual(startCalls, [])
 })

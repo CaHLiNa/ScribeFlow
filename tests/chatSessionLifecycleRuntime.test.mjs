@@ -97,7 +97,7 @@ test('chat session lifecycle runtime creates sessions and seeds chat instances',
 })
 
 test('chat session lifecycle runtime applies ai metadata and syncs artifacts for live chats', () => {
-  const { state, runtime, syncedArtifacts } = createHarness()
+  const { runtime, syncedArtifacts } = createHarness()
 
   const id = runtime.createSession()
   syncedArtifacts.length = 0
@@ -106,11 +106,13 @@ test('chat session lifecycle runtime applies ai metadata and syncs artifacts for
     role: 'draft',
     source: 'launcher',
     allowedTools: ['search'],
+    initialToolChoice: 'required',
     seedArtifacts: [{ id: 'a1' }],
   })
 
   assert.equal(session._ai.role, 'draft')
   assert.deepEqual(session._ai.allowedTools, ['search'])
+  assert.equal(session._ai.initialToolChoice, 'required')
   assert.deepEqual(session._ai.seedArtifacts, [{ id: 'a1' }])
   assert.deepEqual(syncedArtifacts, [{ id, messageCount: 0 }])
 })

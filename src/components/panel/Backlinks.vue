@@ -1,30 +1,25 @@
 <template>
-  <div class="flex flex-col h-full overflow-hidden" style="color: var(--fg-primary)">
-    <div
-      v-if="!embedded"
-      class="px-3 py-2 ui-text-lg font-medium shrink-0"
-      style="color: var(--fg-muted)"
-    >
+  <div class="backlinks-panel">
+    <div v-if="!embedded" class="backlinks-panel-heading">
       {{ t('Backlinks to {name}', { name: currentFileName }) }}
     </div>
 
-    <div v-if="backlinks.length === 0" class="px-3 py-4 ui-text-lg" style="color: var(--fg-muted)">
+    <div v-if="backlinks.length === 0" class="backlinks-panel-empty">
       {{ t('No other files link to this file.') }}
     </div>
 
-    <div v-else class="flex-1 overflow-y-auto">
+    <div v-else class="backlinks-panel-scroll">
       <div
         v-for="(link, idx) in backlinks"
         :key="idx"
-        class="px-3 py-2 cursor-pointer hover:bg-[var(--bg-hover)] border-b"
-        style="border-color: var(--border)"
+        class="backlinks-panel-row"
         @click="navigateToSource(link)"
       >
-        <div class="flex items-center gap-2 ui-text-lg">
-          <span class="font-medium" style="color: var(--accent)">{{ link.sourceName }}</span>
-          <span class="ui-text-md" style="color: var(--fg-muted)">:{{ link.lineNumber }}</span>
+        <div class="backlinks-panel-row-head">
+          <span class="backlinks-panel-source">{{ link.sourceName }}</span>
+          <span class="backlinks-panel-line">:{{ link.lineNumber }}</span>
         </div>
-        <div class="mt-1 ui-text-base truncate" style="color: var(--fg-muted)">
+        <div class="backlinks-panel-context">
           {{ link.context }}
         </div>
       </div>
@@ -64,3 +59,73 @@ function navigateToSource(link) {
   editorStore.openFile(link.sourcePath)
 }
 </script>
+
+<style scoped>
+.backlinks-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  color: var(--fg-primary);
+}
+
+.backlinks-panel-heading {
+  padding: 8px 12px;
+  flex-shrink: 0;
+  font-size: var(--sidebar-font-kicker);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+
+.backlinks-panel-empty {
+  padding: 16px 12px;
+  font-size: var(--sidebar-font-body);
+  line-height: 1.55;
+  color: var(--fg-muted);
+}
+
+.backlinks-panel-scroll {
+  flex: 1 1 auto;
+  overflow-y: auto;
+}
+
+.backlinks-panel-row {
+  padding: 8px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+}
+
+.backlinks-panel-row:hover {
+  background: var(--bg-hover);
+}
+
+.backlinks-panel-row-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--sidebar-font-item);
+  line-height: 1.35;
+}
+
+.backlinks-panel-source {
+  font-weight: 500;
+  color: var(--accent);
+}
+
+.backlinks-panel-line {
+  font-size: var(--sidebar-font-meta);
+  color: var(--fg-muted);
+}
+
+.backlinks-panel-context {
+  margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--sidebar-font-body);
+  line-height: 1.45;
+  color: var(--fg-muted);
+}
+</style>

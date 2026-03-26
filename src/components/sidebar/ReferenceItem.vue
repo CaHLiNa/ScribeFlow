@@ -1,6 +1,6 @@
 <template>
   <div
-    class="py-1.5 px-2 cursor-pointer ref-item group select-none"
+    class="cursor-pointer ref-item group select-none"
     :class="{
       'bg-[var(--bg-hover)]': isActive || isSelected,
     }"
@@ -9,8 +9,8 @@
     @mousedown="handleMouseDown"
   >
     <!-- Line 1: Title + indicators -->
-    <div class="ref-item-title-row flex items-center gap-1">
-      <div class="ref-item-title flex-1 min-w-0 ui-text-xs truncate">
+    <div class="ref-item-title-row flex items-center gap-0.5">
+      <div class="ref-item-title flex-1 min-w-0 truncate">
         {{ reference.title || t('Untitled') }}
       </div>
       <!-- Copy citation button (hover) -->
@@ -70,7 +70,7 @@
       <span v-if="reference._needsReview" class="ref-needs-review shrink-0"></span>
     </div>
     <!-- Line 2: Author (year) -->
-    <div class="ref-item-subtitle ui-text-micro mt-0.5 truncate">
+    <div class="ref-item-subtitle mt-px truncate">
       {{ authorLine }}{{ yearStr ? ` (${yearStr})` : '' }}
     </div>
   </div>
@@ -156,12 +156,24 @@ function handleMouseDown(event) {
 </script>
 
 <style scoped>
+.ref-item {
+  padding: 5px 8px 4px;
+}
+
+.ref-item-title-row {
+  min-height: 14px;
+}
+
 .ref-item-title {
   color: var(--fg-secondary);
-  line-height: 1.25;
+  font-size: var(--sidebar-font-item);
+  line-height: 1.18;
 }
 
 .ref-item-copy {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
   color: var(--fg-muted);
 }
 
@@ -179,6 +191,7 @@ function handleMouseDown(event) {
 }
 
 .ref-item-subtitle {
-  line-height: 1.2;
+  font-size: var(--sidebar-font-meta);
+  line-height: 1.14;
 }
 </style>
