@@ -64,9 +64,11 @@
     </div>
 
     <!-- Editor or empty state -->
-    <div class="flex-1 overflow-hidden relative w-full min-w-0" ref="editorContainerRef"
-         :class="{ 'flex flex-col': viewerType === 'text' }"
-         style="background: var(--bg-primary);">
+    <div
+      ref="editorContainerRef"
+      class="editor-pane-surface flex-1 overflow-hidden relative w-full min-w-0"
+      :class="{ 'flex flex-col': viewerType === 'text' }"
+    >
       <KeepAlive :max="TEXT_EDITOR_CACHE_MAX">
         <component
           :is="TextEditor"
@@ -129,13 +131,13 @@
         :paneId="paneId"
       />
       <div v-else-if="activeTab && viewerType === 'chat'" class="h-full" :data-chat-panel="paneId">
-        <ChatPanel
-          :key="activeTab"
-          :filePath="activeTab"
-          :paneId="paneId"
-        />
+        <ChatPanel :key="activeTab" :filePath="activeTab" :paneId="paneId" />
       </div>
-      <AiLauncher v-else-if="activeTab && viewerType === 'ai-launcher'" :key="activeTab" :paneId="paneId" />
+      <AiLauncher
+        v-else-if="activeTab && viewerType === 'ai-launcher'"
+        :key="activeTab"
+        :paneId="paneId"
+      />
       <NewTab v-else-if="activeTab && viewerType === 'newtab'" :key="activeTab" :paneId="paneId" />
       <EmptyPane v-else-if="!activeTab" :paneId="paneId" />
 
@@ -175,7 +177,16 @@ import { useToastStore } from '../../stores/toast'
 import { useCommentsStore } from '../../stores/comments'
 import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { useReferencesStore } from '../../stores/references'
-import { getViewerType, isAiWorkbenchPath, isLibraryPath, isReferencePath, referenceKeyFromPath, isChatTab, getChatSessionId, isRunnable } from '../../utils/fileTypes'
+import {
+  getViewerType,
+  isAiWorkbenchPath,
+  isLibraryPath,
+  isReferencePath,
+  referenceKeyFromPath,
+  isChatTab,
+  getChatSessionId,
+  isRunnable,
+} from '../../utils/fileTypes'
 import { useLatexStore } from '../../stores/latex'
 import { useTypstStore } from '../../stores/typst'
 import { useI18n } from '../../i18n'
@@ -208,8 +219,6 @@ const props = defineProps({
   activeTab: { type: String, default: null },
 })
 
-const emit = defineEmits(['cursor-change', 'editor-stats', 'selection-change'])
-
 const editorStore = useEditorStore()
 const filesStore = useFilesStore()
 const chatStore = useChatStore()
@@ -226,29 +235,27 @@ const tabsRef = toRef(props, 'tabs')
 const activeTabRef = toRef(props, 'activeTab')
 
 const isActive = computed(() => editorStore.activePaneId === props.paneId)
-const viewerType = computed(() => props.activeTab ? getViewerType(props.activeTab) : null)
+const viewerType = computed(() => (props.activeTab ? getViewerType(props.activeTab) : null))
 const viewerTypeRef = viewerType
-const refKey = computed(() => props.activeTab && isReferencePath(props.activeTab) ? referenceKeyFromPath(props.activeTab) : null)
+const refKey = computed(() =>
+  props.activeTab && isReferencePath(props.activeTab) ? referenceKeyFromPath(props.activeTab) : null
+)
 const showCommentToolbar = computed(() => !!props.activeTab && viewerType.value === 'text')
-const showToolbarRunButtons = computed(() => (
-  !!props.activeTab
-  && viewerType.value === 'text'
-  && isRunnable(props.activeTab)
-))
-const isCommentToolbarActive = computed(() => (
-  !!props.activeTab && commentsStore.isMarginVisible(props.activeTab)
-))
-const commentToolbarBadgeCount = computed(() => (
+const showToolbarRunButtons = computed(
+  () => !!props.activeTab && viewerType.value === 'text' && isRunnable(props.activeTab)
+)
+const isCommentToolbarActive = computed(
+  () => !!props.activeTab && commentsStore.isMarginVisible(props.activeTab)
+)
+const commentToolbarBadgeCount = computed(() =>
   props.activeTab ? commentsStore.unresolvedCount(props.activeTab) : 0
-))
+)
 const toolbarUiState = computed(() => {
   if (workflowUiState.value) return workflowUiState.value
   if (showCommentToolbar.value) return { kind: 'text' }
   return null
 })
-const showEditorHeader = computed(() => (
-  !!toolbarUiState.value || !!pdfToolbarTargetSelector.value
-))
+const showEditorHeader = computed(() => !!toolbarUiState.value || !!pdfToolbarTargetSelector.value)
 const TEXT_EDITOR_CACHE_MAX = 4
 
 const editorContainerRef = ref(null)
@@ -274,7 +281,7 @@ watch(
     if (!path) return
     redirectLegacySurfaceTab(path)
   },
-  { immediate: true },
+  { immediate: true }
 )
 
 const {
@@ -301,7 +308,6 @@ const {
 const {
   pdfToolbarTargetId,
   pdfToolbarTargetSelector,
-  showDocumentHeader,
   workflowUiState,
   workflowStatusText,
   workflowStatusTone,
@@ -396,6 +402,10 @@ defineExpose({ startComment })
 </script>
 
 <style scoped>
+.editor-pane-surface {
+  background: var(--bg-primary);
+}
+
 .document-header-stack {
   --document-header-row-height: 24px;
   flex: none;

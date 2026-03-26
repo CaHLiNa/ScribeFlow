@@ -1,11 +1,14 @@
 <template>
   <div class="ui-select-shell" :class="[shellClass, propsShellClass]">
     <select
+      ref="selectEl"
       v-bind="$attrs"
       :value="modelValue"
       :disabled="disabled"
       class="ui-select-control"
       @change="onChange"
+      @focus="(event) => emit('focus', event)"
+      @blur="(event) => emit('blur', event)"
     >
       <slot />
     </select>
@@ -18,7 +21,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 
 defineOptions({
   inheritAttrs: false,
@@ -43,7 +46,7 @@ const props = defineProps({
   },
 })
 
-const emit = defineEmits(['update:modelValue'])
+const emit = defineEmits(['update:modelValue', 'focus', 'blur'])
 
 const shellClass = computed(() => [
   `ui-select-shell--${props.size}`,
@@ -56,6 +59,13 @@ const propsShellClass = computed(() => props.shellClass)
 function onChange(event) {
   emit('update:modelValue', event.target.value)
 }
+
+const selectEl = ref(null)
+
+defineExpose({
+  selectEl,
+  focus: () => selectEl.value?.focus(),
+})
 </script>
 
 <style scoped>

@@ -171,11 +171,7 @@
       <Teleport to="body">
         <template v-if="showStyleMenu">
           <div class="fixed inset-0 z-50" @click="showStyleMenu = false"></div>
-          <div
-            class="context-menu z-50 pt-0"
-            :style="styleMenuPos"
-            style="width: 240px; max-height: 320px; overflow-y: auto"
-          >
+          <div class="context-menu z-50 pt-0 reference-style-menu" :style="styleMenuPos">
             <!-- Search input (sticky, z-index to stay above scrolling items) -->
             <div class="reference-style-search-shell sticky top-0 z-10 px-2 py-1.5">
               <UiInput
@@ -196,9 +192,8 @@
               v-for="style in filteredStyles"
               :key="style.id"
               class="context-menu-item"
-              :style="{
-                color: referencesStore.citationStyle === style.id ? 'var(--accent)' : undefined,
-                fontWeight: referencesStore.citationStyle === style.id ? '500' : undefined,
+              :class="{
+                'reference-style-option-active': referencesStore.citationStyle === style.id,
               }"
               @click="selectStyle(style.id)"
             >
@@ -209,25 +204,20 @@
             </div>
             <div
               v-if="filteredStyles.length === 0"
-              class="px-3 py-2 ui-text-micro"
-              style="color: var(--fg-muted)"
+              class="reference-style-empty px-3 py-2 ui-text-micro"
             >
               {{ t('No matching styles') }}
             </div>
             <!-- Add custom style -->
-            <div
-              class="context-menu-item"
-              :style="{ borderTop: '1px solid var(--border)', color: 'var(--fg-muted)' }"
-              @click="addCustomStyle"
-            >
+            <div class="context-menu-item reference-style-add-item" @click="addCustomStyle">
               <svg
+                class="reference-style-add-icon"
                 width="10"
                 height="10"
                 viewBox="0 0 16 16"
                 fill="none"
                 stroke="currentColor"
                 stroke-width="1.5"
-                style="flex-shrink: 0"
               >
                 <path d="M8 3v10M3 8h10" />
               </svg>
@@ -310,7 +300,7 @@
                 v-for="f in filterOptions"
                 :key="f.value"
                 class="context-menu-item"
-                :style="{ color: citedFilter === f.value ? 'var(--accent)' : undefined }"
+                :class="{ 'reference-filter-option-active': citedFilter === f.value }"
                 @click="applyCitedFilter(f.value)"
               >
                 {{ f.label }}
@@ -361,7 +351,7 @@
                 v-for="opt in sortOptions"
                 :key="opt.value"
                 class="context-menu-item"
-                :style="{ color: currentSortKey === opt.value ? 'var(--accent)' : undefined }"
+                :class="{ 'reference-sort-option-active': currentSortKey === opt.value }"
                 @click="selectSortOption(opt.value)"
               >
                 {{ opt.label }}
@@ -374,8 +364,7 @@
       <!-- Import status toast -->
       <div
         v-if="importToast"
-        class="flex items-center gap-1.5 mx-2 mb-1 px-2 py-1 rounded ui-text-micro shrink-0"
-        :style="{ background: 'var(--bg-tertiary)', color: 'var(--fg-secondary)' }"
+        class="reference-import-toast flex items-center gap-1.5 mx-2 mb-1 px-2 py-1 rounded ui-text-micro shrink-0"
       >
         <svg
           v-if="importToast.hasAdded"
@@ -396,15 +385,12 @@
         <!-- Importing placeholders -->
         <div v-for="imp in importing" :key="imp.id" class="py-1.5 px-2">
           <div class="flex items-center gap-1">
-            <div
-              class="flex-1 min-w-0 ui-text-xs truncate"
-              :style="{ color: 'var(--fg-muted)', lineHeight: 1.25 }"
-            >
+            <div class="reference-import-name flex-1 min-w-0 ui-text-xs truncate">
               {{ imp.name }}
             </div>
             <div class="ref-import-spinner shrink-0"></div>
           </div>
-          <div class="ui-text-micro mt-0.5" :style="{ color: 'var(--fg-muted)' }">
+          <div class="reference-import-hint ui-text-micro mt-0.5">
             {{ t('Importing...') }}
           </div>
         </div>
@@ -423,8 +409,7 @@
         <!-- Empty state -->
         <div
           v-if="filteredRefs.length === 0 && importing.length === 0"
-          class="px-3 py-4 text-center ui-text-micro"
-          :style="{ color: 'var(--fg-muted)' }"
+          class="reference-empty-state px-3 py-4 text-center ui-text-micro"
         >
           <template v-if="searchQuery">{{ t('No matching references') }}</template>
           <template v-else>
@@ -874,6 +859,37 @@ function handleDragStart({ key, event }) {
   font-size: var(--ui-font-micro);
 }
 
+.reference-style-menu {
+  width: 240px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.reference-style-option-active,
+.reference-filter-option-active,
+.reference-sort-option-active {
+  color: var(--accent);
+}
+
+.reference-style-option-active {
+  font-weight: 500;
+}
+
+.reference-style-empty,
+.reference-import-hint,
+.reference-empty-state {
+  color: var(--fg-muted);
+}
+
+.reference-style-add-item {
+  border-top: 1px solid var(--border);
+  color: var(--fg-muted);
+}
+
+.reference-style-add-icon {
+  flex-shrink: 0;
+}
+
 .reference-toolbar-caret {
   flex-shrink: 0;
 }
@@ -885,6 +901,16 @@ function handleDragStart({ key, event }) {
 .reference-drop-overlay {
   background: color-mix(in srgb, var(--accent) 12%, transparent);
   border: 2px dashed var(--accent);
+}
+
+.reference-import-toast {
+  background: var(--bg-tertiary);
+  color: var(--fg-secondary);
+}
+
+.reference-import-name {
+  color: var(--fg-muted);
+  line-height: 1.25;
 }
 
 .reference-drop-overlay-label {

@@ -1,16 +1,24 @@
 <template>
-  <div class="typst-editor-shell h-full w-full" :class="{ 'cm-prose-file': isMd }" :data-editor-filepath="props.filePath">
+  <div
+    class="typst-editor-shell h-full w-full"
+    :class="{ 'cm-prose-file': isMd }"
+    :data-editor-filepath="props.filePath"
+  >
     <div
       v-if="loadError"
-      class="flex h-full items-center justify-center px-6 text-sm"
-      style="color: var(--fg-muted);"
+      class="text-editor-load-error flex h-full items-center justify-center px-6 text-sm"
     >
       <div class="max-w-lg text-center space-y-2">
         <div>{{ loadError.message }}</div>
         <div v-if="loadError.detail" class="text-xs">{{ loadError.detail }}</div>
       </div>
     </div>
-    <div v-else ref="editorContainer" class="min-h-0 flex-1 w-full overflow-hidden" @contextmenu.prevent="onContextMenu"></div>
+    <div
+      v-else
+      ref="editorContainer"
+      class="min-h-0 flex-1 w-full overflow-hidden"
+      @contextmenu.prevent="onContextMenu"
+    ></div>
   </div>
   <EditorContextMenu
     :visible="ctxMenu.show"
@@ -45,12 +53,31 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted, onActivated, onDeactivated, watch } from 'vue'
+import {
+  ref,
+  reactive,
+  computed,
+  onMounted,
+  onUnmounted,
+  onActivated,
+  onDeactivated,
+  watch,
+} from 'vue'
 import { Prec } from '@codemirror/state'
 import { EditorView, keymap } from '@codemirror/view'
 import { languages } from '@codemirror/language-data'
-import { createEditorExtensions, createEditorState, wrapCompartment, columnWidthCompartment, columnWidthExtension } from '../../editor/setup'
-import { getCssRootZoomScale, getZoomCompensatedClientPoint, zoomAwareMouseSelectionExtension } from '../../editor/zoomCompensation'
+import {
+  createEditorExtensions,
+  createEditorState,
+  wrapCompartment,
+  columnWidthCompartment,
+  columnWidthExtension,
+} from '../../editor/setup'
+import {
+  getCssRootZoomScale,
+  getZoomCompensatedClientPoint,
+  zoomAwareMouseSelectionExtension,
+} from '../../editor/zoomCompensation'
 import { ghostSuggestionExtension } from '../../editor/ghostSuggestion'
 import { mergeViewExtension } from '../../editor/diffOverlay'
 import { commentsExtension } from '../../editor/comments'
@@ -58,7 +85,11 @@ import {
   createRevealHighlightExtension,
   focusEditorLineWithHighlight,
 } from '../../editor/revealHighlight'
-import { captureContextMenuState, normalizeContextMenuClickPos, resolveContextMenuSelection } from '../../editor/contextMenuPolicy'
+import {
+  captureContextMenuState,
+  normalizeContextMenuClickPos,
+  resolveContextMenuSelection,
+} from '../../editor/contextMenuPolicy'
 import { useCommentsStore } from '../../stores/comments'
 import { wikiLinksExtension } from '../../editor/wikiLinks'
 import { citationsExtension } from '../../editor/citations'
@@ -82,8 +113,14 @@ import { useLinksStore } from '../../stores/links'
 import { useReferencesStore } from '../../stores/references'
 import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { sendCode, runFile } from '../../services/codeRunner'
-import { requestTinymistCodeActions, requestTinymistFormatting } from '../../services/tinymist/session'
-import { applyTinymistTextEdits, applyTinymistTextEditsToText } from '../../services/tinymist/textEdits'
+import {
+  requestTinymistCodeActions,
+  requestTinymistFormatting,
+} from '../../services/tinymist/session'
+import {
+  applyTinymistTextEdits,
+  applyTinymistTextEditsToText,
+} from '../../services/tinymist/textEdits'
 import { applyTinymistWorkspaceEdit } from '../../services/tinymist/workspaceEdit'
 import {
   buildTinymistCodeActionContext,
@@ -91,7 +128,15 @@ import {
   normalizeTinymistCodeActions,
 } from '../../services/tinymist/codeActions'
 import { useTypstStore } from '../../stores/typst'
-import { isMarkdown, isLatex, isTypst, isRunnable, getLanguage, isRmdOrQmd, isBibFile } from '../../utils/fileTypes'
+import {
+  isMarkdown,
+  isLatex,
+  isTypst,
+  isRunnable,
+  getLanguage,
+  isRmdOrQmd,
+  isBibFile,
+} from '../../utils/fileTypes'
 import { useLatexStore } from '../../stores/latex'
 import { latexCitationsExtension } from '../../editor/latexCitations'
 import { createLatexCompletionSource } from '../../editor/latexAutocomplete'
@@ -164,8 +209,9 @@ const supportsTypstSupport = supportsTypstEditorSupport(props.filePath)
 const fileIsRunnable = isRunnable(props.filePath)
 const fileLanguage = getLanguage(props.filePath)
 const fileIsRmdOrQmd = isRmdOrQmd(props.filePath)
-const isMacPlatform = typeof navigator !== 'undefined'
-  && /mac/i.test(navigator.userAgentData?.platform || navigator.platform || '')
+const isMacPlatform =
+  typeof navigator !== 'undefined' &&
+  /mac/i.test(navigator.userAgentData?.platform || navigator.platform || '')
 
 const ctxMenu = reactive({
   show: false,
@@ -203,7 +249,6 @@ const {
   typstUi,
   connectTinymistDocument,
   disconnectTinymistDocument,
-  focusEditorLine,
   handleEditorSelectionChange,
   hydrateTypstDiagnostics,
   registerWindowListeners: registerTypstWindowListeners,
@@ -309,10 +354,7 @@ function handleContextMenuMouseDown(event) {
     return
   }
 
-  pendingContextMenuState = captureContextMenuState(
-    view.state,
-    resolveContextMenuClickPos(event),
-  )
+  pendingContextMenuState = captureContextMenuState(view.state, resolveContextMenuClickPos(event))
 
   // Block browser and CodeMirror mouse-selection handling for context-menu gestures.
   // We restore the intended caret/selection from the captured snapshot in onContextMenu.
@@ -327,10 +369,7 @@ function onContextMenu(e) {
   if (view) {
     view.focus()
     const decision = resolveContextMenuSelection(
-      pendingContextMenuState || captureContextMenuState(
-        view.state,
-        resolveContextMenuClickPos(e),
-      ),
+      pendingContextMenuState || captureContextMenuState(view.state, resolveContextMenuClickPos(e))
     )
     if (decision.nextSelection && !decision.nextSelection.eq(view.state.selection)) {
       view.dispatch({ selection: decision.nextSelection })
@@ -381,8 +420,7 @@ async function loadTypstContextMenuCodeActions() {
     const result = await requestTinymistCodeActions(props.filePath, request.range, request.context)
     if (!ctxMenu.show || requestId !== ctxMenu.requestId) return
 
-    ctxMenu.typstCodeActions = normalizeTinymistCodeActions(result)
-      .slice(0, 5)
+    ctxMenu.typstCodeActions = normalizeTinymistCodeActions(result).slice(0, 5)
   } catch {
     if (!ctxMenu.show || requestId !== ctxMenu.requestId) return
     ctxMenu.typstCodeActions = []
@@ -391,10 +429,10 @@ async function loadTypstContextMenuCodeActions() {
 
 async function handleApplyTypstCodeAction(action) {
   if (!action?.edit) {
-    toastStore.show(
-      t('No code actions could be applied at the current cursor location.'),
-      { type: 'warning', duration: 3200 },
-    )
+    toastStore.show(t('No code actions could be applied at the current cursor location.'), {
+      type: 'warning',
+      duration: 3200,
+    })
     return
   }
 
@@ -405,10 +443,10 @@ async function handleApplyTypstCodeAction(action) {
     })
 
     if (applied.totalFiles === 0) {
-      toastStore.show(
-        t('No code actions could be applied at the current cursor location.'),
-        { type: 'warning', duration: 3200 },
-      )
+      toastStore.show(t('No code actions could be applied at the current cursor location.'), {
+        type: 'warning',
+        duration: 3200,
+      })
       return
     }
 
@@ -422,7 +460,7 @@ async function handleApplyTypstCodeAction(action) {
           count: applied.appliedFiles.length,
           skipped: applied.skippedFiles.map((value) => value.split('/').pop() || value).join(', '),
         }),
-        { type: 'warning', duration: 5000 },
+        { type: 'warning', duration: 5000 }
       )
       return
     }
@@ -431,15 +469,20 @@ async function handleApplyTypstCodeAction(action) {
       t('Applied code action to {count} file(s).', {
         count: applied.appliedFiles.length,
       }),
-      { type: 'success', duration: 2600 },
+      { type: 'success', duration: 2600 }
     )
   } catch (error) {
-    toastStore.showOnce('tinymist-code-action-failed', t('Typst code action failed: {error}', {
-      error: error?.message || String(error || ''),
-    }), {
-      type: 'error',
-      duration: 5000,
-    }, 3000)
+    toastStore.showOnce(
+      'tinymist-code-action-failed',
+      t('Typst code action failed: {error}', {
+        error: error?.message || String(error || ''),
+      }),
+      {
+        type: 'error',
+        duration: 5000,
+      },
+      3000
+    )
   }
 }
 
@@ -448,10 +491,15 @@ async function handleFormatDocument() {
 
   if (isTyp) {
     if (!typstUi.tinymistActive) {
-      toastStore.showOnce('tinymist-format-unavailable', t('Tinymist is not available for formatting.'), {
-        type: 'error',
-        duration: 4000,
-      }, 5000)
+      toastStore.showOnce(
+        'tinymist-format-unavailable',
+        t('Tinymist is not available for formatting.'),
+        {
+          type: 'error',
+          duration: 4000,
+        },
+        5000
+      )
       return
     }
 
@@ -463,22 +511,32 @@ async function handleFormatDocument() {
       if (!Array.isArray(edits) || edits.length === 0) return
       applyTinymistTextEdits(view, edits)
     } catch (error) {
-      toastStore.showOnce('tinymist-format-failed', t('Typst formatting failed: {error}', {
-        error: error?.message || String(error || ''),
-      }), {
-        type: 'error',
-        duration: 5000,
-      }, 3000)
+      toastStore.showOnce(
+        'tinymist-format-failed',
+        t('Typst formatting failed: {error}', {
+          error: error?.message || String(error || ''),
+        }),
+        {
+          type: 'error',
+          duration: 5000,
+        },
+        3000
+      )
     }
     return
   }
 
   if (!latexStore.hasLatexFormatter) {
     void latexStore.checkTools().catch(() => {})
-    toastStore.showOnce('latex-format-unavailable', t('LaTeX formatter is not available.'), {
-      type: 'error',
-      duration: 4000,
-    }, 5000)
+    toastStore.showOnce(
+      'latex-format-unavailable',
+      t('LaTeX formatter is not available.'),
+      {
+        type: 'error',
+        duration: 4000,
+      },
+      5000
+    )
     return
   }
 
@@ -493,12 +551,17 @@ async function handleFormatDocument() {
       },
     })
   } catch (error) {
-    toastStore.showOnce('latex-format-failed', t('LaTeX formatting failed: {error}', {
-      error: error?.message || String(error || ''),
-    }), {
-      type: 'error',
-      duration: 5000,
-    }, 3000)
+    toastStore.showOnce(
+      'latex-format-failed',
+      t('LaTeX formatting failed: {error}', {
+        error: error?.message || String(error || ''),
+      }),
+      {
+        type: 'error',
+        duration: 5000,
+      },
+      3000
+    )
   }
 }
 
@@ -515,10 +578,15 @@ function handleInsertMarkdownTable() {
 async function requestFormattedTypstContent(content, options = {}) {
   if (!typstUi.tinymistActive) {
     if (options.notifyUnavailable) {
-      toastStore.showOnce('tinymist-format-unavailable', t('Tinymist is not available for formatting.'), {
-        type: 'error',
-        duration: 4000,
-      }, 5000)
+      toastStore.showOnce(
+        'tinymist-format-unavailable',
+        t('Tinymist is not available for formatting.'),
+        {
+          type: 'error',
+          duration: 4000,
+        },
+        5000
+      )
     }
     return content
   }
@@ -532,9 +600,8 @@ async function requestFormattedTypstContent(content, options = {}) {
 }
 
 async function persistEditorContent(content) {
-  const currentContent = typeof content === 'string'
-    ? content
-    : (view ? view.state.doc.toString() : '')
+  const currentContent =
+    typeof content === 'string' ? content : view ? view.state.doc.toString() : ''
 
   if (isTex) {
     if (latexNormalizedSaveContent != null && currentContent === latexNormalizedSaveContent) {
@@ -568,12 +635,17 @@ async function persistEditorContent(content) {
           }
         }
       } catch (error) {
-        toastStore.showOnce('latex-format-on-save-failed', t('LaTeX format on save failed: {error}', {
-          error: error?.message || String(error || ''),
-        }), {
-          type: 'error',
-          duration: 5000,
-        }, 3000)
+        toastStore.showOnce(
+          'latex-format-on-save-failed',
+          t('LaTeX format on save failed: {error}', {
+            error: error?.message || String(error || ''),
+          }),
+          {
+            type: 'error',
+            duration: 5000,
+          },
+          3000
+        )
       } finally {
         latexFormatOnSaveInFlight = false
       }
@@ -621,12 +693,17 @@ async function persistEditorContent(content) {
           }
         }
       } catch (error) {
-        toastStore.showOnce('typst-format-on-save-failed', t('Typst format on save failed: {error}', {
-          error: error?.message || String(error || ''),
-        }), {
-          type: 'error',
-          duration: 5000,
-        }, 3000)
+        toastStore.showOnce(
+          'typst-format-on-save-failed',
+          t('Typst format on save failed: {error}', {
+            error: error?.message || String(error || ''),
+          }),
+          {
+            type: 'error',
+            duration: 5000,
+          },
+          3000
+        )
       } finally {
         typstFormatOnSaveInFlight = false
       }
@@ -713,9 +790,11 @@ onMounted(async () => {
   editorStore.clearFileDirty(props.filePath)
   if (isTex) {
     void latexStore.checkTools().catch(() => {})
-    void latexStore.refreshLint(props.filePath, {
-      sourceContent: content,
-    }).catch(() => {})
+    void latexStore
+      .refreshLint(props.filePath, {
+        sourceContent: content,
+      })
+      .catch(() => {})
     void resolveLatexProjectGraph(props.filePath, {
       filesStore: files,
       referencesStore,
@@ -735,7 +814,7 @@ onMounted(async () => {
     ghostSuggestionExtension(
       () => workspace,
       () => workspace.systemPrompt,
-      { isEnabled: () => workspace.ghostEnabled, getInstructions: () => workspace.instructions },
+      { isEnabled: () => workspace.ghostEnabled, getInstructions: () => workspace.instructions }
     ),
     // Merge view for inline diffs (always available)
     mergeViewExtension(),
@@ -775,20 +854,29 @@ onMounted(async () => {
   }
 
   if (supportsCitations) {
-    extraExtensions.push(Prec.highest(keymap.of([
-      {
-        key: 'Mod-Shift-c',
-        run: (editorView) => openCitationPaletteAtSelection(editorView),
-      },
-    ])))
+    extraExtensions.push(
+      Prec.highest(
+        keymap.of([
+          {
+            key: 'Mod-Shift-c',
+            run: (editorView) => openCitationPaletteAtSelection(editorView),
+          },
+        ])
+      )
+    )
   }
 
   // Code runner keybindings for runnable files
   if (fileIsRunnable) {
     if (fileIsRmdOrQmd) {
       // .Rmd/.qmd: chunk-aware execution with inline outputs
-      const { chunkField: cf, chunkAtPosition, extractAllChunkCode } = await import('../../editor/codeChunks')
-      const { chunkOutputsExtension, setChunkOutput, chunkKey: getChunkKey, chunkOutputField } = await import('../../editor/chunkOutputs')
+      const { chunkField: cf, chunkAtPosition } = await import('../../editor/codeChunks')
+      const {
+        chunkOutputsExtension,
+        setChunkOutput,
+        chunkKey: getChunkKey,
+        chunkOutputField,
+      } = await import('../../editor/chunkOutputs')
       const { ChunkKernelBridge } = await import('../../services/chunkKernelBridge')
       const {
         buildChunkProvenance,
@@ -846,15 +934,16 @@ onMounted(async () => {
         })
 
         const result = await kernelBridge.execute(code, chunk.language)
-        const failure = result.success === false
-          ? classifyExecutionFailure(
-            (result.outputs || [])
-              .filter((output) => output.output_type === 'error')
-              .map((output) => `${output.ename}: ${output.evalue}`)
-              .join('\n'),
-            result.outputs,
-          )
-          : null
+        const failure =
+          result.success === false
+            ? classifyExecutionFailure(
+                (result.outputs || [])
+                  .filter((output) => output.output_type === 'error')
+                  .map((output) => `${output.ename}: ${output.evalue}`)
+                  .join('\n'),
+                result.outputs
+              )
+            : null
         const provenance = buildChunkProvenance({
           filePath: props.filePath,
           chunkKey: key,
@@ -878,96 +967,108 @@ onMounted(async () => {
         syncChunkProvenance?.(editorView)
       }
 
-      extraExtensions.push(Prec.highest(keymap.of([
-        {
-          key: 'Mod-Enter',
-          run: (editorView) => {
-            const state = editorView.state
-            const sel = state.selection.main
-            const chunks = state.field(cf)
-            const chunk = chunkAtPosition(chunks, state.doc, sel.head)
-            if (!chunk) return true // In prose/YAML → do nothing
+      extraExtensions.push(
+        Prec.highest(
+          keymap.of([
+            {
+              key: 'Mod-Enter',
+              run: (editorView) => {
+                const state = editorView.state
+                const sel = state.selection.main
+                const chunks = state.field(cf)
+                const chunk = chunkAtPosition(chunks, state.doc, sel.head)
+                if (!chunk) return true // In prose/YAML → do nothing
 
-            if (sel.from !== sel.to) {
-              // Selection → run only selected text, show output under this chunk
-              const selCode = state.sliceDoc(sel.from, sel.to).trim()
-              if (selCode) {
-                const key = getChunkKey(chunk, state.doc)
-                const sourceSignature = buildSourceSignature(selCode)
-                editorView.dispatch({
-                  effects: setChunkOutput.of({ chunkKey: key, outputs: [], status: 'running', sourceSignature }),
-                })
-                kernelBridge.execute(selCode, chunk.language).then(result => {
-                  const failure = result.success === false
-                    ? classifyExecutionFailure(
-                      (result.outputs || [])
-                        .filter((output) => output.output_type === 'error')
-                        .map((output) => `${output.ename}: ${output.evalue}`)
-                        .join('\n'),
-                      result.outputs,
-                    )
-                    : null
-                  const provenance = buildChunkProvenance({
-                    filePath: props.filePath,
-                    chunkKey: key,
-                    language: chunk.language,
-                    source: selCode,
-                    outputs: result.outputs,
-                    status: result.success ? 'fresh' : 'error',
-                    errorHint: failure?.hintKey ? t(failure.hintKey) : '',
-                  })
-                  registerLiveProvenance(provenance)
+                if (sel.from !== sel.to) {
+                  // Selection → run only selected text, show output under this chunk
+                  const selCode = state.sliceDoc(sel.from, sel.to).trim()
+                  if (selCode) {
+                    const key = getChunkKey(chunk, state.doc)
+                    const sourceSignature = buildSourceSignature(selCode)
+                    editorView.dispatch({
+                      effects: setChunkOutput.of({
+                        chunkKey: key,
+                        outputs: [],
+                        status: 'running',
+                        sourceSignature,
+                      }),
+                    })
+                    kernelBridge.execute(selCode, chunk.language).then((result) => {
+                      const failure =
+                        result.success === false
+                          ? classifyExecutionFailure(
+                              (result.outputs || [])
+                                .filter((output) => output.output_type === 'error')
+                                .map((output) => `${output.ename}: ${output.evalue}`)
+                                .join('\n'),
+                              result.outputs
+                            )
+                          : null
+                      const provenance = buildChunkProvenance({
+                        filePath: props.filePath,
+                        chunkKey: key,
+                        language: chunk.language,
+                        source: selCode,
+                        outputs: result.outputs,
+                        status: result.success ? 'fresh' : 'error',
+                        errorHint: failure?.hintKey ? t(failure.hintKey) : '',
+                      })
+                      registerLiveProvenance(provenance)
+                      editorView.dispatch({
+                        effects: setChunkOutput.of({
+                          chunkKey: key,
+                          outputs: result.outputs,
+                          status: result.success ? 'fresh' : 'error',
+                          sourceSignature,
+                          provenance,
+                          hint: failure?.hintKey ? t(failure.hintKey) : '',
+                        }),
+                      })
+                      syncChunkProvenance?.(editorView)
+                    })
+                  }
+                  return true
+                }
+
+                executeChunk(editorView, chunk)
+
+                // Advance cursor to next chunk header
+                const idx = chunks.indexOf(chunk)
+                if (idx >= 0 && idx + 1 < chunks.length) {
+                  const nextChunk = chunks[idx + 1]
+                  const nextLine = state.doc.line(nextChunk.headerLine)
                   editorView.dispatch({
-                    effects: setChunkOutput.of({
-                      chunkKey: key,
-                      outputs: result.outputs,
-                      status: result.success ? 'fresh' : 'error',
-                      sourceSignature,
-                      provenance,
-                      hint: failure?.hintKey ? t(failure.hintKey) : '',
-                    }),
+                    selection: { anchor: nextLine.from },
+                    scrollIntoView: true,
                   })
-                  syncChunkProvenance?.(editorView)
-                })
-              }
-              return true
-            }
+                }
+                return true
+              },
+            },
+            {
+              key: 'Shift-Mod-Enter',
+              run: (editorView) => {
+                const totalChunks = editorView.state.field(cf).length
 
-            executeChunk(editorView, chunk)
-
-            // Advance cursor to next chunk header
-            const idx = chunks.indexOf(chunk)
-            if (idx >= 0 && idx + 1 < chunks.length) {
-              const nextChunk = chunks[idx + 1]
-              const nextLine = state.doc.line(nextChunk.headerLine)
-              editorView.dispatch({
-                selection: { anchor: nextLine.from },
-                scrollIntoView: true,
-              })
-            }
-            return true
-          },
-        },
-        {
-          key: 'Shift-Mod-Enter',
-          run: (editorView) => {
-            const totalChunks = editorView.state.field(cf).length
-
-            // Run all chunks sequentially, re-reading live state each iteration
-            ;(async () => {
-              for (let i = 0; i < totalChunks; i++) {
-                const chunks = editorView.state.field(cf)
-                const chunk = chunks[i]
-                if (!chunk || !chunk.endLine) continue
-                const code = editorView.state.sliceDoc(chunk.contentFrom, chunk.contentTo).trim()
-                if (!code) continue
-                await executeChunk(editorView, chunk)
-              }
-            })()
-            return true
-          },
-        },
-      ])))
+                // Run all chunks sequentially, re-reading live state each iteration
+                ;(async () => {
+                  for (let i = 0; i < totalChunks; i++) {
+                    const chunks = editorView.state.field(cf)
+                    const chunk = chunks[i]
+                    if (!chunk || !chunk.endLine) continue
+                    const code = editorView.state
+                      .sliceDoc(chunk.contentFrom, chunk.contentTo)
+                      .trim()
+                    if (!code) continue
+                    await executeChunk(editorView, chunk)
+                  }
+                })()
+                return true
+              },
+            },
+          ])
+        )
+      )
 
       // Listen for chunk-execute events from gutter play buttons
       chunkExecuteHandler = (event) => {
@@ -981,7 +1082,7 @@ onMounted(async () => {
 
       // Listen for chunk-execute-all (Run All button) — sequential execution
       // Re-reads chunks on each iteration so offsets stay fresh after output widgets shift lines
-      chunkExecuteAllHandler = async (event) => {
+      chunkExecuteAllHandler = async () => {
         if (!view) return
         const totalChunks = view.state.field(cf).length
         for (let i = 0; i < totalChunks; i++) {
@@ -995,38 +1096,42 @@ onMounted(async () => {
       }
     } else {
       // Plain .r/.py/.jl: line-by-line execution
-      extraExtensions.push(Prec.highest(keymap.of([
-        {
-          key: 'Mod-Enter',
-          run: (editorView) => {
-            const state = editorView.state
-            const sel = state.selection.main
-            let code
-            if (sel.from !== sel.to) {
-              code = state.sliceDoc(sel.from, sel.to)
-            } else {
-              const line = state.doc.lineAt(sel.head)
-              code = line.text
-              if (line.number < state.doc.lines) {
-                const nextLine = state.doc.line(line.number + 1)
-                editorView.dispatch({
-                  selection: { anchor: nextLine.from },
-                  scrollIntoView: true,
-                })
-              }
-            }
-            if (code) sendCode(code, fileLanguage)
-            return true
-          },
-        },
-        {
-          key: 'Shift-Mod-Enter',
-          run: () => {
-            runFile(props.filePath, fileLanguage)
-            return true
-          },
-        },
-      ])))
+      extraExtensions.push(
+        Prec.highest(
+          keymap.of([
+            {
+              key: 'Mod-Enter',
+              run: (editorView) => {
+                const state = editorView.state
+                const sel = state.selection.main
+                let code
+                if (sel.from !== sel.to) {
+                  code = state.sliceDoc(sel.from, sel.to)
+                } else {
+                  const line = state.doc.lineAt(sel.head)
+                  code = line.text
+                  if (line.number < state.doc.lines) {
+                    const nextLine = state.doc.line(line.number + 1)
+                    editorView.dispatch({
+                      selection: { anchor: nextLine.from },
+                      scrollIntoView: true,
+                    })
+                  }
+                }
+                if (code) sendCode(code, fileLanguage)
+                return true
+              },
+            },
+            {
+              key: 'Shift-Mod-Enter',
+              run: () => {
+                runFile(props.filePath, fileLanguage)
+                return true
+              },
+            },
+          ])
+        )
+      )
     }
   }
 
@@ -1062,21 +1167,25 @@ onMounted(async () => {
 
     // Single autocompletion instance with markdown draft snippets + wiki links.
     // Citations still use the palette flow.
-    extraExtensions.push(autocompletion({
-      override: completionSources,
-      activateOnTyping: true,
-      activateOnTypingDelay: 0,
-      defaultKeymap: true,
-    }))
+    extraExtensions.push(
+      autocompletion({
+        override: completionSources,
+        activateOnTyping: true,
+        activateOnTypingDelay: 0,
+        defaultKeymap: true,
+      })
+    )
 
     // Formatting shortcuts (Cmd+B, Cmd+I, etc.)
     const { markdownShortcuts } = await import('../../editor/markdownShortcuts')
     extraExtensions.push(markdownShortcuts())
 
-    extraExtensions.push(...createMarkdownDraftEditorExtensions({
-      referencesStore,
-      t,
-    }))
+    extraExtensions.push(
+      ...createMarkdownDraftEditorExtensions({
+        referencesStore,
+        t,
+      })
+    )
   }
 
   // LaTeX-only extensions
@@ -1089,68 +1198,82 @@ onMounted(async () => {
     })
     extraExtensions.push(...latexCitations.extensions)
 
-    completionSources.push(createLatexCompletionSource({
-      filePath: props.filePath,
-      filesStore: files,
-      referencesStore,
-      workspacePath: workspace.path,
-    }))
+    completionSources.push(
+      createLatexCompletionSource({
+        filePath: props.filePath,
+        filesStore: files,
+        referencesStore,
+        workspacePath: workspace.path,
+      })
+    )
 
-    extraExtensions.push(autocompletion({
-      override: completionSources,
-      activateOnTyping: true,
-      activateOnTypingDelay: 0,
-      defaultKeymap: true,
-    }))
+    extraExtensions.push(
+      autocompletion({
+        override: completionSources,
+        activateOnTyping: true,
+        activateOnTypingDelay: 0,
+        defaultKeymap: true,
+      })
+    )
 
-    extraExtensions.push(Prec.highest(keymap.of([
-      {
-        key: 'Mod-Shift-f',
-        run: () => {
-          void handleFormatDocument()
-          return true
-        },
-      },
-      {
-        key: 'Shift-Alt-f',
-        run: () => {
-          void handleFormatDocument()
-          return true
-        },
-      },
-    ])))
+    extraExtensions.push(
+      Prec.highest(
+        keymap.of([
+          {
+            key: 'Mod-Shift-f',
+            run: () => {
+              void handleFormatDocument()
+              return true
+            },
+          },
+          {
+            key: 'Shift-Alt-f',
+            run: () => {
+              void handleFormatDocument()
+              return true
+            },
+          },
+        ])
+      )
+    )
   }
 
   // Typst-only extensions
   if (supportsTypstSupport) {
-    extraExtensions.push(...createTypstEditorSupport({
-      filePath: props.filePath,
-      filesStore: files,
-      getReferenceByKey: (key) => referencesStore.getByKey(key),
-      isEnabled: () => typstStore.inlayHints,
-      openFile: (path) => editorStore.openFile(path),
-      referencesStore,
-      toastStore,
-      t,
-      workspacePath: workspace.path,
-    }))
-    extraExtensions.push(Prec.highest(keymap.of([
-      ...buildDefinitionKeymap(),
-      {
-        key: 'Mod-Shift-f',
-        run: () => {
-          void handleFormatDocument()
-          return true
-        },
-      },
-      {
-        key: 'Shift-Alt-f',
-        run: () => {
-          void handleFormatDocument()
-          return true
-        },
-      },
-    ])))
+    extraExtensions.push(
+      ...createTypstEditorSupport({
+        filePath: props.filePath,
+        filesStore: files,
+        getReferenceByKey: (key) => referencesStore.getByKey(key),
+        isEnabled: () => typstStore.inlayHints,
+        openFile: (path) => editorStore.openFile(path),
+        referencesStore,
+        toastStore,
+        t,
+        workspacePath: workspace.path,
+      })
+    )
+    extraExtensions.push(
+      Prec.highest(
+        keymap.of([
+          ...buildDefinitionKeymap(),
+          {
+            key: 'Mod-Shift-f',
+            run: () => {
+              void handleFormatDocument()
+              return true
+            },
+          },
+          {
+            key: 'Shift-Alt-f',
+            run: () => {
+              void handleFormatDocument()
+              return true
+            },
+          },
+        ])
+      )
+    )
   }
 
   const extensions = createEditorExtensions({
@@ -1243,13 +1366,15 @@ function ensureMarkdownWindowHandlers() {
         line: location.line,
         offset: location.offset,
       })
-      window.dispatchEvent(new CustomEvent('markdown-forward-sync-location', {
-        detail: {
-          sourcePath: props.filePath,
-          line: location.line,
-          offset: location.offset,
-        },
-      }))
+      window.dispatchEvent(
+        new CustomEvent('markdown-forward-sync-location', {
+          detail: {
+            sourcePath: props.filePath,
+            line: location.line,
+            offset: location.offset,
+          },
+        })
+      )
     }
   }
 }
@@ -1396,14 +1521,11 @@ function handleWikiLinkClick(event) {
     const mTo = mFrom + match[0].length
     if (pos >= mFrom && pos < mTo) {
       let target = match[1]
-      let heading = null
-
       const pipeIdx = target.indexOf('|')
       if (pipeIdx !== -1) target = target.substring(0, pipeIdx)
 
       const hashIdx = target.indexOf('#')
       if (hashIdx !== -1) {
-        heading = target.substring(hashIdx + 1)
         target = target.substring(0, hashIdx)
       }
       target = target.trim()
@@ -1416,7 +1538,7 @@ function handleWikiLinkClick(event) {
         // Create new file in same directory
         const dir = props.filePath.split('/').slice(0, -1).join('/')
         const newName = target.endsWith('.md') ? target : target + '.md'
-        files.createFile(dir, newName).then(newPath => {
+        files.createFile(dir, newName).then((newPath) => {
           if (newPath) editorStore.openFile(newPath)
         })
       }
@@ -1468,21 +1590,24 @@ function scheduleMarkdownSelectionPreviewSync(selection) {
       offset: location.offset,
     })
 
-    window.dispatchEvent(new CustomEvent('markdown-forward-sync-location', {
-      detail: {
-        sourcePath: props.filePath,
-        line: location.line,
-        offset: location.offset,
-      },
-    }))
+    window.dispatchEvent(
+      new CustomEvent('markdown-forward-sync-location', {
+        detail: {
+          sourcePath: props.filePath,
+          line: location.line,
+          offset: location.offset,
+        },
+      })
+    )
   }, 90)
 }
 
 async function resolveTypstForwardRootPath() {
-  const fallbackRootPath = typstStore.stateForFile(props.filePath)?.projectRootPath
-    || typstStore.stateForFile(props.filePath)?.compileTargetPath
-    || resolveCachedTypstRootPath(props.filePath)
-    || props.filePath
+  const fallbackRootPath =
+    typstStore.stateForFile(props.filePath)?.projectRootPath ||
+    typstStore.stateForFile(props.filePath)?.compileTargetPath ||
+    resolveCachedTypstRootPath(props.filePath) ||
+    props.filePath
 
   if (!view) return fallbackRootPath
 
@@ -1658,15 +1783,13 @@ onUnmounted(() => {
   flex-shrink: 0;
   border-bottom: 1px solid rgba(239, 68, 68, 0.22);
   background:
-    linear-gradient(180deg, rgba(120, 20, 20, 0.2), rgba(120, 20, 20, 0.08)),
-    var(--bg-secondary);
+    linear-gradient(180deg, rgba(120, 20, 20, 0.2), rgba(120, 20, 20, 0.08)), var(--bg-secondary);
 }
 
 .typst-diagnostics-banner-warning {
   border-bottom-color: rgba(245, 158, 11, 0.22);
   background:
-    linear-gradient(180deg, rgba(120, 82, 18, 0.2), rgba(120, 82, 18, 0.08)),
-    var(--bg-secondary);
+    linear-gradient(180deg, rgba(120, 82, 18, 0.2), rgba(120, 82, 18, 0.08)), var(--bg-secondary);
 }
 
 .typst-diagnostics-banner-main {
@@ -1776,5 +1899,9 @@ onUnmounted(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.text-editor-load-error {
+  color: var(--text-muted);
 }
 </style>

@@ -9,33 +9,68 @@
     @mousedown="handleMouseDown"
   >
     <!-- Line 1: Title + indicators -->
-    <div class="flex items-center gap-1">
-      <div class="flex-1 min-w-0 ui-text-xs truncate" :style="{ color: 'var(--fg-secondary)', lineHeight: 1.25 }">
+    <div class="ref-item-title-row flex items-center gap-1">
+      <div class="ref-item-title flex-1 min-w-0 ui-text-xs truncate">
         {{ reference.title || t('Untitled') }}
       </div>
       <!-- Copy citation button (hover) -->
-      <button
-        class="shrink-0 w-4 h-4 flex items-center justify-center rounded opacity-0 group-hover:opacity-100 transition-opacity"
-        :style="{ color: copied ? 'var(--success)' : 'var(--fg-muted)' }"
+      <UiButton
+        type="button"
+        variant="ghost"
+        size="icon-xs"
+        icon-only
+        class="ref-item-copy shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+        :class="{ 'is-copied': copied }"
         :title="t('Copy citation')"
+        :aria-label="t('Copy citation')"
         @click.stop="copyCitation"
       >
-        <svg v-if="!copied" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-          <rect x="5" y="5" width="8" height="8" rx="1"/><path d="M3 11V3a1 1 0 011-1h8"/>
+        <svg
+          v-if="!copied"
+          width="12"
+          height="12"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+        >
+          <rect x="5" y="5" width="8" height="8" rx="1" />
+          <path d="M3 11V3a1 1 0 011-1h8" />
         </svg>
-        <svg v-else width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M3 8l3 3 7-7"/>
+        <svg
+          v-else
+          width="12"
+          height="12"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path d="M3 8l3 3 7-7" />
         </svg>
-      </button>
-      <span v-if="isCited" class="shrink-0 inline-block w-[5px] h-[5px] rounded-full" :style="{ background: 'var(--success)' }" :title="t('Cited in document')"></span>
-      <svg v-if="reference._pdfFile" class="shrink-0" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" :style="{ color: 'var(--fg-muted)' }">
-        <path d="M9 1H4a1 1 0 00-1 1v12a1 1 0 001 1h8a1 1 0 001-1V5L9 1z"/>
-        <path d="M9 1v4h4"/>
+      </UiButton>
+      <span
+        v-if="isCited"
+        class="ref-item-cited-dot shrink-0 inline-block w-[5px] h-[5px] rounded-full"
+        :title="t('Cited in document')"
+      ></span>
+      <svg
+        v-if="reference._pdfFile"
+        class="ref-item-pdf-icon shrink-0"
+        width="11"
+        height="11"
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.5"
+      >
+        <path d="M9 1H4a1 1 0 00-1 1v12a1 1 0 001 1h8a1 1 0 001-1V5L9 1z" />
+        <path d="M9 1v4h4" />
       </svg>
       <span v-if="reference._needsReview" class="ref-needs-review shrink-0"></span>
     </div>
     <!-- Line 2: Author (year) -->
-    <div class="ui-text-micro mt-0.5 truncate" :style="{ color: 'var(--fg-muted)', lineHeight: 1.2 }">
+    <div class="ref-item-subtitle ui-text-micro mt-0.5 truncate">
       {{ authorLine }}{{ yearStr ? ` (${yearStr})` : '' }}
     </div>
   </div>
@@ -47,6 +82,7 @@ import { useReferencesStore } from '../../stores/references'
 import { useEditorStore } from '../../stores/editor'
 import { buildCitationText } from '../../editor/citationSyntax'
 import { useI18n } from '../../i18n'
+import UiButton from '../shared/ui/UiButton.vue'
 
 const props = defineProps({
   reference: { type: Object, required: true },
@@ -62,7 +98,9 @@ function copyCitation() {
   navigator.clipboard.writeText(citation)
   copied.value = true
   clearTimeout(copiedTimer)
-  copiedTimer = setTimeout(() => { copied.value = false }, 1200)
+  copiedTimer = setTimeout(() => {
+    copied.value = false
+  }, 1200)
 }
 
 const emit = defineEmits(['click', 'context-menu', 'drag-start'])
@@ -116,3 +154,31 @@ function handleMouseDown(event) {
   document.addEventListener('mouseup', onMouseUp)
 }
 </script>
+
+<style scoped>
+.ref-item-title {
+  color: var(--fg-secondary);
+  line-height: 1.25;
+}
+
+.ref-item-copy {
+  color: var(--fg-muted);
+}
+
+.ref-item-copy.is-copied {
+  color: var(--success);
+}
+
+.ref-item-cited-dot {
+  background: var(--success);
+}
+
+.ref-item-pdf-icon,
+.ref-item-subtitle {
+  color: var(--fg-muted);
+}
+
+.ref-item-subtitle {
+  line-height: 1.2;
+}
+</style>

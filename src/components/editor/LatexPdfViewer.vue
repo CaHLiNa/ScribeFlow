@@ -11,7 +11,7 @@
         :toolbar-target-selector="toolbarTargetSelector"
         @dblclick-page="handleBackwardSync"
       />
-      <div v-else class="flex items-center justify-center h-full" style="color: var(--fg-muted);">
+      <div v-else class="compiled-pdf-viewer-state flex items-center justify-center h-full">
         <div class="text-center text-sm">
           <div v-if="compileStatus === 'compiling'">
             {{ t('Compiling…') }}
@@ -59,9 +59,10 @@ function inferSyncTexPath(latexPath) {
   return String(latexPath || '').replace(/\.(tex|latex)$/i, '.synctex.gz')
 }
 
-const texPath = computed(() => (
-  workflowStore.getSourcePathForPreview(props.filePath) || inferLatexSourcePath(props.filePath)
-))
+const texPath = computed(
+  () =>
+    workflowStore.getSourcePathForPreview(props.filePath) || inferLatexSourcePath(props.filePath)
+)
 
 const state = computed(() => latexStore.stateForFile(texPath.value))
 const synctexPath = computed(() => state.value?.synctexPath || inferSyncTexPath(texPath.value))
@@ -72,7 +73,7 @@ const pdfPath = computed(() => state.value?.pdfPath || props.filePath)
 const pdfViewerRef = ref(null)
 let activeForwardSyncRequestId = null
 
-const { hasPdf, pdfReloadKey, checkPdfExists } = useCompiledPdfPreview({
+const { hasPdf, pdfReloadKey } = useCompiledPdfPreview({
   pdfPathRef: pdfPath,
   reloadEventName: 'latex-compile-done',
   matchesReloadEvent: (event) => event.detail?.texPath === texPath.value,
@@ -85,11 +86,13 @@ function handleBackwardSync({ page, x, y }) {
   if (!synctexPath.value || !page) return
 
   invoke('synctex_backward', { synctexPath: synctexPath.value, page, x, y })
-    .then(result => {
+    .then((result) => {
       if (result?.line) {
-        window.dispatchEvent(new CustomEvent('latex-backward-sync', {
-          detail: { file: result.file, line: result.line },
-        }))
+        window.dispatchEvent(
+          new CustomEvent('latex-backward-sync', {
+            detail: { file: result.file, line: result.line },
+          })
+        )
       }
     })
     .catch(() => {})
@@ -142,6 +145,12 @@ watch(
   () => {
     void maybeRunForwardSync()
   },
-  { immediate: true },
+  { immediate: true }
 )
 </script>
+
+<style scoped>
+.compiled-pdf-viewer-state {
+  color: var(--text-muted);
+}
+</style>

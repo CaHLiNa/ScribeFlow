@@ -1,7 +1,7 @@
 <template>
   <div>
     <div
-      class="flex items-center py-0.5 px-1 cursor-pointer select-none tree-item"
+      class="file-tree-item-row flex items-center py-0.5 px-1 cursor-pointer select-none tree-item"
       :class="{
         'bg-[var(--bg-hover)]': isActive || isSelected || isFilterHighlighted,
         'tree-item-dragover': entry.is_dir && dragOverDir === entry.path,
@@ -21,35 +21,48 @@
       @drop.prevent.stop="handleNativeDrop"
     >
       <!-- Expand/collapse arrow for dirs -->
-      <span v-if="entry.is_dir" class="w-5 h-5 flex items-center justify-center shrink-0" style="color: var(--fg-muted);">
-        <IconChevronRight :size="16" :class="{ 'rotate-90': isExpanded }" class="transition-transform duration-100" />
+      <span
+        v-if="entry.is_dir"
+        class="file-tree-item-icon w-5 h-5 flex items-center justify-center shrink-0"
+      >
+        <IconChevronRight
+          :size="16"
+          :class="{ 'rotate-90': isExpanded }"
+          class="transition-transform duration-100"
+        />
       </span>
       <span v-else class="w-5 h-5 shrink-0"></span>
 
       <!-- File icon (files only; dirs use chevron as sole indicator) -->
-      <span v-if="!entry.is_dir" class="w-5 h-5 flex items-center justify-center shrink-0 mr-1" style="color: var(--fg-muted);">
+      <span
+        v-if="!entry.is_dir"
+        class="file-tree-item-icon w-5 h-5 flex items-center justify-center shrink-0 mr-1"
+      >
         <component :is="fileIconComponent" :size="16" :stroke-width="1.5" />
       </span>
 
       <!-- Name or rename input -->
       <template v-if="isRenaming">
-        <input
+        <UiInput
           ref="renameInputEl"
-          :value="newItemValue"
-          class="flex-1 px-1 py-0 rounded border outline-none"
-          style="background: var(--bg-tertiary); color: var(--fg-primary); border-color: var(--accent); font-size: var(--ui-font-label);"
-          autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
-          @input="$emit('rename-input-change', $event.target.value)"
+          :model-value="newItemValue"
+          size="sm"
+          shell-class="file-tree-item-rename-input"
+          autocomplete="off"
+          autocorrect="off"
+          autocapitalize="off"
+          spellcheck="false"
+          @update:modelValue="$emit('rename-input-change', $event)"
           @keydown.enter.stop="$emit('rename-input-submit')"
           @keydown.escape.stop="$emit('rename-input-cancel')"
           @blur="$emit('rename-input-submit')"
         />
       </template>
       <template v-else>
-        <span class="truncate" :style="{ color: isActive ? 'var(--fg-primary)' : 'var(--fg-secondary)', fontSize: 'var(--ui-font-caption)', lineHeight: '1.25' }">
+        <span class="file-tree-item-label truncate" :class="{ 'is-active': isActive }">
           <template v-if="filterQuery && nameSegments.length > 1">
             <template v-for="(seg, i) in nameSegments" :key="i">
-              <span v-if="seg.match" style="color: var(--accent);">{{ seg.text }}</span>
+              <span v-if="seg.match" class="file-tree-item-match">{{ seg.text }}</span>
               <template v-else>{{ seg.text }}</template>
             </template>
           </template>
@@ -58,21 +71,29 @@
       </template>
 
       <!-- Review badge -->
-      <span v-if="hasPendingEdits" class="ml-auto mr-1 w-2 h-2 rounded-full shrink-0" style="background: var(--warning);"></span>
+      <span
+        v-if="hasPendingEdits"
+        class="file-tree-item-review-dot ml-auto mr-1 w-2 h-2 rounded-full shrink-0"
+      ></span>
     </div>
 
     <!-- Inline new item input (inside folder, before children) -->
-    <div v-if="entry.is_dir && isExpanded && newItemParent === entry.path"
-      class="flex items-center py-0.5 px-1"
-      :style="{ paddingLeft: (depth + 1) * 12 + 28 + 'px' }">
-      <input
+    <div
+      v-if="entry.is_dir && isExpanded && newItemParent === entry.path"
+      class="file-tree-item-new-row flex items-center py-0.5 px-1"
+      :style="{ paddingLeft: (depth + 1) * 12 + 28 + 'px' }"
+    >
+      <UiInput
         ref="newItemInput"
-        :value="newItemValue"
-        class="w-full px-1 py-0.5 rounded border outline-none"
-        style="background: var(--bg-tertiary); color: var(--fg-primary); border-color: var(--accent); font-size: var(--ui-font-label);"
+        :model-value="newItemValue"
+        size="sm"
+        shell-class="file-tree-item-rename-input"
         :placeholder="newItemIsDir ? t('folder name') : t('document name')"
-        autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
-        @input="$emit('rename-input-change', $event.target.value)"
+        autocomplete="off"
+        autocorrect="off"
+        autocapitalize="off"
+        spellcheck="false"
+        @update:modelValue="$emit('rename-input-change', $event)"
         @keydown.enter.stop="$emit('rename-input-submit')"
         @keydown.escape.stop="$emit('rename-input-cancel')"
         @blur="$emit('rename-input-submit')"
@@ -80,7 +101,15 @@
     </div>
 
     <!-- Children (if expanded directory) -->
-    <template v-if="!suppressChildren && entry.is_dir && isExpanded && entry.children !== null && entry.children !== undefined">
+    <template
+      v-if="
+        !suppressChildren &&
+        entry.is_dir &&
+        isExpanded &&
+        entry.children !== null &&
+        entry.children !== undefined
+      "
+    >
       <FileTreeItem
         v-for="child in entry.children"
         :key="child.path"
@@ -115,10 +144,29 @@
 <script setup>
 import { computed, ref, watch, nextTick } from 'vue'
 import {
-  IconChevronRight, IconFile, IconFileText, IconBraces, IconFileCode, IconTerminal2, IconLock,
-  IconBrandJavascript, IconBrandTypescript, IconBrandPython, IconBrandHtml5, IconBrandCss3,
-  IconBrandVue, IconPhoto, IconFileTypePdf, IconTable, IconDatabase, IconSparkles,
-  IconFileTypeDocx, IconFileTypeDoc, IconMath, IconNotebook, IconBook2,
+  IconChevronRight,
+  IconFile,
+  IconFileText,
+  IconBraces,
+  IconFileCode,
+  IconTerminal2,
+  IconLock,
+  IconBrandJavascript,
+  IconBrandTypescript,
+  IconBrandPython,
+  IconBrandHtml5,
+  IconBrandCss3,
+  IconBrandVue,
+  IconPhoto,
+  IconFileTypePdf,
+  IconTable,
+  IconDatabase,
+  IconSparkles,
+  IconFileTypeDocx,
+  IconFileTypeDoc,
+  IconMath,
+  IconNotebook,
+  IconBook2,
 } from '@tabler/icons-vue'
 import { useFilesStore } from '../../stores/files'
 import { useEditorStore } from '../../stores/editor'
@@ -126,6 +174,7 @@ import { useReviewsStore } from '../../stores/reviews'
 import { isMod } from '../../platform'
 import { getFileIconName } from '../../utils/fileTypes'
 import { useI18n } from '../../i18n'
+import UiInput from '../shared/ui/UiInput.vue'
 
 const props = defineProps({
   entry: { type: Object, required: true },
@@ -143,9 +192,17 @@ const props = defineProps({
 })
 
 const emit = defineEmits([
-  'open-file', 'select-file', 'context-menu',
-  'start-rename-input', 'rename-input-change', 'rename-input-submit', 'rename-input-cancel',
-  'drag-start', 'drag-over-dir', 'drag-leave-dir', 'drop-on-dir',
+  'open-file',
+  'select-file',
+  'context-menu',
+  'start-rename-input',
+  'rename-input-change',
+  'rename-input-submit',
+  'rename-input-cancel',
+  'drag-start',
+  'drag-over-dir',
+  'drag-leave-dir',
+  'drop-on-dir',
   'external-drop',
 ])
 
@@ -158,17 +215,37 @@ const renameInputEl = ref(null)
 const newItemInput = ref(null)
 
 const isExpanded = computed(() => props.forceExpand || files.isDirExpanded(props.entry.path))
-const isFilterHighlighted = computed(() => props.filterHighlightPath && props.entry.path === props.filterHighlightPath)
+const isFilterHighlighted = computed(
+  () => props.filterHighlightPath && props.entry.path === props.filterHighlightPath
+)
 const isActive = computed(() => editor.activeTab === props.entry.path)
 const isSelected = computed(() => props.selectedPaths.has(props.entry.path))
 const hasPendingEdits = computed(() => reviews.filesWithEdits.includes(props.entry.path))
 const isRenaming = computed(() => props.renamingPath === props.entry.path)
 
 const ICON_COMPONENTS = {
-  IconFile, IconFileText, IconBraces, IconFileCode, IconTerminal2, IconLock,
-  IconBrandJavascript, IconBrandTypescript, IconBrandPython, IconBrandHtml5, IconBrandCss3,
-  IconBrandVue, IconPhoto, IconFileTypePdf, IconTable, IconDatabase, IconSparkles,
-  IconFileTypeDocx, IconFileTypeDoc, IconMath, IconNotebook, IconBook2,
+  IconFile,
+  IconFileText,
+  IconBraces,
+  IconFileCode,
+  IconTerminal2,
+  IconLock,
+  IconBrandJavascript,
+  IconBrandTypescript,
+  IconBrandPython,
+  IconBrandHtml5,
+  IconBrandCss3,
+  IconBrandVue,
+  IconPhoto,
+  IconFileTypePdf,
+  IconTable,
+  IconDatabase,
+  IconSparkles,
+  IconFileTypeDocx,
+  IconFileTypeDoc,
+  IconMath,
+  IconNotebook,
+  IconBook2,
 }
 
 const fileIconComponent = computed(() => {
@@ -185,7 +262,8 @@ const nameSegments = computed(() => {
   const segments = []
   if (idx > 0) segments.push({ text: name.slice(0, idx), match: false })
   segments.push({ text: name.slice(idx, idx + q.length), match: true })
-  if (idx + q.length < name.length) segments.push({ text: name.slice(idx + q.length), match: false })
+  if (idx + q.length < name.length)
+    segments.push({ text: name.slice(idx + q.length), match: false })
   return segments
 })
 
@@ -193,7 +271,7 @@ const nameSegments = computed(() => {
 watch(isRenaming, (v) => {
   if (v) {
     nextTick(() => {
-      const el = renameInputEl.value
+      const el = renameInputEl.value?.inputEl
       if (!el) return
       emit('start-rename-input')
       el.focus()
@@ -209,13 +287,16 @@ watch(isRenaming, (v) => {
 })
 
 // Auto-focus new item input when it appears
-watch(() => props.newItemParent === props.entry.path && isExpanded.value, (v) => {
-  if (v) {
-    nextTick(() => {
-      newItemInput.value?.focus()
-    })
+watch(
+  () => props.newItemParent === props.entry.path && isExpanded.value,
+  (v) => {
+    if (v) {
+      nextTick(() => {
+        newItemInput.value?.focus()
+      })
+    }
   }
-})
+)
 
 // Drag initiation tracking
 let mouseDownInfo = null
@@ -322,5 +403,36 @@ function handleContextMenu(event) {
   background: var(--bg-hover);
   outline: 1px solid var(--accent);
   outline-offset: -1px;
+}
+
+.file-tree-item-row {
+  color: var(--text-secondary);
+}
+
+.file-tree-item-icon {
+  color: var(--text-muted);
+}
+
+.file-tree-item-label {
+  color: var(--text-secondary);
+  font-size: var(--ui-font-caption);
+  line-height: 1.25;
+}
+
+.file-tree-item-label.is-active {
+  color: var(--text-primary);
+}
+
+.file-tree-item-match {
+  color: var(--accent);
+}
+
+.file-tree-item-review-dot {
+  background: var(--warning);
+}
+
+.file-tree-item-rename-input {
+  font-size: var(--ui-font-label);
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
 }
 </style>

@@ -16,7 +16,7 @@
       {{ note.quote }}
     </div>
 
-    <textarea
+    <UiTextarea
       v-model="draftComment"
       class="research-note-card-textarea"
       rows="3"
@@ -24,23 +24,27 @@
       @blur="flushComment"
       @keydown.enter.meta.prevent="emit('insert')"
       @keydown.enter.ctrl.prevent="emit('insert')"
-    ></textarea>
+    />
 
     <div class="research-note-card-actions">
-      <button
+      <UiButton
         type="button"
         class="research-note-card-primary"
+        variant="primary"
+        size="sm"
         @click="emit('insert')"
       >
         {{ t('Insert into manuscript') }}
-      </button>
-      <button
+      </UiButton>
+      <UiButton
         type="button"
         class="research-note-card-secondary"
+        variant="danger"
+        size="sm"
         @click="emit('delete')"
       >
         {{ t('Delete note') }}
-      </button>
+      </UiButton>
     </div>
   </section>
 </template>
@@ -48,6 +52,8 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { useI18n } from '../../i18n'
+import UiButton from '../shared/ui/UiButton.vue'
+import UiTextarea from '../shared/ui/UiTextarea.vue'
 
 const props = defineProps({
   note: { type: Object, required: true },
@@ -60,9 +66,12 @@ const emit = defineEmits(['update-comment', 'insert', 'delete'])
 const { t } = useI18n()
 const draftComment = ref(props.note?.comment || '')
 
-watch(() => props.note?.comment, (value) => {
-  draftComment.value = value || ''
-})
+watch(
+  () => props.note?.comment,
+  (value) => {
+    draftComment.value = value || ''
+  }
+)
 
 const sourceLabel = computed(() => {
   const parts = []
@@ -132,14 +141,11 @@ function flushComment() {
 
 .research-note-card-textarea {
   width: 100%;
-  min-height: 64px;
-  resize: vertical;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: color-mix(in srgb, var(--bg-primary) 92%, var(--bg-secondary));
-  color: var(--fg-primary);
-  padding: 8px 9px;
   font-size: var(--ui-font-caption);
+}
+
+.research-note-card-textarea :deep(.ui-textarea-control) {
+  min-height: 64px;
   line-height: 1.45;
 }
 
@@ -148,32 +154,6 @@ function flushComment() {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 22px;
-  padding: 0 10px;
-  border-radius: 6px;
   font-size: var(--ui-font-caption);
-  transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease;
-}
-
-.research-note-card-primary {
-  border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
-  color: var(--accent);
-}
-
-.research-note-card-primary:hover {
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
-}
-
-.research-note-card-secondary {
-  border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
-  background: transparent;
-  color: var(--fg-muted);
-}
-
-.research-note-card-secondary:hover {
-  color: var(--error);
-  border-color: color-mix(in srgb, var(--error) 24%, transparent);
-  background: color-mix(in srgb, var(--error) 8%, transparent);
 }
 </style>

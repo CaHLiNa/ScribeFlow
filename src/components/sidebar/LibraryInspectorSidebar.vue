@@ -1,9 +1,6 @@
 <template>
   <div class="library-inspector">
-    <div
-      v-if="activeRef"
-      class="library-inspector-inner"
-    >
+    <div v-if="activeRef" class="library-inspector-inner">
       <div class="library-inspector-primary">
         <div v-if="isEditing" class="library-inspector-kicker">
           {{ t('Edit reference metadata') }}
@@ -18,7 +15,9 @@
           <span class="library-state-pill" :class="{ active: isInCurrentProject(activeRef._key) }">
             {{ isInCurrentProject(activeRef._key) ? t('In current project') : t('Global only') }}
           </span>
-          <span v-if="activeRef._needsReview" class="library-state-pill warning">{{ t('Needs review') }}</span>
+          <span v-if="activeRef._needsReview" class="library-state-pill warning">{{
+            t('Needs review')
+          }}</span>
           <span v-if="activeRef._pdfFile" class="library-state-pill">{{ t('PDF') }}</span>
         </div>
       </div>
@@ -32,39 +31,55 @@
         </div>
 
         <div class="library-inspector-actions">
-          <button type="button" class="library-inline-button" @click="toggleProjectMembership(activeRef._key)">
-            {{ isInCurrentProject(activeRef._key) ? t('Remove from this project') : t('Add to project') }}
-          </button>
-          <button
+          <UiButton
+            type="button"
+            variant="primary"
+            size="sm"
+            class="library-inline-button"
+            @click="toggleProjectMembership(activeRef._key)"
+          >
+            {{
+              isInCurrentProject(activeRef._key)
+                ? t('Remove from this project')
+                : t('Add to project')
+            }}
+          </UiButton>
+          <UiButton
             v-if="activePdfPath"
             type="button"
+            variant="secondary"
+            size="sm"
             class="library-quiet-button"
             @click="openReferencePdf(activeRef._key)"
           >
             {{ t('Open PDF') }}
-          </button>
-          <button type="button" class="library-quiet-button" @click="enterEditMode(activeRef._key)">
+          </UiButton>
+          <UiButton
+            type="button"
+            variant="secondary"
+            size="sm"
+            class="library-quiet-button"
+            @click="enterEditMode(activeRef._key)"
+          >
             {{ t('Edit metadata') }}
-          </button>
-          <button
+          </UiButton>
+          <UiButton
             v-if="isEditing"
             type="button"
+            variant="ghost"
+            size="sm"
             class="library-quiet-button"
             @click="exitEditMode"
           >
             {{ t('Back to overview') }}
-          </button>
+          </UiButton>
         </div>
       </div>
 
       <div class="library-inspector-section">
         <div class="library-inspector-section-label">{{ t('Tags') }}</div>
         <div class="library-inspector-tags">
-          <span
-            v-for="tag in activeRef._tags || []"
-            :key="tag"
-            class="library-tag-chip"
-          >
+          <span v-for="tag in activeRef._tags || []" :key="tag" class="library-tag-chip">
             {{ tag }}
           </span>
           <span v-if="!activeRef._tags || activeRef._tags.length === 0" class="library-muted-copy">
@@ -85,12 +100,16 @@
 
     <div v-else-if="isLibraryLoading" class="library-inspector-empty">
       <div class="library-inspector-empty-title">{{ t('Loading references...') }}</div>
-      <div class="library-inspector-empty-copy">{{ t('Global library is loading for this project context.') }}</div>
+      <div class="library-inspector-empty-copy">
+        {{ t('Global library is loading for this project context.') }}
+      </div>
     </div>
 
     <div v-else class="library-inspector-empty">
       <div class="library-inspector-empty-title">{{ t('No reference selected') }}</div>
-      <div class="library-inspector-empty-copy">{{ t('Select a reference to inspect and manage it for the current project.') }}</div>
+      <div class="library-inspector-empty-copy">
+        {{ t('Select a reference to inspect and manage it for the current project.') }}
+      </div>
     </div>
   </div>
 </template>
@@ -103,6 +122,7 @@ import { useWorkspaceStore } from '../../stores/workspace'
 import { useI18n } from '../../i18n'
 import { useLibraryWorkbenchUi } from '../../composables/useLibraryWorkbenchUi'
 import { openReferencePdfInWorkspace } from '../../domains/reference/referenceNavigation'
+import UiButton from '../shared/ui/UiButton.vue'
 
 const referencesStore = useReferencesStore()
 const editorStore = useEditorStore()
@@ -255,21 +275,8 @@ function exitEditMode() {
   align-items: center;
   justify-content: center;
   min-height: 26px;
-  padding: 0 10px;
   border-radius: 10px;
-  border: 1px solid var(--border);
-  background: var(--bg-primary);
   font-size: 0.86rem;
-  color: var(--fg-secondary);
-  cursor: pointer;
-  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
-}
-
-.library-inline-button:hover,
-.library-quiet-button:hover {
-  border-color: color-mix(in srgb, var(--accent) 22%, var(--border));
-  background: color-mix(in srgb, var(--accent) 6%, var(--bg-primary));
-  color: var(--fg-primary);
 }
 
 .library-state-pill,

@@ -1,18 +1,17 @@
 <template>
-  <div class="h-full flex flex-col overflow-hidden">
+  <div class="csv-editor h-full flex flex-col overflow-hidden">
     <!-- Toolbar -->
-    <div class="flex items-center gap-2 px-3 py-1 border-b" style="background: var(--bg-secondary); border-color: var(--border); color: var(--fg-secondary);">
-      <span class="text-xs tabular-nums" style="color: var(--fg-muted);">{{ dimensions }}</span>
-      <span v-if="saving" class="text-xs ml-2" style="color: var(--fg-muted);">{{ t('Saving...') }}</span>
-      <span v-if="error" class="text-xs ml-auto" style="color: var(--error);">{{ error }}</span>
+    <div class="csv-editor-toolbar">
+      <span class="csv-editor-meta">{{ dimensions }}</span>
+      <span v-if="saving" class="csv-editor-meta csv-editor-saving">{{ t('Saving...') }}</span>
+      <span v-if="error" class="csv-editor-error">{{ error }}</span>
     </div>
 
     <!-- Table -->
     <div ref="hotWrapper" class="flex-1 overflow-hidden relative">
       <div
         v-if="fileLoadError"
-        class="absolute inset-0 flex items-center justify-center px-6 text-sm"
-        style="color: var(--fg-muted); background: var(--bg-primary);"
+        class="csv-editor-state absolute inset-0 flex items-center justify-center px-6 text-sm"
       >
         <div class="max-w-lg text-center space-y-2">
           <div>{{ fileLoadError.message }}</div>
@@ -119,10 +118,22 @@ onMounted(async () => {
         updateDimensions()
         scheduleSave()
       },
-      afterCreateRow: () => { updateDimensions(); scheduleSave() },
-      afterRemoveRow: () => { updateDimensions(); scheduleSave() },
-      afterCreateCol: () => { updateDimensions(); scheduleSave() },
-      afterRemoveCol: () => { updateDimensions(); scheduleSave() },
+      afterCreateRow: () => {
+        updateDimensions()
+        scheduleSave()
+      },
+      afterRemoveRow: () => {
+        updateDimensions()
+        scheduleSave()
+      },
+      afterCreateCol: () => {
+        updateDimensions()
+        scheduleSave()
+      },
+      afterRemoveCol: () => {
+        updateDimensions()
+        scheduleSave()
+      },
     })
 
     updateDimensions()
@@ -148,3 +159,36 @@ onUnmounted(() => {
   }
 })
 </script>
+
+<style scoped>
+.csv-editor-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-secondary);
+  color: var(--fg-secondary);
+}
+
+.csv-editor-meta {
+  color: var(--text-muted);
+  font-size: var(--ui-font-caption);
+  font-variant-numeric: tabular-nums;
+}
+
+.csv-editor-saving {
+  margin-left: var(--space-2);
+}
+
+.csv-editor-error {
+  margin-left: auto;
+  color: var(--error);
+  font-size: var(--ui-font-caption);
+}
+
+.csv-editor-state {
+  color: var(--text-muted);
+  background: var(--bg-primary);
+}
+</style>

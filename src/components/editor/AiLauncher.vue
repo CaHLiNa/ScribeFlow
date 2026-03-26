@@ -1,72 +1,98 @@
 <template>
-  <div class="ai-launcher flex flex-col h-full" :class="{ 'ai-launcher-compact': compact }" style="background: var(--bg-primary);">
+  <div
+    class="ai-launcher ai-launcher-root flex flex-col h-full"
+    :class="{ 'ai-launcher-compact': compact }"
+  >
     <div class="flex-1 overflow-y-auto min-h-0" ref="itemListRef">
       <div class="ai-launcher-shell w-full mx-auto pb-10">
         <div class="ai-launcher-tabs">
-          <button
+          <UiButton
             v-for="tab in visibleTabs"
             :key="tab.id"
-            class="ui-text-label font-semibold tracking-[0.06em] uppercase bg-transparent border-none cursor-pointer pb-0.5 transition-colors duration-75"
-            :style="{
-              color: activeTabId === tab.id ? 'var(--fg-primary)' : 'var(--fg-muted)',
-              borderBottom: activeTabId === tab.id ? '1px solid var(--fg-primary)' : '1px solid transparent',
-            }"
+            variant="ghost"
+            size="sm"
+            content-mode="raw"
+            class="ai-launcher-tab"
+            :active="activeTabId === tab.id"
             @click="setTab(tab.id)"
-          >{{ tab.label }}</button>
+            >{{ tab.label }}</UiButton
+          >
         </div>
 
         <template v-for="(item, i) in currentItems" :key="activeTabId + '-' + i">
           <div
             v-if="item.groupHeader"
-            class="ai-launcher-group ui-text-caption font-semibold tracking-[0.06em] uppercase pb-1"
+            class="ai-launcher-group ai-launcher-group-label ui-text-caption font-semibold tracking-[0.06em] uppercase pb-1"
             :class="i > 0 ? 'mt-4' : ''"
-            style="color: var(--fg-muted);"
-          >{{ item.groupHeader }}</div>
-          <div
-            class="group flex items-center gap-1"
-            @mouseenter="selectedIdx = i"
           >
-            <button
-              class="newtab-item ai-launcher-item flex gap-2 flex-1 border-none bg-transparent text-left py-1.5 cursor-pointer transition-colors duration-75"
-              :class="compact ? 'items-start flex-wrap' : 'items-center'"
-              :style="{ color: selectedIdx === i ? 'var(--fg-primary)' : (item.muted ? 'var(--fg-muted)' : 'var(--fg-secondary)') }"
+            {{ item.groupHeader }}
+          </div>
+          <div class="group flex items-center gap-1" @mouseenter="selectedIdx = i">
+            <UiButton
+              variant="ghost"
+              size="sm"
+              block
+              content-mode="raw"
+              class="newtab-item ai-launcher-item"
+              :class="{
+                'is-compact': compact,
+                'is-muted': item.muted,
+                'is-selected': selectedIdx === i,
+              }"
+              :active="selectedIdx === i"
               @click="activate(item)"
             >
-              <span
-                class="w-3 shrink-0 leading-none select-none"
-                style="font-size: var(--ui-font-title);"
-                :style="{ color: selectedIdx === i ? 'var(--fg-muted)' : 'transparent' }"
-              >›</span>
-              <div class="flex-1 min-w-0 flex flex-col">
-                <span class="ui-text-title min-w-0" :class="compact ? 'whitespace-normal break-words' : 'truncate'">{{ item.label }}</span>
+              <span class="ai-launcher-item-arrow" :class="{ 'is-visible': selectedIdx === i }"
+                >›</span
+              >
+              <div class="ai-launcher-item-body">
+                <span
+                  class="ui-text-title min-w-0"
+                  :class="compact ? 'whitespace-normal break-words' : 'truncate'"
+                  >{{ item.label }}</span
+                >
                 <span
                   v-if="item.description || item.task?.description"
-                  class="ui-text-label min-w-0 mt-0.5"
+                  class="ai-launcher-item-description ui-text-label min-w-0 mt-0.5"
                   :class="compact ? 'whitespace-normal break-words' : 'truncate'"
-                  style="color: var(--fg-muted);"
-                >{{ item.description || item.task?.description }}</span>
+                  >{{ item.description || item.task?.description }}</span
+                >
               </div>
               <span
                 v-if="item.meta || item.task?.meta"
-                class="ui-text-label shrink-0"
-                :class="compact ? 'w-full ml-5 mt-0.5 whitespace-normal break-words' : 'whitespace-nowrap mx-4'"
-                style="color: var(--fg-muted);"
-              >{{ item.meta || item.task?.meta }}</span>
-            </button>
-            <button
+                class="ai-launcher-item-meta ui-text-label shrink-0"
+                :class="
+                  compact
+                    ? 'w-full ml-5 mt-0.5 whitespace-normal break-words'
+                    : 'whitespace-nowrap mx-4'
+                "
+                >{{ item.meta || item.task?.meta }}</span
+              >
+            </UiButton>
+            <UiButton
               v-if="item.deleteAction"
-              class="w-6 h-6 shrink-0 flex items-center justify-center rounded border-none bg-transparent cursor-pointer transition-opacity duration-100"
+              variant="ghost"
+              size="icon-sm"
+              icon-only
+              class="ai-launcher-item-delete"
               :class="selectedIdx === i ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'"
-              style="color: var(--fg-muted);"
               :title="item.deleteTitle || t('Delete chat')"
+              :aria-label="item.deleteTitle || t('Delete chat')"
               @click.stop="item.deleteAction()"
               @mousedown.stop
               @mouseenter="selectedIdx = i"
             >
-              <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5">
-                <path d="M2 2l6 6M8 2l-6 6"/>
+              <svg
+                width="10"
+                height="10"
+                viewBox="0 0 10 10"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+              >
+                <path d="M2 2l6 6M8 2l-6 6" />
               </svg>
-            </button>
+            </UiButton>
           </div>
         </template>
       </div>
@@ -99,9 +125,14 @@ import { useAiDrawerStore } from '../../stores/aiDrawer'
 import { useChatStore } from '../../stores/chat'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useI18n, formatRelativeFromNow } from '../../i18n'
-import { getAiCapabilityItems, getAiLauncherItems, getChatInputToolItems } from '../../services/ai/taskCatalog'
+import {
+  getAiCapabilityItems,
+  getAiLauncherItems,
+  getChatInputToolItems,
+} from '../../services/ai/taskCatalog'
 import { launchAiTask, launchWorkflowTask, startAiConversation } from '../../services/ai/launch'
 import ChatInput from '../chat/ChatInput.vue'
+import UiButton from '../shared/ui/UiButton.vue'
 
 const props = defineProps({
   paneId: { type: String, default: '' },
@@ -173,12 +204,12 @@ const capabilityItems = computed(() => {
   }))
 })
 
-const chatInputToolItems = computed(() => (
+const chatInputToolItems = computed(() =>
   getChatInputToolItems({
     currentPath: currentContextPath.value,
     t,
   })
-))
+)
 
 const currentItems = computed(() => {
   if (activeTabId.value === 'capabilities') {
@@ -197,7 +228,9 @@ const currentItems = computed(() => {
       items.push({
         label: t('Show more'),
         muted: true,
-        action: () => { chatsLimit.value += 10 },
+        action: () => {
+          chatsLimit.value += 10
+        },
       })
     }
     return items
@@ -226,7 +259,7 @@ watch(
       recentFiles.value = []
     })
   },
-  { immediate: true },
+  { immediate: true }
 )
 
 function setTab(id) {
@@ -263,15 +296,34 @@ function activate(item) {
 function handleKeydown(e) {
   if (editorStore.activePaneId !== props.paneId) return
   const active = document.activeElement
-  if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) return
+  if (
+    active &&
+    (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)
+  )
+    return
   const richInput = chatInputRef.value?.$el?.querySelector('[contenteditable]')
 
   switch (e.key) {
-    case 'ArrowLeft': e.preventDefault(); switchTab(-1); break
-    case 'ArrowRight': e.preventDefault(); switchTab(1); break
-    case 'ArrowUp': e.preventDefault(); moveSelection(-1); break
-    case 'ArrowDown': e.preventDefault(); moveSelection(1); break
-    case 'Enter': e.preventDefault(); activateSelected(); break
+    case 'ArrowLeft':
+      e.preventDefault()
+      switchTab(-1)
+      break
+    case 'ArrowRight':
+      e.preventDefault()
+      switchTab(1)
+      break
+    case 'ArrowUp':
+      e.preventDefault()
+      moveSelection(-1)
+      break
+    case 'ArrowDown':
+      e.preventDefault()
+      moveSelection(1)
+      break
+    case 'Enter':
+      e.preventDefault()
+      activateSelected()
+      break
     case 'Backspace':
     case 'Delete': {
       const item = currentItems.value[selectedIdx.value]
@@ -312,7 +364,7 @@ async function refreshRecentFiles() {
       } catch {
         return null
       }
-    }),
+    })
   )
 
   if (generation !== recentFilesGeneration) return
@@ -412,6 +464,10 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.ai-launcher-root {
+  background: var(--bg-primary);
+}
+
 .ai-launcher-shell {
   max-width: min(80ch, 90%);
   padding-top: clamp(1rem, 20vh, 8rem);
@@ -425,8 +481,87 @@ onUnmounted(() => {
   flex-wrap: wrap;
 }
 
+.ai-launcher-tab {
+  min-height: auto;
+  padding: 0 0 2px;
+  border-radius: 0;
+  border-bottom: 1px solid transparent;
+  color: var(--text-muted);
+  font-size: var(--ui-font-caption);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.ai-launcher-tab:hover:not(:disabled) {
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.ai-launcher-tab.is-active {
+  background: transparent;
+  color: var(--text-primary);
+  border-bottom-color: var(--text-primary);
+}
+
 .ai-launcher-group {
   padding-left: 1.25rem;
+}
+
+.ai-launcher-group-label {
+  color: var(--text-muted);
+}
+
+.ai-launcher-item {
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--space-2);
+  padding: 6px 0;
+  border-radius: 0;
+  color: var(--text-secondary);
+}
+
+.ai-launcher-item.is-muted {
+  color: var(--text-muted);
+}
+
+.ai-launcher-item.is-selected {
+  color: var(--text-primary);
+}
+
+.ai-launcher-item.is-compact {
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.ai-launcher-item-arrow {
+  width: 0.75rem;
+  flex-shrink: 0;
+  font-size: var(--ui-font-title);
+  line-height: 1;
+  user-select: none;
+  color: transparent;
+}
+
+.ai-launcher-item-arrow.is-visible {
+  color: var(--text-muted);
+}
+
+.ai-launcher-item-body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.ai-launcher-item-description,
+.ai-launcher-item-meta {
+  color: var(--text-muted);
+}
+
+.ai-launcher-item-delete {
+  color: var(--text-muted);
+  transition: opacity 100ms ease;
 }
 
 .ai-launcher-input-shell {

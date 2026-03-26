@@ -5,45 +5,53 @@
         <div class="library-shell-sidebar-kicker">{{ t('Views') }}</div>
       </div>
       <div class="library-shell-sidebar-list is-views">
-        <button
+        <UiButton
           v-for="view in sidebarViewOptions"
           :key="view.id"
           type="button"
+          variant="ghost"
+          size="sm"
+          content-mode="raw"
+          :active="activeView === view.id"
           class="library-shell-sidebar-item"
-          :class="{ 'is-active': activeView === view.id }"
           @click="activateView(view.id)"
         >
           <span class="truncate">{{ view.label }}</span>
           <span class="library-shell-sidebar-count">{{ view.count }}</span>
-        </button>
+        </UiButton>
       </div>
     </div>
 
     <div v-else class="library-shell-sidebar-section grow">
       <div class="library-shell-sidebar-head">
         <div class="library-shell-sidebar-kicker">{{ t('Tags') }}</div>
-        <button
+        <UiButton
           v-if="selectedTags.length > 0"
           type="button"
+          variant="ghost"
+          size="sm"
           class="library-shell-sidebar-action"
           @click="clearSelectedTags()"
         >
           {{ t('Clear') }}
-        </button>
+        </UiButton>
       </div>
 
       <div v-if="tagFacets.length > 0" class="library-shell-sidebar-list is-tags">
-        <button
+        <UiButton
           v-for="tag in tagFacets"
           :key="tag.tag"
           type="button"
+          variant="ghost"
+          size="sm"
+          content-mode="raw"
+          :active="selectedTags.includes(tag.tag)"
           class="library-shell-sidebar-item is-tag"
-          :class="{ 'is-active': selectedTags.includes(tag.tag) }"
           @click="toggleTag(tag.tag)"
         >
           <span class="truncate">{{ tag.tag }}</span>
           <span class="library-shell-sidebar-count">{{ tag.count }}</span>
-        </button>
+        </UiButton>
       </div>
 
       <div v-else class="library-shell-sidebar-empty">
@@ -58,6 +66,7 @@ import { computed } from 'vue'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useI18n } from '../../i18n'
 import { useLibraryWorkbenchUi } from '../../composables/useLibraryWorkbenchUi'
+import UiButton from '../shared/ui/UiButton.vue'
 
 const workspace = useWorkspaceStore()
 const { t } = useI18n()
@@ -118,17 +127,9 @@ const isViewsPanel = computed(() => workspace.leftSidebarPanel === 'library-view
 }
 
 .library-shell-sidebar-action {
-  border: none;
-  background: transparent;
   padding: 0;
-  color: var(--fg-muted);
   font-size: 0.72rem;
   line-height: 1.3;
-  cursor: pointer;
-}
-
-.library-shell-sidebar-action:hover {
-  color: var(--fg-primary);
 }
 
 .library-shell-sidebar-list {
@@ -159,9 +160,11 @@ const isViewsPanel = computed(() => workspace.leftSidebarPanel === 'library-view
   font-size: 0.84rem;
   line-height: 1.45;
   text-align: left;
-  cursor: pointer;
   box-shadow: inset 0 1px 0 color-mix(in srgb, var(--border) 58%, transparent);
-  transition: background-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease,
+    box-shadow 120ms ease;
 }
 
 .library-shell-sidebar-item.is-tag {

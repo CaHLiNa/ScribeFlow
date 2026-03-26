@@ -2,17 +2,20 @@
   <div class="ai-shell-sidebar">
     <div class="ai-shell-sidebar-top">
       <div class="ai-shell-sidebar-kicker">{{ t('Recent chats') }}</div>
-      <button type="button" class="ai-shell-sidebar-primary" @click="openHome">
+      <UiButton variant="primary" size="sm" class="ai-shell-sidebar-primary" @click="openHome">
         {{ t('New chat') }}
-      </button>
+      </UiButton>
     </div>
 
     <div class="ai-shell-sidebar-list">
       <div v-for="item in recentChats" :key="item.id" class="ai-shell-sidebar-chat-row">
-        <button
-          type="button"
+        <UiButton
+          variant="ghost"
+          size="sm"
+          block
+          content-mode="raw"
           class="ai-shell-sidebar-chat"
-          :class="{ 'is-active': aiWorkbench.sessionId === item.id && aiWorkbench.view === 'chat' }"
+          :active="aiWorkbench.sessionId === item.id && aiWorkbench.view === 'chat'"
           @click="openRecentChat(item.id)"
         >
           <span class="ai-shell-sidebar-chat-label">{{
@@ -21,15 +24,27 @@
           <span class="ai-shell-sidebar-chat-meta">{{
             formatRelativeFromNow(item.updatedAt)
           }}</span>
-        </button>
-        <button
-          type="button"
+        </UiButton>
+        <UiButton
+          variant="ghost"
+          size="icon-xs"
+          icon-only
           class="ai-shell-sidebar-chat-delete"
           :title="t('Delete chat')"
+          :aria-label="t('Delete chat')"
           @click.stop="deleteChat(item.id)"
         >
-          ×
-        </button>
+          <svg
+            width="10"
+            height="10"
+            viewBox="0 0 10 10"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+          >
+            <path d="M2 2l6 6M8 2l-6 6" />
+          </svg>
+        </UiButton>
       </div>
 
       <div v-if="recentChats.length === 0" class="ai-shell-sidebar-empty">
@@ -46,6 +61,7 @@ import { useAiWorkbenchStore } from '../../stores/aiWorkbench'
 import { useEditorStore } from '../../stores/editor'
 import { useChatStore } from '../../stores/chat'
 import { useI18n, formatRelativeFromNow } from '../../i18n'
+import UiButton from '../shared/ui/UiButton.vue'
 
 const aiWorkbench = useAiWorkbenchStore()
 const editorStore = useEditorStore()
@@ -114,19 +130,10 @@ async function deleteChat(sessionId) {
 }
 
 .ai-shell-sidebar-primary {
-  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
-  border-radius: 5px;
-  background: color-mix(in srgb, var(--accent) 8%, var(--bg-primary));
-  color: var(--accent);
-  height: 20px;
+  min-height: 20px;
   padding: 0 6px;
   font-size: 0.72rem;
   line-height: 1;
-  cursor: pointer;
-}
-
-.ai-shell-sidebar-primary:hover {
-  background: color-mix(in srgb, var(--accent) 14%, var(--bg-hover));
 }
 
 .ai-shell-sidebar-section {
@@ -167,28 +174,26 @@ async function deleteChat(sessionId) {
 }
 
 .ai-shell-sidebar-chat {
-  width: 100%;
   flex: 1 1 auto;
-  border: none;
+  align-items: flex-start;
+  justify-content: flex-start;
+  width: 100%;
   border-radius: 8px;
-  background: transparent;
-  color: var(--fg-primary);
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
   gap: 3px;
   padding: 8px 26px 8px 10px;
   text-align: left;
-  cursor: pointer;
   transition: background-color 120ms ease;
 }
 
-.ai-shell-sidebar-chat:hover {
+.ai-shell-sidebar-chat:hover:not(:disabled) {
   background: color-mix(in srgb, var(--accent) 8%, transparent);
 }
 
 .ai-shell-sidebar-chat.is-active {
   background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--text-primary);
 }
 
 .ai-shell-sidebar-chat-label {
@@ -208,23 +213,14 @@ async function deleteChat(sessionId) {
 }
 
 .ai-shell-sidebar-chat-delete {
-  width: 16px;
-  height: 16px;
-  flex: 0 0 16px;
+  flex: 0 0 auto;
   align-self: center;
-  border: none;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--fg-muted);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
+  color: var(--text-muted);
 }
 
-.ai-shell-sidebar-chat-delete:hover {
+.ai-shell-sidebar-chat-delete:hover:not(:disabled) {
   background: color-mix(in srgb, var(--bg-hover) 72%, transparent);
-  color: var(--fg-primary);
+  color: var(--text-primary);
 }
 
 .ai-shell-sidebar-empty {

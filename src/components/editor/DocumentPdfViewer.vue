@@ -13,8 +13,7 @@
   />
   <div
     v-else-if="!pdfSourceReady"
-    class="absolute inset-0 flex items-center justify-center text-sm"
-    style="color: var(--fg-muted); background: var(--bg-primary);"
+    class="document-pdf-viewer-state absolute inset-0 flex items-center justify-center text-sm"
   >
     {{ t('Detecting PDF source...') }}
   </div>
@@ -47,18 +46,23 @@ const workflowStore = useDocumentWorkflowStore()
 const { t } = useI18n()
 
 const previewBinding = computed(() => workflowStore.getPreviewBinding(props.filePath))
-const previewSourcePath = computed(() => workflowStore.getSourcePathForPreview(props.filePath) || '')
+const previewSourcePath = computed(
+  () => workflowStore.getSourcePathForPreview(props.filePath) || ''
+)
 const pdfSourceState = computed(() => filesStore.getPdfSourceState(props.filePath))
 const boundSourceKind = computed(() => {
   if (isLatex(previewSourcePath.value)) return 'latex'
   if (isTypst(previewSourcePath.value)) return 'typst'
   return null
 })
-const canUseTypstWorkflowPdfViewer = computed(() => (
-  previewBinding.value?.previewKind === 'pdf'
-  && (isTypst(previewBinding.value?.sourcePath || '') || boundSourceKind.value === 'typst')
-))
-const pdfSourceReady = computed(() => !!boundSourceKind.value || pdfSourceState.value?.status === 'ready')
+const canUseTypstWorkflowPdfViewer = computed(
+  () =>
+    previewBinding.value?.previewKind === 'pdf' &&
+    (isTypst(previewBinding.value?.sourcePath || '') || boundSourceKind.value === 'typst')
+)
+const pdfSourceReady = computed(
+  () => !!boundSourceKind.value || pdfSourceState.value?.status === 'ready'
+)
 const pdfSourceKind = computed(() => boundSourceKind.value || pdfSourceState.value?.kind || 'plain')
 
 async function ensurePdfSourceKind(force = false) {
@@ -77,6 +81,13 @@ watch(
     if (!filePath) return
     void ensurePdfSourceKind(false)
   },
-  { immediate: true },
+  { immediate: true }
 )
 </script>
+
+<style scoped>
+.document-pdf-viewer-state {
+  color: var(--text-muted);
+  background: var(--bg-primary);
+}
+</style>

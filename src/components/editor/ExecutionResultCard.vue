@@ -7,23 +7,27 @@
         <span v-if="generatedAtLabel" class="execution-result-label">{{ generatedAtLabel }}</span>
       </div>
       <div class="execution-result-actions">
-        <button
+        <UiButton
           v-if="showInsert"
           class="execution-result-btn"
+          variant="primary"
+          size="sm"
           type="button"
           :disabled="insertDisabled"
           @click="$emit('insert')"
         >
           {{ insertLabel || t('Insert result') }}
-        </button>
-        <button
+        </UiButton>
+        <UiButton
           v-if="showDismiss"
           class="execution-result-btn execution-result-btn-secondary"
+          variant="secondary"
+          size="sm"
           type="button"
           @click="$emit('dismiss')"
         >
           {{ dismissLabel || t('Dismiss output') }}
-        </button>
+        </UiButton>
       </div>
     </div>
 
@@ -36,6 +40,7 @@
 import { computed } from 'vue'
 import CellOutput from './CellOutput.vue'
 import { useI18n } from '../../i18n'
+import UiButton from '../shared/ui/UiButton.vue'
 
 const props = defineProps({
   outputs: { type: Array, default: () => [] },
@@ -106,22 +111,11 @@ const tone = computed(() => props.tone || 'muted')
 }
 
 .execution-result-btn {
-  border: 1px solid var(--border);
-  background: var(--bg-primary);
-  color: var(--fg-primary);
-  border-radius: 6px;
-  padding: 4px 8px;
   font-size: var(--ui-font-micro);
-  cursor: pointer;
-}
-
-.execution-result-btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
 }
 
 .execution-result-btn-secondary {
-  color: var(--fg-muted);
+  color: var(--text-muted);
 }
 
 .execution-result-hint {

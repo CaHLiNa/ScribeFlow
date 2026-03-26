@@ -6,9 +6,17 @@ import { useKernelStore } from '../stores/kernel'
 import { useReviewsStore } from '../stores/reviews'
 import { useToastStore } from '../stores/toast'
 import { formatDate as formatLocaleDate, useI18n } from '../i18n'
-import { normalizeNotebookOutput, summarizeNotebookCellOutputs, buildNotebookRunAllSummary } from '../editor/notebookOutputs'
+import {
+  normalizeNotebookOutput,
+  summarizeNotebookCellOutputs,
+  buildNotebookRunAllSummary,
+} from '../editor/notebookOutputs'
 import { getEnvironmentHealthSummary } from '../services/environmentPreflight'
-import { readNotebookDocument, writeNotebookDocument, writeNotebookDocumentPreservingPendingEdits } from '../services/notebookDocument'
+import {
+  readNotebookDocument,
+  writeNotebookDocument,
+  writeNotebookDocumentPreservingPendingEdits,
+} from '../services/notebookDocument'
 import {
   buildNotebookCellProvenance,
   buildSourceSignature,
@@ -80,7 +88,10 @@ export function useNotebookEditor(props) {
   function syncCellProvenance(cell, index, statusOverride = null) {
     if (cell.type !== 'code') return null
     const meta = ensureExecutionMeta(cell)
-    const hasResult = Boolean(meta.lastRunSourceSignature) || Boolean(cell.executionCount != null) || (cell.outputs || []).length > 0
+    const hasResult =
+      Boolean(meta.lastRunSourceSignature) ||
+      Boolean(cell.executionCount != null) ||
+      (cell.outputs || []).length > 0
     if (!hasResult && (statusOverride || meta.status) !== 'running') return null
     return registerLiveProvenance(buildCellProvenance(cell, index, statusOverride))
   }
@@ -100,12 +111,16 @@ export function useNotebookEditor(props) {
     if (meta.lastRunSourceSignature && meta.lastRunSourceSignature !== currentSignature) {
       return 'This result is stale. Rerun the source to refresh it.'
     }
-    if (cells.slice(0, index).some((candidate) => {
-      if (candidate.type !== 'code') return false
-      const candidateMeta = ensureExecutionMeta(candidate)
-      return candidateMeta.lastRunSourceSignature
-        && candidateMeta.lastRunSourceSignature !== buildSourceSignature(candidate.source)
-    })) {
+    if (
+      cells.slice(0, index).some((candidate) => {
+        if (candidate.type !== 'code') return false
+        const candidateMeta = ensureExecutionMeta(candidate)
+        return (
+          candidateMeta.lastRunSourceSignature &&
+          candidateMeta.lastRunSourceSignature !== buildSourceSignature(candidate.source)
+        )
+      })
+    ) {
       return 'This result is stale because an upstream cell changed.'
     }
     return meta.hintKey || ''
@@ -119,7 +134,10 @@ export function useNotebookEditor(props) {
 
       const meta = ensureExecutionMeta(cell)
       const currentSignature = buildSourceSignature(cell.source)
-      const hasRun = Boolean(meta.lastRunSourceSignature) || Boolean(cell.executionCount != null) || (cell.outputs || []).length > 0
+      const hasRun =
+        Boolean(meta.lastRunSourceSignature) ||
+        Boolean(cell.executionCount != null) ||
+        (cell.outputs || []).length > 0
 
       if (!hasRun) {
         meta.status = 'idle'
@@ -157,21 +175,28 @@ export function useNotebookEditor(props) {
     }
 
     const meta = ensureExecutionMeta(cell)
-    const status = runningCells.has(cell.id) ? 'running' : (meta.status || 'idle')
+    const status = runningCells.has(cell.id) ? 'running' : meta.status || 'idle'
     return {
       status,
       statusText: t(getResultStatusLabelKey(status)),
       tone: getResultStatusTone(status),
-      hint: runningCells.has(cell.id) ? '' : (staleHintKeyForCell(cell, index) ? t(staleHintKeyForCell(cell, index)) : ''),
-      canInsert: !runningCells.has(cell.id) && status !== 'error' && (cell.outputs || []).length > 0,
+      hint: runningCells.has(cell.id)
+        ? ''
+        : staleHintKeyForCell(cell, index)
+          ? t(staleHintKeyForCell(cell, index))
+          : '',
+      canInsert:
+        !runningCells.has(cell.id) && status !== 'error' && (cell.outputs || []).length > 0,
       producerLabel: t('Cell {index}', { index: index + 1 }),
-      generatedAtLabel: meta.generatedAt ? formatLocaleDate(meta.generatedAt, {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-      }) : '',
+      generatedAtLabel: meta.generatedAt
+        ? formatLocaleDate(meta.generatedAt, {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+          })
+        : '',
     }
   }
 
@@ -226,7 +251,16 @@ export function useNotebookEditor(props) {
         _pendingDelete: false,
         _pendingAdd: true,
         _editId: add.id,
-        _resultState: cellResultState({ type: add.cell_type || 'code', source: add.cell_source || '', outputs: [], executionCount: null, metadata: {} }, index),
+        _resultState: cellResultState(
+          {
+            type: add.cell_type || 'code',
+            source: add.cell_source || '',
+            outputs: [],
+            executionCount: null,
+            metadata: {},
+          },
+          index
+        ),
       })
     }
 
@@ -267,15 +301,12 @@ export function useNotebookEditor(props) {
     return kernel ? kernel.status : t('disconnected')
   })
 
-  const kernelStatusStyle = computed(() => {
-    const status = kernelStatusLabel.value
-    if (status === 'idle') {
-      return { color: 'var(--success)', background: 'rgba(80, 250, 123, 0.1)' }
-    }
-    if (status === 'busy') {
-      return { color: 'var(--warning, #e2b93d)', background: 'rgba(226, 185, 61, 0.1)' }
-    }
-    return { color: 'var(--fg-muted)', background: 'var(--bg-secondary)' }
+  const kernelStatusToneClass = computed(() => {
+    if (!kernelId.value) return 'nb-kernel-status-disconnected'
+    const status = kernelStore.kernels[kernelId.value]?.status
+    if (status === 'idle') return 'nb-kernel-status-idle'
+    if (status === 'busy') return 'nb-kernel-status-busy'
+    return 'nb-kernel-status-disconnected'
   })
 
   function applyNotebookState(notebook) {
@@ -348,7 +379,12 @@ export function useNotebookEditor(props) {
       if (!cellRef?.syncContent) continue
       const index = Number.parseInt(indexText, 10)
       const displayCell = displayCells.value[index]
-      if (displayCell && !displayCell._pendingEdit && !displayCell._pendingDelete && !displayCell._pendingAdd) {
+      if (
+        displayCell &&
+        !displayCell._pendingEdit &&
+        !displayCell._pendingDelete &&
+        !displayCell._pendingAdd
+      ) {
         cellRef.syncContent()
       }
     }
@@ -380,7 +416,7 @@ export function useNotebookEditor(props) {
           props.filePath,
           notebookState,
           (filePath, cellId) => reviews.notebookEditForCell(filePath, cellId),
-          filesStore.fileContents,
+          filesStore.fileContents
         )
       }
     } catch (error) {
@@ -388,7 +424,7 @@ export function useNotebookEditor(props) {
       toastStore.showOnce(
         `save:${props.filePath}`,
         formatFileError('save', props.filePath, error),
-        { type: 'error', duration: 5000 },
+        { type: 'error', duration: 5000 }
       )
     } finally {
       saving.value = false
@@ -515,15 +551,18 @@ export function useNotebookEditor(props) {
 
     if (mode.value !== 'jupyter') {
       const meta = ensureExecutionMeta(cell)
-      cell.outputs = [{
-        output_type: 'error',
-        ename: t('No Kernel'),
-        evalue: t('Set up a Jupyter kernel to run cells. Click the status chip in the toolbar.'),
-        traceback: [],
-      }]
+      cell.outputs = [
+        {
+          output_type: 'error',
+          ename: t('No Kernel'),
+          evalue: t('Set up a Jupyter kernel to run cells. Click the status chip in the toolbar.'),
+          traceback: [],
+        },
+      ]
       meta.status = 'error'
       meta.generatedAt = new Date().toISOString()
-      meta.hintKey = 'No usable Jupyter kernel is available yet. Install the matching kernel and re-detect the environment.'
+      meta.hintKey =
+        'No usable Jupyter kernel is available yet. Install the matching kernel and re-detect the environment.'
       syncCellProvenance(cell, index, 'error')
       return { outputs: cell.outputs, success: false }
     }
@@ -541,15 +580,16 @@ export function useNotebookEditor(props) {
       cell.outputs = normalizedOutputs
 
       const meta = ensureExecutionMeta(cell)
-      const failure = result.success === false
-        ? classifyExecutionFailure(
-          normalizedOutputs
-            .filter((output) => output.output_type === 'error')
-            .map((output) => `${output.ename}: ${output.evalue}`)
-            .join('\n'),
-          normalizedOutputs,
-        )
-        : null
+      const failure =
+        result.success === false
+          ? classifyExecutionFailure(
+              normalizedOutputs
+                .filter((output) => output.output_type === 'error')
+                .map((output) => `${output.ename}: ${output.evalue}`)
+                .join('\n'),
+              normalizedOutputs
+            )
+          : null
 
       meta.generatedAt = new Date().toISOString()
       meta.lastRunSourceSignature = buildSourceSignature(cell.source)
@@ -563,12 +603,14 @@ export function useNotebookEditor(props) {
     } catch (error) {
       const message = error?.message || String(error)
       const meta = ensureExecutionMeta(cell)
-      cell.outputs = [{
-        output_type: 'error',
-        ename: t('ExecutionError'),
-        evalue: message,
-        traceback: [message],
-      }]
+      cell.outputs = [
+        {
+          output_type: 'error',
+          ename: t('ExecutionError'),
+          evalue: message,
+          traceback: [message],
+        },
+      ]
       const failure = classifyExecutionFailure(message, cell.outputs)
       meta.generatedAt = new Date().toISOString()
       meta.lastRunSourceSignature = buildSourceSignature(cell.source)
@@ -602,15 +644,20 @@ export function useNotebookEditor(props) {
     if (path !== props.filePath) return
 
     runCell(index).then((result) => {
-      window.dispatchEvent(new CustomEvent('cell-execution-complete', {
-        detail: {
-          path,
-          index,
-          output: summarizeNotebookCellOutputs(result?.outputs || [], t),
-          success: result?.success !== false,
-          error: result?.success === false ? summarizeNotebookCellOutputs(result?.outputs || [], t) : null,
-        },
-      }))
+      window.dispatchEvent(
+        new CustomEvent('cell-execution-complete', {
+          detail: {
+            path,
+            index,
+            output: summarizeNotebookCellOutputs(result?.outputs || [], t),
+            success: result?.success !== false,
+            error:
+              result?.success === false
+                ? summarizeNotebookCellOutputs(result?.outputs || [], t)
+                : null,
+          },
+        })
+      )
     })
   }
 
@@ -619,12 +666,14 @@ export function useNotebookEditor(props) {
     if (path !== props.filePath) return
 
     runAllCells().then(() => {
-      window.dispatchEvent(new CustomEvent('all-cells-execution-complete', {
-        detail: {
-          path,
-          summary: buildNotebookRunAllSummary(cells, t),
-        },
-      }))
+      window.dispatchEvent(
+        new CustomEvent('all-cells-execution-complete', {
+          detail: {
+            path,
+            summary: buildNotebookRunAllSummary(cells, t),
+          },
+        })
+      )
     })
   }
 
@@ -690,11 +739,12 @@ export function useNotebookEditor(props) {
     })
 
     if (!result.ok) {
-      const message = result.reason === 'no-target'
-        ? t('Open a Markdown, LaTeX, or Typst manuscript to insert this result.')
-        : result.reason === 'no-artifact'
-          ? t('This result does not contain an insertable image, table, or text output.')
-          : t('Could not insert this result into the current manuscript.')
+      const message =
+        result.reason === 'no-target'
+          ? t('Open a Markdown, LaTeX, or Typst manuscript to insert this result.')
+          : result.reason === 'no-artifact'
+            ? t('This result does not contain an insertable image, table, or text output.')
+            : t('Could not insert this result into the current manuscript.')
 
       toastStore.showOnce(`insert-result:${props.filePath}:${cellId}`, message, {
         type: 'warning',
@@ -703,30 +753,37 @@ export function useNotebookEditor(props) {
       return
     }
 
-    toastStore.showOnce(`insert-result:${props.filePath}:${cellId}:success`, t('Inserted result into {file}', {
-      file: result.path.split('/').pop(),
-    }), {
-      type: 'success',
-      duration: 3000,
-    })
+    toastStore.showOnce(
+      `insert-result:${props.filePath}:${cellId}:success`,
+      t('Inserted result into {file}', {
+        file: result.path.split('/').pop(),
+      }),
+      {
+        type: 'success',
+        duration: 3000,
+      }
+    )
   }
 
-  watch(() => filesStore.fileContents[props.filePath], (newContent) => {
-    if (!newContent || saving.value) return
+  watch(
+    () => filesStore.fileContents[props.filePath],
+    (newContent) => {
+      if (!newContent || saving.value) return
 
-    try {
-      const notebook = parseNotebook(newContent)
-      const nextSources = notebook.cells.map((cell) => cell.source)
-      const currentSources = cells.map((cell) => cell.source)
-      if (JSON.stringify(nextSources) !== JSON.stringify(currentSources)) {
-        applyNotebookState(notebook)
-      } else {
-        reconcileExecutionStates()
+      try {
+        const notebook = parseNotebook(newContent)
+        const nextSources = notebook.cells.map((cell) => cell.source)
+        const currentSources = cells.map((cell) => cell.source)
+        if (JSON.stringify(nextSources) !== JSON.stringify(currentSources)) {
+          applyNotebookState(notebook)
+        } else {
+          reconcileExecutionStates()
+        }
+      } catch {
+        // Ignore invalid notebook payloads pushed by in-flight file changes.
       }
-    } catch {
-      // Ignore invalid notebook payloads pushed by in-flight file changes.
     }
-  })
+  )
 
   onMounted(() => {
     initialize().catch((error) => {
@@ -764,7 +821,7 @@ export function useNotebookEditor(props) {
     statusChipClass,
     statusDotClass,
     kernelStatusLabel,
-    kernelStatusStyle,
+    kernelStatusToneClass,
     setCellRef,
     toggleStatusPopover,
     handleInstallKernel,

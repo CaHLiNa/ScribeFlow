@@ -1,10 +1,6 @@
 <template>
   <div class="typst-native-preview-shell">
-    <div
-      v-if="loadError"
-      class="typst-native-preview-state"
-      style="color: var(--error);"
-    >
+    <div v-if="loadError" class="typst-native-preview-state typst-native-preview-state-error">
       <div class="text-center text-sm">
         <div>{{ t('Tinymist preview failed to start.') }}</div>
         <div class="mt-1 text-xs opacity-70">{{ loadError }}</div>
@@ -12,8 +8,7 @@
     </div>
     <div
       v-else-if="!previewUrl"
-      class="typst-native-preview-state"
-      style="color: var(--fg-muted);"
+      class="typst-native-preview-state typst-native-preview-state-pending"
     >
       <div class="text-center text-sm">
         <div>{{ t('Starting Typst preview…') }}</div>
@@ -68,24 +63,29 @@ const loadError = ref('')
 const iframeLoaded = ref(false)
 let unsubscribeScrollSource = null
 
-const sourcePath = computed(() => (
-  workflowStore.getSourcePathForPreview(props.filePath)
-  || previewSourcePathFromPath(props.filePath)
-))
+const sourcePath = computed(
+  () =>
+    workflowStore.getSourcePathForPreview(props.filePath) ||
+    previewSourcePathFromPath(props.filePath)
+)
 
-const preferredSourcePaneId = computed(() => (
-  editorStore.findPaneWithTab(sourcePath.value)?.id
-  || (workflowStore.session.previewSourcePath === sourcePath.value ? workflowStore.session.sourcePaneId : null)
-  || null
-))
+const preferredSourcePaneId = computed(
+  () =>
+    editorStore.findPaneWithTab(sourcePath.value)?.id ||
+    (workflowStore.session.previewSourcePath === sourcePath.value
+      ? workflowStore.session.sourcePaneId
+      : null) ||
+    null
+)
 
 async function resolveRootPath() {
   const source = sourcePath.value
   if (!source) return ''
-  const fallbackRootPath = typstStore.stateForFile(source)?.projectRootPath
-    || typstStore.stateForFile(source)?.compileTargetPath
-    || resolveCachedTypstRootPath(source)
-    || source
+  const fallbackRootPath =
+    typstStore.stateForFile(source)?.projectRootPath ||
+    typstStore.stateForFile(source)?.compileTargetPath ||
+    resolveCachedTypstRootPath(source) ||
+    source
 
   try {
     const resolved = await resolveTypstCompileTarget(source, {
@@ -149,7 +149,11 @@ function handleForwardSyncRequest(event) {
   const detail = event.detail || {}
   const source = String(detail.sourcePath || '')
   if (!source || !rootPath.value) return
-  if (source !== sourcePath.value && !sourceBelongsToTypstPreviewRoot(source, rootPath.value, detail.rootPath)) return
+  if (
+    source !== sourcePath.value &&
+    !sourceBelongsToTypstPreviewRoot(source, rootPath.value, detail.rootPath)
+  )
+    return
   if (!Number.isInteger(detail.line) || !Number.isInteger(detail.character)) return
   void runForwardSync(detail)
 }
@@ -184,13 +188,19 @@ onUnmounted(() => {
   unsubscribeScrollSource = null
 })
 
-watch(() => sourcePath.value, () => {
-  void ensurePreviewReady()
-})
+watch(
+  () => sourcePath.value,
+  () => {
+    void ensurePreviewReady()
+  }
+)
 
-watch(() => workspace.path, () => {
-  void ensurePreviewReady()
-})
+watch(
+  () => workspace.path,
+  () => {
+    void ensurePreviewReady()
+  }
+)
 </script>
 
 <style scoped>
@@ -208,6 +218,14 @@ watch(() => workspace.path, () => {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.typst-native-preview-state-error {
+  color: var(--error);
+}
+
+.typst-native-preview-state-pending {
+  color: var(--text-muted);
 }
 
 .typst-native-preview-frame {

@@ -10,7 +10,7 @@
         :toolbar-target-selector="toolbarTargetSelector"
         @dblclick-page="handleBackwardSync"
       />
-      <div v-else class="flex items-center justify-center h-full" style="color: var(--fg-muted);">
+      <div v-else class="compiled-pdf-viewer-state flex items-center justify-center h-full">
         <div class="text-center text-sm">
           <div v-if="compileStatus === 'compiling'">
             {{ t('Compiling…') }}
@@ -64,23 +64,29 @@ const workflowStore = useDocumentWorkflowStore()
 const { t } = useI18n()
 
 const pdfViewerRef = ref(null)
-const typPath = computed(() => (
-  workflowStore.getSourcePathForPreview(props.filePath)
-  || props.filePath.replace(/\.pdf$/i, '.typ')
-))
+const typPath = computed(
+  () =>
+    workflowStore.getSourcePathForPreview(props.filePath) ||
+    props.filePath.replace(/\.pdf$/i, '.typ')
+)
 const resolvedRootPath = computed(() => resolveCachedTypstRootPath(typPath.value) || typPath.value)
-const state = computed(() => typstStore.stateForFile(typPath.value) || typstStore.stateForFile(resolvedRootPath.value))
-const rootPath = computed(() => (
-  state.value?.projectRootPath
-  || state.value?.compileTargetPath
-  || resolvedRootPath.value
-))
-const preferredSourcePaneId = computed(() => (
-  editorStore.findPaneWithTab(typPath.value)?.id
-  || (workflowStore.session.previewSourcePath === typPath.value ? workflowStore.session.sourcePaneId : null)
-  || (workflowStore.session.previewSourcePath === rootPath.value ? workflowStore.session.sourcePaneId : null)
-  || null
-))
+const state = computed(
+  () => typstStore.stateForFile(typPath.value) || typstStore.stateForFile(resolvedRootPath.value)
+)
+const rootPath = computed(
+  () => state.value?.projectRootPath || state.value?.compileTargetPath || resolvedRootPath.value
+)
+const preferredSourcePaneId = computed(
+  () =>
+    editorStore.findPaneWithTab(typPath.value)?.id ||
+    (workflowStore.session.previewSourcePath === typPath.value
+      ? workflowStore.session.sourcePaneId
+      : null) ||
+    (workflowStore.session.previewSourcePath === rootPath.value
+      ? workflowStore.session.sourcePaneId
+      : null) ||
+    null
+)
 const compileStatus = computed(() => state.value?.status || null)
 const pdfPath = computed(() => state.value?.pdfPath || props.filePath)
 const { hasPdf, pdfReloadKey } = useCompiledPdfPreview({
@@ -178,3 +184,9 @@ watch([hasPdf, rootPath], () => {
   flushPendingForwardSync()
 })
 </script>
+
+<style scoped>
+.compiled-pdf-viewer-state {
+  color: var(--text-muted);
+}
+</style>

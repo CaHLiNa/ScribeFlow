@@ -6,7 +6,9 @@
           <div class="workspace-starter-masthead-copy">
             <div class="workspace-starter-kicker">{{ t('Research dashboard') }}</div>
             <h1 class="workspace-starter-title">{{ workspaceName }}</h1>
-            <p class="workspace-starter-copy">{{ t('A focused project desk for drafting, computation, references, and review.') }}</p>
+            <p class="workspace-starter-copy">
+              {{ t('A focused project desk for drafting, computation, references, and review.') }}
+            </p>
 
             <div class="workspace-starter-context-grid">
               <div class="workspace-starter-context-item">
@@ -20,12 +22,24 @@
             </div>
 
             <div class="workspace-starter-actions">
-              <button type="button" class="workspace-starter-primary" @click="openSearch">
+              <UiButton
+                type="button"
+                variant="primary"
+                size="lg"
+                class="workspace-starter-primary"
+                @click="openSearch"
+              >
                 {{ t('Open file') }}
-              </button>
-              <button type="button" class="workspace-starter-secondary" @click="createNewFile('.md')">
+              </UiButton>
+              <UiButton
+                type="button"
+                variant="secondary"
+                size="lg"
+                class="workspace-starter-secondary"
+                @click="createNewFile('.md')"
+              >
                 {{ t('New draft') }}
-              </button>
+              </UiButton>
             </div>
           </div>
 
@@ -51,24 +65,33 @@
                 <div class="workspace-starter-section-kicker">{{ t('Continue working') }}</div>
                 <h2 class="workspace-starter-section-title">{{ t('Recent materials') }}</h2>
               </div>
-              <p class="workspace-starter-section-copy">{{ t('Return to the files you were reading, drafting, or running most recently.') }}</p>
+              <p class="workspace-starter-section-copy">
+                {{ t('Return to the files you were reading, drafting, or running most recently.') }}
+              </p>
             </div>
 
             <div v-if="recentFiles.length" class="workspace-starter-ledger">
-              <button
+              <UiButton
                 v-for="entry in recentFiles"
                 :key="entry.path"
                 type="button"
+                variant="ghost"
+                size="md"
+                content-mode="raw"
                 class="workspace-starter-ledger-row"
                 @click="openFile(entry.path)"
               >
                 <span class="workspace-starter-ledger-kind">{{ fileKindLabel(entry.path) }}</span>
                 <span class="workspace-starter-ledger-main">
                   <span class="workspace-starter-ledger-name">{{ fileName(entry.path) }}</span>
-                  <span class="workspace-starter-ledger-path">{{ fileDirectoryLabel(entry.path) }}</span>
+                  <span class="workspace-starter-ledger-path">{{
+                    fileDirectoryLabel(entry.path)
+                  }}</span>
                 </span>
-                <span class="workspace-starter-ledger-time">{{ formatRelativeFromNow(entry.openedAt) }}</span>
-              </button>
+                <span class="workspace-starter-ledger-time">{{
+                  formatRelativeFromNow(entry.openedAt)
+                }}</span>
+              </UiButton>
             </div>
             <div v-else class="workspace-starter-empty">
               {{ t('No recent files yet') }}
@@ -81,14 +104,21 @@
                 <div class="workspace-starter-section-kicker">{{ t('Current workspace') }}</div>
                 <h2 class="workspace-starter-section-title">{{ t('Research workbenches') }}</h2>
               </div>
-              <p class="workspace-starter-section-copy">{{ t('Move between literature and AI support without leaving the project workflow.') }}</p>
+              <p class="workspace-starter-section-copy">
+                {{
+                  t('Move between literature and AI support without leaving the project workflow.')
+                }}
+              </p>
             </div>
 
             <div class="workspace-starter-surface-list">
-              <button
+              <UiButton
                 v-for="item in surfaceItems"
                 :key="item.key"
                 type="button"
+                variant="ghost"
+                size="md"
+                content-mode="raw"
                 class="workspace-starter-surface-row"
                 @click="item.action"
               >
@@ -96,7 +126,7 @@
                   <span class="workspace-starter-surface-label">{{ item.label }}</span>
                   <span class="workspace-starter-surface-meta">{{ item.meta }}</span>
                 </span>
-              </button>
+              </UiButton>
             </div>
           </section>
         </div>
@@ -107,20 +137,27 @@
               <div class="workspace-starter-section-kicker">{{ t('Project workspace') }}</div>
               <h2 class="workspace-starter-section-title">{{ t('Start new work') }}</h2>
             </div>
-            <p class="workspace-starter-section-copy">{{ t('Create a draft, manuscript, notebook, or analysis script inside this project.') }}</p>
+            <p class="workspace-starter-section-copy">
+              {{
+                t('Create a draft, manuscript, notebook, or analysis script inside this project.')
+              }}
+            </p>
           </div>
 
           <div class="workspace-starter-create-grid">
-            <button
+            <UiButton
               v-for="item in createItems"
               :key="item.ext"
               type="button"
+              variant="ghost"
+              size="md"
+              content-mode="raw"
               class="workspace-starter-create-item"
               @click="createNewFile(item.ext)"
             >
               <span class="workspace-starter-create-label">{{ item.label }}</span>
               <span class="workspace-starter-create-ext">{{ item.ext }}</span>
-            </button>
+            </UiButton>
           </div>
         </section>
       </div>
@@ -136,6 +173,7 @@ import { useFilesStore } from '../../stores/files'
 import { useReferencesStore } from '../../stores/references'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useI18n, formatRelativeFromNow } from '../../i18n'
+import UiButton from '../shared/ui/UiButton.vue'
 import {
   WORKSPACE_STARTER_COMPUTATION_EXTENSIONS,
   WORKSPACE_STARTER_DRAFT_EXTENSIONS,
@@ -157,46 +195,49 @@ const { t } = useI18n()
 
 const workspaceName = computed(() => {
   const path = normalizeWorkspaceStarterPath(workspace.path || '')
-  return path ? (path.split('/').pop() || path) : t('Current workspace')
+  return path ? path.split('/').pop() || path : t('Current workspace')
 })
 
-const workspacePathDisplay = computed(() => normalizeWorkspaceStarterPath(workspace.path || workspaceName.value))
+const workspacePathDisplay = computed(() =>
+  normalizeWorkspaceStarterPath(workspace.path || workspaceName.value)
+)
 
 const fileCount = computed(() => filesStore.flatFiles.length)
-const draftCount = computed(() => countWorkspaceStarterFilesByExtension(
-  filesStore.flatFiles,
-  WORKSPACE_STARTER_DRAFT_EXTENSIONS,
-))
-const computationCount = computed(() => countWorkspaceStarterFilesByExtension(
-  filesStore.flatFiles,
-  WORKSPACE_STARTER_COMPUTATION_EXTENSIONS,
-))
+const draftCount = computed(() =>
+  countWorkspaceStarterFilesByExtension(filesStore.flatFiles, WORKSPACE_STARTER_DRAFT_EXTENSIONS)
+)
+const computationCount = computed(() =>
+  countWorkspaceStarterFilesByExtension(
+    filesStore.flatFiles,
+    WORKSPACE_STARTER_COMPUTATION_EXTENSIONS
+  )
+)
 const referenceCount = computed(() => referencesStore.refCount || 0)
 
 const recentFiles = computed(() => editorStore.recentFilesForEmptyState.slice(0, 5))
-const latestActivityLabel = computed(() => (
+const latestActivityLabel = computed(() =>
   recentFiles.value[0]?.openedAt
     ? formatRelativeFromNow(recentFiles.value[0].openedAt)
     : t('No recent activity')
-))
+)
 
-const overviewItems = computed(() => ([
+const overviewItems = computed(() => [
   { key: 'files', label: t('Files'), value: fileCount.value },
   { key: 'drafts', label: t('Drafts'), value: draftCount.value },
   { key: 'computation', label: t('Computation'), value: computationCount.value },
   { key: 'references', label: t('References'), value: referenceCount.value },
-]))
+])
 
-const createItems = computed(() => ([
+const createItems = computed(() => [
   { ext: '.md', label: t('Markdown') },
   { ext: '.tex', label: 'LaTeX' },
   { ext: '.typ', label: 'Typst' },
   { ext: '.ipynb', label: t('Jupyter notebook') },
   { ext: '.py', label: 'Python' },
   { ext: '.r', label: t('R Script') },
-]))
+])
 
-const surfaceItems = computed(() => ([
+const surfaceItems = computed(() => [
   {
     key: 'library',
     label: t('Library'),
@@ -209,7 +250,7 @@ const surfaceItems = computed(() => ([
     meta: t('Open long-form AI workflows and research assistance.'),
     action: () => workspace.openAiSurface(),
   },
-]))
+])
 
 function fileName(path) {
   return normalizeWorkspaceStarterPath(path).split('/').pop() || path
@@ -281,12 +322,11 @@ async function createNewFile(ext) {
 .workspace-starter {
   display: flex;
   height: 100%;
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--bg-secondary) 90%, var(--accent) 2%) 0,
-      var(--bg-primary) 240px
-    );
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--bg-secondary) 90%, var(--accent) 2%) 0,
+    var(--bg-primary) 240px
+  );
   container-type: inline-size;
 }
 
@@ -396,35 +436,16 @@ code.workspace-starter-context-value {
 .workspace-starter-ledger-row,
 .workspace-starter-surface-row,
 .workspace-starter-create-item {
-  cursor: pointer;
-  transition: border-color 140ms ease, background-color 140ms ease, color 140ms ease;
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease,
+    color 140ms ease;
 }
 
 .workspace-starter-primary,
 .workspace-starter-secondary {
-  height: 34px;
-  padding: 0 14px;
-  border-radius: 10px;
   font-size: 0.95rem;
   font-weight: 600;
-}
-
-.workspace-starter-primary {
-  border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--border));
-  background: color-mix(in srgb, var(--accent) 8%, var(--bg-primary));
-  color: var(--fg-primary);
-}
-
-.workspace-starter-secondary {
-  border: 1px solid var(--border);
-  background: color-mix(in srgb, var(--bg-secondary) 78%, var(--bg-primary));
-  color: var(--fg-secondary);
-}
-
-.workspace-starter-primary:hover,
-.workspace-starter-secondary:hover {
-  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
-  background: color-mix(in srgb, var(--accent) 7%, var(--bg-primary));
 }
 
 .workspace-starter-overview,
@@ -514,6 +535,7 @@ code.workspace-starter-context-value {
   width: 100%;
   padding: 12px 0;
   border: none;
+  border-radius: 0;
   border-top: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
   background: transparent;
   text-align: left;
@@ -529,6 +551,12 @@ code.workspace-starter-context-value {
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 14px;
   align-items: center;
+}
+
+.workspace-starter-surface-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
 }
 
 .workspace-starter-ledger-row:hover,
@@ -605,6 +633,7 @@ code.workspace-starter-context-value {
   min-height: 74px;
   padding: 14px 16px;
   border: none;
+  border-radius: 0;
   border-right: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
   border-bottom: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
   background: transparent;

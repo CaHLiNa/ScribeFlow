@@ -78,12 +78,13 @@
               </UiButton>
               <div class="pdf-toolbar-separator"></div>
               <div class="pdf-toolbar-group pdf-page-indicator">
-                <input
+                <UiInput
                   ref="pageInputRef"
                   v-model="pageInputValue"
                   type="text"
                   inputmode="numeric"
-                  class="pdf-toolbar-input pdf-page-input"
+                  size="sm"
+                  shell-class="pdf-toolbar-input-shell pdf-page-input-shell"
                   :disabled="!pdfUi.ready"
                   @focus="markPaneActive"
                   @keydown.enter.prevent="submitPageNumber"
@@ -125,17 +126,18 @@
             </div>
 
             <div class="pdf-toolbar-group pdf-toolbar-group-scale">
-              <select
-                class="pdf-toolbar-select"
-                :value="pdfUi.scaleValue"
+              <UiSelect
+                size="sm"
+                shell-class="pdf-toolbar-select-shell"
+                :model-value="pdfUi.scaleValue"
                 :disabled="!pdfUi.ready || scaleOptions.length === 0"
                 @focus="markPaneActive"
-                @change="handleScaleSelectChange"
+                @update:modelValue="handleScaleSelectChange"
               >
                 <option v-for="option in scaleOptions" :key="option.value" :value="option.value">
                   {{ option.label }}
                 </option>
-              </select>
+              </UiSelect>
             </div>
           </div>
 
@@ -247,11 +249,12 @@
             >
               <IconChevronUp :size="12" :stroke-width="1.8" />
             </UiButton>
-            <input
+            <UiInput
               ref="searchInputRef"
               v-model="searchDraft"
               type="text"
-              class="pdf-toolbar-input pdf-toolbar-search"
+              size="sm"
+              shell-class="pdf-toolbar-input-shell pdf-toolbar-search-shell"
               :placeholder="t('Search in PDF')"
               @focus="markPaneActive"
               @keydown.enter.prevent="runSearch(false)"
@@ -323,22 +326,21 @@
           <div class="pdf-toolbar-popover-title">{{ t('Text') }}</div>
           <label class="pdf-toolbar-field">
             <span class="pdf-toolbar-hint">{{ t('Color') }}</span>
-            <input
-              type="color"
-              class="pdf-color-input"
-              :value="editorParams.freeTextColor"
-              @input="setPdfInputValue('editorFreeTextColor', $event.target.value)"
+            <UiColorInput
+              class="pdf-color-input-shell"
+              :model-value="editorParams.freeTextColor"
+              @update:modelValue="setPdfInputValue('editorFreeTextColor', $event)"
             />
           </label>
           <label class="pdf-toolbar-field">
             <span class="pdf-toolbar-hint">{{ t('Font size') }}</span>
-            <input
-              type="range"
+            <UiRangeInput
+              class="pdf-toolbar-range-shell"
+              :model-value="editorParams.freeTextFontSize"
               min="5"
               max="100"
               step="1"
-              :value="editorParams.freeTextFontSize"
-              @input="setPdfInputValue('editorFreeTextFontSize', $event.target.value)"
+              @update:modelValue="setPdfInputValue('editorFreeTextFontSize', $event)"
             />
           </label>
         </div>
@@ -350,33 +352,32 @@
           <div class="pdf-toolbar-popover-title">{{ t('Ink') }}</div>
           <label class="pdf-toolbar-field">
             <span class="pdf-toolbar-hint">{{ t('Color') }}</span>
-            <input
-              type="color"
-              class="pdf-color-input"
-              :value="editorParams.inkColor"
-              @input="setPdfInputValue('editorInkColor', $event.target.value)"
+            <UiColorInput
+              class="pdf-color-input-shell"
+              :model-value="editorParams.inkColor"
+              @update:modelValue="setPdfInputValue('editorInkColor', $event)"
             />
           </label>
           <label class="pdf-toolbar-field">
             <span class="pdf-toolbar-hint">{{ t('Thickness') }}</span>
-            <input
-              type="range"
+            <UiRangeInput
+              class="pdf-toolbar-range-shell"
+              :model-value="editorParams.inkThickness"
               min="1"
               max="20"
               step="1"
-              :value="editorParams.inkThickness"
-              @input="setPdfInputValue('editorInkThickness', $event.target.value)"
+              @update:modelValue="setPdfInputValue('editorInkThickness', $event)"
             />
           </label>
           <label class="pdf-toolbar-field">
             <span class="pdf-toolbar-hint">{{ t('Opacity') }}</span>
-            <input
-              type="range"
+            <UiRangeInput
+              class="pdf-toolbar-range-shell"
+              :model-value="editorParams.inkOpacity"
               min="0.05"
               max="1"
               step="0.05"
-              :value="editorParams.inkOpacity"
-              @input="setPdfInputValue('editorInkOpacity', $event.target.value)"
+              @update:modelValue="setPdfInputValue('editorInkOpacity', $event)"
             />
           </label>
         </div>
@@ -729,7 +730,7 @@
       <Teleport to="body">
         <div
           v-if="pdfTranslationMenu.show"
-          class="fixed inset-0 z-[999]"
+          class="pdf-menu-backdrop fixed inset-0"
           @click="closePdfTranslationMenu"
           @contextmenu.prevent="closePdfTranslationMenu"
         ></div>
@@ -761,7 +762,7 @@
       <Teleport to="body">
         <div
           v-if="pdfContextMenu.show"
-          class="fixed inset-0 z-[999]"
+          class="pdf-menu-backdrop fixed inset-0"
           @click="closePdfContextMenu"
           @contextmenu.prevent="closePdfContextMenu"
         ></div>
@@ -877,7 +878,6 @@
         :src="viewerSrc"
         class="pdf-viewer-frame w-full h-full border-0"
         tabindex="0"
-        style="display: block"
         @focus="markPaneActive"
         @load="onIframeLoad"
       />
@@ -890,19 +890,17 @@
 
       <div
         v-if="loading"
-        class="absolute inset-0 flex items-center justify-center text-sm"
-        style="color: var(--fg-muted); background: var(--bg-primary)"
+        class="pdf-viewer-state absolute inset-0 flex items-center justify-center text-sm"
       >
         {{ t('Loading PDF...') }}
       </div>
       <div
         v-else-if="error"
-        class="absolute inset-0 flex items-center justify-center px-6 text-sm"
-        style="color: var(--fg-muted); background: var(--bg-primary)"
+        class="pdf-viewer-state absolute inset-0 flex items-center justify-center px-6 text-sm"
       >
         <div class="max-w-xl text-center">
           <div>{{ t('Could not load PDF') }}</div>
-          <div v-if="error" class="mt-2 text-xs" style="word-break: break-word">{{ error }}</div>
+          <div v-if="error" class="pdf-viewer-error-text mt-2 text-xs">{{ error }}</div>
         </div>
       </div>
     </div>
@@ -939,6 +937,10 @@ import {
   IconTool,
 } from '@tabler/icons-vue'
 import UiButton from '../shared/ui/UiButton.vue'
+import UiColorInput from '../shared/ui/UiColorInput.vue'
+import UiInput from '../shared/ui/UiInput.vue'
+import UiRangeInput from '../shared/ui/UiRangeInput.vue'
+import UiSelect from '../shared/ui/UiSelect.vue'
 import { invoke } from '@tauri-apps/api/core'
 import { useI18n } from '../../i18n'
 import { useEditorStore } from '../../stores/editor'
@@ -1134,6 +1136,10 @@ let sidebarEverOpened = false
 let sidebarViewOverride = ''
 let viewerFrameRevision = 0
 let activationRestoreToken = 0
+
+function resolveUiInputElement(component) {
+  return component?.inputEl?.value || null
+}
 
 const LIGHT_THEMES = new Set(['light', 'one-light', 'humane', 'solarized'])
 const isDark = computed(() => !LIGHT_THEMES.has(workspace.theme))
@@ -3069,7 +3075,7 @@ function syncPdfUi() {
   syncPdfViewerLocalizedLabels()
   syncEmbeddedSidebarShell()
 
-  if (pageInputRef.value !== document.activeElement) {
+  if (resolveUiInputElement(pageInputRef.value) !== document.activeElement) {
     pageInputValue.value = String(pdfUi.pageNumber || 1)
   }
 }
@@ -3162,8 +3168,8 @@ function submitPageNumber() {
   scrollToPage(targetPage)
 }
 
-function handleScaleSelectChange(event) {
-  const nextValue = String(event?.target?.value || '').trim()
+function handleScaleSelectChange(valueOrEvent) {
+  const nextValue = String(valueOrEvent?.target?.value ?? valueOrEvent ?? '').trim()
   const scaleSelect = getPdfElement('scaleSelect')
   if (!nextValue || !scaleSelect) return
   scaleSelect.value = nextValue
@@ -4550,39 +4556,42 @@ defineExpose({
   height: 18px;
 }
 
-.pdf-toolbar-input,
-.pdf-toolbar-select {
-  height: 20px;
+.pdf-toolbar-input-shell,
+.pdf-toolbar-select-shell {
+  min-height: 20px;
   border-radius: 6px;
-  border: 1px solid var(--border);
+  border-color: var(--border);
   background: color-mix(in srgb, var(--bg-primary) 82%, var(--bg-secondary));
-  color: var(--fg-primary);
-  font-size: var(--ui-font-caption);
-  line-height: 1;
-  appearance: none;
 }
 
-.pdf-toolbar-input {
+.pdf-toolbar-input-shell {
   padding: 0 8px;
 }
 
-.pdf-toolbar-search {
-  width: 220px;
+.pdf-toolbar-input-shell :deep(.ui-input-control),
+.pdf-toolbar-select-shell :deep(.ui-select-control) {
+  font-size: var(--ui-font-caption);
+  line-height: 1;
 }
 
-.pdf-toolbar-select {
+.pdf-toolbar-input-shell :deep(.ui-input-control) {
+  padding: 0;
+}
+
+.pdf-toolbar-select-shell {
   min-width: 120px;
+}
+
+.pdf-toolbar-select-shell :deep(.ui-select-control) {
   padding: 0 24px 0 8px;
-  background-image:
-    linear-gradient(45deg, transparent 50%, currentColor 50%),
-    linear-gradient(135deg, currentColor 50%, transparent 50%);
-  background-position:
-    calc(100% - 11px) calc(50% - 1px),
-    calc(100% - 7px) calc(50% - 1px);
-  background-size:
-    4px 4px,
-    4px 4px;
-  background-repeat: no-repeat;
+}
+
+.pdf-toolbar-select-shell :deep(.ui-select-caret) {
+  right: 8px;
+}
+
+.pdf-toolbar-search-shell {
+  width: 220px;
 }
 
 .pdf-page-indicator {
@@ -4591,8 +4600,12 @@ defineExpose({
   gap: 6px;
 }
 
-.pdf-page-input {
+.pdf-page-input-shell {
   width: 36px;
+  padding: 0 6px;
+}
+
+.pdf-page-input-shell :deep(.ui-input-control) {
   text-align: center;
   font-size: var(--ui-font-caption);
   font-weight: 600;
@@ -4664,7 +4677,7 @@ defineExpose({
   width: 100%;
 }
 
-.pdf-search-popover-row-main .pdf-toolbar-search {
+.pdf-search-popover-row-main .pdf-toolbar-search-shell {
   width: 100%;
   min-width: 0;
 }
@@ -4719,11 +4732,6 @@ defineExpose({
   gap: 6px;
 }
 
-.pdf-toolbar-field input[type='range'] {
-  width: 100%;
-  accent-color: var(--accent);
-}
-
 .pdf-color-grid {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -4761,13 +4769,33 @@ defineExpose({
   border: 1px solid color-mix(in srgb, var(--border) 92%, transparent);
 }
 
-.pdf-color-input {
+.pdf-color-input-shell {
   width: 100%;
-  height: 28px;
-  padding: 0;
-  border: 1px solid var(--border);
+  min-height: 28px;
   border-radius: 8px;
+  border-color: var(--border);
   background: color-mix(in srgb, var(--bg-primary) 82%, var(--bg-secondary));
+}
+
+.pdf-toolbar-range-shell :deep(.ui-range-input-control) {
+  width: 100%;
+}
+
+.pdf-menu-backdrop {
+  z-index: calc(var(--z-modal) - 1);
+}
+
+.pdf-viewer-frame {
+  display: block;
+}
+
+.pdf-viewer-state {
+  color: var(--fg-muted);
+  background: var(--bg-primary);
+}
+
+.pdf-viewer-error-text {
+  word-break: break-word;
 }
 
 .pdf-toolbar-menu-item {

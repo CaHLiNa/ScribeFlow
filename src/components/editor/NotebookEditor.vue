@@ -23,8 +23,8 @@
         <!-- Kernel status (when Jupyter mode and kernel active) -->
         <span
           v-if="mode === 'jupyter' && kernelId"
-          class="ui-text-micro px-1.5 py-0.5 rounded font-medium"
-          :style="kernelStatusStyle"
+          class="nb-kernel-status"
+          :class="kernelStatusToneClass"
         >
           {{ kernelStatusLabel }}
         </span>
@@ -91,7 +91,7 @@
     <Teleport to="body">
       <div
         v-if="showStatusPopover"
-        class="fixed inset-0 z-[9999]"
+        class="nb-status-popover-backdrop fixed inset-0"
         @click="showStatusPopover = false"
       >
         <div
@@ -359,7 +359,7 @@ const {
   statusChipClass,
   statusDotClass,
   kernelStatusLabel,
-  kernelStatusStyle,
+  kernelStatusToneClass,
   setCellRef,
   toggleStatusPopover,
   handleInstallKernel,
@@ -489,13 +489,40 @@ function healthStatusClass(status) {
 /* Status popover */
 .nb-status-popover {
   position: fixed;
-  z-index: 10000;
+  z-index: var(--z-modal);
   width: 300px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  padding: var(--space-3);
+}
+
+.nb-status-popover-backdrop {
+  z-index: var(--z-modal);
+}
+
+.nb-kernel-status {
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: var(--ui-font-micro);
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.nb-kernel-status-idle {
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+}
+
+.nb-kernel-status-busy {
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 14%, transparent);
+}
+
+.nb-kernel-status-disconnected {
+  color: var(--fg-muted);
   background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-  padding: 12px;
 }
 
 .nb-pop-section {
@@ -538,13 +565,13 @@ function healthStatusClass(status) {
 }
 
 .nb-pop-status-good {
-  background: rgba(80, 250, 123, 0.06);
-  color: var(--success, #50fa7b);
+  background: color-mix(in srgb, var(--success) 8%, transparent);
+  color: var(--success);
 }
 
 .nb-pop-status-none {
-  background: rgba(247, 118, 142, 0.06);
-  color: var(--error, #f7768e);
+  background: color-mix(in srgb, var(--error) 8%, transparent);
+  color: var(--error);
 }
 
 .nb-pop-dot {
@@ -556,7 +583,7 @@ function healthStatusClass(status) {
 }
 
 .nb-pop-dot.good {
-  background: var(--success, #50fa7b);
+  background: var(--success);
 }
 .nb-pop-dot.none {
   background: var(--fg-muted);

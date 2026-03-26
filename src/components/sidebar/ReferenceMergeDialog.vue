@@ -1,98 +1,133 @@
 <template>
-  <Teleport to="body">
-    <div class="ref-merge-overlay" @click.self="$emit('close')">
-      <div class="ref-merge-modal">
-        <div class="ref-merge-header">
-          <div>
-            <div class="ref-merge-title">{{ t('Merge Duplicate Reference') }}</div>
-            <div class="ref-merge-subtitle">
-              {{ t('Review each field and choose whether to keep the current library value or use the imported value.') }}
+  <UiModalShell
+    visible
+    close-on-backdrop
+    :body-padding="false"
+    overlay-class="ref-merge-overlay"
+    surface-class="ref-merge-modal"
+    :surface-style="{ width: 'min(980px, calc(100vw - 48px))', maxHeight: 'min(82vh, 920px)' }"
+    @close="$emit('close')"
+  >
+    <template #header>
+      <div class="ref-merge-header">
+        <div>
+          <div class="ref-merge-title">{{ t('Merge Duplicate Reference') }}</div>
+          <div class="ref-merge-subtitle">
+            {{
+              t(
+                'Review each field and choose whether to keep the current library value or use the imported value.'
+              )
+            }}
+          </div>
+        </div>
+        <UiButton
+          variant="ghost"
+          size="icon-sm"
+          icon-only
+          :title="t('Close pane')"
+          :aria-label="t('Close pane')"
+          @click="$emit('close')"
+        >
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 10 10"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+          >
+            <path d="M2 2l6 6M8 2l-6 6" />
+          </svg>
+        </UiButton>
+      </div>
+    </template>
+
+    <div class="ref-merge-body">
+      <div class="ref-merge-summary">
+        <span class="ref-merge-chip">{{ duplicateLabel }}</span>
+        <span v-if="item?.existingKey" class="ref-merge-chip">{{
+          t('Matches existing reference @{key}', { key: item.existingKey })
+        }}</span>
+        <span v-if="item?.matchReason" class="ref-merge-chip">{{
+          matchReasonLabel(item.matchReason)
+        }}</span>
+      </div>
+
+      <div v-if="fieldRows.length > 0" class="ref-merge-fields">
+        <section v-for="field in fieldRows" :key="field.key" class="ref-merge-field">
+          <div class="ref-merge-field-top">
+            <div class="ref-merge-field-label">{{ field.label }}</div>
+            <div class="ref-merge-toggle">
+              <UiButton
+                class="ref-merge-toggle-btn"
+                :active="selections[field.key] === 'existing'"
+                variant="secondary"
+                size="sm"
+                @click="selectField(field.key, 'existing')"
+              >
+                {{ t('Keep current') }}
+              </UiButton>
+              <UiButton
+                class="ref-merge-toggle-btn"
+                :active="selections[field.key] === 'incoming'"
+                variant="secondary"
+                size="sm"
+                @click="selectField(field.key, 'incoming')"
+              >
+                {{ t('Use imported') }}
+              </UiButton>
             </div>
           </div>
-          <button
-            type="button"
-            class="ref-merge-close"
-            :title="t('Close pane')"
-            @click="$emit('close')"
-          >
-            <svg width="12" height="12" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5">
-              <path d="M2 2l6 6M8 2l-6 6"/>
-            </svg>
-          </button>
-        </div>
 
-        <div class="ref-merge-summary">
-          <span class="ref-merge-chip">{{ duplicateLabel }}</span>
-          <span v-if="item?.existingKey" class="ref-merge-chip">{{ t('Matches existing reference @{key}', { key: item.existingKey }) }}</span>
-          <span v-if="item?.matchReason" class="ref-merge-chip">{{ matchReasonLabel(item.matchReason) }}</span>
-        </div>
-
-        <div v-if="fieldRows.length > 0" class="ref-merge-fields">
-          <section v-for="field in fieldRows" :key="field.key" class="ref-merge-field">
-            <div class="ref-merge-field-top">
-              <div class="ref-merge-field-label">{{ field.label }}</div>
-              <div class="ref-merge-toggle">
-                <button
-                  type="button"
-                  class="ref-merge-toggle-btn"
-                  :class="{ 'ref-merge-toggle-btn-active': selections[field.key] === 'existing' }"
-                  @click="selectField(field.key, 'existing')"
-                >
-                  {{ t('Keep current') }}
-                </button>
-                <button
-                  type="button"
-                  class="ref-merge-toggle-btn"
-                  :class="{ 'ref-merge-toggle-btn-active': selections[field.key] === 'incoming' }"
-                  @click="selectField(field.key, 'incoming')"
-                >
-                  {{ t('Use imported') }}
-                </button>
-              </div>
+          <div class="ref-merge-values">
+            <div
+              class="ref-merge-value"
+              :class="{ 'ref-merge-value-active': selections[field.key] === 'existing' }"
+            >
+              <div class="ref-merge-value-label">{{ t('Current library value') }}</div>
+              <div class="ref-merge-value-text">{{ field.existingDisplay || t('No value') }}</div>
             </div>
-
-            <div class="ref-merge-values">
-              <div class="ref-merge-value" :class="{ 'ref-merge-value-active': selections[field.key] === 'existing' }">
-                <div class="ref-merge-value-label">{{ t('Current library value') }}</div>
-                <div class="ref-merge-value-text">{{ field.existingDisplay || t('No value') }}</div>
-              </div>
-              <div class="ref-merge-value" :class="{ 'ref-merge-value-active': selections[field.key] === 'incoming' }">
-                <div class="ref-merge-value-label">{{ t('Imported value') }}</div>
-                <div class="ref-merge-value-text">{{ field.incomingDisplay || t('No value') }}</div>
-              </div>
+            <div
+              class="ref-merge-value"
+              :class="{ 'ref-merge-value-active': selections[field.key] === 'incoming' }"
+            >
+              <div class="ref-merge-value-label">{{ t('Imported value') }}</div>
+              <div class="ref-merge-value-text">{{ field.incomingDisplay || t('No value') }}</div>
             </div>
-          </section>
-        </div>
+          </div>
+        </section>
+      </div>
 
-        <div v-else class="ref-merge-empty">
-          {{ t('No differing fields found.') }}
-        </div>
+      <div v-else class="ref-merge-empty">
+        {{ t('No differing fields found.') }}
+      </div>
 
-        <div class="ref-merge-footer">
-          <button
-            v-if="item?.existingKey"
-            type="button"
-            class="ref-merge-secondary"
-            @click="$emit('view-existing', item.existingKey)"
-          >
-            {{ t('View') }}
-          </button>
-          <div class="ref-merge-footer-spacer"></div>
-          <button type="button" class="ref-merge-secondary" @click="$emit('close')">
-            {{ t('Cancel') }}
-          </button>
-          <button type="button" class="ref-merge-primary" @click="$emit('confirm', { ...selections })">
-            {{ t('Merge into library') }}
-          </button>
-        </div>
+      <div class="ref-merge-footer">
+        <UiButton
+          v-if="item?.existingKey"
+          variant="secondary"
+          size="sm"
+          @click="$emit('view-existing', item.existingKey)"
+        >
+          {{ t('View') }}
+        </UiButton>
+        <div class="ref-merge-footer-spacer"></div>
+        <UiButton variant="secondary" size="sm" @click="$emit('close')">
+          {{ t('Cancel') }}
+        </UiButton>
+        <UiButton variant="primary" size="sm" @click="$emit('confirm', { ...selections })">
+          {{ t('Merge into library') }}
+        </UiButton>
       </div>
     </div>
-  </Teleport>
+  </UiModalShell>
 </template>
 
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { useI18n } from '../../i18n'
+import UiButton from '../shared/ui/UiButton.vue'
+import UiModalShell from '../shared/ui/UiModalShell.vue'
 
 const FIELD_PRIORITY = [
   'title',
@@ -134,24 +169,16 @@ defineEmits(['close', 'confirm', 'view-existing'])
 const { t } = useI18n()
 const selections = ref({})
 
-const duplicateLabel = computed(() => (
-  props.item?.matchType === 'strong'
-    ? t('Strong duplicate')
-    : t('Possible duplicate')
-))
+const duplicateLabel = computed(() =>
+  props.item?.matchType === 'strong' ? t('Strong duplicate') : t('Possible duplicate')
+)
 
 const fieldRows = computed(() => {
   const existing = props.existingRef || {}
   const incoming = props.item?.csl || {}
-  const fieldKeys = Array.from(new Set([
-    ...Object.keys(existing),
-    ...Object.keys(incoming),
-  ])).filter((field) => (
-    field &&
-    field !== 'id' &&
-    field !== '_key' &&
-    !field.startsWith('_')
-  ))
+  const fieldKeys = Array.from(
+    new Set([...Object.keys(existing), ...Object.keys(incoming)])
+  ).filter((field) => field && field !== 'id' && field !== '_key' && !field.startsWith('_'))
 
   return fieldKeys
     .map((key) => {
@@ -173,15 +200,18 @@ const fieldRows = computed(() => {
     .sort((a, b) => sortFieldKeys(a.key, b.key))
 })
 
-watch(fieldRows, (rows) => {
-  const nextSelections = {}
-  for (const row of rows) {
-    nextSelections[row.key] = !hasValue(row.existingRaw) && hasValue(row.incomingRaw)
-      ? 'incoming'
-      : 'existing'
-  }
-  selections.value = nextSelections
-}, { immediate: true })
+watch(
+  fieldRows,
+  (rows) => {
+    const nextSelections = {}
+    for (const row of rows) {
+      nextSelections[row.key] =
+        !hasValue(row.existingRaw) && hasValue(row.incomingRaw) ? 'incoming' : 'existing'
+    }
+    selections.value = nextSelections
+  },
+  { immediate: true }
+)
 
 function selectField(key, value) {
   selections.value = {
@@ -225,10 +255,12 @@ function formatFieldValue(key, value) {
 }
 
 function matchReasonLabel(reason) {
-  return {
-    doi: t('Exact DOI match'),
-    'title-author-year': t('Title, first author, and year match'),
-  }[reason] || reason
+  return (
+    {
+      doi: t('Exact DOI match'),
+      'title-author-year': t('Title, first author, and year match'),
+    }[reason] || reason
+  )
 }
 </script>
 
@@ -248,10 +280,6 @@ function matchReasonLabel(reason) {
 .ref-merge-modal {
   width: min(980px, calc(100vw - 48px));
   max-height: min(82vh, 920px);
-  display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
-  gap: 14px;
-  padding: 18px;
   border-radius: 18px;
   border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
   background: color-mix(in srgb, var(--bg-secondary) 94%, var(--bg-primary));
@@ -266,6 +294,10 @@ function matchReasonLabel(reason) {
   gap: 12px;
 }
 
+.ref-merge-header {
+  padding: 18px 18px 0;
+}
+
 .ref-merge-title {
   font-size: 15px;
   font-weight: 700;
@@ -278,28 +310,12 @@ function matchReasonLabel(reason) {
   color: var(--fg-muted);
 }
 
-.ref-merge-close,
-.ref-merge-primary,
-.ref-merge-secondary,
-.ref-merge-toggle-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 8px;
-  transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease;
-}
-
-.ref-merge-close {
-  width: 28px;
-  height: 28px;
-  border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
-  color: var(--fg-muted);
-}
-
-.ref-merge-close:hover,
-.ref-merge-secondary:hover {
-  background: var(--bg-hover);
-  color: var(--fg-primary);
+.ref-merge-body {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 14px;
+  min-height: 0;
+  padding: 0 18px 18px;
 }
 
 .ref-merge-summary {
@@ -354,21 +370,11 @@ function matchReasonLabel(reason) {
   gap: 6px;
 }
 
-.ref-merge-toggle-btn,
-.ref-merge-secondary,
-.ref-merge-primary {
-  min-height: 30px;
-  padding: 0 12px;
-  border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
-  font-size: var(--ui-font-caption);
-}
-
 .ref-merge-toggle-btn {
-  color: var(--fg-secondary);
-  background: transparent;
+  min-width: 112px;
 }
 
-.ref-merge-toggle-btn-active {
+.ref-merge-toggle-btn.is-active {
   color: var(--accent);
   border-color: color-mix(in srgb, var(--accent) 28%, transparent);
   background: color-mix(in srgb, var(--accent) 10%, transparent);
@@ -412,17 +418,6 @@ function matchReasonLabel(reason) {
   color: var(--fg-muted);
   font-size: var(--ui-font-caption);
   border: 1px dashed color-mix(in srgb, var(--border) 86%, transparent);
-}
-
-.ref-merge-secondary {
-  color: var(--fg-secondary);
-  background: transparent;
-}
-
-.ref-merge-primary {
-  color: var(--bg-primary);
-  background: var(--accent);
-  border-color: color-mix(in srgb, var(--accent) 28%, transparent);
 }
 
 .ref-merge-footer-spacer {

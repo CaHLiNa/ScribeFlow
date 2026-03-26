@@ -2,14 +2,13 @@
   <Teleport to="body">
     <div v-if="isEdit" class="cp-backdrop" @mousedown.prevent="emit('close')"></div>
     <div ref="paletteEl" class="citation-palette" :style="posStyle">
-
       <!-- ═══ EDIT MODE: Cited Entries ═══ -->
       <div v-if="isEdit && editEntries.length" class="cp-entries">
         <div
           v-for="(entry, idx) in editEntries"
           :key="entry.key"
           class="cp-entry"
-          :style="{ borderBottom: idx < editEntries.length - 1 ? '1px solid var(--border)' : '' }"
+          :class="{ 'cp-entry-with-divider': idx < editEntries.length - 1 }"
         >
           <div class="cp-entry-top">
             <template v-if="entry.ref">
@@ -21,37 +20,78 @@
           </div>
           <div class="cp-entry-line2">
             <span class="cp-key">@{{ entry.key }}</span>
-            <input
+            <UiInput
               class="cp-locator"
-              :value="entry.locator"
+              :model-value="entry.locator"
+              size="sm"
+              shell-class="cp-locator-shell"
               placeholder="p."
-              @input="updateLocator(idx, $event.target.value)"
+              @update:modelValue="updateLocator(idx, $event)"
               @keydown.stop
             />
             <div class="cp-entry-actions">
-              <button
+              <UiButton
+                variant="ghost"
+                size="icon-xs"
+                icon-only
                 class="cp-ebtn"
                 :disabled="idx === 0"
-                @mousedown.prevent="moveUp(idx)"
                 :title="t('Move up')"
+                :aria-label="t('Move up')"
+                @mousedown.prevent="moveUp(idx)"
               >
-                <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 6l3-3 3 3"/></svg>
-              </button>
-              <button
+                <svg
+                  width="10"
+                  height="10"
+                  viewBox="0 0 10 10"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                >
+                  <path d="M2 6l3-3 3 3" />
+                </svg>
+              </UiButton>
+              <UiButton
+                variant="ghost"
+                size="icon-xs"
+                icon-only
                 class="cp-ebtn"
                 :disabled="idx === editEntries.length - 1"
-                @mousedown.prevent="moveDown(idx)"
                 :title="t('Move down')"
+                :aria-label="t('Move down')"
+                @mousedown.prevent="moveDown(idx)"
               >
-                <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4l3 3 3-3"/></svg>
-              </button>
-              <button
+                <svg
+                  width="10"
+                  height="10"
+                  viewBox="0 0 10 10"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                >
+                  <path d="M2 4l3 3 3-3" />
+                </svg>
+              </UiButton>
+              <UiButton
+                variant="ghost"
+                size="icon-xs"
+                icon-only
                 class="cp-ebtn cp-ebtn-rm"
-                @mousedown.prevent="removeFromGroup(idx)"
                 :title="t('Remove')"
+                :aria-label="t('Remove')"
+                @mousedown.prevent="removeFromGroup(idx)"
               >
-                <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 2l6 6M8 2l-6 6"/></svg>
-              </button>
+                <svg
+                  width="10"
+                  height="10"
+                  viewBox="0 0 10 10"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                >
+                  <path d="M2 2l6 6M8 2l-6 6" />
+                </svg>
+              </UiButton>
             </div>
           </div>
         </div>
@@ -77,17 +117,23 @@
           </div>
         </template>
         <div v-else-if="query" class="cp-empty">{{ t('No matching references') }}</div>
-        <div v-else-if="!referencesStore.library.length" class="cp-empty">{{ t('No references yet') }}</div>
+        <div v-else-if="!referencesStore.library.length" class="cp-empty">
+          {{ t('No references yet') }}
+        </div>
       </div>
 
       <!-- ═══ EDIT MODE: Add Another Reference ═══ -->
       <div v-if="isEdit && !showImport" class="cp-add">
-        <input
+        <UiInput
           ref="addInputEl"
           v-model="addQuery"
           class="cp-add-input"
+          shell-class="cp-add-input-shell"
           :placeholder="t('Search library to add...')"
-          autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+          autocomplete="off"
+          autocorrect="off"
+          autocapitalize="off"
+          spellcheck="false"
           @keydown="handleAddKeydown"
         />
         <div v-if="addResults.length" class="cp-add-results">
@@ -112,25 +158,29 @@
       <!-- ═══ IMPORT SECTION ═══ -->
       <div v-if="showImport" class="cp-import">
         <div class="cp-import-hdr">{{ t('Add New Reference') }}</div>
-        <textarea
+        <UiTextarea
           ref="importTextEl"
           v-model="importText"
           class="cp-import-ta"
+          shell-class="cp-import-ta-shell"
           :placeholder="t('Paste DOI / BibTeX / RIS / title...')"
           rows="2"
           @keydown.meta.enter="doImport"
           @keydown.ctrl.enter="doImport"
           @keydown.stop
-        ></textarea>
+        />
         <div class="cp-import-bar">
           <span v-if="importLoading" class="cp-import-status">{{ t('Looking up...') }}</span>
           <span v-else-if="importErrors.length" class="cp-import-err">{{ importErrors[0] }}</span>
           <div class="flex-1"></div>
-          <button
+          <UiButton
+            variant="primary"
+            size="sm"
             class="cp-btn-accent"
             :disabled="importLoading || !importText.trim()"
             @mousedown.prevent="doImport"
-          >{{ importLoading ? t('Looking up...') : t('Look up') }}</button>
+            >{{ importLoading ? t('Looking up...') : t('Look up') }}</UiButton
+          >
         </div>
 
         <div v-if="importResults.length" class="cp-import-results">
@@ -143,18 +193,29 @@
             </div>
             <div v-if="r.csl['container-title']" class="cp-import-meta">
               <span class="cp-import-journal">{{ r.csl['container-title'] }}</span>
-              <span
-                class="cp-confidence"
-                :class="'cp-conf-' + r.confidence"
-              >{{ confidenceLabel(r.confidence) }}</span>
+              <span class="cp-confidence" :class="'cp-conf-' + r.confidence">{{
+                confidenceLabel(r.confidence)
+              }}</span>
             </div>
             <div class="cp-import-acts">
               <template v-if="r.existingKey && !r.added">
                 <span class="cp-import-exists">{{ t('Already in library') }}</span>
               </template>
               <template v-else-if="!r.added">
-                <button class="cp-btn-accent" @mousedown.prevent="addAndCite(r)">{{ t('Add & Cite') }}</button>
-                <button class="cp-btn-ghost" @mousedown.prevent="addToLibraryOnly(r)">{{ t('Add to Library') }}</button>
+                <UiButton
+                  variant="primary"
+                  size="sm"
+                  class="cp-btn-accent"
+                  @mousedown.prevent="addAndCite(r)"
+                  >{{ t('Add & Cite') }}</UiButton
+                >
+                <UiButton
+                  variant="secondary"
+                  size="sm"
+                  class="cp-btn-ghost"
+                  @mousedown.prevent="addToLibraryOnly(r)"
+                  >{{ t('Add to Library') }}</UiButton
+                >
               </template>
               <span v-else class="cp-import-done">{{ t('Added') }}</span>
             </div>
@@ -167,7 +228,6 @@
         <span>{{ showImport ? t('Back to search') : t('Import new reference...') }}</span>
         <span v-if="!showImport" class="cp-plus">+</span>
       </div>
-
     </div>
   </Teleport>
 </template>
@@ -178,15 +238,18 @@ import { useReferencesStore } from '../../stores/references'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { importFromText } from '../../services/referenceImport'
 import { useI18n } from '../../i18n'
+import UiButton from '../shared/ui/UiButton.vue'
+import UiInput from '../shared/ui/UiInput.vue'
+import UiTextarea from '../shared/ui/UiTextarea.vue'
 
 // ─── Props & Emits ──────────────────────────────────────────
 
 const props = defineProps({
-  mode:         { type: String, required: true },   // 'insert' | 'edit'
-  posX:         { type: Number, required: true },
-  posY:         { type: Number, required: true },
-  query:        { type: String, default: '' },       // insert mode: from editor text
-  cites:        { type: Array, default: () => [] },  // edit mode: [{ key, locator, prefix }]
+  mode: { type: String, required: true }, // 'insert' | 'edit'
+  posX: { type: Number, required: true },
+  posY: { type: Number, required: true },
+  query: { type: String, default: '' }, // insert mode: from editor text
+  cites: { type: Array, default: () => [] }, // edit mode: [{ key, locator, prefix }]
   latexCommand: { type: String, default: null },
 })
 
@@ -207,9 +270,14 @@ const importTextEl = ref(null)
 // ─── State ──────────────────────────────────────────────────
 
 const internalMode = ref(props.mode)
-watch(() => props.mode, (val) => { internalMode.value = val })
+watch(
+  () => props.mode,
+  (val) => {
+    internalMode.value = val
+  }
+)
 const selectedIdx = ref(0)
-const editCites = ref(props.cites.map(c => ({ ...c })))
+const editCites = ref(props.cites.map((c) => ({ ...c })))
 
 // Add-another search (edit mode)
 const addQuery = ref('')
@@ -235,7 +303,7 @@ const filteredResults = computed(() => {
 })
 
 const editEntries = computed(() =>
-  editCites.value.map(c => ({
+  editCites.value.map((c) => ({
     ...c,
     ref: referencesStore.getByKey(c.key),
   }))
@@ -243,17 +311,16 @@ const editEntries = computed(() =>
 
 const addResults = computed(() => {
   if (!addQuery.value.trim()) return []
-  const cited = new Set(editCites.value.map(c => c.key))
-  return referencesStore.searchGlobalRefs(addQuery.value.trim())
-    .filter(r => !cited.has(r._key))
+  const cited = new Set(editCites.value.map((c) => c.key))
+  return referencesStore
+    .searchGlobalRefs(addQuery.value.trim())
+    .filter((r) => !cited.has(r._key))
     .slice(0, 10)
 })
 
 const posStyle = computed(() => ({
-  position: 'fixed',
   left: Math.min(props.posX, window.innerWidth - 400) + 'px',
   top: Math.min(props.posY + 4, window.innerHeight - 540) + 'px',
-  zIndex: 9999,
 }))
 
 // ─── Helpers ────────────────────────────────────────────────
@@ -272,12 +339,14 @@ function getYear(r) {
 }
 
 function confidenceLabel(c) {
-  return {
-    verified: t('Verified'),
-    matched: t('Matched'),
-    unverified: t('Unverified'),
-    failed: t('Failed'),
-  }[c] || ''
+  return (
+    {
+      verified: t('Verified'),
+      matched: t('Matched'),
+      unverified: t('Unverified'),
+      failed: t('Failed'),
+    }[c] || ''
+  )
 }
 
 // ─── Insert Mode Actions ────────────────────────────────────
@@ -302,7 +371,7 @@ function addToGroup(key) {
   editCites.value.push({ key, locator: '', prefix: '' })
   addQuery.value = ''
   addSelectedIdx.value = 0
-  emit('update', { cites: editCites.value.map(c => ({ ...c })) })
+  emit('update', { cites: editCites.value.map((c) => ({ ...c })) })
 }
 
 function removeFromGroup(idx) {
@@ -312,12 +381,12 @@ function removeFromGroup(idx) {
     emit('close')
     return
   }
-  emit('update', { cites: editCites.value.map(c => ({ ...c })) })
+  emit('update', { cites: editCites.value.map((c) => ({ ...c })) })
 }
 
 function updateLocator(idx, value) {
   editCites.value[idx].locator = value
-  emit('update', { cites: editCites.value.map(c => ({ ...c })) })
+  emit('update', { cites: editCites.value.map((c) => ({ ...c })) })
 }
 
 function moveUp(idx) {
@@ -325,7 +394,7 @@ function moveUp(idx) {
   const a = editCites.value[idx]
   const b = editCites.value[idx - 1]
   editCites.value.splice(idx - 1, 2, a, b)
-  emit('update', { cites: editCites.value.map(c => ({ ...c })) })
+  emit('update', { cites: editCites.value.map((c) => ({ ...c })) })
 }
 
 function moveDown(idx) {
@@ -333,7 +402,7 @@ function moveDown(idx) {
   const a = editCites.value[idx]
   const b = editCites.value[idx + 1]
   editCites.value.splice(idx, 2, b, a)
-  emit('update', { cites: editCites.value.map(c => ({ ...c })) })
+  emit('update', { cites: editCites.value.map((c) => ({ ...c })) })
 }
 
 // ─── Import ─────────────────────────────────────────────────
@@ -353,7 +422,7 @@ async function doImport() {
   try {
     const { results, errors } = await importFromText(importText.value, workspace)
     if (unmounted) return
-    importResults.value = results.map(r => ({
+    importResults.value = results.map((r) => ({
       ...r,
       existingKey: referencesStore.findDuplicate?.(r.csl) || null,
       added: false,
@@ -389,8 +458,12 @@ function addToLibraryOnly(r) {
 function handleDocKeydown(e) {
   // Don't intercept when a palette input/textarea has focus
   const active = document.activeElement
-  if (active && paletteEl.value?.contains(active) &&
-      (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) return
+  if (
+    active &&
+    paletteEl.value?.contains(active) &&
+    (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')
+  )
+    return
 
   if (e.key === 'ArrowDown') {
     e.preventDefault()
@@ -452,9 +525,12 @@ function handleOutsideClick(e) {
 
 // ─── Watchers ───────────────────────────────────────────────
 
-watch(() => props.query, () => {
-  selectedIdx.value = 0
-})
+watch(
+  () => props.query,
+  () => {
+    selectedIdx.value = 0
+  }
+)
 
 watch(selectedIdx, async () => {
   await nextTick()
@@ -486,16 +562,18 @@ onUnmounted(() => {
 .cp-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 9998;
+  z-index: calc(var(--z-modal) - 1);
 }
 
 .citation-palette {
+  position: fixed;
+  z-index: var(--z-modal);
   width: 380px;
   max-height: min(75vh, 720px);
   background: var(--bg-secondary);
   border: 1px solid var(--border);
-  border-radius: 8px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -534,11 +612,23 @@ onUnmounted(() => {
   margin-top: 1px;
 }
 
-.cp-author { color: var(--fg-primary); }
-.cp-year { color: var(--fg-muted); margin-left: 2px; }
-.cp-sep { color: var(--fg-muted); }
-.cp-title { color: var(--fg-secondary); }
-.cp-missing { color: var(--error); font-style: italic; }
+.cp-author {
+  color: var(--fg-primary);
+}
+.cp-year {
+  color: var(--fg-muted);
+  margin-left: 2px;
+}
+.cp-sep {
+  color: var(--fg-muted);
+}
+.cp-title {
+  color: var(--fg-secondary);
+}
+.cp-missing {
+  color: var(--error);
+  font-style: italic;
+}
 
 .cp-empty {
   padding: 16px 12px;
@@ -558,6 +648,10 @@ onUnmounted(() => {
   padding: 8px 12px;
 }
 
+.cp-entry-with-divider {
+  border-bottom: 1px solid var(--border);
+}
+
 .cp-entry-top {
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -565,8 +659,12 @@ onUnmounted(() => {
   overflow: hidden;
   line-height: 1.4;
 }
-.cp-entry-top .cp-author { margin-right: 2px; }
-.cp-entry-top .cp-year { margin-right: 4px; }
+.cp-entry-top .cp-author {
+  margin-right: 2px;
+}
+.cp-entry-top .cp-year {
+  margin-right: 4px;
+}
 
 .cp-entry-line2 {
   display: flex;
@@ -581,47 +679,37 @@ onUnmounted(() => {
   color: var(--fg-muted);
 }
 
-.cp-locator {
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border);
-  border-radius: 3px;
-  color: var(--fg-primary);
-  font-size: var(--ui-font-caption);
-  padding: 1px 6px;
+.cp-locator-shell {
   width: 60px;
-  outline: none;
+  min-height: 22px;
+  padding: 0 6px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
 }
-.cp-locator:focus {
-  border-color: var(--accent);
+
+.cp-locator-shell :deep(.ui-input-control) {
+  font-size: var(--ui-font-caption);
 }
 
 .cp-entry-actions {
   display: flex;
-  gap: 2px;
+  gap: 4px;
   margin-left: auto;
 }
 
 .cp-ebtn {
-  width: 20px;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 3px;
-  border: none;
-  background: none;
-  color: var(--fg-muted);
-  cursor: pointer;
-  transition: background 0.1s, color 0.1s;
+  color: var(--text-muted);
 }
+
 .cp-ebtn:hover:not(:disabled) {
-  background: var(--bg-hover);
-  color: var(--fg-primary);
+  color: var(--text-primary);
 }
+
 .cp-ebtn:disabled {
   opacity: 0.25;
   cursor: default;
 }
+
 .cp-ebtn-rm:hover:not(:disabled) {
   color: var(--error);
 }
@@ -633,21 +721,8 @@ onUnmounted(() => {
   padding: 8px 12px;
 }
 
-.cp-add-input {
-  width: 100%;
+.cp-add-input-shell {
   background: var(--bg-tertiary);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  color: var(--fg-primary);
-  font-size: var(--ui-font-label);
-  padding: 5px 8px;
-  outline: none;
-}
-.cp-add-input:focus {
-  border-color: var(--accent);
-}
-.cp-add-input::placeholder {
-  color: var(--fg-muted);
 }
 
 .cp-add-results {
@@ -668,23 +743,13 @@ onUnmounted(() => {
   margin-bottom: 6px;
 }
 
-.cp-import-ta {
-  width: 100%;
-  min-height: 48px;
+.cp-import-ta-shell {
   background: var(--bg-tertiary);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  color: var(--fg-primary);
+}
+
+.cp-import-ta-shell :deep(.ui-textarea-control) {
+  min-height: 48px;
   font-size: var(--ui-font-label);
-  padding: 6px 8px;
-  outline: none;
-  resize: vertical;
-}
-.cp-import-ta:focus {
-  border-color: var(--accent);
-}
-.cp-import-ta::placeholder {
-  color: var(--fg-muted);
 }
 
 .cp-import-bar {
@@ -729,10 +794,22 @@ onUnmounted(() => {
   padding: 0 4px;
   border-radius: 2px;
 }
-.cp-conf-verified { background: rgba(0, 180, 0, 0.12); color: var(--success); }
-.cp-conf-matched  { background: rgba(122, 162, 247, 0.12); color: var(--accent); }
-.cp-conf-unverified { background: rgba(224, 175, 104, 0.12); color: var(--warning); }
-.cp-conf-failed   { background: rgba(255, 80, 80, 0.12); color: var(--error); }
+.cp-conf-verified {
+  background: color-mix(in srgb, var(--success) 14%, transparent);
+  color: var(--success);
+}
+.cp-conf-matched {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+}
+.cp-conf-unverified {
+  background: color-mix(in srgb, var(--warning) 14%, transparent);
+  color: var(--warning);
+}
+.cp-conf-failed {
+  background: color-mix(in srgb, var(--error) 14%, transparent);
+  color: var(--error);
+}
 
 .cp-import-acts {
   display: flex;
@@ -749,38 +826,6 @@ onUnmounted(() => {
 .cp-import-done {
   font-size: var(--ui-font-caption);
   color: var(--success);
-}
-
-/* ── Buttons ── */
-
-.cp-btn-accent {
-  padding: 4px 10px;
-  border-radius: 4px;
-  border: none;
-  background: var(--accent);
-  color: var(--bg-primary);
-  font-size: var(--ui-font-caption);
-  cursor: pointer;
-}
-.cp-btn-accent:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-.cp-btn-accent:hover:not(:disabled) {
-  filter: brightness(1.1);
-}
-
-.cp-btn-ghost {
-  padding: 4px 10px;
-  border-radius: 4px;
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--fg-secondary);
-  font-size: var(--ui-font-caption);
-  cursor: pointer;
-}
-.cp-btn-ghost:hover {
-  background: var(--bg-hover);
 }
 
 /* ── Footer ── */

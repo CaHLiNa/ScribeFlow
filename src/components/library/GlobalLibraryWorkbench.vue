@@ -9,9 +9,15 @@
             </div>
 
             <div class="library-editor-actions">
-              <button type="button" class="library-inline-button" @click="exitEditMode">
+              <UiButton
+                type="button"
+                variant="secondary"
+                size="sm"
+                class="library-inline-button"
+                @click="exitEditMode"
+              >
                 {{ t('Back to overview') }}
-              </button>
+              </UiButton>
             </div>
           </div>
 
@@ -26,9 +32,10 @@
           <div class="library-toolbar">
             <div class="library-toolbar-row">
               <div class="library-search-shell">
-                <input
+                <UiInput
                   v-model="searchQuery"
                   class="library-search-input"
+                  size="sm"
                   :placeholder="t('Search title, author, DOI, tags, abstract...')"
                   autocomplete="off"
                   autocorrect="off"
@@ -37,31 +44,39 @@
                 />
               </div>
 
-              <select v-model="sortKey" class="library-select">
+              <UiSelect v-model="sortKey" size="sm" class="library-select">
                 <option value="added-desc">{{ t('Date added (newest)') }}</option>
                 <option value="year-desc">{{ t('Year (newest)') }}</option>
                 <option value="year-asc">{{ t('Year (oldest)') }}</option>
                 <option value="title-asc">{{ t('Title A → Z') }}</option>
                 <option value="author-asc">{{ t('Author A → Z') }}</option>
-              </select>
+              </UiSelect>
 
-              <button type="button" class="library-inline-button is-primary" @click="showImportDialog = true">
+              <UiButton
+                type="button"
+                variant="primary"
+                size="sm"
+                class="library-inline-button"
+                @click="showImportDialog = true"
+              >
                 {{ t('Import references') }}
-              </button>
+              </UiButton>
             </div>
 
             <div v-if="selectedTags.length > 0" class="library-filter-row is-tag-summary">
               <div class="library-section-label">{{ t('Tags') }}</div>
               <div class="library-filter-chip-row">
-                <button
+                <UiButton
                   v-for="tag in selectedTags"
                   :key="tag"
-                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  :active="true"
                   class="library-filter-chip"
                   @click="toggleTag(tag)"
                 >
                   {{ tag }}
-                </button>
+                </UiButton>
               </div>
             </div>
 
@@ -72,37 +87,66 @@
                 </div>
                 <div class="library-batch-actions">
                   <div class="library-batch-group">
-                    <button type="button" class="library-inline-button" @click="addSelectionToWorkspace">
+                    <UiButton
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      class="library-inline-button"
+                      @click="addSelectionToWorkspace"
+                    >
                       {{ t('Add to project') }}
-                    </button>
-                    <button type="button" class="library-inline-button" @click="removeSelectionFromWorkspace">
+                    </UiButton>
+                    <UiButton
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      class="library-inline-button"
+                      @click="removeSelectionFromWorkspace"
+                    >
                       {{ t('Remove from this project') }}
-                    </button>
+                    </UiButton>
                   </div>
 
                   <div class="library-batch-group is-fluid">
-                    <select v-model="batchTagAction" class="library-select library-batch-select">
+                    <UiSelect
+                      v-model="batchTagAction"
+                      size="sm"
+                      class="library-select library-batch-select"
+                    >
                       <option value="add">{{ t('Add tags') }}</option>
                       <option value="replace">{{ t('Replace tags') }}</option>
                       <option value="remove">{{ t('Remove tags') }}</option>
-                    </select>
-                    <input
+                    </UiSelect>
+                    <UiInput
                       v-model="tagActionInput"
                       class="library-batch-input"
+                      size="sm"
                       :placeholder="t('comma-separated')"
                       autocomplete="off"
                       autocorrect="off"
                       autocapitalize="off"
                       spellcheck="false"
                     />
-                    <button type="button" class="library-inline-button" @click="applyTagAction(batchTagAction)">
+                    <UiButton
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      class="library-inline-button"
+                      @click="applyTagAction(batchTagAction)"
+                    >
                       {{ t('Apply') }}
-                    </button>
+                    </UiButton>
                   </div>
                 </div>
-                <button type="button" class="library-link-button" @click="clearSelection">
+                <UiButton
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  class="library-link-button"
+                  @click="clearSelection"
+                >
                   {{ t('Clear') }}
-                </button>
+                </UiButton>
               </div>
             </div>
           </div>
@@ -119,14 +163,22 @@
               <template v-if="isLibraryLoading">
                 <div class="library-empty-state">
                   <div class="library-empty-title">{{ t('Loading references...') }}</div>
-                  <div class="library-empty-copy">{{ t('Global library is loading for this project context.') }}</div>
+                  <div class="library-empty-copy">
+                    {{ t('Global library is loading for this project context.') }}
+                  </div>
                 </div>
               </template>
 
               <template v-else-if="filteredRefs.length === 0">
                 <div class="library-empty-state">
                   <div class="library-empty-title">{{ t('Nothing in this view yet.') }}</div>
-                  <div class="library-empty-copy">{{ t('Switch library views, clear tag filters, or import references into the global library.') }}</div>
+                  <div class="library-empty-copy">
+                    {{
+                      t(
+                        'Switch library views, clear tag filters, or import references into the global library.'
+                      )
+                    }}
+                  </div>
                 </div>
               </template>
 
@@ -140,18 +192,23 @@
                   @dblclick="enterEditMode(refItem._key)"
                   @contextmenu.prevent.stop="openRowContextMenu($event, refItem._key)"
                 >
-                  <label class="library-checkbox-cell" @click.stop>
-                    <input
-                      :checked="selectedKeySet.has(refItem._key)"
-                      type="checkbox"
-                      @change="toggleSelection(refItem._key)"
+                  <div class="library-checkbox-cell" @click.stop>
+                    <UiCheckbox
+                      :model-value="selectedKeySet.has(refItem._key)"
+                      size="sm"
+                      :aria-label="`Select reference ${refItem._key}`"
+                      @update:modelValue="toggleSelection(refItem._key)"
                     />
-                  </label>
+                  </div>
 
                   <div class="library-ref-cell">
                     <div class="library-ref-title-row">
-                      <span class="library-ref-title">{{ refItem.title || `@${refItem._key}` }}</span>
-                      <span v-if="refItem._needsReview" class="library-state-pill warning">{{ t('Needs review') }}</span>
+                      <span class="library-ref-title">{{
+                        refItem.title || `@${refItem._key}`
+                      }}</span>
+                      <span v-if="refItem._needsReview" class="library-state-pill warning">{{
+                        t('Needs review')
+                      }}</span>
                       <span v-if="refItem._pdfFile" class="library-state-pill">{{ t('PDF') }}</span>
                     </div>
                     <div class="library-ref-meta">
@@ -181,7 +238,10 @@
                   </div>
 
                   <div class="library-project-cell">
-                    <span class="library-state-pill" :class="{ active: isInCurrentProject(refItem._key) }">
+                    <span
+                      class="library-state-pill"
+                      :class="{ active: isInCurrentProject(refItem._key) }"
+                    >
                       {{ isInCurrentProject(refItem._key) ? t('In project') : t('Library only') }}
                     </span>
                   </div>
@@ -193,10 +253,7 @@
       </template>
     </div>
 
-    <AddReferenceDialog
-      v-if="showImportDialog"
-      @close="showImportDialog = false"
-    />
+    <AddReferenceDialog v-if="showImportDialog" @close="showImportDialog = false" />
 
     <SurfaceContextMenu
       :visible="contextMenu.visible"
@@ -220,6 +277,10 @@ import { useLibraryWorkbenchUi } from '../../composables/useLibraryWorkbenchUi'
 import { openReferencePdfInWorkspace } from '../../domains/reference/referenceNavigation'
 import AddReferenceDialog from '../sidebar/AddReferenceDialog.vue'
 import SurfaceContextMenu from '../shared/SurfaceContextMenu.vue'
+import UiButton from '../shared/ui/UiButton.vue'
+import UiCheckbox from '../shared/ui/UiCheckbox.vue'
+import UiInput from '../shared/ui/UiInput.vue'
+import UiSelect from '../shared/ui/UiSelect.vue'
 
 const LibraryReferenceEditor = defineAsyncComponent(() => import('./LibraryReferenceEditor.vue'))
 
@@ -303,16 +364,12 @@ const contextMenuGroups = computed(() => {
       { key: 'reference-project', items: [projectItem] },
       {
         key: 'reference-danger',
-        items: [
-          { key: 'delete-global', label: t('Delete from global library'), danger: true },
-        ],
+        items: [{ key: 'delete-global', label: t('Delete from global library'), danger: true }],
       },
     ]
   }
 
-  const generalItems = [
-    { key: 'import-references', label: t('Import references') },
-  ]
+  const generalItems = [{ key: 'import-references', label: t('Import references') }]
   if (hasSelection.value) {
     generalItems.push({ key: 'clear-selection', label: t('Clear selection') })
   }
@@ -320,9 +377,7 @@ const contextMenuGroups = computed(() => {
     generalItems.push({ key: 'clear-filters', label: t('Clear filters') })
   }
 
-  const groups = [
-    { key: 'library-general', items: generalItems },
-  ]
+  const groups = [{ key: 'library-general', items: generalItems }]
 
   if (hasSelection.value) {
     const selectionItems = [
@@ -332,7 +387,11 @@ const contextMenuGroups = computed(() => {
         label: t('Remove selection from this project'),
         danger: hasSelectionInProject.value,
       },
-      { key: 'delete-selection-global', label: t('Delete selection from global library'), danger: true },
+      {
+        key: 'delete-selection-global',
+        label: t('Delete selection from global library'),
+        danger: true,
+      },
     ]
     groups.push({ key: 'library-selection', items: selectionItems })
   }
@@ -361,30 +420,38 @@ const contextMenuGroups = computed(() => {
   return groups
 })
 
-watch(filteredRefs, (refs) => {
-  closeContextMenu()
-  const visibleKeys = new Set(refs.map((item) => item._key))
-  selectedKeys.value = selectedKeys.value.filter((key) => visibleKeys.has(key))
+watch(
+  filteredRefs,
+  (refs) => {
+    closeContextMenu()
+    const visibleKeys = new Set(refs.map((item) => item._key))
+    selectedKeys.value = selectedKeys.value.filter((key) => visibleKeys.has(key))
 
-  if (referencesStore.activeKey && referencesStore.getByKey(referencesStore.activeKey)) {
-    if (isEditing.value) return
-    if (visibleKeys.has(referencesStore.activeKey)) return
-  }
+    if (referencesStore.activeKey && referencesStore.getByKey(referencesStore.activeKey)) {
+      if (isEditing.value) return
+      if (visibleKeys.has(referencesStore.activeKey)) return
+    }
 
-  referencesStore.activeKey = refs[0]?._key || null
-}, { immediate: true })
+    referencesStore.activeKey = refs[0]?._key || null
+  },
+  { immediate: true }
+)
 
-watch(allRefs, (refs) => {
-  closeContextMenu()
-  const availableKeys = new Set(refs.map((item) => item._key))
-  selectedKeys.value = selectedKeys.value.filter((key) => availableKeys.has(key))
-  if (referencesStore.activeKey && !availableKeys.has(referencesStore.activeKey)) {
-    referencesStore.activeKey = null
-    referencesStore.closeLibraryDetailMode()
-  }
-}, { deep: true })
+watch(
+  allRefs,
+  (refs) => {
+    closeContextMenu()
+    const availableKeys = new Set(refs.map((item) => item._key))
+    selectedKeys.value = selectedKeys.value.filter((key) => availableKeys.has(key))
+    if (referencesStore.activeKey && !availableKeys.has(referencesStore.activeKey)) {
+      referencesStore.activeKey = null
+      referencesStore.closeLibraryDetailMode()
+    }
+  },
+  { deep: true }
+)
 
-watch(isEditing, (editing) => {
+watch(isEditing, () => {
   closeContextMenu()
 })
 
@@ -494,9 +561,10 @@ async function deleteReferencesFromGlobal(keys = []) {
   const uniqueKeys = Array.from(new Set((keys || []).filter(Boolean)))
   if (uniqueKeys.length === 0) return
 
-  const msg = uniqueKeys.length === 1
-    ? t('Delete reference @{key} from the global library?', { key: uniqueKeys[0] })
-    : t('Delete {count} references from the global library?', { count: uniqueKeys.length })
+  const msg =
+    uniqueKeys.length === 1
+      ? t('Delete reference @{key} from the global library?', { key: uniqueKeys[0] })
+      : t('Delete {count} references from the global library?', { count: uniqueKeys.length })
   const yes = await ask(msg, {
     title: t('Confirm Global Delete'),
     kind: 'warning',
@@ -556,7 +624,6 @@ async function handleContextMenuSelect(actionKey) {
       break
   }
 }
-
 </script>
 
 <style scoped>
@@ -809,36 +876,11 @@ async function handleContextMenuSelect(actionKey) {
 .library-batch-input {
   width: 100%;
   min-width: 0;
-  height: 27px;
-  padding: 0 9px;
-  border: 1px solid color-mix(in srgb, var(--border) 88%, var(--fg-muted));
-  border-radius: 5px;
-  background: color-mix(in srgb, var(--bg-primary) 82%, var(--bg-hover));
-  color: var(--fg-primary);
-  outline: none;
   font-size: var(--library-ui-size);
-}
-
-.library-search-input:focus,
-.library-select:focus,
-.library-batch-input:focus {
-  border-color: color-mix(in srgb, var(--accent) 36%, var(--border));
-  background: color-mix(in srgb, var(--bg-primary) 72%, var(--bg-hover));
 }
 
 .library-select {
   width: 164px;
-  appearance: none;
-  -webkit-appearance: none;
-  padding-right: 28px;
-  background-image:
-    linear-gradient(45deg, transparent 50%, var(--fg-muted) 50%),
-    linear-gradient(135deg, var(--fg-muted) 50%, transparent 50%);
-  background-position:
-    calc(100% - 14px) calc(50% - 2px),
-    calc(100% - 9px) calc(50% - 2px);
-  background-size: 5px 5px;
-  background-repeat: no-repeat;
 }
 
 .library-batch-row {
@@ -897,11 +939,7 @@ async function handleContextMenuSelect(actionKey) {
 .library-batch-group .library-batch-input {
   border-color: transparent;
   background: transparent;
-}
-
-.library-batch-group .library-inline-button:hover:not(:disabled),
-.library-batch-group .library-quiet-button:hover:not(:disabled) {
-  background: var(--bg-hover);
+  box-shadow: none;
 }
 
 .library-batch-actions .library-batch-input {
@@ -919,11 +957,10 @@ async function handleContextMenuSelect(actionKey) {
 .library-inline-button,
 .library-quiet-button,
 .library-filter-chip {
-  border: 1px solid color-mix(in srgb, var(--border) 88%, var(--fg-muted));
-  border-radius: 5px;
-  background: color-mix(in srgb, var(--bg-primary) 78%, var(--bg-hover));
-  color: var(--fg-primary);
-  transition: background-color 120ms, border-color 120ms, color 120ms;
+  transition:
+    background-color 120ms,
+    border-color 120ms,
+    color 120ms;
 }
 
 .library-nav-item,
@@ -957,17 +994,13 @@ async function handleContextMenuSelect(actionKey) {
 .library-inline-button,
 .library-quiet-button,
 .library-filter-chip {
-  height: 25px;
-  padding: 0 8px;
   white-space: nowrap;
   flex-shrink: 0;
   font-size: var(--library-ui-size);
 }
 
 .library-filter-chip {
-  height: 20px;
   padding: 0 6px;
-  border-radius: 4px;
   font-size: 0.76rem;
 }
 
@@ -990,10 +1023,7 @@ async function handleContextMenuSelect(actionKey) {
 }
 
 .library-nav-item:hover,
-.library-tag-row:hover,
-.library-inline-button:hover:not(:disabled),
-.library-quiet-button:hover:not(:disabled),
-.library-filter-chip:hover {
+.library-tag-row:hover {
   background: color-mix(in srgb, var(--bg-primary) 68%, var(--bg-hover));
   border-color: color-mix(in srgb, var(--accent) 20%, var(--border));
   color: var(--fg-primary);
@@ -1002,17 +1032,6 @@ async function handleContextMenuSelect(actionKey) {
 .library-tag-row:hover {
   background: color-mix(in srgb, var(--accent) 6%, transparent);
   border-color: transparent;
-}
-
-.library-inline-button.is-primary {
-  border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
-  background: color-mix(in srgb, var(--accent) 18%, var(--bg-primary));
-  color: var(--accent);
-}
-
-.library-inline-button.is-primary:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--accent) 24%, var(--bg-hover));
-  color: var(--accent);
 }
 
 .library-nav-item.is-active,
@@ -1060,12 +1079,6 @@ async function handleContextMenuSelect(actionKey) {
 }
 
 .library-link-button {
-  height: 22px;
-  padding: 0 7px;
-  border: 1px solid color-mix(in srgb, var(--border) 88%, var(--fg-muted));
-  border-radius: 5px;
-  background: color-mix(in srgb, var(--bg-primary) 78%, var(--bg-hover));
-  color: var(--fg-secondary);
   font-size: var(--library-subtle-size);
 }
 
@@ -1078,12 +1091,6 @@ async function handleContextMenuSelect(actionKey) {
   color: var(--fg-muted);
   font-size: 0.76rem;
   line-height: 1.3;
-}
-
-.library-link-button:hover {
-  border-color: color-mix(in srgb, var(--accent) 20%, var(--border));
-  background: color-mix(in srgb, var(--bg-primary) 68%, var(--bg-hover));
-  color: var(--fg-primary);
 }
 
 .library-section-header-action:hover {
@@ -1332,35 +1339,12 @@ async function handleContextMenuSelect(actionKey) {
   justify-content: center;
   width: 100%;
   min-width: 0;
-  height: 30px;
-  padding: 0 8px;
   font-size: var(--library-subtle-size);
   line-height: 1.1;
   letter-spacing: -0.01em;
-  border-color: color-mix(in srgb, var(--border) 92%, var(--fg-muted));
-  background: color-mix(in srgb, var(--bg-primary) 78%, var(--bg-hover));
-  color: var(--fg-primary);
   text-align: center;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.library-detail-actions .library-inline-button {
-  border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
-  background: color-mix(in srgb, var(--accent) 10%, var(--bg-primary));
-  color: var(--accent);
-}
-
-.library-detail-actions .library-inline-button:hover:not(:disabled),
-.library-detail-actions .library-quiet-button:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--bg-hover) 76%, var(--bg-primary));
-  border-color: color-mix(in srgb, var(--accent) 34%, var(--border));
-  color: var(--fg-primary);
-}
-
-.library-detail-actions .library-inline-button:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--accent) 14%, var(--bg-hover));
-  color: var(--accent);
 }
 
 .library-editor-stage {
@@ -1403,12 +1387,6 @@ async function handleContextMenuSelect(actionKey) {
 
 .library-empty-title {
   font-size: var(--library-sidebar-title-size);
-}
-
-.library-inline-button:disabled,
-.library-quiet-button:disabled {
-  opacity: 0.45;
-  cursor: default;
 }
 
 .library-compact-backdrop {

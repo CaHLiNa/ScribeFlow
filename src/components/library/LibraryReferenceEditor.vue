@@ -1,13 +1,16 @@
 <template>
   <div v-if="refItem" class="library-ref-editor">
-    <div
-      v-if="refItem._needsReview"
-      class="library-ref-editor-banner"
-    >
+    <div v-if="refItem._needsReview" class="library-ref-editor-banner">
       <span>{{ t('Unverified — review metadata before citing') }}</span>
-      <button type="button" class="library-ref-editor-banner-button" @click="confirmRef">
+      <UiButton
+        type="button"
+        variant="secondary"
+        size="sm"
+        class="library-ref-editor-banner-button"
+        @click="confirmRef"
+      >
         {{ t('Confirm') }}
-      </button>
+      </UiButton>
     </div>
 
     <div class="library-ref-editor-meta">
@@ -16,9 +19,15 @@
         <span class="library-ref-editor-pdf-label">
           {{ pdfPath ? pdfLabel : t('No PDF attached') }}
         </span>
-        <button type="button" class="library-ref-editor-link" @click="pdfPath ? openPdf() : attachPdf()">
+        <UiButton
+          type="button"
+          variant="ghost"
+          size="sm"
+          class="library-ref-editor-link"
+          @click="pdfPath ? openPdf() : attachPdf()"
+        >
           {{ pdfPath ? t('Open PDF') : t('Attach PDF...') }}
-        </button>
+        </UiButton>
       </div>
     </div>
 
@@ -26,39 +35,44 @@
       <div class="library-ref-editor-grid">
         <label class="library-ref-editor-field is-wide">
           <span class="library-ref-editor-label">{{ t('Title') }}</span>
-          <input
-            :value="refItem.title || ''"
+          <UiInput
+            :model-value="refItem.title || ''"
             class="library-ref-editor-input is-title"
-            @change="update('title', $event.target.value)"
+            size="md"
+            @update:modelValue="update('title', $event)"
           />
         </label>
 
         <label class="library-ref-editor-field span-2">
           <span class="library-ref-editor-label">{{ t('Citation Key') }}</span>
-          <input
-            :value="refItem._key || ''"
+          <UiInput
+            :model-value="refItem._key || ''"
             class="library-ref-editor-input library-ref-editor-input-mono"
+            monospace
+            size="sm"
             :placeholder="t('Example: Wang2019')"
-            @change="updateCitationKey($event.target.value)"
+            @update:modelValue="updateCitationKey($event)"
           />
         </label>
 
         <label class="library-ref-editor-field span-1">
           <span class="library-ref-editor-label">{{ t('Year') }}</span>
-          <input
-            :value="year"
+          <UiInput
+            :model-value="year"
             class="library-ref-editor-input"
             type="number"
-            @change="updateYear($event.target.value)"
+            size="sm"
+            @update:modelValue="updateYear($event)"
           />
         </label>
 
         <label class="library-ref-editor-field span-3">
           <span class="library-ref-editor-label">{{ t('Reference Type') }}</span>
-          <select
-            :value="refItem.type || 'article-journal'"
+          <UiSelect
+            :model-value="refItem.type || 'article-journal'"
             class="library-ref-editor-input library-ref-editor-select"
-            @change="update('type', $event.target.value)"
+            size="sm"
+            @update:modelValue="update('type', $event)"
           >
             <option value="article-journal">{{ t('Journal Article') }}</option>
             <option value="paper-conference">{{ t('Conference Paper') }}</option>
@@ -68,16 +82,17 @@
             <option value="report">{{ t('Report') }}</option>
             <option value="article">{{ t('Preprint / Article') }}</option>
             <option value="webpage">{{ t('Webpage') }}</option>
-          </select>
+          </UiSelect>
         </label>
 
         <label class="library-ref-editor-field is-wide">
           <span class="library-ref-editor-label">{{ t('Authors') }}</span>
-          <input
-            :value="authorsString"
+          <UiInput
+            :model-value="authorsString"
             class="library-ref-editor-input"
+            size="sm"
             :placeholder="t('Last, First and Last, First')"
-            @change="updateAuthors($event.target.value)"
+            @update:modelValue="updateAuthors($event)"
           />
         </label>
       </div>
@@ -87,46 +102,52 @@
       <div class="library-ref-editor-grid">
         <label class="library-ref-editor-field span-3">
           <span class="library-ref-editor-label">{{ t('Journal / Conference') }}</span>
-          <input
-            :value="refItem['container-title'] || ''"
+          <UiInput
+            :model-value="refItem['container-title'] || ''"
             class="library-ref-editor-input"
-            @change="update('container-title', $event.target.value)"
+            size="sm"
+            @update:modelValue="update('container-title', $event)"
           />
         </label>
 
         <label class="library-ref-editor-field span-3">
           <span class="library-ref-editor-label">DOI</span>
-          <input
-            :value="refItem.DOI || ''"
+          <UiInput
+            :model-value="refItem.DOI || ''"
             class="library-ref-editor-input library-ref-editor-input-mono"
-            @change="update('DOI', $event.target.value)"
+            monospace
+            size="sm"
+            @update:modelValue="update('DOI', $event)"
           />
         </label>
 
         <label class="library-ref-editor-field span-2">
           <span class="library-ref-editor-label">{{ t('Vol') }}</span>
-          <input
-            :value="refItem.volume || ''"
+          <UiInput
+            :model-value="refItem.volume || ''"
             class="library-ref-editor-input"
-            @change="update('volume', $event.target.value)"
+            size="sm"
+            @update:modelValue="update('volume', $event)"
           />
         </label>
 
         <label class="library-ref-editor-field span-2">
           <span class="library-ref-editor-label">{{ t('Issue') }}</span>
-          <input
-            :value="refItem.issue || ''"
+          <UiInput
+            :model-value="refItem.issue || ''"
             class="library-ref-editor-input"
-            @change="update('issue', $event.target.value)"
+            size="sm"
+            @update:modelValue="update('issue', $event)"
           />
         </label>
 
         <label class="library-ref-editor-field span-2">
           <span class="library-ref-editor-label">{{ t('Pages') }}</span>
-          <input
-            :value="refItem.page || ''"
+          <UiInput
+            :model-value="refItem.page || ''"
             class="library-ref-editor-input"
-            @change="update('page', $event.target.value)"
+            size="sm"
+            @update:modelValue="update('page', $event)"
           />
         </label>
       </div>
@@ -137,11 +158,7 @@
         <div class="library-ref-editor-field is-wide">
           <span class="library-ref-editor-label">{{ t('Tags') }}</span>
           <div v-if="(refItem._tags || []).length > 0" class="library-ref-editor-tag-row">
-            <span
-              v-for="tag in refItem._tags || []"
-              :key="tag"
-              class="library-ref-editor-tag-chip"
-            >
+            <span v-for="tag in refItem._tags || []" :key="tag" class="library-ref-editor-tag-chip">
               {{ tag }}
             </span>
           </div>
@@ -152,11 +169,12 @@
 
         <label class="library-ref-editor-field is-wide">
           <span class="library-ref-editor-label">{{ t('Abstract') }}</span>
-          <textarea
-            :value="refItem.abstract || ''"
+          <UiTextarea
+            :model-value="refItem.abstract || ''"
             class="library-ref-editor-textarea"
+            :rows="7"
             :placeholder="t('No abstract available.')"
-            @change="update('abstract', $event.target.value)"
+            @update:modelValue="update('abstract', $event)"
           />
         </label>
       </div>
@@ -177,6 +195,10 @@ import { useWorkspaceStore } from '../../stores/workspace'
 import { useToastStore } from '../../stores/toast'
 import { useI18n } from '../../i18n'
 import { openReferencePdfInWorkspace } from '../../domains/reference/referenceNavigation'
+import UiButton from '../shared/ui/UiButton.vue'
+import UiInput from '../shared/ui/UiInput.vue'
+import UiSelect from '../shared/ui/UiSelect.vue'
+import UiTextarea from '../shared/ui/UiTextarea.vue'
 
 const props = defineProps({
   refKey: { type: String, required: true },
@@ -306,11 +328,8 @@ async function attachPdf() {
 }
 
 .library-ref-editor-banner-button {
-  height: 24px;
+  min-height: 24px;
   padding: 0 8px;
-  border: 1px solid color-mix(in srgb, var(--warning) 42%, var(--border));
-  border-radius: 5px;
-  background: transparent;
   color: var(--warning);
   white-space: nowrap;
 }
@@ -335,7 +354,9 @@ async function attachPdf() {
   background: var(--bg-secondary);
   color: var(--fg-secondary);
   font-size: 11px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
+    monospace;
 }
 
 .library-ref-editor-pdf {
@@ -355,10 +376,7 @@ async function attachPdf() {
 }
 
 .library-ref-editor-link {
-  border: none;
-  background: transparent;
   color: var(--accent);
-  padding: 0;
   font-size: 11px;
   white-space: nowrap;
 }
@@ -414,24 +432,11 @@ async function attachPdf() {
 .library-ref-editor-textarea {
   width: 100%;
   min-width: 0;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--bg-secondary);
-  color: var(--fg-primary);
-  outline: none;
   font-size: 12px;
 }
 
 .library-ref-editor-input {
-  height: 29px;
-  padding: 0 9px;
-}
-
-.library-ref-editor-textarea {
-  min-height: 120px;
-  padding: 8px 9px;
-  resize: vertical;
-  line-height: 1.55;
+  min-height: 29px;
 }
 
 .library-ref-editor-input.is-title {
@@ -440,28 +445,15 @@ async function attachPdf() {
   line-height: 1.35;
 }
 
-.library-ref-editor-select {
-  appearance: none;
-  -webkit-appearance: none;
-  padding-right: 28px;
-  background-image:
-    linear-gradient(45deg, transparent 50%, var(--fg-muted) 50%),
-    linear-gradient(135deg, var(--fg-muted) 50%, transparent 50%);
-  background-position:
-    calc(100% - 14px) calc(50% - 2px),
-    calc(100% - 9px) calc(50% - 2px);
-  background-size: 5px 5px;
-  background-repeat: no-repeat;
-}
-
 .library-ref-editor-input-mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
+    monospace;
 }
 
-.library-ref-editor-input:focus,
-.library-ref-editor-textarea:focus {
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
-  background: color-mix(in srgb, var(--bg-secondary) 72%, var(--bg-primary));
+.library-ref-editor-textarea :deep(.ui-textarea-control) {
+  min-height: 120px;
+  line-height: 1.55;
 }
 
 .library-ref-editor-empty {

@@ -1,21 +1,45 @@
 <template>
-  <div class="h-full flex flex-col overflow-hidden">
+  <div class="image-viewer h-full flex flex-col overflow-hidden">
     <!-- Toolbar -->
-    <div class="flex items-center gap-2 px-3 py-1 border-b" style="background: var(--bg-secondary); border-color: var(--border); color: var(--fg-secondary);">
-      <button class="img-btn" @click="zoomOut" :title="t('Zoom out')">−</button>
-      <span class="text-xs tabular-nums" style="min-width: 3em; text-align: center;">{{ Math.round(zoom * 100) }}%</span>
-      <button class="img-btn" @click="zoomIn" :title="t('Zoom in')">+</button>
-      <button class="img-btn text-xs" @click="resetView" :title="t('Reset to actual size')">{{ isZh ? '适配' : 'Fit' }}</button>
-      <span class="mx-2 text-xs" style="color: var(--fg-muted);">|</span>
-      <span v-if="naturalSize" class="text-xs" style="color: var(--fg-muted);">{{ naturalSize }}</span>
-      <span v-if="error" class="text-xs ml-auto" style="color: var(--error);">{{ error }}</span>
+    <div class="image-viewer-toolbar">
+      <UiButton
+        class="image-viewer-toolbar-btn"
+        variant="secondary"
+        size="icon-sm"
+        icon-only
+        :title="t('Zoom out')"
+        :aria-label="t('Zoom out')"
+        @click="zoomOut"
+        >−</UiButton
+      >
+      <span class="image-viewer-zoom-value">{{ Math.round(zoom * 100) }}%</span>
+      <UiButton
+        class="image-viewer-toolbar-btn"
+        variant="secondary"
+        size="icon-sm"
+        icon-only
+        :title="t('Zoom in')"
+        :aria-label="t('Zoom in')"
+        @click="zoomIn"
+        >+</UiButton
+      >
+      <UiButton
+        class="image-viewer-toolbar-btn"
+        variant="secondary"
+        size="sm"
+        :title="t('Reset to actual size')"
+        @click="resetView"
+        >{{ isZh ? '适配' : 'Fit' }}</UiButton
+      >
+      <span class="image-viewer-toolbar-separator">|</span>
+      <span v-if="naturalSize" class="image-viewer-toolbar-meta">{{ naturalSize }}</span>
+      <span v-if="error" class="image-viewer-toolbar-error">{{ error }}</span>
     </div>
 
     <!-- Image viewport -->
     <div
       ref="viewport"
-      class="flex-1 overflow-hidden relative"
-      style="cursor: grab;"
+      class="image-viewer-viewport flex-1 overflow-hidden relative"
       @mousedown="startPan"
       @wheel="handleWheel"
       @dblclick="resetView"
@@ -24,13 +48,17 @@
         v-if="dataUrl"
         ref="imgEl"
         :src="dataUrl"
-        class="absolute select-none"
-        style="transform-origin: 0 0; image-rendering: auto;"
+        class="image-viewer-image absolute select-none"
         :style="{ transform: `translate(${panX}px, ${panY}px) scale(${zoom})` }"
         draggable="false"
         @load="onImgLoad"
       />
-      <div v-else-if="loading" class="flex items-center justify-center h-full text-sm" style="color: var(--fg-muted);">{{ t('Loading image...') }}</div>
+      <div
+        v-else-if="loading"
+        class="image-viewer-loading flex items-center justify-center h-full text-sm"
+      >
+        {{ t('Loading image...') }}
+      </div>
     </div>
   </div>
 </template>
@@ -40,6 +68,7 @@ import { ref, nextTick, onMounted, onUnmounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { getMimeType } from '../../utils/fileTypes'
 import { useI18n } from '../../i18n'
+import UiButton from '../shared/ui/UiButton.vue'
 
 const props = defineProps({
   filePath: { type: String, required: true },
@@ -158,18 +187,54 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.img-btn {
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: var(--ui-font-label);
-  cursor: pointer;
-  background: var(--bg-tertiary);
+.image-viewer-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-secondary);
   color: var(--fg-secondary);
-  border: 1px solid var(--border);
-  transition: background 0.15s;
 }
-.img-btn:hover {
-  background: var(--bg-hover);
-  color: var(--fg-primary);
+
+.image-viewer-toolbar-btn {
+  flex-shrink: 0;
+}
+
+.image-viewer-zoom-value {
+  min-width: 3em;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: var(--ui-font-caption);
+  font-variant-numeric: tabular-nums;
+}
+
+.image-viewer-toolbar-separator,
+.image-viewer-toolbar-meta {
+  color: var(--text-muted);
+  font-size: var(--ui-font-caption);
+}
+
+.image-viewer-toolbar-separator {
+  margin: 0 var(--space-2);
+}
+
+.image-viewer-toolbar-error {
+  margin-left: auto;
+  color: var(--error);
+  font-size: var(--ui-font-caption);
+}
+
+.image-viewer-viewport {
+  cursor: grab;
+}
+
+.image-viewer-image {
+  transform-origin: 0 0;
+  image-rendering: auto;
+}
+
+.image-viewer-loading {
+  color: var(--text-muted);
 }
 </style>
