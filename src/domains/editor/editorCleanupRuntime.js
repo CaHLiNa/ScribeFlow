@@ -21,6 +21,7 @@ export function createEmptyEditorRuntimeState({ restoreGeneration = 0 } = {}) {
     },
     activePaneId: ROOT_PANE_ID,
     dirtyFiles: new Set(),
+    legacyPreviewPaths: new Set(),
     recentFiles: [],
     lastContextPath: null,
     cursorOffset: 0,

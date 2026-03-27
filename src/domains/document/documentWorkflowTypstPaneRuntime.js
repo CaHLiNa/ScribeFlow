@@ -1,10 +1,20 @@
 import { getViewerType } from '../../utils/fileTypes.js'
+import { createDocumentWorkspacePreviewAction } from './documentWorkspacePreviewRuntime.js'
 
 export function createDocumentWorkflowTypstPaneRuntime({
   getEditorStore,
   getWorkflowStore,
 } = {}) {
   const typstPdfPaneState = new Map()
+
+  function createWorkspacePreviewResult(sourcePath, options = {}) {
+    return createDocumentWorkspacePreviewAction({
+      path: sourcePath,
+      sourcePaneId: options.sourcePaneId,
+      trigger: options.trigger || 'workflow-toggle-preview',
+      nativePreviewSupported: options.previewKind !== 'pdf',
+    })
+  }
 
   function isPreviewHostPane(editorStore, paneId) {
     const pane = editorStore?.findPane?.(editorStore.paneTree, paneId)
@@ -14,12 +24,35 @@ export function createDocumentWorkflowTypstPaneRuntime({
     return viewerType === 'typst-native-preview' || viewerType === 'pdf'
   }
 
-  function getTrackedTypstPdfState(editorStore, sourcePath) {
+  function isOwnedTypstSharedPane(editorStore, pane, previewPath, artifactPath, requiredTab = '') {
+    if (!pane) return false
+    if (!isPreviewHostPane(editorStore, pane.id)) return false
+    if (requiredTab && !pane.tabs.includes(requiredTab)) return false
+    const hasExpectedTab = pane.tabs.includes(previewPath) || pane.tabs.includes(artifactPath)
+    if (!hasExpectedTab) return false
+    if (pane.tabs.some(tab => tab !== previewPath && tab !== artifactPath)) return false
+    if (!pane.activeTab) return true
+    return pane.activeTab === previewPath || pane.activeTab === artifactPath
+  }
+
+  function getOwnedPaneById(editorStore, paneId, previewPath, artifactPath, requiredTab = '') {
+    if (!paneId) return null
+    const pane = editorStore?.findPane?.(editorStore.paneTree, paneId) || null
+    return isOwnedTypstSharedPane(editorStore, pane, previewPath, artifactPath, requiredTab) ? pane : null
+  }
+
+  function getOwnedPaneWithTab(editorStore, tabPath, previewPath, artifactPath, requiredTab = '') {
+    if (!tabPath) return null
+    const pane = editorStore?.findPaneWithTab?.(tabPath) || null
+    return isOwnedTypstSharedPane(editorStore, pane, previewPath, artifactPath, requiredTab) ? pane : null
+  }
+
+  function getTrackedTypstPdfState(editorStore, sourcePath, previewPath = '', artifactPath = '') {
     const state = typstPdfPaneState.get(sourcePath)
     if (!state?.paneId) return null
 
-    const pane = editorStore?.findPane?.(editorStore.paneTree, state.paneId)
-    if (!pane || !isPreviewHostPane(editorStore, state.paneId)) {
+    const pane = getOwnedPaneById(editorStore, state.paneId, previewPath, artifactPath)
+    if (!pane) {
       typstPdfPaneState.delete(sourcePath)
       return null
     }
@@ -29,30 +62,40 @@ export function createDocumentWorkflowTypstPaneRuntime({
 
   function getTypstSharedPaneInfo(editorStore, workflowStore, sourcePath, previewPath, artifactPath, sourcePaneId) {
     const previewBinding = workflowStore?.findPreviewBindingForSource?.(sourcePath, 'native')
-    const previewPaneId = (
-      previewBinding?.paneId
-      || editorStore?.findPaneWithTab?.(previewPath)?.id
-      || (
-        workflowStore?.session?.previewSourcePath === sourcePath
-        && workflowStore?.session?.previewKind === 'native'
-          ? workflowStore?.session?.previewPaneId
-          : null
-      )
-      || ''
+    const bindingPane = getOwnedPaneById(
+      editorStore,
+      previewBinding?.paneId || '',
+      previewPath,
+      artifactPath,
+      previewPath,
     )
+    const previewTabPane = getOwnedPaneWithTab(editorStore, previewPath, previewPath, artifactPath, previewPath)
+    const sessionPane = (
+      workflowStore?.session?.previewSourcePath === sourcePath
+      && workflowStore?.session?.previewKind === 'native'
+    )
+      ? getOwnedPaneById(
+          editorStore,
+          workflowStore?.session?.previewPaneId || '',
+          previewPath,
+          artifactPath,
+          previewPath,
+        )
+      : null
+    const previewPane = bindingPane || previewTabPane || sessionPane || null
 
-    if (previewPaneId) {
+    if (previewPane?.id) {
       return {
-        paneId: previewPaneId,
-        pane: editorStore?.findPane?.(editorStore.paneTree, previewPaneId) || null,
+        paneId: previewPane.id,
+        pane: previewPane,
         previewPath,
         artifactPath,
         hasPreview: true,
-        pdfMode: getTrackedTypstPdfState(editorStore, sourcePath)?.mode || null,
+        pdfMode: getTrackedTypstPdfState(editorStore, sourcePath, previewPath, artifactPath)?.mode || null,
       }
     }
 
-    const tracked = getTrackedTypstPdfState(editorStore, sourcePath)
+    const tracked = getTrackedTypstPdfState(editorStore, sourcePath, previewPath, artifactPath)
     if (tracked?.paneId) {
       return {
         paneId: tracked.paneId,
@@ -64,8 +107,8 @@ export function createDocumentWorkflowTypstPaneRuntime({
       }
     }
 
-    const existingPdfPane = editorStore?.findPaneWithTab?.(artifactPath)
-    if (existingPdfPane?.id && isPreviewHostPane(editorStore, existingPdfPane.id)) {
+    const existingPdfPane = getOwnedPaneWithTab(editorStore, artifactPath, previewPath, artifactPath, artifactPath)
+    if (existingPdfPane?.id) {
       return {
         paneId: existingPdfPane.id,
         pane: existingPdfPane,
@@ -130,6 +173,14 @@ export function createDocumentWorkflowTypstPaneRuntime({
   async function revealPreviewForFile(sourcePath, options = {}) {
     if (!sourcePath) return null
 
+    if (!options.allowLegacyPaneResult) {
+      return createWorkspacePreviewResult(sourcePath, {
+        sourcePaneId: options.sourcePaneId,
+        trigger: options.openTrigger || 'workflow-toggle-preview',
+        previewKind: 'native',
+      })
+    }
+
     const editorStore = getEditorStore?.() || null
     const workflowStore = getWorkflowStore?.() || null
     if (!editorStore || !workflowStore) return null
@@ -193,6 +244,14 @@ export function createDocumentWorkflowTypstPaneRuntime({
 
   function revealPdfForFile(sourcePath, options = {}) {
     if (!sourcePath) return null
+
+    if (!options.allowLegacyPaneResult) {
+      return createWorkspacePreviewResult(sourcePath, {
+        sourcePaneId: options.sourcePaneId,
+        trigger: options.trigger || 'typst-pdf-reveal',
+        previewKind: 'pdf',
+      })
+    }
 
     const editorStore = getEditorStore?.() || null
     const workflowStore = getWorkflowStore?.() || null

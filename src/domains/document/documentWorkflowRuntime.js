@@ -14,6 +14,9 @@ export function createDocumentWorkflowRuntime({
   setLastTrigger,
   getEditorStore,
   getDocumentWorkflowKindImpl,
+  createWorkspacePreviewAction,
+  getPreferredWorkflowPreviewKind,
+  createWorkflowPreviewPath,
   reconcileDocumentWorkflowImpl,
   findWorkflowPreviewPaneImpl,
   jumpPreviewToCursor,
@@ -40,7 +43,12 @@ export function createDocumentWorkflowRuntime({
           inferPreviewKind: (sourcePath, previewPath) => inferPreviewKind?.(sourcePath, previewPath),
         },
         force: options.force === true,
+        createWorkspacePreviewAction,
+        getDocumentWorkflowKind: getDocumentWorkflowKindImpl,
+        getPreferredWorkflowPreviewKind,
+        createWorkflowPreviewPath,
         previewKindOverride: options.previewKindOverride || null,
+        allowLegacyPaneResult: options.allowLegacyPaneResult === true,
       }) || null
 
       setLastTrigger?.(result?.trigger || options.trigger || 'manual')
@@ -82,6 +90,33 @@ export function createDocumentWorkflowRuntime({
           state: 'source-only',
         })
         return result
+      }
+
+      if (result.type === 'workspace-preview') {
+        if (result.preserveOpenLegacy && result.legacyPreviewPath) {
+          bindPreview?.({
+            previewPath: result.legacyPreviewPath,
+            sourcePath: result.sourcePath || result.filePath,
+            previewKind: result.previewKind,
+            kind: result.kind,
+            paneId: result.legacyPreviewPaneId || null,
+            detachOnClose: false,
+          })
+        }
+        setSessionState?.({
+          activeFile: result.sourcePath || result.filePath,
+          activeKind: result.kind,
+          sourcePaneId: result.sourcePaneId,
+          previewPaneId: null,
+          previewKind: result.previewKind,
+          previewSourcePath: result.sourcePath || result.filePath,
+          state: 'workspace-preview',
+        })
+        return {
+          ...result,
+          previewPaneId: null,
+          previewPath: null,
+        }
       }
 
       let previewPaneId = result.previewPaneId
@@ -196,6 +231,17 @@ export function createDocumentWorkflowRuntime({
       sourcePaneId: options.sourcePaneId,
       trigger: options.trigger || 'reveal-preview',
     })
+
+    if (result?.type === 'workspace-preview') {
+      if (options.jump) {
+        jumpPreviewToCursor?.({
+          kind: result.kind,
+          previewKind: result.previewKind,
+          sourcePath,
+        })
+      }
+      return result
+    }
 
     if (!result?.previewPaneId || !result?.previewPath) return result
 

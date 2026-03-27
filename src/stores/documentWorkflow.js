@@ -26,7 +26,9 @@ import { createDocumentWorkflowTypstPaneRuntime } from '../domains/document/docu
 import {
   findWorkflowPreviewPane,
   reconcileDocumentWorkflow,
-} from '../services/documentWorkflow/reconcile.js'
+} from '../domains/document/documentWorkflowReconcileRuntime.js'
+import { resolveDocumentPreviewCloseEffect } from '../domains/document/documentWorkspacePreviewRuntime.js'
+import { createDocumentWorkspacePreviewAction as createWorkspacePreviewAction } from '../domains/document/documentWorkspacePreviewRuntime.js'
 
 const PREFS_KEY = 'documentWorkflow.previewPrefs'
 
@@ -98,6 +100,9 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
           },
           getEditorStore: () => useEditorStore(),
           getDocumentWorkflowKindImpl: getDocumentWorkflowKind,
+          createWorkspacePreviewAction,
+          getPreferredWorkflowPreviewKind,
+          createWorkflowPreviewPath,
           reconcileDocumentWorkflowImpl: reconcileDocumentWorkflow,
           findWorkflowPreviewPaneImpl: findWorkflowPreviewPane,
           jumpPreviewToCursor: ({ kind, previewKind, sourcePath }) => {
@@ -181,7 +186,9 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
     persistPrefs() {
       try {
         localStorage.setItem(PREFS_KEY, JSON.stringify(this.previewPrefs))
-      } catch {}
+      } catch {
+        // Ignore local preference persistence failures.
+      }
     },
 
     getPreferredPreviewKind(kind) {
@@ -205,7 +212,7 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
       return previewPath ? this.previewBindings[previewPath] || null : null
     },
 
-    bindPreview({ previewPath, sourcePath, previewKind, kind, paneId = null }) {
+    bindPreview({ previewPath, sourcePath, previewKind, kind, paneId = null, detachOnClose = true }) {
       if (!previewPath || !sourcePath) return
       this.previewBindings = {
         ...this.previewBindings,
@@ -215,6 +222,7 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
           previewKind,
           kind,
           paneId,
+          detachOnClose,
         },
       }
     },
@@ -272,7 +280,7 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
 
     getSourcePathForPreview(previewPath) {
       const binding = this.getPreviewBinding(previewPath)
-      return binding?.sourcePath || previewSourcePathFromPath(previewPath) || null
+      return binding?.sourcePath || previewSourcePathFromPath(previewPath) || (isDocumentWorkflowSource(previewPath) ? previewPath : null)
     },
 
     findPreviewBindingForSource(sourcePath, previewKind = null) {
@@ -296,11 +304,13 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
     },
 
     handlePreviewClosed(previewPath) {
-      const sourcePath = this.getSourcePathForPreview(previewPath)
-      if (sourcePath) {
-        this.markDetached(sourcePath)
-        this.unbindPreview(previewPath)
+      const effect = resolveDocumentPreviewCloseEffect(previewPath, {
+        previewBinding: this.getPreviewBinding(previewPath),
+      })
+      if (effect.sourcePath && effect.markDetached) {
+        this.markDetached(effect.sourcePath)
       }
+      this.unbindPreview(previewPath)
     },
 
     getOpenPreviewPathForSource(sourcePath, previewKind = null) {

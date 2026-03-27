@@ -102,8 +102,12 @@ test('document workflow build runtime builds latex adapter context from workflow
         activeFile: '/workspace/main.tex',
         previewKind: 'pdf',
       },
-      hasPreviewForSource(filePath, previewKind) {
-        return filePath === '/workspace/main.tex' && previewKind === 'pdf'
+    },
+    latexStore: {
+      stateForFile() {
+        return {
+          pdfPath: '/workspace/main.pdf',
+        }
       },
     },
   })
@@ -112,6 +116,103 @@ test('document workflow build runtime builds latex adapter context from workflow
 
   assert.equal(context.adapter?.kind, 'latex')
   assert.equal(context.previewKind, 'pdf')
+  assert.equal(context.previewVisible, true)
+  assert.equal(context.previewAvailable, true)
+  assert.equal(context.previewTargetPath, '/workspace/main.pdf')
+  assert.equal(context.targetResolution, 'resolved')
+})
+
+test('document workflow build runtime defaults markdown workspace preview to visible without preview binding inference', () => {
+  const { runtime } = createBuildRuntime()
+
+  const context = runtime.buildAdapterContext('/workspace/chapter.md')
+
+  assert.equal(context.adapter?.kind, 'markdown')
+  assert.equal(context.previewKind, 'html')
+  assert.equal(context.previewVisible, true)
+  assert.equal(context.previewAvailable, true)
+  assert.equal(context.targetResolution, 'not-needed')
+})
+
+test('document workflow build runtime keeps latex workspace preview hidden when the preview target is unresolved', () => {
+  const { runtime } = createBuildRuntime()
+
+  const context = runtime.buildAdapterContext('/workspace/main.tex')
+
+  assert.equal(context.adapter?.kind, 'latex')
+  assert.equal(context.previewKind, 'pdf')
+  assert.equal(context.previewVisible, false)
+  assert.equal(context.previewAvailable, false)
+  assert.equal(context.targetResolution, 'unresolved')
+})
+
+test('document workflow build runtime prefers typst native preview and falls back to pdf workspace state', () => {
+  const { runtime } = createBuildRuntime({
+    typstStore: {
+      stateForFile() {
+        return {
+          pdfPath: '/workspace/main.pdf',
+        }
+      },
+    },
+  })
+
+  const nativeContext = runtime.buildAdapterContext('/workspace/main.typ')
+  assert.equal(nativeContext.previewKind, 'native')
+  assert.equal(nativeContext.previewVisible, true)
+  assert.equal(nativeContext.targetResolution, 'not-needed')
+
+  const pdfFallbackContext = runtime.buildAdapterContext('/workspace/main.typ', {
+    nativePreviewSupported: false,
+  })
+  assert.equal(pdfFallbackContext.previewKind, 'pdf')
+  assert.equal(pdfFallbackContext.previewVisible, true)
+  assert.equal(pdfFallbackContext.previewTargetPath, '/workspace/main.pdf')
+  assert.equal(pdfFallbackContext.targetResolution, 'resolved')
+})
+
+test('document workflow build runtime resolves preview target through adapter preview seam instead of compile state shape', () => {
+  const { runtime } = createBuildRuntime()
+  const adapter = {
+    kind: 'latex',
+    preview: {
+      defaultKind: 'pdf',
+      supportedKinds: ['pdf'],
+      createPath() {
+        return null
+      },
+      inferKind() {
+        return null
+      },
+      getTargetPath() {
+        return '/workspace/seam.pdf'
+      },
+    },
+    citationSyntax: {
+      supportsInsertion() {
+        return false
+      },
+      buildText() {
+        return ''
+      },
+    },
+    compile: {
+      stateForFile() {
+        throw new Error('build runtime should not read compile state shape directly')
+      },
+    },
+    getProblems() {
+      return []
+    },
+    getUiState() {
+      return null
+    },
+  }
+
+  const context = runtime.buildAdapterContext('/workspace/main.tex', { adapter })
+
+  assert.equal(context.previewTargetPath, '/workspace/seam.pdf')
+  assert.equal(context.previewVisible, true)
   assert.equal(context.previewAvailable, true)
 })
 
@@ -164,14 +265,12 @@ test('document workflow build runtime preserves markdown draft and preview probl
 
 test('document workflow build runtime exposes queued latex ui state and status tone outside the store shell', () => {
   const { runtime } = createBuildRuntime({
-    workflowStore: {
-      hasPreviewForSource(filePath, previewKind) {
-        return filePath === '/workspace/main.tex' && previewKind === 'pdf'
-      },
-    },
     latexStore: {
       stateForFile() {
-        return { status: 'idle' }
+        return {
+          status: 'idle',
+          pdfPath: '/workspace/main.pdf',
+        }
       },
       queueStateForFile() {
         return { phase: 'queued' }

@@ -148,7 +148,63 @@ function createRuntime({
   })
 }
 
-test('document workflow typst pane runtime overlays PDF in an existing preview pane and toggles back to preview', async () => {
+test('document workflow typst pane runtime returns workspace preview actions by default', async () => {
+  const sourcePath = '/workspace/main.typ'
+  const runtime = createRuntime({
+    editorStore: createEditorStore({
+      panes: {
+        'pane-source': { tabs: [sourcePath], activeTab: sourcePath },
+      },
+    }),
+    workflowStore: createWorkflowStore(),
+  })
+
+  const previewResult = await runtime.revealPreviewForFile(sourcePath, {
+    sourcePaneId: 'pane-source',
+    buildOptions: { adapter: { kind: 'typst' } },
+  })
+  const pdfResult = runtime.revealPdfForFile(sourcePath, {
+    sourcePaneId: 'pane-source',
+    buildOptions: { adapter: { kind: 'typst' } },
+  })
+
+  assert.deepEqual(previewResult, {
+    type: 'workspace-preview',
+    kind: 'typst',
+    filePath: sourcePath,
+    sourcePath,
+    sourcePaneId: 'pane-source',
+    previewKind: 'native',
+    previewMode: 'typst-native',
+    previewTargetPath: '',
+    targetResolution: 'not-needed',
+    trigger: 'workflow-toggle-preview',
+    state: 'workspace-preview',
+    preserveOpenLegacy: false,
+    legacyReadOnly: false,
+    legacyPreviewPath: '',
+    legacyPreviewPaneId: null,
+  })
+  assert.deepEqual(pdfResult, {
+    type: 'workspace-preview',
+    kind: 'typst',
+    filePath: sourcePath,
+    sourcePath,
+    sourcePaneId: 'pane-source',
+    previewKind: 'pdf',
+    previewMode: 'pdf',
+    previewTargetPath: '',
+    targetResolution: 'unresolved',
+    trigger: 'typst-pdf-reveal',
+    state: 'workspace-preview',
+    preserveOpenLegacy: false,
+    legacyReadOnly: false,
+    legacyPreviewPath: '',
+    legacyPreviewPaneId: null,
+  })
+})
+
+test('document workflow typst pane runtime overlays PDF in an existing preview pane for explicit legacy compatibility', async () => {
   const sourcePath = '/workspace/main.typ'
   const previewPath = 'typst-preview:/workspace/main.typ'
   const artifactPath = '/workspace/main.pdf'
@@ -173,6 +229,7 @@ test('document workflow typst pane runtime overlays PDF in an existing preview p
   runtime.revealPdfForFile(sourcePath, {
     sourcePaneId: 'pane-source',
     buildOptions: { adapter: { kind: 'typst' } },
+    allowLegacyPaneResult: true,
   })
 
   assert.deepEqual(editorStore.openCalls, [{
@@ -185,6 +242,7 @@ test('document workflow typst pane runtime overlays PDF in an existing preview p
   runtime.revealPdfForFile(sourcePath, {
     sourcePaneId: 'pane-source',
     buildOptions: { adapter: { kind: 'typst' } },
+    allowLegacyPaneResult: true,
   })
 
   assert.deepEqual(editorStore.openCalls.at(-1), {
@@ -196,7 +254,7 @@ test('document workflow typst pane runtime overlays PDF in an existing preview p
   assert.equal(workflowStore.getArtifactCalls.length, 2)
 })
 
-test('document workflow typst pane runtime reuses an owned PDF pane when switching back to preview', async () => {
+test('document workflow typst pane runtime reuses an owned PDF pane when switching back to preview in legacy compatibility mode', async () => {
   const sourcePath = '/workspace/main.typ'
   const previewPath = 'typst-preview:/workspace/main.typ'
   const artifactPath = '/workspace/main.pdf'
@@ -218,6 +276,7 @@ test('document workflow typst pane runtime reuses an owned PDF pane when switchi
   runtime.revealPdfForFile(sourcePath, {
     sourcePaneId: 'pane-source',
     buildOptions: { adapter: { kind: 'typst' } },
+    allowLegacyPaneResult: true,
   })
 
   assert.deepEqual(editorStore.splitCalls, [{
@@ -231,6 +290,7 @@ test('document workflow typst pane runtime reuses an owned PDF pane when switchi
   await runtime.revealPreviewForFile(sourcePath, {
     sourcePaneId: 'pane-source',
     buildOptions: { adapter: { kind: 'typst' } },
+    allowLegacyPaneResult: true,
   })
 
   assert.deepEqual(workflowStore.ensureCalls, [{
@@ -253,7 +313,210 @@ test('document workflow typst pane runtime reuses an owned PDF pane when switchi
   }])
 })
 
-test('document workflow typst pane runtime closes the shared pane when preview is already active', async () => {
+test('document workflow typst pane runtime clears stale tracked pane state after external pane reuse', async () => {
+  const sourcePath = '/workspace/main.typ'
+  const previewPath = 'typst-preview:/workspace/main.typ'
+  const artifactPath = '/workspace/main.pdf'
+  const editorStore = createEditorStore({
+    panes: {
+      'pane-source': { tabs: [sourcePath], activeTab: sourcePath },
+    },
+  })
+  const workflowStore = createWorkflowStore({
+    previewPath,
+    artifactPath,
+  })
+  const runtime = createRuntime({ editorStore, workflowStore })
+
+  runtime.revealPdfForFile(sourcePath, {
+    sourcePaneId: 'pane-source',
+    buildOptions: { adapter: { kind: 'typst' } },
+    allowLegacyPaneResult: true,
+  })
+
+  editorStore.panes['pane-split'].tabs = ['/workspace/other.md']
+  editorStore.panes['pane-split'].activeTab = '/workspace/other.md'
+
+  await runtime.revealPreviewForFile(sourcePath, {
+    sourcePaneId: 'pane-source',
+    buildOptions: { adapter: { kind: 'typst' } },
+    allowLegacyPaneResult: true,
+  })
+
+  assert.deepEqual(workflowStore.ensureCalls, [])
+  assert.deepEqual(workflowStore.toggleCalls, [{
+    sourcePath,
+    options: {
+      previewKind: 'native',
+      activatePreview: true,
+      jump: true,
+      sourcePaneId: 'pane-source',
+      trigger: 'workflow-toggle-preview',
+    },
+  }])
+})
+
+test('document workflow typst pane runtime drops tracked pane ownership when another source reuses the pane', async () => {
+  const sourcePath = '/workspace/main.typ'
+  const previewPath = 'typst-preview:/workspace/main.typ'
+  const artifactPath = '/workspace/main.pdf'
+  const editorStore = createEditorStore({
+    panes: {
+      'pane-source': { tabs: [sourcePath], activeTab: sourcePath },
+    },
+  })
+  const workflowStore = createWorkflowStore({
+    previewPath,
+    artifactPath,
+  })
+  const runtime = createRuntime({ editorStore, workflowStore })
+
+  runtime.revealPdfForFile(sourcePath, {
+    sourcePaneId: 'pane-source',
+    buildOptions: { adapter: { kind: 'typst' } },
+    allowLegacyPaneResult: true,
+  })
+
+  editorStore.panes['pane-split'].tabs = [
+    artifactPath,
+    'typst-preview:/workspace/other.typ',
+    '/workspace/other.pdf',
+  ]
+  editorStore.panes['pane-split'].activeTab = 'typst-preview:/workspace/other.typ'
+
+  await runtime.revealPreviewForFile(sourcePath, {
+    sourcePaneId: 'pane-source',
+    buildOptions: { adapter: { kind: 'typst' } },
+    allowLegacyPaneResult: true,
+  })
+
+  assert.deepEqual(workflowStore.ensureCalls, [])
+  assert.deepEqual(workflowStore.toggleCalls, [{
+    sourcePath,
+    options: {
+      previewKind: 'native',
+      activatePreview: true,
+      jump: true,
+      sourcePaneId: 'pane-source',
+      trigger: 'workflow-toggle-preview',
+    },
+  }])
+})
+
+test('document workflow typst pane runtime ignores stale preview binding panes that point at foreign content', async () => {
+  const sourcePath = '/workspace/main.typ'
+  const previewPath = 'typst-preview:/workspace/main.typ'
+  const editorStore = createEditorStore({
+    panes: {
+      'pane-source': { tabs: [sourcePath], activeTab: sourcePath },
+      'pane-foreign': {
+        tabs: [previewPath, 'typst-preview:/workspace/other.typ'],
+        activeTab: 'typst-preview:/workspace/other.typ',
+      },
+    },
+  })
+  const workflowStore = createWorkflowStore({
+    previewBinding: {
+      sourcePath,
+      previewKind: 'native',
+      paneId: 'pane-foreign',
+      previewPath,
+    },
+    previewPath,
+  })
+  const runtime = createRuntime({ editorStore, workflowStore })
+
+  await runtime.revealPreviewForFile(sourcePath, {
+    sourcePaneId: 'pane-source',
+    buildOptions: { adapter: { kind: 'typst' } },
+    allowLegacyPaneResult: true,
+  })
+
+  assert.deepEqual(workflowStore.toggleCalls, [{
+    sourcePath,
+    options: {
+      previewKind: 'native',
+      activatePreview: true,
+      jump: true,
+      sourcePaneId: 'pane-source',
+      trigger: 'workflow-toggle-preview',
+    },
+  }])
+})
+
+test('document workflow typst pane runtime ignores stale session preview panes that point at foreign content', async () => {
+  const sourcePath = '/workspace/main.typ'
+  const previewPath = 'typst-preview:/workspace/main.typ'
+  const editorStore = createEditorStore({
+    panes: {
+      'pane-source': { tabs: [sourcePath], activeTab: sourcePath },
+      'pane-foreign': {
+        tabs: [previewPath, '/workspace/other.pdf'],
+        activeTab: '/workspace/other.pdf',
+      },
+    },
+  })
+  const workflowStore = createWorkflowStore({
+    session: {
+      previewSourcePath: sourcePath,
+      previewKind: 'native',
+      previewPaneId: 'pane-foreign',
+    },
+    previewPath,
+  })
+  const runtime = createRuntime({ editorStore, workflowStore })
+
+  await runtime.revealPreviewForFile(sourcePath, {
+    sourcePaneId: 'pane-source',
+    buildOptions: { adapter: { kind: 'typst' } },
+    allowLegacyPaneResult: true,
+  })
+
+  assert.deepEqual(workflowStore.toggleCalls, [{
+    sourcePath,
+    options: {
+      previewKind: 'native',
+      activatePreview: true,
+      jump: true,
+      sourcePaneId: 'pane-source',
+      trigger: 'workflow-toggle-preview',
+    },
+  }])
+})
+
+test('document workflow typst pane runtime does not reuse mixed artifact panes for pdf reveal', () => {
+  const sourcePath = '/workspace/main.typ'
+  const previewPath = 'typst-preview:/workspace/main.typ'
+  const artifactPath = '/workspace/main.pdf'
+  const editorStore = createEditorStore({
+    panes: {
+      'pane-source': { tabs: [sourcePath], activeTab: sourcePath },
+      'pane-foreign': {
+        tabs: [artifactPath, 'typst-preview:/workspace/other.typ', '/workspace/other.pdf'],
+        activeTab: '/workspace/other.pdf',
+      },
+    },
+  })
+  const workflowStore = createWorkflowStore({
+    previewPath,
+    artifactPath,
+  })
+  const runtime = createRuntime({ editorStore, workflowStore })
+
+  runtime.revealPdfForFile(sourcePath, {
+    sourcePaneId: 'pane-source',
+    buildOptions: { adapter: { kind: 'typst' } },
+    allowLegacyPaneResult: true,
+  })
+
+  assert.deepEqual(editorStore.splitCalls, [{
+    sourcePaneId: 'pane-source',
+    direction: 'vertical',
+    tabPath: artifactPath,
+  }])
+})
+
+test('document workflow typst pane runtime closes the shared pane when preview is already active in legacy compatibility mode', async () => {
   const sourcePath = '/workspace/main.typ'
   const previewPath = 'typst-preview:/workspace/main.typ'
   const artifactPath = '/workspace/main.pdf'
@@ -278,6 +541,7 @@ test('document workflow typst pane runtime closes the shared pane when preview i
   await runtime.revealPreviewForFile(sourcePath, {
     sourcePaneId: 'pane-source',
     buildOptions: { adapter: { kind: 'typst' } },
+    allowLegacyPaneResult: true,
   })
 
   assert.deepEqual(workflowStore.closePreviewCalls, [{

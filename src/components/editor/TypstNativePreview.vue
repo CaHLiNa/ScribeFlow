@@ -32,8 +32,8 @@ import { useTypstStore } from '../../stores/typst'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { useI18n } from '../../i18n'
-import { previewSourcePathFromPath } from '../../utils/fileTypes'
-import { resolveCachedTypstRootPath, resolveTypstCompileTarget } from '../../services/typst/root.js'
+import { resolveTypstNativePreviewInput } from '../../domains/document/documentWorkspacePreviewAdapters.js'
+import { resolveCachedTypstRootPath } from '../../services/typst/root.js'
 import {
   clearPendingTypstForwardSync,
   ensureTypstNativePreviewSession,
@@ -47,6 +47,8 @@ import { revealTypstSourceLocation } from '../../services/typst/reveal.js'
 const props = defineProps({
   filePath: { type: String, required: true },
   paneId: { type: String, required: true },
+  sourcePath: { type: String, default: '' },
+  rootPath: { type: String, default: '' },
 })
 
 const editorStore = useEditorStore()
@@ -57,48 +59,38 @@ const workflowStore = useDocumentWorkflowStore()
 const { t } = useI18n()
 
 const iframeRef = ref(null)
-const rootPath = ref('')
+const previewRootPath = ref('')
 const previewUrl = ref('')
 const loadError = ref('')
 const iframeLoaded = ref(false)
 let unsubscribeScrollSource = null
 
-const sourcePath = computed(
-  () =>
-    workflowStore.getSourcePathForPreview(props.filePath) ||
-    previewSourcePathFromPath(props.filePath)
+const resolvedSourcePath = computed(
+  () => resolvedPreviewInput.value.sourcePath
 )
+const resolvedPreviewInput = ref({ sourcePath: '', rootPath: '' })
 
 const preferredSourcePaneId = computed(
   () =>
-    editorStore.findPaneWithTab(sourcePath.value)?.id ||
-    (workflowStore.session.previewSourcePath === sourcePath.value
+    editorStore.findPaneWithTab(resolvedSourcePath.value)?.id ||
+    (workflowStore.session.previewSourcePath === resolvedSourcePath.value
       ? workflowStore.session.sourcePaneId
       : null) ||
     null
 )
 
 async function resolveRootPath() {
-  const source = sourcePath.value
-  if (!source) return ''
-  const fallbackRootPath =
-    typstStore.stateForFile(source)?.projectRootPath ||
-    typstStore.stateForFile(source)?.compileTargetPath ||
-    resolveCachedTypstRootPath(source) ||
-    source
-
-  try {
-    const resolved = await resolveTypstCompileTarget(source, {
-      filesStore,
-      workspacePath: workspace.path,
-      contentOverrides: {
-        [source]: filesStore.fileContents[source],
-      },
-    })
-    return resolved || fallbackRootPath
-  } catch {
-    return fallbackRootPath
-  }
+  const resolved = await resolveTypstNativePreviewInput(props.filePath, {
+    sourcePath: props.sourcePath,
+    rootPath: props.rootPath,
+    workflowStore,
+    typstStore,
+    filesStore,
+    workspacePath: workspace.path,
+    resolveCachedTypstRootPathImpl: resolveCachedTypstRootPath,
+  })
+  resolvedPreviewInput.value = resolved
+  return resolved.rootPath || ''
 }
 
 async function ensurePreviewReady() {
@@ -107,7 +99,7 @@ async function ensurePreviewReady() {
   previewUrl.value = ''
   const resolvedRoot = await resolveRootPath()
   if (!resolvedRoot) return
-  rootPath.value = resolvedRoot
+  previewRootPath.value = resolvedRoot
 
   try {
     const session = await ensureTypstNativePreviewSession({
@@ -125,7 +117,7 @@ async function runForwardSync(detail) {
   try {
     const ok = await requestTypstNativePreviewForwardSync({
       sourcePath: detail.sourcePath,
-      rootPath: rootPath.value,
+      rootPath: previewRootPath.value,
       workspacePath: workspace.path,
       line: detail.line,
       character: detail.character,
@@ -139,8 +131,8 @@ async function runForwardSync(detail) {
 }
 
 function flushPendingForwardSync() {
-  if (!rootPath.value) return
-  const detail = peekPendingTypstForwardSync(rootPath.value)
+  if (!previewRootPath.value) return
+  const detail = peekPendingTypstForwardSync(previewRootPath.value)
   if (!detail) return
   void runForwardSync(detail)
 }
@@ -148,10 +140,10 @@ function flushPendingForwardSync() {
 function handleForwardSyncRequest(event) {
   const detail = event.detail || {}
   const source = String(detail.sourcePath || '')
-  if (!source || !rootPath.value) return
+  if (!source || !previewRootPath.value) return
   if (
-    source !== sourcePath.value &&
-    !sourceBelongsToTypstPreviewRoot(source, rootPath.value, detail.rootPath)
+    source !== resolvedSourcePath.value &&
+    !sourceBelongsToTypstPreviewRoot(source, previewRootPath.value, detail.rootPath)
   )
     return
   if (!Number.isInteger(detail.line) || !Number.isInteger(detail.character)) return
@@ -165,9 +157,9 @@ function handleIframeLoad() {
 
 async function handleScrollSource(location) {
   const filePath = String(location?.filePath || '')
-  if (!filePath || !rootPath.value) return
+  if (!filePath || !previewRootPath.value) return
   const sourceRootPath = resolveCachedTypstRootPath(filePath) || filePath
-  if (!sourceBelongsToTypstPreviewRoot(filePath, rootPath.value, sourceRootPath)) return
+  if (!sourceBelongsToTypstPreviewRoot(filePath, previewRootPath.value, sourceRootPath)) return
   await revealTypstSourceLocation(editorStore, location, {
     center: true,
     paneId: preferredSourcePaneId.value,
@@ -189,14 +181,7 @@ onUnmounted(() => {
 })
 
 watch(
-  () => sourcePath.value,
-  () => {
-    void ensurePreviewReady()
-  }
-)
-
-watch(
-  () => workspace.path,
+  [() => props.filePath, () => props.sourcePath, () => props.rootPath, () => workspace.path],
   () => {
     void ensurePreviewReady()
   }

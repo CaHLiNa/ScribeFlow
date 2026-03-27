@@ -126,6 +126,7 @@ export const markdownDocumentAdapter = {
 
   preview: markdownPreviewAdapter,
   citationSyntax: markdownCitationSyntax,
+  compile: null,
 
   getProblems(filePath, context = {}) {
     const draftProblems = buildMarkdownDraftProblems(
@@ -146,7 +147,7 @@ export const markdownDocumentAdapter = {
       { referenceKeys: context.referencesStore?.allKeys || [] },
     )
     return buildMarkdownWorkflowUiState({
-      previewAvailable: !!context.workflowStore?.hasPreviewForSource(filePath, 'html'),
+      previewAvailable: !!context.previewAvailable,
       draftProblems,
       htmlState: context.workflowStore?.markdownPreviewState?.[filePath] || {},
     })

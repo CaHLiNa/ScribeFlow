@@ -36,6 +36,7 @@ import { useReferencesStore } from '../../stores/references'
 import { useLinksStore } from '../../stores/links'
 import { renderPreview } from '../../utils/markdownPreview'
 import { revealMarkdownSourceLocation } from '../../services/markdown/reveal.js'
+import { resolveMarkdownPreviewInput } from '../../domains/document/documentWorkspacePreviewAdapters.js'
 import {
   clearPendingMarkdownForwardSync,
   rememberPendingMarkdownForwardSync,
@@ -46,6 +47,7 @@ import { isRmdOrQmd } from '../../utils/fileTypes'
 const props = defineProps({
   filePath: { type: String, required: true },
   paneId: { type: String, required: true },
+  sourcePath: { type: String, default: '' },
 })
 
 const filesStore = useFilesStore()
@@ -56,10 +58,14 @@ const referencesStore = useReferencesStore()
 const linksStore = useLinksStore()
 const containerEl = ref(null)
 
-// Extract source path from preview: prefix
-const sourcePath = computed(() => props.filePath.replace(/^preview:/, ''))
-const loadError = computed(() => filesStore.getFileLoadError(sourcePath.value))
-const isRmd = computed(() => isRmdOrQmd(sourcePath.value))
+const resolvedSourcePath = computed(
+  () => resolveMarkdownPreviewInput(props.filePath, {
+    sourcePath: props.sourcePath,
+    workflowStore,
+  }).sourcePath
+)
+const loadError = computed(() => filesStore.getFileLoadError(resolvedSourcePath.value))
+const isRmd = computed(() => isRmdOrQmd(resolvedSourcePath.value))
 
 // Knitting state
 const knitting = ref(false)
@@ -82,7 +88,7 @@ function readAnchorLocation(element) {
   const startLine = Number(element.dataset.sourceStartLine ?? -1)
   if (!Number.isFinite(startOffset) || startOffset < 0) return null
   return {
-    filePath: sourcePath.value,
+    filePath: resolvedSourcePath.value,
     line: Number.isFinite(startLine) && startLine > 0 ? startLine : 1,
     offset: startOffset,
     startOffset,
@@ -167,7 +173,7 @@ function scrollToSourceLocation(detail = {}) {
 }
 
 function flushPendingForwardSync() {
-  const detail = takePendingMarkdownForwardSync(sourcePath.value)
+  const detail = takePendingMarkdownForwardSync(resolvedSourcePath.value)
   if (!detail) return
   if (!scrollToSourceLocation(detail)) {
     rememberPendingMarkdownForwardSync(detail)
@@ -179,9 +185,9 @@ async function doRender() {
     renderedHtml.value = ''
     return
   }
-  let md = filesStore.fileContents[sourcePath.value]
+  let md = filesStore.fileContents[resolvedSourcePath.value]
   if (md === undefined) return
-  workflowStore.setMarkdownPreviewState(sourcePath.value, {
+  workflowStore.setMarkdownPreviewState(resolvedSourcePath.value, {
     status: 'rendering',
     problems: [],
   })
@@ -201,17 +207,17 @@ async function doRender() {
     renderedHtml.value = result instanceof Promise ? await result : result
     await nextTick()
     flushPendingForwardSync()
-    workflowStore.setMarkdownPreviewState(sourcePath.value, {
+    workflowStore.setMarkdownPreviewState(resolvedSourcePath.value, {
       status: 'ready',
       problems: [],
     })
   } catch (error) {
     renderedHtml.value = ''
-    workflowStore.setMarkdownPreviewState(sourcePath.value, {
+    workflowStore.setMarkdownPreviewState(resolvedSourcePath.value, {
       status: 'error',
       problems: [{
-        id: `markdown-preview:${sourcePath.value}`,
-        sourcePath: sourcePath.value,
+        id: `markdown-preview:${resolvedSourcePath.value}`,
+        sourcePath: resolvedSourcePath.value,
         line: null,
         column: null,
         severity: 'error',
@@ -229,7 +235,7 @@ async function doRender() {
  */
 async function doKnit() {
   if (loadError.value) return
-  const md = filesStore.fileContents[sourcePath.value]
+  const md = filesStore.fileContents[resolvedSourcePath.value]
   if (!md) return
 
   knitting.value = true
@@ -242,11 +248,11 @@ async function doKnit() {
     await doRender()
   } catch (e) {
     console.error('Knit failed:', e)
-    workflowStore.setMarkdownPreviewState(sourcePath.value, {
+    workflowStore.setMarkdownPreviewState(resolvedSourcePath.value, {
       status: 'error',
       problems: [{
-        id: `markdown-knit:${sourcePath.value}`,
-        sourcePath: sourcePath.value,
+        id: `markdown-knit:${resolvedSourcePath.value}`,
+        sourcePath: resolvedSourcePath.value,
         line: null,
         column: null,
         severity: 'error',
@@ -263,7 +269,7 @@ async function doKnit() {
 }
 
 watch(
-  () => filesStore.fileContents[sourcePath.value],
+  () => filesStore.fileContents[resolvedSourcePath.value],
   () => {
     // On edits, clear knitted cache (stale) and re-render preprocessed
     knittedMarkdown = null
@@ -283,10 +289,10 @@ watch(() => referencesStore.citationStyle, doRender)
 
 onMounted(async () => {
   // Ensure content is loaded
-  let content = filesStore.fileContents[sourcePath.value]
-  if (content === undefined) {
-    content = await filesStore.readFile(sourcePath.value)
-  }
+   let content = filesStore.fileContents[resolvedSourcePath.value]
+   if (content === undefined) {
+     content = await filesStore.readFile(resolvedSourcePath.value)
+   }
   if (content === null && loadError.value) return
 
   if (isRmd.value) {
@@ -309,7 +315,7 @@ onUnmounted(() => {
 
 function handleForwardSyncRequest(event) {
   const detail = event.detail || {}
-  if (detail.sourcePath !== sourcePath.value) return
+   if (detail.sourcePath !== resolvedSourcePath.value) return
   void nextTick(() => {
     if (scrollToSourceLocation(detail)) {
       clearPendingMarkdownForwardSync(detail)
@@ -325,7 +331,7 @@ function handleClick(e) {
   if (wikiLink) {
     const target = wikiLink.dataset.target
     if (target) {
-      const resolved = linksStore.resolveLink(target, sourcePath.value)
+       const resolved = linksStore.resolveLink(target, resolvedSourcePath.value)
       if (resolved) {
         editorStore.openFile(resolved.path)
       }
@@ -359,8 +365,8 @@ async function handleDoubleClick(e) {
   e.stopPropagation()
 
   const preferredSourcePaneId = (
-    editorStore.findPaneWithTab(sourcePath.value)?.id
-    || (workflowStore.session.previewSourcePath === sourcePath.value ? workflowStore.session.sourcePaneId : null)
+     editorStore.findPaneWithTab(resolvedSourcePath.value)?.id
+     || (workflowStore.session.previewSourcePath === resolvedSourcePath.value ? workflowStore.session.sourcePaneId : null)
     || null
   )
 

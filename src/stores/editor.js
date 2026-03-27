@@ -95,6 +95,13 @@ function isResearchInsertableTextPath(path) {
   return ['md', 'markdown', 'txt', 'tex', 'latex', 'typ', 'rmd', 'qmd'].includes(fileExtension(path))
 }
 
+function dropLegacyPreviewPath(legacyPreviewPaths, path) {
+  if (!isPreviewPath(path) || !legacyPreviewPaths.has(path)) return legacyPreviewPaths
+  const next = new Set(legacyPreviewPaths)
+  next.delete(path)
+  return next
+}
+
 export const useEditorStore = defineStore('editor', {
   state: () => ({
     paneTree: {
@@ -118,6 +125,8 @@ export const useEditorStore = defineStore('editor', {
     lastChatPaneId: null,
     // Invalidate async restore validation work when switching workspaces.
     restoreGeneration: 0,
+    // Legacy preview pseudo-tabs restored from older pane-first persistence.
+    legacyPreviewPaths: new Set(),
   }),
 
   getters: {
@@ -134,7 +143,9 @@ export const useEditorStore = defineStore('editor', {
       const files = new Set()
       const walk = (node) => {
         if (node.type === 'leaf') {
-          node.tabs.forEach((t) => files.add(t))
+          node.tabs.forEach((t) => {
+            files.add(t)
+          })
         } else if (node.children) {
           node.children.forEach(walk)
         }
@@ -167,6 +178,10 @@ export const useEditorStore = defineStore('editor', {
       }
 
       return state.recentFiles.find((entry) => isContextCandidatePath(entry.path))?.path || null
+    },
+
+    isLegacyPreviewTab(state) {
+      return (path) => state.legacyPreviewPaths.has(path)
     },
   },
 
@@ -419,6 +434,7 @@ export const useEditorStore = defineStore('editor', {
 
       const result = closePaneTab(pane, path)
       if (!result.closed) return
+      this.legacyPreviewPaths = dropLegacyPreviewPath(this.legacyPreviewPaths, path)
       if (result.activeTab) {
         this._rememberContextPath(result.activeTab)
       }
@@ -692,6 +708,7 @@ export const useEditorStore = defineStore('editor', {
         shouldersDir: useWorkspaceStore().shouldersDir,
         paneTree: this.paneTree,
         activePaneId: this.activePaneId,
+        legacyPreviewPaths: this.legacyPreviewPaths,
       })
     },
 
@@ -701,6 +718,7 @@ export const useEditorStore = defineStore('editor', {
         shouldersDir: useWorkspaceStore().shouldersDir,
         paneTree: this.paneTree,
         activePaneId: this.activePaneId,
+        legacyPreviewPaths: this.legacyPreviewPaths,
       })
     },
 

@@ -1,5 +1,51 @@
 import { createDocumentWorkflowBuildOperationRuntime } from './documentWorkflowBuildOperationRuntime.js'
 import { createDocumentWorkflowTypstPaneRuntime } from './documentWorkflowTypstPaneRuntime.js'
+import { createDocumentWorkspacePreviewAction } from './documentWorkspacePreviewRuntime.js'
+
+const WORKSPACE_PREVIEW_DELIVERY = 'workspace'
+const LEGACY_PANE_PREVIEW_DELIVERY = 'legacy-pane'
+
+function resolvePreviewDelivery(options = {}) {
+  if (options.previewDelivery === LEGACY_PANE_PREVIEW_DELIVERY) {
+    return LEGACY_PANE_PREVIEW_DELIVERY
+  }
+  if (options.previewDelivery === WORKSPACE_PREVIEW_DELIVERY) {
+    return WORKSPACE_PREVIEW_DELIVERY
+  }
+  return options.allowLegacyPaneResult === true
+    ? LEGACY_PANE_PREVIEW_DELIVERY
+    : WORKSPACE_PREVIEW_DELIVERY
+}
+
+function usesLegacyPanePreviewDelivery(options = {}) {
+  return resolvePreviewDelivery(options) === LEGACY_PANE_PREVIEW_DELIVERY
+}
+
+function createWorkspacePreviewResult(filePath, options = {}) {
+  if (!filePath) return null
+
+  const uiState = options.uiState || null
+  const requestedPreviewKind = options.previewKind || uiState?.previewKind || null
+  return createDocumentWorkspacePreviewAction({
+    path: filePath,
+    sourcePaneId: options.sourcePaneId,
+    trigger: options.trigger,
+    nativePreviewSupported: uiState?.kind !== 'typst' || requestedPreviewKind !== 'pdf',
+  })
+}
+
+function createLegacyPanePreviewToggle(workflowStore, filePath, options = {}) {
+  const toggleOptions = {
+    previewKind: options.previewKind,
+    activatePreview: true,
+    sourcePaneId: options.sourcePaneId,
+    trigger: options.trigger,
+  }
+  if (options.jump === true) {
+    toggleOptions.jump = true
+  }
+  return workflowStore?.togglePreviewForSource?.(filePath, toggleOptions) || null
+}
 
 export function createDocumentWorkflowActionRuntime({
   getWorkflowStore,
@@ -9,25 +55,41 @@ export function createDocumentWorkflowActionRuntime({
   function toggleMarkdownPreviewForFile(filePath, options = {}) {
     if (!filePath) return null
 
+    if (!usesLegacyPanePreviewDelivery(options)) {
+      return createWorkspacePreviewResult(filePath, {
+        ...options,
+        trigger: options.trigger || 'markdown-preview-toggle',
+      })
+    }
+
     const workflowStore = getWorkflowStore?.() || null
-    return workflowStore?.togglePreviewForSource?.(filePath, {
+    return createLegacyPanePreviewToggle(workflowStore, filePath, {
       previewKind: 'html',
-      activatePreview: true,
       sourcePaneId: options.sourcePaneId,
       trigger: options.trigger || 'markdown-preview-toggle',
-    }) || null
+    })
   }
 
   function togglePdfPreviewForFile(filePath, options = {}) {
     if (!filePath) return null
 
+    if (!usesLegacyPanePreviewDelivery(options)) {
+      return createWorkspacePreviewResult(filePath, {
+        ...options,
+        uiState: {
+          kind: options.adapterKind === 'typst' ? 'typst' : 'latex',
+          previewKind: 'pdf',
+        },
+        trigger: options.trigger || `${options.adapterKind || 'document'}-preview-toggle`,
+      })
+    }
+
     const workflowStore = getWorkflowStore?.() || null
-    return workflowStore?.togglePreviewForSource?.(filePath, {
+    return createLegacyPanePreviewToggle(workflowStore, filePath, {
       previewKind: 'pdf',
-      activatePreview: true,
       sourcePaneId: options.sourcePaneId,
       trigger: options.trigger || `${options.adapterKind || 'document'}-preview-toggle`,
-    }) || null
+    })
   }
 
   async function runPrimaryActionForFile(filePath, options = {}) {
@@ -57,10 +119,13 @@ export function createDocumentWorkflowActionRuntime({
 
     const workflowStore = getWorkflowStore?.() || null
     const uiState = options.uiState || null
-    if (!workflowStore || !uiState?.kind || uiState.kind === 'text') return null
+    if (!uiState?.kind || uiState.kind === 'text') return null
 
     if (uiState.kind === 'markdown') {
-      return toggleMarkdownPreviewForFile(filePath, options)
+      return createWorkspacePreviewResult(filePath, {
+        ...options,
+        trigger: options.trigger || 'workflow-toggle-preview',
+      })
     }
 
     if (uiState.kind === 'typst') {
@@ -68,16 +133,25 @@ export function createDocumentWorkflowActionRuntime({
       return typstPaneRuntime?.revealPreviewForFile?.(filePath, {
         sourcePaneId: options.sourcePaneId,
         buildOptions: options.buildOptions || {},
+        allowLegacyPaneResult: usesLegacyPanePreviewDelivery(options),
       }) || null
     }
 
-    return workflowStore.togglePreviewForSource?.(filePath, {
+    if (!usesLegacyPanePreviewDelivery(options)) {
+      return createWorkspacePreviewResult(filePath, {
+        ...options,
+        trigger: options.trigger || 'workflow-toggle-preview',
+      })
+    }
+
+    if (!workflowStore) return null
+
+    return createLegacyPanePreviewToggle(workflowStore, filePath, {
       previewKind: uiState.previewKind,
-      activatePreview: true,
       jump: true,
       sourcePaneId: options.sourcePaneId,
       trigger: options.trigger || 'workflow-toggle-preview',
-    }) || null
+    })
   }
 
   function revealPdfForFile(filePath, options = {}) {
@@ -90,6 +164,7 @@ export function createDocumentWorkflowActionRuntime({
     return typstPaneRuntime?.revealPdfForFile?.(filePath, {
       sourcePaneId: options.sourcePaneId,
       buildOptions: options.buildOptions || {},
+      allowLegacyPaneResult: usesLegacyPanePreviewDelivery(options),
     }) || null
   }
 
