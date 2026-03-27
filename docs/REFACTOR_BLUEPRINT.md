@@ -208,6 +208,9 @@ Validation status for the current slice:
 - Fixed the next in-place repair regression by syncing AI text-file writes back into the live editor buffer even in direct-apply mode, so a successful `edit_file` / `write_file` patch now updates the visible TeX / Typst document immediately instead of leaving the open editor stale until a later reload.
 - Reworked the right-sidebar document-run panel into a sidebar-native layout with compact status blocks, condensed workflow metadata, shorter path display, and collapsed raw logs, replacing the previous full-card stacking that read like AI workbench content squeezed into a narrow inspector column.
 - Reduced document-run sidebar toggle jank by only keeping right-sidebar pane content mounted while the inspector is open, limiting sidebar artifact history to the newest outputs, and lazily mounting raw compile logs only after explicit expansion instead of attaching large log DOM during every shell resize.
+- Added a focused `DocumentWorkspaceTab` contract test that locks the v1 document workspace surface to a fixed split with preview-visibility-only configuration and no resize/drag affordance, then re-ran the document-workspace focused suite, `node --test tests/*.test.mjs`, and `npm run build`.
+- Locked `DocumentWorkspaceTab` to the first document-workspace contract as a fixed two-pane shell with no resize props, drag handle, or draggable split affordance, then verified that contract with a focused audit test plus the full node test suite and build.
+
 
 ## Migration Notes
 

@@ -1,8 +1,8 @@
 import { computed, watch } from 'vue'
-import { getLanguage, isLatex, isRmdOrQmd, isTypst } from '../utils/fileTypes'
-import { sendCode, runFile, renderDocument } from '../services/codeRunner'
+import { getLanguage, isLatex, isRmdOrQmd, isTypst } from '../utils/fileTypes.js'
 import { getDocumentAdapterForFile } from '../services/documentWorkflow/adapters/index.js'
 import { getDocumentWorkflowStatusTone } from '../domains/document/documentWorkflowBuildRuntime.js'
+import { shouldShowPdfToolbarTarget } from '../domains/document/documentWorkspacePreviewRuntime.js'
 
 export function useEditorPaneWorkflow(options) {
   const {
@@ -34,27 +34,58 @@ export function useEditorPaneWorkflow(options) {
     }
   }
 
+  async function ensureLanguageReady(language) {
+    const { ensureLanguageExecutionReady } = await import('../services/environmentPreflight.js')
+    return ensureLanguageExecutionReady(language)
+  }
+
+  async function sendCodeToRunner(code, language) {
+    const { sendCode } = await import('../services/codeRunner.js')
+    return sendCode(code, language)
+  }
+
+  async function runFileInRunner(filePath, language) {
+    const { runFile } = await import('../services/codeRunner.js')
+    return runFile(filePath, language)
+  }
+
+  async function renderDocumentInRunner(filePath) {
+    const { renderDocument } = await import('../services/codeRunner.js')
+    return renderDocument(filePath)
+  }
+
+  async function resolveChatStore() {
+    const { useChatStore } = await import('../stores/chat.js')
+    return useChatStore()
+  }
+
   const workflowUiState = computed(() => (
     activeTabRef.value
       ? workflowStore.getUiStateForFile(activeTabRef.value, buildWorkflowOptions())
       : null
   ))
-  const workspacePreviewState = computed(() => (
-    activeTabRef.value
-      ? workflowStore.getWorkspacePreviewStateForFile(activeTabRef.value, buildWorkflowOptions())
-      : null
-  ))
   const activeDocumentAdapter = computed(() => (
     activeTabRef.value ? getDocumentAdapterForFile(activeTabRef.value) : null
+  ))
+  const documentBuildContext = computed(() => (
+    activeTabRef.value
+      ? workflowStore.buildAdapterContext(activeTabRef.value, buildWorkflowOptions({
+        adapter: activeDocumentAdapter.value,
+        workflowOnly: false,
+      }))
+      : null
+  ))
+  const documentPreviewState = computed(() => documentBuildContext.value?.previewState || null)
+  const workspacePreviewState = computed(() => (
+    documentBuildContext.value?.workspacePreviewState || documentPreviewState.value || null
   ))
   const pdfToolbarTargetId = computed(() => (
     `pdf-toolbar-slot-${String(paneIdRef.value || 'pane').replace(/[^a-zA-Z0-9_-]/g, '-')}`
   ))
-  const hasInlinePdfPreview = computed(() => (
-    viewerTypeRef.value === 'text' && workspacePreviewState.value?.previewMode === 'pdf'
-  ))
   const pdfToolbarTargetSelector = computed(() => (
-    (viewerTypeRef.value === 'pdf' || hasInlinePdfPreview.value) ? `#${pdfToolbarTargetId.value}` : ''
+    shouldShowPdfToolbarTarget(viewerTypeRef.value, documentPreviewState.value)
+      ? `#${pdfToolbarTargetId.value}`
+      : ''
   ))
   const showDocumentHeader = computed(() => (
     !!activeTabRef.value && (!!workflowUiState.value || !!pdfToolbarTargetSelector.value)
@@ -67,16 +98,6 @@ export function useEditorPaneWorkflow(options) {
     }))
   })
   const workflowStatusTone = computed(() => getDocumentWorkflowStatusTone(workflowUiState.value))
-
-  async function ensureLanguageReady(language) {
-    const { ensureLanguageExecutionReady } = await import('../services/environmentPreflight.js')
-    return ensureLanguageExecutionReady(language)
-  }
-
-  async function resolveChatStore() {
-    const { useChatStore } = await import('../stores/chat.js')
-    return useChatStore()
-  }
 
   async function handleRunCode() {
     if (!activeTabRef.value) return
@@ -119,7 +140,7 @@ export function useEditorPaneWorkflow(options) {
         })
       }
     }
-    if (code) await sendCode(code, lang)
+    if (code) await sendCodeToRunner(code, lang)
   }
 
   async function handleRunFile() {
@@ -135,12 +156,12 @@ export function useEditorPaneWorkflow(options) {
       return
     }
 
-    await runFile(activeTabRef.value, lang)
+    await runFileInRunner(activeTabRef.value, lang)
   }
 
   async function handleRenderDocument() {
     if (!activeTabRef.value) return
-    await renderDocument(activeTabRef.value)
+    await renderDocumentInRunner(activeTabRef.value)
   }
 
   async function handleCompileTex() {
@@ -255,6 +276,7 @@ export function useEditorPaneWorkflow(options) {
   return {
     pdfToolbarTargetId,
     pdfToolbarTargetSelector,
+    documentPreviewState,
     showDocumentHeader,
     workflowUiState,
     workspacePreviewState,

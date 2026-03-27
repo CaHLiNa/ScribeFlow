@@ -2,6 +2,11 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 
 import { createDocumentWorkflowRuntime } from '../src/domains/document/documentWorkflowRuntime.js'
+import { createDocumentWorkspacePreviewAction } from '../src/domains/document/documentWorkspacePreviewRuntime.js'
+import {
+  createWorkflowPreviewPath,
+  getPreferredWorkflowPreviewKind,
+} from '../src/services/documentWorkflow/policy.js'
 
 function createEditorStore(overrides = {}) {
   const editorStore = {
@@ -125,6 +130,9 @@ function createRuntime({
       if (sourcePath.endsWith('.typ')) return 'typst'
       return null
     },
+    createWorkspacePreviewAction: createDocumentWorkspacePreviewAction,
+    getPreferredWorkflowPreviewKind,
+    createWorkflowPreviewPath,
     reconcileDocumentWorkflowImpl: () => ({
       type: 'inactive',
       trigger: 'manual',
@@ -305,6 +313,114 @@ test('document workflow runtime revealPreview activates the preview pane and emi
     kind: 'markdown',
     previewKind: 'html',
     sourcePath: '/workspace/chapter.md',
+  }])
+})
+
+test('document workflow runtime reconcile records workspace preview state without opening legacy panes', () => {
+  const { runtime, state, editorStore } = createRuntime({
+    runtimeOverrides: {
+      reconcileDocumentWorkflowImpl: () => ({
+        type: 'workspace-preview',
+        trigger: 'manual-open-preview',
+        kind: 'latex',
+        filePath: '/workspace/main.tex',
+        sourcePath: '/workspace/main.tex',
+        sourcePaneId: 'pane-source',
+        previewKind: 'pdf',
+        previewMode: 'pdf',
+        state: 'workspace-preview',
+        preserveOpenLegacy: false,
+        legacyReadOnly: false,
+        legacyPreviewPath: '',
+        legacyPreviewPaneId: null,
+      }),
+    },
+  })
+
+  const result = runtime.reconcile({
+    trigger: 'manual-open-preview',
+    force: true,
+    previewKindOverride: 'pdf',
+  })
+
+  assert.equal(result.type, 'workspace-preview')
+  assert.equal(result.previewPaneId, null)
+  assert.equal(result.previewPath, null)
+  assert.deepEqual(editorStore.openCalls, [])
+  assert.deepEqual(editorStore.splitCalls, [])
+  assert.equal(state.session.state, 'workspace-preview')
+  assert.equal(state.session.previewKind, 'pdf')
+  assert.equal(state.session.previewSourcePath, '/workspace/main.tex')
+})
+
+test('document workflow runtime revealPreview keeps workspace-local previews in place and still emits jump metadata', () => {
+  const { runtime, state, editorStore } = createRuntime({
+    runtimeOverrides: {
+      reconcileDocumentWorkflowImpl: () => ({
+        type: 'workspace-preview',
+        trigger: 'reveal-preview',
+        kind: 'typst',
+        filePath: '/workspace/main.typ',
+        sourcePath: '/workspace/main.typ',
+        sourcePaneId: 'pane-source',
+        previewKind: 'native',
+        previewMode: 'typst-native',
+        state: 'workspace-preview',
+        preserveOpenLegacy: false,
+        legacyReadOnly: false,
+        legacyPreviewPath: '',
+        legacyPreviewPaneId: null,
+      }),
+    },
+  })
+
+  const result = runtime.revealPreview('/workspace/main.typ', {
+    previewKind: 'native',
+    jump: true,
+  })
+
+  assert.equal(result.type, 'workspace-preview')
+  assert.deepEqual(editorStore.openCalls, [])
+  assert.deepEqual(state.jumps, [{
+    kind: 'typst',
+    previewKind: 'native',
+    sourcePath: '/workspace/main.typ',
+  }])
+})
+
+test('document workflow runtime rebinds preserved legacy previews as non-detaching compatibility tabs', () => {
+  const { runtime, state } = createRuntime({
+    runtimeOverrides: {
+      reconcileDocumentWorkflowImpl: () => ({
+        type: 'workspace-preview',
+        trigger: 'editor-pane-sync',
+        kind: 'markdown',
+        filePath: '/workspace/chapter.md',
+        sourcePath: '/workspace/chapter.md',
+        sourcePaneId: 'pane-source',
+        previewKind: 'html',
+        previewMode: 'markdown',
+        state: 'workspace-preview',
+        preserveOpenLegacy: true,
+        legacyReadOnly: false,
+        legacyPreviewPath: 'preview:/workspace/chapter.md',
+        legacyPreviewPaneId: 'pane-preview',
+      }),
+    },
+  })
+
+  runtime.reconcile({
+    trigger: 'editor-pane-sync',
+    force: true,
+  })
+
+  assert.deepEqual(state.boundPreviews, [{
+    previewPath: 'preview:/workspace/chapter.md',
+    sourcePath: '/workspace/chapter.md',
+    previewKind: 'html',
+    kind: 'markdown',
+    paneId: 'pane-preview',
+    detachOnClose: false,
   }])
 })
 

@@ -111,6 +111,11 @@ const latexPreviewAdapter = {
     return previewPath === this.createPath(sourcePath, 'pdf') ? 'pdf' : null
   },
 
+  getTargetPath(sourcePath, context) {
+    const state = latexCompileAdapter.stateForFile(sourcePath, context) || null
+    return state?.previewPath || state?.pdfPath || ''
+  },
+
   ensure(sourcePath, context, options = {}) {
     return context.workflowStore?.ensurePreviewForSource(sourcePath, {
       ...options,

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 
 import { createPinia, setActivePinia } from 'pinia'
 
+import { t } from '../src/i18n/index.js'
 import { createWorkflowPlan } from '../src/services/ai/workflowRuns/planner.js'
 import { createCheckpoint } from '../src/services/ai/workflowRuns/state.js'
 import {
@@ -154,7 +155,7 @@ test('store can move workflows into background mode and expose them for recovery
   assert.equal(backgroundRuns.length, 1)
   assert.equal(backgroundRuns[0].run.id, created.run.id)
   assert.equal(description.executionMode, 'background')
-  assert.match(description.resumeHint || '', /resume|workbench/i)
+  assert.equal(description.resumeHint, t('This workflow can be resumed from the AI workbench or chat list.'))
   assert.equal(synced.run.executionMode, 'background')
 })
 
@@ -231,7 +232,7 @@ test('checkpoint decisions update stored runs and run summaries', () => {
 
   const before = store.describeRun(waitingRun.id)
   assert.equal(before.approvalPending, true)
-  assert.equal(before.currentStepLabel, plan.run.steps[3].label)
+  assert.equal(before.currentStepLabel, t(plan.run.steps[3].label))
 
   const updated = store.applyCheckpointDecision({
     runId: waitingRun.id,

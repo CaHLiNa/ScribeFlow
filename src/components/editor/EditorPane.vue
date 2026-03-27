@@ -30,7 +30,7 @@
     <ReviewBar v-if="activeTab && viewerType === 'text'" :filePath="activeTab" />
     <NotebookReviewBar v-else-if="activeTab && viewerType === 'notebook'" :filePath="activeTab" />
     <div
-      v-if="showEditorHeader"
+      v-if="showDocumentHeader"
       class="document-header-stack"
     >
       <DocumentWorkflowBar
@@ -63,37 +63,59 @@
 
     <!-- Editor or empty state -->
     <div
-      ref="editorContainerRef"
       class="editor-pane-surface flex-1 overflow-hidden relative w-full min-w-0"
-      :class="{ 'flex flex-col': viewerType === 'text' }"
+      :class="{ 'flex flex-col': viewerType === 'text' && !documentWorkspaceRoute.useWorkspaceSurface }"
     >
-      <KeepAlive :max="TEXT_EDITOR_CACHE_MAX">
-        <DocumentWorkspaceTab
-          v-if="activeTab && useDocumentWorkspaceTab"
-          :key="`workspace:${activeTab}`"
-          class="flex-1 min-w-0 h-full"
-          :filePath="activeTab"
-          :paneId="paneId"
-          :preview-state="workspacePreviewState"
-          :toolbar-target-selector="pdfToolbarTargetSelector"
-          @cursor-change="(pos) => $emit('cursor-change', pos)"
-          @editor-stats="(stats) => $emit('editor-stats', stats)"
-          @selection-change="onSelectionChange"
-        />
-        <component
-          :is="TextEditor"
-          v-else-if="activeTab && viewerType === 'text'"
-          :key="`text:${activeTab}`"
-          class="flex-1 min-w-0 h-full"
-          :filePath="activeTab"
-          :paneId="paneId"
-          @cursor-change="(pos) => $emit('cursor-change', pos)"
-          @editor-stats="(stats) => $emit('editor-stats', stats)"
-          @selection-change="onSelectionChange"
-        />
-      </KeepAlive>
+      <EditorTextRouteSurface
+        v-if="activeTab && viewerType === 'text'"
+        ref="editorContainerRef"
+        :use-workspace="documentWorkspaceRoute.useWorkspaceSurface"
+        :preview-visible="documentWorkspaceRoute.previewVisible"
+        :filePath="activeTab"
+        :paneId="paneId"
+        :show-comment-margin="commentsStore.isMarginVisible(activeTab)"
+        :has-editor-selection="hasEditorSelection"
+        :show-comment-panel="showCommentPanel"
+        :active-comment="commentsStore.activeComment"
+        :editor-view="currentEditorView"
+        :container-rect="containerRect"
+        :comment-panel-mode="commentPanelMode"
+        :comment-selection-range="commentSelectionRange"
+        :comment-selection-text="commentSelectionText"
+        @cursor-change="(pos) => $emit('cursor-change', pos)"
+        @editor-stats="(stats) => $emit('editor-stats', stats)"
+        @selection-change="onSelectionChange"
+        @close-comment-panel="closeCommentPanel"
+        @comment-created="onCommentCreated"
+      >
+        <template #preview>
+          <MarkdownPreview
+            v-if="documentWorkspaceRoute.previewMode === 'markdown'"
+            :key="`workspace-markdown:${activeTab}`"
+            :filePath="activeTab"
+            :paneId="paneId"
+          />
+          <TypstNativePreview
+            v-else-if="documentWorkspaceRoute.previewMode === 'typst-native'"
+            :key="`workspace-typst-native:${activeTab}`"
+            :filePath="activeTab"
+            :paneId="paneId"
+            :sourcePath="activeTab"
+          />
+          <DocumentPdfViewer
+            v-else-if="documentWorkspaceRoute.previewMode === 'pdf'"
+            :key="`workspace-pdf:${activeTab}`"
+            :filePath="documentWorkspaceRoute.previewTargetPath || activeTab"
+            :paneId="paneId"
+            :toolbar-target-selector="pdfToolbarTargetSelector"
+            :sourcePath="activeTab"
+            :preview-target-path="documentWorkspaceRoute.previewTargetPath"
+            :resolved-target-path="documentWorkspaceRoute.previewTargetPath"
+          />
+        </template>
+      </EditorTextRouteSurface>
       <DocumentPdfViewer
-        v-if="activeTab && viewerType === 'pdf'"
+        v-else-if="activeTab && viewerType === 'pdf'"
         :key="activeTab"
         :filePath="activeTab"
         :paneId="paneId"
@@ -150,29 +172,6 @@
       />
       <NewTab v-else-if="activeTab && viewerType === 'newtab'" :key="activeTab" :paneId="paneId" />
       <EmptyPane v-else-if="!activeTab" :paneId="paneId" />
-
-      <!-- Comment margin (only for text files with margin visible) -->
-      <CommentMargin
-        v-if="activeTab && viewerType === 'text' && commentsStore.isMarginVisible(activeTab)"
-        :filePath="activeTab"
-        :paneId="paneId"
-        :hasSelection="hasEditorSelection"
-      />
-
-      <!-- Comment floating panel (absolute overlay) -->
-      <CommentPanel
-        v-if="activeTab && viewerType === 'text' && showCommentPanel"
-        :comment="commentsStore.activeComment"
-        :filePath="activeTab"
-        :paneId="paneId"
-        :editorView="currentEditorView"
-        :containerRect="containerRect"
-        :mode="commentPanelMode"
-        :selectionRange="commentSelectionRange"
-        :selectionText="commentSelectionText"
-        @close="closeCommentPanel"
-        @comment-created="onCommentCreated"
-      />
     </div>
   </div>
 </template>
@@ -202,9 +201,10 @@ import { useI18n } from '../../i18n'
 import { useEditorPaneComments } from '../../composables/useEditorPaneComments'
 import { useEditorPaneWorkflow } from '../../composables/useEditorPaneWorkflow'
 import { confirmUnsavedChanges } from '../../services/unsavedChanges'
+import { resolveDocumentWorkspaceTextRoute } from '../../domains/document/documentWorkspacePreviewRuntime'
 import TabBar from './TabBar.vue'
 import ReviewBar from './ReviewBar.vue'
-const TextEditor = defineAsyncComponent(() => import('./TextEditor.vue'))
+const EditorTextRouteSurface = defineAsyncComponent(() => import('./EditorTextRouteSurface.vue'))
 const DocumentPdfViewer = defineAsyncComponent(() => import('./DocumentPdfViewer.vue'))
 const CsvEditor = defineAsyncComponent(() => import('./CsvEditor.vue'))
 const ImageViewer = defineAsyncComponent(() => import('./ImageViewer.vue'))
@@ -215,10 +215,7 @@ const NotebookReviewBar = defineAsyncComponent(() => import('./NotebookReviewBar
 const MarkdownPreview = defineAsyncComponent(() => import('./MarkdownPreview.vue'))
 const TypstNativePreview = defineAsyncComponent(() => import('./TypstNativePreview.vue'))
 const DocumentWorkflowBar = defineAsyncComponent(() => import('./DocumentWorkflowBar.vue'))
-const DocumentWorkspaceTab = defineAsyncComponent(() => import('./DocumentWorkspaceTab.vue'))
 const ChatPanel = defineAsyncComponent(() => import('../chat/ChatPanel.vue'))
-const CommentMargin = defineAsyncComponent(() => import('../comments/CommentMargin.vue'))
-const CommentPanel = defineAsyncComponent(() => import('../comments/CommentPanel.vue'))
 const AiLauncher = defineAsyncComponent(() => import('./AiLauncher.vue'))
 const NewTab = defineAsyncComponent(() => import('./NewTab.vue'))
 const EmptyPane = defineAsyncComponent(() => import('./EmptyPane.vue'))
@@ -274,8 +271,6 @@ const toolbarUiState = computed(() => {
   if (showCommentToolbar.value) return { kind: 'text' }
   return null
 })
-const showEditorHeader = computed(() => !!toolbarUiState.value || !!pdfToolbarTargetSelector.value)
-const TEXT_EDITOR_CACHE_MAX = 4
 
 const editorContainerRef = ref(null)
 
@@ -327,6 +322,8 @@ const {
 const {
   pdfToolbarTargetId,
   pdfToolbarTargetSelector,
+  documentPreviewState,
+  showDocumentHeader,
   workflowUiState,
   workspacePreviewState,
   workflowStatusText,
@@ -358,6 +355,12 @@ const {
   referencesStore,
   t,
 })
+
+const documentWorkspaceRoute = computed(() => resolveDocumentWorkspaceTextRoute({
+  activeTab: props.activeTab,
+  viewerType: viewerType.value,
+  documentPreviewState: documentPreviewState.value,
+}))
 
 function selectTab(path) {
   editorStore.setActiveTab(props.paneId, path)

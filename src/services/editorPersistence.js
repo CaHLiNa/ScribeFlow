@@ -5,7 +5,6 @@
  * tabs in parallel and prunes invalid ones after the fact.
  */
 import { invoke } from '@tauri-apps/api/core'
-import { useReferencesStore } from '../stores/references'
 import {
   isAiWorkbenchPath,
   isChatTab,
@@ -17,10 +16,15 @@ import {
   isNewTab,
   isAiLauncher,
   previewSourcePathFromPath,
-} from '../utils/fileTypes'
+} from '../utils/fileTypes.js'
 
 const STATE_FILE = 'editor-state.json'
 const STATE_VERSION = 1
+
+function normalizeLegacyPreviewPathSet(legacyPreviewPaths = []) {
+  if (legacyPreviewPaths instanceof Set) return legacyPreviewPaths
+  return new Set(Array.isArray(legacyPreviewPaths) ? legacyPreviewPaths : [])
+}
 
 function detectLegacyPrimarySurface(node) {
   if (!node) return null
@@ -42,7 +46,19 @@ function detectLegacyPrimarySurface(node) {
 /**
  * Recursively serialize a pane tree to a plain JSON-safe object.
  */
-function serializePaneTree(node) {
+export function collectLegacyPreviewPaths(node) {
+  if (!node) return []
+  if (node.type === 'leaf') {
+    return (node.tabs || []).filter((tab) => isPreviewPath(tab))
+  }
+  if (node.type === 'split' && Array.isArray(node.children)) {
+    return node.children.flatMap((child) => collectLegacyPreviewPaths(child))
+  }
+  return []
+}
+
+export function serializePaneTree(node, options = {}) {
+  const preservedLegacyPreviewPaths = normalizeLegacyPreviewPathSet(options.preservedLegacyPreviewPaths)
   if (!node) return null
   if (node.type === 'leaf') {
     const tabs = (node.tabs || []).filter((t) => (
@@ -50,29 +66,61 @@ function serializePaneTree(node) {
       && typeof t === 'string'
       && !isLibraryPath(t)
       && !isAiWorkbenchPath(t)
+      && (!isPreviewPath(t) || preservedLegacyPreviewPaths.has(t))
     ))
+    if (tabs.length === 0) return null
     const activeTab = tabs.includes(node.activeTab) ? node.activeTab : (tabs[0] || null)
     return { type: 'leaf', id: node.id, tabs, activeTab }
   }
   if (node.type === 'split' && Array.isArray(node.children)) {
-    const children = node.children.map(c => serializePaneTree(c)).filter(Boolean)
+    const children = node.children
+      .map((child) => serializePaneTree(child, options))
+      .filter(Boolean)
     if (children.length < 2) return children[0] || null
     return { type: 'split', direction: node.direction, ratio: node.ratio, children }
   }
   return null
 }
 
+export function buildPersistedEditorState({
+  paneTree,
+  activePaneId,
+  legacyPreviewPaths = [],
+} = {}) {
+  return {
+    version: STATE_VERSION,
+    paneTree: serializePaneTree(paneTree, {
+      preservedLegacyPreviewPaths: legacyPreviewPaths,
+    }),
+    activePaneId,
+  }
+}
+
+export function normalizeLoadedEditorState(state) {
+  if (!state || state.version !== STATE_VERSION || !state.paneTree) return null
+
+  const legacyPreviewPaths = collectLegacyPreviewPaths(state.paneTree)
+  return {
+    ...state,
+    legacyPrimarySurface: detectLegacyPrimarySurface(state.paneTree),
+    legacyPreviewPaths,
+    paneTree: serializePaneTree(state.paneTree, {
+      preservedLegacyPreviewPaths: legacyPreviewPaths,
+    }),
+  }
+}
+
 /**
  * Save the pane tree + active pane to disk.
  */
-export async function saveState(shouldersDir, paneTree, activePaneId) {
+export async function saveState(shouldersDir, paneTree, activePaneId, options = {}) {
   if (!shouldersDir) return
   try {
-    const state = {
-      version: STATE_VERSION,
-      paneTree: serializePaneTree(paneTree),
+    const state = buildPersistedEditorState({
+      paneTree,
       activePaneId,
-    }
+      legacyPreviewPaths: options.legacyPreviewPaths,
+    })
     await invoke('write_file', {
       path: `${shouldersDir}/${STATE_FILE}`,
       content: JSON.stringify(state, null, 2),
@@ -93,11 +141,7 @@ export async function loadState(shouldersDir) {
     if (!exists) return null
 
     const content = await invoke('read_file', { path: filePath })
-    const state = JSON.parse(content)
-    if (!state || state.version !== STATE_VERSION || !state.paneTree) return null
-    state.legacyPrimarySurface = detectLegacyPrimarySurface(state.paneTree)
-    state.paneTree = serializePaneTree(state.paneTree)
-    return state
+    return normalizeLoadedEditorState(JSON.parse(content))
   } catch (e) {
     console.error('[editorPersistence] Failed to load:', e)
     return null
@@ -162,6 +206,7 @@ async function isTabValid(tab, shouldersDir) {
     const key = referenceKeyFromPath(tab)
     if (!key) return false
     try {
+      const { useReferencesStore } = await import('../stores/references.js')
       return useReferencesStore().getByKey(key) !== null
     } catch { return false }
   }

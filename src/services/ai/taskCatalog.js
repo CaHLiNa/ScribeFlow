@@ -44,8 +44,9 @@ function createWorkflowTaskDescriptor({
   richHtml = null,
   meta = '',
   description = '',
+  translateFn = translate,
 } = {}) {
-  const boundaryCopy = workflowTemplateId ? buildWorkflowBoundaryCopy(workflowTemplateId, translate) : null
+  const boundaryCopy = workflowTemplateId ? buildWorkflowBoundaryCopy(workflowTemplateId, translateFn) : null
   return {
     action: 'workflow',
     workflowTemplateId,
@@ -283,6 +284,7 @@ function buildWritingTasks(path, t) {
         prompt:
           t('Review this draft for argument quality, clarity, structure, and academic tone. Point out concrete revision opportunities.'),
         filePath: path,
+        translateFn: t,
       }),
     },
     {
@@ -298,6 +300,7 @@ function buildWritingTasks(path, t) {
         prompt:
           t('Inspect this draft and identify claims that need stronger citation support or better integration of references.'),
         filePath: path,
+        translateFn: t,
       }),
     },
   ]
@@ -357,6 +360,7 @@ function buildCodeTasks(path, t) {
         prompt:
           t('Explain this code or notebook, identify the main workflow, and call out likely issues, assumptions, or unclear areas.'),
         filePath: path,
+        translateFn: t,
       }),
     },
     {
@@ -410,6 +414,7 @@ function buildPdfTasks(path, t) {
         prompt:
           t('Summarise this PDF by extracting the research question, method, evidence, and key conclusions.'),
         filePath: path,
+        translateFn: t,
       }),
     },
     {
@@ -452,6 +457,7 @@ function buildWorkflowSections(t) {
             artifactIntent: 'review',
             label: t('Review current draft'),
             prompt: t('Act as a critical peer reviewer. Review this draft for originality, logic, clarity, and evidence:'),
+            translateFn: t,
           }),
         },
         {
@@ -478,6 +484,7 @@ function buildWorkflowSections(t) {
             taskId: 'research.paper-search',
             label: t('Search academic papers'),
             prompt: t('Help me search academic papers for this topic. Prefer using search_papers first, then present the best candidates with create_proposal.'),
+            translateFn: t,
           }),
         },
         {
@@ -529,6 +536,7 @@ function buildWorkflowSections(t) {
             artifactIntent: 'citation_set',
             label: t('Citation help'),
             prompt: t('Help me find and integrate citations for this section or claim:'),
+            translateFn: t,
           }),
         },
         {
@@ -559,6 +567,7 @@ function buildWorkflowSections(t) {
             taskId: 'code.prefill',
             label: t('Code assistant'),
             prompt: t('Help me with this research code, notebook, or debugging task:'),
+            translateFn: t,
           }),
         },
         {
@@ -647,6 +656,7 @@ export function getQuickAiItems({ currentPath = '', recentFiles = [], t }) {
         label: t('Review current draft'),
         prompt:
           t('Review this draft for argument quality, clarity, structure, and academic tone. Point out concrete revision opportunities.'),
+        translateFn: t,
       }),
     },
     {
@@ -659,6 +669,7 @@ export function getQuickAiItems({ currentPath = '', recentFiles = [], t }) {
         label: t('Search academic papers'),
         prompt:
           t('Help me search academic papers for this topic. Prefer using search_papers first, then present the best candidates with create_proposal.'),
+        translateFn: t,
       }),
     },
     {
@@ -671,6 +682,7 @@ export function getQuickAiItems({ currentPath = '', recentFiles = [], t }) {
         artifactIntent: 'citation_set',
         label: t('Citation help'),
         prompt: t('Help me find and integrate citations for this section or claim:'),
+        translateFn: t,
       }),
     },
     {
@@ -682,6 +694,7 @@ export function getQuickAiItems({ currentPath = '', recentFiles = [], t }) {
         taskId: 'code.prefill',
         label: t('Code assistant'),
         prompt: t('Help me with this research code, notebook, or debugging task:'),
+        translateFn: t,
       }),
     },
   ]
@@ -1094,6 +1107,7 @@ export function getChatInputToolItems({ currentPath = '', t }) {
         entryContext: 'chat-input',
         label: t('Search academic papers'),
         prompt: t('Help me search academic papers for this topic. Prefer using search_papers first, then present the best candidates with create_proposal.'),
+        translateFn: t,
       }),
     },
     {

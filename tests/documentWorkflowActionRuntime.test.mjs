@@ -3,263 +3,213 @@ import assert from 'node:assert/strict'
 
 import { createDocumentWorkflowActionRuntime } from '../src/domains/document/documentWorkflowActionRuntime.js'
 
-function createRuntime({
-  workflowStore = {},
-  buildOperationRuntime = {},
-  typstPaneRuntime = {},
-} = {}) {
-  return createDocumentWorkflowActionRuntime({
-    getWorkflowStore: () => workflowStore,
-    getBuildOperationRuntime: () => buildOperationRuntime,
-    getTypstPaneRuntime: () => typstPaneRuntime,
-  })
+function createWorkflowStore(overrides = {}) {
+  return {
+    getWorkspacePreviewStateForFile() {
+      return null
+    },
+    showWorkspacePreviewForFile(filePath, options = {}) {
+      return { type: 'workspace-preview', filePath, ...options }
+    },
+    switchWorkspacePreviewModeForFile(filePath, options = {}) {
+      return { type: 'workspace-preview', filePath, ...options }
+    },
+    hideWorkspacePreviewForFile(filePath) {
+      return { type: 'workspace-preview-hidden', filePath }
+    },
+    togglePreviewForSource(filePath, options = {}) {
+      return { type: 'legacy-preview', filePath, ...options }
+    },
+    ...overrides,
+  }
 }
 
-test('document workflow action runtime routes markdown preview toggles through workspace preview state', async () => {
-  const workspaceCalls = []
-  const runtime = createRuntime({
-    workflowStore: {
-      getWorkspacePreviewStateForFile() {
-        return { previewVisible: false, previewMode: null }
-      },
-      showWorkspacePreviewForFile(filePath, options = {}) {
-        workspaceCalls.push({ filePath, options })
-        return { type: 'workspace-preview' }
-      },
+test('workspace markdown toggle hides an already visible inline preview', () => {
+  const calls = []
+  const workflowStore = createWorkflowStore({
+    getWorkspacePreviewStateForFile() {
+      return { previewVisible: true, previewMode: 'markdown' }
+    },
+    hideWorkspacePreviewForFile(filePath) {
+      calls.push(['hide', filePath])
+      return { type: 'workspace-preview-hidden', filePath }
     },
   })
 
-  const result = await runtime.runPrimaryActionForFile('/workspace/chapter.md', {
-    uiState: { kind: 'markdown' },
+  const runtime = createDocumentWorkflowActionRuntime({
+    getWorkflowStore: () => workflowStore,
+  })
+
+  const result = runtime.toggleMarkdownPreviewForFile('/workspace/note.md', {
     sourcePaneId: 'pane-source',
   })
 
-  assert.deepEqual(workspaceCalls, [{
-    filePath: '/workspace/chapter.md',
-    options: {
+  assert.deepEqual(result, { type: 'workspace-preview-hidden', filePath: '/workspace/note.md' })
+  assert.deepEqual(calls, [['hide', '/workspace/note.md']])
+})
+
+test('workspace markdown toggle shows the split preview when it is hidden', () => {
+  const calls = []
+  const workflowStore = createWorkflowStore({
+    showWorkspacePreviewForFile(filePath, options = {}) {
+      calls.push(['show', filePath, options])
+      return { type: 'workspace-preview', filePath, ...options }
+    },
+  })
+
+  const runtime = createDocumentWorkflowActionRuntime({
+    getWorkflowStore: () => workflowStore,
+  })
+
+  const result = runtime.toggleMarkdownPreviewForFile('/workspace/note.md', {
+    sourcePaneId: 'pane-source',
+  })
+
+  assert.equal(result.type, 'workspace-preview')
+  assert.equal(result.filePath, '/workspace/note.md')
+  assert.equal(result.previewKind, 'html')
+  assert.deepEqual(calls, [[
+    'show',
+    '/workspace/note.md',
+    {
       previewKind: 'html',
       sourcePaneId: 'pane-source',
       trigger: 'markdown-preview-toggle',
     },
-  }])
-  assert.deepEqual(result, { type: 'workspace-preview' })
+  ]])
 })
 
-test('document workflow action runtime hides markdown preview when it is already visible', async () => {
-  const hideCalls = []
-  const runtime = createRuntime({
-    workflowStore: {
-      getWorkspacePreviewStateForFile() {
-        return { previewVisible: true, previewMode: 'markdown' }
-      },
-      hideWorkspacePreviewForFile(filePath) {
-        hideCalls.push(filePath)
-        return { type: 'workspace-preview-hidden' }
-      },
+test('workspace pdf toggle hides the current inline pdf preview before reopening', () => {
+  const calls = []
+  const workflowStore = createWorkflowStore({
+    getWorkspacePreviewStateForFile() {
+      return { previewVisible: true, previewMode: 'pdf' }
+    },
+    hideWorkspacePreviewForFile(filePath) {
+      calls.push(['hide', filePath])
+      return { type: 'workspace-preview-hidden', filePath }
     },
   })
 
-  const result = await runtime.toggleMarkdownPreviewForFile('/workspace/chapter.md')
-
-  assert.deepEqual(hideCalls, ['/workspace/chapter.md'])
-  assert.deepEqual(result, { type: 'workspace-preview-hidden' })
-})
-
-test('document workflow action runtime routes compile primary actions through the build operation runtime', async () => {
-  const buildCalls = []
-  const runtime = createRuntime({
-    buildOperationRuntime: {
-      async runBuildForFile(filePath, options = {}) {
-        buildCalls.push({ filePath, options })
-        return { ok: true }
-      },
-    },
+  const runtime = createDocumentWorkflowActionRuntime({
+    getWorkflowStore: () => workflowStore,
   })
 
-  const result = await runtime.runPrimaryActionForFile('/workspace/main.typ', {
-    uiState: { kind: 'typst' },
+  const result = runtime.togglePdfPreviewForFile('/workspace/paper.tex', {
+    adapterKind: 'latex',
     sourcePaneId: 'pane-source',
-    buildOptions: {
-      adapter: { kind: 'typst' },
-      workflowOnly: false,
-    },
   })
 
-  assert.deepEqual(buildCalls, [{
-    filePath: '/workspace/main.typ',
-    options: {
-      adapter: { kind: 'typst' },
-      workflowOnly: false,
-      sourcePaneId: 'pane-source',
-      trigger: 'typst-compile-button',
-    },
-  }])
-  assert.deepEqual(result, { ok: true })
+  assert.deepEqual(result, { type: 'workspace-preview-hidden', filePath: '/workspace/paper.tex' })
+  assert.deepEqual(calls, [['hide', '/workspace/paper.tex']])
 })
 
-test('document workflow action runtime reveals previews inside the workspace instead of opening panes', async () => {
-  const workspaceCalls = []
-  const runtime = createRuntime({
-    workflowStore: {
-      getWorkspacePreviewStateForFile() {
-        return { previewVisible: false, previewMode: null }
-      },
-      async showWorkspacePreviewForFile(filePath, options = {}) {
-        workspaceCalls.push({ filePath, options })
-        return { type: 'workspace-preview', previewKind: options.previewKind }
-      },
+test('workspace reveal preview reopens the requested mode when it is not already visible', async () => {
+  const calls = []
+  const workflowStore = createWorkflowStore({
+    showWorkspacePreviewForFile(filePath, options = {}) {
+      calls.push(['show', filePath, options])
+      return { type: 'workspace-preview', filePath, ...options }
     },
   })
 
-  const result = await runtime.revealPreviewForFile('/workspace/main.typ', {
+  const runtime = createDocumentWorkflowActionRuntime({
+    getWorkflowStore: () => workflowStore,
+  })
+
+  const result = await runtime.revealPreviewForFile('/workspace/paper.typ', {
     uiState: { kind: 'typst', previewKind: 'native' },
     sourcePaneId: 'pane-source',
-    buildOptions: { adapter: { kind: 'typst' } },
+    buildOptions: { requestId: 'build-1' },
   })
 
-  assert.deepEqual(workspaceCalls, [{
-    filePath: '/workspace/main.typ',
-    options: {
+  assert.equal(result.type, 'workspace-preview')
+  assert.equal(result.previewKind, 'native')
+  assert.deepEqual(calls, [[
+    'show',
+    '/workspace/paper.typ',
+    {
       previewKind: 'native',
       sourcePaneId: 'pane-source',
       trigger: 'workflow-toggle-preview',
     },
-  }])
-  assert.deepEqual(result, { type: 'workspace-preview', previewKind: 'native' })
+  ]])
 })
 
-test('document workflow action runtime reveals non-typst previews through workspace preview state', async () => {
-  const workspaceCalls = []
-  const runtime = createRuntime({
-    workflowStore: {
-      getWorkspacePreviewStateForFile() {
-        return { previewVisible: false, previewMode: null }
-      },
-      async showWorkspacePreviewForFile(filePath, options = {}) {
-        workspaceCalls.push({ filePath, options })
-        return { type: 'workspace-preview' }
-      },
+test('legacy typst reveal delegates to the dedicated pane runtime', async () => {
+  const calls = []
+  const typstPaneRuntime = {
+    revealPreviewForFile(filePath, options = {}) {
+      calls.push(['preview', filePath, options])
+      return { type: 'legacy-typst-preview', filePath, ...options }
     },
+    revealPdfForFile(filePath, options = {}) {
+      calls.push(['pdf', filePath, options])
+      return { type: 'legacy-typst-pdf', filePath, ...options }
+    },
+  }
+
+  const runtime = createDocumentWorkflowActionRuntime({
+    getWorkflowStore: () => createWorkflowStore(),
+    getTypstPaneRuntime: () => typstPaneRuntime,
   })
 
-  await runtime.revealPreviewForFile('/workspace/main.tex', {
-    uiState: { kind: 'latex', previewKind: 'pdf' },
+  const previewResult = await runtime.revealPreviewForFile('/workspace/paper.typ', {
+    uiState: { kind: 'typst', previewKind: 'native' },
     sourcePaneId: 'pane-source',
+    buildOptions: { ticket: 'preview' },
+    allowLegacyPaneResult: true,
   })
-
-  assert.deepEqual(workspaceCalls, [{
-    filePath: '/workspace/main.tex',
-    options: {
-      previewKind: 'pdf',
-      sourcePaneId: 'pane-source',
-      trigger: 'workflow-toggle-preview',
-    },
-  }])
-})
-
-test('document workflow action runtime hides non-markdown preview when the same mode is already visible', async () => {
-  const hideCalls = []
-  const runtime = createRuntime({
-    workflowStore: {
-      getWorkspacePreviewStateForFile() {
-        return { previewVisible: true, previewMode: 'pdf' }
-      },
-      hideWorkspacePreviewForFile(filePath) {
-        hideCalls.push(filePath)
-        return { type: 'workspace-preview-hidden' }
-      },
-    },
-  })
-
-  const result = await runtime.revealPreviewForFile('/workspace/main.tex', {
-    uiState: { kind: 'latex', previewKind: 'pdf' },
-  })
-
-  assert.deepEqual(hideCalls, ['/workspace/main.tex'])
-  assert.deepEqual(result, { type: 'workspace-preview-hidden' })
-})
-
-test('document workflow action runtime switches PDF preview mode inside the workspace', () => {
-  const pdfCalls = []
-  const runtime = createRuntime({
-    workflowStore: {
-      getWorkspacePreviewStateForFile() {
-        return { previewVisible: false, previewMode: null }
-      },
-      switchWorkspacePreviewModeForFile(filePath, options = {}) {
-        pdfCalls.push({ filePath, options })
-        return { type: 'workspace-preview', previewKind: options.previewKind }
-      },
-    },
-  })
-
-  const previewResult = runtime.togglePdfPreviewForFile('/workspace/main.tex', {
+  const pdfResult = runtime.revealPdfForFile('/workspace/paper.typ', {
+    uiState: { kind: 'typst', previewKind: 'pdf' },
     sourcePaneId: 'pane-source',
-    adapterKind: 'latex',
+    buildOptions: { ticket: 'pdf' },
+    allowLegacyPaneResult: true,
   })
-  const typstResult = runtime.revealPdfForFile('/workspace/main.typ', {
-    uiState: { kind: 'typst' },
+
+  assert.equal(previewResult.type, 'legacy-typst-preview')
+  assert.equal(pdfResult.type, 'legacy-typst-pdf')
+  assert.deepEqual(calls, [
+    ['preview', '/workspace/paper.typ', {
+      sourcePaneId: 'pane-source',
+      buildOptions: { ticket: 'preview' },
+      allowLegacyPaneResult: true,
+    }],
+    ['pdf', '/workspace/paper.typ', {
+      sourcePaneId: 'pane-source',
+      buildOptions: { ticket: 'pdf' },
+      allowLegacyPaneResult: true,
+    }],
+  ])
+})
+
+test('primary document actions still route compile intents through the build runtime', async () => {
+  const calls = []
+  const buildOperationRuntime = {
+    runBuildForFile(filePath, options = {}) {
+      calls.push([filePath, options])
+      return { type: 'compile', filePath, ...options }
+    },
+  }
+
+  const runtime = createDocumentWorkflowActionRuntime({
+    getWorkflowStore: () => createWorkflowStore(),
+    getBuildOperationRuntime: () => buildOperationRuntime,
+  })
+
+  const result = await runtime.runPrimaryActionForFile('/workspace/paper.tex', {
+    uiState: { kind: 'latex' },
     sourcePaneId: 'pane-source',
-    buildOptions: { adapter: { kind: 'typst' } },
+    buildOptions: { from: 'toolbar' },
   })
 
-  assert.deepEqual(pdfCalls, [{
-    filePath: '/workspace/main.tex',
-    options: {
-      previewKind: 'pdf',
+  assert.equal(result.type, 'compile')
+  assert.deepEqual(calls, [[
+    '/workspace/paper.tex',
+    {
+      from: 'toolbar',
       sourcePaneId: 'pane-source',
-      trigger: 'latex-preview-toggle',
+      trigger: 'latex-compile-button',
     },
-  }, {
-    filePath: '/workspace/main.typ',
-    options: {
-      previewKind: 'pdf',
-      sourcePaneId: 'pane-source',
-      trigger: 'typst-pdf-toggle',
-    },
-  }])
-  assert.deepEqual(previewResult, { type: 'workspace-preview', previewKind: 'pdf' })
-  assert.deepEqual(typstResult, { type: 'workspace-preview', previewKind: 'pdf' })
-})
-
-test('document workflow action runtime hides PDF preview when the PDF mode is already visible', () => {
-  const hideCalls = []
-  const runtime = createRuntime({
-    workflowStore: {
-      getWorkspacePreviewStateForFile() {
-        return { previewVisible: true, previewMode: 'pdf' }
-      },
-      hideWorkspacePreviewForFile(filePath) {
-        hideCalls.push(filePath)
-        return { type: 'workspace-preview-hidden' }
-      },
-    },
-  })
-
-  const result = runtime.togglePdfPreviewForFile('/workspace/main.tex')
-
-  assert.deepEqual(hideCalls, ['/workspace/main.tex'])
-  assert.deepEqual(result, { type: 'workspace-preview-hidden' })
-})
-
-test('document workflow action runtime lets typst PDF button close the current PDF preview', () => {
-  const hideCalls = []
-  const runtime = createRuntime({
-    workflowStore: {
-      getWorkspacePreviewStateForFile() {
-        return { previewVisible: true, previewMode: 'pdf' }
-      },
-      hideWorkspacePreviewForFile(filePath) {
-        hideCalls.push(filePath)
-        return { type: 'workspace-preview-hidden' }
-      },
-    },
-  })
-
-  const result = runtime.revealPdfForFile('/workspace/main.typ', {
-    uiState: { kind: 'typst' },
-  })
-
-  assert.deepEqual(hideCalls, ['/workspace/main.typ'])
-  assert.deepEqual(result, { type: 'workspace-preview-hidden' })
+  ]])
 })

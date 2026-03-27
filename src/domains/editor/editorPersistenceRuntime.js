@@ -1,4 +1,4 @@
-import { loadState, saveState } from '../../services/editorPersistence'
+import { loadState, saveState } from '../../services/editorPersistence.js'
 
 let saveStateTimer = null
 
@@ -24,17 +24,28 @@ export function persistRecentFilesForWorkspace(workspacePath, recentFiles = []) 
   return true
 }
 
-export function scheduleEditorStateSave({ shouldersDir, paneTree, activePaneId, delayMs = 500 } = {}) {
+export function scheduleEditorStateSave({
+  shouldersDir,
+  paneTree,
+  activePaneId,
+  legacyPreviewPaths,
+  delayMs = 500,
+} = {}) {
   clearTimeout(saveStateTimer)
   saveStateTimer = setTimeout(() => {
-    void saveState(shouldersDir, paneTree, activePaneId)
+    void saveState(shouldersDir, paneTree, activePaneId, { legacyPreviewPaths })
   }, delayMs)
 }
 
-export async function flushEditorStateSave({ shouldersDir, paneTree, activePaneId } = {}) {
+export async function flushEditorStateSave({
+  shouldersDir,
+  paneTree,
+  activePaneId,
+  legacyPreviewPaths,
+} = {}) {
   clearTimeout(saveStateTimer)
   saveStateTimer = null
-  await saveState(shouldersDir, paneTree, activePaneId)
+  await saveState(shouldersDir, paneTree, activePaneId, { legacyPreviewPaths })
 }
 
 export function cancelEditorStateSave() {

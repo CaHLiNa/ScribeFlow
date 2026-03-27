@@ -1,13 +1,13 @@
 <template>
   <LatexPdfViewer
     v-if="pdfSourceReady && pdfSourceKind === 'latex'"
-    :filePath="filePath"
+    :filePath="viewerFilePath"
     :paneId="paneId"
     :toolbar-target-selector="toolbarTargetSelector"
   />
   <TypstPdfViewer
     v-else-if="pdfSourceReady && canUseTypstWorkflowPdfViewer"
-    :filePath="filePath"
+    :filePath="viewerFilePath"
     :paneId="paneId"
     :toolbar-target-selector="toolbarTargetSelector"
   />
@@ -19,7 +19,7 @@
   </div>
   <PdfViewer
     v-else
-    :filePath="filePath"
+    :filePath="viewerFilePath"
     :paneId="paneId"
     :toolbar-target-selector="toolbarTargetSelector"
   />
@@ -30,7 +30,7 @@ import { computed, watch } from 'vue'
 import { useFilesStore } from '../../stores/files'
 import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { useI18n } from '../../i18n'
-import { isLatex, isTypst } from '../../utils/fileTypes'
+import { resolveDocumentPdfPreviewInput } from '../../domains/document/documentWorkspacePreviewAdapters.js'
 import PdfViewer from './PdfViewer.vue'
 import LatexPdfViewer from './LatexPdfViewer.vue'
 import TypstPdfViewer from './TypstPdfViewer.vue'
@@ -41,49 +41,47 @@ const props = defineProps({
   toolbarTargetSelector: { type: String, default: '' },
   workflowSourcePath: { type: String, default: '' },
   workflowPreviewKind: { type: String, default: '' },
+  sourcePath: { type: String, default: '' },
+  previewTargetPath: { type: String, default: '' },
+  resolvedTargetPath: { type: String, default: '' },
 })
 
 const filesStore = useFilesStore()
 const workflowStore = useDocumentWorkflowStore()
 const { t } = useI18n()
 
-const previewBinding = computed(() => workflowStore.getPreviewBinding(props.filePath))
-const previewSourcePath = computed(
-  () => workflowStore.getSourcePathForPreview(props.filePath) || ''
-)
-const workflowSourcePath = computed(() => props.workflowSourcePath || previewSourcePath.value)
-const pdfSourceState = computed(() => filesStore.getPdfSourceState(props.filePath))
-const boundSourceKind = computed(() => {
-  if (isLatex(workflowSourcePath.value)) return 'latex'
-  if (isTypst(workflowSourcePath.value)) return 'typst'
-  return null
-})
-const canUseTypstWorkflowPdfViewer = computed(
-  () =>
-    (
-      previewBinding.value?.previewKind === 'pdf'
-      || props.workflowPreviewKind === 'pdf'
-    ) &&
-    (isTypst(previewBinding.value?.sourcePath || '') || boundSourceKind.value === 'typst')
-)
+const previewInput = computed(() => resolveDocumentPdfPreviewInput(props.filePath, {
+  sourcePath: props.sourcePath || props.workflowSourcePath,
+  previewTargetPath: props.previewTargetPath,
+  resolvedTargetPath: props.resolvedTargetPath,
+  workflowStore,
+  filesStore,
+}))
 const pdfSourceReady = computed(
-  () => !!boundSourceKind.value || pdfSourceState.value?.status === 'ready'
+  () => previewInput.value.resolutionState === 'ready' || previewInput.value.resolutionState === 'resolved-from-source'
 )
-const pdfSourceKind = computed(() => boundSourceKind.value || pdfSourceState.value?.kind || 'plain')
+const pdfSourceKind = computed(() => previewInput.value.resolvedKind)
+const viewerFilePath = computed(
+  () => previewInput.value.sourcePath || previewInput.value.artifactPath || props.filePath
+)
+const canUseTypstWorkflowPdfViewer = computed(() => pdfSourceKind.value === 'typst')
+const needsPdfSourceDetection = computed(
+  () => !previewInput.value.sourceKind && !!previewInput.value.artifactPath
+)
 
 async function ensurePdfSourceKind(force = false) {
-  if (!props.filePath?.toLowerCase().endsWith('.pdf')) return
-  if (boundSourceKind.value && !force) return
+  if (!needsPdfSourceDetection.value) return
+  if (pdfSourceReady.value && !force) return
   try {
-    await filesStore.ensurePdfSourceKind(props.filePath, { force })
+    await filesStore.ensurePdfSourceKind(previewInput.value.artifactPath, { force })
   } catch (error) {
     console.warn('[document-pdf-viewer] failed to resolve PDF source kind:', error)
   }
 }
 
 watch(
-  () => props.filePath,
-  (filePath) => {
+  () => [props.filePath, props.sourcePath, props.previewTargetPath, props.resolvedTargetPath],
+  ([filePath]) => {
     if (!filePath) return
     void ensurePdfSourceKind(false)
   },

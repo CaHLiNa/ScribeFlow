@@ -1,10 +1,10 @@
-import { findInvalidTabs } from '../../services/editorPersistence'
+import { findInvalidTabs } from '../../services/editorPersistence.js'
 import {
   findFirstLeaf,
   findLeaf,
   findPane,
   ROOT_PANE_ID,
-} from './paneTreeLayout'
+} from './paneTreeLayout.js'
 
 export function deriveRestoredEditorRuntimeState({
   state,
@@ -31,6 +31,7 @@ export function deriveRestoredEditorRuntimeState({
   return {
     paneTree,
     activePaneId,
+    legacyPreviewPaths: new Set(state?.legacyPreviewPaths || []),
     lastContextPath: contextLeaf?.activeTab || null,
   }
 }

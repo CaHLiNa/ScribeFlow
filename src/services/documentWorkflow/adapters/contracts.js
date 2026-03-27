@@ -8,8 +8,13 @@
  * @property {Object} [toastStore]
  * @property {Object} [referencesStore]
  * @property {Object} [workspace]
+ * @property {Object | null} [previewState]
  * @property {string} [previewKind]
+ * @property {string} [previewMode]
  * @property {boolean} [previewAvailable]
+ * @property {boolean} [previewVisible]
+ * @property {string} [previewTargetPath]
+ * @property {string} [targetResolution]
  * @property {Function} [t]
  */
 
@@ -19,6 +24,8 @@
  * @property {string[]} supportedKinds
  * @property {(sourcePath: string, previewKind: string) => string | null} createPath
  * @property {(sourcePath: string, previewPath: string) => string | null} inferKind
+ * @property {(sourcePath: string, context: DocumentAdapterContext, options?: Object) => string | null} [getTargetPath]
+ * @property {(sourcePath: string, context: DocumentAdapterContext, options?: Object) => boolean} [isNativeSupported]
  * @property {(sourcePath: string, context: DocumentAdapterContext, options?: Object) => any} [ensure]
  * @property {(sourcePath: string, context: DocumentAdapterContext, options?: Object) => any} [reveal]
  */
@@ -48,7 +55,7 @@
  * @property {(filePath: string) => boolean} supportsWorkflowSource
  * @property {PreviewAdapter} preview
  * @property {CitationSyntaxAdapter} citationSyntax
- * @property {CompileAdapter | null} compile
+ * @property {CompileAdapter | null} [compile]
  * @property {(filePath: string, context: DocumentAdapterContext) => any[]} getProblems
  * @property {(filePath: string, context: DocumentAdapterContext) => Object | null} getUiState
  */

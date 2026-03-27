@@ -19,6 +19,22 @@ const typstPreviewAdapter = {
     return previewPath === this.createPath(sourcePath, 'native') ? 'native' : null
   },
 
+  getTargetPath(sourcePath, context) {
+    const state = typstCompileAdapter.stateForFile(sourcePath, context) || null
+    return state?.previewPath || state?.pdfPath || ''
+  },
+
+  isNativeSupported(sourcePath, context, options = {}) {
+    if (typeof options.nativePreviewSupported === 'boolean') {
+      return options.nativePreviewSupported
+    }
+    const liveState = context.typstStore?.liveStateForFile?.(sourcePath) || null
+    if (typeof liveState?.tinymistBacked === 'boolean') {
+      return liveState.tinymistBacked
+    }
+    return true
+  },
+
   ensure(sourcePath, context, options = {}) {
     return context.workflowStore?.ensurePreviewForSource(sourcePath, {
       ...options,
