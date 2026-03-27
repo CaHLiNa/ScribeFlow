@@ -242,7 +242,6 @@
 import { ref, computed, onMounted } from 'vue'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useUxStatusStore } from '../../stores/uxStatus'
-import { ensureGitHubSyncReady } from '../../services/environmentPreflight'
 import { formatRelativeFromNow, useI18n } from '../../i18n'
 import UiButton from '../shared/ui/UiButton.vue'
 import UiInput from '../shared/ui/UiInput.vue'
@@ -369,6 +368,11 @@ const syncStatusText = computed(() => {
       return t('Not connected')
   }
 })
+
+async function ensureGitHubSyncAvailable() {
+  const { ensureGitHubSyncReady } = await import('../../services/environmentPreflight.js')
+  return ensureGitHubSyncReady()
+}
 
 async function openInBrowser(url) {
   try {
@@ -612,7 +616,7 @@ async function handleUnlink() {
 
 async function handleSyncNow() {
   error.value = ''
-  if (!(await ensureGitHubSyncReady())) {
+  if (!(await ensureGitHubSyncAvailable())) {
     return
   }
   loading.value = true

@@ -7,7 +7,6 @@ import { useWorkspaceStore } from '../../stores/workspace'
 import { isAiLauncher } from '../../utils/fileTypes.js'
 import { createSelectionAskTask } from './taskCatalog.js'
 import { autoSendWorkflowMessage, buildTaskSendPayload } from './launchMessages.js'
-import { prepareTexTypFixTask } from './texTypFixer.js'
 
 async function readFileContent(path) {
   if (!path) return null
@@ -16,6 +15,10 @@ async function readFileContent(path) {
   } catch {
     return null
   }
+}
+
+async function loadTexTypFixerModule() {
+  return import('./texTypFixer.js')
 }
 
 function createAiSession({ chatStore, modelId, label, ai }) {
@@ -385,6 +388,7 @@ export async function launchAiTask({
   let nextTask = task
 
   if (nextTask.role === 'tex_typ_fixer' && nextTask.filePath && !nextTask._preparedTexTypFixer) {
+    const { prepareTexTypFixTask } = await loadTexTypFixerModule()
     nextTask = await prepareTexTypFixTask(nextTask)
   }
 

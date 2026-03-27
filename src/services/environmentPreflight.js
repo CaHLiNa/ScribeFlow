@@ -1,11 +1,11 @@
 import { invoke } from '@tauri-apps/api/core'
 import { t } from '../i18n/index.js'
-import { useEnvironmentStore } from '../stores/environment'
-import { useLatexStore } from '../stores/latex'
-import { useToastStore } from '../stores/toast'
-import { useTypstStore } from '../stores/typst'
-import { useUxStatusStore } from '../stores/uxStatus'
-import { useWorkspaceStore } from '../stores/workspace'
+import { useEnvironmentStore } from '../stores/environment.js'
+import { useLatexStore } from '../stores/latex.js'
+import { useToastStore } from '../stores/toast.js'
+import { useTypstStore } from '../stores/typst.js'
+import { useUxStatusStore } from '../stores/uxStatus.js'
+import { useWorkspaceStore } from '../stores/workspace.js'
 
 const COMMAND_CACHE_MS = 5 * 60 * 1000
 const commandCache = new Map()

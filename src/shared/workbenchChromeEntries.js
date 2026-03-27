@@ -7,6 +7,7 @@ import {
   IconListTree,
   IconLink,
   IconMessages,
+  IconSparkles,
   IconTag,
 } from '@tabler/icons-vue'
 import { normalizeWorkbenchSurface } from './workbenchSidebarPanels.js'
@@ -24,6 +25,26 @@ const SIDEBAR_ENTRY_DEFINITIONS = {
       labelKey: 'References',
       titleKey: 'References',
       icon: IconBook2,
+    },
+  ],
+  conversion: [
+    {
+      key: 'pdf-translate',
+      labelKey: 'PDF Translation',
+      titleKey: 'PDF Translation',
+      icon: IconSparkles,
+    },
+    {
+      key: 'pdf-translate-tasks',
+      labelKey: 'Recent tasks',
+      titleKey: 'Recent tasks',
+      icon: IconActivityHeartbeat,
+    },
+    {
+      key: 'files',
+      labelKey: 'Project files',
+      titleKey: 'Project files',
+      icon: IconFolder,
     },
   ],
   library: [
@@ -71,6 +92,7 @@ const INSPECTOR_ENTRY_DEFINITIONS = {
       icon: IconActivityHeartbeat,
     },
   ],
+  conversion: [],
   library: [
     {
       key: 'library-details',

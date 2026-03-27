@@ -274,7 +274,6 @@ import { useUsageStore } from '../../stores/usage'
 import { useToastStore } from '../../stores/toast'
 import { useUxStatusStore } from '../../stores/uxStatus'
 import { getBillingRoute } from '../../services/apiClient'
-import { ensureGitHubSyncReady } from '../../services/environmentPreflight'
 import { useSnapshotLabelPrompt } from '../../app/changes/useSnapshotLabelPrompt.js'
 import { modKey, altKey } from '../../platform'
 import { useI18n } from '../../i18n'
@@ -379,6 +378,11 @@ const syncLabel = computed(() => {
   }
 })
 
+async function ensureGitHubSyncAvailable() {
+  const { ensureGitHubSyncReady } = await import('../../services/environmentPreflight.js')
+  return ensureGitHubSyncReady()
+}
+
 function toggleSyncPopover() {
   showSyncPopover.value = !showSyncPopover.value
   if (showSyncPopover.value) {
@@ -396,7 +400,7 @@ function toggleSyncPopover() {
 
 async function handleSyncNow() {
   showSyncPopover.value = false
-  if (!(await ensureGitHubSyncReady())) {
+  if (!(await ensureGitHubSyncAvailable())) {
     return
   }
   const statusId = uxStatusStore.show(t('Syncing with GitHub...'), {

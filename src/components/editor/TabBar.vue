@@ -244,11 +244,12 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch, nextTick } from 'vue'
+import { ref, reactive, computed, watch, nextTick, onMounted } from 'vue'
 import UiButton from '../shared/ui/UiButton.vue'
 import { useAiWorkbenchStore } from '../../stores/aiWorkbench'
 import { useEditorStore } from '../../stores/editor'
 import { useReferencesStore } from '../../stores/references'
+import { chatAllSessionsMeta, chatSessions } from '../../stores/chatSessionState.js'
 import {
   isReferencePath,
   referenceKeyFromPath,
@@ -262,7 +263,6 @@ import {
   isPreviewPath,
   previewSourcePathFromPath,
 } from '../../utils/fileTypes'
-import { useChatStore } from '../../stores/chat'
 import { useI18n } from '../../i18n'
 
 const props = defineProps({
@@ -286,13 +286,18 @@ const emit = defineEmits([
 ])
 
 const aiWorkbench = useAiWorkbenchStore()
-const chatStore = useChatStore()
 const { t } = useI18n()
+const liveChatStore = ref(null)
+
+onMounted(async () => {
+  const { useChatStore } = await import('../../stores/chat.js')
+  liveChatStore.value = useChatStore()
+})
 
 function isChatStreaming(path) {
   if (!isChatTab(path)) return false
   const sid = getChatSessionId(path)
-  const chat = chatStore.getChatInstance(sid)
+  const chat = liveChatStore.value?.getChatInstance?.(sid)
   if (!chat) return false
   const status = chat.state.statusRef.value
   return status === 'submitted' || status === 'streaming'
@@ -338,12 +343,12 @@ function fileName(path) {
   if (isLibraryPath(path)) return t('Library')
   if (isChatTab(path)) {
     const sid = getChatSessionId(path)
-    const session = chatStore.sessions.find((s) => s.id === sid)
+    const session = chatSessions.value.find((s) => s.id === sid)
     if (session?.label) {
       const label = session.label
       return label.length > 28 ? label.slice(0, 26) + '...' : label
     }
-    const meta = chatStore.allSessionsMeta.find((m) => m.id === sid)
+    const meta = chatAllSessionsMeta.value.find((m) => m.id === sid)
     if (meta?.label) {
       const label = meta.label
       return label.length > 28 ? label.slice(0, 26) + '...' : label
@@ -369,8 +374,8 @@ function chatSessionMeta(path) {
   if (!isChatTab(path)) return null
   const sid = getChatSessionId(path)
   const session =
-    chatStore.sessions.find((item) => item.id === sid) ||
-    chatStore.allSessionsMeta.find((item) => item.id === sid)
+    chatSessions.value.find((item) => item.id === sid) ||
+    chatAllSessionsMeta.value.find((item) => item.id === sid)
   return session ? aiWorkbench.describeSession(session) : null
 }
 

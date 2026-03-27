@@ -1,5 +1,4 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { EditorView } from '@codemirror/view'
 
 export function useEditorPaneComments(options) {
   const {
@@ -71,13 +70,14 @@ export function useEditorPaneComments(options) {
     startComment()
   }
 
-  function handleCommentScrollTo(event) {
+  async function handleCommentScrollTo(event) {
     const { commentId, filePath } = event.detail || {}
     if (filePath !== activeTabRef.value) return
     const view = currentEditorView.value
     if (!view) return
     const comment = commentsStore.commentsForFile(filePath).find((item) => item.id === commentId)
     if (!comment) return
+    const { EditorView } = await import('@codemirror/view')
     view.dispatch({
       effects: EditorView.scrollIntoView(comment.range.from, { y: 'start', yMargin: 50 }),
     })

@@ -16,7 +16,6 @@ export function useAppShellEventBridge({
   workspace,
   editorStore,
   commentsStore,
-  chatStore,
   headerRef,
   leftSidebarRef,
   bottomPanelRef,
@@ -30,6 +29,11 @@ export function useAppShellEventBridge({
   openFileVersionHistory,
 }) {
   const aiWorkbenchStore = useAiWorkbenchStore()
+
+  async function resolveChatStore() {
+    const { useChatStore } = await import('../../stores/chat.js')
+    return useChatStore()
+  }
 
   async function handleKeydown(event) {
     if (isMod(event) && event.key === 's') {
@@ -174,11 +178,12 @@ export function useAppShellEventBridge({
     }
   }
 
-  function handleChatPrefill(event) {
+  async function handleChatPrefill(event) {
     const { message } = event.detail || {}
     if (!message) return
     workspace.openAiSurface()
     aiWorkbenchStore.openLauncher()
+    const chatStore = await resolveChatStore()
     chatStore.pendingPrefill = message
   }
 

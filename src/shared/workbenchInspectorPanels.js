@@ -1,15 +1,18 @@
 export const WORKSPACE_INSPECTOR_PANELS = ['outline', 'backlinks', 'document-run']
+export const CONVERSION_INSPECTOR_PANELS = []
 export const LIBRARY_INSPECTOR_PANELS = ['library-details']
 export const AI_INSPECTOR_PANELS = []
 
 export const WORKBENCH_INSPECTOR_PANELS = {
   workspace: WORKSPACE_INSPECTOR_PANELS,
+  conversion: CONVERSION_INSPECTOR_PANELS,
   library: LIBRARY_INSPECTOR_PANELS,
   ai: AI_INSPECTOR_PANELS,
 }
 
 export const DEFAULT_WORKBENCH_INSPECTOR_PANEL = {
   workspace: 'outline',
+  conversion: '',
   library: 'library-details',
   ai: '',
 }

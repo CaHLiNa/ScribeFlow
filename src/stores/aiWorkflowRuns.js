@@ -175,6 +175,9 @@ export const useAiWorkflowRunsStore = defineStore('aiWorkflowRuns', () => {
   const activeRunId = ref(null)
   const executorServices = {
     chatStore: null,
+    resolveChatStore: null,
+    toastStore: null,
+    aiWorkbenchStore: null,
   }
   const executionByRunId = new Map()
   const executionStateByRunId = new Map()
@@ -304,14 +307,12 @@ export const useAiWorkflowRunsStore = defineStore('aiWorkflowRuns', () => {
     if (!notification) return
 
     try {
-      const [{ useToastStore }, { useAiWorkbenchStore }] = await Promise.all([
-        import('./toast.js'),
-        import('./aiWorkbench.js'),
-      ])
-      const toastStore = useToastStore()
-      const aiWorkbench = useAiWorkbenchStore()
+      const toastStore = executorServices.toastStore
+      if (!toastStore || typeof toastStore.show !== 'function') return
+
+      const aiWorkbench = executorServices.aiWorkbenchStore
       const sessionId = getSessionIdForRun(next.run.id)
-      const action = sessionId
+      const action = sessionId && aiWorkbench && typeof aiWorkbench.openSession === 'function'
         ? {
           label: notification.actionLabel,
           onClick: () => aiWorkbench.openSession(sessionId),
@@ -354,22 +355,36 @@ export const useAiWorkflowRunsStore = defineStore('aiWorkflowRuns', () => {
     return stored
   }
 
-  function configureExecutor({ chatStore = null } = {}) {
-    executorServices.chatStore = chatStore || null
+  function configureExecutor({
+    chatStore,
+    resolveChatStore,
+    toastStore,
+    aiWorkbenchStore,
+  } = {}) {
+    if (chatStore !== undefined) {
+      executorServices.chatStore = chatStore || null
+    }
+    if (resolveChatStore !== undefined) {
+      executorServices.resolveChatStore = typeof resolveChatStore === 'function'
+        ? resolveChatStore
+        : null
+    }
+    if (toastStore !== undefined) {
+      executorServices.toastStore = toastStore || null
+    }
+    if (aiWorkbenchStore !== undefined) {
+      executorServices.aiWorkbenchStore = aiWorkbenchStore || null
+    }
   }
 
   async function resolveExecutorChatStore() {
     if (executorServices.chatStore) return executorServices.chatStore
-    try {
-      const module = await import('./chat.js')
-      const chatStore = module?.useChatStore?.()
-      if (chatStore) {
-        executorServices.chatStore = chatStore
-      }
-      return chatStore || null
-    } catch {
-      return null
+    if (typeof executorServices.resolveChatStore !== 'function') return null
+    const chatStore = await executorServices.resolveChatStore()
+    if (chatStore) {
+      executorServices.chatStore = chatStore
     }
+    return chatStore || null
   }
 
   async function persistRunSnapshot({ runId, sessionId = null, chatStore = null } = {}) {

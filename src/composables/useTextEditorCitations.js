@@ -1,7 +1,7 @@
 import { reactive } from 'vue'
 import { CITATION_GROUP_RE } from '../editor/citations'
 import { buildCitationText } from '../editor/citationSyntax'
-import { LATEX_CITE_RE } from '../editor/latexCitations'
+import { LATEX_CITE_RE } from '../services/latexCitationParsing.js'
 import {
   maybePromptLatexBibliography,
 } from '../services/latexCitationAssist.js'
@@ -57,13 +57,9 @@ export function useTextEditorCitations(options) {
     const key = keys[0]
     const insertFrom = citPalette.triggerFrom
     const insertTo = citPalette.triggerTo
-    let text = ''
-
-    if (citPalette.insideBrackets) {
-      text = isLatexFile && latexCommand ? key : `@${key}`
-    } else {
-      text = buildCitationText(filePath, key, { latexCommand: latexCommand || 'cite' })
-    }
+    const text = citPalette.insideBrackets
+      ? (isLatexFile && latexCommand ? key : `@${key}`)
+      : buildCitationText(filePath, key, { latexCommand: latexCommand || 'cite' })
 
     view.dispatch({
       changes: { from: insertFrom, to: insertTo, insert: text },

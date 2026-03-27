@@ -1,4 +1,3 @@
-import { Command } from '@tauri-apps/plugin-shell'
 import { invoke } from '@tauri-apps/api/core'
 
 const textEncoder = new TextEncoder()
@@ -401,6 +400,7 @@ class TinymistSession {
       return false
     }
 
+    const { Command } = await import('@tauri-apps/plugin-shell')
     const command = Command.create(launchStatus.launchCommand, ['lsp'], {
       cwd: workspacePath || undefined,
       encoding: 'raw',
@@ -448,13 +448,19 @@ class TinymistSession {
     if (child) {
       try {
         await this.request('shutdown', null)
-      } catch {}
+      } catch {
+        // Ignore shutdown request failures while tearing down the session.
+      }
       try {
         await this.notify('exit', {})
-      } catch {}
+      } catch {
+        // Ignore exit notification failures while tearing down the session.
+      }
       try {
         await child.kill()
-      } catch {}
+      } catch {
+        // Ignore kill failures once the child process is already stopping.
+      }
     }
 
     this.handleStopped('')

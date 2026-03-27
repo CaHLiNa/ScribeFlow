@@ -1,13 +1,12 @@
-import { ensureLatexCompileReady, ensureTypstCompileReady } from '../environmentPreflight'
-import { buildLatexWorkflowProblems } from '../documentWorkflow/adapters/latex'
-import { buildTypstWorkflowProblems } from '../typst/diagnostics'
-import { useLatexStore } from '../../stores/latex'
-import { useReferencesStore } from '../../stores/references'
-import { useTypstStore } from '../../stores/typst'
-import { useWorkspaceStore } from '../../stores/workspace'
-import { getDocumentAdapterForFile } from '../documentWorkflow/adapters'
-import { isLatex, isTypst } from '../../utils/fileTypes'
-import { t } from '../../i18n'
+import { buildLatexWorkflowProblems } from '../documentWorkflow/adapters/latex.js'
+import { buildTypstWorkflowProblems } from '../typst/diagnostics.js'
+import { useLatexStore } from '../../stores/latex.js'
+import { useReferencesStore } from '../../stores/references.js'
+import { useTypstStore } from '../../stores/typst.js'
+import { useWorkspaceStore } from '../../stores/workspace.js'
+import { getDocumentAdapterForFile } from '../documentWorkflow/adapters/index.js'
+import { isLatex, isTypst } from '../../utils/fileTypes.js'
+import { t } from '../../i18n/index.js'
 
 function basename(path = '') {
   return String(path || '').split('/').pop() || path
@@ -156,6 +155,10 @@ function buildAdapterContext() {
   }
 }
 
+async function loadEnvironmentPreflightModule() {
+  return import('../environmentPreflight.js')
+}
+
 export function isTexTypFixablePath(filePath = '') {
   return isLatex(filePath) || isTypst(filePath)
 }
@@ -173,8 +176,13 @@ export async function collectTexTypFixerDiagnosis(filePath, options = {}) {
   }
 
   let compilerReady = true
-  if (isLatex(filePath)) compilerReady = await ensureLatexCompileReady()
-  else if (isTypst(filePath)) compilerReady = await ensureTypstCompileReady()
+  if (isLatex(filePath)) {
+    const { ensureLatexCompileReady } = await loadEnvironmentPreflightModule()
+    compilerReady = await ensureLatexCompileReady()
+  } else if (isTypst(filePath)) {
+    const { ensureTypstCompileReady } = await loadEnvironmentPreflightModule()
+    compilerReady = await ensureTypstCompileReady()
+  }
 
   if (compilerReady && options.compile !== false) {
     await compileAdapter.compile(filePath, context, {

@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import { extractMarkdownCitationKeys } from './markdown/citations.js'
-import { extractLatexCitationKeys } from '../editor/latexCitations'
+import { extractLatexCitationKeys } from './latexCitationParsing.js'
 import {
   bibliographyPathForSource,
   hasLatexBibliographyDirective,

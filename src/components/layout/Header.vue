@@ -109,7 +109,6 @@ import {
 } from '@tabler/icons-vue'
 import { isMac, modKey } from '../../platform'
 import { useI18n } from '../../i18n'
-import { insertCitationWithAssist } from '../../services/latexCitationAssist'
 import {
   resolveHeaderChromeLayout,
 } from '../../shared/headerChromeGeometry.js'
@@ -232,7 +231,7 @@ function onSelectFile(path) {
   closeSearchPalette()
 }
 
-function onSelectCitation(key) {
+async function onSelectCitation(key) {
   const target = editorStore.findPreferredResearchInsertTarget()
   if (target?.path) {
     workspace.openWorkspaceSurface()
@@ -240,6 +239,7 @@ function onSelectCitation(key) {
     editorStore.openFileInPane(target.path, target.paneId, { activatePane: true, replaceNewTab: false })
     const view = editorStore.getEditorView(target.paneId, target.path)
     if (view) {
+      const { insertCitationWithAssist } = await import('../../services/latexCitationAssist.js')
       insertCitationWithAssist({
         view,
         filePath: target.path,

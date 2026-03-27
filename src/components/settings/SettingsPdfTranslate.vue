@@ -385,6 +385,14 @@ import { useEnvironmentStore } from '../../stores/environment'
 import { useI18n } from '../../i18n'
 import { findModelById, groupModelsByProvider, providerLabel } from '../../services/modelCatalog'
 import { createDefaultPdfTranslateSettings } from '../../domains/document/pdfTranslateRuntime'
+import {
+  createPdfTranslateDualLayouts,
+  createPdfTranslateFontFamilies,
+  createPdfTranslateLanguageOptions,
+  createPdfTranslateOutputModes,
+  createPdfTranslateTargetLanguageOptions,
+  getPdfTranslateRuntimeTone,
+} from '../../domains/document/pdfTranslateUi'
 import UiButton from '../shared/ui/UiButton.vue'
 import UiInput from '../shared/ui/UiInput.vue'
 import UiSelect from '../shared/ui/UiSelect.vue'
@@ -612,39 +620,11 @@ const advancedSettingKeys = [
 
 const defaultPdfTranslateSettings = createDefaultPdfTranslateSettings()
 
-const sourceLanguages = computed(() => [
-  { value: 'auto', label: t('Auto detect (auto)') },
-  { value: 'zh', label: t('Chinese (zh)') },
-  { value: 'zh-TW', label: t('Traditional Chinese (zh-TW)') },
-  { value: 'en', label: t('English (en)') },
-  { value: 'ja', label: t('Japanese (ja)') },
-  { value: 'ko', label: t('Korean (ko)') },
-  { value: 'fr', label: t('French (fr)') },
-  { value: 'de', label: t('German (de)') },
-  { value: 'es', label: t('Spanish (es)') },
-  { value: 'it', label: t('Italian (it)') },
-  { value: 'ru', label: t('Russian (ru)') },
-  { value: 'pt', label: t('Portuguese (pt)') },
-])
-
-const targetLanguages = computed(() =>
-  sourceLanguages.value.filter((item) => item.value !== 'auto')
-)
-const outputModes = computed(() => [
-  { value: 'mono', label: t('Translated only') },
-  { value: 'dual', label: t('Bilingual PDF') },
-  { value: 'both', label: t('Create both') },
-])
-const dualLayouts = computed(() => [
-  { value: 'side-by-side', label: t('Left & Right') },
-  { value: 'alternating-pages', label: t('Alternating pages') },
-])
-const fontFamilies = computed(() => [
-  { value: 'auto', label: t('Auto') },
-  { value: 'serif', label: t('Serif') },
-  { value: 'sans-serif', label: t('Sans-serif') },
-  { value: 'script', label: t('Script') },
-])
+const sourceLanguages = computed(() => createPdfTranslateLanguageOptions(t))
+const targetLanguages = computed(() => createPdfTranslateTargetLanguageOptions(t))
+const outputModes = computed(() => createPdfTranslateOutputModes(t))
+const dualLayouts = computed(() => createPdfTranslateDualLayouts(t))
+const fontFamilies = computed(() => createPdfTranslateFontFamilies(t))
 const ocrModes = computed(() => [
   { value: 'off', label: t('Off') },
   { value: 'manual', label: t('Manual') },
@@ -655,12 +635,7 @@ const compatibleModels = computed(() => pdfTranslateStore.compatibleModels)
 const compatibleModelGroups = computed(() => groupModelsByProvider(compatibleModels.value))
 const selectedModel = computed(() => findModelById(compatibleModels.value, draft.modelId))
 
-const runtimeDotClass = computed(() => {
-  const status = pdfTranslateStore.runtimeStatus?.status
-  if (status === 'Ready') return 'good'
-  if (status === 'Error' || status === 'PythonMissing') return 'bad'
-  return 'warn'
-})
+const runtimeDotClass = computed(() => getPdfTranslateRuntimeTone(pdfTranslateStore.runtimeStatus))
 
 const runtimeError = computed(() =>
   pdfTranslateStore.runtimeStatus?.status === 'Error' ? pdfTranslateStore.runtimeStatus.data : ''

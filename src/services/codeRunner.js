@@ -2,27 +2,11 @@
 // Uses window.dispatchEvent for cross-component communication (existing pattern).
 
 import { useEnvironmentStore } from '../stores/environment'
-import {
-  ensureDocumentRenderReady,
-  ensureLanguageExecutionReady,
-} from './environmentPreflight'
 
 const LANGUAGE_CONFIG = {
   r: { cmd: 'R', args: ['--interactive', '--no-save'], label: 'R' },
   python: { cmd: 'python3', args: ['-i'], label: 'Python' },
   julia: { cmd: 'julia', args: [], label: 'Julia' },
-}
-
-// Extension → language key
-const EXT_LANGUAGE_MAP = {
-  r: 'r',
-  R: 'r',
-  py: 'python',
-  pyw: 'python',
-  jl: 'julia',
-  rmd: 'r',
-  Rmd: 'r',
-  qmd: 'r',
 }
 
 export function getLanguageConfig(language) {
@@ -40,6 +24,10 @@ export function getLanguageConfig(language) {
   return config
 }
 
+async function loadEnvironmentPreflight() {
+  return import('./environmentPreflight.js')
+}
+
 /**
  * Ensure a language REPL terminal exists. Dispatches event for RightPanel to handle.
  * Returns immediately — the terminal may take a moment to spawn.
@@ -53,6 +41,7 @@ function ensureSession(language) {
  */
 export async function sendCode(code, language) {
   if (!code || !language) return
+  const { ensureLanguageExecutionReady } = await loadEnvironmentPreflight()
   if (!(await ensureLanguageExecutionReady(language))) return
   // Ensure the REPL exists (no-op if already running)
   ensureSession(language)
@@ -67,6 +56,7 @@ export async function sendCode(code, language) {
  */
 export async function runFile(filePath, language) {
   if (!filePath || !language) return
+  const { ensureLanguageExecutionReady } = await loadEnvironmentPreflight()
   if (!(await ensureLanguageExecutionReady(language))) return
   // Never source() .Rmd/.qmd files — use chunk extraction instead
   const ext = (filePath.split('/').pop() || '').split('.').pop()?.toLowerCase()
@@ -92,6 +82,7 @@ export async function runFile(filePath, language) {
  * Render an Rmd/qmd document. Dispatched as a shell command to the language REPL.
  */
 export async function renderDocument(filePath) {
+  const { ensureDocumentRenderReady } = await loadEnvironmentPreflight()
   if (!(await ensureDocumentRenderReady(filePath))) return
   const name = filePath.split('/').pop() || ''
   const ext = name.substring(name.lastIndexOf('.') + 1).toLowerCase()

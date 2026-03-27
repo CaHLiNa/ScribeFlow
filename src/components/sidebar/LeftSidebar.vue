@@ -2,7 +2,7 @@
   <div class="left-shell-sidebar">
     <SidebarChrome :entries="sidebarEntries" :active-key="activePanel" @select="selectSidebarPanel">
       <template #trailing>
-        <template v-if="workspace.isWorkspaceSurface && activePanel === 'files'">
+        <template v-if="usesFileTreePanel">
           <ShellChromeButton
             size="icon-xs"
             :title="t('Collapse All Folders')"
@@ -30,7 +30,7 @@
           </ShellChromeButton>
         </template>
 
-        <template v-else-if="workspace.isWorkspaceSurface && activePanel === 'references'">
+        <template v-else-if="usesReferencePanel">
           <ShellChromeButton
             size="icon-xs"
             :title="t('Export references')"
@@ -115,6 +115,7 @@ import SidebarChrome from '../shared/SidebarChrome.vue'
 import ShellChromeButton from '../shared/ShellChromeButton.vue'
 
 const ReferenceList = defineAsyncComponent(() => import('./ReferenceList.vue'))
+const ConversionSidebar = defineAsyncComponent(() => import('./ConversionSidebar.vue'))
 const LibrarySidebar = defineAsyncComponent(() => import('./LibrarySidebar.vue'))
 const AiWorkbenchSidebar = defineAsyncComponent(() => import('./AiWorkbenchSidebar.vue'))
 
@@ -127,9 +128,40 @@ const libraryTagSelectionCount = ref(0)
 const activePanel = computed(() =>
   normalizeWorkbenchSidebarPanel(workspace.primarySurface, workspace.leftSidebarPanel)
 )
+const usesFileTreePanel = computed(
+  () => (workspace.isWorkspaceSurface || workspace.isConversionSurface) && activePanel.value === 'files'
+)
+const usesReferencePanel = computed(
+  () => workspace.isWorkspaceSurface && activePanel.value === 'references'
+)
 const sidebarEntries = computed(() => getWorkbenchSidebarChromeEntries(t, workspace.primarySurface))
 const activeSidebarView = computed(() => {
-  if (workspace.isWorkspaceSurface && activePanel.value !== 'references') {
+  if (workspace.isConversionSurface) {
+    if (activePanel.value === 'files') {
+      return {
+        component: FileTree,
+        key: 'conversion-files',
+        props: {
+          collapsed: false,
+          embedded: true,
+          headingCollapsible: false,
+          headingLabel: fileTreeHeadingLabel.value,
+        },
+        className: '',
+      }
+    }
+
+    return {
+      component: ConversionSidebar,
+      key: `conversion-${activePanel.value}`,
+      props: {
+        panel: activePanel.value,
+      },
+      className: '',
+    }
+  }
+
+  if (workspace.isWorkspaceSurface && activePanel.value === 'files') {
     return {
       component: FileTree,
       key: 'workspace-files',

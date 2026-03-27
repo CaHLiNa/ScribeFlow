@@ -5,7 +5,6 @@ import { events } from '../services/telemetry'
 import { useWorkspaceStore } from './workspace'
 import { useEditorStore } from './editor'
 import { useFilesStore } from './files'
-import { extractTextFromPdf } from '../utils/pdfMetadata'
 import { buildReferenceKey } from '../utils/referenceKeys'
 import {
   addReferenceTags,
@@ -85,6 +84,11 @@ function referenceKey(ref = {}) {
   return ref?._key || ref?.id || null
 }
 
+async function extractPdfTextLazily(path) {
+  const { extractTextFromPdf } = await import('../utils/pdfMetadata.js')
+  return extractTextFromPdf(path)
+}
+
 
 function buildKeyMapFromList(list = []) {
   const map = {}
@@ -155,7 +159,7 @@ export const useReferencesStore = defineStore('references', {
       const filesStore = useFilesStore()
       const map = {}
       // Pandoc-style: [@key], [@key1; @key2]
-      const citationRe = /\[([^\[\]]*@[a-zA-Z][\w]*[^\[\]]*)\]/g
+      const citationRe = /\[([^\][]*@[a-zA-Z][\w]*[^\][]*)\]/g
       const keyRe = /@([a-zA-Z][\w]*)/g
       // LaTeX-style: \cite{key}, \citep{key1, key2}
       const latexCiteRe = /\\(?:cite[tp]?|citealp|citealt|citeauthor|citeyear|autocite|textcite|parencite|nocite|footcite|fullcite|supercite|smartcite|Cite[tp]?|Parencite|Textcite|Autocite|Smartcite|Footcite|Fullcite)\{([^}]*)\}/g
@@ -430,7 +434,7 @@ export const useReferencesStore = defineStore('references', {
           resolveGlobalReferencePdfsDir,
           resolveGlobalReferenceFulltextDir,
           invoke,
-          extractTextFromPdf,
+          extractTextFromPdf: (path) => extractPdfTextLazily(path),
         })
       }
       return this._referenceAssetRuntime

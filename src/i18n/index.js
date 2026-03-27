@@ -669,6 +669,56 @@ const ZH_MESSAGES = {
   'Create PDF': '创建 PDF',
   'PDF export settings': 'PDF 导出设置',
   'PDF Translation': 'PDF 翻译',
+  Conversion: '转换',
+  'Open document conversion workspace': '打开文档转换工作台',
+  'Document Conversion': '文档转换',
+  'Convert PDF into usable outputs': '把 PDF 转成可继续使用的产物',
+  'Start from one PDF and route it into bilingual output, translated-only output, and the future editable document formats from one workspace.':
+    '从一个 PDF 出发，在同一个工作台里把它送往双语输出、纯译文输出，以及后续可编辑文档格式。',
+  Runtime: '运行时',
+  'Input PDF': '输入 PDF',
+  'Choose a project PDF to convert': '选择一个项目里的 PDF 开始转换',
+  'Source file': '源文件',
+  'Use active PDF': '使用当前 PDF',
+  Targets: '目标产物',
+  'Use one workspace for current and future output formats': '让当前和后续格式转换都共用同一个工作台',
+  'Translated PDF': '已翻译 PDF',
+  'Use the current PDF translation runtime to generate bilingual or translated PDF outputs.':
+    '使用当前 PDF 翻译运行时生成双语 PDF 或纯译文 PDF。',
+  Markdown: 'Markdown',
+  'Markdown (Coming soon)': 'Markdown（即将支持）',
+  'Turn PDF structure into editable Markdown for notes and drafting.':
+    '把 PDF 结构整理成可继续编辑的 Markdown，方便笔记和写作。',
+  LaTeX: 'LaTeX',
+  'LaTeX (Coming soon)': 'LaTeX（即将支持）',
+  'Export academic PDF structure toward a LaTeX source project.':
+    '把学术 PDF 的结构整理成可继续编辑的 LaTeX 项目。',
+  Typst: 'Typst',
+  'Typst (Coming soon)': 'Typst（即将支持）',
+  'Generate a cleaner Typst project for modern academic editing.':
+    '生成一个更适合现代学术编辑流程的 Typst 项目。',
+  'Available now': '当前可用',
+  'Planned next': '下一步规划',
+  'No PDF files in this project yet': '当前项目里还没有 PDF 文件',
+  'Open or add a PDF in this workspace first, then come back here to convert it.':
+    '先在这个工作区里打开或加入一个 PDF，再回来开始转换。',
+  'Save defaults': '保存默认项',
+  'Start conversion': '开始转换',
+  'Recent tasks': '最近任务',
+  'Track conversion progress and reopen outputs': '跟踪转换进度，并随时重新打开输出结果',
+  'No conversion tasks yet': '还没有转换任务',
+  'Start a PDF translation here and it will appear in this queue.':
+    '从这里启动一次 PDF 翻译后，它就会出现在这个任务队列中。',
+  'Selected task': '当前任务',
+  'No task selected': '当前没有选中任务',
+  'Pick a task on the right to inspect its input, output, and current status.':
+    '从右侧选一个任务，查看它的输入、输出和当前状态。',
+  'Pick a task to inspect its input, output, and current status.':
+    '选择一个任务，查看它的输入、输出和当前状态。',
+  'Open output': '打开输出',
+  'Open source PDF': '打开源 PDF',
+  'Output pending': '输出尚未生成',
+  'Not available yet': '暂时还没有',
   'Run PDF translation directly from the PDF toolbar using global defaults and your existing model credentials.':
     '直接从 PDF 工具栏发起翻译，使用全局默认配置和你现有的模型凭证。',
   'Sync Models': '同步模型',
@@ -833,7 +883,6 @@ const ZH_MESSAGES = {
     '适用于公式偏移估计导致排版错位的 PDF。',
   'PDF translation supports any configured provider with a PDF translation engine. Configure one in Settings > Models first.':
     'PDF 翻译支持任何已配置且具备 PDF 翻译引擎的提供商，请先在 设置 > 模型 中完成配置。',
-  Runtime: '运行时',
   'The translator reuses the Python interpreter selected in System settings, but keeps its dependencies in a separate global venv.':
     '翻译器会复用你在系统设置里选择的 Python 解释器，但依赖会安装到独立的全局 venv 中。',
   Status: '状态',
@@ -845,6 +894,7 @@ const ZH_MESSAGES = {
   'Warming up translation runtime': '正在预热翻译运行时',
   'Warmup downloads translator assets so the first translation starts faster.':
     '预热会提前下载和准备翻译资源，让第一次翻译启动更快。',
+  'Open PDF Translation Settings': '打开 PDF 翻译设置',
   'Runtime log': '运行时日志',
   'No Python selected in System settings': '尚未在系统设置中选择 Python',
   'Translate this PDF': '翻译此 PDF',
@@ -1083,9 +1133,6 @@ const ZH_MESSAGES = {
   New: '新建',
   'New Folder': '新建文件夹',
   'New File...': '新建文件...',
-  Markdown: 'Markdown',
-  Typst: 'Typst',
-  LaTeX: 'LaTeX',
   'R Script': 'R 脚本',
   Python: 'Python',
   Notebook: '笔记本',
@@ -2327,7 +2374,6 @@ const ZH_MESSAGES = {
   'Note bundle': '笔记集合',
   Select: '选择',
   Selected: '已选择',
-  'Source file': '源文件',
   '{count} added after this save point': '此保存点之后新增 {count} 个',
   '{count} captured file(s) available for local restore': '有 {count} 个已捕获文件可用于本地恢复',
   '{count} file(s) were skipped during capture because they could not be read as restorable text at save-point time.':

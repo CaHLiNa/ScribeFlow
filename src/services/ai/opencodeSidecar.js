@@ -1,5 +1,4 @@
 import { invoke } from '@tauri-apps/api/core'
-import { Command } from '@tauri-apps/plugin-shell'
 import { t } from '../../i18n'
 import { getHomeDirCached, normalizePathValue } from '../workspacePaths'
 
@@ -193,11 +192,14 @@ async function stopManagedSidecar() {
   if (child) {
     try {
       await child.kill()
-    } catch {}
+    } catch {
+      // Ignore cleanup failures while shutting down the managed sidecar.
+    }
   }
 }
 
 async function tryLaunchPlan(plan, workspace, endpoint, abortSignal) {
+  const { Command } = await import('@tauri-apps/plugin-shell')
   let child = null
   const command = Command.create(plan.name, plan.args, {
     cwd: plan.cwd || workspacePath(workspace) || undefined,
@@ -234,12 +236,19 @@ async function tryLaunchPlan(plan, workspace, endpoint, abortSignal) {
     runtimeState.launchMode = plan.mode
     return endpoint
   } catch (error) {
-    try { await child.kill() } catch {}
+    try {
+      await child.kill()
+    } catch {
+      // Ignore cleanup failures after a launch attempt already failed.
+    }
     if (commandError) {
-      throw new Error(String(commandError))
+      throw new Error(`opencode sidecar launch failed: ${String(commandError)}`, { cause: error })
     }
     if (closePayload && closePayload.code !== 0) {
-      throw new Error(t('opencode sidecar exited ({code}) before becoming ready.', { code: closePayload.code }))
+      throw new Error(
+        t('opencode sidecar exited ({code}) before becoming ready.', { code: closePayload.code }),
+        { cause: error },
+      )
     }
     throw error
   }

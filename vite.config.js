@@ -1,9 +1,11 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { readFileSync } from 'fs'
+import { fileURLToPath } from 'url'
 
 const host = process.env.TAURI_DEV_HOST
 const pkg = JSON.parse(readFileSync('./package.json', 'utf-8'))
+const extendShimPath = fileURLToPath(new URL('./src/shims/extend.js', import.meta.url))
 
 const chunkGroups = [
   ['vendor-vue', [
@@ -17,10 +19,14 @@ const chunkGroups = [
     '/node_modules/@ai-sdk/',
     '/node_modules/zod/',
   ]],
-  ['vendor-codemirror-data', [
-    '/node_modules/@codemirror/language-data/',
+  ['vendor-markdown', [
+    '/node_modules/marked/',
+    '/node_modules/marked-',
+    '/node_modules/katex/',
+    '/node_modules/dompurify/',
   ]],
   ['vendor-codemirror', [
+    '/node_modules/@codemirror/language-data/',
     '/node_modules/@codemirror/',
     '/node_modules/codemirror/',
     '/node_modules/@lezer/',
@@ -50,12 +56,6 @@ const chunkGroups = [
   ['vendor-highlight', [
     '/node_modules/highlight.js/',
   ]],
-  ['vendor-markdown', [
-    '/node_modules/marked/',
-    '/node_modules/marked-',
-    '/node_modules/katex/',
-    '/node_modules/dompurify/',
-  ]],
   ['vendor-citations', [
     '/node_modules/citeproc/',
   ]],
@@ -80,10 +80,19 @@ function getManualChunk(id) {
 
 export default defineConfig(async () => ({
   plugins: [vue()],
+  resolve: {
+    alias: {
+      extend: extendShimPath,
+    },
+  },
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
   },
   build: {
+    modulePreload: {
+      polyfill: false,
+      resolveDependencies: () => [],
+    },
     rollupOptions: {
       output: {
         manualChunks: getManualChunk,

@@ -29,6 +29,13 @@ import { generateWorkspaceText } from '../services/ai/textGeneration'
 import { buildChatRuntimeConfig } from '../services/ai/runtimeConfig'
 import { shouldSkipAutoTitleForSession } from '../services/ai/sessionLabeling'
 import { t } from '../i18n'
+import {
+  chatActiveSessionId,
+  chatAllSessionsMeta,
+  chatPendingPrefill,
+  chatPendingSelection,
+  chatSessions,
+} from './chatSessionState.js'
 
 // Chat instances live OUTSIDE Pinia (non-reactive container).
 // Each Chat's internal messages/status use Vue ref() — reactive when accessed.
@@ -36,13 +43,13 @@ const chatInstances = new Map() // sessionId → Chat
 
 export const useChatStore = defineStore('chat', () => {
   // ─── State ────────────────────────────────────────────────────────
-  const sessions = ref([])
-  const activeSessionId = ref(null)
-  const allSessionsMeta = ref([]) // [{ id, label, updatedAt, messageCount }]
+  const sessions = chatSessions
+  const activeSessionId = chatActiveSessionId
+  const allSessionsMeta = chatAllSessionsMeta // [{ id, label, updatedAt, messageCount }]
   const _chatVersion = ref(0) // Reactive trigger — increment when Chat instances are created/destroyed
   // Prefill/selection queued for the next ChatInput to mount (handles async component timing)
-  const pendingPrefill = ref(null)
-  const pendingSelection = ref(null)
+  const pendingPrefill = chatPendingPrefill
+  const pendingSelection = chatPendingSelection
   // Reactive map of messageId → richHtml (stored separately from AI SDK-owned message objects)
   const _richHtmlMap = ref(Object.create(null))
   let _chatPersistenceRuntime = null

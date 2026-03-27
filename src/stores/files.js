@@ -43,7 +43,6 @@ import { createFileCreationRuntime } from '../domains/files/fileCreationRuntime'
 import { createFileMutationRuntime } from '../domains/files/fileMutationRuntime'
 import { formatFileError } from '../utils/errorMessages'
 import { isBinaryFile } from '../utils/fileTypes'
-import { extractTextFromPdf } from '../utils/pdfMetadata'
 import { t } from '../i18n'
 import { useToastStore } from './toast'
 import { useUxStatusStore } from './uxStatus'
@@ -79,6 +78,11 @@ function parseFileReadError(path, error) {
     message: `Cannot load '${name}'.`,
     detail: raw.length > 160 ? `${raw.slice(0, 160)}...` : raw,
   }
+}
+
+async function extractPdfTextLazily(path) {
+  const { extractTextFromPdf } = await import('../utils/pdfMetadata.js')
+  return extractTextFromPdf(path)
 }
 
 export const useFilesStore = defineStore('files', {
@@ -270,7 +274,7 @@ export const useFilesStore = defineStore('files', {
           }),
           readTextFile: (path, maxBytes) => readWorkspaceTextFile(path, maxBytes),
           saveTextFile: (path, content) => saveWorkspaceTextFile(path, content),
-          extractPdfText: (path) => extractTextFromPdf(path),
+          extractPdfText: (path) => extractPdfTextLazily(path),
           isBinaryPath: (path) => isBinaryFile(path),
           setFileContent: (path, content) => {
             this.fileContents[path] = content

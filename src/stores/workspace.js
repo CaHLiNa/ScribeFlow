@@ -138,6 +138,7 @@ export const useWorkspaceStore = defineStore('workspace', {
   getters: {
     isOpen: (state) => !!state.path,
     isWorkspaceSurface: (state) => state.primarySurface === 'workspace',
+    isConversionSurface: (state) => state.primarySurface === 'conversion',
     isLibrarySurface: (state) => state.primarySurface === 'library',
     isAiSurface: (state) => state.primarySurface === 'ai',
     altalsDir: (state) => state.workspaceDataDir || null,
@@ -526,6 +527,10 @@ export const useWorkspaceStore = defineStore('workspace', {
 
     openWorkspaceSurface() {
       this.setPrimarySurface('workspace')
+    },
+
+    openConversionSurface() {
+      this.setPrimarySurface('conversion')
     },
 
     openLibrarySurface() {

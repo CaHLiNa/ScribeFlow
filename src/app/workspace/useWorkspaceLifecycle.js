@@ -8,7 +8,6 @@ import { useEditorStore } from '../../stores/editor'
 import { useReviewsStore } from '../../stores/reviews'
 import { useCommentsStore } from '../../stores/comments'
 import { useLinksStore } from '../../stores/links'
-import { useChatStore } from '../../stores/chat'
 import { useReferencesStore } from '../../stores/references'
 import { useResearchArtifactsStore } from '../../stores/researchArtifacts'
 import { useTypstStore } from '../../stores/typst'
@@ -37,7 +36,6 @@ export function useWorkspaceLifecycle() {
   const reviews = useReviewsStore()
   const commentsStore = useCommentsStore()
   const linksStore = useLinksStore()
-  const chatStore = useChatStore()
   const referencesStore = useReferencesStore()
   const researchArtifactsStore = useResearchArtifactsStore()
   const typstStore = useTypstStore()
@@ -56,6 +54,11 @@ export function useWorkspaceLifecycle() {
   let unlistenWindowFocusChange = null
 
   const isTauriDesktop = typeof window !== 'undefined' && !!window.__TAURI_INTERNALS__
+
+  async function resolveChatStore() {
+    const { useChatStore } = await import('../../stores/chat.js')
+    return useChatStore()
+  }
 
   function normalizeWorkspacePath(path = '') {
     const normalized = String(path || '').replace(/\/+$/, '')
@@ -221,6 +224,7 @@ export function useWorkspaceLifecycle() {
       scheduleWorkspaceBackgroundTask(220, loadGeneration, targetPath, async () => {
         await workspace.ensureWorkspaceBootstrapReady(targetPath)
         if (loadGeneration !== workspaceLoadGeneration || workspace.path !== targetPath) return
+        const chatStore = await resolveChatStore()
         await chatStore.loadSessions()
       }, 'chat.loadSessions')
       scheduleWorkspaceBackgroundTask(0, loadGeneration, targetPath, async () => {
@@ -275,6 +279,7 @@ export function useWorkspaceLifecycle() {
     filesStore.cleanup()
     reviews.cleanup()
     linksStore.cleanup()
+    const chatStore = await resolveChatStore()
     chatStore.cleanup()
     commentsStore.cleanup()
     referencesStore.cleanup({ preserveGlobalLibrary: true })

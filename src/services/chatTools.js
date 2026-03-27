@@ -15,11 +15,6 @@ import { isMultimodalImage, isPdf, getMimeType } from '../utils/fileTypes'
 import { t } from '../i18n/index.js'
 import { insertCitationWithAssist } from './latexCitationAssist'
 import { createFileToolSyncRuntime } from '../domains/files/fileToolSyncRuntime'
-import {
-  buildCompileDocumentToolResult,
-  collectTexTypFixerDiagnosis,
-  isTexTypFixablePath,
-} from './ai/texTypFixer'
 
 export { EXTERNAL_TOOLS, TOOL_CATEGORIES } from './ai/toolRegistry'
 
@@ -157,6 +152,10 @@ async function _callOpenAlex(query, numResults, workspace) {
 
   const { searchWorks } = await import('./openalex')
   return await searchWorks(query, { perPage: numResults, apiKey: access.key })
+}
+
+async function _loadTexTypFixerModule() {
+  return import('./ai/texTypFixer.js')
 }
 
 
@@ -404,6 +403,11 @@ export function getAiTools(workspace, options = {}) {
       execute: async ({ path }) => {
         const resolved = _resolvePath(path, workspace)
         if (!resolved) return PATH_ERROR
+        const {
+          buildCompileDocumentToolResult,
+          collectTexTypFixerDiagnosis,
+          isTexTypFixablePath,
+        } = await _loadTexTypFixerModule()
         if (!isTexTypFixablePath(resolved)) {
           return 'Error: compile_document only supports .tex and .typ files.'
         }

@@ -1,43 +1,10 @@
-import { EditorView, Decoration, ViewPlugin, WidgetType } from '@codemirror/view'
-
-/**
- * All supported LaTeX citation commands (natbib + biblatex + capitalized variants).
- * Shared between the decoration regex, the trigger plugin, and references.js citedIn getter.
- */
-const CITE_CMDS = 'cite[tp]?|citealp|citealt|citeauthor|citeyear|autocite|textcite|parencite|nocite|footcite|fullcite|supercite|smartcite|Cite[tp]?|Parencite|Textcite|Autocite|Smartcite|Footcite|Fullcite'
-
-/**
- * Matches LaTeX citation commands: \cite{key}, \citep{key1, key2}, \citet{key}, etc.
- * Captures the command name and the keys inside braces.
- */
-const LATEX_CITE_RE = new RegExp(`\\\\(${CITE_CMDS})\\{([^}]*)\\}`, 'g')
-
-/**
- * Matches individual citation keys inside braces (comma-separated).
- */
-const KEY_RE = /([a-zA-Z][\w.-]*)/g
-
-export function extractLatexCitationKeys(text = '') {
-  const keys = []
-  const seen = new Set()
-  const source = String(text || '')
-
-  LATEX_CITE_RE.lastIndex = 0
-  let match
-  while ((match = LATEX_CITE_RE.exec(source)) !== null) {
-    KEY_RE.lastIndex = 0
-    let keyMatch
-    while ((keyMatch = KEY_RE.exec(match[2] || '')) !== null) {
-      const key = keyMatch[1]
-      if (!seen.has(key)) {
-        seen.add(key)
-        keys.push(key)
-      }
-    }
-  }
-
-  return keys
-}
+import { Decoration, ViewPlugin, WidgetType } from '@codemirror/view'
+import {
+  CITE_CMDS,
+  extractLatexCitationKeys,
+  LATEX_CITE_KEY_RE as KEY_RE,
+  LATEX_CITE_RE,
+} from '../services/latexCitationParsing.js'
 
 /**
  * ViewPlugin that decorates \cite{} commands in the viewport.
@@ -235,4 +202,4 @@ export function latexCitationsExtension(referencesStore, callbacks) {
   return { extensions }
 }
 
-export { LATEX_CITE_RE, CITE_CMDS }
+export { LATEX_CITE_RE, CITE_CMDS, extractLatexCitationKeys }

@@ -7,7 +7,6 @@ export function useAppTeardown({
   filesStore,
   reviews,
   linksStore,
-  chatStore,
   commentsStore,
   referencesStore,
   researchArtifactsStore,
@@ -18,7 +17,9 @@ export function useAppTeardown({
     filesStore.cleanup()
     reviews.cleanup()
     linksStore.cleanup()
-    chatStore.cleanup()
+    void import('../../stores/chat.js').then(({ useChatStore }) => {
+      useChatStore().cleanup()
+    })
     commentsStore.cleanup()
     referencesStore.cleanup()
     researchArtifactsStore.cleanup()

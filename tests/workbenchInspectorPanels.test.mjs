@@ -19,6 +19,7 @@ test('workbench inspector panel normalization falls back to each surface default
   assert.equal(normalizeWorkbenchInspectorPanel('workspace', 'outline'), 'outline')
   assert.equal(normalizeWorkbenchInspectorPanel('workspace', 'document-run'), 'document-run')
   assert.equal(normalizeWorkbenchInspectorPanel('workspace', 'library-details'), 'outline')
+  assert.equal(normalizeWorkbenchInspectorPanel('conversion', 'outline'), '')
   assert.equal(normalizeWorkbenchInspectorPanel('library', 'library-details'), 'library-details')
   assert.equal(normalizeWorkbenchInspectorPanel('library', 'backlinks'), 'library-details')
   assert.equal(normalizeWorkbenchInspectorPanel('ai', 'outline'), '')

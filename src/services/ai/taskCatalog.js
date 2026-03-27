@@ -9,7 +9,11 @@ import {
 import { getWorkflowTemplate } from './workflowRuns/templates.js'
 
 function fileName(path) {
-  return String(path || '').split('/').pop() || path
+  return (
+    String(path || '')
+      .split('/')
+      .pop() || path
+  )
 }
 
 function isCodePath(path = '') {
@@ -46,7 +50,9 @@ function createWorkflowTaskDescriptor({
   description = '',
   translateFn = translate,
 } = {}) {
-  const boundaryCopy = workflowTemplateId ? buildWorkflowBoundaryCopy(workflowTemplateId, translateFn) : null
+  const boundaryCopy = workflowTemplateId
+    ? buildWorkflowBoundaryCopy(workflowTemplateId, translateFn)
+    : null
   return {
     action: 'workflow',
     workflowTemplateId,
@@ -88,21 +94,22 @@ export function buildWorkflowBoundaryCopy(workflowTemplateId, t = translate) {
         ? t('notebook edit approval')
         : template.approvalTypes.includes('apply_reference_changes')
           ? t('reference change approval')
-      : ''
+          : ''
 
-  const actionLabel = template.id === 'draft.review-revise'
-    ? t('review')
-    : template.id === 'references.search-intake'
-      ? t('search and intake')
-      : template.id === 'code.notebook-assistant'
-        ? t('notebook analysis and edit planning')
-        : template.id === 'references.maintenance'
-          ? t('reference maintenance')
-          : template.id === 'pdf.summary-current'
-            ? t('PDF summary')
-            : template.id === 'research.compare-sources'
-              ? t('source comparison')
-      : t('diagnosis and fix suggestions')
+  const actionLabel =
+    template.id === 'draft.review-revise'
+      ? t('review')
+      : template.id === 'references.search-intake'
+        ? t('search and intake')
+        : template.id === 'code.notebook-assistant'
+          ? t('notebook analysis and edit planning')
+          : template.id === 'references.maintenance'
+            ? t('reference maintenance')
+            : template.id === 'pdf.summary-current'
+              ? t('PDF summary')
+              : template.id === 'research.compare-sources'
+                ? t('source comparison')
+                : t('diagnosis and fix suggestions')
 
   if (template.id === 'draft.review-revise') {
     return {
@@ -135,7 +142,9 @@ export function buildWorkflowBoundaryCopy(workflowTemplateId, t = translate) {
   if (template.id === 'references.maintenance') {
     return {
       meta: t('Workflow · reference change approval'),
-      description: t('Auto-runs reference maintenance, then pauses before applying library changes.'),
+      description: t(
+        'Auto-runs reference maintenance, then pauses before applying library changes.'
+      ),
     }
   }
 
@@ -156,14 +165,18 @@ export function buildWorkflowBoundaryCopy(workflowTemplateId, t = translate) {
   if (template.id === 'compile.tex-typ-diagnose') {
     return {
       meta: t('Workflow · compile diagnosis'),
-      description: t('Auto-runs compile diagnosis for the current TeX or Typst file without editing it.'),
+      description: t(
+        'Auto-runs compile diagnosis for the current TeX or Typst file without editing it.'
+      ),
     }
   }
 
   if (template.id === 'compile.tex-typ-fix') {
     return {
       meta: t('Workflow · compile fix approval'),
-      description: t('Auto-runs compile diagnosis, then pauses for patch approval before editing the TeX or Typst file.'),
+      description: t(
+        'Auto-runs compile diagnosis, then pauses for patch approval before editing the TeX or Typst file.'
+      ),
     }
   }
 
@@ -173,9 +186,9 @@ export function buildWorkflowBoundaryCopy(workflowTemplateId, t = translate) {
       : t('Workflow · auto-runs'),
     description: approvalLabel
       ? t('Auto-runs {action}, then pauses for {approval}.', {
-        action: actionLabel,
-        approval: approvalLabel,
-      })
+          action: actionLabel,
+          approval: approvalLabel,
+        })
       : t('Auto-runs {action} as a workflow.', { action: actionLabel }),
   }
 }
@@ -209,7 +222,9 @@ function uniqueTaskItems(items = []) {
 function starterItemKey(item) {
   const task = item?.task || {}
   const family = taskFamily(item)
-  const label = String(item?.label || task.label || '').trim().toLowerCase()
+  const label = String(item?.label || task.label || '')
+    .trim()
+    .toLowerCase()
 
   if (task.action === 'workflow' || task.workflowTemplateId) {
     return `wf:${task.workflowTemplateId || label}:${family}`
@@ -218,7 +233,12 @@ function starterItemKey(item) {
   return `task:${family}:${label}:${task.taskId || label}`
 }
 
-export function getWorkflowFirstStarterItems({ currentPath = '', recentFiles = [], t, limit = 6 } = {}) {
+export function getWorkflowFirstStarterItems({
+  currentPath = '',
+  recentFiles = [],
+  t,
+  limit = 6,
+} = {}) {
   const combined = uniqueTaskItems([
     ...getQuickAiItems({ currentPath, recentFiles, t }),
     ...getAiLauncherItems({ currentPath, recentFiles, t }),
@@ -281,8 +301,9 @@ function buildWritingTasks(path, t) {
         taskId: 'review.current-draft',
         artifactIntent: 'review',
         label: t('Review current draft'),
-        prompt:
-          t('Review this draft for argument quality, clarity, structure, and academic tone. Point out concrete revision opportunities.'),
+        prompt: t(
+          'Review this draft for argument quality, clarity, structure, and academic tone. Point out concrete revision opportunities.'
+        ),
         filePath: path,
         translateFn: t,
       }),
@@ -297,8 +318,9 @@ function buildWritingTasks(path, t) {
         taskId: 'citation.current-draft',
         artifactIntent: 'citation_set',
         label: t('Citation help'),
-        prompt:
-          t('Inspect this draft and identify claims that need stronger citation support or better integration of references.'),
+        prompt: t(
+          'Inspect this draft and identify claims that need stronger citation support or better integration of references.'
+        ),
         filePath: path,
         translateFn: t,
       }),
@@ -338,10 +360,12 @@ function buildCodeTasks(path, t) {
           role: 'code_assistant',
           toolProfile: 'code_assistant',
           taskId: 'code.notebook-reproducibility',
-          prompt:
-            t('Inspect the notebook at {path} for reproducibility risks, hidden state, missing dependencies, and unclear execution steps. Start by reading the notebook cells and outputs.', {
+          prompt: t(
+            'Inspect the notebook at {path} for reproducibility risks, hidden state, missing dependencies, and unclear execution steps. Start by reading the notebook cells and outputs.',
+            {
               path,
-            }),
+            }
+          ),
         },
       },
     ]
@@ -357,8 +381,9 @@ function buildCodeTasks(path, t) {
         toolProfile: 'code_assistant',
         taskId: 'code.explain-current',
         label: t('Code assistant'),
-        prompt:
-          t('Explain this code or notebook, identify the main workflow, and call out likely issues, assumptions, or unclear areas.'),
+        prompt: t(
+          'Explain this code or notebook, identify the main workflow, and call out likely issues, assumptions, or unclear areas.'
+        ),
         filePath: path,
         translateFn: t,
       }),
@@ -371,8 +396,9 @@ function buildCodeTasks(path, t) {
         role: 'code_assistant',
         toolProfile: 'code_assistant',
         taskId: 'code.reproducibility',
-        prompt:
-          t('Review this code or notebook for reproducibility risks, hidden state, missing dependencies, and unclear execution steps.'),
+        prompt: t(
+          'Review this code or notebook for reproducibility risks, hidden state, missing dependencies, and unclear execution steps.'
+        ),
         filePath: path,
       },
     },
@@ -390,8 +416,9 @@ function buildDatasetTasks(path, t) {
         role: 'researcher',
         toolProfile: 'researcher',
         taskId: 'data.describe',
-        prompt:
-          t('Describe this dataset, infer likely variable roles, point out data quality issues, and suggest the next analysis steps.'),
+        prompt: t(
+          'Describe this dataset, infer likely variable roles, point out data quality issues, and suggest the next analysis steps.'
+        ),
         filePath: path,
       },
     },
@@ -411,8 +438,9 @@ function buildPdfTasks(path, t) {
         taskId: 'pdf.summarise',
         artifactIntent: 'note_bundle',
         label: t('Summarise {name}', { name }),
-        prompt:
-          t('Summarise this PDF by extracting the research question, method, evidence, and key conclusions.'),
+        prompt: t(
+          'Summarise this PDF by extracting the research question, method, evidence, and key conclusions.'
+        ),
         filePath: path,
         translateFn: t,
       }),
@@ -425,8 +453,9 @@ function buildPdfTasks(path, t) {
         role: 'researcher',
         toolProfile: 'researcher',
         taskId: 'pdf.related-papers',
-        prompt:
-          t('Find papers related to this PDF. Use search_papers and present the best candidates with create_proposal.'),
+        prompt: t(
+          'Find papers related to this PDF. Use search_papers and present the best candidates with create_proposal.'
+        ),
         filePath: path,
       },
     },
@@ -456,7 +485,9 @@ function buildWorkflowSections(t) {
             taskId: 'review.prefill',
             artifactIntent: 'review',
             label: t('Review current draft'),
-            prompt: t('Act as a critical peer reviewer. Review this draft for originality, logic, clarity, and evidence:'),
+            prompt: t(
+              'Act as a critical peer reviewer. Review this draft for originality, logic, clarity, and evidence:'
+            ),
             translateFn: t,
           }),
         },
@@ -467,7 +498,9 @@ function buildWorkflowSections(t) {
             role: 'writer',
             toolProfile: 'writer',
             taskId: 'writer.continue',
-            prompt: t('Help me continue writing this section. Start by asking what I am working on.'),
+            prompt: t(
+              'Help me continue writing this section. Start by asking what I am working on.'
+            ),
           },
         },
       ],
@@ -483,7 +516,9 @@ function buildWorkflowSections(t) {
             toolProfile: 'citation_librarian',
             taskId: 'research.paper-search',
             label: t('Search academic papers'),
-            prompt: t('Help me search academic papers for this topic. Prefer using search_papers first, then present the best candidates with create_proposal.'),
+            prompt: t(
+              'Help me search academic papers for this topic. Prefer using search_papers first, then present the best candidates with create_proposal.'
+            ),
             translateFn: t,
           }),
         },
@@ -504,7 +539,9 @@ function buildWorkflowSections(t) {
             role: 'researcher',
             toolProfile: 'researcher',
             taskId: 'research.web',
-            prompt: t('Help me investigate external websites and online sources for this topic. Use web_search and fetch_url when useful.'),
+            prompt: t(
+              'Help me investigate external websites and online sources for this topic. Use web_search and fetch_url when useful.'
+            ),
           },
         },
         {
@@ -514,7 +551,9 @@ function buildWorkflowSections(t) {
             role: 'researcher',
             toolProfile: 'researcher',
             taskId: 'research.fetch-url',
-            prompt: t('Help me read one or more URLs. Ask me for the URL if I have not provided it yet, then fetch and summarise the content.'),
+            prompt: t(
+              'Help me read one or more URLs. Ask me for the URL if I have not provided it yet, then fetch and summarise the content.'
+            ),
           },
         },
         {
@@ -546,7 +585,9 @@ function buildWorkflowSections(t) {
             role: 'citation_librarian',
             toolProfile: 'citation_librarian',
             taskId: 'citation.import',
-            prompt: t('Help me import references from DOI or BibTeX. Ask me for the DOI or BibTeX if I have not provided it yet, then add the references to my library.'),
+            prompt: t(
+              'Help me import references from DOI or BibTeX. Ask me for the DOI or BibTeX if I have not provided it yet, then add the references to my library.'
+            ),
           },
         },
         {
@@ -616,9 +657,12 @@ export function getAiLauncherItems({ currentPath = '', recentFiles = [], t }) {
     section.items.forEach((item, itemIndex) => {
       items.push({
         ...item,
-        groupHeader: sectionIndex === 0 && itemIndex === 0
-          ? t('Workflows')
-          : (itemIndex === 0 ? section.header : null),
+        groupHeader:
+          sectionIndex === 0 && itemIndex === 0
+            ? t('Workflows')
+            : itemIndex === 0
+              ? section.header
+              : null,
       })
     })
   })
@@ -641,7 +685,9 @@ export function getQuickAiItems({ currentPath = '', recentFiles = [], t }) {
   const primaryPath = currentPath || recentFiles[0]?.path || ''
   const contextItems = buildContextTasks(primaryPath, t)
   const workflowContextItems = contextItems.filter(isWorkflowTaskItem)
-  const nonWorkflowContextItems = contextItems.filter((item) => !isWorkflowTaskItem(item)).slice(0, 3)
+  const nonWorkflowContextItems = contextItems
+    .filter((item) => !isWorkflowTaskItem(item))
+    .slice(0, 3)
   const quickItems = []
 
   const quickWorkflowItems = [
@@ -654,8 +700,9 @@ export function getQuickAiItems({ currentPath = '', recentFiles = [], t }) {
         taskId: 'review.current-draft',
         artifactIntent: 'review',
         label: t('Review current draft'),
-        prompt:
-          t('Review this draft for argument quality, clarity, structure, and academic tone. Point out concrete revision opportunities.'),
+        prompt: t(
+          'Review this draft for argument quality, clarity, structure, and academic tone. Point out concrete revision opportunities.'
+        ),
         translateFn: t,
       }),
     },
@@ -667,8 +714,9 @@ export function getQuickAiItems({ currentPath = '', recentFiles = [], t }) {
         toolProfile: 'citation_librarian',
         taskId: 'research.paper-search',
         label: t('Search academic papers'),
-        prompt:
-          t('Help me search academic papers for this topic. Prefer using search_papers first, then present the best candidates with create_proposal.'),
+        prompt: t(
+          'Help me search academic papers for this topic. Prefer using search_papers first, then present the best candidates with create_proposal.'
+        ),
         translateFn: t,
       }),
     },
@@ -733,10 +781,13 @@ export function createCommentReviewTask({ filePath, relativePath, count, label =
     entryContext: 'comments',
     label: label || translate('Comment review'),
     filePath,
-    prompt: translate('Review and address {count} comments on {path}. Resolve questions, suggest concrete edits, and use the comment tools when appropriate.', {
-      count,
-      path: relativePath,
-    }),
+    prompt: translate(
+      'Review and address {count} comments on {path}. Resolve questions, suggest concrete edits, and use the comment tools when appropriate.',
+      {
+        count,
+        path: relativePath,
+      }
+    ),
   }
 }
 
@@ -754,9 +805,12 @@ export function createCommentThreadTask({
     source,
     entryContext,
     label: label || translate('Comment thread AI'),
-    prompt: translate('Review and address the selected comment thread on {path}. Focus on this thread only, answer the comment directly, suggest concrete edits when useful, and use the comment tools when appropriate.', {
-      path: relativePath || '',
-    }),
+    prompt: translate(
+      'Review and address the selected comment thread on {path}. Focus on this thread only, answer the comment directly, suggest concrete edits when useful, and use the comment tools when appropriate.',
+      {
+        path: relativePath || '',
+      }
+    ),
   }
 }
 
@@ -786,9 +840,12 @@ export function createNotebookAssistantTask({
     entryContext,
     artifactIntent: 'proposal',
     label: label || translate('Notebook AI'),
-    prompt: translate('Inspect the notebook at {path}. Start by reading its cells and outputs, then help with analysis, debugging, or edits using notebook tools when appropriate.', {
-      path: filePath || '',
-    }),
+    prompt: translate(
+      'Inspect the notebook at {path}. Start by reading its cells and outputs, then help with analysis, debugging, or edits using notebook tools when appropriate.',
+      {
+        path: filePath || '',
+      }
+    ),
     filePath,
   })
 }
@@ -799,7 +856,10 @@ export function createReferenceMaintenanceTask({
   entryContext = 'reference-maintenance',
   focusKeys = [],
 } = {}) {
-  const keyList = (focusKeys || []).filter(Boolean).map((key) => `@${key}`).join(', ')
+  const keyList = (focusKeys || [])
+    .filter(Boolean)
+    .map((key) => `@${key}`)
+    .join(', ')
   return createWorkflowTaskDescriptor({
     workflowTemplateId: 'references.maintenance',
     role: 'citation_librarian',
@@ -810,10 +870,15 @@ export function createReferenceMaintenanceTask({
     artifactIntent: 'proposal',
     label: label || translate('Reference maintenance'),
     prompt: keyList
-      ? translate('Help me maintain my reference library. Focus first on these references: {keys}. Check metadata completeness, duplicates, missing PDFs, and citation-readiness.', {
-        keys: keyList,
-      })
-      : translate('Help me maintain my reference library. Check for incomplete metadata, duplicates, missing PDFs, and weak citation coverage. Ask what part of the library or project I want to focus on first.'),
+      ? translate(
+          'Help me maintain my reference library. Focus first on these references: {keys}. Check metadata completeness, duplicates, missing PDFs, and citation-readiness.',
+          {
+            keys: keyList,
+          }
+        )
+      : translate(
+          'Help me maintain my reference library. Check for incomplete metadata, duplicates, missing PDFs, and weak citation coverage. Ask what part of the library or project I want to focus on first.'
+        ),
   })
 }
 
@@ -831,7 +896,9 @@ export function createSourceComparisonTask({
     entryContext,
     artifactIntent: 'proposal',
     label: label || translate('Compare sources'),
-    prompt: translate('Help me compare papers, sources, or methods for this topic. Ask what I want to compare, then use proposal cards with verifiable links.'),
+    prompt: translate(
+      'Help me compare papers, sources, or methods for this topic. Ask what I want to compare, then use proposal cards with verifiable links.'
+    ),
   })
 }
 
@@ -849,9 +916,12 @@ export function createReferenceAuditTask({
     source,
     entryContext,
     label: label || translate('Review reference'),
-    prompt: translate('Inspect reference {key} in my library. Check metadata completeness, citation-readiness, related usage issues, and suggest concrete fixes. Use reference tools and proposal cards when useful.', {
-      key: refKey ? `@${refKey}` : '',
-    }),
+    prompt: translate(
+      'Inspect reference {key} in my library. Check metadata completeness, citation-readiness, related usage issues, and suggest concrete fixes. Use reference tools and proposal cards when useful.',
+      {
+        key: refKey ? `@${refKey}` : '',
+      }
+    ),
   }
 }
 
@@ -861,7 +931,10 @@ export function createReferenceCompareTask({
   source = 'reference-list',
   entryContext = 'reference-list',
 } = {}) {
-  const keyList = (refKeys || []).filter(Boolean).map((key) => `@${key}`).join(', ')
+  const keyList = (refKeys || [])
+    .filter(Boolean)
+    .map((key) => `@${key}`)
+    .join(', ')
   return {
     action: 'send',
     role: 'citation_librarian',
@@ -870,9 +943,12 @@ export function createReferenceCompareTask({
     source,
     entryContext,
     label: label || translate('Compare selected'),
-    prompt: translate('Compare these references from my library: {keys}. Highlight overlap, differences, and where each source fits best. Use get_reference and create_proposal when useful.', {
-      keys: keyList,
-    }),
+    prompt: translate(
+      'Compare these references from my library: {keys}. Highlight overlap, differences, and where each source fits best. Use get_reference and create_proposal when useful.',
+      {
+        keys: keyList,
+      }
+    ),
   }
 }
 
@@ -890,9 +966,12 @@ export function createReferenceSummaryTask({
     source,
     entryContext,
     label: label || translate('Summarize reference'),
-    prompt: translate('Summarize reference {key} from my library. Focus on the research question, method, main findings, limitations, and why it matters for my project. Suggest a concise reading note and 3-5 tags if useful.', {
-      key: refKey ? `@${refKey}` : '',
-    }),
+    prompt: translate(
+      'Summarize reference {key} from my library. Focus on the research question, method, main findings, limitations, and why it matters for my project. Suggest a concise reading note and 3-5 tags if useful.',
+      {
+        key: refKey ? `@${refKey}` : '',
+      }
+    ),
   }
 }
 
@@ -902,7 +981,10 @@ export function createReferenceCleanupTask({
   source = 'library-workbench',
   entryContext = 'library-workbench',
 } = {}) {
-  const keyList = (refKeys || []).filter(Boolean).map((key) => `@${key}`).join(', ')
+  const keyList = (refKeys || [])
+    .filter(Boolean)
+    .map((key) => `@${key}`)
+    .join(', ')
   return {
     action: 'send',
     role: 'citation_librarian',
@@ -912,10 +994,15 @@ export function createReferenceCleanupTask({
     entryContext,
     label: label || translate('Clean up reference'),
     prompt: keyList
-      ? translate('Review these references from my library: {keys}. Check metadata quality, duplicate risk, weak tags, missing PDFs, reading-state mismatches, and suggest concrete cleanup actions.', {
-        keys: keyList,
-      })
-      : translate('Review my current library selection. Check metadata quality, duplicate risk, weak tags, missing PDFs, reading-state mismatches, and suggest concrete cleanup actions.'),
+      ? translate(
+          'Review these references from my library: {keys}. Check metadata quality, duplicate risk, weak tags, missing PDFs, reading-state mismatches, and suggest concrete cleanup actions.',
+          {
+            keys: keyList,
+          }
+        )
+      : translate(
+          'Review my current library selection. Check metadata quality, duplicate risk, weak tags, missing PDFs, reading-state mismatches, and suggest concrete cleanup actions.'
+        ),
   }
 }
 
@@ -925,7 +1012,10 @@ export function createReferenceClusterTask({
   source = 'library-workbench',
   entryContext = 'library-workbench',
 } = {}) {
-  const keyList = (refKeys || []).filter(Boolean).map((key) => `@${key}`).join(', ')
+  const keyList = (refKeys || [])
+    .filter(Boolean)
+    .map((key) => `@${key}`)
+    .join(', ')
   return {
     action: 'send',
     role: 'citation_librarian',
@@ -934,9 +1024,12 @@ export function createReferenceClusterTask({
     source,
     entryContext,
     label: label || translate('Cluster selected'),
-    prompt: translate('Cluster these references from my library into meaningful themes: {keys}. Suggest collection names, tag cleanup opportunities, reading order, and which papers are foundational vs follow-up.', {
-      keys: keyList,
-    }),
+    prompt: translate(
+      'Cluster these references from my library into meaningful themes: {keys}. Suggest collection names, tag cleanup opportunities, reading order, and which papers are foundational vs follow-up.',
+      {
+        keys: keyList,
+      }
+    ),
   }
 }
 
@@ -953,7 +1046,9 @@ function createWorkspaceExplorerTask({
     source,
     entryContext,
     label: label || translate('Workspace explorer'),
-    prompt: translate('Help me inspect workspace files, trace relevant code or notes, and suggest the next safe action. Start by asking what file or task I want to focus on.'),
+    prompt: translate(
+      'Help me inspect workspace files, trace relevant code or notes, and suggest the next safe action. Start by asking what file or task I want to focus on.'
+    ),
   }
 }
 
@@ -970,7 +1065,9 @@ function createFeedbackAssistantTask({
     source,
     entryContext,
     label: label || translate('Feedback assistant'),
-    prompt: translate('Help me work through comments, feedback, or review threads. Ask which document or comment thread I want to address first.'),
+    prompt: translate(
+      'Help me work through comments, feedback, or review threads. Ask which document or comment thread I want to address first.'
+    ),
   }
 }
 
@@ -987,7 +1084,9 @@ function createCompileAssistantTask({
     source,
     entryContext,
     label: label || translate('Compile assistant'),
-    prompt: translate('Help me diagnose a LaTeX or Typst compilation problem. Ask which source file or error log I want to inspect first.'),
+    prompt: translate(
+      'Help me diagnose a LaTeX or Typst compilation problem. Ask which source file or error log I want to inspect first.'
+    ),
   }
 }
 
@@ -1005,7 +1104,9 @@ function createNotebookExplorerTask({
     entryContext,
     artifactIntent: 'proposal',
     label: label || translate('Notebook AI'),
-    prompt: translate('Help me inspect or modify a notebook. Ask me which notebook or analysis step I want to work on, then use notebook tools when appropriate.'),
+    prompt: translate(
+      'Help me inspect or modify a notebook. Ask me which notebook or analysis step I want to work on, then use notebook tools when appropriate.'
+    ),
   })
 }
 
@@ -1066,7 +1167,8 @@ function buildCapabilityTask(categoryId, currentPath = '') {
 function capabilityDescription(categoryId, t) {
   if (categoryId === 'workspace') return t('Explore workspace files and safe edits')
   if (categoryId === 'references') return t('Search, import, and clean up reference metadata')
-  if (categoryId === 'feedback') return t('Review comments, answer feedback, and present choice cards')
+  if (categoryId === 'feedback')
+    return t('Review comments, answer feedback, and present choice cards')
   if (categoryId === 'compile') return t('Diagnose TeX / Typst compile issues')
   if (categoryId === 'notebook') return t('Read, edit, and run notebook cells')
   if (categoryId === 'web') return t('Search external websites and papers')
@@ -1106,7 +1208,9 @@ export function getChatInputToolItems({ currentPath = '', t }) {
         source: 'chat-input',
         entryContext: 'chat-input',
         label: t('Search academic papers'),
-        prompt: t('Help me search academic papers for this topic. Prefer using search_papers first, then present the best candidates with create_proposal.'),
+        prompt: t(
+          'Help me search academic papers for this topic. Prefer using search_papers first, then present the best candidates with create_proposal.'
+        ),
         translateFn: t,
       }),
     },
@@ -1121,7 +1225,9 @@ export function getChatInputToolItems({ currentPath = '', t }) {
         source: 'chat-input',
         entryContext: 'chat-input',
         label: t('Web Research'),
-        prompt: t('Help me investigate external websites and online sources for this topic. Use web_search and fetch_url when useful.'),
+        prompt: t(
+          'Help me investigate external websites and online sources for this topic. Use web_search and fetch_url when useful.'
+        ),
       },
     },
     {
@@ -1134,24 +1240,27 @@ export function getChatInputToolItems({ currentPath = '', t }) {
       }),
     },
     {
-      label: currentPath && (isLatex(currentPath) || isTypst(currentPath))
-        ? t('Compile & Diagnose')
-        : t('Compile assistant'),
-      description: currentPath && (isLatex(currentPath) || isTypst(currentPath))
-        ? t('Diagnose the current TeX / Typst document')
-        : t('Inspect LaTeX or Typst compile problems'),
-      task: currentPath && (isLatex(currentPath) || isTypst(currentPath))
-        ? createTexTypDiagnoseTask({
-          filePath: currentPath,
-          source: 'chat-input',
-          entryContext: 'chat-input',
-          label: t('Compile & Diagnose'),
-        })
-        : createCompileAssistantTask({
-          source: 'chat-input',
-          entryContext: 'chat-input',
-          label: t('Compile assistant'),
-        }),
+      label:
+        currentPath && (isLatex(currentPath) || isTypst(currentPath))
+          ? t('Compile & Diagnose')
+          : t('Compile assistant'),
+      description:
+        currentPath && (isLatex(currentPath) || isTypst(currentPath))
+          ? t('Diagnose the current TeX / Typst document')
+          : t('Inspect LaTeX or Typst compile problems'),
+      task:
+        currentPath && (isLatex(currentPath) || isTypst(currentPath))
+          ? createTexTypDiagnoseTask({
+              filePath: currentPath,
+              source: 'chat-input',
+              entryContext: 'chat-input',
+              label: t('Compile & Diagnose'),
+            })
+          : createCompileAssistantTask({
+              source: 'chat-input',
+              entryContext: 'chat-input',
+              label: t('Compile assistant'),
+            }),
     },
     {
       label: currentPath.endsWith('.ipynb') ? t('Notebook AI') : t('Notebook assistant'),
@@ -1160,26 +1269,38 @@ export function getChatInputToolItems({ currentPath = '', t }) {
         : t('Read, edit, and run notebook cells'),
       task: currentPath.endsWith('.ipynb')
         ? createNotebookAssistantTask({
-          filePath: currentPath,
-          source: 'chat-input',
-          entryContext: 'chat-input',
-          label: t('Notebook AI'),
-        })
+            filePath: currentPath,
+            source: 'chat-input',
+            entryContext: 'chat-input',
+            label: t('Notebook AI'),
+          })
         : createNotebookExplorerTask({
-          source: 'chat-input',
-          entryContext: 'chat-input',
-          label: t('Notebook AI'),
-        }),
+            source: 'chat-input',
+            entryContext: 'chat-input',
+            label: t('Notebook AI'),
+          }),
     },
   ]
 }
 
-export function createTexTypFixTask({ filePath, label = '', source = 'launcher', entryContext = 'document' } = {}) {
+export function createTexTypFixTask({
+  filePath,
+  label = '',
+  source = 'launcher',
+  entryContext = 'document',
+} = {}) {
   return createWorkflowTaskDescriptor({
     workflowTemplateId: 'compile.tex-typ-fix',
     role: 'tex_typ_fixer',
     toolProfile: 'tex_typ_fixer',
-    allowedTools: ['read_file', 'list_files', 'search_content', 'edit_file', 'write_file', 'compile_document'],
+    allowedTools: [
+      'read_file',
+      'list_files',
+      'search_content',
+      'edit_file',
+      'write_file',
+      'compile_document',
+    ],
     initialToolChoice: 'required',
     taskId: 'fix.tex-typ',
     artifactIntent: 'patch',
@@ -1187,12 +1308,18 @@ export function createTexTypFixTask({ filePath, label = '', source = 'launcher',
     entryContext,
     label: label || translate('Fix TeX / Typst'),
     filePath,
-    prompt:
-      translate('Inspect this source file for syntax, structure, and likely compilation issues. Prefer the smallest safe fixes first.'),
+    prompt: translate(
+      'Inspect this source file for syntax, structure, and likely compilation issues. Prefer the smallest safe fixes first.'
+    ),
   })
 }
 
-export function createTexTypDiagnoseTask({ filePath, label = '', source = 'launcher', entryContext = 'document' } = {}) {
+export function createTexTypDiagnoseTask({
+  filePath,
+  label = '',
+  source = 'launcher',
+  entryContext = 'document',
+} = {}) {
   return createWorkflowTaskDescriptor({
     workflowTemplateId: 'compile.tex-typ-diagnose',
     role: 'tex_typ_fixer',
@@ -1203,7 +1330,8 @@ export function createTexTypDiagnoseTask({ filePath, label = '', source = 'launc
     entryContext,
     label: label || translate('Compile & Diagnose'),
     filePath,
-    prompt:
-      translate('Run a compile diagnosis for this source file, explain the reported problems, and do not edit anything unless I ask for a fix.'),
+    prompt: translate(
+      'Run a compile diagnosis for this source file, explain the reported problems, and do not edit anything unless I ask for a fix.'
+    ),
   })
 }

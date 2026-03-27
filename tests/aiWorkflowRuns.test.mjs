@@ -155,7 +155,10 @@ test('store can move workflows into background mode and expose them for recovery
   assert.equal(backgroundRuns.length, 1)
   assert.equal(backgroundRuns[0].run.id, created.run.id)
   assert.equal(description.executionMode, 'background')
-  assert.equal(description.resumeHint, t('This workflow can be resumed from the AI workbench or chat list.'))
+  assert.equal(
+    description.resumeHint,
+    t('This workflow can be resumed from the AI workbench or chat list.')
+  )
   assert.equal(synced.run.executionMode, 'background')
 })
 
@@ -190,7 +193,7 @@ test('workflow run store can list the latest runs for a specific context file', 
   assert.equal(fileRuns.length, 2)
   assert.deepEqual(
     new Set(fileRuns.map((workflow) => workflow.run.id)),
-    new Set([draftRun.run.id, diagnoseRun.run.id]),
+    new Set([draftRun.run.id, diagnoseRun.run.id])
   )
   assert.equal(compileRuns.length, 1)
   assert.equal(compileRuns[0].run.id, diagnoseRun.run.id)
@@ -344,11 +347,12 @@ test('checkpoint resolution persists the resolved snapshot before executor finis
   assert.equal(updated.run.checkpoints[0].status, 'resolved')
 
   const resolvedSave = await waitFor(() => {
-    const matched = chatStore.saves.find((entry) =>
-      entry.id === 'session-durable' &&
-      entry.workflow?.run?.status === 'running' &&
-      entry.workflow?.run?.checkpoints?.[0]?.status === 'resolved' &&
-      entry.workflow?.run?.currentCheckpointId === null,
+    const matched = chatStore.saves.find(
+      (entry) =>
+        entry.id === 'session-durable' &&
+        entry.workflow?.run?.status === 'running' &&
+        entry.workflow?.run?.checkpoints?.[0]?.status === 'resolved' &&
+        entry.workflow?.run?.currentCheckpointId === null
     )
     assert.ok(matched)
     return matched
@@ -417,11 +421,14 @@ test('chat persistence helpers hydrate restored sessions and tolerate invalid wo
   assert.equal(invalid._workflow, null)
   assert.deepEqual(invalid._savedMessages, [])
 
-  const meta = buildPersistedChatSessionMeta({
-    id: 'session-meta',
-    messages: [],
-    _workflow: { template: { id: 'draft.review-revise' } },
-  }, 'Untitled')
+  const meta = buildPersistedChatSessionMeta(
+    {
+      id: 'session-meta',
+      messages: [],
+      _workflow: { template: { id: 'draft.review-revise' } },
+    },
+    'Untitled'
+  )
   assert.equal(meta.label, 'Untitled')
   assert.equal(meta._workflow, null)
 })

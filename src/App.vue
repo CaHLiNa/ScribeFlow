@@ -166,7 +166,8 @@ import { useEditorStore } from './stores/editor'
 import { useReviewsStore } from './stores/reviews'
 import { useCommentsStore } from './stores/comments'
 import { useLinksStore } from './stores/links'
-import { useChatStore } from './stores/chat'
+import { useAiWorkbenchStore } from './stores/aiWorkbench'
+import { useAiWorkflowRunsStore } from './stores/aiWorkflowRuns'
 import { useReferencesStore } from './stores/references'
 import { useResearchArtifactsStore } from './stores/researchArtifacts'
 import { useToastStore } from './stores/toast'
@@ -175,7 +176,6 @@ import Header from './components/layout/Header.vue'
 import Footer from './components/layout/Footer.vue'
 import ResizeHandle from './components/layout/ResizeHandle.vue'
 import WorkbenchRail from './components/layout/WorkbenchRail.vue'
-import PaneContainer from './components/editor/PaneContainer.vue'
 import Launcher from './components/Launcher.vue'
 import ToastContainer from './components/layout/ToastContainer.vue'
 import { useI18n } from './i18n'
@@ -195,6 +195,10 @@ import { setShellResizeActive } from './shared/shellResizeSignals'
 const LeftSidebar = defineAsyncComponent(() => import('./components/sidebar/LeftSidebar.vue'))
 const RightSidebar = defineAsyncComponent(() => import('./components/sidebar/RightSidebar.vue'))
 const BottomPanel = defineAsyncComponent(() => import('./components/layout/BottomPanel.vue'))
+const PaneContainer = defineAsyncComponent(() => import('./components/editor/PaneContainer.vue'))
+const DocumentConversionWorkbench = defineAsyncComponent(
+  () => import('./components/conversion/DocumentConversionWorkbench.vue')
+)
 const WorkspaceSnapshotBrowser = defineAsyncComponent(
   () => import('./components/WorkspaceSnapshotBrowser.vue')
 )
@@ -211,13 +215,19 @@ const UnsavedChangesDialog = defineAsyncComponent(
   () => import('./components/UnsavedChangesDialog.vue')
 )
 
+async function resolveChatStore() {
+  const { useChatStore } = await import('./stores/chat.js')
+  return useChatStore()
+}
+
 const workspace = useWorkspaceStore()
 const filesStore = useFilesStore()
 const editorStore = useEditorStore()
 const reviews = useReviewsStore()
 const commentsStore = useCommentsStore()
 const linksStore = useLinksStore()
-const chatStore = useChatStore()
+const aiWorkbenchStore = useAiWorkbenchStore()
+const aiWorkflowRuns = useAiWorkflowRunsStore()
 const referencesStore = useReferencesStore()
 const researchArtifactsStore = useResearchArtifactsStore()
 const toastStore = useToastStore()
@@ -234,10 +244,20 @@ const workspaceSnapshotBrowserFeedback = ref(null)
 const fileVersionHistoryVisible = ref(false)
 const fileVersionHistoryFile = ref('')
 const WORKBENCH_RAIL_WIDTH = 44
-const supportsRightSidebar = computed(() => workspace.isOpen && !workspace.isAiSurface)
+
+aiWorkflowRuns.configureExecutor({
+  resolveChatStore,
+  toastStore,
+  aiWorkbenchStore,
+})
+
+const supportsRightSidebar = computed(
+  () => workspace.isOpen && !workspace.isAiSurface && !workspace.isConversionSurface
+)
 const activeWorkbenchComponent = computed(() => {
   if (workspace.isLibrarySurface) return GlobalLibraryWorkbench
   if (workspace.isAiSurface) return AiWorkbenchSurface
+  if (workspace.isConversionSurface) return DocumentConversionWorkbench
   return PaneContainer
 })
 const activeWorkbenchCacheKey = computed(() => workspace.primarySurface || 'workspace')
@@ -362,7 +382,6 @@ useAppShellEventBridge({
   workspace,
   editorStore,
   commentsStore,
-  chatStore,
   headerRef,
   leftSidebarRef,
   bottomPanelRef,
@@ -381,7 +400,6 @@ useAppTeardown({
   filesStore,
   reviews,
   linksStore,
-  chatStore,
   commentsStore,
   referencesStore,
   researchArtifactsStore,

@@ -11,7 +11,6 @@ import {
   summarizeNotebookCellOutputs,
   buildNotebookRunAllSummary,
 } from '../editor/notebookOutputs'
-import { getEnvironmentHealthSummary } from '../services/environmentPreflight'
 import {
   readNotebookDocument,
   writeNotebookDocument,
@@ -59,6 +58,11 @@ export function useNotebookEditor(props) {
   let executionCounter = 0
 
   const pendingNotebookEdits = computed(() => reviews.notebookEditsForFile(props.filePath))
+
+  async function loadEnvironmentHealthSummary() {
+    const { getEnvironmentHealthSummary } = await import('../services/environmentPreflight.js')
+    return getEnvironmentHealthSummary()
+  }
 
   function ensureExecutionMeta(cell) {
     if (!cell.metadata || typeof cell.metadata !== 'object') {
@@ -368,7 +372,7 @@ export function useNotebookEditor(props) {
   async function refreshEnvironmentHealth() {
     environmentHealthLoading.value = true
     try {
-      environmentHealth.value = await getEnvironmentHealthSummary()
+      environmentHealth.value = await loadEnvironmentHealthSummary()
     } finally {
       environmentHealthLoading.value = false
     }

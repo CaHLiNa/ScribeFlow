@@ -1,4 +1,4 @@
-import { extractLatexCitationKeys } from '../editor/latexCitations.js'
+import { extractLatexCitationKeys } from './latexCitationParsing.js'
 import { parseBibtex } from '../utils/bibtexParser.js'
 
 export const ALTALS_MANAGED_BIB_BEGIN = '% >>> Altals managed references begin'

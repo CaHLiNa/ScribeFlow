@@ -3,7 +3,15 @@ import { nextTick } from 'vue'
 import { nanoid } from './utils'
 import { useFilesStore } from './files'
 import { useWorkspaceStore } from './workspace'
-import { useChatStore } from './chat'
+import {
+  appendChatSession,
+  chatSessions,
+  createChatSessionRecord,
+  setChatActiveSessionId,
+  setChatPendingPrefill,
+  setChatPendingSelection,
+} from './chatSessionState.js'
+import { t } from '../i18n'
 import { isAiLauncher, isAiWorkbenchPath, isChatTab, getChatSessionId, isLibraryPath, isNewTab, isPreviewPath, isReferencePath } from '../utils/fileTypes'
 import { events } from '../services/telemetry'
 import {
@@ -100,6 +108,11 @@ function dropLegacyPreviewPath(legacyPreviewPaths, path) {
   const next = new Set(legacyPreviewPaths)
   next.delete(path)
   return next
+}
+
+async function resolveChatStore() {
+  const { useChatStore } = await import('./chat.js')
+  return useChatStore()
 }
 
 export const useEditorStore = defineStore('editor', {
@@ -232,15 +245,20 @@ export const useEditorStore = defineStore('editor', {
           recordFileOpen: (path) => this.recordFileOpen(path),
           revealInTree: (path) => this._revealInTree(path),
           saveEditorState: () => this.saveEditorState(),
-          createChatSession: () => useChatStore().createSession(),
+          createChatSession: () => appendChatSession(createChatSessionRecord({
+            label: t('Chat {number}', { number: chatSessions.value.length + 1 }),
+            modelId: useWorkspaceStore().selectedModelId
+              || useWorkspaceStore().modelsConfig?.models?.find((model) => model.default)?.id
+              || 'sonnet',
+          })),
           setActiveChatSessionId: (sessionId) => {
-            useChatStore().activeSessionId = sessionId
+            setChatActiveSessionId(sessionId)
           },
           setPendingChatPrefill: (value) => {
-            useChatStore().pendingPrefill = value
+            setChatPendingPrefill(value)
           },
           setPendingChatSelection: (value) => {
-            useChatStore().pendingSelection = value
+            setChatPendingSelection(value)
           },
           dispatchChatPrefill: (message) => {
             nextTick(() => {
@@ -400,7 +418,9 @@ export const useEditorStore = defineStore('editor', {
       if (isChatTab(tabPath)) {
         const sid = getChatSessionId(tabPath)
         if (sid) {
-          try { useChatStore().saveSession(sid) } catch {}
+          void resolveChatStore().then((chatStore) => {
+            chatStore.saveSession(sid)
+          }).catch(() => {})
         }
       }
 
@@ -428,7 +448,9 @@ export const useEditorStore = defineStore('editor', {
       if (isChatTab(path)) {
         const sid = getChatSessionId(path)
         if (sid) {
-          try { useChatStore().saveSession(sid) } catch {}
+          void resolveChatStore().then((chatStore) => {
+            chatStore.saveSession(sid)
+          }).catch(() => {})
         }
       }
 
@@ -512,7 +534,7 @@ export const useEditorStore = defineStore('editor', {
         this._rememberContextPath(pane.activeTab)
         if (isChatTab(pane.activeTab)) {
           const sid = getChatSessionId(pane.activeTab)
-          if (sid) useChatStore().activeSessionId = sid
+          if (sid) setChatActiveSessionId(sid)
         }
       }
       this.saveEditorState()
@@ -528,7 +550,7 @@ export const useEditorStore = defineStore('editor', {
       this._rememberContextPath(path)
       if (isChatTab(path)) {
         const sid = getChatSessionId(path)
-        if (sid) useChatStore().activeSessionId = sid
+        if (sid) setChatActiveSessionId(sid)
       }
     },
 
