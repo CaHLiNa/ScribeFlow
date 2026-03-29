@@ -20,13 +20,16 @@ import { createDocumentWorkflowRuntime } from '../domains/document/documentWorkf
 import { createDocumentWorkflowBuildRuntime } from '../domains/document/documentWorkflowBuildRuntime.js'
 import { createDocumentWorkflowBuildOperationRuntime } from '../domains/document/documentWorkflowBuildOperationRuntime.js'
 import { createDocumentWorkflowActionRuntime } from '../domains/document/documentWorkflowActionRuntime.js'
-import { createDocumentWorkflowTypstPaneRuntime } from '../domains/document/documentWorkflowTypstPaneRuntime.js'
 import {
   findWorkflowPreviewPane,
   reconcileDocumentWorkflow,
 } from '../domains/document/documentWorkflowReconcileRuntime.js'
 import { resolveDocumentPreviewCloseEffect } from '../domains/document/documentWorkspacePreviewRuntime.js'
-import { createDocumentWorkspacePreviewAction as createWorkspacePreviewAction } from '../domains/document/documentWorkspacePreviewRuntime.js'
+import {
+  createDocumentWorkspacePreviewAction as createWorkspacePreviewAction,
+  createWorkspacePreviewSessionState,
+} from '../domains/document/documentWorkspacePreviewRuntime.js'
+import { openLocalPath } from '../services/localFileOpen.js'
 
 const PREFS_KEY = 'documentWorkflow.previewPrefs'
 
@@ -158,10 +161,7 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
         this._documentWorkflowActionRuntime = createDocumentWorkflowActionRuntime({
           getWorkflowStore: () => this,
           getBuildOperationRuntime: () => this._getDocumentWorkflowBuildOperationRuntime(),
-          getTypstPaneRuntime: () => createDocumentWorkflowTypstPaneRuntime({
-            getEditorStore: () => useEditorStore(),
-            getWorkflowStore: () => this,
-          }),
+          openOutputPath: (path) => openLocalPath(path),
         })
       }
       return this._documentWorkflowActionRuntime
@@ -422,6 +422,16 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
       }
       this.setWorkspacePreviewVisibility(filePath, 'visible')
       this.clearDetached(filePath)
+      const sessionState = createWorkspacePreviewSessionState({
+        filePath,
+        kind,
+        previewKind,
+        sourcePaneId: options.sourcePaneId,
+        currentSession: this.session,
+      })
+      if (sessionState) {
+        this.setSessionState(sessionState)
+      }
       return {
         type: 'workspace-preview',
         filePath,
@@ -453,8 +463,8 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
       return this._getDocumentWorkflowActionRuntime().toggleMarkdownPreviewForFile(filePath, options)
     },
 
-    toggleWorkflowPdfPreviewForFile(filePath, options = {}) {
-      return this._getDocumentWorkflowActionRuntime().togglePdfPreviewForFile(filePath, options)
+    openWorkflowOutputForFile(filePath, options = {}) {
+      return this._getDocumentWorkflowActionRuntime().openWorkflowOutputForFile(filePath, options)
     },
 
     runWorkflowPrimaryActionForFile(filePath, options = {}) {
@@ -463,10 +473,6 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
 
     revealWorkflowPreviewForFile(filePath, options = {}) {
       return this._getDocumentWorkflowActionRuntime().revealPreviewForFile(filePath, options)
-    },
-
-    revealWorkflowPdfForFile(filePath, options = {}) {
-      return this._getDocumentWorkflowActionRuntime().revealPdfForFile(filePath, options)
     },
 
     reconcile(options = {}) {

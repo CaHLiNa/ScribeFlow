@@ -11,16 +11,8 @@ export async function handleExternalFileChanges(filesStore, changedPaths) {
   const openFiles = editorStore.allOpenFiles
 
   for (const changedPath of changedPaths) {
-    filesStore.invalidatePdfSourceForPath(changedPath)
-
     if (openFiles.has(changedPath)) {
-      if (changedPath.toLowerCase().endsWith('.pdf')) {
-        window.dispatchEvent(new CustomEvent('pdf-updated', {
-          detail: { path: changedPath },
-        }))
-      } else {
-        await filesStore.reloadFile(changedPath)
-      }
+      await filesStore.reloadFile(changedPath)
     }
 
     if (changedPath.endsWith('.md')) {

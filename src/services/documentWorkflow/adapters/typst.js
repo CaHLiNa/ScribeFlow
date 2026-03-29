@@ -21,7 +21,7 @@ const typstPreviewAdapter = {
 
   getTargetPath(sourcePath, context) {
     const state = typstCompileAdapter.stateForFile(sourcePath, context) || null
-    return state?.previewPath || state?.pdfPath || ''
+    return state?.previewPath || ''
   },
 
   isNativeSupported(sourcePath, context, options = {}) {
@@ -133,6 +133,8 @@ export const typstDocumentAdapter = {
       liveState: context.typstStore?.liveStateForFile(filePath) || null,
       referencesStore: context.referencesStore || null,
       previewAvailable: !!context.previewAvailable,
+      nativePreviewSupported: context.nativePreviewSupported !== false,
+      artifactReady: context.artifactReady === true,
       previewKind: context.previewKind || typstPreviewAdapter.defaultKind,
     })
   },

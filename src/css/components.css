@@ -58,10 +58,10 @@
   transform: translateX(-50%);
   width: 480px;
   max-height: 400px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  background: color-mix(in srgb, var(--panel-surface) 94%, transparent);
+  border: 0;
+  border-radius: 12px;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.1);
   overflow: hidden;
   z-index: 10000;
   display: flex;
@@ -70,43 +70,80 @@
 .search-results-list {
   overflow-y: auto;
   flex: 1;
+  padding: 6px 0 8px;
 }
 .quick-open-item {
-  padding: 8px 16px;
+  position: relative;
+  margin: 0 6px;
+  padding: 8px 12px 9px;
   cursor: pointer;
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  border-radius: 8px;
   color: var(--fg-secondary);
+  opacity: 0.9;
+}
+.quick-open-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  border-radius: 999px;
+  background: transparent;
+  opacity: 0;
+  transition:
+    background-color 140ms ease,
+    opacity 140ms ease;
 }
 .quick-open-item:hover,
 .quick-open-item.active {
-  background: var(--bg-hover);
+  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
   color: var(--fg-primary);
+  opacity: 1;
 }
-.quick-open-item .path {
+.quick-open-item.active::before {
+  background: color-mix(in srgb, var(--accent) 62%, transparent);
+  opacity: 1;
+}
+.quick-open-item-empty {
   color: var(--fg-muted);
-  font-size: var(--ui-font-caption);
-  margin-left: auto;
+  cursor: default;
+}
+.quick-open-primary {
+  width: 100%;
+  color: var(--text-primary);
+  font-size: var(--ui-font-body);
+  line-height: 1.25;
+}
+.quick-open-secondary,
+.quick-open-item .path {
+  width: 100%;
+  color: var(--fg-muted);
+  font-size: var(--ui-font-micro);
+  line-height: 1.35;
 }
 .quick-open-section {
-  padding: 4px 16px 2px;
-  font-size: var(--ui-font-caption);
+  padding: 10px 12px 4px;
+  font-size: var(--ui-font-micro);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--fg-muted);
+  opacity: 0.72;
 }
 .quick-open-item .content-match {
   color: var(--fg-muted);
-  font-size: var(--ui-font-caption);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 300px;
+  max-width: 100%;
 }
 .quick-open-item .line-num {
   color: var(--accent);
-  font-size: var(--ui-font-caption);
+  font-size: var(--ui-font-micro);
   margin-right: 4px;
 }
 .quick-open-item .chat-meta {

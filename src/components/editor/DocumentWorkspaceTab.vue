@@ -22,7 +22,7 @@ defineProps({
   height: 100%;
   min-width: 0;
   min-height: 0;
-  background: var(--bg-primary);
+  background: transparent;
 }
 
 .document-workspace-tab-source,
@@ -37,6 +37,6 @@ defineProps({
 
 .document-workspace-tab-preview {
   flex: 1 1 0;
-  border-left: 1px solid var(--border);
+  border-left: 1px solid color-mix(in srgb, var(--border) 18%, transparent);
 }
 </style>

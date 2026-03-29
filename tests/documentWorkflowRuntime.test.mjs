@@ -51,8 +51,7 @@ function createRuntime({
   const state = {
     previewPrefs: {
       markdown: { preferredPreview: 'html' },
-      latex: { preferredPreview: 'pdf' },
-      typst: { preferredPreview: 'pdf' },
+      typst: { preferredPreview: 'native' },
     },
     session: {
       activeFile: null,
@@ -322,12 +321,12 @@ test('document workflow runtime reconcile records workspace preview state withou
       reconcileDocumentWorkflowImpl: () => ({
         type: 'workspace-preview',
         trigger: 'manual-open-preview',
-        kind: 'latex',
-        filePath: '/workspace/main.tex',
-        sourcePath: '/workspace/main.tex',
+        kind: 'typst',
+        filePath: '/workspace/main.typ',
+        sourcePath: '/workspace/main.typ',
         sourcePaneId: 'pane-source',
-        previewKind: 'pdf',
-        previewMode: 'pdf',
+        previewKind: 'native',
+        previewMode: 'typst-native',
         state: 'workspace-preview',
         preserveOpenLegacy: false,
         legacyReadOnly: false,
@@ -340,7 +339,7 @@ test('document workflow runtime reconcile records workspace preview state withou
   const result = runtime.reconcile({
     trigger: 'manual-open-preview',
     force: true,
-    previewKindOverride: 'pdf',
+    previewKindOverride: 'native',
   })
 
   assert.equal(result.type, 'workspace-preview')
@@ -349,8 +348,8 @@ test('document workflow runtime reconcile records workspace preview state withou
   assert.deepEqual(editorStore.openCalls, [])
   assert.deepEqual(editorStore.splitCalls, [])
   assert.equal(state.session.state, 'workspace-preview')
-  assert.equal(state.session.previewKind, 'pdf')
-  assert.equal(state.session.previewSourcePath, '/workspace/main.tex')
+  assert.equal(state.session.previewKind, 'native')
+  assert.equal(state.session.previewSourcePath, '/workspace/main.typ')
 })
 
 test('document workflow runtime revealPreview keeps workspace-local previews in place and still emits jump metadata', () => {

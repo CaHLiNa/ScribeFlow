@@ -104,6 +104,7 @@ defineExpose({
   height: 100%;
   min-height: 0;
   overflow: hidden;
-  background: var(--bg-primary);
+  padding: 4px 8px 8px 2px;
+  background: transparent;
 }
 </style>

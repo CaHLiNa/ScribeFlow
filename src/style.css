@@ -15,11 +15,15 @@
   box-sizing: border-box;
 }
 
-html, body, #app {
+html,
+body,
+#app {
   height: 100%;
   width: 100%;
   overflow: hidden;
-  background: var(--bg-primary);
+  background:
+    radial-gradient(circle at top center, var(--app-canvas-glow), transparent 42%),
+    var(--app-canvas);
   color: var(--fg-primary);
   font-family: var(--font-sans);
   font-size: var(--ui-font-size);

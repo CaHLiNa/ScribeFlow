@@ -5,15 +5,17 @@ import { ref } from 'vue'
 import { useEditorPaneWorkflow } from '../src/composables/useEditorPaneWorkflow.js'
 
 function createWorkflowStore({
-  uiState = { kind: 'latex', previewKind: 'pdf' },
+  uiState = { kind: 'latex', previewKind: null, canOpenPdf: true },
   previewState = null,
   statusText = '',
 } = {}) {
   return {
     reconcileCalls: [],
+    outputCalls: [],
     buildAdapterContext() {
       return {
         previewState,
+        workspacePreviewState: previewState,
       }
     },
     getUiStateForFile() {
@@ -21,6 +23,10 @@ function createWorkflowStore({
     },
     getStatusTextForFile() {
       return statusText
+    },
+    openWorkflowOutputForFile(filePath, options = {}) {
+      this.outputCalls.push({ filePath, options })
+      return { type: 'external-output-opened', filePath }
     },
     reconcile(options = {}) {
       this.reconcileCalls.push(options)
@@ -33,7 +39,7 @@ function createComposable({
   activeTab = '/workspace/main.tex',
   viewerType = 'text',
   previewState = null,
-  uiState = { kind: 'latex', previewKind: 'pdf' },
+  uiState = { kind: 'latex', previewKind: null, canOpenPdf: true },
 } = {}) {
   const workflowStore = createWorkflowStore({ previewState, uiState })
   const paneIdRef = ref('pane-source')
@@ -70,47 +76,7 @@ function createComposable({
   }
 }
 
-test('useEditorPaneWorkflow shows the pdf toolbar target for direct pdf viewers', () => {
-  const { workflow, workflowStore } = createComposable({
-    viewerType: 'pdf',
-    previewState: null,
-  })
-
-  assert.equal(workflow.pdfToolbarTargetSelector.value, '#pdf-toolbar-slot-pane-source')
-  assert.equal(workflow.documentPreviewState.value, null)
-  assert.deepEqual(workflowStore.reconcileCalls, [{ trigger: 'editor-pane-sync' }])
-})
-
-test('useEditorPaneWorkflow shows the pdf toolbar target for workspace embedded pdf previews', () => {
-  const previewState = {
-    useWorkspace: true,
-    previewVisible: true,
-    previewKind: 'pdf',
-    previewMode: 'pdf',
-    previewTargetPath: '/workspace/main.pdf',
-  }
-  const { workflow } = createComposable({
-    viewerType: 'text',
-    previewState,
-  })
-
-  assert.equal(workflow.pdfToolbarTargetSelector.value, '#pdf-toolbar-slot-pane-source')
-  assert.deepEqual(workflow.documentPreviewState.value, previewState)
-})
-
-test('useEditorPaneWorkflow hides the pdf toolbar target for normal text pages', () => {
-  const { workflow } = createComposable({
-    activeTab: '/workspace/notes.txt',
-    viewerType: 'text',
-    previewState: null,
-    uiState: null,
-  })
-
-  assert.equal(workflow.pdfToolbarTargetSelector.value, '')
-  assert.equal(workflow.documentPreviewState.value, null)
-})
-
-test('useEditorPaneWorkflow hides the pdf toolbar target for non-pdf workspace previews', () => {
+test('useEditorPaneWorkflow exposes workflow state without any pdf toolbar target', () => {
   const previewState = {
     useWorkspace: true,
     previewVisible: true,
@@ -118,13 +84,40 @@ test('useEditorPaneWorkflow hides the pdf toolbar target for non-pdf workspace p
     previewMode: 'typst-native',
     previewTargetPath: '',
   }
-  const { workflow } = createComposable({
+  const { workflow, workflowStore } = createComposable({
     activeTab: '/workspace/main.typ',
-    viewerType: 'text',
     previewState,
-    uiState: { kind: 'typst', previewKind: 'native' },
+    uiState: { kind: 'typst', previewKind: 'native', canRevealPreview: true, canOpenPdf: true },
   })
 
-  assert.equal(workflow.pdfToolbarTargetSelector.value, '')
   assert.deepEqual(workflow.documentPreviewState.value, previewState)
+  assert.deepEqual(workflow.workspacePreviewState.value, previewState)
+  assert.equal(workflow.showDocumentHeader.value, true)
+  assert.deepEqual(workflowStore.reconcileCalls, [{ trigger: 'editor-pane-sync' }])
+})
+
+test('useEditorPaneWorkflow opens compiled output externally when requested', () => {
+  const { workflow, workflowStore } = createComposable({
+    activeTab: '/workspace/main.tex',
+    uiState: { kind: 'latex', previewKind: null, canOpenPdf: true },
+  })
+
+  workflow.handlePreviewPdf()
+  workflow.handleWorkflowRevealPdf()
+
+  assert.equal(workflowStore.outputCalls.length, 2)
+  assert.equal(workflowStore.outputCalls[0].filePath, '/workspace/main.tex')
+  assert.equal(workflowStore.outputCalls[1].filePath, '/workspace/main.tex')
+})
+
+test('useEditorPaneWorkflow hides the document header for plain text pages with no workflow state', () => {
+  const { workflow } = createComposable({
+    activeTab: '/workspace/notes.txt',
+    viewerType: 'text',
+    previewState: null,
+    uiState: null,
+  })
+
+  assert.equal(workflow.showDocumentHeader.value, false)
+  assert.equal(workflow.documentPreviewState.value, null)
 })

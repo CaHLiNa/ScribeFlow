@@ -2,7 +2,6 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 
 import {
-  resolveDocumentPdfPreviewInput,
   resolveMarkdownPreviewInput,
   resolveTypstNativePreviewInput,
   resolveWorkspacePreviewSourcePath,
@@ -24,11 +23,11 @@ test('workspace preview adapters keep legacy preview wrapper compatibility', () 
 })
 
 test('workspace preview adapters ignore bindings when preview kind does not match', () => {
-  const sourcePath = resolveWorkspacePreviewSourcePath('/workspace/paper.pdf', {
-    previewKind: 'pdf',
+  const sourcePath = resolveWorkspacePreviewSourcePath('typst-preview:/workspace/paper.typ', {
+    previewKind: 'html',
     workflowStore: {
       getPreviewBinding(previewPath) {
-        if (previewPath !== '/workspace/paper.pdf') return null
+        if (previewPath !== 'typst-preview:/workspace/paper.typ') return null
         return {
           previewPath,
           sourcePath: '/workspace/paper.typ',
@@ -38,7 +37,7 @@ test('workspace preview adapters ignore bindings when preview kind does not matc
     },
   })
 
-  assert.equal(sourcePath, '')
+  assert.equal(sourcePath, '/workspace/paper.typ')
 })
 
 test('typst native preview adapters honor source-driven source and root context', async () => {
@@ -89,57 +88,4 @@ test('typst native preview adapters fall back to cached root when compile target
     sourcePath: '/workspace/sections/intro.typ',
     rootPath: '/workspace/fallback.typ',
   })
-})
-
-test('document pdf viewer adapters accept source-driven artifact context', () => {
-  const input = resolveDocumentPdfPreviewInput('/workspace/paper.typ', {
-    sourcePath: '/workspace/paper.typ',
-    previewTargetPath: '/workspace/build/paper.pdf',
-  })
-
-  assert.equal(input.sourcePath, '/workspace/paper.typ')
-  assert.equal(input.artifactPath, '/workspace/build/paper.pdf')
-  assert.equal(input.sourceKind, 'typst')
-  assert.equal(input.resolvedKind, 'typst')
-  assert.equal(input.resolutionState, 'resolved-from-source')
-})
-
-test('document pdf viewer adapters still resolve legacy pdf preview bindings', () => {
-  const input = resolveDocumentPdfPreviewInput('/workspace/build/paper.pdf', {
-    workflowStore: {
-      getPreviewBinding(previewPath) {
-        if (previewPath !== '/workspace/build/paper.pdf') return null
-        return {
-          previewPath,
-          sourcePath: '/workspace/paper.tex',
-          previewKind: 'pdf',
-        }
-      },
-    },
-  })
-
-  assert.equal(input.sourcePath, '/workspace/paper.tex')
-  assert.equal(input.artifactPath, '/workspace/build/paper.pdf')
-  assert.equal(input.sourceKind, 'latex')
-  assert.equal(input.resolvedKind, 'latex')
-  assert.equal(input.resolutionState, 'resolved-from-source')
-})
-
-test('document pdf viewer adapters surface unresolved pdf source detection state', () => {
-  const input = resolveDocumentPdfPreviewInput('/workspace/build/paper.pdf', {
-    filesStore: {
-      getPdfSourceState() {
-        return {
-          status: 'loading',
-          kind: 'plain',
-        }
-      },
-    },
-  })
-
-  assert.equal(input.sourcePath, '')
-  assert.equal(input.artifactPath, '/workspace/build/paper.pdf')
-  assert.equal(input.sourceKind, null)
-  assert.equal(input.resolvedKind, 'plain')
-  assert.equal(input.resolutionState, 'loading')
 })

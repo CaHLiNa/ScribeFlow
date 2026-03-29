@@ -12,7 +12,3 @@ export function hasVisibleViewerType(paneTree, viewerType) {
   if (!Array.isArray(paneTree.children)) return false
   return paneTree.children.some((child) => hasVisibleViewerType(child, targetViewerType))
 }
-
-export function hasVisiblePdfPane(paneTree) {
-  return hasVisibleViewerType(paneTree, 'pdf')
-}

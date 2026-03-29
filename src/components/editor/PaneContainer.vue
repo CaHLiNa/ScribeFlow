@@ -5,6 +5,8 @@
     :paneId="node.id"
     :tabs="node.tabs"
     :activeTab="node.activeTab"
+    :topbarTabsTargetSelector="topbarTabsTargetSelector"
+    :topbarWorkflowTargetSelector="topbarWorkflowTargetSelector"
     @cursor-change="(pos) => $emit('cursor-change', pos)"
     @editor-stats="(stats) => $emit('editor-stats', stats)"
   />
@@ -13,15 +15,14 @@
   <div
     v-else-if="node.type === 'split'"
     ref="splitContainer"
-    class="flex h-full w-full"
+    class="pane-container-split flex h-full w-full"
     :class="{ 'flex-col': node.direction === 'horizontal' }"
   >
-    <div
-      :style="firstChildStyle"
-      class="overflow-hidden"
-    >
+    <div :style="firstChildStyle" class="pane-container-slot overflow-hidden">
       <PaneContainer
         :node="node.children[0]"
+        :topbarTabsTargetSelector="topbarTabsTargetSelector"
+        :topbarWorkflowTargetSelector="topbarWorkflowTargetSelector"
         @cursor-change="(pos) => $emit('cursor-change', pos)"
         @editor-stats="(stats) => $emit('editor-stats', stats)"
       />
@@ -32,12 +33,11 @@
       @resize="(e) => handleResize(e)"
     />
 
-    <div
-      :style="secondChildStyle"
-      class="overflow-hidden"
-    >
+    <div :style="secondChildStyle" class="pane-container-slot overflow-hidden">
       <PaneContainer
         :node="node.children[1]"
+        :topbarTabsTargetSelector="topbarTabsTargetSelector"
+        :topbarWorkflowTargetSelector="topbarWorkflowTargetSelector"
         @cursor-change="(pos) => $emit('cursor-change', pos)"
         @editor-stats="(stats) => $emit('editor-stats', stats)"
       />
@@ -53,6 +53,8 @@ import SplitHandle from './SplitHandle.vue'
 
 const props = defineProps({
   node: { type: Object, required: true },
+  topbarTabsTargetSelector: { type: String, default: '' },
+  topbarWorkflowTargetSelector: { type: String, default: '' },
 })
 
 const emit = defineEmits(['cursor-change', 'editor-stats'])
@@ -63,14 +65,14 @@ const firstChildStyle = computed(() => {
   if (props.node.type !== 'split') return {}
   const ratio = props.node.ratio || 0.5
   const prop = props.node.direction === 'horizontal' ? 'height' : 'width'
-  return { [prop]: `calc(${ratio * 100}% - 0.5px)` }
+  return { [prop]: `calc(${ratio * 100}% - 1px)` }
 })
 
 const secondChildStyle = computed(() => {
   if (props.node.type !== 'split') return {}
   const ratio = props.node.ratio || 0.5
   const prop = props.node.direction === 'horizontal' ? 'height' : 'width'
-  return { [prop]: `calc(${(1 - ratio) * 100}% - 0.5px)` }
+  return { [prop]: `calc(${(1 - ratio) * 100}% - 1px)` }
 })
 
 function handleResize(e) {
@@ -91,3 +93,14 @@ function handleResize(e) {
   editorStore.setSplitRatio(props.node, ratio)
 }
 </script>
+
+<style scoped>
+.pane-container-split {
+  gap: 0;
+}
+
+.pane-container-slot {
+  min-width: 0;
+  min-height: 0;
+}
+</style>

@@ -713,7 +713,7 @@ defineExpose({
 
 <style scoped>
 .file-tree-shell {
-  background: var(--bg-primary);
+  background: transparent;
 }
 
 .file-tree-header {
@@ -721,7 +721,7 @@ defineExpose({
 }
 
 .file-tree-header--with-divider {
-  border-bottom: 1px solid var(--border);
+  border-bottom: 0;
 }
 
 .file-tree-chevron {
@@ -733,10 +733,21 @@ defineExpose({
 }
 
 .file-tree-search-input {
-  background: var(--bg-tertiary);
+  border-color: transparent;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
   min-height: var(--sidebar-input-height);
   padding-inline: 7px;
   gap: var(--sidebar-inline-gap);
+  box-shadow: none;
+  opacity: 0.86;
+}
+
+.file-tree-search-input:focus-within {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--text-primary) 6%, transparent);
+  box-shadow: 0 0 0 2px var(--focus-ring);
+  opacity: 1;
 }
 
 .file-tree-search-input :deep(.ui-input-control) {
@@ -753,7 +764,9 @@ defineExpose({
 
 .file-tree-rename-input {
   font-size: var(--sidebar-font-control);
-  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+  border-color: transparent;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--text-primary) 5%, transparent);
 }
 
 .file-tree-drop-indicator {
@@ -772,18 +785,24 @@ defineExpose({
 
 .workspace-footer-action {
   flex-shrink: 0;
-  padding: 1px 0 0;
-  border-top: 1px solid var(--border);
-  background: var(--bg-primary);
+  padding: 6px 0 0;
+  border-top: 0;
+  background: transparent;
 }
 
 .workspace-footer-action-button {
   position: relative;
   min-height: var(--sidebar-row-height);
-  padding-inline: 30px;
+  justify-content: flex-start;
+  padding-inline: 10px 30px;
   border: none;
-  border-radius: 0;
+  border-radius: 8px;
   color: var(--fg-secondary);
+  opacity: 0.72;
+  transition:
+    background-color 140ms ease,
+    color 140ms ease,
+    opacity 140ms ease;
 }
 
 .workspace-footer-action-button :deep(.ui-button-label) {
@@ -791,7 +810,7 @@ defineExpose({
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  text-align: center;
+  text-align: left;
   font-size: var(--sidebar-font-control);
   letter-spacing: 0;
   line-height: 1.1;
@@ -808,7 +827,8 @@ defineExpose({
 }
 
 .workspace-footer-action-button:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--bg-hover) 42%, transparent);
+  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
   color: var(--fg-primary);
+  opacity: 1;
 }
 </style>

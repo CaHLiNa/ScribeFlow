@@ -31,7 +31,9 @@ import { useI18n } from '../../i18n'
 import SidebarChrome from '../shared/SidebarChrome.vue'
 
 const OutlinePanel = defineAsyncComponent(() => import('../panel/OutlinePanel.vue'))
-const DocumentRunInspectorSidebar = defineAsyncComponent(() => import('./DocumentRunInspectorSidebar.vue'))
+const DocumentRunInspectorSidebar = defineAsyncComponent(
+  () => import('./DocumentRunInspectorSidebar.vue')
+)
 
 const workflowStore = useDocumentWorkflowStore()
 const editorStore = useEditorStore()
@@ -127,11 +129,15 @@ watch(
   { flush: 'post', immediate: true }
 )
 
-watch(showDocumentRunEntry, (visible) => {
-  if (!visible && workspace.rightSidebarPanel === 'document-run') {
-    workspace.setRightSidebarPanel('outline')
-  }
-}, { immediate: true })
+watch(
+  showDocumentRunEntry,
+  (visible) => {
+    if (!visible && workspace.rightSidebarPanel === 'document-run') {
+      workspace.setRightSidebarPanel('outline')
+    }
+  },
+  { immediate: true }
+)
 
 function selectInspectorPanel(panel) {
   workspace.setRightSidebarPanel(panel)
@@ -145,12 +151,15 @@ function selectInspectorPanel(panel) {
   flex-direction: column;
   height: 100%;
   min-height: 0;
-  background: var(--bg-primary);
+  padding: 2px 8px 8px 6px;
+  background: transparent;
 }
 
 .right-shell-pane {
   flex: 1 1 auto;
   min-height: 0;
   overflow: hidden;
+  border-radius: 0;
+  background: transparent;
 }
 </style>

@@ -1,7 +1,5 @@
 import {
-  isLatex,
   isMarkdown,
-  isPdf,
   isTypst,
   previewSourcePathFromPath,
 } from '../../utils/fileTypes.js'
@@ -19,7 +17,7 @@ function normalizePath(value) {
 }
 
 export function resolveWorkspacePreviewSourcePath(filePath, options = {}) {
-  const explicitSourcePath = normalizePath(options.sourcePath)
+  const explicitSourcePath = normalizePath(options.sourcePath || options.workflowSourcePath)
   if (explicitSourcePath) return explicitSourcePath
 
   const bindingSourcePath = readPreviewBinding(filePath, options.workflowStore, options.previewKind)?.sourcePath || ''
@@ -97,28 +95,5 @@ export async function resolveTypstNativePreviewInput(filePath, options = {}) {
       sourcePath,
       rootPath: fallbackRootPath,
     }
-  }
-}
-
-export function resolveDocumentPdfPreviewInput(filePath, options = {}) {
-  const sourcePath = resolveWorkspacePreviewSourcePath(filePath, {
-    ...options,
-    previewKind: 'pdf',
-    matchesSourcePath: (path) => isLatex(path) || isTypst(path),
-  })
-  const artifactPath = normalizePath(options.previewTargetPath || options.resolvedTargetPath || options.artifactPath)
-    || (isPdf(filePath) ? filePath : '')
-  const sourceKind = isLatex(sourcePath) ? 'latex' : isTypst(sourcePath) ? 'typst' : null
-  const pdfSourceState = artifactPath ? options.filesStore?.getPdfSourceState?.(artifactPath) || null : null
-  const resolvedKind = sourceKind || pdfSourceState?.kind || 'plain'
-  const resolutionState = sourceKind ? 'resolved-from-source' : pdfSourceState?.status || 'unresolved'
-
-  return {
-    sourcePath,
-    artifactPath,
-    sourceKind,
-    resolvedKind,
-    resolutionState,
-    previewBinding: readPreviewBinding(filePath, options.workflowStore, 'pdf'),
   }
 }

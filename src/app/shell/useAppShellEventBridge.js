@@ -15,7 +15,7 @@ export function useAppShellEventBridge({
   workspace,
   editorStore,
   commentsStore,
-  headerRef,
+  searchRef,
   leftSidebarRef,
   workspaceSnapshotBrowserVisible,
   fileVersionHistoryVisible,
@@ -76,7 +76,7 @@ export function useAppShellEventBridge({
 
     if (isMod(event) && event.key === 'p') {
       event.preventDefault()
-      headerRef.value?.focusSearch()
+      searchRef.value?.focusSearch()
       return
     }
 
@@ -169,7 +169,7 @@ export function useAppShellEventBridge({
   }
 
   function handleFocusSearch() {
-    headerRef.value?.focusSearch()
+    searchRef.value?.focusSearch()
   }
 
   function handleNewFile() {

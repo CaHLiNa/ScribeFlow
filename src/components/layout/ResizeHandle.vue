@@ -64,41 +64,53 @@ function startDrag(e) {
   transition: background 0.15s;
 }
 
-/* Vertical: 1px wide line with 7px hit area */
 .resize-handle.vertical {
-  width: 1px;
+  width: 6px;
   cursor: col-resize;
-  background: var(--border);
+  background: transparent;
 }
+
 .resize-handle.vertical::before {
   content: '';
   position: absolute;
-  top: 0;
-  bottom: 0;
-  left: -3px;
-  right: -3px;
+  top: 12px;
+  bottom: 12px;
+  left: 2px;
+  width: 1px;
+  border-radius: 999px;
   cursor: col-resize;
+  background: color-mix(in srgb, var(--panel-border) 28%, transparent);
+  opacity: 0;
+  transition:
+    opacity 140ms ease,
+    background-color 140ms ease;
 }
 
-/* Horizontal: 1px tall line with 7px hit area */
 .resize-handle.horizontal {
-  height: 1px;
+  height: 6px;
   cursor: row-resize;
-  background: var(--border);
+  background: transparent;
 }
+
 .resize-handle.horizontal::before {
   content: '';
   position: absolute;
-  left: 0;
-  right: 0;
-  top: -3px;
-  bottom: -3px;
+  left: 12px;
+  right: 12px;
+  top: 2px;
+  height: 1px;
+  border-radius: 999px;
   cursor: row-resize;
+  background: color-mix(in srgb, var(--panel-border) 28%, transparent);
+  opacity: 0;
+  transition:
+    opacity 140ms ease,
+    background-color 140ms ease;
 }
 
-/* Hover/drag: accent highlight */
-.resize-handle:hover,
-.resize-handle.dragging {
-  background: var(--accent);
+.resize-handle:hover::before,
+.resize-handle.dragging::before {
+  opacity: 1;
+  background: color-mix(in srgb, var(--accent) 70%, transparent);
 }
 </style>

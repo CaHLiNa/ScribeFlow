@@ -48,7 +48,6 @@
     "marked-highlight": "^2.2.3",
     "marked-katex-extension": "^5.1.6",
     "mdast-util-to-string": "^4.0.0",
-    "pdfjs-dist": "^5.4.624",
     "pinia": "^2.2.0",
     "prosemirror-model": "^1.25.4",
     "prosemirror-state": "^1.4.4",

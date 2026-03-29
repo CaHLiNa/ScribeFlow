@@ -419,8 +419,8 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--bg-primary);
-  padding-top: 8px;
+  background: transparent;
+  padding-top: 2px;
 }
 
 .outline-panel--embedded {
@@ -438,7 +438,7 @@ onUnmounted(() => {
 .outline-panel-empty-copy {
   font-size: var(--sidebar-font-body);
   line-height: 1.55;
-  color: var(--fg-muted);
+  color: var(--text-muted);
 }
 
 .outline-panel-empty-title {
@@ -456,46 +456,78 @@ onUnmounted(() => {
 .outline-panel-scroll {
   flex: 1 1 auto;
   overflow-y: auto;
-  padding: 4px 0;
+  padding: 2px 0 6px;
 }
 
 .outline-panel-section-label {
-  padding: 4px 8px;
-  font-size: var(--sidebar-font-kicker);
-  font-weight: 600;
+  padding: 6px 8px 3px;
+  font-size: var(--ui-font-tiny);
+  font-weight: 500;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--fg-muted);
+  color: var(--text-muted);
+  opacity: 0.68;
 }
 
 .outline-panel-row {
   display: flex;
   align-items: center;
-  padding: 2px 8px;
-  border-radius: 4px;
+  position: relative;
+  min-height: 24px;
+  padding: 2px 8px 2px 12px;
+  border-radius: 7px;
   cursor: pointer;
   user-select: none;
-  color: var(--fg-secondary);
+  color: var(--text-secondary);
   font-size: var(--sidebar-font-item);
   line-height: 1.25;
+  opacity: 0.9;
+  transition:
+    background-color 140ms ease,
+    color 140ms ease,
+    box-shadow 140ms ease,
+    opacity 140ms ease;
 }
 
-.outline-panel-row:hover,
-.outline-panel-row.is-active {
-  background: var(--bg-hover);
+.outline-panel-row::before {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  border-radius: 999px;
+  background: transparent;
+  opacity: 0;
+  transition:
+    background-color 140ms ease,
+    opacity 140ms ease;
+}
+
+.outline-panel-row:hover {
+  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+  opacity: 1;
 }
 
 .outline-panel-row.is-active {
-  color: var(--fg-primary);
+  background: transparent;
+  color: var(--text-primary);
+  opacity: 1;
+}
+
+.outline-panel-row.is-active::before {
+  background: color-mix(in srgb, var(--accent) 64%, transparent);
+  opacity: 1;
 }
 
 .outline-panel-kind {
   margin-right: 8px;
   flex-shrink: 0;
-  font-size: var(--sidebar-font-meta);
-  font-weight: 600;
+  font-size: var(--ui-font-tiny);
+  font-weight: 500;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--fg-muted);
+  color: var(--text-muted);
+  opacity: 0.76;
 }
 </style>

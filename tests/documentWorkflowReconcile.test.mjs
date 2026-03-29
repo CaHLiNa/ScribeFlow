@@ -13,7 +13,6 @@ function createWorkflowStore({ previewBinding = null, detachedSources = {} } = {
   return {
     previewPrefs: {
       markdown: { preferredPreview: 'html' },
-      latex: { preferredPreview: 'pdf' },
       typst: { preferredPreview: 'native' },
     },
     session: {
@@ -30,7 +29,7 @@ function createWorkflowStore({ previewBinding = null, detachedSources = {} } = {
   }
 }
 
-test('document workflow reconcile prefers workspace preview semantics for new source paths', () => {
+test('document workflow reconcile keeps latex source tabs in workspace mode without opening a preview pane', () => {
   const result = reconcileDocumentWorkflow({
     activeFile: '/workspace/main.tex',
     activePaneId: 'pane-source',
@@ -50,21 +49,15 @@ test('document workflow reconcile prefers workspace preview semantics for new so
   })
 
   assert.deepEqual(result, {
-    type: 'workspace-preview',
+    type: 'source-only',
     kind: 'latex',
-    filePath: '/workspace/main.tex',
     sourcePath: '/workspace/main.tex',
     sourcePaneId: 'pane-source',
-    previewKind: 'pdf',
-    previewMode: 'pdf',
-    previewTargetPath: '',
-    targetResolution: 'unresolved',
+    previewKind: null,
+    previewPath: null,
     trigger: 'manual-open-preview',
-    state: 'workspace-preview',
-    preserveOpenLegacy: false,
-    legacyReadOnly: false,
-    legacyPreviewPath: '',
-    legacyPreviewPaneId: null,
+    previewPaneId: null,
+    state: 'source-only',
   })
 })
 

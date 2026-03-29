@@ -329,11 +329,6 @@ export const useTypstStore = defineStore('typst', {
         window.dispatchEvent(new CustomEvent('typst-compile-done', {
           detail: { typPath: filePath, compileTargetPath: targetKey, ...result },
         }))
-        if (result.success && result.pdf_path) {
-          window.dispatchEvent(new CustomEvent('pdf-updated', {
-            detail: { path: result.pdf_path },
-          }))
-        }
         pushTypstLogToTerminal(filePath, result)
 
         if (result.success) {

@@ -54,33 +54,37 @@ function startDrag(e) {
 .split-handle::before {
   content: '';
   position: absolute;
-  background: var(--border);
-  transition: background 0.15s;
+  background: color-mix(in srgb, var(--border) 26%, transparent);
+  opacity: 0;
+  transition:
+    background 0.15s,
+    opacity 0.15s;
 }
 .split-handle.vertical {
-  width: 5px;
+  width: 6px;
   margin: 0 -2px;
   cursor: col-resize;
 }
 .split-handle.vertical::before {
   top: 0;
   bottom: 0;
-  left: 2px;
+  left: 2.5px;
   width: 1px;
 }
 .split-handle.horizontal {
-  height: 5px;
+  height: 6px;
   margin: -2px 0;
   cursor: row-resize;
 }
 .split-handle.horizontal::before {
   left: 0;
   right: 0;
-  top: 2px;
+  top: 2.5px;
   height: 1px;
 }
 .split-handle:hover::before,
 .split-handle.dragging::before {
+  opacity: 1;
   background: var(--accent);
 }
 </style>

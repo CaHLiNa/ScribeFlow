@@ -39,7 +39,6 @@
 import { ref, nextTick } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { getViewerType } from '../../utils/fileTypes'
-import { extractTextFromPdf } from '../../utils/pdfMetadata'
 import FileRefPopover from './FileRefPopover.vue'
 
 const props = defineProps({
@@ -721,8 +720,8 @@ async function loadPillContent(pill, file) {
     }
     let content
     const viewerType = getViewerType(file.path)
-    if (viewerType === 'pdf') {
-      content = await extractTextFromPdf(file.path)
+    if (viewerType === 'unsupported-binary') {
+      content = `[Binary file not loaded: ${file.path.split('/').pop() || file.path}]`
     } else {
       content = await invoke('read_file', { path: file.path })
     }

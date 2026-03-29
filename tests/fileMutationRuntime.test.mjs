@@ -7,7 +7,6 @@ test('file mutation runtime migrates caches and expanded dirs on rename', async 
   const fileContents = { '/ws/old.md': '# draft' }
   const fileLoadErrors = { '/ws/old.md': 'bad' }
   const expandedDirs = new Set(['/ws/old.md'])
-  const invalidations = []
   const renameEffects = []
   const syncCalls = []
 
@@ -16,7 +15,6 @@ test('file mutation runtime migrates caches and expanded dirs on rename', async 
     syncTreeAfterMutation: async (options) => {
       syncCalls.push(options)
     },
-    invalidatePdfSourceForPath: (path) => invalidations.push(path),
     handleRenamedPathEffects: async (oldPath, newPath) => {
       renameEffects.push({ oldPath, newPath })
     },
@@ -45,7 +43,6 @@ test('file mutation runtime migrates caches and expanded dirs on rename', async 
   assert.deepEqual(syncCalls, [{ expandPath: '/ws' }])
   assert.deepEqual(fileContents, { '/ws/new.md': '# draft' })
   assert.deepEqual(fileLoadErrors, { '/ws/new.md': 'bad' })
-  assert.deepEqual(invalidations, ['/ws/old.md', '/ws/new.md'])
   assert.deepEqual(renameEffects, [{ oldPath: '/ws/old.md', newPath: '/ws/new.md' }])
   assert.deepEqual([...expandedDirs], ['/ws/new.md'])
 })
@@ -65,14 +62,12 @@ test('file mutation runtime reports rename collisions without syncing tree', asy
 test('file mutation runtime preserves no-op moves and forwards actual moved destination', async () => {
   const moveEffects = []
   const syncCalls = []
-  const invalidations = []
 
   const runtime = createFileMutationRuntime({
     relocateWorkspacePath: async () => ({ destPath: '/ws/archive/chapter1 2.md' }),
     syncTreeAfterMutation: async (options) => {
       syncCalls.push(options)
     },
-    invalidatePdfSourceForPath: (path) => invalidations.push(path),
     handleMovedPathEffects: async (srcPath, destPath) => {
       moveEffects.push({ srcPath, destPath })
     },
@@ -81,7 +76,6 @@ test('file mutation runtime preserves no-op moves and forwards actual moved dest
   assert.equal(await runtime.movePath('/ws/archive/chapter1.md', '/ws/archive'), true)
   assert.equal(await runtime.movePath('/ws/docs/chapter1.md', '/ws/archive'), true)
   assert.deepEqual(syncCalls, [{ expandPath: '/ws/archive' }])
-  assert.deepEqual(invalidations, ['/ws/docs/chapter1.md', '/ws/archive/chapter1 2.md'])
   assert.deepEqual(moveEffects, [{
     srcPath: '/ws/docs/chapter1.md',
     destPath: '/ws/archive/chapter1 2.md',
@@ -92,7 +86,6 @@ test('file mutation runtime protects deleting-path state and clears caches on de
   const deletingPaths = new Set()
   const fileContents = { '/ws/doc.md': '# draft' }
   const fileLoadErrors = { '/ws/doc.md': 'bad' }
-  const invalidations = []
   const deletedEffects = []
   const syncCalls = []
 
@@ -101,7 +94,6 @@ test('file mutation runtime protects deleting-path state and clears caches on de
     syncTreeAfterMutation: async (options) => {
       syncCalls.push(options || null)
     },
-    invalidatePdfSourceForPath: (path) => invalidations.push(path),
     handleDeletedPathEffects: (path) => deletedEffects.push(path),
     deleteFileContent: (path) => {
       delete fileContents[path]
@@ -117,7 +109,6 @@ test('file mutation runtime protects deleting-path state and clears caches on de
   assert.deepEqual(syncCalls, [null])
   assert.deepEqual(fileContents, {})
   assert.deepEqual(fileLoadErrors, {})
-  assert.deepEqual(invalidations, ['/ws/doc.md'])
   assert.deepEqual(deletedEffects, ['/ws/doc.md'])
   assert.deepEqual([...deletingPaths], [])
 })

@@ -44,7 +44,7 @@
       <section class="document-run-actions">
         <UiButton
           type="button"
-          variant="primary"
+          variant="ghost"
           size="sm"
           class="document-run-action"
           @click="handleCompile"
@@ -53,7 +53,7 @@
         </UiButton>
         <UiButton
           type="button"
-          variant="secondary"
+          variant="ghost"
           size="sm"
           class="document-run-action"
           :disabled="!artifactPath"
@@ -89,10 +89,19 @@
                 {{ t('Line {line}', { line: problem.line }) }}
               </span>
             </div>
-            <div class="document-run-problem-copy">{{ problem.message || problem.raw || t('Issue detected') }}</div>
+            <div class="document-run-problem-copy">
+              {{ problem.message || problem.raw || t('Issue detected') }}
+            </div>
           </div>
-          <div v-if="compileProblems.length > visibleProblems.length" class="document-run-problem-more">
-            {{ t('{count} more issues in compile output', { count: compileProblems.length - visibleProblems.length }) }}
+          <div
+            v-if="compileProblems.length > visibleProblems.length"
+            class="document-run-problem-more"
+          >
+            {{
+              t('{count} more issues in compile output', {
+                count: compileProblems.length - visibleProblems.length,
+              })
+            }}
           </div>
         </div>
       </section>
@@ -117,12 +126,9 @@ import { useTypstStore } from '../../stores/typst'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useI18n } from '../../i18n'
 import { isLatex, isTypst } from '../../utils/fileTypes'
-import {
-  getDocumentWorkflowStatusTone,
-} from '../../domains/document/documentWorkflowBuildRuntime.js'
-import {
-  shortenDocumentPath,
-} from '../../domains/document/documentRunInspectorRuntime.js'
+import { getDocumentWorkflowStatusTone } from '../../domains/document/documentWorkflowBuildRuntime.js'
+import { shortenDocumentPath } from '../../domains/document/documentRunInspectorRuntime.js'
+import { openLocalPath } from '../../services/localFileOpen.js'
 import UiButton from '../shared/ui/UiButton.vue'
 
 const props = defineProps({
@@ -143,15 +149,20 @@ const sourceFilePath = computed(() => {
   return workflowStore.getSourcePathForPreview(activePath) || activePath
 })
 
-const sourceFileName = computed(() => (
-  String(sourceFilePath.value || '').split('/').pop() || t('Untitled document')
-))
+const sourceFileName = computed(
+  () =>
+    String(sourceFilePath.value || '')
+      .split('/')
+      .pop() || t('Untitled document')
+)
 
-const sourceFileShortPath = computed(() => shortenDocumentPath(sourceFilePath.value, { segments: 3 }))
+const sourceFileShortPath = computed(() =>
+  shortenDocumentPath(sourceFilePath.value, { segments: 3 })
+)
 
-const supportsDocumentRun = computed(() => (
-  !!sourceFilePath.value && (isLatex(sourceFilePath.value) || isTypst(sourceFilePath.value))
-))
+const supportsDocumentRun = computed(
+  () => !!sourceFilePath.value && (isLatex(sourceFilePath.value) || isTypst(sourceFilePath.value))
+)
 
 const kindLabel = computed(() => {
   if (!supportsDocumentRun.value) return ''
@@ -192,13 +203,15 @@ const artifactPath = computed(() => {
   return workflowStore.getArtifactPathForFile(sourceFilePath.value, buildContext.value) || ''
 })
 
-const artifactStatusLabel = computed(() => (
+const artifactStatusLabel = computed(() =>
   artifactPath.value ? t('Output ready') : t('No output yet')
-))
+)
 
 const problemSummary = computed(() => {
   const errorCount = compileProblems.value.filter((problem) => problem.severity === 'error').length
-  const warningCount = compileProblems.value.filter((problem) => problem.severity !== 'error').length
+  const warningCount = compileProblems.value.filter(
+    (problem) => problem.severity !== 'error'
+  ).length
   if (errorCount || warningCount) {
     return t('{errors} errors · {warnings} warnings', {
       errors: errorCount,
@@ -228,9 +241,9 @@ async function handleCompile() {
   })
 }
 
-function openOutput() {
+async function openOutput() {
   if (!artifactPath.value) return
-  editorStore.openFile(artifactPath.value)
+  await openLocalPath(artifactPath.value)
 }
 
 function openCompileLog() {
@@ -245,8 +258,8 @@ function openCompileLog() {
   flex-direction: column;
   height: 100%;
   min-height: 0;
-  background: var(--bg-primary);
-  color: var(--fg-primary);
+  background: transparent;
+  color: var(--text-primary);
 }
 
 .document-run-scroll {
@@ -254,21 +267,22 @@ function openCompileLog() {
   flex: 1 1 auto;
   min-height: 0;
   flex-direction: column;
-  gap: 12px;
-  padding: 12px 12px 14px;
+  gap: 10px;
+  padding: 8px 8px 12px;
   overflow-y: auto;
 }
 
 .document-run-hero,
 .document-run-placeholder,
 .document-run-empty {
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--bg-secondary) 72%, var(--bg-primary));
+  border: none;
+  border-radius: 10px;
+  background: transparent;
 }
 
 .document-run-hero {
-  padding: 12px;
+  padding: 2px 0 8px;
+  border-bottom: 0;
 }
 
 .document-run-hero-top {
@@ -298,38 +312,35 @@ function openCompileLog() {
 .document-run-chip {
   display: inline-flex;
   align-items: center;
-  min-height: 22px;
-  padding: 0 8px;
+  min-height: 18px;
+  padding: 0 6px;
   border-radius: 999px;
-  border: 1px solid var(--border);
-  background: color-mix(in srgb, var(--bg-primary) 88%, transparent);
-  font-size: var(--sidebar-font-meta);
+  border: none;
+  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+  font-size: var(--ui-font-tiny);
   line-height: 1.2;
-  color: var(--fg-secondary);
+  color: var(--text-secondary);
+  opacity: 0.84;
 }
 
 .tone-accent {
   color: var(--accent);
-  border-color: color-mix(in srgb, var(--accent) 24%, var(--border));
-  background: color-mix(in srgb, var(--accent) 8%, var(--bg-primary));
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
 .tone-success {
   color: var(--success, #4ade80);
-  border-color: color-mix(in srgb, var(--success, #4ade80) 24%, var(--border));
-  background: color-mix(in srgb, var(--success, #4ade80) 8%, var(--bg-primary));
+  background: color-mix(in srgb, var(--success, #4ade80) 10%, transparent);
 }
 
 .tone-warning {
   color: var(--warning);
-  border-color: color-mix(in srgb, var(--warning) 24%, var(--border));
-  background: color-mix(in srgb, var(--warning) 8%, var(--bg-primary));
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
 }
 
 .tone-danger {
   color: var(--error);
-  border-color: color-mix(in srgb, var(--error) 24%, var(--border));
-  background: color-mix(in srgb, var(--error) 8%, var(--bg-primary));
+  background: color-mix(in srgb, var(--error) 10%, transparent);
 }
 
 .tone-neutral {
@@ -339,23 +350,24 @@ function openCompileLog() {
 .document-run-stat-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
+  gap: 10px;
   margin-top: 12px;
 }
 
 .document-run-stat-card {
   min-width: 0;
-  border-radius: 10px;
-  border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
-  background: color-mix(in srgb, var(--bg-primary) 86%, transparent);
-  padding: 9px 10px;
+  border-top: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
 }
 
 .document-run-stat-label {
-  font-size: var(--sidebar-font-kicker);
+  font-size: var(--ui-font-tiny);
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--fg-muted);
+  opacity: 0.72;
 }
 
 .document-run-stat-value {
@@ -369,37 +381,52 @@ function openCompileLog() {
 .document-run-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 4px;
 }
 
 .document-run-action {
   flex: 1 1 calc(50% - 4px);
   min-width: 0;
+  justify-content: flex-start;
+  border-radius: 8px;
+  color: var(--text-secondary);
+  opacity: 0.72;
+  transition:
+    background-color 140ms ease,
+    color 140ms ease,
+    opacity 140ms ease;
+}
+
+.document-run-action:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+  color: var(--text-primary);
+  opacity: 1;
 }
 
 .document-run-section {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .document-run-section-label {
-  font-size: var(--sidebar-font-kicker);
-  font-weight: 600;
+  font-size: var(--ui-font-tiny);
+  font-weight: 500;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--fg-muted);
+  color: var(--text-muted);
+  opacity: 0.68;
 }
 
 .document-run-empty,
 .document-run-placeholder {
-  padding: 14px;
+  padding: 8px 0;
 }
 
 .document-run-empty-title {
   font-size: var(--sidebar-font-title-strong);
   font-weight: 600;
-  color: var(--fg-primary);
+  color: var(--text-primary);
 }
 
 .document-run-empty-copy,
@@ -407,28 +434,28 @@ function openCompileLog() {
   margin-top: 6px;
   font-size: var(--sidebar-font-body);
   line-height: 1.55;
-  color: var(--fg-secondary);
+  color: var(--text-secondary);
 }
 
 .document-run-problem-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .document-run-problem {
-  border-radius: 12px;
-  border: 1px solid var(--border);
-  background: color-mix(in srgb, var(--bg-secondary) 76%, var(--bg-primary));
-  padding: 10px 11px;
+  border-left: 2px solid color-mix(in srgb, var(--border) 24%, transparent);
+  border-radius: 0;
+  background: transparent;
+  padding: 8px 0 8px 10px;
 }
 
 .document-run-problem.is-error {
-  border-color: color-mix(in srgb, var(--error) 24%, var(--border));
+  border-left-color: color-mix(in srgb, var(--error) 52%, transparent);
 }
 
 .document-run-problem.is-warning {
-  border-color: color-mix(in srgb, var(--warning) 24%, var(--border));
+  border-left-color: color-mix(in srgb, var(--warning) 52%, transparent);
 }
 
 .document-run-problem-head {
@@ -441,12 +468,12 @@ function openCompileLog() {
 .document-run-problem-tone {
   font-size: var(--sidebar-font-meta);
   font-weight: 600;
-  color: var(--fg-primary);
+  color: var(--text-primary);
 }
 
 .document-run-problem-line {
   font-size: var(--sidebar-font-meta);
-  color: var(--fg-muted);
+  color: var(--text-muted);
 }
 
 .document-run-problem-copy,
@@ -454,7 +481,7 @@ function openCompileLog() {
   margin-top: 6px;
   font-size: var(--sidebar-font-body);
   line-height: 1.5;
-  color: var(--fg-secondary);
+  color: var(--text-secondary);
 }
 
 @media (max-width: 720px) {

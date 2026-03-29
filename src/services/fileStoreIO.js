@@ -1,7 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
 import { TEXT_FILE_READ_LIMIT_BYTES } from '../domains/files/workspaceTextFileLimits.js'
-import { getWorkflowSourcePathForPreview } from './fileStoreEffects.js'
-
 async function pathExists(path) {
   return invoke('path_exists', { path })
 }
@@ -59,32 +57,6 @@ async function resolveUniqueMoveDestination(name, destDir, isDir) {
     candidate = `${destDir}/${base} ${index}${suffix}`
   }
   return candidate
-}
-
-export async function detectPdfSourceKind({ pdfPath, fileContents = {}, findEntry }) {
-  const texPath = pdfPath.replace(/\.pdf$/i, '.tex')
-  const typPath = pdfPath.replace(/\.pdf$/i, '.typ')
-  const workflowSourcePath = getWorkflowSourcePathForPreview(pdfPath)
-
-  if (workflowSourcePath === texPath) return 'latex'
-  if (workflowSourcePath === typPath) return 'typst'
-  if (fileContents[texPath] !== undefined) return 'latex'
-  if (fileContents[typPath] !== undefined) return 'typst'
-  if (findEntry?.(texPath)) return 'latex'
-  if (findEntry?.(typPath)) return 'typst'
-
-  try {
-    const [hasTex, hasTyp] = await Promise.all([
-      pathExists(texPath),
-      pathExists(typPath),
-    ])
-    if (hasTex) return 'latex'
-    if (hasTyp) return 'typst'
-  } catch {
-    // Fall back to the plain viewer if the filesystem probe fails.
-  }
-
-  return 'plain'
 }
 
 export async function readWorkspaceTextFile(path, maxBytes = TEXT_FILE_READ_LIMIT_BYTES) {

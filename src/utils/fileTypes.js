@@ -39,7 +39,6 @@ export function getViewerType(path) {
   if (isMarkdownPreviewPath(path)) return 'markdown-preview'
   if (isTypstPreviewPath(path)) return 'typst-native-preview'
   const ext = getExt(path)
-  if (PDF_EXTS.includes(ext)) return 'pdf'
   if (SUPPORTED_TEXT_EXTS.includes(ext)) return 'text'
   return 'unsupported-binary'
 }

@@ -1,50 +1,152 @@
 <template>
-  <div
-    class="tab-bar-shell flex items-center h-8 shrink-0 relative"
-    data-tab-bar
-    :data-pane-id="paneId"
-  >
-    <!-- Tabs -->
+  <Teleport :to="teleportTo || 'body'" :disabled="!teleportTo">
     <div
-      ref="tabsContainer"
-      class="flex-1 flex items-center h-full overflow-x-auto overflow-y-hidden relative"
-      data-tabs-area
+      class="tab-bar-shell flex items-center shrink-0 relative"
+      :class="{ 'is-shell-integrated': shellIntegrated }"
+      :data-tauri-drag-region="shellIntegrated ? '' : null"
+      data-tab-bar
+      :data-pane-id="paneId"
     >
+      <!-- Tabs -->
       <div
-        v-for="(tab, idx) in tabs"
-        :key="tab"
-        :ref="(el) => (tabEls[idx] = el)"
-        data-tab-el
-        class="tab-bar-item flex items-center h-full px-4 text-xs cursor-pointer shrink-0 group border-r"
-        :class="{
-          'is-active': tab === activeTab,
-          'is-dragging': dragIdx === idx,
-        }"
-        :title="tabTitle(tab)"
-        @mousedown="onMouseDown(idx, $event)"
-        @mouseenter="onMouseEnter(idx)"
-        @mousedown.middle.prevent="$emit('close-tab', tab)"
+        ref="tabsContainer"
+        class="tab-bar-track flex-1 flex items-center overflow-x-auto overflow-y-hidden relative"
+        data-tabs-area
       >
-        <span class="truncate max-w-[120px]">{{ fileName(tab) }}</span>
-        <span
-          v-if="dirtyFiles.has(tab)"
-          class="tab-dirty-indicator ml-1.5 w-2 h-2 rounded-full shrink-0"
-        ></span>
+        <div
+          v-for="(tab, idx) in tabs"
+          :key="tab"
+          :ref="(el) => (tabEls[idx] = el)"
+          data-tab-el
+          class="tab-bar-item flex items-center cursor-pointer shrink-0 group"
+          :class="{
+            'is-active': tab === activeTab,
+            'is-dragging': dragIdx === idx,
+          }"
+          :title="tabTitle(tab)"
+          @mousedown="onMouseDown(idx, $event)"
+          @mouseenter="onMouseEnter(idx)"
+          @mousedown.middle.prevent="$emit('close-tab', tab)"
+        >
+          <span class="truncate max-w-[120px]">{{ fileName(tab) }}</span>
+          <span
+            v-if="dirtyFiles.has(tab)"
+            class="tab-dirty-indicator ml-1.5 w-2 h-2 rounded-full shrink-0"
+          ></span>
 
-        <!-- Close button -->
+          <!-- Close button -->
+          <UiButton
+            variant="ghost"
+            size="icon-sm"
+            icon-only
+            class="tab-close-button ml-2 opacity-0 group-hover:opacity-100 transition-opacity"
+            :title="t('Close tab')"
+            :aria-label="t('Close tab')"
+            @click.stop="$emit('close-tab', tab)"
+            @mousedown.stop
+          >
+            <svg
+              width="10"
+              height="10"
+              viewBox="0 0 10 10"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+            >
+              <path d="M2 2l6 6M8 2l-6 6" />
+            </svg>
+          </UiButton>
+        </div>
+
+        <!-- Drop indicator line -->
+        <div
+          v-if="dropIndicatorLeft !== null"
+          class="tab-drop-indicator"
+          :style="{ left: dropIndicatorLeft + 'px' }"
+        ></div>
+
+        <!-- New tab button -->
+        <UiButton
+          v-if="!shellIntegrated"
+          variant="ghost"
+          size="icon-sm"
+          icon-only
+          class="tab-toolbar-button tab-toolbar-button-new shrink-0"
+          :title="t('New Tab')"
+          :aria-label="t('New Tab')"
+          @click="$emit('new-tab')"
+          @mousedown.stop
+        >
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+          >
+            <line x1="8" y1="3" x2="8" y2="13" />
+            <line x1="3" y1="8" x2="13" y2="8" />
+          </svg>
+        </UiButton>
+      </div>
+      <!-- Pane actions -->
+      <div v-if="!shellIntegrated" class="tab-bar-actions flex items-center gap-1 shrink-0">
         <UiButton
           variant="ghost"
           size="icon-sm"
           icon-only
-          class="tab-close-button ml-2 opacity-0 group-hover:opacity-100 transition-opacity"
-          :title="t('Close tab')"
-          :aria-label="t('Close tab')"
-          @click.stop="$emit('close-tab', tab)"
-          @mousedown.stop
+          class="tab-toolbar-button"
+          @click="$emit('split-vertical')"
+          :title="t('Split vertical ({shortcut})', { shortcut: `${modKey} + J` })"
+          :aria-label="t('Split vertical ({shortcut})', { shortcut: `${modKey} + J` })"
         >
           <svg
-            width="10"
-            height="10"
+            width="14"
+            height="14"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+          >
+            <rect x="1" y="2" width="14" height="12" rx="1.5" />
+            <line x1="8" y1="2" x2="8" y2="14" />
+          </svg>
+        </UiButton>
+        <UiButton
+          variant="ghost"
+          size="icon-sm"
+          icon-only
+          class="tab-toolbar-button"
+          @click="$emit('split-horizontal')"
+          :title="t('Split horizontal')"
+          :aria-label="t('Split horizontal')"
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+          >
+            <rect x="1" y="2" width="14" height="12" rx="1.5" />
+            <line x1="1" y1="8" x2="15" y2="8" />
+          </svg>
+        </UiButton>
+        <UiButton
+          v-if="paneId !== 'pane-root'"
+          variant="ghost"
+          size="icon-sm"
+          icon-only
+          class="tab-toolbar-button"
+          @click="$emit('close-pane')"
+          :title="t('Close pane')"
+          :aria-label="t('Close pane')"
+        >
+          <svg
+            width="12"
+            height="12"
             viewBox="0 0 10 10"
             fill="none"
             stroke="currentColor"
@@ -54,116 +156,15 @@
           </svg>
         </UiButton>
       </div>
-
-      <!-- Drop indicator line -->
-      <div
-        v-if="dropIndicatorLeft !== null"
-        class="tab-drop-indicator"
-        :style="{ left: dropIndicatorLeft + 'px' }"
-      ></div>
-
-      <!-- New tab button -->
-      <UiButton
-        variant="ghost"
-        size="icon-sm"
-        icon-only
-        class="tab-toolbar-button mx-0.5 shrink-0"
-        :title="t('New Tab')"
-        :aria-label="t('New Tab')"
-        @click="$emit('new-tab')"
-        @mousedown.stop
-      >
-        <svg
-          width="12"
-          height="12"
-          viewBox="0 0 16 16"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.5"
-        >
-          <line x1="8" y1="3" x2="8" y2="13" />
-          <line x1="3" y1="8" x2="13" y2="8" />
-        </svg>
-      </UiButton>
     </div>
-    <!-- Pane actions -->
-    <div class="tab-bar-actions flex items-center gap-0.5 px-1 shrink-0 border-l ml-1">
-      <UiButton
-        variant="ghost"
-        size="icon-sm"
-        icon-only
-        class="tab-toolbar-button"
-        @click="$emit('split-vertical')"
-        :title="t('Split vertical ({shortcut})', { shortcut: `${modKey} + J` })"
-        :aria-label="t('Split vertical ({shortcut})', { shortcut: `${modKey} + J` })"
-      >
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 16 16"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.5"
-        >
-          <rect x="1" y="2" width="14" height="12" rx="1.5" />
-          <line x1="8" y1="2" x2="8" y2="14" />
-        </svg>
-      </UiButton>
-      <UiButton
-        variant="ghost"
-        size="icon-sm"
-        icon-only
-        class="tab-toolbar-button"
-        @click="$emit('split-horizontal')"
-        :title="t('Split horizontal')"
-        :aria-label="t('Split horizontal')"
-      >
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 16 16"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.5"
-        >
-          <rect x="1" y="2" width="14" height="12" rx="1.5" />
-          <line x1="1" y1="8" x2="15" y2="8" />
-        </svg>
-      </UiButton>
-      <UiButton
-        v-if="paneId !== 'pane-root'"
-        variant="ghost"
-        size="icon-sm"
-        icon-only
-        class="tab-toolbar-button"
-        @click="$emit('close-pane')"
-        :title="t('Close pane')"
-        :aria-label="t('Close pane')"
-      >
-        <svg
-          width="12"
-          height="12"
-          viewBox="0 0 10 10"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.5"
-        >
-          <path d="M2 2l6 6M8 2l-6 6" />
-        </svg>
-      </UiButton>
-    </div>
+  </Teleport>
 
-    <!-- Ghost tab (teleported to body during drag) -->
-    <Teleport to="body">
-      <div
-        v-if="ghostVisible"
-        class="tab-ghost"
-        :style="{ left: ghostX + 'px', top: ghostY + 'px' }"
-      >
-        {{ ghostLabel }}
-      </div>
-    </Teleport>
-  </div>
+  <!-- Ghost tab (teleported to body during drag) -->
+  <Teleport to="body">
+    <div v-if="ghostVisible" class="tab-ghost" :style="{ left: ghostX + 'px', top: ghostY + 'px' }">
+      {{ ghostLabel }}
+    </div>
+  </Teleport>
 </template>
 
 <script setup>
@@ -177,6 +178,8 @@ const props = defineProps({
   tabs: { type: Array, required: true },
   activeTab: { type: String, default: null },
   paneId: { type: String, default: '' },
+  teleportTo: { type: String, default: '' },
+  shellIntegrated: { type: Boolean, default: false },
 })
 
 const emit = defineEmits([
@@ -501,44 +504,95 @@ function updateDropIndicator(mouseX) {
 <style scoped>
 .tab-bar-shell {
   box-sizing: border-box;
-  background: var(--bg-primary);
-  border-bottom: 1px solid var(--border);
+  min-height: 38px;
+  padding: 4px 8px 2px;
+  background: transparent;
+  border-bottom: none;
+  gap: 6px;
+}
+
+.tab-bar-shell.is-shell-integrated {
+  width: 100%;
+  min-height: 34px;
+  padding: 0;
+  gap: 12px;
+}
+
+.tab-bar-track {
+  gap: 2px;
+}
+
+.tab-bar-shell.is-shell-integrated .tab-bar-track {
+  gap: 3px;
+  min-width: 0;
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    black 10px,
+    black calc(100% - 10px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    black 10px,
+    black calc(100% - 10px),
+    transparent 100%
+  );
 }
 
 .tab-bar-item {
-  border-color: var(--border);
-  background: var(--bg-primary);
-  color: var(--fg-muted);
-  opacity: 0.7;
+  position: relative;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  opacity: 0.78;
   transition:
     opacity 0.15s,
     color 0.14s ease,
-    box-shadow 0.14s ease,
-    background-color 0.14s ease;
+    background-color 0.14s ease,
+    border-color 0.14s ease,
+    transform 0.14s ease;
 }
 
 .tab-bar-item:hover {
-  color: var(--fg-primary);
-  opacity: 0.92;
+  color: var(--text-primary);
+  opacity: 1;
+  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
 }
 
 .tab-bar-item.is-active {
-  color: var(--fg-primary);
-  box-shadow: inset 0 -2px 0 var(--accent);
+  color: var(--text-primary);
+  background: transparent;
   opacity: 1;
+  font-weight: 600;
+}
+
+.tab-bar-item.is-active::after {
+  display: none;
 }
 
 .tab-bar-item.is-dragging {
   opacity: 0.3;
+  transform: scale(0.98);
 }
 
 .tab-dirty-indicator {
-  background: var(--fg-muted);
+  background: var(--accent);
 }
 
 .tab-close-button,
 .tab-toolbar-button {
-  color: var(--fg-muted);
+  color: var(--text-muted);
+  border-radius: 8px;
+  opacity: 0.52;
+  transition:
+    background-color 140ms ease,
+    color 140ms ease,
+    opacity 140ms ease;
 }
 
 .tab-close-button {
@@ -547,7 +601,111 @@ function updateDropIndicator(mouseX) {
   min-height: 16px;
 }
 
+.tab-close-button:hover:not(:disabled),
+.tab-toolbar-button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+  color: var(--text-primary);
+  opacity: 1;
+}
+
 .tab-bar-actions {
-  border-color: var(--border);
+  gap: 2px;
+  opacity: 0.22;
+  transition:
+    opacity 140ms ease,
+    transform 140ms ease;
+  transform: translateY(-1px);
+}
+
+.tab-toolbar-button-new {
+  margin-left: 4px;
+  opacity: 0.3;
+}
+
+.tab-bar-shell:hover .tab-toolbar-button-new,
+.tab-bar-shell:focus-within .tab-toolbar-button-new {
+  opacity: 0.86;
+}
+
+.tab-bar-shell:hover .tab-bar-actions,
+.tab-bar-shell:focus-within .tab-bar-actions {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.tab-bar-shell.is-shell-integrated .tab-bar-item {
+  min-height: 30px;
+  padding: 0 9px;
+  border-radius: 10px;
+  opacity: 0.62;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.tab-bar-shell.is-shell-integrated .tab-bar-item:hover {
+  background: color-mix(in srgb, var(--surface-hover) 44%, transparent);
+  opacity: 0.9;
+}
+
+.tab-bar-shell.is-shell-integrated .tab-bar-item.is-active {
+  background: transparent;
+  color: var(--text-primary);
+  opacity: 1;
+  font-weight: 600;
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--text-primary) 18%, transparent);
+}
+
+.tab-bar-shell.is-shell-integrated .tab-close-button,
+.tab-bar-shell.is-shell-integrated .tab-toolbar-button {
+  border-radius: 999px;
+}
+
+.tab-bar-shell.is-shell-integrated .tab-close-button {
+  opacity: 0;
+}
+
+.tab-bar-shell.is-shell-integrated .tab-bar-actions {
+  gap: 1px;
+  opacity: 0;
+  transform: translateY(-2px);
+}
+
+.tab-bar-shell.is-shell-integrated:hover .tab-close-button,
+.tab-bar-shell.is-shell-integrated:focus-within .tab-close-button {
+  opacity: 0.46;
+}
+
+.tab-bar-shell.is-shell-integrated:hover .tab-bar-actions,
+.tab-bar-shell.is-shell-integrated:focus-within .tab-bar-actions {
+  opacity: 0.74;
+  transform: translateY(0);
+}
+
+.tab-bar-shell.is-shell-integrated .tab-toolbar-button-new {
+  margin-left: 6px;
+  opacity: 0.14;
+}
+
+.tab-bar-shell.is-shell-integrated:hover .tab-toolbar-button-new,
+.tab-bar-shell.is-shell-integrated:focus-within .tab-toolbar-button-new {
+  opacity: 0.54;
+}
+
+.tab-bar-shell.is-shell-integrated .tab-toolbar-button {
+  opacity: 0.32;
+}
+
+.tab-bar-shell.is-shell-integrated .tab-toolbar-button:hover:not(:disabled),
+.tab-bar-shell.is-shell-integrated .tab-close-button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--surface-hover) 64%, transparent);
+  opacity: 1;
+}
+
+.tab-bar-shell.is-shell-integrated .tab-bar-track::-webkit-scrollbar {
+  display: none;
+}
+
+.tab-bar-shell.is-shell-integrated .tab-bar-track {
+  scrollbar-width: none;
 }
 </style>

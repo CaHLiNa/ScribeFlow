@@ -191,6 +191,8 @@ export function buildTypstWorkflowUiState(options = {}) {
   const liveState = options.liveState || {}
   const queueState = options.queueState || {}
   const previewAvailable = options.previewAvailable === true
+  const nativePreviewSupported = options.nativePreviewSupported !== false
+  const artifactReady = options.artifactReady === true
   const previewKind = options.previewKind || 'native'
   const tinymistBacked = liveState?.tinymistBacked === true
   const liveDiagnostics = Array.isArray(liveState?.diagnostics) ? liveState.diagnostics : []
@@ -213,7 +215,8 @@ export function buildTypstWorkflowUiState(options = {}) {
     errorCount,
     warningCount,
     canShowProblems: errorCount > 0 || warningCount > 0,
-    canRevealPreview: !!previewAvailable,
+    canRevealPreview: nativePreviewSupported,
+    canOpenPdf: artifactReady,
     forwardSync: 'precise',
     backwardSync: true,
     primaryAction: 'compile',

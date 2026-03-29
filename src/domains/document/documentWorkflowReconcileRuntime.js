@@ -16,7 +16,7 @@ function isPreviewCapableLeaf(leaf) {
   if (!leaf) return false
   if (!leaf.activeTab) return true
   const viewerType = getViewerType(leaf.activeTab)
-  return viewerType === 'markdown-preview' || viewerType === 'typst-native-preview' || viewerType === 'pdf'
+  return viewerType === 'markdown-preview' || viewerType === 'typst-native-preview'
 }
 
 function matchesPreviewBinding(tabPath, sourcePath, preferredPreview, workflowStore) {
@@ -36,7 +36,7 @@ function chooseWorkflowPreviewAction(context, options = {}) {
   }
 
   const sourcePath = context.activeFile
-  const previewKind = options.preferredPreview || 'html'
+  const previewKind = options.preferredPreview || null
   const previewPath = options.previewPath || options.createWorkflowPreviewPath?.(sourcePath, kind, previewKind) || null
 
   if (options.allowLegacyPaneResult && context?.detachedSources?.[sourcePath] && !options.force) {
@@ -134,12 +134,22 @@ export function reconcileDocumentWorkflow({
       path: sourcePath,
       sourcePaneId: activePaneId,
       trigger,
-      nativePreviewSupported: kind !== 'typst' || preferredPreview !== 'pdf',
+      nativePreviewSupported: preferredPreview === 'native' || kind !== 'typst',
       preserveOpenLegacy: !!matchedLegacyPreview,
       legacyPreviewPath: matchedLegacyPreview?.previewPath || '',
       legacyPreviewPaneId: matchedLegacyPreview?.previewPaneId || null,
     })
     if (workspacePreview) return workspacePreview
+  }
+
+  if (!base.previewKind || !base.previewPath) {
+    return {
+      ...base,
+      type: 'source-only',
+      trigger,
+      previewPaneId: null,
+      state: 'source-only',
+    }
   }
 
   if (matchedLegacyPreview) {

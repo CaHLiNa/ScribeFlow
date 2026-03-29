@@ -8,6 +8,7 @@ function createAdapter(overrides = {}) {
     kind: 'markdown',
     preview: {
       defaultKind: 'html',
+      supportedKinds: ['html'],
       getTargetPath() {
         return ''
       },
@@ -47,11 +48,12 @@ function createRuntime({ workflowStore, latexStore, typstStore } = {}) {
   })
 }
 
-test('build runtime exposes a visible latex workspace preview when a compiled pdf exists', () => {
+test('build runtime keeps latex source-only even when a compiled output exists', () => {
   const adapter = createAdapter({
     kind: 'latex',
     preview: {
-      defaultKind: 'pdf',
+      defaultKind: null,
+      supportedKinds: [],
       getTargetPath() {
         return '/workspace/build/paper.pdf'
       },
@@ -76,12 +78,12 @@ test('build runtime exposes a visible latex workspace preview when a compiled pd
   })
 
   assert.equal(context.previewState.useWorkspace, true)
-  assert.equal(context.previewState.previewVisible, true)
-  assert.equal(context.previewState.previewKind, 'pdf')
-  assert.equal(context.previewState.previewMode, 'pdf')
-  assert.equal(context.previewTargetPath, '/workspace/build/paper.pdf')
+  assert.equal(context.previewState.previewVisible, false)
+  assert.equal(context.previewState.previewKind, null)
+  assert.equal(context.previewState.reason, 'artifact-ready-external')
+  assert.equal(context.previewTargetPath, '')
   assert.equal(context.targetResolution, 'resolved')
-  assert.equal(context.workspacePreviewState, context.previewState)
+  assert.equal(context.artifactReady, true)
 })
 
 test('build runtime keeps typst native preview inside the workspace when supported', () => {
@@ -89,8 +91,9 @@ test('build runtime keeps typst native preview inside the workspace when support
     kind: 'typst',
     preview: {
       defaultKind: 'native',
+      supportedKinds: ['native'],
       getTargetPath() {
-        return '/workspace/build/paper.pdf'
+        return ''
       },
       isNativeSupported() {
         return true
@@ -120,15 +123,18 @@ test('build runtime keeps typst native preview inside the workspace when support
   assert.equal(context.previewState.previewMode, 'typst-native')
   assert.equal(context.previewTargetPath, '')
   assert.equal(context.targetResolution, 'not-needed')
+  assert.equal(context.nativePreviewSupported, true)
+  assert.equal(context.artifactReady, true)
 })
 
-test('build runtime falls back to typst pdf preview when native preview is unavailable', () => {
+test('build runtime keeps typst source-only when native preview is unavailable', () => {
   const adapter = createAdapter({
     kind: 'typst',
     preview: {
       defaultKind: 'native',
+      supportedKinds: ['native'],
       getTargetPath() {
-        return '/workspace/build/paper.pdf'
+        return ''
       },
       isNativeSupported() {
         return false
@@ -153,20 +159,26 @@ test('build runtime falls back to typst pdf preview when native preview is unava
     workflowOnly: false,
   })
 
-  assert.equal(context.previewState.previewVisible, true)
-  assert.equal(context.previewState.previewKind, 'pdf')
-  assert.equal(context.previewState.previewMode, 'pdf')
-  assert.equal(context.previewTargetPath, '/workspace/build/paper.pdf')
+  assert.equal(context.previewState.previewVisible, false)
+  assert.equal(context.previewState.previewKind, null)
+  assert.equal(context.previewState.reason, 'artifact-ready-external')
+  assert.equal(context.previewTargetPath, '')
   assert.equal(context.targetResolution, 'resolved')
+  assert.equal(context.nativePreviewSupported, false)
+  assert.equal(context.artifactReady, true)
 })
 
-test('build runtime respects user-hidden workspace previews while keeping the resolved target around', () => {
+test('build runtime normalizes stale pdf preview preferences back to supported typst preview kinds', () => {
   const adapter = createAdapter({
-    kind: 'latex',
+    kind: 'typst',
     preview: {
-      defaultKind: 'pdf',
+      defaultKind: 'native',
+      supportedKinds: ['native'],
       getTargetPath() {
-        return '/workspace/build/paper.pdf'
+        return ''
+      },
+      isNativeSupported() {
+        return true
       },
     },
     compile: {
@@ -177,25 +189,29 @@ test('build runtime respects user-hidden workspace previews while keeping the re
   })
   const runtime = createRuntime({
     workflowStore: {
-      isWorkspacePreviewHiddenForFile(filePath) {
-        return filePath === '/workspace/paper.tex'
+      session: {
+        activeFile: '/workspace/paper.typ',
+        previewKind: 'pdf',
+      },
+      getPreferredPreviewKind() {
+        return 'native'
+      },
+      isWorkspacePreviewHiddenForFile() {
+        return false
       },
     },
-    latexStore: {
+    typstStore: {
       stateForFile() {
         return { pdfPath: '/workspace/build/paper.pdf' }
       },
     },
   })
 
-  const context = runtime.buildAdapterContext('/workspace/paper.tex', {
+  const context = runtime.buildAdapterContext('/workspace/paper.typ', {
     adapter,
     workflowOnly: false,
   })
 
-  assert.equal(context.previewState.previewVisible, false)
-  assert.equal(context.previewState.previewMode, null)
-  assert.equal(context.previewState.reason, 'hidden-by-user')
-  assert.equal(context.previewTargetPath, '/workspace/build/paper.pdf')
-  assert.equal(context.targetResolution, 'resolved')
+  assert.equal(context.previewKind, 'native')
+  assert.equal(context.previewState.previewMode, 'typst-native')
 })

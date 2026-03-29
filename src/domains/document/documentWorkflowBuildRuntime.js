@@ -23,22 +23,35 @@ function resolvePreferredPreviewKind(adapter, options = {}, workflowStore = null
   return getPreferredPreviewKind?.(adapter.kind) || adapter.preview?.defaultKind || null
 }
 
+function normalizePreviewKind(adapter, previewKind) {
+  if (!adapter || !previewKind) return null
+  const supportedKinds = Array.isArray(adapter.preview?.supportedKinds)
+    ? adapter.preview.supportedKinds
+    : []
+  return supportedKinds.includes(previewKind) ? previewKind : adapter.preview?.defaultKind || null
+}
+
 function resolveRequestedPreviewKind(filePath, adapter, options = {}, workflowStore = null) {
   if (!adapter) return null
 
   const session = options.session || workflowStore?.session || {}
   const preferredPreviewKind = resolvePreferredPreviewKind(adapter, options, workflowStore)
   if (session.activeFile === filePath) {
-    return session.previewKind || preferredPreviewKind
+    return normalizePreviewKind(adapter, session.previewKind) || preferredPreviewKind
   }
-  return preferredPreviewKind
+  return normalizePreviewKind(adapter, preferredPreviewKind)
 }
 
-function resolvePreviewTargetPath(filePath, adapter, context, options = {}) {
+function resolveResolvedPreviewTargetPath(filePath, adapter, context, options = {}) {
   if (options.resolvedTargetPath || options.previewTargetPath) {
     return options.resolvedTargetPath || options.previewTargetPath || ''
   }
   return adapter?.preview?.getTargetPath?.(filePath, context, options) || ''
+}
+
+function resolveExpectedPreviewTargetPath(filePath, adapter, context, options = {}) {
+  if (options.expectedTargetPath) return options.expectedTargetPath
+  return adapter?.compile?.getArtifactPath?.(filePath, context, options) || ''
 }
 
 function resolveNativePreviewSupported(filePath, adapter, context, requestedPreviewKind, options = {}) {
@@ -46,7 +59,6 @@ function resolveNativePreviewSupported(filePath, adapter, context, requestedPrev
     return options.nativePreviewSupported
   }
   if (adapter?.kind !== 'typst') return true
-  if (requestedPreviewKind === 'pdf') return false
   return adapter?.preview?.isNativeSupported?.(filePath, context, options) !== false
 }
 
@@ -61,6 +73,17 @@ function resolveArtifactReady(filePath, adapter, context) {
   return false
 }
 
+function resolvePreviewRequested(filePath, requestedPreviewKind, options = {}, workflowStore = null) {
+  const session = options.session || workflowStore?.session || {}
+  const activeSourcePath = session.previewSourcePath || session.activeFile || ''
+  if (!activeSourcePath || activeSourcePath !== filePath) return false
+  if (session.state !== 'workspace-preview') return false
+  if (requestedPreviewKind && session.previewKind && session.previewKind !== requestedPreviewKind) {
+    return false
+  }
+  return true
+}
+
 function resolvePreviewState(filePath, adapter, context, options = {}) {
   if (!adapter) return null
 
@@ -69,13 +92,20 @@ function resolvePreviewState(filePath, adapter, context, options = {}) {
     path: filePath,
     workflowUiState: { kind: adapter.kind, previewKind: requestedPreviewKind },
     previewKind: requestedPreviewKind,
-    resolvedTargetPath: resolvePreviewTargetPath(filePath, adapter, context, options),
+    resolvedTargetPath: resolveResolvedPreviewTargetPath(filePath, adapter, context, options),
+    expectedTargetPath: resolveExpectedPreviewTargetPath(filePath, adapter, context, options),
     nativePreviewSupported: resolveNativePreviewSupported(
       filePath,
       adapter,
       context,
       requestedPreviewKind,
       options,
+    ),
+    previewRequested: resolvePreviewRequested(
+      filePath,
+      requestedPreviewKind,
+      options,
+      context.workflowStore,
     ),
     artifactReady: resolveArtifactReady(filePath, adapter, context),
     hasOpenLegacyPreview: options.hasOpenLegacyPreview === true,
@@ -141,6 +171,14 @@ export function createDocumentWorkflowBuildRuntime({
     }
 
     const previewState = resolvePreviewState(filePath, adapter, context, options)
+    const artifactReady = resolveArtifactReady(filePath, adapter, context)
+    const nativePreviewSupported = resolveNativePreviewSupported(
+      filePath,
+      adapter,
+      context,
+      previewState?.previewKind || null,
+      options,
+    )
     return {
       ...context,
       adapter,
@@ -152,6 +190,8 @@ export function createDocumentWorkflowBuildRuntime({
       previewVisible: previewState?.previewVisible === true,
       previewTargetPath: previewState?.previewTargetPath || '',
       targetResolution: previewState?.targetResolution || null,
+      artifactReady,
+      nativePreviewSupported,
     }
   }
 

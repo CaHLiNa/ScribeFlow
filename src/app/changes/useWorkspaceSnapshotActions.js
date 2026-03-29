@@ -7,15 +7,18 @@ export function useWorkspaceSnapshotActions({
   workspace,
   filesStore,
   editorStore,
-  footerRef,
   toastStore,
   workspaceSnapshotBrowserVisible,
   fileVersionHistoryVisible,
   fileVersionHistoryFile,
+  requestSnapshotLabelImpl = null,
   createWorkspaceSnapshotImpl = createWorkspaceSnapshot,
   openFileVersionHistoryBrowserImpl = openFileVersionHistoryBrowser,
   t,
 }) {
+  const defaultRequestSnapshotLabel =
+    typeof requestSnapshotLabelImpl === 'function' ? requestSnapshotLabelImpl : null
+
   function showHistoryUnavailable() {
     toastStore.show(t('File Version History is not available for the home folder.'), {
       type: 'warning',
@@ -29,10 +32,20 @@ export function useWorkspaceSnapshotActions({
 
   async function createSnapshot({
     preferredSnapshotLabel = '',
-    requestSnapshotLabel = () => footerRef.value?.beginSnapshotLabelConfirmation(),
+    requestSnapshotLabel = defaultRequestSnapshotLabel,
     allowLocalSavePointWhenUnchanged = false,
-    showNoChanges = () => footerRef.value?.showCenterMessage(t('All saved (no changes)')),
-    showCommitFailure = () => footerRef.value?.showSaveMessage(t('Saved (commit failed)')),
+    showNoChanges = () => {
+      toastStore.show(t('All saved (no changes)'), {
+        type: 'info',
+        duration: 2500,
+      })
+    },
+    showCommitFailure = () => {
+      toastStore.show(t('Saved (commit failed)'), {
+        type: 'warning',
+        duration: 3500,
+      })
+    },
   } = {}) {
     return await createWorkspaceSnapshotImpl({
       workspace,

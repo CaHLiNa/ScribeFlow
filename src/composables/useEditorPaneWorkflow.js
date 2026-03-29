@@ -2,13 +2,11 @@ import { computed, watch } from 'vue'
 import { isLatex, isTypst } from '../utils/fileTypes.js'
 import { getDocumentAdapterForFile } from '../services/documentWorkflow/adapters/index.js'
 import { getDocumentWorkflowStatusTone } from '../domains/document/documentWorkflowBuildRuntime.js'
-import { shouldShowPdfToolbarTarget } from '../domains/document/documentWorkspacePreviewRuntime.js'
 
 export function useEditorPaneWorkflow(options) {
   const {
     paneIdRef,
     activeTabRef,
-    viewerTypeRef,
     editorStore,
     filesStore,
     workspace,
@@ -52,17 +50,7 @@ export function useEditorPaneWorkflow(options) {
   const workspacePreviewState = computed(() => (
     documentBuildContext.value?.workspacePreviewState || documentPreviewState.value || null
   ))
-  const pdfToolbarTargetId = computed(() => (
-    `pdf-toolbar-slot-${String(paneIdRef.value || 'pane').replace(/[^a-zA-Z0-9_-]/g, '-')}`
-  ))
-  const pdfToolbarTargetSelector = computed(() => (
-    shouldShowPdfToolbarTarget(viewerTypeRef.value, documentPreviewState.value)
-      ? `#${pdfToolbarTargetId.value}`
-      : ''
-  ))
-  const showDocumentHeader = computed(() => (
-    !!activeTabRef.value && (!!workflowUiState.value || !!pdfToolbarTargetSelector.value)
-  ))
+  const showDocumentHeader = computed(() => !!activeTabRef.value && !!workflowUiState.value)
   const workflowStatusText = computed(() => {
     if (!activeTabRef.value || !workflowUiState.value) return ''
     return workflowStore.getStatusTextForFile(activeTabRef.value, buildWorkflowOptions({
@@ -100,9 +88,13 @@ export function useEditorPaneWorkflow(options) {
 
   function handlePreviewPdf() {
     if (!activeTabRef.value) return
-    workflowStore.toggleWorkflowPdfPreviewForFile(activeTabRef.value, {
+    workflowStore.openWorkflowOutputForFile(activeTabRef.value, {
       sourcePaneId: paneIdRef.value,
       adapterKind: activeDocumentAdapter.value?.kind || 'document',
+      buildOptions: buildWorkflowOptions({
+        adapter: activeDocumentAdapter.value,
+        workflowOnly: false,
+      }),
     })
   }
 
@@ -138,8 +130,8 @@ export function useEditorPaneWorkflow(options) {
   }
 
   function handleWorkflowRevealPdf() {
-    if (!workflowUiState.value || workflowUiState.value.kind !== 'typst' || !activeTabRef.value) return
-    workflowStore.revealWorkflowPdfForFile(activeTabRef.value, {
+    if (!workflowUiState.value || !activeTabRef.value) return
+    workflowStore.openWorkflowOutputForFile(activeTabRef.value, {
       uiState: workflowUiState.value,
       sourcePaneId: paneIdRef.value,
       buildOptions: buildWorkflowOptions({
@@ -158,8 +150,6 @@ export function useEditorPaneWorkflow(options) {
   )
 
   return {
-    pdfToolbarTargetId,
-    pdfToolbarTargetSelector,
     documentPreviewState,
     showDocumentHeader,
     workflowUiState,

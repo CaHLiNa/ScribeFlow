@@ -1,6 +1,5 @@
 import { isLatex } from '../../../utils/fileTypes.js'
 import { buildLatexLintProblems, buildLatexProjectProblemsSync } from '../../latex/diagnostics.js'
-import { resolveCachedLatexPreviewPath } from '../../latex/root.js'
 
 function buildRecipeStatusSuffix(context = {}, state = {}, queueState = null) {
   const recipe = state?.buildRecipe || queueState?.recipe || 'default'
@@ -86,12 +85,13 @@ export function buildLatexWorkflowUiState(state = {}, options = {}) {
 
   return {
     kind: 'latex',
-    previewKind: 'pdf',
+    previewKind: null,
     phase,
     errorCount,
     warningCount,
     canShowProblems: errorCount > 0 || warningCount > 0,
-    canRevealPreview: !!options.previewAvailable,
+    canRevealPreview: false,
+    canOpenPdf: options.artifactReady === true,
     forwardSync: 'precise',
     backwardSync: true,
     primaryAction: 'compile',
@@ -99,16 +99,15 @@ export function buildLatexWorkflowUiState(state = {}, options = {}) {
 }
 
 const latexPreviewAdapter = {
-  defaultKind: 'pdf',
-  supportedKinds: ['pdf'],
+  defaultKind: null,
+  supportedKinds: [],
 
-  createPath(sourcePath, previewKind) {
-    if (!sourcePath || previewKind !== 'pdf') return null
-    return resolveCachedLatexPreviewPath(sourcePath)
+  createPath() {
+    return null
   },
 
-  inferKind(sourcePath, previewPath) {
-    return previewPath === this.createPath(sourcePath, 'pdf') ? 'pdf' : null
+  inferKind() {
+    return null
   },
 
   getTargetPath(sourcePath, context) {
@@ -117,17 +116,17 @@ const latexPreviewAdapter = {
   },
 
   ensure(sourcePath, context, options = {}) {
-    return context.workflowStore?.ensurePreviewForSource(sourcePath, {
-      ...options,
-      previewKind: 'pdf',
-    }) || null
+    void sourcePath
+    void context
+    void options
+    return null
   },
 
   reveal(sourcePath, context, options = {}) {
-    return context.workflowStore?.revealPreview(sourcePath, {
-      ...options,
-      previewKind: 'pdf',
-    }) || null
+    void sourcePath
+    void context
+    void options
+    return null
   },
 }
 
@@ -216,7 +215,7 @@ export const latexDocumentAdapter = {
       ...buildLatexWorkflowUiState(
         latexCompileAdapter.stateForFile(filePath, context) || {},
         {
-          previewAvailable: !!context.previewAvailable,
+          artifactReady: context.artifactReady === true,
           queuePhase: queueState?.phase || null,
         },
       ),

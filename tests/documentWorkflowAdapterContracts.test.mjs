@@ -9,7 +9,7 @@ test('document workflow adapter contracts keep markdown compile seam explicit', 
   assert.equal(markdownDocumentAdapter.compile, null)
 })
 
-test('document workflow adapter contracts expose preview target resolution through preview adapters', () => {
+test('document workflow adapter contracts resolve compile artifact paths through compile adapters', () => {
   const latexContext = {
     latexStore: {
       stateForFile() {
@@ -26,16 +26,16 @@ test('document workflow adapter contracts expose preview target resolution throu
   }
 
   assert.equal(
-    latexDocumentAdapter.preview.getTargetPath('/workspace/main.tex', latexContext),
+    latexDocumentAdapter.compile.getArtifactPath('/workspace/main.tex', latexContext),
     '/workspace/main.pdf',
   )
   assert.equal(
-    typstDocumentAdapter.preview.getTargetPath('/workspace/main.typ', typstContext),
+    typstDocumentAdapter.compile.getArtifactPath('/workspace/main.typ', typstContext),
     '/workspace/main.pdf',
   )
 })
 
-test('document workflow adapter contracts expose typst native preview support through preview seam', () => {
+test('document workflow adapter contracts disable latex inline preview kinds and keep typst native support explicit', () => {
   const nativeContext = {
     typstStore: {
       liveStateForFile() {
@@ -43,7 +43,7 @@ test('document workflow adapter contracts expose typst native preview support th
       },
     },
   }
-  const pdfOnlyContext = {
+  const sourceOnlyContext = {
     typstStore: {
       liveStateForFile() {
         return { tinymistBacked: false }
@@ -51,6 +51,8 @@ test('document workflow adapter contracts expose typst native preview support th
     },
   }
 
+  assert.deepEqual(latexDocumentAdapter.preview.supportedKinds, [])
+  assert.equal(latexDocumentAdapter.preview.defaultKind, null)
   assert.equal(typstDocumentAdapter.preview.isNativeSupported('/workspace/main.typ', nativeContext), true)
-  assert.equal(typstDocumentAdapter.preview.isNativeSupported('/workspace/main.typ', pdfOnlyContext), false)
+  assert.equal(typstDocumentAdapter.preview.isNativeSupported('/workspace/main.typ', sourceOnlyContext), false)
 })

@@ -1,5 +1,4 @@
 import { createDocumentWorkflowBuildOperationRuntime } from './documentWorkflowBuildOperationRuntime.js'
-import { createDocumentWorkflowTypstPaneRuntime } from './documentWorkflowTypstPaneRuntime.js'
 
 const WORKSPACE_PREVIEW_DELIVERY = 'workspace'
 const LEGACY_PANE_PREVIEW_DELIVERY = 'legacy-pane'
@@ -42,10 +41,7 @@ function createLegacyPanePreviewToggle(workflowStore, filePath, options = {}) {
 export function createDocumentWorkflowActionRuntime({
   getWorkflowStore,
   getBuildOperationRuntime = () => createDocumentWorkflowBuildOperationRuntime(),
-  getTypstPaneRuntime = () => createDocumentWorkflowTypstPaneRuntime({
-    getEditorStore: undefined,
-    getWorkflowStore,
-  }),
+  openOutputPath = async () => false,
 } = {}) {
   function resolveWorkspacePreviewState(filePath, options = {}) {
     const workflowStore = getWorkflowStore?.() || null
@@ -77,29 +73,22 @@ export function createDocumentWorkflowActionRuntime({
     }) || null
   }
 
-  function togglePdfPreviewForFile(filePath, options = {}) {
+  async function openWorkflowOutputForFile(filePath, options = {}) {
     if (!filePath) return null
 
     const workflowStore = getWorkflowStore?.() || null
     if (!workflowStore) return null
 
-    if (usesLegacyPanePreviewDelivery(options)) {
-      return createLegacyPanePreviewToggle(workflowStore, filePath, {
-        previewKind: 'pdf',
-        sourcePaneId: options.sourcePaneId,
-        trigger: options.trigger || `${options.adapterKind || 'document'}-preview-toggle`,
-      })
-    }
+    const artifactPath = workflowStore.getArtifactPathForFile?.(filePath, options.buildOptions || {}) || ''
+    if (!artifactPath) return null
 
-    const previewState = resolveWorkspacePreviewState(filePath, options)
-    if (previewState?.previewVisible && previewState?.previewMode === 'pdf') {
-      return workflowStore.hideWorkspacePreviewForFile?.(filePath) || null
+    await openOutputPath(artifactPath)
+    return {
+      type: 'external-output-opened',
+      filePath,
+      artifactPath,
+      trigger: options.trigger || `${options.adapterKind || options.uiState?.kind || 'document'}-open-output`,
     }
-    return workflowStore.switchWorkspacePreviewModeForFile?.(filePath, {
-      previewKind: 'pdf',
-      sourcePaneId: options.sourcePaneId,
-      trigger: options.trigger || `${options.adapterKind || 'document'}-preview-toggle`,
-    }) || null
   }
 
   async function runPrimaryActionForFile(filePath, options = {}) {
@@ -138,16 +127,7 @@ export function createDocumentWorkflowActionRuntime({
       })
     }
 
-    if (uiState.kind === 'typst' && usesLegacyPanePreviewDelivery(options)) {
-      const typstPaneRuntime = getTypstPaneRuntime?.() || null
-      return typstPaneRuntime?.revealPreviewForFile?.(filePath, {
-        sourcePaneId: options.sourcePaneId,
-        buildOptions: options.buildOptions || {},
-        allowLegacyPaneResult: true,
-      }) || null
-    }
-
-    if (!workflowStore) return null
+    if (!workflowStore || !uiState.previewKind) return null
 
     if (usesLegacyPanePreviewDelivery(options)) {
       return createLegacyPanePreviewToggle(workflowStore, filePath, {
@@ -173,31 +153,24 @@ export function createDocumentWorkflowActionRuntime({
     }) || null
   }
 
-  function revealPdfForFile(filePath, options = {}) {
-    if (!filePath) return null
-
-    const uiState = options.uiState || null
-    if (uiState?.kind !== 'typst') return null
-
-    if (usesLegacyPanePreviewDelivery(options)) {
-      const typstPaneRuntime = getTypstPaneRuntime?.() || null
-      return typstPaneRuntime?.revealPdfForFile?.(filePath, {
-        sourcePaneId: options.sourcePaneId,
-        buildOptions: options.buildOptions || {},
-        allowLegacyPaneResult: true,
-      }) || null
-    }
-
-    return togglePdfPreviewForFile(filePath, {
+  function togglePdfPreviewForFile(filePath, options = {}) {
+    return openWorkflowOutputForFile(filePath, {
       ...options,
-      adapterKind: 'typst',
-      trigger: options.trigger || 'typst-pdf-toggle',
+      trigger: options.trigger || `${options.adapterKind || 'document'}-open-output`,
+    })
+  }
+
+  function revealPdfForFile(filePath, options = {}) {
+    return openWorkflowOutputForFile(filePath, {
+      ...options,
+      trigger: options.trigger || `${options.uiState?.kind || 'document'}-open-output`,
     })
   }
 
   return {
     toggleMarkdownPreviewForFile,
     togglePdfPreviewForFile,
+    openWorkflowOutputForFile,
     runPrimaryActionForFile,
     revealPreviewForFile,
     revealPdfForFile,

@@ -44,25 +44,26 @@ const entries = computed(() => (Array.isArray(props.entries) ? props.entries : [
   display: flex;
   align-items: center;
   flex: 0 0 auto;
-  height: 26px;
-  min-height: 26px;
+  min-height: 32px;
   box-sizing: border-box;
-  padding: 0 3px;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface-base);
+  padding: 6px 6px 2px;
+  background: transparent;
 }
 
 .sidebar-chrome-strip {
   display: flex;
   align-items: center;
-  height: 100%;
-  gap: 0;
+  gap: 2px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
 }
 
 .sidebar-chrome-trailing {
   display: flex;
   align-items: center;
-  gap: 0;
+  gap: 4px;
   margin-left: auto;
 }
 </style>

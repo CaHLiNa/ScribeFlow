@@ -958,9 +958,6 @@ function attachEditorRuntimeListeners() {
   if (isMd) {
     editorContainer.value?.addEventListener('click', handleWikiLinkClick)
   }
-  if (isTex) {
-    editorContainer.value?.addEventListener('dblclick', handleLatexSourceDoubleClick)
-  }
   if (isTyp) {
     editorContainer.value?.addEventListener('click', handleDefinitionClick)
   }
@@ -990,9 +987,6 @@ function detachEditorRuntimeListeners() {
   editorContainer.value?.removeEventListener('mousedown', handleContextMenuMouseDown, true)
   if (isMd) {
     editorContainer.value?.removeEventListener('click', handleWikiLinkClick)
-  }
-  if (isTex) {
-    editorContainer.value?.removeEventListener('dblclick', handleLatexSourceDoubleClick)
   }
   if (isTyp) {
     editorContainer.value?.removeEventListener('click', handleDefinitionClick)
@@ -1092,23 +1086,6 @@ function handleWikiLinkClick(event) {
     event.stopPropagation()
     return
   }
-}
-
-function handleLatexSourceDoubleClick(event) {
-  if (!isTex || !view || event.button !== 0) return
-
-  const pos = view.posAtCoords(getZoomCompensatedClientPoint(event))
-  if (pos === null) return
-
-  const location = getLatexSyncLocation(pos)
-  if (!location) return
-
-  workflowStore.revealPreview(props.filePath, {
-    previewKind: 'pdf',
-    sourcePaneId: props.paneId,
-    trigger: 'latex-source-dblclick',
-  })
-  latexStore.requestForwardSync(props.filePath, location.line, location.column)
 }
 
 function scheduleMarkdownSelectionPreviewSync(selection) {

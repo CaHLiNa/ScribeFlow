@@ -9,7 +9,6 @@ test('workspace snapshot actions open the workspace snapshot browser only for an
     workspace: { path: '/workspace/demo' },
     filesStore: {},
     editorStore: {},
-    footerRef: { value: null },
     toastStore: { show() {} },
     workspaceSnapshotBrowserVisible,
     fileVersionHistoryVisible: { value: false },
@@ -25,7 +24,6 @@ test('workspace snapshot actions open the workspace snapshot browser only for an
     workspace: { path: '' },
     filesStore: {},
     editorStore: {},
-    footerRef: { value: null },
     toastStore: { show() {} },
     workspaceSnapshotBrowserVisible,
     fileVersionHistoryVisible: { value: false },
@@ -49,14 +47,8 @@ test('workspace snapshot actions return snapshot results and allow inline prompt
     workspace: { path: '/workspace/demo' },
     filesStore: {},
     editorStore: {},
-    footerRef: {
-      value: {
-        beginSnapshotLabelConfirmation() {
-          return 'footer-prompt'
-        },
-        showCenterMessage() {},
-        showSaveMessage() {},
-      },
+    requestSnapshotLabelImpl() {
+      return 'prompt'
     },
     toastStore: { show() {} },
     workspaceSnapshotBrowserVisible: { value: false },

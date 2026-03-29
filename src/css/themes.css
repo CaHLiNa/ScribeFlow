@@ -125,6 +125,26 @@
   --border-strong: color-mix(in srgb, var(--fg-muted) 32%, var(--border));
   --overlay-backdrop: color-mix(in srgb, black 58%, transparent);
   --focus-ring: color-mix(in srgb, var(--accent) 34%, transparent);
+  --app-canvas: #17181b;
+  --app-canvas-glow: rgba(79, 140, 255, 0.045);
+  --chrome-surface: color-mix(in srgb, var(--bg-secondary) 32%, transparent);
+  --chrome-border: color-mix(in srgb, var(--border) 34%, transparent);
+  --panel-surface: color-mix(in srgb, var(--bg-secondary) 58%, transparent);
+  --panel-elevated: color-mix(in srgb, var(--bg-primary) 72%, transparent);
+  --panel-border: color-mix(in srgb, var(--border) 28%, transparent);
+  --panel-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
+  --panel-shadow-active: 0 14px 32px rgba(0, 0, 0, 0.12);
+  --rail-surface: transparent;
+  --toolbar-surface: color-mix(in srgb, var(--bg-tertiary) 46%, transparent);
+  --toolbar-border: color-mix(in srgb, var(--border) 26%, transparent);
+  --tab-idle-surface: transparent;
+  --tab-active-surface: color-mix(in srgb, var(--accent) 8%, transparent);
+  --status-surface: transparent;
+  --status-border: transparent;
+  --subtle-fill: color-mix(in srgb, var(--bg-secondary) 42%, transparent);
+  --subtle-fill-strong: color-mix(in srgb, var(--bg-secondary) 68%, transparent);
+  --chrome-reveal: color-mix(in srgb, var(--border) 46%, transparent);
+  --chrome-reveal-active: color-mix(in srgb, var(--accent) 22%, var(--chrome-reveal));
 
   /* Spacing scale */
   --space-1: 4px;
@@ -358,4 +378,24 @@
   --editor-bracket-match: rgba(95, 158, 160, 0.25);
   --editor-bracket-border: rgba(95, 158, 160, 0.5);
   --editor-search-match: rgba(239, 108, 0, 0.2);
+  --app-canvas: #f7f3ec;
+  --app-canvas-glow: rgba(95, 158, 160, 0.07);
+  --chrome-surface: color-mix(in srgb, white 42%, transparent);
+  --chrome-border: color-mix(in srgb, var(--border) 38%, transparent);
+  --panel-surface: color-mix(in srgb, white 64%, transparent);
+  --panel-elevated: color-mix(in srgb, white 82%, transparent);
+  --panel-border: color-mix(in srgb, var(--border) 32%, transparent);
+  --panel-shadow: 0 8px 22px rgba(115, 104, 83, 0.05);
+  --panel-shadow-active: 0 14px 32px rgba(115, 104, 83, 0.08);
+  --rail-surface: transparent;
+  --toolbar-surface: color-mix(in srgb, white 58%, transparent);
+  --toolbar-border: color-mix(in srgb, var(--border) 26%, transparent);
+  --tab-idle-surface: transparent;
+  --tab-active-surface: color-mix(in srgb, var(--accent) 8%, transparent);
+  --status-surface: transparent;
+  --status-border: transparent;
+  --subtle-fill: color-mix(in srgb, white 54%, transparent);
+  --subtle-fill-strong: color-mix(in srgb, white 76%, transparent);
+  --chrome-reveal: color-mix(in srgb, var(--border) 42%, transparent);
+  --chrome-reveal-active: color-mix(in srgb, var(--accent) 16%, var(--chrome-reveal));
 }

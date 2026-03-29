@@ -5,7 +5,6 @@ import { MAX_WORKBENCH_INSPECTOR_PANEL_COUNT } from '../shared/workbenchInspecto
 const DEFAULT_LEFT_SIDEBAR_WIDTH = 240
 const DEFAULT_RIGHT_SIDEBAR_WIDTH = 360
 const DEFAULT_BOTTOM_PANEL_HEIGHT = 250
-const WORKBENCH_RAIL_WIDTH = 44
 const MIN_MAIN_WORKBENCH_WIDTH = 320
 const FALLBACK_LEFT_SIDEBAR_MIN_WIDTH = 220
 const FALLBACK_RIGHT_SIDEBAR_MIN_WIDTH = 260
@@ -22,8 +21,12 @@ const SHELL_CHROME_BUTTON_GAP = 4
 const SHELL_CHROME_HORIZONTAL_PADDING = 16
 
 const leftSidebarWidth = ref(readNumberFromStorage('leftSidebarWidth', DEFAULT_LEFT_SIDEBAR_WIDTH))
-const rightSidebarWidth = ref(readNumberFromStorage('rightSidebarWidth', DEFAULT_RIGHT_SIDEBAR_WIDTH))
-const bottomPanelHeight = ref(readNumberFromStorage('bottomPanelHeight', DEFAULT_BOTTOM_PANEL_HEIGHT))
+const rightSidebarWidth = ref(
+  readNumberFromStorage('rightSidebarWidth', DEFAULT_RIGHT_SIDEBAR_WIDTH)
+)
+const bottomPanelHeight = ref(
+  readNumberFromStorage('bottomPanelHeight', DEFAULT_BOTTOM_PANEL_HEIGHT)
+)
 const rightSidebarPreSnapWidth = ref(null)
 const isLeftSidebarResizing = ref(false)
 const isRightSidebarResizing = ref(false)
@@ -87,7 +90,11 @@ function normalizeMaximumWidth(value, fallback) {
 function resolveViewportWidth(value) {
   const normalizedValue = Number(value)
   if (Number.isFinite(normalizedValue) && normalizedValue > 0) return normalizedValue
-  if (typeof window !== 'undefined' && Number.isFinite(window.innerWidth) && window.innerWidth > 0) {
+  if (
+    typeof window !== 'undefined' &&
+    Number.isFinite(window.innerWidth) &&
+    window.innerWidth > 0
+  ) {
     return window.innerWidth
   }
   return 0
@@ -102,11 +109,7 @@ function resolveAdaptiveMinimumWidth({
   const resolvedViewportWidth = resolveViewportWidth(viewportWidth)
   if (!resolvedViewportWidth) return preferredMinimumWidth
 
-  return Math.round(clamp(
-    resolvedViewportWidth * ratio,
-    minimumFloorWidth,
-    preferredMinimumWidth,
-  ))
+  return Math.round(clamp(resolvedViewportWidth * ratio, minimumFloorWidth, preferredMinimumWidth))
 }
 
 function resolveAdaptiveMaximumWidth({
@@ -120,23 +123,19 @@ function resolveAdaptiveMaximumWidth({
 
   const ratioCap = Math.round(resolvedViewportWidth * ratio)
   const centerPreservingCap = Math.round(
-    Math.max(
-      minimumWidth,
-      resolvedViewportWidth - WORKBENCH_RAIL_WIDTH - MIN_MAIN_WORKBENCH_WIDTH,
-    ),
+    Math.max(minimumWidth, resolvedViewportWidth - MIN_MAIN_WORKBENCH_WIDTH)
   )
 
-  return Math.max(
-    minimumWidth,
-    Math.min(preferredMaximumWidth, ratioCap, centerPreservingCap),
-  )
+  return Math.max(minimumWidth, Math.min(preferredMaximumWidth, ratioCap, centerPreservingCap))
 }
 
 function resolveSidebarChromeMinimumWidth(panelCount) {
   const normalizedPanelCount = normalizePanelCount(panelCount, 1)
-  return SHELL_CHROME_HORIZONTAL_PADDING
-    + normalizedPanelCount * SHELL_CHROME_BUTTON_SIZE
-    + Math.max(normalizedPanelCount - 1, 0) * SHELL_CHROME_BUTTON_GAP
+  return (
+    SHELL_CHROME_HORIZONTAL_PADDING +
+    normalizedPanelCount * SHELL_CHROME_BUTTON_SIZE +
+    Math.max(normalizedPanelCount - 1, 0) * SHELL_CHROME_BUTTON_GAP
+  )
 }
 
 export function resolveMinimumLeftSidebarWidth(options = {}) {
@@ -146,14 +145,8 @@ export function resolveMinimumLeftSidebarWidth(options = {}) {
     minimumFloorWidth: FALLBACK_LEFT_SIDEBAR_MIN_FLOOR_WIDTH,
     preferredMinimumWidth: FALLBACK_LEFT_SIDEBAR_MIN_WIDTH,
   })
-  const minimumWidth = normalizeMinimumWidth(
-    options.minimumWidth,
-    adaptiveMinimumWidth,
-  )
-  const panelCount = normalizePanelCount(
-    options.panelCount,
-    MAX_WORKBENCH_SIDEBAR_PANEL_COUNT,
-  )
+  const minimumWidth = normalizeMinimumWidth(options.minimumWidth, adaptiveMinimumWidth)
+  const panelCount = normalizePanelCount(options.panelCount, MAX_WORKBENCH_SIDEBAR_PANEL_COUNT)
 
   return Math.max(minimumWidth, resolveSidebarChromeMinimumWidth(panelCount))
 }
@@ -165,14 +158,8 @@ export function resolveMinimumRightSidebarWidth(options = {}) {
     minimumFloorWidth: FALLBACK_RIGHT_SIDEBAR_MIN_FLOOR_WIDTH,
     preferredMinimumWidth: FALLBACK_RIGHT_SIDEBAR_MIN_WIDTH,
   })
-  const minimumWidth = normalizeMinimumWidth(
-    options.minimumWidth,
-    adaptiveMinimumWidth,
-  )
-  const panelCount = normalizePanelCount(
-    options.panelCount,
-    MAX_WORKBENCH_INSPECTOR_PANEL_COUNT,
-  )
+  const minimumWidth = normalizeMinimumWidth(options.minimumWidth, adaptiveMinimumWidth)
+  const panelCount = normalizePanelCount(options.panelCount, MAX_WORKBENCH_INSPECTOR_PANEL_COUNT)
 
   return Math.max(minimumWidth, resolveSidebarChromeMinimumWidth(panelCount))
 }
@@ -185,10 +172,7 @@ export function resolveMaximumLeftSidebarWidth(options = {}) {
     minimumWidth,
     preferredMaximumWidth: FALLBACK_LEFT_SIDEBAR_MAX_WIDTH,
   })
-  const maximumWidth = normalizeMaximumWidth(
-    options.maximumWidth,
-    adaptiveMaximumWidth,
-  )
+  const maximumWidth = normalizeMaximumWidth(options.maximumWidth, adaptiveMaximumWidth)
   return Math.max(minimumWidth, Math.min(maximumWidth, adaptiveMaximumWidth))
 }
 
@@ -200,10 +184,7 @@ export function resolveMaximumRightSidebarWidth(options = {}) {
     minimumWidth,
     preferredMaximumWidth: FALLBACK_RIGHT_SIDEBAR_MAX_WIDTH,
   })
-  const maximumWidth = normalizeMaximumWidth(
-    options.maximumWidth,
-    adaptiveMaximumWidth,
-  )
+  const maximumWidth = normalizeMaximumWidth(options.maximumWidth, adaptiveMaximumWidth)
   return Math.max(minimumWidth, Math.min(maximumWidth, adaptiveMaximumWidth))
 }
 

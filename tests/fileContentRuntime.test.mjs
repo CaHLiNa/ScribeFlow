@@ -3,80 +3,16 @@ import assert from 'node:assert/strict'
 
 import { createFileContentRuntime } from '../src/domains/files/fileContentRuntime.js'
 
-test('file content runtime coalesces pdf source detection and caches the detected kind', async () => {
-  const pdfSourceKinds = {}
-  let detectCalls = 0
-  let releaseDetect
-  const detectPromise = new Promise((resolve) => {
-    releaseDetect = resolve
-  })
-
-  const runtime = createFileContentRuntime({
-    getPdfSourceState: (path) => pdfSourceKinds[path] || null,
-    setPdfSourceState: (path, state) => {
-      pdfSourceKinds[path] = state
-    },
-    clearPdfSourceState: (path) => {
-      delete pdfSourceKinds[path]
-    },
-    detectPdfSourceKind: async () => {
-      detectCalls += 1
-      await detectPromise
-      return 'latex'
-    },
-  })
-
-  const first = runtime.ensurePdfSourceKind('/ws/output.pdf')
-  const second = runtime.ensurePdfSourceKind('/ws/output.pdf')
-  releaseDetect()
-
-  assert.equal(await first, 'latex')
-  assert.equal(await second, 'latex')
-  assert.equal(detectCalls, 1)
-  assert.deepEqual(pdfSourceKinds['/ws/output.pdf'], {
-    status: 'ready',
-    kind: 'latex',
-  })
-})
-
-test('file content runtime invalidates matching pdf source entries for source files and reloads pdf viewers', async () => {
-  const pdfSourceKinds = {
-    '/ws/output.pdf': { status: 'ready', kind: 'latex' },
-  }
-  const updatedPaths = []
-
-  const runtime = createFileContentRuntime({
-    getPdfSourceState: (path) => pdfSourceKinds[path] || null,
-    setPdfSourceState: (path, state) => {
-      pdfSourceKinds[path] = state
-    },
-    clearPdfSourceState: (path) => {
-      delete pdfSourceKinds[path]
-    },
-    notifyPdfUpdated: (path) => {
-      updatedPaths.push(path)
-    },
-  })
-
-  runtime.invalidatePdfSourceForPath('/ws/output.tex')
-  assert.equal(pdfSourceKinds['/ws/output.pdf'], undefined)
-
-  await runtime.reloadFile('/ws/output.pdf')
-  assert.deepEqual(updatedPaths, ['/ws/output.pdf'])
-})
-
-test('file content runtime reads pdf and text files into cache and records text read failures', async () => {
+test('file content runtime reads text files into cache and records read failures', async () => {
   const fileContents = {}
   const fileLoadErrors = {}
-  const pdfReadErrors = []
 
   const runtime = createFileContentRuntime({
     readTextFile: async (path) => {
       if (path === '/ws/doc.md') throw new Error('boom')
-      return 'ignored'
+      return '# notes'
     },
-    extractPdfText: async () => 'pdf text',
-    isBinaryPath: (path) => path.endsWith('.png'),
+    isBinaryPath: (path) => path.endsWith('.png') || path.endsWith('.pdf'),
     setFileContent: (path, content) => {
       fileContents[path] = content
     },
@@ -86,17 +22,14 @@ test('file content runtime reads pdf and text files into cache and records text 
     setFileLoadError: (path, error) => {
       fileLoadErrors[path] = error.message
     },
-    onPdfReadError: (path, error) => {
-      pdfReadErrors.push({ path, message: error.message })
-    },
   })
 
-  assert.equal(await runtime.readFile('/ws/output.pdf'), 'pdf text')
-  assert.equal(fileContents['/ws/output.pdf'], 'pdf text')
+  assert.equal(await runtime.readFile('/ws/note.md'), '# notes')
+  assert.equal(fileContents['/ws/note.md'], '# notes')
+  assert.equal(await runtime.readFile('/ws/output.pdf'), null)
   assert.equal(await runtime.readFile('/ws/image.png'), null)
   assert.equal(await runtime.readFile('/ws/doc.md'), null)
   assert.equal(fileLoadErrors['/ws/doc.md'], 'boom')
-  assert.deepEqual(pdfReadErrors, [])
 })
 
 test('file content runtime saves content, clears read errors, and reports save failures through the callback', async () => {

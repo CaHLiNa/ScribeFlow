@@ -70,28 +70,18 @@ function resolveLegacyPreviewState(path, options = {}) {
   })
 }
 
-function resolvePreviewTargetPath(options = {}) {
+function resolveResolvedPreviewTargetPath(options = {}) {
   return options.resolvedTargetPath || options.previewTargetPath || options.artifactPath || ''
 }
 
 function resolvePreviewMode(previewKind) {
   if (previewKind === 'html') return 'markdown'
   if (previewKind === 'native') return 'typst-native'
-  if (previewKind === 'pdf') return 'pdf'
   return null
 }
 
 export function shouldUseDocumentWorkspaceTab(path = '') {
   return getWorkspaceDocumentKind(path) !== null
-}
-
-export function shouldShowPdfToolbarTarget(viewerType, documentPreviewState = null) {
-  if (viewerType === 'pdf') return true
-  return (
-    documentPreviewState?.useWorkspace === true
-    && documentPreviewState?.previewVisible === true
-    && documentPreviewState?.previewMode === 'pdf'
-  )
 }
 
 export function resolveDocumentWorkspaceTextRoute(options = {}) {
@@ -106,7 +96,7 @@ export function resolveDocumentWorkspaceTextRoute(options = {}) {
     previewMode: useWorkspaceSurface ? documentPreviewState?.previewMode || null : null,
     previewTargetPath: useWorkspaceSurface ? documentPreviewState?.previewTargetPath || '' : '',
     previewFilePath: useWorkspaceSurface ? documentPreviewState?.previewFilePath || '' : '',
-    toolbarTargetVisible: shouldShowPdfToolbarTarget(viewerType, documentPreviewState),
+    toolbarTargetVisible: false,
   }
 }
 
@@ -135,6 +125,22 @@ export function createDocumentWorkspacePreviewAction(options = {}) {
   }
 }
 
+export function createWorkspacePreviewSessionState(options = {}) {
+  const filePath = String(options.filePath || options.sourcePath || '')
+  const kind = options.kind || getWorkspaceDocumentKind(filePath)
+  if (!filePath || !kind) return null
+
+  return {
+    activeFile: filePath,
+    activeKind: kind,
+    sourcePaneId: options.sourcePaneId || options.currentSession?.sourcePaneId || null,
+    previewPaneId: null,
+    previewKind: options.previewKind || null,
+    previewSourcePath: filePath,
+    state: 'workspace-preview',
+  }
+}
+
 export function resolveDocumentPreviewCloseEffect(previewPath, options = {}) {
   const sourcePath = options.previewBinding?.sourcePath || previewSourcePathFromPath(previewPath) || null
   return {
@@ -153,9 +159,9 @@ export function resolveDocumentWorkspacePreviewState(options = {}) {
   const documentKind = getWorkspaceDocumentKind(path, workflowUiState)
   const preserveOpenLegacy = options.preserveOpenLegacy === true || options.hasOpenLegacyPreview === true
   const requestedPreviewKind = options.previewKind || workflowUiState?.previewKind || null
-  const previewTargetPath = resolvePreviewTargetPath(options)
+  const resolvedTargetPath = resolveResolvedPreviewTargetPath(options)
   const hiddenByUser = options.hiddenByUser === true
-  const artifactReady = options.artifactReady === true || !!previewTargetPath
+  const artifactReady = options.artifactReady === true || !!resolvedTargetPath
 
   if (documentKind === 'markdown') {
     const state = createPreviewState({
@@ -175,38 +181,32 @@ export function resolveDocumentWorkspacePreviewState(options = {}) {
   }
 
   if (documentKind === 'latex') {
-    const targetResolution = normalizeTargetResolution(
-      options.targetResolution,
-      previewTargetPath ? 'resolved' : 'unresolved',
-    )
-    const previewVisible = targetResolution === 'resolved' && artifactReady && !hiddenByUser
     return createPreviewState({
       useWorkspace: true,
-      previewVisible,
-      previewKind: 'pdf',
-      previewMode: previewVisible ? 'pdf' : null,
-      targetResolution,
+      previewVisible: false,
+      previewKind: null,
+      previewMode: null,
+      targetResolution: normalizeTargetResolution(
+        options.targetResolution,
+        resolvedTargetPath ? 'resolved' : artifactReady ? 'resolved' : 'unresolved',
+      ),
       reason: hiddenByUser
         ? 'hidden-by-user'
-        : previewVisible
-          ? 'workspace-latex'
-          : targetResolution === 'unresolved'
-            ? 'unresolved-target'
-            : 'preview-unavailable',
+        : artifactReady
+          ? 'artifact-ready-external'
+          : 'source-only',
       legacyReadOnly: false,
-      allowPreviewCreation: true,
+      allowPreviewCreation: false,
       preserveOpenLegacy,
       sourcePath: path,
-      previewTargetPath,
-      previewFilePath: previewVisible ? previewTargetPath : '',
+      previewTargetPath: '',
+      previewFilePath: '',
     })
   }
 
   if (documentKind === 'typst') {
-    const preferPdf = requestedPreviewKind === 'pdf'
-    const nativePreviewSupported = preferPdf
-      ? false
-      : options.nativePreviewSupported !== false && options.typstNativeReady !== false
+    const nativePreviewSupported = options.nativePreviewSupported !== false
+      && options.typstNativeReady !== false
 
     if (nativePreviewSupported) {
       const state = createPreviewState({
@@ -225,30 +225,28 @@ export function resolveDocumentWorkspacePreviewState(options = {}) {
       return hiddenByUser ? hidePreviewState(state) : state
     }
 
-    const targetResolution = normalizeTargetResolution(
-      options.targetResolution,
-      previewTargetPath ? 'resolved' : 'unresolved',
-    )
-    const previewVisible = targetResolution === 'resolved' && artifactReady && !hiddenByUser
     return createPreviewState({
       useWorkspace: true,
-      previewVisible,
-      previewKind: 'pdf',
-      previewMode: previewVisible ? 'pdf' : null,
-      targetResolution,
+      previewVisible: false,
+      previewKind: null,
+      previewMode: null,
+      targetResolution: normalizeTargetResolution(
+        options.targetResolution,
+        resolvedTargetPath ? 'resolved' : artifactReady ? 'resolved' : 'unresolved',
+      ),
       reason: hiddenByUser
         ? 'hidden-by-user'
-        : previewVisible
-          ? 'workspace-typst-pdf-fallback'
-          : targetResolution === 'unresolved'
-            ? 'unresolved-target'
-            : 'preview-unavailable',
+        : artifactReady
+          ? 'artifact-ready-external'
+          : requestedPreviewKind === 'native'
+            ? 'native-preview-unavailable'
+            : 'source-only',
       legacyReadOnly: false,
-      allowPreviewCreation: true,
+      allowPreviewCreation: false,
       preserveOpenLegacy,
       sourcePath: path,
-      previewTargetPath,
-      previewFilePath: previewVisible ? previewTargetPath : '',
+      previewTargetPath: '',
+      previewFilePath: '',
     })
   }
 

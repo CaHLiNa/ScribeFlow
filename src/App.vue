@@ -7,13 +7,7 @@
       'is-shell-resizing': isLeftSidebarResizing || isRightSidebarResizing,
     }"
   >
-    <!-- Header (always visible) -->
-    <Header
-      ref="headerRef"
-      :left-rail-width="WORKBENCH_RAIL_WIDTH"
-      :left-sidebar-resizing="isLeftSidebarResizing"
-      :right-sidebar-resizing="isRightSidebarResizing"
-    />
+    <Header v-if="!workspace.isOpen" />
 
     <!-- Launcher (no workspace open) -->
     <Launcher
@@ -24,93 +18,102 @@
 
     <!-- Main content area (workspace open) -->
     <template v-if="workspace.isOpen">
-      <div class="app-shell-workbench flex flex-1 overflow-hidden">
-        <WorkbenchRail class="shrink-0" @open-settings="workspace.openSettings()" />
+      <WorkspaceQuickOpen ref="searchRef" />
 
-        <!-- Left sidebar: active project panel -->
-        <div
-          class="app-shell-sidebar app-shell-sidebar-left shrink-0 overflow-hidden border-r"
-          :class="{
-            'is-open': workspace.leftSidebarOpen,
-            'is-collapsed': !workspace.leftSidebarOpen,
-            'is-resizing': isLeftSidebarResizing,
-          }"
-          data-sidebar="left"
-          :aria-hidden="workspace.leftSidebarOpen ? 'false' : 'true'"
-          :style="{
-            width: workspace.leftSidebarOpen ? `${leftSidebarWidth}px` : '0px',
-            borderColor: workspace.leftSidebarOpen ? 'var(--border)' : 'transparent',
-          }"
-        >
-          <LeftSidebar
-            ref="leftSidebarRef"
-            @file-version-history="openFileVersionHistory"
-            @open-folder="pickWorkspace"
-            @open-workspace="openWorkspace"
-            @close-folder="closeWorkspace"
-          />
-        </div>
-
-        <!-- Left resize handle -->
-        <ResizeHandle
-          v-if="workspace.leftSidebarOpen"
-          direction="vertical"
-          @resize="onLeftResize"
-          @resize-start="startLeftSidebarResize"
-          @resize-end="endLeftSidebarResize"
+      <div class="app-shell-workspace flex flex-1 flex-col overflow-hidden">
+        <WorkbenchRail
+          class="app-shell-topbar shrink-0"
+          tabs-target-id="app-shell-topbar-tabs"
+          workflow-target-id="app-shell-topbar-workflow"
+          :left-sidebar-open="workspace.leftSidebarOpen"
+          :right-sidebar-open="workspace.rightSidebarOpen"
+          :inspector-available="supportsRightSidebar"
+          @open-settings="workspace.openSettings()"
+          @open-search="openQuickSearch"
+          @toggle-left-sidebar="workspace.toggleLeftSidebar()"
+          @toggle-right-sidebar="workspace.toggleRightSidebar()"
         />
 
-        <!-- Center: Editor panes -->
-        <div class="app-shell-main flex-1 flex flex-col overflow-hidden" style="min-width: 200px">
-          <div class="flex-1 overflow-hidden relative">
-            <KeepAlive :max="3">
-              <component
-                :is="activeWorkbenchComponent"
-                :key="activeWorkbenchCacheKey"
-                v-bind="activeWorkbenchProps"
-                :class="activeWorkbenchClass"
-                @cursor-change="onCursorChange"
-                @editor-stats="onEditorStats"
+        <div class="app-shell-workbench flex flex-1 overflow-hidden">
+          <div class="app-shell-region app-shell-region-left shrink-0">
+            <div
+              class="app-shell-sidebar app-shell-sidebar-left shrink-0 overflow-hidden"
+              :class="{
+                'is-open': workspace.leftSidebarOpen,
+                'is-collapsed': !workspace.leftSidebarOpen,
+                'is-resizing': isLeftSidebarResizing,
+              }"
+              data-sidebar="left"
+              :aria-hidden="workspace.leftSidebarOpen ? 'false' : 'true'"
+              :style="{
+                width: workspace.leftSidebarOpen ? `${leftSidebarWidth}px` : '0px',
+              }"
+            >
+              <LeftSidebar
+                ref="leftSidebarRef"
+                @file-version-history="openFileVersionHistory"
+                @open-folder="pickWorkspace"
+                @open-workspace="openWorkspace"
+                @close-folder="closeWorkspace"
               />
-            </KeepAlive>
+            </div>
           </div>
-        </div>
 
-        <template v-if="supportsRightSidebar">
+          <!-- Left resize handle -->
           <ResizeHandle
-            v-if="workspace.rightSidebarOpen"
+            v-if="workspace.leftSidebarOpen"
             direction="vertical"
-            @resize="onRightResize"
-            @resize-start="startRightSidebarResize"
-            @resize-end="endRightSidebarResize"
-            @dblclick="onRightResizeSnap"
+            @resize="onLeftResize"
+            @resize-start="startLeftSidebarResize"
+            @resize-end="endLeftSidebarResize"
           />
 
           <div
-            class="app-shell-sidebar app-shell-sidebar-right shrink-0 overflow-hidden border-l"
-            :class="{
-              'is-open': workspace.rightSidebarOpen,
-              'is-collapsed': !workspace.rightSidebarOpen,
-              'is-resizing': isRightSidebarResizing,
-            }"
-            data-sidebar="right"
-            :aria-hidden="workspace.rightSidebarOpen ? 'false' : 'true'"
-            :style="{
-              width: workspace.rightSidebarOpen ? `${rightSidebarWidth}px` : '0px',
-              borderColor: workspace.rightSidebarOpen ? 'var(--border)' : 'transparent',
-            }"
+            class="app-shell-region app-shell-region-main app-shell-main app-shell-main-shell flex-1 flex flex-col overflow-hidden"
           >
-            <RightSidebar />
+            <div class="app-shell-main-card flex-1 overflow-hidden relative">
+              <KeepAlive :max="3">
+                <component
+                  :is="activeWorkbenchComponent"
+                  :key="activeWorkbenchCacheKey"
+                  v-bind="activeWorkbenchProps"
+                  :class="activeWorkbenchClass"
+                  topbarTabsTargetSelector="#app-shell-topbar-tabs"
+                  topbarWorkflowTargetSelector="#app-shell-topbar-workflow"
+                  @cursor-change="onCursorChange"
+                />
+              </KeepAlive>
+            </div>
           </div>
-        </template>
-      </div>
 
-      <!-- Footer -->
-      <Footer
-        ref="footerRef"
-        @open-settings="(s) => workspace.openSettings(s)"
-        @open-workspace-snapshots="openWorkspaceSnapshots"
-      />
+          <template v-if="supportsRightSidebar">
+            <ResizeHandle
+              v-if="workspace.rightSidebarOpen"
+              direction="vertical"
+              @resize="onRightResize"
+              @resize-start="startRightSidebarResize"
+              @resize-end="endRightSidebarResize"
+              @dblclick="onRightResizeSnap"
+            />
+
+            <div
+              class="app-shell-region app-shell-region-right shrink-0 overflow-hidden"
+              :class="{
+                'is-open': workspace.rightSidebarOpen,
+                'is-collapsed': !workspace.rightSidebarOpen,
+                'is-resizing': isRightSidebarResizing,
+              }"
+              data-sidebar="right"
+              :aria-hidden="workspace.rightSidebarOpen ? 'false' : 'true'"
+              :style="{
+                width: workspace.rightSidebarOpen ? `${rightSidebarWidth}px` : '0px',
+              }"
+            >
+              <RightSidebar class="app-shell-sidebar app-shell-sidebar-right" />
+            </div>
+          </template>
+        </div>
+      </div>
     </template>
 
     <WorkspaceSnapshotBrowser
@@ -147,7 +150,7 @@
 </template>
 
 <script setup>
-import { ref, computed, defineAsyncComponent, onUnmounted, watch } from 'vue'
+import { ref, computed, defineAsyncComponent } from 'vue'
 import { useWorkspaceStore } from './stores/workspace'
 import { useFilesStore } from './stores/files'
 import { useEditorStore } from './stores/editor'
@@ -156,24 +159,17 @@ import { useLinksStore } from './stores/links'
 import { useToastStore } from './stores/toast'
 
 import Header from './components/layout/Header.vue'
-import Footer from './components/layout/Footer.vue'
 import ResizeHandle from './components/layout/ResizeHandle.vue'
 import WorkbenchRail from './components/layout/WorkbenchRail.vue'
+import WorkspaceQuickOpen from './components/layout/WorkspaceQuickOpen.vue'
 import Launcher from './components/Launcher.vue'
 import ToastContainer from './components/layout/ToastContainer.vue'
 import { useI18n } from './i18n'
 import { useAppShellLayout } from './composables/useAppShellLayout'
-import { useFooterStatusSync } from './app/editor/useFooterStatusSync'
 import { useWorkspaceSnapshotActions } from './app/changes/useWorkspaceSnapshotActions'
 import { useAppShellEventBridge } from './app/shell/useAppShellEventBridge'
 import { useAppTeardown } from './app/teardown/useAppTeardown'
 import { useWorkspaceLifecycle } from './app/workspace/useWorkspaceLifecycle'
-import { hasVisiblePdfPane } from './domains/editor/paneTreeViewerRuntime'
-import {
-  SIDEBAR_TOGGLE_RESIZE_PULSE_MS,
-  shouldPulseShellResizeForSidebarToggle,
-} from './domains/editor/pdfViewerRuntime'
-import { setShellResizeActive } from './shared/shellResizeSignals'
 
 const LeftSidebar = defineAsyncComponent(() => import('./components/sidebar/LeftSidebar.vue'))
 const RightSidebar = defineAsyncComponent(() => import('./components/sidebar/RightSidebar.vue'))
@@ -196,8 +192,7 @@ const linksStore = useLinksStore()
 const toastStore = useToastStore()
 const { t } = useI18n()
 
-const footerRef = ref(null)
-const headerRef = ref(null)
+const searchRef = ref(null)
 const leftSidebarRef = ref(null)
 const creatingWorkspaceSnapshot = ref(false)
 const workspaceSnapshotBrowserRefreshToken = ref(0)
@@ -205,34 +200,17 @@ const workspaceSnapshotBrowserVisible = ref(false)
 const workspaceSnapshotBrowserFeedback = ref(null)
 const fileVersionHistoryVisible = ref(false)
 const fileVersionHistoryFile = ref('')
-const WORKBENCH_RAIL_WIDTH = 44
 
 const supportsRightSidebar = computed(() => workspace.isOpen)
 const activeWorkbenchComponent = computed(() => PaneContainer)
 const activeWorkbenchCacheKey = computed(() => workspace.primarySurface || 'workspace')
 const activeWorkbenchProps = computed(() => ({ node: editorStore.paneTree }))
 const activeWorkbenchClass = computed(() => 'h-full min-h-0 w-full')
-let sidebarToggleResizePulseTimer = null
 
-function clearSidebarToggleResizePulse() {
-  if (sidebarToggleResizePulseTimer !== null) {
-    window.clearTimeout(sidebarToggleResizePulseTimer)
-    sidebarToggleResizePulseTimer = null
-  }
-  setShellResizeActive(false, { source: 'sidebar-toggle' })
+function openQuickSearch() {
+  searchRef.value?.focusSearch?.()
 }
 
-function pulseShellResizeForSidebarToggle(side) {
-  if (typeof window === 'undefined') return
-  setShellResizeActive(true, { source: 'sidebar-toggle', side })
-  if (sidebarToggleResizePulseTimer !== null) {
-    window.clearTimeout(sidebarToggleResizePulseTimer)
-  }
-  sidebarToggleResizePulseTimer = window.setTimeout(() => {
-    sidebarToggleResizePulseTimer = null
-    setShellResizeActive(false, { source: 'sidebar-toggle', side })
-  }, SIDEBAR_TOGGLE_RESIZE_PULSE_MS)
-}
 const {
   leftSidebarWidth,
   rightSidebarWidth,
@@ -254,7 +232,6 @@ const { createSnapshot, openWorkspaceSnapshots, openFileVersionHistory } =
     workspace,
     filesStore,
     editorStore,
-    footerRef,
     toastStore,
     workspaceSnapshotBrowserVisible,
     fileVersionHistoryVisible,
@@ -316,16 +293,17 @@ function buildWorkspaceSnapshotBrowserFeedback(result) {
     message: t('Altals could not create a new workspace save point this time.'),
   }
 }
-const { onCursorChange, onEditorStats } = useFooterStatusSync({
-  footerRef,
-  editorStore,
-})
+function onCursorChange(pos) {
+  if (pos?.offset != null) {
+    editorStore.cursorOffset = pos.offset
+  }
+}
 
 useAppShellEventBridge({
   workspace,
   editorStore,
   commentsStore,
-  headerRef,
+  searchRef,
   leftSidebarRef,
   workspaceSnapshotBrowserVisible,
   fileVersionHistoryVisible,
@@ -343,50 +321,53 @@ useAppTeardown({
   linksStore,
   commentsStore,
 })
-
-watch(
-  () => workspace.leftSidebarOpen,
-  (nextOpen, previousOpen) => {
-    if (
-      !shouldPulseShellResizeForSidebarToggle({
-        previousOpen,
-        nextOpen,
-        hasVisiblePdfPane: hasVisiblePdfPane(editorStore.paneTree),
-      })
-    ) {
-      return
-    }
-    pulseShellResizeForSidebarToggle('left')
-  },
-  { flush: 'sync' }
-)
-
-watch(
-  () => workspace.rightSidebarOpen,
-  (nextOpen, previousOpen) => {
-    if (
-      !shouldPulseShellResizeForSidebarToggle({
-        previousOpen,
-        nextOpen,
-        hasVisiblePdfPane: hasVisiblePdfPane(editorStore.paneTree),
-      })
-    ) {
-      return
-    }
-    pulseShellResizeForSidebarToggle('right')
-  },
-  { flush: 'sync' }
-)
-
-onUnmounted(() => {
-  clearSidebarToggleResizePulse()
-})
 </script>
 
 <style scoped>
+.app-shell-root {
+  background: transparent;
+}
+
+.app-shell-workspace {
+  min-height: 0;
+}
+
+.app-shell-topbar {
+  flex: 0 0 auto;
+}
+
+.app-shell-workbench {
+  min-height: 0;
+  gap: 0;
+  padding: 0;
+}
+
+.app-shell-region {
+  min-height: 0;
+  min-width: 0;
+}
+
+.app-shell-region-left {
+  background: color-mix(in srgb, var(--panel-surface) 62%, transparent);
+}
+
+.app-shell-region-main {
+  background: transparent;
+}
+
+.app-shell-region-right {
+  background: color-mix(in srgb, var(--panel-surface) 48%, transparent);
+}
+
 .app-shell-sidebar {
   contain: layout paint;
-  transition: border-color 140ms ease;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  transition:
+    opacity 140ms ease,
+    background-color 140ms ease;
 }
 
 .app-shell-sidebar > * {
@@ -418,5 +399,18 @@ onUnmounted(() => {
 
 .app-shell-main {
   min-width: 0;
+}
+
+.app-shell-main-shell {
+  min-width: 220px;
+}
+
+.app-shell-main-card {
+  min-width: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: hidden;
 }
 </style>

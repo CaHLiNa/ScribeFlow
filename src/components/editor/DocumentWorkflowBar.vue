@@ -1,123 +1,130 @@
 <template>
-  <div class="workflow-bar" :class="{ 'workflow-bar-split': showSplitLayout }">
-    <div class="workflow-left">
-      <div class="workflow-doc-tools">
-        <template v-if="showPrimaryAction && uiState?.kind !== 'markdown'">
+  <Teleport :to="teleportTo || 'body'" :disabled="!teleportTo">
+    <div
+      class="workflow-bar"
+      :class="{
+        'workflow-bar-split': showSplitLayout,
+        'is-shell-integrated': shellIntegrated,
+      }"
+      :data-tauri-drag-region="shellIntegrated ? '' : null"
+    >
+      <div class="workflow-left">
+        <div class="workflow-doc-tools">
+          <template v-if="showPrimaryAction && uiState?.kind !== 'markdown'">
+            <UiButton
+              class="workflow-primary-btn"
+              variant="ghost"
+              size="icon-sm"
+              icon-only
+              :title="primaryLabel"
+              :aria-label="primaryLabel"
+              @click="$emit('primary-action')"
+            >
+              <component :is="primaryIcon" :size="14" :stroke-width="1.8" />
+            </UiButton>
+          </template>
           <UiButton
+            v-if="showRunButtons"
             class="workflow-primary-btn"
             variant="ghost"
             size="icon-sm"
             icon-only
-            :title="primaryLabel"
-            :aria-label="primaryLabel"
-            @click="$emit('primary-action')"
+            :title="t('Run selection or line ({shortcut})', { shortcut: `${modKey}+Enter` })"
+            :aria-label="t('Run selection or line ({shortcut})', { shortcut: `${modKey}+Enter` })"
+            @click="$emit('run-code')"
           >
-            <component :is="primaryIcon" :size="14" :stroke-width="1.8" />
+            <IconPlayerPlay :size="14" :stroke-width="1.8" />
           </UiButton>
-        </template>
-        <UiButton
-          v-if="showRunButtons"
-          class="workflow-primary-btn"
-          variant="ghost"
-          size="icon-sm"
-          icon-only
-          :title="t('Run selection or line ({shortcut})', { shortcut: `${modKey}+Enter` })"
-          :aria-label="t('Run selection or line ({shortcut})', { shortcut: `${modKey}+Enter` })"
-          @click="$emit('run-code')"
-        >
-          <IconPlayerPlay :size="14" :stroke-width="1.8" />
-        </UiButton>
-        <UiButton
-          v-if="showRunButtons"
-          class="workflow-primary-btn"
-          variant="ghost"
-          size="icon-sm"
-          icon-only
-          :title="t('Run entire file ({shortcut})', { shortcut: `Shift+${modKey}+Enter` })"
-          :aria-label="t('Run entire file ({shortcut})', { shortcut: `Shift+${modKey}+Enter` })"
-          @click="$emit('run-file')"
-        >
-          <IconPlayerTrackNext :size="14" :stroke-width="1.8" />
-        </UiButton>
-        <UiButton
-          v-if="showCommentToggle"
-          class="workflow-secondary-btn workflow-comment-btn"
-          variant="ghost"
-          size="icon-sm"
-          icon-only
-          :active="commentActive"
-          :title="t('Toggle comments')"
-          :aria-label="t('Toggle comments')"
-          @click="$emit('toggle-comments')"
-        >
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5"
+          <UiButton
+            v-if="showRunButtons"
+            class="workflow-primary-btn"
+            variant="ghost"
+            size="icon-sm"
+            icon-only
+            :title="t('Run entire file ({shortcut})', { shortcut: `Shift+${modKey}+Enter` })"
+            :aria-label="t('Run entire file ({shortcut})', { shortcut: `Shift+${modKey}+Enter` })"
+            @click="$emit('run-file')"
           >
-            <path
-              d="M3 2.5h10a1.5 1.5 0 011.5 1.5v6a1.5 1.5 0 01-1.5 1.5H9.414l-2.707 2.707a.5.5 0 01-.854-.354V11.5H3A1.5 1.5 0 011.5 10V4A1.5 1.5 0 013 2.5z"
-            />
-          </svg>
-          <span v-if="commentBadgeCount > 0" class="workflow-comment-badge">
-            {{ commentBadgeCount > 9 ? '9+' : commentBadgeCount }}
-          </span>
-        </UiButton>
-      </div>
+            <IconPlayerTrackNext :size="14" :stroke-width="1.8" />
+          </UiButton>
+          <UiButton
+            v-if="showCommentToggle"
+            class="workflow-secondary-btn workflow-comment-btn"
+            variant="ghost"
+            size="icon-sm"
+            icon-only
+            :active="commentActive"
+            :title="t('Toggle comments')"
+            :aria-label="t('Toggle comments')"
+            @click="$emit('toggle-comments')"
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+            >
+              <path
+                d="M3 2.5h10a1.5 1.5 0 011.5 1.5v6a1.5 1.5 0 01-1.5 1.5H9.414l-2.707 2.707a.5.5 0 01-.854-.354V11.5H3A1.5 1.5 0 011.5 10V4A1.5 1.5 0 013 2.5z"
+              />
+            </svg>
+            <span v-if="commentBadgeCount > 0" class="workflow-comment-badge">
+              {{ commentBadgeCount > 9 ? '9+' : commentBadgeCount }}
+            </span>
+          </UiButton>
+        </div>
 
-      <div v-if="showMeta" class="workflow-meta">
-        <span class="workflow-kind">{{ kindLabel }}</span>
-        <template v-if="phaseLabel">
-          <span class="workflow-separator">·</span>
-          <span class="workflow-phase">{{ phaseLabel }}</span>
-        </template>
-        <span v-if="statusText" class="workflow-status" :class="statusClass">
+        <div v-if="showInlineMeta" class="workflow-meta">
+          <span class="workflow-kind">{{ kindLabel }}</span>
+          <template v-if="phaseLabel">
+            <span class="workflow-separator">·</span>
+            <span class="workflow-phase">{{ phaseLabel }}</span>
+          </template>
+          <span v-if="statusText" class="workflow-status" :class="statusClass">
+            <span class="workflow-status-dot"></span>
+            {{ statusText }}
+          </span>
+        </div>
+
+        <span v-else-if="showShellStatus" class="workflow-shell-status" :class="statusClass">
           <span class="workflow-status-dot"></span>
           {{ statusText }}
         </span>
       </div>
-    </div>
 
-    <div v-if="showPreviewSection" class="workflow-right">
-      <div class="workflow-preview-tools">
-        <UiButton
-          v-if="showPreviewButton"
-          class="workflow-secondary-btn"
-          variant="ghost"
-          size="icon-sm"
-          icon-only
-          :active="isPreviewButtonActive"
-          :title="previewButtonLabel"
-          :aria-label="previewButtonLabel"
-          @click="$emit('reveal-preview')"
-        >
-          <IconEye :size="14" :stroke-width="1.8" />
-        </UiButton>
-        <UiButton
-          v-if="showPdfButton"
-          class="workflow-secondary-btn"
-          variant="ghost"
-          size="icon-sm"
-          icon-only
-          :active="isPdfButtonActive"
-          title="PDF"
-          aria-label="PDF"
-          @click="$emit('reveal-pdf')"
-        >
-          <IconFileTypePdf :size="14" :stroke-width="1.8" />
-        </UiButton>
+      <div v-if="showPreviewSection" class="workflow-right">
+        <div class="workflow-preview-tools">
+          <UiButton
+            v-if="showPreviewButton"
+            class="workflow-secondary-btn"
+            variant="ghost"
+            size="icon-sm"
+            icon-only
+            :active="isPreviewButtonActive"
+            :title="previewButtonLabel"
+            :aria-label="previewButtonLabel"
+            @click="$emit('reveal-preview')"
+          >
+            <IconEye :size="14" :stroke-width="1.8" />
+          </UiButton>
+          <UiButton
+            v-if="showPdfButton"
+            class="workflow-secondary-btn"
+            variant="ghost"
+            size="icon-sm"
+            icon-only
+            :title="pdfButtonLabel"
+            :aria-label="pdfButtonLabel"
+            @click="$emit('reveal-pdf')"
+          >
+            <IconFileTypePdf :size="14" :stroke-width="1.8" />
+          </UiButton>
+        </div>
       </div>
-
-      <div
-        v-if="showPdfToolbarSlot"
-        :id="pdfToolbarTargetId"
-        class="workflow-preview-slot workflow-preview-slot-pdf"
-      />
     </div>
-  </div>
+  </Teleport>
 </template>
 
 <script setup>
@@ -130,13 +137,14 @@ import { useI18n } from '../../i18n'
 const props = defineProps({
   uiState: { type: Object, default: null },
   previewState: { type: Object, default: null },
-  pdfToolbarTargetId: { type: String, default: '' },
   statusText: { type: String, default: '' },
   statusTone: { type: String, default: 'muted' },
   showRunButtons: { type: Boolean, default: false },
   showCommentToggle: { type: Boolean, default: false },
   commentActive: { type: Boolean, default: false },
   commentBadgeCount: { type: Number, default: 0 },
+  teleportTo: { type: String, default: '' },
+  shellIntegrated: { type: Boolean, default: false },
 })
 
 defineEmits([
@@ -169,6 +177,8 @@ const phaseLabel = computed(() => {
 })
 
 const showMeta = computed(() => !!kindLabel.value || !!phaseLabel.value || !!props.statusText)
+const showInlineMeta = computed(() => showMeta.value && !props.shellIntegrated)
+const showShellStatus = computed(() => !!props.statusText && props.shellIntegrated)
 
 const showPrimaryAction = computed(() => !!props.uiState && props.uiState.kind !== 'text')
 
@@ -186,13 +196,19 @@ const primaryIcon = computed(() => {
   return IconEye
 })
 
-const showPreviewButton = computed(() => !!props.uiState?.kind && props.uiState.kind !== 'text')
+const showPreviewButton = computed(() => {
+  if (!props.uiState?.kind || props.uiState.kind === 'text') return false
+  if (props.uiState.kind === 'latex') return false
+  if (props.uiState.kind === 'typst') return props.uiState.canRevealPreview === true
+  return true
+})
 
 const previewButtonLabel = computed(() =>
   props.uiState?.kind === 'markdown' ? t('Toggle preview') : t('Preview')
 )
 
-const showPdfButton = computed(() => props.uiState?.kind === 'typst')
+const showPdfButton = computed(() => props.uiState?.canOpenPdf === true)
+const pdfButtonLabel = computed(() => t('Open PDF'))
 
 const activePreviewMode = computed(() => props.previewState?.previewMode || null)
 
@@ -200,19 +216,12 @@ const isPreviewButtonActive = computed(
   () => activePreviewMode.value === 'markdown' || activePreviewMode.value === 'typst-native'
 )
 
-const isPdfButtonActive = computed(() => activePreviewMode.value === 'pdf')
-
 const showPreviewSection = computed(
   () => showPreviewButton.value || showPdfButton.value || !!props.previewState?.previewVisible
 )
 
-const showSplitLayout = computed(() => !!props.previewState?.previewVisible)
-
-const showPdfToolbarSlot = computed(
-  () =>
-    props.previewState?.previewVisible &&
-    props.previewState?.previewMode === 'pdf' &&
-    !!props.pdfToolbarTargetId
+const showSplitLayout = computed(
+  () => !!props.previewState?.previewVisible && !props.shellIntegrated
 )
 
 const statusClass = computed(() => ({
@@ -228,12 +237,21 @@ const statusClass = computed(() => ({
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px;
   width: 100%;
-  height: var(--document-header-row-height, 28px);
+  height: var(--document-header-row-height, 24px);
   min-width: 0;
   box-sizing: border-box;
-  padding: 0 6px;
+  padding: 0 2px;
+  background: transparent;
+}
+
+.workflow-bar.is-shell-integrated {
+  width: auto;
+  min-height: 34px;
+  height: 34px;
+  padding: 0;
+  gap: 6px;
 }
 
 .workflow-bar-split {
@@ -253,15 +271,30 @@ const statusClass = computed(() => ({
 
 .workflow-left {
   flex: 1 1 auto;
-  gap: 8px;
-  padding: 0 8px 0 6px;
+  gap: 4px;
+  padding: 0 4px 0 2px;
 }
 
 .workflow-right {
   flex: 0 0 auto;
-  gap: 6px;
+  gap: 2px;
   margin-left: auto;
-  padding: 0 6px 0 8px;
+  padding: 0 2px 0 4px;
+}
+
+.workflow-bar.is-shell-integrated .workflow-left,
+.workflow-bar.is-shell-integrated .workflow-right {
+  width: auto;
+  height: auto;
+  padding: 0;
+}
+
+.workflow-bar.is-shell-integrated .workflow-left {
+  flex: 0 1 auto;
+}
+
+.workflow-bar.is-shell-integrated .workflow-right {
+  gap: 1px;
 }
 
 .workflow-bar-split .workflow-left,
@@ -278,24 +311,36 @@ const statusClass = computed(() => ({
 .workflow-bar-split .workflow-right {
   margin-left: 0;
   justify-content: flex-start;
-  border-left: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  border-left: 0;
 }
 
 .workflow-meta {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   min-width: 0;
   flex: 1 1 auto;
   overflow: hidden;
-  font-size: var(--ui-font-caption);
-  color: var(--fg-muted);
+  font-size: var(--ui-font-micro);
+  color: var(--text-muted);
   white-space: nowrap;
+  opacity: 0.72;
+}
+
+.workflow-shell-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  white-space: nowrap;
+  font-size: var(--ui-font-micro);
+  color: var(--text-muted);
+  opacity: 0.78;
 }
 
 .workflow-kind {
-  color: var(--fg-primary);
-  font-weight: 600;
+  color: var(--text-secondary);
+  font-weight: 550;
 }
 
 .workflow-separator {
@@ -306,27 +351,27 @@ const statusClass = computed(() => ({
 .workflow-preview-tools {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 1px;
   min-width: 0;
   flex: 0 0 auto;
-  padding: 2px;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--bg-secondary) 78%, transparent);
-  border: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  border: 0;
 }
 
 .workflow-status {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   padding: 0;
   height: auto;
-  color: var(--fg-muted);
+  color: var(--text-muted);
 }
 
 .workflow-status-dot {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
   border-radius: 999px;
   background: currentColor;
 }
@@ -350,34 +395,51 @@ const statusClass = computed(() => ({
 .workflow-primary-btn,
 .workflow-secondary-btn {
   flex: 0 0 auto;
-  height: 22px;
-  width: 24px;
+  height: 20px;
+  width: 20px;
   white-space: nowrap;
   color: var(--text-muted);
-  border-radius: 6px;
+  border-radius: 8px;
+  background: transparent;
+  opacity: 0.54;
+  transition:
+    background-color 140ms ease,
+    color 140ms ease,
+    opacity 140ms ease,
+    border-color 140ms ease;
 }
 
 .workflow-primary-btn {
-  color: var(--success);
+  color: var(--text-secondary);
+}
+
+.workflow-bar:hover .workflow-primary-btn,
+.workflow-bar:hover .workflow-secondary-btn,
+.workflow-bar:focus-within .workflow-primary-btn,
+.workflow-bar:focus-within .workflow-secondary-btn {
+  opacity: 0.86;
 }
 
 .workflow-primary-btn:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--success, #4ade80) 10%, transparent);
-  border-color: color-mix(in srgb, var(--success, #4ade80) 28%, var(--border));
+  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+  color: var(--text-primary);
+  opacity: 1;
 }
 
 .workflow-secondary-btn:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
-  border-color: color-mix(in srgb, var(--accent) 24%, var(--border));
+  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+  color: var(--text-primary);
+  opacity: 1;
 }
 
 .workflow-secondary-btn {
-  color: var(--accent);
+  color: var(--text-secondary);
 }
 
 .workflow-secondary-btn.is-active {
-  border-color: color-mix(in srgb, var(--accent) 24%, var(--border));
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  background: transparent;
+  color: var(--text-primary);
+  opacity: 1;
 }
 
 .workflow-secondary-btn-accent {
@@ -397,9 +459,8 @@ const statusClass = computed(() => ({
 }
 
 .workflow-comment-btn.is-active {
-  color: var(--accent);
-  border-color: color-mix(in srgb, var(--accent) 26%, var(--border));
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  background: transparent;
+  color: var(--text-primary);
 }
 
 .workflow-comment-badge {
@@ -427,9 +488,9 @@ const statusClass = computed(() => ({
 }
 
 .workflow-preview-slot-pdf {
-  margin-left: 2px;
-  padding-left: 8px;
-  border-left: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  margin-left: 0;
+  padding-left: 4px;
+  border-left: 0;
 }
 
 .workflow-preview-slot-pdf :deep(.pdf-toolbar-wrap-embedded) {

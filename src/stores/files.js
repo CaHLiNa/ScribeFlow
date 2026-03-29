@@ -15,7 +15,6 @@ import {
   createWorkspaceFile,
   createWorkspaceFolder,
   deleteWorkspacePath as removeWorkspacePath,
-  detectPdfSourceKind,
   duplicateWorkspacePath,
   moveWorkspacePath as relocateWorkspacePath,
   readWorkspaceTextFile,
@@ -80,11 +79,6 @@ function parseFileReadError(path, error) {
   }
 }
 
-async function extractPdfTextLazily(path) {
-  const { extractTextFromPdf } = await import('../utils/pdfMetadata.js')
-  return extractTextFromPdf(path)
-}
-
 export const useFilesStore = defineStore('files', {
   state: () => ({
     tree: [],
@@ -94,7 +88,6 @@ export const useFilesStore = defineStore('files', {
     expandedDirs: new Set(),
     fileContents: {}, // cache: path → content
     fileLoadErrors: {}, // cache: path -> { code, message, detail, raw, ... }
-    pdfSourceKinds: {}, // cache: pdf path -> { status, kind }
     deletingPaths: new Set(), // paths currently being deleted (prevents save-on-unmount race)
     lastLoadError: null,
     reconcileState: {
@@ -110,7 +103,6 @@ export const useFilesStore = defineStore('files', {
     // Flat list of all files for search
     flatFiles: (state) => state.flatFilesCache,
     getFileLoadError: (state) => (path) => state.fileLoadErrors[path] || null,
-    getPdfSourceState: (state) => (path) => state.pdfSourceKinds[path] || null,
   },
 
   actions: {
@@ -143,11 +135,6 @@ export const useFilesStore = defineStore('files', {
       delete this.fileLoadErrors[path]
     },
 
-    _setPdfSourceState(path, state) {
-      if (!path) return
-      this.pdfSourceKinds[path] = state
-    },
-
     _getVisibleTreeRefreshRuntime() {
       if (!this._visibleTreeRefreshRuntime) {
         this._visibleTreeRefreshRuntime = createVisibleTreeRefreshRuntime({
@@ -165,14 +152,6 @@ export const useFilesStore = defineStore('files', {
         })
       }
       return this._visibleTreeRefreshRuntime
-    },
-
-    invalidatePdfSourceForPath(path) {
-      return this._getFileContentRuntime().invalidatePdfSourceForPath(path)
-    },
-
-    async ensurePdfSourceKind(pdfPath, options = {}) {
-      return this._getFileContentRuntime().ensurePdfSourceKind(pdfPath, options)
     },
 
     noteTreeActivity() {
@@ -261,20 +240,8 @@ export const useFilesStore = defineStore('files', {
     _getFileContentRuntime() {
       if (!this._fileContentRuntime) {
         this._fileContentRuntime = createFileContentRuntime({
-          getPdfSourceState: (path) => this.pdfSourceKinds[path] || null,
-          setPdfSourceState: (path, state) => this._setPdfSourceState(path, state),
-          clearPdfSourceState: (path) => {
-            if (!path) return
-            delete this.pdfSourceKinds[path]
-          },
-          detectPdfSourceKind: (pdfPath) => detectPdfSourceKind({
-            pdfPath,
-            fileContents: this.fileContents,
-            findEntry: (path) => this._findEntry(path),
-          }),
           readTextFile: (path, maxBytes) => readWorkspaceTextFile(path, maxBytes),
           saveTextFile: (path, content) => saveWorkspaceTextFile(path, content),
-          extractPdfText: (path) => extractPdfTextLazily(path),
           isBinaryPath: (path) => isBinaryFile(path),
           setFileContent: (path, content) => {
             this.fileContents[path] = content
@@ -282,14 +249,6 @@ export const useFilesStore = defineStore('files', {
           clearFileLoadError: (path) => this._clearFileLoadError(path),
           setFileLoadError: (path, error) => this._setFileLoadError(path, error),
           syncSavedMarkdownLinks: (path) => syncSavedMarkdownLinks(path),
-          notifyPdfUpdated: (path) => {
-            window.dispatchEvent(new CustomEvent('pdf-updated', {
-              detail: { path },
-            }))
-          },
-          onPdfReadError: (_path, error) => {
-            console.error('Failed to extract PDF text:', error)
-          },
           onSaveError: (path, error) => {
             console.error('Failed to save file:', error)
             useToastStore().showOnce(`save:${path}`, formatFileError('save', path, error), {
@@ -349,7 +308,6 @@ export const useFilesStore = defineStore('files', {
           relocateWorkspacePath: (srcPath, destDir) => relocateWorkspacePath(srcPath, destDir),
           removeWorkspacePath: (path) => removeWorkspacePath(path),
           syncTreeAfterMutation: (options = {}) => this.syncTreeAfterMutation(options),
-          invalidatePdfSourceForPath: (path) => this.invalidatePdfSourceForPath(path),
           handleRenamedPathEffects: (oldPath, newPath) => handleRenamedPathEffects(oldPath, newPath),
           handleMovedPathEffects: (srcPath, destPath) => handleMovedPathEffects(srcPath, destPath),
           handleDeletedPathEffects: (path) => handleDeletedPathEffects(path),
@@ -520,7 +478,6 @@ export const useFilesStore = defineStore('files', {
       this.expandedDirs = new Set()
       this.fileContents = {}
       this.fileLoadErrors = {}
-      this.pdfSourceKinds = {}
       this.lastLoadError = null
       this.reconcileState = {
         inProgress: false,

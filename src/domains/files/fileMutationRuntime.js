@@ -9,7 +9,6 @@ export function createFileMutationRuntime({
   relocateWorkspacePath,
   removeWorkspacePath,
   syncTreeAfterMutation,
-  invalidatePdfSourceForPath,
   handleRenamedPathEffects,
   handleMovedPathEffects,
   handleDeletedPathEffects,
@@ -55,8 +54,6 @@ export function createFileMutationRuntime({
         deleteValue: deleteFileLoadError,
       })
 
-      invalidatePdfSourceForPath?.(oldPath)
-      invalidatePdfSourceForPath?.(newPath)
       await handleRenamedPathEffects?.(oldPath, newPath)
 
       if (hasExpandedDir?.(oldPath)) {
@@ -81,8 +78,6 @@ export function createFileMutationRuntime({
       destPath = result?.destPath || destPath
       await syncTreeAfterMutation?.({ expandPath: destDir })
 
-      invalidatePdfSourceForPath?.(srcPath)
-      invalidatePdfSourceForPath?.(destPath)
       await handleMovedPathEffects?.(srcPath, destPath)
       return true
     } catch (error) {
@@ -98,7 +93,6 @@ export function createFileMutationRuntime({
       await syncTreeAfterMutation?.()
       deleteFileContent?.(path)
       deleteFileLoadError?.(path)
-      invalidatePdfSourceForPath?.(path)
       handleDeletedPathEffects?.(path)
       return true
     } catch (error) {
