@@ -16,7 +16,7 @@
     <div
       v-else
       ref="editorContainer"
-      class="min-h-0 flex-1 w-full overflow-hidden"
+      class="text-editor-host min-h-0 flex-1 w-full overflow-hidden"
       @contextmenu.prevent="onContextMenu"
     ></div>
   </div>
@@ -1284,6 +1284,21 @@ onUnmounted(() => {
   typstCursorRequestHandler = null
 })
 </script>
+
+<style scoped>
+.typst-editor-shell {
+  background: var(--shell-editor-surface);
+}
+
+.text-editor-host {
+  background: var(--shell-editor-surface);
+}
+
+.text-editor-load-error {
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--workspace-paper) 80%, transparent);
+}
+</style>
 
 <style scoped>
 .typst-editor-shell {

@@ -1,4 +1,5 @@
 import { isBinaryFile } from '../../utils/fileTypes.js'
+import { listWorkspaceFlatFilePaths } from '../files/workspaceSnapshotFlatFilesRuntime.js'
 import { createWorkspaceHistoryPreparationRuntime } from './workspaceHistoryPreparationRuntime.js'
 
 function normalizePathValue(value = '') {
@@ -57,10 +58,14 @@ export function createWorkspaceSnapshotProjectTextRuntime({
 
   function listIndexedWorkspaceProjectTextPaths({
     workspacePath = '',
+    snapshot = null,
     flatFiles = [],
   } = {}) {
-    return sortUniquePaths(flatFiles
-      .map((entry) => normalizeFlatFilePath(entry))
+    const indexedPaths = snapshot
+      ? listWorkspaceFlatFilePaths(snapshot)
+      : flatFiles.map((entry) => normalizeFlatFilePath(entry))
+
+    return sortUniquePaths(indexedPaths
       .filter((filePath) => isWorkspaceProjectTextPath(filePath, workspacePath)))
   }
 
@@ -75,19 +80,38 @@ export function createWorkspaceSnapshotProjectTextRuntime({
       filesStore,
     })
 
-    const currentFlatFiles = Array.isArray(filesStore?.flatFiles) ? filesStore.flatFiles : []
+    const currentSnapshot = filesStore?.lastWorkspaceSnapshot || null
+    const currentFlatFiles = currentSnapshot
+      ? listWorkspaceFlatFilePaths(currentSnapshot)
+      : Array.isArray(filesStore?.flatFiles) ? filesStore.flatFiles : []
     let ensuredFlatFiles = currentFlatFiles
+    let ensuredSnapshot = currentSnapshot
     try {
-      const nextFlatFiles = await filesStore?.ensureFlatFilesReady?.()
+      const snapshot = await filesStore?.readWorkspaceSnapshot?.()
+      const nextFlatFiles = snapshot?.flatFiles
       if (Array.isArray(nextFlatFiles)) {
+        ensuredSnapshot = snapshot
         ensuredFlatFiles = nextFlatFiles
+      } else {
+        const fallbackFlatFiles = await filesStore?.ensureFlatFilesReady?.()
+        if (Array.isArray(fallbackFlatFiles)) {
+          ensuredFlatFiles = fallbackFlatFiles
+        }
       }
     } catch {
-      // Fall back to the current index cache if recursive listing is unavailable.
+      try {
+        const nextFlatFiles = await filesStore?.ensureFlatFilesReady?.()
+        if (Array.isArray(nextFlatFiles)) {
+          ensuredFlatFiles = nextFlatFiles
+        }
+      } catch {
+        // Fall back to the current index cache if recursive listing is unavailable.
+      }
     }
 
     const indexedPaths = listIndexedWorkspaceProjectTextPaths({
       workspacePath,
+      snapshot: ensuredSnapshot,
       flatFiles: ensuredFlatFiles,
     })
 

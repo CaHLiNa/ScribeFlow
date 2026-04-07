@@ -13,6 +13,7 @@ Altals currently supports one document workflow family: Markdown, LaTeX, and Typ
 - Markdown preview
 - Typst native preview
 - Generated document outputs opened through the system default app
+- Export-state summaries surfaced through the document context inspector
 
 ## Workflow Rules
 
@@ -32,5 +33,5 @@ Altals currently supports one document workflow family: Markdown, LaTeX, and Typ
 
 - Open each supported source type.
 - Trigger its primary preview or compile action.
-- Confirm the right sidebar exposes document-run state when relevant.
+- Confirm the right sidebar exposes outline, document context, and document-run state when relevant.
 - Confirm unsupported files fall back to the unsupported-file pane.

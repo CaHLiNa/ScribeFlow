@@ -47,7 +47,7 @@ export function mergePreservingLoadedChildren(nextEntries = [], previousEntries 
   })
 }
 
-function collectLoadedDirectoryPaths(entries = [], paths = []) {
+export function collectLoadedDirectoryPaths(entries = [], paths = []) {
   for (const entry of entries) {
     if (!entry.is_dir || !Array.isArray(entry.children)) continue
     paths.push(entry.path)
@@ -87,6 +87,9 @@ export function createVisibleTreeRefreshRuntime({
   getCurrentTree,
   findCurrentEntry,
   readDirShallow,
+  readVisibleTree,
+  readWorkspaceSnapshot,
+  applyWorkspaceSnapshot,
   applyTree,
   setLastLoadError,
   beginReconcile,
@@ -119,36 +122,45 @@ export function createVisibleTreeRefreshRuntime({
 
     try {
       const currentTree = getCurrentTree?.() ?? []
-      let nextTree = await readDirShallow?.(workspacePath)
-      nextTree = mergePreservingLoadedChildren(nextTree, currentTree)
-
       const loadedDirectories = collectLoadedDirectoryPaths(currentTree)
         .filter(path => path !== workspacePath)
         .sort((a, b) => a.length - b.length)
 
-      const directoryResults = await mapWithConcurrency(
-        loadedDirectories,
-        refreshConcurrency,
-        async (dirPath) => {
-          try {
-            const children = await readDirShallow?.(dirPath)
-            return { dirPath, children }
-          } catch {
-            return null
-          }
-        },
-      )
+      let nextTree = null
+      if (readWorkspaceSnapshot && applyWorkspaceSnapshot) {
+        const snapshot = await readWorkspaceSnapshot(workspacePath, loadedDirectories)
+        nextTree = snapshot?.tree ?? []
+        applyWorkspaceSnapshot(snapshot, workspacePath, { preserveFlatFiles: true })
+      } else if (readVisibleTree) {
+        nextTree = await readVisibleTree(workspacePath, loadedDirectories)
+      } else {
+        nextTree = await readDirShallow?.(workspacePath)
+        nextTree = mergePreservingLoadedChildren(nextTree, currentTree)
 
-      for (const result of directoryResults) {
-        if (!result) continue
-        const previousEntry = findCurrentEntry?.(result.dirPath)
-        nextTree = patchTreeEntry(nextTree, result.dirPath, (current) => ({
-          ...current,
-          children: mergePreservingLoadedChildren(
-            result.children,
-            previousEntry?.children || current.children || [],
-          ),
-        }))
+        const directoryResults = await mapWithConcurrency(
+          loadedDirectories,
+          refreshConcurrency,
+          async (dirPath) => {
+            try {
+              const children = await readDirShallow?.(dirPath)
+              return { dirPath, children }
+            } catch {
+              return null
+            }
+          },
+        )
+
+        for (const result of directoryResults) {
+          if (!result) continue
+          const previousEntry = findCurrentEntry?.(result.dirPath)
+          nextTree = patchTreeEntry(nextTree, result.dirPath, (current) => ({
+            ...current,
+            children: mergePreservingLoadedChildren(
+              result.children,
+              previousEntry?.children || current.children || [],
+            ),
+          }))
+        }
       }
 
       if (runGeneration !== generation) {
@@ -157,7 +169,7 @@ export function createVisibleTreeRefreshRuntime({
 
       const previousSnapshot = JSON.stringify(normalizeTreeSnapshot(currentTree))
       const nextSnapshot = JSON.stringify(normalizeTreeSnapshot(nextTree))
-      if (previousSnapshot !== nextSnapshot) {
+      if (previousSnapshot !== nextSnapshot && !(readWorkspaceSnapshot && applyWorkspaceSnapshot)) {
         applyTree?.(nextTree, workspacePath, { preserveFlatFiles: true })
       }
 

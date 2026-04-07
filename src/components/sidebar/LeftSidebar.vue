@@ -107,4 +107,9 @@ defineExpose({
   padding: 4px 8px 8px 2px;
   background: transparent;
 }
+
+.left-shell-sidebar > :last-child {
+  flex: 1 1 auto;
+  min-height: 0;
+}
 </style>

@@ -124,3 +124,49 @@ test('flat files index runtime clears scheduled timers on reset', async () => {
   assert.equal(timers.length, 1)
   assert.deepEqual(clearedTimers, [timers[0]])
 })
+
+test('flat files index runtime can hydrate from workspace snapshot in one backend call', async () => {
+  let workspacePath = '/ws'
+  let flatFilesReady = false
+  let flatFilesCache = []
+  const snapshotCalls = []
+  let applyCalls = 0
+  let listCalls = 0
+
+  const runtime = createFlatFilesIndexRuntime({
+    getWorkspacePath: () => workspacePath,
+    getFlatFilesReady: () => flatFilesReady,
+    getFlatFilesCache: () => flatFilesCache,
+    setFlatFiles: (flatFiles) => {
+      flatFilesCache = flatFiles
+      flatFilesReady = true
+    },
+    readWorkspaceSnapshot: async (path, loadedDirs) => {
+      snapshotCalls.push({ path, loadedDirs })
+      return {
+        tree: [{ path: '/ws/docs', is_dir: true }],
+        flatFiles: [{ path: '/ws/chapter1.md', is_dir: false }],
+      }
+    },
+    applyWorkspaceSnapshot: (snapshot) => {
+      applyCalls += 1
+      flatFilesCache = snapshot.flatFiles
+      flatFilesReady = true
+    },
+    markFlatFilesNotReady: () => {
+      flatFilesReady = false
+    },
+    listFilesRecursive: async () => {
+      listCalls += 1
+      return []
+    },
+  })
+
+  const files = await runtime.ensureFlatFilesReady()
+
+  assert.equal(listCalls, 0)
+  assert.equal(applyCalls, 1)
+  assert.deepEqual(snapshotCalls, [{ path: '/ws', loadedDirs: [] }])
+  assert.deepEqual(files, [{ path: '/ws/chapter1.md', is_dir: false }])
+  assert.equal(flatFilesReady, true)
+})

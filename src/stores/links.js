@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { useWorkspaceStore } from './workspace'
 import { useFilesStore } from './files'
 import { extractMarkdownHeadingTexts } from '../services/markdown/parser.js'
+import { filterWorkspaceFlatFilesByExtension } from '../domains/files/workspaceSnapshotFlatFilesRuntime.js'
 
 // --- Pure helpers ---
 
@@ -113,6 +114,11 @@ export const useLinksStore = defineStore('links', {
   },
 
   actions: {
+    _getWorkspaceMarkdownFiles(filesStore) {
+      const snapshot = filesStore?.lastWorkspaceSnapshot || { flatFiles: filesStore?.flatFiles || [] }
+      return filterWorkspaceFlatFilesByExtension(snapshot, ['.md'])
+    },
+
     resolveLink(target, fromPath) {
       if (!target) return null
       const workspace = useWorkspaceStore()
@@ -156,7 +162,7 @@ export const useLinksStore = defineStore('links', {
       const workspace = useWorkspaceStore()
       const filesStore = useFilesStore()
       if (!workspace.path) return
-      await filesStore.ensureFlatFilesReady()
+      await filesStore.readWorkspaceSnapshot().catch(() => filesStore.ensureFlatFilesReady())
       const scanGeneration = ++this._scanGeneration
       const workspacePath = workspace.path
 
@@ -167,7 +173,7 @@ export const useLinksStore = defineStore('links', {
       this.headings = {}
 
       // Get all md files
-      const mdFiles = filesStore.flatFiles.filter(f => f.path.endsWith('.md'))
+      const mdFiles = this._getWorkspaceMarkdownFiles(filesStore)
 
       // Read all files and build indices
       for (const file of mdFiles) {
@@ -218,7 +224,7 @@ export const useLinksStore = defineStore('links', {
       const workspace = useWorkspaceStore()
       const filesStore = useFilesStore()
       if (!workspace.path) return
-      await filesStore.ensureFlatFilesReady()
+      await filesStore.readWorkspaceSnapshot().catch(() => filesStore.ensureFlatFilesReady())
 
       const oldName = fileNameFromPath(oldPath)
       const newName = fileNameFromPath(newPath)
@@ -235,7 +241,7 @@ export const useLinksStore = defineStore('links', {
       }
 
       // Name changed: update all [[oldName]] → [[newName]] across workspace
-      const mdFiles = filesStore.flatFiles.filter(f => f.path.endsWith('.md'))
+      const mdFiles = this._getWorkspaceMarkdownFiles(filesStore)
       for (const file of mdFiles) {
         try {
           let content = filesStore.fileContents[file.path]

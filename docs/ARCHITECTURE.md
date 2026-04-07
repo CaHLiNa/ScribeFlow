@@ -32,7 +32,8 @@ The Tauri backend is still flatter than the frontend, but the target split is:
 ## Current State
 
 - The shell already behaves like a single document workspace.
-- Document preview and compile logic are mostly behind named runtime or service seams.
+- The right inspector now separates outline, document context, and document-run feedback.
+- Document preview, diagnostics, citation syntax, and export-state summaries are increasingly routed through named adapter and runtime seams.
 - Editor restore and preference loading still carry a small amount of migration code for old saved state.
 - Some backend modules and editor-heavy paths are still broader than ideal.
 
@@ -42,3 +43,8 @@ The Tauri backend is still flatter than the frontend, but the target split is:
 - Move workflow decisions into `src/domains/*` before adding more component or store glue.
 - Keep services effectful but policy-light.
 - Avoid hidden mutation paths around autosave, compile, recovery, and sync behavior.
+
+## Rust Migration Direction
+
+- Rust migration should move workflow policy and effectful runtime decisions into typed backend seams before rewriting UI surfaces.
+- UI replacement (if pursued) should follow proven parity slices and keep the desktop document loop intact; no big-bang rewrites of the shell.

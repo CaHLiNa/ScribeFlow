@@ -33,10 +33,12 @@ defineProps({
 
 .document-workspace-tab-source {
   flex: 1 1 0;
+  background: var(--shell-editor-surface);
 }
 
 .document-workspace-tab-preview {
   flex: 1 1 0;
-  border-left: 1px solid color-mix(in srgb, var(--border) 18%, transparent);
+  border-left: 1px solid color-mix(in srgb, var(--shell-border) 82%, transparent);
+  background: var(--shell-preview-surface);
 }
 </style>

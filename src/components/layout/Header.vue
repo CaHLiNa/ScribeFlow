@@ -2,7 +2,10 @@
   <header class="launcher-header" data-tauri-drag-region :style="headerStyle">
     <div class="launcher-header-brand" data-tauri-drag-region>
       <span class="launcher-header-title">Altals</span>
-      <span class="launcher-header-caption">{{ t('Document workspace') }}</span>
+      <span class="launcher-header-caption">{{ t('Local-first academic writing workspace') }}</span>
+    </div>
+    <div class="launcher-header-status" data-tauri-drag-region>
+      <span class="launcher-header-pill">{{ t('Markdown · LaTeX · Typst') }}</span>
     </div>
   </header>
 </template>
@@ -69,7 +72,10 @@ onUnmounted(() => {
 .launcher-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
   flex: 0 0 auto;
+  padding-top: 8px;
   background: transparent;
 }
 
@@ -83,7 +89,7 @@ onUnmounted(() => {
 
 .launcher-header-title {
   font-family: 'Crimson Text', 'Lora', Georgia, serif;
-  font-size: var(--ui-font-body);
+  font-size: var(--ui-font-display);
   font-weight: 600;
   letter-spacing: 0.01em;
   color: var(--text-primary);
@@ -92,8 +98,36 @@ onUnmounted(() => {
 .launcher-header-caption {
   font-size: var(--ui-font-micro);
   color: var(--text-muted);
-  opacity: 0.78;
+  opacity: 0.9;
   white-space: nowrap;
+}
+
+.launcher-header-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.launcher-header-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--shell-border);
+  background: color-mix(in srgb, var(--shell-surface) 88%, transparent);
+  color: var(--text-muted);
+  font-size: var(--ui-font-caption);
+}
+
+@media (max-width: 860px) {
+  .launcher-header {
+    justify-content: flex-start;
+  }
+
+  .launcher-header-status {
+    display: none;
+  }
 }
 
 @media (max-width: 720px) {

@@ -1,15 +1,11 @@
-import {
-  getDocumentAdapterForFile,
-  getDocumentAdapterForWorkflow,
-} from '../../services/documentWorkflow/adapters/index.js'
 import { resolveDocumentWorkspacePreviewState } from './documentWorkspacePreviewRuntime.js'
+import { createDocumentWorkflowAdaptersRuntime } from './documentWorkflowAdaptersRuntime.js'
+
+const documentWorkflowAdaptersRuntime = createDocumentWorkflowAdaptersRuntime()
 
 function resolveDocumentAdapter(filePath, options = {}) {
   if (options.adapter) return options.adapter
-  if (options.workflowOnly === false) {
-    return getDocumentAdapterForFile(filePath)
-  }
-  return getDocumentAdapterForWorkflow(filePath)
+  return documentWorkflowAdaptersRuntime.resolveForFile(filePath, options)
 }
 
 function resolvePreferredPreviewKind(adapter, options = {}, workflowStore = null) {

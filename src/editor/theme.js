@@ -5,14 +5,17 @@ import { tags } from '@lezer/highlight'
 export const shouldersTheme = EditorView.theme(
   {
     '&': {
-      backgroundColor: 'var(--bg-primary)',
-      color: 'var(--fg-primary)',
+      backgroundColor: 'var(--shell-editor-surface)',
+      color: 'var(--workspace-ink)',
     },
     '.cm-content': {
       caretColor: 'var(--accent)',
       fontFamily: "var(--font-mono)",
-      padding: '16px 0',
+      padding: '18px 0 26px',
       lineHeight: '1.6',
+    },
+    '.cm-scroller': {
+      backgroundColor: 'var(--shell-editor-surface)',
     },
     '.cm-cursor, .cm-dropCursor': {
       borderLeftColor: 'var(--accent)',
@@ -41,7 +44,7 @@ export const shouldersTheme = EditorView.theme(
       backgroundColor: 'transparent',
     },
     '.cm-gutters': {
-      backgroundColor: 'var(--bg-primary)',
+      backgroundColor: 'var(--shell-editor-surface)',
       color: 'var(--fg-muted)',
       border: 'none',
     },

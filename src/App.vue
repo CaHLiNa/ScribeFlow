@@ -361,6 +361,7 @@ useAppTeardown({
 
 .app-shell-sidebar {
   contain: layout paint;
+  height: 100%;
   border: none;
   border-radius: 0;
   background: transparent;

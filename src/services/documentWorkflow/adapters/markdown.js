@@ -65,6 +65,18 @@ export function buildMarkdownWorkflowStatusText({
   return ''
 }
 
+const markdownCitationSyntax = {
+  supportsInsertion(filePath) {
+    return isMarkdown(filePath)
+  },
+
+  buildText(_filePath, keys) {
+    const list = (Array.isArray(keys) ? keys : [keys]).filter(Boolean)
+    if (list.length === 0) return ''
+    return `[${list.map((key) => `@${key}`).join('; ')}]`
+  },
+}
+
 const markdownPreviewAdapter = {
   defaultKind: 'html',
   supportedKinds: ['html'],
@@ -109,6 +121,7 @@ export const markdownDocumentAdapter = {
   },
 
   preview: markdownPreviewAdapter,
+  citationSyntax: markdownCitationSyntax,
   compile: null,
 
   getProblems(filePath, context = {}) {

@@ -9,7 +9,11 @@ use std::sync::{Arc, Mutex};
 use tauri::Emitter;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
-use crate::app_dirs;
+use crate::latex_tools::{
+    altals_bin_dir, binary_status, find_chktex, find_latexindent, find_synctex,
+    find_system_tex, find_tectonic, tectonic_binary_name, LatexCompilerStatus,
+    LatexToolStatus,
+};
 use crate::process_utils::{background_command, background_tokio_command};
 
 const LATEX_COMPILE_STREAM_EVENT: &str = "latex-compile-stream";
@@ -70,343 +74,6 @@ struct LatexCompileMeta {
     requested_program_applied: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct BinaryStatus {
-    pub installed: bool,
-    pub path: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LatexCompilerStatus {
-    pub tectonic: BinaryStatus,
-    pub system_tex: BinaryStatus,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LatexToolStatus {
-    pub chktex: BinaryStatus,
-    pub latexindent: BinaryStatus,
-}
-
-fn altals_bin_dir() -> Option<PathBuf> {
-    app_dirs::bin_dir().ok()
-}
-
-fn tectonic_binary_name() -> &'static str {
-    if cfg!(target_os = "windows") {
-        "tectonic.exe"
-    } else {
-        "tectonic"
-    }
-}
-
-fn find_tectonic(_app: &tauri::AppHandle, custom_path: Option<&str>) -> Option<String> {
-    if let Some(path) = custom_path.filter(|value| !value.trim().is_empty()) {
-        if Path::new(path).exists() {
-            return Some(path.to_string());
-        }
-    }
-
-    // 1. App-managed install (~/.altals/bin/tectonic)
-    for bin_dir in app_dirs::candidate_bin_dirs() {
-        let path = bin_dir.join(tectonic_binary_name());
-        if path.exists() {
-            return Some(path.to_string_lossy().to_string());
-        }
-    }
-
-    // 2. Common system install locations
-    #[cfg(unix)]
-    {
-        let candidates = [
-            "/opt/homebrew/bin/tectonic",
-            "/usr/local/bin/tectonic",
-            "/usr/bin/tectonic",
-        ];
-        for path in &candidates {
-            if Path::new(path).exists() {
-                return Some(path.to_string());
-            }
-        }
-        if let Ok(home) = std::env::var("HOME") {
-            let cargo_path = format!("{home}/.cargo/bin/tectonic");
-            if Path::new(&cargo_path).exists() {
-                return Some(cargo_path);
-            }
-        }
-    }
-
-    // 3. Shell lookup fallback
-    #[cfg(unix)]
-    {
-        let output = background_command("/bin/bash")
-            .args(&["-lc", "which tectonic"])
-            .output()
-            .ok()?;
-        if output.status.success() {
-            let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            if !path.is_empty() {
-                return Some(path);
-            }
-        }
-    }
-    #[cfg(windows)]
-    {
-        let output = background_command("where").arg("tectonic").output().ok()?;
-        if output.status.success() {
-            let path = String::from_utf8_lossy(&output.stdout)
-                .lines()
-                .next()?
-                .trim()
-                .to_string();
-            if !path.is_empty() {
-                return Some(path);
-            }
-        }
-    }
-
-    None
-}
-
-fn find_system_tex(custom_path: Option<&str>) -> Option<String> {
-    if let Some(path) = custom_path.filter(|value| !value.trim().is_empty()) {
-        if Path::new(path).exists() {
-            return Some(path.to_string());
-        }
-    }
-
-    #[cfg(unix)]
-    {
-        let candidates = [
-            "/Library/TeX/texbin/latexmk",
-            "/opt/homebrew/bin/latexmk",
-            "/usr/local/bin/latexmk",
-            "/usr/bin/latexmk",
-        ];
-        for path in &candidates {
-            if Path::new(path).exists() {
-                return Some(path.to_string());
-            }
-        }
-
-        let output = background_command("/bin/bash")
-            .args(["-lc", "which latexmk"])
-            .output()
-            .ok()?;
-        if output.status.success() {
-            let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            if !path.is_empty() {
-                return Some(path);
-            }
-        }
-    }
-
-    #[cfg(windows)]
-    {
-        let output = background_command("where").arg("latexmk").output().ok()?;
-        if output.status.success() {
-            let path = String::from_utf8_lossy(&output.stdout)
-                .lines()
-                .next()?
-                .trim()
-                .to_string();
-            if !path.is_empty() {
-                return Some(path);
-            }
-        }
-    }
-
-    None
-}
-
-fn find_chktex(custom_system_tex_path: Option<&str>) -> Option<String> {
-    if let Some(system_tex_path) = custom_system_tex_path.filter(|value| !value.trim().is_empty()) {
-        if let Some(parent) = Path::new(system_tex_path).parent() {
-            for binary_name in ["chktex", "chktex.exe"] {
-                let sibling = parent.join(binary_name);
-                if sibling.exists() {
-                    return Some(sibling.to_string_lossy().to_string());
-                }
-            }
-        }
-    }
-
-    #[cfg(unix)]
-    {
-        let candidates = [
-            "/Library/TeX/texbin/chktex",
-            "/opt/homebrew/bin/chktex",
-            "/usr/local/bin/chktex",
-            "/usr/bin/chktex",
-        ];
-        for path in &candidates {
-            if Path::new(path).exists() {
-                return Some(path.to_string());
-            }
-        }
-
-        let output = background_command("/bin/bash")
-            .args(["-lc", "which chktex"])
-            .output()
-            .ok()?;
-        if output.status.success() {
-            let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            if !path.is_empty() {
-                return Some(path);
-            }
-        }
-    }
-
-    #[cfg(windows)]
-    {
-        let output = background_command("where").arg("chktex").output().ok()?;
-        if output.status.success() {
-            let path = String::from_utf8_lossy(&output.stdout)
-                .lines()
-                .next()?
-                .trim()
-                .to_string();
-            if !path.is_empty() {
-                return Some(path);
-            }
-        }
-    }
-
-    None
-}
-
-fn find_latexindent(custom_system_tex_path: Option<&str>) -> Option<String> {
-    if let Some(system_tex_path) = custom_system_tex_path.filter(|value| !value.trim().is_empty()) {
-        if let Some(parent) = Path::new(system_tex_path).parent() {
-            for binary_name in [
-                "latexindent",
-                "latexindent.pl",
-                "latexindent.exe",
-                "latexindent.cmd",
-            ] {
-                let sibling = parent.join(binary_name);
-                if sibling.exists() {
-                    return Some(sibling.to_string_lossy().to_string());
-                }
-            }
-        }
-    }
-
-    #[cfg(unix)]
-    {
-        let candidates = [
-            "/Library/TeX/texbin/latexindent",
-            "/Library/TeX/texbin/latexindent.pl",
-            "/opt/homebrew/bin/latexindent",
-            "/opt/homebrew/bin/latexindent.pl",
-            "/usr/local/bin/latexindent",
-            "/usr/local/bin/latexindent.pl",
-            "/usr/bin/latexindent",
-            "/usr/bin/latexindent.pl",
-        ];
-        for path in &candidates {
-            if Path::new(path).exists() {
-                return Some(path.to_string());
-            }
-        }
-
-        let output = background_command("/bin/bash")
-            .args(["-lc", "which latexindent || which latexindent.pl"])
-            .output()
-            .ok()?;
-        if output.status.success() {
-            let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            if !path.is_empty() {
-                return Some(path);
-            }
-        }
-    }
-
-    #[cfg(windows)]
-    {
-        let output = background_command("where")
-            .args(["latexindent", "latexindent.pl", "latexindent.exe", "latexindent.cmd"])
-            .output()
-            .ok()?;
-        if output.status.success() {
-            let path = String::from_utf8_lossy(&output.stdout)
-                .lines()
-                .next()?
-                .trim()
-                .to_string();
-            if !path.is_empty() {
-                return Some(path);
-            }
-        }
-    }
-
-    None
-}
-
-fn synctex_binary_name() -> &'static str {
-    if cfg!(target_os = "windows") {
-        "synctex.exe"
-    } else {
-        "synctex"
-    }
-}
-
-fn find_synctex(custom_system_tex_path: Option<&str>) -> Option<String> {
-    if let Some(system_tex_path) = custom_system_tex_path.filter(|value| !value.trim().is_empty()) {
-        if let Some(parent) = Path::new(system_tex_path).parent() {
-            let sibling = parent.join(synctex_binary_name());
-            if sibling.exists() {
-                return Some(sibling.to_string_lossy().to_string());
-            }
-        }
-    }
-
-    #[cfg(unix)]
-    {
-        let candidates = [
-            "/Library/TeX/texbin/synctex",
-            "/opt/homebrew/bin/synctex",
-            "/usr/local/bin/synctex",
-            "/usr/bin/synctex",
-        ];
-        for path in &candidates {
-            if Path::new(path).exists() {
-                return Some(path.to_string());
-            }
-        }
-
-        let output = background_command("/bin/bash")
-            .args(["-lc", "which synctex"])
-            .output()
-            .ok()?;
-        if output.status.success() {
-            let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            if !path.is_empty() {
-                return Some(path);
-            }
-        }
-    }
-
-    #[cfg(windows)]
-    {
-        let output = background_command("where").arg("synctex").output().ok()?;
-        if output.status.success() {
-            let path = String::from_utf8_lossy(&output.stdout)
-                .lines()
-                .next()?
-                .trim()
-                .to_string();
-            if !path.is_empty() {
-                return Some(path);
-            }
-        }
-    }
-
-    None
-}
 
 fn parse_latex_output(output: &str) -> (Vec<LatexError>, Vec<LatexError>) {
     let mut errors = Vec::new();
@@ -1268,7 +935,7 @@ pub async fn compile_latex(
 
     let preference = compiler_preference.unwrap_or_else(|| "auto".to_string());
     let system_tex = find_system_tex(custom_system_tex_path.as_deref());
-    let tectonic = find_tectonic(&app, custom_tectonic_path.as_deref());
+    let tectonic = find_tectonic(custom_tectonic_path.as_deref());
 
     let result = match preference.as_str() {
         "system" | "system-tex" => {
@@ -1342,19 +1009,16 @@ pub async fn compile_latex(
 
 #[tauri::command]
 pub async fn check_latex_compilers(
-    app: tauri::AppHandle,
+    _app: tauri::AppHandle,
     custom_system_tex_path: Option<String>,
     custom_tectonic_path: Option<String>,
 ) -> Result<LatexCompilerStatus, String> {
+    let tectonic = find_tectonic(custom_tectonic_path.as_deref());
+    let system_tex = find_system_tex(custom_system_tex_path.as_deref());
+
     Ok(LatexCompilerStatus {
-        tectonic: BinaryStatus {
-            installed: find_tectonic(&app, custom_tectonic_path.as_deref()).is_some(),
-            path: find_tectonic(&app, custom_tectonic_path.as_deref()),
-        },
-        system_tex: BinaryStatus {
-            installed: find_system_tex(custom_system_tex_path.as_deref()).is_some(),
-            path: find_system_tex(custom_system_tex_path.as_deref()),
-        },
+        tectonic: binary_status(tectonic),
+        system_tex: binary_status(system_tex),
     })
 }
 
@@ -1362,15 +1026,12 @@ pub async fn check_latex_compilers(
 pub async fn check_latex_tools(
     custom_system_tex_path: Option<String>,
 ) -> Result<LatexToolStatus, String> {
+    let chktex = find_chktex(custom_system_tex_path.as_deref());
+    let latexindent = find_latexindent(custom_system_tex_path.as_deref());
+
     Ok(LatexToolStatus {
-        chktex: BinaryStatus {
-            installed: find_chktex(custom_system_tex_path.as_deref()).is_some(),
-            path: find_chktex(custom_system_tex_path.as_deref()),
-        },
-        latexindent: BinaryStatus {
-            installed: find_latexindent(custom_system_tex_path.as_deref()).is_some(),
-            path: find_latexindent(custom_system_tex_path.as_deref()),
-        },
+        chktex: binary_status(chktex),
+        latexindent: binary_status(latexindent),
     })
 }
 

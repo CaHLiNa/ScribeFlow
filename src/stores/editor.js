@@ -56,6 +56,7 @@ import {
   validateRestoredEditorTabs,
 } from '../domains/editor/editorRestoreRuntime'
 import { createEditorOpenRoutingRuntime } from '../domains/editor/editorOpenRoutingRuntime'
+import { filterExistingRecentFiles } from '../domains/files/workspaceSnapshotFlatFilesRuntime'
 
 function isLauncherTab(path) {
   return isNewTab(path)
@@ -115,10 +116,7 @@ export const useEditorStore = defineStore('editor', {
 
     recentFilesForEmptyState(state) {
       const filesStore = useFilesStore()
-      const flatPaths = new Set((filesStore.flatFiles || []).map((file) => file.path))
-      return state.recentFiles
-        .filter((entry) => flatPaths.has(entry.path))
-        .slice(0, 5)
+      return filterExistingRecentFiles(state.recentFiles, filesStore.lastWorkspaceSnapshot).slice(0, 5)
     },
 
     preferredContextPath(state) {

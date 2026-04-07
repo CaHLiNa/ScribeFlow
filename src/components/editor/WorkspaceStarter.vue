@@ -156,6 +156,37 @@
             </UiButton>
           </div>
         </section>
+
+        <section class="workspace-starter-section">
+          <div class="workspace-starter-section-head">
+            <div class="workspace-starter-section-heading">
+              <div class="workspace-starter-section-kicker">{{ t('Academic starters') }}</div>
+              <h2 class="workspace-starter-section-title">{{ t('Writing templates') }}</h2>
+            </div>
+            <p class="workspace-starter-section-copy">
+              {{ t('Start from a small document template instead of an empty file.') }}
+            </p>
+          </div>
+
+          <div class="workspace-starter-template-grid">
+            <UiButton
+              v-for="template in documentTemplates"
+              :key="template.id"
+              type="button"
+              variant="ghost"
+              size="md"
+              content-mode="raw"
+              class="workspace-starter-template-item"
+              @click="createFromTemplate(template)"
+            >
+              <span class="workspace-starter-template-head">
+                <span class="workspace-starter-template-label">{{ template.label }}</span>
+                <span class="workspace-starter-template-ext">{{ template.ext }}</span>
+              </span>
+              <span class="workspace-starter-template-copy">{{ template.description }}</span>
+            </UiButton>
+          </div>
+        </section>
       </div>
     </div>
   </div>
@@ -171,11 +202,12 @@ import { useI18n, formatRelativeFromNow } from '../../i18n'
 import UiButton from '../shared/ui/UiButton.vue'
 import {
   WORKSPACE_STARTER_DRAFT_EXTENSIONS,
-  countWorkspaceStarterFilesByExtension,
   getWorkspaceStarterDirectory,
   getWorkspaceStarterFileExtension,
   normalizeWorkspaceStarterPath,
 } from '../../domains/workspace/workspaceStarterMetrics'
+import { listWorkspaceDocumentTemplates } from '../../domains/workspace/workspaceTemplateRuntime'
+import { countWorkspaceFlatFilesByExtension } from '../../domains/files/workspaceSnapshotFlatFilesRuntime'
 
 const props = defineProps({
   paneId: { type: String, default: '' },
@@ -195,9 +227,12 @@ const workspacePathDisplay = computed(() =>
   normalizeWorkspaceStarterPath(workspace.path || workspaceName.value)
 )
 
-const fileCount = computed(() => filesStore.flatFiles.length)
+const fileCount = computed(() => filesStore.lastWorkspaceSnapshot?.flatFiles?.length || 0)
 const documentCount = computed(() =>
-  countWorkspaceStarterFilesByExtension(filesStore.flatFiles, WORKSPACE_STARTER_DRAFT_EXTENSIONS)
+  countWorkspaceFlatFilesByExtension(
+    filesStore.lastWorkspaceSnapshot,
+    WORKSPACE_STARTER_DRAFT_EXTENSIONS,
+  )
 )
 
 const recentFiles = computed(() => editorStore.recentFilesForEmptyState.slice(0, 5))
@@ -217,6 +252,8 @@ const createItems = computed(() => [
   { ext: '.tex', label: 'LaTeX' },
   { ext: '.typ', label: 'Typst' },
 ])
+
+const documentTemplates = computed(() => listWorkspaceDocumentTemplates(t))
 
 const focusItems = computed(() => [
   {
@@ -293,6 +330,36 @@ async function createNewFile(ext) {
   }
 
   const created = await filesStore.createFile(workspace.path, name)
+  if (created) {
+    editorStore.openFile(created)
+  }
+}
+
+async function createFromTemplate(template) {
+  if (!workspace.path || !template?.filename) return
+  if (props.paneId) editorStore.setActivePane(props.paneId)
+
+  let name = template.filename
+  let counter = 2
+  const dotIndex = template.filename.lastIndexOf('.')
+  const baseName = dotIndex > 0 ? template.filename.slice(0, dotIndex) : template.filename
+  const suffix = dotIndex > 0 ? template.filename.slice(dotIndex) : ''
+
+  while (true) {
+    const fullPath = `${workspace.path}/${name}`
+    try {
+      const exists = await invoke('path_exists', { path: fullPath })
+      if (!exists) break
+    } catch {
+      break
+    }
+    name = `${baseName}-${counter}${suffix}`
+    counter += 1
+  }
+
+  const created = await filesStore.createFile(workspace.path, name, {
+    initialContent: template.content || '',
+  })
   if (created) {
     editorStore.openFile(created)
   }
@@ -565,7 +632,8 @@ code.workspace-starter-context-value {
 
 .workspace-starter-ledger-row:hover,
 .workspace-starter-surface-row:hover,
-.workspace-starter-create-item:hover {
+.workspace-starter-create-item:hover,
+.workspace-starter-template-item:hover {
   border-color: var(--chrome-reveal);
   background: var(--subtle-fill);
 }
@@ -627,29 +695,62 @@ code.workspace-starter-context-value {
   padding: 8px 0 0;
 }
 
-.workspace-starter-create-grid {
+.workspace-starter-create-grid,
+.workspace-starter-template-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
 }
 
-.workspace-starter-create-item {
+.workspace-starter-create-item,
+.workspace-starter-template-item {
   min-height: 58px;
   padding: 12px 14px;
   border: 1px solid transparent;
   border-radius: 10px;
   background: transparent;
   display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
   gap: 12px;
   text-align: left;
 }
 
-.workspace-starter-create-ext {
+.workspace-starter-create-item {
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+.workspace-starter-template-item {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+
+.workspace-starter-template-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 12px;
+}
+
+.workspace-starter-template-label {
+  font-size: 0.92rem;
+  line-height: 1.35;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.workspace-starter-create-ext,
+.workspace-starter-template-ext {
   flex-shrink: 0;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
   text-transform: lowercase;
+}
+
+.workspace-starter-template-copy {
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--text-muted);
 }
 
 @container (max-width: 980px) {
@@ -663,7 +764,8 @@ code.workspace-starter-context-value {
   }
 
   .workspace-starter-overview-grid,
-  .workspace-starter-create-grid {
+  .workspace-starter-create-grid,
+  .workspace-starter-template-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -676,7 +778,8 @@ code.workspace-starter-context-value {
 
   .workspace-starter-context-grid,
   .workspace-starter-overview-grid,
-  .workspace-starter-create-grid {
+  .workspace-starter-create-grid,
+  .workspace-starter-template-grid {
     grid-template-columns: 1fr;
   }
 

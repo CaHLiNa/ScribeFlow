@@ -95,6 +95,7 @@ import { useFilesStore } from '../../stores/files'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useEditorStore } from '../../stores/editor'
 import { useI18n } from '../../i18n'
+import { listWorkspaceFlatFileEntries } from '../../domains/files/workspaceSnapshotFlatFilesRuntime'
 
 const props = defineProps({
   filter: { type: String, default: '' },
@@ -113,9 +114,13 @@ const FILE_RESULT_LIMIT = 40
 async function ensureFilesReady() {
   if (!workspace.path) return
   try {
-    await filesStore.ensureFlatFilesReady()
+    await filesStore.readWorkspaceSnapshot()
   } catch (error) {
-    console.warn('[chat-file-mention] ensureFlatFilesReady failed:', error)
+    try {
+      await filesStore.ensureFlatFilesReady()
+    } catch (fallbackError) {
+      console.warn('[chat-file-mention] workspace snapshot preload failed:', error || fallbackError)
+    }
   }
 }
 
@@ -147,10 +152,14 @@ function buildFileEntry(path = '') {
   }
 }
 
+const workspaceSnapshot = computed(() => (
+  filesStore.lastWorkspaceSnapshot || { flatFiles: filesStore.flatFiles }
+))
+
 const workspaceFiles = computed(() => {
   const map = new Map()
 
-  for (const entry of filesStore.flatFiles || []) {
+  for (const entry of listWorkspaceFlatFileEntries(workspaceSnapshot.value)) {
     if (!isWorkspaceFilePath(entry?.path) || entry?.is_dir) continue
     map.set(entry.path, entry)
   }

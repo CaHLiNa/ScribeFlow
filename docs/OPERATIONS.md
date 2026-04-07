@@ -11,7 +11,7 @@ This document describes the main user-facing operations that still exist in the 
 - Render Markdown preview
 - Compile LaTeX or Typst documents
 - Open generated document output externally
-- Inspect outline and document-run status
+- Inspect outline, document context, document export state, and document-run status
 - Prepare workspace files before snapshots or history capture
 
 ## Operational Rules

@@ -79,3 +79,38 @@ test('workspace snapshot project text runtime broadens to the indexed project te
     '/workspace/demo/draft.md',
   ])
 })
+
+test('workspace snapshot project text runtime prefers workspace snapshot flat files when available', async () => {
+  const runtime = createWorkspaceSnapshotProjectTextRuntime()
+
+  const filesStore = {
+    flatFiles: [],
+    readWorkspaceSnapshot: async () => ({
+      flatFiles: [
+        { path: '/workspace/demo/chapter2.md' },
+        { path: '/workspace/demo/appendix.tex' },
+        { path: '/workspace/demo/paper.pdf' },
+      ],
+    }),
+    ensureFlatFilesReady: async () => {
+      throw new Error('should not be called')
+    },
+    fileContents: {
+      '/workspace/demo/draft.md': '# Draft 3',
+    },
+  }
+
+  const result = await runtime.listWorkspaceProjectTextPaths({
+    workspacePath: '/workspace/demo',
+    editorStore: {
+      allOpenFiles: new Set(['/workspace/demo/draft.md']),
+    },
+    filesStore,
+  })
+
+  assert.deepEqual(result, [
+    '/workspace/demo/appendix.tex',
+    '/workspace/demo/chapter2.md',
+    '/workspace/demo/draft.md',
+  ])
+})

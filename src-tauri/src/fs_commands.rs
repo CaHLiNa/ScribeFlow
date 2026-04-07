@@ -11,11 +11,14 @@ use tauri::Emitter;
 use tokio::task;
 
 use crate::app_dirs;
+use crate::fs_io::read_text_file_with_limit;
+use crate::fs_tree::{
+    build_file_tree, build_visible_tree, build_workspace_tree_snapshot, collect_files_recursive,
+    read_dir_shallow_entries, FileEntry, WorkspaceTreeSnapshot,
+};
 use crate::process_utils::background_command;
 use crate::security;
 use crate::security::WorkspaceScopeState;
-
-const FILE_TOO_LARGE_ERROR_CODE: &str = "FILE_TOO_LARGE";
 pub const ALLOWED_HOSTS: &[&str] = &[
     "api.anthropic.com",
     "api.openai.com",
@@ -52,15 +55,6 @@ pub fn validate_url_host(raw_url: &str) -> Result<(), String> {
     }
 }
 
-#[derive(Serialize, Clone)]
-pub struct FileEntry {
-    pub name: String,
-    pub path: String,
-    pub is_dir: bool,
-    pub children: Option<Vec<FileEntry>>,
-    pub modified: Option<u64>,
-}
-
 pub struct WatcherState {
     pub watcher: Mutex<Option<RecommendedWatcher>>,
 }
@@ -73,153 +67,6 @@ impl Default for WatcherState {
     }
 }
 
-fn should_skip_entry(name: &str, is_dir: bool, is_symlink: bool) -> bool {
-    if is_symlink {
-        return true;
-    }
-    if name.starts_with('.') && is_dir {
-        return true;
-    }
-    matches!(name, "node_modules" | "target" | ".DS_Store")
-}
-
-fn sort_entries(entries: &mut [FileEntry]) {
-    entries.sort_by(|a, b| {
-        if a.is_dir == b.is_dir {
-            a.name.to_lowercase().cmp(&b.name.to_lowercase())
-        } else if a.is_dir {
-            std::cmp::Ordering::Less
-        } else {
-            std::cmp::Ordering::Greater
-        }
-    });
-}
-
-fn file_modified_timestamp(metadata: &fs::Metadata, is_dir: bool) -> Option<u64> {
-    if is_dir {
-        return None;
-    }
-
-    metadata
-        .modified()
-        .ok()
-        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-        .map(|d| d.as_secs())
-}
-
-fn read_dir_shallow_entries(dir: &Path) -> Result<Vec<FileEntry>, String> {
-    let mut entries = Vec::new();
-    let read_dir = fs::read_dir(dir).map_err(|e| e.to_string())?;
-
-    for entry in read_dir {
-        let entry = entry.map_err(|e| e.to_string())?;
-        let path = entry.path();
-        let name = entry.file_name().to_string_lossy().to_string();
-        let metadata = fs::symlink_metadata(&path).map_err(|e| e.to_string())?;
-        let file_type = metadata.file_type();
-        let is_symlink = file_type.is_symlink();
-        let is_dir = file_type.is_dir();
-
-        if should_skip_entry(&name, is_dir, is_symlink) {
-            continue;
-        }
-
-        entries.push(FileEntry {
-            name,
-            path: path.to_string_lossy().to_string(),
-            is_dir,
-            children: None,
-            modified: file_modified_timestamp(&metadata, is_dir),
-        });
-    }
-
-    sort_entries(&mut entries);
-    Ok(entries)
-}
-
-fn build_file_tree(dir: &Path) -> Result<Vec<FileEntry>, String> {
-    let mut entries = Vec::new();
-    let read_dir = fs::read_dir(dir).map_err(|e| e.to_string())?;
-
-    for entry in read_dir {
-        let entry = entry.map_err(|e| e.to_string())?;
-        let path = entry.path();
-        let name = entry.file_name().to_string_lossy().to_string();
-        let metadata = fs::symlink_metadata(&path).map_err(|e| e.to_string())?;
-        let file_type = metadata.file_type();
-        let is_symlink = file_type.is_symlink();
-        let is_dir = file_type.is_dir();
-
-        if should_skip_entry(&name, is_dir, is_symlink) {
-            continue;
-        }
-
-        let children = if is_dir {
-            Some(build_file_tree(&path)?)
-        } else {
-            None
-        };
-
-        entries.push(FileEntry {
-            name,
-            path: path.to_string_lossy().to_string(),
-            is_dir,
-            children,
-            modified: file_modified_timestamp(&metadata, is_dir),
-        });
-    }
-
-    sort_entries(&mut entries);
-    Ok(entries)
-}
-
-fn collect_files_recursive(dir: &Path, files: &mut Vec<FileEntry>) -> Result<(), String> {
-    let read_dir = fs::read_dir(dir).map_err(|e| e.to_string())?;
-
-    for entry in read_dir {
-        let entry = entry.map_err(|e| e.to_string())?;
-        let path = entry.path();
-        let name = entry.file_name().to_string_lossy().to_string();
-        let metadata = fs::symlink_metadata(&path).map_err(|e| e.to_string())?;
-        let file_type = metadata.file_type();
-        let is_symlink = file_type.is_symlink();
-        let is_dir = file_type.is_dir();
-
-        if should_skip_entry(&name, is_dir, is_symlink) {
-            continue;
-        }
-
-        if is_dir {
-            collect_files_recursive(&path, files)?;
-            continue;
-        }
-
-        files.push(FileEntry {
-            name,
-            path: path.to_string_lossy().to_string(),
-            is_dir: false,
-            children: None,
-            modified: file_modified_timestamp(&metadata, false),
-        });
-    }
-
-    Ok(())
-}
-
-fn format_file_too_large_error(max_bytes: u64, actual_bytes: u64) -> String {
-    format!("{FILE_TOO_LARGE_ERROR_CODE}:{max_bytes}:{actual_bytes}")
-}
-
-fn read_text_file_with_limit(path: &Path, max_bytes: Option<u64>) -> Result<String, String> {
-    if let Some(limit) = max_bytes {
-        let metadata = fs::metadata(path).map_err(|e| e.to_string())?;
-        if metadata.len() > limit {
-            return Err(format_file_too_large_error(limit, metadata.len()));
-        }
-    }
-
-    fs::read_to_string(path).map_err(|e| e.to_string())
-}
 
 async fn run_blocking<F, T>(operation: F) -> Result<T, String>
 where
@@ -270,6 +117,27 @@ pub async fn list_files_recursive(path: String) -> Result<Vec<FileEntry>, String
         Ok(files)
     })
     .await
+}
+
+#[tauri::command]
+pub async fn read_visible_tree(
+    path: String,
+    loaded_dirs: Option<Vec<String>>,
+) -> Result<Vec<FileEntry>, String> {
+    let path_for_read = path.clone();
+    let loaded_set: HashSet<String> = loaded_dirs.unwrap_or_default().into_iter().collect();
+    run_blocking(move || build_visible_tree(Path::new(&path_for_read), &loaded_set)).await
+}
+
+#[tauri::command]
+pub async fn read_workspace_tree_snapshot(
+    path: String,
+    loaded_dirs: Option<Vec<String>>,
+) -> Result<WorkspaceTreeSnapshot, String> {
+    let path_for_read = path.clone();
+    let loaded_set: HashSet<String> = loaded_dirs.unwrap_or_default().into_iter().collect();
+    run_blocking(move || build_workspace_tree_snapshot(Path::new(&path_for_read), &loaded_set))
+        .await
 }
 
 #[tauri::command]
@@ -441,6 +309,7 @@ pub async fn copy_dir(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::fs_io::format_file_too_large_error;
 
     fn temp_file_path(label: &str) -> std::path::PathBuf {
         std::env::temp_dir().join(format!("altals-fs-{label}-{}", uuid::Uuid::new_v4()))

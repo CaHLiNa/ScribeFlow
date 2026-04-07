@@ -14,7 +14,7 @@ Altals is now intentionally narrowed to a document-first desktop workspace cente
 
 - `src/domains/workspace/*`: workspace bootstrap, automation, settings, and GitHub runtimes
 - `src/domains/editor/*`: pane-tree and editor-facing runtime helpers
-- `src/domains/document/*`: document routing, preview, and build/runtime decisions for Markdown, LaTeX, and Typst
+- `src/domains/document/*`: document routing, adapter resolution, preview, and build/runtime decisions for Markdown, LaTeX, and Typst
 - `src/domains/files/*`: project file creation, mutation, hydration, and watch flows
 - `src/domains/changes/*`: local save points, history availability, preview, and restore flows
 - `src/services/documentWorkflow/*`: build and preview operations that are being pulled toward clearer domain seams

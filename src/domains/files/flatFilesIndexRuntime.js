@@ -3,6 +3,8 @@ export function createFlatFilesIndexRuntime({
   getFlatFilesReady,
   getFlatFilesCache,
   setFlatFiles,
+  readWorkspaceSnapshot,
+  applyWorkspaceSnapshot,
   markFlatFilesNotReady,
   listFilesRecursive,
   createTimer = (callback, delayMs) => globalThis.setTimeout(callback, delayMs),
@@ -46,12 +48,23 @@ export function createFlatFilesIndexRuntime({
       flatFilesTimer = createTimer(async () => {
         flatFilesTimer = null
         try {
-          const flatFiles = await listFilesRecursive?.(workspacePath)
+          let flatFiles = []
+          if (readWorkspaceSnapshot && applyWorkspaceSnapshot) {
+            const snapshot = await readWorkspaceSnapshot(workspacePath, [])
+            flatFiles = snapshot?.flatFiles ?? []
+            if (flatFilesGeneration === generation && getWorkspacePath?.() === workspacePath) {
+              applyWorkspaceSnapshot(snapshot, workspacePath)
+            }
+          } else {
+            flatFiles = await listFilesRecursive?.(workspacePath)
+          }
           if (flatFilesGeneration !== generation || getWorkspacePath?.() !== workspacePath) {
             resolve([])
             return
           }
-          setFlatFiles?.(flatFiles, workspacePath)
+          if (!(readWorkspaceSnapshot && applyWorkspaceSnapshot)) {
+            setFlatFiles?.(flatFiles, workspacePath)
+          }
           resolve(flatFiles)
         } catch (error) {
           if (flatFilesGeneration === generation) {

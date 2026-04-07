@@ -290,18 +290,18 @@ async function handleDoubleClick(e) {
 .md-preview-container {
   height: 100%;
   overflow-y: auto;
-  padding: 28px 24px 48px;
-  background: var(--bg-primary);
-  color: var(--fg-primary);
+  padding: 24px 22px 40px;
+  background: var(--shell-preview-surface);
+  color: var(--workspace-ink);
 }
 
 .md-preview-content {
   max-width: 860px;
   margin: 0 auto;
-  line-height: 1.82;
-  font-family: 'Geist', var(--font-sans);
+  line-height: 1.74;
+  font-family: var(--font-prose);
   font-size: calc(var(--editor-font-size, 14px) + 0.5px);
-  color: var(--fg-primary);
+  color: var(--workspace-ink);
 }
 
 :deep(.md-preview-source-anchor-active) {
@@ -321,10 +321,10 @@ async function handleDoubleClick(e) {
   max-width: 860px;
   margin: 24px auto 0;
   padding: 16px;
-  border: 1px solid var(--border);
+  border: 1px solid color-mix(in srgb, var(--shell-border) 84%, transparent);
   border-radius: 10px;
-  background: var(--bg-secondary);
-  color: var(--fg-muted);
+  background: color-mix(in srgb, var(--workspace-paper) 92%, transparent);
+  color: var(--text-secondary);
 }
 
 .md-preview-error-detail {
@@ -334,7 +334,7 @@ async function handleDoubleClick(e) {
 
 @media (max-width: 900px) {
   .md-preview-container {
-    padding: 20px 18px 36px;
+    padding: 20px 16px 32px;
   }
 }
 </style>
@@ -355,19 +355,19 @@ async function handleDoubleClick(e) {
 .md-preview-content h4,
 .md-preview-content h5,
 .md-preview-content h6 {
-  color: var(--hl-heading, var(--fg-primary));
-  font-family: var(--font-sans, system-ui, sans-serif);
+  color: var(--hl-heading, var(--workspace-ink));
+  font-family: 'Geist', var(--font-sans, system-ui, sans-serif);
   margin: 1.8em 0 0.55em;
-  line-height: 1.22;
+  line-height: 1.2;
   letter-spacing: -0.02em;
 }
-.md-preview-content h1 { font-size: 2.18em; border-bottom: 1px solid color-mix(in srgb, var(--border) 75%, transparent); padding-bottom: 0.38em; }
-.md-preview-content h2 { font-size: 1.7em; border-bottom: 1px solid color-mix(in srgb, var(--border) 65%, transparent); padding-bottom: 0.28em; }
-.md-preview-content h3 { font-size: 1.34em; }
-.md-preview-content h4 { font-size: 1.14em; }
+.md-preview-content h1 { font-size: 2.05em; border-bottom: 1px solid color-mix(in srgb, var(--shell-border) 74%, transparent); padding-bottom: 0.36em; }
+.md-preview-content h2 { font-size: 1.56em; border-bottom: 1px solid color-mix(in srgb, var(--shell-border) 68%, transparent); padding-bottom: 0.26em; }
+.md-preview-content h3 { font-size: 1.28em; }
+.md-preview-content h4 { font-size: 1.1em; }
 .md-preview-content h5,
 .md-preview-content h6 {
-  color: var(--fg-secondary);
+  color: var(--text-secondary);
 }
 
 .md-preview-content p {
@@ -377,7 +377,8 @@ async function handleDoubleClick(e) {
 .md-preview-content a {
   color: var(--accent);
   text-decoration: underline;
-  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
 }
 .md-preview-content a:hover {
   opacity: 0.8;
@@ -385,7 +386,7 @@ async function handleDoubleClick(e) {
 
 .md-preview-content strong {
   font-weight: 700;
-  color: var(--fg-primary);
+  color: var(--workspace-ink);
 }
 
 .md-preview-content em {
@@ -401,36 +402,35 @@ async function handleDoubleClick(e) {
   font-family: var(--font-mono, 'SF Mono', 'Fira Code', monospace);
   font-size: 0.9em;
   padding: 0.18em 0.42em;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--bg-secondary) 82%, transparent);
-  color: var(--hl-string, #e9967a);
-  border: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--workspace-paper-muted) 84%, transparent);
+  color: var(--hl-code, var(--accent));
+  border: 1px solid color-mix(in srgb, var(--shell-border) 72%, transparent);
 }
 
 .md-preview-content pre {
   margin: 1.15em 0;
   padding: 14px 16px;
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--bg-secondary) 90%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--workspace-paper) 92%, transparent);
   overflow-x: auto;
-  border: 1px solid var(--border);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, white 4%, transparent);
+  border: 1px solid color-mix(in srgb, var(--shell-border) 80%, transparent);
 }
 .md-preview-content pre code {
   padding: 0;
   background: none;
   font-size: 0.85em;
-  color: var(--fg-primary);
+  color: var(--workspace-ink);
   border: none;
 }
 
 .md-preview-content blockquote {
   margin: 1.1em 0;
   padding: 0.7em 1em 0.7em 1.1em;
-  border-left: 3px solid var(--accent);
-  background: color-mix(in srgb, var(--bg-secondary) 84%, transparent);
-  border-radius: 0 10px 10px 0;
-  color: var(--fg-secondary, var(--fg-muted));
+  border-left: 3px solid color-mix(in srgb, var(--accent) 82%, transparent);
+  background: color-mix(in srgb, var(--workspace-paper) 90%, transparent);
+  border-radius: 0 8px 8px 0;
+  color: var(--text-secondary);
 }
 .md-preview-content blockquote p {
   margin: 0.4em 0;
@@ -466,7 +466,7 @@ async function handleDoubleClick(e) {
 
 .md-preview-content hr {
   border: none;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid color-mix(in srgb, var(--shell-border) 82%, transparent);
   margin: 2em 0;
 }
 
@@ -475,28 +475,28 @@ async function handleDoubleClick(e) {
   width: 100%;
   margin: 1.15em 0;
   overflow: hidden;
-  border-radius: 12px;
+  border-radius: 10px;
   border-style: hidden;
-  box-shadow: 0 0 0 1px var(--border);
-  background: color-mix(in srgb, var(--bg-secondary) 35%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--shell-border) 78%, transparent);
+  background: color-mix(in srgb, var(--workspace-paper) 94%, transparent);
 }
 .md-preview-content th,
 .md-preview-content td {
-  border: 1px solid var(--border);
-  padding: 9px 12px;
+  border: 1px solid color-mix(in srgb, var(--shell-border) 72%, transparent);
+  padding: 11px 14px;
   text-align: left;
   vertical-align: top;
 }
 .md-preview-content th {
-  background: color-mix(in srgb, var(--bg-secondary) 82%, transparent);
+  background: color-mix(in srgb, var(--workspace-paper-muted) 88%, transparent);
   font-weight: 600;
 }
 
 .md-preview-content img {
   max-width: 100%;
-  border-radius: 12px;
+  border-radius: 10px;
   margin: 1.2em 0;
-  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  border: 1px solid color-mix(in srgb, var(--shell-border) 74%, transparent);
 }
 
 /* Wiki links */
@@ -524,9 +524,9 @@ async function handleDoubleClick(e) {
 .md-preview-content .footnotes {
   margin-top: 2.6em;
   padding-top: 1.1em;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid color-mix(in srgb, var(--shell-border) 72%, transparent);
   font-size: 0.92em;
-  color: var(--fg-secondary);
+  color: var(--text-secondary);
 }
 
 .md-preview-content .footnote-ref,
@@ -544,7 +544,7 @@ async function handleDoubleClick(e) {
 }
 
 /* Highlight.js theme mapping — uses existing editor CSS vars */
-.md-preview-content .hljs { color: var(--fg-primary); }
+.md-preview-content .hljs { color: var(--workspace-ink); }
 .md-preview-content .hljs-keyword { color: var(--hl-keyword, #c678dd); }
 .md-preview-content .hljs-string { color: var(--hl-string, #e9967a); }
 .md-preview-content .hljs-number { color: var(--hl-number, #d19a66); }

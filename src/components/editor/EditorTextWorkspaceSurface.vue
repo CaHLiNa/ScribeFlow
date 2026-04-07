@@ -82,5 +82,6 @@ defineExpose({
   height: 100%;
   min-width: 0;
   min-height: 0;
+  background: var(--shell-editor-surface);
 }
 </style>

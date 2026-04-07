@@ -1,4 +1,5 @@
 import {
+  collectLoadedDirectoryPaths,
   mergePreservingLoadedChildren,
   patchTreeEntry,
 } from './fileTreeRefreshRuntime.js'
@@ -29,10 +30,25 @@ function listAncestorDirPaths(workspacePath, path) {
   return ancestors
 }
 
+function buildLoadedDirPaths(workspacePath, currentTree = [], extraDirs = []) {
+  const loadedDirs = collectLoadedDirectoryPaths(currentTree)
+  const nextLoadedDirs = new Set(loadedDirs)
+
+  for (const dirPath of extraDirs) {
+    if (!dirPath || dirPath === workspacePath) continue
+    nextLoadedDirs.add(dirPath)
+  }
+
+  return [...nextLoadedDirs].sort((a, b) => a.length - b.length)
+}
+
 export function createFileTreeHydrationRuntime({
   getWorkspacePath,
   getCurrentTree,
   readDirShallow,
+  readVisibleTree,
+  readWorkspaceSnapshot,
+  applyWorkspaceSnapshot,
   applyTree,
   refreshVisibleTree,
   setLastLoadError,
@@ -54,10 +70,18 @@ export function createFileTreeHydrationRuntime({
     } = options
 
     try {
-      const nextTree = mergePreservingLoadedChildren(
-        await readDirShallow?.(workspacePath),
-        getCurrentTree?.() ?? [],
-      )
+      if (readWorkspaceSnapshot && applyWorkspaceSnapshot) {
+        const snapshot = await readWorkspaceSnapshot(workspacePath, [])
+        const nextTree = mergePreservingLoadedChildren(snapshot?.tree || [], getCurrentTree?.() ?? [])
+        applyWorkspaceSnapshot({ ...(snapshot || {}), tree: nextTree }, workspacePath)
+        setLastLoadError?.(null)
+        return nextTree
+      }
+
+      const nextEntries = readVisibleTree
+        ? await readVisibleTree(workspacePath, [])
+        : await readDirShallow?.(workspacePath)
+      const nextTree = mergePreservingLoadedChildren(nextEntries, getCurrentTree?.() ?? [])
       applyTree?.(nextTree, workspacePath)
       setLastLoadError?.(null)
       return nextTree
@@ -83,6 +107,31 @@ export function createFileTreeHydrationRuntime({
     }
 
     const loadPromise = (async () => {
+      const workspacePath = getWorkspacePath?.()
+      if (readWorkspaceSnapshot && applyWorkspaceSnapshot && workspacePath) {
+        const loadedDirs = collectLoadedDirectoryPaths(getCurrentTree?.() ?? [])
+        if (!loadedDirs.includes(path)) {
+          loadedDirs.push(path)
+        }
+        loadedDirs.sort((a, b) => a.length - b.length)
+
+        const snapshot = await readWorkspaceSnapshot(workspacePath, loadedDirs)
+        applyWorkspaceSnapshot(snapshot, workspacePath, { preserveFlatFiles: true })
+        return findTreeEntry(snapshot?.tree || [], path)?.children || []
+      }
+
+      if (readVisibleTree && workspacePath) {
+        const loadedDirs = collectLoadedDirectoryPaths(getCurrentTree?.() ?? [])
+        if (!loadedDirs.includes(path)) {
+          loadedDirs.push(path)
+        }
+        loadedDirs.sort((a, b) => a.length - b.length)
+
+        const nextTree = await readVisibleTree(workspacePath, loadedDirs)
+        applyTree?.(nextTree, workspacePath, { preserveFlatFiles: true })
+        return findTreeEntry(nextTree, path)?.children || []
+      }
+
       const children = await readDirShallow?.(path)
       const nextTree = patchTreeEntry(getCurrentTree?.() ?? [], path, (current) => ({
         ...current,
@@ -102,7 +151,48 @@ export function createFileTreeHydrationRuntime({
 
   async function revealPath(path) {
     const workspacePath = getWorkspacePath?.()
-    for (const dirPath of listAncestorDirPaths(workspacePath, path)) {
+    const ancestorDirPaths = listAncestorDirPaths(workspacePath, path)
+
+    if (readVisibleTree && workspacePath && ancestorDirPaths.length > 0) {
+      const nextTree = await readVisibleTree(
+        workspacePath,
+        buildLoadedDirPaths(workspacePath, getCurrentTree?.() ?? [], ancestorDirPaths),
+      )
+      applyTree?.(nextTree, workspacePath, { preserveFlatFiles: true })
+      for (const dirPath of ancestorDirPaths) {
+        addExpandedDir?.(dirPath)
+      }
+      cacheSnapshot?.()
+      return
+    }
+
+    if (readWorkspaceSnapshot && applyWorkspaceSnapshot && workspacePath && ancestorDirPaths.length > 0) {
+      const snapshot = await readWorkspaceSnapshot(
+        workspacePath,
+        buildLoadedDirPaths(workspacePath, getCurrentTree?.() ?? [], ancestorDirPaths),
+      )
+      applyWorkspaceSnapshot(snapshot, workspacePath, { preserveFlatFiles: true })
+      for (const dirPath of ancestorDirPaths) {
+        addExpandedDir?.(dirPath)
+      }
+      cacheSnapshot?.()
+      return
+    }
+
+    if (readVisibleTree && workspacePath && ancestorDirPaths.length > 0) {
+      const nextTree = await readVisibleTree(
+        workspacePath,
+        buildLoadedDirPaths(workspacePath, getCurrentTree?.() ?? [], ancestorDirPaths),
+      )
+      applyTree?.(nextTree, workspacePath, { preserveFlatFiles: true })
+      for (const dirPath of ancestorDirPaths) {
+        addExpandedDir?.(dirPath)
+      }
+      cacheSnapshot?.()
+      return
+    }
+
+    for (const dirPath of ancestorDirPaths) {
       await ensureDirLoaded(dirPath)
       addExpandedDir?.(dirPath)
     }
@@ -123,9 +213,50 @@ export function createFileTreeHydrationRuntime({
 
   async function syncTreeAfterMutation(options = {}) {
     const { expandPath = null } = options
+    const workspacePath = getWorkspacePath?.()
+
+    if (readWorkspaceSnapshot && applyWorkspaceSnapshot && workspacePath) {
+      const extraDirs =
+        expandPath && expandPath !== workspacePath
+          ? [expandPath]
+          : []
+      const snapshot = await readWorkspaceSnapshot(
+        workspacePath,
+        buildLoadedDirPaths(workspacePath, getCurrentTree?.() ?? [], extraDirs),
+      )
+      applyWorkspaceSnapshot(snapshot, workspacePath, { preserveFlatFiles: true })
+
+      if (expandPath && expandPath !== workspacePath) {
+        addExpandedDir?.(expandPath)
+      }
+
+      invalidateFlatFiles?.()
+      cacheSnapshot?.()
+      return
+    }
+
+    if (readVisibleTree && workspacePath) {
+      const extraDirs =
+        expandPath && expandPath !== workspacePath
+          ? [expandPath]
+          : []
+      const nextTree = await readVisibleTree(
+        workspacePath,
+        buildLoadedDirPaths(workspacePath, getCurrentTree?.() ?? [], extraDirs),
+      )
+      applyTree?.(nextTree, workspacePath, { preserveFlatFiles: true })
+
+      if (expandPath && expandPath !== workspacePath) {
+        addExpandedDir?.(expandPath)
+      }
+
+      invalidateFlatFiles?.()
+      cacheSnapshot?.()
+      return
+    }
+
     await refreshVisibleTree?.({ suppressErrors: true, reason: 'mutation' })
 
-    const workspacePath = getWorkspacePath?.()
     if (expandPath && expandPath !== workspacePath) {
       await ensureDirLoaded(expandPath, { force: true })
       addExpandedDir?.(expandPath)

@@ -13,9 +13,9 @@ export function createFileCreationRuntime({
   onCreateFolderError,
   onCopyExternalFileError,
 } = {}) {
-  async function createFile(dirPath, name) {
+  async function createFile(dirPath, name, options = {}) {
     try {
-      const result = await createWorkspaceFile?.(dirPath, name)
+      const result = await createWorkspaceFile?.(dirPath, name, options)
       if (!result?.ok) {
         showCreateExistsError?.(result.path, name)
         return null

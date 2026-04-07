@@ -1,5 +1,5 @@
 <template>
-  <div class="file-tree-shell flex flex-col h-full">
+  <div class="file-tree-shell flex flex-col flex-1 min-h-0 h-full">
     <!-- Header -->
     <div
       v-if="!props.embedded"
@@ -63,111 +63,113 @@
     </div>
 
     <template v-if="!collapsed">
-      <!-- Search input -->
-      <div class="px-2 py-0.5 shrink-0">
-        <UiInput
-          ref="filterInputEl"
-          v-model="filterQuery"
-          size="sm"
-          class="file-tree-search-input"
-          :placeholder="t('Filter files...')"
-          autocomplete="off"
-          autocorrect="off"
-          autocapitalize="off"
-          spellcheck="false"
-          @keydown="handleFilterKeydown"
-        >
-          <template #prefix>
-            <IconSearch :size="12" :stroke-width="1.5" class="file-tree-search-icon" />
-          </template>
-        </UiInput>
-      </div>
-
-      <!-- Tree -->
-      <div
-        ref="treeContainer"
-        class="flex-1 overflow-y-auto overflow-x-hidden py-0.5 outline-none"
-        tabindex="0"
-        @contextmenu.prevent="showContextMenuOnEmpty"
-        @keydown="handleTreeKeydown"
-        @mouseup="onTreeMouseUp"
-        @scroll="onTreeScroll"
-      >
-        <!-- Inline input for new file at root level -->
-        <div
-          v-if="renaming.active && renaming.isNew && renaming.parentDir === workspace.path"
-          class="file-tree-root-rename-row flex items-center py-0.5 px-1"
-        >
+      <div class="file-tree-body">
+        <!-- Search input -->
+        <div class="px-2 py-0.5 shrink-0">
           <UiInput
-            ref="renameInput"
-            v-model="renaming.value"
+            ref="filterInputEl"
+            v-model="filterQuery"
             size="sm"
-            shell-class="file-tree-rename-input"
+            class="file-tree-search-input"
+            :placeholder="t('Filter files...')"
             autocomplete="off"
             autocorrect="off"
             autocapitalize="off"
             spellcheck="false"
-            @keydown.enter.stop="finishRename"
-            @keydown.escape.stop="cancelRename"
-            @blur="finishRename"
-          />
+            @keydown="handleFilterKeydown"
+          >
+            <template #prefix>
+              <IconSearch :size="12" :stroke-width="1.5" class="file-tree-search-icon" />
+            </template>
+          </UiInput>
         </div>
 
+        <!-- Tree -->
         <div
-          v-if="visibleRows.length > 0"
-          class="relative"
-          :style="{ height: totalTreeHeight + 'px' }"
+          ref="treeContainer"
+          class="file-tree-scroll outline-none"
+          tabindex="0"
+          @contextmenu.prevent="showContextMenuOnEmpty"
+          @keydown="handleTreeKeydown"
+          @mouseup="onTreeMouseUp"
+          @scroll="onTreeScroll"
         >
-          <div :style="{ transform: `translateY(${virtualOffset}px)` }">
-            <FileTreeItem
-              v-for="row in virtualRows"
-              :key="row.entry.path"
-              :entry="row.entry"
-              :depth="row.depth"
-              :renamingPath="renaming.active && !renaming.isNew ? renaming.originalPath : null"
-              :newItemParent="renaming.active && renaming.isNew ? renaming.parentDir : null"
-              :newItemValue="renaming.value"
-              :newItemIsDir="renaming.isDir"
-              :selectedPaths="selectedPaths"
-              :dragOverDir="dragOverDir"
-              :filterQuery="filterActive ? filterQuery : ''"
-              :forceExpand="filterActive && !!filterQuery"
-              :filterHighlightPath="filterHighlightPath"
-              :suppressChildren="true"
-              @open-file="openFile"
-              @select-file="onSelectFile"
-              @context-menu="showContextMenu"
-              @start-rename-input="onStartRenameInput"
-              @rename-input-change="(v) => (renaming.value = v)"
-              @rename-input-submit="finishRename"
-              @rename-input-cancel="cancelRename"
-              @drag-start="onDragStart"
-              @drag-over-dir="(dir) => (dragOverDir = dir)"
-              @drag-leave-dir="onDragLeaveDir"
-              @drop-on-dir="onDropOnDir"
+          <!-- Inline input for new file at root level -->
+          <div
+            v-if="renaming.active && renaming.isNew && renaming.parentDir === workspace.path"
+            class="file-tree-root-rename-row flex items-center py-0.5 px-1"
+          >
+            <UiInput
+              ref="renameInput"
+              v-model="renaming.value"
+              size="sm"
+              shell-class="file-tree-rename-input"
+              autocomplete="off"
+              autocorrect="off"
+              autocapitalize="off"
+              spellcheck="false"
+              @keydown.enter.stop="finishRename"
+              @keydown.escape.stop="cancelRename"
+              @blur="finishRename"
             />
           </div>
-        </div>
 
-        <!-- External drop zone indicator (root level) -->
-        <div
-          v-if="externalDragOver"
-          class="file-tree-drop-indicator mx-2 my-1 py-2 rounded border-2 border-dashed text-center ui-sidebar-meta"
-        >
-          {{ t('Drop files here') }}
-        </div>
+          <div
+            v-if="visibleRows.length > 0"
+            class="relative"
+            :style="{ height: totalTreeHeight + 'px' }"
+          >
+            <div :style="{ transform: `translateY(${virtualOffset}px)` }">
+              <FileTreeItem
+                v-for="row in virtualRows"
+                :key="row.entry.path"
+                :entry="row.entry"
+                :depth="row.depth"
+                :renamingPath="renaming.active && !renaming.isNew ? renaming.originalPath : null"
+                :newItemParent="renaming.active && renaming.isNew ? renaming.parentDir : null"
+                :newItemValue="renaming.value"
+                :newItemIsDir="renaming.isDir"
+                :selectedPaths="selectedPaths"
+                :dragOverDir="dragOverDir"
+                :filterQuery="filterActive ? filterQuery : ''"
+                :forceExpand="filterActive && !!filterQuery"
+                :filterHighlightPath="filterHighlightPath"
+                :suppressChildren="true"
+                @open-file="openFile"
+                @select-file="onSelectFile"
+                @context-menu="showContextMenu"
+                @start-rename-input="onStartRenameInput"
+                @rename-input-change="(v) => (renaming.value = v)"
+                @rename-input-submit="finishRename"
+                @rename-input-cancel="cancelRename"
+                @drag-start="onDragStart"
+                @drag-over-dir="(dir) => (dragOverDir = dir)"
+                @drag-leave-dir="onDragLeaveDir"
+                @drop-on-dir="onDropOnDir"
+              />
+            </div>
+          </div>
 
-        <div
-          v-if="filterActive && filterQuery && filterMatches.length === 0"
-          class="file-tree-empty-state px-3 py-4 ui-sidebar-empty"
-        >
-          {{ t('No matches') }}
-        </div>
-        <div
-          v-else-if="visibleRows.length === 0 && !renaming.active"
-          class="file-tree-empty-state px-3 py-4 ui-sidebar-empty"
-        >
-          {{ t('No files yet') }}
+          <!-- External drop zone indicator (root level) -->
+          <div
+            v-if="externalDragOver"
+            class="file-tree-drop-indicator mx-2 my-1 py-2 rounded border-2 border-dashed text-center ui-sidebar-meta"
+          >
+            {{ t('Drop files here') }}
+          </div>
+
+          <div
+            v-if="filterActive && filterQuery && filterMatches.length === 0"
+            class="file-tree-empty-state px-3 py-4 ui-sidebar-empty"
+          >
+            {{ t('No matches') }}
+          </div>
+          <div
+            v-else-if="visibleRows.length === 0 && !renaming.active"
+            class="file-tree-empty-state px-3 py-4 ui-sidebar-empty"
+          >
+            {{ t('No files yet') }}
+          </div>
         </div>
       </div>
 
@@ -285,6 +287,7 @@ import { ref, reactive, computed, nextTick } from 'vue'
 import { useFilesStore } from '../../stores/files'
 import { useEditorStore } from '../../stores/editor'
 import { useWorkspaceStore } from '../../stores/workspace'
+import { listWorkspaceFlatFileEntries } from '../../domains/files/workspaceSnapshotFlatFilesRuntime'
 import FileTreeItem from './FileTreeItem.vue'
 import { isMod, modKey } from '../../platform'
 import ContextMenu from './ContextMenu.vue'
@@ -329,6 +332,10 @@ const workspaceName = computed(() => {
   return workspace.path.split('/').pop()
 })
 const recentWorkspaces = computed(() => workspace.getRecentWorkspaces().slice(0, 5))
+const workspaceSnapshot = computed(() => (
+  files.lastWorkspaceSnapshot || { flatFiles: files.flatFiles }
+))
+const workspaceFlatFiles = computed(() => listWorkspaceFlatFileEntries(workspaceSnapshot.value))
 
 const treeContainer = ref(null)
 const renameInput = ref(null)
@@ -505,7 +512,7 @@ async function createTypedFile(dir, ext) {
   const baseName = t('Untitled')
   let name = `${baseName}${ext}`
   let i = 2
-  while (files.flatFiles.some((f) => f.name === name) || (await pathExists(`${dir}/${name}`))) {
+  while (workspaceFlatFiles.value.some((f) => f.name === name) || (await pathExists(`${dir}/${name}`))) {
     name = `${baseName} ${i}${ext}`
     i++
   }
@@ -713,7 +720,26 @@ defineExpose({
 
 <style scoped>
 .file-tree-shell {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
   background: transparent;
+}
+
+.file-tree-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.file-tree-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-block: 2px;
 }
 
 .file-tree-header {

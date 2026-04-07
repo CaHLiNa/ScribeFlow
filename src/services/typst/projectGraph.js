@@ -1,5 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { extractTypstLabelEntries, extractTypstReferenceEntries } from '../../editor/typstDocument.js'
+import { readWorkspaceFlatFiles } from '../workspaceSnapshotIO.js'
+import { listWorkspaceFlatFilePaths } from '../../domains/files/workspaceSnapshotFlatFilesRuntime.js'
 import {
   basenamePath,
   buildContentSignature,
@@ -113,20 +115,33 @@ async function listWorkspaceFiles(options = {}) {
   const filesStore = options.filesStore
 
   if (Array.isArray(options.flatFiles) && options.flatFiles.length > 0) {
-    return options.flatFiles.map(entry => normalizeFsPath(entry.path || entry))
+    return options.flatFiles.map(entry => normalizeFsPath(entry.path || entry)).filter(Boolean)
+  }
+
+  if (filesStore?.readWorkspaceSnapshot) {
+    const snapshot = await filesStore.readWorkspaceSnapshot().catch(() => null)
+    const snapshotPaths = listWorkspaceFlatFilePaths(snapshot)
+      .map(entry => normalizeFsPath(entry))
+      .filter(Boolean)
+    if (snapshotPaths.length > 0) {
+      return snapshotPaths
+    }
   }
 
   if (filesStore?.ensureFlatFilesReady) {
     const entries = await filesStore.ensureFlatFilesReady().catch(() => [])
-    if (Array.isArray(entries) && entries.length > 0) {
-      return entries.map(entry => normalizeFsPath(entry.path || entry))
+    const normalizedEntries = Array.isArray(entries)
+      ? entries.map(entry => normalizeFsPath(entry.path || entry)).filter(Boolean)
+      : []
+    if (normalizedEntries.length > 0) {
+      return normalizedEntries
     }
   }
 
   if (!workspacePath) return [normalizeFsPath(options.sourcePath || '')].filter(Boolean)
-  const entries = await invoke('list_files_recursive', { path: workspacePath }).catch(() => [])
+  const entries = await readWorkspaceFlatFiles(workspacePath).catch(() => [])
   return Array.isArray(entries)
-    ? entries.map(entry => normalizeFsPath(entry.path || entry))
+    ? entries.map(entry => normalizeFsPath(entry.path || entry)).filter(Boolean)
     : []
 }
 

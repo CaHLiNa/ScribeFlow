@@ -81,6 +81,7 @@ import { useWorkspaceStore } from '../stores/workspace'
 import { useI18n } from '../i18n'
 import { requestTinymistWorkspaceSymbols } from '../services/tinymist/session'
 import { normalizeTinymistWorkspaceSymbols } from '../services/tinymist/symbols'
+import { listWorkspaceFlatFileEntries } from '../domains/files/workspaceSnapshotFlatFilesRuntime'
 
 const props = defineProps({
   query: { type: String, default: '' },
@@ -102,16 +103,25 @@ let typstSymbolTimer = null
 let typstSymbolRequestId = 0
 
 onMounted(() => {
-  files.ensureFlatFilesReady().catch((error) => {
-    console.warn('[search-results] ensureFlatFilesReady failed:', error)
-  })
+  files
+    .readWorkspaceSnapshot()
+    .catch(() => files.ensureFlatFilesReady())
+    .catch((error) => {
+      console.warn('[search-results] workspace snapshot preload failed:', error)
+    })
 })
+
+const workspaceSnapshot = computed(() => (
+  files.lastWorkspaceSnapshot || { flatFiles: files.flatFiles }
+))
+
+const workspaceFlatFiles = computed(() => listWorkspaceFlatFileEntries(workspaceSnapshot.value))
 
 const titleMatches = computed(() => {
   const q = props.query.toLowerCase()
-  if (!q) return files.flatFiles.slice(0, 20)
+  if (!q) return workspaceFlatFiles.value.slice(0, 20)
 
-  let list = files.flatFiles.filter((f) => {
+  let list = workspaceFlatFiles.value.filter((f) => {
     const name = f.name.toLowerCase()
     const path = f.path.toLowerCase()
     let qi = 0

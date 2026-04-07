@@ -393,20 +393,21 @@ function handleContextMenu(event) {
 
 <style scoped>
 .tree-item-dragover {
-  background: color-mix(in srgb, var(--accent) 6%, transparent);
-  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--accent) 54%, transparent);
+  background: var(--shell-accent-surface);
+  box-shadow: inset 0 0 0 1px var(--shell-accent-border);
 }
 
 .file-tree-item-row {
   position: relative;
-  min-height: var(--sidebar-row-height-tight);
+  min-height: 24px;
   padding-right: 8px;
-  border-radius: 7px;
+  border-radius: 4px;
   color: var(--text-secondary);
-  opacity: 0.9;
+  opacity: 1;
   transition:
     background-color 140ms ease,
     color 140ms ease,
+    border-color 140ms ease,
     box-shadow 140ms ease,
     opacity 140ms ease;
 }
@@ -427,14 +428,15 @@ function handleContextMenu(event) {
 }
 
 .file-tree-item-row:hover {
-  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+  background: color-mix(in srgb, var(--surface-hover) 42%, transparent);
   color: var(--text-primary);
   opacity: 1;
 }
 
 .file-tree-item-row.is-active-row {
   color: var(--text-primary);
-  background: transparent;
+  background: var(--shell-accent-surface);
+  box-shadow: inset 0 0 0 1px var(--shell-accent-border);
   opacity: 1;
 }
 
@@ -444,12 +446,13 @@ function handleContextMenu(event) {
 }
 
 .file-tree-item-row.is-selected-row {
-  background: color-mix(in srgb, var(--text-primary) 3%, transparent);
+  background: color-mix(in srgb, var(--surface-hover) 34%, transparent);
+  box-shadow: none;
   color: var(--text-primary);
 }
 
 .file-tree-item-row.is-filter-highlighted:not(.is-active-row):not(.is-selected-row) {
-  background: color-mix(in srgb, var(--accent) 4%, transparent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
 }
 
 .file-tree-item-icon {
@@ -473,7 +476,7 @@ function handleContextMenu(event) {
 
 .file-tree-item-label.is-active {
   color: var(--text-primary);
-  font-weight: var(--font-weight-medium);
+  font-weight: var(--font-weight-semibold);
 }
 
 .file-tree-item-match {
@@ -486,8 +489,8 @@ function handleContextMenu(event) {
 
 .file-tree-item-rename-input {
   font-size: var(--sidebar-font-control);
-  border-color: color-mix(in srgb, var(--accent) 28%, transparent);
-  border-radius: 8px;
-  background: var(--subtle-fill);
+  border-color: color-mix(in srgb, var(--shell-border) 72%, transparent);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--workspace-paper) 98%, transparent);
 }
 </style>

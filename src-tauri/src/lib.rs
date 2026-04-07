@@ -1,10 +1,17 @@
 mod app_dirs;
 mod chat;
 mod fs_commands;
+mod fs_io;
+mod fs_tree;
 mod git;
+mod git_history;
+mod git_remote;
+mod git_support;
+mod git_tests;
 mod github_oauth_loopback;
 mod kernel;
 mod latex;
+mod latex_tools;
 mod model_sync;
 mod pdf_translate;
 mod process_utils;
@@ -510,6 +517,8 @@ pub fn run() {
             fs_commands::read_dir_shallow,
             fs_commands::read_dir_recursive,
             fs_commands::list_files_recursive,
+            fs_commands::read_visible_tree,
+            fs_commands::read_workspace_tree_snapshot,
             fs_commands::read_file,
             fs_commands::read_file_base64,
             fs_commands::read_file_binary,
@@ -532,23 +541,23 @@ pub fn run() {
             git::git_commit,
             git::git_status,
             git::git_branch,
-            git::git_log,
-            git::git_show_file,
-            git::git_show_file_base64,
-            git::git_diff_summary,
-            git::git_remote_add,
-            git::git_remote_get_url,
-            git::git_remote_remove,
+            git_history::git_log,
+            git_history::git_show_file,
+            git_history::git_show_file_base64,
+            git_history::git_diff_summary,
+            git_remote::git_remote_add,
+            git_remote::git_remote_get_url,
+            git_remote::git_remote_remove,
             github_oauth_loopback::github_oauth_start_loopback,
             github_oauth_loopback::github_oauth_poll_loopback,
-            git::git_push,
-            git::git_push_branch,
-            git::git_fetch,
-            git::git_ahead_behind,
-            git::git_pull_ff,
-            git::git_merge_remote,
+            git_remote::git_push,
+            git_remote::git_push_branch,
+            git_remote::git_fetch,
+            git_remote::git_ahead_behind,
+            git_remote::git_pull_ff,
+            git_remote::git_merge_remote,
             git::git_set_user,
-            git::git_clone_authenticated,
+            git_remote::git_clone_authenticated,
             fs_commands::search_file_contents,
             fs_commands::run_shell_command,
             fs_commands::resolve_command_path,

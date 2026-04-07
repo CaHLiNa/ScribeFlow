@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { useWorkspaceStore } from './workspace'
 import { TEXT_FILE_READ_LIMIT_BYTES } from '../domains/files/workspaceTextFileLimits.js'
+import { readWorkspaceTreeSnapshot } from '../services/workspaceSnapshotIO'
 import {
   handleDeletedPathEffects,
   handleExternalFileChanges,
@@ -46,6 +47,14 @@ import { t } from '../i18n'
 import { useToastStore } from './toast'
 import { useUxStatusStore } from './uxStatus'
 
+function readVisibleTree(path, loadedDirs = []) {
+  return invoke('read_visible_tree', { path, loadedDirs })
+}
+
+function readWorkspaceSnapshot(path, loadedDirs = []) {
+  return readWorkspaceTreeSnapshot(path, loadedDirs)
+}
+
 function formatBytes(bytes = 0) {
   if (!Number.isFinite(bytes) || bytes <= 0) return '0 B'
   if (bytes < 1024) return `${bytes} B`
@@ -86,6 +95,7 @@ export const useFilesStore = defineStore('files', {
     flatFilesReady: false,
     treeCacheByWorkspace: {},
     expandedDirs: new Set(),
+    lastWorkspaceSnapshot: null,
     fileContents: {}, // cache: path → content
     fileLoadErrors: {}, // cache: path -> { code, message, detail, raw, ... }
     deletingPaths: new Set(), // paths currently being deleted (prevents save-on-unmount race)
@@ -122,7 +132,36 @@ export const useFilesStore = defineStore('files', {
 
     _setFlatFiles(flatFiles = [], workspacePath = null) {
       Object.assign(this, buildFlatFilesStatePatch(flatFiles))
+      this.lastWorkspaceSnapshot = {
+        tree: this.tree,
+        flatFiles,
+      }
       this._cacheWorkspaceSnapshot(workspacePath)
+    },
+
+    _applyWorkspaceSnapshot(snapshot = {}, workspacePath = null, _options = {}) {
+      const treePatch = buildTreeStatePatch(snapshot?.tree || [], { preserveFlatFiles: true })
+      const flatFilesPatch = buildFlatFilesStatePatch(snapshot?.flatFiles || [])
+      Object.assign(this, treePatch, flatFilesPatch)
+      this.lastWorkspaceSnapshot = {
+        tree: snapshot?.tree || [],
+        flatFiles: snapshot?.flatFiles || [],
+      }
+      this._cacheWorkspaceSnapshot(workspacePath)
+    },
+
+    async readWorkspaceSnapshot(loadedDirs = []) {
+      const workspacePath = useWorkspaceStore().path
+      if (!workspacePath) {
+        return {
+          tree: [],
+          flatFiles: [],
+        }
+      }
+
+      const snapshot = await readWorkspaceSnapshot(workspacePath, loadedDirs)
+      this._applyWorkspaceSnapshot(snapshot, workspacePath)
+      return snapshot
     },
 
     _setFileLoadError(path, error) {
@@ -142,6 +181,10 @@ export const useFilesStore = defineStore('files', {
           getCurrentTree: () => this.tree,
           findCurrentEntry: (path) => this._findEntry(path),
           readDirShallow: (path) => invoke('read_dir_shallow', { path }),
+          readVisibleTree: (path, loadedDirs = []) => readVisibleTree(path, loadedDirs),
+          readWorkspaceSnapshot: (path, loadedDirs = []) => readWorkspaceSnapshot(path, loadedDirs),
+          applyWorkspaceSnapshot: (snapshot, workspacePath, options = {}) =>
+            this._applyWorkspaceSnapshot(snapshot, workspacePath, options),
           applyTree: (tree, workspacePath, options = {}) => this._setTree(tree, workspacePath, options),
           setLastLoadError: (error) => {
             this.lastLoadError = error
@@ -187,6 +230,10 @@ export const useFilesStore = defineStore('files', {
           getWorkspacePath: () => useWorkspaceStore().path,
           getCurrentTree: () => this.tree,
           readDirShallow: (path) => invoke('read_dir_shallow', { path }),
+          readVisibleTree: (path, loadedDirs = []) => readVisibleTree(path, loadedDirs),
+          readWorkspaceSnapshot: (path, loadedDirs = []) => readWorkspaceSnapshot(path, loadedDirs),
+          applyWorkspaceSnapshot: (snapshot, workspacePath, options = {}) =>
+            this._applyWorkspaceSnapshot(snapshot, workspacePath, options),
           applyTree: (tree, workspacePath, options = {}) => this._setTree(tree, workspacePath, options),
           refreshVisibleTree: (options = {}) => this.refreshVisibleTree(options),
           setLastLoadError: (error) => {
@@ -228,6 +275,9 @@ export const useFilesStore = defineStore('files', {
           getFlatFilesReady: () => this.flatFilesReady,
           getFlatFilesCache: () => this.flatFilesCache,
           setFlatFiles: (flatFiles, workspacePath) => this._setFlatFiles(flatFiles, workspacePath),
+          readWorkspaceSnapshot: (path, loadedDirs = []) => readWorkspaceSnapshot(path, loadedDirs),
+          applyWorkspaceSnapshot: (snapshot, workspacePath, options = {}) =>
+            this._applyWorkspaceSnapshot(snapshot, workspacePath, options),
           markFlatFilesNotReady: () => {
             this.flatFilesReady = false
           },
@@ -432,8 +482,8 @@ export const useFilesStore = defineStore('files', {
       this._getFileContentRuntime().setInMemoryFileContent(path, content)
     },
 
-    async createFile(dirPath, name) {
-      return this._getFileCreationRuntime().createFile(dirPath, name)
+    async createFile(dirPath, name, options = {}) {
+      return this._getFileCreationRuntime().createFile(dirPath, name, options)
     },
 
     async duplicatePath(path) {
@@ -475,6 +525,7 @@ export const useFilesStore = defineStore('files', {
       this.tree = []
       this.flatFilesCache = []
       this.flatFilesReady = false
+      this.lastWorkspaceSnapshot = null
       this.expandedDirs = new Set()
       this.fileContents = {}
       this.fileLoadErrors = {}

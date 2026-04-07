@@ -67,16 +67,18 @@ export async function saveWorkspaceTextFile(path, content) {
   await invoke('write_file', { path, content })
 }
 
-export async function createWorkspaceFile(dirPath, name) {
+export async function createWorkspaceFile(dirPath, name, options = {}) {
   const fullPath = `${dirPath}/${name}`
 
-  let content = ''
-  if (name.endsWith('.tex')) {
-    const title = name.replace(/\.tex$/, '').replace(/-/g, ' ')
-    content = `\\documentclass{article}\n\\title{${title}}\n\\author{}\n\\date{}\n\n\\begin{document}\n\\maketitle\n\n\n\n\\end{document}\n`
-  } else if (name.endsWith('.typ')) {
-    const title = name.replace(/\.typ$/, '').replace(/-/g, ' ')
-    content = `= ${title}\n\nStart writing here.\n`
+  let content = typeof options.initialContent === 'string' ? options.initialContent : ''
+  if (!content) {
+    if (name.endsWith('.tex')) {
+      const title = name.replace(/\.tex$/, '').replace(/-/g, ' ')
+      content = `\\documentclass{article}\n\\title{${title}}\n\\author{}\n\\date{}\n\n\\begin{document}\n\\maketitle\n\n\n\n\\end{document}\n`
+    } else if (name.endsWith('.typ')) {
+      const title = name.replace(/\.typ$/, '').replace(/-/g, ' ')
+      content = `= ${title}\n\nStart writing here.\n`
+    }
   }
 
   await invoke('create_file', { path: fullPath, content })

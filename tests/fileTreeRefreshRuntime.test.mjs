@@ -182,3 +182,157 @@ test('refreshVisibleTree refreshes loaded directories and coalesces queued refre
     { path: '/ws/notes.md', is_dir: false },
   ])
 })
+
+test('refreshVisibleTree uses rust-backed visible tree snapshots when available', async () => {
+  let currentTree = [
+    {
+      path: '/ws/docs',
+      is_dir: true,
+      children: [
+        {
+          path: '/ws/docs/chapters',
+          is_dir: true,
+          children: [{ path: '/ws/docs/chapters/ch1.md', is_dir: false, modified: 1 }],
+        },
+      ],
+    },
+  ]
+
+  const visibleTreeCalls = []
+  let readDirCalls = 0
+
+  const runtime = createVisibleTreeRefreshRuntime({
+    getWorkspacePath: () => '/ws',
+    getCurrentTree: () => currentTree,
+    findCurrentEntry: () => null,
+    readDirShallow: async () => {
+      readDirCalls += 1
+      return []
+    },
+    readVisibleTree: async (workspacePath, loadedDirs) => {
+      visibleTreeCalls.push({ workspacePath, loadedDirs })
+      return [
+        {
+          path: '/ws/docs',
+          is_dir: true,
+          children: [
+            {
+              path: '/ws/docs/chapters',
+              is_dir: true,
+              children: [{ path: '/ws/docs/chapters/ch2.md', is_dir: false, modified: 2 }],
+            },
+          ],
+        },
+      ]
+    },
+    applyTree: (nextTree) => {
+      currentTree = nextTree
+    },
+    setLastLoadError: (error) => {
+      assert.equal(error, null)
+    },
+    beginReconcile: () => {},
+    finishReconcile: () => {},
+    failReconcile: () => {
+      throw new Error('refresh should not fail in this test')
+    },
+  })
+
+  await runtime.refreshVisibleTree({ reason: 'watch', suppressErrors: true })
+
+  assert.equal(readDirCalls, 0)
+  assert.deepEqual(visibleTreeCalls, [
+    {
+      workspacePath: '/ws',
+      loadedDirs: ['/ws/docs', '/ws/docs/chapters'],
+    },
+  ])
+  assert.deepEqual(currentTree, [
+    {
+      path: '/ws/docs',
+      is_dir: true,
+      children: [
+        {
+          path: '/ws/docs/chapters',
+          is_dir: true,
+          children: [{ path: '/ws/docs/chapters/ch2.md', is_dir: false, modified: 2 }],
+        },
+      ],
+    },
+  ])
+})
+
+test('refreshVisibleTree can hydrate tree and flat files from one workspace snapshot', async () => {
+  let currentTree = [
+    {
+      path: '/ws/docs',
+      is_dir: true,
+      children: [{ path: '/ws/docs/old.md', is_dir: false }],
+    },
+  ]
+
+  const snapshotCalls = []
+  let visibleTreeCalls = 0
+  let appliedSnapshot = null
+
+  const runtime = createVisibleTreeRefreshRuntime({
+    getWorkspacePath: () => '/ws',
+    getCurrentTree: () => currentTree,
+    findCurrentEntry: () => null,
+    readDirShallow: async () => {
+      throw new Error('readDirShallow should not be called')
+    },
+    readVisibleTree: async () => {
+      visibleTreeCalls += 1
+      return []
+    },
+    readWorkspaceSnapshot: async (workspacePath, loadedDirs) => {
+      snapshotCalls.push({ workspacePath, loadedDirs })
+      return {
+        tree: [
+          {
+            path: '/ws/docs',
+            is_dir: true,
+            children: [{ path: '/ws/docs/new.md', is_dir: false }],
+          },
+        ],
+        flatFiles: [{ path: '/ws/docs/new.md', is_dir: false }],
+      }
+    },
+    applyWorkspaceSnapshot: (snapshot) => {
+      appliedSnapshot = snapshot
+      currentTree = snapshot.tree
+    },
+    applyTree: () => {
+      throw new Error('applyTree should not be called')
+    },
+    setLastLoadError: (error) => {
+      assert.equal(error, null)
+    },
+    beginReconcile: () => {},
+    finishReconcile: () => {},
+    failReconcile: () => {
+      throw new Error('refresh should not fail in this test')
+    },
+  })
+
+  await runtime.refreshVisibleTree({ reason: 'watch', suppressErrors: true })
+
+  assert.equal(visibleTreeCalls, 0)
+  assert.deepEqual(snapshotCalls, [
+    {
+      workspacePath: '/ws',
+      loadedDirs: ['/ws/docs'],
+    },
+  ])
+  assert.deepEqual(appliedSnapshot, {
+    tree: [
+      {
+        path: '/ws/docs',
+        is_dir: true,
+        children: [{ path: '/ws/docs/new.md', is_dir: false }],
+      },
+    ],
+    flatFiles: [{ path: '/ws/docs/new.md', is_dir: false }],
+  })
+})

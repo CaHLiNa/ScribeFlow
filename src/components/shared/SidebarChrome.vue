@@ -1,6 +1,6 @@
 <template>
-  <div v-if="entries.length > 1" class="sidebar-chrome">
-    <div class="sidebar-chrome-strip">
+  <div v-if="shouldRenderChrome" class="sidebar-chrome">
+    <div v-if="entries.length > 1" class="sidebar-chrome-strip">
       <ShellChromeButton
         v-for="entry in entries"
         :key="entry.key"
@@ -20,8 +20,9 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, useSlots } from 'vue'
 import ShellChromeButton from './ShellChromeButton.vue'
+import { shouldRenderSidebarChrome as resolveSidebarChromeVisibility } from '../../shared/sidebarChromeVisibility.js'
 
 const props = defineProps({
   entries: {
@@ -36,7 +37,11 @@ const props = defineProps({
 
 defineEmits(['select'])
 
+const slots = useSlots()
 const entries = computed(() => (Array.isArray(props.entries) ? props.entries : []))
+const shouldRenderChrome = computed(() =>
+  resolveSidebarChromeVisibility(entries.value, Boolean(slots.trailing))
+)
 </script>
 
 <style scoped>
@@ -46,7 +51,7 @@ const entries = computed(() => (Array.isArray(props.entries) ? props.entries : [
   flex: 0 0 auto;
   min-height: 32px;
   box-sizing: border-box;
-  padding: 6px 6px 2px;
+  padding: 2px 2px 6px;
   background: transparent;
 }
 

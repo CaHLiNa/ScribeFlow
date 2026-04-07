@@ -20,7 +20,7 @@ This blueprint tracks the active cleanup path for the document-only Altals shell
 
 ## Current State Assessment
 
-- The visible shell has already been reduced to files, editor/preview, outline, and document-run panels.
+- The visible shell has already been reduced to files, editor/preview, outline, document context, and document-run panels.
 - PDF viewing has been removed from the desktop shell; generated outputs now open externally.
 - Some migration guards still exist for old saved editor state and retired virtual tabs.
 - Bundle size is still heavier than ideal around editor tooling.
@@ -38,9 +38,18 @@ This blueprint tracks the active cleanup path for the document-only Altals shell
 - keep docs and audit tests aligned with the actual product
 - continue flattening broad backend modules
 
+## Rust Parity Slice Order
+
+1. Filesystem and workspace tree contracts
+2. Document workflow runtime contracts (editor state, preview, diagnostics, citation, build)
+3. Snapshot and history contracts
+4. Workspace lifecycle and preference restoration
+5. UI adapter thinning (Vue as a thin shell)
+6. Optional native UI replacement after parity safety is proven
+
 ## In Progress
 
-- no active feature expansion; current focus is truthful cleanup and stabilization
+- April 7, 2026: continuing the document-workflow slice to unify diagnostics, citation syntax, export state, starter templates, and backend support seams around one academic writing workspace.
 
 ## Completed
 
@@ -48,6 +57,7 @@ This blueprint tracks the active cleanup path for the document-only Altals shell
 - March 28, 2026: removed retired AI, notebook, reference, terminal, and conversion modules plus their tests and package dependencies from the active app path.
 - March 28, 2026: removed the remaining retired shell compatibility branches, rewrote active docs to the current product truth, and deleted stale historical planning/spec files from the repository.
 - March 29, 2026: removed the in-app PDF renderer and switched document outputs to external opening from the compile workflow.
+- April 7, 2026: refreshed launcher and workbench chrome, added document-context inspection, introduced adapter/citation/diagnostics runtimes, added starter templates, and extracted backend LaTeX/filesystem helper modules.
 
 ## Blocked / Risks
 

@@ -79,8 +79,8 @@ function startDrag(e) {
   width: 1px;
   border-radius: 999px;
   cursor: col-resize;
-  background: color-mix(in srgb, var(--panel-border) 28%, transparent);
-  opacity: 0;
+  background: color-mix(in srgb, var(--panel-border) 42%, transparent);
+  opacity: 1;
   transition:
     opacity 140ms ease,
     background-color 140ms ease;
@@ -101,8 +101,8 @@ function startDrag(e) {
   height: 1px;
   border-radius: 999px;
   cursor: row-resize;
-  background: color-mix(in srgb, var(--panel-border) 28%, transparent);
-  opacity: 0;
+  background: color-mix(in srgb, var(--panel-border) 42%, transparent);
+  opacity: 1;
   transition:
     opacity 140ms ease,
     background-color 140ms ease;
@@ -111,6 +111,6 @@ function startDrag(e) {
 .resize-handle:hover::before,
 .resize-handle.dragging::before {
   opacity: 1;
-  background: color-mix(in srgb, var(--accent) 70%, transparent);
+  background: color-mix(in srgb, var(--accent) 52%, transparent);
 }
 </style>

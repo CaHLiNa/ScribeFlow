@@ -1,80 +1,144 @@
 <template>
   <div class="launcher">
-    <div class="launcher-content">
-      <!-- Logo + Title -->
-      <div class="launcher-hero">
-        <div class="launcher-logo">A</div>
-        <div class="launcher-title">Altals</div>
-        <p class="launcher-tagline">{{ t('Markdown, LaTeX, and Typst in one local workspace.') }}</p>
-      </div>
-
-      <!-- Action buttons -->
-      <div class="launcher-actions">
-        <button class="launcher-btn primary" @click="$emit('open-folder')">
-          {{ t('Open Folder') }}
-          <kbd class="launcher-btn-hint">{{ modKey }}+O</kbd>
-        </button>
-        <button class="launcher-btn secondary" @click="showClone = true">
-          {{ t('Clone Repository') }}
-        </button>
-      </div>
-
-      <!-- No-recents hint -->
-      <p v-if="!recents.length && !showClone" class="launcher-hint">
-        {{ t('Open a folder to get started, or clone an existing project.') }}
-      </p>
-
-      <!-- Clone inline form -->
-      <div v-if="showClone" class="launcher-clone-form">
-        <input
-          ref="urlInputRef"
-          v-model="cloneUrl"
-          class="launcher-input"
-          placeholder="https://github.com/user/repo.git"
-          spellcheck="false"
-          @keydown.enter="doClone"
-          @keydown.escape="cancelClone"
-        />
-        <div class="launcher-clone-actions">
-          <button
-            class="launcher-btn primary small"
-            :disabled="!cloneUrl.trim() || cloning"
-            @click="doClone"
-          >
-            {{ cloning ? t('Cloning...') : t('Clone') }}
-          </button>
-          <button class="launcher-btn-text" @click="cancelClone" :disabled="cloning">{{ t('Cancel') }}</button>
-        </div>
-        <div v-if="cloneError" class="launcher-error">{{ cloneError }}</div>
-      </div>
-
-      <!-- Recent Workspaces -->
-      <div v-if="recents.length" class="launcher-recents">
-        <div class="launcher-recents-heading">{{ t('Recent') }}</div>
-        <div
-          v-for="r in recents"
-          :key="r.path"
-          class="launcher-recent"
-          @click="$emit('open-workspace', r.path)"
-        >
-          <svg class="launcher-recent-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M5 4h4l3 3h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/>
-          </svg>
-          <div class="launcher-recent-text">
-            <div class="launcher-recent-name">{{ r.name }}</div>
-            <div class="launcher-recent-path">{{ shortenPath(r.path) }}</div>
+    <div class="launcher-shell">
+      <section class="launcher-hero ui-surface-card">
+        <div class="launcher-kicker">{{ t('Academic writing workspace') }}</div>
+        <div class="launcher-brand-row">
+          <div class="launcher-logo">A</div>
+          <div class="launcher-brand-copy">
+            <h1 class="launcher-title">Altals</h1>
+            <p class="launcher-tagline">
+              {{ t('Markdown, LaTeX, and Typst in one local-first project workspace.') }}
+            </p>
           </div>
-          <button
-            class="launcher-recent-remove"
-            :title="t('Remove from recent')"
-            @click.stop="removeRecent(r.path)"
-          >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
+        </div>
+
+        <div class="launcher-principles">
+          <div class="launcher-principle">
+            <span class="launcher-principle-label">{{ t('Draft') }}</span>
+            <span class="launcher-principle-copy">
+              {{ t('Edit notes, papers, and source files in one project tree.') }}
+            </span>
+          </div>
+          <div class="launcher-principle">
+            <span class="launcher-principle-label">{{ t('Build') }}</span>
+            <span class="launcher-principle-copy">
+              {{ t('Preview and compile documents without leaving the workspace.') }}
+            </span>
+          </div>
+          <div class="launcher-principle">
+            <span class="launcher-principle-label">{{ t('Protect') }}</span>
+            <span class="launcher-principle-copy">
+              {{ t('Keep local save points, history, and project context close at hand.') }}
+            </span>
+          </div>
+        </div>
+
+        <div class="launcher-actions">
+          <button class="launcher-btn primary" @click="$emit('open-folder')">
+            <span>{{ t('Open project folder') }}</span>
+            <kbd class="ui-kbd">{{ modKey }}+O</kbd>
+          </button>
+          <button class="launcher-btn secondary" @click="showClone = true">
+            {{ t('Clone repository') }}
           </button>
         </div>
-      </div>
+
+        <p v-if="!showClone" class="launcher-hint">
+          {{ t('Start from a local workspace or clone an existing writing project.') }}
+        </p>
+
+        <div v-if="showClone" class="launcher-clone-form ui-surface-card">
+          <div class="launcher-clone-heading">{{ t('Clone a Git repository into a local workspace') }}</div>
+          <input
+            ref="urlInputRef"
+            v-model="cloneUrl"
+            class="launcher-input"
+            placeholder="https://github.com/user/repo.git"
+            spellcheck="false"
+            @keydown.enter="doClone"
+            @keydown.escape="cancelClone"
+          />
+          <div class="launcher-clone-actions">
+            <button
+              class="launcher-btn primary small"
+              :disabled="!cloneUrl.trim() || cloning"
+              @click="doClone"
+            >
+              {{ cloning ? t('Cloning...') : t('Clone repository') }}
+            </button>
+            <button class="launcher-btn-text" :disabled="cloning" @click="cancelClone">
+              {{ t('Cancel') }}
+            </button>
+          </div>
+          <div v-if="cloneError" class="launcher-error">{{ cloneError }}</div>
+        </div>
+      </section>
+
+      <aside class="launcher-recents ui-surface-card">
+        <div class="launcher-recents-header">
+          <div>
+            <div class="launcher-recents-kicker">{{ t('Continue writing') }}</div>
+            <h2 class="launcher-recents-title">{{ t('Recent workspaces') }}</h2>
+          </div>
+          <div class="launcher-recents-count">{{ recents.length }}</div>
+        </div>
+
+        <div v-if="recents.length" class="launcher-recent-list">
+          <button
+            v-for="r in recents"
+            :key="r.path"
+            class="launcher-recent"
+            @click="$emit('open-workspace', r.path)"
+          >
+            <span class="launcher-recent-icon" aria-hidden="true">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M5 4h4l3 3h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" />
+              </svg>
+            </span>
+            <span class="launcher-recent-text">
+              <span class="launcher-recent-name">{{ r.name }}</span>
+              <span class="launcher-recent-path">{{ shortenPath(r.path) }}</span>
+            </span>
+            <span class="launcher-recent-meta">{{ t('Open') }}</span>
+            <span
+              class="launcher-recent-remove"
+              :title="t('Remove from recent')"
+              @click.stop="removeRecent(r.path)"
+            >
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </span>
+          </button>
+        </div>
+
+        <div v-else class="launcher-empty-state">
+          <div class="launcher-empty-title">{{ t('No recent workspace yet') }}</div>
+          <p class="launcher-empty-copy">
+            {{ t('Open a project folder to start your first local writing workspace.') }}
+          </p>
+        </div>
+      </aside>
     </div>
   </div>
 </template>
@@ -93,7 +157,6 @@ const workspace = useWorkspaceStore()
 const { t } = useI18n()
 const recents = computed(() => workspace.getRecentWorkspaces())
 
-// Clone state
 const showClone = ref(false)
 const cloneUrl = ref('')
 const cloning = ref(false)
@@ -114,7 +177,6 @@ function cancelClone() {
 }
 
 function repoNameFromUrl(url) {
-  // Extract repo name: "https://github.com/user/repo.git" → "repo"
   const cleaned = url.trim().replace(/\/+$/, '').replace(/\.git$/, '')
   return cleaned.split('/').pop() || 'project'
 }
@@ -125,7 +187,6 @@ async function doClone() {
 
   cloneError.value = ''
 
-  // Pick parent directory
   const { homeDir } = await import('@tauri-apps/api/path')
   const home = await homeDir()
   const parentDir = await open({
@@ -145,7 +206,6 @@ async function doClone() {
       await workspace.ensureGitHubInitialized()
     }
 
-    // Use authenticated clone if GitHub token is available (enables private repos)
     if (workspace.githubToken?.token && url.includes('github.com')) {
       await invoke('git_clone_authenticated', { url, targetPath, token: workspace.githubToken.token })
     } else {
@@ -174,269 +234,431 @@ function removeRecent(path) {
 <style scoped>
 .launcher {
   flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--bg-primary);
   overflow: auto;
+  padding: var(--space-5);
 }
 
-.launcher-content {
+.launcher-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.85fr);
+  gap: var(--space-5);
+  width: min(100%, var(--shell-hero-width));
+  min-height: 100%;
+  margin: 0 auto;
+  align-items: stretch;
+}
+
+.launcher-hero,
+.launcher-recents {
+  border: 1px solid var(--shell-border);
+  border-radius: var(--shell-radius-lg);
+  background: var(--shell-surface);
+  box-shadow: var(--shell-shadow-soft);
+  backdrop-filter: blur(18px);
+}
+
+.launcher-hero {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  width: 360px;
-  padding: 32px 0;
+  gap: var(--space-5);
+  padding: 32px;
+  justify-content: center;
 }
 
-/* Hero */
-.launcher-hero {
-  text-align: center;
-  margin-bottom: 28px;
+.launcher-kicker,
+.launcher-recents-kicker {
+  font-size: var(--ui-font-micro);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.launcher-brand-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
 }
 
 .launcher-logo {
-  width: 48px;
-  height: 48px;
-  margin: 0 auto 14px;
-  border-radius: 12px;
-  background: var(--accent);
-  color: var(--bg-primary);
-  font-size: var(--ui-font-hero-sm);
-  font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 60px;
+  height: 60px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 92%, white 8%), var(--accent-secondary));
+  color: white;
+  font-size: var(--ui-font-hero-sm);
+  font-weight: 700;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+.launcher-brand-copy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }
 
 .launcher-title {
-  font-family: 'Lora', ui-serif, Georgia, serif;
-  font-style: italic;
-  font-weight: 400;
-  font-size: var(--ui-font-hero-xs);
-  color: var(--fg-primary);
+  margin: 0;
+  font-family: 'Crimson Text', 'Lora', Georgia, serif;
+  font-size: var(--ui-font-hero-md);
+  font-weight: 600;
+  line-height: 1;
   letter-spacing: -0.02em;
+  color: var(--text-primary);
 }
 
 .launcher-tagline {
+  max-width: 580px;
+  margin: 0;
+  font-size: var(--ui-font-display);
+  line-height: var(--line-height-relaxed);
+  color: var(--text-secondary);
+}
+
+.launcher-principles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.launcher-principle {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border-radius: var(--shell-radius-sm);
+  background: color-mix(in srgb, var(--shell-muted-surface) 72%, transparent);
+  border: 1px solid color-mix(in srgb, var(--shell-border) 72%, transparent);
+}
+
+.launcher-principle-label {
+  font-size: var(--ui-font-caption);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+}
+
+.launcher-principle-copy {
   font-size: var(--ui-font-label);
-  color: var(--fg-muted);
-  margin: 6px 0 0;
+  line-height: var(--line-height-regular);
+  color: var(--text-muted);
 }
 
-.launcher-hint {
-  font-size: var(--ui-font-label);
-  color: var(--fg-muted);
-  margin-top: 12px;
-  text-align: center;
-  opacity: 0.7;
-}
-
-.launcher-btn-hint {
-  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
-  font-size: var(--ui-font-micro);
-  opacity: 0.5;
-  margin-left: 4px;
-}
-
-/* Action buttons */
 .launcher-actions {
   display: flex;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: var(--space-3);
 }
 
 .launcher-btn {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 8px 20px;
-  border-radius: 6px;
-  font-size: var(--ui-font-body);
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.15s;
+  gap: var(--space-2);
+  min-height: 40px;
+  padding: 0 18px;
+  border-radius: 999px;
   border: 1px solid transparent;
+  font: inherit;
+  font-size: var(--ui-font-body);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition:
+    transform 140ms ease,
+    background-color 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease,
+    opacity 140ms ease;
+}
+
+.launcher-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
 }
 
 .launcher-btn.primary {
   background: var(--accent);
-  color: var(--bg-primary);
-  border-color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 80%, white 20%);
+  color: white;
 }
 
-.launcher-btn.primary:hover {
-  opacity: 0.9;
-}
-
-.launcher-btn.primary:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
+.launcher-btn.primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 88%, white 12%);
 }
 
 .launcher-btn.secondary {
-  background: transparent;
-  color: var(--fg-secondary);
-  border-color: var(--border);
+  background: color-mix(in srgb, var(--surface-raised) 84%, transparent);
+  border-color: var(--shell-border);
+  color: var(--text-secondary);
 }
 
-.launcher-btn.secondary:hover {
-  border-color: var(--fg-muted);
-  color: var(--fg-primary);
+.launcher-btn.secondary:hover:not(:disabled) {
+  border-color: var(--shell-border-strong);
+  color: var(--text-primary);
 }
 
 .launcher-btn.small {
-  padding: 5px 14px;
+  min-height: 34px;
+  padding: 0 14px;
   font-size: var(--ui-font-label);
+}
+
+.launcher-btn:disabled,
+.launcher-btn-text:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
 }
 
 .launcher-btn-text {
-  background: none;
   border: none;
-  color: var(--fg-muted);
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
   font-size: var(--ui-font-label);
   cursor: pointer;
-  padding: 4px 8px;
 }
 
-.launcher-btn-text:hover {
-  color: var(--fg-secondary);
+.launcher-btn-text:hover:not(:disabled) {
+  color: var(--text-primary);
 }
 
-.launcher-btn-text:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
+.launcher-hint {
+  margin: 0;
+  font-size: var(--ui-font-label);
+  line-height: var(--line-height-regular);
+  color: var(--text-muted);
 }
 
-/* Clone form */
 .launcher-clone-form {
-  margin-top: 16px;
-  width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--shell-radius-sm);
+  background: color-mix(in srgb, var(--shell-accent-surface) 52%, var(--shell-surface));
+  border: 1px solid var(--shell-accent-border);
+}
+
+.launcher-clone-heading {
+  font-size: var(--ui-font-label);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-secondary);
 }
 
 .launcher-input {
   width: 100%;
-  padding: 8px 10px;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  background: var(--bg-secondary);
-  color: var(--fg-primary);
-  font-size: var(--ui-font-label);
-  font-family: var(--font-mono);
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--shell-border);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface-base) 82%, transparent);
+  color: var(--text-primary);
+}
+
+.launcher-input:focus-visible {
   outline: none;
-  transition: border-color 0.15s;
-  box-sizing: border-box;
-}
-
-.launcher-input:focus {
-  border-color: var(--accent);
-}
-
-.launcher-input::placeholder {
-  color: var(--fg-muted);
+  border-color: var(--shell-accent-border);
+  box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
 .launcher-clone-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-3);
 }
 
 .launcher-error {
-  padding: 6px 10px;
-  border-radius: 5px;
-  background: rgba(247, 118, 142, 0.1);
+  font-size: var(--ui-font-caption);
   color: var(--error);
-  font-size: var(--ui-font-caption);
-  line-height: 1.4;
 }
 
-/* Recents */
 .launcher-recents {
-  width: 100%;
-  margin-top: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: 24px;
 }
 
-.launcher-recents-heading {
+.launcher-recents-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.launcher-recents-title {
+  margin: 4px 0 0;
+  font-size: var(--ui-font-display-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+}
+
+.launcher-recents-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--shell-accent-surface) 72%, transparent);
+  color: var(--accent);
   font-size: var(--ui-font-caption);
-  font-weight: 600;
-  color: var(--fg-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding: 0 4px;
-  margin-bottom: 6px;
+  font-weight: var(--font-weight-semibold);
+}
+
+.launcher-recent-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }
 
 .launcher-recent {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-3);
   width: 100%;
-  padding: 8px 8px;
-  border-radius: 6px;
-  border: none;
-  background: transparent;
-  cursor: pointer;
+  padding: 12px 14px;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface-muted) 70%, transparent);
+  color: var(--text-secondary);
   text-align: left;
-  transition: background 0.1s;
+  cursor: pointer;
+  transition:
+    transform 140ms ease,
+    border-color 140ms ease,
+    background-color 140ms ease,
+    color 140ms ease;
 }
 
 .launcher-recent:hover {
-  background: var(--bg-hover);
+  transform: translateY(-1px);
+  border-color: var(--shell-border-strong);
+  background: color-mix(in srgb, var(--surface-hover) 78%, transparent);
+  color: var(--text-primary);
 }
 
 .launcher-recent-icon {
-  flex-shrink: 0;
-  color: var(--fg-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--shell-accent-surface) 56%, transparent);
+  color: var(--accent);
 }
 
 .launcher-recent-text {
-  flex: 1;
+  display: flex;
   min-width: 0;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .launcher-recent-name {
-  font-size: var(--ui-font-body);
-  font-weight: 500;
-  color: var(--fg-primary);
-  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--ui-font-body);
+  font-weight: var(--font-weight-medium);
 }
 
 .launcher-recent-path {
-  font-size: var(--ui-font-caption);
-  color: var(--fg-muted);
-  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--ui-font-caption);
+  color: var(--text-muted);
+}
+
+.launcher-recent-meta {
+  font-size: var(--ui-font-caption);
+  color: var(--text-muted);
 }
 
 .launcher-recent-remove {
-  flex-shrink: 0;
-  width: 20px;
-  height: 20px;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
-  border: none;
-  background: transparent;
-  color: var(--fg-muted);
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.1s, background 0.1s;
-}
-
-.launcher-recent:hover .launcher-recent-remove {
-  opacity: 1;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  color: var(--text-muted);
 }
 
 .launcher-recent-remove:hover {
-  background: var(--bg-tertiary);
-  color: var(--fg-secondary);
+  background: color-mix(in srgb, var(--error) 12%, transparent);
+  color: var(--error);
+}
+
+.launcher-empty-state {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--space-2);
+  border: 1px dashed var(--shell-border);
+  border-radius: 16px;
+  padding: 22px;
+  background: color-mix(in srgb, var(--surface-muted) 48%, transparent);
+}
+
+.launcher-empty-title {
+  font-size: var(--ui-font-body);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+}
+
+.launcher-empty-copy {
+  margin: 0;
+  font-size: var(--ui-font-label);
+  line-height: var(--line-height-regular);
+  color: var(--text-muted);
+}
+
+@media (max-width: 980px) {
+  .launcher-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .launcher-principles {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .launcher {
+    padding: var(--space-4);
+  }
+
+  .launcher-hero,
+  .launcher-recents {
+    padding: 20px;
+  }
+
+  .launcher-brand-row {
+    align-items: flex-start;
+  }
+
+  .launcher-title {
+    font-size: var(--ui-font-hero-sm);
+  }
+
+  .launcher-tagline {
+    font-size: var(--ui-font-body);
+  }
+
+  .launcher-recent {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .launcher-recent-meta {
+    display: none;
+  }
 }
 </style>

@@ -192,7 +192,7 @@ watch(
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: var(--bg-primary);
+  background: var(--shell-preview-surface);
 }
 
 .typst-native-preview-state {
@@ -215,6 +215,6 @@ watch(
   width: 100%;
   height: 100%;
   border: 0;
-  background: var(--bg-primary);
+  background: var(--shell-preview-surface);
 }
 </style>
