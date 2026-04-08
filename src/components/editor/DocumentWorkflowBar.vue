@@ -48,33 +48,6 @@
           >
             <IconPlayerTrackNext :size="15" :stroke-width="1.7" />
           </UiButton>
-          <UiButton
-            v-if="showCommentToggle"
-            class="workflow-secondary-btn workflow-comment-btn"
-            variant="ghost"
-            size="icon-sm"
-            icon-only
-            :active="commentActive"
-            :title="t('Toggle comments')"
-            :aria-label="t('Toggle comments')"
-            @click="$emit('toggle-comments')"
-          >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.5"
-            >
-              <path
-                d="M3 2.5h10a1.5 1.5 0 011.5 1.5v6a1.5 1.5 0 01-1.5 1.5H9.414l-2.707 2.707a.5.5 0 01-.854-.354V11.5H3A1.5 1.5 0 011.5 10V4A1.5 1.5 0 013 2.5z"
-              />
-            </svg>
-            <span v-if="commentBadgeCount > 0" class="workflow-comment-badge">
-              {{ commentBadgeCount > 9 ? '9+' : commentBadgeCount }}
-            </span>
-          </UiButton>
         </div>
 
         <div v-if="showInlineMeta" class="workflow-meta">
@@ -141,9 +114,6 @@ const props = defineProps({
   statusText: { type: String, default: '' },
   statusTone: { type: String, default: 'muted' },
   showRunButtons: { type: Boolean, default: false },
-  showCommentToggle: { type: Boolean, default: false },
-  commentActive: { type: Boolean, default: false },
-  commentBadgeCount: { type: Number, default: 0 },
   teleportTo: { type: String, default: '' },
   shellIntegrated: { type: Boolean, default: false },
   inlineHeader: { type: Boolean, default: false },
@@ -155,7 +125,6 @@ defineEmits([
   'reveal-pdf',
   'run-code',
   'run-file',
-  'toggle-comments',
 ])
 
 const { t } = useI18n()
@@ -263,7 +232,7 @@ const statusClass = computed(() => ({
   min-width: 0;
   flex: 0 1 auto;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 6px;
 }
 
 .workflow-bar-split {
@@ -301,7 +270,7 @@ const statusClass = computed(() => ({
 
 .workflow-bar.is-inline-header .workflow-right {
   margin-left: 0;
-  gap: 4px;
+  gap: 3px;
 }
 
 .workflow-bar.is-shell-integrated .workflow-left,
@@ -347,7 +316,7 @@ const statusClass = computed(() => ({
   font-size: var(--ui-font-caption);
   color: var(--text-muted);
   white-space: nowrap;
-  opacity: 0.82;
+  opacity: 0.72;
 }
 
 .workflow-bar.is-inline-header .workflow-meta {
@@ -368,7 +337,7 @@ const statusClass = computed(() => ({
 
 .workflow-kind {
   color: var(--text-secondary);
-  font-weight: 550;
+  font-weight: 500;
 }
 
 .workflow-separator {
@@ -436,14 +405,14 @@ const statusClass = computed(() => ({
 .workflow-primary-btn,
 .workflow-secondary-btn {
   flex: 0 0 auto;
-  height: 24px;
-  width: 24px;
-  min-height: 24px;
+  height: 22px;
+  width: 22px;
+  min-height: 22px;
   white-space: nowrap;
   color: var(--text-secondary);
-  border-radius: 6px;
+  border-radius: 7px;
   background: transparent;
-  opacity: 0.92;
+  opacity: 0.88;
   box-shadow: none;
   transition:
     background-color 140ms ease,
@@ -476,13 +445,13 @@ const statusClass = computed(() => ({
 }
 
 .workflow-primary-btn:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--chrome-surface) 24%, transparent);
+  background: color-mix(in srgb, var(--chrome-surface) 18%, transparent);
   color: var(--text-primary);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 12%, transparent);
 }
 
 .workflow-secondary-btn:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--chrome-surface) 24%, transparent);
+  background: color-mix(in srgb, var(--chrome-surface) 18%, transparent);
   color: var(--text-primary);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 12%, transparent);
 }
@@ -498,8 +467,7 @@ const statusClass = computed(() => ({
 }
 
 .workflow-bar.is-shell-integrated .workflow-primary-btn.is-active,
-.workflow-bar.is-shell-integrated .workflow-secondary-btn.is-active,
-.workflow-bar.is-shell-integrated .workflow-comment-btn.is-active {
+.workflow-bar.is-shell-integrated .workflow-secondary-btn.is-active {
   background: transparent;
   color: var(--text-primary);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 12%, transparent);
@@ -519,34 +487,6 @@ const statusClass = computed(() => ({
   align-items: center;
   gap: 4px;
   margin-left: 2px;
-}
-
-.workflow-comment-btn {
-  position: relative;
-  color: var(--text-muted);
-}
-
-.workflow-comment-btn.is-active {
-  background: color-mix(in srgb, var(--surface-base) 94%, var(--toolbar-surface));
-  color: var(--text-primary);
-}
-
-.workflow-comment-badge {
-  position: absolute;
-  top: -2px;
-  right: -2px;
-  min-width: 12px;
-  height: 12px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  padding: 0 2px;
-  color: var(--button-primary-text);
-  background: var(--button-primary-bg);
-  font-size: var(--ui-font-tiny);
-  font-weight: 600;
-  line-height: 1;
 }
 
 .workflow-preview-slot {

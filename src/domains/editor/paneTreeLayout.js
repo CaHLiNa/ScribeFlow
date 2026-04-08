@@ -1,5 +1,68 @@
 export const ROOT_PANE_ID = 'pane-root'
 
+const DEFAULT_SPLIT_RATIO = 0.5
+const MIN_SPLIT_RATIO = 0.15
+const MAX_SPLIT_RATIO = 0.85
+
+function clampSplitRatio(value) {
+  return Math.max(MIN_SPLIT_RATIO, Math.min(MAX_SPLIT_RATIO, Number(value) || DEFAULT_SPLIT_RATIO))
+}
+
+function cloneLeaf(node, fallbackId = ROOT_PANE_ID) {
+  return {
+    type: 'leaf',
+    id: node?.id || fallbackId,
+    tabs: Array.isArray(node?.tabs) ? [...node.tabs] : [],
+    activeTab: node?.activeTab || null,
+  }
+}
+
+function collectLeaves(node, leaves = []) {
+  if (!node) return leaves
+  if (node.type === 'leaf') {
+    leaves.push(node)
+    return leaves
+  }
+
+  for (const child of node.children || []) {
+    collectLeaves(child, leaves)
+  }
+
+  return leaves
+}
+
+function findCompanionLeaf(rootNode, paneId) {
+  if (rootNode?.type !== 'split' || rootNode.direction !== 'vertical') return null
+  const [leftLeaf, rightLeaf] = rootNode.children || []
+  if (leftLeaf?.id === paneId) return rightLeaf || null
+  if (rightLeaf?.id === paneId) return leftLeaf || null
+  return rightLeaf || leftLeaf || null
+}
+
+export function normalizePaneTree(node) {
+  if (!node) {
+    return cloneLeaf(null)
+  }
+
+  if (node.type === 'leaf') {
+    return cloneLeaf(node)
+  }
+
+  const leaves = collectLeaves(node).map((leaf, index) => (
+    cloneLeaf(leaf, index === 0 ? ROOT_PANE_ID : `pane-restored-${index}`)
+  ))
+
+  if (leaves.length === 0) return cloneLeaf(null)
+  if (leaves.length === 1) return leaves[0]
+
+  return {
+    type: 'split',
+    direction: 'vertical',
+    ratio: clampSplitRatio(node.ratio),
+    children: [leaves[0], leaves[1]],
+  }
+}
+
 export function findPane(node, id) {
   if (!node) return null
   if (node.type === 'leaf' && node.id === id) return node
@@ -61,44 +124,21 @@ export function findFirstLeaf(node) {
 }
 
 export function findRightNeighborLeaf(rootNode, paneId) {
-  const walk = (node, trail = []) => {
-    if (!node) return null
-    if (node.type === 'leaf') {
-      return node.id === paneId ? [...trail, node] : null
-    }
-    for (const child of node.children || []) {
-      const found = walk(child, [...trail, node])
-      if (found) return found
-    }
-    return null
-  }
-
-  const trail = walk(rootNode)
-  if (!trail || trail.length < 2) return null
-
-  for (let i = trail.length - 2; i >= 0; i -= 1) {
-    const parent = trail[i]
-    const child = trail[i + 1]
-    if (parent?.type !== 'split' || parent.direction !== 'vertical') continue
-    const idx = (parent.children || []).findIndex((candidate) => candidate === child)
-    if (idx === 0 && parent.children?.[1]) {
-      return findFirstLeaf(parent.children[1])
-    }
-  }
-
-  return null
+  if (rootNode?.type !== 'split' || rootNode.direction !== 'vertical') return null
+  const [leftLeaf, rightLeaf] = rootNode.children || []
+  return leftLeaf?.id === paneId ? findFirstLeaf(rightLeaf) : null
 }
 
-export function splitPaneNode(pane, direction, newPaneId, newPaneTabs = [], newPaneActiveTab = null) {
-  if (!pane || pane.type !== 'leaf' || !newPaneId) return null
+export function splitPaneNode(rootNode, paneId, newPaneId, newPaneTabs = [], newPaneActiveTab = null) {
+  if (!rootNode || !newPaneId) return null
 
-  const currentData = {
-    type: 'leaf',
-    id: pane.id,
-    tabs: [...pane.tabs],
-    activeTab: pane.activeTab,
-  }
+  const companionLeaf = findCompanionLeaf(rootNode, paneId)
+  if (companionLeaf) return companionLeaf
 
+  const pane = findPane(rootNode, paneId)
+  if (!pane || pane.type !== 'leaf') return null
+
+  const currentData = cloneLeaf(pane, pane.id)
   const newPane = {
     type: 'leaf',
     id: newPaneId,
@@ -106,11 +146,11 @@ export function splitPaneNode(pane, direction, newPaneId, newPaneTabs = [], newP
     activeTab: newPaneActiveTab,
   }
 
-  Object.keys(pane).forEach((key) => delete pane[key])
-  Object.assign(pane, {
+  Object.keys(rootNode).forEach((key) => delete rootNode[key])
+  Object.assign(rootNode, {
     type: 'split',
-    direction,
-    ratio: 0.5,
+    direction: 'vertical',
+    ratio: DEFAULT_SPLIT_RATIO,
     children: [currentData, newPane],
   })
 

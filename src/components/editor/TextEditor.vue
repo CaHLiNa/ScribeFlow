@@ -67,7 +67,6 @@ import {
   getZoomCompensatedClientPoint,
   zoomAwareMouseSelectionExtension,
 } from '../../editor/zoomCompensation'
-import { commentsExtension } from '../../editor/comments'
 import {
   createRevealHighlightExtension,
   focusEditorLineWithHighlight,
@@ -91,7 +90,6 @@ import { useFilesStore } from '../../stores/files'
 import { useEditorStore } from '../../stores/editor'
 import { useToastStore } from '../../stores/toast'
 import { useWorkspaceStore } from '../../stores/workspace'
-import { useCommentsStore } from '../../stores/comments'
 import { useLinksStore } from '../../stores/links'
 import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { useTypstStore } from '../../stores/typst'
@@ -141,7 +139,6 @@ const linksStore = useLinksStore()
 const toastStore = useToastStore()
 const typstStore = useTypstStore()
 const latexStore = useLatexStore()
-const commentsStore = useCommentsStore()
 const { t } = useI18n()
 const loadError = computed(() => files.getFileLoadError(props.filePath))
 
@@ -218,16 +215,12 @@ const {
 })
 
 const {
-  handleCommentClick,
-  syncCommentsToEditor,
-  pushCommentPositionsToStore,
   showMergeViewIfNeeded,
 } = useTextEditorBridges({
   filePath: props.filePath,
   editorContainer,
   getView,
   files,
-  commentsStore,
   isMarkdownFile: isMd,
   isLatexFile: isTex,
 })
@@ -704,11 +697,7 @@ onMounted(async () => {
   const extraExtensions = [
     Prec.highest(zoomAwareMouseSelectionExtension(getCssRootZoomScale)),
     ...createRevealHighlightExtension(),
-    ...commentsExtension(),
     EditorView.updateListener.of((update) => {
-      if (update.docChanged) {
-        pushCommentPositionsToStore(update.view)
-      }
       if (update.selectionSet || update.docChanged) {
         const selection = update.state.selection.main
         emit('selection-change', selection.from !== selection.to)
@@ -961,9 +950,6 @@ function attachEditorRuntimeListeners() {
   if (isTyp) {
     editorContainer.value?.addEventListener('click', handleDefinitionClick)
   }
-
-  editorContainer.value?.addEventListener('comment-click', handleCommentClick)
-
   if (isTyp && !cleanupTypstWindowListeners) {
     cleanupTypstWindowListeners = registerTypstWindowListeners(isTyp)
   }
@@ -991,9 +977,6 @@ function detachEditorRuntimeListeners() {
   if (isTyp) {
     editorContainer.value?.removeEventListener('click', handleDefinitionClick)
   }
-
-  editorContainer.value?.removeEventListener('comment-click', handleCommentClick)
-
   if (cleanupTypstWindowListeners) {
     cleanupTypstWindowListeners()
     cleanupTypstWindowListeners = null
@@ -1018,7 +1001,6 @@ function activateEditorRuntime() {
   editorStore.registerEditorView(props.paneId, props.filePath, view)
   attachEditorRuntimeListeners()
   showMergeViewIfNeeded()
-  syncCommentsToEditor(view)
   if (isTyp) {
     hydrateTypstDiagnostics()
     void connectTinymistDocument(view.state.doc.toString())

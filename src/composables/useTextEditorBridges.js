@@ -1,5 +1,4 @@
 import { onMounted, onUnmounted, watch } from 'vue'
-import { addComment, removeComment, updateComment, setActiveComment, commentField } from '../editor/comments'
 import { buildInsertText } from '../editor/textEditorInteractions'
 import { computeMinimalChange } from '../utils/textDiff'
 
@@ -9,7 +8,6 @@ export function useTextEditorBridges(options) {
     editorContainer,
     getView,
     files,
-    commentsStore,
     isMarkdownFile,
     isLatexFile,
   } = options
@@ -17,70 +15,6 @@ export function useTextEditorBridges(options) {
   let dropOverlay = null
   let dropCursor = null
   let draggedFilePaths = []
-
-  function handleCommentClick(event) {
-    const commentId = event.detail?.commentId
-    if (!commentId) return
-
-    commentsStore.setActiveComment(commentId)
-    const view = getView()
-    if (view) {
-      view.dispatch({ effects: setActiveComment.of(commentId) })
-    }
-    if (!commentsStore.isMarginVisible(filePath)) {
-      commentsStore.toggleMargin(filePath)
-    }
-  }
-
-  function syncCommentsToEditor(editorView) {
-    if (!editorView) return
-
-    const storeComments = commentsStore.commentsForFile(filePath)
-    const cmState = editorView.state.field(commentField)
-    const cmComments = cmState.comments
-    const effects = []
-
-    for (const storeComment of storeComments) {
-      const existing = cmComments.find((comment) => comment.id === storeComment.id)
-      if (!existing) {
-        effects.push(addComment.of({
-          id: storeComment.id,
-          from: Math.min(storeComment.range.from, editorView.state.doc.length),
-          to: Math.min(storeComment.range.to, editorView.state.doc.length),
-          status: storeComment.status,
-          author: storeComment.author,
-        }))
-      }
-    }
-
-    for (const comment of cmComments) {
-      if (!storeComments.find((storeComment) => storeComment.id === comment.id)) {
-        effects.push(removeComment.of(comment.id))
-      }
-    }
-
-    for (const storeComment of storeComments) {
-      const existing = cmComments.find((comment) => comment.id === storeComment.id)
-      if (existing && existing.status !== storeComment.status) {
-        effects.push(updateComment.of({ id: storeComment.id, status: storeComment.status }))
-      }
-    }
-
-    if (cmState.activeId !== commentsStore.activeCommentId) {
-      effects.push(setActiveComment.of(commentsStore.activeCommentId))
-    }
-
-    if (effects.length) {
-      editorView.dispatch({ effects })
-    }
-  }
-
-  function pushCommentPositionsToStore(editorView) {
-    const cmState = editorView.state.field(commentField)
-    for (const comment of cmState.comments) {
-      commentsStore.updateRange(comment.id, comment.from, comment.to)
-    }
-  }
 
   function showMergeViewIfNeeded() {}
 
@@ -167,25 +101,6 @@ export function useTextEditorBridges(options) {
   }
 
   watch(
-    () => commentsStore.commentsForFile(filePath),
-    () => {
-      const view = getView()
-      if (view) syncCommentsToEditor(view)
-    },
-    { deep: true },
-  )
-
-  watch(
-    () => commentsStore.activeCommentId,
-    (newId) => {
-      const view = getView()
-      if (view) {
-        view.dispatch({ effects: setActiveComment.of(newId) })
-      }
-    },
-  )
-
-  watch(
     () => files.fileContents[filePath],
     (newContent) => {
       const view = getView()
@@ -211,9 +126,6 @@ export function useTextEditorBridges(options) {
   })
 
   return {
-    handleCommentClick,
-    syncCommentsToEditor,
-    pushCommentPositionsToStore,
     showMergeViewIfNeeded,
   }
 }

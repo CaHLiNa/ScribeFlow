@@ -15,24 +15,30 @@
         :status-text="workflowStatusText"
         :status-tone="workflowStatusTone"
         :show-run-buttons="showToolbarRunButtons"
-        :show-comment-toggle="showCommentToolbar"
-        :comment-active="isCommentToolbarActive"
-        :comment-badge-count="commentToolbarBadgeCount"
         @primary-action="handleWorkflowPrimaryAction"
         @reveal-preview="handleWorkflowRevealPreview"
         @reveal-pdf="handleWorkflowRevealPdf"
         @run-code="handleRunCode"
         @run-file="handleRunFile"
-        @toggle-comments="toggleCommentToolbar"
       />
 
+      <Teleport v-if="showIntegratedDocumentTitle" :to="integratedDocumentTitleTarget">
+        <div class="workbench-document-title" :title="currentDocumentLabel" :aria-label="currentDocumentLabel">
+          <span class="workbench-document-title-label">{{ currentDocumentLabel }}</span>
+        </div>
+      </Teleport>
+
       <div v-if="showLocalDocumentHeader" class="document-header-stack">
-        <div class="document-header-row document-header-row--compact">
-          <div v-if="activeTab" ref="documentTitleWrapRef" class="document-title-wrap">
+        <div class="document-header-row">
+          <div
+            v-if="showPaneDocumentTitle"
+            ref="documentTitleWrapRef"
+            class="document-title-wrap document-title-wrap--pane"
+          >
             <div class="document-title-cluster">
               <button
                 type="button"
-                class="document-title-button"
+                class="document-title-button document-title-button--pane"
                 :title="currentDocumentLabel"
                 :aria-label="currentDocumentLabel"
                 :aria-expanded="tabsMenuOpen ? 'true' : 'false'"
@@ -51,26 +57,6 @@
                   aria-hidden="true"
                 >
                   <path d="M4.5 6.5 8 10l3.5-3.5" />
-                </svg>
-              </button>
-
-              <button
-                type="button"
-                class="document-title-action"
-                :title="t('New Tab')"
-                :aria-label="t('New Tab')"
-                @click.stop="openNewTabDirect"
-              >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 16 16"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="1.7"
-                  aria-hidden="true"
-                >
-                  <path d="M8 3v10M3 8h10" />
                 </svg>
               </button>
             </div>
@@ -115,31 +101,47 @@
                   </button>
                 </div>
               </div>
-
-              <button type="button" class="document-tabs-menu-new" @click="openNewTabFromMenu">
-                {{ t('New Tab') }}
-              </button>
             </div>
           </div>
 
-          <DocumentWorkflowBar
-            v-if="showInlineWorkflowBar"
-            inline-header
-            :ui-state="toolbarUiState"
-            :preview-state="workspacePreviewState"
-            :status-text="workflowStatusText"
-            :status-tone="workflowStatusTone"
-            :show-run-buttons="showToolbarRunButtons"
-            :show-comment-toggle="showCommentToolbar"
-            :comment-active="isCommentToolbarActive"
-            :comment-badge-count="commentToolbarBadgeCount"
-            @primary-action="handleWorkflowPrimaryAction"
-            @reveal-preview="handleWorkflowRevealPreview"
-            @reveal-pdf="handleWorkflowRevealPdf"
-            @run-code="handleRunCode"
-            @run-file="handleRunFile"
-            @toggle-comments="toggleCommentToolbar"
-          />
+          <div class="document-header-tools">
+            <div v-if="activeTab" class="document-pane-actions">
+              <button
+                type="button"
+                class="document-pane-action"
+                :title="t('New Tab')"
+                :aria-label="t('New Tab')"
+                @click.stop="openNewTabDirect"
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.7"
+                  aria-hidden="true"
+                >
+                  <path d="M8 3v10M3 8h10" />
+                </svg>
+              </button>
+            </div>
+
+            <DocumentWorkflowBar
+              v-if="showInlineWorkflowBar"
+              inline-header
+              :ui-state="toolbarUiState"
+              :preview-state="workspacePreviewState"
+              :status-text="workflowStatusText"
+              :status-tone="workflowStatusTone"
+              :show-run-buttons="showToolbarRunButtons"
+              @primary-action="handleWorkflowPrimaryAction"
+              @reveal-preview="handleWorkflowRevealPreview"
+              @reveal-pdf="handleWorkflowRevealPdf"
+              @run-code="handleRunCode"
+              @run-file="handleRunFile"
+            />
+          </div>
         </div>
       </div>
 
@@ -156,20 +158,8 @@
           :preview-visible="documentWorkspaceRoute.previewVisible"
           :filePath="activeTab"
           :paneId="paneId"
-          :show-comment-margin="commentsStore.isMarginVisible(activeTab)"
-          :has-editor-selection="hasEditorSelection"
-          :show-comment-panel="showCommentPanel"
-          :active-comment="commentsStore.activeComment"
-          :editor-view="currentEditorView"
-          :container-rect="containerRect"
-          :comment-panel-mode="commentPanelMode"
-          :comment-selection-range="commentSelectionRange"
-          :comment-selection-text="commentSelectionText"
           @cursor-change="(pos) => $emit('cursor-change', pos)"
           @editor-stats="(stats) => $emit('editor-stats', stats)"
-          @selection-change="onSelectionChange"
-          @close-comment-panel="closeCommentPanel"
-          @comment-created="onCommentCreated"
         >
           <template #preview>
             <MarkdownPreview
@@ -221,7 +211,6 @@ import { useEditorStore } from '../../stores/editor'
 import { useFilesStore } from '../../stores/files'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useToastStore } from '../../stores/toast'
-import { useCommentsStore } from '../../stores/comments'
 import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import {
   getViewerType,
@@ -233,7 +222,6 @@ import {
 import { useLatexStore } from '../../stores/latex'
 import { useTypstStore } from '../../stores/typst'
 import { useI18n } from '../../i18n'
-import { useEditorPaneComments } from '../../composables/useEditorPaneComments'
 import { useEditorPaneWorkflow } from '../../composables/useEditorPaneWorkflow'
 import { confirmUnsavedChanges } from '../../services/unsavedChanges'
 import { resolveDocumentWorkspaceTextRoute } from '../../domains/document/documentWorkspacePreviewRuntime'
@@ -260,7 +248,6 @@ const workspace = useWorkspaceStore()
 const latexStore = useLatexStore()
 const typstStore = useTypstStore()
 const toastStore = useToastStore()
-const commentsStore = useCommentsStore()
 const workflowStore = useDocumentWorkflowStore()
 const { t } = useI18n()
 const paneIdRef = toRef(props, 'paneId')
@@ -268,24 +255,24 @@ const tabsRef = toRef(props, 'tabs')
 const activeTabRef = toRef(props, 'activeTab')
 
 const isActive = computed(() => editorStore.activePaneId === props.paneId)
+const hasIntegratedDocumentTitle = computed(() => !!props.topbarTabsTargetSelector)
 const hasIntegratedWorkflowBar = computed(() => !!props.topbarWorkflowTargetSelector)
 const viewerType = computed(() => (props.activeTab ? getViewerType(props.activeTab) : null))
 const viewerTypeRef = viewerType
-const showCommentToolbar = computed(() => !!props.activeTab && viewerType.value === 'text')
 const showToolbarRunButtons = computed(
   () => !!props.activeTab && viewerType.value === 'text' && isRunnable(props.activeTab)
 )
-const isCommentToolbarActive = computed(
-  () => !!props.activeTab && commentsStore.isMarginVisible(props.activeTab)
-)
-const commentToolbarBadgeCount = computed(() =>
-  props.activeTab ? commentsStore.unresolvedCount(props.activeTab) : 0
-)
 const toolbarUiState = computed(() => {
   if (workflowUiState.value) return workflowUiState.value
-  if (showCommentToolbar.value) return { kind: 'text' }
+  if (props.activeTab && viewerType.value === 'text') return { kind: 'text' }
   return null
 })
+const showIntegratedDocumentTitle = computed(
+  () => hasIntegratedDocumentTitle.value && isActive.value && !!props.activeTab
+)
+const integratedDocumentTitleTarget = computed(() =>
+  showIntegratedDocumentTitle.value ? props.topbarTabsTargetSelector : ''
+)
 const showIntegratedWorkflowBar = computed(
   () => hasIntegratedWorkflowBar.value && isActive.value && !!toolbarUiState.value
 )
@@ -295,35 +282,14 @@ const integratedWorkflowTarget = computed(() =>
 const showInlineWorkflowBar = computed(
   () => !!toolbarUiState.value && !showIntegratedWorkflowBar.value
 )
-const showLocalDocumentHeader = computed(
-  () => !!props.activeTab || showInlineWorkflowBar.value
-)
+const showLocalDocumentHeader = computed(() => !!props.activeTab || showInlineWorkflowBar.value)
+const isSplitPane = computed(() => editorStore.paneTree?.type === 'split')
+const showPaneDocumentTitle = computed(() => !!props.activeTab)
 
 const editorContainerRef = ref(null)
 const documentTitleWrapRef = ref(null)
 const tabsMenuOpen = ref(false)
 const currentDocumentLabel = computed(() => fileName(props.activeTab))
-
-const {
-  hasEditorSelection,
-  showCommentPanel,
-  containerRect,
-  currentEditorView,
-  commentPanelMode,
-  commentSelectionRange,
-  commentSelectionText,
-  onSelectionChange,
-  closeCommentPanel,
-  onCommentCreated,
-  startComment,
-} = useEditorPaneComments({
-  paneIdRef,
-  activeTabRef,
-  viewerTypeRef,
-  editorStore,
-  commentsStore,
-  editorContainerRef,
-})
 
 const {
   documentPreviewState,
@@ -406,52 +372,8 @@ async function closeTabFromMenu(path) {
   }
 }
 
-function openNewTabFromMenu() {
-  editorStore.openNewTab(props.paneId)
-  closeTabsMenu()
-}
-
 function openNewTabDirect() {
   editorStore.openNewTab(props.paneId)
-}
-
-function splitVertical() {
-  editorStore.setActivePane(props.paneId)
-  const newPaneId = editorStore.splitPane('vertical')
-  editorStore.openNewTab(newPaneId)
-}
-
-function splitHorizontal() {
-  editorStore.setActivePane(props.paneId)
-  const newPaneId = editorStore.splitPane('horizontal')
-  editorStore.openNewTab(newPaneId)
-}
-
-async function closePane() {
-  const pane = editorStore.findPane(editorStore.paneTree, props.paneId)
-  if (!pane) return
-  const result = await confirmUnsavedChanges(pane.tabs || [], {
-    message: t('These files have unsaved changes and will be closed with this pane.'),
-  })
-  if (result.choice === 'cancel') return
-
-  for (const tab of pane.tabs || []) {
-    workflowStore.handlePreviewClosed(tab)
-  }
-
-  const parent = editorStore.findParent(editorStore.paneTree, pane.id)
-  if (!parent) {
-    pane.tabs = []
-    pane.activeTab = null
-    return
-  }
-
-  editorStore.collapsePane(props.paneId)
-}
-
-function toggleCommentToolbar() {
-  if (!props.activeTab || viewerType.value !== 'text') return
-  commentsStore.toggleMargin(props.activeTab)
 }
 
 function handleDocumentPointerDown(event) {
@@ -475,8 +397,6 @@ onUnmounted(() => {
   document.removeEventListener('mousedown', handleDocumentPointerDown)
   document.removeEventListener('keydown', handleDocumentEscape)
 })
-
-defineExpose({ startComment })
 </script>
 
 <style scoped>
@@ -512,34 +432,70 @@ defineExpose({ startComment })
   z-index: 4;
   width: 100%;
   box-sizing: border-box;
-  padding: 2px 12px 4px;
+  padding: 1px 10px 2px;
   background: transparent;
+}
+
+.workbench-document-title {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 28px;
+  padding: 0 12px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--chrome-surface) 54%, transparent);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--border) 20%, transparent),
+    0 1px 0 color-mix(in srgb, white 24%, transparent);
+  color: var(--text-primary);
+  font-size: var(--ui-font-body);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+.workbench-document-title-label {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .document-header-row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   min-height: var(--document-header-row-height);
   min-width: 0;
+  justify-content: space-between;
 }
 
-.document-header-row--compact {
-  justify-content: flex-end;
+.document-header-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
 }
 
 .document-title-wrap {
   position: relative;
   display: flex;
   justify-content: center;
-  width: min(560px, 100%);
+  flex: 1 1 0;
+  width: auto;
   min-width: 0;
+}
+
+.document-title-wrap--pane {
+  justify-content: flex-start;
 }
 
 .document-title-cluster {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   min-width: 0;
   max-width: 100%;
 }
@@ -548,12 +504,12 @@ defineExpose({ startComment })
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 6px;
   max-width: 100%;
   min-height: var(--document-header-row-height);
-  padding: 0 10px;
+  padding: 0 8px;
   border: 0;
-  border-radius: 8px;
+  border-radius: 7px;
   background: transparent;
   color: var(--text-primary);
   font: inherit;
@@ -565,7 +521,32 @@ defineExpose({ startComment })
 }
 
 .document-title-button:hover {
-  background: color-mix(in srgb, var(--surface-hover) 28%, transparent);
+  background: color-mix(in srgb, var(--surface-hover) 18%, transparent);
+}
+
+.document-title-button--pane {
+  min-height: 24px;
+  padding: 0 6px;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: var(--sidebar-font-item);
+  font-weight: 560;
+  letter-spacing: -0.01em;
+}
+
+.editor-pane-shell:not([data-pane-id='pane-root']) .document-title-button--pane {
+  color: var(--text-secondary);
+}
+
+.editor-pane-shell[data-pane-id='pane-root'] .document-title-button--pane {
+  color: color-mix(in srgb, var(--text-secondary) 86%, transparent);
+  font-size: var(--sidebar-font-body);
+  font-weight: 540;
+}
+
+.document-title-button--pane:hover {
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--surface-hover) 14%, transparent);
 }
 
 .document-title-label {
@@ -581,39 +562,49 @@ defineExpose({ startComment })
   color: var(--text-muted);
 }
 
-.document-title-action {
+.document-pane-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: 0 0 auto;
+}
+
+.document-pane-actions--leading {
+  min-width: 64px;
+}
+
+.document-pane-action {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
-  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
   padding: 0;
   border: 0;
-  border-radius: 8px;
+  border-radius: 7px;
   background: transparent;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   cursor: pointer;
   transition: background-color 140ms ease, color 140ms ease;
 }
 
-.document-title-action:hover {
-  background: color-mix(in srgb, var(--surface-hover) 28%, transparent);
+.document-pane-action:hover {
+  background: color-mix(in srgb, var(--surface-hover) 18%, transparent);
   color: var(--text-primary);
 }
 
 .document-tabs-menu {
   position: absolute;
-  top: calc(100% + 8px);
+  top: calc(100% + 6px);
   left: 50%;
   z-index: 30;
-  width: min(320px, calc(100vw - 32px));
+  width: min(280px, calc(100vw - 32px));
   transform: translateX(-50%);
-  padding: 6px;
-  border-radius: 12px;
+  padding: 4px;
+  border-radius: 10px;
   background: color-mix(in srgb, var(--surface-base) 96%, var(--panel-surface));
   box-shadow:
-    0 18px 40px color-mix(in srgb, black 18%, transparent),
+    0 14px 32px color-mix(in srgb, black 14%, transparent),
     inset 0 0 0 1px color-mix(in srgb, var(--border) 16%, transparent);
   backdrop-filter: blur(20px) saturate(1.04);
 }
@@ -630,17 +621,16 @@ defineExpose({ startComment })
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 4px;
-  border-radius: 8px;
+  gap: 2px;
+  border-radius: 7px;
 }
 
 .document-tabs-menu-item.is-active {
-  background: color-mix(in srgb, var(--surface-hover) 36%, transparent);
+  background: color-mix(in srgb, var(--surface-hover) 28%, transparent);
 }
 
 .document-tabs-menu-select,
-.document-tabs-menu-close,
-.document-tabs-menu-new {
+.document-tabs-menu-close {
   border: 0;
   background: transparent;
   color: inherit;
@@ -652,8 +642,8 @@ defineExpose({ startComment })
   align-items: center;
   gap: 8px;
   min-width: 0;
-  min-height: 30px;
-  padding: 0 10px;
+  min-height: 28px;
+  padding: 0 8px;
   color: var(--text-secondary);
   cursor: pointer;
 }
@@ -678,40 +668,34 @@ defineExpose({ startComment })
 }
 
 .document-tabs-menu-close {
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
   color: var(--text-muted);
   cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity 140ms ease,
+    background-color 140ms ease,
+    color 140ms ease;
+}
+
+.document-tabs-menu-item:hover .document-tabs-menu-close,
+.document-tabs-menu-item.is-active .document-tabs-menu-close {
+  opacity: 1;
 }
 
 .document-tabs-menu-close:hover,
-.document-tabs-menu-new:hover,
 .document-tabs-menu-select:hover {
   color: var(--text-primary);
 }
 
 .document-tabs-menu-close:hover {
-  background: color-mix(in srgb, var(--surface-hover) 32%, transparent);
+  background: color-mix(in srgb, var(--surface-hover) 22%, transparent);
 }
 
-.document-tabs-menu-new {
-  width: 100%;
-  margin-top: 6px;
-  min-height: 30px;
-  padding: 0 10px;
-  border-radius: 8px;
-  text-align: left;
-  color: var(--text-secondary);
-  cursor: pointer;
-}
-
-.document-tabs-menu-new:hover {
-  background: color-mix(in srgb, var(--surface-hover) 32%, transparent);
-}
-
-.document-header-row :deep(.workflow-bar) {
+.document-header-tools :deep(.workflow-bar) {
   flex: 0 0 auto;
-  margin-left: auto;
+  margin-left: 0;
 }
 </style>

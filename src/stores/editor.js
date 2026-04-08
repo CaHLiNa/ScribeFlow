@@ -159,6 +159,14 @@ export const useEditorStore = defineStore('editor', {
       return findRightNeighborLeaf(this.paneTree, paneId)
     },
 
+    getCompanionPaneId(paneId) {
+      if (this.paneTree?.type !== 'split' || !Array.isArray(this.paneTree.children)) return null
+      const [leftPane, rightPane] = this.paneTree.children
+      if (leftPane?.id === paneId) return rightPane?.id || null
+      if (rightPane?.id === paneId) return leftPane?.id || null
+      return rightPane?.id || leftPane?.id || null
+    },
+
     _findLeaf(predicate) {
       return findLeaf(this.paneTree, predicate)
     },
@@ -285,8 +293,15 @@ export const useEditorStore = defineStore('editor', {
       const pane = this.findPane(this.paneTree, this.activePaneId)
       if (!pane) return null
 
+      const existingCompanionPaneId = this.getCompanionPaneId(pane.id)
+      if (existingCompanionPaneId) {
+        this.activePaneId = existingCompanionPaneId
+        this.saveEditorState()
+        return existingCompanionPaneId
+      }
+
       const newPaneId = `pane-${nanoid()}`
-      const newPane = splitPaneNode(pane, direction, newPaneId)
+      const newPane = splitPaneNode(this.paneTree, pane.id, newPaneId)
       if (!newPane) return null
 
       this.activePaneId = newPane.id
@@ -298,8 +313,16 @@ export const useEditorStore = defineStore('editor', {
       const pane = this.findPane(this.paneTree, paneId)
       if (!pane || !tab) return null
 
+      const existingCompanionPaneId = this.getCompanionPaneId(paneId)
+      if (existingCompanionPaneId) {
+        this.openFileInPane(tab, existingCompanionPaneId, { activatePane: false })
+        this.activePaneId = paneId
+        this.saveEditorState()
+        return existingCompanionPaneId
+      }
+
       const newPaneId = `pane-${nanoid()}`
-      const newPane = splitPaneNode(pane, direction, newPaneId, [tab], tab)
+      const newPane = splitPaneNode(this.paneTree, paneId, newPaneId, [tab], tab)
       if (!newPane) return null
 
       this.activePaneId = paneId
@@ -327,7 +350,7 @@ export const useEditorStore = defineStore('editor', {
     },
 
     setSplitRatio(splitNode, ratio) {
-      if (!splitNode || splitNode.type !== 'split') return
+      if (!splitNode || splitNode !== this.paneTree || splitNode.type !== 'split') return
       splitNode.ratio = Math.max(0.15, Math.min(0.85, Number(ratio) || 0.5))
       this.saveEditorState()
     },

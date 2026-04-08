@@ -23,12 +23,15 @@
       <div class="app-shell-workspace flex flex-1 flex-col overflow-hidden">
         <WorkbenchRail
           class="app-shell-topbar shrink-0"
+          tabs-target-id="app-shell-topbar-tabs"
           :left-sidebar-open="workspace.leftSidebarOpen"
           :right-sidebar-open="workspace.rightSidebarOpen"
+          :split-pane-open="splitPaneOpen"
           :inspector-available="supportsRightSidebar"
           @collapse-left-folders="leftSidebarRef?.collapseAllFolders?.()"
           @open-left-create-menu="leftSidebarRef?.openCreateMenuFrom?.($event?.currentTarget || null)"
           @toggle-left-sidebar="workspace.toggleLeftSidebar()"
+          @toggle-split-pane="toggleSplitPane"
           @toggle-right-sidebar="workspace.toggleRightSidebar()"
         />
 
@@ -172,7 +175,7 @@ import { ref, computed, defineAsyncComponent } from 'vue'
 import { useWorkspaceStore } from './stores/workspace'
 import { useFilesStore } from './stores/files'
 import { useEditorStore } from './stores/editor'
-import { useCommentsStore } from './stores/comments'
+import { useDocumentWorkflowStore } from './stores/documentWorkflow'
 import { useLinksStore } from './stores/links'
 import { useToastStore } from './stores/toast'
 
@@ -188,6 +191,7 @@ import { useWorkspaceSnapshotActions } from './app/changes/useWorkspaceSnapshotA
 import { useAppShellEventBridge } from './app/shell/useAppShellEventBridge'
 import { useAppTeardown } from './app/teardown/useAppTeardown'
 import { useWorkspaceLifecycle } from './app/workspace/useWorkspaceLifecycle'
+import { confirmUnsavedChanges } from './services/unsavedChanges'
 
 const LeftSidebar = defineAsyncComponent(() => import('./components/sidebar/LeftSidebar.vue'))
 const RightSidebar = defineAsyncComponent(() => import('./components/sidebar/RightSidebar.vue'))
@@ -205,7 +209,7 @@ const UnsavedChangesDialog = defineAsyncComponent(
 const workspace = useWorkspaceStore()
 const filesStore = useFilesStore()
 const editorStore = useEditorStore()
-const commentsStore = useCommentsStore()
+const workflowStore = useDocumentWorkflowStore()
 const linksStore = useLinksStore()
 const toastStore = useToastStore()
 const { t } = useI18n()
@@ -220,13 +224,52 @@ const fileVersionHistoryVisible = ref(false)
 const fileVersionHistoryFile = ref('')
 
 const supportsRightSidebar = computed(() => workspace.isOpen)
+const splitPaneOpen = computed(() => (
+  editorStore.paneTree?.type === 'split'
+  && Array.isArray(editorStore.paneTree.children)
+  && editorStore.paneTree.children.length === 2
+))
 const activeWorkbenchComponent = computed(() => PaneContainer)
 const activeWorkbenchCacheKey = computed(() => workspace.primarySurface || 'workspace')
-const activeWorkbenchProps = computed(() => ({ node: editorStore.paneTree }))
+const activeWorkbenchProps = computed(() => ({
+  node: editorStore.paneTree,
+  topbarTabsTargetSelector: '#app-shell-topbar-tabs',
+}))
 const activeWorkbenchClass = computed(() => 'h-full min-h-0 w-full')
 
 function openQuickSearch() {
   searchRef.value?.focusSearch?.()
+}
+
+function getSecondaryPane() {
+  if (!splitPaneOpen.value) return null
+  return editorStore.paneTree.children?.[1] || null
+}
+
+async function toggleSplitPane() {
+  if (!splitPaneOpen.value) {
+    const newPaneId = editorStore.splitPane('vertical')
+    if (!newPaneId) return
+    const newPane = editorStore.findPane(editorStore.paneTree, newPaneId)
+    if (newPane && !(newPane.tabs || []).length) {
+      editorStore.openNewTab(newPaneId)
+    }
+    return
+  }
+
+  const secondaryPane = getSecondaryPane()
+  if (!secondaryPane) return
+
+  const result = await confirmUnsavedChanges(secondaryPane.tabs || [], {
+    message: t('These files have unsaved changes and will be closed with this pane.'),
+  })
+  if (result.choice === 'cancel') return
+
+  for (const tab of secondaryPane.tabs || []) {
+    workflowStore.handlePreviewClosed(tab)
+  }
+
+  editorStore.collapsePane(secondaryPane.id)
 }
 
 const {
@@ -320,7 +363,7 @@ function onCursorChange(pos) {
 useAppShellEventBridge({
   workspace,
   editorStore,
-  commentsStore,
+  toggleSplitPane,
   searchRef,
   leftSidebarRef,
   workspaceSnapshotBrowserVisible,
@@ -337,7 +380,6 @@ useAppTeardown({
   workspace,
   filesStore,
   linksStore,
-  commentsStore,
 })
 </script>
 

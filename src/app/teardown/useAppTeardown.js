@@ -5,13 +5,11 @@ export function useAppTeardown({
   workspace,
   filesStore,
   linksStore,
-  commentsStore,
 }) {
   onUnmounted(() => {
     cleanupAppShellLayout()
     workspace.cleanup()
     filesStore.cleanup()
     linksStore.cleanup()
-    commentsStore.cleanup()
   })
 }

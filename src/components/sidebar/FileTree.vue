@@ -71,7 +71,7 @@
             v-model="filterQuery"
             size="sm"
             shell-class="file-tree-search-input"
-            :placeholder="t('Filter files...')"
+            :placeholder="t('Filter files or quick open...')"
             autocomplete="off"
             autocorrect="off"
             autocapitalize="off"
@@ -856,6 +856,7 @@ defineExpose({
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 4px;
   min-width: 0;
   padding: 0;
   border: 0;
@@ -869,12 +870,14 @@ defineExpose({
 }
 
 .file-tree-quick-open-kbd {
-  min-width: 18px;
+  min-width: 24px;
   height: 14px;
-  padding: 0 4px;
+  padding: 0 5px;
   border-radius: 4px;
   font-size: 9px;
   line-height: 1;
+  color: var(--text-secondary);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 16%, transparent);
 }
 
 .file-tree-root-rename-row {

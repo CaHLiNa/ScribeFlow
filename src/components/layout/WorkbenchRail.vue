@@ -68,11 +68,40 @@
       </UiButton>
     </div>
 
+    <div class="workbench-rail-center" data-tauri-drag-region="false">
+      <div :id="tabsTargetId" class="workbench-rail-title-target"></div>
+    </div>
+
     <div class="workbench-rail-side workbench-rail-side-right">
       <div class="workbench-rail-controls" data-tauri-drag-region="false">
         <UiButton
+          class="workbench-rail-button"
+          shell-class="workbench-rail-pane-button"
+          variant="ghost"
+          size="icon-sm"
+          :active="splitPaneOpen"
+          :title="t('Toggle split pane ({shortcut})', { shortcut: `${modKey}+J` })"
+          :aria-label="t('Toggle split pane')"
+          @click="$emit('toggle-split-pane')"
+        >
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.7"
+            aria-hidden="true"
+          >
+            <rect x="2.5" y="3" width="11" height="10" rx="1.75" />
+            <path d="M8 3v10" />
+          </svg>
+        </UiButton>
+
+        <UiButton
           v-if="inspectorAvailable"
           class="workbench-rail-button"
+          shell-class="workbench-rail-pane-button"
           variant="ghost"
           size="icon-sm"
           :active="rightSidebarOpen"
@@ -105,14 +134,17 @@ import { isMac, modKey } from '../../platform'
 import { useI18n } from '../../i18n'
 
 defineProps({
+  tabsTargetId: { type: String, default: 'app-shell-topbar-tabs' },
   leftSidebarOpen: { type: Boolean, default: true },
   rightSidebarOpen: { type: Boolean, default: false },
+  splitPaneOpen: { type: Boolean, default: false },
   inspectorAvailable: { type: Boolean, default: false },
 })
 
 defineEmits([
   'toggle-left-sidebar',
   'toggle-right-sidebar',
+  'toggle-split-pane',
   'collapse-left-folders',
   'open-left-create-menu',
 ])
@@ -210,19 +242,46 @@ onUnmounted(() => {
   pointer-events: auto;
 }
 
+.workbench-rail-center {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: min(520px, calc(100% - 220px));
+  min-width: 0;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+
+.workbench-rail--mac .workbench-rail-center {
+  transform: translate(-50%, calc(-50% - 5px));
+}
+
+.workbench-rail-title-target {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-width: 0;
+  pointer-events: auto;
+}
+
 .workbench-rail-side-left {
   justify-content: flex-start;
 }
 
 .workbench-rail-side-right {
   justify-content: flex-end;
-  gap: 6px;
+  gap: 4px;
 }
 
 .workbench-rail-controls {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: 1px;
   flex: 0 0 auto;
   min-height: var(--top-chrome-control-size);
   pointer-events: auto;
@@ -262,17 +321,31 @@ onUnmounted(() => {
 
 .workbench-rail-button.is-active {
   color: var(--text-primary);
-  background: color-mix(in srgb, var(--chrome-surface) 24%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 14%, transparent);
+  background: color-mix(in srgb, var(--chrome-surface) 42%, transparent);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--border) 18%, transparent),
+    0 1px 0 color-mix(in srgb, white 20%, transparent);
+}
+
+:deep(.workbench-rail-pane-button) {
+  color: var(--text-secondary);
 }
 
 @media (max-width: 920px) {
+  .workbench-rail-center {
+    width: min(420px, calc(100% - 180px));
+  }
+
   .workbench-rail {
     gap: 8px;
   }
 }
 
 @media (max-width: 720px) {
+  .workbench-rail-center {
+    width: min(320px, calc(100% - 148px));
+  }
+
   .workbench-rail {
     min-height: 42px;
   }

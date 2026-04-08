@@ -420,7 +420,7 @@ onUnmounted(() => {
   flex-direction: column;
   height: 100%;
   background: transparent;
-  padding-top: 2px;
+  padding-top: 0;
 }
 
 .outline-panel--embedded {
@@ -456,17 +456,17 @@ onUnmounted(() => {
 .outline-panel-scroll {
   flex: 1 1 auto;
   overflow-y: auto;
-  padding: 2px 0 4px;
+  padding: 0 0 4px;
 }
 
 .outline-panel-section-label {
-  padding: 6px 8px 3px;
+  padding: 4px 8px 4px;
   font-size: var(--sidebar-font-meta);
-  font-weight: 500;
-  letter-spacing: 0.08em;
+  font-weight: 560;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--text-muted);
-  opacity: 0.62;
+  opacity: 0.72;
 }
 
 .outline-panel-row {

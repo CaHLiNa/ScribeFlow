@@ -3,7 +3,6 @@
 @import './css/ui.css';
 @import './css/editor.css';
 @import './css/components.css';
-@import './css/comments.css';
 
 @tailwind base;
 @tailwind components;

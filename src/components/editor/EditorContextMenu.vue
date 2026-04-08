@@ -40,23 +40,6 @@
       </template>
 
       <template v-if="hasSelection">
-        <div class="context-menu-item" @click="addComment">
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-          </svg>
-          {{ t('Add Comment') }}
-          <span class="editor-context-menu-shortcut ml-auto">&#x21E7;&#x2318;L</span>
-        </div>
-        <div class="context-menu-separator"></div>
         <div class="context-menu-item" @click="cut">{{ t('Cut') }}</div>
         <div class="context-menu-item" @click="copy">{{ t('Copy') }}</div>
         <div class="context-menu-item" @click="paste">{{ t('Paste') }}</div>
@@ -95,7 +78,6 @@
 import { nextTick, ref, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { useEditorStore } from '../../stores/editor'
-import { useCommentsStore } from '../../stores/comments'
 import { useI18n } from '../../i18n'
 
 const props = defineProps({
@@ -120,7 +102,6 @@ const emit = defineEmits([
   'apply-typst-code-action',
 ])
 const editorStore = useEditorStore()
-const commentsStore = useCommentsStore()
 const { t } = useI18n()
 
 const menuRef = ref(null)
@@ -224,23 +205,6 @@ function applySuggestion(suggestion) {
   props.view.dispatch({
     changes: { from: wordFrom, to: wordTo, insert: suggestion },
   })
-  emit('close')
-}
-
-function addComment() {
-  // Auto-show margin
-  const filePath = editorStore.activePane?.activeTab
-  if (filePath && !commentsStore.isMarginVisible(filePath)) {
-    commentsStore.toggleMargin(filePath)
-  }
-
-  // Dispatch event for EditorPane to handle
-  const pane = editorStore.activePane
-  window.dispatchEvent(
-    new CustomEvent('comment-create', {
-      detail: { paneId: pane?.id },
-    })
-  )
   emit('close')
 }
 

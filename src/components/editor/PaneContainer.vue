@@ -16,7 +16,6 @@
     v-else-if="node.type === 'split'"
     ref="splitContainer"
     class="pane-container-split flex h-full w-full"
-    :class="{ 'flex-col': node.direction === 'horizontal' }"
   >
     <div :style="firstChildStyle" class="pane-container-slot overflow-hidden">
       <PaneContainer
@@ -29,7 +28,7 @@
     </div>
 
     <SplitHandle
-      :direction="node.direction === 'horizontal' ? 'horizontal' : 'vertical'"
+      direction="vertical"
       @resize="(e) => handleResize(e)"
     />
 
@@ -64,15 +63,13 @@ const splitContainer = ref(null)
 const firstChildStyle = computed(() => {
   if (props.node.type !== 'split') return {}
   const ratio = props.node.ratio || 0.5
-  const prop = props.node.direction === 'horizontal' ? 'height' : 'width'
-  return { [prop]: `calc(${ratio * 100}% - 1px)` }
+  return { width: `calc(${ratio * 100}% - 1px)` }
 })
 
 const secondChildStyle = computed(() => {
   if (props.node.type !== 'split') return {}
   const ratio = props.node.ratio || 0.5
-  const prop = props.node.direction === 'horizontal' ? 'height' : 'width'
-  return { [prop]: `calc(${(1 - ratio) * 100}% - 1px)` }
+  return { width: `calc(${(1 - ratio) * 100}% - 1px)` }
 })
 
 function handleResize(e) {
@@ -82,13 +79,7 @@ function handleResize(e) {
   if (!container) return
 
   const rect = container.getBoundingClientRect()
-  let ratio
-
-  if (props.node.direction === 'horizontal') {
-    ratio = (e.y - rect.top) / rect.height
-  } else {
-    ratio = (e.x - rect.left) / rect.width
-  }
+  const ratio = (e.x - rect.left) / rect.width
 
   editorStore.setSplitRatio(props.node, ratio)
 }

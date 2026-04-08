@@ -5,7 +5,6 @@ import { open } from '@tauri-apps/plugin-dialog'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useFilesStore } from '../../stores/files'
 import { useEditorStore } from '../../stores/editor'
-import { useCommentsStore } from '../../stores/comments'
 import { useLinksStore } from '../../stores/links'
 import { useTypstStore } from '../../stores/typst'
 import { useLatexStore } from '../../stores/latex'
@@ -24,7 +23,6 @@ export function useWorkspaceLifecycle() {
   const workspace = useWorkspaceStore()
   const filesStore = useFilesStore()
   const editorStore = useEditorStore()
-  const commentsStore = useCommentsStore()
   const linksStore = useLinksStore()
   const typstStore = useTypstStore()
   const latexStore = useLatexStore()
@@ -189,12 +187,6 @@ export function useWorkspaceLifecycle() {
 
       scheduleWorkspaceBackgroundTask(0, loadGeneration, targetPath, () => filesStore.startWatching(), 'files.startWatching')
 
-      scheduleWorkspaceBackgroundTask(100, loadGeneration, targetPath, async () => {
-        await workspace.ensureWorkspaceBootstrapReady(targetPath)
-        if (loadGeneration !== workspaceLoadGeneration || workspace.path !== targetPath) return
-        await commentsStore.loadComments()
-      }, 'comments.loadComments')
-
       scheduleWorkspaceBackgroundTask(620, loadGeneration, targetPath, async () => {
         await workspace.ensureWorkspaceBootstrapReady(targetPath)
         if (loadGeneration !== workspaceLoadGeneration || workspace.path !== targetPath) return
@@ -242,7 +234,6 @@ export function useWorkspaceLifecycle() {
     editorStore.cleanup()
     filesStore.cleanup()
     linksStore.cleanup()
-    commentsStore.cleanup()
     latexStore.cleanup()
     typstStore.cleanup()
     await workspace.closeWorkspace()

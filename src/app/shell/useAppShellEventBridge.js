@@ -14,7 +14,7 @@ function preferredNewFileExtension(path = '') {
 export function useAppShellEventBridge({
   workspace,
   editorStore,
-  commentsStore,
+  toggleSplitPane,
   searchRef,
   leftSidebarRef,
   workspaceSnapshotBrowserVisible,
@@ -64,7 +64,7 @@ export function useAppShellEventBridge({
 
     if (isMod(event) && event.key === 'j') {
       event.preventDefault()
-      editorStore.openNewTabBeside()
+      toggleSplitPane?.()
       return
     }
 
@@ -98,30 +98,6 @@ export function useAppShellEventBridge({
         const parent = editorStore.findParent(editorStore.paneTree, pane.id)
         if (parent) editorStore.collapsePane(pane.id)
       }
-      return
-    }
-
-    if (isMod(event) && event.shiftKey && (event.key === 'L' || event.key === 'l' || event.code === 'KeyL')) {
-      event.preventDefault()
-
-      const pane = editorStore.activePane
-      if (!pane || !pane.activeTab) return
-      if (getViewerType(pane.activeTab) !== 'text') return
-
-      const view = editorStore.getEditorView(pane.id, pane.activeTab)
-      if (!view) return
-      const selection = view.state.selection.main
-      if (selection.from === selection.to) return
-
-      if (!commentsStore.isMarginVisible(pane.activeTab)) {
-        commentsStore.toggleMargin(pane.activeTab)
-      }
-
-      window.dispatchEvent(
-        new CustomEvent('comment-create', {
-          detail: { paneId: pane.id },
-        })
-      )
       return
     }
 

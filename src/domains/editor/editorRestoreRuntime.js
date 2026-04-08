@@ -3,6 +3,7 @@ import {
   findFirstLeaf,
   findLeaf,
   findPane,
+  normalizePaneTree,
   ROOT_PANE_ID,
 } from './paneTreeLayout.js'
 
@@ -10,12 +11,7 @@ export function deriveRestoredEditorRuntimeState({
   state,
   isContextCandidatePath,
 } = {}) {
-  const paneTree = state?.paneTree || {
-    type: 'leaf',
-    id: ROOT_PANE_ID,
-    tabs: [],
-    activeTab: null,
-  }
+  const paneTree = normalizePaneTree(state?.paneTree)
 
   const restoredActivePane = state?.activePaneId
     ? findPane(paneTree, state.activePaneId)
