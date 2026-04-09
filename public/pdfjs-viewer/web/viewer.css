@@ -13,17 +13,6 @@
  * limitations under the License.
  */
 
-:root{
-  --viewer-font-micro:10px;
-  --viewer-font-caption:11px;
-  --viewer-font-label:12px;
-  --viewer-font-body:13px;
-  --viewer-font-title:15px;
-  --viewer-font-display-sm:17px;
-  --viewer-font-display-md:18px;
-  --viewer-font-hero-xs:44px;
-}
-
 .messageBar{
   --closing-button-icon:url(images/messageBar_closingButton.svg);
   --message-bar-close-button-color:var(--text-primary-color);
@@ -301,7 +290,7 @@
   padding-inline:16px 8px;
 
   font:menu;
-  font-size: var(--viewer-font-title);
+  font-size:15px;
 
   cursor:default;
 }
@@ -590,7 +579,7 @@
 .dialog{
 
   font:message-box;
-  font-size: var(--viewer-font-body);
+  font-size:13px;
   font-weight:400;
   line-height:150%;
   border-radius:4px;
@@ -616,7 +605,7 @@
     }
 
 :is(:is(.dialog .mainContainer) .title)  > span{
-        font-size: var(--viewer-font-body);
+        font-size:13px;
         font-style:normal;
         font-weight:590;
         line-height:150%;
@@ -681,7 +670,7 @@
 
 :is(:is(:is(.dialog .mainContainer) .radio) > .radioLabel)  > span{
           flex:1 0 0;
-          font-size: var(--viewer-font-caption);
+          font-size:11px;
           color:var(--text-secondary-color);
         }
 
@@ -690,7 +679,7 @@
       border:1px solid;
       font:menu;
       font-weight:590;
-      font-size: var(--viewer-font-body);
+      font-size:13px;
       padding:4px 16px;
       width:auto;
       height:32px;
@@ -872,12 +861,12 @@
         }
 
 :is(:is(:is(:is(.dialog .mainContainer) .messageBar) > div) > div) .title{
-            font-size: var(--viewer-font-body);
+            font-size:13px;
             font-weight:590;
           }
 
 :is(:is(:is(:is(.dialog .mainContainer) .messageBar) > div) > div) .description{
-            font-size: var(--viewer-font-body);
+            font-size:13px;
           }
 
 :is(.dialog .mainContainer) .toggler{
@@ -1532,7 +1521,7 @@
   color:black;
   font-weight:normal;
   font-kerning:none;
-  font-size: var(--viewer-font-micro);
+  font-size:10px;
   font-style:normal;
   letter-spacing:0;
   text-decoration:none;
@@ -2164,7 +2153,7 @@
   }
 
 :is(.signatureDialog .mainContainer) span:not([role="sectionhead"]){
-      font-size: var(--viewer-font-body);
+      font-size:13px;
       font-style:normal;
       font-weight:400;
       line-height:normal;
@@ -2360,7 +2349,7 @@
         border-radius:0;
 
         font:menu;
-        font-size: var(--viewer-font-body);
+        font-size:13px;
         font-style:normal;
         line-height:normal;
         font-weight:400;
@@ -2441,7 +2430,7 @@
             border-radius:var(--tab-panel-border-radius);
 
             font-family:"Brush script", "Apple Chancery", "Segoe script", "Freestyle Script", "Palace Script MT", "Brush Script MT", TK, cursive, serif;
-            font-size: var(--viewer-font-hero-xs);
+            font-size:44px;
             font-style:italic;
             font-weight:400;
           }
@@ -2453,7 +2442,7 @@
               font:menu;
               font-style:normal;
               font-weight:274;
-              font-size: var(--viewer-font-hero-xs);
+              font-size:44px;
               line-height:normal;
             }
 
@@ -2464,7 +2453,7 @@
               font:menu;
               font-style:normal;
               font-weight:274;
-              font-size: var(--viewer-font-hero-xs);
+              font-size:44px;
               line-height:normal;
             }
 
@@ -2755,7 +2744,7 @@
             display:block;
             opacity:1;
             color:var(--save-warning-color);
-            font-size: var(--viewer-font-caption);
+            font-size:11px;
           }
 
 #editSignatureDescriptionDialog .mainContainer{
@@ -2931,7 +2920,7 @@
           white-space:nowrap;
           flex:1 1 auto;
           font:menu;
-          font-size: var(--viewer-font-body);
+          font-size:13px;
           font-style:normal;
           font-weight:400;
           line-height:normal;
@@ -3380,7 +3369,7 @@
         font-style:normal;
         font-weight:590;
         line-height:normal;
-        font-size: var(--viewer-font-display-sm);
+        font-size:17px;
         color:var(--comment-fg-color);
       }
 
@@ -3393,7 +3382,7 @@
         text-align:center;
 
         font:menu;
-        font-size: var(--viewer-font-body);
+        font-size:13px;
         font-style:normal;
         font-weight:400;
         line-height:normal;
@@ -3540,7 +3529,7 @@
           font-style:normal;
           font-weight:400;
           line-height:normal;
-          font-size: var(--viewer-font-title);
+          font-size:15px;
           width:100%;
           height:-moz-fit-content;
           height:fit-content;
@@ -3570,7 +3559,7 @@
             font-style:normal;
             font-weight:400;
             line-height:normal;
-            font-size: var(--viewer-font-title);
+            font-size:15px;
             width:100%;
             height:auto;
             overflow-wrap:break-word;
@@ -3596,7 +3585,7 @@
           font-style:normal;
           font-weight:400;
           line-height:normal;
-          font-size: var(--viewer-font-body);
+          font-size:13px;
         }
 
 :is(:is(:is(:is(#editorCommentsSidebar #editorCommentsSidebarListContainer) #editorCommentsSidebarList) .sidebarComment) time)::after{
@@ -3729,7 +3718,7 @@
       font-style:normal;
       font-weight:400;
       line-height:normal;
-      font-size: var(--viewer-font-body);
+      font-size:13px;
       color:var(--comment-date-fg-color);
     }
 
@@ -3803,7 +3792,7 @@
     font-style:normal;
     font-weight:400;
     line-height:normal;
-    font-size: var(--viewer-font-title);
+    font-size:15px;
     color:var(--comment-fg-color);
   }
 
@@ -4217,7 +4206,7 @@
         pointer-events:all;
         font:menu;
         font-weight:590;
-        font-size: var(--viewer-font-label);
+        font-size:12px;
         color:var(--editor-toolbar-fg-color);
       }
 
@@ -4338,7 +4327,7 @@
             width:-moz-max-content;
             width:max-content;
             height:auto;
-            font-size: var(--viewer-font-label);
+            font-size:12px;
 
             border:0.5px solid var(--alt-text-tooltip-border);
             background:var(--alt-text-tooltip-bg);
@@ -4669,7 +4658,7 @@
       }
 
 :is(:is(.dialog.altText #altTextContainer) #overallDescription) .title{
-        font-size: var(--viewer-font-body);
+        font-size:13px;
         font-style:normal;
         font-weight:590;
       }
@@ -4848,7 +4837,7 @@
             }
 
 :is(:is(:is(.dialog.newAltText #newAltTextContainer) #mainContent) #descriptionInstruction) #newAltTextDescription{
-          font-size: var(--viewer-font-caption);
+          font-size:11px;
         }
 
 :is(:is(:is(.dialog.newAltText #newAltTextContainer) #mainContent) #descriptionInstruction) #newAltTextDisclaimer{
@@ -4856,7 +4845,7 @@
           flex-direction:row;
           align-items:flex-start;
           gap:4px;
-          font-size: var(--viewer-font-caption);
+          font-size:11px;
         }
 
 :is(:is(:is(:is(.dialog.newAltText #newAltTextContainer) #mainContent) #descriptionInstruction) #newAltTextDisclaimer)::before{
@@ -5582,7 +5571,7 @@ button.hasPopupMenu[aria-expanded="false"] + menu{
         padding-inline-start:6px;
 
         font:menu;
-        font-size: var(--viewer-font-body);
+        font-size:13px;
         font-style:normal;
         font-weight:510;
         line-height:normal;
@@ -5704,7 +5693,7 @@ button.hasPopupMenu[aria-expanded="false"] + menu{
       padding-inline-start:4px;
       border-radius:2px;
       color:var(--treeitem-color);
-      font-size: var(--viewer-font-body);
+      font-size:13px;
       line-height:15px;
       -webkit-user-select:none;
          -moz-user-select:none;
@@ -6096,7 +6085,7 @@ button.hasPopupMenu[aria-expanded="false"] + menu{
               user-select:none;
 
       font:menu;
-      font-size: var(--viewer-font-title);
+      font-size:15px;
       font-style:normal;
       font-weight:400;
       line-height:normal;
@@ -6247,7 +6236,7 @@ button.hasPopupMenu[aria-expanded="false"] + menu{
         gap:8px;
 
         font:menu;
-        font-size: var(--viewer-font-body);
+        font-size:13px;
       }
 
 :is(:is(#viewsManager #viewsManagerHeader) #viewsManagerStatus) #viewsManagerStatusAction{
@@ -6472,7 +6461,7 @@ button.hasPopupMenu[aria-expanded="false"] + menu{
           translate:calc(var(--dir-factor) * 50%);
 
           font:menu;
-          font-size: var(--viewer-font-body);
+          font-size:13px;
           font-style:normal;
           font-weight:400;
           line-height:normal;
@@ -6511,7 +6500,7 @@ button.hasPopupMenu[aria-expanded="false"] + menu{
         }
 
 .missingThumbnailImage:is(:is(:is(:is(#viewsManager #viewsManagerContent) #thumbnailsView) > .thumbnail) > .thumbnailImage){
-            content-visibility:visible;
+            content-visibility:hidden;
           }
 
 :is(:is(:is(:is(#viewsManager #viewsManagerContent) #thumbnailsView) > .thumbnail) > .thumbnailImage):hover{
@@ -6537,317 +6526,6 @@ button.hasPopupMenu[aria-expanded="false"] + menu{
             background-color:var(--image-dragging-placeholder-bg);
             box-shadow:none !important;
           }
-
-/* Altals: PDF sidebar refresh */
-#viewsManager{
-  --sidebar-width:296px;
-  --sidebar-max-width:min(36vw, 360px);
-  --sidebar-border-radius:0;
-  --sidebar-padding:0;
-  --sidebar-border-color:rgb(255 255 255 / 0.06);
-  --sidebar-box-shadow:none;
-  --text-color:#cccccc;
-  --button-fg:#cccccc;
-  --button-bg:transparent;
-  --button-hover-bg:#2a2d2e;
-  --button-active-bg:#37373d;
-  --button-border-color:transparent;
-  --button-hover-border-color:transparent;
-  --button-active-border-color:transparent;
-  --button-focus-no-bg:#094771;
-  --button-focus-outline-color:#007fd4;
-  --button-focus-border-color:#007fd4;
-  --status-border-color:transparent;
-  --status-actions-bg:transparent;
-  --status-undo-bg:#37373d;
-  --status-waiting-bg:#37373d;
-  --indicator-color:#3794ff;
-  --indicator-warning-color:#cca700;
-  --status-warning-bg:rgb(204 167 0 / 0.14);
-  --header-shadow:none;
-  --image-border-width:1px;
-  --image-border-color:rgb(255 255 255 / 0.08);
-  --image-hover-border-color:rgb(255 255 255 / 0.14);
-  --image-current-border-color:#007fd4;
-  --image-current-focused-outline-color:#007fd4;
-  --image-page-number-bg:transparent;
-  --image-page-number-fg:#8b949e;
-  --image-current-page-number-bg:transparent;
-  --image-current-page-number-fg:#ffffff;
-  --image-shadow:0 0 0 1px var(--image-border-color);
-  --image-hover-shadow:0 0 0 1px var(--image-hover-border-color);
-  --image-current-shadow:0 0 0 1px var(--image-current-border-color);
-  --image-dragging-placeholder-bg:#2a2d2e;
-  --multiple-dragging-text-color:#ffffff;
-  color:var(--text-color);
-  font-family:"Segoe UI","Segoe WPC","PingFang SC","Hiragino Sans GB","Microsoft YaHei UI",sans-serif;
-  background:#181818;
-  backdrop-filter:none;
-  will-change:inset-inline-start;
-}
-
-#viewsManager #viewsManagerHeader{
-  position:sticky;
-  top:0;
-  z-index:4;
-  background:rgb(52 59 71 / 0.98);
-  border-bottom:1px solid rgb(148 163 184 / 0.14);
-}
-
-:is(#viewsManager #viewsManagerHeader) .viewsManagerLabel{
-  font-family:"Segoe UI","Segoe WPC","PingFang SC","Hiragino Sans GB","Microsoft YaHei UI",sans-serif;
-  font-size:12px;
-  font-weight:600;
-  letter-spacing:0;
-  color:#d8e1ee;
-}
-
-:is(#viewsManager #viewsManagerHeader) #viewsManagerTitle{
-  min-height:34px;
-  gap:6px;
-  padding:6px 10px;
-  align-items:center;
-}
-
-:is(:is(#viewsManager #viewsManagerHeader) #viewsManagerTitle) #viewsManagerSelector{
-  width:26px;
-  height:26px;
-  flex:0 0 auto;
-}
-
-:is(:is(:is(#viewsManager #viewsManagerHeader) #viewsManagerTitle) #viewsManagerSelector) > button,
-:is(:is(#viewsManager #viewsManagerHeader) #viewsManagerTitle) #viewsManagerAddFileButton,
-:is(:is(#viewsManager #viewsManagerHeader) #viewsManagerTitle) #viewsManagerCurrentOutlineButton{
-  border:1px solid transparent;
-  border-radius:4px;
-  background:transparent;
-  box-shadow:none;
-}
-
-:is(:is(:is(#viewsManager #viewsManagerHeader) #viewsManagerTitle) #viewsManagerSelector) > button::after{
-  margin-left:4px;
-  opacity:0.72;
-}
-
-:is(:is(:is(#viewsManager #viewsManagerHeader) #viewsManagerTitle) #viewsManagerSelector) > .popupMenu{
-  width:176px;
-  min-width:176px;
-  max-width:176px;
-  margin-top:4px;
-  padding:4px;
-  border-radius:8px;
-  border:1px solid rgb(148 163 184 / 0.14);
-  background:rgb(52 59 71 / 0.98);
-  box-shadow:0 8px 18px rgb(15 23 42 / 0.16);
-  -webkit-backdrop-filter:blur(12px);
-          backdrop-filter:blur(12px);
-}
-
-:is(:is(:is(:is(#viewsManager #viewsManagerHeader) #viewsManagerTitle) #viewsManagerSelector) > .popupMenu).withMark{
-  --menu-mark-icon-size:0;
-}
-
-:is(:is(:is(:is(#viewsManager #viewsManagerHeader) #viewsManagerTitle) #viewsManagerSelector) > .popupMenu) > li{
-  height:auto;
-  padding-inline:0;
-  margin:0;
-  border:0;
-  border-radius:6px;
-  background:transparent;
-}
-
-:is(:is(:is(:is(#viewsManager #viewsManagerHeader) #viewsManagerTitle) #viewsManagerSelector) > .popupMenu) > li:has(button.selected)::before{
-  content:none;
-}
-
-:is(:is(:is(:is(#viewsManager #viewsManagerHeader) #viewsManagerTitle) #viewsManagerSelector) > .popupMenu) > li:hover{
-  background:rgb(255 255 255 / 0.05);
-}
-
-:is(:is(:is(:is(#viewsManager #viewsManagerHeader) #viewsManagerTitle) #viewsManagerSelector) > .popupMenu) > li:has(button.selected){
-  background:rgb(96 165 250 / 0.10);
-}
-
-:is(:is(:is(:is(#viewsManager #viewsManagerHeader) #viewsManagerTitle) #viewsManagerSelector) > .popupMenu) > li:active{
-  background:rgb(255 255 255 / 0.08);
-}
-
-:is(:is(:is(:is(#viewsManager #viewsManagerHeader) #viewsManagerTitle) #viewsManagerSelector) > .popupMenu) > li:has(> button:focus-visible){
-  background:rgb(255 255 255 / 0.05);
-  outline:2px solid rgb(96 165 250 / 0.24);
-  outline-offset:1px;
-}
-
-:is(:is(:is(:is(#viewsManager #viewsManagerHeader) #viewsManagerTitle) #viewsManagerSelector) > .popupMenu) > li:has(button:disabled){
-  opacity:0.52;
-}
-
-:is(:is(:is(:is(#viewsManager #viewsManagerHeader) #viewsManagerTitle) #viewsManagerSelector) > .popupMenu) > li > button{
-  min-height:28px;
-  padding:0 8px;
-  gap:7px;
-  border-radius:6px;
-}
-
-:is(:is(:is(:is(:is(#viewsManager #viewsManagerHeader) #viewsManagerTitle) #viewsManagerSelector) > .popupMenu) > li > button):not(.noIcon)::before{
-  width:13px;
-  height:13px;
-  background-color:#aeb9cb;
-}
-
-:is(:is(:is(:is(#viewsManager #viewsManagerHeader) #viewsManagerTitle) #viewsManagerSelector) > .popupMenu) > li > button > span{
-  color:#d5deeb;
-  font-family:"Segoe UI","Segoe WPC","PingFang SC","Hiragino Sans GB","Microsoft YaHei UI",sans-serif;
-  font-size:11.5px;
-  font-weight:540;
-  letter-spacing:0;
-  background:transparent;
-}
-
-:is(:is(:is(:is(#viewsManager #viewsManagerHeader) #viewsManagerTitle) #viewsManagerSelector) > .popupMenu) > li:hover > button > span{
-  color:#f6f8fc;
-  background:transparent;
-}
-
-:is(:is(:is(:is(:is(#viewsManager #viewsManagerHeader) #viewsManagerTitle) #viewsManagerSelector) > .popupMenu) > li:hover > button):not(.noIcon)::before{
-  background-color:#edf3fb;
-}
-
-:is(:is(:is(:is(#viewsManager #viewsManagerHeader) #viewsManagerTitle) #viewsManagerSelector) > .popupMenu) > li:has(button.selected) > button > span{
-  color:#eef5ff;
-  background:transparent;
-}
-
-:is(:is(:is(:is(:is(#viewsManager #viewsManagerHeader) #viewsManagerTitle) #viewsManagerSelector) > .popupMenu) > li:has(button.selected) > button):not(.noIcon)::before{
-  background-color:#cddfff;
-}
-
-:is(:is(:is(:is(#viewsManager #viewsManagerHeader) #viewsManagerTitle) #viewsManagerSelector) > .popupMenu) > li:has(button:disabled) > button > span{
-  color:#7f8999;
-  background:transparent;
-}
-
-:is(:is(:is(:is(:is(#viewsManager #viewsManagerHeader) #viewsManagerTitle) #viewsManagerSelector) > .popupMenu) > li:has(button:disabled) > button):not(.noIcon)::before{
-  background-color:#7f8999;
-}
-
-:is(#viewsManager #viewsManagerHeader) #viewsManagerHeaderLabel{
-  flex:1 1 auto;
-  min-width:0;
-}
-
-:is(#viewsManager #viewsManagerHeader) #viewsManagerStatus{
-  border:none;
-  padding:0 12px 8px;
-  background:transparent;
-  box-sizing:border-box;
-}
-
-:is(:is(#viewsManager #viewsManagerHeader) #viewsManagerStatus) > div{
-  min-height:28px;
-  padding-inline:0;
-  border-radius:0;
-  border:none;
-  box-shadow:none;
-}
-
-:is(:is(#viewsManager #viewsManagerHeader) #viewsManagerStatus) .viewsManagerStatusLabel{
-  font-family:"Segoe UI","Segoe WPC","PingFang SC","Hiragino Sans GB","Microsoft YaHei UI",sans-serif;
-  font-size: var(--viewer-font-caption);
-  font-weight:500;
-  letter-spacing:0;
-  text-transform:none;
-  color:#8b949e;
-}
-
-:is(:is(#viewsManager #viewsManagerHeader) #viewsManagerStatus) #viewsManagerStatusAction{
-  background:transparent;
-}
-
-#viewsManager #viewsManagerContent{
-  padding:6px 0 12px;
-  scrollbar-gutter:stable;
-  contain:layout paint style;
-}
-
-:is(#viewsManager #viewsManagerContent) #thumbnailsView{
-  --thumbnail-width:156px;
-  display:block;
-  padding:0 6px 12px;
-}
-
-:is(:is(#viewsManager #viewsManagerContent) #thumbnailsView) > .thumbnail{
-  width:100%;
-  box-sizing:border-box;
-  padding:8px 10px 20px;
-  margin:0 0 2px;
-  border-radius:6px;
-  background:transparent;
-  border:1px solid transparent;
-  box-shadow:none;
-  transition:background-color 120ms ease, border-color 120ms ease;
-  contain:layout paint style;
-  content-visibility:auto;
-  contain-intrinsic-size:220px;
-}
-
-:is(:is(:is(#viewsManager #viewsManagerContent) #thumbnailsView) > .thumbnail):hover{
-  transform:none;
-  border-color:rgb(255 255 255 / 0.04);
-  background:#2a2d2e;
-  box-shadow:none;
-}
-
-:is(:is(:is(#viewsManager #viewsManagerContent) #thumbnailsView) > .thumbnail):has([aria-current="page"]){
-  border-color:#007fd4;
-  background:#37373d;
-  box-shadow:none;
-}
-
-:is(:is(:is(#viewsManager #viewsManagerContent) #thumbnailsView) > .thumbnail):not(.isDragging)::after{
-  bottom:6px;
-  inset-inline-start:10px;
-  inset-inline-end:auto;
-  min-width:auto;
-  height:auto;
-  padding:0;
-  border:none;
-  border-radius:0;
-  background:transparent;
-  box-shadow:none;
-  font-family:"Segoe UI","Segoe WPC","PingFang SC","Hiragino Sans GB","Microsoft YaHei UI",sans-serif;
-  font-size: var(--viewer-font-caption);
-  font-weight:500;
-  line-height:1;
-  letter-spacing:0;
-  color:var(--image-page-number-fg);
-}
-
-:is(:is(:is(#viewsManager #viewsManagerContent) #thumbnailsView) > .thumbnail) > .thumbnailImage{
-  width:min(var(--thumbnail-width), calc(100% - 12px));
-  margin:0 auto;
-  display:block;
-  border-radius:2px;
-  background:#1f1f1f;
-  box-shadow:var(--image-shadow);
-  object-fit:contain;
-  transition:box-shadow 120ms ease, filter 120ms ease, background 120ms ease;
-}
-
-:is(:is(:is(:is(#viewsManager #viewsManagerContent) #thumbnailsView) > .thumbnail) > .thumbnailImage):hover{
-  transform:none;
-}
-
-:is(:is(:is(#viewsManager #viewsManagerContent) #thumbnailsView) > .thumbnail):has([aria-current="page"])::after{
-  color:var(--image-current-page-number-fg);
-}
-
-.missingThumbnailImage:is(:is(:is(:is(#viewsManager #viewsManagerContent) #thumbnailsView) > .thumbnail) > .thumbnailImage){
-  background-color:#1f1f1f;
-  box-shadow:var(--image-shadow);
-  filter:blur(0.9px) saturate(0.92) contrast(0.96);
-  opacity:0.94;
-}
 
 .draggingThumbnail:is(:is(:is(:is(#viewsManager #viewsManagerContent) #thumbnailsView) > .thumbnail) > .thumbnailImage){
             position:absolute;
@@ -6948,7 +6626,7 @@ button.hasPopupMenu[aria-expanded="false"] + menu{
           padding-inline-start:4px;
           border-radius:2px;
           color:var(--attachment-color);
-          font-size: var(--viewer-font-body);
+          font-size:13px;
           line-height:15px;
           -webkit-user-select:none;
              -moz-user-select:none;
@@ -7823,7 +7501,7 @@ body.wait::before{
   border:none;
   border-radius:2px;
   color:var(--main-color);
-  font-size: var(--viewer-font-label);
+  font-size:12px;
   line-height:14px;
   -webkit-user-select:none;
      -moz-user-select:none;
@@ -7835,7 +7513,7 @@ body.wait::before{
 #viewsManagerToggleButton::before{
   -webkit-mask-image:var(--toolbarButton-viewsManagerToggle-icon);
           mask-image:var(--toolbarButton-viewsManagerToggle-icon);
-  transform:scaleX(var(--dir-factor));
+  transform:scaleX(var(--dir-factor)) scale(1.08);
 }
 
 #secondaryToolbarToggleButton::before{
@@ -7979,7 +7657,7 @@ body.wait::before{
   border:1px solid var(--field-border-color);
   box-shadow:none;
   color:var(--field-color);
-  font-size: var(--viewer-font-label);
+  font-size:12px;
   line-height:16px;
   outline:none;
 }
@@ -8056,7 +7734,7 @@ dialog{
   border-spacing:4px;
   color:var(--main-color);
   font:message-box;
-  font-size: var(--viewer-font-label);
+  font-size:12px;
   line-height:14px;
   background-color:var(--doorhanger-bg-color);
   border:1px solid rgb(0 0 0 / 0.5);
@@ -8305,7 +7983,7 @@ dialog :link{
 :is(.toolbarButtonWithContainer .editorParamsToolbar) .editorParamsLabel{
       flex:none;
       font:menu;
-      font-size: var(--viewer-font-body);
+      font-size:13px;
       font-style:normal;
       font-weight:400;
       line-height:150%;
@@ -8659,7 +8337,7 @@ dialog :link{
   margin:2px;
   border-radius:2px;
   color:var(--main-color);
-  font-size: var(--viewer-font-label);
+  font-size:12px;
   line-height:14px;
   text-align:left;
   -webkit-user-select:none;
@@ -8704,7 +8382,7 @@ dialog :link{
   border:var(--dropdown-btn-border);
   border-radius:2px;
   color:var(--main-color);
-  font-size: var(--viewer-font-label);
+  font-size:12px;
   line-height:14px;
   -webkit-user-select:none;
      -moz-user-select:none;
@@ -8726,7 +8404,7 @@ dialog :link{
     min-width:inherit;
     height:28px;
     font:message-box;
-    font-size: var(--viewer-font-label);
+    font-size:12px;
     color:var(--main-color);
     margin:0;
     padding-block:1px 2px;
@@ -8890,5 +8568,334 @@ dialog :link{
 @media all and (max-width: 560px){
   #scaleSelectContainer{
     display:none;
+  }
+}
+
+/* Altals PDF viewer normalization */
+:root{
+  --toolbar-height:30px;
+  --toolbar-horizontal-padding:6px;
+  --toolbar-vertical-padding:1px;
+  --icon-size:14px;
+  --altals-surface-base:#ffffff;
+  --altals-surface-raised:#f8f6f3;
+  --altals-surface-hover:rgb(0 0 0 / 0.06);
+  --altals-border-subtle:rgb(0 0 0 / 0.1);
+  --altals-text-primary:#191714;
+  --altals-text-muted:#6f6962;
+  --altals-shell-preview-surface:#ffffff;
+  --altals-focus-ring:#8ca8ff;
+}
+
+body{
+  background:var(--altals-shell-preview-surface);
+}
+
+#toolbarContainer{
+  --menuitem-height:32px;
+  height:30px;
+  padding:1px 6px;
+  background:color-mix(in srgb, var(--altals-shell-preview-surface) 92%, var(--altals-surface-base));
+  box-shadow:none;
+  border-bottom:1px solid color-mix(in srgb, var(--altals-border-subtle) 24%, transparent);
+  backdrop-filter:saturate(1.02) blur(10px);
+}
+
+#toolbarContainer #toolbarViewer{
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  gap:0;
+  position:relative;
+}
+
+#toolbarViewerLeft,
+#toolbarViewerMiddle,
+#toolbarViewerRight{
+  display:flex;
+  align-items:center;
+  gap:2px;
+}
+
+#toolbarViewerLeft{
+  flex:1 1 auto;
+  min-width:0;
+}
+
+#toolbarViewerMiddle{
+  position:absolute;
+  left:50%;
+  transform:translateX(-50%);
+  margin-inline-start:0;
+}
+
+#toolbarViewerRight{
+  position:absolute;
+  inset-inline-end:0;
+  top:50%;
+  transform:translateY(-50%);
+}
+
+.altalsPageGroup{
+  margin-left:0;
+  display:flex;
+  align-items:center;
+  gap:6px;
+}
+
+#editorModeButtons{
+  display:none !important;
+}
+
+#viewFindButton,
+#findbar,
+#previous,
+#next,
+#secondaryToolbarToggle,
+#secondaryToolbar,
+#toolbarContainer #toolbarViewer .toolbarButtonSpacer,
+.verticalToolbarSeparator,
+.splitToolbarButtonSeparator{
+  display:none !important;
+}
+
+.toolbarButton,
+.toolbarButtonWithContainer{
+  height:22px;
+}
+
+.toolbarButton{
+  width:22px;
+  border-radius:6px;
+  color:var(--altals-text-muted);
+  opacity:0.86;
+}
+
+.toolbarButton::before{
+  opacity:1;
+  background-color:var(--altals-text-muted);
+}
+
+.toolbarButton:is(:hover,:focus-visible){
+  background:color-mix(in srgb, var(--altals-surface-hover) 12%, transparent);
+  opacity:1;
+}
+
+.toolbarButton:is(:hover,:focus-visible)::before{
+  background-color:var(--altals-text-primary);
+}
+
+.toolbarButton.toggled{
+  background:color-mix(in srgb, var(--altals-surface-hover) 14%, transparent);
+  color:var(--altals-text-primary);
+  opacity:1;
+}
+
+.toolbarButton.toggled::before{
+  background-color:var(--altals-text-primary);
+}
+
+.toolbarButton:focus-visible,
+.toolbarField:focus,
+#scaleSelect:focus-visible{
+  outline:none;
+  box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--altals-focus-ring) 52%, transparent);
+  border-color:color-mix(in srgb, var(--altals-focus-ring) 52%, var(--altals-border-subtle)) !important;
+}
+
+.toolbarHorizontalGroup{
+  gap:3px;
+}
+
+.toolbarField{
+  margin:0;
+  height:22px;
+  padding:0 2px;
+  border-radius:0;
+  border:0;
+  background:transparent;
+  color:var(--altals-text-primary);
+  font:inherit;
+  font-size:12px;
+  font-weight:600;
+  line-height:22px;
+  font-variant-numeric:tabular-nums;
+  box-shadow:none !important;
+}
+
+#pageNumber{
+  width:18px;
+  text-align:right;
+  appearance:textfield;
+  -moz-appearance:textfield;
+}
+
+#numPages.toolbarLabel{
+  color:var(--altals-text-muted);
+  font:inherit;
+  font-size:12px;
+  font-weight:600;
+  line-height:22px;
+  font-variant-numeric:tabular-nums;
+}
+
+.dropdownToolbarButton{
+  height:22px;
+  min-width:0;
+  width:auto;
+  padding-inline:0;
+  border-radius:7px;
+  border:0;
+  background:transparent;
+  box-shadow:none;
+}
+
+.dropdownToolbarButton select{
+  height:100%;
+  width:100%;
+  padding-inline:10px 22px;
+  border:none;
+  background:color-mix(in srgb, var(--altals-surface-base) 5%, transparent);
+  color:var(--altals-text-primary);
+  font:inherit;
+  font-size:12px;
+  font-weight:500;
+  line-height:22px;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  -webkit-appearance:none;
+  -moz-appearance:none;
+  appearance:none;
+  outline:none;
+  box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--altals-border-subtle) 24%, transparent) !important;
+  border-radius:7px;
+}
+
+.dropdownToolbarButton::after{
+  inset-inline-end:8px;
+  top:50%;
+  transform:translateY(-50%);
+  width:8px;
+  height:8px;
+  background-color:color-mix(in srgb, var(--altals-text-muted) 90%, transparent);
+}
+
+#pageNumber:focus,
+#scaleSelect:focus-visible{
+  background:color-mix(in srgb, var(--altals-surface-hover) 8%, transparent);
+  border-radius:6px;
+}
+
+.toolbarLabel{
+  color:var(--altals-text-muted);
+  font:inherit;
+  font-size:11px;
+}
+
+#findbar.doorHanger{
+  border-radius:14px;
+  box-shadow:
+    0 18px 38px color-mix(in srgb, black 12%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--altals-border-subtle) 52%, transparent);
+  background:color-mix(in srgb, var(--altals-surface-raised) 94%, var(--altals-surface-base));
+}
+
+#findbar .toolbarField{
+  min-width:220px;
+}
+
+#viewsManagerToggleButton{
+  display:flex !important;
+}
+
+#viewsManager{
+  --sidebar-bg-color:var(--altals-surface-raised);
+  --sidebar-width:132px;
+  --viewsManager-width:132px;
+  --text-color:var(--altals-text-primary);
+  --button-fg:var(--altals-text-muted);
+  --button-bg:color-mix(in srgb, var(--altals-surface-base) 78%, transparent);
+  --button-hover-bg:color-mix(in srgb, var(--altals-surface-hover) 18%, transparent);
+  --button-hover-fg:var(--altals-text-primary);
+  --button-active-bg:color-mix(in srgb, var(--altals-surface-hover) 24%, transparent);
+  --button-active-fg:var(--altals-text-primary);
+  --button-focus-outline-color:var(--altals-focus-ring);
+  --button-focus-border-color:color-mix(in srgb, var(--altals-focus-ring) 54%, var(--altals-border-subtle));
+  --header-shadow:none;
+  --image-border-width:2px;
+  --image-border-color:color-mix(in srgb, var(--altals-border-subtle) 40%, transparent);
+  --image-hover-border-color:color-mix(in srgb, var(--altals-border-subtle) 54%, transparent);
+  --image-current-border-color:color-mix(in srgb, var(--altals-focus-ring) 52%, transparent);
+  --image-page-number-bg:color-mix(in srgb, var(--altals-surface-base) 92%, transparent);
+  --image-page-number-fg:var(--altals-text-primary);
+  --image-current-page-number-bg:color-mix(in srgb, var(--altals-surface-hover) 14%, transparent);
+  --image-current-page-number-fg:var(--altals-text-primary);
+  --image-shadow:none;
+  --image-hover-shadow:none;
+  --image-current-shadow:
+    0 0 0 var(--image-border-width) var(--image-current-border-color);
+  display:flex !important;
+  padding-bottom:0;
+  height:calc(var(--viewer-container-height) - var(--toolbar-height));
+  border-inline-end:1px solid color-mix(in srgb, var(--altals-border-subtle) 36%, transparent);
+  box-sizing:border-box;
+  backdrop-filter:none;
+  border-radius:0;
+  box-shadow:none;
+}
+
+#viewsManagerSelector,
+#viewsManagerAddFileButton,
+#viewsManagerCurrentOutlineButton,
+#viewsManagerStatus,
+#viewsManagerHeader,
+#outlinesView,
+#attachmentsView,
+#layersView,
+#viewsManagerResizer{
+  display:none !important;
+}
+
+#viewsManager #viewsManagerContent{
+  padding-top:0;
+}
+
+#viewsManager #viewsManagerContent #thumbnailsView{
+  --thumbnail-width:82px;
+  justify-content:center;
+  align-content:flex-start;
+  padding:4px 6px 8px;
+  gap:8px;
+}
+
+#viewsManager #viewsManagerContent #thumbnailsView > .thumbnail{
+  scroll-margin-top:4px;
+}
+
+#viewsManager #viewsManagerContent #thumbnailsView > .thumbnail::after{
+  bottom:4px;
+  min-width:20px;
+  height:15px;
+  border-radius:999px;
+  font-size:10px;
+  line-height:15px;
+}
+
+#viewerContainer{
+  inset:30px 0 0;
+  background:var(--altals-shell-preview-surface);
+}
+
+#outerContainer,
+#mainContainer,
+#sidebarContainer,
+#viewsManager,
+#sidebarContent{
+  background:var(--altals-shell-preview-surface);
+}
+
+@media all and (max-width: 560px){
+  #scaleSelectContainer{
+    display:inline-block !important;
   }
 }

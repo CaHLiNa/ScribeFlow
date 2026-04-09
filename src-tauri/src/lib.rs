@@ -1,5 +1,4 @@
 mod app_dirs;
-mod chat;
 mod fs_commands;
 mod fs_io;
 mod fs_tree;
@@ -9,17 +8,12 @@ mod git_remote;
 mod git_support;
 mod git_tests;
 mod github_oauth_loopback;
-mod kernel;
 mod latex;
 mod latex_tools;
-mod model_sync;
-mod pdf_translate;
 mod process_utils;
-mod pty;
 mod security;
 mod tinymist;
 mod typst_export;
-mod usage_db;
 mod workspace_access;
 
 use percent_encoding::percent_decode_str;
@@ -326,8 +320,6 @@ const MENU_OPEN_SETTINGS: &str = "menu-open-settings";
 const MENU_SEARCH: &str = "menu-search";
 #[cfg(target_os = "macos")]
 const MENU_TOGGLE_LEFT_SIDEBAR: &str = "menu-toggle-left-sidebar";
-#[cfg(target_os = "macos")]
-const MENU_TOGGLE_TERMINAL: &str = "menu-toggle-terminal";
 
 #[cfg(target_os = "macos")]
 fn detect_is_chinese_locale() -> bool {
@@ -423,13 +415,6 @@ fn build_app_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         true,
         None::<&str>,
     )?;
-    let toggle_terminal = MenuItem::with_id(
-        app,
-        MENU_TOGGLE_TERMINAL,
-        label("切换终端", "Toggle Terminal"),
-        true,
-        None::<&str>,
-    )?;
 
     let app_menu = SubmenuBuilder::new(app, "Altals")
         .about_with_text(label("关于 Altals", "About Altals"), Some(about_metadata))
@@ -466,7 +451,6 @@ fn build_app_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         .item(&search)
         .separator()
         .item(&toggle_left_sidebar)
-        .item(&toggle_terminal)
         .build()?;
 
     let window_menu = SubmenuBuilder::new(app, label("窗口", "Window"))
@@ -497,8 +481,6 @@ fn handle_menu_event<R: Runtime>(app: &AppHandle<R>, event: tauri::menu::MenuEve
         dispatch_frontend_event(app, "app:focus-search", None);
     } else if event.id() == MENU_TOGGLE_LEFT_SIDEBAR {
         dispatch_frontend_event(app, "app:toggle-left-sidebar", None);
-    } else if event.id() == MENU_TOGGLE_TERMINAL {
-        dispatch_frontend_event(app, "app:toggle-terminal", None);
     }
 }
 
@@ -516,16 +498,10 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_shell::init())
-        .plugin(tauri_plugin_process::init())
-        .manage(pty::PtyState::default())
         .manage(fs_commands::WatcherState::default())
-        .manage(chat::ChatState::default())
         .manage(github_oauth_loopback::GitHubOAuthLoopbackState::default())
-        .manage(kernel::KernelState::default())
         .manage(latex::LatexState::default())
-        .manage(pdf_translate::PdfTranslateState::default())
         .manage(security::WorkspaceScopeState::default())
-        .manage(usage_db::UsageDbState::default())
         .manage(workspace_access::WorkspaceAccessState::default());
 
     #[cfg(target_os = "macos")]
@@ -596,20 +572,6 @@ pub fn run() {
             workspace_access::macos_create_workspace_bookmark,
             workspace_access::macos_activate_workspace_bookmark,
             workspace_access::macos_release_workspace_access,
-            pty::pty_spawn,
-            pty::pty_write,
-            pty::pty_resize,
-            pty::pty_kill,
-            chat::chat_stream,
-            chat::chat_abort,
-            chat::chat_cleanup,
-            kernel::kernel_discover,
-            kernel::discover_python_interpreters,
-            kernel::kernel_launch,
-            kernel::kernel_execute,
-            kernel::kernel_interrupt,
-            kernel::kernel_shutdown,
-            kernel::kernel_complete,
             latex::compile_latex,
             latex::check_latex_compilers,
             latex::check_latex_tools,
@@ -618,13 +580,6 @@ pub fn run() {
             latex::format_latex_document,
             latex::synctex_forward,
             latex::synctex_backward,
-            pdf_translate::pdf_translate_list_tasks,
-            pdf_translate::pdf_translate_check_env_status,
-            pdf_translate::pdf_translate_setup_env,
-            pdf_translate::pdf_translate_warmup_env,
-            pdf_translate::pdf_translate_start,
-            pdf_translate::pdf_translate_cancel,
-            model_sync::model_sync_list_openai_models,
             typst_export::check_typst_compiler,
             typst_export::download_typst,
             typst_export::compile_typst_file,
@@ -632,12 +587,6 @@ pub fn run() {
             tinymist::download_tinymist,
             tinymist::typst_preview_wait_for_jump,
             tinymist::typst_preview_send_src_point,
-            usage_db::usage_record,
-            usage_db::usage_query_month,
-            usage_db::usage_query_monthly_trend,
-            usage_db::usage_query_daily_trend,
-            usage_db::usage_get_setting,
-            usage_db::usage_set_setting,
             keychain_get,
             keychain_set,
             keychain_delete,

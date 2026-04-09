@@ -1,5 +1,6 @@
 import { isLatex } from '../../../utils/fileTypes.js'
 import { buildLatexLintProblems, buildLatexProjectProblemsSync } from '../../latex/diagnostics.js'
+import { resolveCachedLatexPreviewPath } from '../../latex/root.js'
 
 function buildRecipeStatusSuffix(context = {}, state = {}, queueState = null) {
   const recipe = state?.buildRecipe || queueState?.recipe || 'default'
@@ -85,7 +86,7 @@ export function buildLatexWorkflowUiState(state = {}, options = {}) {
 
   return {
     kind: 'latex',
-    previewKind: null,
+    previewKind: options.previewKind || null,
     phase,
     errorCount,
     warningCount,
@@ -100,7 +101,7 @@ export function buildLatexWorkflowUiState(state = {}, options = {}) {
 
 const latexPreviewAdapter = {
   defaultKind: null,
-  supportedKinds: [],
+  supportedKinds: ['pdf'],
 
   createPath() {
     return null
@@ -168,7 +169,7 @@ const latexCompileAdapter = {
   },
 
   getArtifactPath(filePath, context) {
-    return this.stateForFile(filePath, context)?.pdfPath || latexPreviewAdapter.createPath(filePath, 'pdf')
+    return this.stateForFile(filePath, context)?.pdfPath || resolveCachedLatexPreviewPath(filePath) || ''
   },
 
   getStatusText(filePath, context) {
@@ -217,6 +218,7 @@ export const latexDocumentAdapter = {
         {
           artifactReady: context.artifactReady === true,
           queuePhase: queueState?.phase || null,
+          previewKind: context.previewKind || null,
         },
       ),
       errorCount,

@@ -24,11 +24,103 @@
 
       <Teleport v-if="showIntegratedDocumentTitle" :to="integratedDocumentTitleTarget">
         <div
-          class="workbench-document-title"
-          :title="currentDocumentLabel"
-          :aria-label="currentDocumentLabel"
+          ref="documentTitleWrapRef"
+          class="document-title-wrap document-title-wrap--rail"
         >
-          <span class="workbench-document-title-label">{{ currentDocumentLabel }}</span>
+          <div class="document-title-cluster">
+            <button
+              type="button"
+              class="document-title-button document-title-button--rail"
+              :title="currentDocumentLabel"
+              :aria-label="currentDocumentLabel"
+              :aria-expanded="tabsMenuOpen ? 'true' : 'false'"
+              @click="toggleTabsMenu"
+            >
+              <span class="document-title-label">{{ currentDocumentLabel }}</span>
+              <svg
+                class="document-title-chevron"
+                width="13"
+                height="13"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.7"
+                aria-hidden="true"
+              >
+                <path d="M4.5 6.5 8 10l3.5-3.5" />
+              </svg>
+            </button>
+          </div>
+
+          <div v-if="tabsMenuOpen" class="document-tabs-menu document-tabs-menu--rail">
+            <div class="document-tabs-menu-list">
+              <div
+                v-for="tab in tabs"
+                :key="tab"
+                class="document-tabs-menu-item"
+                :class="{ 'is-active': tab === activeTab }"
+              >
+                <button
+                  type="button"
+                  class="document-tabs-menu-select"
+                  @click="selectTabFromMenu(tab)"
+                >
+                  <span class="document-tabs-menu-glyph" aria-hidden="true">
+                    {{ tab === activeTab ? '✓' : '' }}
+                  </span>
+                  <span class="document-tabs-menu-label">{{ fileName(tab) }}</span>
+                  <span
+                    v-if="editorStore.dirtyFiles.has(tab)"
+                    class="document-tabs-menu-dirty"
+                    aria-hidden="true"
+                  ></span>
+                </button>
+              </div>
+            </div>
+
+            <div class="document-tabs-menu-separator"></div>
+
+            <button
+              type="button"
+              class="document-tabs-menu-create"
+              @click="createTabFromMenu"
+            >
+              <svg
+                class="document-tabs-menu-create-icon"
+                width="13"
+                height="13"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.7"
+                aria-hidden="true"
+              >
+                <path d="M8 3v10M3 8h10" />
+              </svg>
+              <span class="document-tabs-menu-command-label">{{ t('New Tab') }}</span>
+            </button>
+
+            <button
+              v-if="activeTab"
+              type="button"
+              class="document-tabs-menu-create"
+              @click="closeCurrentTabFromMenu"
+            >
+              <svg
+                class="document-tabs-menu-create-icon"
+                width="12"
+                height="12"
+                viewBox="0 0 10 10"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+                aria-hidden="true"
+              >
+                <path d="M2 2l6 6M8 2l-6 6" />
+              </svg>
+              <span class="document-tabs-menu-command-label">{{ t('Close Current Tab') }}</span>
+            </button>
+          </div>
         </div>
       </Teleport>
 
@@ -138,7 +230,6 @@
           <div class="document-header-tools">
             <DocumentWorkflowBar
               v-if="showInlineWorkflowBar"
-              inline-header
               :ui-state="toolbarUiState"
               :preview-state="workspacePreviewState"
               :status-text="workflowStatusText"
@@ -179,11 +270,46 @@
             />
             <TypstNativePreview
               v-else-if="documentWorkspaceRoute.previewMode === 'typst-native'"
-              :key="`workspace-typst-native:${activeTab}`"
               :filePath="activeTab"
               :paneId="paneId"
               :sourcePath="activeTab"
             />
+            <PdfArtifactPreview
+              v-else-if="documentWorkspaceRoute.previewMode === 'pdf-artifact'"
+              :key="`workspace-pdf-artifact:${activeTab}:${documentWorkspaceRoute.previewTargetPath}`"
+              :artifactPath="documentWorkspaceRoute.previewTargetPath"
+              :sourcePath="activeTab"
+              :kind="toolbarUiState?.kind || 'document'"
+              @open-external="handleWorkflowOpenExternalPdf"
+            />
+          </template>
+          <template #source>
+            <div
+              v-if="showWorkspaceSourceWorkflowBar"
+              class="workspace-source-stack"
+            >
+              <div class="workspace-source-toolbar">
+                <DocumentWorkflowBar
+                  :ui-state="toolbarUiState"
+                  :preview-state="workspacePreviewState"
+                  :status-text="workflowStatusText"
+                  :status-tone="workflowStatusTone"
+                  :show-run-buttons="showToolbarRunButtons"
+                  @primary-action="handleWorkflowPrimaryAction"
+                  @reveal-preview="handleWorkflowRevealPreview"
+                  @reveal-pdf="handleWorkflowRevealPdf"
+                  @run-code="handleRunCode"
+                  @run-file="handleRunFile"
+                />
+              </div>
+              <EditorTextWorkspaceSurface
+                :filePath="activeTab"
+                :paneId="paneId"
+                @cursor-change="(pos) => $emit('cursor-change', pos)"
+                @editor-stats="(stats) => $emit('editor-stats', stats)"
+                @selection-change="(selection) => $emit('selection-change', selection)"
+              />
+            </div>
           </template>
         </EditorTextRouteSurface>
         <UnsupportedFilePane
@@ -239,9 +365,11 @@ const EditorTextRouteSurface = defineAsyncComponent(() => import('./EditorTextRo
 const UnsupportedFilePane = defineAsyncComponent(() => import('./UnsupportedFilePane.vue'))
 const MarkdownPreview = defineAsyncComponent(() => import('./MarkdownPreview.vue'))
 const TypstNativePreview = defineAsyncComponent(() => import('./TypstNativePreview.vue'))
+const PdfArtifactPreview = defineAsyncComponent(() => import('./PdfArtifactPreview.vue'))
 const DocumentWorkflowBar = defineAsyncComponent(() => import('./DocumentWorkflowBar.vue'))
 const NewTab = defineAsyncComponent(() => import('./NewTab.vue'))
 const EmptyPane = defineAsyncComponent(() => import('./EmptyPane.vue'))
+const EditorTextWorkspaceSurface = defineAsyncComponent(() => import('./EditorTextWorkspaceSurface.vue'))
 
 const props = defineProps({
   paneId: { type: String, required: true },
@@ -293,10 +421,19 @@ const integratedWorkflowTarget = computed(() =>
   showIntegratedWorkflowBar.value ? props.topbarWorkflowTargetSelector : ''
 )
 const showInlineWorkflowBar = computed(
-  () => !!toolbarUiState.value && !showIntegratedWorkflowBar.value
+  () => (
+    !!toolbarUiState.value
+    && !showIntegratedWorkflowBar.value
+    && !documentWorkspaceRoute.value.useWorkspaceSurface
+  )
 )
-const showLocalDocumentHeader = computed(() => !!props.activeTab || showInlineWorkflowBar.value)
-const showPaneDocumentTitle = computed(() => !!props.activeTab)
+const showWorkspaceSourceWorkflowBar = computed(
+  () => !!toolbarUiState.value && documentWorkspaceRoute.value.useWorkspaceSurface
+)
+const showLocalDocumentHeader = computed(
+  () => showPaneDocumentTitle.value || showInlineWorkflowBar.value
+)
+const showPaneDocumentTitle = computed(() => !!props.activeTab && !showIntegratedDocumentTitle.value)
 
 const editorContainerRef = ref(null)
 const documentTitleWrapRef = ref(null)
@@ -314,6 +451,7 @@ const {
   handleWorkflowPrimaryAction,
   handleWorkflowRevealPreview,
   handleWorkflowRevealPdf,
+  handleWorkflowOpenExternalPdf,
 } = useEditorPaneWorkflow({
   paneIdRef,
   tabsRef,
@@ -441,6 +579,27 @@ onUnmounted(() => {
   background: transparent;
 }
 
+.workspace-source-stack {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  background: var(--shell-editor-surface);
+}
+
+.workspace-source-toolbar {
+  --document-header-row-height: 30px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 6px;
+  border-bottom: 1px solid var(--workbench-divider-soft);
+  background: var(--shell-editor-surface);
+}
+
 .document-header-stack {
   --document-header-row-height: 31px;
   flex: none;
@@ -452,33 +611,6 @@ onUnmounted(() => {
   box-sizing: border-box;
   padding: 1px 12px 2px;
   background: transparent;
-}
-
-.workbench-document-title {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  max-width: 100%;
-  min-width: 0;
-  min-height: 26px;
-  padding: 0 10px;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--chrome-surface) 36%, transparent);
-  box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--border) 16%, transparent),
-    0 1px 0 color-mix(in srgb, white 18%, transparent);
-  color: color-mix(in srgb, var(--text-primary) 92%, transparent);
-  font-size: var(--ui-font-body);
-  font-weight: 580;
-  letter-spacing: -0.01em;
-}
-
-.workbench-document-title-label {
-  display: block;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .document-header-row {
@@ -508,6 +640,11 @@ onUnmounted(() => {
 
 .document-title-wrap--pane {
   justify-content: flex-start;
+}
+
+.document-title-wrap--rail {
+  justify-content: center;
+  width: 100%;
 }
 
 .document-title-cluster {
@@ -568,6 +705,20 @@ onUnmounted(() => {
   background: color-mix(in srgb, var(--surface-hover) 7%, transparent);
 }
 
+.document-title-button--rail {
+  min-height: 26px;
+  padding: 0 8px;
+  border-radius: 8px;
+  color: color-mix(in srgb, var(--text-primary) 92%, transparent);
+  font-size: var(--ui-font-label);
+  font-weight: 560;
+  letter-spacing: -0.003em;
+}
+
+.document-title-button--rail:hover {
+  background: color-mix(in srgb, var(--surface-hover) 10%, transparent);
+}
+
 .document-title-label {
   display: block;
   min-width: 0;
@@ -598,6 +749,12 @@ onUnmounted(() => {
     inset 0 0 0 1px color-mix(in srgb, white 8%, transparent),
     inset 0 0 0 1px color-mix(in srgb, var(--border) 12%, transparent);
   backdrop-filter: blur(22px) saturate(1.05);
+}
+
+.document-tabs-menu--rail {
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
 }
 
 .document-tabs-menu-list {

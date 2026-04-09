@@ -417,6 +417,31 @@ export const useTypstStore = defineStore('typst', {
       this.clearBuildQueueState(resolveCachedTypstRootPath(filePath))
     },
 
+    registerExistingArtifact(filePath, pdfPath, options = {}) {
+      if (!filePath || !pdfPath) return null
+      const targetKey = options.targetPath || resolveCachedTypstRootPath(filePath) || filePath
+      const previous = this.compileState[filePath] || {}
+      const nextState = {
+        ...previous,
+        status: previous.status || 'idle',
+        pdfPath,
+        previewPath: previous.previewPath || resolveCachedTypstPreviewPath(filePath) || pdfPath,
+        compileTargetPath: previous.compileTargetPath || targetKey,
+        projectRootPath: previous.projectRootPath || targetKey,
+      }
+      this.compileState[filePath] = nextState
+      if (targetKey) {
+        this.compileState[targetKey] = {
+          ...(this.compileState[targetKey] || {}),
+          ...nextState,
+          linkedSourcePath: filePath,
+          compileTargetPath: targetKey,
+          projectRootPath: targetKey,
+        }
+      }
+      return nextState
+    },
+
     setTinymistAvailability(available) {
       this.tinymistAvailable = available === true
     },

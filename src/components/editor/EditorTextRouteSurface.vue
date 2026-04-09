@@ -1,14 +1,16 @@
 <template>
   <DocumentWorkspaceTab v-if="useWorkspace" :preview-visible="previewVisible">
     <template #source>
-      <EditorTextWorkspaceSurface
-        ref="textSurfaceRef"
-        :filePath="filePath"
-        :paneId="paneId"
-        @cursor-change="(pos) => $emit('cursor-change', pos)"
-        @editor-stats="(stats) => $emit('editor-stats', stats)"
-        @selection-change="(selection) => $emit('selection-change', selection)"
-      />
+      <slot name="source">
+        <EditorTextWorkspaceSurface
+          ref="textSurfaceRef"
+          :filePath="filePath"
+          :paneId="paneId"
+          @cursor-change="(pos) => $emit('cursor-change', pos)"
+          @editor-stats="(stats) => $emit('editor-stats', stats)"
+          @selection-change="(selection) => $emit('selection-change', selection)"
+        />
+      </slot>
     </template>
     <template #preview>
       <slot name="preview" />

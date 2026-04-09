@@ -13,7 +13,7 @@ test('sidebar chrome remains visible for multi-panel sidebars', () => {
     shouldRenderSidebarChrome(
       [
         { key: 'outline' },
-        { key: 'document-run' },
+        { key: 'search' },
       ],
       false
     ),

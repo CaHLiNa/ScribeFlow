@@ -7,12 +7,12 @@ import {
 } from '../src/shared/workbenchInspectorPanels.js'
 
 test('workbench inspector panels expose the expected cross-surface panel ids', () => {
-  assert.deepEqual(ALL_WORKBENCH_INSPECTOR_PANELS, ['outline', 'document-run'])
+  assert.deepEqual(ALL_WORKBENCH_INSPECTOR_PANELS, ['outline'])
 })
 
 test('workbench inspector panel normalization falls back to each surface default', () => {
   assert.equal(normalizeWorkbenchInspectorPanel('workspace', 'outline'), 'outline')
-  assert.equal(normalizeWorkbenchInspectorPanel('workspace', 'document-run'), 'document-run')
+  assert.equal(normalizeWorkbenchInspectorPanel('workspace', 'document-run'), 'outline')
   assert.equal(normalizeWorkbenchInspectorPanel('workspace', 'removed-panel'), 'outline')
   assert.equal(normalizeWorkbenchInspectorPanel('removed-surface', 'outline'), 'outline')
 })

@@ -616,6 +616,31 @@ export const useLatexStore = defineStore('latex', {
       this.clearForwardSync(texPath)
     },
 
+    registerExistingArtifact(texPath, pdfPath, options = {}) {
+      if (!texPath || !pdfPath) return null
+      const targetKey = options.targetPath || resolveCachedLatexRootPath(texPath) || texPath
+      const previous = this.compileState[texPath] || {}
+      const nextState = {
+        ...previous,
+        status: previous.status || 'idle',
+        pdfPath,
+        previewPath: previous.previewPath || pdfPath,
+        compileTargetPath: previous.compileTargetPath || targetKey,
+        projectRootPath: previous.projectRootPath || targetKey,
+      }
+      this.compileState[texPath] = nextState
+      if (targetKey) {
+        this.compileState[targetKey] = {
+          ...(this.compileState[targetKey] || {}),
+          ...nextState,
+          linkedSourcePath: texPath,
+          compileTargetPath: targetKey,
+          projectRootPath: targetKey,
+        }
+      }
+      return nextState
+    },
+
     async scheduleAutoBuildForPath(filePath, options = {}) {
       if (!filePath) return []
       const lowerPath = String(filePath).toLowerCase()

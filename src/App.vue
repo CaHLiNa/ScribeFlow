@@ -25,6 +25,7 @@
         <WorkbenchRail
           class="app-shell-topbar shrink-0"
           :current-document-label="currentDocumentLabel"
+          :prefer-external-document-title="workspace.isWorkspaceSurface"
           :left-sidebar-available="workspace.isWorkspaceSurface"
           :left-sidebar-open="leftSidebarVisible"
           :right-sidebar-open="workspace.rightSidebarOpen"
@@ -250,7 +251,7 @@ const activeWorkbenchProps = computed(() => (
     ? {}
     : {
         node: editorStore.paneTree,
-        topbarTabsTargetSelector: '',
+        topbarTabsTargetSelector: '#app-shell-topbar-document-title',
       }
 ))
 const activeWorkbenchClass = computed(() => 'h-full min-h-0 w-full')
@@ -492,39 +493,33 @@ useAppTeardown({
 
 .app-shell-sidebar {
   contain: layout paint;
+  min-width: 100%;
   height: 100%;
   border: none;
   border-radius: 0;
   background: transparent;
   box-shadow: none;
   will-change: opacity, transform;
+  opacity: 1;
+  transform: translateX(0);
   transition:
     opacity 200ms ease,
     transform 260ms cubic-bezier(0.16, 1, 0.3, 1),
     background-color 160ms ease;
 }
 
-.app-shell-sidebar > * {
-  min-width: 100%;
-  height: 100%;
-  transform: translateX(0);
-  transition:
-    opacity 180ms ease,
-    transform 260ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.app-shell-sidebar-left.is-collapsed > * {
+.app-shell-sidebar-left.is-collapsed {
   opacity: 0;
   transform: translateX(-10px);
 }
 
-.app-shell-sidebar-right.is-collapsed > * {
+.app-shell-sidebar-right.is-collapsed {
   opacity: 0;
   transform: translateX(10px);
 }
 
-.app-shell-sidebar-left.is-open > *,
-.app-shell-sidebar-right.is-open > * {
+.app-shell-sidebar-left.is-open,
+.app-shell-sidebar-right.is-open {
   transition-delay: 24ms;
 }
 

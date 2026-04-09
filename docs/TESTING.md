@@ -15,7 +15,7 @@ The repository baseline should prove that the document workspace still formats, 
 - editor routing and persistence
 - workspace preferences and restore behavior
 - preview, document-context, and document-run helpers
-- repository policy audits for docs and `AGENTS.md`
+- repository policy audits for docs and the root `AGENTS.md`
 
 ## Expectations
 

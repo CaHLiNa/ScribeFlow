@@ -9705,36 +9705,6 @@ class Menu {
 const DRAW_UPSCALE_FACTOR = 2;
 const MAX_NUM_SCALING_STEPS = 3;
 const THUMBNAIL_WIDTH = 126;
-function createThumbnailPlaceholderDataUrl(width, height) {
-  const safeWidth = Math.max(48, Math.round(width || THUMBNAIL_WIDTH));
-  const safeHeight = Math.max(64, Math.round(height || THUMBNAIL_WIDTH * 1.414));
-  const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="${safeWidth}" height="${safeHeight}" viewBox="0 0 ${safeWidth} ${safeHeight}">
-      <defs>
-        <linearGradient id="paper" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#ffffff"/>
-          <stop offset="100%" stop-color="#f5f7fb"/>
-        </linearGradient>
-        <filter id="blur" x="-20%" y="-20%" width="140%" height="140%">
-          <feGaussianBlur stdDeviation="1.8"/>
-        </filter>
-      </defs>
-      <rect width="${safeWidth}" height="${safeHeight}" rx="3" fill="url(#paper)"/>
-      <g filter="url(#blur)" opacity="0.92">
-        <rect x="${Math.round(safeWidth * 0.12)}" y="${Math.round(safeHeight * 0.12)}" width="${Math.round(safeWidth * 0.58)}" height="${Math.max(8, Math.round(safeHeight * 0.03))}" rx="3" fill="#d9e0ef"/>
-        <rect x="${Math.round(safeWidth * 0.12)}" y="${Math.round(safeHeight * 0.19)}" width="${Math.round(safeWidth * 0.72)}" height="${Math.max(6, Math.round(safeHeight * 0.018))}" rx="3" fill="#e5eaf4"/>
-        <rect x="${Math.round(safeWidth * 0.12)}" y="${Math.round(safeHeight * 0.245)}" width="${Math.round(safeWidth * 0.62)}" height="${Math.max(6, Math.round(safeHeight * 0.018))}" rx="3" fill="#e6ebf5"/>
-        <rect x="${Math.round(safeWidth * 0.12)}" y="${Math.round(safeHeight * 0.34)}" width="${Math.round(safeWidth * 0.76)}" height="${Math.max(5, Math.round(safeHeight * 0.015))}" rx="3" fill="#e7ebf3"/>
-        <rect x="${Math.round(safeWidth * 0.12)}" y="${Math.round(safeHeight * 0.39)}" width="${Math.round(safeWidth * 0.74)}" height="${Math.max(5, Math.round(safeHeight * 0.015))}" rx="3" fill="#e7ebf3"/>
-        <rect x="${Math.round(safeWidth * 0.12)}" y="${Math.round(safeHeight * 0.44)}" width="${Math.round(safeWidth * 0.52)}" height="${Math.max(5, Math.round(safeHeight * 0.015))}" rx="3" fill="#e7ebf3"/>
-        <rect x="${Math.round(safeWidth * 0.12)}" y="${Math.round(safeHeight * 0.56)}" width="${Math.round(safeWidth * 0.68)}" height="${Math.max(5, Math.round(safeHeight * 0.015))}" rx="3" fill="#e7ebf3"/>
-        <rect x="${Math.round(safeWidth * 0.12)}" y="${Math.round(safeHeight * 0.61)}" width="${Math.round(safeWidth * 0.74)}" height="${Math.max(5, Math.round(safeHeight * 0.015))}" rx="3" fill="#e7ebf3"/>
-        <rect x="${Math.round(safeWidth * 0.12)}" y="${Math.round(safeHeight * 0.66)}" width="${Math.round(safeWidth * 0.46)}" height="${Math.max(5, Math.round(safeHeight * 0.015))}" rx="3" fill="#e7ebf3"/>
-      </g>
-    </svg>
-  `;
-  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
-}
 class TempImageFactory {
   static getCanvas(width, height) {
     let tempCanvas;
@@ -9803,7 +9773,6 @@ class PDFThumbnailView {
     image.tabIndex = -1;
     image.draggable = false;
     this.#updateDims();
-    this.#setPlaceholderImage();
     imageContainer.append(image);
     container.append(imageContainer);
   }
@@ -9824,16 +9793,6 @@ class PDFThumbnailView {
     this.scale = canvasWidth / width;
     this.image.style.height = `${canvasHeight}px`;
   }
-  #setPlaceholderImage() {
-    const {
-      image,
-      canvasWidth,
-      canvasHeight
-    } = this;
-    image.src = createThumbnailPlaceholderDataUrl(canvasWidth, canvasHeight);
-    image.removeAttribute("data-l10n-id");
-    image.removeAttribute("data-l10n-args");
-  }
   setPdfPage(pdfPage) {
     this.pdfPage = pdfPage;
     this.pdfPageRotate = pdfPage.rotate;
@@ -9852,13 +9811,13 @@ class PDFThumbnailView {
       image
     } = this;
     const url = image.src;
-    if (url?.startsWith("blob:")) {
+    if (url) {
       URL.revokeObjectURL(url);
+      image.removeAttribute("data-l10n-id");
+      image.removeAttribute("data-l10n-args");
+      image.src = "";
+      this.image.classList.add("missingThumbnailImage");
     }
-    image.removeAttribute("data-l10n-id");
-    image.removeAttribute("data-l10n-args");
-    this.image.classList.add("missingThumbnailImage");
-    this.#setPlaceholderImage();
   }
   update({
     rotation = null
@@ -10170,8 +10129,8 @@ class PDFThumbnailViewer {
       last,
       views
     } = this.#getVisibleThumbs();
-    let shouldScroll = views.length === 0;
     if (views.length > 0) {
+      let shouldScroll = false;
       if (pageNumber <= this.#pagesMapper.getPageNumber(first.id) || pageNumber >= this.#pagesMapper.getPageNumber(last.id)) {
         shouldScroll = true;
       } else {
@@ -10187,30 +10146,11 @@ class PDFThumbnailViewer {
           break;
         }
       }
-    }
-    if (shouldScroll) {
-      thumbnailView.div.scrollIntoView(SCROLL_OPTIONS);
+      if (shouldScroll) {
+        thumbnailView.div.scrollIntoView(SCROLL_OPTIONS);
+      }
     }
     this._currentPageNumber = pageNumber;
-  }
-  ensureThumbnailRendered(pageNumber) {
-    if (!this.pdfDocument) {
-      return Promise.resolve(false);
-    }
-    const thumbnailView = this._thumbnails[pageNumber - 1];
-    if (!thumbnailView) {
-      return Promise.resolve(false);
-    }
-    if (thumbnailView.renderingState === RenderingStates.FINISHED) {
-      return Promise.resolve(true);
-    }
-    return this.#ensurePdfPageLoaded(thumbnailView).then(pdfPage => {
-      if (!pdfPage || thumbnailView.renderingState === RenderingStates.FINISHED) {
-        return !!pdfPage;
-      }
-      this.renderingQueue.renderView(thumbnailView);
-      return true;
-    });
   }
   get pagesRotation() {
     return this._pagesRotation;
@@ -16554,6 +16494,7 @@ class Toolbar {
     }) => {
       switch (mode) {
         case AnnotationEditorType.HIGHLIGHT:
+          editorHighlightButton.click();
           break;
       }
     });
@@ -16782,9 +16723,6 @@ class ViewsManager extends Sidebar {
     this.viewsManagerCurrentOutlineButton = viewsManagerCurrentOutlineButton;
     this.viewsManagerHeaderLabel = viewsManagerHeaderLabel;
     this.eventBus = eventBus;
-    this._transitionFallbackId = 0;
-    this._transitionToken = 0;
-    this._pendingThumbsUpdateId = 0;
     this.menu = new Menu(viewsManagerSelectorOptions, viewsManagerSelectorButton, [thumbnailButton, outlineButton, attachmentsButton, layersButton]);
     ViewsManager.#l10nDescription ||= Object.freeze({
       pagesTitle: "pdfjs-views-manager-pages-title",
@@ -16882,20 +16820,17 @@ class ViewsManager extends Sidebar {
     if (this.isOpen) {
       return;
     }
-    const transitionToken = ++this._transitionToken;
-    this._cancelTransitionFallback();
     this.isOpen = true;
     this.onResizing(this.width);
     this._sidebar.hidden = false;
     toggleExpandedBtn(this.toggleButton, true);
     this.switchView(this.active);
     queueMicrotask(() => {
-      if (transitionToken !== this._transitionToken || !this.isOpen) {
-        return;
-      }
       this.outerContainer.classList.add("viewsManagerMoving", "viewsManagerOpen");
-      this._scheduleTransitionFallback(transitionToken);
     });
+    if (this.active === SidebarView.THUMBS) {
+      this.onUpdateThumbnails();
+    }
     this.onToggled();
     this.#dispatchEvent();
     this.#hideUINotification();
@@ -16904,14 +16839,11 @@ class ViewsManager extends Sidebar {
     if (!this.isOpen) {
       return;
     }
-    const transitionToken = ++this._transitionToken;
-    this._cancelTransitionFallback();
-    this._cancelPendingThumbnailsUpdate();
     this.isOpen = false;
+    this._sidebar.hidden = true;
     toggleExpandedBtn(this.toggleButton, false);
     this.outerContainer.classList.add("viewsManagerMoving");
     this.outerContainer.classList.remove("viewsManagerOpen");
-    this._scheduleTransitionFallback(transitionToken);
     this.onToggled();
     this.#dispatchEvent();
     if (evt?.detail > 0) {
@@ -16919,6 +16851,7 @@ class ViewsManager extends Sidebar {
     }
   }
   toggle(evt = null) {
+    super.toggle();
     if (this.isOpen) {
       this.close(evt);
     } else {
@@ -16948,64 +16881,17 @@ class ViewsManager extends Sidebar {
       this.toggleButton.setAttribute("data-l10n-id", ViewsManager.#l10nDescription.toggleButton);
     }
   }
-  _cancelTransitionFallback() {
-    if (this._transitionFallbackId) {
-      cancelAnimationFrame(this._transitionFallbackId);
-      this._transitionFallbackId = 0;
-    }
-  }
-  _cancelPendingThumbnailsUpdate() {
-    if (this._pendingThumbsUpdateId) {
-      cancelAnimationFrame(this._pendingThumbsUpdateId);
-      this._pendingThumbsUpdateId = 0;
-    }
-  }
-  _scheduleThumbnailsUpdate() {
-    if (!this.isOpen || this.active !== SidebarView.THUMBS) {
-      return;
-    }
-    this._cancelPendingThumbnailsUpdate();
-    this._pendingThumbsUpdateId = requestAnimationFrame(() => {
-      this._pendingThumbsUpdateId = 0;
-      if (!this.isOpen || this.active !== SidebarView.THUMBS) {
-        return;
-      }
-      this.onUpdateThumbnails?.();
-      this.onToggled?.();
-    });
-  }
-  _finishTransition(token) {
-    if (token !== this._transitionToken) {
-      return;
-    }
-    this.outerContainer.classList.remove("viewsManagerMoving");
-    if (!this.isOpen) {
-      this._sidebar.hidden = true;
-    }
-    this.eventBus.dispatch("resize", {
-      source: this
-    });
-    this._scheduleThumbnailsUpdate();
-  }
-  _scheduleTransitionFallback(token) {
-    const hasTransition = getComputedStyle(this.sidebarContainer).transitionDuration.split(",").some(value => parseFloat(value) > 0);
-    if (hasTransition) {
-      return;
-    }
-    this._cancelTransitionFallback();
-    this._transitionFallbackId = requestAnimationFrame(() => {
-      this._transitionFallbackId = 0;
-      this._finishTransition(token);
-    });
-  }
   #addEventListeners() {
     const {
-      eventBus
+      eventBus,
+      outerContainer
     } = this;
     this.sidebarContainer.addEventListener("transitionend", evt => {
       if (evt.target === this.sidebarContainer) {
-        this._cancelTransitionFallback();
-        this._finishTransition(this._transitionToken);
+        outerContainer.classList.remove("viewsManagerMoving");
+        eventBus.dispatch("resize", {
+          source: this
+        });
       }
     });
     this.thumbnailButton.addEventListener("click", () => {
@@ -17391,7 +17277,7 @@ const PDFViewerApplication = {
       annotationMode: AppOptions.get("annotationMode"),
       annotationEditorMode,
       annotationEditorHighlightColors: AppOptions.get("highlightEditorColors"),
-      enableHighlightFloatingButton: false,
+      enableHighlightFloatingButton: AppOptions.get("enableHighlightFloatingButton"),
       enableUpdatedAddImage: AppOptions.get("enableUpdatedAddImage"),
       enableNewAltTextWhenAddingImage: AppOptions.get("enableNewAltTextWhenAddingImage"),
       imageResourcesPath: AppOptions.get("imageResourcesPath"),
@@ -17414,7 +17300,6 @@ const PDFViewerApplication = {
     linkService.setViewer(pdfViewer);
     pdfScriptingManager.setViewer(pdfViewer);
     if (appConfig.viewsManager?.thumbnailsView) {
-      const enableSplitMerge = AppOptions.get("enableSplitMerge");
       this.pdfThumbnailViewer = new PDFThumbnailViewer({
         container: appConfig.viewsManager.thumbnailsView,
         eventBus,
@@ -17425,12 +17310,9 @@ const PDFViewerApplication = {
         pageColors,
         abortSignal,
         enableHWA,
-        enableSplitMerge,
+        enableSplitMerge: AppOptions.get("enableSplitMerge"),
         manageMenu: appConfig.viewsManager.manageMenu
       });
-      if (!enableSplitMerge) {
-        appConfig.viewsManager.status?.setAttribute("hidden", "true");
-      }
       renderingQueue.setThumbnailViewer(this.pdfThumbnailViewer);
     }
     if (!this.isViewerEmbedded && !AppOptions.get("disableHistory")) {
@@ -17525,29 +17407,37 @@ const PDFViewerApplication = {
       });
       this.viewsManager.onToggled = this.forceRendering.bind(this);
       this.viewsManager.onUpdateThumbnails = () => {
-        const thumbnailViewer = this.pdfThumbnailViewer;
-        if (!thumbnailViewer) {
-          return;
+        for (const pageView of pdfViewer.getCachedPageViews()) {
+          if (pageView.renderingState === RenderingStates.FINISHED) {
+            this.pdfThumbnailViewer.getThumbnail(pageView.id - 1)?.setImage(pageView);
+          }
         }
-        const currentPageNumber = pdfViewer.currentPageNumber;
-        thumbnailViewer.scrollThumbnailIntoView(currentPageNumber);
-        void thumbnailViewer.ensureThumbnailRendered(currentPageNumber);
-        const currentPageView = pdfViewer.getPageView(currentPageNumber - 1);
-        if (currentPageView?.renderingState === RenderingStates.FINISHED) {
-          thumbnailViewer.getThumbnail(currentPageNumber - 1)?.setImage(currentPageView);
-        }
+        this.pdfThumbnailViewer.scrollThumbnailIntoView(pdfViewer.currentPageNumber);
       };
     }
   },
   async run(config) {
+    const queryString = document.location.search.substring(1);
+    const params = parseQueryString(queryString);
+    const viewerQueryOptions = {
+      forcePageColors: value => value === "true",
+      pageColorsBackground: value => value,
+      pageColorsForeground: value => value,
+      viewerCssTheme: value => value | 0
+    };
+    for (const name in viewerQueryOptions) {
+      const check = viewerQueryOptions[name],
+        key = name.toLowerCase();
+      if (params.has(key)) {
+        AppOptions.set(name, check(params.get(key)));
+      }
+    }
     await this.initialize(config);
     const {
       appConfig,
       eventBus
     } = this;
     let file;
-    const queryString = document.location.search.substring(1);
-    const params = parseQueryString(queryString);
     file = params.get("file") ?? AppOptions.get("defaultUrl");
     try {
       file = new URL(file).href;
@@ -18315,7 +18205,7 @@ const PDFViewerApplication = {
   },
   forceRendering() {
     this.pdfRenderingQueue.printing = !!this.printService;
-    this.pdfRenderingQueue.isThumbnailViewEnabled = this.viewsManager?.visibleView === SidebarView.THUMBS && !this.viewsManager?.outerContainer.classList.contains("viewsManagerMoving");
+    this.pdfRenderingQueue.isThumbnailViewEnabled = this.viewsManager?.visibleView === SidebarView.THUMBS;
     this.pdfRenderingQueue.renderHighestPriority();
   },
   beforePrint() {
@@ -19322,7 +19212,6 @@ function getViewerConfiguration() {
       viewsManagerAddFileButton: document.getElementById("viewsManagerAddFileButton"),
       viewsManagerCurrentOutlineButton: document.getElementById("viewsManagerCurrentOutlineButton"),
       viewsManagerHeaderLabel: document.getElementById("viewsManagerHeaderLabel"),
-      status: document.getElementById("viewsManagerStatus"),
       manageMenu: {
         button: document.getElementById("viewsManagerStatusActionButton"),
         menu: document.getElementById("viewsManagerStatusActionOptions"),

@@ -77,6 +77,7 @@ function resolveResolvedPreviewTargetPath(options = {}) {
 function resolvePreviewMode(previewKind) {
   if (previewKind === 'html') return 'markdown'
   if (previewKind === 'native') return 'typst-native'
+  if (previewKind === 'pdf') return 'pdf-artifact'
   return null
 }
 
@@ -161,6 +162,7 @@ export function resolveDocumentWorkspacePreviewState(options = {}) {
   const requestedPreviewKind = options.previewKind || workflowUiState?.previewKind || null
   const resolvedTargetPath = resolveResolvedPreviewTargetPath(options)
   const hiddenByUser = options.hiddenByUser === true
+  const previewRequested = options.previewRequested === true
   const artifactReady = options.artifactReady === true || !!resolvedTargetPath
 
   if (documentKind === 'markdown') {
@@ -181,32 +183,58 @@ export function resolveDocumentWorkspacePreviewState(options = {}) {
   }
 
   if (documentKind === 'latex') {
-    return createPreviewState({
+    const pdfPreviewRequested = requestedPreviewKind === 'pdf' && previewRequested
+    const state = createPreviewState({
       useWorkspace: true,
-      previewVisible: false,
-      previewKind: null,
-      previewMode: null,
+      previewVisible: pdfPreviewRequested && artifactReady && !hiddenByUser,
+      previewKind: pdfPreviewRequested || hiddenByUser ? 'pdf' : null,
+      previewMode: pdfPreviewRequested && artifactReady && !hiddenByUser ? 'pdf-artifact' : null,
       targetResolution: normalizeTargetResolution(
         options.targetResolution,
         resolvedTargetPath ? 'resolved' : artifactReady ? 'resolved' : 'unresolved',
       ),
       reason: hiddenByUser
         ? 'hidden-by-user'
-        : artifactReady
-          ? 'artifact-ready-external'
-          : 'source-only',
+        : pdfPreviewRequested && artifactReady
+          ? 'workspace-latex-pdf'
+          : artifactReady
+            ? 'artifact-ready-external'
+            : 'source-only',
       legacyReadOnly: false,
-      allowPreviewCreation: false,
+      allowPreviewCreation: artifactReady,
       preserveOpenLegacy,
       sourcePath: path,
-      previewTargetPath: '',
-      previewFilePath: '',
+      previewTargetPath: artifactReady ? resolvedTargetPath : '',
+      previewFilePath: pdfPreviewRequested && artifactReady ? resolvedTargetPath : '',
     })
+    return hiddenByUser ? hidePreviewState(state) : state
   }
 
   if (documentKind === 'typst') {
     const nativePreviewSupported = options.nativePreviewSupported !== false
       && options.typstNativeReady !== false
+    const pdfPreviewRequested = requestedPreviewKind === 'pdf' && previewRequested
+
+    if (pdfPreviewRequested && artifactReady) {
+      const state = createPreviewState({
+        useWorkspace: true,
+        previewVisible: !hiddenByUser,
+        previewKind: 'pdf',
+        previewMode: hiddenByUser ? null : 'pdf-artifact',
+        targetResolution: normalizeTargetResolution(
+          options.targetResolution,
+          resolvedTargetPath ? 'resolved' : artifactReady ? 'resolved' : 'unresolved',
+        ),
+        reason: hiddenByUser ? 'hidden-by-user' : 'workspace-typst-pdf',
+        legacyReadOnly: false,
+        allowPreviewCreation: true,
+        preserveOpenLegacy,
+        sourcePath: path,
+        previewTargetPath: resolvedTargetPath,
+        previewFilePath: resolvedTargetPath,
+      })
+      return hiddenByUser ? hidePreviewState(state) : state
+    }
 
     if (nativePreviewSupported) {
       const state = createPreviewState({
@@ -227,18 +255,18 @@ export function resolveDocumentWorkspacePreviewState(options = {}) {
 
     return createPreviewState({
       useWorkspace: true,
-      previewVisible: false,
-      previewKind: null,
-      previewMode: null,
-      targetResolution: normalizeTargetResolution(
-        options.targetResolution,
+        previewVisible: false,
+        previewKind: null,
+        previewMode: null,
+        targetResolution: normalizeTargetResolution(
+          options.targetResolution,
         resolvedTargetPath ? 'resolved' : artifactReady ? 'resolved' : 'unresolved',
       ),
-      reason: hiddenByUser
-        ? 'hidden-by-user'
-        : artifactReady
-          ? 'artifact-ready-external'
-          : requestedPreviewKind === 'native'
+        reason: hiddenByUser
+          ? 'hidden-by-user'
+          : artifactReady
+            ? 'artifact-ready-external'
+            : requestedPreviewKind === 'native'
             ? 'native-preview-unavailable'
             : 'source-only',
       legacyReadOnly: false,

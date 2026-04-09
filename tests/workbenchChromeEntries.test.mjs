@@ -22,11 +22,11 @@ test('sidebar chrome entries follow the normalized workbench surface map', () =>
 test('inspector chrome entries expose the document workspace panels', () => {
   assert.deepEqual(
     getWorkbenchInspectorChromeEntries(t, 'workspace').map((entry) => entry.key),
-    ['outline', 'document-run']
+    ['outline']
   )
   assert.deepEqual(
     getWorkbenchInspectorChromeEntries(t, 'removed-surface').map((entry) => entry.key),
-    ['outline', 'document-run']
+    ['outline']
   )
 })
 
@@ -44,5 +44,5 @@ test('chrome entry labels and titles are localized through the provided translat
     (value) => `x:${value}`,
     'workspace'
   )
-  assert.equal(translatedInspector[1].label, 'x:Document run')
+  assert.equal(translatedInspector[0].label, 'x:Outline')
 })

@@ -5,8 +5,6 @@ Contributions should preserve product clarity, explicit operations, and safe loc
 ## Before Changing Code
 
 - Read the root `AGENTS.md`.
-- Read the nearest scoped `AGENTS.md` for the files you touch.
-- Read `docs/REFACTOR_BLUEPRINT.md`.
 
 ## Working Style
 

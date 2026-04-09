@@ -32,8 +32,21 @@ function resolveRequestedPreviewKind(filePath, adapter, options = {}, workflowSt
 
   const session = options.session || workflowStore?.session || {}
   const preferredPreviewKind = resolvePreferredPreviewKind(adapter, options, workflowStore)
+  const workspacePreviewRequest = normalizePreviewKind(
+    adapter,
+    options.workspacePreviewRequest || workflowStore?.getWorkspacePreviewRequestForFile?.(filePath),
+  )
+
+  if (workspacePreviewRequest) {
+    return workspacePreviewRequest
+  }
+
   if (session.activeFile === filePath) {
-    return normalizePreviewKind(adapter, session.previewKind) || preferredPreviewKind
+    const sessionPreviewKind = normalizePreviewKind(adapter, session.previewKind)
+    if (adapter.kind === 'typst' && sessionPreviewKind === 'pdf') {
+      return normalizePreviewKind(adapter, preferredPreviewKind)
+    }
+    return sessionPreviewKind || preferredPreviewKind
   }
   return normalizePreviewKind(adapter, preferredPreviewKind)
 }

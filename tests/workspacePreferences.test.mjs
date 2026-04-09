@@ -212,7 +212,7 @@ test('right sidebar panel preference defaults to outline and restores the curren
 
     persistStoredString('rightSidebarPanel', 'document-run')
     const restored = createWorkspacePreferenceState()
-    assert.equal(restored.rightSidebarPanel, 'document-run')
+    assert.equal(restored.rightSidebarPanel, 'outline')
   } finally {
     globalThis.localStorage = previousLocalStorage
   }

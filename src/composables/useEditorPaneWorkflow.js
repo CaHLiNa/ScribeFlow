@@ -2,6 +2,7 @@ import { computed, watch } from 'vue'
 import { isLatex, isTypst } from '../utils/fileTypes.js'
 import { getDocumentAdapterForFile } from '../services/documentWorkflow/adapters/index.js'
 import { getDocumentWorkflowStatusTone } from '../domains/document/documentWorkflowBuildRuntime.js'
+import { pathExists } from '../services/pathExists.js'
 
 export function useEditorPaneWorkflow(options) {
   const {
@@ -88,9 +89,10 @@ export function useEditorPaneWorkflow(options) {
 
   function handlePreviewPdf() {
     if (!activeTabRef.value) return
-    workflowStore.openWorkflowOutputForFile(activeTabRef.value, {
+    workflowStore.toggleWorkflowPdfPreviewForFile(activeTabRef.value, {
       sourcePaneId: paneIdRef.value,
       adapterKind: activeDocumentAdapter.value?.kind || 'document',
+      uiState: workflowUiState.value,
       buildOptions: buildWorkflowOptions({
         adapter: activeDocumentAdapter.value,
         workflowOnly: false,
@@ -131,6 +133,18 @@ export function useEditorPaneWorkflow(options) {
 
   function handleWorkflowRevealPdf() {
     if (!workflowUiState.value || !activeTabRef.value) return
+    workflowStore.revealWorkflowPdfForFile(activeTabRef.value, {
+      uiState: workflowUiState.value,
+      sourcePaneId: paneIdRef.value,
+      buildOptions: buildWorkflowOptions({
+        adapter: activeDocumentAdapter.value,
+        workflowOnly: false,
+      }),
+    })
+  }
+
+  function handleWorkflowOpenExternalPdf() {
+    if (!activeTabRef.value) return
     workflowStore.openWorkflowOutputForFile(activeTabRef.value, {
       uiState: workflowUiState.value,
       sourcePaneId: paneIdRef.value,
@@ -145,6 +159,31 @@ export function useEditorPaneWorkflow(options) {
     [activeTabRef, () => editorStore.activePaneId],
     () => {
       workflowStore.reconcile({ trigger: 'editor-pane-sync' })
+    },
+    { immediate: true },
+  )
+
+  watch(
+    [activeTabRef, activeDocumentAdapter],
+    async ([filePath, adapter]) => {
+      if (!filePath || !adapter || (adapter.kind !== 'latex' && adapter.kind !== 'typst')) return
+      const uiState = workflowStore.getUiStateForFile(filePath, buildWorkflowOptions({
+        adapter,
+        workflowOnly: false,
+      }))
+      if (uiState?.canOpenPdf === true) return
+
+      const artifactPath = adapter.compile?.getArtifactPath?.(filePath, buildWorkflowOptions({
+        adapter,
+        workflowOnly: false,
+      })) || ''
+      if (!artifactPath || !(await pathExists(artifactPath))) return
+
+      if (adapter.kind === 'latex') {
+        latexStore.registerExistingArtifact?.(filePath, artifactPath)
+      } else if (adapter.kind === 'typst') {
+        typstStore.registerExistingArtifact?.(filePath, artifactPath)
+      }
     },
     { immediate: true },
   )
@@ -166,5 +205,6 @@ export function useEditorPaneWorkflow(options) {
     handleWorkflowPrimaryAction,
     handleWorkflowRevealPreview,
     handleWorkflowRevealPdf,
+    handleWorkflowOpenExternalPdf,
   }
 }

@@ -287,32 +287,11 @@ See https://github.com/adobe-type-tools/cmap-resources
                     <span data-l10n-id="pdfjs-next-button-label"></span>
                   </button>
                 </div>
-                <div class="toolbarHorizontalGroup">
-                  <span class="loadingInput start toolbarHorizontalGroup">
-                    <input
-                      type="number"
-                      id="pageNumber"
-                      class="toolbarField"
-                      value="1"
-                      min="1"
-                      tabindex="0"
-                      data-l10n-id="pdfjs-page-input"
-                      autocomplete="off"
-                    />
-                  </span>
-                  <span id="numPages" class="toolbarLabel"></span>
-                </div>
               </div>
               <div id="toolbarViewerMiddle" class="toolbarHorizontalGroup">
-                <div class="toolbarHorizontalGroup">
-                  <button id="zoomOutButton" class="toolbarButton" type="button" tabindex="0" data-l10n-id="pdfjs-zoom-out-button">
-                    <span data-l10n-id="pdfjs-zoom-out-button-label"></span>
-                  </button>
-                  <div class="splitToolbarButtonSeparator"></div>
-                  <button id="zoomInButton" class="toolbarButton" type="button" tabindex="0" data-l10n-id="pdfjs-zoom-in-button">
-                    <span data-l10n-id="pdfjs-zoom-in-button-label"></span>
-                  </button>
-                </div>
+                <button id="zoomOutButton" class="toolbarButton" type="button" tabindex="0" data-l10n-id="pdfjs-zoom-out-button">
+                  <span data-l10n-id="pdfjs-zoom-out-button-label"></span>
+                </button>
                 <span id="scaleSelectContainer" class="dropdownToolbarButton">
                   <select id="scaleSelect" tabindex="0" data-l10n-id="pdfjs-zoom-select">
                     <option id="pageAutoOption" value="auto" selected="selected" data-l10n-id="pdfjs-page-scale-auto"></option>
@@ -337,8 +316,26 @@ See https://github.com/adobe-type-tools/cmap-resources
                     <option value="4" data-l10n-id="pdfjs-page-scale-percent" data-l10n-args='{ "scale": 400 }'></option>
                   </select>
                 </span>
+                <button id="zoomInButton" class="toolbarButton" type="button" tabindex="0" data-l10n-id="pdfjs-zoom-in-button">
+                  <span data-l10n-id="pdfjs-zoom-in-button-label"></span>
+                </button>
               </div>
               <div id="toolbarViewerRight" class="toolbarHorizontalGroup">
+                <div class="toolbarHorizontalGroup altalsPageGroup">
+                  <span class="loadingInput start toolbarHorizontalGroup">
+                    <input
+                      type="number"
+                      id="pageNumber"
+                      class="toolbarField"
+                      value="1"
+                      min="1"
+                      tabindex="0"
+                      data-l10n-id="pdfjs-page-input"
+                      autocomplete="off"
+                    />
+                  </span>
+                  <span id="numPages" class="toolbarLabel"></span>
+                </div>
                 <div id="editorModeButtons" class="toolbarHorizontalGroup">
                   <div id="editorComment" class="toolbarButtonWithContainer" hidden="true">
                     <button

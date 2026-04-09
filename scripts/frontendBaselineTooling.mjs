@@ -47,9 +47,7 @@ export const FRONTEND_BASELINE_FORMAT_TARGETS = Object.freeze(
     ...FRONTEND_BASELINE_LINT_TARGETS,
     'src/css/**/*.css',
     'docs/ARCHITECTURE.md',
-    'docs/FRONTEND_SPEC.md',
     'docs/PRODUCT.md',
-    'docs/REFACTOR_BLUEPRINT.md',
   ])
 )
 

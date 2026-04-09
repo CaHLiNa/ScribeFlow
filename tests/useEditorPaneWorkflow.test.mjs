@@ -12,6 +12,8 @@ function createWorkflowStore({
   return {
     reconcileCalls: [],
     outputCalls: [],
+    pdfToggleCalls: [],
+    pdfRevealCalls: [],
     buildAdapterContext() {
       return {
         previewState,
@@ -27,6 +29,14 @@ function createWorkflowStore({
     openWorkflowOutputForFile(filePath, options = {}) {
       this.outputCalls.push({ filePath, options })
       return { type: 'external-output-opened', filePath }
+    },
+    toggleWorkflowPdfPreviewForFile(filePath, options = {}) {
+      this.pdfToggleCalls.push({ filePath, options })
+      return { type: 'workspace-preview', filePath, previewKind: 'pdf' }
+    },
+    revealWorkflowPdfForFile(filePath, options = {}) {
+      this.pdfRevealCalls.push({ filePath, options })
+      return { type: 'workspace-preview', filePath, previewKind: 'pdf' }
     },
     reconcile(options = {}) {
       this.reconcileCalls.push(options)
@@ -96,7 +106,7 @@ test('useEditorPaneWorkflow exposes workflow state without any pdf toolbar targe
   assert.deepEqual(workflowStore.reconcileCalls, [{ trigger: 'editor-pane-sync' }])
 })
 
-test('useEditorPaneWorkflow opens compiled output externally when requested', () => {
+test('useEditorPaneWorkflow routes pdf requests through the embedded preview workflow actions', () => {
   const { workflow, workflowStore } = createComposable({
     activeTab: '/workspace/main.tex',
     uiState: { kind: 'latex', previewKind: null, canOpenPdf: true },
@@ -105,9 +115,10 @@ test('useEditorPaneWorkflow opens compiled output externally when requested', ()
   workflow.handlePreviewPdf()
   workflow.handleWorkflowRevealPdf()
 
-  assert.equal(workflowStore.outputCalls.length, 2)
-  assert.equal(workflowStore.outputCalls[0].filePath, '/workspace/main.tex')
-  assert.equal(workflowStore.outputCalls[1].filePath, '/workspace/main.tex')
+  assert.equal(workflowStore.pdfToggleCalls.length, 1)
+  assert.equal(workflowStore.pdfRevealCalls.length, 1)
+  assert.equal(workflowStore.pdfToggleCalls[0].filePath, '/workspace/main.tex')
+  assert.equal(workflowStore.pdfRevealCalls[0].filePath, '/workspace/main.tex')
 })
 
 test('useEditorPaneWorkflow hides the document header for plain text pages with no workflow state', () => {

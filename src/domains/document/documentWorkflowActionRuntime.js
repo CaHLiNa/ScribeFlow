@@ -22,6 +22,7 @@ function usesLegacyPanePreviewDelivery(options = {}) {
 function resolvePreviewModeFromKind(previewKind) {
   if (previewKind === 'html') return 'markdown'
   if (previewKind === 'native') return 'typst-native'
+  if (previewKind === 'pdf') return 'pdf-artifact'
   return previewKind || null
 }
 
@@ -91,6 +92,17 @@ export function createDocumentWorkflowActionRuntime({
     }
   }
 
+  function showWorkspacePdfPreviewForFile(filePath, options = {}) {
+    const workflowStore = getWorkflowStore?.() || null
+    if (!workflowStore) return null
+    return workflowStore.showWorkspacePreviewForFile?.(filePath, {
+      previewKind: 'pdf',
+      persistPreference: false,
+      sourcePaneId: options.sourcePaneId,
+      trigger: options.trigger || `${options.uiState?.kind || options.adapterKind || 'document'}-open-output`,
+    }) || null
+  }
+
   async function runPrimaryActionForFile(filePath, options = {}) {
     if (!filePath) return null
 
@@ -127,11 +139,15 @@ export function createDocumentWorkflowActionRuntime({
       })
     }
 
-    if (!workflowStore || !uiState.previewKind) return null
+    const requestedPreviewKind = uiState.kind === 'typst' && uiState.canRevealPreview === true
+      ? 'native'
+      : uiState.previewKind
+
+    if (!workflowStore || !requestedPreviewKind) return null
 
     if (usesLegacyPanePreviewDelivery(options)) {
       return createLegacyPanePreviewToggle(workflowStore, filePath, {
-        previewKind: uiState.previewKind,
+        previewKind: requestedPreviewKind,
         jump: true,
         sourcePaneId: options.sourcePaneId,
         trigger: options.trigger || 'workflow-toggle-preview',
@@ -141,27 +157,52 @@ export function createDocumentWorkflowActionRuntime({
     const previewState = resolveWorkspacePreviewState(filePath, options)
     if (
       previewState?.previewVisible
-      && previewState?.previewMode === resolvePreviewModeFromKind(uiState.previewKind)
+      && previewState?.previewMode === resolvePreviewModeFromKind(requestedPreviewKind)
     ) {
       return workflowStore.hideWorkspacePreviewForFile?.(filePath) || null
     }
 
     return workflowStore.showWorkspacePreviewForFile?.(filePath, {
-      previewKind: uiState.previewKind,
+      previewKind: requestedPreviewKind,
       sourcePaneId: options.sourcePaneId,
       trigger: options.trigger || 'workflow-toggle-preview',
     }) || null
   }
 
   function togglePdfPreviewForFile(filePath, options = {}) {
-    return openWorkflowOutputForFile(filePath, {
+    if (!filePath) return null
+
+    const workflowStore = getWorkflowStore?.() || null
+    if (!workflowStore) return null
+
+    const previewState = resolveWorkspacePreviewState(filePath, options)
+    if (previewState?.previewVisible && previewState?.previewMode === 'pdf-artifact') {
+      if (options.uiState?.kind === 'typst' && options.uiState?.canRevealPreview === true) {
+        return workflowStore.showWorkspacePreviewForFile?.(filePath, {
+          previewKind: 'native',
+          sourcePaneId: options.sourcePaneId,
+          trigger: 'typst-return-native-preview',
+        }) || null
+      }
+      return workflowStore.hideWorkspacePreviewForFile?.(filePath) || null
+    }
+
+    const artifactPath = workflowStore.getArtifactPathForFile?.(filePath, options.buildOptions || {}) || ''
+    if (!artifactPath) {
+      return openWorkflowOutputForFile(filePath, {
+        ...options,
+        trigger: options.trigger || `${options.adapterKind || options.uiState?.kind || 'document'}-open-output`,
+      })
+    }
+
+    return showWorkspacePdfPreviewForFile(filePath, {
       ...options,
-      trigger: options.trigger || `${options.adapterKind || 'document'}-open-output`,
+      trigger: options.trigger || `${options.adapterKind || options.uiState?.kind || 'document'}-open-output`,
     })
   }
 
   function revealPdfForFile(filePath, options = {}) {
-    return openWorkflowOutputForFile(filePath, {
+    return togglePdfPreviewForFile(filePath, {
       ...options,
       trigger: options.trigger || `${options.uiState?.kind || 'document'}-open-output`,
     })

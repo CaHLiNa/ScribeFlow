@@ -1,4 +1,4 @@
-import { IconActivityHeartbeat, IconFolder, IconListTree } from '@tabler/icons-vue'
+import { IconFolder, IconListTree } from '@tabler/icons-vue'
 import { normalizeWorkbenchSurface } from './workbenchSidebarPanels.js'
 
 const SIDEBAR_ENTRY_DEFINITIONS = {
@@ -27,12 +27,6 @@ const INSPECTOR_ENTRY_DEFINITIONS = {
       labelKey: 'Outline',
       titleKey: 'Outline',
       icon: IconListTree,
-    },
-    {
-      key: 'document-run',
-      labelKey: 'Document run',
-      titleKey: 'Document run',
-      icon: IconActivityHeartbeat,
     },
   ],
   settings: [],

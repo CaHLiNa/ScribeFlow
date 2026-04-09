@@ -1,5 +1,9 @@
 <template>
-  <div class="typst-native-preview-shell">
+  <div
+    ref="shellRef"
+    class="typst-native-preview-shell"
+    :class="{ 'is-resize-suspended': previewSuspended }"
+  >
     <div v-if="loadError" class="typst-native-preview-state typst-native-preview-state-error">
       <div class="text-center text-sm">
         <div>{{ t('Tinymist preview failed to start.') }}</div>
@@ -14,13 +18,20 @@
         <div>{{ t('Starting Typst preview…') }}</div>
       </div>
     </div>
-    <iframe
-      v-else
-      ref="iframeRef"
-      class="typst-native-preview-frame"
-      :src="previewUrl"
-      @load="handleIframeLoad"
-    />
+    <template v-else>
+      <iframe
+        v-show="!previewSuspended || !iframeLoaded"
+        ref="iframeRef"
+        class="typst-native-preview-frame"
+        :src="previewUrl"
+        @load="handleIframeLoad"
+      />
+      <div
+        v-if="previewSuspended && iframeLoaded"
+        class="typst-native-preview-freeze-mask"
+        aria-hidden="true"
+      ></div>
+    </template>
   </div>
 </template>
 
@@ -58,12 +69,23 @@ const workspace = useWorkspaceStore()
 const workflowStore = useDocumentWorkflowStore()
 const { t } = useI18n()
 
+const RESIZE_SUSPEND_SETTLE_MS = 140
+const TOGGLE_SUSPEND_SETTLE_MS = 320
+const RESIZE_SUSPEND_DELTA_PX = 1
+
+const shellRef = ref(null)
 const iframeRef = ref(null)
 const previewRootPath = ref('')
 const previewUrl = ref('')
 const loadError = ref('')
 const iframeLoaded = ref(false)
+const previewSuspended = ref(false)
 let unsubscribeScrollSource = null
+let resizeObserver = null
+let previewResumeTimer = null
+let previewUrlRevision = 0
+let previewUrlIdentity = ''
+let lastObservedShellSize = { width: 0, height: 0 }
 
 const resolvedSourcePath = computed(() => resolvedPreviewInput.value.sourcePath)
 const resolvedPreviewInput = ref({ sourcePath: '', rootPath: '' })
@@ -91,12 +113,79 @@ async function resolveRootPath() {
   return resolved.rootPath || ''
 }
 
+function buildPreviewFrameUrl(baseUrl, rootPath, revision = 0) {
+  const normalizedBaseUrl = String(baseUrl || '').trim().replace(/\/+$/, '')
+  if (!normalizedBaseUrl) return ''
+  const params = new URLSearchParams()
+  if (rootPath) {
+    params.set('root', rootPath)
+  }
+  params.set('host', 'altals')
+  params.set('rev', String(revision))
+  return `${normalizedBaseUrl}/?${params.toString()}`
+}
+
+function clearPreviewResumeTimer() {
+  if (previewResumeTimer !== null) {
+    window.clearTimeout(previewResumeTimer)
+    previewResumeTimer = null
+  }
+}
+
+function schedulePreviewResume(delay = RESIZE_SUSPEND_SETTLE_MS) {
+  clearPreviewResumeTimer()
+  previewResumeTimer = window.setTimeout(() => {
+    previewResumeTimer = null
+    previewSuspended.value = false
+  }, delay)
+}
+
+function suspendPreviewForResize(delay = RESIZE_SUSPEND_SETTLE_MS) {
+  if (!previewUrl.value || !iframeLoaded.value) return
+  previewSuspended.value = true
+  schedulePreviewResume(delay)
+}
+
+function resetShellResizeTracking() {
+  clearPreviewResumeTimer()
+  previewSuspended.value = false
+  lastObservedShellSize = { width: 0, height: 0 }
+}
+
+function observeShellResize() {
+  if (typeof ResizeObserver === 'undefined' || !shellRef.value) return
+  resizeObserver = new ResizeObserver((entries) => {
+    const entry = entries[0]
+    if (!entry) return
+    const width = Math.round(entry.contentRect?.width || 0)
+    const height = Math.round(entry.contentRect?.height || 0)
+    if (width <= 0 || height <= 0) return
+
+    const widthDelta = Math.abs(width - lastObservedShellSize.width)
+    const heightDelta = Math.abs(height - lastObservedShellSize.height)
+    lastObservedShellSize = { width, height }
+
+    if (widthDelta < RESIZE_SUSPEND_DELTA_PX && heightDelta < RESIZE_SUSPEND_DELTA_PX) {
+      if (previewSuspended.value) schedulePreviewResume()
+      return
+    }
+
+    suspendPreviewForResize()
+  })
+  resizeObserver.observe(shellRef.value)
+}
+
 async function ensurePreviewReady() {
   loadError.value = ''
-  iframeLoaded.value = false
-  previewUrl.value = ''
   const resolvedRoot = await resolveRootPath()
-  if (!resolvedRoot) return
+  if (!resolvedRoot) {
+    previewRootPath.value = ''
+    previewUrl.value = ''
+    previewUrlIdentity = ''
+    iframeLoaded.value = false
+    resetShellResizeTracking()
+    return
+  }
   previewRootPath.value = resolvedRoot
 
   try {
@@ -104,7 +193,23 @@ async function ensurePreviewReady() {
       rootPath: resolvedRoot,
       workspacePath: workspace.path,
     })
-    previewUrl.value = session?.previewUrl || ''
+    const nextBaseUrl = String(session?.previewUrl || '').trim()
+    const nextIdentity = nextBaseUrl ? `${nextBaseUrl}::${resolvedRoot}` : ''
+    if (!nextIdentity) {
+      previewUrl.value = ''
+      previewUrlIdentity = ''
+      iframeLoaded.value = false
+      resetShellResizeTracking()
+      return
+    }
+
+    if (nextIdentity !== previewUrlIdentity || !previewUrl.value) {
+      previewUrlIdentity = nextIdentity
+      previewUrlRevision += 1
+      iframeLoaded.value = false
+      previewUrl.value = buildPreviewFrameUrl(nextBaseUrl, resolvedRoot, previewUrlRevision)
+      resetShellResizeTracking()
+    }
     flushPendingForwardSync()
   } catch (error) {
     loadError.value = error?.message || String(error)
@@ -169,6 +274,7 @@ onMounted(() => {
   unsubscribeScrollSource = subscribeTypstPreviewScrollSource((location) => {
     void handleScrollSource(location)
   })
+  observeShellResize()
   void ensurePreviewReady()
 })
 
@@ -176,12 +282,23 @@ onUnmounted(() => {
   window.removeEventListener('typst-forward-sync-location', handleForwardSyncRequest)
   unsubscribeScrollSource?.()
   unsubscribeScrollSource = null
+  resizeObserver?.disconnect()
+  resizeObserver = null
+  clearPreviewResumeTimer()
 })
 
 watch(
   [() => props.filePath, () => props.sourcePath, () => props.rootPath, () => workspace.path],
   () => {
     void ensurePreviewReady()
+  }
+)
+
+watch(
+  [() => workspace.leftSidebarOpen, () => workspace.rightSidebarOpen],
+  ([nextLeftOpen, nextRightOpen], [prevLeftOpen, prevRightOpen]) => {
+    if (nextLeftOpen === prevLeftOpen && nextRightOpen === prevRightOpen) return
+    suspendPreviewForResize(TOGGLE_SUSPEND_SETTLE_MS)
   }
 )
 </script>
@@ -193,6 +310,8 @@ watch(
   height: 100%;
   overflow: hidden;
   background: inherit;
+  contain: strict;
+  isolation: isolate;
 }
 
 .typst-native-preview-state {
@@ -212,9 +331,21 @@ watch(
 }
 
 .typst-native-preview-frame {
+  display: block;
   width: 100%;
   height: 100%;
   border: 0;
   background: inherit;
+}
+
+.typst-native-preview-freeze-mask {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--shell-preview-surface) 94%, transparent) 0%,
+      var(--shell-preview-surface) 100%
+    );
 }
 </style>

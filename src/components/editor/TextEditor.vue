@@ -885,7 +885,15 @@ function ensureLatexWindowHandlers() {
   if (!backwardSyncHandler) {
     backwardSyncHandler = (event) => {
       const { file, line } = event.detail || {}
-      if (file && !props.filePath.endsWith(file.split('/').pop())) return
+      const normalizedFile = String(file || '').replace(/\\/g, '/')
+      const normalizedCurrentPath = String(props.filePath || '').replace(/\\/g, '/')
+      if (normalizedFile) {
+        const targetFileName = normalizedFile.split('/').pop() || normalizedFile
+        const currentFileName = normalizedCurrentPath.split('/').pop() || normalizedCurrentPath
+        const exactMatch = normalizedFile === normalizedCurrentPath
+        const fileNameOnlyMatch = !normalizedFile.includes('/') && targetFileName === currentFileName
+        if (!exactMatch && !fileNameOnlyMatch) return
+      }
       if (line && line > 0) {
         focusEditorLineWithHighlight(view, line, { center: true })
       }

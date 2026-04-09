@@ -81,7 +81,7 @@ test('build runtime keeps latex source-only even when a compiled output exists',
   assert.equal(context.previewState.previewVisible, false)
   assert.equal(context.previewState.previewKind, null)
   assert.equal(context.previewState.reason, 'artifact-ready-external')
-  assert.equal(context.previewTargetPath, '')
+  assert.equal(context.previewTargetPath, '/workspace/build/paper.pdf')
   assert.equal(context.targetResolution, 'resolved')
   assert.equal(context.artifactReady, true)
 })
@@ -173,9 +173,9 @@ test('build runtime normalizes stale pdf preview preferences back to supported t
     kind: 'typst',
     preview: {
       defaultKind: 'native',
-      supportedKinds: ['native'],
+      supportedKinds: ['native', 'pdf'],
       getTargetPath() {
-        return ''
+        return '/workspace/build/paper.pdf'
       },
       isNativeSupported() {
         return true
@@ -214,4 +214,58 @@ test('build runtime normalizes stale pdf preview preferences back to supported t
 
   assert.equal(context.previewKind, 'native')
   assert.equal(context.previewState.previewMode, 'typst-native')
+})
+
+test('build runtime keeps typst pdf preview only while an explicit workspace request is active', () => {
+  const adapter = createAdapter({
+    kind: 'typst',
+    preview: {
+      defaultKind: 'native',
+      supportedKinds: ['native', 'pdf'],
+      getTargetPath() {
+        return '/workspace/build/paper.pdf'
+      },
+      isNativeSupported() {
+        return true
+      },
+    },
+    compile: {
+      getArtifactPath() {
+        return '/workspace/build/paper.pdf'
+      },
+    },
+  })
+  const runtime = createRuntime({
+    workflowStore: {
+      session: {
+        activeFile: '/workspace/paper.typ',
+        previewSourcePath: '/workspace/paper.typ',
+        previewKind: 'pdf',
+        state: 'workspace-preview',
+      },
+      getPreferredPreviewKind() {
+        return 'native'
+      },
+      getWorkspacePreviewRequestForFile(filePath) {
+        return filePath === '/workspace/paper.typ' ? 'pdf' : null
+      },
+      isWorkspacePreviewHiddenForFile() {
+        return false
+      },
+    },
+    typstStore: {
+      stateForFile() {
+        return { pdfPath: '/workspace/build/paper.pdf' }
+      },
+    },
+  })
+
+  const context = runtime.buildAdapterContext('/workspace/paper.typ', {
+    adapter,
+    workflowOnly: false,
+  })
+
+  assert.equal(context.previewKind, 'pdf')
+  assert.equal(context.previewState.previewMode, 'pdf-artifact')
+  assert.equal(context.previewState.previewTargetPath, '/workspace/build/paper.pdf')
 })

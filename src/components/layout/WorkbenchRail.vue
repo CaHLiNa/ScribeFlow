@@ -55,7 +55,12 @@
     <div class="workbench-rail-center">
       <div class="workbench-rail-title-target">
         <div
-          v-if="currentDocumentLabel"
+          :id="documentTitleTargetId"
+          class="workbench-rail-title-slot"
+          data-window-drag-ignore="true"
+        ></div>
+        <div
+          v-if="currentDocumentLabel && !preferExternalDocumentTitle"
           class="workbench-rail-document-title"
           :title="currentDocumentLabel"
           :aria-label="currentDocumentLabel"
@@ -123,7 +128,9 @@ import { useI18n } from '../../i18n'
 
 defineProps({
   tabsTargetId: { type: String, default: 'app-shell-topbar-tabs' },
+  documentTitleTargetId: { type: String, default: 'app-shell-topbar-document-title' },
   currentDocumentLabel: { type: String, default: '' },
+  preferExternalDocumentTitle: { type: Boolean, default: false },
   leftSidebarAvailable: { type: Boolean, default: true },
   leftSidebarOpen: { type: Boolean, default: true },
   rightSidebarOpen: { type: Boolean, default: false },
@@ -301,8 +308,16 @@ onUnmounted(() => {
   min-height: 24px;
   min-width: 0;
   max-width: min(440px, 100%);
-  overflow: hidden;
+  overflow: visible;
   pointer-events: auto;
+}
+
+.workbench-rail-title-slot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-width: 0;
 }
 
 .workbench-rail-document-title {

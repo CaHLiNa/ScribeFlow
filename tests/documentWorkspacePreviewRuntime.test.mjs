@@ -47,7 +47,24 @@ test('latex stays source-only in the workspace even when a compiled output exist
   assert.equal(state.previewKind, null)
   assert.equal(state.previewMode, null)
   assert.equal(state.reason, 'artifact-ready-external')
+  assert.equal(state.previewTargetPath, '/tmp/paper.pdf')
   assert.equal(state.targetResolution, 'resolved')
+})
+
+test('latex can switch into an embedded pdf artifact preview when explicitly requested', () => {
+  const state = resolveDocumentWorkspacePreviewState({
+    path: '/tmp/paper.tex',
+    previewKind: 'pdf',
+    previewRequested: true,
+    artifactReady: true,
+    resolvedTargetPath: '/tmp/paper.pdf',
+  })
+
+  assert.equal(state.previewVisible, true)
+  assert.equal(state.previewKind, 'pdf')
+  assert.equal(state.previewMode, 'pdf-artifact')
+  assert.equal(state.previewTargetPath, '/tmp/paper.pdf')
+  assert.equal(state.reason, 'workspace-latex-pdf')
 })
 
 test('typst prefers native preview and falls back to source-only when native rendering is unavailable', () => {
@@ -68,6 +85,22 @@ test('typst prefers native preview and falls back to source-only when native ren
   assert.equal(sourceOnlyState.previewKind, null)
   assert.equal(sourceOnlyState.previewMode, null)
   assert.equal(sourceOnlyState.reason, 'artifact-ready-external')
+})
+
+test('typst can explicitly switch from native preview to pdf artifact preview', () => {
+  const state = resolveDocumentWorkspacePreviewState({
+    path: '/tmp/paper.typ',
+    previewKind: 'pdf',
+    previewRequested: true,
+    artifactReady: true,
+    resolvedTargetPath: '/tmp/paper.pdf',
+  })
+
+  assert.equal(state.previewVisible, true)
+  assert.equal(state.previewKind, 'pdf')
+  assert.equal(state.previewMode, 'pdf-artifact')
+  assert.equal(state.previewTargetPath, '/tmp/paper.pdf')
+  assert.equal(state.reason, 'workspace-typst-pdf')
 })
 
 test('workspace text routing mirrors the resolved preview state for split editors', () => {
@@ -108,7 +141,7 @@ test('legacy preview tabs remain read-only and close effects only detach pane-bo
   )
 })
 
-test('workspace preview actions only exist for still-supported inline preview kinds', () => {
+test('workspace preview actions exist for supported inline workspace preview kinds', () => {
   const markdownAction = createDocumentWorkspacePreviewAction({
     path: '/tmp/note.md',
     sourcePaneId: 'pane-source',
@@ -118,6 +151,10 @@ test('workspace preview actions only exist for still-supported inline preview ki
     path: '/tmp/paper.tex',
     sourcePaneId: 'pane-source',
     trigger: 'workflow-toggle-preview',
+    previewKind: 'pdf',
+    previewRequested: true,
+    artifactReady: true,
+    resolvedTargetPath: '/tmp/paper.pdf',
   })
 
   assert.deepEqual(markdownAction, {
@@ -137,5 +174,21 @@ test('workspace preview actions only exist for still-supported inline preview ki
     legacyPreviewPath: '',
     legacyPreviewPaneId: null,
   })
-  assert.equal(latexAction, null)
+  assert.deepEqual(latexAction, {
+    type: 'workspace-preview',
+    kind: 'latex',
+    filePath: '/tmp/paper.tex',
+    sourcePath: '/tmp/paper.tex',
+    sourcePaneId: 'pane-source',
+    previewKind: 'pdf',
+    previewMode: 'pdf-artifact',
+    previewTargetPath: '/tmp/paper.pdf',
+    targetResolution: 'resolved',
+    trigger: 'workflow-toggle-preview',
+    state: 'workspace-preview',
+    preserveOpenLegacy: false,
+    legacyReadOnly: false,
+    legacyPreviewPath: '',
+    legacyPreviewPaneId: null,
+  })
 })

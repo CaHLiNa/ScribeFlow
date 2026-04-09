@@ -1,4 +1,5 @@
 import { isTypst } from '../../../utils/fileTypes.js'
+import { resolveCachedTypstPreviewPath } from '../../typst/root.js'
 import {
   buildTypstCompileProblems,
   buildTypstWorkflowStatusText,
@@ -8,7 +9,7 @@ import {
 
 const typstPreviewAdapter = {
   defaultKind: 'native',
-  supportedKinds: ['native'],
+  supportedKinds: ['native', 'pdf'],
 
   createPath(sourcePath, previewKind) {
     if (!sourcePath || previewKind !== 'native') return null
@@ -90,7 +91,7 @@ const typstCompileAdapter = {
   },
 
   getArtifactPath(filePath, context) {
-    return this.stateForFile(filePath, context)?.pdfPath || filePath.replace(/\.typ$/i, '.pdf')
+    return this.stateForFile(filePath, context)?.pdfPath || resolveCachedTypstPreviewPath(filePath) || filePath.replace(/\.typ$/i, '.pdf')
   },
 
   getStatusText(filePath, context) {

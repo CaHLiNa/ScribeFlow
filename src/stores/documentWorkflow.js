@@ -72,6 +72,7 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
     previewBindings: {},
     markdownPreviewState: {},
     workspacePreviewVisibility: {},
+    workspacePreviewRequests: {},
     _isReconciling: false,
     _lastTrigger: null,
   }),
@@ -283,6 +284,28 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
       }
     },
 
+    setWorkspacePreviewRequestForFile(filePath, previewKind = null) {
+      if (!filePath) return
+      const next = { ...this.workspacePreviewRequests }
+      if (previewKind) {
+        next[filePath] = previewKind
+      } else {
+        delete next[filePath]
+      }
+      this.workspacePreviewRequests = next
+    },
+
+    getWorkspacePreviewRequestForFile(filePath) {
+      if (!filePath) return null
+      const previewKind = this.workspacePreviewRequests[filePath] || null
+      if (!previewKind) return null
+      const activeSourcePath = this.session.previewSourcePath || this.session.activeFile || ''
+      if (this.session.state !== 'workspace-preview' || activeSourcePath !== filePath) {
+        return null
+      }
+      return previewKind
+    },
+
     getSourcePathForPreview(previewPath) {
       const binding = this.getPreviewBinding(previewPath)
       return binding?.sourcePath || previewSourcePathFromPath(previewPath) || (isDocumentWorkflowSource(previewPath) ? previewPath : null)
@@ -433,9 +456,14 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
       const kind = getDocumentWorkflowKind(filePath)
       if (!kind) return null
       const previewKind = options.previewKind || this.getPreferredPreviewKind(kind)
-      if (previewKind) {
+      const preferredPreviewKind = this.getPreferredPreviewKind(kind)
+      if (previewKind && options.persistPreference !== false) {
         this.setPreferredPreviewKind(kind, previewKind)
       }
+      this.setWorkspacePreviewRequestForFile(
+        filePath,
+        previewKind && previewKind !== preferredPreviewKind ? previewKind : null,
+      )
       this.setWorkspacePreviewVisibility(filePath, 'visible')
       this.clearDetached(filePath)
       const sessionState = createWorkspacePreviewSessionState({
@@ -463,6 +491,7 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
     hideWorkspacePreviewForFile(filePath) {
       const kind = getDocumentWorkflowKind(filePath)
       if (!kind) return null
+      this.setWorkspacePreviewRequestForFile(filePath, null)
       this.setWorkspacePreviewVisibility(filePath, 'hidden')
       return {
         type: 'workspace-preview-hidden',
@@ -483,12 +512,20 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
       return this._getDocumentWorkflowActionRuntime().openWorkflowOutputForFile(filePath, options)
     },
 
+    toggleWorkflowPdfPreviewForFile(filePath, options = {}) {
+      return this._getDocumentWorkflowActionRuntime().togglePdfPreviewForFile(filePath, options)
+    },
+
     runWorkflowPrimaryActionForFile(filePath, options = {}) {
       return this._getDocumentWorkflowActionRuntime().runPrimaryActionForFile(filePath, options)
     },
 
     revealWorkflowPreviewForFile(filePath, options = {}) {
       return this._getDocumentWorkflowActionRuntime().revealPreviewForFile(filePath, options)
+    },
+
+    revealWorkflowPdfForFile(filePath, options = {}) {
+      return this._getDocumentWorkflowActionRuntime().revealPdfForFile(filePath, options)
     },
 
     reconcile(options = {}) {
@@ -509,6 +546,7 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
       this.previewBindings = {}
       this.markdownPreviewState = {}
       this.workspacePreviewVisibility = {}
+      this.workspacePreviewRequests = {}
       this._isReconciling = false
       this._lastTrigger = null
     },
