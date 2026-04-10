@@ -165,7 +165,9 @@ export function createWorkspacePreferenceState() {
     uiFontSize: zoomState.uiFontSize,
     appZoomPercent: zoomState.appZoomPercent,
     proseFont: readString('proseFont', 'inter'),
-    pdfThemedPages: readTrueOnlyBoolean('pdfThemedPages'),
+    pdfThemedPages: hasStoredValue('pdfThemedPages')
+      ? readTrueOnlyBoolean('pdfThemedPages')
+      : true,
     theme: readWorkspaceThemePreference(),
   }
 }
@@ -278,6 +280,15 @@ function applyWorkspaceThemeClasses(theme) {
   }
   root.dataset.themePreference = normalizedTheme
   root.dataset.themeResolved = resolvedTheme
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('workspace-theme-updated', {
+      detail: {
+        themePreference: normalizedTheme,
+        resolvedTheme,
+      },
+    }))
+  }
 }
 
 function detachSystemThemeListener() {

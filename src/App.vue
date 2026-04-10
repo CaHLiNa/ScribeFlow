@@ -33,7 +33,9 @@
           :split-pane-open="splitPaneOpen"
           :inspector-available="supportsRightSidebar"
           @collapse-left-folders="leftSidebarRef?.collapseAllFolders?.()"
-          @open-left-create-menu="leftSidebarRef?.openCreateMenuFrom?.($event?.currentTarget || null)"
+          @open-left-create-menu="
+            leftSidebarRef?.openCreateMenuFrom?.($event?.currentTarget || null)
+          "
           @toggle-left-sidebar="workspace.toggleLeftSidebar()"
           @toggle-split-pane="toggleSplitPane"
           @toggle-right-sidebar="workspace.toggleRightSidebar()"
@@ -118,7 +120,10 @@
           <template v-if="supportsRightSidebar">
             <div
               class="app-shell-resize-slot"
-              :class="{ 'is-visible': workspace.rightSidebarOpen, 'is-hidden': !workspace.rightSidebarOpen }"
+              :class="{
+                'is-visible': workspace.rightSidebarOpen,
+                'is-hidden': !workspace.rightSidebarOpen,
+              }"
             >
               <ResizeHandle
                 class="app-shell-resize-handle app-shell-resize-handle-right"
@@ -237,23 +242,24 @@ const fileVersionHistoryFile = ref('')
 
 const supportsRightSidebar = computed(() => workspace.isOpen && workspace.isWorkspaceSurface)
 const leftSidebarVisible = computed(() => workspace.isSettingsSurface || workspace.leftSidebarOpen)
-const splitPaneOpen = computed(() => (
-  editorStore.paneTree?.type === 'split'
-  && Array.isArray(editorStore.paneTree.children)
-  && editorStore.paneTree.children.length === 2
-))
-const activeWorkbenchComponent = computed(() => (
+const splitPaneOpen = computed(
+  () =>
+    editorStore.paneTree?.type === 'split' &&
+    Array.isArray(editorStore.paneTree.children) &&
+    editorStore.paneTree.children.length === 2
+)
+const activeWorkbenchComponent = computed(() =>
   workspace.isSettingsSurface ? Settings : PaneContainer
-))
+)
 const activeWorkbenchCacheKey = computed(() => workspace.primarySurface || 'workspace')
-const activeWorkbenchProps = computed(() => (
+const activeWorkbenchProps = computed(() =>
   workspace.isSettingsSurface
     ? {}
     : {
         node: editorStore.paneTree,
         topbarTabsTargetSelector: '#app-shell-topbar-document-title',
       }
-))
+)
 const activeWorkbenchClass = computed(() => 'h-full min-h-0 w-full')
 const currentDocumentLabel = computed(() => {
   if (workspace.isSettingsSurface) return ''

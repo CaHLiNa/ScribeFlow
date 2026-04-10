@@ -1,49 +1,77 @@
 # Product
 
-Altals is a local-first document workspace centered on Markdown, LaTeX, and Typst projects.
+Altals is a local-first desktop writing workspace for project folders with first-class Markdown, LaTeX, and Typst support.
 
-## Core Loop
+## Primary user flow
 
-- open a local project folder
-- browse project files
-- write or revise Markdown, LaTeX, and Typst documents
-- compile or preview outputs
-- inspect outline, run status, and generated document outputs
-- save, snapshot, and review changes safely
+The product is built around one practical workbench:
 
-## First-Class Objects
+1. open a local project folder from the launcher
+2. browse and manage files in the left sidebar
+3. open documents into the editor workbench
+4. preview or compile supported document formats without leaving the workspace surface
+5. inspect the current document outline in the right sidebar
+6. use save points, local history, and repository workflows as safety boundaries while writing
 
-- Workspace
-- Document
-- Preview
-- Build Run
-- Save Point
+Representative entry points:
 
-## Supporting Systems
+- launcher and recent workspaces: `src/components/Launcher.vue`
+- shell composition: `src/App.vue`
+- left sidebar file tree: `src/components/sidebar/LeftSidebar.vue`
+- right sidebar outline: `src/components/sidebar/RightSidebar.vue`
+- top workbench controls: `src/components/layout/WorkbenchRail.vue`
 
-- autosave and local save points
-- Git and GitHub sync
-- editor, theme, and preview preferences
-- document compile services and external output opening
+## Current scope
 
-These systems support the document loop. They are not separate products.
+### Core surfaces
 
-## Current Product Reality
+- **Launcher** for opening a local workspace or cloning a repository into a local workspace
+- **Workspace surface** for file tree, editor panes, preview/compile actions, and outline inspection
+- **Settings surface** for theme, editor, environment, and update preferences
+- **Dialogs and overlays** for setup, unsaved changes, version history, and workspace snapshot browsing
 
-- The desktop shell is intentionally reduced to one document workbench.
-- The left sidebar is for project files only.
-- The center surface is for text editing, Markdown preview, Typst preview, and unsupported-file fallback.
-- The right sidebar is for outline, document context, export-state awareness, and document-run feedback.
-- The desktop Tauri app is the main product surface today.
-- The `web/` directory is a separate web project, not the main shell.
+### Core capabilities
 
-## Product Guardrails
+- open a local workspace folder and restore recent workspaces
+- edit document files in the main workbench
+- support workflow-aware behavior for Markdown, LaTeX, and Typst
+- manage workspace preferences and persisted shell state
+- keep local history, snapshots, and repository-linked writing workflows available inside the desktop app
+- produce release-ready desktop builds through the repository release pipeline
 
-- Keep autosave, manual save points, and Git sync as explicit safety boundaries.
-- Keep the product workspace-centered and local-first.
-- Prefer a smaller truthful scope over reviving removed product surfaces.
+### Current supported writing formats
 
-## Migration Direction
+- **Markdown** with a single built-in preview mode
+- **LaTeX** with compile status, diagnostics, and PDF preview
+- **Typst** with native preview when available plus PDF preview
 
-- Rust migration work must preserve the current desktop document workflow instead of expanding scope.
-- "Parity" means matching the user-visible behavior and workspace safety semantics rather than mechanically translating every source file.
+The product copy in `src/components/Launcher.vue:11` and `src/components/SetupWizard.vue:13` already reflects this trimmed scope.
+
+## Product boundaries
+
+- The Tauri desktop app is the primary product surface.
+- The `web/` directory exists, but it does not define the main product direction for the current app.
+- The current core experience is writing, previewing, compiling, and navigating project documents.
+- The left sidebar is file-tree focused.
+- The right sidebar is outline-only in the current build, as reflected by `src/shared/workbenchInspectorPanels.js`.
+- New product surfaces or speculative workflow systems should not be introduced casually.
+
+## State and persistence expectations
+
+- workspace identity and workspace-owned metadata are managed through `src/stores/workspace.js`
+- editor panes, tabs, and dirty state live in `src/stores/editor.js`
+- document workflow session state and preview preferences live in `src/stores/documentWorkflow.js`
+- local history and save-point behavior are integrated into the writing flow rather than treated as a separate product
+
+## Non-goals for the current slice
+
+- reviving deleted legacy feature claims just because they existed in old docs
+- expanding the inspector into multiple panels without a product decision
+- letting release, sync, or repository features overshadow the writing workbench itself
+
+## See also
+
+- `docs/ARCHITECTURE.md`
+- `docs/DOCUMENT_WORKFLOW.md`
+- `docs/GIT_AND_SNAPSHOTS.md`
+- `docs/TESTING.md`

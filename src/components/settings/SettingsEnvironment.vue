@@ -21,7 +21,11 @@
           <div class="settings-row-copy">
             <div class="settings-row-title">Git</div>
             <div class="settings-row-hint">
-              {{ gitInstalled ? gitPath || 'git' : t('Git powers history, snapshots, and remote sync.') }}
+              {{
+                gitInstalled
+                  ? gitPath || 'git'
+                  : t('Git powers history, snapshots, and remote sync.')
+              }}
             </div>
           </div>
           <div class="settings-row-control">
@@ -72,7 +76,9 @@
             <div class="settings-row-title">{{ t('Detection') }}</div>
             <div class="settings-row-hint">
               {{
-                !toolingChecked ? t('Tooling has not been checked in this session yet.') : t('Re-scan system tools and installed compilers.')
+                !toolingChecked
+                  ? t('Tooling has not been checked in this session yet.')
+                  : t('Re-scan system tools and installed compilers.')
               }}
             </div>
           </div>
@@ -112,7 +118,9 @@
         <div class="settings-row">
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('Compiler') }}</div>
-            <div class="settings-row-hint">{{ t('Pick the preferred backend for LaTeX projects.') }}</div>
+            <div class="settings-row-hint">
+              {{ t('Pick the preferred backend for LaTeX projects.') }}
+            </div>
           </div>
           <div class="settings-row-control">
             <UiSelect
@@ -128,7 +136,9 @@
         <div class="settings-row">
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('LaTeX Engine') }}</div>
-            <div class="settings-row-hint">{{ t('Used when the selected compiler supports engine selection.') }}</div>
+            <div class="settings-row-hint">
+              {{ t('Used when the selected compiler supports engine selection.') }}
+            </div>
           </div>
           <div class="settings-row-control">
             <UiSelect
@@ -145,7 +155,9 @@
         <div class="settings-row">
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('Build recipe') }}</div>
-            <div class="settings-row-hint">{{ t('Choose the command sequence used for LaTeX builds.') }}</div>
+            <div class="settings-row-hint">
+              {{ t('Choose the command sequence used for LaTeX builds.') }}
+            </div>
           </div>
           <div class="settings-row-control">
             <UiSelect
@@ -161,7 +173,9 @@
         <div class="settings-row">
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('System TeX') }}</div>
-            <div class="settings-row-hint">{{ t('Uses the TeX distribution already installed on this Mac.') }}</div>
+            <div class="settings-row-hint">
+              {{ t('Uses the TeX distribution already installed on this Mac.') }}
+            </div>
           </div>
           <div class="settings-row-control">
             <span
@@ -181,8 +195,12 @@
                 latexStore.tectonicInstalled
                   ? t('Bundled Rust-based LaTeX compiler is ready to use.')
                   : latexStore.downloading
-                    ? t('Downloading Tectonic… {progress}%', { progress: latexStore.downloadProgress })
-                    : t('Download Tectonic to run LaTeX without relying on a full TeX installation.')
+                    ? t('Downloading Tectonic… {progress}%', {
+                        progress: latexStore.downloadProgress,
+                      })
+                    : t(
+                        'Download Tectonic to run LaTeX without relying on a full TeX installation.'
+                      )
               }}
             </div>
             <div v-if="latexStore.downloading" class="settings-progress">
@@ -198,10 +216,7 @@
             </div>
           </div>
           <div class="settings-row-control">
-            <span
-              v-if="latexStore.tectonicInstalled"
-              class="settings-status-badge is-good"
-            >
+            <span v-if="latexStore.tectonicInstalled" class="settings-status-badge is-good">
               {{ t('Installed') }}
             </span>
             <UiButton
@@ -219,7 +234,9 @@
         <div class="settings-row">
           <div class="settings-row-copy">
             <div class="settings-row-title">ChkTeX</div>
-            <div class="settings-row-hint">{{ t('Optional linter used for LaTeX diagnostics.') }}</div>
+            <div class="settings-row-hint">
+              {{ t('Optional linter used for LaTeX diagnostics.') }}
+            </div>
           </div>
           <div class="settings-row-control">
             <span
@@ -234,7 +251,9 @@
         <div class="settings-row">
           <div class="settings-row-copy">
             <div class="settings-row-title">latexindent</div>
-            <div class="settings-row-hint">{{ t('Optional formatter used for LaTeX format on save.') }}</div>
+            <div class="settings-row-hint">
+              {{ t('Optional formatter used for LaTeX format on save.') }}
+            </div>
           </div>
           <div class="settings-row-control">
             <span
@@ -299,7 +318,9 @@
                 tinymistStore.available
                   ? t('Language service is available for Typst diagnostics and editor assistance.')
                   : tinymistStore.downloading
-                    ? t('Downloading Tinymist… {progress}%', { progress: tinymistStore.downloadProgress })
+                    ? t('Downloading Tinymist… {progress}%', {
+                        progress: tinymistStore.downloadProgress,
+                      })
                     : t('Download Tinymist to enable advanced Typst language features.')
               }}
             </div>

@@ -1,37 +1,84 @@
 # Git And Snapshots
 
-Altals keeps several safety and history concepts separate on purpose.
+The repository contains both repo-level git workflows and workspace-level history/snapshot flows used by the desktop app.
 
-## Separate Concepts
+## Repository-level git
 
-- autosave
-- local workspace save points
-- Git commits
-- remote sync
+Normal source control for the app itself lives at the repository root.
 
-These are related, but they are not interchangeable.
+Relevant repo-level automation includes:
 
-## Local Save Points
+- release automation in `.github/workflows/release.yml`
+- AI review workflow commands in `scripts/agentReviewWorkflow.mjs`
+- version checking and bumping in `scripts/version-utils.mjs` and `scripts/bump-version.mjs`
 
-- Workspace save points capture project text state into local payload manifests.
-- They support preview and restore flows without treating Git history as the only recovery mechanism.
-- Save-point restore semantics are explicit and workspace-scoped.
-- Deleting a workspace save point from Altals removes or hides it from the Altals saved-versions surfaces through workspace-local metadata; it does not rewrite Git history.
+This is separate from the per-workspace history behavior the desktop app can create for opened project folders.
 
-## Git History
+## Workspace-level history
 
-- Git-backed history is used for explicit change tracking and commits.
-- Auto-commit is a separate capability, not a synonym for autosave.
-- Commit messages and history listings are surfaced through dedicated runtime helpers.
-- Deleting an entry from Altals file-history UI hides it from Altals through a workspace-local index; it does not delete or rewrite the underlying Git commit.
+Workspace folders opened in the app can be linked to a local history repository and auto-commit flow through:
 
-## Remote Sync
+- `src/domains/git/workspaceRepoLinkRuntime.js`
+- `src/services/workspaceHistoryRepo.js`
+- `src/services/workspaceAutoCommit.js`
 
-- Remote sync is optional.
-- Linking a repo, fetching, pulling, and pushing are separate operations from local save or recovery.
-- Remote success does not imply local recovery coverage.
+Current behavior:
 
-## Execution State Caveat
+- a local git repository can be initialized for the workspace if one does not already exist
+- the history repo can be seeded with an initial commit
+- auto-commit can be enabled and triggered as part of workspace linking
+- remote setup and `.gitignore` support are treated as explicit follow-up steps in the repo-link runtime
 
-- Notebook execution state is not recreated by restoring files alone.
-- Restoring a workspace save point is not the same as replaying kernel state.
+## Snapshot model
+
+Workspace snapshots are normalized records built from git-backed history plus local save-point metadata.
+Representative files:
+
+- `src/domains/changes/workspaceSnapshotRuntime.js`
+- `src/domains/changes/workspaceLocalSnapshotStoreRuntime.js`
+- `src/domains/changes/workspaceSnapshotManifestRuntime.js`
+- `src/domains/changes/workspaceVersionHistoryRuntime.js`
+
+### File history entries
+
+File history entries are mapped into explicit records with:
+
+- git-backed source ids
+- file scope
+- normalized kind values such as named, save, or auto
+- stable display fields for UI surfaces
+
+### Workspace save points
+
+Workspace save points merge:
+
+- git-backed history entries that carry snapshot manifests
+- local save-point payload metadata stored in the workspace data area
+
+The merge step produces repo-wide workspace snapshot entries that can be filtered for visibility and restored through explicit runtime paths.
+
+## Current operational intent
+
+- keep workspace history separate from user source documents where possible
+- expose stable UI-facing snapshot records even when source history is git-based
+- prefer explicit restore and preview paths over opaque history behavior
+- avoid treating ordinary repo commits and workspace save points as the same product concept
+
+## Important boundaries
+
+- repo-level source control for the app is not the same thing as a workspace history repo created for a user project
+- local visibility state can hide specific snapshots from the UI without rewriting source history
+- workspace save points are a product-facing recovery feature, not just raw git log exposure
+
+## Validation anchors
+
+- `tests/workspaceSnapshotRuntime.test.mjs`
+- `tests/workspaceSnapshotPreviewRuntime.test.mjs`
+- `tests/workspaceHistoryAvailabilityRuntime.test.mjs`
+- `tests/fileVersionHistoryViewRuntime.test.mjs`
+
+## See also
+
+- `docs/DATA_MODEL.md`
+- `docs/OPERATIONS.md`
+- `docs/TESTING.md`

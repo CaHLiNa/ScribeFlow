@@ -1,3 +1,33 @@
+export function shouldUsePdfCanvasFilterFallback(options = {}) {
+  if (options.themedPages !== true) return false
+  const resolvedTheme = String(options.resolvedTheme || '').trim().toLowerCase() === 'light'
+    ? 'light'
+    : 'dark'
+  if (resolvedTheme !== 'dark') return false
+
+  const userAgent = String(options.userAgent || '')
+  const isAppleWebKit = /AppleWebKit/i.test(userAgent)
+  const isChromium = /Chrome|Chromium|Edg\//i.test(userAgent)
+  return isAppleWebKit && !isChromium
+}
+
+export function buildPdfViewerThemeOptions(options = {}) {
+  const resolvedTheme = String(options.resolvedTheme || '').trim().toLowerCase() === 'light'
+    ? 'light'
+    : 'dark'
+  const themedPages = options.themedPages === true
+  const usePageFilterFallback = options.usePageFilterFallback === true
+  const pageBackground = String(options.pageBackground || '').trim()
+  const pageForeground = String(options.pageForeground || '').trim()
+
+  return {
+    forcePageColors: themedPages && !usePageFilterFallback && Boolean(pageBackground && pageForeground),
+    pageBackground: themedPages && !usePageFilterFallback ? pageBackground : '',
+    pageForeground: themedPages && !usePageFilterFallback ? pageForeground : '',
+    viewerCssTheme: resolvedTheme === 'light' ? 1 : 2,
+  }
+}
+
 export function buildPdfViewerSrc(fileUrl, options = {}) {
   const normalizedFileUrl = String(fileUrl || '').trim()
   if (!normalizedFileUrl) return ''

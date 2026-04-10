@@ -891,7 +891,8 @@ function ensureLatexWindowHandlers() {
         const targetFileName = normalizedFile.split('/').pop() || normalizedFile
         const currentFileName = normalizedCurrentPath.split('/').pop() || normalizedCurrentPath
         const exactMatch = normalizedFile === normalizedCurrentPath
-        const fileNameOnlyMatch = !normalizedFile.includes('/') && targetFileName === currentFileName
+        const fileNameOnlyMatch =
+          !normalizedFile.includes('/') && targetFileName === currentFileName
         if (!exactMatch && !fileNameOnlyMatch) return
       }
       if (line && line > 0) {

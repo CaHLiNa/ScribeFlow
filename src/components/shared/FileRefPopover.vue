@@ -152,9 +152,9 @@ function buildFileEntry(path = '') {
   }
 }
 
-const workspaceSnapshot = computed(() => (
-  filesStore.lastWorkspaceSnapshot || { flatFiles: filesStore.flatFiles }
-))
+const workspaceSnapshot = computed(
+  () => filesStore.lastWorkspaceSnapshot || { flatFiles: filesStore.flatFiles }
+)
 
 const workspaceFiles = computed(() => {
   const map = new Map()

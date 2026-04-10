@@ -69,13 +69,13 @@ function createMockMatchMedia(matches = false) {
   }
 }
 
-test('createWorkspacePreferenceState defaults pdf themed pages to disabled', () => {
+test('createWorkspacePreferenceState defaults pdf themed pages to enabled', () => {
   const previousLocalStorage = globalThis.localStorage
   globalThis.localStorage = createMockStorage()
 
   try {
     const state = createWorkspacePreferenceState()
-    assert.equal(state.pdfThemedPages, false)
+    assert.equal(state.pdfThemedPages, true)
   } finally {
     globalThis.localStorage = previousLocalStorage
   }
@@ -114,6 +114,24 @@ test('system theme follows device appearance changes and explicit themes stay fi
   }
 
   try {
+    const events = []
+    globalThis.window.addEventListener = (type, listener) => {
+      if (type === 'workspace-theme-updated') {
+        events.push(listener)
+      }
+    }
+    globalThis.window.removeEventListener = (type, listener) => {
+      if (type !== 'workspace-theme-updated') return
+      const index = events.indexOf(listener)
+      if (index >= 0) events.splice(index, 1)
+    }
+    globalThis.window.dispatchEvent = (event) => {
+      if (event?.type === 'workspace-theme-updated') {
+        for (const listener of [...events]) listener(event)
+      }
+      return true
+    }
+
     assert.equal(setWorkspaceTheme('system'), 'system')
     assert.equal(globalThis.localStorage.getItem('theme'), 'system')
     assert.equal(globalThis.document.documentElement.dataset.themePreference, 'system')

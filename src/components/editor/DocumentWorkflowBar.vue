@@ -40,7 +40,11 @@
               :aria-label="primaryLabel"
               @click="$emit('primary-action')"
             >
-              <component :is="primaryIcon" :size="primaryActionIconSize" :stroke-width="buttonIconStroke" />
+              <component
+                :is="primaryIcon"
+                :size="primaryActionIconSize"
+                :stroke-width="buttonIconStroke"
+              />
             </UiButton>
           </template>
           <UiButton
@@ -118,13 +122,7 @@ const props = defineProps({
   inlineHeader: { type: Boolean, default: false },
 })
 
-defineEmits([
-  'primary-action',
-  'reveal-preview',
-  'reveal-pdf',
-  'run-code',
-  'run-file',
-])
+defineEmits(['primary-action', 'reveal-preview', 'reveal-pdf', 'run-code', 'run-file'])
 
 const { t } = useI18n()
 
@@ -147,8 +145,12 @@ const phaseLabel = computed(() => {
 })
 
 const showMeta = computed(() => !!kindLabel.value || !!phaseLabel.value || !!props.statusText)
-const showInlineMeta = computed(() => showMeta.value && !props.shellIntegrated && !props.inlineHeader)
-const showShellStatus = computed(() => !!props.statusText && props.shellIntegrated && !props.inlineHeader)
+const showInlineMeta = computed(
+  () => showMeta.value && !props.shellIntegrated && !props.inlineHeader
+)
+const showShellStatus = computed(
+  () => !!props.statusText && props.shellIntegrated && !props.inlineHeader
+)
 
 const showPrimaryAction = computed(() => !!props.uiState && props.uiState.kind !== 'text')
 
@@ -501,5 +503,4 @@ const pdfActionIconSize = computed(() => (compactPaneBar.value ? 15 : 16))
 .workflow-secondary-btn-accent {
   color: var(--accent);
 }
-
 </style>

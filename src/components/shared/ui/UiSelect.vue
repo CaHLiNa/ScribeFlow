@@ -1,9 +1,5 @@
 <template>
-  <div
-    ref="shellRef"
-    class="ui-select-shell"
-    :class="[shellClassName, propsShellClass]"
-  >
+  <div ref="shellRef" class="ui-select-shell" :class="[shellClassName, propsShellClass]">
     <button
       ref="triggerRef"
       type="button"
@@ -126,9 +122,7 @@ const selectedOption = computed(
     null
 )
 
-const selectedLabel = computed(
-  () => selectedOption.value?.label || props.placeholder || ''
-)
+const selectedLabel = computed(() => selectedOption.value?.label || props.placeholder || '')
 
 const triggerLabel = computed(() => props.ariaLabel || selectedLabel.value || 'Select')
 
@@ -158,7 +152,9 @@ function findNextEnabledIndex(startIndex, direction) {
 }
 
 function syncHighlightedIndex() {
-  const selectedIndex = normalizedOptions.value.findIndex((option) => isSelected(option) && !option.disabled)
+  const selectedIndex = normalizedOptions.value.findIndex(
+    (option) => isSelected(option) && !option.disabled
+  )
   highlightedIndex.value = selectedIndex >= 0 ? selectedIndex : findNextEnabledIndex(-1, 1)
 }
 

@@ -1,34 +1,61 @@
 # Contributing
 
-Contributions should preserve product clarity, explicit operations, and safe local-first behavior.
+This repository prefers small, validated slices over broad rewrites.
 
-## Before Changing Code
+## Before changing code
 
-- Read the root `AGENTS.md`.
+- read `AGENTS.md`
+- for meaningful product work, start with `docs/PRODUCT.md` and `docs/ARCHITECTURE.md`
+- consult `docs/DOCUMENT_WORKFLOW.md` when changing preview, compile, or editor workflow behavior
+- consult `docs/TESTING.md` before claiming a slice is complete
+- consult `docs/OPERATIONS.md` when your change touches agent workflow, release steps, or environment-dependent operations
 
-## Working Style
+## Working expectations
 
-- Prefer small, coherent slices over broad rewrites.
-- Keep docs truthful and update them in the same slice when behavior or architecture changes.
-- Do not create git worktrees by default.
-- Do not use destructive Git commands unless explicitly requested.
+- investigate first, then change
+- update tests and docs in the same slice when behavior or repo policy changes
+- prefer deleting stale architecture over preserving dead systems
+- do not let the `web/` directory drive desktop app decisions unless explicitly requested
+- keep the desktop app as the primary product surface for decision-making
 
-## Placement Guidance
+## Practical contribution flow
 
-- Put shell orchestration in `src/app`.
-- Put reusable workflow logic in `src/domains/*`.
-- Put effectful adapters in `src/services/*`.
-- Keep stores, components, and composables thinner over time.
+1. identify the smallest meaningful slice
+2. read the relevant product, architecture, and subsystem docs
+3. inspect the live code before proposing structural changes
+4. implement the change without speculative expansions
+5. run targeted tests for the touched slice
+6. run broader checks when the slice affects meaningful frontend or integration behavior
+7. update docs and audit tests when repository expectations changed
 
-## Validation Expectations
+## Useful commands
 
-- Run targeted tests for the changed slice.
-- Run `node --test tests/*.test.mjs`.
-- Run `npm run build`.
-- Record any pre-existing failures explicitly if the full suite is not green.
+- `npm run lint`
+- `npm run format:check`
+- `npm run build`
+- `node --test tests/*.test.mjs`
 
-## AI Review Workflow
+For narrower slices, prefer targeted test commands from `docs/TESTING.md`.
 
-- Enable the repository Codex stop-time review gate with `npm run agent:enable-codex-gate`.
-- Run `npm run agent:codex-review` after Claude Code changes when you want an explicit Codex review on demand in addition to the stop gate.
-- Run `npm run agent:codex-postflight -- --plan <path-to-plan>` after Codex implements a plan so Claude audits execution progress against the plan.
+## Review workflow
+
+- enable the Codex stop-time gate when setting up a machine: `npm run agent:enable-codex-gate`
+- run a Codex review for code changes: `npm run agent:codex-review`
+- run the Claude postflight audit for plan-based Codex work: `npm run agent:claude-plan-audit -- --plan <path>`
+
+## When docs must change too
+
+Update docs in the same slice when you change:
+
+- product scope or boundaries
+- architectural ownership or directory responsibilities
+- document workflow behavior
+- repository validation or release expectations
+- required contributor workflow commands
+
+## See also
+
+- `docs/PRODUCT.md`
+- `docs/ARCHITECTURE.md`
+- `docs/TESTING.md`
+- `docs/OPERATIONS.md`

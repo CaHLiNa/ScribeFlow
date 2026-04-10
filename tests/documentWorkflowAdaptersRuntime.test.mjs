@@ -22,9 +22,9 @@ test('document workflow adapters runtime exposes capability summaries', () => {
     workflowOnly: false,
   })
   assert.equal(latexCapabilities.kind, 'latex')
-  assert.equal(latexCapabilities.supportsPreview, false)
+  assert.equal(latexCapabilities.supportsPreview, true)
   assert.equal(latexCapabilities.supportsCompile, true)
-  assert.deepEqual(latexCapabilities.supportedPreviewKinds, [])
+  assert.deepEqual(latexCapabilities.supportedPreviewKinds, ['pdf'])
 })
 
 test('document workflow adapters runtime returns empty capability state for unsupported files', () => {

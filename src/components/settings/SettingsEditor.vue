@@ -13,7 +13,11 @@
             </div>
           </div>
           <div class="settings-row-control">
-            <div class="settings-segmented editor-segmented" role="group" :aria-label="t('Writing font')">
+            <div
+              class="settings-segmented editor-segmented"
+              role="group"
+              :aria-label="t('Writing font')"
+            >
               <button
                 v-for="font in proseFonts"
                 :key="font.value"

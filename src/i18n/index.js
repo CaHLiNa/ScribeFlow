@@ -85,18 +85,15 @@ const ZH_MESSAGES = {
   'Tooling has not been checked in this session yet.': '本次会话里还没有检查工具链。',
   'Re-scan system tools and installed compilers.': '重新扫描系统工具和已安装的编译器。',
   'Pick the preferred backend for LaTeX projects.': '为 LaTeX 项目选择首选后端。',
-  'Used when the selected compiler supports engine selection.':
-    '当所选编译器支持引擎选择时使用。',
+  'Used when the selected compiler supports engine selection.': '当所选编译器支持引擎选择时使用。',
   'Choose the command sequence used for LaTeX builds.': '选择用于 LaTeX 构建的命令方案。',
   'Uses the TeX distribution already installed on this Mac.':
     '使用这台 Mac 上已经安装好的 TeX 发行版。',
-  'Bundled Rust-based LaTeX compiler is ready to use.':
-    '内置的 Rust 版 LaTeX 编译器已可用。',
+  'Bundled Rust-based LaTeX compiler is ready to use.': '内置的 Rust 版 LaTeX 编译器已可用。',
   'Download Tectonic to run LaTeX without relying on a full TeX installation.':
     '下载 Tectonic，以便在不依赖完整 TeX 发行版的情况下运行 LaTeX。',
   'Optional linter used for LaTeX diagnostics.': '用于 LaTeX 诊断的可选检查器。',
-  'Optional formatter used for LaTeX format on save.':
-    '用于 LaTeX 保存时格式化的可选格式化工具。',
+  'Optional formatter used for LaTeX format on save.': '用于 LaTeX 保存时格式化的可选格式化工具。',
   'The Typst compiler is available for live preview and export.':
     'Typst 编译器已可用于实时预览和导出。',
   'Download Typst to enable document builds and native preview.':

@@ -27,15 +27,15 @@ test('document workflow adapter contracts resolve compile artifact paths through
 
   assert.equal(
     latexDocumentAdapter.compile.getArtifactPath('/workspace/main.tex', latexContext),
-    '/workspace/main.pdf',
+    '/workspace/main.pdf'
   )
   assert.equal(
     typstDocumentAdapter.compile.getArtifactPath('/workspace/main.typ', typstContext),
-    '/workspace/main.pdf',
+    '/workspace/main.pdf'
   )
 })
 
-test('document workflow adapter contracts disable latex inline preview kinds and keep typst native support explicit', () => {
+test('document workflow adapter contracts keep latex pdf preview and typst native support explicit', () => {
   const nativeContext = {
     typstStore: {
       liveStateForFile() {
@@ -51,8 +51,14 @@ test('document workflow adapter contracts disable latex inline preview kinds and
     },
   }
 
-  assert.deepEqual(latexDocumentAdapter.preview.supportedKinds, [])
+  assert.deepEqual(latexDocumentAdapter.preview.supportedKinds, ['pdf'])
   assert.equal(latexDocumentAdapter.preview.defaultKind, null)
-  assert.equal(typstDocumentAdapter.preview.isNativeSupported('/workspace/main.typ', nativeContext), true)
-  assert.equal(typstDocumentAdapter.preview.isNativeSupported('/workspace/main.typ', sourceOnlyContext), false)
+  assert.equal(
+    typstDocumentAdapter.preview.isNativeSupported('/workspace/main.typ', nativeContext),
+    true
+  )
+  assert.equal(
+    typstDocumentAdapter.preview.isNativeSupported('/workspace/main.typ', sourceOnlyContext),
+    false
+  )
 })

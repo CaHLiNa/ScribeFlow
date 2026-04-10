@@ -57,14 +57,16 @@ const activeSectionComponent = computed(
   --settings-row-surface: color-mix(in srgb, var(--surface-muted) 74%, transparent);
   --settings-row-border: color-mix(in srgb, var(--border-subtle) 34%, transparent);
   --settings-control-surface: color-mix(in srgb, var(--surface-hover) 82%, var(--surface-muted));
-  --settings-control-surface-hover: color-mix(in srgb, var(--surface-hover) 90%, var(--surface-muted));
+  --settings-control-surface-hover: color-mix(
+    in srgb,
+    var(--surface-hover) 90%,
+    var(--surface-muted)
+  );
   --settings-popover-surface: color-mix(in srgb, var(--surface-muted) 92%, var(--surface-base));
   --settings-control-border: color-mix(in srgb, var(--border-subtle) 42%, transparent);
   --settings-control-border-strong: color-mix(in srgb, var(--border-subtle) 58%, transparent);
   --settings-control-shadow: none;
-  --settings-popover-shadow:
-    0 18px 38px rgba(0, 0, 0, 0.08),
-    0 1px 0 rgba(255, 255, 255, 0.08);
+  --settings-popover-shadow: 0 18px 38px rgba(0, 0, 0, 0.08), 0 1px 0 rgba(255, 255, 255, 0.08);
   display: flex;
   flex-direction: column;
   min-height: 100%;
@@ -321,7 +323,10 @@ const activeSectionComponent = computed(
 }
 
 .settings-surface .settings-row-control .ui-select-shell .ui-select-option:hover:not(:disabled),
-.settings-surface .settings-row-control .ui-select-shell .ui-select-option.is-highlighted:not(:disabled) {
+.settings-surface
+  .settings-row-control
+  .ui-select-shell
+  .ui-select-option.is-highlighted:not(:disabled) {
   background: var(--settings-control-surface) !important;
   color: var(--text-primary);
 }

@@ -1,29 +1,132 @@
 # Data Model
 
-Altals 的当前数据模型已经收口到文档工作台必需的几类状态。
+This repository mixes user workspace files, desktop app state, and derived workflow state.
 
-## Primary Runtime State
+## Main state buckets
 
-- Workspace: 当前工作区路径、最近项目、窗口级偏好
-- Files: 文件树、文件内容缓存、加载状态
-- Editor: pane tree、活动标签、最近文件、脏文件集合
-- Document Workflow: 编译状态、预览目标、运行结果
-- Preview State: Markdown、Typst 的派生展示状态
+### Workspace state
 
-## Storage Locations
+`src/stores/workspace.js` owns the active workspace identity plus shell-level preferences.
+Important fields include:
 
-- `localStorage`: UI 偏好、侧边栏状态、缩放、主题、字体等
-- 工作区 `.shoulders/`: 编辑器布局、最近预览、恢复所需状态
-- 项目目录: 文档源文件、生成产物、Git 历史
+- `path`
+- `workspaceId`
+- `workspaceDataDir`
+- `claudeConfigDir`
+- shell surface and sidebar preferences
+- settings section state
 
-## Data Rules
+`workspaceId` is a SHA-256 hash of the opened workspace path, generated through `src/services/workspacePaths.js`.
 
-- 源文档永远是主数据，预览和编译产物都是派生结果
-- 编辑器恢复只保留当前工作台认识的标签类型
-- 编译输出与源文件分离存放，不反向覆盖源内容
-- 不支持文件只展示兜底信息，不进入文档编辑链路
+### Editor state
 
-## Migration Notes
+`src/stores/editor.js` owns:
 
-- 旧工作台表面的本地缓存会在加载时被归一化到当前文档工作台
-- 旧虚拟标签不会再重新持久化回新的编辑器状态
+- pane tree structure
+- active pane and active tab
+- dirty paths
+- recent files
+- editor runtime registration and persistence hooks
+
+This state is UI-facing and highly session-oriented.
+
+### File tree and file content state
+
+`src/stores/files.js` owns:
+
+- the current tree representation
+- flat file cache
+- expanded directories
+- cached workspace snapshots
+- loaded text file contents
+- per-file load errors
+
+This store is the bridge between backend filesystem reads and the workbench-visible file model.
+
+### Document workflow state
+
+`src/stores/documentWorkflow.js` owns:
+
+- preview preferences by workflow kind
+- active workflow session state
+- preview bindings from preview paths to source paths
+- markdown preview state
+- workspace preview visibility and request state
+
+### Compile/runtime state
+
+Language-specific compile state is owned separately:
+
+- `src/stores/latex.js` — compile state, queue state, diagnostics, compiler/tool availability, forward sync state
+- `src/stores/typst.js` — compile state, queue state, compiler availability, Tinymist-backed live state
+
+## Persisted locations
+
+### User project files
+
+User-owned documents stay in the opened workspace directory.
+
+### App-owned workspace metadata
+
+`src/stores/workspace.js` resolves a separate workspace data directory through `resolveWorkspaceDataDir()` in `src/services/workspacePaths.js`.
+
+That workspace-owned area is used for app metadata such as:
+
+- workspace bootstrap metadata
+- project-owned internal data directory setup
+- local history and snapshot metadata used by `src/domains/changes/*`
+
+### Local storage
+
+The frontend also persists lightweight UI preferences in browser storage, including:
+
+- document workflow preview preferences
+- setup-complete flag
+- editor and theme preferences handled by workspace/services layers
+
+## Important record shapes
+
+### Preview bindings
+
+Preview bindings connect a preview path to its source path, preview kind, document kind, and pane ownership. This lets the app keep editor and preview actions synchronized.
+
+### Compile state
+
+LaTeX and Typst stores both maintain per-file compile state maps. These records commonly include:
+
+- `status`
+- `errors`
+- `warnings`
+- `pdfPath`
+- logs and timestamps
+
+### Snapshot records
+
+`src/domains/changes/workspaceSnapshotRuntime.js` normalizes git history entries into stable UI-facing snapshot records with fields such as:
+
+- `id`
+- `backend`
+- `sourceKind`
+- `sourceId`
+- `scope`
+- `kind`
+- `label`
+- `message`
+- `rawMessage`
+- `createdAt`
+- optional `manifest`
+
+Workspace save-point entries can also carry payload metadata such as manifest path, file count, skipped count, and capture scope.
+
+## Data boundaries
+
+- user documents should remain in the opened workspace
+- app-owned metadata should live outside source documents when possible
+- derived workflow state should be reproducible from source files plus persisted metadata
+- components should consume normalized store/domain state instead of inventing parallel ad hoc record shapes
+
+## See also
+
+- `docs/ARCHITECTURE.md`
+- `docs/GIT_AND_SNAPSHOTS.md`
+- `docs/DOCUMENT_WORKFLOW.md`

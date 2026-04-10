@@ -1,26 +1,69 @@
 # Build System
 
-Altals uses Vite for the frontend build and Tauri for the desktop application shell.
+The repository builds a Vue frontend and a Tauri desktop shell, with release automation through GitHub Actions.
 
-## Frontend Build
+## Public script entry points
 
-- `npm run dev`: starts the Vite development server
-- `npm run build`: produces the frontend production build under `dist/`
-- `npm run preview`: serves the built frontend locally through Vite
+The root `package.json` currently exposes these main build-related scripts:
 
-## Desktop Packaging
+- `npm run dev` — frontend dev server
+- `npm run build` — frontend production build
+- `npm run preview` — preview the built frontend
+- `npm run tauri -- dev` — desktop development shell
+- `npm run tauri -- build` — desktop production shell build
+- `npm run build:macos:app` — macOS app bundle build
+- `npm run build:macos:dmg` — macOS app build plus helper DMG generation
+- `npm run version:check` and `npm run version:bump:*` — version management helpers
 
-- `npm run tauri`: forwards to the Tauri CLI and, on macOS, falls back to Command Line Tools if the selected Xcode developer directory cannot resolve build tools
-- `npm run build:macos:app`: builds a macOS app bundle without signing
-- `npm run build:macos:dmg`: builds the app bundle and then packages a DMG
+## Tooling entry points
 
-## Backend Build Context
+- `package.json` defines the public scripts
+- `scripts/frontendBaselineTooling.mjs` owns the lint/format baseline
+- `scripts/run-tauri.mjs` is the main Tauri script entry
+- `scripts/version-utils.mjs` and `scripts/bump-version.mjs` manage version checks and version bumps
+- `scripts/build-macos-dmg.mjs` builds the helper DMG
+- `.github/workflows/release.yml` builds and publishes release artifacts
 
-- `src-tauri/` contains the Rust crate, Tauri configuration, and native build assets.
-- Native outputs are produced under `src-tauri/target/` during Tauri builds.
+## Build layers
 
-## Current Build Characteristics
+### Frontend
 
-- The frontend bundle still includes large editor-related chunks.
-- Vite currently reports some large-chunk warnings, but the production build completes successfully.
-- The desktop app depends on both the Vite asset build and the Tauri native build pipeline.
+- Vite builds the frontend bundles used by the desktop app.
+- CSS, Vue components, and shared frontend runtime files are validated through the baseline tooling script.
+
+### Desktop shell
+
+- Tauri packages the desktop shell around the frontend build output.
+- the Rust backend under `src-tauri/` provides the native integration layer used by the desktop app.
+
+### Release automation
+
+GitHub Actions currently:
+
+- validates version state
+- resolves or creates the release tag
+- installs platform dependencies
+- builds artifacts for macOS, Linux, and Windows
+- uploads the final release assets
+
+## Current constraints and notes
+
+- linting and formatting are intentionally restricted by repository baseline target lists instead of indiscriminately covering the entire tree
+- release automation depends on a valid public `VITE_GITHUB_AUTH_ORIGIN`
+- macOS helper DMG generation is handled by a dedicated script during release
+- release builds are tag- and version-aware rather than purely branch-driven
+
+## When to update this doc
+
+Update this doc when you change:
+
+- public build scripts in `package.json`
+- baseline tooling ownership or scope
+- release workflow steps or supported release platforms
+- platform-specific packaging behavior
+
+## See also
+
+- `docs/OPERATIONS.md`
+- `docs/TESTING.md`
+- `docs/CONTRIBUTING.md`

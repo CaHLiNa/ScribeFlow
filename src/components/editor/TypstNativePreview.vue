@@ -114,7 +114,9 @@ async function resolveRootPath() {
 }
 
 function buildPreviewFrameUrl(baseUrl, rootPath, revision = 0) {
-  const normalizedBaseUrl = String(baseUrl || '').trim().replace(/\/+$/, '')
+  const normalizedBaseUrl = String(baseUrl || '')
+    .trim()
+    .replace(/\/+$/, '')
   if (!normalizedBaseUrl) return ''
   const params = new URLSearchParams()
   if (rootPath) {
@@ -341,11 +343,10 @@ watch(
 .typst-native-preview-freeze-mask {
   position: absolute;
   inset: 0;
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--shell-preview-surface) 94%, transparent) 0%,
-      var(--shell-preview-surface) 100%
-    );
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--shell-preview-surface) 94%, transparent) 0%,
+    var(--shell-preview-surface) 100%
+  );
 }
 </style>

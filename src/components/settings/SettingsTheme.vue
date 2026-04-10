@@ -35,7 +35,6 @@
             <div class="theme-row-title">{{ t(theme.label) }}</div>
             <div class="theme-row-hint">{{ t(theme.description) }}</div>
           </div>
-
         </button>
       </div>
     </section>
@@ -85,9 +84,13 @@ const themes = WORKSPACE_THEME_OPTIONS
   align-items: center;
   gap: 12px;
   padding: 12px 14px;
-  border: 1px solid var(--settings-row-border, color-mix(in srgb, var(--border-subtle) 24%, transparent));
+  border: 1px solid
+    var(--settings-row-border, color-mix(in srgb, var(--border-subtle) 24%, transparent));
   border-radius: 14px;
-  background: var(--settings-row-surface, color-mix(in srgb, var(--shell-muted-surface) 92%, transparent));
+  background: var(
+    --settings-row-surface,
+    color-mix(in srgb, var(--shell-muted-surface) 92%, transparent)
+  );
   box-shadow: none;
   text-align: left;
   transition:
@@ -101,13 +104,25 @@ const themes = WORKSPACE_THEME_OPTIONS
 }
 
 .theme-row:hover {
-  background: var(--settings-control-surface, color-mix(in srgb, var(--shell-surface) 72%, var(--shell-muted-surface)));
-  border-color: var(--settings-control-border, color-mix(in srgb, var(--border-subtle) 32%, transparent));
+  background: var(
+    --settings-control-surface,
+    color-mix(in srgb, var(--shell-surface) 72%, var(--shell-muted-surface))
+  );
+  border-color: var(
+    --settings-control-border,
+    color-mix(in srgb, var(--border-subtle) 32%, transparent)
+  );
 }
 
 .theme-row.is-active {
-  background: var(--settings-control-surface-hover, color-mix(in srgb, var(--shell-surface) 88%, var(--shell-muted-surface)));
-  border-color: var(--settings-control-border-strong, color-mix(in srgb, var(--border-subtle) 44%, transparent));
+  background: var(
+    --settings-control-surface-hover,
+    color-mix(in srgb, var(--shell-surface) 88%, var(--shell-muted-surface))
+  );
+  border-color: var(
+    --settings-control-border-strong,
+    color-mix(in srgb, var(--border-subtle) 44%, transparent)
+  );
 }
 
 .theme-row-preview {

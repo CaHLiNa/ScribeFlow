@@ -65,7 +65,7 @@ test('document workspace routing keeps typst native previews visible when suppor
   })
 })
 
-test('document workspace routing keeps latex source-only and relies on external output opening', () => {
+test('document workspace routing keeps latex source-only while retaining the resolved pdf target', () => {
   assert.deepEqual(getWorkspaceRouteContract({
     path: '/workspace/paper.tex',
     resolvedTargetPath: '/workspace/paper.pdf',
@@ -79,7 +79,7 @@ test('document workspace routing keeps latex source-only and relies on external 
     reason: 'artifact-ready-external',
     toolbarTargetVisible: false,
     useWorkspaceSurface: true,
-    previewTargetPath: '',
+    previewTargetPath: '/workspace/paper.pdf',
     previewFilePath: '',
   })
 })

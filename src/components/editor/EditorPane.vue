@@ -23,10 +23,7 @@
       />
 
       <Teleport v-if="showIntegratedDocumentTitle" :to="integratedDocumentTitleTarget">
-        <div
-          ref="documentTitleWrapRef"
-          class="document-title-wrap document-title-wrap--rail"
-        >
+        <div ref="documentTitleWrapRef" class="document-title-wrap document-title-wrap--rail">
           <div class="document-title-cluster">
             <button
               type="button"
@@ -80,11 +77,7 @@
 
             <div class="document-tabs-menu-separator"></div>
 
-            <button
-              type="button"
-              class="document-tabs-menu-create"
-              @click="createTabFromMenu"
-            >
+            <button type="button" class="document-tabs-menu-create" @click="createTabFromMenu">
               <svg
                 class="document-tabs-menu-create-icon"
                 width="13"
@@ -184,11 +177,7 @@
 
               <div class="document-tabs-menu-separator"></div>
 
-              <button
-                type="button"
-                class="document-tabs-menu-create"
-                @click="createTabFromMenu"
-              >
+              <button type="button" class="document-tabs-menu-create" @click="createTabFromMenu">
                 <svg
                   class="document-tabs-menu-create-icon"
                   width="13"
@@ -284,10 +273,7 @@
             />
           </template>
           <template #source>
-            <div
-              v-if="showWorkspaceSourceWorkflowBar"
-              class="workspace-source-stack"
-            >
+            <div v-if="showWorkspaceSourceWorkflowBar" class="workspace-source-stack">
               <div class="workspace-source-toolbar">
                 <DocumentWorkflowBar
                   :ui-state="toolbarUiState"
@@ -369,7 +355,9 @@ const PdfArtifactPreview = defineAsyncComponent(() => import('./PdfArtifactPrevi
 const DocumentWorkflowBar = defineAsyncComponent(() => import('./DocumentWorkflowBar.vue'))
 const NewTab = defineAsyncComponent(() => import('./NewTab.vue'))
 const EmptyPane = defineAsyncComponent(() => import('./EmptyPane.vue'))
-const EditorTextWorkspaceSurface = defineAsyncComponent(() => import('./EditorTextWorkspaceSurface.vue'))
+const EditorTextWorkspaceSurface = defineAsyncComponent(
+  () => import('./EditorTextWorkspaceSurface.vue')
+)
 
 const props = defineProps({
   paneId: { type: String, required: true },
@@ -407,9 +395,7 @@ const toolbarUiState = computed(() => {
 })
 const showIntegratedDocumentTitle = computed(
   () =>
-    hasIntegratedDocumentTitle.value &&
-    !!props.activeTab &&
-    (isActive.value || hasSinglePane.value)
+    hasIntegratedDocumentTitle.value && !!props.activeTab && (isActive.value || hasSinglePane.value)
 )
 const integratedDocumentTitleTarget = computed(() =>
   showIntegratedDocumentTitle.value ? props.topbarTabsTargetSelector : ''
@@ -421,11 +407,10 @@ const integratedWorkflowTarget = computed(() =>
   showIntegratedWorkflowBar.value ? props.topbarWorkflowTargetSelector : ''
 )
 const showInlineWorkflowBar = computed(
-  () => (
-    !!toolbarUiState.value
-    && !showIntegratedWorkflowBar.value
-    && !documentWorkspaceRoute.value.useWorkspaceSurface
-  )
+  () =>
+    !!toolbarUiState.value &&
+    !showIntegratedWorkflowBar.value &&
+    !documentWorkspaceRoute.value.useWorkspaceSurface
 )
 const showWorkspaceSourceWorkflowBar = computed(
   () => !!toolbarUiState.value && documentWorkspaceRoute.value.useWorkspaceSurface
@@ -433,7 +418,9 @@ const showWorkspaceSourceWorkflowBar = computed(
 const showLocalDocumentHeader = computed(
   () => showPaneDocumentTitle.value || showInlineWorkflowBar.value
 )
-const showPaneDocumentTitle = computed(() => !!props.activeTab && !showIntegratedDocumentTitle.value)
+const showPaneDocumentTitle = computed(
+  () => !!props.activeTab && !showIntegratedDocumentTitle.value
+)
 
 const editorContainerRef = ref(null)
 const documentTitleWrapRef = ref(null)

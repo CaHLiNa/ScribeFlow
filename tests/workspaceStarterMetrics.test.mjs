@@ -78,13 +78,10 @@ test('workspace snapshot flat-file runtime lists and counts flat files from snap
     '/workspace/slides/main.typ',
     '/workspace/archive/draft.pdf',
   ])
-  assert.equal(
-    countWorkspaceFlatFilesByExtension(snapshot, WORKSPACE_STARTER_DRAFT_EXTENSIONS),
-    3,
-  )
+  assert.equal(countWorkspaceFlatFilesByExtension(snapshot, WORKSPACE_STARTER_DRAFT_EXTENSIONS), 3)
   assert.equal(
     countWorkspaceFlatFilesByExtension(snapshot, WORKSPACE_STARTER_COMPUTATION_EXTENSIONS),
-    0,
+    0
   )
 })
 
@@ -105,16 +102,13 @@ test('workspace snapshot flat-file runtime normalizes mixed entries and filters 
   ])
   assert.deepEqual(
     filterWorkspaceFlatFilesByExtension(snapshot, ['.md', '.typ']).map((entry) => entry.path),
-    ['/workspace/intro.md', '/workspace/slides/main.typ'],
+    ['/workspace/intro.md', '/workspace/slides/main.typ']
   )
 })
 
 test('workspace snapshot flat-file runtime filters recent files by snapshot membership', () => {
   const snapshot = {
-    flatFiles: [
-      { path: '/workspace/intro.md' },
-      { path: '/workspace/paper/main.tex' },
-    ],
+    flatFiles: [{ path: '/workspace/intro.md' }, { path: '/workspace/paper/main.tex' }],
   }
 
   const recentFiles = [

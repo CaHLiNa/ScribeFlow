@@ -49,7 +49,11 @@ import {
   requestLatexPdfForwardSync,
   writePdfArtifactBase64,
 } from '../../services/pdf/artifactPreview.js'
-import { buildPdfViewerSrc } from '../../services/pdf/viewerUrl.js'
+import {
+  buildPdfViewerSrc,
+  buildPdfViewerThemeOptions,
+  shouldUsePdfCanvasFilterFallback,
+} from '../../services/pdf/viewerUrl.js'
 import { normalizeWorkspaceThemeId } from '../../shared/workspaceThemeOptions.js'
 import { openExternalHttpUrl, resolveExternalHttpAnchor } from '../../services/externalLinks.js'
 
@@ -86,13 +90,24 @@ const compileState = computed(() => {
 
 const artifactVersion = computed(() => compileState.value?.lastCompiled || '')
 
-const LIGHT_THEMES = new Set(['light', 'one-light', 'humane', 'solarized'])
-const isDark = computed(() => {
-  const normalized = normalizeWorkspaceThemeId(workspace.theme)
-  if (normalized === 'dark') return true
-  if (normalized === 'light') return false
-  return !LIGHT_THEMES.has(workspace.theme)
-})
+function getResolvedTheme() {
+  if (typeof document === 'undefined') return 'dark'
+  const datasetResolved = String(document.documentElement.dataset.themeResolved || '').trim().toLowerCase()
+  if (datasetResolved === 'light' || datasetResolved === 'dark') {
+    return datasetResolved
+  }
+
+  const normalizedTheme = normalizeWorkspaceThemeId(workspace.theme)
+  if (normalizedTheme === 'light' || normalizedTheme === 'dark') {
+    return normalizedTheme
+  }
+
+  if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  }
+
+  return 'dark'
+}
 
 function base64ToUint8Array(base64) {
   const binary = atob(String(base64 || ''))
@@ -122,6 +137,32 @@ function getViewerApp() {
   return iframeRef.value?.contentWindow?.PDFViewerApplication || null
 }
 
+function shouldUseCanvasFilterFallback() {
+  return shouldUsePdfCanvasFilterFallback({
+    themedPages: workspace.pdfThemedPages,
+    resolvedTheme: getResolvedTheme(),
+    userAgent: typeof navigator === 'undefined' ? '' : navigator.userAgent,
+  })
+}
+
+function applyCanvasFilterFallback() {
+  const doc = iframeRef.value?.contentDocument
+  if (!doc) return
+  const useFallback = shouldUseCanvasFilterFallback()
+  const source = getComputedStyle(document.documentElement)
+  const pageBackground = source.getPropertyValue('--shell-editor-surface').trim()
+  const pageNodes = doc.querySelectorAll('.pdfViewer .page')
+  const canvasNodes = doc.querySelectorAll('.pdfViewer .canvasWrapper canvas')
+
+  for (const pageNode of pageNodes) {
+    pageNode.style.backgroundColor = useFallback && pageBackground ? pageBackground : ''
+  }
+
+  for (const canvasNode of canvasNodes) {
+    canvasNode.style.filter = useFallback ? 'invert(1) hue-rotate(180deg)' : ''
+  }
+}
+
 function applyTheme() {
   const doc = iframeRef.value?.contentDocument
   if (!doc?.documentElement) return
@@ -138,26 +179,26 @@ function applyTheme() {
     ['--altals-focus-ring', '--focus-ring'],
   ])
 
-  root.style.setProperty('color-scheme', isDark.value ? 'dark' : 'light')
+  root.style.setProperty('color-scheme', getResolvedTheme())
   for (const [targetName, sourceName] of tokenMap) {
     const value = source.getPropertyValue(sourceName).trim()
     if (value) {
       root.style.setProperty(targetName, value)
     }
   }
+
+  applyCanvasFilterFallback()
 }
 
 function getViewerThemeOptions() {
   const source = getComputedStyle(document.documentElement)
-  const pageBackground = source.getPropertyValue('--shell-editor-surface').trim()
-  const pageForeground = source.getPropertyValue('--text-primary').trim()
-
-  return {
-    forcePageColors: Boolean(pageBackground && pageForeground),
-    pageBackground,
-    pageForeground,
-    viewerCssTheme: isDark.value ? 2 : 1,
-  }
+  return buildPdfViewerThemeOptions({
+    themedPages: workspace.pdfThemedPages,
+    resolvedTheme: getResolvedTheme(),
+    usePageFilterFallback: shouldUseCanvasFilterFallback(),
+    pageBackground: source.getPropertyValue('--shell-editor-surface').trim(),
+    pageForeground: source.getPropertyValue('--text-primary').trim(),
+  })
 }
 
 function normalizeViewerChromeText() {
@@ -315,6 +356,7 @@ function onIframeLoad() {
   applyTheme()
   normalizeViewerChromeText()
   installViewerPatches()
+  requestAnimationFrame(() => applyCanvasFilterFallback())
   loading.value = false
   loadError.value = ''
 
@@ -360,12 +402,22 @@ function reloadPdf() {
   void loadPdf()
 }
 
-watch(isDark, () => {
+watch(
+  () => [getResolvedTheme(), workspace.theme, workspace.pdfThemedPages],
+  () => {
+    applyTheme()
+    if (viewerSrc.value) {
+      void loadPdf()
+    }
+  },
+)
+
+function handleWorkspaceThemeUpdated() {
   applyTheme()
   if (viewerSrc.value) {
     void loadPdf()
   }
-})
+}
 
 watch(
   () => [props.artifactPath, artifactVersion.value],
@@ -413,10 +465,12 @@ watch(
 )
 
 onMounted(() => {
+  window.addEventListener('workspace-theme-updated', handleWorkspaceThemeUpdated)
   void loadPdf()
 })
 
 onUnmounted(() => {
+  window.removeEventListener('workspace-theme-updated', handleWorkspaceThemeUpdated)
   loadToken += 1
   pendingForwardSync = null
   viewerSrc.value = null

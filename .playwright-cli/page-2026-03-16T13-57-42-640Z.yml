@@ -1,9 +1,0 @@
-- generic [ref=e3]:
-  - textbox [ref=e4]: DDIM
-  - button "Find" [ref=e5] [cursor=pointer]
-  - button "Next" [ref=e6] [cursor=pointer]
-  - button "Prev" [ref=e7] [cursor=pointer]
-  - generic [ref=e8]:
-    - checkbox "highlightAll" [ref=e9]
-    - text: highlightAll
-  - generic [ref=e10]: idle

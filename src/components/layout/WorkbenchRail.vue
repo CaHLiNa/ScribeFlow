@@ -423,7 +423,6 @@ onUnmounted(() => {
   .workbench-rail {
     gap: 8px;
   }
-
 }
 
 @media (max-width: 720px) {

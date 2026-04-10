@@ -231,7 +231,7 @@ const fileCount = computed(() => filesStore.lastWorkspaceSnapshot?.flatFiles?.le
 const documentCount = computed(() =>
   countWorkspaceFlatFilesByExtension(
     filesStore.lastWorkspaceSnapshot,
-    WORKSPACE_STARTER_DRAFT_EXTENSIONS,
+    WORKSPACE_STARTER_DRAFT_EXTENSIONS
   )
 )
 
@@ -438,12 +438,7 @@ async function createFromTemplate(template) {
 .workspace-starter-section-title {
   margin: 0;
   font-family:
-    -apple-system,
-    BlinkMacSystemFont,
-    'SF Pro Display',
-    'Helvetica Neue',
-    system-ui,
-    sans-serif;
+    -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', system-ui, sans-serif;
   font-weight: 600;
   color: var(--text-primary);
 }

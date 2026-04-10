@@ -174,8 +174,12 @@
   --sidebar-item-active: rgba(255, 255, 255, 0.07);
   --sidebar-item-active-border: rgba(255, 255, 255, 0.05);
   --sidebar-item-selected: rgba(255, 255, 255, 0.062);
-  --sidebar-vibrant-surface:
-    linear-gradient(180deg, rgba(12, 12, 14, 0.76) 0%, rgba(12, 12, 14, 0.7) 44%, rgba(10, 10, 12, 0.82) 100%);
+  --sidebar-vibrant-surface: linear-gradient(
+    180deg,
+    rgba(12, 12, 14, 0.76) 0%,
+    rgba(12, 12, 14, 0.7) 44%,
+    rgba(10, 10, 12, 0.82) 100%
+  );
   --sidebar-vibrant-border: rgba(255, 255, 255, 0.04);
   --workbench-divider: color-mix(in srgb, var(--border) 28%, transparent);
   --workbench-divider-soft: color-mix(in srgb, var(--border) 16%, transparent);
