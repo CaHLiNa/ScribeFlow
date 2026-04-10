@@ -77,3 +77,10 @@ Keep policy out of components when it can live in `domains`. Keep `services` eff
 - Run `npm run build` for meaningful frontend or integration changes.
 - If repo policy or docs change, update the related audit tests in the same slice.
 - If something cannot be verified, say so explicitly.
+
+## AI Review Workflow
+
+- For Claude Code work in this repository, keep the Codex stop-time review gate enabled. Run `npm run agent:enable-codex-gate` once in the repo when setting up a machine or fresh checkout.
+- After Claude-authored code changes, expect a Codex review before sign-off. Use `/codex:review --base main` in Claude Code or `npm run agent:codex-review`.
+- After Codex-authored changes that are meant to implement a plan, run `npm run agent:codex-postflight -- --plan <path-to-plan>` before claiming completion.
+- The Claude postflight audit compares the current branch against the chosen plan and reports `Completed`, `Pending`, `Deviations`, `Risks`, `Verification`, and `Next step`.

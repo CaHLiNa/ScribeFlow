@@ -26,3 +26,9 @@ Contributions should preserve product clarity, explicit operations, and safe loc
 - Run `node --test tests/*.test.mjs`.
 - Run `npm run build`.
 - Record any pre-existing failures explicitly if the full suite is not green.
+
+## AI Review Workflow
+
+- Enable the repository Codex stop-time review gate with `npm run agent:enable-codex-gate`.
+- Run `npm run agent:codex-review` after Claude Code changes when you want an explicit Codex review on demand in addition to the stop gate.
+- Run `npm run agent:codex-postflight -- --plan <path-to-plan>` after Codex implements a plan so Claude audits execution progress against the plan.
