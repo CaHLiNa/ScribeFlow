@@ -205,10 +205,10 @@ const statusClass = computed(() => ({
 
 const compactPaneBar = computed(() => !props.inlineHeader && !props.shellIntegrated)
 const showKindLabel = computed(() => !!kindLabel.value)
-const buttonIconStroke = computed(() => (compactPaneBar.value ? 1.9 : 1.8))
-const primaryActionIconSize = computed(() => (compactPaneBar.value ? 15 : 17))
-const secondaryActionIconSize = computed(() => (compactPaneBar.value ? 14 : 17))
-const pdfActionIconSize = computed(() => (compactPaneBar.value ? 15 : 16))
+const buttonIconStroke = computed(() => (compactPaneBar.value ? 1.8 : 1.8))
+const primaryActionIconSize = computed(() => (compactPaneBar.value ? 17 : 17))
+const secondaryActionIconSize = computed(() => (compactPaneBar.value ? 17 : 17))
+const pdfActionIconSize = computed(() => (compactPaneBar.value ? 17 : 16))
 </script>
 
 <style scoped>
@@ -345,10 +345,11 @@ const pdfActionIconSize = computed(() => (compactPaneBar.value ? 15 : 16))
 .workflow-doc-tools {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: 0;
   min-width: 0;
   flex: 0 0 auto;
-  min-height: 22px;
+  min-height: var(--document-header-row-height, 31px);
+  height: var(--document-header-row-height, 31px);
   padding: 0;
   border-radius: 0;
   background: transparent;
@@ -407,12 +408,12 @@ const pdfActionIconSize = computed(() => (compactPaneBar.value ? 15 : 16))
 .workflow-primary-btn,
 .workflow-secondary-btn {
   flex: 0 0 auto;
-  height: 22px;
-  width: 22px;
-  min-height: 22px;
+  width: 33px;
+  height: var(--document-header-row-height, 31px);
+  min-height: var(--document-header-row-height, 31px);
   white-space: nowrap;
   color: color-mix(in srgb, var(--text-secondary) 86%, transparent);
-  border-radius: 6px;
+  border-radius: 9px;
   background: transparent;
   box-shadow: none;
   transition:

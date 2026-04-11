@@ -630,12 +630,12 @@ onUnmounted(() => {
 }
 
 .workspace-source-toolbar {
-  --document-header-row-height: 30px;
+  --document-header-row-height: 31px;
   flex: none;
   display: flex;
   align-items: center;
-  min-height: 30px;
-  padding: 0 6px;
+  min-height: 31px;
+  padding: 0 12px;
   border-bottom: 1px solid var(--workbench-divider-soft);
   background: var(--shell-editor-surface);
 }
