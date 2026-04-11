@@ -248,7 +248,7 @@ export function createTinymistTypstCompletionSource(options = {}) {
       return localResult
     }
 
-    if (!context.explicit && /#$/.test(textBefore)) {
+    if (!context.explicit) {
       return localResult
     }
 

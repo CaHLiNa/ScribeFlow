@@ -23,7 +23,11 @@
       />
 
       <Teleport v-if="showIntegratedDocumentTitle" :to="integratedDocumentTitleTarget">
-        <div ref="documentTitleWrapRef" class="document-title-wrap document-title-wrap--rail">
+        <div
+          ref="documentTitleWrapRef"
+          class="document-title-wrap document-title-wrap--rail"
+          data-window-drag-ignore="true"
+        >
           <div class="document-title-cluster">
             <button
               type="button"
@@ -419,7 +423,7 @@ const showLocalDocumentHeader = computed(
   () => showPaneDocumentTitle.value || showInlineWorkflowBar.value
 )
 const showPaneDocumentTitle = computed(
-  () => !!props.activeTab && !showIntegratedDocumentTitle.value
+  () => !!props.activeTab && !hasIntegratedDocumentTitle.value
 )
 
 const editorContainerRef = ref(null)
@@ -654,8 +658,8 @@ onUnmounted(() => {
   background: transparent;
   color: var(--text-primary);
   font: inherit;
-  font-size: var(--ui-font-body);
-  font-weight: 600;
+  font-size: var(--workbench-font-primary);
+  font-weight: var(--workbench-weight-medium);
   letter-spacing: -0.015em;
   cursor: pointer;
   transition:
@@ -672,8 +676,8 @@ onUnmounted(() => {
   padding: 0 6px;
   border-radius: 6px;
   color: color-mix(in srgb, var(--text-secondary) 84%, transparent);
-  font-size: var(--sidebar-font-item);
-  font-weight: 540;
+  font-size: var(--workbench-font-primary);
+  font-weight: var(--workbench-weight-medium);
   letter-spacing: -0.005em;
 }
 
@@ -683,8 +687,8 @@ onUnmounted(() => {
 
 .editor-pane-shell[data-pane-id='pane-root'] .document-title-button--pane {
   color: color-mix(in srgb, var(--text-secondary) 86%, transparent);
-  font-size: var(--sidebar-font-body);
-  font-weight: 540;
+  font-size: var(--workbench-font-primary);
+  font-weight: var(--workbench-weight-medium);
 }
 
 .document-title-button--pane:hover {
@@ -697,8 +701,8 @@ onUnmounted(() => {
   padding: 0 8px;
   border-radius: 8px;
   color: color-mix(in srgb, var(--text-primary) 92%, transparent);
-  font-size: var(--ui-font-label);
-  font-weight: 560;
+  font-size: var(--workbench-font-title);
+  font-weight: var(--workbench-weight-strong);
   letter-spacing: -0.003em;
 }
 
@@ -784,12 +788,12 @@ onUnmounted(() => {
   justify-content: center;
   width: 14px;
   color: color-mix(in srgb, var(--text-secondary) 88%, transparent);
-  font-size: 12px;
+  font-size: var(--workbench-font-secondary);
 }
 
 .document-tabs-menu-item.is-active .document-tabs-menu-select {
   color: var(--text-primary);
-  font-weight: 540;
+  font-weight: var(--workbench-weight-strong);
 }
 
 .document-tabs-menu-label {

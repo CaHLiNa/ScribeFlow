@@ -437,19 +437,19 @@ onUnmounted(() => {
 
 .outline-panel-empty-copy {
   font-size: var(--sidebar-font-body);
-  line-height: 1.55;
+  line-height: 1.5;
   color: var(--text-muted);
 }
 
 .outline-panel-empty-title {
   font-size: var(--sidebar-font-item);
-  line-height: 1.35;
+  line-height: var(--workbench-line-height-primary);
 }
 
 .outline-panel-empty-hint {
   margin-top: 4px;
   font-size: var(--sidebar-font-meta);
-  line-height: 1.45;
+  line-height: var(--workbench-line-height-secondary);
   opacity: 0.7;
 }
 
@@ -480,7 +480,7 @@ onUnmounted(() => {
 .outline-panel-section-label {
   padding: 6px 10px 5px;
   font-size: var(--sidebar-font-meta);
-  font-weight: 560;
+  font-weight: var(--workbench-weight-medium);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-muted);
@@ -497,8 +497,8 @@ onUnmounted(() => {
   cursor: pointer;
   user-select: none;
   color: var(--text-secondary);
-  font-size: var(--sidebar-font-item);
-  line-height: 1.35;
+  font-size: var(--workbench-font-primary);
+  line-height: var(--workbench-line-height-primary);
   opacity: 1;
   transition:
     background-color 140ms ease,
@@ -540,8 +540,8 @@ onUnmounted(() => {
 .outline-panel-kind {
   margin-right: 6px;
   flex-shrink: 0;
-  font-size: var(--sidebar-font-meta);
-  font-weight: 500;
+  font-size: var(--workbench-font-secondary);
+  font-weight: var(--workbench-weight-medium);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-muted);

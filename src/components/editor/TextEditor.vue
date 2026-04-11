@@ -67,7 +67,6 @@ import {
 } from '../../editor/zoomCompensation'
 import {
   createRevealHighlightExtension,
-  focusEditorLineWithHighlight,
 } from '../../editor/revealHighlight'
 import {
   captureContextMenuState,
@@ -105,13 +104,18 @@ import {
 } from '../../services/tinymist/codeActions'
 import { isMarkdown, isLatex, isTypst } from '../../utils/fileTypes'
 import { resolveLatexProjectGraph } from '../../services/latex/projectGraph'
+import { revealLatexSourceLocation } from '../../services/latex/previewSync.js'
 import {
   supportsTinymistTypstEditor as supportsTypstEditorSupport,
   createTinymistTypstEditorExtensions as createTypstEditorSupport,
 } from '../../services/tinymist/editor'
+import { resolveTypstForwardSyncRootPath } from '../../domains/document/documentWorkspacePreviewAdapters.js'
 import { rememberPendingMarkdownForwardSync } from '../../services/markdown/previewSync.js'
-import { rememberPendingTypstForwardSync } from '../../services/typst/previewSync.js'
-import { resolveCachedTypstRootPath, resolveTypstCompileTarget } from '../../services/typst/root.js'
+import {
+  getActiveTypstPreviewSession,
+  rememberPendingTypstForwardSync,
+} from '../../services/typst/previewSync.js'
+import { shouldSuppressTypstSelectionPreviewSync } from '../../services/typst/previewSelectionSync.js'
 import EditorContextMenu from './EditorContextMenu.vue'
 import { useTypstDiagnostics } from '../../composables/useTypstDiagnostics'
 import { useTypstEditorNavigation } from '../../composables/useTypstEditorNavigation'
@@ -702,10 +706,18 @@ onMounted(async () => {
           handleNavigationSelectionChange()
         }
       }
-      if (isTyp && update.selectionSet && !typstUi.jumpInFlight && !tinymistNavUi.jumpInFlight) {
+      if (
+        isTyp &&
+        update.selectionSet &&
+        !update.docChanged &&
+        !typstUi.jumpInFlight &&
+        !tinymistNavUi.jumpInFlight
+      ) {
         handleEditorSelectionChange(update.state.selection.main.head)
         handleNavigationSelectionChange()
-        scheduleTypstSelectionPreviewSync(update.state.selection.main)
+        if (!shouldSuppressTypstSelectionPreviewSync(props.filePath)) {
+          scheduleTypstSelectionPreviewSync(update.state.selection.main)
+        }
       }
       if (isMd && update.selectionSet) {
         scheduleMarkdownSelectionPreviewSync(update.state.selection.main)
@@ -883,20 +895,37 @@ function ensureLatexWindowHandlers() {
   if (!isTex) return
 
   if (!backwardSyncHandler) {
-    backwardSyncHandler = (event) => {
-      const { file, line } = event.detail || {}
+    backwardSyncHandler = async (event) => {
+      const { file, line, column, textBeforeSelection, textAfterSelection } = event.detail || {}
       const normalizedFile = String(file || '').replace(/\\/g, '/')
       const normalizedCurrentPath = String(props.filePath || '').replace(/\\/g, '/')
+      const location = {
+        filePath: normalizedFile || normalizedCurrentPath,
+        line,
+        column,
+        textBeforeSelection,
+        textAfterSelection,
+      }
       if (normalizedFile) {
         const targetFileName = normalizedFile.split('/').pop() || normalizedFile
         const currentFileName = normalizedCurrentPath.split('/').pop() || normalizedCurrentPath
         const exactMatch = normalizedFile === normalizedCurrentPath
         const fileNameOnlyMatch =
           !normalizedFile.includes('/') && targetFileName === currentFileName
-        if (!exactMatch && !fileNameOnlyMatch) return
+        if (!exactMatch && !fileNameOnlyMatch) {
+          if (editorStore.activeTab !== props.filePath) return
+          await revealLatexSourceLocation(editorStore, location, {
+            paneId: props.paneId,
+            center: true,
+          })
+          return
+        }
       }
       if (line && line > 0) {
-        focusEditorLineWithHighlight(view, line, { center: true })
+        await revealLatexSourceLocation(editorStore, location, {
+          paneId: props.paneId,
+          center: true,
+        })
       }
     }
   }
@@ -959,6 +988,9 @@ function attachEditorRuntimeListeners() {
   if (isMd) {
     editorContainer.value?.addEventListener('click', handleWikiLinkClick)
   }
+  if (isTex) {
+    editorContainer.value?.addEventListener('dblclick', handleLatexDoubleClick)
+  }
   if (isTyp) {
     editorContainer.value?.addEventListener('click', handleDefinitionClick)
   }
@@ -985,6 +1017,9 @@ function detachEditorRuntimeListeners() {
   editorContainer.value?.removeEventListener('mousedown', handleContextMenuMouseDown, true)
   if (isMd) {
     editorContainer.value?.removeEventListener('click', handleWikiLinkClick)
+  }
+  if (isTex) {
+    editorContainer.value?.removeEventListener('dblclick', handleLatexDoubleClick)
   }
   if (isTyp) {
     editorContainer.value?.removeEventListener('click', handleDefinitionClick)
@@ -1084,7 +1119,7 @@ function handleWikiLinkClick(event) {
 
 function scheduleMarkdownSelectionPreviewSync(selection) {
   if (!isMd || !view) return
-  if (!workflowStore.hasPreviewForSource(props.filePath, 'html')) return
+  if (!hasActiveMarkdownPreviewTarget()) return
   if ((selection?.from ?? 0) !== (selection?.to ?? 0)) return
 
   if (markdownPreviewSyncTimer != null) {
@@ -1118,27 +1153,76 @@ function scheduleMarkdownSelectionPreviewSync(selection) {
   }, 90)
 }
 
-async function resolveTypstForwardRootPath() {
-  const fallbackRootPath =
-    typstStore.stateForFile(props.filePath)?.projectRootPath ||
-    typstStore.stateForFile(props.filePath)?.compileTargetPath ||
-    resolveCachedTypstRootPath(props.filePath) ||
-    props.filePath
-
-  if (!view) return fallbackRootPath
-
-  try {
-    const rootPath = await resolveTypstCompileTarget(props.filePath, {
-      filesStore: files,
-      workspacePath: workspace.path,
-      contentOverrides: {
-        [props.filePath]: view.state.doc.toString(),
-      },
-    })
-    return rootPath || fallbackRootPath
-  } catch {
-    return fallbackRootPath
+function hasActiveMarkdownPreviewTarget() {
+  const workspacePreviewState = workflowStore.getWorkspacePreviewStateForFile(props.filePath)
+  if (
+    workspacePreviewState?.useWorkspace === true &&
+    workspacePreviewState?.previewVisible === true &&
+    workspacePreviewState?.previewKind === 'html'
+  ) {
+    return true
   }
+
+  return workflowStore.hasPreviewForSource(props.filePath, 'html')
+}
+
+function hasActiveTypstNativePreviewTarget() {
+  const workspacePreviewState = workflowStore.getWorkspacePreviewStateForFile(props.filePath)
+  if (
+    workspacePreviewState?.useWorkspace === true &&
+    workspacePreviewState?.previewVisible === true &&
+    workspacePreviewState?.previewKind === 'native'
+  ) {
+    return true
+  }
+
+  const previewPath = workflowStore.getOpenPreviewPathForSource(props.filePath, 'native')
+  if (!previewPath) return false
+  return !!editorStore.findPaneWithTab(previewPath)?.id
+}
+
+function hasActiveLatexPdfPreviewTarget() {
+  const workspacePreviewState = workflowStore.getWorkspacePreviewStateForFile(props.filePath)
+  if (
+    workspacePreviewState?.useWorkspace === true
+    && workspacePreviewState?.previewVisible === true
+    && workspacePreviewState?.previewKind === 'pdf'
+  ) {
+    return true
+  }
+
+  const previewPath = workflowStore.getOpenPreviewPathForSource(props.filePath, 'pdf')
+  if (!previewPath) return false
+  return !!editorStore.findPaneWithTab(previewPath)?.id
+}
+
+function triggerLatexForwardSyncAtPos(pos) {
+  if (!isTex || !view) return
+  if (!hasActiveLatexPdfPreviewTarget()) return
+  const location = getLatexSyncLocation(pos)
+  if (!location) return
+  latexStore.requestForwardSync(props.filePath, location.line, location.column)
+}
+
+function handleLatexDoubleClick(event) {
+  if (!isTex || !view || event.button !== 0) return
+  const pos = view.posAtCoords(getZoomCompensatedClientPoint(event))
+  if (pos === null) return
+  triggerLatexForwardSyncAtPos(pos)
+}
+
+async function resolveTypstForwardRootPath() {
+  return resolveTypstForwardSyncRootPath(props.filePath, {
+    activePreviewRootPath: getActiveTypstPreviewSession()?.rootPath || '',
+    typstStore,
+    filesStore: files,
+    workspacePath: workspace.path,
+    contentOverrides: view
+      ? {
+          [props.filePath]: view.state.doc.toString(),
+        }
+      : {},
+  })
 }
 
 function dispatchTypstForwardSync(detail) {
@@ -1175,8 +1259,7 @@ async function triggerTypstForwardSyncAtPos(pos, trigger = 'typst-source-dblclic
 
 function scheduleTypstSelectionPreviewSync(selection) {
   if (!isTyp || !view) return
-  const previewPath = workflowStore.getOpenPreviewPathForSource(props.filePath, 'native')
-  if (!previewPath || !editorStore.findPaneWithTab(previewPath)?.id) return
+  if (!hasActiveTypstNativePreviewTarget()) return
   if ((selection?.from ?? 0) !== (selection?.to ?? 0)) return
 
   if (typstPreviewSyncTimer != null) {

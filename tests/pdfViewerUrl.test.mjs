@@ -17,6 +17,7 @@ test('buildPdfViewerThemeOptions enables themed pages for the resolved dark them
     forcePageColors: true,
     pageBackground: 'rgb(20 19 17)',
     pageForeground: 'rgb(236 232 225)',
+    useCanvasFilterFallback: false,
     viewerCssTheme: 2,
   })
 })
@@ -31,6 +32,7 @@ test('buildPdfViewerThemeOptions disables forced page colors when themed pages a
     forcePageColors: false,
     pageBackground: '',
     pageForeground: '',
+    useCanvasFilterFallback: false,
     viewerCssTheme: 1,
   })
 })
@@ -44,8 +46,9 @@ test('buildPdfViewerThemeOptions disables PDF.js page colors when canvas fallbac
     pageForeground: 'rgb(236 232 225)',
   }), {
     forcePageColors: false,
-    pageBackground: '',
-    pageForeground: '',
+    pageBackground: 'rgb(20 19 17)',
+    pageForeground: 'rgb(236 232 225)',
+    useCanvasFilterFallback: true,
     viewerCssTheme: 2,
   })
 })
@@ -73,6 +76,7 @@ test('buildPdfViewerSrc includes PDF.js theme and page color params', () => {
     forcePageColors: true,
     pageBackground: 'rgb(20 19 17)',
     pageForeground: 'rgb(236 232 225)',
+    useCanvasFilterFallback: true,
     viewerCssTheme: 2,
   })
 
@@ -80,10 +84,14 @@ test('buildPdfViewerSrc includes PDF.js theme and page color params', () => {
 
   assert.equal(url.pathname, '/pdfjs-viewer/web/viewer.html')
   assert.equal(url.searchParams.get('file'), 'blob:demo')
+  assert.equal(url.searchParams.get('maxcanvaspixels'), String(2 ** 27))
+  assert.equal(url.searchParams.get('mindurationtoupdatecanvas'), '0')
+  assert.equal(url.searchParams.get('enabledetailcanvas'), 'true')
   assert.equal(url.searchParams.get('forcepagecolors'), 'true')
   assert.equal(url.searchParams.get('pagecolorsbackground'), 'rgb(20 19 17)')
   assert.equal(url.searchParams.get('pagecolorsforeground'), 'rgb(236 232 225)')
   assert.equal(url.searchParams.get('viewercsstheme'), '2')
+  assert.equal(url.searchParams.get('altalscanvasfilterfallback'), 'true')
 })
 
 test('buildPdfViewerSrc omits optional params when not provided', () => {
@@ -91,6 +99,9 @@ test('buildPdfViewerSrc omits optional params when not provided', () => {
   const url = new URL(result, 'http://localhost')
 
   assert.equal(url.searchParams.get('file'), 'blob:demo')
+  assert.equal(url.searchParams.get('maxcanvaspixels'), String(2 ** 27))
+  assert.equal(url.searchParams.get('mindurationtoupdatecanvas'), '0')
+  assert.equal(url.searchParams.get('enabledetailcanvas'), 'true')
   assert.equal(url.searchParams.has('forcepagecolors'), false)
   assert.equal(url.searchParams.has('pagecolorsbackground'), false)
   assert.equal(url.searchParams.has('pagecolorsforeground'), false)

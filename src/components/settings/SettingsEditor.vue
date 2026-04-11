@@ -31,6 +31,23 @@
             </div>
           </div>
         </div>
+
+        <div class="settings-row">
+          <div class="settings-row-copy">
+            <div class="settings-row-title">{{ t('Editor text size') }}</div>
+            <div class="settings-row-hint">
+              {{ t('Adjust the base text size used in the writing editor and Markdown preview.') }}
+            </div>
+          </div>
+          <div class="settings-row-control">
+            <UiSelect
+              :model-value="workspace.editorFontSize"
+              :options="editorFontSizeOptions"
+              :aria-label="t('Editor text size')"
+              @update:model-value="workspace.setEditorFontSize"
+            />
+          </div>
+        </div>
       </div>
     </section>
 
@@ -212,8 +229,10 @@
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useTypstStore } from '../../stores/typst'
 import { useLatexStore } from '../../stores/latex'
+import { EDITOR_FONT_SIZE_PRESETS } from '../../services/workspacePreferences'
 import { useI18n } from '../../i18n'
 import UiSwitch from '../shared/ui/UiSwitch.vue'
+import UiSelect from '../shared/ui/UiSelect.vue'
 
 const workspace = useWorkspaceStore()
 const typstStore = useTypstStore()
@@ -225,6 +244,11 @@ const proseFonts = [
   { value: 'stix', labelKey: 'Serif' },
   { value: 'mono', labelKey: 'Mono' },
 ]
+
+const editorFontSizeOptions = EDITOR_FONT_SIZE_PRESETS.map((value) => ({
+  value,
+  label: `${value} px`,
+}))
 
 const WRAP_PRESETS = [
   { value: 0, labelKey: 'Auto' },

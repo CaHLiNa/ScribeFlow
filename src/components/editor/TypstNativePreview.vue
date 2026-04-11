@@ -18,20 +18,19 @@
         <div>{{ t('Starting Typst preview…') }}</div>
       </div>
     </div>
-    <template v-else>
-      <iframe
-        v-show="!previewSuspended || !iframeLoaded"
-        ref="iframeRef"
-        class="typst-native-preview-frame"
-        :src="previewUrl"
-        @load="handleIframeLoad"
-      />
-      <div
-        v-if="previewSuspended && iframeLoaded"
-        class="typst-native-preview-freeze-mask"
-        aria-hidden="true"
-      ></div>
-    </template>
+    <iframe
+      v-else
+      ref="iframeRef"
+      class="typst-native-preview-frame"
+      :src="previewUrl"
+      v-show="!previewSuspended || !iframeLoaded"
+      @load="handleIframeLoad"
+    />
+    <div
+      v-if="previewSuspended && iframeLoaded && previewUrl && !loadError"
+      class="typst-native-preview-freeze-mask"
+      aria-hidden="true"
+    ></div>
   </div>
 </template>
 
@@ -46,6 +45,10 @@ import { useI18n } from '../../i18n'
 import { resolveTypstNativePreviewInput } from '../../domains/document/documentWorkspacePreviewAdapters.js'
 import { resolveCachedTypstRootPath } from '../../services/typst/root.js'
 import {
+  createTypstPreviewDocumentUrl,
+  isManagedTypstPreviewDocumentUrl,
+} from '../../services/typst/previewDocument.js'
+import {
   clearPendingTypstForwardSync,
   ensureTypstNativePreviewSession,
   peekPendingTypstForwardSync,
@@ -53,6 +56,7 @@ import {
   sourceBelongsToTypstPreviewRoot,
   subscribeTypstPreviewScrollSource,
 } from '../../services/typst/previewSync.js'
+import { shouldRepairTypstPreviewFit } from '../../services/typst/previewViewportFit.js'
 import { revealTypstSourceLocation } from '../../services/typst/reveal.js'
 
 const props = defineProps({
@@ -69,10 +73,6 @@ const workspace = useWorkspaceStore()
 const workflowStore = useDocumentWorkflowStore()
 const { t } = useI18n()
 
-const RESIZE_SUSPEND_SETTLE_MS = 140
-const TOGGLE_SUSPEND_SETTLE_MS = 320
-const RESIZE_SUSPEND_DELTA_PX = 1
-
 const shellRef = ref(null)
 const iframeRef = ref(null)
 const previewRootPath = ref('')
@@ -80,15 +80,22 @@ const previewUrl = ref('')
 const loadError = ref('')
 const iframeLoaded = ref(false)
 const previewSuspended = ref(false)
+let previewLoadToken = 0
 let unsubscribeScrollSource = null
-let resizeObserver = null
+let shellResizeObserver = null
+let hoverResumeTimer = null
+let hoverSuppressed = false
 let previewResumeTimer = null
-let previewUrlRevision = 0
-let previewUrlIdentity = ''
+let previewFitRepairTimer = null
 let lastObservedShellSize = { width: 0, height: 0 }
 
-const resolvedSourcePath = computed(() => resolvedPreviewInput.value.sourcePath)
+const RESIZE_SUSPEND_SETTLE_MS = 140
+const TOGGLE_SUSPEND_SETTLE_MS = 320
+const RESIZE_SUSPEND_DELTA_PX = 1
+const PREVIEW_FIT_REPAIR_SETTLE_MS = 120
+
 const resolvedPreviewInput = ref({ sourcePath: '', rootPath: '' })
+const resolvedSourcePath = computed(() => resolvedPreviewInput.value.sourcePath)
 
 const preferredSourcePaneId = computed(
   () =>
@@ -96,7 +103,7 @@ const preferredSourcePaneId = computed(
     (workflowStore.session.previewSourcePath === resolvedSourcePath.value
       ? workflowStore.session.sourcePaneId
       : null) ||
-    null
+    null,
 )
 
 async function resolveRootPath() {
@@ -113,79 +120,16 @@ async function resolveRootPath() {
   return resolved.rootPath || ''
 }
 
-function buildPreviewFrameUrl(baseUrl, rootPath, revision = 0) {
-  const normalizedBaseUrl = String(baseUrl || '')
-    .trim()
-    .replace(/\/+$/, '')
-  if (!normalizedBaseUrl) return ''
-  const params = new URLSearchParams()
-  if (rootPath) {
-    params.set('root', rootPath)
-  }
-  params.set('host', 'altals')
-  params.set('rev', String(revision))
-  return `${normalizedBaseUrl}/?${params.toString()}`
-}
-
-function clearPreviewResumeTimer() {
-  if (previewResumeTimer !== null) {
-    window.clearTimeout(previewResumeTimer)
-    previewResumeTimer = null
-  }
-}
-
-function schedulePreviewResume(delay = RESIZE_SUSPEND_SETTLE_MS) {
-  clearPreviewResumeTimer()
-  previewResumeTimer = window.setTimeout(() => {
-    previewResumeTimer = null
-    previewSuspended.value = false
-  }, delay)
-}
-
-function suspendPreviewForResize(delay = RESIZE_SUSPEND_SETTLE_MS) {
-  if (!previewUrl.value || !iframeLoaded.value) return
-  previewSuspended.value = true
-  schedulePreviewResume(delay)
-}
-
-function resetShellResizeTracking() {
-  clearPreviewResumeTimer()
-  previewSuspended.value = false
-  lastObservedShellSize = { width: 0, height: 0 }
-}
-
-function observeShellResize() {
-  if (typeof ResizeObserver === 'undefined' || !shellRef.value) return
-  resizeObserver = new ResizeObserver((entries) => {
-    const entry = entries[0]
-    if (!entry) return
-    const width = Math.round(entry.contentRect?.width || 0)
-    const height = Math.round(entry.contentRect?.height || 0)
-    if (width <= 0 || height <= 0) return
-
-    const widthDelta = Math.abs(width - lastObservedShellSize.width)
-    const heightDelta = Math.abs(height - lastObservedShellSize.height)
-    lastObservedShellSize = { width, height }
-
-    if (widthDelta < RESIZE_SUSPEND_DELTA_PX && heightDelta < RESIZE_SUSPEND_DELTA_PX) {
-      if (previewSuspended.value) schedulePreviewResume()
-      return
-    }
-
-    suspendPreviewForResize()
-  })
-  resizeObserver.observe(shellRef.value)
-}
-
 async function ensurePreviewReady() {
+  const loadToken = ++previewLoadToken
   loadError.value = ''
+  iframeLoaded.value = false
+  resetShellResizeTracking()
   const resolvedRoot = await resolveRootPath()
+  if (loadToken !== previewLoadToken) return
   if (!resolvedRoot) {
     previewRootPath.value = ''
-    previewUrl.value = ''
-    previewUrlIdentity = ''
-    iframeLoaded.value = false
-    resetShellResizeTracking()
+    replacePreviewUrl('')
     return
   }
   previewRootPath.value = resolvedRoot
@@ -195,27 +139,44 @@ async function ensurePreviewReady() {
       rootPath: resolvedRoot,
       workspacePath: workspace.path,
     })
-    const nextBaseUrl = String(session?.previewUrl || '').trim()
-    const nextIdentity = nextBaseUrl ? `${nextBaseUrl}::${resolvedRoot}` : ''
-    if (!nextIdentity) {
-      previewUrl.value = ''
-      previewUrlIdentity = ''
-      iframeLoaded.value = false
-      resetShellResizeTracking()
+    if (loadToken !== previewLoadToken) return
+    const nextPreviewUrl = await resolvePreviewDocumentUrl(session?.previewUrl || '')
+    if (loadToken !== previewLoadToken) {
+      revokePreviewUrl(nextPreviewUrl)
       return
     }
-
-    if (nextIdentity !== previewUrlIdentity || !previewUrl.value) {
-      previewUrlIdentity = nextIdentity
-      previewUrlRevision += 1
-      iframeLoaded.value = false
-      previewUrl.value = buildPreviewFrameUrl(nextBaseUrl, resolvedRoot, previewUrlRevision)
-      resetShellResizeTracking()
+    if (nextPreviewUrl && nextPreviewUrl !== previewUrl.value) {
+      replacePreviewUrl(nextPreviewUrl)
     }
     flushPendingForwardSync()
   } catch (error) {
+    if (loadToken !== previewLoadToken) return
     loadError.value = error?.message || String(error)
   }
+}
+
+async function resolvePreviewDocumentUrl(sessionPreviewUrl) {
+  const rawPreviewUrl = String(sessionPreviewUrl || '')
+  if (!rawPreviewUrl) return ''
+
+  try {
+    const patchedPreviewUrl = await createTypstPreviewDocumentUrl(rawPreviewUrl)
+    return patchedPreviewUrl || rawPreviewUrl
+  } catch {
+    return rawPreviewUrl
+  }
+}
+
+function revokePreviewUrl(url) {
+  const value = String(url || '')
+  if (value.startsWith('blob:') && !isManagedTypstPreviewDocumentUrl(value)) {
+    URL.revokeObjectURL(value)
+  }
+}
+
+function replacePreviewUrl(nextUrl) {
+  revokePreviewUrl(previewUrl.value)
+  previewUrl.value = String(nextUrl || '')
 }
 
 async function runForwardSync(detail) {
@@ -249,15 +210,187 @@ function handleForwardSyncRequest(event) {
   if (
     source !== resolvedSourcePath.value &&
     !sourceBelongsToTypstPreviewRoot(source, previewRootPath.value, detail.rootPath)
-  )
+  ) {
     return
+  }
   if (!Number.isInteger(detail.line) || !Number.isInteger(detail.character)) return
   void runForwardSync(detail)
 }
 
 function handleIframeLoad() {
   iframeLoaded.value = true
+  previewSuspended.value = false
+  installPreviewInteractionGuards()
+  installPreviewFitRepair()
+  notifyPreviewResize()
+  schedulePreviewFitRepair(220)
   flushPendingForwardSync()
+}
+
+function notifyPreviewResize() {
+  const frameWindow = iframeRef.value?.contentWindow
+  if (!frameWindow) return
+  try {
+    frameWindow.dispatchEvent(new Event('resize'))
+  } catch {
+    // Ignore transient iframe initialization races.
+  }
+}
+
+function getPreviewScrollMetrics() {
+  const frameDocument = iframeRef.value?.contentWindow?.document
+  if (!frameDocument) return null
+  const scrollContainer = frameDocument.getElementById('typst-container-main')
+  const previewApp = frameDocument.getElementById('typst-app')
+  if (!scrollContainer || !previewApp) return null
+  return {
+    clientWidth: scrollContainer.clientWidth,
+    scrollWidth: scrollContainer.scrollWidth,
+    previewWidth: previewApp.getBoundingClientRect().width,
+  }
+}
+
+function clearPreviewResumeTimer() {
+  if (previewResumeTimer != null) {
+    window.clearTimeout(previewResumeTimer)
+    previewResumeTimer = null
+  }
+}
+
+function clearPreviewFitRepairTimer() {
+  if (previewFitRepairTimer != null) {
+    window.clearTimeout(previewFitRepairTimer)
+    previewFitRepairTimer = null
+  }
+}
+
+function repairPreviewFitIfNeeded() {
+  if (!iframeLoaded.value || previewSuspended.value) return
+  const metrics = getPreviewScrollMetrics()
+  if (!metrics || !shouldRepairTypstPreviewFit(metrics)) return
+  notifyPreviewResize()
+}
+
+function schedulePreviewFitRepair(delayMs = PREVIEW_FIT_REPAIR_SETTLE_MS) {
+  clearPreviewFitRepairTimer()
+  previewFitRepairTimer = window.setTimeout(() => {
+    previewFitRepairTimer = null
+    repairPreviewFitIfNeeded()
+  }, Math.max(0, Number(delayMs || 0)))
+}
+
+function schedulePreviewResume(delayMs = RESIZE_SUSPEND_SETTLE_MS) {
+  clearPreviewResumeTimer()
+  previewResumeTimer = window.setTimeout(() => {
+    previewResumeTimer = null
+    previewSuspended.value = false
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        notifyPreviewResize()
+        schedulePreviewFitRepair()
+      })
+    })
+  }, Math.max(0, Number(delayMs || 0)))
+}
+
+function suspendPreviewForResize(delayMs = RESIZE_SUSPEND_SETTLE_MS) {
+  if (!previewUrl.value || !iframeLoaded.value) return
+  previewSuspended.value = true
+  schedulePreviewResume(delayMs)
+}
+
+function resetShellResizeTracking() {
+  clearPreviewResumeTimer()
+  clearPreviewFitRepairTimer()
+  previewSuspended.value = false
+  lastObservedShellSize = { width: 0, height: 0 }
+}
+
+function observeShellResize() {
+  if (typeof ResizeObserver !== 'function' || shellResizeObserver || !shellRef.value) return
+  shellResizeObserver = new ResizeObserver((entries) => {
+    const entry = entries[0]
+    if (!entry) return
+    const width = Math.round(entry.contentRect?.width || 0)
+    const height = Math.round(entry.contentRect?.height || 0)
+    if (width <= 0 || height <= 0) return
+
+    const widthDelta = Math.abs(width - lastObservedShellSize.width)
+    const heightDelta = Math.abs(height - lastObservedShellSize.height)
+    lastObservedShellSize = { width, height }
+
+    if (widthDelta < RESIZE_SUSPEND_DELTA_PX && heightDelta < RESIZE_SUSPEND_DELTA_PX) {
+      if (previewSuspended.value) schedulePreviewResume()
+      return
+    }
+
+    suspendPreviewForResize()
+  })
+  shellResizeObserver.observe(shellRef.value)
+}
+
+function clearShellResizeTracking() {
+  if (shellResizeObserver) {
+    shellResizeObserver.disconnect()
+    shellResizeObserver = null
+  }
+  resetShellResizeTracking()
+}
+
+function installPreviewInteractionGuards() {
+  const frameDocument = iframeRef.value?.contentWindow?.document
+  if (!frameDocument || frameDocument.__altalsTypstHoverGuardInstalled) return
+
+  const guardHoverEvent = (event) => {
+    if (!hoverSuppressed) return
+    event.stopImmediatePropagation()
+    event.stopPropagation()
+  }
+
+  try {
+    frameDocument.addEventListener('mousemove', guardHoverEvent, true)
+    frameDocument.addEventListener('mouseleave', guardHoverEvent, true)
+    frameDocument.__altalsTypstHoverGuardInstalled = true
+  } catch {
+    // Ignore iframe bootstrap races.
+  }
+}
+
+function installPreviewFitRepair() {
+  const frameDocument = iframeRef.value?.contentWindow?.document
+  const scrollContainer = frameDocument?.getElementById('typst-container-main')
+  if (!scrollContainer || scrollContainer.__altalsTypstFitRepairInstalled) return
+
+  const handleScroll = () => {
+    schedulePreviewFitRepair()
+  }
+
+  try {
+    scrollContainer.addEventListener('scroll', handleScroll, { passive: true })
+    scrollContainer.__altalsTypstFitRepairInstalled = true
+  } catch {
+    // Ignore iframe bootstrap races.
+  }
+}
+
+function suppressPreviewHoverTemporarily(durationMs = 320) {
+  hoverSuppressed = true
+  if (hoverResumeTimer != null) {
+    window.clearTimeout(hoverResumeTimer)
+    hoverResumeTimer = null
+  }
+  hoverResumeTimer = window.setTimeout(() => {
+    hoverResumeTimer = null
+    hoverSuppressed = false
+  }, Math.max(0, Number(durationMs || 0)))
+}
+
+function clearHoverSuppression() {
+  hoverSuppressed = false
+  if (hoverResumeTimer != null) {
+    window.clearTimeout(hoverResumeTimer)
+    hoverResumeTimer = null
+  }
 }
 
 async function handleScrollSource(location) {
@@ -268,6 +401,7 @@ async function handleScrollSource(location) {
   await revealTypstSourceLocation(editorStore, location, {
     center: true,
     paneId: preferredSourcePaneId.value,
+    suppressPreviewSync: true,
   })
 }
 
@@ -281,27 +415,30 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  previewLoadToken += 1
   window.removeEventListener('typst-forward-sync-location', handleForwardSyncRequest)
   unsubscribeScrollSource?.()
   unsubscribeScrollSource = null
-  resizeObserver?.disconnect()
-  resizeObserver = null
-  clearPreviewResumeTimer()
+  clearShellResizeTracking()
+  clearHoverSuppression()
+  replacePreviewUrl('')
 })
 
 watch(
   [() => props.filePath, () => props.sourcePath, () => props.rootPath, () => workspace.path],
   () => {
     void ensurePreviewReady()
-  }
+  },
 )
 
 watch(
   [() => workspace.leftSidebarOpen, () => workspace.rightSidebarOpen],
   ([nextLeftOpen, nextRightOpen], [prevLeftOpen, prevRightOpen]) => {
     if (nextLeftOpen === prevLeftOpen && nextRightOpen === prevRightOpen) return
+    if (!iframeLoaded.value) return
+    suppressPreviewHoverTemporarily()
     suspendPreviewForResize(TOGGLE_SUSPEND_SETTLE_MS)
-  }
+  },
 )
 </script>
 
@@ -345,8 +482,8 @@ watch(
   inset: 0;
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, var(--shell-preview-surface) 94%, transparent) 0%,
-    var(--shell-preview-surface) 100%
+    color-mix(in srgb, var(--shell-editor-surface) 94%, transparent) 0%,
+    var(--shell-editor-surface) 100%
   );
 }
 </style>

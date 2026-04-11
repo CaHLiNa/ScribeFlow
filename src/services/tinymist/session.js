@@ -3,6 +3,8 @@ import { invoke } from '@tauri-apps/api/core'
 const textEncoder = new TextEncoder()
 const textDecoder = new TextDecoder('utf-8')
 const HEADER_SEPARATOR = new Uint8Array([13, 10, 13, 10]) // \r\n\r\n
+const TINYMIST_SYMBOL_REFRESH_DEBOUNCE_MS = 260
+const TINYMIST_SEMANTIC_TOKENS_REFRESH_DEBOUNCE_MS = 320
 
 function createDeferred() {
   let resolve
@@ -218,6 +220,8 @@ class TinymistSession {
     this.binaryPath = null
     this.activeSessionToken = 0
     this.semanticTokenLegend = null
+    this.symbolRefreshTimers = new Map()
+    this.semanticTokenRefreshTimers = new Map()
   }
 
   subscribeStatus(listener) {
@@ -259,11 +263,13 @@ class TinymistSession {
     if (this.latestDocumentSymbols.has(key)) {
       listener(this.latestDocumentSymbols.get(key))
     }
+    void this.scheduleDocumentSymbolsRefresh(key)
 
     return () => {
       listeners.delete(listener)
       if (listeners.size === 0) {
         this.symbolSubscribers.delete(key)
+        this.clearDocumentSymbolsRefresh(key)
       }
     }
   }
@@ -282,13 +288,69 @@ class TinymistSession {
         legend: this.semanticTokenLegend,
       })
     }
+    void this.scheduleSemanticTokensRefresh(key)
 
     return () => {
       listeners.delete(listener)
       if (listeners.size === 0) {
         this.semanticTokenSubscribers.delete(key)
+        this.clearSemanticTokensRefresh(key)
       }
     }
+  }
+
+  clearDocumentSymbolsRefresh(filePath) {
+    const timer = this.symbolRefreshTimers.get(filePath)
+    if (timer != null) {
+      clearTimeout(timer)
+      this.symbolRefreshTimers.delete(filePath)
+    }
+  }
+
+  clearSemanticTokensRefresh(filePath) {
+    const timer = this.semanticTokenRefreshTimers.get(filePath)
+    if (timer != null) {
+      clearTimeout(timer)
+      this.semanticTokenRefreshTimers.delete(filePath)
+    }
+  }
+
+  async scheduleDocumentSymbolsRefresh(filePath, delay = TINYMIST_SYMBOL_REFRESH_DEBOUNCE_MS) {
+    const key = String(filePath || '')
+    if (!key) return []
+    if (!this.symbolSubscribers.has(key) || this.symbolSubscribers.get(key)?.size === 0) {
+      this.clearDocumentSymbolsRefresh(key)
+      return []
+    }
+
+    this.clearDocumentSymbolsRefresh(key)
+
+    return new Promise((resolve) => {
+      const timer = setTimeout(async () => {
+        this.symbolRefreshTimers.delete(key)
+        resolve(await this.refreshDocumentSymbols(key))
+      }, delay)
+      this.symbolRefreshTimers.set(key, timer)
+    })
+  }
+
+  async scheduleSemanticTokensRefresh(filePath, delay = TINYMIST_SEMANTIC_TOKENS_REFRESH_DEBOUNCE_MS) {
+    const key = String(filePath || '')
+    if (!key) return null
+    if (!this.semanticTokenSubscribers.has(key) || this.semanticTokenSubscribers.get(key)?.size === 0) {
+      this.clearSemanticTokensRefresh(key)
+      return null
+    }
+
+    this.clearSemanticTokensRefresh(key)
+
+    return new Promise((resolve) => {
+      const timer = setTimeout(async () => {
+        this.semanticTokenRefreshTimers.delete(key)
+        resolve(await this.refreshSemanticTokens(key))
+      }, delay)
+      this.semanticTokenRefreshTimers.set(key, timer)
+    })
   }
 
   subscribeNotification(method, listener) {
@@ -490,8 +552,8 @@ class TinymistSession {
       },
     })
 
-    void this.refreshDocumentSymbols(filePath)
-    void this.refreshSemanticTokens(filePath)
+    void this.scheduleDocumentSymbolsRefresh(filePath, 0)
+    void this.scheduleSemanticTokensRefresh(filePath, 0)
 
     return true
   }
@@ -512,8 +574,8 @@ class TinymistSession {
       contentChanges: [{ text }],
     })
 
-    void this.refreshDocumentSymbols(filePath)
-    void this.refreshSemanticTokens(filePath)
+    void this.scheduleDocumentSymbolsRefresh(filePath)
+    void this.scheduleSemanticTokensRefresh(filePath)
 
     return true
   }
@@ -526,6 +588,8 @@ class TinymistSession {
     this.latestDiagnostics.delete(filePath)
     this.latestDocumentSymbols.delete(filePath)
     this.latestSemanticTokens.delete(filePath)
+    this.clearDocumentSymbolsRefresh(filePath)
+    this.clearSemanticTokensRefresh(filePath)
     this.emitDocumentSymbols(filePath, [])
     this.emitSemanticTokens(filePath, null)
     await this.notify('textDocument/didClose', {
@@ -910,6 +974,12 @@ class TinymistSession {
     this.latestDiagnostics.clear()
     this.latestDocumentSymbols.clear()
     this.latestSemanticTokens.clear()
+    for (const filePath of this.symbolRefreshTimers.keys()) {
+      this.clearDocumentSymbolsRefresh(filePath)
+    }
+    for (const filePath of this.semanticTokenRefreshTimers.keys()) {
+      this.clearSemanticTokensRefresh(filePath)
+    }
     this.emitStatus()
 
     for (const [, deferred] of this.pendingRequests) {

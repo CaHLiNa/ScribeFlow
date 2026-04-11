@@ -468,7 +468,7 @@ function treeNewItemPadding(depth) {
 
 .file-tree-item-label.is-active {
   color: var(--text-primary);
-  font-weight: 560;
+  font-weight: 600;
 }
 
 .file-tree-item-match {

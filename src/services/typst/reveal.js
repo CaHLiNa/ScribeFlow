@@ -1,5 +1,6 @@
 import { focusEditorRangeWithHighlight } from '../../editor/revealHighlight'
 import { tinymistRangeToOffsets } from '../tinymist/textEdits.js'
+import { suppressTypstSelectionPreviewSync } from './previewSelectionSync.js'
 
 const VIEW_WAIT_TIMEOUT_MS = 1500
 
@@ -33,6 +34,9 @@ export function focusTypstSourceLocation(targetView, location, options = {}) {
 export async function revealTypstSourceLocation(editorStore, location, options = {}) {
   const targetPath = String(location?.filePath || '')
   if (!targetPath) return false
+  if (options.suppressPreviewSync !== false) {
+    suppressTypstSelectionPreviewSync(targetPath, Number(options.suppressDurationMs || 420))
+  }
 
   const existingPaneId = editorStore?.findPaneWithTab?.(targetPath)?.id || ''
   const preferredPaneId = String(options.paneId || existingPaneId || '')

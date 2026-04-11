@@ -13,9 +13,11 @@ import {
   decreaseWorkspaceZoom,
   increaseWorkspaceZoom,
   normalizeAppZoomPercent,
+  normalizeEditorFontSize,
   persistStoredString,
   resetWorkspaceZoom,
   restoreWorkspaceTheme,
+  setWorkspaceEditorFontSize,
   setWorkspaceProseFont,
   setWorkspaceTheme,
   setWorkspaceZoomPercent,
@@ -274,6 +276,10 @@ export const useWorkspaceStore = defineStore('workspace', {
       applyWorkspaceFontSizes(this.editorFontSize, this.uiFontSize)
     },
 
+    setEditorFontSize(value) {
+      this.editorFontSize = setWorkspaceEditorFontSize(value)
+    },
+
     async applyAppZoom() {
       this.appZoomPercent = normalizeAppZoomPercent(this.appZoomPercent)
       await applyWorkspaceAppZoom(this.appZoomPercent)
@@ -286,6 +292,10 @@ export const useWorkspaceStore = defineStore('workspace', {
 
     restoreProseFont() {
       this.setProseFont(this.proseFont)
+    },
+
+    normalizeEditorFontSize() {
+      this.editorFontSize = normalizeEditorFontSize(this.editorFontSize)
     },
 
     setTheme(name) {

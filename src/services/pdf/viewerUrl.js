@@ -22,8 +22,9 @@ export function buildPdfViewerThemeOptions(options = {}) {
 
   return {
     forcePageColors: themedPages && !usePageFilterFallback && Boolean(pageBackground && pageForeground),
-    pageBackground: themedPages && !usePageFilterFallback ? pageBackground : '',
-    pageForeground: themedPages && !usePageFilterFallback ? pageForeground : '',
+    pageBackground: themedPages ? pageBackground : '',
+    pageForeground: themedPages ? pageForeground : '',
+    useCanvasFilterFallback: themedPages && usePageFilterFallback,
     viewerCssTheme: resolvedTheme === 'light' ? 1 : 2,
   }
 }
@@ -34,6 +35,9 @@ export function buildPdfViewerSrc(fileUrl, options = {}) {
 
   const params = new URLSearchParams()
   params.set('file', normalizedFileUrl)
+  params.set('maxcanvaspixels', String(2 ** 27))
+  params.set('mindurationtoupdatecanvas', '0')
+  params.set('enabledetailcanvas', 'true')
 
   if (options.forcePageColors) {
     params.set('forcepagecolors', 'true')
@@ -52,6 +56,10 @@ export function buildPdfViewerSrc(fileUrl, options = {}) {
   const viewerCssTheme = Number(options.viewerCssTheme || 0)
   if (Number.isInteger(viewerCssTheme) && viewerCssTheme > 0) {
     params.set('viewercsstheme', String(viewerCssTheme))
+  }
+
+  if (options.useCanvasFilterFallback) {
+    params.set('altalscanvasfilterfallback', 'true')
   }
 
   return `/pdfjs-viewer/web/viewer.html?${params.toString()}`

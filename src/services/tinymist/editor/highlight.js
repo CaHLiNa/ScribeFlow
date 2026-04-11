@@ -4,9 +4,7 @@ import {
   subscribeTinymistSemanticTokens,
   subscribeTinymistStatus,
 } from '../session.js'
-import {
-  tinymistPositionToOffset,
-} from '../textEdits.js'
+import { tinymistPositionToOffset } from '../textEdits.js'
 
 const HEADING_RE = /^(={1,6})(\s+)(.+)$/gm
 const COMMENT_RE = /\/\/.*$/gm

@@ -24,7 +24,6 @@ import {
 } from '../services/tinymist/diagnostics'
 
 const TINYMIST_SYNC_DEBOUNCE_MS = 180
-const TYPST_PROJECT_DIAGNOSTICS_DEBOUNCE_MS = 220
 
 export function useTypstDiagnostics(options) {
   const {
@@ -50,7 +49,6 @@ export function useTypstDiagnostics(options) {
   })
 
   let tinymistSyncTimer = null
-  let projectDiagnosticsTimer = null
   let cleanupTinymistDiagnostics = null
   let cleanupTinymistStatus = null
   let tinymistDocumentOpen = false
@@ -64,13 +62,6 @@ export function useTypstDiagnostics(options) {
         [filePath]: text,
       },
     }).catch(() => [])
-  }
-
-  function scheduleProjectDiagnosticsRefresh(text) {
-    clearTimeout(projectDiagnosticsTimer)
-    projectDiagnosticsTimer = setTimeout(() => {
-      void refreshProjectDiagnostics(text)
-    }, TYPST_PROJECT_DIAGNOSTICS_DEBOUNCE_MS)
   }
 
   function getDocumentLineText(lineNumber) {
@@ -295,7 +286,6 @@ export function useTypstDiagnostics(options) {
   }
 
   function scheduleTinymistSync(text) {
-    scheduleProjectDiagnosticsRefresh(text)
     if (!typstUi.tinymistActive || !tinymistDocumentOpen) return
     clearTimeout(tinymistSyncTimer)
     tinymistSyncTimer = setTimeout(() => {
@@ -306,8 +296,6 @@ export function useTypstDiagnostics(options) {
   async function disconnectTinymistDocument() {
     clearTimeout(tinymistSyncTimer)
     tinymistSyncTimer = null
-    clearTimeout(projectDiagnosticsTimer)
-    projectDiagnosticsTimer = null
 
     if (cleanupTinymistDiagnostics) {
       cleanupTinymistDiagnostics()

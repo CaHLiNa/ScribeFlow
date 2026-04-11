@@ -1349,6 +1349,29 @@ pub async fn synctex_backward(
     backward_sync(&data, page, x, y)
 }
 
+#[tauri::command]
+pub async fn read_latex_synctex(path: String) -> Result<String, String> {
+    let normalized = Path::new(&path);
+    if !normalized.exists() {
+        return Err("SyncTeX file not found.".to_string());
+    }
+
+    if path.ends_with(".gz") {
+        use std::io::Read;
+
+        let file = std::fs::File::open(normalized)
+            .map_err(|e| format!("Cannot open synctex: {}", e))?;
+        let mut decoder = flate2::read::GzDecoder::new(file);
+        let mut content = String::new();
+        decoder
+            .read_to_string(&mut content)
+            .map_err(|e| format!("Cannot decompress synctex: {}", e))?;
+        return Ok(content);
+    }
+
+    std::fs::read_to_string(normalized).map_err(|e| format!("Cannot read synctex: {}", e))
+}
+
 // --- SyncTeX parser ---
 
 const SYNCTEX_SCALED_POINT_TO_BIG_POINT: f64 = 72.0 / 72.27 / 65536.0;

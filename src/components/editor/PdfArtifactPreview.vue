@@ -1,5 +1,9 @@
 <template>
-  <div class="pdf-artifact-preview">
+  <div
+    ref="shellRef"
+    class="pdf-artifact-preview"
+    :class="{ 'is-resize-suspended': previewSuspended }"
+  >
     <iframe
       v-if="viewerSrc"
       ref="iframeRef"
@@ -7,8 +11,15 @@
       :src="viewerSrc"
       class="pdf-artifact-preview__frame"
       :title="t('PDF preview')"
+      v-show="!previewSuspended || !iframeLoaded"
       @load="onIframeLoad"
     />
+
+    <div
+      v-if="previewSuspended && iframeLoaded && !loading && !loadError"
+      class="pdf-artifact-preview__freeze-mask"
+      aria-hidden="true"
+    ></div>
 
     <div
       v-if="loading"
@@ -49,6 +60,12 @@ import {
   requestLatexPdfForwardSync,
   writePdfArtifactBase64,
 } from '../../services/pdf/artifactPreview.js'
+import { resolveLatexSyncTargetPath } from '../../services/latex/previewSync.js'
+import {
+  dispatchLatexBackwardSync,
+  resolveLatexPdfReverseSyncPayload,
+  scrollPdfPreviewToPoint,
+} from '../../services/latex/pdfPreviewSync.js'
 import {
   buildPdfViewerSrc,
   buildPdfViewerThemeOptions,
@@ -71,16 +88,28 @@ const typstStore = useTypstStore()
 const { t } = useI18n()
 
 const iframeRef = ref(null)
+const shellRef = ref(null)
 const viewerSrc = ref(null)
 const loading = ref(true)
 const loadError = ref('')
 const viewerKey = ref(0)
+const iframeLoaded = ref(false)
+const previewSuspended = ref(false)
+const latexViewerReady = ref(false)
 
 let currentBlobUrl = null
 let pdfSaveInProgress = false
 let lastHandledForwardSyncId = 0
 let pendingForwardSync = null
 let loadToken = 0
+let resizeObserver = null
+let previewResumeTimer = null
+let lastObservedShellSize = { width: 0, height: 0 }
+let latexReverseSyncCleanup = null
+
+const RESIZE_SUSPEND_SETTLE_MS = 140
+const TOGGLE_SUSPEND_SETTLE_MS = 320
+const RESIZE_SUSPEND_DELTA_PX = 1
 
 const compileState = computed(() => {
   if (props.kind === 'latex') return latexStore.stateForFile(props.sourcePath) || null
@@ -89,6 +118,15 @@ const compileState = computed(() => {
 })
 
 const artifactVersion = computed(() => compileState.value?.lastCompiled || '')
+
+async function ensureLatexSynctexState() {
+  if (props.kind !== 'latex') return
+  const pdfPath = String(compileState.value?.pdfPath || props.artifactPath || '').trim()
+  if (!pdfPath || String(compileState.value?.synctexPath || '').trim()) return
+  await latexStore.registerExistingArtifact?.(props.sourcePath, pdfPath, {
+    targetPath: compileState.value?.compileTargetPath || '',
+  })
+}
 
 function getResolvedTheme() {
   if (typeof document === 'undefined') return 'dark'
@@ -133,6 +171,67 @@ function revokeCurrentBlobUrl() {
   currentBlobUrl = null
 }
 
+function clearPreviewResumeTimer() {
+  if (previewResumeTimer !== null) {
+    window.clearTimeout(previewResumeTimer)
+    previewResumeTimer = null
+  }
+}
+
+function postLatexViewerMessage(type, payload = {}) {
+  const frameWindow = iframeRef.value?.contentWindow
+  if (!frameWindow) return false
+  frameWindow.postMessage({
+    channel: 'altals-latex-sync',
+    type,
+    ...payload,
+  }, '*')
+  return true
+}
+
+function schedulePreviewResume(delay = RESIZE_SUSPEND_SETTLE_MS) {
+  clearPreviewResumeTimer()
+  previewResumeTimer = window.setTimeout(() => {
+    previewResumeTimer = null
+    previewSuspended.value = false
+  }, delay)
+}
+
+function suspendPreviewForResize(delay = RESIZE_SUSPEND_SETTLE_MS) {
+  if (!viewerSrc.value || !iframeLoaded.value) return
+  previewSuspended.value = true
+  schedulePreviewResume(delay)
+}
+
+function resetShellResizeTracking() {
+  clearPreviewResumeTimer()
+  previewSuspended.value = false
+  lastObservedShellSize = { width: 0, height: 0 }
+}
+
+function observeShellResize() {
+  if (typeof ResizeObserver === 'undefined' || !shellRef.value) return
+  resizeObserver = new ResizeObserver((entries) => {
+    const entry = entries[0]
+    if (!entry) return
+    const width = Math.round(entry.contentRect?.width || 0)
+    const height = Math.round(entry.contentRect?.height || 0)
+    if (width <= 0 || height <= 0) return
+
+    const widthDelta = Math.abs(width - lastObservedShellSize.width)
+    const heightDelta = Math.abs(height - lastObservedShellSize.height)
+    lastObservedShellSize = { width, height }
+
+    if (widthDelta < RESIZE_SUSPEND_DELTA_PX && heightDelta < RESIZE_SUSPEND_DELTA_PX) {
+      if (previewSuspended.value) schedulePreviewResume()
+      return
+    }
+
+    suspendPreviewForResize()
+  })
+  resizeObserver.observe(shellRef.value)
+}
+
 function getViewerApp() {
   return iframeRef.value?.contentWindow?.PDFViewerApplication || null
 }
@@ -148,19 +247,16 @@ function shouldUseCanvasFilterFallback() {
 function applyCanvasFilterFallback() {
   const doc = iframeRef.value?.contentDocument
   if (!doc) return
+  const root = doc.documentElement
   const useFallback = shouldUseCanvasFilterFallback()
   const source = getComputedStyle(document.documentElement)
   const pageBackground = source.getPropertyValue('--shell-editor-surface').trim()
-  const pageNodes = doc.querySelectorAll('.pdfViewer .page')
-  const canvasNodes = doc.querySelectorAll('.pdfViewer .canvasWrapper canvas')
-
-  for (const pageNode of pageNodes) {
-    pageNode.style.backgroundColor = useFallback && pageBackground ? pageBackground : ''
-  }
-
-  for (const canvasNode of canvasNodes) {
-    canvasNode.style.filter = useFallback ? 'invert(1) hue-rotate(180deg)' : ''
-  }
+  root.dataset.altalsCanvasFilterFallback = useFallback ? 'true' : 'false'
+  root.style.setProperty('--altals-pdf-page-bg', useFallback && pageBackground ? pageBackground : '')
+  root.style.setProperty(
+    '--altals-pdf-canvas-filter',
+    useFallback ? 'invert(1) hue-rotate(180deg) contrast(1.08) brightness(1.05)' : 'none',
+  )
 }
 
 function applyTheme() {
@@ -197,7 +293,7 @@ function getViewerThemeOptions() {
     resolvedTheme: getResolvedTheme(),
     usePageFilterFallback: shouldUseCanvasFilterFallback(),
     pageBackground: source.getPropertyValue('--shell-editor-surface').trim(),
-    pageForeground: source.getPropertyValue('--text-primary').trim(),
+    pageForeground: source.getPropertyValue('--workspace-ink').trim(),
   })
 }
 
@@ -232,63 +328,78 @@ async function savePdfToDisk() {
 }
 
 function scrollToPdfPoint(point = {}) {
-  const app = getViewerApp()
-  const page = Number(point.page || 0)
-  const x = Number(point.x)
-  const y = Number(point.y)
-  if (!app?.pdfViewer || !Number.isInteger(page) || page < 1) return false
-
-  if (Number.isFinite(x) && Number.isFinite(y)) {
-    app.pdfViewer.scrollPageIntoView({
-      pageNumber: page,
-      destArray: [null, { name: 'XYZ' }, x, y, null],
-      allowNegativeOffset: true,
-    })
-    return true
-  }
-
-  app.pdfViewer.scrollPageIntoView({ pageNumber: page })
-  return true
+  return scrollPdfPreviewToPoint({
+    app: getViewerApp(),
+    doc: iframeRef.value?.contentDocument,
+    point,
+  })
 }
 
-async function handlePdfDoubleClick(event) {
+function flushPendingLatexForwardSync() {
+  if (props.kind !== 'latex' || !pendingForwardSync) return false
+  const point = pendingForwardSync
+  const scrolled = scrollToPdfPoint(point)
+  if (latexViewerReady.value) {
+    postLatexViewerMessage('synctex', { data: point })
+  }
+  if (scrolled) {
+    pendingForwardSync = null
+  }
+  return scrolled
+}
+
+async function handleLatexViewerReverseSync(detail = {}) {
   if (props.kind !== 'latex') return
-
-  const pageDom = event.target instanceof Element
-    ? event.target.closest('.page')
-    : null
-  const pageNumber = Number(pageDom?.dataset?.pageNumber || 0)
-  if (!pageDom || !Number.isInteger(pageNumber) || pageNumber < 1) return
-
-  const app = getViewerApp()
-  const pageView = app?.pdfViewer?._pages?.[pageNumber - 1]
-  const viewerContainer = iframeRef.value?.contentDocument?.getElementById('viewerContainer')
-  const canvasDom = pageDom.getElementsByTagName('canvas')[0]
-  const canvasWrapper = pageDom.getElementsByClassName('canvasWrapper')[0]
-  if (!pageView || !viewerContainer || !canvasDom || !canvasWrapper) return
-
-  const left = event.pageX - pageDom.offsetLeft + viewerContainer.scrollLeft - canvasWrapper.offsetLeft
-  const top = event.pageY - pageDom.offsetTop + viewerContainer.scrollTop - canvasWrapper.offsetTop
-  const pos = pageView.getPagePoint(left, canvasDom.offsetHeight - top)
-  if (!Array.isArray(pos) || pos.length < 2) return
-
   const synctexPath = String(compileState.value?.synctexPath || '').trim()
   if (!synctexPath) return
 
   try {
     const result = await requestLatexPdfBackwardSync({
       synctexPath,
-      page: pageNumber,
-      x: Number(pos[0]),
-      y: Number(pos[1]),
+      page: Number(detail.page || 0),
+      x: Number(detail.pos?.[0]),
+      y: Number(detail.pos?.[1]),
     })
     if (result?.file && result?.line) {
-      window.dispatchEvent(new CustomEvent('latex-backward-sync', {
-        detail: result,
-      }))
+      const resolvedFile = resolveLatexSyncTargetPath(result.file, {
+        sourcePath: props.sourcePath,
+        compileTargetPath: compileState.value?.compileTargetPath || '',
+        workspacePath: workspace.path || '',
+      })
+      dispatchLatexBackwardSync(window, {
+        ...result,
+        file: resolvedFile || result.file,
+        textBeforeSelection: String(detail.textBeforeSelection || ''),
+        textAfterSelection: String(detail.textAfterSelection || ''),
+      })
     }
-  } catch {
+  } catch (error) {
     // Ignore backward sync failures and leave the viewer stable.
+  }
+}
+
+async function handlePdfDoubleClick(event) {
+  if (props.kind !== 'latex') return
+  const detail = resolveLatexPdfReverseSyncPayload({
+    event,
+    frameWindow: iframeRef.value?.contentWindow,
+  })
+  if (!detail) return
+  await handleLatexViewerReverseSync(detail)
+}
+
+function installLatexReverseSyncHandlers() {
+  if (props.kind !== 'latex') return
+  const doc = iframeRef.value?.contentDocument
+  if (!doc) return
+
+  latexReverseSyncCleanup?.()
+  const handler = (event) => {
+    void handlePdfDoubleClick(event)
+  }
+  doc.addEventListener('dblclick', handler, true)
+  latexReverseSyncCleanup = () => {
+    doc.removeEventListener('dblclick', handler, true)
   }
 }
 
@@ -329,15 +440,18 @@ function installViewerPatches() {
       }
     }, true)
 
-    if (props.kind === 'latex') {
-      frameWindow.document.addEventListener('dblclick', (event) => {
-        void handlePdfDoubleClick(event)
-      }, true)
-    }
-
     const app = frameWindow.PDFViewerApplication
     if (app) {
-      app.eventBus?.on?.('pagesloaded', normalizeViewerChromeText)
+      app.eventBus?.on?.('pagesinit', () => {
+        latexViewerReady.value = true
+        flushPendingLatexForwardSync()
+      })
+      app.eventBus?.on?.('pagesloaded', () => {
+        normalizeViewerChromeText()
+        installLatexReverseSyncHandlers()
+        latexViewerReady.value = true
+        flushPendingLatexForwardSync()
+      })
       app.downloadOrSave = async function downloadOrSavePatched() {
         const { classList } = this.appConfig.appContainer
         classList.add('wait')
@@ -347,12 +461,16 @@ function installViewerPatches() {
       app.download = async () => savePdfToDisk()
       app.save = async () => savePdfToDisk()
     }
+
+    installLatexReverseSyncHandlers()
   } catch {
     // Same-origin access can fail transiently during reload; the iframe can still render.
   }
 }
 
 function onIframeLoad() {
+  iframeLoaded.value = true
+  latexViewerReady.value = props.kind !== 'latex'
   applyTheme()
   normalizeViewerChromeText()
   installViewerPatches()
@@ -361,8 +479,12 @@ function onIframeLoad() {
   loadError.value = ''
 
   if (pendingForwardSync) {
-    scrollToPdfPoint(pendingForwardSync)
-    pendingForwardSync = null
+    if (props.kind === 'latex') {
+      flushPendingLatexForwardSync()
+    } else {
+      scrollToPdfPoint(pendingForwardSync)
+      pendingForwardSync = null
+    }
   }
 }
 
@@ -373,12 +495,14 @@ async function loadPdf() {
 
   loading.value = true
   loadError.value = ''
+  iframeLoaded.value = false
 
   revokeCurrentBlobUrl()
 
   if (!artifactPath) {
     viewerSrc.value = null
     loading.value = false
+    resetShellResizeTracking()
     return
   }
 
@@ -390,16 +514,36 @@ async function loadPdf() {
     currentBlobUrl = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }))
     viewerSrc.value = buildPdfViewerSrc(currentBlobUrl, getViewerThemeOptions())
     viewerKey.value += 1
+    resetShellResizeTracking()
   } catch (error) {
     if (currentToken !== loadToken) return
     viewerSrc.value = null
     loadError.value = error?.message || String(error || t('Could not load PDF'))
     loading.value = false
+    resetShellResizeTracking()
   }
 }
 
 function reloadPdf() {
   void loadPdf()
+}
+
+async function handleIframeViewerMessage(event) {
+  const data = event.data
+  if (!data || data.channel !== 'altals-latex-sync') return
+
+  if (data.type === 'loaded' || data.type === 'pagesinit') {
+    latexViewerReady.value = true
+    if (pendingForwardSync) {
+      postLatexViewerMessage('synctex', { data: pendingForwardSync })
+      pendingForwardSync = null
+    }
+    return
+  }
+
+  if (data.type === 'reverse_synctex') {
+    await handleLatexViewerReverseSync(data)
+  }
 }
 
 watch(
@@ -422,9 +566,18 @@ function handleWorkspaceThemeUpdated() {
 watch(
   () => [props.artifactPath, artifactVersion.value],
   () => {
+    void ensureLatexSynctexState()
     void loadPdf()
   },
   { immediate: true },
+)
+
+watch(
+  [() => workspace.leftSidebarOpen, () => workspace.rightSidebarOpen],
+  ([nextLeftOpen, nextRightOpen], [prevLeftOpen, prevRightOpen]) => {
+    if (nextLeftOpen === prevLeftOpen && nextRightOpen === prevRightOpen) return
+    suspendPreviewForResize(TOGGLE_SUSPEND_SETTLE_MS)
+  }
 )
 
 watch(
@@ -452,11 +605,19 @@ watch(
           x: Number(result.x),
           y: Number(result.y),
         }
-        if (!scrollToPdfPoint(point)) {
+        if (props.kind === 'latex') {
+          const scrolled = scrollToPdfPoint(point)
+          if (latexViewerReady.value) {
+            postLatexViewerMessage('synctex', { data: point })
+          }
+          if (!scrolled) {
+            pendingForwardSync = point
+          }
+        } else if (!scrollToPdfPoint(point)) {
           pendingForwardSync = point
         }
       }
-    } catch {
+    } catch (error) {
       emit('open-external')
     } finally {
       latexStore.clearForwardSync(props.sourcePath, request.id)
@@ -466,13 +627,22 @@ watch(
 
 onMounted(() => {
   window.addEventListener('workspace-theme-updated', handleWorkspaceThemeUpdated)
+  window.addEventListener('message', handleIframeViewerMessage)
+  observeShellResize()
+  void ensureLatexSynctexState()
   void loadPdf()
 })
 
 onUnmounted(() => {
   window.removeEventListener('workspace-theme-updated', handleWorkspaceThemeUpdated)
+  window.removeEventListener('message', handleIframeViewerMessage)
+  resizeObserver?.disconnect()
+  resizeObserver = null
+  clearPreviewResumeTimer()
   loadToken += 1
   pendingForwardSync = null
+  latexReverseSyncCleanup?.()
+  latexReverseSyncCleanup = null
   viewerSrc.value = null
   revokeCurrentBlobUrl()
 })
@@ -490,6 +660,8 @@ defineExpose({
   height: 100%;
   overflow: hidden;
   background: var(--shell-editor-surface);
+  contain: strict;
+  isolation: isolate;
 }
 
 .pdf-artifact-preview__frame {
@@ -510,6 +682,17 @@ defineExpose({
   padding: 20px;
   text-align: center;
   color: var(--text-secondary);
+  background: var(--shell-editor-surface);
+}
+
+.pdf-artifact-preview__freeze-mask {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--shell-editor-surface) 94%, transparent) 0%,
+    var(--shell-editor-surface) 100%
+  );
 }
 
 .pdf-artifact-preview__error-title {

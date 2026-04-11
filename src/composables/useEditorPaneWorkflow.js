@@ -180,7 +180,7 @@ export function useEditorPaneWorkflow(options) {
       if (!artifactPath || !(await pathExists(artifactPath))) return
 
       if (adapter.kind === 'latex') {
-        latexStore.registerExistingArtifact?.(filePath, artifactPath)
+        await latexStore.registerExistingArtifact?.(filePath, artifactPath)
       } else if (adapter.kind === 'typst') {
         typstStore.registerExistingArtifact?.(filePath, artifactPath)
       }

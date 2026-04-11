@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
+import { requestLatexWorkshopBackwardSync } from '../latex/latexWorkshopSynctex.js'
 
 export async function readPdfArtifactBase64(filePath) {
   const normalizedPath = String(filePath || '').trim()
@@ -37,7 +38,7 @@ export async function requestLatexPdfBackwardSync(options = {}) {
     return null
   }
 
-  return invoke('synctex_backward', {
+  return requestLatexWorkshopBackwardSync({
     synctexPath,
     page,
     x,

@@ -26,3 +26,11 @@ test('document workspace tab exposes only preview visibility as public configura
     'workspace tab v1 should not advertise resize or drag configuration',
   )
 })
+
+test('document workspace tab preview pane does not draw an internal divider strip', () => {
+  assert.equal(
+    /border-left\s*:/.test(componentSource),
+    false,
+    'preview pane should not render an extra separator bar between editor and preview',
+  )
+})

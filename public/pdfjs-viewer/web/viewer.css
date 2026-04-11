@@ -13,6 +13,53 @@
  * limitations under the License.
  */
 
+#synctex-indicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 100000;
+  border: 0.2em solid color-mix(in srgb, var(--altals-focus-ring, #3b82f6) 80%, white);
+  border-radius: 50%;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--altals-focus-ring, #3b82f6) 16%, transparent);
+}
+
+@keyframes synctex-indicator-fadeOut {
+  0% {
+    background-color: color-mix(in srgb, var(--altals-focus-ring, #3b82f6) 22%, transparent);
+  }
+  25% {
+    background-color: color-mix(in srgb, var(--altals-focus-ring, #3b82f6) 22%, transparent);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.synctex-indicator-rect {
+  position: absolute;
+  z-index: 100000;
+  background-color: color-mix(in srgb, var(--altals-focus-ring, #3b82f6) 28%, transparent);
+  pointer-events: none;
+  animation: synctex-indicator-fadeOut 1s forwards;
+}
+
+#synctex-indicator.show {
+  transition: none;
+  opacity: 0.9;
+  height: 0.7em;
+  width: 0.7em;
+}
+
+#synctex-indicator.hide {
+  transition: opacity 0.45s, height 0.45s, width 0.45s;
+  opacity: 0;
+  height: 5em;
+  width: 5em;
+}
+
 .messageBar{
   --closing-button-icon:url(images/messageBar_closingButton.svg);
   --message-bar-close-button-color:var(--text-primary-color);
@@ -8636,6 +8683,10 @@ body{
   transform:translateY(-50%);
 }
 
+#toolbarViewerRight > :not(.altalsPageGroup){
+  display:none !important;
+}
+
 .altalsPageGroup{
   margin-left:0;
   display:flex;
@@ -8651,6 +8702,8 @@ body{
 #findbar,
 #previous,
 #next,
+#printButton,
+#downloadButton,
 #secondaryToolbarToggle,
 #secondaryToolbar,
 #toolbarContainer #toolbarViewer .toolbarButtonSpacer,
@@ -8716,8 +8769,8 @@ body{
   background:transparent;
   color:var(--altals-text-primary);
   font:inherit;
-  font-size:12px;
-  font-weight:600;
+  font-size:11px;
+  font-weight:500;
   line-height:22px;
   font-variant-numeric:tabular-nums;
   box-shadow:none !important;
@@ -8733,8 +8786,8 @@ body{
 #numPages.toolbarLabel{
   color:var(--altals-text-muted);
   font:inherit;
-  font-size:12px;
-  font-weight:600;
+  font-size:11px;
+  font-weight:500;
   line-height:22px;
   font-variant-numeric:tabular-nums;
 }
@@ -8758,7 +8811,7 @@ body{
   background:color-mix(in srgb, var(--altals-surface-base) 5%, transparent);
   color:var(--altals-text-primary);
   font:inherit;
-  font-size:12px;
+  font-size:11px;
   font-weight:500;
   line-height:22px;
   text-overflow:ellipsis;
@@ -8884,6 +8937,15 @@ body{
 #viewerContainer{
   inset:30px 0 0;
   background:var(--altals-shell-preview-surface);
+}
+
+html[data-altals-canvas-filter-fallback="true"] .pdfViewer .page{
+  background-color:var(--altals-pdf-page-bg) !important;
+}
+
+html[data-altals-canvas-filter-fallback="true"] .pdfViewer .canvasWrapper canvas,
+html[data-altals-canvas-filter-fallback="true"] #thumbnailsView .thumbnailImage :is(canvas, img){
+  filter:var(--altals-pdf-canvas-filter);
 }
 
 #outerContainer,

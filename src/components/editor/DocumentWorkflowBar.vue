@@ -295,8 +295,8 @@ const pdfActionIconSize = computed(() => (compactPaneBar.value ? 15 : 16))
   min-width: 0;
   flex: 1 1 auto;
   overflow: hidden;
-  font-size: 12px;
-  font-weight: 560;
+  font-size: var(--workbench-font-secondary);
+  font-weight: var(--workbench-weight-medium);
   line-height: 22px;
   color: color-mix(in srgb, var(--text-muted) 88%, transparent);
   white-space: nowrap;
@@ -315,8 +315,8 @@ const pdfActionIconSize = computed(() => (compactPaneBar.value ? 15 : 16))
   gap: 4px;
   min-width: 0;
   white-space: nowrap;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: var(--workbench-font-secondary);
+  font-weight: var(--workbench-weight-medium);
   line-height: 22px;
   color: color-mix(in srgb, var(--text-muted) 92%, transparent);
   opacity: 0.94;
@@ -325,17 +325,20 @@ const pdfActionIconSize = computed(() => (compactPaneBar.value ? 15 : 16))
 
 .workflow-kind {
   color: color-mix(in srgb, var(--text-primary) 86%, transparent);
-  font-weight: 600;
+  font-size: var(--workbench-font-primary);
+  font-weight: var(--workbench-weight-strong);
 }
 
 .workflow-phase {
   color: color-mix(in srgb, var(--text-muted) 86%, transparent);
-  font-weight: 560;
+  font-size: var(--workbench-font-secondary);
+  font-weight: var(--workbench-weight-medium);
 }
 
 .workflow-separator {
   color: color-mix(in srgb, var(--text-muted) 60%, transparent);
-  font-weight: 500;
+  font-size: var(--workbench-font-secondary);
+  font-weight: var(--workbench-weight-medium);
   opacity: 0.72;
 }
 
@@ -411,12 +414,10 @@ const pdfActionIconSize = computed(() => (compactPaneBar.value ? 15 : 16))
   color: color-mix(in srgb, var(--text-secondary) 86%, transparent);
   border-radius: 6px;
   background: transparent;
-  opacity: 0.9;
   box-shadow: none;
   transition:
     background-color 140ms ease,
     color 140ms ease,
-    opacity 140ms ease,
     box-shadow 140ms ease;
 }
 
@@ -427,7 +428,6 @@ const pdfActionIconSize = computed(() => (compactPaneBar.value ? 15 : 16))
   min-height: 31px;
   border-radius: 9px;
   color: color-mix(in srgb, var(--text-secondary) 78%, transparent);
-  opacity: 0.74;
 }
 
 .workflow-bar.is-shell-integrated .workflow-primary-btn,
@@ -437,27 +437,12 @@ const pdfActionIconSize = computed(() => (compactPaneBar.value ? 15 : 16))
   min-height: var(--shell-top-control-size);
   padding: 0;
   border-radius: var(--shell-top-control-radius);
-  opacity: 0.74;
   background: transparent;
   box-shadow: none;
 }
 
 .workflow-primary-btn {
   color: color-mix(in srgb, var(--text-secondary) 88%, transparent);
-}
-
-.workflow-bar:hover .workflow-primary-btn,
-.workflow-bar:hover .workflow-secondary-btn,
-.workflow-bar:focus-within .workflow-primary-btn,
-.workflow-bar:focus-within .workflow-secondary-btn {
-  opacity: 0.88;
-}
-
-.workflow-bar.is-inline-header:hover .workflow-primary-btn,
-.workflow-bar.is-inline-header:hover .workflow-secondary-btn,
-.workflow-bar.is-inline-header:focus-within .workflow-primary-btn,
-.workflow-bar.is-inline-header:focus-within .workflow-secondary-btn {
-  opacity: 0.82;
 }
 
 .workflow-primary-btn:hover:not(:disabled) {

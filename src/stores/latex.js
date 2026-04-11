@@ -6,6 +6,7 @@ import { useWorkspaceStore } from './workspace'
 import { t } from '../i18n'
 import { resolveCachedLatexRootPath, resolveLatexCompileTarget } from '../services/latex/root'
 import { resolveLatexProjectGraph } from '../services/latex/projectGraph'
+import { resolveExistingLatexSynctexPath } from '../services/latex/synctex'
 
 const COMPILER_CHECK_CACHE_MS = 5 * 60 * 1000
 const TOOL_CHECK_CACHE_MS = 5 * 60 * 1000
@@ -616,14 +617,18 @@ export const useLatexStore = defineStore('latex', {
       this.clearForwardSync(texPath)
     },
 
-    registerExistingArtifact(texPath, pdfPath, options = {}) {
+    async registerExistingArtifact(texPath, pdfPath, options = {}) {
       if (!texPath || !pdfPath) return null
       const targetKey = options.targetPath || resolveCachedLatexRootPath(texPath) || texPath
       const previous = this.compileState[texPath] || {}
+      const resolvedSynctexPath = previous.synctexPath
+        || options.synctexPath
+        || await resolveExistingLatexSynctexPath(pdfPath)
       const nextState = {
         ...previous,
         status: previous.status || 'idle',
         pdfPath,
+        synctexPath: resolvedSynctexPath || null,
         previewPath: previous.previewPath || pdfPath,
         compileTargetPath: previous.compileTargetPath || targetKey,
         projectRootPath: previous.projectRootPath || targetKey,

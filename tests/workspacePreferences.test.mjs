@@ -3,8 +3,10 @@ import assert from 'node:assert/strict'
 
 import {
   createWorkspacePreferenceState,
+  normalizeEditorFontSize,
   persistStoredString,
   restoreWorkspaceTheme,
+  setWorkspaceEditorFontSize,
   setWorkspaceTheme,
   toggleStoredBoolean,
 } from '../src/services/workspacePreferences.js'
@@ -47,6 +49,15 @@ function createMockDocument() {
     documentElement: {
       classList: createMockClassList(),
       dataset: {},
+      style: {
+        values: new Map(),
+        setProperty(key, value) {
+          this.values.set(key, value)
+        },
+        getPropertyValue(key) {
+          return this.values.get(key) || ''
+        },
+      },
     },
   }
 }
@@ -217,6 +228,44 @@ test('workspace preferences normalize any removed shell state onto the document 
     assert.equal(restored.leftSidebarPanel, 'files')
   } finally {
     globalThis.localStorage = previousLocalStorage
+  }
+})
+
+test('editor font size preference restores from storage and clamps invalid values', () => {
+  const previousLocalStorage = globalThis.localStorage
+
+  try {
+    globalThis.localStorage = createMockStorage({ editorFontSize: '16' })
+    assert.equal(createWorkspacePreferenceState().editorFontSize, 16)
+
+    globalThis.localStorage = createMockStorage({ editorFontSize: '99' })
+    assert.equal(createWorkspacePreferenceState().editorFontSize, 20)
+
+    globalThis.localStorage = createMockStorage({ editorFontSize: '0' })
+    assert.equal(createWorkspacePreferenceState().editorFontSize, 14)
+  } finally {
+    globalThis.localStorage = previousLocalStorage
+  }
+})
+
+test('setWorkspaceEditorFontSize persists and applies the editor font size variable', () => {
+  const previousLocalStorage = globalThis.localStorage
+  const previousDocument = globalThis.document
+
+  globalThis.localStorage = createMockStorage()
+  globalThis.document = createMockDocument()
+
+  try {
+    assert.equal(normalizeEditorFontSize(11), 12)
+    assert.equal(normalizeEditorFontSize(21), 20)
+
+    const nextValue = setWorkspaceEditorFontSize(16)
+    assert.equal(nextValue, 16)
+    assert.equal(globalThis.localStorage.getItem('editorFontSize'), '16')
+    assert.equal(globalThis.document.documentElement.style.getPropertyValue('--editor-font-size'), '16px')
+  } finally {
+    globalThis.localStorage = previousLocalStorage
+    globalThis.document = previousDocument
   }
 })
 

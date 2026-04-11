@@ -27,6 +27,37 @@ See https://github.com/adobe-type-tools/cmap-resources
     <meta name="google" content="notranslate" />
     <title>PDF.js viewer</title>
 
+    <script>
+      (() => {
+        const params = new URLSearchParams(window.location.search)
+        const pageBackground = params.get('pagecolorsbackground') || ''
+        const themeValue = params.get('viewercsstheme')
+        const useCanvasFilterFallback = params.get('altalscanvasfilterfallback') === 'true'
+        const mode = themeValue === '1' ? 'light' : 'dark'
+        const root = document.documentElement
+
+        root.style.colorScheme = mode
+        if (pageBackground) {
+          root.style.setProperty('--altals-boot-bg', pageBackground)
+          root.style.setProperty('--altals-shell-preview-surface', pageBackground)
+          root.style.setProperty('--altals-pdf-page-bg', pageBackground)
+        }
+        if (useCanvasFilterFallback) {
+          root.dataset.altalsCanvasFilterFallback = 'true'
+          root.style.setProperty(
+            '--altals-pdf-canvas-filter',
+            'invert(1) hue-rotate(180deg) contrast(1.08) brightness(1.05)'
+          )
+        }
+      })()
+    </script>
+    <style>
+      html,
+      body {
+        background: var(--altals-boot-bg, #141311);
+      }
+    </style>
+
 <!-- This snippet is used in production (included from viewer.html) -->
 <link rel="resource" type="application/l10n" href="locale/locale.json" />
 <script src="../build/pdf.mjs" type="module"></script>
@@ -34,6 +65,7 @@ See https://github.com/adobe-type-tools/cmap-resources
     <link rel="stylesheet" href="viewer.css" />
 
   <script src="viewer.mjs" type="module"></script>
+  <script src="altals-latex-sync.mjs" type="module"></script>
   </head>
 
   <body tabindex="0">

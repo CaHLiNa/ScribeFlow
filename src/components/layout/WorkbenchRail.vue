@@ -57,7 +57,6 @@
         <div
           :id="documentTitleTargetId"
           class="workbench-rail-title-slot"
-          data-window-drag-ignore="true"
         ></div>
         <div
           v-if="currentDocumentLabel && !preferExternalDocumentTitle"

@@ -5,11 +5,14 @@ import {
 } from '../tinymist/session.js'
 import { normalizeFsPath } from '../documentIntelligence/workspaceGraph.js'
 import { resolveCachedTypstRootPath } from './root.js'
+import { clearTypstPreviewDocumentCache } from './previewDocument.js'
 
 const TYPST_PREVIEW_TASK_ID = 'altals-typst-preview-sync'
 const DEFAULT_TIMEOUT_MS = 2500
 const PREVIEW_RETRY_DELAY_MS = 180
 const PREVIEW_RETRY_ATTEMPTS = 6
+const PREVIEW_START_RECOVERY_DELAY_MS = 120
+const PENDING_FORWARD_SYNC_TTL_MS = 1000
 
 const previewTaskState = {
   taskId: null,
@@ -23,6 +26,16 @@ const previewTaskState = {
 }
 
 const pendingForwardSyncByRoot = new Map()
+
+function nowMs() {
+  return Date.now()
+}
+
+function isPendingForwardSyncExpired(detail = {}, now = nowMs()) {
+  const createdAt = Number(detail?.createdAt ?? -1)
+  if (!Number.isFinite(createdAt) || createdAt < 0) return true
+  return now - createdAt > PENDING_FORWARD_SYNC_TTL_MS
+}
 
 function toNotificationJumpLocation(payload = {}) {
   const filePath = String(payload?.filepath || '')
@@ -77,23 +90,15 @@ function belongsToRootProject(sourcePath = '', rootPath = '', sourceRootPath = '
 }
 
 async function killPreviewTask(workspacePath = null) {
-  if (!previewTaskState.taskId) {
-    previewTaskState.rootPath = null
-    previewTaskState.workspacePath = workspacePath || null
-    previewTaskState.dataPlanePort = null
-    previewTaskState.staticServerPort = null
-    previewTaskState.previewUrl = ''
-    previewTaskState.startPromise = null
-    return
-  }
-
+  const stalePreviewUrl = previewTaskState.previewUrl
   try {
-    await requestTinymistExecuteCommand('tinymist.doKillPreview', [previewTaskState.taskId], {
+    await requestTinymistExecuteCommand('tinymist.doKillPreview', [], {
       workspacePath: workspacePath || previewTaskState.workspacePath || null,
     })
   } catch {
     // Ignore stale task errors and reset local state.
   } finally {
+    clearTypstPreviewDocumentCache(stalePreviewUrl)
     previewTaskState.taskId = null
     previewTaskState.rootPath = null
     previewTaskState.workspacePath = workspacePath || null
@@ -108,6 +113,32 @@ function buildPreviewUrl(staticServerPort) {
   const port = Number(staticServerPort || 0)
   if (!Number.isInteger(port) || port <= 0) return ''
   return `http://127.0.0.1:${port}`
+}
+
+export function buildTypstPreviewStartArgs(rootPath, options = {}) {
+  const normalizedRoot = normalizeFsPath(rootPath)
+  if (!normalizedRoot) return []
+
+  const taskId = String(options.taskId || TYPST_PREVIEW_TASK_ID)
+  const dataPlaneHost = String(options.dataPlaneHost || '127.0.0.1:0')
+  const previewMode = options.previewMode === 'slide' ? 'slide' : 'document'
+  const partialRendering = options.partialRendering !== false
+  const invertColors = options.invertColors == null ? 'auto' : String(options.invertColors)
+
+  return [
+    '--task-id',
+    taskId,
+    '--data-plane-host',
+    dataPlaneHost,
+    '--preview-mode',
+    previewMode,
+    '--partial-rendering',
+    partialRendering ? 'true' : 'false',
+    '--invert-colors',
+    invertColors,
+    ...(options.notPrimary === true ? ['--not-primary'] : []),
+    normalizedRoot,
+  ]
 }
 
 async function startPreviewTask(rootPath, options = {}) {
@@ -139,16 +170,14 @@ async function startPreviewTask(rootPath, options = {}) {
 
   await killPreviewTask(workspacePath || null)
 
-  const result = await requestTinymistExecuteCommand(
-    'tinymist.doStartPreview',
-    [[
-      '--task-id',
-      TYPST_PREVIEW_TASK_ID,
-      '--data-plane-host',
-      '127.0.0.1:0',
-      normalizedRoot,
-    ]],
-    { workspacePath },
+  const result = await startPreviewCommandWithRecovery(
+    buildTypstPreviewStartArgs(normalizedRoot, {
+      taskId: TYPST_PREVIEW_TASK_ID,
+      previewMode: 'document',
+      partialRendering: true,
+      invertColors: 'auto',
+    }),
+    workspacePath,
   )
 
   if (previewTaskState.startToken !== startToken) {
@@ -227,6 +256,40 @@ function shouldRetryPreviewSync(error) {
   return message.includes('not ready yet') || message.includes('timed out waiting')
 }
 
+export function shouldRecoverTypstPreviewStart(error) {
+  const message = String(error?.message || error || '').toLowerCase()
+  return message.includes('cannot register preview to the compiler instance')
+    || message.includes('failed to register background preview to the primary instance')
+}
+
+async function startPreviewCommandWithRecovery(previewArgs, workspacePath = '') {
+  try {
+    return await requestTinymistExecuteCommand(
+      'tinymist.doStartPreview',
+      [previewArgs],
+      { workspacePath },
+    )
+  } catch (error) {
+    if (!shouldRecoverTypstPreviewStart(error)) {
+      throw error
+    }
+
+    try {
+      await requestTinymistExecuteCommand('tinymist.doKillPreview', [], { workspacePath })
+    } catch {
+      // Ignore cleanup failures and let the retry surface the real error.
+    }
+
+    await new Promise(resolve => globalThis.setTimeout(resolve, PREVIEW_START_RECOVERY_DELAY_MS))
+
+    return requestTinymistExecuteCommand(
+      'tinymist.doStartPreview',
+      [previewArgs],
+      { workspacePath },
+    )
+  }
+}
+
 async function retryPreviewSync(operation) {
   let lastError = null
   for (let attempt = 0; attempt < PREVIEW_RETRY_ATTEMPTS; attempt += 1) {
@@ -262,6 +325,7 @@ function waitForScrollSource(timeoutMs = DEFAULT_TIMEOUT_MS) {
 
 subscribeTinymistNotification('tinymist/preview/dispose', (payload) => {
   if (String(payload?.taskId || '') !== TYPST_PREVIEW_TASK_ID) return
+  clearTypstPreviewDocumentCache(previewTaskState.previewUrl)
   previewTaskState.taskId = null
   previewTaskState.rootPath = null
   previewTaskState.dataPlanePort = null
@@ -404,6 +468,7 @@ export function rememberPendingTypstForwardSync(detail = {}) {
     rootPath,
     line,
     character,
+    createdAt: nowMs(),
   }
   pendingForwardSyncByRoot.set(rootPath, nextDetail)
 
@@ -438,7 +503,13 @@ export function clearPendingTypstForwardSync(detail = null, rootPath = '') {
 export function peekPendingTypstForwardSync(rootPath = '') {
   const normalizedRoot = normalizeFsPath(rootPath)
   if (!normalizedRoot) return null
-  return pendingForwardSyncByRoot.get(normalizedRoot) || null
+  const detail = pendingForwardSyncByRoot.get(normalizedRoot) || null
+  if (!detail) return null
+  if (isPendingForwardSyncExpired(detail)) {
+    pendingForwardSyncByRoot.delete(normalizedRoot)
+    return null
+  }
+  return detail
 }
 
 export function sourceBelongsToTypstPreviewRoot(sourcePath = '', rootPath = '', sourceRootPath = '') {
@@ -448,3 +519,5 @@ export function sourceBelongsToTypstPreviewRoot(sourcePath = '', rootPath = '', 
 export async function resetTypstPreviewSync(workspacePath = null) {
   await killPreviewTask(workspacePath)
 }
+
+export { PENDING_FORWARD_SYNC_TTL_MS }

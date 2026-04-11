@@ -1,10 +1,12 @@
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use std::io::Write;
+use std::net::IpAddr;
 use std::path::{Path, PathBuf};
 use tauri::Emitter;
 use tokio::time::{timeout, Duration};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
+use url::Url;
 
 use crate::app_dirs;
 use crate::process_utils::background_command;
@@ -188,6 +190,39 @@ fn find_tinymist() -> Option<ResolvedTinymistBinary> {
     })
 }
 
+fn validate_local_preview_url(raw_url: &str) -> Result<Url, String> {
+    let url = Url::parse(raw_url).map_err(|e| format!("Invalid preview URL: {e}"))?;
+
+    match url.scheme() {
+        "http" | "https" => {}
+        scheme => return Err(format!("Unsupported preview URL scheme: {scheme}")),
+    }
+
+    if !url.username().is_empty() || url.password().is_some() {
+        return Err("Embedded credentials are not allowed in preview URLs".to_string());
+    }
+
+    let host = url
+        .host_str()
+        .ok_or_else(|| "Preview URL has no host".to_string())?
+        .trim()
+        .to_lowercase();
+
+    if host == "localhost" {
+        return Ok(url);
+    }
+
+    let ip = host
+        .parse::<IpAddr>()
+        .map_err(|_| format!("Preview URL must target a local loopback host: {host}"))?;
+
+    if !ip.is_loopback() {
+        return Err(format!("Preview URL must target a local loopback host: {host}"));
+    }
+
+    Ok(url)
+}
+
 #[tauri::command]
 pub async fn check_tinymist_binary() -> Result<TinymistBinaryStatus, String> {
     let resolved = find_tinymist();
@@ -348,6 +383,35 @@ pub async fn download_tinymist(app: tauri::AppHandle) -> Result<String, String> 
     );
 
     Ok(result)
+}
+
+#[tauri::command]
+pub async fn typst_preview_fetch_document(url: String) -> Result<String, String> {
+    let target = validate_local_preview_url(&url)?;
+    let client = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| format!("Cannot create Tinymist preview client: {e}"))?;
+
+    let response = client
+        .get(target.clone())
+        .header("User-Agent", "Altals/1.0")
+        .send()
+        .await
+        .map_err(|e| format!("Cannot fetch Tinymist preview document: {e}"))?;
+
+    if !response.status().is_success() {
+        return Err(format!(
+            "Tinymist preview document request failed with HTTP {}",
+            response.status()
+        ));
+    }
+
+    response
+        .text()
+        .await
+        .map_err(|e| format!("Cannot read Tinymist preview document: {e}"))
 }
 
 async fn connect_preview_data_plane(

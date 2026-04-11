@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 
 import {
   resolveMarkdownPreviewInput,
+  resolveTypstForwardSyncRootPath,
   resolveTypstNativePreviewInput,
   resolveWorkspacePreviewSourcePath,
 } from '../src/domains/document/documentWorkspacePreviewAdapters.js'
@@ -88,4 +89,53 @@ test('typst native preview adapters fall back to cached root when compile target
     sourcePath: '/workspace/sections/intro.typ',
     rootPath: '/workspace/fallback.typ',
   })
+})
+
+test('typst forward sync root resolution prefers the active native preview session root', async () => {
+  const rootPath = await resolveTypstForwardSyncRootPath('/workspace/sections/intro.typ', {
+    activePreviewRootPath: '/workspace/main.typ',
+    resolveTypstCompileTargetImpl: async () => {
+      throw new Error('should not resolve compile target when preview session is active')
+    },
+  })
+
+  assert.equal(rootPath, '/workspace/main.typ')
+})
+
+test('typst forward sync root resolution reuses cached store state before project graph fallback', async () => {
+  const rootPath = await resolveTypstForwardSyncRootPath('/workspace/sections/intro.typ', {
+    typstStore: {
+      stateForFile(filePath) {
+        assert.equal(filePath, '/workspace/sections/intro.typ')
+        return {
+          projectRootPath: '/workspace/main.typ',
+        }
+      },
+    },
+    resolveTypstCompileTargetImpl: async () => {
+      throw new Error('should not resolve compile target when typst state already has a root')
+    },
+  })
+
+  assert.equal(rootPath, '/workspace/main.typ')
+})
+
+test('typst forward sync root resolution only falls back to compile target when no root context exists', async () => {
+  const rootPath = await resolveTypstForwardSyncRootPath('/workspace/sections/intro.typ', {
+    resolveCachedTypstRootPathImpl: () => '',
+    resolveTypstCompileTargetImpl: async (sourcePath, options) => {
+      assert.equal(sourcePath, '/workspace/sections/intro.typ')
+      assert.equal(options.workspacePath, '/workspace')
+      assert.deepEqual(options.contentOverrides, {
+        '/workspace/sections/intro.typ': '= Intro',
+      })
+      return '/workspace/main.typ'
+    },
+    workspacePath: '/workspace',
+    contentOverrides: {
+      '/workspace/sections/intro.typ': '= Intro',
+    },
+  })
+
+  assert.equal(rootPath, '/workspace/main.typ')
 })

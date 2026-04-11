@@ -30,9 +30,13 @@ const PROSE_FONT_STACKS = {
 
 const DEFAULT_EDITOR_FONT_SIZE = 14
 const DEFAULT_UI_FONT_SIZE = 13
+const MIN_EDITOR_FONT_SIZE = 12
+const MAX_EDITOR_FONT_SIZE = 20
 const DEFAULT_APP_ZOOM_PERCENT = 100
 const APP_ZOOM_KEY = 'appZoomPercent'
 const SYSTEM_THEME_MEDIA = '(prefers-color-scheme: dark)'
+
+export const EDITOR_FONT_SIZE_PRESETS = [12, 13, 14, 15, 16, 18]
 
 export const APP_ZOOM_PRESETS = [100]
 
@@ -105,7 +109,12 @@ export function normalizeAppZoomPercent(value) {
   return clamp(parsed, APP_ZOOM_PRESETS[0], APP_ZOOM_PRESETS[APP_ZOOM_PRESETS.length - 1])
 }
 
-function nearestAppZoomPreset(value) {
+export function normalizeEditorFontSize(value) {
+  const parsed = Math.round(Number(value) || DEFAULT_EDITOR_FONT_SIZE)
+  return clamp(parsed, MIN_EDITOR_FONT_SIZE, MAX_EDITOR_FONT_SIZE)
+}
+
+function _nearestAppZoomPreset(value) {
   const normalized = normalizeAppZoomPercent(value)
   return APP_ZOOM_PRESETS.reduce(
     (closest, preset) =>
@@ -127,7 +136,9 @@ function migrateLegacyFooterZoom(editorFontSize, uiFontSize, appZoomPercent) {
 }
 
 export function createWorkspacePreferenceState() {
-  const editorFontSize = readNumber('editorFontSize', DEFAULT_EDITOR_FONT_SIZE)
+  const editorFontSize = normalizeEditorFontSize(
+    readNumber('editorFontSize', DEFAULT_EDITOR_FONT_SIZE)
+  )
   const uiFontSize = readNumber('uiFontSize', DEFAULT_UI_FONT_SIZE)
   const storedAppZoomPercent = hasStoredValue(APP_ZOOM_KEY)
     ? normalizeAppZoomPercent(readNumber(APP_ZOOM_KEY, DEFAULT_APP_ZOOM_PERCENT))
@@ -217,7 +228,7 @@ export function setWorkspaceZoomPercent(percent) {
   return nextValue
 }
 
-function isAppleWebKitPlatform() {
+function _isAppleWebKitPlatform() {
   if (typeof navigator === 'undefined') return false
   const platform = String(navigator.platform || '').toLowerCase()
   const userAgent = String(navigator.userAgent || '').toLowerCase()
@@ -245,10 +256,22 @@ export async function applyWorkspaceAppZoom(percent) {
 }
 
 export function applyWorkspaceFontSizes(editorFontSize, uiFontSize) {
-  document.documentElement.style.setProperty('--editor-font-size', `${editorFontSize}px`)
+  document.documentElement.style.setProperty(
+    '--editor-font-size',
+    `${normalizeEditorFontSize(editorFontSize)}px`
+  )
   document.documentElement.style.setProperty('--ui-font-size', `${uiFontSize}px`)
-  writeValue('editorFontSize', editorFontSize)
+  writeValue('editorFontSize', normalizeEditorFontSize(editorFontSize))
   writeValue('uiFontSize', uiFontSize)
+}
+
+export function setWorkspaceEditorFontSize(editorFontSize) {
+  const nextValue = normalizeEditorFontSize(editorFontSize)
+  if (typeof document !== 'undefined') {
+    document.documentElement.style.setProperty('--editor-font-size', `${nextValue}px`)
+  }
+  writeValue('editorFontSize', nextValue)
+  return nextValue
 }
 
 export function setWorkspaceProseFont(name) {
