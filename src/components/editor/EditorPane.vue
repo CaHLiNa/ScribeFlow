@@ -20,11 +20,7 @@
       />
 
       <Teleport v-if="showIntegratedDocumentTitle" :to="integratedDocumentTitleTarget">
-        <div
-          ref="documentTitleWrapRef"
-          class="document-title-wrap document-title-wrap--rail"
-          data-window-drag-ignore="true"
-        >
+        <div ref="documentTitleWrapRef" class="document-title-wrap document-title-wrap--rail">
           <div class="document-title-cluster">
             <button
               type="button"
@@ -32,6 +28,7 @@
               :title="currentDocumentLabel"
               :aria-label="currentDocumentLabel"
               :aria-expanded="tabsMenuOpen ? 'true' : 'false'"
+              data-window-drag-ignore="true"
               @click="toggleTabsMenu"
             >
               <span class="document-title-label">{{ currentDocumentLabel }}</span>
@@ -50,7 +47,11 @@
             </button>
           </div>
 
-          <div v-if="tabsMenuOpen" class="document-tabs-menu document-tabs-menu--rail">
+          <div
+            v-if="tabsMenuOpen"
+            class="document-tabs-menu document-tabs-menu--rail"
+            data-window-drag-ignore="true"
+          >
             <div class="document-tabs-menu-list">
               <div
                 v-for="tab in tabs"
@@ -653,7 +654,9 @@ onUnmounted(() => {
 
 .document-title-wrap--rail {
   justify-content: center;
-  width: 100%;
+  flex: 0 1 auto;
+  width: auto;
+  max-width: 100%;
 }
 
 .document-title-cluster {
