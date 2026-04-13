@@ -76,6 +76,41 @@ test('pdf iframe surface locks semantic zoom during live shell resize and restor
   )
 })
 
+test('pdf iframe surface reloads viewer state when keep-alive deactivates and reactivates the workbench', () => {
+  assert.match(pdfIframeSurfaceSource, /import \{ computed, onActivated, onDeactivated, onMounted, onUnmounted, ref, watch \} from 'vue'/)
+  assert.match(pdfIframeSurfaceSource, /function activateViewerRuntime\(\)/)
+  assert.match(pdfIframeSurfaceSource, /function deactivateViewerRuntime\(\)/)
+  assert.match(pdfIframeSurfaceSource, /onActivated\(\(\) => \{\s*activateViewerRuntime\(\)\s*\}\)/)
+  assert.match(pdfIframeSurfaceSource, /onDeactivated\(\(\) => \{\s*deactivateViewerRuntime\(\)\s*\}\)/)
+  assert.match(pdfIframeSurfaceSource, /resetViewerRuntime\(\)/)
+  assert.match(pdfIframeSurfaceSource, /revokeCurrentBlobUrl\(\)/)
+})
+
+test('pdf iframe surface waits for pdf.js document events before declaring the preview loaded', () => {
+  assert.match(pdfIframeSurfaceSource, /app\.eventBus\?\.on\?\.\('documentloaded', handleDocumentLoaded\)/)
+  assert.match(pdfIframeSurfaceSource, /app\.eventBus\?\.on\?\.\('documenterror', handleDocumentError\)/)
+  assert.match(pdfIframeSurfaceSource, /const handleDocumentLoaded = \(\) => \{[\s\S]*loading\.value = false[\s\S]*loadError\.value = ''/s)
+  assert.match(pdfIframeSurfaceSource, /const handleDocumentError = \(event\) => \{[\s\S]*loading\.value = false[\s\S]*loadError\.value = String\(/s)
+  assert.doesNotMatch(pdfIframeSurfaceSource, /function onIframeLoad\(\)\s*\{[\s\S]*loading\.value = false[\s\S]*loadError\.value = ''[\s\S]*\}/)
+})
+
+test('pdf iframe surface falls back from workspace protocol URLs to blob loading when the viewer stalls', () => {
+  assert.match(pdfIframeSurfaceSource, /const PROTOCOL_LOAD_TIMEOUT_MS = 1200/)
+  assert.match(pdfIframeSurfaceSource, /const BLOB_LOAD_TIMEOUT_MS = 2200/)
+  assert.match(pdfIframeSurfaceSource, /void loadPdfWithStrategy\(\{ preferProtocol: false \}\)/)
+  assert.match(pdfIframeSurfaceSource, /loadError\.value = t\('PDF viewer did not finish rendering the document\.'\)/)
+})
+
+test('pdf iframe surface retries binding pdf.js runtime after iframe load when PDFViewerApplication is late', () => {
+  assert.match(pdfIframeSurfaceSource, /let viewerAppBindTimer = 0/)
+  assert.match(pdfIframeSurfaceSource, /function installViewerAppPatches\(options = \{\}\)/)
+  assert.match(pdfIframeSurfaceSource, /if \(!app\?\.eventBus\) \{/)
+  assert.match(pdfIframeSurfaceSource, /viewerAppBindTimer = window\.setTimeout\(\(\) => \{/)
+  assert.match(pdfIframeSurfaceSource, /installViewerAppPatches\(\{ attempt: nextAttempt \}\)/)
+  assert.match(pdfIframeSurfaceSource, /installViewerFramePatches\(\)/)
+  assert.match(pdfIframeSurfaceSource, /installViewerAppPatches\(\)/)
+})
+
 test('pdf viewer ships a zh-CN locale pack for common toolbar and zoom labels', () => {
   assert.equal(existsSync(viewerLocalePath), true)
   assert.match(viewerLocaleSource, /pdfjs-page-scale-auto = 自动缩放/)
@@ -90,6 +125,17 @@ test('pdf viewer zoom menu excludes auto and page-width, and defaults to page-fi
   assert.doesNotMatch(viewerHtmlSource, /id="pageWidthOption"/)
   assert.match(viewerHtmlSource, /id="pageFitOption" value="page-fit" selected="selected"/)
   assert.match(viewerRuntimeSource, /const DEFAULT_SCALE_VALUE = "page-fit";/)
+})
+
+test('pdf viewer allows app-generated blob urls for local preview documents', () => {
+  assert.match(viewerRuntimeSource, /if \(String\(file\)\.startsWith\("blob:"\)\) \{\s*return;\s*\}/)
+  assert.match(viewerRuntimeSource, /if \(String\(file\)\.startsWith\("altals-workspace:\/\/"\)\) \{\s*return;\s*\}/)
+})
+
+test('pdf viewer avoids relying on URL.parse so the bundled viewer still works in WebKit runtimes', () => {
+  assert.match(viewerRuntimeSource, /function parseUrlOrNull\(input, base = undefined\)/)
+  assert.match(viewerRuntimeSource, /typeof URL\.parse === "function"/)
+  assert.match(viewerRuntimeSource, /return new URL\(input, base\);/)
 })
 
 test('pdf viewer does not expose the grab-hand cursor tool in altals', () => {

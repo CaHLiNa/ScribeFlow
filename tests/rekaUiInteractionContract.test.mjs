@@ -55,6 +55,12 @@ test('context and dropdown surfaces use Reka dropdown menu primitives', () => {
   assert.match(sidebarMenu, /createPointReference/)
   assert.match(fileTree, /DropdownMenuRoot/)
   assert.match(fileTree, /resolveFloatingReference/)
+  assert.match(fileTree, /workspaceMenuStyle/)
+  assert.match(fileTree, /workspaceMenuPosition/)
+  assert.match(
+    fileTree,
+    /<Teleport to="body">[\s\S]*?class="context-menu file-tree-workspace-menu file-tree-workspace-menu-popover"[\s\S]*?right: `\$\{workspaceMenuPosition\.right\}px`\s*,[\s\S]*?bottom: `\$\{workspaceMenuPosition\.bottom\}px`/
+  )
 })
 
 test('transient overlays coordinate dismissal across app and hosted preview webviews', () => {

@@ -198,6 +198,10 @@ test('left sidebar panel preference defaults to files and restores the current v
     persistStoredString('leftSidebarPanel', 'files')
     const restored = createWorkspacePreferenceState()
     assert.equal(restored.leftSidebarPanel, 'files')
+
+    persistStoredString('leftSidebarPanel', 'references')
+    const restoredReferences = createWorkspacePreferenceState()
+    assert.equal(restoredReferences.leftSidebarPanel, 'references')
   } finally {
     globalThis.localStorage = previousLocalStorage
   }

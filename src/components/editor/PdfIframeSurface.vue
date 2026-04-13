@@ -43,7 +43,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onActivated, onDeactivated, onMounted, onUnmounted, ref, watch } from 'vue'
 
 import UiButton from '../shared/ui/UiButton.vue'
 import SurfaceContextMenu from '../shared/SurfaceContextMenu.vue'
@@ -67,6 +67,7 @@ import {
 } from '../../services/pdf/viewerUrl.js'
 import { createPdfViewerScaleLock } from '../../services/pdf/viewerResize.js'
 import { openExternalHttpUrl, resolveExternalHttpAnchor } from '../../services/externalLinks.js'
+import { toWorkspaceProtocolUrl } from '../../utils/workspaceProtocol.js'
 import { useSurfaceContextMenu } from '../../composables/useSurfaceContextMenu.js'
 import { useTransientOverlayDismiss } from '../../composables/useTransientOverlayDismiss'
 import { isShellResizeActive, SHELL_RESIZE_PHASE_EVENT } from '../../shared/shellResizeSignals.js'
@@ -76,6 +77,8 @@ const props = defineProps({
   artifactPath: { type: String, required: true },
   kind: { type: String, required: true },
   workspacePath: { type: String, default: '' },
+  workspaceDataDir: { type: String, default: '' },
+  globalConfigDir: { type: String, default: '' },
   compileState: { type: Object, default: null },
   documentVersion: { type: [String, Number], default: '' },
   forwardSyncRequest: { type: Object, default: null },
@@ -125,8 +128,15 @@ let pendingForwardSync = null
 let loadToken = 0
 let latexReverseSyncCleanup = null
 let viewerContextMenuCleanup = null
+let viewerAppEventCleanup = null
 let viewerScaleLock = null
+let viewerRuntimeActive = false
+let viewerLoadTimeout = 0
+let viewerAppBindTimer = 0
+let viewerFramePatchesInstalled = false
 const LATEX_SYNC_DEBUG_LOG = '.altals-latex-sync-debug.jsonl'
+const PROTOCOL_LOAD_TIMEOUT_MS = 1200
+const BLOB_LOAD_TIMEOUT_MS = 2200
 
 function getResolvedTheme() {
   return String(props.resolvedTheme || '')
@@ -187,6 +197,30 @@ function revokeCurrentBlobUrl() {
   if (!currentBlobUrl) return
   URL.revokeObjectURL(currentBlobUrl)
   currentBlobUrl = null
+}
+
+function resetViewerRuntime() {
+  loadToken += 1
+  pendingForwardSync = null
+  viewerScaleLock = null
+  latexViewerReady.value = false
+  if (viewerLoadTimeout) {
+    window.clearTimeout(viewerLoadTimeout)
+    viewerLoadTimeout = 0
+  }
+  if (viewerAppBindTimer) {
+    window.clearTimeout(viewerAppBindTimer)
+    viewerAppBindTimer = 0
+  }
+  viewerAppEventCleanup?.()
+  viewerAppEventCleanup = null
+  viewerContextMenuCleanup?.()
+  viewerContextMenuCleanup = null
+  latexReverseSyncCleanup?.()
+  latexReverseSyncCleanup = null
+  viewerFramePatchesInstalled = false
+  viewerSrc.value = null
+  revokeCurrentBlobUrl()
 }
 
 function postLatexViewerMessage(type, payload = {}) {
@@ -449,11 +483,12 @@ function installLatexReverseSyncHandlers() {
   }
 }
 
-function installViewerPatches() {
+function installViewerFramePatches() {
   const frameWindow = iframeRef.value?.contentWindow
   if (!frameWindow) return
 
   try {
+    if (viewerFramePatchesInstalled) return
     viewerContextMenuCleanup?.()
     viewerContextMenuCleanup = null
 
@@ -523,33 +558,79 @@ function installViewerPatches() {
       frameWindow.document.removeEventListener('click', clickHandler, true)
       frameWindow.document.removeEventListener('contextmenu', contextMenuHandler, true)
     }
-
-    const app = frameWindow.PDFViewerApplication
-    if (app) {
-      app.eventBus?.on?.('pagesinit', () => {
-        latexViewerReady.value = true
-        flushPendingLatexForwardSync()
-      })
-      app.eventBus?.on?.('pagesloaded', () => {
-        normalizeViewerChromeText()
-        installLatexReverseSyncHandlers()
-        latexViewerReady.value = true
-        flushPendingLatexForwardSync()
-      })
-      app.downloadOrSave = async function downloadOrSavePatched() {
-        const { classList } = this.appConfig.appContainer
-        classList.add('wait')
-        await savePdfToDisk()
-        classList.remove('wait')
-      }
-      app.download = async () => savePdfToDisk()
-      app.save = async () => savePdfToDisk()
-    }
-
+    viewerFramePatchesInstalled = true
     installLatexReverseSyncHandlers()
   } catch {
     // Same-origin access can fail transiently during reload; the iframe can still render.
   }
+}
+
+function installViewerAppPatches(options = {}) {
+  const frameWindow = iframeRef.value?.contentWindow
+  if (!frameWindow || viewerAppEventCleanup) return
+
+  const app = frameWindow.PDFViewerApplication
+  if (!app?.eventBus) {
+    if (viewerAppBindTimer) {
+      window.clearTimeout(viewerAppBindTimer)
+    }
+    const nextAttempt = Number(options.attempt || 0) + 1
+    if (nextAttempt > 90) return
+    viewerAppBindTimer = window.setTimeout(() => {
+      viewerAppBindTimer = 0
+      installViewerAppPatches({ attempt: nextAttempt })
+    }, 32)
+    return
+  }
+
+  const handlePagesInit = () => {
+    latexViewerReady.value = true
+    flushPendingLatexForwardSync()
+  }
+  const handleDocumentLoaded = () => {
+    if (viewerLoadTimeout) {
+      window.clearTimeout(viewerLoadTimeout)
+      viewerLoadTimeout = 0
+    }
+    loading.value = false
+    loadError.value = ''
+    normalizeViewerChromeText()
+  }
+  const handlePagesLoaded = () => {
+    normalizeViewerChromeText()
+    installLatexReverseSyncHandlers()
+    latexViewerReady.value = true
+    flushPendingLatexForwardSync()
+  }
+  const handleDocumentError = (event) => {
+    if (viewerLoadTimeout) {
+      window.clearTimeout(viewerLoadTimeout)
+      viewerLoadTimeout = 0
+    }
+    loading.value = false
+    loadError.value = String(
+      event?.reason || event?.message || t('Could not load PDF')
+    ).trim()
+  }
+
+  app.eventBus?.on?.('pagesinit', handlePagesInit)
+  app.eventBus?.on?.('documentloaded', handleDocumentLoaded)
+  app.eventBus?.on?.('pagesloaded', handlePagesLoaded)
+  app.eventBus?.on?.('documenterror', handleDocumentError)
+  viewerAppEventCleanup = () => {
+    app.eventBus?.off?.('pagesinit', handlePagesInit)
+    app.eventBus?.off?.('documentloaded', handleDocumentLoaded)
+    app.eventBus?.off?.('pagesloaded', handlePagesLoaded)
+    app.eventBus?.off?.('documenterror', handleDocumentError)
+  }
+  app.downloadOrSave = async function downloadOrSavePatched() {
+    const { classList } = this.appConfig.appContainer
+    classList.add('wait')
+    await savePdfToDisk()
+    classList.remove('wait')
+  }
+  app.download = async () => savePdfToDisk()
+  app.save = async () => savePdfToDisk()
 }
 
 function buildPdfMenuGroups(options = {}) {
@@ -633,14 +714,13 @@ function onIframeLoad() {
   latexViewerReady.value = props.kind !== 'latex'
   applyTheme()
   normalizeViewerChromeText()
-  installViewerPatches()
+  installViewerFramePatches()
+  installViewerAppPatches()
   viewerScaleLock = null
   if (isShellResizeActive()) {
     lockViewerScaleForResize()
   }
   requestAnimationFrame(() => applyCanvasFilterFallback())
-  loading.value = false
-  loadError.value = ''
 
   if (pendingForwardSync) {
     if (props.kind === 'latex') {
@@ -652,16 +732,71 @@ function onIframeLoad() {
   }
 }
 
+function resolveProtocolViewerUrl(artifactPath = '') {
+  return toWorkspaceProtocolUrl(
+    artifactPath,
+    {
+      path: props.workspacePath,
+      workspaceDataDir: props.workspaceDataDir,
+      globalConfigDir: props.globalConfigDir,
+    },
+    {
+      version: props.documentVersion,
+    }
+  )
+}
+
+function syncViewerLoadedState(app = getViewerApp()) {
+  const pageCount = Number(app?.pagesCount || app?.pdfDocument?.numPages || 0)
+  if (!app?.pdfDocument || !Number.isFinite(pageCount) || pageCount < 1) {
+    return false
+  }
+  if (viewerLoadTimeout) {
+    window.clearTimeout(viewerLoadTimeout)
+    viewerLoadTimeout = 0
+  }
+  loading.value = false
+  loadError.value = ''
+  normalizeViewerChromeText()
+  return true
+}
+
 async function loadPdf() {
+  return loadPdfWithStrategy({ preferProtocol: true })
+}
+
+async function loadPdfWithStrategy(options = {}) {
   const artifactPath = String(props.artifactPath || '').trim()
+  const preferProtocol = options.preferProtocol !== false
   loadToken += 1
   const currentToken = loadToken
 
   loading.value = true
   loadError.value = ''
   latexViewerReady.value = false
+  viewerAppEventCleanup?.()
+  viewerAppEventCleanup = null
+  viewerContextMenuCleanup?.()
+  viewerContextMenuCleanup = null
+  latexReverseSyncCleanup?.()
+  latexReverseSyncCleanup = null
+  viewerFramePatchesInstalled = false
 
   revokeCurrentBlobUrl()
+  if (viewerLoadTimeout) {
+    window.clearTimeout(viewerLoadTimeout)
+    viewerLoadTimeout = 0
+  }
+  if (viewerAppBindTimer) {
+    window.clearTimeout(viewerAppBindTimer)
+    viewerAppBindTimer = 0
+  }
+
+  if (!viewerRuntimeActive) {
+    viewerSrc.value = null
+    loading.value = false
+    return
+  }
 
   if (!artifactPath) {
     viewerSrc.value = null
@@ -670,16 +805,34 @@ async function loadPdf() {
   }
 
   try {
-    const base64 = await readPdfArtifactBase64(artifactPath)
-    if (currentToken !== loadToken) return
+    const protocolUrl = preferProtocol ? resolveProtocolViewerUrl(artifactPath) : ''
+    const fileUrl = protocolUrl || null
+    let sourceMode = fileUrl ? 'protocol' : 'blob'
 
-    const bytes = base64ToUint8Array(base64)
-    currentBlobUrl = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }))
-    viewerSrc.value = buildPdfViewerSrc(currentBlobUrl, {
+    if (!fileUrl) {
+      const base64 = await readPdfArtifactBase64(artifactPath)
+      if (currentToken !== loadToken) return
+
+      const bytes = base64ToUint8Array(base64)
+      currentBlobUrl = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }))
+    }
+
+    viewerSrc.value = buildPdfViewerSrc(fileUrl || currentBlobUrl, {
       ...getViewerThemeOptions(),
       locale: getViewerLocale(),
     })
     viewerKey.value += 1
+
+    viewerLoadTimeout = window.setTimeout(() => {
+      if (currentToken !== loadToken || !loading.value) return
+      viewerLoadTimeout = 0
+      if (sourceMode === 'protocol') {
+        void loadPdfWithStrategy({ preferProtocol: false })
+        return
+      }
+      loadError.value = t('PDF viewer did not finish rendering the document.')
+      loading.value = false
+    }, sourceMode === 'protocol' ? PROTOCOL_LOAD_TIMEOUT_MS : BLOB_LOAD_TIMEOUT_MS)
   } catch (error) {
     if (currentToken !== loadToken) return
     viewerSrc.value = null
@@ -785,24 +938,37 @@ watch(
   }
 )
 
-onMounted(() => {
+function activateViewerRuntime() {
+  if (viewerRuntimeActive) return
+  viewerRuntimeActive = true
   window.addEventListener('message', handleIframeViewerMessage)
   window.addEventListener(SHELL_RESIZE_PHASE_EVENT, handleShellResizePhase)
   void loadPdf()
+}
+
+function deactivateViewerRuntime() {
+  if (!viewerRuntimeActive) return
+  viewerRuntimeActive = false
+  window.removeEventListener('message', handleIframeViewerMessage)
+  window.removeEventListener(SHELL_RESIZE_PHASE_EVENT, handleShellResizePhase)
+  resetViewerRuntime()
+}
+
+onMounted(() => {
+  activateViewerRuntime()
+})
+
+onActivated(() => {
+  activateViewerRuntime()
+})
+
+onDeactivated(() => {
+  deactivateViewerRuntime()
 })
 
 onUnmounted(() => {
-  window.removeEventListener('message', handleIframeViewerMessage)
-  window.removeEventListener(SHELL_RESIZE_PHASE_EVENT, handleShellResizePhase)
-  loadToken += 1
-  pendingForwardSync = null
-  viewerScaleLock = null
-  viewerContextMenuCleanup?.()
-  viewerContextMenuCleanup = null
-  latexReverseSyncCleanup?.()
-  latexReverseSyncCleanup = null
-  viewerSrc.value = null
-  revokeCurrentBlobUrl()
+  deactivateViewerRuntime()
+  resetViewerRuntime()
 })
 
 defineExpose({

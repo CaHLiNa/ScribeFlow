@@ -243,6 +243,16 @@ function parseQueryString(query) {
   }
   return params;
 }
+function parseUrlOrNull(input, base = undefined) {
+  try {
+    if (typeof URL.parse === "function") {
+      return URL.parse(input, base);
+    }
+    return new URL(input, base);
+  } catch {
+    return null;
+  }
+}
 const InvisibleCharsRegExp = /[\x00-\x1F]/g;
 function removeNullCharacters(str, replaceInvisible = false) {
   if (!InvisibleCharsRegExp.test(str)) {
@@ -11214,7 +11224,7 @@ class Autolinker {
       if (url.startsWith("www.") || url.startsWith("http://") || url.startsWith("https://")) {
         raw = url;
       } else if (emailDomain) {
-        const hostname = URL.parse(`http://${emailDomain}`)?.hostname;
+        const hostname = parseUrlOrNull(`http://${emailDomain}`)?.hostname;
         if (!hostname) {
           continue;
         }
@@ -18537,11 +18547,17 @@ initCom(PDFViewerApplication);
     if (!file) {
       return;
     }
-    const viewerOrigin = URL.parse(window.location)?.origin || "null";
+    if (String(file).startsWith("blob:")) {
+      return;
+    }
+    if (String(file).startsWith("altals-workspace://")) {
+      return;
+    }
+    const viewerOrigin = parseUrlOrNull(window.location)?.origin || "null";
     if (HOSTED_VIEWER_ORIGINS.has(viewerOrigin)) {
       return;
     }
-    const fileOrigin = URL.parse(file, window.location)?.origin;
+    const fileOrigin = parseUrlOrNull(file, window.location)?.origin;
     if (fileOrigin === viewerOrigin) {
       return;
     }

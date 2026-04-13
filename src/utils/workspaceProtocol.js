@@ -25,6 +25,7 @@ export function toWorkspaceProtocolUrl(filePath, workspace, options = {}) {
   const normalizedFilePath = normalizePath(filePath)
   const workspaceRoot = normalizePath(workspace?.path || '')
   const dataRoot = normalizePath(workspace?.workspaceDataDir || '')
+  const globalRoot = normalizePath(workspace?.globalConfigDir || '')
   const { version = '' } = options
 
   let scope = ''
@@ -36,6 +37,9 @@ export function toWorkspaceProtocolUrl(filePath, workspace, options = {}) {
   } else if (isWithinRoot(normalizedFilePath, dataRoot)) {
     scope = 'data'
     relativePath = normalizedFilePath.slice(dataRoot.length).replace(/^\/+/, '')
+  } else if (isWithinRoot(normalizedFilePath, globalRoot)) {
+    scope = 'global'
+    relativePath = normalizedFilePath.slice(globalRoot.length).replace(/^\/+/, '')
   } else {
     return ''
   }

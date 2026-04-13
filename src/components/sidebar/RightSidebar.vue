@@ -4,8 +4,13 @@
     data-surface-context-guard="true"
   >
     <KeepAlive :max="1">
+      <ReferenceDetailPanel
+        v-if="workspace.rightSidebarOpen && workspace.leftSidebarPanel === 'references'"
+        key="workspace-reference-detail"
+        class="right-shell-pane"
+      />
       <OutlinePanel
-        v-if="workspace.rightSidebarOpen"
+        v-else-if="workspace.rightSidebarOpen"
         key="workspace-outline"
         embedded
         :overrideActiveFile="documentTab"
@@ -22,6 +27,7 @@ import { useWorkspaceStore } from '../../stores/workspace'
 import { isNewTab } from '../../utils/fileTypes'
 
 const OutlinePanel = defineAsyncComponent(() => import('../panel/OutlinePanel.vue'))
+const ReferenceDetailPanel = defineAsyncComponent(() => import('../panel/ReferenceDetailPanel.vue'))
 
 const editorStore = useEditorStore()
 const workspace = useWorkspaceStore()

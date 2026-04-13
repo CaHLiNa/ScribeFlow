@@ -7,7 +7,7 @@ Consult `docs/DOCUMENT_WORKFLOW.md` for preview/compile/editor workflow work, `d
 
 ## Mission
 
-Altals is a local-first desktop academic writing platform for Markdown and LaTeX, with an integrated project-level references and reading workflow.
+Altals is a local-first desktop academic research platform for Markdown and LaTeX, with integrated project-level references, reading, and citation workflows.
 
 The product is centered on one practical workbench:
 
@@ -17,12 +17,12 @@ The product is centered on one practical workbench:
 - write Markdown and LaTeX documents
 - insert citations and maintain bibliography output in context
 - compile and preview documents correctly
-- inspect outline and other writing-adjacent context in the right-side inspection area
+- inspect outline and other research-adjacent context in the right-side inspection area
 
 ## Product Boundaries
 
 - The desktop Tauri app is the primary product surface.
-- The core scope is one academic workbench for writing, references, reading, citation, compile, and preview flows.
+- The core scope is one academic research workbench for writing, references, reading, citation, compile, and preview flows.
 - The left sidebar remains project-tree-first even when reference entry points are added.
 - The right-side inspection area is currently outline-first, but may grow to support directly related reading or citation context.
 - Do not add new product surfaces, new workflow systems, or speculative platform expansions.
@@ -30,9 +30,9 @@ The product is centered on one practical workbench:
 
 ## Current Direction
 
-- Stabilize the current desktop writing workflow while extending it into a coherent references and reading loop.
+- Stabilize the current desktop research workflow while extending it into a coherent references, reading, and writing loop.
 - Prefer removing stale systems over preserving dead architecture.
-- Project-scoped references, in-app reading, and citation insertion are part of the active product direction.
+- Project-scoped references, in-app reading, writing, and citation insertion are peer parts of the active product direction.
 - Future AI workflows and PDF translation should support a plugin-capable extension model rather than being welded into the core app from day one.
 - Do not turn the app into a generic PKM, chat shell, or disconnected library manager.
 - When making desktop UX decisions, prefer a polished macOS-native direction over generic cross-platform chrome.

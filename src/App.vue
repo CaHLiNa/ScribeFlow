@@ -16,14 +16,15 @@
         class="app-shell-topbar shrink-0"
         :current-document-label="currentDocumentLabel"
         :prefer-external-document-title="workspace.isWorkspaceSurface"
+        :show-document-title-target="workspace.leftSidebarPanel !== 'references'"
         :left-sidebar-available="workspace.isWorkspaceSurface"
         :left-sidebar-open="leftSidebarVisible"
+        :left-sidebar-panel="workspace.leftSidebarPanel"
         :right-sidebar-open="workspace.rightSidebarOpen"
         :split-pane-available="workspace.isWorkspaceSurface"
         :split-pane-open="splitPaneOpen"
         :inspector-available="supportsRightSidebar"
-        @collapse-left-folders="leftSidebarRef?.collapseAllFolders?.()"
-        @open-left-create-menu="leftSidebarRef?.openCreateMenuFrom?.($event?.currentTarget || null)"
+        @open-reference-library="toggleReferenceLibrary"
         @toggle-left-sidebar="workspace.toggleLeftSidebar()"
         @toggle-split-pane="toggleSplitPane"
         @toggle-right-sidebar="workspace.toggleRightSidebar()"
@@ -93,6 +94,7 @@
               'has-left-sidebar': leftSidebarVisible,
               'has-right-sidebar': workspace.rightSidebarOpen && supportsRightSidebar,
               'is-empty-workspace-shell': !workspace.isOpen,
+              'is-reference-library-shell': workspace.leftSidebarPanel === 'references',
             }"
           >
             <KeepAlive :max="3">
@@ -179,6 +181,9 @@ const SettingsSidebar = defineAsyncComponent(
   () => import('./components/settings/SettingsSidebar.vue')
 )
 const PaneContainer = defineAsyncComponent(() => import('./components/editor/PaneContainer.vue'))
+const ReferenceLibraryWorkbench = defineAsyncComponent(
+  () => import('./components/references/ReferenceLibraryWorkbench.vue')
+)
 const Settings = defineAsyncComponent(() => import('./components/settings/Settings.vue'))
 const SetupWizard = defineAsyncComponent(() => import('./components/SetupWizard.vue'))
 
@@ -203,21 +208,29 @@ const splitPaneOpen = computed(
     Array.isArray(editorStore.paneTree.children) &&
     editorStore.paneTree.children.length === 2
 )
-const activeWorkbenchComponent = computed(() =>
-  workspace.isSettingsSurface ? Settings : PaneContainer
-)
-const activeWorkbenchCacheKey = computed(() => workspace.primarySurface || 'workspace')
+const activeWorkbenchComponent = computed(() => {
+  if (workspace.isSettingsSurface) return Settings
+  if (workspace.leftSidebarPanel === 'references') return ReferenceLibraryWorkbench
+  return PaneContainer
+})
+const activeWorkbenchCacheKey = computed(() => {
+  if (workspace.isSettingsSurface) return 'settings'
+  return `workspace:${workspace.leftSidebarPanel || 'files'}`
+})
 const activeWorkbenchProps = computed(() =>
   workspace.isSettingsSurface
     ? {}
-    : {
+    : workspace.leftSidebarPanel === 'references'
+      ? {}
+      : {
         node: editorStore.paneTree,
         topbarTabsTargetSelector: '#app-shell-topbar-document-title',
-      }
+        }
 )
 const activeWorkbenchClass = computed(() => 'h-full min-h-0 w-full')
 const currentDocumentLabel = computed(() => {
   if (workspace.isSettingsSurface) return ''
+  if (workspace.leftSidebarPanel === 'references') return t('Reference Library')
   const activePath = editorStore.activeTab
   if (!activePath) return ''
   if (isNewTab(activePath)) return t('New Tab')
@@ -230,6 +243,14 @@ const currentDocumentLabel = computed(() => {
 
 function openQuickSearch() {
   searchRef.value?.focusSearch?.()
+}
+
+function toggleReferenceLibrary() {
+  const nextPanel = workspace.leftSidebarPanel === 'references' ? 'files' : 'references'
+  workspace.setLeftSidebarPanel(nextPanel)
+  if (!workspace.leftSidebarOpen) {
+    workspace.toggleLeftSidebar()
+  }
 }
 
 function getSecondaryPane() {
@@ -470,6 +491,10 @@ useAppTeardown({
 }
 
 .app-shell-main-card.is-empty-workspace-shell {
+  padding-top: 0;
+}
+
+.app-shell-main-card.is-reference-library-shell {
   padding-top: 0;
 }
 

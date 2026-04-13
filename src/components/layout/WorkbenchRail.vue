@@ -2,7 +2,7 @@
   <nav
     class="workbench-rail"
     data-surface-context-guard="true"
-    :class="{ 'workbench-rail--mac': isMac && isTauriDesktop && !isNativeFullscreen }"
+    :class="{ 'workbench-rail--mac': isMac && isTauriDesktop }"
     :aria-label="t('Project navigation')"
     :style="railStyle"
     @contextmenu.prevent
@@ -28,35 +28,35 @@
       </UiButton>
 
       <UiButton
-        v-if="leftSidebarOpen && leftSidebarAvailable"
+        v-if="leftSidebarAvailable"
         class="workbench-rail-button"
         variant="ghost"
         size="icon-sm"
-        :title="t('Collapse All Folders')"
-        :aria-label="t('Collapse All Folders')"
+        :active="leftSidebarPanel === 'references'"
+        :title="
+          leftSidebarPanel === 'references'
+            ? t('Open files')
+            : t('Open reference library')
+        "
+        :aria-label="
+          leftSidebarPanel === 'references'
+            ? t('Open files')
+            : t('Open reference library')
+        "
         data-window-drag-ignore="true"
-        @click="$emit('collapse-left-folders')"
+        @click="$emit('open-reference-library')"
       >
-        <IconFolderMinus :size="18" :stroke-width="1.75" />
-      </UiButton>
-
-      <UiButton
-        v-if="leftSidebarOpen && leftSidebarAvailable"
-        class="workbench-rail-button"
-        variant="ghost"
-        size="icon-sm"
-        :title="t('New File or Folder')"
-        :aria-label="t('New File or Folder')"
-        data-window-drag-ignore="true"
-        @click="$emit('open-left-create-menu', $event)"
-      >
-        <IconPlus :size="18" :stroke-width="1.75" />
+        <IconBook2 :size="18" :stroke-width="1.75" />
       </UiButton>
     </div>
 
     <div class="workbench-rail-center">
       <div class="workbench-rail-title-target">
-        <div :id="documentTitleTargetId" class="workbench-rail-title-slot"></div>
+        <div
+          v-if="showDocumentTitleTarget"
+          :id="documentTitleTargetId"
+          class="workbench-rail-title-slot"
+        ></div>
         <div
           v-if="currentDocumentLabel && !preferExternalDocumentTitle"
           class="workbench-rail-document-title"
@@ -112,13 +112,12 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import {
-  IconFolderMinus,
+  IconBook2,
   IconLayoutColumns,
   IconLayoutSidebar,
   IconLayoutSidebarLeftCollapse,
   IconLayoutSidebarRight,
   IconLayoutSidebarRightCollapse,
-  IconPlus,
 } from '@tabler/icons-vue'
 import UiButton from '../shared/ui/UiButton.vue'
 import { isMac, modKey } from '../../platform'
@@ -129,8 +128,10 @@ defineProps({
   documentTitleTargetId: { type: String, default: 'app-shell-topbar-document-title' },
   currentDocumentLabel: { type: String, default: '' },
   preferExternalDocumentTitle: { type: Boolean, default: false },
+  showDocumentTitleTarget: { type: Boolean, default: true },
   leftSidebarAvailable: { type: Boolean, default: true },
   leftSidebarOpen: { type: Boolean, default: true },
+  leftSidebarPanel: { type: String, default: 'files' },
   rightSidebarOpen: { type: Boolean, default: false },
   splitPaneAvailable: { type: Boolean, default: true },
   splitPaneOpen: { type: Boolean, default: false },
@@ -139,10 +140,9 @@ defineProps({
 
 defineEmits([
   'toggle-left-sidebar',
+  'open-reference-library',
   'toggle-right-sidebar',
   'toggle-split-pane',
-  'collapse-left-folders',
-  'open-left-create-menu',
 ])
 
 const { t } = useI18n()

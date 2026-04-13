@@ -1,6 +1,7 @@
 <template>
   <div class="left-shell-sidebar">
     <FileTree
+      v-if="workspace.leftSidebarPanel === 'files'"
       ref="activeSidebarRef"
       :collapsed="false"
       :embedded="true"
@@ -12,6 +13,7 @@
       @open-workspace="$emit('open-workspace', $event)"
       @close-folder="$emit('close-folder')"
     />
+    <ReferencesSidebarPanel v-else ref="activeSidebarRef" />
   </div>
 </template>
 
@@ -19,6 +21,7 @@
 import { ref, computed, nextTick } from 'vue'
 import { useWorkspaceStore } from '../../stores/workspace'
 import FileTree from './FileTree.vue'
+import ReferencesSidebarPanel from './ReferencesSidebarPanel.vue'
 
 defineEmits([
   'open-search',

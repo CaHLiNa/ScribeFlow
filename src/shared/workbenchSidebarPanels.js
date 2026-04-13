@@ -1,4 +1,4 @@
-export const WORKSPACE_SIDEBAR_PANELS = ['files']
+export const WORKSPACE_SIDEBAR_PANELS = ['files', 'references']
 export const SETTINGS_SIDEBAR_PANELS = ['files']
 
 export const WORKBENCH_SIDEBAR_PANELS = {

@@ -1,8 +1,8 @@
 # Academic Platform Direction
 
-This document defines the near-term product direction for turning Altals from a writing-only desktop workbench into a writing-first academic platform.
+This document defines the near-term product direction for turning Altals from a writing-only desktop workbench into a broader academic research platform.
 
-It is intentionally phased. The goal is not to clone every research tool at once. The goal is to keep the user inside one coherent loop while they read, write, cite, and revise.
+It is intentionally phased. The goal is not to clone every research tool at once. The goal is to keep the user inside one coherent loop while they manage references, read, write, cite, and revise.
 
 ## Product thesis
 
@@ -21,10 +21,10 @@ Altals should serve that full loop inside one local-first desktop app.
 
 ## Guardrails
 
-- writing remains the primary product loop
+- writing, literature management, and reading are peer product loops inside one research workbench
 - project folders remain the primary organizing model
 - references are project-scoped first, not mandatory global-library-first
-- PDF and source reading stay close to the active draft
+- PDF and source reading stay close to the active draft and active reference context
 - AI workflows should be grounded in the active project, draft, and selected references
 - PDF translation is a valid extension, but it should not distort the first release of the references and reader foundation
 - avoid turning Altals into a generic PKM, chat shell, or feed reader
@@ -42,6 +42,7 @@ Scope:
 - local reference records stored in workspace-owned metadata
 - basic reference list, search, and selection
 - document-aware citation insertion entry point
+- references-first entry points that are not subordinate to editor-only flows
 
 Success criteria:
 
@@ -59,6 +60,7 @@ Scope:
 - keep reader navigation recoverable from workspace state
 - support search, page navigation, and draft-adjacent reading workflows
 - connect reader selection back to the active draft or citation flow
+- allow reading to be a primary workflow, not only a side panel of writing
 
 Success criteria:
 

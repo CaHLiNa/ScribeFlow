@@ -44,6 +44,9 @@ impl WorkspaceScopeState {
             "data" => roots
                 .data_dir
                 .ok_or_else(|| "No active workspace data directory is registered".to_string()),
+            "global" => roots
+                .global_config_dir
+                .ok_or_else(|| "No active global config directory is registered".to_string()),
             other => Err(format!("Unsupported scope: {other}")),
         }
     }

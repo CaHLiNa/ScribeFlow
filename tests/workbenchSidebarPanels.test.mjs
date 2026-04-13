@@ -8,11 +8,12 @@ import {
 } from '../src/shared/workbenchSidebarPanels.js'
 
 test('workbench sidebar panels expose the expected cross-surface panel ids', () => {
-  assert.deepEqual(ALL_WORKBENCH_SIDEBAR_PANELS, ['files'])
+  assert.deepEqual(ALL_WORKBENCH_SIDEBAR_PANELS, ['files', 'references'])
 })
 
 test('workbench sidebar panel normalization falls back to each surface default', () => {
   assert.equal(normalizeWorkbenchSidebarPanel('workspace', 'files'), 'files')
+  assert.equal(normalizeWorkbenchSidebarPanel('workspace', 'references'), 'references')
   assert.equal(normalizeWorkbenchSidebarPanel('workspace', 'outline'), 'files')
   assert.equal(normalizeWorkbenchSidebarPanel('removed-surface', 'files'), 'files')
   assert.equal(normalizeWorkbenchSidebarPanel('removed-surface', 'removed-panel'), 'files')

@@ -26,6 +26,8 @@
     :artifactPath="artifactPath"
     :kind="kind"
     :workspacePath="workspace.path || ''"
+    :workspaceDataDir="workspace.workspaceDataDir || ''"
+    :globalConfigDir="workspace.globalConfigDir || ''"
     :compileState="compileState"
     :documentVersion="documentVersion"
     :forwardSyncRequest="forwardSyncRequest"

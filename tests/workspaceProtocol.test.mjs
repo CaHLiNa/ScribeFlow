@@ -53,3 +53,21 @@ test('keeps POSIX workspace paths working', () => {
     'altals-workspace://localhost/workspace/docs/report.pdf',
   )
 })
+
+test('maps global config files into the global scope', () => {
+  const workspace = {
+    path: '/Users/math173sr/Documents/GitHub项目/Altals',
+    workspaceDataDir: '/Users/math173sr/.altals/workspaces/abc123',
+    globalConfigDir: '/Users/math173sr/.altals',
+  }
+
+  const url = toWorkspaceProtocolUrl(
+    '/Users/math173sr/.altals/references/pdfs/an2026.pdf',
+    workspace,
+  )
+
+  assert.equal(
+    url,
+    'altals-workspace://localhost/global/references/pdfs/an2026.pdf',
+  )
+})
