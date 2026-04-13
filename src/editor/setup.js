@@ -164,7 +164,7 @@ export function createEditorExtensions({
     // Wrap column width (constrains content to N chars when > 0)
     columnWidthCompartment.of(columnWidthExtension(wrapColumn)),
 
-    // Keep browser-native spelling and text services off so the editor owns selection and context menu behavior.
+    // Keep browser-native text services off so the editor owns selection and context menu behavior.
     EditorView.contentAttributes.of(buildEditorInputAttributes()),
 
     // Core
@@ -210,7 +210,7 @@ export function createEditorExtensions({
     // Editor stats (word count, char count, selection)
     ...(onStats ? [editorStatsExtension(onStats)] : []),
 
-    // Extra extensions (ghost suggestions, diff overlays, tasks, etc.)
+    // Extra extensions supplied by the caller.
     ...extraExtensions,
   ]
 }

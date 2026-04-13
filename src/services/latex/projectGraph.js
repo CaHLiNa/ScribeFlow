@@ -331,14 +331,19 @@ async function listWorkspaceFiles(options = {}) {
     return options.flatFiles.map(entry => normalizeFsPath(entry.path || entry)).filter(Boolean)
   }
 
-  if (filesStore?.readWorkspaceSnapshot) {
-    const snapshot = await filesStore.readWorkspaceSnapshot().catch(() => null)
-    const snapshotPaths = listWorkspaceFlatFilePaths(snapshot)
-      .map(entry => normalizeFsPath(entry))
-      .filter(Boolean)
-    if (snapshotPaths.length > 0) {
-      return snapshotPaths
-    }
+  const cachedSnapshotPaths = listWorkspaceFlatFilePaths(filesStore?.lastWorkspaceSnapshot)
+    .map(entry => normalizeFsPath(entry))
+    .filter(Boolean)
+  if (cachedSnapshotPaths.length > 0) {
+    return cachedSnapshotPaths
+  }
+
+  const cachedFlatFiles = Array.isArray(filesStore?.flatFiles) ? filesStore.flatFiles : []
+  const cachedFlatFilePaths = cachedFlatFiles
+    .map(entry => normalizeFsPath(entry.path || entry))
+    .filter(Boolean)
+  if (cachedFlatFilePaths.length > 0) {
+    return cachedFlatFilePaths
   }
 
   if (filesStore?.ensureFlatFilesReady) {

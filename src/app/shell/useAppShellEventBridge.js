@@ -17,12 +17,9 @@ export function useAppShellEventBridge({
   toggleSplitPane,
   searchRef,
   leftSidebarRef,
-  workspaceSnapshotBrowserVisible,
   handleVisibilityChange,
   pickWorkspace,
   closeWorkspace,
-  createSnapshot,
-  openWorkspaceSnapshots,
 }) {
   function createDraftDocument(ext = '.md', options = {}) {
     const draftPath = filesStore.createDraftFile({
@@ -41,12 +38,6 @@ export function useAppShellEventBridge({
   }
 
   async function handleKeydown(event) {
-    if (isMod(event) && event.key === 's' && event.shiftKey) {
-      event.preventDefault()
-      await createSnapshot()
-      return
-    }
-
     if (isMod(event) && event.key === 's') {
       event.preventDefault()
       const activePath = editorStore.activeTab
@@ -155,11 +146,6 @@ export function useAppShellEventBridge({
         event.preventDefault()
         return
       }
-      if (workspaceSnapshotBrowserVisible.value) {
-        workspaceSnapshotBrowserVisible.value = false
-        event.preventDefault()
-        return
-      }
       if (workspace.rightSidebarOpen) {
         workspace.closeRightSidebar()
         event.preventDefault()
@@ -204,10 +190,6 @@ export function useAppShellEventBridge({
     workspace.toggleLeftSidebar()
   }
 
-  function handleOpenWorkspaceSnapshotsEvent() {
-    openWorkspaceSnapshots()
-  }
-
   function handleExternalLinkActivation(event) {
     if (event.defaultPrevented) return
     const match = resolveExternalHttpAnchor(event.target, document.baseURI)
@@ -249,7 +231,6 @@ export function useAppShellEventBridge({
     window.addEventListener('app:close-folder', handleCloseFolder)
     window.addEventListener('app:open-settings', handleOpenSettings)
     window.addEventListener('app:toggle-left-sidebar', handleToggleLeftSidebar)
-    window.addEventListener('app:open-workspace-snapshots', handleOpenWorkspaceSnapshotsEvent)
   })
 
   onUnmounted(() => {
@@ -265,6 +246,5 @@ export function useAppShellEventBridge({
     window.removeEventListener('app:close-folder', handleCloseFolder)
     window.removeEventListener('app:open-settings', handleOpenSettings)
     window.removeEventListener('app:toggle-left-sidebar', handleToggleLeftSidebar)
-    window.removeEventListener('app:open-workspace-snapshots', handleOpenWorkspaceSnapshotsEvent)
   })
 }

@@ -10,7 +10,7 @@ export const SETTINGS_SECTION_DEFINITIONS = [
   {
     id: 'editor',
     labelKey: 'Editor',
-    descriptionKey: 'Writing defaults, wrapping, spelling, and language tooling.',
+    descriptionKey: 'Writing defaults, wrapping, and language tooling.',
     icon: IconEdit,
   },
   {

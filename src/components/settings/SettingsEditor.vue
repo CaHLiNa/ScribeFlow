@@ -114,22 +114,6 @@
             </div>
           </div>
         </div>
-
-        <div class="settings-row">
-          <div class="settings-row-copy">
-            <div class="settings-row-title">{{ t('Spell Check') }}</div>
-            <div class="settings-row-hint">
-              {{ t('Underline spelling issues while drafting in Markdown documents.') }}
-            </div>
-          </div>
-          <div class="settings-row-control compact">
-            <UiSwitch
-              :model-value="workspace.spellcheck"
-              :aria-label="t('Toggle spell check')"
-              @update:model-value="workspace.toggleSpellcheck()"
-            />
-          </div>
-        </div>
       </div>
     </section>
 

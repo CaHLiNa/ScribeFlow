@@ -48,30 +48,6 @@
             </UiButton>
           </template>
           <UiButton
-            v-if="showRunButtons"
-            class="workflow-primary-btn"
-            variant="ghost"
-            size="icon-sm"
-            icon-only
-            :title="t('Run selection or line ({shortcut})', { shortcut: `${modKey}+Enter` })"
-            :aria-label="t('Run selection or line ({shortcut})', { shortcut: `${modKey}+Enter` })"
-            @click="$emit('run-code')"
-          >
-            <IconPlayerPlay :size="primaryActionIconSize" :stroke-width="buttonIconStroke" />
-          </UiButton>
-          <UiButton
-            v-if="showRunButtons"
-            class="workflow-primary-btn"
-            variant="ghost"
-            size="icon-sm"
-            icon-only
-            :title="t('Run entire file ({shortcut})', { shortcut: `Shift+${modKey}+Enter` })"
-            :aria-label="t('Run entire file ({shortcut})', { shortcut: `Shift+${modKey}+Enter` })"
-            @click="$emit('run-file')"
-          >
-            <IconPlayerTrackNext :size="secondaryActionIconSize" :stroke-width="buttonIconStroke" />
-          </UiButton>
-          <UiButton
             v-if="showPreviewButton"
             class="workflow-secondary-btn"
             variant="ghost"
@@ -106,9 +82,8 @@
 
 <script setup>
 import { computed } from 'vue'
-import { IconEye, IconFileTypePdf, IconPlayerPlay, IconPlayerTrackNext } from '@tabler/icons-vue'
+import { IconEye, IconFileTypePdf, IconPlayerPlay } from '@tabler/icons-vue'
 import UiButton from '../shared/ui/UiButton.vue'
-import { modKey } from '../../platform'
 import { useI18n } from '../../i18n'
 
 const props = defineProps({
@@ -116,13 +91,12 @@ const props = defineProps({
   previewState: { type: Object, default: null },
   statusText: { type: String, default: '' },
   statusTone: { type: String, default: 'muted' },
-  showRunButtons: { type: Boolean, default: false },
   teleportTo: { type: String, default: '' },
   shellIntegrated: { type: Boolean, default: false },
   inlineHeader: { type: Boolean, default: false },
 })
 
-defineEmits(['primary-action', 'reveal-preview', 'reveal-pdf', 'run-code', 'run-file'])
+defineEmits(['primary-action', 'reveal-preview', 'reveal-pdf'])
 
 const { t } = useI18n()
 
@@ -189,9 +163,7 @@ const pdfButtonLabel = computed(() => {
 
 const activePreviewMode = computed(() => props.previewState?.previewMode || null)
 
-const isPreviewButtonActive = computed(
-  () => activePreviewMode.value === 'markdown'
-)
+const isPreviewButtonActive = computed(() => activePreviewMode.value === 'markdown')
 const isPdfButtonActive = computed(() => activePreviewMode.value === 'pdf-artifact')
 
 const statusClass = computed(() => ({

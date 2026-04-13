@@ -46,23 +46,15 @@ Look first at:
 - `tests/fileTreeHydrationRuntime.test.mjs`
 - `tests/fileTreeRefreshRuntime.test.mjs`
 - `tests/fileMutationRuntime.test.mjs`
+- `tests/fileTreeWatchRuntime.test.mjs`
 - `tests/editorOpenRoutingRuntime.test.mjs`
 - `tests/editorPersistenceRuntime.test.mjs`
-
-### For snapshots and local history
-
-Look first at:
-
-- `tests/workspaceSnapshot*.test.mjs`
-- `tests/workspaceLocalSnapshotStoreRuntime.test.mjs`
-- `tests/workspaceSnapshotPreviewRuntime.test.mjs`
 
 ## What current tests cover
 
 - document workflow runtime behavior
 - editor routing, persistence, and pane layout
 - file tree hydration, refresh, creation, and mutation
-- workspace snapshots, local save points, and restore flows
 - workspace shell and workbench layout expectations
 - repo policy audits for docs and baseline tooling
 
@@ -82,7 +74,6 @@ Look first at:
 
 - `tests/repoDocsAudit.test.mjs`
 - `tests/documentWorkflow*.test.mjs`
-- `tests/workspaceSnapshot*.test.mjs`
 - `tests/frontendToolingBaselineTargets.test.mjs`
 - `tests/workbenchInspectorPanels.test.mjs`
 

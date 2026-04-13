@@ -59,7 +59,7 @@ const query = ref('')
 const searchOpen = ref(false)
 
 const showResults = computed(() => searchOpen.value)
-const searchPlaceholder = computed(() => t('Search files or content'))
+const searchPlaceholder = computed(() => t('Search files'))
 
 function onSearchKeydown(event) {
   if (event.key === 'Escape') {

@@ -37,7 +37,7 @@ This state is UI-facing and highly session-oriented.
 - the current tree representation
 - flat file cache
 - expanded directories
-- cached workspace snapshots
+- cached workspace tree snapshots
 - loaded text file contents
 - per-file load errors
 
@@ -73,7 +73,6 @@ That workspace-owned area is used for app metadata such as:
 
 - workspace bootstrap metadata
 - project-owned internal data directory setup
-- local history and snapshot metadata used by `src/domains/changes/*`
 
 ### Local storage
 
@@ -99,24 +98,6 @@ LaTeX stores maintain per-file compile state maps. These records commonly includ
 - `pdfPath`
 - logs and timestamps
 
-### Snapshot records
-
-`src/domains/changes/workspaceSnapshotRuntime.js` normalizes local workspace save-point entries into stable UI-facing snapshot records with fields such as:
-
-- `id`
-- `backend`
-- `sourceKind`
-- `sourceId`
-- `scope`
-- `kind`
-- `label`
-- `message`
-- `rawMessage`
-- `createdAt`
-- optional `manifest`
-
-Workspace save-point entries can also carry payload metadata such as manifest path, file count, skipped count, and capture scope.
-
 ## Data boundaries
 
 - user documents should remain in the opened workspace
@@ -127,5 +108,4 @@ Workspace save-point entries can also carry payload metadata such as manifest pa
 ## See also
 
 - `docs/ARCHITECTURE.md`
-- `docs/WORKSPACE_SAVE_POINTS.md`
 - `docs/DOCUMENT_WORKFLOW.md`

@@ -262,7 +262,10 @@ test('setWorkspaceEditorFontSize persists and applies the editor font size varia
     const nextValue = setWorkspaceEditorFontSize(16)
     assert.equal(nextValue, 16)
     assert.equal(globalThis.localStorage.getItem('editorFontSize'), '16')
-    assert.equal(globalThis.document.documentElement.style.getPropertyValue('--editor-font-size'), '16px')
+    assert.equal(
+      globalThis.document.documentElement.style.getPropertyValue('--editor-font-size'),
+      '16px'
+    )
   } finally {
     globalThis.localStorage = previousLocalStorage
     globalThis.document = previousDocument

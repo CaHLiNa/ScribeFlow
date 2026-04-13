@@ -268,13 +268,19 @@
               v-for="template in documentTemplates"
               :key="template.id"
               class="context-menu-item"
-              @click="handleNewMenuCreate({
-                ext: template.ext,
-                suggestedName: template.filename,
-                initialContent: template.content,
-              })"
+              @click="
+                handleNewMenuCreate({
+                  ext: template.ext,
+                  suggestedName: template.filename,
+                  initialContent: template.content,
+                })
+              "
             >
-              <component :is="template.ext === '.tex' ? IconMath : IconFileText" :size="14" :stroke-width="1.5" />
+              <component
+                :is="template.ext === '.tex' ? IconMath : IconFileText"
+                :size="14"
+                :stroke-width="1.5"
+              />
               <span class="flex-1">{{ template.label }}</span>
               <span class="context-menu-ext">{{ template.ext }}</span>
             </div>
@@ -543,9 +549,10 @@ async function createTypedFile(dir, ext, options = {}) {
     files.expandedDirs.add(dir)
   }
 
-  const preferredName = typeof options.suggestedName === 'string' && options.suggestedName.trim()
-    ? options.suggestedName.trim()
-    : `${t('Untitled')}${ext}`
+  const preferredName =
+    typeof options.suggestedName === 'string' && options.suggestedName.trim()
+      ? options.suggestedName.trim()
+      : `${t('Untitled')}${ext}`
   const normalizedName = preferredName.endsWith(ext) ? preferredName : `${preferredName}${ext}`
   const baseName = normalizedName.endsWith(ext)
     ? normalizedName.slice(0, normalizedName.length - ext.length)

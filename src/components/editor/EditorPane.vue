@@ -14,12 +14,9 @@
         :preview-state="workspacePreviewState"
         :status-text="workflowStatusText"
         :status-tone="workflowStatusTone"
-        :show-run-buttons="showToolbarRunButtons"
         @primary-action="handleWorkflowPrimaryAction"
         @reveal-preview="handleWorkflowRevealPreview"
         @reveal-pdf="handleWorkflowRevealPdf"
-        @run-code="handleRunCode"
-        @run-file="handleRunFile"
       />
 
       <Teleport v-if="showIntegratedDocumentTitle" :to="integratedDocumentTitleTarget">
@@ -253,12 +250,9 @@
               :preview-state="workspacePreviewState"
               :status-text="workflowStatusText"
               :status-tone="workflowStatusTone"
-              :show-run-buttons="showToolbarRunButtons"
               @primary-action="handleWorkflowPrimaryAction"
               @reveal-preview="handleWorkflowRevealPreview"
               @reveal-pdf="handleWorkflowRevealPdf"
-              @run-code="handleRunCode"
-              @run-file="handleRunFile"
             />
           </div>
         </div>
@@ -305,12 +299,9 @@
                   :preview-state="workspacePreviewState"
                   :status-text="workflowStatusText"
                   :status-tone="workflowStatusTone"
-                  :show-run-buttons="showToolbarRunButtons"
                   @primary-action="handleWorkflowPrimaryAction"
                   @reveal-preview="handleWorkflowRevealPreview"
                   @reveal-pdf="handleWorkflowRevealPdf"
-                  @run-code="handleRunCode"
-                  @run-file="handleRunFile"
                 />
               </div>
               <EditorTextWorkspaceSurface
@@ -363,7 +354,6 @@ import { useToastStore } from '../../stores/toast'
 import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import {
   getViewerType,
-  isRunnable,
   isNewTab,
   isPreviewPath,
   previewSourcePathFromPath,
@@ -412,9 +402,6 @@ const hasIntegratedWorkflowBar = computed(() => !!props.topbarWorkflowTargetSele
 const viewerType = computed(() => (props.activeTab ? getViewerType(props.activeTab) : null))
 const viewerTypeRef = viewerType
 const hasSinglePane = computed(() => countLeafPanes(editorStore.paneTree) <= 1)
-const showToolbarRunButtons = computed(
-  () => !!props.activeTab && viewerType.value === 'text' && isRunnable(props.activeTab)
-)
 const toolbarUiState = computed(() => {
   if (workflowUiState.value) return workflowUiState.value
   if (props.activeTab && viewerType.value === 'text') return { kind: 'text' }
@@ -450,9 +437,7 @@ const showWorkspaceSourceWorkflowBar = computed(
 const showLocalDocumentHeader = computed(
   () => showPaneDocumentTitle.value || showInlineWorkflowBar.value
 )
-const showPaneDocumentTitle = computed(
-  () => !!props.activeTab && !hasIntegratedDocumentTitle.value
-)
+const showPaneDocumentTitle = computed(() => !!props.activeTab && !hasIntegratedDocumentTitle.value)
 
 const editorContainerRef = ref(null)
 const documentTitleWrapRef = ref(null)
@@ -465,8 +450,6 @@ const {
   workspacePreviewState,
   workflowStatusText,
   workflowStatusTone,
-  handleRunCode,
-  handleRunFile,
   handleWorkflowPrimaryAction,
   handleWorkflowRevealPreview,
   handleWorkflowRevealPdf,

@@ -20,23 +20,6 @@
     "dialog:allow-message",
     "dialog:allow-ask",
     "dialog:allow-confirm",
-    "shell:allow-open",
-    {
-      "identifier": "shell:allow-spawn",
-      "allow": [
-        {
-          "name": "opencode-cli",
-          "cmd": "opencode",
-          "args": true
-        },
-        {
-          "name": "bun-opencode-dev",
-          "cmd": "bun",
-          "args": true
-        }
-      ]
-    },
-    "shell:allow-stdin-write",
-    "shell:allow-kill"
+    "shell:allow-open"
   ]
 }

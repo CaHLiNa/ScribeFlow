@@ -1,56 +1,21 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import {
-  createFileTreeWatchRuntime,
-  filterRelevantFileWatchPaths,
-} from '../src/domains/files/fileTreeWatchRuntime.js'
+import { createFileTreeWatchRuntime } from '../src/domains/files/fileTreeWatchRuntime.js'
 
-test('filterRelevantFileWatchPaths excludes .git paths and keeps workspace metadata paths', () => {
-  const paths = filterRelevantFileWatchPaths([
-    '/ws/chapter1.md',
-    '/ws/.git/index',
-    '/ws/.altals/project/state/workspace-index.json',
-    '/outside/file.txt',
-  ], {
-    workspacePath: '/ws',
-    workspaceDataDir: '/ws/.altals',
-  })
-
-  assert.deepEqual(paths, [
-    '/ws/chapter1.md',
-    '/ws/.altals/project/state/workspace-index.json',
-  ])
-})
-
-test('file tree watch runtime debounces fs-change events and triggers refresh for workspace paths', async () => {
+test('file tree watch runtime schedules polling and tears down listeners', async () => {
   const timers = []
   const clearedTimers = new Set()
   const windowListeners = []
   const documentListeners = []
-  let fsChangeHandler = null
-  let unlistenCalls = 0
   let refreshCalls = 0
-  const handledPathBatches = []
   let currentVisibility = 'visible'
 
   const runtime = createFileTreeWatchRuntime({
-    getWorkspaceContext: () => ({
-      path: '/ws',
-      workspaceDataDir: '/ws/.altals',
-    }),
+    getWorkspaceContext: () => ({ path: '/ws' }),
     refreshVisibleTree: async (options = {}) => {
       refreshCalls += 1
-      assert.equal(options.reason === 'watch' || options.reason === 'poll', true)
-    },
-    handleExternalFileChanges: async (changedPaths) => {
-      handledPathBatches.push(changedPaths)
-    },
-    listenToFsChange: async (handler) => {
-      fsChangeHandler = handler
-      return () => {
-        unlistenCalls += 1
-      }
+      assert.equal(options.reason, 'poll')
     },
     addWindowListener: (type, handler, options) => {
       windowListeners.push({ type, handler, options })
@@ -74,37 +39,19 @@ test('file tree watch runtime debounces fs-change events and triggers refresh fo
 
   await runtime.startWatching()
 
-  assert.ok(fsChangeHandler)
   assert.equal(windowListeners.length, 1)
   assert.equal(documentListeners.length, 1)
-  assert.ok(timers.some(timer => timer.delayMs === 15000))
-
-  await fsChangeHandler({
-    payload: {
-      kind: 'modify',
-      paths: [
-        '/ws/chapter1.md',
-        '/ws/.git/index',
-        '/ws/.altals/project/state.json',
-      ],
-    },
-  })
-
-  const debounceTimer = timers.find(timer => timer.delayMs === 300)
-  assert.ok(debounceTimer)
-  await debounceTimer.callback()
+  const activePollTimer = timers.find(timer => timer.delayMs === 15000)
+  assert.ok(activePollTimer)
+  await activePollTimer.callback()
 
   assert.equal(refreshCalls, 1)
-  assert.deepEqual(handledPathBatches, [[
-    '/ws/chapter1.md',
-    '/ws/.altals/project/state.json',
-  ]])
+  assert.equal(timers.filter(timer => timer.delayMs === 15000).length >= 2, true)
 
   currentVisibility = 'hidden'
   runtime.noteTreeActivity()
-  assert.equal(timers.filter(timer => timer.delayMs === 15000 || timer.delayMs === 60000).length >= 1, true)
+  assert.equal(timers.filter(timer => timer.delayMs === 60000).length, 0)
 
   runtime.stopWatching()
-  assert.equal(unlistenCalls, 1)
   assert.ok(clearedTimers.size >= 1)
 })

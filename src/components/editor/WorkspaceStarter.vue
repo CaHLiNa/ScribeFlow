@@ -1,8 +1,5 @@
 <template>
-  <div
-    class="workspace-starter"
-    data-surface-context-guard="true"
-  >
+  <div class="workspace-starter" data-surface-context-guard="true">
     <div class="workspace-starter-shell">
       <div class="workspace-starter-stage">
         <div class="workspace-starter-copy" :class="{ 'is-empty-state': !hasWorkspace }">
@@ -34,17 +31,11 @@
           {{ t('Open Folder') }}
         </UiButton>
 
-        <div
-          v-if="!hasWorkspace"
-          class="workspace-starter-secondary-label"
-        >
+        <div v-if="!hasWorkspace" class="workspace-starter-secondary-label">
           {{ t('Then create') }}
         </div>
 
-        <div
-          class="workspace-starter-actions"
-          :class="{ 'is-preview-state': !hasWorkspace }"
-        >
+        <div class="workspace-starter-actions" :class="{ 'is-preview-state': !hasWorkspace }">
           <UiButton
             v-for="template in templates"
             :key="template.id"
@@ -90,13 +81,15 @@ const templates = computed(() => listWorkspaceDocumentTemplates(t))
 async function createTemplateDraft(template) {
   if (!hasWorkspace.value) return
   if (props.paneId) editorStore.setActivePane(props.paneId)
-  window.dispatchEvent(new CustomEvent('app:begin-new-file', {
-    detail: {
-      ext: template.ext,
-      suggestedName: template.filename,
-      initialContent: template.content,
-    },
-  }))
+  window.dispatchEvent(
+    new CustomEvent('app:begin-new-file', {
+      detail: {
+        ext: template.ext,
+        suggestedName: template.filename,
+        initialContent: template.content,
+      },
+    })
+  )
 }
 
 function openFolder() {

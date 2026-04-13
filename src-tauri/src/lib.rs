@@ -19,15 +19,6 @@ use tauri::menu::{AboutMetadata, Menu, MenuItem, SubmenuBuilder};
 #[cfg(target_os = "macos")]
 use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial, NSVisualEffectState};
 
-/// Enable macOS spellcheck for WKWebView (must run before webview init)
-#[cfg(target_os = "macos")]
-fn enable_macos_spellcheck() {
-    use objc2_foundation::{NSString, NSUserDefaults};
-    let defaults = NSUserDefaults::standardUserDefaults();
-    let key = NSString::from_str("WebContinuousSpellCheckingEnabled");
-    defaults.setBool_forKey(true, &key);
-}
-
 #[cfg(target_os = "macos")]
 fn apply_macos_window_vibrancy<R: Runtime>(app: &AppHandle<R>) {
     let Some(window) = app
@@ -46,55 +37,6 @@ fn apply_macos_window_vibrancy<R: Runtime>(app: &AppHandle<R>) {
         eprintln!("Failed to apply macOS vibrancy: {error}");
     }
 }
-
-/// Get spelling suggestions for a word via macOS NSSpellChecker
-#[cfg(target_os = "macos")]
-#[tauri::command]
-fn spell_suggest(word: String) -> Vec<String> {
-    use objc2_app_kit::NSSpellChecker;
-    use objc2_foundation::{NSRange, NSString};
-
-    let checker = NSSpellChecker::sharedSpellChecker();
-    let ns_word = NSString::from_str(&word);
-
-    // Check if misspelled (returns range of first error, length=0 means OK)
-    let bad = checker.checkSpellingOfString_startingAt(&ns_word, 0);
-    if bad.length == 0 {
-        return vec![];
-    }
-
-    // Get suggestions
-    let range = NSRange::new(0, ns_word.len());
-    let guesses = checker
-        .guessesForWordRange_inString_language_inSpellDocumentWithTag(range, &ns_word, None, 0);
-
-    match guesses {
-        Some(arr) => {
-            let mut out = Vec::new();
-            for i in 0..arr.count() {
-                let s = arr.objectAtIndex(i);
-                out.push(s.to_string());
-            }
-            out
-        }
-        None => vec![],
-    }
-}
-
-#[cfg(not(target_os = "macos"))]
-#[tauri::command]
-fn spell_suggest(_word: String) -> Vec<String> {
-    vec![]
-}
-
-const KEYRING_SERVICE: &str = "com.altals.desktop";
-
-const ALLOWED_KEYCHAIN_KEYS: &[&str] = &[
-    "anthropic-key",
-    "openai-key",
-    "google-key",
-    "auth-data",
-];
 
 fn workspace_file_content_type(path: &Path) -> &'static str {
     match path
@@ -239,41 +181,6 @@ mod tests {
     fn workspace_protocol_requires_file_path() {
         let error = parse_workspace_protocol_request_path("/workspace").unwrap_err();
         assert!(error.contains("Missing file path"));
-    }
-}
-
-#[tauri::command]
-fn keychain_get(key: String) -> Result<String, String> {
-    if !ALLOWED_KEYCHAIN_KEYS.contains(&key.as_str()) {
-        return Err(format!("Invalid keychain key: {}", key));
-    }
-    let entry = keyring::Entry::new(KEYRING_SERVICE, &key).map_err(|e| e.to_string())?;
-    match entry.get_password() {
-        Ok(val) => Ok(val),
-        Err(keyring::Error::NoEntry) => Ok(String::new()),
-        Err(e) => Err(e.to_string()),
-    }
-}
-
-#[tauri::command]
-fn keychain_set(key: String, value: String) -> Result<(), String> {
-    if !ALLOWED_KEYCHAIN_KEYS.contains(&key.as_str()) {
-        return Err(format!("Invalid keychain key: {}", key));
-    }
-    let entry = keyring::Entry::new(KEYRING_SERVICE, &key).map_err(|e| e.to_string())?;
-    entry.set_password(&value).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-fn keychain_delete(key: String) -> Result<(), String> {
-    if !ALLOWED_KEYCHAIN_KEYS.contains(&key.as_str()) {
-        return Err(format!("Invalid keychain key: {}", key));
-    }
-    let entry = keyring::Entry::new(KEYRING_SERVICE, &key).map_err(|e| e.to_string())?;
-    match entry.delete_credential() {
-        Ok(()) => Ok(()),
-        Err(keyring::Error::NoEntry) => Ok(()),
-        Err(e) => Err(e.to_string()),
     }
 }
 
@@ -479,9 +386,6 @@ pub fn run() {
     #[cfg(unix)]
     enrich_path();
 
-    #[cfg(target_os = "macos")]
-    enable_macos_spellcheck();
-
     let builder = tauri::Builder::default()
         .register_uri_scheme_protocol("altals-workspace", |ctx, request| {
             handle_workspace_protocol(ctx.app_handle(), request)
@@ -489,7 +393,6 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
-        .manage(fs_commands::WatcherState::default())
         .manage(latex::LatexState::default())
         .manage(security::WorkspaceScopeState::default())
         .manage(workspace_access::WorkspaceAccessState::default());
@@ -506,13 +409,11 @@ pub fn run() {
     builder
         .invoke_handler(tauri::generate_handler![
             fs_commands::read_dir_shallow,
-            fs_commands::read_dir_recursive,
             fs_commands::list_files_recursive,
             fs_commands::read_visible_tree,
             fs_commands::read_workspace_tree_snapshot,
             fs_commands::read_file,
             fs_commands::read_file_base64,
-            fs_commands::read_file_binary,
             fs_commands::write_file,
             fs_commands::write_file_base64,
             fs_commands::create_file,
@@ -523,16 +424,7 @@ pub fn run() {
             fs_commands::copy_dir,
             fs_commands::is_directory,
             fs_commands::path_exists,
-            fs_commands::watch_directory,
-            fs_commands::unwatch_directory,
-            fs_commands::proxy_api_call,
-            fs_commands::search_file_contents,
-            fs_commands::run_shell_command,
-            fs_commands::resolve_command_path,
-            fs_commands::run_program_capture,
             fs_commands::reveal_in_file_manager,
-            fs_commands::run_workspace_command,
-            fs_commands::fetch_url_content,
             fs_commands::get_global_config_dir,
             security::workspace_set_allowed_roots,
             security::workspace_clear_allowed_roots,
@@ -548,10 +440,6 @@ pub fn run() {
             latex::synctex_forward,
             latex::synctex_backward,
             latex::read_latex_synctex,
-            keychain_get,
-            keychain_set,
-            keychain_delete,
-            spell_suggest,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

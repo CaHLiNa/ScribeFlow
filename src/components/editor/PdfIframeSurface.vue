@@ -15,17 +15,11 @@
       @load="onIframeLoad"
     />
 
-    <div
-      v-if="loading"
-      class="pdf-artifact-preview__state"
-    >
+    <div v-if="loading" class="pdf-artifact-preview__state">
       {{ t('Loading PDF...') }}
     </div>
 
-    <div
-      v-else-if="loadError"
-      class="pdf-artifact-preview__state"
-    >
+    <div v-else-if="loadError" class="pdf-artifact-preview__state">
       <div class="pdf-artifact-preview__error-title">{{ t('Preview failed') }}</div>
       <div class="pdf-artifact-preview__error-message">{{ loadError }}</div>
       <div class="pdf-artifact-preview__error-actions">
@@ -88,11 +82,7 @@ const props = defineProps({
   themeTokens: { type: Object, default: () => ({}) },
 })
 
-const emit = defineEmits([
-  'open-external',
-  'backward-sync',
-  'forward-sync-handled',
-])
+const emit = defineEmits(['open-external', 'backward-sync', 'forward-sync-handled'])
 
 const { t } = useI18n()
 const {
@@ -112,14 +102,16 @@ const loadError = ref('')
 const viewerKey = ref(0)
 const latexViewerReady = ref(false)
 const surfaceStyle = computed(() => ({ ...(props.themeTokens || {}) }))
-const viewerThemeReloadKey = computed(() => JSON.stringify({
-  resolvedTheme: getResolvedTheme(),
-  pdfThemedPages: props.pdfThemedPages === true,
-  themeRevision: Number(props.themeRevision || 0),
-  pageBackground: resolveThemeToken('--shell-editor-surface'),
-  pageForeground: resolveThemeToken('--workspace-ink'),
-  useCanvasFilterFallback: shouldUseCanvasFilterFallback(),
-}))
+const viewerThemeReloadKey = computed(() =>
+  JSON.stringify({
+    resolvedTheme: getResolvedTheme(),
+    pdfThemedPages: props.pdfThemedPages === true,
+    themeRevision: Number(props.themeRevision || 0),
+    pageBackground: resolveThemeToken('--shell-editor-surface'),
+    pageForeground: resolveThemeToken('--workspace-ink'),
+    useCanvasFilterFallback: shouldUseCanvasFilterFallback(),
+  })
+)
 
 let currentBlobUrl = null
 let pdfSaveInProgress = false
@@ -131,7 +123,9 @@ let viewerContextMenuCleanup = null
 const LATEX_SYNC_DEBUG_LOG = '.altals-latex-sync-debug.jsonl'
 
 function getResolvedTheme() {
-  return String(props.resolvedTheme || '').trim().toLowerCase() === 'light'
+  return String(props.resolvedTheme || '')
+    .trim()
+    .toLowerCase() === 'light'
     ? 'light'
     : 'dark'
 }
@@ -140,7 +134,10 @@ function resolveThemeToken(name, fallback = '') {
   const propValue = String(props.themeTokens?.[name] || '').trim()
   if (propValue) return propValue
   if (typeof document === 'undefined') return fallback
-  return String(getComputedStyle(document.documentElement).getPropertyValue(name) || '').trim() || fallback
+  return (
+    String(getComputedStyle(document.documentElement).getPropertyValue(name) || '').trim() ||
+    fallback
+  )
 }
 
 async function appendLatexSyncDebug(entry = {}) {
@@ -189,11 +186,14 @@ function revokeCurrentBlobUrl() {
 function postLatexViewerMessage(type, payload = {}) {
   const frameWindow = iframeRef.value?.contentWindow
   if (!frameWindow) return false
-  frameWindow.postMessage({
-    channel: 'altals-latex-sync',
-    type,
-    ...payload,
-  }, '*')
+  frameWindow.postMessage(
+    {
+      channel: 'altals-latex-sync',
+      type,
+      ...payload,
+    },
+    '*'
+  )
   return true
 }
 
@@ -216,10 +216,13 @@ function applyCanvasFilterFallback() {
   const useFallback = shouldUseCanvasFilterFallback()
   const pageBackground = resolveThemeToken('--shell-editor-surface')
   root.dataset.altalsCanvasFilterFallback = useFallback ? 'true' : 'false'
-  root.style.setProperty('--altals-pdf-page-bg', useFallback && pageBackground ? pageBackground : '')
+  root.style.setProperty(
+    '--altals-pdf-page-bg',
+    useFallback && pageBackground ? pageBackground : ''
+  )
   root.style.setProperty(
     '--altals-pdf-canvas-filter',
-    useFallback ? 'invert(1) hue-rotate(180deg) contrast(1.08) brightness(1.05)' : 'none',
+    useFallback ? 'invert(1) hue-rotate(180deg) contrast(1.08) brightness(1.05)' : 'none'
   )
 }
 
@@ -276,9 +279,7 @@ async function savePdfToDisk() {
     if (!app?.pdfDocument) return
 
     const hasChanges = Number(app.pdfDocument.annotationStorage?.size || 0) > 0
-    const data = hasChanges
-      ? await app.pdfDocument.saveDocument()
-      : await app.pdfDocument.getData()
+    const data = hasChanges ? await app.pdfDocument.saveDocument() : await app.pdfDocument.getData()
 
     const base64 = uint8ArrayToBase64(new Uint8Array(data))
     await writePdfArtifactBase64(props.artifactPath, base64)
@@ -379,7 +380,7 @@ async function handleLatexViewerReverseSync(detail = {}) {
 
 async function handlePdfDoubleClick(event) {
   if (props.kind !== 'latex') return
-  await new Promise(resolve => requestAnimationFrame(() => resolve()))
+  await new Promise((resolve) => requestAnimationFrame(() => resolve()))
   const detail = resolveLatexPdfReverseSyncPayload({
     event,
     frameWindow: iframeRef.value?.contentWindow,
@@ -418,30 +419,36 @@ function installViewerPatches() {
     frameWindow.document.addEventListener('keydown', (event) => {
       if ((event.metaKey || event.ctrlKey) && event.key === 'w') {
         event.preventDefault()
-        document.dispatchEvent(new KeyboardEvent('keydown', {
-          key: event.key,
-          code: event.code,
-          metaKey: event.metaKey,
-          ctrlKey: event.ctrlKey,
-          shiftKey: event.shiftKey,
-          altKey: event.altKey,
-          bubbles: true,
-          cancelable: true,
-        }))
+        document.dispatchEvent(
+          new KeyboardEvent('keydown', {
+            key: event.key,
+            code: event.code,
+            metaKey: event.metaKey,
+            ctrlKey: event.ctrlKey,
+            shiftKey: event.shiftKey,
+            altKey: event.altKey,
+            bubbles: true,
+            cancelable: true,
+          })
+        )
       }
     })
 
-    frameWindow.document.addEventListener('click', async (event) => {
-      const resolved = resolveExternalHttpAnchor(event.target, frameWindow.location.href)
-      if (!resolved?.url) return
-      event.preventDefault()
-      event.stopPropagation()
-      try {
-        await openExternalHttpUrl(resolved.url)
-      } catch {
-        // Ignore shell-open failures here.
-      }
-    }, true)
+    frameWindow.document.addEventListener(
+      'click',
+      async (event) => {
+        const resolved = resolveExternalHttpAnchor(event.target, frameWindow.location.href)
+        if (!resolved?.url) return
+        event.preventDefault()
+        event.stopPropagation()
+        try {
+          await openExternalHttpUrl(resolved.url)
+        } catch {
+          // Ignore shell-open failures here.
+        }
+      },
+      true
+    )
 
     const contextMenuHandler = (event) => {
       event.preventDefault()
@@ -512,13 +519,15 @@ function buildPdfMenuGroups(options = {}) {
           },
         },
         ...(revealDetail
-          ? [{
-            key: 'reveal-source',
-            label: t('Reveal Source'),
-            action: () => {
-              void handleLatexViewerReverseSync(revealDetail)
-            },
-          }]
+          ? [
+              {
+                key: 'reveal-source',
+                label: t('Reveal Source'),
+                action: () => {
+                  void handleLatexViewerReverseSync(revealDetail)
+                },
+              },
+            ]
           : []),
       ],
     },
@@ -548,9 +557,9 @@ function handleIframeContextMenu(event) {
       revealDetail:
         props.kind === 'latex'
           ? resolveLatexPdfReverseSyncPayload({
-            event,
-            frameWindow,
-          })
+              event,
+              frameWindow,
+            })
           : null,
     }),
   })
@@ -677,7 +686,7 @@ watch(
   () => {
     applyTheme()
   },
-  { deep: true },
+  { deep: true }
 )
 
 watch(
@@ -687,7 +696,7 @@ watch(
     if (previousKey != null && nextKey !== previousKey && viewerSrc.value) {
       void loadPdf()
     }
-  },
+  }
 )
 
 watch(
@@ -695,14 +704,14 @@ watch(
   () => {
     void loadPdf()
   },
-  { immediate: true },
+  { immediate: true }
 )
 
 watch(
   () => props.forwardSyncRequest,
   (request) => {
     void handleForwardSyncRequest(request)
-  },
+  }
 )
 
 onMounted(() => {

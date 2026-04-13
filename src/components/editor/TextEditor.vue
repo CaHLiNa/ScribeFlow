@@ -25,9 +25,7 @@
     :x="ctxMenu.x"
     :y="ctxMenu.y"
     :has-selection="ctxMenu.hasSelection"
-    :file-path="props.filePath"
     :view="view"
-    :spellcheck-enabled="isMd && workspace.spellcheck"
     :show-format-document="isLatexEditor"
     :show-markdown-insert-table="isMd"
     :show-markdown-format-table="ctxMenu.showMarkdownFormatTable"
@@ -64,9 +62,7 @@ import {
   getZoomCompensatedClientPoint,
   zoomAwareMouseSelectionExtension,
 } from '../../editor/zoomCompensation'
-import {
-  createRevealHighlightExtension,
-} from '../../editor/revealHighlight'
+import { createRevealHighlightExtension } from '../../editor/revealHighlight'
 import {
   captureContextMenuState,
   normalizeContextMenuClickPos,
@@ -87,7 +83,10 @@ import { useLinksStore } from '../../stores/links'
 import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { useLatexStore } from '../../stores/latex'
 import { isDraftPath, isMarkdown, isLatex, isLatexEditorFile } from '../../utils/fileTypes'
-import { resolveLatexProjectGraph } from '../../services/latex/projectGraph'
+import {
+  getCachedLatexProjectGraph,
+  resolveLatexProjectGraph,
+} from '../../services/latex/projectGraph'
 import { revealLatexSourceLocation } from '../../services/latex/previewSync.js'
 import { rememberPendingMarkdownForwardSync } from '../../services/markdown/previewSync.js'
 import { readWorkspaceTextFile, saveWorkspaceTextFile } from '../../services/fileStoreIO.js'
@@ -143,6 +142,7 @@ let contextMenuRestoreFrame = null
 let contextMenuRestoreTimeout = null
 let latexNormalizedSaveContent = null
 let latexFormatOnSaveInFlight = false
+let latexWarmupHandle = null
 let lastPersistedContent = ''
 const LATEX_SYNC_DEBUG_LOG = '.altals-latex-sync-debug.jsonl'
 
@@ -279,6 +279,55 @@ function handleContextMenuPasteUnavailable() {
       duration: 2600,
     }
   )
+}
+
+function clearLatexWarmupHandle() {
+  if (latexWarmupHandle == null || typeof window === 'undefined') return
+  if (typeof window.cancelIdleCallback === 'function') {
+    window.cancelIdleCallback(latexWarmupHandle)
+  } else {
+    window.clearTimeout(latexWarmupHandle)
+  }
+  latexWarmupHandle = null
+}
+
+function scheduleLatexWarmup(content = '') {
+  if (!supportsLatexRuntime || typeof window === 'undefined') return
+  clearLatexWarmupHandle()
+
+  const runWarmup = async () => {
+    latexWarmupHandle = null
+    try {
+      await latexStore.checkTools()
+      await Promise.allSettled([
+        latexStore.refreshLint(props.filePath, {
+          sourceContent: content,
+        }),
+        getCachedLatexProjectGraph(props.filePath)
+          ? Promise.resolve()
+          : resolveLatexProjectGraph(props.filePath, {
+              filesStore: files,
+              workspacePath: workspace.path,
+            }),
+      ])
+    } catch {
+      // Warmup failures should not block editor startup.
+    }
+  }
+
+  if (typeof window.requestIdleCallback === 'function') {
+    latexWarmupHandle = window.requestIdleCallback(
+      () => {
+        void runWarmup()
+      },
+      { timeout: 400 }
+    )
+    return
+  }
+
+  latexWarmupHandle = window.setTimeout(() => {
+    void runWarmup()
+  }, 120)
 }
 
 async function handleFormatDocument() {
@@ -465,16 +514,7 @@ onMounted(async () => {
   editorStore.clearFileDirty(props.filePath)
 
   if (supportsLatexRuntime) {
-    void latexStore.checkTools().catch(() => {})
-    void latexStore
-      .refreshLint(props.filePath, {
-        sourceContent: content,
-      })
-      .catch(() => {})
-    void resolveLatexProjectGraph(props.filePath, {
-      filesStore: files,
-      workspacePath: workspace.path,
-    })
+    scheduleLatexWarmup(content)
   }
 
   const langExt = await loadLanguageExtension()
@@ -624,7 +664,8 @@ function ensureLatexWindowHandlers() {
 
   if (!backwardSyncHandler) {
     backwardSyncHandler = async (event) => {
-      const { file, line, column, textBeforeSelection, textAfterSelection, strictLine } = event.detail || {}
+      const { file, line, column, textBeforeSelection, textAfterSelection, strictLine } =
+        event.detail || {}
       const normalizedFile = String(file || '').replace(/\\/g, '/')
       const normalizedCurrentPath = String(props.filePath || '').replace(/\\/g, '/')
       const location = {
@@ -874,9 +915,9 @@ function hasActiveMarkdownPreviewTarget() {
 function hasActiveLatexPdfPreviewTarget() {
   const workspacePreviewState = workflowStore.getWorkspacePreviewStateForFile(props.filePath)
   if (
-    workspacePreviewState?.useWorkspace === true
-    && workspacePreviewState?.previewVisible === true
-    && workspacePreviewState?.previewKind === 'pdf'
+    workspacePreviewState?.useWorkspace === true &&
+    workspacePreviewState?.previewVisible === true &&
+    workspacePreviewState?.previewKind === 'pdf'
   ) {
     return true
   }
@@ -953,6 +994,7 @@ watch(
 
 onUnmounted(() => {
   deactivateEditorRuntime()
+  clearLatexWarmupHandle()
   if (markdownPreviewSyncTimer != null) {
     window.clearTimeout(markdownPreviewSyncTimer)
     markdownPreviewSyncTimer = null

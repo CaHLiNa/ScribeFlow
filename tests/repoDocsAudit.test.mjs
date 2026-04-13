@@ -15,7 +15,6 @@ const requiredDocs = [
   ['docs/DATA_MODEL.md', '# Data Model'],
   ['docs/BUILD_SYSTEM.md', '# Build System'],
   ['docs/DOCUMENT_WORKFLOW.md', '# Document Workflow'],
-  ['docs/WORKSPACE_SAVE_POINTS.md', '# Workspace Save Points'],
   ['docs/CONTRIBUTING.md', '# Contributing'],
   ['docs/TESTING.md', '# Testing'],
 ]

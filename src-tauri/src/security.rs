@@ -1,11 +1,8 @@
 use crate::app_dirs;
 use std::ffi::OsStr;
 use std::fs;
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::path::{Component, Path, PathBuf};
 use std::sync::Mutex;
-use tokio::net::lookup_host;
-use url::Url;
 
 pub struct WorkspaceScopeState {
     allowed_roots: Mutex<AllowedRoots>,
@@ -38,12 +35,6 @@ impl WorkspaceScopeState {
         Ok(guard.clone())
     }
 
-    fn allowed_workspace_root(&self) -> Result<PathBuf, String> {
-        self.allowed_roots()?
-            .workspace_root
-            .ok_or_else(|| "No active workspace is registered".to_string())
-    }
-
     fn allowed_root_for_scope(&self, scope: &str) -> Result<PathBuf, String> {
         let roots = self.allowed_roots()?;
         match scope {
@@ -55,11 +46,6 @@ impl WorkspaceScopeState {
                 .ok_or_else(|| "No active workspace data directory is registered".to_string()),
             other => Err(format!("Unsupported scope: {other}")),
         }
-    }
-
-    fn is_allowed_workspace_path(&self, path: &Path) -> Result<bool, String> {
-        let root = self.allowed_workspace_root()?;
-        Ok(is_within_root(path, &root))
     }
 
     fn has_registered_roots(&self) -> Result<bool, String> {
@@ -181,18 +167,6 @@ pub fn workspace_clear_allowed_roots(
     Ok(())
 }
 
-pub fn ensure_workspace_cwd(state: &WorkspaceScopeState, cwd: &str) -> Result<PathBuf, String> {
-    let canonical = canonicalize_for_scope(Path::new(cwd))?;
-    if state.is_allowed_workspace_path(&canonical)? {
-        Ok(canonical)
-    } else {
-        Err(format!(
-            "Path is outside the active workspace: {}",
-            canonical.display()
-        ))
-    }
-}
-
 pub fn ensure_allowed_mutation_path(
     state: &WorkspaceScopeState,
     path: &Path,
@@ -238,58 +212,6 @@ pub fn resolve_allowed_scoped_path(
         ));
     }
     Ok(canonical)
-}
-
-pub async fn validate_public_fetch_url(raw_url: &str) -> Result<Url, String> {
-    let url = Url::parse(raw_url).map_err(|e| format!("Invalid URL: {e}"))?;
-
-    match url.scheme() {
-        "http" | "https" => {}
-        scheme => return Err(format!("Unsupported URL scheme: {scheme}")),
-    }
-
-    if !url.username().is_empty() || url.password().is_some() {
-        return Err("Embedded credentials are not allowed in fetched URLs".to_string());
-    }
-
-    let host = url
-        .host_str()
-        .ok_or_else(|| "URL has no host".to_string())?
-        .trim()
-        .to_lowercase();
-
-    if host == "localhost" || host.ends_with(".local") {
-        return Err(format!("Local hostnames are not allowed: {host}"));
-    }
-
-    let port = url.port_or_known_default().unwrap_or(80);
-
-    if let Ok(ip) = host.parse::<IpAddr>() {
-        if !is_public_ip(ip) {
-            return Err(format!("Non-public IPs are not allowed: {host}"));
-        }
-        return Ok(url);
-    }
-
-    let mut saw_address = false;
-    for addr in lookup_host((host.as_str(), port))
-        .await
-        .map_err(|e| format!("DNS lookup failed for {host}: {e}"))?
-    {
-        saw_address = true;
-        if !is_public_ip(addr.ip()) {
-            return Err(format!(
-                "Host resolves to a non-public address: {}",
-                addr.ip()
-            ));
-        }
-    }
-
-    if !saw_address {
-        return Err(format!("Host did not resolve to any address: {host}"));
-    }
-
-    Ok(url)
 }
 
 pub fn normalize_absolute_path(path: &Path) -> PathBuf {
@@ -352,37 +274,6 @@ pub fn canonicalize_for_scope(path: &Path) -> Result<PathBuf, String> {
 
 fn is_within_root(path: &Path, root: &Path) -> bool {
     path == root || path.starts_with(root)
-}
-
-fn is_public_ip(ip: IpAddr) -> bool {
-    match ip {
-        IpAddr::V4(addr) => is_public_ipv4(addr),
-        IpAddr::V6(addr) => is_public_ipv6(addr),
-    }
-}
-
-fn is_public_ipv4(ip: Ipv4Addr) -> bool {
-    let octets = ip.octets();
-    !(ip.is_private()
-        || ip.is_loopback()
-        || ip.is_link_local()
-        || ip.is_broadcast()
-        || ip.is_documentation()
-        || ip.is_multicast()
-        || ip.is_unspecified()
-        || octets[0] == 0
-        || (octets[0] == 100 && (64..=127).contains(&octets[1]))
-        || (octets[0] == 198 && (octets[1] == 18 || octets[1] == 19)))
-}
-
-fn is_public_ipv6(ip: Ipv6Addr) -> bool {
-    let segments = ip.segments();
-    !(ip.is_loopback()
-        || ip.is_unspecified()
-        || ip.is_multicast()
-        || ip.is_unique_local()
-        || ip.is_unicast_link_local()
-        || (segments[0] == 0x2001 && segments[1] == 0x0db8))
 }
 
 #[cfg(test)]

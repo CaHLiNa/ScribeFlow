@@ -2,7 +2,6 @@ import { defineStore } from 'pinia'
 import { nanoid } from './utils'
 import { useFilesStore } from './files'
 import { useWorkspaceStore } from './workspace'
-import { events } from '../services/telemetry'
 import {
   isNewTab,
   isPreviewPath,
@@ -66,12 +65,6 @@ function isContextCandidatePath(path) {
   return !!path
     && !isLauncherTab(path)
     && !isPreviewPath(path)
-}
-
-function fileExtension(path) {
-  const name = String(path || '').split('/').pop() || ''
-  const dot = name.lastIndexOf('.')
-  return dot > 0 ? name.slice(dot + 1).toLowerCase() : ''
 }
 
 function createNewTabPath() {
@@ -477,7 +470,6 @@ export const useEditorStore = defineStore('editor', {
 
     recordFileOpen(path) {
       if (!path || isLauncherTab(path) || isPreviewPath(path)) return
-      events.fileOpen(fileExtension(path))
       this.recentFiles = buildRecentFilesAfterOpen(this.recentFiles, path)
       this._persistRecentFiles()
     },

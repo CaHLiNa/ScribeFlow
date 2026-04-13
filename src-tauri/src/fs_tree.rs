@@ -83,42 +83,6 @@ pub fn read_dir_shallow_entries(dir: &Path) -> Result<Vec<FileEntry>, String> {
     Ok(entries)
 }
 
-pub fn build_file_tree(dir: &Path) -> Result<Vec<FileEntry>, String> {
-    let mut entries = Vec::new();
-    let read_dir = fs::read_dir(dir).map_err(|e| e.to_string())?;
-
-    for entry in read_dir {
-        let entry = entry.map_err(|e| e.to_string())?;
-        let path = entry.path();
-        let name = entry.file_name().to_string_lossy().to_string();
-        let metadata = fs::symlink_metadata(&path).map_err(|e| e.to_string())?;
-        let file_type = metadata.file_type();
-        let is_symlink = file_type.is_symlink();
-        let is_dir = file_type.is_dir();
-
-        if should_skip_entry(&name, is_dir, is_symlink) {
-            continue;
-        }
-
-        let children = if is_dir {
-            Some(build_file_tree(&path)?)
-        } else {
-            None
-        };
-
-        entries.push(FileEntry {
-            name,
-            path: path.to_string_lossy().to_string(),
-            is_dir,
-            children,
-            modified: file_modified_timestamp(&metadata, is_dir),
-        });
-    }
-
-    sort_entries(&mut entries);
-    Ok(entries)
-}
-
 pub fn build_visible_tree(dir: &Path, loaded_dirs: &HashSet<String>) -> Result<Vec<FileEntry>, String> {
     let mut entries = Vec::new();
     let read_dir = fs::read_dir(dir).map_err(|e| e.to_string())?;

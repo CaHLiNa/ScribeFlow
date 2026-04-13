@@ -1,10 +1,8 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
-import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
 
 const host = process.env.TAURI_DEV_HOST
-const pkg = JSON.parse(readFileSync('./package.json', 'utf-8'))
 const extendShimPath = fileURLToPath(new URL('./src/shims/extend.js', import.meta.url))
 const mainEntryHtml = fileURLToPath(new URL('./index.html', import.meta.url))
 const pdfHostEntryHtml = fileURLToPath(new URL('./pdf-host.html', import.meta.url))
@@ -16,33 +14,77 @@ const chunkGroups = [
     '/node_modules/@vue/',
     '/node_modules/@tabler/icons-vue/',
   ]],
-  ['vendor-ai', [
-    '/node_modules/ai/',
-    '/node_modules/@ai-sdk/',
-    '/node_modules/zod/',
-  ]],
   ['vendor-markdown', [
     '/node_modules/marked/',
     '/node_modules/marked-',
     '/node_modules/katex/',
     '/node_modules/dompurify/',
   ]],
-  ['vendor-codemirror', [
+  ['vendor-codemirror-language-data', [
     '/node_modules/@codemirror/language-data/',
+  ]],
+  ['vendor-codemirror-markdown', [
+    '/node_modules/@codemirror/lang-markdown/',
+    '/node_modules/@lezer/markdown/',
+  ]],
+  ['vendor-codemirror-language-core', [
+    '/node_modules/@codemirror/language/',
+    '/node_modules/@lezer/common/',
+    '/node_modules/@lezer/highlight/',
+    '/node_modules/@lezer/lr/',
+  ]],
+  ['vendor-codemirror-editing', [
+    '/node_modules/@codemirror/autocomplete/',
+    '/node_modules/@codemirror/commands/',
+    '/node_modules/@codemirror/lint/',
+    '/node_modules/@codemirror/merge/',
+    '/node_modules/@codemirror/search/',
+  ]],
+  ['vendor-codemirror-web-languages', [
+    '/node_modules/@codemirror/lang-angular/',
+    '/node_modules/@codemirror/lang-css/',
+    '/node_modules/@codemirror/lang-html/',
+    '/node_modules/@codemirror/lang-jinja/',
+    '/node_modules/@codemirror/lang-javascript/',
+    '/node_modules/@codemirror/lang-json/',
+    '/node_modules/@codemirror/lang-less/',
+    '/node_modules/@codemirror/lang-liquid/',
+    '/node_modules/@codemirror/lang-sass/',
+    '/node_modules/@codemirror/lang-vue/',
+    '/node_modules/@codemirror/lang-xml/',
+    '/node_modules/@codemirror/lang-yaml/',
+    '/node_modules/@lezer/css/',
+    '/node_modules/@lezer/html/',
+    '/node_modules/@lezer/javascript/',
+    '/node_modules/@lezer/json/',
+    '/node_modules/@lezer/sass/',
+    '/node_modules/@lezer/xml/',
+    '/node_modules/@lezer/yaml/',
+  ]],
+  ['vendor-codemirror-code-languages', [
+    '/node_modules/@codemirror/lang-cpp/',
+    '/node_modules/@codemirror/lang-go/',
+    '/node_modules/@codemirror/lang-java/',
+    '/node_modules/@codemirror/lang-php/',
+    '/node_modules/@codemirror/lang-python/',
+    '/node_modules/@codemirror/lang-rust/',
+    '/node_modules/@codemirror/lang-sql/',
+    '/node_modules/@codemirror/lang-wast/',
+    '/node_modules/@lezer/cpp/',
+    '/node_modules/@lezer/go/',
+    '/node_modules/@lezer/java/',
+    '/node_modules/@lezer/php/',
+    '/node_modules/@lezer/python/',
+    '/node_modules/@lezer/rust/',
+  ]],
+  ['vendor-codemirror-legacy-modes', [
+    '/node_modules/@codemirror/legacy-modes/',
+  ]],
+  ['vendor-codemirror-core', [
+    '/node_modules/@codemirror/state/',
+    '/node_modules/@codemirror/view/',
     '/node_modules/@codemirror/',
     '/node_modules/codemirror/',
-    '/node_modules/@lezer/',
-  ]],
-  ['vendor-superdoc', [
-    '/node_modules/superdoc/',
-    '/node_modules/@superdoc-dev/',
-    '/node_modules/yjs/',
-    '/node_modules/@hocuspocus/',
-  ]],
-  ['vendor-prosemirror', [
-    '/node_modules/prosemirror-',
-    '/node_modules/@tiptap/',
-    '/node_modules/y-prosemirror/',
   ]],
   ['vendor-pdf-viewer', [
     '/node_modules/pdfjs-dist/legacy/web/',
@@ -57,18 +99,6 @@ const chunkGroups = [
   ]],
   ['vendor-highlight', [
     '/node_modules/highlight.js/',
-  ]],
-  ['vendor-citations', [
-    '/node_modules/citeproc/',
-  ]],
-  ['vendor-xterm', [
-    '/node_modules/@xterm/',
-  ]],
-  ['vendor-handsontable', [
-    '/node_modules/handsontable/',
-  ]],
-  ['vendor-spreadsheet', [
-    '/node_modules/papaparse/',
   ]],
 ]
 
@@ -86,9 +116,6 @@ export default defineConfig(async () => ({
     alias: {
       extend: extendShimPath,
     },
-  },
-  define: {
-    __APP_VERSION__: JSON.stringify(pkg.version),
   },
   build: {
     modulePreload: {

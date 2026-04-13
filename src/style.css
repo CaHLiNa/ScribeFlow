@@ -61,9 +61,7 @@ select,
 .md-preview-error,
 .md-preview-error *,
 .workspace-prose,
-.workspace-prose *,
-.chat-md,
-.chat-md * {
+.workspace-prose * {
   user-select: text;
   -webkit-user-select: text;
 }

@@ -10,7 +10,6 @@ import { useLatexStore } from '../../stores/latex'
 import { useToastStore } from '../../stores/toast'
 import { useUxStatusStore } from '../../stores/uxStatus'
 import { useI18n } from '../../i18n'
-import { events } from '../../services/telemetry'
 import {
   activateWorkspaceBookmark,
   captureWorkspaceBookmark,
@@ -212,9 +211,7 @@ export function useWorkspaceLifecycle() {
   async function closeWorkspace(options = {}) {
     const { skipUnsavedCheck = false } = options
     if (!skipUnsavedCheck) {
-      const result = await confirmUnsavedChanges([...editorStore.allOpenFiles], {
-        message: t('These files have unsaved changes and will be closed with the workspace.'),
-      })
+      const result = await confirmUnsavedChanges([...editorStore.allOpenFiles])
       if (result.choice === 'cancel') return false
     }
 
@@ -238,7 +235,6 @@ export function useWorkspaceLifecycle() {
   onMounted(async () => {
     await setupDesktopWindowFocusRefresh()
 
-    events.appOpen()
     workspace.restoreTheme()
     workspace.applyFontSizes()
     workspace.restoreProseFont()

@@ -17,11 +17,9 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = ["macos-private-api", "unstable"] }
 tauri-plugin-dialog = "2"
-keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
 tauri-plugin-shell = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-notify = "6"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream"] }
 futures-util = "0.3"
 tokio = { version = "1", features = ["full"] }
@@ -31,7 +29,6 @@ regex-lite = "0.1"
 uuid = { version = "1", features = ["v4"] }
 flate2 = "1"
 dirs = "5"
-url = "2"
 percent-encoding = "2"
 shell-words = "1"
 tauri-plugin-clipboard-manager = "2"
@@ -42,7 +39,6 @@ libc = "0.2"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"
-objc2-foundation = { version = "0.3", features = ["NSString", "NSUserDefaults", "NSArray", "NSRange", "NSData", "NSError", "NSURL"] }
-objc2-app-kit = { version = "0.3", features = ["NSSpellChecker", "NSPanel", "NSWindow", "NSResponder"] }
+objc2-foundation = { version = "0.3", features = ["NSString", "NSData", "NSError", "NSURL"] }
 sys-locale = "0.3"
 window-vibrancy = "0.6"

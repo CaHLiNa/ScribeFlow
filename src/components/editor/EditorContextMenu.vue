@@ -13,19 +13,6 @@
       :style="menuStyle"
       @mousedown.prevent
     >
-      <!-- Spell suggestions (inline, at top) -->
-      <template v-if="spellSuggestions.length > 0">
-        <div
-          v-for="s in spellSuggestions.slice(0, 5)"
-          :key="s"
-          class="context-menu-item spell-suggestion"
-          @click="applySuggestion(s)"
-        >
-          {{ s }}
-        </div>
-        <div class="context-menu-separator"></div>
-      </template>
-
       <template v-if="hasSelection">
         <div class="context-menu-item" @click="cut">{{ t('Cut') }}</div>
         <div class="context-menu-item" @click="copy">{{ t('Copy') }}</div>
@@ -63,7 +50,6 @@
 
 <script setup>
 import { nextTick, ref, watch } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
 import { readText as readClipboardText } from '@tauri-apps/plugin-clipboard-manager'
 import { useI18n } from '../../i18n'
 
@@ -72,9 +58,7 @@ const props = defineProps({
   x: { type: Number, default: 0 },
   y: { type: Number, default: 0 },
   hasSelection: { type: Boolean, default: false },
-  filePath: { type: String, default: '' },
   view: { type: Object, default: null },
-  spellcheckEnabled: { type: Boolean, default: false },
   showFormatDocument: { type: Boolean, default: false },
   showMarkdownInsertTable: { type: Boolean, default: false },
   showMarkdownFormatTable: { type: Boolean, default: false },
@@ -90,11 +74,6 @@ const emit = defineEmits([
 const { t } = useI18n()
 
 const menuRef = ref(null)
-const spellSuggestions = ref([])
-// Word range in the document for replacement
-let wordFrom = 0
-let wordTo = 0
-
 const menuStyle = ref({})
 
 async function repositionMenu() {
@@ -115,44 +94,17 @@ async function repositionMenu() {
   }
 }
 
-// When menu opens, compute position + fetch spell suggestions
 watch(
   () => props.visible,
   async (show) => {
-    if (!show) {
-      spellSuggestions.value = []
-      return
-    }
-
+    if (!show) return
     await repositionMenu()
-
-    // Spell check: get word at click position
-    if (props.spellcheckEnabled && props.view) {
-      const pos = props.view.posAtCoords({ x: props.x, y: props.y })
-      if (pos !== null) {
-        const word = getWordAt(props.view.state, pos)
-        if (word) {
-          wordFrom = word.from
-          wordTo = word.to
-          try {
-            const suggestions = await invoke('spell_suggest', { word: word.text })
-            // Only show if menu is still open
-            if (props.visible) {
-              spellSuggestions.value = suggestions
-            }
-          } catch {
-            /* non-macOS or error */
-          }
-        }
-      }
-    }
   }
 )
 
 watch(
   () => [
     props.visible,
-    spellSuggestions.value.length,
     props.hasSelection,
     props.showFormatDocument,
     props.showMarkdownInsertTable,
@@ -163,34 +115,6 @@ watch(
     await repositionMenu()
   }
 )
-
-function getWordAt(state, pos) {
-  const line = state.doc.lineAt(pos)
-  const text = line.text
-  const col = pos - line.from
-
-  // Walk back to find word start
-  let start = col
-  while (start > 0 && /[\w\u00C0-\u024F'-]/.test(text[start - 1])) start--
-  // Walk forward to find word end
-  let end = col
-  while (end < text.length && /[\w\u00C0-\u024F'-]/.test(text[end])) end++
-
-  if (start === end) return null
-  return {
-    text: text.slice(start, end),
-    from: line.from + start,
-    to: line.from + end,
-  }
-}
-
-function applySuggestion(suggestion) {
-  if (!props.view) return
-  props.view.dispatch({
-    changes: { from: wordFrom, to: wordTo, insert: suggestion },
-  })
-  emit('close')
-}
 
 function cut() {
   document.execCommand('cut')
@@ -281,13 +205,5 @@ function insertMarkdownTable() {
 .editor-context-menu-shortcut {
   color: var(--fg-muted);
   font-size: var(--ui-font-caption);
-}
-
-.spell-suggestion {
-  font-weight: 600;
-  color: var(--accent);
-}
-.spell-suggestion:hover {
-  color: var(--fg-primary);
 }
 </style>

@@ -144,17 +144,6 @@
       </div>
     </div>
 
-    <WorkspaceSnapshotBrowser
-      :visible="workspaceSnapshotBrowserVisible"
-      :creating-snapshot="creatingWorkspaceSnapshot"
-      :create-feedback="workspaceSnapshotBrowserFeedback"
-      :refresh-token="workspaceSnapshotBrowserRefreshToken"
-      @close="workspaceSnapshotBrowserVisible = false"
-      @create-snapshot="handleCreateWorkspaceSnapshot"
-    />
-
-    <UnsavedChangesDialog />
-
     <!-- Setup Wizard (first-time) -->
     <SetupWizard :visible="setupWizardVisible" @close="setupWizardVisible = false" />
 
@@ -170,7 +159,6 @@ import { useFilesStore } from './stores/files'
 import { useEditorStore } from './stores/editor'
 import { useDocumentWorkflowStore } from './stores/documentWorkflow'
 import { useLinksStore } from './stores/links'
-import { useToastStore } from './stores/toast'
 
 import ResizeHandle from './components/layout/ResizeHandle.vue'
 import WorkbenchRail from './components/layout/WorkbenchRail.vue'
@@ -178,7 +166,6 @@ import WorkspaceQuickOpen from './components/layout/WorkspaceQuickOpen.vue'
 import ToastContainer from './components/layout/ToastContainer.vue'
 import { useI18n } from './i18n'
 import { useAppShellLayout } from './composables/useAppShellLayout'
-import { useWorkspaceSnapshotActions } from './app/changes/useWorkspaceSnapshotActions'
 import { useAppShellEventBridge } from './app/shell/useAppShellEventBridge'
 import { useAppTeardown } from './app/teardown/useAppTeardown'
 import { useWorkspaceLifecycle } from './app/workspace/useWorkspaceLifecycle'
@@ -192,30 +179,19 @@ const SettingsSidebar = defineAsyncComponent(
   () => import('./components/settings/SettingsSidebar.vue')
 )
 const PaneContainer = defineAsyncComponent(() => import('./components/editor/PaneContainer.vue'))
-const WorkspaceSnapshotBrowser = defineAsyncComponent(
-  () => import('./components/WorkspaceSnapshotBrowser.vue')
-)
 const Settings = defineAsyncComponent(() => import('./components/settings/Settings.vue'))
 const SetupWizard = defineAsyncComponent(() => import('./components/SetupWizard.vue'))
-const UnsavedChangesDialog = defineAsyncComponent(
-  () => import('./components/UnsavedChangesDialog.vue')
-)
 
 const workspace = useWorkspaceStore()
 const filesStore = useFilesStore()
 const editorStore = useEditorStore()
 const workflowStore = useDocumentWorkflowStore()
 const linksStore = useLinksStore()
-const toastStore = useToastStore()
 const { t } = useI18n()
 const isMacDesktop = typeof window !== 'undefined' && isMac && !!window.__TAURI_INTERNALS__
 
 const searchRef = ref(null)
 const leftSidebarRef = ref(null)
-const creatingWorkspaceSnapshot = ref(false)
-const workspaceSnapshotBrowserRefreshToken = ref(0)
-const workspaceSnapshotBrowserVisible = ref(false)
-const workspaceSnapshotBrowserFeedback = ref(null)
 
 const supportsRightSidebar = computed(() => workspace.isOpen && workspace.isWorkspaceSurface)
 const leftSidebarVisible = computed(
@@ -275,9 +251,7 @@ async function toggleSplitPane() {
   const secondaryPane = getSecondaryPane()
   if (!secondaryPane) return
 
-  const result = await confirmUnsavedChanges(secondaryPane.tabs || [], {
-    message: t('These files have unsaved changes and will be closed with this pane.'),
-  })
+  const result = await confirmUnsavedChanges(secondaryPane.tabs || [])
   if (result.choice === 'cancel') return
 
   for (const tab of secondaryPane.tabs || []) {
@@ -303,61 +277,6 @@ const {
 } = useAppShellLayout()
 const { closeWorkspace, handleVisibilityChange, openWorkspace, pickWorkspace, setupWizardVisible } =
   useWorkspaceLifecycle()
-const { createSnapshot, openWorkspaceSnapshots } = useWorkspaceSnapshotActions({
-  workspace,
-  filesStore,
-  editorStore,
-  toastStore,
-  workspaceSnapshotBrowserVisible,
-  t,
-})
-
-async function handleCreateWorkspaceSnapshot() {
-  if (creatingWorkspaceSnapshot.value) {
-    return
-  }
-
-  creatingWorkspaceSnapshot.value = true
-  try {
-    const result = await createSnapshot({
-      requestSnapshotLabel: null,
-      allowLocalSavePointWhenUnchanged: true,
-      showNoChanges: () => {},
-      showSaveFailure: () => {},
-    })
-    if (result?.snapshot) {
-      workspaceSnapshotBrowserRefreshToken.value += 1
-    }
-    workspaceSnapshotBrowserFeedback.value = buildWorkspaceSnapshotBrowserFeedback(result)
-  } finally {
-    creatingWorkspaceSnapshot.value = false
-  }
-}
-
-function buildWorkspaceSnapshotBrowserFeedback(result) {
-  const id = Date.now()
-  if (result?.snapshot) {
-    return {
-      id,
-      title: t('Save point added'),
-      message: t('Added a new workspace save point to Saved Versions.'),
-    }
-  }
-
-  if (result?.reason === 'no-changes') {
-    return {
-      id,
-      title: t('Nothing new to save'),
-      message: t('There were no file changes to capture for a new workspace save point.'),
-    }
-  }
-
-  return {
-    id,
-    title: t('Could not add save point'),
-    message: t('Altals could not create a new workspace save point this time.'),
-  }
-}
 function onCursorChange(pos) {
   if (pos?.offset != null) {
     editorStore.cursorOffset = pos.offset
@@ -371,12 +290,9 @@ useAppShellEventBridge({
   toggleSplitPane,
   searchRef,
   leftSidebarRef,
-  workspaceSnapshotBrowserVisible,
   handleVisibilityChange,
   pickWorkspace,
   closeWorkspace,
-  createSnapshot,
-  openWorkspaceSnapshots,
 })
 useAppTeardown({
   cleanupAppShellLayout,

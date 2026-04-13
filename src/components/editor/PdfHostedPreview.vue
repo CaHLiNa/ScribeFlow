@@ -47,11 +47,7 @@ const props = defineProps({
   themeTokens: { type: Object, default: () => ({}) },
 })
 
-const emit = defineEmits([
-  'backward-sync',
-  'forward-sync-handled',
-  'unavailable',
-])
+const emit = defineEmits(['backward-sync', 'forward-sync-handled', 'unavailable'])
 
 const { t } = useI18n()
 
@@ -71,9 +67,11 @@ let cleanupForwardHandledListener = null
 
 function isHostedPreviewPermissionError(error) {
   const message = String(error?.message || error || '').toLowerCase()
-  return message.includes('create_webview not allowed')
-    || message.includes('core:webview:allow-create-webview')
-    || message.includes('not allowed')
+  return (
+    message.includes('create_webview not allowed') ||
+    message.includes('core:webview:allow-create-webview') ||
+    message.includes('not allowed')
+  )
 }
 
 function getHostUrl() {
@@ -144,7 +142,9 @@ async function sendHostedPayload() {
     })
     const emitter = currentWebview || getCurrentWebview()
     currentWebview = emitter
-    await emitter.emitTo(hostLabel.value, PDF_PREVIEW_HOST_UPDATE_EVENT, pendingPayload).catch(() => {})
+    await emitter
+      .emitTo(hostLabel.value, PDF_PREVIEW_HOST_UPDATE_EVENT, pendingPayload)
+      .catch(() => {})
     hostError.value = ''
   } catch (error) {
     hostError.value = error?.message || String(error || t('Could not load PDF'))
@@ -174,20 +174,25 @@ async function installHostEventBridge() {
   cleanupReadyListener = await currentWebview.listen(PDF_PREVIEW_HOST_READY_EVENT, (event) => {
     if (String(event.payload?.label || '') !== hostLabel.value) return
     if (!pendingPayload) return
-    void currentWebview.emitTo(hostLabel.value, PDF_PREVIEW_HOST_UPDATE_EVENT, pendingPayload).catch(() => {})
+    void currentWebview
+      .emitTo(hostLabel.value, PDF_PREVIEW_HOST_UPDATE_EVENT, pendingPayload)
+      .catch(() => {})
   })
 
-  cleanupBackwardListener = await currentWebview.listen(PDF_PREVIEW_HOST_BACKWARD_SYNC_EVENT, (event) => {
-    if (String(event.payload?.label || '') !== hostLabel.value) return
-    emit('backward-sync', event.payload?.detail || null)
-  })
+  cleanupBackwardListener = await currentWebview.listen(
+    PDF_PREVIEW_HOST_BACKWARD_SYNC_EVENT,
+    (event) => {
+      if (String(event.payload?.label || '') !== hostLabel.value) return
+      emit('backward-sync', event.payload?.detail || null)
+    }
+  )
 
   cleanupForwardHandledListener = await currentWebview.listen(
     PDF_PREVIEW_HOST_FORWARD_SYNC_HANDLED_EVENT,
     (event) => {
       if (String(event.payload?.label || '') !== hostLabel.value) return
       emit('forward-sync-handled', event.payload || null)
-    },
+    }
   )
 }
 
@@ -237,7 +242,7 @@ watch(
   () => {
     void sendHostedPayload()
   },
-  { deep: true },
+  { deep: true }
 )
 </script>
 

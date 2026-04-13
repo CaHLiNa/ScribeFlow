@@ -59,12 +59,6 @@ export function useEditorPaneWorkflow(options) {
   })
   const workflowStatusTone = computed(() => getDocumentWorkflowStatusTone(workflowUiState.value))
 
-  async function handleRunCode() {}
-
-  async function handleRunFile() {}
-
-  async function handleRenderDocument() {}
-
   async function handleCompileTex() {
     if (!activeTabRef.value || !isLatex(activeTabRef.value)) return
     await workflowStore.runBuildForFile(activeTabRef.value, buildWorkflowOptions({
@@ -180,9 +174,6 @@ export function useEditorPaneWorkflow(options) {
     workspacePreviewState,
     workflowStatusText,
     workflowStatusTone,
-    handleRunCode,
-    handleRunFile,
-    handleRenderDocument,
     handleCompileTex,
     handlePreviewPdf,
     handlePreviewMarkdown,

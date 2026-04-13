@@ -1,6 +1,5 @@
 import { defineStore } from 'pinia'
 import { invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
 import { save as saveDialog } from '@tauri-apps/plugin-dialog'
 import { nanoid } from './utils'
 import { useWorkspaceStore } from './workspace'
@@ -8,7 +7,6 @@ import { TEXT_FILE_READ_LIMIT_BYTES } from '../domains/files/workspaceTextFileLi
 import { readWorkspaceTreeSnapshot } from '../services/workspaceSnapshotIO'
 import {
   handleDeletedPathEffects,
-  handleExternalFileChanges,
   handleMovedPathEffects,
   handleRenamedPathEffects,
   syncSavedMarkdownLinks,
@@ -208,21 +206,8 @@ export const useFilesStore = defineStore('files', {
     _getFileTreeWatchRuntime() {
       if (!this._fileTreeWatchRuntime) {
         this._fileTreeWatchRuntime = createFileTreeWatchRuntime({
-          getWorkspaceContext: () => {
-            const workspace = useWorkspaceStore()
-            return {
-              path: workspace.path,
-              workspaceDataDir: workspace.workspaceDataDir,
-            }
-          },
+          getWorkspaceContext: () => ({ path: useWorkspaceStore().path }),
           refreshVisibleTree: (options = {}) => this.refreshVisibleTree(options),
-          handleExternalFileChanges: (changedPaths) => handleExternalFileChanges(this, changedPaths),
-          listenToFsChange: (handler) => listen('fs-change', handler),
-          onFsEvent: (kind, paths) => {
-            if (import.meta.env.DEV) {
-              console.debug('[fs-watch]', kind, paths)
-            }
-          },
         })
       }
       return this._fileTreeWatchRuntime

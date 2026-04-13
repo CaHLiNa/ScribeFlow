@@ -1,8 +1,5 @@
 <template>
-  <div
-    class="settings-surface"
-    data-surface-context-guard="true"
-  >
+  <div class="settings-surface" data-surface-context-guard="true">
     <header class="settings-header">
       <h2 class="settings-header-title">{{ activeSectionLabel }}</h2>
     </header>
@@ -130,57 +127,6 @@ const activeSectionComponent = computed(
   border-radius: var(--radius-sm);
   font-family: var(--font-mono);
   font-size: var(--ui-font-micro);
-}
-
-.settings-surface .keys-list {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.settings-surface .key-field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.settings-surface .key-label {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-
-.settings-surface .key-provider {
-  font-size: var(--ui-font-label);
-  font-weight: var(--font-weight-medium);
-  color: var(--text-primary);
-}
-
-.settings-surface .key-env {
-  font-size: var(--ui-font-micro);
-  color: var(--text-muted);
-  font-family: var(--font-mono);
-}
-
-.settings-surface .key-input-row {
-  display: flex;
-  gap: 4px;
-}
-
-.settings-surface .key-toggle {
-  flex-shrink: 0;
-}
-
-.settings-surface .keys-actions {
-  margin-top: 16px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.settings-surface .key-saved-hint {
-  font-size: var(--ui-font-caption);
-  color: var(--text-muted);
 }
 
 .settings-surface .settings-choice-grid {

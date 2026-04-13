@@ -89,9 +89,6 @@ export const useWorkspaceStore = defineStore('workspace', {
     legacyShouldersDir: (state) => (state.path ? `${state.path}/.shoulders` : null),
     legacyProjectDir: (state) => (state.path ? `${state.path}/.project` : null),
     legacyClaudeDir: (state) => (state.path ? `${state.path}/.claude` : null),
-    instructionsFilePath: (state) => (state.path ? `${state.path}/_instructions.md` : null),
-    internalInstructionsPath: (state) =>
-      state.workspaceDataDir ? `${state.workspaceDataDir}/project/instructions.md` : null,
   },
 
   actions: {
@@ -240,10 +237,6 @@ export const useWorkspaceStore = defineStore('workspace', {
       this.wrapColumn = setWrapColumnPreference(value)
     },
 
-    toggleSpellcheck() {
-      this.spellcheck = toggleStoredBoolean(this.spellcheck, 'spellcheck')
-    },
-
     togglePdfThemedPages() {
       this.pdfThemedPages = toggleStoredBoolean(this.pdfThemedPages, 'pdfThemedPages')
     },
@@ -309,11 +302,6 @@ export const useWorkspaceStore = defineStore('workspace', {
     async cleanup() {
       this._workspaceBootstrapGeneration += 1
       this._workspaceBootstrapPromise = null
-      if (this.path) {
-        await invoke('unwatch_directory').catch((error) => {
-          console.warn('[workspace] unwatch_directory failed:', error)
-        })
-      }
     },
   },
 })

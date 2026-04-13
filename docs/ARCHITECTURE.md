@@ -8,12 +8,12 @@ The architecture now targets one local-first academic workbench: project files, 
 
 ### Frontend boot
 
-- `src/main.js` initializes locale, telemetry, Vue, and Pinia, then mounts `App.vue`.
+- `src/main.js` initializes locale, Vue, and Pinia, then mounts `App.vue`.
 - `src/App.vue` composes the main shell, launcher, sidebars, workbench, settings surface, dialogs, and overlays.
 
 ### Desktop backend
 
-- `src-tauri/src/lib.rs` is the main backend integration point for native behavior, workspace protocol serving, keychain access, and registered backend modules.
+- `src-tauri/src/lib.rs` is the main backend integration point for native behavior, workspace protocol serving, and registered backend modules.
 - the Rust backend owns native seams such as filesystem access, platform commands, and desktop-specific protocol handling
 
 ## Layer responsibilities
@@ -25,7 +25,6 @@ Examples:
 
 - `src/app/shell/useAppShellEventBridge.js`
 - `src/app/workspace/useWorkspaceLifecycle.js`
-- `src/app/changes/useWorkspaceSnapshotActions.js`
 
 ### `src/domains/*`
 
@@ -37,8 +36,7 @@ Current domain families:
 - file tree and file operations
 - project references, citation policy, and reference-to-document decisions
 - reader session behavior and writing-adjacent inspection flows
-- workspace history and snapshots
-- workspace bootstrap and automation
+- workspace setup and starter flows
 - git/workspace repo linking
 
 ### `src/services/*`
@@ -87,7 +85,7 @@ Reusable UI glue that should stay lighter than product-policy code.
 ### `src-tauri/*`
 
 Native filesystem, process, protocol, and platform seams.
-The backend module list in `src-tauri/src/lib.rs` currently includes file, LaTeX, workspace access, keychain, and security-related modules.
+The backend module list in `src-tauri/src/lib.rs` currently includes file, LaTeX, workspace access, and security-related modules.
 
 Future backend seams for references, citation tooling, or reader helpers should remain typed desktop integrations instead of ad hoc UI-owned process launching.
 
@@ -101,7 +99,7 @@ Future backend seams for references, citation tooling, or reader helpers should 
 - workspace workbench when a workspace is open
 - settings surface when the primary surface changes to settings
 
-The same shell also owns dialogs for setup, unsaved changes, and snapshots.
+The same shell also owns setup flow overlays and file or workspace confirmations.
 
 ### Sidebar model
 
@@ -157,12 +155,6 @@ AI-assisted research flows and PDF translation are valid future product areas, b
 
 That boundary should also carry future reference indexes, citation caches, reader session state, and other project-local research metadata that should not pollute the user project tree.
 
-### History and snapshot architecture
-
-Workspace save points are modeled in `src/domains/changes/*`, where local snapshot metadata, payload manifests, and restore previews are normalized into stable UI-facing records.
-
-Future references or reader state should integrate with this system only when they materially protect the writing workflow. Do not bolt unrelated persistence schemes onto the side.
-
 ### Release and repo automation
 
 Repository automation is split between:
@@ -189,4 +181,3 @@ Repository automation is split between:
 - `docs/DOMAINS.md`
 - `docs/ACADEMIC_PLATFORM_DIRECTION.md`
 - `docs/DOCUMENT_WORKFLOW.md`
-- `docs/WORKSPACE_SAVE_POINTS.md`

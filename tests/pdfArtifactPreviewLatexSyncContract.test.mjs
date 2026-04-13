@@ -35,7 +35,7 @@ test('latex pdf iframe surface bridges sync through iframe messages', () => {
 })
 
 test('latex pdf iframe surface only reloads the viewer when actual theme inputs change', () => {
-  assert.match(iframeSurfaceSource, /const viewerThemeReloadKey = computed\(\(\) => JSON\.stringify\(\{/)
+  assert.match(iframeSurfaceSource, /const viewerThemeReloadKey = computed\(\(\)\s*=>\s*JSON\.stringify\(\{/)
   assert.match(iframeSurfaceSource, /themeRevision: Number\(props\.themeRevision \|\| 0\)/)
   assert.match(iframeSurfaceSource, /pageBackground: resolveThemeToken\('--shell-editor-surface'\)/)
   assert.match(iframeSurfaceSource, /pageForeground: resolveThemeToken\('--workspace-ink'\)/)

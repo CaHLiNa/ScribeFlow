@@ -37,6 +37,7 @@ Representative files:
 - `fileCreationRuntime.js`
 - `fileMutationRuntime.js`
 - `fileContentRuntime.js`
+- `workspaceSnapshotFlatFilesRuntime.js`
 
 ### Future `src/domains/references/*`
 
@@ -72,25 +73,12 @@ Representative future files:
 - `readerInspectionRuntime.js`
 - `annotationMappingRuntime.js`
 
-### `src/domains/changes/*`
-
-Owns workspace snapshots, local save points, visibility filtering, payload manifests, diff/preview/apply behavior, and restore preparation.
-
-Representative files:
-
-- `workspaceSnapshotRuntime.js`
-- `workspaceLocalSnapshotStoreRuntime.js`
-- `workspaceSnapshotPreviewRuntime.js`
-- `workspaceHistoryPreparationRuntime.js`
-- `workspaceSnapshotDiffRuntime.js`
-
 ### `src/domains/workspace/*`
 
-Owns workspace bootstrap, starter metrics, templates, and shell-facing workspace setup behavior.
+Owns workspace starter metrics, templates, and shell-facing workspace setup behavior.
 
 Representative files:
 
-- `workspaceBootstrapRuntime.js`
 - `workspaceStarterMetrics.js`
 - `workspaceTemplateRuntime.js`
 
@@ -118,7 +106,7 @@ A large share of the repository tests target domain runtime files directly. Repr
 - `tests/documentWorkflow*.test.mjs`
 - `tests/fileTreeHydrationRuntime.test.mjs`
 - `tests/editorOpenRoutingRuntime.test.mjs`
-- `tests/workspaceSnapshot*.test.mjs`
+- `tests/fileTreeWatchRuntime.test.mjs`
 
 When references, citation, or reader domains are added, they should follow the same pattern: policy-heavy runtime tests first, UI tests second.
 

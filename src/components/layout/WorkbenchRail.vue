@@ -54,10 +54,7 @@
 
     <div class="workbench-rail-center">
       <div class="workbench-rail-title-target">
-        <div
-          :id="documentTitleTargetId"
-          class="workbench-rail-title-slot"
-        ></div>
+        <div :id="documentTitleTargetId" class="workbench-rail-title-slot"></div>
         <div
           v-if="currentDocumentLabel && !preferExternalDocumentTitle"
           class="workbench-rail-document-title"

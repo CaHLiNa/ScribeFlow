@@ -1,51 +1,32 @@
 import { useEditorStore } from '../stores/editor'
 import { useFilesStore } from '../stores/files'
-import { useUnsavedChangesStore } from '../stores/unsavedChanges'
 import { useWorkspaceStore } from '../stores/workspace'
 import { discardEditorPaths } from '../domains/editor/editorDiscardRuntime'
-import { t } from '../i18n'
 
-function displayPath(path = '', workspacePath = '') {
-  if (!path) return ''
-  if (workspacePath && path.startsWith(`${workspacePath}/`)) {
-    return path.slice(workspacePath.length + 1)
-  }
-  return path.split('/').pop() || path
-}
-
-export async function confirmUnsavedChanges(paths = [], options = {}) {
+export async function confirmUnsavedChanges(paths = []) {
   const editorStore = useEditorStore()
   const filesStore = useFilesStore()
-  const workspace = useWorkspaceStore()
-  const dialogStore = useUnsavedChangesStore()
   const dirtyPaths = editorStore.getDirtyFiles(paths)
 
   if (dirtyPaths.length === 0) {
     return { choice: 'proceed', dirtyPaths: [] }
   }
 
-  const choice = await dialogStore.prompt({
-    title: options.title || t('Save changes before closing?'),
-    message: options.message || (
-      dirtyPaths.length === 1
-        ? t('This file has unsaved changes.')
-        : t('These files have unsaved changes.')
-    ),
-    details: dirtyPaths.map(path => displayPath(path, workspace.path)),
-    saveLabel: t('Save'),
-    discardLabel: t("Don't Save"),
-    cancelLabel: t('Cancel'),
-  })
+  const pathsToPersist = dirtyPaths.filter(
+    (path) => !filesStore.isDraftFile(path) && !filesStore.isTransientFile(path)
+  )
+  const pathsToDiscard = dirtyPaths.filter(
+    (path) => filesStore.isDraftFile(path) || filesStore.isTransientFile(path)
+  )
 
-  if (choice === 'save') {
-    const saved = await editorStore.persistPaths(dirtyPaths)
+  if (pathsToPersist.length > 0) {
+    const saved = await editorStore.persistPaths(pathsToPersist)
     if (!saved) {
-      return { choice: 'cancel', dirtyPaths }
+      return { choice: 'cancel', dirtyPaths: pathsToPersist }
     }
-    return { choice, dirtyPaths }
   }
 
-  if (choice === 'discard') {
+  if (pathsToDiscard.length > 0) {
     await discardEditorPaths(dirtyPaths, {
       isDraftFile: (path) => filesStore.isDraftFile(path),
       clearDraftFile: (path) => filesStore.clearDraftFile(path),
@@ -58,5 +39,11 @@ export async function confirmUnsavedChanges(paths = [], options = {}) {
     })
   }
 
-  return { choice, dirtyPaths }
+  if (pathsToPersist.length > 0 && pathsToDiscard.length > 0) {
+    return { choice: 'save', dirtyPaths }
+  }
+  if (pathsToPersist.length > 0) {
+    return { choice: 'save', dirtyPaths: pathsToPersist }
+  }
+  return { choice: 'discard', dirtyPaths: pathsToDiscard }
 }

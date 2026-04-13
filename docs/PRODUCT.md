@@ -15,7 +15,7 @@ The target product loop is one practical desktop workbench:
 5. insert citations and maintain bibliography output from the same workspace
 6. preview or compile supported document formats without leaving the workspace surface
 7. inspect document structure, citation context, or reader structure in the right-side inspection area
-8. use save points, local history, and repository workflows as safety boundaries while writing
+8. use save flows and repository workflows as safety boundaries while writing
 
 Representative current entry points:
 
@@ -36,7 +36,7 @@ The current shipped build remains centered on:
 - workflow-aware behavior for Markdown and LaTeX
 - previewing or compiling supported writing formats
 - outline inspection in the current right sidebar
-- local history, snapshots, and repository-linked writing workflows
+- repository-linked writing workflows
 
 ### Current expansion target
 
@@ -57,7 +57,7 @@ The workbench can already open supporting files such as standalone PDFs, `.txt`,
 - **Launcher** for opening a local workspace
 - **Workspace surface** for file tree, editor panes, preview or compile actions, and current inspection flows
 - **Settings surface** for theme, editor, environment, and update preferences
-- **Dialogs and overlays** for setup, unsaved changes, and workspace snapshot browsing
+- **Dialogs and overlays** for setup and focused file or workspace actions
 
 ### Planned workbench additions
 
@@ -73,7 +73,7 @@ Current first-class writing formats remain:
 
 - **Markdown** with a built-in preview mode
 - **LaTeX** with compile status, diagnostics, and PDF preview
-Citations and bibliography behavior should adapt to each format instead of forcing one fake cross-format syntax over the top.
+  Citations and bibliography behavior should adapt to each format instead of forcing one fake cross-format syntax over the top.
 
 ## Product boundaries
 
@@ -91,7 +91,6 @@ Citations and bibliography behavior should adapt to each format instead of forci
 - workspace identity and workspace-owned metadata are managed through `src/stores/workspace.js`
 - editor panes, tabs, and dirty state live in `src/stores/editor.js`
 - document workflow session state and preview preferences live in `src/stores/documentWorkflow.js`
-- local history and save-point behavior stay integrated into the writing flow
 - future references, reader state, and citation caches should remain scoped to the current workspace or its owned metadata directory rather than a mandatory global cloud account
 
 ## Non-goals for the current direction
@@ -108,5 +107,4 @@ Citations and bibliography behavior should adapt to each format instead of forci
 - `docs/DOMAINS.md`
 - `docs/ACADEMIC_PLATFORM_DIRECTION.md`
 - `docs/DOCUMENT_WORKFLOW.md`
-- `docs/GIT_AND_SNAPSHOTS.md`
 - `docs/TESTING.md`
