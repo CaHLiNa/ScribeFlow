@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Altals PDF Host</title>
+    <script>
+      (() => {
+        const params = new URLSearchParams(window.location.search)
+        const resolvedTheme = params.get('resolvedTheme') === 'light' ? 'light' : 'dark'
+        const bootBackground = params.get('bootBackground')
+        const bootForeground = params.get('bootForeground')
+        const root = document.documentElement
+
+        root.classList.remove('theme-light', 'theme-dark', 'theme-system')
+        root.classList.add(`theme-${resolvedTheme}`)
+        root.dataset.themeResolved = resolvedTheme
+        root.dataset.themePreference = resolvedTheme
+        root.style.colorScheme = resolvedTheme
+
+        if (bootBackground) {
+          root.style.setProperty('--altals-pdf-host-boot-bg', bootBackground)
+        }
+        if (bootForeground) {
+          root.style.setProperty('--altals-pdf-host-boot-fg', bootForeground)
+        }
+      })()
+    </script>
+    <style>
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        background: var(--altals-pdf-host-boot-bg, #141311);
+        color: var(--altals-pdf-host-boot-fg, #f0f0f0);
+        cursor: text;
+      }
+
+      body {
+        overflow: hidden;
+      }
+
+      #app {
+        background: inherit;
+        width: 100%;
+        height: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/pdf-host/main.js"></script>
+  </body>
+</html>
