@@ -17,6 +17,7 @@ import {
   releaseWorkspaceBookmark,
 } from '../../services/workspacePermissions'
 import { confirmUnsavedChanges } from '../../services/unsavedChanges'
+import { loadZoteroConfig, syncNow } from '../../services/references/zoteroSync.js'
 
 export function useWorkspaceLifecycle() {
   const workspace = useWorkspaceStore()
@@ -154,7 +155,15 @@ export function useWorkspaceLifecycle() {
         globalConfigDir: workspace.globalConfigDir || null,
         claudeConfigDir: workspace.claudeConfigDir || null,
       })
-      await referencesStore.loadWorkspaceLibrary(workspace.workspaceDataDir)
+      await referencesStore.loadWorkspaceLibrary(workspace.globalConfigDir, {
+        legacyWorkspaceDataDir: workspace.workspaceDataDir,
+        legacyProjectRoot: workspace.path,
+      })
+      scheduleWorkspaceBackgroundTask(80, loadGeneration, targetPath, async () => {
+        const zoteroConfig = await loadZoteroConfig()
+        if (!zoteroConfig?.userId || zoteroConfig?.autoSync === false) return
+        await syncNow(workspace.globalConfigDir, referencesStore)
+      }, 'references.zoteroAutoSync')
       editorStore.loadRecentFiles(targetPath)
 
       const hadCachedTree = filesStore.restoreCachedTree(targetPath)

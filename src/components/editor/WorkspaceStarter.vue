@@ -118,15 +118,15 @@ function openFolder() {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 28px;
-  width: min(100%, 560px);
+  gap: 24px;
+  width: min(100%, 520px); /* 略微收紧宽度 */
 }
 
 .workspace-starter-copy {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   text-align: center;
 }
 
@@ -138,82 +138,73 @@ function openFolder() {
   margin: 0;
   font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--text-muted);
-  opacity: 0.9;
 }
 
 .workspace-starter-title {
   margin: 0;
-  font-family:
-    -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', system-ui, sans-serif;
-  font-size: clamp(2rem, 4.2cqi, 3.1rem);
+  font-family: var(--font-sans);
+  font-size: 26px; /* 固定原生字号，去除浮夸的流式缩放 */
   font-weight: 600;
-  line-height: 0.98;
-  letter-spacing: -0.05em;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
   color: var(--text-primary);
 }
 
 .workspace-starter-copy.is-empty-state .workspace-starter-title {
-  font-size: clamp(1.8rem, 3.6cqi, 2.8rem);
-  line-height: 1.03;
-  letter-spacing: -0.045em;
+  font-size: 28px;
 }
 
 .workspace-starter-subtitle {
   margin: 0;
   max-width: 36ch;
-  font-size: 0.95rem;
-  line-height: 1.45;
+  font-size: 13px;
+  line-height: 1.5;
   color: var(--text-secondary);
 }
 
 .workspace-starter-open-folder {
-  min-width: 184px;
+  min-width: 160px;
 }
 
 .workspace-starter-secondary-label {
-  margin-top: -6px;
+  margin-top: -4px;
   font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--text-muted);
-  opacity: 0.8;
 }
 
 .workspace-starter-actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
+  gap: 12px;
   width: 100%;
 }
 
-.workspace-starter-actions.is-preview-state {
-  gap: 12px;
-}
-
 .workspace-starter-action {
-  min-height: 132px;
+  min-height: 100px; /* 降低高度 */
   padding: 0;
-  border: 1px solid color-mix(in srgb, var(--shell-border) 36%, transparent);
-  border-radius: 24px;
-  background: color-mix(in srgb, var(--shell-surface) 78%, transparent);
-  box-shadow: none;
+  border: 1px solid var(--border);
+  border-radius: 8px; /* 从 24px 收紧到原生的 8px */
+  background: var(--surface-base);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+  transition: all 0.15s ease;
 }
 
 .workspace-starter-action:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--shell-border) 62%, transparent);
-  background: color-mix(in srgb, var(--shell-surface) 90%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+  background: var(--surface-hover);
 }
 
 .workspace-starter-action.is-preview-state {
-  min-height: 118px;
-  border-color: color-mix(in srgb, var(--shell-border) 22%, transparent);
-  background: color-mix(in srgb, var(--shell-surface) 50%, transparent);
-  opacity: 0.78;
-  box-shadow: none;
+  min-height: 90px;
+  background: transparent;
+  border-color: color-mix(in srgb, var(--border) 60%, transparent);
+  opacity: 0.8;
 }
 
 .workspace-starter-action-main {
@@ -221,37 +212,31 @@ function openFolder() {
   flex-direction: column;
   align-items: flex-start;
   justify-content: flex-start;
-  gap: 8px;
+  gap: 4px;
   width: 100%;
   height: 100%;
-  padding: 22px;
+  padding: 16px;
   box-sizing: border-box;
 }
 
 .workspace-starter-action-label {
-  font-size: 1.08rem;
-  line-height: 1.2;
+  font-size: 14px;
   font-weight: 600;
   color: var(--text-primary);
 }
 
 .workspace-starter-action-description {
-  font-size: 0.88rem;
-  line-height: 1.45;
+  font-size: 12px;
+  line-height: 1.4;
   color: var(--text-secondary);
+  text-align: left;
 }
 
 .workspace-starter-action-meta {
   margin-top: auto;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
-  font-size: 0.8rem;
-  line-height: 1.2;
+  font-family: var(--font-mono);
+  font-size: 11px;
   color: var(--text-muted);
-}
-
-.workspace-starter-action.is-preview-state .workspace-starter-action-description,
-.workspace-starter-action.is-preview-state .workspace-starter-action-meta {
-  color: color-mix(in srgb, var(--text-muted) 84%, transparent);
 }
 
 @container (max-width: 720px) {
@@ -260,7 +245,7 @@ function openFolder() {
   }
 
   .workspace-starter-stage {
-    gap: 22px;
+    gap: 20px;
   }
 
   .workspace-starter-actions {
@@ -268,8 +253,7 @@ function openFolder() {
   }
 
   .workspace-starter-action {
-    min-height: 112px;
-    border-radius: 20px;
+    min-height: 80px;
   }
 }
 </style>

@@ -167,7 +167,10 @@ import ResizeHandle from './components/layout/ResizeHandle.vue'
 import WorkbenchRail from './components/layout/WorkbenchRail.vue'
 import ToastContainer from './components/layout/ToastContainer.vue'
 import { useI18n } from './i18n'
-import { getReferenceSectionLabelKey } from './domains/references/referencePresentation.js'
+import {
+  getReferenceSectionLabelKey,
+  getReferenceSourceLabelKey,
+} from './domains/references/referencePresentation.js'
 import { useAppShellLayout } from './composables/useAppShellLayout'
 import { useAppShellEventBridge } from './app/shell/useAppShellEventBridge'
 import { applyAppWindowConstraints } from './app/shell/useAppWindowConstraints'
@@ -237,6 +240,13 @@ const currentDocumentLabel = computed(() => {
   if (workspace.leftSidebarPanel === 'references') {
     if (referencesStore.selectedCollection?.label) {
       return referencesStore.selectedCollection.label
+    }
+    if (referencesStore.selectedSourceKey) {
+      const sourceKey =
+        referencesStore.sourceSections.find(
+          (section) => section.key === referencesStore.selectedSourceKey
+        )?.key || 'manual'
+      return t(getReferenceSourceLabelKey(sourceKey))
     }
     const sectionKey =
       referencesStore.librarySections.find(

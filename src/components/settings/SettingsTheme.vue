@@ -75,7 +75,7 @@ const themes = WORKSPACE_THEME_OPTIONS
 
 <style scoped>
 .theme-group-body {
-  gap: 8px;
+  /* Inherits from standard settings-group-body */
 }
 
 .theme-row {
@@ -84,59 +84,37 @@ const themes = WORKSPACE_THEME_OPTIONS
   align-items: center;
   gap: 12px;
   padding: 12px 14px;
-  border: 1px solid
-    var(--settings-row-border, color-mix(in srgb, var(--border-subtle) 24%, transparent));
-  border-radius: 14px;
-  background: var(
-    --settings-row-surface,
-    color-mix(in srgb, var(--shell-muted-surface) 92%, transparent)
-  );
+  border-radius: 0;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 30%, transparent);
   box-shadow: none;
   text-align: left;
-  transition:
-    background-color 140ms ease,
-    border-color 140ms ease,
-    color 140ms ease;
+  transition: background-color 140ms ease;
 }
 
-.theme-row + .theme-row {
-  margin-top: 0;
+.theme-row:last-child {
+  border-bottom: none;
 }
 
 .theme-row:hover {
-  background: var(
-    --settings-control-surface,
-    color-mix(in srgb, var(--shell-surface) 72%, var(--shell-muted-surface))
-  );
-  border-color: var(
-    --settings-control-border,
-    color-mix(in srgb, var(--border-subtle) 32%, transparent)
-  );
+  background: color-mix(in srgb, var(--surface-hover) 30%, transparent);
 }
 
 .theme-row.is-active {
-  background: var(
-    --settings-control-surface-hover,
-    color-mix(in srgb, var(--shell-surface) 88%, var(--shell-muted-surface))
-  );
-  border-color: var(
-    --settings-control-border-strong,
-    color-mix(in srgb, var(--border-subtle) 44%, transparent)
-  );
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
 }
 
 .theme-row-preview {
   flex: 0 0 56px;
   height: 34px;
-  border-radius: 8px;
+  border-radius: 6px;
   overflow: hidden;
   display: flex;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border-subtle) 22%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border-subtle) 40%, transparent);
 }
 
-.theme-row-sidebar {
-  width: 24%;
-}
+.theme-row-sidebar { width: 24%; }
 
 .theme-row-editor {
   flex: 1;
@@ -158,18 +136,18 @@ const themes = WORKSPACE_THEME_OPTIONS
   flex: 1 1 auto;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
 }
 
 .theme-row-title {
   font-size: 13px;
-  font-weight: var(--font-weight-medium);
+  font-weight: 500;
   color: var(--text-primary);
 }
 
 .theme-row-hint {
-  font-size: 11.5px;
-  line-height: 1.38;
+  font-size: 12px;
+  line-height: 1.4;
   color: var(--text-muted);
 }
 </style>

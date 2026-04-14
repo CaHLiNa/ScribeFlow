@@ -65,13 +65,14 @@
   --canvas-orange: #24211f;
   --canvas-gray: #232325;
 
-  --ui-font-size: 14px;
-  --editor-font-size: 13px;
-  --ui-font-tiny: calc(var(--ui-font-size) - 5px);
-  --ui-font-fine: calc(var(--ui-font-size) - 4px);
-  --ui-font-micro: calc(var(--ui-font-size) - 3px);
-  --ui-font-caption: calc(var(--ui-font-size) - 2px);
-  --ui-font-label: calc(var(--ui-font-size) - 1px);
+  /* macOS Native-like Typography Scale */
+  --ui-font-size: 13px;
+  --editor-font-size: 14px;
+  --ui-font-tiny: calc(var(--ui-font-size) - 4px);
+  --ui-font-fine: calc(var(--ui-font-size) - 3px);
+  --ui-font-micro: calc(var(--ui-font-size) - 2px);
+  --ui-font-caption: calc(var(--ui-font-size) - 1px);
+  --ui-font-label: var(--ui-font-size);
   --ui-font-body: var(--ui-font-size);
   --ui-font-title: calc(var(--ui-font-size) + 1px);
   --ui-font-display: calc(var(--ui-font-size) + 2px);
@@ -83,11 +84,11 @@
   --ui-font-hero-md: calc(var(--ui-font-size) + 15px);
   --ui-font-hero-lg: calc(var(--ui-font-size) + 19px);
   --ui-font-hero-xl: calc(var(--ui-font-size) + 31px);
-  --ui-line-height: 1.5;
+  --ui-line-height: 1.4;
 
   /* Workbench UI typography roles */
-  --workbench-font-secondary: var(--ui-font-micro);
-  --workbench-font-primary: var(--ui-font-label);
+  --workbench-font-secondary: var(--ui-font-caption);
+  --workbench-font-primary: var(--ui-font-body);
   --workbench-font-title: var(--ui-font-title);
   --workbench-weight-regular: var(--font-weight-regular);
   --workbench-weight-medium: var(--font-weight-medium);
@@ -105,6 +106,7 @@
   --surface-font-detail: var(--ui-font-display-md);
   --surface-font-hero: var(--ui-font-hero-sm);
   --surface-font-hero-compact: var(--ui-font-hero-xs);
+  
   --sidebar-font-kicker: var(--ui-font-micro);
   --sidebar-font-search: var(--workbench-font-primary);
   --sidebar-font-control: var(--workbench-font-primary);
@@ -113,18 +115,16 @@
   --sidebar-font-body: var(--workbench-font-primary);
   --sidebar-font-title: var(--workbench-font-primary);
   --sidebar-font-title-strong: var(--workbench-font-title);
-  --sidebar-row-height: 28px;
-  --sidebar-row-height-tight: 26px;
-  --sidebar-input-height: 28px;
+  --sidebar-row-height: 26px;
+  --sidebar-row-height-tight: 24px;
+  --sidebar-input-height: 26px;
   --sidebar-inline-gap: 6px;
   --chrome-icon-size: 15px;
   --chrome-sidebar-icon-size: 13px;
   --content-icon-size: 13px;
 
-  /* Font stacks — single source of truth */
-  --font-sans:
-    'Geist', 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui,
-    sans-serif;
+  /* Font stacks */
+  --font-sans: 'Geist', 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', 'Menlo', 'Consolas', monospace;
   --font-prose: 'STIX Two Text', 'Lora', Georgia, serif;
   --font-display: 'Crimson Text', 'STIX Two Text', 'Lora', Georgia, serif;
@@ -138,19 +138,25 @@
   --surface-raised: var(--bg-secondary);
   --surface-muted: var(--bg-tertiary);
   --surface-hover: var(--bg-hover);
-  --border-subtle: color-mix(in srgb, var(--border) 82%, transparent);
+  --border-subtle: color-mix(in srgb, var(--border) 60%, transparent);
   --border-strong: color-mix(in srgb, var(--fg-muted) 32%, var(--border));
-  --overlay-backdrop: color-mix(in srgb, black 58%, transparent);
-  --focus-ring: color-mix(in srgb, var(--accent) 34%, transparent);
+  --overlay-backdrop: color-mix(in srgb, black 40%, transparent);
+  --focus-ring: color-mix(in srgb, var(--accent) 24%, transparent);
+  
+  /* macOS Vibrancy & Shell adjustments */
+  --sidebar-shell-surface: rgba(23, 23, 23, 0.65);
+  --sidebar-shell-blur: 40px;
+  --sidebar-shell-saturate: 1.5;
+  
   --app-canvas: #111111;
   --app-canvas-glow: rgba(255, 255, 255, 0.025);
   --chrome-surface: #17181b;
   --chrome-border: color-mix(in srgb, var(--border) 36%, transparent);
-  --panel-surface: #171716;
+  --panel-surface: rgba(30, 30, 30, 0.85);
   --panel-elevated: color-mix(in srgb, #181817 98%, transparent);
-  --panel-border: color-mix(in srgb, var(--border) 58%, transparent);
-  --panel-shadow: 0 18px 38px rgba(0, 0, 0, 0.24);
-  --panel-shadow-active: 0 24px 48px rgba(0, 0, 0, 0.3);
+  --panel-border: color-mix(in srgb, var(--border) 40%, transparent);
+  --panel-shadow: 0 12px 32px rgba(0, 0, 0, 0.3);
+  --panel-shadow-active: 0 16px 40px rgba(0, 0, 0, 0.4);
   --rail-surface: transparent;
   --toolbar-surface: #1a1b1e;
   --toolbar-border: color-mix(in srgb, var(--border) 30%, transparent);
@@ -165,35 +171,33 @@
   --shell-surface: color-mix(in srgb, var(--panel-elevated) 98%, transparent);
   --shell-muted-surface: color-mix(in srgb, var(--panel-surface) 88%, transparent);
   --shell-accent-surface: color-mix(in srgb, var(--accent) 10%, var(--panel-elevated));
-  --shell-border: color-mix(in srgb, var(--border) 82%, transparent);
+  --shell-border: color-mix(in srgb, var(--border) 60%, transparent);
   --shell-border-strong: color-mix(in srgb, var(--fg-muted) 24%, var(--border));
   --shell-accent-border: color-mix(in srgb, var(--accent) 18%, var(--border));
-  --shell-shadow-soft: 0 18px 36px rgba(0, 0, 0, 0.22);
-  --shell-radius-sm: 10px;
-  --shell-radius-lg: 14px;
+  --shell-shadow-soft: 0 12px 28px rgba(0, 0, 0, 0.22);
+  --shell-radius-sm: 6px;
+  --shell-radius-lg: 10px;
   --shell-hero-width: 1180px;
   --shell-editor-surface: #141311;
   --shell-preview-surface: #171513;
   --workspace-paper: #191715;
   --workspace-paper-muted: #141311;
   --workspace-ink: #f1f1ee;
-  --sidebar-search-surface: rgba(9, 9, 11, 0.48);
-  --sidebar-search-surface-focus: rgba(12, 12, 14, 0.6);
-  --sidebar-search-border: rgba(255, 255, 255, 0.045);
-  --sidebar-search-border-focus: rgba(255, 255, 255, 0.07);
-  --sidebar-item-hover: rgba(255, 255, 255, 0.042);
-  --sidebar-item-active: rgba(255, 255, 255, 0.07);
-  --sidebar-item-active-border: rgba(255, 255, 255, 0.05);
-  --sidebar-item-selected: rgba(255, 255, 255, 0.062);
-  --sidebar-vibrant-surface: linear-gradient(
-    180deg,
-    rgba(12, 12, 14, 0.58) 0%,
-    rgba(12, 12, 14, 0.5) 44%,
-    rgba(10, 10, 12, 0.64) 100%
-  );
+  --sidebar-search-surface: rgba(255, 255, 255, 0.05);
+  --sidebar-search-surface-focus: rgba(255, 255, 255, 0.08);
+  --sidebar-search-border: rgba(255, 255, 255, 0.08);
+  --sidebar-search-border-focus: rgba(255, 255, 255, 0.15);
+  
+  /* Native List Selection States */
+  --sidebar-item-hover: rgba(255, 255, 255, 0.06);
+  --sidebar-item-active: rgba(255, 255, 255, 0.12); /* 替换之前的 var(--accent) */
+  --list-active-bg: rgba(255, 255, 255, 0.12);
+  --list-active-fg: var(--text-primary); /* 文字颜色保持原本的一级文本色 */
+  
+  --sidebar-vibrant-surface: linear-gradient(180deg, rgba(23,23,23,0.58) 0%, rgba(20,20,20,0.64) 100%);
   --sidebar-vibrant-border: rgba(255, 255, 255, 0.035);
-  --workbench-divider: color-mix(in srgb, var(--border) 28%, transparent);
-  --workbench-divider-soft: color-mix(in srgb, var(--border) 16%, transparent);
+  --workbench-divider: color-mix(in srgb, var(--border) 40%, transparent);
+  --workbench-divider-soft: color-mix(in srgb, var(--border) 20%, transparent);
   --button-primary-bg: #f4f4f2;
   --button-primary-bg-hover: #ffffff;
   --button-primary-text: #111111;
@@ -206,15 +210,15 @@
   --space-5: 24px;
   --space-6: 32px;
 
-  /* Radius scale */
+  /* Radius scale (Tightened for desktop) */
   --radius-sm: 4px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
 
   /* Shadow scale */
-  --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.24);
-  --shadow-md: 0 12px 32px rgba(0, 0, 0, 0.32);
-  --shadow-lg: 0 20px 60px rgba(0, 0, 0, 0.44);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.12);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.16);
+  --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.24);
 
   /* z-index scale */
   --z-dropdown: 1000;
@@ -230,9 +234,9 @@
   --font-weight-regular: 400;
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
-  --line-height-compact: 1.4;
-  --line-height-regular: 1.5;
-  --line-height-relaxed: 1.6;
+  --line-height-compact: 1.3;
+  --line-height-regular: 1.4;
+  --line-height-relaxed: 1.5;
 }
 
 .theme-dark {
@@ -243,84 +247,36 @@
   color-scheme: light dark;
 }
 
-/* Workbench typography follows a VS Code-style scale:
-   caption 11, label 12, body 13, title 14, display 15 at default zoom. */
-.ui-text-tiny {
-  font-size: var(--ui-font-tiny);
-}
-.ui-text-fine {
-  font-size: var(--ui-font-fine);
-}
-.ui-text-micro {
-  font-size: var(--ui-font-micro);
-}
-.ui-text-caption {
-  font-size: var(--ui-font-caption);
-}
-.ui-text-label {
-  font-size: var(--ui-font-label);
-}
-.ui-text-body {
-  font-size: var(--ui-font-body);
-}
-.ui-text-title {
-  font-size: var(--ui-font-title);
-}
-.ui-text-display {
-  font-size: var(--ui-font-display);
-}
-.ui-text-display-sm {
-  font-size: var(--ui-font-display-sm);
-}
-.ui-text-display-md {
-  font-size: var(--ui-font-display-md);
-}
-.ui-text-display-lg {
-  font-size: var(--ui-font-display-lg);
-}
-.ui-text-hero-xs {
-  font-size: var(--ui-font-hero-xs);
-}
-.ui-text-hero-sm {
-  font-size: var(--ui-font-hero-sm);
-}
-.ui-text-hero-md {
-  font-size: var(--ui-font-hero-md);
-}
-.ui-text-hero-lg {
-  font-size: var(--ui-font-hero-lg);
-}
-.ui-text-hero-xl {
-  font-size: var(--ui-font-hero-xl);
-}
+/* Base typography classes */
+.ui-text-tiny { font-size: var(--ui-font-tiny); }
+.ui-text-fine { font-size: var(--ui-font-fine); }
+.ui-text-micro { font-size: var(--ui-font-micro); }
+.ui-text-caption { font-size: var(--ui-font-caption); }
+.ui-text-label { font-size: var(--ui-font-label); }
+.ui-text-body { font-size: var(--ui-font-body); }
+.ui-text-title { font-size: var(--ui-font-title); }
+.ui-text-display { font-size: var(--ui-font-display); }
+.ui-text-display-sm { font-size: var(--ui-font-display-sm); }
+.ui-text-display-md { font-size: var(--ui-font-display-md); }
+.ui-text-display-lg { font-size: var(--ui-font-display-lg); }
+.ui-text-hero-xs { font-size: var(--ui-font-hero-xs); }
+.ui-text-hero-sm { font-size: var(--ui-font-hero-sm); }
+.ui-text-hero-md { font-size: var(--ui-font-hero-md); }
+.ui-text-hero-lg { font-size: var(--ui-font-hero-lg); }
+.ui-text-hero-xl { font-size: var(--ui-font-hero-xl); }
 
-/* Keep legacy helpers mapped to the new scale to avoid broad regressions. */
-.ui-text-xs {
-  font-size: var(--ui-font-caption);
-}
-.ui-text-sm {
-  font-size: var(--ui-font-label);
-}
-.ui-text-md {
-  font-size: var(--ui-font-caption);
-}
-.ui-text-base {
-  font-size: var(--ui-font-body);
-}
-.ui-text-lg {
-  font-size: var(--ui-font-body);
-}
-.ui-text-xl {
-  font-size: var(--ui-font-title);
-}
-.ui-text-2xl {
-  font-size: var(--ui-font-display);
-}
+.ui-text-xs { font-size: var(--ui-font-caption); }
+.ui-text-sm { font-size: var(--ui-font-label); }
+.ui-text-md { font-size: var(--ui-font-caption); }
+.ui-text-base { font-size: var(--ui-font-body); }
+.ui-text-lg { font-size: var(--ui-font-body); }
+.ui-text-xl { font-size: var(--ui-font-title); }
+.ui-text-2xl { font-size: var(--ui-font-display); }
 
 .ui-sidebar-kicker {
   font-size: var(--sidebar-font-kicker);
   font-weight: var(--workbench-weight-medium);
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   line-height: 1.2;
   text-transform: uppercase;
   color: var(--text-muted);
@@ -354,7 +310,7 @@
 
 .ui-sidebar-body {
   font-size: var(--sidebar-font-body);
-  line-height: 1.5;
+  line-height: 1.4;
   color: var(--text-secondary);
 }
 
@@ -365,7 +321,7 @@
 
 .ui-sidebar-empty {
   font-size: var(--sidebar-font-body);
-  line-height: 1.5;
+  line-height: 1.4;
   color: var(--text-muted);
 }
 
@@ -430,18 +386,19 @@
   --editor-bracket-match: rgba(17, 17, 17, 0.08);
   --editor-bracket-border: rgba(17, 17, 17, 0.18);
   --editor-search-match: rgba(174, 122, 42, 0.16);
+  
   --app-canvas: #eef2f5;
   --app-canvas-glow: rgba(17, 17, 17, 0.012);
   --chrome-surface: #eef1f3;
-  --chrome-border: color-mix(in srgb, var(--border) 42%, transparent);
-  --panel-surface: rgba(243, 246, 249, 0.5);
+  --chrome-border: color-mix(in srgb, var(--border) 50%, transparent);
+  --panel-surface: rgba(255, 255, 255, 0.85);
   --panel-elevated: color-mix(in srgb, white 98%, transparent);
   --panel-border: color-mix(in srgb, var(--border) 68%, transparent);
-  --panel-shadow: 0 16px 34px rgba(17, 17, 17, 0.06);
-  --panel-shadow-active: 0 22px 44px rgba(17, 17, 17, 0.1);
+  --panel-shadow: 0 12px 28px rgba(17, 17, 17, 0.06);
+  --panel-shadow-active: 0 16px 36px rgba(17, 17, 17, 0.1);
   --rail-surface: transparent;
   --toolbar-surface: #f4f6f8;
-  --toolbar-border: color-mix(in srgb, var(--border) 28%, transparent);
+  --toolbar-border: color-mix(in srgb, var(--border) 35%, transparent);
   --tab-idle-surface: transparent;
   --tab-active-surface: color-mix(in srgb, var(--accent) 8%, transparent);
   --status-surface: transparent;
@@ -453,34 +410,31 @@
   --shell-surface: color-mix(in srgb, white 99%, transparent);
   --shell-muted-surface: color-mix(in srgb, white 92%, var(--surface-muted));
   --shell-accent-surface: color-mix(in srgb, var(--accent) 6%, white 94%);
-  --shell-border: color-mix(in srgb, var(--border) 88%, transparent);
+  --shell-border: color-mix(in srgb, var(--border) 80%, transparent);
   --shell-border-strong: color-mix(in srgb, var(--fg-muted) 24%, var(--border));
   --shell-accent-border: color-mix(in srgb, var(--accent) 14%, var(--border));
-  --shell-shadow-soft: 0 18px 36px rgba(17, 17, 17, 0.08);
-  --shell-radius-sm: 10px;
-  --shell-radius-lg: 14px;
-  --shell-hero-width: 1180px;
+  --shell-shadow-soft: 0 12px 24px rgba(17, 17, 17, 0.08);
   --shell-editor-surface: #ffffff;
   --shell-preview-surface: #ffffff;
   --workspace-paper: #ffffff;
   --workspace-paper-muted: #f5f7f8;
   --workspace-ink: #171719;
+  
+  --sidebar-shell-surface: rgba(240, 240, 240, 0.65);
   --sidebar-search-surface: color-mix(in srgb, var(--panel-surface) 28%, transparent);
   --sidebar-search-surface-focus: color-mix(in srgb, var(--panel-surface) 40%, transparent);
-  --sidebar-search-border: color-mix(in srgb, white 12%, transparent);
-  --sidebar-search-border-focus: color-mix(in srgb, white 18%, transparent);
-  --sidebar-item-hover: color-mix(in srgb, white 12%, transparent);
-  --sidebar-item-active: color-mix(in srgb, white 20%, transparent);
-  --sidebar-item-active-border: color-mix(in srgb, white 9%, transparent);
-  --sidebar-item-selected: color-mix(in srgb, white 15%, transparent);
-  --sidebar-vibrant-surface: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--panel-surface) 16%, transparent),
-    color-mix(in srgb, var(--panel-surface) 24%, transparent)
-  );
-  --sidebar-vibrant-border: color-mix(in srgb, white 12%, transparent);
-  --workbench-divider: color-mix(in srgb, var(--border) 22%, transparent);
-  --workbench-divider-soft: color-mix(in srgb, var(--border) 14%, transparent);
+  --sidebar-search-border: color-mix(in srgb, black 6%, transparent);
+  --sidebar-search-border-focus: color-mix(in srgb, black 12%, transparent);
+  
+  --sidebar-item-hover: rgba(0, 0, 0, 0.05);
+  --sidebar-item-active: rgba(0, 0, 0, 0.08); /* 替换之前的 var(--accent) */
+  --list-active-bg: rgba(0, 0, 0, 0.08);
+  --list-active-fg: var(--text-primary); /* 文字颜色保持原本的一级文本色 */
+
+  --sidebar-vibrant-surface: linear-gradient(180deg, rgba(250,250,250,0.6) 0%, rgba(245,245,245,0.7) 100%);
+  --sidebar-vibrant-border: rgba(0, 0, 0, 0.035);
+  --workbench-divider: color-mix(in srgb, var(--border) 40%, transparent);
+  --workbench-divider-soft: color-mix(in srgb, var(--border) 20%, transparent);
   --button-primary-bg: #111111;
   --button-primary-bg-hover: #000000;
   --button-primary-text: #ffffff;

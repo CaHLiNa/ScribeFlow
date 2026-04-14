@@ -35,6 +35,18 @@
     @format-markdown-table="handleFormatMarkdownTable"
     @paste-unavailable="handleContextMenuPasteUnavailable"
   />
+  <CitationPalette
+    v-if="citPalette.show"
+    :mode="citPalette.mode"
+    :pos-x="citPalette.x"
+    :pos-y="citPalette.y"
+    :query="citPalette.query"
+    :cites="citPalette.cites"
+    :latex-command="citPalette.latexCommand"
+    @insert="onCitInsert"
+    @update="onCitUpdate"
+    @close="onCitClose"
+  />
 </template>
 
 <script setup>
@@ -69,6 +81,8 @@ import {
   resolveContextMenuSelection,
 } from '../../editor/contextMenuPolicy'
 import { wikiLinksExtension } from '../../editor/wikiLinks'
+import { citationsExtension, CITATION_GROUP_RE } from '../../editor/citations'
+import { latexCitationsExtension, LATEX_CITE_RE } from '../../editor/latexCitations'
 import { createMarkdownDraftSnippetSource } from '../../editor/markdownSnippets'
 import {
   formatCurrentMarkdownTable,
@@ -82,6 +96,7 @@ import { useWorkspaceStore } from '../../stores/workspace'
 import { useLinksStore } from '../../stores/links'
 import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { useLatexStore } from '../../stores/latex'
+import { useReferencesStore } from '../../stores/references'
 import { isDraftPath, isMarkdown, isLatex, isLatexEditorFile } from '../../utils/fileTypes'
 import {
   getCachedLatexProjectGraph,
@@ -91,6 +106,7 @@ import { revealLatexSourceLocation } from '../../services/latex/previewSync.js'
 import { rememberPendingMarkdownForwardSync } from '../../services/markdown/previewSync.js'
 import { readWorkspaceTextFile, saveWorkspaceTextFile } from '../../services/fileStoreIO.js'
 import EditorContextMenu from './EditorContextMenu.vue'
+import CitationPalette from './CitationPalette.vue'
 import { useTextEditorBridges } from '../../composables/useTextEditorBridges'
 import { useI18n } from '../../i18n'
 
@@ -109,6 +125,7 @@ const workflowStore = useDocumentWorkflowStore()
 const linksStore = useLinksStore()
 const toastStore = useToastStore()
 const latexStore = useLatexStore()
+const referencesStore = useReferencesStore()
 const { t } = useI18n()
 const loadError = computed(() => files.getFileLoadError(props.filePath))
 
@@ -163,6 +180,21 @@ const ctxMenu = reactive({
   hasSelection: false,
   showMarkdownFormatTable: false,
   requestId: 0,
+})
+
+const citPalette = reactive({
+  show: false,
+  mode: 'insert',
+  x: 0,
+  y: 0,
+  query: '',
+  cites: [],
+  latexCommand: null,
+  triggerFrom: 0,
+  triggerTo: 0,
+  insideBrackets: false,
+  groupFrom: 0,
+  groupTo: 0,
 })
 
 const getView = () => view
@@ -376,6 +408,107 @@ function handleInsertMarkdownTable() {
   insertMarkdownTable(view)
 }
 
+function onCitInsert({ keys = [], stayOpen = false, latexCommand = null }) {
+  if (!view || keys.length === 0) return
+  const key = keys[0]
+
+  if (isLatexEditor && latexCommand) {
+    const text = citPalette.insideBrackets ? key : `\\${latexCommand}{${key}}`
+    view.dispatch({
+      changes: { from: citPalette.triggerFrom, to: citPalette.triggerTo, insert: text },
+    })
+  } else {
+    const text = citPalette.insideBrackets ? `@${key}` : `[@${key}]`
+    view.dispatch({
+      changes: { from: citPalette.triggerFrom, to: citPalette.triggerTo, insert: text },
+    })
+  }
+
+  if (stayOpen && !isLatexEditor) {
+    const cursor = view.state.selection.main.head
+    const line = view.state.doc.lineAt(cursor)
+    CITATION_GROUP_RE.lastIndex = 0
+    let match
+    while ((match = CITATION_GROUP_RE.exec(line.text)) !== null) {
+      const groupFrom = line.from + match.index
+      const groupTo = groupFrom + match[0].length
+      if (cursor >= groupFrom && cursor <= groupTo) {
+        citPalette.mode = 'edit'
+        citPalette.groupFrom = groupFrom
+        citPalette.groupTo = groupTo
+        citPalette.cites = parseCitationGroup(match[0])
+        citPalette.query = ''
+        return
+      }
+    }
+  }
+
+  citPalette.show = false
+  view.focus()
+}
+
+function onCitUpdate({ cites = [] }) {
+  if (!view) return
+
+  if (isLatexEditor) {
+    const keys = cites.map((cite) => cite.key)
+    const command = citPalette.latexCommand || 'cite'
+    const text = `\\${command}{${keys.join(', ')}}`
+    view.dispatch({
+      changes: { from: citPalette.groupFrom, to: citPalette.groupTo, insert: text },
+    })
+    citPalette.groupTo = citPalette.groupFrom + text.length
+    return
+  }
+
+  if (cites.length === 0) {
+    view.dispatch({
+      changes: { from: citPalette.groupFrom, to: citPalette.groupTo, insert: '' },
+    })
+    citPalette.show = false
+    return
+  }
+
+  const parts = cites.map((cite) => {
+    let part = ''
+    if (cite.prefix) part += `${cite.prefix} `
+    part += `@${cite.key}`
+    if (cite.locator) part += `, ${cite.locator}`
+    return part
+  })
+  const text = `[${parts.join('; ')}]`
+  view.dispatch({
+    changes: { from: citPalette.groupFrom, to: citPalette.groupTo, insert: text },
+  })
+  citPalette.groupTo = citPalette.groupFrom + text.length
+}
+
+function onCitClose() {
+  citPalette.show = false
+  view?.focus()
+}
+
+function parseCitationGroup(text = '') {
+  const inner = text.slice(1, -1)
+  const parts = inner
+    .split(/\s*;\s*|\s*,\s*(?=@)/)
+    .map((segment) => segment.trim())
+    .filter(Boolean)
+
+  const cites = []
+  for (const part of parts) {
+    const keyMatch = part.match(/@([a-zA-Z][\w.-]*)/)
+    if (!keyMatch) continue
+    const key = keyMatch[1]
+    const afterKey = part
+      .substring(part.indexOf(keyMatch[0]) + keyMatch[0].length)
+      .replace(/^[\s,]+/, '')
+    const prefix = part.substring(0, part.indexOf(keyMatch[0])).trim()
+    cites.push({ key, locator: afterKey, prefix })
+  }
+  return cites
+}
+
 async function persistDraftContent(content) {
   const currentContent =
     typeof content === 'string' ? content : view ? view.state.doc.toString() : ''
@@ -554,6 +687,31 @@ onMounted(async () => {
     }
 
     extraExtensions.push(
+      ...citationsExtension(referencesStore, {
+        isOpen: () => citPalette.show,
+        onOpen: ({ x, y, query, triggerFrom, triggerTo, insideBrackets }) => {
+          citPalette.show = true
+          citPalette.mode = 'insert'
+          citPalette.x = x
+          citPalette.y = y
+          citPalette.query = query
+          citPalette.cites = []
+          citPalette.triggerFrom = triggerFrom
+          citPalette.triggerTo = triggerTo
+          citPalette.insideBrackets = insideBrackets
+          citPalette.latexCommand = null
+        },
+        onQueryChange: (query, triggerTo) => {
+          citPalette.query = query
+          citPalette.triggerTo = triggerTo
+        },
+        onDismiss: () => {
+          citPalette.show = false
+        },
+      }).extensions
+    )
+
+    extraExtensions.push(
       autocompletion({
         override: completionSources,
         activateOnTyping: true,
@@ -572,6 +730,32 @@ onMounted(async () => {
       import('@codemirror/autocomplete'),
       import('../../editor/latexAutocomplete'),
     ])
+    extraExtensions.push(
+      ...latexCitationsExtension(referencesStore, {
+        isOpen: () => citPalette.show,
+        onOpen: ({ x, y, query, triggerFrom, triggerTo, insideBrackets, latexCommand }) => {
+          citPalette.show = true
+          citPalette.mode = 'insert'
+          citPalette.x = x
+          citPalette.y = y
+          citPalette.query = query
+          citPalette.cites = []
+          citPalette.triggerFrom = triggerFrom
+          citPalette.triggerTo = triggerTo
+          citPalette.insideBrackets = insideBrackets
+          citPalette.latexCommand = latexCommand
+        },
+        onQueryChange: (query, triggerTo, triggerFrom) => {
+          citPalette.query = query
+          citPalette.triggerTo = triggerTo
+          citPalette.triggerFrom = triggerFrom
+        },
+        onDismiss: () => {
+          citPalette.show = false
+        },
+      }).extensions
+    )
+
     extraExtensions.push(
       autocompletion({
         override: [
@@ -757,9 +941,11 @@ function attachEditorRuntimeListeners() {
   editorContainer.value?.addEventListener('mousedown', handleContextMenuMouseDown, true)
   if (isMd && !isDraftFile) {
     editorContainer.value?.addEventListener('click', handleWikiLinkClick)
+    editorContainer.value?.addEventListener('click', handleCitationClick)
   }
   if (supportsLatexRuntime) {
     editorContainer.value?.addEventListener('dblclick', handleLatexDoubleClick)
+    editorContainer.value?.addEventListener('click', handleLatexCitationClick)
   }
 
   if (isMd && !isDraftFile) {
@@ -777,9 +963,11 @@ function detachEditorRuntimeListeners() {
   editorContainer.value?.removeEventListener('mousedown', handleContextMenuMouseDown, true)
   if (isMd && !isDraftFile) {
     editorContainer.value?.removeEventListener('click', handleWikiLinkClick)
+    editorContainer.value?.removeEventListener('click', handleCitationClick)
   }
   if (supportsLatexRuntime) {
     editorContainer.value?.removeEventListener('dblclick', handleLatexDoubleClick)
+    editorContainer.value?.removeEventListener('click', handleLatexCitationClick)
   }
   if (markdownCursorRequestHandler) {
     window.removeEventListener('markdown-request-cursor', markdownCursorRequestHandler)
@@ -857,6 +1045,72 @@ function handleWikiLinkClick(event) {
       })
     }
 
+    event.preventDefault()
+    event.stopPropagation()
+    return
+  }
+}
+
+function handleCitationClick(event) {
+  if (!view || event.metaKey || event.ctrlKey) return
+
+  const pos = view.posAtCoords(getZoomCompensatedClientPoint(event))
+  if (pos === null) return
+
+  const line = view.state.doc.lineAt(pos)
+  CITATION_GROUP_RE.lastIndex = 0
+  let match
+  while ((match = CITATION_GROUP_RE.exec(line.text)) !== null) {
+    const matchFrom = line.from + match.index
+    const matchTo = matchFrom + match[0].length
+    if (pos < matchFrom || pos >= matchTo) continue
+
+    const coords = view.coordsAtPos(matchFrom)
+    citPalette.show = true
+    citPalette.mode = 'edit'
+    citPalette.x = event.clientX
+    citPalette.y = (coords?.bottom ?? event.clientY) + 2
+    citPalette.groupFrom = matchFrom
+    citPalette.groupTo = matchTo
+    citPalette.cites = parseCitationGroup(match[0])
+    citPalette.query = ''
+    citPalette.latexCommand = null
+    citPalette.insideBrackets = true
+    event.preventDefault()
+    event.stopPropagation()
+    return
+  }
+}
+
+function handleLatexCitationClick(event) {
+  if (!view || event.metaKey || event.ctrlKey) return
+
+  const pos = view.posAtCoords(getZoomCompensatedClientPoint(event))
+  if (pos === null) return
+
+  const line = view.state.doc.lineAt(pos)
+  LATEX_CITE_RE.lastIndex = 0
+  let match
+  while ((match = LATEX_CITE_RE.exec(line.text)) !== null) {
+    const matchFrom = line.from + match.index
+    const matchTo = matchFrom + match[0].length
+    if (pos < matchFrom || pos >= matchTo) continue
+
+    const coords = view.coordsAtPos(matchFrom)
+    citPalette.show = true
+    citPalette.mode = 'edit'
+    citPalette.x = event.clientX
+    citPalette.y = (coords?.bottom ?? event.clientY) + 2
+    citPalette.groupFrom = matchFrom
+    citPalette.groupTo = matchTo
+    citPalette.cites = match[2]
+      .split(',')
+      .map((key) => String(key || '').trim())
+      .filter(Boolean)
+      .map((key) => ({ key, locator: '', prefix: '' }))
+    citPalette.query = ''
+    citPalette.latexCommand = match[1]
+    citPalette.insideBrackets = true
     event.preventDefault()
     event.stopPropagation()
     return

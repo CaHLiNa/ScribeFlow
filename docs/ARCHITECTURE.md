@@ -123,13 +123,13 @@ Citation behavior should attach to document workflow decisions rather than fork 
 
 Project references are a first-class planned slice, but they should follow the existing layering rules:
 
-- workspace-owned reference data and caches should live under the current workspace metadata boundary
+- reference library data and assets should live under the app-owned Altals data directory, not in the user workspace tree
 - import, parse, metadata, and citation-format adapters belong in `src/services/*`
 - selection rules, reference filtering, citation insertion policy, and bibliography decisions belong in `src/domains/*`
 - UI surfaces for references and readers belong in `src/components/*`
 - coordination state belongs in `src/stores/*`
 
-The default model should be project-scoped references first. If a broader library is introduced later, it should not break the local project workbench contract.
+The default model should be a local app-owned library that stays available across workspaces without polluting the user project tree.
 
 ### Reader architecture
 
@@ -153,7 +153,7 @@ AI-assisted research flows and PDF translation are valid future product areas, b
 
 `src/stores/workspace.js` resolves a hashed workspace identity, separate workspace-owned metadata directories, and shell preference persistence. This is one of the main boundaries between user project files and app-owned metadata.
 
-That boundary should also carry future reference indexes, citation caches, reader session state, and other project-local research metadata that should not pollute the user project tree.
+That boundary should carry workspace-local reader session state and other project-local metadata, while the shared reference library itself stays in the app-owned Altals directory.
 
 ### Release and repo automation
 

@@ -6,6 +6,12 @@
         :reference="menuReference"
         position="popper"
         position-strategy="fixed"
+        side="bottom"
+        align="start"
+        :avoid-collisions="true"
+        :prioritize-position="true"
+        :side-flip="true"
+        :align-flip="true"
         :side-offset="2"
         :collision-padding="8"
         @close-auto-focus.prevent

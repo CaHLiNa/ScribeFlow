@@ -61,7 +61,7 @@
         />
       </template>
       <template v-else>
-        <span class="file-tree-item-label truncate" :class="{ 'is-active': isActive }">
+        <span class="file-tree-item-label truncate">
           <template v-if="filterQuery && nameSegments.length > 1">
             <template v-for="(seg, i) in nameSegments" :key="i">
               <span v-if="seg.match" class="file-tree-item-match">{{ seg.text }}</span>
@@ -264,7 +264,6 @@ const nameSegments = computed(() => {
   return segments
 })
 
-// Extension-aware rename: select name before last '.'
 watch(isRenaming, (v) => {
   if (v) {
     nextTick(() => {
@@ -283,7 +282,6 @@ watch(isRenaming, (v) => {
   }
 })
 
-// Auto-focus new item input when it appears
 watch(
   () => props.newItemParent === props.entry.path && isExpanded.value,
   (v) => {
@@ -295,11 +293,9 @@ watch(
   }
 )
 
-// Drag initiation tracking
 let mouseDownInfo = null
 
 function handleMouseDown(event) {
-  // Only track left button, skip if renaming
   if (event.button !== 0 || isRenaming.value) return
 
   mouseDownInfo = {
@@ -330,10 +326,8 @@ function handleMouseDown(event) {
   document.addEventListener('mouseup', onMouseUp)
 }
 
-// Drop target: folders accept drops
 function handleMouseEnter() {
   if (!props.entry.is_dir) return
-  // Only signal drag-over if a drag is in progress (body has tab-dragging class)
   if (document.body.classList.contains('tab-dragging')) {
     emit('drag-over-dir', props.entry.path)
   }
@@ -353,7 +347,6 @@ function handleMouseUp() {
   }
 }
 
-// Native HTML5 drag handlers — for external file drops from Finder
 function handleNativeDragOver(e) {
   if (!props.entry.is_dir) return
   if (!e.dataTransfer?.types?.includes('Files')) return
@@ -373,13 +366,10 @@ function handleNativeDrop(e) {
 }
 
 async function handleClick(event) {
-  // Always emit select-file for multi-select tracking
   emit('select-file', { path: props.entry.path, event })
-
   if (props.entry.is_dir) {
     await files.toggleDir(props.entry.path)
   } else if (!event.shiftKey && !isMod(event)) {
-    // Only open file on plain click (not multi-select)
     emit('open-file', props.entry.path)
   }
 }
@@ -411,37 +401,35 @@ function treeNewItemPadding(depth) {
 
 .file-tree-item-row {
   position: relative;
-  min-height: 26px;
+  min-height: 24px;
   padding-right: 8px;
-  border-radius: 7px;
-  color: var(--text-secondary);
+  border-radius: 4px;
+  margin: 1px 0;
+  color: var(--text-primary);
   opacity: 1;
-  transition:
-    background-color 140ms ease,
-    color 140ms ease,
-    border-color 140ms ease,
-    box-shadow 140ms ease;
-}
-
-.file-tree-item-row::before {
-  display: none;
 }
 
 .file-tree-item-row:hover {
   background: var(--sidebar-item-hover);
-  color: var(--text-primary);
 }
 
-.file-tree-item-row.is-active-row {
-  color: var(--text-primary);
-  background: var(--sidebar-item-active);
-  box-shadow: inset 0 0 0 1px var(--sidebar-item-active-border);
-}
-
+.file-tree-item-row.is-active-row,
 .file-tree-item-row.is-selected-row {
-  background: var(--sidebar-item-selected);
+  background: var(--list-active-bg);
+  color: var(--list-active-fg) !important;
   box-shadow: none;
-  color: var(--text-primary);
+}
+
+.file-tree-item-row.is-active-row .file-tree-item-label,
+.file-tree-item-row.is-selected-row .file-tree-item-label {
+  color: var(--list-active-fg) !important;
+  font-weight: 600; /* 选中时加粗以增加识别度 */
+}
+
+/* 移除强制覆盖，让 icon 在选中时依然保持柔和的层级 */
+.file-tree-item-row.is-active-row .file-tree-item-icon,
+.file-tree-item-row.is-selected-row .file-tree-item-icon {
+  opacity: 0.9;
 }
 
 .file-tree-item-row.is-filter-highlighted:not(.is-active-row):not(.is-selected-row) {
@@ -450,7 +438,7 @@ function treeNewItemPadding(depth) {
 
 .file-tree-item-icon {
   color: var(--text-muted);
-  opacity: 0.52;
+  opacity: 0.8;
 }
 
 .file-tree-item-new-row {
@@ -459,30 +447,18 @@ function treeNewItemPadding(depth) {
 }
 
 .file-tree-item-label {
-  color: var(--text-secondary);
-  font-size: var(--sidebar-font-item);
-  line-height: 1.3;
-  letter-spacing: -0.005em;
-  transition: color 140ms ease;
-}
-
-.file-tree-item-label.is-active {
-  color: var(--text-primary);
-  font-weight: 600;
+  font-size: 13px;
+  line-height: 1.2;
 }
 
 .file-tree-item-match {
   color: var(--accent);
 }
 
-.file-tree-item-review-dot {
-  background: var(--warning);
-}
-
 .file-tree-item-rename-input {
-  font-size: var(--sidebar-font-control);
-  border-color: color-mix(in srgb, var(--shell-border) 72%, transparent);
+  font-size: 13px;
+  border-color: color-mix(in srgb, var(--border) 48%, transparent);
   border-radius: 4px;
-  background: color-mix(in srgb, var(--workspace-paper) 98%, transparent);
+  background: var(--surface-base);
 }
 </style>

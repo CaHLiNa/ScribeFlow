@@ -63,12 +63,17 @@ const props = defineProps({
     type: String,
     default: 'md',
   },
+  variant: {
+    type: String,
+    default: 'default',
+  }
 })
 
 const emit = defineEmits(['update:modelValue', 'focus', 'blur', 'keydown'])
 
 const shellClass = computed(() => [
   `ui-input-shell--${props.size}`,
+  `ui-input-shell--${props.variant}`,
   {
     'is-disabled': props.disabled,
   },
@@ -116,7 +121,7 @@ defineExpose({
   gap: var(--space-2);
   width: 100%;
   border: 1px solid color-mix(in srgb, var(--border-subtle) 88%, transparent);
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--surface-base) 82%, transparent);
   color: var(--text-primary);
   box-shadow: inset 0 1px 0 color-mix(in srgb, var(--fg-primary) 4%, transparent);
@@ -129,26 +134,45 @@ defineExpose({
 .ui-input-shell:focus-within {
   border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
   background: color-mix(in srgb, var(--surface-base) 94%, transparent);
-  box-shadow: 0 0 0 3px var(--focus-ring);
+  box-shadow: 0 0 0 2px var(--focus-ring);
 }
 
 .ui-input-shell.is-disabled {
   opacity: 0.55;
 }
 
+/* Ghost variant */
+.ui-input-shell--ghost {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  padding-inline: 4px !important;
+}
+
+.ui-input-shell--ghost:hover:not(.is-disabled):not(:focus-within) {
+  background: color-mix(in srgb, var(--surface-hover) 50%, transparent);
+  border-color: transparent;
+}
+
+.ui-input-shell--ghost:focus-within {
+  background: var(--surface-base);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--focus-ring);
+}
+
 .ui-input-shell--sm {
-  min-height: 30px;
-  padding: 0 10px;
+  min-height: 26px;
+  padding: 0 8px;
 }
 
 .ui-input-shell--md {
-  min-height: 36px;
-  padding: 0 12px;
+  min-height: 32px;
+  padding: 0 10px;
 }
 
 .ui-input-shell--lg {
-  min-height: 42px;
-  padding: 0 14px;
+  min-height: 38px;
+  padding: 0 12px;
 }
 
 .ui-input-control {

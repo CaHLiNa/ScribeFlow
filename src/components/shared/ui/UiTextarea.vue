@@ -49,11 +49,16 @@ const props = defineProps({
     type: [String, Array, Object],
     default: '',
   },
+  variant: {
+    type: String,
+    default: 'default',
+  }
 })
 
 const emit = defineEmits(['update:modelValue', 'focus', 'blur', 'keydown'])
 
 const shellClass = computed(() => [
+  `ui-textarea-shell--${props.variant}`,
   {
     'is-disabled': props.disabled,
   },
@@ -103,17 +108,38 @@ defineExpose({
 
 .ui-textarea-shell:focus-within {
   border-color: color-mix(in srgb, var(--accent) 48%, var(--border));
-  box-shadow: 0 0 0 3px var(--focus-ring);
+  box-shadow: 0 0 0 2px var(--focus-ring);
 }
 
 .ui-textarea-shell.is-disabled {
   opacity: 0.55;
 }
 
+/* Ghost variant */
+.ui-textarea-shell--ghost {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+.ui-textarea-shell--ghost:hover:not(.is-disabled):not(:focus-within) {
+  background: color-mix(in srgb, var(--surface-hover) 50%, transparent);
+}
+
+.ui-textarea-shell--ghost:focus-within {
+  background: var(--surface-base);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--focus-ring);
+}
+
+.ui-textarea-shell--ghost .ui-textarea-control {
+  padding: 4px;
+}
+
 .ui-textarea-control {
   width: 100%;
   min-width: 0;
-  min-height: 84px;
+  min-height: 64px;
   resize: vertical;
   border: none;
   outline: none;

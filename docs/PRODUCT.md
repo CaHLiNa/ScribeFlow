@@ -9,8 +9,8 @@ The product is not just writing-first. Writing, literature management, reading, 
 The target product loop is one practical desktop research workbench:
 
 1. open a local project folder from the launcher
-2. browse project files and project-scoped references without leaving the app
-3. manage project-scoped references from the same workspace
+2. browse project files and app-owned references without leaving the app
+3. manage app-owned references from the same workspace
 4. read PDFs or other source material alongside the draft
 5. write Markdown and LaTeX documents in the editor workbench
 6. insert citations and maintain bibliography output from the same workspace
@@ -43,7 +43,7 @@ The current shipped build remains centered on:
 
 The next product expansion is not a separate surface. It is an extension of the same desktop workbench:
 
-- project-scoped references library stored alongside workspace-owned metadata
+- app-owned references library stored in the Altals data directory, not in the user workspace tree
 - in-app PDF and research reading flows that stay close to the draft and reference set
 - direct citation insertion for Markdown and LaTeX
 - bibliography generation that respects the active document workflow
@@ -83,7 +83,8 @@ Current first-class writing formats remain:
 - The core experience is one desktop academic research workbench, not a bundle of loosely related utilities.
 - The left sidebar remains project-tree-first, even when project references or reader entry points are introduced.
 - The right-side inspection area is currently outline-only in the shipped build, but it may grow into other writing-adjacent inspection panels when they directly support drafting, citation, or reading tasks.
-- References, reading, writing, and citation features should stay project-scoped and local-first by default.
+- References, reading, writing, and citation features should stay local-first by default.
+- Reference library storage should live in an app-owned Altals directory rather than inside the user workspace tree.
 - AI workflows and PDF translation are valid future capabilities, but they should land through modular seams or plugins instead of bloating the first-party core.
 - New surfaces, sync systems, or speculative platform expansion should not be introduced casually.
 
@@ -92,12 +93,12 @@ Current first-class writing formats remain:
 - workspace identity and workspace-owned metadata are managed through `src/stores/workspace.js`
 - editor panes, tabs, and dirty state live in `src/stores/editor.js`
 - document workflow session state and preview preferences live in `src/stores/documentWorkflow.js`
-- future references, reader state, and citation caches should remain scoped to the current workspace or its owned metadata directory rather than a mandatory global cloud account
+- future reader state and citation caches may remain workspace-scoped, but the reference library itself should live in an app-owned local directory rather than a mandatory global cloud account
 
 ## Non-goals for the current direction
 
 - turning Altals into a general note-taking or personal knowledge management product
-- building a global library-first product that weakens the project workspace model
+- building a cloud-first or account-first library product that weakens the desktop workspace model
 - shipping AI chat surfaces that are disconnected from the active draft or reference set
 - letting repository, sync, or release workflows overshadow the academic research workbench itself
 - reviving deleted legacy feature claims just because they existed in old docs

@@ -1,25 +1,23 @@
-/* Context menu — !important keeps the shared menu styles above viewer-specific
-   CSS so dark-theme colors and z-index stacking stay stable. */
+/* START OF FILE src/css/components.css */
+
+/* macOS Native-like Lists & Menus */
 .ui-list-row {
   position: relative;
-  border-radius: 10px;
-  transition:
-    background-color 140ms ease,
-    color 140ms ease,
-    border-color 140ms ease,
-    box-shadow 140ms ease;
+  border-radius: 6px;
+  transition: none; 
 }
 
 .ui-list-row:hover {
-  background: color-mix(in srgb, var(--surface-hover) 18%, transparent);
+  background: var(--sidebar-item-hover);
   color: var(--text-primary);
 }
 
 .ui-list-row.is-active,
 .ui-list-row.active {
-  background: color-mix(in srgb, var(--surface-hover) 28%, transparent);
-  color: var(--text-primary);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 12%, transparent);
+  background: var(--list-active-bg) !important;
+  color: var(--list-active-fg) !important;
+  box-shadow: none !important;
+  border-color: transparent !important;
 }
 
 .ui-segmented-control {
@@ -27,99 +25,109 @@
   align-items: center;
   gap: 2px;
   padding: 2px;
-  border-radius: 11px;
+  border-radius: 8px;
   background: color-mix(in srgb, var(--surface-hover) 34%, transparent);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 10%, transparent);
 }
 
 .ui-segmented-item {
-  border-radius: 9px !important;
+  border-radius: 6px !important;
 }
 
 .ui-segmented-item:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--surface-hover) 18%, transparent) !important;
+  background: color-mix(in srgb, var(--surface-hover) 40%, transparent) !important;
   color: var(--text-primary) !important;
 }
 
 .ui-segmented-item.is-active {
-  background: color-mix(in srgb, var(--surface-base) 72%, transparent) !important;
+  background: var(--surface-base) !important;
   color: var(--text-primary) !important;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 12%, transparent) !important;
+  box-shadow: none !important;
 }
 
+/* macOS Context Menu */
 .context-menu {
-  position: fixed !important;
   z-index: 1000 !important;
-  background: color-mix(in srgb, var(--surface-muted) 82%, var(--shell-surface)) !important;
-  border: 1px solid color-mix(in srgb, var(--shell-border) 12%, transparent) !important;
-  border-radius: 13px !important;
-  padding: 4px !important;
-  min-width: 180px !important;
-  box-shadow: 0 14px 28px color-mix(in srgb, black 8%, transparent) !important;
-  color: var(--text-secondary) !important;
+  background: color-mix(in srgb, var(--surface-raised) 70%, transparent) !important;
+  backdrop-filter: blur(40px) saturate(1.5);
+  border: 1px solid color-mix(in srgb, var(--border) 40%, transparent) !important;
+  border-radius: 8px !important;
+  padding: 5px !important;
+  min-width: 200px !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05) !important;
+  color: var(--text-primary) !important;
   width: auto !important;
   margin-top: 0 !important;
-  font-size: 12.5px !important;
-  backdrop-filter: blur(18px) saturate(0.94);
+  font-size: 13px !important;
 }
 
 .theme-light .context-menu {
-  background: rgba(229, 233, 238, 0.86) !important;
-  border-color: rgba(154, 160, 169, 0.18) !important;
-  box-shadow: 0 12px 24px rgba(55, 65, 81, 0.12) !important;
+  background: rgba(255, 255, 255, 0.75) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.05) !important;
 }
+
 .context-menu-item {
-  min-height: 30px;
-  padding: 0 10px !important;
-  cursor: pointer;
+  min-height: 26px;
+  padding: 0 8px !important;
+  cursor: default;
   display: flex !important;
   align-items: center;
   gap: 8px;
-  border-radius: 8px;
-  color: var(--text-secondary) !important;
+  border-radius: 5px;
+  color: var(--text-primary) !important;
   line-height: 1.2;
 }
-.context-menu-item:hover {
-  background: color-mix(in srgb, var(--surface-hover) 6%, transparent) !important;
-  color: var(--text-primary) !important;
+
+.context-menu-item:hover, .context-menu-item[data-highlighted] {
+  background: var(--list-active-bg) !important;
+  color: var(--list-active-fg) !important;
 }
+
 .context-menu-section {
-  padding: 6px 10px 3px;
-  font-size: 9.5px;
-  font-weight: 520;
-  color: color-mix(in srgb, var(--text-muted) 76%, transparent);
-  text-transform: none;
-  letter-spacing: 0;
+  padding: 4px 8px 2px;
+  font-size: 11px;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--text-muted) 80%, transparent);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   opacity: 1;
 }
+
 .context-menu-separator {
   height: 1px;
-  background: color-mix(in srgb, var(--border) 8%, transparent);
-  margin: 4px 2px;
+  background: color-mix(in srgb, var(--border) 40%, transparent);
+  margin: 4px 0;
 }
 
 .context-menu-item-danger {
   color: var(--error) !important;
 }
 .context-menu-item-danger:hover {
-  background: color-mix(in srgb, var(--error) 7%, transparent) !important;
+  background: var(--error) !important;
+  color: #fff !important;
 }
+
 .context-menu-item svg {
   flex-shrink: 0;
-  opacity: 0.84;
+  opacity: 0.8;
   width: 14px;
   height: 14px;
 }
 
+.context-menu-item:hover svg, .context-menu-item:hover .context-menu-ext {
+  color: var(--list-active-fg) !important;
+  opacity: 0.9;
+}
+
 /* Keyboard shortcut badges */
 kbd {
-  background: var(--bg-tertiary);
+  background: var(--surface-muted);
   color: var(--fg-muted);
-  padding: 1px 5px;
-  border-radius: 3px;
+  padding: 1px 4px;
+  border-radius: 4px;
   font-family: var(--font-mono);
   font-size: var(--ui-font-caption);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-subtle);
 }
 
 /* Tab drag state */
@@ -138,16 +146,15 @@ body.tab-dragging * {
   pointer-events: none;
   display: flex;
   align-items: center;
-  height: 28px;
-  padding: 0 12px;
+  height: 26px;
+  padding: 0 10px;
   font-size: var(--ui-font-label);
-  color: var(--fg-primary);
-  background: var(--bg-tertiary);
-  border: 1px solid var(--accent);
-  border-radius: 5px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
-  opacity: 0.92;
-  max-width: min(360px, calc(100vw - 32px));
+  color: var(--list-active-fg);
+  background: var(--list-active-bg);
+  border-radius: 6px;
+  box-shadow: var(--shadow-md);
+  opacity: 0.95;
+  max-width: min(300px, calc(100vw - 32px));
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -163,77 +170,6 @@ body.tab-dragging * {
   background: var(--accent);
   border-radius: 1px;
   z-index: 10;
-  pointer-events: none;
-}
-
-/* Reference sidebar */
-.ref-item:hover {
-  background: var(--bg-hover);
-}
-.ref-key-badge {
-  font-family: var(--font-mono);
-  font-size: var(--ui-font-caption);
-  color: var(--accent);
-  background: var(--bg-tertiary);
-  padding: 1px 4px;
-  border-radius: 3px;
-  white-space: nowrap;
-}
-.ref-needs-review {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--warning);
-  flex-shrink: 0;
-}
-.ref-import-spinner {
-  width: 12px;
-  height: 12px;
-  border: 1.5px solid var(--border);
-  border-top-color: var(--accent);
-  border-radius: 50%;
-  animation: ref-spin 0.6s linear infinite;
-}
-@keyframes ref-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-/* Add reference dialog */
-.ref-confidence-verified {
-  background: rgba(158, 206, 106, 0.15);
-  color: var(--success);
-}
-.ref-confidence-matched {
-  background: rgba(224, 175, 104, 0.15);
-  color: var(--warning);
-}
-.ref-confidence-unverified {
-  background: var(--bg-tertiary);
-  color: var(--fg-muted);
-}
-.ref-confidence-failed {
-  background: rgba(247, 118, 142, 0.15);
-  color: var(--error);
-}
-
-/* Footer center crossfade */
-.footer-center {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.footer-center-layer {
-  display: flex;
-  align-items: center;
-  position: absolute;
-  transition: opacity 0.12s ease;
-  white-space: nowrap;
-}
-.footer-center-hidden {
-  opacity: 0;
   pointer-events: none;
 }
 

@@ -12,7 +12,11 @@
       @open-workspace="$emit('open-workspace', $event)"
       @close-folder="$emit('close-folder')"
     />
-    <ReferencesSidebarPanel v-else ref="activeSidebarRef" />
+    <ReferencesSidebarPanel
+      v-else
+      ref="activeSidebarRef"
+      @open-settings="$emit('open-settings')"
+    />
   </div>
 </template>
 

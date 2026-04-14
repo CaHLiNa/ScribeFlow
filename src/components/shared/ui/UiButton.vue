@@ -31,50 +31,17 @@
 import { computed, ref } from 'vue'
 
 const props = defineProps({
-  variant: {
-    type: String,
-    default: 'secondary',
-  },
-  size: {
-    type: String,
-    default: 'md',
-  },
-  type: {
-    type: String,
-    default: 'button',
-  },
-  disabled: {
-    type: Boolean,
-    default: false,
-  },
-  loading: {
-    type: Boolean,
-    default: false,
-  },
-  block: {
-    type: Boolean,
-    default: false,
-  },
-  iconOnly: {
-    type: Boolean,
-    default: false,
-  },
-  title: {
-    type: String,
-    default: '',
-  },
-  ariaLabel: {
-    type: String,
-    default: '',
-  },
-  active: {
-    type: Boolean,
-    default: false,
-  },
-  contentMode: {
-    type: String,
-    default: 'label',
-  },
+  variant: { type: String, default: 'secondary' },
+  size: { type: String, default: 'md' },
+  type: { type: String, default: 'button' },
+  disabled: { type: Boolean, default: false },
+  loading: { type: Boolean, default: false },
+  block: { type: Boolean, default: false },
+  iconOnly: { type: Boolean, default: false },
+  title: { type: String, default: '' },
+  ariaLabel: { type: String, default: '' },
+  active: { type: Boolean, default: false },
+  contentMode: { type: String, default: 'label' },
 })
 
 const buttonRef = ref(null)
@@ -100,6 +67,7 @@ defineExpose({
 })
 </script>
 
+/* START OF FILE src/components/shared/ui/UiButton.vue (只替换 style 部分) */
 <style scoped>
 .ui-button {
   display: inline-flex;
@@ -108,77 +76,72 @@ defineExpose({
   gap: var(--space-2);
   min-width: 0;
   border: 1px solid transparent;
-  border-radius: 12px;
+  border-radius: 6px; /* 从 12px 降为原生的 6px */
   background: transparent;
   color: var(--text-primary);
   font: inherit;
-  font-weight: var(--font-weight-medium);
+  font-weight: 500;
   line-height: 1;
   cursor: pointer;
-  transition:
-    background-color 140ms ease,
-    border-color 140ms ease,
-    color 140ms ease,
-    box-shadow 140ms ease,
-    opacity 140ms ease;
+  transition: background-color 0.1s, border-color 0.1s, color 0.1s, opacity 0.1s; /* 加快动效，更干脆 */
 }
 
 .ui-button:focus-visible {
   outline: none;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--focus-ring) 52%, transparent);
+  box-shadow: 0 0 0 2px var(--focus-ring);
 }
 
 .ui-button:disabled {
-  opacity: 0.45;
+  opacity: 0.5;
   cursor: default;
 }
 
+/* 降低高度，贴近原生比例 */
 .ui-button--sm {
-  min-height: 34px;
-  padding: 0 14px;
-  font-size: var(--ui-font-label);
+  min-height: 26px;
+  padding: 0 10px;
+  font-size: 12px;
 }
 
 .ui-button--md {
-  min-height: 38px;
-  padding: 0 15px;
-  font-size: var(--ui-font-body);
+  min-height: 30px;
+  padding: 0 12px;
+  font-size: 13px;
 }
 
 .ui-button--lg {
-  min-height: 44px;
-  padding: 0 20px;
-  font-size: var(--ui-font-body);
+  min-height: 36px;
+  padding: 0 16px;
+  font-size: 14px;
 }
 
 .ui-button--icon-sm {
-  width: 35px;
-  height: 35px;
+  width: 26px;
+  height: 26px;
   padding: 0;
-  border-radius: 12px;
+  border-radius: 5px;
 }
 
 .ui-button--icon-xs {
-  width: 27px;
-  height: 27px;
+  width: 22px;
+  height: 22px;
   padding: 0;
-  border-radius: 9px;
+  border-radius: 4px;
 }
 
 .ui-button--icon-md {
-  width: 37px;
-  height: 37px;
+  width: 30px;
+  height: 30px;
   padding: 0;
-  border-radius: 13px;
+  border-radius: 6px;
 }
 
+/* 重构 Primary：去除非原生的高漫反射阴影，改用干净的边框和极简投影 */
 .ui-button--primary {
   background: var(--button-primary-bg);
-  border-color: color-mix(in srgb, var(--button-primary-bg) 72%, var(--border));
+  border-color: color-mix(in srgb, var(--button-primary-bg) 80%, var(--border));
   color: var(--button-primary-text);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.14),
-    0 10px 22px color-mix(in srgb, black 12%, transparent);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05); /* 极简的物理阴影 */
 }
 
 .ui-button--primary:hover:not(:disabled) {
@@ -186,31 +149,29 @@ defineExpose({
 }
 
 .ui-button--secondary {
-  background: color-mix(in srgb, var(--surface-base) 54%, transparent);
-  border-color: color-mix(in srgb, var(--border-subtle) 42%, transparent);
-  color: var(--text-secondary);
-  box-shadow: none;
+  background: var(--surface-base);
+  border-color: color-mix(in srgb, var(--border) 80%, transparent);
+  color: var(--text-primary);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
 }
 
 .ui-button--secondary:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--border-subtle) 54%, transparent);
-  background: color-mix(in srgb, var(--surface-hover) 36%, transparent);
-  color: var(--text-primary);
+  border-color: var(--border);
+  background: var(--surface-hover);
 }
 
 .ui-button--secondary:active:not(:disabled) {
-  border-color: color-mix(in srgb, var(--border-subtle) 46%, transparent);
-  background: color-mix(in srgb, var(--surface-hover) 28%, transparent);
+  background: color-mix(in srgb, var(--surface-hover) 80%, transparent);
 }
 
 .ui-button--danger {
-  background: color-mix(in srgb, var(--error) 12%, transparent);
-  border-color: color-mix(in srgb, var(--error) 32%, var(--border));
-  color: var(--error);
+  background: var(--error);
+  border-color: transparent;
+  color: #fff;
 }
 
 .ui-button--danger:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--error) 18%, transparent);
+  background: color-mix(in srgb, var(--error) 80%, black);
 }
 
 .ui-button--ghost {
@@ -218,12 +179,12 @@ defineExpose({
 }
 
 .ui-button--ghost:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--surface-hover) 14%, transparent);
+  background: var(--sidebar-item-hover);
   color: var(--text-primary);
 }
 
 .ui-button--ghost:active:not(:disabled) {
-  background: color-mix(in srgb, var(--surface-hover) 10%, transparent);
+  background: color-mix(in srgb, var(--sidebar-item-hover) 80%, transparent);
 }
 
 .ui-button.is-block {

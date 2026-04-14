@@ -1,3 +1,4 @@
+<!-- START OF FILE src/components/layout/WorkbenchRail.vue -->
 <template>
   <nav
     class="workbench-rail"
@@ -22,7 +23,7 @@
       >
         <component
           :is="leftSidebarOpen ? IconLayoutSidebarLeftCollapse : IconLayoutSidebar"
-          :size="18"
+          :size="16"
           :stroke-width="1.75"
         />
       </UiButton>
@@ -46,7 +47,7 @@
         data-window-drag-ignore="true"
         @click="$emit('open-reference-library')"
       >
-        <IconBook2 :size="18" :stroke-width="1.75" />
+        <IconBook2 :size="16" :stroke-width="1.75" />
       </UiButton>
     </div>
 
@@ -82,7 +83,7 @@
           data-window-drag-ignore="true"
           @click="$emit('toggle-split-pane')"
         >
-          <IconLayoutColumns :size="18" :stroke-width="1.75" />
+          <IconLayoutColumns :size="16" :stroke-width="1.75" />
         </UiButton>
 
         <UiButton
@@ -99,7 +100,7 @@
         >
           <component
             :is="rightSidebarOpen ? IconLayoutSidebarRightCollapse : IconLayoutSidebarRight"
-            :size="18"
+            :size="16"
             :stroke-width="1.75"
           />
         </UiButton>
@@ -239,8 +240,8 @@ onUnmounted(() => {
 
 <style scoped>
 .workbench-rail {
-  --top-chrome-control-size: 33px;
-  --top-chrome-control-radius: 10px;
+  --top-chrome-control-size: 30px;
+  --top-chrome-control-radius: 6px;
   position: relative;
   display: flex;
   align-items: center;
@@ -274,7 +275,6 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   flex: 0 0 auto;
-  gap: 3px;
   position: relative;
   z-index: 2;
   pointer-events: auto;
@@ -329,10 +329,10 @@ onUnmounted(() => {
   border-radius: 8px;
   background: transparent;
   box-shadow: none;
-  color: color-mix(in srgb, var(--text-primary) 92%, transparent);
-  font-size: var(--workbench-font-title);
-  font-weight: var(--workbench-weight-strong);
-  letter-spacing: -0.003em;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
   line-height: 1.25;
   user-select: none;
   -webkit-user-select: none;
@@ -359,17 +359,17 @@ onUnmounted(() => {
 
 .workbench-rail-side-left {
   justify-content: flex-start;
+  gap: 4px;
 }
 
 .workbench-rail-side-right {
   justify-content: flex-end;
-  gap: 3px;
 }
 
 .workbench-rail-controls {
   display: inline-flex;
   align-items: center;
-  gap: 0;
+  gap: 4px;
   flex: 0 0 auto;
   min-height: var(--top-chrome-control-size);
   pointer-events: auto;
@@ -382,24 +382,22 @@ onUnmounted(() => {
   min-height: var(--top-chrome-control-size);
   padding: 0;
   border-radius: var(--top-chrome-control-radius);
-  color: color-mix(in srgb, var(--text-secondary) 84%, transparent);
+  color: var(--text-muted);
   opacity: 1;
   background: transparent;
   box-shadow: none;
-  transition:
-    background-color 140ms ease,
-    color 140ms ease,
-    opacity 140ms ease;
+  transition: background-color 140ms ease, color 140ms ease, opacity 140ms ease;
 }
 
 .workbench-rail-button :deep(svg) {
-  width: 18px !important;
-  height: 18px !important;
+  width: 16px !important;
+  height: 16px !important;
 }
 
+/* Hover 时保持柔弱可见的底框 */
 .workbench-rail-button:hover:not(:disabled) {
   color: var(--text-primary);
-  background: transparent;
+  background: color-mix(in srgb, var(--surface-hover) 50%, transparent);
 }
 
 .workbench-rail-button:focus-visible {
@@ -408,9 +406,10 @@ onUnmounted(() => {
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--focus-ring) 46%, transparent);
 }
 
+/* 彻底删除选中态时的方框背景 */
 .workbench-rail-button.is-active {
   color: var(--text-primary);
-  background: transparent;
+  background: transparent !important;
 }
 
 :deep(.workbench-rail-pane-button) {

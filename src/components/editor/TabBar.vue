@@ -503,201 +503,136 @@ function updateDropIndicator(mouseX) {
 <style scoped>
 .tab-bar-shell {
   box-sizing: border-box;
-  min-height: 38px;
-  padding: 4px 8px 2px;
+  min-height: 36px;
+  padding: 4px 8px 0; /* 取消底部 padding，让 Tab 贴底 */
   background: transparent;
-  border-bottom: none;
-  gap: 6px;
+  border-bottom: 1px solid var(--workbench-divider-soft);
+  gap: 4px;
 }
 
 .tab-bar-shell.is-shell-integrated {
   width: 100%;
-  min-height: 34px;
-  padding: 0;
-  gap: 10px;
+  min-height: 36px;
+  padding: 4px 8px 0;
+  border-bottom: 1px solid var(--workbench-divider-soft);
+  gap: 8px;
 }
 
 .tab-bar-track {
-  gap: 2px;
+  gap: 2px; /* 缩小 Tab 之间的间距 */
+  align-self: flex-end; /* 底部对齐 */
 }
 
 .tab-bar-shell.is-shell-integrated .tab-bar-track {
   gap: 2px;
   min-width: 0;
-  -webkit-mask-image: linear-gradient(
-    to right,
-    transparent 0,
-    black 10px,
-    black calc(100% - 10px),
-    transparent 100%
-  );
-  mask-image: linear-gradient(
-    to right,
-    transparent 0,
-    black 10px,
-    black calc(100% - 10px),
-    transparent 100%
-  );
+  -webkit-mask-image: linear-gradient(to right, transparent 0, black 10px, black calc(100% - 10px), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, black 10px, black calc(100% - 10px), transparent 100%);
 }
 
 .tab-bar-item {
   position: relative;
   min-height: 28px;
-  padding: 0 10px;
-  border: 0;
-  border-radius: 8px;
+  padding: 0 10px 0 12px;
+  border: 1px solid transparent;
+  border-bottom: none; /* 底部无边框 */
+  border-radius: 6px 6px 0 0; /* 仅顶部圆角，贴近原生编辑器感 */
   background: transparent;
   color: var(--text-muted);
-  opacity: 0.78;
-  transition:
-    opacity 0.15s,
-    color 0.14s ease,
-    background-color 0.14s ease,
-    border-color 0.14s ease,
-    transform 0.14s ease;
+  font-size: 12px;
+  font-weight: 500;
+  transition: background-color 0.1s, color 0.1s;
+  margin-bottom: -1px; /* 覆盖到底部边框上 */
 }
 
 .tab-bar-item:hover {
   color: var(--text-primary);
-  opacity: 1;
-  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+  background: color-mix(in srgb, var(--surface-hover) 40%, transparent);
 }
 
+/* 选中态：背景色与下方编辑器融为一体，左右和上方出现极细的描边 */
 .tab-bar-item.is-active {
   color: var(--text-primary);
-  background: transparent;
-  opacity: 1;
+  background: var(--shell-editor-surface);
+  border-color: var(--workbench-divider-soft);
   font-weight: 600;
 }
 
 .tab-bar-item.is-active::after {
-  display: none;
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: -1px;
+  right: -1px;
+  height: 2px;
+  background: var(--accent); /* 顶部 Accent 强调条 */
+  border-radius: 6px 6px 0 0;
 }
 
 .tab-bar-item.is-dragging {
-  opacity: 0.3;
-  transform: scale(0.98);
+  opacity: 0.4;
 }
 
 .tab-dirty-indicator {
   background: var(--accent);
+  width: 6px;
+  height: 6px;
 }
 
 .tab-close-button,
 .tab-toolbar-button {
   color: var(--text-muted);
-  border-radius: 8px;
-  opacity: 0.52;
-  transition:
-    background-color 140ms ease,
-    color 140ms ease,
-    opacity 140ms ease;
+  border-radius: 4px;
+  opacity: 0;
+  transition: background-color 0.1s, color 0.1s, opacity 0.1s;
+}
+
+.tab-bar-item.is-active .tab-close-button {
+  opacity: 0.6;
+}
+
+.tab-bar-item:hover .tab-close-button {
+  opacity: 0.8;
 }
 
 .tab-close-button {
-  width: 16px;
-  height: 16px;
-  min-height: 16px;
+  width: 18px;
+  height: 18px;
+  min-height: 18px;
+  margin-left: 6px;
 }
 
 .tab-close-button:hover:not(:disabled),
 .tab-toolbar-button:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+  background: color-mix(in srgb, var(--text-primary) 10%, transparent);
   color: var(--text-primary);
   opacity: 1;
 }
 
 .tab-bar-actions {
   gap: 2px;
-  opacity: 0.22;
-  transition:
-    opacity 140ms ease,
-    transform 140ms ease;
-  transform: translateY(-1px);
+  opacity: 0.5;
+  transition: opacity 0.1s;
+  align-self: center;
+  padding-bottom: 4px;
 }
 
 .tab-toolbar-button-new {
   margin-left: 4px;
-  opacity: 0.3;
+  opacity: 0.4;
+  align-self: center;
+  margin-bottom: 4px;
 }
 
 .tab-bar-shell:hover .tab-toolbar-button-new,
-.tab-bar-shell:focus-within .tab-toolbar-button-new {
-  opacity: 0.86;
-}
-
+.tab-bar-shell:focus-within .tab-toolbar-button-new,
 .tab-bar-shell:hover .tab-bar-actions,
 .tab-bar-shell:focus-within .tab-bar-actions {
   opacity: 1;
-  transform: translateY(0);
 }
 
 .tab-bar-shell.is-shell-integrated .tab-bar-item {
-  min-height: 32px;
-  padding: 0 11px;
-  border-radius: 10px;
-  opacity: 0.56;
-  font-weight: 520;
-  letter-spacing: -0.01em;
-}
-
-.tab-bar-shell.is-shell-integrated .tab-bar-item:hover {
-  background: color-mix(in srgb, var(--surface-hover) 12%, transparent);
-  opacity: 0.82;
-}
-
-.tab-bar-shell.is-shell-integrated .tab-bar-item.is-active {
-  background: transparent;
-  color: var(--text-primary);
-  opacity: 1;
-  font-weight: 560;
-  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--text-primary) 16%, transparent);
-}
-
-.tab-bar-shell.is-shell-integrated .tab-close-button,
-.tab-bar-shell.is-shell-integrated .tab-toolbar-button {
-  border-radius: 999px;
-}
-
-.tab-bar-shell.is-shell-integrated .tab-close-button {
-  opacity: 0;
-}
-
-.tab-bar-shell.is-shell-integrated .tab-bar-actions {
-  gap: 1px;
-  opacity: 0;
-  transform: translateY(-2px);
-}
-
-.tab-bar-shell.is-shell-integrated:hover .tab-close-button,
-.tab-bar-shell.is-shell-integrated:focus-within .tab-close-button {
-  opacity: 0.38;
-}
-
-.tab-bar-shell.is-shell-integrated:hover .tab-bar-actions,
-.tab-bar-shell.is-shell-integrated:focus-within .tab-bar-actions {
-  opacity: 0.62;
-  transform: translateY(0);
-}
-
-.tab-bar-shell.is-shell-integrated .tab-toolbar-button-new {
-  margin-left: 6px;
-  opacity: 0.12;
-}
-
-.tab-bar-shell.is-shell-integrated:hover .tab-toolbar-button-new,
-.tab-bar-shell.is-shell-integrated:focus-within .tab-toolbar-button-new {
-  opacity: 0.44;
-}
-
-.tab-bar-shell.is-shell-integrated .tab-toolbar-button {
-  opacity: 0.26;
-}
-
-.tab-bar-shell.is-shell-integrated .tab-toolbar-button:hover:not(:disabled),
-.tab-bar-shell.is-shell-integrated .tab-close-button:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--surface-hover) 16%, transparent);
-  opacity: 1;
+  min-height: 28px;
 }
 
 .tab-bar-shell.is-shell-integrated .tab-bar-track::-webkit-scrollbar {

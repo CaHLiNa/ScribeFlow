@@ -1,3 +1,4 @@
+<!-- START OF FILE src/components/editor/DocumentWorkflowBar.vue -->
 <template>
   <Teleport :to="teleportTo || 'body'" :disabled="!teleportTo">
     <div
@@ -176,9 +177,9 @@ const statusClass = computed(() => ({
 const compactPaneBar = computed(() => !props.inlineHeader && !props.shellIntegrated)
 const showKindLabel = computed(() => !!kindLabel.value)
 const buttonIconStroke = computed(() => (compactPaneBar.value ? 1.8 : 1.8))
-const primaryActionIconSize = computed(() => (compactPaneBar.value ? 17 : 17))
-const secondaryActionIconSize = computed(() => (compactPaneBar.value ? 17 : 17))
-const pdfActionIconSize = computed(() => (compactPaneBar.value ? 17 : 16))
+const primaryActionIconSize = computed(() => 16)
+const secondaryActionIconSize = computed(() => 16)
+const pdfActionIconSize = computed(() => 16)
 </script>
 
 <style scoped>
@@ -186,9 +187,9 @@ const pdfActionIconSize = computed(() => (compactPaneBar.value ? 17 : 16))
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 5px;
+  gap: 4px;
   width: 100%;
-  height: var(--document-header-row-height, 28px);
+  height: var(--document-header-row-height, 30px);
   min-width: 0;
   box-sizing: border-box;
   padding: 0;
@@ -196,8 +197,8 @@ const pdfActionIconSize = computed(() => (compactPaneBar.value ? 17 : 16))
 }
 
 .workflow-bar.is-shell-integrated {
-  --shell-top-control-size: 33px;
-  --shell-top-control-radius: 10px;
+  --shell-top-control-size: 30px;
+  --shell-top-control-radius: 6px;
   width: auto;
   min-height: var(--shell-top-control-size);
   height: var(--shell-top-control-size);
@@ -209,17 +210,10 @@ const pdfActionIconSize = computed(() => (compactPaneBar.value ? 17 : 16))
   width: auto;
   min-width: 0;
   flex: 0 1 auto;
-  min-height: 31px;
-  height: 31px;
+  min-height: 30px;
+  height: 30px;
   justify-content: flex-end;
-  gap: 3px;
-}
-
-.workflow-bar-split {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 0;
-  padding: 0;
+  gap: 4px;
 }
 
 .workflow-left,
@@ -242,41 +236,22 @@ const pdfActionIconSize = computed(() => (compactPaneBar.value ? 17 : 16))
   gap: 0;
 }
 
-.workflow-bar.is-inline-header .workflow-left {
-  flex: 0 1 auto;
-  min-width: 0;
-}
-
-.workflow-bar.is-shell-integrated .workflow-left {
-  width: auto;
-  height: var(--shell-top-control-size);
-  min-height: var(--shell-top-control-size);
-  padding: 0;
-}
-
-.workflow-bar.is-shell-integrated .workflow-left {
-  flex: 0 1 auto;
-}
-
 .workflow-meta {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
   min-width: 0;
   flex: 1 1 auto;
   overflow: hidden;
-  font-size: var(--workbench-font-secondary);
-  font-weight: var(--workbench-weight-medium);
-  line-height: 22px;
-  color: color-mix(in srgb, var(--text-muted) 88%, transparent);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
   white-space: nowrap;
-  opacity: 0.9;
   font-variant-numeric: tabular-nums;
 }
 
 .workflow-bar.is-inline-header .workflow-meta {
   flex: 0 1 auto;
-  gap: 4px;
 }
 
 .workflow-shell-status {
@@ -285,62 +260,45 @@ const pdfActionIconSize = computed(() => (compactPaneBar.value ? 17 : 16))
   gap: 4px;
   min-width: 0;
   white-space: nowrap;
-  font-size: var(--workbench-font-secondary);
-  font-weight: var(--workbench-weight-medium);
-  line-height: 22px;
-  color: color-mix(in srgb, var(--text-muted) 92%, transparent);
-  opacity: 0.94;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
 
 .workflow-kind {
-  color: color-mix(in srgb, var(--text-primary) 86%, transparent);
-  font-size: var(--workbench-font-primary);
-  font-weight: var(--workbench-weight-strong);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .workflow-phase {
-  color: color-mix(in srgb, var(--text-muted) 86%, transparent);
-  font-size: var(--workbench-font-secondary);
-  font-weight: var(--workbench-weight-medium);
+  color: var(--text-muted);
+  font-size: 11px;
 }
 
 .workflow-separator {
-  color: color-mix(in srgb, var(--text-muted) 60%, transparent);
-  font-size: var(--workbench-font-secondary);
-  font-weight: var(--workbench-weight-medium);
-  opacity: 0.72;
+  color: color-mix(in srgb, var(--text-muted) 40%, transparent);
 }
 
 .workflow-doc-tools {
   display: inline-flex;
   align-items: center;
-  gap: 0;
+  gap: 4px;
   min-width: 0;
   flex: 0 0 auto;
-  min-height: var(--document-header-row-height, 31px);
-  height: var(--document-header-row-height, 31px);
+  min-height: var(--document-header-row-height, 30px);
+  height: var(--document-header-row-height, 30px);
   padding: 0;
-  border-radius: 0;
-  background: transparent;
   border: 0;
-}
-
-.workflow-bar.is-inline-header .workflow-doc-tools {
-  gap: 1px;
-  min-height: 31px;
-  height: 31px;
+  background: transparent;
 }
 
 .workflow-bar.is-shell-integrated .workflow-doc-tools {
-  gap: 0;
   min-height: var(--shell-top-control-size);
   height: var(--shell-top-control-size);
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
 }
 
 .workflow-status {
@@ -348,19 +306,18 @@ const pdfActionIconSize = computed(() => (compactPaneBar.value ? 17 : 16))
   align-items: center;
   gap: 4px;
   padding: 0;
-  height: auto;
-  color: color-mix(in srgb, var(--text-muted) 82%, transparent);
+  color: var(--text-muted);
 }
 
 .workflow-status-dot {
   width: 5px;
   height: 5px;
-  border-radius: 999px;
+  border-radius: 50%;
   background: currentColor;
 }
 
 .workflow-status-success {
-  color: var(--success, #4ade80);
+  color: var(--success);
 }
 
 .workflow-status-warning {
@@ -378,27 +335,23 @@ const pdfActionIconSize = computed(() => (compactPaneBar.value ? 17 : 16))
 .workflow-primary-btn,
 .workflow-secondary-btn {
   flex: 0 0 auto;
-  width: 33px;
-  height: var(--document-header-row-height, 31px);
-  min-height: var(--document-header-row-height, 31px);
+  width: 30px;
+  height: 30px;
+  min-height: 30px;
   white-space: nowrap;
-  color: color-mix(in srgb, var(--text-secondary) 86%, transparent);
-  border-radius: 9px;
+  color: var(--text-secondary);
+  border-radius: 6px;
   background: transparent;
   box-shadow: none;
-  transition:
-    background-color 140ms ease,
-    color 140ms ease,
-    box-shadow 140ms ease;
+  transition: background-color 0.1s, color 0.1s;
 }
 
 .workflow-bar.is-inline-header .workflow-primary-btn,
 .workflow-bar.is-inline-header .workflow-secondary-btn {
-  width: 31px;
-  height: 31px;
-  min-height: 31px;
-  border-radius: 9px;
-  color: color-mix(in srgb, var(--text-secondary) 78%, transparent);
+  width: 28px;
+  height: 28px;
+  min-height: 28px;
+  border-radius: 5px;
 }
 
 .workflow-bar.is-shell-integrated .workflow-primary-btn,
@@ -406,57 +359,25 @@ const pdfActionIconSize = computed(() => (compactPaneBar.value ? 17 : 16))
   width: var(--shell-top-control-size);
   height: var(--shell-top-control-size);
   min-height: var(--shell-top-control-size);
-  padding: 0;
   border-radius: var(--shell-top-control-radius);
-  background: transparent;
-  box-shadow: none;
 }
 
-.workflow-primary-btn {
-  color: color-mix(in srgb, var(--text-secondary) 88%, transparent);
-}
-
-.workflow-primary-btn:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--surface-hover) 9%, transparent);
-  color: var(--text-primary);
-}
-
-.workflow-secondary-btn:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--surface-hover) 9%, transparent);
-  color: var(--text-primary);
-}
-
+.workflow-primary-btn:hover:not(:disabled),
+.workflow-secondary-btn:hover:not(:disabled),
 .workflow-bar.is-inline-header .workflow-primary-btn:hover:not(:disabled),
-.workflow-bar.is-inline-header .workflow-secondary-btn:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--surface-hover) 7%, transparent);
-}
-
-.workflow-secondary-btn {
-  color: var(--text-secondary);
-}
-
-.workflow-secondary-btn.is-active {
-  background: color-mix(in srgb, var(--surface-hover) 10%, transparent);
-  color: var(--text-primary);
-}
-
-.workflow-bar.is-inline-header .workflow-secondary-btn.is-active {
-  background: color-mix(in srgb, var(--surface-hover) 9%, transparent);
-  color: color-mix(in srgb, var(--text-primary) 92%, transparent);
-}
-
-.workflow-bar.is-shell-integrated .workflow-primary-btn.is-active,
-.workflow-bar.is-shell-integrated .workflow-secondary-btn.is-active {
-  background: color-mix(in srgb, var(--surface-hover) 10%, transparent);
-  color: var(--text-primary);
-}
-
+.workflow-bar.is-inline-header .workflow-secondary-btn:hover:not(:disabled),
 .workflow-bar.is-shell-integrated .workflow-primary-btn:hover:not(:disabled),
 .workflow-bar.is-shell-integrated .workflow-secondary-btn:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--surface-hover) 12%, transparent);
+  background: color-mix(in srgb, var(--surface-hover) 60%, transparent);
+  color: var(--text-primary);
 }
 
-.workflow-secondary-btn-accent {
-  color: var(--accent);
+/* 彻底删除选中态时的方框背景 */
+.workflow-secondary-btn.is-active,
+.workflow-bar.is-inline-header .workflow-secondary-btn.is-active,
+.workflow-bar.is-shell-integrated .workflow-primary-btn.is-active,
+.workflow-bar.is-shell-integrated .workflow-secondary-btn.is-active {
+  color: var(--text-primary);
+  background: transparent !important;
 }
 </style>

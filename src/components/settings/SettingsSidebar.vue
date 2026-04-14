@@ -106,13 +106,13 @@ const activeSection = computed(() => workspace.settingsSection || 'theme')
 
 .settings-sidebar-item:hover:not(:disabled) {
   background: color-mix(in srgb, var(--surface-hover) 16%, transparent);
-  border-color: color-mix(in srgb, var(--border-subtle) 14%, transparent) !important;
+  border-color: transparent !important;
 }
 
 .settings-sidebar-item.is-active {
-  background: color-mix(in srgb, var(--surface-hover) 22%, transparent);
-  border-color: color-mix(in srgb, var(--border-subtle) 18%, transparent) !important;
-  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--accent) 38%, transparent) !important;
+  background: color-mix(in srgb, var(--surface-hover) 24%, transparent);
+  border-color: transparent !important;
+  box-shadow: none !important;
   color: var(--text-primary);
 }
 

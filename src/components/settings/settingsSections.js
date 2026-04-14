@@ -1,4 +1,4 @@
-import { IconCpu, IconEdit, IconPalette, IconRefresh } from '@tabler/icons-vue'
+import { IconBooks, IconCpu, IconEdit, IconPalette, IconRefresh } from '@tabler/icons-vue'
 
 export const SETTINGS_SECTION_DEFINITIONS = [
   {
@@ -24,5 +24,11 @@ export const SETTINGS_SECTION_DEFINITIONS = [
     labelKey: 'Updates',
     descriptionKey: 'Application version and release channel information.',
     icon: IconRefresh,
+  },
+  {
+    id: 'zotero',
+    labelKey: 'Zotero',
+    descriptionKey: 'Reference sync, remote libraries, and citation import.',
+    icon: IconBooks,
   },
 ]

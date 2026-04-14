@@ -6,6 +6,20 @@ function normalizeCoordinate(value = 0) {
   return Number.isFinite(number) ? number : 0
 }
 
+function clampPointToViewport(x = 0, y = 0, padding = 8) {
+  if (typeof window === 'undefined') {
+    return { x, y }
+  }
+
+  const maxX = Math.max(padding, window.innerWidth - padding)
+  const maxY = Math.max(padding, window.innerHeight - padding)
+
+  return {
+    x: Math.min(Math.max(x, padding), maxX),
+    y: Math.min(Math.max(y, padding), maxY),
+  }
+}
+
 export function useSurfaceContextMenu() {
   const menuVisible = ref(false)
   const menuX = ref(0)
@@ -25,8 +39,12 @@ export function useSurfaceContextMenu() {
 
   function openSurfaceContextMenu(options = {}) {
     dismissOtherTransientOverlays()
-    menuX.value = normalizeCoordinate(options.x)
-    menuY.value = normalizeCoordinate(options.y)
+    const point = clampPointToViewport(
+      normalizeCoordinate(options.x),
+      normalizeCoordinate(options.y)
+    )
+    menuX.value = point.x
+    menuY.value = point.y
     menuGroups.value = Array.isArray(options.groups) ? options.groups : []
     menuVisible.value = true
   }

@@ -4,6 +4,8 @@ mod fs_io;
 mod fs_tree;
 mod latex;
 mod latex_tools;
+mod keychain;
+mod network;
 mod process_utils;
 mod security;
 mod workspace_access;
@@ -411,6 +413,11 @@ pub fn run() {
             fs_commands::copy_dir,
             fs_commands::is_directory,
             fs_commands::path_exists,
+            network::proxy_api_call,
+            network::proxy_api_call_full,
+            keychain::keychain_set,
+            keychain::keychain_get,
+            keychain::keychain_delete,
             fs_commands::reveal_in_file_manager,
             fs_commands::get_global_config_dir,
             security::workspace_set_allowed_roots,
