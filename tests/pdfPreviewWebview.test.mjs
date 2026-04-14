@@ -5,6 +5,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import {
+  PDF_PREVIEW_THEME_TOKEN_NAMES,
   buildPdfPreviewHostUrl,
   buildPdfPreviewWebviewLabel,
   createPdfPreviewHostPayload,
@@ -17,6 +18,10 @@ const hostHtmlSource = readFileSync(path.join(repoRoot, 'pdf-host.html'), 'utf8'
 test('buildPdfPreviewWebviewLabel normalizes pane ids into stable child-webview labels', () => {
   assert.equal(buildPdfPreviewWebviewLabel('pane/root 1'), 'pdf-preview-pane/root-1')
   assert.equal(buildPdfPreviewWebviewLabel(''), 'pdf-preview-preview')
+})
+
+test('pdf preview token capture includes the semantic preview surface color', () => {
+  assert.equal(PDF_PREVIEW_THEME_TOKEN_NAMES.includes('--shell-preview-surface'), true)
 })
 
 test('buildPdfPreviewHostUrl targets the dedicated pdf host page and preserves labels', () => {

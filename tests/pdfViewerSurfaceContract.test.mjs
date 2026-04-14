@@ -58,6 +58,21 @@ test('altals pdf viewer sidebar chrome stays flat and padded inside the preview 
   assert.match(viewerCssSource, /\.dropdownToolbarButton select\{[\s\S]*font-size:12px;/)
 })
 
+test('webkit canvas fallback blends inverted pdf canvases back onto the app surface instead of a pure black page', () => {
+  assert.match(
+    viewerCssSource,
+    /html\[data-altals-canvas-filter-fallback="true"\] \.pdfViewer \.page\{[\s\S]*background-color:var\(--altals-pdf-page-bg\) !important;[\s\S]*isolation:isolate;/
+  )
+  assert.match(
+    viewerCssSource,
+    /html\[data-altals-canvas-filter-fallback="true"\] \.pdfViewer \.canvasWrapper canvas,[\s\S]*mix-blend-mode:screen;/
+  )
+  assert.match(
+    viewerCssSource,
+    /html\[data-altals-canvas-filter-fallback="true"\] \.pdfViewer \.canvasWrapper,[\s\S]*background:var\(--altals-pdf-page-bg\);/
+  )
+})
+
 test('pdf iframe surface locks semantic zoom during live shell resize and restores it afterward', () => {
   assert.match(pdfIframeSurfaceSource, /createPdfViewerScaleLock/)
   assert.match(pdfIframeSurfaceSource, /SHELL_RESIZE_PHASE_EVENT/)

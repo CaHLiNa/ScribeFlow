@@ -9022,11 +9022,18 @@ body{
 
 html[data-altals-canvas-filter-fallback="true"] .pdfViewer .page{
   background-color:var(--altals-pdf-page-bg) !important;
+  isolation:isolate;
 }
 
 html[data-altals-canvas-filter-fallback="true"] .pdfViewer .canvasWrapper canvas,
 html[data-altals-canvas-filter-fallback="true"] #thumbnailsView .thumbnailImage :is(canvas, img){
   filter:var(--altals-pdf-canvas-filter);
+  mix-blend-mode:screen;
+}
+
+html[data-altals-canvas-filter-fallback="true"] .pdfViewer .canvasWrapper,
+html[data-altals-canvas-filter-fallback="true"] #thumbnailsView .thumbnailImage{
+  background:var(--altals-pdf-page-bg);
 }
 
 #outerContainer,

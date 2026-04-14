@@ -22,7 +22,8 @@ The root `package.json` currently exposes these main build-related scripts:
 - `scripts/run-tauri.mjs` is the main Tauri script entry
 - `scripts/version-utils.mjs` and `scripts/bump-version.mjs` manage version checks and version bumps
 - `scripts/build-macos-dmg.mjs` builds the helper DMG
-- `.github/workflows/release.yml` builds and publishes release artifacts
+- `.github/workflows/release-on-version-bump.yml` converts version bumps on the default branch into release tags
+- `.github/workflows/release.yml` builds and publishes release artifacts from `v*` tags
 
 ## Build layers
 
@@ -40,8 +41,10 @@ The root `package.json` currently exposes these main build-related scripts:
 
 GitHub Actions currently:
 
-- validates version state
-- resolves or creates the release tag
+- detects version bumps pushed to the default branch
+- skips release work when the version files did not change or the version has already been released
+- creates and pushes the matching `v*` tag when the version advances
+- publishes automatically when a `v*` tag is pushed
 - installs platform dependencies
 - builds artifacts for macOS, Linux, and Windows
 - uploads the final release assets

@@ -10,9 +10,8 @@ use tauri::Emitter;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
 use crate::latex_tools::{
-    altals_bin_dir, binary_status, find_chktex, find_latexindent, find_synctex,
-    find_system_tex, find_tectonic, tectonic_binary_name, LatexCompilerStatus,
-    LatexToolStatus,
+    altals_bin_dir, binary_status, find_chktex, find_latexindent, find_synctex, find_system_tex,
+    find_tectonic, tectonic_binary_name, LatexCompilerStatus, LatexToolStatus,
 };
 use crate::process_utils::{background_command, background_tokio_command};
 
@@ -73,7 +72,6 @@ struct LatexCompileMeta {
     requested_program: Option<String>,
     requested_program_applied: bool,
 }
-
 
 fn parse_latex_output(output: &str) -> (Vec<LatexError>, Vec<LatexError>) {
     let mut errors = Vec::new();
@@ -144,7 +142,8 @@ fn parse_latex_output(output: &str) -> (Vec<LatexError>, Vec<LatexError>) {
             }
         }
         // file-line-column-error format: ./main.tex:42:13: Undefined control sequence.
-        else if let Some((file, line_num, column, message)) = extract_file_line_col_error(trimmed) {
+        else if let Some((file, line_num, column, message)) = extract_file_line_col_error(trimmed)
+        {
             errors.push(make_latex_issue(
                 Some(file),
                 Some(line_num),
@@ -284,10 +283,7 @@ fn extract_overfull_underfull_range(msg: &str) -> Option<(u32, u32)> {
     }
     if let Some(index) = msg.find("line ") {
         let after = &msg[index + 5..];
-        let digits: String = after
-            .chars()
-            .take_while(|ch| ch.is_ascii_digit())
-            .collect();
+        let digits: String = after.chars().take_while(|ch| ch.is_ascii_digit()).collect();
         if let Ok(line_num) = digits.parse::<u32>() {
             return Some((line_num, line_num));
         }
@@ -375,8 +371,12 @@ fn global_chktexrc() -> Option<PathBuf> {
     #[cfg(windows)]
     {
         for value in [
-            std::env::var("CHKTEXRC").ok().map(|dir| PathBuf::from(dir).join("chktexrc")),
-            std::env::var("CHKTEX_HOME").ok().map(|dir| PathBuf::from(dir).join("chktexrc")),
+            std::env::var("CHKTEXRC")
+                .ok()
+                .map(|dir| PathBuf::from(dir).join("chktexrc")),
+            std::env::var("CHKTEX_HOME")
+                .ok()
+                .map(|dir| PathBuf::from(dir).join("chktexrc")),
             std::env::var("EMTEXDIR")
                 .ok()
                 .map(|dir| PathBuf::from(dir).join("data").join("chktexrc")),
@@ -393,9 +393,15 @@ fn global_chktexrc() -> Option<PathBuf> {
     #[cfg(not(windows))]
     {
         for value in [
-            std::env::var("HOME").ok().map(|dir| PathBuf::from(dir).join(".chktexrc")),
-            std::env::var("LOGDIR").ok().map(|dir| PathBuf::from(dir).join(".chktexrc")),
-            std::env::var("CHKTEXRC").ok().map(|dir| PathBuf::from(dir).join(".chktexrc")),
+            std::env::var("HOME")
+                .ok()
+                .map(|dir| PathBuf::from(dir).join(".chktexrc")),
+            std::env::var("LOGDIR")
+                .ok()
+                .map(|dir| PathBuf::from(dir).join(".chktexrc")),
+            std::env::var("CHKTEXRC")
+                .ok()
+                .map(|dir| PathBuf::from(dir).join(".chktexrc")),
         ]
         .into_iter()
         .flatten()
@@ -430,11 +436,7 @@ fn convert_chktex_column(column: u32, line: &str, tab_size: usize) -> u32 {
         if consumed >= target {
             break;
         }
-        let width = if ch == '\t' {
-            tab_size
-        } else {
-            ch.len_utf8()
-        };
+        let width = if ch == '\t' { tab_size } else { ch.len_utf8() };
         consumed += width;
         visual_column += 1;
     }
@@ -465,8 +467,7 @@ fn adjust_chktex_columns_for_source(
 
         let matches_source = diagnostic.file.as_deref().is_none_or(|file| {
             let diagnostic_path = Path::new(file);
-            diagnostic_path == tex_path
-                || diagnostic_path.file_name() == tex_path.file_name()
+            diagnostic_path == tex_path || diagnostic_path.file_name() == tex_path.file_name()
         });
         if !matches_source {
             continue;
@@ -1095,8 +1096,9 @@ pub async fn format_latex_document(
     content: String,
     custom_system_tex_path: Option<String>,
 ) -> Result<String, String> {
-    let latexindent = find_latexindent(custom_system_tex_path.as_deref())
-        .ok_or_else(|| "latexindent not found. Install it with your TeX distribution.".to_string())?;
+    let latexindent = find_latexindent(custom_system_tex_path.as_deref()).ok_or_else(|| {
+        "latexindent not found. Install it with your TeX distribution.".to_string()
+    })?;
 
     let tex = Path::new(&tex_path);
     let dir = tex.parent().ok_or("Invalid tex path")?;
@@ -1309,13 +1311,9 @@ pub async fn synctex_forward(
 
     if let Some(pdf_path) = derive_pdf_path_from_synctex_path(&synctex_path) {
         if let Some(binary) = find_synctex(None) {
-            if let Ok(result) = run_synctex_view_cli(
-                &binary,
-                &pdf_path,
-                &tex_path,
-                line,
-                column.unwrap_or(0),
-            ) {
+            if let Ok(result) =
+                run_synctex_view_cli(&binary, &pdf_path, &tex_path, line, column.unwrap_or(0))
+            {
                 return Ok(result);
             }
         }
@@ -1359,8 +1357,8 @@ pub async fn read_latex_synctex(path: String) -> Result<String, String> {
     if path.ends_with(".gz") {
         use std::io::Read;
 
-        let file = std::fs::File::open(normalized)
-            .map_err(|e| format!("Cannot open synctex: {}", e))?;
+        let file =
+            std::fs::File::open(normalized).map_err(|e| format!("Cannot open synctex: {}", e))?;
         let mut decoder = flate2::read::GzDecoder::new(file);
         let mut content = String::new();
         decoder
@@ -1765,7 +1763,10 @@ x1,6:7721819,6178078
     #[test]
     fn parses_scaled_sync_points_into_big_points() {
         let nodes = parse_synctex_content(SAMPLE_SYNCTEX);
-        let main_nodes: Vec<_> = nodes.iter().filter(|node| node.file == "/tmp/main.tex").collect();
+        let main_nodes: Vec<_> = nodes
+            .iter()
+            .filter(|node| node.file == "/tmp/main.tex")
+            .collect();
 
         assert!(!main_nodes.is_empty());
         let first_x = main_nodes
@@ -1884,12 +1885,16 @@ SyncTeX result end
         assert_eq!(diagnostics[0].line, Some(12));
         assert_eq!(diagnostics[0].column, Some(4));
         assert_eq!(diagnostics[0].severity, "warning");
-        assert_eq!(diagnostics[0].message, "ChkTeX 8: Command terminated with space.");
+        assert_eq!(
+            diagnostics[0].message,
+            "ChkTeX 8: Command terminated with space."
+        );
     }
 
     #[test]
     fn maps_chktex_error_kind_to_error_severity() {
-        let output = "/tmp/main.tex\x1f8\x1f2\x1fError\x1f36\x1fYou should put a space after `,'.\n";
+        let output =
+            "/tmp/main.tex\x1f8\x1f2\x1fError\x1f36\x1fYou should put a space after `,'.\n";
         let diagnostics = parse_chktex_output(output);
 
         assert_eq!(diagnostics.len(), 1);

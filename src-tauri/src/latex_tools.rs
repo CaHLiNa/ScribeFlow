@@ -173,7 +173,12 @@ pub fn find_latexindent(custom_system_tex_path: Option<&str>) -> Option<String> 
     if let Some(system_tex_path) = custom_system_tex_path.filter(|value| !value.trim().is_empty()) {
         if let Some(path) = find_binary_in_sibling_dir(
             system_tex_path,
-            &["latexindent", "latexindent.pl", "latexindent.exe", "latexindent.cmd"],
+            &[
+                "latexindent",
+                "latexindent.pl",
+                "latexindent.exe",
+                "latexindent.cmd",
+            ],
         ) {
             return Some(path);
         }
@@ -213,7 +218,12 @@ pub fn find_latexindent(custom_system_tex_path: Option<&str>) -> Option<String> 
     #[cfg(windows)]
     {
         let output = background_command("where")
-            .args(["latexindent", "latexindent.pl", "latexindent.exe", "latexindent.cmd"])
+            .args([
+                "latexindent",
+                "latexindent.pl",
+                "latexindent.exe",
+                "latexindent.cmd",
+            ])
             .output()
             .ok()?;
         if output.status.success() {

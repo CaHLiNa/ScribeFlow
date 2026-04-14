@@ -18,6 +18,7 @@ export const PDF_PREVIEW_THEME_TOKEN_NAMES = [
   '--text-primary',
   '--text-secondary',
   '--text-muted',
+  '--shell-preview-surface',
   '--shell-editor-surface',
   '--workspace-ink',
   '--focus-ring',

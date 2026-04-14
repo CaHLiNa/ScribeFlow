@@ -104,20 +104,20 @@
             <span class="rating-text">{{ draft.rating }} / 5</span>
           </div>
 
-          <div class="kv-label align-top mt-1">{{ t('Collections') }}</div>
-          <div class="kv-value token-area">
-            <div class="token-list">
+          <div class="kv-label align-top">{{ t('Collections') }}</div>
+          <div class="kv-value token-area token-area--readonly">
+            <div v-if="draft.collections.length > 0" class="token-list">
               <button v-for="col in draft.collections" :key="col" class="token-chip" @click="removeCollection(col)">
                 <IconFolder :size="13" :stroke-width="1.5" /><span>{{ collectionLabel(col) }}</span>
                 <IconX class="token-remove" :size="12" :stroke-width="2" />
               </button>
             </div>
-            <UiInput v-model="collectionInput" variant="ghost" size="sm" :placeholder="t('Add collection')" @keydown.enter.prevent="addCollection"/>
+            <div v-else class="token-empty">{{ t('No collections yet') }}</div>
           </div>
 
-          <div class="kv-label align-top mt-1">{{ t('Tags') }}</div>
+          <div class="kv-label align-top">{{ t('Tags') }}</div>
           <div class="kv-value token-area">
-            <div class="token-list">
+            <div v-if="draft.tags.length > 0" class="token-list">
               <button v-for="tag in draft.tags" :key="tag" class="token-chip token-chip-tag" @click="removeTag(tag)">
                 <div class="tag-dot"></div><span>{{ tag }}</span>
                 <IconX class="token-remove" :size="12" :stroke-width="2" />
@@ -209,7 +209,6 @@ import { useEditorStore } from '../../stores/editor'
 import { useReferencesStore } from '../../stores/references'
 import { useToastStore } from '../../stores/toast'
 import { useWorkspaceStore } from '../../stores/workspace'
-import { openLocalPath } from '../../services/localFileOpen'
 import { revealPathInFileManager } from '../../services/fileTreeSystem'
 import { lookupByDoi, searchByMetadata } from '../../services/references/crossref.js'
 import UiButton from '../shared/ui/UiButton.vue'
@@ -241,7 +240,6 @@ const draft = reactive({
   tags: [],
 })
 
-const collectionInput = ref('')
 const tagInput = ref('')
 
 const selectedReference = computed(() => referencesStore.selectedReference)
@@ -292,7 +290,6 @@ function syncDraft(reference = null) {
   draft.rating = Number(reference?.rating || 0) || 0
   draft.collections = normalizeCollectionMemberships(reference?.collections || [])
   draft.tags = Array.isArray(reference?.tags) ? [...reference.tags] : []
-  collectionInput.value = ''
   tagInput.value = ''
 }
 
@@ -388,28 +385,6 @@ async function commitNote() {
 async function setRating(value = 0) {
   draft.rating = value
   await updateSelectedReference({ rating: value })
-}
-
-async function addCollection() {
-  const label = normalizeText(collectionInput.value)
-  if (!label) return
-
-  let collection = resolveCollection(label)
-  if (!collection) {
-    collection = await referencesStore.createCollection(workspace.globalConfigDir, label)
-  }
-
-  if (!collection?.key) return
-
-  const normalizedMemberships = normalizeCollectionMemberships(draft.collections)
-  if (normalizedMemberships.includes(collection.key)) {
-    collectionInput.value = ''
-    return
-  }
-
-  draft.collections = [...normalizedMemberships, collection.key]
-  collectionInput.value = ''
-  await updateSelectedReference({ collections: [...draft.collections] })
 }
 
 async function removeCollection(value = '') {
@@ -516,7 +491,8 @@ async function handleRefreshMetadata() {
 
 async function handleOpenPdf() {
   if (!canOpenPdf.value) return
-  await openLocalPath(selectedReferencePdfPath.value)
+  editorStore.openFile(selectedReferencePdfPath.value)
+  workspace.setLeftSidebarPanel('files')
 }
 
 async function handleRevealPdf() {
@@ -624,8 +600,13 @@ async function handleAttachPdf() {
 
 :deep(.ui-input-shell--ghost),
 :deep(.ui-textarea-shell--ghost) {
-  padding-inline: 4px !important;
-  margin-inline: -4px; 
+  padding-inline: 0 !important;
+  margin-inline: 0;
+}
+
+:deep(.ui-input-shell--ghost:focus-within),
+:deep(.ui-textarea-shell--ghost:focus-within) {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 68%, transparent);
 }
 
 :deep(.inspector-input-title .ui-textarea-control) {
@@ -651,9 +632,9 @@ async function handleAttachPdf() {
 /* 极致压缩左侧列宽，给右侧留足展示区 */
 .inspector-kv-grid {
   display: grid;
-  grid-template-columns: 48px minmax(0, 1fr); /* 压缩到极限 48px */
+  grid-template-columns: 56px minmax(0, 1fr);
   row-gap: 4px;
-  column-gap: 8px; /* 减小两列之间的留白 */
+  column-gap: 10px;
   align-items: center;
 }
 
@@ -665,9 +646,14 @@ async function handleAttachPdf() {
   white-space: nowrap;
 }
 
+/* 修复对齐问题：与右边元素同高，垂直居中 */
 .kv-label.align-top {
   align-self: flex-start;
-  margin-top: 5px;
+  margin-top: 0;
+  min-height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
 }
 
 /* 强行约束最大宽度，超长文本会被截断并隐入输入框滑动中 */
@@ -676,7 +662,7 @@ async function handleAttachPdf() {
   width: 100%;
   display: flex;
   align-items: center;
-  overflow: hidden;
+  overflow: visible;
 }
 
 /* ==========================================
@@ -732,13 +718,29 @@ async function handleAttachPdf() {
 .token-area {
   flex-direction: column;
   align-items: flex-start;
+  align-self: flex-start; /* 锁定顶部基准线，确保和左侧 label 完美平齐 */
   gap: 4px;
+  min-height: 24px;
+}
+
+.token-area--readonly {
+  justify-content: center;
 }
 
 .token-list {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+/* 修复对齐问题：文本与外层等高，垂直居中 */
+.token-empty {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.4;
+  min-height: 24px;
+  display: flex;
+  align-items: center;
 }
 
 .token-chip {

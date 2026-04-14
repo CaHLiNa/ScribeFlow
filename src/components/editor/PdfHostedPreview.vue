@@ -75,12 +75,17 @@ function isHostedPreviewPermissionError(error) {
 }
 
 function getHostUrl() {
+  const bootBackground = String(
+    props.themeTokens?.['--shell-preview-surface'] ||
+      props.themeTokens?.['--shell-editor-surface'] ||
+      ''
+  ).trim()
   return buildPdfPreviewHostUrl({
     label: hostLabel.value,
     parentLabel,
     resolvedTheme: props.resolvedTheme,
     themeRevision: props.themeRevision,
-    bootBackground: props.themeTokens?.['--shell-editor-surface'] || '',
+    bootBackground,
     bootForeground: props.themeTokens?.['--workspace-ink'] || '',
   })
 }
@@ -252,7 +257,7 @@ watch(
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: var(--shell-editor-surface);
+  background: var(--shell-preview-surface, var(--shell-editor-surface));
   cursor: text;
   isolation: isolate;
 }
@@ -268,7 +273,7 @@ watch(
   padding: 20px;
   text-align: center;
   color: var(--text-secondary);
-  background: var(--shell-editor-surface);
+  background: var(--shell-preview-surface, var(--shell-editor-surface));
 }
 
 .pdf-hosted-preview__error-title {

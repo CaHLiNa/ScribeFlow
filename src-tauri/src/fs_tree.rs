@@ -83,7 +83,10 @@ pub fn read_dir_shallow_entries(dir: &Path) -> Result<Vec<FileEntry>, String> {
     Ok(entries)
 }
 
-pub fn build_visible_tree(dir: &Path, loaded_dirs: &HashSet<String>) -> Result<Vec<FileEntry>, String> {
+pub fn build_visible_tree(
+    dir: &Path,
+    loaded_dirs: &HashSet<String>,
+) -> Result<Vec<FileEntry>, String> {
     let mut entries = Vec::new();
     let read_dir = fs::read_dir(dir).map_err(|e| e.to_string())?;
 
@@ -225,7 +228,7 @@ mod tests {
     use uuid::Uuid;
 
     fn temp_dir_path(label: &str) -> PathBuf {
-      std::env::temp_dir().join(format!("altals-fs-tree-{label}-{}", Uuid::new_v4()))
+        std::env::temp_dir().join(format!("altals-fs-tree-{label}-{}", Uuid::new_v4()))
     }
 
     #[test]

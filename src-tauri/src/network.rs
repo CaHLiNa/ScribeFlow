@@ -43,8 +43,8 @@ fn build_headers(headers: &HashMap<String, String>) -> Result<HeaderMap, String>
     for (key, value) in headers {
         let name = HeaderName::from_bytes(key.as_bytes())
             .map_err(|e| format!("Invalid header name {key}: {e}"))?;
-        let value =
-            HeaderValue::from_str(value).map_err(|e| format!("Invalid header value for {key}: {e}"))?;
+        let value = HeaderValue::from_str(value)
+            .map_err(|e| format!("Invalid header value for {key}: {e}"))?;
         map.insert(name, value);
     }
     Ok(map)
@@ -105,7 +105,7 @@ async fn execute_proxy_request(
 pub async fn proxy_api_call(request: ApiProxyRequest) -> Result<String, String> {
     let response = execute_proxy_request(request, false).await?;
     if !(200..300).contains(&response.status) {
-      return Err(format!("Proxy request returned HTTP {}", response.status));
+        return Err(format!("Proxy request returned HTTP {}", response.status));
     }
     Ok(response.body)
 }

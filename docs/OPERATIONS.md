@@ -46,13 +46,16 @@ The repo has explicit AI review commands implemented in `scripts/agentReviewWork
 
 ## Release operations
 
-Release automation lives in `.github/workflows/release.yml`.
+Release automation lives in:
+
+- `.github/workflows/release-on-version-bump.yml`
+- `.github/workflows/release.yml`
 
 Current release flow:
 
-- validate the default branch before release tagging
-- read the project version from the repo scripts
-- verify version and tag state
+- pushing a version bump commit to the default branch can auto-create the matching `v*` tag
+- no release is triggered when the version files did not change, when the version matches the latest tag, or when the tag already exists
+- pushing a `v*` tag builds and publishes the actual release artifacts
 - build and publish release artifacts for macOS, Linux, and Windows
 - generate and upload a helper DMG for macOS builds
 

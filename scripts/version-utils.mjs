@@ -94,9 +94,10 @@ export function compareSemver(left, right) {
 export function maxSemver(...versions) {
   const candidates = versions.filter(Boolean)
   if (candidates.length === 0) return null
-  return candidates.reduce((highest, version) => (
-    !highest || compareSemver(version, highest) > 0 ? version : highest
-  ), null)
+  return candidates.reduce(
+    (highest, version) => (!highest || compareSemver(version, highest) > 0 ? version : highest),
+    null
+  )
 }
 
 export function getLatestSemverTagVersion() {
@@ -158,8 +159,8 @@ export function updateVersions(nextVersion) {
       cargoToml,
       /^version = "[^"]+"$/m,
       `version = "${nextVersion}"`,
-      'src-tauri/Cargo.toml version',
-    ),
+      'src-tauri/Cargo.toml version'
+    )
   )
 
   const cargoLock = readText(files.cargoLock)
@@ -169,8 +170,8 @@ export function updateVersions(nextVersion) {
       cargoLock,
       /name = "altals"\nversion = "[^"]+"/,
       `name = "altals"\nversion = "${nextVersion}"`,
-      'src-tauri/Cargo.lock altals package version',
-    ),
+      'src-tauri/Cargo.lock altals package version'
+    )
   )
 }
 
@@ -219,8 +220,22 @@ function runCli() {
     return
   }
 
+  if (command === 'latest-tag') {
+    console.log(getLatestSemverTagVersion() || '')
+    return
+  }
+
+  if (command === 'compare') {
+    const [left, right] = args
+    if (!left || !right) {
+      throw new Error('Usage: node scripts/version-utils.mjs compare <left> <right>')
+    }
+    console.log(compareSemver(left, right))
+    return
+  }
+
   throw new Error(
-    'Usage: node scripts/version-utils.mjs <check|get|check-tag|build-label> [args...]',
+    'Usage: node scripts/version-utils.mjs <check|get|check-tag|build-label|latest-tag|compare> [args...]'
   )
 }
 

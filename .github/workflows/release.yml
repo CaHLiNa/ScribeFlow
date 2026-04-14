@@ -1,7 +1,9 @@
 name: Altals Release
 
 on:
-  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
 
 permissions:
   contents: write
@@ -15,81 +17,28 @@ jobs:
     name: Prepare release
     runs-on: ubuntu-22.04
     outputs:
-      version: ${{ steps.version.outputs.version }}
-      tag: ${{ steps.version.outputs.tag }}
+      version: ${{ steps.release_meta.outputs.version }}
+      tag: ${{ steps.release_meta.outputs.tag }}
 
     steps:
-      - name: Check out repository
+      - name: Check out release tag
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Verify release branch
-        run: |
-          if [ "${GITHUB_REF_NAME}" != "${{ github.event.repository.default_branch }}" ]; then
-            echo "Releases must be created from ${{ github.event.repository.default_branch }}."
-            exit 1
-          fi
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
 
-      - name: Read project version
-        id: version
+      - name: Validate tag matches project version
+        id: release_meta
         shell: bash
         run: |
-          VERSION="$(node scripts/version-utils.mjs get)"
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="$(node scripts/version-utils.mjs check-tag "${TAG}")"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
-
-      - name: Validate committed versions
-        run: node scripts/version-utils.mjs check
-
-      - name: Configure git
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-      - name: Resolve release tag state
-        id: tag_state
-        shell: bash
-        run: |
-          TAG="${{ steps.version.outputs.tag }}"
-          VERSION="${{ steps.version.outputs.version }}"
-          HEAD_COMMIT="$(git rev-parse HEAD)"
-
-          if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
-            TAG_COMMIT="$(git rev-list -n 1 "${TAG}")"
-
-            if [ "${TAG_COMMIT}" = "${HEAD_COMMIT}" ]; then
-              echo "Release tag ${TAG} already points at HEAD ${HEAD_COMMIT}; reusing it for this rerun."
-              echo "create=false" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-
-            echo "Release tag ${TAG} already exists at ${TAG_COMMIT}, but current HEAD is ${HEAD_COMMIT}."
-            echo "Project version is still ${VERSION}, so this workflow will not retag a different commit with the same version."
-            echo "Bump the version files first, for example: npm run version:bump:patch"
-            echo "Then commit, push, and run the release workflow again."
-            exit 1
-          fi
-
-          echo "Release tag ${TAG} is available for HEAD ${HEAD_COMMIT}."
-          echo "create=true" >> "$GITHUB_OUTPUT"
-
-      - name: Create and push release tag
-        if: steps.tag_state.outputs.create == 'true' && !startsWith(github.ref, 'refs/tags/')
-        shell: bash
-        run: |
-          if git rev-parse -q --verify "refs/tags/${{ steps.version.outputs.tag }}" >/dev/null; then
-            echo "Release tag ${{ steps.version.outputs.tag }} already exists locally after resolution; skipping creation."
-            exit 0
-          fi
-
-          git tag -a "${{ steps.version.outputs.tag }}" -m "Release ${{ steps.version.outputs.tag }}"
-          git push origin "${{ steps.version.outputs.tag }}"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
 
   build-release:
     name: Release (${{ matrix.label }})
@@ -100,21 +49,21 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: macos-latest
-            label: macOS ARM
+          - platform: macos-14
+            label: macOS ARM64
             rust-target: aarch64-apple-darwin
             tauri-args: --target aarch64-apple-darwin --bundles app --no-sign
           - platform: ubuntu-22.04
             label: Linux
-            rust-target: ""
-            tauri-args: ""
+            rust-target: ''
+            tauri-args: ''
           - platform: windows-latest
             label: Windows
-            rust-target: ""
-            tauri-args: ""
+            rust-target: ''
+            tauri-args: ''
 
     steps:
-      - name: Check out release tag
+      - name: Check out release ref
         uses: actions/checkout@v4
         with:
           ref: ${{ needs.prepare-release.outputs.tag }}
@@ -135,10 +84,7 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
-      - name: Validate tag matches project version
-        run: node scripts/version-utils.mjs check-tag "${{ needs.prepare-release.outputs.tag }}"
-
-      - name: Verify GitHub auth origin is configured for release
+      - name: Validate GitHub auth origin for release
         shell: bash
         run: |
           ORIGIN="${{ vars.VITE_GITHUB_AUTH_ORIGIN }}"
@@ -197,7 +143,7 @@ jobs:
           prerelease: false
 
       - name: Build helper DMG
-        if: matrix.platform == 'macos-latest'
+        if: matrix.platform == 'macos-14'
         id: helper_dmg
         shell: bash
         run: |
@@ -205,7 +151,7 @@ jobs:
           echo "path=${DMG_PATH}" >> "$GITHUB_OUTPUT"
 
       - name: Upload helper DMG to release
-        if: matrix.platform == 'macos-latest'
+        if: matrix.platform == 'macos-14'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release upload "${{ needs.prepare-release.outputs.tag }}" "${{ steps.helper_dmg.outputs.path }}" --clobber

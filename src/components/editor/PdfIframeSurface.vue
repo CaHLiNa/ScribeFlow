@@ -115,7 +115,7 @@ const viewerThemeReloadKey = computed(() =>
     resolvedTheme: getResolvedTheme(),
     pdfThemedPages: props.pdfThemedPages === true,
     themeRevision: Number(props.themeRevision || 0),
-    pageBackground: resolveThemeToken('--shell-editor-surface'),
+    pageBackground: resolvePdfSurfaceBackground(),
     pageForeground: resolveThemeToken('--workspace-ink'),
     useCanvasFilterFallback: shouldUseCanvasFilterFallback(),
   })
@@ -154,6 +154,10 @@ function resolveThemeToken(name, fallback = '') {
     String(getComputedStyle(document.documentElement).getPropertyValue(name) || '').trim() ||
     fallback
   )
+}
+
+function resolvePdfSurfaceBackground() {
+  return resolveThemeToken('--shell-preview-surface') || resolveThemeToken('--shell-editor-surface')
 }
 
 async function appendLatexSyncDebug(entry = {}) {
@@ -289,7 +293,7 @@ function applyCanvasFilterFallback() {
   if (!doc) return
   const root = doc.documentElement
   const useFallback = shouldUseCanvasFilterFallback()
-  const pageBackground = resolveThemeToken('--shell-editor-surface')
+  const pageBackground = resolvePdfSurfaceBackground()
   root.dataset.altalsCanvasFilterFallback = useFallback ? 'true' : 'false'
   root.style.setProperty(
     '--altals-pdf-page-bg',
@@ -305,6 +309,7 @@ function applyTheme() {
   const doc = iframeRef.value?.contentDocument
   if (!doc?.documentElement) return
   const root = doc.documentElement
+  const pdfSurfaceBackground = resolvePdfSurfaceBackground()
   const tokenMap = new Map([
     ['--altals-surface-base', '--surface-base'],
     ['--altals-surface-raised', '--surface-raised'],
@@ -312,7 +317,6 @@ function applyTheme() {
     ['--altals-border-subtle', '--border-subtle'],
     ['--altals-text-primary', '--text-primary'],
     ['--altals-text-muted', '--text-muted'],
-    ['--altals-shell-preview-surface', '--shell-editor-surface'],
     ['--altals-focus-ring', '--focus-ring'],
   ])
 
@@ -323,6 +327,9 @@ function applyTheme() {
       root.style.setProperty(targetName, value)
     }
   }
+  if (pdfSurfaceBackground) {
+    root.style.setProperty('--altals-shell-preview-surface', pdfSurfaceBackground)
+  }
 
   applyCanvasFilterFallback()
 }
@@ -332,7 +339,7 @@ function getViewerThemeOptions() {
     themedPages: props.pdfThemedPages,
     resolvedTheme: getResolvedTheme(),
     usePageFilterFallback: shouldUseCanvasFilterFallback(),
-    pageBackground: resolveThemeToken('--shell-editor-surface'),
+    pageBackground: resolvePdfSurfaceBackground(),
     pageForeground: resolveThemeToken('--workspace-ink'),
   })
 }
@@ -1043,7 +1050,7 @@ defineExpose({
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: var(--shell-editor-surface);
+  background: var(--shell-preview-surface, var(--shell-editor-surface));
   cursor: text;
   contain: strict;
   isolation: isolate;
@@ -1068,7 +1075,7 @@ defineExpose({
   padding: 20px;
   text-align: center;
   color: var(--text-secondary);
-  background: var(--shell-editor-surface);
+  background: var(--shell-preview-surface, var(--shell-editor-surface));
 }
 
 .pdf-artifact-preview__error-title {
