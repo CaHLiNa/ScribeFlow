@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 concurrency:
   group: altals-release-trigger-${{ github.ref_name }}
@@ -101,3 +102,16 @@ jobs:
         run: |
           git tag -a "${{ steps.release_state.outputs.tag }}" -m "Release ${{ steps.release_state.outputs.tag }}"
           git push origin "${{ steps.release_state.outputs.tag }}"
+
+      - name: Dispatch release workflow
+        if: steps.release_state.outputs.should_release == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          gh api \
+            --method POST \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/${{ github.repository }}/actions/workflows/release.yml/dispatches" \
+            -f ref="${{ github.event.repository.default_branch }}" \
+            -f inputs[tag]="${{ steps.release_state.outputs.tag }}"
