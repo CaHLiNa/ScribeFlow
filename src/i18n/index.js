@@ -3,12 +3,15 @@ import { computed, ref } from 'vue'
 const ZH_MESSAGES = {
   Settings: '设置',
   Theme: '主题',
+  About: '关于',
+  Environment: '环境',
   'PDF viewer': 'PDF 查看器',
   'Display options for PDF reading.': '控制 PDF 阅读器的显示方式。',
   'Themed PDF pages': '主题化 PDF 页面',
   'Use app theme colors for PDF pages and thumbnails. This changes rendered PDF colors and may shift images or charts.':
     '让 PDF 页面和缩略图跟随应用主题显示。这会改变渲染后的 PDF 颜色，图片或图表可能会有偏色。',
   Editor: '编辑器',
+  References: '文献',
   Auto: '自动',
   Recompile: '重新编译',
   Target: '目标',
@@ -18,6 +21,12 @@ const ZH_MESSAGES = {
   Updates: '更新',
   'Behavior and display preferences for the text editor.': '文本编辑器的行为和显示偏好。',
   Appearance: '外观',
+  'Themes, reading surfaces, and PDF viewing.': '主题、阅读界面和 PDF 浏览相关设置。',
+  'Writing defaults, editor behavior, and drafting tools.': '写作默认项、编辑器行为和起草工具设置。',
+  'LaTeX compilers, engines, downloads, and diagnostics.':
+    'LaTeX 编译器、引擎、下载项和诊断设置。',
+  'Application version, release notes, and downloads.': '应用版本、发布信息和下载入口。',
+  'Reference sync, citations, and Zotero connection.': '文献同步、引用样式和 Zotero 连接设置。',
   'PDF Viewer': 'PDF 查看器',
   'Choose the default reading and drafting face for Markdown documents.':
     '选择 Markdown 文档默认使用的阅读和起草字体。',
@@ -44,6 +53,7 @@ const ZH_MESSAGES = {
   'Pick the preferred backend for LaTeX projects.': '为 LaTeX 项目选择首选后端。',
   'Used when the selected compiler supports engine selection.': '当所选编译器支持引擎选择时使用。',
   'Choose the command sequence used for LaTeX builds.': '选择用于 LaTeX 构建的命令方案。',
+  'Command sequence used for LaTeX builds.': '用于 LaTeX 构建的命令方案。',
   'Uses the TeX distribution already installed on this Mac.':
     '使用这台 Mac 上已经安装好的 TeX 发行版。',
   'Bundled Rust-based LaTeX compiler is ready to use.': '内置的 Rust 版 LaTeX 编译器已可用。',
@@ -93,6 +103,9 @@ const ZH_MESSAGES = {
   'LaTeX Engine': 'LaTeX 引擎',
   'LaTeX Tools': 'LaTeX 工具',
   'Build recipe': '构建配方',
+  Compilation: '编译',
+  'Environment Diagnostics': '环境诊断',
+  'Refresh diagnostics': '刷新诊断',
   'Default build': '默认构建',
   'Shell escape': '启用 shell-escape',
   'Clean build': '清洁构建',
@@ -104,6 +117,9 @@ const ZH_MESSAGES = {
   'Auto (prefer System TeX)': '自动（优先系统 TeX）',
   'System TeX (latexmk)': '系统 TeX（latexmk）',
   'System TeX': '系统 TeX',
+  Tectonic: 'Tectonic',
+  ChkTeX: 'ChkTeX',
+  latexindent: 'latexindent',
   'Compile on save': '保存时编译',
   'Format on save': '保存时格式化',
   'LaTeX compile on save': 'LaTeX 保存时编译',
@@ -256,6 +272,12 @@ const ZH_MESSAGES = {
   'Current month': '当前月份',
   'Automatic updates are disabled in this local build. Use the releases page when you want to download a newer version.':
     '这个本地构建已禁用自动更新。如需下载新版本，请打开发布页面。',
+  'Automatic updates are disabled in this local build.': '这个本地构建已禁用自动更新。',
+  'Check for Updates via GitHub': '前往 GitHub 查看更新',
+  'Altals is a local-first workspace for academic writing and research.':
+    'Altals 是一个面向学术写作与研究的本地优先工作台。',
+  Version: '版本',
+  'Altals Logo': 'Altals 标志',
   'Open Releases': '打开 Releases',
   'Open Folder': '打开文件夹',
   Recent: '最近',
@@ -507,9 +529,15 @@ const ZH_MESSAGES = {
   'No recent files yet': '当前项目还没有最近文件。',
   'Project root': '项目根目录',
   'Split vertical ({shortcut})': '垂直拆分 ({shortcut})',
+  'Toggle split pane': '切换拆分面板',
+  'Toggle split pane ({shortcut})': '切换拆分面板 ({shortcut})',
+  'Toggle preview': '切换预览',
+  'Hide PDF preview': '隐藏 PDF 预览',
+  'Compile to generate PDF': '先编译生成 PDF',
   'Close pane': '关闭窗格',
   'Collapse All Folders': '折叠所有文件夹',
   'Filter Files ({shortcut})': '筛选文件 ({shortcut})',
+  'Search files': '搜索文件',
   'New File or Folder': '新建文件或文件夹',
   New: '新建',
   'New Folder': '新建文件夹',
@@ -518,6 +546,39 @@ const ZH_MESSAGES = {
   'Drop files here': '将文件拖到这里',
   'No matches': '没有匹配结果',
   'No files yet': '还没有文件',
+  'Open files': '打开文件',
+  'Open reference library': '打开文献库',
+  'PDF preview': 'PDF 预览',
+  'Altals Workspace': 'Altals 工作区',
+  'Open a local project folder to organize your research, references, and documents.':
+    '打开一个本地项目文件夹来整理你的研究资料、文献和文档。',
+  'Create Document': '创建文档',
+  'Choose a format to start writing in the current workspace.':
+    '选择一种格式，在当前工作区开始写作。',
+  'Removed surface': '已移除的视图',
+  'Altals now only opens Markdown and LaTeX documents in the main workspace.':
+    'Altals 现在只会在主工作区中打开 Markdown 和 LaTeX 文档。',
+  'This file can stay in your project, but this trimmed build no longer opens or edits this file type inside Altals.':
+    '这个文件仍然可以保留在项目里，但当前精简版本的 Altals 不再在应用内打开或编辑这种文件类型。',
+  'Keep it as a project asset or open it in another app when you still need it.':
+    '如果你还需要它，可以继续把它作为项目资源保留，或改用其他应用打开。',
+  'No Selection': '未选中文献',
+  Notes: '备注',
+  BibTeX: 'BibTeX',
+  'Failed to add reference': '添加文献失败',
+  'Downloading Tectonic… {progress}%': '正在下载 Tectonic… {progress}%',
+  'Choose System TeX or Tectonic below.': '请在下方选择 System TeX 或 Tectonic。',
+  'Needs setup': '需要设置',
+  applied: '已应用',
+  'detected but not applied': '已检测到但未应用',
+  'Editor text size': '编辑器文字大小',
+  'Adjust the base text size used in the writing editor and Markdown preview.':
+    '调整写作编辑器和 Markdown 预览使用的基础文字大小。',
+  Writing: '写作',
+  Application: '应用',
+  'Settings sections': '设置分区',
+  Duplicate: '复制一份',
+  'Sync failed': '同步失败',
   Explorer: '资源管理器',
   Untitled: '未命名',
   'new-folder': '新建文件夹',
@@ -963,6 +1024,37 @@ const ZH_MESSAGES = {
   'Write file': '写入文件',
 }
 
+const MESSAGE_KEY_ALIASES = Object.freeze({
+  Applied: 'applied',
+  auto: 'Auto',
+  'Bullet List': 'Bullet list',
+  'Even Spreads': 'Even spreads',
+  'Hand Tool': 'Hand tool',
+  'Horizontal Scrolling': 'Horizontal scrolling',
+  'new tab': 'New Tab',
+  'No Kernel': 'No kernel',
+  'No Spreads': 'No spreads',
+  'Numbered List': 'Numbered list',
+  'Odd Spreads': 'Odd spreads',
+  'open file': 'Open file',
+  'Page Scrolling': 'Page scrolling',
+  'PDF viewer': 'PDF Viewer',
+  'Rotate Clockwise': 'Rotate clockwise',
+  'Rotate Counterclockwise': 'Rotate counterclockwise',
+  'Sync now': 'Sync Now',
+  'Text Selection Tool': 'Text selection tool',
+  'Toggle Sidebar': 'Toggle sidebar',
+  'Vertical Scrolling': 'Vertical scrolling',
+  'Wrapped Scrolling': 'Wrapped scrolling',
+  'Zoom In': 'Zoom in',
+  'Zoom Out': 'Zoom out',
+})
+
+export function resolveMessageKey(key) {
+  const normalizedKey = String(key)
+  return MESSAGE_KEY_ALIASES[normalizedKey] || normalizedKey
+}
+
 function normalizeLocale(value = '') {
   return String(value).toLowerCase().startsWith('zh') ? 'zh-CN' : 'en-US'
 }
@@ -986,7 +1078,8 @@ function interpolate(message, vars = {}) {
 }
 
 export function t(key, vars) {
-  const message = locale.value === 'zh-CN' ? (ZH_MESSAGES[key] ?? key) : key
+  const resolvedKey = resolveMessageKey(key)
+  const message = locale.value === 'zh-CN' ? (ZH_MESSAGES[resolvedKey] ?? resolvedKey) : resolvedKey
   return interpolate(message, vars)
 }
 

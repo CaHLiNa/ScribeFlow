@@ -1,75 +1,61 @@
 <!-- START OF FILE src/components/shared/ui/UiSelect.vue -->
 <template>
-  <SelectRoot
-    :model-value="stringValue"
-    :disabled="disabled"
-    @update:model-value="handleUpdate"
-  >
-    <div ref="shellRef" class="ui-select-shell" :class="[shellClassName, propsShellClass]">
-      <SelectTrigger
-        ref="triggerRef"
-        class="ui-select-trigger"
-        :disabled="disabled"
-        :aria-label="triggerLabel"
-        @focus="emit('focus', $event)"
-        @blur="emit('blur', $event)"
-      >
-        <SelectValue class="ui-select-value" :placeholder="placeholder || selectedLabel" />
-        <SelectIcon class="ui-select-caret" aria-hidden="true">
-          <svg width="12" height="12" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M4.5 9.5L7.5 12.5L10.5 9.5" />
-            <path d="M4.5 5.5L7.5 2.5L10.5 5.5" />
-          </svg>
-        </SelectIcon>
-      </SelectTrigger>
+  <div ref="shellRef" class="ui-select-shell" :class="shellClassName">
+    <!-- 触发按钮 -->
+    <button
+      ref="triggerRef"
+      type="button"
+      class="ui-select-trigger"
+      :disabled="disabled"
+      :aria-label="triggerLabel"
+      @click="toggleOpen"
+      @focus="emit('focus', $event)"
+      @blur="emit('blur', $event)"
+    >
+      <span class="ui-select-value">{{ selectedLabel || placeholder }}</span>
+      <span class="ui-select-caret" :class="{ 'is-open': isOpen }" aria-hidden="true">
+        <svg width="12" height="12" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4.5 9.5L7.5 12.5L10.5 9.5" />
+          <path d="M4.5 5.5L7.5 2.5L10.5 5.5" />
+        </svg>
+      </span>
+    </button>
 
-      <SelectPortal>
-        <SelectContent
+    <!-- 纯原生传送门，脱离所有父级容器的样式干扰 -->
+    <Teleport to="body">
+      <!-- 全屏透明遮罩：点击外部关闭菜单 -->
+      <div v-if="isOpen" class="ui-select-backdrop" @click.stop="close" @wheel.prevent.stop @touchmove.prevent.stop></div>
+      
+      <!-- 下拉菜单本尊 -->
+      <Transition name="popover">
+        <div
+          v-if="isOpen"
+          ref="menuRef"
           class="ui-select-menu"
-          position="popper"
-          side="bottom"
-          align="start"
-          :side-offset="4"
-          :collision-padding="8"
+          :style="menuStyle"
         >
-          <SelectViewport class="ui-select-viewport scrollbar-hidden">
-            <SelectItem
+          <div class="ui-select-viewport scrollbar-hidden">
+            <button
               v-for="(option, index) in normalizedOptions"
-              :key="getOptionKey(option, index)"
+              :key="index"
+              type="button"
               class="ui-select-option"
-              :value="option.stringValue"
+              :class="{ 'is-selected': isSelected(option) }"
               :disabled="option.disabled"
+              @click.stop="selectOption(option)"
             >
-              <SelectItemText class="ui-select-option-label">
-                {{ option.label }}
-              </SelectItemText>
-              <SelectItemIndicator class="ui-select-option-check" aria-hidden="true">
-                ✓
-              </SelectItemIndicator>
-            </SelectItem>
-          </SelectViewport>
-        </SelectContent>
-      </SelectPortal>
-    </div>
-  </SelectRoot>
+              <span class="ui-select-option-label">{{ option.label }}</span>
+              <span v-if="isSelected(option)" class="ui-select-option-check" aria-hidden="true">✓</span>
+            </button>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+  </div>
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
-import {
-  SelectContent,
-  SelectIcon,
-  SelectItem,
-  SelectItemIndicator,
-  SelectItemText,
-  SelectPortal,
-  SelectRoot,
-  SelectTrigger,
-  SelectValue,
-  SelectViewport,
-} from 'reka-ui'
-
-defineOptions({ inheritAttrs: false })
+import { computed, ref, nextTick, onBeforeUnmount } from 'vue'
 
 const props = defineProps({
   modelValue: { type: [String, Number, Boolean], default: '' },
@@ -85,52 +71,101 @@ const emit = defineEmits(['update:modelValue', 'focus', 'blur'])
 
 const shellRef = ref(null)
 const triggerRef = ref(null)
+const menuRef = ref(null)
+const isOpen = ref(false)
+const menuStyle = ref({})
 
-// 核心修复：强制转为字符串以满足 Reka UI 的内部要求，防止抛错卡死
-const stringValue = computed(() => String(props.modelValue ?? ''))
-
+// 数据标准化
 const normalizedOptions = computed(() =>
   (props.options || []).map((option) => {
     if (option && typeof option === 'object' && 'value' in option) {
       return {
-        originalValue: option.value,
-        stringValue: String(option.value ?? ''),
+        value: option.value,
         label: option.label ?? String(option.value ?? ''),
         disabled: option.disabled === true,
       }
     }
-    return {
-      originalValue: option,
-      stringValue: String(option ?? ''),
-      label: String(option ?? ''),
-      disabled: false,
-    }
+    return { value: option, label: String(option ?? ''), disabled: false }
   })
 )
 
-function handleUpdate(val) {
-  // 选回后，将字符串还原为原始类型 (Number/Boolean) 传给父组件
-  const opt = normalizedOptions.value.find(o => o.stringValue === val)
-  emit('update:modelValue', opt ? opt.originalValue : val)
-}
+const selectedOption = computed(() => normalizedOptions.value.find((o) => o.value === props.modelValue) || null)
+const selectedLabel = computed(() => selectedOption.value?.label || '')
+const triggerLabel = computed(() => props.ariaLabel || selectedLabel.value || 'Select')
 
 const shellClassName = computed(() => [
   `ui-select-shell--${props.size}`,
-  { 'is-disabled': props.disabled },
+  props.shellClass,
+  { 'is-disabled': props.disabled, 'is-open': isOpen.value },
 ])
 
-const propsShellClass = computed(() => props.shellClass)
-const selectedOption = computed(() => normalizedOptions.value.find((o) => o.stringValue === stringValue.value) || normalizedOptions.value.find((o) => !o.disabled) || null)
-const selectedLabel = computed(() => selectedOption.value?.label || props.placeholder || '')
-const triggerLabel = computed(() => props.ariaLabel || selectedLabel.value || 'Select')
+function isSelected(option) {
+  return option.value === props.modelValue
+}
 
-function getOptionKey(option, index) { return `${option.stringValue}:${index}` }
+// 核心：原生绝对定位算法（绝对精确，绝不跑飞）
+async function calculatePosition() {
+  if (!triggerRef.value) return
+  const rect = triggerRef.value.getBoundingClientRect()
+  
+  // 默认在下方展示
+  menuStyle.value = {
+    top: `${rect.bottom + 6}px`,
+    left: `${rect.left}px`,
+    minWidth: `${rect.width}px`,
+    maxWidth: `min(100vw - 32px, 460px)`
+  }
+
+  await nextTick()
+  if (!menuRef.value) return
+
+  // 视口边界碰撞检测：如果超出了屏幕底部，就往上翻转
+  const menuRect = menuRef.value.getBoundingClientRect()
+  const viewportHeight = window.innerHeight || document.documentElement.clientHeight
+  
+  if (menuRect.bottom > viewportHeight - 12) {
+    menuStyle.value.top = `${rect.top - menuRect.height - 6}px`
+  }
+}
+
+function handleGlobalEvents(e) {
+  if (e.key === 'Escape') close()
+}
+
+function toggleOpen() {
+  if (props.disabled) return
+  if (isOpen.value) {
+    close()
+  } else {
+    isOpen.value = true
+    calculatePosition()
+    window.addEventListener('resize', close)
+    window.addEventListener('keydown', handleGlobalEvents)
+  }
+}
+
+function close() {
+  isOpen.value = false
+  window.removeEventListener('resize', close)
+  window.removeEventListener('keydown', handleGlobalEvents)
+}
+
+function selectOption(option) {
+  if (option.disabled) return
+  emit('update:modelValue', option.value)
+  close()
+}
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', close)
+  window.removeEventListener('keydown', handleGlobalEvents)
+})
 
 defineExpose({
   el: triggerRef,
   focus: () => triggerRef.value?.focus(),
   blur: () => triggerRef.value?.blur(),
-  click: () => triggerRef.value?.click(),
+  click: () => toggleOpen(),
 })
 </script>
 
@@ -156,10 +191,10 @@ defineExpose({
   text-align: left;
   transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s;
   cursor: pointer;
+  outline: none;
 }
 
 .ui-select-trigger:focus-visible {
-  outline: none;
   border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
   box-shadow: 0 0 0 2px var(--focus-ring);
 }
@@ -206,25 +241,28 @@ defineExpose({
   transition: transform 0.2s ease, opacity 0.2s ease;
 }
 
-/* 使用 Reka 原生的 data-state 替代手动管理的 class */
-.ui-select-trigger[data-state="open"] .ui-select-caret {
+.ui-select-caret.is-open {
   transform: translateY(-50%) rotate(180deg);
   opacity: 1;
 }
 
 /* =========================================================================
-   原生毛玻璃下拉菜单 (Native Dropdown Menu)
+   纯原生菜单面板，抛弃第三方库
 ========================================================================= */
+
+/* 全屏隐形遮罩，确保点击空白处关闭且滚动不溢出 */
+.ui-select-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  cursor: default;
+}
+
 .ui-select-menu {
-  z-index: var(--z-dropdown);
+  position: fixed; /* 脱离文档流 */
+  z-index: 9999;
   display: flex;
   flex-direction: column;
-  
-  /* 核心修复：最小宽度对齐按钮，取消最大宽度的强制 100vw，防止挤开屏幕 */
-  min-width: var(--reka-select-trigger-width, 220px);
-  max-width: min(100vw - 32px, 460px); 
-  max-height: 45vh; 
-  
   padding: 5px;
   border-radius: 8px;
   background: color-mix(in srgb, var(--surface-raised) 70%, transparent);
@@ -234,7 +272,7 @@ defineExpose({
 }
 
 .theme-light .ui-select-menu {
-  background: rgba(255, 255, 255, 0.75);
+  background: rgba(255, 255, 255, 0.85);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.05);
 }
 
@@ -242,16 +280,18 @@ defineExpose({
   flex: 1;
   overflow-y: auto;
   width: 100%;
+  max-height: 40vh; /* 防止超长选项撑爆屏幕 */
 }
 
 .ui-select-option {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
   width: 100%;
   min-height: 26px;
   padding: 0 8px;
+  border: none;
   border-radius: 5px;
   background: transparent;
   color: var(--text-primary);
@@ -262,13 +302,12 @@ defineExpose({
   outline: none;
 }
 
-.ui-select-option:hover:not([data-disabled]),
-.ui-select-option[data-highlighted] {
-  background: var(--list-active-bg) !important;
-  color: var(--list-active-fg) !important;
+.ui-select-option:hover:not(:disabled) {
+  background: var(--list-active-bg);
+  color: var(--list-active-fg);
 }
 
-.ui-select-option[data-disabled] {
+.ui-select-option:disabled {
   opacity: 0.45;
   cursor: default;
 }
@@ -283,8 +322,22 @@ defineExpose({
   color: var(--text-primary);
 }
 
-.ui-select-option:hover .ui-select-option-check,
-.ui-select-option[data-highlighted] .ui-select-option-check {
+.ui-select-option:hover .ui-select-option-check {
   color: var(--list-active-fg);
+}
+
+/* 原生弹窗动画 */
+.popover-enter-active {
+  transition: opacity 0.15s ease-out, transform 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.popover-leave-active {
+  transition: opacity 0.1s ease-in, transform 0.1s ease-in;
+}
+.popover-enter-from {
+  opacity: 0;
+  transform: scaleY(0.95) translateY(-4px);
+}
+.popover-leave-to {
+  opacity: 0;
 }
 </style>

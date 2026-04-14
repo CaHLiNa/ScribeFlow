@@ -1,53 +1,37 @@
+<!-- START OF FILE src/components/editor/EditorContextMenu.vue -->
 <template>
-  <DropdownMenuRoot :open="visible" :modal="false" @update:open="handleOpenChange">
-    <DropdownMenuPortal>
-      <DropdownMenuContent
-        class="context-menu editor-context-menu py-1 ui-text-md"
-        :reference="menuReference"
-        position="popper"
-        position-strategy="fixed"
-        side="bottom"
-        align="start"
-        :avoid-collisions="true"
-        :prioritize-position="true"
-        :side-flip="true"
-        :align-flip="true"
-        :side-offset="2"
-        :collision-padding="8"
-        @close-auto-focus.prevent
-        @pointer-down-outside="emit('close')"
-        @focus-outside="emit('close')"
-        @interact-outside="emit('close')"
-        @escape-key-down="emit('close')"
+  <Teleport to="body">
+    <div v-if="visible" class="context-menu-backdrop" @mousedown.prevent.stop="emit('close')" @contextmenu.prevent.stop="emit('close')"></div>
+    
+    <Transition name="menu-fade">
+      <div
+        v-if="visible"
+        ref="menuRef"
+        class="context-menu"
+        :style="menuStyle"
+        @contextmenu.prevent.stop
       >
         <template v-for="(group, groupIndex) in menuGroups" :key="group.key">
-          <DropdownMenuSeparator v-if="groupIndex > 0" class="context-menu-separator" />
-          <DropdownMenuItem
+          <div v-if="groupIndex > 0" class="context-menu-separator"></div>
+          <button
             v-for="item in group.items"
             :key="item.key"
+            type="button"
             class="context-menu-item"
-            @select="handleSelect(item)"
+            @click.stop="handleSelect(item)"
           >
-            {{ item.label }}
-          </DropdownMenuItem>
+            <span>{{ item.label }}</span>
+          </button>
         </template>
-      </DropdownMenuContent>
-    </DropdownMenuPortal>
-  </DropdownMenuRoot>
+      </div>
+    </Transition>
+  </Teleport>
 </template>
 
 <script setup>
-import {
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuPortal,
-  DropdownMenuRoot,
-  DropdownMenuSeparator,
-} from 'reka-ui'
-import { computed, watch } from 'vue'
+import { computed, ref, watch, nextTick, onBeforeUnmount } from 'vue'
 import { readText as readClipboardText } from '@tauri-apps/plugin-clipboard-manager'
 import { useI18n } from '../../i18n'
-import { createPointReference } from '../../utils/floatingReference'
 import { useTransientOverlayDismiss } from '../../composables/useTransientOverlayDismiss'
 
 const props = defineProps({
@@ -62,18 +46,13 @@ const props = defineProps({
 })
 
 const emit = defineEmits([
-  'close',
-  'format-document',
-  'insert-markdown-table',
-  'format-markdown-table',
-  'paste-unavailable',
+  'close', 'format-document', 'insert-markdown-table', 'format-markdown-table', 'paste-unavailable'
 ])
 const { t } = useI18n()
-const { dismissOtherTransientOverlays } = useTransientOverlayDismiss('editor-context-menu', () => {
-  emit('close')
-})
+const { dismissOtherTransientOverlays } = useTransientOverlayDismiss('editor-context-menu', () => emit('close'))
 
-const menuReference = computed(() => createPointReference(props.x, props.y))
+const menuRef = ref(null)
+const menuStyle = ref({ top: '0px', left: '0px' })
 
 const menuGroups = computed(() => {
   const editingItems = props.hasSelection
@@ -88,23 +67,11 @@ const menuGroups = computed(() => {
       ]
 
   const tableItems = []
-  if (props.showMarkdownInsertTable) {
-    tableItems.push({
-      key: 'insert-markdown-table',
-      label: t('Insert Table'),
-      action: insertMarkdownTable,
-    })
-  }
-  if (props.showMarkdownFormatTable) {
-    tableItems.push({
-      key: 'format-markdown-table',
-      label: t('Format Table'),
-      action: formatMarkdownTable,
-    })
-  }
+  if (props.showMarkdownInsertTable) tableItems.push({ key: 'insert', label: t('Insert Table'), action: insertMarkdownTable })
+  if (props.showMarkdownFormatTable) tableItems.push({ key: 'format', label: t('Format Table'), action: formatMarkdownTable })
 
   const formatItems = props.showFormatDocument
-    ? [{ key: 'format-document', label: t('Format Document'), action: formatDocument }]
+    ? [{ key: 'format-doc', label: t('Format Document'), action: formatDocument }]
     : []
 
   return [
@@ -114,23 +81,14 @@ const menuGroups = computed(() => {
   ]
 })
 
-function handleOpenChange(open) {
-  if (!open) emit('close')
-}
-
 function handleSelect(item) {
   item?.action?.()
   emit('close')
 }
 
-function cut() {
-  document.execCommand('cut')
-}
-
-function copy() {
-  document.execCommand('copy')
-}
-
+// 编辑器行为
+function cut() { document.execCommand('cut') }
+function copy() { document.execCommand('copy') }
 async function paste() {
   if (props.view) {
     try {
@@ -140,10 +98,7 @@ async function paste() {
         const from = selection?.from ?? 0
         const to = selection?.to ?? from
         props.view.focus()
-        props.view.dispatch({
-          changes: { from, to, insert: text },
-          selection: { anchor: from + text.length },
-        })
+        props.view.dispatch({ changes: { from, to, insert: text }, selection: { anchor: from + text.length } })
         return
       }
     } catch {
@@ -154,58 +109,87 @@ async function paste() {
           const from = selection?.from ?? 0
           const to = selection?.to ?? from
           props.view.focus()
-          props.view.dispatch({
-            changes: { from, to, insert: text },
-            selection: { anchor: from + text.length },
-          })
+          props.view.dispatch({ changes: { from, to, insert: text }, selection: { anchor: from + text.length } })
           return
         }
-      } catch {
-        // Last resort falls through to a host hint instead of showing the native paste popup.
-      }
+      } catch {}
     }
   }
-
   emit('paste-unavailable')
 }
-
 function selectAll() {
-  if (props.view) {
-    props.view.dispatch({
-      selection: { anchor: 0, head: props.view.state.doc.length },
-    })
-  }
+  if (props.view) props.view.dispatch({ selection: { anchor: 0, head: props.view.state.doc.length } })
+}
+function formatDocument() { emit('format-document') }
+function formatMarkdownTable() { emit('format-markdown-table') }
+function insertMarkdownTable() { emit('insert-markdown-table') }
+
+// 碰撞计算
+async function calculatePosition() {
+  menuStyle.value = { top: `${props.y}px`, left: `${props.x}px` }
+  await nextTick()
+  if (!menuRef.value) return
+
+  const rect = menuRef.value.getBoundingClientRect()
+  const vh = window.innerHeight || document.documentElement.clientHeight
+  const vw = window.innerWidth || document.documentElement.clientWidth
+
+  let top = props.y
+  let left = props.x
+
+  if (top + rect.height > vh) top = Math.max(8, vh - rect.height - 8)
+  if (left + rect.width > vw) left = Math.max(8, vw - rect.width - 8)
+
+  menuStyle.value = { top: `${top}px`, left: `${left}px` }
 }
 
-function formatDocument() {
-  emit('format-document')
+function handleKeyDown(e) {
+  if (props.visible && e.key === 'Escape') emit('close')
 }
 
-function formatMarkdownTable() {
-  emit('format-markdown-table')
-}
-
-function insertMarkdownTable() {
-  emit('insert-markdown-table')
-}
-
-watch(
-  () => props.visible,
-  (visible) => {
-    if (!visible) return
+watch(() => props.visible, (visible) => {
+  if (visible) {
     dismissOtherTransientOverlays()
+    calculatePosition()
+    document.addEventListener('keydown', handleKeyDown)
+  } else {
+    document.removeEventListener('keydown', handleKeyDown)
   }
-)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', handleKeyDown)
+})
 </script>
 
 <style scoped>
-.editor-context-menu {
-  max-height: min(360px, calc(100vh - 16px));
-  overflow-y: auto;
+.context-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  cursor: default;
 }
-
-.editor-context-menu-shortcut {
-  color: var(--fg-muted);
-  font-size: var(--ui-font-caption);
+.context-menu {
+  position: fixed;
+  min-width: 180px !important;
+}
+.context-menu-item {
+  width: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+}
+.menu-fade-enter-active {
+  transition: opacity 0.1s ease-out, transform 0.1s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.menu-fade-leave-active {
+  transition: opacity 0.1s ease-in;
+}
+.menu-fade-enter-from {
+  opacity: 0;
+  transform: scaleY(0.98) translateY(-2px);
+}
+.menu-fade-leave-to {
+  opacity: 0;
 }
 </style>

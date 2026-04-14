@@ -1,7 +1,7 @@
 <!-- START OF FILE src/components/settings/SettingsZotero.vue -->
 <template>
   <div class="settings-page">
-    <h3 class="settings-section-title">{{ t('Zotero') }}</h3>
+    <h3 class="settings-section-title">{{ t('References') }}</h3>
 
     <section class="settings-group">
       <h4 class="settings-group-title">{{ t('Account') }}</h4>
@@ -9,7 +9,7 @@
         <div v-if="connected" class="settings-row">
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ config.username || t('Connected') }}</div>
-            <div class="settings-row-hint">{{ t('User ID: {id}', { id: config.userId }) }}</div>
+            <div class="settings-row-hint">{{ t('User ID: {id}', { id: config.userId || '...' }) }}</div>
           </div>
           <div class="settings-row-control compact">
             <UiButton variant="danger" size="sm" @click="handleDisconnect">
@@ -102,14 +102,14 @@
           <div class="settings-row-control">
             <div class="settings-checklist">
               <UiCheckbox 
-                v-for="group in groups" 
+                v-for="group in (groups || [])" 
                 :key="group.id"
                 :model-value="selectedGroupIds.has(group.id)"
                 @update:model-value="toggleGroup(group.id)"
               >
                 {{ group.name }}
               </UiCheckbox>
-              <div v-if="groups.length === 0" class="settings-inline-message">{{ t('No group libraries.') }}</div>
+              <div v-if="!groups || groups.length === 0" class="settings-inline-message">{{ t('No group libraries.') }}</div>
             </div>
           </div>
         </div>
@@ -131,7 +131,7 @@
 
         <div class="settings-row">
           <div class="settings-row-copy">
-            <div class="settings-row-title">{{ t('Sync now') }}</div>
+            <div class="settings-row-title">{{ t('Sync Now') }}</div>
             <div class="settings-row-hint">
               {{ syncStatusText }}
               <template v-if="syncSummary">{{ ` · ${syncSummary}` }}</template>
@@ -189,27 +189,34 @@ const collectionOptions = ref([])
 const syncSummary = ref('')
 const citationStyle = ref('apa')
 
-const citationStyleOptions = computed(() => 
-  referencesStore.availableCitationStyles.map(style => ({
+// 防御性 computed：确保不会由于 referencesStore 尚未初始化而崩溃
+const citationStyleOptions = computed(() => {
+  const styles = referencesStore.availableCitationStyles || []
+  return styles.map(style => ({
     value: style.id,
     label: style.name
   }))
-)
+})
 
-const pushTargetOptions = computed(() => [
-  { value: '', label: t("Don't push to Zotero") },
-  { value: `user/${config.value.userId}`, label: t('My Library') },
-  ...collectionOptions.value
-])
+// 防御性 computed：确保 config 不为空对象时也能安全访问 userId
+const pushTargetOptions = computed(() => {
+  const safeUserId = config.value?.userId || ''
+  return [
+    { value: '', label: t("Don't push to Zotero") },
+    { value: `user/${safeUserId}`, label: t('My Library') },
+    ...(collectionOptions.value || [])
+  ]
+})
 
 const syncStatusText = computed(() => {
-  if (zoteroSyncState.status === 'syncing') return t('Sync in progress')
-  if (zoteroSyncState.status === 'synced') return t('Last sync succeeded')
-  if (zoteroSyncState.status === 'error') return zoteroSyncState.error || t('Sync failed')
+  if (zoteroSyncState?.status === 'syncing') return t('Sync in progress')
+  if (zoteroSyncState?.status === 'synced') return t('Last sync succeeded')
+  if (zoteroSyncState?.status === 'error') return zoteroSyncState.error || t('Sync failed')
   return t('Ready')
 })
 
 function buildCollectionTree(collections = []) {
+  if (!Array.isArray(collections)) return []
   const byParent = new Map()
   for (const collection of collections) {
     const parent = collection.parentCollection || ''
@@ -233,39 +240,46 @@ async function refreshRemoteLibraries(targetConfig = config.value) {
   const key = await loadZoteroApiKey()
   if (!key) return
 
-  const loadedGroups = await fetchUserGroups(key, targetConfig.userId)
-  groups.value = loadedGroups
-  selectedGroupIds.value = new Set(
-    Array.isArray(targetConfig._groups) ? targetConfig._groups.map((group) => String(group.id)) : []
-  )
+  try {
+    const loadedGroups = await fetchUserGroups(key, targetConfig.userId)
+    groups.value = Array.isArray(loadedGroups) ? loadedGroups : []
+    selectedGroupIds.value = new Set(
+      Array.isArray(targetConfig._groups) ? targetConfig._groups.map((group) => String(group.id)) : []
+    )
 
-  const options = []
-  const userCollections = buildCollectionTree(await fetchCollections(key, 'user', targetConfig.userId))
-  for (const collection of userCollections) {
-    options.push({
-      value: `user/${targetConfig.userId}/${collection.key}`,
-      label: `${t('My Library')} → ${'  '.repeat(collection.depth)}${collection.name}`,
-    })
-  }
-
-  for (const group of loadedGroups) {
-    const groupCollections = buildCollectionTree(await fetchCollections(key, 'group', group.id))
-    options.push({ value: `group/${group.id}`, label: group.name })
-    for (const collection of groupCollections) {
+    const options = []
+    const userCollectionsRaw = await fetchCollections(key, 'user', targetConfig.userId)
+    const userCollections = buildCollectionTree(userCollectionsRaw || [])
+    
+    for (const collection of userCollections) {
       options.push({
-        value: `group/${group.id}/${collection.key}`,
-        label: `${group.name} → ${'  '.repeat(collection.depth)}${collection.name}`,
+        value: `user/${targetConfig.userId}/${collection.key}`,
+        label: `${t('My Library')} → ${'  '.repeat(collection.depth)}${collection.name}`,
       })
     }
+
+    for (const group of groups.value) {
+      const groupCollectionsRaw = await fetchCollections(key, 'group', group.id)
+      const groupCollections = buildCollectionTree(groupCollectionsRaw || [])
+      options.push({ value: `group/${group.id}`, label: group.name })
+      for (const collection of groupCollections) {
+        options.push({
+          value: `group/${group.id}/${collection.key}`,
+          label: `${group.name} → ${'  '.repeat(collection.depth)}${collection.name}`,
+        })
+      }
+    }
+    collectionOptions.value = options
+  } catch (e) {
+    console.error('Failed to refresh Zotero remote libraries:', e)
   }
-  collectionOptions.value = options
 }
 
 async function saveConfigState() {
   const nextConfig = {
     ...config.value,
     autoSync: autoSync.value,
-    _groups: groups.value.filter((group) => selectedGroupIds.value.has(group.id)),
+    _groups: (groups.value || []).filter((group) => selectedGroupIds.value.has(group.id)),
     pushTarget: (() => {
       const value = String(pushTargetValue.value || '').trim()
       if (!value) return null
@@ -296,7 +310,7 @@ function toggleGroup(groupId = '') {
 
 function handlePushTargetChange(val) {
   pushTargetValue.value = val
-  saveConfigState()
+  void saveConfigState()
 }
 
 async function handleCitationStyleChange(val) {
@@ -367,26 +381,30 @@ async function handleSyncNow() {
 }
 
 onMounted(async () => {
-  const [savedConfig, savedApiKey] = await Promise.all([loadZoteroConfig(), loadZoteroApiKey()])
-  config.value = savedConfig || {}
-  connected.value = Boolean(savedConfig?.userId && savedApiKey)
-  if (savedConfig?.userId && !savedApiKey) {
-    error.value = t(
-      'Existing Zotero account info was found, but the API key was not persisted by the previous version. Reconnect once to finish migration.'
-    )
-  }
-  userId.value = String(savedConfig?.userId || '')
-  autoSync.value = savedConfig?.autoSync !== false
-  citationStyle.value = referencesStore.citationStyle
-  pushTargetValue.value = (() => {
-    const target = savedConfig?.pushTarget
-    if (!target?.libraryType || !target?.libraryId) return ''
-    return target.collectionKey
-      ? `${target.libraryType}/${target.libraryId}/${target.collectionKey}`
-      : `${target.libraryType}/${target.libraryId}`
-  })()
-  if (connected.value) {
-    await refreshRemoteLibraries(savedConfig)
+  try {
+    const [savedConfig, savedApiKey] = await Promise.all([loadZoteroConfig(), loadZoteroApiKey()])
+    config.value = savedConfig || {}
+    connected.value = Boolean(savedConfig?.userId && savedApiKey)
+    if (savedConfig?.userId && !savedApiKey) {
+      error.value = t(
+        'Existing Zotero account info was found, but the API key was not persisted by the previous version. Reconnect once to finish migration.'
+      )
+    }
+    userId.value = String(savedConfig?.userId || '')
+    autoSync.value = savedConfig?.autoSync !== false
+    citationStyle.value = referencesStore.citationStyle || 'apa'
+    pushTargetValue.value = (() => {
+      const target = savedConfig?.pushTarget
+      if (!target?.libraryType || !target?.libraryId) return ''
+      return target.collectionKey
+        ? `${target.libraryType}/${target.libraryId}/${target.collectionKey}`
+        : `${target.libraryType}/${target.libraryId}`
+    })()
+    if (connected.value) {
+      await refreshRemoteLibraries(savedConfig)
+    }
+  } catch (e) {
+    console.error('Zotero Settings Mounted Error:', e)
   }
 })
 </script>

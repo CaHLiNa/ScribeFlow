@@ -1,234 +1,134 @@
+<!-- START OF FILE src/components/settings/SettingsEnvironment.vue -->
 <template>
   <div class="env-page settings-page">
-    <h3 class="settings-section-title">{{ t('System') }}</h3>
+    <h3 class="settings-section-title">{{ t('Environment') }}</h3>
 
+    <!-- 第一组：核心编译设置 -->
     <section class="settings-group">
-      <h4 class="settings-group-title">{{ t('LaTeX Tooling') }}</h4>
+      <h4 class="settings-group-title">{{ t('Compilation') }}</h4>
       <div class="settings-group-body">
-        <div class="settings-row">
-          <div class="settings-row-copy">
-            <div class="settings-row-title">{{ t('Active compiler') }}</div>
-            <div class="settings-row-hint">{{ t('Choose System TeX or Tectonic below.') }}</div>
-          </div>
-          <div class="settings-row-control">
-            <span
-              class="settings-status-badge"
-              :class="latexStore.hasAvailableCompiler ? 'is-good' : 'is-warn'"
-            >
-              {{
-                latexStore.hasAvailableCompiler
-                  ? latexStore.availableCompilerName
-                  : t('Needs setup')
-              }}
-            </span>
-          </div>
-        </div>
-
-        <div class="settings-row">
-          <div class="settings-row-copy">
-            <div class="settings-row-title">{{ t('System check') }}</div>
-            <div class="settings-row-hint">
-              {{
-                !toolingChecked
-                  ? t('Tooling has not been checked in this session yet.')
-                  : t('Re-scan LaTeX tools installed on this Mac.')
-              }}
-            </div>
-          </div>
-          <div class="settings-row-control">
-            <UiButton
-              variant="secondary"
-              size="sm"
-              :loading="latexStore.checkingCompilers"
-              @click="redetectSystem"
-            >
-              {{ latexStore.checkingCompilers ? t('Checking...') : t('Re-detect') }}
-            </UiButton>
-          </div>
-        </div>
-
+        
         <div class="settings-row">
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('Compiler') }}</div>
-            <div class="settings-row-hint">
-              {{ t('Pick the preferred backend for LaTeX projects.') }}
-            </div>
+            <div class="settings-row-hint">{{ t('Pick the preferred backend for LaTeX projects.') }}</div>
           </div>
           <div class="settings-row-control">
-            <UiSelect
-              v-model="compilerPreference"
-              size="sm"
-              shell-class="env-inline-select"
-              :aria-label="t('Compiler')"
-              :options="compilerOptions"
-            />
+            <UiSelect v-model="compilerPreference" size="sm" :options="compilerOptions" />
           </div>
         </div>
 
-        <div class="settings-row">
+        <div class="settings-row" :class="{ 'is-disabled-row': latexStore.compilerPreference === 'tectonic' }">
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('LaTeX Engine') }}</div>
-            <div class="settings-row-hint">
-              {{ t('Used when the selected compiler supports engine selection.') }}
-            </div>
+            <div class="settings-row-hint">{{ t('Used when the selected compiler supports engine selection.') }}</div>
           </div>
           <div class="settings-row-control">
-            <UiSelect
-              v-model="enginePreference"
-              size="sm"
-              shell-class="env-inline-select"
-              :aria-label="t('LaTeX Engine')"
-              :options="engineOptions"
-              :disabled="latexStore.compilerPreference === 'tectonic'"
-            />
+            <UiSelect v-model="enginePreference" size="sm" :options="engineOptions" :disabled="latexStore.compilerPreference === 'tectonic'" />
           </div>
         </div>
 
         <div class="settings-row">
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('Build recipe') }}</div>
-            <div class="settings-row-hint">
-              {{ t('Choose the command sequence used for LaTeX builds.') }}
-            </div>
+            <div class="settings-row-hint">{{ t('Command sequence used for LaTeX builds.') }}</div>
           </div>
           <div class="settings-row-control">
-            <UiSelect
-              v-model="buildRecipe"
-              size="sm"
-              shell-class="env-inline-select"
-              :aria-label="t('Build recipe')"
-              :options="latexBuildRecipeOptions"
-            />
+            <UiSelect v-model="buildRecipe" size="sm" :options="latexBuildRecipeOptions" />
           </div>
         </div>
 
+      </div>
+    </section>
+
+    <!-- 第二组：环境诊断 (现在也放入标准的卡片中) -->
+    <section class="settings-group">
+      <div class="settings-group-header-row">
+        <h4 class="settings-group-title">{{ t('Environment Diagnostics') }}</h4>
+        <button type="button" class="diagnostics-refresh-btn" :disabled="latexStore.checkingCompilers" @click="redetectSystem" :title="t('Refresh diagnostics')">
+          <svg v-if="!latexStore.checkingCompilers" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+            <path d="M3 3v5h5"></path>
+            <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"></path>
+            <path d="M16 21v-5h5"></path>
+          </svg>
+          <span v-else class="diagnostics-spinner"></span>
+        </button>
+      </div>
+      
+      <div class="settings-group-body">
+        
         <div class="settings-row">
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('System TeX') }}</div>
-            <div class="settings-row-hint">
-              {{ t('Uses the TeX distribution already installed on this Mac.') }}
-            </div>
           </div>
-          <div class="settings-row-control">
-            <span
-              class="settings-status-badge"
-              :class="latexStore.systemTexInstalled ? 'is-good' : 'is-muted'"
-            >
-              {{ latexStore.systemTexInstalled ? t('Installed') : t('Not found') }}
-            </span>
+          <div class="settings-row-control compact diagnostic-status">
+            <span class="status-dot" :class="latexStore.systemTexInstalled ? 'is-good' : 'is-none'"></span>
+            <span class="status-text">{{ latexStore.systemTexInstalled ? t('Installed') : t('Not found') }}</span>
           </div>
         </div>
 
         <div class="settings-row">
           <div class="settings-row-copy">
-            <div class="settings-row-title">Tectonic</div>
-            <div class="settings-row-hint">
-              {{
-                latexStore.tectonicInstalled
-                  ? t('Bundled Rust-based LaTeX compiler is ready to use.')
-                  : latexStore.downloading
-                    ? t('Downloading Tectonic… {progress}%', {
-                        progress: latexStore.downloadProgress,
-                      })
-                    : t(
-                        'Download Tectonic to run LaTeX without relying on a full TeX installation.'
-                      )
-              }}
-            </div>
-            <div v-if="latexStore.downloading" class="settings-progress">
-              <div class="settings-progress-bar">
-                <div
-                  class="settings-progress-fill"
-                  :style="{ width: latexStore.downloadProgress + '%' }"
-                ></div>
-              </div>
-            </div>
-            <div v-if="latexStore.downloadError" class="settings-row-error">
-              {{ latexStore.downloadError }}
-            </div>
+            <div class="settings-row-title">{{ t('Tectonic') }}</div>
+            <div v-if="latexStore.downloadError" class="settings-row-hint text-error">{{ latexStore.downloadError }}</div>
           </div>
-          <div class="settings-row-control">
-            <span v-if="latexStore.tectonicInstalled" class="settings-status-badge is-good">
-              {{ t('Installed') }}
-            </span>
-            <UiButton
-              v-else
-              variant="secondary"
-              size="sm"
-              :loading="latexStore.downloading"
-              @click="latexStore.downloadTectonic()"
-            >
-              {{ latexStore.downloadError ? t('Retry') : t('Download') }}
-            </UiButton>
+          <div class="settings-row-control compact diagnostic-status">
+            <template v-if="latexStore.tectonicInstalled">
+              <span class="status-dot is-good"></span>
+              <span class="status-text">{{ t('Installed') }}</span>
+            </template>
+            <template v-else-if="latexStore.downloading">
+              <span class="status-text">{{ `Downloading ${latexStore.downloadProgress}%` }}</span>
+            </template>
+            <template v-else>
+              <button class="diagnostic-action-btn" @click="latexStore.downloadTectonic()">
+                {{ latexStore.downloadError ? t('Retry') : t('Download') }}
+              </button>
+            </template>
           </div>
         </div>
 
         <div class="settings-row">
           <div class="settings-row-copy">
-            <div class="settings-row-title">ChkTeX</div>
-            <div class="settings-row-hint">
-              {{ t('Optional linter used for LaTeX diagnostics.') }}
-            </div>
+            <div class="settings-row-title">{{ t('ChkTeX') }}</div>
           </div>
-          <div class="settings-row-control">
-            <span
-              class="settings-status-badge"
-              :class="latexStore.chktexInstalled ? 'is-good' : 'is-muted'"
-            >
-              {{ latexStore.chktexInstalled ? t('Installed') : t('Not found') }}
-            </span>
+          <div class="settings-row-control compact diagnostic-status">
+            <span class="status-dot" :class="latexStore.chktexInstalled ? 'is-good' : 'is-none'"></span>
+            <span class="status-text">{{ latexStore.chktexInstalled ? t('Installed') : t('Not found') }}</span>
           </div>
         </div>
 
         <div class="settings-row">
           <div class="settings-row-copy">
-            <div class="settings-row-title">latexindent</div>
-            <div class="settings-row-hint">
-              {{ t('Optional formatter used for LaTeX format on save.') }}
-            </div>
+            <div class="settings-row-title">{{ t('latexindent') }}</div>
           </div>
-          <div class="settings-row-control">
-            <span
-              class="settings-status-badge"
-              :class="latexStore.latexindentInstalled ? 'is-good' : 'is-muted'"
-            >
-              {{ latexStore.latexindentInstalled ? t('Installed') : t('Not found') }}
-            </span>
+          <div class="settings-row-control compact diagnostic-status">
+            <span class="status-dot" :class="latexStore.latexindentInstalled ? 'is-good' : 'is-none'"></span>
+            <span class="status-text">{{ latexStore.latexindentInstalled ? t('Installed') : t('Not found') }}</span>
           </div>
         </div>
+
       </div>
     </section>
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
-import {
-  LATEX_BUILD_RECIPE_OPTIONS,
-  formatLatexBuildRecipeLabel,
-  useLatexStore,
-} from '../../stores/latex'
+import { computed, onMounted } from 'vue'
+import { LATEX_BUILD_RECIPE_OPTIONS, formatLatexBuildRecipeLabel, useLatexStore } from '../../stores/latex'
 import { useI18n } from '../../i18n'
-import UiButton from '../shared/ui/UiButton.vue'
 import UiSelect from '../shared/ui/UiSelect.vue'
 
 const latexStore = useLatexStore()
 const { t } = useI18n()
-const toolingChecked = ref(false)
 
-const latexBuildRecipeOptions = computed(() =>
-  LATEX_BUILD_RECIPE_OPTIONS.map((value) => ({
-    value,
-    label: formatLatexBuildRecipeLabel(value, t),
-  }))
-)
-
+const latexBuildRecipeOptions = computed(() => LATEX_BUILD_RECIPE_OPTIONS.map((value) => ({ value, label: formatLatexBuildRecipeLabel(value, t) })))
 const compilerOptions = computed(() => [
   { value: 'auto', label: t('Auto (prefer System TeX)') },
   { value: 'system', label: t('System TeX (latexmk)') },
-  { value: 'tectonic', label: 'Tectonic' },
+  { value: 'tectonic', label: t('Tectonic') },
 ])
-
 const engineOptions = computed(() => [
   { value: 'auto', label: t('Auto') },
   { value: 'xelatex', label: 'XeLaTeX' },
@@ -240,108 +140,118 @@ const compilerPreference = computed({
   get: () => latexStore.compilerPreference,
   set: (value) => latexStore.setCompilerPreference(value),
 })
-
 const enginePreference = computed({
   get: () => latexStore.enginePreference,
   set: (value) => latexStore.setEnginePreference(value),
 })
-
 const buildRecipe = computed({
   get: () => latexStore.buildRecipe,
   set: (value) => latexStore.setBuildRecipe(value),
 })
 
 async function redetectSystem() {
-  toolingChecked.value = true
   await Promise.all([latexStore.checkCompilers(true), latexStore.checkTools(true)])
 }
 
-function scheduleAfterFirstPaint(task) {
-  const run = () => {
-    Promise.resolve(task()).catch(() => {})
-  }
-
+onMounted(() => {
   if (typeof window !== 'undefined') {
     window.requestAnimationFrame(() => {
-      if (typeof window.requestIdleCallback === 'function') {
-        window.requestIdleCallback(run, { timeout: 600 })
-      } else {
-        window.setTimeout(run, 80)
-      }
+      Promise.all([latexStore.checkCompilers(), latexStore.checkTools()]).catch(() => {})
     })
-    return
   }
-
-  run()
-}
-
-function warmSystemChecks() {
-  scheduleAfterFirstPaint(async () => {
-    toolingChecked.value = true
-    await Promise.all([latexStore.checkCompilers(), latexStore.checkTools()])
-  })
-}
-
-onMounted(() => {
-  warmSystemChecks()
 })
 </script>
 
 <style scoped>
-.env-inline-select {
-  min-width: 210px;
+.is-disabled-row {
+  opacity: 0.5;
+  pointer-events: none;
 }
 
-.settings-status-badge {
-  display: inline-flex;
+:deep(.ui-select-shell) {
+  width: min(100%, 240px);
+}
+
+.settings-group-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.settings-group-header-row .settings-group-title {
+  margin-bottom: 0;
+}
+
+.diagnostics-refresh-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 22px;
-  padding: 0 9px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: var(--font-weight-medium);
-  color: color-mix(in srgb, var(--text-secondary) 88%, transparent);
-  background: color-mix(in srgb, var(--surface-base) 16%, transparent);
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  transition: all 0.15s;
 }
 
-.settings-status-badge.is-good {
-  color: color-mix(in srgb, var(--success) 92%, black 8%);
-  background: color-mix(in srgb, var(--success) 12%, transparent);
+.diagnostics-refresh-btn:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--text-primary);
 }
 
-.settings-status-badge.is-warn {
-  color: color-mix(in srgb, var(--warning) 88%, black 12%);
-  background: color-mix(in srgb, var(--warning) 12%, transparent);
+.diagnostics-refresh-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
-.settings-status-badge.is-muted {
-  color: color-mix(in srgb, var(--text-secondary) 78%, transparent);
-  background: color-mix(in srgb, var(--surface-base) 12%, transparent);
+.diagnostics-spinner {
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* 诊断项内的样式对齐 */
+.diagnostic-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-.settings-progress {
-  margin-top: 8px;
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.status-dot.is-good { background: var(--success); }
+.status-dot.is-none { background: var(--border-strong); }
+
+.status-text {
+  font-size: 13px;
+  color: var(--text-muted);
 }
 
-.settings-progress-bar {
-  width: min(280px, 100%);
-  height: 5px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--surface-base) 60%, transparent);
-  overflow: hidden;
-}
-
-.settings-progress-fill {
-  height: 100%;
-  border-radius: inherit;
-  background: color-mix(in srgb, var(--accent) 72%, white 28%);
-}
-
-.settings-row-error {
-  margin-top: 8px;
-  font-size: 12px;
-  line-height: 1.45;
+.text-error {
   color: var(--error);
+}
+
+.diagnostic-action-btn {
+  background: var(--surface-base);
+  border: 1px solid var(--border-strong);
+  color: var(--text-primary);
+  font-size: 12px;
+  padding: 2px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.diagnostic-action-btn:hover {
+  background: var(--surface-hover);
 }
 </style>

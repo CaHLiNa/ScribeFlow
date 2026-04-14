@@ -1,14 +1,20 @@
+<!-- START OF FILE src/components/shared/ui/UiModalShell.vue -->
 <template>
-  <DialogRoot :open="visible" @update:open="handleOpenChange">
-    <DialogPortal>
+  <Teleport to="body">
+    <Transition name="modal-fade">
       <div
         v-if="visible"
         class="ui-modal-overlay"
         :class="[`ui-modal-overlay--${position}`, overlayClass]"
       >
-        <DialogOverlay class="ui-modal-backdrop ui-overlay-scrim" />
+        <!-- 遮罩层 -->
+        <div 
+          class="ui-modal-backdrop ui-overlay-scrim" 
+          @mousedown="handleBackdropClick"
+        ></div>
 
-        <DialogContent
+        <!-- 弹窗本体 -->
+        <div
           class="ui-modal-surface"
           :class="[
             `ui-modal-surface--${size}`,
@@ -19,8 +25,8 @@
             surfaceClass,
           ]"
           :style="surfaceStyle"
-          @pointer-down-outside="handleOutsideInteraction"
-          @interact-outside="handleOutsideInteraction"
+          role="dialog"
+          aria-modal="true"
         >
           <div v-if="$slots.header" class="ui-modal-header">
             <slot name="header" />
@@ -31,67 +37,52 @@
           <div v-if="$slots.footer" class="ui-modal-footer">
             <slot name="footer" />
           </div>
-        </DialogContent>
+        </div>
       </div>
-    </DialogPortal>
-  </DialogRoot>
+    </Transition>
+  </Teleport>
 </template>
 
 <script setup>
-import { DialogContent, DialogOverlay, DialogPortal, DialogRoot } from 'reka-ui'
+import { onMounted, onUnmounted, watch } from 'vue'
 
 const props = defineProps({
-  visible: {
-    type: Boolean,
-    default: false,
-  },
-  closeOnBackdrop: {
-    type: Boolean,
-    default: true,
-  },
-  size: {
-    type: String,
-    default: 'md',
-  },
-  position: {
-    type: String,
-    default: 'center',
-  },
-  bodyPadding: {
-    type: Boolean,
-    default: true,
-  },
-  overlayClass: {
-    type: [String, Array, Object],
-    default: '',
-  },
-  surfaceClass: {
-    type: [String, Array, Object],
-    default: '',
-  },
-  bodyClass: {
-    type: [String, Array, Object],
-    default: '',
-  },
-  surfaceStyle: {
-    type: [String, Object, Array],
-    default: '',
-  },
+  visible: { type: Boolean, default: false },
+  closeOnBackdrop: { type: Boolean, default: true },
+  size: { type: String, default: 'md' },
+  position: { type: String, default: 'center' },
+  bodyPadding: { type: Boolean, default: true },
+  overlayClass: { type: [String, Array, Object], default: '' },
+  surfaceClass: { type: [String, Array, Object], default: '' },
+  bodyClass: { type: [String, Array, Object], default: '' },
+  surfaceStyle: { type: [String, Object, Array], default: '' },
 })
 
 const emit = defineEmits(['close'])
 
-function handleOpenChange(open) {
-  if (!open) {
+function handleBackdropClick() {
+  if (props.closeOnBackdrop) {
     emit('close')
   }
 }
 
-function handleOutsideInteraction(event) {
-  if (!props.closeOnBackdrop) {
-    event.preventDefault()
+function handleKeyDown(e) {
+  if (props.visible && e.key === 'Escape') {
+    emit('close')
   }
 }
+
+watch(() => props.visible, (isVisible) => {
+  if (isVisible) {
+    document.addEventListener('keydown', handleKeyDown)
+  } else {
+    document.removeEventListener('keydown', handleKeyDown)
+  }
+})
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleKeyDown)
+})
 </script>
 
 <style scoped>
@@ -104,7 +95,7 @@ function handleOutsideInteraction(event) {
 }
 
 .ui-modal-backdrop {
-  position: fixed;
+  position: absolute;
   inset: 0;
 }
 
@@ -119,12 +110,13 @@ function handleOutsideInteraction(event) {
 }
 
 .ui-modal-surface {
+  position: relative;
   display: flex;
   flex-direction: column;
   max-width: min(100%, 90vw);
   max-height: min(100%, 90vh);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
+  border-radius: var(--shell-radius-lg);
   background: var(--surface-raised);
   box-shadow: var(--shadow-lg);
   overflow: hidden;
@@ -135,21 +127,10 @@ function handleOutsideInteraction(event) {
   position: absolute;
 }
 
-.ui-modal-surface--sm {
-  width: min(420px, 100%);
-}
-
-.ui-modal-surface--md {
-  width: min(520px, 100%);
-}
-
-.ui-modal-surface--lg {
-  width: min(760px, 100%);
-}
-
-.ui-modal-surface--xl {
-  width: min(1000px, 100%);
-}
+.ui-modal-surface--sm { width: min(420px, 100%); }
+.ui-modal-surface--md { width: min(520px, 100%); }
+.ui-modal-surface--lg { width: min(760px, 100%); }
+.ui-modal-surface--xl { width: min(1000px, 100%); }
 
 .ui-modal-header,
 .ui-modal-footer {
@@ -159,13 +140,28 @@ function handleOutsideInteraction(event) {
 .ui-modal-body {
   min-height: 0;
   padding: var(--space-4);
+  overflow-y: auto;
 }
 
 .ui-modal-body.is-flush {
   padding: 0;
 }
 
-.ui-modal-surface:focus-visible {
-  outline: none;
+/* 原生弹窗进场动画 */
+.modal-fade-enter-active {
+  transition: opacity 0.2s ease, transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.modal-fade-leave-active {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.modal-fade-enter-from,
+.modal-fade-leave-to {
+  opacity: 0;
+}
+.modal-fade-enter-from .ui-modal-surface {
+  transform: scale(0.97) translateY(10px);
+}
+.modal-fade-leave-to .ui-modal-surface {
+  transform: scale(0.98) translateY(5px);
 }
 </style>

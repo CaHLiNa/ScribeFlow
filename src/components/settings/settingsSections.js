@@ -3,32 +3,32 @@ import { IconBooks, IconCpu, IconEdit, IconPalette, IconRefresh } from '@tabler/
 export const SETTINGS_SECTION_DEFINITIONS = [
   {
     id: 'theme',
-    labelKey: 'Theme',
-    descriptionKey: 'Appearance, reading surfaces, and PDF rendering.',
+    labelKey: 'Appearance',
+    descriptionKey: 'Themes, reading surfaces, and PDF viewing.',
     icon: IconPalette,
   },
   {
     id: 'editor',
-    labelKey: 'Editor',
-    descriptionKey: 'Writing defaults, wrapping, and language tooling.',
+    labelKey: 'Writing',
+    descriptionKey: 'Writing defaults, editor behavior, and drafting tools.',
     icon: IconEdit,
   },
   {
+    id: 'zotero',
+    labelKey: 'References',
+    descriptionKey: 'Reference sync, citations, and Zotero connection.',
+    icon: IconBooks,
+  },
+  {
     id: 'system',
-    labelKey: 'System',
-    descriptionKey: 'LaTeX compilers, downloads, and system checks.',
+    labelKey: 'Environment',
+    descriptionKey: 'LaTeX compilers, engines, downloads, and diagnostics.',
     icon: IconCpu,
   },
   {
     id: 'updates',
-    labelKey: 'Updates',
-    descriptionKey: 'Application version and release channel information.',
+    labelKey: 'About',
+    descriptionKey: 'Application version, release notes, and downloads.',
     icon: IconRefresh,
-  },
-  {
-    id: 'zotero',
-    labelKey: 'Zotero',
-    descriptionKey: 'Reference sync, remote libraries, and citation import.',
-    icon: IconBooks,
   },
 ]

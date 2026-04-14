@@ -275,62 +275,41 @@
       </Teleport>
 
       <!-- "+ New" dropdown menu -->
-      <DropdownMenuRoot :open="newMenuOpen" :modal="false" @update:open="handleNewMenuOpenChange">
-        <DropdownMenuPortal>
-          <DropdownMenuContent
-            v-if="newMenuReference"
-            class="context-menu file-tree-new-menu"
-            :reference="newMenuReference"
-            position="popper"
-            position-strategy="fixed"
-            side="bottom"
-            align="start"
-            :side-offset="2"
-            :collision-padding="8"
-            @close-auto-focus.prevent
-            @pointer-down-outside="closeNewMenu"
-            @focus-outside="closeNewMenu"
-            @interact-outside="closeNewMenu"
-            @escape-key-down="closeNewMenu"
+      <Teleport to="body">
+        <div v-if="newMenuOpen" class="context-menu-backdrop" @mousedown.prevent.stop="closeNewMenu" @contextmenu.prevent.stop="closeNewMenu"></div>
+        <div
+          v-if="newMenuOpen"
+          ref="newMenuEl"
+          class="context-menu file-tree-new-menu"
+          :style="newMenuStyle"
+          @contextmenu.prevent.stop
+        >
+          <button type="button" class="context-menu-item" @click.stop="handleNewMenuCreate({ ext: null, isDir: true })">
+            <IconFolderPlus :size="14" :stroke-width="1.5" />
+            <span class="file-tree-workspace-item-label">{{ t('New Folder') }}</span>
+          </button>
+          <button type="button" class="context-menu-item" @click.stop="handleNewMenuCreate({ ext: null })">
+            <IconFilePlus :size="14" :stroke-width="1.5" />
+            <span class="file-tree-workspace-item-label">{{ t('New File...') }}</span>
+          </button>
+          <div class="context-menu-separator"></div>
+          <button
+            v-for="template in documentTemplates"
+            :key="template.id"
+            type="button"
+            class="context-menu-item"
+            @click.stop="handleNewMenuCreate({
+              ext: template.ext,
+              suggestedName: template.filename,
+              initialContent: template.content,
+            })"
           >
-            <DropdownMenuItem
-              class="context-menu-item"
-              @select="handleNewMenuCreate({ ext: null, isDir: true })"
-            >
-              <IconFolderPlus :size="14" :stroke-width="1.5" />
-              <span class="flex-1">{{ t('New Folder') }}</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              class="context-menu-item"
-              @select="handleNewMenuCreate({ ext: null })"
-            >
-              <IconFilePlus :size="14" :stroke-width="1.5" />
-              <span class="flex-1">{{ t('New File...') }}</span>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator class="context-menu-separator" />
-            <DropdownMenuItem
-              v-for="template in documentTemplates"
-              :key="template.id"
-              class="context-menu-item"
-              @select="
-                handleNewMenuCreate({
-                  ext: template.ext,
-                  suggestedName: template.filename,
-                  initialContent: template.content,
-                })
-              "
-            >
-              <component
-                :is="template.ext === '.tex' ? IconMath : IconFileText"
-                :size="14"
-                :stroke-width="1.5"
-              />
-              <span class="flex-1">{{ template.label }}</span>
-              <span class="context-menu-ext">{{ template.ext }}</span>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenuPortal>
-      </DropdownMenuRoot>
+            <component :is="template.ext === '.tex' ? IconMath : IconFileText" :size="14" :stroke-width="1.5" />
+            <span class="file-tree-workspace-item-label">{{ template.label }}</span>
+            <span class="context-menu-ext">{{ template.ext }}</span>
+          </button>
+        </div>
+      </Teleport>
 
       <!-- Drag ghost -->
       <Teleport to="body">
@@ -347,13 +326,6 @@
 </template>
 
 <script setup>
-import {
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuPortal,
-  DropdownMenuRoot,
-  DropdownMenuSeparator,
-} from 'reka-ui'
 import { ref, reactive, computed, nextTick, watch, onBeforeUnmount } from 'vue'
 import { useFilesStore } from '../../stores/files'
 import { useEditorStore } from '../../stores/editor'
@@ -545,6 +517,28 @@ function toggleWorkspaceMenu() {
   workspaceMenuOpen.value = nextOpen
 }
 
+const newMenuEl = ref(null)
+const newMenuStyle = ref({ top: '0px', left: '0px' })
+
+async function calculateNewMenuPosition(anchor) {
+  if (!anchor) return
+  await nextTick()
+  if (!newMenuEl.value) return
+
+  const rect = anchor.getBoundingClientRect()
+  const menuRect = newMenuEl.value.getBoundingClientRect()
+  const vh = window.innerHeight || document.documentElement.clientHeight
+  
+  let top = rect.bottom + 4
+  let left = rect.left
+
+  if (top + menuRect.height > vh) {
+    top = Math.max(8, rect.top - menuRect.height - 4)
+  }
+
+  newMenuStyle.value = { top: `${top}px`, left: `${left}px` }
+}
+
 function toggleNewMenu(anchorEl = null) {
   workspaceMenuOpen.value = false
   newMenuAnchorOverride.value = anchorEl
@@ -552,6 +546,7 @@ function toggleNewMenu(anchorEl = null) {
   newMenuOpen.value = nextOpen
   if (nextOpen) {
     dismissOtherTransientOverlays()
+    calculateNewMenuPosition(anchorEl || newBtnEl.value?.$el || newBtnEl.value)
   } else {
     newMenuAnchorOverride.value = null
   }

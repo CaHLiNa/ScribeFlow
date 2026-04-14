@@ -1,95 +1,74 @@
+<!-- START OF FILE src/components/shared/SurfaceContextMenu.vue -->
 <template>
-  <DropdownMenuRoot :open="visible" :modal="false" @update:open="handleOpenChange">
-    <DropdownMenuPortal>
-      <DropdownMenuContent
+  <Teleport to="body">
+    <div v-if="visible" class="context-menu-backdrop" @mousedown.prevent.stop="handleClose" @contextmenu.prevent.stop="handleClose"></div>
+    
+    <Transition name="menu-fade">
+      <div
+        v-if="visible"
+        ref="menuRef"
         class="context-menu surface-context-menu"
-        :reference="menuReference"
-        position="popper"
-        position-strategy="fixed"
-        side="bottom"
-        align="start"
-        :avoid-collisions="true"
-        :prioritize-position="true"
-        :side-flip="true"
-        :align-flip="true"
-        :side-offset="2"
-        :collision-padding="8"
-        @close-auto-focus.prevent
-        @pointer-down-outside="emit('close')"
-        @focus-outside="emit('close')"
-        @interact-outside="emit('close')"
-        @escape-key-down="emit('close')"
+        :style="menuStyle"
+        @contextmenu.prevent.stop
       >
         <template v-for="(group, groupIndex) in normalizedGroups" :key="group.key || groupIndex">
-          <DropdownMenuSeparator v-if="groupIndex > 0" class="context-menu-separator" />
-          <DropdownMenuLabel v-if="group.label" class="context-menu-section">
-            {{ group.label }}
-          </DropdownMenuLabel>
+          <div v-if="groupIndex > 0" class="context-menu-separator"></div>
+          <div v-if="group.label" class="context-menu-section">{{ group.label }}</div>
 
           <template v-for="item in group.items" :key="item.key">
-            <DropdownMenuSub v-if="hasChildren(item)">
-              <DropdownMenuSubTrigger
-                class="context-menu-item surface-context-menu-item"
-                :disabled="item.disabled"
-              >
-                <span class="surface-context-menu-label">{{ item.label }}</span>
-                <IconChevronRight class="surface-context-menu-chevron" :size="14" :stroke-width="1.8" />
-              </DropdownMenuSubTrigger>
-              <DropdownMenuPortal>
-                <DropdownMenuSubContent
-                  class="context-menu surface-context-menu"
-                  :side-offset="6"
-                  :collision-padding="8"
+            
+            <!-- 有子菜单的项 -->
+            <div
+              v-if="hasChildren(item)"
+              class="context-menu-item surface-context-menu-item has-submenu"
+              :class="{ 'is-disabled': item.disabled }"
+              @mouseenter="!item.disabled && (activeSubMenu = item.key)"
+              @mouseleave="activeSubMenu = null"
+            >
+              <span class="surface-context-menu-label">{{ item.label }}</span>
+              <IconChevronRight class="surface-context-menu-chevron" :size="14" :stroke-width="1.8" />
+              
+              <!-- 展开的子菜单 -->
+              <div v-show="activeSubMenu === item.key" class="context-menu submenu-popover">
+                <button
+                  v-for="child in normalizedChildren(item)"
+                  :key="child.key"
+                  type="button"
+                  class="context-menu-item surface-context-menu-item"
+                  :class="{ 'context-menu-item-danger': child.danger, 'is-disabled': child.disabled }"
+                  @click.stop="handleSelect(child)"
                 >
-                  <DropdownMenuItem
-                    v-for="child in normalizedChildren(item)"
-                    :key="child.key"
-                    class="context-menu-item surface-context-menu-item"
-                    :class="{ 'context-menu-item-danger': child.danger }"
-                    :disabled="child.disabled"
-                    @select="handleSelect(child)"
-                  >
-                    <span class="surface-context-menu-label">{{ child.label }}</span>
-                    <span v-if="child.meta" class="surface-context-menu-meta">{{ child.meta }}</span>
-                    <span v-else-if="child.checked" class="surface-context-menu-check">✓</span>
-                  </DropdownMenuItem>
-                </DropdownMenuSubContent>
-              </DropdownMenuPortal>
-            </DropdownMenuSub>
+                  <span class="surface-context-menu-label">{{ child.label }}</span>
+                  <span v-if="child.meta" class="surface-context-menu-meta">{{ child.meta }}</span>
+                  <span v-else-if="child.checked" class="surface-context-menu-check">✓</span>
+                </button>
+              </div>
+            </div>
 
-            <DropdownMenuItem
+            <!-- 普通菜单项 -->
+            <button
               v-else
+              type="button"
               class="context-menu-item surface-context-menu-item"
-              :class="{ 'context-menu-item-danger': item.danger }"
-              :disabled="item.disabled"
-              @select="handleSelect(item)"
+              :class="{ 'context-menu-item-danger': item.danger, 'is-disabled': item.disabled }"
+              @click.stop="handleSelect(item)"
+              @mouseenter="activeSubMenu = null"
             >
               <span class="surface-context-menu-label">{{ item.label }}</span>
               <span v-if="item.meta" class="surface-context-menu-meta">{{ item.meta }}</span>
               <span v-else-if="item.checked" class="surface-context-menu-check">✓</span>
-            </DropdownMenuItem>
+            </button>
+
           </template>
         </template>
-      </DropdownMenuContent>
-    </DropdownMenuPortal>
-  </DropdownMenuRoot>
+      </div>
+    </Transition>
+  </Teleport>
 </template>
 
 <script setup>
-import {
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuPortal,
-  DropdownMenuRoot,
-  DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-} from 'reka-ui'
+import { computed, ref, watch, nextTick, onBeforeUnmount } from 'vue'
 import { IconChevronRight } from '@tabler/icons-vue'
-import { computed } from 'vue'
-import { createPointReference } from '../../utils/floatingReference'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -100,48 +79,93 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'select'])
 
+const menuRef = ref(null)
+const menuStyle = ref({ top: '0px', left: '0px' })
+const activeSubMenu = ref(null)
+
 const normalizedGroups = computed(() =>
   (props.groups || [])
     .map((group, index) => ({
       key: group?.key || `group-${index}`,
       label: group?.label || '',
-      items: Array.isArray(group?.items)
-        ? group.items.filter((item) => !!item?.key && !!item?.label)
-        : [],
+      items: Array.isArray(group?.items) ? group.items.filter(item => !!item?.key && !!item?.label) : [],
     }))
-    .filter((group) => group.items.length > 0)
+    .filter(group => group.items.length > 0)
 )
 
-const menuReference = computed(() => createPointReference(props.x, props.y))
-
 function hasChildren(item) {
-  return Array.isArray(item?.children) && item.children.some((child) => !!child?.key && !!child?.label)
+  return Array.isArray(item?.children) && item.children.some(child => !!child?.key && !!child?.label)
 }
 
 function normalizedChildren(item) {
-  return Array.isArray(item?.children)
-    ? item.children.filter((child) => !!child?.key && !!child?.label)
-    : []
+  return Array.isArray(item?.children) ? item.children.filter(child => !!child?.key && !!child?.label) : []
 }
 
 function handleSelect(item) {
   if (!item || item.disabled || hasChildren(item)) return
   emit('select', item.key, item)
+  handleClose()
+}
+
+function handleClose() {
+  activeSubMenu.value = null
   emit('close')
 }
 
-function handleOpenChange(open) {
-  if (!open) {
-    emit('close')
+function handleKeyDown(e) {
+  if (props.visible && e.key === 'Escape') {
+    handleClose()
   }
 }
+
+// 原生碰撞计算引擎
+async function calculatePosition() {
+  menuStyle.value = { top: `${props.y}px`, left: `${props.x}px` }
+  await nextTick()
+  if (!menuRef.value) return
+
+  const rect = menuRef.value.getBoundingClientRect()
+  const vh = window.innerHeight || document.documentElement.clientHeight
+  const vw = window.innerWidth || document.documentElement.clientWidth
+
+  let top = props.y
+  let left = props.x
+
+  // 防溢出保护
+  if (top + rect.height > vh) top = Math.max(8, vh - rect.height - 8)
+  if (left + rect.width > vw) left = Math.max(8, vw - rect.width - 8)
+
+  menuStyle.value = { top: `${top}px`, left: `${left}px` }
+}
+
+watch(() => props.visible, (isVisible) => {
+  if (isVisible) {
+    calculatePosition()
+    document.addEventListener('keydown', handleKeyDown)
+  } else {
+    document.removeEventListener('keydown', handleKeyDown)
+    activeSubMenu.value = null
+  }
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', handleKeyDown)
+})
 </script>
 
 <style scoped>
+.context-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  cursor: default;
+}
+
 .surface-context-menu {
+  position: fixed;
   min-width: 220px !important;
   max-width: min(320px, calc(100vw - 16px)) !important;
-  max-height: min(360px, calc(100vh - 16px)) !important;
+  max-height: min(400px, calc(100vh - 16px)) !important;
   overflow-y: auto;
   overscroll-behavior: contain;
 }
@@ -152,38 +176,74 @@ function handleOpenChange(open) {
   background: transparent;
   text-align: left;
   font-size: 13px;
+  outline: none;
 }
 
-.surface-context-menu-item[data-disabled] {
+.surface-context-menu-item.is-disabled {
+  opacity: 0.45;
   cursor: default;
-  color: var(--fg-muted) !important;
-  opacity: 0.72;
+  color: var(--text-muted) !important;
 }
-
-.surface-context-menu-item[data-disabled]:hover,
-.surface-context-menu-item[data-disabled][data-highlighted] {
+.surface-context-menu-item.is-disabled:hover {
   background: transparent !important;
-  color: var(--fg-muted) !important;
 }
 
 .surface-context-menu-label {
   min-width: 0;
   flex: 1 1 auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .surface-context-menu-meta,
 .surface-context-menu-check {
   flex: 0 0 auto;
-  font-size: 10.5px;
-  color: color-mix(in srgb, var(--text-muted) 76%, transparent);
+  font-size: 11px;
+  color: var(--text-muted);
 }
 
 .surface-context-menu-check {
-  color: var(--accent);
+  color: var(--text-primary);
+}
+.surface-context-menu-item:hover .surface-context-menu-check {
+  color: var(--list-active-fg);
 }
 
 .surface-context-menu-chevron {
   flex: 0 0 auto;
-  color: color-mix(in srgb, var(--text-muted) 76%, transparent);
+  color: var(--text-muted);
+  margin-right: -4px;
+}
+.surface-context-menu-item:hover .surface-context-menu-chevron {
+  color: var(--list-active-fg);
+}
+
+/* 子菜单定位 */
+.has-submenu {
+  position: relative;
+}
+.submenu-popover {
+  position: absolute;
+  top: -5px;
+  left: 100%;
+  margin-left: 2px;
+  min-width: 180px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.menu-fade-enter-active {
+  transition: opacity 0.1s ease-out, transform 0.1s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.menu-fade-leave-active {
+  transition: opacity 0.1s ease-in;
+}
+.menu-fade-enter-from {
+  opacity: 0;
+  transform: scaleY(0.98) translateY(-2px);
+}
+.menu-fade-leave-to {
+  opacity: 0;
 }
 </style>

@@ -5,7 +5,7 @@
       <h2 class="settings-header-title">{{ activeSectionLabel }}</h2>
     </header>
 
-    <div class="settings-content">
+    <div class="settings-content scrollbar-hidden">
       <component :is="activeSectionComponent" :key="activeSection" />
     </div>
   </div>
@@ -55,34 +55,28 @@ const activeSectionComponent = computed(
 )
 </script>
 
+/* START OF FILE src/components/settings/Settings.vue (只替换 style 部分) */
 <style scoped>
 .settings-surface {
-  --settings-row-surface: var(--surface-base);
-  --settings-row-border: color-mix(in srgb, var(--border-subtle) 40%, transparent);
-  
   display: flex;
   flex-direction: column;
   min-height: 100%;
-  padding: 32px 32px 20px 24px;
   background: transparent;
-}
-
-.theme-light .settings-surface {
-  --settings-row-surface: #ffffff;
-  --settings-row-border: rgba(0, 0, 0, 0.1);
 }
 
 .settings-header {
   display: flex;
   align-items: flex-start;
-  justify-content: flex-start;
-  padding: 0 0 20px;
+  justify-content: center; /* 标题与内容同步居中 */
+  padding: 32px 0 16px;
 }
 
 .settings-header-title {
   margin: 0;
-  font-size: 22px;
-  line-height: 1.2;
+  width: 100%;
+  max-width: 800px; /* 约束居中时的最大宽度，与下方内容对齐 */
+  padding: 0 32px;
+  font-size: 24px;
   font-weight: 600;
   letter-spacing: -0.01em;
   color: var(--text-primary);
@@ -92,14 +86,17 @@ const activeSectionComponent = computed(
   min-height: 0;
   flex: 1 1 auto;
   display: flex;
-  justify-content: flex-start;
+  flex-direction: column;
+  align-items: center; /* 核心修复：让内部的 page 绝对居中 */
   overflow-y: auto;
-  padding: 0 4px 18px 0;
+  padding: 16px 0 64px 0;
 }
 </style>
 
 <style>
-/* 重构为 macOS Ventura 分组列表风格 */
+/* ==========================================================================
+   居中极简无边界排版 (Centered Borderless Flat Layout)
+========================================================================== */
 .settings-surface .settings-section-title {
   display: none;
 }
@@ -107,53 +104,47 @@ const activeSectionComponent = computed(
 .settings-surface .settings-page {
   display: flex;
   flex-direction: column;
-  gap: 28px;
-  min-height: 100%;
-  width: min(100%, 720px);
+  gap: 48px;
+  width: 100%;
+  max-width: 800px; /* 响应式最大宽度，保证在大屏下有舒适的左右留白 */
+  padding: 0 32px; /* 给窄屏留出安全边距 */
+  box-sizing: border-box;
 }
 
 .settings-surface .settings-group {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
 }
 
 .settings-surface .settings-group-title {
   margin: 0;
-  padding: 0 4px;
-  font-size: 12px;
+  padding: 0;
+  font-size: 11.5px;
   font-weight: 600;
   color: var(--text-muted);
-  letter-spacing: 0.02em;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
-/* 分组白板/黑板底色 */
 .settings-surface .settings-group-body {
   display: flex;
   flex-direction: column;
-  background: var(--settings-row-surface);
-  border: 1px solid var(--settings-row-border);
-  border-radius: 8px; 
-  overflow: hidden; 
-  box-shadow: 0 1px 3px rgba(0,0,0,0.02);
-}
-
-.settings-surface .settings-page::after {
-  content: '';
-  flex: 1 0 20px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0;
 }
 
 .settings-surface .settings-row {
   display: flex;
-  align-items: center;
+  align-items: center; 
   justify-content: space-between;
-  gap: 16px;
-  padding: 12px 16px;
-  border-radius: 0;
+  gap: 32px; /* 拉大文字和控件的最小间距 */
+  padding: 16px 0; 
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
   background: transparent;
-  border: none;
-  border-bottom: 1px solid var(--settings-row-border);
-  box-shadow: none;
 }
 
 .settings-surface .settings-row:last-child {
@@ -165,26 +156,27 @@ const activeSectionComponent = computed(
   flex: 1 1 auto;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
 }
 
 .settings-surface .settings-row-title {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
   color: var(--text-primary);
-  line-height: 1.4;
+  line-height: 1.3;
 }
 
 .settings-surface .settings-row-hint {
-  font-size: 12px;
-  line-height: 1.4;
+  font-size: 12.5px;
+  line-height: 1.5;
   color: var(--text-muted);
+  max-width: 80%; /* 防止描述文字过长导致阅读视线疲劳 */
 }
 
+/* 右侧控件容器 */
 .settings-surface .settings-row-control {
   flex: 0 0 auto;
-  align-self: center;
-  min-width: 140px;
+  min-width: 160px;
   display: flex;
   justify-content: flex-end;
 }
@@ -194,46 +186,37 @@ const activeSectionComponent = computed(
 }
 
 /* =========================================================================
-   原生化的 Select 和 Button 控件
+   控件复原：保持内敛和小巧 (iOS/macOS 原生高度)
 ========================================================================= */
 .settings-surface .settings-row-control .ui-select-shell .ui-select-trigger,
-.settings-surface .settings-row-control .ui-button.ui-button--secondary {
-  min-height: 26px !important;
-  height: 26px !important;
+.settings-surface .settings-row-control .ui-button.ui-button--secondary,
+.settings-surface .settings-row-control .ui-button.ui-button--danger {
+  min-height: 28px !important;
+  height: 28px !important;
   border-radius: 6px !important;
-  padding: 0 10px !important;
+  padding: 0 12px !important;
   font-size: 13px !important;
-  background: var(--surface-base) !important;
-  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent) !important;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.04) !important;
+  background: var(--surface-raised) !important;
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent) !important;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.03) !important;
   color: var(--text-primary) !important;
 }
 
-/* 下拉菜单需要给箭头留白 */
 .settings-surface .settings-row-control .ui-select-shell .ui-select-trigger {
-  padding: 0 24px 0 10px !important;
+  padding: 0 24px 0 12px !important;
 }
 
 .settings-surface .settings-row-control .ui-select-shell .ui-select-trigger:hover:not(:disabled),
-.settings-surface .settings-row-control .ui-button.ui-button--secondary:hover:not(:disabled) {
+.settings-surface .settings-row-control .ui-button:hover:not(:disabled) {
   background: var(--surface-hover) !important;
   border-color: var(--border) !important;
 }
 
-.settings-surface .settings-row-control .ui-button.ui-button--danger {
-  min-height: 26px !important;
-  height: 26px !important;
-  border-radius: 6px !important;
-  padding: 0 10px !important;
-  font-size: 13px !important;
-}
-
-/* Switch 调整为原生比例 */
 .settings-surface button.ui-switch.ui-switch--md {
-  width: 36px;
-  height: 20px;
+  width: 38px;
+  height: 22px;
   background: var(--border);
-  box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
 }
 .settings-surface button.ui-switch.ui-switch--md.is-on {
   background: var(--success);
@@ -242,43 +225,247 @@ const activeSectionComponent = computed(
 .settings-surface button.ui-switch.ui-switch--md .ui-switch-knob {
   top: 2px;
   left: 2px;
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   background: #ffffff;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 .settings-surface button.ui-switch.ui-switch--md.is-on .ui-switch-knob {
   transform: translateX(16px);
 }
 
-/* 分段控制器 (Segmented Control) 紧凑化 */
 .settings-surface .settings-segmented {
   display: inline-flex;
   align-items: center;
   gap: 1px;
   padding: 2px;
-  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
   border-radius: 6px;
-  background: var(--surface-base);
-  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  background: color-mix(in srgb, var(--surface-raised) 50%, transparent);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.02);
 }
 
 .settings-surface .settings-segmented-btn {
-  min-height: 22px;
-  padding: 0 10px;
+  min-height: 24px;
+  padding: 0 12px;
   border: none;
   border-radius: 4px;
   background: transparent;
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: 13px;
   cursor: pointer;
+  transition: color 0.15s, background 0.15s;
 }
 
 .settings-surface .settings-segmented-btn.is-active {
-  background: var(--surface-raised);
+  background: var(--surface-base);
   color: var(--text-primary);
-  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-  border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  border: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
+}
+
+.theme-light .settings-surface .settings-segmented-btn.is-active {
+  background: #ffffff;
+  border-color: transparent;
+}
+
+/* 窄屏设备适配，上下排布 */
+@media (max-width: 720px) {
+  .settings-header-title {
+    padding: 0 24px;
+  }
+  .settings-surface .settings-page {
+    padding: 0 24px;
+  }
+  .settings-surface .settings-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    padding: 16px 0;
+  }
+  .settings-surface .settings-row-hint {
+    max-width: 100%;
+  }
+  .settings-surface .settings-row-control {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
+</style>
+<style>
+/* ==========================================================================
+   极简无边界排版 (Borderless Flat Layout)
+========================================================================== */
+.settings-surface .settings-section-title {
+  display: none;
+}
+
+.settings-surface .settings-page {
+  display: flex;
+  flex-direction: column;
+  gap: 48px; /* 分组之间留出巨大的呼吸空间，替代了卡片的包裹感 */
+  width: 100%;
+  max-width: 760px; /* 限制最大宽度，避免被无限拉长 */
+}
+
+.settings-surface .settings-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* 分组标题：精致的次级标题，全大写字母带字间距，极具学术排版感 */
+.settings-surface .settings-group-title {
+  margin: 0;
+  padding: 0;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* 取消所有的卡片容器背景、边框和阴影 */
+.settings-surface .settings-group-body {
+  display: flex;
+  flex-direction: column;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0;
+}
+
+/* 每行只留极其微弱的底线，没有侧边距 */
+.settings-surface .settings-row {
+  display: flex;
+  align-items: center; 
+  justify-content: space-between;
+  gap: 24px;
+  padding: 16px 0; /* 靠两侧贴齐 */
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
+  background: transparent;
+}
+
+/* 去除最后一条底线，保持组底部的干净 */
+.settings-surface .settings-row:last-child {
+  border-bottom: none;
+}
+
+/* 文字区排版优化，拉开主次层级 */
+.settings-surface .settings-row-copy {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.settings-surface .settings-row-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  line-height: 1.3;
+}
+
+.settings-surface .settings-row-hint {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.settings-surface .settings-row-control {
+  flex: 0 0 auto;
+  min-width: 160px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.settings-surface .settings-row-control.compact {
+  min-width: auto;
+}
+
+/* =========================================================================
+   控件复原：保持内敛和小巧 (iOS/macOS 原生高度)
+========================================================================= */
+.settings-surface .settings-row-control .ui-select-shell .ui-select-trigger,
+.settings-surface .settings-row-control .ui-button.ui-button--secondary,
+.settings-surface .settings-row-control .ui-button.ui-button--danger {
+  min-height: 28px !important;
+  height: 28px !important;
+  border-radius: 6px !important;
+  padding: 0 12px !important;
+  font-size: 13px !important;
+  
+  /* 控件稍微有一点物理质感，衬托在纯平背景上 */
+  background: var(--surface-raised) !important;
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent) !important;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.03) !important;
+  color: var(--text-primary) !important;
+}
+
+.settings-surface .settings-row-control .ui-select-shell .ui-select-trigger {
+  padding: 0 24px 0 12px !important;
+}
+
+.settings-surface .settings-row-control .ui-select-shell .ui-select-trigger:hover:not(:disabled),
+.settings-surface .settings-row-control .ui-button:hover:not(:disabled) {
+  background: var(--surface-hover) !important;
+  border-color: var(--border) !important;
+}
+
+/* Switch 开关 */
+.settings-surface button.ui-switch.ui-switch--md {
+  width: 38px;
+  height: 22px;
+  background: var(--border);
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
+}
+.settings-surface button.ui-switch.ui-switch--md.is-on {
+  background: var(--success);
+  box-shadow: none;
+}
+.settings-surface button.ui-switch.ui-switch--md .ui-switch-knob {
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+.settings-surface button.ui-switch.ui-switch--md.is-on .ui-switch-knob {
+  transform: translateX(16px);
+}
+
+/* 分段控制器 */
+.settings-surface .settings-segmented {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  padding: 2px;
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--surface-raised) 50%, transparent);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+}
+
+.settings-surface .settings-segmented-btn {
+  min-height: 24px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13px;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+
+.settings-surface .settings-segmented-btn.is-active {
+  background: var(--surface-base);
+  color: var(--text-primary);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  border: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
 }
 
 .theme-light .settings-surface .settings-segmented-btn.is-active {
@@ -287,13 +474,14 @@ const activeSectionComponent = computed(
 }
 
 @media (max-width: 720px) {
-  .settings-surface {
-    padding: 24px 16px 16px;
+  .settings-surface .settings-page {
+    width: 100%;
   }
   .settings-surface .settings-row {
     flex-direction: column;
     align-items: stretch;
-    gap: 12px;
+    gap: 10px;
+    padding: 16px 0;
   }
   .settings-surface .settings-row-control {
     width: 100%;
