@@ -82,7 +82,7 @@ jobs:
           - platform: windows-latest
             label: Windows
             rust-target: ''
-            tauri-args: ''
+            tauri-args: --bundles nsis
 
     steps:
       - name: Check out release ref

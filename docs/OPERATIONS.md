@@ -59,6 +59,7 @@ Current release flow:
 - pushing a `v*` tag builds and publishes the actual release artifacts
 - `Altals Release` also supports manual `workflow_dispatch` runs with a tag input as a fallback when a specific tag needs to be rebuilt
 - build and publish release artifacts for macOS, Linux, and Windows
+- the Windows release job currently builds the NSIS installer path instead of the full default bundle set on hosted runners
 - generate and upload a helper DMG for macOS builds
 
 ## Operational focus
