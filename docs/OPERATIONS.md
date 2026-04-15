@@ -56,9 +56,7 @@ Current release flow:
 - pushing a version bump commit to the default branch can auto-create the matching `v*` tag
 - the version bump workflow explicitly dispatches the release workflow after pushing the tag, so release builds do not depend on GitHub re-triggering workflows from bot-created tag pushes
 - no release is triggered when the version files did not change, when the version matches the latest tag, or when the tag already exists
-- the release workflow creates or reuses a draft release record before the platform matrix begins, so reruns can continue from the same release
 - pushing a `v*` tag builds and publishes the actual release artifacts
-- the release is published only after the platform matrix finishes successfully
 - `Altals Release` also supports manual `workflow_dispatch` runs with a tag input as a fallback when a specific tag needs to be rebuilt
 - build and publish release artifacts for macOS, Linux, and Windows
 - generate and upload a helper DMG for macOS builds
