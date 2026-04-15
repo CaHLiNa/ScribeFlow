@@ -1,27 +1,5 @@
 <template>
-  <PdfHostedPreview
-    v-if="useHostedPreview"
-    :key="hostedPreviewKey"
-    :paneId="paneId"
-    :sessionId="hostedPreviewSession"
-    :sourcePath="sourcePath"
-    :artifactPath="artifactPath"
-    :kind="kind"
-    :workspacePath="workspace.path || ''"
-    :compileState="compileState"
-    :documentVersion="documentVersion"
-    :forwardSyncRequest="forwardSyncRequest"
-    :resolvedTheme="resolvedTheme"
-    :pdfThemedPages="workspace.pdfThemedPages"
-    :themeRevision="themeRevision"
-    :themeTokens="themeTokens"
-    @backward-sync="handleBackwardSync"
-    @forward-sync-handled="handleForwardSyncHandled"
-    @unavailable="handleHostedPreviewUnavailable"
-  />
-
   <PdfIframeSurface
-    v-else
     :sourcePath="sourcePath"
     :artifactPath="artifactPath"
     :kind="kind"
@@ -47,15 +25,23 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useLatexStore } from '../../stores/latex.js'
 import { useWorkspaceStore } from '../../stores/workspace.js'
 import { dispatchLatexBackwardSync } from '../../services/latex/pdfPreviewSync.js'
-import {
-  capturePdfPreviewThemeTokens,
-  isPdfHostedPreviewSupported,
-} from '../../services/pdf/pdfPreviewWebview.js'
 import { normalizeWorkspaceThemeId } from '../../shared/workspaceThemeOptions.js'
-import PdfHostedPreview from './PdfHostedPreview.vue'
 import PdfIframeSurface from './PdfIframeSurface.vue'
 
-let nextHostedPreviewSessionId = 1
+const PDF_PREVIEW_THEME_TOKEN_NAMES = [
+  '--surface-base',
+  '--surface-raised',
+  '--surface-hover',
+  '--border-subtle',
+  '--text-primary',
+  '--text-secondary',
+  '--text-muted',
+  '--shell-preview-surface',
+  '--shell-editor-surface',
+  '--workspace-ink',
+  '--focus-ring',
+  '--error',
+]
 
 const props = defineProps({
   paneId: { type: String, default: 'pane-root' },
@@ -71,12 +57,6 @@ const latexStore = useLatexStore()
 const themeTokens = ref(capturePdfPreviewThemeTokens())
 const resolvedTheme = ref(resolveThemePreference())
 const themeRevision = ref(0)
-const hostedPreviewSession = ref(nextHostedPreviewSessionId++)
-const hostedPreviewRejected = ref(false)
-const useHostedPreview = computed(() =>
-  isPdfHostedPreviewSupported() && hostedPreviewRejected.value !== true
-)
-const hostedPreviewKey = computed(() => `${props.paneId}:${hostedPreviewSession.value}`)
 
 const compileState = computed(() => {
   if (props.kind === 'latex') return latexStore.stateForFile(props.sourcePath) || null
@@ -122,6 +102,19 @@ function refreshThemeTokens() {
   themeTokens.value = capturePdfPreviewThemeTokens()
 }
 
+function capturePdfPreviewThemeTokens() {
+  if (typeof document === 'undefined') return {}
+  const source = getComputedStyle(document.documentElement)
+  const tokens = {}
+  for (const name of PDF_PREVIEW_THEME_TOKEN_NAMES) {
+    const value = String(source.getPropertyValue(name) || '').trim()
+    if (value) {
+      tokens[name] = value
+    }
+  }
+  return tokens
+}
+
 let themeSnapshotFrame = 0
 let pendingThemeReload = false
 
@@ -129,7 +122,6 @@ function commitThemeSnapshot(options = {}) {
   refreshThemeTokens()
   if (options.forceReload === true) {
     themeRevision.value += 1
-    hostedPreviewSession.value = nextHostedPreviewSessionId++
   }
 }
 
@@ -176,10 +168,6 @@ function handleWorkspaceThemeUpdated(event) {
     event?.detail?.resolvedTheme || resolveThemePreference()
   )
   scheduleThemeSnapshot({ forceReload: true })
-}
-
-function handleHostedPreviewUnavailable() {
-  hostedPreviewRejected.value = true
 }
 
 watch(

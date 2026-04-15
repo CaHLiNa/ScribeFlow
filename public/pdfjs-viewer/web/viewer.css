@@ -9021,7 +9021,9 @@ body{
 }
 
 html[data-altals-canvas-filter-fallback="true"] .pdfViewer .page{
-  background-color:var(--altals-pdf-page-bg) !important;
+  background-color:transparent !important;
+  background-clip:border-box;
+  border:none !important;
   isolation:isolate;
 }
 
