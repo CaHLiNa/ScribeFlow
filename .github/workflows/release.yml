@@ -62,9 +62,56 @@ jobs:
           VERSION="$(node scripts/version-utils.mjs check-tag "${{ steps.release_meta.outputs.tag }}")"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
+  create-release:
+    name: Create or reuse release
+    needs: prepare-release
+    runs-on: ubuntu-22.04
+    outputs:
+      release_id: ${{ steps.release_record.outputs.result }}
+
+    steps:
+      - name: Create or reuse release record
+        id: release_record
+        uses: actions/github-script@v7
+        env:
+          RELEASE_TAG: ${{ needs.prepare-release.outputs.tag }}
+          RELEASE_VERSION: ${{ needs.prepare-release.outputs.version }}
+        with:
+          script: |
+            const { owner, repo } = context.repo
+            const tag = process.env.RELEASE_TAG
+            const version = process.env.RELEASE_VERSION
+
+            try {
+              const existing = await github.rest.repos.getReleaseByTag({
+                owner,
+                repo,
+                tag,
+              })
+              core.info(`Reusing existing release ${existing.data.id} for ${tag}`)
+              return String(existing.data.id)
+            } catch (error) {
+              if (error.status !== 404) {
+                throw error
+              }
+            }
+
+            const created = await github.rest.repos.createRelease({
+              owner,
+              repo,
+              tag_name: tag,
+              name: `Altals v${version}`,
+              body: 'Download the Altals installer for your platform below.',
+              draft: true,
+              prerelease: false,
+            })
+
+            core.info(`Created draft release ${created.data.id} for ${tag}`)
+            return String(created.data.id)
+
   build-release:
     name: Release (${{ matrix.label }})
-    needs: prepare-release
+    needs: [prepare-release, create-release]
     runs-on: ${{ matrix.platform }}
 
     strategy:
@@ -158,11 +205,8 @@ jobs:
         with:
           tauriScript: npm run tauri
           args: ${{ matrix.tauri-args }}
+          releaseId: ${{ needs.create-release.outputs.release_id }}
           tagName: ${{ needs.prepare-release.outputs.tag }}
-          releaseName: Altals v${{ needs.prepare-release.outputs.version }}
-          releaseBody: Download the Altals installer for your platform below.
-          releaseDraft: false
-          prerelease: false
 
       - name: Build helper DMG
         if: matrix.platform == 'macos-14'
@@ -177,3 +221,29 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release upload "${{ needs.prepare-release.outputs.tag }}" "${{ steps.helper_dmg.outputs.path }}" --clobber
+
+  publish-release:
+    name: Publish release
+    needs: [prepare-release, create-release, build-release]
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Publish release record
+        uses: actions/github-script@v7
+        env:
+          RELEASE_ID: ${{ needs.create-release.outputs.release_id }}
+          RELEASE_TAG: ${{ needs.prepare-release.outputs.tag }}
+          RELEASE_VERSION: ${{ needs.prepare-release.outputs.version }}
+        with:
+          script: |
+            const { owner, repo } = context.repo
+            await github.rest.repos.updateRelease({
+              owner,
+              repo,
+              release_id: Number(process.env.RELEASE_ID),
+              tag_name: process.env.RELEASE_TAG,
+              name: `Altals v${process.env.RELEASE_VERSION}`,
+              body: 'Download the Altals installer for your platform below.',
+              draft: false,
+              prerelease: false,
+            })

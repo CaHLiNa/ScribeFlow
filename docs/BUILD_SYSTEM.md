@@ -45,9 +45,11 @@ GitHub Actions currently:
 - skips release work when the version files did not change or the version has already been released
 - creates and pushes the matching `v*` tag when the version advances
 - dispatches the release workflow directly after the tag is pushed so bot-created tags still produce release builds
+- creates or reuses the GitHub release record before the platform matrix starts so retries can resume cleanly
 - publishes automatically when a `v*` tag is pushed
 - installs platform dependencies
 - builds artifacts for macOS, Linux, and Windows
+- keeps the release in draft state until the matrix succeeds, then publishes it
 - uploads the final release assets
 
 ## Current constraints and notes
