@@ -7,9 +7,6 @@ const ZH_MESSAGES = {
   Environment: '环境',
   'PDF viewer': 'PDF 查看器',
   'Display options for PDF reading.': '控制 PDF 阅读器的显示方式。',
-  'Themed PDF pages': '主题化 PDF 页面',
-  'Use app theme colors for PDF pages and thumbnails. This changes rendered PDF colors and may shift images or charts.':
-    '让 PDF 页面和缩略图跟随应用主题显示。这会改变渲染后的 PDF 颜色，图片或图表可能会有偏色。',
   Editor: '编辑器',
   References: '文献',
   Auto: '自动',
@@ -43,8 +40,16 @@ const ZH_MESSAGES = {
     '保存 .tex 文档后自动构建 LaTeX 输出。',
   'Apply configured LaTeX formatting automatically on save.':
     '保存时自动应用已配置的 LaTeX 格式化。',
-  'Tint embedded PDF pages to better match the active application theme.':
-    '让嵌入的 PDF 页面更贴合当前应用主题。',
+  'Eye-care page color': '护眼页面底色',
+  'Match app theme': '匹配应用主题',
+  'Use the same PDF page background as the current app theme. Turn this off to use a custom PDF page color.':
+    '让 PDF 页面底色与当前应用主题保持一致。关闭后才使用自定义 PDF 页面颜色。',
+  'Stored locally and always reused for embedded PDF pages. Text color can follow auto contrast or your own override.':
+    '会本地保存，并持续作为嵌入式 PDF 页面底色使用。文字颜色可自动对比，也可手动覆盖。',
+  'Used when Match app theme is off. Stored locally and reused for embedded PDF pages.':
+    '仅在“匹配应用主题”关闭时使用。颜色会本地保存，并复用于嵌入式 PDF 页面。',
+  'Stored locally and reused for embedded PDF pages. Text color is adjusted automatically for contrast.':
+    '颜色会本地保存，并用于嵌入式 PDF 页面。文字颜色会自动调整以保证对比度。',
   'Tooling has not been checked in this session yet.': '本次会话里还没有检查工具链。',
   'Re-scan LaTeX tools installed on this Mac.': '重新扫描这台 Mac 上安装的 LaTeX 工具。',
   'LaTeX Tooling': 'LaTeX 工具链',

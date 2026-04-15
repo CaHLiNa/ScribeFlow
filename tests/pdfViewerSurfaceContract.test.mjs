@@ -69,11 +69,33 @@ test('webkit canvas fallback blends inverted pdf canvases back onto the app surf
   )
   assert.match(
     viewerCssSource,
-    /html\[data-altals-canvas-filter-fallback="true"\] \.pdfViewer \.canvasWrapper canvas,[\s\S]*mix-blend-mode:screen;/
+    /html\[data-altals-canvas-filter-fallback="true"\] \.pdfViewer \.canvasWrapper canvas,[\s\S]*mix-blend-mode:var\(--altals-pdf-canvas-blend-mode, screen\);/
   )
   assert.match(
     viewerCssSource,
     /html\[data-altals-canvas-filter-fallback="true"\] \.pdfViewer \.canvasWrapper,[\s\S]*background:var\(--altals-pdf-page-bg\);[\s\S]*isolation:isolate;/
+  )
+  assert.match(
+    pdfIframeSurfaceSource,
+    /function resolvePdfCanvasFallbackMode\(pageBackground = resolvePdfPageBackground\(\)\)/
+  )
+  assert.match(
+    pdfIframeSurfaceSource,
+    /pageBackground:\s*resolvePreferredPdfPageBackground\(\)/
+  )
+  assert.match(
+    pdfIframeSurfaceSource,
+    /root\.style\.setProperty\(\s*'--altals-pdf-canvas-blend-mode',/
+  )
+})
+
+test('pdf viewer boot script primes both shell and body backgrounds from the themed page color', () => {
+  assert.match(viewerHtmlSource, /root\.style\.setProperty\('--altals-shell-preview-surface', pageBackground\)/)
+  assert.match(viewerHtmlSource, /root\.style\.setProperty\('--body-bg-color', pageBackground\)/)
+  assert.match(viewerHtmlSource, /root\.style\.setProperty\('--page-bg-color', pageBackground\)/)
+  assert.match(
+    viewerHtmlSource,
+    /root\.dataset\.altalsCanvasFilterFallback = useCanvasFilterFallback \? 'true' : 'false'/
   )
 })
 
@@ -93,10 +115,17 @@ test('pdf iframe surface locks semantic zoom during live shell resize and restor
     pdfIframeSurfaceSource,
     /if \(phase === 'settling' \|\| phase === 'idle'\) \{\s*restoreViewerScaleAfterResize\(\)/
   )
+  assert.match(
+    pdfIframeSurfaceSource,
+    /root\.dataset\.altalsCanvasFilterFallback = useFallback \? 'true' : 'false'/
+  )
 })
 
 test('pdf iframe surface reloads viewer state when keep-alive deactivates and reactivates the workbench', () => {
-  assert.match(pdfIframeSurfaceSource, /import \{ computed, onActivated, onDeactivated, onMounted, onUnmounted, ref, watch \} from 'vue'/)
+  assert.match(
+    pdfIframeSurfaceSource,
+    /import \{ computed, (nextTick, )?onActivated, onDeactivated, onMounted, onUnmounted, ref, watch \} from 'vue'/,
+  )
   assert.match(pdfIframeSurfaceSource, /function activateViewerRuntime\(\)/)
   assert.match(pdfIframeSurfaceSource, /function deactivateViewerRuntime\(\)/)
   assert.match(pdfIframeSurfaceSource, /onActivated\(\(\) => \{\s*activateViewerRuntime\(\)\s*\}\)/)

@@ -9037,7 +9037,7 @@ html[data-altals-canvas-filter-fallback="true"] .pdfViewer{
 html[data-altals-canvas-filter-fallback="true"] .pdfViewer .canvasWrapper canvas,
 html[data-altals-canvas-filter-fallback="true"] #thumbnailsView .thumbnailImage :is(canvas, img){
   filter:var(--altals-pdf-canvas-filter);
-  mix-blend-mode:screen;
+  mix-blend-mode:var(--altals-pdf-canvas-blend-mode, screen);
 }
 
 html[data-altals-canvas-filter-fallback="true"] .pdfViewer .canvasWrapper,

@@ -18,6 +18,8 @@ import {
   resetWorkspaceZoom,
   restoreWorkspaceTheme,
   setWorkspaceEditorFontSize,
+  setWorkspacePdfCustomPageBackground,
+  setWorkspacePdfPageBackgroundFollowsTheme,
   setWorkspaceProseFont,
   setWorkspaceTheme,
   setWorkspaceZoomPercent,
@@ -237,8 +239,12 @@ export const useWorkspaceStore = defineStore('workspace', {
       this.wrapColumn = setWrapColumnPreference(value)
     },
 
-    togglePdfThemedPages() {
-      this.pdfThemedPages = toggleStoredBoolean(this.pdfThemedPages, 'pdfThemedPages')
+    setPdfCustomPageBackground(value) {
+      this.pdfCustomPageBackground = setWorkspacePdfCustomPageBackground(value)
+    },
+
+    setPdfPageBackgroundFollowsTheme(value) {
+      this.pdfPageBackgroundFollowsTheme = setWorkspacePdfPageBackgroundFollowsTheme(value)
     },
 
     async zoomIn() {

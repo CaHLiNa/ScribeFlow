@@ -1,26 +1,28 @@
 <template>
-  <PdfIframeSurface
-    :sourcePath="sourcePath"
-    :artifactPath="artifactPath"
-    :kind="kind"
-    :workspacePath="workspace.path || ''"
-    :workspaceDataDir="workspace.workspaceDataDir || ''"
-    :globalConfigDir="workspace.globalConfigDir || ''"
-    :compileState="compileState"
-    :documentVersion="documentVersion"
-    :forwardSyncRequest="forwardSyncRequest"
-    :resolvedTheme="resolvedTheme"
-    :pdfThemedPages="workspace.pdfThemedPages"
-    :themeRevision="themeRevision"
-    :themeTokens="themeTokens"
-    @open-external="$emit('open-external')"
-    @backward-sync="handleBackwardSync"
-    @forward-sync-handled="handleForwardSyncHandled"
-  />
+  <div ref="previewHostRef" class="pdf-artifact-preview-host">
+    <PdfIframeSurface
+      :sourcePath="sourcePath"
+      :artifactPath="artifactPath"
+      :kind="kind"
+      :workspacePath="workspace.path || ''"
+      :workspaceDataDir="workspace.workspaceDataDir || ''"
+      :globalConfigDir="workspace.globalConfigDir || ''"
+      :compileState="compileState"
+      :documentVersion="documentVersion"
+      :forwardSyncRequest="forwardSyncRequest"
+      :resolvedTheme="resolvedTheme"
+      :pdfPageBackgroundFollowsTheme="workspace.pdfPageBackgroundFollowsTheme"
+      :pdfCustomPageBackground="workspace.pdfCustomPageBackground"
+      :themeTokens="themeTokens"
+      @open-external="$emit('open-external')"
+      @backward-sync="handleBackwardSync"
+      @forward-sync-handled="handleForwardSyncHandled"
+    />
+  </div>
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 
 import { useLatexStore } from '../../stores/latex.js'
 import { useWorkspaceStore } from '../../stores/workspace.js'
@@ -54,9 +56,9 @@ defineEmits(['open-external'])
 
 const workspace = useWorkspaceStore()
 const latexStore = useLatexStore()
+const previewHostRef = ref(null)
 const themeTokens = ref(capturePdfPreviewThemeTokens())
 const resolvedTheme = ref(resolveThemePreference())
-const themeRevision = ref(0)
 
 const compileState = computed(() => {
   if (props.kind === 'latex') return latexStore.stateForFile(props.sourcePath) || null
@@ -99,15 +101,27 @@ function resolveThemePreference() {
 }
 
 function refreshThemeTokens() {
+  resolvedTheme.value = resolveThemePreference()
   themeTokens.value = capturePdfPreviewThemeTokens()
+}
+
+function readThemeTokenValue(name) {
+  if (typeof document === 'undefined') return ''
+
+  const hostElement = previewHostRef.value
+  if (hostElement) {
+    const hostValue = String(getComputedStyle(hostElement).getPropertyValue(name) || '').trim()
+    if (hostValue) return hostValue
+  }
+
+  return String(getComputedStyle(document.documentElement).getPropertyValue(name) || '').trim()
 }
 
 function capturePdfPreviewThemeTokens() {
   if (typeof document === 'undefined') return {}
-  const source = getComputedStyle(document.documentElement)
   const tokens = {}
   for (const name of PDF_PREVIEW_THEME_TOKEN_NAMES) {
-    const value = String(source.getPropertyValue(name) || '').trim()
+    const value = readThemeTokenValue(name)
     if (value) {
       tokens[name] = value
     }
@@ -116,29 +130,21 @@ function capturePdfPreviewThemeTokens() {
 }
 
 let themeSnapshotFrame = 0
-let pendingThemeReload = false
 
-function commitThemeSnapshot(options = {}) {
+function commitThemeSnapshot() {
   refreshThemeTokens()
-  if (options.forceReload === true) {
-    themeRevision.value += 1
-  }
 }
 
-function scheduleThemeSnapshot(options = {}) {
-  pendingThemeReload ||= options.forceReload === true
+async function scheduleThemeSnapshot() {
+  await nextTick()
   if (typeof window === 'undefined') {
-    const shouldForceReload = pendingThemeReload
-    pendingThemeReload = false
-    commitThemeSnapshot({ forceReload: shouldForceReload })
+    commitThemeSnapshot()
     return
   }
   if (themeSnapshotFrame) return
   themeSnapshotFrame = window.requestAnimationFrame(() => {
     themeSnapshotFrame = 0
-    const shouldForceReload = pendingThemeReload
-    pendingThemeReload = false
-    commitThemeSnapshot({ forceReload: shouldForceReload })
+    commitThemeSnapshot()
   })
 }
 
@@ -167,7 +173,7 @@ function handleWorkspaceThemeUpdated(event) {
   resolvedTheme.value = normalizeResolvedThemeValue(
     event?.detail?.resolvedTheme || resolveThemePreference()
   )
-  scheduleThemeSnapshot({ forceReload: true })
+  void scheduleThemeSnapshot()
 }
 
 watch(
@@ -178,16 +184,9 @@ watch(
   { immediate: true }
 )
 
-watch(
-  () => workspace.pdfThemedPages,
-  () => {
-    scheduleThemeSnapshot({ forceReload: true })
-  }
-)
-
 onMounted(() => {
   window.addEventListener('workspace-theme-updated', handleWorkspaceThemeUpdated)
-  commitThemeSnapshot()
+  void scheduleThemeSnapshot()
 })
 
 onUnmounted(() => {
@@ -196,6 +195,13 @@ onUnmounted(() => {
     window.cancelAnimationFrame(themeSnapshotFrame)
     themeSnapshotFrame = 0
   }
-  pendingThemeReload = false
 })
 </script>
+
+<style scoped>
+.pdf-artifact-preview-host {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+</style>

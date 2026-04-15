@@ -41,9 +41,11 @@ See https://github.com/adobe-type-tools/cmap-resources
           root.style.setProperty('--altals-boot-bg', pageBackground)
           root.style.setProperty('--altals-shell-preview-surface', pageBackground)
           root.style.setProperty('--altals-pdf-page-bg', pageBackground)
+          root.style.setProperty('--body-bg-color', pageBackground)
+          root.style.setProperty('--page-bg-color', pageBackground)
         }
+        root.dataset.altalsCanvasFilterFallback = useCanvasFilterFallback ? 'true' : 'false'
         if (useCanvasFilterFallback) {
-          root.dataset.altalsCanvasFilterFallback = 'true'
           root.style.setProperty(
             '--altals-pdf-canvas-filter',
             'invert(1) hue-rotate(180deg) contrast(1.08) brightness(1.05)'

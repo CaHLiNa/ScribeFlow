@@ -5,8 +5,11 @@ import {
   createWorkspacePreferenceState,
   normalizeEditorFontSize,
   persistStoredString,
+  resolvePdfCustomPageForeground,
   restoreWorkspaceTheme,
   setWorkspaceEditorFontSize,
+  setWorkspacePdfCustomPageBackground,
+  setWorkspacePdfPageBackgroundFollowsTheme,
   setWorkspaceTheme,
   toggleStoredBoolean,
 } from '../src/services/workspacePreferences.js'
@@ -80,13 +83,14 @@ function createMockMatchMedia(matches = false) {
   }
 }
 
-test('createWorkspacePreferenceState defaults pdf themed pages to enabled', () => {
+test('createWorkspacePreferenceState defaults pdf page colors to the dark embedded preview baseline', () => {
   const previousLocalStorage = globalThis.localStorage
   globalThis.localStorage = createMockStorage()
 
   try {
     const state = createWorkspacePreferenceState()
-    assert.equal(state.pdfThemedPages, true)
+    assert.equal(state.pdfPageBackgroundFollowsTheme, true)
+    assert.equal(state.pdfCustomPageBackground, '#1e1e1e')
   } finally {
     globalThis.localStorage = previousLocalStorage
   }
@@ -171,20 +175,35 @@ test('system theme follows device appearance changes and explicit themes stay fi
   }
 })
 
-test('pdf themed pages preference is restored and persisted through the shared boolean helper', () => {
+test('pdf custom color preferences restore, normalize, and persist eye-care overrides', () => {
   const previousLocalStorage = globalThis.localStorage
-  globalThis.localStorage = createMockStorage({ pdfThemedPages: 'true' })
+  globalThis.localStorage = createMockStorage({
+    pdfCustomPageBackground: '#ABC',
+    pdfCustomPageForegroundMode: 'custom',
+    pdfCustomPageForeground: '#DEF',
+  })
 
   try {
     const restored = createWorkspacePreferenceState()
-    assert.equal(restored.pdfThemedPages, true)
+    assert.equal(restored.pdfPageBackgroundFollowsTheme, true)
+    assert.equal(restored.pdfCustomPageBackground, '#aabbcc')
+    assert.equal(globalThis.localStorage.getItem('pdfCustomPageForegroundMode'), null)
+    assert.equal(globalThis.localStorage.getItem('pdfCustomPageForeground'), null)
 
-    const toggled = toggleStoredBoolean(restored.pdfThemedPages, 'pdfThemedPages')
-    assert.equal(toggled, false)
-    assert.equal(globalThis.localStorage.getItem('pdfThemedPages'), 'false')
+    assert.equal(setWorkspacePdfPageBackgroundFollowsTheme(false), false)
+    assert.equal(globalThis.localStorage.getItem('pdfPageBackgroundFollowsTheme'), 'false')
+
+    assert.equal(setWorkspacePdfCustomPageBackground('#EAF'), '#eeaaff')
+    assert.equal(globalThis.localStorage.getItem('pdfCustomPageBackground'), '#eeaaff')
   } finally {
     globalThis.localStorage = previousLocalStorage
   }
+})
+
+test('pdf custom page foreground picks a readable contrast color from the stored background', () => {
+  assert.equal(resolvePdfCustomPageForeground('#eaf4e4'), '#1f2a1f')
+  assert.equal(resolvePdfCustomPageForeground('#1e1e1e'), '#f5faef')
+  assert.equal(resolvePdfCustomPageForeground('#1f2a1f'), '#f5faef')
 })
 
 test('left sidebar panel preference defaults to files and restores the current valid mode', () => {

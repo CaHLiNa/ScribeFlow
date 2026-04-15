@@ -8,7 +8,7 @@ import {
   shouldUsePdfCanvasFilterFallback,
 } from '../src/services/pdf/viewerUrl.js'
 
-test('buildPdfViewerThemeOptions enables themed pages for the resolved dark theme', () => {
+test('buildPdfViewerThemeOptions enables themed pages for a dark target page background', () => {
   assert.deepEqual(buildPdfViewerThemeOptions({
     themedPages: true,
     resolvedTheme: 'dark',
@@ -20,6 +20,21 @@ test('buildPdfViewerThemeOptions enables themed pages for the resolved dark them
     pageForeground: 'rgb(236 232 225)',
     useCanvasFilterFallback: false,
     viewerCssTheme: 2,
+  })
+})
+
+test('buildPdfViewerThemeOptions uses a light viewer css theme when the custom pdf page background is light', () => {
+  assert.deepEqual(buildPdfViewerThemeOptions({
+    themedPages: true,
+    resolvedTheme: 'dark',
+    pageBackground: '#f3ecd9',
+    pageForeground: '#1f2a1f',
+  }), {
+    forcePageColors: true,
+    pageBackground: '#f3ecd9',
+    pageForeground: '#1f2a1f',
+    useCanvasFilterFallback: false,
+    viewerCssTheme: 1,
   })
 })
 
@@ -54,19 +69,28 @@ test('buildPdfViewerThemeOptions disables PDF.js page colors when canvas fallbac
   })
 })
 
-test('shouldUsePdfCanvasFilterFallback only enables on dark Apple WebKit themed pages', () => {
+test('shouldUsePdfCanvasFilterFallback only enables on Apple WebKit when the target pdf page background is dark', () => {
   assert.equal(shouldUsePdfCanvasFilterFallback({
     themedPages: true,
+    pageBackground: '#1f2a1f',
     resolvedTheme: 'dark',
     userAgent: 'Mozilla/5.0 AppleWebKit/605.1.15 Version/17.0 Safari/605.1.15',
   }), true)
   assert.equal(shouldUsePdfCanvasFilterFallback({
     themedPages: true,
+    pageBackground: '#eaf4e4',
     resolvedTheme: 'light',
     userAgent: 'Mozilla/5.0 AppleWebKit/605.1.15 Version/17.0 Safari/605.1.15',
   }), false)
   assert.equal(shouldUsePdfCanvasFilterFallback({
     themedPages: true,
+    pageBackground: '#1f2a1f',
+    resolvedTheme: 'light',
+    userAgent: 'Mozilla/5.0 AppleWebKit/605.1.15 Version/17.0 Safari/605.1.15',
+  }), true)
+  assert.equal(shouldUsePdfCanvasFilterFallback({
+    themedPages: true,
+    pageBackground: '#1f2a1f',
     resolvedTheme: 'dark',
     userAgent: 'Mozilla/5.0 AppleWebKit/537.36 Chrome/123.0.0.0 Safari/537.36',
   }), false)

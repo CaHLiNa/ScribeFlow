@@ -50,6 +50,10 @@ import SurfaceContextMenu from '../shared/SurfaceContextMenu.vue'
 import { useI18n } from '../../i18n'
 import { readWorkspaceTextFile, saveWorkspaceTextFile } from '../../services/fileStoreIO.js'
 import {
+  normalizeWorkspacePdfCustomPageBackground,
+  resolvePdfCustomPageForeground,
+} from '../../services/workspacePreferences.js'
+import {
   readPdfArtifactBase64,
   requestLatexPdfBackwardSync,
   requestLatexPdfForwardSync,
@@ -83,8 +87,8 @@ const props = defineProps({
   documentVersion: { type: [String, Number], default: '' },
   forwardSyncRequest: { type: Object, default: null },
   resolvedTheme: { type: String, default: 'dark' },
-  pdfThemedPages: { type: Boolean, default: true },
-  themeRevision: { type: Number, default: 0 },
+  pdfPageBackgroundFollowsTheme: { type: Boolean, default: true },
+  pdfCustomPageBackground: { type: String, default: '#1e1e1e' },
   themeTokens: { type: Object, default: () => ({}) },
 })
 
@@ -111,13 +115,8 @@ const latexViewerReady = ref(false)
 const surfaceStyle = computed(() => ({ ...(props.themeTokens || {}) }))
 const viewerThemeReloadKey = computed(() =>
   JSON.stringify({
-    locale: String(uiLocale.value || '').trim(),
-    resolvedTheme: getResolvedTheme(),
-    pdfThemedPages: props.pdfThemedPages === true,
-    themeRevision: Number(props.themeRevision || 0),
-    pageBackground: resolvePdfSurfaceBackground(),
-    pageForeground: resolveThemeToken('--workspace-ink'),
-    useCanvasFilterFallback: shouldUseCanvasFilterFallback(),
+    locale: getViewerLocale(),
+    ...getViewerThemeOptions(),
   })
 )
 
@@ -160,6 +159,39 @@ function resolveThemeToken(name, fallback = '') {
 
 function resolvePdfSurfaceBackground() {
   return resolveThemeToken('--shell-preview-surface') || resolveThemeToken('--shell-editor-surface')
+}
+
+function resolvePreferredPdfPageBackground() {
+  if (props.pdfPageBackgroundFollowsTheme) {
+    return normalizeWorkspacePdfCustomPageBackground(resolvePdfSurfaceBackground())
+  }
+  return normalizeWorkspacePdfCustomPageBackground(props.pdfCustomPageBackground)
+}
+
+function resolvePreferredPdfPageForeground() {
+  return resolvePdfCustomPageForeground(resolvePreferredPdfPageBackground())
+}
+
+function resolvePdfPageBackground(themeOptions = getViewerThemeOptions()) {
+  return themeOptions.pageBackground
+    ? themeOptions.pageBackground
+    : '#ffffff'
+}
+
+function parseHexRgb(color, fallback = '#1e1e1e') {
+  const normalized = String(color || '').trim().toLowerCase()
+  const source = /^#[0-9a-f]{6}$/.test(normalized) ? normalized : fallback
+  return {
+    r: parseInt(source.slice(1, 3), 16),
+    g: parseInt(source.slice(3, 5), 16),
+    b: parseInt(source.slice(5, 7), 16),
+  }
+}
+
+function resolvePdfCanvasFallbackMode(pageBackground = resolvePdfPageBackground()) {
+  const { r, g, b } = parseHexRgb(pageBackground)
+  const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255
+  return luminance > 0.58 ? 'light' : 'dark'
 }
 
 async function appendLatexSyncDebug(entry = {}) {
@@ -284,7 +316,8 @@ function handleShellResizePhase(event) {
 
 function shouldUseCanvasFilterFallback() {
   return shouldUsePdfCanvasFilterFallback({
-    themedPages: props.pdfThemedPages,
+    themedPages: true,
+    pageBackground: resolvePreferredPdfPageBackground(),
     resolvedTheme: getResolvedTheme(),
     userAgent: typeof navigator === 'undefined' ? '' : navigator.userAgent,
   })
@@ -295,7 +328,8 @@ function applyCanvasFilterFallback() {
   if (!doc) return
   const root = doc.documentElement
   const useFallback = shouldUseCanvasFilterFallback()
-  const pageBackground = resolvePdfSurfaceBackground()
+  const pageBackground = resolvePdfPageBackground()
+  const fallbackMode = resolvePdfCanvasFallbackMode(pageBackground)
   root.dataset.altalsCanvasFilterFallback = useFallback ? 'true' : 'false'
   root.style.setProperty(
     '--altals-pdf-page-bg',
@@ -303,7 +337,13 @@ function applyCanvasFilterFallback() {
   )
   root.style.setProperty(
     '--altals-pdf-canvas-filter',
-    useFallback ? 'invert(1) hue-rotate(180deg) contrast(1.08) brightness(1.05)' : 'none'
+    useFallback && fallbackMode === 'dark'
+      ? 'invert(1) hue-rotate(180deg) contrast(1.08) brightness(1.05)'
+      : 'none'
+  )
+  root.style.setProperty(
+    '--altals-pdf-canvas-blend-mode',
+    useFallback ? (fallbackMode === 'dark' ? 'screen' : 'multiply') : 'normal'
   )
 }
 
@@ -312,6 +352,7 @@ function applyTheme() {
   if (!doc?.documentElement) return
   const root = doc.documentElement
   const pdfSurfaceBackground = resolvePdfSurfaceBackground()
+  const pageBackground = resolvePdfPageBackground()
   const tokenMap = new Map([
     ['--altals-surface-base', '--surface-base'],
     ['--altals-surface-raised', '--surface-raised'],
@@ -329,8 +370,16 @@ function applyTheme() {
       root.style.setProperty(targetName, value)
     }
   }
+
   if (pdfSurfaceBackground) {
     root.style.setProperty('--altals-shell-preview-surface', pdfSurfaceBackground)
+    root.style.setProperty('--altals-pdf-page-bg', pageBackground)
+    root.style.setProperty('--body-bg-color', pdfSurfaceBackground)
+    root.style.setProperty('--page-bg-color', pageBackground)
+
+    if (doc.body) {
+      doc.body.style.backgroundColor = pdfSurfaceBackground
+    }
   }
 
   applyCanvasFilterFallback()
@@ -338,11 +387,11 @@ function applyTheme() {
 
 function getViewerThemeOptions() {
   return buildPdfViewerThemeOptions({
-    themedPages: props.pdfThemedPages,
+    themedPages: true,
     resolvedTheme: getResolvedTheme(),
     usePageFilterFallback: shouldUseCanvasFilterFallback(),
-    pageBackground: resolvePdfSurfaceBackground(),
-    pageForeground: resolveThemeToken('--workspace-ink'),
+    pageBackground: resolvePreferredPdfPageBackground(),
+    pageForeground: resolvePreferredPdfPageForeground(),
   })
 }
 
@@ -603,9 +652,11 @@ function installViewerAppPatches(options = {}) {
     }
     loading.value = false
     loadError.value = ''
+    applyTheme()
     normalizeViewerChromeText()
   }
   const handlePagesLoaded = () => {
+    applyTheme()
     normalizeViewerChromeText()
     installLatexReverseSyncHandlers()
     latexViewerReady.value = true
@@ -738,7 +789,6 @@ function onIframeLoad() {
   if (isShellResizeActive()) {
     lockViewerScaleForResize()
   }
-  requestAnimationFrame(() => applyCanvasFilterFallback())
 
   if (pendingForwardSync) {
     if (props.kind === 'latex') {
@@ -1026,10 +1076,11 @@ watch(
 watch(
   () => viewerThemeReloadKey.value,
   (nextKey, previousKey) => {
-    applyTheme()
     if (previousKey != null && nextKey !== previousKey && viewerSrc.value) {
       void loadPdf()
+      return
     }
+    applyTheme()
   }
 )
 

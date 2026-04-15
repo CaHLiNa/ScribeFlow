@@ -35,6 +35,10 @@ const MAX_EDITOR_FONT_SIZE = 20
 const DEFAULT_APP_ZOOM_PERCENT = 100
 const APP_ZOOM_KEY = 'appZoomPercent'
 const SYSTEM_THEME_MEDIA = '(prefers-color-scheme: dark)'
+const DEFAULT_PDF_PAGE_BACKGROUND_FOLLOWS_THEME = true
+const DEFAULT_PDF_CUSTOM_PAGE_BACKGROUND = '#1e1e1e'
+const DEFAULT_PDF_CUSTOM_PAGE_FOREGROUND_DARK = '#1f2a1f'
+const DEFAULT_PDF_CUSTOM_PAGE_FOREGROUND_LIGHT = '#f5faef'
 
 export const EDITOR_FONT_SIZE_PRESETS = [12, 13, 14, 15, 16, 18]
 
@@ -104,6 +108,52 @@ function writeValue(key, value) {
   }
 }
 
+function removeValue(key) {
+  try {
+    localStorage.removeItem(key)
+  } catch {
+    // Ignore localStorage failures.
+  }
+}
+
+function normalizeHexColor(value, fallback) {
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase()
+
+  if (/^#[0-9a-f]{6}$/.test(normalized)) {
+    return normalized
+  }
+
+  if (/^#[0-9a-f]{3}$/.test(normalized)) {
+    const [, r, g, b] = normalized
+    return `#${r}${r}${g}${g}${b}${b}`
+  }
+
+  return fallback
+}
+
+function parseHexColor(value, fallback) {
+  const normalized = normalizeHexColor(value, fallback)
+  return {
+    r: parseInt(normalized.slice(1, 3), 16),
+    g: parseInt(normalized.slice(3, 5), 16),
+    b: parseInt(normalized.slice(5, 7), 16),
+  }
+}
+
+export function normalizeWorkspacePdfCustomPageBackground(value) {
+  return normalizeHexColor(value, DEFAULT_PDF_CUSTOM_PAGE_BACKGROUND)
+}
+
+export function resolvePdfCustomPageForeground(value) {
+  const { r, g, b } = parseHexColor(value, DEFAULT_PDF_CUSTOM_PAGE_BACKGROUND)
+  const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255
+  return luminance > 0.62
+    ? DEFAULT_PDF_CUSTOM_PAGE_FOREGROUND_DARK
+    : DEFAULT_PDF_CUSTOM_PAGE_FOREGROUND_LIGHT
+}
+
 export function normalizeAppZoomPercent(value) {
   const parsed = Math.round(Number(value) || DEFAULT_APP_ZOOM_PERCENT)
   return clamp(parsed, APP_ZOOM_PRESETS[0], APP_ZOOM_PRESETS[APP_ZOOM_PRESETS.length - 1])
@@ -135,7 +185,13 @@ function migrateLegacyFooterZoom(editorFontSize, uiFontSize, appZoomPercent) {
   }
 }
 
+function clearLegacyPdfForegroundPreferences() {
+  removeValue('pdfCustomPageForegroundMode')
+  removeValue('pdfCustomPageForeground')
+}
+
 export function createWorkspacePreferenceState() {
+  clearLegacyPdfForegroundPreferences()
   const editorFontSize = normalizeEditorFontSize(
     readNumber('editorFontSize', DEFAULT_EDITOR_FONT_SIZE)
   )
@@ -170,9 +226,13 @@ export function createWorkspacePreferenceState() {
     uiFontSize: zoomState.uiFontSize,
     appZoomPercent: zoomState.appZoomPercent,
     proseFont: readString('proseFont', 'inter'),
-    pdfThemedPages: hasStoredValue('pdfThemedPages')
-      ? readTrueOnlyBoolean('pdfThemedPages')
-      : true,
+    pdfPageBackgroundFollowsTheme: readBoolean(
+      'pdfPageBackgroundFollowsTheme',
+      DEFAULT_PDF_PAGE_BACKGROUND_FOLLOWS_THEME
+    ),
+    pdfCustomPageBackground: normalizeWorkspacePdfCustomPageBackground(
+      readString('pdfCustomPageBackground', DEFAULT_PDF_CUSTOM_PAGE_BACKGROUND)
+    ),
     theme: readWorkspaceThemePreference(),
   }
 }
@@ -186,6 +246,18 @@ export function toggleStoredBoolean(currentValue, key) {
 export function persistStoredString(key, value) {
   writeValue(key, value)
   return value
+}
+
+export function setWorkspacePdfCustomPageBackground(value) {
+  const nextValue = normalizeWorkspacePdfCustomPageBackground(value)
+  writeValue('pdfCustomPageBackground', nextValue)
+  return nextValue
+}
+
+export function setWorkspacePdfPageBackgroundFollowsTheme(value) {
+  const nextValue = value !== false
+  writeValue('pdfPageBackgroundFollowsTheme', nextValue)
+  return nextValue
 }
 
 export function setWrapColumnPreference(value) {
