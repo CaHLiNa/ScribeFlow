@@ -9,6 +9,7 @@
     :topbarWorkflowTargetSelector="topbarWorkflowTargetSelector"
     @cursor-change="(pos) => $emit('cursor-change', pos)"
     @editor-stats="(stats) => $emit('editor-stats', stats)"
+    @selection-change="(selection) => $emit('selection-change', selection)"
   />
 
   <!-- Split pane -->
@@ -24,6 +25,7 @@
         :topbarWorkflowTargetSelector="topbarWorkflowTargetSelector"
         @cursor-change="(pos) => $emit('cursor-change', pos)"
         @editor-stats="(stats) => $emit('editor-stats', stats)"
+        @selection-change="(selection) => $emit('selection-change', selection)"
       />
     </div>
 
@@ -40,6 +42,7 @@
         :topbarWorkflowTargetSelector="topbarWorkflowTargetSelector"
         @cursor-change="(pos) => $emit('cursor-change', pos)"
         @editor-stats="(stats) => $emit('editor-stats', stats)"
+        @selection-change="(selection) => $emit('selection-change', selection)"
       />
     </div>
   </div>
@@ -61,7 +64,7 @@ const props = defineProps({
   topbarWorkflowTargetSelector: { type: String, default: '' },
 })
 
-const emit = defineEmits(['cursor-change', 'editor-stats'])
+const emit = defineEmits(['cursor-change', 'editor-stats', 'selection-change'])
 const editorStore = useEditorStore()
 const splitContainer = ref(null)
 const splitMotionKey = computed(() => `pane-split:${props.node?.id || 'root'}`)

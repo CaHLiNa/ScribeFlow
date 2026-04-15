@@ -1,5 +1,16 @@
 const SERVICE_NAME: &str = "Altals";
-const ALLOWED_KEYCHAIN_KEYS: &[&str] = &["zotero-api-key"];
+const ALLOWED_KEYCHAIN_KEYS: &[&str] = &[
+    "zotero-api-key",
+    "ai-api-key",
+    "ai-api-key-openai",
+    "ai-api-key-anthropic",
+    "ai-api-key-google",
+    "ai-api-key-deepseek",
+    "ai-api-key-glm",
+    "ai-api-key-kimi",
+    "ai-api-key-minimax",
+    "ai-api-key-custom",
+];
 
 fn ensure_allowed_key(key: &str) -> Result<(), String> {
     if ALLOWED_KEYCHAIN_KEYS.contains(&key) {
@@ -50,5 +61,15 @@ mod tests {
     #[test]
     fn keychain_accepts_zotero_key() {
         assert!(ensure_allowed_key("zotero-api-key").is_ok());
+    }
+
+    #[test]
+    fn keychain_accepts_ai_key() {
+        assert!(ensure_allowed_key("ai-api-key-openai").is_ok());
+    }
+
+    #[test]
+    fn keychain_accepts_legacy_ai_key() {
+        assert!(ensure_allowed_key("ai-api-key").is_ok());
     }
 }

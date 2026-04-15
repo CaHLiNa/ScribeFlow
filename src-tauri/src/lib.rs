@@ -415,6 +415,7 @@ pub fn run() {
             fs_commands::path_exists,
             network::proxy_api_call,
             network::proxy_api_call_full,
+            network::proxy_ai_chat_completion,
             keychain::keychain_set,
             keychain::keychain_get,
             keychain::keychain_delete,

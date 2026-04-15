@@ -92,14 +92,49 @@
           shell-class="workbench-rail-pane-button"
           variant="ghost"
           size="icon-sm"
-          :active="rightSidebarOpen"
-          :title="t('Toggle right sidebar')"
-          :aria-label="t('Toggle right sidebar')"
+          :active="rightSidebarOpen && rightSidebarPanel === 'ai'"
+          :title="
+            rightSidebarOpen && rightSidebarPanel === 'ai'
+              ? t('Hide AI workflow')
+              : t('Open AI workflow')
+          "
+          :aria-label="
+            rightSidebarOpen && rightSidebarPanel === 'ai'
+              ? t('Hide AI workflow')
+              : t('Open AI workflow')
+          "
           data-window-drag-ignore="true"
-          @click="$emit('toggle-right-sidebar')"
+          @click="handleAiButtonClick"
+        >
+          <IconSparkles :size="16" :stroke-width="1.75" />
+        </UiButton>
+
+        <UiButton
+          v-if="inspectorAvailable"
+          class="workbench-rail-button"
+          shell-class="workbench-rail-pane-button"
+          variant="ghost"
+          size="icon-sm"
+          :active="rightSidebarOpen && rightSidebarPanel === 'outline'"
+          :title="
+            rightSidebarOpen && rightSidebarPanel === 'outline'
+              ? t('Hide outline')
+              : t('Open outline')
+          "
+          :aria-label="
+            rightSidebarOpen && rightSidebarPanel === 'outline'
+              ? t('Hide outline')
+              : t('Open outline')
+          "
+          data-window-drag-ignore="true"
+          @click="handleInspectorButtonClick"
         >
           <component
-            :is="rightSidebarOpen ? IconLayoutSidebarRightCollapse : IconLayoutSidebarRight"
+            :is="
+              rightSidebarOpen && rightSidebarPanel === 'outline'
+                ? IconLayoutSidebarRightCollapse
+                : IconLayoutSidebarRight
+            "
             :size="16"
             :stroke-width="1.75"
           />
@@ -119,12 +154,13 @@ import {
   IconLayoutSidebarLeftCollapse,
   IconLayoutSidebarRight,
   IconLayoutSidebarRightCollapse,
+  IconSparkles,
 } from '@tabler/icons-vue'
 import UiButton from '../shared/ui/UiButton.vue'
 import { isMac, modKey } from '../../platform'
 import { useI18n } from '../../i18n'
 
-defineProps({
+const props = defineProps({
   tabsTargetId: { type: String, default: 'app-shell-topbar-tabs' },
   documentTitleTargetId: { type: String, default: 'app-shell-topbar-document-title' },
   currentDocumentLabel: { type: String, default: '' },
@@ -134,14 +170,17 @@ defineProps({
   leftSidebarOpen: { type: Boolean, default: true },
   leftSidebarPanel: { type: String, default: 'files' },
   rightSidebarOpen: { type: Boolean, default: false },
+  rightSidebarPanel: { type: String, default: 'outline' },
   splitPaneAvailable: { type: Boolean, default: true },
   splitPaneOpen: { type: Boolean, default: false },
   inspectorAvailable: { type: Boolean, default: false },
 })
 
-defineEmits([
+const emit = defineEmits([
   'toggle-left-sidebar',
   'open-reference-library',
+  'open-ai-workflow',
+  'open-outline-inspector',
   'toggle-right-sidebar',
   'toggle-split-pane',
 ])
@@ -217,6 +256,22 @@ function endWindowDragGuard() {
   document.body.classList.remove(WINDOW_DRAGGING_CLASS)
   removeDragGuards?.()
   removeDragGuards = null
+}
+
+function handleAiButtonClick() {
+  if (props.rightSidebarOpen && props.rightSidebarPanel === 'ai') {
+    emit('toggle-right-sidebar')
+    return
+  }
+  emit('open-ai-workflow')
+}
+
+function handleInspectorButtonClick() {
+  if (props.rightSidebarOpen && props.rightSidebarPanel === 'outline') {
+    emit('toggle-right-sidebar')
+    return
+  }
+  emit('open-outline-inspector')
 }
 
 onMounted(async () => {

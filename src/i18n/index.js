@@ -553,6 +553,10 @@ const ZH_MESSAGES = {
   'No files yet': '还没有文件',
   'Open files': '打开文件',
   'Open reference library': '打开文献库',
+  'Open AI workflow': '打开 AI 工作流',
+  'Hide AI workflow': '隐藏 AI 工作流',
+  'Open outline': '打开大纲',
+  'Hide outline': '隐藏大纲',
   'PDF preview': 'PDF 预览',
   'Altals Workspace': 'Altals 工作区',
   'Open a local project folder to organize your research, references, and documents.':
@@ -600,6 +604,136 @@ const ZH_MESSAGES = {
   'Open in File Manager': '在文件管理器中打开',
   'More actions': '更多操作',
   Assistant: '助手',
+  AI: 'AI',
+  'AI workflow': 'AI 工作流',
+  'Grounded context': '已绑定上下文',
+  'Current context': '当前上下文',
+  'Grounded chat': 'Grounded chat',
+  'Ask the AI about the active workbench context without leaving the project.':
+    '围绕当前工作台上下文与 AI 对话，不必离开项目。',
+  Document: '文档',
+  Selection: '选区',
+  Reference: '文献',
+  'No active document': '当前没有活动文档',
+  'No editor selection': '当前没有编辑器选区',
+  'No selected reference': '当前没有选中文献',
+  'Recommended skills': '推荐技能',
+  'Run skill': '运行技能',
+  Session: '会话',
+  Artifacts: '产物',
+  'Provider status': 'Provider 状态',
+  'AI provider ready': 'AI provider 已就绪',
+  'AI provider needs setup': 'AI provider 尚未配置',
+  'Open AI settings to add a base URL, model, and API key.':
+    '请先打开 AI 设置，填写 base URL、model 和 API key。',
+  'Configure AI': '配置 AI',
+  Ready: '就绪',
+  'Needs context': '缺少上下文',
+  'Prepared brief': '已准备的执行 brief',
+  'Copy brief': '复制 brief',
+  'Brief copied': '已复制 brief',
+  'Copy failed': '复制失败',
+  'Run AI skill': '运行 AI 技能',
+  'Add an extra instruction for this AI run...': '为这次 AI 执行补充额外指令...',
+  'Clear session': '清空会话',
+  'Run a skill to start an AI session grounded in the current project context.':
+    '运行一个技能，开始基于当前项目上下文的 AI 会话。',
+  'No AI artifacts yet.': '还没有 AI 产物。',
+  'Apply to draft': '应用到草稿',
+  'Open as draft': '作为草稿打开',
+  'This slice prepares grounded AI briefs inside the workbench. Model execution comes next.':
+    '当前切片先在工作台内准备 grounded AI brief，后续再接入模型执行。',
+  'Revise with citations': '基于引用修订',
+  'Rewrite the selected passage using the current reference as grounding.':
+    '用当前选中文献作为依据，改写所选段落。',
+  'Draft related work': '起草 related work',
+  'Use the active draft and selected reference to shape a related-work paragraph.':
+    '结合当前草稿和选中文献，起草 related-work 段落。',
+  'Summarize selection': '总结选区',
+  'Turn the active selection into a structured research note.':
+    '把当前选区整理成结构化研究笔记。',
+  'Find supporting references': '查找支撑文献',
+  'Use the active passage to look for missing support and citations.':
+    '基于当前段落识别缺失的证据与引用。',
+  'The active selection and selected reference can be revised together.':
+    '当前选区和选中文献已具备，可以直接做引用约束下的修订。',
+  'This skill needs both a selection and a selected reference.':
+    '这个技能需要同时具备选区和选中文献。',
+  'The current selection is ready to be summarized into a research note.':
+    '当前选区已就绪，可以直接整理成研究笔记。',
+  'Select text in the active draft to use this skill.':
+    '请先在当前草稿里选中文本，再使用这个技能。',
+  'The active draft and selected reference can anchor a related-work pass.':
+    '当前草稿和选中文献已经可以支撑一轮 related-work 起草。',
+  'Open a draft and choose a reference to ground this skill.':
+    '请先打开草稿并选中文献，再使用这个技能。',
+  'The active passage can be used to look for missing support.':
+    '当前段落已经可以用于识别缺失支撑。',
+  'This skill works best when a passage in the draft is selected.':
+    '这个技能最好在草稿中选中一段文字后使用。',
+  'The active draft is available, so the AI can answer in project context.':
+    '当前草稿已就绪，AI 可以在项目上下文内回答。',
+  'Open a document to start a grounded AI chat.':
+    '请先打开文档，再开始 grounded AI chat。',
+  'AI skill is not available.': '当前 AI 技能不可用。',
+  'The selected AI skill is missing required context.': '当前 AI 技能缺少必需上下文。',
+  'AI settings are incomplete. Configure the provider before running a skill.':
+    'AI 设置还不完整，请先配置 provider 再运行技能。',
+  'Failed to save AI patch to the document.': '无法把 AI patch 保存到文档。',
+  'AI patch applied to the active document.': 'AI patch 已应用到当前文档。',
+  'AI note opened as a draft.': 'AI 笔记已作为草稿打开。',
+  'Failed to apply AI artifact.': '应用 AI 产物失败。',
+  Provider: 'Provider',
+  'Provider routing': 'Provider 路由',
+  'Provider configurations': 'Provider 配置',
+  'Provider type': 'Provider 类型',
+  'Altals currently supports OpenAI-compatible chat completion APIs.':
+    'Altals 当前支持 OpenAI-compatible chat completion API。',
+  'OpenAI-compatible': 'OpenAI-compatible',
+  'Active provider': '当前生效 provider',
+  Available: '可用',
+  'Choose which saved provider should power grounded chat and AI skills.':
+    '选择哪个已保存的 provider 用于 grounded chat 和 AI skills。',
+  'All AI provider settings saved.': '全部 AI provider 设置已保存。',
+  'Active AI provider updated.': '当前 AI provider 已更新。',
+  'Save all providers': '保存全部 provider',
+  'Use this provider': '使用这个 provider',
+  'Using this provider': '正在使用',
+  'Default endpoint': '默认 endpoint',
+  'Use this slot for OpenAI-compatible relays, local gateways, or enterprise endpoints.':
+    '这个槽位用于 OpenAI-compatible relay、本地网关或企业私有 endpoint。',
+  'Provide a chat-completions compatible endpoint such as a local relay or hosted gateway.':
+    '请填写兼容 chat-completions 的 endpoint，例如本地 relay 或托管网关。',
+  'The official preset is prefilled, but you can override it for mirrors or relays.':
+    '官方 preset 已预填，但你仍然可以改成镜像或 relay。',
+  'The active provider still needs a base URL, model, and API key before it can run skills.':
+    '当前生效的 provider 还缺少 base URL、model 或 API key，暂时无法运行技能。',
+  'Base URL': 'Base URL',
+  'Use a chat-completions compatible endpoint, for example https://api.openai.com/v1.':
+    '请填写兼容 chat-completions 的 endpoint，例如 https://api.openai.com/v1。',
+  Model: '模型',
+  'Set the exact model identifier exposed by your provider.':
+    '填写 provider 暴露的精确模型标识符。',
+  'API key': 'API key',
+  Temperature: 'Temperature',
+  'Lower values keep revision and citation behavior more stable.':
+    '较低的数值能让修订和引用行为更稳定。',
+  'Connection status': '连接状态',
+  'Last AI connection test succeeded.': '上一次 AI 连接测试成功。',
+  'Save your provider settings, then run a connection test.':
+    '先保存 provider 设置，再运行连接测试。',
+  'Failed to load AI settings.': '加载 AI 设置失败。',
+  'Saving...': '保存中...',
+  'Test connection': '测试连接',
+  'Testing...': '测试中...',
+  'AI settings saved.': 'AI 设置已保存。',
+  'Failed to save AI settings.': '保存 AI 设置失败。',
+  'AI connection succeeded.': 'AI 连接成功。',
+  'AI connection failed.': 'AI 连接失败。',
+  'AI settings cleared.': 'AI 设置已清空。',
+  'Failed to clear AI settings.': '清空 AI 设置失败。',
+  Running: '运行中',
+  'Running...': '执行中...',
   You: '你',
   'Dismiss edit': '忽略',
   Applied: '已应用',

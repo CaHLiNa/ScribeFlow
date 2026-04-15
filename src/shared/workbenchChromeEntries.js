@@ -1,4 +1,4 @@
-import { IconFolder, IconListTree } from '@tabler/icons-vue'
+import { IconFolder, IconListTree, IconSparkles } from '@tabler/icons-vue'
 import { normalizeWorkbenchSurface } from './workbenchSidebarPanels.js'
 
 const SIDEBAR_ENTRY_DEFINITIONS = {
@@ -27,6 +27,12 @@ const INSPECTOR_ENTRY_DEFINITIONS = {
       labelKey: 'Outline',
       titleKey: 'Outline',
       icon: IconListTree,
+    },
+    {
+      key: 'ai',
+      labelKey: 'AI workflow',
+      titleKey: 'AI workflow',
+      icon: IconSparkles,
     },
   ],
   settings: [],

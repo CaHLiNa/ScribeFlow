@@ -19,6 +19,7 @@ import { SETTINGS_SECTION_DEFINITIONS } from './settingsSections.js'
 
 const SettingsTheme = defineAsyncComponent(() => import('./SettingsTheme.vue'))
 const SettingsEditor = defineAsyncComponent(() => import('./SettingsEditor.vue'))
+const SettingsAi = defineAsyncComponent(() => import('./SettingsAi.vue'))
 const SettingsEnvironment = defineAsyncComponent(() => import('./SettingsEnvironment.vue'))
 const SettingsUpdates = defineAsyncComponent(() => import('./SettingsUpdates.vue'))
 const SettingsZotero = defineAsyncComponent(() => import('./SettingsZotero.vue'))
@@ -36,6 +37,7 @@ const sections = computed(() =>
 const sectionComponents = {
   theme: SettingsTheme,
   editor: SettingsEditor,
+  ai: SettingsAi,
   system: SettingsEnvironment,
   updates: SettingsUpdates,
   zotero: SettingsZotero,

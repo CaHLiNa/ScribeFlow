@@ -21,12 +21,15 @@
         :left-sidebar-open="leftSidebarVisible"
         :left-sidebar-panel="workspace.leftSidebarPanel"
         :right-sidebar-open="workspace.rightSidebarOpen"
+        :right-sidebar-panel="workspace.rightSidebarPanel"
         :split-pane-available="
           workspace.isWorkspaceSurface && workspace.leftSidebarPanel !== 'references'
         "
         :split-pane-open="splitPaneOpen"
         :inspector-available="supportsRightSidebar"
         @open-reference-library="toggleReferenceLibrary"
+        @open-ai-workflow="openAiWorkflow"
+        @open-outline-inspector="openOutlineInspector"
         @toggle-left-sidebar="workspace.toggleLeftSidebar()"
         @toggle-split-pane="toggleSplitPane"
         @toggle-right-sidebar="workspace.toggleRightSidebar()"
@@ -104,6 +107,7 @@
                 v-bind="activeWorkbenchProps"
                 :class="activeWorkbenchClass"
                 @cursor-change="onCursorChange"
+                @selection-change="onSelectionChange"
               />
             </KeepAlive>
           </div>
@@ -162,6 +166,7 @@ import { useEditorStore } from './stores/editor'
 import { useDocumentWorkflowStore } from './stores/documentWorkflow'
 import { useLinksStore } from './stores/links'
 import { useReferencesStore } from './stores/references'
+import { useAiStore } from './stores/ai'
 
 import ResizeHandle from './components/layout/ResizeHandle.vue'
 import WorkbenchRail from './components/layout/WorkbenchRail.vue'
@@ -198,6 +203,7 @@ const editorStore = useEditorStore()
 const workflowStore = useDocumentWorkflowStore()
 const linksStore = useLinksStore()
 const referencesStore = useReferencesStore()
+const aiStore = useAiStore()
 const { t } = useI18n()
 const isMacDesktop = typeof window !== 'undefined' && isMac && !!window.__TAURI_INTERNALS__
 
@@ -272,6 +278,16 @@ function toggleReferenceLibrary() {
   }
 }
 
+function openAiWorkflow() {
+  workspace.setRightSidebarPanel('ai')
+  workspace.openRightSidebar()
+}
+
+function openOutlineInspector() {
+  workspace.setRightSidebarPanel('outline')
+  workspace.openRightSidebar()
+}
+
 function getSecondaryPane() {
   if (!splitPaneOpen.value) return null
   return editorStore.paneTree.children?.[1] || null
@@ -321,6 +337,10 @@ function onCursorChange(pos) {
   if (pos?.offset != null) {
     editorStore.cursorOffset = pos.offset
   }
+}
+
+function onSelectionChange(selection) {
+  aiStore.updateEditorSelection(selection)
 }
 
 useAppShellEventBridge({

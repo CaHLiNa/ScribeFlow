@@ -1,4 +1,4 @@
-import { IconBooks, IconCpu, IconEdit, IconPalette, IconRefresh } from '@tabler/icons-vue'
+import { IconBooks, IconCpu, IconEdit, IconPalette, IconRefresh, IconSparkles } from '@tabler/icons-vue'
 
 export const SETTINGS_SECTION_DEFINITIONS = [
   {
@@ -12,6 +12,12 @@ export const SETTINGS_SECTION_DEFINITIONS = [
     labelKey: 'Writing',
     descriptionKey: 'Writing defaults, editor behavior, and drafting tools.',
     icon: IconEdit,
+  },
+  {
+    id: 'ai',
+    labelKey: 'AI',
+    descriptionKey: 'Grounded AI provider settings, model execution, and workbench behavior.',
+    icon: IconSparkles,
   },
   {
     id: 'zotero',

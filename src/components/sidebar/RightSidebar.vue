@@ -3,9 +3,14 @@
     class="right-shell-sidebar"
     data-surface-context-guard="true"
   >
-    <KeepAlive :max="1">
+    <KeepAlive :max="2">
+      <AiWorkflowPanel
+        v-if="workspace.rightSidebarOpen && workspace.rightSidebarPanel === 'ai'"
+        key="workspace-ai-workflow"
+        class="right-shell-pane"
+      />
       <ReferenceDetailPanel
-        v-if="workspace.rightSidebarOpen && workspace.leftSidebarPanel === 'references'"
+        v-else-if="workspace.rightSidebarOpen && workspace.leftSidebarPanel === 'references'"
         key="workspace-reference-detail"
         class="right-shell-pane"
       />
@@ -26,6 +31,7 @@ import { useEditorStore } from '../../stores/editor'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { isNewTab } from '../../utils/fileTypes'
 
+const AiWorkflowPanel = defineAsyncComponent(() => import('../panel/AiWorkflowPanel.vue'))
 const OutlinePanel = defineAsyncComponent(() => import('../panel/OutlinePanel.vue'))
 const ReferenceDetailPanel = defineAsyncComponent(() => import('../panel/ReferenceDetailPanel.vue'))
 

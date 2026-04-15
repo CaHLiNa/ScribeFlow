@@ -657,7 +657,16 @@ onMounted(async () => {
     EditorView.updateListener.of((update) => {
       if (update.selectionSet || update.docChanged) {
         const selection = update.state.selection.main
-        emit('selection-change', selection.from !== selection.to)
+        emit('selection-change', {
+          filePath: props.filePath,
+          hasSelection: selection.from !== selection.to,
+          from: selection.from,
+          to: selection.to,
+          text:
+            selection.from !== selection.to
+              ? update.state.sliceDoc(selection.from, selection.to)
+              : '',
+        })
       }
       if (isMd && update.selectionSet) {
         scheduleMarkdownSelectionPreviewSync(update.state.selection.main)
