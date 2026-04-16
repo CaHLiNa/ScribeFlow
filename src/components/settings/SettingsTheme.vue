@@ -6,7 +6,6 @@
     <section class="settings-group">
       <h4 class="settings-group-title">{{ t('Appearance') }}</h4>
       <div class="theme-grid">
-        
         <button
           v-for="theme in themes"
           :key="theme.id"
@@ -17,15 +16,36 @@
         >
           <!-- 预览图占据卡片上半部分 -->
           <div class="theme-preview-box" :style="{ background: theme.colors.bgPrimary }">
-            <div class="theme-preview-sidebar" :style="{ background: theme.colors.bgSecondary }"></div>
+            <div
+              class="theme-preview-sidebar"
+              :style="{ background: theme.colors.bgSecondary }"
+            ></div>
             <div class="theme-preview-editor">
-              <div class="theme-preview-line" :style="{ background: theme.colors.fgMuted, width: '60%' }"></div>
-              <div class="theme-preview-line" :style="{ background: theme.colors.accent, width: '46%' }"></div>
-              <div class="theme-preview-line" :style="{ background: theme.colors.fgMuted, width: '72%' }"></div>
+              <div
+                class="theme-preview-line"
+                :style="{ background: theme.colors.fgMuted, width: '60%' }"
+              ></div>
+              <div
+                class="theme-preview-line"
+                :style="{ background: theme.colors.accent, width: '46%' }"
+              ></div>
+              <div
+                class="theme-preview-line"
+                :style="{ background: theme.colors.fgMuted, width: '72%' }"
+              ></div>
             </div>
             <!-- 选中标记悬浮在图片上 -->
             <div class="theme-check-badge" v-if="workspace.theme === theme.id">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="3"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
                 <polyline points="20 6 9 17 4 12"></polyline>
               </svg>
             </div>
@@ -37,7 +57,6 @@
             <div class="theme-desc">{{ t(theme.description) }}</div>
           </div>
         </button>
-
       </div>
     </section>
 
@@ -47,7 +66,6 @@
         <div class="settings-row">
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('Match app theme') }}</div>
-            <div class="settings-row-hint">{{ t('Use the same PDF page background as the current app theme. Turn this off to use a custom PDF page color.') }}</div>
           </div>
           <div class="settings-row-control compact">
             <UiSwitch
@@ -63,7 +81,6 @@
             :class="{ 'is-disabled-copy': workspace.pdfPageBackgroundFollowsTheme }"
           >
             <div class="settings-row-title">{{ t('Eye-care page color') }}</div>
-            <div class="settings-row-hint">{{ t('Used when Match app theme is off. Stored locally and reused for embedded PDF pages.') }}</div>
           </div>
           <div class="settings-row-control">
             <div class="pdf-page-color-control">
@@ -114,7 +131,9 @@ const { t } = useI18n()
 const themes = WORKSPACE_THEME_OPTIONS
 const pdfCustomPageBackgroundDraft = ref(workspace.pdfCustomPageBackground)
 const resolvedPdfPagePreviewBackground = computed(() =>
-  workspace.pdfPageBackgroundFollowsTheme ? 'var(--shell-preview-surface)' : workspace.pdfCustomPageBackground
+  workspace.pdfPageBackgroundFollowsTheme
+    ? 'var(--shell-preview-surface)'
+    : workspace.pdfCustomPageBackground
 )
 const resolvedPdfPagePreviewForeground = computed(() =>
   workspace.pdfPageBackgroundFollowsTheme
@@ -135,7 +154,9 @@ watch(
 )
 
 function normalizeColorDraft(value, normalizer) {
-  const normalized = String(value || '').trim().toLowerCase()
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase()
 
   if (/^#[0-9a-f]{6}$/.test(normalized)) {
     return normalizer(normalized)
@@ -210,11 +231,15 @@ function handlePdfColorDraftKeydown(event, commitDraft) {
   border-radius: 8px;
   overflow: hidden;
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--border) 60%, transparent);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .theme-card:hover .theme-preview-box {
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1), 0 0 0 1px color-mix(in srgb, var(--border) 80%, transparent);
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.1),
+    0 0 0 1px color-mix(in srgb, var(--border) 80%, transparent);
   transform: translateY(-2px);
 }
 
@@ -254,7 +279,7 @@ function handlePdfColorDraftKeydown(event, commitDraft) {
   background: var(--accent);
   color: var(--bg-primary);
   border-radius: 50%;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 .theme-info {

@@ -7,11 +7,9 @@
     <section class="settings-group">
       <h4 class="settings-group-title">{{ t('Appearance') }}</h4>
       <div class="settings-group-body">
-        
         <div class="settings-row">
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('Writing font') }}</div>
-            <div class="settings-row-hint">{{ t('Choose the default reading and drafting face for Markdown documents.') }}</div>
           </div>
           <div class="settings-row-control">
             <div class="settings-segmented">
@@ -32,7 +30,6 @@
         <div class="settings-row">
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('Editor text size') }}</div>
-            <div class="settings-row-hint">{{ t('Adjust the base text size used in the writing editor and Markdown preview.') }}</div>
           </div>
           <div class="settings-row-control">
             <UiSelect
@@ -42,7 +39,6 @@
             />
           </div>
         </div>
-
       </div>
     </section>
 
@@ -50,31 +46,33 @@
     <section class="settings-group">
       <h4 class="settings-group-title">{{ t('Writing') }}</h4>
       <div class="settings-group-body">
-        
         <div class="settings-row">
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('Auto Save') }}</div>
-            <div class="settings-row-hint">{{ t('Save changes automatically while you work in the current project.') }}</div>
           </div>
           <div class="settings-row-control compact">
-            <UiSwitch :model-value="workspace.autoSave" @update:model-value="workspace.toggleAutoSave()" />
+            <UiSwitch
+              :model-value="workspace.autoSave"
+              @update:model-value="workspace.toggleAutoSave()"
+            />
           </div>
         </div>
 
         <div class="settings-row">
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('Soft Wrap') }}</div>
-            <div class="settings-row-hint">{{ t('Wrap long lines in the editor instead of scrolling horizontally.') }}</div>
           </div>
           <div class="settings-row-control compact">
-            <UiSwitch :model-value="workspace.softWrap" @update:model-value="workspace.toggleSoftWrap()" />
+            <UiSwitch
+              :model-value="workspace.softWrap"
+              @update:model-value="workspace.toggleSoftWrap()"
+            />
           </div>
         </div>
 
         <div class="settings-row" :class="{ 'is-disabled-row': !workspace.softWrap }">
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('Preferred line width') }}</div>
-            <div class="settings-row-hint">{{ t('Used when soft wrap is enabled for long-form writing layouts.') }}</div>
           </div>
           <div class="settings-row-control">
             <div class="settings-segmented">
@@ -92,7 +90,6 @@
             </div>
           </div>
         </div>
-
       </div>
     </section>
 
@@ -100,27 +97,29 @@
     <section class="settings-group">
       <h4 class="settings-group-title">LaTeX</h4>
       <div class="settings-group-body">
-        
         <div class="settings-row">
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('Compile on save') }}</div>
-            <div class="settings-row-hint">{{ t('Build LaTeX output automatically after saving .tex documents.') }}</div>
           </div>
           <div class="settings-row-control compact">
-            <UiSwitch :model-value="latexStore.autoCompile" @update:model-value="latexStore.setAutoCompile(!latexStore.autoCompile)" />
+            <UiSwitch
+              :model-value="latexStore.autoCompile"
+              @update:model-value="latexStore.setAutoCompile(!latexStore.autoCompile)"
+            />
           </div>
         </div>
 
         <div class="settings-row">
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('Format on save') }}</div>
-            <div class="settings-row-hint">{{ t('Apply configured LaTeX formatting automatically on save.') }}</div>
           </div>
           <div class="settings-row-control compact">
-            <UiSwitch :model-value="latexStore.formatOnSave" @update:model-value="latexStore.setFormatOnSave(!latexStore.formatOnSave)" />
+            <UiSwitch
+              :model-value="latexStore.formatOnSave"
+              @update:model-value="latexStore.setFormatOnSave(!latexStore.formatOnSave)"
+            />
           </div>
         </div>
-
       </div>
     </section>
   </div>

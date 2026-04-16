@@ -28,7 +28,7 @@ Altals should serve that full loop inside one local-first desktop app.
 - references are project-scoped first, not mandatory global-library-first
 - PDF and source reading stay close to the active draft and active reference context
 - AI workflows should be grounded in the active project, draft, selected references, and reader context
-- AI should appear as workbench-native actions, automation flows, or contextual panels, not a detached chat shell
+- AI should appear as an embedded agent shell with tools and filesystem-native skills, not a detached chat shell
 - PDF translation is a valid AI-adjacent extension, but it should not distort the first release of the references and reader foundation
 - avoid turning Altals into a generic PKM, chat shell, or feed reader
 
@@ -135,7 +135,7 @@ If work starts now, the smallest meaningful slice is:
 5. allow a project PDF to open in a workbench-adjacent reader
 6. expose one grounded AI workflow that can use the active draft plus selected references
 
-That foundation slice is now implemented in the workbench as an AI panel with provider settings, grounded context assembly, skill execution, and first-pass artifact application.
+That foundation slice is now implemented in the workbench as an AI shell with provider settings, grounded context assembly, skill execution, filesystem skill discovery, and first-pass artifact application.
 
 That slice is narrow enough to ship and broad enough to prove the product direction.
 

@@ -1,8 +1,13 @@
 <!-- START OF FILE src/components/shared/SurfaceContextMenu.vue -->
 <template>
   <Teleport to="body">
-    <div v-if="visible" class="context-menu-backdrop" @mousedown.prevent.stop="handleClose" @contextmenu.prevent.stop="handleClose"></div>
-    
+    <div
+      v-if="visible"
+      class="context-menu-backdrop"
+      @mousedown.prevent.stop="handleClose"
+      @contextmenu.prevent.stop="handleClose"
+    ></div>
+
     <Transition name="menu-fade">
       <div
         v-if="visible"
@@ -16,7 +21,6 @@
           <div v-if="group.label" class="context-menu-section">{{ group.label }}</div>
 
           <template v-for="item in group.items" :key="item.key">
-            
             <!-- 有子菜单的项 -->
             <div
               v-if="hasChildren(item)"
@@ -26,8 +30,12 @@
               @mouseleave="activeSubMenu = null"
             >
               <span class="surface-context-menu-label">{{ item.label }}</span>
-              <IconChevronRight class="surface-context-menu-chevron" :size="14" :stroke-width="1.8" />
-              
+              <IconChevronRight
+                class="surface-context-menu-chevron"
+                :size="14"
+                :stroke-width="1.8"
+              />
+
               <!-- 展开的子菜单 -->
               <div v-show="activeSubMenu === item.key" class="context-menu submenu-popover">
                 <button
@@ -35,7 +43,10 @@
                   :key="child.key"
                   type="button"
                   class="context-menu-item surface-context-menu-item"
-                  :class="{ 'context-menu-item-danger': child.danger, 'is-disabled': child.disabled }"
+                  :class="{
+                    'context-menu-item-danger': child.danger,
+                    'is-disabled': child.disabled,
+                  }"
                   @click.stop="handleSelect(child)"
                 >
                   <span class="surface-context-menu-label">{{ child.label }}</span>
@@ -58,7 +69,6 @@
               <span v-if="item.meta" class="surface-context-menu-meta">{{ item.meta }}</span>
               <span v-else-if="item.checked" class="surface-context-menu-check">✓</span>
             </button>
-
           </template>
         </template>
       </div>
@@ -88,17 +98,23 @@ const normalizedGroups = computed(() =>
     .map((group, index) => ({
       key: group?.key || `group-${index}`,
       label: group?.label || '',
-      items: Array.isArray(group?.items) ? group.items.filter(item => !!item?.key && !!item?.label) : [],
+      items: Array.isArray(group?.items)
+        ? group.items.filter((item) => !!item?.key && !!item?.label)
+        : [],
     }))
-    .filter(group => group.items.length > 0)
+    .filter((group) => group.items.length > 0)
 )
 
 function hasChildren(item) {
-  return Array.isArray(item?.children) && item.children.some(child => !!child?.key && !!child?.label)
+  return (
+    Array.isArray(item?.children) && item.children.some((child) => !!child?.key && !!child?.label)
+  )
 }
 
 function normalizedChildren(item) {
-  return Array.isArray(item?.children) ? item.children.filter(child => !!child?.key && !!child?.label) : []
+  return Array.isArray(item?.children)
+    ? item.children.filter((child) => !!child?.key && !!child?.label)
+    : []
 }
 
 function handleSelect(item) {
@@ -138,15 +154,18 @@ async function calculatePosition() {
   menuStyle.value = { top: `${top}px`, left: `${left}px` }
 }
 
-watch(() => props.visible, (isVisible) => {
-  if (isVisible) {
-    calculatePosition()
-    document.addEventListener('keydown', handleKeyDown)
-  } else {
-    document.removeEventListener('keydown', handleKeyDown)
-    activeSubMenu.value = null
+watch(
+  () => props.visible,
+  (isVisible) => {
+    if (isVisible) {
+      calculatePosition()
+      document.addEventListener('keydown', handleKeyDown)
+    } else {
+      document.removeEventListener('keydown', handleKeyDown)
+      activeSubMenu.value = null
+    }
   }
-})
+)
 
 onBeforeUnmount(() => {
   document.removeEventListener('keydown', handleKeyDown)
@@ -234,7 +253,9 @@ onBeforeUnmount(() => {
 }
 
 .menu-fade-enter-active {
-  transition: opacity 0.1s ease-out, transform 0.1s cubic-bezier(0.16, 1, 0.3, 1);
+  transition:
+    opacity 0.1s ease-out,
+    transform 0.1s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .menu-fade-leave-active {
   transition: opacity 0.1s ease-in;

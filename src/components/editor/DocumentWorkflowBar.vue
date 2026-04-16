@@ -343,7 +343,9 @@ const pdfActionIconSize = computed(() => 16)
   border-radius: 6px;
   background: transparent;
   box-shadow: none;
-  transition: background-color 0.1s, color 0.1s;
+  transition:
+    background-color 0.1s,
+    color 0.1s;
 }
 
 .workflow-bar.is-inline-header .workflow-primary-btn,

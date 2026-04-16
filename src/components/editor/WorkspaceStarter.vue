@@ -2,12 +2,10 @@
 <template>
   <div class="workspace-starter" data-surface-context-guard="true">
     <div class="workspace-starter-shell">
-
       <!-- ==========================================
            State 1: 未打开文件夹 (App 空状态)
       =========================================== -->
       <div v-if="!hasWorkspace" class="starter-state-unopened">
-        
         <!-- 环境光场 (Ambient Light System) -->
         <div class="ambient-field" aria-hidden="true">
           <div class="ambient-orb ambient-orb--1"></div>
@@ -17,7 +15,6 @@
 
         <!-- 复合主视觉 (Hero Graphic) -->
         <div class="starter-hero-graphic stagger-1">
-          
           <!-- 左侧浮游物: 文献/笔记暗示 -->
           <div class="floating-satellite satellite-left">
             <div class="satellite-card">
@@ -49,14 +46,15 @@
               <div class="satellite-line w-2/3"></div>
             </div>
           </div>
-
         </div>
-        
+
         <h1 class="starter-title stagger-2">{{ t('Altals Workspace') }}</h1>
         <p class="starter-subtitle stagger-3">
-          {{ t('Open a local project folder to organize your research, references, and documents.') }}
+          {{
+            t('Open a local project folder to organize your research, references, and documents.')
+          }}
         </p>
-        
+
         <div class="starter-primary-action stagger-4">
           <UiButton variant="primary" size="md" @click="openFolder">
             {{ t('Open Folder...') }}
@@ -72,7 +70,7 @@
         <p class="starter-subtitle stagger-2">
           {{ t('Choose a format to start writing in the current workspace.') }}
         </p>
-        
+
         <div class="starter-grid">
           <button
             v-for="(template, index) in templates"
@@ -84,10 +82,10 @@
             <div class="starter-card-bg"></div>
             <div class="starter-card-inner">
               <div class="starter-card-icon-plate">
-                <component 
-                  :is="template.ext === '.tex' ? IconMath : IconFileText" 
-                  :size="24" 
-                  :stroke-width="1.5" 
+                <component
+                  :is="template.ext === '.tex' ? IconMath : IconFileText"
+                  :size="24"
+                  :stroke-width="1.5"
                   class="card-icon"
                 />
               </div>
@@ -102,20 +100,19 @@
           </button>
         </div>
       </div>
-
     </div>
   </div>
 </template>
 
 <script setup>
 import { computed } from 'vue'
-import { 
-  IconStack2, 
-  IconMath, 
-  IconFileText, 
-  IconMarkdown, 
-  IconBook2, 
-  IconLayoutSidebarRight 
+import {
+  IconStack2,
+  IconMath,
+  IconFileText,
+  IconMarkdown,
+  IconBook2,
+  IconLayoutSidebarRight,
 } from '@tabler/icons-vue'
 import { useEditorStore } from '../../stores/editor'
 import { useWorkspaceStore } from '../../stores/workspace'
@@ -177,15 +174,31 @@ function openFolder() {
    进场动画：错步弹入 (Staggered Entrance)
 ========================================================================= */
 @keyframes slide-up-fade {
-  0% { opacity: 0; transform: translateY(20px) scale(0.95); }
-  100% { opacity: 1; transform: translateY(0) scale(1); }
+  0% {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
-.stagger-1 { animation: slide-up-fade 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.05s both; }
-.stagger-2 { animation: slide-up-fade 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both; }
-.stagger-3 { animation: slide-up-fade 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.15s both; }
-.stagger-4 { animation: slide-up-fade 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.2s both; }
-.stagger-5 { animation: slide-up-fade 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.25s both; }
+.stagger-1 {
+  animation: slide-up-fade 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.05s both;
+}
+.stagger-2 {
+  animation: slide-up-fade 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both;
+}
+.stagger-3 {
+  animation: slide-up-fade 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.15s both;
+}
+.stagger-4 {
+  animation: slide-up-fade 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.2s both;
+}
+.stagger-5 {
+  animation: slide-up-fade 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.25s both;
+}
 
 /* =========================================================================
    全局布局状态
@@ -232,8 +245,8 @@ function openFolder() {
   background: color-mix(in srgb, var(--surface-raised) 70%, transparent);
   backdrop-filter: blur(20px) saturate(1.2);
   border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
-  box-shadow: 
-    0 16px 36px rgba(0, 0, 0, 0.2), 
+  box-shadow:
+    0 16px 36px rgba(0, 0, 0, 0.2),
     0 4px 12px rgba(0, 0, 0, 0.1),
     inset 0 1px 0 rgba(255, 255, 255, 0.08),
     inset 0 -1px 0 rgba(0, 0, 0, 0.1);
@@ -244,8 +257,10 @@ function openFolder() {
 
 .theme-light .starter-hero-icon-plate {
   background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.5);
-  border-color: rgba(0,0,0,0.06);
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  border-color: rgba(0, 0, 0, 0.06);
 }
 
 .hero-icon-group {
@@ -258,7 +273,7 @@ function openFolder() {
 .hero-icon-main {
   color: var(--text-primary);
   opacity: 0.85;
-  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.15));
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.15));
 }
 
 .hero-badge {
@@ -272,13 +287,15 @@ function openFolder() {
   background: var(--surface-base);
   border: 1px solid var(--border-subtle);
   color: var(--text-secondary);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), color 0.3s;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transition:
+    transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+    color 0.3s;
 }
 
 .theme-light .hero-badge {
   background: #ffffff;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
 }
 
 .hero-badge--left {
@@ -295,20 +312,36 @@ function openFolder() {
   transform: rotate(12deg);
 }
 
-.starter-hero-icon-plate:hover .hero-badge--left { transform: rotate(-15deg) scale(1.1) translateX(-2px); }
-.starter-hero-icon-plate:hover .hero-badge--right { transform: rotate(18deg) scale(1.1) translateX(2px); }
+.starter-hero-icon-plate:hover .hero-badge--left {
+  transform: rotate(-15deg) scale(1.1) translateX(-2px);
+}
+.starter-hero-icon-plate:hover .hero-badge--right {
+  transform: rotate(18deg) scale(1.1) translateX(2px);
+}
 
 /* --- 浮游卫星元素 (Floating Satellites) --- */
 @keyframes float {
-  0% { transform: translateY(0px); }
-  50% { transform: translateY(-10px); }
-  100% { transform: translateY(0px); }
+  0% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+  100% {
+    transform: translateY(0px);
+  }
 }
 
 @keyframes float-delayed {
-  0% { transform: translateY(0px); }
-  50% { transform: translateY(8px); }
-  100% { transform: translateY(0px); }
+  0% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(8px);
+  }
+  100% {
+    transform: translateY(0px);
+  }
 }
 
 .floating-satellite {
@@ -341,12 +374,14 @@ function openFolder() {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
   transform: scale(0.9) perspective(500px) rotateY(15deg); /* 轻微的空间透视 */
   opacity: 0.8;
-  transition: transform 0.4s ease, opacity 0.4s ease;
+  transition:
+    transform 0.4s ease,
+    opacity 0.4s ease;
 }
 
 .theme-light .satellite-card {
   background: rgba(255, 255, 255, 0.6);
-  border-color: rgba(0,0,0,0.05);
+  border-color: rgba(0, 0, 0, 0.05);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.04);
 }
 
@@ -384,10 +419,26 @@ function openFolder() {
 }
 
 @keyframes ambient-drift {
-  0% { transform: translate(0, 0) scale(1); opacity: 0.3; filter: blur(60px); }
-  33% { transform: translate(20px, -20px) scale(1.1); opacity: 0.5; filter: blur(70px); }
-  66% { transform: translate(-20px, 15px) scale(0.9); opacity: 0.4; filter: blur(50px); }
-  100% { transform: translate(0, 0) scale(1); opacity: 0.3; filter: blur(60px); }
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.3;
+    filter: blur(60px);
+  }
+  33% {
+    transform: translate(20px, -20px) scale(1.1);
+    opacity: 0.5;
+    filter: blur(70px);
+  }
+  66% {
+    transform: translate(-20px, 15px) scale(0.9);
+    opacity: 0.4;
+    filter: blur(50px);
+  }
+  100% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.3;
+    filter: blur(60px);
+  }
 }
 
 .ambient-orb {
@@ -487,13 +538,19 @@ function openFolder() {
 
 /* 卡片的静态背板边框 */
 .starter-card::before {
-  content: "";
+  content: '';
   position: absolute;
   inset: 0;
   border-radius: inherit;
   padding: 1px;
-  background: linear-gradient(180deg, var(--border-subtle), color-mix(in srgb, var(--border-subtle) 20%, transparent));
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  background: linear-gradient(
+    180deg,
+    var(--border-subtle),
+    color-mix(in srgb, var(--border-subtle) 20%, transparent)
+  );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
   pointer-events: none;
@@ -501,13 +558,19 @@ function openFolder() {
 
 /* Hover 时的流光渐变边框 */
 .starter-card::after {
-  content: "";
+  content: '';
   position: absolute;
   inset: 0;
   border-radius: inherit;
   padding: 1px;
-  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 80%, transparent), color-mix(in srgb, var(--accent) 10%, transparent));
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--accent) 80%, transparent),
+    color-mix(in srgb, var(--accent) 10%, transparent)
+  );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
   opacity: 0;
@@ -515,7 +578,8 @@ function openFolder() {
   pointer-events: none;
 }
 
-.starter-card:hover::after, .starter-card:focus-visible::after {
+.starter-card:hover::after,
+.starter-card:focus-visible::after {
   opacity: 1;
 }
 
@@ -525,23 +589,29 @@ function openFolder() {
   inset: 1px;
   border-radius: 15px;
   background: var(--surface-base);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.02);
-  transition: background 0.3s ease, box-shadow 0.3s ease;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+  transition:
+    background 0.3s ease,
+    box-shadow 0.3s ease;
   z-index: 0;
 }
 
 .theme-light .starter-card-bg {
   background: #ffffff;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.02);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.02);
 }
 
 .starter-card:hover .starter-card-bg {
   background: var(--surface-hover);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--accent) 10%, transparent), 0 8px 24px rgba(0,0,0,0.1);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--accent) 10%, transparent),
+    0 8px 24px rgba(0, 0, 0, 0.1);
 }
 
 .theme-light .starter-card:hover .starter-card-bg {
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.8), 0 8px 24px rgba(0,0,0,0.06);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    0 8px 24px rgba(0, 0, 0, 0.06);
 }
 
 .starter-card:active {
@@ -575,7 +645,9 @@ function openFolder() {
 }
 
 .card-icon {
-  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), color 0.3s ease;
+  transition:
+    transform 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+    color 0.3s ease;
 }
 
 .starter-card:hover .starter-card-icon-plate {
@@ -621,7 +693,9 @@ function openFolder() {
   padding: 2px 6px;
   border-radius: 4px;
   border: 1px solid var(--border-subtle);
-  transition: border-color 0.3s ease, color 0.3s ease;
+  transition:
+    border-color 0.3s ease,
+    color 0.3s ease;
 }
 
 .starter-card:hover .starter-card-meta {

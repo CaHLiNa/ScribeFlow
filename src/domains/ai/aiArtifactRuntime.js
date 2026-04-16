@@ -29,19 +29,6 @@ export function extractJsonPayload(rawText = '') {
   return null
 }
 
-function buildAssistantText(payload = {}, fallback = '') {
-  const answer = String(
-    payload.answer ||
-      payload.summary ||
-      payload.paragraph ||
-      payload.replacement_text ||
-      payload.revised_paragraph ||
-      payload.rationale ||
-      ''
-  ).trim()
-  return answer || String(fallback || '').trim()
-}
-
 function buildDocPatchArtifact(payload = {}, contextBundle = {}) {
   const replacementText = String(
     payload.replacement_text || payload.revised_paragraph || payload.paragraph || ''
@@ -85,52 +72,30 @@ function buildNoteDraftArtifact(payload = {}, contextBundle = {}) {
   }
 }
 
-function buildAdvisoryArtifact(payload = {}, fallback = '') {
-  const content = buildAssistantText(payload, fallback)
-  if (!content) return null
-
-  return {
-    type: 'advisory',
-    title: String(payload.title || 'AI response').trim() || 'AI response',
-    content,
-    rationale: String(payload.rationale || '').trim(),
-  }
-}
-
 export function normalizeAiArtifact(skillId = '', payload = {}, contextBundle = {}, fallbackText = '') {
   if (skillId === 'revise-with-citations') {
-    return (
-      buildDocPatchArtifact(payload, contextBundle) ||
-      buildAdvisoryArtifact(payload, fallbackText)
-    )
+    return buildDocPatchArtifact(payload, contextBundle)
   }
 
   if (skillId === 'draft-related-work') {
     if (contextBundle.selection?.available) {
       return (
         buildDocPatchArtifact(payload, contextBundle) ||
-        buildNoteDraftArtifact(payload, contextBundle) ||
-        buildAdvisoryArtifact(payload, fallbackText)
+        buildNoteDraftArtifact(payload, contextBundle)
       )
     }
-    return (
-      buildNoteDraftArtifact(payload, contextBundle) ||
-      buildAdvisoryArtifact(payload, fallbackText)
-    )
+    return buildNoteDraftArtifact(payload, contextBundle)
   }
 
   if (skillId === 'summarize-selection') {
-    return (
-      buildNoteDraftArtifact(payload, contextBundle) ||
-      buildAdvisoryArtifact(payload, fallbackText)
-    )
+    return buildNoteDraftArtifact(payload, contextBundle)
   }
 
   if (skillId === 'find-supporting-references' || skillId === 'grounded-chat') {
-    return buildAdvisoryArtifact(payload, fallbackText)
+    return null
   }
 
-  return buildAdvisoryArtifact(payload, fallbackText)
+  return null
 }
 
 export function applyTextPatchToContent(content = '', artifact = {}) {

@@ -34,15 +34,9 @@
         variant="ghost"
         size="icon-sm"
         :active="leftSidebarPanel === 'references'"
-        :title="
-          leftSidebarPanel === 'references'
-            ? t('Open files')
-            : t('Open reference library')
-        "
+        :title="leftSidebarPanel === 'references' ? t('Open files') : t('Open reference library')"
         :aria-label="
-          leftSidebarPanel === 'references'
-            ? t('Open files')
-            : t('Open reference library')
+          leftSidebarPanel === 'references' ? t('Open files') : t('Open reference library')
         "
         data-window-drag-ignore="true"
         @click="$emit('open-reference-library')"
@@ -441,7 +435,10 @@ onUnmounted(() => {
   opacity: 1;
   background: transparent;
   box-shadow: none;
-  transition: background-color 140ms ease, color 140ms ease, opacity 140ms ease;
+  transition:
+    background-color 140ms ease,
+    color 140ms ease,
+    opacity 140ms ease;
 }
 
 .workbench-rail-button :deep(svg) {

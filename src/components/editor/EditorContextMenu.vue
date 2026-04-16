@@ -1,8 +1,13 @@
 <!-- START OF FILE src/components/editor/EditorContextMenu.vue -->
 <template>
   <Teleport to="body">
-    <div v-if="visible" class="context-menu-backdrop" @mousedown.prevent.stop="emit('close')" @contextmenu.prevent.stop="emit('close')"></div>
-    
+    <div
+      v-if="visible"
+      class="context-menu-backdrop"
+      @mousedown.prevent.stop="emit('close')"
+      @contextmenu.prevent.stop="emit('close')"
+    ></div>
+
     <Transition name="menu-fade">
       <div
         v-if="visible"
@@ -46,10 +51,16 @@ const props = defineProps({
 })
 
 const emit = defineEmits([
-  'close', 'format-document', 'insert-markdown-table', 'format-markdown-table', 'paste-unavailable'
+  'close',
+  'format-document',
+  'insert-markdown-table',
+  'format-markdown-table',
+  'paste-unavailable',
 ])
 const { t } = useI18n()
-const { dismissOtherTransientOverlays } = useTransientOverlayDismiss('editor-context-menu', () => emit('close'))
+const { dismissOtherTransientOverlays } = useTransientOverlayDismiss('editor-context-menu', () =>
+  emit('close')
+)
 
 const menuRef = ref(null)
 const menuStyle = ref({ top: '0px', left: '0px' })
@@ -67,8 +78,10 @@ const menuGroups = computed(() => {
       ]
 
   const tableItems = []
-  if (props.showMarkdownInsertTable) tableItems.push({ key: 'insert', label: t('Insert Table'), action: insertMarkdownTable })
-  if (props.showMarkdownFormatTable) tableItems.push({ key: 'format', label: t('Format Table'), action: formatMarkdownTable })
+  if (props.showMarkdownInsertTable)
+    tableItems.push({ key: 'insert', label: t('Insert Table'), action: insertMarkdownTable })
+  if (props.showMarkdownFormatTable)
+    tableItems.push({ key: 'format', label: t('Format Table'), action: formatMarkdownTable })
 
   const formatItems = props.showFormatDocument
     ? [{ key: 'format-doc', label: t('Format Document'), action: formatDocument }]
@@ -87,8 +100,12 @@ function handleSelect(item) {
 }
 
 // 编辑器行为
-function cut() { document.execCommand('cut') }
-function copy() { document.execCommand('copy') }
+function cut() {
+  document.execCommand('cut')
+}
+function copy() {
+  document.execCommand('copy')
+}
 async function paste() {
   if (props.view) {
     try {
@@ -98,7 +115,10 @@ async function paste() {
         const from = selection?.from ?? 0
         const to = selection?.to ?? from
         props.view.focus()
-        props.view.dispatch({ changes: { from, to, insert: text }, selection: { anchor: from + text.length } })
+        props.view.dispatch({
+          changes: { from, to, insert: text },
+          selection: { anchor: from + text.length },
+        })
         return
       }
     } catch {
@@ -109,7 +129,10 @@ async function paste() {
           const from = selection?.from ?? 0
           const to = selection?.to ?? from
           props.view.focus()
-          props.view.dispatch({ changes: { from, to, insert: text }, selection: { anchor: from + text.length } })
+          props.view.dispatch({
+            changes: { from, to, insert: text },
+            selection: { anchor: from + text.length },
+          })
           return
         }
       } catch {}
@@ -118,11 +141,18 @@ async function paste() {
   emit('paste-unavailable')
 }
 function selectAll() {
-  if (props.view) props.view.dispatch({ selection: { anchor: 0, head: props.view.state.doc.length } })
+  if (props.view)
+    props.view.dispatch({ selection: { anchor: 0, head: props.view.state.doc.length } })
 }
-function formatDocument() { emit('format-document') }
-function formatMarkdownTable() { emit('format-markdown-table') }
-function insertMarkdownTable() { emit('insert-markdown-table') }
+function formatDocument() {
+  emit('format-document')
+}
+function formatMarkdownTable() {
+  emit('format-markdown-table')
+}
+function insertMarkdownTable() {
+  emit('insert-markdown-table')
+}
 
 // 碰撞计算
 async function calculatePosition() {
@@ -147,15 +177,18 @@ function handleKeyDown(e) {
   if (props.visible && e.key === 'Escape') emit('close')
 }
 
-watch(() => props.visible, (visible) => {
-  if (visible) {
-    dismissOtherTransientOverlays()
-    calculatePosition()
-    document.addEventListener('keydown', handleKeyDown)
-  } else {
-    document.removeEventListener('keydown', handleKeyDown)
+watch(
+  () => props.visible,
+  (visible) => {
+    if (visible) {
+      dismissOtherTransientOverlays()
+      calculatePosition()
+      document.addEventListener('keydown', handleKeyDown)
+    } else {
+      document.removeEventListener('keydown', handleKeyDown)
+    }
   }
-})
+)
 
 onBeforeUnmount(() => {
   document.removeEventListener('keydown', handleKeyDown)
@@ -180,7 +213,9 @@ onBeforeUnmount(() => {
   outline: none;
 }
 .menu-fade-enter-active {
-  transition: opacity 0.1s ease-out, transform 0.1s cubic-bezier(0.16, 1, 0.3, 1);
+  transition:
+    opacity 0.1s ease-out,
+    transform 0.1s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .menu-fade-leave-active {
   transition: opacity 0.1s ease-in;

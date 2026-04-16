@@ -31,6 +31,22 @@ test('normalizeAiArtifact creates a document patch artifact for revise-with-cita
   assert.equal(artifact.replacementText, 'Revised paragraph.')
 })
 
+test('normalizeAiArtifact does not create redundant advisory artifacts for grounded chat', () => {
+  const artifact = normalizeAiArtifact(
+    'grounded-chat',
+    {
+      answer: 'A grounded answer.',
+      rationale: 'Based on current context.',
+    },
+    {
+      workspace: { available: true, path: '/workspace' },
+      document: { available: true, filePath: '/workspace/paper.md' },
+    }
+  )
+
+  assert.equal(artifact, null)
+})
+
 test('applyTextPatchToContent replaces the selected range only when the source text matches', () => {
   const result = applyTextPatchToContent('012old789', {
     from: 3,

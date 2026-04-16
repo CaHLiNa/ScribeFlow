@@ -276,7 +276,12 @@
 
       <!-- "+ New" dropdown menu -->
       <Teleport to="body">
-        <div v-if="newMenuOpen" class="context-menu-backdrop" @mousedown.prevent.stop="closeNewMenu" @contextmenu.prevent.stop="closeNewMenu"></div>
+        <div
+          v-if="newMenuOpen"
+          class="context-menu-backdrop"
+          @mousedown.prevent.stop="closeNewMenu"
+          @contextmenu.prevent.stop="closeNewMenu"
+        ></div>
         <div
           v-if="newMenuOpen"
           ref="newMenuEl"
@@ -284,11 +289,19 @@
           :style="newMenuStyle"
           @contextmenu.prevent.stop
         >
-          <button type="button" class="context-menu-item" @click.stop="handleNewMenuCreate({ ext: null, isDir: true })">
+          <button
+            type="button"
+            class="context-menu-item"
+            @click.stop="handleNewMenuCreate({ ext: null, isDir: true })"
+          >
             <IconFolderPlus :size="14" :stroke-width="1.5" />
             <span class="file-tree-workspace-item-label">{{ t('New Folder') }}</span>
           </button>
-          <button type="button" class="context-menu-item" @click.stop="handleNewMenuCreate({ ext: null })">
+          <button
+            type="button"
+            class="context-menu-item"
+            @click.stop="handleNewMenuCreate({ ext: null })"
+          >
             <IconFilePlus :size="14" :stroke-width="1.5" />
             <span class="file-tree-workspace-item-label">{{ t('New File...') }}</span>
           </button>
@@ -298,13 +311,19 @@
             :key="template.id"
             type="button"
             class="context-menu-item"
-            @click.stop="handleNewMenuCreate({
-              ext: template.ext,
-              suggestedName: template.filename,
-              initialContent: template.content,
-            })"
+            @click.stop="
+              handleNewMenuCreate({
+                ext: template.ext,
+                suggestedName: template.filename,
+                initialContent: template.content,
+              })
+            "
           >
-            <component :is="template.ext === '.tex' ? IconMath : IconFileText" :size="14" :stroke-width="1.5" />
+            <component
+              :is="template.ext === '.tex' ? IconMath : IconFileText"
+              :size="14"
+              :stroke-width="1.5"
+            />
             <span class="file-tree-workspace-item-label">{{ template.label }}</span>
             <span class="context-menu-ext">{{ template.ext }}</span>
           </button>
@@ -528,7 +547,7 @@ async function calculateNewMenuPosition(anchor) {
   const rect = anchor.getBoundingClientRect()
   const menuRect = newMenuEl.value.getBoundingClientRect()
   const vh = window.innerHeight || document.documentElement.clientHeight
-  
+
   let top = rect.bottom + 4
   let left = rect.left
 

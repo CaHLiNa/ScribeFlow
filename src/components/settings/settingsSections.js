@@ -1,4 +1,4 @@
-import { IconBooks, IconCpu, IconEdit, IconPalette, IconRefresh, IconSparkles } from '@tabler/icons-vue'
+import { IconBooks, IconCpu, IconEdit, IconPalette, IconRefresh, IconSparkles, IconCommand } from '@tabler/icons-vue'
 
 export const SETTINGS_SECTION_DEFINITIONS = [
   {
@@ -18,6 +18,12 @@ export const SETTINGS_SECTION_DEFINITIONS = [
     labelKey: 'AI',
     descriptionKey: 'Grounded AI provider settings, model execution, and workbench behavior.',
     icon: IconSparkles,
+  },
+  {
+    id: 'skills',
+    labelKey: 'Skills',
+    descriptionKey: 'Filesystem skills, support files, and agent tool registry.',
+    icon: IconCommand,
   },
   {
     id: 'zotero',

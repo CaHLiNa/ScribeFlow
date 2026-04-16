@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
+import { t } from '../../i18n/index.js'
 
 function normalizeBaseUrl(value = '') {
   return String(value || '').trim().replace(/\/+$/, '')
@@ -50,7 +51,7 @@ async function postJson(config, apiKey, messages, options = {}, responseFormatJs
       parsed?.error?.message ||
       parsed?.message ||
       text ||
-      `AI request failed with HTTP ${status || 'unknown'}`
+      t('AI request failed with HTTP {status}', { status: status || t('unknown') })
     const error = new Error(detail)
     error.status = status
     throw error
@@ -67,13 +68,13 @@ export async function requestOpenAiCompatibleCompletion(
 ) {
   const baseUrl = normalizeBaseUrl(config.baseUrl || '')
   if (!baseUrl) {
-    throw new Error('AI base URL is missing.')
+    throw new Error(t('AI base URL is missing.'))
   }
   if (!apiKey) {
-    throw new Error('AI API key is missing.')
+    throw new Error(t('AI API key is missing.'))
   }
   if (!String(config.model || '').trim()) {
-    throw new Error('AI model is missing.')
+    throw new Error(t('AI model is missing.'))
   }
 
   let payload = null
@@ -89,7 +90,7 @@ export async function requestOpenAiCompatibleCompletion(
 
   const content = extractAssistantContent(payload)
   if (!content) {
-    throw new Error('AI provider returned an empty response.')
+    throw new Error(t('AI provider returned an empty response.'))
   }
 
   return {

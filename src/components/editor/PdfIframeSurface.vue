@@ -173,13 +173,13 @@ function resolvePreferredPdfPageForeground() {
 }
 
 function resolvePdfPageBackground(themeOptions = getViewerThemeOptions()) {
-  return themeOptions.pageBackground
-    ? themeOptions.pageBackground
-    : '#ffffff'
+  return themeOptions.pageBackground ? themeOptions.pageBackground : '#ffffff'
 }
 
 function parseHexRgb(color, fallback = '#1e1e1e') {
-  const normalized = String(color || '').trim().toLowerCase()
+  const normalized = String(color || '')
+    .trim()
+    .toLowerCase()
   const source = /^#[0-9a-f]{6}$/.test(normalized) ? normalized : fallback
   return {
     r: parseInt(source.slice(1, 3), 16),
@@ -676,9 +676,7 @@ function installViewerAppPatches(options = {}) {
       viewerLoadTimeout = 0
     }
     loading.value = false
-    loadError.value = String(
-      event?.reason || event?.message || t('Could not load PDF')
-    ).trim()
+    loadError.value = String(event?.reason || event?.message || t('Could not load PDF')).trim()
   }
 
   app.eventBus?.on?.('pagesinit', handlePagesInit)
@@ -935,24 +933,27 @@ async function loadPdfWithStrategy(options = {}) {
     })
     viewerKey.value += 1
 
-    viewerLoadTimeout = window.setTimeout(() => {
-      if (currentToken !== loadToken || !loading.value) return
-      viewerLoadTimeout = 0
-      if (syncViewerLoadedState()) {
-        return
-      }
-      void appendLatexSyncDebug({
-        event: 'pdf-load-timeout',
-        sourceMode,
-        snapshot: buildViewerStateSnapshot(),
-      })
-      if (sourceMode === 'protocol') {
-        void loadPdfWithStrategy({ preferProtocol: false })
-        return
-      }
-      loadError.value = t('PDF viewer did not finish rendering the document.')
-      loading.value = false
-    }, sourceMode === 'protocol' ? PROTOCOL_LOAD_TIMEOUT_MS : BLOB_LOAD_TIMEOUT_MS)
+    viewerLoadTimeout = window.setTimeout(
+      () => {
+        if (currentToken !== loadToken || !loading.value) return
+        viewerLoadTimeout = 0
+        if (syncViewerLoadedState()) {
+          return
+        }
+        void appendLatexSyncDebug({
+          event: 'pdf-load-timeout',
+          sourceMode,
+          snapshot: buildViewerStateSnapshot(),
+        })
+        if (sourceMode === 'protocol') {
+          void loadPdfWithStrategy({ preferProtocol: false })
+          return
+        }
+        loadError.value = t('PDF viewer did not finish rendering the document.')
+        loading.value = false
+      },
+      sourceMode === 'protocol' ? PROTOCOL_LOAD_TIMEOUT_MS : BLOB_LOAD_TIMEOUT_MS
+    )
   } catch (error) {
     if (currentToken !== loadToken) return
     viewerSrc.value = null

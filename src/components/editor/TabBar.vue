@@ -526,8 +526,20 @@ function updateDropIndicator(mouseX) {
 .tab-bar-shell.is-shell-integrated .tab-bar-track {
   gap: 2px;
   min-width: 0;
-  -webkit-mask-image: linear-gradient(to right, transparent 0, black 10px, black calc(100% - 10px), transparent 100%);
-  mask-image: linear-gradient(to right, transparent 0, black 10px, black calc(100% - 10px), transparent 100%);
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    black 10px,
+    black calc(100% - 10px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    black 10px,
+    black calc(100% - 10px),
+    transparent 100%
+  );
 }
 
 .tab-bar-item {
@@ -541,7 +553,9 @@ function updateDropIndicator(mouseX) {
   color: var(--text-muted);
   font-size: 12px;
   font-weight: 500;
-  transition: background-color 0.1s, color 0.1s;
+  transition:
+    background-color 0.1s,
+    color 0.1s;
   margin-bottom: -1px; /* 覆盖到底部边框上 */
 }
 
@@ -584,7 +598,10 @@ function updateDropIndicator(mouseX) {
   color: var(--text-muted);
   border-radius: 4px;
   opacity: 0;
-  transition: background-color 0.1s, color 0.1s, opacity 0.1s;
+  transition:
+    background-color 0.1s,
+    color 0.1s,
+    opacity 0.1s;
 }
 
 .tab-bar-item.is-active .tab-close-button {

@@ -2,7 +2,7 @@
 
 This repository is organized around a desktop-first Tauri application with a Vue frontend and a Rust backend.
 
-The architecture targets one local-first academic platform where document writing, literature management, reading, and AI workflows are peer product capabilities inside the same project workbench. AI is not a detached add-on surface: it should stay grounded in the active project, open documents, selected references, reader context, and citation workflow.
+The architecture targets one local-first academic platform where document writing, literature management, reading, and AI workflows are peer product capabilities inside the same project workbench. AI is not a detached add-on surface: it should stay grounded in the active project, open documents, selected references, reader context, citation workflow, and an embedded agent shell.
 
 ## High-level runtime shape
 
@@ -166,15 +166,20 @@ Reader features should stay tightly connected to the same research loop:
 
 ### AI workflow architecture
 
-AI workflow is a first-class product capability, but it should be architected as a grounded cross-cutting layer rather than a generic chat shell:
+AI workflow is a first-class product capability, but it should be architected as a grounded agent shell with provider runtimes, tools, and filesystem-native skills rather than a generic chat shell:
 
-- the current first slice already ships a right-inspector AI panel, multi-provider settings, active-provider routing, skill execution, and artifact application for selected workflows
+- the current slice already ships a right-inspector AI shell, multi-provider settings, active-provider routing, skill execution, `/` and `$skill` invocation, grouped settings-side skill management, artifact application via capability handlers, and Altals-managed filesystem skill discovery
+- the runtime is moving away from one-shot completion calls toward a Proma-style provider adapter layer with SSE parsing, tool-use loops, and provider-specific request shaping for Anthropic, OpenAI-compatible, and Google-style APIs
+- Anthropic now also has a Tauri-managed Node sidecar seam for the Claude Agent SDK path, so agent-style runtime behavior can be added without rewriting the desktop app around Electron
+- desktop approval flows and provider-specific built-in tool policies should stay explicit in the UI rather than hiding all tool decisions inside prompts
 - AI actions should start from explicit project context such as the active file, selected references, reader selection, diagnostics, or compile state
+- filesystem skills should be discovered only from Altals-managed user and workspace directories, not arbitrary external tool folders
 - effectful model clients, retrieval adapters, translation clients, and indexing jobs belong in `src/services/*`
 - prompt assembly, context eligibility, citation-grounding rules, and workflow guardrails belong in `src/domains/*`
 - user-facing AI surfaces belong in `src/components/*` and should appear as workbench-native actions, panels, or automation entry points
 - coordination state belongs in `src/stores/*`, but long-lived policy should not drift into stores
 - the first-party core should remain useful without remote AI, and future AI integrations should stay plugin-capable
+- Anthropic-specific SDK orchestration should be treated as a runtime seam, not hard-wired into the UI layer, because the desktop product runs on Tauri rather than Electron/Node
 
 ### Document intelligence seam
 

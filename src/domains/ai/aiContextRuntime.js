@@ -79,6 +79,7 @@ export function normalizeAiSelection(selection = null) {
 }
 
 export function isAiContextAvailable(kind = '', contextBundle = {}) {
+  if (kind === 'workspace') return contextBundle.workspace?.available === true
   if (kind === 'document') return contextBundle.document?.available === true
   if (kind === 'selection') return contextBundle.selection?.available === true
   if (kind === 'reference') return contextBundle.reference?.available === true
@@ -86,10 +87,12 @@ export function isAiContextAvailable(kind = '', contextBundle = {}) {
 }
 
 export function buildAiContextBundle({
+  workspacePath = '',
   activeFile = '',
   selection = null,
   selectedReference = null,
 } = {}) {
+  const normalizedWorkspacePath = normalizeFsPath(workspacePath || '')
   const filePath = normalizeFsPath(activeFile || '')
   const extension = extnamePath(filePath)
   const normalizedSelection = normalizeAiSelection(selection)
@@ -98,6 +101,11 @@ export function buildAiContextBundle({
   const reference = normalizeReference(selectedReference)
 
   return {
+    workspace: {
+      path: normalizedWorkspacePath,
+      label: basenamePath(normalizedWorkspacePath),
+      available: normalizedWorkspacePath.length > 0,
+    },
     document: {
       filePath,
       label: basenamePath(filePath),
@@ -111,8 +119,9 @@ export function buildAiContextBundle({
       available: activeSelection.hasSelection,
     },
     reference,
-    availableContexts: ['document', 'selection', 'reference'].filter((kind) =>
+    availableContexts: ['workspace', 'document', 'selection', 'reference'].filter((kind) =>
       isAiContextAvailable(kind, {
+        workspace: { available: normalizedWorkspacePath.length > 0 },
         document: { available: filePath.length > 0 },
         selection: { available: activeSelection.hasSelection },
         reference,
@@ -128,9 +137,9 @@ export function skillHasRequiredContext(skill = {}, contextBundle = {}) {
 
 function buildRecommendationReason(skillId = '', contextBundle = {}) {
   if (skillId === 'grounded-chat') {
-    return contextBundle.document.available
-      ? 'The active draft is available, so the AI can answer in project context.'
-      : 'Open a document to start a grounded AI chat.'
+    return contextBundle.workspace.available
+      ? 'The current folder is available, so the AI can answer in project context.'
+      : 'Open a project folder to start a grounded AI chat.'
   }
   if (skillId === 'revise-with-citations') {
     return contextBundle.selection.available && contextBundle.reference.available
@@ -159,9 +168,10 @@ function computeRecommendationScore(skill = {}, contextBundle = {}) {
   const available = skillHasRequiredContext(skill, contextBundle)
 
   if (skill.id === 'grounded-chat') {
-    if (available && contextBundle.selection.available && contextBundle.reference.available) return 85
-    if (available && contextBundle.selection.available) return 75
-    if (available) return 60
+    if (available && contextBundle.selection.available && contextBundle.reference.available) return 90
+    if (available && contextBundle.document.available && contextBundle.selection.available) return 80
+    if (available && contextBundle.document.available) return 70
+    if (available) return 55
     return 10
   }
   if (skill.id === 'revise-with-citations') {

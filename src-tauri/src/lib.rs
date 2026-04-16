@@ -1,3 +1,4 @@
+mod ai_runtime;
 mod app_dirs;
 mod fs_commands;
 mod fs_io;
@@ -416,6 +417,13 @@ pub fn run() {
             network::proxy_api_call,
             network::proxy_api_call_full,
             network::proxy_ai_chat_completion,
+            network::start_ai_provider_stream,
+            network::abort_ai_provider_stream,
+            ai_runtime::start_ai_anthropic_sdk_stream,
+            ai_runtime::abort_ai_anthropic_sdk_stream,
+            ai_runtime::respond_ai_anthropic_sdk_permission,
+            ai_runtime::respond_ai_anthropic_sdk_ask_user,
+            ai_runtime::respond_ai_anthropic_sdk_exit_plan,
             keychain::keychain_set,
             keychain::keychain_get,
             keychain::keychain_delete,

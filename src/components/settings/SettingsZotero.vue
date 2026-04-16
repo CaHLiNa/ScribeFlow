@@ -9,7 +9,6 @@
         <div v-if="connected" class="settings-row">
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ config.username || t('Connected') }}</div>
-            <div class="settings-row-hint">{{ t('User ID: {id}', { id: config.userId || '...' }) }}</div>
           </div>
           <div class="settings-row-control compact">
             <UiButton variant="danger" size="sm" @click="handleDisconnect">
@@ -22,7 +21,6 @@
           <div class="settings-row">
             <div class="settings-row-copy">
               <div class="settings-row-title">{{ t('User ID') }}</div>
-              <div class="settings-row-hint">{{ t('Create an API key at zotero.org/settings/keys.') }}</div>
             </div>
             <div class="settings-row-control">
               <UiInput v-model="userId" size="sm" placeholder="12345678" />
@@ -32,7 +30,6 @@
           <div class="settings-row">
             <div class="settings-row-copy">
               <div class="settings-row-title">{{ t('API Key') }}</div>
-              <div class="settings-row-hint">{{ t('Enable read and write access.') }}</div>
             </div>
             <div class="settings-row-control">
               <UiInput v-model="apiKey" size="sm" type="password" placeholder="xxxxxxxxxxxxxxxx" />
@@ -42,7 +39,6 @@
           <div class="settings-row">
             <div class="settings-row-copy">
               <div class="settings-row-title">{{ t('Connect') }}</div>
-              <div class="settings-row-hint">{{ t('Store credentials locally in the app keychain.') }}</div>
             </div>
             <div class="settings-row-control compact">
               <UiButton
@@ -57,7 +53,9 @@
           </div>
         </template>
 
-        <div v-if="error" class="settings-inline-message settings-inline-message-error">{{ error }}</div>
+        <div v-if="error" class="settings-inline-message settings-inline-message-error">
+          {{ error }}
+        </div>
       </div>
     </section>
 
@@ -67,14 +65,13 @@
         <div class="settings-row">
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('Citation style') }}</div>
-            <div class="settings-row-hint">{{ t('Used by formatted citations and bibliography export.') }}</div>
           </div>
           <div class="settings-row-control">
-            <UiSelect 
-              :model-value="citationStyle" 
+            <UiSelect
+              :model-value="citationStyle"
               :options="citationStyleOptions"
-              size="sm" 
-              @update:model-value="handleCitationStyleChange" 
+              size="sm"
+              @update:model-value="handleCitationStyleChange"
             />
           </div>
         </div>
@@ -87,7 +84,6 @@
         <div class="settings-row">
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('Auto-sync on workspace open') }}</div>
-            <div class="settings-row-hint">{{ t('Pull Zotero changes when a workspace is opened.') }}</div>
           </div>
           <div class="settings-row-control compact">
             <UiSwitch :model-value="autoSync" @update:model-value="toggleAutoSync" />
@@ -97,19 +93,20 @@
         <div class="settings-row">
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('Libraries to sync') }}</div>
-            <div class="settings-row-hint">{{ t('User library is always included. Group libraries are optional.') }}</div>
           </div>
           <div class="settings-row-control">
             <div class="settings-checklist">
-              <UiCheckbox 
-                v-for="group in (groups || [])" 
+              <UiCheckbox
+                v-for="group in groups || []"
                 :key="group.id"
                 :model-value="selectedGroupIds.has(group.id)"
                 @update:model-value="toggleGroup(group.id)"
               >
                 {{ group.name }}
               </UiCheckbox>
-              <div v-if="!groups || groups.length === 0" class="settings-inline-message">{{ t('No group libraries.') }}</div>
+              <div v-if="!groups || groups.length === 0" class="settings-inline-message">
+                {{ t('No group libraries.') }}
+              </div>
             </div>
           </div>
         </div>
@@ -117,14 +114,13 @@
         <div class="settings-row">
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('Push new references to') }}</div>
-            <div class="settings-row-hint">{{ t('References imported in Altals can also be created in Zotero.') }}</div>
           </div>
           <div class="settings-row-control">
-            <UiSelect 
-              :model-value="pushTargetValue" 
+            <UiSelect
+              :model-value="pushTargetValue"
               :options="pushTargetOptions"
-              size="sm" 
-              @update:model-value="handlePushTargetChange" 
+              size="sm"
+              @update:model-value="handlePushTargetChange"
             />
           </div>
         </div>
@@ -132,10 +128,6 @@
         <div class="settings-row">
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('Sync Now') }}</div>
-            <div class="settings-row-hint">
-              {{ syncStatusText }}
-              <template v-if="syncSummary">{{ ` · ${syncSummary}` }}</template>
-            </div>
           </div>
           <div class="settings-row-control compact">
             <UiButton variant="secondary" size="sm" :disabled="loading" @click="handleSyncNow">
@@ -192,9 +184,9 @@ const citationStyle = ref('apa')
 // 防御性 computed：确保不会由于 referencesStore 尚未初始化而崩溃
 const citationStyleOptions = computed(() => {
   const styles = referencesStore.availableCitationStyles || []
-  return styles.map(style => ({
+  return styles.map((style) => ({
     value: style.id,
-    label: style.name
+    label: style.name,
   }))
 })
 
@@ -204,7 +196,7 @@ const pushTargetOptions = computed(() => {
   return [
     { value: '', label: t("Don't push to Zotero") },
     { value: `user/${safeUserId}`, label: t('My Library') },
-    ...(collectionOptions.value || [])
+    ...(collectionOptions.value || []),
   ]
 })
 
@@ -227,10 +219,7 @@ function buildCollectionTree(collections = []) {
   const walk = (parent = '', depth = 0) =>
     (byParent.get(parent) || [])
       .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')))
-      .flatMap((collection) => [
-        { ...collection, depth },
-        ...walk(collection.key, depth + 1),
-      ])
+      .flatMap((collection) => [{ ...collection, depth }, ...walk(collection.key, depth + 1)])
 
   return walk()
 }
@@ -244,13 +233,15 @@ async function refreshRemoteLibraries(targetConfig = config.value) {
     const loadedGroups = await fetchUserGroups(key, targetConfig.userId)
     groups.value = Array.isArray(loadedGroups) ? loadedGroups : []
     selectedGroupIds.value = new Set(
-      Array.isArray(targetConfig._groups) ? targetConfig._groups.map((group) => String(group.id)) : []
+      Array.isArray(targetConfig._groups)
+        ? targetConfig._groups.map((group) => String(group.id))
+        : []
     )
 
     const options = []
     const userCollectionsRaw = await fetchCollections(key, 'user', targetConfig.userId)
     const userCollections = buildCollectionTree(userCollectionsRaw || [])
-    
+
     for (const collection of userCollections) {
       options.push({
         value: `user/${targetConfig.userId}/${collection.key}`,

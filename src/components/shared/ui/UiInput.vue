@@ -66,7 +66,7 @@ const props = defineProps({
   variant: {
     type: String,
     default: 'default',
-  }
+  },
 })
 
 const emit = defineEmits(['update:modelValue', 'focus', 'blur', 'keydown'])
@@ -121,7 +121,7 @@ defineExpose({
   gap: var(--space-2);
   width: 100%;
   border: 1px solid color-mix(in srgb, var(--border-subtle) 88%, transparent);
-  border-radius: var(--radius-md);
+  border-radius: 6px;
   background: color-mix(in srgb, var(--surface-base) 82%, transparent);
   color: var(--text-primary);
   box-shadow: inset 0 1px 0 color-mix(in srgb, var(--fg-primary) 4%, transparent);
@@ -134,7 +134,9 @@ defineExpose({
 .ui-input-shell:focus-within {
   border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
   background: color-mix(in srgb, var(--surface-base) 94%, transparent);
-  box-shadow: 0 0 0 2px var(--focus-ring);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent),
+    0 0 0 1px var(--accent);
 }
 
 .ui-input-shell.is-disabled {
@@ -157,21 +159,23 @@ defineExpose({
 .ui-input-shell--ghost:focus-within {
   background: var(--surface-base);
   border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--focus-ring);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent),
+    0 0 0 1px var(--accent);
 }
 
 .ui-input-shell--sm {
-  min-height: 26px;
+  height: 24px;
   padding: 0 8px;
 }
 
 .ui-input-shell--md {
-  min-height: 32px;
+  height: 28px;
   padding: 0 10px;
 }
 
 .ui-input-shell--lg {
-  min-height: 38px;
+  height: 32px;
   padding: 0 12px;
 }
 

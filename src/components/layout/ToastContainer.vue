@@ -94,13 +94,15 @@ function handleToastAction(toast) {
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  
+
   /* 核心：极其高级的毛玻璃胶囊效果 */
   background: color-mix(in srgb, var(--surface-raised) 75%, transparent);
   backdrop-filter: blur(40px) saturate(1.5);
   border: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.02);
-  
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.15),
+    0 0 0 1px rgba(0, 0, 0, 0.02);
+
   color: var(--text-primary);
   max-width: 360px;
   line-height: 1.4;
@@ -111,7 +113,9 @@ function handleToastAction(toast) {
 
 .theme-light .toast-item {
   background: rgba(255, 255, 255, 0.75);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.05);
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.1),
+    0 0 0 1px rgba(0, 0, 0, 0.05);
 }
 
 .toast-type-icon {
@@ -142,17 +146,29 @@ function handleToastAction(toast) {
 }
 
 /* 颜色标记：不再粗暴地更改背景，而是以高亮边框和发光图标的形式暗示状态 */
-.toast-success .toast-type-icon { color: var(--success); }
-.toast-error .toast-type-icon { color: var(--error); }
-.toast-warning .toast-type-icon { color: var(--warning); }
-.toast-info .toast-type-icon { color: var(--accent); }
+.toast-success .toast-type-icon {
+  color: var(--success);
+}
+.toast-error .toast-type-icon {
+  color: var(--error);
+}
+.toast-warning .toast-type-icon {
+  color: var(--warning);
+}
+.toast-info .toast-type-icon {
+  color: var(--accent);
+}
 
 /* 进出场动画，采用弹性曲线（Spring-like） */
 .toast-enter-active {
-  transition: opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1), transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  transition:
+    opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .toast-leave-active {
-  transition: opacity 0.2s ease-in, transform 0.2s ease-in;
+  transition:
+    opacity 0.2s ease-in,
+    transform 0.2s ease-in;
 }
 .toast-enter-from {
   opacity: 0;

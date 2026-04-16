@@ -4,7 +4,7 @@
 .ui-list-row {
   position: relative;
   border-radius: 6px;
-  transition: none; 
+  transition: none;
 }
 
 .ui-list-row:hover {
@@ -54,7 +54,9 @@
   border-radius: 8px !important;
   padding: 5px !important;
   min-width: 200px !important;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05) !important;
+  box-shadow:
+    0 20px 40px rgba(0, 0, 0, 0.25),
+    0 0 0 1px rgba(0, 0, 0, 0.05) !important;
   color: var(--text-primary) !important;
   width: auto !important;
   margin-top: 0 !important;
@@ -63,11 +65,13 @@
 
 .theme-light .context-menu {
   background: rgba(255, 255, 255, 0.75) !important;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.05) !important;
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.1),
+    0 0 0 1px rgba(0, 0, 0, 0.05) !important;
 }
 
 .context-menu-item {
-  min-height: 26px;
+  min-height: 22px;
   padding: 0 8px !important;
   cursor: default;
   display: flex !important;
@@ -78,7 +82,8 @@
   line-height: 1.2;
 }
 
-.context-menu-item:hover, .context-menu-item[data-highlighted] {
+.context-menu-item:hover,
+.context-menu-item[data-highlighted] {
   background: var(--list-active-bg) !important;
   color: var(--list-active-fg) !important;
 }
@@ -114,7 +119,8 @@
   height: 14px;
 }
 
-.context-menu-item:hover svg, .context-menu-item:hover .context-menu-ext {
+.context-menu-item:hover svg,
+.context-menu-item:hover .context-menu-ext {
   color: var(--list-active-fg) !important;
   opacity: 0.9;
 }

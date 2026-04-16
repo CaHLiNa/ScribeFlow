@@ -7,37 +7,40 @@
     <section class="settings-group">
       <h4 class="settings-group-title">{{ t('Compilation') }}</h4>
       <div class="settings-group-body">
-        
         <div class="settings-row">
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('Compiler') }}</div>
-            <div class="settings-row-hint">{{ t('Pick the preferred backend for LaTeX projects.') }}</div>
           </div>
           <div class="settings-row-control">
             <UiSelect v-model="compilerPreference" size="sm" :options="compilerOptions" />
           </div>
         </div>
 
-        <div class="settings-row" :class="{ 'is-disabled-row': latexStore.compilerPreference === 'tectonic' }">
+        <div
+          class="settings-row"
+          :class="{ 'is-disabled-row': latexStore.compilerPreference === 'tectonic' }"
+        >
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('LaTeX Engine') }}</div>
-            <div class="settings-row-hint">{{ t('Used when the selected compiler supports engine selection.') }}</div>
           </div>
           <div class="settings-row-control">
-            <UiSelect v-model="enginePreference" size="sm" :options="engineOptions" :disabled="latexStore.compilerPreference === 'tectonic'" />
+            <UiSelect
+              v-model="enginePreference"
+              size="sm"
+              :options="engineOptions"
+              :disabled="latexStore.compilerPreference === 'tectonic'"
+            />
           </div>
         </div>
 
         <div class="settings-row">
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('Build recipe') }}</div>
-            <div class="settings-row-hint">{{ t('Command sequence used for LaTeX builds.') }}</div>
           </div>
           <div class="settings-row-control">
             <UiSelect v-model="buildRecipe" size="sm" :options="latexBuildRecipeOptions" />
           </div>
         </div>
-
       </div>
     </section>
 
@@ -45,8 +48,24 @@
     <section class="settings-group">
       <div class="settings-group-header-row">
         <h4 class="settings-group-title">{{ t('Environment Diagnostics') }}</h4>
-        <button type="button" class="diagnostics-refresh-btn" :disabled="latexStore.checkingCompilers" @click="redetectSystem" :title="t('Refresh diagnostics')">
-          <svg v-if="!latexStore.checkingCompilers" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <button
+          type="button"
+          class="diagnostics-refresh-btn"
+          :disabled="latexStore.checkingCompilers"
+          @click="redetectSystem"
+          :title="t('Refresh diagnostics')"
+        >
+          <svg
+            v-if="!latexStore.checkingCompilers"
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
             <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
             <path d="M3 3v5h5"></path>
             <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"></path>
@@ -55,23 +74,29 @@
           <span v-else class="diagnostics-spinner"></span>
         </button>
       </div>
-      
+
       <div class="settings-group-body">
-        
         <div class="settings-row">
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('System TeX') }}</div>
           </div>
           <div class="settings-row-control compact diagnostic-status">
-            <span class="status-dot" :class="latexStore.systemTexInstalled ? 'is-good' : 'is-none'"></span>
-            <span class="status-text">{{ latexStore.systemTexInstalled ? t('Installed') : t('Not found') }}</span>
+            <span
+              class="status-dot"
+              :class="latexStore.systemTexInstalled ? 'is-good' : 'is-none'"
+            ></span>
+            <span class="status-text">{{
+              latexStore.systemTexInstalled ? t('Installed') : t('Not found')
+            }}</span>
           </div>
         </div>
 
         <div class="settings-row">
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('Tectonic') }}</div>
-            <div v-if="latexStore.downloadError" class="settings-row-hint text-error">{{ latexStore.downloadError }}</div>
+            <div v-if="latexStore.downloadError" class="settings-row-hint text-error">
+              {{ latexStore.downloadError }}
+            </div>
           </div>
           <div class="settings-row-control compact diagnostic-status">
             <template v-if="latexStore.tectonicInstalled">
@@ -94,8 +119,13 @@
             <div class="settings-row-title">{{ t('ChkTeX') }}</div>
           </div>
           <div class="settings-row-control compact diagnostic-status">
-            <span class="status-dot" :class="latexStore.chktexInstalled ? 'is-good' : 'is-none'"></span>
-            <span class="status-text">{{ latexStore.chktexInstalled ? t('Installed') : t('Not found') }}</span>
+            <span
+              class="status-dot"
+              :class="latexStore.chktexInstalled ? 'is-good' : 'is-none'"
+            ></span>
+            <span class="status-text">{{
+              latexStore.chktexInstalled ? t('Installed') : t('Not found')
+            }}</span>
           </div>
         </div>
 
@@ -104,11 +134,15 @@
             <div class="settings-row-title">{{ t('latexindent') }}</div>
           </div>
           <div class="settings-row-control compact diagnostic-status">
-            <span class="status-dot" :class="latexStore.latexindentInstalled ? 'is-good' : 'is-none'"></span>
-            <span class="status-text">{{ latexStore.latexindentInstalled ? t('Installed') : t('Not found') }}</span>
+            <span
+              class="status-dot"
+              :class="latexStore.latexindentInstalled ? 'is-good' : 'is-none'"
+            ></span>
+            <span class="status-text">{{
+              latexStore.latexindentInstalled ? t('Installed') : t('Not found')
+            }}</span>
           </div>
         </div>
-
       </div>
     </section>
   </div>
@@ -116,14 +150,23 @@
 
 <script setup>
 import { computed, onMounted } from 'vue'
-import { LATEX_BUILD_RECIPE_OPTIONS, formatLatexBuildRecipeLabel, useLatexStore } from '../../stores/latex'
+import {
+  LATEX_BUILD_RECIPE_OPTIONS,
+  formatLatexBuildRecipeLabel,
+  useLatexStore,
+} from '../../stores/latex'
 import { useI18n } from '../../i18n'
 import UiSelect from '../shared/ui/UiSelect.vue'
 
 const latexStore = useLatexStore()
 const { t } = useI18n()
 
-const latexBuildRecipeOptions = computed(() => LATEX_BUILD_RECIPE_OPTIONS.map((value) => ({ value, label: formatLatexBuildRecipeLabel(value, t) })))
+const latexBuildRecipeOptions = computed(() =>
+  LATEX_BUILD_RECIPE_OPTIONS.map((value) => ({
+    value,
+    label: formatLatexBuildRecipeLabel(value, t),
+  }))
+)
 const compilerOptions = computed(() => [
   { value: 'auto', label: t('Auto (prefer System TeX)') },
   { value: 'system', label: t('System TeX (latexmk)') },
@@ -215,7 +258,11 @@ onMounted(() => {
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
-@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 
 /* 诊断项内的样式对齐 */
 .diagnostic-status {
@@ -229,8 +276,12 @@ onMounted(() => {
   height: 8px;
   border-radius: 50%;
 }
-.status-dot.is-good { background: var(--success); }
-.status-dot.is-none { background: var(--border-strong); }
+.status-dot.is-good {
+  background: var(--success);
+}
+.status-dot.is-none {
+  background: var(--border-strong);
+}
 
 .status-text {
   font-size: 13px;

@@ -81,7 +81,7 @@ Representative future files:
 
 ### `src/domains/ai/*`
 
-Owns grounded AI workflow policy, context eligibility, prompt assembly rules, citation-backed drafting guardrails, and other reusable AI decisions that should not live in components or stores.
+Owns grounded AI workflow policy, context eligibility, prompt assembly rules, filesystem-skill execution policy, citation-backed drafting guardrails, and other reusable AI decisions that should not live in components or stores.
 
 Representative files:
 

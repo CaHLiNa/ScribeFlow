@@ -24,6 +24,7 @@
     "version:bump:major": "node scripts/bump-version.mjs major"
   },
   "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.89",
     "@codemirror/commands": "^6.0.0",
     "@codemirror/lang-markdown": "^6.0.0",
     "@codemirror/language": "^6.0.0",

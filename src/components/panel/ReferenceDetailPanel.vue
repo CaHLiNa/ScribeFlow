@@ -50,7 +50,7 @@
             <UiInput v-model="draft.authorsText" variant="ghost" size="sm" @blur="commitAuthors" @keydown.enter.prevent="$event.target.blur()"/>
           </div>
 
-          <div class="kv-label">Key</div>
+          <div class="kv-label">{{ t('Key') }}</div>
           <div class="kv-value">
             <UiInput v-model="draft.citationKey" variant="ghost" size="sm" monospace @blur="commitCitationKey" @keydown.enter.prevent="$event.target.blur()"/>
           </div>

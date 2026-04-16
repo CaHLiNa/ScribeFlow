@@ -1,6 +1,8 @@
 import { invoke } from '@tauri-apps/api/core'
+import { AI_TOOL_IDS, normalizeEnabledAiToolIds } from './toolRegistry.js'
+import { normalizeAnthropicSdkConfig } from './runtime/anthropicSdkPolicy.js'
 
-const AI_CONFIG_VERSION = 2
+const AI_CONFIG_VERSION = 3
 const LEGACY_AI_KEYCHAIN_KEY = 'ai-api-key'
 const LEGACY_AI_LOCAL_STORAGE_KEY = 'aiApiKey'
 const DEFAULT_TEMPERATURE = 0.2
@@ -107,6 +109,7 @@ function sanitizePublicAiConfig(config = null) {
   const next = {
     version: AI_CONFIG_VERSION,
     currentProviderId: normalizeAiProviderId(config.currentProviderId),
+    enabledTools: normalizeEnabledAiToolIds(config.enabledTools),
     providers: {},
   }
 
@@ -153,22 +156,34 @@ async function writeAiConfigRaw(config = null, globalConfigDir = null) {
 
 function buildDefaultProviderConfig(providerId = 'openai') {
   const definition = getAiProviderDefinition(providerId)
-  return {
+  const config = {
     providerId: definition.id,
     baseUrl: definition.defaultBaseUrl,
     model: '',
     temperature: DEFAULT_TEMPERATURE,
   }
+
+  if (definition.id === 'anthropic') {
+    config.sdk = normalizeAnthropicSdkConfig()
+  }
+
+  return config
 }
 
 function normalizeProviderConfig(providerId = 'openai', config = null) {
   const defaults = buildDefaultProviderConfig(providerId)
-  return {
+  const next = {
     providerId: defaults.providerId,
     baseUrl: normalizeBaseUrl(config?.baseUrl || defaults.baseUrl),
     model: normalizeModel(config?.model || ''),
     temperature: normalizeTemperature(config?.temperature ?? defaults.temperature),
   }
+
+  if (providerId === 'anthropic') {
+    next.sdk = normalizeAnthropicSdkConfig(config?.sdk || config?.anthropicSdk)
+  }
+
+  return next
 }
 
 function normalizeLegacyProviderId(value = '') {
@@ -200,6 +215,7 @@ function resolveAiLocalStorageKey(providerId = 'openai') {
 export function createDefaultAiConfig() {
   return sanitizePublicAiConfig({
     currentProviderId: 'openai',
+    enabledTools: [...AI_TOOL_IDS],
     providers: Object.fromEntries(
       AI_PROVIDER_DEFINITIONS.map((definition) => [
         definition.id,
@@ -260,6 +276,7 @@ export function normalizeAiConfig(rawConfig = null) {
   return {
     version: AI_CONFIG_VERSION,
     currentProviderId: legacyCurrentProviderId || defaults.currentProviderId,
+    enabledTools: normalizeEnabledAiToolIds(rawConfig?.enabledTools),
     providers,
     _credentialStorage: credentialStorage,
     _apiKeyFallbacks: apiKeyFallbacks,
@@ -303,6 +320,7 @@ async function persistAiCredentialFallback(
   await writeAiConfigRaw({
     version: AI_CONFIG_VERSION,
     currentProviderId: rawConfig.currentProviderId,
+    enabledTools: rawConfig.enabledTools,
     providers: rawConfig.providers,
     _apiKeyFallbacks: nextFallbacks,
     _credentialStorage: nextStorage,
@@ -401,6 +419,7 @@ export async function saveAiConfig(config = null) {
   await writeAiConfigRaw({
     version: AI_CONFIG_VERSION,
     currentProviderId: sanitizedConfig.currentProviderId,
+    enabledTools: sanitizedConfig.enabledTools,
     providers: sanitizedConfig.providers,
     _apiKeyFallbacks: rawConfig._apiKeyFallbacks,
     _credentialStorage: rawConfig._credentialStorage,

@@ -20,6 +20,7 @@ import { SETTINGS_SECTION_DEFINITIONS } from './settingsSections.js'
 const SettingsTheme = defineAsyncComponent(() => import('./SettingsTheme.vue'))
 const SettingsEditor = defineAsyncComponent(() => import('./SettingsEditor.vue'))
 const SettingsAi = defineAsyncComponent(() => import('./SettingsAi.vue'))
+const SettingsSkills = defineAsyncComponent(() => import('./SettingsSkills.vue'))
 const SettingsEnvironment = defineAsyncComponent(() => import('./SettingsEnvironment.vue'))
 const SettingsUpdates = defineAsyncComponent(() => import('./SettingsUpdates.vue'))
 const SettingsZotero = defineAsyncComponent(() => import('./SettingsZotero.vue'))
@@ -38,6 +39,7 @@ const sectionComponents = {
   theme: SettingsTheme,
   editor: SettingsEditor,
   ai: SettingsAi,
+  skills: SettingsSkills,
   system: SettingsEnvironment,
   updates: SettingsUpdates,
   zotero: SettingsZotero,
@@ -100,7 +102,7 @@ const activeSectionComponent = computed(
    居中极简无边界排版 (Centered Borderless Flat Layout)
 ========================================================================== */
 .settings-surface .settings-section-title {
-  display: none;
+  display: none; /* Already indicated by sidebar, remove redundant big titles */
 }
 
 .settings-surface .settings-page {
@@ -120,33 +122,39 @@ const activeSectionComponent = computed(
 }
 
 .settings-surface .settings-group-title {
-  margin: 0;
-  padding: 0;
-  font-size: 11.5px;
+  font-size: 11px;
   font-weight: 600;
-  color: var(--text-muted);
-  letter-spacing: 0.06em;
+  color: var(--text-secondary);
   text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+  padding-left: 8px;
+  padding-top: 16px;
 }
 
 .settings-surface .settings-group-body {
   display: flex;
   flex-direction: column;
-  background: transparent;
-  border: none;
-  border-radius: 0;
-  box-shadow: none;
+  background: var(--surface-base);
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
   padding: 0;
 }
 
 .settings-surface .settings-row {
   display: flex;
-  align-items: center; 
+  align-items: center;
   justify-content: space-between;
-  gap: 32px; /* 拉大文字和控件的最小间距 */
-  padding: 16px 0; 
+  gap: 16px;
+  padding: 12px 16px;
   border-bottom: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
   background: transparent;
+  transition: background-color 0.15s ease;
+}
+.settings-surface .settings-row:hover {
+  background: color-mix(in srgb, var(--sidebar-item-hover) 20%, transparent);
 }
 
 .settings-surface .settings-row:last-child {
@@ -162,17 +170,17 @@ const activeSectionComponent = computed(
 }
 
 .settings-surface .settings-row-title {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
   color: var(--text-primary);
   line-height: 1.3;
 }
 
 .settings-surface .settings-row-hint {
-  font-size: 12.5px;
-  line-height: 1.5;
-  color: var(--text-muted);
-  max-width: 80%; /* 防止描述文字过长导致阅读视线疲劳 */
+  font-size: 12px;
+  color: color-mix(in srgb, var(--text-secondary) 80%, transparent);
+  line-height: 1.4;
+  margin-top: 2px;
 }
 
 /* 右侧控件容器 */
@@ -200,7 +208,7 @@ const activeSectionComponent = computed(
   font-size: 13px !important;
   background: var(--surface-raised) !important;
   border: 1px solid color-mix(in srgb, var(--border) 60%, transparent) !important;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.03) !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03) !important;
   color: var(--text-primary) !important;
 }
 
@@ -218,7 +226,7 @@ const activeSectionComponent = computed(
   width: 38px;
   height: 22px;
   background: var(--border);
-  box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 .settings-surface button.ui-switch.ui-switch--md.is-on {
   background: var(--success);
@@ -244,7 +252,7 @@ const activeSectionComponent = computed(
   border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
   border-radius: 6px;
   background: color-mix(in srgb, var(--surface-raised) 50%, transparent);
-  box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
 }
 
 .settings-surface .settings-segmented-btn {
@@ -256,13 +264,15 @@ const activeSectionComponent = computed(
   color: var(--text-muted);
   font-size: 13px;
   cursor: pointer;
-  transition: color 0.15s, background 0.15s;
+  transition:
+    color 0.15s,
+    background 0.15s;
 }
 
 .settings-surface .settings-segmented-btn.is-active {
   background: var(--surface-base);
   color: var(--text-primary);
-  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
   border: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
 }
 
@@ -280,13 +290,23 @@ const activeSectionComponent = computed(
     padding: 0 24px;
   }
   .settings-surface .settings-row {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 12px;
-    padding: 16px 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px 16px;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
+    background: transparent;
+    transition: background-color 0.15s ease;
+  }
+  .settings-surface .settings-row:hover {
+    background: color-mix(in srgb, var(--sidebar-item-hover) 20%, transparent);
   }
   .settings-surface .settings-row-hint {
-    max-width: 100%;
+    font-size: 12px;
+    color: color-mix(in srgb, var(--text-secondary) 80%, transparent);
+    line-height: 1.4;
+    margin-top: 2px;
   }
   .settings-surface .settings-row-control {
     width: 100%;
@@ -299,7 +319,7 @@ const activeSectionComponent = computed(
    极简无边界排版 (Borderless Flat Layout)
 ========================================================================== */
 .settings-surface .settings-section-title {
-  display: none;
+  display: none; /* Already indicated by sidebar, remove redundant big titles */
 }
 
 .settings-surface .settings-page {
@@ -318,35 +338,41 @@ const activeSectionComponent = computed(
 
 /* 分组标题：精致的次级标题，全大写字母带字间距，极具学术排版感 */
 .settings-surface .settings-group-title {
-  margin: 0;
-  padding: 0;
-  font-size: 11.5px;
+  font-size: 11px;
   font-weight: 600;
-  color: var(--text-muted);
-  letter-spacing: 0.06em;
+  color: var(--text-secondary);
   text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+  padding-left: 8px;
+  padding-top: 16px;
 }
 
 /* 取消所有的卡片容器背景、边框和阴影 */
 .settings-surface .settings-group-body {
   display: flex;
   flex-direction: column;
-  background: transparent;
-  border: none;
-  border-radius: 0;
-  box-shadow: none;
+  background: var(--surface-base);
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
   padding: 0;
 }
 
 /* 每行只留极其微弱的底线，没有侧边距 */
 .settings-surface .settings-row {
   display: flex;
-  align-items: center; 
+  align-items: center;
   justify-content: space-between;
-  gap: 24px;
-  padding: 16px 0; /* 靠两侧贴齐 */
+  gap: 16px;
+  padding: 12px 16px;
   border-bottom: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
   background: transparent;
+  transition: background-color 0.15s ease;
+}
+.settings-surface .settings-row:hover {
+  background: color-mix(in srgb, var(--sidebar-item-hover) 20%, transparent);
 }
 
 /* 去除最后一条底线，保持组底部的干净 */
@@ -364,16 +390,17 @@ const activeSectionComponent = computed(
 }
 
 .settings-surface .settings-row-title {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
   color: var(--text-primary);
   line-height: 1.3;
 }
 
 .settings-surface .settings-row-hint {
-  font-size: 12.5px;
-  line-height: 1.5;
-  color: var(--text-muted);
+  font-size: 12px;
+  color: color-mix(in srgb, var(--text-secondary) 80%, transparent);
+  line-height: 1.4;
+  margin-top: 2px;
 }
 
 .settings-surface .settings-row-control {
@@ -398,11 +425,11 @@ const activeSectionComponent = computed(
   border-radius: 6px !important;
   padding: 0 12px !important;
   font-size: 13px !important;
-  
+
   /* 控件稍微有一点物理质感，衬托在纯平背景上 */
   background: var(--surface-raised) !important;
   border: 1px solid color-mix(in srgb, var(--border) 60%, transparent) !important;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.03) !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03) !important;
   color: var(--text-primary) !important;
 }
 
@@ -421,7 +448,7 @@ const activeSectionComponent = computed(
   width: 38px;
   height: 22px;
   background: var(--border);
-  box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 .settings-surface button.ui-switch.ui-switch--md.is-on {
   background: var(--success);
@@ -448,7 +475,7 @@ const activeSectionComponent = computed(
   border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
   border-radius: 6px;
   background: color-mix(in srgb, var(--surface-raised) 50%, transparent);
-  box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
 }
 
 .settings-surface .settings-segmented-btn {
@@ -460,13 +487,15 @@ const activeSectionComponent = computed(
   color: var(--text-muted);
   font-size: 13px;
   cursor: pointer;
-  transition: color 0.15s, background 0.15s;
+  transition:
+    color 0.15s,
+    background 0.15s;
 }
 
 .settings-surface .settings-segmented-btn.is-active {
   background: var(--surface-base);
   color: var(--text-primary);
-  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
   border: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
 }
 
@@ -480,10 +509,17 @@ const activeSectionComponent = computed(
     width: 100%;
   }
   .settings-surface .settings-row {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 10px;
-    padding: 16px 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px 16px;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
+    background: transparent;
+    transition: background-color 0.15s ease;
+  }
+  .settings-surface .settings-row:hover {
+    background: color-mix(in srgb, var(--sidebar-item-hover) 20%, transparent);
   }
   .settings-surface .settings-row-control {
     width: 100%;

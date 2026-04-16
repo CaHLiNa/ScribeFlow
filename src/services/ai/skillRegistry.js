@@ -1,38 +1,18 @@
 import { isAiContextAvailable } from '../../domains/ai/aiContextRuntime.js'
+import { t } from '../../i18n/index.js'
+import { isAltalsManagedFilesystemSkill } from './skillDiscovery.js'
 
-export const AI_SKILL_DEFINITIONS = [
+export const AI_BUILT_IN_ACTION_DEFINITIONS = [
   {
     id: 'grounded-chat',
+    kind: 'built-in-action',
     titleKey: 'Grounded chat',
     descriptionKey: 'Ask the AI about the active workbench context without leaving the project.',
-    requiredContext: ['document'],
-  },
-  {
-    id: 'revise-with-citations',
-    titleKey: 'Revise with citations',
-    descriptionKey: 'Rewrite the selected passage using the current reference as grounding.',
-    requiredContext: ['document', 'selection', 'reference'],
-  },
-  {
-    id: 'draft-related-work',
-    titleKey: 'Draft related work',
-    descriptionKey:
-      'Use the active draft and selected reference to shape a related-work paragraph.',
-    requiredContext: ['document', 'reference'],
-  },
-  {
-    id: 'summarize-selection',
-    titleKey: 'Summarize selection',
-    descriptionKey: 'Turn the active selection into a structured research note.',
-    requiredContext: ['selection'],
-  },
-  {
-    id: 'find-supporting-references',
-    titleKey: 'Find supporting references',
-    descriptionKey: 'Use the active passage to look for missing support and citations.',
-    requiredContext: ['document', 'selection'],
+    requiredContext: ['workspace'],
   },
 ]
+
+export const AI_SKILL_DEFINITIONS = AI_BUILT_IN_ACTION_DEFINITIONS
 
 const REQUIRED_CONTEXT_LABELS = {
   document: 'active document',
@@ -40,19 +20,24 @@ const REQUIRED_CONTEXT_LABELS = {
   reference: 'selected reference',
 }
 
-function getSkillTitle(skill = {}) {
-  return String(skill.titleKey || skill.id || '').trim()
+function getDisplayTitle(entry = {}) {
+  return String(entry.titleKey || entry.name || entry.id || '').trim()
 }
 
 function getDocumentBlock(contextBundle = {}) {
-  if (!contextBundle.document?.available) return '- Active document: unavailable'
-  return `- Active document: ${contextBundle.document.filePath}`
+  if (!contextBundle.document?.available) return `- ${t('Active document')}: ${t('Unavailable')}`
+  return `- ${t('Active document')}: ${contextBundle.document.filePath}`
+}
+
+function getWorkspaceBlock(contextBundle = {}) {
+  if (!contextBundle.workspace?.available) return `- ${t('Folder')}: ${t('Unavailable')}`
+  return `- ${t('Folder')}: ${contextBundle.workspace.path}`
 }
 
 function getSelectionBlock(contextBundle = {}) {
-  if (!contextBundle.selection?.available) return '- Selected text: unavailable'
+  if (!contextBundle.selection?.available) return `- ${t('Selected text')}: ${t('Unavailable')}`
   return [
-    '- Selected text:',
+    `- ${t('Selected text')}:`,
     '```text',
     contextBundle.selection.text,
     '```',
@@ -60,141 +45,122 @@ function getSelectionBlock(contextBundle = {}) {
 }
 
 function getReferenceBlock(contextBundle = {}) {
-  if (!contextBundle.reference?.available) return '- Selected reference: unavailable'
+  if (!contextBundle.reference?.available) return `- ${t('Selected reference')}: ${t('Unavailable')}`
 
   const parts = [
-    `- Selected reference title: ${contextBundle.reference.title || 'Untitled reference'}`,
+    `- ${t('Selected reference title')}: ${contextBundle.reference.title || t('Untitled reference')}`,
   ]
   if (contextBundle.reference.citationKey) {
-    parts.push(`- Citation key: ${contextBundle.reference.citationKey}`)
+    parts.push(`- ${t('Citation key')}: ${contextBundle.reference.citationKey}`)
   }
   if (contextBundle.reference.year) {
-    parts.push(`- Year: ${contextBundle.reference.year}`)
+    parts.push(`- ${t('Year')}: ${contextBundle.reference.year}`)
   }
   if (contextBundle.reference.authorLine) {
-    parts.push(`- Author line: ${contextBundle.reference.authorLine}`)
+    parts.push(`- ${t('Author line')}: ${contextBundle.reference.authorLine}`)
   }
   return parts.join('\n')
 }
 
-function buildMissingContextBlock(skill = {}, contextBundle = {}) {
-  const requiredContext = Array.isArray(skill.requiredContext) ? skill.requiredContext : []
+function buildMissingContextBlock(entry = {}, contextBundle = {}) {
+  const requiredContext = Array.isArray(entry.requiredContext) ? entry.requiredContext : []
   const missing = requiredContext.filter((kind) => !isAiContextAvailable(kind, contextBundle))
   if (missing.length === 0) return ''
 
   return [
-    `Skill: ${getSkillTitle(skill)}`,
+    `${t('Action')}: ${getDisplayTitle(entry)}`,
     '',
-    'This skill is not fully grounded yet.',
-    'Missing context:',
-    ...missing.map((kind) => `- ${REQUIRED_CONTEXT_LABELS[kind] || kind}`),
+    t('This action is not fully grounded yet.'),
+    t('Missing context:'),
+    ...missing.map((kind) => `- ${t(REQUIRED_CONTEXT_LABELS[kind] || kind)}`),
   ].join('\n')
 }
 
-const BRIEF_BUILDERS = {
+const BUILT_IN_BRIEF_BUILDERS = {
   'grounded-chat': (contextBundle) =>
     [
-      'Task: Answer the user in a grounded way using the currently active project context.',
+      `${t('Task')}: ${t('Answer the user in a grounded way using the currently active project context.')}`,
       '',
-      'Context:',
+      `${t('Context')}:`,
+      getWorkspaceBlock(contextBundle),
       getDocumentBlock(contextBundle),
-      contextBundle.selection.available ? getSelectionBlock(contextBundle) : '- Selected text: unavailable',
-      contextBundle.reference.available ? getReferenceBlock(contextBundle) : '- Selected reference: unavailable',
+      contextBundle.selection.available ? getSelectionBlock(contextBundle) : `- ${t('Selected text')}: ${t('Unavailable')}`,
+      contextBundle.reference.available ? getReferenceBlock(contextBundle) : `- ${t('Selected reference')}: ${t('Unavailable')}`,
       '',
-      'Requirements:',
-      '- Stay close to the supplied project context.',
-      '- Make uncertainty explicit instead of inventing support.',
-      '- Keep the answer useful for a research workflow.',
-    ].join('\n'),
-  'revise-with-citations': (contextBundle) =>
-    [
-      'Task: Revise the selected passage so it reads like a tighter academic paragraph and stays grounded in the selected reference.',
-      '',
-      'Context:',
-      getDocumentBlock(contextBundle),
-      getSelectionBlock(contextBundle),
-      getReferenceBlock(contextBundle),
-      '',
-      'Requirements:',
-      '- Preserve the underlying claim unless the evidence looks weak.',
-      '- If the selected reference is not sufficient support, say so explicitly.',
-      '- Suggest where the citation should appear.',
-      '',
-      'Return:',
-      '1. Revised paragraph',
-      '2. Citation suggestion',
-      '3. Short rationale',
-    ].join('\n'),
-  'draft-related-work': (contextBundle) =>
-    [
-      'Task: Draft a related-work paragraph grounded in the selected reference and the current draft context.',
-      '',
-      'Context:',
-      getDocumentBlock(contextBundle),
-      getReferenceBlock(contextBundle),
-      contextBundle.selection.available
-        ? getSelectionBlock(contextBundle)
-        : '- Optional target passage: unavailable',
-      '',
-      'Requirements:',
-      '- Use the selected reference as explicit grounding.',
-      '- Keep the tone suitable for a research manuscript.',
-      '- If the draft context is thin, make the assumptions explicit.',
-      '',
-      'Return:',
-      '1. Related-work paragraph',
-      '2. Suggested citation placement',
-      '3. Any missing-context warning',
-    ].join('\n'),
-  'summarize-selection': (contextBundle) =>
-    [
-      'Task: Summarize the selected text into a structured research note.',
-      '',
-      'Context:',
-      getDocumentBlock(contextBundle),
-      getSelectionBlock(contextBundle),
-      contextBundle.reference.available
-        ? getReferenceBlock(contextBundle)
-        : '- Linked reference: unavailable',
-      '',
-      'Return:',
-      '1. One-sentence takeaway',
-      '2. Three key points',
-      '3. Any follow-up question worth checking',
-    ].join('\n'),
-  'find-supporting-references': (contextBundle) =>
-    [
-      'Task: Use the selected passage to identify what kind of supporting references are missing.',
-      '',
-      'Context:',
-      getDocumentBlock(contextBundle),
-      getSelectionBlock(contextBundle),
-      contextBundle.reference.available
-        ? getReferenceBlock(contextBundle)
-        : '- Current selected reference: unavailable',
-      '',
-      'Requirements:',
-      '- Focus on evidence gaps, not generic keyword expansion.',
-      '- Point out whether the current selected reference is enough.',
-      '',
-      'Return:',
-      '1. Missing-support diagnosis',
-      '2. Reference types to look for',
-      '3. Search query suggestions',
+      `${t('Requirements')}:`,
+      `- ${t('Stay close to the supplied project context.')}`,
+      `- ${t('Make uncertainty explicit instead of inventing support.')}`,
+      `- ${t('Keep the answer useful for a research workflow.')}`,
     ].join('\n'),
 }
 
-export function getAiSkillById(skillId = '') {
-  return AI_SKILL_DEFINITIONS.find((skill) => skill.id === skillId) || null
+export function getAiSkillBehaviorId(entry = null, fallbackSkillId = '') {
+  if (!entry) return String(fallbackSkillId || '').trim()
+  if (entry.kind === 'filesystem-skill') {
+    return String(entry.slug || entry.name || fallbackSkillId || '').trim()
+  }
+  return String(entry.id || fallbackSkillId || '').trim()
 }
 
-export function buildPreparedAiBrief(skillId = '', contextBundle = {}) {
-  const skill = getAiSkillById(skillId)
-  if (!skill) return ''
+function buildFilesystemSkillBrief(skill = {}, contextBundle = {}) {
+  return [
+    `${t('Skill')}: ${skill.name || skill.slug || t('Unnamed skill')}`,
+    `${t('Type')}: ${t('Filesystem skill')}`,
+    `${t('Source path')}: ${skill.skillFilePath || skill.directoryPath || t('unknown')}`,
+    `${t('Scope')}: ${skill.scope === 'user' ? t('User scope') : t('Workspace scope')}`,
+    skill.supportingFiles?.length
+      ? `${t('Supporting files in skill directory')}: ${skill.supportingFiles.join(', ')}`
+      : `${t('Supporting files in skill directory')}: ${t('None discovered')}`,
+    '',
+    `${t('Grounded project context')}:`,
+    getWorkspaceBlock(contextBundle),
+    getDocumentBlock(contextBundle),
+    getSelectionBlock(contextBundle),
+    getReferenceBlock(contextBundle),
+    '',
+    `${t('Skill instructions (from SKILL.md)')}:`,
+    '```md',
+    String(skill.markdown || '').trim(),
+    '```',
+    '',
+    `${t('Requirements')}:`,
+    `- ${t('Follow the skill instructions as the primary workflow.')}`,
+    `- ${t('Stay grounded in the supplied Altals project context.')}`,
+    `- ${t('If the skill expects tools or files not yet available, say so explicitly instead of inventing them.')}`,
+  ].join('\n')
+}
 
-  const missingContextBlock = buildMissingContextBlock(skill, contextBundle)
+export function getBuiltInAiActionById(actionId = '') {
+  return AI_BUILT_IN_ACTION_DEFINITIONS.find((action) => action.id === actionId) || null
+}
+
+export function getAiSkillById(skillId = '', altalsSkills = []) {
+  return (
+    getBuiltInAiActionById(skillId)
+    || (Array.isArray(altalsSkills)
+      ? altalsSkills.find((skill) =>
+        skill.id === skillId && isAltalsManagedFilesystemSkill(skill)
+      ) || null
+      : null)
+  )
+}
+
+export function buildPreparedAiBrief(skillOrId = '', contextBundle = {}, options = {}) {
+  const altalsSkills = Array.isArray(options.altalsSkills) ? options.altalsSkills : []
+  const entry = typeof skillOrId === 'string'
+    ? getAiSkillById(skillOrId, altalsSkills)
+    : skillOrId
+
+  if (!entry) return ''
+
+  if (entry.kind === 'filesystem-skill') {
+    if (!isAltalsManagedFilesystemSkill(entry)) return ''
+    return buildFilesystemSkillBrief(entry, contextBundle)
+  }
+
+  const missingContextBlock = buildMissingContextBlock(entry, contextBundle)
   if (missingContextBlock) return missingContextBlock
 
-  const builder = BRIEF_BUILDERS[skill.id]
+  const builder = BUILT_IN_BRIEF_BUILDERS[entry.id]
   return typeof builder === 'function' ? builder(contextBundle) : ''
 }

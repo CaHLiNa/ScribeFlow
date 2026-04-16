@@ -83,12 +83,18 @@ defineExpose({
   font-weight: 500;
   line-height: 1;
   cursor: pointer;
-  transition: background-color 0.1s, border-color 0.1s, color 0.1s, opacity 0.1s; /* 加快动效，更干脆 */
+  transition:
+    background-color 0.1s,
+    border-color 0.1s,
+    color 0.1s,
+    opacity 0.1s; /* 加快动效，更干脆 */
 }
 
 .ui-button:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--focus-ring);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent),
+    0 0 0 1px var(--accent);
 }
 
 .ui-button:disabled {
@@ -98,19 +104,19 @@ defineExpose({
 
 /* 降低高度，贴近原生比例 */
 .ui-button--sm {
-  min-height: 26px;
+  height: 24px;
   padding: 0 10px;
   font-size: 12px;
 }
 
 .ui-button--md {
-  min-height: 30px;
+  height: 28px;
   padding: 0 12px;
   font-size: 13px;
 }
 
 .ui-button--lg {
-  min-height: 36px;
+  height: 32px;
   padding: 0 16px;
   font-size: 14px;
 }

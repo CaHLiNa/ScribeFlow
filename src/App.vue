@@ -236,8 +236,8 @@ const activeWorkbenchProps = computed(() =>
     : workspace.leftSidebarPanel === 'references'
       ? {}
       : {
-        node: editorStore.paneTree,
-        topbarTabsTargetSelector: '#app-shell-topbar-document-title',
+          node: editorStore.paneTree,
+          topbarTabsTargetSelector: '#app-shell-topbar-document-title',
         }
 )
 const activeWorkbenchClass = computed(() => 'h-full min-h-0 w-full')

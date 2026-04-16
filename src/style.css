@@ -66,6 +66,18 @@ select,
   -webkit-user-select: text;
 }
 
+.ai-workflow-panel,
+.ai-workflow-panel *,
+.ai-conversation-message,
+.ai-conversation-message *,
+.ai-tool-line,
+.ai-tool-line *,
+.ai-inline-artifact,
+.ai-inline-artifact * {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
 @layer utilities {
   .text-xs {
     font-size: var(--ui-font-caption) !important;

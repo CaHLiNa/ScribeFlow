@@ -8,10 +8,7 @@
         :class="[`ui-modal-overlay--${position}`, overlayClass]"
       >
         <!-- 遮罩层 -->
-        <div 
-          class="ui-modal-backdrop ui-overlay-scrim" 
-          @mousedown="handleBackdropClick"
-        ></div>
+        <div class="ui-modal-backdrop ui-overlay-scrim" @mousedown="handleBackdropClick"></div>
 
         <!-- 弹窗本体 -->
         <div
@@ -72,13 +69,16 @@ function handleKeyDown(e) {
   }
 }
 
-watch(() => props.visible, (isVisible) => {
-  if (isVisible) {
-    document.addEventListener('keydown', handleKeyDown)
-  } else {
-    document.removeEventListener('keydown', handleKeyDown)
+watch(
+  () => props.visible,
+  (isVisible) => {
+    if (isVisible) {
+      document.addEventListener('keydown', handleKeyDown)
+    } else {
+      document.removeEventListener('keydown', handleKeyDown)
+    }
   }
-})
+)
 
 onUnmounted(() => {
   document.removeEventListener('keydown', handleKeyDown)
@@ -127,10 +127,18 @@ onUnmounted(() => {
   position: absolute;
 }
 
-.ui-modal-surface--sm { width: min(420px, 100%); }
-.ui-modal-surface--md { width: min(520px, 100%); }
-.ui-modal-surface--lg { width: min(760px, 100%); }
-.ui-modal-surface--xl { width: min(1000px, 100%); }
+.ui-modal-surface--sm {
+  width: min(420px, 100%);
+}
+.ui-modal-surface--md {
+  width: min(520px, 100%);
+}
+.ui-modal-surface--lg {
+  width: min(760px, 100%);
+}
+.ui-modal-surface--xl {
+  width: min(1000px, 100%);
+}
 
 .ui-modal-header,
 .ui-modal-footer {
@@ -149,10 +157,14 @@ onUnmounted(() => {
 
 /* 原生弹窗进场动画 */
 .modal-fade-enter-active {
-  transition: opacity 0.2s ease, transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .modal-fade-leave-active {
-  transition: opacity 0.15s ease, transform 0.15s ease;
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease;
 }
 .modal-fade-enter-from,
 .modal-fade-leave-to {

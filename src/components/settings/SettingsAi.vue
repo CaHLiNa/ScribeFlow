@@ -8,9 +8,6 @@
         <div class="settings-row">
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('Active provider') }}</div>
-            <div class="settings-row-hint">
-              {{ t('Choose which saved provider should power grounded chat and AI skills.') }}
-            </div>
           </div>
           <div class="settings-row-control">
             <UiSelect
@@ -24,14 +21,14 @@
 
         <div class="settings-row">
           <div class="settings-row-copy">
-            <div class="settings-row-title">{{ t('Connection status') }}</div>
-            <div class="settings-row-hint">
+            <div class="settings-row-title">{{ t('Status') }}</div>
+            <div class="settings-row-hint" style="color: var(--text-secondary)">
               {{ activeProviderStatusCopy }}
             </div>
           </div>
           <div class="settings-row-control compact settings-ai-actions">
             <UiButton variant="secondary" size="sm" :disabled="saving" @click="handleSave">
-              {{ saving ? t('Saving...') : t('Save all providers') }}
+              {{ saving ? t('Saving...') : t('Save configs') }}
             </UiButton>
           </div>
         </div>
@@ -47,147 +44,203 @@
 
     <section class="settings-group">
       <h4 class="settings-group-title">{{ t('Provider configurations') }}</h4>
-      <div class="settings-ai-provider-list">
-        <article
+      <div class="settings-ai-provider-listbox">
+        <div
           v-for="provider in providerDefinitions"
           :key="provider.id"
-          class="settings-ai-provider-card"
-          :class="{ 'is-active': provider.id === currentProviderId }"
+          class="settings-ai-provider-item"
+          :class="{
+            'is-expanded': expandedProvider === provider.id,
+            'is-active-provider': provider.id === currentProviderId,
+          }"
         >
-          <header class="settings-ai-provider-card__header">
-            <div class="settings-ai-provider-card__copy">
-              <div class="settings-ai-provider-card__titleline">
-                <h5 class="settings-ai-provider-card__title">{{ provider.label }}</h5>
-                <span class="settings-ai-provider-card__badge">
-                  {{
-                    provider.id === currentProviderId
-                      ? t('Active provider')
-                      : t('Available')
-                  }}
-                </span>
+          <!-- Header Line -->
+          <div class="settings-ai-provider-header" @click="toggleProvider(provider.id)">
+            <div class="settings-ai-provider-header-left">
+              <div class="settings-ai-provider-icon">
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path
+                    d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"
+                  ></path>
+                </svg>
               </div>
-              <p class="settings-ai-provider-card__hint">
-                {{
-                  provider.id === 'custom'
-                    ? t('Use this slot for OpenAI-compatible relays, local gateways, or enterprise endpoints.')
-                    : `${t('Default endpoint')}: ${provider.baseUrlHint}`
-                }}
-              </p>
+              <div class="settings-ai-provider-name">{{ provider.label }}</div>
+              <div v-if="provider.id === currentProviderId" class="settings-ai-provider-badge">
+                {{ t('Active') }}
+              </div>
             </div>
 
-            <div class="settings-ai-provider-card__actions">
-              <UiButton
-                variant="secondary"
-                size="sm"
-                :disabled="saving"
-                @click="handleUseProvider(provider.id)"
+            <div class="settings-ai-provider-header-right">
+              <svg
+                class="settings-ai-provider-chevron"
+                :class="{ 'is-rotated': expandedProvider === provider.id }"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
               >
-                {{
-                  provider.id === currentProviderId
-                    ? t('Using this provider')
-                    : t('Use this provider')
-                }}
-              </UiButton>
-              <UiButton
-                variant="secondary"
-                size="sm"
-                :disabled="saving || isTestingProvider(provider.id) || !canTestProvider(provider.id)"
-                @click="handleTestProvider(provider.id)"
-              >
-                {{
-                  isTestingProvider(provider.id)
-                    ? t('Testing...')
-                    : t('Test connection')
-                }}
-              </UiButton>
-              <UiButton
-                variant="danger"
-                size="sm"
-                :disabled="saving"
-                @click="handleClearProvider(provider.id)"
-              >
-                {{ t('Clear') }}
-              </UiButton>
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
             </div>
-          </header>
+          </div>
 
-          <div class="settings-group-body settings-ai-provider-card__body">
-            <div class="settings-row">
-              <div class="settings-row-copy">
-                <div class="settings-row-title">{{ t('Base URL') }}</div>
-                <div class="settings-row-hint">
-                  {{
-                    provider.id === 'custom'
-                      ? t('Provide a chat-completions compatible endpoint such as a local relay or hosted gateway.')
-                      : t('The official preset is prefilled, but you can override it for mirrors or relays.')
-                  }}
+          <!-- Collapsible Body -->
+          <transition name="ai-provider-collapse">
+            <div class="settings-ai-provider-body" v-show="expandedProvider === provider.id">
+              <div class="settings-row settings-ai-provider-row">
+                <div class="settings-row-copy">
+                  <div class="settings-row-title">{{ t('Base URL') }}</div>
+                </div>
+                <div class="settings-row-control">
+                  <UiInput
+                    :model-value="getProviderForm(provider.id).baseUrl"
+                    size="sm"
+                    :placeholder="provider.baseUrlHint"
+                    class="settings-ai-input"
+                    @update:model-value="updateProviderField(provider.id, 'baseUrl', $event)"
+                  />
                 </div>
               </div>
-              <div class="settings-row-control">
-                <UiInput
-                  :model-value="getProviderForm(provider.id).baseUrl"
-                  size="sm"
-                  :placeholder="provider.baseUrlHint"
-                  @update:model-value="updateProviderField(provider.id, 'baseUrl', $event)"
-                />
+
+              <div class="settings-row settings-ai-provider-row">
+                <div class="settings-row-copy">
+                  <div class="settings-row-title">{{ t('Model') }}</div>
+                </div>
+                <div class="settings-row-control">
+                  <UiInput
+                    :model-value="getProviderForm(provider.id).model"
+                    size="sm"
+                    :placeholder="provider.modelPlaceholder"
+                    class="settings-ai-input"
+                    @update:model-value="updateProviderField(provider.id, 'model', $event)"
+                  />
+                </div>
+              </div>
+
+              <div class="settings-row settings-ai-provider-row">
+                <div class="settings-row-copy">
+                  <div class="settings-row-title">{{ t('API key') }}</div>
+                </div>
+                <div class="settings-row-control">
+                  <UiInput
+                    :model-value="getProviderKey(provider.id)"
+                    size="sm"
+                    type="password"
+                    :placeholder="provider.id === 'custom' ? 'token-...' : 'sk-...'"
+                    class="settings-ai-input"
+                    @update:model-value="updateProviderKey(provider.id, $event)"
+                  />
+                </div>
+              </div>
+
+              <template v-if="provider.id === 'anthropic'">
+                <div class="settings-row settings-ai-provider-row">
+                  <div class="settings-row-copy">
+                    <div class="settings-row-title">{{ t('SDK runtime') }}</div>
+                  </div>
+                  <div class="settings-row-control">
+                    <UiSelect
+                      :model-value="getProviderForm('anthropic').sdkRuntimeMode"
+                      size="sm"
+                      :options="anthropicRuntimeOptions"
+                      @update:model-value="updateAnthropicSdkField('sdkRuntimeMode', $event)"
+                    />
+                  </div>
+                </div>
+
+                <div class="settings-row settings-ai-provider-row">
+                  <div class="settings-row-copy">
+                    <div class="settings-row-title">{{ t('Approval mode') }}</div>
+                  </div>
+                  <div class="settings-row-control">
+                    <UiSelect
+                      :model-value="getProviderForm('anthropic').sdkApprovalMode"
+                      size="sm"
+                      :options="anthropicApprovalOptions"
+                      :disabled="getProviderForm('anthropic').sdkRuntimeMode !== 'sdk'"
+                      @update:model-value="updateAnthropicSdkField('sdkApprovalMode', $event)"
+                    />
+                  </div>
+                </div>
+
+                <div
+                  class="settings-row settings-ai-provider-row settings-ai-provider-row--sdk-tools"
+                >
+                  <div class="settings-row-copy">
+                    <div class="settings-row-title">{{ t('Built-in tool policy') }}</div>
+                  </div>
+                  <div class="settings-row-control">
+                    <div class="settings-ai-tool-policy-list">
+                      <div
+                        v-for="tool in AI_ANTHROPIC_SDK_TOOL_DEFINITIONS"
+                        :key="tool.id"
+                        class="settings-ai-tool-policy-item"
+                      >
+                        <div class="settings-ai-tool-policy-copy">
+                          <div class="settings-ai-tool-policy-title">{{ tool.label }}</div>
+                          <div class="settings-ai-tool-policy-meta">
+                            {{ t(tool.descriptionKey) }}
+                          </div>
+                        </div>
+                        <UiSelect
+                          :model-value="
+                            getProviderForm('anthropic').sdkToolPolicies?.[tool.id] || 'ask'
+                          "
+                          size="sm"
+                          class="settings-ai-tool-policy-select"
+                          :options="anthropicPolicyOptions"
+                          :disabled="getProviderForm('anthropic').sdkRuntimeMode !== 'sdk'"
+                          @update:model-value="updateAnthropicToolPolicy(tool.id, $event)"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </template>
+
+              <div
+                class="settings-row settings-ai-provider-row"
+                style="border-bottom: none; padding-bottom: 0"
+              >
+                <div class="settings-row-copy"></div>
+                <div class="settings-row-control" style="gap: 8px; justify-content: flex-end">
+                  <UiButton
+                    variant="secondary"
+                    size="sm"
+                    :disabled="
+                      saving || isTestingProvider(provider.id) || !canTestProvider(provider.id)
+                    "
+                    @click="handleTestProvider(provider.id)"
+                  >
+                    {{ isTestingProvider(provider.id) ? t('Testing...') : t('Test connection') }}
+                  </UiButton>
+                  <UiButton
+                    variant="danger"
+                    size="sm"
+                    style="background: transparent; color: var(--error)"
+                    :disabled="saving"
+                    @click="handleClearProvider(provider.id)"
+                  >
+                    {{ t('Clear') }}
+                  </UiButton>
+                </div>
               </div>
             </div>
-
-            <div class="settings-row">
-              <div class="settings-row-copy">
-                <div class="settings-row-title">{{ t('Model') }}</div>
-                <div class="settings-row-hint">{{ t('Set the exact model identifier exposed by your provider.') }}</div>
-              </div>
-              <div class="settings-row-control">
-                <UiInput
-                  :model-value="getProviderForm(provider.id).model"
-                  size="sm"
-                  :placeholder="provider.modelPlaceholder"
-                  @update:model-value="updateProviderField(provider.id, 'model', $event)"
-                />
-              </div>
-            </div>
-
-            <div class="settings-row">
-              <div class="settings-row-copy">
-                <div class="settings-row-title">{{ t('API key') }}</div>
-                <div class="settings-row-hint">{{ t('Store credentials locally in the app keychain.') }}</div>
-              </div>
-              <div class="settings-row-control">
-                <UiInput
-                  :model-value="getProviderKey(provider.id)"
-                  size="sm"
-                  type="password"
-                  :placeholder="provider.id === 'custom' ? 'token-...' : 'sk-...'"
-                  @update:model-value="updateProviderKey(provider.id, $event)"
-                />
-              </div>
-            </div>
-
-            <div class="settings-row">
-              <div class="settings-row-copy">
-                <div class="settings-row-title">{{ t('Temperature') }}</div>
-                <div class="settings-row-hint">{{ t('Lower values keep revision and citation behavior more stable.') }}</div>
-              </div>
-              <div class="settings-row-control">
-                <UiInput
-                  :model-value="getProviderForm(provider.id).temperatureText"
-                  size="sm"
-                  placeholder="0.2"
-                  @update:model-value="updateProviderField(provider.id, 'temperatureText', $event)"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div
-            v-if="providerFeedback[provider.id]?.message"
-            class="settings-inline-message"
-            :class="{ 'settings-inline-message-error': providerFeedback[provider.id]?.type === 'error' }"
-          >
-            {{ providerFeedback[provider.id]?.message }}
-          </div>
-        </article>
+          </transition>
+        </div>
       </div>
     </section>
   </div>
@@ -210,7 +263,14 @@ import {
   setCurrentAiProvider,
   storeAiApiKey,
 } from '../../services/ai/settings.js'
-import { requestOpenAiCompatibleCompletion } from '../../services/ai/openAiCompatible.js'
+import { testAiProviderConnection } from '../../services/ai/providerDiagnostics.js'
+import {
+  AI_ANTHROPIC_SDK_APPROVAL_OPTIONS,
+  AI_ANTHROPIC_SDK_RUNTIME_OPTIONS,
+  AI_ANTHROPIC_SDK_TOOL_DEFINITIONS,
+  AI_ANTHROPIC_SDK_POLICY_OPTIONS,
+  normalizeAnthropicSdkConfig,
+} from '../../services/ai/runtime/anthropicSdkPolicy.js'
 
 const { t } = useI18n()
 
@@ -219,6 +279,12 @@ const providerForms = ref({})
 const providerKeys = ref({})
 const providerFeedback = ref({})
 const currentProviderId = ref('openai')
+const loadedEnabledTools = ref([])
+
+const expandedProvider = ref(null)
+function toggleProvider(id) {
+  expandedProvider.value = expandedProvider.value === id ? null : id
+}
 const saving = ref(false)
 const testingProviderId = ref('')
 const globalError = ref('')
@@ -239,7 +305,9 @@ const activeProviderStatusCopy = computed(() => {
 
   if (feedback?.type === 'success') return feedback.message
   if (!form.baseUrl.trim() || !form.model.trim() || !key.trim()) {
-    return t('The active provider still needs a base URL, model, and API key before it can run skills.')
+    return t(
+      'The active provider still needs a base URL, model, and API key before it can run skills.'
+    )
   }
 
   return `${provider.label} · ${form.model.trim()} · ${form.baseUrl.trim()}`
@@ -247,11 +315,20 @@ const activeProviderStatusCopy = computed(() => {
 
 function buildProviderForm(providerId = '', config = null) {
   const definition = getAiProviderDefinition(providerId)
-  return {
+  const form = {
     baseUrl: String(config?.baseUrl ?? definition.defaultBaseUrl ?? ''),
     model: String(config?.model || ''),
     temperatureText: String(config?.temperature ?? 0.2),
   }
+
+  if (providerId === 'anthropic') {
+    const sdkConfig = normalizeAnthropicSdkConfig(config?.sdk)
+    form.sdkRuntimeMode = sdkConfig.runtimeMode
+    form.sdkApprovalMode = sdkConfig.approvalMode
+    form.sdkToolPolicies = { ...sdkConfig.toolPolicies }
+  }
+
+  return form
 }
 
 function getProviderForm(providerId = '') {
@@ -311,21 +388,29 @@ function normalizeErrorMessage(error, fallback = '') {
 
 function buildProviderConfig(providerId = '') {
   const form = getProviderForm(providerId)
-  return {
+  const config = {
     baseUrl: form.baseUrl.trim(),
     model: form.model.trim(),
     temperature: Number(form.temperatureText || 0.2),
   }
+
+  if (providerId === 'anthropic') {
+    config.sdk = {
+      runtimeMode: String(form.sdkRuntimeMode || 'sdk').trim(),
+      approvalMode: String(form.sdkApprovalMode || 'per-tool').trim(),
+      toolPolicies: { ...(form.sdkToolPolicies || {}) },
+    }
+  }
+
+  return config
 }
 
 function buildConfig() {
   return {
     currentProviderId: currentProviderId.value,
+    enabledTools: [...loadedEnabledTools.value],
     providers: Object.fromEntries(
-      providerDefinitions.map((provider) => [
-        provider.id,
-        buildProviderConfig(provider.id),
-      ])
+      providerDefinitions.map((provider) => [provider.id, buildProviderConfig(provider.id)])
     ),
   }
 }
@@ -339,6 +424,52 @@ function isTestingProvider(providerId = '') {
   return testingProviderId.value === providerId
 }
 
+const anthropicRuntimeOptions = AI_ANTHROPIC_SDK_RUNTIME_OPTIONS.map((option) => ({
+  value: option.value,
+  label: t(option.labelKey),
+}))
+
+const anthropicApprovalOptions = AI_ANTHROPIC_SDK_APPROVAL_OPTIONS.map((option) => ({
+  value: option.value,
+  label: t(option.labelKey),
+}))
+
+const anthropicPolicyOptions = AI_ANTHROPIC_SDK_POLICY_OPTIONS.map((option) => ({
+  value: option.value,
+  label: t(option.labelKey),
+}))
+
+function updateAnthropicSdkField(field = '', value = '') {
+  const currentForm = getProviderForm('anthropic')
+  providerForms.value = {
+    ...providerForms.value,
+    anthropic: {
+      ...currentForm,
+      [field]: String(value ?? ''),
+    },
+  }
+  delete providerFeedback.value.anthropic
+  globalError.value = ''
+  globalSuccess.value = ''
+}
+
+function updateAnthropicToolPolicy(toolId = '', value = '') {
+  const currentForm = getProviderForm('anthropic')
+  providerForms.value = {
+    ...providerForms.value,
+    anthropic: {
+      ...currentForm,
+      sdkToolPolicies: {
+        ...(currentForm.sdkToolPolicies || {}),
+        [toolId]: String(value || 'ask'),
+      },
+    },
+  }
+  delete providerFeedback.value.anthropic
+  globalError.value = ''
+  globalSuccess.value = ''
+}
+
 async function loadState() {
   saving.value = true
   globalError.value = ''
@@ -347,25 +478,20 @@ async function loadState() {
   try {
     const config = await loadAiConfig()
     const keyEntries = await Promise.all(
-      providerDefinitions.map(async (provider) => [
-        provider.id,
-        await loadAiApiKey(provider.id),
-      ])
+      providerDefinitions.map(async (provider) => [provider.id, await loadAiApiKey(provider.id)])
     )
 
     providerForms.value = Object.fromEntries(
       providerDefinitions.map((provider) => [
         provider.id,
-        buildProviderForm(
-          provider.id,
-          getAiProviderConfig(config, provider.id)
-        ),
+        buildProviderForm(provider.id, getAiProviderConfig(config, provider.id)),
       ])
     )
     providerKeys.value = Object.fromEntries(
       keyEntries.map(([providerId, apiKey]) => [providerId, String(apiKey || '')])
     )
     currentProviderId.value = String(config?.currentProviderId || 'openai').trim()
+    loadedEnabledTools.value = Array.isArray(config?.enabledTools) ? [...config.enabledTools] : []
   } catch (error) {
     globalError.value = normalizeErrorMessage(error, t('Failed to load AI settings.'))
   } finally {
@@ -425,17 +551,13 @@ async function handleTestProvider(providerId = '') {
   delete providerFeedback.value[providerId]
 
   try {
-    await requestOpenAiCompatibleCompletion(
+    await testAiProviderConnection(
+      providerId,
       {
         ...buildProviderConfig(providerId),
         providerId,
       },
-      getProviderKey(providerId).trim(),
-      [
-        { role: 'system', content: 'Return valid JSON only.' },
-        { role: 'user', content: 'Return {"answer":"ok"}' },
-      ],
-      { maxTokens: 40 }
+      getProviderKey(providerId).trim()
     )
 
     providerFeedback.value = {
@@ -500,96 +622,160 @@ onMounted(() => {
   justify-content: flex-end;
 }
 
-.settings-ai-provider-list {
+.settings-ai-input {
+  width: 280px;
+  max-width: 100%;
+}
+
+.settings-ai-provider-listbox {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  background: var(--surface-base);
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
 }
 
-.settings-ai-provider-card {
-  border: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
-  border-radius: 18px;
-  padding: 18px 18px 12px;
-  background: color-mix(in srgb, var(--surface-raised) 72%, transparent);
+.settings-ai-provider-item {
+  display: flex;
+  flex-direction: column;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
+  transition: background-color 0.2s ease;
+}
+.settings-ai-provider-item:last-child {
+  border-bottom: none;
 }
 
-.settings-ai-provider-card.is-active {
-  border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 14%, transparent);
+.settings-ai-provider-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  cursor: pointer;
+  user-select: none;
+  background: transparent;
+  transition: background-color 0.15s ease;
+}
+.settings-ai-provider-header:hover {
+  background: color-mix(in srgb, var(--sidebar-item-hover) 40%, transparent);
 }
 
-.settings-ai-provider-card__header {
+.settings-ai-provider-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.settings-ai-provider-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--text-secondary) 8%, transparent);
+  color: var(--text-primary);
+}
+.settings-ai-provider-item.is-active-provider .settings-ai-provider-icon {
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  color: var(--accent);
+}
+
+.settings-ai-provider-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.settings-ai-provider-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+  color: var(--success);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.settings-ai-provider-chevron {
+  color: var(--text-muted);
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.settings-ai-provider-chevron.is-rotated {
+  transform: rotate(180deg);
+}
+
+.settings-ai-provider-body {
+  padding: 4px 16px 16px 48px;
+  background: color-mix(in srgb, var(--sidebar-item-hover) 20%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--border) 20%, transparent);
+}
+
+.settings-ai-provider-body .settings-ai-provider-row {
+  padding: 12px 0;
+  border-bottom: 1px dashed color-mix(in srgb, var(--border) 30%, transparent);
+}
+.settings-ai-provider-body .settings-row-title {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.settings-ai-provider-row--sdk-tools {
+  align-items: flex-start;
+}
+
+.settings-ai-tool-policy-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.settings-ai-tool-policy-item {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 8px;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--border) 28%, transparent);
+  background: color-mix(in srgb, var(--surface-base) 82%, transparent);
 }
 
-.settings-ai-provider-card__copy {
+.settings-ai-tool-policy-copy {
   min-width: 0;
-  flex: 1 1 auto;
-}
-
-.settings-ai-provider-card__titleline {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 3px;
 }
 
-.settings-ai-provider-card__title {
-  margin: 0;
-  font-size: 16px;
+.settings-ai-tool-policy-title {
+  font-size: 12px;
   font-weight: 600;
   color: var(--text-primary);
 }
 
-.settings-ai-provider-card__badge {
-  border-radius: 999px;
-  padding: 3px 10px;
+.settings-ai-tool-policy-meta {
   font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  background: color-mix(in srgb, var(--surface-base) 84%, transparent);
+  line-height: 1.45;
   color: var(--text-secondary);
 }
 
-.settings-ai-provider-card.is-active .settings-ai-provider-card__badge {
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
-  color: color-mix(in srgb, var(--accent) 60%, var(--text-primary));
+.settings-ai-tool-policy-select {
+  min-width: 110px;
+  max-width: 110px;
 }
 
-.settings-ai-provider-card__hint {
-  margin: 8px 0 0;
-  font-size: 12.5px;
-  line-height: 1.5;
-  color: var(--text-muted);
+.ai-provider-collapse-enter-active,
+.ai-provider-collapse-leave-active {
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
 }
-
-.settings-ai-provider-card__actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.settings-ai-provider-card__body {
-  margin-top: 8px;
-}
-
-@media (max-width: 860px) {
-  .settings-ai-provider-card {
-    padding: 16px 14px 10px;
-  }
-
-  .settings-ai-provider-card__header {
-    flex-direction: column;
-  }
-
-  .settings-ai-provider-card__actions {
-    justify-content: flex-start;
-  }
+.ai-provider-collapse-enter-from,
+.ai-provider-collapse-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
 }
 </style>

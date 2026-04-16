@@ -14,7 +14,16 @@
     >
       <span class="ui-select-value">{{ selectedLabel || placeholder }}</span>
       <span class="ui-select-caret" :class="{ 'is-open': isOpen }" aria-hidden="true">
-        <svg width="12" height="12" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <svg
+          width="12"
+          height="12"
+          viewBox="0 0 15 15"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
           <path d="M4.5 9.5L7.5 12.5L10.5 9.5" />
           <path d="M4.5 5.5L7.5 2.5L10.5 5.5" />
         </svg>
@@ -24,16 +33,17 @@
     <!-- 纯原生传送门，脱离所有父级容器的样式干扰 -->
     <Teleport to="body">
       <!-- 全屏透明遮罩：点击外部关闭菜单 -->
-      <div v-if="isOpen" class="ui-select-backdrop" @click.stop="close" @wheel.prevent.stop @touchmove.prevent.stop></div>
-      
+      <div
+        v-if="isOpen"
+        class="ui-select-backdrop"
+        @click.stop="close"
+        @wheel.prevent.stop
+        @touchmove.prevent.stop
+      ></div>
+
       <!-- 下拉菜单本尊 -->
       <Transition name="popover">
-        <div
-          v-if="isOpen"
-          ref="menuRef"
-          class="ui-select-menu"
-          :style="menuStyle"
-        >
+        <div v-if="isOpen" ref="menuRef" class="ui-select-menu" :style="menuStyle">
           <div class="ui-select-viewport scrollbar-hidden">
             <button
               v-for="(option, index) in normalizedOptions"
@@ -45,7 +55,9 @@
               @click.stop="selectOption(option)"
             >
               <span class="ui-select-option-label">{{ option.label }}</span>
-              <span v-if="isSelected(option)" class="ui-select-option-check" aria-hidden="true">✓</span>
+              <span v-if="isSelected(option)" class="ui-select-option-check" aria-hidden="true"
+                >✓</span
+              >
             </button>
           </div>
         </div>
@@ -89,7 +101,9 @@ const normalizedOptions = computed(() =>
   })
 )
 
-const selectedOption = computed(() => normalizedOptions.value.find((o) => o.value === props.modelValue) || null)
+const selectedOption = computed(
+  () => normalizedOptions.value.find((o) => o.value === props.modelValue) || null
+)
 const selectedLabel = computed(() => selectedOption.value?.label || '')
 const triggerLabel = computed(() => props.ariaLabel || selectedLabel.value || 'Select')
 
@@ -107,13 +121,13 @@ function isSelected(option) {
 async function calculatePosition() {
   if (!triggerRef.value) return
   const rect = triggerRef.value.getBoundingClientRect()
-  
+
   // 默认在下方展示
   menuStyle.value = {
     top: `${rect.bottom + 6}px`,
     left: `${rect.left}px`,
     minWidth: `${rect.width}px`,
-    maxWidth: `min(100vw - 32px, 460px)`
+    maxWidth: `min(100vw - 32px, 460px)`,
   }
 
   await nextTick()
@@ -122,7 +136,7 @@ async function calculatePosition() {
   // 视口边界碰撞检测：如果超出了屏幕底部，就往上翻转
   const menuRect = menuRef.value.getBoundingClientRect()
   const viewportHeight = window.innerHeight || document.documentElement.clientHeight
-  
+
   if (menuRect.bottom > viewportHeight - 12) {
     menuStyle.value.top = `${rect.top - menuRect.height - 6}px`
   }
@@ -184,19 +198,24 @@ defineExpose({
   width: 100%;
   min-width: 0;
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
+  border-radius: 6px;
   background: var(--surface-base);
   color: var(--text-primary);
   font: inherit;
   text-align: left;
-  transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s,
+    background-color 0.15s;
   cursor: pointer;
   outline: none;
 }
 
 .ui-select-trigger:focus-visible {
   border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
-  box-shadow: 0 0 0 2px var(--focus-ring);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent),
+    0 0 0 1px var(--accent);
 }
 
 .ui-select-trigger:disabled {
@@ -205,17 +224,17 @@ defineExpose({
 }
 
 .ui-select-shell--sm .ui-select-trigger {
-  min-height: 26px;
+  height: 24px;
   padding: 0 28px 0 10px;
 }
 
 .ui-select-shell--md .ui-select-trigger {
-  min-height: 30px;
+  height: 28px;
   padding: 0 32px 0 12px;
 }
 
 .ui-select-shell--lg .ui-select-trigger {
-  min-height: 36px;
+  height: 32px;
   padding: 0 36px 0 12px;
 }
 
@@ -238,7 +257,9 @@ defineExpose({
   pointer-events: none;
   transform: translateY(-50%);
   opacity: 0.8;
-  transition: transform 0.2s ease, opacity 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    opacity 0.2s ease;
 }
 
 .ui-select-caret.is-open {
@@ -268,12 +289,16 @@ defineExpose({
   background: color-mix(in srgb, var(--surface-raised) 70%, transparent);
   backdrop-filter: blur(40px) saturate(1.5);
   border: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.15),
+    0 0 0 1px rgba(0, 0, 0, 0.05);
 }
 
 .theme-light .ui-select-menu {
   background: rgba(255, 255, 255, 0.85);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.05);
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.1),
+    0 0 0 1px rgba(0, 0, 0, 0.05);
 }
 
 .ui-select-viewport {
@@ -289,7 +314,7 @@ defineExpose({
   justify-content: space-between;
   gap: 10px;
   width: 100%;
-  min-height: 26px;
+  height: 24px;
   padding: 0 8px;
   border: none;
   border-radius: 5px;
@@ -328,10 +353,14 @@ defineExpose({
 
 /* 原生弹窗动画 */
 .popover-enter-active {
-  transition: opacity 0.15s ease-out, transform 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  transition:
+    opacity 0.15s ease-out,
+    transform 0.15s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .popover-leave-active {
-  transition: opacity 0.1s ease-in, transform 0.1s ease-in;
+  transition:
+    opacity 0.1s ease-in,
+    transform 0.1s ease-in;
 }
 .popover-enter-from {
   opacity: 0;

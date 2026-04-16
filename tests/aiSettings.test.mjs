@@ -26,6 +26,8 @@ test('createDefaultAiConfig includes all shipped provider presets', () => {
   assert.equal(config.currentProviderId, 'openai')
   assert.equal(config.providers.openai.baseUrl, 'https://api.openai.com/v1')
   assert.equal(config.providers.custom.baseUrl, '')
+  assert.ok(Array.isArray(config.enabledTools))
+  assert.ok(config.enabledTools.length > 0)
 })
 
 test('normalizeAiConfig migrates the legacy single-provider shape into the multi-provider map', () => {
@@ -43,6 +45,7 @@ test('normalizeAiConfig migrates the legacy single-provider shape into the multi
   assert.equal(config.providers.openai.model, 'gpt-4.1-mini')
   assert.equal(config._apiKeyFallbacks.openai, 'sk-legacy')
   assert.equal(config._credentialStorage.openai, 'mirrored-file-fallback')
+  assert.ok(config.enabledTools.length > 0)
 })
 
 test('getAiProviderConfig returns normalized defaults for providers not yet configured', () => {
@@ -52,6 +55,36 @@ test('getAiProviderConfig returns normalized defaults for providers not yet conf
   assert.equal(providerConfig.providerId, 'anthropic')
   assert.equal(providerConfig.baseUrl, 'https://api.anthropic.com/v1')
   assert.equal(providerConfig.temperature, 0.2)
+  assert.equal(providerConfig.sdk.runtimeMode, 'sdk')
+  assert.equal(providerConfig.sdk.approvalMode, 'per-tool')
+  assert.equal(providerConfig.sdk.toolPolicies.Read, 'allow')
+  assert.equal(providerConfig.sdk.toolPolicies.Bash, 'deny')
+})
+
+test('normalizeAiConfig preserves anthropic sdk runtime and tool policy overrides', () => {
+  const config = normalizeAiConfig({
+    currentProviderId: 'anthropic',
+    providers: {
+      anthropic: {
+        baseUrl: 'https://api.anthropic.com/v1/',
+        model: 'claude-sonnet-4-6',
+        sdk: {
+          runtimeMode: 'http',
+          approvalMode: 'plan',
+          toolPolicies: {
+            Bash: 'ask',
+            Read: 'deny',
+          },
+        },
+      },
+    },
+  })
+
+  assert.equal(config.providers.anthropic.sdk.runtimeMode, 'http')
+  assert.equal(config.providers.anthropic.sdk.approvalMode, 'plan')
+  assert.equal(config.providers.anthropic.sdk.toolPolicies.Bash, 'ask')
+  assert.equal(config.providers.anthropic.sdk.toolPolicies.Read, 'deny')
+  assert.equal(config.providers.anthropic.sdk.toolPolicies.Grep, 'allow')
 })
 
 test('resolveAiKeychainKey maps provider ids to isolated credential slots', () => {

@@ -1,6 +1,6 @@
 # Product
 
-Altals is a local-first desktop academic research platform for project folders, with first-class Markdown and LaTeX support plus integrated literature management, reading, citation, and AI workflows.
+Altals is a local-first desktop academic research platform for project folders, with first-class Markdown and LaTeX support plus integrated literature management, reading, citation, and an embedded AI agent shell.
 
 The product is not just writing-first. Document writing, literature management, reading, and AI workflows are peer parts of one focused academic workbench, without turning Altals into a generic knowledge manager or detached chat shell.
 
@@ -38,7 +38,7 @@ The current shipped build remains centered on:
 - workflow-aware behavior for Markdown and LaTeX
 - previewing or compiling supported writing formats
 - outline inspection in the current right sidebar
-- a grounded AI panel in the right sidebar plus multi-provider AI settings for official presets and custom relays
+- a grounded AI shell in the right sidebar plus multi-provider settings, grouped skill management in Settings, `/` and `$skill` invocation entry points, and custom relay support
 - repository-linked writing workflows
 - a real references slice inside the workspace shell
 
@@ -61,7 +61,7 @@ The workbench can already open supporting files such as standalone PDFs, `.txt`,
 
 - **Launcher** for opening a local workspace
 - **Workspace surface** for file tree, references, reader-adjacent panels, editor panes, preview or compile actions, and grounded AI workflow entry points
-- **Settings surface** for theme, editor, environment, multi-provider AI routing, and update preferences
+- **Settings surface** for theme, editor, environment, multi-provider AI routing, skill management, and update preferences
 - **Dialogs and overlays** for setup and focused file or workspace actions
 
 ### Planned workbench additions
@@ -69,6 +69,7 @@ The workbench can already open supporting files such as standalone PDFs, `.txt`,
 - **Project references flow** inside the workspace surface, not as a disconnected second app
 - **Reader flow** for PDFs and other project-linked research material
 - **AI workflow entry points** attached to editor, reference, reader, and revision context
+- **Filesystem skills** discovered only from Altals-managed workspace and user directories, so the agent shell stays grounded in project-owned skills
 
 AI workflows should be first-class inside this workbench and still plug into it rather than replace it.
 
@@ -90,7 +91,7 @@ Citations and bibliography behavior should adapt to each format instead of forci
 - The right-side inspection area is currently outline-only in the shipped build, but it may grow into other writing-adjacent inspection panels when they directly support drafting, citation, reading, or grounded AI work.
 - References, reading, writing, citation, and AI context should stay local-first by default.
 - Reference library storage should live in an app-owned Altals directory rather than inside the user workspace tree.
-- AI workflows are first-class, but they should land as grounded workbench capabilities or plugins rather than a detached chat shell.
+- AI workflows are first-class, but they should land as a grounded workbench agent shell with skills and tools rather than a detached chat shell.
 - PDF translation is a valid adjacent capability, but it should not distort the core local research loop.
 - New surfaces, sync systems, or speculative platform expansion should not be introduced casually.
 

@@ -52,7 +52,7 @@ const props = defineProps({
   variant: {
     type: String,
     default: 'default',
-  }
+  },
 })
 
 const emit = defineEmits(['update:modelValue', 'focus', 'blur', 'keydown'])
