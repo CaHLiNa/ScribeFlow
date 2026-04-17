@@ -136,6 +136,99 @@ export function resolveAiRuntimeTools({
   )
 
   register(
+    'create-workspace-file',
+    {
+      name: 'create_workspace_file',
+      description: 'Create a new text file inside the workspace and open it in the editor.',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: 'Workspace-relative or absolute file path.' },
+          content: { type: 'string', description: 'Initial text content for the file.' },
+        },
+        required: ['path'],
+      },
+    },
+    async (toolCallId, args = {}) => {
+      const result = await toolRuntime.createWorkspaceFile?.({
+        path: args.path || '',
+        content: args.content || '',
+      })
+      return buildToolResult(toolCallId, JSON.stringify(result || {}, null, 2))
+    }
+  )
+
+  register(
+    'write-workspace-file',
+    {
+      name: 'write_workspace_file',
+      description: 'Write text content to an existing workspace file and optionally open it.',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: 'Workspace-relative or absolute file path.' },
+          content: { type: 'string', description: 'The full text content to write.' },
+          openAfterWrite: {
+            type: 'boolean',
+            description: 'Open the file in the editor after writing.',
+          },
+        },
+        required: ['path', 'content'],
+      },
+    },
+    async (toolCallId, args = {}) => {
+      const result = await toolRuntime.writeWorkspaceFile?.({
+        path: args.path || '',
+        content: args.content || '',
+        openAfterWrite: args.openAfterWrite,
+      })
+      return buildToolResult(toolCallId, JSON.stringify(result || {}, null, 2))
+    }
+  )
+
+  register(
+    'open-workspace-file',
+    {
+      name: 'open_workspace_file',
+      description: 'Open an existing workspace file in the editor.',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: 'Workspace-relative or absolute file path.' },
+        },
+        required: ['path'],
+      },
+    },
+    async (toolCallId, args = {}) => {
+      const result = await toolRuntime.openWorkspaceFile?.({
+        path: args.path || '',
+      })
+      return buildToolResult(toolCallId, JSON.stringify(result || {}, null, 2))
+    }
+  )
+
+  register(
+    'delete-workspace-path',
+    {
+      name: 'delete_workspace_path',
+      description: 'Delete a file or folder inside the workspace.',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: 'Workspace-relative or absolute file or folder path.' },
+        },
+        required: ['path'],
+      },
+    },
+    async (toolCallId, args = {}) => {
+      const result = await toolRuntime.deleteWorkspacePath?.({
+        path: args.path || '',
+      })
+      return buildToolResult(toolCallId, JSON.stringify(result || {}, null, 2))
+    }
+  )
+
+  register(
     'load-skill-support-files',
     {
       name: 'load_skill_support_files',

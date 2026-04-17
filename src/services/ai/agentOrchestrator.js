@@ -158,6 +158,7 @@ export async function prepareAgentRun({
   })
   const config = {
     ...baseConfig,
+    enabledTools: Array.isArray(fullConfig?.enabledTools) ? [...fullConfig.enabledTools] : [],
     sdk:
       providerId === 'anthropic'
         ? {

@@ -332,7 +332,6 @@ import {
   createManagedSkill,
   deleteManagedSkill,
   duplicateWritableSkill,
-  exportSkillDirectory,
   importManagedSkill,
   isManagedSkill,
   isWritableSkill,
@@ -588,26 +587,6 @@ async function duplicateSkill(skill = {}) {
     await refreshSkills()
   } catch (error) {
     pageError.value = error instanceof Error ? error.message : t('Failed to duplicate skill.')
-  }
-}
-
-async function exportSkill(skill = {}) {
-  resetMessages()
-  const selected = await open({
-    multiple: false,
-    directory: true,
-    title: t('Export skill'),
-  })
-  if (!selected || Array.isArray(selected)) return
-
-  try {
-    await exportSkillDirectory({
-      skill,
-      destinationDirectory: String(selected),
-    })
-    pageSuccess.value = t('Skill exported.')
-  } catch (error) {
-    pageError.value = error instanceof Error ? error.message : t('Failed to export skill.')
   }
 }
 

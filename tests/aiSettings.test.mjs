@@ -9,7 +9,9 @@ import {
   normalizeAiConfig,
   normalizeAiProviderId,
   providerRequiresAiApiKey,
+  providerUsesAutomaticModel,
   resolveAiKeychainKey,
+  resolveAiProviderModel,
 } from '../src/services/ai/settings.js'
 
 test('normalizeAiProviderId migrates legacy openai-compatible ids and unknown ids', () => {
@@ -27,7 +29,9 @@ test('createDefaultAiConfig includes all shipped provider presets', () => {
   )
   assert.equal(config.currentProviderId, 'openai')
   assert.equal(config.providers.openai.baseUrl, 'https://api.openai.com/v1')
+  assert.equal(config.providers.openai.model, 'gpt-5')
   assert.equal(config.providers.custom.baseUrl, '')
+  assert.equal(config.providers.custom.model, '')
   assert.ok(Array.isArray(config.enabledTools))
   assert.ok(config.enabledTools.length > 0)
 })
@@ -44,10 +48,24 @@ test('normalizeAiConfig migrates the legacy single-provider shape into the multi
 
   assert.equal(config.currentProviderId, 'openai')
   assert.equal(config.providers.openai.baseUrl, 'https://api.openai.com/v1')
-  assert.equal(config.providers.openai.model, 'gpt-4.1-mini')
+  assert.equal(config.providers.openai.model, 'gpt-5')
   assert.equal(config._apiKeyFallbacks.openai, 'sk-legacy')
   assert.equal(config._credentialStorage.openai, 'mirrored-file-fallback')
   assert.ok(config.enabledTools.length > 0)
+})
+
+test('normalizeAiConfig enables newly shipped workspace file tools for older configs', () => {
+  const config = normalizeAiConfig({
+    version: 4,
+    enabledTools: ['read-workspace-file'],
+    providers: {},
+  })
+
+  assert.equal(config.enabledTools.includes('read-workspace-file'), true)
+  assert.equal(config.enabledTools.includes('create-workspace-file'), true)
+  assert.equal(config.enabledTools.includes('write-workspace-file'), true)
+  assert.equal(config.enabledTools.includes('open-workspace-file'), true)
+  assert.equal(config.enabledTools.includes('delete-workspace-path'), true)
 })
 
 test('getAiProviderConfig returns normalized defaults for providers not yet configured', () => {
@@ -87,12 +105,25 @@ test('normalizeAiConfig preserves anthropic sdk runtime and tool policy override
   assert.equal(config.providers.anthropic.sdk.toolPolicies.Bash, 'ask')
   assert.equal(config.providers.anthropic.sdk.toolPolicies.Read, 'deny')
   assert.equal(config.providers.anthropic.sdk.toolPolicies.Grep, 'allow')
+  assert.equal(config.providers.anthropic.model, 'claude-sonnet-4-5')
 })
 
 test('resolveAiKeychainKey maps provider ids to isolated credential slots', () => {
   assert.equal(resolveAiKeychainKey('openai'), 'ai-api-key-openai')
   assert.equal(resolveAiKeychainKey('minimax'), 'ai-api-key-minimax')
   assert.equal(resolveAiKeychainKey('unknown-provider'), 'ai-api-key-custom')
+})
+
+test('built-in providers use automatic model resolution while custom providers keep manual model input', () => {
+  assert.equal(providerUsesAutomaticModel('openai'), true)
+  assert.equal(providerUsesAutomaticModel('anthropic'), true)
+  assert.equal(providerUsesAutomaticModel('custom'), false)
+
+  assert.equal(resolveAiProviderModel('openai', { model: 'gpt-5.4' }), 'gpt-5.4')
+  assert.equal(resolveAiProviderModel('openai', {}), 'gpt-5')
+  assert.equal(resolveAiProviderModel('anthropic', { model: 'claude-3-7-sonnet-latest' }), 'claude-3-7-sonnet-latest')
+  assert.equal(resolveAiProviderModel('anthropic', {}), 'claude-sonnet-4-5')
+  assert.equal(resolveAiProviderModel('custom', { model: 'my-local-model' }), 'my-local-model')
 })
 
 test('Anthropic SDK runtime does not require an API key to be ready', () => {

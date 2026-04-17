@@ -12,6 +12,8 @@ function scrubRestoredAgentSession(session = {}) {
   return {
     ...session,
     isRunning: false,
+    queuedPromptDraft: '',
+    queuedAttachments: [],
     permissionRequests: [],
     askUserRequests: [],
     exitPlanRequests: [],

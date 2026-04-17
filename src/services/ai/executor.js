@@ -68,6 +68,7 @@ export async function executeAiAgentEntry({
     attachments,
     referencedFiles,
     requestedTools,
+    enabledToolIds,
     runtimeIntent,
   })
 

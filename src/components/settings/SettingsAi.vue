@@ -1,78 +1,6 @@
 <template>
   <div class="settings-page">
-    <h3 class="settings-section-title">{{ t('Agent') }}</h3>
-
-    <section class="settings-group">
-      <h4 class="settings-group-title">{{ t('Agent runtime') }}</h4>
-      <div class="settings-group-body">
-        <div class="settings-row">
-          <div class="settings-row-copy">
-            <div class="settings-row-title">{{ t('Active provider') }}</div>
-          </div>
-          <div class="settings-row-control">
-            <UiSelect
-              :model-value="currentProviderId"
-              size="sm"
-              :options="providerOptions"
-              @update:model-value="handleProviderSelect"
-            />
-          </div>
-        </div>
-
-        <div class="settings-row">
-          <div class="settings-row-copy">
-            <div class="settings-row-title">{{ t('Status') }}</div>
-            <div class="settings-row-hint" style="color: var(--text-secondary)">
-              {{ activeProviderStatusCopy }}
-            </div>
-          </div>
-          <div class="settings-row-control compact settings-ai-actions">
-            <UiButton variant="secondary" size="sm" :disabled="saving" @click="handleSave">
-              {{ saving ? t('Saving...') : t('Save configs') }}
-            </UiButton>
-          </div>
-        </div>
-
-        <div v-if="globalError" class="settings-inline-message settings-inline-message-error">
-          {{ globalError }}
-        </div>
-        <div v-else-if="globalSuccess" class="settings-inline-message">
-          {{ globalSuccess }}
-        </div>
-      </div>
-    </section>
-
-    <section class="settings-group">
-      <h4 class="settings-group-title">{{ t('Built-in tools') }}</h4>
-      <div class="settings-group-body">
-        <div class="settings-row is-stack">
-          <div class="settings-row-copy">
-            <div class="settings-row-title">{{ t('Tool registry') }}</div>
-            <div class="settings-row-hint">
-              {{
-                t(
-                  'Internal instruction packs are automatic. Configure which built-in tools the agent can use here.'
-                )
-              }}
-            </div>
-          </div>
-          <div class="settings-row-control settings-ai-tool-list">
-            <div v-for="tool in toolDefinitions" :key="tool.id" class="settings-ai-tool-item">
-              <UiSwitch
-                :model-value="enabledToolIds.has(tool.id)"
-                @update:model-value="toggleTool(tool.id, $event)"
-              />
-              <div
-                class="settings-ai-tool-copy"
-                :title="t(tool.descriptionKey || tool.description)"
-              >
-                <span class="settings-ai-tool-label">{{ t(tool.labelKey || tool.label) }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
+    <h3 class="settings-section-title">{{ t('Model providers') }}</h3>
 
     <section class="settings-group">
       <h4 class="settings-group-title">{{ t('Model providers') }}</h4>
@@ -81,10 +9,7 @@
           v-for="provider in providerDefinitions"
           :key="provider.id"
           class="settings-ai-provider-item"
-          :class="{
-            'is-expanded': expandedProvider === provider.id,
-            'is-active-provider': provider.id === currentProviderId,
-          }"
+          :class="{ 'is-expanded': expandedProvider === provider.id }"
         >
           <!-- Header Line -->
           <div class="settings-ai-provider-header" @click="toggleProvider(provider.id)">
@@ -106,8 +31,11 @@
                 </svg>
               </div>
               <div class="settings-ai-provider-name">{{ provider.label }}</div>
-              <div v-if="provider.id === currentProviderId" class="settings-ai-provider-badge">
-                {{ t('Active') }}
+              <div
+                class="settings-ai-provider-badge"
+                :class="{ 'is-configured': isProviderConfigured(provider.id) }"
+              >
+                {{ isProviderConfigured(provider.id) ? t('Configured') : t('Incomplete') }}
               </div>
             </div>
 
@@ -154,14 +82,33 @@
                     <div class="settings-row-title">{{ t('Model') }}</div>
                   </div>
                   <div class="settings-row-control">
-                    <UiInput
+                    <UiSelect
+                      v-if="getProviderModelOptions(provider.id).length > 0"
                       :model-value="getProviderForm(provider.id).model"
                       size="sm"
-                      :placeholder="provider.modelPlaceholder"
+                      class="settings-ai-input"
+                      :options="getProviderModelOptions(provider.id)"
+                      @update:model-value="updateProviderField(provider.id, 'model', $event)"
+                    />
+                    <UiInput
+                      v-else
+                      :model-value="getProviderForm(provider.id).model"
+                      size="sm"
+                      :placeholder="
+                        isLoadingProviderModels(provider.id)
+                          ? t('Loading models...')
+                          : provider.modelPlaceholder
+                      "
                       class="settings-ai-input"
                       @update:model-value="updateProviderField(provider.id, 'model', $event)"
                     />
                   </div>
+                </div>
+                <div
+                  v-if="getProviderModelMeta(provider.id)"
+                  class="settings-ai-provider-row-meta"
+                >
+                  {{ getProviderModelMeta(provider.id) }}
                 </div>
 
                 <div class="settings-row settings-ai-provider-row">
@@ -181,74 +128,10 @@
                 </div>
               </div>
 
-              <template v-if="provider.id === 'anthropic'">
-                <div class="settings-ai-provider-group settings-ai-provider-group--alt">
-                  <div class="settings-row settings-ai-provider-row">
-                    <div class="settings-row-copy">
-                      <div class="settings-row-title">{{ t('SDK runtime') }}</div>
-                    </div>
-                    <div class="settings-row-control">
-                      <UiSelect
-                        :model-value="getProviderForm('anthropic').sdkRuntimeMode"
-                        size="sm"
-                        :options="anthropicRuntimeOptions"
-                        @update:model-value="updateAnthropicSdkField('sdkRuntimeMode', $event)"
-                      />
-                    </div>
-                  </div>
-
-                  <div class="settings-row settings-ai-provider-row">
-                    <div class="settings-row-copy">
-                      <div class="settings-row-title">{{ t('Approval mode') }}</div>
-                    </div>
-                    <div class="settings-row-control">
-                      <UiSelect
-                        :model-value="getProviderForm('anthropic').sdkApprovalMode"
-                        size="sm"
-                        :options="anthropicApprovalOptions"
-                        :disabled="getProviderForm('anthropic').sdkRuntimeMode !== 'sdk'"
-                        @update:model-value="updateAnthropicSdkField('sdkApprovalMode', $event)"
-                      />
-                    </div>
-                  </div>
-
-                  <div
-                    class="settings-row settings-ai-provider-row settings-ai-provider-row--sdk-tools"
-                  >
-                    <div class="settings-row-copy">
-                      <div class="settings-row-title">{{ t('Built-in tool policy') }}</div>
-                    </div>
-                    <div class="settings-row-control">
-                      <div class="settings-ai-tool-policy-list">
-                        <div
-                          v-for="tool in AI_ANTHROPIC_SDK_TOOL_DEFINITIONS"
-                          :key="tool.id"
-                          class="settings-ai-tool-policy-item"
-                        >
-                          <div class="settings-ai-tool-policy-copy">
-                            <div class="settings-ai-tool-policy-title">{{ tool.label }}</div>
-                            <div class="settings-ai-tool-policy-meta">
-                              {{ t(tool.descriptionKey) }}
-                            </div>
-                          </div>
-                          <UiSelect
-                            :model-value="
-                              getProviderForm('anthropic').sdkToolPolicies?.[tool.id] || 'ask'
-                            "
-                            size="sm"
-                            class="settings-ai-tool-policy-select"
-                            :options="anthropicPolicyOptions"
-                            :disabled="getProviderForm('anthropic').sdkRuntimeMode !== 'sdk'"
-                            @update:model-value="updateAnthropicToolPolicy(tool.id, $event)"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </template>
-
               <div class="settings-ai-provider-actions">
+                <UiButton variant="secondary" size="sm" :disabled="saving" @click="handleSave">
+                  {{ saving ? t('Saving...') : t('Save configs') }}
+                </UiButton>
                 <UiButton
                   variant="secondary"
                   size="sm"
@@ -260,6 +143,18 @@
                   {{ isTestingProvider(provider.id) ? t('Testing...') : t('Test connection') }}
                 </UiButton>
                 <UiButton
+                  variant="secondary"
+                  size="sm"
+                  :disabled="isLoadingProviderModels(provider.id)"
+                  @click="refreshProviderModels(provider.id, { force: true })"
+                >
+                  {{
+                    isLoadingProviderModels(provider.id)
+                      ? t('Loading models...')
+                      : t('Refresh models')
+                  }}
+                </UiButton>
+                <UiButton
                   variant="danger"
                   size="sm"
                   style="background: transparent; color: var(--error)"
@@ -268,6 +163,15 @@
                 >
                   {{ t('Clear') }}
                 </UiButton>
+              </div>
+              <div
+                v-if="getProviderFeedback(provider.id)"
+                class="settings-inline-message"
+                :class="{
+                  'settings-inline-message-error': getProviderFeedback(provider.id)?.type === 'error',
+                }"
+              >
+                {{ getProviderFeedback(provider.id)?.message }}
               </div>
             </div>
           </transition>
@@ -278,123 +182,58 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useToastStore } from '../../stores/toast'
 import { useI18n } from '../../i18n'
 import { useAiStore } from '../../stores/ai'
 import UiButton from '../shared/ui/UiButton.vue'
 import UiInput from '../shared/ui/UiInput.vue'
 import UiSelect from '../shared/ui/UiSelect.vue'
-import UiSwitch from '../shared/ui/UiSwitch.vue'
 import {
   AI_PROVIDER_DEFINITIONS,
   clearAiApiKey,
   getAiProviderConfig,
   getAiProviderDefinition,
-  isAiProviderReady,
   loadAiApiKey,
   loadAiConfig,
-  providerRequiresAiApiKey,
+  resolveAiProviderModel,
   saveAiConfig,
-  setCurrentAiProvider,
   storeAiApiKey,
 } from '../../services/ai/settings.js'
+import { listAiProviderModels } from '../../services/ai/providerModels.js'
 import { testAiProviderConnection } from '../../services/ai/providerDiagnostics.js'
-import { AI_TOOL_DEFINITIONS } from '../../services/ai/toolRegistry.js'
-import {
-  AI_ANTHROPIC_SDK_APPROVAL_OPTIONS,
-  AI_ANTHROPIC_SDK_RUNTIME_OPTIONS,
-  AI_ANTHROPIC_SDK_TOOL_DEFINITIONS,
-  AI_ANTHROPIC_SDK_POLICY_OPTIONS,
-  normalizeAnthropicSdkConfig,
-} from '../../services/ai/runtime/anthropicSdkPolicy.js'
+import { normalizeAnthropicSdkConfig } from '../../services/ai/runtime/anthropicSdkPolicy.js'
 
 const { t } = useI18n()
 const aiStore = useAiStore()
 const toastStore = useToastStore()
 
 const providerDefinitions = AI_PROVIDER_DEFINITIONS
-const toolDefinitions = AI_TOOL_DEFINITIONS
 const providerForms = ref({})
 const providerKeys = ref({})
 const providerFeedback = ref({})
-const currentProviderId = ref('openai')
-const loadedEnabledTools = ref([])
+const providerModelOptions = ref({})
+const providerModelLoading = ref({})
+const providerModelErrors = ref({})
+const loadedConfig = ref(null)
 
 const expandedProvider = ref(null)
 function toggleProvider(id) {
   expandedProvider.value = expandedProvider.value === id ? null : id
+  if (expandedProvider.value) {
+    void refreshProviderModels(expandedProvider.value, { force: false })
+  }
 }
 const saving = ref(false)
 const testingProviderId = ref('')
-const globalError = ref('')
-const globalSuccess = ref('')
-const enabledToolIds = computed(() => new Set(loadedEnabledTools.value))
-
-const providerOptions = computed(() =>
-  providerDefinitions.map((provider) => ({
-    value: provider.id,
-    label: provider.label,
-  }))
-)
-
-const activeProviderStatusCopy = computed(() => {
-  const provider = getAiProviderDefinition(currentProviderId.value)
-  const form = getProviderForm(currentProviderId.value)
-  const key = getProviderKey(currentProviderId.value)
-  const feedback = providerFeedback.value[currentProviderId.value]
-  const requiresApiKey = providerRequiresAiApiKey(currentProviderId.value, {
-    baseUrl: form.baseUrl,
-    model: form.model,
-    sdk:
-      currentProviderId.value === 'anthropic'
-        ? {
-            runtimeMode: form.sdkRuntimeMode,
-            approvalMode: form.sdkApprovalMode,
-            toolPolicies: form.sdkToolPolicies,
-          }
-        : undefined,
-  })
-
-  if (feedback?.type === 'success') return feedback.message
-  if (!isAiProviderReady(currentProviderId.value, {
-    baseUrl: form.baseUrl,
-    model: form.model,
-    sdk:
-      currentProviderId.value === 'anthropic'
-        ? {
-            runtimeMode: form.sdkRuntimeMode,
-            approvalMode: form.sdkApprovalMode,
-            toolPolicies: form.sdkToolPolicies,
-          }
-        : undefined,
-  }, key)) {
-    return requiresApiKey
-      ? t(
-          'The active provider still needs a base URL, model, and API key before the agent can run.'
-        )
-      : t('The active provider still needs a base URL and model before the agent can run.')
-  }
-
-  return `${provider.label} · ${form.model.trim()} · ${form.baseUrl.trim()}`
-})
 
 function buildProviderForm(providerId = '', config = null) {
   const definition = getAiProviderDefinition(providerId)
-  const form = {
+  return {
     baseUrl: String(config?.baseUrl ?? definition.defaultBaseUrl ?? ''),
     model: String(config?.model || ''),
     temperatureText: String(config?.temperature ?? 0.2),
   }
-
-  if (providerId === 'anthropic') {
-    const sdkConfig = normalizeAnthropicSdkConfig(config?.sdk)
-    form.sdkRuntimeMode = sdkConfig.runtimeMode
-    form.sdkApprovalMode = sdkConfig.approvalMode
-    form.sdkToolPolicies = { ...sdkConfig.toolPolicies }
-  }
-
-  return form
 }
 
 function getProviderForm(providerId = '') {
@@ -420,8 +259,13 @@ function updateProviderField(providerId = '', field = '', value = '') {
     },
   }
   delete providerFeedback.value[providerId]
-  globalError.value = ''
-  globalSuccess.value = ''
+  if (field === 'baseUrl') {
+    providerModelOptions.value = {
+      ...providerModelOptions.value,
+      [providerId]: [],
+    }
+    delete providerModelErrors.value[providerId]
+  }
 }
 
 function updateProviderKey(providerId = '', value = '') {
@@ -430,8 +274,11 @@ function updateProviderKey(providerId = '', value = '') {
     [providerId]: String(value ?? ''),
   }
   delete providerFeedback.value[providerId]
-  globalError.value = ''
-  globalSuccess.value = ''
+  providerModelOptions.value = {
+    ...providerModelOptions.value,
+    [providerId]: [],
+  }
+  delete providerModelErrors.value[providerId]
 }
 
 function normalizeErrorMessage(error, fallback = '') {
@@ -456,15 +303,17 @@ function buildProviderConfig(providerId = '') {
   const form = getProviderForm(providerId)
   const config = {
     baseUrl: form.baseUrl.trim(),
-    model: form.model.trim(),
+    model: resolveAiProviderModel(providerId, form),
     temperature: Number(form.temperatureText || 0.2),
   }
 
   if (providerId === 'anthropic') {
+    const existingProviderConfig = getAiProviderConfig(loadedConfig.value, providerId)
+    const sdkConfig = normalizeAnthropicSdkConfig(existingProviderConfig?.sdk)
     config.sdk = {
-      runtimeMode: String(form.sdkRuntimeMode || 'sdk').trim(),
-      approvalMode: String(form.sdkApprovalMode || 'per-tool').trim(),
-      toolPolicies: { ...(form.sdkToolPolicies || {}) },
+      runtimeMode: sdkConfig.runtimeMode,
+      approvalMode: sdkConfig.approvalMode,
+      toolPolicies: { ...sdkConfig.toolPolicies },
     }
   }
 
@@ -472,9 +321,11 @@ function buildProviderConfig(providerId = '') {
 }
 
 function buildConfig() {
+  const currentConfig = loadedConfig.value || {}
   return {
-    currentProviderId: currentProviderId.value,
-    enabledTools: [...loadedEnabledTools.value],
+    ...currentConfig,
+    currentProviderId: String(currentConfig.currentProviderId || 'openai').trim(),
+    enabledTools: Array.isArray(currentConfig.enabledTools) ? [...currentConfig.enabledTools] : [],
     providers: Object.fromEntries(
       providerDefinitions.map((provider) => [provider.id, buildProviderConfig(provider.id)])
     ),
@@ -483,63 +334,109 @@ function buildConfig() {
 
 function canTestProvider(providerId = '') {
   const form = getProviderForm(providerId)
-  return !!form.baseUrl.trim() && !!form.model.trim() && !!getProviderKey(providerId).trim()
+  return (
+    !!form.baseUrl.trim() &&
+    !!resolveAiProviderModel(providerId, form) &&
+    !!getProviderKey(providerId).trim()
+  )
 }
 
 function isTestingProvider(providerId = '') {
   return testingProviderId.value === providerId
 }
 
-const anthropicRuntimeOptions = AI_ANTHROPIC_SDK_RUNTIME_OPTIONS.map((option) => ({
-  value: option.value,
-  label: t(option.labelKey),
-}))
-
-const anthropicApprovalOptions = AI_ANTHROPIC_SDK_APPROVAL_OPTIONS.map((option) => ({
-  value: option.value,
-  label: t(option.labelKey),
-}))
-
-const anthropicPolicyOptions = AI_ANTHROPIC_SDK_POLICY_OPTIONS.map((option) => ({
-  value: option.value,
-  label: t(option.labelKey),
-}))
-
-function updateAnthropicSdkField(field = '', value = '') {
-  const currentForm = getProviderForm('anthropic')
-  providerForms.value = {
-    ...providerForms.value,
-    anthropic: {
-      ...currentForm,
-      [field]: String(value ?? ''),
-    },
-  }
-  delete providerFeedback.value.anthropic
-  globalError.value = ''
-  globalSuccess.value = ''
+function isProviderConfigured(providerId = '') {
+  const form = getProviderForm(providerId)
+  return (
+    !!form.baseUrl.trim() &&
+    !!resolveAiProviderModel(providerId, form) &&
+    !!getProviderKey(providerId).trim()
+  )
 }
 
-function updateAnthropicToolPolicy(toolId = '', value = '') {
-  const currentForm = getProviderForm('anthropic')
-  providerForms.value = {
-    ...providerForms.value,
-    anthropic: {
-      ...currentForm,
-      sdkToolPolicies: {
-        ...(currentForm.sdkToolPolicies || {}),
-        [toolId]: String(value || 'ask'),
-      },
-    },
+function getProviderFeedback(providerId = '') {
+  const feedback = providerFeedback.value[providerId]
+  return feedback && typeof feedback === 'object' ? feedback : null
+}
+
+function getProviderModelOptions(providerId = '') {
+  return Array.isArray(providerModelOptions.value[providerId])
+    ? providerModelOptions.value[providerId]
+    : []
+}
+
+function isLoadingProviderModels(providerId = '') {
+  return providerModelLoading.value[providerId] === true
+}
+
+function getProviderModelMeta(providerId = '') {
+  const error = String(providerModelErrors.value[providerId] || '').trim()
+  if (error) return error
+  const optionCount = getProviderModelOptions(providerId).length
+  if (optionCount > 0) {
+    return t('{count} models found', { count: optionCount })
   }
-  delete providerFeedback.value.anthropic
-  globalError.value = ''
-  globalSuccess.value = ''
+  if (isLoadingProviderModels(providerId)) {
+    return t('Loading models...')
+  }
+  return ''
+}
+
+async function refreshProviderModels(providerId = '', { force = false } = {}) {
+  const normalizedProviderId = String(providerId || '').trim()
+  if (!normalizedProviderId) return []
+  if (isLoadingProviderModels(normalizedProviderId)) return getProviderModelOptions(normalizedProviderId)
+  if (!force && getProviderModelOptions(normalizedProviderId).length > 0) {
+    return getProviderModelOptions(normalizedProviderId)
+  }
+
+  providerModelLoading.value = {
+    ...providerModelLoading.value,
+    [normalizedProviderId]: true,
+  }
+  delete providerModelErrors.value[normalizedProviderId]
+
+  try {
+    const options = await listAiProviderModels(
+      normalizedProviderId,
+      buildProviderConfig(normalizedProviderId),
+      getProviderKey(normalizedProviderId).trim()
+    )
+
+    providerModelOptions.value = {
+      ...providerModelOptions.value,
+      [normalizedProviderId]: options,
+    }
+
+    if (options.length > 0) {
+      const currentModel = String(getProviderForm(normalizedProviderId).model || '').trim()
+      const hasCurrentModel = options.some((option) => option.value === currentModel)
+      if (!hasCurrentModel) {
+        updateProviderField(normalizedProviderId, 'model', options[0].value)
+      }
+    }
+
+    return options
+  } catch (error) {
+    providerModelErrors.value = {
+      ...providerModelErrors.value,
+      [normalizedProviderId]: normalizeErrorMessage(error, t('Failed to load models.')),
+    }
+    providerModelOptions.value = {
+      ...providerModelOptions.value,
+      [normalizedProviderId]: [],
+    }
+    return []
+  } finally {
+    providerModelLoading.value = {
+      ...providerModelLoading.value,
+      [normalizedProviderId]: false,
+    }
+  }
 }
 
 async function loadState() {
   saving.value = true
-  globalError.value = ''
-  globalSuccess.value = ''
 
   try {
     const config = await loadAiConfig()
@@ -556,71 +453,42 @@ async function loadState() {
     providerKeys.value = Object.fromEntries(
       keyEntries.map(([providerId, apiKey]) => [providerId, String(apiKey || '')])
     )
-    currentProviderId.value = String(config?.currentProviderId || 'openai').trim()
-    loadedEnabledTools.value = Array.isArray(config?.enabledTools) ? [...config.enabledTools] : []
+    loadedConfig.value = config
+    await aiStore.refreshProviderState()
   } catch (error) {
-    globalError.value = normalizeErrorMessage(error, t('Failed to load AI settings.'))
+    toastStore.show(normalizeErrorMessage(error, t('Failed to load AI settings.')), { type: 'error' })
   } finally {
     saving.value = false
   }
 }
 
 async function persistAllProviders() {
-  await saveAiConfig(buildConfig())
+  const nextConfig = buildConfig()
+  await saveAiConfig(nextConfig)
+  loadedConfig.value = nextConfig
   for (const provider of providerDefinitions) {
     await storeAiApiKey(provider.id, getProviderKey(provider.id).trim())
   }
   await aiStore.refreshProviderState()
 }
 
-async function toggleTool(toolId = '', nextValue = false) {
-  const next = new Set(loadedEnabledTools.value)
-  if (nextValue) next.add(toolId)
-  else next.delete(toolId)
-  loadedEnabledTools.value = [...next]
-
-  try {
-    await saveAiConfig(buildConfig())
-    await aiStore.refreshProviderState()
-    toastStore.show(t('Tool registry updated.'))
-  } catch (error) {
-    toastStore.show(normalizeErrorMessage(error, t('Failed to update tool registry.')), { type: 'error' })
-  }
-}
-
 async function handleSave() {
   saving.value = true
-  globalError.value = ''
-  globalSuccess.value = ''
 
   try {
     await persistAllProviders()
-    globalSuccess.value = t('All AI provider settings saved.')
+    if (expandedProvider.value) {
+      providerFeedback.value = {
+        ...providerFeedback.value,
+        [expandedProvider.value]: {
+          type: 'success',
+          message: t('All AI provider settings saved.'),
+        },
+      }
+    }
+    toastStore.show(t('All AI provider settings saved.'))
   } catch (error) {
-    globalError.value = normalizeErrorMessage(error, t('Failed to save AI settings.'))
-  } finally {
-    saving.value = false
-  }
-}
-
-async function handleProviderSelect(providerId = '') {
-  currentProviderId.value = String(providerId || 'openai').trim()
-  globalError.value = ''
-  globalSuccess.value = ''
-}
-
-async function handleUseProvider(providerId = '') {
-  saving.value = true
-  globalError.value = ''
-  globalSuccess.value = ''
-  currentProviderId.value = String(providerId || 'openai').trim()
-
-  try {
-    await persistAllProviders()
-    await setCurrentAiProvider(currentProviderId.value)
-    globalSuccess.value = t('Active AI provider updated.')
-  } catch (error) {
-    globalError.value = normalizeErrorMessage(error, t('Failed to save AI settings.'))
+    toastStore.show(normalizeErrorMessage(error, t('Failed to save AI settings.')), { type: 'error' })
   } finally {
     saving.value = false
   }
@@ -628,8 +496,6 @@ async function handleUseProvider(providerId = '') {
 
 async function handleTestProvider(providerId = '') {
   testingProviderId.value = providerId
-  globalError.value = ''
-  globalSuccess.value = ''
   delete providerFeedback.value[providerId]
 
   try {
@@ -664,8 +530,6 @@ async function handleTestProvider(providerId = '') {
 
 async function handleClearProvider(providerId = '') {
   saving.value = true
-  globalError.value = ''
-  globalSuccess.value = ''
 
   try {
     providerForms.value = {
@@ -685,9 +549,9 @@ async function handleClearProvider(providerId = '') {
     }
     await clearAiApiKey(providerId)
     await persistAllProviders()
-    globalSuccess.value = `${getAiProviderDefinition(providerId).label} · ${t('AI settings cleared.')}`
+    toastStore.show(`${getAiProviderDefinition(providerId).label} · ${t('AI settings cleared.')}`)
   } catch (error) {
-    globalError.value = normalizeErrorMessage(error, t('Failed to clear AI settings.'))
+    toastStore.show(normalizeErrorMessage(error, t('Failed to clear AI settings.')), { type: 'error' })
   } finally {
     saving.value = false
   }
@@ -699,45 +563,28 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.settings-ai-actions {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.settings-row.is-stack {
-  flex-direction: column;
-  align-items: stretch;
-  gap: 16px;
-}
-
-.settings-ai-tool-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 16px 24px;
-  width: 100%;
-}
-
-.settings-ai-tool-item {
-  display: flex;
+.settings-ai-static-value {
+  display: inline-flex;
   align-items: center;
-  gap: 12px;
-}
-
-.settings-ai-tool-copy {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.settings-ai-tool-label {
-  font-size: 13px;
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  background: color-mix(in srgb, var(--surface-hover) 24%, transparent);
   color: var(--text-primary);
+  font-size: 13px;
 }
 
 .settings-ai-input {
   width: 280px;
   max-width: 100%;
+}
+
+.settings-ai-provider-row-meta {
+  margin-top: -8px;
+  padding-left: 0;
+  font-size: 12px;
+  color: var(--text-secondary);
 }
 
 .settings-ai-provider-listbox {
@@ -790,10 +637,6 @@ onMounted(() => {
   background: color-mix(in srgb, var(--text-secondary) 8%, transparent);
   color: var(--text-primary);
 }
-.settings-ai-provider-item.is-active-provider .settings-ai-provider-icon {
-  background: color-mix(in srgb, var(--accent) 15%, transparent);
-  color: var(--accent);
-}
 
 .settings-ai-provider-name {
   font-size: 14px;
@@ -802,14 +645,21 @@ onMounted(() => {
 }
 
 .settings-ai-provider-badge {
-  font-size: 10px;
-  font-weight: 600;
-  padding: 2px 7px;
-  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  background: color-mix(in srgb, var(--surface-hover) 20%, transparent);
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.settings-ai-provider-badge.is-configured {
+  border-color: color-mix(in srgb, var(--success) 45%, transparent);
   background: color-mix(in srgb, var(--success) 12%, transparent);
   color: var(--success);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 
 .settings-ai-provider-chevron {
@@ -840,11 +690,6 @@ onMounted(() => {
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
 }
 
-.settings-ai-provider-group--alt {
-  background: color-mix(in srgb, var(--surface-overlay) 30%, transparent);
-  border-style: dashed;
-}
-
 .settings-ai-provider-group .settings-ai-provider-row {
   padding: 12px 0;
   border-bottom: 1px solid color-mix(in srgb, var(--border) 25%, transparent);
@@ -857,52 +702,18 @@ onMounted(() => {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
-.settings-ai-provider-row--sdk-tools {
-  align-items: flex-start;
-}
-
-.settings-ai-tool-policy-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  width: 100%;
-}
-
-.settings-ai-tool-policy-item {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 12px;
-  border-radius: 8px;
-  border: 1px solid color-mix(in srgb, var(--border) 28%, transparent);
-  background: color-mix(in srgb, var(--surface-base) 82%, transparent);
-}
-
-.settings-ai-tool-policy-copy {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.settings-ai-tool-policy-title {
+.settings-inline-message {
+  margin-top: 12px;
   font-size: 12px;
-  font-weight: 600;
-  color: var(--text-primary);
+  line-height: 1.5;
+  color: var(--success);
 }
 
-.settings-ai-tool-policy-meta {
-  font-size: 11px;
-  line-height: 1.45;
-  color: var(--text-secondary);
-}
-
-.settings-ai-tool-policy-select {
-  min-width: 110px;
-  max-width: 110px;
+.settings-inline-message-error {
+  color: var(--error);
 }
 
 .ai-provider-collapse-enter-active,

@@ -160,7 +160,6 @@ import {
   storeZoteroApiKey,
   syncNow,
   validateApiKey,
-  zoteroSyncState,
 } from '../../services/references/zoteroSync.js'
 
 const { t } = useI18n()
@@ -198,13 +197,6 @@ const pushTargetOptions = computed(() => {
     { value: `user/${safeUserId}`, label: t('My Library') },
     ...(collectionOptions.value || []),
   ]
-})
-
-const syncStatusText = computed(() => {
-  if (zoteroSyncState?.status === 'syncing') return t('Sync in progress')
-  if (zoteroSyncState?.status === 'synced') return t('Last sync succeeded')
-  if (zoteroSyncState?.status === 'error') return zoteroSyncState.error || t('Sync failed')
-  return t('Ready')
 })
 
 function buildCollectionTree(collections = []) {

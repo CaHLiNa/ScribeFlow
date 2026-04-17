@@ -28,26 +28,32 @@ import UiButton from '../shared/ui/UiButton.vue'
 
 const SettingsAi = defineAsyncComponent(() => import('./SettingsAi.vue'))
 const SettingsSkills = defineAsyncComponent(() => import('./SettingsSkills.vue'))
+const SettingsTools = defineAsyncComponent(() => import('./SettingsTools.vue'))
 
 const AGENT_SETTINGS_SUBPAGE_STORAGE_KEY = 'altals.settings.agentSubpage'
 
 const { t } = useI18n()
 
+const AGENT_SETTINGS_SUBPAGES = Object.freeze(['models', 'skills', 'tools'])
+
+function normalizeAgentSubpage(value = '') {
+  const normalized = String(value || '').trim().toLowerCase()
+  if (normalized === 'runtime') return 'models'
+  return AGENT_SETTINGS_SUBPAGES.includes(normalized) ? normalized : 'models'
+}
+
 function readPersistedAgentSubpage() {
   try {
     const value = String(localStorage.getItem(AGENT_SETTINGS_SUBPAGE_STORAGE_KEY) || '').trim()
-    return value === 'skills' ? 'skills' : 'runtime'
+    return normalizeAgentSubpage(value)
   } catch {
-    return 'runtime'
+    return 'models'
   }
 }
 
-function persistAgentSubpage(value = 'runtime') {
+function persistAgentSubpage(value = 'models') {
   try {
-    localStorage.setItem(
-      AGENT_SETTINGS_SUBPAGE_STORAGE_KEY,
-      String(value || '').trim() === 'skills' ? 'skills' : 'runtime'
-    )
+    localStorage.setItem(AGENT_SETTINGS_SUBPAGE_STORAGE_KEY, normalizeAgentSubpage(value))
   } catch {
     // ignore local storage failures
   }
@@ -57,21 +63,27 @@ const activeSubpage = ref(readPersistedAgentSubpage())
 
 const subpages = computed(() => [
   {
-    id: 'runtime',
-    label: t('Runtime'),
+    id: 'models',
+    label: t('Models'),
   },
   {
     id: 'skills',
     label: t('Agent Skills'),
   },
+  {
+    id: 'tools',
+    label: t('Tools'),
+  },
 ])
 
-const activeComponent = computed(() =>
-  activeSubpage.value === 'skills' ? SettingsSkills : SettingsAi
-)
+const activeComponent = computed(() => {
+  if (activeSubpage.value === 'skills') return SettingsSkills
+  if (activeSubpage.value === 'tools') return SettingsTools
+  return SettingsAi
+})
 
-function setActiveSubpage(subpageId = 'runtime') {
-  activeSubpage.value = String(subpageId || '').trim() === 'skills' ? 'skills' : 'runtime'
+function setActiveSubpage(subpageId = 'models') {
+  activeSubpage.value = normalizeAgentSubpage(subpageId)
   persistAgentSubpage(activeSubpage.value)
 }
 </script>

@@ -41,7 +41,7 @@
 </template>
 
 <script setup>
-import { onMounted, onUnmounted, watch } from 'vue'
+import { onUnmounted, watch } from 'vue'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },

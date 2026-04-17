@@ -1,6 +1,8 @@
 import { buildAgentContextSnapshot, getAiSkillBehaviorId } from './skillRegistry.js'
 import { isDefaultAgentActionId } from './builtInActions.js'
 import { buildSkillSupportPromptBlock } from './skillSupportFiles.js'
+import { isAltalsManagedFilesystemSkill } from './skillDiscovery.js'
+import { buildAiToolPromptBlock, resolveEnabledAiTools } from './toolRegistry.js'
 
 function buildResponseContract(behaviorId = '') {
   if (isDefaultAgentActionId(behaviorId)) {
@@ -164,15 +166,47 @@ export function buildWorkspaceContextPromptBlock(contextBundle = {}) {
   ].join('\n')
 }
 
+function buildAvailableSkillsBlock(altalsSkills = []) {
+  const entries = (Array.isArray(altalsSkills) ? altalsSkills : [])
+    .filter((skill) => isAltalsManagedFilesystemSkill(skill))
+    .map((skill) => ({
+      name: String(skill.name || skill.slug || skill.directoryName || skill.id || '').trim(),
+      description: String(skill.description || '').trim(),
+      scope: String(skill.scope || '').trim(),
+    }))
+    .filter((skill) => skill.name)
+
+  if (entries.length === 0) {
+    return ['Available filesystem skills:', '- None discovered.'].join('\n')
+  }
+
+  return [
+    'Available filesystem skills:',
+    ...entries.map((skill) =>
+      `- ${skill.name}${skill.scope ? ` [${skill.scope}]` : ''}${
+        skill.description ? `: ${skill.description}` : ''
+      }`
+    ),
+  ].join('\n')
+}
+
+function buildAvailableToolsBlock(enabledToolIds = []) {
+  return buildAiToolPromptBlock(resolveEnabledAiTools(enabledToolIds))
+}
+
 function buildAgentModeUserPrompt({
   userInstruction = '',
   conversation = [],
   contextBundle = {},
+  altalsSkills = [],
+  enabledToolIds = [],
   referencedFiles = [],
   attachments = [],
   requestedTools = [],
 } = {}) {
   const conversationBlock = buildConversationBlock(conversation)
+  const availableSkillsBlock = buildAvailableSkillsBlock(altalsSkills)
+  const availableToolsBlock = buildAvailableToolsBlock(enabledToolIds)
   const referencedFilesBlock = buildReferencedFilesBlock(referencedFiles)
   const attachmentBlock = buildAttachmentBlock(attachments)
   const requestedToolsBlock = buildRequestedToolsBlock(requestedTools)
@@ -183,6 +217,8 @@ function buildAgentModeUserPrompt({
       'Continue the task using the available workspace context.',
     '',
     buildWorkspaceContextPromptBlock(contextBundle),
+    `\n${availableSkillsBlock}`,
+    `\n${availableToolsBlock}`,
     referencedFilesBlock ? `\n${referencedFilesBlock}` : '',
     attachmentBlock ? `\n${attachmentBlock}` : '',
     requestedToolsBlock ? `\n${requestedToolsBlock}` : '',
@@ -200,11 +236,13 @@ function buildSkillModeUserPrompt({
   attachments = [],
   referencedFiles = [],
   requestedTools = [],
+  enabledToolIds = [],
   behaviorId = '',
   structured = false,
 } = {}) {
   const contextSnapshot = buildAgentContextSnapshot(skill, contextBundle, { altalsSkills })
   const supportFileBlock = buildSkillSupportPromptBlock(supportFiles)
+  const availableToolsBlock = buildAvailableToolsBlock(enabledToolIds)
   const referencedFilesBlock = buildReferencedFilesBlock(referencedFiles)
   const attachmentBlock = buildAttachmentBlock(attachments)
   const requestedToolsBlock = buildRequestedToolsBlock(requestedTools)
@@ -214,6 +252,7 @@ function buildSkillModeUserPrompt({
     contextSnapshot,
     '',
     supportFileBlock,
+    `\n${availableToolsBlock}`,
     referencedFilesBlock ? `\n${referencedFilesBlock}` : '',
     attachmentBlock ? `\n${attachmentBlock}` : '',
     requestedToolsBlock ? `\n${requestedToolsBlock}` : '',
@@ -244,6 +283,8 @@ export function buildAgentSystemPrompt({
       : isDefaultAgentActionId(resolvedBehaviorId)
         ? 'Answer directly using the supplied workspace context. Do not invent file contents, evidence, or citations.'
         : 'Use the supplied workspace context carefully and do not invent file contents, evidence, or citations.',
+    'Filesystem skills are provided as an explicit catalog in the prompt. Do not infer available skills by searching workspace filenames.',
+    'If the request involves creating, writing, editing, or opening workspace files and matching tools are listed as available, call those tools instead of claiming the capability is unavailable.',
     `Current entry: ${resolvedBehaviorId || skill.id || 'unknown'}.`,
   ]
 
@@ -264,6 +305,7 @@ export function buildAgentUserPrompt({
   attachments = [],
   referencedFiles = [],
   requestedTools = [],
+  enabledToolIds = [],
   runtimeIntent = 'chat',
 } = {}) {
   const behaviorId = getAiSkillBehaviorId(skill)
@@ -277,6 +319,8 @@ export function buildAgentUserPrompt({
       userInstruction,
       conversation,
       contextBundle,
+      altalsSkills,
+      enabledToolIds,
       referencedFiles,
       attachments,
       requestedTools,
@@ -293,6 +337,7 @@ export function buildAgentUserPrompt({
     attachments,
     referencedFiles,
     requestedTools,
+    enabledToolIds,
     behaviorId,
     structured,
   })

@@ -335,31 +335,22 @@ onBeforeUnmount(() => {
 .ai-conversation-message__surface {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 4px;
   min-width: 0;
 }
 
 .ai-conversation-message__surface--assistant {
   width: 100%;
-  padding: 12px 13px;
-  border-radius: 16px;
-  border: 1px solid color-mix(in srgb, var(--border-color) 44%, transparent);
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--surface-base) 82%, transparent),
-    color-mix(in srgb, var(--surface-base) 70%, transparent)
-  );
-  box-shadow:
-    0 10px 24px rgba(0, 0, 0, 0.05),
-    inset 0 1px 0 color-mix(in srgb, var(--surface-base) 40%, transparent);
+  padding: 4px 6px;
+  background: transparent;
+  border: none;
 }
 
 .ai-conversation-message__surface--user {
   max-width: 92%;
-  padding: 10px 12px;
-  border-radius: 16px;
-  background: color-mix(in srgb, var(--accent) 13%, var(--surface-base) 87%);
-  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border-color) 76%);
+  padding: 4px 6px;
+  background: transparent;
+  border: none;
 }
 
 .ai-conversation-message__user-text,
@@ -381,11 +372,10 @@ onBeforeUnmount(() => {
 .ai-conversation-message__support {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 10px 12px;
-  border-radius: 14px;
-  border: 1px solid color-mix(in srgb, var(--border-color) 34%, transparent);
-  background: color-mix(in srgb, var(--panel-muted) 36%, transparent);
+  gap: 4px;
+  padding: 4px 6px;
+  background: transparent;
+  border-left: 2px solid color-mix(in srgb, var(--border-color) 60%, transparent);
 }
 
 .ai-conversation-message__support summary {
@@ -408,7 +398,7 @@ onBeforeUnmount(() => {
   padding: 4px 8px;
   border-radius: 999px;
   border: 1px solid color-mix(in srgb, var(--border-color) 54%, transparent);
-  background: color-mix(in srgb, var(--panel-muted) 36%, transparent);
+  background: color-mix(in srgb, var(--panel-muted) 10%, transparent);
   font-size: 11px;
   line-height: 1.4;
   color: var(--text-secondary);

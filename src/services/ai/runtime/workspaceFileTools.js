@@ -218,3 +218,104 @@ export async function readWorkspaceFile({
     content,
   }
 }
+
+export async function createWorkspaceFile({
+  workspacePath = '',
+  path = '',
+  content = '',
+  createFile = null,
+  openFile = null,
+} = {}) {
+  const root = getWorkspaceRoot(workspacePath)
+  const targetPath = resolveWorkspaceToolPath(path, root, { allowWorkspaceRoot: false })
+  const name = basenamePath(targetPath)
+  const directoryPath = targetPath.slice(0, targetPath.lastIndexOf('/'))
+
+  if (!name || !directoryPath) {
+    throw new Error('A target file path is required.')
+  }
+
+  const createdPath = await createFile?.(directoryPath, name, {
+    initialContent: String(content || ''),
+  })
+  if (!createdPath) {
+    throw new Error('Failed to create the requested workspace file.')
+  }
+
+  await openFile?.(createdPath)
+
+  return {
+    path: createdPath,
+    relativePath: toRelativeWorkspacePath(root, createdPath),
+    name: basenamePath(createdPath),
+    created: true,
+    opened: true,
+  }
+}
+
+export async function writeWorkspaceFile({
+  workspacePath = '',
+  path = '',
+  content = '',
+  saveFile = null,
+  openFile = null,
+  openAfterWrite = true,
+} = {}) {
+  const root = getWorkspaceRoot(workspacePath)
+  const targetPath = resolveWorkspaceToolPath(path, root, { allowWorkspaceRoot: false })
+  const saved = await saveFile?.(targetPath, String(content || ''))
+
+  if (!saved) {
+    throw new Error('Failed to write the requested workspace file.')
+  }
+
+  if (openAfterWrite !== false) {
+    await openFile?.(targetPath)
+  }
+
+  return {
+    path: targetPath,
+    relativePath: toRelativeWorkspacePath(root, targetPath),
+    name: basenamePath(targetPath),
+    saved: true,
+    opened: openAfterWrite !== false,
+  }
+}
+
+export async function openWorkspaceFile({
+  workspacePath = '',
+  path = '',
+  openFile = null,
+} = {}) {
+  const root = getWorkspaceRoot(workspacePath)
+  const targetPath = resolveWorkspaceToolPath(path, root, { allowWorkspaceRoot: false })
+  await openFile?.(targetPath)
+
+  return {
+    path: targetPath,
+    relativePath: toRelativeWorkspacePath(root, targetPath),
+    name: basenamePath(targetPath),
+    opened: true,
+  }
+}
+
+export async function deleteWorkspacePath({
+  workspacePath = '',
+  path = '',
+  deletePath = null,
+} = {}) {
+  const root = getWorkspaceRoot(workspacePath)
+  const targetPath = resolveWorkspaceToolPath(path, root, { allowWorkspaceRoot: false })
+  const deleted = await deletePath?.(targetPath)
+
+  if (!deleted) {
+    throw new Error('Failed to delete the requested workspace path.')
+  }
+
+  return {
+    path: targetPath,
+    relativePath: toRelativeWorkspacePath(root, targetPath),
+    name: basenamePath(targetPath),
+    deleted: true,
+  }
+}

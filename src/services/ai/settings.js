@@ -2,7 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { AI_TOOL_IDS, normalizeEnabledAiToolIds } from './toolRegistry.js'
 import { normalizeAnthropicSdkConfig } from './runtime/anthropicSdkPolicy.js'
 
-const AI_CONFIG_VERSION = 3
+const AI_CONFIG_VERSION = 5
 const LEGACY_AI_KEYCHAIN_KEY = 'ai-api-key'
 const LEGACY_AI_LOCAL_STORAGE_KEY = 'aiApiKey'
 const DEFAULT_TEMPERATURE = 0.2
@@ -12,6 +12,7 @@ export const AI_PROVIDER_DEFINITIONS = Object.freeze([
     id: 'anthropic',
     label: 'Anthropic',
     defaultBaseUrl: 'https://api.anthropic.com/v1',
+    defaultModel: 'claude-sonnet-4-5',
     modelPlaceholder: 'claude-sonnet-4-5',
     baseUrlHint: 'https://api.anthropic.com/v1',
   },
@@ -19,6 +20,7 @@ export const AI_PROVIDER_DEFINITIONS = Object.freeze([
     id: 'openai',
     label: 'OpenAI',
     defaultBaseUrl: 'https://api.openai.com/v1',
+    defaultModel: 'gpt-5',
     modelPlaceholder: 'gpt-5',
     baseUrlHint: 'https://api.openai.com/v1',
   },
@@ -26,6 +28,7 @@ export const AI_PROVIDER_DEFINITIONS = Object.freeze([
     id: 'google',
     label: 'Google Gemini',
     defaultBaseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
+    defaultModel: 'gemini-2.5-flash',
     modelPlaceholder: 'gemini-2.5-flash',
     baseUrlHint: 'https://generativelanguage.googleapis.com/v1beta/openai',
   },
@@ -33,6 +36,7 @@ export const AI_PROVIDER_DEFINITIONS = Object.freeze([
     id: 'deepseek',
     label: 'DeepSeek',
     defaultBaseUrl: 'https://api.deepseek.com/v1',
+    defaultModel: 'deepseek-chat',
     modelPlaceholder: 'deepseek-chat',
     baseUrlHint: 'https://api.deepseek.com/v1',
   },
@@ -40,6 +44,7 @@ export const AI_PROVIDER_DEFINITIONS = Object.freeze([
     id: 'glm',
     label: 'GLM',
     defaultBaseUrl: 'https://open.bigmodel.cn/api/paas/v4',
+    defaultModel: 'glm-4.5',
     modelPlaceholder: 'glm-4.5',
     baseUrlHint: 'https://open.bigmodel.cn/api/paas/v4',
   },
@@ -47,6 +52,7 @@ export const AI_PROVIDER_DEFINITIONS = Object.freeze([
     id: 'kimi',
     label: 'Kimi',
     defaultBaseUrl: 'https://api.moonshot.cn/v1',
+    defaultModel: 'kimi-k2-0711-preview',
     modelPlaceholder: 'kimi-k2-0711-preview',
     baseUrlHint: 'https://api.moonshot.cn/v1',
   },
@@ -54,6 +60,7 @@ export const AI_PROVIDER_DEFINITIONS = Object.freeze([
     id: 'minimax',
     label: 'MiniMax',
     defaultBaseUrl: 'https://api.minimax.io/v1',
+    defaultModel: 'MiniMax-M1',
     modelPlaceholder: 'MiniMax-M1',
     baseUrlHint: 'https://api.minimax.io/v1',
   },
@@ -61,6 +68,7 @@ export const AI_PROVIDER_DEFINITIONS = Object.freeze([
     id: 'custom',
     label: 'Third-party / Custom',
     defaultBaseUrl: '',
+    defaultModel: '',
     modelPlaceholder: 'your-model-id',
     baseUrlHint: 'http://127.0.0.1:8080/v1 or https://your-endpoint/v1',
   },
@@ -159,7 +167,7 @@ function buildDefaultProviderConfig(providerId = 'openai') {
   const config = {
     providerId: definition.id,
     baseUrl: definition.defaultBaseUrl,
-    model: '',
+    model: resolveAiProviderModel(definition.id),
     temperature: DEFAULT_TEMPERATURE,
   }
 
@@ -172,10 +180,13 @@ function buildDefaultProviderConfig(providerId = 'openai') {
 
 function normalizeProviderConfig(providerId = 'openai', config = null) {
   const defaults = buildDefaultProviderConfig(providerId)
+  const normalizedProviderId = normalizeAiProviderId(providerId)
   const next = {
     providerId: defaults.providerId,
     baseUrl: normalizeBaseUrl(config?.baseUrl || defaults.baseUrl),
-    model: normalizeModel(config?.model || ''),
+    model: providerUsesAutomaticModel(normalizedProviderId)
+      ? defaults.model
+      : normalizeModel(config?.model || defaults.model),
     temperature: normalizeTemperature(config?.temperature ?? defaults.temperature),
   }
 
@@ -201,6 +212,22 @@ export function normalizeAiProviderId(value = '') {
 export function getAiProviderDefinition(providerId = 'openai') {
   return AI_PROVIDER_DEFINITION_MAP.get(normalizeAiProviderId(providerId))
     || AI_PROVIDER_DEFINITION_MAP.get('custom')
+}
+
+export function providerUsesAutomaticModel(providerId = 'openai') {
+  return getAiProviderDefinition(providerId).id !== 'custom'
+}
+
+export function resolveAiProviderModel(providerId = 'openai', providerConfig = null) {
+  const normalizedProviderId = normalizeAiProviderId(providerId)
+  const definition = getAiProviderDefinition(normalizedProviderId)
+  if (providerUsesAutomaticModel(normalizedProviderId)) {
+    return normalizeModel(
+      providerConfig?.model || definition.defaultModel || definition.modelPlaceholder || ''
+    )
+  }
+
+  return normalizeModel(providerConfig?.model || '')
 }
 
 export function providerRequiresAiApiKey(providerId = 'openai', providerConfig = null) {
@@ -257,6 +284,7 @@ export function getAiProviderConfig(config = null, providerId = '') {
 
 export function normalizeAiConfig(rawConfig = null) {
   const defaults = createDefaultAiConfig()
+  const rawVersion = Number(rawConfig?.version || 0) || 0
   const legacyCurrentProviderId = normalizeAiProviderId(
     rawConfig?.currentProviderId
       || rawConfig?.currentProvider
@@ -297,7 +325,16 @@ export function normalizeAiConfig(rawConfig = null) {
   return {
     version: AI_CONFIG_VERSION,
     currentProviderId: legacyCurrentProviderId || defaults.currentProviderId,
-    enabledTools: normalizeEnabledAiToolIds(rawConfig?.enabledTools),
+    enabledTools:
+      rawConfig && rawVersion < AI_CONFIG_VERSION
+        ? normalizeEnabledAiToolIds([
+            ...normalizeEnabledAiToolIds(rawConfig?.enabledTools),
+            'create-workspace-file',
+            'write-workspace-file',
+            'open-workspace-file',
+            'delete-workspace-path',
+          ])
+        : normalizeEnabledAiToolIds(rawConfig?.enabledTools),
     providers,
     _credentialStorage: credentialStorage,
     _apiKeyFallbacks: apiKeyFallbacks,

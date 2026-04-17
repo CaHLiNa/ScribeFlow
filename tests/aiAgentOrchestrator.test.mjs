@@ -29,6 +29,7 @@ test('prepareAgentRun builds an agent-first run plan with referenced files', asy
     refreshProviderState: async () => ({ ready: true, currentProviderId: 'openai' }),
     loadConfig: async () => ({
       currentProviderId: 'openai',
+      enabledTools: ['create-workspace-file', 'write-workspace-file', 'open-workspace-file'],
       providers: { openai: { model: 'gpt-5.4' } },
     }),
     getProviderConfig: () => ({ baseUrl: 'https://example.com', model: 'gpt-5.4' }),
@@ -47,6 +48,11 @@ test('prepareAgentRun builds an agent-first run plan with referenced files', asy
   assert.equal(prepared.referencedFiles.length, 1)
   assert.equal(prepared.referencedFiles[0].relativePath, 'src/app.ts')
   assert.equal(ensuredFlatFiles, 1)
+  assert.deepEqual(prepared.config.enabledTools, [
+    'create-workspace-file',
+    'write-workspace-file',
+    'open-workspace-file',
+  ])
 })
 
 test('prepareAgentRun lets the agent auto-route to a matching filesystem skill when appropriate', async () => {

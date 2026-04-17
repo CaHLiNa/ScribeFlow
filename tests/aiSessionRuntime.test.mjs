@@ -19,6 +19,8 @@ test('createAiSessionRecord builds a normalized empty AI session', () => {
   assert.deepEqual(session.messages, [])
   assert.deepEqual(session.artifacts, [])
   assert.deepEqual(session.attachments, [])
+  assert.equal(session.queuedPromptDraft, '')
+  assert.deepEqual(session.queuedAttachments, [])
   assert.equal(session.permissionMode, 'accept-edits')
   assert.deepEqual(session.permissionRequests, [])
   assert.deepEqual(session.askUserRequests, [])
@@ -86,6 +88,7 @@ test('updateAiSessionRecord updates one session immutably', () => {
   assert.equal(next[0].promptDraft, '')
   assert.equal(next[1].mode, 'chat')
   assert.equal(next[1].promptDraft, 'Rewrite this paragraph.')
+  assert.equal(next[1].queuedPromptDraft, '')
   assert.equal(next[1].isRunning, true)
 })
 

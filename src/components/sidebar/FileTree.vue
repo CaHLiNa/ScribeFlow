@@ -523,9 +523,6 @@ const workspaceMenuStyle = computed(() => ({
   right: `${workspaceMenuPosition.right}px`,
   bottom: `${workspaceMenuPosition.bottom}px`,
 }))
-const newMenuReference = computed(() =>
-  resolveFloatingReference(newMenuAnchorOverride.value || newBtnEl.value)
-)
 
 function toggleWorkspaceMenu() {
   const nextOpen = !workspaceMenuOpen.value
@@ -609,15 +606,6 @@ function handleWorkspaceMenuDocumentPointerDown(event) {
 function handleWorkspaceMenuEscape(event) {
   if (event.key !== 'Escape') return
   closeWorkspaceMenu()
-}
-
-function handleNewMenuOpenChange(open) {
-  if (!open) {
-    closeNewMenu()
-    return
-  }
-  dismissOtherTransientOverlays()
-  newMenuOpen.value = true
 }
 
 function handleWorkspaceMenuOpenFolder() {

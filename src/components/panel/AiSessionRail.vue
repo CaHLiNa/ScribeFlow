@@ -1,6 +1,10 @@
 <template>
   <section class="ai-session-rail">
-    <div class="ai-session-rail__scroll scrollbar-hidden">
+    <div 
+      ref="scrollContainerRef" 
+      class="ai-session-rail__scroll scrollbar-hidden"
+      @wheel="handleWheelScroll"
+    >
       <div
         v-for="session in sessions"
         :key="session.id"
@@ -37,35 +41,28 @@
           >
             {{ t('Error') }}
           </span>
-        </button>
+          <span
 
-        <div
-          v-if="editingSessionId !== session.id && session.id === currentSessionId"
-          class="ai-session-rail__actions"
-        >
-          <UiButton
-            variant="ghost"
-            size="sm"
-            :title="t('Rename session')"
-            @click.stop="beginRename(session)"
-          >
-            {{ t('Rename') }}
-          </UiButton>
-          <UiButton
-            v-if="sessions.length > 1"
-            variant="ghost"
-            size="sm"
+            v-if="session.id === currentSessionId && sessions.length > 1"
+
+            class="ai-session-rail__close"
+
             :title="t('Delete session')"
+
             @click.stop="$emit('delete', session.id)"
+
           >
-            {{ t('Delete') }}
-          </UiButton>
-        </div>
+
+            ×
+
+          </span>
+
+        </button>
       </div>
     </div>
 
     <UiButton
-      variant="secondary"
+      variant="ghost"
       size="sm"
       class="ai-session-rail__create"
       @click="$emit('create')"
@@ -89,6 +86,17 @@ const props = defineProps({
 const emit = defineEmits(['create', 'switch', 'rename', 'delete'])
 
 const { t } = useI18n()
+
+const scrollContainerRef = ref(null)
+
+function handleWheelScroll(e) {
+  if (!scrollContainerRef.value) return
+  const isVertical = Math.abs(e.deltaY) > Math.abs(e.deltaX)
+  if (isVertical && e.deltaY !== 0) {
+    e.preventDefault()
+    scrollContainerRef.value.scrollBy({ left: e.deltaY > 0 ? 50 : -50, behavior: 'smooth' })
+  }
+}
 const editingInputRef = ref(null)
 const editingSessionId = ref('')
 const editingTitle = ref('')
@@ -149,31 +157,34 @@ watch(
 <style scoped>
 .ai-session-rail {
   display: flex;
-  align-items: flex-start;
-  flex-wrap: wrap;
+  align-items: center;
+  flex-wrap: nowrap;
   gap: 10px;
-  padding: 10px 14px 6px;
+  padding: 8px 14px;
   border-bottom: 1px solid color-mix(in srgb, var(--border-color) 28%, transparent);
+  overflow: hidden;
 }
 
 .ai-session-rail__scroll {
   display: flex;
-  align-items: flex-start;
-  flex-wrap: wrap;
+  align-items: center;
+  flex-wrap: nowrap;
   gap: 8px;
   flex: 1 1 auto;
   min-width: 0;
-  overflow: visible;
-  padding-bottom: 2px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
 }
 
 .ai-session-rail__item {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
   gap: 6px;
   min-width: 0;
-  flex: 1 1 148px;
+  flex: 0 0 auto; /* Don't grow to fill space randomly */
 }
 
 .ai-session-rail__main,
@@ -182,12 +193,11 @@ watch(
   align-items: center;
   gap: 6px;
   min-width: 0;
-  width: 100%;
-  max-width: 240px;
-  padding: 6px 10px;
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--border-color) 52%, transparent);
-  background: color-mix(in srgb, var(--surface-base) 76%, transparent);
+  max-width: 200px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  background: transparent;
 }
 
 .ai-session-rail__main {
@@ -204,7 +214,7 @@ watch(
 .ai-session-rail__main.is-active {
   color: var(--text-primary);
   border-color: color-mix(in srgb, var(--accent) 28%, var(--border-color) 72%);
-  background: color-mix(in srgb, var(--accent) 10%, var(--surface-base) 90%);
+  background: color-mix(in srgb, var(--surface-hover) 28%, transparent);
 }
 
 .ai-session-rail__title {
@@ -252,5 +262,29 @@ watch(
 
 .ai-session-rail__create {
   flex: 0 0 auto;
+}
+
+.ai-session-rail__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+  margin-left: 2px;
+}
+.ai-session-rail__close:hover {
+  background: color-mix(in srgb, var(--surface-hover) 80%, transparent);
+  color: var(--text-primary);
+}
+.scrollbar-hidden::-webkit-scrollbar {
+  display: none;
 }
 </style>

@@ -185,3 +185,116 @@ test('provider runtime falls back to SSE when Anthropic SDK is unavailable', asy
   assert.equal(sseCalls, 1)
   assert.equal(result.content, 'Fallback answer')
 })
+
+test('provider runtime forces create workspace file tool choice for openai-compatible file creation requests', async () => {
+  const capturedRequests = []
+
+  await runAiProviderRuntime({
+    providerId: 'custom',
+    config: {
+      baseUrl: 'http://127.0.0.1:8080/v1',
+      model: 'gpt-5.4',
+    },
+    apiKey: 'test',
+    userMessage: '在工作区创建 notes/test.md，写入 OK，并打开它',
+    systemMessage: 'You are Altals Agent.',
+    resolveRuntimeTools: () => ({
+      tools: [
+        {
+          name: 'create_workspace_file',
+          description: 'Create file',
+          parameters: { type: 'object', properties: {}, required: [] },
+        },
+        {
+          name: 'write_workspace_file',
+          description: 'Write file',
+          parameters: { type: 'object', properties: {}, required: [] },
+        },
+      ],
+      executors: new Map([
+        [
+          'create_workspace_file',
+          async () => ({
+            toolCallId: 'tool-1',
+            content: '{"ok":true}',
+            isError: false,
+          }),
+        ],
+      ]),
+    }),
+    sseRunner: async ({ request }) => {
+      capturedRequests.push(JSON.parse(request.body))
+      if (capturedRequests.length === 1) {
+        return {
+          content: '',
+          reasoning: '',
+          stopReason: 'tool_use',
+          toolCalls: [
+            {
+              id: 'tool-1',
+              name: 'create_workspace_file',
+              arguments: { path: 'notes/test.md' },
+            },
+          ],
+        }
+      }
+
+      return {
+        content: 'done',
+        reasoning: '',
+        stopReason: 'end_turn',
+        toolCalls: [],
+      }
+    },
+  })
+
+  assert.deepEqual(capturedRequests[0].tool_choice, {
+    type: 'function',
+    name: 'create_workspace_file',
+  })
+  assert.equal(capturedRequests[1].tool_choice, undefined)
+})
+
+test('provider runtime forces delete workspace path tool choice for delete requests', async () => {
+  let capturedRequest = null
+
+  await runAiProviderRuntime({
+    providerId: 'custom',
+    config: {
+      baseUrl: 'http://127.0.0.1:8080/v1',
+      model: 'gpt-5.4',
+    },
+    apiKey: 'test',
+    userMessage: '删除刚才新建的 notes/test.md',
+    systemMessage: 'You are Altals Agent.',
+    resolveRuntimeTools: () => ({
+      tools: [
+        {
+          name: 'create_workspace_file',
+          description: 'Create file',
+          parameters: { type: 'object', properties: {}, required: [] },
+        },
+        {
+          name: 'delete_workspace_path',
+          description: 'Delete file',
+          parameters: { type: 'object', properties: {}, required: [] },
+        },
+      ],
+      executors: new Map(),
+    }),
+    sseRunner: async ({ request }) => {
+      capturedRequest = JSON.parse(request.body)
+      return {
+        content: '',
+        reasoning: '',
+        stopReason: 'tool_use',
+        toolCalls: [],
+      }
+    },
+  })
+
+  assert.deepEqual(capturedRequest.tool_choice, {
+    type: 'function',
+    name: 'delete_workspace_path',
+  })
+})

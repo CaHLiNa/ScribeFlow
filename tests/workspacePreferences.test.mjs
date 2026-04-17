@@ -11,7 +11,6 @@ import {
   setWorkspacePdfCustomPageBackground,
   setWorkspacePdfPageBackgroundFollowsTheme,
   setWorkspaceTheme,
-  toggleStoredBoolean,
 } from '../src/services/workspacePreferences.js'
 
 function createMockStorage(initial = {}) {

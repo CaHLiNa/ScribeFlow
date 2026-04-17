@@ -32,6 +32,20 @@ test('buildAgentUserPrompt uses task-first workspace prompt in agent mode', () =
       selection: { preview: 'const broken = true' },
       reference: { citationKey: '', title: '' },
     },
+    altalsSkills: [
+      {
+        id: 'fs-skill:workspace:revise-with-citations',
+        kind: 'filesystem-skill',
+        name: 'revise-with-citations',
+        slug: 'revise-with-citations',
+        description: 'Revise a paragraph with tighter citation grounding.',
+        scope: 'workspace',
+        directoryPath: '/workspace/.altals/skills/revise-with-citations',
+        skillFilePath: '/workspace/.altals/skills/revise-with-citations/SKILL.md',
+        source: 'altals-workspace',
+      },
+    ],
+    enabledToolIds: ['create-workspace-file', 'write-workspace-file', 'open-workspace-file'],
     referencedFiles: [{ relativePath: 'src/app.ts', content: 'export const broken = true' }],
     requestedTools: ['Edit', 'Bash'],
   })
@@ -39,6 +53,10 @@ test('buildAgentUserPrompt uses task-first workspace prompt in agent mode', () =
   assert.match(prompt, /^Current task:/m)
   assert.match(prompt, /Fix the failing build\./)
   assert.match(prompt, /^Workspace context:/m)
+  assert.match(prompt, /^Available filesystem skills:/m)
+  assert.match(prompt, /^Available tools in this Altals runtime:/m)
+  assert.match(prompt, /create_workspace_file: Create a new text file inside the current workspace and open it in the editor\./)
+  assert.match(prompt, /revise-with-citations \[workspace\]: Revise a paragraph with tighter citation grounding\./)
   assert.match(prompt, /Referenced files:/)
   assert.match(prompt, /User-mentioned tools:/)
   assert.match(prompt, /Recent conversation:/)
@@ -61,6 +79,7 @@ test('buildAgentUserPrompt keeps skill-first prompt shape for explicit skill int
     },
     runtimeIntent: 'skill',
     userInstruction: 'Tighten this paragraph.',
+    enabledToolIds: ['apply-document-patch', 'open-note-draft'],
     supportFiles: [{ path: 'rubric.md', relativePath: 'rubric.md', content: 'Follow the rubric.' }],
     contextBundle: {
       workspace: { path: '/workspace' },
@@ -72,6 +91,7 @@ test('buildAgentUserPrompt keeps skill-first prompt shape for explicit skill int
 
   assert.match(prompt, /^Skill: revise-with-citations/m)
   assert.match(prompt, /^Additional user instruction:/m)
+  assert.match(prompt, /^Available tools in this Altals runtime:/m)
   assert.match(prompt, /Return JSON with this shape:/)
 })
 

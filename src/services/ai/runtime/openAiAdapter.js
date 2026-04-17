@@ -50,6 +50,24 @@ function toOpenAiTools(tools = []) {
   }))
 }
 
+function serializeToolChoice(toolChoice = null, providerType = 'openai') {
+  if (!toolChoice || typeof toolChoice !== 'object') return null
+
+  if (
+    providerType === 'custom' &&
+    toolChoice.type === 'function' &&
+    toolChoice.function &&
+    typeof toolChoice.function === 'object'
+  ) {
+    return {
+      type: 'function',
+      name: String(toolChoice.function.name || '').trim(),
+    }
+  }
+
+  return toolChoice
+}
+
 export class OpenAIAdapter {
   constructor(providerType = 'openai') {
     this.providerType = providerType
@@ -81,6 +99,12 @@ export class OpenAIAdapter {
 
     if (Array.isArray(input.tools) && input.tools.length > 0) {
       body.tools = toOpenAiTools(input.tools)
+    }
+
+    if (input.toolChoice && typeof input.toolChoice === 'object') {
+      body.tool_choice = serializeToolChoice(input.toolChoice, this.providerType)
+    } else if (typeof input.toolChoice === 'string' && input.toolChoice.trim()) {
+      body.tool_choice = input.toolChoice.trim()
     }
 
     return {

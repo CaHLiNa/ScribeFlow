@@ -9,27 +9,7 @@
       @delete="deleteSession"
     />
 
-    <header class="ai-agent-panel__subnav">
-      <UiSelect
-        :model-value="aiStore.providerState.currentProviderId"
-        size="sm"
-        class="ai-agent-panel__provider-select"
-        shell-class="ai-agent-panel__provider-shell"
-        :options="providerOptions"
-        @update:model-value="switchProvider"
-      />
-      <div style="flex: 1"></div>
-      <UiButton
-        v-if="messages.length > 0"
-        variant="ghost"
-        size="sm"
-        icon-only
-        @click="aiStore.clearSession()"
-        :title="t('Clear session')"
-      >
-        <IconTrash :size="16" :stroke-width="1.5" />
-      </UiButton>
-    </header>
+    
 
     <div
       ref="threadRef"
@@ -100,7 +80,7 @@
 
           <div class="ai-agent-panel__approval-actions">
             <UiButton
-              variant="secondary"
+              variant="ghost"
               size="sm"
               :disabled="respondingPermissionRequestId === activePermissionRequest.requestId"
               @click="denyPermissionRequest(activePermissionRequest)"
@@ -150,33 +130,50 @@
         </div>
 
         <div class="ai-agent-panel__composer-actions">
-          <UiButton
-            variant="secondary"
-            size="sm"
-            icon-only
-            @click="attachFiles"
-            :title="t('Attach files')"
-          >
-            <IconPaperclip :size="16" :stroke-width="1.5" />
-          </UiButton>
+          <div class="ai-agent-panel__composer-tools">
+            <UiButton
+              variant="ghost"
+              size="sm"
+              icon-only
+              @click="attachFiles"
+              :title="t('Attach files')"
+            >
+              <IconPaperclip :size="16" :stroke-width="1.5" />
+            </UiButton>
+            <UiSelect
+              :model-value="aiStore.providerState.currentProviderId"
+              size="sm"
+              class="ai-agent-panel__provider-select-inline"
+              shell-class="ai-agent-panel__provider-shell"
+              :options="providerOptions"
+              @update:model-value="switchProvider"
+            />
+          </div>
 
-          <button
-            type="button"
-            class="ai-agent-panel__send-button"
-            :class="{ 'is-disabled': isSendBlocked }"
-            :disabled="isSendBlocked"
-            :title="sendButtonTitle"
-            :aria-label="sendButtonTitle"
-            @click.prevent.stop="handleSendClick"
-          >
-            <IconPlayerStop v-if="aiStore.isRunning" :size="16" :stroke-width="1.5" />
-            <IconArrowUp v-else :size="16" :stroke-width="1.5" />
-          </button>
+          <div class="ai-agent-panel__composer-primary">
+            <button
+              v-if="aiStore.isRunning"
+              type="button"
+              class="ai-agent-panel__send-button ai-agent-panel__stop-button"
+              :title="stopButtonTitle"
+              :aria-label="stopButtonTitle"
+              @click.prevent.stop="handleStopClick"
+            >
+              <IconPlayerStop :size="14" :stroke-width="2.2" />
+            </button>
+            <button
+              type="button"
+              class="ai-agent-panel__send-button"
+              :class="{ 'is-disabled': isSendBlocked }"
+              :disabled="isSendBlocked"
+              :title="sendButtonTitle"
+              :aria-label="sendButtonTitle"
+              @click.prevent.stop="handleSendClick"
+            >
+              <IconArrowUp :size="14" :stroke-width="2.5" />
+            </button>
+          </div>
         </div>
-      </div>
-
-      <div v-if="composerStatusMessage" class="ai-agent-panel__error">
-        {{ composerStatusMessage }}
       </div>
     </footer>
 
@@ -206,7 +203,7 @@ import {
 import { AI_PROVIDER_DEFINITIONS } from '../../services/ai/settings.js'
 import { pickAiAttachmentPaths } from '../../services/ai/attachmentStore.js'
 import { resolveEnabledAiTools, resolveRuntimeAiToolIds } from '../../services/ai/toolRegistry.js'
-import { IconPaperclip, IconArrowUp, IconPlayerStop, IconTrash } from '@tabler/icons-vue'
+import { IconPaperclip, IconArrowUp, IconPlayerStop } from '@tabler/icons-vue'
 import { useSurfaceContextMenu } from '../../composables/useSurfaceContextMenu'
 import UiButton from '../shared/ui/UiButton.vue'
 import UiSelect from '../shared/ui/UiSelect.vue'
@@ -298,20 +295,14 @@ const providerNotReadyMessage = computed(() =>
     ? t('Agent runtime is not ready. Configure the provider and model before sending.')
     : t('Agent runtime is not ready. Configure the provider, model, and API key before sending.')
 )
-const isSendBlocked = computed(
-  () => aiStore.isRunning || !isProviderReady.value || !canSend.value
-)
+const isSendBlocked = computed(() => !isProviderReady.value || !canSend.value)
 const sendButtonTitle = computed(() => {
-  if (aiStore.isRunning) return t('Running...')
   if (!isProviderReady.value) return providerNotReadyMessage.value
   if (!canSend.value) return t('Type a message or attach a file to send.')
+  if (aiStore.isRunning) return t('Queue message')
   return t('Submit')
 })
-const composerStatusMessage = computed(() => {
-  if (aiStore.lastError) return aiStore.lastError
-  if (!isProviderReady.value) return providerNotReadyMessage.value
-  return ''
-})
+const stopButtonTitle = computed(() => t('Stop response'))
 const composerPlaceholder = computed(() =>
   isAgentMode.value
     ? t('Describe the task. The agent can inspect files, search the workspace, and use tools here.')
@@ -414,7 +405,19 @@ async function runSkill() {
 
 function handleSendClick() {
   if (isSendBlocked.value) return
+  if (aiStore.isRunning) {
+    const queued = aiStore.queueCurrentSubmission()
+    if (queued) {
+      toastStore.show(t('Message queued for the current session.'))
+    }
+    return
+  }
   void runSkill()
+}
+
+function handleStopClick() {
+  if (!aiStore.isRunning) return
+  aiStore.stopCurrentRun()
 }
 
 async function switchProvider(providerId = '') {
@@ -701,18 +704,16 @@ watch(
   display: flex;
   align-items: center;
   padding: 8px 14px 4px;
-  border-bottom: 1px solid transparent;
 }
 
 .ai-agent-panel__composer-card {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 10px 12px;
-  border-radius: 20px;
-  border: 1px solid var(--border-color);
-  background: var(--surface-flyout);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.04);
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 40%, transparent);
+  background: transparent;
 }
 
 .ai-agent-panel__approval {
@@ -771,6 +772,23 @@ watch(
   padding-top: 4px;
 }
 
+.ai-agent-panel__composer-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ai-agent-panel__composer-primary {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ai-agent-panel__provider-select-inline {
+  width: auto;
+  max-width: 140px;
+}
+
 .ai-agent-panel__send-button {
   display: inline-flex;
   align-items: center;
@@ -778,10 +796,10 @@ watch(
   width: 40px;
   height: 36px;
   padding: 0;
-  border: 1px solid color-mix(in srgb, var(--button-primary-bg) 80%, var(--border-color));
+  border: 1px solid transparent;
   border-radius: 14px;
-  background: var(--button-primary-bg);
-  color: var(--button-primary-text);
+  background: transparent;
+  color: var(--text-primary);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
   cursor: pointer;
   transition:
@@ -792,7 +810,15 @@ watch(
 }
 
 .ai-agent-panel__send-button:hover:not(:disabled) {
-  background: var(--button-primary-bg-hover);
+  background: color-mix(in srgb, var(--surface-hover) 50%, transparent);
+}
+
+.ai-agent-panel__stop-button {
+  color: var(--error);
+}
+
+.ai-agent-panel__stop-button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--error) 10%, transparent);
 }
 
 .ai-agent-panel__send-button:active:not(:disabled) {
@@ -814,7 +840,8 @@ watch(
 
 .ai-agent-panel__textarea {
   padding: 0 !important;
-  min-height: 48px;
+  min-height: 24px;
+  max-height: 400px;
 }
 
 .ai-agent-panel__provider-select {
@@ -858,8 +885,7 @@ watch(
 }
 
 .ai-agent-panel__composer :deep(.ai-agent-panel__textarea-shell.ui-textarea-shell--ghost:hover),
-.ai-agent-panel__composer
-  :deep(.ai-agent-panel__textarea-shell.ui-textarea-shell--ghost:focus-within) {
+.ai-agent-panel__composer :deep(.ai-agent-panel__textarea-shell.ui-textarea-shell--ghost:focus-within) {
   background: transparent !important;
   border-color: transparent !important;
   box-shadow: none !important;
@@ -878,7 +904,7 @@ watch(
   padding: 0 22px 0 8px;
   border-color: transparent;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--surface-base) 58%, transparent);
+  background: transparent;
   box-shadow: none;
   color: var(--text-tertiary);
 }
@@ -886,7 +912,7 @@ watch(
 .ai-agent-panel__composer :deep(.ai-agent-panel__provider-shell .ui-select-trigger:hover),
 .ai-agent-panel__composer :deep(.ai-agent-panel__provider-shell .ui-select-trigger:focus-visible) {
   border-color: transparent;
-  background: color-mix(in srgb, var(--surface-base) 72%, transparent);
+  background: color-mix(in srgb, var(--surface-hover) 40%, transparent);
   color: var(--text-secondary);
 }
 

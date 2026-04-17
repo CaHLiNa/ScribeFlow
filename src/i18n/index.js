@@ -656,7 +656,12 @@ const ZH_MESSAGES = {
   'Context compaction completed.': '上下文压缩已完成。',
   'Background task': '后台任务',
   Runtime: '运行时',
+  Models: '模型',
   'The agent started a background task.': '代理已启动一个后台任务。',
+  'Queue message': '排队发送',
+  'Stop response': '停止输出',
+  'Message queued for the current session.': '这条消息已排队，当前回复结束后会自动发送。',
+  'AI execution stopped.': 'AI 输出已停止。',
   'Auto-run tools': '自动执行工具',
   'Plan approval required': '需要审批计划',
   'The agent finished planning and is waiting for your decision before leaving plan mode.':
@@ -1020,6 +1025,12 @@ const ZH_MESSAGES = {
   'Failed to clear AI settings.': '清空 AI 设置失败。',
   'Agent runtime is not ready. Configure the provider and model before sending.':
     'Agent 运行时尚未就绪，请先配置服务商和模型后再发送。',
+  'Loading models...': '正在加载模型...',
+  'Refresh models': '刷新模型',
+  'Failed to load models.': '加载模型列表失败。',
+  '{count} models found': '找到 {count} 个模型',
+  Configured: '已配置',
+  Incomplete: '未完成',
   'AI base URL is missing.': '缺少 AI Base URL。',
   'AI API key is missing.': '缺少 AI API key。',
   'AI model is missing.': '缺少 AI 模型。',
@@ -1029,6 +1040,10 @@ const ZH_MESSAGES = {
   'Read active document': '读取当前文档',
   'Read editor selection': '读取当前选区',
   'Read selected reference': '读取当前文献',
+  'Create workspace file': '新建工作区文件',
+  'Write workspace file': '写入工作区文件',
+  'Open workspace file': '打开工作区文件',
+  'Delete workspace path': '删除工作区路径',
   'Apply document patch': '应用文档补丁',
   'Open note draft': '打开笔记草稿',
   'Load skill support files': '加载 skill support files',
@@ -1079,6 +1094,12 @@ const ZH_MESSAGES = {
   'Read the current text selection from the active editor.': '读取当前编辑器里的文本选区。',
   'Read the currently selected reference metadata and citation identity.':
     '读取当前选中文献的元数据与引用标识。',
+  'Create a new text file inside the current workspace and open it in the editor.':
+    '在当前工作区内新建一个文本文件，并在编辑器中打开。',
+  'Write text content to a workspace file and optionally open it in the editor.':
+    '将文本内容写入工作区文件，并可选择在编辑器中打开。',
+  'Open an existing workspace file in the editor.': '在编辑器中打开一个现有的工作区文件。',
+  'Delete a file or folder inside the current workspace.': '删除当前工作区中的文件或文件夹。',
   'Write a replacement patch back into the active draft selection.': '把替换补丁写回当前草稿选区。',
   'Create and open a markdown draft from AI output.': '根据 AI 输出创建并打开一个 Markdown 草稿。',
   'Load text support files that live alongside a discovered SKILL.md package.':
@@ -1097,6 +1118,8 @@ const ZH_MESSAGES = {
   'Back to overview': '返回概览',
   'Back to workspace': '返回工作区',
   'Current view': '当前视图',
+  'This is controlled from the AI panel. Settings only configure provider details.':
+    '这里不负责切换当前 AI；当前使用的 provider 由 AI 面板控制，设置页只负责配置。',
   Overview: '概览',
   Workflow: '工作流',
   Priority: '优先级',

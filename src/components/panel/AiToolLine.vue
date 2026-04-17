@@ -60,21 +60,26 @@ const statusLabel = computed(() => {
 
 <style scoped>
 .ai-tool-line {
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--panel-muted) 42%, transparent);
-  border: 1px solid color-mix(in srgb, var(--border-color) 72%, transparent);
+  background: transparent;
+  border: none;
+  font-family: var(--font-mono);
 }
 
 .ai-tool-line__summary {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   min-width: 0;
-  padding: 8px 10px;
+  padding: 4px 6px;
   list-style: none;
   cursor: pointer;
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-secondary);
+  opacity: 0.8;
+  transition: opacity 0.2s ease;
+}
+.ai-tool-line__summary:hover {
+  opacity: 1;
 }
 
 .ai-tool-line__summary::-webkit-details-marker {

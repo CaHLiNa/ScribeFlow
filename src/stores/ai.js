@@ -42,9 +42,13 @@ import {
 import { applyAiArtifactCapability } from '../services/ai/artifactCapabilities.js'
 import { createAiAttachmentRecord } from '../services/ai/attachmentStore.js'
 import {
+  createWorkspaceFile as createWorkspaceFileTool,
+  deleteWorkspacePath as deleteWorkspacePathTool,
+  openWorkspaceFile as openWorkspaceFileTool,
   listWorkspaceDirectory,
   readWorkspaceFile,
   searchWorkspaceFiles,
+  writeWorkspaceFile as writeWorkspaceFileTool,
 } from '../services/ai/runtime/workspaceFileTools.js'
 import {
   buildDefaultAgentSessionTitle,
@@ -286,6 +290,8 @@ function scrubTransientAgentSessionState(session = {}) {
   return {
     ...session,
     isRunning: false,
+    queuedPromptDraft: '',
+    queuedAttachments: [],
     permissionRequests: [],
     askUserRequests: [],
     exitPlanRequests: [],
@@ -318,6 +324,7 @@ export const useAiStore = defineStore('ai', {
       model: '',
       approvalMode: 'per-tool',
     },
+    runtimeAbortControllers: {},
   }),
 
   getters: {
@@ -393,6 +400,10 @@ export const useAiStore = defineStore('ai', {
 
     isRunning() {
       return this.currentSession?.isRunning === true
+    },
+
+    isGenerating() {
+      return this.isRunning
     },
 
     activePermissionRequest() {
@@ -627,9 +638,11 @@ export const useAiStore = defineStore('ai', {
       this.updateSessionById(sessionId || this.currentSessionId, (session) => ({
         ...session,
         promptDraft: '',
+        queuedPromptDraft: '',
         messages: [],
         artifacts: [],
         attachments: [],
+        queuedAttachments: [],
         lastError: '',
         isRunning: false,
         permissionRequests: [],
@@ -678,6 +691,59 @@ export const useAiStore = defineStore('ai', {
         ...session,
         attachments: [],
       }))
+    },
+
+    queueCurrentSubmission(sessionId = '') {
+      const targetSession = resolveAgentSessionRecord(
+        this.sessions,
+        sessionId || this.currentSessionId
+      )
+      if (!targetSession) return false
+
+      const promptDraft = String(targetSession.promptDraft || '')
+      const queuedPromptDraft = String(targetSession.queuedPromptDraft || '')
+      const attachments = Array.isArray(targetSession.attachments) ? targetSession.attachments : []
+      if (!promptDraft.trim() && attachments.length === 0) return false
+
+      this.updateSessionById(targetSession.id, (session) => ({
+        ...session,
+        promptDraft: '',
+        attachments: [],
+        queuedPromptDraft: [queuedPromptDraft, promptDraft].filter((value) => String(value).trim()).join('\n\n'),
+        queuedAttachments: [
+          ...(Array.isArray(session.queuedAttachments) ? session.queuedAttachments : []),
+          ...attachments.filter(
+            (attachment) =>
+              !(Array.isArray(session.queuedAttachments) ? session.queuedAttachments : []).some(
+                (queued) => queued.id === attachment.id
+              )
+          ),
+        ],
+      }))
+      return true
+    },
+
+    dequeueQueuedSubmission(sessionId = '') {
+      const targetSession = resolveAgentSessionRecord(
+        this.sessions,
+        sessionId || this.currentSessionId
+      )
+      if (!targetSession) return false
+
+      const queuedPromptDraft = String(targetSession.queuedPromptDraft || '')
+      const queuedAttachments = Array.isArray(targetSession.queuedAttachments)
+        ? targetSession.queuedAttachments
+        : []
+      if (!queuedPromptDraft.trim() && queuedAttachments.length === 0) return false
+
+      this.updateSessionById(targetSession.id, (session) => ({
+        ...session,
+        promptDraft: queuedPromptDraft,
+        attachments: queuedAttachments,
+        queuedPromptDraft: '',
+        queuedAttachments: [],
+      }))
+      return true
     },
 
     queueAskUserRequest(event = {}, sessionId = '') {
@@ -1054,11 +1120,13 @@ export const useAiStore = defineStore('ai', {
       return this.refreshProviderState()
     },
 
-    async runActiveSkill() {
+    async runActiveSkill(options = {}) {
       const toastStore = useToastStore()
       const editorStore = useEditorStore()
       const filesStore = useFilesStore()
-      const activeSession = this.currentSession || this.createSession()
+      const requestedSessionId = String(options?.sessionId || this.currentSessionId || '').trim()
+      const activeSession =
+        resolveAgentSessionRecord(this.sessions, requestedSessionId) || this.createSession()
       const sessionId = activeSession.id
       let preparedRun = null
       let skill = null
@@ -1067,6 +1135,11 @@ export const useAiStore = defineStore('ai', {
       let pendingAssistantId = ''
       let liveToolEvents = []
       let runStarted = false
+      const abortController = new AbortController()
+      this.runtimeAbortControllers = {
+        ...this.runtimeAbortControllers,
+        [sessionId]: abortController,
+      }
 
       try {
         preparedRun = await prepareAgentRun({
@@ -1166,6 +1239,35 @@ export const useAiStore = defineStore('ai', {
                 maxBytes: input.maxBytes,
                 readFile: (path, options) => filesStore.readFile(path, options),
               }),
+            createWorkspaceFile: async (input = {}) =>
+              createWorkspaceFileTool({
+                workspacePath: useWorkspaceStore().path || '',
+                path: input.path || '',
+                content: input.content || '',
+                createFile: (dirPath, name, options = {}) => filesStore.createFile(dirPath, name, options),
+                openFile: (path) => editorStore.openFile(path),
+              }),
+            writeWorkspaceFile: async (input = {}) =>
+              writeWorkspaceFileTool({
+                workspacePath: useWorkspaceStore().path || '',
+                path: input.path || '',
+                content: input.content || '',
+                openAfterWrite: input.openAfterWrite,
+                saveFile: (path, content) => filesStore.saveFile(path, content),
+                openFile: (path) => editorStore.openFile(path),
+              }),
+            openWorkspaceFile: async (input = {}) =>
+              openWorkspaceFileTool({
+                workspacePath: useWorkspaceStore().path || '',
+                path: input.path || '',
+                openFile: (path) => editorStore.openFile(path),
+              }),
+            deleteWorkspacePath: async (input = {}) =>
+              deleteWorkspacePathTool({
+                workspacePath: useWorkspaceStore().path || '',
+                path: input.path || '',
+                deletePath: (path) => filesStore.deletePath(path),
+              }),
             readActiveDocument: (runtimeContextBundle) =>
               readActiveDocumentRuntime(runtimeContextBundle, filesStore, editorStore),
             readEditorSelection: readEditorSelectionRuntime,
@@ -1183,6 +1285,7 @@ export const useAiStore = defineStore('ai', {
               })
             )
           },
+          signal: abortController.signal,
         })
 
         const artifact = buildArtifactRecord(
@@ -1206,8 +1309,16 @@ export const useAiStore = defineStore('ai', {
         })
         return { assistantMessage, artifact }
       } catch (error) {
+        const wasAborted =
+          error instanceof DOMException
+            ? error.name === 'AbortError'
+            : String(error?.name || '').trim() === 'AbortError'
         const message =
-          error instanceof Error ? error.message : String(error || t('AI execution failed.'))
+          wasAborted
+            ? t('AI execution stopped.')
+            : error instanceof Error
+              ? error.message
+              : String(error || t('AI execution failed.'))
         if (runStarted && pendingAssistantId) {
           this.updateSessionById(
             sessionId,
@@ -1229,13 +1340,37 @@ export const useAiStore = defineStore('ai', {
             lastError: message,
           }))
         }
-        toastStore.show(message, { type: 'error' })
+        if (!wasAborted) {
+          toastStore.show(message, { type: 'error' })
+        }
         return null
       } finally {
+        if (this.runtimeAbortControllers[sessionId]) {
+          const nextAbortControllers = { ...this.runtimeAbortControllers }
+          delete nextAbortControllers[sessionId]
+          this.runtimeAbortControllers = nextAbortControllers
+        }
         if (runStarted) {
           this.updateSessionById(sessionId, (session) => finalizeAgentRunSessionState({ session }))
         }
+        if (this.dequeueQueuedSubmission(sessionId)) {
+          queueMicrotask(() => {
+            const queuedSession = resolveAgentSessionRecord(this.sessions, sessionId)
+            if (queuedSession?.isRunning !== true) {
+              void this.runActiveSkill({ sessionId })
+            }
+          })
+        }
       }
+    },
+
+    stopCurrentRun(sessionId = '') {
+      const targetSessionId = String(sessionId || this.currentSessionId || '').trim()
+      if (!targetSessionId) return false
+      const controller = this.runtimeAbortControllers[targetSessionId]
+      if (!controller) return false
+      controller.abort()
+      return true
     },
 
     async applyArtifact(artifactId = '') {
