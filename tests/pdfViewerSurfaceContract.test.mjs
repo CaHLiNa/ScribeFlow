@@ -19,6 +19,8 @@ const viewerRuntimeSource = readFileSync(
 )
 const viewerLocalePath = path.join(repoRoot, 'public/pdfjs-viewer/web/locale/zh-CN/viewer.ftl')
 const viewerLocaleSource = existsSync(viewerLocalePath) ? readFileSync(viewerLocalePath, 'utf8') : ''
+const viewerLocaleManifestPath = path.join(repoRoot, 'public/pdfjs-viewer/web/locale/locale.json')
+const viewerLocaleManifest = JSON.parse(readFileSync(viewerLocaleManifestPath, 'utf8'))
 const pdfIframeSurfaceSource = readFileSync(
   path.join(repoRoot, 'src/components/editor/PdfIframeSurface.vue'),
   'utf8'
@@ -194,6 +196,29 @@ test('pdf viewer ships a zh-CN locale pack for common toolbar and zoom labels', 
   assert.match(viewerLocaleSource, /pdfjs-page-scale-fit = 适合整页/)
   assert.match(viewerLocaleSource, /pdfjs-page-scale-width = 适合页宽/)
   assert.match(viewerLocaleSource, /pdfjs-toggle-views-manager-button-label = 切换侧边栏/)
+})
+
+test('pdf viewer locale manifest only exposes the shipped app locales', () => {
+  assert.deepEqual(viewerLocaleManifest, {
+    'en-us': 'en-US/viewer.ftl',
+    'zh-cn': 'zh-CN/viewer.ftl',
+  })
+  assert.equal(
+    existsSync(path.join(repoRoot, 'public/pdfjs-viewer/web/locale/en-US/viewer.ftl')),
+    true
+  )
+  assert.equal(
+    existsSync(path.join(repoRoot, 'public/pdfjs-viewer/web/locale/zh-CN/viewer.ftl')),
+    true
+  )
+  assert.equal(
+    existsSync(path.join(repoRoot, 'public/pdfjs-viewer/web/locale/en-CA/viewer.ftl')),
+    false
+  )
+  assert.equal(
+    existsSync(path.join(repoRoot, 'public/pdfjs-viewer/web/locale/en-GB/viewer.ftl')),
+    false
+  )
 })
 
 test('pdf viewer zoom menu excludes auto and page-width, and defaults to page-fit', () => {
