@@ -7,6 +7,7 @@ mod ai_agent_session_runtime;
 mod ai_config;
 mod ai_runtime_session_rail;
 mod ai_runtime_thread_client;
+mod ai_runtime_turn_wait;
 mod ai_runtime;
 mod ai_session_storage;
 mod ai_skill_support;
@@ -26,6 +27,7 @@ mod references_citation;
 mod references_import;
 mod references_pdf;
 mod references_runtime;
+mod references_zotero_account;
 mod references_zotero;
 mod security;
 mod workspace_access;
@@ -461,6 +463,7 @@ pub fn run() {
             ai_config::ai_config_save_internal,
             ai_runtime_session_rail::ai_runtime_session_rail_reconcile,
             ai_runtime_thread_client::ai_runtime_thread_snapshot_to_session,
+            ai_runtime_turn_wait::ai_runtime_turn_run_wait,
             ai_tool_catalog::ai_tool_catalog_resolve,
             ai_session_storage::ai_session_overlay_load,
             ai_session_storage::ai_session_overlay_save,
@@ -512,6 +515,10 @@ pub fn run() {
             references_runtime::references_import_pdf,
             references_runtime::references_scan_workspace_styles,
             references_runtime::references_write_bib_file,
+            references_zotero_account::references_zotero_api_key_store,
+            references_zotero_account::references_zotero_api_key_load,
+            references_zotero_account::references_zotero_api_key_clear,
+            references_zotero_account::references_zotero_disconnect,
             references_zotero::references_zotero_config_load,
             references_zotero::references_zotero_config_save,
             references_zotero::references_zotero_validate_api_key,

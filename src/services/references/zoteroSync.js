@@ -1,7 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
 
-const ZOTERO_KEYCHAIN_KEY = 'zotero-api-key'
-
 export const zoteroSyncState = {
   status: 'disconnected',
   lastSyncTime: null,
@@ -26,82 +24,42 @@ async function getGlobalConfigDir() {
   return invoke('get_global_config_dir')
 }
 
-function resolveConfigPath(globalConfigDir = '') {
-  return `${String(globalConfigDir || '').replace(/\/+$/, '')}/zotero.json`
-}
-
-async function readZoteroConfigRaw(globalConfigDir = null) {
-  try {
-    const resolvedDir = globalConfigDir || await getGlobalConfigDir()
-    const content = await invoke('read_file', { path: resolveConfigPath(resolvedDir) })
-    return JSON.parse(content)
-  } catch {
-    return null
-  }
-}
-
-async function writeZoteroConfigRaw(config = null, globalConfigDir = null) {
-  const resolvedDir = globalConfigDir || await getGlobalConfigDir()
-  const path = resolveConfigPath(resolvedDir)
-  if (!config) {
-    await invoke('delete_path', { path }).catch(() => {})
-    return
-  }
-  await invoke('write_file', {
-    path,
-    content: JSON.stringify(config, null, 2),
-  })
-}
-
 export async function storeZoteroApiKey(apiKey = '') {
-  const raw = (await readZoteroConfigRaw()) || {}
-
-  await writeZoteroConfigRaw({
-    ...raw,
-    _apiKeyFallback: apiKey,
-    _credentialStorage: 'mirrored-file-fallback',
+  const globalConfigDir = await getGlobalConfigDir()
+  await invoke('references_zotero_api_key_store', {
+    params: {
+      globalConfigDir,
+      apiKey,
+    },
   })
-
-  try {
-    await invoke('keychain_set', { key: ZOTERO_KEYCHAIN_KEY, value: apiKey })
-  } catch {
-    localStorage.setItem('zoteroApiKey', apiKey)
-  }
 }
 
 export async function loadZoteroApiKey() {
-  try {
-    const value = await invoke('keychain_get', { key: ZOTERO_KEYCHAIN_KEY })
-    if (value) return value
-  } catch {
-    // fall through
-  }
-
-  const rawConfig = await readZoteroConfigRaw()
-  const fileFallback = String(rawConfig?._apiKeyFallback || '').trim()
-  if (fileFallback) return fileFallback
-
-  const fallback = localStorage.getItem('zoteroApiKey')
-  if (fallback) return fallback
-  return null
+  const globalConfigDir = await getGlobalConfigDir()
+  const value = await invoke('references_zotero_api_key_load', {
+    params: {
+      globalConfigDir,
+    },
+  })
+  return typeof value === 'string' && value.trim() ? value : null
 }
 
 export async function clearZoteroApiKey() {
-  await invoke('keychain_delete', { key: ZOTERO_KEYCHAIN_KEY }).catch(() => {})
-  const raw = await readZoteroConfigRaw()
-  if (raw && (raw._apiKeyFallback || raw._credentialStorage)) {
-    const next = { ...raw }
-    delete next._apiKeyFallback
-    delete next._credentialStorage
-    await writeZoteroConfigRaw(next)
-  }
-  localStorage.removeItem('zoteroApiKey')
+  const globalConfigDir = await getGlobalConfigDir()
+  await invoke('references_zotero_api_key_clear', {
+    params: {
+      globalConfigDir,
+    },
+  })
 }
 
 export async function disconnectZotero() {
-  await clearZoteroApiKey()
   const globalConfigDir = await getGlobalConfigDir()
-  await saveZoteroConfig(null, globalConfigDir)
+  await invoke('references_zotero_disconnect', {
+    params: {
+      globalConfigDir,
+    },
+  })
   setSyncState({
     status: 'disconnected',
     lastSyncTime: null,
