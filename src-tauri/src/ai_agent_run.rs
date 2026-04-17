@@ -79,7 +79,10 @@ fn slugify(value: &str) -> String {
 
 fn build_doc_patch_artifact(payload: &Value, context_bundle: &Value) -> Option<Value> {
     let replacement_text = {
-        let text = string_field(payload, &["replacement_text", "revised_paragraph", "paragraph"]);
+        let text = string_field(
+            payload,
+            &["replacement_text", "revised_paragraph", "paragraph"],
+        );
         if text.is_empty() {
             return None;
         }
@@ -90,6 +93,14 @@ fn build_doc_patch_artifact(payload: &Value, context_bundle: &Value) -> Option<V
     if !bool_available(selection) || !bool_available(document) {
         return None;
     }
+    let title = {
+        let title = string_field(payload, &["title"]);
+        if title.is_empty() {
+            "Document patch".to_string()
+        } else {
+            title
+        }
+    };
 
     Some(json!({
         "type": "doc_patch",
@@ -98,10 +109,7 @@ fn build_doc_patch_artifact(payload: &Value, context_bundle: &Value) -> Option<V
         "to": selection.get("to").cloned().unwrap_or(Value::Null),
         "originalText": string_field(selection, &["text"]),
         "replacementText": replacement_text,
-        "title": {
-            let title = string_field(payload, &["title"]);
-            if title.is_empty() { "Document patch".to_string() } else { title }
-        },
+        "title": title,
         "rationale": string_field(payload, &["rationale"]),
         "citationSuggestion": string_field(payload, &["citation_suggestion"]),
     }))
@@ -131,16 +139,14 @@ fn build_note_draft_artifact(payload: &Value, context_bundle: &Value) -> Option<
             value
         }
     };
+    let rationale = string_field(payload, &["rationale", "takeaway"]);
     Some(json!({
         "type": "note_draft",
         "title": title,
         "suggestedName": format!("{slug}.md"),
         "content": content,
         "sourceFilePath": string_field(context_bundle.get("document").unwrap_or(&Value::Null), &["filePath", "file_path"]),
-        "rationale": {
-            let rationale = string_field(payload, &["rationale", "takeaway"]);
-            rationale
-        },
+        "rationale": rationale,
     }))
 }
 
@@ -148,7 +154,8 @@ fn normalize_artifact(behavior_id: &str, payload: &Value, context_bundle: &Value
     match behavior_id {
         "revise-with-citations" => build_doc_patch_artifact(payload, context_bundle),
         "draft-related-work" => {
-            let selection_available = bool_available(context_bundle.get("selection").unwrap_or(&Value::Null));
+            let selection_available =
+                bool_available(context_bundle.get("selection").unwrap_or(&Value::Null));
             if selection_available {
                 build_doc_patch_artifact(payload, context_bundle)
                     .or_else(|| build_note_draft_artifact(payload, context_bundle))
@@ -208,7 +215,10 @@ pub async fn ai_agent_run(params: AiAgentRunParams) -> Result<AiAgentRunResponse
         support_files: Vec::new(),
         enabled_tool_ids: prompt.enabled_tool_ids.clone(),
         workspace_path: string_field(
-            params.context_bundle.get("workspace").unwrap_or(&Value::Null),
+            params
+                .context_bundle
+                .get("workspace")
+                .unwrap_or(&Value::Null),
             &["path"],
         ),
     })
@@ -251,5 +261,45 @@ mod tests {
 
         assert_eq!(artifact["type"].as_str(), Some("note_draft"));
         assert_eq!(artifact["suggestedName"].as_str(), Some("summary.md"));
+    }
+
+    #[test]
+    fn normalize_artifact_builds_doc_patch_for_revision_payload() {
+        let artifact = normalize_artifact(
+            "revise-with-citations",
+            &json!({
+                "replacement_text": "Revised paragraph.",
+                "rationale": "Grounded in the selected source."
+            }),
+            &json!({
+                "document": { "filePath": "/workspace/paper.md", "available": true },
+                "selection": { "available": true, "from": 2, "to": 5, "text": "old" }
+            }),
+        )
+        .expect("artifact");
+
+        assert_eq!(artifact["type"].as_str(), Some("doc_patch"));
+        assert_eq!(artifact["filePath"].as_str(), Some("/workspace/paper.md"));
+        assert_eq!(
+            artifact["replacementText"].as_str(),
+            Some("Revised paragraph.")
+        );
+    }
+
+    #[test]
+    fn normalize_artifact_skips_workspace_agent_advisory_payloads() {
+        let artifact = normalize_artifact(
+            "workspace-agent",
+            &json!({
+                "answer": "A direct answer.",
+                "rationale": "Based on current context."
+            }),
+            &json!({
+                "workspace": { "available": true, "path": "/workspace" },
+                "document": { "available": true, "filePath": "/workspace/paper.md" }
+            }),
+        );
+
+        assert!(artifact.is_none());
     }
 }

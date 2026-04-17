@@ -16,6 +16,7 @@ mod latex_tools;
 mod network;
 mod process_utils;
 mod references_backend;
+mod references_zotero;
 mod security;
 mod workspace_access;
 
@@ -471,6 +472,13 @@ pub fn run() {
             references_backend::references_library_read_or_create,
             references_backend::references_library_write,
             references_backend::references_asset_store,
+            references_zotero::references_zotero_config_load,
+            references_zotero::references_zotero_config_save,
+            references_zotero::references_zotero_validate_api_key,
+            references_zotero::references_zotero_fetch_user_groups,
+            references_zotero::references_zotero_fetch_collections,
+            references_zotero::references_zotero_sync,
+            references_zotero::references_zotero_delete_item,
             security::workspace_set_allowed_roots,
             security::workspace_clear_allowed_roots,
             workspace_access::macos_create_workspace_bookmark,

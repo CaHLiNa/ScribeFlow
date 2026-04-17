@@ -1,51 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import {
-  applyTextPatchToContent,
-  extractJsonPayload,
-  normalizeAiArtifact,
-} from '../src/domains/ai/aiArtifactRuntime.js'
-
-test('extractJsonPayload can recover JSON from fenced model output', () => {
-  const payload = extractJsonPayload('```json\n{"answer":"ok"}\n```')
-  assert.deepEqual(payload, { answer: 'ok' })
-})
-
-test('normalizeAiArtifact creates a document patch artifact for revise-with-citations', () => {
-  const artifact = normalizeAiArtifact(
-    'revise-with-citations',
-    {
-      replacement_text: 'Revised paragraph.',
-      rationale: 'Grounded in the selected source.',
-    },
-    {
-      document: { available: true, filePath: '/workspace/paper.md' },
-      selection: { available: true, from: 2, to: 5, text: 'old' },
-      reference: { available: true },
-    }
-  )
-
-  assert.equal(artifact.type, 'doc_patch')
-  assert.equal(artifact.filePath, '/workspace/paper.md')
-  assert.equal(artifact.replacementText, 'Revised paragraph.')
-})
-
-test('normalizeAiArtifact does not create redundant advisory artifacts for workspace agent', () => {
-  const artifact = normalizeAiArtifact(
-    'workspace-agent',
-    {
-      answer: 'A direct answer.',
-      rationale: 'Based on current context.',
-    },
-    {
-      workspace: { available: true, path: '/workspace' },
-      document: { available: true, filePath: '/workspace/paper.md' },
-    }
-  )
-
-  assert.equal(artifact, null)
-})
+import { applyTextPatchToContent } from '../src/domains/ai/aiArtifactRuntime.js'
 
 test('applyTextPatchToContent replaces the selected range only when the source text matches', () => {
   const result = applyTextPatchToContent('012old789', {
