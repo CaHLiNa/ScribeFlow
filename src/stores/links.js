@@ -186,7 +186,7 @@ export const useLinksStore = defineStore('links', {
             content = await invoke('read_file', { path: file.path })
             filesStore.fileContents[file.path] = content
           }
-          this._indexFile(file.path, content)
+          await this._indexFile(file.path, content)
         } catch (e) {
           console.warn('Failed to index file:', file.path, e)
         }
@@ -210,7 +210,7 @@ export const useLinksStore = defineStore('links', {
         // Remove old index for this file
         this._removeFileFromIndex(path)
         // Re-index
-        this._indexFile(path, content)
+        await this._indexFile(path, content)
         // Rebuild backlinks
         this._rebuildBacklinks()
       } catch (e) {
@@ -234,7 +234,7 @@ export const useLinksStore = defineStore('links', {
         this._removeFileFromIndex(oldPath)
         try {
           const content = await invoke('read_file', { path: newPath })
-          this._indexFile(newPath, content)
+          await this._indexFile(newPath, content)
         } catch (e) { /* ignore */ }
         this._rebuildBacklinks()
         return
@@ -280,7 +280,7 @@ export const useLinksStore = defineStore('links', {
       this._removeFileFromIndex(oldPath)
       try {
         const content = await invoke('read_file', { path: newPath })
-        this._indexFile(newPath, content)
+        await this._indexFile(newPath, content)
       } catch (e) { /* ignore */ }
 
       // Full rebuild of backlinks since many files may have changed
@@ -294,7 +294,7 @@ export const useLinksStore = defineStore('links', {
 
     // --- Internal helpers ---
 
-    _indexFile(path, content) {
+    async _indexFile(path, content) {
       // Name map
       const name = fileNameFromPath(path)
       const normalized = normalizeName(name)
@@ -306,7 +306,7 @@ export const useLinksStore = defineStore('links', {
       }
 
       // Headings
-      this.headings[path] = parseHeadings(content)
+      this.headings[path] = await parseHeadings(content)
 
       // Forward links (skip those inside code blocks)
       const links = parseWikiLinks(content)

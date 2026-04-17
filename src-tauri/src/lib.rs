@@ -33,6 +33,7 @@ mod latex;
 mod latex_project_graph;
 mod latex_runtime;
 mod latex_tools;
+mod markdown_runtime;
 mod network;
 mod process_utils;
 mod references_backend;
@@ -544,9 +545,7 @@ pub fn run() {
             references_backend::references_library_write,
             references_backend::references_asset_store,
             references_backend::references_assets_migrate,
-            references_citation::references_citation_format,
-            references_citation::references_citation_bibliography,
-            references_citation::references_citation_format_csl,
+            references_citation::references_citation_render,
             references_import::references_crossref_lookup_by_doi,
             references_import::references_crossref_search_by_metadata,
             references_import::references_import_parse_text,
@@ -571,6 +570,7 @@ pub fn run() {
             references_zotero::references_zotero_fetch_collections,
             references_zotero::references_zotero_sync,
             references_zotero::references_zotero_delete_item,
+            markdown_runtime::markdown_extract_headings,
             latex_project_graph::latex_project_graph_resolve,
             latex_project_graph::latex_compile_request_resolve,
             latex_project_graph::latex_compile_targets_resolve,

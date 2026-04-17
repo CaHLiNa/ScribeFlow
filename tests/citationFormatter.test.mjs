@@ -10,7 +10,6 @@ import {
   formatReference,
 } from '../src/services/references/citationFormatter.js'
 import {
-  citationStyleUsesFastPath,
   getAvailableCitationStyles,
   getCitationFormatter,
   getCitationStyleName,
@@ -57,23 +56,19 @@ function mockFormatReference(style = 'apa', mode = 'reference', reference = {}, 
 globalThis.window = globalThis.window || {}
 window.__TAURI_INTERNALS__ = {
   invoke: async (command, args = {}) => {
-    if (command === 'references_citation_format') {
-      return mockFormatReference(
-        args.params?.style,
-        args.params?.mode,
-        args.params?.reference,
-        args.params?.number
-      )
-    }
-    if (command === 'references_citation_bibliography') {
-      return (args.params?.references || [])
-        .map((reference, index) =>
-          mockFormatReference(args.params?.style, 'bibliography', reference, index + 1)
-        )
-        .join('\n\n')
-    }
-    if (command === 'references_citation_format_csl') {
+    if (command === 'references_citation_render') {
       const items = args.params?.cslItems || []
+      if (args.params?.style === 'ieee' && args.params?.mode === 'reference') {
+        return `[${args.params?.number || 1}] ${args.params?.reference?.title || ''}`.trim()
+      }
+      if (args.params?.style === 'ieee' && args.params?.mode === 'bibliography') {
+        return (args.params?.references || [])
+          .map((reference, index) => `[${index + 1}] ${reference.title || ''}`.trim())
+          .join('\n\n')
+      }
+      if (args.params?.style === 'apa' && args.params?.mode === 'inline') {
+        return '(Ames & Grizzle, 2014)'
+      }
       if (args.params?.mode === 'inline') return '(Ames & Grizzle, 2014)'
       if (args.params?.mode === 'bibliography') {
         return items
@@ -110,8 +105,6 @@ test('fast formatter exports upstream-compatible helpers', async () => {
 })
 
 test('citation style registry exposes built-in styles and fast-path info', () => {
-  assert.equal(citationStyleUsesFastPath('apa'), true)
-  assert.equal(citationStyleUsesFastPath('nature'), false)
   assert.equal(getCitationStyleName('nature'), 'Nature')
   assert.ok(getAvailableCitationStyles().some((style) => style.id === 'bmj'))
 })
@@ -119,7 +112,6 @@ test('citation style registry exposes built-in styles and fast-path info', () =>
 test('citation style registry can register user styles', () => {
   setUserCitationStyles([{ id: 'my-style', name: 'My Style', category: 'Custom' }])
   assert.ok(getAvailableCitationStyles().some((style) => style.id === 'my-style'))
-  assert.equal(citationStyleUsesFastPath('my-style'), false)
   setUserCitationStyles([])
 })
 

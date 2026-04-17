@@ -1,9 +1,9 @@
 import { referenceRecordToCsl } from '../../domains/references/referenceInterop.js'
 import {
-  formatCslBibliography as fastFormatBibliography,
-  formatInlineCitation as fastFormatInlineCitation,
-  formatReference as fastFormatReference,
-  isFastCitationStyle,
+  formatCslBibliography,
+  formatBibliography,
+  formatInlineCitation,
+  formatReference,
 } from './citationFormatter.js'
 
 const BUILTIN_STYLES = [
@@ -63,36 +63,12 @@ export function getCitationStyleName(styleId = '') {
   return getCitationStyleInfo(styleId)?.name || styleId || 'APA 7th Edition'
 }
 
-export function citationStyleUsesFastPath(styleId = '') {
-  const style = getCitationStyleInfo(styleId)
-  if (!style) return isFastCitationStyle(styleId)
-  return style.fast === true
-}
-
 export async function getCitationFormatter(styleId = 'apa') {
-  if (citationStyleUsesFastPath(styleId)) {
-    return {
-      isAsync: true,
-      formatReference: async (csl, number) => fastFormatReference(csl, styleId, number),
-      formatInlineCitation: async (csl, number) => fastFormatInlineCitation(csl, styleId, number),
-      formatBibliography: async (cslRecords) => fastFormatBibliography(cslRecords, styleId),
-    }
-  }
-
   return {
     isAsync: true,
-    formatReference: async (csl, number) => {
-      const { formatWithCSL } = await import('./citationFormatterCSL.js')
-      return formatWithCSL(styleId, 'reference', [csl], number)
-    },
-    formatInlineCitation: async (csl, number) => {
-      const { formatWithCSL } = await import('./citationFormatterCSL.js')
-      return formatWithCSL(styleId, 'inline', [csl], number)
-    },
-    formatBibliography: async (cslRecords) => {
-      const { formatWithCSL } = await import('./citationFormatterCSL.js')
-      return formatWithCSL(styleId, 'bibliography', cslRecords)
-    },
+    formatReference: async (csl, number) => formatReference(csl, styleId, number),
+    formatInlineCitation: async (csl, number) => formatInlineCitation(csl, styleId, number),
+    formatBibliography: async (cslRecords) => formatCslBibliography(cslRecords, styleId),
   }
 }
 
@@ -107,7 +83,5 @@ export async function formatCitationWithStyle(styleId = 'apa', mode = 'reference
 }
 
 export async function formatBibliographyWithStyle(styleId = 'apa', references = []) {
-  const formatter = await getCitationFormatter(styleId)
-  const cslRecords = references.map((reference) => referenceRecordToCsl(reference))
-  return formatter.formatBibliography(cslRecords)
+  return formatBibliography(styleId, references)
 }

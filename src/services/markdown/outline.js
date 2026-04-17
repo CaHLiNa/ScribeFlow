@@ -1,5 +1,5 @@
 import { extractMarkdownHeadingItems } from './parser.js'
 
-export function buildMarkdownOutlineItems(content = '') {
+export async function buildMarkdownOutlineItems(content = '') {
   return extractMarkdownHeadingItems(content)
 }

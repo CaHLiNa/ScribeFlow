@@ -136,4 +136,3 @@ Reader and AI domains should follow the same pattern: policy-heavy runtime tests
 - `docs/ARCHITECTURE.md`
 - `docs/ACADEMIC_PLATFORM_DIRECTION.md`
 - `docs/DOCUMENT_WORKFLOW.md`
-- `docs/TESTING.md`

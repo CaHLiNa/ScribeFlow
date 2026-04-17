@@ -110,4 +110,3 @@ Key tests for this area include:
 
 - `docs/ARCHITECTURE.md`
 - `docs/PRODUCT.md`
-- `docs/TESTING.md`

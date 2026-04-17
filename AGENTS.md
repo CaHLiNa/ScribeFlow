@@ -3,7 +3,7 @@
 Scope: repository-wide.
 
 Read `docs/PRODUCT.md` and `docs/ARCHITECTURE.md` before making meaningful changes.
-Consult `docs/DOCUMENT_WORKFLOW.md` for preview/compile/editor workflow work, `docs/TESTING.md` for validation expectations, and `docs/OPERATIONS.md` for agent/release workflow commands.
+Consult `docs/DOCUMENT_WORKFLOW.md` for preview/compile/editor workflow work and `docs/OPERATIONS.md` for agent/release workflow commands.
 
 ## Mission
 

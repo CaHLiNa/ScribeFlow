@@ -69,5 +69,4 @@ Update this doc when you change:
 ## See also
 
 - `docs/OPERATIONS.md`
-- `docs/TESTING.md`
 - `docs/CONTRIBUTING.md`

@@ -37,7 +37,7 @@
 </template>
 
 <script setup>
-import { computed, onUnmounted, watch } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import { useEditorStore } from '../../stores/editor'
 import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { useFilesStore } from '../../stores/files'
@@ -93,6 +93,8 @@ const fileType = computed(() => {
 })
 
 const hasOutlineSupport = computed(() => fileType.value !== null)
+const markdownOutlineItems = ref([])
+let markdownOutlineRequestId = 0
 
 function currentDocumentText(path) {
   const view = editorStore.getAnyEditorView(path)
@@ -102,14 +104,37 @@ function currentDocumentText(path) {
   return filesStore.fileContents[path] || ''
 }
 
+async function refreshMarkdownOutline() {
+  const path = activeFile.value
+  const content = path ? currentDocumentText(path) : ''
+  const requestId = ++markdownOutlineRequestId
+
+  if (!path || fileType.value !== 'markdown' || !content) {
+    if (requestId === markdownOutlineRequestId) {
+      markdownOutlineItems.value = []
+    }
+    return
+  }
+
+  try {
+    const items = await buildMarkdownOutlineItems(content)
+    if (requestId === markdownOutlineRequestId && activeFile.value === path) {
+      markdownOutlineItems.value = Array.isArray(items) ? items : []
+    }
+  } catch {
+    if (requestId === markdownOutlineRequestId) {
+      markdownOutlineItems.value = []
+    }
+  }
+}
+
 const outlineItems = computed(() => {
   const path = activeFile.value
   const ft = fileType.value
   if (!path || !ft) return []
 
   if (ft === 'markdown') {
-    const content = currentDocumentText(path)
-    return content ? buildMarkdownOutlineItems(content) : []
+    return markdownOutlineItems.value
   }
 
   if (ft === 'latex') {
@@ -253,7 +278,13 @@ function outlineItemKey(item = {}) {
   ].join('::')
 }
 
-watch(() => [activeFile.value, fileType.value], () => {}, { immediate: true })
+watch(
+  () => [activeFile.value, fileType.value, currentDocumentText(activeFile.value || '')],
+  () => {
+    void refreshMarkdownOutline()
+  },
+  { immediate: true }
+)
 
 onUnmounted(() => {})
 </script>

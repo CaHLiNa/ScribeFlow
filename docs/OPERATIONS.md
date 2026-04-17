@@ -71,6 +71,5 @@ Current release flow:
 
 ## See also
 
-- `docs/TESTING.md`
 - `docs/BUILD_SYSTEM.md`
 - `docs/CONTRIBUTING.md`

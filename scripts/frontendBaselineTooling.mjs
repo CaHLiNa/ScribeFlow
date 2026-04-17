@@ -53,7 +53,6 @@ export const FRONTEND_BASELINE_FORMAT_TARGETS = Object.freeze(
     'docs/DOMAINS.md',
     'docs/OPERATIONS.md',
     'docs/PRODUCT.md',
-    'docs/TESTING.md',
   ])
 )
 

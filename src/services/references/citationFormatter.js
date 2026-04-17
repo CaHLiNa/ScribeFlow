@@ -13,30 +13,44 @@ function requireTauriInvoke() {
   }
 }
 
+async function resolveWorkspacePath() {
+  try {
+    const { useWorkspaceStore } = await import('../../stores/workspace.js')
+    const workspace = useWorkspaceStore()
+    return String(workspace.projectDir || workspace.path || '').trim()
+  } catch {
+    return ''
+  }
+}
+
 async function formatFromReference(style = 'apa', mode = 'reference', reference = {}, number) {
   requireTauriInvoke()
-  return invoke('references_citation_format', {
+  return invoke('references_citation_render', {
     params: {
       style,
       mode,
       reference,
+      references: mode === 'bibliography' ? [reference] : [],
+      cslItems: [],
       number,
+      locale: 'en-GB',
+      workspacePath: await resolveWorkspacePath(),
     },
   })
 }
 
 async function formatFromCsl(style = 'apa', mode = 'reference', cslItems = [], number, locale = 'en-GB') {
   requireTauriInvoke()
-  const { useWorkspaceStore } = await import('../../stores/workspace.js')
-  const workspace = useWorkspaceStore()
-  return invoke('references_citation_format_csl', {
+  return invoke('references_citation_render', {
     params: {
-      styleId: style,
+      style,
       mode,
+      reference: cslToReferenceRecord(cslItems[0] || {}),
+      references: cslItems.map((item) => cslToReferenceRecord(item)),
       cslItems,
       number,
       locale,
-      workspacePath: String(workspace.projectDir || workspace.path || '').trim(),
+      workspacePath: await resolveWorkspacePath(),
     },
   })
 }
@@ -56,32 +70,21 @@ export async function formatInlineCitation(csl = {}, style = 'apa', number) {
 }
 
 export async function formatCslBibliography(cslRecords = [], style = 'apa') {
-  if (isFastCitationStyle(style)) {
-    return invoke('references_citation_bibliography', {
-      params: {
-        style,
-        references: cslRecords.map((record) => cslToReferenceRecord(record)),
-      },
-    })
-  }
   return formatFromCsl(style, 'bibliography', cslRecords)
 }
 
 export async function formatCitation(style = 'apa', mode = 'reference', reference = {}, number) {
-  if (isFastCitationStyle(style)) {
-    return formatFromReference(style, mode, reference, number)
-  }
+  if (isFastCitationStyle(style)) return formatFromReference(style, mode, reference, number)
   return formatFromCsl(style, mode, [referenceRecordToCsl(reference)], number)
 }
 
 export async function formatBibliography(style = 'apa', references = []) {
   if (isFastCitationStyle(style)) {
-    return invoke('references_citation_bibliography', {
-      params: {
-        style,
-        references,
-      },
-    })
+    return formatFromCsl(
+      style,
+      'bibliography',
+      references.map((reference) => referenceRecordToCsl(reference))
+    )
   }
   return formatFromCsl(style, 'bibliography', references.map((reference) => referenceRecordToCsl(reference)))
 }

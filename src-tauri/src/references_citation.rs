@@ -9,29 +9,7 @@ use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct CitationFormatParams {
-    #[serde(default)]
-    pub style: String,
-    #[serde(default)]
-    pub mode: String,
-    #[serde(default)]
-    pub reference: Value,
-    #[serde(default)]
-    pub number: Option<usize>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CitationBibliographyParams {
-    #[serde(default)]
-    pub style: String,
-    #[serde(default)]
-    pub references: Vec<Value>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CitationCslFormatParams {
+struct CitationCslFormatParams {
     #[serde(default)]
     pub style_id: String,
     #[serde(default)]
@@ -44,6 +22,31 @@ pub struct CitationCslFormatParams {
     pub locale: String,
     #[serde(default)]
     pub workspace_path: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CitationRenderParams {
+    #[serde(default)]
+    pub style: String,
+    #[serde(default)]
+    pub mode: String,
+    #[serde(default)]
+    pub reference: Value,
+    #[serde(default)]
+    pub references: Vec<Value>,
+    #[serde(default)]
+    pub csl_items: Vec<Value>,
+    #[serde(default)]
+    pub number: Option<usize>,
+    #[serde(default)]
+    pub locale: String,
+    #[serde(default)]
+    pub workspace_path: String,
+}
+
+fn is_fast_style(style: &str) -> bool {
+    matches!(style, "apa" | "chicago" | "harvard" | "ieee" | "vancouver")
 }
 
 fn trim_string(value: Option<&Value>) -> String {
@@ -553,41 +556,7 @@ fn read_csl_locale(locale: &str, workspace_path: &str) -> Result<String, String>
     Err(format!("CSL locale not found: {effective}"))
 }
 
-#[tauri::command]
-pub async fn references_citation_format(params: CitationFormatParams) -> Result<String, String> {
-    Ok(format_reference(
-        params.style.trim(),
-        params.mode.trim(),
-        &params.reference,
-        params.number,
-    ))
-}
-
-#[tauri::command]
-pub async fn references_citation_bibliography(
-    params: CitationBibliographyParams,
-) -> Result<String, String> {
-    Ok(params
-        .references
-        .iter()
-        .enumerate()
-        .map(|(index, reference)| {
-            format_reference(
-                params.style.trim(),
-                "bibliography",
-                reference,
-                Some(index + 1),
-            )
-        })
-        .filter(|entry| !entry.is_empty())
-        .collect::<Vec<_>>()
-        .join("\n\n"))
-}
-
-#[tauri::command]
-pub async fn references_citation_format_csl(
-    params: CitationCslFormatParams,
-) -> Result<String, String> {
+async fn render_csl_items(params: CitationCslFormatParams) -> Result<String, String> {
     if params.csl_items.is_empty() {
         return Ok(String::new());
     }
@@ -679,4 +648,37 @@ pub async fn references_citation_format_csl(
             Ok(output.trim().to_string())
         }
     }
+}
+
+#[tauri::command]
+pub async fn references_citation_render(params: CitationRenderParams) -> Result<String, String> {
+    let style = params.style.trim();
+    let mode = params.mode.trim();
+
+    if is_fast_style(style) {
+        if mode == "bibliography" {
+            return Ok(params
+                .references
+                .iter()
+                .enumerate()
+                .map(|(index, reference)| {
+                    format_reference(style, "bibliography", reference, Some(index + 1))
+                })
+                .filter(|entry| !entry.is_empty())
+                .collect::<Vec<_>>()
+                .join("\n\n"));
+        }
+
+        return Ok(format_reference(style, mode, &params.reference, params.number));
+    }
+
+    render_csl_items(CitationCslFormatParams {
+        style_id: style.to_string(),
+        mode: mode.to_string(),
+        csl_items: params.csl_items,
+        number: params.number,
+        locale: params.locale,
+        workspace_path: params.workspace_path,
+    })
+    .await
 }

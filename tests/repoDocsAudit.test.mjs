@@ -16,7 +16,6 @@ const requiredDocs = [
   ['docs/BUILD_SYSTEM.md', '# Build System'],
   ['docs/DOCUMENT_WORKFLOW.md', '# Document Workflow'],
   ['docs/CONTRIBUTING.md', '# Contributing'],
-  ['docs/TESTING.md', '# Testing'],
 ]
 
 const requiredAgentFiles = [['AGENTS.md', '# Altals Agent Constitution']]

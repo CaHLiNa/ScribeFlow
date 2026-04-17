@@ -118,4 +118,3 @@ Citations and bibliography behavior should adapt to each format instead of forci
 - `docs/DOMAINS.md`
 - `docs/ACADEMIC_PLATFORM_DIRECTION.md`
 - `docs/DOCUMENT_WORKFLOW.md`
-- `docs/TESTING.md`
