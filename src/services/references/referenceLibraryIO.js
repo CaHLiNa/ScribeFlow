@@ -96,9 +96,7 @@ export async function readOrCreateReferenceLibrarySnapshot(globalConfigDir = '',
     return buildDefaultReferenceLibrarySnapshot()
   }
 
-  if (!hasTauriInvoke()) {
-    return buildDefaultReferenceLibrarySnapshot()
-  }
+  if (!hasTauriInvoke()) throw new Error('Tauri invoke is required for reference library IO.')
 
   const backendSnapshot = await invoke('references_library_read_or_create', {
     params: {
@@ -130,9 +128,7 @@ export async function writeReferenceLibrarySnapshot(globalConfigDir = '', snapsh
     ...snapshot,
   })
 
-  if (!hasTauriInvoke()) {
-    return normalizedSnapshot
-  }
+  if (!hasTauriInvoke()) throw new Error('Tauri invoke is required for reference library IO.')
 
   await invoke('references_library_write', {
     params: {

@@ -55,7 +55,6 @@ import { useWorkspaceStore } from './workspace'
 
 let codexRuntimeUnlisten = null
 const pendingCodexRuntimeThreads = new Map()
-const pendingCodexRuntimeTurns = new Map()
 const pendingCodexRuntimeThreadCreations = new Map()
 const DEFAULT_AGENT_ACTION_ID = 'workspace-agent'
 
@@ -1537,30 +1536,14 @@ export const useAiStore = defineStore('ai', {
 
       const session =
         findSessionByRuntimeThreadId(this.sessions, threadId) ||
-        (turnId
-          ? resolveAgentSessionRecord(
-              this.sessions,
-              pendingCodexRuntimeTurns.get(turnId)?.sessionId || ''
-            )
-          : null)
+        resolveAgentSessionRecord(
+          this.sessions,
+          pendingCodexRuntimeThreads.get(threadId)?.sessionId || ''
+        )
       if (!session) return
 
       if (payload.eventType === 'turnStarted' && threadId && turnId) {
         const pending = pendingCodexRuntimeThreads.get(threadId)
-        if (pending && !pendingCodexRuntimeTurns.has(turnId)) {
-          pendingCodexRuntimeTurns.set(turnId, {
-            sessionId: pending.sessionId,
-            pendingAssistantId: pending.pendingAssistantId,
-            threadId,
-            turnId,
-            content: '',
-            reasoning: '',
-            resolve: null,
-            reject: null,
-            completedResult: null,
-            completedError: null,
-          })
-        }
         this.updateSessionById(session.id, (currentSession) => ({
           ...currentSession,
           runtimeThreadId: threadId,
@@ -1570,17 +1553,16 @@ export const useAiStore = defineStore('ai', {
         return
       }
 
-      const trackedTurn = turnId ? pendingCodexRuntimeTurns.get(turnId) || null : null
-      const pendingAssistantId = String(trackedTurn?.pendingAssistantId || '').trim()
+      const pending = pendingCodexRuntimeThreads.get(threadId) || null
+      const pendingAssistantId = String(pending?.pendingAssistantId || '').trim()
 
-      if (payload.eventType === 'itemDelta' && trackedTurn && pendingAssistantId) {
+      if (payload.eventType === 'itemDelta' && pendingAssistantId) {
         if (payload?.item?.kind === 'agentMessage') {
-          trackedTurn.content = String(payload.item.text || trackedTurn.content || '')
           await this.applyAgentRunEventToSession(
             session.id,
             {
               eventType: 'assistant-content',
-              text: trackedTurn.content,
+              text: String(payload.item.text || ''),
               transport: 'codex-runtime',
             },
             pendingAssistantId
@@ -1589,12 +1571,11 @@ export const useAiStore = defineStore('ai', {
         }
 
         if (payload?.item?.kind === 'reasoning') {
-          trackedTurn.reasoning = String(payload.item.text || trackedTurn.reasoning || '')
           await this.applyAgentRunEventToSession(
             session.id,
             {
               eventType: 'assistant-reasoning',
-              text: trackedTurn.reasoning,
+              text: String(payload.item.text || ''),
               transport: 'codex-runtime',
             },
             pendingAssistantId
@@ -1603,45 +1584,15 @@ export const useAiStore = defineStore('ai', {
         return
       }
 
-      if (payload.eventType === 'turnCompleted' && trackedTurn) {
+      if (payload.eventType === 'turnCompleted' && threadId) {
         pendingCodexRuntimeThreads.delete(threadId)
-        const completedResult = {
-          content: trackedTurn.content,
-          reasoning: trackedTurn.reasoning,
-          payload: null,
-          transport: 'codex-runtime',
-          events: [],
-        }
-        if (typeof trackedTurn.resolve === 'function') {
-          pendingCodexRuntimeTurns.delete(turnId)
-          trackedTurn.resolve(completedResult)
-          void this.syncSessionFromCodexRuntimeThread(session.id)
-        } else {
-          pendingCodexRuntimeTurns.set(turnId, {
-            ...trackedTurn,
-            completedResult,
-          })
-        }
+        void this.syncSessionFromCodexRuntimeThread(session.id)
         return
       }
 
-      if ((payload.eventType === 'turnFailed' || payload.eventType === 'turnInterrupted') && trackedTurn) {
+      if ((payload.eventType === 'turnFailed' || payload.eventType === 'turnInterrupted') && threadId) {
         pendingCodexRuntimeThreads.delete(threadId)
-        const completedError = new Error(
-          payload.eventType === 'turnInterrupted'
-            ? t('AI execution stopped.')
-            : String(payload.error || t('AI execution failed.'))
-        )
-        if (typeof trackedTurn.reject === 'function') {
-          pendingCodexRuntimeTurns.delete(turnId)
-          trackedTurn.reject(completedError)
-          void this.syncSessionFromCodexRuntimeThread(session.id)
-        } else {
-          pendingCodexRuntimeTurns.set(turnId, {
-            ...trackedTurn,
-            completedError,
-          })
-        }
+        void this.syncSessionFromCodexRuntimeThread(session.id)
       }
     },
 
@@ -1781,67 +1732,46 @@ export const useAiStore = defineStore('ai', {
                 pendingAssistantId,
               })
 
-              const runtimeResponse = await runCodexRuntimeTurn({
-                threadId: runtimeThreadId,
-                userText: userPrompt,
-                provider: {
-                  providerId: preparedRun.providerId,
-                  baseUrl: preparedRun.config?.baseUrl || '',
-                  apiKey: preparedRun.apiKey || '',
-                  model: preparedRun.config?.model || '',
-                  systemPrompt,
-                  temperature: preparedRun.config?.temperature,
-                },
-                workspacePath: useWorkspaceStore().path || '',
-                enabledToolIds:
-                  (
-                    await resolveAiToolCatalogRust({
-                      enabledTools: preparedRun.config?.enabledTools,
-                      runtimeIntent: preparedRun.runtimeIntent,
-                    })
-                  )?.effectiveToolIds || [],
-              })
-
-              const runtimeTurnId = String(runtimeResponse?.turn?.id || '').trim()
-              const pendingTurnState =
-                pendingCodexRuntimeTurns.get(runtimeTurnId) || {
-                  sessionId,
-                  pendingAssistantId,
+              const runtimeResult = await invoke('ai_runtime_turn_run_wait', {
+                params: {
                   threadId: runtimeThreadId,
-                  turnId: runtimeTurnId,
-                  content: '',
-                  reasoning: '',
-                  resolve: null,
-                  reject: null,
-                  completedResult: null,
-                  completedError: null,
-                }
+                  userText: userPrompt,
+                  provider: {
+                    providerId: preparedRun.providerId,
+                    baseUrl: preparedRun.config?.baseUrl || '',
+                    apiKey: preparedRun.apiKey || '',
+                    model: preparedRun.config?.model || '',
+                    systemPrompt,
+                    temperature: preparedRun.config?.temperature,
+                  },
+                  workspacePath: useWorkspaceStore().path || '',
+                  enabledToolIds:
+                    (
+                      await resolveAiToolCatalogRust({
+                        enabledTools: preparedRun.config?.enabledTools,
+                        runtimeIntent: preparedRun.runtimeIntent,
+                      })
+                    )?.effectiveToolIds || [],
+                },
+              })
 
               this.updateSessionById(sessionId, (session) => ({
                 ...session,
                 runtimeThreadId,
-                runtimeTurnId,
+                runtimeTurnId: String(runtimeResult?.turnId || '').trim(),
                 runtimeProviderId: preparedRun.providerId,
                 runtimeTransport: 'codex-runtime',
               }))
 
-              return await new Promise((resolve, reject) => {
-                const nextState = {
-                  ...pendingTurnState,
-                  resolve,
-                  reject,
-                }
-                pendingCodexRuntimeTurns.set(runtimeTurnId, nextState)
-                if (nextState.completedResult) {
-                  pendingCodexRuntimeTurns.delete(runtimeTurnId)
-                  resolve(nextState.completedResult)
-                  return
-                }
-                if (nextState.completedError) {
-                  pendingCodexRuntimeTurns.delete(runtimeTurnId)
-                  reject(nextState.completedError)
-                }
-              })
+              pendingCodexRuntimeThreads.delete(runtimeThreadId)
+
+              return {
+                content: String(runtimeResult?.content || ''),
+                reasoning: String(runtimeResult?.reasoning || ''),
+                payload: null,
+                transport: String(runtimeResult?.transport || 'codex-runtime'),
+                events: [],
+              }
             })()
           : await invoke('ai_agent_run', {
               params: {

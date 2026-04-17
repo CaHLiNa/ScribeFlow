@@ -80,30 +80,11 @@ export async function storeReferencePdf(globalConfigDir = '', reference = {}, so
 
 export async function migrateReferenceAssets(globalConfigDir = '', references = []) {
   if (!globalConfigDir || !Array.isArray(references) || references.length === 0) return references
-
-  const pdfsDir = resolveGlobalReferencePdfsDir(globalConfigDir)
-
-  const migrated = []
-  for (const reference of references) {
-    const pdfPath = normalizePath(reference.pdfPath)
-    const fulltextPath = normalizePath(reference.fulltextPath)
-
-    if (!pdfPath || isWithinDirectory(pdfPath, pdfsDir)) {
-      migrated.push(reference)
-      continue
-    }
-
-    try {
-      migrated.push(
-        await storeReferencePdfWithOptions(globalConfigDir, reference, pdfPath, {
-          existingFulltextSourcePath: fulltextPath,
-        })
-      )
-    } catch (error) {
-      console.warn('[references] Failed to migrate project reference assets:', error)
-      migrated.push(reference)
-    }
-  }
-
-  return migrated
+  const migrated = await invoke('references_assets_migrate', {
+    params: {
+      globalConfigDir,
+      references,
+    },
+  })
+  return Array.isArray(migrated) ? migrated : references
 }

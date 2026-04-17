@@ -499,6 +499,7 @@ pub fn run() {
             references_backend::references_library_read_or_create,
             references_backend::references_library_write,
             references_backend::references_asset_store,
+            references_backend::references_assets_migrate,
             references_citation::references_citation_format,
             references_citation::references_citation_bibliography,
             references_citation::references_citation_format_csl,

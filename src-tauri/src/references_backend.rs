@@ -49,6 +49,15 @@ pub struct ReferenceAssetStoreParams {
     pub existing_fulltext_source_path: Option<String>,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReferenceAssetsMigrateParams {
+    #[serde(default)]
+    pub global_config_dir: String,
+    #[serde(default)]
+    pub references: Vec<Value>,
+}
+
 fn trim_string(value: Option<&Value>) -> String {
     value
         .and_then(Value::as_str)
@@ -597,6 +606,51 @@ pub async fn references_library_write(
 #[tauri::command]
 pub async fn references_asset_store(params: ReferenceAssetStoreParams) -> Result<Value, String> {
     store_reference_asset(&params)
+}
+
+#[tauri::command]
+pub async fn references_assets_migrate(
+    params: ReferenceAssetsMigrateParams,
+) -> Result<Value, String> {
+    if params.global_config_dir.trim().is_empty() || params.references.is_empty() {
+        return Ok(Value::Array(params.references));
+    }
+    let Some(references_dir) = references_dir(&params.global_config_dir) else {
+        return Ok(Value::Array(params.references));
+    };
+    let pdfs_dir = references_dir.join(PDFS_DIRNAME);
+    let pdfs_root = normalize_root(&pdfs_dir.to_string_lossy());
+    let mut migrated = Vec::new();
+
+    for reference in &params.references {
+        let normalized_reference = normalize_reference_record(reference);
+        let pdf_path = trim_string(normalized_reference.get("pdfPath"));
+        let fulltext_path = trim_string(normalized_reference.get("fulltextPath"));
+        if pdf_path.is_empty()
+            || normalize_root(&pdf_path) == pdfs_root
+            || normalize_root(&pdf_path).starts_with(&format!("{pdfs_root}/"))
+        {
+            migrated.push(normalized_reference);
+            continue;
+        }
+
+        let extracted_text = pdf_extract::extract_text(Path::new(&pdf_path)).unwrap_or_default();
+        let next = store_reference_asset(&ReferenceAssetStoreParams {
+            global_config_dir: params.global_config_dir.clone(),
+            reference: normalized_reference.clone(),
+            source_path: pdf_path.clone(),
+            extracted_text: Some(extracted_text),
+            existing_fulltext_source_path: if fulltext_path.is_empty() {
+                None
+            } else {
+                Some(fulltext_path)
+            },
+        })
+        .unwrap_or(normalized_reference);
+        migrated.push(next);
+    }
+
+    Ok(Value::Array(migrated))
 }
 
 trait StringExt {

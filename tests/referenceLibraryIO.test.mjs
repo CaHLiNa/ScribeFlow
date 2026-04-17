@@ -104,6 +104,9 @@ test('readOrCreateReferenceLibrarySnapshot forwards params to the Rust backend',
         ],
       }
     }
+    if (command === 'references_assets_migrate') {
+      return args.params?.references || []
+    }
     throw new Error(`Unexpected invoke command: ${command}`)
   }
 
