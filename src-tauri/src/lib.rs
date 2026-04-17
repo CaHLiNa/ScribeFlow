@@ -25,6 +25,7 @@ mod references_backend;
 mod references_citation;
 mod references_import;
 mod references_pdf;
+mod references_runtime;
 mod references_zotero;
 mod security;
 mod workspace_access;
@@ -506,6 +507,11 @@ pub fn run() {
             references_import::references_export_bibtex,
             references_pdf::references_pdf_extract_text,
             references_pdf::references_pdf_extract_metadata,
+            references_runtime::references_find_duplicate,
+            references_runtime::references_merge_imported,
+            references_runtime::references_import_pdf,
+            references_runtime::references_scan_workspace_styles,
+            references_runtime::references_write_bib_file,
             references_zotero::references_zotero_config_load,
             references_zotero::references_zotero_config_save,
             references_zotero::references_zotero_validate_api_key,
