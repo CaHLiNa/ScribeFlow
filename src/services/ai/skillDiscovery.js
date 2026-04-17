@@ -4,6 +4,18 @@ import { normalizePathValue } from '../workspacePaths.js'
 const SKILL_FILE_NAME = 'SKILL.md'
 const MAX_SKILL_DESCRIPTION_LENGTH = 220
 export const ALLOWED_ALTALS_SKILL_SOURCES = new Set(['altals-global', 'altals-workspace'])
+export const ALLOWED_FILESYSTEM_SKILL_SOURCES = new Set([
+  'altals-global',
+  'altals-workspace',
+  'codex-user',
+  'codex-workspace',
+  'claude-user',
+  'claude-workspace',
+  'agents-user',
+  'agents-workspace',
+  'goose-user',
+  'goose-workspace',
+])
 const SUPPORTED_DISCOVERED_SUPPORT_FILE_EXTENSIONS = new Set([
   '.md',
   '.txt',
@@ -61,16 +73,34 @@ function isWorkspaceAltalsSkillPath(path = '') {
     || normalized.endsWith('/.altals/skills')
 }
 
+function isWorkspaceManagedSkillPath(path = '') {
+  const normalized = normalizePathValue(path)
+  return [
+    '/.altals/skills/',
+    '/.codex/skills/',
+    '/.claude/skills/',
+    '/.agents/skills/',
+    '/.goose/skills/',
+  ].some((segment) => normalized.includes(segment))
+    || [
+      '/.altals/skills',
+      '/.codex/skills',
+      '/.claude/skills',
+      '/.agents/skills',
+      '/.goose/skills',
+    ].some((suffix) => normalized.endsWith(suffix))
+}
+
 export function isAltalsManagedFilesystemSkill(skill = {}) {
   if (skill?.kind !== 'filesystem-skill') return false
 
   const source = String(skill?.source || '').trim()
-  if (source && ALLOWED_ALTALS_SKILL_SOURCES.has(source)) {
+  if (source && ALLOWED_FILESYSTEM_SKILL_SOURCES.has(source)) {
     return true
   }
 
-  return isWorkspaceAltalsSkillPath(skill?.directoryPath || '')
-    || isWorkspaceAltalsSkillPath(skill?.skillFilePath || '')
+  return isWorkspaceManagedSkillPath(skill?.directoryPath || '')
+    || isWorkspaceManagedSkillPath(skill?.skillFilePath || '')
 }
 
 function isDiscoverableSupportFile(path = '') {
@@ -219,12 +249,22 @@ export function parseSkillMarkdown(markdown = '', fallbackName = '') {
 export function buildSkillSearchLocations({
   workspacePath = '',
   globalConfigDir = '',
+  homeDir = '',
 } = {}) {
   const workspace = String(workspacePath || '').trim() ? normalizePathValue(workspacePath) : ''
   const globalConfig = String(globalConfigDir || '').trim() ? normalizePathValue(globalConfigDir) : ''
+  const home = String(homeDir || '').trim() ? normalizePathValue(homeDir) : ''
 
   const locations = [
+    home ? { path: `${home}/.claude/skills`, scope: 'user', source: 'claude-user' } : null,
+    home ? { path: `${home}/.codex/skills`, scope: 'user', source: 'codex-user' } : null,
+    home ? { path: `${home}/.config/agents/skills`, scope: 'user', source: 'agents-user' } : null,
+    home ? { path: `${home}/.config/goose/skills`, scope: 'user', source: 'goose-user' } : null,
     globalConfig ? { path: `${globalConfig}/skills`, scope: 'user', source: 'altals-global' } : null,
+    workspace ? { path: `${workspace}/.claude/skills`, scope: 'workspace', source: 'claude-workspace' } : null,
+    workspace ? { path: `${workspace}/.codex/skills`, scope: 'workspace', source: 'codex-workspace' } : null,
+    workspace ? { path: `${workspace}/.agents/skills`, scope: 'workspace', source: 'agents-workspace' } : null,
+    workspace ? { path: `${workspace}/.goose/skills`, scope: 'workspace', source: 'goose-workspace' } : null,
     workspace ? { path: `${workspace}/.altals/skills`, scope: 'workspace', source: 'altals-workspace' } : null,
   ].filter(Boolean)
 
@@ -273,6 +313,14 @@ async function listFilesRecursive(path = '') {
 async function readFile(path = '') {
   try {
     return await invoke('read_file', { path })
+  } catch {
+    return ''
+  }
+}
+
+async function getHomeDir() {
+  try {
+    return await invoke('get_home_dir')
   } catch {
     return ''
   }
@@ -328,9 +376,11 @@ export async function discoverAltalsSkills({
   workspacePath = '',
   globalConfigDir = '',
 } = {}) {
+  const homeDir = await getHomeDir()
   const roots = buildSkillSearchLocations({
     workspacePath,
     globalConfigDir,
+    homeDir,
   })
 
   const discovered = []

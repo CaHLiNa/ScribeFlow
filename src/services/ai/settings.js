@@ -263,7 +263,7 @@ function resolveAiLocalStorageKey(providerId = 'openai') {
 export function createDefaultAiConfig() {
   return sanitizePublicAiConfig({
     currentProviderId: 'openai',
-    enabledTools: [...AI_TOOL_IDS],
+    enabledTools: [],
     providers: Object.fromEntries(
       AI_PROVIDER_DEFINITIONS.map((definition) => [
         definition.id,
@@ -325,16 +325,7 @@ export function normalizeAiConfig(rawConfig = null) {
   return {
     version: AI_CONFIG_VERSION,
     currentProviderId: legacyCurrentProviderId || defaults.currentProviderId,
-    enabledTools:
-      rawConfig && rawVersion < AI_CONFIG_VERSION
-        ? normalizeEnabledAiToolIds([
-            ...normalizeEnabledAiToolIds(rawConfig?.enabledTools),
-            'create-workspace-file',
-            'write-workspace-file',
-            'open-workspace-file',
-            'delete-workspace-path',
-          ])
-        : normalizeEnabledAiToolIds(rawConfig?.enabledTools),
+    enabledTools: normalizeEnabledAiToolIds(rawConfig?.enabledTools),
     providers,
     _credentialStorage: credentialStorage,
     _apiKeyFallbacks: apiKeyFallbacks,

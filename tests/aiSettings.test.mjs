@@ -33,7 +33,7 @@ test('createDefaultAiConfig includes all shipped provider presets', () => {
   assert.equal(config.providers.custom.baseUrl, '')
   assert.equal(config.providers.custom.model, '')
   assert.ok(Array.isArray(config.enabledTools))
-  assert.ok(config.enabledTools.length > 0)
+  assert.deepEqual(config.enabledTools, [])
 })
 
 test('normalizeAiConfig migrates the legacy single-provider shape into the multi-provider map', () => {
@@ -54,18 +54,15 @@ test('normalizeAiConfig migrates the legacy single-provider shape into the multi
   assert.ok(config.enabledTools.length > 0)
 })
 
-test('normalizeAiConfig enables newly shipped workspace file tools for older configs', () => {
+test('normalizeAiConfig only preserves configurable risky tools from stored config', () => {
   const config = normalizeAiConfig({
     version: 4,
-    enabledTools: ['read-workspace-file'],
+    enabledTools: ['read-workspace-file', 'delete-workspace-path'],
     providers: {},
   })
 
-  assert.equal(config.enabledTools.includes('read-workspace-file'), true)
-  assert.equal(config.enabledTools.includes('create-workspace-file'), true)
-  assert.equal(config.enabledTools.includes('write-workspace-file'), true)
-  assert.equal(config.enabledTools.includes('open-workspace-file'), true)
   assert.equal(config.enabledTools.includes('delete-workspace-path'), true)
+  assert.equal(config.enabledTools.includes('read-workspace-file'), false)
 })
 
 test('getAiProviderConfig returns normalized defaults for providers not yet configured', () => {

@@ -1,8 +1,7 @@
+import { invoke } from '@tauri-apps/api/core'
 import {
   createAiSessionRecord,
   ensureAiSessionsState,
-  removeAiSessionRecord,
-  updateAiSessionRecord,
 } from '../../domains/ai/aiSessionRuntime.js'
 import { loadPersistedAiSessions, persistAiSessions } from './sessionPersistence.js'
 
@@ -11,9 +10,15 @@ function scrubRestoredAgentSession(session = {}) {
 
   return {
     ...session,
+    runtimeThreadId: String(session.runtimeThreadId || '').trim(),
+    runtimeTurnId: '',
+    runtimeProviderId: String(session.runtimeProviderId || '').trim(),
+    runtimeTransport: String(session.runtimeTransport || '').trim(),
     isRunning: false,
-    queuedPromptDraft: '',
-    queuedAttachments: [],
+    messages: [],
+    artifacts: [],
+    queuedPromptDraft: String(session.queuedPromptDraft || ''),
+    queuedAttachments: Array.isArray(session.queuedAttachments) ? session.queuedAttachments : [],
     permissionRequests: [],
     askUserRequests: [],
     exitPlanRequests: [],
@@ -23,6 +28,27 @@ function scrubRestoredAgentSession(session = {}) {
     waitingResume: false,
     waitingResumeMessage: '',
     planMode: { active: false, summary: '', note: '' },
+    lastError: '',
+  }
+}
+
+function buildPersistedAgentSession(session = {}) {
+  if (!session || typeof session !== 'object') return null
+
+  return {
+    id: String(session.id || '').trim(),
+    mode: String(session.mode || 'agent').trim() || 'agent',
+    permissionMode: String(session.permissionMode || '').trim(),
+    runtimeThreadId: String(session.runtimeThreadId || '').trim(),
+    runtimeProviderId: String(session.runtimeProviderId || '').trim(),
+    runtimeTransport: String(session.runtimeTransport || '').trim(),
+    title: String(session.title || '').trim(),
+    createdAt: Number(session.createdAt || Date.now()),
+    updatedAt: Number(session.updatedAt || Date.now()),
+    promptDraft: String(session.promptDraft || ''),
+    queuedPromptDraft: String(session.queuedPromptDraft || ''),
+    attachments: Array.isArray(session.attachments) ? session.attachments : [],
+    queuedAttachments: Array.isArray(session.queuedAttachments) ? session.queuedAttachments : [],
   }
 }
 
@@ -47,17 +73,23 @@ export function resolveAgentSessionRecord(sessions = [], sessionId = '') {
   return sessions.find((session) => session?.id === normalizedId) || sessions[0] || null
 }
 
-export function restoreAgentSessionsState({
+export async function restoreAgentSessionsState({
   workspacePath = '',
   fallbackTitle = 'New session',
-  loadState = loadPersistedAiSessions,
+  loadState = async (normalizedWorkspacePath, normalizedFallbackTitle) =>
+    invoke('ai_session_overlay_restore', {
+      params: {
+        workspacePath: normalizedWorkspacePath,
+        fallbackTitle: normalizedFallbackTitle,
+      },
+    }),
 } = {}) {
   const normalizedWorkspacePath = String(workspacePath || '').trim()
   if (!normalizedWorkspacePath) {
     return createInitialAgentSessionsState({ fallbackTitle })
   }
 
-  const persisted = loadState(normalizedWorkspacePath)
+  const persisted = await loadState(normalizedWorkspacePath, fallbackTitle)
   if (!persisted) {
     return createInitialAgentSessionsState({ fallbackTitle })
   }
@@ -83,7 +115,21 @@ export function ensureManagedAgentSessionsState({
   })
 }
 
-export function persistAgentSessionsState({
+function buildSessionMutationPayload({
+  workspacePath = '',
+  currentSessionId = '',
+  sessions = [],
+  fallbackTitle = 'New session',
+} = {}) {
+  return {
+    workspacePath: String(workspacePath || '').trim(),
+    currentSessionId: String(currentSessionId || '').trim(),
+    sessions: Array.isArray(sessions) ? sessions : [],
+    fallbackTitle: String(fallbackTitle || 'New session').trim() || 'New session',
+  }
+}
+
+export async function persistAgentSessionsState({
   workspacePath = '',
   currentSessionId = '',
   sessions = [],
@@ -92,13 +138,15 @@ export function persistAgentSessionsState({
   const normalizedWorkspacePath = String(workspacePath || '').trim()
   if (!normalizedWorkspacePath) return
 
-  persistState(normalizedWorkspacePath, {
+  await persistState(normalizedWorkspacePath, {
     currentSessionId: String(currentSessionId || '').trim(),
-    sessions: Array.isArray(sessions) ? sessions : [],
+    sessions: (Array.isArray(sessions) ? sessions : [])
+      .map((session) => buildPersistedAgentSession(session))
+      .filter(Boolean),
   })
 }
 
-export function createAgentSessionState({
+export async function createAgentSessionState({
   sessions = [],
   currentSessionId = '',
   title = '',
@@ -106,94 +154,111 @@ export function createAgentSessionState({
   mode = 'agent',
   permissionMode = 'accept-edits',
   fallbackTitle = 'New session',
+  workspacePath = '',
+  runCreate = async (payload) =>
+    invoke('ai_session_overlay_create', {
+      params: payload,
+    }),
 } = {}) {
-  const nextSession = createAiSessionRecord({
+  const response = await runCreate({
+    ...buildSessionMutationPayload({
+      workspacePath,
+      currentSessionId,
+      sessions,
+      fallbackTitle,
+    }),
+    title: String(title || '').trim() || fallbackTitle,
+    activate: activate === true,
     mode,
     permissionMode,
-    title: String(title || '').trim() || fallbackTitle,
   })
 
   return {
-    sessions: [nextSession, ...(Array.isArray(sessions) ? sessions : [])],
-    currentSessionId: activate ? nextSession.id : String(currentSessionId || '').trim(),
-    session: nextSession,
+    sessions: Array.isArray(response?.state?.sessions) ? response.state.sessions : [],
+    currentSessionId: String(response?.state?.currentSessionId || '').trim(),
+    session: response?.session || createAiSessionRecord({ title }),
   }
 }
 
-export function switchAgentSessionState({
+export async function switchAgentSessionState({
   sessions = [],
   currentSessionId = '',
   sessionId = '',
+  workspacePath = '',
+  fallbackTitle = 'New session',
+  runSwitch = async (payload) =>
+    invoke('ai_session_overlay_switch', {
+      params: payload,
+    }),
 } = {}) {
-  const normalizedSessionId = String(sessionId || '').trim()
-  if (!normalizedSessionId) {
-    return {
-      success: false,
-      sessions: Array.isArray(sessions) ? sessions : [],
-      currentSessionId: String(currentSessionId || '').trim(),
-    }
-  }
-
-  const hasSession = (Array.isArray(sessions) ? sessions : []).some(
-    (session) => session?.id === normalizedSessionId
-  )
+  const response = await runSwitch({
+    ...buildSessionMutationPayload({
+      workspacePath,
+      currentSessionId,
+      sessions,
+      fallbackTitle,
+    }),
+    sessionId: String(sessionId || '').trim(),
+  })
   return {
-    success: hasSession,
-    sessions: Array.isArray(sessions) ? sessions : [],
-    currentSessionId: hasSession ? normalizedSessionId : String(currentSessionId || '').trim(),
+    success: response?.success === true,
+    sessions: Array.isArray(response?.state?.sessions) ? response.state.sessions : [],
+    currentSessionId: String(response?.state?.currentSessionId || '').trim(),
   }
 }
 
-export function deleteAgentSessionState({
+export async function deleteAgentSessionState({
   sessions = [],
   currentSessionId = '',
   sessionId = '',
   fallbackTitle = 'New session',
+  workspacePath = '',
+  runDelete = async (payload) =>
+    invoke('ai_session_overlay_delete', {
+      params: payload,
+    }),
 } = {}) {
-  const normalizedSessionId = String(sessionId || currentSessionId || '').trim()
-  if (!normalizedSessionId || !Array.isArray(sessions) || sessions.length <= 1) {
-    return {
-      success: false,
-      sessions: Array.isArray(sessions) ? sessions : [],
-      currentSessionId: String(currentSessionId || '').trim(),
-    }
-  }
-
-  const nextSessions = removeAiSessionRecord(sessions, normalizedSessionId)
-  const nextCurrentSessionId =
-    String(currentSessionId || '').trim() === normalizedSessionId
-      ? nextSessions[0]?.id || ''
-      : String(currentSessionId || '').trim()
-
-  const normalizedState = ensureAiSessionsState({
-    sessions: nextSessions,
-    currentSessionId: nextCurrentSessionId,
-    fallbackTitle,
+  const response = await runDelete({
+    ...buildSessionMutationPayload({
+      workspacePath,
+      currentSessionId,
+      sessions,
+      fallbackTitle,
+    }),
+    sessionId: String(sessionId || currentSessionId || '').trim(),
   })
-
   return {
-    success: true,
-    ...normalizedState,
+    success: response?.success === true,
+    sessions: Array.isArray(response?.state?.sessions) ? response.state.sessions : [],
+    currentSessionId: String(response?.state?.currentSessionId || '').trim(),
   }
 }
 
-export function renameAgentSessionState({ sessions = [], sessionId = '', title = '' } = {}) {
-  const normalizedTitle = String(title || '').trim()
-  if (!normalizedTitle) {
-    return {
-      success: false,
-      sessions: Array.isArray(sessions) ? sessions : [],
-    }
-  }
-
-  const nextSessions = updateAiSessionRecord(sessions, sessionId, (session) => ({
-    ...session,
-    title: normalizedTitle,
-  }))
-
+export async function renameAgentSessionState({
+  sessions = [],
+  currentSessionId = '',
+  sessionId = '',
+  title = '',
+  fallbackTitle = 'New session',
+  workspacePath = '',
+  runRename = async (payload) =>
+    invoke('ai_session_overlay_rename', {
+      params: payload,
+    }),
+} = {}) {
+  const response = await runRename({
+    ...buildSessionMutationPayload({
+      workspacePath,
+      currentSessionId,
+      sessions,
+      fallbackTitle,
+    }),
+    sessionId: String(sessionId || '').trim(),
+    title: String(title || '').trim(),
+  })
   return {
-    success: true,
-    sessions: nextSessions,
-    session: resolveAgentSessionRecord(nextSessions, sessionId),
+    success: response?.success === true,
+    sessions: Array.isArray(response?.state?.sessions) ? response.state.sessions : [],
+    session: response?.session || resolveAgentSessionRecord(sessions, sessionId),
   }
 }

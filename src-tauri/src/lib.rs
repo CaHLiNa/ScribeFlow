@@ -1,11 +1,13 @@
 mod ai_runtime;
+mod ai_session_storage;
 mod app_dirs;
+mod codex_runtime;
 mod fs_commands;
 mod fs_io;
 mod fs_tree;
+mod keychain;
 mod latex;
 mod latex_tools;
-mod keychain;
 mod network;
 mod process_utils;
 mod security;
@@ -383,6 +385,7 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
+        .manage(codex_runtime::CodexRuntimeHandle::default())
         .manage(latex::LatexState::default())
         .manage(security::WorkspaceScopeState::default())
         .manage(workspace_access::WorkspaceAccessState::default());
@@ -424,11 +427,37 @@ pub fn run() {
             ai_runtime::respond_ai_anthropic_sdk_permission,
             ai_runtime::respond_ai_anthropic_sdk_ask_user,
             ai_runtime::respond_ai_anthropic_sdk_exit_plan,
+            ai_session_storage::ai_session_overlay_load,
+            ai_session_storage::ai_session_overlay_save,
+            ai_session_storage::ai_session_overlay_restore,
+            ai_session_storage::ai_session_overlay_create,
+            ai_session_storage::ai_session_overlay_switch,
+            ai_session_storage::ai_session_overlay_delete,
+            ai_session_storage::ai_session_overlay_rename,
+            codex_runtime::runtime_thread_start,
+            codex_runtime::runtime_thread_list,
+            codex_runtime::runtime_thread_read,
+            codex_runtime::runtime_thread_rename,
+            codex_runtime::runtime_thread_archive,
+            codex_runtime::runtime_thread_unarchive,
+            codex_runtime::runtime_thread_fork,
+            codex_runtime::runtime_thread_rollback,
+            codex_runtime::runtime_turn_start,
+            codex_runtime::runtime_turn_interrupt,
+            codex_runtime::runtime_turn_run,
+            codex_runtime::runtime_permission_request,
+            codex_runtime::runtime_permission_resolve,
+            codex_runtime::runtime_ask_user_request,
+            codex_runtime::runtime_ask_user_resolve,
+            codex_runtime::runtime_exit_plan_request,
+            codex_runtime::runtime_exit_plan_resolve,
+            codex_runtime::runtime_plan_mode_set,
             keychain::keychain_set,
             keychain::keychain_get,
             keychain::keychain_delete,
             fs_commands::reveal_in_file_manager,
             fs_commands::get_global_config_dir,
+            fs_commands::get_home_dir,
             security::workspace_set_allowed_roots,
             security::workspace_clear_allowed_roots,
             workspace_access::macos_create_workspace_bookmark,

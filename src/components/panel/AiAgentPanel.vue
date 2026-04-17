@@ -492,26 +492,26 @@ function removeAttachment(attachmentId = '') {
   aiStore.removeAttachment(attachmentId)
 }
 
-function createSession() {
-  aiStore.createSession()
+async function createSession() {
+  await aiStore.createSession()
   activeInvocationIndex.value = 0
   nextTick(() => {
     composerTextareaRef.value?.focus?.()
   })
 }
 
-function switchSessionTab(sessionId = '') {
-  if (!aiStore.switchSession(sessionId)) return
+async function switchSessionTab(sessionId = '') {
+  if (!(await aiStore.switchSession(sessionId))) return
   activeInvocationIndex.value = 0
   scrollToBottom('auto')
 }
 
-function renameSession(payload = {}) {
-  aiStore.renameSession(payload.sessionId, payload.title)
+async function renameSession(payload = {}) {
+  await aiStore.renameSession(payload.sessionId, payload.title)
 }
 
-function deleteSession(sessionId = '') {
-  if (!aiStore.deleteSession(sessionId)) return
+async function deleteSession(sessionId = '') {
+  if (!(await aiStore.deleteSession(sessionId))) return
   activeInvocationIndex.value = 0
   scrollToBottom('auto')
 }
@@ -614,15 +614,20 @@ function scrollToBottom(behavior = 'auto') {
   })
 }
 
+async function hydrateWorkspaceSessions() {
+  await aiStore.restoreWorkspaceSessions(workspace.path || '')
+  void aiStore.ensureCodexRuntimeBridge()
+}
+
 onMounted(() => {
-  aiStore.restoreWorkspaceSessions(workspace.path || '')
+  void hydrateWorkspaceSessions()
   void aiStore.refreshProviderState()
   void aiStore.refreshAltalsSkills()
   scrollToBottom('auto')
 })
 
 onActivated(() => {
-  aiStore.restoreWorkspaceSessions(workspace.path || '')
+  void hydrateWorkspaceSessions()
   void aiStore.refreshProviderState()
   void aiStore.refreshAltalsSkills()
   scrollToBottom('auto')
@@ -631,7 +636,7 @@ onActivated(() => {
 watch(
   () => [workspace.path, workspace.globalConfigDir],
   () => {
-    aiStore.restoreWorkspaceSessions(workspace.path || '')
+    void hydrateWorkspaceSessions()
     void aiStore.refreshAltalsSkills()
     void filesStore.ensureFlatFilesReady({ force: true }).catch(() => {})
   }

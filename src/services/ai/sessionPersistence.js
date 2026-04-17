@@ -1,17 +1,15 @@
-const AI_SESSION_STORAGE_PREFIX = 'altals.ai.workspaceSessions:'
+import { invoke } from '@tauri-apps/api/core'
 
-function buildWorkspaceSessionStorageKey(workspacePath = '') {
-  return `${AI_SESSION_STORAGE_PREFIX}${String(workspacePath || '').trim()}`
-}
-
-export function loadPersistedAiSessions(workspacePath = '') {
+export async function loadPersistedAiSessions(workspacePath = '') {
   const normalizedWorkspacePath = String(workspacePath || '').trim()
   if (!normalizedWorkspacePath) return null
 
   try {
-    const raw = localStorage.getItem(buildWorkspaceSessionStorageKey(normalizedWorkspacePath))
-    if (!raw) return null
-    const parsed = JSON.parse(raw)
+    const parsed = await invoke('ai_session_overlay_load', {
+      params: {
+        workspacePath: normalizedWorkspacePath,
+      },
+    })
     if (!parsed || typeof parsed !== 'object') return null
     return {
       currentSessionId: String(parsed.currentSessionId || '').trim(),
@@ -22,17 +20,17 @@ export function loadPersistedAiSessions(workspacePath = '') {
   }
 }
 
-export function persistAiSessions(workspacePath = '', state = {}) {
+export async function persistAiSessions(workspacePath = '', state = {}) {
   const normalizedWorkspacePath = String(workspacePath || '').trim()
   if (!normalizedWorkspacePath) return
 
-  const payload = {
-    currentSessionId: String(state.currentSessionId || '').trim(),
-    sessions: Array.isArray(state.sessions) ? state.sessions : [],
-  }
-
-  localStorage.setItem(
-    buildWorkspaceSessionStorageKey(normalizedWorkspacePath),
-    JSON.stringify(payload)
-  )
+  await invoke('ai_session_overlay_save', {
+    params: {
+      workspacePath: normalizedWorkspacePath,
+      state: {
+        currentSessionId: String(state.currentSessionId || '').trim(),
+        sessions: Array.isArray(state.sessions) ? state.sessions : [],
+      },
+    },
+  })
 }

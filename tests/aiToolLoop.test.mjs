@@ -2,10 +2,13 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 
 import { executeAiToolCalls, resolveAiRuntimeTools } from '../src/services/ai/runtime/toolLoop.js'
-import { resolveRuntimeAiToolIds } from '../src/services/ai/toolRegistry.js'
+import {
+  resolveEffectiveAiToolIds,
+  resolveRuntimeAiToolIds,
+} from '../src/services/ai/toolRegistry.js'
 
 test('resolveRuntimeAiToolIds adds core workspace tools in agent mode', () => {
-  const toolIds = resolveRuntimeAiToolIds(['read-selected-reference'], {
+  const toolIds = resolveRuntimeAiToolIds(['delete-workspace-path'], {
     runtimeIntent: 'agent',
   })
 
@@ -13,6 +16,15 @@ test('resolveRuntimeAiToolIds adds core workspace tools in agent mode', () => {
   assert.equal(toolIds.includes('search-workspace-files'), true)
   assert.equal(toolIds.includes('read-workspace-file'), true)
   assert.equal(toolIds.includes('read-selected-reference'), true)
+  assert.equal(toolIds.includes('create-workspace-file'), true)
+  assert.equal(toolIds.includes('delete-workspace-path'), true)
+})
+
+test('resolveEffectiveAiToolIds keeps built-in safe tools always enabled and only adds risky toggles explicitly', () => {
+  const defaultToolIds = resolveEffectiveAiToolIds([])
+  assert.equal(defaultToolIds.includes('create-workspace-file'), true)
+  assert.equal(defaultToolIds.includes('write-workspace-file'), true)
+  assert.equal(defaultToolIds.includes('delete-workspace-path'), false)
 })
 
 test('resolveAiRuntimeTools registers workspace file tools when enabled', async () => {

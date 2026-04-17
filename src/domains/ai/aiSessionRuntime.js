@@ -38,6 +38,9 @@ function normalizeAiSessionRecord(record = {}, fallbackTitle = 'New session') {
     permissionMode: normalizeAiSessionPermissionMode(
       record.permissionMode || record.runtimePermissionMode || record.approvalMode
     ),
+    runtimeThreadId: String(record.runtimeThreadId || '').trim(),
+    runtimeTurnId: String(record.runtimeTurnId || '').trim(),
+    runtimeProviderId: String(record.runtimeProviderId || '').trim(),
     runtimeTransport: String(record.runtimeTransport || '').trim(),
     title: String(record.title || fallbackTitle).trim() || fallbackTitle,
     createdAt,

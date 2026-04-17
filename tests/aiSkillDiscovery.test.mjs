@@ -53,8 +53,9 @@ More details follow here.
   assert.match(parsed.description, /Generate a rebuttal outline/)
 })
 
-test('buildSkillSearchLocations includes only Altals managed user and workspace roots', () => {
+test('buildSkillSearchLocations includes codex-compatible user and workspace roots', () => {
   const locations = buildSkillSearchLocations({
+    homeDir: '/Users/tester',
     workspacePath: '/tmp/project',
     globalConfigDir: '/tmp/config',
   })
@@ -62,7 +63,15 @@ test('buildSkillSearchLocations includes only Altals managed user and workspace 
   const paths = locations.map((entry) => entry.path)
 
   assert.deepEqual(paths, [
+    '/Users/tester/.claude/skills',
+    '/Users/tester/.codex/skills',
+    '/Users/tester/.config/agents/skills',
+    '/Users/tester/.config/goose/skills',
     '/tmp/config/skills',
+    '/tmp/project/.claude/skills',
+    '/tmp/project/.codex/skills',
+    '/tmp/project/.agents/skills',
+    '/tmp/project/.goose/skills',
     '/tmp/project/.altals/skills',
   ])
 })
@@ -88,7 +97,7 @@ test('mergeDiscoveredSkills keeps the later skill when duplicate names exist', (
   assert.equal(skills[0].scope, 'workspace')
 })
 
-test('isAltalsManagedFilesystemSkill accepts Altals sources and workspace .altals paths only', () => {
+test('isAltalsManagedFilesystemSkill accepts codex-compatible skill sources and paths', () => {
   assert.equal(
     isAltalsManagedFilesystemSkill({
       kind: 'filesystem-skill',
@@ -108,9 +117,17 @@ test('isAltalsManagedFilesystemSkill accepts Altals sources and workspace .altal
   assert.equal(
     isAltalsManagedFilesystemSkill({
       kind: 'filesystem-skill',
-      source: 'codex-home',
+      source: 'codex-user',
       directoryPath: '/Users/tester/.codex/skills/review-response',
     }),
-    false
+    true
+  )
+  assert.equal(
+    isAltalsManagedFilesystemSkill({
+      kind: 'filesystem-skill',
+      source: '',
+      directoryPath: '/workspace/.agents/skills/review-response',
+    }),
+    true
   )
 })

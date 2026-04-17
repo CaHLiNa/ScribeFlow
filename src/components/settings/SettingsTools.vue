@@ -9,11 +9,7 @@
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('Tool registry') }}</div>
             <div class="settings-row-hint">
-              {{
-                t(
-                  'Internal instruction packs are automatic. Configure which built-in tools the agent can use here.'
-                )
-              }}
+              {{ t('Core workspace tools are built in for every agent run. Only risky tools stay configurable here.') }}
             </div>
           </div>
 
@@ -48,13 +44,17 @@ import { useToastStore } from '../../stores/toast'
 import { useAiStore } from '../../stores/ai'
 import UiSwitch from '../shared/ui/UiSwitch.vue'
 import { loadAiConfig, saveAiConfig } from '../../services/ai/settings.js'
-import { AI_TOOL_DEFINITIONS, normalizeEnabledAiToolIds } from '../../services/ai/toolRegistry.js'
+import {
+  AI_TOOL_DEFINITIONS,
+  getConfigurableAiTools,
+  normalizeEnabledAiToolIds,
+} from '../../services/ai/toolRegistry.js'
 
 const { t } = useI18n()
 const toastStore = useToastStore()
 const aiStore = useAiStore()
 
-const toolDefinitions = AI_TOOL_DEFINITIONS
+const toolDefinitions = getConfigurableAiTools(AI_TOOL_DEFINITIONS)
 const loadedConfig = ref(null)
 const enabledTools = ref([])
 const pageFeedback = ref('')

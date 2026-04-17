@@ -93,19 +93,33 @@ export const AI_TOOL_DEFINITIONS = Object.freeze([
 ])
 
 export const AI_TOOL_IDS = Object.freeze(AI_TOOL_DEFINITIONS.map((tool) => tool.id))
-export const CORE_WORKSPACE_AGENT_TOOL_IDS = Object.freeze([
+export const ALWAYS_AVAILABLE_AI_TOOL_IDS = Object.freeze([
   'list-workspace-directory',
   'search-workspace-files',
   'read-workspace-file',
   'read-active-document',
   'read-editor-selection',
+  'read-selected-reference',
+  'create-workspace-file',
+  'write-workspace-file',
+  'open-workspace-file',
+  'apply-document-patch',
+  'open-note-draft',
+  'load-skill-support-files',
 ])
+export const CONFIGURABLE_AI_TOOL_IDS = Object.freeze(['delete-workspace-path'])
+export const CORE_WORKSPACE_AGENT_TOOL_IDS = ALWAYS_AVAILABLE_AI_TOOL_IDS
+
+export function getConfigurableAiTools(allTools = AI_TOOL_DEFINITIONS) {
+  const configurable = new Set(CONFIGURABLE_AI_TOOL_IDS)
+  return (Array.isArray(allTools) ? allTools : []).filter((tool) => configurable.has(tool.id))
+}
 
 export function normalizeEnabledAiToolIds(value = undefined) {
   if (!Array.isArray(value)) {
-    return [...AI_TOOL_IDS]
+    return []
   }
-  const allowed = new Set(AI_TOOL_IDS)
+  const allowed = new Set(CONFIGURABLE_AI_TOOL_IDS)
   const requested = value
   const normalized = requested
     .map((item) => String(item || '').trim())
@@ -115,12 +129,16 @@ export function normalizeEnabledAiToolIds(value = undefined) {
 }
 
 export function resolveEnabledAiTools(enabledToolIds = [], allTools = AI_TOOL_DEFINITIONS) {
-  const enabled = new Set(normalizeEnabledAiToolIds(enabledToolIds))
+  const enabled = new Set(resolveEffectiveAiToolIds(enabledToolIds))
   return (Array.isArray(allTools) ? allTools : []).filter((tool) => enabled.has(tool.id))
 }
 
+export function resolveEffectiveAiToolIds(enabledToolIds = []) {
+  return [...new Set([...ALWAYS_AVAILABLE_AI_TOOL_IDS, ...normalizeEnabledAiToolIds(enabledToolIds)])]
+}
+
 export function resolveRuntimeAiToolIds(enabledToolIds = [], options = {}) {
-  const normalized = normalizeEnabledAiToolIds(enabledToolIds)
+  const normalized = resolveEffectiveAiToolIds(enabledToolIds)
   if (String(options?.runtimeIntent || '').trim() !== 'agent') {
     return normalized
   }

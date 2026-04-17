@@ -2,6 +2,13 @@ import { defineStore } from 'pinia'
 import { nanoid } from './utils'
 import { normalizeAiArtifact } from '../domains/ai/aiArtifactRuntime.js'
 import {
+  buildSessionAskUserRequestsFromRuntimeSnapshot,
+  buildSessionExitPlanRequestsFromRuntimeSnapshot,
+  buildSessionMessagesFromRuntimeSnapshot,
+  buildSessionPermissionRequestsFromRuntimeSnapshot,
+  buildSessionPlanModeFromRuntimeSnapshot,
+} from '../domains/ai/aiRuntimeThreadMapping.js'
+import {
   buildAiContextBundle,
   normalizeAiSelection,
   recommendAiSkills,
@@ -16,6 +23,7 @@ import {
 } from '../domains/ai/aiAgentRunSessionRuntime.js'
 import { mergeAgentRunToolEventState } from '../domains/ai/aiAgentRunEventState.js'
 import {
+  createAiSessionRecord,
   normalizeAiSessionPermissionMode,
   updateAiSessionRecord,
 } from '../domains/ai/aiSessionRuntime.js'
@@ -25,10 +33,15 @@ import { useReferencesStore } from './references'
 import { useToastStore } from './toast'
 import { t } from '../i18n/index.js'
 import { AI_AGENT_ACTION_DEFINITIONS } from '../services/ai/skillRegistry.js'
+import { DEFAULT_AGENT_ACTION_ID } from '../services/ai/builtInActions.js'
 import {
   discoverAltalsSkills,
   isAltalsManagedFilesystemSkill,
 } from '../services/ai/skillDiscovery.js'
+import {
+  buildAgentSystemPrompt,
+  buildAgentUserPrompt,
+} from '../services/ai/agentPromptBuilder.js'
 import {
   getAiProviderConfig,
   getAiProviderDefinition,
@@ -50,6 +63,7 @@ import {
   searchWorkspaceFiles,
   writeWorkspaceFile as writeWorkspaceFileTool,
 } from '../services/ai/runtime/workspaceFileTools.js'
+import { resolveEffectiveAiToolIds } from '../services/ai/toolRegistry.js'
 import {
   buildDefaultAgentSessionTitle,
   createAgentSessionState,
@@ -68,7 +82,25 @@ import {
   respondAnthropicAgentSdkExitPlan,
   respondAnthropicAgentSdkPermission,
 } from '../services/ai/runtime/anthropicSdkBridge.js'
+import {
+  archiveCodexRuntimeThread,
+  interruptCodexRuntimeTurn,
+  listenCodexRuntimeEvents,
+  listCodexRuntimeThreads,
+  readCodexRuntimeThread,
+  renameCodexRuntimeThread,
+  resolveCodexRuntimeAskUser,
+  resolveCodexRuntimeExitPlan,
+  resolveCodexRuntimePermission,
+  runCodexRuntimeTurn,
+  startCodexRuntimeThread,
+} from '../services/ai/runtime/codexRuntimeBridge.js'
 import { useWorkspaceStore } from './workspace'
+
+let codexRuntimeUnlisten = null
+const pendingCodexRuntimeThreads = new Map()
+const pendingCodexRuntimeTurns = new Map()
+const pendingCodexRuntimeThreadCreations = new Map()
 
 function buildDefaultSessionTitle(count = 1) {
   return buildDefaultAgentSessionTitle(t, count)
@@ -98,6 +130,31 @@ function findSessionByArtifactId(sessions = [], artifactId = '') {
         session.artifacts.some((artifact) => artifact.id === normalizedArtifactId)
     ) || null
   )
+}
+
+function findSessionByRuntimeThreadId(sessions = [], runtimeThreadId = '') {
+  const normalizedThreadId = String(runtimeThreadId || '').trim()
+  if (!normalizedThreadId) return null
+
+  return (
+    (Array.isArray(sessions) ? sessions : []).find(
+      (session) => String(session?.runtimeThreadId || '').trim() === normalizedThreadId
+    ) || null
+  )
+}
+
+function shouldUseCodexRuntimeRun(preparedRun = null) {
+  if (!preparedRun?.ok) return false
+  if (String(preparedRun?.skill?.id || '').trim() !== DEFAULT_AGENT_ACTION_ID) return false
+
+  if (
+    String(preparedRun.providerId || '').trim() === 'anthropic' &&
+    String(preparedRun?.config?.sdk?.runtimeMode || 'http').trim() === 'sdk'
+  ) {
+    return false
+  }
+
+  return true
 }
 
 function currentWorkspacePath() {
@@ -480,15 +537,15 @@ export const useAiStore = defineStore('ai', {
     persistCurrentWorkspaceSessions() {
       const workspacePath = currentWorkspacePath()
       if (!workspacePath) return
-      persistAgentSessionsState({
+      void persistAgentSessionsState({
         workspacePath,
         currentSessionId: this.currentSessionId,
         sessions: this.sessions,
-      })
+      }).catch(() => {})
     },
 
-    restoreWorkspaceSessions(workspacePath = '') {
-      const normalized = restoreAgentSessionsState({
+    async restoreWorkspaceSessions(workspacePath = '') {
+      const normalized = await restoreAgentSessionsState({
         workspacePath: String(workspacePath || currentWorkspacePath()).trim(),
         fallbackTitle: buildDefaultSessionTitle(1),
       })
@@ -535,9 +592,62 @@ export const useAiStore = defineStore('ai', {
       return resolveAgentSessionRecord(this.sessions, targetSessionId)
     },
 
-    createSession({ title = '', activate = true } = {}) {
+    async ensureCodexRuntimeThreadForSession(sessionId = '', preferredTitle = '') {
+      const targetSession = resolveAgentSessionRecord(
+        this.sessions,
+        sessionId || this.currentSessionId
+      )
+      if (!targetSession) return ''
+
+      const existingThreadId = String(targetSession.runtimeThreadId || '').trim()
+      if (existingThreadId) return existingThreadId
+
+      const normalizedSessionId = String(targetSession.id || '').trim()
+      if (!normalizedSessionId) return ''
+
+      if (pendingCodexRuntimeThreadCreations.has(normalizedSessionId)) {
+        return pendingCodexRuntimeThreadCreations.get(normalizedSessionId)
+      }
+
+      const creationPromise = (async () => {
+        await this.ensureCodexRuntimeBridge()
+
+        const latestSession = resolveAgentSessionRecord(this.sessions, normalizedSessionId)
+        const latestThreadId = String(latestSession?.runtimeThreadId || '').trim()
+        if (latestThreadId) return latestThreadId
+
+        const threadResponse = await startCodexRuntimeThread({
+          title:
+            String(preferredTitle || latestSession?.title || '').trim() ||
+            buildDefaultSessionTitle(this.sessions.length),
+          cwd: useWorkspaceStore().path || '',
+        })
+        const runtimeThreadId = String(threadResponse?.thread?.id || '').trim()
+        if (!runtimeThreadId) return ''
+
+        this.updateSessionById(normalizedSessionId, (session) => ({
+          ...session,
+          title: String(threadResponse?.thread?.title || '').trim() || session.title,
+          runtimeThreadId,
+          runtimeTurnId: String(threadResponse?.thread?.activeTurnId || '').trim(),
+          runtimeTransport: 'codex-runtime',
+          isRunning: String(threadResponse?.thread?.status || '').trim() === 'running',
+        }))
+        return runtimeThreadId
+      })()
+
+      pendingCodexRuntimeThreadCreations.set(normalizedSessionId, creationPromise)
+      try {
+        return await creationPromise
+      } finally {
+        pendingCodexRuntimeThreadCreations.delete(normalizedSessionId)
+      }
+    },
+
+    async createSession({ title = '', activate = true } = {}) {
       const normalizedMode = 'agent'
-      const nextState = createAgentSessionState({
+      const nextState = await createAgentSessionState({
+        workspacePath: currentWorkspacePath(),
         sessions: this.sessions,
         currentSessionId: this.currentSessionId,
         title: String(title || '').trim() || buildDefaultSessionTitle(this.sessions.length + 1),
@@ -557,23 +667,38 @@ export const useAiStore = defineStore('ai', {
       this.sessions = nextState.sessions
       this.currentSessionId = nextState.currentSessionId
       this.persistCurrentWorkspaceSessions()
+      void this.ensureCodexRuntimeThreadForSession(
+        nextState.session?.id,
+        nextState.session?.title || title
+      )
       return nextState.session
     },
 
-    switchSession(sessionId = '') {
-      const nextState = switchAgentSessionState({
+    async switchSession(sessionId = '') {
+      const nextState = await switchAgentSessionState({
+        workspacePath: currentWorkspacePath(),
         sessions: this.sessions,
         currentSessionId: this.currentSessionId,
         sessionId,
+        fallbackTitle: buildDefaultSessionTitle(1),
       })
       if (!nextState.success) return false
+      this.sessions = nextState.sessions
       this.currentSessionId = nextState.currentSessionId
       this.persistCurrentWorkspaceSessions()
+      void this.syncSessionFromCodexRuntimeThread(nextState.currentSessionId)
       return true
     },
 
-    deleteSession(sessionId = '') {
-      const nextState = deleteAgentSessionState({
+    async deleteSession(sessionId = '') {
+      const targetSession = resolveAgentSessionRecord(this.sessions, sessionId || this.currentSessionId)
+      const runtimeThreadId = String(targetSession?.runtimeThreadId || '').trim()
+      if (runtimeThreadId) {
+        void archiveCodexRuntimeThread(runtimeThreadId).catch(() => {})
+      }
+
+      const nextState = await deleteAgentSessionState({
+        workspacePath: currentWorkspacePath(),
         sessions: this.sessions,
         currentSessionId: this.currentSessionId,
         sessionId,
@@ -587,17 +712,38 @@ export const useAiStore = defineStore('ai', {
       return true
     },
 
-    renameSession(sessionId = '', title = '') {
-      const nextState = renameAgentSessionState({
+    async renameSession(sessionId = '', title = '') {
+      const nextState = await renameAgentSessionState({
+        workspacePath: currentWorkspacePath(),
         sessions: this.sessions,
+        currentSessionId: this.currentSessionId,
         sessionId: sessionId || this.currentSessionId,
         title,
+        fallbackTitle: buildDefaultSessionTitle(1),
       })
       if (!nextState.success) return false
 
       this.sessions = nextState.sessions
       this.persistCurrentWorkspaceSessions()
-      return !!nextState.session
+      if (!nextState.session) return false
+
+      try {
+        const runtimeThreadId = await this.ensureCodexRuntimeThreadForSession(
+          nextState.session.id,
+          nextState.session.title
+        )
+        if (runtimeThreadId) {
+          await renameCodexRuntimeThread({
+            threadId: runtimeThreadId,
+            title: nextState.session.title,
+          })
+          await this.syncSessionFromCodexRuntimeThread(nextState.session.id)
+        }
+      } catch {
+        // Keep the optimistic local title and let a later runtime sync reconcile if needed.
+      }
+
+      return true
     },
 
     setSessionMode(_mode = 'agent', sessionId = '') {
@@ -757,6 +903,7 @@ export const useAiStore = defineStore('ai', {
         prompt: String(event.prompt || event.question || '').trim(),
         description: String(event.description || '').trim(),
         questions: Array.isArray(event.questions) ? event.questions : [],
+        runtimeManaged: event.runtimeManaged === true,
       }
 
       this.updateSessionById(sessionId || this.currentSessionId, (session) => ({
@@ -797,11 +944,18 @@ export const useAiStore = defineStore('ai', {
       if (!request) return false
 
       try {
-        await respondAnthropicAgentSdkAskUser({
-          streamId: request.streamId,
-          requestId: request.requestId,
-          answers: answers && typeof answers === 'object' ? answers : {},
-        })
+        if (request.runtimeManaged === true) {
+          await resolveCodexRuntimeAskUser({
+            requestId: request.requestId,
+            answers: answers && typeof answers === 'object' ? answers : {},
+          })
+        } else {
+          await respondAnthropicAgentSdkAskUser({
+            streamId: request.streamId,
+            requestId: request.requestId,
+            answers: answers && typeof answers === 'object' ? answers : {},
+          })
+        }
         this.clearAskUserRequest(normalizedRequestId, targetSession?.id)
         return true
       } catch (error) {
@@ -828,6 +982,7 @@ export const useAiStore = defineStore('ai', {
         toolUseId: String(event.toolUseId || '').trim(),
         title: String(event.title || '').trim(),
         allowedPrompts: Array.isArray(event.allowedPrompts) ? event.allowedPrompts : [],
+        runtimeManaged: event.runtimeManaged === true,
       }
 
       this.updateSessionById(sessionId || this.currentSessionId, (session) => ({
@@ -873,12 +1028,20 @@ export const useAiStore = defineStore('ai', {
       if (!request) return false
 
       try {
-        await respondAnthropicAgentSdkExitPlan({
-          streamId: request.streamId,
-          requestId: request.requestId,
-          action,
-          feedback,
-        })
+        if (request.runtimeManaged === true) {
+          await resolveCodexRuntimeExitPlan({
+            requestId: request.requestId,
+            action,
+            feedback,
+          })
+        } else {
+          await respondAnthropicAgentSdkExitPlan({
+            streamId: request.streamId,
+            requestId: request.requestId,
+            action,
+            feedback,
+          })
+        }
         this.clearExitPlanRequest(normalizedRequestId, targetSession?.id)
         return true
       } catch (error) {
@@ -988,7 +1151,7 @@ export const useAiStore = defineStore('ai', {
     queuePermissionRequest(event = {}, sessionId = '') {
       const requestId = String(event.requestId || event.toolUseId || '').trim()
       const streamId = String(event.streamId || '').trim()
-      if (!requestId || !streamId) return
+      if (!requestId || (!streamId && event.runtimeManaged !== true)) return
 
       const nextRequest = {
         requestId,
@@ -999,6 +1162,7 @@ export const useAiStore = defineStore('ai', {
         description: String(event.description || '').trim(),
         decisionReason: String(event.decisionReason || '').trim(),
         inputPreview: String(event.inputPreview || '').trim(),
+        runtimeManaged: event.runtimeManaged === true,
       }
 
       this.updateSessionById(sessionId || this.currentSessionId, (session) => {
@@ -1049,7 +1213,14 @@ export const useAiStore = defineStore('ai', {
       if (!request) return false
 
       try {
-        if (persist && this.providerState.currentProviderId === 'anthropic' && request.toolName) {
+        if (request.runtimeManaged === true) {
+          await resolveCodexRuntimePermission({
+            requestId: request.requestId,
+            behavior,
+            persist,
+            message: '',
+          })
+        } else if (persist && this.providerState.currentProviderId === 'anthropic' && request.toolName) {
           const config = await loadAiConfig()
           const anthropicConfig = getAiProviderConfig(config, 'anthropic')
           await saveAiConfig({
@@ -1071,12 +1242,14 @@ export const useAiStore = defineStore('ai', {
           await this.refreshProviderState()
         }
 
-        await respondAnthropicAgentSdkPermission({
-          streamId: request.streamId,
-          requestId: request.requestId,
-          behavior,
-          persist,
-        })
+        if (request.runtimeManaged !== true) {
+          await respondAnthropicAgentSdkPermission({
+            streamId: request.streamId,
+            requestId: request.requestId,
+            behavior,
+            persist,
+          })
+        }
         this.clearPermissionRequest(normalizedRequestId, targetSession?.id)
         return true
       } catch (error) {
@@ -1107,7 +1280,7 @@ export const useAiStore = defineStore('ai', {
         requiresApiKey,
         currentProviderId,
         currentProviderLabel: providerDefinition?.label || currentProviderId,
-        enabledToolIds: Array.isArray(config?.enabledTools) ? config.enabledTools : [],
+        enabledToolIds: resolveEffectiveAiToolIds(config?.enabledTools),
         baseUrl: String(providerConfig?.baseUrl || '').trim(),
         model: String(providerConfig?.model || '').trim(),
         approvalMode: String(providerConfig?.sdk?.approvalMode || 'per-tool').trim(),
@@ -1120,13 +1293,322 @@ export const useAiStore = defineStore('ai', {
       return this.refreshProviderState()
     },
 
+    async ensureCodexRuntimeBridge() {
+      if (typeof codexRuntimeUnlisten !== 'function') {
+        const store = this
+        codexRuntimeUnlisten = await listenCodexRuntimeEvents((payload = {}) => {
+          store.handleCodexRuntimeEvent(payload)
+        })
+      }
+
+      await this.refreshCodexRuntimeSessions()
+    },
+
+    async refreshCodexRuntimeSessions() {
+      try {
+        const response = await listCodexRuntimeThreads()
+        const runtimeThreads = Array.isArray(response?.threads) ? response.threads : []
+        const nextSessions = [...(Array.isArray(this.sessions) ? this.sessions : [])]
+        const runtimeThreadMap = new Map(
+          runtimeThreads.map((thread) => [String(thread?.id || '').trim(), thread]).filter(([id]) => id)
+        )
+        const filteredSessions = nextSessions.filter((session) => {
+          const runtimeThreadId = String(session?.runtimeThreadId || '').trim()
+          if (!runtimeThreadId) return true
+          return runtimeThreadMap.has(runtimeThreadId)
+        })
+
+        for (const [index, session] of filteredSessions.entries()) {
+          const runtimeThreadId = String(session?.runtimeThreadId || '').trim()
+          if (!runtimeThreadId || !runtimeThreadMap.has(runtimeThreadId)) continue
+          const thread = runtimeThreadMap.get(runtimeThreadId)
+          filteredSessions.splice(index, 1, {
+            ...session,
+            title: String(thread?.title || session.title || '').trim() || session.title,
+            runtimeThreadId,
+            runtimeTurnId: String(thread?.activeTurnId || '').trim(),
+            isRunning: String(thread?.status || '').trim() === 'running',
+            runtimeTransport: 'codex-runtime',
+          })
+          runtimeThreadMap.delete(runtimeThreadId)
+        }
+
+        for (const thread of runtimeThreadMap.values()) {
+          if (String(thread?.status || '').trim() === 'archived') continue
+          filteredSessions.push(
+            createAiSessionRecord({
+              title:
+                String(thread?.title || '').trim() ||
+                buildDefaultSessionTitle(filteredSessions.length + 1),
+              runtimeThreadId: String(thread?.id || '').trim(),
+              runtimeTurnId: String(thread?.activeTurnId || '').trim(),
+              runtimeTransport: 'codex-runtime',
+              isRunning: String(thread?.status || '').trim() === 'running',
+            })
+          )
+        }
+
+        const normalized = ensureManagedAgentSessionsState({
+          sessions: filteredSessions,
+          currentSessionId: this.currentSessionId,
+          fallbackTitle: buildDefaultSessionTitle(1),
+        })
+        this.sessions = normalized.sessions
+        this.currentSessionId = normalized.currentSessionId
+        this.persistCurrentWorkspaceSessions()
+        await Promise.all(
+          normalized.sessions
+            .filter((session) => String(session?.runtimeThreadId || '').trim())
+            .map((session) => this.syncSessionFromCodexRuntimeThread(session.id))
+        )
+        return runtimeThreads
+      } catch {
+        return []
+      }
+    },
+
+    async syncSessionFromCodexRuntimeThread(sessionId = '') {
+      const targetSession = resolveAgentSessionRecord(
+        this.sessions,
+        sessionId || this.currentSessionId
+      )
+      const runtimeThreadId = String(targetSession?.runtimeThreadId || '').trim()
+      if (!targetSession || !runtimeThreadId) return null
+
+      try {
+        const response = await readCodexRuntimeThread(runtimeThreadId)
+        const snapshot = response?.snapshot || null
+        if (!snapshot?.thread) return null
+
+        this.updateSessionById(targetSession.id, (session) => ({
+          ...session,
+          title: String(snapshot.thread.title || '').trim() || session.title,
+          runtimeThreadId: String(snapshot.thread.id || '').trim(),
+          runtimeTurnId: String(snapshot.thread.activeTurnId || '').trim(),
+          isRunning: String(snapshot.thread.status || '').trim() === 'running',
+          messages: buildSessionMessagesFromRuntimeSnapshot(snapshot),
+          permissionRequests: buildSessionPermissionRequestsFromRuntimeSnapshot(snapshot),
+          askUserRequests: buildSessionAskUserRequestsFromRuntimeSnapshot(snapshot),
+          exitPlanRequests: buildSessionExitPlanRequestsFromRuntimeSnapshot(snapshot),
+          planMode: buildSessionPlanModeFromRuntimeSnapshot(snapshot),
+        }))
+        return snapshot
+      } catch {
+        return null
+      }
+    },
+
+    handleCodexRuntimeEvent(payload = {}) {
+      const threadId = String(payload?.thread?.id || payload?.item?.threadId || '').trim()
+      const turnId = String(payload?.turn?.id || payload?.item?.turnId || '').trim()
+      if (payload.eventType === 'threadArchived' && threadId) {
+        const archivedSession = findSessionByRuntimeThreadId(this.sessions, threadId)
+        if (archivedSession && this.sessions.length > 1) {
+          void this.deleteSession(archivedSession.id)
+        }
+        return
+      }
+
+      if (payload.eventType === 'threadRenamed' && threadId) {
+        const renamedSession = findSessionByRuntimeThreadId(this.sessions, threadId)
+        if (!renamedSession) return
+        this.updateSessionById(renamedSession.id, (session) => ({
+          ...session,
+          title: String(payload.thread?.title || '').trim() || session.title,
+        }))
+        return
+      }
+
+      if (payload.eventType === 'permissionRequest' && payload.permissionRequest) {
+        const session = findSessionByRuntimeThreadId(this.sessions, threadId)
+        if (!session) return
+        this.queuePermissionRequest(
+          {
+            requestId: payload.permissionRequest.requestId,
+            streamId: '',
+            toolName: payload.permissionRequest.toolName,
+            displayName: payload.permissionRequest.displayName,
+            title: payload.permissionRequest.title,
+            description: payload.permissionRequest.description,
+            decisionReason: payload.permissionRequest.decisionReason,
+            inputPreview: payload.permissionRequest.inputPreview,
+            runtimeManaged: true,
+          },
+          session.id
+        )
+        return
+      }
+
+      if (payload.eventType === 'askUserRequest' && payload.askUserRequest) {
+        const session = findSessionByRuntimeThreadId(this.sessions, threadId)
+        if (!session) return
+        this.queueAskUserRequest(
+          {
+            requestId: payload.askUserRequest.requestId,
+            streamId: '',
+            title: payload.askUserRequest.title,
+            prompt: payload.askUserRequest.prompt,
+            description: payload.askUserRequest.description,
+            questions: payload.askUserRequest.questions,
+            runtimeManaged: true,
+          },
+          session.id
+        )
+        return
+      }
+
+      if (payload.eventType === 'exitPlanRequest' && payload.exitPlanRequest) {
+        const session = findSessionByRuntimeThreadId(this.sessions, threadId)
+        if (!session) return
+        this.queueExitPlanRequest(
+          {
+            requestId: payload.exitPlanRequest.requestId,
+            streamId: '',
+            toolUseId: String(payload.exitPlanRequest.turnId || '').trim(),
+            title: payload.exitPlanRequest.title,
+            allowedPrompts: payload.exitPlanRequest.allowedPrompts,
+            runtimeManaged: true,
+          },
+          session.id
+        )
+        return
+      }
+
+      if (payload.eventType === 'planModeStart' || payload.eventType === 'planModeEnd') {
+        const session = findSessionByRuntimeThreadId(this.sessions, threadId)
+        if (!session) return
+        this.setPlanModeState(session.id, {
+          active: payload.eventType === 'planModeStart',
+          summary: payload.planMode?.summary || '',
+          note: payload.planMode?.note || '',
+        })
+        return
+      }
+
+      const session =
+        findSessionByRuntimeThreadId(this.sessions, threadId) ||
+        (turnId
+          ? resolveAgentSessionRecord(
+              this.sessions,
+              pendingCodexRuntimeTurns.get(turnId)?.sessionId || ''
+            )
+          : null)
+      if (!session) return
+
+      if (payload.eventType === 'turnStarted' && threadId && turnId) {
+        const pending = pendingCodexRuntimeThreads.get(threadId)
+        if (pending && !pendingCodexRuntimeTurns.has(turnId)) {
+          pendingCodexRuntimeTurns.set(turnId, {
+            sessionId: pending.sessionId,
+            pendingAssistantId: pending.pendingAssistantId,
+            threadId,
+            turnId,
+            content: '',
+            reasoning: '',
+            resolve: null,
+            reject: null,
+            completedResult: null,
+            completedError: null,
+          })
+        }
+        this.updateSessionById(session.id, (currentSession) => ({
+          ...currentSession,
+          runtimeThreadId: threadId,
+          runtimeTurnId: turnId,
+          runtimeTransport: 'codex-runtime',
+        }))
+        return
+      }
+
+      const trackedTurn = turnId ? pendingCodexRuntimeTurns.get(turnId) || null : null
+      const pendingAssistantId = String(trackedTurn?.pendingAssistantId || '').trim()
+
+      if (payload.eventType === 'itemDelta' && trackedTurn && pendingAssistantId) {
+        if (payload?.item?.kind === 'agentMessage') {
+          trackedTurn.content = String(payload.item.text || trackedTurn.content || '')
+          this.updateSessionById(session.id, (currentSession) =>
+            applyAgentRunEventToSessionState({
+              session: currentSession,
+              event: {
+                eventType: 'assistant-content',
+                text: trackedTurn.content,
+                transport: 'codex-runtime',
+              },
+              pendingAssistantId,
+              translate: t,
+            })
+          )
+          return
+        }
+
+        if (payload?.item?.kind === 'reasoning') {
+          trackedTurn.reasoning = String(payload.item.text || trackedTurn.reasoning || '')
+          this.updateSessionById(session.id, (currentSession) =>
+            applyAgentRunEventToSessionState({
+              session: currentSession,
+              event: {
+                eventType: 'assistant-reasoning',
+                text: trackedTurn.reasoning,
+                transport: 'codex-runtime',
+              },
+              pendingAssistantId,
+              translate: t,
+            })
+          )
+        }
+        return
+      }
+
+      if (payload.eventType === 'turnCompleted' && trackedTurn) {
+        pendingCodexRuntimeThreads.delete(threadId)
+        const completedResult = {
+          content: trackedTurn.content,
+          reasoning: trackedTurn.reasoning,
+          payload: null,
+          transport: 'codex-runtime',
+          events: [],
+        }
+        if (typeof trackedTurn.resolve === 'function') {
+          pendingCodexRuntimeTurns.delete(turnId)
+          trackedTurn.resolve(completedResult)
+          void this.syncSessionFromCodexRuntimeThread(session.id)
+        } else {
+          pendingCodexRuntimeTurns.set(turnId, {
+            ...trackedTurn,
+            completedResult,
+          })
+        }
+        return
+      }
+
+      if ((payload.eventType === 'turnFailed' || payload.eventType === 'turnInterrupted') && trackedTurn) {
+        pendingCodexRuntimeThreads.delete(threadId)
+        const completedError = new Error(
+          payload.eventType === 'turnInterrupted'
+            ? t('AI execution stopped.')
+            : String(payload.error || t('AI execution failed.'))
+        )
+        if (typeof trackedTurn.reject === 'function') {
+          pendingCodexRuntimeTurns.delete(turnId)
+          trackedTurn.reject(completedError)
+          void this.syncSessionFromCodexRuntimeThread(session.id)
+        } else {
+          pendingCodexRuntimeTurns.set(turnId, {
+            ...trackedTurn,
+            completedError,
+          })
+        }
+      }
+    },
+
     async runActiveSkill(options = {}) {
       const toastStore = useToastStore()
       const editorStore = useEditorStore()
       const filesStore = useFilesStore()
       const requestedSessionId = String(options?.sessionId || this.currentSessionId || '').trim()
       const activeSession =
-        resolveAgentSessionRecord(this.sessions, requestedSessionId) || this.createSession()
+        resolveAgentSessionRecord(this.sessions, requestedSessionId) ||
+        (await this.createSession())
       const sessionId = activeSession.id
       let preparedRun = null
       let skill = null
@@ -1209,89 +1691,182 @@ export const useAiStore = defineStore('ai', {
             }).session
         )
         runStarted = true
+        const result = shouldUseCodexRuntimeRun(preparedRun)
+          ? await (async () => {
+              const runtimeThreadId = await this.ensureCodexRuntimeThreadForSession(
+                sessionId,
+                activeSession.title || buildDefaultSessionTitle(this.sessions.length)
+              )
+              this.updateSessionById(sessionId, (session) => ({
+                ...session,
+                runtimeThreadId,
+                runtimeProviderId: preparedRun.providerId,
+                runtimeTransport: 'codex-runtime',
+              }))
 
-        const result = await executePreparedAgentRun(preparedRun, {
-          altalsSkills: this.altalsSkills,
-          toolRuntime: {
-            listWorkspaceDirectory: async (input = {}) => {
-              await filesStore.ensureFlatFilesReady({ force: false })
-              return listWorkspaceDirectory({
-                workspacePath: useWorkspaceStore().path || '',
-                files: filesStore.flatFiles,
-                path: input.path || input.directoryPath || '',
-                maxResults: input.maxResults,
+              const systemPrompt = buildAgentSystemPrompt({
+                skill,
+                runtimeIntent: preparedRun.runtimeIntent,
               })
-            },
-            searchWorkspaceFiles: async (input = {}) => {
-              await filesStore.ensureFlatFilesReady({ force: false })
-              return searchWorkspaceFiles({
-                workspacePath: useWorkspaceStore().path || '',
-                files: filesStore.flatFiles,
-                query: input.query || '',
-                directoryPath: input.directoryPath || '',
-                maxResults: input.maxResults,
+              const userPrompt = buildAgentUserPrompt({
+                skill,
+                contextBundle,
+                userInstruction: preparedRun.userInstruction,
+                conversation: preparedRun.priorConversation,
+                altalsSkills: this.altalsSkills,
+                attachments: preparedRun.attachments || [],
+                referencedFiles: preparedRun.referencedFiles || [],
+                requestedTools: preparedRun.requestedTools || [],
+                enabledToolIds: resolveEffectiveAiToolIds(preparedRun.config?.enabledTools),
+                runtimeIntent: preparedRun.runtimeIntent,
               })
-            },
-            readWorkspaceFile: async (input = {}) =>
-              readWorkspaceFile({
-                workspacePath: useWorkspaceStore().path || '',
-                path: input.path || '',
-                maxBytes: input.maxBytes,
-                readFile: (path, options) => filesStore.readFile(path, options),
-              }),
-            createWorkspaceFile: async (input = {}) =>
-              createWorkspaceFileTool({
-                workspacePath: useWorkspaceStore().path || '',
-                path: input.path || '',
-                content: input.content || '',
-                createFile: (dirPath, name, options = {}) => filesStore.createFile(dirPath, name, options),
-                openFile: (path) => editorStore.openFile(path),
-              }),
-            writeWorkspaceFile: async (input = {}) =>
-              writeWorkspaceFileTool({
-                workspacePath: useWorkspaceStore().path || '',
-                path: input.path || '',
-                content: input.content || '',
-                openAfterWrite: input.openAfterWrite,
-                saveFile: (path, content) => filesStore.saveFile(path, content),
-                openFile: (path) => editorStore.openFile(path),
-              }),
-            openWorkspaceFile: async (input = {}) =>
-              openWorkspaceFileTool({
-                workspacePath: useWorkspaceStore().path || '',
-                path: input.path || '',
-                openFile: (path) => editorStore.openFile(path),
-              }),
-            deleteWorkspacePath: async (input = {}) =>
-              deleteWorkspacePathTool({
-                workspacePath: useWorkspaceStore().path || '',
-                path: input.path || '',
-                deletePath: (path) => filesStore.deletePath(path),
-              }),
-            readActiveDocument: (runtimeContextBundle) =>
-              readActiveDocumentRuntime(runtimeContextBundle, filesStore, editorStore),
-            readEditorSelection: readEditorSelectionRuntime,
-            readSelectedReference: readSelectedReferenceRuntime,
-            readSkillSupportFiles: readSkillSupportFilesRuntime,
-          },
-          onEvent: (event) => {
-            liveToolEvents = mergeAgentRunToolEventState(liveToolEvents, event)
-            this.updateSessionById(sessionId, (session) =>
-              applyAgentRunEventToSessionState({
-                session,
-                event,
+
+              pendingCodexRuntimeThreads.set(runtimeThreadId, {
+                sessionId,
                 pendingAssistantId,
-                translate: t,
               })
-            )
-          },
-          signal: abortController.signal,
-        })
 
-        const artifact = buildArtifactRecord(
-          skill.id,
-          normalizeAiArtifact(skill.id, result.payload, contextBundle, result.content)
-        )
+              const runtimeResponse = await runCodexRuntimeTurn({
+                threadId: runtimeThreadId,
+                userText: userPrompt,
+                provider: {
+                  providerId: preparedRun.providerId,
+                  baseUrl: preparedRun.config?.baseUrl || '',
+                  apiKey: preparedRun.apiKey || '',
+                  model: preparedRun.config?.model || '',
+                  systemPrompt,
+                  temperature: preparedRun.config?.temperature,
+                },
+                workspacePath: useWorkspaceStore().path || '',
+                enabledToolIds: resolveEffectiveAiToolIds(preparedRun.config?.enabledTools),
+              })
+
+              const runtimeTurnId = String(runtimeResponse?.turn?.id || '').trim()
+              const pendingTurnState =
+                pendingCodexRuntimeTurns.get(runtimeTurnId) || {
+                  sessionId,
+                  pendingAssistantId,
+                  threadId: runtimeThreadId,
+                  turnId: runtimeTurnId,
+                  content: '',
+                  reasoning: '',
+                  resolve: null,
+                  reject: null,
+                  completedResult: null,
+                  completedError: null,
+                }
+
+              this.updateSessionById(sessionId, (session) => ({
+                ...session,
+                runtimeThreadId,
+                runtimeTurnId,
+                runtimeProviderId: preparedRun.providerId,
+                runtimeTransport: 'codex-runtime',
+              }))
+
+              return await new Promise((resolve, reject) => {
+                const nextState = {
+                  ...pendingTurnState,
+                  resolve,
+                  reject,
+                }
+                pendingCodexRuntimeTurns.set(runtimeTurnId, nextState)
+                if (nextState.completedResult) {
+                  pendingCodexRuntimeTurns.delete(runtimeTurnId)
+                  resolve(nextState.completedResult)
+                  return
+                }
+                if (nextState.completedError) {
+                  pendingCodexRuntimeTurns.delete(runtimeTurnId)
+                  reject(nextState.completedError)
+                }
+              })
+            })()
+          : await executePreparedAgentRun(preparedRun, {
+              altalsSkills: this.altalsSkills,
+              toolRuntime: {
+                listWorkspaceDirectory: async (input = {}) => {
+                  await filesStore.ensureFlatFilesReady({ force: false })
+                  return listWorkspaceDirectory({
+                    workspacePath: useWorkspaceStore().path || '',
+                    files: filesStore.flatFiles,
+                    path: input.path || input.directoryPath || '',
+                    maxResults: input.maxResults,
+                  })
+                },
+                searchWorkspaceFiles: async (input = {}) => {
+                  await filesStore.ensureFlatFilesReady({ force: false })
+                  return searchWorkspaceFiles({
+                    workspacePath: useWorkspaceStore().path || '',
+                    files: filesStore.flatFiles,
+                    query: input.query || '',
+                    directoryPath: input.directoryPath || '',
+                    maxResults: input.maxResults,
+                  })
+                },
+                readWorkspaceFile: async (input = {}) =>
+                  readWorkspaceFile({
+                    workspacePath: useWorkspaceStore().path || '',
+                    path: input.path || '',
+                    maxBytes: input.maxBytes,
+                    readFile: (path, options) => filesStore.readFile(path, options),
+                  }),
+                createWorkspaceFile: async (input = {}) =>
+                  createWorkspaceFileTool({
+                    workspacePath: useWorkspaceStore().path || '',
+                    path: input.path || '',
+                    content: input.content || '',
+                    createFile: (dirPath, name, options = {}) =>
+                      filesStore.createFile(dirPath, name, options),
+                    openFile: (path) => editorStore.openFile(path),
+                  }),
+                writeWorkspaceFile: async (input = {}) =>
+                  writeWorkspaceFileTool({
+                    workspacePath: useWorkspaceStore().path || '',
+                    path: input.path || '',
+                    content: input.content || '',
+                    openAfterWrite: input.openAfterWrite,
+                    saveFile: (path, content) => filesStore.saveFile(path, content),
+                    openFile: (path) => editorStore.openFile(path),
+                  }),
+                openWorkspaceFile: async (input = {}) =>
+                  openWorkspaceFileTool({
+                    workspacePath: useWorkspaceStore().path || '',
+                    path: input.path || '',
+                    openFile: (path) => editorStore.openFile(path),
+                  }),
+                deleteWorkspacePath: async (input = {}) =>
+                  deleteWorkspacePathTool({
+                    workspacePath: useWorkspaceStore().path || '',
+                    path: input.path || '',
+                    deletePath: (path) => filesStore.deletePath(path),
+                  }),
+                readActiveDocument: (runtimeContextBundle) =>
+                  readActiveDocumentRuntime(runtimeContextBundle, filesStore, editorStore),
+                readEditorSelection: readEditorSelectionRuntime,
+                readSelectedReference: readSelectedReferenceRuntime,
+                readSkillSupportFiles: readSkillSupportFilesRuntime,
+              },
+              onEvent: (event) => {
+                liveToolEvents = mergeAgentRunToolEventState(liveToolEvents, event)
+                this.updateSessionById(sessionId, (session) =>
+                  applyAgentRunEventToSessionState({
+                    session,
+                    event,
+                    pendingAssistantId,
+                    translate: t,
+                  })
+                )
+              },
+              signal: abortController.signal,
+            })
+
+        const artifact = result?.payload
+          ? buildArtifactRecord(
+              skill.id,
+              normalizeAiArtifact(skill.id, result.payload, contextBundle, result.content)
+            )
+          : null
         let assistantMessage = null
         this.updateSessionById(sessionId, (session) => {
           const nextState = completeAgentRunSessionState({
@@ -1368,9 +1943,25 @@ export const useAiStore = defineStore('ai', {
       const targetSessionId = String(sessionId || this.currentSessionId || '').trim()
       if (!targetSessionId) return false
       const controller = this.runtimeAbortControllers[targetSessionId]
-      if (!controller) return false
-      controller.abort()
-      return true
+      if (controller) {
+        controller.abort()
+        return true
+      }
+
+      const session = resolveAgentSessionRecord(this.sessions, targetSessionId)
+      if (
+        session?.runtimeThreadId &&
+        session?.runtimeTurnId &&
+        session?.isRunning === true
+      ) {
+        void interruptCodexRuntimeTurn({
+          threadId: session.runtimeThreadId,
+          turnId: session.runtimeTurnId,
+        }).catch(() => {})
+        return true
+      }
+
+      return false
     },
 
     async applyArtifact(artifactId = '') {

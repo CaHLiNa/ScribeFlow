@@ -334,3 +334,9 @@ pub async fn get_global_config_dir() -> Result<String, String> {
     eprintln!("[app-dirs] get_global_config_dir={}", value);
     Ok(value)
 }
+
+#[tauri::command]
+pub async fn get_home_dir() -> Result<String, String> {
+    let dir = dirs::home_dir().ok_or("Cannot find home directory".to_string())?;
+    Ok(dir.to_string_lossy().to_string())
+}
