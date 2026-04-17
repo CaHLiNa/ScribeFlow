@@ -191,6 +191,7 @@
 <script setup>
 import { computed, nextTick, onActivated, onMounted, ref, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
+import { open } from '@tauri-apps/plugin-dialog'
 import { useI18n } from '../../i18n'
 import { useAiStore } from '../../stores/ai'
 import { useFilesStore } from '../../stores/files'
@@ -201,8 +202,6 @@ import {
   detectAiComposerToken,
   getAiComposerSuggestions,
 } from '../../domains/ai/aiMentionRuntime.js'
-import { listAiProviderDefinitions } from '../../services/ai/settings.js'
-import { pickAiAttachmentPaths } from '../../services/ai/attachmentStore.js'
 import { IconPaperclip, IconArrowUp, IconPlayerStop } from '@tabler/icons-vue'
 import { useSurfaceContextMenu } from '../../composables/useSurfaceContextMenu'
 import UiButton from '../shared/ui/UiButton.vue'
@@ -475,7 +474,12 @@ async function submitExitPlanResponse(payload = {}) {
 }
 
 async function attachFiles() {
-  const selectedPaths = await pickAiAttachmentPaths()
+  const selected = await open({
+    multiple: true,
+    directory: false,
+    title: t('Attach files'),
+  })
+  const selectedPaths = !selected ? [] : Array.isArray(selected) ? selected : [selected]
   if (!selectedPaths.length) return
 
   for (const path of selectedPaths) {
@@ -620,7 +624,9 @@ async function refreshEnabledTools() {
 }
 
 async function refreshProviderDefinitions() {
-  providerDefinitions.value = await listAiProviderDefinitions().catch(() => [])
+  providerDefinitions.value = await invoke('ai_provider_catalog_list')
+    .then((response) => (Array.isArray(response?.providers) ? response.providers : []))
+    .catch(() => [])
 }
 
 async function hydrateWorkspaceSessions() {

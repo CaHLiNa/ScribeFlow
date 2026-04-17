@@ -29,35 +29,7 @@ function deriveProjectWarnings(project = null) {
     }
   }
 
-  const labelKeys = new Set((project.labels || []).map(label => label.key))
-  const citationKeys = new Set(project.bibKeys || [])
-  const unresolvedCitations = []
-  const unresolvedRefs = []
-
-  for (const citation of project.citations || []) {
-    if (citation?.key && !citationKeys.has(citation.key)) {
-      unresolvedCitations.push(citation)
-    }
-  }
-
-  const refRe = /\\(?:ref|eqref|pageref|autoref|cref|Cref)\{([^}]+)\}/g
-  for (const path of project.projectPaths || []) {
-    const content = project.records?.get(path)?.content || ''
-    const lineOffsets = buildLineOffsets(content)
-    refRe.lastIndex = 0
-    let match
-    while ((match = refRe.exec(content)) !== null) {
-      const key = String(match[1] || '').trim()
-      if (!key || labelKeys.has(key)) continue
-      unresolvedRefs.push({
-        key,
-        filePath: path,
-        line: offsetToLine(lineOffsets, match.index),
-      })
-    }
-  }
-
-  return { unresolvedRefs, unresolvedCitations }
+  return { unresolvedRefs: [], unresolvedCitations: [] }
 }
 
 function buildProjectWarnings(sourcePath, project = null) {

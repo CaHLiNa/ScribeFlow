@@ -3,7 +3,7 @@ mod events;
 pub(crate) mod protocol;
 pub(crate) mod providers;
 pub(crate) mod state;
-mod storage;
+pub(crate) mod storage;
 pub(crate) mod threads;
 pub(crate) mod tools;
 mod turns;

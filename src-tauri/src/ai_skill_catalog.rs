@@ -7,8 +7,8 @@ use std::path::{Path, PathBuf};
 use crate::ai_skill_text::{parse_skill_markdown, slugify_skill_name, SKILL_FILE_NAME};
 
 const SUPPORTED_SUPPORT_EXTENSIONS: &[&str] = &[
-    ".md", ".txt", ".json", ".yaml", ".yml", ".toml", ".csv", ".ts", ".js", ".mjs", ".cjs",
-    ".py", ".sh", ".rs",
+    ".md", ".txt", ".json", ".yaml", ".yml", ".toml", ".csv", ".ts", ".js", ".mjs", ".cjs", ".py",
+    ".sh", ".rs",
 ];
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -43,7 +43,10 @@ fn home_dir() -> String {
         .unwrap_or_default()
 }
 
-pub(crate) fn managed_skill_roots(workspace_path: &str, global_config_dir: &str) -> HashMap<String, String> {
+pub(crate) fn managed_skill_roots(
+    workspace_path: &str,
+    global_config_dir: &str,
+) -> HashMap<String, String> {
     let workspace = normalize_path(workspace_path);
     let global = normalize_path(global_config_dir);
     HashMap::from([
@@ -151,7 +154,10 @@ pub(crate) fn path_starts_with(path: &str, root: &str) -> bool {
 }
 
 fn is_support_file(path: &Path) -> bool {
-    let file_name = path.file_name().and_then(|value| value.to_str()).unwrap_or("");
+    let file_name = path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or("");
     if file_name == SKILL_FILE_NAME {
         return false;
     }
@@ -189,7 +195,8 @@ fn collect_supporting_files(root: &Path, current: &Path, collected: &mut Vec<Str
 }
 
 fn build_skill_id(scope: &str, slug: &str, directory_path: &str) -> String {
-    let encoded = url::form_urlencoded::byte_serialize(directory_path.as_bytes()).collect::<String>();
+    let encoded =
+        url::form_urlencoded::byte_serialize(directory_path.as_bytes()).collect::<String>();
     format!("fs-skill:{scope}:{slug}:{encoded}")
 }
 
@@ -300,13 +307,23 @@ mod tests {
     #[test]
     fn build_skill_search_roots_includes_codex_and_altals_locations() {
         let roots = build_skill_search_roots("/workspace", "/home/user/.altals");
-        assert!(roots.iter().any(|root| root.path.ends_with("/.codex/skills")));
-        assert!(roots.iter().any(|root| root.path.ends_with("/.altals/skills")));
+        assert!(roots
+            .iter()
+            .any(|root| root.path.ends_with("/.codex/skills")));
+        assert!(roots
+            .iter()
+            .any(|root| root.path.ends_with("/.altals/skills")));
     }
 
     #[test]
     fn path_starts_with_matches_nested_paths() {
-        assert!(path_starts_with("/workspace/.codex/skills/foo", "/workspace/.codex/skills"));
-        assert!(!path_starts_with("/workspace/.codex/other/foo", "/workspace/.codex/skills"));
+        assert!(path_starts_with(
+            "/workspace/.codex/skills/foo",
+            "/workspace/.codex/skills"
+        ));
+        assert!(!path_starts_with(
+            "/workspace/.codex/other/foo",
+            "/workspace/.codex/skills"
+        ));
     }
 }

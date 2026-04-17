@@ -183,26 +183,59 @@
 
 <script setup>
 import { onMounted, ref } from 'vue'
+import { invoke } from '@tauri-apps/api/core'
 import { useToastStore } from '../../stores/toast'
 import { useI18n } from '../../i18n'
 import { useAiStore } from '../../stores/ai'
 import UiButton from '../shared/ui/UiButton.vue'
 import UiInput from '../shared/ui/UiInput.vue'
 import UiSelect from '../shared/ui/UiSelect.vue'
-import {
-  clearAiApiKey,
-  listAiProviderDefinitions,
-  listAiProviderModels,
-  loadAiApiKey,
-  loadAiConfig,
-  saveAiConfig,
-  storeAiApiKey,
-  testAiProviderConnection,
-} from '../../services/ai/settings.js'
 
 const { t } = useI18n()
 const aiStore = useAiStore()
 const toastStore = useToastStore()
+
+async function listAiProviderDefinitions() {
+  const response = await invoke('ai_provider_catalog_list')
+  return Array.isArray(response?.providers) ? response.providers : []
+}
+
+async function listAiProviderModels(providerId = 'openai', providerConfig = {}, apiKey = '') {
+  const response = await invoke('ai_provider_models_list', {
+    providerId,
+    providerConfig,
+    apiKey,
+  })
+  return Array.isArray(response?.options) ? response.options : []
+}
+
+async function loadAiApiKey(providerId = 'openai') {
+  return invoke('ai_provider_api_key_load', { providerId })
+}
+
+async function loadAiConfig() {
+  return invoke('ai_config_load')
+}
+
+async function saveAiConfig(config = null) {
+  return invoke('ai_config_save', { config: config || {} })
+}
+
+async function storeAiApiKey(providerId = 'openai', apiKey = '') {
+  return invoke('ai_provider_api_key_store', { providerId, apiKey })
+}
+
+async function clearAiApiKey(providerId = 'openai') {
+  return invoke('ai_provider_api_key_clear', { providerId })
+}
+
+async function testAiProviderConnection(providerId = 'openai', providerConfig = {}, apiKey = '') {
+  return invoke('ai_provider_connection_test', {
+    providerId,
+    providerConfig,
+    apiKey,
+  })
+}
 
 const providerDefinitions = ref([])
 const providerForms = ref({})

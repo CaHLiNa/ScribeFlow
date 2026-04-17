@@ -108,10 +108,6 @@
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n, formatDate } from '../../i18n'
-import {
-  getAiArtifactCapability,
-  canApplyAiArtifact,
-} from '../../services/ai/artifactCapabilities.js'
 import { extractAiMessageText } from '../../domains/ai/aiConversationRuntime.js'
 import AiArtifactInlineCard from './AiArtifactInlineCard.vue'
 import AiTaskProgressCard from './AiTaskProgressCard.vue'
@@ -146,6 +142,23 @@ const displayParts = computed(() => {
   }
   return [{ type: 'text', text: extractedText }]
 })
+
+function getAiArtifactCapability(artifact = null) {
+  const type = String(artifact?.type || '').trim()
+  const toolId = String(artifact?.capabilityToolId || '').trim()
+  const labelKey = String(artifact?.capabilityLabelKey || '').trim()
+  if (!type || !toolId) return null
+  return {
+    artifactType: type,
+    toolId,
+    labelKey,
+  }
+}
+
+function canApplyAiArtifact(artifact = null, enabledToolIds = []) {
+  const capability = getAiArtifactCapability(artifact)
+  return !!capability && Array.isArray(enabledToolIds) && enabledToolIds.includes(capability.toolId)
+}
 
 const messageText = computed(() => extractAiMessageText(props.message))
 const skillId = computed(() => String(props.message?.metadata?.skillId || '').trim())

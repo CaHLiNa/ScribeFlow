@@ -104,6 +104,8 @@ fn build_doc_patch_artifact(payload: &Value, context_bundle: &Value) -> Option<V
 
     Some(json!({
         "type": "doc_patch",
+        "capabilityToolId": "apply-document-patch",
+        "capabilityLabelKey": "Apply to draft",
         "filePath": string_field(document, &["filePath", "file_path"]),
         "from": selection.get("from").cloned().unwrap_or(Value::Null),
         "to": selection.get("to").cloned().unwrap_or(Value::Null),
@@ -142,6 +144,8 @@ fn build_note_draft_artifact(payload: &Value, context_bundle: &Value) -> Option<
     let rationale = string_field(payload, &["rationale", "takeaway"]);
     Some(json!({
         "type": "note_draft",
+        "capabilityToolId": "open-note-draft",
+        "capabilityLabelKey": "Open as draft",
         "title": title,
         "suggestedName": format!("{slug}.md"),
         "content": content,

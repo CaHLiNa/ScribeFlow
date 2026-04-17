@@ -48,12 +48,17 @@ fn merge_preserving_loaded_children(
     next_entries
         .iter()
         .map(|entry| {
-            let previous = previous_entries.iter().find(|candidate| candidate.path == entry.path);
+            let previous = previous_entries
+                .iter()
+                .find(|candidate| candidate.path == entry.path);
             if !entry.is_dir || previous.map(|value| value.is_dir) != Some(true) {
                 return entry.clone();
             }
 
-            match (&entry.children, previous.and_then(|value| value.children.as_ref())) {
+            match (
+                &entry.children,
+                previous.and_then(|value| value.children.as_ref()),
+            ) {
                 (None, Some(previous_children)) => FileEntry {
                     children: Some(previous_children.clone()),
                     ..entry.clone()
@@ -174,9 +179,7 @@ pub async fn fs_tree_patch_dir_children(
 }
 
 #[tauri::command]
-pub async fn fs_tree_ancestor_dirs(
-    params: FsTreeAncestorParams,
-) -> Result<Vec<String>, String> {
+pub async fn fs_tree_ancestor_dirs(params: FsTreeAncestorParams) -> Result<Vec<String>, String> {
     Ok(list_ancestor_dir_paths(
         &params.workspace_path,
         &params.target_path,
@@ -227,7 +230,10 @@ mod tests {
     fn collect_loaded_dirs_walks_nested_tree() {
         let entries = vec![dir(
             "/ws/docs",
-            Some(vec![dir("/ws/docs/chapters", Some(vec![file("/ws/docs/chapters/a.md")]))]),
+            Some(vec![dir(
+                "/ws/docs/chapters",
+                Some(vec![file("/ws/docs/chapters/a.md")]),
+            )]),
         )];
         let mut paths = Vec::new();
         collect_loaded_directory_paths(&entries, &mut paths);

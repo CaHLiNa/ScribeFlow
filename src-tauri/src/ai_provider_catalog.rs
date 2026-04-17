@@ -4,7 +4,7 @@ use std::time::Duration;
 use url::form_urlencoded::byte_serialize;
 
 use crate::ai_config::{
-    normalize_base_url, normalize_model, normalize_provider_config, normalize_ai_provider_id,
+    normalize_ai_provider_id, normalize_base_url, normalize_model, normalize_provider_config,
     provider_definition, provider_uses_automatic_model, resolve_ai_provider_model,
     ProviderDefinition, PROVIDER_DEFINITIONS,
 };
@@ -61,19 +61,24 @@ fn provider_requires_api_key(provider_id: &str, provider_config: &Value) -> bool
         return true;
     }
 
-    provider_config["sdk"]["runtimeMode"].as_str().unwrap_or("sdk") != "sdk"
+    provider_config["sdk"]["runtimeMode"]
+        .as_str()
+        .unwrap_or("sdk")
+        != "sdk"
 }
 
-fn resolve_provider_state_value(provider_id: &str, provider_config: &Value, api_key: &str) -> Value {
+fn resolve_provider_state_value(
+    provider_id: &str,
+    provider_config: &Value,
+    api_key: &str,
+) -> Value {
     let normalized_provider_id = normalize_ai_provider_id(provider_id);
     let definition = provider_definition(&normalized_provider_id);
-    let normalized_config = normalize_provider_config(&normalized_provider_id, Some(provider_config));
+    let normalized_config =
+        normalize_provider_config(&normalized_provider_id, Some(provider_config));
     let model = resolve_ai_provider_model(&normalized_provider_id, Some(&normalized_config));
     let requires_api_key = provider_requires_api_key(&normalized_provider_id, &normalized_config);
-    let ready = !normalize_base_url(
-        normalized_config["baseUrl"].as_str().unwrap_or(""),
-    )
-    .is_empty()
+    let ready = !normalize_base_url(normalized_config["baseUrl"].as_str().unwrap_or("")).is_empty()
         && !normalize_model(&model).is_empty()
         && (!requires_api_key || !api_key.trim().is_empty());
 
@@ -237,7 +242,8 @@ async fn list_provider_models(
     api_key: &str,
 ) -> Result<Vec<Value>, String> {
     let normalized_provider_id = normalize_ai_provider_id(provider_id);
-    let normalized_config = normalize_provider_config(&normalized_provider_id, Some(provider_config));
+    let normalized_config =
+        normalize_provider_config(&normalized_provider_id, Some(provider_config));
     let base_url = normalized_config["baseUrl"].as_str().unwrap_or("").trim();
 
     if base_url.is_empty() {

@@ -44,7 +44,6 @@ import { useI18n } from '../../i18n'
 import { useToastStore } from '../../stores/toast'
 import { useAiStore } from '../../stores/ai'
 import UiSwitch from '../shared/ui/UiSwitch.vue'
-import { loadAiConfig, saveAiConfig } from '../../services/ai/settings.js'
 
 const { t } = useI18n()
 const toastStore = useToastStore()
@@ -75,7 +74,7 @@ function normalizeErrorMessage(error, fallback = '') {
 
 async function loadState() {
   try {
-    const config = await loadAiConfig()
+    const config = await invoke('ai_config_load')
     const catalog = await invoke('ai_tool_catalog_resolve', {
       params: {
         enabledTools: config?.enabledTools || [],
@@ -115,13 +114,13 @@ async function toggleTool(toolId = '', nextValue = false) {
       : []
     enabledTools.value = nextEnabledTools
 
-    const currentConfig = loadedConfig.value || (await loadAiConfig())
+    const currentConfig = loadedConfig.value || (await invoke('ai_config_load'))
     const nextConfig = {
       ...currentConfig,
       enabledTools: nextEnabledTools,
     }
 
-    await saveAiConfig(nextConfig)
+    await invoke('ai_config_save', { config: nextConfig })
     loadedConfig.value = nextConfig
     await aiStore.refreshProviderState()
 

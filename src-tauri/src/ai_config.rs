@@ -243,7 +243,10 @@ pub(crate) fn provider_uses_automatic_model(provider_id: &str) -> bool {
     provider_definition(provider_id).id != "custom"
 }
 
-pub(crate) fn resolve_ai_provider_model(provider_id: &str, provider_config: Option<&Value>) -> String {
+pub(crate) fn resolve_ai_provider_model(
+    provider_id: &str,
+    provider_config: Option<&Value>,
+) -> String {
     let normalized_provider_id = normalize_ai_provider_id(provider_id);
     let definition = provider_definition(&normalized_provider_id);
     let config = provider_config.unwrap_or(&Value::Null);
@@ -324,7 +327,7 @@ fn create_default_ai_config() -> Value {
     })
 }
 
-fn normalize_ai_config(raw_config: Option<&Value>) -> Value {
+pub(crate) fn normalize_ai_config(raw_config: Option<&Value>) -> Value {
     let raw_config = raw_config.unwrap_or(&Value::Null);
     let defaults = create_default_ai_config();
     let legacy_current_provider_id = normalize_ai_provider_id(
@@ -405,7 +408,7 @@ fn sanitize_public_ai_config(config: &Value) -> Value {
     })
 }
 
-fn read_ai_config_raw() -> Result<Option<Value>, String> {
+pub(crate) fn read_ai_config_raw() -> Result<Option<Value>, String> {
     let path = ai_config_path()?;
     let content = match fs::read_to_string(&path) {
         Ok(content) => content,
@@ -417,7 +420,7 @@ fn read_ai_config_raw() -> Result<Option<Value>, String> {
         .map_err(|error| format!("Failed to parse AI config: {error}"))
 }
 
-fn write_ai_config_raw(config: Option<&Value>) -> Result<(), String> {
+pub(crate) fn write_ai_config_raw(config: Option<&Value>) -> Result<(), String> {
     let path = ai_config_path()?;
     if config.is_none() {
         if path.exists() {

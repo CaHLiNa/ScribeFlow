@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { invoke } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
 import { nanoid } from './utils'
 import {
   buildAiContextBundle,
@@ -17,40 +18,145 @@ import { useFilesStore } from './files'
 import { useReferencesStore } from './references'
 import { useToastStore } from './toast'
 import { t } from '../i18n/index.js'
-import {
-  discoverAltalsSkills,
-  isAltalsManagedFilesystemSkill,
-} from '../services/ai/skillDiscovery.js'
-import {
-  loadAiApiKey,
-  loadAiConfig,
-  resolveAiProviderState,
-  saveAiConfig,
-  setCurrentAiProvider,
-} from '../services/ai/settings.js'
-import { applyAiArtifactCapability } from '../services/ai/artifactCapabilities.js'
-import { createAiAttachmentRecord } from '../services/ai/attachmentStore.js'
-import {
-  respondAnthropicAgentSdkAskUser,
-  respondAnthropicAgentSdkExitPlan,
-  respondAnthropicAgentSdkPermission,
-} from '../services/ai/runtime/anthropicSdkBridge.js'
-import {
-  archiveCodexRuntimeThread,
-  interruptCodexRuntimeTurn,
-  listenCodexRuntimeEvents,
-  readCodexRuntimeThread,
-  renameCodexRuntimeThread,
-  resolveCodexRuntimeAskUser,
-  resolveCodexRuntimeExitPlan,
-  resolveCodexRuntimePermission,
-  startCodexRuntimeThread,
-} from '../services/ai/runtime/codexRuntimeBridge.js'
 import { useWorkspaceStore } from './workspace'
 
+const CODEX_RUNTIME_EVENT = 'codex-runtime-event'
 let codexRuntimeUnlisten = null
 const pendingCodexRuntimeThreadCreations = new Map()
 const DEFAULT_AGENT_ACTION_ID = 'workspace-agent'
+
+async function loadAiConfig() {
+  return invoke('ai_config_load')
+}
+
+async function saveAiConfig(config = null) {
+  return invoke('ai_config_save', { config: config || {} })
+}
+
+async function loadAiApiKey(providerId = 'openai') {
+  return invoke('ai_provider_api_key_load', { providerId })
+}
+
+async function resolveAiProviderState(providerId = 'openai', providerConfig = {}, apiKey = '') {
+  return invoke('ai_provider_state_resolve', {
+    providerId,
+    providerConfig,
+    apiKey,
+  })
+}
+
+async function setCurrentAiProvider(providerId = 'openai') {
+  const config = await loadAiConfig()
+  const normalizedProviderId = String(providerId || '').trim().toLowerCase() || 'openai'
+  const nextConfig = {
+    ...(config || {}),
+    currentProviderId: normalizedProviderId === 'openai-compatible' ? 'openai' : normalizedProviderId,
+  }
+  await saveAiConfig(nextConfig)
+  return nextConfig
+}
+
+async function respondAnthropicAgentSdkPermission({
+  streamId = '',
+  requestId = '',
+  behavior = 'deny',
+  persist = false,
+  message = '',
+} = {}) {
+  return invoke('respond_ai_anthropic_sdk_permission', {
+    response: {
+      stream_id: streamId,
+      request_id: requestId,
+      behavior,
+      persist,
+      message,
+    },
+  })
+}
+
+async function respondAnthropicAgentSdkAskUser({ streamId = '', requestId = '', answers = {} } = {}) {
+  return invoke('respond_ai_anthropic_sdk_ask_user', {
+    response: {
+      stream_id: streamId,
+      request_id: requestId,
+      answers,
+    },
+  })
+}
+
+async function respondAnthropicAgentSdkExitPlan({
+  streamId = '',
+  requestId = '',
+  action = 'deny',
+  feedback = '',
+} = {}) {
+  return invoke('respond_ai_anthropic_sdk_exit_plan', {
+    response: {
+      stream_id: streamId,
+      request_id: requestId,
+      action,
+      feedback,
+    },
+  })
+}
+
+async function createClientSessionRust(params = {}) {
+  return invoke('ai_client_session_create', { params })
+}
+
+async function ensureClientSessionRuntimeThreadRust(params = {}) {
+  return invoke('ai_client_session_ensure_thread', { params })
+}
+
+async function renameClientSessionRust(params = {}) {
+  return invoke('ai_client_session_rename', { params })
+}
+
+async function deleteClientSessionRust(params = {}) {
+  return invoke('ai_client_session_delete', { params })
+}
+
+async function createAiAttachmentRecord(path = '', { workspacePath = '' } = {}) {
+  if (!String(path || '').trim()) return null
+  return invoke('ai_attachment_create', {
+    params: {
+      path,
+      workspacePath,
+    },
+  })
+}
+
+async function readCodexRuntimeThread(threadId = '') {
+  return invoke('runtime_thread_read', {
+    params: {
+      threadId,
+    },
+  })
+}
+
+async function resolveCodexRuntimePermission(request = {}) {
+  return invoke('runtime_permission_resolve', { params: request })
+}
+
+async function resolveCodexRuntimeAskUser(request = {}) {
+  return invoke('runtime_ask_user_resolve', { params: request })
+}
+
+async function resolveCodexRuntimeExitPlan(request = {}) {
+  return invoke('runtime_exit_plan_resolve', { params: request })
+}
+
+async function interruptCodexRuntimeTurn({ threadId = '', turnId = '' } = {}) {
+  return invoke('runtime_turn_interrupt', {
+    params: { threadId, turnId },
+  })
+}
+
+async function listenCodexRuntimeEvents(onEvent = () => {}) {
+  return listen(CODEX_RUNTIME_EVENT, (event) => {
+    onEvent(event?.payload || {})
+  })
+}
 
 function getRuntimeRunState(runtimeAbortControllers = {}, sessionId = '') {
   const state = runtimeAbortControllers[String(sessionId || '').trim()]
@@ -131,30 +237,6 @@ async function saveSessionOverlayState({
   })
 }
 
-async function createSessionOverlayState({
-  workspacePath = '',
-  currentSessionId = '',
-  sessions = [],
-  title = '',
-  activate = true,
-  mode = 'agent',
-  permissionMode = 'accept-edits',
-  fallbackTitle = 'New session',
-} = {}) {
-  return invoke('ai_session_overlay_create', {
-    params: {
-      workspacePath,
-      currentSessionId,
-      sessions,
-      title,
-      activate,
-      mode,
-      permissionMode,
-      fallbackTitle,
-    },
-  })
-}
-
 async function switchSessionOverlayState({
   workspacePath = '',
   currentSessionId = '',
@@ -168,44 +250,6 @@ async function switchSessionOverlayState({
       currentSessionId,
       sessions,
       sessionId,
-      fallbackTitle,
-    },
-  })
-}
-
-async function deleteSessionOverlayState({
-  workspacePath = '',
-  currentSessionId = '',
-  sessions = [],
-  sessionId = '',
-  fallbackTitle = 'New session',
-} = {}) {
-  return invoke('ai_session_overlay_delete', {
-    params: {
-      workspacePath,
-      currentSessionId,
-      sessions,
-      sessionId,
-      fallbackTitle,
-    },
-  })
-}
-
-async function renameSessionOverlayState({
-  workspacePath = '',
-  currentSessionId = '',
-  sessions = [],
-  sessionId = '',
-  title = '',
-  fallbackTitle = 'New session',
-} = {}) {
-  return invoke('ai_session_overlay_rename', {
-    params: {
-      workspacePath,
-      currentSessionId,
-      sessions,
-      sessionId,
-      title,
       fallbackTitle,
     },
   })
@@ -294,6 +338,17 @@ async function reconcileRuntimeSessionRailRust(params = {}) {
   return invoke('ai_runtime_session_rail_reconcile', { params })
 }
 
+async function mutateSessionLocalRust(session = {}, kind = '', payload = {}) {
+  const response = await invoke('ai_session_local_mutate', {
+    params: {
+      session,
+      kind,
+      payload,
+    },
+  })
+  return response?.session || session
+}
+
 function findSessionByPermissionRequestId(sessions = [], requestId = '') {
   const normalizedRequestId = String(requestId || '').trim()
   if (!normalizedRequestId) return null
@@ -357,73 +412,6 @@ function buildArtifactRecord(skillId = '', artifact = null) {
     status: 'pending',
     createdAt: Date.now(),
     ...artifact,
-  }
-}
-
-function normalizeBackgroundTaskStatus(status = 'running') {
-  const normalized = String(status || 'running')
-    .trim()
-    .toLowerCase()
-  if (['failed', 'error'].includes(normalized)) return 'error'
-  if (['done', 'completed', 'stopped'].includes(normalized)) return 'done'
-  return 'running'
-}
-
-function findBackgroundTaskIndex(tasks = [], task = {}) {
-  const normalizedId = String(task.id || '').trim()
-  const normalizedTaskId = String(task.taskId || '').trim()
-  const normalizedToolUseId = String(task.toolUseId || task.toolId || '').trim()
-
-  return (Array.isArray(tasks) ? tasks : []).findIndex((entry) => {
-    if (normalizedTaskId && String(entry.taskId || '').trim() === normalizedTaskId) return true
-    if (normalizedToolUseId && String(entry.toolUseId || '').trim() === normalizedToolUseId)
-      return true
-    if (normalizedId && String(entry.id || '').trim() === normalizedId) return true
-    return false
-  })
-}
-
-function buildBackgroundTaskRecord(task = {}, previous = null) {
-  const taskId = String(task.taskId || previous?.taskId || '').trim()
-  const toolUseId = String(
-    task.toolUseId || task.toolId || previous?.toolUseId || task.id || ''
-  ).trim()
-  const recordId = taskId ? `task:${taskId}` : toolUseId ? `tool:${toolUseId}` : ''
-  const detail = String(
-    task.detail || task.description || task.summary || previous?.detail || ''
-  ).trim()
-  const elapsedSeconds = Number(task.elapsedSeconds)
-  const usage =
-    task.usage && typeof task.usage === 'object'
-      ? task.usage
-      : previous?.usage && typeof previous.usage === 'object'
-        ? previous.usage
-        : null
-
-  return {
-    id: recordId,
-    taskId,
-    toolUseId,
-    label: String(
-      task.label ||
-        task.title ||
-        previous?.label ||
-        task.lastToolName ||
-        task.taskType ||
-        toolUseId ||
-        taskId ||
-        t('Background task')
-    ).trim(),
-    status: normalizeBackgroundTaskStatus(task.status || previous?.status || 'running'),
-    detail,
-    taskType: String(task.taskType || previous?.taskType || '').trim(),
-    lastToolName: String(task.lastToolName || previous?.lastToolName || '').trim(),
-    outputFile: String(task.outputFile || previous?.outputFile || '').trim(),
-    elapsedSeconds: Number.isFinite(elapsedSeconds)
-      ? Math.max(0, Math.round(elapsedSeconds))
-      : Number(previous?.elapsedSeconds || 0) || 0,
-    usage,
-    updatedAt: Date.now(),
   }
 }
 
@@ -546,7 +534,7 @@ export const useAiStore = defineStore('ai', {
     },
 
     altalsSkills(state) {
-      return state.altalsSkillCatalog.filter((skill) => isAltalsManagedFilesystemSkill(skill))
+      return Array.isArray(state.altalsSkillCatalog) ? state.altalsSkillCatalog : []
     },
 
     activeSkill(state) {
@@ -714,6 +702,20 @@ export const useAiStore = defineStore('ai', {
       return resolveAgentSessionRecord(this.sessions, targetSessionId)
     },
 
+    async mutateSessionById(sessionId = '', kind = '', payload = {}) {
+      const normalized = this.ensureSessionState()
+      const targetSessionId = String(sessionId || normalized.currentSessionId || '').trim()
+      if (!targetSessionId || !String(kind || '').trim()) return null
+
+      const targetSession = resolveAgentSessionRecord(normalized.sessions, targetSessionId)
+      if (!targetSession) return null
+
+      const nextSession = await mutateSessionLocalRust(targetSession, kind, payload)
+      this.sessions = updateAiSessionRecord(normalized.sessions, targetSessionId, () => nextSession)
+      this.persistCurrentWorkspaceSessions()
+      return resolveAgentSessionRecord(this.sessions, targetSessionId)
+    },
+
     async ensureCodexRuntimeThreadForSession(sessionId = '', preferredTitle = '') {
       const targetSession = resolveAgentSessionRecord(
         this.sessions,
@@ -732,29 +734,21 @@ export const useAiStore = defineStore('ai', {
       }
 
       const creationPromise = (async () => {
-        await this.ensureCodexRuntimeBridge()
-
-        const latestSession = resolveAgentSessionRecord(this.sessions, normalizedSessionId)
-        const latestThreadId = String(latestSession?.runtimeThreadId || '').trim()
-        if (latestThreadId) return latestThreadId
-
-        const threadResponse = await startCodexRuntimeThread({
-          title:
-            String(preferredTitle || latestSession?.title || '').trim() ||
+        const response = await ensureClientSessionRuntimeThreadRust({
+          workspacePath: currentWorkspacePath(),
+          currentSessionId: this.currentSessionId,
+          sessions: this.sessions,
+          sessionId: normalizedSessionId,
+          preferredTitle:
+            String(preferredTitle || targetSession?.title || '').trim() ||
             buildDefaultSessionTitle(this.sessions.length),
+          fallbackTitle: buildDefaultSessionTitle(1),
           cwd: useWorkspaceStore().path || '',
         })
-        const runtimeThreadId = String(threadResponse?.thread?.id || '').trim()
-        if (!runtimeThreadId) return ''
-
-        this.updateSessionById(normalizedSessionId, (session) => ({
-          ...session,
-          title: String(threadResponse?.thread?.title || '').trim() || session.title,
-          runtimeThreadId,
-          runtimeTurnId: String(threadResponse?.thread?.activeTurnId || '').trim(),
-          runtimeTransport: 'codex-runtime',
-          isRunning: String(threadResponse?.thread?.status || '').trim() === 'running',
-        }))
+        this.sessions = Array.isArray(response?.state?.sessions) ? response.state.sessions : this.sessions
+        this.currentSessionId = String(response?.state?.currentSessionId || this.currentSessionId).trim()
+        this.persistCurrentWorkspaceSessions()
+        const runtimeThreadId = String(response?.session?.runtimeThreadId || '').trim()
         return runtimeThreadId
       })()
 
@@ -768,7 +762,7 @@ export const useAiStore = defineStore('ai', {
 
     async createSession({ title = '', activate = true } = {}) {
       const normalizedMode = 'agent'
-      const nextState = await createSessionOverlayState({
+      const nextState = await createClientSessionRust({
         workspacePath: currentWorkspacePath(),
         sessions: this.sessions,
         currentSessionId: this.currentSessionId,
@@ -784,15 +778,13 @@ export const useAiStore = defineStore('ai', {
             },
           },
         }),
+        fallbackTitle: buildDefaultSessionTitle(1),
+        cwd: useWorkspaceStore().path || '',
       })
 
       this.sessions = Array.isArray(nextState?.state?.sessions) ? nextState.state.sessions : []
       this.currentSessionId = String(nextState?.state?.currentSessionId || '').trim()
       this.persistCurrentWorkspaceSessions()
-      void this.ensureCodexRuntimeThreadForSession(
-        nextState?.session?.id,
-        nextState?.session?.title || title
-      )
       return nextState?.session || null
     },
 
@@ -813,13 +805,7 @@ export const useAiStore = defineStore('ai', {
     },
 
     async deleteSession(sessionId = '') {
-      const targetSession = resolveAgentSessionRecord(this.sessions, sessionId || this.currentSessionId)
-      const runtimeThreadId = String(targetSession?.runtimeThreadId || '').trim()
-      if (runtimeThreadId) {
-        void archiveCodexRuntimeThread(runtimeThreadId).catch(() => {})
-      }
-
-      const nextState = await deleteSessionOverlayState({
+      const nextState = await deleteClientSessionRust({
         workspacePath: currentWorkspacePath(),
         sessions: this.sessions,
         currentSessionId: this.currentSessionId,
@@ -835,37 +821,20 @@ export const useAiStore = defineStore('ai', {
     },
 
     async renameSession(sessionId = '', title = '') {
-      const nextState = await renameSessionOverlayState({
+      const nextState = await renameClientSessionRust({
         workspacePath: currentWorkspacePath(),
         sessions: this.sessions,
         currentSessionId: this.currentSessionId,
         sessionId: sessionId || this.currentSessionId,
         title,
         fallbackTitle: buildDefaultSessionTitle(1),
+        cwd: useWorkspaceStore().path || '',
       })
       if (nextState?.success !== true) return false
 
       this.sessions = Array.isArray(nextState?.state?.sessions) ? nextState.state.sessions : []
       this.persistCurrentWorkspaceSessions()
-      if (!nextState?.session) return false
-
-      try {
-        const runtimeThreadId = await this.ensureCodexRuntimeThreadForSession(
-          nextState.session.id,
-          nextState.session.title
-        )
-        if (runtimeThreadId) {
-          await renameCodexRuntimeThread({
-            threadId: runtimeThreadId,
-            title: nextState.session.title,
-          })
-          await this.syncSessionFromCodexRuntimeThread(nextState.session.id)
-        }
-      } catch {
-        // Keep the optimistic local title and let a later runtime sync reconcile if needed.
-      }
-
-      return true
+      return !!nextState?.session
     },
 
     setSessionMode(_mode = 'agent', sessionId = '') {
@@ -896,33 +865,13 @@ export const useAiStore = defineStore('ai', {
     },
 
     setPromptDraft(value = '') {
-      this.updateSessionById(this.currentSessionId, (session) => ({
-        ...session,
-        promptDraft: String(value || ''),
-      }))
+      void this.mutateSessionById(this.currentSessionId, 'setPromptDraft', {
+        value: String(value || ''),
+      })
     },
 
     clearSession(sessionId = '') {
-      this.updateSessionById(sessionId || this.currentSessionId, (session) => ({
-        ...session,
-        promptDraft: '',
-        queuedPromptDraft: '',
-        messages: [],
-        artifacts: [],
-        attachments: [],
-        queuedAttachments: [],
-        lastError: '',
-        isRunning: false,
-        permissionRequests: [],
-        askUserRequests: [],
-        exitPlanRequests: [],
-        backgroundTasks: [],
-        isCompacting: false,
-        lastCompactAt: 0,
-        waitingResume: false,
-        waitingResumeMessage: '',
-        planMode: { active: false, summary: '', note: '' },
-      }))
+      void this.mutateSessionById(sessionId || this.currentSessionId, 'clearSession', {})
     },
 
     async addAttachmentFromPath(path = '', options = {}) {
@@ -932,13 +881,7 @@ export const useAiStore = defineStore('ai', {
       })
       if (!attachment) return null
 
-      this.updateSessionById(this.currentSessionId, (session) => ({
-        ...session,
-        attachments: [
-          ...session.attachments.filter((entry) => entry.path !== attachment.path),
-          attachment,
-        ],
-      }))
+      await this.mutateSessionById(this.currentSessionId, 'addAttachment', { attachment })
       return attachment
     },
 
@@ -946,19 +889,13 @@ export const useAiStore = defineStore('ai', {
       const normalizedAttachmentId = String(attachmentId || '').trim()
       if (!normalizedAttachmentId) return
 
-      this.updateSessionById(this.currentSessionId, (session) => ({
-        ...session,
-        attachments: session.attachments.filter(
-          (attachment) => attachment.id !== normalizedAttachmentId
-        ),
-      }))
+      void this.mutateSessionById(this.currentSessionId, 'removeAttachment', {
+        attachmentId: normalizedAttachmentId,
+      })
     },
 
     clearAttachments(sessionId = '') {
-      this.updateSessionById(sessionId || this.currentSessionId, (session) => ({
-        ...session,
-        attachments: [],
-      }))
+      void this.mutateSessionById(sessionId || this.currentSessionId, 'clearAttachments', {})
     },
 
     queueCurrentSubmission(sessionId = '') {
@@ -973,21 +910,7 @@ export const useAiStore = defineStore('ai', {
       const attachments = Array.isArray(targetSession.attachments) ? targetSession.attachments : []
       if (!promptDraft.trim() && attachments.length === 0) return false
 
-      this.updateSessionById(targetSession.id, (session) => ({
-        ...session,
-        promptDraft: '',
-        attachments: [],
-        queuedPromptDraft: [queuedPromptDraft, promptDraft].filter((value) => String(value).trim()).join('\n\n'),
-        queuedAttachments: [
-          ...(Array.isArray(session.queuedAttachments) ? session.queuedAttachments : []),
-          ...attachments.filter(
-            (attachment) =>
-              !(Array.isArray(session.queuedAttachments) ? session.queuedAttachments : []).some(
-                (queued) => queued.id === attachment.id
-              )
-          ),
-        ],
-      }))
+      void this.mutateSessionById(targetSession.id, 'queueSubmission', {})
       return true
     },
 
@@ -1004,13 +927,7 @@ export const useAiStore = defineStore('ai', {
         : []
       if (!queuedPromptDraft.trim() && queuedAttachments.length === 0) return false
 
-      this.updateSessionById(targetSession.id, (session) => ({
-        ...session,
-        promptDraft: queuedPromptDraft,
-        attachments: queuedAttachments,
-        queuedPromptDraft: '',
-        queuedAttachments: [],
-      }))
+      void this.mutateSessionById(targetSession.id, 'dequeueSubmission', {})
       return true
     },
 
@@ -1028,25 +945,16 @@ export const useAiStore = defineStore('ai', {
         runtimeManaged: event.runtimeManaged === true,
       }
 
-      this.updateSessionById(sessionId || this.currentSessionId, (session) => ({
-        ...session,
-        askUserRequests: [
-          ...(session.askUserRequests || []).filter((request) => request.requestId !== requestId),
-          nextRequest,
-        ],
-      }))
+      void this.mutateSessionById(sessionId || this.currentSessionId, 'queueAskUserRequest', nextRequest)
     },
 
     clearAskUserRequest(requestId = '', sessionId = '') {
       const normalizedRequestId = String(requestId || '').trim()
       if (!normalizedRequestId) return
 
-      this.updateSessionById(sessionId || this.currentSessionId, (session) => ({
-        ...session,
-        askUserRequests: (session.askUserRequests || []).filter(
-          (request) => request.requestId !== normalizedRequestId
-        ),
-      }))
+      void this.mutateSessionById(sessionId || this.currentSessionId, 'clearAskUserRequest', {
+        requestId: normalizedRequestId,
+      })
     },
 
     async respondToAskUserRequest({ requestId = '', answers = {}, sessionId = '' } = {}) {
@@ -1107,25 +1015,16 @@ export const useAiStore = defineStore('ai', {
         runtimeManaged: event.runtimeManaged === true,
       }
 
-      this.updateSessionById(sessionId || this.currentSessionId, (session) => ({
-        ...session,
-        exitPlanRequests: [
-          ...(session.exitPlanRequests || []).filter((request) => request.requestId !== requestId),
-          nextRequest,
-        ],
-      }))
+      void this.mutateSessionById(sessionId || this.currentSessionId, 'queueExitPlanRequest', nextRequest)
     },
 
     clearExitPlanRequest(requestId = '', sessionId = '') {
       const normalizedRequestId = String(requestId || '').trim()
       if (!normalizedRequestId) return
 
-      this.updateSessionById(sessionId || this.currentSessionId, (session) => ({
-        ...session,
-        exitPlanRequests: (session.exitPlanRequests || []).filter(
-          (request) => request.requestId !== normalizedRequestId
-        ),
-      }))
+      void this.mutateSessionById(sessionId || this.currentSessionId, 'clearExitPlanRequest', {
+        requestId: normalizedRequestId,
+      })
     },
 
     async respondToExitPlanRequest({
@@ -1181,66 +1080,28 @@ export const useAiStore = defineStore('ai', {
     },
 
     setPlanModeState(sessionId = '', planMode = {}) {
-      this.updateSessionById(sessionId || this.currentSessionId, (session) => ({
-        ...session,
-        planMode: {
-          active: planMode.active === true,
-          summary: String(planMode.summary || '').trim(),
-          note: String(planMode.note || '').trim(),
-        },
-      }))
+      void this.mutateSessionById(sessionId || this.currentSessionId, 'setPlanModeState', planMode)
     },
 
     setWaitingResumeState(sessionId = '', { active = false, message = '' } = {}) {
-      this.updateSessionById(sessionId || this.currentSessionId, (session) => ({
-        ...session,
-        waitingResume: active === true,
-        waitingResumeMessage: active === true ? String(message || '').trim() : '',
-      }))
+      void this.mutateSessionById(sessionId || this.currentSessionId, 'setWaitingResumeState', { active, message })
     },
 
     setCompactionState(sessionId = '', { active = false } = {}) {
-      this.updateSessionById(sessionId || this.currentSessionId, (session) => ({
-        ...session,
-        isCompacting: active === true,
-        lastCompactAt: active === true ? Number(session.lastCompactAt || 0) || 0 : Date.now(),
-      }))
+      void this.mutateSessionById(sessionId || this.currentSessionId, 'setCompactionState', { active })
     },
 
     upsertBackgroundTask(task = {}, sessionId = '') {
-      this.updateSessionById(sessionId || this.currentSessionId, (session) => ({
-        ...session,
-        backgroundTasks: (() => {
-          const entries = Array.isArray(session.backgroundTasks) ? [...session.backgroundTasks] : []
-          const existingIndex = findBackgroundTaskIndex(entries, task)
-          const previous = existingIndex >= 0 ? entries[existingIndex] : null
-          const nextTask = buildBackgroundTaskRecord(task, previous)
-
-          if (!String(nextTask.id || '').trim()) return entries
-
-          if (existingIndex >= 0) {
-            entries.splice(existingIndex, 1, nextTask)
-          } else {
-            entries.push(nextTask)
-          }
-
-          return entries
-            .sort((left, right) => Number(right.updatedAt || 0) - Number(left.updatedAt || 0))
-            .slice(0, 12)
-        })(),
-      }))
+      void this.mutateSessionById(sessionId || this.currentSessionId, 'upsertBackgroundTask', { task })
     },
 
     clearBackgroundTask(taskId = '', sessionId = '') {
       const normalizedTaskId = String(taskId || '').trim()
       if (!normalizedTaskId) return
 
-      this.updateSessionById(sessionId || this.currentSessionId, (session) => ({
-        ...session,
-        backgroundTasks: (session.backgroundTasks || []).filter(
-          (task) => task.id !== normalizedTaskId
-        ),
-      }))
+      void this.mutateSessionById(sessionId || this.currentSessionId, 'clearBackgroundTask', {
+        taskId: normalizedTaskId,
+      })
     },
 
     isToolEnabled(toolId = '') {
@@ -1253,10 +1114,13 @@ export const useAiStore = defineStore('ai', {
       this.lastSkillCatalogError = ''
 
       try {
-        const skills = await discoverAltalsSkills({
-          workspacePath: workspace.path || '',
-          globalConfigDir: workspace.globalConfigDir || '',
+        const response = await invoke('ai_skill_catalog_load', {
+          params: {
+            workspacePath: workspace.path || '',
+            globalConfigDir: workspace.globalConfigDir || '',
+          },
         })
+        const skills = Array.isArray(response?.skills) ? response.skills : []
         this.altalsSkillCatalog = skills
         return skills
       } catch (error) {
@@ -1287,16 +1151,7 @@ export const useAiStore = defineStore('ai', {
         runtimeManaged: event.runtimeManaged === true,
       }
 
-      this.updateSessionById(sessionId || this.currentSessionId, (session) => {
-        const remaining = (
-          Array.isArray(session.permissionRequests) ? session.permissionRequests : []
-        ).filter((request) => request.requestId !== requestId)
-
-        return {
-          ...session,
-          permissionRequests: [...remaining, nextRequest],
-        }
-      })
+      void this.mutateSessionById(sessionId || this.currentSessionId, 'queuePermissionRequest', nextRequest)
     },
 
     clearPermissionRequest(requestId = '', sessionId = '') {
@@ -1309,13 +1164,9 @@ export const useAiStore = defineStore('ai', {
 
       if (!targetSession) return
 
-      this.updateSessionById(targetSession.id, (session) => ({
-        ...session,
-        permissionRequests: (Array.isArray(session.permissionRequests)
-          ? session.permissionRequests
-          : []
-        ).filter((request) => request.requestId !== normalizedRequestId),
-      }))
+      void this.mutateSessionById(targetSession.id, 'clearPermissionRequest', {
+        requestId: normalizedRequestId,
+      })
     },
 
     async respondToPermissionRequest({
@@ -1925,13 +1776,52 @@ export const useAiStore = defineStore('ai', {
       const filesStore = useFilesStore()
 
       try {
-        const applied = await applyAiArtifactCapability(artifact, {
-          enabledToolIds: this.enabledToolIds,
-          filesStore,
-          editorStore,
-          toastStore,
-          translate: t,
-        })
+        const capabilityToolId = String(artifact.capabilityToolId || '').trim()
+        if (capabilityToolId && !this.enabledToolIds.includes(capabilityToolId)) {
+          throw new Error(t('The required artifact capability is disabled.'))
+        }
+
+        let applied = false
+        if (artifact.type === 'doc_patch') {
+          let currentContent = ''
+          const view = editorStore.getAnyEditorView(artifact.filePath)
+          if (view?.altalsGetContent) {
+            currentContent = view.altalsGetContent()
+          } else if (artifact.filePath in filesStore.fileContents) {
+            currentContent = filesStore.fileContents[artifact.filePath]
+          } else {
+            currentContent = await filesStore.readFile(artifact.filePath)
+          }
+
+          const response = await invoke('ai_artifact_apply_doc_patch', {
+            params: {
+              content: currentContent,
+              artifact,
+            },
+          })
+          const nextContent = String(response?.content || '')
+          const saved = await filesStore.saveFile(artifact.filePath, nextContent)
+          if (!saved) {
+            throw new Error(t('Failed to save AI patch to the document.'))
+          }
+          if (view?.altalsApplyExternalContent) {
+            await view.altalsApplyExternalContent(nextContent)
+          }
+          editorStore.clearFileDirty(artifact.filePath)
+          artifact.status = 'applied'
+          toastStore.show(t('AI patch applied to the active document.'), { type: 'success' })
+          applied = true
+        } else if (artifact.type === 'note_draft') {
+          const draftPath = filesStore.createDraftFile({
+            ext: '.md',
+            suggestedName: artifact.suggestedName || 'ai-note.md',
+            initialContent: artifact.content,
+          })
+          editorStore.openFile(draftPath)
+          artifact.status = 'applied'
+          toastStore.show(t('AI note opened as a draft.'), { type: 'success' })
+          applied = true
+        }
         if (targetSession) {
           this.updateSessionById(targetSession.id, (session) => ({
             ...session,

@@ -322,24 +322,13 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
+import { invoke } from '@tauri-apps/api/core'
 import { ask, open } from '@tauri-apps/plugin-dialog'
 import { useI18n } from '../../i18n'
 import { useAiStore } from '../../stores/ai'
 import { useEditorStore } from '../../stores/editor'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { revealPathInFileManager } from '../../services/fileTreeSystem.js'
-import {
-  createManagedSkill,
-  deleteManagedSkill,
-  duplicateWritableSkill,
-  importManagedSkill,
-  isManagedSkill,
-  isWritableSkill,
-  resolveManagedSkillRoots,
-  resolveWritableSkillRoots,
-  updateManagedSkill,
-  updateWritableSkill,
-} from '../../services/ai/skillManagement.js'
 import SkillCreateModal from './SkillCreateModal.vue'
 import UiButton from '../shared/ui/UiButton.vue'
 import UiInput from '../shared/ui/UiInput.vue'
@@ -353,8 +342,6 @@ const workspace = useWorkspaceStore()
 const altalsSkills = computed(() => aiStore.altalsSkills)
 const managementScope = ref('workspace')
 const searchQuery = ref('')
-const managedRoots = ref({ workspace: '', user: '' })
-const writableRoots = ref([])
 const createModalVisible = ref(false)
 const editModalVisible = ref(false)
 const pageError = ref('')
@@ -418,48 +405,23 @@ function resetMessages() {
   pageSuccess.value = ''
 }
 
-async function loadPageState() {
-  const [roots, nextWritableRoots] = await Promise.all([
-    resolveManagedSkillRoots({
-      workspacePath: workspace.path || '',
-      globalConfigDir: workspace.globalConfigDir || '',
-    }),
-    resolveWritableSkillRoots({
-      workspacePath: workspace.path || '',
-      globalConfigDir: workspace.globalConfigDir || '',
-    }),
-  ])
-  managedRoots.value = roots
-  writableRoots.value = nextWritableRoots
-}
-
 async function refreshSkills() {
   resetMessages()
   await aiStore.refreshAltalsSkills()
-  const [nextManagedRoots, nextWritableRoots] = await Promise.all([
-    resolveManagedSkillRoots({
-      workspacePath: workspace.path || '',
-      globalConfigDir: workspace.globalConfigDir || '',
-    }),
-    resolveWritableSkillRoots({
-      workspacePath: workspace.path || '',
-      globalConfigDir: workspace.globalConfigDir || '',
-    }),
-  ])
-  managedRoots.value = nextManagedRoots
-  writableRoots.value = nextWritableRoots
 }
 
 async function submitCreateSkill() {
   resetMessages()
   try {
-    await createManagedSkill({
-      workspacePath: workspace.path || '',
-      globalConfigDir: workspace.globalConfigDir || '',
-      scope: managementScope.value,
-      name: createSkillForm.name,
-      description: createSkillForm.description,
-      body: createSkillForm.content,
+    await invoke('ai_skill_create', {
+      params: {
+        workspacePath: workspace.path || '',
+        globalConfigDir: workspace.globalConfigDir || '',
+        scope: managementScope.value,
+        name: createSkillForm.name,
+        description: createSkillForm.description,
+        body: createSkillForm.content,
+      },
     })
     createModalVisible.value = false
     createSkillForm.name = ''
@@ -484,11 +446,13 @@ async function importSkillByMode(directory = false) {
   if (!selected || Array.isArray(selected)) return
 
   try {
-    await importManagedSkill({
-      workspacePath: workspace.path || '',
-      globalConfigDir: workspace.globalConfigDir || '',
-      scope: managementScope.value,
-      sourcePath: String(selected),
+    await invoke('ai_skill_import', {
+      params: {
+        workspacePath: workspace.path || '',
+        globalConfigDir: workspace.globalConfigDir || '',
+        scope: managementScope.value,
+        sourcePath: String(selected),
+      },
     })
     pageSuccess.value = t('Skill imported.')
     await refreshSkills()
@@ -506,15 +470,15 @@ async function importSkillDirectory() {
 }
 
 function canDeleteSkill(skill = {}) {
-  return isManagedSkill(skill, managedRoots.value)
+  return skill?.managedByAltals === true
 }
 
 function canEditSkill(skill = {}) {
-  return isWritableSkill(skill, writableRoots.value)
+  return skill?.writableByAltals === true
 }
 
 function canDuplicateSkill(skill = {}) {
-  return isWritableSkill(skill, writableRoots.value)
+  return skill?.writableByAltals === true
 }
 
 function beginEditSkill(skill = {}) {
@@ -536,10 +500,12 @@ async function deleteSkill(skill = {}) {
   if (!confirmed) return
 
   try {
-    await deleteManagedSkill({
-      workspacePath: workspace.path || '',
-      globalConfigDir: workspace.globalConfigDir || '',
-      skill,
+    await invoke('ai_skill_delete', {
+      params: {
+        workspacePath: workspace.path || '',
+        globalConfigDir: workspace.globalConfigDir || '',
+        skill,
+      },
     })
     pageSuccess.value = t('Skill deleted.')
     await refreshSkills()
@@ -551,17 +517,15 @@ async function deleteSkill(skill = {}) {
 async function submitEditSkill() {
   resetMessages()
   try {
-    const updater = canDeleteSkill(editSkillForm.originalSkill)
-      ? updateManagedSkill
-      : updateWritableSkill
-
-    await updater({
-      workspacePath: workspace.path || '',
-      globalConfigDir: workspace.globalConfigDir || '',
-      skill: editSkillForm.originalSkill,
-      nextName: editSkillForm.name,
-      nextDescription: editSkillForm.description,
-      nextBody: editSkillForm.content,
+    await invoke('ai_skill_update', {
+      params: {
+        workspacePath: workspace.path || '',
+        globalConfigDir: workspace.globalConfigDir || '',
+        skill: editSkillForm.originalSkill,
+        nextName: editSkillForm.name,
+        nextDescription: editSkillForm.description,
+        nextBody: editSkillForm.content,
+      },
     })
     editModalVisible.value = false
     editSkillForm.originalSkill = null
@@ -578,10 +542,12 @@ async function submitEditSkill() {
 async function duplicateSkill(skill = {}) {
   resetMessages()
   try {
-    await duplicateWritableSkill({
-      workspacePath: workspace.path || '',
-      globalConfigDir: workspace.globalConfigDir || '',
-      skill,
+    await invoke('ai_skill_duplicate', {
+      params: {
+        workspacePath: workspace.path || '',
+        globalConfigDir: workspace.globalConfigDir || '',
+        skill,
+      },
     })
     pageSuccess.value = t('Skill duplicated.')
     await refreshSkills()
@@ -602,8 +568,7 @@ async function revealSkillDirectory(skill = {}) {
 }
 
 onMounted(async () => {
-  await loadPageState()
-  await aiStore.refreshAltalsSkills()
+  await refreshSkills()
 })
 </script>
 

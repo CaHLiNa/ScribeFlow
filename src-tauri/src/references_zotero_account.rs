@@ -52,7 +52,8 @@ fn write_zotero_config_raw(global_config_dir: &str, config: Option<Value>) -> Re
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent).map_err(|error| error.to_string())?;
         }
-        let serialized = serde_json::to_string_pretty(&config).map_err(|error| error.to_string())?;
+        let serialized =
+            serde_json::to_string_pretty(&config).map_err(|error| error.to_string())?;
         fs::write(&path, serialized).map_err(|error| error.to_string())?;
     } else {
         let _ = fs::remove_file(&path);
@@ -154,9 +155,7 @@ pub async fn references_zotero_api_key_clear(
 }
 
 #[tauri::command]
-pub async fn references_zotero_disconnect(
-    params: ZoteroAccountPathParams,
-) -> Result<(), String> {
+pub async fn references_zotero_disconnect(params: ZoteroAccountPathParams) -> Result<(), String> {
     let _ = keychain_delete();
     write_zotero_config_raw(&params.global_config_dir, None)
 }

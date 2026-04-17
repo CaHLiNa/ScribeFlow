@@ -76,7 +76,11 @@ fn preferred_preview_kind(kind: &str, prefs: &Value) -> Option<&'static str> {
     }
 }
 
-fn create_workflow_preview_path(source_path: &str, kind: &str, preview_kind: Option<&str>) -> Option<String> {
+fn create_workflow_preview_path(
+    source_path: &str,
+    kind: &str,
+    preview_kind: Option<&str>,
+) -> Option<String> {
     if source_path.trim().is_empty() {
         return None;
     }
@@ -134,7 +138,10 @@ fn find_first_leaf(node: &Value) -> Option<Value> {
 }
 
 fn is_preview_capable_leaf(leaf: &Value) -> bool {
-    let active_tab = leaf.get("activeTab").and_then(Value::as_str).unwrap_or_default();
+    let active_tab = leaf
+        .get("activeTab")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
     active_tab.is_empty() || is_preview_path(active_tab)
 }
 
@@ -144,11 +151,15 @@ fn matches_preview_binding(
     preferred_preview: Option<&str>,
     preview_bindings: &[Value],
 ) -> bool {
-    if let Some(binding) = preview_bindings.iter().find(|binding| {
-        binding.get("previewPath").and_then(Value::as_str) == Some(tab_path)
-    }) {
+    if let Some(binding) = preview_bindings
+        .iter()
+        .find(|binding| binding.get("previewPath").and_then(Value::as_str) == Some(tab_path))
+    {
         if binding.get("sourcePath").and_then(Value::as_str) == Some(source_path) {
-            let binding_kind = binding.get("previewKind").and_then(Value::as_str).unwrap_or_default();
+            let binding_kind = binding
+                .get("previewKind")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
             if preferred_preview.is_none() || preferred_preview == Some(binding_kind) {
                 return true;
             }
@@ -213,11 +224,20 @@ pub async fn document_workflow_reconcile(
     let mut leaves = Vec::new();
     get_leaves(&params.pane_tree, &mut leaves);
     'outer: for leaf in &leaves {
-        let pane_id = leaf.get("id").and_then(Value::as_str).unwrap_or_default().to_string();
+        let pane_id = leaf
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
         if let Some(tabs) = leaf.get("tabs").and_then(Value::as_array) {
             for tab in tabs {
                 let tab_path = tab.as_str().unwrap_or_default();
-                if matches_preview_binding(tab_path, &source_path, preferred_preview, &params.preview_bindings) {
+                if matches_preview_binding(
+                    tab_path,
+                    &source_path,
+                    preferred_preview,
+                    &params.preview_bindings,
+                ) {
                     matched_legacy_preview = Some((tab_path.to_string(), pane_id));
                     break 'outer;
                 }
@@ -344,8 +364,14 @@ mod tests {
         .await
         .unwrap();
 
-        assert_eq!(result.get("type").and_then(|value| value.as_str()), Some("workspace-preview"));
-        assert_eq!(result.get("previewKind").and_then(|value| value.as_str()), Some("html"));
+        assert_eq!(
+            result.get("type").and_then(|value| value.as_str()),
+            Some("workspace-preview")
+        );
+        assert_eq!(
+            result.get("previewKind").and_then(|value| value.as_str()),
+            Some("html")
+        );
     }
 
     #[tokio::test]
@@ -370,8 +396,14 @@ mod tests {
         .await
         .unwrap();
 
-        assert_eq!(result.get("type").and_then(|value| value.as_str()), Some("source-only"));
-        assert_eq!(result.get("kind").and_then(|value| value.as_str()), Some("latex"));
+        assert_eq!(
+            result.get("type").and_then(|value| value.as_str()),
+            Some("source-only")
+        );
+        assert_eq!(
+            result.get("kind").and_then(|value| value.as_str()),
+            Some("latex")
+        );
     }
 
     #[tokio::test]
@@ -415,7 +447,17 @@ mod tests {
         .await
         .unwrap();
 
-        assert_eq!(result.get("preserveOpenLegacy").and_then(|value| value.as_bool()), Some(true));
-        assert_eq!(result.get("legacyPreviewPaneId").and_then(|value| value.as_str()), Some("pane-preview"));
+        assert_eq!(
+            result
+                .get("preserveOpenLegacy")
+                .and_then(|value| value.as_bool()),
+            Some(true)
+        );
+        assert_eq!(
+            result
+                .get("legacyPreviewPaneId")
+                .and_then(|value| value.as_str()),
+            Some("pane-preview")
+        );
     }
 }

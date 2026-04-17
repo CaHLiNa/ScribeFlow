@@ -72,9 +72,17 @@ fn build_user_message(item: &Value) -> Value {
     })
 }
 
-fn build_assistant_message(turn: &Value, assistant_item: Option<&Value>, reasoning_item: Option<&Value>) -> Value {
-    let assistant_text = assistant_item.map(|value| string_field(value, &["text"])).unwrap_or_default();
-    let reasoning_text = reasoning_item.map(|value| string_field(value, &["text"])).unwrap_or_default();
+fn build_assistant_message(
+    turn: &Value,
+    assistant_item: Option<&Value>,
+    reasoning_item: Option<&Value>,
+) -> Value {
+    let assistant_text = assistant_item
+        .map(|value| string_field(value, &["text"]))
+        .unwrap_or_default();
+    let reasoning_text = reasoning_item
+        .map(|value| string_field(value, &["text"]))
+        .unwrap_or_default();
     let status = string_field(turn, &["status"]);
     let mut parts = Vec::new();
 
@@ -170,8 +178,16 @@ fn build_session_messages_from_runtime_snapshot(snapshot: &Value) -> Vec<Value> 
         }
 
         let status = string_field(&turn, &["status"]);
-        if assistant_item.is_some() || reasoning_item.is_some() || status == "failed" || status == "interrupted" {
-            messages.push(build_assistant_message(&turn, assistant_item, reasoning_item));
+        if assistant_item.is_some()
+            || reasoning_item.is_some()
+            || status == "failed"
+            || status == "interrupted"
+        {
+            messages.push(build_assistant_message(
+                &turn,
+                assistant_item,
+                reasoning_item,
+            ));
         }
     }
 
@@ -265,18 +281,25 @@ pub fn map_runtime_thread_snapshot_to_session(session: &Value, snapshot: &Value)
     let current_title = string_field(&next_session, &["title"]);
     next_session["title"] = Value::String({
         let title = string_field(&thread, &["title"]);
-        if title.is_empty() { current_title } else { title }
+        if title.is_empty() {
+            current_title
+        } else {
+            title
+        }
     });
     next_session["runtimeThreadId"] = Value::String(string_field(&thread, &["id"]));
     next_session["runtimeTurnId"] = Value::String(string_field(&thread, &["activeTurnId"]));
     next_session["isRunning"] = Value::Bool(string_field(&thread, &["status"]) == "running");
     next_session["messages"] = Value::Array(build_session_messages_from_runtime_snapshot(snapshot));
-    next_session["permissionRequests"] =
-        Value::Array(build_session_permission_requests_from_runtime_snapshot(snapshot));
-    next_session["askUserRequests"] =
-        Value::Array(build_session_ask_user_requests_from_runtime_snapshot(snapshot));
-    next_session["exitPlanRequests"] =
-        Value::Array(build_session_exit_plan_requests_from_runtime_snapshot(snapshot));
+    next_session["permissionRequests"] = Value::Array(
+        build_session_permission_requests_from_runtime_snapshot(snapshot),
+    );
+    next_session["askUserRequests"] = Value::Array(
+        build_session_ask_user_requests_from_runtime_snapshot(snapshot),
+    );
+    next_session["exitPlanRequests"] = Value::Array(
+        build_session_exit_plan_requests_from_runtime_snapshot(snapshot),
+    );
     next_session["planMode"] = build_session_plan_mode_from_runtime_snapshot(snapshot);
     next_session
 }
@@ -311,81 +334,103 @@ mod tests {
 
     #[tokio::test]
     async fn snapshot_to_session_rebuilds_messages_and_requests() {
-        let response = ai_runtime_thread_snapshot_to_session(AiRuntimeThreadSnapshotToSessionParams {
-            session: json!({
-                "id": "session-1",
-                "title": "Run 1"
-            }),
-            snapshot: json!({
-                "thread": {
-                    "id": "thread-1",
-                    "title": "Workspace thread",
-                    "activeTurnId": "turn-1",
-                    "status": "running"
-                },
-                "turns": [{
-                    "id": "turn-1",
-                    "status": "completed",
-                    "createdAt": 100
-                }],
-                "items": [
-                    {
-                        "turnId": "turn-1",
-                        "kind": "userMessage",
-                        "text": "Inspect the workspace",
+        let response =
+            ai_runtime_thread_snapshot_to_session(AiRuntimeThreadSnapshotToSessionParams {
+                session: json!({
+                    "id": "session-1",
+                    "title": "Run 1"
+                }),
+                snapshot: json!({
+                    "thread": {
+                        "id": "thread-1",
+                        "title": "Workspace thread",
+                        "activeTurnId": "turn-1",
+                        "status": "running"
+                    },
+                    "turns": [{
+                        "id": "turn-1",
+                        "status": "completed",
                         "createdAt": 100
-                    },
-                    {
+                    }],
+                    "items": [
+                        {
+                            "turnId": "turn-1",
+                            "kind": "userMessage",
+                            "text": "Inspect the workspace",
+                            "createdAt": 100
+                        },
+                        {
+                            "turnId": "turn-1",
+                            "kind": "reasoning",
+                            "text": "Reading files first.",
+                            "createdAt": 101
+                        },
+                        {
+                            "turnId": "turn-1",
+                            "kind": "agentMessage",
+                            "text": "I checked the workspace.",
+                            "createdAt": 102
+                        }
+                    ],
+                    "permissionRequests": [{
+                        "requestId": "perm-1",
+                        "toolName": "read_workspace_file",
+                        "displayName": "Read workspace file",
+                        "title": "Allow read",
+                        "description": "Need file access",
+                        "decisionReason": "User requested inspection",
+                        "inputPreview": "/tmp/file.md"
+                    }],
+                    "askUserRequests": [{
+                        "requestId": "ask-1",
+                        "title": "Clarify target",
+                        "prompt": "Which workspace should I use?",
+                        "description": "Need an answer before continuing",
+                        "questions": []
+                    }],
+                    "exitPlanRequests": [{
+                        "requestId": "exit-1",
                         "turnId": "turn-1",
-                        "kind": "reasoning",
-                        "text": "Reading files first.",
-                        "createdAt": 101
-                    },
-                    {
-                        "turnId": "turn-1",
-                        "kind": "agentMessage",
-                        "text": "I checked the workspace.",
-                        "createdAt": 102
+                        "title": "Exit plan mode",
+                        "allowedPrompts": []
+                    }],
+                    "planMode": {
+                        "active": true,
+                        "summary": "Planning runtime migration",
+                        "note": "Awaiting approval"
                     }
-                ],
-                "permissionRequests": [{
-                    "requestId": "perm-1",
-                    "toolName": "read_workspace_file",
-                    "displayName": "Read workspace file",
-                    "title": "Allow read",
-                    "description": "Need file access",
-                    "decisionReason": "User requested inspection",
-                    "inputPreview": "/tmp/file.md"
-                }],
-                "askUserRequests": [{
-                    "requestId": "ask-1",
-                    "title": "Clarify target",
-                    "prompt": "Which workspace should I use?",
-                    "description": "Need an answer before continuing",
-                    "questions": []
-                }],
-                "exitPlanRequests": [{
-                    "requestId": "exit-1",
-                    "turnId": "turn-1",
-                    "title": "Exit plan mode",
-                    "allowedPrompts": []
-                }],
-                "planMode": {
-                    "active": true,
-                    "summary": "Planning runtime migration",
-                    "note": "Awaiting approval"
-                }
-            }),
-        })
-        .await
-        .unwrap();
+                }),
+            })
+            .await
+            .unwrap();
 
         assert_eq!(response.session["title"].as_str(), Some("Workspace thread"));
-        assert_eq!(response.session["runtimeThreadId"].as_str(), Some("thread-1"));
+        assert_eq!(
+            response.session["runtimeThreadId"].as_str(),
+            Some("thread-1")
+        );
         assert_eq!(response.session["messages"].as_array().unwrap().len(), 2);
-        assert_eq!(response.session["permissionRequests"].as_array().unwrap().len(), 1);
-        assert_eq!(response.session["askUserRequests"].as_array().unwrap().len(), 1);
-        assert_eq!(response.session["exitPlanRequests"].as_array().unwrap().len(), 1);
+        assert_eq!(
+            response.session["permissionRequests"]
+                .as_array()
+                .unwrap()
+                .len(),
+            1
+        );
+        assert_eq!(
+            response.session["askUserRequests"]
+                .as_array()
+                .unwrap()
+                .len(),
+            1
+        );
+        assert_eq!(
+            response.session["exitPlanRequests"]
+                .as_array()
+                .unwrap()
+                .len(),
+            1
+        );
         assert_eq!(response.session["planMode"]["active"].as_bool(), Some(true));
     }
 }

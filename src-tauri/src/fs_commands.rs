@@ -118,7 +118,10 @@ fn resolve_unique_move_destination(name: &str, dest_dir: &Path, is_dir: bool) ->
     }
 
     let path = Path::new(name);
-    let stem = path.file_stem().and_then(|value| value.to_str()).unwrap_or(name);
+    let stem = path
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .unwrap_or(name);
     let suffix = path
         .extension()
         .and_then(|value| value.to_str())
@@ -384,8 +387,7 @@ pub async fn workspace_duplicate_path(
     path: String,
     scope_state: tauri::State<'_, WorkspaceScopeState>,
 ) -> Result<String, String> {
-    let resolved =
-        security::ensure_allowed_mutation_path(scope_state.inner(), Path::new(&path))?;
+    let resolved = security::ensure_allowed_mutation_path(scope_state.inner(), Path::new(&path))?;
     run_blocking(move || {
         let parent = resolved
             .parent()
@@ -420,7 +422,8 @@ pub async fn workspace_move_path(
             .to_string();
         let mut dest_path = resolved_dest_dir.join(&name);
         if resolved_src != dest_path && dest_path.exists() {
-            dest_path = resolve_unique_move_destination(&name, &resolved_dest_dir, resolved_src.is_dir());
+            dest_path =
+                resolve_unique_move_destination(&name, &resolved_dest_dir, resolved_src.is_dir());
         }
         fs::rename(&resolved_src, &dest_path).map_err(|e| e.to_string())?;
         Ok(WorkspaceMoveResult {

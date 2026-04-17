@@ -58,7 +58,11 @@ fn normalize_block_scalar_value(lines: &[String], style: char) -> String {
             if !current.is_empty() {
                 paragraphs.push(current.join(" ").trim().to_string());
                 current.clear();
-            } else if !paragraphs.last().map(|item| item.is_empty()).unwrap_or(true) {
+            } else if !paragraphs
+                .last()
+                .map(|item| item.is_empty())
+                .unwrap_or(true)
+            {
                 paragraphs.push(String::new());
             }
             continue;
@@ -165,10 +169,7 @@ fn extract_first_paragraph(body: &str) -> String {
         if paragraph.starts_with('#') && !paragraph.contains('\n') {
             continue;
         }
-        return paragraph
-            .trim_start_matches('#')
-            .trim()
-            .to_string();
+        return paragraph.trim_start_matches('#').trim().to_string();
     }
     String::new()
 }
@@ -190,7 +191,12 @@ pub fn parse_skill_markdown(markdown: &str, fallback_name: &str) -> ParsedSkillM
         .and_then(Value::as_str)
         .map(|value| trim_text(value, MAX_SKILL_DESCRIPTION_LENGTH))
         .filter(|value| !value.is_empty())
-        .unwrap_or_else(|| trim_text(&extract_first_paragraph(&body), MAX_SKILL_DESCRIPTION_LENGTH));
+        .unwrap_or_else(|| {
+            trim_text(
+                &extract_first_paragraph(&body),
+                MAX_SKILL_DESCRIPTION_LENGTH,
+            )
+        });
 
     ParsedSkillMarkdown {
         slug: slugify_skill_name(&resolved_name),
@@ -207,7 +213,10 @@ fn stringify_frontmatter_value(value: &str) -> String {
         return "\"\"".to_string();
     }
     if normalized.chars().any(|ch| {
-        matches!(ch, ':' | '#' | '\n' | '\r' | '\t' | '"' | '\'' | '[' | ']' | '{' | '}')
+        matches!(
+            ch,
+            ':' | '#' | '\n' | '\r' | '\t' | '"' | '\'' | '[' | ']' | '{' | '}'
+        )
     }) || normalized.starts_with(char::is_whitespace)
         || normalized.ends_with(char::is_whitespace)
     {
@@ -226,7 +235,10 @@ pub fn build_skill_markdown(
     let normalized_description = description.trim();
     let normalized_body = body.trim();
     let mut merged = frontmatter.cloned().unwrap_or_default();
-    merged.insert("name".to_string(), Value::String(normalized_name.to_string()));
+    merged.insert(
+        "name".to_string(),
+        Value::String(normalized_name.to_string()),
+    );
     if normalized_description.is_empty() {
         merged.remove("description");
     } else {
@@ -238,7 +250,10 @@ pub fn build_skill_markdown(
 
     let mut ordered = vec![("name".to_string(), normalized_name.to_string())];
     if !normalized_description.is_empty() {
-        ordered.push(("description".to_string(), normalized_description.to_string()));
+        ordered.push((
+            "description".to_string(),
+            normalized_description.to_string(),
+        ));
     }
     for (key, value) in merged {
         if key == "name" || key == "description" {
@@ -298,11 +313,17 @@ pub fn rewrite_skill_markdown(
         .map(|value| value.trim().to_string())
         .unwrap_or_else(|| parsed.body.trim().to_string());
 
-    frontmatter.insert("name".to_string(), Value::String(next_name.trim().to_string()));
+    frontmatter.insert(
+        "name".to_string(),
+        Value::String(next_name.trim().to_string()),
+    );
     if description.is_empty() {
         frontmatter.remove("description");
     } else {
-        frontmatter.insert("description".to_string(), Value::String(description.clone()));
+        frontmatter.insert(
+            "description".to_string(),
+            Value::String(description.clone()),
+        );
     }
 
     build_skill_markdown(next_name, &description, &body, Some(&frontmatter))

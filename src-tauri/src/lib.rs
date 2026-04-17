@@ -4,14 +4,22 @@ mod ai_agent_prepare;
 mod ai_agent_prompt;
 mod ai_agent_run;
 mod ai_agent_session_runtime;
+mod ai_artifact_runtime;
+mod ai_attachment_runtime;
+mod ai_client_session_runtime;
 mod ai_config;
 mod ai_provider_catalog;
+mod ai_provider_credentials;
+mod ai_runtime;
 mod ai_runtime_session_rail;
 mod ai_runtime_thread_client;
 mod ai_runtime_turn_wait;
-mod ai_runtime;
+mod ai_session_local_runtime;
 mod ai_session_storage;
+mod ai_skill_catalog;
+mod ai_skill_management;
 mod ai_skill_support;
+mod ai_skill_text;
 mod ai_tool_catalog;
 mod app_dirs;
 mod codex_runtime;
@@ -22,6 +30,8 @@ mod fs_tree;
 mod fs_tree_runtime;
 mod keychain;
 mod latex;
+mod latex_project_graph;
+mod latex_runtime;
 mod latex_tools;
 mod network;
 mod process_utils;
@@ -30,8 +40,8 @@ mod references_citation;
 mod references_import;
 mod references_pdf;
 mod references_runtime;
-mod references_zotero_account;
 mod references_zotero;
+mod references_zotero_account;
 mod security;
 mod workspace_access;
 
@@ -469,6 +479,13 @@ pub fn run() {
             ai_agent_session_runtime::ai_agent_session_finalize,
             ai_agent_session_runtime::ai_agent_tool_events_merge,
             ai_action_catalog::ai_action_catalog_list,
+            ai_artifact_runtime::ai_artifact_capability_describe,
+            ai_artifact_runtime::ai_artifact_apply_doc_patch,
+            ai_attachment_runtime::ai_attachment_create,
+            ai_client_session_runtime::ai_client_session_create,
+            ai_client_session_runtime::ai_client_session_ensure_thread,
+            ai_client_session_runtime::ai_client_session_rename,
+            ai_client_session_runtime::ai_client_session_delete,
             document_workflow::document_workflow_reconcile,
             ai_config::ai_config_load,
             ai_config::ai_config_load_internal,
@@ -478,9 +495,19 @@ pub fn run() {
             ai_provider_catalog::ai_provider_state_resolve,
             ai_provider_catalog::ai_provider_models_list,
             ai_provider_catalog::ai_provider_connection_test,
+            ai_provider_credentials::ai_provider_api_key_load,
+            ai_provider_credentials::ai_provider_api_key_store,
+            ai_provider_credentials::ai_provider_api_key_clear,
+            ai_session_local_runtime::ai_session_local_mutate,
             ai_runtime_session_rail::ai_runtime_session_rail_reconcile,
             ai_runtime_thread_client::ai_runtime_thread_snapshot_to_session,
             ai_runtime_turn_wait::ai_runtime_turn_run_wait,
+            ai_skill_catalog::ai_skill_catalog_load,
+            ai_skill_management::ai_skill_create,
+            ai_skill_management::ai_skill_import,
+            ai_skill_management::ai_skill_delete,
+            ai_skill_management::ai_skill_update,
+            ai_skill_management::ai_skill_duplicate,
             ai_tool_catalog::ai_tool_catalog_resolve,
             ai_session_storage::ai_session_overlay_load,
             ai_session_storage::ai_session_overlay_save,
@@ -544,6 +571,13 @@ pub fn run() {
             references_zotero::references_zotero_fetch_collections,
             references_zotero::references_zotero_sync,
             references_zotero::references_zotero_delete_item,
+            latex_project_graph::latex_project_graph_resolve,
+            latex_project_graph::latex_compile_request_resolve,
+            latex_project_graph::latex_compile_targets_resolve,
+            latex_project_graph::latex_affected_root_targets_resolve,
+            latex_runtime::latex_runtime_compile_start,
+            latex_runtime::latex_runtime_compile_finish,
+            latex_runtime::latex_runtime_compile_fail,
             security::workspace_set_allowed_roots,
             security::workspace_clear_allowed_roots,
             workspace_access::macos_create_workspace_bookmark,

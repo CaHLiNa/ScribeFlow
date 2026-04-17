@@ -115,7 +115,11 @@ fn apply_snapshot_to_session(base_session: &Value, snapshot: &Value) -> Value {
     let mut session = ensure_session_shape(base_session, &current_title);
     session["title"] = Value::String({
         let title = string_field(&thread, &["title"]);
-        if title.is_empty() { current_title } else { title }
+        if title.is_empty() {
+            current_title
+        } else {
+            title
+        }
     });
     session["runtimeThreadId"] = Value::String(string_field(&thread, &["id"]));
     session["runtimeTurnId"] = Value::String(string_field(&thread, &["activeTurnId"]));
@@ -196,17 +200,14 @@ pub async fn ai_runtime_session_rail_reconcile(
     }
 
     if filtered_sessions.is_empty() {
-        filtered_sessions.push(ensure_session_shape(
-            &json!({}),
-            &{
-                let title = if params.fallback_title.trim().is_empty() {
-                    build_default_session_title(1)
-                } else {
-                    params.fallback_title.clone()
-                };
-                title
-            },
-        ));
+        filtered_sessions.push(ensure_session_shape(&json!({}), &{
+            let title = if params.fallback_title.trim().is_empty() {
+                build_default_session_title(1)
+            } else {
+                params.fallback_title.clone()
+            };
+            title
+        }));
     }
 
     let current_session_id = {
