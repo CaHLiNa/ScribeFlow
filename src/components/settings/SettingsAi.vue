@@ -190,25 +190,21 @@ import UiButton from '../shared/ui/UiButton.vue'
 import UiInput from '../shared/ui/UiInput.vue'
 import UiSelect from '../shared/ui/UiSelect.vue'
 import {
-  AI_PROVIDER_DEFINITIONS,
   clearAiApiKey,
-  getAiProviderConfig,
-  getAiProviderDefinition,
+  listAiProviderDefinitions,
+  listAiProviderModels,
   loadAiApiKey,
   loadAiConfig,
-  resolveAiProviderModel,
   saveAiConfig,
   storeAiApiKey,
+  testAiProviderConnection,
 } from '../../services/ai/settings.js'
-import { listAiProviderModels } from '../../services/ai/providerModels.js'
-import { testAiProviderConnection } from '../../services/ai/providerDiagnostics.js'
-import { normalizeAnthropicSdkConfig } from '../../services/ai/runtime/anthropicSdkPolicy.js'
 
 const { t } = useI18n()
 const aiStore = useAiStore()
 const toastStore = useToastStore()
 
-const providerDefinitions = AI_PROVIDER_DEFINITIONS
+const providerDefinitions = ref([])
 const providerForms = ref({})
 const providerKeys = ref({})
 const providerFeedback = ref({})
@@ -227,11 +223,34 @@ function toggleProvider(id) {
 const saving = ref(false)
 const testingProviderId = ref('')
 
+function findProviderDefinition(providerId = '') {
+  const normalizedProviderId = String(providerId || '').trim()
+  return (
+    providerDefinitions.value.find((provider) => provider.id === normalizedProviderId) || {
+      id: normalizedProviderId,
+      label: normalizedProviderId,
+      defaultBaseUrl: '',
+      defaultModel: '',
+      modelPlaceholder: '',
+      baseUrlHint: '',
+      usesAutomaticModel: normalizedProviderId !== 'custom',
+    }
+  )
+}
+
+function resolveProviderModel(providerId = '', form = null) {
+  const normalizedValue = String(form?.model || '').trim()
+  if (normalizedValue) return normalizedValue
+  const definition = findProviderDefinition(providerId)
+  if (definition.usesAutomaticModel === false) return ''
+  return String(definition.defaultModel || definition.modelPlaceholder || '').trim()
+}
+
 function buildProviderForm(providerId = '', config = null) {
-  const definition = getAiProviderDefinition(providerId)
+  const definition = findProviderDefinition(providerId)
   return {
     baseUrl: String(config?.baseUrl ?? definition.defaultBaseUrl ?? ''),
-    model: String(config?.model || ''),
+    model: String(config?.model || resolveProviderModel(providerId, config)),
     temperatureText: String(config?.temperature ?? 0.2),
   }
 }
@@ -303,17 +322,21 @@ function buildProviderConfig(providerId = '') {
   const form = getProviderForm(providerId)
   const config = {
     baseUrl: form.baseUrl.trim(),
-    model: resolveAiProviderModel(providerId, form),
+    model: resolveProviderModel(providerId, form),
     temperature: Number(form.temperatureText || 0.2),
   }
 
   if (providerId === 'anthropic') {
-    const existingProviderConfig = getAiProviderConfig(loadedConfig.value, providerId)
-    const sdkConfig = normalizeAnthropicSdkConfig(existingProviderConfig?.sdk)
+    const existingProviderConfig = loadedConfig.value?.providers?.[providerId] || {}
+    const sdkConfig = existingProviderConfig?.sdk || {
+      runtimeMode: 'sdk',
+      approvalMode: 'per-tool',
+      toolPolicies: {},
+    }
     config.sdk = {
-      runtimeMode: sdkConfig.runtimeMode,
-      approvalMode: sdkConfig.approvalMode,
-      toolPolicies: { ...sdkConfig.toolPolicies },
+      runtimeMode: String(sdkConfig.runtimeMode || 'sdk').trim() || 'sdk',
+      approvalMode: String(sdkConfig.approvalMode || 'per-tool').trim() || 'per-tool',
+      toolPolicies: { ...(sdkConfig.toolPolicies || {}) },
     }
   }
 
@@ -327,7 +350,7 @@ function buildConfig() {
     currentProviderId: String(currentConfig.currentProviderId || 'openai').trim(),
     enabledTools: Array.isArray(currentConfig.enabledTools) ? [...currentConfig.enabledTools] : [],
     providers: Object.fromEntries(
-      providerDefinitions.map((provider) => [provider.id, buildProviderConfig(provider.id)])
+      providerDefinitions.value.map((provider) => [provider.id, buildProviderConfig(provider.id)])
     ),
   }
 }
@@ -336,7 +359,7 @@ function canTestProvider(providerId = '') {
   const form = getProviderForm(providerId)
   return (
     !!form.baseUrl.trim() &&
-    !!resolveAiProviderModel(providerId, form) &&
+    !!resolveProviderModel(providerId, form) &&
     !!getProviderKey(providerId).trim()
   )
 }
@@ -349,7 +372,7 @@ function isProviderConfigured(providerId = '') {
   const form = getProviderForm(providerId)
   return (
     !!form.baseUrl.trim() &&
-    !!resolveAiProviderModel(providerId, form) &&
+    !!resolveProviderModel(providerId, form) &&
     !!getProviderKey(providerId).trim()
   )
 }
@@ -439,15 +462,16 @@ async function loadState() {
   saving.value = true
 
   try {
+    providerDefinitions.value = await listAiProviderDefinitions()
     const config = await loadAiConfig()
     const keyEntries = await Promise.all(
-      providerDefinitions.map(async (provider) => [provider.id, await loadAiApiKey(provider.id)])
+      providerDefinitions.value.map(async (provider) => [provider.id, await loadAiApiKey(provider.id)])
     )
 
     providerForms.value = Object.fromEntries(
-      providerDefinitions.map((provider) => [
+      providerDefinitions.value.map((provider) => [
         provider.id,
-        buildProviderForm(provider.id, getAiProviderConfig(config, provider.id)),
+        buildProviderForm(provider.id, config?.providers?.[provider.id]),
       ])
     )
     providerKeys.value = Object.fromEntries(
@@ -466,7 +490,7 @@ async function persistAllProviders() {
   const nextConfig = buildConfig()
   await saveAiConfig(nextConfig)
   loadedConfig.value = nextConfig
-  for (const provider of providerDefinitions) {
+  for (const provider of providerDefinitions.value) {
     await storeAiApiKey(provider.id, getProviderKey(provider.id).trim())
   }
   await aiStore.refreshProviderState()
@@ -549,7 +573,7 @@ async function handleClearProvider(providerId = '') {
     }
     await clearAiApiKey(providerId)
     await persistAllProviders()
-    toastStore.show(`${getAiProviderDefinition(providerId).label} · ${t('AI settings cleared.')}`)
+    toastStore.show(`${findProviderDefinition(providerId).label} · ${t('AI settings cleared.')}`)
   } catch (error) {
     toastStore.show(normalizeErrorMessage(error, t('Failed to clear AI settings.')), { type: 'error' })
   } finally {

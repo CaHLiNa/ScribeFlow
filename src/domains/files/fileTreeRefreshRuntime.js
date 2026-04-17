@@ -1,59 +1,34 @@
-function patchTreeEntry(entries = [], targetPath, updater) {
-  let changed = false
-  const nextEntries = entries.map((entry) => {
-    if (entry.path === targetPath) {
-      changed = true
-      return updater(entry)
-    }
+import {
+  collectLoadedTreeDirs,
+  mergeLoadedTreeEntries,
+  patchTreeDirChildren,
+} from '../../services/fileTreeRuntimeBridge.js'
 
-    if (Array.isArray(entry.children)) {
-      const nextChildren = patchTreeEntry(entry.children, targetPath, updater)
-      if (nextChildren !== entry.children) {
-        changed = true
-        return { ...entry, children: nextChildren }
-      }
-    }
-
-    return entry
-  })
-
-  return changed ? nextEntries : entries
+export async function patchTreeEntry(entries = [], targetPath, updater) {
+  const current = findTreeEntry(entries, targetPath)
+  if (!current) return entries
+  const nextEntry = updater(current)
+  const children = Array.isArray(nextEntry?.children) ? nextEntry.children : []
+  return patchTreeDirChildren(entries, targetPath, children)
 }
 
-export { patchTreeEntry }
-
-export function mergePreservingLoadedChildren(nextEntries = [], previousEntries = []) {
-  const previousByPath = new Map(previousEntries.map(entry => [entry.path, entry]))
-  return nextEntries.map((entry) => {
-    const previous = previousByPath.get(entry.path)
-    if (!entry.is_dir || !previous?.is_dir) {
-      return entry
-    }
-
-    if (Array.isArray(previous.children)) {
-      if (!Array.isArray(entry.children)) {
-        return {
-          ...entry,
-          children: previous.children,
-        }
-      }
-      return {
-        ...entry,
-        children: mergePreservingLoadedChildren(entry.children, previous.children),
-      }
-    }
-
-    return entry
-  })
+export async function mergePreservingLoadedChildren(nextEntries = [], previousEntries = []) {
+  return mergeLoadedTreeEntries(nextEntries, previousEntries)
 }
 
-export function collectLoadedDirectoryPaths(entries = [], paths = []) {
+export async function collectLoadedDirectoryPaths(entries = [], paths = []) {
+  return collectLoadedTreeDirs(entries, '', paths)
+}
+
+function findTreeEntry(entries = [], targetPath) {
   for (const entry of entries) {
-    if (!entry.is_dir || !Array.isArray(entry.children)) continue
-    paths.push(entry.path)
-    collectLoadedDirectoryPaths(entry.children, paths)
+    if (entry.path === targetPath) return entry
+    if (Array.isArray(entry.children)) {
+      const found = findTreeEntry(entry.children, targetPath)
+      if (found) return found
+    }
   }
-  return paths
+  return null
 }
 
 function normalizeTreeSnapshot(entries = []) {
@@ -122,9 +97,8 @@ export function createVisibleTreeRefreshRuntime({
 
     try {
       const currentTree = getCurrentTree?.() ?? []
-      const loadedDirectories = collectLoadedDirectoryPaths(currentTree)
+      const loadedDirectories = (await collectLoadedTreeDirs(currentTree, workspacePath))
         .filter(path => path !== workspacePath)
-        .sort((a, b) => a.length - b.length)
 
       let nextTree = null
       if (readWorkspaceSnapshot && applyWorkspaceSnapshot) {
@@ -135,7 +109,7 @@ export function createVisibleTreeRefreshRuntime({
         nextTree = await readVisibleTree(workspacePath, loadedDirectories)
       } else {
         nextTree = await readDirShallow?.(workspacePath)
-        nextTree = mergePreservingLoadedChildren(nextTree, currentTree)
+        nextTree = await mergePreservingLoadedChildren(nextTree, currentTree)
 
         const directoryResults = await mapWithConcurrency(
           loadedDirectories,
@@ -153,13 +127,17 @@ export function createVisibleTreeRefreshRuntime({
         for (const result of directoryResults) {
           if (!result) continue
           const previousEntry = findCurrentEntry?.(result.dirPath)
-          nextTree = patchTreeEntry(nextTree, result.dirPath, (current) => ({
-            ...current,
-            children: mergePreservingLoadedChildren(
+          const patchedEntryChildren = Array.isArray(previousEntry?.children)
+            ? previousEntry.children
+            : []
+          nextTree = await patchTreeDirChildren(
+            nextTree,
+            result.dirPath,
+            await mergePreservingLoadedChildren(
               result.children,
-              previousEntry?.children || current.children || [],
+              patchedEntryChildren,
             ),
-          }))
+          )
         }
       }
 

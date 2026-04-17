@@ -1,7 +1,8 @@
 use base64::{engine::general_purpose::STANDARD, Engine};
+use serde::Serialize;
 use std::collections::HashSet;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tokio::task;
 
 use crate::app_dirs;
@@ -22,6 +23,128 @@ where
     task::spawn_blocking(operation)
         .await
         .map_err(|e| format!("Background task failed: {}", e))?
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceCreateFileResult {
+    pub ok: bool,
+    pub path: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceRenameResult {
+    pub ok: bool,
+    pub code: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceMoveResult {
+    pub ok: bool,
+    pub dest_path: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceCopyExternalResult {
+    pub path: String,
+    pub is_dir: bool,
+}
+
+fn build_copy_name(name: &str, index: usize, suffix: &str) -> String {
+    if index == 1 {
+        format!("{name} copy{suffix}")
+    } else {
+        format!("{name} copy {index}{suffix}")
+    }
+}
+
+fn path_exists_internal(path: &Path) -> bool {
+    path.exists()
+}
+
+fn is_directory_internal(path: &Path) -> bool {
+    path.is_dir()
+}
+
+fn resolve_unique_copy_destination(path: &Path, dir: &Path, is_dir: bool) -> PathBuf {
+    let name = path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or_default();
+
+    if is_dir {
+        let mut index = 1;
+        loop {
+            let candidate = dir.join(build_copy_name(name, index, ""));
+            if !path_exists_internal(&candidate) {
+                return candidate;
+            }
+            index += 1;
+        }
+    }
+
+    let stem = path
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .unwrap_or(name);
+    let suffix = path
+        .extension()
+        .and_then(|value| value.to_str())
+        .map(|value| format!(".{value}"))
+        .unwrap_or_default();
+    let mut index = 1;
+    loop {
+        let candidate = dir.join(build_copy_name(stem, index, &suffix));
+        if !path_exists_internal(&candidate) {
+            return candidate;
+        }
+        index += 1;
+    }
+}
+
+fn resolve_unique_move_destination(name: &str, dest_dir: &Path, is_dir: bool) -> PathBuf {
+    if is_dir {
+        let mut index = 2;
+        loop {
+            let candidate = dest_dir.join(format!("{name} {index}"));
+            if !path_exists_internal(&candidate) {
+                return candidate;
+            }
+            index += 1;
+        }
+    }
+
+    let path = Path::new(name);
+    let stem = path.file_stem().and_then(|value| value.to_str()).unwrap_or(name);
+    let suffix = path
+        .extension()
+        .and_then(|value| value.to_str())
+        .map(|value| format!(".{value}"))
+        .unwrap_or_default();
+    let mut index = 2;
+    loop {
+        let candidate = dest_dir.join(format!("{stem} {index}{suffix}"));
+        if !path_exists_internal(&candidate) {
+            return candidate;
+        }
+        index += 1;
+    }
+}
+
+fn default_file_content(name: &str, initial_content: &str) -> String {
+    if !initial_content.is_empty() {
+        return initial_content.to_string();
+    }
+    if name.ends_with(".tex") {
+        let title = name.trim_end_matches(".tex").replace('-', " ");
+        return format!(
+            "\\documentclass{{article}}\n\\title{{{title}}}\n\\author{{}}\n\\date{{}}\n\n\\begin{{document}}\n\\maketitle\n\n\n\n\\end{{document}}\n"
+        );
+    }
+    String::new()
 }
 
 #[tauri::command]
@@ -139,6 +262,30 @@ pub async fn create_file(
 }
 
 #[tauri::command]
+pub async fn workspace_create_file(
+    dir_path: String,
+    name: String,
+    initial_content: Option<String>,
+    scope_state: tauri::State<'_, WorkspaceScopeState>,
+) -> Result<WorkspaceCreateFileResult, String> {
+    let full_path = format!("{}/{}", dir_path.trim_end_matches('/'), name);
+    let resolved =
+        security::ensure_allowed_mutation_path(scope_state.inner(), Path::new(&full_path))?;
+    let content = default_file_content(&name, initial_content.unwrap_or_default().trim());
+    run_blocking(move || {
+        if resolved.exists() {
+            return Err("File already exists".to_string());
+        }
+        fs::write(&resolved, content).map_err(|e| e.to_string())?;
+        Ok(WorkspaceCreateFileResult {
+            ok: true,
+            path: resolved.to_string_lossy().to_string(),
+        })
+    })
+    .await
+}
+
+#[tauri::command]
 pub async fn create_dir(
     path: String,
     scope_state: tauri::State<'_, WorkspaceScopeState>,
@@ -158,6 +305,32 @@ pub async fn rename_path(
     let resolved_new =
         security::ensure_allowed_mutation_path(scope_state.inner(), Path::new(&new_path))?;
     run_blocking(move || fs::rename(&resolved_old, &resolved_new).map_err(|e| e.to_string())).await
+}
+
+#[tauri::command]
+pub async fn workspace_rename_path(
+    old_path: String,
+    new_path: String,
+    scope_state: tauri::State<'_, WorkspaceScopeState>,
+) -> Result<WorkspaceRenameResult, String> {
+    let resolved_old =
+        security::ensure_allowed_mutation_path(scope_state.inner(), Path::new(&old_path))?;
+    let resolved_new =
+        security::ensure_allowed_mutation_path(scope_state.inner(), Path::new(&new_path))?;
+    run_blocking(move || {
+        if resolved_old != resolved_new && resolved_new.exists() {
+            return Ok(WorkspaceRenameResult {
+                ok: false,
+                code: Some("exists".to_string()),
+            });
+        }
+        fs::rename(&resolved_old, &resolved_new).map_err(|e| e.to_string())?;
+        Ok(WorkspaceRenameResult {
+            ok: true,
+            code: None,
+        })
+    })
+    .await
 }
 
 #[tauri::command]
@@ -206,6 +379,91 @@ pub async fn copy_dir(
     .await
 }
 
+#[tauri::command]
+pub async fn workspace_duplicate_path(
+    path: String,
+    scope_state: tauri::State<'_, WorkspaceScopeState>,
+) -> Result<String, String> {
+    let resolved =
+        security::ensure_allowed_mutation_path(scope_state.inner(), Path::new(&path))?;
+    run_blocking(move || {
+        let parent = resolved
+            .parent()
+            .ok_or_else(|| "Cannot resolve parent directory".to_string())?;
+        let is_dir = is_directory_internal(&resolved);
+        let new_path = resolve_unique_copy_destination(&resolved, parent, is_dir);
+        if is_dir {
+            copy_dir_recursive(&resolved, &new_path).map_err(|e| e.to_string())?;
+        } else {
+            fs::copy(&resolved, &new_path).map_err(|e| e.to_string())?;
+        }
+        Ok(new_path.to_string_lossy().to_string())
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn workspace_move_path(
+    src_path: String,
+    dest_dir: String,
+    scope_state: tauri::State<'_, WorkspaceScopeState>,
+) -> Result<WorkspaceMoveResult, String> {
+    let resolved_src =
+        security::ensure_allowed_mutation_path(scope_state.inner(), Path::new(&src_path))?;
+    let resolved_dest_dir =
+        security::ensure_allowed_mutation_path(scope_state.inner(), Path::new(&dest_dir))?;
+    run_blocking(move || {
+        let name = resolved_src
+            .file_name()
+            .and_then(|value| value.to_str())
+            .unwrap_or_default()
+            .to_string();
+        let mut dest_path = resolved_dest_dir.join(&name);
+        if resolved_src != dest_path && dest_path.exists() {
+            dest_path = resolve_unique_move_destination(&name, &resolved_dest_dir, resolved_src.is_dir());
+        }
+        fs::rename(&resolved_src, &dest_path).map_err(|e| e.to_string())?;
+        Ok(WorkspaceMoveResult {
+            ok: true,
+            dest_path: dest_path.to_string_lossy().to_string(),
+        })
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn workspace_copy_external_path(
+    src_path: String,
+    dest_dir: String,
+    scope_state: tauri::State<'_, WorkspaceScopeState>,
+) -> Result<WorkspaceCopyExternalResult, String> {
+    let resolved_dest_dir =
+        security::ensure_allowed_mutation_path(scope_state.inner(), Path::new(&dest_dir))?;
+    run_blocking(move || {
+        let src = PathBuf::from(&src_path);
+        let is_dir = src.is_dir();
+        let name = src
+            .file_name()
+            .and_then(|value| value.to_str())
+            .ok_or_else(|| "Invalid source path".to_string())?
+            .to_string();
+        let mut dest_path = resolved_dest_dir.join(&name);
+        if dest_path.exists() {
+            dest_path = resolve_unique_move_destination(&name, &resolved_dest_dir, is_dir);
+        }
+        if is_dir {
+            copy_dir_recursive(&src, &dest_path).map_err(|e| e.to_string())?;
+        } else {
+            fs::copy(&src, &dest_path).map_err(|e| e.to_string())?;
+        }
+        Ok(WorkspaceCopyExternalResult {
+            path: dest_path.to_string_lossy().to_string(),
+            is_dir,
+        })
+    })
+    .await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -235,6 +493,28 @@ mod tests {
         assert_eq!(content, "hello");
 
         fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn resolve_unique_copy_destination_adds_copy_suffix() {
+        let root = temp_file_path("copy-dest");
+        fs::create_dir_all(&root).unwrap();
+        let src = root.join("paper.md");
+        let existing = root.join("paper copy.md");
+        fs::write(&src, "a").unwrap();
+        fs::write(&existing, "b").unwrap();
+
+        let candidate = resolve_unique_copy_destination(&src, &root, false);
+        assert!(candidate.ends_with("paper copy 2.md"));
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn default_file_content_bootstraps_tex_files() {
+        let content = default_file_content("chapter-1.tex", "");
+        assert!(content.contains("\\documentclass"));
+        assert!(content.contains("\\title{chapter 1}"));
     }
 }
 

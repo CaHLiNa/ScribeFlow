@@ -22,8 +22,8 @@ import { createDocumentWorkflowBuildOperationRuntime } from '../domains/document
 import { createDocumentWorkflowActionRuntime } from '../domains/document/documentWorkflowActionRuntime.js'
 import {
   findWorkflowPreviewPane,
-  reconcileDocumentWorkflow,
 } from '../domains/document/documentWorkflowReconcileRuntime.js'
+import { reconcileDocumentWorkflow } from '../services/documentWorkflow/reconcile.js'
 import { resolveDocumentPreviewCloseEffect } from '../domains/document/documentWorkspacePreviewRuntime.js'
 import {
   createDocumentWorkspacePreviewAction as createWorkspacePreviewAction,
@@ -87,6 +87,7 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
           getSession: () => this.session,
           getPreviewPrefs: () => this.previewPrefs,
           getPreviewBinding: (previewPath) => this.getPreviewBinding(previewPath),
+          getPreviewBindings: () => this.previewBindings,
           inferPreviewKind: (sourcePath, previewPath) => this.inferPreviewKind(sourcePath, previewPath),
           bindPreview: (binding) => this.bindPreview(binding),
           getOpenPreviewPathForSource: (sourcePath, previewKind) => this.getOpenPreviewPathForSource(sourcePath, previewKind),
@@ -357,7 +358,7 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
       return this._getDocumentWorkflowRuntime().closePreviewForSource(sourcePath, options)
     },
 
-    togglePreviewForSource(sourcePath, options = {}) {
+    async togglePreviewForSource(sourcePath, options = {}) {
       const kind = getDocumentWorkflowKind(sourcePath)
       if (!kind) return null
 
@@ -392,11 +393,11 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
       }
     },
 
-    ensurePreviewForSource(sourcePath, options = {}) {
+    async ensurePreviewForSource(sourcePath, options = {}) {
       return this._getDocumentWorkflowRuntime().ensurePreviewForSource(sourcePath, options)
     },
 
-    revealPreview(sourcePath, options = {}) {
+    async revealPreview(sourcePath, options = {}) {
       return this._getDocumentWorkflowRuntime().revealPreview(sourcePath, options)
     },
 
@@ -519,7 +520,7 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
       return this._getDocumentWorkflowActionRuntime().revealPdfForFile(filePath, options)
     },
 
-    reconcile(options = {}) {
+    async reconcile(options = {}) {
       return this._getDocumentWorkflowRuntime().reconcile(options)
     },
 

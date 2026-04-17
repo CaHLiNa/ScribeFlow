@@ -201,7 +201,7 @@ import {
   detectAiComposerToken,
   getAiComposerSuggestions,
 } from '../../domains/ai/aiMentionRuntime.js'
-import { AI_PROVIDER_DEFINITIONS } from '../../services/ai/settings.js'
+import { listAiProviderDefinitions } from '../../services/ai/settings.js'
 import { pickAiAttachmentPaths } from '../../services/ai/attachmentStore.js'
 import { IconPaperclip, IconArrowUp, IconPlayerStop } from '@tabler/icons-vue'
 import { useSurfaceContextMenu } from '../../composables/useSurfaceContextMenu'
@@ -241,6 +241,7 @@ const threadRef = ref(null)
 const threadBottomRef = ref(null)
 const composerTextareaRef = ref(null)
 const enabledTools = ref([])
+const providerDefinitions = ref([])
 const activeInvocationIndex = ref(0)
 const respondingPermissionRequestId = ref('')
 const respondingAskUserRequestId = ref('')
@@ -259,10 +260,10 @@ const planModeState = computed(() => aiStore.planModeState)
 const compactionState = computed(() => aiStore.compactionState)
 const resumeState = computed(() => aiStore.resumeState)
 const sessionItems = computed(() => aiStore.sessionList)
-const providerOptions = AI_PROVIDER_DEFINITIONS.map((provider) => ({
+const providerOptions = computed(() => providerDefinitions.value.map((provider) => ({
   value: provider.id,
   label: provider.label,
-}))
+})))
 
 const artifactsById = computed(() =>
   Object.fromEntries(artifacts.value.map((artifact) => [artifact.id, artifact]))
@@ -618,6 +619,10 @@ async function refreshEnabledTools() {
   enabledTools.value = Array.isArray(response?.runtimeTools) ? response.runtimeTools : []
 }
 
+async function refreshProviderDefinitions() {
+  providerDefinitions.value = await listAiProviderDefinitions().catch(() => [])
+}
+
 async function hydrateWorkspaceSessions() {
   await aiStore.restoreWorkspaceSessions(workspace.path || '')
   void aiStore.ensureCodexRuntimeBridge()
@@ -626,6 +631,7 @@ async function hydrateWorkspaceSessions() {
 onMounted(() => {
   void hydrateWorkspaceSessions()
   void refreshEnabledTools()
+  void refreshProviderDefinitions()
   void aiStore.refreshBuiltInActions()
   void aiStore.refreshProviderState()
   void aiStore.refreshAltalsSkills()
@@ -635,6 +641,7 @@ onMounted(() => {
 onActivated(() => {
   void hydrateWorkspaceSessions()
   void refreshEnabledTools()
+  void refreshProviderDefinitions()
   void aiStore.refreshBuiltInActions()
   void aiStore.refreshProviderState()
   void aiStore.refreshAltalsSkills()

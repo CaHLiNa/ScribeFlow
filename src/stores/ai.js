@@ -22,12 +22,9 @@ import {
   isAltalsManagedFilesystemSkill,
 } from '../services/ai/skillDiscovery.js'
 import {
-  getAiProviderConfig,
-  getAiProviderDefinition,
-  isAiProviderReady,
   loadAiApiKey,
   loadAiConfig,
-  providerRequiresAiApiKey,
+  resolveAiProviderState,
   saveAiConfig,
   setCurrentAiProvider,
 } from '../services/ai/settings.js'
@@ -42,21 +39,36 @@ import {
   archiveCodexRuntimeThread,
   interruptCodexRuntimeTurn,
   listenCodexRuntimeEvents,
-  listCodexRuntimeThreads,
   readCodexRuntimeThread,
   renameCodexRuntimeThread,
   resolveCodexRuntimeAskUser,
   resolveCodexRuntimeExitPlan,
   resolveCodexRuntimePermission,
-  runCodexRuntimeTurn,
   startCodexRuntimeThread,
 } from '../services/ai/runtime/codexRuntimeBridge.js'
 import { useWorkspaceStore } from './workspace'
 
 let codexRuntimeUnlisten = null
-const pendingCodexRuntimeThreads = new Map()
 const pendingCodexRuntimeThreadCreations = new Map()
 const DEFAULT_AGENT_ACTION_ID = 'workspace-agent'
+
+function getRuntimeRunState(runtimeAbortControllers = {}, sessionId = '') {
+  const state = runtimeAbortControllers[String(sessionId || '').trim()]
+  if (!state || typeof state !== 'object') return null
+  return state
+}
+
+function findSessionIdByRuntimeThreadId(runtimeAbortControllers = {}, threadId = '') {
+  const normalizedThreadId = String(threadId || '').trim()
+  if (!normalizedThreadId) return ''
+
+  for (const [sessionId, state] of Object.entries(runtimeAbortControllers || {})) {
+    if (String(state?.runtimeThreadId || '').trim() === normalizedThreadId) {
+      return sessionId
+    }
+  }
+  return ''
+}
 
 function buildDefaultSessionTitle(count = 1) {
   return t('Run {count}', { count })
@@ -1332,7 +1344,7 @@ export const useAiStore = defineStore('ai', {
           })
         } else if (persist && this.providerState.currentProviderId === 'anthropic' && request.toolName) {
           const config = await loadAiConfig()
-          const anthropicConfig = getAiProviderConfig(config, 'anthropic')
+          const anthropicConfig = config?.providers?.anthropic || {}
           await saveAiConfig({
             ...config,
             providers: {
@@ -1379,26 +1391,25 @@ export const useAiStore = defineStore('ai', {
     async refreshProviderState() {
       const config = await loadAiConfig()
       const currentProviderId = String(config?.currentProviderId || 'openai').trim()
-      const providerConfig = getAiProviderConfig(config, currentProviderId)
-      const providerDefinition = getAiProviderDefinition(currentProviderId)
+      const providerConfig = config?.providers?.[currentProviderId] || {}
       const apiKey = await loadAiApiKey(currentProviderId)
-      const requiresApiKey = providerRequiresAiApiKey(currentProviderId, providerConfig)
+      const resolvedState = await resolveAiProviderState(currentProviderId, providerConfig, apiKey)
 
       this.providerState = {
-        ready: isAiProviderReady(currentProviderId, providerConfig, apiKey),
+        ready: resolvedState?.ready === true,
         hasKey: !!String(apiKey || '').trim(),
-        requiresApiKey,
+        requiresApiKey: resolvedState?.requiresApiKey !== false,
         currentProviderId,
-        currentProviderLabel: providerDefinition?.label || currentProviderId,
+        currentProviderLabel: String(resolvedState?.label || currentProviderId).trim(),
         enabledToolIds: (
           await resolveAiToolCatalogRust({
             enabledTools: config?.enabledTools,
             runtimeIntent: 'chat',
           })
         )?.effectiveToolIds || [],
-        baseUrl: String(providerConfig?.baseUrl || '').trim(),
-        model: String(providerConfig?.model || '').trim(),
-        approvalMode: String(providerConfig?.sdk?.approvalMode || 'per-tool').trim(),
+        baseUrl: String(resolvedState?.baseUrl || providerConfig?.baseUrl || '').trim(),
+        model: String(resolvedState?.model || providerConfig?.model || '').trim(),
+        approvalMode: String(resolvedState?.approvalMode || providerConfig?.sdk?.approvalMode || 'per-tool').trim(),
       }
       return this.providerState
     },
@@ -1538,12 +1549,11 @@ export const useAiStore = defineStore('ai', {
         findSessionByRuntimeThreadId(this.sessions, threadId) ||
         resolveAgentSessionRecord(
           this.sessions,
-          pendingCodexRuntimeThreads.get(threadId)?.sessionId || ''
+          findSessionIdByRuntimeThreadId(this.runtimeAbortControllers, threadId)
         )
       if (!session) return
 
       if (payload.eventType === 'turnStarted' && threadId && turnId) {
-        const pending = pendingCodexRuntimeThreads.get(threadId)
         this.updateSessionById(session.id, (currentSession) => ({
           ...currentSession,
           runtimeThreadId: threadId,
@@ -1553,7 +1563,7 @@ export const useAiStore = defineStore('ai', {
         return
       }
 
-      const pending = pendingCodexRuntimeThreads.get(threadId) || null
+      const pending = getRuntimeRunState(this.runtimeAbortControllers, session.id)
       const pendingAssistantId = String(pending?.pendingAssistantId || '').trim()
 
       if (payload.eventType === 'itemDelta' && pendingAssistantId) {
@@ -1585,13 +1595,11 @@ export const useAiStore = defineStore('ai', {
       }
 
       if (payload.eventType === 'turnCompleted' && threadId) {
-        pendingCodexRuntimeThreads.delete(threadId)
         void this.syncSessionFromCodexRuntimeThread(session.id)
         return
       }
 
       if ((payload.eventType === 'turnFailed' || payload.eventType === 'turnInterrupted') && threadId) {
-        pendingCodexRuntimeThreads.delete(threadId)
         void this.syncSessionFromCodexRuntimeThread(session.id)
       }
     },
@@ -1617,14 +1625,18 @@ export const useAiStore = defineStore('ai', {
       const abortController = new AbortController()
       this.runtimeAbortControllers = {
         ...this.runtimeAbortControllers,
-        [sessionId]: abortController,
+        [sessionId]: {
+          controller: abortController,
+          pendingAssistantId: '',
+          runtimeThreadId: '',
+        },
       }
 
       try {
         providerState = await this.refreshProviderState()
         const fullConfig = await loadAiConfig()
         const currentProviderId = String(fullConfig?.currentProviderId || 'openai').trim()
-        const providerConfig = getAiProviderConfig(fullConfig, currentProviderId)
+        const providerConfig = fullConfig?.providers?.[currentProviderId] || {}
         const apiKey = await loadAiApiKey(currentProviderId)
 
         preparedRun = await prepareAgentRunRust({
@@ -1727,10 +1739,15 @@ export const useAiStore = defineStore('ai', {
               const systemPrompt = String(promptResponse?.systemPrompt || '')
               const userPrompt = String(promptResponse?.userPrompt || '')
 
-              pendingCodexRuntimeThreads.set(runtimeThreadId, {
-                sessionId,
-                pendingAssistantId,
-              })
+              this.runtimeAbortControllers = {
+                ...this.runtimeAbortControllers,
+                [sessionId]: {
+                  ...(getRuntimeRunState(this.runtimeAbortControllers, sessionId) || {}),
+                  controller: abortController,
+                  pendingAssistantId,
+                  runtimeThreadId,
+                },
+              }
 
               const runtimeResult = await invoke('ai_runtime_turn_run_wait', {
                 params: {
@@ -1762,8 +1779,6 @@ export const useAiStore = defineStore('ai', {
                 runtimeProviderId: preparedRun.providerId,
                 runtimeTransport: 'codex-runtime',
               }))
-
-              pendingCodexRuntimeThreads.delete(runtimeThreadId)
 
               return {
                 content: String(runtimeResult?.content || ''),
@@ -1853,7 +1868,7 @@ export const useAiStore = defineStore('ai', {
         }
         return null
       } finally {
-        if (this.runtimeAbortControllers[sessionId]) {
+        if (getRuntimeRunState(this.runtimeAbortControllers, sessionId)) {
           const nextAbortControllers = { ...this.runtimeAbortControllers }
           delete nextAbortControllers[sessionId]
           this.runtimeAbortControllers = nextAbortControllers
@@ -1878,9 +1893,9 @@ export const useAiStore = defineStore('ai', {
     stopCurrentRun(sessionId = '') {
       const targetSessionId = String(sessionId || this.currentSessionId || '').trim()
       if (!targetSessionId) return false
-      const controller = this.runtimeAbortControllers[targetSessionId]
-      if (controller) {
-        controller.abort()
+      const runtimeRunState = getRuntimeRunState(this.runtimeAbortControllers, targetSessionId)
+      if (runtimeRunState?.controller) {
+        runtimeRunState.controller.abort()
         return true
       }
 

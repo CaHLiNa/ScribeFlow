@@ -1,9 +1,9 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
 
-#[derive(Serialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FileEntry {
     pub name: String,
     pub path: String,
@@ -12,7 +12,7 @@ pub struct FileEntry {
     pub modified: Option<u64>,
 }
 
-#[derive(Serialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct WorkspaceTreeSnapshot {
     pub tree: Vec<FileEntry>,
     #[serde(rename = "flatFiles")]

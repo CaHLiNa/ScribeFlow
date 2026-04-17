@@ -9,52 +9,79 @@ const DEFAULT_TEMPERATURE: f64 = 0.2;
 const CONFIGURABLE_AI_TOOL_IDS: &[&str] = &["delete-workspace-path"];
 
 #[derive(Debug, Clone, Copy)]
-struct ProviderDefinition {
-    id: &'static str,
-    default_base_url: &'static str,
-    default_model: &'static str,
+pub(crate) struct ProviderDefinition {
+    pub(crate) id: &'static str,
+    pub(crate) label: &'static str,
+    pub(crate) default_base_url: &'static str,
+    pub(crate) default_model: &'static str,
+    pub(crate) model_placeholder: &'static str,
+    pub(crate) base_url_hint: &'static str,
 }
 
-const PROVIDER_DEFINITIONS: &[ProviderDefinition] = &[
+pub(crate) const PROVIDER_DEFINITIONS: &[ProviderDefinition] = &[
     ProviderDefinition {
         id: "anthropic",
+        label: "Anthropic",
         default_base_url: "https://api.anthropic.com/v1",
         default_model: "claude-sonnet-4-5",
+        model_placeholder: "claude-sonnet-4-5",
+        base_url_hint: "https://api.anthropic.com/v1",
     },
     ProviderDefinition {
         id: "openai",
+        label: "OpenAI",
         default_base_url: "https://api.openai.com/v1",
         default_model: "gpt-5",
+        model_placeholder: "gpt-5",
+        base_url_hint: "https://api.openai.com/v1",
     },
     ProviderDefinition {
         id: "google",
+        label: "Google Gemini",
         default_base_url: "https://generativelanguage.googleapis.com/v1beta/openai",
         default_model: "gemini-2.5-flash",
+        model_placeholder: "gemini-2.5-flash",
+        base_url_hint: "https://generativelanguage.googleapis.com/v1beta/openai",
     },
     ProviderDefinition {
         id: "deepseek",
+        label: "DeepSeek",
         default_base_url: "https://api.deepseek.com/v1",
         default_model: "deepseek-chat",
+        model_placeholder: "deepseek-chat",
+        base_url_hint: "https://api.deepseek.com/v1",
     },
     ProviderDefinition {
         id: "glm",
+        label: "GLM",
         default_base_url: "https://open.bigmodel.cn/api/paas/v4",
         default_model: "glm-4.5",
+        model_placeholder: "glm-4.5",
+        base_url_hint: "https://open.bigmodel.cn/api/paas/v4",
     },
     ProviderDefinition {
         id: "kimi",
+        label: "Kimi",
         default_base_url: "https://api.moonshot.cn/v1",
         default_model: "kimi-k2-0711-preview",
+        model_placeholder: "kimi-k2-0711-preview",
+        base_url_hint: "https://api.moonshot.cn/v1",
     },
     ProviderDefinition {
         id: "minimax",
+        label: "MiniMax",
         default_base_url: "https://api.minimax.io/v1",
         default_model: "MiniMax-M1",
+        model_placeholder: "MiniMax-M1",
+        base_url_hint: "https://api.minimax.io/v1",
     },
     ProviderDefinition {
         id: "custom",
+        label: "Third-party / Custom",
         default_base_url: "",
         default_model: "",
+        model_placeholder: "your-model-id",
+        base_url_hint: "http://127.0.0.1:8080/v1 or https://your-endpoint/v1",
     },
 ];
 
@@ -62,7 +89,7 @@ fn ai_config_path() -> Result<PathBuf, String> {
     Ok(app_dirs::data_root_dir()?.join("ai.json"))
 }
 
-fn normalize_ai_provider_id(value: &str) -> String {
+pub(crate) fn normalize_ai_provider_id(value: &str) -> String {
     let normalized = value.trim().to_lowercase();
     if normalized.is_empty() {
         return "openai".to_string();
@@ -79,7 +106,7 @@ fn normalize_ai_provider_id(value: &str) -> String {
     "custom".to_string()
 }
 
-fn provider_definition(provider_id: &str) -> ProviderDefinition {
+pub(crate) fn provider_definition(provider_id: &str) -> ProviderDefinition {
     let normalized = normalize_ai_provider_id(provider_id);
     PROVIDER_DEFINITIONS
         .iter()
@@ -88,15 +115,15 @@ fn provider_definition(provider_id: &str) -> ProviderDefinition {
         .unwrap_or(PROVIDER_DEFINITIONS[PROVIDER_DEFINITIONS.len() - 1])
 }
 
-fn normalize_base_url(value: &str) -> String {
+pub(crate) fn normalize_base_url(value: &str) -> String {
     value.trim().trim_end_matches('/').to_string()
 }
 
-fn normalize_model(value: &str) -> String {
+pub(crate) fn normalize_model(value: &str) -> String {
     value.trim().to_string()
 }
 
-fn normalize_temperature(value: Option<f64>) -> f64 {
+pub(crate) fn normalize_temperature(value: Option<f64>) -> f64 {
     let parsed = value.unwrap_or(DEFAULT_TEMPERATURE);
     if !parsed.is_finite() {
         return DEFAULT_TEMPERATURE;
@@ -167,7 +194,7 @@ fn normalize_policy_value(value: Option<&str>) -> &'static str {
     }
 }
 
-fn normalize_anthropic_sdk_config(value: Option<&Value>) -> Value {
+pub(crate) fn normalize_anthropic_sdk_config(value: Option<&Value>) -> Value {
     let value = value.unwrap_or(&Value::Null);
     let runtime_mode = match value
         .get("runtimeMode")
@@ -212,11 +239,11 @@ fn normalize_anthropic_sdk_config(value: Option<&Value>) -> Value {
     })
 }
 
-fn provider_uses_automatic_model(provider_id: &str) -> bool {
+pub(crate) fn provider_uses_automatic_model(provider_id: &str) -> bool {
     provider_definition(provider_id).id != "custom"
 }
 
-fn resolve_ai_provider_model(provider_id: &str, provider_config: Option<&Value>) -> String {
+pub(crate) fn resolve_ai_provider_model(provider_id: &str, provider_config: Option<&Value>) -> String {
     let normalized_provider_id = normalize_ai_provider_id(provider_id);
     let definition = provider_definition(&normalized_provider_id);
     let config = provider_config.unwrap_or(&Value::Null);
@@ -231,7 +258,7 @@ fn resolve_ai_provider_model(provider_id: &str, provider_config: Option<&Value>)
     normalize_model(config.get("model").and_then(Value::as_str).unwrap_or(""))
 }
 
-fn build_default_provider_config(provider_id: &str) -> Value {
+pub(crate) fn build_default_provider_config(provider_id: &str) -> Value {
     let definition = provider_definition(provider_id);
     let mut config = json!({
         "providerId": definition.id,
@@ -245,7 +272,7 @@ fn build_default_provider_config(provider_id: &str) -> Value {
     config
 }
 
-fn normalize_provider_config(provider_id: &str, config: Option<&Value>) -> Value {
+pub(crate) fn normalize_provider_config(provider_id: &str, config: Option<&Value>) -> Value {
     let definition = provider_definition(provider_id);
     let defaults = build_default_provider_config(definition.id);
     let config = config.unwrap_or(&Value::Null);

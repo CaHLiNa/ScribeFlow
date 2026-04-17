@@ -2,6 +2,7 @@ export function createDocumentWorkflowRuntime({
   getSession,
   getPreviewPrefs,
   getPreviewBinding,
+  getPreviewBindings,
   inferPreviewKind,
   bindPreview,
   getOpenPreviewPathForSource,
@@ -21,7 +22,7 @@ export function createDocumentWorkflowRuntime({
   findWorkflowPreviewPaneImpl,
   jumpPreviewToCursor,
 } = {}) {
-  function reconcile(options = {}) {
+  async function reconcile(options = {}) {
     if (getIsReconciling?.()) return null
 
     const editorStore = getEditorStore?.()
@@ -29,13 +30,14 @@ export function createDocumentWorkflowRuntime({
 
     setIsReconciling?.(true)
     try {
-      const result = reconcileDocumentWorkflowImpl?.({
+      const result = await reconcileDocumentWorkflowImpl?.({
         activeFile: editorStore.activeTab,
         activePaneId: editorStore.activePaneId,
         paneTree: editorStore.paneTree,
         trigger: options.trigger || 'manual',
         workflowStore: {
           previewPrefs: getPreviewPrefs?.() || {},
+          previewBindings: getPreviewBindings?.() || {},
           session: {
             detachedSources: getSession?.()?.detachedSources || {},
           },
@@ -164,7 +166,7 @@ export function createDocumentWorkflowRuntime({
     }
   }
 
-  function closePreviewForSource(sourcePath, options = {}) {
+  async function closePreviewForSource(sourcePath, options = {}) {
     const editorStore = getEditorStore?.()
     const kind = getDocumentWorkflowKindImpl?.(sourcePath)
     if (!kind || !editorStore) return null
@@ -177,7 +179,7 @@ export function createDocumentWorkflowRuntime({
     editorStore.closeFileFromAllPanes(previewPath)
 
     if (options.reconcile !== false) {
-      reconcile({
+      await reconcile({
         trigger: options.trigger || 'close-preview',
         previewKindOverride: previewKind,
       })
@@ -192,7 +194,7 @@ export function createDocumentWorkflowRuntime({
     }
   }
 
-  function ensurePreviewForSource(sourcePath, options = {}) {
+  async function ensurePreviewForSource(sourcePath, options = {}) {
     const editorStore = getEditorStore?.()
     const kind = getDocumentWorkflowKindImpl?.(sourcePath)
     if (!kind || !editorStore) return null
@@ -205,7 +207,7 @@ export function createDocumentWorkflowRuntime({
 
     editorStore.activePaneId = options.sourcePaneId || editorStore.activePaneId
 
-    const result = reconcile({
+    const result = await reconcile({
       trigger: options.trigger || 'manual-open-preview',
       force: true,
       previewKindOverride: previewKind,
@@ -223,8 +225,8 @@ export function createDocumentWorkflowRuntime({
     return result
   }
 
-  function revealPreview(sourcePath, options = {}) {
-    const result = ensurePreviewForSource(sourcePath, {
+  async function revealPreview(sourcePath, options = {}) {
+    const result = await ensurePreviewForSource(sourcePath, {
       force: true,
       activatePreview: true,
       previewKind: options.previewKind,

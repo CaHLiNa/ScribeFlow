@@ -5,6 +5,7 @@ mod ai_agent_prompt;
 mod ai_agent_run;
 mod ai_agent_session_runtime;
 mod ai_config;
+mod ai_provider_catalog;
 mod ai_runtime_session_rail;
 mod ai_runtime_thread_client;
 mod ai_runtime_turn_wait;
@@ -14,9 +15,11 @@ mod ai_skill_support;
 mod ai_tool_catalog;
 mod app_dirs;
 mod codex_runtime;
+mod document_workflow;
 mod fs_commands;
 mod fs_io;
 mod fs_tree;
+mod fs_tree_runtime;
 mod keychain;
 mod latex;
 mod latex_tools;
@@ -429,13 +432,22 @@ pub fn run() {
             fs_commands::write_file,
             fs_commands::write_file_base64,
             fs_commands::create_file,
+            fs_commands::workspace_create_file,
             fs_commands::create_dir,
             fs_commands::rename_path,
+            fs_commands::workspace_rename_path,
             fs_commands::delete_path,
             fs_commands::copy_file,
             fs_commands::copy_dir,
+            fs_commands::workspace_duplicate_path,
+            fs_commands::workspace_move_path,
+            fs_commands::workspace_copy_external_path,
             fs_commands::is_directory,
             fs_commands::path_exists,
+            fs_tree_runtime::fs_tree_merge_loaded_children,
+            fs_tree_runtime::fs_tree_collect_loaded_dirs,
+            fs_tree_runtime::fs_tree_patch_dir_children,
+            fs_tree_runtime::fs_tree_ancestor_dirs,
             network::proxy_api_call,
             network::proxy_api_call_full,
             network::proxy_ai_chat_completion,
@@ -457,10 +469,15 @@ pub fn run() {
             ai_agent_session_runtime::ai_agent_session_finalize,
             ai_agent_session_runtime::ai_agent_tool_events_merge,
             ai_action_catalog::ai_action_catalog_list,
+            document_workflow::document_workflow_reconcile,
             ai_config::ai_config_load,
             ai_config::ai_config_load_internal,
             ai_config::ai_config_save,
             ai_config::ai_config_save_internal,
+            ai_provider_catalog::ai_provider_catalog_list,
+            ai_provider_catalog::ai_provider_state_resolve,
+            ai_provider_catalog::ai_provider_models_list,
+            ai_provider_catalog::ai_provider_connection_test,
             ai_runtime_session_rail::ai_runtime_session_rail_reconcile,
             ai_runtime_thread_client::ai_runtime_thread_snapshot_to_session,
             ai_runtime_turn_wait::ai_runtime_turn_run_wait,

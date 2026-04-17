@@ -7,7 +7,59 @@ import {
   patchTreeEntry,
 } from '../src/domains/files/fileTreeRefreshRuntime.js'
 
-test('mergePreservingLoadedChildren keeps previously loaded nested children', () => {
+globalThis.window = globalThis.window || {}
+window.__TAURI_INTERNALS__ = {
+  invoke: async (command, args = {}) => {
+    if (command === 'fs_tree_merge_loaded_children') {
+      const merge = (nextEntries = [], previousEntries = []) => {
+        const previousByPath = new Map(previousEntries.map((entry) => [entry.path, entry]))
+        return nextEntries.map((entry) => {
+          const previous = previousByPath.get(entry.path)
+          if (!entry.is_dir || !previous?.is_dir) return entry
+          if (Array.isArray(previous.children)) {
+            if (!Array.isArray(entry.children)) {
+              return { ...entry, children: previous.children }
+            }
+            return { ...entry, children: merge(entry.children, previous.children) }
+          }
+          return entry
+        })
+      }
+      return merge(args.params?.nextEntries || [], args.params?.previousEntries || [])
+    }
+    if (command === 'fs_tree_collect_loaded_dirs') {
+      const walk = (entries = [], paths = []) => {
+        for (const entry of entries) {
+          if (!entry.is_dir || !Array.isArray(entry.children)) continue
+          paths.push(entry.path)
+          walk(entry.children, paths)
+        }
+        return paths
+      }
+      const paths = walk(args.params?.entries || [])
+      for (const dir of args.params?.extraDirs || []) {
+        if (dir && dir !== args.params?.workspacePath && !paths.includes(dir)) {
+          paths.push(dir)
+        }
+      }
+      return paths.sort((a, b) => a.length - b.length)
+    }
+    if (command === 'fs_tree_patch_dir_children') {
+      const patch = (entries = [], targetPath = '', children = []) =>
+        entries.map((entry) => {
+          if (entry.path === targetPath) return { ...entry, children }
+          if (Array.isArray(entry.children)) {
+            return { ...entry, children: patch(entry.children, targetPath, children) }
+          }
+          return entry
+        })
+      return patch(args.params?.entries || [], args.params?.targetPath || '', args.params?.children || [])
+    }
+    throw new Error(`Unexpected invoke command: ${command}`)
+  },
+}
+
+test('mergePreservingLoadedChildren keeps previously loaded nested children', async () => {
   const previous = [
     {
       path: '/ws/docs',
@@ -25,7 +77,7 @@ test('mergePreservingLoadedChildren keeps previously loaded nested children', ()
     },
   ]
 
-  assert.deepEqual(mergePreservingLoadedChildren(next, previous), [
+  assert.deepEqual(await mergePreservingLoadedChildren(next, previous), [
     {
       path: '/ws/docs',
       is_dir: true,
@@ -36,7 +88,7 @@ test('mergePreservingLoadedChildren keeps previously loaded nested children', ()
   ])
 })
 
-test('patchTreeEntry updates a nested directory entry in place', () => {
+test('patchTreeEntry updates a nested directory entry in place', async () => {
   const tree = [
     {
       path: '/ws/docs',
@@ -47,7 +99,7 @@ test('patchTreeEntry updates a nested directory entry in place', () => {
     },
   ]
 
-  const patched = patchTreeEntry(tree, '/ws/docs', (entry) => ({
+  const patched = await patchTreeEntry(tree, '/ws/docs', (entry) => ({
     ...entry,
     children: [
       ...entry.children,

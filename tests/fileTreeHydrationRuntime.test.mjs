@@ -6,6 +6,73 @@ import {
   findTreeEntry,
 } from '../src/domains/files/fileTreeHydrationRuntime.js'
 
+globalThis.window = globalThis.window || {}
+window.__TAURI_INTERNALS__ = {
+  invoke: async (command, args = {}) => {
+    if (command === 'fs_tree_merge_loaded_children') {
+      const merge = (nextEntries = [], previousEntries = []) => {
+        const previousByPath = new Map(previousEntries.map((entry) => [entry.path, entry]))
+        return nextEntries.map((entry) => {
+          const previous = previousByPath.get(entry.path)
+          if (!entry.is_dir || !previous?.is_dir) return entry
+          if (Array.isArray(previous.children)) {
+            if (!Array.isArray(entry.children)) {
+              return { ...entry, children: previous.children }
+            }
+            return { ...entry, children: merge(entry.children, previous.children) }
+          }
+          return entry
+        })
+      }
+      return merge(args.params?.nextEntries || [], args.params?.previousEntries || [])
+    }
+    if (command === 'fs_tree_collect_loaded_dirs') {
+      const walk = (entries = [], paths = []) => {
+        for (const entry of entries) {
+          if (!entry.is_dir || !Array.isArray(entry.children)) continue
+          paths.push(entry.path)
+          walk(entry.children, paths)
+        }
+        return paths
+      }
+      const paths = walk(args.params?.entries || [])
+      for (const dir of args.params?.extraDirs || []) {
+        if (dir && dir !== args.params?.workspacePath && !paths.includes(dir)) {
+          paths.push(dir)
+        }
+      }
+      return paths.sort((a, b) => a.length - b.length)
+    }
+    if (command === 'fs_tree_patch_dir_children') {
+      const patch = (entries = [], targetPath = '', children = []) =>
+        entries.map((entry) => {
+          if (entry.path === targetPath) return { ...entry, children }
+          if (Array.isArray(entry.children)) {
+            return { ...entry, children: patch(entry.children, targetPath, children) }
+          }
+          return entry
+        })
+      return patch(args.params?.entries || [], args.params?.targetPath || '', args.params?.children || [])
+    }
+    if (command === 'fs_tree_ancestor_dirs') {
+      const workspacePath = String(args.params?.workspacePath || '')
+      const targetPath = String(args.params?.targetPath || '')
+      if (!workspacePath || !targetPath.startsWith(workspacePath)) return []
+      const relative = targetPath.slice(workspacePath.length).replace(/^\/+/, '')
+      if (!relative) return []
+      const parts = relative.split('/').filter(Boolean)
+      const paths = []
+      let current = workspacePath
+      for (let index = 0; index < parts.length - 1; index += 1) {
+        current = `${current}/${parts[index]}`
+        paths.push(current)
+      }
+      return paths
+    }
+    throw new Error(`Unexpected invoke command: ${command}`)
+  },
+}
+
 test('findTreeEntry resolves nested file entries', () => {
   const tree = [
     {
