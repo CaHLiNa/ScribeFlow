@@ -78,6 +78,7 @@ function createRuntime({
     getSession: () => state.session,
     getPreviewPrefs: () => state.previewPrefs,
     getPreviewBinding: (previewPath) => state.previewBindings[previewPath] || null,
+    getPreviewBindings: () => state.previewBindings,
     inferPreviewKind: (sourcePath, previewPath) => (
       previewPath === `preview:${sourcePath}` ? 'html' : null
     ),
@@ -154,7 +155,7 @@ function createRuntime({
   return { runtime, state, editorStore }
 }
 
-test('document workflow runtime reconcile opens a reusable neighbor preview pane and records session state', () => {
+test('document workflow runtime reconcile opens a reusable neighbor preview pane and records session state', async () => {
   const { runtime, state, editorStore } = createRuntime({
     runtimeOverrides: {
       reconcileDocumentWorkflowImpl: () => ({
@@ -172,7 +173,7 @@ test('document workflow runtime reconcile opens a reusable neighbor preview pane
     },
   })
 
-  const result = runtime.reconcile({
+  const result = await runtime.reconcile({
     trigger: 'manual-open-preview',
     force: true,
     previewKindOverride: 'html',
@@ -196,7 +197,7 @@ test('document workflow runtime reconcile opens a reusable neighbor preview pane
   assert.equal(state.lastTrigger, 'manual-open-preview')
 })
 
-test('document workflow runtime reconcile splits the source pane when no reusable preview pane exists', () => {
+test('document workflow runtime reconcile splits the source pane when no reusable preview pane exists', async () => {
   const { runtime, state, editorStore } = createRuntime({
     runtimeOverrides: {
       reconcileDocumentWorkflowImpl: () => ({
@@ -214,7 +215,7 @@ test('document workflow runtime reconcile splits the source pane when no reusabl
     },
   })
 
-  const result = runtime.reconcile({
+  const result = await runtime.reconcile({
     trigger: 'manual-open-preview',
     force: true,
     previewKindOverride: 'html',
@@ -230,7 +231,7 @@ test('document workflow runtime reconcile splits the source pane when no reusabl
   assert.equal(state.session.state, 'ready')
 })
 
-test('document workflow runtime ensurePreviewForSource restores focus when preview is not activated', () => {
+test('document workflow runtime ensurePreviewForSource restores focus when preview is not activated', async () => {
   const { runtime, state, editorStore } = createRuntime({
     editorOverrides: {
       activeTab: '/workspace/notes.md',
@@ -257,7 +258,7 @@ test('document workflow runtime ensurePreviewForSource restores focus when previ
     },
   })
 
-  const result = runtime.ensurePreviewForSource('/workspace/chapter.md', {
+  const result = await runtime.ensurePreviewForSource('/workspace/chapter.md', {
     sourcePaneId: 'pane-source',
   })
 
@@ -277,7 +278,7 @@ test('document workflow runtime ensurePreviewForSource restores focus when previ
   })
 })
 
-test('document workflow runtime revealPreview activates the preview pane and emits jump metadata', () => {
+test('document workflow runtime revealPreview activates the preview pane and emits jump metadata', async () => {
   const { runtime, state, editorStore } = createRuntime({
     runtimeOverrides: {
       reconcileDocumentWorkflowImpl: () => ({
@@ -295,7 +296,7 @@ test('document workflow runtime revealPreview activates the preview pane and emi
     },
   })
 
-  const result = runtime.revealPreview('/workspace/chapter.md', {
+  const result = await runtime.revealPreview('/workspace/chapter.md', {
     previewKind: 'html',
     jump: true,
   })
@@ -313,7 +314,7 @@ test('document workflow runtime revealPreview activates the preview pane and emi
   }])
 })
 
-test('document workflow runtime reconcile records workspace preview state without opening legacy panes', () => {
+test('document workflow runtime reconcile records workspace preview state without opening legacy panes', async () => {
   const { runtime, state, editorStore } = createRuntime({
     runtimeOverrides: {
       reconcileDocumentWorkflowImpl: () => ({
@@ -334,7 +335,7 @@ test('document workflow runtime reconcile records workspace preview state withou
     },
   })
 
-  const result = runtime.reconcile({
+  const result = await runtime.reconcile({
     trigger: 'manual-open-preview',
     force: true,
     previewKindOverride: 'native',
@@ -350,7 +351,7 @@ test('document workflow runtime reconcile records workspace preview state withou
   assert.equal(state.session.previewSourcePath, '/workspace/main.tex')
 })
 
-test('document workflow runtime revealPreview keeps workspace-local previews in place and still emits jump metadata', () => {
+test('document workflow runtime revealPreview keeps workspace-local previews in place and still emits jump metadata', async () => {
   const { runtime, state, editorStore } = createRuntime({
     runtimeOverrides: {
       reconcileDocumentWorkflowImpl: () => ({
@@ -371,7 +372,7 @@ test('document workflow runtime revealPreview keeps workspace-local previews in 
     },
   })
 
-  const result = runtime.revealPreview('/workspace/main.tex', {
+  const result = await runtime.revealPreview('/workspace/main.tex', {
     previewKind: 'pdf',
     jump: true,
   })
@@ -385,7 +386,7 @@ test('document workflow runtime revealPreview keeps workspace-local previews in 
   }])
 })
 
-test('document workflow runtime rebinds preserved legacy previews as non-detaching compatibility tabs', () => {
+test('document workflow runtime rebinds preserved legacy previews as non-detaching compatibility tabs', async () => {
   const { runtime, state } = createRuntime({
     runtimeOverrides: {
       reconcileDocumentWorkflowImpl: () => ({
@@ -406,7 +407,7 @@ test('document workflow runtime rebinds preserved legacy previews as non-detachi
     },
   })
 
-  runtime.reconcile({
+  await runtime.reconcile({
     trigger: 'editor-pane-sync',
     force: true,
   })
@@ -421,7 +422,7 @@ test('document workflow runtime rebinds preserved legacy previews as non-detachi
   }])
 })
 
-test('document workflow runtime closePreviewForSource dismisses the preview and reconciles session state', () => {
+test('document workflow runtime closePreviewForSource dismisses the preview and reconciles session state', async () => {
   const { runtime, state, editorStore } = createRuntime({
     runtimeOverrides: {
       reconcileDocumentWorkflowImpl: () => ({
@@ -446,7 +447,7 @@ test('document workflow runtime closePreviewForSource dismisses the preview and 
     paneId: 'pane-preview',
   }
 
-  const result = runtime.closePreviewForSource('/workspace/chapter.md')
+  const result = await runtime.closePreviewForSource('/workspace/chapter.md')
 
   assert.deepEqual(result, {
     type: 'closed-preview',

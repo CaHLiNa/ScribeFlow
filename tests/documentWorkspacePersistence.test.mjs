@@ -14,15 +14,46 @@ import {
 } from '../src/services/documentWorkflow/policy.js'
 import { reconcileDocumentWorkflow } from '../src/services/documentWorkflow/reconcile.js'
 
+globalThis.window = globalThis.window || {}
+window.__TAURI_INTERNALS__ = {
+  invoke: async (command, args = {}) => {
+    if (command !== 'document_workflow_reconcile') {
+      throw new Error(`Unexpected invoke command: ${command}`)
+    }
+    const params = args.params || {}
+    const previewPath = `preview:${params.activeFile}`
+    const hasLegacyPreview = Array.isArray(params.previewBindings)
+      && params.previewBindings.some((binding) => binding.previewPath === previewPath)
+    return {
+      type: 'workspace-preview',
+      kind: 'markdown',
+      filePath: params.activeFile,
+      sourcePath: params.activeFile,
+      sourcePaneId: params.activePaneId,
+      previewKind: 'html',
+      previewMode: 'markdown',
+      previewTargetPath: '',
+      targetResolution: 'not-needed',
+      trigger: params.trigger,
+      state: 'workspace-preview',
+      preserveOpenLegacy: hasLegacyPreview,
+      legacyReadOnly: false,
+      legacyPreviewPath: hasLegacyPreview ? previewPath : '',
+      legacyPreviewPaneId: hasLegacyPreview ? 'pane-preview' : null,
+    }
+  },
+}
+
 function isContextCandidatePath(path) {
   return !!path && !path.startsWith('preview:')
 }
 
-function createWorkflowStore() {
+function createWorkflowStore({ previewBindings = {} } = {}) {
   return {
     previewPrefs: {
       markdown: { preferredPreview: 'html' },
     },
+    previewBindings,
     session: {
       detachedSources: {},
     },
@@ -36,7 +67,7 @@ function createWorkflowStore() {
   }
 }
 
-test('document workspace persistence round-trip restores source-first workspace semantics instead of pane-first preview tabs', () => {
+test('document workspace persistence round-trip restores source-first workspace semantics instead of pane-first preview tabs', async () => {
   const sourcePath = '/workspace/main.md'
   const previewPath = `preview:${sourcePath}`
   const saved = buildPersistedEditorState({
@@ -62,7 +93,7 @@ test('document workspace persistence round-trip restores source-first workspace 
   assert.equal(restored.paneTree.activeTab, sourcePath)
   assert.equal(restored.legacyPreviewPaths.size, 0)
 
-  const reconciled = reconcileDocumentWorkflow({
+  const reconciled = await reconcileDocumentWorkflow({
     activeFile: restored.paneTree.activeTab,
     activePaneId: restored.activePaneId,
     paneTree: restored.paneTree,
@@ -81,7 +112,7 @@ test('document workspace persistence round-trip restores source-first workspace 
   assert.equal(reconciled.legacyPreviewPath, '')
 })
 
-test('document workspace persistence read-old keeps restored legacy preview tabs available for compatibility reconciliation', () => {
+test('document workspace persistence read-old keeps restored legacy preview tabs available for compatibility reconciliation', async () => {
   const sourcePath = '/workspace/chapter.md'
   const previewPath = `preview:${sourcePath}`
   const loaded = normalizeLoadedEditorState({
@@ -105,12 +136,21 @@ test('document workspace persistence read-old keeps restored legacy preview tabs
 
   assert.deepEqual([...restored.legacyPreviewPaths], [previewPath])
 
-  const reconciled = reconcileDocumentWorkflow({
+  const reconciled = await reconcileDocumentWorkflow({
     activeFile: sourcePath,
     activePaneId: restored.activePaneId,
     paneTree: restored.paneTree,
     trigger: 'editor-pane-sync',
-    workflowStore: createWorkflowStore(),
+    workflowStore: createWorkflowStore({
+      previewBindings: {
+        [previewPath]: {
+          sourcePath,
+          previewPath,
+          previewKind: 'html',
+          paneId: 'pane-preview',
+        },
+      },
+    }),
     createWorkspacePreviewAction: createDocumentWorkspacePreviewAction,
     getDocumentWorkflowKind,
     getPreferredWorkflowPreviewKind,
