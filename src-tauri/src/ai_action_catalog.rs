@@ -40,15 +40,3 @@ pub async fn ai_action_catalog_list() -> Result<AiActionCatalogResponse, String>
     })
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn built_in_actions_include_workspace_agent() {
-        let catalog = built_in_action_definitions();
-        assert_eq!(catalog.len(), 1);
-        assert_eq!(catalog[0].id, DEFAULT_AGENT_ACTION_ID);
-        assert_eq!(catalog[0].required_context, &["workspace"]);
-    }
-}

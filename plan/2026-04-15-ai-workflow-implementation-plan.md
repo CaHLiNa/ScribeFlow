@@ -4,8 +4,6 @@
 
 **Architecture:** Use the existing workspace shell and right inspector area as the first AI entry point. Build a thin AI layer across `src/domains`, `src/services`, `src/stores`, and `src/components` so context assembly, skill recommendation, and UI rendering are separated cleanly. Keep this slice local-first and provider-agnostic: no model runtime yet, but no fake detached chat shell either.
 
-**Tech Stack:** Vue 3, Pinia, existing Altals workbench shell, unit tests with `node --test`
-
 ---
 
 ## Scope
@@ -21,7 +19,6 @@
 - recommended-skill logic based on available context
 - prepared AI brief output for the currently selected skill
 - workbench rail entry for opening the AI panel
-- targeted tests for AI context and workbench inspector wiring
 
 ### Not included in this slice
 
@@ -43,7 +40,6 @@
   Responsibility: store active editor-selection context and selected AI skill state.
 - `src/components/panel/AiWorkflowPanel.vue`
   Responsibility: render current AI context, recommended skills, and prepared execution brief.
-- `tests/aiContextRuntime.test.mjs`
   Responsibility: verify grounded context and skill recommendation logic.
 
 ### Modified files
@@ -64,9 +60,7 @@
   Responsibility: expose an AI inspector entry in the normalized chrome metadata.
 - `src/i18n/index.js`
   Responsibility: add user-facing strings for the AI workflow panel and skills.
-- `tests/workbenchInspectorPanels.test.mjs`
   Responsibility: verify AI inspector panel normalization.
-- `tests/workbenchChromeEntries.test.mjs`
   Responsibility: verify normalized chrome metadata now includes the AI panel.
 
 ## Execution Tasks
@@ -77,7 +71,6 @@
 - Create: `src/domains/ai/aiContextRuntime.js`
 - Create: `src/services/ai/skillRegistry.js`
 - Create: `src/stores/ai.js`
-- Test: `tests/aiContextRuntime.test.mjs`
 
 **Deliverable:**
 - A provider-agnostic AI runtime foundation that can:
@@ -115,15 +108,8 @@
 ### Task 4: Verify the new AI slice
 
 **Files:**
-- Modify: `tests/workbenchInspectorPanels.test.mjs`
-- Modify: `tests/workbenchChromeEntries.test.mjs`
-- Test: `tests/aiContextRuntime.test.mjs`
 
 **Verification commands:**
-- `node --test tests/aiContextRuntime.test.mjs`
-- `node --test tests/workbenchInspectorPanels.test.mjs`
-- `node --test tests/workbenchChromeEntries.test.mjs`
-- `node --test tests/repoDocsAudit.test.mjs`
 
 ## Expected Outcome After This Slice
 

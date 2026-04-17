@@ -231,9 +231,6 @@
 - `public/pdfjs-viewer/web/viewer.html`
 - 视需要补充 `public/pdfjs-viewer/web/viewer.mjs` 的最小 vendored 适配
 - 对应测试：
-  - `tests/pdfViewerUrl.test.mjs`
-  - `tests/pdfArtifactPreviewLatexSyncContract.test.mjs`
-  - `tests/pdfViewerSurfaceContract.test.mjs`
 
 ## 验证计划
 
@@ -254,7 +251,6 @@
 
 ### 建议测试策略
 
-- 继续保留 contract test，但将断言从“出现某段补丁代码”转成“只有单一路径存在”
 - 为 theme payload hash 和 reload 条件建立更明确的契约测试
 - 如果最终保留 vendored viewer 扩展，再补 viewer 侧契约测试
 

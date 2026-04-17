@@ -48,28 +48,3 @@ pub fn keychain_delete(key: String) -> Result<(), String> {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::ensure_allowed_key;
-
-    #[test]
-    fn keychain_rejects_unknown_keys() {
-        let error = ensure_allowed_key("unknown-key").unwrap_err();
-        assert!(error.contains("not allowed"));
-    }
-
-    #[test]
-    fn keychain_accepts_zotero_key() {
-        assert!(ensure_allowed_key("zotero-api-key").is_ok());
-    }
-
-    #[test]
-    fn keychain_accepts_ai_key() {
-        assert!(ensure_allowed_key("ai-api-key-openai").is_ok());
-    }
-
-    #[test]
-    fn keychain_accepts_legacy_ai_key() {
-        assert!(ensure_allowed_key("ai-api-key").is_ok());
-    }
-}

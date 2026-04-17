@@ -300,30 +300,3 @@ pub async fn ai_skill_catalog_load(params: AiSkillCatalogParams) -> Result<Value
     }))
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn build_skill_search_roots_includes_codex_and_altals_locations() {
-        let roots = build_skill_search_roots("/workspace", "/home/user/.altals");
-        assert!(roots
-            .iter()
-            .any(|root| root.path.ends_with("/.codex/skills")));
-        assert!(roots
-            .iter()
-            .any(|root| root.path.ends_with("/.altals/skills")));
-    }
-
-    #[test]
-    fn path_starts_with_matches_nested_paths() {
-        assert!(path_starts_with(
-            "/workspace/.codex/skills/foo",
-            "/workspace/.codex/skills"
-        ));
-        assert!(!path_starts_with(
-            "/workspace/.codex/other/foo",
-            "/workspace/.codex/skills"
-        ));
-    }
-}

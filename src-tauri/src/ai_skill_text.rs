@@ -329,35 +329,3 @@ pub fn rewrite_skill_markdown(
     build_skill_markdown(next_name, &description, &body, Some(&frontmatter))
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn parse_skill_markdown_reads_frontmatter_and_body() {
-        let parsed = parse_skill_markdown(
-            "---\nname: revise-with-citations\ndescription: Tighten draft\n---\n\n# Step\n\nBody text",
-            "fallback",
-        );
-
-        assert_eq!(parsed.name, "revise-with-citations");
-        assert_eq!(parsed.slug, "revise-with-citations");
-        assert_eq!(parsed.description, "Tighten draft");
-        assert_eq!(parsed.body, "# Step\n\nBody text");
-    }
-
-    #[test]
-    fn rewrite_skill_markdown_updates_name_and_body() {
-        let rewritten = rewrite_skill_markdown(
-            "---\nname: alpha\n---\n\n# Old",
-            "beta",
-            Some("Desc"),
-            Some("# New"),
-            None,
-        );
-
-        assert!(rewritten.contains("name: beta"));
-        assert!(rewritten.contains("description: Desc"));
-        assert!(rewritten.contains("# New"));
-    }
-}

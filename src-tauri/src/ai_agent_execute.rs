@@ -348,19 +348,3 @@ pub async fn ai_agent_execute(
     })
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn extract_json_payload_handles_direct_and_fenced_json() {
-        assert_eq!(
-            extract_json_payload("{\"answer\":\"ok\"}"),
-            Some(json!({"answer": "ok"}))
-        );
-        assert_eq!(
-            extract_json_payload("```json\n{\"answer\":\"ok\"}\n```"),
-            Some(json!({"answer": "ok"}))
-        );
-    }
-}

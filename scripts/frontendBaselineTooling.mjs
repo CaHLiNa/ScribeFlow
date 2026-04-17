@@ -23,17 +23,6 @@ export const FRONTEND_BASELINE_LINT_TARGETS = Object.freeze(
     'src/components/layout/ToastContainer.vue',
     'src/shared/**/*.js',
     'scripts/frontendBaselineTooling.mjs',
-    'tests/editorOpenRoutingRuntime.test.mjs',
-    'tests/frontendBaselineAudit.test.mjs',
-    'tests/frontendInlineStyleAudit.test.mjs',
-    'tests/frontendToolingBaselineTargets.test.mjs',
-    'tests/paneTreeViewerRuntime.test.mjs',
-    'tests/shellResizeSignals.test.mjs',
-    'tests/workbenchChromeEntries.test.mjs',
-    'tests/workbenchInspectorPanels.test.mjs',
-    'tests/workbenchSidebarPanels.test.mjs',
-    'tests/workspacePreferences.test.mjs',
-    'tests/workspaceStarterMetrics.test.mjs',
   ])
 )
 

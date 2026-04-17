@@ -120,17 +120,6 @@ Representative files:
 - the feature needs to adapt differently for Markdown and LaTeX without duplicating UI conditionals
 - the feature coordinates files, references, readers, and AI under one research task
 
-## Validation anchors
-
-A large share of the repository tests target domain runtime files directly. Representative examples:
-
-- `tests/documentWorkflow*.test.mjs`
-- `tests/fileTreeHydrationRuntime.test.mjs`
-- `tests/editorOpenRoutingRuntime.test.mjs`
-- `tests/fileTreeWatchRuntime.test.mjs`
-
-Reader and AI domains should follow the same pattern: policy-heavy runtime tests first, UI tests second.
-
 ## See also
 
 - `docs/ARCHITECTURE.md`

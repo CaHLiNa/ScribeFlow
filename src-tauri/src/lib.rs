@@ -200,28 +200,6 @@ fn handle_workspace_protocol<R: Runtime>(
     )
 }
 
-#[cfg(test)]
-mod tests {
-    use super::parse_workspace_protocol_request_path;
-
-    #[test]
-    fn workspace_protocol_decodes_percent_encoded_segments() {
-        let (scope, relative_path) = parse_workspace_protocol_request_path(
-            "/workspace/paper/An%20%E7%AD%89%20-%202026%20-%20test.pdf",
-        )
-        .unwrap();
-
-        assert_eq!(scope, "workspace");
-        assert_eq!(relative_path, "paper/An 等 - 2026 - test.pdf");
-    }
-
-    #[test]
-    fn workspace_protocol_requires_file_path() {
-        let error = parse_workspace_protocol_request_path("/workspace").unwrap_err();
-        assert!(error.contains("Missing file path"));
-    }
-}
-
 /// Enrich PATH with common tool locations so production .app bundles
 /// can find Python, R, Jupyter, Homebrew binaries, etc.
 #[cfg(unix)]

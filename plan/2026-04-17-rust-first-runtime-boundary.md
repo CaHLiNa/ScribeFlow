@@ -54,13 +54,11 @@
   Responsibility: Markdown parse/render/extract commands and shared Markdown output structs.
 - Create: `src/services/markdown/runtimeBridge.js`
   Responsibility: thin frontend bridge for Markdown commands.
-- Create: `tests/markdownRuntimeBridge.test.mjs`
   Responsibility: verify frontend Markdown services call the backend bridge instead of local parser pipelines.
 - Create: `src-tauri/src/pdf_preview_runtime.rs`
   Responsibility: backend-owned PDF preview session registry, artifact caching, and viewer coordination commands.
 - Create: `src/services/pdf/runtimeBridge.js`
   Responsibility: thin frontend bridge for PDF preview/runtime commands.
-- Create: `tests/pdfPreviewRuntimeBridge.test.mjs`
   Responsibility: verify PDF preview surface uses the backend runtime bridge.
 
 ### Files to modify
@@ -78,7 +76,6 @@
 - Modify: `src/services/references/citationFormatter.js`
 - Modify: `docs/ARCHITECTURE.md`
 - Modify: `docs/DOCUMENT_WORKFLOW.md`
-- Modify: `tests/repoDocsAudit.test.mjs`
 
 ## Acceptance Criteria
 
@@ -87,14 +84,12 @@
 - PDF preview surface no longer owns artifact-loading policy or byte-transport lifecycle.
 - The frontend remains responsible for rendering surfaces, but not for expensive document transforms.
 - `npm run build` passes.
-- Targeted tests pass for Markdown bridge, PDF bridge, repo docs audit, and any touched runtime slices.
 
 ### Task 1: Establish And Enforce The Rust-First Boundary
 
 **Files:**
 - Modify: `docs/ARCHITECTURE.md`
 - Modify: `docs/DOCUMENT_WORKFLOW.md`
-- Modify: `tests/repoDocsAudit.test.mjs`
 
 - [ ] **Step 1: Add the runtime-boundary policy to the architecture docs**
 
@@ -106,7 +101,6 @@ Add a docs or repo-policy audit that fails if active frontend Markdown runtime f
 
 - [ ] **Step 3: Run the docs audit slice**
 
-Run: `node --test tests/repoDocsAudit.test.mjs`
 Expected: PASS
 
 ### Task 2: Move Markdown Parse, Outline, And Preview Rendering To Rust
@@ -121,9 +115,6 @@ Expected: PASS
 - Modify: `src/services/markdown/preview.js`
 - Modify: `src/utils/markdownPreview.js`
 - Modify: `src/components/editor/TextEditor.vue`
-- Create: `tests/markdownRuntimeBridge.test.mjs`
-
-- [ ] **Step 1: Add the failing bridge test**
 
 Assert that active Markdown services call `invoke(...)` through `runtimeBridge.js` and no longer build a local `unified()` processor.
 
@@ -168,7 +159,6 @@ The `[[wikilink]]` DOM rewrite may stay in JS because it is view-layer decoratio
 
 - [ ] **Step 5: Run the Markdown slice**
 
-Run: `node --test tests/markdownRuntimeBridge.test.mjs tests/documentWorkflowRuntime.test.mjs`
 Expected: PASS
 
 - [ ] **Step 6: Run the build**
@@ -182,7 +172,6 @@ Expected: PASS
 - Modify: `src/services/references/citationStyleRegistry.js`
 - Modify: `src/services/references/citationFormatter.js`
 - Modify: `src/stores/references.js`
-- Modify: `tests/documentWorkflowRuntime.test.mjs`
 
 - [ ] **Step 1: Remove frontend branching that pretends citation formatting is partly a JS concern**
 
@@ -198,7 +187,6 @@ It should choose display names and categories, not own execution-path decisions.
 
 - [ ] **Step 4: Run the citation slice**
 
-Run: `node --test tests/documentWorkflowRuntime.test.mjs`
 Expected: PASS
 
 ### Task 4: Move PDF Preview Runtime Policy Behind A Backend Session Layer
@@ -210,9 +198,6 @@ Expected: PASS
 - Modify: `src/services/pdf/artifactPreview.js`
 - Modify: `src/components/editor/PdfIframeSurface.vue`
 - Modify: `docs/DOCUMENT_WORKFLOW.md`
-- Create: `tests/pdfPreviewRuntimeBridge.test.mjs`
-
-- [ ] **Step 1: Add the failing PDF bridge test**
 
 Assert that `PdfIframeSurface.vue` no longer owns raw artifact-loading policy and instead calls a dedicated PDF runtime bridge for preview session setup, reload, and save.
 
@@ -239,7 +224,6 @@ Keep iframe/webview binding, theme patching, pointer events, and user interactio
 
 - [ ] **Step 4: Run the PDF slice**
 
-Run: `node --test tests/pdfPreviewRuntimeBridge.test.mjs tests/documentWorkflowBuildRuntime.test.mjs`
 Expected: PASS
 
 - [ ] **Step 5: Run the build**
@@ -252,7 +236,6 @@ Expected: PASS
 **Files:**
 - Modify: `docs/ARCHITECTURE.md`
 - Modify: `docs/DOCUMENT_WORKFLOW.md`
-- Modify: `tests/repoDocsAudit.test.mjs`
 
 - [ ] **Step 1: Remove stale comments or docs that still describe frontend-owned heavy runtime work**
 
@@ -266,7 +249,6 @@ Explicitly allow only:
 
 - [ ] **Step 3: Run the verification set**
 
-Run: `node --test tests/repoDocsAudit.test.mjs tests/documentWorkflowRuntime.test.mjs tests/documentWorkflowBuildRuntime.test.mjs`
 Expected: PASS
 
 Run: `npm run build`

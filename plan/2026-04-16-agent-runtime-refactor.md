@@ -6,8 +6,6 @@
 
 **Architecture:** 第一阶段先保留现有 provider/runtime 能力，但把默认 built-in action、prompt 身份、默认路由和 UI 文案统一切到 `workspace-agent`。`skill` 保留为 agent 的能力层，由 agent 根据消息自动路由，也允许用户显式手动调用；它不再作为旧式 workflow 主入口。随后把执行链从 `skill-first brief execution` 拆到 `agent orchestrator + prompt builder + session runtime`，最后再扩文件工具和 UI 事件流。
 
-**Tech Stack:** Vue 3, Pinia, Tauri, current provider runtime adapters, Anthropic Agent SDK bridge, Node test runner.
-
 ---
 
 ### Task 1: 建立 agent-first 默认入口并保留兼容别名
@@ -24,10 +22,6 @@
 - Modify: `src/domains/ai/aiConversationRuntime.js`
 - Modify: `src/services/ai/executor.js`
 - Modify: `src/i18n/index.js`
-- Test: `tests/aiInvocationRouting.test.mjs`
-- Test: `tests/aiContextRuntime.test.mjs`
-- Test: `tests/aiConversationRuntime.test.mjs`
-- Test: `tests/aiArtifactRuntime.test.mjs`
 
 - [x] 引入 built-in action id 规范化层，把 `grounded-chat` 兼容映射到新的 `workspace-agent`
 - [x] 把默认 active skill / invocation fallback / built-in brief builder 切到 `workspace-agent`
@@ -44,7 +38,6 @@
 - Create: `src/services/ai/agentExecutionRuntime.js`
 - Modify: `src/services/ai/executor.js`
 - Modify: `src/stores/ai.js`
-- Test: `tests/aiExecutor.test.mjs`
 
 - [x] 把现有 `buildSystemPrompt / buildUserPrompt / response contract` 从 executor 中拆出
 - [x] 引入显式 `runtimeIntent: chat | agent | skill`
@@ -59,7 +52,6 @@
 - Modify: `src/stores/ai.js`
 - Modify: `src/services/ai/toolRegistry.js`
 - Create: `src/services/ai/runtime/workspaceFileTools.js`
-- Test: `tests/aiToolLoop.test.mjs`
 
 - [x] 增加显式 workspace file tools：读取文件、列目录、读取活动文档、读取选区
 - [x] 让 agent mode 可基于 workspace files 工作，而不是只围绕文档/文献

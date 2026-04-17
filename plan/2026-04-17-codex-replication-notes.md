@@ -6,7 +6,6 @@
 - Files:
   - `docs/PRODUCT.md`
   - `docs/ARCHITECTURE.md`
-  - `docs/TESTING.md`
   - `docs/OPERATIONS.md`
 - Key points:
   - Altals positions AI as a grounded workbench shell inside the desktop app.
@@ -27,7 +26,6 @@
   - `src/services/ai/executor.js` and `src/services/ai/agentPromptBuilder.js` rely on prompt assembly and structured JSON response contracts; this is closer to “prompted tool runner” than Codex’s protocol-backed agent state machine.
   - `src/services/ai/skillDiscovery.js` only discovers Altals-managed skills from Altals paths. It does not actually ingest `.codex/skills`, `.claude/skills`, `.agents/skills`, or `.goose/skills` despite earlier plan intent.
   - `src/stores/ai.js` already has useful transient concepts such as permission requests, ask-user, exit-plan, compaction, and background tasks, but they are store-local UI state rather than first-class backend protocol primitives.
-  - Current tests validate normalized runtime behavior, not Codex-like app-server semantics.
 
 ### Source 3: Codex reference repo
 - Artifact:

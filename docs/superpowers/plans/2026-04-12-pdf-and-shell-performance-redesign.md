@@ -6,8 +6,6 @@
 
 **Architecture:** Keep non-PDF preview behavior on its current path and focus the redesign on two real bottlenecks: the PDF artifact preview lifecycle and the shell’s resize/toggle motion model. PDF preview moves to a persistent hosted surface that no longer reloads on theme/artifact updates, and shell/sidebar/split interactions move to an explicit motion runtime so width changes are rAF-coalesced, preview work is deferred until settle, and toggle animations are compositor-first instead of layout-thrash-first.
 
-**Tech Stack:** Vue 3, Pinia, Tauri child webviews, pdf.js viewer bridge, Node test runner
-
 ---
 
 ## Scope Lock
@@ -33,8 +31,6 @@
   Responsibility: persistent hosted PDF viewer session state and viewer messaging.
 - Create: `src/components/editor/PdfHostedPreview.vue`
   Responsibility: hosted PDF preview shell used by `pdf-artifact` and raw PDF tabs.
-- Create: `tests/workbenchMotionRuntime.test.mjs`
-- Create: `tests/pdfPreviewHostContract.test.mjs`
 
 ### Files to modify
 
@@ -49,9 +45,6 @@
 - Modify: `src/App.vue`
 - Modify: `public/pdfjs-viewer/web/viewer.html`
 - Modify: `public/pdfjs-viewer/web/altals-latex-sync.mjs`
-- Modify: `tests/pdfArtifactPreviewLatexSyncContract.test.mjs`
-- Modify: `tests/pdfViewerLatexBridgeContract.test.mjs`
-- Modify: `tests/appShellLayout.test.mjs`
 - Modify: `docs/ARCHITECTURE.md`
 - Modify: `docs/DOCUMENT_WORKFLOW.md`
 
@@ -62,7 +55,6 @@
 - Split ratio persistence happens on drag end instead of every mousemove.
 - Theme changes patch the live PDF viewer without recreating its blob URL and iframe session.
 - Non-PDF preview behavior remains unchanged for normal use.
-- `npm run build` passes and targeted tests cover the new motion runtime and hosted PDF path.
 
 ### Task 1: Build A Shared Workbench Motion Runtime
 
@@ -74,18 +66,12 @@
 - Modify: `src/components/editor/SplitHandle.vue`
 - Modify: `src/components/editor/PaneContainer.vue`
 - Modify: `src/stores/editor.js`
-- Create: `tests/workbenchMotionRuntime.test.mjs`
-- Modify: `tests/appShellLayout.test.mjs`
-
-- [ ] **Step 1: Write the failing motion-runtime tests**
 
 ```js
-import test from 'node:test'
 import assert from 'node:assert/strict'
 
 import { createWorkbenchMotionRuntime } from '../src/domains/workbench/workbenchMotionRuntime.js'
 
-test('motion runtime coalesces repeated live updates to one frame commit', () => {
   const commits = []
   const runtime = createWorkbenchMotionRuntime({
     requestFrame: (cb) => {
@@ -102,7 +88,6 @@ test('motion runtime coalesces repeated live updates to one frame commit', () =>
   assert.deepEqual(commits, [{ kind: 'split', value: 0.61 }])
 })
 
-test('motion runtime exposes settling after a live interaction ends', () => {
   const phases = []
   const runtime = createWorkbenchMotionRuntime({
     onPhaseChange: (phase) => phases.push(phase),
@@ -115,9 +100,6 @@ test('motion runtime exposes settling after a live interaction ends', () => {
 })
 ```
 
-- [ ] **Step 2: Run the new motion tests and confirm they fail**
-
-Run: `node --test tests/workbenchMotionRuntime.test.mjs tests/appShellLayout.test.mjs`
 Expected: FAIL because the runtime does not exist and the current shell still updates width directly.
 
 - [ ] **Step 3: Implement the motion runtime**
@@ -206,13 +188,11 @@ commitSplitRatio(splitNode) {
 
 - [ ] **Step 6: Run the shell-motion slice**
 
-Run: `node --test tests/workbenchMotionRuntime.test.mjs tests/appShellLayout.test.mjs tests/editorPersistenceRuntime.test.mjs`
 Expected: PASS
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/domains/workbench/workbenchMotionRuntime.js src/shared/shellResizeSignals.js src/composables/useAppShellLayout.js src/components/layout/ResizeHandle.vue src/components/editor/SplitHandle.vue src/components/editor/PaneContainer.vue src/stores/editor.js tests/workbenchMotionRuntime.test.mjs tests/appShellLayout.test.mjs
 git commit -m "feat: add phased workbench motion runtime"
 ```
 
@@ -224,28 +204,19 @@ git commit -m "feat: add phased workbench motion runtime"
 - Create: `src/components/editor/PdfHostedPreview.vue`
 - Modify: `src/components/editor/EditorPane.vue`
 - Modify: `src/components/editor/PdfArtifactPreview.vue`
-- Create: `tests/pdfPreviewHostContract.test.mjs`
-- Modify: `tests/pdfArtifactPreviewLatexSyncContract.test.mjs`
-
-- [ ] **Step 1: Write the failing hosted-PDF contract test**
 
 ```js
-import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 
 const source = readFileSync(new URL('../src/components/editor/PdfHostedPreview.vue', import.meta.url), 'utf8')
 
-test('pdf hosted preview uses the shared hosted webview runtime instead of an inline iframe', () => {
   assert.match(source, /workbenchHostedWebview/)
   assert.match(source, /pdfPreviewHost/)
   assert.doesNotMatch(source, /<iframe/)
 })
 ```
 
-- [ ] **Step 2: Run the PDF host tests and confirm they fail**
-
-Run: `node --test tests/pdfPreviewHostContract.test.mjs tests/pdfArtifactPreviewLatexSyncContract.test.mjs`
 Expected: FAIL because the hosted component/runtime do not exist yet.
 
 - [ ] **Step 3: Implement the generic hosted-webview primitive**
@@ -301,13 +272,11 @@ export async function ensurePdfPreviewHost({
 
 - [ ] **Step 7: Run the hosted-PDF slice**
 
-Run: `node --test tests/pdfPreviewHostContract.test.mjs tests/pdfArtifactPreviewLatexSyncContract.test.mjs tests/previewSurfaceContextMenuContract.test.mjs`
 Expected: PASS
 
 - [ ] **Step 8: Commit**
 
 ```bash
-git add src/services/webview/workbenchHostedWebview.js src/services/pdf/pdfPreviewHost.js src/components/editor/PdfHostedPreview.vue src/components/editor/EditorPane.vue src/components/editor/PdfArtifactPreview.vue tests/pdfPreviewHostContract.test.mjs tests/pdfArtifactPreviewLatexSyncContract.test.mjs
 git commit -m "feat: host pdf previews in persistent webviews"
 ```
 
@@ -317,22 +286,16 @@ git commit -m "feat: host pdf previews in persistent webviews"
 - Modify: `src/services/pdf/pdfPreviewHost.js`
 - Modify: `public/pdfjs-viewer/web/viewer.html`
 - Modify: `public/pdfjs-viewer/web/altals-latex-sync.mjs`
-- Modify: `tests/pdfArtifactPreviewLatexSyncContract.test.mjs`
-- Modify: `tests/pdfViewerLatexBridgeContract.test.mjs`
 
 - [ ] **Step 1: Expand the PDF contracts to require message-driven patching**
 
 ```js
-test('pdf preview patches theme and artifact changes into the live viewer instead of rebuilding the session', () => {
   assert.match(componentSource, /postPdfViewerMessage\('apply-theme'/)
   assert.match(componentSource, /postPdfViewerMessage\('load-artifact'/)
   assert.doesNotMatch(componentSource, /viewerKey\.value \+= 1/)
 })
 ```
 
-- [ ] **Step 2: Run the PDF bridge tests and confirm they fail**
-
-Run: `node --test tests/pdfArtifactPreviewLatexSyncContract.test.mjs tests/pdfViewerLatexBridgeContract.test.mjs`
 Expected: FAIL because the current implementation still rebuilds the viewer on updates.
 
 - [ ] **Step 3: Add hosted viewer message APIs**
@@ -379,13 +342,11 @@ postPdfViewerMessage(host.value, 'synctex', { point })
 
 - [ ] **Step 7: Run the PDF update slice**
 
-Run: `node --test tests/pdfArtifactPreviewLatexSyncContract.test.mjs tests/pdfViewerLatexBridgeContract.test.mjs tests/pdfArtifactPreviewState.test.mjs tests/pdfViewerUrl.test.mjs`
 Expected: PASS
 
 - [ ] **Step 8: Commit**
 
 ```bash
-git add src/services/pdf/pdfPreviewHost.js public/pdfjs-viewer/web/viewer.html public/pdfjs-viewer/web/altals-latex-sync.mjs tests/pdfArtifactPreviewLatexSyncContract.test.mjs tests/pdfViewerLatexBridgeContract.test.mjs
 git commit -m "feat: patch live pdf viewers instead of reloading"
 ```
 
@@ -395,12 +356,8 @@ git commit -m "feat: patch live pdf viewers instead of reloading"
 - Modify: `src/App.vue`
 - Modify: `src/composables/useAppShellLayout.js`
 - Modify: `src/domains/workbench/workbenchMotionRuntime.js`
-- Modify: `tests/appShellLayout.test.mjs`
-
-- [ ] **Step 1: Add a failing layout test for overlay-first sidebar transitions**
 
 ```js
-test('sidebar toggle motion reserves final width once and animates sidebar chrome separately', () => {
   const source = readFileSync(new URL('../src/App.vue', import.meta.url), 'utf8')
   assert.match(source, /sidebar-toggle-overlay/)
   assert.doesNotMatch(source, /transition: width 260ms/)
@@ -409,7 +366,6 @@ test('sidebar toggle motion reserves final width once and animates sidebar chrom
 
 - [ ] **Step 2: Run the layout slice and confirm it fails**
 
-Run: `node --test tests/appShellLayout.test.mjs`
 Expected: FAIL because the current shell still animates real layout width over 260ms.
 
 - [ ] **Step 3: Replace width-transition toggles with overlay-first motion**
@@ -444,13 +400,11 @@ motionRuntime.end('right-sidebar')
 
 - [ ] **Step 5: Run the shell slice**
 
-Run: `node --test tests/workbenchMotionRuntime.test.mjs tests/appShellLayout.test.mjs`
 Expected: PASS
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/App.vue src/composables/useAppShellLayout.js src/domains/workbench/workbenchMotionRuntime.js tests/appShellLayout.test.mjs
 git commit -m "feat: make sidebar toggles compositor-first"
 ```
 
@@ -461,17 +415,11 @@ git commit -m "feat: make sidebar toggles compositor-first"
 
 - [ ] **Step 1: Add guardrail coverage if another preview surface needs resize-phase coordination**
 
-- Write or update only the contract tests that still correspond to preview surfaces present in the product.
-
 - [ ] **Step 2: Run the preview-surface contract and confirm it fails until the coordination hook exists**
-
-Run the smallest relevant preview-surface test.
 
 - [ ] **Step 3: Add resize-phase coordination without changing the active preview surface rendering model**
 
 - Add only the minimum motion-phase hook needed by the surviving preview surface.
-
-- [ ] **Step 4: Run the preview-surface guardrail test**
 
 Run the smallest relevant preview-surface verification slice.
 
@@ -504,7 +452,6 @@ git commit -m "feat: coordinate preview surfaces with shell motion phases"
 
 - [ ] **Step 3: Run the targeted verification slice**
 
-Run: `node --test tests/workbenchMotionRuntime.test.mjs tests/pdfPreviewHostContract.test.mjs tests/pdfArtifactPreviewLatexSyncContract.test.mjs tests/pdfViewerLatexBridgeContract.test.mjs tests/appShellLayout.test.mjs`
 Expected: PASS
 
 Run: `npm run build`

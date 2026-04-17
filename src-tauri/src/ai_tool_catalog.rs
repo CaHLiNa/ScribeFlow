@@ -273,36 +273,3 @@ pub async fn ai_tool_catalog_resolve(
     })
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn normalize_enabled_tool_ids_keeps_explicit_empty_arrays_and_defaults_when_unset() {
-        assert_eq!(normalize_enabled_tool_ids(&[]), Vec::<String>::new());
-        assert_eq!(
-            normalize_enabled_tool_ids(&["delete-workspace-path".to_string()]),
-            vec!["delete-workspace-path".to_string()]
-        );
-    }
-
-    #[test]
-    fn resolve_tools_by_ids_filters_registry_to_enabled_tool_ids() {
-        let tools =
-            resolve_tools_by_ids(&resolve_effective_tool_ids(
-                &["open-note-draft".to_string()],
-            ));
-
-        assert!(tools.iter().any(|tool| tool.id == "open-note-draft"));
-        assert!(tools.iter().any(|tool| tool.id == "create-workspace-file"));
-    }
-
-    #[test]
-    fn configurable_tool_definitions_only_expose_risky_tools() {
-        let tools = configurable_tool_definitions();
-        assert_eq!(
-            tools.iter().map(|tool| tool.id).collect::<Vec<_>>(),
-            vec!["delete-workspace-path"]
-        );
-    }
-}

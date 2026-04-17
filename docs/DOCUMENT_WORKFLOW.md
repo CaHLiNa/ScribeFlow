@@ -96,16 +96,6 @@ This toolbar is rendered both in integrated shell contexts and inline editor hea
 - LaTeX surfaces compile errors, warnings, lint problems, and project-level problems.
 - artifact paths for LaTeX are resolved through compile adapters, not guessed in components.
 
-## Validation anchors
-
-Key tests for this area include:
-
-- `tests/documentWorkflowAdapterContracts.test.mjs`
-- `tests/documentWorkflowAdaptersRuntime.test.mjs`
-- `tests/documentWorkflowBuildRuntime.test.mjs`
-- `tests/documentWorkflowRuntime.test.mjs`
-- `tests/documentWorkspacePreviewRuntime.test.mjs`
-
 ## See also
 
 - `docs/ARCHITECTURE.md`

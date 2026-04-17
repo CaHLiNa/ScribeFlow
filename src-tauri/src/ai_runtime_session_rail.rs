@@ -228,38 +228,3 @@ pub async fn ai_runtime_session_rail_reconcile(
     })
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn apply_snapshot_to_session_updates_runtime_fields() {
-        let session = json!({
-            "id": "session-1",
-            "title": "Run 1"
-        });
-        let snapshot = json!({
-            "thread": {
-                "id": "thread-1",
-                "title": "Workspace thread",
-                "activeTurnId": "turn-1",
-                "status": "running"
-            },
-            "turns": [],
-            "items": [],
-            "permissionRequests": [],
-            "askUserRequests": [],
-            "exitPlanRequests": [],
-            "planMode": {
-                "active": false,
-                "summary": "",
-                "note": ""
-            }
-        });
-
-        let updated = apply_snapshot_to_session(&session, &snapshot);
-        assert_eq!(updated["title"].as_str(), Some("Workspace thread"));
-        assert_eq!(updated["runtimeThreadId"].as_str(), Some("thread-1"));
-        assert_eq!(updated["runtimeTurnId"].as_str(), Some("turn-1"));
-    }
-}

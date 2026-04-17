@@ -23,7 +23,6 @@
 - Modify: `src/components/sidebar/ContextMenu.vue`
 - Modify: `src/components/sidebar/FileTree.vue`
 - Modify: `src/components/editor/EditorPane.vue`
-- Add: `tests/rekaUiInteractionContract.test.mjs`
 
 ### Task 1: Foundation Primitives
 
@@ -89,12 +88,9 @@ Preserve existing commands for:
 
 Continue to use the existing menu class family (`context-menu`, `context-menu-item`, `context-menu-section`, `context-menu-separator`) so the migration does not visually shift the desktop shell toward generic web-admin UI.
 
-- [ ] **Step 4: Run the current preview/menu contract tests**
-
 Run:
 
 ```bash
-node --test tests/previewSurfaceContextMenuContract.test.mjs
 ```
 
 Expected: shared preview/editor menu contracts still pass.
@@ -125,9 +121,6 @@ Keep:
 ### Task 4: Contract Coverage and Verification
 
 **Files:**
-- Add: `tests/rekaUiInteractionContract.test.mjs`
-
-- [ ] **Step 1: Add source-level contract tests for the migration**
 
 Assert that:
 
@@ -141,7 +134,6 @@ Assert that:
 Run:
 
 ```bash
-node --test tests/previewSurfaceContextMenuContract.test.mjs tests/rekaUiInteractionContract.test.mjs
 npm run build
 ```
 

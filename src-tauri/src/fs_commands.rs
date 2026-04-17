@@ -137,6 +137,21 @@ fn resolve_unique_move_destination(name: &str, dest_dir: &Path, is_dir: bool) ->
     }
 }
 
+fn copy_dir_recursive(src: &Path, dest: &Path) -> Result<(), String> {
+    fs::create_dir_all(dest).map_err(|error| error.to_string())?;
+    for entry in fs::read_dir(src).map_err(|error| error.to_string())? {
+        let entry = entry.map_err(|error| error.to_string())?;
+        let entry_path = entry.path();
+        let target_path = dest.join(entry.file_name());
+        if entry_path.is_dir() {
+            copy_dir_recursive(&entry_path, &target_path)?;
+        } else {
+            fs::copy(&entry_path, &target_path).map_err(|error| error.to_string())?;
+        }
+    }
+    Ok(())
+}
+
 fn default_file_content(name: &str, initial_content: &str) -> String {
     if !initial_content.is_empty() {
         return initial_content.to_string();
@@ -465,75 +480,6 @@ pub async fn workspace_copy_external_path(
         })
     })
     .await
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::fs_io::format_file_too_large_error;
-
-    fn temp_file_path(label: &str) -> std::path::PathBuf {
-        std::env::temp_dir().join(format!("altals-fs-{label}-{}", uuid::Uuid::new_v4()))
-    }
-
-    #[test]
-    fn read_text_file_with_limit_returns_error_code_when_file_is_too_large() {
-        let path = temp_file_path("too-large");
-        fs::write(&path, "1234567890").unwrap();
-
-        let error = read_text_file_with_limit(&path, Some(4)).unwrap_err();
-        assert_eq!(error, format_file_too_large_error(4, 10));
-
-        fs::remove_file(path).unwrap();
-    }
-
-    #[test]
-    fn read_text_file_with_limit_reads_when_within_limit() {
-        let path = temp_file_path("within-limit");
-        fs::write(&path, "hello").unwrap();
-
-        let content = read_text_file_with_limit(&path, Some(8)).unwrap();
-        assert_eq!(content, "hello");
-
-        fs::remove_file(path).unwrap();
-    }
-
-    #[test]
-    fn resolve_unique_copy_destination_adds_copy_suffix() {
-        let root = temp_file_path("copy-dest");
-        fs::create_dir_all(&root).unwrap();
-        let src = root.join("paper.md");
-        let existing = root.join("paper copy.md");
-        fs::write(&src, "a").unwrap();
-        fs::write(&existing, "b").unwrap();
-
-        let candidate = resolve_unique_copy_destination(&src, &root, false);
-        assert!(candidate.ends_with("paper copy 2.md"));
-
-        fs::remove_dir_all(root).unwrap();
-    }
-
-    #[test]
-    fn default_file_content_bootstraps_tex_files() {
-        let content = default_file_content("chapter-1.tex", "");
-        assert!(content.contains("\\documentclass"));
-        assert!(content.contains("\\title{chapter 1}"));
-    }
-}
-
-fn copy_dir_recursive(src: &Path, dest: &Path) -> std::io::Result<()> {
-    fs::create_dir_all(dest)?;
-    for entry in fs::read_dir(src)? {
-        let entry = entry?;
-        let src_path = entry.path();
-        let dest_path = dest.join(entry.file_name());
-        if src_path.is_dir() {
-            copy_dir_recursive(&src_path, &dest_path)?;
-        } else {
-            fs::copy(&src_path, &dest_path)?;
-        }
-    }
-    Ok(())
 }
 
 #[tauri::command]

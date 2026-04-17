@@ -130,7 +130,6 @@ This replatform is a bottom-up rewrite of the AI runtime, not a UI refresh. The 
 - Modify: `src/services/ai/skillDiscovery.js`
 - Modify: `src/services/ai/skillRegistry.js`
 - Modify: `src/components/panel/AiAgentPanel.vue`
-- Test: `tests/aiSkillDiscovery.test.mjs`
 
 - [ ] Expand discovery roots to include real Codex-compatible directories:
   - `~/.codex/skills`
@@ -199,23 +198,16 @@ This replatform is a bottom-up rewrite of the AI runtime, not a UI refresh. The 
 - Modify/Delete: `src/services/ai/agentOrchestrator.js`
 - Modify/Delete: `src/services/ai/executor.js`
 - Modify: `src/stores/ai.js`
-- Modify: related tests under `tests/ai*.test.mjs`
 
 - [ ] Remove frontend ownership over provider loop orchestration.
 - [ ] Remove duplicated JS-only runtime state that is now emitted by Rust.
 - [ ] Keep only frontend adapter code needed to call Tauri commands and map Tauri events into reactive UI state.
 
-## Testing and Verification
-
-- Rust unit tests for:
   - thread/turn/item state transitions
   - approval state handling
   - skill discovery normalization
   - runtime event serialization
-- Existing JS tests should be migrated or replaced where ownership moves into Rust.
 - Minimum verification per substantial slice:
-  - targeted `cargo test` for the touched runtime modules
-  - targeted `node --test` for affected frontend adapters/stores
   - `npm run build` after meaningful frontend integration changes
   - `cargo build --manifest-path src-tauri/Cargo.toml` after meaningful Rust integration changes
 

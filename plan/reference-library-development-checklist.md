@@ -11,7 +11,6 @@
 - `docs/ACADEMIC_PLATFORM_DIRECTION.md`
 - `docs/DOMAINS.md`
 - `docs/DOCUMENT_WORKFLOW.md`
-- `docs/TESTING.md`
 
 ## 当前基线
 
@@ -62,7 +61,6 @@
 - [ ] 创建 `src/domains/references/` 与 `src/domains/reader/` 目录骨架。
 - [ ] 创建 `src/services/references/` 与 `src/services/reader/` 目录骨架。
 - [ ] 创建 `src/stores/references.js` 的初始状态模型。
-- [ ] 创建最小 runtime tests 占位文件，固定模块命名与职责。
 
 ### 交付物
 
@@ -71,8 +69,6 @@
 - `src/services/references/*`
 - `src/services/reader/*`
 - `src/stores/references.js`
-- `tests/reference*.test.mjs`
-- `tests/reader*.test.mjs`
 
 ### 验收标准
 
@@ -153,12 +149,6 @@
 
 ### 测试
 
-- [ ] `referenceLibraryRuntime` runtime tests。
-- [ ] import adapter contract tests。
-- [ ] references store tests。
-- [ ] citation insertion runtime tests。
-- [ ] 最小 UI contract tests，确认 sidebar/workbench entry 存在。
-
 ### 验收标准
 
 - 用户打开项目后能看到项目 references。
@@ -212,11 +202,6 @@
 
 ### 测试
 
-- [ ] reader runtime tests。
-- [ ] reader navigation tests。
-- [ ] reader session persistence tests。
-- [ ] PDF reader integration contract tests。
-
 ### 验收标准
 
 - 用户可在同一 workspace 里并排阅读与写作。
@@ -250,11 +235,6 @@
 - [ ] 对失败导入保留可恢复信息。
 
 ### 测试
-
-- [ ] bibliography planning runtime tests。
-- [ ] metadata normalization tests。
-- [ ] duplicate handling tests。
-- [ ] Markdown / LaTeX bibliography output contract tests。
 
 ### 验收标准
 
@@ -332,11 +312,6 @@
 
 ## 验证清单
 
-- [ ] `node --test tests/repoDocsAudit.test.mjs`
-- [ ] 新增 references runtime tests
-- [ ] 新增 reader runtime tests
-- [ ] 新增 import adapter contract tests
-- [ ] 新增 bibliography contract tests
 - [ ] 功能切片完成后运行 `npm run build`
 
 ## 开始实施时的首个 issue 包

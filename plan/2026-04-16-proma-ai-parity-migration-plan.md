@@ -6,15 +6,12 @@
 
 **Architecture:** Build parity in phases. First replace the single-session AI state model with an explicit session runtime. Then add input parity (`@`, `#`, attachments), runtime/event parity (ask-user, plan mode, background tasks), and finally mode/workspace parity. Keep Altals desktop-first and adapt Proma concepts to the existing workbench instead of cloning Electron shell chrome blindly.
 
-**Tech Stack:** Vue, Pinia, Tauri events/invoke, existing `src/services/ai/runtime/*`, Node tests
-
 ---
 
 ## File Structure
 
 - Create: `src/domains/ai/aiSessionRuntime.js`
   - owns session record creation and pure session update helpers
-- Create: `tests/aiSessionRuntime.test.mjs`
   - verifies session runtime helpers
 - Modify: `src/stores/ai.js`
   - move from single transcript state to current-session-over-session-list state
@@ -31,10 +28,8 @@
 
 **Files:**
 - Create: `src/domains/ai/aiSessionRuntime.js`
-- Test: `tests/aiSessionRuntime.test.mjs`
 
 - [ ] Add `createAiSessionRecord()`, `ensureAiSessionsState()`, and immutable session update helpers.
-- [ ] Add tests for session creation, switching, prompt updates, message replacement, and permission queue updates.
 
 ### Task 2: Refactor AI store onto sessions
 
@@ -61,11 +56,9 @@
 ### Task 4: Verify foundation slice
 
 **Files:**
-- Test: `tests/aiSessionRuntime.test.mjs`
 - Modify: `src/components/panel/AiWorkflowPanel.vue`
 - Modify: `src/stores/ai.js`
 
-- [ ] Run `node --test tests/aiSessionRuntime.test.mjs tests/aiConversationRuntime.test.mjs`
 - [ ] Run `npm run build`
 
 ## Phase 2: Input Parity
@@ -143,13 +136,7 @@
 ### Task 11: Run meaningful parity verification
 
 **Files:**
-- Test: `tests/aiSessionRuntime.test.mjs`
-- Test: `tests/aiConversationRuntime.test.mjs`
-- Test: `tests/aiInvocationRouting.test.mjs`
-- Test: `tests/aiToolRegistry.test.mjs`
-- Test: `tests/workbenchInspectorPanels.test.mjs`
 
-- [ ] Run targeted AI runtime tests.
 - [ ] Run relevant workbench shell checks.
 - [ ] Run `npm run build`.
 

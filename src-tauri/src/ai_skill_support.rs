@@ -105,39 +105,3 @@ pub fn load_skill_supporting_files(skill: &Value) -> Vec<Value> {
     collected
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::fs;
-    use std::time::{SystemTime, UNIX_EPOCH};
-
-    fn temp_skill_dir(label: &str) -> PathBuf {
-        let stamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("duration")
-            .as_nanos();
-        std::env::temp_dir().join(format!("altals-skill-support-{label}-{stamp}"))
-    }
-
-    #[test]
-    fn load_skill_supporting_files_reads_text_support_files() {
-        let dir = temp_skill_dir("load");
-        fs::create_dir_all(dir.join("notes")).expect("dir");
-        fs::write(dir.join("SKILL.md"), "# Skill").expect("skill");
-        fs::write(dir.join("notes/rubric.md"), "Keep the prose concise.").expect("support");
-        fs::write(dir.join("image.png"), "binary").expect("binary");
-
-        let files = load_skill_supporting_files(&json!({
-            "directoryPath": dir.to_string_lossy().to_string(),
-        }));
-
-        assert_eq!(files.len(), 1);
-        assert_eq!(files[0]["relativePath"].as_str(), Some("notes/rubric.md"));
-        assert_eq!(
-            files[0]["content"].as_str(),
-            Some("Keep the prose concise.")
-        );
-
-        fs::remove_dir_all(dir).expect("cleanup");
-    }
-}

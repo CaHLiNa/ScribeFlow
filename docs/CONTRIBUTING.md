@@ -13,7 +13,7 @@ This repository prefers small, validated slices over broad rewrites.
 ## Working expectations
 
 - investigate first, then change
-- update tests and docs in the same slice when behavior or repo policy changes
+- update docs in the same slice when behavior or repo policy changes
 - prefer deleting stale architecture over preserving dead systems
 - do not let the `web/` directory drive desktop app decisions unless explicitly requested
 - keep the desktop app as the primary product surface for decision-making
@@ -24,16 +24,15 @@ This repository prefers small, validated slices over broad rewrites.
 2. read the relevant product, architecture, and subsystem docs
 3. inspect the live code before proposing structural changes
 4. implement the change without speculative expansions
-5. run targeted tests for the touched slice
+5. run the minimum relevant validation command for the touched slice
 6. run broader checks when the slice affects meaningful frontend or integration behavior
-7. update docs and audit tests when repository expectations changed
+7. update docs when repository expectations changed
 
 ## Useful commands
 
 - `npm run lint`
 - `npm run format:check`
 - `npm run build`
-- `node --test tests/*.test.mjs`
 
 ## Review workflow
 

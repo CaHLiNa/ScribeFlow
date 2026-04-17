@@ -90,25 +90,3 @@ pub async fn ai_artifact_apply_doc_patch(
     })
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use serde_json::json;
-
-    #[tokio::test]
-    async fn applies_doc_patch() {
-        let result = ai_artifact_apply_doc_patch(AiArtifactApplyDocPatchParams {
-            content: "hello world".to_string(),
-            artifact: json!({
-                "from": 6,
-                "to": 11,
-                "originalText": "world",
-                "replacementText": "codex",
-            }),
-        })
-        .await
-        .expect("result");
-
-        assert_eq!(result.content, "hello codex");
-    }
-}

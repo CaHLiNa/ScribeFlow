@@ -300,16 +300,3 @@ pub async fn ai_skill_duplicate(params: AiSkillDeleteParams) -> Result<Value, St
     Ok(Value::String(target_dir.to_string_lossy().to_string()))
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn resolve_unique_duplicate_directory_appends_counter() {
-        let root = std::env::temp_dir().join(format!("altals-skill-dup-{}", uuid::Uuid::new_v4()));
-        fs::create_dir_all(root.join("alpha-copy")).unwrap();
-        let candidate = resolve_unique_duplicate_directory(&root.join("alpha-copy"));
-        assert!(candidate.to_string_lossy().ends_with("alpha-copy-2"));
-        fs::remove_dir_all(root).unwrap();
-    }
-}

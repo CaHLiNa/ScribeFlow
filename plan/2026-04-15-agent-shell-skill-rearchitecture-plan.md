@@ -80,7 +80,6 @@ This context grounds both shell chat and filesystem skills.
 - skill metadata parsing from `SKILL.md`
 - AI panel split between built-in shell actions and discovered filesystem skills
 - executor support for running discovered filesystem skills as generic instruction packs
-- targeted tests for skill parsing and config precedence
 
 ### Not included yet
 
