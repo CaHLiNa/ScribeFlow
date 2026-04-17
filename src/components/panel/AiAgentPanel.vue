@@ -190,6 +190,7 @@
 
 <script setup>
 import { computed, nextTick, onActivated, onMounted, ref, watch } from 'vue'
+import { invoke } from '@tauri-apps/api/core'
 import { useI18n } from '../../i18n'
 import { useAiStore } from '../../stores/ai'
 import { useFilesStore } from '../../stores/files'
@@ -202,7 +203,6 @@ import {
 } from '../../domains/ai/aiMentionRuntime.js'
 import { AI_PROVIDER_DEFINITIONS } from '../../services/ai/settings.js'
 import { pickAiAttachmentPaths } from '../../services/ai/attachmentStore.js'
-import { resolveEnabledAiTools, resolveRuntimeAiToolIds } from '../../services/ai/toolRegistry.js'
 import { IconPaperclip, IconArrowUp, IconPlayerStop } from '@tabler/icons-vue'
 import { useSurfaceContextMenu } from '../../composables/useSurfaceContextMenu'
 import UiButton from '../shared/ui/UiButton.vue'
@@ -240,6 +240,7 @@ aiStore.resetTransientRuntimeState()
 const threadRef = ref(null)
 const threadBottomRef = ref(null)
 const composerTextareaRef = ref(null)
+const enabledTools = ref([])
 const activeInvocationIndex = ref(0)
 const respondingPermissionRequestId = ref('')
 const respondingAskUserRequestId = ref('')
@@ -262,13 +263,6 @@ const providerOptions = AI_PROVIDER_DEFINITIONS.map((provider) => ({
   value: provider.id,
   label: provider.label,
 }))
-const enabledTools = computed(() =>
-  resolveEnabledAiTools(
-    resolveRuntimeAiToolIds(aiStore.enabledToolIds, {
-      runtimeIntent: 'agent',
-    })
-  )
-)
 
 const artifactsById = computed(() =>
   Object.fromEntries(artifacts.value.map((artifact) => [artifact.id, artifact]))
@@ -614,6 +608,16 @@ function scrollToBottom(behavior = 'auto') {
   })
 }
 
+async function refreshEnabledTools() {
+  const response = await invoke('ai_tool_catalog_resolve', {
+    params: {
+      enabledTools: aiStore.enabledToolIds,
+      runtimeIntent: 'agent',
+    },
+  })
+  enabledTools.value = Array.isArray(response?.runtimeTools) ? response.runtimeTools : []
+}
+
 async function hydrateWorkspaceSessions() {
   await aiStore.restoreWorkspaceSessions(workspace.path || '')
   void aiStore.ensureCodexRuntimeBridge()
@@ -621,6 +625,8 @@ async function hydrateWorkspaceSessions() {
 
 onMounted(() => {
   void hydrateWorkspaceSessions()
+  void refreshEnabledTools()
+  void aiStore.refreshBuiltInActions()
   void aiStore.refreshProviderState()
   void aiStore.refreshAltalsSkills()
   scrollToBottom('auto')
@@ -628,6 +634,8 @@ onMounted(() => {
 
 onActivated(() => {
   void hydrateWorkspaceSessions()
+  void refreshEnabledTools()
+  void aiStore.refreshBuiltInActions()
   void aiStore.refreshProviderState()
   void aiStore.refreshAltalsSkills()
   scrollToBottom('auto')
@@ -637,9 +645,19 @@ watch(
   () => [workspace.path, workspace.globalConfigDir],
   () => {
     void hydrateWorkspaceSessions()
+    void refreshEnabledTools()
+    void aiStore.refreshBuiltInActions()
     void aiStore.refreshAltalsSkills()
     void filesStore.ensureFlatFilesReady({ force: true }).catch(() => {})
   }
+)
+
+watch(
+  () => aiStore.enabledToolIds,
+  () => {
+    void refreshEnabledTools()
+  },
+  { deep: true }
 )
 
 watch(

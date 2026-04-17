@@ -14,6 +14,10 @@ import {
 
 export const REFERENCE_LIBRARY_FILENAME = 'library.json'
 
+function hasTauriInvoke() {
+  return typeof window !== 'undefined' && typeof window.__TAURI_INTERNALS__?.invoke === 'function'
+}
+
 export function resolveLegacyReferencesDataDir(workspaceDataDir = '') {
   const base = String(workspaceDataDir || '').trim().replace(/\/+$/, '')
   if (!base) return ''
@@ -92,6 +96,10 @@ export async function readOrCreateReferenceLibrarySnapshot(globalConfigDir = '',
     return buildDefaultReferenceLibrarySnapshot()
   }
 
+  if (!hasTauriInvoke()) {
+    return buildDefaultReferenceLibrarySnapshot()
+  }
+
   const backendSnapshot = await invoke('references_library_read_or_create', {
     params: {
       globalConfigDir,
@@ -121,6 +129,10 @@ export async function writeReferenceLibrarySnapshot(globalConfigDir = '', snapsh
   const normalizedSnapshot = normalizeReferenceLibrarySnapshot({
     ...snapshot,
   })
+
+  if (!hasTauriInvoke()) {
+    return normalizedSnapshot
+  }
 
   await invoke('references_library_write', {
     params: {

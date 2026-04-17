@@ -1,66 +1,40 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { readPdfPageTextContent } from '../src/services/references/pdfMetadata.js'
+import { extractPdfMetadata, extractTextFromPdf } from '../src/services/references/pdfMetadata.js'
 
-test('readPdfPageTextContent reads streamTextContent via getReader without async iterator support', async () => {
-  const chunks = [
-    {
-      lang: 'en',
-      styles: { heading: { fontWeight: '700' } },
-      items: [{ str: 'Hello' }],
-    },
-    {
-      styles: { body: { fontWeight: '400' } },
-      items: [{ str: 'World' }],
-    },
-  ]
-  let released = false
-
-  const textContent = await readPdfPageTextContent({
-    streamTextContent() {
-      let index = 0
+globalThis.window = globalThis.window || {}
+window.__TAURI_INTERNALS__ = {
+  invoke: async (command, args = {}) => {
+    if (command === 'references_pdf_extract_text') {
+      return `TEXT:${args.params?.filePath || ''}`
+    }
+    if (command === 'references_pdf_extract_metadata') {
       return {
-        getReader() {
-          return {
-            async read() {
-              if (index >= chunks.length) return { done: true, value: undefined }
-              const value = chunks[index]
-              index += 1
-              return { done: false, value }
-            },
-            releaseLock() {
-              released = true
-            },
-          }
+        firstText: 'Control Barrier Functions',
+        metadata: {
+          title: 'Control Barrier Functions',
+          author: 'Aaron D. Ames',
+          doi: '10.1109/TAC.2014.1234567',
+          year: 2014,
         },
       }
-    },
-    getTextContent() {
-      throw new Error('getTextContent fallback should not be used')
-    },
-  })
+    }
+    throw new Error(`Unexpected invoke command: ${command}`)
+  },
+}
 
-  assert.equal(textContent.lang, 'en')
-  assert.deepEqual(textContent.items, [{ str: 'Hello' }, { str: 'World' }])
-  assert.deepEqual({ ...textContent.styles }, {
-    heading: { fontWeight: '700' },
-    body: { fontWeight: '400' },
-  })
-  assert.equal(released, true)
+test('extractTextFromPdf routes through the Rust PDF extraction command', async () => {
+  const text = await extractTextFromPdf('/tmp/control.pdf')
+  assert.equal(text, 'TEXT:/tmp/control.pdf')
 })
 
-test('readPdfPageTextContent falls back to getTextContent when streamTextContent is unavailable', async () => {
-  const textContent = await readPdfPageTextContent({
-    async getTextContent() {
-      return {
-        items: [{ str: 'Fallback' }],
-        styles: { body: { fontWeight: '400' } },
-        lang: null,
-      }
-    },
-  })
+test('extractPdfMetadata routes through the Rust metadata command', async () => {
+  const result = await extractPdfMetadata('/tmp/control.pdf')
 
-  assert.deepEqual(textContent.items, [{ str: 'Fallback' }])
-  assert.deepEqual({ ...textContent.styles }, { body: { fontWeight: '400' } })
+  assert.equal(result.firstText, 'Control Barrier Functions')
+  assert.equal(result.metadata.title, 'Control Barrier Functions')
+  assert.equal(result.metadata.author, 'Aaron D. Ames')
+  assert.equal(result.metadata.doi, '10.1109/TAC.2014.1234567')
+  assert.equal(result.metadata.year, 2014)
 })

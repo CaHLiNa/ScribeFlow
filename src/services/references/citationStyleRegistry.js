@@ -69,13 +69,13 @@ export function citationStyleUsesFastPath(styleId = '') {
   return style.fast === true
 }
 
-export function getCitationFormatter(styleId = 'apa') {
+export async function getCitationFormatter(styleId = 'apa') {
   if (citationStyleUsesFastPath(styleId)) {
     return {
-      isAsync: false,
-      formatReference: (csl, number) => fastFormatReference(csl, styleId, number),
-      formatInlineCitation: (csl, number) => fastFormatInlineCitation(csl, styleId, number),
-      formatBibliography: (cslRecords) => fastFormatBibliography(cslRecords, styleId),
+      isAsync: true,
+      formatReference: async (csl, number) => fastFormatReference(csl, styleId, number),
+      formatInlineCitation: async (csl, number) => fastFormatInlineCitation(csl, styleId, number),
+      formatBibliography: async (cslRecords) => fastFormatBibliography(cslRecords, styleId),
     }
   }
 
@@ -97,7 +97,7 @@ export function getCitationFormatter(styleId = 'apa') {
 }
 
 export async function formatCitationWithStyle(styleId = 'apa', mode = 'reference', reference = {}, number) {
-  const formatter = getCitationFormatter(styleId)
+  const formatter = await getCitationFormatter(styleId)
   const csl = referenceRecordToCsl(reference)
 
   if (mode === 'inline') {
@@ -107,8 +107,7 @@ export async function formatCitationWithStyle(styleId = 'apa', mode = 'reference
 }
 
 export async function formatBibliographyWithStyle(styleId = 'apa', references = []) {
-  const formatter = getCitationFormatter(styleId)
+  const formatter = await getCitationFormatter(styleId)
   const cslRecords = references.map((reference) => referenceRecordToCsl(reference))
   return formatter.formatBibliography(cslRecords)
 }
-

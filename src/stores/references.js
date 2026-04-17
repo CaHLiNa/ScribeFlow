@@ -1,8 +1,8 @@
 import { defineStore, getActivePinia } from 'pinia'
+import { invoke } from '@tauri-apps/api/core'
 import { t } from '../i18n/index.js'
-import { formatCitation, formatCitationAsync } from '../services/references/citationFormatter.js'
+import { formatCitationAsync } from '../services/references/citationFormatter.js'
 import {
-  citationStyleUsesFastPath,
   getAvailableCitationStyles,
   getCitationStyleInfo,
   setUserCitationStyles,
@@ -27,7 +27,6 @@ import {
   importReferenceFromPdf,
   importReferencesFromText,
   mergeImportedReferences,
-  parseBibTeXText,
   parseReferenceImportText,
 } from '../services/references/bibtexImport.js'
 import { normalizeReferenceSearchTokens } from '../domains/references/referenceInterop.js'
@@ -386,8 +385,7 @@ export const useReferencesStore = defineStore('references', {
     },
 
     async importReferenceText(projectRoot = '', content = '', format = 'auto') {
-      const importedReferences =
-        format === 'bibtex' ? parseBibTeXText(content) : parseReferenceImportText(content, format)
+      const importedReferences = await parseReferenceImportText(content, format)
       const shouldMark = importedReferences.length > 0 ? await shouldMarkReferenceForZoteroPush() : false
       const markedReferences = shouldMark
         ? importedReferences.map((reference) => ({ ...reference, _shouldersPushPending: true }))
@@ -771,27 +769,19 @@ export const useReferencesStore = defineStore('references', {
       }
     },
 
-    exportBibTeX(referenceIds = []) {
+    async exportBibTeXAsync(referenceIds = []) {
       const references = Array.isArray(referenceIds) && referenceIds.length > 0
         ? referenceIds
             .map((referenceId) => this.references.find((reference) => reference.id === referenceId))
             .filter(Boolean)
         : this.references
-      return exportReferencesToBibTeX(references)
-    },
 
-    formatReferenceCitation(referenceId = '', mode = 'reference', number) {
-      const reference = this.references.find((candidate) => candidate.id === referenceId)
-      if (!reference) return ''
-      return formatCitation(this.citationStyle, mode, reference, number)
+      return exportReferencesToBibTeX(references)
     },
 
     async formatReferenceCitationAsync(referenceId = '', mode = 'reference', number) {
       const reference = this.references.find((candidate) => candidate.id === referenceId)
       if (!reference) return ''
-      if (citationStyleUsesFastPath(this.citationStyle)) {
-        return formatCitation(this.citationStyle, mode, reference, number)
-      }
       return formatCitationAsync(this.citationStyle, mode, reference, number)
     },
 

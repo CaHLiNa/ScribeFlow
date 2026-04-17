@@ -4,6 +4,42 @@ import { createPinia, setActivePinia } from 'pinia'
 
 import { useReferencesStore } from '../src/stores/references.js'
 
+globalThis.window = globalThis.window || {}
+window.__TAURI_INTERNALS__ = {
+  invoke: async (command, args = {}) => {
+    if (command === 'references_library_write') {
+      return args.params?.snapshot || null
+    }
+    if (command === 'references_export_bibtex') {
+      return `@article{ames2014,\n  title = {Control Barrier Functions},\n  doi = {10.1109/TAC.2014.1234567}\n}`
+    }
+    if (command === 'references_import_parse_text') {
+      return [
+        {
+          id: 'safe-control-2014',
+          citationKey: 'ames2014safecontrol',
+          typeKey: 'journal-article',
+          title: 'Safe Control',
+          authors: ['Aaron D. Ames'],
+          authorLine: 'Aaron D. Ames',
+          year: 2014,
+          source: 'TAC',
+          identifier: '10.1109/TAC.2014.1234567',
+          volume: '',
+          issue: '',
+          pages: '',
+          hasPdf: false,
+          collections: [],
+          tags: [],
+          abstract: '',
+          annotations: [],
+        },
+      ]
+    }
+    throw new Error(`Unexpected invoke command: ${command}`)
+  },
+}
+
 test('references store exposes the expected library section counts', () => {
   setActivePinia(createPinia())
   const store = useReferencesStore()
@@ -269,7 +305,7 @@ test('creating a collection appends a unique library collection entry', async ()
   assert.equal(duplicate?.key, created?.key)
 })
 
-test('references store exports BibTeX from current records', () => {
+test('references store exports BibTeX from current records', async () => {
   setActivePinia(createPinia())
   const store = useReferencesStore()
 
@@ -295,7 +331,7 @@ test('references store exports BibTeX from current records', () => {
     ],
   })
 
-  const bibtex = store.exportBibTeX()
+  const bibtex = await store.exportBibTeXAsync()
   assert.match(bibtex, /@article\{ames2014,/)
   assert.match(bibtex, /doi = \{10\.1109\/TAC\.2014\.1234567\}/)
 })

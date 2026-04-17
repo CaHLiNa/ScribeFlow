@@ -32,27 +32,81 @@ const REFERENCE = {
   pages: '123-130',
 }
 
-test('formatCitation formats APA inline citations from current reference records', () => {
-  assert.equal(formatCitation('apa', 'inline', REFERENCE), '(Ames & Grizzle, 2014)')
+function mockFormatReference(style = 'apa', mode = 'reference', reference = {}, number) {
+  const authors = Array.isArray(reference.authors) ? reference.authors : []
+  const year = reference.year || 'n.d.'
+  if (style === 'apa' && mode === 'inline') {
+    if (authors.length >= 2) {
+      const left = String(authors[0]).trim().split(/\s+/).at(-1)
+      const right = String(authors[1]).trim().split(/\s+/).at(-1)
+      return `(${left} & ${right}, ${year})`
+    }
+  }
+  if (style === 'ieee' && mode === 'bibliography') {
+    return `[${number || 1}] ${reference.title}`
+  }
+  if (style === 'ieee' && mode === 'reference') {
+    return `[${number || 1}] ${reference.title}`
+  }
+  if (mode === 'bibliography') {
+    return `${reference.title} (${year})`
+  }
+  return `${reference.title}`
+}
+
+globalThis.window = globalThis.window || {}
+window.__TAURI_INTERNALS__ = {
+  invoke: async (command, args = {}) => {
+    if (command === 'references_citation_format') {
+      return mockFormatReference(
+        args.params?.style,
+        args.params?.mode,
+        args.params?.reference,
+        args.params?.number
+      )
+    }
+    if (command === 'references_citation_bibliography') {
+      return (args.params?.references || [])
+        .map((reference, index) =>
+          mockFormatReference(args.params?.style, 'bibliography', reference, index + 1)
+        )
+        .join('\n\n')
+    }
+    if (command === 'references_citation_format_csl') {
+      const items = args.params?.cslItems || []
+      if (args.params?.mode === 'inline') return '(Ames & Grizzle, 2014)'
+      if (args.params?.mode === 'bibliography') {
+        return items
+          .map((item, index) => `[${index + 1}] ${item.title || ''}`.trim())
+          .join('\n\n')
+      }
+      return `[${args.params?.number || 1}] ${items[0]?.title || ''}`.trim()
+    }
+    throw new Error(`Unexpected invoke command: ${command}`)
+  },
+}
+
+test('formatCitation formats APA inline citations from current reference records', async () => {
+  assert.equal(await formatCitation('apa', 'inline', REFERENCE), '(Ames & Grizzle, 2014)')
 })
 
-test('formatCitation formats IEEE bibliography entries from current reference records', () => {
-  const value = formatCitation('ieee', 'bibliography', REFERENCE, 1)
+test('formatCitation formats IEEE bibliography entries from current reference records', async () => {
+  const value = await formatCitation('ieee', 'bibliography', REFERENCE, 1)
   assert.match(value, /^\[1\]/)
   assert.match(value, /Control Barrier Functions/)
 })
 
-test('formatBibliography joins multiple formatted references', () => {
-  const bibliography = formatBibliography('apa', [REFERENCE, { ...REFERENCE, id: 'ref-2', citationKey: 'ames2015', year: 2015 }])
+test('formatBibliography joins multiple formatted references', async () => {
+  const bibliography = await formatBibliography('apa', [REFERENCE, { ...REFERENCE, id: 'ref-2', citationKey: 'ames2015', year: 2015 }])
   assert.match(bibliography, /2014/)
   assert.match(bibliography, /2015/)
   assert.match(bibliography, /\n\n/)
 })
 
-test('fast formatter exports upstream-compatible helpers', () => {
+test('fast formatter exports upstream-compatible helpers', async () => {
   const csl = referenceRecordToCsl(REFERENCE)
-  assert.match(formatReference(csl, 'ieee', 3), /^\[3\]/)
-  assert.equal(formatInlineCitation(csl, 'apa'), '(Ames & Grizzle, 2014)')
+  assert.match(await formatReference(csl, 'ieee', 3), /^\[3\]/)
+  assert.equal(await formatInlineCitation(csl, 'apa'), '(Ames & Grizzle, 2014)')
 })
 
 test('citation style registry exposes built-in styles and fast-path info', () => {
@@ -69,11 +123,11 @@ test('citation style registry can register user styles', () => {
   setUserCitationStyles([])
 })
 
-test('registry returns sync formatter for fast-path styles', () => {
-  const formatter = getCitationFormatter('ieee')
+test('registry returns async formatter for fast-path styles', async () => {
+  const formatter = await getCitationFormatter('ieee')
   const csl = referenceRecordToCsl(REFERENCE)
-  assert.equal(formatter.isAsync, false)
-  assert.match(formatter.formatReference(csl, 2), /^\[2\]/)
+  assert.equal(formatter.isAsync, true)
+  assert.match(await formatter.formatReference(csl, 2), /^\[2\]/)
 })
 
 test('async fast-path formatting preserves current behavior', async () => {

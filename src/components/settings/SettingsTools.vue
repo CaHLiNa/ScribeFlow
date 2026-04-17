@@ -39,22 +39,18 @@
 
 <script setup>
 import { computed, onMounted, ref } from 'vue'
+import { invoke } from '@tauri-apps/api/core'
 import { useI18n } from '../../i18n'
 import { useToastStore } from '../../stores/toast'
 import { useAiStore } from '../../stores/ai'
 import UiSwitch from '../shared/ui/UiSwitch.vue'
 import { loadAiConfig, saveAiConfig } from '../../services/ai/settings.js'
-import {
-  AI_TOOL_DEFINITIONS,
-  getConfigurableAiTools,
-  normalizeEnabledAiToolIds,
-} from '../../services/ai/toolRegistry.js'
 
 const { t } = useI18n()
 const toastStore = useToastStore()
 const aiStore = useAiStore()
 
-const toolDefinitions = getConfigurableAiTools(AI_TOOL_DEFINITIONS)
+const toolDefinitions = ref([])
 const loadedConfig = ref(null)
 const enabledTools = ref([])
 const pageFeedback = ref('')
@@ -80,8 +76,19 @@ function normalizeErrorMessage(error, fallback = '') {
 async function loadState() {
   try {
     const config = await loadAiConfig()
+    const catalog = await invoke('ai_tool_catalog_resolve', {
+      params: {
+        enabledTools: config?.enabledTools || [],
+        runtimeIntent: 'agent',
+      },
+    })
     loadedConfig.value = config
-    enabledTools.value = normalizeEnabledAiToolIds(config?.enabledTools)
+    toolDefinitions.value = Array.isArray(catalog?.configurableTools)
+      ? catalog.configurableTools
+      : []
+    enabledTools.value = Array.isArray(catalog?.normalizedEnabledToolIds)
+      ? catalog.normalizedEnabledToolIds
+      : []
     pageFeedback.value = ''
   } catch (error) {
     const message = normalizeErrorMessage(error, t('Failed to load AI settings.'))
@@ -96,10 +103,18 @@ async function toggleTool(toolId = '', nextValue = false) {
   if (nextValue) next.add(toolId)
   else next.delete(toolId)
 
-  const nextEnabledTools = [...next]
-  enabledTools.value = nextEnabledTools
-
   try {
+    const catalog = await invoke('ai_tool_catalog_resolve', {
+      params: {
+        enabledTools: [...next],
+        runtimeIntent: 'agent',
+      },
+    })
+    const nextEnabledTools = Array.isArray(catalog?.normalizedEnabledToolIds)
+      ? catalog.normalizedEnabledToolIds
+      : []
+    enabledTools.value = nextEnabledTools
+
     const currentConfig = loadedConfig.value || (await loadAiConfig())
     const nextConfig = {
       ...currentConfig,

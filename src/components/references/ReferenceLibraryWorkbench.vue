@@ -173,13 +173,8 @@ import { useI18n } from '../../i18n'
 import { useReferencesStore } from '../../stores/references'
 import { useSurfaceContextMenu } from '../../composables/useSurfaceContextMenu.js'
 import { readWorkspaceTextFile, renameWorkspacePath } from '../../services/fileStoreIO'
-import {
-  mergeImportedReferences,
-  parseBibTeXText,
-} from '../../services/references/bibtexImport.js'
 import { cslToReferenceRecord } from '../../domains/references/referenceInterop.js'
 import { lookupByDoi, searchByMetadata } from '../../services/references/crossref.js'
-import { writeReferenceLibrarySnapshot } from '../../services/references/referenceLibraryIO.js'
 import ReferenceAddDialog from './ReferenceAddDialog.vue'
 import SurfaceContextMenu from '../shared/SurfaceContextMenu.vue'
 import UiButton from '../shared/ui/UiButton.vue'
@@ -257,9 +252,9 @@ function normalizeFilenameSegment(value = '', fallback = 'reference') {
   return normalized || fallback
 }
 
-function getReferenceBibTeX(reference = {}) {
+async function getReferenceBibTeX(reference = {}) {
   if (!reference?.id) return ''
-  return referencesStore.exportBibTeX([reference.id])
+  return referencesStore.exportBibTeXAsync([reference.id])
 }
 
 function getPdfRenameTarget(reference = {}, nextBaseName = '') {
@@ -426,7 +421,7 @@ async function handleRefreshReferenceMetadata(reference = {}) {
 }
 
 async function handleExportReferenceBibTeX(reference = {}) {
-  const content = getReferenceBibTeX(reference)
+  const content = await getReferenceBibTeX(reference)
   if (!content) return
 
   const target = await save({
@@ -476,7 +471,7 @@ async function handleDetailedExport(reference = {}) {
 
 async function handleCopyReferenceBibTeX(reference = {}) {
   try {
-    await copyTextToClipboard(getReferenceBibTeX(reference), t('Copied to clipboard'))
+    await copyTextToClipboard(await getReferenceBibTeX(reference), t('Copied to clipboard'))
   } catch (error) {
     toastStore.show(error?.message || t('Failed to copy citation'), {
       type: 'error',
@@ -598,9 +593,7 @@ async function handleImportBibTeX() {
   try {
     const content = await readWorkspaceTextFile(String(selected))
     const importedCount =
-      typeof referencesStore.importBibTeXContent === 'function'
-        ? await referencesStore.importBibTeXContent(workspace.globalConfigDir, content)
-        : await importBibTeXWithFallback(content)
+      await referencesStore.importBibTeXContent(workspace.globalConfigDir, content)
 
     uxStatusStore.success(
       importedCount > 0
@@ -650,7 +643,9 @@ async function handleImportPdf() {
 }
 
 async function handleExportBibTeX() {
-  const content = referencesStore.exportBibTeX(filteredReferences.value.map((reference) => reference.id))
+  const content = await referencesStore.exportBibTeXAsync(
+    filteredReferences.value.map((reference) => reference.id)
+  )
   const target = await save({
     title: t('Export BibTeX'),
     defaultPath: 'references.bib',
@@ -673,38 +668,6 @@ async function handleExportBibTeX() {
   }
 }
 
-async function importBibTeXWithFallback(content = '') {
-  const importedReferences = parseBibTeXText(content)
-  const mergedReferences = mergeImportedReferences(referencesStore.references, importedReferences)
-  const importedCount = Math.max(0, mergedReferences.length - referencesStore.references.length)
-
-  const snapshot = {
-    version: 2,
-    citationStyle: referencesStore.citationStyle,
-    collections: referencesStore.collections,
-    tags: referencesStore.tags,
-    references: mergedReferences,
-  }
-
-  await writeReferenceLibrarySnapshot(workspace.globalConfigDir, snapshot)
-
-  if (typeof referencesStore.applyLibrarySnapshot === 'function') {
-    referencesStore.applyLibrarySnapshot(snapshot)
-  } else {
-    referencesStore.references = snapshot.references
-    referencesStore.collections = snapshot.collections
-    referencesStore.tags = snapshot.tags
-  }
-
-  const importedSelection = mergedReferences.find((reference) =>
-    importedReferences.some((candidate) => candidate.id === reference.id)
-  )
-  if (importedSelection) {
-    referencesStore.selectedReferenceId = importedSelection.id
-  }
-
-  return importedCount
-}
 </script>
 
 <style scoped>

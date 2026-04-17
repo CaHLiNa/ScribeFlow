@@ -3,7 +3,12 @@ import {
   extnamePath,
   normalizeFsPath,
 } from '../../services/documentIntelligence/workspaceGraph.js'
-import { isDefaultAgentActionId } from '../../services/ai/builtInActions.js'
+
+const DEFAULT_AGENT_ACTION_ID = 'workspace-agent'
+
+function isDefaultAgentActionId(value = '') {
+  return String(value || '').trim().toLowerCase() === DEFAULT_AGENT_ACTION_ID
+}
 
 const EMPTY_SELECTION = Object.freeze({
   filePath: '',

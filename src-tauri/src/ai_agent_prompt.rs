@@ -2,23 +2,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::ai_skill_support::load_skill_supporting_files;
+use crate::ai_tool_catalog::{build_ai_tool_prompt_block, resolve_runtime_tool_ids};
 
 const DEFAULT_AGENT_ACTION_ID: &str = "workspace-agent";
-const ALWAYS_AVAILABLE_AI_TOOL_IDS: &[&str] = &[
-    "list-workspace-directory",
-    "search-workspace-files",
-    "read-workspace-file",
-    "read-active-document",
-    "read-editor-selection",
-    "read-selected-reference",
-    "create-workspace-file",
-    "write-workspace-file",
-    "open-workspace-file",
-    "apply-document-patch",
-    "open-note-draft",
-    "load-skill-support-files",
-];
-const CORE_WORKSPACE_AGENT_TOOL_IDS: &[&str] = ALWAYS_AVAILABLE_AI_TOOL_IDS;
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -73,92 +59,6 @@ fn bool_field(value: &Value, keys: &[&str]) -> bool {
     keys.iter()
         .find_map(|key| value.get(*key).and_then(|entry| entry.as_bool()))
         .unwrap_or(false)
-}
-
-fn normalize_enabled_tool_ids(enabled_tool_ids: &[String]) -> Vec<String> {
-    enabled_tool_ids
-        .iter()
-        .map(|entry| entry.trim().to_string())
-        .filter(|entry| !entry.is_empty())
-        .collect()
-}
-
-fn resolve_effective_tool_ids(enabled_tool_ids: &[String], runtime_intent: &str) -> Vec<String> {
-    let mut resolved = ALWAYS_AVAILABLE_AI_TOOL_IDS
-        .iter()
-        .map(|entry| entry.to_string())
-        .collect::<Vec<_>>();
-    for id in normalize_enabled_tool_ids(enabled_tool_ids) {
-        if !resolved.iter().any(|entry| entry == &id) {
-            resolved.push(id);
-        }
-    }
-    if runtime_intent.trim() == "agent" {
-        for id in CORE_WORKSPACE_AGENT_TOOL_IDS {
-            if !resolved.iter().any(|entry| entry == id) {
-                resolved.push((*id).to_string());
-            }
-        }
-    }
-    resolved
-}
-
-fn get_tool_definition(tool_id: &str) -> Option<(&'static str, &'static str)> {
-    match tool_id {
-        "list-workspace-directory" => Some((
-            "list_workspace_directory",
-            "List immediate files and folders inside a workspace directory.",
-        )),
-        "search-workspace-files" => Some((
-            "search_workspace_files",
-            "Search workspace files by path or filename.",
-        )),
-        "read-workspace-file" => Some((
-            "read_workspace_file",
-            "Read any text file from the current workspace.",
-        )),
-        "read-active-document" => Some((
-            "read_active_document",
-            "Read the current open draft as workspace context.",
-        )),
-        "read-editor-selection" => Some((
-            "read_editor_selection",
-            "Read the current text selection from the active editor.",
-        )),
-        "read-selected-reference" => Some((
-            "read_selected_reference",
-            "Read the currently selected reference metadata and citation identity.",
-        )),
-        "create-workspace-file" => Some((
-            "create_workspace_file",
-            "Create a new text file inside the current workspace and open it in the editor.",
-        )),
-        "write-workspace-file" => Some((
-            "write_workspace_file",
-            "Write text content to a workspace file and optionally open it in the editor.",
-        )),
-        "open-workspace-file" => Some((
-            "open_workspace_file",
-            "Open an existing workspace file in the editor.",
-        )),
-        "delete-workspace-path" => Some((
-            "delete_workspace_path",
-            "Delete a file or folder inside the current workspace.",
-        )),
-        "apply-document-patch" => Some((
-            "apply_document_patch",
-            "Write a replacement patch back into the active draft selection.",
-        )),
-        "open-note-draft" => Some((
-            "open_note_draft",
-            "Create and open a markdown draft from AI output.",
-        )),
-        "load-skill-support-files" => Some((
-            "load_skill_support_files",
-            "Load text support files that live alongside a discovered SKILL.md package.",
-        )),
-        _ => None,
-    }
 }
 
 fn is_default_agent_action_id(id: &str) -> bool {
@@ -457,17 +357,7 @@ fn build_available_skills_block(altals_skills: &[Value]) -> String {
 }
 
 fn build_available_tools_block(enabled_tool_ids: &[String], runtime_intent: &str) -> String {
-    let tools = resolve_effective_tool_ids(enabled_tool_ids, runtime_intent);
-    if tools.is_empty() {
-        return "Available tools: none.".to_string();
-    }
-    let mut lines = vec!["Available tools in this Altals runtime:".to_string()];
-    for tool in tools {
-        if let Some((label, description)) = get_tool_definition(&tool) {
-            lines.push(format!("- {label}: {description}"));
-        }
-    }
-    lines.join("\n")
+    build_ai_tool_prompt_block(enabled_tool_ids, runtime_intent)
 }
 
 fn build_skill_support_prompt_block(files: &[Value]) -> String {
@@ -708,7 +598,7 @@ pub async fn ai_agent_build_prompt(
         user_prompt,
         behavior_id,
         structured,
-        enabled_tool_ids: resolve_effective_tool_ids(
+        enabled_tool_ids: resolve_runtime_tool_ids(
             &params.enabled_tool_ids,
             &params.runtime_intent,
         ),

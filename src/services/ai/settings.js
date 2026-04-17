@@ -1,11 +1,11 @@
 import { invoke } from '@tauri-apps/api/core'
-import { AI_TOOL_IDS, normalizeEnabledAiToolIds } from './toolRegistry.js'
 import { normalizeAnthropicSdkConfig } from './runtime/anthropicSdkPolicy.js'
 
 const AI_CONFIG_VERSION = 5
 const LEGACY_AI_KEYCHAIN_KEY = 'ai-api-key'
 const LEGACY_AI_LOCAL_STORAGE_KEY = 'aiApiKey'
 const DEFAULT_TEMPERATURE = 0.2
+const CONFIGURABLE_AI_TOOL_IDS = Object.freeze(['delete-workspace-path'])
 
 export const AI_PROVIDER_DEFINITIONS = Object.freeze([
   {
@@ -112,6 +112,18 @@ function normalizeStringMap(record = null) {
   )
 }
 
+function normalizeEnabledAiToolIds(value = undefined) {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  const normalized = value
+    .map((item) => String(item || '').trim())
+    .filter((item) => CONFIGURABLE_AI_TOOL_IDS.includes(item))
+
+  return [...new Set(normalized)]
+}
+
 function sanitizePublicAiConfig(config = null) {
   if (!config || typeof config !== 'object') return null
   const next = {
@@ -129,37 +141,6 @@ function sanitizePublicAiConfig(config = null) {
   }
 
   return next
-}
-
-async function getGlobalConfigDir() {
-  return invoke('get_global_config_dir')
-}
-
-function resolveConfigPath(globalConfigDir = '') {
-  return `${String(globalConfigDir || '').replace(/\/+$/, '')}/ai.json`
-}
-
-async function readAiConfigRaw(globalConfigDir = null) {
-  try {
-    const resolvedDir = globalConfigDir || await getGlobalConfigDir()
-    const content = await invoke('read_file', { path: resolveConfigPath(resolvedDir) })
-    return JSON.parse(content)
-  } catch {
-    return null
-  }
-}
-
-async function writeAiConfigRaw(config = null, globalConfigDir = null) {
-  const resolvedDir = globalConfigDir || await getGlobalConfigDir()
-  const path = resolveConfigPath(resolvedDir)
-  if (!config) {
-    await invoke('delete_path', { path }).catch(() => {})
-    return
-  }
-  await invoke('write_file', {
-    path,
-    content: JSON.stringify(config, null, 2),
-  })
 }
 
 function buildDefaultProviderConfig(providerId = 'openai') {
@@ -352,7 +333,7 @@ async function persistAiCredentialFallback(
   apiKey = '',
   credentialStorage = ''
 ) {
-  const rawConfig = normalizeAiConfig(await readAiConfigRaw())
+  const rawConfig = await invoke('ai_config_load_internal')
   const nextFallbacks = { ...rawConfig._apiKeyFallbacks }
   const nextStorage = { ...rawConfig._credentialStorage }
   const normalizedProviderId = normalizeAiProviderId(providerId)
@@ -366,13 +347,15 @@ async function persistAiCredentialFallback(
     delete nextStorage[normalizedProviderId]
   }
 
-  await writeAiConfigRaw({
-    version: AI_CONFIG_VERSION,
-    currentProviderId: rawConfig.currentProviderId,
-    enabledTools: rawConfig.enabledTools,
-    providers: rawConfig.providers,
-    _apiKeyFallbacks: nextFallbacks,
-    _credentialStorage: nextStorage,
+  await invoke('ai_config_save_internal', {
+    config: {
+      version: AI_CONFIG_VERSION,
+      currentProviderId: rawConfig.currentProviderId,
+      enabledTools: rawConfig.enabledTools,
+      providers: rawConfig.providers,
+      _apiKeyFallbacks: nextFallbacks,
+      _credentialStorage: nextStorage,
+    },
   })
 }
 
@@ -416,7 +399,7 @@ export async function loadAiApiKey(providerId = 'openai') {
     if (migratedLegacyValue) return migratedLegacyValue
   }
 
-  const rawConfig = normalizeAiConfig(await readAiConfigRaw())
+  const rawConfig = await invoke('ai_config_load_internal')
   const fileFallback = String(rawConfig._apiKeyFallbacks?.[normalizedProviderId] || '').trim()
   if (fileFallback) return fileFallback
 
@@ -452,26 +435,18 @@ export async function clearAiApiKey(providerId = 'openai') {
 }
 
 export async function loadAiConfig() {
-  const normalized = normalizeAiConfig(await readAiConfigRaw())
-  return sanitizePublicAiConfig(normalized) || createDefaultAiConfig()
+  return invoke('ai_config_load')
 }
 
 export async function saveAiConfig(config = null) {
   if (!config) {
-    await writeAiConfigRaw(null)
+    await invoke('ai_config_save', {
+      config: createDefaultAiConfig(),
+    })
     return
   }
-
-  const rawConfig = normalizeAiConfig(await readAiConfigRaw())
-  const sanitizedConfig = sanitizePublicAiConfig(config) || createDefaultAiConfig()
-
-  await writeAiConfigRaw({
-    version: AI_CONFIG_VERSION,
-    currentProviderId: sanitizedConfig.currentProviderId,
-    enabledTools: sanitizedConfig.enabledTools,
-    providers: sanitizedConfig.providers,
-    _apiKeyFallbacks: rawConfig._apiKeyFallbacks,
-    _credentialStorage: rawConfig._credentialStorage,
+  await invoke('ai_config_save', {
+    config: sanitizePublicAiConfig(config) || createDefaultAiConfig(),
   })
 }
 

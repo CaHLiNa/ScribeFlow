@@ -51,7 +51,7 @@ test('normalizeAiConfig migrates the legacy single-provider shape into the multi
   assert.equal(config.providers.openai.model, 'gpt-5')
   assert.equal(config._apiKeyFallbacks.openai, 'sk-legacy')
   assert.equal(config._credentialStorage.openai, 'mirrored-file-fallback')
-  assert.ok(config.enabledTools.length > 0)
+  assert.deepEqual(config.enabledTools, [])
 })
 
 test('normalizeAiConfig only preserves configurable risky tools from stored config', () => {

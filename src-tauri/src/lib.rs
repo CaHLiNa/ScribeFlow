@@ -1,10 +1,16 @@
+mod ai_action_catalog;
 mod ai_agent_execute;
 mod ai_agent_prepare;
 mod ai_agent_prompt;
 mod ai_agent_run;
+mod ai_agent_session_runtime;
+mod ai_config;
+mod ai_runtime_session_rail;
+mod ai_runtime_thread_client;
 mod ai_runtime;
 mod ai_session_storage;
 mod ai_skill_support;
+mod ai_tool_catalog;
 mod app_dirs;
 mod codex_runtime;
 mod fs_commands;
@@ -16,6 +22,9 @@ mod latex_tools;
 mod network;
 mod process_utils;
 mod references_backend;
+mod references_citation;
+mod references_import;
+mod references_pdf;
 mod references_zotero;
 mod security;
 mod workspace_access;
@@ -438,6 +447,20 @@ pub fn run() {
             ai_agent_prompt::ai_agent_build_prompt,
             ai_agent_execute::ai_agent_execute,
             ai_agent_run::ai_agent_run,
+            ai_agent_session_runtime::ai_agent_session_start,
+            ai_agent_session_runtime::ai_agent_session_apply_event,
+            ai_agent_session_runtime::ai_agent_session_complete,
+            ai_agent_session_runtime::ai_agent_session_fail,
+            ai_agent_session_runtime::ai_agent_session_finalize,
+            ai_agent_session_runtime::ai_agent_tool_events_merge,
+            ai_action_catalog::ai_action_catalog_list,
+            ai_config::ai_config_load,
+            ai_config::ai_config_load_internal,
+            ai_config::ai_config_save,
+            ai_config::ai_config_save_internal,
+            ai_runtime_session_rail::ai_runtime_session_rail_reconcile,
+            ai_runtime_thread_client::ai_runtime_thread_snapshot_to_session,
+            ai_tool_catalog::ai_tool_catalog_resolve,
             ai_session_storage::ai_session_overlay_load,
             ai_session_storage::ai_session_overlay_save,
             ai_session_storage::ai_session_overlay_restore,
@@ -472,6 +495,17 @@ pub fn run() {
             references_backend::references_library_read_or_create,
             references_backend::references_library_write,
             references_backend::references_asset_store,
+            references_citation::references_citation_format,
+            references_citation::references_citation_bibliography,
+            references_citation::references_citation_format_csl,
+            references_import::references_crossref_lookup_by_doi,
+            references_import::references_crossref_search_by_metadata,
+            references_import::references_import_parse_text,
+            references_import::references_import_detect_format,
+            references_import::references_import_from_text,
+            references_import::references_export_bibtex,
+            references_pdf::references_pdf_extract_text,
+            references_pdf::references_pdf_extract_metadata,
             references_zotero::references_zotero_config_load,
             references_zotero::references_zotero_config_save,
             references_zotero::references_zotero_validate_api_key,

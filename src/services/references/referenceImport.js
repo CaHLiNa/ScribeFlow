@@ -1,6 +1,5 @@
 import { cslToReferenceRecord } from '../../domains/references/referenceInterop.js'
-import { parseBibtex } from '../../utils/bibtexParser.js'
-import { parseRis } from '../../utils/risParser.js'
+import { invoke } from '@tauri-apps/api/core'
 import { lookupByDoi, searchByMetadata } from './crossref.js'
 import { extractPdfMetadata } from './pdfMetadata.js'
 
@@ -26,66 +25,75 @@ function titleSimilarity(left = '', right = '') {
   return union.size === 0 ? 0 : intersection.size / union.size
 }
 
-function isJsonContent(content = '') {
-  const trimmed = String(content || '').trim()
-  return trimmed.startsWith('{') || trimmed.startsWith('[')
+function requireTauriInvoke() {
+  if (typeof window === 'undefined' || typeof window.__TAURI_INTERNALS__?.invoke !== 'function') {
+    throw new Error('Tauri invoke is required for reference import.')
+  }
 }
 
-export function parseBibTeXText(content = '') {
-  return parseBibtex(content).map((item) => cslToReferenceRecord(item))
+export async function parseBibTeXText(content = '') {
+  requireTauriInvoke()
+  const parsed = await invoke('references_import_parse_text', {
+    params: {
+      content,
+      format: 'bibtex',
+    },
+  })
+  return Array.isArray(parsed) ? parsed : []
 }
 
-export function parseRisText(content = '') {
-  return parseRis(content).map((item) => cslToReferenceRecord(item))
+export async function parseRisText(content = '') {
+  requireTauriInvoke()
+  const parsed = await invoke('references_import_parse_text', {
+    params: {
+      content,
+      format: 'ris',
+    },
+  })
+  return Array.isArray(parsed) ? parsed : []
 }
 
-export function parseCSLJSONText(content = '') {
-  const trimmed = String(content || '').trim()
-  if (!trimmed) return []
-
-  const parsed = JSON.parse(trimmed)
-  const items = Array.isArray(parsed) ? parsed : Array.isArray(parsed.items) ? parsed.items : [parsed]
-  return items.map((item) => cslToReferenceRecord(item))
+export async function parseCSLJSONText(content = '') {
+  requireTauriInvoke()
+  const parsed = await invoke('references_import_parse_text', {
+    params: {
+      content,
+      format: 'csl-json',
+    },
+  })
+  return Array.isArray(parsed) ? parsed : []
 }
 
-export function detectReferenceImportFormat(content = '') {
-  const trimmed = String(content || '').trim()
-  if (!trimmed) return 'unknown'
-  if (/^@\w+\s*\{/m.test(trimmed)) return 'bibtex'
-  if (/^TY\s{2}-/m.test(trimmed)) return 'ris'
-  if (isJsonContent(trimmed)) return 'csl-json'
-  return 'unknown'
+export async function detectReferenceImportFormat(content = '') {
+  requireTauriInvoke()
+  return invoke('references_import_detect_format', {
+    params: {
+      content,
+    },
+  })
 }
 
-export function parseReferenceImportText(content = '', format = 'auto') {
-  const normalizedFormat = format === 'auto' ? detectReferenceImportFormat(content) : format
-  if (normalizedFormat === 'bibtex') return parseBibTeXText(content)
-  if (normalizedFormat === 'ris') return parseRisText(content)
-  if (normalizedFormat === 'csl-json') return parseCSLJSONText(content)
-  return []
+export async function parseReferenceImportText(content = '', format = 'auto') {
+  requireTauriInvoke()
+  const parsed = await invoke('references_import_parse_text', {
+    params: {
+      content,
+      format,
+    },
+  })
+  return Array.isArray(parsed) ? parsed : []
 }
 
 export async function importReferencesFromText(content = '') {
   const trimmed = String(content || '').trim()
   if (!trimmed) return []
-
-  if (/^(https?:\/\/doi\.org\/)?10\.\d{4,}/i.test(trimmed) && !trimmed.includes('\n')) {
-    const doiMatch = await lookupByDoi(trimmed)
-    return doiMatch ? [cslToReferenceRecord(doiMatch)] : []
-  }
-
-  const parsed = parseReferenceImportText(trimmed, 'auto')
-  if (parsed.length > 0) return parsed
-
-  const lines = trimmed.split('\n').map((line) => line.trim()).filter(Boolean)
-  const doiLines = lines.filter((line) => /^(https?:\/\/doi\.org\/)?10\.\d{4,}/i.test(line))
-  if (doiLines.length > 1 && doiLines.length === lines.length) {
-    const resolved = await Promise.all(doiLines.map((doi) => lookupByDoi(doi)))
-    return resolved.filter(Boolean).map((item) => cslToReferenceRecord(item))
-  }
-
-  const match = await searchByMetadata(trimmed, '', null)
-  return match?.csl ? [cslToReferenceRecord(match.csl)] : []
+  const imported = await invoke('references_import_from_text', {
+    params: {
+      content: trimmed,
+      format: 'auto',
+    },
+  })
+  return Array.isArray(imported) ? imported : []
 }
 
 export async function importReferenceFromPdf(filePath = '') {

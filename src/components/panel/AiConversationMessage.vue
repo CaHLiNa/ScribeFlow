@@ -108,7 +108,6 @@
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n, formatDate } from '../../i18n'
-import { isDefaultAgentActionId } from '../../services/ai/builtInActions.js'
 import {
   getAiArtifactCapability,
   canApplyAiArtifact,
@@ -126,6 +125,12 @@ const props = defineProps({
 })
 
 defineEmits(['apply-artifact'])
+
+const DEFAULT_AGENT_ACTION_ID = 'workspace-agent'
+
+function isDefaultAgentActionId(value = '') {
+  return String(value || '').trim().toLowerCase() === DEFAULT_AGENT_ACTION_ID
+}
 
 const { t } = useI18n()
 const displayedTextMap = ref({})
