@@ -5,6 +5,7 @@ import { open } from '@tauri-apps/plugin-dialog'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useFilesStore } from '../../stores/files'
 import { useEditorStore } from '../../stores/editor'
+import { useEditorRuntimeStore } from '../../stores/editorRuntime'
 import { useLinksStore } from '../../stores/links'
 import { useLatexStore } from '../../stores/latex'
 import { useReferencesStore } from '../../stores/references'
@@ -28,6 +29,7 @@ export function useWorkspaceLifecycle() {
   const workspace = useWorkspaceStore()
   const filesStore = useFilesStore()
   const editorStore = useEditorStore()
+  const editorRuntimeStore = useEditorRuntimeStore()
   const linksStore = useLinksStore()
   const latexStore = useLatexStore()
   const referencesStore = useReferencesStore()
@@ -250,6 +252,9 @@ export function useWorkspaceLifecycle() {
 
     await editorStore.saveEditorStateImmediate()
     editorStore.cleanup()
+    await editorRuntimeStore.stopNativeSession().catch((error) => {
+      console.warn('[workspace] failed to stop native editor session:', error)
+    })
     filesStore.cleanup()
     linksStore.cleanup()
     latexStore.cleanup()

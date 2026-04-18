@@ -1,5 +1,9 @@
 <template>
-  <div class="right-shell-sidebar" data-surface-context-guard="true">
+  <div
+    class="right-shell-sidebar"
+    :class="{ 'right-shell-sidebar--ai': workspace.rightSidebarPanel === 'ai' }"
+    data-surface-context-guard="true"
+  >
     <KeepAlive :max="2">
       <AiAgentPanel
         v-if="workspace.rightSidebarOpen && workspace.rightSidebarPanel === 'ai'"
@@ -63,7 +67,7 @@ watch(
   position: relative;
   height: 100%;
   min-height: 0;
-  padding: 20px 8px 8px;
+  padding: 42px 8px 8px;
   background: var(
     --sidebar-shell-surface,
     color-mix(in srgb, var(--panel-surface) 56%, transparent)
@@ -71,6 +75,10 @@ watch(
   box-shadow: none;
   backdrop-filter: blur(var(--sidebar-shell-blur, 18px))
     saturate(var(--sidebar-shell-saturate, 1.08));
+}
+
+.right-shell-sidebar--ai {
+  padding-top: 18px;
 }
 
 .right-shell-pane {

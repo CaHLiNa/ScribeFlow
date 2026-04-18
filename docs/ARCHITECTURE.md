@@ -113,8 +113,12 @@ The backend module list in `src-tauri/src/lib.rs` currently centers on file acce
 The Rust backend is also the landing zone for the future native editor migration:
 
 - `src-tauri/crates/altals-editor-core` is the first backend-agnostic editor-core crate for buffer, selection, transaction, and viewport math
+- `src-tauri/src/native_editor_runtime.rs` is the stateful Tauri-side session owner for the helper process and should progressively absorb helper session state instead of leaving that responsibility in frontend stores
+- save and persistence paths should increasingly materialize current document text from Rust-owned session state instead of relying on frontend in-memory mirrors
 - future native editor host and bridge crates should live under `src-tauri/crates/*`, not inside the Vue shell
 - editor workflow policy should continue to stay above the core, while low-level text mechanics move into Rust over time
+
+During migration, do not add user-facing experimental editor controls or placeholder editor surfaces unless explicitly approved. The default direction is backend-first replacement with hidden protocol seams until final cutover is ready.
 
 Future backend seams for reader helpers, reference tooling, local model runners, or translation execution should remain typed desktop integrations instead of ad hoc UI-owned process launching.
 

@@ -62,7 +62,6 @@ const statusLabel = computed(() => {
 .ai-tool-line {
   background: transparent;
   border: none;
-  font-family: var(--font-mono);
 }
 
 .ai-tool-line__summary {
@@ -70,12 +69,12 @@ const statusLabel = computed(() => {
   align-items: center;
   gap: 6px;
   min-width: 0;
-  padding: 4px 6px;
+  padding: 3px 0;
   list-style: none;
   cursor: pointer;
   font-size: 11px;
   color: var(--text-secondary);
-  opacity: 0.8;
+  opacity: 0.76;
   transition: opacity 0.2s ease;
 }
 .ai-tool-line__summary:hover {
@@ -92,8 +91,8 @@ const statusLabel = computed(() => {
 
 .ai-tool-line__dot {
   flex: 0 0 auto;
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
   border-radius: 999px;
   background: var(--text-tertiary);
 }
@@ -101,7 +100,7 @@ const statusLabel = computed(() => {
 .ai-tool-line__label {
   flex: 0 1 auto;
   font-weight: 600;
-  color: var(--text-primary);
+  color: color-mix(in srgb, var(--text-primary) 86%, var(--text-secondary) 14%);
 }
 
 .ai-tool-line__context {
@@ -115,20 +114,20 @@ const statusLabel = computed(() => {
 
 .ai-tool-line__status {
   flex: 0 0 auto;
-  font-size: 11px;
+  font-size: 10px;
   color: var(--text-tertiary);
 }
 
 .ai-tool-line__detail {
   display: grid;
-  gap: 8px;
-  padding: 0 10px 10px 25px;
+  gap: 6px;
+  padding: 0 0 8px 16px;
 }
 
 .ai-tool-line__detail-copy,
 .ai-tool-line__payload {
-  font-size: 12px;
-  line-height: 1.55;
+  font-size: 11px;
+  line-height: 1.5;
   color: var(--text-secondary);
   white-space: pre-wrap;
   word-break: break-word;
@@ -136,15 +135,16 @@ const statusLabel = computed(() => {
 
 .ai-tool-line__payload {
   margin: 0;
-  padding: 8px 10px;
-  border-radius: 10px;
+  padding: 7px 9px;
+  border-radius: 8px;
+  font-family: var(--font-mono);
   background: color-mix(in srgb, var(--surface-base) 88%, transparent);
   border: 1px solid color-mix(in srgb, var(--border-color) 68%, transparent);
 }
 
 .ai-tool-line.is-running .ai-tool-line__dot {
   background: var(--warning);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--warning) 16%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--warning) 14%, transparent);
   animation: ai-tool-line-pulse 1.4s ease-out infinite;
 }
 

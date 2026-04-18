@@ -12,6 +12,9 @@ This doc tracks repository operations that keep the desktop app and its review w
 - build the frontend: `npm run build`
 - build the Rust backend directly: `cargo build --manifest-path src-tauri/Cargo.toml`
 - build the experimental native editor helper: `cargo build --manifest-path src-tauri/Cargo.toml -p altals-native-editor-app`
+- run the experimental native editor helper protocol directly: `src-tauri/target/debug/altals-native-editor-app`
+- query the current helper-backed native editor session snapshot from Tauri: call `native_editor_session_state`
+- query a specific helper-backed document snapshot from Tauri: call `native_editor_document_state`
 
 ### Typical local flow
 
@@ -20,6 +23,13 @@ This doc tracks repository operations that keep the desktop app and its review w
 3. make the smallest relevant code change
 4. run targeted tests for the touched slice
 5. run broader checks such as `npm run build` when the slice affects meaningful frontend or integration behavior
+
+For the native editor migration, prefer backend-only progress slices:
+
+- move buffer, selection, viewport, and transaction mechanics into `altals-editor-core`
+- move helper session state ownership into `src-tauri/src/native_editor_runtime.rs`
+- move save-time document materialization toward `native_editor_document_state` instead of frontend-only file content caches
+- avoid reintroducing user-visible experimental settings or placeholder editor panes while the replacement is still backend-first
 
 ## Environment-dependent operations
 

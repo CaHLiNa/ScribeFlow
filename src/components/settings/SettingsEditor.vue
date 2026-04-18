@@ -123,130 +123,12 @@
       </div>
     </section>
 
-    <section v-if="showExperimentalEditorSection" class="settings-group">
-      <h4 class="settings-group-title">{{ t('Experimental') }}</h4>
-      <div class="settings-group-body">
-        <div class="settings-row">
-          <div class="settings-row-copy">
-            <div class="settings-row-title">{{ t('Editor runtime') }}</div>
-            <div class="settings-row-description">
-              {{
-                t(
-                  'Web keeps the current editor. Native experimental replaces the in-workbench text surface with the experimental Rust-native runtime placeholder.'
-                )
-              }}
-            </div>
-          </div>
-          <div class="settings-row-control">
-            <div class="settings-segmented">
-              <button
-                v-for="option in runtimeModeOptions"
-                :key="option.value"
-                type="button"
-                class="settings-segmented-btn"
-                :class="{ 'is-active': editorRuntimeStore.mode === option.value }"
-                @click="editorRuntimeStore.setMode(option.value)"
-              >
-                {{ t(option.label) }}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div class="settings-row">
-          <div class="settings-row-copy">
-            <div class="settings-row-title">{{ t('Native editor shadow mode') }}</div>
-            <div class="settings-row-description">
-              {{
-                t(
-                  'Mirror the active text document into the experimental Rust-native editor helper for smoke testing.'
-                )
-              }}
-            </div>
-          </div>
-          <div class="settings-row-control compact">
-            <UiSwitch
-              :model-value="editorRuntimeStore.shadowMode"
-              @update:model-value="editorRuntimeStore.setShadowMode($event)"
-            />
-          </div>
-        </div>
-
-        <div class="settings-debug-card">
-          <div class="settings-debug-grid">
-            <div class="settings-debug-item">
-              <div class="settings-debug-label">{{ t('Helper status') }}</div>
-              <div
-                class="settings-debug-value"
-                :class="{ 'is-active': editorRuntimeStore.nativeRuntimeConnected }"
-              >
-                {{ runtimeStatusLabel }}
-              </div>
-            </div>
-
-            <div class="settings-debug-item">
-              <div class="settings-debug-label">{{ t('Session') }}</div>
-              <div class="settings-debug-mono">
-                {{ editorRuntimeStore.lastNativeSessionId || t('Not started') }}
-              </div>
-            </div>
-
-            <div class="settings-debug-item">
-              <div class="settings-debug-label">{{ t('Native events') }}</div>
-              <div class="settings-debug-mono">{{ editorRuntimeStore.nativeRuntimeEventCount }}</div>
-            </div>
-
-            <div class="settings-debug-item">
-              <div class="settings-debug-label">{{ t('Shadow mode') }}</div>
-              <div class="settings-debug-value" :class="{ 'is-active': editorRuntimeStore.shadowMode }">
-                {{ editorRuntimeStore.shadowMode ? t('Enabled') : t('Disabled') }}
-              </div>
-            </div>
-          </div>
-
-          <div class="settings-debug-section">
-            <div class="settings-debug-label">{{ t('Latest native event') }}</div>
-            <div v-if="latestNativeEvent" class="settings-debug-event">
-              <div class="settings-debug-event-head">
-                <span class="settings-debug-pill">{{ latestNativeEvent.kind || t('Unknown') }}</span>
-                <span class="settings-debug-muted">{{ latestNativeEvent.ts }}</span>
-              </div>
-              <div class="settings-debug-event-body">
-                {{ formatNativeEvent(latestNativeEvent) }}
-              </div>
-            </div>
-            <div v-else class="settings-debug-empty">
-              {{ t('No native editor events yet.') }}
-            </div>
-          </div>
-
-          <div class="settings-debug-section">
-            <div class="settings-debug-label">{{ t('Recent native events') }}</div>
-            <div v-if="recentNativeEvents.length" class="settings-debug-list">
-              <div
-                v-for="event in recentNativeEvents"
-                :key="`${event.ts}:${event.kind}:${event.path || ''}`"
-                class="settings-debug-list-item"
-              >
-                <span class="settings-debug-pill">{{ event.kind || t('Unknown') }}</span>
-                <span class="settings-debug-list-copy">{{ formatNativeEvent(event) }}</span>
-              </div>
-            </div>
-            <div v-else class="settings-debug-empty">
-              {{ t('Open a text file with shadow mode enabled to populate this list.') }}
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useLatexStore } from '../../stores/latex'
-import { useEditorRuntimeStore, EDITOR_RUNTIME_MODES } from '../../stores/editorRuntime'
 import { EDITOR_FONT_SIZE_PRESETS } from '../../services/workspacePreferences'
 import { useI18n } from '../../i18n'
 import UiSwitch from '../shared/ui/UiSwitch.vue'
@@ -254,20 +136,7 @@ import UiSelect from '../shared/ui/UiSelect.vue'
 
 const workspace = useWorkspaceStore()
 const latexStore = useLatexStore()
-const editorRuntimeStore = useEditorRuntimeStore()
 const { t } = useI18n()
-const showExperimentalEditorSection = computed(
-  () => typeof window !== 'undefined' && !!window.__TAURI_INTERNALS__
-)
-const runtimeStatusLabel = computed(() => {
-  if (editorRuntimeStore.nativeRuntimeConnected) return t('Connected')
-  if (editorRuntimeStore.shadowMode) return t('Starting or idle')
-  return t('Off')
-})
-const latestNativeEvent = computed(() => editorRuntimeStore.lastNativeRuntimeEvent || null)
-const recentNativeEvents = computed(() =>
-  [...editorRuntimeStore.recentNativeRuntimeEvents].slice(-5).reverse()
-)
 
 const proseFonts = [
   { value: 'inter', labelKey: 'Sans' },
@@ -286,57 +155,6 @@ const WRAP_PRESETS = [
   { value: 100, labelKey: '100 ch' },
   { value: 120, labelKey: '120 ch' },
 ]
-const runtimeModeOptions = [
-  { value: EDITOR_RUNTIME_MODES.WEB, label: 'Web' },
-  { value: EDITOR_RUNTIME_MODES.NATIVE_EXPERIMENTAL, label: 'Native experimental' },
-]
-
-function formatNativeEvent(event = {}) {
-  const kind = String(event.kind || '').trim()
-  const path = String(event.path || '').trim()
-  const reason = String(event.reason || '').trim()
-  const message = String(event.message || '').trim()
-  const textLength = Number(event.textLength ?? -1)
-
-  if (kind === 'documentOpened') {
-    return path
-      ? t('Opened {path} ({count} chars)', {
-          path,
-          count: Number.isFinite(textLength) && textLength >= 0 ? textLength : 0,
-        })
-      : t('Document opened')
-  }
-
-  if (kind === 'contentChanged') {
-    return path
-      ? t('Updated {path} via {reason} ({count} chars)', {
-          path,
-          reason: reason || t('unknown'),
-          count: Number.isFinite(textLength) && textLength >= 0 ? textLength : 0,
-        })
-      : t('Document content changed')
-  }
-
-  if (kind === 'ready') {
-    return t('Helper signaled ready')
-  }
-
-  if (kind === 'pong') {
-    return t('Helper responded to health check')
-  }
-
-  if (kind === 'stopped') {
-    return t('Helper stopped cleanly')
-  }
-
-  if (kind === 'error') {
-    return message || t('Helper reported an error')
-  }
-
-  if (message) return message
-  if (path) return path
-  return t('No extra details')
-}
 </script>
 
 <style scoped>

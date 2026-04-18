@@ -4,7 +4,8 @@
       <span class="ai-conversation-message__role">
         {{ message.role === 'assistant' ? t('Assistant') : t('You') }}
       </span>
-      <span>{{ formattedTime }}</span>
+      <span v-if="formattedTime" class="ai-conversation-message__meta-separator">·</span>
+      <span v-if="formattedTime" class="ai-conversation-message__time">{{ formattedTime }}</span>
     </div>
 
     <div v-if="showContextMetadata" class="ai-conversation-message__context">
@@ -306,13 +307,13 @@ onBeforeUnmount(() => {
 .ai-conversation-message {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 
 .ai-conversation-message__meta {
   display: flex;
-  justify-content: space-between;
-  gap: 12px;
+  align-items: center;
+  gap: 6px;
   font-size: 11px;
   color: var(--text-secondary);
 }
@@ -322,11 +323,15 @@ onBeforeUnmount(() => {
   color: var(--text-tertiary);
 }
 
-.ai-conversation-message__run,
+.ai-conversation-message__meta-separator,
+.ai-conversation-message__time {
+  color: var(--text-tertiary);
+}
+
 .ai-conversation-message__context {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 4px;
 }
 
 .ai-conversation-message__body {
@@ -344,20 +349,20 @@ onBeforeUnmount(() => {
 .ai-conversation-message__surface {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
   min-width: 0;
 }
 
 .ai-conversation-message__surface--assistant {
   width: 100%;
-  padding: 4px 6px;
+  padding: 2px 0;
   background: transparent;
   border: none;
 }
 
 .ai-conversation-message__surface--user {
   max-width: 92%;
-  padding: 4px 6px;
+  padding: 2px 0;
   background: transparent;
   border: none;
 }
@@ -368,7 +373,7 @@ onBeforeUnmount(() => {
 .ai-conversation-message__note-text,
 .ai-conversation-message__error {
   font-size: 13px;
-  line-height: 1.62;
+  line-height: 1.58;
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -378,20 +383,24 @@ onBeforeUnmount(() => {
   color: var(--text-primary);
 }
 
+.ai-conversation-message__user-text {
+  color: color-mix(in srgb, var(--text-primary) 88%, var(--text-secondary) 12%);
+}
+
 .ai-conversation-message__support {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 4px 6px;
+  gap: 3px;
+  padding: 2px 0 2px 10px;
   background: transparent;
-  border-left: 2px solid color-mix(in srgb, var(--border-color) 60%, transparent);
+  border-left: 1px solid color-mix(in srgb, var(--border-color) 42%, transparent);
 }
 
 .ai-conversation-message__support summary {
   cursor: pointer;
   font-size: 11px;
   font-weight: 600;
-  color: var(--text-secondary);
+  color: var(--text-tertiary);
   list-style: none;
 }
 
@@ -404,11 +413,11 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 4px;
   min-width: 0;
-  padding: 4px 8px;
+  padding: 3px 7px;
   border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--border-color) 54%, transparent);
-  background: color-mix(in srgb, var(--panel-muted) 10%, transparent);
-  font-size: 11px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 32%, transparent);
+  background: color-mix(in srgb, var(--panel-muted) 8%, transparent);
+  font-size: 10px;
   line-height: 1.4;
   color: var(--text-secondary);
 }
@@ -435,10 +444,10 @@ onBeforeUnmount(() => {
 .ai-conversation-message__note {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 10px 12px;
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--panel-muted) 52%, transparent);
+  gap: 3px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--panel-muted) 26%, transparent);
 }
 
 .ai-conversation-message__note-label {
@@ -450,9 +459,9 @@ onBeforeUnmount(() => {
 }
 
 .ai-conversation-message__error {
-  padding: 10px 12px;
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--error) 10%, transparent);
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--error) 8%, transparent);
   color: var(--error);
 }
 

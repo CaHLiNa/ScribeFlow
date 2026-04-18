@@ -91,6 +91,7 @@ import {
 } from '../../editor/markdownTables'
 import { useFilesStore } from '../../stores/files'
 import { useEditorStore } from '../../stores/editor'
+import { useEditorRuntimeStore } from '../../stores/editorRuntime'
 import { useToastStore } from '../../stores/toast'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useLinksStore } from '../../stores/links'
@@ -124,6 +125,7 @@ const emit = defineEmits(['cursor-change', 'editor-stats', 'selection-change'])
 const editorContainer = ref(null)
 const files = useFilesStore()
 const editorStore = useEditorStore()
+const editorRuntimeStore = useEditorRuntimeStore()
 const workspace = useWorkspaceStore()
 const workflowStore = useDocumentWorkflowStore()
 const linksStore = useLinksStore()
@@ -166,6 +168,9 @@ let latexNormalizedSaveContent = null
 let latexFormatOnSaveInFlight = false
 let latexWarmupHandle = null
 let lastPersistedContent = ''
+let nativeRuntimeSyncQueue = Promise.resolve()
+let latestDiagnostics = []
+let latestOutlineContext = null
 const LATEX_SYNC_DEBUG_LOG = '.altals-latex-sync-debug.jsonl'
 
 const isDraftFile = isDraftPath(props.filePath)
@@ -621,6 +626,8 @@ function requestCurrentSelection() {
   return {
     filePath: props.filePath,
     hasSelection: selection.from !== selection.to,
+    anchor: selection.anchor,
+    head: selection.head,
     from: selection.from,
     to: selection.to,
     text:
@@ -628,6 +635,74 @@ function requestCurrentSelection() {
         ? view.state.sliceDoc(selection.from, selection.to)
         : '',
   }
+}
+
+function shouldMirrorToNativeRuntime() {
+  return editorRuntimeStore.wantsNativeRuntime && !!props.filePath
+}
+
+function queueNativeRuntimeSync(task) {
+  if (!shouldMirrorToNativeRuntime()) return Promise.resolve(false)
+  nativeRuntimeSyncQueue = nativeRuntimeSyncQueue
+    .catch(() => false)
+    .then(async () => {
+      try {
+        return await task()
+      } catch (error) {
+        console.warn('[editor] failed to sync native runtime:', error)
+        return false
+      }
+    })
+  return nativeRuntimeSyncQueue
+}
+
+async function mirrorDocumentToNativeRuntime(content = null) {
+  if (!shouldMirrorToNativeRuntime()) return false
+  const text = typeof content === 'string' ? content : view?.state?.doc?.toString?.() || ''
+  await editorRuntimeStore.syncShadowDocument({
+    path: props.filePath,
+    text,
+  })
+  return true
+}
+
+async function syncSelectionToNativeRuntime(selection = null, viewportOffset = null) {
+  if (!shouldMirrorToNativeRuntime()) return false
+  const currentSelection = selection || requestCurrentSelection()
+  if (!currentSelection) return false
+  await editorRuntimeStore.setNativeSelections({
+    path: props.filePath,
+    selections: [
+      {
+        anchor:
+          currentSelection.anchor === undefined ? currentSelection.from : currentSelection.anchor,
+        head: currentSelection.head === undefined ? currentSelection.to : currentSelection.head,
+      },
+    ],
+    viewportOffset:
+      viewportOffset === null || viewportOffset === undefined
+        ? currentSelection.to
+        : viewportOffset,
+  })
+  return true
+}
+
+async function syncDiagnosticsToNativeRuntime(diagnostics = []) {
+  if (!shouldMirrorToNativeRuntime()) return false
+  await editorRuntimeStore.setNativeDiagnostics({
+    path: props.filePath,
+    diagnostics: Array.isArray(diagnostics) ? diagnostics : [],
+  })
+  return true
+}
+
+async function syncOutlineContextToNativeRuntime(context = null) {
+  if (!shouldMirrorToNativeRuntime()) return false
+  await editorRuntimeStore.setNativeOutlineContext({
+    path: props.filePath,
+    context,
+  })
+  return true
 }
 
 function revealEditorRange(from, to = from, options = {}) {
@@ -658,6 +733,20 @@ function revealEditorRange(from, to = from, options = {}) {
     filePath: props.filePath,
     from: safeFrom,
     to: safeTo,
+  })
+
+  void queueNativeRuntimeSync(async () => {
+    await mirrorDocumentToNativeRuntime(view.state.doc.toString())
+    return syncSelectionToNativeRuntime(
+      {
+        filePath: props.filePath,
+        hasSelection: safeFrom !== safeTo,
+        from: safeFrom,
+        to: safeTo,
+        text: safeFrom !== safeTo ? view.state.sliceDoc(safeFrom, safeTo) : '',
+      },
+      safeFrom
+    )
   })
 
   return true
@@ -726,28 +815,44 @@ onMounted(async () => {
     Prec.highest(zoomAwareMouseSelectionExtension(getCssRootZoomScale)),
     ...createRevealHighlightExtension(),
     EditorView.updateListener.of((update) => {
+      const currentSelection = update.state.selection.main
+      const selectionPayload = {
+        filePath: props.filePath,
+        hasSelection: currentSelection.from !== currentSelection.to,
+        anchor: currentSelection.anchor,
+        head: currentSelection.head,
+        from: currentSelection.from,
+        to: currentSelection.to,
+        text:
+          currentSelection.from !== currentSelection.to
+            ? update.state.sliceDoc(currentSelection.from, currentSelection.to)
+            : '',
+      }
+
       if (update.selectionSet || update.docChanged) {
-        const selection = update.state.selection.main
-        const payload = {
-          filePath: props.filePath,
-          hasSelection: selection.from !== selection.to,
-          from: selection.from,
-          to: selection.to,
-          text:
-            selection.from !== selection.to
-              ? update.state.sliceDoc(selection.from, selection.to)
-              : '',
-        }
-        emit('selection-change', payload)
+        emit('selection-change', selectionPayload)
         emitEditorRuntimeTelemetry({
           type: 'selection-change',
           runtimeKind: 'web',
           paneId: props.paneId,
-          ...payload,
+          ...selectionPayload,
+        })
+      }
+      if (update.selectionSet || update.docChanged) {
+        const currentContent = update.state.doc.toString()
+        void queueNativeRuntimeSync(async () => {
+          const nativeDocument = editorRuntimeStore.nativeDocuments?.[props.filePath] || null
+          if (update.docChanged) {
+            await mirrorDocumentToNativeRuntime(currentContent)
+          } else if (!nativeDocument) {
+            await mirrorDocumentToNativeRuntime(currentContent)
+          }
+
+          return syncSelectionToNativeRuntime(selectionPayload, currentSelection.head)
         })
       }
       if (isMd && update.selectionSet) {
-        scheduleMarkdownSelectionPreviewSync(update.state.selection.main)
+        scheduleMarkdownSelectionPreviewSync(currentSelection)
       }
     }),
   ]
@@ -948,6 +1053,7 @@ onMounted(async () => {
     revealOffset: revealEditorOffset,
     revealRange: revealEditorRange,
     setDiagnostics: (diagnostics = []) => {
+      latestDiagnostics = Array.isArray(diagnostics) ? diagnostics : []
       emitEditorRuntimeTelemetry({
         type: 'diagnostics-update',
         runtimeKind: 'web',
@@ -955,9 +1061,11 @@ onMounted(async () => {
         filePath: props.filePath,
         diagnosticsCount: Array.isArray(diagnostics) ? diagnostics.length : 0,
       })
+      void queueNativeRuntimeSync(() => syncDiagnosticsToNativeRuntime(latestDiagnostics))
       return true
     },
     setOutlineContext: (context = null) => {
+      latestOutlineContext = context ?? null
       emitEditorRuntimeTelemetry({
         type: 'outline-context-update',
         runtimeKind: 'web',
@@ -965,6 +1073,7 @@ onMounted(async () => {
         filePath: props.filePath,
         hasContext: !!context,
       })
+      void queueNativeRuntimeSync(() => syncOutlineContextToNativeRuntime(latestOutlineContext))
       return true
     },
     dispose: destroyEditorView,
@@ -1131,6 +1240,12 @@ function activateEditorRuntime() {
     filePath: props.filePath,
   })
   attachEditorRuntimeListeners()
+  void queueNativeRuntimeSync(async () => {
+    await mirrorDocumentToNativeRuntime(view.state.doc.toString())
+    await syncSelectionToNativeRuntime()
+    await syncDiagnosticsToNativeRuntime(latestDiagnostics)
+    return syncOutlineContextToNativeRuntime(latestOutlineContext)
+  })
   showMergeViewIfNeeded()
   requestAnimationFrame(() => {
     view?.requestMeasure?.()

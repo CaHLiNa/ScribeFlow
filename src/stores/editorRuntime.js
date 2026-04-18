@@ -1,11 +1,15 @@
 import { defineStore } from 'pinia'
 import { EDITOR_RUNTIME_EVENT_NAME } from '../domains/editor/editorRuntimeContract'
 import {
+  applyNativeEditorTransaction,
   applyNativeEditorExternalContent,
   listenToNativeEditorEvents,
   nativeEditorBridgeAvailable,
   openNativeEditorDocument,
   replaceNativeEditorDocumentText,
+  setNativeEditorDiagnostics,
+  setNativeEditorOutlineContext,
+  setNativeEditorSelections,
   startNativeEditorSession,
   stopNativeEditorSession,
 } from '../services/editorRuntime/nativeBridge'
@@ -20,6 +24,27 @@ const SHADOW_MODE_STORAGE_KEY = 'editorRuntime.shadowMode'
 const MODE_STORAGE_KEY = 'editorRuntime.mode'
 let telemetryListener = null
 let nativeRuntimeListener = null
+
+function utf8ByteLength(value = '') {
+  try {
+    return new TextEncoder().encode(String(value || '')).length
+  } catch {
+    return String(value || '').length
+  }
+}
+
+function clampStringOffset(text = '', offset = 0) {
+  const normalized = String(text || '')
+  const numeric = Number(offset || 0)
+  if (!Number.isFinite(numeric)) return 0
+  return Math.max(0, Math.min(normalized.length, Math.trunc(numeric)))
+}
+
+function jsOffsetToUtf8Offset(text = '', offset = 0) {
+  const normalized = String(text || '')
+  const safeOffset = clampStringOffset(normalized, offset)
+  return utf8ByteLength(normalized.slice(0, safeOffset))
+}
 
 function readStoredBoolean(key, fallback = false) {
   try {
@@ -142,6 +167,7 @@ export const useEditorRuntimeStore = defineStore('editorRuntime', {
           [path]: {
             path,
             textLength: Number(payload?.textLength || 0),
+            version: Number(payload?.version || this.nativeDocuments[path]?.version || 0),
             text: typeof payload?.text === 'string' ? payload.text : this.nativeDocuments[path]?.text || '',
             textPreview:
               typeof payload?.text === 'string'
@@ -149,6 +175,11 @@ export const useEditorRuntimeStore = defineStore('editorRuntime', {
                   ? `${payload.text.slice(0, 240)}\n…`
                   : payload.text
                 : this.nativeDocuments[path]?.textPreview || '',
+            selections: Array.isArray(payload?.selections)
+              ? payload.selections
+              : this.nativeDocuments[path]?.selections || [],
+            cursor: payload?.cursor || this.nativeDocuments[path]?.cursor || null,
+            viewport: payload?.viewport || this.nativeDocuments[path]?.viewport || null,
             reason: String(payload?.reason || '').trim(),
           },
         }
@@ -163,8 +194,12 @@ export const useEditorRuntimeStore = defineStore('editorRuntime', {
           nextDocuments[path] = {
             path,
             textLength: Number(entry?.textLength || 0),
+            version: Number(entry?.version || 0),
             text: this.nativeDocuments[path]?.text || '',
             textPreview: String(entry?.textPreview || ''),
+            selections: Array.isArray(entry?.selections) ? entry.selections : [],
+            cursor: entry?.cursor || null,
+            viewport: entry?.viewport || null,
             reason: this.nativeDocuments[path]?.reason || '',
           }
         }
@@ -292,9 +327,92 @@ export const useEditorRuntimeStore = defineStore('editorRuntime', {
       const normalizedPath = String(path || '').trim()
       if (!normalizedPath) return false
       await this.startNativeSession()
-      await replaceNativeEditorDocumentText({
+      const existingDocument = this.nativeDocuments[normalizedPath] || null
+      if (existingDocument && typeof existingDocument.text === 'string') {
+        await applyNativeEditorTransaction({
+          path: normalizedPath,
+          edits: [
+            {
+              start: 0,
+              end: utf8ByteLength(existingDocument.text),
+              text: String(text || ''),
+            },
+          ],
+        })
+      } else {
+        await replaceNativeEditorDocumentText({
+          path: normalizedPath,
+          text,
+        })
+      }
+      return true
+    },
+
+    async applyNativeTransaction({ path = '', edits = [] } = {}) {
+      if (!nativeEditorBridgeAvailable()) return false
+      const normalizedPath = String(path || '').trim()
+      if (!normalizedPath) return false
+      await this.startNativeSession()
+      const currentText = String(
+        this.nativeDocuments[normalizedPath]?.text ?? ''
+      )
+      await applyNativeEditorTransaction({
         path: normalizedPath,
-        text,
+        edits: Array.isArray(edits)
+          ? edits.map((edit) => ({
+              start: jsOffsetToUtf8Offset(currentText, edit?.start ?? 0),
+              end: jsOffsetToUtf8Offset(currentText, edit?.end ?? 0),
+              text: String(edit?.text || ''),
+            }))
+          : [],
+      })
+      return true
+    },
+
+    async setNativeSelections({ path = '', selections = [], viewportOffset = null } = {}) {
+      if (!nativeEditorBridgeAvailable()) return false
+      const normalizedPath = String(path || '').trim()
+      if (!normalizedPath) return false
+      await this.startNativeSession()
+      const currentText = String(
+        this.nativeDocuments[normalizedPath]?.text ?? ''
+      )
+      await setNativeEditorSelections({
+        path: normalizedPath,
+        selections: Array.isArray(selections)
+          ? selections.map((selection) => ({
+              anchor: jsOffsetToUtf8Offset(currentText, selection?.anchor ?? 0),
+              head: jsOffsetToUtf8Offset(currentText, selection?.head ?? 0),
+            }))
+          : [],
+        viewportOffset:
+          viewportOffset === null || viewportOffset === undefined
+            ? null
+            : jsOffsetToUtf8Offset(currentText, viewportOffset),
+      })
+      return true
+    },
+
+    async setNativeDiagnostics({ path = '', diagnostics = [] } = {}) {
+      if (!nativeEditorBridgeAvailable()) return false
+      const normalizedPath = String(path || '').trim()
+      if (!normalizedPath) return false
+      await this.startNativeSession()
+      await setNativeEditorDiagnostics({
+        path: normalizedPath,
+        diagnostics: Array.isArray(diagnostics) ? diagnostics : [],
+      })
+      return true
+    },
+
+    async setNativeOutlineContext({ path = '', context = null } = {}) {
+      if (!nativeEditorBridgeAvailable()) return false
+      const normalizedPath = String(path || '').trim()
+      if (!normalizedPath) return false
+      await this.startNativeSession()
+      await setNativeEditorOutlineContext({
+        path: normalizedPath,
+        context: context == null ? null : context,
       })
       return true
     },

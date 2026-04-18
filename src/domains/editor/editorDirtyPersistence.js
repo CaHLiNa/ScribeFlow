@@ -1,4 +1,8 @@
 import { getAnyRegisteredEditorView } from './editorViewRegistry'
+import {
+  getNativeEditorDocumentState,
+  nativeEditorBridgeAvailable,
+} from '../../services/editorRuntime/nativeBridge'
 
 export function markDirtyPath(dirtyFiles, path) {
   if (!(dirtyFiles instanceof Set) || !path || dirtyFiles.has(path)) return false
@@ -32,15 +36,25 @@ export async function persistEditorPath({
   if (!path || !filesStore) return false
 
   const editorRuntime = getAnyRegisteredEditorView(editorViews, path)
+  let nativeDocumentState = null
+
+  if (nativeEditorBridgeAvailable()) {
+    nativeDocumentState = await getNativeEditorDocumentState({ path }).catch(() => null)
+  }
+
   if (editorRuntime?.altalsPersist) {
     return (await editorRuntime.altalsPersist()) !== false
   }
 
   if (filesStore.isDraftFile?.(path)) {
-    const content = filesStore.fileContents[path]
+    const content =
+      typeof nativeDocumentState?.text === 'string' && nativeDocumentState.text
+        ? nativeDocumentState.text
+        : filesStore.fileContents[path]
     if (typeof content !== 'string') return false
     const savedPath = await filesStore.promptAndSaveDraft(path, content)
     if (savedPath) {
+      filesStore.setInMemoryFileContent(savedPath, content)
       onPersisted?.(savedPath, path)
     }
     return !!savedPath
@@ -49,6 +63,15 @@ export async function persistEditorPath({
   if (editorRuntime?.altalsGetContent) {
     const saved = await filesStore.saveFile(path, editorRuntime.altalsGetContent())
     if (saved) {
+      onPersisted?.(path)
+    }
+    return saved
+  }
+
+  if (typeof nativeDocumentState?.text === 'string' && nativeDocumentState.text.length >= 0) {
+    const saved = await filesStore.saveFile(path, nativeDocumentState.text)
+    if (saved) {
+      filesStore.setInMemoryFileContent(path, nativeDocumentState.text)
       onPersisted?.(path)
     }
     return saved

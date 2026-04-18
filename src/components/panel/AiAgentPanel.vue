@@ -43,70 +43,46 @@
     </div>
 
     <footer class="ai-agent-panel__composer">
-      <div class="ai-agent-panel__composer-card">
-        <AiPlanModeBanner v-if="isAgentMode" :plan-mode="planModeState" />
-        <AiResumeBanner v-if="isAgentMode" :resume-state="resumeState" />
-        <AiCompactingBanner v-if="isAgentMode" :compaction="compactionState" />
+      <div class="ai-agent-panel__composer-stack">
+        <div v-if="isAgentMode && hasRuntimeStateStack" class="ai-agent-panel__runtime-stack">
+          <AiPlanModeBanner
+            v-if="showPlanModeBanner"
+            :plan-mode="planModeState"
+          />
+          <AiResumeBanner
+            v-if="showResumeBanner"
+            :resume-state="resumeState"
+          />
+          <AiCompactingBanner
+            v-if="showCompactingBanner"
+            :compaction="compactionState"
+          />
+          <AiActiveTasksBar
+            v-if="showActiveTasksBar"
+            :tasks="backgroundTaskItems"
+          />
+        </div>
+
         <AiAskUserBanner
-          v-if="isAgentMode"
+          v-if="isAgentMode && blockingState === 'ask-user'"
           :request="activeAskUserRequest"
           :submitting="respondingAskUserRequestId === activeAskUserRequest?.requestId"
           @submit="submitAskUserResponse"
         />
         <AiExitPlanBanner
-          v-if="isAgentMode"
+          v-else-if="isAgentMode && blockingState === 'exit-plan'"
           :request="activeExitPlanRequest"
           :submitting="respondingExitPlanRequestId === activeExitPlanRequest?.requestId"
           @submit="submitExitPlanResponse"
         />
-        <AiActiveTasksBar v-if="isAgentMode" :tasks="activeBackgroundTasks" />
-
-        <div v-if="isAgentMode && activePermissionRequest" class="ai-agent-panel__approval">
-          <div class="ai-agent-panel__approval-copy">
-            <div class="ai-agent-panel__approval-title">
-              {{ activePermissionRequest.title || t('Permission request') }}
-            </div>
-            <div
-              v-if="activePermissionRequest.description || activePermissionRequest.decisionReason"
-              class="ai-agent-panel__approval-meta"
-            >
-              {{ activePermissionRequest.description || activePermissionRequest.decisionReason }}
-            </div>
-            <div
-              v-if="activePermissionRequest.inputPreview"
-              class="ai-agent-panel__approval-preview"
-            >
-              {{ activePermissionRequest.inputPreview }}
-            </div>
-          </div>
-
-          <div class="ai-agent-panel__approval-actions">
-            <UiButton
-              variant="ghost"
-              size="sm"
-              :disabled="respondingPermissionRequestId === activePermissionRequest.requestId"
-              @click="denyPermissionRequest(activePermissionRequest)"
-            >
-              {{ t('Deny') }}
-            </UiButton>
-            <UiButton
-              variant="secondary"
-              size="sm"
-              :disabled="respondingPermissionRequestId === activePermissionRequest.requestId"
-              @click="allowPermissionRequest(activePermissionRequest)"
-            >
-              {{ t('Allow once') }}
-            </UiButton>
-            <UiButton
-              variant="primary"
-              size="sm"
-              :disabled="respondingPermissionRequestId === activePermissionRequest.requestId"
-              @click="alwaysAllowPermissionRequest(activePermissionRequest)"
-            >
-              {{ t('Always allow') }}
-            </UiButton>
-          </div>
-        </div>
+        <AiPermissionBanner
+          v-else-if="isAgentMode && blockingState === 'permission' && activePermissionRequest"
+          :request="activePermissionRequest"
+          :submitting="respondingPermissionRequestId === activePermissionRequest?.requestId"
+          @deny="denyPermissionRequest"
+          @allow-once="allowPermissionRequest"
+          @allow-always="alwaysAllowPermissionRequest"
+        />
 
         <AiAttachmentList :attachments="attachments" @remove="removeAttachment" />
 
@@ -156,6 +132,7 @@
                 variant="ghost"
                 size="sm"
                 icon-only
+                class="ai-agent-panel__tool-button"
                 @click="attachFiles"
                 :title="t('Attach files')"
               >
@@ -223,6 +200,7 @@ import AiConversationMessage from './AiConversationMessage.vue'
 import AiExitPlanBanner from './AiExitPlanBanner.vue'
 import AiInvocationDropdown from './AiInvocationDropdown.vue'
 import AiPlanModeBanner from './AiPlanModeBanner.vue'
+import AiPermissionBanner from './AiPermissionBanner.vue'
 import AiResumeBanner from './AiResumeBanner.vue'
 import AiSessionRail from './AiSessionRail.vue'
 import SurfaceContextMenu from '../shared/SurfaceContextMenu.vue'
@@ -332,21 +310,53 @@ const sendButtonTitle = computed(() => {
   if (!isProviderReady.value) return providerNotReadyMessage.value
   if (!canSend.value) return t('Type a message or attach a file to send.')
   if (aiStore.isRunning) return t('Queue message')
-  return t('Submit')
+  return t('Run task')
 })
 const stopButtonTitle = computed(() => t('Stop response'))
 const composerPlaceholder = computed(() =>
   isAgentMode.value
-    ? t('Describe the task, or type $skill.')
+    ? t('Describe the next task, or type $skill.')
     : t('Ask anything about this project.')
 )
 const emptyStateTitle = computed(() =>
-  isAgentMode.value ? t('What needs to happen in this workspace?') : t('What do you want to build?')
+  isAgentMode.value ? t('Describe the next task.') : t('What do you want to build?')
 )
 const emptyStateNote = computed(() =>
   isAgentMode.value
-    ? t('The agent already has this workspace, file context, and tool access.')
+    ? t('This workspace, files, and tools are already available.')
     : t('Operate on the current workspace or type / for commands.')
+)
+const blockingState = computed(() => {
+  if (activePermissionRequest.value) return 'permission'
+  if (activeAskUserRequest.value) return 'ask-user'
+  if (activeExitPlanRequest.value) return 'exit-plan'
+  return ''
+})
+const hasBlockingState = computed(() => blockingState.value !== '')
+const showPlanModeBanner = computed(
+  () => planModeState.value?.active === true && blockingState.value !== 'exit-plan' && !hasBlockingState.value
+)
+const showResumeBanner = computed(
+  () => resumeState.value?.active === true && !hasBlockingState.value
+)
+const showCompactingBanner = computed(
+  () => compactionState.value?.active === true && !hasBlockingState.value && !resumeState.value?.active
+)
+const backgroundTaskItems = computed(() =>
+  activeBackgroundTasks.value.slice(0, 3).map((task) => ({
+    ...task,
+    detail: summarizeStatusDetail(task.detail || task.lastToolName || '', 72),
+  }))
+)
+const showActiveTasksBar = computed(
+  () => backgroundTaskItems.value.length > 0 && (!hasBlockingState.value || resumeState.value?.active === true)
+)
+const hasRuntimeStateStack = computed(
+  () =>
+    showPlanModeBanner.value ||
+    showResumeBanner.value ||
+    showCompactingBanner.value ||
+    showActiveTasksBar.value
 )
 
 function toInvocationSlug(value = '') {
@@ -356,6 +366,13 @@ function toInvocationSlug(value = '') {
     .replace(/^[/$]+/, '')
     .replace(/[^a-z0-9\u4e00-\u9fff]+/gu, '-')
     .replace(/^-+|-+$/g, '')
+}
+
+function summarizeStatusDetail(value = '', maxLength = 72) {
+  const normalized = String(value || '').trim().replace(/\s+/g, ' ')
+  if (!normalized) return ''
+  if (normalized.length <= maxLength) return normalized
+  return `${normalized.slice(0, maxLength - 1).trimEnd()}…`
 }
 
 const skillSuggestions = computed(() =>
@@ -610,6 +627,16 @@ function openThreadContextMenu(event) {
 }
 
 function handlePromptKeydown(event) {
+  if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+    event.preventDefault()
+    if (aiStore.isRunning) {
+      handleStopClick()
+    } else {
+      handleSendClick()
+    }
+    return
+  }
+
   if (!composerSuggestions.value.length) return
 
   if (event.key === 'ArrowDown') {
@@ -739,35 +766,41 @@ watch(
   container-type: inline-size;
   color: var(--text-primary);
   background: transparent;
+  isolation: isolate;
 }
 
 .ai-agent-panel__thread {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
-  padding: 10px 14px 16px;
+  padding: 8px 12px 14px;
+  background: transparent;
 }
 
 .ai-agent-panel__messages {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
 }
 
 .ai-agent-panel__composer {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 6px 10px 10px;
+  padding: 8px 8px 10px;
+  border-top: 1px solid color-mix(in srgb, var(--border-color) 12%, transparent);
   background: transparent;
+  backdrop-filter: none;
 }
 
 .ai-agent-panel__header {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 14px 6px;
+  padding: 4px 12px 8px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border-color) 10%, transparent);
   background: transparent;
+  backdrop-filter: none;
   z-index: 10;
 }
 
@@ -777,10 +810,10 @@ watch(
   padding: 8px 14px 4px;
 }
 
-.ai-agent-panel__composer-card {
+.ai-agent-panel__composer-stack {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   position: relative;
   z-index: 10;
 }
@@ -795,59 +828,19 @@ watch(
 .ai-agent-panel__composer-well {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 6px 8px 7px;
-  border-radius: 14px;
-  border: 1px solid color-mix(in srgb, var(--border-color) 20%, transparent);
-  background: color-mix(in srgb, var(--panel-surface) 72%, transparent);
-  box-shadow:
-    inset 0 1px 0 color-mix(in srgb, white 12%, transparent),
-    0 6px 18px color-mix(in srgb, black 8%, transparent);
+  gap: 8px;
+  padding: 8px 10px 9px;
+  border-radius: 16px;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
 }
 
-.ai-agent-panel__approval {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: 14px;
-  border: 1px solid color-mix(in srgb, var(--warning) 28%, var(--border-color) 72%);
-  background: color-mix(in srgb, var(--warning) 8%, transparent);
-}
-
-.ai-agent-panel__approval-copy {
-  min-width: 0;
+.ai-agent-panel__runtime-stack {
   display: flex;
   flex-direction: column;
-  gap: 3px;
-}
-
-.ai-agent-panel__approval-title {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-primary);
-  line-height: 1.4;
-}
-
-.ai-agent-panel__approval-meta,
-.ai-agent-panel__approval-preview {
-  font-size: 11px;
-  line-height: 1.5;
-  color: var(--text-secondary);
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.ai-agent-panel__approval-preview {
-  color: var(--text-tertiary);
-}
-
-.ai-agent-panel__approval-actions {
-  display: flex;
-  align-items: center;
   gap: 6px;
-  flex: 0 0 auto;
 }
 
 .ai-agent-panel__composer-input {
@@ -868,8 +861,8 @@ watch(
   min-height: 28px;
   padding: 0 10px;
   border-radius: 10px;
-  border: 1px solid color-mix(in srgb, var(--border-color) 26%, transparent);
-  background: color-mix(in srgb, var(--surface-base) 66%, transparent);
+  border: none;
+  background: transparent;
   font-size: 12px;
   font-weight: 600;
   color: var(--text-primary);
@@ -886,50 +879,64 @@ watch(
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 28px;
-  padding-top: 2px;
+  min-height: 34px;
+  padding-top: 8px;
+  border-top: 1px solid color-mix(in srgb, var(--border-color) 14%, transparent);
 }
 
 .ai-agent-panel__composer-tools {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  min-width: 0;
 }
 
 .ai-agent-panel__composer-primary {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
+  flex: 0 0 auto;
 }
 
 .ai-agent-panel__send-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   padding: 0;
-  border: none;
-  border-radius: 10px;
-  background: var(--text-primary);
-  color: var(--surface-base);
-  box-shadow: 0 2px 8px color-mix(in srgb, black 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border-color) 18%, transparent);
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--surface-base) 8%, transparent);
+  color: var(--text-primary);
+  box-shadow: none;
+  backdrop-filter: blur(10px) saturate(1.02);
   cursor: pointer;
-  transition: transform 0.1s ease, filter 0.1s ease, opacity 0.1s ease;
+  transition:
+    transform 0.1s ease,
+    opacity 0.1s ease,
+    background-color 0.12s ease,
+    border-color 0.12s ease,
+    color 0.12s ease;
 }
 
 .ai-agent-panel__send-button:hover:not(:disabled) {
-  filter: brightness(1.15);
+  border-color: color-mix(in srgb, var(--accent) 16%, var(--border-color) 84%);
+  background: color-mix(in srgb, var(--surface-hover) 10%, transparent);
+  color: var(--text-primary);
   transform: translateY(-0.5px);
 }
 
 .ai-agent-panel__stop-button {
-  background: var(--error);
-  color: white;
+  border-color: color-mix(in srgb, var(--error) 14%, var(--border-color) 86%);
+  background: color-mix(in srgb, var(--error) 6%, transparent);
+  color: color-mix(in srgb, var(--error) 76%, var(--text-primary) 24%);
 }
 
 .ai-agent-panel__stop-button:hover:not(:disabled) {
-  filter: brightness(1.1);
+  border-color: color-mix(in srgb, var(--error) 22%, var(--border-color) 78%);
+  background: color-mix(in srgb, var(--error) 9%, transparent);
+  color: color-mix(in srgb, var(--error) 84%, var(--text-primary) 16%);
 }
 
 .ai-agent-panel__send-button:active:not(:disabled) {
@@ -950,7 +957,7 @@ watch(
 }
 
 .ai-agent-panel__textarea {
-  padding: 4px 6px !important;
+  padding: 2px 4px !important;
   min-height: 24px;
   max-height: 400px;
 }
@@ -969,11 +976,11 @@ watch(
 .ai-agent-panel__empty {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 10px 8px 18px;
+  gap: 4px;
+  padding: 12px 4px 18px;
   align-items: flex-start;
   text-align: left;
-  max-width: 240px;
+  max-width: 220px;
 }
 
 .ai-agent-panel__empty-title {
@@ -1004,11 +1011,11 @@ watch(
 }
 
 .ai-agent-panel__composer :deep(.ai-agent-panel__textarea-shell .ui-textarea-control) {
-  min-height: 92px;
-  padding: 2px 0 6px !important;
+  min-height: 88px;
+  padding: 2px 0 4px !important;
   resize: none;
   font-size: 13px;
-  line-height: 1.62;
+  line-height: 1.58;
   color: var(--text-primary);
 }
 
@@ -1018,21 +1025,21 @@ watch(
 }
 
 .ai-agent-panel__composer :deep(.ai-agent-panel__model-chip-shell .ui-select-trigger) {
-  height: 28px;
+  height: 30px;
   width: auto;
   max-width: 100%;
-  padding: 0 24px 0 10px;
-  border-color: color-mix(in srgb, var(--border-color) 22%, transparent);
+  padding: 0 24px 0 11px;
+  border-color: transparent;
   border-radius: 10px;
-  background: color-mix(in srgb, var(--surface-base) 66%, transparent);
+  background: transparent;
   box-shadow: none;
   color: var(--text-secondary);
 }
 
 .ai-agent-panel__composer :deep(.ai-agent-panel__model-chip-shell .ui-select-trigger:hover),
 .ai-agent-panel__composer :deep(.ai-agent-panel__model-chip-shell .ui-select-trigger:focus-visible) {
-  border-color: color-mix(in srgb, var(--accent) 22%, var(--border-color) 78%);
-  background: color-mix(in srgb, var(--surface-hover) 18%, transparent);
+  border-color: transparent;
+  background: transparent;
   color: var(--text-primary);
 }
 
@@ -1046,28 +1053,52 @@ watch(
   opacity: 0.7;
 }
 
-@container (max-width: 380px) {
-  .ai-agent-panel__header {
-    padding-bottom: 4px;
-  }
+.ai-agent-panel__tool-button {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: 10px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  box-shadow: none;
 }
 
-@container (max-width: 320px) {
-  .ai-agent-panel__thread {
-    padding-inline: 12px;
+.ai-agent-panel__tool-button:hover:not(:disabled) {
+  background: transparent;
+  color: var(--text-primary);
+}
+
+@container (max-width: 380px) {
+  .ai-agent-panel__header {
+    padding-bottom: 6px;
   }
 
   .ai-agent-panel__composer {
     padding-inline: 8px;
   }
 
+  .ai-agent-panel__composer-well {
+    padding-inline: 8px;
+  }
+}
+
+@container (max-width: 320px) {
+  .ai-agent-panel__thread {
+    padding-inline: 10px;
+  }
+
   .ai-agent-panel__model-chip,
   .ai-agent-panel__model-fallback {
-    max-width: 132px;
+    max-width: 124px;
   }
 
   .ai-agent-panel__empty {
     max-width: none;
+  }
+
+  .ai-agent-panel__composer-actions {
+    gap: 8px;
   }
 }
 </style>

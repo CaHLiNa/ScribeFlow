@@ -37,11 +37,11 @@ const completedCount = computed(() =>
 .ai-task-progress {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 10px 12px;
-  border-radius: 14px;
-  border: 1px dashed color-mix(in srgb, var(--border-color) 44%, transparent);
-  background: color-mix(in srgb, var(--panel-muted) 18%, transparent);
+  gap: 6px;
+  padding: 7px 9px;
+  border-radius: 10px;
+  border: 1px dashed color-mix(in srgb, var(--border-color) 28%, transparent);
+  background: color-mix(in srgb, var(--panel-muted) 10%, transparent);
 }
 
 .ai-task-progress__header {
@@ -53,8 +53,8 @@ const completedCount = computed(() =>
 
 .ai-task-progress__title,
 .ai-task-progress__count {
-  font-size: 11px;
-  color: var(--text-secondary);
+  font-size: 10px;
+  color: var(--text-tertiary);
 }
 
 .ai-task-progress__title {
@@ -66,20 +66,20 @@ const completedCount = computed(() =>
 .ai-task-progress__list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 
 .ai-task-progress__item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 12px;
+  gap: 6px;
+  font-size: 11px;
   color: var(--text-secondary);
 }
 
 .ai-task-progress__dot {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
   border-radius: 999px;
   background: var(--text-tertiary);
 }

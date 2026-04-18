@@ -1,12 +1,27 @@
 # Codex Desktop Replication Master Plan
 
 Date: 2026-04-18
-Status: Draft for implementation
+Status: Active
 Owner: Codex
 
 ## Goal
 
 Turn the current Altals AI panel into a Codex Desktop-like agent surface.
+
+## Current phase status
+
+- Phase 0: complete
+- Phase 1: complete
+- Phase 2: complete
+- Phase 3: active
+- Phase 4: pending
+- Phase 5: pending
+
+Reference documents:
+
+- runtime boundary: `docs/AI_CODEX_PHASE1_RUNTIME_AUDIT.md`
+- desktop interaction plan: `docs/AI_CODEX_PHASE2_DESKTOP_PARITY_PLAN.md`
+- control-state parity plan: `docs/AI_CODEX_PHASE3_CONTROL_STATE_PLAN.md`
 
 This is not a Codex CLI UI clone. The target is:
 

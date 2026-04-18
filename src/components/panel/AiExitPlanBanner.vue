@@ -34,20 +34,20 @@
 
     <div class="ai-inline-banner__actions">
       <UiButton
+        variant="ghost"
+        size="sm"
+        :disabled="submitting"
+        @click="submit('deny')"
+      >
+        {{ t('Deny') }}
+      </UiButton>
+      <UiButton
         variant="secondary"
         size="sm"
         :disabled="submitting"
         @click="submit('approve_edit')"
       >
         {{ t('Approve with approvals') }}
-      </UiButton>
-      <UiButton
-        variant="secondary"
-        size="sm"
-        :disabled="submitting"
-        @click="submit('approve_auto')"
-      >
-        {{ t('Approve and auto-run') }}
       </UiButton>
       <UiButton
         variant="secondary"
@@ -61,9 +61,9 @@
         variant="primary"
         size="sm"
         :disabled="submitting"
-        @click="submit('deny')"
+        @click="submit('approve_auto')"
       >
-        {{ t('Deny') }}
+        {{ t('Approve and auto-run') }}
       </UiButton>
     </div>
   </div>

@@ -247,6 +247,14 @@ function buildDefaultSessionTitle(count = 1) {
   return t('Run {count}', { count })
 }
 
+function summarizeSessionTitle(value = '', fallbackTitle = 'New session') {
+  const normalized = String(value || '').trim()
+  if (!normalized) return String(fallbackTitle || 'New session').trim() || 'New session'
+  const chars = Array.from(normalized)
+  if (chars.length <= 48) return normalized
+  return `${chars.slice(0, 48).join('').trimEnd()}…`
+}
+
 function createInitialAgentSessionsState({ fallbackTitle = 'New session' } = {}) {
   const initialSession = createInitialSessionRecord(
     String(fallbackTitle || 'New session').trim() || 'New session'
@@ -1554,6 +1562,58 @@ export const useAiStore = defineStore('ai', {
             stopRequested: false,
           },
         }
+
+        await this.updateSessionById(sessionId, (session) => ({
+          ...session,
+          title:
+            Array.isArray(session.messages) && session.messages.length > 0
+              ? session.title
+              : summarizeSessionTitle(
+                  preparedRun?.userInstruction || preparedRun?.promptDraft || session.promptDraft,
+                  buildDefaultSessionTitle(this.sessions.length)
+                ),
+          messages: [
+            ...(Array.isArray(session.messages) ? session.messages : []),
+            {
+              id: userMessageId,
+              role: 'user',
+              createdAt: Date.now(),
+              content: String(preparedRun?.userInstruction || preparedRun?.promptDraft || '').trim(),
+              parts: [
+                {
+                  type: 'text',
+                  text: String(preparedRun?.userInstruction || preparedRun?.promptDraft || '').trim(),
+                },
+              ],
+              metadata: {
+                skillId: '',
+                skillLabel: '',
+                contextChips: [],
+              },
+            },
+            {
+              id: pendingAssistantId,
+              role: 'assistant',
+              createdAt: Date.now() + 1,
+              content: '',
+              parts: [],
+              metadata: {
+                skillId: String(preparedRun?.skill?.id || '').trim(),
+                skillLabel: String(
+                  preparedRun?.skill?.name
+                    || preparedRun?.skill?.slug
+                    || preparedRun?.skill?.id
+                    || ''
+                ).trim(),
+                contextChips: [],
+              },
+            },
+          ],
+          isRunning: true,
+          lastError: '',
+          promptDraft: '',
+          attachments: [],
+        }))
 
         const runResponse = await runPreparedAgentSessionRust({
           session: resolveAgentSessionRecord(this.sessions, sessionId),

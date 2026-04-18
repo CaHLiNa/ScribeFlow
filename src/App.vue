@@ -357,76 +357,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   editorRuntimeStore.detachTelemetryListener()
-  void editorRuntimeStore.detachNativeRuntimeListener()
-  void editorRuntimeStore.stopNativeSession()
 })
-
-watch(
-  () => editorRuntimeStore.wantsNativeRuntime,
-  async (enabled) => {
-    if (enabled) {
-      await editorRuntimeStore.startNativeSession().catch(() => null)
-      return
-    }
-
-    await editorRuntimeStore.stopNativeSession().catch(() => false)
-  },
-  { immediate: true },
-)
-
-watch(
-  [
-    () => editorRuntimeStore.wantsNativeRuntime,
-    () => editorStore.activeTab,
-    () => {
-      const activePath = editorStore.activeTab
-      return activePath ? filesStore.fileContents[activePath] : undefined
-    },
-  ],
-  async ([nativeRuntimeEnabled, activePath, content]) => {
-    if (!nativeRuntimeEnabled || !activePath) return
-    if (getViewerType(activePath) !== 'text') return
-    let nextContent = content
-    if (typeof nextContent !== 'string') {
-      nextContent = await filesStore.readFile(activePath).catch(() => '')
-      if (typeof nextContent === 'string') {
-        filesStore.setInMemoryFileContent(activePath, nextContent)
-      }
-    }
-    if (typeof nextContent !== 'string') return
-
-    await editorRuntimeStore.syncShadowDocument({
-      path: activePath,
-      text: nextContent,
-    }).catch(() => null)
-  },
-  { immediate: true },
-)
-
-watch(
-  () => editorRuntimeStore.lastNativeRuntimeEvent,
-  (event) => {
-    const kind = String(event?.kind || '').trim()
-    const path = String(event?.path || '').trim()
-    const reason = String(event?.reason || '').trim()
-    const text = typeof event?.text === 'string' ? event.text : null
-
-    if (
-      editorRuntimeStore.mode !== 'native-experimental' ||
-      kind !== 'contentChanged' ||
-      reason !== 'surface-edit' ||
-      !path ||
-      text == null
-    ) {
-      return
-    }
-
-    if (filesStore.fileContents[path] !== text) {
-      filesStore.setInMemoryFileContent(path, text)
-    }
-    editorStore.markFileDirty(path)
-  },
-)
 
 useAppShellEventBridge({
   workspace,

@@ -56,7 +56,7 @@ fn normalize_runtime_request(request: &Value, extra: Value) -> Option<Value> {
 }
 
 fn build_user_message(item: &Value) -> Value {
-    let text = string_field(item, &["text"]);
+    let text = normalize_runtime_user_text(&string_field(item, &["text"]));
     json!({
         "id": format!(
             "runtime:{}:user",
@@ -80,6 +80,30 @@ fn build_user_message(item: &Value) -> Value {
             "contextChips": [],
         }
     })
+}
+
+fn normalize_runtime_user_text(text: &str) -> String {
+    let normalized = text.trim();
+    if normalized.is_empty() {
+        return String::new();
+    }
+
+    let current_task_prefix = "Current task:";
+    let workspace_context_marker = "\n\nWorkspace context:";
+    if let Some(task_start) = normalized.find(current_task_prefix) {
+        let task_body = &normalized[task_start + current_task_prefix.len()..];
+        let task_body = if let Some(context_start) = task_body.find(workspace_context_marker) {
+            &task_body[..context_start]
+        } else {
+            task_body
+        };
+        let task_body = task_body.trim();
+        if !task_body.is_empty() {
+            return task_body.to_string();
+        }
+    }
+
+    normalized.to_string()
 }
 
 fn build_assistant_message(

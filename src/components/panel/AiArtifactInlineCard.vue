@@ -64,11 +64,11 @@ const artifactTypeLabel = computed(() => {
 .ai-inline-artifact {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 10px 12px;
-  border-radius: 12px;
-  border: 1px solid color-mix(in srgb, var(--border-color) 70%, transparent);
-  background: color-mix(in srgb, var(--surface-base) 80%, transparent);
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 44%, transparent);
+  background: color-mix(in srgb, var(--surface-base) 70%, transparent);
 }
 
 .ai-inline-artifact.is-applied {
@@ -91,19 +91,19 @@ const artifactTypeLabel = computed(() => {
 
 .ai-inline-artifact__badge,
 .ai-inline-artifact__type {
-  font-size: 11px;
-  color: var(--text-secondary);
+  font-size: 10px;
+  color: var(--text-tertiary);
 }
 
 .ai-inline-artifact__badge {
-  padding: 2px 7px;
+  padding: 2px 6px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--panel-muted) 85%, transparent);
+  background: color-mix(in srgb, var(--panel-muted) 64%, transparent);
 }
 
 .ai-inline-artifact__preview {
-  font-size: 12px;
-  line-height: 1.5;
+  font-size: 11px;
+  line-height: 1.52;
   color: var(--text-primary);
   white-space: pre-wrap;
   word-break: break-word;

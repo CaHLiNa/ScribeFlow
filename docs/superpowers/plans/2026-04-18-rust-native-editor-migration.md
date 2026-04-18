@@ -4,7 +4,7 @@
 
 **Goal:** Replace Altals' current WebView-hosted CodeMirror editor with a Rust-native editor core that can eventually deliver Zed-class input latency, scrolling behavior, multi-cursor semantics, and native text rendering without breaking Altals' document workflow, preview, citation, and LaTeX integration.
 
-**Architecture:** Do not attempt to embed a foreign native editor view inside the current Vue pane tree. Instead, introduce a Rust-native editor subsystem in two layers: `altals-editor-core` for buffer, selection, viewport, transaction, and syntax-facing runtime; and `altals-native-editor-app` as a separate native helper process that owns the experimental editor window and communicates with the Tauri shell through a typed bridge. Keep the existing Vue/Tauri workbench alive during migration, extract editor-agnostic contracts first, run the native editor in shadow mode, then cut over by feature flag once document workflows and sync loops are stable.
+**Architecture:** Do not attempt to embed a foreign native editor view inside the current Vue pane tree. Instead, introduce a Rust-native editor subsystem in two layers: `altals-editor-core` for buffer, selection, viewport, transaction, and syntax-facing runtime; and `altals-native-editor-app` as a separate native helper process that owns the native editor runtime and communicates with the Tauri shell through a typed bridge. Keep the existing Vue/Tauri workbench alive during migration only as long as needed to extract editor-agnostic contracts and move session state plus save-time source of truth into Rust. Do not add visual placeholder surfaces, shadow-mode UI, or long-lived dual-runtime presentation. Once document workflows and sync loops are stable, switch the workbench directly to the Rust editor surface and remove CodeMirror.
 
 **Tech Stack:** Tauri 2, Vue 3.5, Pinia, Rust 2021, native helper process IPC, Markdown/LaTeX workflow adapters
 
@@ -16,8 +16,11 @@
 
 - Build an Altals-owned Rust-native editor stack that takes design cues from Zed's editor core.
 - Keep the current Tauri/Vue workbench as the shell during the migration.
-- Run the native editor first as a separate helper process and native window, not as a WebView child.
+- Run the native editor first as a separate helper process, not as a WebView child.
 - Extract editor-independent workflow contracts before replacing any user-facing editing path.
+- Keep migration progress backend-first and hidden by default; do not add user-facing experimental editor controls, placeholder panes, or visual shadow-mode surfaces.
+- Shift save-time and session-state source-of-truth responsibilities into Rust backend commands before attempting visible editor cutover.
+- After backend parity is proven, cut the workbench directly over to the Rust editor surface and delete CodeMirror in the cutover slice instead of keeping a prolonged dual-editor UI.
 
 ### Explicitly rejected
 
@@ -25,13 +28,14 @@
 - Treating this as a CodeMirror replacement only.
 - Rewriting the entire Altals workbench into Rust native UI before the editor core proves itself.
 - Porting Zed wholesale into Altals as an opaque dependency.
+- Shipping a temporary `NativeEditorSurface` status page, frontend shadow mode, or a long-lived `web + native shadow` user-facing migration state.
 
 ### Success criteria
 
 - Typing, scrolling, selection, and multi-cursor behavior come from Rust-native runtime, not CodeMirror.
 - Markdown and LaTeX documents still participate in outline, preview sync, diagnostics, citation insertion, and save flows.
-- Experimental mode can be enabled per workspace or app setting without destabilizing the default editor.
-- A cutover checklist exists and CodeMirror removal happens only after parity gates pass.
+- A cutover checklist exists and the workbench switches directly to the Rust editor surface once parity gates pass.
+- CodeMirror is deleted as part of the cutover slice rather than kept as a parallel fallback UI.
 
 ---
 
@@ -48,7 +52,6 @@
 - `src/domains/editor/editorRuntimeContract.js`
 - `src/services/editorRuntime/nativeBridge.js`
 - `src/stores/editorRuntime.js`
-- `src/components/editor/NativeEditorSurface.vue`
 
 ### Modify
 
@@ -132,7 +135,7 @@ export function createEditorRuntimeContract(runtime) {
 
 Do not change behavior yet. Wrap the current `TextEditor.vue` behavior behind the new contract so outline, preview sync, save, and selection consumers stop depending on CodeMirror types directly.
 
-- [ ] **Step 4: Add shadow-mode telemetry hooks**
+- [ ] **Step 4: Add runtime telemetry hooks**
 
 Emit normalized events for:
 
@@ -144,7 +147,7 @@ Emit normalized events for:
 - diagnostics update
 - markdown and LaTeX preview sync requests
 
-The purpose is to collect the exact event surface the Rust runtime must satisfy before user-visible cutover.
+The purpose is to collect the exact event surface the Rust runtime must satisfy before direct cutover.
 
 - [ ] **Step 5: Run the frontend verification slice**
 
@@ -368,15 +371,14 @@ Then run:
 npm run tauri -- dev
 ```
 
-Expected: in `web` mode behavior is unchanged; in `native-experimental` mode the editor helper can receive diagnostics and reveal requests without breaking the rest of the workbench.
+Expected: current workbench behavior remains unchanged while the editor helper can receive diagnostics and reveal requests without breaking the rest of the workbench.
 
 ---
 
-## Task 5: Introduce Native Shadow Mode and Feature-Parity Gates
+## Task 5: Define Direct Cutover Gates and Final Switch Preconditions
 
 **Files:**
 - Create: `src/services/editorRuntime/nativeBridge.js`
-- Create: `src/components/editor/NativeEditorSurface.vue`
 - Modify: `src/components/editor/EditorPane.vue`
 - Modify: `src/components/editor/TextEditor.vue`
 - Modify: `src/stores/editor.js`
@@ -400,19 +402,19 @@ export function createNativeEditorBridge() {
 }
 ```
 
-- [ ] **Step 2: Add shadow mode before visible cutover**
+- [ ] **Step 2: Keep migration backend-first until final switch**
 
-When `shadowMode` is enabled:
+Do not add a `NativeEditorSurface`, visual shadow mode, or user-facing intermediate editor state.
 
-- CodeMirror remains the user-facing editor.
-- The native helper receives mirrored document state and reveal commands.
-- Event deltas are logged and compared.
+Before visible cutover:
 
-Do not expose native editor as default UI yet.
+- mirror document state and reveal commands into the native runtime from the existing shell where needed
+- record parity evidence through backend state, logs, and verification commands rather than a temporary migration UI
+- keep CodeMirror only as an implementation dependency while backend parity is still incomplete
 
 - [ ] **Step 3: Define cutover parity gates**
 
-The native path cannot become interactive until these are proven:
+The workbench cannot switch to the Rust editor surface until these are proven:
 
 - typing latency stays within target on large Markdown and LaTeX files
 - selection and multi-cursor semantics match expected document edits
@@ -421,17 +423,15 @@ The native path cannot become interactive until these are proven:
 - markdown and LaTeX sync loops remain stable
 - no data loss occurs across workspace close and reopen
 
-- [ ] **Step 4: Add an explicit experimental setting**
+- [ ] **Step 4: Prepare the direct switch path**
 
-Users should be able to enable:
+When the parity gates pass:
 
-- `web`
-- `web + native shadow`
-- `native-experimental`
+- route the workbench editor surface directly to the Rust editor
+- remove user-facing dependency on `TextEditor.vue` as the primary editing surface
+- avoid adding a persistent per-workspace or per-app migration toggle unless explicitly approved later
 
-per app setting or per workspace.
-
-- [ ] **Step 5: Verify the hybrid shell**
+- [ ] **Step 5: Verify cutover readiness**
 
 Run:
 
@@ -445,11 +445,11 @@ Then run:
 npm run tauri -- dev
 ```
 
-Expected: the app can switch between runtime modes without breaking tab restoration, dirty-state tracking, or document workflow chrome.
+Expected: the app is ready to switch the workbench directly to the Rust editor surface without breaking tab restoration, dirty-state tracking, or document workflow chrome.
 
 ---
 
-## Task 6: Cut Over Incrementally and Remove CodeMirror Last
+## Task 6: Directly Cut Over to Rust Editor and Remove CodeMirror
 
 **Files:**
 - Modify: `src/components/editor/EditorPane.vue`
@@ -459,7 +459,7 @@ Expected: the app can switch between runtime modes without breaking tab restorat
 - Delete later: `src/components/editor/TextEditor.vue`
 - Delete later: `src/editor/*`
 
-- [ ] **Step 1: Cut over one document class at a time**
+- [ ] **Step 1: Switch the workbench editor surface to Rust once parity gates pass**
 
 Recommended order:
 
@@ -468,25 +468,20 @@ Recommended order:
 3. LaTeX source editing with diagnostics
 4. LaTeX citation and SyncTeX flows
 
-- [ ] **Step 2: Keep the rollback path alive until final parity**
+- [ ] **Step 2: Delete CodeMirror in the cutover slice**
 
-Do not remove CodeMirror while:
+Once the Rust editor is the active workbench editor and required workflows are verified, remove:
 
-- native editor still lacks one of the required document workflows
-- helper-process lifecycle still leaks or hangs
-- save/restore reliability is not proven
-
-- [ ] **Step 3: Remove dead CodeMirror dependencies only after cutover**
-
-Delete:
-
+- `src/components/editor/TextEditor.vue` if it no longer hosts the Rust surface
 - `src/editor/setup.js`
 - `src/editor/theme.js`
 - `src/editor/markdown*`
 - `src/editor/latex*`
 - direct CodeMirror dependency usage in editor components
 
-- [ ] **Step 4: Run the full verification loop**
+Do not keep a long-lived dual-runtime UI after cutover just to preserve a visual fallback.
+
+- [ ] **Step 3: Run the full verification loop after the direct switch**
 
 Run:
 
@@ -524,7 +519,7 @@ Must be true before writing native UI code:
 
 - no workflow code requires a raw CodeMirror view
 - runtime mode can be switched centrally
-- shadow telemetry exists
+- runtime telemetry exists
 
 ### Gate B: Rust Core Viable
 
@@ -535,7 +530,7 @@ Must be true before helper-process integration:
 
 ### Gate C: Native Helper Viable
 
-Must be true before user-visible experiments:
+Must be true before direct workbench cutover:
 
 - helper process opens and closes cleanly
 - document edits round-trip to the shell
@@ -543,7 +538,7 @@ Must be true before user-visible experiments:
 
 ### Gate D: Workflow Parity Viable
 
-Must be true before `native-experimental` becomes interactive:
+Must be true before the workbench switches to the Rust editor surface:
 
 - diagnostics render correctly
 - outline follows cursor
@@ -557,7 +552,7 @@ Must be true before CodeMirror removal:
 - save and dirty state are stable
 - tab restore is stable
 - performance regression numbers are accepted
-- rollback path has not been needed for one full verification cycle
+- the direct Rust editor cutover works without a user-facing shadow or placeholder UI
 
 ---
 
@@ -577,11 +572,12 @@ Must be true before CodeMirror removal:
 2. Task 2 and Gate B
 3. Task 3 and Gate C
 4. Task 4 and Gate D
-5. Task 5 for shadow mode and interactive experiments
-6. Task 6 only after parity evidence is collected
+5. Task 5 for direct cutover gates and final switch preconditions
+6. Task 6 only after parity evidence is collected, with CodeMirror removal in the cutover slice
 
 ## Migration Notes
 
 - The biggest technical trap is trying to preserve the current WebView pane embedding model while demanding native editor feel. Do not optimize that trap.
 - The biggest product trap is replacing the editing surface before the document workflow contracts are extracted. Do not cut over early.
+- Do not add a temporary visual migration surface just to observe backend progress. Verify through backend state, tests, and workflow parity instead.
 - The native helper process is a migration tool and may or may not remain the final packaging model. The editor core crate is the durable asset.

@@ -17,10 +17,8 @@
 
 <script setup>
 import { computed, defineAsyncComponent, ref } from 'vue'
-import { useEditorRuntimeStore, EDITOR_RUNTIME_MODES } from '../../stores/editorRuntime'
 
 const TextEditor = defineAsyncComponent(() => import('./TextEditor.vue'))
-const NativeEditorSurface = defineAsyncComponent(() => import('./NativeEditorSurface.vue'))
 
 const props = defineProps({
   filePath: { type: String, required: true },
@@ -31,17 +29,8 @@ defineEmits(['cursor-change', 'editor-stats', 'selection-change'])
 
 const TEXT_EDITOR_CACHE_MAX = 4
 const containerRef = ref(null)
-const editorRuntimeStore = useEditorRuntimeStore()
-const activeTextSurface = computed(() =>
-  editorRuntimeStore.mode === EDITOR_RUNTIME_MODES.NATIVE_EXPERIMENTAL
-    ? NativeEditorSurface
-    : TextEditor
-)
-const surfaceKey = computed(() =>
-  editorRuntimeStore.mode === EDITOR_RUNTIME_MODES.NATIVE_EXPERIMENTAL
-    ? `native:${props.filePath}`
-    : `text:${props.filePath}`
-)
+const activeTextSurface = computed(() => TextEditor)
+const surfaceKey = computed(() => `text:${props.filePath}`)
 
 defineExpose({
   getBoundingClientRect() {

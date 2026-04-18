@@ -7,8 +7,9 @@
     :aria-label="t('Project navigation')"
     :style="railStyle"
     @contextmenu.prevent
-    @mousedown="handleWindowDragStart"
   >
+    <div class="workbench-rail__drag-region" @mousedown="handleWindowDragStart"></div>
+
     <div class="workbench-rail-side workbench-rail-side-left">
       <UiButton
         v-if="leftSidebarAvailable"
@@ -287,6 +288,7 @@ onUnmounted(() => {
 .workbench-rail {
   --top-chrome-control-size: 30px;
   --top-chrome-control-radius: 6px;
+  --top-chrome-drag-height: 18px;
   position: relative;
   display: flex;
   align-items: center;
@@ -302,9 +304,17 @@ onUnmounted(() => {
   background: transparent;
   box-shadow: none;
   backdrop-filter: none;
-  pointer-events: auto;
+  pointer-events: none;
   user-select: none;
   -webkit-user-select: none;
+}
+
+.workbench-rail__drag-region {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: var(--top-chrome-drag-height);
+  z-index: 1;
+  pointer-events: auto;
 }
 
 .workbench-rail:hover .workbench-rail-button,

@@ -1,10 +1,13 @@
 use crate::native_editor_bridge::{
-    NativeEditorApplyExternalContentRequest, NativeEditorCommand, NativeEditorEvent,
-    NativeEditorEventPayload, NativeEditorOpenDocumentRequest, NativeEditorSessionSnapshot,
-    NATIVE_EDITOR_EVENT,
+    NativeEditorApplyExternalContentRequest, NativeEditorApplyTransactionRequest, NativeEditorCommand,
+    NativeEditorDocumentSnapshot, NativeEditorDocumentState, NativeEditorDocumentStateRequest,
+    NativeEditorEvent, NativeEditorEventPayload, NativeEditorOpenDocumentRequest, NativeEditorSessionSnapshot,
+    NativeEditorSessionStateSnapshot, NativeEditorSetDiagnosticsRequest, NativeEditorSetOutlineContextRequest,
+    NativeEditorSetSelectionsRequest, NATIVE_EDITOR_EVENT,
 };
 use crate::process_utils::background_tokio_command;
 use serde_json::to_string;
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::Arc;
@@ -24,6 +27,8 @@ struct ActiveNativeEditorSession {
     process_id: Option<u32>,
     protocol_version: u32,
     stdin: Arc<Mutex<ChildStdin>>,
+    state_cache: Arc<Mutex<NativeEditorSessionStateSnapshot>>,
+    text_cache: Arc<Mutex<HashMap<String, String>>>,
     handle: JoinHandle<()>,
 }
 
@@ -100,6 +105,152 @@ fn emit_native_editor_event<R: Runtime>(
     );
 }
 
+fn build_session_snapshot(
+    session_id: String,
+    helper_path: &PathBuf,
+    process_id: Option<u32>,
+    protocol_version: u32,
+) -> NativeEditorSessionSnapshot {
+    NativeEditorSessionSnapshot {
+        session_id,
+        helper_path: helper_path.display().to_string(),
+        process_id,
+        protocol_version,
+        started: true,
+    }
+}
+
+fn build_session_state_snapshot(
+    session_id: String,
+    helper_path: &PathBuf,
+    process_id: Option<u32>,
+    protocol_version: u32,
+) -> NativeEditorSessionStateSnapshot {
+    NativeEditorSessionStateSnapshot {
+        session_id,
+        helper_path: helper_path.display().to_string(),
+        process_id,
+        protocol_version,
+        started: true,
+        connected: false,
+        last_event_kind: String::new(),
+        open_documents: Vec::new(),
+    }
+}
+
+fn reduce_state_cache(cache: &mut NativeEditorSessionStateSnapshot, event: &NativeEditorEvent) {
+    cache.last_event_kind = match event {
+        NativeEditorEvent::Ready { .. } => "ready",
+        NativeEditorEvent::Pong { .. } => "pong",
+        NativeEditorEvent::DocumentOpened { .. } => "documentOpened",
+        NativeEditorEvent::ContentChanged { .. } => "contentChanged",
+        NativeEditorEvent::SessionState { .. } => "sessionState",
+        NativeEditorEvent::Stopped { .. } => "stopped",
+        NativeEditorEvent::Error { .. } => "error",
+    }
+    .to_string();
+
+    match event {
+        NativeEditorEvent::Ready {
+            session_id,
+            protocol_version,
+        } => {
+            cache.session_id = session_id.clone();
+            cache.protocol_version = *protocol_version;
+            cache.connected = true;
+        }
+        NativeEditorEvent::DocumentOpened {
+            path,
+            text_length,
+            version,
+        } => {
+            upsert_document_state(
+                &mut cache.open_documents,
+                path,
+                *text_length,
+                *version,
+                None,
+            );
+        }
+        NativeEditorEvent::ContentChanged {
+            path,
+            text,
+            text_length,
+            version,
+            ..
+        } => {
+            let preview = if text.chars().count() > 240 {
+                let head: String = text.chars().take(240).collect();
+                format!("{head}\n…")
+            } else {
+                text.clone()
+            };
+            upsert_document_state(
+                &mut cache.open_documents,
+                path,
+                *text_length,
+                *version,
+                Some(preview),
+            );
+        }
+        NativeEditorEvent::SessionState { open_documents } => {
+            cache.open_documents = open_documents.clone();
+            cache.connected = true;
+        }
+        NativeEditorEvent::Stopped { .. } => {
+            cache.connected = false;
+        }
+        NativeEditorEvent::Pong { .. } | NativeEditorEvent::Error { .. } => {}
+    }
+}
+
+fn upsert_document_state(
+    documents: &mut Vec<NativeEditorDocumentState>,
+    path: &str,
+    text_length: usize,
+    version: u64,
+    text_preview: Option<String>,
+) {
+    if let Some(existing) = documents.iter_mut().find(|document| document.path == path) {
+        existing.text_length = text_length;
+        existing.version = version;
+        if let Some(preview) = text_preview {
+            existing.text_preview = preview;
+        }
+        return;
+    }
+
+    documents.push(NativeEditorDocumentState {
+        path: path.to_string(),
+        text_length,
+        version,
+        selections: Vec::new(),
+        cursor: None,
+        viewport: None,
+        text_preview: text_preview.unwrap_or_default(),
+        diagnostics: Vec::new(),
+        outline_context: None,
+    });
+}
+
+fn build_document_snapshot(
+    document: &NativeEditorDocumentState,
+    text_cache: &HashMap<String, String>,
+) -> NativeEditorDocumentSnapshot {
+    NativeEditorDocumentSnapshot {
+        path: document.path.clone(),
+        text_length: document.text_length,
+        version: document.version,
+        selections: document.selections.clone(),
+        cursor: document.cursor.clone(),
+        viewport: document.viewport.clone(),
+        text_preview: document.text_preview.clone(),
+        text: text_cache.get(&document.path).cloned().unwrap_or_default(),
+        diagnostics: document.diagnostics.clone(),
+        outline_context: document.outline_context.clone(),
+    }
+}
+
 async fn wait_for_child(child: &mut Child) {
     let _ = child.wait().await;
 }
@@ -111,13 +262,12 @@ pub async fn native_editor_session_start<R: Runtime>(
 ) -> Result<NativeEditorSessionSnapshot, String> {
     let mut guard = state.inner.lock().await;
     if let Some(existing) = guard.as_ref() {
-        return Ok(NativeEditorSessionSnapshot {
-            session_id: existing.session_id.clone(),
-            helper_path: existing.helper_path.display().to_string(),
-            process_id: existing.process_id,
-            protocol_version: existing.protocol_version,
-            started: true,
-        });
+        return Ok(build_session_snapshot(
+            existing.session_id.clone(),
+            &existing.helper_path,
+            existing.process_id,
+            existing.protocol_version,
+        ));
     }
 
     let helper_path = resolve_helper_binary_path(&app)?;
@@ -141,10 +291,19 @@ pub async fn native_editor_session_start<R: Runtime>(
     let stderr = child.stderr.take();
 
     let stdin = Arc::new(Mutex::new(stdin));
+    let state_cache = Arc::new(Mutex::new(build_session_state_snapshot(
+        "pending".to_string(),
+        &helper_path,
+        process_id,
+        0,
+    )));
+    let text_cache = Arc::new(Mutex::new(HashMap::<String, String>::new()));
     let (ready_tx, ready_rx) = oneshot::channel::<(String, u32)>();
     let ready_sender = Arc::new(Mutex::new(Some(ready_tx)));
     let app_for_task = app.clone();
     let app_for_stderr = app.clone();
+    let cache_for_task = state_cache.clone();
+    let text_cache_for_task = text_cache.clone();
 
     let handle = tokio::spawn(async move {
         let mut child = child;
@@ -194,6 +353,21 @@ pub async fn native_editor_session_start<R: Runtime>(
                 NativeEditorEvent::Stopped { session_id } => session_id.clone(),
                 _ => "native-editor-session".to_string(),
             };
+            {
+                let mut cache = cache_for_task.lock().await;
+                reduce_state_cache(&mut cache, &parsed);
+            }
+            match &parsed {
+                NativeEditorEvent::ContentChanged { path, text, .. } => {
+                    let mut text_cache = text_cache_for_task.lock().await;
+                    text_cache.insert(path.clone(), text.clone());
+                }
+                NativeEditorEvent::Stopped { .. } => {
+                    let mut text_cache = text_cache_for_task.lock().await;
+                    text_cache.clear();
+                }
+                _ => {}
+            }
             emit_native_editor_event(&app_for_task, session_id, parsed);
         }
 
@@ -206,13 +380,19 @@ pub async fn native_editor_session_start<R: Runtime>(
         .map_err(|_| "Timed out waiting for native editor helper readiness.".to_string())?
         .map_err(|_| "Native editor helper exited before signaling readiness.".to_string())?;
 
-    let snapshot = NativeEditorSessionSnapshot {
-        session_id: session_id.clone(),
-        helper_path: helper_path.display().to_string(),
+    {
+        let mut cache = state_cache.lock().await;
+        cache.session_id = session_id.clone();
+        cache.protocol_version = protocol_version;
+        cache.connected = true;
+    }
+
+    let snapshot = build_session_snapshot(
+        session_id.clone(),
+        &helper_path,
         process_id,
         protocol_version,
-        started: true,
-    };
+    );
 
     *guard = Some(ActiveNativeEditorSession {
         session_id,
@@ -220,10 +400,69 @@ pub async fn native_editor_session_start<R: Runtime>(
         process_id,
         protocol_version,
         stdin,
+        state_cache,
+        text_cache,
         handle,
     });
 
     Ok(snapshot)
+}
+
+#[tauri::command]
+pub async fn native_editor_document_state(
+    state: State<'_, NativeEditorRuntimeState>,
+    request: NativeEditorDocumentStateRequest,
+) -> Result<Option<NativeEditorDocumentSnapshot>, String> {
+    let (cache, text_cache, handle_finished) = {
+        let guard = state.inner.lock().await;
+        let Some(active) = guard.as_ref() else {
+            return Ok(None);
+        };
+        (
+            active.state_cache.clone(),
+            active.text_cache.clone(),
+            active.handle.is_finished(),
+        )
+    };
+
+    if handle_finished {
+        return Ok(None);
+    }
+
+    let snapshot = cache.lock().await.clone();
+    let text_cache = text_cache.lock().await.clone();
+    let target_path = request.path;
+    let Some(document) = snapshot
+        .open_documents
+        .iter()
+        .find(|document| document.path == target_path)
+    else {
+        return Ok(None);
+    };
+
+    Ok(Some(build_document_snapshot(document, &text_cache)))
+}
+
+#[tauri::command]
+pub async fn native_editor_session_state(
+    state: State<'_, NativeEditorRuntimeState>,
+) -> Result<Option<NativeEditorSessionStateSnapshot>, String> {
+    let (cache, handle_finished) = {
+        let guard = state.inner.lock().await;
+        let Some(active) = guard.as_ref() else {
+            return Ok(None);
+        };
+        (
+            active.state_cache.clone(),
+            active.handle.is_finished(),
+        )
+    };
+
+    let mut snapshot = cache.lock().await.clone();
+    if handle_finished {
+        snapshot.connected = false;
+    }
+    Ok(Some(snapshot))
 }
 
 #[tauri::command]
@@ -295,6 +534,95 @@ pub async fn native_editor_session_replace_document_text(
 }
 
 #[tauri::command]
+pub async fn native_editor_session_apply_transaction(
+    state: State<'_, NativeEditorRuntimeState>,
+    request: NativeEditorApplyTransactionRequest,
+) -> Result<bool, String> {
+    let guard = state.inner.lock().await;
+    let Some(active) = guard.as_ref() else {
+        return Err("Native editor session is not running.".to_string());
+    };
+
+    write_command(
+        &active.stdin,
+        &NativeEditorCommand::ApplyTransaction {
+            path: request.path,
+            edits: request.edits,
+        },
+    )
+    .await?;
+
+    Ok(true)
+}
+
+#[tauri::command]
+pub async fn native_editor_session_set_selections(
+    state: State<'_, NativeEditorRuntimeState>,
+    request: NativeEditorSetSelectionsRequest,
+) -> Result<bool, String> {
+    let guard = state.inner.lock().await;
+    let Some(active) = guard.as_ref() else {
+        return Err("Native editor session is not running.".to_string());
+    };
+
+    write_command(
+        &active.stdin,
+        &NativeEditorCommand::SetSelections {
+            path: request.path,
+            selections: request.selections,
+            viewport_offset: request.viewport_offset,
+        },
+    )
+    .await?;
+
+    Ok(true)
+}
+
+#[tauri::command]
+pub async fn native_editor_session_set_diagnostics(
+    state: State<'_, NativeEditorRuntimeState>,
+    request: NativeEditorSetDiagnosticsRequest,
+) -> Result<bool, String> {
+    let guard = state.inner.lock().await;
+    let Some(active) = guard.as_ref() else {
+        return Err("Native editor session is not running.".to_string());
+    };
+
+    write_command(
+        &active.stdin,
+        &NativeEditorCommand::SetDiagnostics {
+            path: request.path,
+            diagnostics: request.diagnostics,
+        },
+    )
+    .await?;
+
+    Ok(true)
+}
+
+#[tauri::command]
+pub async fn native_editor_session_set_outline_context(
+    state: State<'_, NativeEditorRuntimeState>,
+    request: NativeEditorSetOutlineContextRequest,
+) -> Result<bool, String> {
+    let guard = state.inner.lock().await;
+    let Some(active) = guard.as_ref() else {
+        return Err("Native editor session is not running.".to_string());
+    };
+
+    write_command(
+        &active.stdin,
+        &NativeEditorCommand::SetOutlineContext {
+            path: request.path,
+            context: request.context,
+        },
+    )
+    .await?;
+
+    Ok(true)
+}
+
+#[tauri::command]
 pub async fn native_editor_session_stop(
     state: State<'_, NativeEditorRuntimeState>,
 ) -> Result<bool, String> {
@@ -304,6 +632,11 @@ pub async fn native_editor_session_stop(
     };
 
     let _ = write_command(&active.stdin, &NativeEditorCommand::Shutdown).await;
+    {
+        let mut cache = active.state_cache.lock().await;
+        cache.connected = false;
+        cache.last_event_kind = "stopping".to_string();
+    }
     match timeout(Duration::from_millis(SHUTDOWN_TIMEOUT_MS), active.handle).await {
         Ok(_) => Ok(true),
         Err(_) => Ok(true),

@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
+use std::fmt;
 use std::ops::Range;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -16,13 +17,19 @@ impl EditorSessionId {
 pub struct SessionDocument {
     pub buffer: DocumentBuffer,
     pub version: u64,
+    pub selections: Vec<SelectionRange>,
+    pub viewport: ViewportAnchor,
 }
 
 impl SessionDocument {
     pub fn new(path: impl Into<String>, text: impl Into<String>) -> Self {
+        let buffer = DocumentBuffer::new(path, text);
+        let viewport = buffer.reveal_anchor(0);
         Self {
-            buffer: DocumentBuffer::new(path, text),
+            buffer,
             version: 1,
+            selections: vec![SelectionRange::collapsed(0)],
+            viewport,
         }
     }
 
@@ -40,13 +47,56 @@ impl SessionDocument {
 
     pub fn replace_all(&mut self, next_text: impl Into<String>) {
         self.buffer.replace_all(next_text);
+        self.normalize_state();
         self.version += 1;
     }
 
     pub fn apply_transaction(&mut self, transaction: &EditorTransaction) -> Result<(), BufferError> {
+        let sorted_edits = sorted_transaction_edits(transaction);
         self.buffer.apply_transaction(transaction)?;
+        self.selections = remap_selections(&self.selections, &sorted_edits);
+        self.viewport = remap_viewport_anchor(&self.buffer, self.viewport.offset, &sorted_edits);
+        self.normalize_state();
         self.version += 1;
         Ok(())
+    }
+
+    pub fn selections(&self) -> &[SelectionRange] {
+        &self.selections
+    }
+
+    pub fn primary_selection(&self) -> SelectionRange {
+        self.selections
+            .first()
+            .copied()
+            .unwrap_or_else(|| SelectionRange::collapsed(0))
+    }
+
+    pub fn primary_cursor(&self) -> CursorPosition {
+        self.buffer.cursor_position(self.primary_selection().head)
+    }
+
+    pub fn set_selections(&mut self, selections: Vec<SelectionRange>) {
+        self.selections = if selections.is_empty() {
+            vec![SelectionRange::collapsed(0)]
+        } else {
+            selections
+        };
+        self.normalize_state();
+    }
+
+    pub fn set_viewport_anchor(&mut self, offset: usize) {
+        self.viewport = self.buffer.reveal_anchor(offset);
+    }
+
+    fn normalize_state(&mut self) {
+        let len = self.buffer.len();
+        self.selections = if self.selections.is_empty() {
+            vec![SelectionRange::collapsed(0)]
+        } else {
+            self.selections.iter().map(|selection| selection.clamp(len)).collect()
+        };
+        self.viewport = self.buffer.reveal_anchor(self.viewport.offset.min(len));
     }
 }
 
@@ -114,6 +164,30 @@ impl EditorSession {
 
     pub fn documents(&self) -> impl Iterator<Item = &SessionDocument> {
         self.documents.values()
+    }
+
+    pub fn set_selections(
+        &mut self,
+        path: impl Into<String>,
+        selections: Vec<SelectionRange>,
+    ) -> &SessionDocument {
+        let path = path.into();
+        let document = self
+            .documents
+            .entry(path.clone())
+            .or_insert_with(|| SessionDocument::new(path, ""));
+        document.set_selections(selections);
+        &*document
+    }
+
+    pub fn set_viewport_anchor(&mut self, path: impl Into<String>, offset: usize) -> &SessionDocument {
+        let path = path.into();
+        let document = self
+            .documents
+            .entry(path.clone())
+            .or_insert_with(|| SessionDocument::new(path, ""));
+        document.set_viewport_anchor(offset);
+        &*document
     }
 }
 
@@ -215,6 +289,13 @@ pub struct SelectionRange {
 }
 
 impl SelectionRange {
+    pub fn collapsed(offset: usize) -> Self {
+        Self {
+            anchor: offset,
+            head: offset,
+        }
+    }
+
     pub fn new(anchor: usize, head: usize) -> Self {
         Self { anchor, head }
     }
@@ -225,6 +306,13 @@ impl SelectionRange {
 
     pub fn end(&self) -> usize {
         self.anchor.max(self.head)
+    }
+
+    pub fn clamp(&self, len: usize) -> Self {
+        Self {
+            anchor: clamp_offset(len, self.anchor),
+            head: clamp_offset(len, self.head),
+        }
     }
 }
 
@@ -276,6 +364,73 @@ pub enum BufferError {
         previous: Range<usize>,
         next: Range<usize>,
     },
+}
+
+impl fmt::Display for BufferError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidRange { start, end, len } => {
+                write!(f, "invalid edit range {start}..{end} for buffer length {len}")
+            }
+            Self::OverlappingEdit { previous, next } => {
+                write!(
+                    f,
+                    "overlapping edits detected between {}..{} and {}..{}",
+                    previous.start, previous.end, next.start, next.end
+                )
+            }
+        }
+    }
+}
+
+impl std::error::Error for BufferError {}
+
+fn sorted_transaction_edits(transaction: &EditorTransaction) -> Vec<TextEdit> {
+    let mut edits = transaction.edits.clone();
+    edits.sort_by_key(|edit| edit.range.start);
+    edits
+}
+
+fn transform_offset_through_edits(offset: usize, edits: &[TextEdit]) -> usize {
+    let mut delta = 0_isize;
+    for edit in edits {
+        let start = edit.range.start;
+        let end = edit.range.end;
+        let inserted_len = edit.text.len() as isize;
+        let removed_len = (end - start) as isize;
+
+        if offset < start {
+            break;
+        }
+
+        if offset <= end {
+            let remapped = start as isize + delta + inserted_len;
+            return remapped.max(0) as usize;
+        }
+
+        delta += inserted_len - removed_len;
+    }
+
+    ((offset as isize) + delta).max(0) as usize
+}
+
+fn remap_selections(selections: &[SelectionRange], edits: &[TextEdit]) -> Vec<SelectionRange> {
+    if selections.is_empty() {
+        return vec![SelectionRange::collapsed(0)];
+    }
+
+    selections
+        .iter()
+        .map(|selection| SelectionRange {
+            anchor: transform_offset_through_edits(selection.anchor, edits),
+            head: transform_offset_through_edits(selection.head, edits),
+        })
+        .collect()
+}
+
+fn remap_viewport_anchor(buffer: &DocumentBuffer, offset: usize, edits: &[TextEdit]) -> ViewportAnchor {
+    let next_offset = transform_offset_through_edits(offset, edits);
+    buffer.reveal_anchor(next_offset)
 }
 
 fn clamp_offset(len: usize, offset: usize) -> usize {
@@ -447,5 +602,54 @@ mod tests {
 
         assert_eq!(document.text(), "hello Altals");
         assert_eq!(document.version, 2);
+    }
+
+    #[test]
+    fn session_document_tracks_selection_and_cursor_state() {
+        let mut session = EditorSession::new(EditorSessionId::new("session-1"));
+        session.open_document("notes.md", "hello world");
+        let document = session.set_selections(
+            "notes.md",
+            vec![SelectionRange::new(2, 5), SelectionRange::collapsed(7)],
+        );
+
+        assert_eq!(document.selections().len(), 2);
+        assert_eq!(document.primary_selection(), SelectionRange::new(2, 5));
+        assert_eq!(
+            document.primary_cursor(),
+            CursorPosition {
+                offset: 5,
+                line: 1,
+                column: 6,
+            }
+        );
+    }
+
+    #[test]
+    fn transaction_remaps_selection_offsets() {
+        let mut session = EditorSession::new(EditorSessionId::new("session-1"));
+        session.open_document("notes.md", "hello world");
+        session.set_selections("notes.md", vec![SelectionRange::collapsed(11)]);
+
+        let transaction = EditorTransaction::new(vec![TextEdit::new(6..11, "Rust")]);
+        let document = session
+            .apply_transaction("notes.md", &transaction)
+            .expect("transaction should apply");
+
+        assert_eq!(document.text(), "hello Rust");
+        assert_eq!(document.primary_selection(), SelectionRange::collapsed(10));
+        assert_eq!(document.viewport.offset, 0);
+    }
+
+    #[test]
+    fn viewport_anchor_is_clamped_after_replace() {
+        let mut session = EditorSession::new(EditorSessionId::new("session-1"));
+        session.open_document("notes.md", "hello world");
+        let document = session.set_viewport_anchor("notes.md", 9);
+        assert_eq!(document.viewport.offset, 9);
+
+        let document = session.replace_document_text("notes.md", "hi");
+        assert_eq!(document.viewport.offset, 2);
+        assert_eq!(document.primary_selection(), SelectionRange::collapsed(0));
     }
 }
