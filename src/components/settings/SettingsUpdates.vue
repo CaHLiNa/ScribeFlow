@@ -14,8 +14,11 @@
       </div>
 
       <div class="app-description">
-        {{ t('Altals is a local-first workspace for academic writing and research.') }}<br />
-        <span class="app-description-muted">{{ statusMessage }}</span>
+        {{ t('Altals is a local-first workspace for academic writing and research.') }}
+        <template v-if="statusMessage">
+          <br />
+          <span class="app-description-muted">{{ statusMessage }}</span>
+        </template>
       </div>
 
       <div class="app-actions">
@@ -42,6 +45,7 @@ const appVersion = ref('...')
 const latestVersion = ref('')
 const releaseUrl = ref('')
 const updateStatus = ref('idle')
+const lastCheckedVersion = ref('')
 const { t } = useI18n()
 
 const statusMessage = computed(() => {
@@ -54,12 +58,14 @@ const statusMessage = computed(() => {
     })
   }
   if (updateStatus.value === 'up-to-date') {
-    return t('You are already on the latest version.')
+    return t('Checked just now. You are already on the latest version {version}.', {
+      version: lastCheckedVersion.value || latestVersion.value || appVersion.value,
+    })
   }
   if (updateStatus.value === 'failed') {
     return t('Unable to check for updates right now. Please try again.')
   }
-  return t('Automatic updates are disabled in this local build. Click once to check GitHub for a newer version.')
+  return ''
 })
 
 const actionLabel = computed(() => {
@@ -82,6 +88,7 @@ async function handleUpdateAction() {
     const result = await checkForAppUpdates(appVersion.value)
     latestVersion.value = result.latestVersion
     releaseUrl.value = result.releaseUrl
+    lastCheckedVersion.value = result.latestVersion
     updateStatus.value = result.hasUpdate ? 'update-available' : 'up-to-date'
   } catch {
     updateStatus.value = 'failed'

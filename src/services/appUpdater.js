@@ -36,7 +36,10 @@ export async function getAppVersion() {
 }
 
 export async function checkForAppUpdates(currentVersion = '') {
-  const response = await fetch(RELEASES_LATEST_API_URL, {
+  const apiUrl = new URL(RELEASES_LATEST_API_URL)
+  apiUrl.searchParams.set('_ts', String(Date.now()))
+  const response = await fetch(apiUrl.toString(), {
+    cache: 'no-store',
     headers: {
       Accept: 'application/vnd.github+json',
     },

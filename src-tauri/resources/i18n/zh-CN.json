@@ -254,6 +254,7 @@
   "A newer version {version} is available. Open GitHub to download it.": "发现新版本 {version}。点击按钮前往 GitHub 下载更新。",
   "Open GitHub to Update": "前往 GitHub 更新",
   "You are already on the latest version.": "当前已经是最新版本。",
+  "Checked just now. You are already on the latest version {version}.": "刚刚已重新检查，当前已经是最新版本 {version}。",
   "Check Again": "重新检查",
   "Retry Update Check": "重新检查更新",
   "Unable to check for updates right now. Please try again.": "暂时无法检查更新，请稍后再试。",
