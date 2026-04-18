@@ -4,13 +4,13 @@
       <UiButton
         class="settings-sidebar-back"
         variant="ghost"
-        size="icon-sm"
+        size="icon-md"
         icon-only
         :title="t('Back to workspace')"
         :aria-label="t('Back to workspace')"
         @click="workspace.closeSettings()"
       >
-        <IconChevronLeft :size="16" :stroke-width="1.8" />
+        <IconArrowLeft :size="20" :stroke-width="1.9" />
       </UiButton>
     </div>
 
@@ -36,7 +36,7 @@
 
 <script setup>
 import { computed } from 'vue'
-import { IconChevronLeft } from '@tabler/icons-vue'
+import { IconArrowLeft } from '@tabler/icons-vue'
 import { useI18n } from '../../i18n'
 import { useWorkspaceStore } from '../../stores/workspace'
 import UiButton from '../shared/ui/UiButton.vue'
@@ -63,7 +63,7 @@ const activeSection = computed(() => normalizeSettingsSectionId(workspace.settin
   height: 100%;
   min-height: 0;
   overflow: hidden;
-  padding: 18px 14px 18px 6px;
+  padding: 40px 14px 18px 10px;
   background: var(
     --sidebar-shell-surface,
     color-mix(in srgb, var(--panel-surface) 56%, transparent)
@@ -84,7 +84,7 @@ const activeSection = computed(() => normalizeSettingsSectionId(workspace.settin
 .settings-sidebar-header {
   display: flex;
   align-items: center;
-  padding: 0 8px 12px;
+  padding: 0 10px 18px;
 }
 
 .settings-sidebar-nav {
@@ -132,15 +132,23 @@ const activeSection = computed(() => normalizeSettingsSectionId(workspace.settin
 }
 
 .settings-sidebar-back {
-  color: color-mix(in srgb, var(--text-secondary) 82%, transparent);
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  color: color-mix(in srgb, var(--text-secondary) 84%, transparent);
+  background: color-mix(in srgb, var(--surface-raised) 72%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 52%, transparent);
+  box-shadow: 0 8px 20px -18px rgba(15, 23, 42, 0.42);
 }
 
 .settings-sidebar-back :deep(svg) {
-  opacity: 0.88;
+  opacity: 0.94;
 }
 
 .settings-sidebar-back:hover:not(:disabled) {
   color: var(--text-primary);
+  background: color-mix(in srgb, var(--surface-raised) 92%, transparent);
+  border-color: color-mix(in srgb, var(--border) 70%, transparent);
 }
 
 .settings-sidebar-back:hover:not(:disabled) :deep(svg) {
