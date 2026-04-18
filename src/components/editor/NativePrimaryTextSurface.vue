@@ -1068,6 +1068,7 @@ defineExpose({
   position: relative;
   min-width: 0;
   min-height: 0;
+  isolation: isolate;
 }
 
 .native-primary-overlay,
@@ -1081,6 +1082,7 @@ defineExpose({
 .native-primary-overlay {
   overflow: hidden;
   pointer-events: none;
+  z-index: 2;
 }
 
 .native-primary-overlay-scroll {
@@ -1144,6 +1146,7 @@ defineExpose({
 }
 
 .native-primary-textarea {
+  z-index: 1;
   min-width: 0;
   min-height: 0;
   resize: none;
@@ -1152,6 +1155,7 @@ defineExpose({
   background: transparent;
   color: transparent;
   -webkit-text-fill-color: transparent;
+  -webkit-text-stroke-color: transparent;
   caret-color: var(--text-primary);
   padding: 28px 32px 48px;
   font-family: var(--font-mono);
