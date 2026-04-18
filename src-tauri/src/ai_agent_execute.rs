@@ -151,7 +151,6 @@ fn fallback_payload(content: &str, reasoning: &str) -> Value {
     })
 }
 
-#[tauri::command]
 pub async fn ai_agent_execute(
     params: AiAgentExecuteParams,
 ) -> Result<AiAgentExecuteResponse, String> {

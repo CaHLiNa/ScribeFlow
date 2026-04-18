@@ -529,7 +529,6 @@ fn build_skill_mode_user_prompt(
     lines.join("\n")
 }
 
-#[tauri::command]
 pub async fn ai_agent_build_prompt(
     params: AiAgentPromptParams,
 ) -> Result<AiAgentPromptResponse, String> {

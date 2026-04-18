@@ -159,7 +159,7 @@
 </template>
 
 <script setup>
-import { ref, computed, defineAsyncComponent } from 'vue'
+import { ref, computed, defineAsyncComponent, onMounted, onUnmounted, watch } from 'vue'
 import { useWorkspaceStore } from './stores/workspace'
 import { useFilesStore } from './stores/files'
 import { useEditorStore } from './stores/editor'
@@ -168,6 +168,7 @@ import { useLinksStore } from './stores/links'
 import { useLatexStore } from './stores/latex'
 import { useReferencesStore } from './stores/references'
 import { useAiStore } from './stores/ai'
+import { useEditorRuntimeStore } from './stores/editorRuntime'
 
 import ResizeHandle from './components/layout/ResizeHandle.vue'
 import WorkbenchRail from './components/layout/WorkbenchRail.vue'
@@ -184,7 +185,7 @@ import { useAppTeardown } from './app/teardown/useAppTeardown'
 import { useWorkspaceLifecycle } from './app/workspace/useWorkspaceLifecycle'
 import { useBrowserPreviewRuntime } from './app/browserPreview/useBrowserPreviewRuntime'
 import { confirmUnsavedChanges } from './services/unsavedChanges'
-import { isNewTab, isPreviewPath, previewSourcePathFromPath } from './utils/fileTypes'
+import { getViewerType, isNewTab, isPreviewPath, previewSourcePathFromPath } from './utils/fileTypes'
 import { isMac } from './platform'
 
 const LeftSidebar = defineAsyncComponent(() => import('./components/sidebar/LeftSidebar.vue'))
@@ -207,6 +208,7 @@ const linksStore = useLinksStore()
 const latexStore = useLatexStore()
 const referencesStore = useReferencesStore()
 const aiStore = useAiStore()
+const editorRuntimeStore = useEditorRuntimeStore()
 const { t } = useI18n()
 const isMacDesktop = typeof window !== 'undefined' && isMac && !!window.__TAURI_INTERNALS__
 
@@ -348,6 +350,83 @@ function onCursorChange(pos) {
 function onSelectionChange(selection) {
   aiStore.updateEditorSelection(selection)
 }
+
+onMounted(() => {
+  editorRuntimeStore.attachTelemetryListener()
+})
+
+onUnmounted(() => {
+  editorRuntimeStore.detachTelemetryListener()
+  void editorRuntimeStore.detachNativeRuntimeListener()
+  void editorRuntimeStore.stopNativeSession()
+})
+
+watch(
+  () => editorRuntimeStore.wantsNativeRuntime,
+  async (enabled) => {
+    if (enabled) {
+      await editorRuntimeStore.startNativeSession().catch(() => null)
+      return
+    }
+
+    await editorRuntimeStore.stopNativeSession().catch(() => false)
+  },
+  { immediate: true },
+)
+
+watch(
+  [
+    () => editorRuntimeStore.wantsNativeRuntime,
+    () => editorStore.activeTab,
+    () => {
+      const activePath = editorStore.activeTab
+      return activePath ? filesStore.fileContents[activePath] : undefined
+    },
+  ],
+  async ([nativeRuntimeEnabled, activePath, content]) => {
+    if (!nativeRuntimeEnabled || !activePath) return
+    if (getViewerType(activePath) !== 'text') return
+    let nextContent = content
+    if (typeof nextContent !== 'string') {
+      nextContent = await filesStore.readFile(activePath).catch(() => '')
+      if (typeof nextContent === 'string') {
+        filesStore.setInMemoryFileContent(activePath, nextContent)
+      }
+    }
+    if (typeof nextContent !== 'string') return
+
+    await editorRuntimeStore.syncShadowDocument({
+      path: activePath,
+      text: nextContent,
+    }).catch(() => null)
+  },
+  { immediate: true },
+)
+
+watch(
+  () => editorRuntimeStore.lastNativeRuntimeEvent,
+  (event) => {
+    const kind = String(event?.kind || '').trim()
+    const path = String(event?.path || '').trim()
+    const reason = String(event?.reason || '').trim()
+    const text = typeof event?.text === 'string' ? event.text : null
+
+    if (
+      editorRuntimeStore.mode !== 'native-experimental' ||
+      kind !== 'contentChanged' ||
+      reason !== 'surface-edit' ||
+      !path ||
+      text == null
+    ) {
+      return
+    }
+
+    if (filesStore.fileContents[path] !== text) {
+      filesStore.setInMemoryFileContent(path, text)
+    }
+    editorStore.markFileDirty(path)
+  },
+)
 
 useAppShellEventBridge({
   workspace,

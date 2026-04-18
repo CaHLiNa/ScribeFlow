@@ -242,7 +242,7 @@ const {
   handleSurfaceContextMenuSelect,
 } = useSurfaceContextMenu()
 
-aiStore.resetTransientRuntimeState()
+void aiStore.resetTransientRuntimeState()
 
 const threadRef = ref(null)
 const threadBottomRef = ref(null)

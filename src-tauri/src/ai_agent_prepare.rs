@@ -3,6 +3,9 @@ use serde_json::{json, Map, Value};
 use std::path::Path;
 use tokio::task;
 
+use crate::ai_config::ai_config_load_internal;
+use crate::ai_provider_catalog::resolve_provider_state_value;
+use crate::ai_provider_credentials::load_ai_provider_api_key_internal;
 use crate::fs_io::read_text_file_with_limit;
 
 #[derive(Debug, Clone, Deserialize)]
@@ -25,6 +28,24 @@ pub struct AiAgentPrepareParams {
     pub provider_config: Value,
     #[serde(default)]
     pub api_key: String,
+    #[serde(default)]
+    pub workspace_path: String,
+    #[serde(default)]
+    pub flat_files: Vec<Value>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AiAgentPrepareCurrentConfigParams {
+    pub active_session: Value,
+    #[serde(default)]
+    pub active_skill: Option<Value>,
+    #[serde(default)]
+    pub altals_skills: Vec<Value>,
+    #[serde(default)]
+    pub context_bundle: Value,
+    #[serde(default)]
+    pub session_mode: String,
     #[serde(default)]
     pub workspace_path: String,
     #[serde(default)]
@@ -507,8 +528,7 @@ fn build_error(code: &str, extra: Value) -> Value {
     Value::Object(payload)
 }
 
-#[tauri::command]
-pub async fn ai_agent_prepare(params: AiAgentPrepareParams) -> Result<Value, String> {
+async fn ai_agent_prepare(params: AiAgentPrepareParams) -> Result<Value, String> {
     let session = params.active_session;
     if !session.is_object() {
         return Ok(build_error("SESSION_UNAVAILABLE", json!({})));
@@ -716,4 +736,40 @@ pub async fn ai_agent_prepare(params: AiAgentPrepareParams) -> Result<Value, Str
         "attachments": session.get("attachments").cloned().unwrap_or_else(|| Value::Array(Vec::new())),
         "requestedTools": if is_agent_session { Value::Array(tool_mentions.into_iter().map(Value::String).collect()) } else { Value::Array(Vec::new()) },
     }))
+}
+
+#[tauri::command]
+pub async fn ai_agent_prepare_current_config(
+    params: AiAgentPrepareCurrentConfigParams,
+) -> Result<Value, String> {
+    let config = ai_config_load_internal().await?;
+    let provider_id = string_field(&config, &["currentProviderId"]);
+    let provider_config = config
+        .get("providers")
+        .and_then(|providers| providers.get(&provider_id))
+        .cloned()
+        .unwrap_or(Value::Null);
+    let api_key = load_ai_provider_api_key_internal(&provider_id)?.unwrap_or_default();
+    let mut provider_state = resolve_provider_state_value(&provider_id, &provider_config, &api_key);
+    if let Some(map) = provider_state.as_object_mut() {
+        map.insert(
+            "enabledToolIds".to_string(),
+            config.get("enabledTools").cloned().unwrap_or_else(|| Value::Array(Vec::new())),
+        );
+    }
+
+    ai_agent_prepare(AiAgentPrepareParams {
+        active_session: params.active_session,
+        active_skill: params.active_skill,
+        altals_skills: params.altals_skills,
+        context_bundle: params.context_bundle,
+        session_mode: params.session_mode,
+        provider_state,
+        provider_id,
+        provider_config,
+        api_key,
+        workspace_path: params.workspace_path,
+        flat_files: params.flat_files,
+    })
+    .await
 }

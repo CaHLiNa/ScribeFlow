@@ -31,9 +31,9 @@ export async function persistEditorPath({
 } = {}) {
   if (!path || !filesStore) return false
 
-  const view = getAnyRegisteredEditorView(editorViews, path)
-  if (view?.altalsPersist) {
-    return (await view.altalsPersist()) !== false
+  const editorRuntime = getAnyRegisteredEditorView(editorViews, path)
+  if (editorRuntime?.altalsPersist) {
+    return (await editorRuntime.altalsPersist()) !== false
   }
 
   if (filesStore.isDraftFile?.(path)) {
@@ -46,8 +46,16 @@ export async function persistEditorPath({
     return !!savedPath
   }
 
-  if (view?.state?.doc) {
-    const saved = await filesStore.saveFile(path, view.state.doc.toString())
+  if (editorRuntime?.altalsGetContent) {
+    const saved = await filesStore.saveFile(path, editorRuntime.altalsGetContent())
+    if (saved) {
+      onPersisted?.(path)
+    }
+    return saved
+  }
+
+  if (editorRuntime?.state?.doc) {
+    const saved = await filesStore.saveFile(path, editorRuntime.state.doc.toString())
     if (saved) {
       onPersisted?.(path)
     }

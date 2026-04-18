@@ -67,7 +67,7 @@ fn provider_requires_api_key(provider_id: &str, provider_config: &Value) -> bool
         != "sdk"
 }
 
-fn resolve_provider_state_value(
+pub(crate) fn resolve_provider_state_value(
     provider_id: &str,
     provider_config: &Value,
     api_key: &str,

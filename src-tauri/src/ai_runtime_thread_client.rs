@@ -1,5 +1,15 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use tauri::{AppHandle, Runtime, State};
+
+use crate::ai_agent_session_runtime::{
+    ai_agent_session_apply_event, AiAgentSessionApplyEventParams,
+};
+use crate::codex_runtime::{
+    protocol::RuntimeTurnInterruptParams,
+    runtime_turn_interrupt,
+    state::{CodexRuntimeHandle, CodexRuntimeState},
+};
 
 fn trim(value: &str) -> String {
     value.trim().to_string()
@@ -257,6 +267,93 @@ fn build_session_plan_mode_from_runtime_snapshot(snapshot: &Value) -> Value {
     })
 }
 
+fn build_runtime_snapshot_value(
+    runtime: &CodexRuntimeState,
+    thread_id: &str,
+) -> Option<Value> {
+    let thread = runtime.threads.get(thread_id)?.clone();
+    let turns = thread
+        .turn_ids
+        .iter()
+        .filter_map(|turn_id| runtime.turns.get(turn_id).cloned())
+        .collect::<Vec<_>>();
+    let items = turns
+        .iter()
+        .flat_map(|turn| turn.item_ids.iter())
+        .filter_map(|item_id| runtime.items.get(item_id).cloned())
+        .collect::<Vec<_>>();
+    let permission_requests = runtime
+        .permission_requests
+        .values()
+        .filter(|request| request.thread_id == thread.id)
+        .cloned()
+        .collect::<Vec<_>>();
+    let ask_user_requests = runtime
+        .ask_user_requests
+        .values()
+        .filter(|request| request.thread_id == thread.id)
+        .cloned()
+        .collect::<Vec<_>>();
+    let exit_plan_requests = runtime
+        .exit_plan_requests
+        .values()
+        .filter(|request| request.thread_id == thread.id)
+        .cloned()
+        .collect::<Vec<_>>();
+    let plan_mode = runtime.plan_modes.get(&thread.id).cloned();
+
+    Some(json!({
+        "thread": thread,
+        "turns": turns,
+        "items": items,
+        "permissionRequests": permission_requests,
+        "askUserRequests": ask_user_requests,
+        "exitPlanRequests": exit_plan_requests,
+        "planMode": plan_mode,
+    }))
+}
+
+fn event_type(payload: &Value) -> String {
+    string_field(payload, &["eventType", "event_type"])
+}
+
+fn runtime_thread_id_from_event(payload: &Value) -> String {
+    let thread = payload.get("thread").unwrap_or(&Value::Null);
+    let item = payload.get("item").unwrap_or(&Value::Null);
+    let thread_id = string_field(thread, &["id"]);
+    if !thread_id.is_empty() {
+        return thread_id;
+    }
+    string_field(item, &["threadId", "thread_id"])
+}
+
+fn runtime_turn_id_from_event(payload: &Value) -> String {
+    let turn = payload.get("turn").unwrap_or(&Value::Null);
+    let item = payload.get("item").unwrap_or(&Value::Null);
+    let turn_id = string_field(turn, &["id"]);
+    if !turn_id.is_empty() {
+        return turn_id;
+    }
+    string_field(item, &["turnId", "turn_id"])
+}
+
+fn should_sync_session_from_runtime(event_type: &str, payload: &Value) -> bool {
+    match event_type {
+        "threadRenamed"
+        | "permissionRequest"
+        | "askUserRequest"
+        | "exitPlanRequest"
+        | "planModeStart"
+        | "planModeEnd"
+        | "turnCompleted"
+        | "turnFailed"
+        | "turnInterrupted" => true,
+        _ => payload.get("permissionRequest").is_some()
+            || payload.get("askUserRequest").is_some()
+            || payload.get("exitPlanRequest").is_some(),
+    }
+}
+
 pub fn map_runtime_thread_snapshot_to_session(session: &Value, snapshot: &Value) -> Value {
     let mut next_session = session.clone();
     let thread = snapshot.get("thread").cloned().unwrap_or(Value::Null);
@@ -315,11 +412,298 @@ pub struct AiRuntimeThreadSnapshotToSessionResponse {
     pub session: Value,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AiRuntimeInterruptSessionParams {
+    #[serde(default)]
+    pub session: Value,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AiRuntimeInterruptSessionResponse {
+    pub interrupted: bool,
+    pub thread_id: String,
+    pub turn_id: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AiRuntimeEventReduceParams {
+    #[serde(default)]
+    pub session: Value,
+    #[serde(default)]
+    pub payload: Value,
+    #[serde(default)]
+    pub pending_assistant_id: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AiRuntimeEventReduceResponse {
+    pub handled: bool,
+    pub delete_session: bool,
+    pub session: Value,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AiRuntimePendingSessionState {
+    #[serde(default)]
+    pub session_id: String,
+    #[serde(default)]
+    pub pending_assistant_id: String,
+    #[serde(default)]
+    pub stop_requested: bool,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AiRuntimeEventRouteParams {
+    #[serde(default)]
+    pub sessions: Vec<Value>,
+    #[serde(default)]
+    pub payload: Value,
+    #[serde(default)]
+    pub pending_sessions: Vec<AiRuntimePendingSessionState>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AiRuntimeEventRouteResponse {
+    pub handled: bool,
+    pub delete_session_id: String,
+    pub target_session_id: String,
+    pub stop_requested: bool,
+    pub session: Option<Value>,
+}
+
+fn find_session_by_runtime_thread_id(sessions: &[Value], thread_id: &str) -> Option<Value> {
+    let normalized_thread_id = trim(thread_id);
+    if normalized_thread_id.is_empty() {
+        return None;
+    }
+    sessions
+        .iter()
+        .find(|session| string_field(session, &["runtimeThreadId", "runtime_thread_id"]) == normalized_thread_id)
+        .cloned()
+}
+
 #[tauri::command]
 pub async fn ai_runtime_thread_snapshot_to_session(
     params: AiRuntimeThreadSnapshotToSessionParams,
 ) -> Result<AiRuntimeThreadSnapshotToSessionResponse, String> {
     Ok(AiRuntimeThreadSnapshotToSessionResponse {
         session: map_runtime_thread_snapshot_to_session(&params.session, &params.snapshot),
+    })
+}
+
+#[tauri::command]
+pub async fn ai_runtime_interrupt_session<R: Runtime>(
+    app: AppHandle<R>,
+    state: State<'_, CodexRuntimeHandle>,
+    params: AiRuntimeInterruptSessionParams,
+) -> Result<AiRuntimeInterruptSessionResponse, String> {
+    let session = params.session;
+    let thread_id = string_field(&session, &["runtimeThreadId", "runtime_thread_id"]);
+    if thread_id.is_empty() {
+        return Ok(AiRuntimeInterruptSessionResponse {
+            interrupted: false,
+            thread_id,
+            turn_id: String::new(),
+        });
+    }
+
+    let session_turn_id = string_field(&session, &["runtimeTurnId", "runtime_turn_id"]);
+    let active_turn_id = {
+        let handle = state.inner().clone();
+        let runtime = handle.inner.lock().await;
+        runtime
+            .threads
+            .get(&thread_id)
+            .and_then(|thread| thread.active_turn_id.clone())
+            .unwrap_or_default()
+    };
+    let turn_id = if active_turn_id.is_empty() {
+        session_turn_id
+    } else {
+        active_turn_id
+    };
+    if turn_id.is_empty() {
+        return Ok(AiRuntimeInterruptSessionResponse {
+            interrupted: false,
+            thread_id,
+            turn_id,
+        });
+    }
+
+    runtime_turn_interrupt(
+        app,
+        state,
+        RuntimeTurnInterruptParams {
+            thread_id: thread_id.clone(),
+            turn_id: turn_id.clone(),
+        },
+    )
+    .await?;
+
+    Ok(AiRuntimeInterruptSessionResponse {
+        interrupted: true,
+        thread_id,
+        turn_id,
+    })
+}
+
+async fn ai_runtime_event_reduce(
+    state: State<'_, CodexRuntimeHandle>,
+    params: AiRuntimeEventReduceParams,
+) -> Result<AiRuntimeEventReduceResponse, String> {
+    let session = params.session;
+    let payload = params.payload;
+    let event_type = event_type(&payload);
+    let thread_id = runtime_thread_id_from_event(&payload);
+    let turn_id = runtime_turn_id_from_event(&payload);
+
+    if event_type == "threadArchived" && !thread_id.is_empty() {
+        return Ok(AiRuntimeEventReduceResponse {
+            handled: true,
+            delete_session: true,
+            session,
+        });
+    }
+
+    if should_sync_session_from_runtime(&event_type, &payload) && !thread_id.is_empty() {
+        let handle = CodexRuntimeHandle::from_state(state);
+        let runtime = handle.inner.lock().await;
+        if let Some(snapshot) = build_runtime_snapshot_value(&runtime, &thread_id) {
+            return Ok(AiRuntimeEventReduceResponse {
+                handled: true,
+                delete_session: false,
+                session: map_runtime_thread_snapshot_to_session(&session, &snapshot),
+            });
+        }
+    }
+
+    if event_type == "turnStarted" && !thread_id.is_empty() && !turn_id.is_empty() {
+        let mut next_session = session.clone();
+        next_session["runtimeThreadId"] = Value::String(thread_id);
+        next_session["runtimeTurnId"] = Value::String(turn_id);
+        next_session["runtimeTransport"] = Value::String("codex-runtime".to_string());
+        return Ok(AiRuntimeEventReduceResponse {
+            handled: true,
+            delete_session: false,
+            session: next_session,
+        });
+    }
+
+    if event_type == "itemDelta" && !trim(&params.pending_assistant_id).is_empty() {
+        let item = payload.get("item").cloned().unwrap_or(Value::Null);
+        let kind = string_field(&item, &["kind"]);
+        let text = string_field(&item, &["text"]);
+        if kind == "agentMessage" || kind == "reasoning" {
+            let event = json!({
+                "eventType": if kind == "agentMessage" {
+                    "assistant-content"
+                } else {
+                    "assistant-reasoning"
+                },
+                "text": text,
+                "transport": "codex-runtime",
+            });
+            let response = ai_agent_session_apply_event(AiAgentSessionApplyEventParams {
+                session,
+                event,
+                pending_assistant_id: params.pending_assistant_id,
+            })
+            .await?;
+            return Ok(AiRuntimeEventReduceResponse {
+                handled: true,
+                delete_session: false,
+                session: response.session,
+            });
+        }
+    }
+
+    Ok(AiRuntimeEventReduceResponse {
+        handled: false,
+        delete_session: false,
+        session,
+    })
+}
+
+#[tauri::command]
+pub async fn ai_runtime_event_route(
+    state: State<'_, CodexRuntimeHandle>,
+    params: AiRuntimeEventRouteParams,
+) -> Result<AiRuntimeEventRouteResponse, String> {
+    let payload = params.payload;
+    let event_type = event_type(&payload);
+    let thread_id = runtime_thread_id_from_event(&payload);
+    let Some(session) = find_session_by_runtime_thread_id(&params.sessions, &thread_id) else {
+        return Ok(AiRuntimeEventRouteResponse {
+            handled: false,
+            delete_session_id: String::new(),
+            target_session_id: String::new(),
+            stop_requested: false,
+            session: None,
+        });
+    };
+    let target_session_id = string_field(&session, &["id"]);
+    if target_session_id.is_empty() {
+        return Ok(AiRuntimeEventRouteResponse {
+            handled: false,
+            delete_session_id: String::new(),
+            target_session_id: String::new(),
+            stop_requested: false,
+            session: None,
+        });
+    }
+
+    let pending_state = params
+        .pending_sessions
+        .iter()
+        .find(|entry| trim(&entry.session_id) == target_session_id)
+        .cloned();
+    let reduced = ai_runtime_event_reduce(
+        state,
+        AiRuntimeEventReduceParams {
+            session: session.clone(),
+            payload,
+            pending_assistant_id: pending_state
+                .as_ref()
+                .map(|entry| entry.pending_assistant_id.clone())
+                .unwrap_or_default(),
+        },
+    )
+    .await?;
+
+    if reduced.handled != true {
+        return Ok(AiRuntimeEventRouteResponse {
+            handled: false,
+            delete_session_id: String::new(),
+            target_session_id,
+            stop_requested: false,
+            session: None,
+        });
+    }
+
+    Ok(AiRuntimeEventRouteResponse {
+        handled: true,
+        delete_session_id: if reduced.delete_session {
+            target_session_id.clone()
+        } else {
+            String::new()
+        },
+        target_session_id,
+        stop_requested: event_type == "turnStarted"
+            && pending_state
+                .as_ref()
+                .map(|entry| entry.stop_requested)
+                .unwrap_or(false),
+        session: if reduced.delete_session {
+            None
+        } else {
+            Some(reduced.session)
+        },
     })
 }

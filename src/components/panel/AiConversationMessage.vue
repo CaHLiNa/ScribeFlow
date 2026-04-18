@@ -96,7 +96,6 @@
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n, formatDate } from '../../i18n'
-import { extractAiMessageText } from '../../domains/ai/aiConversationRuntime.js'
 import AiArtifactInlineCard from './AiArtifactInlineCard.vue'
 import AiTaskProgressCard from './AiTaskProgressCard.vue'
 import AiToolLine from './AiToolLine.vue'
@@ -113,6 +112,29 @@ defineEmits(['apply-artifact'])
 const { t } = useI18n()
 const displayedTextMap = ref({})
 const revealTimers = new Map()
+
+function trimText(value = '') {
+  return String(value || '').trim()
+}
+
+function extractAiMessageText(message = null) {
+  if (!message) return ''
+  if (Array.isArray(message.parts) && message.parts.length > 0) {
+    return message.parts
+      .filter(
+        (part) =>
+          part.type === 'text' ||
+          part.type === 'support' ||
+          part.type === 'note' ||
+          part.type === 'error'
+      )
+      .map((part) => trimText(part.text))
+      .filter(Boolean)
+      .join('\n\n')
+      .trim()
+  }
+  return trimText(message.content)
+}
 
 const displayParts = computed(() => {
   if (Array.isArray(props.message.parts) && props.message.parts.length > 0) {

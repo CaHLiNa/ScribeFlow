@@ -34,6 +34,8 @@ mod latex_project_graph;
 mod latex_runtime;
 mod latex_tools;
 mod markdown_runtime;
+mod native_editor_bridge;
+mod native_editor_runtime;
 mod network;
 mod process_utils;
 mod references_backend;
@@ -398,6 +400,7 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .manage(codex_runtime::CodexRuntimeHandle::default())
         .manage(latex::LatexState::default())
+        .manage(native_editor_runtime::NativeEditorRuntimeState::default())
         .manage(security::WorkspaceScopeState::default())
         .manage(workspace_access::WorkspaceAccessState::default());
 
@@ -447,19 +450,8 @@ pub fn run() {
             ai_runtime::respond_ai_anthropic_sdk_permission,
             ai_runtime::respond_ai_anthropic_sdk_ask_user,
             ai_runtime::respond_ai_anthropic_sdk_exit_plan,
-            ai_agent_prepare::ai_agent_prepare,
-            ai_agent_prompt::ai_agent_build_prompt,
-            ai_agent_execute::ai_agent_execute,
-            ai_agent_run::ai_agent_run,
-            ai_agent_run::ai_agent_run_started_session,
-            ai_agent_session_runtime::ai_agent_session_start,
-            ai_agent_session_runtime::ai_agent_session_apply_event,
-            ai_agent_session_runtime::ai_agent_session_complete,
-            ai_agent_session_runtime::ai_agent_session_fail,
-            ai_agent_session_runtime::ai_agent_session_finalize,
-            ai_agent_session_runtime::ai_agent_session_interrupt,
-            ai_agent_session_runtime::ai_agent_tool_events_merge,
-            ai_artifact_runtime::ai_artifact_capability_describe,
+            ai_agent_prepare::ai_agent_prepare_current_config,
+            ai_agent_run::ai_agent_run_prepared_session,
             ai_artifact_runtime::ai_artifact_apply_doc_patch,
             ai_attachment_runtime::ai_attachment_create,
             ai_client_session_runtime::ai_client_session_create,
@@ -479,8 +471,11 @@ pub fn run() {
             ai_provider_credentials::ai_provider_api_key_store,
             ai_provider_credentials::ai_provider_api_key_clear,
             ai_session_local_runtime::ai_session_local_mutate,
+            ai_session_local_runtime::ai_session_state_normalize,
             ai_runtime_session_rail::ai_runtime_session_rail_reconcile,
             ai_runtime_thread_client::ai_runtime_thread_snapshot_to_session,
+            ai_runtime_thread_client::ai_runtime_interrupt_session,
+            ai_runtime_thread_client::ai_runtime_event_route,
             ai_runtime_turn_wait::ai_runtime_turn_run_wait,
             ai_skill_catalog::ai_skill_catalog_load,
             ai_skill_management::ai_skill_create,
@@ -572,6 +567,11 @@ pub fn run() {
             latex::synctex_forward,
             latex::synctex_backward,
             latex::read_latex_synctex,
+            native_editor_runtime::native_editor_session_start,
+            native_editor_runtime::native_editor_session_stop,
+            native_editor_runtime::native_editor_session_open_document,
+            native_editor_runtime::native_editor_session_apply_external_content,
+            native_editor_runtime::native_editor_session_replace_document_text,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

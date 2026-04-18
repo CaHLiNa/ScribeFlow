@@ -7,8 +7,9 @@ use crate::ai_agent_execute::{ai_agent_execute, AiAgentExecuteParams};
 use crate::ai_agent_prompt::{ai_agent_build_prompt, AiAgentPromptParams};
 use crate::ai_agent_session_runtime::{
     ai_agent_session_complete, ai_agent_session_fail, ai_agent_session_finalize,
-    ai_agent_session_interrupt, AiAgentSessionCompleteParams, AiAgentSessionFailParams,
-    AiAgentSessionFinalizeParams, AiAgentSessionInterruptParams,
+    ai_agent_session_interrupt, ai_agent_session_start, AiAgentSessionCompleteParams,
+    AiAgentSessionFailParams, AiAgentSessionFinalizeParams, AiAgentSessionInterruptParams,
+    AiAgentSessionStartParams,
 };
 use crate::ai_runtime_turn_wait::run_turn_and_wait;
 use crate::codex_runtime::{
@@ -70,6 +71,27 @@ pub struct AiAgentRunStartedSessionParams {
     pub pending_assistant_id: String,
     #[serde(default)]
     pub created_at: i64,
+    #[serde(default)]
+    pub cwd: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AiAgentRunPreparedSessionParams {
+    #[serde(default)]
+    pub session: Value,
+    #[serde(default)]
+    pub prepared_run: Value,
+    #[serde(default)]
+    pub altals_skills: Vec<Value>,
+    #[serde(default)]
+    pub pending_assistant_id: String,
+    #[serde(default)]
+    pub user_message_id: String,
+    #[serde(default)]
+    pub created_at: i64,
+    #[serde(default)]
+    pub fallback_title: String,
     #[serde(default)]
     pub cwd: String,
 }
@@ -345,8 +367,7 @@ fn response_with_session(
     }
 }
 
-#[tauri::command]
-pub async fn ai_agent_run(params: AiAgentRunParams) -> Result<AiAgentRunResponse, String> {
+async fn ai_agent_run(params: AiAgentRunParams) -> Result<AiAgentRunResponse, String> {
     let enabled_tool_ids = params
         .config
         .get("enabledTools")
@@ -417,8 +438,7 @@ pub async fn ai_agent_run(params: AiAgentRunParams) -> Result<AiAgentRunResponse
     })
 }
 
-#[tauri::command]
-pub async fn ai_agent_run_started_session<R: Runtime>(
+async fn ai_agent_run_started_session<R: Runtime>(
     app: AppHandle<R>,
     runtime_state: State<'_, CodexRuntimeHandle>,
     params: AiAgentRunStartedSessionParams,
@@ -617,4 +637,54 @@ pub async fn ai_agent_run_started_session<R: Runtime>(
             ))
         }
     }
+}
+
+#[tauri::command]
+pub async fn ai_agent_run_prepared_session<R: Runtime>(
+    app: AppHandle<R>,
+    runtime_state: State<'_, CodexRuntimeHandle>,
+    params: AiAgentRunPreparedSessionParams,
+) -> Result<AiAgentRunStartedSessionResponse, String> {
+    let prepared_run = params.prepared_run.clone();
+    let skill = prepared_run.get("skill").cloned().unwrap_or(Value::Null);
+    let provider_state = prepared_run
+        .get("providerState")
+        .cloned()
+        .unwrap_or(Value::Null);
+    let context_bundle = prepared_run
+        .get("contextBundle")
+        .cloned()
+        .unwrap_or(Value::Null);
+    let user_instruction = string_field(&prepared_run, &["userInstruction"]);
+    let prompt_draft = string_field(&prepared_run, &["promptDraft"]);
+    let effective_permission_mode = string_field(&prepared_run, &["effectivePermissionMode"]);
+
+    let started = ai_agent_session_start(AiAgentSessionStartParams {
+        session: params.session,
+        skill,
+        provider_state,
+        context_bundle,
+        user_instruction,
+        prompt_draft,
+        effective_permission_mode,
+        pending_assistant_id: params.pending_assistant_id.clone(),
+        user_message_id: params.user_message_id,
+        created_at: params.created_at,
+        fallback_title: params.fallback_title,
+    })
+    .await?;
+
+    ai_agent_run_started_session(
+        app,
+        runtime_state,
+        AiAgentRunStartedSessionParams {
+            session: started.session,
+            prepared_run: params.prepared_run,
+            altals_skills: params.altals_skills,
+            pending_assistant_id: params.pending_assistant_id,
+            created_at: params.created_at,
+            cwd: params.cwd,
+        },
+    )
+    .await
 }

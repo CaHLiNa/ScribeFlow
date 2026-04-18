@@ -861,15 +861,6 @@ pub struct AiAgentSessionInterruptParams {
     pub pending_assistant_id: String,
 }
 
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AiAgentToolEventsMergeParams {
-    #[serde(default)]
-    pub events: Vec<Value>,
-    #[serde(default)]
-    pub event: Value,
-}
-
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AiAgentSessionMutationResponse {
@@ -877,12 +868,6 @@ pub struct AiAgentSessionMutationResponse {
     pub assistant_message: Option<Value>,
     pub user_message: Option<Value>,
     pub failed_assistant_message: Option<Value>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AiAgentToolEventsMergeResponse {
-    pub events: Vec<Value>,
 }
 
 fn remove_streaming_marker(part: &Value) -> Value {
@@ -905,7 +890,6 @@ fn part_has_visible_content(part: &Value) -> bool {
     part.is_object()
 }
 
-#[tauri::command]
 pub async fn ai_agent_session_start(
     params: AiAgentSessionStartParams,
 ) -> Result<AiAgentSessionMutationResponse, String> {
@@ -983,7 +967,6 @@ pub async fn ai_agent_session_start(
     })
 }
 
-#[tauri::command]
 pub async fn ai_agent_session_apply_event(
     params: AiAgentSessionApplyEventParams,
 ) -> Result<AiAgentSessionMutationResponse, String> {
@@ -1188,7 +1171,6 @@ pub async fn ai_agent_session_apply_event(
     })
 }
 
-#[tauri::command]
 pub async fn ai_agent_session_complete(
     params: AiAgentSessionCompleteParams,
 ) -> Result<AiAgentSessionMutationResponse, String> {
@@ -1235,7 +1217,6 @@ pub async fn ai_agent_session_complete(
     })
 }
 
-#[tauri::command]
 pub async fn ai_agent_session_fail(
     params: AiAgentSessionFailParams,
 ) -> Result<AiAgentSessionMutationResponse, String> {
@@ -1275,7 +1256,6 @@ pub async fn ai_agent_session_fail(
     })
 }
 
-#[tauri::command]
 pub async fn ai_agent_session_finalize(
     params: AiAgentSessionFinalizeParams,
 ) -> Result<AiAgentSessionMutationResponse, String> {
@@ -1295,7 +1275,6 @@ pub async fn ai_agent_session_finalize(
     })
 }
 
-#[tauri::command]
 pub async fn ai_agent_session_interrupt(
     params: AiAgentSessionInterruptParams,
 ) -> Result<AiAgentSessionMutationResponse, String> {
@@ -1335,31 +1314,4 @@ pub async fn ai_agent_session_interrupt(
         user_message: None,
         failed_assistant_message: None,
     })
-}
-
-#[tauri::command]
-pub async fn ai_agent_tool_events_merge(
-    params: AiAgentToolEventsMergeParams,
-) -> Result<AiAgentToolEventsMergeResponse, String> {
-    let next_event = params.event;
-    let tool_id = string_field(&next_event, &["toolId", "id"]);
-    if tool_id.is_empty() {
-        return Ok(AiAgentToolEventsMergeResponse {
-            events: params.events,
-        });
-    }
-
-    let mut events = params.events;
-    if let Some(index) = events
-        .iter()
-        .position(|event| string_field(event, &["toolId"]) == tool_id)
-    {
-        let previous = events[index].as_object().cloned().unwrap_or_default();
-        let next = next_event.as_object().cloned().unwrap_or_default();
-        events[index] = Value::Object(previous.into_iter().chain(next).collect());
-    } else {
-        events.push(next_event);
-    }
-
-    Ok(AiAgentToolEventsMergeResponse { events })
 }

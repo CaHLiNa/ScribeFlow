@@ -2,8 +2,8 @@
   <div ref="containerRef" class="editor-pane-text-surface">
     <KeepAlive :max="TEXT_EDITOR_CACHE_MAX">
       <component
-        :is="TextEditor"
-        :key="`text:${filePath}`"
+        :is="activeTextSurface"
+        :key="surfaceKey"
         class="flex-1 min-w-0 h-full"
         :filePath="filePath"
         :paneId="paneId"
@@ -16,11 +16,13 @@
 </template>
 
 <script setup>
-import { defineAsyncComponent, ref } from 'vue'
+import { computed, defineAsyncComponent, ref } from 'vue'
+import { useEditorRuntimeStore, EDITOR_RUNTIME_MODES } from '../../stores/editorRuntime'
 
 const TextEditor = defineAsyncComponent(() => import('./TextEditor.vue'))
+const NativeEditorSurface = defineAsyncComponent(() => import('./NativeEditorSurface.vue'))
 
-defineProps({
+const props = defineProps({
   filePath: { type: String, required: true },
   paneId: { type: String, required: true },
 })
@@ -29,6 +31,17 @@ defineEmits(['cursor-change', 'editor-stats', 'selection-change'])
 
 const TEXT_EDITOR_CACHE_MAX = 4
 const containerRef = ref(null)
+const editorRuntimeStore = useEditorRuntimeStore()
+const activeTextSurface = computed(() =>
+  editorRuntimeStore.mode === EDITOR_RUNTIME_MODES.NATIVE_EXPERIMENTAL
+    ? NativeEditorSurface
+    : TextEditor
+)
+const surfaceKey = computed(() =>
+  editorRuntimeStore.mode === EDITOR_RUNTIME_MODES.NATIVE_EXPERIMENTAL
+    ? `native:${props.filePath}`
+    : `text:${props.filePath}`
+)
 
 defineExpose({
   getBoundingClientRect() {

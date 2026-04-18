@@ -97,9 +97,8 @@ fn migrate_legacy_openai_keychain_value() -> Result<Option<String>, String> {
     Ok(Some(legacy_value))
 }
 
-#[tauri::command]
-pub async fn ai_provider_api_key_load(provider_id: String) -> Result<Option<String>, String> {
-    let normalized_provider_id = normalize_ai_provider_id(&provider_id);
+pub(crate) fn load_ai_provider_api_key_internal(provider_id: &str) -> Result<Option<String>, String> {
+    let normalized_provider_id = normalize_ai_provider_id(provider_id);
     let keychain_key = resolve_ai_keychain_key(&normalized_provider_id);
     if let Some(value) = read_keychain(keychain_key)? {
         return Ok(Some(value));
@@ -118,6 +117,11 @@ pub async fn ai_provider_api_key_load(provider_id: String) -> Result<Option<Stri
         .map(|text| text.trim().to_string())
         .filter(|text| !text.is_empty());
     Ok(value)
+}
+
+#[tauri::command]
+pub async fn ai_provider_api_key_load(provider_id: String) -> Result<Option<String>, String> {
+    load_ai_provider_api_key_internal(&provider_id)
 }
 
 #[tauri::command]

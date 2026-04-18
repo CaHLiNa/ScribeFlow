@@ -24,35 +24,6 @@ fn string_field(value: &Value, key: &str) -> String {
         .to_string()
 }
 
-fn get_capability_tool_id(artifact_type: &str) -> &'static str {
-    match artifact_type {
-        "doc_patch" => "apply-document-patch",
-        "note_draft" => "open-note-draft",
-        _ => "",
-    }
-}
-
-#[tauri::command]
-pub async fn ai_artifact_capability_describe(artifact: Value) -> Result<Value, String> {
-    let artifact_type = string_field(&artifact, "type");
-    let tool_id = get_capability_tool_id(&artifact_type);
-    if tool_id.is_empty() {
-        return Ok(Value::Null);
-    }
-
-    let label_key = match artifact_type.as_str() {
-        "doc_patch" => "Apply to draft",
-        "note_draft" => "Open as draft",
-        _ => "",
-    };
-
-    Ok(serde_json::json!({
-        "artifactType": artifact_type,
-        "toolId": tool_id,
-        "labelKey": label_key,
-    }))
-}
-
 #[tauri::command]
 pub async fn ai_artifact_apply_doc_patch(
     params: AiArtifactApplyDocPatchParams,

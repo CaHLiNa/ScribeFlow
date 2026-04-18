@@ -109,6 +109,10 @@ import EditorContextMenu from './EditorContextMenu.vue'
 import CitationPalette from './CitationPalette.vue'
 import { useTextEditorBridges } from '../../composables/useTextEditorBridges'
 import { useI18n } from '../../i18n'
+import {
+  createEditorRuntimeContract,
+  emitEditorRuntimeTelemetry,
+} from '../../domains/editor/editorRuntimeContract'
 
 const props = defineProps({
   filePath: { type: String, required: true },
@@ -149,6 +153,7 @@ async function appendLatexSyncDebug(entry = {}) {
 }
 
 let view = null
+let editorRuntimeHandle = null
 let backwardSyncHandler = null
 let latexCursorRequestHandler = null
 let markdownCursorRequestHandler = null
@@ -596,11 +601,77 @@ async function persistEditorContent(content) {
 
 function handleDocumentChanged(content) {
   files.setInMemoryFileContent(props.filePath, content)
+  emitEditorRuntimeTelemetry({
+    type: 'content-change',
+    runtimeKind: 'web',
+    paneId: props.paneId,
+    filePath: props.filePath,
+    textLength: content.length,
+  })
   if (content === lastPersistedContent) {
     editorStore.clearFileDirty(props.filePath)
     return
   }
   editorStore.markFileDirty(props.filePath)
+}
+
+function requestCurrentSelection() {
+  if (!view) return null
+  const selection = view.state.selection.main
+  return {
+    filePath: props.filePath,
+    hasSelection: selection.from !== selection.to,
+    from: selection.from,
+    to: selection.to,
+    text:
+      selection.from !== selection.to
+        ? view.state.sliceDoc(selection.from, selection.to)
+        : '',
+  }
+}
+
+function revealEditorRange(from, to = from, options = {}) {
+  if (!view?.state?.doc) return false
+  const length = view.state.doc.length
+  const safeFrom = Math.max(0, Math.min(Number(from) || 0, length))
+  const safeTo = Math.max(safeFrom, Math.min(Number(to) || safeFrom, length))
+
+  view.dispatch({
+    selection: {
+      anchor: safeFrom,
+      head: safeTo,
+    },
+    effects: EditorView.scrollIntoView(safeFrom, {
+      y: options.center === false ? 'nearest' : 'center',
+      yMargin: 80,
+    }),
+  })
+
+  if (options.focus !== false) {
+    view.focus()
+  }
+
+  emitEditorRuntimeTelemetry({
+    type: 'reveal-range',
+    runtimeKind: 'web',
+    paneId: props.paneId,
+    filePath: props.filePath,
+    from: safeFrom,
+    to: safeTo,
+  })
+
+  return true
+}
+
+function revealEditorOffset(offset, options = {}) {
+  return revealEditorRange(offset, offset, options)
+}
+
+function destroyEditorView() {
+  if (!view) return
+  const currentView = view
+  view = null
+  currentView.destroy()
 }
 
 async function loadLanguageExtension() {
@@ -657,7 +728,7 @@ onMounted(async () => {
     EditorView.updateListener.of((update) => {
       if (update.selectionSet || update.docChanged) {
         const selection = update.state.selection.main
-        emit('selection-change', {
+        const payload = {
           filePath: props.filePath,
           hasSelection: selection.from !== selection.to,
           from: selection.from,
@@ -666,6 +737,13 @@ onMounted(async () => {
             selection.from !== selection.to
               ? update.state.sliceDoc(selection.from, selection.to)
               : '',
+        }
+        emit('selection-change', payload)
+        emitEditorRuntimeTelemetry({
+          type: 'selection-change',
+          runtimeKind: 'web',
+          paneId: props.paneId,
+          ...payload,
         })
       }
       if (isMd && update.selectionSet) {
@@ -811,7 +889,16 @@ onMounted(async () => {
     onSave: (nextContent) => {
       void persistEditorContent(nextContent)
     },
-    onCursorChange: (pos) => emit('cursor-change', pos),
+    onCursorChange: (pos) => {
+      emit('cursor-change', pos)
+      emitEditorRuntimeTelemetry({
+        type: 'cursor-change',
+        runtimeKind: 'web',
+        paneId: props.paneId,
+        filePath: props.filePath,
+        ...pos,
+      })
+    },
     onStats: (stats) => emit('editor-stats', stats),
     extraExtensions,
   })
@@ -848,6 +935,40 @@ onMounted(async () => {
 
     return true
   }
+
+  editorRuntimeHandle = createEditorRuntimeContract({
+    runtimeKind: 'web',
+    paneId: props.paneId,
+    filePath: props.filePath,
+    getView: () => view,
+    getContent: () => view?.state?.doc?.toString?.() || '',
+    persistContent: () => persistEditorContent(view?.state?.doc?.toString?.() || ''),
+    applyExternalContent: (nextContent = '') => view?.altalsApplyExternalContent?.(nextContent),
+    requestSelection: requestCurrentSelection,
+    revealOffset: revealEditorOffset,
+    revealRange: revealEditorRange,
+    setDiagnostics: (diagnostics = []) => {
+      emitEditorRuntimeTelemetry({
+        type: 'diagnostics-update',
+        runtimeKind: 'web',
+        paneId: props.paneId,
+        filePath: props.filePath,
+        diagnosticsCount: Array.isArray(diagnostics) ? diagnostics.length : 0,
+      })
+      return true
+    },
+    setOutlineContext: (context = null) => {
+      emitEditorRuntimeTelemetry({
+        type: 'outline-context-update',
+        runtimeKind: 'web',
+        paneId: props.paneId,
+        filePath: props.filePath,
+        hasContext: !!context,
+      })
+      return true
+    },
+    dispose: destroyEditorView,
+  })
 
   activateEditorRuntime()
 })
@@ -943,6 +1064,16 @@ function ensureMarkdownWindowHandlers() {
         },
       })
     )
+
+    emitEditorRuntimeTelemetry({
+      type: 'markdown-forward-sync-request',
+      runtimeKind: 'web',
+      paneId: props.paneId,
+      filePath: props.filePath,
+      line: location.line,
+      offset: location.offset,
+      source: 'cursor-request',
+    })
   }
 }
 
@@ -990,9 +1121,15 @@ function detachEditorRuntimeListeners() {
 }
 
 function activateEditorRuntime() {
-  if (!view || editorRuntimeActive) return
+  if (!view || !editorRuntimeHandle || editorRuntimeActive) return
   editorRuntimeActive = true
-  editorStore.registerEditorView(props.paneId, props.filePath, view)
+  editorStore.registerEditorRuntime(props.paneId, props.filePath, editorRuntimeHandle)
+  emitEditorRuntimeTelemetry({
+    type: 'document-open',
+    runtimeKind: 'web',
+    paneId: props.paneId,
+    filePath: props.filePath,
+  })
   attachEditorRuntimeListeners()
   showMergeViewIfNeeded()
   requestAnimationFrame(() => {
@@ -1007,7 +1144,13 @@ function deactivateEditorRuntime() {
   pendingContextMenuState = null
   clearContextMenuRestoreHandles()
   detachEditorRuntimeListeners()
-  editorStore.unregisterEditorView(props.paneId, props.filePath)
+  editorStore.unregisterEditorRuntime(props.paneId, props.filePath)
+  emitEditorRuntimeTelemetry({
+    type: 'document-close',
+    runtimeKind: 'web',
+    paneId: props.paneId,
+    filePath: props.filePath,
+  })
 }
 
 onActivated(() => {
@@ -1159,6 +1302,16 @@ function scheduleMarkdownSelectionPreviewSync(selection) {
         },
       })
     )
+
+    emitEditorRuntimeTelemetry({
+      type: 'markdown-forward-sync-request',
+      runtimeKind: 'web',
+      paneId: props.paneId,
+      filePath: props.filePath,
+      line: location.line,
+      offset: location.offset,
+      source: 'selection-sync',
+    })
   }, 90)
 }
 
@@ -1195,6 +1348,14 @@ function triggerLatexForwardSyncAtPos(pos) {
   if (!hasActiveLatexPdfPreviewTarget()) return
   const location = getLatexSyncLocation(pos)
   if (!location) return
+  emitEditorRuntimeTelemetry({
+    type: 'latex-forward-sync-request',
+    runtimeKind: 'web',
+    paneId: props.paneId,
+    filePath: props.filePath,
+    line: location.line,
+    column: location.column,
+  })
   latexStore.requestForwardSync(props.filePath, location.line, location.column)
 }
 
@@ -1263,9 +1424,9 @@ onUnmounted(() => {
     markdownPreviewSyncTimer = null
   }
   if (view) {
-    view.destroy()
-    view = null
+    destroyEditorView()
   }
+  editorRuntimeHandle = null
   pendingContextMenuState = null
   clearContextMenuRestoreHandles()
   backwardSyncHandler = null

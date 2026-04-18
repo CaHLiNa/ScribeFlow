@@ -2,10 +2,24 @@
 name = "altals"
 version = "1.0.11"
 edition = "2021"
+default-run = "altals"
 
 [lib]
 name = "altals_lib"
 crate-type = ["lib", "cdylib"]
+
+[workspace]
+members = [
+  ".",
+  "crates/altals-editor-core",
+  "crates/altals-native-editor-app",
+]
+default-members = [
+  ".",
+  "crates/altals-editor-core",
+  "crates/altals-native-editor-app",
+]
+resolver = "2"
 
 [profile.dev]
 debug = 1

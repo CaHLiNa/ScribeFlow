@@ -91,6 +91,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "altals-editor-core"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "altals-native-editor-app"
+version = "0.1.0"
+dependencies = [
+ "altals-editor-core",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "android_system_properties"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -469,20 +469,40 @@ export const useEditorStore = defineStore('editor', {
       return registerEditorRuntimeView(this.editorViews, paneId, path, view)
     },
 
+    registerEditorRuntime(paneId, path, runtime) {
+      return this.registerEditorView(paneId, path, runtime)
+    },
+
     unregisterEditorView(paneId, path) {
       return unregisterEditorRuntimeView(this.editorViews, paneId, path)
+    },
+
+    unregisterEditorRuntime(paneId, path) {
+      return this.unregisterEditorView(paneId, path)
     },
 
     getEditorView(paneId, path) {
       return getRegisteredEditorView(this.editorViews, paneId, path)
     },
 
+    getEditorRuntime(paneId, path) {
+      return this.getEditorView(paneId, path)
+    },
+
     getAnyEditorView(path) {
       return getAnyRegisteredEditorView(this.editorViews, path)
     },
 
+    getAnyEditorRuntime(path) {
+      return this.getAnyEditorView(path)
+    },
+
     getEditorViewsForPath(path) {
       return getRegisteredEditorViewsForPath(this.editorViews, path)
+    },
+
+    getEditorRuntimesForPath(path) {
+      return this.getEditorViewsForPath(path)
     },
 
     recordFileOpen(path) {

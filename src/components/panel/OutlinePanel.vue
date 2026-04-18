@@ -97,9 +97,12 @@ const markdownOutlineItems = ref([])
 let markdownOutlineRequestId = 0
 
 function currentDocumentText(path) {
-  const view = editorStore.getAnyEditorView(path)
-  if (view) {
-    return view.state.doc.toString()
+  const runtime = editorStore.getAnyEditorRuntime?.(path) || editorStore.getAnyEditorView(path)
+  if (runtime?.altalsGetContent) {
+    return runtime.altalsGetContent()
+  }
+  if (runtime?.state?.doc) {
+    return runtime.state.doc.toString()
   }
   return filesStore.fileContents[path] || ''
 }
@@ -226,20 +229,29 @@ function parseLatexHeadings(content) {
 // --- Navigation ---
 
 function focusTextOffset(path, offset, attempts = 0) {
-  const targetView = editorStore.getAnyEditorView(path)
-  if (!targetView) {
+  const targetRuntime =
+    editorStore.getAnyEditorRuntime?.(path) || editorStore.getAnyEditorView(path)
+  if (!targetRuntime) {
     if (attempts < 20) {
       window.setTimeout(() => focusTextOffset(path, offset, attempts + 1), 40)
     }
     return
   }
 
-  const pos = Math.min(Number(offset) || 0, targetView.state.doc.length)
-  targetView.dispatch({
+  if (targetRuntime?.altalsRevealOffset) {
+    targetRuntime.altalsRevealOffset(offset, {
+      focus: true,
+      center: true,
+    })
+    return
+  }
+
+  const pos = Math.min(Number(offset) || 0, targetRuntime.state.doc.length)
+  targetRuntime.dispatch({
     selection: { anchor: pos },
     scrollIntoView: true,
   })
-  targetView.focus()
+  targetRuntime.focus()
 }
 
 function navigateToOutlineItem(item) {

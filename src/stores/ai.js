@@ -6,12 +6,6 @@ import {
   buildAiContextBundle,
   normalizeAiSelection,
 } from '../domains/ai/aiContextRuntime.js'
-import {
-  createAiSessionRecord,
-  ensureAiSessionsState,
-  normalizeAiSessionPermissionMode,
-  updateAiSessionRecord,
-} from '../domains/ai/aiSessionRuntime.js'
 import { useEditorStore } from './editor'
 import { useFilesStore } from './files'
 import { useReferencesStore } from './references'
@@ -21,7 +15,6 @@ import { useWorkspaceStore } from './workspace'
 
 const CODEX_RUNTIME_EVENT = 'codex-runtime-event'
 let codexRuntimeUnlisten = null
-const pendingCodexRuntimeThreadCreations = new Map()
 
 async function loadAiConfig() {
   return invoke('ai_config_load')
@@ -150,10 +143,6 @@ async function createClientSessionRust(params = {}) {
   return invoke('ai_client_session_create', { params })
 }
 
-async function ensureClientSessionRuntimeThreadRust(params = {}) {
-  return invoke('ai_client_session_ensure_thread', { params })
-}
-
 async function renameClientSessionRust(params = {}) {
   return invoke('ai_client_session_rename', { params })
 }
@@ -192,34 +181,66 @@ async function resolveCodexRuntimeExitPlan(request = {}) {
   return invoke('runtime_exit_plan_resolve', { params: request })
 }
 
-async function interruptCodexRuntimeTurn({ threadId = '', turnId = '' } = {}) {
-  return invoke('runtime_turn_interrupt', {
-    params: { threadId, turnId },
-  })
-}
-
 async function listenCodexRuntimeEvents(onEvent = () => {}) {
   return listen(CODEX_RUNTIME_EVENT, (event) => {
     onEvent(event?.payload || {})
   })
 }
 
-function getRuntimeRunState(runtimeAbortControllers = {}, sessionId = '') {
-  const state = runtimeAbortControllers[String(sessionId || '').trim()]
+function getRuntimePendingState(runtimePendingSessions = {}, sessionId = '') {
+  const state = runtimePendingSessions[String(sessionId || '').trim()]
   if (!state || typeof state !== 'object') return null
   return state
 }
 
-function findSessionIdByRuntimeThreadId(runtimeAbortControllers = {}, threadId = '') {
-  const normalizedThreadId = String(threadId || '').trim()
-  if (!normalizedThreadId) return ''
+function normalizeSessionPermissionMode(value = '') {
+  const normalized = String(value || '').trim()
 
-  for (const [sessionId, state] of Object.entries(runtimeAbortControllers || {})) {
-    if (String(state?.runtimeThreadId || '').trim() === normalizedThreadId) {
-      return sessionId
-    }
+  if (normalized === 'plan') return 'plan'
+  if (normalized === 'acceptEdits' || normalized === 'accept-edits' || normalized === 'per-tool') {
+    return 'accept-edits'
   }
-  return ''
+  if (
+    normalized === 'bypassPermissions' ||
+    normalized === 'bypass-permissions' ||
+    normalized === 'auto'
+  ) {
+    return 'bypass-permissions'
+  }
+
+  return 'accept-edits'
+}
+
+function createInitialSessionRecord(title = 'New session') {
+  return {
+    id: `ai-session:${nanoid()}`,
+    mode: 'agent',
+    permissionMode: 'accept-edits',
+    runtimeThreadId: '',
+    runtimeTurnId: '',
+    runtimeProviderId: '',
+    runtimeTransport: '',
+    title: String(title || 'New session').trim() || 'New session',
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    promptDraft: '',
+    queuedPromptDraft: '',
+    messages: [],
+    artifacts: [],
+    attachments: [],
+    queuedAttachments: [],
+    permissionRequests: [],
+    askUserRequests: [],
+    exitPlanRequests: [],
+    backgroundTasks: [],
+    isCompacting: false,
+    lastCompactAt: 0,
+    waitingResume: false,
+    waitingResumeMessage: '',
+    planMode: { active: false, summary: '', note: '' },
+    isRunning: false,
+    lastError: '',
+  }
 }
 
 function buildDefaultSessionTitle(count = 1) {
@@ -227,9 +248,9 @@ function buildDefaultSessionTitle(count = 1) {
 }
 
 function createInitialAgentSessionsState({ fallbackTitle = 'New session' } = {}) {
-  const initialSession = createAiSessionRecord({
-    title: String(fallbackTitle || 'New session').trim() || 'New session',
-  })
+  const initialSession = createInitialSessionRecord(
+    String(fallbackTitle || 'New session').trim() || 'New session'
+  )
 
   return {
     currentSessionId: initialSession.id,
@@ -248,11 +269,11 @@ function ensureManagedAgentSessionsState({
   currentSessionId = '',
   fallbackTitle = 'New session',
 } = {}) {
-  return ensureAiSessionsState({
-    sessions,
-    currentSessionId,
+  return {
+    sessions: Array.isArray(sessions) ? sessions : [],
+    currentSessionId: String(currentSessionId || '').trim(),
     fallbackTitle,
-  })
+  }
 }
 
 function mergeOverlaySessionState(existingSessions = [], nextSessions = [], fallbackTitle = 'New session') {
@@ -322,46 +343,30 @@ async function switchSessionOverlayState({
   })
 }
 
-async function prepareAgentRunRust({
+async function prepareAgentRunFromCurrentConfigRust({
   activeSession = null,
   activeSkill = null,
   altalsSkills = [],
   contextBundle = {},
   sessionMode = 'chat',
-  providerState = {},
-  providerId = '',
-  providerConfig = {},
-  apiKey = '',
   workspacePath = '',
   flatFiles = [],
 } = {}) {
-  return invoke('ai_agent_prepare', {
+  return invoke('ai_agent_prepare_current_config', {
     params: {
       activeSession,
       activeSkill,
       altalsSkills,
       contextBundle,
       sessionMode,
-      providerState,
-      providerId,
-      providerConfig,
-      apiKey,
       workspacePath,
       flatFiles,
     },
   })
 }
 
-async function startAgentRunSessionRust(params = {}) {
-  return invoke('ai_agent_session_start', { params })
-}
-
-async function runStartedAgentSessionRust(params = {}) {
-  return invoke('ai_agent_run_started_session', { params })
-}
-
-async function applyAgentRunSessionEventRust(params = {}) {
-  return invoke('ai_agent_session_apply_event', { params })
+async function runPreparedAgentSessionRust(params = {}) {
+  return invoke('ai_agent_run_prepared_session', { params })
 }
 
 async function resolveAiToolCatalogRust({ enabledTools = [], runtimeIntent = 'chat' } = {}) {
@@ -377,6 +382,14 @@ async function syncRuntimeThreadSnapshotToSessionRust(params = {}) {
   return invoke('ai_runtime_thread_snapshot_to_session', { params })
 }
 
+async function interruptRuntimeSessionRust(params = {}) {
+  return invoke('ai_runtime_interrupt_session', { params })
+}
+
+async function routeRuntimeEventRust(params = {}) {
+  return invoke('ai_runtime_event_route', { params })
+}
+
 async function reconcileRuntimeSessionRailRust(params = {}) {
   return invoke('ai_runtime_session_rail_reconcile', { params })
 }
@@ -390,6 +403,20 @@ async function mutateSessionLocalRust(session = {}, kind = '', payload = {}) {
     },
   })
   return response?.session || session
+}
+
+async function normalizeSessionStateRust({
+  sessions = [],
+  currentSessionId = '',
+  fallbackTitle = 'New session',
+} = {}) {
+  return invoke('ai_session_state_normalize', {
+    params: {
+      sessions,
+      currentSessionId,
+      fallbackTitle,
+    },
+  })
 }
 
 function findSessionByPermissionRequestId(sessions = [], requestId = '') {
@@ -418,31 +445,6 @@ function findSessionByArtifactId(sessions = [], artifactId = '') {
   )
 }
 
-function findSessionByRuntimeThreadId(sessions = [], runtimeThreadId = '') {
-  const normalizedThreadId = String(runtimeThreadId || '').trim()
-  if (!normalizedThreadId) return null
-
-  return (
-    (Array.isArray(sessions) ? sessions : []).find(
-      (session) => String(session?.runtimeThreadId || '').trim() === normalizedThreadId
-    ) || null
-  )
-}
-
-function shouldUseCodexRuntimeRun(preparedRun = null) {
-  if (!preparedRun?.ok) return false
-  if (String(preparedRun?.runtimeIntent || '').trim() !== 'agent') return false
-
-  if (
-    String(preparedRun.providerId || '').trim() === 'anthropic' &&
-    String(preparedRun?.config?.sdk?.runtimeMode || 'http').trim() === 'sdk'
-  ) {
-    return false
-  }
-
-  return true
-}
-
 function currentWorkspacePath() {
   return String(useWorkspaceStore().path || '').trim()
 }
@@ -457,7 +459,7 @@ function resolveDefaultSessionPermissionMode({
   }
 
   if (String(providerId || '').trim() === 'anthropic') {
-    return normalizeAiSessionPermissionMode(providerConfig?.sdk?.approvalMode || 'per-tool')
+    return normalizeSessionPermissionMode(providerConfig?.sdk?.approvalMode || 'per-tool')
   }
 
   return 'accept-edits'
@@ -479,7 +481,7 @@ function resolveEffectiveSessionPermissionMode({
     providerConfig,
   })
 
-  return normalizeAiSessionPermissionMode(session?.permissionMode || fallback)
+  return normalizeSessionPermissionMode(session?.permissionMode || fallback)
 }
 
 function scrubTransientAgentSessionState(session = {}) {
@@ -525,7 +527,7 @@ export const useAiStore = defineStore('ai', {
     unifiedModelPoolOptions: [],
     unifiedModelPoolLoading: false,
     unifiedModelPoolError: '',
-    runtimeAbortControllers: {},
+    runtimePendingSessions: {},
   }),
 
   getters: {
@@ -693,7 +695,7 @@ export const useAiStore = defineStore('ai', {
       this.currentSessionId = String(normalized?.currentSessionId || '').trim()
     },
 
-    resetTransientRuntimeState() {
+    async resetTransientRuntimeState() {
       const normalized = ensureManagedAgentSessionsState({
         sessions: this.sessions,
         currentSessionId: this.currentSessionId,
@@ -702,12 +704,17 @@ export const useAiStore = defineStore('ai', {
         ),
       })
 
-      this.sessions = normalized.sessions.map(scrubTransientAgentSessionState)
-      this.currentSessionId = normalized.currentSessionId
+      const nextState = await normalizeSessionStateRust({
+        sessions: normalized.sessions.map(scrubTransientAgentSessionState),
+        currentSessionId: normalized.currentSessionId,
+        fallbackTitle: normalized.fallbackTitle,
+      })
+      this.sessions = Array.isArray(nextState?.sessions) ? nextState.sessions : []
+      this.currentSessionId = String(nextState?.currentSessionId || '').trim()
       this.persistCurrentWorkspaceSessions()
     },
 
-    ensureSessionState() {
+    async ensureSessionState() {
       const normalized = ensureManagedAgentSessionsState({
         sessions: this.sessions,
         currentSessionId: this.currentSessionId,
@@ -716,24 +723,48 @@ export const useAiStore = defineStore('ai', {
         ),
       })
 
-      this.sessions = normalized.sessions
-      this.currentSessionId = normalized.currentSessionId
+      const nextState = await normalizeSessionStateRust({
+        sessions: normalized.sessions,
+        currentSessionId: normalized.currentSessionId,
+        fallbackTitle: normalized.fallbackTitle,
+      })
+      this.sessions = Array.isArray(nextState?.sessions) ? nextState.sessions : []
+      this.currentSessionId = String(nextState?.currentSessionId || '').trim()
       this.persistCurrentWorkspaceSessions()
-      return normalized
+      return {
+        sessions: this.sessions,
+        currentSessionId: this.currentSessionId,
+      }
     },
 
-    updateSessionById(sessionId = '', updater = (session) => session) {
-      const normalized = this.ensureSessionState()
+    async updateSessionById(sessionId = '', updater = (session) => session) {
+      const normalized = await this.ensureSessionState()
       const targetSessionId = String(sessionId || normalized.currentSessionId || '').trim()
       if (!targetSessionId) return null
 
-      this.sessions = updateAiSessionRecord(normalized.sessions, targetSessionId, updater)
+      const nextSessions = (Array.isArray(normalized.sessions) ? normalized.sessions : []).map((session) => {
+        if (!session || session.id !== targetSessionId) return session
+
+        const nextSession = typeof updater === 'function' ? updater(session) : session
+        return {
+          ...session,
+          ...nextSession,
+          updatedAt: Date.now(),
+        }
+      })
+      const nextState = await normalizeSessionStateRust({
+        sessions: nextSessions,
+        currentSessionId: normalized.currentSessionId,
+        fallbackTitle: buildDefaultSessionTitle(nextSessions.length || 1),
+      })
+      this.sessions = Array.isArray(nextState?.sessions) ? nextState.sessions : []
+      this.currentSessionId = String(nextState?.currentSessionId || '').trim()
       this.persistCurrentWorkspaceSessions()
       return resolveAgentSessionRecord(this.sessions, targetSessionId)
     },
 
     async mutateSessionById(sessionId = '', kind = '', payload = {}) {
-      const normalized = this.ensureSessionState()
+      const normalized = await this.ensureSessionState()
       const targetSessionId = String(sessionId || normalized.currentSessionId || '').trim()
       if (!targetSessionId || !String(kind || '').trim()) return null
 
@@ -741,57 +772,21 @@ export const useAiStore = defineStore('ai', {
       if (!targetSession) return null
 
       const nextSession = await mutateSessionLocalRust(targetSession, kind, payload)
-      this.sessions = updateAiSessionRecord(normalized.sessions, targetSessionId, () => nextSession)
+      const nextState = await normalizeSessionStateRust({
+        sessions: (Array.isArray(normalized.sessions) ? normalized.sessions : []).map((session) =>
+          session?.id === targetSessionId ? nextSession : session
+        ),
+        currentSessionId: normalized.currentSessionId,
+        fallbackTitle: buildDefaultSessionTitle(
+          Array.isArray(normalized.sessions) && normalized.sessions.length > 0
+            ? normalized.sessions.length
+            : 1
+        ),
+      })
+      this.sessions = Array.isArray(nextState?.sessions) ? nextState.sessions : []
+      this.currentSessionId = String(nextState?.currentSessionId || '').trim()
       this.persistCurrentWorkspaceSessions()
       return resolveAgentSessionRecord(this.sessions, targetSessionId)
-    },
-
-    async ensureCodexRuntimeThreadForSession(sessionId = '', preferredTitle = '') {
-      const targetSession = resolveAgentSessionRecord(
-        this.sessions,
-        sessionId || this.currentSessionId
-      )
-      if (!targetSession) return ''
-
-      const existingThreadId = String(targetSession.runtimeThreadId || '').trim()
-      if (existingThreadId) return existingThreadId
-
-      const normalizedSessionId = String(targetSession.id || '').trim()
-      if (!normalizedSessionId) return ''
-
-      if (pendingCodexRuntimeThreadCreations.has(normalizedSessionId)) {
-        return pendingCodexRuntimeThreadCreations.get(normalizedSessionId)
-      }
-
-      const creationPromise = (async () => {
-        const response = await ensureClientSessionRuntimeThreadRust({
-          workspacePath: currentWorkspacePath(),
-          currentSessionId: this.currentSessionId,
-          sessions: this.sessions,
-          sessionId: normalizedSessionId,
-          preferredTitle:
-            String(preferredTitle || targetSession?.title || '').trim() ||
-            buildDefaultSessionTitle(this.sessions.length),
-          fallbackTitle: buildDefaultSessionTitle(1),
-          cwd: useWorkspaceStore().path || '',
-        })
-        this.sessions = mergeOverlaySessionState(
-          this.sessions,
-          Array.isArray(response?.state?.sessions) ? response.state.sessions : this.sessions,
-          buildDefaultSessionTitle(1)
-        )
-        this.currentSessionId = String(response?.state?.currentSessionId || this.currentSessionId).trim()
-        this.persistCurrentWorkspaceSessions()
-        const runtimeThreadId = String(response?.session?.runtimeThreadId || '').trim()
-        return runtimeThreadId
-      })()
-
-      pendingCodexRuntimeThreadCreations.set(normalizedSessionId, creationPromise)
-      try {
-        return await creationPromise
-      } finally {
-        pendingCodexRuntimeThreadCreations.delete(normalizedSessionId)
-      }
     },
 
     async createSession({ title = '', activate = true } = {}) {
@@ -887,17 +882,17 @@ export const useAiStore = defineStore('ai', {
       return !!nextState?.session
     },
 
-    setSessionMode(_mode = 'agent', sessionId = '') {
-      const updated = this.updateSessionById(sessionId || this.currentSessionId, (session) => ({
+    async setSessionMode(_mode = 'agent', sessionId = '') {
+      const updated = await this.updateSessionById(sessionId || this.currentSessionId, (session) => ({
         ...session,
         mode: 'agent',
       }))
       return updated || null
     },
 
-    setSessionPermissionMode(mode = 'accept-edits', sessionId = '') {
-      const normalizedMode = normalizeAiSessionPermissionMode(mode)
-      const updated = this.updateSessionById(sessionId || this.currentSessionId, (session) => ({
+    async setSessionPermissionMode(mode = 'accept-edits', sessionId = '') {
+      const normalizedMode = normalizeSessionPermissionMode(mode)
+      const updated = await this.updateSessionById(sessionId || this.currentSessionId, (session) => ({
         ...session,
         permissionMode: normalizedMode,
       }))
@@ -1042,7 +1037,7 @@ export const useAiStore = defineStore('ai', {
         const message =
           error instanceof Error ? error.message : String(error || t('AI execution failed.'))
         if (targetSession) {
-          this.updateSessionById(targetSession.id, (session) => ({
+          await this.updateSessionById(targetSession.id, (session) => ({
             ...session,
             lastError: message,
           }))
@@ -1119,7 +1114,7 @@ export const useAiStore = defineStore('ai', {
         const message =
           error instanceof Error ? error.message : String(error || t('AI execution failed.'))
         if (targetSession) {
-          this.updateSessionById(targetSession.id, (session) => ({
+          await this.updateSessionById(targetSession.id, (session) => ({
             ...session,
             lastError: message,
           }))
@@ -1279,7 +1274,7 @@ export const useAiStore = defineStore('ai', {
         const message =
           error instanceof Error ? error.message : String(error || t('AI execution failed.'))
         if (targetSession) {
-          this.updateSessionById(targetSession.id, (session) => ({
+          await this.updateSessionById(targetSession.id, (session) => ({
             ...session,
             lastError: message,
           }))
@@ -1423,10 +1418,15 @@ export const useAiStore = defineStore('ai', {
           currentSessionId: String(reconciled?.currentSessionId || '').trim(),
           fallbackTitle: buildDefaultSessionTitle(1),
         })
-        this.sessions = normalized.sessions
-        this.currentSessionId = normalized.currentSessionId
+        const nextState = await normalizeSessionStateRust({
+          sessions: normalized.sessions,
+          currentSessionId: normalized.currentSessionId,
+          fallbackTitle: normalized.fallbackTitle,
+        })
+        this.sessions = Array.isArray(nextState?.sessions) ? nextState.sessions : []
+        this.currentSessionId = String(nextState?.currentSessionId || '').trim()
         this.persistCurrentWorkspaceSessions()
-        return normalized.sessions
+        return this.sessions
       } catch {
         return []
       }
@@ -1449,168 +1449,43 @@ export const useAiStore = defineStore('ai', {
           session: targetSession,
           snapshot,
         })
-        this.updateSessionById(targetSession.id, () => mapped.session)
+        await this.updateSessionById(targetSession.id, () => mapped.session)
         return snapshot
       } catch {
         return null
       }
     },
 
-    async applyAgentRunEventToSession(sessionId = '', event = {}, pendingAssistantId = '') {
-      const targetSession = resolveAgentSessionRecord(this.sessions, sessionId)
-      if (!targetSession) return null
-      const response = await applyAgentRunSessionEventRust({
-        session: targetSession,
-        event,
-        pendingAssistantId,
-      })
-      this.updateSessionById(targetSession.id, () => response.session)
-      return response.session
-    },
-
-    async resolveRuntimeTurnHandle(sessionId = '') {
-      const targetSessionId = String(sessionId || this.currentSessionId || '').trim()
-      const session = resolveAgentSessionRecord(this.sessions, targetSessionId)
-      const runtimeRunState = getRuntimeRunState(this.runtimeAbortControllers, targetSessionId)
-
-      let threadId = String(session?.runtimeThreadId || runtimeRunState?.runtimeThreadId || '').trim()
-      let turnId = String(session?.runtimeTurnId || runtimeRunState?.runtimeTurnId || '').trim()
-
-      if (!threadId) {
-        return { threadId: '', turnId: '' }
-      }
-
-      if (!turnId) {
-        try {
-          const response = await readCodexRuntimeThread(threadId)
-          turnId = String(response?.snapshot?.thread?.activeTurnId || '').trim()
-        } catch {
-          // Ignore runtime snapshot read failures and fall back to known ids only.
-        }
-      }
-
-      return { threadId, turnId }
-    },
-
     async handleCodexRuntimeEvent(payload = {}) {
-      const threadId = String(payload?.thread?.id || payload?.item?.threadId || '').trim()
-      const turnId = String(payload?.turn?.id || payload?.item?.turnId || '').trim()
-      if (payload.eventType === 'threadArchived' && threadId) {
-        const archivedSession = findSessionByRuntimeThreadId(this.sessions, threadId)
-        if (archivedSession && this.sessions.length > 1) {
-          void this.deleteSession(archivedSession.id)
+      const routed = await routeRuntimeEventRust({
+        sessions: this.sessions,
+        payload,
+        pendingSessions: Object.entries(this.runtimePendingSessions || {}).map(
+          ([sessionId, state]) => ({
+            sessionId,
+            pendingAssistantId: String(state?.pendingAssistantId || '').trim(),
+            stopRequested: state?.stopRequested === true,
+          })
+        ),
+      })
+      if (routed?.handled !== true) return
+
+      if (String(routed?.deleteSessionId || '').trim()) {
+        if (this.sessions.length > 1) {
+          void this.deleteSession(routed.deleteSessionId)
         }
         return
       }
 
-      if (payload.eventType === 'threadRenamed' && threadId) {
-        const renamedSession = findSessionByRuntimeThreadId(this.sessions, threadId)
-        if (!renamedSession) return
-        void this.syncSessionFromCodexRuntimeThread(renamedSession.id)
-        return
+      const targetSessionId = String(routed?.targetSessionId || '').trim()
+      if (!targetSessionId) return
+
+      if (routed?.session) {
+        await this.updateSessionById(targetSessionId, () => routed.session)
       }
 
-      if (payload.eventType === 'permissionRequest' && payload.permissionRequest) {
-        const session = findSessionByRuntimeThreadId(this.sessions, threadId)
-        if (!session) return
-        void this.syncSessionFromCodexRuntimeThread(session.id)
-        return
-      }
-
-      if (payload.eventType === 'askUserRequest' && payload.askUserRequest) {
-        const session = findSessionByRuntimeThreadId(this.sessions, threadId)
-        if (!session) return
-        void this.syncSessionFromCodexRuntimeThread(session.id)
-        return
-      }
-
-      if (payload.eventType === 'exitPlanRequest' && payload.exitPlanRequest) {
-        const session = findSessionByRuntimeThreadId(this.sessions, threadId)
-        if (!session) return
-        void this.syncSessionFromCodexRuntimeThread(session.id)
-        return
-      }
-
-      if (payload.eventType === 'planModeStart' || payload.eventType === 'planModeEnd') {
-        const session = findSessionByRuntimeThreadId(this.sessions, threadId)
-        if (!session) return
-        void this.syncSessionFromCodexRuntimeThread(session.id)
-        return
-      }
-
-      const session =
-        findSessionByRuntimeThreadId(this.sessions, threadId) ||
-        resolveAgentSessionRecord(
-          this.sessions,
-          findSessionIdByRuntimeThreadId(this.runtimeAbortControllers, threadId)
-        )
-      if (!session) return
-
-      if (payload.eventType === 'turnStarted' && threadId && turnId) {
-        const runtimeRunState = getRuntimeRunState(this.runtimeAbortControllers, session.id)
-        if (runtimeRunState) {
-          this.runtimeAbortControllers = {
-            ...this.runtimeAbortControllers,
-            [session.id]: {
-              ...runtimeRunState,
-              runtimeThreadId: threadId,
-              runtimeTurnId: turnId,
-            },
-          }
-          if (runtimeRunState.stopRequested === true) {
-            void interruptCodexRuntimeTurn({
-              threadId,
-              turnId,
-            }).catch(() => {})
-          }
-        }
-        this.updateSessionById(session.id, (currentSession) => ({
-          ...currentSession,
-          runtimeThreadId: threadId,
-          runtimeTurnId: turnId,
-          runtimeTransport: 'codex-runtime',
-        }))
-        return
-      }
-
-      const pending = getRuntimeRunState(this.runtimeAbortControllers, session.id)
-      const pendingAssistantId = String(pending?.pendingAssistantId || '').trim()
-
-      if (payload.eventType === 'itemDelta' && pendingAssistantId) {
-        if (payload?.item?.kind === 'agentMessage') {
-          await this.applyAgentRunEventToSession(
-            session.id,
-            {
-              eventType: 'assistant-content',
-              text: String(payload.item.text || ''),
-              transport: 'codex-runtime',
-            },
-            pendingAssistantId
-          )
-          return
-        }
-
-        if (payload?.item?.kind === 'reasoning') {
-          await this.applyAgentRunEventToSession(
-            session.id,
-            {
-              eventType: 'assistant-reasoning',
-              text: String(payload.item.text || ''),
-              transport: 'codex-runtime',
-            },
-            pendingAssistantId
-          )
-        }
-        return
-      }
-
-      if (payload.eventType === 'turnCompleted' && threadId) {
-        void this.syncSessionFromCodexRuntimeThread(session.id)
-        return
-      }
-
-      if ((payload.eventType === 'turnFailed' || payload.eventType === 'turnInterrupted') && threadId) {
-        void this.syncSessionFromCodexRuntimeThread(session.id)
+      if (routed?.stopRequested === true) {
+        void this.stopCurrentRun(targetSessionId)
       }
     },
 
@@ -1623,40 +1498,23 @@ export const useAiStore = defineStore('ai', {
         (await this.createSession())
       const sessionId = activeSession.id
       let preparedRun = null
-      let skill = null
-      let providerState = null
-      let contextBundle = this.currentContextBundle
       let pendingAssistantId = ''
       let runStarted = false
-      const abortController = new AbortController()
-      this.runtimeAbortControllers = {
-        ...this.runtimeAbortControllers,
+      this.runtimePendingSessions = {
+        ...this.runtimePendingSessions,
         [sessionId]: {
-          controller: abortController,
           pendingAssistantId: '',
-          runtimeThreadId: '',
-          runtimeTurnId: '',
           stopRequested: false,
         },
       }
 
       try {
-        providerState = await this.refreshProviderState()
-        const fullConfig = await loadAiConfig()
-        const currentProviderId = String(fullConfig?.currentProviderId || 'openai').trim()
-        const providerConfig = fullConfig?.providers?.[currentProviderId] || {}
-        const apiKey = await loadAiApiKey(currentProviderId)
-
-        preparedRun = await prepareAgentRunRust({
+        preparedRun = await prepareAgentRunFromCurrentConfigRust({
           activeSession,
           activeSkill: null,
           altalsSkills: this.altalsSkills,
           contextBundle: this.currentContextBundle,
           sessionMode: 'agent',
-          providerState,
-          providerId: currentProviderId,
-          providerConfig,
-          apiKey,
           workspacePath: useWorkspaceStore().path || '',
           flatFiles: filesStore.flatFiles,
         })
@@ -1674,7 +1532,7 @@ export const useAiStore = defineStore('ai', {
                   ),
           }
           const message = errorMessageByCode[preparedRun.code] || t('AI execution failed.')
-          this.updateSessionById(sessionId, (session) => ({
+          await this.updateSessionById(sessionId, (session) => ({
             ...session,
             lastError: message,
           }))
@@ -1684,68 +1542,31 @@ export const useAiStore = defineStore('ai', {
           return null
         }
 
-        ;({
-          skill,
-          providerState,
-          contextBundle,
-        } = preparedRun)
-        const { userInstruction, effectivePermissionMode, promptDraft } = preparedRun
         const userMessageId = `message:${nanoid()}`
         pendingAssistantId = `message:${nanoid()}`
-        const createdAt = Date.now()
-
-        const startedSession = await startAgentRunSessionRust({
-          session: resolveAgentSessionRecord(this.sessions, sessionId),
-          skill,
-          providerState,
-          contextBundle,
-          userInstruction,
-          promptDraft,
-          effectivePermissionMode,
-          userMessageId,
-          pendingAssistantId,
-          createdAt,
-          fallbackTitle: buildDefaultSessionTitle(this.sessions.length),
-        })
-        this.updateSessionById(sessionId, () => startedSession.session)
         runStarted = true
-        if (shouldUseCodexRuntimeRun(preparedRun)) {
-          const runtimeThreadId = await this.ensureCodexRuntimeThreadForSession(
-            sessionId,
-            activeSession.title || buildDefaultSessionTitle(this.sessions.length)
-          )
-          this.updateSessionById(sessionId, (session) => ({
-            ...session,
-            runtimeThreadId,
-            runtimeProviderId: preparedRun.providerId,
-            runtimeTransport: 'codex-runtime',
-          }))
-        }
 
-        this.runtimeAbortControllers = {
-          ...this.runtimeAbortControllers,
+        this.runtimePendingSessions = {
+          ...this.runtimePendingSessions,
           [sessionId]: {
-            ...(getRuntimeRunState(this.runtimeAbortControllers, sessionId) || {}),
-            controller: abortController,
+            ...(getRuntimePendingState(this.runtimePendingSessions, sessionId) || {}),
             pendingAssistantId,
-            runtimeThreadId: String(
-              resolveAgentSessionRecord(this.sessions, sessionId)?.runtimeThreadId || ''
-            ).trim(),
-            runtimeTurnId: '',
             stopRequested: false,
           },
         }
 
-        const runResponse = await runStartedAgentSessionRust({
+        const runResponse = await runPreparedAgentSessionRust({
           session: resolveAgentSessionRecord(this.sessions, sessionId),
           preparedRun,
           altalsSkills: this.altalsSkills,
           pendingAssistantId,
+          userMessageId,
           createdAt: Date.now(),
+          fallbackTitle: buildDefaultSessionTitle(this.sessions.length),
           cwd: useWorkspaceStore().path || '',
         })
 
-        this.updateSessionById(sessionId, () => runResponse?.session || startedSession.session)
+        await this.updateSessionById(sessionId, () => runResponse?.session)
 
         if (runResponse?.ok !== true) {
           if (runResponse?.stopped === true) return null
@@ -1775,7 +1596,7 @@ export const useAiStore = defineStore('ai', {
               ? error.message
               : String(error || t('AI execution failed.'))
         if (!runStarted) {
-          this.updateSessionById(sessionId, (session) => ({
+          await this.updateSessionById(sessionId, (session) => ({
             ...session,
             lastError: wasAborted ? '' : message,
           }))
@@ -1785,10 +1606,10 @@ export const useAiStore = defineStore('ai', {
         }
         return null
       } finally {
-        if (getRuntimeRunState(this.runtimeAbortControllers, sessionId)) {
-          const nextAbortControllers = { ...this.runtimeAbortControllers }
-          delete nextAbortControllers[sessionId]
-          this.runtimeAbortControllers = nextAbortControllers
+        if (getRuntimePendingState(this.runtimePendingSessions, sessionId)) {
+          const nextPendingSessions = { ...this.runtimePendingSessions }
+          delete nextPendingSessions[sessionId]
+          this.runtimePendingSessions = nextPendingSessions
         }
         if (this.dequeueQueuedSubmission(sessionId)) {
           queueMicrotask(() => {
@@ -1804,28 +1625,27 @@ export const useAiStore = defineStore('ai', {
     async stopCurrentRun(sessionId = '') {
       const targetSessionId = String(sessionId || this.currentSessionId || '').trim()
       if (!targetSessionId) return false
-      const runtimeRunState = getRuntimeRunState(this.runtimeAbortControllers, targetSessionId)
-      if (runtimeRunState?.controller) {
-        runtimeRunState.controller.abort()
-        this.runtimeAbortControllers = {
-          ...this.runtimeAbortControllers,
+      const targetSession = resolveAgentSessionRecord(this.sessions, targetSessionId)
+      if (!targetSession) return false
+      const runtimePendingState = getRuntimePendingState(this.runtimePendingSessions, targetSessionId)
+      if (runtimePendingState) {
+        this.runtimePendingSessions = {
+          ...this.runtimePendingSessions,
           [targetSessionId]: {
-            ...runtimeRunState,
+            ...runtimePendingState,
             stopRequested: true,
           },
         }
       }
 
-      const { threadId, turnId } = await this.resolveRuntimeTurnHandle(targetSessionId)
-      if (threadId && turnId) {
-        await interruptCodexRuntimeTurn({
-          threadId,
-          turnId,
-        }).catch(() => {})
+      const response = await interruptRuntimeSessionRust({
+        session: targetSession,
+      }).catch(() => null)
+      if (response?.interrupted === true) {
         return true
       }
 
-      return !!runtimeRunState?.controller
+      return !!runtimePendingState
     },
 
     async applyArtifact(artifactId = '') {
@@ -1846,9 +1666,10 @@ export const useAiStore = defineStore('ai', {
         let applied = false
         if (artifact.type === 'doc_patch') {
           let currentContent = ''
-          const view = editorStore.getAnyEditorView(artifact.filePath)
-          if (view?.altalsGetContent) {
-            currentContent = view.altalsGetContent()
+          const editorRuntime = editorStore.getAnyEditorRuntime?.(artifact.filePath)
+            || editorStore.getAnyEditorView(artifact.filePath)
+          if (editorRuntime?.altalsGetContent) {
+            currentContent = editorRuntime.altalsGetContent()
           } else if (artifact.filePath in filesStore.fileContents) {
             currentContent = filesStore.fileContents[artifact.filePath]
           } else {
@@ -1866,8 +1687,8 @@ export const useAiStore = defineStore('ai', {
           if (!saved) {
             throw new Error(t('Failed to save AI patch to the document.'))
           }
-          if (view?.altalsApplyExternalContent) {
-            await view.altalsApplyExternalContent(nextContent)
+          if (editorRuntime?.altalsApplyExternalContent) {
+            await editorRuntime.altalsApplyExternalContent(nextContent)
           }
           editorStore.clearFileDirty(artifact.filePath)
           artifact.status = 'applied'
@@ -1885,7 +1706,7 @@ export const useAiStore = defineStore('ai', {
           applied = true
         }
         if (targetSession) {
-          this.updateSessionById(targetSession.id, (session) => ({
+          await this.updateSessionById(targetSession.id, (session) => ({
             ...session,
             artifacts: [...session.artifacts],
           }))
@@ -1897,7 +1718,7 @@ export const useAiStore = defineStore('ai', {
             ? error.message
             : String(error || t('Failed to apply AI artifact.'))
         if (targetSession) {
-          this.updateSessionById(targetSession.id, (session) => ({
+          await this.updateSessionById(targetSession.id, (session) => ({
             ...session,
             lastError: message,
           }))

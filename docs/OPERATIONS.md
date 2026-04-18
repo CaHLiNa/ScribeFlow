@@ -11,6 +11,7 @@ This doc tracks repository operations that keep the desktop app and its review w
 - run the desktop shell: `npm run tauri -- dev`
 - build the frontend: `npm run build`
 - build the Rust backend directly: `cargo build --manifest-path src-tauri/Cargo.toml`
+- build the experimental native editor helper: `cargo build --manifest-path src-tauri/Cargo.toml -p altals-native-editor-app`
 
 ### Typical local flow
 

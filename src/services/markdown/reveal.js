@@ -20,6 +20,22 @@ export async function waitForMarkdownEditorView(editorStore, targetPath, timeout
 }
 
 export function focusMarkdownSourceLocation(targetView, location, options = {}) {
+  if (targetView?.altalsRevealRange) {
+    let from = Number(location?.startOffset)
+    let to = Number(location?.endOffset)
+
+    if (!Number.isFinite(from)) {
+      from = Number(location?.offset)
+    }
+    if (!Number.isFinite(to)) {
+      to = from
+    }
+
+    if (Number.isFinite(from)) {
+      return targetView.altalsRevealRange(from, to, options)
+    }
+  }
+
   if (!targetView?.state?.doc) return false
 
   let from = Number(location?.startOffset)

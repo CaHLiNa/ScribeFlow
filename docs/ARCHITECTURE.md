@@ -110,6 +110,12 @@ Reusable UI glue that should stay lighter than product-policy code.
 Native filesystem, process, protocol, and platform seams.
 The backend module list in `src-tauri/src/lib.rs` currently centers on file access, LaTeX execution, workspace access, and security-sensitive desktop integration.
 
+The Rust backend is also the landing zone for the future native editor migration:
+
+- `src-tauri/crates/altals-editor-core` is the first backend-agnostic editor-core crate for buffer, selection, transaction, and viewport math
+- future native editor host and bridge crates should live under `src-tauri/crates/*`, not inside the Vue shell
+- editor workflow policy should continue to stay above the core, while low-level text mechanics move into Rust over time
+
 Future backend seams for reader helpers, reference tooling, local model runners, or translation execution should remain typed desktop integrations instead of ad hoc UI-owned process launching.
 
 ## Important architectural seams

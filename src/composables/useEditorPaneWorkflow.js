@@ -34,6 +34,11 @@ export function useEditorPaneWorkflow(options) {
       ? workflowStore.getUiStateForFile(activeTabRef.value, buildWorkflowOptions())
       : null
   ))
+  const workflowProblems = computed(() => (
+    activeTabRef.value && !isDraftPath(activeTabRef.value)
+      ? workflowStore.getProblemsForFile(activeTabRef.value, buildWorkflowOptions())
+      : []
+  ))
   const activeDocumentAdapter = computed(() => (
     activeTabRef.value && !isDraftPath(activeTabRef.value) ? getDocumentAdapterForFile(activeTabRef.value) : null
   ))
@@ -171,6 +176,7 @@ export function useEditorPaneWorkflow(options) {
     documentPreviewState,
     showDocumentHeader,
     workflowUiState,
+    workflowProblems,
     workspacePreviewState,
     workflowStatusText,
     workflowStatusTone,

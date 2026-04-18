@@ -1,6 +1,7 @@
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::time::{SystemTime, UNIX_EPOCH};
+use uuid::Uuid;
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -11,6 +12,17 @@ pub struct AiSessionLocalMutationParams {
     pub kind: String,
     #[serde(default)]
     pub payload: Value,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AiSessionStateNormalizeParams {
+    #[serde(default)]
+    pub sessions: Vec<Value>,
+    #[serde(default)]
+    pub current_session_id: String,
+    #[serde(default)]
+    pub fallback_title: String,
 }
 
 fn string_field(value: &Value, key: &str) -> String {
@@ -43,6 +55,153 @@ fn normalize_background_task_status(status: &str) -> &'static str {
         "done" | "completed" | "stopped" => "done",
         _ => "running",
     }
+}
+
+fn now_ms() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_millis() as i64)
+        .unwrap_or(0)
+}
+
+fn normalize_mode(mode: &str) -> &'static str {
+    if mode.trim() == "chat" {
+        "chat"
+    } else {
+        "agent"
+    }
+}
+
+fn normalize_permission_mode(value: &str) -> &'static str {
+    match value.trim() {
+        "plan" => "plan",
+        "acceptEdits" | "accept-edits" | "per-tool" => "accept-edits",
+        "bypassPermissions" | "bypass-permissions" | "auto" => "bypass-permissions",
+        _ => "accept-edits",
+    }
+}
+
+fn create_session_id() -> String {
+    format!("ai-session:{}", Uuid::new_v4())
+}
+
+fn normalize_plan_mode(value: &Value) -> Value {
+    json!({
+        "active": bool_field(value, "active"),
+        "summary": string_field(value, "summary").trim(),
+        "note": string_field(value, "note").trim(),
+    })
+}
+
+fn normalize_session(session: &Value, fallback_title: &str) -> Value {
+    let fallback = if fallback_title.trim().is_empty() {
+        "New session"
+    } else {
+        fallback_title.trim()
+    };
+    let created_at = {
+        let value = number_field(session, "createdAt");
+        if value > 0 { value } else { now_ms() }
+    };
+    let updated_at = {
+        let value = number_field(session, "updatedAt");
+        if value > 0 { value } else { created_at }
+    };
+    let title = {
+        let value = string_field(session, "title");
+        if value.trim().is_empty() {
+            fallback.to_string()
+        } else {
+            value.trim().to_string()
+        }
+    };
+    let session_id = {
+        let value = string_field(session, "id");
+        if value.trim().is_empty() {
+            create_session_id()
+        } else {
+            value.trim().to_string()
+        }
+    };
+    let permission_mode = {
+        let permission_mode = string_field(session, "permissionMode");
+        if permission_mode.is_empty() {
+            let runtime_permission_mode = string_field(session, "runtimePermissionMode");
+            if runtime_permission_mode.is_empty() {
+                string_field(session, "approvalMode")
+            } else {
+                runtime_permission_mode
+            }
+        } else {
+            permission_mode
+        }
+    };
+
+    json!({
+        "id": session_id,
+        "mode": normalize_mode(&string_field(session, "mode")),
+        "permissionMode": normalize_permission_mode(&permission_mode),
+        "runtimeThreadId": string_field(session, "runtimeThreadId").trim(),
+        "runtimeTurnId": string_field(session, "runtimeTurnId").trim(),
+        "runtimeProviderId": string_field(session, "runtimeProviderId").trim(),
+        "runtimeTransport": string_field(session, "runtimeTransport").trim(),
+        "title": title,
+        "createdAt": created_at,
+        "updatedAt": updated_at,
+        "promptDraft": string_field(session, "promptDraft"),
+        "queuedPromptDraft": string_field(session, "queuedPromptDraft"),
+        "messages": session.get("messages").cloned().unwrap_or_else(|| Value::Array(Vec::new())),
+        "artifacts": session.get("artifacts").cloned().unwrap_or_else(|| Value::Array(Vec::new())),
+        "attachments": session.get("attachments").cloned().unwrap_or_else(|| Value::Array(Vec::new())),
+        "queuedAttachments": session.get("queuedAttachments").cloned().unwrap_or_else(|| Value::Array(Vec::new())),
+        "permissionRequests": session.get("permissionRequests").cloned().unwrap_or_else(|| Value::Array(Vec::new())),
+        "askUserRequests": session.get("askUserRequests").cloned().unwrap_or_else(|| Value::Array(Vec::new())),
+        "exitPlanRequests": session.get("exitPlanRequests").cloned().unwrap_or_else(|| Value::Array(Vec::new())),
+        "backgroundTasks": session.get("backgroundTasks").cloned().unwrap_or_else(|| Value::Array(Vec::new())),
+        "isCompacting": bool_field(session, "isCompacting"),
+        "lastCompactAt": number_field(session, "lastCompactAt").max(0),
+        "waitingResume": bool_field(session, "waitingResume"),
+        "waitingResumeMessage": string_field(session, "waitingResumeMessage"),
+        "planMode": normalize_plan_mode(session.get("planMode").unwrap_or(&Value::Null)),
+        "isRunning": bool_field(session, "isRunning"),
+        "lastError": string_field(session, "lastError"),
+    })
+}
+
+fn ensure_sessions_state(
+    sessions: &[Value],
+    current_session_id: &str,
+    fallback_title: &str,
+) -> Value {
+    let normalized_sessions = sessions
+        .iter()
+        .filter(|session| !string_field(session, "id").trim().starts_with("runtime-session:"))
+        .map(|session| normalize_session(session, fallback_title))
+        .collect::<Vec<_>>();
+
+    if normalized_sessions.is_empty() {
+        let initial = normalize_session(&json!({}), fallback_title);
+        let current_session_id = string_field(&initial, "id");
+        return json!({
+            "currentSessionId": current_session_id,
+            "sessions": [initial],
+        });
+    }
+
+    let normalized_current_session_id = current_session_id.trim().to_string();
+    let resolved_current_session_id = if normalized_sessions.iter().any(|session| string_field(session, "id") == normalized_current_session_id) {
+        normalized_current_session_id
+    } else {
+        normalized_sessions
+            .first()
+            .map(|session| string_field(session, "id"))
+            .unwrap_or_default()
+    };
+
+    json!({
+        "currentSessionId": resolved_current_session_id,
+        "sessions": normalized_sessions,
+    })
 }
 
 fn find_background_task_index(tasks: &[Value], task: &Value) -> Option<usize> {
@@ -523,7 +682,7 @@ fn mutate_session(session: &Value, kind: &str, payload: &Value) -> Value {
         _ => {}
     }
 
-    next
+    normalize_session(&next, &string_field(session, "title"))
 }
 
 #[tauri::command]
@@ -533,4 +692,15 @@ pub async fn ai_session_local_mutate(
     Ok(json!({
         "session": mutate_session(&params.session, &params.kind, &params.payload),
     }))
+}
+
+#[tauri::command]
+pub async fn ai_session_state_normalize(
+    params: AiSessionStateNormalizeParams,
+) -> Result<Value, String> {
+    Ok(ensure_sessions_state(
+        &params.sessions,
+        &params.current_session_id,
+        &params.fallback_title,
+    ))
 }
