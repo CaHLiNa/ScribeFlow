@@ -24,6 +24,12 @@ pub struct NativeEditorDocumentState {
     pub outline_context: Option<Value>,
     #[serde(default)]
     pub last_workflow_event: Option<Value>,
+    #[serde(default)]
+    pub line_numbers: Vec<NativeEditorLineNumber>,
+    #[serde(default)]
+    pub delimiter_match: Option<NativeEditorDelimiterMatch>,
+    #[serde(default)]
+    pub syntax_spans: Vec<NativeEditorSyntaxSpan>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -56,6 +62,79 @@ pub struct NativeEditorViewportAnchor {
     pub offset: usize,
     pub line: u32,
     pub column: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeEditorLineNumber {
+    pub line: u32,
+    pub from: usize,
+    pub to: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeEditorSyntaxSpan {
+    pub from: usize,
+    pub to: usize,
+    pub token_kind: NativeEditorSyntaxTokenKind,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum NativeEditorSyntaxTokenKind {
+    Heading,
+    Emphasis,
+    Strong,
+    Code,
+    CodeFence,
+    ListMarker,
+    BlockquoteMarker,
+    Link,
+    Image,
+    Math,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeEditorDelimiterRange {
+    pub from: usize,
+    pub to: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeEditorDelimiterMatch {
+    pub token_kind: NativeEditorDelimiterTokenKind,
+    pub primary: NativeEditorDelimiterRange,
+    pub paired: NativeEditorDelimiterRange,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum NativeEditorDelimiterTokenKind {
+    Bracket,
+    Strong,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeEditorCharacterInputPlan {
+    pub handled: bool,
+    pub mode: NativeEditorCharacterInputMode,
+    #[serde(default)]
+    pub edits: Vec<NativeEditorTextEdit>,
+    #[serde(default)]
+    pub selections: Vec<NativeEditorSelectionRange>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum NativeEditorCharacterInputMode {
+    Insert,
+    AutoPair,
+    SkipCloser,
+    WrapSelection,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -186,6 +265,12 @@ pub struct NativeEditorDocumentSnapshot {
     pub outline_context: Option<Value>,
     #[serde(default)]
     pub last_workflow_event: Option<Value>,
+    #[serde(default)]
+    pub line_numbers: Vec<NativeEditorLineNumber>,
+    #[serde(default)]
+    pub delimiter_match: Option<NativeEditorDelimiterMatch>,
+    #[serde(default)]
+    pub syntax_spans: Vec<NativeEditorSyntaxSpan>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -247,6 +332,14 @@ pub struct NativeEditorRecordWorkflowEventRequest {
 #[serde(rename_all = "camelCase")]
 pub struct NativeEditorDocumentStateRequest {
     pub path: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeEditorPlanCharacterInputRequest {
+    pub path: String,
+    pub input: String,
+    pub selection: Option<NativeEditorSelectionRange>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

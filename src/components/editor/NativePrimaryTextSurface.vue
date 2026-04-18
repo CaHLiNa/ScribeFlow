@@ -1,20 +1,56 @@
 <template>
   <div ref="containerRef" class="native-primary-text-surface">
-    <textarea
-      ref="textareaRef"
-      v-model="draftText"
-      class="native-primary-textarea"
-      spellcheck="false"
-      autocapitalize="off"
-      autocomplete="off"
-      autocorrect="off"
-      @input="handleInput"
-      @click="handleClick"
-      @dblclick="handleDoubleClick"
-      @keydown="handleKeydown"
-      @keyup="handleSelectionChange"
-      @select="handleSelectionChange"
-    ></textarea>
+    <div class="native-primary-text-chrome">
+      <div class="native-primary-gutter" aria-hidden="true">
+        <div class="native-primary-gutter-scroll" :style="gutterScrollStyle">
+          <div
+            v-for="line in presentationLines"
+            :key="`gutter-${line.line}-${line.from}`"
+            class="native-primary-gutter-line"
+            :class="{ 'is-active': line.isActive }"
+          >
+            {{ line.line }}
+          </div>
+        </div>
+      </div>
+      <div class="native-primary-editor-stack">
+        <div class="native-primary-overlay" aria-hidden="true">
+          <div class="native-primary-overlay-scroll" :style="overlayScrollStyle">
+            <div
+              v-for="line in presentationLines"
+              :key="`line-${line.line}-${line.from}`"
+              class="native-primary-overlay-line"
+              :class="{ 'is-active': line.isActive }"
+            >
+              <span
+                v-for="segment in line.segments"
+                :key="`segment-${segment.from}-${segment.to}`"
+                class="native-primary-segment"
+                :class="segment.className"
+              >
+                {{ segment.text || '\u200b' }}
+              </span>
+            </div>
+          </div>
+        </div>
+        <textarea
+          ref="textareaRef"
+          v-model="draftText"
+          class="native-primary-textarea"
+          spellcheck="false"
+          autocapitalize="off"
+          autocomplete="off"
+          autocorrect="off"
+          @input="handleInput"
+          @click="handleClick"
+          @dblclick="handleDoubleClick"
+          @keydown="handleKeydown"
+          @keyup="handleSelectionChange"
+          @select="handleSelectionChange"
+          @scroll="handleScroll"
+        ></textarea>
+      </div>
+    </div>
     <CitationPalette
       v-if="citPalette.show"
       :mode="citPalette.mode"
@@ -47,6 +83,7 @@ import {
   applyNativePrimaryInputChange,
   applyNativeCitationEditState,
   applyNativeCitationTriggerState,
+  buildNativePrimaryPresentationLines,
   buildNativePrimaryCursorSnapshot,
   buildNativePrimaryEditorStats,
   buildNativePrimaryLatexForwardSyncRequest,
@@ -81,6 +118,8 @@ const latexStore = useLatexStore()
 const containerRef = ref(null)
 const textareaRef = ref(null)
 const draftText = ref('')
+const scrollTop = ref(0)
+const scrollLeft = ref(0)
 
 let runtimeHandle = null
 let runtimeActive = false
@@ -94,6 +133,7 @@ let backwardSyncHandler = null
 let fileTreeDragStartHandler = null
 let fileTreeDragEndHandler = null
 let draggedFilePaths = []
+const AUTO_PAIR_INPUTS = new Set(['(', ')', '[', ']', '{', '}', '<', '>', '"', "'", '`'])
 
 const citPalette = reactive({
   show: false,
@@ -122,6 +162,23 @@ const currentContent = computed(() =>
       ? files.fileContents[props.filePath]
       : ''
 )
+const presentationSnapshot = computed(() => ({
+  text: draftText.value,
+  lineNumbers:
+    Array.isArray(nativeDocument.value?.lineNumbers) && nativeDocument.value.lineNumbers.length > 0
+      ? nativeDocument.value.lineNumbers
+      : buildFallbackLineNumbers(draftText.value),
+  syntaxSpans: isMarkdownFile ? nativeDocument.value?.syntaxSpans || [] : [],
+  delimiterMatch: isMarkdownFile ? nativeDocument.value?.delimiterMatch || null : null,
+  activeLine: Number(nativeDocument.value?.cursor?.line || 0),
+}))
+const presentationLines = computed(() => buildNativePrimaryPresentationLines(presentationSnapshot.value))
+const overlayScrollStyle = computed(() => ({
+  transform: `translate(${-scrollLeft.value}px, ${-scrollTop.value}px)`,
+}))
+const gutterScrollStyle = computed(() => ({
+  transform: `translateY(${-scrollTop.value}px)`,
+}))
 
 function clampOffset(value, length) {
   const numeric = Number(value ?? 0)
@@ -161,6 +218,35 @@ function replaceTextRange(from, to, insert) {
   textarea.setSelectionRange(cursor, cursor)
   void handleInput()
   return true
+}
+
+function applyDraftEdits(text = '', edits = []) {
+  const sortedEdits = Array.isArray(edits)
+    ? [...edits].sort((left, right) => Number(right?.start || 0) - Number(left?.start || 0))
+    : []
+  let nextText = String(text || '')
+  for (const edit of sortedEdits) {
+    const safeStart = clampOffset(edit?.start ?? 0, nextText.length)
+    const safeEnd = clampOffset(edit?.end ?? safeStart, nextText.length)
+    nextText = `${nextText.slice(0, safeStart)}${String(edit?.text || '')}${nextText.slice(safeEnd)}`
+  }
+  return nextText
+}
+
+function buildFallbackLineNumbers(text = '') {
+  const normalized = String(text || '')
+  const segments = normalized.split('\n')
+  let offset = 0
+  return segments.map((segment, index) => {
+    const from = offset
+    const to = offset + segment.length
+    offset = to + 1
+    return {
+      line: index + 1,
+      from,
+      to,
+    }
+  })
 }
 
 function deriveSelectionPayload() {
@@ -244,6 +330,12 @@ function clearAutoSaveTimer() {
     window.clearTimeout(autoSaveTimer)
     autoSaveTimer = null
   }
+}
+
+function handleScroll(event) {
+  const target = event?.target
+  scrollTop.value = Number(target?.scrollTop || 0)
+  scrollLeft.value = Number(target?.scrollLeft || 0)
 }
 
 function hasActiveMarkdownPreviewTarget() {
@@ -506,13 +598,79 @@ function handleDoubleClick() {
   }
 }
 
-function handleKeydown(event) {
+async function applyCharacterInputPlan(plan = null) {
+  if (!plan?.handled) return false
+  const nextText =
+    Array.isArray(plan?.edits) && plan.edits.length > 0
+      ? applyDraftEdits(draftText.value, plan.edits)
+      : draftText.value
+  const primarySelection = Array.isArray(plan?.selections) ? plan.selections[0] || null : null
+
+  suppressInputSync = true
+  draftText.value = nextText
+  files.setInMemoryFileContent(props.filePath, nextText)
+  suppressInputSync = false
+
+  await nextTick()
+
+  if (primarySelection && textareaRef.value) {
+    const anchor = clampOffset(primarySelection.anchor ?? 0, nextText.length)
+    const head = clampOffset(primarySelection.head ?? anchor, nextText.length)
+    textareaRef.value.focus()
+    textareaRef.value.setSelectionRange(anchor, head)
+  }
+
+  if (nextText !== String(lastPersistedContent || '')) {
+    editorStore.markFileDirty(props.filePath)
+  } else {
+    editorStore.clearFileDirty(props.filePath)
+  }
+
+  if (Array.isArray(plan?.edits) && plan.edits.length > 0) {
+    editorRuntimeStore.beginTypingLatencyProbe({
+      path: props.filePath,
+      text: nextText,
+      fileKind: fileKind.value,
+    })
+    await editorRuntimeStore.applyNativeTransaction({
+      path: props.filePath,
+      edits: plan.edits,
+    })
+  }
+
+  await syncSelectionToNativeRuntime()
+  emitEditorStats()
+  dispatchMarkdownForwardSync('selection-sync')
+  scheduleAutoSave()
+  void refreshCitationPaletteFromNative()
+  return true
+}
+
+function shouldHandleAutoPairInput(event) {
+  if (!isMarkdownFile) return false
+  if (event.isComposing) return false
+  if (event.ctrlKey || event.metaKey || event.altKey) return false
+  if (typeof event.key !== 'string' || event.key.length !== 1) return false
+  return AUTO_PAIR_INPUTS.has(event.key)
+}
+
+async function handleKeydown(event) {
   const isMac = typeof navigator !== 'undefined' && /mac/i.test(navigator.platform || '')
   const modKey = isMac ? event.metaKey : event.ctrlKey
   if (modKey && String(event.key || '').toLowerCase() === 's') {
     event.preventDefault()
     void persistNativePrimaryContent(draftText.value)
+    return
   }
+  if (!shouldHandleAutoPairInput(event)) return
+  event.preventDefault()
+  const plan = await editorRuntimeStore.planNativeCharacterInput({
+    path: props.filePath,
+    input: event.key,
+    selection: deriveSelectionPayload(),
+  })
+  if (!plan) return
+  await applyCharacterInputPlan(plan)
 }
 
 function applyExternalContent(nextContent = '') {
@@ -806,6 +964,12 @@ watch(
   { deep: true, immediate: true }
 )
 
+watch(textareaRef, (element) => {
+  if (!element) return
+  scrollTop.value = Number(element.scrollTop || 0)
+  scrollLeft.value = Number(element.scrollLeft || 0)
+})
+
 onMounted(async () => {
   let content = files.fileContents[props.filePath]
   if (content === undefined) {
@@ -829,6 +993,8 @@ onMounted(async () => {
   attachWindowWorkflowListeners()
   emitEditorStats()
   await nextTick()
+  scrollTop.value = Number(textareaRef.value?.scrollTop || 0)
+  scrollLeft.value = Number(textareaRef.value?.scrollLeft || 0)
   scheduleSelectionSync()
 })
 
@@ -852,7 +1018,6 @@ defineExpose({
 
 <style scoped>
 .native-primary-text-surface {
-  display: flex;
   flex: 1 1 auto;
   width: 100%;
   height: 100%;
@@ -861,18 +1026,140 @@ defineExpose({
   background: var(--shell-editor-surface);
 }
 
-.native-primary-textarea {
+.native-primary-text-chrome {
+  display: grid;
+  grid-template-columns: 68px minmax(0, 1fr);
   width: 100%;
   height: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.native-primary-gutter {
+  position: relative;
+  overflow: hidden;
+  border-right: 1px solid color-mix(in srgb, var(--border) 36%, transparent);
+  background: color-mix(in srgb, var(--shell-editor-surface) 94%, var(--surface-muted) 6%);
+}
+
+.native-primary-gutter-scroll,
+.native-primary-overlay-scroll {
+  will-change: transform;
+}
+
+.native-primary-gutter-scroll {
+  padding: 28px 12px 48px 16px;
+}
+
+.native-primary-gutter-line {
+  height: calc(var(--editor-font-size) * 1.7);
+  color: color-mix(in srgb, var(--text-secondary) 74%, transparent);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.7;
+  text-align: right;
+}
+
+.native-primary-gutter-line.is-active {
+  color: color-mix(in srgb, var(--accent) 80%, var(--text-primary) 20%);
+}
+
+.native-primary-editor-stack {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+}
+
+.native-primary-overlay,
+.native-primary-textarea {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.native-primary-overlay {
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.native-primary-overlay-scroll {
+  padding: 28px 32px 48px;
+  font-family: var(--font-mono);
+  font-size: var(--editor-font-size);
+  line-height: 1.7;
+  white-space: pre;
+}
+
+.native-primary-overlay-line {
+  min-height: calc(var(--editor-font-size) * 1.7);
+}
+
+.native-primary-overlay-line.is-active {
+  background: var(--editor-active-line);
+}
+
+.native-primary-segment {
+  color: var(--text-primary);
+}
+
+.native-primary-segment--heading {
+  color: var(--hl-heading);
+  font-weight: 600;
+}
+
+.native-primary-segment--emphasis {
+  color: var(--hl-emphasis);
+  font-style: italic;
+}
+
+.native-primary-segment--strong {
+  color: var(--hl-heading-minor);
+  font-weight: 700;
+}
+
+.native-primary-segment--code,
+.native-primary-segment--code-fence {
+  color: var(--hl-code);
+}
+
+.native-primary-segment--list-marker,
+.native-primary-segment--blockquote-marker {
+  color: var(--hl-list);
+}
+
+.native-primary-segment--link,
+.native-primary-segment--image {
+  color: var(--hl-link);
+}
+
+.native-primary-segment--math {
+  color: var(--hl-operator);
+}
+
+.native-primary-segment--delimiter-match {
+  background: var(--editor-bracket-match);
+  box-shadow: inset 0 0 0 1px var(--editor-bracket-border);
+  border-radius: 3px;
+}
+
+.native-primary-textarea {
   min-width: 0;
   min-height: 0;
   resize: none;
   border: 0;
   outline: none;
   background: transparent;
-  color: var(--text-primary);
+  color: transparent;
+  caret-color: var(--text-primary);
   padding: 28px 32px 48px;
-  font: inherit;
+  font-family: var(--font-mono);
+  font-size: var(--editor-font-size);
   line-height: 1.7;
+  white-space: pre;
+}
+
+.native-primary-textarea::selection {
+  background: var(--editor-selection);
 }
 </style>

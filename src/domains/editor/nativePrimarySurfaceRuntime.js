@@ -49,9 +49,40 @@ function normalizeMarkRange(mark = {}) {
 }
 
 export function buildNativePrimaryPresentationLines(snapshot = null) {
-  const lines = Array.isArray(snapshot?.lines) ? snapshot.lines : []
-  const marks = Array.isArray(snapshot?.marks) ? snapshot.marks : []
   const activeLine = Number(snapshot?.activeLine || 0)
+  const lines = Array.isArray(snapshot?.lines)
+    ? snapshot.lines
+    : Array.isArray(snapshot?.lineNumbers)
+      ? snapshot.lineNumbers.map((line) => ({
+          line: Number(line?.line || 0),
+          from: Number(line?.from || 0),
+          to: Number(line?.to || 0),
+          text: String(snapshot?.text || '').slice(Number(line?.from || 0), Number(line?.to || 0)),
+        }))
+      : []
+  const syntaxMarks = Array.isArray(snapshot?.syntaxSpans)
+    ? snapshot.syntaxSpans.map((span) => ({
+        from: Number(span?.from || 0),
+        to: Number(span?.to || 0),
+        className: mapNativePrimarySyntaxTokenToClass(span?.tokenKind),
+      }))
+    : []
+  const delimiterMarks = []
+  if (snapshot?.delimiterMatch?.primary) {
+    delimiterMarks.push({
+      from: Number(snapshot.delimiterMatch.primary?.from || 0),
+      to: Number(snapshot.delimiterMatch.primary?.to || 0),
+      className: 'native-primary-segment--delimiter-match',
+    })
+  }
+  if (snapshot?.delimiterMatch?.paired) {
+    delimiterMarks.push({
+      from: Number(snapshot.delimiterMatch.paired?.from || 0),
+      to: Number(snapshot.delimiterMatch.paired?.to || 0),
+      className: 'native-primary-segment--delimiter-match',
+    })
+  }
+  const marks = Array.isArray(snapshot?.marks) ? snapshot.marks : [...syntaxMarks, ...delimiterMarks]
 
   return lines.map((line) => {
     const lineFrom = Math.max(0, Math.trunc(Number(line?.from || 0)))
@@ -116,6 +147,33 @@ export function buildNativePrimaryPresentationLines(snapshot = null) {
       segments,
     }
   })
+}
+
+function mapNativePrimarySyntaxTokenToClass(tokenKind = '') {
+  switch (String(tokenKind || '').trim()) {
+    case 'heading':
+      return 'native-primary-segment--heading'
+    case 'emphasis':
+      return 'native-primary-segment--emphasis'
+    case 'strong':
+      return 'native-primary-segment--strong'
+    case 'code':
+      return 'native-primary-segment--code'
+    case 'codeFence':
+      return 'native-primary-segment--code-fence'
+    case 'listMarker':
+      return 'native-primary-segment--list-marker'
+    case 'blockquoteMarker':
+      return 'native-primary-segment--blockquote-marker'
+    case 'link':
+      return 'native-primary-segment--link'
+    case 'image':
+      return 'native-primary-segment--image'
+    case 'math':
+      return 'native-primary-segment--math'
+    default:
+      return ''
+  }
 }
 
 export function buildNativePrimaryMarkdownForwardSyncRequest({

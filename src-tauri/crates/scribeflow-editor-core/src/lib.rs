@@ -1,3 +1,12 @@
+mod analysis;
+
+pub use analysis::{
+    build_line_numbers, build_syntax_spans, find_delimiter_match, plan_character_input,
+    EditorCharacterInputMode, EditorCharacterInputPlan, EditorDelimiterMatch,
+    EditorDelimiterRange, EditorDelimiterTokenKind, EditorLineNumber, EditorSyntaxSpan,
+    EditorSyntaxTokenKind,
+};
+
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fmt;

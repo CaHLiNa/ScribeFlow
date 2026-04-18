@@ -597,6 +597,7 @@ pub fn run() {
             native_editor_runtime::native_editor_document_state,
             native_editor_runtime::native_editor_inspect_interaction_context,
             native_editor_runtime::native_editor_plan_citation_replacement,
+            native_editor_runtime::native_editor_plan_character_input,
             native_editor_runtime::native_editor_plan_file_drop_insertion,
             native_editor_runtime::native_editor_session_state,
         ])

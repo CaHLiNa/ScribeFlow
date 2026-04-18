@@ -1,6 +1,8 @@
 use scribeflow_editor_core::{
-    CursorPosition, EditorSession, EditorSessionId, EditorTransaction, SelectionRange, SessionDocument,
-    TextEdit, ViewportAnchor,
+    build_line_numbers, build_syntax_spans, find_delimiter_match, CursorPosition,
+    EditorDelimiterMatch, EditorDelimiterRange, EditorDelimiterTokenKind, EditorLineNumber,
+    EditorSession, EditorSessionId, EditorSyntaxSpan, EditorSyntaxTokenKind, EditorTransaction,
+    SelectionRange, SessionDocument, TextEdit, ViewportAnchor,
 };
 use serde_json::Value;
 use serde_json::to_writer;
@@ -22,6 +24,9 @@ struct NativeEditorDocumentState {
     diagnostics: Vec<Value>,
     outline_context: Option<Value>,
     last_workflow_event: Option<Value>,
+    line_numbers: Vec<NativeEditorLineNumber>,
+    delimiter_match: Option<NativeEditorDelimiterMatch>,
+    syntax_spans: Vec<NativeEditorSyntaxSpan>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -60,6 +65,59 @@ struct NativeEditorViewportAnchor {
     offset: usize,
     line: u32,
     column: u32,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct NativeEditorLineNumber {
+    line: u32,
+    from: usize,
+    to: usize,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct NativeEditorSyntaxSpan {
+    from: usize,
+    to: usize,
+    token_kind: NativeEditorSyntaxTokenKind,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+enum NativeEditorSyntaxTokenKind {
+    Heading,
+    Emphasis,
+    Strong,
+    Code,
+    CodeFence,
+    ListMarker,
+    BlockquoteMarker,
+    Link,
+    Image,
+    Math,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct NativeEditorDelimiterRange {
+    from: usize,
+    to: usize,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct NativeEditorDelimiterMatch {
+    token_kind: NativeEditorDelimiterTokenKind,
+    primary: NativeEditorDelimiterRange,
+    paired: NativeEditorDelimiterRange,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+enum NativeEditorDelimiterTokenKind {
+    Bracket,
+    Strong,
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
@@ -146,6 +204,15 @@ fn build_document_state(
         text.to_string()
     };
     let metadata = metadata.cloned().unwrap_or_default();
+    let line_numbers = build_line_numbers(text)
+        .into_iter()
+        .map(build_line_number)
+        .collect();
+    let delimiter_match = find_delimiter_match(text, document.primary_selection()).map(build_delimiter_match);
+    let syntax_spans = build_syntax_spans(text)
+        .into_iter()
+        .map(build_syntax_span)
+        .collect();
 
     NativeEditorDocumentState {
         path: document.path().to_string(),
@@ -165,6 +232,9 @@ fn build_document_state(
         diagnostics: metadata.diagnostics,
         outline_context: metadata.outline_context,
         last_workflow_event: metadata.last_workflow_event,
+        line_numbers,
+        delimiter_match,
+        syntax_spans,
     }
 }
 
@@ -181,6 +251,51 @@ fn build_viewport_anchor(viewport: ViewportAnchor) -> NativeEditorViewportAnchor
         offset: viewport.offset,
         line: viewport.line,
         column: viewport.column,
+    }
+}
+
+fn build_line_number(line_number: EditorLineNumber) -> NativeEditorLineNumber {
+    NativeEditorLineNumber {
+        line: line_number.line,
+        from: line_number.from,
+        to: line_number.to,
+    }
+}
+
+fn build_syntax_span(span: EditorSyntaxSpan) -> NativeEditorSyntaxSpan {
+    NativeEditorSyntaxSpan {
+        from: span.from,
+        to: span.to,
+        token_kind: match span.token_kind {
+            EditorSyntaxTokenKind::Heading => NativeEditorSyntaxTokenKind::Heading,
+            EditorSyntaxTokenKind::Emphasis => NativeEditorSyntaxTokenKind::Emphasis,
+            EditorSyntaxTokenKind::Strong => NativeEditorSyntaxTokenKind::Strong,
+            EditorSyntaxTokenKind::Code => NativeEditorSyntaxTokenKind::Code,
+            EditorSyntaxTokenKind::CodeFence => NativeEditorSyntaxTokenKind::CodeFence,
+            EditorSyntaxTokenKind::ListMarker => NativeEditorSyntaxTokenKind::ListMarker,
+            EditorSyntaxTokenKind::BlockquoteMarker => NativeEditorSyntaxTokenKind::BlockquoteMarker,
+            EditorSyntaxTokenKind::Link => NativeEditorSyntaxTokenKind::Link,
+            EditorSyntaxTokenKind::Image => NativeEditorSyntaxTokenKind::Image,
+            EditorSyntaxTokenKind::Math => NativeEditorSyntaxTokenKind::Math,
+        },
+    }
+}
+
+fn build_delimiter_match(delimiter_match: EditorDelimiterMatch) -> NativeEditorDelimiterMatch {
+    NativeEditorDelimiterMatch {
+        token_kind: match delimiter_match.token_kind {
+            EditorDelimiterTokenKind::Bracket => NativeEditorDelimiterTokenKind::Bracket,
+            EditorDelimiterTokenKind::Strong => NativeEditorDelimiterTokenKind::Strong,
+        },
+        primary: build_delimiter_range(delimiter_match.primary),
+        paired: build_delimiter_range(delimiter_match.paired),
+    }
+}
+
+fn build_delimiter_range(range: EditorDelimiterRange) -> NativeEditorDelimiterRange {
+    NativeEditorDelimiterRange {
+        from: range.from,
+        to: range.to,
     }
 }
 

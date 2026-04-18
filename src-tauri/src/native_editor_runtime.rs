@@ -1,18 +1,23 @@
 use crate::native_editor_bridge::{
     NativeEditorApplyExternalContentRequest, NativeEditorApplyTransactionRequest,
+    NativeEditorCharacterInputMode, NativeEditorCharacterInputPlan,
     NativeEditorCitationEditContext, NativeEditorCitationEntry, NativeEditorCitationReplacePlan,
     NativeEditorCitationTrigger, NativeEditorCommand, NativeEditorDocumentSnapshot,
     NativeEditorDocumentState, NativeEditorDocumentStateRequest, NativeEditorEvent,
     NativeEditorEventPayload, NativeEditorFileDropInsertionPlan,
     NativeEditorInspectInteractionRequest, NativeEditorInteractionContextSnapshot,
-    NativeEditorOpenDocumentRequest, NativeEditorPlanCitationReplacementRequest,
-    NativeEditorPlanFileDropInsertionRequest, NativeEditorRecordWorkflowEventRequest,
-    NativeEditorSelectionRange, NativeEditorSessionSnapshot, NativeEditorSessionStateSnapshot,
+    NativeEditorOpenDocumentRequest, NativeEditorPlanCharacterInputRequest,
+    NativeEditorPlanCitationReplacementRequest, NativeEditorPlanFileDropInsertionRequest,
+    NativeEditorRecordWorkflowEventRequest, NativeEditorSelectionRange,
+    NativeEditorSessionSnapshot, NativeEditorSessionStateSnapshot,
     NativeEditorSetDiagnosticsRequest, NativeEditorSetOutlineContextRequest,
     NativeEditorSetSelectionsRequest, NativeEditorWikiLinkMatch, NATIVE_EDITOR_EVENT,
 };
 use crate::process_utils::background_tokio_command;
 use regex_lite::Regex;
+use scribeflow_editor_core::{
+    plan_character_input, EditorCharacterInputPlan as CoreCharacterInputPlan,
+};
 use serde_json::to_string;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -245,6 +250,9 @@ fn upsert_document_state(
         diagnostics: Vec::new(),
         outline_context: None,
         last_workflow_event: None,
+        line_numbers: Vec::new(),
+        delimiter_match: None,
+        syntax_spans: Vec::new(),
     });
 }
 
@@ -264,6 +272,47 @@ fn build_document_snapshot(
         diagnostics: document.diagnostics.clone(),
         outline_context: document.outline_context.clone(),
         last_workflow_event: document.last_workflow_event.clone(),
+        line_numbers: document.line_numbers.clone(),
+        delimiter_match: document.delimiter_match.clone(),
+        syntax_spans: document.syntax_spans.clone(),
+    }
+}
+
+fn build_character_input_plan(plan: CoreCharacterInputPlan) -> NativeEditorCharacterInputPlan {
+    NativeEditorCharacterInputPlan {
+        handled: plan.handled,
+        mode: match plan.mode {
+            scribeflow_editor_core::EditorCharacterInputMode::Insert => {
+                NativeEditorCharacterInputMode::Insert
+            }
+            scribeflow_editor_core::EditorCharacterInputMode::AutoPair => {
+                NativeEditorCharacterInputMode::AutoPair
+            }
+            scribeflow_editor_core::EditorCharacterInputMode::SkipCloser => {
+                NativeEditorCharacterInputMode::SkipCloser
+            }
+            scribeflow_editor_core::EditorCharacterInputMode::WrapSelection => {
+                NativeEditorCharacterInputMode::WrapSelection
+            }
+        },
+        edits: plan
+            .transaction
+            .edits
+            .into_iter()
+            .map(|edit| crate::native_editor_bridge::NativeEditorTextEdit {
+                start: edit.range.start,
+                end: edit.range.end,
+                text: edit.text,
+            })
+            .collect(),
+        selections: plan
+            .selections
+            .into_iter()
+            .map(|selection| NativeEditorSelectionRange {
+                anchor: selection.anchor,
+                head: selection.head,
+            })
+            .collect(),
     }
 }
 
@@ -1022,6 +1071,58 @@ pub async fn native_editor_plan_file_drop_insertion(
         return Ok(None);
     }
     Ok(plan_file_drop_insertion(request))
+}
+
+#[tauri::command]
+pub async fn native_editor_plan_character_input(
+    state: State<'_, NativeEditorRuntimeState>,
+    request: NativeEditorPlanCharacterInputRequest,
+) -> Result<Option<NativeEditorCharacterInputPlan>, String> {
+    let (cache, text_cache, handle_finished) = {
+        let guard = state.inner.lock().await;
+        let Some(active) = guard.as_ref() else {
+            return Ok(None);
+        };
+        (
+            active.state_cache.clone(),
+            active.text_cache.clone(),
+            active.handle.is_finished(),
+        )
+    };
+
+    if handle_finished {
+        return Ok(None);
+    }
+
+    let input = request.input.chars().next();
+    let Some(input) = input else {
+        return Ok(None);
+    };
+
+    let snapshot = cache.lock().await.clone();
+    let text_cache = text_cache.lock().await.clone();
+    let target_path = request.path;
+    let document = snapshot
+        .open_documents
+        .iter()
+        .find(|entry| entry.path == target_path);
+    let text = text_cache.get(&target_path).cloned().unwrap_or_default();
+
+    if text.is_empty() && document.is_none() {
+        return Ok(None);
+    }
+
+    let selection = request
+        .selection
+        .or_else(|| document.and_then(|entry| entry.selections.first().cloned()))
+        .map(|selection| {
+            scribeflow_editor_core::SelectionRange::new(selection.anchor, selection.head)
+        })
+        .unwrap_or_else(|| scribeflow_editor_core::SelectionRange::collapsed(text.len()));
+
+    Ok(Some(build_character_input_plan(plan_character_input(
+        &text, selection, input,
+    ))))
 }
 
 #[tauri::command]

@@ -54,6 +54,7 @@ hayagriva = { version = "0.9.1", features = ["csl-json"] }
 pathdiff = "0.2"
 urlencoding = "2"
 markdown = "1"
+scribeflow-editor-core = { path = "crates/scribeflow-editor-core" }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

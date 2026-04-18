@@ -183,6 +183,27 @@ export async function planNativeEditorFileDropInsertion({
   })
 }
 
+export async function planNativeEditorCharacterInput({
+  path = '',
+  input = '',
+  selection = null,
+} = {}) {
+  requireTauriInvoke()
+  return invoke('native_editor_plan_character_input', {
+    request: {
+      path: String(path || ''),
+      input: String(input || ''),
+      selection:
+        selection && typeof selection === 'object'
+          ? {
+              anchor: Number(selection?.anchor || 0),
+              head: Number(selection?.head || 0),
+            }
+          : null,
+    },
+  })
+}
+
 export async function getNativeEditorSessionState() {
   requireTauriInvoke()
   return invoke('native_editor_session_state')
