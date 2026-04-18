@@ -120,6 +120,27 @@ export async function getNativeEditorDocumentState({ path = '' } = {}) {
   })
 }
 
+export async function inspectNativeEditorInteractionContext({
+  path = '',
+  text = null,
+  selection = null,
+} = {}) {
+  requireTauriInvoke()
+  return invoke('native_editor_inspect_interaction_context', {
+    request: {
+      path: String(path || ''),
+      text: typeof text === 'string' ? text : null,
+      selection:
+        selection && typeof selection === 'object'
+          ? {
+              anchor: Number(selection?.anchor || 0),
+              head: Number(selection?.head || 0),
+            }
+          : null,
+    },
+  })
+}
+
 export async function getNativeEditorSessionState() {
   requireTauriInvoke()
   return invoke('native_editor_session_state')

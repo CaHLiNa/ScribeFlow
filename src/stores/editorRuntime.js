@@ -4,6 +4,7 @@ import { PRIMARY_TEXT_SURFACE_TARGETS } from '../domains/editor/primaryTextSurfa
 import {
   applyNativeEditorTransaction,
   applyNativeEditorExternalContent,
+  inspectNativeEditorInteractionContext,
   listenToNativeEditorEvents,
   nativeEditorBridgeAvailable,
   openNativeEditorDocument,
@@ -605,6 +606,28 @@ export const useEditorRuntimeStore = defineStore('editorRuntime', {
             : jsOffsetToUtf8Offset(currentText, viewportOffset),
       })
       return true
+    },
+
+    async inspectNativeInteractionContext({ path = '', text = null, selection = null } = {}) {
+      if (!nativeEditorBridgeAvailable()) return null
+      const normalizedPath = String(path || '').trim()
+      if (!normalizedPath) return null
+      await this.startNativeSession()
+      const currentText =
+        typeof text === 'string'
+          ? text
+          : String(this.nativeDocuments[normalizedPath]?.text ?? '')
+      await inspectNativeEditorInteractionContext({
+        path: normalizedPath,
+        text: currentText,
+        selection:
+          selection && typeof selection === 'object'
+            ? {
+                anchor: jsOffsetToUtf8Offset(currentText, selection?.anchor ?? 0),
+                head: jsOffsetToUtf8Offset(currentText, selection?.head ?? 0),
+              }
+            : null,
+      })
     },
 
     async setNativeDiagnostics({ path = '', diagnostics = [] } = {}) {
