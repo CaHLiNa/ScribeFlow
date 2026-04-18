@@ -91,6 +91,16 @@ export async function setNativeEditorOutlineContext({ path = '', context = null 
   })
 }
 
+export async function recordNativeEditorWorkflowEvent({ path = '', event = null } = {}) {
+  requireTauriInvoke()
+  return invoke('native_editor_session_record_workflow_event', {
+    request: {
+      path: String(path || ''),
+      event: event == null ? null : event,
+    },
+  })
+}
+
 export async function applyNativeEditorExternalContent({ path = '', text = '' } = {}) {
   requireTauriInvoke()
   return invoke('native_editor_session_apply_external_content', {

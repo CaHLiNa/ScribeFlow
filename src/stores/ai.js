@@ -143,6 +143,10 @@ async function createClientSessionRust(params = {}) {
   return invoke('ai_client_session_create', { params })
 }
 
+async function ensureClientSessionThreadRust(params = {}) {
+  return invoke('ai_client_session_ensure_thread', { params })
+}
+
 async function renameClientSessionRust(params = {}) {
   return invoke('ai_client_session_rename', { params })
 }
@@ -1553,6 +1557,37 @@ export const useAiStore = defineStore('ai', {
         const userMessageId = `message:${nanoid()}`
         pendingAssistantId = `message:${nanoid()}`
         runStarted = true
+        const optimisticPrompt = String(
+          preparedRun?.userInstruction || preparedRun?.promptDraft || activeSession?.promptDraft || ''
+        ).trim()
+        const preferredTitle = summarizeSessionTitle(
+          optimisticPrompt,
+          buildDefaultSessionTitle(this.sessions.length)
+        )
+
+        const ensuredThreadState = await ensureClientSessionThreadRust({
+          workspacePath: currentWorkspacePath(),
+          sessions: this.sessions,
+          currentSessionId: this.currentSessionId,
+          sessionId,
+          preferredTitle,
+          fallbackTitle: buildDefaultSessionTitle(1),
+          cwd: useWorkspaceStore().path || '',
+        }).catch(() => null)
+
+        if (ensuredThreadState?.success === true) {
+          this.sessions = mergeOverlaySessionState(
+            this.sessions,
+            Array.isArray(ensuredThreadState?.state?.sessions) ? ensuredThreadState.state.sessions : [],
+            buildDefaultSessionTitle(1)
+          )
+          this.currentSessionId = String(ensuredThreadState?.state?.currentSessionId || this.currentSessionId || '').trim()
+          this.persistCurrentWorkspaceSessions()
+        }
+        const runSessionBase =
+          resolveAgentSessionRecord(this.sessions, sessionId) ||
+          resolveAgentSessionRecord([activeSession], sessionId) ||
+          activeSession
 
         this.runtimePendingSessions = {
           ...this.runtimePendingSessions,
@@ -1565,24 +1600,33 @@ export const useAiStore = defineStore('ai', {
 
         await this.updateSessionById(sessionId, (session) => ({
           ...session,
+          runtimeThreadId: String(
+            ensuredThreadState?.session?.runtime_thread_id
+              || ensuredThreadState?.session?.runtimeThreadId
+              || session.runtimeThreadId
+              || ''
+          ).trim(),
+          runtimeTransport: String(
+            ensuredThreadState?.session?.runtime_transport
+              || ensuredThreadState?.session?.runtimeTransport
+              || session.runtimeTransport
+              || 'codex-runtime'
+          ).trim(),
           title:
             Array.isArray(session.messages) && session.messages.length > 0
               ? session.title
-              : summarizeSessionTitle(
-                  preparedRun?.userInstruction || preparedRun?.promptDraft || session.promptDraft,
-                  buildDefaultSessionTitle(this.sessions.length)
-                ),
+              : preferredTitle,
           messages: [
             ...(Array.isArray(session.messages) ? session.messages : []),
             {
               id: userMessageId,
               role: 'user',
               createdAt: Date.now(),
-              content: String(preparedRun?.userInstruction || preparedRun?.promptDraft || '').trim(),
+              content: optimisticPrompt,
               parts: [
                 {
                   type: 'text',
-                  text: String(preparedRun?.userInstruction || preparedRun?.promptDraft || '').trim(),
+                  text: optimisticPrompt,
                 },
               ],
               metadata: {
@@ -1616,7 +1660,7 @@ export const useAiStore = defineStore('ai', {
         }))
 
         const runResponse = await runPreparedAgentSessionRust({
-          session: resolveAgentSessionRecord(this.sessions, sessionId),
+          session: runSessionBase,
           preparedRun,
           altalsSkills: this.altalsSkills,
           pendingAssistantId,

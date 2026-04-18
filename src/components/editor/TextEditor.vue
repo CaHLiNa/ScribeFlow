@@ -434,6 +434,20 @@ function onCitInsert({ keys = [], stayOpen = false, latexCommand = null }) {
     })
   }
 
+  void queueNativeRuntimeSync(() =>
+    recordWorkflowEventToNativeRuntime({
+      kind: 'citation-insert',
+      keys: [...keys],
+      stayOpen: stayOpen === true,
+      latexCommand: latexCommand || null,
+      range: {
+        from: citPalette.triggerFrom,
+        to: citPalette.triggerTo,
+      },
+      insideBrackets: citPalette.insideBrackets === true,
+    })
+  )
+
   if (stayOpen && !isLatexEditor) {
     const cursor = view.state.selection.main.head
     const line = view.state.doc.lineAt(cursor)
@@ -467,6 +481,18 @@ function onCitUpdate({ cites = [] }) {
     view.dispatch({
       changes: { from: citPalette.groupFrom, to: citPalette.groupTo, insert: text },
     })
+    void queueNativeRuntimeSync(() =>
+      recordWorkflowEventToNativeRuntime({
+        kind: 'citation-update',
+        mode: 'latex',
+        keys,
+        latexCommand: command,
+        range: {
+          from: citPalette.groupFrom,
+          to: citPalette.groupTo,
+        },
+      })
+    )
     citPalette.groupTo = citPalette.groupFrom + text.length
     return
   }
@@ -475,6 +501,17 @@ function onCitUpdate({ cites = [] }) {
     view.dispatch({
       changes: { from: citPalette.groupFrom, to: citPalette.groupTo, insert: '' },
     })
+    void queueNativeRuntimeSync(() =>
+      recordWorkflowEventToNativeRuntime({
+        kind: 'citation-update',
+        mode: 'markdown',
+        keys: [],
+        range: {
+          from: citPalette.groupFrom,
+          to: citPalette.groupTo,
+        },
+      })
+    )
     citPalette.show = false
     return
   }
@@ -490,6 +527,17 @@ function onCitUpdate({ cites = [] }) {
   view.dispatch({
     changes: { from: citPalette.groupFrom, to: citPalette.groupTo, insert: text },
   })
+  void queueNativeRuntimeSync(() =>
+    recordWorkflowEventToNativeRuntime({
+      kind: 'citation-update',
+      mode: 'markdown',
+      keys: cites.map((cite) => cite.key),
+      range: {
+        from: citPalette.groupFrom,
+        to: citPalette.groupTo,
+      },
+    })
+  )
   citPalette.groupTo = citPalette.groupFrom + text.length
 }
 
@@ -589,11 +637,24 @@ async function persistEditorContent(content) {
     if (!saved) return false
     lastPersistedContent = nextContent
     editorStore.clearFileDirty(props.filePath)
+    editorRuntimeStore.recordPersistedSnapshot({
+      path: props.filePath,
+      text: nextContent,
+      fileKind: 'latex',
+    })
     if (supportsLatexRuntime) {
       void latexStore.scheduleAutoBuildForPath(props.filePath, {
         sourceContent: nextContent,
       })
     }
+    void queueNativeRuntimeSync(() =>
+      recordWorkflowEventToNativeRuntime({
+        kind: 'persist-document',
+        format: 'latex',
+        textLength: nextContent.length,
+        autoBuildScheduled: supportsLatexRuntime,
+      })
+    )
     return true
   }
 
@@ -601,6 +662,18 @@ async function persistEditorContent(content) {
   if (!saved) return false
   lastPersistedContent = currentContent
   editorStore.clearFileDirty(props.filePath)
+  editorRuntimeStore.recordPersistedSnapshot({
+    path: props.filePath,
+    text: currentContent,
+    fileKind: isMd ? 'markdown' : 'text',
+  })
+  void queueNativeRuntimeSync(() =>
+    recordWorkflowEventToNativeRuntime({
+      kind: 'persist-document',
+      format: isMd ? 'markdown' : 'text',
+      textLength: currentContent.length,
+    })
+  )
   return true
 }
 
@@ -705,6 +778,17 @@ async function syncOutlineContextToNativeRuntime(context = null) {
   return true
 }
 
+async function recordWorkflowEventToNativeRuntime(event = null, path = props.filePath) {
+  if (!shouldMirrorToNativeRuntime()) return false
+  const targetPath = String(path || '').trim()
+  if (!targetPath || event == null) return false
+  await editorRuntimeStore.recordNativeWorkflowEvent({
+    path: targetPath,
+    event,
+  })
+  return true
+}
+
 function revealEditorRange(from, to = from, options = {}) {
   if (!view?.state?.doc) return false
   const length = view.state.doc.length
@@ -737,7 +821,7 @@ function revealEditorRange(from, to = from, options = {}) {
 
   void queueNativeRuntimeSync(async () => {
     await mirrorDocumentToNativeRuntime(view.state.doc.toString())
-    return syncSelectionToNativeRuntime(
+    await syncSelectionToNativeRuntime(
       {
         filePath: props.filePath,
         hasSelection: safeFrom !== safeTo,
@@ -747,6 +831,13 @@ function revealEditorRange(from, to = from, options = {}) {
       },
       safeFrom
     )
+    return recordWorkflowEventToNativeRuntime({
+      kind: 'reveal-range',
+      from: safeFrom,
+      to: safeTo,
+      center: options.center !== false,
+      focus: options.focus !== false,
+    })
   })
 
   return true
@@ -805,6 +896,11 @@ onMounted(async () => {
 
   lastPersistedContent = content
   editorStore.clearFileDirty(props.filePath)
+  editorRuntimeStore.verifyReopenSnapshot({
+    path: props.filePath,
+    text: content,
+    fileKind: isLatexEditor ? 'latex' : isMd ? 'markdown' : 'text',
+  })
 
   if (supportsLatexRuntime) {
     scheduleLatexWarmup(content)
@@ -843,6 +939,11 @@ onMounted(async () => {
         void queueNativeRuntimeSync(async () => {
           const nativeDocument = editorRuntimeStore.nativeDocuments?.[props.filePath] || null
           if (update.docChanged) {
+            editorRuntimeStore.beginTypingLatencyProbe({
+              path: props.filePath,
+              text: currentContent,
+              fileKind: isLatexEditor ? 'latex' : isMd ? 'markdown' : 'text',
+            })
             await mirrorDocumentToNativeRuntime(currentContent)
           } else if (!nativeDocument) {
             await mirrorDocumentToNativeRuntime(currentContent)
@@ -1004,7 +1105,19 @@ onMounted(async () => {
         ...pos,
       })
     },
-    onStats: (stats) => emit('editor-stats', stats),
+    onStats: (stats) => {
+      emit('editor-stats', stats)
+      emitEditorRuntimeTelemetry({
+        type: 'editor-stats',
+        runtimeKind: 'web',
+        paneId: props.paneId,
+        filePath: props.filePath,
+        words: Number(stats?.words || 0),
+        chars: Number(stats?.chars || 0),
+        selectedWords: Number(stats?.selWords || 0),
+        selectedChars: Number(stats?.selChars || 0),
+      })
+    },
     extraExtensions,
   })
 
@@ -1113,6 +1226,19 @@ function ensureLatexWindowHandlers() {
         const fileNameOnlyMatch =
           !normalizedFile.includes('/') && targetFileName === currentFileName
         if (!exactMatch && !fileNameOnlyMatch) {
+          void queueNativeRuntimeSync(() =>
+            recordWorkflowEventToNativeRuntime(
+              {
+                kind: 'latex-backward-sync-reveal',
+                targetFilePath: location.filePath,
+                line: location.line,
+                column: location.column ?? null,
+                strictLine: location.strictLine === true,
+                scope: 'foreign-file',
+              },
+              props.filePath
+            )
+          )
           if (editorStore.activeTab !== props.filePath) return
           await appendLatexSyncDebug({
             event: 'backward-sync-reveal-foreign',
@@ -1126,6 +1252,16 @@ function ensureLatexWindowHandlers() {
         }
       }
       if (line && line > 0) {
+        void queueNativeRuntimeSync(() =>
+          recordWorkflowEventToNativeRuntime({
+            kind: 'latex-backward-sync-reveal',
+            targetFilePath: location.filePath,
+            line: location.line,
+            column: location.column ?? null,
+            strictLine: location.strictLine === true,
+            scope: 'current-file',
+          })
+        )
         await appendLatexSyncDebug({
           event: 'backward-sync-reveal-current',
           location,
@@ -1144,6 +1280,14 @@ function ensureLatexWindowHandlers() {
       const pos = view.state.selection.main.head
       const location = getLatexSyncLocation(pos)
       if (!location) return
+      void queueNativeRuntimeSync(() =>
+        recordWorkflowEventToNativeRuntime({
+          kind: 'latex-forward-sync-request',
+          line: location.line,
+          column: location.column,
+          source: 'cursor-request',
+        })
+      )
       latexStore.requestForwardSync(props.filePath, location.line, location.column)
     }
   }
@@ -1183,6 +1327,14 @@ function ensureMarkdownWindowHandlers() {
       offset: location.offset,
       source: 'cursor-request',
     })
+    void queueNativeRuntimeSync(() =>
+      recordWorkflowEventToNativeRuntime({
+        kind: 'markdown-forward-sync-request',
+        line: location.line,
+        offset: location.offset,
+        source: 'cursor-request',
+      })
+    )
   }
 }
 
@@ -1427,6 +1579,14 @@ function scheduleMarkdownSelectionPreviewSync(selection) {
       offset: location.offset,
       source: 'selection-sync',
     })
+    void queueNativeRuntimeSync(() =>
+      recordWorkflowEventToNativeRuntime({
+        kind: 'markdown-forward-sync-request',
+        line: location.line,
+        offset: location.offset,
+        source: 'selection-sync',
+      })
+    )
   }, 90)
 }
 
@@ -1471,6 +1631,14 @@ function triggerLatexForwardSyncAtPos(pos) {
     line: location.line,
     column: location.column,
   })
+  void queueNativeRuntimeSync(() =>
+    recordWorkflowEventToNativeRuntime({
+      kind: 'latex-forward-sync-request',
+      line: location.line,
+      column: location.column,
+      source: 'double-click',
+    })
+  )
   latexStore.requestForwardSync(props.filePath, location.line, location.column)
 }
 

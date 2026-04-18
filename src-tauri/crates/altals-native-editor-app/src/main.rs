@@ -21,12 +21,14 @@ struct NativeEditorDocumentState {
     text_preview: String,
     diagnostics: Vec<Value>,
     outline_context: Option<Value>,
+    last_workflow_event: Option<Value>,
 }
 
 #[derive(Debug, Clone, Default)]
 struct NativeEditorDocumentMetadata {
     diagnostics: Vec<Value>,
     outline_context: Option<Value>,
+    last_workflow_event: Option<Value>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -82,6 +84,10 @@ enum NativeEditorCommand {
     SetOutlineContext {
         path: String,
         context: Option<Value>,
+    },
+    RecordWorkflowEvent {
+        path: String,
+        event: Value,
     },
     ApplyExternalContent { path: String, text: String },
     Shutdown,
@@ -158,6 +164,7 @@ fn build_document_state(
         text_preview,
         diagnostics: metadata.diagnostics,
         outline_context: metadata.outline_context,
+        last_workflow_event: metadata.last_workflow_event,
     }
 }
 
@@ -318,6 +325,11 @@ fn main() {
             NativeEditorCommand::SetOutlineContext { path, context } => {
                 let metadata = document_metadata.entry(path).or_default();
                 metadata.outline_context = context;
+                emit_session_state(&session, &document_metadata);
+            }
+            NativeEditorCommand::RecordWorkflowEvent { path, event } => {
+                let metadata = document_metadata.entry(path).or_default();
+                metadata.last_workflow_event = Some(event);
                 emit_session_state(&session, &document_metadata);
             }
             NativeEditorCommand::ApplyExternalContent { path, text } => {

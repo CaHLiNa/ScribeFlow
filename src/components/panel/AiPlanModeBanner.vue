@@ -1,60 +1,44 @@
 <template>
-  <div
-    v-if="planMode?.active"
-    class="ai-inline-banner ai-inline-banner--plan"
-  >
-    <div class="ai-inline-banner__copy">
-      <div class="ai-inline-banner__title">{{ t('Plan mode is active') }}</div>
-      <div v-if="planMode.summary" class="ai-inline-banner__body">{{ planMode.summary }}</div>
-      <div v-if="planMode.note" class="ai-inline-banner__body ai-inline-banner__body--muted">{{ planMode.note }}</div>
-    </div>
-  </div>
+  <AiRuntimeStateCard
+    :visible="planMode?.active"
+    tone="accent"
+    :title="t('Plan mode is active')"
+    :body="planSummary"
+    :items="planItems"
+    :max-visible-items="1"
+    :max-detail-length="52"
+  />
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import { useI18n } from '../../i18n'
+import AiRuntimeStateCard from './AiRuntimeStateCard.vue'
 
-defineProps({
+const props = defineProps({
   planMode: { type: Object, default: () => ({ active: false, summary: '', note: '' }) },
 })
 
 const { t } = useI18n()
+const planSummary = computed(() => truncateText(props.planMode?.summary, 140))
+const planItems = computed(() => {
+  const note = truncateText(props.planMode?.note, 60)
+  return note
+    ? [
+        {
+          key: 'note',
+          label: t('Note'),
+          detail: note,
+        },
+      ]
+    : []
+})
+
+function truncateText(value = '', maxLength = 140) {
+  const normalized = String(value || '').trim().replace(/\s+/g, ' ')
+  if (!normalized) return ''
+  const limit = Math.max(20, Number(maxLength || 140))
+  if (normalized.length <= limit) return normalized
+  return `${normalized.slice(0, limit - 1).trimEnd()}…`
+}
 </script>
-
-<style scoped>
-.ai-inline-banner {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 10px 12px;
-  border-radius: 14px;
-}
-
-.ai-inline-banner--plan {
-  border: 1px dashed color-mix(in srgb, var(--accent) 28%, var(--border-color) 72%);
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
-}
-
-.ai-inline-banner__copy {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.ai-inline-banner__title {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.ai-inline-banner__body {
-  font-size: 12px;
-  line-height: 1.55;
-  color: var(--text-secondary);
-  white-space: pre-wrap;
-}
-
-.ai-inline-banner__body--muted {
-  color: var(--text-tertiary);
-}
-</style>

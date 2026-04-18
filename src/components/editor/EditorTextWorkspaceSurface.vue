@@ -16,9 +16,9 @@
 </template>
 
 <script setup>
-import { computed, defineAsyncComponent, ref } from 'vue'
-
-const TextEditor = defineAsyncComponent(() => import('./TextEditor.vue'))
+import { computed, ref } from 'vue'
+import { useEditorRuntimeStore } from '../../stores/editorRuntime'
+import { resolvePrimaryTextSurfaceComponent } from './primaryTextSurfaceRegistry'
 
 const props = defineProps({
   filePath: { type: String, required: true },
@@ -29,8 +29,15 @@ defineEmits(['cursor-change', 'editor-stats', 'selection-change'])
 
 const TEXT_EDITOR_CACHE_MAX = 4
 const containerRef = ref(null)
-const activeTextSurface = computed(() => TextEditor)
-const surfaceKey = computed(() => `text:${props.filePath}`)
+const editorRuntimeStore = useEditorRuntimeStore()
+
+const activeSurfaceRegistration = computed(() =>
+  resolvePrimaryTextSurfaceComponent(editorRuntimeStore.primarySurfaceTarget)
+)
+const activeTextSurface = computed(() => activeSurfaceRegistration.value.component)
+const surfaceKey = computed(
+  () => `text:${activeSurfaceRegistration.value.target}:${props.filePath}`
+)
 
 defineExpose({
   getBoundingClientRect() {

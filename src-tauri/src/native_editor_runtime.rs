@@ -1,15 +1,21 @@
 use crate::native_editor_bridge::{
-    NativeEditorApplyExternalContentRequest, NativeEditorApplyTransactionRequest, NativeEditorCommand,
-    NativeEditorDocumentSnapshot, NativeEditorDocumentState, NativeEditorDocumentStateRequest,
-    NativeEditorEvent, NativeEditorEventPayload, NativeEditorOpenDocumentRequest, NativeEditorSessionSnapshot,
-    NativeEditorSessionStateSnapshot, NativeEditorSetDiagnosticsRequest, NativeEditorSetOutlineContextRequest,
-    NativeEditorSetSelectionsRequest, NATIVE_EDITOR_EVENT,
+    NativeEditorApplyExternalContentRequest, NativeEditorApplyTransactionRequest,
+    NativeEditorCitationEditContext, NativeEditorCitationEntry, NativeEditorCitationTrigger,
+    NativeEditorCommand, NativeEditorDocumentSnapshot, NativeEditorDocumentState,
+    NativeEditorDocumentStateRequest, NativeEditorEvent, NativeEditorEventPayload,
+    NativeEditorInspectInteractionRequest, NativeEditorInteractionContextSnapshot,
+    NativeEditorOpenDocumentRequest, NativeEditorRecordWorkflowEventRequest, NativeEditorSelectionRange,
+    NativeEditorSessionSnapshot, NativeEditorSessionStateSnapshot, NativeEditorSetDiagnosticsRequest,
+    NativeEditorSetOutlineContextRequest, NativeEditorSetSelectionsRequest, NativeEditorWikiLinkMatch,
+    NATIVE_EDITOR_EVENT,
 };
 use crate::process_utils::background_tokio_command;
+use regex_lite::Regex;
 use serde_json::to_string;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::Stdio;
+use std::sync::OnceLock;
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager, Runtime, State};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -230,6 +236,7 @@ fn upsert_document_state(
         text_preview: text_preview.unwrap_or_default(),
         diagnostics: Vec::new(),
         outline_context: None,
+        last_workflow_event: None,
     });
 }
 
@@ -248,6 +255,7 @@ fn build_document_snapshot(
         text: text_cache.get(&document.path).cloned().unwrap_or_default(),
         diagnostics: document.diagnostics.clone(),
         outline_context: document.outline_context.clone(),
+        last_workflow_event: document.last_workflow_event.clone(),
     }
 }
 
@@ -615,6 +623,28 @@ pub async fn native_editor_session_set_outline_context(
         &NativeEditorCommand::SetOutlineContext {
             path: request.path,
             context: request.context,
+        },
+    )
+    .await?;
+
+    Ok(true)
+}
+
+#[tauri::command]
+pub async fn native_editor_session_record_workflow_event(
+    state: State<'_, NativeEditorRuntimeState>,
+    request: NativeEditorRecordWorkflowEventRequest,
+) -> Result<bool, String> {
+    let guard = state.inner.lock().await;
+    let Some(active) = guard.as_ref() else {
+        return Err("Native editor session is not running.".to_string());
+    };
+
+    write_command(
+        &active.stdin,
+        &NativeEditorCommand::RecordWorkflowEvent {
+            path: request.path,
+            event: request.event,
         },
     )
     .await?;
