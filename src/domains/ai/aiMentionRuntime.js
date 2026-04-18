@@ -58,16 +58,20 @@ function buildFileSuggestion(entry = {}, workspacePath = '') {
 }
 
 function buildToolSuggestion(tool = {}) {
+  const invocationName = String(tool.invocationName || '').trim()
   return {
     id: tool.id,
     kind: 'tool',
     prefix: '#',
-    groupKey: 'tools',
-    groupLabel: 'Tools',
+    groupKey: tool.groupKey || 'tools',
+    groupLabel: tool.groupLabel || 'Tools',
     label: tool.label,
     description: tool.description,
-    insertText: `#${normalizeSlug(tool.label || tool.id)}`,
+    insertText: `#${normalizeSlug(invocationName || tool.label || tool.id)}`,
     toolId: tool.id,
+    sourceKind: tool.sourceKind || '',
+    sourceLabel: tool.sourceLabel || '',
+    invocationName,
   }
 }
 

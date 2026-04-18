@@ -78,6 +78,35 @@ pub struct AiExtensionMcpProbeResponse {
     pub error: String,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AiExtensionRuntimeServerState {
+    pub id: String,
+    pub name: String,
+    pub transport: String,
+    pub enabled: bool,
+    pub source_path: String,
+    pub source_scope: String,
+    pub state: String,
+    pub tool_count: usize,
+    pub protocol_version: String,
+    pub server_label: String,
+    pub error: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AiExtensionRuntimeStateResponse {
+    pub available: bool,
+    pub discovered_count: usize,
+    pub ready_count: usize,
+    pub degraded_count: usize,
+    pub disabled_count: usize,
+    pub unsupported_count: usize,
+    pub tool_count: usize,
+    pub servers: Vec<AiExtensionRuntimeServerState>,
+}
+
 #[derive(Debug, Clone)]
 pub struct ResolvedMcpToolDefinition {
     pub runtime_name: String,
@@ -190,7 +219,11 @@ fn parse_env_map(config: &serde_json::Map<String, Value>) -> BTreeMap<String, St
         .unwrap_or_default()
 }
 
-fn parse_server_entries(source_path: &Path, scope: &str, payload: &Value) -> Vec<AiMcpServerConfig> {
+fn parse_server_entries(
+    source_path: &Path,
+    scope: &str,
+    payload: &Value,
+) -> Vec<AiMcpServerConfig> {
     let servers = payload
         .get("mcpServers")
         .or_else(|| payload.get("servers"))
@@ -256,7 +289,9 @@ fn parse_server_entries(source_path: &Path, scope: &str, payload: &Value) -> Vec
         .collect()
 }
 
-fn discover_mcp_server_configs(workspace_path: &str) -> (Vec<AiExtensionSource>, Vec<AiMcpServerConfig>) {
+fn discover_mcp_server_configs(
+    workspace_path: &str,
+) -> (Vec<AiExtensionSource>, Vec<AiMcpServerConfig>) {
     let mut source_index = BTreeMap::<String, AiExtensionSource>::new();
     let mut server_index = BTreeMap::<String, AiMcpServerConfig>::new();
 
@@ -355,8 +390,8 @@ fn write_json_rpc_message_sync(
     stdin: &mut std::process::ChildStdin,
     payload: &Value,
 ) -> Result<(), String> {
-    let serialized =
-        serde_json::to_string(payload).map_err(|error| format!("Failed to encode MCP message: {error}"))?;
+    let serialized = serde_json::to_string(payload)
+        .map_err(|error| format!("Failed to encode MCP message: {error}"))?;
     stdin
         .write_all(serialized.as_bytes())
         .map_err(|error| format!("Failed to write to MCP server stdin: {error}"))?;
@@ -652,8 +687,8 @@ async fn write_json_rpc_message(
     stdin: &mut tokio::process::ChildStdin,
     payload: &Value,
 ) -> Result<(), String> {
-    let serialized =
-        serde_json::to_string(payload).map_err(|error| format!("Failed to encode MCP message: {error}"))?;
+    let serialized = serde_json::to_string(payload)
+        .map_err(|error| format!("Failed to encode MCP message: {error}"))?;
     stdin
         .write_all(serialized.as_bytes())
         .await
@@ -854,8 +889,7 @@ pub async fn ai_extension_mcp_probe(
             server_label: String::new(),
             tool_count: 0,
             tools: Vec::new(),
-            error: "Only stdio MCP probing is supported in the current Phase 4 slice."
-                .to_string(),
+            error: "Only stdio MCP probing is supported in the current Phase 4 slice.".to_string(),
         });
     }
 
@@ -873,4 +907,104 @@ pub async fn ai_extension_mcp_probe(
             error,
         }),
     }
+}
+
+#[tauri::command]
+pub async fn ai_extension_runtime_state_resolve(
+    params: AiExtensionCatalogParams,
+) -> Result<AiExtensionRuntimeStateResponse, String> {
+    let (_, servers) = discover_mcp_server_configs(&params.workspace_path);
+    let discovered_count = servers.len();
+    let mut ready_count = 0;
+    let mut degraded_count = 0;
+    let mut disabled_count = 0;
+    let mut unsupported_count = 0;
+    let mut tool_count = 0;
+    let mut resolved_servers = Vec::new();
+
+    for server in servers {
+        if !server.entry.enabled {
+            disabled_count += 1;
+            resolved_servers.push(AiExtensionRuntimeServerState {
+                id: server.entry.id.clone(),
+                name: server.entry.name.clone(),
+                transport: server.entry.transport.clone(),
+                enabled: false,
+                source_path: server.entry.source_path.clone(),
+                source_scope: server.entry.source_scope.clone(),
+                state: "disabled".to_string(),
+                tool_count: 0,
+                protocol_version: String::new(),
+                server_label: String::new(),
+                error: String::new(),
+            });
+            continue;
+        }
+
+        if server.entry.transport != "stdio" {
+            unsupported_count += 1;
+            resolved_servers.push(AiExtensionRuntimeServerState {
+                id: server.entry.id.clone(),
+                name: server.entry.name.clone(),
+                transport: server.entry.transport.clone(),
+                enabled: true,
+                source_path: server.entry.source_path.clone(),
+                source_scope: server.entry.source_scope.clone(),
+                state: "unsupported".to_string(),
+                tool_count: 0,
+                protocol_version: String::new(),
+                server_label: String::new(),
+                error: "Only stdio MCP servers are supported in the current Phase 4 slice."
+                    .to_string(),
+            });
+            continue;
+        }
+
+        match probe_stdio_mcp_server(&params.workspace_path, &server).await {
+            Ok(response) => {
+                ready_count += 1;
+                tool_count += response.tool_count;
+                resolved_servers.push(AiExtensionRuntimeServerState {
+                    id: server.entry.id.clone(),
+                    name: server.entry.name.clone(),
+                    transport: server.entry.transport.clone(),
+                    enabled: true,
+                    source_path: server.entry.source_path.clone(),
+                    source_scope: server.entry.source_scope.clone(),
+                    state: "ready".to_string(),
+                    tool_count: response.tool_count,
+                    protocol_version: response.protocol_version,
+                    server_label: response.server_label,
+                    error: String::new(),
+                });
+            }
+            Err(error) => {
+                degraded_count += 1;
+                resolved_servers.push(AiExtensionRuntimeServerState {
+                    id: server.entry.id.clone(),
+                    name: server.entry.name.clone(),
+                    transport: server.entry.transport.clone(),
+                    enabled: true,
+                    source_path: server.entry.source_path.clone(),
+                    source_scope: server.entry.source_scope.clone(),
+                    state: "degraded".to_string(),
+                    tool_count: 0,
+                    protocol_version: String::new(),
+                    server_label: String::new(),
+                    error,
+                });
+            }
+        }
+    }
+
+    Ok(AiExtensionRuntimeStateResponse {
+        available: ready_count > 0,
+        discovered_count,
+        ready_count,
+        degraded_count,
+        disabled_count,
+        unsupported_count,
+        tool_count,
+        servers: resolved_servers,
+    })
 }

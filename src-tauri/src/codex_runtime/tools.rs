@@ -188,7 +188,8 @@ pub fn resolve_runtime_tool_definitions_with_context(
         "read-extension-catalog",
         RuntimeToolDefinition {
             name: "read_extension_catalog",
-            description: "Inspect configured MCP servers and extension sources available to this runtime.",
+            description:
+                "Inspect configured MCP servers and extension sources available to this runtime.",
             parameters: json!({
                 "type": "object",
                 "properties": {},
@@ -310,20 +311,25 @@ pub fn resolve_runtime_tool_definitions_with_context(
         },
     );
     if !workspace_path.trim().is_empty() {
-        tools.extend(resolve_mcp_runtime_tools(workspace_path).into_iter().map(|tool| {
-            RuntimeToolDefinition {
-                name: Box::leak(tool.runtime_name.into_boxed_str()),
-                description: Box::leak(
-                    if tool.description.trim().is_empty() {
-                        format!("Call MCP tool {} exposed by {}.", tool.tool_name, tool.server_name)
-                    } else {
-                        format!("{} (MCP: {})", tool.description, tool.display_name)
-                    }
-                    .into_boxed_str(),
-                ),
-                parameters: tool.parameters,
-            }
-        }));
+        tools.extend(
+            resolve_mcp_runtime_tools(workspace_path)
+                .into_iter()
+                .map(|tool| RuntimeToolDefinition {
+                    name: Box::leak(tool.runtime_name.into_boxed_str()),
+                    description: Box::leak(
+                        if tool.description.trim().is_empty() {
+                            format!(
+                                "Call MCP tool {} exposed by {}.",
+                                tool.tool_name, tool.server_name
+                            )
+                        } else {
+                            format!("{} (MCP: {})", tool.description, tool.display_name)
+                        }
+                        .into_boxed_str(),
+                    ),
+                    parameters: tool.parameters,
+                }),
+        );
     }
 
     tools

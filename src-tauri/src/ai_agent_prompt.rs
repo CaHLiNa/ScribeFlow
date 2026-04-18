@@ -378,7 +378,11 @@ fn build_available_extensions_block(extension_catalog: &Value) -> String {
         } else {
             format!(" ({scope})")
         };
-        let status_text = if enabled { String::new() } else { " disabled".to_string() };
+        let status_text = if enabled {
+            String::new()
+        } else {
+            " disabled".to_string()
+        };
         let source_text = if source_path.is_empty() {
             String::new()
         } else {
@@ -616,6 +620,7 @@ pub async fn ai_agent_build_prompt(
             }
             .to_string(),
             "Filesystem skills are provided as an explicit catalog in the prompt. Do not infer available skills by searching workspace filenames.".to_string(),
+            "Built-in tools operate inside the current workspace. MCP tools are external capabilities exposed by connected servers. Prefer built-in workspace tools when they can complete the task locally, and use MCP only when external capability is actually needed.".to_string(),
             "If the request involves creating, writing, editing, or opening workspace files and matching tools are listed as available, call those tools instead of claiming the capability is unavailable.".to_string(),
             format!(
                 "{}: {}.",

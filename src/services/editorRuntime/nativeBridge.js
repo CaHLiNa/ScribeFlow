@@ -141,6 +141,32 @@ export async function inspectNativeEditorInteractionContext({
   })
 }
 
+export async function getNativeEditorPresentationSnapshot({
+  path = '',
+  text = null,
+  selection = null,
+  viewportFrom = null,
+  viewportTo = null,
+} = {}) {
+  requireTauriInvoke()
+  return invoke('native_editor_presentation_snapshot', {
+    request: {
+      path: String(path || ''),
+      text: typeof text === 'string' ? text : null,
+      selection:
+        selection && typeof selection === 'object'
+          ? {
+              anchor: Number(selection?.anchor || 0),
+              head: Number(selection?.head || 0),
+            }
+          : null,
+      viewportFrom:
+        viewportFrom === null || viewportFrom === undefined ? null : Number(viewportFrom || 0),
+      viewportTo: viewportTo === null || viewportTo === undefined ? null : Number(viewportTo || 0),
+    },
+  })
+}
+
 export async function planNativeEditorCitationReplacement({
   path = '',
   operation = '',

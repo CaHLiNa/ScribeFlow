@@ -26,6 +26,23 @@ The main remaining gap is extension reach:
 - unclear coexistence rules between built-in skills and external MCP-backed capabilities
 - no settled desktop presentation model for extension availability, status, and invocation
 
+### Current implementation note
+
+The active Phase 4 slice now includes:
+
+- Rust-owned MCP config discovery across workspace and user roots
+- Rust-owned stdio probe and runtime tool-call wiring
+- a Rust-owned runtime extension status summary used by the desktop UI
+- low-emphasis desktop visibility for ready versus degraded MCP state in Settings and the AI panel
+- a Rust-owned runtime tool catalog that can surface MCP-backed tools alongside built-in tools
+- unified `#tool` suggestion plumbing so agent-mode composer suggestions no longer stop at built-in tools
+
+Still pending:
+
+- skills versus MCP precedence and presentation rules
+- richer transport support beyond the current stdio-first slice
+- deeper failure recovery and invocation UX beyond summary visibility
+
 ## Scope
 
 ### In scope

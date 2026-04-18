@@ -101,11 +101,19 @@ fn normalize_session(session: &Value, fallback_title: &str) -> Value {
     };
     let created_at = {
         let value = number_field(session, "createdAt");
-        if value > 0 { value } else { now_ms() }
+        if value > 0 {
+            value
+        } else {
+            now_ms()
+        }
     };
     let updated_at = {
         let value = number_field(session, "updatedAt");
-        if value > 0 { value } else { created_at }
+        if value > 0 {
+            value
+        } else {
+            created_at
+        }
     };
     let title = {
         let value = string_field(session, "title");
@@ -175,7 +183,11 @@ fn ensure_sessions_state(
 ) -> Value {
     let normalized_sessions = sessions
         .iter()
-        .filter(|session| !string_field(session, "id").trim().starts_with("runtime-session:"))
+        .filter(|session| {
+            !string_field(session, "id")
+                .trim()
+                .starts_with("runtime-session:")
+        })
         .map(|session| normalize_session(session, fallback_title))
         .collect::<Vec<_>>();
 
@@ -189,7 +201,10 @@ fn ensure_sessions_state(
     }
 
     let normalized_current_session_id = current_session_id.trim().to_string();
-    let resolved_current_session_id = if normalized_sessions.iter().any(|session| string_field(session, "id") == normalized_current_session_id) {
+    let resolved_current_session_id = if normalized_sessions
+        .iter()
+        .any(|session| string_field(session, "id") == normalized_current_session_id)
+    {
         normalized_current_session_id
     } else {
         normalized_sessions

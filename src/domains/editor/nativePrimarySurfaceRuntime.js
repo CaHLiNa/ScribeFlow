@@ -36,6 +36,88 @@ export function buildNativePrimaryCursorSnapshot(text = '', selection = null) {
   }
 }
 
+function ensureSegmentBoundary(boundaries, index) {
+  const numeric = Number(index || 0)
+  if (!Number.isFinite(numeric)) return
+  boundaries.add(Math.max(0, Math.trunc(numeric)))
+}
+
+function normalizeMarkRange(mark = {}) {
+  const from = Math.max(0, Math.trunc(Number(mark?.from || 0)))
+  const to = Math.max(from, Math.trunc(Number(mark?.to || from)))
+  return { from, to }
+}
+
+export function buildNativePrimaryPresentationLines(snapshot = null) {
+  const lines = Array.isArray(snapshot?.lines) ? snapshot.lines : []
+  const marks = Array.isArray(snapshot?.marks) ? snapshot.marks : []
+  const activeLine = Number(snapshot?.activeLine || 0)
+
+  return lines.map((line) => {
+    const lineFrom = Math.max(0, Math.trunc(Number(line?.from || 0)))
+    const lineTo = Math.max(lineFrom, Math.trunc(Number(line?.to || lineFrom)))
+    const text = String(line?.text || '')
+    const lineMarks = marks
+      .filter((mark) => {
+        const range = normalizeMarkRange(mark)
+        return range.to > lineFrom && range.from < lineTo
+      })
+      .map((mark) => ({
+        ...mark,
+        ...normalizeMarkRange(mark),
+      }))
+
+    const boundaries = new Set([lineFrom, lineTo])
+    lineMarks.forEach((mark) => {
+      ensureSegmentBoundary(boundaries, Math.max(lineFrom, mark.from))
+      ensureSegmentBoundary(boundaries, Math.min(lineTo, mark.to))
+    })
+
+    const ordered = [...boundaries].sort((left, right) => left - right)
+    const segments = []
+
+    for (let index = 0; index < ordered.length - 1; index += 1) {
+      const from = ordered[index]
+      const to = ordered[index + 1]
+      if (to <= from) continue
+      const relativeFrom = from - lineFrom
+      const relativeTo = to - lineFrom
+      const segmentText = text.slice(relativeFrom, relativeTo)
+      const classes = lineMarks
+        .filter((mark) => mark.from < to && mark.to > from)
+        .map((mark) => String(mark?.className || '').trim())
+        .filter(Boolean)
+
+      segments.push({
+        from,
+        to,
+        text: segmentText,
+        classes,
+        className: classes.join(' '),
+      })
+    }
+
+    if (segments.length === 0) {
+      segments.push({
+        from: lineFrom,
+        to: lineTo,
+        text,
+        classes: [],
+        className: '',
+      })
+    }
+
+    return {
+      line: Number(line?.line || 0),
+      from: lineFrom,
+      to: lineTo,
+      text,
+      isActive: activeLine > 0 && Number(line?.line || 0) === activeLine,
+      segments,
+    }
+  })
+}
+
 export function buildNativePrimaryMarkdownForwardSyncRequest({
   isMarkdownFile = false,
   selection = null,

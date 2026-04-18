@@ -263,6 +263,10 @@ import { useToastStore } from '../../stores/toast'
 import { useI18n } from '../../i18n'
 import { useAiStore } from '../../stores/ai'
 import { useWorkspaceStore } from '../../stores/workspace'
+import {
+  loadAiExtensionCatalog,
+  probeAiExtensionMcpServer,
+} from '../../services/ai/extensions.js'
 import UiButton from '../shared/ui/UiButton.vue'
 import UiInput from '../shared/ui/UiInput.vue'
 import UiSelect from '../shared/ui/UiSelect.vue'
@@ -311,23 +315,6 @@ async function testAiProviderConnection(providerId = 'openai', providerConfig = 
     providerId,
     providerConfig,
     apiKey,
-  })
-}
-
-async function loadAiExtensionCatalog(workspacePath = '') {
-  return invoke('ai_extension_catalog_load', {
-    params: {
-      workspacePath,
-    },
-  })
-}
-
-async function probeAiExtensionMcpServer(workspacePath = '', serverId = '') {
-  return invoke('ai_extension_mcp_probe', {
-    params: {
-      workspacePath,
-      serverId,
-    },
   })
 }
 

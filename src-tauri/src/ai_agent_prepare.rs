@@ -6,6 +6,7 @@ use tokio::task;
 use crate::ai_config::ai_config_load_internal;
 use crate::ai_provider_catalog::resolve_provider_state_value;
 use crate::ai_provider_credentials::load_ai_provider_api_key_internal;
+use crate::ai_tool_catalog::resolve_requested_runtime_tool_labels;
 use crate::fs_io::read_text_file_with_limit;
 
 #[derive(Debug, Clone, Deserialize)]
@@ -668,6 +669,19 @@ async fn ai_agent_prepare(params: AiAgentPrepareParams) -> Result<Value, String>
         &params.flat_files,
         &params.workspace_path,
     );
+    let requested_tools = if is_agent_session {
+        resolve_requested_runtime_tool_labels(
+            &array_field(&config, &["enabledTools", "enabled_tools"])
+                .into_iter()
+                .filter_map(|entry| entry.as_str().map(|value| value.to_string()))
+                .collect::<Vec<_>>(),
+            "agent",
+            &params.workspace_path,
+            &tool_mentions,
+        )
+    } else {
+        Vec::new()
+    };
     let referenced_files = task::spawn_blocking(move || {
         referenced_entries
             .into_iter()
@@ -734,7 +748,7 @@ async fn ai_agent_prepare(params: AiAgentPrepareParams) -> Result<Value, String>
         "referencedFiles": referenced_files,
         "priorConversation": prior_conversation,
         "attachments": session.get("attachments").cloned().unwrap_or_else(|| Value::Array(Vec::new())),
-        "requestedTools": if is_agent_session { Value::Array(tool_mentions.into_iter().map(Value::String).collect()) } else { Value::Array(Vec::new()) },
+        "requestedTools": Value::Array(requested_tools.into_iter().map(Value::String).collect()),
     }))
 }
 
@@ -754,7 +768,10 @@ pub async fn ai_agent_prepare_current_config(
     if let Some(map) = provider_state.as_object_mut() {
         map.insert(
             "enabledToolIds".to_string(),
-            config.get("enabledTools").cloned().unwrap_or_else(|| Value::Array(Vec::new())),
+            config
+                .get("enabledTools")
+                .cloned()
+                .unwrap_or_else(|| Value::Array(Vec::new())),
         );
     }
 

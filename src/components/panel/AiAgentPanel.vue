@@ -61,6 +61,10 @@
             v-if="showActiveTasksBar"
             :tasks="backgroundTaskItems"
           />
+          <AiExtensionStatusBanner
+            v-if="showExtensionStatusBanner"
+            :state="extensionRuntimeState"
+          />
         </div>
 
         <AiAskUserBanner
@@ -251,6 +255,7 @@ import {
   detectAiComposerToken,
   getAiComposerSuggestions,
 } from '../../domains/ai/aiMentionRuntime.js'
+import { resolveAiExtensionRuntimeState } from '../../services/ai/extensions.js'
 import {
   IconPaperclip,
   IconArrowUp,
@@ -268,6 +273,7 @@ import AiAskUserBanner from './AiAskUserBanner.vue'
 import AiAttachmentList from './AiAttachmentList.vue'
 import AiCompactingBanner from './AiCompactingBanner.vue'
 import AiConversationMessage from './AiConversationMessage.vue'
+import AiExtensionStatusBanner from './AiExtensionStatusBanner.vue'
 import AiExitPlanBanner from './AiExitPlanBanner.vue'
 import AiInvocationDropdown from './AiInvocationDropdown.vue'
 import AiPlanModeBanner from './AiPlanModeBanner.vue'
@@ -297,6 +303,16 @@ const threadRef = ref(null)
 const threadBottomRef = ref(null)
 const composerTextareaRef = ref(null)
 const enabledTools = ref([])
+const extensionRuntimeState = ref({
+  available: false,
+  discoveredCount: 0,
+  readyCount: 0,
+  degradedCount: 0,
+  disabledCount: 0,
+  unsupportedCount: 0,
+  toolCount: 0,
+  servers: [],
+})
 const activeInvocationIndex = ref(0)
 const respondingPermissionRequestId = ref('')
 const respondingAskUserRequestId = ref('')
@@ -464,12 +480,19 @@ const backgroundTaskItems = computed(() =>
   }))
 )
 const showActiveTasksBar = computed(() => backgroundTaskItems.value.length > 0 && !hasBlockingState.value)
+const showExtensionStatusBanner = computed(() => {
+  const state = extensionRuntimeState.value || {}
+  return Number(state.readyCount || 0) > 0
+    || Number(state.degradedCount || 0) > 0
+    || Number(state.unsupportedCount || 0) > 0
+})
 const hasRuntimeStateStack = computed(
   () =>
     showPlanModeBanner.value ||
     showResumeBanner.value ||
     showCompactingBanner.value ||
-    showActiveTasksBar.value
+    showActiveTasksBar.value ||
+    showExtensionStatusBanner.value
 )
 const blockingContextItems = computed(() => {
   if (!hasBlockingState.value) return []
@@ -550,6 +573,11 @@ const composerSuggestions = computed(() => {
           id: tool.id,
           label: t(tool.labelKey || tool.label || tool.id),
           description: t(tool.descriptionKey || tool.description || ''),
+          groupKey: tool.groupKey || 'tools',
+          groupLabel: tool.groupLabel || 'Tools',
+          sourceKind: tool.sourceKind || '',
+          sourceLabel: tool.sourceLabel || '',
+          invocationName: tool.invocationName || '',
         }))
       : [],
     slashSuggestions: [],
@@ -866,6 +894,7 @@ async function refreshEnabledTools() {
     params: {
       enabledTools: aiStore.enabledToolIds,
       runtimeIntent: 'agent',
+      workspacePath: workspace.path || '',
     },
   })
   enabledTools.value = Array.isArray(response?.runtimeTools) ? response.runtimeTools : []
@@ -874,6 +903,33 @@ async function refreshEnabledTools() {
 async function refreshProviderRuntime() {
   await aiStore.refreshProviderState()
   await aiStore.refreshUnifiedModelPool({ force: true }).catch(() => [])
+}
+
+async function refreshExtensionRuntimeState() {
+  try {
+    const response = await resolveAiExtensionRuntimeState(workspace.path || '')
+    extensionRuntimeState.value = {
+      available: response?.available === true,
+      discoveredCount: Number(response?.discoveredCount || 0),
+      readyCount: Number(response?.readyCount || 0),
+      degradedCount: Number(response?.degradedCount || 0),
+      disabledCount: Number(response?.disabledCount || 0),
+      unsupportedCount: Number(response?.unsupportedCount || 0),
+      toolCount: Number(response?.toolCount || 0),
+      servers: Array.isArray(response?.servers) ? response.servers : [],
+    }
+  } catch {
+    extensionRuntimeState.value = {
+      available: false,
+      discoveredCount: 0,
+      readyCount: 0,
+      degradedCount: 0,
+      disabledCount: 0,
+      unsupportedCount: 0,
+      toolCount: 0,
+      servers: [],
+    }
+  }
 }
 
 async function hydrateWorkspaceSessions() {
@@ -885,6 +941,7 @@ onMounted(() => {
   void hydrateWorkspaceSessions()
   void refreshEnabledTools()
   void refreshProviderRuntime()
+  void refreshExtensionRuntimeState()
   void aiStore.refreshAltalsSkills()
   scrollToBottom('auto')
   syncComposerTextareaHeight()
@@ -894,6 +951,7 @@ onActivated(() => {
   void hydrateWorkspaceSessions()
   void refreshEnabledTools()
   void refreshProviderRuntime()
+  void refreshExtensionRuntimeState()
   void aiStore.refreshAltalsSkills()
   scrollToBottom('auto')
   syncComposerTextareaHeight()
@@ -904,6 +962,7 @@ watch(
   () => {
     void hydrateWorkspaceSessions()
     void refreshEnabledTools()
+    void refreshExtensionRuntimeState()
     void aiStore.refreshAltalsSkills()
     void filesStore.ensureFlatFilesReady({ force: true }).catch(() => {})
   }

@@ -55,6 +55,11 @@ hayagriva = { version = "0.9.1", features = ["csl-json"] }
 pathdiff = "0.2"
 urlencoding = "2"
 markdown = "1"
+tree-sitter = "0.26"
+tree-sitter-highlight = "0.26.8"
+tree-sitter-md = { version = "0.5.3", features = ["parser"] }
+codebook-tree-sitter-latex = "0.6.1"
+nucleo-matcher = "0.3.1"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

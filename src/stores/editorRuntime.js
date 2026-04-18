@@ -4,6 +4,7 @@ import { PRIMARY_TEXT_SURFACE_TARGETS } from '../domains/editor/primaryTextSurfa
 import {
   applyNativeEditorTransaction,
   applyNativeEditorExternalContent,
+  getNativeEditorPresentationSnapshot,
   inspectNativeEditorInteractionContext,
   listenToNativeEditorEvents,
   nativeEditorBridgeAvailable,
@@ -46,6 +47,24 @@ function jsOffsetToUtf8Offset(text = '', offset = 0) {
   const normalized = String(text || '')
   const safeOffset = clampStringOffset(normalized, offset)
   return utf8ByteLength(normalized.slice(0, safeOffset))
+}
+
+function utf8OffsetToJsOffset(text = '', offset = 0) {
+  const normalized = String(text || '')
+  const target = Math.max(0, Math.trunc(Number(offset || 0)))
+  if (target <= 0) return 0
+
+  let bytes = 0
+  let index = 0
+  for (const char of normalized) {
+    const nextBytes = bytes + utf8ByteLength(char)
+    if (nextBytes > target) return index
+    bytes = nextBytes
+    index += char.length
+    if (bytes === target) return index
+  }
+
+  return normalized.length
 }
 
 function readStoredJson(key, fallback) {
@@ -581,12 +600,76 @@ export const useEditorRuntimeStore = defineStore('editorRuntime', {
         text: currentText,
         selection:
           selection && typeof selection === 'object'
+          ? {
+              anchor: jsOffsetToUtf8Offset(currentText, selection?.anchor ?? 0),
+              head: jsOffsetToUtf8Offset(currentText, selection?.head ?? 0),
+            }
+          : null,
+      })
+    },
+
+    async getNativePresentationSnapshot({
+      path = '',
+      text = null,
+      selection = null,
+      viewportFrom = null,
+      viewportTo = null,
+    } = {}) {
+      if (!nativeEditorBridgeAvailable()) return null
+      const normalizedPath = String(path || '').trim()
+      if (!normalizedPath) return null
+      await this.startNativeSession()
+      const currentText =
+        typeof text === 'string'
+          ? text
+          : String(this.nativeDocuments[normalizedPath]?.text ?? '')
+      const snapshot = await getNativeEditorPresentationSnapshot({
+        path: normalizedPath,
+        text: currentText,
+        selection:
+          selection && typeof selection === 'object'
             ? {
                 anchor: jsOffsetToUtf8Offset(currentText, selection?.anchor ?? 0),
                 head: jsOffsetToUtf8Offset(currentText, selection?.head ?? 0),
               }
             : null,
+        viewportFrom:
+          viewportFrom === null || viewportFrom === undefined
+            ? null
+            : jsOffsetToUtf8Offset(currentText, viewportFrom),
+        viewportTo:
+          viewportTo === null || viewportTo === undefined
+            ? null
+            : jsOffsetToUtf8Offset(currentText, viewportTo),
       })
+
+      if (!snapshot) return null
+
+      return {
+        ...snapshot,
+        viewportFrom: utf8OffsetToJsOffset(currentText, snapshot?.viewportFrom ?? 0),
+        viewportTo: utf8OffsetToJsOffset(currentText, snapshot?.viewportTo ?? 0),
+        selections: Array.isArray(snapshot?.selections)
+          ? snapshot.selections.map((range) => ({
+              anchor: utf8OffsetToJsOffset(currentText, range?.anchor ?? 0),
+              head: utf8OffsetToJsOffset(currentText, range?.head ?? 0),
+            }))
+          : [],
+        lines: Array.isArray(snapshot?.lines)
+          ? snapshot.lines.map((line) => ({
+              ...line,
+              from: utf8OffsetToJsOffset(currentText, line?.from ?? 0),
+              to: utf8OffsetToJsOffset(currentText, line?.to ?? 0),
+            }))
+          : [],
+        marks: Array.isArray(snapshot?.marks)
+          ? snapshot.marks.map((mark) => ({
+              ...mark,
+              from: utf8OffsetToJsOffset(currentText, mark?.from ?? 0),
+              to: utf8OffsetToJsOffset(currentText, mark?.to ?? 0),
+            }))
+          : [],
+      }
     },
 
     async planNativeCitationReplacement({

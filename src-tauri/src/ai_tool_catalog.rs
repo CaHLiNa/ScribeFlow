@@ -1,3 +1,4 @@
+use crate::ai_extension_catalog::resolve_mcp_runtime_tools;
 use serde::{Deserialize, Serialize};
 
 const TOOL_DEFINITIONS: &[AiToolDefinition] = &[
@@ -79,6 +80,24 @@ pub struct AiToolDefinition {
     pub always_available: bool,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AiRuntimeToolEntry {
+    pub id: String,
+    pub label: String,
+    pub label_key: String,
+    pub description: String,
+    pub description_key: String,
+    pub configurable: bool,
+    pub always_available: bool,
+    pub source_kind: String,
+    pub source_label: String,
+    pub group_key: String,
+    pub group_label: String,
+    pub invocation_name: String,
+    pub external: bool,
+}
+
 impl AiToolDefinition {
     pub const fn new(
         id: &'static str,
@@ -107,6 +126,8 @@ pub struct AiToolCatalogResolveParams {
     pub enabled_tools: Vec<String>,
     #[serde(default)]
     pub runtime_intent: String,
+    #[serde(default)]
+    pub workspace_path: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -118,7 +139,7 @@ pub struct AiToolCatalogResolveResponse {
     pub effective_tool_ids: Vec<String>,
     pub runtime_tool_ids: Vec<String>,
     pub effective_tools: Vec<AiToolDefinition>,
-    pub runtime_tools: Vec<AiToolDefinition>,
+    pub runtime_tools: Vec<AiRuntimeToolEntry>,
 }
 
 pub fn tool_definitions() -> Vec<AiToolDefinition> {
@@ -199,6 +220,133 @@ pub fn resolve_tools_by_ids(tool_ids: &[String]) -> Vec<AiToolDefinition> {
         .collect()
 }
 
+fn slugify_invocation_name(value: &str) -> String {
+    let mut output = String::new();
+    let mut last_dash = false;
+    for ch in value.trim().chars().flat_map(|ch| ch.to_lowercase()) {
+        if ch.is_ascii_alphanumeric() {
+            output.push(ch);
+            last_dash = false;
+        } else if !last_dash {
+            output.push('-');
+            last_dash = true;
+        }
+    }
+    output.trim_matches('-').to_string()
+}
+
+fn normalize_runtime_tool_lookup(value: &str) -> String {
+    slugify_invocation_name(value)
+}
+
+fn runtime_entry_from_builtin(tool: AiToolDefinition) -> AiRuntimeToolEntry {
+    AiRuntimeToolEntry {
+        id: tool.id.to_string(),
+        label: tool.label.to_string(),
+        label_key: tool.label_key.to_string(),
+        description: tool.description.to_string(),
+        description_key: tool.description_key.to_string(),
+        configurable: tool.configurable,
+        always_available: tool.always_available,
+        source_kind: "built-in".to_string(),
+        source_label: "Altals".to_string(),
+        group_key: "built-in-tools".to_string(),
+        group_label: "Built-in tools".to_string(),
+        invocation_name: slugify_invocation_name(tool.label),
+        external: false,
+    }
+}
+
+fn resolve_runtime_tool_entries(
+    enabled_tools: &[String],
+    runtime_intent: &str,
+    workspace_path: &str,
+) -> Vec<AiRuntimeToolEntry> {
+    let mut entries =
+        resolve_tools_by_ids(&resolve_runtime_tool_ids(enabled_tools, runtime_intent))
+            .into_iter()
+            .map(runtime_entry_from_builtin)
+            .collect::<Vec<_>>();
+
+    if runtime_intent.trim() != "agent" || workspace_path.trim().is_empty() {
+        return entries;
+    }
+
+    entries.extend(
+        resolve_mcp_runtime_tools(workspace_path)
+            .into_iter()
+            .map(|tool| {
+                let description = if tool.description.trim().is_empty() {
+                    format!("External MCP tool from {}.", tool.server_name)
+                } else {
+                    tool.description.clone()
+                };
+                AiRuntimeToolEntry {
+                    id: tool.runtime_name.clone(),
+                    label: tool.display_name.clone(),
+                    label_key: tool.display_name.clone(),
+                    description_key: description.clone(),
+                    description,
+                    configurable: false,
+                    always_available: true,
+                    source_kind: "mcp".to_string(),
+                    source_label: tool.server_name.clone(),
+                    group_key: "mcp-tools".to_string(),
+                    group_label: "MCP tools".to_string(),
+                    invocation_name: {
+                        let base = format!("mcp {} {}", tool.server_name, tool.tool_name);
+                        let normalized = slugify_invocation_name(&base);
+                        if normalized.is_empty() {
+                            slugify_invocation_name(&tool.runtime_name)
+                        } else {
+                            normalized
+                        }
+                    },
+                    external: true,
+                }
+            }),
+    );
+
+    entries
+}
+
+pub fn resolve_requested_runtime_tool_labels(
+    enabled_tools: &[String],
+    runtime_intent: &str,
+    workspace_path: &str,
+    mentions: &[String],
+) -> Vec<String> {
+    let runtime_tools = resolve_runtime_tool_entries(enabled_tools, runtime_intent, workspace_path);
+    let mut resolved = Vec::new();
+
+    for mention in mentions {
+        let normalized_mention = normalize_runtime_tool_lookup(mention);
+        if normalized_mention.is_empty() {
+            continue;
+        }
+
+        let Some(tool) = runtime_tools.iter().find(|entry| {
+            normalize_runtime_tool_lookup(&entry.invocation_name) == normalized_mention
+                || normalize_runtime_tool_lookup(&entry.id) == normalized_mention
+                || normalize_runtime_tool_lookup(&entry.label) == normalized_mention
+        }) else {
+            continue;
+        };
+
+        let display = if tool.source_kind == "mcp" {
+            format!("MCP · {}", tool.label)
+        } else {
+            tool.label.clone()
+        };
+
+        if !resolved.iter().any(|entry| entry == &display) {
+            resolved.push(display);
+        }
+    }
+
+    resolved
+}
+
 pub fn build_ai_tool_prompt_block(tool_ids: &[String], runtime_intent: &str) -> String {
     let tools = resolve_tools_by_ids(&resolve_runtime_tool_ids(tool_ids, runtime_intent));
     if tools.is_empty() {
@@ -220,14 +368,22 @@ pub async fn ai_tool_catalog_resolve(
 ) -> Result<AiToolCatalogResolveResponse, String> {
     let normalized_enabled_tool_ids = normalize_enabled_tool_ids(&params.enabled_tools);
     let effective_tool_ids = resolve_effective_tool_ids(&params.enabled_tools);
-    let runtime_tool_ids = resolve_runtime_tool_ids(&params.enabled_tools, &params.runtime_intent);
+    let runtime_tools = resolve_runtime_tool_entries(
+        &params.enabled_tools,
+        &params.runtime_intent,
+        &params.workspace_path,
+    );
+    let runtime_tool_ids = runtime_tools
+        .iter()
+        .map(|tool| tool.id.clone())
+        .collect::<Vec<_>>();
 
     Ok(AiToolCatalogResolveResponse {
         tools: tool_definitions(),
         configurable_tools: configurable_tool_definitions(),
         normalized_enabled_tool_ids,
         effective_tools: resolve_tools_by_ids(&effective_tool_ids),
-        runtime_tools: resolve_tools_by_ids(&runtime_tool_ids),
+        runtime_tools,
         effective_tool_ids,
         runtime_tool_ids,
     })

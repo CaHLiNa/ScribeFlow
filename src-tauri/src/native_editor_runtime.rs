@@ -1,16 +1,17 @@
 use crate::native_editor_bridge::{
     NativeEditorApplyExternalContentRequest, NativeEditorApplyTransactionRequest,
     NativeEditorCitationEditContext, NativeEditorCitationEntry, NativeEditorCitationReplacePlan,
-    NativeEditorCitationTrigger,
-    NativeEditorCommand, NativeEditorDocumentSnapshot, NativeEditorDocumentState,
-    NativeEditorDocumentStateRequest, NativeEditorEvent, NativeEditorEventPayload,
+    NativeEditorCitationTrigger, NativeEditorCommand, NativeEditorDocumentSnapshot,
+    NativeEditorDocumentState, NativeEditorDocumentStateRequest, NativeEditorEvent,
+    NativeEditorEventPayload, NativeEditorFileDropInsertionPlan,
     NativeEditorInspectInteractionRequest, NativeEditorInteractionContextSnapshot,
-    NativeEditorOpenDocumentRequest, NativeEditorRecordWorkflowEventRequest, NativeEditorSelectionRange,
-    NativeEditorSessionSnapshot, NativeEditorSessionStateSnapshot, NativeEditorSetDiagnosticsRequest,
-    NativeEditorSetOutlineContextRequest, NativeEditorSetSelectionsRequest,
-    NativeEditorPlanCitationReplacementRequest, NativeEditorPlanFileDropInsertionRequest,
-    NativeEditorFileDropInsertionPlan, NativeEditorWikiLinkMatch,
-    NATIVE_EDITOR_EVENT,
+    NativeEditorOpenDocumentRequest, NativeEditorPlanCitationReplacementRequest,
+    NativeEditorPlanFileDropInsertionRequest, NativeEditorPresentationLine,
+    NativeEditorPresentationMark, NativeEditorPresentationSnapshot,
+    NativeEditorPresentationSnapshotRequest, NativeEditorRecordWorkflowEventRequest,
+    NativeEditorSelectionRange, NativeEditorSessionSnapshot, NativeEditorSessionStateSnapshot,
+    NativeEditorSetDiagnosticsRequest, NativeEditorSetOutlineContextRequest,
+    NativeEditorSetSelectionsRequest, NativeEditorWikiLinkMatch, NATIVE_EDITOR_EVENT,
 };
 use crate::process_utils::background_tokio_command;
 use regex_lite::Regex;
@@ -18,14 +19,15 @@ use serde_json::to_string;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::Stdio;
-use std::sync::OnceLock;
 use std::sync::Arc;
+use std::sync::OnceLock;
 use tauri::{AppHandle, Emitter, Manager, Runtime, State};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::{Child, ChildStdin};
 use tokio::sync::{oneshot, Mutex};
 use tokio::task::JoinHandle;
 use tokio::time::{timeout, Duration};
+use tree_sitter_md::MarkdownParser;
 
 const READY_TIMEOUT_MS: u64 = 3_000;
 const SHUTDOWN_TIMEOUT_MS: u64 = 2_000;
@@ -59,7 +61,10 @@ fn helper_binary_candidates<R: Runtime>(app: &AppHandle<R>) -> Vec<PathBuf> {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let mut candidates = vec![
         manifest_dir.join("target").join("debug").join(binary_name),
-        manifest_dir.join("target").join("release").join(binary_name),
+        manifest_dir
+            .join("target")
+            .join("release")
+            .join(binary_name),
     ];
 
     if let Ok(current_exe) = std::env::current_exe() {
@@ -90,9 +95,12 @@ fn resolve_helper_binary_path<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf,
         .ok_or_else(|| "Native editor helper binary is unavailable.".to_string())
 }
 
-async fn write_command(stdin: &Arc<Mutex<ChildStdin>>, command: &NativeEditorCommand) -> Result<(), String> {
-    let serialized =
-        to_string(command).map_err(|error| format!("Failed to serialize native editor command: {error}"))?;
+async fn write_command(
+    stdin: &Arc<Mutex<ChildStdin>>,
+    command: &NativeEditorCommand,
+) -> Result<(), String> {
+    let serialized = to_string(command)
+        .map_err(|error| format!("Failed to serialize native editor command: {error}"))?;
     let mut lock = stdin.lock().await;
     lock.write_all(format!("{serialized}\n").as_bytes())
         .await
@@ -307,7 +315,10 @@ fn clamp_native_offset(text: &str, offset: usize) -> usize {
 
 fn line_range_for_offset(text: &str, offset: usize) -> (usize, usize, &str, &str) {
     let safe_offset = clamp_native_offset(text, offset);
-    let line_start = text[..safe_offset].rfind('\n').map(|index| index + 1).unwrap_or(0);
+    let line_start = text[..safe_offset]
+        .rfind('\n')
+        .map(|index| index + 1)
+        .unwrap_or(0);
     let line_end = text[safe_offset..]
         .find('\n')
         .map(|index| safe_offset + index)
@@ -315,6 +326,471 @@ fn line_range_for_offset(text: &str, offset: usize) -> (usize, usize, &str, &str
     let line_text = &text[line_start..line_end];
     let text_before = &text[line_start..safe_offset];
     (line_start, line_end, line_text, text_before)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum NativePresentationLanguage {
+    Markdown,
+    Latex,
+    PlainText,
+}
+
+impl NativePresentationLanguage {
+    fn from_path(path: &str) -> Self {
+        if is_markdown_path(path) {
+            Self::Markdown
+        } else if is_latex_editor_path(path) {
+            Self::Latex
+        } else {
+            Self::PlainText
+        }
+    }
+
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Markdown => "markdown",
+            Self::Latex => "latex",
+            Self::PlainText => "text",
+        }
+    }
+
+    fn parser_name(self) -> &'static str {
+        match self {
+            Self::Markdown => "tree-sitter-md",
+            Self::Latex => "codebook-tree-sitter-latex",
+            Self::PlainText => "plain-text",
+        }
+    }
+}
+
+fn line_number_for_offset(text: &str, offset: usize) -> u32 {
+    let safe_offset = clamp_native_offset(text, offset);
+    text[..safe_offset]
+        .bytes()
+        .filter(|byte| *byte == b'\n')
+        .count() as u32
+        + 1
+}
+
+fn normalize_presentation_viewport(
+    text: &str,
+    selection: Option<&NativeEditorSelectionRange>,
+    viewport_from: Option<usize>,
+    viewport_to: Option<usize>,
+) -> (usize, usize) {
+    let text_length = text.len();
+    if text_length == 0 {
+        return (0, 0);
+    }
+
+    let fallback_cursor = selection
+        .map(|selection| clamp_native_offset(text, selection.head))
+        .unwrap_or(0);
+
+    let (raw_from, raw_to) = match (viewport_from, viewport_to) {
+        (Some(from), Some(to)) => (from.min(to), from.max(to)),
+        _ => {
+            let start = fallback_cursor.saturating_sub(2_048);
+            let end = (fallback_cursor + 2_048).min(text_length);
+            (start, end)
+        }
+    };
+    let raw_from = raw_from.min(text_length);
+    let raw_to = raw_to.min(text_length);
+
+    let start = text[..raw_from]
+        .rfind('\n')
+        .map(|index| index + 1)
+        .unwrap_or(0);
+    let end = text[raw_to..]
+        .find('\n')
+        .map(|index| raw_to + index)
+        .unwrap_or(text_length);
+    (start.min(text_length), end.min(text_length))
+}
+
+fn build_presentation_lines(
+    text: &str,
+    viewport_from: usize,
+    viewport_to: usize,
+) -> Vec<NativeEditorPresentationLine> {
+    if text.is_empty() {
+        return vec![NativeEditorPresentationLine {
+            line: 1,
+            from: 0,
+            to: 0,
+            text: String::new(),
+        }];
+    }
+
+    let mut lines = Vec::new();
+    let mut line_start = 0usize;
+    let mut line_number = 1u32;
+
+    for segment in text.split_inclusive('\n') {
+        let has_newline = segment.ends_with('\n');
+        let content = if has_newline {
+            &segment[..segment.len().saturating_sub(1)]
+        } else {
+            segment
+        };
+        let line_end = line_start + content.len();
+        let overlaps = line_end >= viewport_from && line_start <= viewport_to;
+        if overlaps {
+            lines.push(NativeEditorPresentationLine {
+                line: line_number,
+                from: line_start,
+                to: line_end,
+                text: content.to_string(),
+            });
+        }
+        line_start = line_end + usize::from(has_newline);
+        line_number += 1;
+    }
+
+    if !text.ends_with('\n') && lines.is_empty() {
+        lines.push(NativeEditorPresentationLine {
+            line: 1,
+            from: 0,
+            to: text.len(),
+            text: text.to_string(),
+        });
+    }
+
+    lines
+}
+
+fn push_presentation_mark(
+    marks: &mut Vec<NativeEditorPresentationMark>,
+    viewport_from: usize,
+    viewport_to: usize,
+    from: usize,
+    to: usize,
+    class_name: &str,
+    source: &str,
+    node_kind: &str,
+) {
+    if to <= viewport_from || from >= viewport_to || from >= to || class_name.trim().is_empty() {
+        return;
+    }
+
+    marks.push(NativeEditorPresentationMark {
+        from: from.max(viewport_from),
+        to: to.min(viewport_to),
+        class_name: class_name.to_string(),
+        source: source.to_string(),
+        node_kind: node_kind.to_string(),
+    });
+}
+
+fn classify_markdown_node(node_kind: &str) -> Option<&'static str> {
+    match node_kind {
+        "atx_heading" => Some("syntax.heading.atx"),
+        "setext_heading" => Some("syntax.heading.setext"),
+        "paragraph" => Some("syntax.paragraph"),
+        "block_quote" | "block_quote_marker" => Some("syntax.quote"),
+        "fenced_code_block" | "indented_code_block" | "code_fence_content" => {
+            Some("syntax.code-block")
+        }
+        "fenced_code_block_delimiter" | "code_span_delimiter" => Some("syntax.punctuation"),
+        "code_span" => Some("syntax.code"),
+        "list" | "list_item" => Some("syntax.list"),
+        "list_marker_minus"
+        | "list_marker_plus"
+        | "list_marker_star"
+        | "list_marker_dot"
+        | "list_marker_parenthesis"
+        | "task_list_marker_checked"
+        | "task_list_marker_unchecked" => Some("syntax.list-marker"),
+        "pipe_table" | "pipe_table_header" | "pipe_table_row" | "pipe_table_cell" => {
+            Some("syntax.table")
+        }
+        "pipe_table_delimiter_row" | "pipe_table_delimiter_cell" => Some("syntax.table-delimiter"),
+        "pipe_table_align_left" | "pipe_table_align_right" => Some("syntax.table-align"),
+        "thematic_break" => Some("syntax.rule"),
+        "html_block" | "html_tag" => Some("syntax.html"),
+        "inline_link"
+        | "full_reference_link"
+        | "collapsed_reference_link"
+        | "shortcut_link"
+        | "uri_autolink"
+        | "email_autolink" => Some("syntax.link"),
+        "link_text" | "image_description" => Some("syntax.link-text"),
+        "link_destination" => Some("syntax.link-destination"),
+        "link_label" => Some("syntax.link-label"),
+        "link_title" => Some("syntax.link-title"),
+        "image" => Some("syntax.image"),
+        "emphasis" | "emphasis_delimiter" => Some("syntax.emphasis"),
+        "strong_emphasis" | "strikethrough" => Some("syntax.strong"),
+        "backslash_escape" => Some("syntax.escape"),
+        "latex_block" => Some("syntax.math"),
+        _ if node_kind.contains("heading") => Some("syntax.heading"),
+        _ => None,
+    }
+}
+
+fn classify_latex_node(node_kind: &str) -> Option<&'static str> {
+    match node_kind {
+        "document" | "section" | "subsection" | "subsubsection" | "paragraph" | "chapter"
+        | "part" => Some("syntax.section"),
+        "curly_group" | "curly_group_text" | "displayed_equation" | "inline_formula"
+        | "math_environment" | "math_delimiter" => Some("syntax.math"),
+        "command" | "generic_command" | "begin" | "end" => Some("syntax.command"),
+        "label_definition" | "label_reference" => Some("syntax.reference"),
+        "citation" | "citation_command" => Some("syntax.citation-command"),
+        "comment" => Some("syntax.comment"),
+        "environment" | "begin_group" | "end_group" => Some("syntax.environment"),
+        _ if node_kind.starts_with("\\cite")
+            || node_kind.starts_with("\\footcite")
+            || node_kind.starts_with("\\parencite")
+            || node_kind.starts_with("\\textcite")
+            || node_kind.starts_with("\\autocite")
+            || node_kind.starts_with("\\nocite") =>
+        {
+            Some("syntax.citation-command")
+        }
+        _ if node_kind.starts_with("\\section")
+            || node_kind.starts_with("\\subsection")
+            || node_kind.starts_with("\\subsubsection")
+            || node_kind.starts_with("\\part") =>
+        {
+            Some("syntax.section")
+        }
+        _ if node_kind.starts_with('\\') => Some("syntax.command"),
+        _ if node_kind.contains("command") => Some("syntax.command"),
+        _ if node_kind.contains("math") || node_kind.contains("equation") => Some("syntax.math"),
+        _ if node_kind.contains("comment") => Some("syntax.comment"),
+        _ if node_kind.contains("section") => Some("syntax.section"),
+        _ if node_kind.contains("label") || node_kind.contains("ref") => Some("syntax.reference"),
+        _ => None,
+    }
+}
+
+fn collect_markdown_syntax_marks_with_parser(
+    text: &str,
+    viewport_from: usize,
+    viewport_to: usize,
+) -> Vec<NativeEditorPresentationMark> {
+    let mut parser = MarkdownParser::default();
+    let Some(tree) = parser.parse(text.as_bytes(), None) else {
+        return Vec::new();
+    };
+
+    fn walk(
+        cursor: &mut tree_sitter_md::MarkdownCursor<'_>,
+        viewport_from: usize,
+        viewport_to: usize,
+        marks: &mut Vec<NativeEditorPresentationMark>,
+    ) {
+        let node = cursor.node();
+        if node.end_byte() > viewport_from && node.start_byte() < viewport_to && node.is_named() {
+            if let Some(class_name) = classify_markdown_node(node.kind()) {
+                push_presentation_mark(
+                    marks,
+                    viewport_from,
+                    viewport_to,
+                    node.start_byte(),
+                    node.end_byte(),
+                    class_name,
+                    if cursor.is_inline() {
+                        "syntax-inline"
+                    } else {
+                        "syntax-block"
+                    },
+                    node.kind(),
+                );
+            }
+        }
+
+        if cursor.goto_first_child() {
+            loop {
+                walk(cursor, viewport_from, viewport_to, marks);
+                if !cursor.goto_next_sibling() {
+                    break;
+                }
+            }
+            cursor.goto_parent();
+        }
+    }
+
+    let mut marks = Vec::new();
+    let mut cursor = tree.walk();
+    walk(&mut cursor, viewport_from, viewport_to, &mut marks);
+    marks
+}
+
+fn collect_tree_sitter_latex_marks(
+    text: &str,
+    viewport_from: usize,
+    viewport_to: usize,
+) -> Vec<NativeEditorPresentationMark> {
+    let mut parser = tree_sitter::Parser::new();
+    if parser
+        .set_language(&codebook_tree_sitter_latex::LANGUAGE.into())
+        .is_err()
+    {
+        return Vec::new();
+    }
+
+    let Some(tree) = parser.parse(text, None) else {
+        return Vec::new();
+    };
+
+    fn walk(
+        node: tree_sitter::Node<'_>,
+        viewport_from: usize,
+        viewport_to: usize,
+        marks: &mut Vec<NativeEditorPresentationMark>,
+    ) {
+        if node.end_byte() <= viewport_from || node.start_byte() >= viewport_to {
+            return;
+        }
+
+        if node.is_named() {
+            if let Some(class_name) = classify_latex_node(node.kind()) {
+                push_presentation_mark(
+                    marks,
+                    viewport_from,
+                    viewport_to,
+                    node.start_byte(),
+                    node.end_byte(),
+                    class_name,
+                    "syntax-latex",
+                    node.kind(),
+                );
+            }
+        }
+
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
+            walk(child, viewport_from, viewport_to, marks);
+        }
+    }
+
+    let mut marks = Vec::new();
+    walk(tree.root_node(), viewport_from, viewport_to, &mut marks);
+    marks
+}
+
+fn collect_syntax_marks(
+    language: NativePresentationLanguage,
+    text: &str,
+    viewport_from: usize,
+    viewport_to: usize,
+) -> Vec<NativeEditorPresentationMark> {
+    match language {
+        NativePresentationLanguage::Markdown => {
+            collect_markdown_syntax_marks_with_parser(text, viewport_from, viewport_to)
+        }
+        NativePresentationLanguage::Latex => {
+            collect_tree_sitter_latex_marks(text, viewport_from, viewport_to)
+        }
+        NativePresentationLanguage::PlainText => Vec::new(),
+    }
+}
+
+fn collect_semantic_marks(
+    path: &str,
+    text: &str,
+    viewport_from: usize,
+    viewport_to: usize,
+) -> Vec<NativeEditorPresentationMark> {
+    let mut marks = Vec::new();
+
+    if is_markdown_path(path) {
+        wiki_link_regex().find_iter(text).for_each(|capture| {
+            push_presentation_mark(
+                &mut marks,
+                viewport_from,
+                viewport_to,
+                capture.start(),
+                capture.end(),
+                "semantic.wikilink",
+                "semantic",
+                "wiki-link",
+            );
+        });
+
+        markdown_citation_group_regex()
+            .find_iter(text)
+            .for_each(|capture| {
+                push_presentation_mark(
+                    &mut marks,
+                    viewport_from,
+                    viewport_to,
+                    capture.start(),
+                    capture.end(),
+                    "semantic.citation",
+                    "semantic",
+                    "markdown-citation",
+                );
+            });
+    }
+
+    if is_latex_editor_path(path) {
+        latex_citation_regex().find_iter(text).for_each(|capture| {
+            push_presentation_mark(
+                &mut marks,
+                viewport_from,
+                viewport_to,
+                capture.start(),
+                capture.end(),
+                "semantic.latex-citation",
+                "semantic",
+                "latex-citation",
+            );
+        });
+    }
+
+    marks
+}
+
+fn build_presentation_snapshot(
+    path: &str,
+    text: &str,
+    selection: Option<NativeEditorSelectionRange>,
+    viewport_from: Option<usize>,
+    viewport_to: Option<usize>,
+) -> NativeEditorPresentationSnapshot {
+    let language = NativePresentationLanguage::from_path(path);
+    let (viewport_from, viewport_to) =
+        normalize_presentation_viewport(text, selection.as_ref(), viewport_from, viewport_to);
+    let lines = build_presentation_lines(text, viewport_from, viewport_to);
+    let mut marks = collect_syntax_marks(language, text, viewport_from, viewport_to);
+    marks.extend(collect_semantic_marks(
+        path,
+        text,
+        viewport_from,
+        viewport_to,
+    ));
+    marks.sort_by(|left, right| {
+        left.from
+            .cmp(&right.from)
+            .then(left.to.cmp(&right.to))
+            .then(left.class_name.cmp(&right.class_name))
+    });
+    marks.dedup_by(|left, right| {
+        left.from == right.from
+            && left.to == right.to
+            && left.class_name == right.class_name
+            && left.source == right.source
+            && left.node_kind == right.node_kind
+    });
+
+    NativeEditorPresentationSnapshot {
+        path: path.to_string(),
+        language: language.as_str().to_string(),
+        parser: language.parser_name().to_string(),
+        text_length: text.len(),
+        viewport_from,
+        viewport_to,
+        active_line: selection
+            .as_ref()
+            .map(|selection| line_number_for_offset(text, selection.head)),
+        selections: selection.into_iter().collect(),
+        lines,
+        marks,
+    }
 }
 
 fn trim_wiki_link_target(raw: &str) -> String {
@@ -328,7 +804,10 @@ fn trim_wiki_link_target(raw: &str) -> String {
     target.trim().to_string()
 }
 
-fn detect_wiki_link_at_cursor(text: &str, cursor_offset: usize) -> Option<NativeEditorWikiLinkMatch> {
+fn detect_wiki_link_at_cursor(
+    text: &str,
+    cursor_offset: usize,
+) -> Option<NativeEditorWikiLinkMatch> {
     let (line_start, _, line_text, _) = line_range_for_offset(text, cursor_offset);
     for captures in wiki_link_regex().captures_iter(line_text) {
         let full_match = captures.get(0)?;
@@ -351,7 +830,10 @@ fn detect_wiki_link_at_cursor(text: &str, cursor_offset: usize) -> Option<Native
     None
 }
 
-fn detect_markdown_citation_trigger(text: &str, cursor_offset: usize) -> Option<NativeEditorCitationTrigger> {
+fn detect_markdown_citation_trigger(
+    text: &str,
+    cursor_offset: usize,
+) -> Option<NativeEditorCitationTrigger> {
     let (line_start, _, _, text_before) = line_range_for_offset(text, cursor_offset);
 
     let last_bracket = text_before.rfind('[');
@@ -402,7 +884,10 @@ fn detect_markdown_citation_trigger(text: &str, cursor_offset: usize) -> Option<
     })
 }
 
-fn detect_latex_citation_trigger(text: &str, cursor_offset: usize) -> Option<NativeEditorCitationTrigger> {
+fn detect_latex_citation_trigger(
+    text: &str,
+    cursor_offset: usize,
+) -> Option<NativeEditorCitationTrigger> {
     let (line_start, _, _, text_before) = line_range_for_offset(text, cursor_offset);
     let captures = latex_citation_trigger_regex().captures(text_before)?;
     let command_name = captures.get(1)?.as_str();
@@ -482,7 +967,10 @@ fn parse_markdown_citation_entries(full_match: &str) -> Vec<NativeEditorCitation
         .collect()
 }
 
-fn detect_markdown_citation_edit(text: &str, cursor_offset: usize) -> Option<NativeEditorCitationEditContext> {
+fn detect_markdown_citation_edit(
+    text: &str,
+    cursor_offset: usize,
+) -> Option<NativeEditorCitationEditContext> {
     let (line_start, _, line_text, _) = line_range_for_offset(text, cursor_offset);
     for captures in markdown_citation_group_regex().captures_iter(line_text) {
         let full_match = captures.get(0)?;
@@ -501,7 +989,10 @@ fn detect_markdown_citation_edit(text: &str, cursor_offset: usize) -> Option<Nat
     None
 }
 
-fn detect_latex_citation_edit(text: &str, cursor_offset: usize) -> Option<NativeEditorCitationEditContext> {
+fn detect_latex_citation_edit(
+    text: &str,
+    cursor_offset: usize,
+) -> Option<NativeEditorCitationEditContext> {
     let (line_start, _, line_text, _) = line_range_for_offset(text, cursor_offset);
     for captures in latex_citation_regex().captures_iter(line_text) {
         let full_match = captures.get(0)?;
@@ -670,7 +1161,10 @@ fn is_markdown_path(path: &str) -> bool {
 }
 
 fn is_latex_editor_path(path: &str) -> bool {
-    matches!(path_extension_lowercase(path).as_str(), "tex" | "latex" | "cls" | "sty")
+    matches!(
+        path_extension_lowercase(path).as_str(),
+        "tex" | "latex" | "cls" | "sty"
+    )
 }
 
 fn relative_path_between_files(from_file: &str, to_file: &str) -> String {
@@ -967,12 +1461,46 @@ pub async fn native_editor_inspect_interaction_context(
         return Ok(None);
     }
 
-    let selection = request.selection.or_else(|| {
-        document
-            .and_then(|entry| entry.selections.first().cloned())
-    });
+    let selection = request
+        .selection
+        .or_else(|| document.and_then(|entry| entry.selections.first().cloned()));
 
-    Ok(Some(inspect_interaction_context(&target_path, &text, selection)))
+    Ok(Some(inspect_interaction_context(
+        &target_path,
+        &text,
+        selection,
+    )))
+}
+
+#[tauri::command]
+pub async fn native_editor_presentation_snapshot(
+    state: State<'_, NativeEditorRuntimeState>,
+    request: NativeEditorPresentationSnapshotRequest,
+) -> Result<Option<NativeEditorPresentationSnapshot>, String> {
+    let normalized_path = request.path.trim();
+    if normalized_path.is_empty() {
+        return Ok(None);
+    }
+
+    let target_path = normalized_path.to_string();
+    let text = if let Some(text) = request.text {
+        text
+    } else {
+        let guard = state.inner.lock().await;
+        let Some(active) = guard.as_ref() else {
+            return Err("Native editor session is not running.".to_string());
+        };
+        let cache = active.text_cache.lock().await;
+        cache.get(&target_path).cloned().unwrap_or_default()
+    };
+
+    Ok(Some(build_presentation_snapshot(
+        &target_path,
+        &text,
+        request.selection,
+        request.viewport_from,
+        request.viewport_to,
+    )))
 }
 
 #[tauri::command]
@@ -1004,10 +1532,7 @@ pub async fn native_editor_session_state(
         let Some(active) = guard.as_ref() else {
             return Ok(None);
         };
-        (
-            active.state_cache.clone(),
-            active.handle.is_finished(),
-        )
+        (active.state_cache.clone(), active.handle.is_finished())
     };
 
     let mut snapshot = cache.lock().await.clone();
@@ -1226,7 +1751,10 @@ mod tests {
         let context = inspect_interaction_context(
             "note.md",
             "Before [[Paper Note|display]] after",
-            Some(NativeEditorSelectionRange { anchor: 10, head: 10 }),
+            Some(NativeEditorSelectionRange {
+                anchor: 10,
+                head: 10,
+            }),
         );
         let wiki_link = context.wiki_link.expect("wiki link should be detected");
         assert_eq!(wiki_link.target, "Paper Note");
@@ -1245,7 +1773,9 @@ mod tests {
                 head: cursor,
             }),
         );
-        let trigger = context.citation_trigger.expect("markdown trigger should exist");
+        let trigger = context
+            .citation_trigger
+            .expect("markdown trigger should exist");
         assert_eq!(trigger.query, "doe2021");
         assert!(trigger.latex_command.is_none());
     }
@@ -1262,7 +1792,9 @@ mod tests {
                 head: cursor,
             }),
         );
-        let edit = context.citation_edit.expect("latex citation edit should exist");
+        let edit = context
+            .citation_edit
+            .expect("latex citation edit should exist");
         assert_eq!(edit.latex_command.as_deref(), Some("cite"));
         assert_eq!(edit.cites.len(), 2);
         assert_eq!(edit.cites[0].key, "smith2020");
@@ -1336,7 +1868,10 @@ mod tests {
         })
         .expect("file drop plan should exist");
 
-        assert_eq!(plan.text, "![figure-1](../assets/figure-1.png)\n[ref.pdf](../refs/ref.pdf)");
+        assert_eq!(
+            plan.text,
+            "![figure-1](../assets/figure-1.png)\n[ref.pdf](../refs/ref.pdf)"
+        );
     }
 
     #[test]
@@ -1350,6 +1885,73 @@ mod tests {
         })
         .expect("latex file drop plan should exist");
 
-        assert_eq!(plan.text, "\\includegraphics{../figures/plot.png}\n\\input{../sections/methods.tex}");
+        assert_eq!(
+            plan.text,
+            "\\includegraphics{../figures/plot.png}\n\\input{../sections/methods.tex}"
+        );
+    }
+
+    #[test]
+    fn native_editor_builds_markdown_presentation_snapshot() {
+        let snapshot = build_presentation_snapshot(
+            "note.md",
+            "# Title\n\nSee [[Paper Note]] and [@smith2020].\n",
+            Some(NativeEditorSelectionRange { anchor: 3, head: 3 }),
+            Some(0),
+            Some(48),
+        );
+
+        assert_eq!(snapshot.language, "markdown");
+        assert_eq!(snapshot.parser, "tree-sitter-md");
+        assert_eq!(snapshot.active_line, Some(1));
+        assert!(!snapshot.lines.is_empty());
+        assert!(snapshot
+            .marks
+            .iter()
+            .any(|mark| mark.class_name == "syntax.heading.atx"));
+        assert!(snapshot
+            .marks
+            .iter()
+            .any(|mark| mark.class_name == "syntax.link"));
+        assert!(snapshot
+            .marks
+            .iter()
+            .any(|mark| mark.class_name == "semantic.wikilink"));
+        assert!(snapshot
+            .marks
+            .iter()
+            .any(|mark| mark.class_name == "semantic.citation"));
+    }
+
+    #[test]
+    fn native_editor_builds_latex_presentation_snapshot() {
+        let snapshot = build_presentation_snapshot(
+            "paper.tex",
+            "\\section{Intro}\n\\cite{smith2020}\n",
+            Some(NativeEditorSelectionRange {
+                anchor: 12,
+                head: 12,
+            }),
+            Some(0),
+            Some(32),
+        );
+
+        assert_eq!(snapshot.language, "latex");
+        assert_eq!(snapshot.parser, "codebook-tree-sitter-latex");
+        assert!(
+            snapshot
+                .marks
+                .iter()
+                .any(|mark| mark.class_name == "syntax.command"
+                    || mark.class_name == "syntax.section")
+        );
+        assert!(snapshot
+            .marks
+            .iter()
+            .any(|mark| mark.class_name == "syntax.citation-command"));
+        assert!(snapshot
+            .marks
+            .iter()
+            .any(|mark| mark.class_name == "semantic.latex-citation"));
     }
 }

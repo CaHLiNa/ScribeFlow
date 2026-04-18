@@ -97,7 +97,9 @@ fn migrate_legacy_openai_keychain_value() -> Result<Option<String>, String> {
     Ok(Some(legacy_value))
 }
 
-pub(crate) fn load_ai_provider_api_key_internal(provider_id: &str) -> Result<Option<String>, String> {
+pub(crate) fn load_ai_provider_api_key_internal(
+    provider_id: &str,
+) -> Result<Option<String>, String> {
     let normalized_provider_id = normalize_ai_provider_id(provider_id);
     let keychain_key = resolve_ai_keychain_key(&normalized_provider_id);
     if let Some(value) = read_keychain(keychain_key)? {

@@ -347,3 +347,56 @@ pub struct NativeEditorPlanFileDropInsertionRequest {
     #[serde(default)]
     pub dropped_paths: Vec<String>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeEditorPresentationLine {
+    pub line: u32,
+    pub from: usize,
+    pub to: usize,
+    #[serde(default)]
+    pub text: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeEditorPresentationMark {
+    pub from: usize,
+    pub to: usize,
+    #[serde(default)]
+    pub class_name: String,
+    #[serde(default)]
+    pub source: String,
+    #[serde(default)]
+    pub node_kind: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeEditorPresentationSnapshot {
+    pub path: String,
+    #[serde(default)]
+    pub language: String,
+    #[serde(default)]
+    pub parser: String,
+    pub text_length: usize,
+    pub viewport_from: usize,
+    pub viewport_to: usize,
+    pub active_line: Option<u32>,
+    #[serde(default)]
+    pub selections: Vec<NativeEditorSelectionRange>,
+    #[serde(default)]
+    pub lines: Vec<NativeEditorPresentationLine>,
+    #[serde(default)]
+    pub marks: Vec<NativeEditorPresentationMark>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeEditorPresentationSnapshotRequest {
+    pub path: String,
+    pub text: Option<String>,
+    pub selection: Option<NativeEditorSelectionRange>,
+    pub viewport_from: Option<usize>,
+    pub viewport_to: Option<usize>,
+}

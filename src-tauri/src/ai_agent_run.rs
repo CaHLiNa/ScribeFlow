@@ -3,7 +3,6 @@ use serde_json::{json, Value};
 use tauri::{AppHandle, Runtime, State};
 use uuid::Uuid;
 
-use crate::ai_extension_catalog::load_extension_catalog_value;
 use crate::ai_agent_execute::{ai_agent_execute, AiAgentExecuteParams};
 use crate::ai_agent_prompt::{ai_agent_build_prompt, AiAgentPromptParams};
 use crate::ai_agent_session_runtime::{
@@ -12,6 +11,7 @@ use crate::ai_agent_session_runtime::{
     AiAgentSessionFailParams, AiAgentSessionFinalizeParams, AiAgentSessionInterruptParams,
     AiAgentSessionStartParams,
 };
+use crate::ai_extension_catalog::load_extension_catalog_value;
 use crate::ai_runtime_turn_wait::run_turn_and_wait;
 use crate::codex_runtime::{
     protocol::{RuntimeProviderConfig, RuntimeThreadStartParams, RuntimeTurnRunParams},
@@ -291,7 +291,12 @@ fn should_use_codex_runtime_run(prepared_run: &Value) -> bool {
     true
 }
 
-fn build_runtime_provider_config(provider_id: &str, config: &Value, api_key: &str, system_prompt: &str) -> RuntimeProviderConfig {
+fn build_runtime_provider_config(
+    provider_id: &str,
+    config: &Value,
+    api_key: &str,
+    system_prompt: &str,
+) -> RuntimeProviderConfig {
     RuntimeProviderConfig {
         provider_id: provider_id.to_string(),
         base_url: config
@@ -307,7 +312,10 @@ fn build_runtime_provider_config(provider_id: &str, config: &Value, api_key: &st
             .unwrap_or_default()
             .to_string(),
         system_prompt: system_prompt.to_string(),
-        temperature: config.get("temperature").and_then(Value::as_f64).map(|value| value as f32),
+        temperature: config
+            .get("temperature")
+            .and_then(Value::as_f64)
+            .map(|value| value as f32),
         max_tokens: config
             .get("maxTokens")
             .or_else(|| config.get("max_tokens"))

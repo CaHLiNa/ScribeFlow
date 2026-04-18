@@ -291,10 +291,7 @@ fn build_session_plan_mode_from_runtime_snapshot(snapshot: &Value) -> Value {
     })
 }
 
-fn build_runtime_snapshot_value(
-    runtime: &CodexRuntimeState,
-    thread_id: &str,
-) -> Option<Value> {
+fn build_runtime_snapshot_value(runtime: &CodexRuntimeState, thread_id: &str) -> Option<Value> {
     let thread = runtime.threads.get(thread_id)?.clone();
     let turns = thread
         .turn_ids
@@ -363,18 +360,15 @@ fn runtime_turn_id_from_event(payload: &Value) -> String {
 
 fn should_sync_session_from_runtime(event_type: &str, payload: &Value) -> bool {
     match event_type {
-        "threadRenamed"
-        | "permissionRequest"
-        | "askUserRequest"
-        | "exitPlanRequest"
-        | "planModeStart"
-        | "planModeEnd"
-        | "turnCompleted"
-        | "turnFailed"
-        | "turnInterrupted" => true,
-        _ => payload.get("permissionRequest").is_some()
-            || payload.get("askUserRequest").is_some()
-            || payload.get("exitPlanRequest").is_some(),
+        "threadRenamed" | "permissionRequest" | "askUserRequest" | "exitPlanRequest"
+        | "planModeStart" | "planModeEnd" | "turnCompleted" | "turnFailed" | "turnInterrupted" => {
+            true
+        }
+        _ => {
+            payload.get("permissionRequest").is_some()
+                || payload.get("askUserRequest").is_some()
+                || payload.get("exitPlanRequest").is_some()
+        }
     }
 }
 
@@ -510,7 +504,9 @@ fn find_session_by_runtime_thread_id(sessions: &[Value], thread_id: &str) -> Opt
     }
     sessions
         .iter()
-        .find(|session| string_field(session, &["runtimeThreadId", "runtime_thread_id"]) == normalized_thread_id)
+        .find(|session| {
+            string_field(session, &["runtimeThreadId", "runtime_thread_id"]) == normalized_thread_id
+        })
         .cloned()
 }
 
