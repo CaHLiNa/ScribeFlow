@@ -11,6 +11,7 @@ import {
   recordNativeEditorWorkflowEvent,
   replaceNativeEditorDocumentText,
   planNativeEditorCitationReplacement,
+  planNativeEditorFileDropInsertion,
   setNativeEditorDiagnostics,
   setNativeEditorOutlineContext,
   setNativeEditorSelections,
@@ -609,6 +610,17 @@ export const useEditorRuntimeStore = defineStore('editorRuntime', {
         keys,
         cites,
         latexCommand,
+      })
+    },
+
+    async planNativeFileDropInsertion({ sourcePath = '', droppedPaths = [] } = {}) {
+      if (!nativeEditorBridgeAvailable()) return null
+      const normalizedSourcePath = String(sourcePath || '').trim()
+      if (!normalizedSourcePath) return null
+      await this.startNativeSession()
+      return planNativeEditorFileDropInsertion({
+        sourcePath: normalizedSourcePath,
+        droppedPaths: Array.isArray(droppedPaths) ? droppedPaths : [],
       })
     },
 

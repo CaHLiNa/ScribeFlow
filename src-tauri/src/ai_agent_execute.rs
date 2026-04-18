@@ -111,6 +111,60 @@ fn normalize_history(messages: &[Value]) -> Vec<(String, String)> {
         .collect()
 }
 
+fn parse_mcp_runtime_tool_name(name: &str) -> Option<(String, String, String)> {
+    let normalized = name.trim();
+    let parts = normalized.split("__").collect::<Vec<_>>();
+    if parts.len() < 4 || parts.first().copied() != Some("mcp") {
+        return None;
+    }
+    let scope = parts.get(1).copied().unwrap_or_default().to_string();
+    let server = parts.get(2).copied().unwrap_or_default().replace('-', " ");
+    let tool = parts[3..].join("__").replace('-', " ");
+    Some((scope, server, tool))
+}
+
+fn format_runtime_tool_event(
+    tool_call: &crate::codex_runtime::tools::RuntimeToolCall,
+    result: Option<&crate::codex_runtime::tools::RuntimeToolResult>,
+) -> Value {
+    if let Some((scope, server, tool)) = parse_mcp_runtime_tool_name(&tool_call.name) {
+        let detail = result
+            .map(|entry| entry.content.chars().take(220).collect::<String>())
+            .unwrap_or_default();
+        return json!({
+            "eventType": "tool",
+            "toolId": format!("runtime:{}", tool_call.id),
+            "status": if result.map(|entry| entry.is_error).unwrap_or(false) { "error" } else { "done" },
+            "label": if tool.trim().is_empty() { server.clone() } else { tool.clone() },
+            "context": format!("MCP · {}{}", server, if scope.is_empty() { String::new() } else { format!(" ({scope})") }),
+            "detail": detail,
+            "payload": {
+                "toolName": tool_call.name,
+                "source": "mcp",
+                "serverScope": scope,
+                "serverName": server,
+                "toolDisplayName": tool,
+                "isError": result.map(|entry| entry.is_error).unwrap_or(false)
+            }
+        });
+    }
+
+    json!({
+        "eventType": "tool",
+        "toolId": format!("runtime:{}", tool_call.id),
+        "status": if result.map(|entry| entry.is_error).unwrap_or(false) { "error" } else { "done" },
+        "label": tool_call.name,
+        "detail": result
+            .map(|entry| entry.content.chars().take(220).collect::<String>())
+            .unwrap_or_default(),
+        "payload": {
+            "toolName": tool_call.name,
+            "source": "built-in",
+            "isError": result.map(|entry| entry.is_error).unwrap_or(false)
+        }
+    })
+}
+
 fn extract_json_payload(raw_text: &str) -> Option<Value> {
     let normalized = raw_text.trim();
     if normalized.is_empty() {
@@ -172,6 +226,7 @@ pub async fn ai_agent_execute(
     let provider = build_provider_config(&params);
     let history = normalize_history(&params.conversation);
     let tool_definitions = resolve_runtime_tool_definitions_with_context(
+        &params.workspace_path,
         &params.enabled_tool_ids,
         &params.context_bundle,
         &params.support_files,
@@ -309,17 +364,12 @@ pub async fn ai_agent_execute(
                 &params.support_files,
             );
             events.extend(tool_calls.iter().map(|tool_call| {
-                json!({
-                    "eventType": "tool",
-                    "toolId": format!("runtime:{}", tool_call.id),
-                    "status": "done",
-                    "label": tool_call.name,
-                    "detail": tool_results
+                format_runtime_tool_event(
+                    tool_call,
+                    tool_results
                         .iter()
-                        .find(|result| result.tool_call_id == tool_call.id)
-                        .map(|result| result.content.chars().take(220).collect::<String>())
-                        .unwrap_or_default(),
-                })
+                        .find(|result| result.tool_call_id == tool_call.id),
+                )
             }));
             continuation_messages.push(RuntimeContinuationMessage::Assistant {
                 content: assistant_text,

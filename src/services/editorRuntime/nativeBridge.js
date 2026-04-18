@@ -170,6 +170,19 @@ export async function planNativeEditorCitationReplacement({
   })
 }
 
+export async function planNativeEditorFileDropInsertion({
+  sourcePath = '',
+  droppedPaths = [],
+} = {}) {
+  requireTauriInvoke()
+  return invoke('native_editor_plan_file_drop_insertion', {
+    request: {
+      sourcePath: String(sourcePath || ''),
+      droppedPaths: Array.isArray(droppedPaths) ? droppedPaths.map((path) => String(path || '')) : [],
+    },
+  })
+}
+
 export async function getNativeEditorSessionState() {
   requireTauriInvoke()
   return invoke('native_editor_session_state')

@@ -91,6 +91,9 @@ let autoSaveTimer = null
 let markdownCursorRequestHandler = null
 let latexCursorRequestHandler = null
 let backwardSyncHandler = null
+let fileTreeDragStartHandler = null
+let fileTreeDragEndHandler = null
+let draggedFilePaths = []
 
 const citPalette = reactive({
   show: false,
@@ -408,6 +411,13 @@ async function planCitationReplacement({
   })
 }
 
+async function planFileDropInsertion(paths = []) {
+  return editorRuntimeStore.planNativeFileDropInsertion({
+    sourcePath: props.filePath,
+    droppedPaths: Array.isArray(paths) ? paths : [],
+  })
+}
+
 async function maybeHandleWikiLinkClick(event, context = null) {
   if (!isMarkdownFile) return false
   return resolveNativeWikiLinkInteraction({
@@ -691,6 +701,54 @@ function attachWindowWorkflowListeners() {
     }
     window.addEventListener('latex-backward-sync', backwardSyncHandler)
   }
+
+  if (!fileTreeDragStartHandler) {
+    fileTreeDragStartHandler = (event) => {
+      draggedFilePaths = Array.isArray(event.detail?.paths)
+        ? event.detail.paths.map((path) => String(path || '')).filter(Boolean)
+        : []
+    }
+    window.addEventListener('filetree-drag-start', fileTreeDragStartHandler)
+  }
+
+  if (!fileTreeDragEndHandler) {
+    fileTreeDragEndHandler = async (event) => {
+      const paths = Array.isArray(event.detail?.paths)
+        ? event.detail.paths.map((path) => String(path || '')).filter(Boolean)
+        : draggedFilePaths
+      draggedFilePaths = []
+      if (paths.length === 0) return
+
+      const x = Number(event.detail?.x)
+      const y = Number(event.detail?.y)
+      const rect = containerRef.value?.getBoundingClientRect?.()
+      const droppedInside =
+        rect &&
+        Number.isFinite(x) &&
+        Number.isFinite(y) &&
+        x >= rect.left &&
+        x <= rect.right &&
+        y >= rect.top &&
+        y <= rect.bottom
+      if (!droppedInside) return
+
+      const selection = deriveSelectionPayload()
+      if (!selection) return
+      const plan = await planFileDropInsertion(paths)
+      if (!plan?.text) return
+
+      replaceTextRange(selection.head, selection.head, plan.text)
+      void editorRuntimeStore.recordNativeWorkflowEvent({
+        path: props.filePath,
+        event: {
+          kind: 'file-drop-insert',
+          count: paths.length,
+          fileKind: fileKind.value,
+        },
+      })
+    }
+    window.addEventListener('filetree-drag-end', fileTreeDragEndHandler)
+  }
 }
 
 function detachWindowWorkflowListeners() {
@@ -707,6 +765,15 @@ function detachWindowWorkflowListeners() {
     window.removeEventListener('latex-backward-sync', backwardSyncHandler)
     backwardSyncHandler = null
   }
+  if (fileTreeDragStartHandler) {
+    window.removeEventListener('filetree-drag-start', fileTreeDragStartHandler)
+    fileTreeDragStartHandler = null
+  }
+  if (fileTreeDragEndHandler) {
+    window.removeEventListener('filetree-drag-end', fileTreeDragEndHandler)
+    fileTreeDragEndHandler = null
+  }
+  draggedFilePaths = []
 }
 
 watch(

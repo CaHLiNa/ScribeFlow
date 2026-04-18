@@ -1,12 +1,12 @@
-# Altals Rust-Native Editor Migration Implementation Plan
+# Altals Rust-Native Editor Migration and Parity Recovery Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** execute this plan in order. Treat checked items as already landed on the current branch/worktree. Treat unchecked items as remaining work. Do not reintroduce CodeMirror or a user-facing fallback editor while implementing the remaining parity tasks.
 
-**Goal:** Replace Altals' current WebView-hosted CodeMirror editor with a Rust-native editor core that can eventually deliver Zed-class input latency, scrolling behavior, multi-cursor semantics, and native text rendering without breaking Altals' document workflow, preview, citation, and LaTeX integration.
+**Goal:** Replace Altals' former WebView-hosted CodeMirror editor with a Rust-native editor stack that preserves Altals' Markdown and LaTeX writing workflow, preview sync, citations, diagnostics, toolbar, and editor-assist ergonomics that users already rely on.
 
-**Architecture:** Do not attempt to embed a foreign native editor view inside the current Vue pane tree. Instead, introduce a Rust-native editor subsystem in two layers: `altals-editor-core` for buffer, selection, viewport, transaction, and syntax-facing runtime; and `altals-native-editor-app` as a separate native helper process that owns the native editor runtime and communicates with the Tauri shell through a typed bridge. Keep the existing Vue/Tauri workbench alive during migration only as long as needed to extract editor-agnostic contracts and move session state plus save-time source of truth into Rust. Do not add visual placeholder surfaces, shadow-mode UI, or long-lived dual-runtime presentation. Once document workflows and sync loops are stable, switch the workbench directly to the Rust editor surface and remove CodeMirror.
+**Architecture:** Keep the Tauri/Vue workbench as the desktop shell, but move text state, interaction analysis, edit planning, and eventually rendering-oriented editor semantics into Rust-owned runtime layers. The Vue side should remain a host and workflow shell, not the long-term home of editor semantics. Do not add visual placeholder surfaces, prolonged dual-editor UI, or a user-facing switch back to CodeMirror.
 
-**Tech Stack:** Tauri 2, Vue 3.5, Pinia, Rust 2021, native helper process IPC, Markdown/LaTeX workflow adapters
+**Current truth:** the migration core and direct cutover are already in place, but parity is not complete. CodeMirror has been removed too early relative to presentation and assist-layer parity, so this plan now includes both the original migration milestones and the detailed recovery work needed to finish the job correctly.
 
 ---
 
@@ -14,486 +14,283 @@
 
 ### Chosen route
 
-- Build an Altals-owned Rust-native editor stack that takes design cues from Zed's editor core.
-- Keep the current Tauri/Vue workbench as the shell during the migration.
-- Run the native editor first as a separate helper process, not as a WebView child.
-- Extract editor-independent workflow contracts before replacing any user-facing editing path.
-- Keep migration progress backend-first and hidden by default; do not add user-facing experimental editor controls, placeholder panes, or visual shadow-mode surfaces.
-- Shift save-time and session-state source-of-truth responsibilities into Rust backend commands before attempting visible editor cutover.
-- After backend parity is proven, cut the workbench directly over to the Rust editor surface and delete CodeMirror in the cutover slice instead of keeping a prolonged dual-editor UI.
+- Build and keep an Altals-owned Rust-native editor stack.
+- Keep the current desktop shell and document workflow system intact while replacing the editing runtime underneath it.
+- Continue backend-first: Rust owns editor semantics and planning; Vue hosts surfaces and dispatches app-level side effects.
+- Recover missing editor-assist capabilities in Rust/native form instead of reintroducing CodeMirror.
+- Treat migration as incomplete until editor-assist parity is restored, not merely until the old dependencies are deleted.
 
 ### Explicitly rejected
 
-- Embedding a native editor directly inside the current WebView pane.
-- Treating this as a CodeMirror replacement only.
-- Rewriting the entire Altals workbench into Rust native UI before the editor core proves itself.
-- Porting Zed wholesale into Altals as an opaque dependency.
-- Shipping a temporary `NativeEditorSurface` status page, frontend shadow mode, or a long-lived `web + native shadow` user-facing migration state.
+- Reintroducing CodeMirror as a long-lived fallback.
+- Shipping a visible `web + native` dual-editor mode.
+- Embedding a foreign native editor view into the old Vue pane tree as a temporary bridge.
+- Declaring migration complete based only on document open/save/preview/citation basics while editor-assist capabilities are still missing.
 
-### Success criteria
+### Updated success criteria
 
-- Typing, scrolling, selection, and multi-cursor behavior come from Rust-native runtime, not CodeMirror.
-- Markdown and LaTeX documents still participate in outline, preview sync, diagnostics, citation insertion, and save flows.
-- A cutover checklist exists and the workbench switches directly to the Rust editor surface once parity gates pass.
-- CodeMirror is deleted as part of the cutover slice rather than kept as a parallel fallback UI.
+The migration is complete only when all of the following are true:
+
+- Text input, selection, dirty state, save, reopen, and runtime document source-of-truth come from the Rust-native runtime.
+- Markdown and LaTeX still participate in outline, diagnostics, preview sync, compile, citation, and workflow toolbar flows.
+- Native editor presentation parity exists for syntax highlighting and inline semantic decoration.
+- Native editor assist parity exists for Markdown formatting shortcuts, Markdown snippets, wiki-link completion, and LaTeX autocomplete.
+- Native editor shell parity exists for context menu, table commands, and core editor visual feedback.
+- No user-facing workflow still depends on CodeMirror code or dependencies.
 
 ---
 
-## File Map
+## Status Snapshot as of 2026-04-19
 
-### Create
+### Landed already
 
-- `src-tauri/crates/altals-editor-core/Cargo.toml`
+- Rust editor core crate exists and has core state tests.
+- Native helper/runtime bridge exists.
+- Vue workbench routes text editing through `NativePrimaryTextSurface.vue`.
+- Document persistence, selection sync, diagnostics, outline, Markdown sync, LaTeX SyncTeX, citation insertion/update, and file-tree drag insertion are bridged through the native runtime.
+- `TextEditor.vue`, `src/editor/*`, and CodeMirror npm dependencies have been removed.
+
+### Still missing before the migration can be called complete
+
+The current native primary surface is still a `textarea` host and is missing these editor-assist groups:
+
+1. syntax highlighting and token theming
+2. gutter rendering for line numbers and fold affordances
+3. active-line / selection-match / bracket-match / drop-cursor visual feedback
+4. Markdown footnote and math hover preview
+5. Markdown formatting shortcuts
+6. Markdown slash snippets popup
+7. wiki-link autocomplete
+8. Markdown inline semantic decorations for wiki links and citations
+9. Markdown table insert / format commands
+10. LaTeX autocomplete popup
+11. project-aware LaTeX completions for cite/ref/input/bibliography flows
+12. LaTeX inline citation decorations and annotation
+13. editor context menu parity
+
+### Migration verdict
+
+- Tasks 1 through 5 are effectively complete.
+- Task 6 direct cutover and deletion happened, but final parity validation is not complete.
+- New parity-recovery tasks below are mandatory completion work, not optional polish.
+
+---
+
+## Architecture Guardrails for the Remaining Work
+
+- Keep policy in Rust or `src/domains/editor/*` whenever possible.
+- Keep `NativePrimaryTextSurface.vue` as a thin host. It should not grow back into a large policy component.
+- Do not rebuild missing features as ad hoc Vue-only regex logic if the same semantic should ultimately belong in Rust.
+- Presentation concerns may still require Vue-side rendering layers, but the semantic inputs for those layers should come from Rust-native inspection/planning APIs.
+- Do not restyle the editor chrome beyond what is necessary to restore the pre-cutover visual language.
+
+---
+
+## Primary File Map
+
+### Core native stack already in play
+
 - `src-tauri/crates/altals-editor-core/src/lib.rs`
-- `src-tauri/crates/altals-native-editor-app/Cargo.toml`
 - `src-tauri/crates/altals-native-editor-app/src/main.rs`
-- `src-tauri/src/native_editor_runtime.rs`
 - `src-tauri/src/native_editor_bridge.rs`
-- `src/domains/editor/editorRuntimeContract.js`
+- `src-tauri/src/native_editor_runtime.rs`
 - `src/services/editorRuntime/nativeBridge.js`
 - `src/stores/editorRuntime.js`
+- `src/components/editor/NativePrimaryTextSurface.vue`
+- `src/domains/editor/nativePrimarySurfaceRuntime.js`
 
-### Modify
+### Shell and workflow files that parity work must continue to respect
 
-- `src-tauri/Cargo.toml`
-- `src-tauri/src/lib.rs`
 - `src/components/editor/EditorPane.vue`
-- `src/components/editor/TextEditor.vue`
-- `src/stores/editor.js`
-- `src/components/panel/OutlinePanel.vue`
-- `src/services/markdown/previewSync.js`
-- `src/services/latex/previewSync.js`
+- `src/components/editor/DocumentWorkflowBar.vue`
+- `src/components/editor/EditorContextMenu.vue`
 - `src/services/documentWorkflow/adapters/markdown.js`
 - `src/services/documentWorkflow/adapters/latex.js`
+- `src/services/markdown/previewSync.js`
+- `src/services/latex/previewSync.js`
+- `src/composables/useEditorPaneWorkflow.js`
+- `src/domains/document/documentWorkspacePreviewRuntime.js`
+
+### Files expected to change during parity recovery
+
+- `src-tauri/src/native_editor_bridge.rs`
+- `src-tauri/src/native_editor_runtime.rs`
+- `src-tauri/src/lib.rs`
+- `src/services/editorRuntime/nativeBridge.js`
+- `src/stores/editorRuntime.js`
+- `src/domains/editor/nativePrimarySurfaceRuntime.js`
+- `src/components/editor/NativePrimaryTextSurface.vue`
+- `src/components/editor/EditorContextMenu.vue`
 - `docs/ARCHITECTURE.md`
 - `docs/OPERATIONS.md`
-
-### Remove later, not in the first migration slice
-
-- `src/editor/*` CodeMirror-specific extensions
-- `src/components/editor/TextEditor.vue`
-- direct CodeMirror assumptions inside outline, preview sync, and context menu code
 
 ---
 
 ## Task 1: Extract the Editor Runtime Contract
 
-**Files:**
-- Create: `src/domains/editor/editorRuntimeContract.js`
-- Create: `src/stores/editorRuntime.js`
-- Modify: `src/components/editor/TextEditor.vue`
-- Modify: `src/components/editor/EditorPane.vue`
-- Modify: `src/stores/editor.js`
-- Modify: `src/components/panel/OutlinePanel.vue`
-- Modify: `src/services/markdown/previewSync.js`
-- Modify: `src/services/latex/previewSync.js`
+**Status:** complete
 
-- [ ] **Step 1: Introduce a runtime-mode store**
+- [x] Introduce a runtime store and make editor runtime selection an explicit shell concern.
+- [x] Define the editor runtime contract.
+- [x] Refactor the old CodeMirror path to satisfy the contract before cutover.
+- [x] Add runtime telemetry hooks for content, selection, reveal, diagnostics, and sync requests.
+- [x] Run the frontend build slice with the contract in place.
 
-Create a small store that makes editor runtime an explicit shell concern instead of a hidden component decision.
-
-```js
-// src/stores/editorRuntime.js
-import { defineStore } from 'pinia'
-
-export const EDITOR_RUNTIME_MODES = Object.freeze({
-  WEB: 'web',
-  NATIVE_EXPERIMENTAL: 'native-experimental',
-})
-
-export const useEditorRuntimeStore = defineStore('editorRuntime', {
-  state: () => ({
-    mode: EDITOR_RUNTIME_MODES.WEB,
-    shadowMode: false,
-    lastNativeSessionId: null,
-  }),
-})
-```
-
-- [ ] **Step 2: Define the editor runtime contract**
-
-Create a contract file that describes the capabilities Altals expects from any editor runtime.
-
-```js
-// src/domains/editor/editorRuntimeContract.js
-export function createEditorRuntimeContract(runtime) {
-  return {
-    openDocument: runtime.openDocument,
-    closeDocument: runtime.closeDocument,
-    applyExternalContent: runtime.applyExternalContent,
-    persistActiveDocument: runtime.persistActiveDocument,
-    revealOffset: runtime.revealOffset,
-    requestSelection: runtime.requestSelection,
-    setDiagnostics: runtime.setDiagnostics,
-    setOutlineContext: runtime.setOutlineContext,
-    dispose: runtime.dispose,
-  }
-}
-```
-
-- [ ] **Step 3: Refactor current CodeMirror path to implement the contract**
-
-Do not change behavior yet. Wrap the current `TextEditor.vue` behavior behind the new contract so outline, preview sync, save, and selection consumers stop depending on CodeMirror types directly.
-
-- [ ] **Step 4: Add runtime telemetry hooks**
-
-Emit normalized events for:
-
-- document open and close
-- content changes
-- cursor move
-- selection change
-- reveal line and reveal offset
-- diagnostics update
-- markdown and LaTeX preview sync requests
-
-The purpose is to collect the exact event surface the Rust runtime must satisfy before direct cutover.
-
-- [ ] **Step 5: Run the frontend verification slice**
-
-Run:
-
-```bash
-npm run build
-```
-
-Expected: the Vue shell still builds with the new runtime contract in place and default mode remains `web`.
+**Completion note:** this task achieved the required decoupling and is not the source of the remaining parity gap.
 
 ---
 
 ## Task 2: Scaffold the Rust Editor Core
 
-**Files:**
-- Modify: `src-tauri/Cargo.toml`
-- Create: `src-tauri/crates/altals-editor-core/Cargo.toml`
-- Create: `src-tauri/crates/altals-editor-core/src/lib.rs`
-- Modify: `docs/ARCHITECTURE.md`
+**Status:** complete
 
-- [ ] **Step 1: Add a Rust workspace entry**
+- [x] Add the Rust workspace entries.
+- [x] Create `altals-editor-core`.
+- [x] Define initial buffer, selection, transaction, and viewport state types.
+- [x] Add core tests for content replacement, selection math, and mapping behavior.
+- [x] Run the Rust unit-test gate for the editor core.
 
-Extend the existing `src-tauri/Cargo.toml` so the desktop package remains the root package but also owns a workspace for editor crates.
-
-```toml
-[workspace]
-members = [
-  ".",
-  "crates/altals-editor-core",
-  "crates/altals-native-editor-app",
-]
-resolver = "2"
-```
-
-- [ ] **Step 2: Create the editor-core crate**
-
-Start with a backend-agnostic crate. It must not depend on Tauri, WebView, or Vue assumptions.
-
-```toml
-# src-tauri/crates/altals-editor-core/Cargo.toml
-[package]
-name = "altals-editor-core"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-```
-
-- [ ] **Step 3: Define the initial core data model**
-
-Seed the crate with explicit types for buffer, selection, transaction, and viewport state.
-
-```rust
-// src-tauri/crates/altals-editor-core/src/lib.rs
-pub struct EditorSessionId(pub String);
-
-pub struct DocumentBuffer {
-    pub path: String,
-    pub text: String,
-}
-
-pub struct CursorPosition {
-    pub offset: usize,
-    pub line: u32,
-    pub column: u32,
-}
-
-pub struct SelectionRange {
-    pub anchor: usize,
-    pub head: usize,
-}
-```
-
-- [ ] **Step 4: Write core tests before adding rendering**
-
-Add tests for:
-
-- open and replace document content
-- single cursor edits
-- multi-selection transaction application
-- line and column mapping
-- soft-wrap-independent offset reveal math
-
-- [ ] **Step 5: Run the Rust unit-test gate**
-
-Run:
-
-```bash
-cargo test --manifest-path src-tauri/Cargo.toml -p altals-editor-core
-```
-
-Expected: the new crate builds and its basic state-model tests pass without invoking the desktop shell.
+**Completion note:** the missing work is no longer at the bare core-state level.
 
 ---
 
 ## Task 3: Build the Native Editor Host as a Separate Helper Process
 
-**Files:**
-- Create: `src-tauri/crates/altals-native-editor-app/Cargo.toml`
-- Create: `src-tauri/crates/altals-native-editor-app/src/main.rs`
-- Create: `src-tauri/src/native_editor_runtime.rs`
-- Create: `src-tauri/src/native_editor_bridge.rs`
-- Modify: `src-tauri/src/lib.rs`
-- Modify: `docs/OPERATIONS.md`
+**Status:** complete
 
-- [ ] **Step 1: Create a separate native helper binary**
-
-The helper process owns the native editor window and event loop. It must not be embedded in the main WebView.
-
-```toml
-# src-tauri/crates/altals-native-editor-app/Cargo.toml
-[package]
-name = "altals-native-editor-app"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-altals-editor-core = { path = "../altals-editor-core" }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-```
-
-- [ ] **Step 2: Define the bridge protocol**
-
-Create a typed command and event surface between Tauri and the helper process.
-
-```rust
-// src-tauri/src/native_editor_bridge.rs
-#[derive(serde::Serialize, serde::Deserialize)]
-pub enum NativeEditorCommand {
-    OpenDocument { path: String, text: String },
-    ApplyExternalContent { path: String, text: String },
-    RevealOffset { path: String, offset: usize },
-    SetDiagnostics { path: String, diagnostics: serde_json::Value },
-}
-
-#[derive(serde::Serialize, serde::Deserialize)]
-pub enum NativeEditorEvent {
-    Ready { session_id: String },
-    ContentChanged { path: String, text: String },
-    CursorMoved { path: String, offset: usize, line: u32, column: u32 },
-    SelectionChanged { path: String, from: usize, to: usize },
-}
-```
-
-- [ ] **Step 3: Add Tauri-owned lifecycle management**
-
-`native_editor_runtime.rs` should be responsible for:
-
-- spawning the helper process
-- tracking session lifecycle
-- forwarding commands from the Vue shell
-- converting helper events into Tauri events or commands safe for the current shell
-
-- [ ] **Step 4: Prove a minimal smoke path**
-
-The spike is successful only if Altals can:
-
-- launch the native editor helper
-- open a text document in a native window
-- receive content change events back into Tauri
-- shut the helper process down cleanly when the workspace closes
-
-- [ ] **Step 5: Run the backend verification slice**
-
-Run:
-
-```bash
-cargo build --manifest-path src-tauri/Cargo.toml
-```
-
-Expected: the desktop shell and helper process compile together.
+- [x] Create the separate native helper binary.
+- [x] Define the typed bridge protocol.
+- [x] Add Tauri-owned lifecycle management.
+- [x] Prove helper open/edit/close smoke behavior.
+- [x] Build the desktop shell and helper together.
 
 ---
 
 ## Task 4: Bridge Document Workflow into the New Runtime
 
-**Files:**
-- Modify: `src/services/documentWorkflow/adapters/markdown.js`
-- Modify: `src/services/documentWorkflow/adapters/latex.js`
-- Modify: `src/services/markdown/previewSync.js`
-- Modify: `src/services/latex/previewSync.js`
-- Modify: `src/components/panel/OutlinePanel.vue`
-- Modify: `src-tauri/src/native_editor_runtime.rs`
+**Status:** complete
 
-- [ ] **Step 1: Stop coupling workflow adapters to CodeMirror instances**
+- [x] Stop coupling workflow adapters to CodeMirror instances.
+- [x] Route diagnostics through the bridge.
+- [x] Route outline, Markdown preview sync, LaTeX SyncTeX, and citation requests through the bridge.
+- [x] Keep previews WebView-based during the migration.
+- [x] Verify workflow parity for the current shell-level document workflow.
 
-Markdown and LaTeX workflow adapters should talk to the editor runtime contract, not directly to CodeMirror view objects.
-
-- [ ] **Step 2: Route diagnostics through the bridge**
-
-Normalize existing Markdown and LaTeX diagnostics into a runtime-neutral payload before delivery to the editor. The native editor should receive the same problem model currently used by document workflow.
-
-- [ ] **Step 3: Route outline and sync requests through the bridge**
-
-Keep these flows working in both runtime modes:
-
-- outline highlight from current cursor
-- markdown source-to-preview and preview-to-source sync
-- LaTeX forward and backward SyncTeX reveal
-- citation insertion at current selection
-
-- [ ] **Step 4: Keep preview surfaces WebView-based during this phase**
-
-Do not migrate Markdown preview, PDF preview, references, or AI panels into native UI yet. This slice is about editor core replacement, not shell redesign.
-
-- [ ] **Step 5: Verify workflow parity**
-
-Run:
-
-```bash
-npm run build
-```
-
-Then run:
-
-```bash
-npm run tauri -- dev
-```
-
-Expected: current workbench behavior remains unchanged while the editor helper can receive diagnostics and reveal requests without breaking the rest of the workbench.
+**Completion note:** preview and toolbar regressions for draft paths were corrected; do not re-open this task unless workflow adapters regress again.
 
 ---
 
 ## Task 5: Define Direct Cutover Gates and Final Switch Preconditions
 
-**Files:**
-- Create: `src/services/editorRuntime/nativeBridge.js`
-- Modify: `src/components/editor/EditorPane.vue`
-- Modify: `src/components/editor/TextEditor.vue`
-- Modify: `src/stores/editor.js`
-- Modify: `src/stores/editorRuntime.js`
+**Status:** complete
 
-- [ ] **Step 1: Add a native bridge service on the frontend**
+- [x] Add frontend native bridge service and store APIs.
+- [x] Keep migration backend-first and avoid a user-facing shadow mode.
+- [x] Define cutover parity gates.
+- [x] Prepare the direct switch path to `native-primary`.
+- [x] Validate readiness gates with build/dev/manual verification evidence.
 
-This service should hide Tauri invocation details and expose a small API:
-
-```js
-export function createNativeEditorBridge() {
-  return {
-    startSession,
-    stopSession,
-    openDocument,
-    applyExternalContent,
-    revealOffset,
-    setDiagnostics,
-    onEvent,
-  }
-}
-```
-
-- [ ] **Step 2: Keep migration backend-first until final switch**
-
-Do not add a `NativeEditorSurface`, visual shadow mode, or user-facing intermediate editor state.
-
-Before visible cutover:
-
-- mirror document state and reveal commands into the native runtime from the existing shell where needed
-- record parity evidence through backend state, logs, and verification commands rather than a temporary migration UI
-- keep CodeMirror only as an implementation dependency while backend parity is still incomplete
-
-- [ ] **Step 3: Define cutover parity gates**
-
-The workbench cannot switch to the Rust editor surface until these are proven:
-
-- typing latency stays within target on large Markdown and LaTeX files
-- selection and multi-cursor semantics match expected document edits
-- save and dirty-state transitions remain correct
-- outline follows cursor correctly
-- markdown and LaTeX sync loops remain stable
-- no data loss occurs across workspace close and reopen
-
-- [ ] **Step 4: Prepare the direct switch path**
-
-When the parity gates pass:
-
-- route the workbench editor surface directly to the Rust editor
-- remove user-facing dependency on `TextEditor.vue` as the primary editing surface
-- avoid adding a persistent per-workspace or per-app migration toggle unless explicitly approved later
-
-- [ ] **Step 5: Verify cutover readiness**
-
-Run:
-
-```bash
-npm run build
-```
-
-Then run:
-
-```bash
-npm run tauri -- dev
-```
-
-Expected: the app is ready to switch the workbench directly to the Rust editor surface without breaking tab restoration, dirty-state tracking, or document workflow chrome.
+**Completion note:** the gate model exists, but the original gate set was too narrow because it did not include editor-assist parity. The remaining tasks below close that gap.
 
 ---
 
 ## Task 6: Directly Cut Over to Rust Editor and Remove CodeMirror
 
+**Status:** partially complete
+
+- [x] Switch the workbench editor surface to the native primary path.
+- [x] Delete CodeMirror in the cutover slice.
+- [ ] Re-run final parity validation against the full editor feature surface, not just workflow basics.
+
+### What is already true
+
+- `NativePrimaryTextSurface.vue` is the active workbench text surface.
+- CodeMirror modules and dependencies are removed.
+- File-tree drag insertion, citations, save, preview sync, diagnostics, and toolbar/preview shell flows are wired to the native runtime path.
+
+### Why Task 6 is not actually closed
+
+The active editor still lacks presentation and assist-layer parity that users previously had. The remaining tasks below are therefore considered part of finishing Task 6 correctly.
+
+---
+
+## Task 7: Rebuild Rust-Native Presentation Primitives
+
+**Status:** pending
+
+**Goal:** restore the visual/editorial affordances that vanished when CodeMirror rendering was removed.
+
 **Files:**
-- Modify: `src/components/editor/EditorPane.vue`
-- Modify: `src/stores/editor.js`
-- Modify: `docs/ARCHITECTURE.md`
-- Modify: `docs/OPERATIONS.md`
-- Delete later: `src/components/editor/TextEditor.vue`
-- Delete later: `src/editor/*`
 
-- [ ] **Step 1: Switch the workbench editor surface to Rust once parity gates pass**
+- Modify: `src-tauri/src/native_editor_bridge.rs`
+- Modify: `src-tauri/src/native_editor_runtime.rs`
+- Modify: `src/services/editorRuntime/nativeBridge.js`
+- Modify: `src/stores/editorRuntime.js`
+- Modify: `src/domains/editor/nativePrimarySurfaceRuntime.js`
+- Modify: `src/components/editor/NativePrimaryTextSurface.vue`
 
-Recommended order:
+- [ ] **Step 1: Define a native presentation snapshot contract**
 
-1. plain text and Markdown drafts
-2. Markdown with preview sync and wiki links
-3. LaTeX source editing with diagnostics
-4. LaTeX citation and SyncTeX flows
+Rust should expose a typed snapshot for the active visible slice of a document. The snapshot must be able to describe:
 
-- [ ] **Step 2: Delete CodeMirror in the cutover slice**
+- per-line visible spans
+- token classes for syntax highlighting
+- semantic marks for wiki links and citations
+- active line
+- selection ranges
+- selection-match ranges
+- bracket-match ranges
+- optional drop-cursor position
 
-Once the Rust editor is the active workbench editor and required workflows are verified, remove:
+- [ ] **Step 2: Implement Rust-side visible-slice tokenization hooks**
 
-- `src/components/editor/TextEditor.vue` if it no longer hosts the Rust surface
-- `src/editor/setup.js`
-- `src/editor/theme.js`
-- `src/editor/markdown*`
-- `src/editor/latex*`
-- direct CodeMirror dependency usage in editor components
+Start with Markdown and LaTeX-visible token classes only. The first version does not need a full parser rewrite, but it must not hardcode all tokenization in the Vue component.
 
-Do not keep a long-lived dual-runtime UI after cutover just to preserve a visual fallback.
+The Rust runtime must at minimum return enough data to render:
 
-- [ ] **Step 3: Run the full verification loop after the direct switch**
+- headings
+- emphasis and strong
+- code spans and fences
+- links and URLs
+- list markers
+- LaTeX commands
+- LaTeX math-ish command spans
+- comments where applicable
+- citation and wikilink semantic spans
 
-Run:
+- [ ] **Step 3: Add a Vue host rendering layer without reintroducing CodeMirror**
 
-```bash
-cargo test --manifest-path src-tauri/Cargo.toml -p altals-editor-core
-```
+`NativePrimaryTextSurface.vue` should render a visual text layer behind or above the input host using Rust-provided presentation spans. It must not import CodeMirror or clone the old extension system.
 
-Run:
+Expected output:
 
-```bash
-cargo build --manifest-path src-tauri/Cargo.toml
-```
+- syntax-highlighted visible text
+- semantic decoration classes for wiki links and citations
+- active-line visual state
+- selection and reveal visuals consistent with the previous editor chrome
+
+- [ ] **Step 4: Restore gutter rendering**
+
+Rebuild line-number and fold-affordance gutter rendering for the native surface shell.
+
+Requirements:
+
+- stable line-number alignment
+- no layout jitter on scroll
+- current-line emphasis remains intact
+- gutter does not break Markdown/LaTeX preview sync interactions
+
+- [ ] **Step 5: Restore editor visual feedback primitives**
+
+Restore the following visible feedback:
+
+- active line
+- selection matches
+- bracket match
+- reveal target highlight
+- drop cursor visualization for file drops
+
+- [ ] **Step 6: Verify presentation parity**
 
 Run:
 
@@ -501,83 +298,356 @@ Run:
 npm run build
 ```
 
+Then manually verify on both Markdown and LaTeX files:
+
+- syntax colors are present
+- gutter is present
+- active line and reveal highlight are visible
+- file-drop insertion still shows an intelligible target
+
+---
+
+## Task 8: Rebuild Markdown Assist and Semantic Editing
+
+**Status:** pending
+
+**Goal:** restore Markdown authoring ergonomics without putting long-term editor semantics back into Vue-only logic.
+
+**Files:**
+
+- Modify: `src-tauri/src/native_editor_bridge.rs`
+- Modify: `src-tauri/src/native_editor_runtime.rs`
+- Modify: `src/services/editorRuntime/nativeBridge.js`
+- Modify: `src/stores/editorRuntime.js`
+- Modify: `src/domains/editor/nativePrimarySurfaceRuntime.js`
+- Modify: `src/components/editor/NativePrimaryTextSurface.vue`
+- Modify: `src/components/editor/EditorContextMenu.vue`
+
+- [ ] **Step 1: Rebuild Markdown formatting shortcuts**
+
+Restore the old shortcut surface:
+
+- `Mod-b` bold toggle
+- `Mod-i` italic toggle
+- `Mod-Shift-x` strikethrough toggle
+- `Mod-e` inline code toggle
+- `Mod-k` insert link
+- blockquote toggle
+- ordered-list toggle
+- unordered-list toggle
+
+The transformation planning should come from Rust so wrapper and prefix rules are not reimplemented ad hoc in the component.
+
+- [ ] **Step 2: Rebuild Markdown slash snippets**
+
+Restore the snippet popup for commands such as:
+
+- `/h1`, `/h2`, `/h3`
+- `/quote`
+- `/list`, `/olist`
+- `/code`
+- `/math`
+- `/footnote`
+- `/image`
+- `/table`
+
+Requirements:
+
+- Rust should identify snippet-trigger context and candidate set
+- Vue should only host the popup and apply the selected replacement plan
+- snippets must not trigger inside code spans or code fences
+
+- [ ] **Step 3: Rebuild wiki-link autocomplete**
+
+Restore `[[...]]` authoring assistance:
+
+- file name completion
+- heading completion after `#`
+- proper replacement and cursor placement
+- no activation inside code contexts
+
+Use Rust for context inspection and replacement planning. Workspace file inventory can still be provided by JS-side services/stores as input.
+
+- [ ] **Step 4: Rebuild Markdown inline semantic decorations**
+
+Restore visible differentiation for:
+
+- valid wiki links
+- broken wiki links
+- citation groups
+- broken citation keys
+
+These decorations should be driven by the presentation snapshot from Task 7.
+
+- [ ] **Step 5: Rebuild Markdown hover affordances**
+
+Restore:
+
+- footnote hover preview
+- inline math hover preview
+- display math hover preview
+
+The hover content can still be rendered in Vue, but the hit-testing/range identification should not live solely in the component.
+
+- [ ] **Step 6: Rebuild Markdown table commands**
+
+Restore:
+
+- insert table action
+- format current table action
+- keyboard shortcuts for table commands
+- context menu exposure where previously available
+
+- [ ] **Step 7: Verify Markdown assist parity**
+
+Manual acceptance must cover:
+
+- shortcut toggles
+- slash snippets
+- wikilink completion
+- broken-link styling
+- footnote/math hover
+- table insert/format
+
+---
+
+## Task 9: Rebuild LaTeX Assist and Semantic Editing
+
+**Status:** pending
+
+**Goal:** restore LaTeX authoring assist, project-aware completions, and visual semantic cues.
+
+**Files:**
+
+- Modify: `src-tauri/src/native_editor_bridge.rs`
+- Modify: `src-tauri/src/native_editor_runtime.rs`
+- Modify: `src/services/editorRuntime/nativeBridge.js`
+- Modify: `src/stores/editorRuntime.js`
+- Modify: `src/domains/editor/nativePrimarySurfaceRuntime.js`
+- Modify: `src/components/editor/NativePrimaryTextSurface.vue`
+
+- [ ] **Step 1: Rebuild static LaTeX command autocomplete**
+
+Restore structured completion for:
+
+- sectioning commands
+- text formatting commands
+- environment snippets
+- math commands
+- include / bibliography commands
+- document setup commands
+
+Selection placement and template insertion must be planned, not hand-assembled inline in the component.
+
+- [ ] **Step 2: Rebuild project-aware LaTeX completions**
+
+Restore completion flows for:
+
+- cite / nocite
+- ref / eqref / pageref / autoref / cref
+- input / include / subfile
+- bibliography / addbibresource
+
+This work should reuse the existing project graph and document-intelligence services as data inputs, while keeping the completion context parsing in Rust.
+
+- [ ] **Step 3: Rebuild LaTeX citation decorations**
+
+Restore visible differentiation for:
+
+- LaTeX citation commands
+- citation keys
+- broken citation keys
+- optional post-citation inline annotation such as author/year
+
+- [ ] **Step 4: Preserve formatter integration on the native path**
+
+Ensure the native path still fully supports:
+
+- explicit format-document command
+- format-on-save
+- no cursor corruption after formatting
+- no dirty-state desynchronization after formatting
+
+- [ ] **Step 5: Verify LaTeX assist parity**
+
+Manual acceptance must cover:
+
+- autocomplete popup appearance and insertion
+- cite/ref/input completions against a real project graph
+- citation decoration visibility
+- format document
+- format on save
+
+---
+
+## Task 10: Rebuild Shell-Level Editor Interaction Parity
+
+**Status:** pending
+
+**Goal:** restore the remaining shell behaviors that were previously provided by the old editor path.
+
+**Files:**
+
+- Modify: `src/components/editor/NativePrimaryTextSurface.vue`
+- Modify: `src/domains/editor/nativePrimarySurfaceRuntime.js`
+- Modify: `src/components/editor/EditorContextMenu.vue`
+- Modify: `src/stores/editorRuntime.js`
+
+- [ ] **Step 1: Reconnect the editor context menu**
+
+Restore the native primary surface integration with `EditorContextMenu.vue`:
+
+- right-click / control-click open behavior
+- selection-aware actions
+- Markdown table actions where applicable
+- LaTeX format-document action where applicable
+
+- [ ] **Step 2: Rebuild command routing for context-sensitive actions**
+
+The native surface should expose the same command affordances the old shell expected:
+
+- format document
+- insert Markdown table
+- format Markdown table
+- citation edit/insert where contextually valid
+
+- [ ] **Step 3: Verify selection and interaction fidelity**
+
+Check:
+
+- double-click behavior
+- right-click does not destroy selection unexpectedly
+- keyboard save and formatting commands still work
+- drag insertion still works after context-menu and presentation changes
+
+- [ ] **Step 4: Document the final host/runtime responsibility split**
+
+Update docs so the final architecture is explicit:
+
+- Rust owns editor semantics, context inspection, completion planning, and presentation snapshots
+- Vue owns host DOM, popups, menus, and workbench-level side effects
+
+---
+
+## Task 11: Final Migration Audit and Sign-Off
+
+**Status:** pending
+
+**Goal:** close the migration with a verification loop that matches the actual feature surface, not the reduced gate set used during the early cutover.
+
+**Files:**
+
+- Modify: `docs/ARCHITECTURE.md`
+- Modify: `docs/OPERATIONS.md`
+- Modify: this plan file if reality changes during execution
+
+- [ ] **Step 1: Run code-level verification**
+
+Run the smallest complete set available for the changed slice:
+
+```bash
+cargo test --manifest-path src-tauri/Cargo.toml -p altals-editor-core
+```
+
+```bash
+cargo build --manifest-path src-tauri/Cargo.toml
+```
+
+```bash
+npm run build
+```
+
+- [ ] **Step 2: Run desktop workflow verification**
+
 Run:
+
+```bash
+npm run tauri -- dev
+```
+
+Verify at minimum:
+
+- Markdown draft with toolbar and preview
+- Markdown formatting shortcuts
+- Markdown snippets and wikilinks
+- LaTeX toolbar, compile, preview, and SyncTeX
+- LaTeX autocomplete and formatter integration
+- file-tree drag insertion
+- citation insert and citation edit
+
+- [ ] **Step 3: Run a parity checklist against the missing-groups inventory**
+
+The migration cannot be signed off until all 13 missing groups listed in the status section are marked resolved with evidence.
+
+- [ ] **Step 4: Run final postflight audit**
+
+If the environment supports the repository script, run:
 
 ```bash
 npm run agent:codex-postflight -- --plan docs/superpowers/plans/2026-04-18-rust-native-editor-migration.md
 ```
 
-Expected: the implementation can be audited back to this migration plan and the Web editor path can be retired with confidence.
+If the environment does not support that script, perform a manual audit against this plan and record:
+
+- completed tasks
+- pending tasks
+- deviations
+- risks
+- verification evidence
+- next step
+
+- [ ] **Step 5: Only then declare the migration complete**
+
+Completion criteria:
+
+- no missing editor-assist groups remain
+- no user-visible workflow relies on deleted CodeMirror code
+- docs describe the new native editor architecture accurately
 
 ---
 
-## Phase Gates
+## Feature Parity Checklist
 
-### Gate A: Contract Extraction Complete
+Do not mark the migration complete until every item here is resolved:
 
-Must be true before writing native UI code:
-
-- no workflow code requires a raw CodeMirror view
-- runtime mode can be switched centrally
-- runtime telemetry exists
-
-### Gate B: Rust Core Viable
-
-Must be true before helper-process integration:
-
-- core crate has passing transaction and selection tests
-- no Tauri or Vue dependency in `altals-editor-core`
-
-### Gate C: Native Helper Viable
-
-Must be true before direct workbench cutover:
-
-- helper process opens and closes cleanly
-- document edits round-trip to the shell
-- crash or disconnect does not corrupt editor state
-
-### Gate D: Workflow Parity Viable
-
-Must be true before the workbench switches to the Rust editor surface:
-
-- diagnostics render correctly
-- outline follows cursor
-- markdown preview sync works
-- LaTeX reveal and SyncTeX work
-
-### Gate E: Cutover Ready
-
-Must be true before CodeMirror removal:
-
-- save and dirty state are stable
-- tab restore is stable
-- performance regression numbers are accepted
-- the direct Rust editor cutover works without a user-facing shadow or placeholder UI
+- [x] runtime contract extraction
+- [x] Rust editor core and helper bridge
+- [x] native primary workbench cutover
+- [x] Markdown toolbar and preview for draft and non-draft files
+- [x] LaTeX toolbar and preview for draft and non-draft files
+- [x] diagnostics, outline, Markdown sync, LaTeX SyncTeX, citations
+- [x] file-tree drag insertion
+- [ ] syntax highlighting and theming
+- [ ] gutter and fold affordances
+- [ ] active-line / selection-match / bracket-match / drop-cursor visuals
+- [ ] Markdown footnote and math hover
+- [ ] Markdown formatting shortcuts
+- [ ] Markdown slash snippets popup
+- [ ] wiki-link autocomplete
+- [ ] Markdown semantic decorations
+- [ ] Markdown table commands
+- [ ] LaTeX autocomplete popup
+- [ ] project-aware LaTeX completions
+- [ ] LaTeX citation decorations / annotations
+- [ ] editor context menu parity
 
 ---
 
-## Not in This Slice
+## Recommended Execution Order From Here
 
-- Rewriting the whole Altals shell in Rust native UI
-- Migrating AI panel, references workbench, or PDF reader out of WebView
-- Porting Zed directly into the Altals repository
-- Shipping a macOS-only editor path as the final architecture
-- Visual redesign of the editor chrome during the core migration
+1. Task 7: presentation primitives
+2. Task 8: Markdown assist
+3. Task 9: LaTeX assist
+4. Task 10: shell interaction parity
+5. Task 11: final audit and completion sign-off
+
+Do not reorder by implementing autocomplete before a stable presentation snapshot exists if the chosen UI depends on that snapshot. Do not stop after restoring only one or two obvious regressions.
 
 ---
-
-## Recommended Execution Order
-
-1. Task 1 and Gate A
-2. Task 2 and Gate B
-3. Task 3 and Gate C
-4. Task 4 and Gate D
-5. Task 5 for direct cutover gates and final switch preconditions
-6. Task 6 only after parity evidence is collected, with CodeMirror removal in the cutover slice
 
 ## Migration Notes
 
-- The biggest technical trap is trying to preserve the current WebView pane embedding model while demanding native editor feel. Do not optimize that trap.
-- The biggest product trap is replacing the editing surface before the document workflow contracts are extracted. Do not cut over early.
-- Do not add a temporary visual migration surface just to observe backend progress. Verify through backend state, tests, and workflow parity instead.
-- The native helper process is a migration tool and may or may not remain the final packaging model. The editor core crate is the durable asset.
+- The earlier cutover proved that workflow basics could survive CodeMirror deletion, but it also exposed that editor-assist parity was under-specified. This plan fixes that planning defect.
+- The remaining work is not a visual redesign. It is restoration of previously available editorial capability on the Rust-native path.
+- The safest architectural split is: Rust decides editor semantics; Vue presents popups, menus, and shell-level UI.
+- Do not keep expanding `NativePrimaryTextSurface.vue` with editor parsing logic. If a behavior is inherently editor-semantic, prefer adding a Rust bridge and letting the component consume typed results.

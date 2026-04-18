@@ -465,6 +465,7 @@ pub fn run() {
             ai_config::ai_config_save,
             ai_config::ai_config_save_internal,
             ai_extension_catalog::ai_extension_catalog_load,
+            ai_extension_catalog::ai_extension_mcp_probe,
             ai_provider_catalog::ai_provider_catalog_list,
             ai_provider_catalog::ai_provider_state_resolve,
             ai_provider_catalog::ai_provider_models_list,
@@ -582,6 +583,7 @@ pub fn run() {
             native_editor_runtime::native_editor_document_state,
             native_editor_runtime::native_editor_inspect_interaction_context,
             native_editor_runtime::native_editor_plan_citation_replacement,
+            native_editor_runtime::native_editor_plan_file_drop_insertion,
             native_editor_runtime::native_editor_session_state,
         ])
         .run(tauri::generate_context!())

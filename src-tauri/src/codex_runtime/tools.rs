@@ -2,7 +2,9 @@ use serde_json::{json, Value};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::ai_extension_catalog::load_extension_catalog_value;
+use crate::ai_extension_catalog::{
+    execute_mcp_runtime_tool_call, load_extension_catalog_value, resolve_mcp_runtime_tools,
+};
 use crate::fs_io::read_text_file_with_limit;
 use crate::fs_tree::{collect_files_recursive, read_dir_shallow_entries};
 
@@ -29,14 +31,6 @@ pub struct RuntimeToolResult {
     pub tool_call_id: String,
     pub content: String,
     pub is_error: bool,
-}
-
-fn context_available(kind: &str, context_bundle: &Value) -> bool {
-    context_bundle
-        .get(kind)
-        .and_then(|value| value.get("available"))
-        .and_then(|value| value.as_bool())
-        .unwrap_or(false)
 }
 
 fn clamp_results(value: Option<u64>, fallback: usize) -> usize {
@@ -169,14 +163,11 @@ fn score_match(query: &str, relative_path: &str) -> Option<usize> {
     None
 }
 
-pub fn resolve_runtime_tool_definitions(enabled_tool_ids: &[String]) -> Vec<RuntimeToolDefinition> {
-    resolve_runtime_tool_definitions_with_context(enabled_tool_ids, &Value::Null, &[])
-}
-
 pub fn resolve_runtime_tool_definitions_with_context(
+    workspace_path: &str,
     enabled_tool_ids: &[String],
-    context_bundle: &Value,
-    support_files: &[Value],
+    _context_bundle: &Value,
+    _support_files: &[Value],
 ) -> Vec<RuntimeToolDefinition> {
     let enabled = enabled_tool_ids
         .iter()
@@ -254,51 +245,6 @@ pub fn resolve_runtime_tool_definitions_with_context(
             }),
         },
     );
-    if context_available("document", context_bundle) {
-        register(
-            &mut tools,
-            "read-active-document",
-            RuntimeToolDefinition {
-                name: "read_active_document",
-                description: "Read the active document metadata and current text content.",
-                parameters: json!({
-                    "type": "object",
-                    "properties": {},
-                    "required": []
-                }),
-            },
-        );
-    }
-    if context_available("selection", context_bundle) {
-        register(
-            &mut tools,
-            "read-editor-selection",
-            RuntimeToolDefinition {
-                name: "read_editor_selection",
-                description: "Read the active editor selection and its source position.",
-                parameters: json!({
-                    "type": "object",
-                    "properties": {},
-                    "required": []
-                }),
-            },
-        );
-    }
-    if context_available("reference", context_bundle) {
-        register(
-            &mut tools,
-            "read-selected-reference",
-            RuntimeToolDefinition {
-                name: "read_selected_reference",
-                description: "Read the currently selected reference metadata.",
-                parameters: json!({
-                    "type": "object",
-                    "properties": {},
-                    "required": []
-                }),
-            },
-        );
-    }
     register(
         &mut tools,
         "create-workspace-file",
@@ -363,21 +309,21 @@ pub fn resolve_runtime_tool_definitions_with_context(
             }),
         },
     );
-    if !support_files.is_empty() {
-        register(
-            &mut tools,
-            "load-skill-support-files",
+    if !workspace_path.trim().is_empty() {
+        tools.extend(resolve_mcp_runtime_tools(workspace_path).into_iter().map(|tool| {
             RuntimeToolDefinition {
-                name: "load_skill_support_files",
-                description:
-                    "Read text support files that belong to the active instruction-pack directory.",
-                parameters: json!({
-                    "type": "object",
-                    "properties": {},
-                    "required": []
-                }),
-            },
-        );
+                name: Box::leak(tool.runtime_name.into_boxed_str()),
+                description: Box::leak(
+                    if tool.description.trim().is_empty() {
+                        format!("Call MCP tool {} exposed by {}.", tool.tool_name, tool.server_name)
+                    } else {
+                        format!("{} (MCP: {})", tool.description, tool.display_name)
+                    }
+                    .into_boxed_str(),
+                ),
+                parameters: tool.parameters,
+            }
+        }));
     }
 
     tools
@@ -423,13 +369,16 @@ pub fn execute_runtime_tool_calls_with_context(
 fn execute_runtime_tool_call(
     workspace_path: &str,
     tool_call: &RuntimeToolCall,
-    context_bundle: &Value,
-    support_files: &[Value],
+    _context_bundle: &Value,
+    _support_files: &[Value],
 ) -> Result<String, String> {
     let workspace_root = normalize_workspace_root(workspace_path).ok();
 
     let content = match tool_call.name.as_str() {
         "read_extension_catalog" => load_extension_catalog_value(workspace_path),
+        name if name.starts_with("mcp__") => {
+            execute_mcp_runtime_tool_call(workspace_path, name, &tool_call.arguments)?
+        }
         "list_workspace_directory" => {
             let workspace_root = workspace_root
                 .as_ref()
@@ -551,49 +500,6 @@ fn execute_runtime_tool_call(
                 "content": content,
             })
         }
-        "read_active_document" => {
-            let document = context_bundle
-                .get("document")
-                .cloned()
-                .unwrap_or(Value::Null);
-            json!({
-                "available": context_available("document", context_bundle),
-                "filePath": document.get("filePath").cloned().unwrap_or(Value::String(String::new())),
-                "label": document.get("label").cloned().unwrap_or(Value::String(String::new())),
-                "extension": document.get("extension").cloned().unwrap_or(Value::String(String::new())),
-                "isMarkdown": document.get("isMarkdown").cloned().unwrap_or(Value::Bool(false)),
-                "isLatex": document.get("isLatex").cloned().unwrap_or(Value::Bool(false)),
-            })
-        }
-        "read_editor_selection" => {
-            let selection = context_bundle
-                .get("selection")
-                .cloned()
-                .unwrap_or(Value::Null);
-            json!({
-                "available": context_available("selection", context_bundle),
-                "filePath": selection.get("filePath").cloned().unwrap_or(Value::String(String::new())),
-                "from": selection.get("from").cloned().unwrap_or(Value::Null),
-                "to": selection.get("to").cloned().unwrap_or(Value::Null),
-                "text": selection.get("text").cloned().unwrap_or(Value::String(String::new())),
-                "preview": selection.get("preview").cloned().unwrap_or(Value::String(String::new())),
-                "hasSelection": selection.get("hasSelection").cloned().unwrap_or(Value::Bool(false)),
-            })
-        }
-        "read_selected_reference" => {
-            let reference = context_bundle
-                .get("reference")
-                .cloned()
-                .unwrap_or(Value::Null);
-            json!({
-                "available": context_available("reference", context_bundle),
-                "id": reference.get("id").cloned().unwrap_or(Value::String(String::new())),
-                "title": reference.get("title").cloned().unwrap_or(Value::String(String::new())),
-                "citationKey": reference.get("citationKey").cloned().unwrap_or(Value::String(String::new())),
-                "year": reference.get("year").cloned().unwrap_or(Value::String(String::new())),
-                "authorLine": reference.get("authorLine").cloned().unwrap_or(Value::String(String::new())),
-            })
-        }
         "create_workspace_file" => {
             let workspace_root = workspace_root
                 .as_ref()
@@ -698,7 +604,6 @@ fn execute_runtime_tool_call(
                 "deleted": true,
             })
         }
-        "load_skill_support_files" => json!(support_files),
         _ => {
             return Err(format!(
                 "No Rust runtime executor is registered for {}.",

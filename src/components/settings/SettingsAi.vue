@@ -228,9 +228,26 @@
                   · {{ server.sourceScope }}
                 </template>
               </div>
+              <div
+                v-if="getExtensionProbeSummary(server.id)"
+                class="settings-ai-extension-probe"
+                :class="{ 'is-error': !isExtensionProbeSuccess(server.id) }"
+              >
+                {{ getExtensionProbeSummary(server.id) }}
+              </div>
             </div>
-            <div class="settings-ai-extension-source" :title="server.sourcePath">
-              {{ server.sourcePath }}
+            <div class="settings-ai-extension-actions">
+              <UiButton
+                variant="secondary"
+                size="sm"
+                :disabled="isExtensionProbeLoading(server.id)"
+                @click="probeExtensionServer(server.id)"
+              >
+                {{ isExtensionProbeLoading(server.id) ? t('Probing...') : t('Probe') }}
+              </UiButton>
+              <div class="settings-ai-extension-source" :title="server.sourcePath">
+                {{ server.sourcePath }}
+              </div>
             </div>
           </div>
         </div>
@@ -240,7 +257,7 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { useToastStore } from '../../stores/toast'
 import { useI18n } from '../../i18n'
@@ -305,6 +322,15 @@ async function loadAiExtensionCatalog(workspacePath = '') {
   })
 }
 
+async function probeAiExtensionMcpServer(workspacePath = '', serverId = '') {
+  return invoke('ai_extension_mcp_probe', {
+    params: {
+      workspacePath,
+      serverId,
+    },
+  })
+}
+
 const providerDefinitions = ref([])
 const providerForms = ref({})
 const providerKeys = ref({})
@@ -316,6 +342,7 @@ const loadedConfig = ref(null)
 const extensionCatalog = ref({ mcpServers: [], sources: [] })
 const extensionCatalogLoading = ref(false)
 const extensionCatalogError = ref('')
+const extensionProbeState = ref({})
 
 const expandedProvider = ref(null)
 function toggleProvider(id) {
@@ -610,6 +637,74 @@ async function loadExtensionCatalog() {
   }
 }
 
+function isExtensionProbeLoading(serverId = '') {
+  return extensionProbeState.value[serverId]?.loading === true
+}
+
+function isExtensionProbeSuccess(serverId = '') {
+  return extensionProbeState.value[serverId]?.ok === true
+}
+
+function getExtensionProbeSummary(serverId = '') {
+  const state = extensionProbeState.value[serverId]
+  if (!state || state.loading) return ''
+  if (state.ok) {
+    const serverLabel = String(state.serverLabel || '').trim()
+    const protocolVersion = String(state.protocolVersion || '').trim()
+    const protocolText = protocolVersion ? ` · ${protocolVersion}` : ''
+    if (serverLabel) {
+      return t('{count} tools ready via {name}{protocol}', {
+        count: state.toolCount || 0,
+        name: serverLabel,
+        protocol: protocolText,
+      })
+    }
+    return t('{count} tools ready', { count: state.toolCount || 0 })
+  }
+  return String(state.error || '').trim()
+}
+
+async function probeExtensionServer(serverId = '') {
+  if (!String(serverId || '').trim()) return
+  extensionProbeState.value = {
+    ...extensionProbeState.value,
+    [serverId]: {
+      loading: true,
+      ok: false,
+      toolCount: 0,
+      protocolVersion: '',
+      serverLabel: '',
+      error: '',
+    },
+  }
+  try {
+    const response = await probeAiExtensionMcpServer(workspace.path || '', serverId)
+    extensionProbeState.value = {
+      ...extensionProbeState.value,
+      [serverId]: {
+        loading: false,
+        ok: response?.ok === true,
+        toolCount: Number(response?.toolCount || 0),
+        protocolVersion: String(response?.protocolVersion || '').trim(),
+        serverLabel: String(response?.serverLabel || '').trim(),
+        error: String(response?.error || '').trim(),
+      },
+    }
+  } catch (error) {
+    extensionProbeState.value = {
+      ...extensionProbeState.value,
+      [serverId]: {
+        loading: false,
+        ok: false,
+        toolCount: 0,
+        protocolVersion: '',
+        serverLabel: '',
+        error: normalizeErrorMessage(error, t('MCP probe failed.')),
+      },
+    }
+  }
+}
+
 async function persistAllProviders() {
   const nextConfig = buildConfig()
   await saveAiConfig(nextConfig)
@@ -709,6 +804,13 @@ onMounted(() => {
   void loadState()
   void loadExtensionCatalog()
 })
+
+watch(
+  () => workspace.path,
+  () => {
+    void loadExtensionCatalog()
+  }
+)
 </script>
 
 <style scoped>
@@ -927,8 +1029,25 @@ onMounted(() => {
   color: var(--text-secondary);
 }
 
+.settings-ai-extension-probe {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--success);
+}
+
+.settings-ai-extension-probe.is-error {
+  color: var(--error);
+}
+
+.settings-ai-extension-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
 .settings-ai-extension-source {
-  max-width: 48%;
+  max-width: 220px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

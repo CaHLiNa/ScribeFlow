@@ -1,5 +1,5 @@
 import { computed, watch } from 'vue'
-import { isDraftPath, isLatex } from '../utils/fileTypes.js'
+import { isLatex } from '../utils/fileTypes.js'
 import { getDocumentAdapterForFile } from '../services/documentWorkflow/adapters/index.js'
 import { getDocumentWorkflowStatusTone } from '../domains/document/documentWorkflowBuildRuntime.js'
 import { pathExists } from '../services/pathExists.js'
@@ -30,20 +30,20 @@ export function useEditorPaneWorkflow(options) {
   }
 
   const workflowUiState = computed(() => (
-    activeTabRef.value && !isDraftPath(activeTabRef.value)
+    activeTabRef.value
       ? workflowStore.getUiStateForFile(activeTabRef.value, buildWorkflowOptions())
       : null
   ))
   const workflowProblems = computed(() => (
-    activeTabRef.value && !isDraftPath(activeTabRef.value)
+    activeTabRef.value
       ? workflowStore.getProblemsForFile(activeTabRef.value, buildWorkflowOptions())
       : []
   ))
   const activeDocumentAdapter = computed(() => (
-    activeTabRef.value && !isDraftPath(activeTabRef.value) ? getDocumentAdapterForFile(activeTabRef.value) : null
+    activeTabRef.value ? getDocumentAdapterForFile(activeTabRef.value) : null
   ))
   const documentBuildContext = computed(() => (
-    activeTabRef.value && !isDraftPath(activeTabRef.value)
+    activeTabRef.value
       ? workflowStore.buildAdapterContext(activeTabRef.value, buildWorkflowOptions({
         adapter: activeDocumentAdapter.value,
         workflowOnly: false,

@@ -332,3 +332,18 @@ pub struct NativeEditorPlanCitationReplacementRequest {
     #[serde(default)]
     pub latex_command: Option<String>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeEditorFileDropInsertionPlan {
+    #[serde(default)]
+    pub text: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeEditorPlanFileDropInsertionRequest {
+    pub source_path: String,
+    #[serde(default)]
+    pub dropped_paths: Vec<String>,
+}

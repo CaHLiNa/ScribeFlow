@@ -17,7 +17,7 @@ use super::protocol::{
 use super::state::{CodexRuntimeHandle, CodexRuntimeState};
 use super::storage::persist_runtime_state;
 use super::tools::{
-    execute_runtime_tool_calls, resolve_runtime_tool_definitions, RuntimeToolCall,
+    execute_runtime_tool_calls, resolve_runtime_tool_definitions_with_context, RuntimeToolCall,
     RuntimeToolResult,
 };
 use super::turns::{build_runtime_item, start_turn};
@@ -936,7 +936,12 @@ pub async fn run_turn<R: Runtime>(
 
     let handle = tokio::spawn(async move {
         let provider_id = provider.provider_id.trim().to_lowercase();
-        let tool_definitions = resolve_runtime_tool_definitions(&enabled_tool_ids);
+        let tool_definitions = resolve_runtime_tool_definitions_with_context(
+            &workspace_path,
+            &enabled_tool_ids,
+            &Value::Null,
+            &[],
+        );
         let client = match reqwest::Client::builder()
             .timeout(Duration::from_secs(180))
             .build()

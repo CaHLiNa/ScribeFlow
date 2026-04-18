@@ -1,4 +1,4 @@
-import { isDraftPath, isNewTab, isPreviewPath } from '../../../utils/fileTypes.js'
+import { isNewTab, isPreviewPath } from '../../../utils/fileTypes.js'
 import { markdownDocumentAdapter } from './markdown.js'
 import { latexDocumentAdapter } from './latex.js'
 
@@ -21,13 +21,12 @@ export function getDocumentAdapterByKind(kind) {
 
 export function getDocumentAdapterForFile(filePath) {
   if (!filePath) return null
-  if (isDraftPath(filePath)) return null
   return DOCUMENT_ADAPTERS.find(adapter => adapter.matchesFile?.(filePath)) || null
 }
 
 export function getDocumentAdapterForWorkflow(filePath) {
   if (!filePath) return null
-  if (isPreviewPath(filePath) || isNewTab(filePath) || isDraftPath(filePath)) {
+  if (isPreviewPath(filePath) || isNewTab(filePath)) {
     return null
   }
   return DOCUMENT_ADAPTERS.find(adapter => adapter.supportsWorkflowSource?.(filePath)) || null

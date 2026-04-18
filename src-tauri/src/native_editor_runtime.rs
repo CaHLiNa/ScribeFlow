@@ -8,7 +8,8 @@ use crate::native_editor_bridge::{
     NativeEditorOpenDocumentRequest, NativeEditorRecordWorkflowEventRequest, NativeEditorSelectionRange,
     NativeEditorSessionSnapshot, NativeEditorSessionStateSnapshot, NativeEditorSetDiagnosticsRequest,
     NativeEditorSetOutlineContextRequest, NativeEditorSetSelectionsRequest,
-    NativeEditorPlanCitationReplacementRequest, NativeEditorWikiLinkMatch,
+    NativeEditorPlanCitationReplacementRequest, NativeEditorPlanFileDropInsertionRequest,
+    NativeEditorFileDropInsertionPlan, NativeEditorWikiLinkMatch,
     NATIVE_EDITOR_EVENT,
 };
 use crate::process_utils::background_tokio_command;
@@ -649,6 +650,94 @@ fn plan_citation_replacement(
     }
 }
 
+fn path_extension_lowercase(path: &str) -> String {
+    PathBuf::from(path)
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| ext.to_ascii_lowercase())
+        .unwrap_or_default()
+}
+
+fn is_image_path(path: &str) -> bool {
+    matches!(
+        path_extension_lowercase(path).as_str(),
+        "png" | "jpg" | "jpeg" | "gif" | "svg" | "webp" | "bmp" | "ico"
+    )
+}
+
+fn is_markdown_path(path: &str) -> bool {
+    matches!(path_extension_lowercase(path).as_str(), "md" | "markdown")
+}
+
+fn is_latex_editor_path(path: &str) -> bool {
+    matches!(path_extension_lowercase(path).as_str(), "tex" | "latex" | "cls" | "sty")
+}
+
+fn relative_path_between_files(from_file: &str, to_file: &str) -> String {
+    let from_dir = PathBuf::from(from_file)
+        .parent()
+        .map(PathBuf::from)
+        .unwrap_or_default();
+    pathdiff::diff_paths(to_file, from_dir)
+        .unwrap_or_else(|| PathBuf::from(to_file))
+        .to_string_lossy()
+        .replace('\\', "/")
+}
+
+fn filename_from_path(path: &str) -> String {
+    PathBuf::from(path)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .map(|name| name.to_string())
+        .unwrap_or_default()
+}
+
+fn stem_from_path(path: &str) -> String {
+    PathBuf::from(path)
+        .file_stem()
+        .and_then(|name| name.to_str())
+        .map(|name| name.to_string())
+        .unwrap_or_default()
+}
+
+fn plan_file_drop_insertion(
+    request: NativeEditorPlanFileDropInsertionRequest,
+) -> Option<NativeEditorFileDropInsertionPlan> {
+    let source_path = request.source_path.trim();
+    if source_path.is_empty() || request.dropped_paths.is_empty() {
+        return None;
+    }
+
+    let text = request
+        .dropped_paths
+        .iter()
+        .map(|path| {
+            let rel_path = relative_path_between_files(source_path, path);
+            let file_name = filename_from_path(path);
+            let stem = stem_from_path(path);
+
+            if is_markdown_path(source_path) {
+                if is_image_path(path) {
+                    format!("![{}]({})", stem, rel_path)
+                } else {
+                    format!("[{}]({})", file_name, rel_path)
+                }
+            } else if is_latex_editor_path(source_path) {
+                if is_image_path(path) {
+                    format!(r"\includegraphics{{{}}}", rel_path)
+                } else {
+                    format!(r"\input{{{}}}", rel_path)
+                }
+            } else {
+                rel_path
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    Some(NativeEditorFileDropInsertionPlan { text })
+}
+
 async fn wait_for_child(child: &mut Child) {
     let _ = child.wait().await;
 }
@@ -894,6 +983,16 @@ pub async fn native_editor_plan_citation_replacement(
         return Ok(None);
     }
     Ok(plan_citation_replacement(request))
+}
+
+#[tauri::command]
+pub async fn native_editor_plan_file_drop_insertion(
+    request: NativeEditorPlanFileDropInsertionRequest,
+) -> Result<Option<NativeEditorFileDropInsertionPlan>, String> {
+    if request.source_path.trim().is_empty() {
+        return Ok(None);
+    }
+    Ok(plan_file_drop_insertion(request))
 }
 
 #[tauri::command]
@@ -1224,5 +1323,33 @@ mod tests {
         .expect("latex insert plan should exist");
 
         assert_eq!(plan.text, r"\citep{smith2020}");
+    }
+
+    #[test]
+    fn native_editor_plans_markdown_file_drop_insertion() {
+        let plan = plan_file_drop_insertion(NativeEditorPlanFileDropInsertionRequest {
+            source_path: "/workspace/notes/paper.md".to_string(),
+            dropped_paths: vec![
+                "/workspace/assets/figure-1.png".to_string(),
+                "/workspace/refs/ref.pdf".to_string(),
+            ],
+        })
+        .expect("file drop plan should exist");
+
+        assert_eq!(plan.text, "![figure-1](../assets/figure-1.png)\n[ref.pdf](../refs/ref.pdf)");
+    }
+
+    #[test]
+    fn native_editor_plans_latex_file_drop_insertion() {
+        let plan = plan_file_drop_insertion(NativeEditorPlanFileDropInsertionRequest {
+            source_path: "/workspace/tex/main.tex".to_string(),
+            dropped_paths: vec![
+                "/workspace/figures/plot.png".to_string(),
+                "/workspace/sections/methods.tex".to_string(),
+            ],
+        })
+        .expect("latex file drop plan should exist");
+
+        assert_eq!(plan.text, "\\includegraphics{../figures/plot.png}\n\\input{../sections/methods.tex}");
     }
 }
