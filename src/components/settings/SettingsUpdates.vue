@@ -15,10 +15,10 @@
 
       <div class="app-description">
         {{ t('Altals is a local-first workspace for academic writing and research.') }}
-        <template v-if="statusMessage">
-          <br />
-          <span class="app-description-muted">{{ statusMessage }}</span>
-        </template>
+      </div>
+
+      <div class="app-status" :class="{ 'is-empty': !statusMessage }" aria-live="polite">
+        <span class="app-description-muted">{{ statusMessage || '\u00A0' }}</span>
       </div>
 
       <div class="app-actions">
@@ -156,12 +156,25 @@ onMounted(async () => {
   font-size: 13px;
   line-height: 1.6;
   color: var(--text-primary);
-  margin-bottom: 32px;
+  margin-bottom: 8px;
   padding: 0 16px;
 }
 
+.app-status {
+  min-height: calc(1.6em * 2);
+  margin-bottom: 24px;
+  padding: 0 16px;
+}
+
+.app-status.is-empty {
+  visibility: hidden;
+}
+
 .app-description-muted {
+  display: block;
   color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.6;
 }
 
 .app-actions {
