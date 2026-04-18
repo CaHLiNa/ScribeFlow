@@ -110,7 +110,9 @@ const normalizedOptions = computed(() =>
 const selectedOption = computed(
   () => normalizedOptions.value.find((o) => o.value === props.modelValue) || null
 )
-const selectedLabel = computed(() => selectedOption.value?.triggerLabel || selectedOption.value?.label || '')
+const selectedLabel = computed(
+  () => selectedOption.value?.triggerLabel || selectedOption.value?.label || ''
+)
 const triggerLabel = computed(() => props.ariaLabel || selectedLabel.value || 'Select')
 
 const shellClassName = computed(() => [

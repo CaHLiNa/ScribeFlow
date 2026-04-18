@@ -523,11 +523,11 @@ watch(
               documentKind: uiState?.kind || 'text',
               previewKind: uiState?.previewKind || null,
             }
-          : null,
+          : null
       )
     }
   },
-  { immediate: true },
+  { immediate: true }
 )
 
 async function closeTab(path) {

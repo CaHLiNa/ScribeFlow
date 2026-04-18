@@ -35,3 +35,36 @@ export function getDocumentAdapterForWorkflow(filePath) {
 export function getCompileAdapterForFile(filePath) {
   return getDocumentAdapterForFile(filePath)?.compile || null
 }
+
+export function getDocumentAdapterCapabilities(filePath, options = {}) {
+  const adapter =
+    options.workflowOnly === false
+      ? getDocumentAdapterForFile(filePath)
+      : getDocumentAdapterForWorkflow(filePath)
+
+  if (!adapter) {
+    return {
+      adapter: null,
+      kind: null,
+      supportsWorkflow: false,
+      supportsPreview: false,
+      supportsCompile: false,
+      supportedPreviewKinds: [],
+      defaultPreviewKind: null,
+    }
+  }
+
+  const supportedPreviewKinds = Array.isArray(adapter.preview?.supportedKinds)
+    ? adapter.preview.supportedKinds.slice()
+    : []
+
+  return {
+    adapter,
+    kind: adapter.kind,
+    supportsWorkflow: true,
+    supportsPreview: supportedPreviewKinds.length > 0,
+    supportsCompile: typeof adapter.compile?.compile === 'function',
+    supportedPreviewKinds,
+    defaultPreviewKind: adapter.preview?.defaultKind || null,
+  }
+}

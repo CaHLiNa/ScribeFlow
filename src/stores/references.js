@@ -1,7 +1,8 @@
 import { defineStore, getActivePinia } from 'pinia'
 import { invoke } from '@tauri-apps/api/core'
 import { t } from '../i18n/index.js'
-import { formatCitationAsync } from '../services/references/citationFormatter.js'
+import { useWorkspaceStore } from './workspace.js'
+import { formatCitation } from '../services/references/citationFormatter.js'
 import {
   getAvailableCitationStyles,
   getCitationStyleInfo,
@@ -29,6 +30,7 @@ import {
   mergeImportedReferences,
   parseReferenceImportText,
 } from '../services/references/bibtexImport.js'
+import { deleteFromZotero, loadZoteroConfig } from '../services/references/zoteroSync.js'
 import { normalizeReferenceSearchTokens } from '../domains/references/referenceInterop.js'
 import { isBrowserPreviewRuntime } from '../app/browserPreview/routes.js'
 
@@ -166,7 +168,6 @@ function referenceHasPdf(reference = {}) {
 
 async function shouldMarkReferenceForZoteroPush() {
   try {
-    const { loadZoteroConfig } = await import('../services/references/zoteroSync.js')
     const config = await loadZoteroConfig()
     return Boolean(config?.pushTarget)
   } catch {
@@ -435,15 +436,13 @@ export const useReferencesStore = defineStore('references', {
         return []
       }
 
-      const workspaceModule = await import('../stores/workspace.js')
-      const workspace = workspaceModule.useWorkspaceStore()
+      const workspace = useWorkspaceStore()
       const workspacePath = String(workspace.path || '').trim()
       if (!workspacePath) {
         setUserCitationStyles([])
         return []
       }
 
-      const { invoke } = await import('@tauri-apps/api/core')
       const styles = await invoke('references_scan_workspace_styles', {
         params: {
           workspacePath,
@@ -802,9 +801,7 @@ export const useReferencesStore = defineStore('references', {
       await this.persistLibrarySnapshot(projectRoot)
 
       if (target._pushedByShoulders && target._zoteroKey) {
-        import('../services/references/zoteroSync.js')
-          .then(({ deleteFromZotero }) => deleteFromZotero(target))
-          .catch(() => {})
+        deleteFromZotero(target).catch(() => {})
       }
       return true
     },
@@ -894,7 +891,7 @@ export const useReferencesStore = defineStore('references', {
     async formatReferenceCitationAsync(referenceId = '', mode = 'reference', number) {
       const reference = this.references.find((candidate) => candidate.id === referenceId)
       if (!reference) return ''
-      return formatCitationAsync(this.citationStyle, mode, reference, number)
+      return formatCitation(this.citationStyle, mode, reference, number)
     },
 
     cleanup() {

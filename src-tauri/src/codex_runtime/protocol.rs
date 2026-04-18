@@ -225,10 +225,6 @@ pub struct RuntimePermissionResolveParams {
     pub request_id: String,
     #[serde(default)]
     pub behavior: String,
-    #[serde(default)]
-    pub persist: bool,
-    #[serde(default)]
-    pub message: String,
 }
 
 #[derive(Debug, Clone, Serialize)]

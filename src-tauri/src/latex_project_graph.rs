@@ -29,7 +29,6 @@ pub struct LatexAffectedRootsParams {
 
 #[derive(Debug, Clone)]
 struct FileRecord {
-    file_path: String,
     content: String,
     magic_root_path: String,
     is_root_like: bool,
@@ -83,15 +82,6 @@ fn basename_path(path: &str) -> String {
 
 fn resolve_relative_path(base_dir: &str, raw_path: &str) -> String {
     normalize_fs_path(&Path::new(base_dir).join(raw_path).to_string_lossy())
-}
-
-fn relative_path_between(from_file: &str, to_file: &str) -> String {
-    let from_dir = Path::new(from_file)
-        .parent()
-        .unwrap_or_else(|| Path::new(""));
-    pathdiff::diff_paths(to_file, from_dir)
-        .map(|value| normalize_fs_path(&value.to_string_lossy()))
-        .unwrap_or_else(|| normalize_fs_path(to_file))
 }
 
 fn normalize_title(value: &str) -> String {
@@ -536,7 +526,6 @@ fn parse_file_record(
     let normalized = normalize_fs_path(file_path);
     let content = read_text_file(&normalized, content_overrides);
     FileRecord {
-        file_path: normalized.clone(),
         magic_root_path: parse_magic_root(&content, &normalized, available_paths),
         is_root_like: has_root_indicator(&content),
         sections: parse_sections(&content, &normalized),

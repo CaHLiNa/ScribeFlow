@@ -12,11 +12,13 @@ import {
   isDocumentWorkflowSource,
 } from '../services/documentWorkflow/policy.js'
 import {
+  getDocumentAdapterCapabilities,
   getDocumentAdapterByKind,
+  getDocumentAdapterForFile,
+  getDocumentAdapterForWorkflow,
   listWorkflowDocumentAdapters,
 } from '../services/documentWorkflow/adapters/index.js'
 import { createDocumentWorkflowRuntime } from '../domains/document/documentWorkflowRuntime.js'
-import { createDocumentWorkflowAdaptersRuntime } from '../domains/document/documentWorkflowAdaptersRuntime.js'
 import { createDocumentWorkflowBuildRuntime } from '../domains/document/documentWorkflowBuildRuntime.js'
 import { createDocumentWorkflowBuildOperationRuntime } from '../domains/document/documentWorkflowBuildOperationRuntime.js'
 import { createDocumentWorkflowActionRuntime } from '../domains/document/documentWorkflowActionRuntime.js'
@@ -126,13 +128,6 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
         })
       }
       return this._documentWorkflowRuntime
-    },
-
-    _getDocumentWorkflowAdaptersRuntime() {
-      if (!this._documentWorkflowAdaptersRuntime) {
-        this._documentWorkflowAdaptersRuntime = createDocumentWorkflowAdaptersRuntime()
-      }
-      return this._documentWorkflowAdaptersRuntime
     },
 
     _getDocumentWorkflowBuildRuntime() {
@@ -409,11 +404,14 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
     },
 
     getAdapterForFile(filePath, options = {}) {
-      return this._getDocumentWorkflowAdaptersRuntime().resolveForFile(filePath, options)
+      if (options.workflowOnly === false) {
+        return getDocumentAdapterForFile(filePath)
+      }
+      return getDocumentAdapterForWorkflow(filePath)
     },
 
     getAdapterCapabilitiesForFile(filePath, options = {}) {
-      return this._getDocumentWorkflowAdaptersRuntime().resolveCapabilities(filePath, options)
+      return getDocumentAdapterCapabilities(filePath, options)
     },
 
     buildAdapterContext(filePath, options = {}) {

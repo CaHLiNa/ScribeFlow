@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
+import { useWorkspaceStore } from '../../stores/workspace.js'
 import { cslToReferenceRecord, referenceRecordToCsl } from '../../domains/references/referenceInterop.js'
 
 const FAST_STYLE_IDS = new Set(['apa', 'chicago', 'harvard', 'ieee', 'vancouver'])
@@ -15,7 +16,6 @@ function requireTauriInvoke() {
 
 async function resolveWorkspacePath() {
   try {
-    const { useWorkspaceStore } = await import('../../stores/workspace.js')
     const workspace = useWorkspaceStore()
     return String(workspace.projectDir || workspace.path || '').trim()
   } catch {
@@ -87,12 +87,4 @@ export async function formatBibliography(style = 'apa', references = []) {
     )
   }
   return formatFromCsl(style, 'bibliography', references.map((reference) => referenceRecordToCsl(reference)))
-}
-
-export async function formatCitationAsync(style = 'apa', mode = 'reference', reference = {}, number) {
-  return formatCitation(style, mode, reference, number)
-}
-
-export async function formatBibliographyAsync(style = 'apa', references = []) {
-  return formatBibliography(style, references)
 }

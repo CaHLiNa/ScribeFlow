@@ -72,142 +72,147 @@
     </template>
 
     <template v-else>
-    <h3 class="settings-section-title">{{ t('References') }}</h3>
+      <h3 class="settings-section-title">{{ t('References') }}</h3>
 
-    <section class="settings-group">
-      <h4 class="settings-group-title">{{ t('Account') }}</h4>
-      <div class="settings-group-body">
-        <div v-if="connected" class="settings-row">
-          <div class="settings-row-copy">
-            <div class="settings-row-title">{{ config.username || t('Connected') }}</div>
-          </div>
-          <div class="settings-row-control compact">
-            <UiButton variant="danger" size="sm" @click="handleDisconnect">
-              {{ t('Disconnect') }}
-            </UiButton>
-          </div>
-        </div>
-
-        <template v-else>
-          <div class="settings-row">
+      <section class="settings-group">
+        <h4 class="settings-group-title">{{ t('Account') }}</h4>
+        <div class="settings-group-body">
+          <div v-if="connected" class="settings-row">
             <div class="settings-row-copy">
-              <div class="settings-row-title">{{ t('User ID') }}</div>
-            </div>
-            <div class="settings-row-control">
-              <UiInput v-model="userId" size="sm" placeholder="12345678" />
-            </div>
-          </div>
-
-          <div class="settings-row">
-            <div class="settings-row-copy">
-              <div class="settings-row-title">{{ t('API Key') }}</div>
-            </div>
-            <div class="settings-row-control">
-              <UiInput v-model="apiKey" size="sm" type="password" placeholder="xxxxxxxxxxxxxxxx" />
-            </div>
-          </div>
-
-          <div class="settings-row">
-            <div class="settings-row-copy">
-              <div class="settings-row-title">{{ t('Connect') }}</div>
+              <div class="settings-row-title">{{ config.username || t('Connected') }}</div>
             </div>
             <div class="settings-row-control compact">
-              <UiButton
-                variant="secondary"
-                size="sm"
-                :disabled="loading || !userId.trim() || !apiKey.trim()"
-                @click="handleConnect"
-              >
-                {{ loading ? t('Connecting...') : t('Connect to Zotero') }}
+              <UiButton variant="danger" size="sm" @click="handleDisconnect">
+                {{ t('Disconnect') }}
               </UiButton>
             </div>
           </div>
-        </template>
 
-        <div v-if="error" class="settings-inline-message settings-inline-message-error">
-          {{ error }}
-        </div>
-      </div>
-    </section>
-
-    <section v-if="connected" class="settings-group">
-      <h4 class="settings-group-title">{{ t('Citations') }}</h4>
-      <div class="settings-group-body">
-        <div class="settings-row">
-          <div class="settings-row-copy">
-            <div class="settings-row-title">{{ t('Citation style') }}</div>
-          </div>
-          <div class="settings-row-control">
-            <UiSelect
-              :model-value="citationStyle"
-              :options="citationStyleOptions"
-              size="sm"
-              @update:model-value="handleCitationStyleChange"
-            />
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section v-if="connected" class="settings-group">
-      <h4 class="settings-group-title">{{ t('Sync') }}</h4>
-      <div class="settings-group-body">
-        <div class="settings-row">
-          <div class="settings-row-copy">
-            <div class="settings-row-title">{{ t('Auto-sync on workspace open') }}</div>
-          </div>
-          <div class="settings-row-control compact">
-            <UiSwitch :model-value="autoSync" @update:model-value="toggleAutoSync" />
-          </div>
-        </div>
-
-        <div class="settings-row">
-          <div class="settings-row-copy">
-            <div class="settings-row-title">{{ t('Libraries to sync') }}</div>
-          </div>
-          <div class="settings-row-control">
-            <div class="settings-checklist">
-              <UiCheckbox
-                v-for="group in groups || []"
-                :key="group.id"
-                :model-value="selectedGroupIds.has(group.id)"
-                @update:model-value="toggleGroup(group.id)"
-              >
-                {{ group.name }}
-              </UiCheckbox>
-              <div v-if="!groups || groups.length === 0" class="settings-inline-message">
-                {{ t('No group libraries.') }}
+          <template v-else>
+            <div class="settings-row">
+              <div class="settings-row-copy">
+                <div class="settings-row-title">{{ t('User ID') }}</div>
               </div>
+              <div class="settings-row-control">
+                <UiInput v-model="userId" size="sm" placeholder="12345678" />
+              </div>
+            </div>
+
+            <div class="settings-row">
+              <div class="settings-row-copy">
+                <div class="settings-row-title">{{ t('API Key') }}</div>
+              </div>
+              <div class="settings-row-control">
+                <UiInput
+                  v-model="apiKey"
+                  size="sm"
+                  type="password"
+                  placeholder="xxxxxxxxxxxxxxxx"
+                />
+              </div>
+            </div>
+
+            <div class="settings-row">
+              <div class="settings-row-copy">
+                <div class="settings-row-title">{{ t('Connect') }}</div>
+              </div>
+              <div class="settings-row-control compact">
+                <UiButton
+                  variant="secondary"
+                  size="sm"
+                  :disabled="loading || !userId.trim() || !apiKey.trim()"
+                  @click="handleConnect"
+                >
+                  {{ loading ? t('Connecting...') : t('Connect to Zotero') }}
+                </UiButton>
+              </div>
+            </div>
+          </template>
+
+          <div v-if="error" class="settings-inline-message settings-inline-message-error">
+            {{ error }}
+          </div>
+        </div>
+      </section>
+
+      <section v-if="connected" class="settings-group">
+        <h4 class="settings-group-title">{{ t('Citations') }}</h4>
+        <div class="settings-group-body">
+          <div class="settings-row">
+            <div class="settings-row-copy">
+              <div class="settings-row-title">{{ t('Citation style') }}</div>
+            </div>
+            <div class="settings-row-control">
+              <UiSelect
+                :model-value="citationStyle"
+                :options="citationStyleOptions"
+                size="sm"
+                @update:model-value="handleCitationStyleChange"
+              />
             </div>
           </div>
         </div>
+      </section>
 
-        <div class="settings-row">
-          <div class="settings-row-copy">
-            <div class="settings-row-title">{{ t('Push new references to') }}</div>
+      <section v-if="connected" class="settings-group">
+        <h4 class="settings-group-title">{{ t('Sync') }}</h4>
+        <div class="settings-group-body">
+          <div class="settings-row">
+            <div class="settings-row-copy">
+              <div class="settings-row-title">{{ t('Auto-sync on workspace open') }}</div>
+            </div>
+            <div class="settings-row-control compact">
+              <UiSwitch :model-value="autoSync" @update:model-value="toggleAutoSync" />
+            </div>
           </div>
-          <div class="settings-row-control">
-            <UiSelect
-              :model-value="pushTargetValue"
-              :options="pushTargetOptions"
-              size="sm"
-              @update:model-value="handlePushTargetChange"
-            />
+
+          <div class="settings-row">
+            <div class="settings-row-copy">
+              <div class="settings-row-title">{{ t('Libraries to sync') }}</div>
+            </div>
+            <div class="settings-row-control">
+              <div class="settings-checklist">
+                <UiCheckbox
+                  v-for="group in groups || []"
+                  :key="group.id"
+                  :model-value="selectedGroupIds.has(group.id)"
+                  @update:model-value="toggleGroup(group.id)"
+                >
+                  {{ group.name }}
+                </UiCheckbox>
+                <div v-if="!groups || groups.length === 0" class="settings-inline-message">
+                  {{ t('No group libraries.') }}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-row">
+            <div class="settings-row-copy">
+              <div class="settings-row-title">{{ t('Push new references to') }}</div>
+            </div>
+            <div class="settings-row-control">
+              <UiSelect
+                :model-value="pushTargetValue"
+                :options="pushTargetOptions"
+                size="sm"
+                @update:model-value="handlePushTargetChange"
+              />
+            </div>
+          </div>
+
+          <div class="settings-row">
+            <div class="settings-row-copy">
+              <div class="settings-row-title">{{ t('Sync Now') }}</div>
+            </div>
+            <div class="settings-row-control compact">
+              <UiButton variant="secondary" size="sm" :disabled="loading" @click="handleSyncNow">
+                {{ loading ? t('Syncing...') : t('Sync Now') }}
+              </UiButton>
+            </div>
           </div>
         </div>
-
-        <div class="settings-row">
-          <div class="settings-row-copy">
-            <div class="settings-row-title">{{ t('Sync Now') }}</div>
-          </div>
-          <div class="settings-row-control compact">
-            <UiButton variant="secondary" size="sm" :disabled="loading" @click="handleSyncNow">
-              {{ loading ? t('Syncing...') : t('Sync Now') }}
-            </UiButton>
-          </div>
-        </div>
-      </div>
-    </section>
+      </section>
     </template>
   </div>
 </template>

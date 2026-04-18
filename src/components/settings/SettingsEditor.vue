@@ -122,7 +122,6 @@
         </div>
       </div>
     </section>
-
   </div>
 </template>
 
@@ -175,7 +174,11 @@ const WRAP_PRESETS = [
   padding: 12px;
   border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
   border-radius: 12px;
-  background: color-mix(in srgb, var(--surface-elevated, var(--surface-secondary)) 78%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--surface-elevated, var(--surface-secondary)) 78%,
+    transparent
+  );
 }
 
 .settings-debug-grid {

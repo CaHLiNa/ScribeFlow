@@ -26,7 +26,11 @@
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('Skill precedence') }}</div>
             <div class="settings-row-hint">
-              {{ t('Use $skill to pin a workflow explicitly. If you also name #tool, the skill still defines the workflow and the tool request narrows execution inside it.') }}
+              {{
+                t(
+                  'Use $skill to pin a workflow explicitly. If you also name #tool, the skill still defines the workflow and the tool request narrows execution inside it.'
+                )
+              }}
             </div>
           </div>
         </div>

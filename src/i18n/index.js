@@ -38,9 +38,7 @@ export function resolveMessageKey(key) {
 export function t(key, vars) {
   const resolvedKey = resolveMessageKey(key)
   const message =
-    locale.value === 'zh-CN'
-      ? (translationMessages.value[resolvedKey] ?? resolvedKey)
-      : resolvedKey
+    locale.value === 'zh-CN' ? (translationMessages.value[resolvedKey] ?? resolvedKey) : resolvedKey
   return interpolate(message, vars)
 }
 

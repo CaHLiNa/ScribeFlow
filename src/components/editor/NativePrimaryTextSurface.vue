@@ -113,9 +113,7 @@ const citPalette = reactive({
 const isDraftFile = isDraftPath(props.filePath)
 const isMarkdownFile = isMarkdown(props.filePath)
 const isLatexFile = isLatexEditorFile(props.filePath)
-const fileKind = computed(() =>
-  isLatexFile ? 'latex' : isMarkdownFile ? 'markdown' : 'text'
-)
+const fileKind = computed(() => (isLatexFile ? 'latex' : isMarkdownFile ? 'markdown' : 'text'))
 const nativeDocument = computed(() => editorRuntimeStore.nativeDocuments?.[props.filePath] || null)
 const currentContent = computed(() =>
   typeof nativeDocument.value?.text === 'string'
@@ -677,13 +675,17 @@ function attachWindowWorkflowListeners() {
       const targetFile = String(detail.file || detail.filePath || '').replace(/\\/g, '/')
       const currentFile = String(props.filePath || '').replace(/\\/g, '/')
       if (targetFile && targetFile !== currentFile) {
-        await revealLatexSourceLocation(editorStore, {
-          ...detail,
-          filePath: targetFile,
-        }, {
-          paneId: props.paneId,
-          center: true,
-        })
+        await revealLatexSourceLocation(
+          editorStore,
+          {
+            ...detail,
+            filePath: targetFile,
+          },
+          {
+            paneId: props.paneId,
+            center: true,
+          }
+        )
         return
       }
       const offset = lineColumnToOffset(draftText.value, detail.line, detail.column)

@@ -1,5 +1,4 @@
 use serde::Deserialize;
-use serde_json::json;
 use tauri::State;
 
 use crate::ai_session_storage::{
@@ -34,8 +33,6 @@ pub struct AiClientSessionEnsureThreadParams {
     pub session_id: String,
     #[serde(default)]
     pub preferred_title: String,
-    #[serde(default)]
-    pub fallback_title: String,
     #[serde(default)]
     pub cwd: String,
 }

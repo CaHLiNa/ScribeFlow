@@ -17,8 +17,6 @@ struct CitationCslFormatParams {
     #[serde(default)]
     pub csl_items: Vec<Value>,
     #[serde(default)]
-    pub number: Option<usize>,
-    #[serde(default)]
     pub locale: String,
     #[serde(default)]
     pub workspace_path: String,
@@ -681,7 +679,6 @@ pub async fn references_citation_render(params: CitationRenderParams) -> Result<
         style_id: style.to_string(),
         mode: mode.to_string(),
         csl_items: params.csl_items,
-        number: params.number,
         locale: params.locale,
         workspace_path: params.workspace_path,
     })

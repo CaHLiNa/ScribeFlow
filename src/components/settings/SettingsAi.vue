@@ -60,7 +60,6 @@
           <!-- Collapsible Body -->
           <transition name="ai-provider-collapse">
             <div class="settings-ai-provider-body" v-show="expandedProvider === provider.id">
-              
               <div class="settings-ai-provider-group">
                 <div class="settings-row settings-ai-provider-row">
                   <div class="settings-row-copy">
@@ -104,10 +103,7 @@
                     />
                   </div>
                 </div>
-                <div
-                  v-if="getProviderModelMeta(provider.id)"
-                  class="settings-ai-provider-row-meta"
-                >
+                <div v-if="getProviderModelMeta(provider.id)" class="settings-ai-provider-row-meta">
                   {{ getProviderModelMeta(provider.id) }}
                 </div>
 
@@ -168,7 +164,8 @@
                 v-if="getProviderFeedback(provider.id)"
                 class="settings-inline-message"
                 :class="{
-                  'settings-inline-message-error': getProviderFeedback(provider.id)?.type === 'error',
+                  'settings-inline-message-error':
+                    getProviderFeedback(provider.id)?.type === 'error',
                 }"
               >
                 {{ getProviderFeedback(provider.id)?.message }}
@@ -203,7 +200,10 @@
           </UiButton>
         </div>
 
-        <div v-if="extensionCatalogError" class="settings-inline-message settings-inline-message-error">
+        <div
+          v-if="extensionCatalogError"
+          class="settings-inline-message settings-inline-message-error"
+        >
           {{ extensionCatalogError }}
         </div>
 
@@ -224,9 +224,7 @@
               <div class="settings-ai-extension-name">{{ server.name }}</div>
               <div class="settings-ai-extension-subtitle">
                 {{ server.transport }}
-                <template v-if="server.sourceScope">
-                  · {{ server.sourceScope }}
-                </template>
+                <template v-if="server.sourceScope"> · {{ server.sourceScope }} </template>
               </div>
               <div
                 v-if="getExtensionProbeSummary(server.id)"
@@ -263,10 +261,7 @@ import { useToastStore } from '../../stores/toast'
 import { useI18n } from '../../i18n'
 import { useAiStore } from '../../stores/ai'
 import { useWorkspaceStore } from '../../stores/workspace'
-import {
-  loadAiExtensionCatalog,
-  probeAiExtensionMcpServer,
-} from '../../services/ai/extensions.js'
+import { loadAiExtensionCatalog, probeAiExtensionMcpServer } from '../../services/ai/extensions.js'
 import UiButton from '../shared/ui/UiButton.vue'
 import UiInput from '../shared/ui/UiInput.vue'
 import UiSelect from '../shared/ui/UiSelect.vue'
@@ -526,7 +521,8 @@ function getProviderModelMeta(providerId = '') {
 async function refreshProviderModels(providerId = '', { force = false } = {}) {
   const normalizedProviderId = String(providerId || '').trim()
   if (!normalizedProviderId) return []
-  if (isLoadingProviderModels(normalizedProviderId)) return getProviderModelOptions(normalizedProviderId)
+  if (isLoadingProviderModels(normalizedProviderId))
+    return getProviderModelOptions(normalizedProviderId)
   if (!force && getProviderModelOptions(normalizedProviderId).length > 0) {
     return getProviderModelOptions(normalizedProviderId)
   }
@@ -583,7 +579,10 @@ async function loadState() {
     providerDefinitions.value = await listAiProviderDefinitions()
     const config = await loadAiConfig()
     const keyEntries = await Promise.all(
-      providerDefinitions.value.map(async (provider) => [provider.id, await loadAiApiKey(provider.id)])
+      providerDefinitions.value.map(async (provider) => [
+        provider.id,
+        await loadAiApiKey(provider.id),
+      ])
     )
 
     providerForms.value = Object.fromEntries(
@@ -598,7 +597,9 @@ async function loadState() {
     loadedConfig.value = config
     await aiStore.refreshProviderState()
   } catch (error) {
-    toastStore.show(normalizeErrorMessage(error, t('Failed to load AI settings.')), { type: 'error' })
+    toastStore.show(normalizeErrorMessage(error, t('Failed to load AI settings.')), {
+      type: 'error',
+    })
   } finally {
     saving.value = false
   }
@@ -718,7 +719,9 @@ async function handleSave() {
     }
     toastStore.show(t('All AI provider settings saved.'))
   } catch (error) {
-    toastStore.show(normalizeErrorMessage(error, t('Failed to save AI settings.')), { type: 'error' })
+    toastStore.show(normalizeErrorMessage(error, t('Failed to save AI settings.')), {
+      type: 'error',
+    })
   } finally {
     saving.value = false
   }
@@ -781,7 +784,9 @@ async function handleClearProvider(providerId = '') {
     await persistAllProviders()
     toastStore.show(`${findProviderDefinition(providerId).label} · ${t('AI settings cleared.')}`)
   } catch (error) {
-    toastStore.show(normalizeErrorMessage(error, t('Failed to clear AI settings.')), { type: 'error' })
+    toastStore.show(normalizeErrorMessage(error, t('Failed to clear AI settings.')), {
+      type: 'error',
+    })
   } finally {
     saving.value = false
   }

@@ -9,7 +9,11 @@
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('Tool registry') }}</div>
             <div class="settings-row-hint">
-              {{ t('Core workspace tools are built in for every agent run. Only risky tools stay configurable here.') }}
+              {{
+                t(
+                  'Core workspace tools are built in for every agent run. Only risky tools stay configurable here.'
+                )
+              }}
             </div>
           </div>
 
@@ -38,7 +42,11 @@
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('How skills and tools are chosen') }}</div>
             <div class="settings-row-hint">
-              {{ t('Altals resolves explicit requests first, then falls back to built-in local capability before external MCP tools.') }}
+              {{
+                t(
+                  'Altals resolves explicit requests first, then falls back to built-in local capability before external MCP tools.'
+                )
+              }}
             </div>
           </div>
 
@@ -46,19 +54,35 @@
             <div class="settings-ai-precedence-item">
               <div class="settings-ai-precedence-label">{{ t('1. $skill sets the workflow') }}</div>
               <div class="settings-ai-precedence-copy">
-                {{ t('When you explicitly invoke a skill, that skill becomes the active workflow instead of prompt-based inference.') }}
+                {{
+                  t(
+                    'When you explicitly invoke a skill, that skill becomes the active workflow instead of prompt-based inference.'
+                  )
+                }}
               </div>
             </div>
             <div class="settings-ai-precedence-item">
-              <div class="settings-ai-precedence-label">{{ t('2. #tool narrows tool choice') }}</div>
+              <div class="settings-ai-precedence-label">
+                {{ t('2. #tool narrows tool choice') }}
+              </div>
               <div class="settings-ai-precedence-copy">
-                {{ t('When you explicitly name tools, Altals prefers those tools inside the selected workflow before implicit tool choice.') }}
+                {{
+                  t(
+                    'When you explicitly name tools, Altals prefers those tools inside the selected workflow before implicit tool choice.'
+                  )
+                }}
               </div>
             </div>
             <div class="settings-ai-precedence-item">
-              <div class="settings-ai-precedence-label">{{ t('3. Built-in before MCP by default') }}</div>
+              <div class="settings-ai-precedence-label">
+                {{ t('3. Built-in before MCP by default') }}
+              </div>
               <div class="settings-ai-precedence-copy">
-                {{ t('Without an explicit #tool request, Altals prefers built-in workspace tools for local file work and reaches for MCP only when external capability is needed.') }}
+                {{
+                  t(
+                    'Without an explicit #tool request, Altals prefers built-in workspace tools for local file work and reaches for MCP only when external capability is needed.'
+                  )
+                }}
               </div>
             </div>
           </div>
@@ -73,7 +97,11 @@
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('Runtime tool catalog') }}</div>
             <div class="settings-row-hint">
-              {{ t('These tools are currently available to the agent. Built-in tools stay local. MCP tools come from connected external servers.') }}
+              {{
+                t(
+                  'These tools are currently available to the agent. Built-in tools stay local. MCP tools come from connected external servers.'
+                )
+              }}
             </div>
           </div>
 
@@ -85,7 +113,9 @@
             >
               <div class="settings-ai-runtime-group-header">
                 <div class="settings-ai-runtime-group-title">{{ t(group.label) }}</div>
-                <div class="settings-ai-runtime-group-meta">{{ t('{count} available', { count: group.items.length }) }}</div>
+                <div class="settings-ai-runtime-group-meta">
+                  {{ t('{count} available', { count: group.items.length }) }}
+                </div>
               </div>
 
               <div class="settings-ai-runtime-tool-list">
@@ -97,11 +127,10 @@
                 >
                   <div class="settings-ai-runtime-tool-copy">
                     <div class="settings-ai-runtime-tool-topline">
-                      <span class="settings-ai-runtime-tool-label">{{ t(tool.labelKey || tool.label) }}</span>
-                      <span
-                        v-if="tool.external"
-                        class="settings-ai-runtime-tool-badge"
-                      >
+                      <span class="settings-ai-runtime-tool-label">{{
+                        t(tool.labelKey || tool.label)
+                      }}</span>
+                      <span v-if="tool.external" class="settings-ai-runtime-tool-badge">
                         {{ t('External') }}
                       </span>
                     </div>
@@ -109,7 +138,9 @@
                       {{ t(tool.descriptionKey || tool.description) }}
                     </div>
                     <div class="settings-ai-runtime-tool-meta">
-                      <span>{{ t('Invoke with #{name}', { name: tool.invocationName || tool.id }) }}</span>
+                      <span>{{
+                        t('Invoke with #{name}', { name: tool.invocationName || tool.id })
+                      }}</span>
                       <span v-if="tool.sourceLabel && tool.sourceKind === 'mcp'">
                         {{ t('Provided by {name}', { name: tool.sourceLabel }) }}
                       </span>
@@ -122,10 +153,7 @@
               </div>
             </div>
 
-            <div
-              v-if="runtimeToolGroups.length === 0"
-              class="settings-row-hint"
-            >
+            <div v-if="runtimeToolGroups.length === 0" class="settings-row-hint">
               {{ t('No runtime tools are currently available.') }}
             </div>
           </div>
@@ -206,9 +234,7 @@ async function loadState() {
     toolDefinitions.value = Array.isArray(catalog?.configurableTools)
       ? catalog.configurableTools
       : []
-    runtimeTools.value = Array.isArray(catalog?.runtimeTools)
-      ? catalog.runtimeTools
-      : []
+    runtimeTools.value = Array.isArray(catalog?.runtimeTools) ? catalog.runtimeTools : []
     enabledTools.value = Array.isArray(catalog?.normalizedEnabledToolIds)
       ? catalog.normalizedEnabledToolIds
       : []
@@ -237,9 +263,7 @@ async function toggleTool(toolId = '', nextValue = false) {
     const nextEnabledTools = Array.isArray(catalog?.normalizedEnabledToolIds)
       ? catalog.normalizedEnabledToolIds
       : []
-    runtimeTools.value = Array.isArray(catalog?.runtimeTools)
-      ? catalog.runtimeTools
-      : []
+    runtimeTools.value = Array.isArray(catalog?.runtimeTools) ? catalog.runtimeTools : []
     enabledTools.value = nextEnabledTools
 
     const currentConfig = loadedConfig.value || (await invoke('ai_config_load'))

@@ -57,7 +57,9 @@ const browserPreview = isBrowserPreviewRuntime()
 const AGENT_SETTINGS_SUBPAGES = Object.freeze(['models', 'skills', 'tools'])
 
 function normalizeAgentSubpage(value = '') {
-  const normalized = String(value || '').trim().toLowerCase()
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase()
   if (normalized === 'runtime') return 'models'
   return AGENT_SETTINGS_SUBPAGES.includes(normalized) ? normalized : 'models'
 }
