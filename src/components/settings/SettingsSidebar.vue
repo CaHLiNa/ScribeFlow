@@ -12,10 +12,6 @@
       >
         <IconArrowLeft :size="18" :stroke-width="2" />
       </UiButton>
-
-      <div class="settings-sidebar-header-copy" aria-hidden="true">
-        <span class="settings-sidebar-title">{{ t('Settings') }}</span>
-      </div>
     </div>
 
     <nav class="settings-sidebar-nav" :aria-label="t('Settings sections')">
@@ -89,21 +85,7 @@ const activeSection = computed(() => normalizeSettingsSectionId(workspace.settin
 .settings-sidebar-header {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 0 12px 16px;
-}
-
-.settings-sidebar-header-copy {
-  min-width: 0;
-}
-
-.settings-sidebar-title {
-  display: inline-flex;
-  align-items: center;
-  font-size: 12px;
-  font-weight: var(--font-weight-medium);
-  letter-spacing: 0.02em;
-  color: color-mix(in srgb, var(--text-secondary) 82%, transparent);
+  padding: 0 12px 10px;
 }
 
 .settings-sidebar-nav {
