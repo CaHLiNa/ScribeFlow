@@ -462,7 +462,7 @@ export const useReferencesStore = defineStore('references', {
       const importedReferences = await parseReferenceImportText(content, format)
       const shouldMark = importedReferences.length > 0 ? await shouldMarkReferenceForZoteroPush() : false
       const markedReferences = shouldMark
-        ? importedReferences.map((reference) => ({ ...reference, _shouldersPushPending: true }))
+        ? importedReferences.map((reference) => ({ ...reference, _appPushPending: true }))
         : importedReferences
       const mergedReferences = await mergeImportedReferences(this.references, markedReferences)
       const importedCount = Math.max(0, mergedReferences.length - this.references.length)
@@ -508,7 +508,7 @@ export const useReferencesStore = defineStore('references', {
 
         const shouldMark = await shouldMarkReferenceForZoteroPush()
         const markedReferences = shouldMark
-          ? importedReferences.map((reference) => ({ ...reference, _shouldersPushPending: true }))
+          ? importedReferences.map((reference) => ({ ...reference, _appPushPending: true }))
           : importedReferences
         const mergedReferences = await mergeImportedReferences(this.references, markedReferences)
         const importedCount = Math.max(0, mergedReferences.length - this.references.length)
@@ -758,7 +758,7 @@ export const useReferencesStore = defineStore('references', {
       const shouldMark = markForZoteroPush ? await shouldMarkReferenceForZoteroPush() : false
       const nextReference = {
         ...reference,
-        _shouldersPushPending: shouldMark ? true : reference._shouldersPushPending === true,
+        _appPushPending: shouldMark ? true : reference._appPushPending === true,
       }
 
       this.references = [...this.references, nextReference]
@@ -800,7 +800,7 @@ export const useReferencesStore = defineStore('references', {
       }
       await this.persistLibrarySnapshot(projectRoot)
 
-      if (target._pushedByShoulders && target._zoteroKey) {
+      if (target._pushedByApp && target._zoteroKey) {
         deleteFromZotero(target).catch(() => {})
       }
       return true

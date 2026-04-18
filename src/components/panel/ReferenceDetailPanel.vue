@@ -609,8 +609,8 @@ async function handleRefreshMetadata() {
       _zoteroKey: reference._zoteroKey,
       _zoteroLibrary: reference._zoteroLibrary,
       _importMethod: reference._importMethod,
-      _pushedByShoulders: reference._pushedByShoulders,
-      _shouldersPushPending: reference._shouldersPushPending,
+      _pushedByApp: reference._pushedByApp,
+      _appPushPending: reference._appPushPending,
     })
     
     // 手动刷新以体现服务端数据拉取结果

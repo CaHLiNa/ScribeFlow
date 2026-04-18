@@ -25,7 +25,7 @@ export function persistRecentFilesForWorkspace(workspacePath, recentFiles = []) 
 }
 
 export function scheduleEditorStateSave({
-  shouldersDir,
+  workspaceDataDir,
   paneTree,
   activePaneId,
   legacyPreviewPaths,
@@ -33,19 +33,19 @@ export function scheduleEditorStateSave({
 } = {}) {
   clearTimeout(saveStateTimer)
   saveStateTimer = setTimeout(() => {
-    void saveState(shouldersDir, paneTree, activePaneId, { legacyPreviewPaths })
+    void saveState(workspaceDataDir, paneTree, activePaneId, { legacyPreviewPaths })
   }, delayMs)
 }
 
 export async function flushEditorStateSave({
-  shouldersDir,
+  workspaceDataDir,
   paneTree,
   activePaneId,
   legacyPreviewPaths,
 } = {}) {
   clearTimeout(saveStateTimer)
   saveStateTimer = null
-  await saveState(shouldersDir, paneTree, activePaneId, { legacyPreviewPaths })
+  await saveState(workspaceDataDir, paneTree, activePaneId, { legacyPreviewPaths })
 }
 
 export function cancelEditorStateSave() {
@@ -53,6 +53,6 @@ export function cancelEditorStateSave() {
   saveStateTimer = null
 }
 
-export async function loadEditorStateSnapshot(shouldersDir) {
-  return loadState(shouldersDir)
+export async function loadEditorStateSnapshot(workspaceDataDir) {
+  return loadState(workspaceDataDir)
 }

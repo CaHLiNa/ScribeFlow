@@ -43,7 +43,7 @@ import { useEditorRuntimeStore } from '../../stores/editorRuntime'
 import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { useFilesStore } from '../../stores/files'
 import { isMarkdown, isLatex, getViewerType } from '../../utils/fileTypes'
-import { buildMarkdownOutlineItems } from '../../services/markdown/outline'
+import { extractMarkdownHeadingItems } from '../../services/markdown/parser.js'
 import { useI18n } from '../../i18n'
 
 const props = defineProps({
@@ -122,7 +122,7 @@ async function refreshMarkdownOutline() {
   }
 
   try {
-    const items = await buildMarkdownOutlineItems(content)
+    const items = await extractMarkdownHeadingItems(content)
     if (requestId === markdownOutlineRequestId && activeFile.value === path) {
       markdownOutlineItems.value = Array.isArray(items) ? items : []
     }

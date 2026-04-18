@@ -556,7 +556,7 @@ export const useEditorStore = defineStore('editor', {
 
     saveEditorState() {
       scheduleEditorStateSave({
-        shouldersDir: useWorkspaceStore().shouldersDir,
+        workspaceDataDir: useWorkspaceStore().workspaceDataDir,
         paneTree: this.paneTree,
         activePaneId: this.activePaneId,
         legacyPreviewPaths: this.legacyPreviewPaths,
@@ -565,7 +565,7 @@ export const useEditorStore = defineStore('editor', {
 
     async saveEditorStateImmediate() {
       await flushEditorStateSave({
-        shouldersDir: useWorkspaceStore().shouldersDir,
+        workspaceDataDir: useWorkspaceStore().workspaceDataDir,
         paneTree: this.paneTree,
         activePaneId: this.activePaneId,
         legacyPreviewPaths: this.legacyPreviewPaths,
@@ -574,12 +574,12 @@ export const useEditorStore = defineStore('editor', {
 
     async restoreEditorState() {
       const workspace = useWorkspaceStore()
-      const state = await loadEditorStateSnapshot(workspace.shouldersDir)
+      const state = await loadEditorStateSnapshot(workspace.workspaceDataDir)
       if (!state) return false
 
       const restoreGeneration = ++this.restoreGeneration
       const restoredWorkspacePath = workspace.path
-      const restoredShouldersDir = workspace.shouldersDir
+      const restoredWorkspaceDataDir = workspace.workspaceDataDir
 
       Object.assign(this, deriveRestoredEditorRuntimeState({
         state,
@@ -587,12 +587,12 @@ export const useEditorStore = defineStore('editor', {
       }))
 
       void validateRestoredEditorTabs({
-        shouldersDir: workspace.shouldersDir,
+        workspaceDataDir: workspace.workspaceDataDir,
         paneTree: this.paneTree,
         isStillCurrent: () => (
           restoreGeneration === this.restoreGeneration
           && workspace.path === restoredWorkspacePath
-          && workspace.shouldersDir === restoredShouldersDir
+          && workspace.workspaceDataDir === restoredWorkspaceDataDir
         ),
         closeInvalidTab: (tab) => this.closeFileFromAllPanes(tab),
         isActivePaneMissing: () => !this.findPane(this.paneTree, this.activePaneId),

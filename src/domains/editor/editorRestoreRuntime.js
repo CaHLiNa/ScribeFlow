@@ -33,7 +33,7 @@ export function deriveRestoredEditorRuntimeState({
 }
 
 export async function validateRestoredEditorTabs({
-  shouldersDir,
+  workspaceDataDir,
   paneTree,
   isStillCurrent,
   closeInvalidTab,
@@ -43,7 +43,7 @@ export async function validateRestoredEditorTabs({
   onError,
 } = {}) {
   try {
-    const invalidTabs = await findInvalidTabs(shouldersDir, paneTree)
+    const invalidTabs = await findInvalidTabs(workspaceDataDir, paneTree)
     if (!isStillCurrent?.()) return false
     if (invalidTabs.size === 0) return true
 

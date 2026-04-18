@@ -98,8 +98,8 @@ export function normalizeLoadedEditorState(state) {
   }
 }
 
-export async function saveState(shouldersDir, paneTree, activePaneId, options = {}) {
-  if (!shouldersDir) return
+export async function saveState(workspaceDataDir, paneTree, activePaneId, options = {}) {
+  if (!workspaceDataDir) return
   try {
     const state = buildPersistedEditorState({
       paneTree,
@@ -107,7 +107,7 @@ export async function saveState(shouldersDir, paneTree, activePaneId, options = 
       legacyPreviewPaths: options.legacyPreviewPaths,
     })
     await invoke('write_file', {
-      path: `${shouldersDir}/${STATE_FILE}`,
+      path: `${workspaceDataDir}/${STATE_FILE}`,
       content: JSON.stringify(state, null, 2),
     })
   } catch (error) {
@@ -115,10 +115,10 @@ export async function saveState(shouldersDir, paneTree, activePaneId, options = 
   }
 }
 
-export async function loadState(shouldersDir) {
-  if (!shouldersDir) return null
+export async function loadState(workspaceDataDir) {
+  if (!workspaceDataDir) return null
   try {
-    const filePath = `${shouldersDir}/${STATE_FILE}`
+    const filePath = `${workspaceDataDir}/${STATE_FILE}`
     const exists = await invoke('path_exists', { path: filePath })
     if (!exists) return null
     const content = await invoke('read_file', { path: filePath })
@@ -154,7 +154,7 @@ async function isTabValid(tab) {
   }
 }
 
-export async function findInvalidTabs(_shouldersDir, paneTree) {
+export async function findInvalidTabs(_workspaceDataDir, paneTree) {
   const allTabs = collectAllTabs(paneTree)
   if (allTabs.length === 0) return new Set()
 

@@ -11,7 +11,7 @@
           </h1>
           <p class="mt-5 max-w-2xl text-base leading-7 text-stone-300 sm:text-lg">
             This service only handles the GitHub OAuth handoff used by Altals. It is intended to be deployed
-            on a small public host such as Vercel and does not restore the old Shoulders account system,
+            on a small public host such as Vercel and does not restore the legacy account system,
             billing backend, AI proxy, or analytics services.
           </p>
           <div class="mt-8 flex flex-wrap gap-3">

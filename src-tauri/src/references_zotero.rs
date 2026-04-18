@@ -809,8 +809,8 @@ async fn perform_sync(params: ZoteroSyncParams) -> Result<Value, String> {
                     "_zoteroLibrary": trim_string(normalized.get("_zoteroLibrary")),
                     "_source": "zotero",
                     "_importMethod": "zotero-sync",
-                    "_pushedByShoulders": existing.get("_pushedByShoulders").cloned().unwrap_or(Value::Bool(false)),
-                    "_shouldersPushPending": existing.get("_shouldersPushPending").cloned().unwrap_or(Value::Bool(false)),
+                    "_pushedByApp": existing.get("_pushedByApp").cloned().unwrap_or(Value::Bool(false)),
+                    "_appPushPending": existing.get("_appPushPending").cloned().unwrap_or(Value::Bool(false)),
                 });
                 updated += 1;
                 continue;
@@ -855,7 +855,7 @@ async fn perform_sync(params: ZoteroSyncParams) -> Result<Value, String> {
             };
             for reference in references.iter_mut() {
                 let should_push = reference
-                    .get("_shouldersPushPending")
+                    .get("_appPushPending")
                     .and_then(Value::as_bool)
                     .unwrap_or(false)
                     && trim_string(reference.get("_zoteroKey")).is_empty();
@@ -893,8 +893,8 @@ async fn perform_sync(params: ZoteroSyncParams) -> Result<Value, String> {
                         "_zoteroLibrary".to_string(),
                         Value::String(format!("{library_type}/{library_id}")),
                     );
-                    reference_map.insert("_pushedByShoulders".to_string(), Value::Bool(true));
-                    reference_map.insert("_shouldersPushPending".to_string(), Value::Bool(false));
+                    reference_map.insert("_pushedByApp".to_string(), Value::Bool(true));
+                    reference_map.insert("_appPushPending".to_string(), Value::Bool(false));
                 }
             }
         }

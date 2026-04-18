@@ -409,8 +409,8 @@ async function handleRefreshReferenceMetadata(reference = {}) {
       _zoteroKey: reference._zoteroKey,
       _zoteroLibrary: reference._zoteroLibrary,
       _importMethod: reference._importMethod,
-      _pushedByShoulders: reference._pushedByShoulders,
-      _shouldersPushPending: reference._shouldersPushPending,
+      _pushedByApp: reference._pushedByApp,
+      _appPushPending: reference._appPushPending,
     })
   } catch (error) {
     toastStore.show(error?.message || t('Failed to refresh metadata'), {

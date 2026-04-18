@@ -88,13 +88,11 @@ export const useWorkspaceStore = defineStore('workspace', {
     isOpen: (state) => !!state.path,
     isWorkspaceSurface: (state) => normalizeWorkbenchSurface(state.primarySurface) === 'workspace',
     isSettingsSurface: (state) => normalizeWorkbenchSurface(state.primarySurface) === 'settings',
-    shouldersDir: (state) => state.workspaceDataDir || null,
     altalsDir: (state) => state.workspaceDataDir || null,
     projectDir: (state) => (state.workspaceDataDir ? `${state.workspaceDataDir}/project` : null),
     claudeDir: (state) => state.claudeConfigDir || null,
     claudeHooksDir: (state) =>
       state.globalConfigDir ? `${state.globalConfigDir}/claude-hooks` : null,
-    legacyShouldersDir: (state) => (state.path ? `${state.path}/.shoulders` : null),
     legacyProjectDir: (state) => (state.path ? `${state.path}/.project` : null),
     legacyClaudeDir: (state) => (state.path ? `${state.path}/.claude` : null),
   },

@@ -6,16 +6,42 @@ const host = process.env.TAURI_DEV_HOST
 const mainEntryHtml = fileURLToPath(new URL('./index.html', import.meta.url))
 
 const chunkGroups = [
+  ['vendor-tauri', [
+    '/node_modules/@tauri-apps/api/',
+    '/node_modules/@tauri-apps/plugin-',
+  ]],
   ['vendor-vue', [
     '/node_modules/vue/',
     '/node_modules/pinia/',
     '/node_modules/@vue/',
     '/node_modules/@tabler/icons-vue/',
   ]],
-  ['vendor-markdown', [
-    '/node_modules/marked/',
-    '/node_modules/marked-',
+  ['vendor-highlight', [
+    '/node_modules/rehype-highlight/',
+    '/node_modules/highlight.js/',
+  ]],
+  ['vendor-markdown-pipeline', [
+    '/node_modules/unified/',
+    '/node_modules/remark-',
+    '/node_modules/rehype-',
+    '/node_modules/unist-util-',
+    '/node_modules/mdast-util-',
+    '/node_modules/micromark',
+    '/node_modules/hast-util-',
+    '/node_modules/vfile/',
+    '/node_modules/trough/',
+    '/node_modules/bail/',
+    '/node_modules/devlop/',
+    '/node_modules/property-information/',
+    '/node_modules/space-separated-tokens/',
+    '/node_modules/comma-separated-tokens/',
+    '/node_modules/web-namespaces/',
+    '/node_modules/zwitch/',
+  ]],
+  ['vendor-katex', [
     '/node_modules/katex/',
+  ]],
+  ['vendor-markdown', [
     '/node_modules/dompurify/',
   ]],
   ['vendor-codemirror-language-data', [
@@ -94,9 +120,6 @@ const chunkGroups = [
   ['vendor-pdf-worker', [
     '/node_modules/pdfjs-dist/build/',
     '/node_modules/pdfjs-dist/',
-  ]],
-  ['vendor-highlight', [
-    '/node_modules/highlight.js/',
   ]],
 ]
 
