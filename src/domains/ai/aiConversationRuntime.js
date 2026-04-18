@@ -11,9 +11,9 @@ function previewText(value = '', maxChars = 120) {
 }
 
 function skillLabel(skill = null) {
-  if (!skill) return t('Workspace agent')
+  if (!skill) return t('Agent')
   if (skill.kind === 'filesystem-skill') return skill.name || skill.slug || t('Unnamed skill')
-  return t(skill.titleKey || skill.id || 'Workspace agent')
+  return t(skill.titleKey || skill.id || 'Agent')
 }
 
 function runtimeTransportLabel(transport = '') {

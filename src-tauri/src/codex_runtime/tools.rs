@@ -695,4 +695,3 @@ fn execute_runtime_tool_call(
     serde_json::to_string_pretty(&content)
         .map_err(|error| format!("Failed to serialize tool result: {error}"))
 }
-

@@ -278,4 +278,3 @@ pub fn canonicalize_for_scope(path: &Path) -> Result<PathBuf, String> {
 fn is_within_root(path: &Path, root: &Path) -> bool {
     path == root || path.starts_with(root)
 }
-

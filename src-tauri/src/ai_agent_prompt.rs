@@ -4,8 +4,6 @@ use serde_json::Value;
 use crate::ai_skill_support::load_skill_supporting_files;
 use crate::ai_tool_catalog::{build_ai_tool_prompt_block, resolve_runtime_tool_ids};
 
-const DEFAULT_AGENT_ACTION_ID: &str = "workspace-agent";
-
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AiAgentPromptParams {
@@ -61,10 +59,6 @@ fn bool_field(value: &Value, keys: &[&str]) -> bool {
         .unwrap_or(false)
 }
 
-fn is_default_agent_action_id(id: &str) -> bool {
-    id.trim() == DEFAULT_AGENT_ACTION_ID
-}
-
 fn get_ai_skill_behavior_id(skill: &Value) -> String {
     let kind = string_field(skill, &["kind"]);
     if kind == "filesystem-skill" {
@@ -75,14 +69,6 @@ fn get_ai_skill_behavior_id(skill: &Value) -> String {
 
 fn build_response_contract(behavior_id: &str) -> String {
     match behavior_id.trim() {
-        DEFAULT_AGENT_ACTION_ID => [
-            "Return JSON with this shape:",
-            "{",
-            "  \"answer\": \"direct answer for the user\",",
-            "  \"rationale\": \"brief note about which workspace context supported the answer\"",
-            "}",
-        ]
-        .join("\n"),
         "revise-with-citations" => [
             "Return JSON with this shape:",
             "{",
@@ -133,10 +119,10 @@ fn build_response_contract(behavior_id: &str) -> String {
 }
 
 fn requires_structured_agent_response(behavior_id: &str, runtime_intent: &str) -> bool {
-    if runtime_intent.trim() == "agent" && is_default_agent_action_id(behavior_id) {
+    if runtime_intent.trim() == "agent" {
         return false;
     }
-    !is_default_agent_action_id(behavior_id)
+    !behavior_id.trim().is_empty()
 }
 
 fn build_referenced_files_block(referenced_files: &[Value]) -> String {
@@ -445,7 +431,7 @@ fn build_agent_context_snapshot(skill: &Value, context_bundle: &Value) -> String
             String::new(),
             "Requirements:".to_string(),
             "- Treat the skill instructions as the active instruction pack.".to_string(),
-            "- Stay close to the supplied Altals workspace context.".to_string(),
+            "- Stay close to the supplied workspace context.".to_string(),
             "- If the skill expects tools or files not yet available, say so explicitly instead of inventing them.".to_string(),
         ]
         .join("\n");
@@ -562,36 +548,43 @@ pub async fn ai_agent_build_prompt(
     let system_prompt = {
         let mut lines = vec![
             if params.runtime_intent.trim() == "agent" {
-                "You are Altals Agent, a local-first workspace agent embedded in a desktop research and coding workbench."
-            } else if is_default_agent_action_id(&behavior_id) {
-                "You are Altals Agent, a local-first workspace assistant embedded in a desktop research and coding workbench."
+                "You are an agent embedded in a local-first desktop research and coding workbench."
             } else {
-                "You are Altals AI, a local-first assistant embedded in a desktop research and coding workbench."
+                "You are an assistant embedded in a local-first desktop research and coding workbench."
             }
             .to_string(),
             if params.runtime_intent.trim() == "agent" {
                 "Operate directly on the current workspace. Use available context, tools, and prior conversation to continue the task. Do not ask the user to choose an instruction pack unless genuinely blocked."
-            } else if is_default_agent_action_id(&behavior_id) {
-                "Answer directly using the supplied workspace context. Do not invent file contents, evidence, or citations."
             } else {
                 "Use the supplied workspace context carefully and do not invent file contents, evidence, or citations."
             }
             .to_string(),
             "Filesystem skills are provided as an explicit catalog in the prompt. Do not infer available skills by searching workspace filenames.".to_string(),
             "If the request involves creating, writing, editing, or opening workspace files and matching tools are listed as available, call those tools instead of claiming the capability is unavailable.".to_string(),
-            format!("Current entry: {}.", if behavior_id.is_empty() { string_field(&params.skill, &["id"]) } else { behavior_id.clone() }),
+            format!(
+                "{}: {}.",
+                if params.runtime_intent.trim() == "agent" {
+                    "Current mode"
+                } else {
+                    "Current skill"
+                },
+                if behavior_id.is_empty() {
+                    "agent".to_string()
+                } else {
+                    behavior_id.clone()
+                }
+            ),
         ];
         if structured {
             lines.push("Return valid JSON only.".to_string());
         }
         lines.join(" ")
     };
-    let user_prompt =
-        if params.runtime_intent.trim() == "agent" && is_default_agent_action_id(&behavior_id) {
-            build_agent_mode_user_prompt(&params)
-        } else {
-            build_skill_mode_user_prompt(&params, &behavior_id, structured)
-        };
+    let user_prompt = if params.runtime_intent.trim() == "agent" {
+        build_agent_mode_user_prompt(&params)
+    } else {
+        build_skill_mode_user_prompt(&params, &behavior_id, structured)
+    };
 
     Ok(AiAgentPromptResponse {
         system_prompt,
@@ -604,4 +597,3 @@ pub async fn ai_agent_build_prompt(
         ),
     })
 }
-

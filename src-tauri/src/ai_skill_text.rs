@@ -328,4 +328,3 @@ pub fn rewrite_skill_markdown(
 
     build_skill_markdown(next_name, &description, &body, Some(&frontmatter))
 }
-

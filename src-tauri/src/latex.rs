@@ -1718,4 +1718,3 @@ fn backward_sync(
         None => Err("No SyncTeX match found at this position.".to_string()),
     }
 }
-

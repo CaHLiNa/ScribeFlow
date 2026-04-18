@@ -158,6 +158,10 @@ fn create_session_id() -> String {
     format!("ai-session:{}", uuid::Uuid::new_v4())
 }
 
+fn is_runtime_placeholder_session_id(session_id: &str) -> bool {
+    session_id.trim().starts_with("runtime-session:")
+}
+
 fn normalize_session_record(
     record: AiSessionOverlayRecord,
     fallback_title: &str,
@@ -244,6 +248,7 @@ fn ensure_state(state: AiSessionOverlayState, fallback_title: &str) -> AiSession
     let sessions = state
         .sessions
         .into_iter()
+        .filter(|session| !is_runtime_placeholder_session_id(&session.id))
         .map(|session| normalize_session_record(session, fallback))
         .collect::<Vec<_>>();
 
@@ -594,4 +599,3 @@ pub async fn ai_session_overlay_rename(
     })
     .await
 }
-

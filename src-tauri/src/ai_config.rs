@@ -467,4 +467,3 @@ pub async fn ai_config_save_internal(config: Value) -> Result<Value, String> {
     write_ai_config_raw(Some(&normalized))?;
     Ok(normalized)
 }
-

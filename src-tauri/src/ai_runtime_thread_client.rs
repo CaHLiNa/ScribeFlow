@@ -65,8 +65,8 @@ fn build_user_message(item: &Value) -> Value {
             json!([{ "type": "text", "text": text }])
         },
         "metadata": {
-            "skillId": "workspace-agent",
-            "skillLabel": "Workspace agent",
+            "skillId": "",
+            "skillLabel": "",
             "contextChips": [],
         }
     })
@@ -105,13 +105,6 @@ fn build_assistant_message(
             "text": "AI execution failed.",
         }));
     }
-    if assistant_text.is_empty() && status == "interrupted" {
-        parts.push(json!({
-            "type": "error",
-            "text": "AI execution stopped.",
-        }));
-    }
-
     json!({
         "id": format!("runtime:{}:assistant", string_field(turn, &["id"])),
         "role": "assistant",
@@ -125,16 +118,14 @@ fn build_assistant_message(
             assistant_text
         } else if status == "failed" {
             "AI execution failed.".to_string()
-        } else if status == "interrupted" {
-            "AI execution stopped.".to_string()
         } else {
             String::new()
         },
         "parts": parts,
         "metadata": {
-            "skillId": "workspace-agent",
-            "skillLabel": "Workspace agent",
-            "providerSummary": "CODEX RUNTIME",
+            "skillId": "",
+            "skillLabel": "",
+            "providerSummary": "",
             "contextChips": [],
         }
     })
@@ -178,11 +169,7 @@ fn build_session_messages_from_runtime_snapshot(snapshot: &Value) -> Vec<Value> 
         }
 
         let status = string_field(&turn, &["status"]);
-        if assistant_item.is_some()
-            || reasoning_item.is_some()
-            || status == "failed"
-            || status == "interrupted"
-        {
+        if assistant_item.is_some() || reasoning_item.is_some() || status == "failed" {
             messages.push(build_assistant_message(
                 &turn,
                 assistant_item,

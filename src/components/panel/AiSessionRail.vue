@@ -39,24 +39,12 @@
       class="ai-session-rail__create"
       :title="t('New session')"
       :aria-label="t('New session')"
-      @click="$emit('create')"
+      @click="handleCreate"
     >
       <IconPlus :size="14" :stroke-width="2.3" />
     </button>
 
     <div v-if="menuOpen" class="ai-session-rail__menu">
-      <div class="ai-session-rail__menu-header">
-        <span class="ai-session-rail__menu-title">{{ t('Sessions') }}</span>
-        <button
-          type="button"
-          class="ai-session-rail__menu-create"
-          @click="handleCreateFromMenu"
-        >
-          <IconPlus :size="13" :stroke-width="2.2" />
-          <span>{{ t('New session') }}</span>
-        </button>
-      </div>
-
       <div class="ai-session-rail__menu-list scrollbar-hidden">
         <div
           v-for="session in sessions"
@@ -86,8 +74,8 @@
             class="ai-session-rail__main"
             :class="{ 'is-active': session.id === currentSessionId }"
             :title="session.title"
-            @click="handleSwitchFromMenu(session.id)"
-            @dblclick="beginRename(session)"
+            @click="handleSessionClick($event, session.id)"
+            @dblclick="handleSessionDoubleClick(session)"
           >
             <span
               class="ai-session-rail__status-dot"
@@ -146,6 +134,7 @@ const editingInputRef = ref(null)
 const editingSessionId = ref('')
 const editingTitle = ref('')
 const menuOpen = ref(false)
+let pendingSwitchTimer = null
 
 const currentSession = computed(
   () =>
@@ -155,6 +144,7 @@ const currentSession = computed(
 )
 
 function closeMenu() {
+  clearPendingSwitch()
   menuOpen.value = false
 }
 
@@ -162,7 +152,7 @@ function toggleMenu() {
   menuOpen.value = !menuOpen.value
 }
 
-function handleCreateFromMenu() {
+function handleCreate() {
   emit('create')
   closeMenu()
 }
@@ -170,6 +160,27 @@ function handleCreateFromMenu() {
 function handleSwitchFromMenu(sessionId = '') {
   emit('switch', sessionId)
   closeMenu()
+}
+
+function clearPendingSwitch() {
+  if (pendingSwitchTimer !== null) {
+    clearTimeout(pendingSwitchTimer)
+    pendingSwitchTimer = null
+  }
+}
+
+function handleSessionClick(event, sessionId = '') {
+  if (event?.detail > 1) return
+  clearPendingSwitch()
+  pendingSwitchTimer = window.setTimeout(() => {
+    pendingSwitchTimer = null
+    handleSwitchFromMenu(sessionId)
+  }, 180)
+}
+
+function handleSessionDoubleClick(session = null) {
+  clearPendingSwitch()
+  beginRename(session)
 }
 
 function handlePointerDown(event) {
@@ -255,6 +266,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  clearPendingSwitch()
   document.removeEventListener('mousedown', handlePointerDown)
   document.removeEventListener('keydown', handleEscape)
 })
@@ -273,16 +285,17 @@ onUnmounted(() => {
 
 .ai-session-rail__current {
   flex: 0 1 auto;
-  min-width: 120px;
+  min-width: 100px;
   max-width: 220px;
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  min-height: 32px;
+  min-height: 28px;
   padding: 0 10px;
-  border-radius: 12px;
-  border: 1px solid color-mix(in srgb, var(--border-color) 46%, transparent);
-  background: color-mix(in srgb, var(--surface-base) 88%, transparent);
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 20%, transparent);
+  background: color-mix(in srgb, var(--surface-base) 12%, transparent);
+  backdrop-filter: blur(12px);
   color: var(--text-secondary);
   cursor: pointer;
   transition:
@@ -294,8 +307,8 @@ onUnmounted(() => {
 
 .ai-session-rail__current:hover,
 .ai-session-rail__current.is-open {
-  border-color: color-mix(in srgb, var(--accent) 26%, var(--border-color) 74%);
-  background: color-mix(in srgb, var(--surface-hover) 22%, transparent);
+  border-color: color-mix(in srgb, var(--border-color) 40%, transparent);
+  background: color-mix(in srgb, var(--surface-hover) 15%, transparent);
   color: var(--text-primary);
 }
 
@@ -369,11 +382,12 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 12px;
-  border: 1px solid color-mix(in srgb, var(--border-color) 46%, transparent);
-  background: color-mix(in srgb, var(--surface-base) 88%, transparent);
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 20%, transparent);
+  background: color-mix(in srgb, var(--surface-base) 12%, transparent);
+  backdrop-filter: blur(12px);
   color: var(--text-secondary);
   cursor: pointer;
   transition:
@@ -384,7 +398,7 @@ onUnmounted(() => {
 }
 
 .ai-session-rail__create:hover {
-  border-color: color-mix(in srgb, var(--accent) 26%, var(--border-color) 74%);
+  border-color: color-mix(in srgb, var(--border-color) 40%, transparent);
   background: color-mix(in srgb, var(--surface-hover) 24%, transparent);
   color: var(--text-primary);
 }
@@ -395,7 +409,6 @@ onUnmounted(() => {
 
 .ai-session-rail__create:focus-visible,
 .ai-session-rail__current:focus-visible,
-.ai-session-rail__menu-create:focus-visible,
 .ai-session-rail__close:focus-visible {
   outline: none;
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent);
@@ -404,56 +417,33 @@ onUnmounted(() => {
 .ai-session-rail__menu {
   position: absolute;
   left: 0;
-  right: 0;
-  bottom: calc(100% + 10px);
-  z-index: 20;
+  min-width: 232px;
+  width: max-content;
+  top: calc(100% + 8px);
+  z-index: 40;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 10px;
-  border-radius: 16px;
-  border: 1px solid color-mix(in srgb, var(--border-color) 50%, transparent);
-  background: color-mix(in srgb, var(--panel-surface) 92%, white 8%);
+  gap: 4px;
+  padding: 8px;
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 42%, transparent);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--surface-base) 96%, white 4%),
+      color-mix(in srgb, var(--panel-surface) 94%, var(--surface-base) 6%)
+    );
   box-shadow:
-    0 18px 44px color-mix(in srgb, black 16%, transparent),
-    inset 0 1px 0 color-mix(in srgb, white 58%, transparent);
-  backdrop-filter: blur(18px) saturate(1.06);
-}
-
-.ai-session-rail__menu-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.ai-session-rail__menu-title {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-tertiary);
-}
-
-.ai-session-rail__menu-create {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 28px;
-  padding: 0 10px;
-  border-radius: 10px;
-  border: 1px solid color-mix(in srgb, var(--border-color) 48%, transparent);
-  background: color-mix(in srgb, var(--surface-base) 92%, transparent);
-  color: var(--text-secondary);
-  cursor: pointer;
-  font-size: 11px;
-  font-weight: 600;
+    0 18px 44px color-mix(in srgb, black 18%, transparent),
+    0 2px 10px color-mix(in srgb, black 8%, transparent);
+  backdrop-filter: blur(20px) saturate(1.18);
+  isolation: isolate;
 }
 
 .ai-session-rail__menu-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   max-height: 240px;
   overflow-y: auto;
 }
@@ -463,24 +453,22 @@ onUnmounted(() => {
   align-items: center;
   gap: 4px;
   min-width: 0;
-  border-radius: 12px;
+  border-radius: 8px;
   border: 1px solid transparent;
   background: transparent;
-  transition:
-    border-color 160ms ease,
-    background-color 160ms ease,
-    box-shadow 160ms ease;
+  transition: all 160ms ease;
 }
 
 .ai-session-rail__item:hover,
 .ai-session-rail__item.is-active {
-  border-color: color-mix(in srgb, var(--accent) 20%, var(--border-color) 80%);
-  background: color-mix(in srgb, var(--surface-hover) 22%, transparent);
+  background: var(--surface-hover);
+  border-color: transparent;
 }
 
 .ai-session-rail__item.is-active {
-  background: color-mix(in srgb, white 70%, var(--surface-raised) 30%);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, white 60%, transparent);
+  background: var(--surface-active);
+  border-color: transparent;
+  box-shadow: none;
 }
 
 .ai-session-rail__main,
@@ -490,7 +478,7 @@ onUnmounted(() => {
   gap: 8px;
   min-width: 0;
   width: 100%;
-  padding: 10px 12px;
+  padding: 6px 10px;
   border: none;
   background: transparent;
 }

@@ -159,4 +159,3 @@ pub fn set_plan_mode(
 
     Ok(RuntimePlanModeSetResponse { plan_mode })
 }
-

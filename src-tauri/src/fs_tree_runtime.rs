@@ -185,4 +185,3 @@ pub async fn fs_tree_ancestor_dirs(params: FsTreeAncestorParams) -> Result<Vec<S
         &params.target_path,
     ))
 }
-

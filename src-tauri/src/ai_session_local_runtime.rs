@@ -534,4 +534,3 @@ pub async fn ai_session_local_mutate(
         "session": mutate_session(&params.session, &params.kind, &params.payload),
     }))
 }
-

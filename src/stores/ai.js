@@ -5,7 +5,6 @@ import { nanoid } from './utils'
 import {
   buildAiContextBundle,
   normalizeAiSelection,
-  recommendAiSkills,
 } from '../domains/ai/aiContextRuntime.js'
 import {
   createAiSessionRecord,
@@ -23,7 +22,6 @@ import { useWorkspaceStore } from './workspace'
 const CODEX_RUNTIME_EVENT = 'codex-runtime-event'
 let codexRuntimeUnlisten = null
 const pendingCodexRuntimeThreadCreations = new Map()
-const DEFAULT_AGENT_ACTION_ID = 'workspace-agent'
 
 async function loadAiConfig() {
   return invoke('ai_config_load')
@@ -45,6 +43,18 @@ async function resolveAiProviderState(providerId = 'openai', providerConfig = {}
   })
 }
 
+async function listAiProviderModels(providerId = 'openai', providerConfig = {}, apiKey = '') {
+  return invoke('ai_provider_models_list', {
+    providerId,
+    providerConfig,
+    apiKey,
+  })
+}
+
+async function listAiProviderDefinitions() {
+  return invoke('ai_provider_catalog_list')
+}
+
 async function setCurrentAiProvider(providerId = 'openai') {
   const config = await loadAiConfig()
   const normalizedProviderId = String(providerId || '').trim().toLowerCase() || 'openai'
@@ -54,6 +64,42 @@ async function setCurrentAiProvider(providerId = 'openai') {
   }
   await saveAiConfig(nextConfig)
   return nextConfig
+}
+
+async function setCurrentAiProviderAndModel(providerId = 'openai', model = '') {
+  const config = await loadAiConfig()
+  const currentProviderId = String(providerId || config?.currentProviderId || 'openai').trim() || 'openai'
+  const providerConfig = config?.providers?.[currentProviderId] || {}
+  const normalizedModel = String(model || '').trim()
+  const nextConfig = {
+    ...(config || {}),
+    currentProviderId,
+    providers: {
+      ...(config?.providers || {}),
+      [currentProviderId]: {
+        ...providerConfig,
+        model: normalizedModel,
+      },
+    },
+  }
+  await saveAiConfig(nextConfig)
+  return nextConfig
+}
+
+function buildUnifiedModelPoolKey(providerId = '', model = '') {
+  return `${String(providerId || '').trim()}::${String(model || '').trim()}`
+}
+
+function parseUnifiedModelPoolKey(value = '') {
+  const normalized = String(value || '').trim()
+  const separatorIndex = normalized.indexOf('::')
+  if (separatorIndex <= 0) {
+    return { providerId: '', model: normalized }
+  }
+  return {
+    providerId: normalized.slice(0, separatorIndex).trim(),
+    model: normalized.slice(separatorIndex + 2).trim(),
+  }
 }
 
 async function respondAnthropicAgentSdkPermission({
@@ -279,7 +325,6 @@ async function switchSessionOverlayState({
 async function prepareAgentRunRust({
   activeSession = null,
   activeSkill = null,
-  builtInActions = [],
   altalsSkills = [],
   contextBundle = {},
   sessionMode = 'chat',
@@ -294,7 +339,6 @@ async function prepareAgentRunRust({
     params: {
       activeSession,
       activeSkill,
-      builtInActions,
       altalsSkills,
       contextBundle,
       sessionMode,
@@ -312,30 +356,12 @@ async function startAgentRunSessionRust(params = {}) {
   return invoke('ai_agent_session_start', { params })
 }
 
+async function runStartedAgentSessionRust(params = {}) {
+  return invoke('ai_agent_run_started_session', { params })
+}
+
 async function applyAgentRunSessionEventRust(params = {}) {
   return invoke('ai_agent_session_apply_event', { params })
-}
-
-async function completeAgentRunSessionRust(params = {}) {
-  return invoke('ai_agent_session_complete', { params })
-}
-
-async function failAgentRunSessionRust(params = {}) {
-  return invoke('ai_agent_session_fail', { params })
-}
-
-async function finalizeAgentRunSessionRust(params = {}) {
-  return invoke('ai_agent_session_finalize', { params })
-}
-
-async function mergeAgentRunToolEventStateRust(events = [], event = {}) {
-  const response = await invoke('ai_agent_tool_events_merge', {
-    params: {
-      events,
-      event,
-    },
-  })
-  return Array.isArray(response?.events) ? response.events : []
 }
 
 async function resolveAiToolCatalogRust({ enabledTools = [], runtimeIntent = 'chat' } = {}) {
@@ -345,10 +371,6 @@ async function resolveAiToolCatalogRust({ enabledTools = [], runtimeIntent = 'ch
       runtimeIntent,
     },
   })
-}
-
-async function listAiActionCatalogRust() {
-  return invoke('ai_action_catalog_list')
 }
 
 async function syncRuntimeThreadSnapshotToSessionRust(params = {}) {
@@ -409,7 +431,7 @@ function findSessionByRuntimeThreadId(sessions = [], runtimeThreadId = '') {
 
 function shouldUseCodexRuntimeRun(preparedRun = null) {
   if (!preparedRun?.ok) return false
-  if (String(preparedRun?.skill?.id || '').trim() !== DEFAULT_AGENT_ACTION_ID) return false
+  if (String(preparedRun?.runtimeIntent || '').trim() !== 'agent') return false
 
   if (
     String(preparedRun.providerId || '').trim() === 'anthropic' &&
@@ -423,17 +445,6 @@ function shouldUseCodexRuntimeRun(preparedRun = null) {
 
 function currentWorkspacePath() {
   return String(useWorkspaceStore().path || '').trim()
-}
-
-function buildArtifactRecord(skillId = '', artifact = null) {
-  if (!artifact) return null
-  return {
-    id: `artifact:${nanoid()}`,
-    skillId,
-    status: 'pending',
-    createdAt: Date.now(),
-    ...artifact,
-  }
 }
 
 function resolveDefaultSessionPermissionMode({
@@ -498,7 +509,6 @@ export const useAiStore = defineStore('ai', {
       fallbackTitle: buildDefaultSessionTitle(1),
     }),
     altalsSkillCatalog: [],
-    builtInActionCatalog: [],
     isRefreshingAltalsSkills: false,
     lastSkillCatalogError: '',
     providerState: {
@@ -512,6 +522,9 @@ export const useAiStore = defineStore('ai', {
       model: '',
       approvalMode: 'per-tool',
     },
+    unifiedModelPoolOptions: [],
+    unifiedModelPoolLoading: false,
+    unifiedModelPoolError: '',
     runtimeAbortControllers: {},
   }),
 
@@ -550,16 +563,8 @@ export const useAiStore = defineStore('ai', {
       })
     },
 
-    builtInActions() {
-      return recommendAiSkills(this.currentContextBundle, this.builtInActionCatalog)
-    },
-
     altalsSkills(state) {
       return Array.isArray(state.altalsSkillCatalog) ? state.altalsSkillCatalog : []
-    },
-
-    activeSkill(state) {
-      return this.builtInActions[0] || state.builtInActionCatalog[0] || null
     },
 
     promptDraft() {
@@ -1172,7 +1177,7 @@ export const useAiStore = defineStore('ai', {
         this.lastSkillCatalogError =
           error instanceof Error
             ? error.message
-            : String(error || t('Failed to load Altals skills.'))
+            : String(error || t('Failed to load skills.'))
         return []
       } finally {
         this.isRefreshingAltalsSkills = false
@@ -1310,21 +1315,85 @@ export const useAiStore = defineStore('ai', {
       return this.providerState
     },
 
-    async refreshBuiltInActions() {
-      try {
-        const response = await listAiActionCatalogRust()
-        this.builtInActionCatalog = Array.isArray(response?.builtInActions)
-          ? response.builtInActions
-          : []
-      } catch {
-        this.builtInActionCatalog = []
-      }
-      return this.builtInActionCatalog
-    },
-
     async setCurrentProvider(providerId = '') {
       await setCurrentAiProvider(providerId)
       return this.refreshProviderState()
+    },
+
+    async refreshUnifiedModelPool({ force = false } = {}) {
+      if (this.unifiedModelPoolLoading) {
+        return this.unifiedModelPoolOptions
+      }
+      if (!force && Array.isArray(this.unifiedModelPoolOptions) && this.unifiedModelPoolOptions.length > 0) {
+        return this.unifiedModelPoolOptions
+      }
+
+      this.unifiedModelPoolLoading = true
+      this.unifiedModelPoolError = ''
+
+      try {
+        const [config, catalog] = await Promise.all([loadAiConfig(), listAiProviderDefinitions()])
+        const providerDefinitions = Array.isArray(catalog?.providers) ? catalog.providers : []
+        const options = []
+
+        for (const provider of providerDefinitions) {
+          const providerId = String(provider?.id || '').trim()
+          if (!providerId) continue
+
+          const providerConfig = config?.providers?.[providerId] || {}
+          const baseUrl = String(providerConfig?.baseUrl || provider?.defaultBaseUrl || '').trim()
+          if (!baseUrl) continue
+
+          const apiKey = await loadAiApiKey(providerId).catch(() => '')
+          const response = await listAiProviderModels(providerId, providerConfig, apiKey).catch(() => null)
+          const providerOptions = Array.isArray(response?.options) ? response.options : []
+
+          for (const option of providerOptions) {
+            const modelValue = String(option?.value || '').trim()
+            if (!modelValue) continue
+            const modelLabel = String(option?.label || modelValue).trim() || modelValue
+            const providerLabel = String(provider?.label || providerId).trim() || providerId
+            options.push({
+              value: buildUnifiedModelPoolKey(providerId, modelValue),
+              label: `${modelLabel} · ${providerLabel}`,
+              triggerLabel: modelLabel,
+              providerId,
+              providerLabel,
+              model: modelValue,
+              modelLabel,
+            })
+          }
+        }
+
+        options.sort((left, right) => {
+          const leftLabel = String(left?.modelLabel || left?.triggerLabel || '').trim()
+          const rightLabel = String(right?.modelLabel || right?.triggerLabel || '').trim()
+          if (leftLabel === rightLabel) {
+            return String(left?.providerLabel || left?.providerId || '').localeCompare(
+              String(right?.providerLabel || right?.providerId || '').trim()
+            )
+          }
+          return leftLabel.localeCompare(rightLabel)
+        })
+
+        this.unifiedModelPoolOptions = options
+        return this.unifiedModelPoolOptions
+      } catch (error) {
+        this.unifiedModelPoolOptions = []
+        this.unifiedModelPoolError =
+          error instanceof Error ? error.message : String(error || t('Failed to load models.'))
+        return []
+      } finally {
+        this.unifiedModelPoolLoading = false
+      }
+    },
+
+    async setCurrentModel(modelSelection = '') {
+      const { providerId, model } = parseUnifiedModelPoolKey(modelSelection)
+      const targetProviderId = providerId || this.providerState.currentProviderId || 'openai'
+      await setCurrentAiProviderAndModel(targetProviderId, model)
+      await this.refreshProviderState()
+      return this.providerState
     },
 
     async ensureCodexRuntimeBridge() {
@@ -1399,6 +1468,30 @@ export const useAiStore = defineStore('ai', {
       return response.session
     },
 
+    async resolveRuntimeTurnHandle(sessionId = '') {
+      const targetSessionId = String(sessionId || this.currentSessionId || '').trim()
+      const session = resolveAgentSessionRecord(this.sessions, targetSessionId)
+      const runtimeRunState = getRuntimeRunState(this.runtimeAbortControllers, targetSessionId)
+
+      let threadId = String(session?.runtimeThreadId || runtimeRunState?.runtimeThreadId || '').trim()
+      let turnId = String(session?.runtimeTurnId || runtimeRunState?.runtimeTurnId || '').trim()
+
+      if (!threadId) {
+        return { threadId: '', turnId: '' }
+      }
+
+      if (!turnId) {
+        try {
+          const response = await readCodexRuntimeThread(threadId)
+          turnId = String(response?.snapshot?.thread?.activeTurnId || '').trim()
+        } catch {
+          // Ignore runtime snapshot read failures and fall back to known ids only.
+        }
+      }
+
+      return { threadId, turnId }
+    },
+
     async handleCodexRuntimeEvent(payload = {}) {
       const threadId = String(payload?.thread?.id || payload?.item?.threadId || '').trim()
       const turnId = String(payload?.turn?.id || payload?.item?.turnId || '').trim()
@@ -1454,6 +1547,23 @@ export const useAiStore = defineStore('ai', {
       if (!session) return
 
       if (payload.eventType === 'turnStarted' && threadId && turnId) {
+        const runtimeRunState = getRuntimeRunState(this.runtimeAbortControllers, session.id)
+        if (runtimeRunState) {
+          this.runtimeAbortControllers = {
+            ...this.runtimeAbortControllers,
+            [session.id]: {
+              ...runtimeRunState,
+              runtimeThreadId: threadId,
+              runtimeTurnId: turnId,
+            },
+          }
+          if (runtimeRunState.stopRequested === true) {
+            void interruptCodexRuntimeTurn({
+              threadId,
+              turnId,
+            }).catch(() => {})
+          }
+        }
         this.updateSessionById(session.id, (currentSession) => ({
           ...currentSession,
           runtimeThreadId: threadId,
@@ -1507,9 +1617,6 @@ export const useAiStore = defineStore('ai', {
     async runActiveSkill(options = {}) {
       const toastStore = useToastStore()
       const filesStore = useFilesStore()
-      if (!Array.isArray(this.builtInActionCatalog) || this.builtInActionCatalog.length === 0) {
-        await this.refreshBuiltInActions()
-      }
       const requestedSessionId = String(options?.sessionId || this.currentSessionId || '').trim()
       const activeSession =
         resolveAgentSessionRecord(this.sessions, requestedSessionId) ||
@@ -1520,7 +1627,6 @@ export const useAiStore = defineStore('ai', {
       let providerState = null
       let contextBundle = this.currentContextBundle
       let pendingAssistantId = ''
-      let liveToolEvents = []
       let runStarted = false
       const abortController = new AbortController()
       this.runtimeAbortControllers = {
@@ -1529,6 +1635,8 @@ export const useAiStore = defineStore('ai', {
           controller: abortController,
           pendingAssistantId: '',
           runtimeThreadId: '',
+          runtimeTurnId: '',
+          stopRequested: false,
         },
       }
 
@@ -1541,8 +1649,7 @@ export const useAiStore = defineStore('ai', {
 
         preparedRun = await prepareAgentRunRust({
           activeSession,
-          activeSkill: this.builtInActions[0] || this.activeSkill,
-          builtInActions: this.builtInActions,
+          activeSkill: null,
           altalsSkills: this.altalsSkills,
           contextBundle: this.currentContextBundle,
           sessionMode: 'agent',
@@ -1602,165 +1709,75 @@ export const useAiStore = defineStore('ai', {
         })
         this.updateSessionById(sessionId, () => startedSession.session)
         runStarted = true
-        const result = shouldUseCodexRuntimeRun(preparedRun)
-          ? await (async () => {
-              const runtimeThreadId = await this.ensureCodexRuntimeThreadForSession(
-                sessionId,
-                activeSession.title || buildDefaultSessionTitle(this.sessions.length)
-              )
-              this.updateSessionById(sessionId, (session) => ({
-                ...session,
-                runtimeThreadId,
-                runtimeProviderId: preparedRun.providerId,
-                runtimeTransport: 'codex-runtime',
-              }))
-
-              const promptResponse = await invoke('ai_agent_build_prompt', {
-                params: {
-                  skill,
-                  contextBundle,
-                  userInstruction: preparedRun.userInstruction,
-                  conversation: preparedRun.priorConversation,
-                  altalsSkills: this.altalsSkills,
-                  supportFiles: [],
-                  attachments: preparedRun.attachments || [],
-                  referencedFiles: preparedRun.referencedFiles || [],
-                  requestedTools: preparedRun.requestedTools || [],
-                  enabledToolIds:
-                    (
-                      await resolveAiToolCatalogRust({
-                        enabledTools: preparedRun.config?.enabledTools,
-                        runtimeIntent: preparedRun.runtimeIntent,
-                      })
-                    )?.effectiveToolIds || [],
-                  runtimeIntent: preparedRun.runtimeIntent,
-                },
-              })
-              const systemPrompt = String(promptResponse?.systemPrompt || '')
-              const userPrompt = String(promptResponse?.userPrompt || '')
-
-              this.runtimeAbortControllers = {
-                ...this.runtimeAbortControllers,
-                [sessionId]: {
-                  ...(getRuntimeRunState(this.runtimeAbortControllers, sessionId) || {}),
-                  controller: abortController,
-                  pendingAssistantId,
-                  runtimeThreadId,
-                },
-              }
-
-              const runtimeResult = await invoke('ai_runtime_turn_run_wait', {
-                params: {
-                  threadId: runtimeThreadId,
-                  userText: userPrompt,
-                  provider: {
-                    providerId: preparedRun.providerId,
-                    baseUrl: preparedRun.config?.baseUrl || '',
-                    apiKey: preparedRun.apiKey || '',
-                    model: preparedRun.config?.model || '',
-                    systemPrompt,
-                    temperature: preparedRun.config?.temperature,
-                  },
-                  workspacePath: useWorkspaceStore().path || '',
-                  enabledToolIds:
-                    (
-                      await resolveAiToolCatalogRust({
-                        enabledTools: preparedRun.config?.enabledTools,
-                        runtimeIntent: preparedRun.runtimeIntent,
-                      })
-                    )?.effectiveToolIds || [],
-                },
-              })
-
-              this.updateSessionById(sessionId, (session) => ({
-                ...session,
-                runtimeThreadId,
-                runtimeTurnId: String(runtimeResult?.turnId || '').trim(),
-                runtimeProviderId: preparedRun.providerId,
-                runtimeTransport: 'codex-runtime',
-              }))
-
-              return {
-                content: String(runtimeResult?.content || ''),
-                reasoning: String(runtimeResult?.reasoning || ''),
-                payload: null,
-                transport: String(runtimeResult?.transport || 'codex-runtime'),
-                events: [],
-              }
-            })()
-          : await invoke('ai_agent_run', {
-              params: {
-                skill: preparedRun.skill,
-                contextBundle: preparedRun.contextBundle,
-                config: {
-                  ...preparedRun.config,
-                  providerId: preparedRun.providerId,
-                  enabledTools:
-                    (
-                      await resolveAiToolCatalogRust({
-                        enabledTools: preparedRun.config?.enabledTools,
-                        runtimeIntent: preparedRun.runtimeIntent,
-                      })
-                    )?.effectiveToolIds || [],
-                },
-                apiKey: preparedRun.apiKey || '',
-                userInstruction: preparedRun.userInstruction,
-                conversation: preparedRun.priorConversation,
-                altalsSkills: this.altalsSkills,
-                attachments: preparedRun.attachments || [],
-                referencedFiles: preparedRun.referencedFiles || [],
-                requestedTools: preparedRun.requestedTools || [],
-                runtimeIntent: preparedRun.runtimeIntent || 'chat',
-              },
-            })
-
-        for (const event of Array.isArray(result?.events) ? result.events : []) {
-          liveToolEvents = await mergeAgentRunToolEventStateRust(liveToolEvents, event)
-          await this.applyAgentRunEventToSession(sessionId, event, pendingAssistantId)
+        if (shouldUseCodexRuntimeRun(preparedRun)) {
+          const runtimeThreadId = await this.ensureCodexRuntimeThreadForSession(
+            sessionId,
+            activeSession.title || buildDefaultSessionTitle(this.sessions.length)
+          )
+          this.updateSessionById(sessionId, (session) => ({
+            ...session,
+            runtimeThreadId,
+            runtimeProviderId: preparedRun.providerId,
+            runtimeTransport: 'codex-runtime',
+          }))
         }
 
-        const artifact = buildArtifactRecord(skill.id, result?.artifact || null)
-        let assistantMessage = null
-        const completedSession = await completeAgentRunSessionRust({
+        this.runtimeAbortControllers = {
+          ...this.runtimeAbortControllers,
+          [sessionId]: {
+            ...(getRuntimeRunState(this.runtimeAbortControllers, sessionId) || {}),
+            controller: abortController,
+            pendingAssistantId,
+            runtimeThreadId: String(
+              resolveAgentSessionRecord(this.sessions, sessionId)?.runtimeThreadId || ''
+            ).trim(),
+            runtimeTurnId: '',
+            stopRequested: false,
+          },
+        }
+
+        const runResponse = await runStartedAgentSessionRust({
           session: resolveAgentSessionRecord(this.sessions, sessionId),
+          preparedRun,
+          altalsSkills: this.altalsSkills,
           pendingAssistantId,
-          skill,
-          result,
-          artifact,
-          providerState,
-          contextBundle,
           createdAt: Date.now(),
+          cwd: useWorkspaceStore().path || '',
         })
-        assistantMessage = completedSession.assistantMessage
-        this.updateSessionById(sessionId, () => completedSession.session)
-        return { assistantMessage, artifact }
+
+        this.updateSessionById(sessionId, () => runResponse?.session || startedSession.session)
+
+        if (runResponse?.ok !== true) {
+          if (runResponse?.stopped === true) return null
+          const message = String(runResponse?.error || t('AI execution failed.'))
+          toastStore.show(message, { type: 'error' })
+          return null
+        }
+
+        return {
+          assistantMessage: runResponse?.assistantMessage || null,
+          artifact: runResponse?.artifact || null,
+        }
       } catch (error) {
+        const normalizedErrorMessage =
+          error instanceof Error
+            ? String(error.message || '').trim()
+            : String(error || '').trim()
         const wasAborted =
           error instanceof DOMException
             ? error.name === 'AbortError'
-            : String(error?.name || '').trim() === 'AbortError'
+            : String(error?.name || '').trim() === 'AbortError' ||
+              normalizedErrorMessage === 'AI execution stopped.'
         const message =
           wasAborted
             ? t('AI execution stopped.')
             : error instanceof Error
               ? error.message
               : String(error || t('AI execution failed.'))
-        if (runStarted && pendingAssistantId) {
-          const failedSession = await failAgentRunSessionRust({
-            session: resolveAgentSessionRecord(this.sessions, sessionId),
-            pendingAssistantId,
-            skill,
-            error: message,
-            providerState,
-            contextBundle,
-            events: liveToolEvents,
-            createdAt: Date.now(),
-          })
-          this.updateSessionById(sessionId, () => failedSession.session)
-        } else {
+        if (!runStarted) {
           this.updateSessionById(sessionId, (session) => ({
             ...session,
-            lastError: message,
+            lastError: wasAborted ? '' : message,
           }))
         }
         if (!wasAborted) {
@@ -1773,12 +1790,6 @@ export const useAiStore = defineStore('ai', {
           delete nextAbortControllers[sessionId]
           this.runtimeAbortControllers = nextAbortControllers
         }
-        if (runStarted) {
-          const finalizedSession = await finalizeAgentRunSessionRust({
-            session: resolveAgentSessionRecord(this.sessions, sessionId),
-          })
-          this.updateSessionById(sessionId, () => finalizedSession.session)
-        }
         if (this.dequeueQueuedSubmission(sessionId)) {
           queueMicrotask(() => {
             const queuedSession = resolveAgentSessionRecord(this.sessions, sessionId)
@@ -1790,29 +1801,31 @@ export const useAiStore = defineStore('ai', {
       }
     },
 
-    stopCurrentRun(sessionId = '') {
+    async stopCurrentRun(sessionId = '') {
       const targetSessionId = String(sessionId || this.currentSessionId || '').trim()
       if (!targetSessionId) return false
       const runtimeRunState = getRuntimeRunState(this.runtimeAbortControllers, targetSessionId)
       if (runtimeRunState?.controller) {
         runtimeRunState.controller.abort()
-        return true
+        this.runtimeAbortControllers = {
+          ...this.runtimeAbortControllers,
+          [targetSessionId]: {
+            ...runtimeRunState,
+            stopRequested: true,
+          },
+        }
       }
 
-      const session = resolveAgentSessionRecord(this.sessions, targetSessionId)
-      if (
-        session?.runtimeThreadId &&
-        session?.runtimeTurnId &&
-        session?.isRunning === true
-      ) {
-        void interruptCodexRuntimeTurn({
-          threadId: session.runtimeThreadId,
-          turnId: session.runtimeTurnId,
+      const { threadId, turnId } = await this.resolveRuntimeTurnHandle(targetSessionId)
+      if (threadId && turnId) {
+        await interruptCodexRuntimeTurn({
+          threadId,
+          turnId,
         }).catch(() => {})
         return true
       }
 
-      return false
+      return !!runtimeRunState?.controller
     },
 
     async applyArtifact(artifactId = '') {

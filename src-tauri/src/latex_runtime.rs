@@ -342,4 +342,3 @@ pub async fn latex_runtime_compile_fail(params: LatexCompileFinishParams) -> Res
     })
     .await
 }
-

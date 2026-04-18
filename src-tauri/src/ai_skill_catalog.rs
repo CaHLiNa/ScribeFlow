@@ -299,4 +299,3 @@ pub async fn ai_skill_catalog_load(params: AiSkillCatalogParams) -> Result<Value
         "writableRoots": writable_roots,
     }))
 }
-

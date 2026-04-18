@@ -220,4 +220,3 @@ pub fn collect_files_recursive(dir: &Path, files: &mut Vec<FileEntry>) -> Result
 
     Ok(())
 }
-

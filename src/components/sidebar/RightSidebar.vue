@@ -63,7 +63,7 @@ watch(
   position: relative;
   height: 100%;
   min-height: 0;
-  padding: 30px 10px 10px;
+  padding: 20px 8px 8px;
   background: var(
     --sidebar-shell-surface,
     color-mix(in srgb, var(--panel-surface) 56%, transparent)

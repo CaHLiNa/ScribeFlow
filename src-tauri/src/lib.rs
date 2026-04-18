@@ -1,4 +1,3 @@
-mod ai_action_catalog;
 mod ai_agent_execute;
 mod ai_agent_prepare;
 mod ai_agent_prompt;
@@ -452,13 +451,14 @@ pub fn run() {
             ai_agent_prompt::ai_agent_build_prompt,
             ai_agent_execute::ai_agent_execute,
             ai_agent_run::ai_agent_run,
+            ai_agent_run::ai_agent_run_started_session,
             ai_agent_session_runtime::ai_agent_session_start,
             ai_agent_session_runtime::ai_agent_session_apply_event,
             ai_agent_session_runtime::ai_agent_session_complete,
             ai_agent_session_runtime::ai_agent_session_fail,
             ai_agent_session_runtime::ai_agent_session_finalize,
+            ai_agent_session_runtime::ai_agent_session_interrupt,
             ai_agent_session_runtime::ai_agent_tool_events_merge,
-            ai_action_catalog::ai_action_catalog_list,
             ai_artifact_runtime::ai_artifact_capability_describe,
             ai_artifact_runtime::ai_artifact_apply_doc_patch,
             ai_attachment_runtime::ai_attachment_create,

@@ -76,4 +76,3 @@ pub fn load_runtime_state() -> Result<CodexRuntimeState, String> {
     let path = runtime_state_path()?;
     load_runtime_state_from_path(&path)
 }
-

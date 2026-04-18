@@ -439,4 +439,3 @@ pub async fn abort_ai_provider_stream(stream_id: String) -> Result<(), String> {
 
     Ok(())
 }
-

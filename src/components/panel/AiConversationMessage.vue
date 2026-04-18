@@ -7,18 +7,6 @@
       <span>{{ formattedTime }}</span>
     </div>
 
-    <div v-if="showRunMetadata" class="ai-conversation-message__run">
-      <span
-        v-if="showSkillMetadata"
-        class="ai-conversation-message__pill ai-conversation-message__pill--accent"
-      >
-        {{ skillLabel }}
-      </span>
-      <span v-if="providerSummary" class="ai-conversation-message__pill">
-        {{ providerSummary }}
-      </span>
-    </div>
-
     <div v-if="showContextMetadata" class="ai-conversation-message__context">
       <span
         v-for="chip in contextChips"
@@ -122,12 +110,6 @@ const props = defineProps({
 
 defineEmits(['apply-artifact'])
 
-const DEFAULT_AGENT_ACTION_ID = 'workspace-agent'
-
-function isDefaultAgentActionId(value = '') {
-  return String(value || '').trim().toLowerCase() === DEFAULT_AGENT_ACTION_ID
-}
-
 const { t } = useI18n()
 const displayedTextMap = ref({})
 const revealTimers = new Map()
@@ -162,27 +144,14 @@ function canApplyAiArtifact(artifact = null, enabledToolIds = []) {
 
 const messageText = computed(() => extractAiMessageText(props.message))
 const skillId = computed(() => String(props.message?.metadata?.skillId || '').trim())
-const skillLabel = computed(() => String(props.message?.metadata?.skillLabel || '').trim())
-const providerSummary = computed(() =>
-  String(props.message?.metadata?.providerSummary || '').trim()
-)
 const contextChips = computed(() =>
   (Array.isArray(props.message?.metadata?.contextChips)
     ? props.message.metadata.contextChips
     : []
   ).filter((chip) => chip && chip.value)
 )
-const showSkillMetadata = computed(
-  () => !!skillLabel.value && !isDefaultAgentActionId(skillId.value)
-)
-const showRunMetadata = computed(
-  () => props.message?.role === 'assistant' && (showSkillMetadata.value || !!providerSummary.value)
-)
 const showContextMetadata = computed(
-  () =>
-    props.message?.role === 'assistant' &&
-    contextChips.value.length > 0 &&
-    !isDefaultAgentActionId(skillId.value)
+  () => props.message?.role === 'assistant' && contextChips.value.length > 0
 )
 const taskProgressTasks = computed(() => {
   return displayParts.value

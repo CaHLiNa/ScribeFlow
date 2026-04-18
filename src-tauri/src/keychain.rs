@@ -47,4 +47,3 @@ pub fn keychain_delete(key: String) -> Result<(), String> {
         Err(error) => Err(error.to_string()),
     }
 }
-

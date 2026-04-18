@@ -182,23 +182,6 @@ pub async fn ai_runtime_session_rail_reconcile(
         filtered_sessions[index] = apply_snapshot_to_session(&session, &json!(snapshot));
     }
 
-    for thread in runtime_thread_map.values() {
-        if string_field(&json!(thread), &["status"]) == "archived" {
-            continue;
-        }
-        let snapshot = read_thread(&runtime, &thread.id)?.snapshot;
-        filtered_sessions.push(apply_snapshot_to_session(
-            &json!({
-                "title": thread.title,
-                "runtimeThreadId": thread.id,
-                "runtimeTurnId": thread.active_turn_id,
-                "runtimeTransport": "codex-runtime",
-                "isRunning": thread.status == crate::codex_runtime::protocol::ThreadStatus::Running,
-            }),
-            &json!(snapshot),
-        ));
-    }
-
     if filtered_sessions.is_empty() {
         filtered_sessions.push(ensure_session_shape(&json!({}), &{
             let title = if params.fallback_title.trim().is_empty() {
@@ -227,4 +210,3 @@ pub async fn ai_runtime_session_rail_reconcile(
         current_session_id,
     })
 }
-

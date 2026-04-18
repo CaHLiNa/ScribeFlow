@@ -16,13 +16,11 @@ pub struct AiRuntimeTurnWaitResponse {
     pub transport: String,
 }
 
-#[tauri::command]
-pub async fn ai_runtime_turn_run_wait<R: Runtime>(
+pub async fn run_turn_and_wait<R: Runtime>(
     app: AppHandle<R>,
-    state: State<'_, CodexRuntimeHandle>,
+    handle: CodexRuntimeHandle,
     params: RuntimeTurnRunParams,
 ) -> Result<AiRuntimeTurnWaitResponse, String> {
-    let handle = CodexRuntimeHandle::from_state(state).clone();
     let started = run_turn(app, handle.clone(), params).await?;
     let thread_id = started.thread.id.clone();
     let turn_id = started.turn.id.clone();
@@ -73,4 +71,13 @@ pub async fn ai_runtime_turn_run_wait<R: Runtime>(
 
         sleep(Duration::from_millis(80)).await;
     }
+}
+
+#[tauri::command]
+pub async fn ai_runtime_turn_run_wait<R: Runtime>(
+    app: AppHandle<R>,
+    state: State<'_, CodexRuntimeHandle>,
+    params: RuntimeTurnRunParams,
+) -> Result<AiRuntimeTurnWaitResponse, String> {
+    run_turn_and_wait(app, CodexRuntimeHandle::from_state(state).clone(), params).await
 }

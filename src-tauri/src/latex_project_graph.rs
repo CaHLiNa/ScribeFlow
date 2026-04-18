@@ -1197,4 +1197,3 @@ pub async fn latex_compile_targets_resolve(
 
     Ok(Value::Array(Vec::new()))
 }
-

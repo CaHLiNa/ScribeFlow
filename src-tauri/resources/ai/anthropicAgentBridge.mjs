@@ -628,7 +628,7 @@ async function main() {
           })
           return {
             behavior: 'deny',
-            message: `Blocked by Altals tool policy: ${normalizedToolName}`,
+            message: `Blocked by tool policy: ${normalizedToolName}`,
             decisionClassification: 'user_reject',
           }
         }
@@ -698,7 +698,7 @@ async function main() {
 
         return {
           behavior: 'deny',
-          message: String(response?.message || `Denied by the Altals desktop approval flow: ${normalizedToolName}`),
+          message: String(response?.message || `Denied by the desktop approval flow: ${normalizedToolName}`),
           toolUseID: options.toolUseID,
           decisionClassification: 'user_reject',
         }

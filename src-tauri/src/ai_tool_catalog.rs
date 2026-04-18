@@ -245,7 +245,7 @@ pub fn build_ai_tool_prompt_block(tool_ids: &[String], runtime_intent: &str) -> 
         return "Available tools: none.".to_string();
     }
 
-    let mut lines = vec!["Available tools in this Altals runtime:".to_string()];
+    let mut lines = vec!["Available tools in this runtime:".to_string()];
     lines.extend(
         tools
             .into_iter()
@@ -272,4 +272,3 @@ pub async fn ai_tool_catalog_resolve(
         runtime_tool_ids,
     })
 }
-

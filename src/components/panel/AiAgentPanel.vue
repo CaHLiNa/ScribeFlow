@@ -1,5 +1,18 @@
 <template>
   <section class="ai-agent-panel">
+    <header class="ai-agent-panel__header">
+      <div class="ai-agent-panel__session-control">
+        <AiSessionRail
+          :sessions="sessionItems"
+          :current-session-id="aiStore.currentSessionId"
+          @create="createSession"
+          @switch="switchSessionTab"
+          @rename="renameSession"
+          @delete="deleteSession"
+        />
+      </div>
+    </header>
+
     <div
       ref="threadRef"
       class="ai-agent-panel__thread scrollbar-hidden"
@@ -97,28 +110,6 @@
 
         <AiAttachmentList :attachments="attachments" @remove="removeAttachment" />
 
-        <div class="ai-agent-panel__control-bar">
-          <div class="ai-agent-panel__session-control">
-          <AiSessionRail
-            :sessions="sessionItems"
-            :current-session-id="aiStore.currentSessionId"
-            @create="createSession"
-            @switch="switchSessionTab"
-            @rename="renameSession"
-            @delete="deleteSession"
-          />
-          </div>
-
-          <UiSelect
-            :model-value="aiStore.providerState.currentProviderId"
-            size="sm"
-            class="ai-agent-panel__provider-select-inline"
-            shell-class="ai-agent-panel__provider-shell"
-            :options="providerOptions"
-            @update:model-value="switchProvider"
-          />
-        </div>
-
         <div class="ai-agent-panel__composer-well">
           <div class="ai-agent-panel__composer-input">
             <UiTextarea
@@ -143,6 +134,24 @@
 
           <div class="ai-agent-panel__composer-actions">
             <div class="ai-agent-panel__composer-tools">
+              <UiSelect
+                v-if="modelMenuOptions.length > 0"
+                :model-value="currentModelValue"
+                size="sm"
+                class="ai-agent-panel__model-chip"
+                shell-class="ai-agent-panel__model-chip-shell"
+                :options="modelMenuOptions"
+                :placeholder="loadingModelLabel"
+                :aria-label="t('Current model')"
+                @update:model-value="switchModel"
+              />
+              <div
+                v-else
+                class="ai-agent-panel__model-fallback"
+                :class="{ 'is-muted': !currentModelLabel }"
+              >
+                {{ currentModelLabel || loadingModelLabel }}
+              </div>
               <UiButton
                 variant="ghost"
                 size="sm"
@@ -156,25 +165,19 @@
 
             <div class="ai-agent-panel__composer-primary">
               <button
-                v-if="aiStore.isRunning"
-                type="button"
-                class="ai-agent-panel__send-button ai-agent-panel__stop-button"
-                :title="stopButtonTitle"
-                :aria-label="stopButtonTitle"
-                @click.prevent.stop="handleStopClick"
-              >
-                <IconPlayerStop :size="14" :stroke-width="2.2" />
-              </button>
-              <button
                 type="button"
                 class="ai-agent-panel__send-button"
-                :class="{ 'is-disabled': isSendBlocked }"
-                :disabled="isSendBlocked"
-                :title="sendButtonTitle"
-                :aria-label="sendButtonTitle"
-                @click.prevent.stop="handleSendClick"
+                :class="{
+                  'is-disabled': !aiStore.isRunning && isSendBlocked,
+                  'ai-agent-panel__stop-button': aiStore.isRunning,
+                }"
+                :disabled="!aiStore.isRunning && isSendBlocked"
+                :title="aiStore.isRunning ? stopButtonTitle : sendButtonTitle"
+                :aria-label="aiStore.isRunning ? stopButtonTitle : sendButtonTitle"
+                @click.prevent.stop="handlePrimaryActionClick"
               >
-                <IconArrowUp :size="14" :stroke-width="2.5" />
+                <IconPlayerStop v-if="aiStore.isRunning" :size="14" :stroke-width="2.2" />
+                <IconArrowUp v-else :size="14" :stroke-width="2.5" />
               </button>
             </div>
           </div>
@@ -245,13 +248,11 @@ const threadRef = ref(null)
 const threadBottomRef = ref(null)
 const composerTextareaRef = ref(null)
 const enabledTools = ref([])
-const providerDefinitions = ref([])
 const activeInvocationIndex = ref(0)
 const respondingPermissionRequestId = ref('')
 const respondingAskUserRequestId = ref('')
 const respondingExitPlanRequestId = ref('')
 
-const builtInActions = computed(() => aiStore.builtInActions)
 const altalsSkills = computed(() => aiStore.altalsSkills)
 const messages = computed(() => aiStore.messages)
 const artifacts = computed(() => aiStore.artifacts)
@@ -264,10 +265,42 @@ const planModeState = computed(() => aiStore.planModeState)
 const compactionState = computed(() => aiStore.compactionState)
 const resumeState = computed(() => aiStore.resumeState)
 const sessionItems = computed(() => aiStore.sessionList)
-const providerOptions = computed(() => providerDefinitions.value.map((provider) => ({
-  value: provider.id,
-  label: provider.label,
-})))
+const modelOptions = computed(() =>
+  Array.isArray(aiStore.unifiedModelPoolOptions) ? aiStore.unifiedModelPoolOptions : []
+)
+const currentModelValue = computed(() =>
+  `${String(aiStore.providerState.currentProviderId || '').trim()}::${String(aiStore.providerState.model || '').trim()}`
+)
+const modelMenuOptions = computed(() => {
+  const options = Array.isArray(modelOptions.value) ? [...modelOptions.value] : []
+  const currentModel = String(aiStore.providerState.model || '').trim()
+  const currentProviderId = String(aiStore.providerState.currentProviderId || '').trim()
+  if (!currentModel || !currentProviderId) return options
+  const selectedValue = currentModelValue.value
+  const hasCurrent = options.some((option) => option?.value === selectedValue)
+  if (hasCurrent) return options
+  return [
+    {
+      value: selectedValue,
+      label: `${currentModel} · ${aiStore.providerState.currentProviderLabel || currentProviderId}`,
+      triggerLabel: currentModel,
+      providerId: currentProviderId,
+      providerLabel: aiStore.providerState.currentProviderLabel || currentProviderId,
+      model: currentModel,
+      modelLabel: currentModel,
+    },
+    ...options,
+  ]
+})
+const currentModelLabel = computed(() => {
+  const currentModel = String(aiStore.providerState.model || '').trim()
+  if (!currentModel) return ''
+  const matchedOption = modelMenuOptions.value.find((option) => option?.value === currentModelValue.value)
+  return String(matchedOption?.triggerLabel || matchedOption?.modelLabel || currentModel).trim()
+})
+const loadingModelLabel = computed(() =>
+  aiStore.unifiedModelPoolLoading ? t('Loading models...') : t('No model selected')
+)
 
 const artifactsById = computed(() =>
   Object.fromEntries(artifacts.value.map((artifact) => [artifact.id, artifact]))
@@ -304,7 +337,7 @@ const sendButtonTitle = computed(() => {
 const stopButtonTitle = computed(() => t('Stop response'))
 const composerPlaceholder = computed(() =>
   isAgentMode.value
-    ? t('Describe the task. The agent can inspect files, search the workspace, and use tools here.')
+    ? t('Describe the task, or type $skill.')
     : t('Ask anything about this project.')
 )
 const emptyStateTitle = computed(() =>
@@ -312,9 +345,7 @@ const emptyStateTitle = computed(() =>
 )
 const emptyStateNote = computed(() =>
   isAgentMode.value
-    ? t(
-        'Describe the task directly. The agent already has this workspace, file context, and tool access attached.'
-      )
+    ? t('The agent already has this workspace, file context, and tool access.')
     : t('Operate on the current workspace or type / for commands.')
 )
 
@@ -326,19 +357,6 @@ function toInvocationSlug(value = '') {
     .replace(/[^a-z0-9\u4e00-\u9fff]+/gu, '-')
     .replace(/^-+|-+$/g, '')
 }
-
-const slashSuggestions = computed(() =>
-  builtInActions.value.map((action) => ({
-    id: action.id,
-    kind: 'built-in-action',
-    prefix: '/',
-    groupKey: 'shell-actions',
-    groupLabel: t('Shell actions'),
-    label: t(action.titleKey || action.id),
-    description: t(action.descriptionKey || action.description || ''),
-    insertText: `/${action.id} `,
-  }))
-)
 
 const skillSuggestions = computed(() =>
   altalsSkills.value.map((skill) => ({
@@ -366,7 +384,7 @@ const composerSuggestions = computed(() => {
           description: t(tool.descriptionKey || tool.description || ''),
         }))
       : [],
-    slashSuggestions: slashSuggestions.value,
+    slashSuggestions: [],
     skillSuggestions: skillSuggestions.value,
   })
 
@@ -416,11 +434,19 @@ function handleSendClick() {
 
 function handleStopClick() {
   if (!aiStore.isRunning) return
-  aiStore.stopCurrentRun()
+  void aiStore.stopCurrentRun()
 }
 
-async function switchProvider(providerId = '') {
-  await aiStore.setCurrentProvider(providerId)
+function handlePrimaryActionClick() {
+  if (aiStore.isRunning) {
+    handleStopClick()
+    return
+  }
+  handleSendClick()
+}
+
+async function switchModel(model = '') {
+  await aiStore.setCurrentModel(model)
 }
 
 async function respondPermissionRequest(request = null, behavior = 'deny', persist = false) {
@@ -628,10 +654,9 @@ async function refreshEnabledTools() {
   enabledTools.value = Array.isArray(response?.runtimeTools) ? response.runtimeTools : []
 }
 
-async function refreshProviderDefinitions() {
-  providerDefinitions.value = await invoke('ai_provider_catalog_list')
-    .then((response) => (Array.isArray(response?.providers) ? response.providers : []))
-    .catch(() => [])
+async function refreshProviderRuntime() {
+  await aiStore.refreshProviderState()
+  await aiStore.refreshUnifiedModelPool({ force: true }).catch(() => [])
 }
 
 async function hydrateWorkspaceSessions() {
@@ -642,9 +667,7 @@ async function hydrateWorkspaceSessions() {
 onMounted(() => {
   void hydrateWorkspaceSessions()
   void refreshEnabledTools()
-  void refreshProviderDefinitions()
-  void aiStore.refreshBuiltInActions()
-  void aiStore.refreshProviderState()
+  void refreshProviderRuntime()
   void aiStore.refreshAltalsSkills()
   scrollToBottom('auto')
 })
@@ -652,9 +675,7 @@ onMounted(() => {
 onActivated(() => {
   void hydrateWorkspaceSessions()
   void refreshEnabledTools()
-  void refreshProviderDefinitions()
-  void aiStore.refreshBuiltInActions()
-  void aiStore.refreshProviderState()
+  void refreshProviderRuntime()
   void aiStore.refreshAltalsSkills()
   scrollToBottom('auto')
 })
@@ -664,7 +685,6 @@ watch(
   () => {
     void hydrateWorkspaceSessions()
     void refreshEnabledTools()
-    void aiStore.refreshBuiltInActions()
     void aiStore.refreshAltalsSkills()
     void filesStore.ensureFlatFilesReady({ force: true }).catch(() => {})
   }
@@ -716,6 +736,7 @@ watch(
   flex-direction: column;
   height: 100%;
   min-height: 0;
+  container-type: inline-size;
   color: var(--text-primary);
   background: transparent;
 }
@@ -737,8 +758,17 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 8px 12px 14px;
+  padding: 6px 10px 10px;
   background: transparent;
+}
+
+.ai-agent-panel__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px 6px;
+  background: transparent;
+  z-index: 10;
 }
 
 .ai-agent-panel__subnav {
@@ -750,27 +780,9 @@ watch(
 .ai-agent-panel__composer-card {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 10px 12px 12px;
-  border-radius: 18px;
-  border: 1px solid color-mix(in srgb, var(--border-color) 46%, transparent);
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--surface-raised) 66%, transparent),
-      color-mix(in srgb, var(--panel-surface) 92%, transparent)
-    );
-  box-shadow:
-    inset 0 1px 0 color-mix(in srgb, white 58%, transparent),
-    0 12px 32px color-mix(in srgb, black 8%, transparent);
-}
-
-.ai-agent-panel__control-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  min-width: 0;
+  gap: 8px;
+  position: relative;
+  z-index: 10;
 }
 
 .ai-agent-panel__session-control {
@@ -783,16 +795,14 @@ watch(
 .ai-agent-panel__composer-well {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 10px 12px 10px;
-  border-radius: 16px;
-  border: 1px solid color-mix(in srgb, var(--border-color) 36%, transparent);
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, white 86%, transparent),
-      color-mix(in srgb, var(--surface-base) 92%, transparent)
-    );
+  gap: 6px;
+  padding: 6px 8px 7px;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 20%, transparent);
+  background: color-mix(in srgb, var(--panel-surface) 72%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 12%, transparent),
+    0 6px 18px color-mix(in srgb, black 8%, transparent);
 }
 
 .ai-agent-panel__approval {
@@ -844,11 +854,39 @@ watch(
   position: relative;
 }
 
+.ai-agent-panel__model-chip {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 176px;
+}
+
+.ai-agent-panel__model-fallback {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 176px;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 26%, transparent);
+  background: color-mix(in srgb, var(--surface-base) 66%, transparent);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-agent-panel__model-fallback.is-muted {
+  color: var(--text-tertiary);
+}
+
 .ai-agent-panel__composer-actions {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 34px;
+  min-height: 28px;
   padding-top: 2px;
 }
 
@@ -864,42 +902,34 @@ watch(
   gap: 4px;
 }
 
-.ai-agent-panel__provider-select-inline {
-  width: auto;
-  max-width: 132px;
-  flex: 0 0 auto;
-}
-
 .ai-agent-panel__send-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   padding: 0;
-  border: 1px solid transparent;
-  border-radius: 14px;
-  background: transparent;
-  color: var(--text-primary);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  border: none;
+  border-radius: 10px;
+  background: var(--text-primary);
+  color: var(--surface-base);
+  box-shadow: 0 2px 8px color-mix(in srgb, black 12%, transparent);
   cursor: pointer;
-  transition:
-    background-color 0.12s ease,
-    border-color 0.12s ease,
-    opacity 0.12s ease,
-    transform 0.12s ease;
+  transition: transform 0.1s ease, filter 0.1s ease, opacity 0.1s ease;
 }
 
 .ai-agent-panel__send-button:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--surface-hover) 50%, transparent);
+  filter: brightness(1.15);
+  transform: translateY(-0.5px);
 }
 
 .ai-agent-panel__stop-button {
-  color: var(--error);
+  background: var(--error);
+  color: white;
 }
 
 .ai-agent-panel__stop-button:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--error) 10%, transparent);
+  filter: brightness(1.1);
 }
 
 .ai-agent-panel__send-button:active:not(:disabled) {
@@ -920,7 +950,7 @@ watch(
 }
 
 .ai-agent-panel__textarea {
-  padding: 0 !important;
+  padding: 4px 6px !important;
   min-height: 24px;
   max-height: 400px;
 }
@@ -939,15 +969,16 @@ watch(
 .ai-agent-panel__empty {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 24px 12px;
-  align-items: center;
-  text-align: center;
+  gap: 6px;
+  padding: 10px 8px 18px;
+  align-items: flex-start;
+  text-align: left;
+  max-width: 240px;
 }
 
 .ai-agent-panel__empty-title {
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   line-height: 1.4;
   color: var(--text-primary);
 }
@@ -973,7 +1004,7 @@ watch(
 }
 
 .ai-agent-panel__composer :deep(.ai-agent-panel__textarea-shell .ui-textarea-control) {
-  min-height: 112px;
+  min-height: 92px;
   padding: 2px 0 6px !important;
   resize: none;
   font-size: 13px;
@@ -981,30 +1012,62 @@ watch(
   color: var(--text-primary);
 }
 
-.ai-agent-panel__composer :deep(.ai-agent-panel__provider-shell .ui-select-trigger) {
-  height: 30px;
+.ai-agent-panel__composer :deep(.ai-agent-panel__model-chip-shell) {
+  width: auto;
+  max-width: 100%;
+}
+
+.ai-agent-panel__composer :deep(.ai-agent-panel__model-chip-shell .ui-select-trigger) {
+  height: 28px;
+  width: auto;
+  max-width: 100%;
   padding: 0 24px 0 10px;
-  border-color: color-mix(in srgb, var(--border-color) 46%, transparent);
+  border-color: color-mix(in srgb, var(--border-color) 22%, transparent);
   border-radius: 10px;
-  background: color-mix(in srgb, var(--surface-base) 88%, transparent);
+  background: color-mix(in srgb, var(--surface-base) 66%, transparent);
   box-shadow: none;
   color: var(--text-secondary);
 }
 
-.ai-agent-panel__composer :deep(.ai-agent-panel__provider-shell .ui-select-trigger:hover),
-.ai-agent-panel__composer :deep(.ai-agent-panel__provider-shell .ui-select-trigger:focus-visible) {
-  border-color: color-mix(in srgb, var(--accent) 26%, var(--border-color) 74%);
-  background: color-mix(in srgb, var(--surface-hover) 26%, transparent);
+.ai-agent-panel__composer :deep(.ai-agent-panel__model-chip-shell .ui-select-trigger:hover),
+.ai-agent-panel__composer :deep(.ai-agent-panel__model-chip-shell .ui-select-trigger:focus-visible) {
+  border-color: color-mix(in srgb, var(--accent) 22%, var(--border-color) 78%);
+  background: color-mix(in srgb, var(--surface-hover) 18%, transparent);
   color: var(--text-primary);
 }
 
-.ai-agent-panel__composer :deep(.ai-agent-panel__provider-shell .ui-select-value) {
-  font-size: 11px;
+.ai-agent-panel__composer :deep(.ai-agent-panel__model-chip-shell .ui-select-value) {
+  font-size: 12px;
   font-weight: 600;
 }
 
-.ai-agent-panel__composer :deep(.ai-agent-panel__provider-shell .ui-select-caret) {
+.ai-agent-panel__composer :deep(.ai-agent-panel__model-chip-shell .ui-select-caret) {
   right: 7px;
   opacity: 0.7;
+}
+
+@container (max-width: 380px) {
+  .ai-agent-panel__header {
+    padding-bottom: 4px;
+  }
+}
+
+@container (max-width: 320px) {
+  .ai-agent-panel__thread {
+    padding-inline: 12px;
+  }
+
+  .ai-agent-panel__composer {
+    padding-inline: 8px;
+  }
+
+  .ai-agent-panel__model-chip,
+  .ai-agent-panel__model-fallback {
+    max-width: 132px;
+  }
+
+  .ai-agent-panel__empty {
+    max-width: none;
+  }
 }
 </style>

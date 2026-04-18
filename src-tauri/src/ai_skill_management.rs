@@ -88,7 +88,7 @@ fn ensure_skill_is_managed(params: &AiSkillCatalogParams, skill: &Value) -> Resu
     {
         return Ok(directory_path.to_string());
     }
-    Err("Only managed skills can be deleted from Altals settings.".to_string())
+    Err("Only managed skills can be deleted from settings.".to_string())
 }
 
 fn ensure_skill_is_writable(
@@ -106,7 +106,7 @@ fn ensure_skill_is_writable(
     {
         return Ok(directory_path.to_string());
     }
-    Err("Only writable Altals skills can be edited from Altals settings.".to_string())
+    Err("Only writable skills can be edited from settings.".to_string())
 }
 
 fn copy_dir_recursive(src: &Path, dest: &Path) -> Result<(), String> {
@@ -299,4 +299,3 @@ pub async fn ai_skill_duplicate(params: AiSkillDeleteParams) -> Result<Value, St
 
     Ok(Value::String(target_dir.to_string_lossy().to_string()))
 }
-

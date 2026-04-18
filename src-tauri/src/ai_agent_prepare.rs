@@ -12,8 +12,6 @@ pub struct AiAgentPrepareParams {
     #[serde(default)]
     pub active_skill: Option<Value>,
     #[serde(default)]
-    pub built_in_actions: Vec<Value>,
-    #[serde(default)]
     pub altals_skills: Vec<Value>,
     #[serde(default)]
     pub context_bundle: Value,
@@ -161,13 +159,6 @@ fn resolve_mentioned_workspace_files(
         })
         .cloned()
         .collect()
-}
-
-fn match_built_in_action(name: &str, actions: &[Value]) -> Option<Value> {
-    actions
-        .iter()
-        .find(|action| normalize_invocation_name(&string_field(action, &["id"])) == name)
-        .cloned()
 }
 
 fn build_skill_slug(skill: &Value) -> String {
@@ -344,13 +335,10 @@ fn score_skill_overlap(skill: &Value, prompt_tokens: &[String]) -> i32 {
 
 fn infer_skill_from_prompt(
     prompt: &str,
-    built_in_actions: &[Value],
     altals_skills: &[Value],
     context_bundle: &Value,
     fallback_skill: Option<Value>,
 ) -> Option<Value> {
-    let default_action =
-        match_built_in_action("workspace-agent", built_in_actions).or(fallback_skill);
     let prompt_tokens = tokenize_prompt(prompt);
     let ranked = altals_skills
         .iter()
@@ -364,7 +352,7 @@ fn infer_skill_from_prompt(
         })
         .filter(|(score, _)| *score >= 20)
         .max_by_key(|(score, _)| *score);
-    ranked.map(|(_, skill)| skill).or(default_action)
+    ranked.map(|(_, skill)| skill).or(fallback_skill)
 }
 
 fn parse_ai_invocation_input(input: &str) -> Option<(String, String, String, String)> {
@@ -396,17 +384,11 @@ fn resolve_ai_invocation(
     prompt: &str,
     mode: &str,
     active_skill: Option<Value>,
-    built_in_actions: &[Value],
     altals_skills: &[Value],
     context_bundle: &Value,
 ) -> (Option<Value>, String, Option<Value>) {
-    let fallback_skill = infer_skill_from_prompt(
-        prompt,
-        built_in_actions,
-        altals_skills,
-        context_bundle,
-        active_skill,
-    );
+    let fallback_skill =
+        infer_skill_from_prompt(prompt, altals_skills, context_bundle, active_skill);
     let Some((prefix, name, raw_name, remainder)) = parse_ai_invocation_input(prompt) else {
         return (fallback_skill, prompt.trim().to_string(), None);
     };
@@ -437,64 +419,7 @@ fn resolve_ai_invocation(
             );
         }
 
-        if invocation.get("prefix").and_then(Value::as_str) == Some("/") {
-            if let Some(action) = match_built_in_action(
-                invocation
-                    .get("name")
-                    .and_then(Value::as_str)
-                    .unwrap_or_default(),
-                built_in_actions,
-            ) {
-                return (
-                    Some(action),
-                    invocation
-                        .get("remainder")
-                        .and_then(Value::as_str)
-                        .unwrap_or_default()
-                        .to_string(),
-                    Some(invocation),
-                );
-            }
-        }
-
         return (fallback_skill, prompt.trim().to_string(), None);
-    }
-
-    if invocation.get("prefix").and_then(Value::as_str) == Some("/") {
-        if let Some(skill) = match_filesystem_skill(
-            invocation
-                .get("name")
-                .and_then(Value::as_str)
-                .unwrap_or_default(),
-            altals_skills,
-        ) {
-            return (
-                Some(skill),
-                invocation
-                    .get("remainder")
-                    .and_then(Value::as_str)
-                    .unwrap_or_default()
-                    .to_string(),
-                Some(invocation),
-            );
-        }
-        if let Some(action) = match_built_in_action(
-            invocation
-                .get("name")
-                .and_then(Value::as_str)
-                .unwrap_or_default(),
-            built_in_actions,
-        ) {
-            return (
-                Some(action),
-                invocation
-                    .get("remainder")
-                    .and_then(Value::as_str)
-                    .unwrap_or_default()
-                    .to_string(),
-                Some(invocation),
-            );
-        }
     }
 
     if invocation.get("prefix").and_then(Value::as_str) == Some("$") {
@@ -598,21 +523,15 @@ pub async fn ai_agent_prepare(params: AiAgentPrepareParams) -> Result<Value, Str
     let is_agent_session = normalized_session_mode == "agent";
     let prompt_draft = string_field(&session, &["promptDraft", "prompt_draft"]);
     let (file_mentions, tool_mentions) = parse_ai_prompt_resource_mentions(&prompt_draft);
-    let default_agent_skill = match_built_in_action("workspace-agent", &params.built_in_actions)
-        .or(params.active_skill.clone());
     let (resolved_skill, user_instruction, invocation) = resolve_ai_invocation(
         &prompt_draft,
         &normalized_session_mode,
-        if is_agent_session {
-            default_agent_skill.clone()
-        } else {
-            params.active_skill.clone()
-        },
-        &params.built_in_actions,
+        params.active_skill.clone(),
         &params.altals_skills,
         &params.context_bundle,
     );
-    let Some(skill) = resolved_skill else {
+    let skill = resolved_skill.unwrap_or(Value::Null);
+    if skill.is_null() && !is_agent_session {
         return Ok(build_error(
             "AI_SKILL_UNAVAILABLE",
             json!({
@@ -620,9 +539,9 @@ pub async fn ai_agent_prepare(params: AiAgentPrepareParams) -> Result<Value, Str
                 "invocation": invocation,
             }),
         ));
-    };
+    }
 
-    if string_field(&skill, &["kind"]) != "filesystem-skill" {
+    if skill.is_object() && string_field(&skill, &["kind"]) != "filesystem-skill" {
         let required_context = array_field(&skill, &["requiredContext", "required_context"])
             .into_iter()
             .filter_map(|entry| entry.as_str().map(|value| value.to_string()))
@@ -640,10 +559,11 @@ pub async fn ai_agent_prepare(params: AiAgentPrepareParams) -> Result<Value, Str
                 }),
             ));
         }
-    } else if !array_field(&skill, &["requiredContext", "required_context"])
-        .into_iter()
-        .filter_map(|entry| entry.as_str().map(|value| value.to_string()))
-        .all(|kind| context_available(&kind, &params.context_bundle))
+    } else if skill.is_object()
+        && !array_field(&skill, &["requiredContext", "required_context"])
+            .into_iter()
+            .filter_map(|entry| entry.as_str().map(|value| value.to_string()))
+            .all(|kind| context_available(&kind, &params.context_bundle))
     {
         return Ok(build_error(
             "MISSING_CONTEXT",
@@ -797,4 +717,3 @@ pub async fn ai_agent_prepare(params: AiAgentPrepareParams) -> Result<Value, Str
         "requestedTools": if is_agent_session { Value::Array(tool_mentions.into_iter().map(Value::String).collect()) } else { Value::Array(Vec::new()) },
     }))
 }
-

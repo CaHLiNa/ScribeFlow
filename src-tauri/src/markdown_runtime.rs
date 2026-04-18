@@ -79,7 +79,9 @@ fn walk_headings(node: &Node, items: &mut Vec<MarkdownHeadingItem>) {
             }
         }
         Node::Heading(heading) => {
-            let text = collect_text_from_children(&heading.children).trim().to_string();
+            let text = collect_text_from_children(&heading.children)
+                .trim()
+                .to_string();
             if !text.is_empty() {
                 let level = heading.depth.clamp(1, 6) as u8;
                 let (offset, line) = position_start(heading.position.as_ref());
@@ -144,7 +146,8 @@ fn extract_markdown_headings(content: &str) -> Result<Vec<MarkdownHeadingItem>, 
 }
 
 #[tauri::command]
-pub async fn markdown_extract_headings(content: String) -> Result<Vec<MarkdownHeadingItem>, String> {
+pub async fn markdown_extract_headings(
+    content: String,
+) -> Result<Vec<MarkdownHeadingItem>, String> {
     extract_markdown_headings(&content)
 }
-

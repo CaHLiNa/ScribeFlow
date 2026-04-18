@@ -669,7 +669,12 @@ pub async fn references_citation_render(params: CitationRenderParams) -> Result<
                 .join("\n\n"));
         }
 
-        return Ok(format_reference(style, mode, &params.reference, params.number));
+        return Ok(format_reference(
+            style,
+            mode,
+            &params.reference,
+            params.number,
+        ));
     }
 
     render_csl_items(CitationCslFormatParams {

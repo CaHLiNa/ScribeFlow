@@ -355,4 +355,3 @@ pub async fn ai_provider_connection_test(
     let _ = list_provider_models(&provider_id, &provider_config, &api_key).await?;
     Ok(json!({ "ok": true }))
 }
-

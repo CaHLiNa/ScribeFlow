@@ -104,4 +104,3 @@ pub fn load_skill_supporting_files(skill: &Value) -> Vec<Value> {
     walk_skill_directory(&root_path, &root_path, &mut collected);
     collected
 }
-

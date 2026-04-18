@@ -94,17 +94,23 @@ const normalizedOptions = computed(() =>
       return {
         value: option.value,
         label: option.label ?? String(option.value ?? ''),
+        triggerLabel: option.triggerLabel ?? option.label ?? String(option.value ?? ''),
         disabled: option.disabled === true,
       }
     }
-    return { value: option, label: String(option ?? ''), disabled: false }
+    return {
+      value: option,
+      label: String(option ?? ''),
+      triggerLabel: String(option ?? ''),
+      disabled: false,
+    }
   })
 )
 
 const selectedOption = computed(
   () => normalizedOptions.value.find((o) => o.value === props.modelValue) || null
 )
-const selectedLabel = computed(() => selectedOption.value?.label || '')
+const selectedLabel = computed(() => selectedOption.value?.triggerLabel || selectedOption.value?.label || '')
 const triggerLabel = computed(() => props.ariaLabel || selectedLabel.value || 'Select')
 
 const shellClassName = computed(() => [

@@ -148,4 +148,3 @@ pub async fn ai_provider_api_key_clear(provider_id: String) -> Result<(), String
     }
     persist_ai_credential_fallback(&normalized_provider_id, "", "")
 }
-

@@ -4,12 +4,6 @@ import {
   normalizeFsPath,
 } from '../../services/documentIntelligence/workspaceGraph.js'
 
-const DEFAULT_AGENT_ACTION_ID = 'workspace-agent'
-
-function isDefaultAgentActionId(value = '') {
-  return String(value || '').trim().toLowerCase() === DEFAULT_AGENT_ACTION_ID
-}
-
 const EMPTY_SELECTION = Object.freeze({
   filePath: '',
   from: null,
@@ -143,82 +137,4 @@ export function buildAiContextBundle({
 export function skillHasRequiredContext(skill = {}, contextBundle = {}) {
   const requiredContext = Array.isArray(skill.requiredContext) ? skill.requiredContext : []
   return requiredContext.every((kind) => isAiContextAvailable(kind, contextBundle))
-}
-
-function buildRecommendationReason(skillId = '', contextBundle = {}) {
-  if (isDefaultAgentActionId(skillId)) {
-    return contextBundle.workspace.available
-      ? 'The current folder is available, so the workspace agent can act in project context.'
-      : 'Open a project folder to start the workspace agent.'
-  }
-  if (skillId === 'revise-with-citations') {
-    return contextBundle.selection.available && contextBundle.reference.available
-      ? 'The active selection and selected reference can be revised together.'
-      : 'This skill needs both a selection and a selected reference.'
-  }
-  if (skillId === 'summarize-selection') {
-    return contextBundle.selection.available
-      ? 'The current selection is ready to be summarized into a research note.'
-      : 'Select text in the active draft to use this skill.'
-  }
-  if (skillId === 'draft-related-work') {
-    return contextBundle.document.available && contextBundle.reference.available
-      ? 'The active draft and selected reference can anchor a related-work pass.'
-      : 'Open a draft and choose a reference to ground this skill.'
-  }
-  if (skillId === 'find-supporting-references') {
-    return contextBundle.selection.available
-      ? 'The active passage can be used to look for missing support.'
-      : 'This skill works best when a passage in the draft is selected.'
-  }
-  return 'Ground the skill in the current project context before running it.'
-}
-
-function computeRecommendationScore(skill = {}, contextBundle = {}) {
-  const available = skillHasRequiredContext(skill, contextBundle)
-
-  if (isDefaultAgentActionId(skill.id)) {
-    if (available && contextBundle.selection.available && contextBundle.reference.available)
-      return 90
-    if (available && contextBundle.document.available && contextBundle.selection.available)
-      return 80
-    if (available && contextBundle.document.available) return 70
-    if (available) return 55
-    return 10
-  }
-  if (skill.id === 'revise-with-citations') {
-    if (available) return 120
-    if (contextBundle.document.available && contextBundle.selection.available) return 70
-    return 10
-  }
-  if (skill.id === 'draft-related-work') {
-    if (available) return 110
-    if (contextBundle.document.available) return 60
-    return 10
-  }
-  if (skill.id === 'summarize-selection') {
-    if (available) return 100
-    return 20
-  }
-  if (skill.id === 'find-supporting-references') {
-    if (available) return 90
-    if (contextBundle.document.available) return 40
-    return 10
-  }
-
-  return available ? 50 : 0
-}
-
-export function recommendAiSkills(contextBundle = {}, skills = []) {
-  return [...skills]
-    .map((skill) => ({
-      ...skill,
-      available: skillHasRequiredContext(skill, contextBundle),
-      score: computeRecommendationScore(skill, contextBundle),
-      reason: buildRecommendationReason(skill.id, contextBundle),
-    }))
-    .sort((left, right) => {
-      if (left.score !== right.score) return right.score - left.score
-      return String(left.id || '').localeCompare(String(right.id || ''))
-    })
 }

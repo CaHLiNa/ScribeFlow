@@ -62,7 +62,7 @@ fn skill_label(skill: &Value) -> String {
     if !label.is_empty() {
         return label;
     }
-    "Workspace agent".to_string()
+    "Agent".to_string()
 }
 
 fn runtime_transport_label(transport: &str) -> String {
@@ -854,6 +854,15 @@ pub struct AiAgentSessionFinalizeParams {
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct AiAgentSessionInterruptParams {
+    #[serde(default)]
+    pub session: Value,
+    #[serde(default)]
+    pub pending_assistant_id: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AiAgentToolEventsMergeParams {
     #[serde(default)]
     pub events: Vec<Value>,
@@ -874,6 +883,26 @@ pub struct AiAgentSessionMutationResponse {
 #[serde(rename_all = "camelCase")]
 pub struct AiAgentToolEventsMergeResponse {
     pub events: Vec<Value>,
+}
+
+fn remove_streaming_marker(part: &Value) -> Value {
+    let Some(object) = part.as_object() else {
+        return part.clone();
+    };
+
+    let mut next = object.clone();
+    next.remove("isStreaming");
+    Value::Object(next)
+}
+
+fn part_has_visible_content(part: &Value) -> bool {
+    let part_type = string_field(part, &["type"]);
+    if part_type == "text" || part_type == "support" || part_type == "note" || part_type == "error"
+    {
+        return !string_field(part, &["text"]).is_empty();
+    }
+
+    part.is_object()
 }
 
 #[tauri::command]
@@ -938,6 +967,8 @@ pub async fn ai_agent_session_start(
     session["messages"] = Value::Array(messages);
     session["isRunning"] = Value::Bool(true);
     session["lastError"] = Value::String(String::new());
+    session["promptDraft"] = Value::String(String::new());
+    session["attachments"] = Value::Array(Vec::new());
     session["waitingResume"] = Value::Bool(false);
     session["waitingResumeMessage"] = Value::String(String::new());
     if trim(&params.effective_permission_mode) != "chat" {
@@ -1265,6 +1296,48 @@ pub async fn ai_agent_session_finalize(
 }
 
 #[tauri::command]
+pub async fn ai_agent_session_interrupt(
+    params: AiAgentSessionInterruptParams,
+) -> Result<AiAgentSessionMutationResponse, String> {
+    let pending_id = trim(&params.pending_assistant_id);
+    let mut messages = Vec::new();
+
+    for message in array_entries(&params.session, "messages") {
+        if string_field(&message, &["id"]) != pending_id {
+            messages.push(message);
+            continue;
+        }
+
+        let normalized_parts = array_entries(&message, "parts")
+            .into_iter()
+            .map(|part| remove_streaming_marker(&part))
+            .filter(part_has_visible_content)
+            .collect::<Vec<_>>();
+        let content = string_field(&message, &["content"]);
+
+        if content.is_empty() && normalized_parts.is_empty() {
+            continue;
+        }
+
+        let mut next_message = message.clone();
+        next_message["parts"] = Value::Array(normalized_parts);
+        next_message["content"] = Value::String(content);
+        messages.push(next_message);
+    }
+
+    let mut session = params.session;
+    session["messages"] = Value::Array(messages);
+    session["lastError"] = Value::String(String::new());
+
+    Ok(AiAgentSessionMutationResponse {
+        session,
+        assistant_message: None,
+        user_message: None,
+        failed_assistant_message: None,
+    })
+}
+
+#[tauri::command]
 pub async fn ai_agent_tool_events_merge(
     params: AiAgentToolEventsMergeParams,
 ) -> Result<AiAgentToolEventsMergeResponse, String> {
@@ -1290,4 +1363,3 @@ pub async fn ai_agent_tool_events_merge(
 
     Ok(AiAgentToolEventsMergeResponse { events })
 }
-

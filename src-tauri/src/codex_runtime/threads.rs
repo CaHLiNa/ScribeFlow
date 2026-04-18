@@ -332,4 +332,3 @@ pub fn rollback_thread(
         snapshot: build_thread_snapshot(state, thread_snapshot),
     })
 }
-
