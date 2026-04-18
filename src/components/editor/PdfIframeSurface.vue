@@ -135,7 +135,6 @@ let viewerAppBindTimer = 0
 let viewerFramePatchesInstalled = false
 let activeLoadSourceMode = ''
 let protocolFailureFallbackTriggered = false
-const LATEX_SYNC_DEBUG_LOG = '.altals-latex-sync-debug.jsonl'
 const PROTOCOL_LOAD_TIMEOUT_MS = 1200
 const BLOB_LOAD_TIMEOUT_MS = 2200
 
@@ -195,22 +194,7 @@ function resolvePdfCanvasFallbackMode(pageBackground = resolvePdfPageBackground(
 }
 
 async function appendLatexSyncDebug(entry = {}) {
-  const workspacePath = String(props.workspacePath || '').trim()
-  if (!workspacePath) return
-  const logPath = `${workspacePath}/${LATEX_SYNC_DEBUG_LOG}`
-  const line = `${JSON.stringify({
-    ts: new Date().toISOString(),
-    stage: 'preview',
-    sourcePath: props.sourcePath,
-    artifactPath: props.artifactPath,
-    ...entry,
-  })}\n`
-  try {
-    const previous = await readWorkspaceTextFile(logPath).catch(() => '')
-    await saveWorkspaceTextFile(logPath, `${previous}${line}`)
-  } catch {
-    // Ignore debug log failures.
-  }
+  void entry
 }
 
 function base64ToUint8Array(base64) {

@@ -3,6 +3,12 @@ use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
 
+const HIDDEN_WORKSPACE_FILES: &[&str] = &[
+    ".altals-latex-sync-debug.jsonl",
+    "_instructions.md",
+    "instructions.md",
+];
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FileEntry {
     pub name: String,
@@ -21,6 +27,9 @@ pub struct WorkspaceTreeSnapshot {
 
 fn should_skip_entry(name: &str, is_dir: bool, is_symlink: bool) -> bool {
     if is_symlink {
+        return true;
+    }
+    if HIDDEN_WORKSPACE_FILES.contains(&name) {
         return true;
     }
     if name.starts_with('.') && is_dir {
