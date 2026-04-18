@@ -159,7 +159,7 @@
 </template>
 
 <script setup>
-import { ref, computed, defineAsyncComponent, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, defineAsyncComponent, onMounted, onUnmounted } from 'vue'
 import { useWorkspaceStore } from './stores/workspace'
 import { useFilesStore } from './stores/files'
 import { useEditorStore } from './stores/editor'
@@ -185,7 +185,7 @@ import { useAppTeardown } from './app/teardown/useAppTeardown'
 import { useWorkspaceLifecycle } from './app/workspace/useWorkspaceLifecycle'
 import { useBrowserPreviewRuntime } from './app/browserPreview/useBrowserPreviewRuntime'
 import { confirmUnsavedChanges } from './services/unsavedChanges'
-import { getViewerType, isNewTab, isPreviewPath, previewSourcePathFromPath } from './utils/fileTypes'
+import { isNewTab, isPreviewPath, previewSourcePathFromPath } from './utils/fileTypes'
 import { isMac } from './platform'
 
 const LeftSidebar = defineAsyncComponent(() => import('./components/sidebar/LeftSidebar.vue'))

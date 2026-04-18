@@ -1,43 +1,37 @@
-import { EditorView } from '@codemirror/view'
-
 const VIEW_WAIT_TIMEOUT_MS = 1500
 
-function clampOffset(state, offset) {
-  const length = state?.doc?.length || 0
-  return Math.max(0, Math.min(Number(offset || 0), length))
+function clampOffset(text = '', offset = 0) {
+  const normalized = String(text || '')
+  return Math.max(0, Math.min(Number(offset || 0), normalized.length))
+}
+
+function lineToOffset(text = '', line = 1) {
+  const normalized = String(text || '')
+  const targetLine = Math.max(1, Number(line || 1))
+  let currentLine = 1
+  let index = 0
+
+  while (currentLine < targetLine && index < normalized.length) {
+    if (normalized[index] === '\n') currentLine += 1
+    index += 1
+  }
+
+  return clampOffset(normalized, index)
 }
 
 export async function waitForMarkdownEditorView(editorStore, targetPath, timeoutMs = VIEW_WAIT_TIMEOUT_MS) {
   const startedAt = Date.now()
-  let targetView = editorStore?.getAnyEditorView?.(targetPath) || null
+  let targetRuntime = editorStore?.getAnyEditorRuntime?.(targetPath) || editorStore?.getAnyEditorView?.(targetPath) || null
 
-  while (!targetView && Date.now() - startedAt < timeoutMs) {
+  while (!targetRuntime && Date.now() - startedAt < timeoutMs) {
     await new Promise((resolve) => window.setTimeout(resolve, 16))
-    targetView = editorStore?.getAnyEditorView?.(targetPath) || null
+    targetRuntime = editorStore?.getAnyEditorRuntime?.(targetPath) || editorStore?.getAnyEditorView?.(targetPath) || null
   }
 
-  return targetView
+  return targetRuntime
 }
 
-export function focusMarkdownSourceLocation(targetView, location, options = {}) {
-  if (targetView?.altalsRevealRange) {
-    let from = Number(location?.startOffset)
-    let to = Number(location?.endOffset)
-
-    if (!Number.isFinite(from)) {
-      from = Number(location?.offset)
-    }
-    if (!Number.isFinite(to)) {
-      to = from
-    }
-
-    if (Number.isFinite(from)) {
-      return targetView.altalsRevealRange(from, to, options)
-    }
-  }
-
-  if (!targetView?.state?.doc) return false
-
+export function focusMarkdownSourceLocation(targetRuntime, location, options = {}) {
   let from = Number(location?.startOffset)
   let to = Number(location?.endOffset)
 
@@ -49,27 +43,13 @@ export function focusMarkdownSourceLocation(targetView, location, options = {}) 
   }
 
   if (!Number.isFinite(from)) {
-    const lineNumber = Math.max(1, Number(location?.line || 1))
-    const line = targetView.state.doc.line(Math.min(lineNumber, targetView.state.doc.lines))
-    from = line.from
-    to = line.from
+    const content = targetRuntime?.altalsGetContent?.() || ''
+    from = lineToOffset(content, location?.line || 1)
+    to = from
   }
 
-  from = clampOffset(targetView.state, from)
-  to = clampOffset(targetView.state, to)
-
-  targetView.dispatch({
-    selection: {
-      anchor: from,
-      head: Math.max(from, to),
-    },
-    effects: EditorView.scrollIntoView(from, {
-      y: options.center === false ? 'nearest' : 'center',
-      yMargin: 80,
-    }),
-  })
-  targetView.focus()
-  return true
+  if (!Number.isFinite(from)) return false
+  return !!targetRuntime?.altalsRevealRange?.(from, Math.max(from, Number.isFinite(to) ? to : from), options)
 }
 
 export async function revealMarkdownSourceLocation(editorStore, location, options = {}) {
@@ -82,12 +62,12 @@ export async function revealMarkdownSourceLocation(editorStore, location, option
   } else {
     editorStore?.openFile?.(targetPath)
   }
-  const targetView = await waitForMarkdownEditorView(
+  const targetRuntime = await waitForMarkdownEditorView(
     editorStore,
     targetPath,
     Number(options.timeoutMs || VIEW_WAIT_TIMEOUT_MS),
   )
-  if (!targetView) return false
+  if (!targetRuntime) return false
 
-  return focusMarkdownSourceLocation(targetView, location, options)
+  return focusMarkdownSourceLocation(targetRuntime, location, options)
 }

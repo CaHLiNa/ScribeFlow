@@ -10,6 +10,7 @@ import {
   openNativeEditorDocument,
   recordNativeEditorWorkflowEvent,
   replaceNativeEditorDocumentText,
+  planNativeEditorCitationReplacement,
   setNativeEditorDiagnostics,
   setNativeEditorOutlineContext,
   setNativeEditorSelections,
@@ -17,13 +18,7 @@ import {
   stopNativeEditorSession,
 } from '../services/editorRuntime/nativeBridge'
 
-export const EDITOR_RUNTIME_MODES = Object.freeze({
-  WEB: 'web',
-  NATIVE_EXPERIMENTAL: 'native-experimental',
-})
-
 const MAX_TELEMETRY_EVENTS = 200
-const MODE_STORAGE_KEY = 'editorRuntime.mode'
 const MAX_LATENCY_SAMPLES = 40
 const TYPING_LATENCY_STORAGE_KEY = 'editorRuntime.typingLatencySamples'
 const REOPEN_VERIFICATION_STORAGE_KEY = 'editorRuntime.reopenVerification'
@@ -50,23 +45,6 @@ function jsOffsetToUtf8Offset(text = '', offset = 0) {
   const normalized = String(text || '')
   const safeOffset = clampStringOffset(normalized, offset)
   return utf8ByteLength(normalized.slice(0, safeOffset))
-}
-
-function readStoredMode(fallback = EDITOR_RUNTIME_MODES.WEB) {
-  try {
-    const value = String(localStorage.getItem(MODE_STORAGE_KEY) ?? '').trim()
-    return Object.values(EDITOR_RUNTIME_MODES).includes(value) ? value : fallback
-  } catch {
-    return fallback
-  }
-}
-
-function writeStoredString(key, value) {
-  try {
-    localStorage.setItem(key, String(value))
-  } catch {
-    // Ignore localStorage persistence failures.
-  }
 }
 
 function readStoredJson(key, fallback) {
@@ -99,7 +77,6 @@ function stableTextFingerprint(value = '') {
 
 export const useEditorRuntimeStore = defineStore('editorRuntime', {
   state: () => ({
-    mode: readStoredMode(EDITOR_RUNTIME_MODES.WEB),
     lastNativeSessionId: null,
     nativeRuntimeConnected: false,
     nativeProtocolVersion: 0,
@@ -128,8 +105,8 @@ export const useEditorRuntimeStore = defineStore('editorRuntime', {
       return nativeEditorBridgeAvailable()
     },
 
-    useNativePrimarySurface(state) {
-      return this.canSwitchToNativePrimarySurface && state.mode === EDITOR_RUNTIME_MODES.NATIVE_EXPERIMENTAL
+    useNativePrimarySurface() {
+      return this.wantsNativeRuntime
     },
 
     cutoverGateStatus(state) {
@@ -219,9 +196,7 @@ export const useEditorRuntimeStore = defineStore('editorRuntime', {
     },
 
     primarySurfaceTarget() {
-      return this.useNativePrimarySurface
-        ? PRIMARY_TEXT_SURFACE_TARGETS.NATIVE_PRIMARY
-        : PRIMARY_TEXT_SURFACE_TARGETS.WEB
+      return PRIMARY_TEXT_SURFACE_TARGETS.NATIVE_PRIMARY
     },
   },
 
@@ -360,23 +335,6 @@ export const useEditorRuntimeStore = defineStore('editorRuntime', {
       if (kind === 'stopped') {
         this.nativeRuntimeConnected = false
       }
-    },
-
-    setShadowMode() {
-      // Hidden shadow-mode toggles are retired. Native mirroring is always-on in desktop builds.
-      return this.wantsNativeRuntime
-    },
-
-    setMode(value) {
-      const requestedMode = Object.values(EDITOR_RUNTIME_MODES).includes(value)
-        ? value
-        : EDITOR_RUNTIME_MODES.WEB
-      this.mode =
-        requestedMode === EDITOR_RUNTIME_MODES.NATIVE_EXPERIMENTAL && !this.canSwitchToNativePrimarySurface
-          ? EDITOR_RUNTIME_MODES.WEB
-          : requestedMode
-      writeStoredString(MODE_STORAGE_KEY, this.mode)
-      return this.mode
     },
 
     beginTypingLatencyProbe({ path = '', text = '', fileKind = 'text' } = {}) {
@@ -627,6 +585,30 @@ export const useEditorRuntimeStore = defineStore('editorRuntime', {
                 head: jsOffsetToUtf8Offset(currentText, selection?.head ?? 0),
               }
             : null,
+      })
+    },
+
+    async planNativeCitationReplacement({
+      path = '',
+      operation = '',
+      trigger = null,
+      edit = null,
+      keys = [],
+      cites = [],
+      latexCommand = null,
+    } = {}) {
+      if (!nativeEditorBridgeAvailable()) return null
+      const normalizedPath = String(path || '').trim()
+      if (!normalizedPath) return null
+      await this.startNativeSession()
+      return planNativeEditorCitationReplacement({
+        path: normalizedPath,
+        operation,
+        trigger,
+        edit,
+        keys,
+        cites,
+        latexCommand,
       })
     },
 

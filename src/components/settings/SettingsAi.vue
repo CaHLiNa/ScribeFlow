@@ -178,6 +178,64 @@
         </div>
       </div>
     </section>
+
+    <section class="settings-group">
+      <h4 class="settings-group-title">{{ t('Extensions') }}</h4>
+      <div class="settings-ai-extension-card">
+        <div class="settings-ai-extension-header">
+          <div>
+            <div class="settings-row-title">{{ t('MCP servers') }}</div>
+            <div class="settings-ai-extension-meta">
+              {{
+                extensionCatalogLoading
+                  ? t('Loading extensions...')
+                  : t('{count} discovered', { count: extensionCatalog.mcpServers.length })
+              }}
+            </div>
+          </div>
+          <UiButton
+            variant="secondary"
+            size="sm"
+            :disabled="extensionCatalogLoading"
+            @click="loadExtensionCatalog"
+          >
+            {{ extensionCatalogLoading ? t('Loading...') : t('Refresh') }}
+          </UiButton>
+        </div>
+
+        <div v-if="extensionCatalogError" class="settings-inline-message settings-inline-message-error">
+          {{ extensionCatalogError }}
+        </div>
+
+        <div
+          v-else-if="!extensionCatalogLoading && extensionCatalog.mcpServers.length === 0"
+          class="settings-ai-extension-empty"
+        >
+          {{ t('No MCP servers discovered in the current workspace or user config roots.') }}
+        </div>
+
+        <div v-else class="settings-ai-extension-list">
+          <div
+            v-for="server in extensionCatalog.mcpServers"
+            :key="server.id"
+            class="settings-ai-extension-item"
+          >
+            <div class="settings-ai-extension-main">
+              <div class="settings-ai-extension-name">{{ server.name }}</div>
+              <div class="settings-ai-extension-subtitle">
+                {{ server.transport }}
+                <template v-if="server.sourceScope">
+                  · {{ server.sourceScope }}
+                </template>
+              </div>
+            </div>
+            <div class="settings-ai-extension-source" :title="server.sourcePath">
+              {{ server.sourcePath }}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
   </div>
 </template>
 
@@ -187,6 +245,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { useToastStore } from '../../stores/toast'
 import { useI18n } from '../../i18n'
 import { useAiStore } from '../../stores/ai'
+import { useWorkspaceStore } from '../../stores/workspace'
 import UiButton from '../shared/ui/UiButton.vue'
 import UiInput from '../shared/ui/UiInput.vue'
 import UiSelect from '../shared/ui/UiSelect.vue'
@@ -194,6 +253,7 @@ import UiSelect from '../shared/ui/UiSelect.vue'
 const { t } = useI18n()
 const aiStore = useAiStore()
 const toastStore = useToastStore()
+const workspace = useWorkspaceStore()
 
 async function listAiProviderDefinitions() {
   const response = await invoke('ai_provider_catalog_list')
@@ -237,6 +297,14 @@ async function testAiProviderConnection(providerId = 'openai', providerConfig = 
   })
 }
 
+async function loadAiExtensionCatalog(workspacePath = '') {
+  return invoke('ai_extension_catalog_load', {
+    params: {
+      workspacePath,
+    },
+  })
+}
+
 const providerDefinitions = ref([])
 const providerForms = ref({})
 const providerKeys = ref({})
@@ -245,6 +313,9 @@ const providerModelOptions = ref({})
 const providerModelLoading = ref({})
 const providerModelErrors = ref({})
 const loadedConfig = ref(null)
+const extensionCatalog = ref({ mcpServers: [], sources: [] })
+const extensionCatalogLoading = ref(false)
+const extensionCatalogError = ref('')
 
 const expandedProvider = ref(null)
 function toggleProvider(id) {
@@ -519,6 +590,26 @@ async function loadState() {
   }
 }
 
+async function loadExtensionCatalog() {
+  extensionCatalogLoading.value = true
+  extensionCatalogError.value = ''
+  try {
+    const response = await loadAiExtensionCatalog(workspace.path || '')
+    extensionCatalog.value = {
+      mcpServers: Array.isArray(response?.mcpServers) ? response.mcpServers : [],
+      sources: Array.isArray(response?.sources) ? response.sources : [],
+    }
+  } catch (error) {
+    extensionCatalog.value = { mcpServers: [], sources: [] }
+    extensionCatalogError.value = normalizeErrorMessage(
+      error,
+      t('Failed to load extension catalog.')
+    )
+  } finally {
+    extensionCatalogLoading.value = false
+  }
+}
+
 async function persistAllProviders() {
   const nextConfig = buildConfig()
   await saveAiConfig(nextConfig)
@@ -616,6 +707,7 @@ async function handleClearProvider(providerId = '') {
 
 onMounted(() => {
   void loadState()
+  void loadExtensionCatalog()
 })
 </script>
 
@@ -771,6 +863,78 @@ onMounted(() => {
 
 .settings-inline-message-error {
   color: var(--error);
+}
+
+.settings-ai-extension-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
+  border-radius: 8px;
+  background: var(--surface-base);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+.settings-ai-extension-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.settings-ai-extension-meta {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.settings-ai-extension-empty {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.settings-ai-extension-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-ai-extension-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-hover) 24%, transparent);
+}
+
+.settings-ai-extension-main {
+  min-width: 0;
+}
+
+.settings-ai-extension-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.settings-ai-extension-subtitle {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.settings-ai-extension-source {
+  max-width: 48%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--text-tertiary);
+  text-align: right;
 }
 
 .ai-provider-collapse-enter-active,

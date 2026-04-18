@@ -95,7 +95,7 @@
               ref="composerTextareaRef"
               :model-value="aiStore.promptDraft"
               variant="ghost"
-              :rows="4"
+              :rows="1"
               class="ai-agent-panel__textarea"
               shell-class="ai-agent-panel__textarea-shell"
               :placeholder="composerPlaceholder"
@@ -164,25 +164,32 @@
                 </button>
               </div>
 
-              <UiSelect
-                v-if="modelMenuOptions.length > 0"
-                :model-value="currentModelValue"
-                :disabled="isComposerLockedByBlockingState"
-                size="sm"
-                class="ai-agent-panel__model-chip"
-                shell-class="ai-agent-panel__model-chip-shell"
-                :options="modelMenuOptions"
-                :placeholder="loadingModelLabel"
-                :aria-label="t('Current model')"
-                @update:model-value="switchModel"
-              />
-              <div
-                v-else
-                class="ai-agent-panel__model-fallback"
-                :class="{ 'is-muted': !currentModelLabel }"
-              >
-                {{ currentModelLabel || loadingModelLabel }}
+              <span class="ai-agent-panel__composer-divider" aria-hidden="true"></span>
+
+              <div class="ai-agent-panel__model-group">
+                <UiSelect
+                  v-if="modelMenuOptions.length > 0"
+                  :model-value="currentModelValue"
+                  :disabled="isComposerLockedByBlockingState"
+                  size="sm"
+                  class="ai-agent-panel__model-chip"
+                  shell-class="ai-agent-panel__model-chip-shell"
+                  :options="modelMenuOptions"
+                  :placeholder="loadingModelLabel"
+                  :aria-label="t('Current model')"
+                  @update:model-value="switchModel"
+                />
+                <div
+                  v-else
+                  class="ai-agent-panel__model-fallback"
+                  :class="{ 'is-muted': !currentModelLabel }"
+                >
+                  {{ currentModelLabel || loadingModelLabel }}
+                </div>
               </div>
+
+              <span class="ai-agent-panel__composer-divider" aria-hidden="true"></span>
+
               <UiButton
                 variant="ghost"
                 size="sm"
@@ -294,6 +301,8 @@ const activeInvocationIndex = ref(0)
 const respondingPermissionRequestId = ref('')
 const respondingAskUserRequestId = ref('')
 const respondingExitPlanRequestId = ref('')
+const COMPOSER_MIN_HEIGHT = 38
+const COMPOSER_MAX_HEIGHT = 220
 
 const altalsSkills = computed(() => aiStore.altalsSkills)
 const messages = computed(() => aiStore.messages)
@@ -838,6 +847,20 @@ function scrollToBottom(behavior = 'auto') {
   })
 }
 
+function syncComposerTextareaHeight() {
+  nextTick(() => {
+    const textareaEl = composerTextareaRef.value?.textareaEl
+    if (!textareaEl) return
+    textareaEl.style.height = 'auto'
+    const nextHeight = Math.min(
+      Math.max(Number(textareaEl.scrollHeight || 0), COMPOSER_MIN_HEIGHT),
+      COMPOSER_MAX_HEIGHT
+    )
+    textareaEl.style.height = `${nextHeight}px`
+    textareaEl.style.overflowY = nextHeight >= COMPOSER_MAX_HEIGHT ? 'auto' : 'hidden'
+  })
+}
+
 async function refreshEnabledTools() {
   const response = await invoke('ai_tool_catalog_resolve', {
     params: {
@@ -864,6 +887,7 @@ onMounted(() => {
   void refreshProviderRuntime()
   void aiStore.refreshAltalsSkills()
   scrollToBottom('auto')
+  syncComposerTextareaHeight()
 })
 
 onActivated(() => {
@@ -872,6 +896,7 @@ onActivated(() => {
   void refreshProviderRuntime()
   void aiStore.refreshAltalsSkills()
   scrollToBottom('auto')
+  syncComposerTextareaHeight()
 })
 
 watch(
@@ -904,6 +929,7 @@ watch(
   () => aiStore.currentSessionId,
   () => {
     scrollToBottom('auto')
+    syncComposerTextareaHeight()
   }
 )
 
@@ -924,6 +950,14 @@ watch(composerSuggestions, (next) => {
     activeInvocationIndex.value = 0
   }
 })
+
+watch(
+  () => aiStore.promptDraft,
+  () => {
+    syncComposerTextareaHeight()
+  },
+  { immediate: true }
+)
 
 watch(
   composerToken,
@@ -952,7 +986,7 @@ watch(
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
-  padding: 8px 12px 14px;
+  padding: 8px 12px 10px;
   background: transparent;
 }
 
@@ -966,7 +1000,7 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 8px 8px 10px;
+  padding: 4px 8px 2px;
   border-top: 1px solid color-mix(in srgb, var(--border-color) 12%, transparent);
   background: transparent;
   backdrop-filter: none;
@@ -992,7 +1026,7 @@ watch(
 .ai-agent-panel__composer-stack {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   position: relative;
   z-index: 10;
 }
@@ -1007,8 +1041,8 @@ watch(
 .ai-agent-panel__composer-well {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 8px 10px 9px;
+  gap: 6px;
+  padding: 4px 10px 0;
   border-radius: 16px;
   border: none;
   background: transparent;
@@ -1057,9 +1091,9 @@ watch(
 .ai-agent-panel__composer-actions {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  min-height: 34px;
-  padding-top: 8px;
+  gap: 10px;
+  min-height: 32px;
+  padding-top: 6px;
   border-top: 1px solid color-mix(in srgb, var(--border-color) 14%, transparent);
 }
 
@@ -1067,16 +1101,30 @@ watch(
   display: flex;
   align-items: center;
   flex-wrap: nowrap;
-  gap: 6px;
+  gap: 8px;
+  flex: 1 1 auto;
   min-width: 0;
+}
+
+.ai-agent-panel__composer-divider {
+  flex: 0 0 auto;
+  width: 1px;
+  height: 18px;
+  background: color-mix(in srgb, var(--border-color) 22%, transparent);
+}
+
+.ai-agent-panel__model-group {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  flex: 0 1 auto;
 }
 
 .ai-agent-panel__execution-policy {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   flex: 0 0 auto;
-  padding-right: 4px;
 }
 
 .ai-agent-panel__policy-button {
@@ -1084,11 +1132,11 @@ watch(
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   padding: 0;
   border: none;
-  border-radius: 8px;
+  border-radius: 9px;
   background: transparent;
   color: color-mix(in srgb, var(--text-secondary) 82%, var(--text-tertiary) 18%);
   cursor: pointer;
@@ -1101,15 +1149,15 @@ watch(
 
 .ai-agent-panel__policy-button:hover:not(:disabled) {
   color: var(--text-primary);
-  background: color-mix(in srgb, var(--surface-hover) 4%, transparent);
+  background: color-mix(in srgb, var(--surface-hover) 8%, transparent);
   transform: translateY(-0.5px);
 }
 
 .ai-agent-panel__policy-button:focus-visible {
   outline: none;
   box-shadow:
-    0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent),
-    inset 0 -2px 0 color-mix(in srgb, var(--accent) 64%, transparent);
+    0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent),
+    inset 0 -2px 0 color-mix(in srgb, var(--accent) 60%, transparent);
 }
 
 .ai-agent-panel__policy-button.is-disabled,
@@ -1151,21 +1199,21 @@ watch(
   align-items: center;
   gap: 6px;
   flex: 0 0 auto;
+  margin-left: auto;
 }
 
 .ai-agent-panel__send-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
+  width: 32px;
+  height: 32px;
   padding: 0;
   border: 1px solid color-mix(in srgb, var(--border-color) 18%, transparent);
-  border-radius: 11px;
-  background: color-mix(in srgb, var(--surface-base) 8%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface-base) 4%, transparent);
   color: var(--text-primary);
   box-shadow: none;
-  backdrop-filter: blur(10px) saturate(1.02);
   cursor: pointer;
   transition:
     transform 0.1s ease,
@@ -1176,8 +1224,8 @@ watch(
 }
 
 .ai-agent-panel__send-button:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--accent) 16%, var(--border-color) 84%);
-  background: color-mix(in srgb, var(--surface-hover) 10%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 18%, var(--border-color) 82%);
+  background: color-mix(in srgb, var(--surface-hover) 8%, transparent);
   color: var(--text-primary);
   transform: translateY(-0.5px);
 }
@@ -1270,8 +1318,10 @@ watch(
 }
 
 .ai-agent-panel__composer :deep(.ai-agent-panel__textarea-shell .ui-textarea-control) {
-  min-height: 88px;
-  padding: 2px 0 4px !important;
+  min-height: 38px;
+  height: 38px;
+  max-height: 220px;
+  padding: 2px 0 2px !important;
   resize: none;
   font-size: 13px;
   line-height: 1.58;
@@ -1286,10 +1336,10 @@ watch(
 .ai-agent-panel__composer :deep(.ai-agent-panel__model-chip-shell .ui-select-trigger) {
   height: 30px;
   width: auto;
-  max-width: 132px;
-  padding: 0 24px 0 11px;
+  max-width: 120px;
+  padding: 0 24px 0 10px;
   border-color: transparent;
-  border-radius: 10px;
+  border-radius: 9px;
   background: transparent;
   box-shadow: none;
   color: var(--text-secondary);
@@ -1320,7 +1370,7 @@ watch(
   width: 30px;
   height: 30px;
   padding: 0;
-  border-radius: 10px;
+  border-radius: 9px;
   border: none;
   background: transparent;
   color: var(--text-secondary);
@@ -1328,7 +1378,7 @@ watch(
 }
 
 .ai-agent-panel__tool-button:hover:not(:disabled) {
-  background: transparent;
+  background: color-mix(in srgb, var(--surface-hover) 8%, transparent);
   color: var(--text-primary);
 }
 
@@ -1362,6 +1412,10 @@ watch(
 
   .ai-agent-panel__composer-actions {
     gap: 8px;
+  }
+
+  .ai-agent-panel__composer-divider {
+    height: 16px;
   }
 }
 </style>

@@ -43,6 +43,21 @@ import {
   createEditorRuntimeContract,
   emitEditorRuntimeTelemetry,
 } from '../../domains/editor/editorRuntimeContract'
+import {
+  applyNativePrimaryInputChange,
+  applyNativeCitationEditState,
+  applyNativeCitationTriggerState,
+  buildNativePrimaryCursorSnapshot,
+  buildNativePrimaryEditorStats,
+  buildNativePrimaryLatexForwardSyncRequest,
+  buildNativePrimaryMarkdownForwardSyncRequest,
+  handleNativePrimaryClickInteraction,
+  inspectNativePrimaryInteractionContext,
+  normalizeNativeCitationEntries,
+  planNativePrimaryCitationReplacement,
+  persistNativePrimaryDocument,
+  resolveNativeWikiLinkInteraction,
+} from '../../domains/editor/nativePrimarySurfaceRuntime'
 import { isDraftPath, isMarkdown, isLatexEditorFile } from '../../utils/fileTypes'
 import { rememberPendingMarkdownForwardSync } from '../../services/markdown/previewSync.js'
 import { revealLatexSourceLocation } from '../../services/latex/previewSync.js'
@@ -113,17 +128,6 @@ function clampOffset(value, length) {
   return Math.max(0, Math.min(length, Math.trunc(numeric)))
 }
 
-function offsetToLineColumn(text = '', offset = 0) {
-  const normalized = String(text || '')
-  const safeOffset = clampOffset(offset, normalized.length)
-  const slice = normalized.slice(0, safeOffset)
-  const lines = slice.split('\n')
-  return {
-    line: lines.length,
-    column: lines[lines.length - 1].length + 1,
-  }
-}
-
 function lineColumnToOffset(text = '', line = 1, column = 1) {
   const normalized = String(text || '')
   const targetLine = Math.max(1, Number(line || 1))
@@ -183,34 +187,32 @@ function paletteAnchorPosition() {
 }
 
 function emitEditorStats() {
-  const text = draftText.value
-  const selection = deriveSelectionPayload()
-  const words = text.trim() ? text.trim().split(/\s+/).length : 0
-  const selWords = selection?.text?.trim() ? selection.text.trim().split(/\s+/).length : 0
+  const stats = buildNativePrimaryEditorStats(draftText.value, deriveSelectionPayload())
   emit('editor-stats', {
-    words,
-    chars: text.length,
-    selWords,
-    selChars: selection?.text?.length || 0,
+    words: stats.words,
+    chars: stats.chars,
+    selWords: stats.selWords,
+    selChars: stats.selChars,
   })
   emitEditorRuntimeTelemetry({
     type: 'editor-stats',
     runtimeKind: 'native-primary',
     paneId: props.paneId,
     filePath: props.filePath,
-    words,
-    chars: text.length,
-    selectedWords: selWords,
-    selectedChars: selection?.text?.length || 0,
+    words: stats.words,
+    chars: stats.chars,
+    selectedWords: stats.selWords,
+    selectedChars: stats.selChars,
   })
 }
 
 async function syncSelectionToNativeRuntime(payload = null) {
   const selection = payload || deriveSelectionPayload()
   if (!selection) return false
+  const cursor = buildNativePrimaryCursorSnapshot(draftText.value, selection)
   emit('selection-change', selection)
   emit('cursor-change', {
-    offset: selection.head,
+    offset: cursor.offset,
   })
   emitEditorRuntimeTelemetry({
     type: 'selection-change',
@@ -218,9 +220,8 @@ async function syncSelectionToNativeRuntime(payload = null) {
     paneId: props.paneId,
     ...selection,
   })
-  const cursor = offsetToLineColumn(draftText.value, selection.head)
   emit('cursor-change', {
-    offset: selection.head,
+    offset: cursor.offset,
     line: cursor.line,
     column: cursor.column,
   })
@@ -271,24 +272,26 @@ function hasActiveLatexPdfPreviewTarget() {
 }
 
 function dispatchMarkdownForwardSync(source = 'selection-sync') {
-  if (!isMarkdownFile || !hasActiveMarkdownPreviewTarget()) return false
-  const selection = deriveSelectionPayload()
-  if (!selection || selection.hasSelection) return false
-  const location = {
-    line: offsetToLineColumn(draftText.value, selection.head).line,
-    offset: selection.head,
-  }
+  if (!hasActiveMarkdownPreviewTarget()) return false
+  const request = buildNativePrimaryMarkdownForwardSyncRequest({
+    isMarkdownFile,
+    selection: deriveSelectionPayload(),
+    text: draftText.value,
+    filePath: props.filePath,
+    source,
+  })
+  if (!request) return false
   rememberPendingMarkdownForwardSync({
-    sourcePath: props.filePath,
-    line: location.line,
-    offset: location.offset,
+    sourcePath: request.sourcePath,
+    line: request.line,
+    offset: request.offset,
   })
   window.dispatchEvent(
     new CustomEvent('markdown-forward-sync-location', {
       detail: {
-        sourcePath: props.filePath,
-        line: location.line,
-        offset: location.offset,
+        sourcePath: request.sourcePath,
+        line: request.line,
+        offset: request.offset,
       },
     })
   )
@@ -297,46 +300,51 @@ function dispatchMarkdownForwardSync(source = 'selection-sync') {
     runtimeKind: 'native-primary',
     paneId: props.paneId,
     filePath: props.filePath,
-    line: location.line,
-    offset: location.offset,
-    source,
+    line: request.line,
+    offset: request.offset,
+    source: request.source,
   })
   void editorRuntimeStore.recordNativeWorkflowEvent({
     path: props.filePath,
     event: {
       kind: 'markdown-forward-sync-request',
-      line: location.line,
-      offset: location.offset,
-      source,
+      line: request.line,
+      offset: request.offset,
+      source: request.source,
     },
   })
   return true
 }
 
 function triggerLatexForwardSync(source = 'cursor-request') {
-  if (!isLatexFile || !hasActiveLatexPdfPreviewTarget()) return false
-  const selection = deriveSelectionPayload()
-  if (!selection) return false
-  const location = offsetToLineColumn(draftText.value, selection.head)
+  if (!hasActiveLatexPdfPreviewTarget()) return false
+  const request = buildNativePrimaryLatexForwardSyncRequest({
+    isLatexFile,
+    selection: deriveSelectionPayload(),
+    text: draftText.value,
+    filePath: props.filePath,
+    source,
+  })
+  if (!request) return false
   emitEditorRuntimeTelemetry({
     type: 'latex-forward-sync-request',
     runtimeKind: 'native-primary',
     paneId: props.paneId,
     filePath: props.filePath,
-    line: location.line,
-    column: location.column,
-    source,
+    line: request.line,
+    column: request.column,
+    source: request.source,
   })
   void editorRuntimeStore.recordNativeWorkflowEvent({
     path: props.filePath,
     event: {
       kind: 'latex-forward-sync-request',
-      line: location.line,
-      column: location.column,
-      source,
+      line: request.line,
+      column: request.column,
+      source: request.source,
     },
   })
-  latexStore.requestForwardSync(props.filePath, location.line, location.column)
+  latexStore.requestForwardSync(props.filePath, request.line, request.column)
   return true
 }
 
@@ -350,52 +358,23 @@ function scheduleAutoSave() {
 }
 
 function applyCitationTrigger(trigger = null) {
-  if (!trigger) {
-    if (citPalette.mode === 'insert') citPalette.show = false
-    return false
-  }
-  const anchor = paletteAnchorPosition()
-  citPalette.show = true
-  citPalette.mode = 'insert'
-  citPalette.x = anchor.x
-  citPalette.y = anchor.y
-  citPalette.query = trigger.query || ''
-  citPalette.cites = []
-  citPalette.latexCommand = trigger.latexCommand
-  citPalette.triggerFrom = trigger.triggerFrom
-  citPalette.triggerTo = trigger.triggerTo
-  citPalette.insideBrackets = trigger.insideBrackets === true
-  return true
+  return applyNativeCitationTriggerState(citPalette, paletteAnchorPosition(), trigger)
 }
 
 function applyCitationEditContext(context = null) {
-  const edit = context?.citationEdit || null
-  if (!edit) return false
   const selection = deriveSelectionPayload()
-  if (!selection || selection.hasSelection) return false
-  const anchor = paletteAnchorPosition()
-  citPalette.show = true
-  citPalette.mode = 'edit'
-  citPalette.x = anchor.x
-  citPalette.y = anchor.y
-  citPalette.groupFrom = Number(edit.groupFrom || 0)
-  citPalette.groupTo = Number(edit.groupTo || 0)
-  citPalette.cites = Array.isArray(edit.cites)
-    ? edit.cites.map((cite) => ({
-        key: String(cite?.key || ''),
-        locator: String(cite?.locator || ''),
-        prefix: String(cite?.prefix || ''),
-      }))
-    : []
-  citPalette.query = ''
-  citPalette.latexCommand = edit.latexCommand || null
-  citPalette.insideBrackets = true
-  return true
+  return applyNativeCitationEditState(
+    citPalette,
+    paletteAnchorPosition(),
+    context,
+    selection?.hasSelection === true
+  )
 }
 
 async function inspectCurrentNativeContext() {
   const selection = deriveSelectionPayload()
-  return editorRuntimeStore.inspectNativeInteractionContext({
+  return inspectNativePrimaryInteractionContext({
+    editorRuntimeStore,
     path: props.filePath,
     text: draftText.value,
     selection: selection
@@ -412,34 +391,38 @@ async function refreshCitationPaletteFromNative() {
   return applyCitationTrigger(context?.citationTrigger || null)
 }
 
+async function planCitationReplacement({
+  operation = '',
+  keys = [],
+  cites = [],
+  latexCommand = null,
+} = {}) {
+  return planNativePrimaryCitationReplacement({
+    editorRuntimeStore,
+    path: props.filePath,
+    citPalette,
+    operation,
+    keys,
+    cites,
+    latexCommand,
+  })
+}
+
 async function maybeHandleWikiLinkClick(event, context = null) {
   if (!isMarkdownFile) return false
-  const wikiLink = context?.wikiLink || null
-  if (!wikiLink?.target) return false
-
-  const resolved = linksStore.resolveLink(wikiLink.target, props.filePath)
-  void editorRuntimeStore.recordNativeWorkflowEvent({
-    path: props.filePath,
-    event: {
-      kind: 'wiki-link-open',
-      target: wikiLink.target,
-      resolved: !!resolved,
-    },
+  return resolveNativeWikiLinkInteraction({
+    context,
+    filePath: props.filePath,
+    linksStore,
+    editorStore,
+    files,
+    event,
+    recordWorkflowEvent: (workflowEvent) =>
+      editorRuntimeStore.recordNativeWorkflowEvent({
+        path: props.filePath,
+        event: workflowEvent,
+      }),
   })
-
-  if (resolved) {
-    editorStore.openFile(resolved.path)
-  } else {
-    const dir = props.filePath.split('/').slice(0, -1).join('/')
-    const newName = wikiLink.target.endsWith('.md') ? wikiLink.target : `${wikiLink.target}.md`
-    void files.createFile(dir, newName).then((newPath) => {
-      if (newPath) editorStore.openFile(newPath)
-    })
-  }
-
-  event?.preventDefault?.()
-  event?.stopPropagation?.()
-  return true
 }
 
 function scheduleSelectionSync() {
@@ -457,67 +440,33 @@ function scheduleSelectionSync() {
 }
 
 async function persistNativePrimaryContent(content = draftText.value) {
-  const text = String(content || '')
-
-  if (isDraftFile) {
-    const selectedPath = await files.promptAndSaveDraft(props.filePath, text)
-    if (!selectedPath) return false
-    lastPersistedContent = text
-    editorStore.updateFilePath(props.filePath, selectedPath)
-    editorStore.clearFileDirty(selectedPath)
-    editorRuntimeStore.recordPersistedSnapshot({
-      path: selectedPath,
-      text,
-      fileKind: fileKind.value,
-    })
-    return true
-  }
-
-  const saved = await files.saveFile(props.filePath, text)
-  if (!saved) return false
-  lastPersistedContent = text
-  editorStore.clearFileDirty(props.filePath)
-  editorRuntimeStore.recordPersistedSnapshot({
-    path: props.filePath,
-    text,
+  const result = await persistNativePrimaryDocument({
+    text: content,
+    filePath: props.filePath,
     fileKind: fileKind.value,
+    isDraftFile,
+    files,
+    editorStore,
+    editorRuntimeStore,
   })
-  void editorRuntimeStore.recordNativeWorkflowEvent({
-    path: props.filePath,
-    event: {
-      kind: 'persist-document',
-      format: fileKind.value,
-      textLength: text.length,
-    },
-  })
+  if (!result?.persisted) return false
+  lastPersistedContent = result.text
   return true
 }
 
 async function handleInput() {
   if (suppressInputSync) return
-  const text = draftText.value
-  files.setInMemoryFileContent(props.filePath, text)
-  editorRuntimeStore.beginTypingLatencyProbe({
-    path: props.filePath,
-    text,
-    fileKind: fileKind.value,
-  })
-  await editorRuntimeStore.replaceNativeDocumentText({
-    path: props.filePath,
-    text,
-  })
-  if (text === lastPersistedContent) {
-    editorStore.clearFileDirty(props.filePath)
-  } else {
-    editorStore.markFileDirty(props.filePath)
-  }
-  emitEditorRuntimeTelemetry({
-    type: 'content-change',
-    runtimeKind: 'native-primary',
-    paneId: props.paneId,
+  const result = await applyNativePrimaryInputChange({
+    text: draftText.value,
     filePath: props.filePath,
-    textLength: text.length,
+    fileKind: fileKind.value,
+    paneId: props.paneId,
+    lastPersistedContent,
+    files,
+    editorStore,
+    editorRuntimeStore,
   })
+  if (!result) return
   emitEditorStats()
   scheduleSelectionSync()
   dispatchMarkdownForwardSync('selection-sync')
@@ -533,10 +482,14 @@ function handleSelectionChange() {
 async function handleClick(event) {
   handleSelectionChange()
   const context = await inspectCurrentNativeContext()
-  if (await maybeHandleWikiLinkClick(event, context)) return
-  if (!applyCitationEditContext(context)) {
-    applyCitationTrigger(context?.citationTrigger || null)
-  }
+  await handleNativePrimaryClickInteraction({
+    event,
+    context,
+    isMarkdownFile,
+    resolveWikiLinkInteraction: maybeHandleWikiLinkClick,
+    applyCitationEditContext,
+    applyCitationTrigger,
+  })
 }
 
 function handleDoubleClick() {
@@ -566,16 +519,15 @@ function applyExternalContent(nextContent = '') {
   })
 }
 
-function onCitInsert({ keys = [], stayOpen = false, latexCommand = null }) {
+async function onCitInsert({ keys = [], stayOpen = false, latexCommand = null }) {
   if (keys.length === 0) return
-  const key = keys[0]
-  if (isLatexFile && latexCommand) {
-    const text = citPalette.insideBrackets ? key : `\\${latexCommand}{${key}}`
-    replaceTextRange(citPalette.triggerFrom, citPalette.triggerTo, text)
-  } else {
-    const text = citPalette.insideBrackets ? `@${key}` : `[@${key}]`
-    replaceTextRange(citPalette.triggerFrom, citPalette.triggerTo, text)
-  }
+  const plan = await planCitationReplacement({
+    operation: 'insert',
+    keys,
+    latexCommand,
+  })
+  if (!plan) return
+  replaceTextRange(plan.from, plan.to, plan.text)
 
   void editorRuntimeStore.recordNativeWorkflowEvent({
     path: props.filePath,
@@ -596,57 +548,28 @@ function onCitInsert({ keys = [], stayOpen = false, latexCommand = null }) {
   citPalette.show = false
 }
 
-function onCitUpdate({ cites = [] }) {
-  if (isLatexFile) {
-    const keys = cites.map((cite) => cite.key)
-    const command = citPalette.latexCommand || 'cite'
-    const text = `\\${command}{${keys.join(', ')}}`
-    replaceTextRange(citPalette.groupFrom, citPalette.groupTo, text)
-    citPalette.groupTo = citPalette.groupFrom + text.length
-    void editorRuntimeStore.recordNativeWorkflowEvent({
-      path: props.filePath,
-      event: {
-        kind: 'citation-update',
-        mode: 'latex',
-        keys,
-        latexCommand: command,
-      },
-    })
-    return
-  }
-
-  if (cites.length === 0) {
-    replaceTextRange(citPalette.groupFrom, citPalette.groupTo, '')
-    citPalette.show = false
-    void editorRuntimeStore.recordNativeWorkflowEvent({
-      path: props.filePath,
-      event: {
-        kind: 'citation-update',
-        mode: 'markdown',
-        keys: [],
-      },
-    })
-    return
-  }
-
-  const parts = cites.map((cite) => {
-    let part = ''
-    if (cite.prefix) part += `${cite.prefix} `
-    part += `@${cite.key}`
-    if (cite.locator) part += `, ${cite.locator}`
-    return part
+async function onCitUpdate({ cites = [] }) {
+  const normalizedCites = normalizeNativeCitationEntries(cites)
+  const plan = await planCitationReplacement({
+    operation: 'update',
+    cites: normalizedCites,
   })
-  const text = `[${parts.join('; ')}]`
-  replaceTextRange(citPalette.groupFrom, citPalette.groupTo, text)
-  citPalette.groupTo = citPalette.groupFrom + text.length
+  if (!plan) return
+  replaceTextRange(plan.from, plan.to, plan.text)
+  citPalette.groupFrom = plan.from
+  citPalette.groupTo = plan.from + String(plan.text || '').length
   void editorRuntimeStore.recordNativeWorkflowEvent({
     path: props.filePath,
     event: {
       kind: 'citation-update',
-      mode: 'markdown',
-      keys: cites.map((cite) => cite.key),
+      mode: isLatexFile ? 'latex' : 'markdown',
+      keys: normalizedCites.map((cite) => cite.key),
+      latexCommand: citPalette.latexCommand || null,
     },
   })
+  if (!isLatexFile && normalizedCites.length === 0) {
+    citPalette.show = false
+  }
 }
 
 function onCitClose() {

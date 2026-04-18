@@ -141,6 +141,35 @@ export async function inspectNativeEditorInteractionContext({
   })
 }
 
+export async function planNativeEditorCitationReplacement({
+  path = '',
+  operation = '',
+  trigger = null,
+  edit = null,
+  keys = [],
+  cites = [],
+  latexCommand = null,
+} = {}) {
+  requireTauriInvoke()
+  return invoke('native_editor_plan_citation_replacement', {
+    request: {
+      path: String(path || ''),
+      operation: String(operation || ''),
+      trigger: trigger == null ? null : trigger,
+      edit: edit == null ? null : edit,
+      keys: Array.isArray(keys) ? keys.map((key) => String(key || '')) : [],
+      cites: Array.isArray(cites)
+        ? cites.map((cite) => ({
+            key: String(cite?.key || ''),
+            locator: String(cite?.locator || ''),
+            prefix: String(cite?.prefix || ''),
+          }))
+        : [],
+      latexCommand: latexCommand == null ? null : String(latexCommand || ''),
+    },
+  })
+}
+
 export async function getNativeEditorSessionState() {
   requireTauriInvoke()
   return invoke('native_editor_session_state')

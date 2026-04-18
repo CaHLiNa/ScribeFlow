@@ -308,3 +308,27 @@ pub struct NativeEditorInspectInteractionRequest {
     pub text: Option<String>,
     pub selection: Option<NativeEditorSelectionRange>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeEditorCitationReplacePlan {
+    pub from: usize,
+    pub to: usize,
+    #[serde(default)]
+    pub text: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeEditorPlanCitationReplacementRequest {
+    pub path: String,
+    pub operation: String,
+    pub trigger: Option<NativeEditorCitationTrigger>,
+    pub edit: Option<NativeEditorCitationEditContext>,
+    #[serde(default)]
+    pub keys: Vec<String>,
+    #[serde(default)]
+    pub cites: Vec<NativeEditorCitationEntry>,
+    #[serde(default)]
+    pub latex_command: Option<String>,
+}

@@ -1,7 +1,7 @@
 # AI Codex Phase 3 Control-State Parity Plan
 
 Date: 2026-04-18
-Status: Active implementation plan
+Status: Complete
 Depends on: `docs/AI_CODEX_PHASE2_DESKTOP_PARITY_PLAN.md`
 Related master plan: `plan/2026-04-18-codex-desktop-replication-master-plan.md`
 
@@ -10,6 +10,21 @@ Related master plan: `plan/2026-04-18-codex-desktop-replication-master-plan.md`
 Make plan mode, approvals, resume, compacting, and background task progress read like one runtime control layer instead of a loose collection of banners and pills.
 
 This phase is about higher-order task orchestration parity, not basic panel layout.
+
+## Completion note
+
+Phase 3 is accepted as complete.
+
+The shipped result now includes:
+
+- a unified runtime control-state layer above the composer
+- blocking-state coherence for `ask-user`, `permission`, and `exit-plan`
+- non-blocking runtime state cards for `plan`, `resume`, `compacting`, and `background tasks`
+- density control for runtime summaries and cards
+- explicit composer-side controls for plan mode and permission policy
+- post-slice visual alignment across the right AI panel and left/right sidebar shell edges
+
+Further refinements may still happen during later phases, but they are no longer blockers for entering Phase 4.
 
 ## Current baseline
 

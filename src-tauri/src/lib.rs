@@ -7,6 +7,7 @@ mod ai_artifact_runtime;
 mod ai_attachment_runtime;
 mod ai_client_session_runtime;
 mod ai_config;
+mod ai_extension_catalog;
 mod ai_provider_catalog;
 mod ai_provider_credentials;
 mod ai_runtime;
@@ -463,6 +464,7 @@ pub fn run() {
             ai_config::ai_config_load_internal,
             ai_config::ai_config_save,
             ai_config::ai_config_save_internal,
+            ai_extension_catalog::ai_extension_catalog_load,
             ai_provider_catalog::ai_provider_catalog_list,
             ai_provider_catalog::ai_provider_state_resolve,
             ai_provider_catalog::ai_provider_models_list,
@@ -579,6 +581,7 @@ pub fn run() {
             native_editor_runtime::native_editor_session_record_workflow_event,
             native_editor_runtime::native_editor_document_state,
             native_editor_runtime::native_editor_inspect_interaction_context,
+            native_editor_runtime::native_editor_plan_citation_replacement,
             native_editor_runtime::native_editor_session_state,
         ])
         .run(tauri::generate_context!())

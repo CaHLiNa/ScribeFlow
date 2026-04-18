@@ -970,7 +970,7 @@ defineExpose({
 }
 
 .file-tree-search-row {
-  padding: 6px 8px 8px;
+  padding: 14px 8px 0;
 }
 
 :deep(.file-tree-search-input) {
@@ -1076,15 +1076,15 @@ defineExpose({
   align-items: center;
   gap: 2px;
   flex-shrink: 0;
-  padding: 8px 0 0;
+  padding: 4px 0 0;
   background: transparent;
 }
 
 .workspace-footer-icon-button {
   flex: 0 0 auto;
-  width: 36px;
-  height: 36px;
-  border-radius: 12px;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
   color: color-mix(in srgb, var(--fg-muted) 78%, transparent);
   opacity: 0.86;
 }
@@ -1102,11 +1102,11 @@ defineExpose({
 .workspace-footer-action-button {
   position: relative;
   flex: 1 1 auto;
-  min-height: var(--sidebar-row-height);
+  min-height: 32px;
   justify-content: center;
   padding-inline: 10px;
   border: none;
-  border-radius: 9px;
+  border-radius: 10px;
   background: transparent;
   color: var(--fg-secondary);
   transition:

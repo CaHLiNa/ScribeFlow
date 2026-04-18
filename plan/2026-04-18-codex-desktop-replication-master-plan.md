@@ -13,8 +13,8 @@ Turn the current Altals AI panel into a Codex Desktop-like agent surface.
 - Phase 0: complete
 - Phase 1: complete
 - Phase 2: complete
-- Phase 3: active
-- Phase 4: pending
+- Phase 3: complete
+- Phase 4: active
 - Phase 5: pending
 
 Reference documents:
@@ -22,6 +22,7 @@ Reference documents:
 - runtime boundary: `docs/AI_CODEX_PHASE1_RUNTIME_AUDIT.md`
 - desktop interaction plan: `docs/AI_CODEX_PHASE2_DESKTOP_PARITY_PLAN.md`
 - control-state parity plan: `docs/AI_CODEX_PHASE3_CONTROL_STATE_PLAN.md`
+- extension parity plan: `docs/AI_CODEX_PHASE4_EXTENSION_MCP_PLAN.md`
 
 This is not a Codex CLI UI clone. The target is:
 
@@ -268,15 +269,16 @@ Recommended near-term order:
 1. Phase 1
 2. Phase 2
 3. Phase 3
-4. Phase 5
-5. Phase 4
+4. Phase 4
+5. Phase 5
 
 Reasoning:
 
 - runtime contract comes first
 - Rust ownership must be established early or the architecture will keep drifting
 - UI parity without runtime clarity will create churn
-- MCP matters, but it should not block the core desktop replication path
+- Phase 4 now follows directly because the control-state layer is accepted and the main remaining product gap is extension parity
+- cleanup and dead-layer removal should happen after the Phase 4 extension path is defined
 
 ## Verification standard
 

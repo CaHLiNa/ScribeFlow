@@ -3,6 +3,7 @@ use serde_json::{json, Value};
 use tauri::{AppHandle, Runtime, State};
 use uuid::Uuid;
 
+use crate::ai_extension_catalog::load_extension_catalog_value;
 use crate::ai_agent_execute::{ai_agent_execute, AiAgentExecuteParams};
 use crate::ai_agent_prompt::{ai_agent_build_prompt, AiAgentPromptParams};
 use crate::ai_agent_session_runtime::{
@@ -368,6 +369,13 @@ fn response_with_session(
 }
 
 async fn ai_agent_run(params: AiAgentRunParams) -> Result<AiAgentRunResponse, String> {
+    let workspace_path = string_field(
+        params
+            .context_bundle
+            .get("workspace")
+            .unwrap_or(&Value::Null),
+        &["path"],
+    );
     let enabled_tool_ids = params
         .config
         .get("enabledTools")
@@ -382,6 +390,7 @@ async fn ai_agent_run(params: AiAgentRunParams) -> Result<AiAgentRunResponse, St
 
     let prompt = ai_agent_build_prompt(AiAgentPromptParams {
         skill: params.skill.clone(),
+        extension_catalog: load_extension_catalog_value(&workspace_path),
         context_bundle: params.context_bundle.clone(),
         user_instruction: params.user_instruction.clone(),
         conversation: params.conversation.clone(),
@@ -411,13 +420,7 @@ async fn ai_agent_run(params: AiAgentRunParams) -> Result<AiAgentRunResponse, St
         context_bundle: params.context_bundle.clone(),
         support_files: Vec::new(),
         enabled_tool_ids: prompt.enabled_tool_ids.clone(),
-        workspace_path: string_field(
-            params
-                .context_bundle
-                .get("workspace")
-                .unwrap_or(&Value::Null),
-            &["path"],
-        ),
+        workspace_path,
     })
     .await?;
 
@@ -491,6 +494,10 @@ async fn ai_agent_run_started_session<R: Runtime>(
 
             let prompt = ai_agent_build_prompt(AiAgentPromptParams {
                 skill: skill.clone(),
+                extension_catalog: load_extension_catalog_value(&string_field(
+                    context_bundle.get("workspace").unwrap_or(&Value::Null),
+                    &["path"],
+                )),
                 context_bundle: context_bundle.clone(),
                 user_instruction: user_instruction.clone(),
                 conversation: prior_conversation.clone(),

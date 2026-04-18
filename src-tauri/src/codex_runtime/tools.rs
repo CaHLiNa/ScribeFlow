@@ -2,6 +2,7 @@ use serde_json::{json, Value};
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::ai_extension_catalog::load_extension_catalog_value;
 use crate::fs_io::read_text_file_with_limit;
 use crate::fs_tree::{collect_files_recursive, read_dir_shallow_entries};
 
@@ -191,6 +192,19 @@ pub fn resolve_runtime_tool_definitions_with_context(
         }
     };
 
+    register(
+        &mut tools,
+        "read-extension-catalog",
+        RuntimeToolDefinition {
+            name: "read_extension_catalog",
+            description: "Inspect configured MCP servers and extension sources available to this runtime.",
+            parameters: json!({
+                "type": "object",
+                "properties": {},
+                "required": []
+            }),
+        },
+    );
     register(
         &mut tools,
         "list-workspace-directory",
@@ -415,6 +429,7 @@ fn execute_runtime_tool_call(
     let workspace_root = normalize_workspace_root(workspace_path).ok();
 
     let content = match tool_call.name.as_str() {
+        "read_extension_catalog" => load_extension_catalog_value(workspace_path),
         "list_workspace_directory" => {
             let workspace_root = workspace_root
                 .as_ref()

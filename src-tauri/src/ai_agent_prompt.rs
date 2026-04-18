@@ -10,6 +10,8 @@ pub struct AiAgentPromptParams {
     #[serde(default)]
     pub skill: Value,
     #[serde(default)]
+    pub extension_catalog: Value,
+    #[serde(default)]
     pub context_bundle: Value,
     #[serde(default)]
     pub user_instruction: String,
@@ -346,6 +348,57 @@ fn build_available_tools_block(enabled_tool_ids: &[String], runtime_intent: &str
     build_ai_tool_prompt_block(enabled_tool_ids, runtime_intent)
 }
 
+fn build_available_extensions_block(extension_catalog: &Value) -> String {
+    let servers = extension_catalog
+        .get("mcpServers")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    if servers.is_empty() {
+        return "Available MCP servers: none discovered.".to_string();
+    }
+
+    let mut lines = vec!["Available MCP servers:".to_string()];
+    for server in servers {
+        let name = string_field(&server, &["name"]);
+        let transport = string_field(&server, &["transport"]);
+        let scope = string_field(&server, &["sourceScope", "source_scope"]);
+        let source_path = string_field(&server, &["sourcePath", "source_path"]);
+        let enabled = server
+            .get("enabled")
+            .and_then(Value::as_bool)
+            .unwrap_or(true);
+        let transport_text = if transport.is_empty() {
+            "unknown".to_string()
+        } else {
+            transport
+        };
+        let scope_text = if scope.is_empty() {
+            String::new()
+        } else {
+            format!(" ({scope})")
+        };
+        let status_text = if enabled { String::new() } else { " disabled".to_string() };
+        let source_text = if source_path.is_empty() {
+            String::new()
+        } else {
+            format!(" — {}{}", source_path, scope_text)
+        };
+        lines.push(format!(
+            "- {} [{}]{}{}",
+            if name.is_empty() {
+                "Unnamed MCP server".to_string()
+            } else {
+                name
+            },
+            transport_text,
+            status_text,
+            source_text
+        ));
+    }
+    lines.join("\n")
+}
+
 fn build_skill_support_prompt_block(files: &[Value]) -> String {
     if files.is_empty() {
         return "Instruction-pack support files loaded: none.".to_string();
@@ -456,6 +509,8 @@ fn build_agent_mode_user_prompt(params: &AiAgentPromptParams) -> String {
         String::new(),
         build_available_skills_block(&params.altals_skills),
         String::new(),
+        build_available_extensions_block(&params.extension_catalog),
+        String::new(),
         build_available_tools_block(&params.enabled_tool_ids, &params.runtime_intent),
     ];
     let referenced = build_referenced_files_block(&params.referenced_files);
@@ -490,6 +545,8 @@ fn build_skill_mode_user_prompt(
         build_agent_context_snapshot(&params.skill, &params.context_bundle),
         String::new(),
         build_skill_support_prompt_block(&params.support_files),
+        String::new(),
+        build_available_extensions_block(&params.extension_catalog),
         String::new(),
         build_available_tools_block(&params.enabled_tool_ids, &params.runtime_intent),
     ];

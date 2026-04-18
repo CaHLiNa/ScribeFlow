@@ -62,12 +62,16 @@ watch(
 
 <style scoped>
 .right-shell-sidebar {
+  --sidebar-shell-top: 42px;
+  --sidebar-shell-inline: 8px;
+  --sidebar-shell-bottom: 2px;
   display: flex;
   flex-direction: column;
   position: relative;
   height: 100%;
   min-height: 0;
-  padding: 42px 8px 8px;
+  overflow: hidden;
+  padding: var(--sidebar-shell-top) var(--sidebar-shell-inline) var(--sidebar-shell-bottom);
   background: var(
     --sidebar-shell-surface,
     color-mix(in srgb, var(--panel-surface) 56%, transparent)
@@ -78,7 +82,7 @@ watch(
 }
 
 .right-shell-sidebar--ai {
-  padding-top: 18px;
+  --sidebar-shell-top: 18px;
 }
 
 .right-shell-pane {

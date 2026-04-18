@@ -11,10 +11,12 @@ This doc tracks repository operations that keep the desktop app and its review w
 - run the desktop shell: `npm run tauri -- dev`
 - build the frontend: `npm run build`
 - build the Rust backend directly: `cargo build --manifest-path src-tauri/Cargo.toml`
-- build the experimental native editor helper: `cargo build --manifest-path src-tauri/Cargo.toml -p altals-native-editor-app`
-- run the experimental native editor helper protocol directly: `src-tauri/target/debug/altals-native-editor-app`
+- build the native editor helper: `cargo build --manifest-path src-tauri/Cargo.toml -p altals-native-editor-app`
+- run the native editor helper protocol directly: `src-tauri/target/debug/altals-native-editor-app`
 - query the current helper-backed native editor session snapshot from Tauri: call `native_editor_session_state`
 - query a specific helper-backed document snapshot from Tauri: call `native_editor_document_state`
+- query the helper-backed interaction context used by the active editor host: call `native_editor_inspect_interaction_context`
+- query the helper-backed citation replacement plan used by the active editor host: call `native_editor_plan_citation_replacement`
 
 ### Typical local flow
 
@@ -24,12 +26,13 @@ This doc tracks repository operations that keep the desktop app and its review w
 4. run targeted tests for the touched slice
 5. run broader checks such as `npm run build` when the slice affects meaningful frontend or integration behavior
 
-For the native editor migration, prefer backend-only progress slices:
+For native editor work, prefer helper-backed slices that keep the active workbench surface coherent:
 
 - move buffer, selection, viewport, and transaction mechanics into `altals-editor-core`
-- move helper session state ownership into `src-tauri/src/native_editor_runtime.rs`
-- move save-time document materialization toward `native_editor_document_state` instead of frontend-only file content caches
-- avoid reintroducing user-visible experimental settings or placeholder editor panes while the replacement is still backend-first
+- keep helper session state ownership in `src-tauri/src/native_editor_runtime.rs`
+- keep save-time document materialization aligned with `native_editor_document_state`
+- keep interaction analysis and text replacement planning aligned with Rust-backed inspection commands
+- avoid reintroducing legacy Web-editor fallbacks, user-visible experimental settings, or placeholder editor panes
 
 ## Environment-dependent operations
 

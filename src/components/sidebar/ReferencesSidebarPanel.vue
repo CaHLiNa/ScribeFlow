@@ -346,7 +346,7 @@ defineExpose({
 }
 
 .references-sidebar-panel__search-row {
-  padding: 6px 8px 8px;
+  padding: 14px 8px 0;
 }
 
 .references-sidebar-panel__create-input {
@@ -482,7 +482,7 @@ defineExpose({
   justify-content: flex-start;
   gap: 2px;
   flex: 0 0 auto;
-  padding: 8px 0 0;
+  padding: 4px 0 0;
   background: transparent;
   border-top: 0;
   backdrop-filter: none;
@@ -490,9 +490,9 @@ defineExpose({
 
 .references-sidebar-panel__footer-button {
   flex: 0 0 auto;
-  width: 36px;
-  height: 36px;
-  border-radius: 12px;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
   color: color-mix(in srgb, var(--fg-muted) 78%, transparent);
   opacity: 0.86;
 }

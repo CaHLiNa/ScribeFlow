@@ -2,6 +2,14 @@ use serde::{Deserialize, Serialize};
 
 const TOOL_DEFINITIONS: &[AiToolDefinition] = &[
     AiToolDefinition::new(
+        "read-extension-catalog",
+        "read_extension_catalog",
+        "Read extension catalog",
+        "Inspect configured MCP servers and extension sources available to this runtime.",
+        false,
+        true,
+    ),
+    AiToolDefinition::new(
         "list-workspace-directory",
         "list_workspace_directory",
         "List workspace directory",

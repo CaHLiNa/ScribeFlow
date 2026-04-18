@@ -1,12 +1,14 @@
 use crate::native_editor_bridge::{
     NativeEditorApplyExternalContentRequest, NativeEditorApplyTransactionRequest,
-    NativeEditorCitationEditContext, NativeEditorCitationEntry, NativeEditorCitationTrigger,
+    NativeEditorCitationEditContext, NativeEditorCitationEntry, NativeEditorCitationReplacePlan,
+    NativeEditorCitationTrigger,
     NativeEditorCommand, NativeEditorDocumentSnapshot, NativeEditorDocumentState,
     NativeEditorDocumentStateRequest, NativeEditorEvent, NativeEditorEventPayload,
     NativeEditorInspectInteractionRequest, NativeEditorInteractionContextSnapshot,
     NativeEditorOpenDocumentRequest, NativeEditorRecordWorkflowEventRequest, NativeEditorSelectionRange,
     NativeEditorSessionSnapshot, NativeEditorSessionStateSnapshot, NativeEditorSetDiagnosticsRequest,
-    NativeEditorSetOutlineContextRequest, NativeEditorSetSelectionsRequest, NativeEditorWikiLinkMatch,
+    NativeEditorSetOutlineContextRequest, NativeEditorSetSelectionsRequest,
+    NativeEditorPlanCitationReplacementRequest, NativeEditorWikiLinkMatch,
     NATIVE_EDITOR_EVENT,
 };
 use crate::process_utils::background_tokio_command;
@@ -562,6 +564,91 @@ fn inspect_interaction_context(
     }
 }
 
+fn build_markdown_citation_text(cites: &[NativeEditorCitationEntry]) -> String {
+    if cites.is_empty() {
+        return String::new();
+    }
+
+    let parts = cites
+        .iter()
+        .map(|cite| {
+            let mut part = String::new();
+            if !cite.prefix.trim().is_empty() {
+                part.push_str(cite.prefix.trim());
+                part.push(' ');
+            }
+            part.push('@');
+            part.push_str(cite.key.trim());
+            if !cite.locator.trim().is_empty() {
+                part.push_str(", ");
+                part.push_str(cite.locator.trim());
+            }
+            part
+        })
+        .collect::<Vec<_>>();
+    format!("[{}]", parts.join("; "))
+}
+
+fn plan_citation_replacement(
+    request: NativeEditorPlanCitationReplacementRequest,
+) -> Option<NativeEditorCitationReplacePlan> {
+    match request.operation.as_str() {
+        "insert" => {
+            let trigger = request.trigger?;
+            let key = request.keys.first()?.trim();
+            if key.is_empty() {
+                return None;
+            }
+            let text = if let Some(command) = request
+                .latex_command
+                .clone()
+                .or(trigger.latex_command.clone())
+                .filter(|value| !value.trim().is_empty())
+            {
+                if trigger.inside_brackets {
+                    key.to_string()
+                } else {
+                    format!(r"\{}{{{}}}", command, key)
+                }
+            } else if trigger.inside_brackets {
+                format!("@{key}")
+            } else {
+                format!("[@{key}]")
+            };
+            Some(NativeEditorCitationReplacePlan {
+                from: trigger.trigger_from,
+                to: trigger.trigger_to,
+                text,
+            })
+        }
+        "update" => {
+            let edit = request.edit?;
+            let text = if let Some(command) = edit
+                .latex_command
+                .clone()
+                .or(request.latex_command.clone())
+                .filter(|value| !value.trim().is_empty())
+            {
+                let keys = request
+                    .cites
+                    .iter()
+                    .map(|cite| cite.key.trim())
+                    .filter(|key| !key.is_empty())
+                    .collect::<Vec<_>>();
+                format!(r"\{}{{{}}}", command, keys.join(", "))
+            } else {
+                build_markdown_citation_text(&request.cites)
+            };
+            Some(NativeEditorCitationReplacePlan {
+                from: edit.group_from,
+                to: edit.group_to,
+                text,
+            })
+        }
+        _ => None,
+    }
+}
+
 async fn wait_for_child(child: &mut Child) {
     let _ = child.wait().await;
 }
@@ -797,6 +884,16 @@ pub async fn native_editor_inspect_interaction_context(
     });
 
     Ok(Some(inspect_interaction_context(&target_path, &text, selection)))
+}
+
+#[tauri::command]
+pub async fn native_editor_plan_citation_replacement(
+    request: NativeEditorPlanCitationReplacementRequest,
+) -> Result<Option<NativeEditorCitationReplacePlan>, String> {
+    if request.path.trim().is_empty() {
+        return Ok(None);
+    }
+    Ok(plan_citation_replacement(request))
 }
 
 #[tauri::command]
@@ -1071,5 +1168,61 @@ mod tests {
         assert_eq!(edit.cites.len(), 2);
         assert_eq!(edit.cites[0].key, "smith2020");
         assert_eq!(edit.cites[1].key, "doe2021");
+    }
+
+    #[test]
+    fn native_editor_plans_markdown_citation_update() {
+        let plan = plan_citation_replacement(NativeEditorPlanCitationReplacementRequest {
+            path: "paper.md".to_string(),
+            operation: "update".to_string(),
+            trigger: None,
+            edit: Some(NativeEditorCitationEditContext {
+                group_from: 4,
+                group_to: 20,
+                cites: vec![],
+                latex_command: None,
+            }),
+            keys: vec![],
+            cites: vec![
+                NativeEditorCitationEntry {
+                    key: "smith2020".to_string(),
+                    locator: "p. 10".to_string(),
+                    prefix: String::new(),
+                },
+                NativeEditorCitationEntry {
+                    key: "doe2021".to_string(),
+                    locator: String::new(),
+                    prefix: "see".to_string(),
+                },
+            ],
+            latex_command: None,
+        })
+        .expect("markdown plan should exist");
+
+        assert_eq!(plan.from, 4);
+        assert_eq!(plan.to, 20);
+        assert_eq!(plan.text, "[@smith2020, p. 10; see @doe2021]");
+    }
+
+    #[test]
+    fn native_editor_plans_latex_citation_insert() {
+        let plan = plan_citation_replacement(NativeEditorPlanCitationReplacementRequest {
+            path: "paper.tex".to_string(),
+            operation: "insert".to_string(),
+            trigger: Some(NativeEditorCitationTrigger {
+                query: "smi".to_string(),
+                trigger_from: 12,
+                trigger_to: 15,
+                inside_brackets: false,
+                latex_command: Some("cite".to_string()),
+            }),
+            edit: None,
+            keys: vec!["smith2020".to_string()],
+            cites: vec![],
+            latex_command: Some("citep".to_string()),
+        })
+        .expect("latex insert plan should exist");
+
+        assert_eq!(plan.text, r"\citep{smith2020}");
     }
 }
