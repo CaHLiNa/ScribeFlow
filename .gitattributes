@@ -1,0 +1,4 @@
+# Exclude vendored third-party frontend assets from GitHub Linguist
+# so repository language stats reflect Altals source code more accurately.
+
+public/pdfjs-viewer/** linguist-vendored
