@@ -588,7 +588,9 @@ function onCitInsert({ keys = [], stayOpen = false, latexCommand = null }) {
   })
 
   if (stayOpen && !isLatexFile) {
-    maybeOpenCitationEditAtSelection()
+    void inspectCurrentNativeContext().then((context) => {
+      applyCitationEditContext(context)
+    })
     return
   }
   citPalette.show = false

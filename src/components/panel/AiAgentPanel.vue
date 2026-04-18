@@ -132,9 +132,6 @@
                     :class="{ 'is-plan-active': isPlanModeEnabled }"
                     aria-hidden="true"
                   ></span>
-                  <span class="ai-agent-panel__policy-label" :class="{ 'is-zh': isZh }" aria-hidden="true">
-                    {{ planModeCompactLabel }}
-                  </span>
                 </button>
 
                 <button
@@ -164,9 +161,6 @@
                     :class="{ 'is-full-access': isFullAccessMode }"
                     aria-hidden="true"
                   ></span>
-                  <span class="ai-agent-panel__policy-label" :class="{ 'is-zh': isZh }" aria-hidden="true">
-                    {{ permissionModeCompactLabel }}
-                  </span>
                 </button>
               </div>
 
@@ -275,7 +269,7 @@ import AiResumeBanner from './AiResumeBanner.vue'
 import AiSessionRail from './AiSessionRail.vue'
 import SurfaceContextMenu from '../shared/SurfaceContextMenu.vue'
 
-const { t, isZh } = useI18n()
+const { t } = useI18n()
 const aiStore = useAiStore()
 const filesStore = useFilesStore()
 const toastStore = useToastStore()
@@ -381,8 +375,6 @@ const resolvedPermissionMode = computed(() =>
 )
 const isFullAccessMode = computed(() => resolvedPermissionMode.value === 'bypass-permissions')
 const isExecutionPolicyLocked = computed(() => aiStore.isRunning || hasBlockingState.value)
-const planModeCompactLabel = computed(() => t('PLAN'))
-const permissionModeCompactLabel = computed(() => (isFullAccessMode.value ? t('FULL') : t('ASK')))
 const executionPolicyControlTitle = computed(() => {
   if (aiStore.isRunning) return t('Execution mode cannot change while a task is running.')
   if (hasBlockingState.value) {
@@ -1092,10 +1084,9 @@ watch(
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  min-width: 0;
+  width: 28px;
   height: 28px;
-  padding: 0 3px 0 2px;
+  padding: 0;
   border: none;
   border-radius: 8px;
   background: transparent;
@@ -1153,25 +1144,6 @@ watch(
 
 .ai-agent-panel__policy-indicator.is-plan-active {
   background: color-mix(in srgb, var(--accent) 84%, transparent);
-}
-
-.ai-agent-panel__policy-label {
-  display: inline-flex;
-  align-items: center;
-  font-size: 10px;
-  font-weight: 700;
-  line-height: 1;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: currentColor;
-  pointer-events: none;
-}
-
-.ai-agent-panel__policy-label.is-zh {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0;
-  text-transform: none;
 }
 
 .ai-agent-panel__composer-primary {
