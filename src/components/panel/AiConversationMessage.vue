@@ -8,17 +8,6 @@
       <span v-if="formattedTime" class="ai-conversation-message__time">{{ formattedTime }}</span>
     </div>
 
-    <div v-if="showContextMetadata" class="ai-conversation-message__context">
-      <span
-        v-for="chip in contextChips"
-        :key="`${chip.kind}:${chip.value}`"
-        class="ai-conversation-message__pill ai-conversation-message__pill--context"
-      >
-        <span class="ai-conversation-message__pill-label">{{ chip.label }}</span>
-        <span class="ai-conversation-message__pill-value">{{ chip.value }}</span>
-      </span>
-    </div>
-
     <div
       class="ai-conversation-message__body"
       :class="
@@ -166,16 +155,6 @@ function canApplyAiArtifact(artifact = null, enabledToolIds = []) {
 }
 
 const messageText = computed(() => extractAiMessageText(props.message))
-const skillId = computed(() => String(props.message?.metadata?.skillId || '').trim())
-const contextChips = computed(() =>
-  (Array.isArray(props.message?.metadata?.contextChips)
-    ? props.message.metadata.contextChips
-    : []
-  ).filter((chip) => chip && chip.value)
-)
-const showContextMetadata = computed(
-  () => props.message?.role === 'assistant' && contextChips.value.length > 0
-)
 const taskProgressTasks = computed(() => {
   return displayParts.value
     .filter((part) => part?.type === 'tool')

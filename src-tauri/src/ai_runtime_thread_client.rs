@@ -403,10 +403,11 @@ pub fn map_runtime_thread_snapshot_to_session(session: &Value, snapshot: &Value)
         .and_then(Value::as_array)
         .cloned()
         .unwrap_or_default();
-    next_session["messages"] = if existing_messages.is_empty() {
-        Value::Array(build_session_messages_from_runtime_snapshot(snapshot))
-    } else {
+    let runtime_messages = build_session_messages_from_runtime_snapshot(snapshot);
+    next_session["messages"] = if runtime_messages.is_empty() {
         Value::Array(existing_messages)
+    } else {
+        Value::Array(runtime_messages)
     };
     next_session["permissionRequests"] = Value::Array(
         build_session_permission_requests_from_runtime_snapshot(snapshot),

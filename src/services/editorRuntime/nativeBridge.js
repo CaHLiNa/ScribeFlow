@@ -91,6 +91,16 @@ export async function setNativeEditorOutlineContext({ path = '', context = null 
   })
 }
 
+export async function recordNativeEditorWorkflowEvent({ path = '', event = null } = {}) {
+  requireTauriInvoke()
+  return invoke('native_editor_session_record_workflow_event', {
+    request: {
+      path: String(path || ''),
+      event: event == null ? null : event,
+    },
+  })
+}
+
 export async function applyNativeEditorExternalContent({ path = '', text = '' } = {}) {
   requireTauriInvoke()
   return invoke('native_editor_session_apply_external_content', {
@@ -106,6 +116,27 @@ export async function getNativeEditorDocumentState({ path = '' } = {}) {
   return invoke('native_editor_document_state', {
     request: {
       path: String(path || ''),
+    },
+  })
+}
+
+export async function inspectNativeEditorInteractionContext({
+  path = '',
+  text = null,
+  selection = null,
+} = {}) {
+  requireTauriInvoke()
+  return invoke('native_editor_inspect_interaction_context', {
+    request: {
+      path: String(path || ''),
+      text: typeof text === 'string' ? text : null,
+      selection:
+        selection && typeof selection === 'object'
+          ? {
+              anchor: Number(selection?.anchor || 0),
+              head: Number(selection?.head || 0),
+            }
+          : null,
     },
   })
 }

@@ -1,42 +1,46 @@
 <template>
-  <div v-if="request" class="ai-inline-banner ai-inline-banner--ask">
-    <div class="ai-inline-banner__copy">
-      <div class="ai-inline-banner__title">{{ request.title || t('Question from the agent') }}</div>
-      <div class="ai-inline-banner__body">{{ request.prompt || request.description || t('The current runtime is waiting for user input.') }}</div>
-    </div>
+  <AiBlockingBannerShell
+    v-if="request"
+    tone="info"
+    :title="request.title || t('Question from the agent')"
+    :body="request.prompt || request.description || t('The current runtime is waiting for user input.')"
+  >
+    <template v-if="contextItems.length > 0" #copy>
+      <AiRuntimeContextSummary :items="contextItems" />
+    </template>
 
-    <div v-if="questions.length > 0" class="ai-inline-banner__questions">
+    <div v-if="questions.length > 0" class="ai-ask-user-banner__questions">
       <div
         v-for="(question, index) in questions"
         :key="question.id || index"
-        class="ai-inline-banner__question"
+        class="ai-ask-user-banner__question"
       >
-        <div class="ai-inline-banner__question-header">
+        <div class="ai-ask-user-banner__question-header">
           {{ question.header || `${t('Question')} ${index + 1}` }}
         </div>
-        <div class="ai-inline-banner__question-body">{{ question.question }}</div>
+        <div class="ai-ask-user-banner__question-body">{{ question.question }}</div>
 
         <div
           v-if="question.options?.length > 0"
-          class="ai-inline-banner__options"
+          class="ai-ask-user-banner__options"
         >
           <button
             v-for="option in question.options"
             :key="option.label"
             type="button"
-            class="ai-inline-banner__option"
+            class="ai-ask-user-banner__option"
             :class="{ 'is-active': isSelected(index, option.label) }"
             @click="toggleOption(index, question, option.label)"
           >
             <span>{{ option.label }}</span>
-            <span v-if="option.description" class="ai-inline-banner__option-description">{{ option.description }}</span>
+            <span v-if="option.description" class="ai-ask-user-banner__option-description">{{ option.description }}</span>
           </button>
         </div>
 
         <UiTextarea
           :model-value="freeTextAnswers[index] || ''"
           :rows="2"
-          class="ai-inline-banner__textarea"
+          class="ai-ask-user-banner__textarea"
           :placeholder="t('Optional answer')"
           @update:model-value="setFreeText(index, $event)"
         />
@@ -47,12 +51,12 @@
       v-else
       :model-value="fallbackAnswer"
       :rows="3"
-      class="ai-inline-banner__textarea"
+      class="ai-ask-user-banner__textarea"
       :placeholder="t('Type your answer')"
       @update:model-value="fallbackAnswer = String($event || '')"
     />
 
-    <div class="ai-inline-banner__actions">
+    <template #actions>
       <UiButton
         variant="primary"
         size="sm"
@@ -61,18 +65,21 @@
       >
         {{ submitting ? t('Submitting...') : t('Submit response') }}
       </UiButton>
-    </div>
-  </div>
+    </template>
+  </AiBlockingBannerShell>
 </template>
 
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { useI18n } from '../../i18n'
+import AiBlockingBannerShell from './AiBlockingBannerShell.vue'
+import AiRuntimeContextSummary from './AiRuntimeContextSummary.vue'
 import UiButton from '../shared/ui/UiButton.vue'
 import UiTextarea from '../shared/ui/UiTextarea.vue'
 
 const props = defineProps({
   request: { type: Object, default: null },
+  contextItems: { type: Array, default: () => [] },
   submitting: { type: Boolean, default: false },
 })
 
@@ -167,42 +174,13 @@ function submitAnswers() {
 </script>
 
 <style scoped>
-.ai-inline-banner {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: 14px;
-  border: 1px solid color-mix(in srgb, var(--info) 24%, var(--border-color) 76%);
-  background: color-mix(in srgb, var(--info) 8%, transparent);
-}
-
-.ai-inline-banner__copy {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.ai-inline-banner__title {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.ai-inline-banner__body {
-  font-size: 12px;
-  line-height: 1.55;
-  color: var(--text-secondary);
-  white-space: pre-wrap;
-}
-
-.ai-inline-banner__questions {
+.ai-ask-user-banner__questions {
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
 
-.ai-inline-banner__question {
+.ai-ask-user-banner__question {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -212,7 +190,7 @@ function submitAnswers() {
   border: 1px solid color-mix(in srgb, var(--border-color) 34%, transparent);
 }
 
-.ai-inline-banner__question-header {
+.ai-ask-user-banner__question-header {
   font-size: 11px;
   font-weight: 600;
   color: var(--text-tertiary);
@@ -220,19 +198,19 @@ function submitAnswers() {
   letter-spacing: 0.04em;
 }
 
-.ai-inline-banner__question-body {
+.ai-ask-user-banner__question-body {
   font-size: 12px;
   color: var(--text-primary);
   line-height: 1.5;
 }
 
-.ai-inline-banner__options {
+.ai-ask-user-banner__options {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-.ai-inline-banner__option {
+.ai-ask-user-banner__option {
   appearance: none;
   display: flex;
   flex-direction: column;
@@ -248,13 +226,13 @@ function submitAnswers() {
   cursor: pointer;
 }
 
-.ai-inline-banner__option.is-active {
+.ai-ask-user-banner__option.is-active {
   border-color: color-mix(in srgb, var(--accent) 30%, var(--border-color) 70%);
   background: color-mix(in srgb, var(--accent) 10%, transparent);
   color: var(--text-primary);
 }
 
-.ai-inline-banner__option-description {
+.ai-ask-user-banner__option-description {
   font-size: 11px;
   color: var(--text-tertiary);
 }

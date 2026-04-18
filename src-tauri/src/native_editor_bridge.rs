@@ -22,6 +22,8 @@ pub struct NativeEditorDocumentState {
     pub diagnostics: Vec<Value>,
     #[serde(default)]
     pub outline_context: Option<Value>,
+    #[serde(default)]
+    pub last_workflow_event: Option<Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -86,6 +88,10 @@ pub enum NativeEditorCommand {
     SetOutlineContext {
         path: String,
         context: Option<Value>,
+    },
+    RecordWorkflowEvent {
+        path: String,
+        event: Value,
     },
     ApplyExternalContent {
         path: String,
@@ -178,6 +184,8 @@ pub struct NativeEditorDocumentSnapshot {
     pub diagnostics: Vec<Value>,
     #[serde(default)]
     pub outline_context: Option<Value>,
+    #[serde(default)]
+    pub last_workflow_event: Option<Value>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -230,6 +238,73 @@ pub struct NativeEditorSetOutlineContextRequest {
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct NativeEditorRecordWorkflowEventRequest {
+    pub path: String,
+    pub event: Value,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct NativeEditorDocumentStateRequest {
     pub path: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeEditorInteractionContextSnapshot {
+    pub path: String,
+    pub has_selection: bool,
+    pub cursor_offset: usize,
+    pub wiki_link: Option<NativeEditorWikiLinkMatch>,
+    pub citation_trigger: Option<NativeEditorCitationTrigger>,
+    pub citation_edit: Option<NativeEditorCitationEditContext>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeEditorWikiLinkMatch {
+    pub target: String,
+    pub from: usize,
+    pub to: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeEditorCitationTrigger {
+    #[serde(default)]
+    pub query: String,
+    pub trigger_from: usize,
+    pub trigger_to: usize,
+    #[serde(default)]
+    pub inside_brackets: bool,
+    pub latex_command: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeEditorCitationEditContext {
+    pub group_from: usize,
+    pub group_to: usize,
+    #[serde(default)]
+    pub cites: Vec<NativeEditorCitationEntry>,
+    pub latex_command: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeEditorCitationEntry {
+    #[serde(default)]
+    pub key: String,
+    #[serde(default)]
+    pub locator: String,
+    #[serde(default)]
+    pub prefix: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeEditorInspectInteractionRequest {
+    pub path: String,
+    pub text: Option<String>,
+    pub selection: Option<NativeEditorSelectionRange>,
 }

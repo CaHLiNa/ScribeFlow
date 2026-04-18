@@ -1,25 +1,27 @@
 <template>
-  <div v-if="request" class="ai-inline-banner ai-inline-banner--exit-plan">
-    <div class="ai-inline-banner__copy">
-      <div class="ai-inline-banner__title">{{ t('Plan approval required') }}</div>
-      <div class="ai-inline-banner__body">
-        {{ t('The agent finished planning and is waiting for your decision before leaving plan mode.') }}
-      </div>
-    </div>
+  <AiBlockingBannerShell
+    v-if="request"
+    tone="accent"
+    :title="t('Plan approval required')"
+    :body="t('The agent finished planning and is waiting for your decision before leaving plan mode.')"
+  >
+    <template v-if="contextItems.length > 0" #copy>
+      <AiRuntimeContextSummary :items="contextItems" />
+    </template>
 
     <div
       v-if="allowedPrompts.length > 0"
-      class="ai-inline-banner__allowed"
+      class="ai-exit-plan-banner__allowed"
     >
-      <div class="ai-inline-banner__allowed-label">{{ t('Allowed follow-up prompts') }}</div>
-      <div class="ai-inline-banner__allowed-list">
+      <div class="ai-exit-plan-banner__allowed-label">{{ t('Allowed follow-up prompts') }}</div>
+      <div class="ai-exit-plan-banner__allowed-list">
         <div
           v-for="(entry, index) in allowedPrompts"
           :key="`${entry.tool}:${index}`"
-          class="ai-inline-banner__allowed-item"
+          class="ai-exit-plan-banner__allowed-item"
         >
-          <span class="ai-inline-banner__allowed-tool">{{ entry.tool }}</span>
-          <span class="ai-inline-banner__allowed-prompt">{{ entry.prompt }}</span>
+          <span class="ai-exit-plan-banner__allowed-tool">{{ entry.tool }}</span>
+          <span class="ai-exit-plan-banner__allowed-prompt">{{ entry.prompt }}</span>
         </div>
       </div>
     </div>
@@ -27,12 +29,12 @@
     <UiTextarea
       :model-value="feedback"
       :rows="2"
-      class="ai-inline-banner__textarea"
+      class="ai-exit-plan-banner__textarea"
       :placeholder="t('Optional feedback for the plan')"
       @update:model-value="feedback = String($event || '')"
     />
 
-    <div class="ai-inline-banner__actions">
+    <template #actions>
       <UiButton
         variant="ghost"
         size="sm"
@@ -65,18 +67,21 @@
       >
         {{ t('Approve and auto-run') }}
       </UiButton>
-    </div>
-  </div>
+    </template>
+  </AiBlockingBannerShell>
 </template>
 
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { useI18n } from '../../i18n'
+import AiBlockingBannerShell from './AiBlockingBannerShell.vue'
+import AiRuntimeContextSummary from './AiRuntimeContextSummary.vue'
 import UiButton from '../shared/ui/UiButton.vue'
 import UiTextarea from '../shared/ui/UiTextarea.vue'
 
 const props = defineProps({
   request: { type: Object, default: null },
+  contextItems: { type: Array, default: () => [] },
   submitting: { type: Boolean, default: false },
 })
 
@@ -108,45 +113,13 @@ function submit(action = 'deny') {
 </script>
 
 <style scoped>
-.ai-inline-banner {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: 14px;
-}
-
-.ai-inline-banner--exit-plan {
-  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border-color) 72%);
-  background: color-mix(in srgb, var(--accent) 9%, transparent);
-}
-
-.ai-inline-banner__copy {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.ai-inline-banner__title {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.ai-inline-banner__body {
-  font-size: 12px;
-  line-height: 1.55;
-  color: var(--text-secondary);
-  white-space: pre-wrap;
-}
-
-.ai-inline-banner__allowed {
+.ai-exit-plan-banner__allowed {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-.ai-inline-banner__allowed-label {
+.ai-exit-plan-banner__allowed-label {
   font-size: 11px;
   font-weight: 600;
   color: var(--text-tertiary);
@@ -154,13 +127,13 @@ function submit(action = 'deny') {
   letter-spacing: 0.04em;
 }
 
-.ai-inline-banner__allowed-list {
+.ai-exit-plan-banner__allowed-list {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-.ai-inline-banner__allowed-item {
+.ai-exit-plan-banner__allowed-item {
   display: flex;
   gap: 8px;
   align-items: flex-start;
@@ -170,23 +143,17 @@ function submit(action = 'deny') {
   border: 1px solid color-mix(in srgb, var(--border-color) 34%, transparent);
 }
 
-.ai-inline-banner__allowed-tool {
+.ai-exit-plan-banner__allowed-tool {
   flex: 0 0 auto;
   font-size: 11px;
   font-weight: 600;
   color: var(--text-tertiary);
 }
 
-.ai-inline-banner__allowed-prompt {
+.ai-exit-plan-banner__allowed-prompt {
   font-size: 12px;
   line-height: 1.5;
   color: var(--text-secondary);
   white-space: pre-wrap;
-}
-
-.ai-inline-banner__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
 }
 </style>

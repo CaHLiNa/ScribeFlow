@@ -576,7 +576,9 @@ pub fn run() {
             native_editor_runtime::native_editor_session_set_selections,
             native_editor_runtime::native_editor_session_set_diagnostics,
             native_editor_runtime::native_editor_session_set_outline_context,
+            native_editor_runtime::native_editor_session_record_workflow_event,
             native_editor_runtime::native_editor_document_state,
+            native_editor_runtime::native_editor_inspect_interaction_context,
             native_editor_runtime::native_editor_session_state,
         ])
         .run(tauri::generate_context!())

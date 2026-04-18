@@ -1,11 +1,14 @@
 import { defineStore } from 'pinia'
 import { EDITOR_RUNTIME_EVENT_NAME } from '../domains/editor/editorRuntimeContract'
+import { PRIMARY_TEXT_SURFACE_TARGETS } from '../domains/editor/primaryTextSurfaceTargets'
 import {
   applyNativeEditorTransaction,
   applyNativeEditorExternalContent,
+  inspectNativeEditorInteractionContext,
   listenToNativeEditorEvents,
   nativeEditorBridgeAvailable,
   openNativeEditorDocument,
+  recordNativeEditorWorkflowEvent,
   replaceNativeEditorDocumentText,
   setNativeEditorDiagnostics,
   setNativeEditorOutlineContext,
@@ -20,10 +23,13 @@ export const EDITOR_RUNTIME_MODES = Object.freeze({
 })
 
 const MAX_TELEMETRY_EVENTS = 200
-const SHADOW_MODE_STORAGE_KEY = 'editorRuntime.shadowMode'
 const MODE_STORAGE_KEY = 'editorRuntime.mode'
+const MAX_LATENCY_SAMPLES = 40
+const TYPING_LATENCY_STORAGE_KEY = 'editorRuntime.typingLatencySamples'
+const REOPEN_VERIFICATION_STORAGE_KEY = 'editorRuntime.reopenVerification'
 let telemetryListener = null
 let nativeRuntimeListener = null
+const pendingTypingLatencyByPath = new Map()
 
 function utf8ByteLength(value = '') {
   try {
@@ -46,24 +52,6 @@ function jsOffsetToUtf8Offset(text = '', offset = 0) {
   return utf8ByteLength(normalized.slice(0, safeOffset))
 }
 
-function readStoredBoolean(key, fallback = false) {
-  try {
-    const value = String(localStorage.getItem(key) ?? '').trim().toLowerCase()
-    if (!value) return fallback
-    return value === 'true' || value === '1' || value === 'yes' || value === 'on'
-  } catch {
-    return fallback
-  }
-}
-
-function writeStoredBoolean(key, value) {
-  try {
-    localStorage.setItem(key, value ? 'true' : 'false')
-  } catch {
-    // Ignore localStorage persistence failures.
-  }
-}
-
 function readStoredMode(fallback = EDITOR_RUNTIME_MODES.WEB) {
   try {
     const value = String(localStorage.getItem(MODE_STORAGE_KEY) ?? '').trim()
@@ -81,10 +69,37 @@ function writeStoredString(key, value) {
   }
 }
 
+function readStoredJson(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key)
+    if (!raw) return fallback
+    return JSON.parse(raw)
+  } catch {
+    return fallback
+  }
+}
+
+function writeStoredJson(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value))
+  } catch {
+    // Ignore localStorage persistence failures.
+  }
+}
+
+function stableTextFingerprint(value = '') {
+  const text = String(value || '')
+  let hash = 2166136261
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index)
+    hash = Math.imul(hash, 16777619)
+  }
+  return `${text.length}:${(hash >>> 0).toString(16)}`
+}
+
 export const useEditorRuntimeStore = defineStore('editorRuntime', {
   state: () => ({
     mode: readStoredMode(EDITOR_RUNTIME_MODES.WEB),
-    shadowMode: readStoredBoolean(SHADOW_MODE_STORAGE_KEY, false),
     lastNativeSessionId: null,
     nativeRuntimeConnected: false,
     nativeProtocolVersion: 0,
@@ -97,11 +112,116 @@ export const useEditorRuntimeStore = defineStore('editorRuntime', {
     telemetryEventCount: 0,
     lastTelemetryEvent: null,
     recentTelemetryEvents: [],
+    typingLatencySamples: Array.isArray(readStoredJson(TYPING_LATENCY_STORAGE_KEY, []))
+      ? readStoredJson(TYPING_LATENCY_STORAGE_KEY, [])
+      : [],
+    reopenVerification: readStoredJson(REOPEN_VERIFICATION_STORAGE_KEY, {
+      pending: {},
+      history: [],
+      lastPassedAt: '',
+      lastFailedAt: '',
+    }),
   }),
 
   getters: {
-    wantsNativeRuntime(state) {
-      return state.shadowMode || state.mode === EDITOR_RUNTIME_MODES.NATIVE_EXPERIMENTAL
+    wantsNativeRuntime() {
+      return nativeEditorBridgeAvailable()
+    },
+
+    useNativePrimarySurface(state) {
+      return this.canSwitchToNativePrimarySurface && state.mode === EDITOR_RUNTIME_MODES.NATIVE_EXPERIMENTAL
+    },
+
+    cutoverGateStatus(state) {
+      const documents = Object.values(state.nativeDocuments || {})
+      const workflowKinds = new Set(
+        documents
+          .map((document) => String(document?.lastWorkflowEvent?.kind || '').trim())
+          .filter(Boolean)
+      )
+      const telemetryTypes = new Set(
+        (state.recentTelemetryEvents || [])
+          .map((event) => String(event?.type || '').trim())
+          .filter(Boolean)
+      )
+      const hasDiagnosticsPayload = documents.some((document) => Array.isArray(document?.diagnostics))
+      const hasOutlineContextPayload = documents.some((document) => document?.outlineContext != null)
+      const hasSelections = documents.some((document) => Array.isArray(document?.selections) && document.selections.length > 0)
+      const hasPersistEvent = workflowKinds.has('persist-document')
+      const hasMarkdownSyncEvent = workflowKinds.has('markdown-forward-sync-request')
+      const hasLatexSyncEvent =
+        workflowKinds.has('latex-forward-sync-request') || workflowKinds.has('latex-backward-sync-reveal')
+      const hasOutlineFollowEvent = workflowKinds.has('outline-active-item')
+      const hasCitationEvent =
+        workflowKinds.has('citation-insert') || workflowKinds.has('citation-update')
+
+      return {
+        nativeSessionReady: {
+          ready: !!state.lastNativeSessionId && state.nativeRuntimeConnected,
+          evidence: state.lastNativeSessionId || '',
+        },
+        selectionSemantics: {
+          ready: hasSelections,
+          evidence: hasSelections ? 'native selections observed' : 'pending selection evidence',
+        },
+        saveDirtyState: {
+          ready: hasPersistEvent,
+          evidence: hasPersistEvent ? 'persist-document workflow event observed' : 'pending save evidence',
+        },
+        outlineFollowCursor: {
+          ready: hasOutlineContextPayload && hasOutlineFollowEvent,
+          evidence:
+            hasOutlineContextPayload && hasOutlineFollowEvent
+              ? 'outline context + active item events observed'
+              : 'pending outline follow evidence',
+        },
+        markdownSyncLoops: {
+          ready: hasMarkdownSyncEvent,
+          evidence: hasMarkdownSyncEvent ? 'markdown sync workflow event observed' : 'pending markdown sync evidence',
+        },
+        latexSyncLoops: {
+          ready: hasLatexSyncEvent,
+          evidence: hasLatexSyncEvent ? 'latex sync workflow event observed' : 'pending latex sync evidence',
+        },
+        diagnosticsFlow: {
+          ready: hasDiagnosticsPayload && telemetryTypes.has('diagnostics-update'),
+          evidence:
+            hasDiagnosticsPayload && telemetryTypes.has('diagnostics-update')
+              ? 'diagnostics payload + telemetry observed'
+              : 'pending diagnostics evidence',
+        },
+        citationFlow: {
+          ready: hasCitationEvent,
+          evidence: hasCitationEvent ? 'citation workflow event observed' : 'pending citation evidence',
+        },
+        typingLatency: {
+          ready:
+            state.typingLatencySamples.length >= 3 &&
+            state.typingLatencySamples.some((sample) => Number(sample?.textLength || 0) >= 32) &&
+            state.typingLatencySamples.every((sample) => Number(sample?.latencyMs || Infinity) <= 150),
+          evidence:
+            state.typingLatencySamples.length >= 3
+              ? `${state.typingLatencySamples.length} samples, max ${Math.max(...state.typingLatencySamples.map((sample) => Number(sample?.latencyMs || 0)))} ms`
+              : 'pending latency samples',
+        },
+        noDataLossAcrossReopen: {
+          ready: !!state.reopenVerification?.lastPassedAt,
+          evidence:
+            state.reopenVerification?.lastPassedAt
+              ? `verified at ${state.reopenVerification.lastPassedAt}`
+              : 'pending reopen verification',
+        },
+      }
+    },
+
+    canSwitchToNativePrimarySurface() {
+      return Object.values(this.cutoverGateStatus).every((gate) => gate.ready === true)
+    },
+
+    primarySurfaceTarget() {
+      return this.useNativePrimarySurface
+        ? PRIMARY_TEXT_SURFACE_TARGETS.NATIVE_PRIMARY
+        : PRIMARY_TEXT_SURFACE_TARGETS.WEB
     },
   },
 
@@ -162,6 +282,26 @@ export const useEditorRuntimeStore = defineStore('editorRuntime', {
       if (kind === 'documentOpened' || kind === 'contentChanged') {
         const path = String(payload?.path || '').trim()
         if (!path) return
+        const pendingProbe = pendingTypingLatencyByPath.get(path)
+        if (
+          pendingProbe &&
+          typeof payload?.text === 'string' &&
+          stableTextFingerprint(payload.text) === pendingProbe.textFingerprint
+        ) {
+          const sample = {
+            path,
+            fileKind: pendingProbe.fileKind,
+            textLength: pendingProbe.textLength,
+            latencyMs: Math.max(0, Date.now() - pendingProbe.startedAt),
+            ts: new Date().toISOString(),
+          }
+          this.typingLatencySamples = [
+            ...this.typingLatencySamples.slice(-(MAX_LATENCY_SAMPLES - 1)),
+            sample,
+          ]
+          writeStoredJson(TYPING_LATENCY_STORAGE_KEY, this.typingLatencySamples)
+          pendingTypingLatencyByPath.delete(path)
+        }
         this.nativeDocuments = {
           ...this.nativeDocuments,
           [path]: {
@@ -180,6 +320,13 @@ export const useEditorRuntimeStore = defineStore('editorRuntime', {
               : this.nativeDocuments[path]?.selections || [],
             cursor: payload?.cursor || this.nativeDocuments[path]?.cursor || null,
             viewport: payload?.viewport || this.nativeDocuments[path]?.viewport || null,
+            diagnostics: Array.isArray(payload?.diagnostics)
+              ? payload.diagnostics
+              : this.nativeDocuments[path]?.diagnostics || [],
+            outlineContext:
+              payload?.outlineContext ?? this.nativeDocuments[path]?.outlineContext ?? null,
+            lastWorkflowEvent:
+              payload?.lastWorkflowEvent ?? this.nativeDocuments[path]?.lastWorkflowEvent ?? null,
             reason: String(payload?.reason || '').trim(),
           },
         }
@@ -200,6 +347,9 @@ export const useEditorRuntimeStore = defineStore('editorRuntime', {
             selections: Array.isArray(entry?.selections) ? entry.selections : [],
             cursor: entry?.cursor || null,
             viewport: entry?.viewport || null,
+            diagnostics: Array.isArray(entry?.diagnostics) ? entry.diagnostics : [],
+            outlineContext: entry?.outlineContext ?? null,
+            lastWorkflowEvent: entry?.lastWorkflowEvent ?? null,
             reason: this.nativeDocuments[path]?.reason || '',
           }
         }
@@ -212,18 +362,83 @@ export const useEditorRuntimeStore = defineStore('editorRuntime', {
       }
     },
 
-    setShadowMode(value) {
-      this.shadowMode = value === true
-      writeStoredBoolean(SHADOW_MODE_STORAGE_KEY, this.shadowMode)
-      return this.shadowMode
+    setShadowMode() {
+      // Hidden shadow-mode toggles are retired. Native mirroring is always-on in desktop builds.
+      return this.wantsNativeRuntime
     },
 
     setMode(value) {
-      this.mode = Object.values(EDITOR_RUNTIME_MODES).includes(value)
+      const requestedMode = Object.values(EDITOR_RUNTIME_MODES).includes(value)
         ? value
         : EDITOR_RUNTIME_MODES.WEB
+      this.mode =
+        requestedMode === EDITOR_RUNTIME_MODES.NATIVE_EXPERIMENTAL && !this.canSwitchToNativePrimarySurface
+          ? EDITOR_RUNTIME_MODES.WEB
+          : requestedMode
       writeStoredString(MODE_STORAGE_KEY, this.mode)
       return this.mode
+    },
+
+    beginTypingLatencyProbe({ path = '', text = '', fileKind = 'text' } = {}) {
+      const normalizedPath = String(path || '').trim()
+      if (!normalizedPath) return false
+      pendingTypingLatencyByPath.set(normalizedPath, {
+        startedAt: Date.now(),
+        fileKind: String(fileKind || 'text'),
+        textLength: String(text || '').length,
+        textFingerprint: stableTextFingerprint(text),
+      })
+      return true
+    },
+
+    recordPersistedSnapshot({ path = '', text = '', fileKind = 'text' } = {}) {
+      const normalizedPath = String(path || '').trim()
+      if (!normalizedPath) return false
+      const snapshot = {
+        path: normalizedPath,
+        fileKind: String(fileKind || 'text'),
+        textFingerprint: stableTextFingerprint(text),
+        textLength: String(text || '').length,
+        savedAt: new Date().toISOString(),
+      }
+      this.reopenVerification = {
+        ...this.reopenVerification,
+        pending: {
+          ...(this.reopenVerification?.pending || {}),
+          [normalizedPath]: snapshot,
+        },
+      }
+      writeStoredJson(REOPEN_VERIFICATION_STORAGE_KEY, this.reopenVerification)
+      return true
+    },
+
+    verifyReopenSnapshot({ path = '', text = '', fileKind = 'text' } = {}) {
+      const normalizedPath = String(path || '').trim()
+      if (!normalizedPath) return false
+      const pending = this.reopenVerification?.pending?.[normalizedPath]
+      if (!pending) return false
+
+      const passed = pending.textFingerprint === stableTextFingerprint(text)
+      const record = {
+        path: normalizedPath,
+        fileKind: String(fileKind || pending.fileKind || 'text'),
+        textLength: String(text || '').length,
+        savedAt: pending.savedAt,
+        verifiedAt: new Date().toISOString(),
+        passed,
+      }
+
+      const nextPending = { ...(this.reopenVerification?.pending || {}) }
+      delete nextPending[normalizedPath]
+
+      this.reopenVerification = {
+        pending: nextPending,
+        history: [...(this.reopenVerification?.history || []).slice(-19), record],
+        lastPassedAt: passed ? record.verifiedAt : this.reopenVerification?.lastPassedAt || '',
+        lastFailedAt: !passed ? record.verifiedAt : this.reopenVerification?.lastFailedAt || '',
+      }
+      writeStoredJson(REOPEN_VERIFICATION_STORAGE_KEY, this.reopenVerification)
+      return passed
     },
 
     attachTelemetryListener() {
@@ -393,6 +608,28 @@ export const useEditorRuntimeStore = defineStore('editorRuntime', {
       return true
     },
 
+    async inspectNativeInteractionContext({ path = '', text = null, selection = null } = {}) {
+      if (!nativeEditorBridgeAvailable()) return null
+      const normalizedPath = String(path || '').trim()
+      if (!normalizedPath) return null
+      await this.startNativeSession()
+      const currentText =
+        typeof text === 'string'
+          ? text
+          : String(this.nativeDocuments[normalizedPath]?.text ?? '')
+      await inspectNativeEditorInteractionContext({
+        path: normalizedPath,
+        text: currentText,
+        selection:
+          selection && typeof selection === 'object'
+            ? {
+                anchor: jsOffsetToUtf8Offset(currentText, selection?.anchor ?? 0),
+                head: jsOffsetToUtf8Offset(currentText, selection?.head ?? 0),
+              }
+            : null,
+      })
+    },
+
     async setNativeDiagnostics({ path = '', diagnostics = [] } = {}) {
       if (!nativeEditorBridgeAvailable()) return false
       const normalizedPath = String(path || '').trim()
@@ -413,6 +650,18 @@ export const useEditorRuntimeStore = defineStore('editorRuntime', {
       await setNativeEditorOutlineContext({
         path: normalizedPath,
         context: context == null ? null : context,
+      })
+      return true
+    },
+
+    async recordNativeWorkflowEvent({ path = '', event = null } = {}) {
+      if (!nativeEditorBridgeAvailable()) return false
+      const normalizedPath = String(path || '').trim()
+      if (!normalizedPath || event == null) return false
+      await this.startNativeSession()
+      await recordNativeEditorWorkflowEvent({
+        path: normalizedPath,
+        event,
       })
       return true
     },

@@ -66,18 +66,21 @@
         <AiAskUserBanner
           v-if="isAgentMode && blockingState === 'ask-user'"
           :request="activeAskUserRequest"
+          :context-items="blockingContextItems"
           :submitting="respondingAskUserRequestId === activeAskUserRequest?.requestId"
           @submit="submitAskUserResponse"
         />
         <AiExitPlanBanner
           v-else-if="isAgentMode && blockingState === 'exit-plan'"
           :request="activeExitPlanRequest"
+          :context-items="blockingContextItems"
           :submitting="respondingExitPlanRequestId === activeExitPlanRequest?.requestId"
           @submit="submitExitPlanResponse"
         />
         <AiPermissionBanner
           v-else-if="isAgentMode && blockingState === 'permission' && activePermissionRequest"
           :request="activePermissionRequest"
+          :context-items="blockingContextItems"
           :submitting="respondingPermissionRequestId === activePermissionRequest?.requestId"
           @deny="denyPermissionRequest"
           @allow-once="allowPermissionRequest"
@@ -110,9 +113,67 @@
 
           <div class="ai-agent-panel__composer-actions">
             <div class="ai-agent-panel__composer-tools">
+              <div class="ai-agent-panel__execution-policy">
+                <button
+                  type="button"
+                  class="ai-agent-panel__policy-button ai-agent-panel__policy-button--plan"
+                  :class="{
+                    'is-active': isPlanModeEnabled,
+                    'is-disabled': isExecutionPolicyLocked,
+                  }"
+                  :disabled="isExecutionPolicyLocked"
+                  :title="planModeButtonTitle"
+                  :aria-label="planModeButtonTitle"
+                  @click="togglePlanMode(!isPlanModeEnabled)"
+                >
+                  <IconChecklist :size="15" :stroke-width="1.9" />
+                  <span
+                    class="ai-agent-panel__policy-indicator"
+                    :class="{ 'is-plan-active': isPlanModeEnabled }"
+                    aria-hidden="true"
+                  ></span>
+                  <span class="ai-agent-panel__policy-label" :class="{ 'is-zh': isZh }" aria-hidden="true">
+                    {{ planModeCompactLabel }}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  class="ai-agent-panel__policy-button ai-agent-panel__policy-button--permission"
+                  :class="{
+                    'is-active': isFullAccessMode,
+                    'is-disabled': isExecutionPolicyLocked,
+                  }"
+                  :disabled="isExecutionPolicyLocked"
+                  :title="permissionModeButtonTitle"
+                  :aria-label="permissionModeButtonTitle"
+                  @click="cyclePermissionMode"
+                >
+                  <IconShieldHalf
+                    v-if="!isFullAccessMode"
+                    :size="15"
+                    :stroke-width="1.85"
+                  />
+                  <IconShieldBolt
+                    v-else
+                    :size="15"
+                    :stroke-width="1.85"
+                  />
+                  <span
+                    class="ai-agent-panel__policy-indicator"
+                    :class="{ 'is-full-access': isFullAccessMode }"
+                    aria-hidden="true"
+                  ></span>
+                  <span class="ai-agent-panel__policy-label" :class="{ 'is-zh': isZh }" aria-hidden="true">
+                    {{ permissionModeCompactLabel }}
+                  </span>
+                </button>
+              </div>
+
               <UiSelect
                 v-if="modelMenuOptions.length > 0"
                 :model-value="currentModelValue"
+                :disabled="isComposerLockedByBlockingState"
                 size="sm"
                 class="ai-agent-panel__model-chip"
                 shell-class="ai-agent-panel__model-chip-shell"
@@ -133,8 +194,9 @@
                 size="sm"
                 icon-only
                 class="ai-agent-panel__tool-button"
+                :disabled="isComposerLockedByBlockingState"
                 @click="attachFiles"
-                :title="t('Attach files')"
+                :title="isComposerLockedByBlockingState ? blockedComposerMessage : t('Attach files')"
               >
                 <IconPaperclip :size="16" :stroke-width="1.5" />
               </UiButton>
@@ -147,6 +209,7 @@
                 :class="{
                   'is-disabled': !aiStore.isRunning && isSendBlocked,
                   'ai-agent-panel__stop-button': aiStore.isRunning,
+                  'is-blocked': isComposerLockedByBlockingState,
                 }"
                 :disabled="!aiStore.isRunning && isSendBlocked"
                 :title="aiStore.isRunning ? stopButtonTitle : sendButtonTitle"
@@ -187,7 +250,14 @@ import {
   detectAiComposerToken,
   getAiComposerSuggestions,
 } from '../../domains/ai/aiMentionRuntime.js'
-import { IconPaperclip, IconArrowUp, IconPlayerStop } from '@tabler/icons-vue'
+import {
+  IconPaperclip,
+  IconArrowUp,
+  IconChecklist,
+  IconPlayerStop,
+  IconShieldBolt,
+  IconShieldHalf,
+} from '@tabler/icons-vue'
 import { useSurfaceContextMenu } from '../../composables/useSurfaceContextMenu'
 import UiButton from '../shared/ui/UiButton.vue'
 import UiSelect from '../shared/ui/UiSelect.vue'
@@ -205,7 +275,7 @@ import AiResumeBanner from './AiResumeBanner.vue'
 import AiSessionRail from './AiSessionRail.vue'
 import SurfaceContextMenu from '../shared/SurfaceContextMenu.vue'
 
-const { t } = useI18n()
+const { t, isZh } = useI18n()
 const aiStore = useAiStore()
 const filesStore = useFilesStore()
 const toastStore = useToastStore()
@@ -243,6 +313,7 @@ const planModeState = computed(() => aiStore.planModeState)
 const compactionState = computed(() => aiStore.compactionState)
 const resumeState = computed(() => aiStore.resumeState)
 const sessionItems = computed(() => aiStore.sessionList)
+const currentPermissionMode = computed(() => aiStore.currentPermissionMode)
 const modelOptions = computed(() =>
   Array.isArray(aiStore.unifiedModelPoolOptions) ? aiStore.unifiedModelPoolOptions : []
 )
@@ -300,13 +371,56 @@ const canSend = computed(
   () => String(aiStore.promptDraft || '').trim().length > 0 || attachments.value.length > 0
 )
 const isProviderReady = computed(() => aiStore.providerState.ready === true)
+const isComposerLockedByBlockingState = computed(() => hasBlockingState.value && !aiStore.isRunning)
+const permissionModeFallbackBySession = ref({})
+const isPlanModeEnabled = computed(() => currentPermissionMode.value === 'plan')
+const resolvedPermissionMode = computed(() =>
+  currentPermissionMode.value === 'plan'
+    ? permissionModeFallbackBySession.value[aiStore.currentSessionId] || 'accept-edits'
+    : currentPermissionMode.value
+)
+const isFullAccessMode = computed(() => resolvedPermissionMode.value === 'bypass-permissions')
+const isExecutionPolicyLocked = computed(() => aiStore.isRunning || hasBlockingState.value)
+const planModeCompactLabel = computed(() => t('PLAN'))
+const permissionModeCompactLabel = computed(() => (isFullAccessMode.value ? t('FULL') : t('ASK')))
+const executionPolicyControlTitle = computed(() => {
+  if (aiStore.isRunning) return t('Execution mode cannot change while a task is running.')
+  if (hasBlockingState.value) {
+    return t('Resolve the current blocking state before changing execution mode.')
+  }
+  return ''
+})
+const planModeButtonTitle = computed(() => {
+  if (executionPolicyControlTitle.value) return executionPolicyControlTitle.value
+  if (isPlanModeEnabled.value) return t('Plan mode is on. Click to return to normal execution.')
+  return t('Plan mode is off. Click to plan before acting.')
+})
+const permissionModeButtonTitle = computed(() => {
+  if (executionPolicyControlTitle.value) return executionPolicyControlTitle.value
+  if (isPlanModeEnabled.value && isFullAccessMode.value) {
+    return t('Full access will be used after plan mode exits. Click to switch back to ask before edits.')
+  }
+  if (isPlanModeEnabled.value) {
+    return t('Ask before edits will be used after plan mode exits. Click to switch to full access.')
+  }
+  if (isFullAccessMode.value) {
+    return t('Full access is on. Click to switch to ask before edits.')
+  }
+  return t('Ask before edits is on. Click to switch to full access.')
+})
+const blockedComposerMessage = computed(() =>
+  t('Resolve the current blocking state before sending a new task.')
+)
 const providerNotReadyMessage = computed(() =>
   aiStore.providerState.requiresApiKey === false
     ? t('Agent runtime is not ready. Configure the provider and model before sending.')
     : t('Agent runtime is not ready. Configure the provider, model, and API key before sending.')
 )
-const isSendBlocked = computed(() => !isProviderReady.value || !canSend.value)
+const isSendBlocked = computed(
+  () => isComposerLockedByBlockingState.value || !isProviderReady.value || !canSend.value
+)
 const sendButtonTitle = computed(() => {
+  if (isComposerLockedByBlockingState.value) return blockedComposerMessage.value
   if (!isProviderReady.value) return providerNotReadyMessage.value
   if (!canSend.value) return t('Type a message or attach a file to send.')
   if (aiStore.isRunning) return t('Queue message')
@@ -348,9 +462,7 @@ const backgroundTaskItems = computed(() =>
     detail: summarizeStatusDetail(task.detail || task.lastToolName || '', 72),
   }))
 )
-const showActiveTasksBar = computed(
-  () => backgroundTaskItems.value.length > 0 && (!hasBlockingState.value || resumeState.value?.active === true)
-)
+const showActiveTasksBar = computed(() => backgroundTaskItems.value.length > 0 && !hasBlockingState.value)
 const hasRuntimeStateStack = computed(
   () =>
     showPlanModeBanner.value ||
@@ -358,6 +470,44 @@ const hasRuntimeStateStack = computed(
     showCompactingBanner.value ||
     showActiveTasksBar.value
 )
+const blockingContextItems = computed(() => {
+  if (!hasBlockingState.value) return []
+
+  const items = []
+  if (planModeState.value?.active === true && blockingState.value !== 'exit-plan') {
+    items.push({
+      key: 'plan',
+      tone: 'accent',
+      label: t('Plan mode'),
+      detail: summarizeStatusDetail(planModeState.value.summary || planModeState.value.note, 48),
+    })
+  }
+  if (resumeState.value?.active === true) {
+    items.push({
+      key: 'resume',
+      tone: 'info',
+      label: t('Waiting to resume'),
+      detail: summarizeStatusDetail(resumeState.value.message, 48),
+    })
+  }
+  if (compactionState.value?.active === true) {
+    items.push({
+      key: 'compacting',
+      tone: 'warning',
+      label: t('Compacting'),
+      detail: t('Preparing earlier context'),
+    })
+  }
+  if (activeBackgroundTasks.value.length > 0) {
+    items.push({
+      key: 'tasks',
+      tone: 'warning',
+      label: t('Running tasks'),
+      detail: t('{count} active', { count: activeBackgroundTasks.value.length }),
+    })
+  }
+  return items
+})
 
 function toInvocationSlug(value = '') {
   return String(value || '')
@@ -464,6 +614,31 @@ function handlePrimaryActionClick() {
 
 async function switchModel(model = '') {
   await aiStore.setCurrentModel(model)
+}
+
+async function setResolvedPermissionMode(mode = 'accept-edits') {
+  const normalizedMode = mode === 'bypass-permissions' ? 'bypass-permissions' : 'accept-edits'
+  permissionModeFallbackBySession.value = {
+    ...permissionModeFallbackBySession.value,
+    [aiStore.currentSessionId]: normalizedMode,
+  }
+  if (isPlanModeEnabled.value) return
+  await aiStore.setSessionPermissionMode(normalizedMode)
+}
+
+async function cyclePermissionMode() {
+  const nextMode = isFullAccessMode.value ? 'accept-edits' : 'bypass-permissions'
+  await setResolvedPermissionMode(nextMode)
+}
+
+async function togglePlanMode(nextValue = false) {
+  if (!nextValue) {
+    const fallbackMode =
+      permissionModeFallbackBySession.value[aiStore.currentSessionId] || 'accept-edits'
+    await aiStore.setSessionPermissionMode(fallbackMode)
+    return
+  }
+  await aiStore.setSessionPermissionMode('plan')
 }
 
 async function respondPermissionRequest(request = null, behavior = 'deny', persist = false) {
@@ -740,6 +915,18 @@ watch(
   }
 )
 
+watch(
+  () => [aiStore.currentSessionId, currentPermissionMode.value],
+  ([sessionId, permissionMode]) => {
+    if (!String(sessionId || '').trim() || permissionMode === 'plan') return
+    permissionModeFallbackBySession.value = {
+      ...permissionModeFallbackBySession.value,
+      [sessionId]: permissionMode,
+    }
+  },
+  { immediate: true }
+)
+
 watch(composerSuggestions, (next) => {
   if (!next.length || activeInvocationIndex.value >= next.length) {
     activeInvocationIndex.value = 0
@@ -887,8 +1074,104 @@ watch(
 .ai-agent-panel__composer-tools {
   display: flex;
   align-items: center;
+  flex-wrap: nowrap;
   gap: 6px;
   min-width: 0;
+}
+
+.ai-agent-panel__execution-policy {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+  padding-right: 4px;
+}
+
+.ai-agent-panel__policy-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+  height: 28px;
+  padding: 0 3px 0 2px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: color-mix(in srgb, var(--text-secondary) 82%, var(--text-tertiary) 18%);
+  cursor: pointer;
+  transition:
+    color 0.12s ease,
+    background-color 0.12s ease,
+    opacity 0.12s ease,
+    transform 0.12s ease;
+}
+
+.ai-agent-panel__policy-button:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--surface-hover) 4%, transparent);
+  transform: translateY(-0.5px);
+}
+
+.ai-agent-panel__policy-button:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent),
+    inset 0 -2px 0 color-mix(in srgb, var(--accent) 64%, transparent);
+}
+
+.ai-agent-panel__policy-button.is-disabled,
+.ai-agent-panel__policy-button:disabled {
+  opacity: 0.46;
+  cursor: default;
+  transform: none;
+}
+
+.ai-agent-panel__policy-button--plan.is-active {
+  color: color-mix(in srgb, var(--accent) 82%, var(--text-primary) 18%);
+}
+
+.ai-agent-panel__policy-button--permission.is-active {
+  color: color-mix(in srgb, var(--warning) 82%, var(--text-primary) 18%);
+}
+
+.ai-agent-panel__policy-indicator {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--border-color) 58%, transparent);
+  opacity: 0.9;
+}
+
+.ai-agent-panel__policy-indicator.is-full-access {
+  background: color-mix(in srgb, var(--warning) 84%, transparent);
+}
+
+.ai-agent-panel__policy-indicator.is-plan-active {
+  background: color-mix(in srgb, var(--accent) 84%, transparent);
+}
+
+.ai-agent-panel__policy-label {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: currentColor;
+  pointer-events: none;
+}
+
+.ai-agent-panel__policy-label.is-zh {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .ai-agent-panel__composer-primary {
@@ -954,6 +1237,10 @@ watch(
 .ai-agent-panel__send-button:disabled {
   opacity: 0.5;
   cursor: default;
+}
+
+.ai-agent-panel__send-button.is-blocked {
+  opacity: 0.42;
 }
 
 .ai-agent-panel__textarea {
@@ -1027,7 +1314,7 @@ watch(
 .ai-agent-panel__composer :deep(.ai-agent-panel__model-chip-shell .ui-select-trigger) {
   height: 30px;
   width: auto;
-  max-width: 100%;
+  max-width: 132px;
   padding: 0 24px 0 11px;
   border-color: transparent;
   border-radius: 10px;
@@ -1041,6 +1328,10 @@ watch(
   border-color: transparent;
   background: transparent;
   color: var(--text-primary);
+}
+
+.ai-agent-panel__composer :deep(.ai-agent-panel__model-chip-shell.is-disabled .ui-select-trigger) {
+  opacity: 0.55;
 }
 
 .ai-agent-panel__composer :deep(.ai-agent-panel__model-chip-shell .ui-select-value) {
@@ -1090,7 +1381,7 @@ watch(
 
   .ai-agent-panel__model-chip,
   .ai-agent-panel__model-fallback {
-    max-width: 124px;
+    max-width: 112px;
   }
 
   .ai-agent-panel__empty {

@@ -1,15 +1,21 @@
 use crate::native_editor_bridge::{
-    NativeEditorApplyExternalContentRequest, NativeEditorApplyTransactionRequest, NativeEditorCommand,
-    NativeEditorDocumentSnapshot, NativeEditorDocumentState, NativeEditorDocumentStateRequest,
-    NativeEditorEvent, NativeEditorEventPayload, NativeEditorOpenDocumentRequest, NativeEditorSessionSnapshot,
-    NativeEditorSessionStateSnapshot, NativeEditorSetDiagnosticsRequest, NativeEditorSetOutlineContextRequest,
-    NativeEditorSetSelectionsRequest, NATIVE_EDITOR_EVENT,
+    NativeEditorApplyExternalContentRequest, NativeEditorApplyTransactionRequest,
+    NativeEditorCitationEditContext, NativeEditorCitationEntry, NativeEditorCitationTrigger,
+    NativeEditorCommand, NativeEditorDocumentSnapshot, NativeEditorDocumentState,
+    NativeEditorDocumentStateRequest, NativeEditorEvent, NativeEditorEventPayload,
+    NativeEditorInspectInteractionRequest, NativeEditorInteractionContextSnapshot,
+    NativeEditorOpenDocumentRequest, NativeEditorRecordWorkflowEventRequest, NativeEditorSelectionRange,
+    NativeEditorSessionSnapshot, NativeEditorSessionStateSnapshot, NativeEditorSetDiagnosticsRequest,
+    NativeEditorSetOutlineContextRequest, NativeEditorSetSelectionsRequest, NativeEditorWikiLinkMatch,
+    NATIVE_EDITOR_EVENT,
 };
 use crate::process_utils::background_tokio_command;
+use regex_lite::Regex;
 use serde_json::to_string;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::Stdio;
+use std::sync::OnceLock;
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager, Runtime, State};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -230,6 +236,7 @@ fn upsert_document_state(
         text_preview: text_preview.unwrap_or_default(),
         diagnostics: Vec::new(),
         outline_context: None,
+        last_workflow_event: None,
     });
 }
 
@@ -248,6 +255,310 @@ fn build_document_snapshot(
         text: text_cache.get(&document.path).cloned().unwrap_or_default(),
         diagnostics: document.diagnostics.clone(),
         outline_context: document.outline_context.clone(),
+        last_workflow_event: document.last_workflow_event.clone(),
+    }
+}
+
+const CITE_CMDS_PATTERN: &str =
+    "cite[tp]?|citealp|citealt|citeauthor|citeyear|autocite|textcite|parencite|nocite|footcite|fullcite|supercite|smartcite|Cite[tp]?|Parencite|Textcite|Autocite|Smartcite|Footcite|Fullcite";
+
+fn wiki_link_regex() -> &'static Regex {
+    static REGEX: OnceLock<Regex> = OnceLock::new();
+    REGEX.get_or_init(|| Regex::new(r"\[\[([^\]]+)\]\]").expect("wiki link regex should compile"))
+}
+
+fn markdown_citation_group_regex() -> &'static Regex {
+    static REGEX: OnceLock<Regex> = OnceLock::new();
+    REGEX.get_or_init(|| {
+        Regex::new(r"\[([^\[\]]*@[a-zA-Z][\w.-]*[^\[\]]*)\]")
+            .expect("markdown citation group regex should compile")
+    })
+}
+
+fn latex_citation_regex() -> &'static Regex {
+    static REGEX: OnceLock<Regex> = OnceLock::new();
+    REGEX.get_or_init(|| {
+        Regex::new(&format!(r"\\({CITE_CMDS_PATTERN})\{{([^}}]*)\}}"))
+            .expect("latex citation regex should compile")
+    })
+}
+
+fn latex_citation_trigger_regex() -> &'static Regex {
+    static REGEX: OnceLock<Regex> = OnceLock::new();
+    REGEX.get_or_init(|| {
+        Regex::new(&format!(r"\\({CITE_CMDS_PATTERN})\{{([^}}]*)$"))
+            .expect("latex citation trigger regex should compile")
+    })
+}
+
+fn markdown_cite_key_regex() -> &'static Regex {
+    static REGEX: OnceLock<Regex> = OnceLock::new();
+    REGEX.get_or_init(|| {
+        Regex::new(r"@([a-zA-Z][\w.-]*)").expect("markdown cite key regex should compile")
+    })
+}
+
+fn clamp_native_offset(text: &str, offset: usize) -> usize {
+    offset.min(text.len())
+}
+
+fn line_range_for_offset(text: &str, offset: usize) -> (usize, usize, &str, &str) {
+    let safe_offset = clamp_native_offset(text, offset);
+    let line_start = text[..safe_offset].rfind('\n').map(|index| index + 1).unwrap_or(0);
+    let line_end = text[safe_offset..]
+        .find('\n')
+        .map(|index| safe_offset + index)
+        .unwrap_or_else(|| text.len());
+    let line_text = &text[line_start..line_end];
+    let text_before = &text[line_start..safe_offset];
+    (line_start, line_end, line_text, text_before)
+}
+
+fn trim_wiki_link_target(raw: &str) -> String {
+    let mut target = raw;
+    if let Some(index) = target.find('|') {
+        target = &target[..index];
+    }
+    if let Some(index) = target.find('#') {
+        target = &target[..index];
+    }
+    target.trim().to_string()
+}
+
+fn detect_wiki_link_at_cursor(text: &str, cursor_offset: usize) -> Option<NativeEditorWikiLinkMatch> {
+    let (line_start, _, line_text, _) = line_range_for_offset(text, cursor_offset);
+    for captures in wiki_link_regex().captures_iter(line_text) {
+        let full_match = captures.get(0)?;
+        let target_match = captures.get(1)?;
+        let match_from = line_start + full_match.start();
+        let match_to = line_start + full_match.end();
+        if cursor_offset < match_from || cursor_offset >= match_to {
+            continue;
+        }
+        let target = trim_wiki_link_target(target_match.as_str());
+        if target.is_empty() {
+            return None;
+        }
+        return Some(NativeEditorWikiLinkMatch {
+            target,
+            from: match_from,
+            to: match_to,
+        });
+    }
+    None
+}
+
+fn detect_markdown_citation_trigger(text: &str, cursor_offset: usize) -> Option<NativeEditorCitationTrigger> {
+    let (line_start, _, _, text_before) = line_range_for_offset(text, cursor_offset);
+
+    let last_bracket = text_before.rfind('[');
+    let mut inside_brackets = false;
+    if let Some(last_bracket) = last_bracket {
+        let after_bracket = &text_before[last_bracket + 1..];
+        if !after_bracket.contains(']') && after_bracket.contains('@') {
+            inside_brackets = true;
+        }
+    }
+
+    let mut at_idx = None;
+    if inside_brackets {
+        let last_bracket = last_bracket?;
+        let after_bracket = &text_before[last_bracket + 1..];
+        if let Some(last_at) = after_bracket.rfind('@') {
+            at_idx = Some(last_bracket + 1 + last_at);
+        }
+    } else if let Some(last_at) = text_before.rfind('@') {
+        let prev = if last_at == 0 {
+            None
+        } else {
+            text_before[..last_at].chars().last()
+        };
+        if last_at == 0 || prev == Some('[') || prev.is_some_and(|ch| ch.is_whitespace()) {
+            if !text_before[last_at..].contains(']') {
+                at_idx = Some(last_at);
+            }
+        }
+    }
+
+    let at_idx = at_idx?;
+    let query = text_before[at_idx + 1..].to_string();
+    let abs_at = line_start + at_idx;
+    let has_bracket_before = at_idx > 0 && text_before.as_bytes().get(at_idx - 1) == Some(&b'[');
+    Some(NativeEditorCitationTrigger {
+        query,
+        trigger_from: if inside_brackets {
+            abs_at
+        } else if has_bracket_before {
+            abs_at.saturating_sub(1)
+        } else {
+            abs_at
+        },
+        trigger_to: cursor_offset,
+        inside_brackets,
+        latex_command: None,
+    })
+}
+
+fn detect_latex_citation_trigger(text: &str, cursor_offset: usize) -> Option<NativeEditorCitationTrigger> {
+    let (line_start, _, _, text_before) = line_range_for_offset(text, cursor_offset);
+    let captures = latex_citation_trigger_regex().captures(text_before)?;
+    let command_name = captures.get(1)?.as_str();
+    let inside_braces = captures.get(2)?.as_str();
+    let last_comma = inside_braces.rfind(',');
+    let query = last_comma
+        .map(|index| inside_braces[index + 1..].trim().to_string())
+        .unwrap_or_else(|| inside_braces.trim().to_string());
+    let command_start = text_before.rfind(&format!("\\{command_name}"))?;
+    Some(NativeEditorCitationTrigger {
+        query: query.clone(),
+        trigger_from: if let Some(last_comma) = last_comma {
+            cursor_offset.saturating_sub(inside_braces[last_comma + 1..].trim().len())
+        } else {
+            line_start + command_start
+        },
+        trigger_to: cursor_offset,
+        inside_brackets: last_comma.is_some(),
+        latex_command: Some(command_name.to_string()),
+    })
+}
+
+fn split_markdown_citation_parts(inner: &str) -> Vec<String> {
+    let mut parts = Vec::new();
+    let mut start = 0_usize;
+    let bytes = inner.as_bytes();
+    let mut index = 0_usize;
+    while index < bytes.len() {
+        match bytes[index] {
+            b';' => {
+                parts.push(inner[start..index].trim().to_string());
+                index += 1;
+                start = index;
+            }
+            b',' => {
+                let after = inner[index + 1..].trim_start();
+                if after.starts_with('@') {
+                    parts.push(inner[start..index].trim().to_string());
+                    index += 1;
+                    start = index;
+                } else {
+                    index += 1;
+                }
+            }
+            _ => {
+                index += 1;
+            }
+        }
+    }
+    parts.push(inner[start..].trim().to_string());
+    parts.into_iter().filter(|part| !part.is_empty()).collect()
+}
+
+fn parse_markdown_citation_entries(full_match: &str) -> Vec<NativeEditorCitationEntry> {
+    let inner = full_match
+        .strip_prefix('[')
+        .and_then(|value| value.strip_suffix(']'))
+        .unwrap_or(full_match);
+
+    split_markdown_citation_parts(inner)
+        .into_iter()
+        .flat_map(|part| {
+            let captures = markdown_cite_key_regex().captures(&part)?;
+            let key_match = captures.get(0)?;
+            let key_capture = captures.get(1)?;
+            let key = key_capture.as_str().to_string();
+            let after_key = part[key_match.end()..]
+                .trim_start_matches(|ch: char| ch.is_whitespace() || ch == ',')
+                .to_string();
+            let prefix = part[..key_match.start()].trim().to_string();
+            Some(NativeEditorCitationEntry {
+                key,
+                locator: after_key,
+                prefix,
+            })
+        })
+        .collect()
+}
+
+fn detect_markdown_citation_edit(text: &str, cursor_offset: usize) -> Option<NativeEditorCitationEditContext> {
+    let (line_start, _, line_text, _) = line_range_for_offset(text, cursor_offset);
+    for captures in markdown_citation_group_regex().captures_iter(line_text) {
+        let full_match = captures.get(0)?;
+        let group_from = line_start + full_match.start();
+        let group_to = line_start + full_match.end();
+        if cursor_offset < group_from || cursor_offset > group_to {
+            continue;
+        }
+        return Some(NativeEditorCitationEditContext {
+            group_from,
+            group_to,
+            cites: parse_markdown_citation_entries(full_match.as_str()),
+            latex_command: None,
+        });
+    }
+    None
+}
+
+fn detect_latex_citation_edit(text: &str, cursor_offset: usize) -> Option<NativeEditorCitationEditContext> {
+    let (line_start, _, line_text, _) = line_range_for_offset(text, cursor_offset);
+    for captures in latex_citation_regex().captures_iter(line_text) {
+        let full_match = captures.get(0)?;
+        let command_match = captures.get(1)?;
+        let keys_match = captures.get(2)?;
+        let group_from = line_start + full_match.start();
+        let group_to = line_start + full_match.end();
+        if cursor_offset < group_from || cursor_offset > group_to {
+            continue;
+        }
+        let cites = keys_match
+            .as_str()
+            .split(',')
+            .map(|key| key.trim())
+            .filter(|key| !key.is_empty())
+            .map(|key| NativeEditorCitationEntry {
+                key: key.to_string(),
+                locator: String::new(),
+                prefix: String::new(),
+            })
+            .collect::<Vec<_>>();
+        return Some(NativeEditorCitationEditContext {
+            group_from,
+            group_to,
+            cites,
+            latex_command: Some(command_match.as_str().to_string()),
+        });
+    }
+    None
+}
+
+fn inspect_interaction_context(
+    path: &str,
+    text: &str,
+    selection: Option<NativeEditorSelectionRange>,
+) -> NativeEditorInteractionContextSnapshot {
+    let selection = selection.unwrap_or(NativeEditorSelectionRange { anchor: 0, head: 0 });
+    let cursor_offset = clamp_native_offset(text, selection.head);
+    let has_selection = selection.anchor != selection.head;
+    NativeEditorInteractionContextSnapshot {
+        path: path.to_string(),
+        has_selection,
+        cursor_offset,
+        wiki_link: if has_selection {
+            None
+        } else {
+            detect_wiki_link_at_cursor(text, cursor_offset)
+        },
+        citation_trigger: if has_selection {
+            None
+        } else {
+            detect_latex_citation_trigger(text, cursor_offset)
+                .or_else(|| detect_markdown_citation_trigger(text, cursor_offset))
+        },
+        citation_edit: if has_selection {
+            None
+        } else {
+            detect_markdown_citation_edit(text, cursor_offset)
+                .or_else(|| detect_latex_citation_edit(text, cursor_offset))
+        },
     }
 }
 
@@ -444,6 +755,51 @@ pub async fn native_editor_document_state(
 }
 
 #[tauri::command]
+pub async fn native_editor_inspect_interaction_context(
+    state: State<'_, NativeEditorRuntimeState>,
+    request: NativeEditorInspectInteractionRequest,
+) -> Result<Option<NativeEditorInteractionContextSnapshot>, String> {
+    let (cache, text_cache, handle_finished) = {
+        let guard = state.inner.lock().await;
+        let Some(active) = guard.as_ref() else {
+            return Ok(None);
+        };
+        (
+            active.state_cache.clone(),
+            active.text_cache.clone(),
+            active.handle.is_finished(),
+        )
+    };
+
+    if handle_finished {
+        return Ok(None);
+    }
+
+    let snapshot = cache.lock().await.clone();
+    let text_cache = text_cache.lock().await.clone();
+    let target_path = request.path;
+    let document = snapshot
+        .open_documents
+        .iter()
+        .find(|document| document.path == target_path);
+
+    let text = request
+        .text
+        .or_else(|| text_cache.get(&target_path).cloned())
+        .unwrap_or_default();
+    if text.is_empty() && document.is_none() && !text_cache.contains_key(&target_path) {
+        return Ok(None);
+    }
+
+    let selection = request.selection.or_else(|| {
+        document
+            .and_then(|entry| entry.selections.first().cloned())
+    });
+
+    Ok(Some(inspect_interaction_context(&target_path, &text, selection)))
+}
+
+#[tauri::command]
 pub async fn native_editor_session_state(
     state: State<'_, NativeEditorRuntimeState>,
 ) -> Result<Option<NativeEditorSessionStateSnapshot>, String> {
@@ -623,6 +979,28 @@ pub async fn native_editor_session_set_outline_context(
 }
 
 #[tauri::command]
+pub async fn native_editor_session_record_workflow_event(
+    state: State<'_, NativeEditorRuntimeState>,
+    request: NativeEditorRecordWorkflowEventRequest,
+) -> Result<bool, String> {
+    let guard = state.inner.lock().await;
+    let Some(active) = guard.as_ref() else {
+        return Err("Native editor session is not running.".to_string());
+    };
+
+    write_command(
+        &active.stdin,
+        &NativeEditorCommand::RecordWorkflowEvent {
+            path: request.path,
+            event: request.event,
+        },
+    )
+    .await?;
+
+    Ok(true)
+}
+
+#[tauri::command]
 pub async fn native_editor_session_stop(
     state: State<'_, NativeEditorRuntimeState>,
 ) -> Result<bool, String> {
@@ -640,5 +1018,58 @@ pub async fn native_editor_session_stop(
     match timeout(Duration::from_millis(SHUTDOWN_TIMEOUT_MS), active.handle).await {
         Ok(_) => Ok(true),
         Err(_) => Ok(true),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn native_editor_interaction_detects_wiki_link_at_cursor() {
+        let context = inspect_interaction_context(
+            "note.md",
+            "Before [[Paper Note|display]] after",
+            Some(NativeEditorSelectionRange { anchor: 10, head: 10 }),
+        );
+        let wiki_link = context.wiki_link.expect("wiki link should be detected");
+        assert_eq!(wiki_link.target, "Paper Note");
+        assert!(context.citation_trigger.is_none());
+    }
+
+    #[test]
+    fn native_editor_interaction_detects_markdown_citation_trigger() {
+        let text = "Intro [@smith2020, p. 10; @doe2021";
+        let cursor = text.len();
+        let context = inspect_interaction_context(
+            "paper.md",
+            text,
+            Some(NativeEditorSelectionRange {
+                anchor: cursor,
+                head: cursor,
+            }),
+        );
+        let trigger = context.citation_trigger.expect("markdown trigger should exist");
+        assert_eq!(trigger.query, "doe2021");
+        assert!(trigger.latex_command.is_none());
+    }
+
+    #[test]
+    fn native_editor_interaction_detects_latex_citation_edit_group() {
+        let text = r"\cite{smith2020, doe2021}";
+        let cursor = 8;
+        let context = inspect_interaction_context(
+            "paper.tex",
+            text,
+            Some(NativeEditorSelectionRange {
+                anchor: cursor,
+                head: cursor,
+            }),
+        );
+        let edit = context.citation_edit.expect("latex citation edit should exist");
+        assert_eq!(edit.latex_command.as_deref(), Some("cite"));
+        assert_eq!(edit.cites.len(), 2);
+        assert_eq!(edit.cites[0].key, "smith2020");
+        assert_eq!(edit.cites[1].key, "doe2021");
     }
 }

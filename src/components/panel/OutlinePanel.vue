@@ -39,6 +39,7 @@
 <script setup>
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { useEditorStore } from '../../stores/editor'
+import { useEditorRuntimeStore } from '../../stores/editorRuntime'
 import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { useFilesStore } from '../../stores/files'
 import { isMarkdown, isLatex, getViewerType } from '../../utils/fileTypes'
@@ -53,6 +54,7 @@ const props = defineProps({
 defineEmits(['toggle-collapse'])
 
 const editorStore = useEditorStore()
+const editorRuntimeStore = useEditorRuntimeStore()
 const workflowStore = useDocumentWorkflowStore()
 const filesStore = useFilesStore()
 const { t } = useI18n()
@@ -264,6 +266,21 @@ function navigateToOutlineItem(item) {
   if (ft === 'markdown' || ft === 'latex') {
     const targetPaneId = editorStore.findPaneWithTab(targetPath)?.id || editorStore.activePaneId
     editorStore.openFileInPane(targetPath, targetPaneId, { activatePane: true })
+    if (editorRuntimeStore.wantsNativeRuntime) {
+      void editorRuntimeStore.recordNativeWorkflowEvent({
+        path: targetPath,
+        event: {
+          kind: 'outline-reveal-request',
+          targetFilePath: targetPath,
+          offset: Number(item.offset || 0),
+          outlineItem: {
+            kind: item.kind || 'heading',
+            text: item.text || '',
+            level: Number(item.level || item.displayLevel || 1),
+          },
+        },
+      })
+    }
     focusTextOffset(targetPath, item.offset)
   }
 }
@@ -294,6 +311,33 @@ watch(
   () => [activeFile.value, fileType.value, currentDocumentText(activeFile.value || '')],
   () => {
     void refreshMarkdownOutline()
+  },
+  { immediate: true }
+)
+
+watch(
+  () => [activeFile.value, activeOutlineItemKey.value, editorStore.cursorOffset, visibleOutlineItems.value.length],
+  ([path, activeKey, cursorOffset]) => {
+    if (!editorRuntimeStore.wantsNativeRuntime) return
+    if (!path) return
+    const activeItem =
+      visibleOutlineItems.value.find((item) => outlineItemKey(item) === activeKey) || null
+    void editorRuntimeStore.recordNativeWorkflowEvent({
+      path,
+      event: {
+        kind: 'outline-active-item',
+        cursorOffset: Number(cursorOffset ?? -1),
+        activeItem: activeItem
+          ? {
+              key: activeKey,
+              offset: Number(activeItem.offset || 0),
+              itemKind: activeItem.kind || 'heading',
+              text: activeItem.text || '',
+              level: Number(activeItem.level || activeItem.displayLevel || 1),
+            }
+          : null,
+      },
+    })
   },
   { immediate: true }
 )
