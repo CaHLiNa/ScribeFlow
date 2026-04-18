@@ -122,3 +122,9 @@ ScribeFlow 是一个本地优先的桌面学术研究平台，围绕 Markdown、
 - 需要进行 Codex 审查时，统一使用 `npm run agent:codex-review`。
 - 对于按 plan 执行的改动，在宣称完成前运行 `npm run agent:codex-postflight -- --plan <path-to-plan>`。
 - postflight 审计应输出并核对 `Completed`、`Pending`、`Deviations`、`Risks`、`Verification` 和 `Next step`。
+
+## Git 执行规则
+
+- 在本仓库中，只要用户没有明确禁止，Codex 在本轮修改完成且完成对应验证后，应默认自动执行一次 `git add`、`git commit` 和 `git push`，而不是停留在“等待用户手动提交/推送”。
+- 提交信息继续遵循 Conventional Commits。
+- 如果存在无法安全自动提交/推送的阻塞因素，例如远端冲突、权限失败、用户未验证通过的高风险改动、或工作区中存在需要用户确认的冲突变更，Codex 必须明确说明阻塞原因，再停止自动推送流程。

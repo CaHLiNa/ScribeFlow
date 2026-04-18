@@ -17,6 +17,12 @@
 - `npm run agent:codex-postflight -- --plan <path>`
   运行面向 plan 实现工作的 Codex postflight 审计。
 
+## 提交与推送
+
+- 在本仓库中，只要用户没有明确禁止，Codex 在完成本轮改动并完成对应验证后，默认应自动执行 `git add`、`git commit` 和 `git push`。
+- 提交信息使用 Conventional Commits。
+- 如果自动推送被远端冲突、权限问题或其他阻塞因素打断，应先明确报告阻塞原因，再由 Codex 继续处理或等待用户决策。
+
 ## 备注
 
 - `agent:codex-postflight` 是 Codex-only 工作流下的用户侧 postflight 命令。
