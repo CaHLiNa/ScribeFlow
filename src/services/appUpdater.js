@@ -10,6 +10,10 @@ export async function getAppVersion() {
 }
 
 export async function openReleasesPage() {
+  if (typeof window !== 'undefined' && typeof window.__TAURI_INTERNALS__?.invoke !== 'function') {
+    window.open(RELEASES_URL, '_blank', 'noopener')
+    return
+  }
   const { open } = await import('@tauri-apps/plugin-shell')
   await open(RELEASES_URL)
 }

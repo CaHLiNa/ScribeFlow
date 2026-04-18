@@ -15,6 +15,7 @@ import {
   resolveLatexCompileStart,
 } from '../services/latex/runtime'
 import { resolveExistingLatexSynctexPath } from '../services/latex/synctex'
+import { isBrowserPreviewRuntime } from '../app/browserPreview/routes.js'
 
 const COMPILER_CHECK_CACHE_MS = 5 * 60 * 1000
 const TOOL_CHECK_CACHE_MS = 5 * 60 * 1000
@@ -727,7 +728,25 @@ export const useLatexStore = defineStore('latex', {
       this.forwardSyncRequests = {}
     },
 
+    applyBrowserPreviewDiagnostics() {
+      this.tectonicInstalled = true
+      this.tectonicPath = '/opt/preview/bin/tectonic'
+      this.systemTexInstalled = true
+      this.systemTexPath = '/Library/TeX/texbin/latexmk'
+      this.chktexInstalled = true
+      this.chktexPath = '/opt/preview/bin/chktex'
+      this.latexindentInstalled = true
+      this.latexindentPath = '/opt/preview/bin/latexindent'
+      this.lastCompilerCheckAt = Date.now()
+      this.lastToolCheckAt = Date.now()
+      this.downloadError = null
+    },
+
     async checkCompilers(force = false) {
+      if (isBrowserPreviewRuntime()) {
+        this.applyBrowserPreviewDiagnostics()
+        return
+      }
       if (this.checkingCompilers) return
       if (!force && this.lastCompilerCheckAt && Date.now() - this.lastCompilerCheckAt < COMPILER_CHECK_CACHE_MS) return
       this.checkingCompilers = true
@@ -752,6 +771,10 @@ export const useLatexStore = defineStore('latex', {
     },
 
     async checkTools(force = false) {
+      if (isBrowserPreviewRuntime()) {
+        this.applyBrowserPreviewDiagnostics()
+        return
+      }
       if (this.checkingTools) return
       if (!force && this.lastToolCheckAt && Date.now() - this.lastToolCheckAt < TOOL_CHECK_CACHE_MS) return
       this.checkingTools = true
@@ -828,6 +851,10 @@ export const useLatexStore = defineStore('latex', {
     },
 
     async downloadTectonic() {
+      if (isBrowserPreviewRuntime()) {
+        this.applyBrowserPreviewDiagnostics()
+        return
+      }
       this.downloading = true
       this.downloadProgress = 0
       this.downloadError = null

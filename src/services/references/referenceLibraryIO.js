@@ -1,6 +1,10 @@
 import { invoke } from '@tauri-apps/api/core'
 import { normalizeReferenceRecord } from '../../domains/references/referencePresentation.js'
 import {
+  readBrowserPreviewReferenceSnapshot,
+  writeBrowserPreviewReferenceSnapshot,
+} from '../../app/browserPreview/state.js'
+import {
   LEGACY_REFERENCE_FIXTURE_IDS,
   LEGACY_REFERENCE_FIXTURE_TITLES,
   REFERENCE_COLLECTIONS,
@@ -96,7 +100,9 @@ export async function readOrCreateReferenceLibrarySnapshot(globalConfigDir = '',
     return buildDefaultReferenceLibrarySnapshot()
   }
 
-  if (!hasTauriInvoke()) throw new Error('Tauri invoke is required for reference library IO.')
+  if (!hasTauriInvoke()) {
+    return normalizeReferenceLibrarySnapshot(readBrowserPreviewReferenceSnapshot())
+  }
 
   const backendSnapshot = await invoke('references_library_read_or_create', {
     params: {
@@ -128,7 +134,10 @@ export async function writeReferenceLibrarySnapshot(globalConfigDir = '', snapsh
     ...snapshot,
   })
 
-  if (!hasTauriInvoke()) throw new Error('Tauri invoke is required for reference library IO.')
+  if (!hasTauriInvoke()) {
+    writeBrowserPreviewReferenceSnapshot(normalizedSnapshot)
+    return normalizedSnapshot
+  }
 
   await invoke('references_library_write', {
     params: {

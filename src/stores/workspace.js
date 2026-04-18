@@ -167,6 +167,39 @@ export const useWorkspaceStore = defineStore('workspace', {
       clearLastWorkspace()
     },
 
+    applyBrowserPreviewState(options = {}) {
+      const isOpen = options.isOpen !== false
+      this._workspaceBootstrapGeneration += 1
+      this._workspaceBootstrapPromise = null
+
+      this.path = isOpen ? String(options.path || this.path || '') : null
+      this.globalConfigDir = isOpen ? String(options.globalConfigDir || this.globalConfigDir || '') : ''
+      this.workspaceId = isOpen ? String(options.workspaceId || this.workspaceId || '') : ''
+      this.workspaceDataDir = isOpen
+        ? String(options.workspaceDataDir || this.workspaceDataDir || '')
+        : ''
+      this.claudeConfigDir = isOpen ? String(options.claudeConfigDir || this.claudeConfigDir || '') : ''
+
+      const primarySurface = normalizeWorkbenchSurface(options.primarySurface || this.primarySurface || 'workspace')
+      this.primarySurface = primarySurface
+      this.settingsOpen = primarySurface === 'settings'
+      this.settingsSection =
+        primarySurface === 'settings'
+          ? normalizeSettingsSectionValue(options.settingsSection || this.settingsSection || 'theme')
+          : null
+
+      this.leftSidebarOpen = isOpen ? options.leftSidebarOpen !== false : false
+      this.leftSidebarPanel = normalizeWorkbenchSidebarPanel(
+        primarySurface,
+        options.leftSidebarPanel || this.leftSidebarPanel || 'files'
+      )
+      this.rightSidebarOpen = isOpen ? options.rightSidebarOpen === true : false
+      this.rightSidebarPanel = normalizeWorkbenchInspectorPanel(
+        primarySurface,
+        options.rightSidebarPanel || this.rightSidebarPanel || 'outline'
+      )
+    },
+
     toggleLeftSidebar() {
       this.leftSidebarOpen = toggleStoredBoolean(this.leftSidebarOpen, 'leftSidebarOpen')
     },

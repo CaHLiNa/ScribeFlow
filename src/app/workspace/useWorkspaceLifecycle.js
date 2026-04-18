@@ -18,6 +18,11 @@ import {
 } from '../../services/workspacePermissions'
 import { confirmUnsavedChanges } from '../../services/unsavedChanges'
 import { loadZoteroConfig, syncNow } from '../../services/references/zoteroSync.js'
+import {
+  isBrowserPreviewRuntime,
+  parseBrowserPreviewPath,
+  syncBrowserPreviewHistory,
+} from '../browserPreview/routes.js'
 
 export function useWorkspaceLifecycle() {
   const workspace = useWorkspaceStore()
@@ -87,6 +92,7 @@ export function useWorkspaceLifecycle() {
   }
 
   function refreshWorkspaceStateAfterVisibility(reason = 'visibility') {
+    if (isBrowserPreviewRuntime()) return
     if (!workspace.isOpen) return
     if (shouldSkipFocusRefresh()) return
 
@@ -98,12 +104,18 @@ export function useWorkspaceLifecycle() {
   }
 
   function handleVisibilityChange() {
+    if (isBrowserPreviewRuntime()) return
     if (isTauriDesktop) return
     if (document.visibilityState !== 'visible') return
     refreshWorkspaceStateAfterVisibility('visibility')
   }
 
   async function pickWorkspace() {
+    if (isBrowserPreviewRuntime()) {
+      syncBrowserPreviewHistory(parseBrowserPreviewPath('/preview/workspace/document'), 'push')
+      return
+    }
+
     const { homeDir } = await import('@tauri-apps/api/path')
     const home = await homeDir()
     const selected = await open({
@@ -221,6 +233,11 @@ export function useWorkspaceLifecycle() {
   }
 
   async function closeWorkspace(options = {}) {
+    if (isBrowserPreviewRuntime()) {
+      syncBrowserPreviewHistory(parseBrowserPreviewPath('/preview/launcher'), 'push')
+      return true
+    }
+
     const { skipUnsavedCheck = false } = options
     if (!skipUnsavedCheck) {
       const result = await confirmUnsavedChanges([...editorStore.allOpenFiles])
@@ -246,6 +263,14 @@ export function useWorkspaceLifecycle() {
   }
 
   onMounted(async () => {
+    if (isBrowserPreviewRuntime()) {
+      workspace.restoreTheme()
+      workspace.applyFontSizes()
+      workspace.restoreProseFont()
+      await workspace.applyAppZoom()
+      return
+    }
+
     await setupDesktopWindowFocusRefresh()
 
     workspace.restoreTheme()

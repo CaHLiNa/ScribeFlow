@@ -1,6 +1,77 @@
 <!-- START OF FILE src/components/settings/SettingsZotero.vue -->
 <template>
   <div class="settings-page">
+    <template v-if="browserPreview">
+      <section class="settings-group">
+        <h4 class="settings-group-title">{{ t('Account') }}</h4>
+        <div class="settings-group-body">
+          <div class="settings-row">
+            <div class="settings-row-copy">
+              <div class="settings-row-title">Altals Preview Library</div>
+              <div class="settings-row-hint">
+                {{
+                  t(
+                    'Browser preview mode shows the Zotero settings layout with mock data. Real account, sync, and keychain flows remain desktop-only.'
+                  )
+                }}
+              </div>
+            </div>
+            <div class="settings-row-control compact">
+              <UiButton variant="secondary" size="sm" disabled>
+                {{ t('Preview only') }}
+              </UiButton>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="settings-group">
+        <h4 class="settings-group-title">{{ t('Citations') }}</h4>
+        <div class="settings-group-body">
+          <div class="settings-row">
+            <div class="settings-row-copy">
+              <div class="settings-row-title">{{ t('Citation style') }}</div>
+            </div>
+            <div class="settings-row-control">
+              <UiSelect
+                :model-value="'apa'"
+                :options="previewCitationStyleOptions"
+                size="sm"
+                disabled
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="settings-group">
+        <h4 class="settings-group-title">{{ t('Sync') }}</h4>
+        <div class="settings-group-body">
+          <div class="settings-row">
+            <div class="settings-row-copy">
+              <div class="settings-row-title">{{ t('Auto-sync on workspace open') }}</div>
+            </div>
+            <div class="settings-row-control compact">
+              <UiSwitch :model-value="true" disabled />
+            </div>
+          </div>
+
+          <div class="settings-row">
+            <div class="settings-row-copy">
+              <div class="settings-row-title">{{ t('Libraries to sync') }}</div>
+            </div>
+            <div class="settings-row-control">
+              <div class="settings-checklist">
+                <UiCheckbox :model-value="true" disabled>My Library</UiCheckbox>
+                <UiCheckbox :model-value="true" disabled>Reading Group</UiCheckbox>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </template>
+
+    <template v-else>
     <h3 class="settings-section-title">{{ t('References') }}</h3>
 
     <section class="settings-group">
@@ -137,6 +208,7 @@
         </div>
       </div>
     </section>
+    </template>
   </div>
 </template>
 
@@ -145,6 +217,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useI18n } from '../../i18n'
 import { useReferencesStore } from '../../stores/references'
 import { useWorkspaceStore } from '../../stores/workspace'
+import { isBrowserPreviewRuntime } from '../../app/browserPreview/routes.js'
 import UiSwitch from '../shared/ui/UiSwitch.vue'
 import UiSelect from '../shared/ui/UiSelect.vue'
 import UiInput from '../shared/ui/UiInput.vue'
@@ -165,6 +238,7 @@ import {
 const { t } = useI18n()
 const workspace = useWorkspaceStore()
 const referencesStore = useReferencesStore()
+const browserPreview = isBrowserPreviewRuntime()
 
 const loading = ref(false)
 const error = ref('')
@@ -179,6 +253,11 @@ const pushTargetValue = ref('')
 const collectionOptions = ref([])
 const syncSummary = ref('')
 const citationStyle = ref('apa')
+const previewCitationStyleOptions = computed(() => [
+  { value: 'apa', label: 'APA 7th' },
+  { value: 'ieee', label: 'IEEE' },
+  { value: 'chicago-author-date', label: 'Chicago Author-Date' },
+])
 
 // 防御性 computed：确保不会由于 referencesStore 尚未初始化而崩溃
 const citationStyleOptions = computed(() => {
@@ -364,6 +443,9 @@ async function handleSyncNow() {
 }
 
 onMounted(async () => {
+  if (browserPreview) {
+    return
+  }
   try {
     const [savedConfig, savedApiKey] = await Promise.all([loadZoteroConfig(), loadZoteroApiKey()])
     config.value = savedConfig || {}

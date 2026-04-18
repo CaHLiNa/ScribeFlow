@@ -480,6 +480,24 @@ export const useFilesStore = defineStore('files', {
       delete this.fileContents[path]
     },
 
+    applyBrowserPreviewSnapshot({ snapshot = {}, fileContents = {}, expandedDirs = new Set() } = {}) {
+      this.cleanup()
+      const tree = Array.isArray(snapshot?.tree) ? snapshot.tree : []
+      const flatFiles = Array.isArray(snapshot?.flatFiles) ? snapshot.flatFiles : []
+
+      this.tree = tree
+      this.flatFilesCache = flatFiles
+      this.flatFilesReady = true
+      this.lastWorkspaceSnapshot = {
+        tree,
+        flatFiles,
+      }
+      this.expandedDirs = expandedDirs instanceof Set ? new Set(expandedDirs) : new Set(expandedDirs || [])
+      this.fileContents = { ...fileContents }
+      this.fileLoadErrors = {}
+      this.lastLoadError = null
+    },
+
     createDraftFile(options = {}) {
       const ext = typeof options.ext === 'string' && options.ext ? options.ext : '.md'
       const suggestedName = typeof options.suggestedName === 'string' && options.suggestedName

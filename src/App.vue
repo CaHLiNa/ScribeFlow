@@ -165,6 +165,7 @@ import { useFilesStore } from './stores/files'
 import { useEditorStore } from './stores/editor'
 import { useDocumentWorkflowStore } from './stores/documentWorkflow'
 import { useLinksStore } from './stores/links'
+import { useLatexStore } from './stores/latex'
 import { useReferencesStore } from './stores/references'
 import { useAiStore } from './stores/ai'
 
@@ -181,6 +182,7 @@ import { useAppShellEventBridge } from './app/shell/useAppShellEventBridge'
 import { applyAppWindowConstraints } from './app/shell/useAppWindowConstraints'
 import { useAppTeardown } from './app/teardown/useAppTeardown'
 import { useWorkspaceLifecycle } from './app/workspace/useWorkspaceLifecycle'
+import { useBrowserPreviewRuntime } from './app/browserPreview/useBrowserPreviewRuntime'
 import { confirmUnsavedChanges } from './services/unsavedChanges'
 import { isNewTab, isPreviewPath, previewSourcePathFromPath } from './utils/fileTypes'
 import { isMac } from './platform'
@@ -202,6 +204,7 @@ const filesStore = useFilesStore()
 const editorStore = useEditorStore()
 const workflowStore = useDocumentWorkflowStore()
 const linksStore = useLinksStore()
+const latexStore = useLatexStore()
 const referencesStore = useReferencesStore()
 const aiStore = useAiStore()
 const { t } = useI18n()
@@ -361,6 +364,13 @@ useAppTeardown({
   workspace,
   filesStore,
   linksStore,
+})
+useBrowserPreviewRuntime({
+  workspace,
+  filesStore,
+  editorStore,
+  referencesStore,
+  latexStore,
 })
 </script>
 

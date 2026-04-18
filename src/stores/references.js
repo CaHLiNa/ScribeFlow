@@ -30,6 +30,7 @@ import {
   parseReferenceImportText,
 } from '../services/references/bibtexImport.js'
 import { normalizeReferenceSearchTokens } from '../domains/references/referenceInterop.js'
+import { isBrowserPreviewRuntime } from '../app/browserPreview/routes.js'
 
 function normalizedAuthorSortText(reference = {}) {
   const authors = Array.isArray(reference.authors) ? reference.authors : []
@@ -429,6 +430,11 @@ export const useReferencesStore = defineStore('references', {
     },
 
     async loadWorkspaceCitationStyles() {
+      if (isBrowserPreviewRuntime()) {
+        setUserCitationStyles([])
+        return []
+      }
+
       const workspaceModule = await import('../stores/workspace.js')
       const workspace = workspaceModule.useWorkspaceStore()
       const workspacePath = String(workspace.path || '').trim()
