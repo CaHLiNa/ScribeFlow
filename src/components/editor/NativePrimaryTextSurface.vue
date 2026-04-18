@@ -46,8 +46,6 @@ import {
 import { isDraftPath, isMarkdown, isLatexEditorFile } from '../../utils/fileTypes'
 import { rememberPendingMarkdownForwardSync } from '../../services/markdown/previewSync.js'
 import { revealLatexSourceLocation } from '../../services/latex/previewSync.js'
-import { CITATION_GROUP_RE } from '../../editor/citations'
-import { LATEX_CITE_RE } from '../../editor/latexCitations'
 import CitationPalette from './CitationPalette.vue'
 
 const props = defineProps({
@@ -351,78 +349,7 @@ function scheduleAutoSave() {
   }, 250)
 }
 
-function detectMarkdownCitationTrigger() {
-  if (!isMarkdownFile) return null
-  const selection = deriveSelectionPayload()
-  if (!selection || selection.hasSelection) return null
-  const text = draftText.value
-  const lineStart = text.lastIndexOf('\n', Math.max(0, selection.head - 1)) + 1
-  const lineEndIndex = text.indexOf('\n', selection.head)
-  const lineEnd = lineEndIndex === -1 ? text.length : lineEndIndex
-  const textBefore = text.slice(lineStart, selection.head)
-
-  const lastBracket = textBefore.lastIndexOf('[')
-  let insideBrackets = false
-  if (lastBracket !== -1) {
-    const afterBracket = textBefore.substring(lastBracket + 1)
-    if (!afterBracket.includes(']') && afterBracket.includes('@')) {
-      insideBrackets = true
-    }
-  }
-
-  let atIdx = -1
-  if (insideBrackets) {
-    const afterBracket = textBefore.substring(lastBracket + 1)
-    const lastAt = afterBracket.lastIndexOf('@')
-    if (lastAt !== -1) atIdx = lastBracket + 1 + lastAt
-  } else {
-    const lastAt = textBefore.lastIndexOf('@')
-    if (lastAt !== -1) {
-      const prev = textBefore[lastAt - 1]
-      if (lastAt === 0 || prev === '[' || /\s/.test(prev || '')) {
-        if (!textBefore.substring(lastAt).includes(']')) atIdx = lastAt
-      }
-    }
-  }
-
-  if (atIdx === -1) return null
-  const absAt = lineStart + atIdx
-  const hasBracketBefore = atIdx > 0 && textBefore[atIdx - 1] === '['
-  return {
-    query: textBefore.substring(atIdx + 1),
-    triggerFrom: insideBrackets ? absAt : hasBracketBefore ? absAt - 1 : absAt,
-    triggerTo: selection.head,
-    insideBrackets,
-    latexCommand: null,
-  }
-}
-
-function detectLatexCitationTrigger() {
-  if (!isLatexFile) return null
-  const selection = deriveSelectionPayload()
-  if (!selection || selection.hasSelection) return null
-  const text = draftText.value
-  const lineStart = text.lastIndexOf('\n', Math.max(0, selection.head - 1)) + 1
-  const textBefore = text.slice(lineStart, selection.head)
-  const triggerRe = new RegExp('\\\\\\\\(?:cite[tp]?|citealp|citealt|citeauthor|citeyear|autocite|textcite|parencite|nocite|footcite|fullcite|supercite|smartcite|Cite[tp]?|Parencite|Textcite|Autocite|Smartcite|Footcite|Fullcite)\\{([^}]*)$')
-  const match = textBefore.match(triggerRe)
-  if (!match) return null
-  const fullMatch = match[0]
-  const commandMatch = fullMatch.match(/^\\([A-Za-z]+)\{/)
-  const commandName = commandMatch?.[1] || 'cite'
-  const insideBraces = match[1]
-  const lastComma = insideBraces.lastIndexOf(',')
-  return {
-    query: lastComma >= 0 ? insideBraces.substring(lastComma + 1).trim() : insideBraces.trim(),
-    triggerFrom: lastComma >= 0 ? selection.head - (lastComma >= 0 ? (insideBraces.substring(lastComma + 1).trim().length) : 0) : lineStart + textBefore.lastIndexOf(`\\${commandName}`),
-    triggerTo: selection.head,
-    insideBrackets: lastComma >= 0,
-    latexCommand: commandName,
-  }
-}
-
-function maybeOpenCitationPalette() {
-  const trigger = detectLatexCitationTrigger() || detectMarkdownCitationTrigger()
+function applyCitationTrigger(trigger = null) {
   if (!trigger) {
     if (citPalette.mode === 'insert') citPalette.show = false
     return false
@@ -441,143 +368,78 @@ function maybeOpenCitationPalette() {
   return true
 }
 
-function parseCitationGroup(text = '') {
-  const inner = text.slice(1, -1)
-  const parts = inner
-    .split(/\s*;\s*|\s*,\s*(?=@)/)
-    .map((segment) => segment.trim())
-    .filter(Boolean)
+function applyCitationEditContext(context = null) {
+  const edit = context?.citationEdit || null
+  if (!edit) return false
+  const selection = deriveSelectionPayload()
+  if (!selection || selection.hasSelection) return false
+  const anchor = paletteAnchorPosition()
+  citPalette.show = true
+  citPalette.mode = 'edit'
+  citPalette.x = anchor.x
+  citPalette.y = anchor.y
+  citPalette.groupFrom = Number(edit.groupFrom || 0)
+  citPalette.groupTo = Number(edit.groupTo || 0)
+  citPalette.cites = Array.isArray(edit.cites)
+    ? edit.cites.map((cite) => ({
+        key: String(cite?.key || ''),
+        locator: String(cite?.locator || ''),
+        prefix: String(cite?.prefix || ''),
+      }))
+    : []
+  citPalette.query = ''
+  citPalette.latexCommand = edit.latexCommand || null
+  citPalette.insideBrackets = true
+  return true
+}
 
-  return parts.flatMap((part) => {
-    const keyMatch = part.match(/@([a-zA-Z][\w.-]*)/)
-    if (!keyMatch) return []
-    const key = keyMatch[1]
-    const afterKey = part
-      .substring(part.indexOf(keyMatch[0]) + keyMatch[0].length)
-      .replace(/^[\s,]+/, '')
-    const prefix = part.substring(0, part.indexOf(keyMatch[0])).trim()
-    return [{ key, locator: afterKey, prefix }]
+async function inspectCurrentNativeContext() {
+  const selection = deriveSelectionPayload()
+  return editorRuntimeStore.inspectNativeInteractionContext({
+    path: props.filePath,
+    text: draftText.value,
+    selection: selection
+      ? {
+          anchor: selection.anchor,
+          head: selection.head,
+        }
+      : null,
   })
 }
 
-function maybeOpenCitationEditAtSelection() {
-  const selection = deriveSelectionPayload()
-  if (!selection || selection.hasSelection) return false
-  const text = draftText.value
-  const lineStart = text.lastIndexOf('\n', Math.max(0, selection.head - 1)) + 1
-  const lineEndIndex = text.indexOf('\n', selection.head)
-  const lineEnd = lineEndIndex === -1 ? text.length : lineEndIndex
-  const lineText = text.slice(lineStart, lineEnd)
-
-  CITATION_GROUP_RE.lastIndex = 0
-  let match
-  while ((match = CITATION_GROUP_RE.exec(lineText)) !== null) {
-    const groupFrom = lineStart + match.index
-    const groupTo = groupFrom + match[0].length
-    if (selection.head < groupFrom || selection.head > groupTo) continue
-    const anchor = paletteAnchorPosition()
-    citPalette.show = true
-    citPalette.mode = 'edit'
-    citPalette.x = anchor.x
-    citPalette.y = anchor.y
-    citPalette.groupFrom = groupFrom
-    citPalette.groupTo = groupTo
-    citPalette.cites = parseCitationGroup(match[0])
-    citPalette.query = ''
-    citPalette.latexCommand = null
-    citPalette.insideBrackets = true
-    return true
-  }
-
-  LATEX_CITE_RE.lastIndex = 0
-  while ((match = LATEX_CITE_RE.exec(lineText)) !== null) {
-    const groupFrom = lineStart + match.index
-    const groupTo = groupFrom + match[0].length
-    if (selection.head < groupFrom || selection.head > groupTo) continue
-    const anchor = paletteAnchorPosition()
-    citPalette.show = true
-    citPalette.mode = 'edit'
-    citPalette.x = anchor.x
-    citPalette.y = anchor.y
-    citPalette.groupFrom = groupFrom
-    citPalette.groupTo = groupTo
-    citPalette.cites = match[2]
-      .split(',')
-      .map((key) => String(key || '').trim())
-      .filter(Boolean)
-      .map((key) => ({ key, locator: '', prefix: '' }))
-    citPalette.query = ''
-    citPalette.latexCommand = match[1]
-    citPalette.insideBrackets = true
-    return true
-  }
-
-  return false
+async function refreshCitationPaletteFromNative() {
+  const context = await inspectCurrentNativeContext()
+  return applyCitationTrigger(context?.citationTrigger || null)
 }
 
-function getActiveLineRange(offset) {
-  const text = draftText.value
-  const safeOffset = clampOffset(offset, text.length)
-  const lineStart = text.lastIndexOf('\n', Math.max(0, safeOffset - 1)) + 1
-  const lineEndIndex = text.indexOf('\n', safeOffset)
-  const lineEnd = lineEndIndex === -1 ? text.length : lineEndIndex
-  return {
-    lineStart,
-    lineEnd,
-    lineText: text.slice(lineStart, lineEnd),
-  }
-}
-
-function maybeHandleWikiLinkClick(event) {
+async function maybeHandleWikiLinkClick(event, context = null) {
   if (!isMarkdownFile) return false
-  const selection = deriveSelectionPayload()
-  if (!selection || selection.hasSelection) return false
+  const wikiLink = context?.wikiLink || null
+  if (!wikiLink?.target) return false
 
-  const { lineStart, lineText } = getActiveLineRange(selection.head)
-  const wikiLinkPattern = /\[\[([^\]]+)\]\]/g
-  let match
+  const resolved = linksStore.resolveLink(wikiLink.target, props.filePath)
+  void editorRuntimeStore.recordNativeWorkflowEvent({
+    path: props.filePath,
+    event: {
+      kind: 'wiki-link-open',
+      target: wikiLink.target,
+      resolved: !!resolved,
+    },
+  })
 
-  while ((match = wikiLinkPattern.exec(lineText)) !== null) {
-    const matchFrom = lineStart + match.index
-    const matchTo = matchFrom + match[0].length
-    if (selection.head < matchFrom || selection.head >= matchTo) continue
-
-    let target = match[1]
-    const pipeIndex = target.indexOf('|')
-    if (pipeIndex !== -1) target = target.substring(0, pipeIndex)
-
-    const hashIndex = target.indexOf('#')
-    if (hashIndex !== -1) target = target.substring(0, hashIndex)
-
-    target = target.trim()
-    if (!target) return false
-
-    const resolved = linksStore.resolveLink(target, props.filePath)
-    void editorRuntimeStore.recordNativeWorkflowEvent({
-      path: props.filePath,
-      event: {
-        kind: 'wiki-link-open',
-        target,
-        resolved: !!resolved,
-      },
+  if (resolved) {
+    editorStore.openFile(resolved.path)
+  } else {
+    const dir = props.filePath.split('/').slice(0, -1).join('/')
+    const newName = wikiLink.target.endsWith('.md') ? wikiLink.target : `${wikiLink.target}.md`
+    void files.createFile(dir, newName).then((newPath) => {
+      if (newPath) editorStore.openFile(newPath)
     })
-
-    if (resolved) {
-      editorStore.openFile(resolved.path)
-    } else {
-      const dir = props.filePath.split('/').slice(0, -1).join('/')
-      const newName = target.endsWith('.md') ? target : `${target}.md`
-      void files.createFile(dir, newName).then((newPath) => {
-        if (newPath) editorStore.openFile(newPath)
-      })
-    }
-
-    event?.preventDefault?.()
-    event?.stopPropagation?.()
-    return true
   }
 
-  return false
+  event?.preventDefault?.()
+  event?.stopPropagation?.()
+  return true
 }
 
 function scheduleSelectionSync() {
@@ -660,7 +522,7 @@ async function handleInput() {
   scheduleSelectionSync()
   dispatchMarkdownForwardSync('selection-sync')
   scheduleAutoSave()
-  maybeOpenCitationPalette()
+  void refreshCitationPaletteFromNative()
 }
 
 function handleSelectionChange() {
@@ -668,11 +530,12 @@ function handleSelectionChange() {
   dispatchMarkdownForwardSync('selection-sync')
 }
 
-function handleClick(event) {
+async function handleClick(event) {
   handleSelectionChange()
-  if (maybeHandleWikiLinkClick(event)) return
-  if (!maybeOpenCitationEditAtSelection()) {
-    maybeOpenCitationPalette()
+  const context = await inspectCurrentNativeContext()
+  if (await maybeHandleWikiLinkClick(event, context)) return
+  if (!applyCitationEditContext(context)) {
+    applyCitationTrigger(context?.citationTrigger || null)
   }
 }
 
