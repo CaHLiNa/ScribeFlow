@@ -437,7 +437,7 @@ const emptyStateTitle = computed(() =>
 )
 const emptyStateNote = computed(() =>
   isAgentMode.value
-    ? t('This workspace, files, and tools are already available.')
+    ? t('This workspace and its files are already available.')
     : t('Operate on the current workspace or type / for commands.')
 )
 const blockingState = computed(() => {

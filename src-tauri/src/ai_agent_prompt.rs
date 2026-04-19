@@ -583,7 +583,7 @@ pub async fn ai_agent_build_prompt(
             }
             .to_string(),
             "Filesystem skills are provided as an explicit catalog in the prompt. Do not infer available skills by searching workspace filenames.".to_string(),
-            "Do not invent non-existent local tools, MCP servers, or write capabilities.".to_string(),
+            "Do not invent unavailable runtime capabilities or workspace edit powers.".to_string(),
             format!(
                 "{}: {}.",
                 if params.runtime_intent.trim() == "agent" {

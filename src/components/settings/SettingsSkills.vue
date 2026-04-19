@@ -28,7 +28,7 @@
             <div class="settings-row-hint">
               {{
                 t(
-                  'Use $skill to pin a workflow explicitly. If you also name #tool, the skill still defines the workflow and the tool request narrows execution inside it.'
+                  'Use $skill to pin a workflow explicitly. Once selected, that skill remains the active workflow for the request.'
                 )
               }}
             </div>
