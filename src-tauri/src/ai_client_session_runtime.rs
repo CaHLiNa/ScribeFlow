@@ -11,6 +11,9 @@ use crate::codex_runtime::protocol::RuntimeThreadStartParams;
 use crate::codex_runtime::storage::persist_runtime_state;
 use crate::codex_runtime::threads::{archive_thread, rename_thread, start_thread};
 use crate::codex_runtime::CodexRuntimeHandle;
+use crate::research_task_runtime::{
+    ensure_research_task_for_thread, sync_research_task_title_for_thread,
+};
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -148,6 +151,14 @@ async fn ensure_runtime_thread_for_session(
     );
     persist_runtime_state(&runtime)?;
     drop(runtime);
+    let _ = ensure_research_task_for_thread(
+        workspace_path,
+        &thread.id,
+        &thread.title,
+        "",
+        "general-research",
+        Vec::new(),
+    );
 
     let next_state =
         patch_overlay_session_thread_binding(&state, &target_session.id, &thread.id, &thread.title);
@@ -248,6 +259,11 @@ pub async fn ai_client_session_rename(
         let next_state = patch_overlay_session_thread_binding(
             &ensured.state,
             &session.id,
+            &runtime_thread_id,
+            &response.thread.title,
+        );
+        let _ = sync_research_task_title_for_thread(
+            &params.overlay.workspace_path,
             &runtime_thread_id,
             &response.thread.title,
         );

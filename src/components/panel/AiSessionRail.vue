@@ -77,7 +77,12 @@
               }"
               aria-hidden="true"
             ></span>
-            <span class="ai-session-rail__title">{{ session.title }}</span>
+            <span class="ai-session-rail__copy">
+              <span class="ai-session-rail__title">{{ session.title }}</span>
+              <span v-if="session.subtitle" class="ai-session-rail__subtitle">
+                {{ session.subtitle }}
+              </span>
+            </span>
           </button>
 
           <div v-if="editingSessionId !== session.id" class="ai-session-rail__actions">
@@ -465,6 +470,7 @@ onUnmounted(() => {
 }
 
 .ai-session-rail__title {
+  display: block;
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
@@ -474,6 +480,22 @@ onUnmounted(() => {
   font-weight: 600;
   line-height: 1.25;
   letter-spacing: -0.01em;
+}
+
+.ai-session-rail__copy {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.ai-session-rail__subtitle {
+  display: block;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+  line-height: 1.2;
+  color: var(--text-tertiary);
 }
 
 .ai-session-rail__input {

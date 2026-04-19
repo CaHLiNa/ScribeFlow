@@ -4,6 +4,7 @@ use tauri::State;
 
 use crate::codex_runtime::state::CodexRuntimeHandle;
 use crate::codex_runtime::threads::{list_threads, read_thread};
+use crate::research_task_runtime::find_research_task_by_thread_id;
 
 fn trim(value: &str) -> String {
     value.trim().to_string()
@@ -103,12 +104,17 @@ fn ensure_session_shape(session: &Value, fallback_title: &str) -> Value {
         "waitingResume": session.get("waitingResume").cloned().unwrap_or(Value::Bool(false)),
         "waitingResumeMessage": session.get("waitingResumeMessage").cloned().unwrap_or(Value::String(String::new())),
         "planMode": session.get("planMode").cloned().unwrap_or(default_plan_mode),
+        "researchTask": session.get("researchTask").cloned().unwrap_or(Value::Null),
         "isRunning": session.get("isRunning").cloned().unwrap_or(Value::Bool(false)),
         "lastError": session.get("lastError").cloned().unwrap_or(Value::String(String::new())),
     })
 }
 
-fn apply_snapshot_to_session(base_session: &Value, snapshot: &Value) -> Value {
+fn apply_snapshot_to_session(
+    base_session: &Value,
+    snapshot: &Value,
+    workspace_path: &str,
+) -> Value {
     let thread = snapshot.get("thread").cloned().unwrap_or(Value::Null);
     let current_title = string_field(base_session, &["title"]);
 
@@ -125,7 +131,15 @@ fn apply_snapshot_to_session(base_session: &Value, snapshot: &Value) -> Value {
     session["runtimeTurnId"] = Value::String(string_field(&thread, &["activeTurnId"]));
     session["runtimeTransport"] = Value::String("codex-runtime".to_string());
     session["isRunning"] = Value::Bool(string_field(&thread, &["status"]) == "running");
-    crate::ai_runtime_thread_client::map_runtime_thread_snapshot_to_session(&session, snapshot)
+    session =
+        crate::ai_runtime_thread_client::map_runtime_thread_snapshot_to_session(&session, snapshot);
+    let runtime_thread_id = string_field(&thread, &["id"]);
+    session["researchTask"] = find_research_task_by_thread_id(workspace_path, &runtime_thread_id)
+        .ok()
+        .flatten()
+        .and_then(|task| serde_json::to_value(task).ok())
+        .unwrap_or(Value::Null);
+    session
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -137,6 +151,8 @@ pub struct AiRuntimeSessionRailReconcileParams {
     pub current_session_id: String,
     #[serde(default)]
     pub fallback_title: String,
+    #[serde(default)]
+    pub workspace_path: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -179,7 +195,8 @@ pub async fn ai_runtime_session_rail_reconcile(
             continue;
         };
         let snapshot = read_thread(&runtime, &thread.id)?.snapshot;
-        filtered_sessions[index] = apply_snapshot_to_session(&session, &json!(snapshot));
+        filtered_sessions[index] =
+            apply_snapshot_to_session(&session, &json!(snapshot), &params.workspace_path);
     }
 
     if filtered_sessions.is_empty() {

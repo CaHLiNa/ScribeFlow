@@ -6,6 +6,11 @@ import {
   buildAiContextBundle,
   normalizeAiSelection,
 } from '../domains/ai/aiContextRuntime.js'
+import {
+  normalizeResearchTask,
+  resolveSessionTaskSubtitle,
+  resolveSessionTaskTitle,
+} from '../domains/ai/researchTaskViewModel.js'
 import { useEditorStore } from './editor'
 import { useFilesStore } from './files'
 import { useReferencesStore } from './references'
@@ -247,6 +252,7 @@ function createInitialSessionRecord(title = 'New session') {
     waitingResume: false,
     waitingResumeMessage: '',
     planMode: { active: false, summary: '', note: '' },
+    researchTask: null,
     isRunning: false,
     lastError: '',
   }
@@ -548,7 +554,9 @@ export const useAiStore = defineStore('ai', {
         id: session.id,
         mode: session.mode || 'agent',
         permissionMode: resolveEffectiveSessionPermissionMode({ session }),
-        title: session.title || t('Session'),
+        title: resolveSessionTaskTitle(session, t('Session')),
+        subtitle: resolveSessionTaskSubtitle(session),
+        researchTask: normalizeResearchTask(session.researchTask),
         isRunning: session.isRunning === true,
         hasError: !!String(session.lastError || '').trim(),
         messageCount: Array.isArray(session.messages) ? session.messages.length : 0,
@@ -1411,6 +1419,7 @@ export const useAiStore = defineStore('ai', {
           sessions: this.sessions,
           currentSessionId: this.currentSessionId,
           fallbackTitle: buildDefaultSessionTitle(1),
+          workspacePath: currentWorkspacePath(),
         })
         const normalized = ensureManagedAgentSessionsState({
           sessions: mergeOverlaySessionState(

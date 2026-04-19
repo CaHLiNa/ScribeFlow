@@ -47,6 +47,9 @@ mod references_pdf;
 mod references_runtime;
 mod references_zotero;
 mod references_zotero_account;
+mod research_task_protocol;
+mod research_task_runtime;
+mod research_task_storage;
 mod security;
 mod workspace_access;
 
@@ -494,6 +497,9 @@ pub fn run() {
             ai_session_storage::ai_session_overlay_switch,
             ai_session_storage::ai_session_overlay_delete,
             ai_session_storage::ai_session_overlay_rename,
+            research_task_runtime::research_task_list,
+            research_task_runtime::research_task_ensure,
+            research_task_runtime::research_task_update,
             codex_runtime::runtime_thread_start,
             codex_runtime::runtime_thread_list,
             codex_runtime::runtime_thread_read,

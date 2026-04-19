@@ -93,6 +93,31 @@ fn normalize_plan_mode(value: &Value) -> Value {
     })
 }
 
+fn normalize_research_task(task: &Value) -> Value {
+    if !task.is_object() {
+        return Value::Null;
+    }
+
+    let id = string_field(task, "id");
+    let title = string_field(task, "title");
+    if id.trim().is_empty() && title.trim().is_empty() {
+        return Value::Null;
+    }
+
+    json!({
+        "id": id.trim(),
+        "kind": string_field(task, "kind").trim(),
+        "title": title.trim(),
+        "goal": string_field(task, "goal").trim(),
+        "status": string_field(task, "status").trim(),
+        "phase": string_field(task, "phase").trim(),
+        "verificationSummary": string_field(task, "verificationSummary").trim(),
+        "blockedReason": string_field(task, "blockedReason").trim(),
+        "resumeHint": string_field(task, "resumeHint").trim(),
+        "runtimeThreadId": string_field(task, "runtimeThreadId").trim(),
+    })
+}
+
 fn normalize_session(session: &Value, fallback_title: &str) -> Value {
     let fallback = if fallback_title.trim().is_empty() {
         "New session"
@@ -171,6 +196,7 @@ fn normalize_session(session: &Value, fallback_title: &str) -> Value {
         "waitingResume": bool_field(session, "waitingResume"),
         "waitingResumeMessage": string_field(session, "waitingResumeMessage"),
         "planMode": normalize_plan_mode(session.get("planMode").unwrap_or(&Value::Null)),
+        "researchTask": normalize_research_task(session.get("researchTask").unwrap_or(&Value::Null)),
         "isRunning": bool_field(session, "isRunning"),
         "lastError": string_field(session, "lastError"),
     })
