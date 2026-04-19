@@ -1,5 +1,8 @@
+use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
+use base64::Engine as _;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::fs;
 use tauri::{AppHandle, Runtime, State};
 use uuid::Uuid;
 
@@ -294,6 +297,114 @@ fn should_use_codex_runtime_run(prepared_run: &Value) -> bool {
     true
 }
 
+fn build_native_attachment_input_items(attachments: &[Value]) -> Vec<Value> {
+    attachments
+        .iter()
+        .filter_map(|attachment| {
+            let name = string_field(attachment, &["name"]);
+            let path = string_field(attachment, &["path"]);
+            let relative_path = string_field(attachment, &["relativePath", "relative_path"]);
+            let display_path = if relative_path.is_empty() {
+                path.clone()
+            } else {
+                relative_path
+            };
+            let media_type = string_field(attachment, &["mediaType", "media_type"]);
+
+            if media_type.starts_with("image/") && !path.is_empty() {
+                match fs::read(&path) {
+                    Ok(bytes) => Some(json!({
+                        "type": "message",
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "input_text",
+                                "text": format!(
+                                    "Attached image: {}{}",
+                                    if name.is_empty() { "image".to_string() } else { name.clone() },
+                                    if display_path.is_empty() {
+                                        String::new()
+                                    } else {
+                                        format!(" ({display_path})")
+                                    }
+                                ),
+                            },
+                            {
+                                "type": "input_image",
+                                "image_url": format!(
+                                    "data:{};base64,{}",
+                                    media_type,
+                                    BASE64_STANDARD.encode(bytes)
+                                ),
+                            }
+                        ],
+                    })),
+                    Err(error) => Some(json!({
+                        "type": "message",
+                        "role": "user",
+                        "content": [{
+                            "type": "input_text",
+                            "text": format!(
+                                "Attached image could not be read: {}{}: {}",
+                                if name.is_empty() { "image".to_string() } else { name.clone() },
+                                if display_path.is_empty() {
+                                    String::new()
+                                } else {
+                                    format!(" ({display_path})")
+                                },
+                                error
+                            ),
+                        }],
+                    })),
+                }
+            } else {
+                let read_error = string_field(attachment, &["readError", "read_error"]);
+                let content = string_field(attachment, &["content"]);
+                if !read_error.is_empty() {
+                    return Some(json!({
+                        "type": "message",
+                        "role": "user",
+                        "content": [{
+                            "type": "input_text",
+                            "text": format!(
+                                "Attached file could not be read: {}{}: {}",
+                                if name.is_empty() { "file".to_string() } else { name.clone() },
+                                if display_path.is_empty() {
+                                    String::new()
+                                } else {
+                                    format!(" ({display_path})")
+                                },
+                                read_error
+                            ),
+                        }],
+                    }));
+                }
+                if content.is_empty() {
+                    return None;
+                }
+                Some(json!({
+                    "type": "message",
+                    "role": "user",
+                    "content": [{
+                        "type": "input_text",
+                        "text": format!(
+                            "Attached file: {}{} ({})\n\n{}",
+                            if name.is_empty() { "file".to_string() } else { name.clone() },
+                            if display_path.is_empty() {
+                                String::new()
+                            } else {
+                                format!(" ({display_path})")
+                            },
+                            if media_type.is_empty() { "unknown".to_string() } else { media_type },
+                            content
+                        ),
+                    }],
+                }))
+            }
+        })
+        .collect()
+}
+
 fn build_runtime_provider_config(
     provider_id: &str,
     config: &Value,
@@ -398,6 +509,20 @@ async fn ai_agent_run(params: AiAgentRunParams) -> Result<AiAgentRunResponse, St
                 .collect::<Vec<_>>()
         })
         .unwrap_or_default();
+    let should_use_native_attachment_inputs = params
+        .config
+        .get("providerId")
+        .and_then(Value::as_str)
+        .map(|provider_id| {
+            let normalized = provider_id.trim().to_lowercase();
+            normalized != "anthropic" && normalized != "google"
+        })
+        .unwrap_or(true);
+    let native_attachment_inputs = if should_use_native_attachment_inputs {
+        build_native_attachment_input_items(&params.attachments)
+    } else {
+        Vec::new()
+    };
 
     let prompt = ai_agent_build_prompt(AiAgentPromptParams {
         skill: params.skill.clone(),
@@ -406,7 +531,11 @@ async fn ai_agent_run(params: AiAgentRunParams) -> Result<AiAgentRunResponse, St
         conversation: params.conversation.clone(),
         scribeflow_skills: params.scribeflow_skills.clone(),
         support_files: Vec::new(),
-        attachments: params.attachments.clone(),
+        attachments: if should_use_native_attachment_inputs {
+            Vec::new()
+        } else {
+            params.attachments.clone()
+        },
         referenced_files: params.referenced_files.clone(),
         requested_tools: params.requested_tools.clone(),
         enabled_tool_ids: enabled_tool_ids.clone(),
@@ -427,6 +556,7 @@ async fn ai_agent_run(params: AiAgentRunParams) -> Result<AiAgentRunResponse, St
         api_key: params.api_key.clone(),
         conversation: params.conversation.clone(),
         user_prompt: prompt.user_prompt.clone(),
+        supplemental_user_items: native_attachment_inputs,
         system_prompt: prompt.system_prompt.clone(),
         context_bundle: params.context_bundle.clone(),
         support_files: Vec::new(),
@@ -518,6 +648,15 @@ async fn ai_agent_run_started_session<R: Runtime>(
                 })
                 .unwrap_or_default();
 
+            let should_use_native_attachment_inputs = {
+                let normalized = provider_id.trim().to_lowercase();
+                normalized != "anthropic" && normalized != "google"
+            };
+            let native_attachment_inputs = if should_use_native_attachment_inputs {
+                build_native_attachment_input_items(&attachments)
+            } else {
+                Vec::new()
+            };
             let prompt = ai_agent_build_prompt(AiAgentPromptParams {
                 skill: skill.clone(),
                 context_bundle: context_bundle.clone(),
@@ -525,7 +664,11 @@ async fn ai_agent_run_started_session<R: Runtime>(
                 conversation: prior_conversation.clone(),
                 scribeflow_skills: params.scribeflow_skills.clone(),
                 support_files: Vec::new(),
-                attachments: attachments.clone(),
+                attachments: if should_use_native_attachment_inputs {
+                    Vec::new()
+                } else {
+                    attachments.clone()
+                },
                 referenced_files: referenced_files.clone(),
                 requested_tools: requested_tools.clone(),
                 enabled_tool_ids,
@@ -550,6 +693,7 @@ async fn ai_agent_run_started_session<R: Runtime>(
                         context_bundle.get("workspace").unwrap_or(&Value::Null),
                         &["path"],
                     ),
+                    supplemental_user_items: native_attachment_inputs,
                     enabled_tool_ids: prompt.enabled_tool_ids,
                     requested_tool_mentions: requested_tool_mentions.clone(),
                 },

@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -432,6 +433,8 @@ pub struct RuntimeTurnRunParams {
     pub provider: RuntimeProviderConfig,
     #[serde(default)]
     pub workspace_path: String,
+    #[serde(default)]
+    pub supplemental_user_items: Vec<Value>,
     #[serde(default)]
     pub enabled_tool_ids: Vec<String>,
     #[serde(default)]

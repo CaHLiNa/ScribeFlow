@@ -31,6 +31,8 @@ pub struct AiAgentExecuteParams {
     #[serde(default)]
     pub user_prompt: String,
     #[serde(default)]
+    pub supplemental_user_items: Vec<Value>,
+    #[serde(default)]
     pub system_prompt: String,
     #[serde(default)]
     pub context_bundle: Value,
@@ -252,6 +254,7 @@ pub async fn ai_agent_execute(
             &provider,
             &history,
             &params.user_prompt,
+            &params.supplemental_user_items,
             &tool_definitions,
             &continuation_messages,
         )?;

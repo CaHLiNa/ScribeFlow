@@ -284,6 +284,7 @@ pub(crate) fn build_provider_request(
     provider: &RuntimeProviderConfig,
     history: &[(String, String)],
     user_text: &str,
+    supplemental_user_items: &[Value],
     tool_definitions: &[super::tools::RuntimeToolDefinition],
     continuation_messages: &[RuntimeContinuationMessage],
 ) -> Result<(Url, HeaderMap, String), String> {
@@ -425,6 +426,7 @@ pub(crate) fn build_provider_request(
                 .map(|(role, content)| openai_message_item(role, content))
                 .collect::<Vec<_>>();
             input.push(openai_message_item("user", user_text));
+            input.extend(supplemental_user_items.iter().cloned());
             for message in continuation_messages {
                 match message {
                     RuntimeContinuationMessage::Assistant {
@@ -2056,7 +2058,7 @@ mod tests {
         ];
 
         let (url, _, body) =
-            build_provider_request(&provider, &history, "U2", &[], &continuation_messages)
+            build_provider_request(&provider, &history, "U2", &[], &[], &continuation_messages)
                 .expect("build request");
         let payload: Value = serde_json::from_str(&body).expect("parse payload");
 
@@ -2116,6 +2118,7 @@ mod tests {
             &[],
             "inspect image",
             &[],
+            &[],
             &[RuntimeContinuationMessage::ToolResults {
                 results: vec![RuntimeToolResult {
                     tool_call_id: "call_image".to_string(),
@@ -2134,6 +2137,42 @@ mod tests {
         assert_eq!(
             payload["input"][1]["output"][1]["type"],
             Value::String("input_image".to_string())
+        );
+    }
+
+    #[test]
+    fn build_provider_request_includes_supplemental_user_items() {
+        let provider = RuntimeProviderConfig {
+            provider_id: "openai".to_string(),
+            base_url: "https://api.openai.com/v1".to_string(),
+            api_key: "sk-test".to_string(),
+            model: "gpt-5".to_string(),
+            system_prompt: String::new(),
+            temperature: Some(0.2),
+            max_tokens: None,
+        };
+
+        let (_, _, body) = build_provider_request(
+            &provider,
+            &[],
+            "inspect attachments",
+            &[json!({
+                "type": "message",
+                "role": "user",
+                "content": [{
+                    "type": "input_text",
+                    "text": "Attached file: note.txt"
+                }]
+            })],
+            &[],
+            &[],
+        )
+        .expect("build request");
+        let payload: Value = serde_json::from_str(&body).expect("parse payload");
+
+        assert_eq!(
+            payload["input"][1]["content"][0]["text"],
+            Value::String("Attached file: note.txt".to_string())
         );
     }
 
@@ -2390,6 +2429,7 @@ pub async fn run_turn<R: Runtime>(
                 &provider,
                 &history,
                 &user_text,
+                &params.supplemental_user_items,
                 &tool_definitions,
                 &continuation_messages,
             );
