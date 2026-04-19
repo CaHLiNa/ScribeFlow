@@ -8,15 +8,18 @@ use crate::native_editor_bridge::{
     NativeEditorInspectInteractionRequest, NativeEditorInteractionContextSnapshot,
     NativeEditorOpenDocumentRequest, NativeEditorPlanCharacterInputRequest,
     NativeEditorPlanCitationReplacementRequest, NativeEditorPlanFileDropInsertionRequest,
-    NativeEditorRecordWorkflowEventRequest, NativeEditorSelectionRange,
-    NativeEditorSessionSnapshot, NativeEditorSessionStateSnapshot,
-    NativeEditorSetDiagnosticsRequest, NativeEditorSetOutlineContextRequest,
+    NativeEditorPlanPointerSelectionRequest, NativeEditorPointerSelectionMode,
+    NativeEditorPointerSelectionPlan, NativeEditorRange, NativeEditorRecordWorkflowEventRequest,
+    NativeEditorSelectionRange, NativeEditorSessionSnapshot, NativeEditorSessionStateSnapshot,
+    NativeEditorSetDiagnosticsRequest, NativeEditorSetDropCursorRequest,
+    NativeEditorSetOutlineContextRequest, NativeEditorSetRevealHighlightRequest,
     NativeEditorSetSelectionsRequest, NativeEditorWikiLinkMatch, NATIVE_EDITOR_EVENT,
 };
 use crate::process_utils::background_tokio_command;
 use regex_lite::Regex;
 use scribeflow_editor_core::{
-    plan_character_input, EditorCharacterInputPlan as CoreCharacterInputPlan,
+    find_selection_matches, plan_character_input, select_word_range,
+    EditorCharacterInputPlan as CoreCharacterInputPlan, SelectionRange,
 };
 use serde_json::to_string;
 use std::collections::HashMap;
@@ -42,7 +45,14 @@ struct ActiveNativeEditorSession {
     stdin: Arc<Mutex<ChildStdin>>,
     state_cache: Arc<Mutex<NativeEditorSessionStateSnapshot>>,
     text_cache: Arc<Mutex<HashMap<String, String>>>,
+    visual_cache: Arc<Mutex<HashMap<String, NativeEditorVisualState>>>,
     handle: JoinHandle<()>,
+}
+
+#[derive(Debug, Clone, Default)]
+struct NativeEditorVisualState {
+    reveal_highlight: Option<NativeEditorRange>,
+    drop_cursor_offset: Option<usize>,
 }
 
 #[derive(Default)]
@@ -253,13 +263,33 @@ fn upsert_document_state(
         line_numbers: Vec::new(),
         delimiter_match: None,
         syntax_spans: Vec::new(),
+        selection_matches: Vec::new(),
+        reveal_highlight: None,
+        drop_cursor: None,
+        primary_caret: None,
     });
 }
 
 fn build_document_snapshot(
     document: &NativeEditorDocumentState,
     text_cache: &HashMap<String, String>,
+    visual_state: Option<&NativeEditorVisualState>,
 ) -> NativeEditorDocumentSnapshot {
+    let text = text_cache.get(&document.path).cloned().unwrap_or_default();
+    let selection_matches = document
+        .selections
+        .first()
+        .cloned()
+        .map(|selection| build_selection_matches(&text, selection))
+        .unwrap_or_default();
+    let reveal_highlight = visual_state.and_then(|state| state.reveal_highlight.clone());
+    let drop_cursor = visual_state.and_then(|state| {
+        state
+            .drop_cursor_offset
+            .map(|offset| build_cursor_state_for_text(&text, offset))
+    });
+    let primary_caret = document.cursor.clone();
+
     NativeEditorDocumentSnapshot {
         path: document.path.clone(),
         text_length: document.text_length,
@@ -268,13 +298,17 @@ fn build_document_snapshot(
         cursor: document.cursor.clone(),
         viewport: document.viewport.clone(),
         text_preview: document.text_preview.clone(),
-        text: text_cache.get(&document.path).cloned().unwrap_or_default(),
+        text,
         diagnostics: document.diagnostics.clone(),
         outline_context: document.outline_context.clone(),
         last_workflow_event: document.last_workflow_event.clone(),
         line_numbers: document.line_numbers.clone(),
         delimiter_match: document.delimiter_match.clone(),
         syntax_spans: document.syntax_spans.clone(),
+        selection_matches,
+        reveal_highlight,
+        drop_cursor,
+        primary_caret,
     }
 }
 
@@ -313,6 +347,48 @@ fn build_character_input_plan(plan: CoreCharacterInputPlan) -> NativeEditorChara
                 head: selection.head,
             })
             .collect(),
+    }
+}
+
+fn build_selection_matches(
+    text: &str,
+    selection: NativeEditorSelectionRange,
+) -> Vec<NativeEditorRange> {
+    find_selection_matches(
+        text,
+        SelectionRange::new(selection.anchor, selection.head),
+        100,
+    )
+    .into_iter()
+    .map(|range| NativeEditorRange {
+        from: range.from,
+        to: range.to,
+    })
+    .collect()
+}
+
+fn build_cursor_state_for_text(
+    text: &str,
+    offset: usize,
+) -> crate::native_editor_bridge::NativeEditorCursorState {
+    let safe_offset = offset.min(text.len());
+    let mut line = 1_u32;
+    let mut line_start = 0_usize;
+
+    for (index, byte) in text.bytes().enumerate() {
+        if index >= safe_offset {
+            break;
+        }
+        if byte == b'\n' {
+            line += 1;
+            line_start = index + 1;
+        }
+    }
+
+    crate::native_editor_bridge::NativeEditorCursorState {
+        offset: safe_offset,
+        line,
+        column: text[line_start..safe_offset].chars().count() as u32 + 1,
     }
 }
 
@@ -860,6 +936,7 @@ pub async fn native_editor_session_start<R: Runtime>(
         0,
     )));
     let text_cache = Arc::new(Mutex::new(HashMap::<String, String>::new()));
+    let visual_cache = Arc::new(Mutex::new(HashMap::<String, NativeEditorVisualState>::new()));
     let (ready_tx, ready_rx) = oneshot::channel::<(String, u32)>();
     let ready_sender = Arc::new(Mutex::new(Some(ready_tx)));
     let app_for_task = app.clone();
@@ -964,6 +1041,7 @@ pub async fn native_editor_session_start<R: Runtime>(
         stdin,
         state_cache,
         text_cache,
+        visual_cache,
         handle,
     });
 
@@ -975,7 +1053,7 @@ pub async fn native_editor_document_state(
     state: State<'_, NativeEditorRuntimeState>,
     request: NativeEditorDocumentStateRequest,
 ) -> Result<Option<NativeEditorDocumentSnapshot>, String> {
-    let (cache, text_cache, handle_finished) = {
+    let (cache, text_cache, visual_cache, handle_finished) = {
         let guard = state.inner.lock().await;
         let Some(active) = guard.as_ref() else {
             return Ok(None);
@@ -983,6 +1061,7 @@ pub async fn native_editor_document_state(
         (
             active.state_cache.clone(),
             active.text_cache.clone(),
+            active.visual_cache.clone(),
             active.handle.is_finished(),
         )
     };
@@ -993,6 +1072,7 @@ pub async fn native_editor_document_state(
 
     let snapshot = cache.lock().await.clone();
     let text_cache = text_cache.lock().await.clone();
+    let visual_cache = visual_cache.lock().await.clone();
     let target_path = request.path;
     let Some(document) = snapshot
         .open_documents
@@ -1002,7 +1082,11 @@ pub async fn native_editor_document_state(
         return Ok(None);
     };
 
-    Ok(Some(build_document_snapshot(document, &text_cache)))
+    Ok(Some(build_document_snapshot(
+        document,
+        &text_cache,
+        visual_cache.get(&document.path),
+    )))
 }
 
 #[tauri::command]
@@ -1123,6 +1207,103 @@ pub async fn native_editor_plan_character_input(
     Ok(Some(build_character_input_plan(plan_character_input(
         &text, selection, input,
     ))))
+}
+
+#[tauri::command]
+pub async fn native_editor_plan_pointer_selection(
+    state: State<'_, NativeEditorRuntimeState>,
+    request: NativeEditorPlanPointerSelectionRequest,
+) -> Result<Option<NativeEditorPointerSelectionPlan>, String> {
+    let (cache, text_cache, handle_finished) = {
+        let guard = state.inner.lock().await;
+        let Some(active) = guard.as_ref() else {
+            return Ok(None);
+        };
+        (
+            active.state_cache.clone(),
+            active.text_cache.clone(),
+            active.handle.is_finished(),
+        )
+    };
+
+    if handle_finished {
+        return Ok(None);
+    }
+
+    let snapshot = cache.lock().await.clone();
+    let text_cache = text_cache.lock().await.clone();
+    let target_path = request.path;
+    let document = snapshot
+        .open_documents
+        .iter()
+        .find(|entry| entry.path == target_path);
+    let text = text_cache.get(&target_path).cloned().unwrap_or_default();
+    if text.is_empty() && document.is_none() {
+        return Ok(None);
+    }
+
+    let safe_offset = request.offset.min(text.len());
+    let selection = match request.mode {
+        NativeEditorPointerSelectionMode::Set => SelectionRange::collapsed(safe_offset),
+        NativeEditorPointerSelectionMode::Drag => {
+            let anchor = request
+                .anchor
+                .or_else(|| {
+                    document.and_then(|entry| {
+                        entry.selections.first().map(|selection| selection.anchor)
+                    })
+                })
+                .unwrap_or(safe_offset);
+            SelectionRange::new(anchor.min(text.len()), safe_offset)
+        }
+        NativeEditorPointerSelectionMode::Word => select_word_range(&text, safe_offset),
+    };
+
+    Ok(Some(NativeEditorPointerSelectionPlan {
+        selections: vec![NativeEditorSelectionRange {
+            anchor: selection.anchor,
+            head: selection.head,
+        }],
+        primary_caret: Some(build_cursor_state_for_text(&text, selection.head)),
+    }))
+}
+
+#[tauri::command]
+pub async fn native_editor_set_reveal_highlight(
+    state: State<'_, NativeEditorRuntimeState>,
+    request: NativeEditorSetRevealHighlightRequest,
+) -> Result<bool, String> {
+    let visual_cache = {
+        let guard = state.inner.lock().await;
+        let Some(active) = guard.as_ref() else {
+            return Ok(false);
+        };
+        active.visual_cache.clone()
+    };
+
+    let mut visual_cache = visual_cache.lock().await;
+    let entry = visual_cache.entry(request.path).or_default();
+    entry.reveal_highlight = request.range;
+    Ok(true)
+}
+
+#[tauri::command]
+pub async fn native_editor_set_drop_cursor(
+    state: State<'_, NativeEditorRuntimeState>,
+    request: NativeEditorSetDropCursorRequest,
+) -> Result<bool, String> {
+    let visual_cache = {
+        let guard = state.inner.lock().await;
+        let Some(active) = guard.as_ref() else {
+            return Ok(false);
+        };
+        active.visual_cache.clone()
+    };
+
+    let mut visual_cache = visual_cache.lock().await;
+    let entry = visual_cache.entry(request.path).or_default();
+    entry.drop_cursor_offset = request.offset;
+    Ok(true)
 }
 
 #[tauri::command]

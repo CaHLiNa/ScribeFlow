@@ -1,10 +1,10 @@
 mod analysis;
 
 pub use analysis::{
-    build_line_numbers, build_syntax_spans, find_delimiter_match, plan_character_input,
-    EditorCharacterInputMode, EditorCharacterInputPlan, EditorDelimiterMatch,
-    EditorDelimiterRange, EditorDelimiterTokenKind, EditorLineNumber, EditorSyntaxSpan,
-    EditorSyntaxTokenKind,
+    build_line_numbers, build_syntax_spans, find_delimiter_match, find_selection_matches,
+    plan_character_input, select_word_range, EditorCharacterInputMode, EditorCharacterInputPlan,
+    EditorDelimiterMatch, EditorDelimiterRange, EditorDelimiterTokenKind, EditorLineNumber,
+    EditorSyntaxSpan, EditorSyntaxTokenKind, EditorTextRange,
 };
 
 use serde::{Deserialize, Serialize};

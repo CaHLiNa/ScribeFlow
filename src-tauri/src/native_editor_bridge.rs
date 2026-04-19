@@ -30,6 +30,14 @@ pub struct NativeEditorDocumentState {
     pub delimiter_match: Option<NativeEditorDelimiterMatch>,
     #[serde(default)]
     pub syntax_spans: Vec<NativeEditorSyntaxSpan>,
+    #[serde(default)]
+    pub selection_matches: Vec<NativeEditorRange>,
+    #[serde(default)]
+    pub reveal_highlight: Option<NativeEditorRange>,
+    #[serde(default)]
+    pub drop_cursor: Option<NativeEditorCursorState>,
+    #[serde(default)]
+    pub primary_caret: Option<NativeEditorCursorState>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -68,6 +76,13 @@ pub struct NativeEditorViewportAnchor {
 #[serde(rename_all = "camelCase")]
 pub struct NativeEditorLineNumber {
     pub line: u32,
+    pub from: usize,
+    pub to: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeEditorRange {
     pub from: usize,
     pub to: usize,
 }
@@ -271,6 +286,14 @@ pub struct NativeEditorDocumentSnapshot {
     pub delimiter_match: Option<NativeEditorDelimiterMatch>,
     #[serde(default)]
     pub syntax_spans: Vec<NativeEditorSyntaxSpan>,
+    #[serde(default)]
+    pub selection_matches: Vec<NativeEditorRange>,
+    #[serde(default)]
+    pub reveal_highlight: Option<NativeEditorRange>,
+    #[serde(default)]
+    pub drop_cursor: Option<NativeEditorCursorState>,
+    #[serde(default)]
+    pub primary_caret: Option<NativeEditorCursorState>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -340,6 +363,45 @@ pub struct NativeEditorPlanCharacterInputRequest {
     pub path: String,
     pub input: String,
     pub selection: Option<NativeEditorSelectionRange>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum NativeEditorPointerSelectionMode {
+    Set,
+    Drag,
+    Word,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeEditorPlanPointerSelectionRequest {
+    pub path: String,
+    pub offset: usize,
+    pub anchor: Option<usize>,
+    pub mode: NativeEditorPointerSelectionMode,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeEditorPointerSelectionPlan {
+    #[serde(default)]
+    pub selections: Vec<NativeEditorSelectionRange>,
+    pub primary_caret: Option<NativeEditorCursorState>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeEditorSetRevealHighlightRequest {
+    pub path: String,
+    pub range: Option<NativeEditorRange>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeEditorSetDropCursorRequest {
+    pub path: String,
+    pub offset: Option<usize>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

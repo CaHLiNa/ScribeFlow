@@ -18,11 +18,25 @@
         class="native-primary-editor-scroller"
         @scroll="handleScroll"
         @mousedown="handleSurfaceMouseDown"
+        @mousemove="handleSurfaceMouseMove"
+        @mouseleave="handleSurfaceMouseLeave"
         @click="handleSurfaceClick"
         @dblclick="handleSurfaceDoubleClick"
       >
         <div class="native-primary-editor-canvas" :style="editorCanvasStyle">
           <div class="native-primary-selection-layer" aria-hidden="true">
+            <div
+              v-for="block in selectionMatchBlocks"
+              :key="`match-${block.key}`"
+              class="native-primary-selection-match-block"
+              :style="selectionBlockStyle(block)"
+            ></div>
+            <div
+              v-for="block in revealHighlightBlocks"
+              :key="`reveal-${block.key}`"
+              class="native-primary-reveal-highlight-block"
+              :style="selectionBlockStyle(block)"
+            ></div>
             <div
               v-for="block in selectionBlocks"
               :key="block.key"
@@ -52,6 +66,12 @@
             v-if="caretVisual && isInputFocused && !selectionState.hasSelection"
             class="native-primary-caret"
             :style="caretStyle"
+            aria-hidden="true"
+          ></div>
+          <div
+            v-if="dropCursorVisual"
+            class="native-primary-drop-cursor"
+            :style="dropCursorStyle"
             aria-hidden="true"
           ></div>
           <textarea
@@ -106,6 +126,7 @@ import {
 } from '../../domains/editor/editorRuntimeContract'
 import {
   buildNativePrimaryFallbackLineNumbers,
+  buildNativePrimaryRangeBlocks,
   buildNativePrimarySelectionPayload,
   buildNativePrimarySelectionBlocks,
   buildNativePrimaryCaretVisual,
@@ -114,7 +135,6 @@ import {
   computeNativePrimaryContentWidth,
   NATIVE_PRIMARY_LAYOUT,
   resolveNativePrimaryOffsetAtPoint,
-  selectNativePrimaryWord,
 } from '../../domains/editor/nativePrimaryHostRuntime'
 import {
   applyNativePrimaryInputChange,
@@ -175,6 +195,7 @@ let backwardSyncHandler = null
 let fileTreeDragStartHandler = null
 let fileTreeDragEndHandler = null
 let draggedFilePaths = []
+let lastDropCursorOffset = null
 let pointerAnchorOffset = null
 let pointerSelecting = false
 let pointerSelectionMoved = false
@@ -253,6 +274,24 @@ const selectionBlocks = computed(() =>
     measureTextWidth,
   })
 )
+const selectionMatchBlocks = computed(() =>
+  buildNativePrimaryRangeBlocks({
+    text: draftText.value,
+    lineNumbers: lineNumbers.value,
+    ranges: nativeDocument.value?.selectionMatches || [],
+    layout: NATIVE_PRIMARY_LAYOUT,
+    measureTextWidth,
+  })
+)
+const revealHighlightBlocks = computed(() =>
+  buildNativePrimaryRangeBlocks({
+    text: draftText.value,
+    lineNumbers: lineNumbers.value,
+    ranges: nativeDocument.value?.revealHighlight ? [nativeDocument.value.revealHighlight] : [],
+    layout: NATIVE_PRIMARY_LAYOUT,
+    measureTextWidth,
+  })
+)
 const caretVisual = computed(() =>
   buildNativePrimaryCaretVisual({
     text: draftText.value,
@@ -261,6 +300,17 @@ const caretVisual = computed(() =>
     layout: NATIVE_PRIMARY_LAYOUT,
     measureTextWidth,
   })
+)
+const dropCursorVisual = computed(() =>
+  nativeDocument.value?.dropCursor
+    ? buildNativePrimaryCaretVisual({
+        text: draftText.value,
+        lineNumbers: lineNumbers.value,
+        offset: nativeDocument.value.dropCursor.offset,
+        layout: NATIVE_PRIMARY_LAYOUT,
+        measureTextWidth,
+      })
+    : null
 )
 const contentWidth = computed(() =>
   computeNativePrimaryContentWidth({
@@ -289,6 +339,15 @@ const caretStyle = computed(() =>
         left: `${caretVisual.value.left}px`,
         top: `${caretVisual.value.top}px`,
         height: `${caretVisual.value.height}px`,
+      }
+    : {}
+)
+const dropCursorStyle = computed(() =>
+  dropCursorVisual.value
+    ? {
+        left: `${dropCursorVisual.value.left}px`,
+        top: `${dropCursorVisual.value.top}px`,
+        height: `${dropCursorVisual.value.height}px`,
       }
     : {}
 )
@@ -538,23 +597,69 @@ function pointToOffset(event) {
   })
 }
 
-function handleSurfaceMouseDown(event) {
+async function applyPointerSelectionPlan(plan = null) {
+  const primarySelection = Array.isArray(plan?.selections) ? plan.selections[0] || null : null
+  if (!primarySelection) return null
+  return setBridgeSelection(primarySelection.anchor, primarySelection.head)
+}
+
+async function handleSurfaceMouseDown(event) {
   if (event.button !== 0) return
   event.preventDefault()
+  void editorRuntimeStore.setNativeRevealHighlight({
+    path: props.filePath,
+    range: null,
+  })
   const offset = pointToOffset(event)
   pointerSelectionMoved = false
   pointerSelecting = true
   pointerAnchorOffset = event.shiftKey ? selectionAnchor.value : offset
-  setBridgeSelection(pointerAnchorOffset, offset)
+  const plan = await editorRuntimeStore.planNativePointerSelection({
+    path: props.filePath,
+    offset,
+    anchor: pointerAnchorOffset,
+    mode: event.shiftKey ? 'drag' : 'set',
+  })
+  if (plan) {
+    await applyPointerSelectionPlan(plan)
+  }
   scheduleSelectionSync()
   attachPointerSelectionListeners()
 }
 
-function handlePointerMove(event) {
+async function handleSurfaceMouseMove(event) {
+  if (draggedFilePaths.length === 0) return
+  const offset = pointToOffset(event)
+  if (offset === lastDropCursorOffset) return
+  lastDropCursorOffset = offset
+  await editorRuntimeStore.setNativeDropCursor({
+    path: props.filePath,
+    offset,
+  })
+}
+
+async function handleSurfaceMouseLeave() {
+  if (draggedFilePaths.length === 0 && lastDropCursorOffset == null) return
+  lastDropCursorOffset = null
+  await editorRuntimeStore.setNativeDropCursor({
+    path: props.filePath,
+    offset: null,
+  })
+}
+
+async function handlePointerMove(event) {
   if (!pointerSelecting) return
   pointerSelectionMoved = true
   const offset = pointToOffset(event)
-  setBridgeSelection(pointerAnchorOffset ?? offset, offset)
+  const plan = await editorRuntimeStore.planNativePointerSelection({
+    path: props.filePath,
+    offset,
+    anchor: pointerAnchorOffset ?? offset,
+    mode: 'drag',
+  })
+  if (plan) {
+    await applyPointerSelectionPlan(plan)
+  }
   scheduleSelectionSync()
 }
 
@@ -782,6 +887,10 @@ async function persistNativePrimaryContent(content = draftText.value) {
 
 async function handleInput() {
   if (suppressInputSync) return
+  void editorRuntimeStore.setNativeRevealHighlight({
+    path: props.filePath,
+    range: null,
+  })
   syncSelectionStateFromBridge()
   const result = await applyNativePrimaryInputChange({
     text: draftText.value,
@@ -841,15 +950,25 @@ async function handleSurfaceClick(event) {
   })
 }
 
-function handleSurfaceDoubleClick(event) {
+async function handleSurfaceDoubleClick(event) {
   event.preventDefault()
+  void editorRuntimeStore.setNativeRevealHighlight({
+    path: props.filePath,
+    range: null,
+  })
   if (isLatexFile) {
     triggerLatexForwardSync('double-click')
     return
   }
   const offset = pointToOffset(event)
-  const range = selectNativePrimaryWord(draftText.value, offset)
-  setBridgeSelection(range.anchor, range.head)
+  const plan = await editorRuntimeStore.planNativePointerSelection({
+    path: props.filePath,
+    offset,
+    mode: 'word',
+  })
+  if (plan) {
+    await applyPointerSelectionPlan(plan)
+  }
   scheduleSelectionSync()
 }
 
@@ -1051,6 +1170,13 @@ function revealRange(from, to = from, options = {}) {
   if (options.focus === false) {
     textareaRef.value?.blur?.()
   }
+  void editorRuntimeStore.setNativeRevealHighlight({
+    path: props.filePath,
+    range: {
+      from: selection.from,
+      to: selection.to,
+    },
+  })
   void editorRuntimeStore.recordNativeWorkflowEvent({
     path: props.filePath,
     event: {
@@ -1166,6 +1292,13 @@ function attachWindowWorkflowListeners() {
       draggedFilePaths = Array.isArray(event.detail?.paths)
         ? event.detail.paths.map((path) => String(path || '')).filter(Boolean)
         : []
+      if (draggedFilePaths.length === 0) {
+        lastDropCursorOffset = null
+        void editorRuntimeStore.setNativeDropCursor({
+          path: props.filePath,
+          offset: null,
+        })
+      }
     }
     window.addEventListener('filetree-drag-start', fileTreeDragStartHandler)
   }
@@ -1176,6 +1309,11 @@ function attachWindowWorkflowListeners() {
         ? event.detail.paths.map((path) => String(path || '')).filter(Boolean)
         : draggedFilePaths
       draggedFilePaths = []
+      lastDropCursorOffset = null
+      await editorRuntimeStore.setNativeDropCursor({
+        path: props.filePath,
+        offset: null,
+      })
       if (paths.length === 0) return
 
       const x = Number(event.detail?.x)
@@ -1249,6 +1387,7 @@ function detachWindowWorkflowListeners() {
     fileTreeDragEndHandler = null
   }
   draggedFilePaths = []
+  lastDropCursorOffset = null
 }
 
 watch(
@@ -1421,6 +1560,19 @@ defineExpose({
   border-radius: 4px;
 }
 
+.native-primary-selection-match-block {
+  position: absolute;
+  background: var(--editor-selection-match);
+  border-radius: 4px;
+}
+
+.native-primary-reveal-highlight-block {
+  position: absolute;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 24%, transparent);
+  border-radius: 4px;
+}
+
 .native-primary-line {
   position: absolute;
   left: 0;
@@ -1487,6 +1639,15 @@ defineExpose({
   border-radius: 999px;
   pointer-events: none;
   z-index: 3;
+}
+
+.native-primary-drop-cursor {
+  position: absolute;
+  width: 2px;
+  background: color-mix(in srgb, var(--accent) 70%, var(--text-primary) 30%);
+  border-radius: 999px;
+  pointer-events: none;
+  z-index: 4;
 }
 
 .native-primary-input-bridge {

@@ -27,6 +27,10 @@ struct NativeEditorDocumentState {
     line_numbers: Vec<NativeEditorLineNumber>,
     delimiter_match: Option<NativeEditorDelimiterMatch>,
     syntax_spans: Vec<NativeEditorSyntaxSpan>,
+    selection_matches: Vec<NativeEditorRange>,
+    reveal_highlight: Option<NativeEditorRange>,
+    drop_cursor: Option<NativeEditorCursorState>,
+    primary_caret: Option<NativeEditorCursorState>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -71,6 +75,13 @@ struct NativeEditorViewportAnchor {
 #[serde(rename_all = "camelCase")]
 struct NativeEditorLineNumber {
     line: u32,
+    from: usize,
+    to: usize,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct NativeEditorRange {
     from: usize,
     to: usize,
 }
@@ -235,6 +246,10 @@ fn build_document_state(
         line_numbers,
         delimiter_match,
         syntax_spans,
+        selection_matches: Vec::new(),
+        reveal_highlight: None,
+        drop_cursor: None,
+        primary_caret: Some(build_cursor_state(document.primary_cursor())),
     }
 }
 

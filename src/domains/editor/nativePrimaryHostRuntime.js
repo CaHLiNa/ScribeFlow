@@ -122,6 +122,39 @@ export function buildNativePrimarySelectionBlocks({
     .filter(Boolean)
 }
 
+export function buildNativePrimaryRangeBlocks({
+  text = '',
+  lineNumbers = [],
+  ranges = [],
+  layout = NATIVE_PRIMARY_LAYOUT,
+  measureTextWidth = () => 0,
+} = {}) {
+  const normalized = String(text || '')
+  return Array.isArray(ranges)
+    ? ranges.flatMap((range, rangeIndex) => {
+        const selection = buildNativePrimarySelectionPayload({
+          text: normalized,
+          anchor: range?.from ?? 0,
+          head: range?.to ?? range?.from ?? 0,
+        })
+        if (!selection.hasSelection) return []
+        return lineNumbers
+          .map((line, lineIndex) =>
+            buildSelectionBlockForLine({
+              line,
+              lineIndex,
+              text: normalized,
+              selection,
+              layout,
+              measureTextWidth,
+              blockPrefix: `${rangeIndex}`,
+            })
+          )
+          .filter(Boolean)
+      })
+    : []
+}
+
 export function buildNativePrimaryCaretVisual({
   text = '',
   lineNumbers = [],
@@ -208,6 +241,7 @@ function buildSelectionBlockForLine({
   selection,
   layout,
   measureTextWidth,
+  blockPrefix = '',
 }) {
   const lineFrom = Number(line?.from || 0)
   const lineTo = Number(line?.to || lineFrom)
@@ -228,7 +262,7 @@ function buildSelectionBlockForLine({
   )
 
   return {
-    key: `${lineIndex}:${from}:${to}`,
+    key: `${blockPrefix}:${lineIndex}:${from}:${to}`,
     left,
     top: layout.paddingTop + lineIndex * layout.lineHeight,
     width,

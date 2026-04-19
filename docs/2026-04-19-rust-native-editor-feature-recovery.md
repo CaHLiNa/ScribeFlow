@@ -119,6 +119,7 @@ Rust 第一版最少应提供这些 token / semantic coverage：
 - 可见文本、行号、caret 与 selection 已不再由系统 `textarea` 负责绘制
 - `textarea` 仅保留为隐藏输入桥，用于键盘输入与 IME 接缝
 - host 几何、selection block、caret 布局与命中测试已下沉到 `src/domains/editor/nativePrimaryHostRuntime.js`
+- pointer selection request / plan、selection-match、reveal highlight 与 drop-cursor 已继续收进 Rust runtime snapshot 链
 
 - [ ] **步骤 4：恢复 gutter rendering**
 

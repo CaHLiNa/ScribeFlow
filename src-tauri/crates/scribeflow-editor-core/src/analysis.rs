@@ -11,6 +11,13 @@ pub struct EditorLineNumber {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct EditorTextRange {
+    pub from: usize,
+    pub to: usize,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EditorSyntaxSpan {
     pub from: usize,
     pub to: usize,
@@ -173,6 +180,86 @@ pub fn build_syntax_spans(text: &str) -> Vec<EditorSyntaxSpan> {
     }
 
     spans
+}
+
+pub fn select_word_range(text: &str, offset: usize) -> SelectionRange {
+    let safe_offset = offset.min(text.len());
+    if text.is_empty() {
+        return SelectionRange::collapsed(0);
+    }
+
+    let pivot = if safe_offset < text.len() {
+        safe_offset
+    } else {
+        safe_offset.saturating_sub(1)
+    };
+
+    let character = text[pivot..].chars().next().unwrap_or_default();
+    if !is_word_like_selection_char(character) {
+        return SelectionRange::new(pivot, (pivot + character.len_utf8()).min(text.len()));
+    }
+
+    let mut start = pivot;
+    let mut end = pivot + character.len_utf8();
+
+    while let Some(previous_index) = prev_char_start(text, start) {
+        let Some(previous) = text[previous_index..start].chars().next() else {
+            break;
+        };
+        if !is_word_like_selection_char(previous) {
+            break;
+        }
+        start = previous_index;
+    }
+
+    while end < text.len() {
+        let Some(next) = text[end..].chars().next() else {
+            break;
+        };
+        if !is_word_like_selection_char(next) {
+            break;
+        }
+        end += next.len_utf8();
+    }
+
+    SelectionRange::new(start, end)
+}
+
+pub fn find_selection_matches(
+    text: &str,
+    selection: SelectionRange,
+    max_matches: usize,
+) -> Vec<EditorTextRange> {
+    let safe_selection = selection.clamp(text.len());
+    let from = safe_selection.start();
+    let to = safe_selection.end();
+    if from == to {
+      return Vec::new();
+    }
+    let selected = &text[from..to];
+    if selected.trim().is_empty() || selected.chars().count() < 2 || max_matches == 0 {
+        return Vec::new();
+    }
+
+    let mut matches = Vec::new();
+    let mut search_from = 0_usize;
+
+    while search_from < text.len() && matches.len() < max_matches {
+        let Some(found_index) = text[search_from..].find(selected) else {
+            break;
+        };
+        let absolute_from = search_from + found_index;
+        let absolute_to = absolute_from + selected.len();
+        if absolute_from != from || absolute_to != to {
+            matches.push(EditorTextRange {
+                from: absolute_from,
+                to: absolute_to,
+            });
+        }
+        search_from = absolute_to.max(search_from + 1);
+    }
+
+    matches
 }
 
 pub fn find_delimiter_match(text: &str, selection: SelectionRange) -> Option<EditorDelimiterMatch> {
@@ -634,6 +721,10 @@ fn is_word_like(character: char) -> bool {
     character.is_alphanumeric() || character == '_'
 }
 
+fn is_word_like_selection_char(character: char) -> bool {
+    character.is_alphanumeric() || matches!(character, '_' | '-')
+}
+
 fn matching_closer(character: char) -> Option<char> {
     match character {
         '(' => Some(')'),
@@ -749,5 +840,25 @@ mod tests {
         let quote_plan = plan_character_input("cant", SelectionRange::collapsed(3), '\'');
         assert_eq!(quote_plan.mode, EditorCharacterInputMode::Insert);
         assert_eq!(quote_plan.transaction.edits[0], TextEdit::new(3..3, "'"));
+    }
+
+    #[test]
+    fn selects_word_range_from_offset() {
+        let text = "alpha-beta gamma";
+        assert_eq!(select_word_range(text, 2), SelectionRange::new(0, 10));
+        assert_eq!(select_word_range(text, 12), SelectionRange::new(11, 16));
+    }
+
+    #[test]
+    fn finds_selection_matches_except_current_range() {
+        let text = "beta alpha beta beta";
+        let matches = find_selection_matches(text, SelectionRange::new(11, 15), 10);
+        assert_eq!(
+            matches,
+            vec![
+                EditorTextRange { from: 0, to: 4 },
+                EditorTextRange { from: 16, to: 20 },
+            ]
+        );
     }
 }

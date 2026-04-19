@@ -204,6 +204,49 @@ export async function planNativeEditorCharacterInput({
   })
 }
 
+export async function planNativeEditorPointerSelection({
+  path = '',
+  offset = 0,
+  anchor = null,
+  mode = 'set',
+} = {}) {
+  requireTauriInvoke()
+  return invoke('native_editor_plan_pointer_selection', {
+    request: {
+      path: String(path || ''),
+      offset: Number(offset || 0),
+      anchor: anchor === null || anchor === undefined ? null : Number(anchor || 0),
+      mode: String(mode || 'set'),
+    },
+  })
+}
+
+export async function setNativeEditorRevealHighlight({ path = '', range = null } = {}) {
+  requireTauriInvoke()
+  return invoke('native_editor_set_reveal_highlight', {
+    request: {
+      path: String(path || ''),
+      range:
+        range && typeof range === 'object'
+          ? {
+              from: Number(range?.from || 0),
+              to: Number(range?.to || 0),
+            }
+          : null,
+    },
+  })
+}
+
+export async function setNativeEditorDropCursor({ path = '', offset = null } = {}) {
+  requireTauriInvoke()
+  return invoke('native_editor_set_drop_cursor', {
+    request: {
+      path: String(path || ''),
+      offset: offset === null || offset === undefined ? null : Number(offset || 0),
+    },
+  })
+}
+
 export async function getNativeEditorSessionState() {
   requireTauriInvoke()
   return invoke('native_editor_session_state')

@@ -4,17 +4,21 @@ import { PRIMARY_TEXT_SURFACE_TARGETS } from '../domains/editor/primaryTextSurfa
 import {
   applyNativeEditorTransaction,
   applyNativeEditorExternalContent,
+  getNativeEditorDocumentState,
   inspectNativeEditorInteractionContext,
   listenToNativeEditorEvents,
   nativeEditorBridgeAvailable,
   openNativeEditorDocument,
   planNativeEditorCharacterInput,
+  planNativeEditorPointerSelection,
   recordNativeEditorWorkflowEvent,
   replaceNativeEditorDocumentText,
   planNativeEditorCitationReplacement,
   planNativeEditorFileDropInsertion,
+  setNativeEditorDropCursor,
   setNativeEditorDiagnostics,
   setNativeEditorOutlineContext,
+  setNativeEditorRevealHighlight,
   setNativeEditorSelections,
   startNativeEditorSession,
   stopNativeEditorSession,
@@ -102,6 +106,24 @@ function normalizeNativeDelimiterMatch(text = '', delimiterMatch = null) {
   }
 }
 
+function normalizeNativeRanges(text = '', ranges = []) {
+  return Array.isArray(ranges)
+    ? ranges.map((range) => ({
+        from: utf8OffsetToJsOffset(text, range?.from ?? 0),
+        to: utf8OffsetToJsOffset(text, range?.to ?? 0),
+      }))
+    : []
+}
+
+function normalizeNativeCursor(text = '', cursor = null) {
+  if (!cursor || typeof cursor !== 'object') return null
+  return {
+    offset: utf8OffsetToJsOffset(text, cursor?.offset ?? 0),
+    line: Number(cursor?.line || 0),
+    column: Number(cursor?.column || 0),
+  }
+}
+
 function readStoredJson(key, fallback) {
   try {
     const raw = localStorage.getItem(key)
@@ -128,6 +150,63 @@ function stableTextFingerprint(value = '') {
     hash = Math.imul(hash, 16777619)
   }
   return `${text.length}:${(hash >>> 0).toString(16)}`
+}
+
+function normalizeNativeDocumentEntry(entry = {}, fallback = {}) {
+  const text =
+    typeof entry?.text === 'string'
+      ? entry.text
+      : typeof fallback?.text === 'string'
+        ? fallback.text
+        : ''
+  return {
+    path: String(entry?.path || fallback?.path || '').trim(),
+    textLength: Number(entry?.textLength || text.length || fallback?.textLength || 0),
+    version: Number(entry?.version || fallback?.version || 0),
+    text,
+    textPreview:
+      typeof entry?.textPreview === 'string'
+        ? entry.textPreview
+        : text.length > 240
+          ? `${text.slice(0, 240)}\n…`
+          : text,
+    selections: Array.isArray(entry?.selections) ? entry.selections : fallback?.selections || [],
+    cursor:
+      entry?.cursor != null ? normalizeNativeCursor(text, entry.cursor) : fallback?.cursor || null,
+    viewport: entry?.viewport || fallback?.viewport || null,
+    diagnostics: Array.isArray(entry?.diagnostics) ? entry.diagnostics : fallback?.diagnostics || [],
+    outlineContext: entry?.outlineContext ?? fallback?.outlineContext ?? null,
+    lastWorkflowEvent: entry?.lastWorkflowEvent ?? fallback?.lastWorkflowEvent ?? null,
+    lineNumbers:
+      Array.isArray(entry?.lineNumbers)
+        ? normalizeNativeLineNumbers(text, entry.lineNumbers)
+        : fallback?.lineNumbers || [],
+    delimiterMatch:
+      entry?.delimiterMatch != null
+        ? normalizeNativeDelimiterMatch(text, entry.delimiterMatch)
+        : fallback?.delimiterMatch || null,
+    syntaxSpans:
+      Array.isArray(entry?.syntaxSpans)
+        ? normalizeNativeSyntaxSpans(text, entry.syntaxSpans)
+        : fallback?.syntaxSpans || [],
+    selectionMatches:
+      Array.isArray(entry?.selectionMatches)
+        ? normalizeNativeRanges(text, entry.selectionMatches)
+        : fallback?.selectionMatches || [],
+    revealHighlight:
+      entry?.revealHighlight != null
+        ? normalizeNativeRanges(text, [entry.revealHighlight])[0] || null
+        : fallback?.revealHighlight || null,
+    dropCursor:
+      entry?.dropCursor != null
+        ? normalizeNativeCursor(text, entry.dropCursor)
+        : fallback?.dropCursor || null,
+    primaryCaret:
+      entry?.primaryCaret != null
+        ? normalizeNativeCursor(text, entry.primaryCaret)
+        : fallback?.primaryCaret || null,
+    reason: String(entry?.reason || fallback?.reason || '').trim(),
+  }
 }
 
 export const useEditorRuntimeStore = defineStore('editorRuntime', {
@@ -336,43 +415,14 @@ export const useEditorRuntimeStore = defineStore('editorRuntime', {
         }
         this.nativeDocuments = {
           ...this.nativeDocuments,
-          [path]: {
-            path,
-            textLength: Number(payload?.textLength || 0),
-            version: Number(payload?.version || this.nativeDocuments[path]?.version || 0),
-            text: nextText,
-            textPreview:
-              typeof payload?.text === 'string'
-                ? payload.text.length > 240
-                  ? `${payload.text.slice(0, 240)}\n…`
-                  : payload.text
-                : this.nativeDocuments[path]?.textPreview || '',
-            selections: Array.isArray(payload?.selections)
-              ? payload.selections
-              : this.nativeDocuments[path]?.selections || [],
-            cursor: payload?.cursor || this.nativeDocuments[path]?.cursor || null,
-            viewport: payload?.viewport || this.nativeDocuments[path]?.viewport || null,
-            diagnostics: Array.isArray(payload?.diagnostics)
-              ? payload.diagnostics
-              : this.nativeDocuments[path]?.diagnostics || [],
-            outlineContext:
-              payload?.outlineContext ?? this.nativeDocuments[path]?.outlineContext ?? null,
-            lastWorkflowEvent:
-              payload?.lastWorkflowEvent ?? this.nativeDocuments[path]?.lastWorkflowEvent ?? null,
-            lineNumbers:
-              Array.isArray(payload?.lineNumbers)
-                ? normalizeNativeLineNumbers(nextText, payload.lineNumbers)
-                : this.nativeDocuments[path]?.lineNumbers || [],
-            delimiterMatch:
-              payload?.delimiterMatch != null
-                ? normalizeNativeDelimiterMatch(nextText, payload.delimiterMatch)
-                : this.nativeDocuments[path]?.delimiterMatch || null,
-            syntaxSpans:
-              Array.isArray(payload?.syntaxSpans)
-                ? normalizeNativeSyntaxSpans(nextText, payload.syntaxSpans)
-                : this.nativeDocuments[path]?.syntaxSpans || [],
-            reason: String(payload?.reason || '').trim(),
-          },
+          [path]: normalizeNativeDocumentEntry(
+            {
+              ...payload,
+              path,
+              text: nextText,
+            },
+            this.nativeDocuments[path] || {}
+          ),
         }
         return
       }
@@ -382,24 +432,7 @@ export const useEditorRuntimeStore = defineStore('editorRuntime', {
         for (const entry of Array.isArray(payload?.openDocuments) ? payload.openDocuments : []) {
           const path = String(entry?.path || '').trim()
           if (!path) continue
-          const nextText = String(this.nativeDocuments[path]?.text || '')
-          nextDocuments[path] = {
-            path,
-            textLength: Number(entry?.textLength || 0),
-            version: Number(entry?.version || 0),
-            text: nextText,
-            textPreview: String(entry?.textPreview || ''),
-            selections: Array.isArray(entry?.selections) ? entry.selections : [],
-            cursor: entry?.cursor || null,
-            viewport: entry?.viewport || null,
-            diagnostics: Array.isArray(entry?.diagnostics) ? entry.diagnostics : [],
-            outlineContext: entry?.outlineContext ?? null,
-            lastWorkflowEvent: entry?.lastWorkflowEvent ?? null,
-            lineNumbers: normalizeNativeLineNumbers(nextText, entry?.lineNumbers || []),
-            delimiterMatch: normalizeNativeDelimiterMatch(nextText, entry?.delimiterMatch ?? null),
-            syntaxSpans: normalizeNativeSyntaxSpans(nextText, entry?.syntaxSpans || []),
-            reason: this.nativeDocuments[path]?.reason || '',
-          }
+          nextDocuments[path] = normalizeNativeDocumentEntry(entry, this.nativeDocuments[path] || {})
         }
         this.nativeDocuments = nextDocuments
         return
@@ -534,6 +567,25 @@ export const useEditorRuntimeStore = defineStore('editorRuntime', {
       return snapshot
     },
 
+    async refreshNativeDocumentState({ path = '' } = {}) {
+      if (!nativeEditorBridgeAvailable()) return null
+      const normalizedPath = String(path || '').trim()
+      if (!normalizedPath) return null
+      await this.startNativeSession()
+      const snapshot = await getNativeEditorDocumentState({
+        path: normalizedPath,
+      })
+      if (!snapshot) return null
+      this.nativeDocuments = {
+        ...this.nativeDocuments,
+        [normalizedPath]: normalizeNativeDocumentEntry(
+          snapshot,
+          this.nativeDocuments[normalizedPath] || {}
+        ),
+      }
+      return this.nativeDocuments[normalizedPath]
+    },
+
     async syncShadowDocument({ path = '', text = '' } = {}) {
       if (!this.wantsNativeRuntime || !nativeEditorBridgeAvailable()) return null
       const normalizedPath = String(path || '').trim()
@@ -565,6 +617,8 @@ export const useEditorRuntimeStore = defineStore('editorRuntime', {
         })
       }
 
+      await this.refreshNativeDocumentState({ path: normalizedPath })
+
       return snapshot
     },
 
@@ -591,6 +645,7 @@ export const useEditorRuntimeStore = defineStore('editorRuntime', {
           text,
         })
       }
+      await this.refreshNativeDocumentState({ path: normalizedPath })
       return true
     },
 
@@ -612,6 +667,7 @@ export const useEditorRuntimeStore = defineStore('editorRuntime', {
             }))
           : [],
       })
+      await this.refreshNativeDocumentState({ path: normalizedPath })
       return true
     },
 
@@ -636,6 +692,7 @@ export const useEditorRuntimeStore = defineStore('editorRuntime', {
             ? null
             : jsOffsetToUtf8Offset(currentText, viewportOffset),
       })
+      await this.refreshNativeDocumentState({ path: normalizedPath })
       return true
     },
 
@@ -731,7 +788,68 @@ export const useEditorRuntimeStore = defineStore('editorRuntime', {
               head: utf8OffsetToJsOffset(currentText, nextSelection?.head ?? 0),
             }))
           : [],
+        primaryCaret:
+          plan?.primaryCaret != null ? normalizeNativeCursor(currentText, plan.primaryCaret) : null,
       }
+    },
+
+    async planNativePointerSelection({ path = '', offset = 0, anchor = null, mode = 'set' } = {}) {
+      if (!nativeEditorBridgeAvailable()) return null
+      const normalizedPath = String(path || '').trim()
+      if (!normalizedPath) return null
+      await this.startNativeSession()
+      const currentText = String(this.nativeDocuments[normalizedPath]?.text ?? '')
+      const plan = await planNativeEditorPointerSelection({
+        path: normalizedPath,
+        offset: jsOffsetToUtf8Offset(currentText, offset),
+        anchor: anchor === null || anchor === undefined ? null : jsOffsetToUtf8Offset(currentText, anchor),
+        mode,
+      })
+      if (!plan) return null
+      return {
+        selections: Array.isArray(plan?.selections)
+          ? plan.selections.map((selection) => ({
+              anchor: utf8OffsetToJsOffset(currentText, selection?.anchor ?? 0),
+              head: utf8OffsetToJsOffset(currentText, selection?.head ?? 0),
+            }))
+          : [],
+        primaryCaret:
+          plan?.primaryCaret != null ? normalizeNativeCursor(currentText, plan.primaryCaret) : null,
+      }
+    },
+
+    async setNativeRevealHighlight({ path = '', range = null } = {}) {
+      if (!nativeEditorBridgeAvailable()) return false
+      const normalizedPath = String(path || '').trim()
+      if (!normalizedPath) return false
+      await this.startNativeSession()
+      const currentText = String(this.nativeDocuments[normalizedPath]?.text ?? '')
+      await setNativeEditorRevealHighlight({
+        path: normalizedPath,
+        range:
+          range && typeof range === 'object'
+            ? {
+                from: jsOffsetToUtf8Offset(currentText, range?.from ?? 0),
+                to: jsOffsetToUtf8Offset(currentText, range?.to ?? 0),
+              }
+            : null,
+      })
+      await this.refreshNativeDocumentState({ path: normalizedPath })
+      return true
+    },
+
+    async setNativeDropCursor({ path = '', offset = null } = {}) {
+      if (!nativeEditorBridgeAvailable()) return false
+      const normalizedPath = String(path || '').trim()
+      if (!normalizedPath) return false
+      await this.startNativeSession()
+      const currentText = String(this.nativeDocuments[normalizedPath]?.text ?? '')
+      await setNativeEditorDropCursor({
+        path: normalizedPath,
+        offset: offset === null || offset === undefined ? null : jsOffsetToUtf8Offset(currentText, offset),
+      })
+      await this.refreshNativeDocumentState({ path: normalizedPath })
+      return true
     },
 
     async setNativeDiagnostics({ path = '', diagnostics = [] } = {}) {
