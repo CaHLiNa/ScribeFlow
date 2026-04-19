@@ -487,12 +487,26 @@ fn parse_openai_sse_line(line: &str) -> Vec<RuntimeProviderEvent> {
                 if let Some(arguments) = tool_call
                     .get("function")
                     .and_then(|value| value.get("arguments"))
-                    .and_then(|value| value.as_str())
                 {
-                    events.push(RuntimeProviderEvent::ToolCallDelta {
-                        tool_call_id: tool_call_id.clone(),
-                        arguments_delta: arguments.to_string(),
-                    });
+                    match arguments {
+                        Value::String(arguments) if !arguments.is_empty() => {
+                            events.push(RuntimeProviderEvent::ToolCallDelta {
+                                tool_call_id: tool_call_id.clone(),
+                                arguments_delta: arguments.to_string(),
+                            });
+                        }
+                        Value::Object(_) | Value::Array(_) => {
+                            if let Ok(serialized) = serde_json::to_string(arguments) {
+                                if !serialized.is_empty() {
+                                    events.push(RuntimeProviderEvent::ToolCallDelta {
+                                        tool_call_id: tool_call_id.clone(),
+                                        arguments_delta: serialized,
+                                    });
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
                 }
             }
         }
@@ -1615,6 +1629,45 @@ pub async fn abort_running_turn_task(turn_id: &str) -> bool {
         return true;
     }
     false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_openai_sse_line_supports_object_arguments() {
+        let line = serde_json::to_string(&json!({
+            "choices": [{
+                "delta": {
+                    "tool_calls": [{
+                        "index": 0,
+                        "function": {
+                            "name": "exec_command",
+                            "arguments": {
+                                "cmd": "touch notes.md",
+                                "yield_time_ms": 1000
+                            }
+                        }
+                    }]
+                }
+            }]
+        }))
+        .expect("serialize sse");
+
+        let events = parse_openai_sse_line(&line);
+        assert!(matches!(
+            events.first(),
+            Some(RuntimeProviderEvent::ToolCallStart { tool_call_id, tool_name })
+                if tool_call_id == "idx:0" && tool_name == "exec_command"
+        ));
+        assert!(matches!(
+            events.get(1),
+            Some(RuntimeProviderEvent::ToolCallDelta { tool_call_id, arguments_delta })
+                if tool_call_id == "idx:0"
+                    && arguments_delta.contains("\"cmd\":\"touch notes.md\"")
+        ));
+    }
 }
 
 pub async fn run_turn<R: Runtime>(
