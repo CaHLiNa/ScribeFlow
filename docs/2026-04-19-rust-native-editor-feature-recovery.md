@@ -52,6 +52,7 @@
 
 ### Domain 与 host 侧
 
+- `src/domains/editor/nativePrimaryHostRuntime.js`
 - `src/domains/editor/nativePrimarySurfaceRuntime.js`
 - `src/components/editor/NativePrimaryTextSurface.vue`
 - `src/components/editor/EditorContextMenu.vue`
@@ -69,7 +70,7 @@
 
 ## 任务 1：重建 Rust-Native 呈现层基础能力
 
-**状态：** 待处理
+**状态：** 进行中（Markdown 基础 host 已切到自绘 DOM 面）
 
 **目标：** 恢复在移除 CodeMirror 渲染后消失的视觉与编辑反馈能力。
 
@@ -102,7 +103,7 @@ Rust 第一版最少应提供这些 token / semantic coverage：
 - comment（如适用）
 - citation 与 wikilink semantic span
 
-- [ ] **步骤 3：在不重新引入 CodeMirror 的前提下补一层 Vue host rendering**
+- [x] **步骤 3：在不重新引入 CodeMirror 的前提下补一层 Vue host rendering**
 
 `NativePrimaryTextSurface.vue` 应基于 Rust 提供的 presentation span 渲染视觉文本层。
 
@@ -112,6 +113,12 @@ Rust 第一版最少应提供这些 token / semantic coverage：
 - wiki-link 与 citation 的 semantic decoration class
 - active-line 视觉状态
 - 与当前 editor chrome 一致的 selection 与 reveal 视觉反馈
+
+当前实现说明：
+
+- 可见文本、行号、caret 与 selection 已不再由系统 `textarea` 负责绘制
+- `textarea` 仅保留为隐藏输入桥，用于键盘输入与 IME 接缝
+- host 几何、selection block、caret 布局与命中测试已下沉到 `src/domains/editor/nativePrimaryHostRuntime.js`
 
 - [ ] **步骤 4：恢复 gutter rendering**
 
