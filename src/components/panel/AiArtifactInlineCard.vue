@@ -69,7 +69,9 @@ const preview = computed(() => {
   if (!props.artifact) return ''
   return String(
     props.artifact.replacementText
+      || props.artifact.citationSuggestion
       || props.artifact.content
+      || summarizeReferenceUpdates(props.artifact.updates)
       || props.artifact.rationale
       || ''
   ).trim()
@@ -83,8 +85,18 @@ const artifactTypeLabel = computed(() => {
   if (!props.artifact?.type) return ''
   if (props.artifact.type === 'doc_patch') return t('Document patch')
   if (props.artifact.type === 'note_draft') return t('Note draft')
+  if (props.artifact.type === 'citation_insert') return t('Citation insert')
+  if (props.artifact.type === 'reference_patch') return t('Reference update')
   return props.artifact.type
 })
+
+function summarizeReferenceUpdates(updates = null) {
+  if (!updates || typeof updates !== 'object') return ''
+  return Object.entries(updates)
+    .filter(([, value]) => String(value ?? '').trim())
+    .map(([key, value]) => `${key}: ${value}`)
+    .join('\n')
+}
 </script>
 
 <style scoped>

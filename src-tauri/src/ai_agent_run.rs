@@ -329,6 +329,83 @@ fn build_doc_patch_artifact(payload: &Value, context_bundle: &Value) -> Option<V
     }))
 }
 
+fn build_citation_insert_artifact(payload: &Value, context_bundle: &Value) -> Option<Value> {
+    let document = context_bundle.get("document").unwrap_or(&Value::Null);
+    let selection = context_bundle.get("selection").unwrap_or(&Value::Null);
+    let reference = context_bundle.get("reference").unwrap_or(&Value::Null);
+    if !bool_available(document) || !bool_available(selection) || !bool_available(reference) {
+        return None;
+    }
+
+    let file_path = string_field(document, &["filePath", "file_path"]);
+    let insert_at = selection.get("to").and_then(Value::as_i64).unwrap_or(-1);
+    let reference_id = string_field(reference, &["id"]);
+    let citation_key = string_field(reference, &["citationKey", "citation_key"]);
+    if file_path.is_empty() || insert_at < 0 || (reference_id.is_empty() && citation_key.is_empty())
+    {
+        return None;
+    }
+    let title = {
+        let title = string_field(payload, &["title"]);
+        if title.is_empty() {
+            "Insert citation".to_string()
+        } else {
+            title
+        }
+    };
+
+    Some(json!({
+        "type": "citation_insert",
+        "capabilityToolId": "apply-document-patch",
+        "capabilityLabelKey": "Insert citation",
+        "title": title,
+        "filePath": file_path,
+        "insertAt": insert_at,
+        "referenceId": reference_id,
+        "citationKey": citation_key,
+        "selectionPreview": string_field(selection, &["preview", "text"]),
+        "citationSuggestion": string_field(payload, &["citation_suggestion"]),
+        "rationale": string_field(payload, &["rationale"]),
+    }))
+}
+
+fn build_reference_patch_artifact(payload: &Value, context_bundle: &Value) -> Option<Value> {
+    let reference = context_bundle.get("reference").unwrap_or(&Value::Null);
+    if !bool_available(reference) {
+        return None;
+    }
+    let updates = payload
+        .get("reference_updates")
+        .filter(|value| value.is_object())
+        .cloned()
+        .unwrap_or(Value::Null);
+    if !updates.is_object() {
+        return None;
+    }
+    let reference_id = string_field(reference, &["id"]);
+    if reference_id.is_empty() {
+        return None;
+    }
+    let title = {
+        let title = string_field(payload, &["title"]);
+        if title.is_empty() {
+            "Reference update".to_string()
+        } else {
+            title
+        }
+    };
+    Some(json!({
+        "type": "reference_patch",
+        "capabilityLabelKey": "Apply reference update",
+        "title": title,
+        "referenceId": reference_id,
+        "citationKey": string_field(reference, &["citationKey", "citation_key"]),
+        "referenceTitle": string_field(reference, &["title"]),
+        "updates": updates,
+        "rationale": string_field(payload, &["rationale"]),
+    }))
+}
+
 fn build_note_draft_artifact(payload: &Value, context_bundle: &Value) -> Option<Value> {
     let content = string_field(
         payload,
@@ -380,7 +457,8 @@ fn normalize_artifact(behavior_id: &str, payload: &Value, context_bundle: &Value
             }
         }
         "summarize-selection" => build_note_draft_artifact(payload, context_bundle),
-        "find-supporting-references" => None,
+        "find-supporting-references" => build_reference_patch_artifact(payload, context_bundle)
+            .or_else(|| build_citation_insert_artifact(payload, context_bundle)),
         _ => None,
     }
 }

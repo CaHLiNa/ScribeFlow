@@ -141,17 +141,29 @@ function getAiArtifactCapability(artifact = null) {
   const type = String(artifact?.type || '').trim()
   const toolId = String(artifact?.capabilityToolId || '').trim()
   const labelKey = String(artifact?.capabilityLabelKey || '').trim()
-  if (!type || !toolId) return null
+  if (!type) return null
+  if (type === 'reference_patch') {
+    return {
+      artifactType: type,
+      toolId: '',
+      labelKey: labelKey || 'Apply reference update',
+      localOnly: true,
+    }
+  }
+  if (!toolId) return null
   return {
     artifactType: type,
     toolId,
     labelKey,
+    localOnly: false,
   }
 }
 
 function canApplyAiArtifact(artifact = null, enabledToolIds = []) {
   const capability = getAiArtifactCapability(artifact)
-  return !!capability && Array.isArray(enabledToolIds) && enabledToolIds.includes(capability.toolId)
+  if (!capability) return false
+  if (capability.localOnly) return true
+  return Array.isArray(enabledToolIds) && enabledToolIds.includes(capability.toolId)
 }
 
 const messageText = computed(() => extractAiMessageText(props.message))

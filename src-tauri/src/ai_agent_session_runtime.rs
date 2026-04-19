@@ -351,6 +351,34 @@ fn artifact_preview(artifact: &Value) -> String {
     match string_field(artifact, &["type"]).as_str() {
         "doc_patch" => preview_text(&string_field(artifact, &["replacementText"]), 180),
         "note_draft" => preview_text(&string_field(artifact, &["content"]), 180),
+        "citation_insert" => preview_text(
+            &[
+                string_field(artifact, &["citationKey"]),
+                string_field(artifact, &["citationSuggestion"]),
+                string_field(artifact, &["rationale"]),
+            ]
+            .into_iter()
+            .filter(|entry| !entry.is_empty())
+            .collect::<Vec<_>>()
+            .join(" · "),
+            180,
+        ),
+        "reference_patch" => preview_text(
+            &artifact
+                .get("updates")
+                .and_then(Value::as_object)
+                .map(|entries| {
+                    entries
+                        .iter()
+                        .map(|(key, value)| {
+                            format!("{key}: {}", value.as_str().unwrap_or_default())
+                        })
+                        .collect::<Vec<_>>()
+                        .join(" · ")
+                })
+                .unwrap_or_default(),
+            180,
+        ),
         _ => preview_text(
             &{
                 let content = string_field(artifact, &["content", "rationale"]);
@@ -431,8 +459,27 @@ fn build_assistant_message(
     let artifact_type = string_field(artifact, &["type"]);
     let main_text = if artifact_type == "doc_patch" {
         string_field(artifact, &["replacementText"])
+    } else if artifact_type == "citation_insert" {
+        let suggestion = string_field(artifact, &["citationSuggestion"]);
+        if suggestion.is_empty() {
+            string_field(artifact, &["citationKey"])
+        } else {
+            suggestion
+        }
     } else if artifact_type == "note_draft" {
         string_field(artifact, &["content"])
+    } else if artifact_type == "reference_patch" {
+        artifact
+            .get("updates")
+            .and_then(Value::as_object)
+            .map(|entries| {
+                entries
+                    .iter()
+                    .map(|(key, value)| format!("{key}: {}", value.as_str().unwrap_or_default()))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            })
+            .unwrap_or_default()
     } else {
         let text = string_field(artifact, &["content"]);
         if !text.is_empty() {

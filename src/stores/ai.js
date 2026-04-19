@@ -1774,7 +1774,7 @@ export const useAiStore = defineStore('ai', {
         }
 
         let applied = false
-        if (artifact.type === 'doc_patch') {
+        if (artifact.type === 'doc_patch' || artifact.type === 'citation_insert') {
           let currentContent = ''
           const editorRuntime = editorStore.getAnyEditorRuntime?.(artifact.filePath)
             || editorStore.getAnyEditorView(artifact.filePath)
@@ -1786,12 +1786,31 @@ export const useAiStore = defineStore('ai', {
             currentContent = await filesStore.readFile(artifact.filePath)
           }
 
-          const response = await invoke('ai_artifact_apply_doc_patch', {
-            params: {
-              content: currentContent,
-              artifact,
-            },
-          })
+          const response = artifact.type === 'citation_insert'
+            ? await (async () => {
+              const referencesStore = useReferencesStore()
+              const reference = referencesStore.getByKey(artifact.referenceId || artifact.citationKey)
+              if (!reference?.id) {
+                throw new Error(t('Failed to apply AI artifact.'))
+              }
+              const citationText = await referencesStore.formatReferenceCitationAsync(
+                reference.id,
+                'inline'
+              )
+              return invoke('ai_artifact_apply_citation_insert', {
+                params: {
+                  content: currentContent,
+                  artifact,
+                  citationText,
+                },
+              })
+            })()
+            : await invoke('ai_artifact_apply_doc_patch', {
+              params: {
+                content: currentContent,
+                artifact,
+              },
+            })
           const nextContent = String(response?.content || '')
           const saved = await filesStore.saveFile(artifact.filePath, nextContent)
           if (!saved) {
@@ -1802,7 +1821,26 @@ export const useAiStore = defineStore('ai', {
           }
           editorStore.clearFileDirty(artifact.filePath)
           artifact.status = 'applied'
-          toastStore.show(t('AI patch applied to the active document.'), { type: 'success' })
+          toastStore.show(
+            artifact.type === 'citation_insert'
+              ? t('Citation inserted into the active document.')
+              : t('AI patch applied to the active document.'),
+            { type: 'success' }
+          )
+          applied = true
+        } else if (artifact.type === 'reference_patch') {
+          const referencesStore = useReferencesStore()
+          const referenceId = String(artifact.referenceId || '').trim()
+          const updates = artifact.updates && typeof artifact.updates === 'object' ? artifact.updates : null
+          if (!referenceId || !updates) {
+            throw new Error(t('Failed to apply AI artifact.'))
+          }
+          const updated = await referencesStore.updateReference(currentWorkspacePath(), referenceId, updates)
+          if (!updated) {
+            throw new Error(t('Failed to apply AI artifact.'))
+          }
+          artifact.status = 'applied'
+          toastStore.show(t('Reference updated from AI artifact.'), { type: 'success' })
           applied = true
         } else if (artifact.type === 'note_draft') {
           const draftPath = filesStore.createDraftFile({

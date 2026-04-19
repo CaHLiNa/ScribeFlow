@@ -463,6 +463,7 @@ pub fn run() {
             ai_agent_prepare::ai_agent_prepare_current_config,
             ai_agent_run::ai_agent_run_prepared_session,
             ai_artifact_runtime::ai_artifact_apply_doc_patch,
+            ai_artifact_runtime::ai_artifact_apply_citation_insert,
             ai_attachment_runtime::ai_attachment_create,
             ai_client_session_runtime::ai_client_session_create,
             ai_client_session_runtime::ai_client_session_ensure_thread,
