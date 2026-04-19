@@ -1871,6 +1871,7 @@ export const useAiStore = defineStore('ai', {
             reference,
             references: referencesStore.references,
             citationStyle: referencesStore.citationStyle,
+            filePath: editorStore.activeTab || '',
           }).catch(() => null))?.verification || null
           toastStore.show(t('Reference updated from AI artifact.'), { type: 'success' })
           applied = true

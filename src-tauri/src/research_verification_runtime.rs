@@ -2,10 +2,13 @@ use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::Value;
+use tauri::{AppHandle, State};
 use uuid::Uuid;
 
+use crate::latex::{compile_latex, LatexState};
 use crate::references_citation::{references_citation_render, CitationRenderParams};
 use crate::references_import::{references_export_bibtex, ReferenceBibtexExportParams};
+use crate::references_runtime::{references_write_bib_file, ReferenceBibFileParams};
 use crate::research_task_protocol::ResearchTaskUpdateParams;
 use crate::research_task_runtime::research_task_update;
 use crate::research_verification_protocol::{
@@ -318,6 +321,104 @@ async fn build_verification_record(
     }
 }
 
+fn mark_verification_failed(
+    verification: &mut ResearchVerificationRecord,
+    message: String,
+    extra_details: Vec<String>,
+) {
+    verification.status = "failed".to_string();
+    verification.summary = message.clone();
+    verification.blocking = true;
+    verification.details.extend(extra_details);
+}
+
+fn is_latex_path(path: &str) -> bool {
+    let normalized = trim(path).to_lowercase();
+    normalized.ends_with(".tex") || normalized.ends_with(".latex")
+}
+
+async fn verify_bibliography_and_compile(
+    app: AppHandle,
+    latex_state: State<'_, LatexState>,
+    params: &ResearchVerificationRunParams,
+    verification: &mut ResearchVerificationRecord,
+) {
+    let file_path = trim(&params.file_path);
+    if !is_latex_path(&file_path) {
+        return;
+    }
+
+    let references = normalize_reference_list(&params.references);
+    if references.is_empty() {
+        mark_verification_failed(
+            verification,
+            "LaTeX workflow verification failed.".to_string(),
+            vec!["No references were supplied for bibliography verification.".to_string()],
+        );
+        return;
+    }
+
+    match references_write_bib_file(ReferenceBibFileParams {
+        tex_path: file_path.clone(),
+        references: references.clone(),
+    })
+    .await
+    {
+        Ok(bib_path) => {
+            verification
+                .details
+                .push(format!("Bibliography file written: {bib_path}"));
+        }
+        Err(error) => {
+            mark_verification_failed(
+                verification,
+                "LaTeX workflow verification failed.".to_string(),
+                vec![format!("Failed to write bibliography file: {error}")],
+            );
+            return;
+        }
+    }
+
+    match compile_latex(
+        app,
+        latex_state,
+        file_path.clone(),
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+    )
+    .await
+    {
+        Ok(result) if result.success => {
+            verification
+                .details
+                .push("LaTeX compile verification succeeded.".to_string());
+        }
+        Ok(result) => {
+            let message = result
+                .errors
+                .first()
+                .map(|entry| entry.message.clone())
+                .unwrap_or_else(|| "LaTeX compile verification failed.".to_string());
+            mark_verification_failed(
+                verification,
+                "LaTeX workflow verification failed.".to_string(),
+                vec![message],
+            );
+        }
+        Err(error) => {
+            mark_verification_failed(
+                verification,
+                "LaTeX workflow verification failed.".to_string(),
+                vec![format!("Failed to run LaTeX compile verification: {error}")],
+            );
+        }
+    }
+}
+
 pub(crate) fn list_research_verifications_for_task(
     workspace_path: &str,
     task_id: &str,
@@ -337,6 +438,8 @@ pub(crate) fn list_research_verifications_for_task(
 
 #[tauri::command]
 pub async fn research_verification_run(
+    app: AppHandle,
+    latex_state: State<'_, LatexState>,
     params: ResearchVerificationRunParams,
 ) -> Result<ResearchVerificationRunResponse, String> {
     let normalized_workspace_path = trim(&params.workspace_path);
@@ -344,7 +447,10 @@ pub async fn research_verification_run(
         return Err("Workspace path is required for research verification.".to_string());
     }
     let mut verifications = load_workspace_verifications(&normalized_workspace_path)?;
-    let verification = build_verification_record(&params).await;
+    let mut verification = build_verification_record(&params).await;
+    if verification.status == "verified" {
+        verify_bibliography_and_compile(app, latex_state, &params, &mut verification).await;
+    }
     verifications.push(verification.clone());
     verifications.sort_by(|left, right| right.updated_at.cmp(&left.updated_at));
     persist_workspace_verifications(&normalized_workspace_path, &verifications)?;
