@@ -64,10 +64,9 @@ const activeSection = computed(() => normalizeSettingsSectionId(workspace.settin
   min-height: 0;
   overflow: hidden;
   padding: 28px 14px 18px 10px;
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--panel-surface) 28%, transparent) 0%,
-    color-mix(in srgb, var(--panel-surface) 14%, transparent) 100%
+  background: var(
+    --sidebar-shell-surface,
+    color-mix(in srgb, var(--panel-surface) 56%, transparent)
   );
   box-shadow: none;
   backdrop-filter: blur(var(--sidebar-shell-blur, 18px))
@@ -116,12 +115,12 @@ const activeSection = computed(() => normalizeSettingsSectionId(workspace.settin
 }
 
 .settings-sidebar-item:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--surface-hover) 16%, transparent);
+  background: color-mix(in srgb, var(--sidebar-item-hover) 92%, transparent);
   border-color: transparent !important;
 }
 
 .settings-sidebar-item.is-active {
-  background: color-mix(in srgb, var(--surface-hover) 24%, transparent);
+  background: color-mix(in srgb, var(--sidebar-item-active) 96%, transparent);
   border-color: transparent !important;
   box-shadow: none !important;
   color: var(--text-primary);

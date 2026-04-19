@@ -280,13 +280,14 @@ async function listAiProviderModels(providerId = 'openai', providerConfig = {}, 
   const response = await invoke('ai_provider_models_list', {
     providerId,
     providerConfig,
-    apiKey,
+    apiKey: normalizeAiApiKey(apiKey),
   })
   return Array.isArray(response?.options) ? response.options : []
 }
 
 async function loadAiApiKey(providerId = 'openai') {
-  return invoke('ai_provider_api_key_load', { providerId })
+  const apiKey = await invoke('ai_provider_api_key_load', { providerId })
+  return normalizeAiApiKey(apiKey)
 }
 
 async function loadAiConfig() {
@@ -298,7 +299,10 @@ async function saveAiConfig(config = null) {
 }
 
 async function storeAiApiKey(providerId = 'openai', apiKey = '') {
-  return invoke('ai_provider_api_key_store', { providerId, apiKey })
+  return invoke('ai_provider_api_key_store', {
+    providerId,
+    apiKey: normalizeAiApiKey(apiKey),
+  })
 }
 
 async function clearAiApiKey(providerId = 'openai') {
@@ -309,8 +313,12 @@ async function testAiProviderConnection(providerId = 'openai', providerConfig = 
   return invoke('ai_provider_connection_test', {
     providerId,
     providerConfig,
-    apiKey,
+    apiKey: normalizeAiApiKey(apiKey),
   })
+}
+
+function normalizeAiApiKey(apiKey = '') {
+  return typeof apiKey === 'string' ? apiKey : String(apiKey ?? '')
 }
 
 const providerDefinitions = ref([])
