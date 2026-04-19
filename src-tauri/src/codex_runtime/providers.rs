@@ -47,6 +47,7 @@ fn normalize_openai_base_url(base_url: &str) -> String {
         .trim()
         .trim_end_matches('/')
         .trim_end_matches("/chat/completions")
+        .trim_end_matches("/responses")
         .to_string()
 }
 
@@ -181,6 +182,12 @@ pub(crate) enum RuntimeProviderEvent {
         tool_call_key: String,
         arguments_delta: String,
     },
+    ToolCallDone {
+        tool_call_key: String,
+        tool_call_id: String,
+        tool_name: String,
+        arguments: String,
+    },
     StopReason(String),
 }
 
@@ -189,6 +196,35 @@ pub(crate) struct PendingToolCall {
     pub(crate) id: String,
     pub(crate) name: String,
     pub(crate) arguments: String,
+}
+
+fn openai_message_item(role: &str, content: &str) -> Value {
+    let normalized_role = if role == "assistant" {
+        "assistant"
+    } else {
+        "user"
+    };
+    let content_type = if normalized_role == "assistant" {
+        "output_text"
+    } else {
+        "input_text"
+    };
+    json!({
+        "type": "message",
+        "role": normalized_role,
+        "content": [{
+            "type": content_type,
+            "text": content,
+        }],
+    })
+}
+
+fn serialize_tool_call_arguments(arguments: &Value) -> Result<String, String> {
+    match arguments {
+        Value::String(value) => Ok(value.clone()),
+        _ => serde_json::to_string(arguments)
+            .map_err(|error| format!("Failed to serialize tool call arguments: {error}")),
+    }
 }
 
 pub(crate) fn build_provider_request(
@@ -213,7 +249,7 @@ pub(crate) fn build_provider_request(
             encoded_api_key
         ),
         _ => format!(
-            "{}/chat/completions",
+            "{}/responses",
             normalize_openai_base_url(&provider.base_url)
         ),
     };
@@ -331,47 +367,35 @@ pub(crate) fn build_provider_request(
                 .map_err(|error| format!("Failed to serialize Google payload: {error}"))?
         }
         _ => {
-            let mut messages = history
+            let mut input = history
                 .iter()
-                .map(|(role, content)| {
-                    json!({
-                        "role": role,
-                        "content": content,
-                    })
-                })
+                .map(|(role, content)| openai_message_item(role, content))
                 .collect::<Vec<_>>();
-            messages.push(json!({
-                "role": "user",
-                "content": user_text,
-            }));
+            input.push(openai_message_item("user", user_text));
             for message in continuation_messages {
                 match message {
                     RuntimeContinuationMessage::Assistant {
                         content,
                         tool_calls,
                     } => {
-                        messages.push(json!({
-                            "role": "assistant",
-                            "content": Value::String(content.clone()),
-                            "tool_calls": tool_calls
-                                .iter()
-                                .map(|tool_call| json!({
-                                    "id": tool_call.id,
-                                    "type": "function",
-                                    "function": {
-                                        "name": tool_call.name,
-                                        "arguments": tool_call.arguments,
-                                    }
-                                }))
-                                .collect::<Vec<_>>(),
-                        }));
+                        if !content.trim().is_empty() {
+                            input.push(openai_message_item("assistant", content));
+                        }
+                        for tool_call in tool_calls {
+                            input.push(json!({
+                                "type": "function_call",
+                                "call_id": tool_call.id,
+                                "name": tool_call.name,
+                                "arguments": serialize_tool_call_arguments(&tool_call.arguments)?,
+                            }));
+                        }
                     }
                     RuntimeContinuationMessage::ToolResults { results } => {
                         for result in compact_tool_results_for_continuation(results) {
-                            messages.push(json!({
-                                "role": "tool",
-                                "content": result.content,
-                                "tool_call_id": result.tool_call_id,
+                            input.push(json!({
+                                "type": "function_call_output",
+                                "call_id": result.tool_call_id,
+                                "output": result.content,
                             }));
                         }
                     }
@@ -380,10 +404,12 @@ pub(crate) fn build_provider_request(
 
             let mut payload = json!({
                 "model": provider.model.trim(),
-                "messages": messages,
+                "input": input,
                 "stream": true,
-                "temperature": provider.temperature.unwrap_or(0.2),
             });
+            if let Some(temperature) = provider.temperature {
+                payload["temperature"] = json!(temperature);
+            }
             if !tool_definitions.is_empty() {
                 payload["tools"] = Value::Array(
                     tool_definitions
@@ -402,12 +428,7 @@ pub(crate) fn build_provider_request(
                 );
             }
             if !provider.system_prompt.trim().is_empty() {
-                let mut system_messages = vec![json!({
-                    "role": "system",
-                    "content": provider.system_prompt.trim(),
-                })];
-                system_messages.extend(payload["messages"].as_array().cloned().unwrap_or_default());
-                payload["messages"] = Value::Array(system_messages);
+                payload["instructions"] = Value::String(provider.system_prompt.trim().to_string());
             }
             serde_json::to_string(&payload)
                 .map_err(|error| format!("Failed to serialize OpenAI payload: {error}"))?
@@ -488,89 +509,74 @@ fn parse_openai_sse_line(line: &str) -> Vec<RuntimeProviderEvent> {
         return vec![];
     };
     let mut events = Vec::new();
-    if let Some(delta) = parsed
-        .get("choices")
-        .and_then(|choices| choices.get(0))
-        .and_then(|choice| choice.get("delta"))
+    match parsed
+        .get("type")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
     {
-        if let Some(text) = delta.get("content").and_then(|value| value.as_str()) {
-            if !text.is_empty() {
-                events.push(RuntimeProviderEvent::AssistantDelta(text.to_string()));
-            }
-        }
-        if let Some(text) = delta
-            .get("reasoning_content")
-            .and_then(|value| value.as_str())
-        {
-            if !text.is_empty() {
-                events.push(RuntimeProviderEvent::ReasoningDelta(text.to_string()));
-            }
-        }
-        if let Some(tool_calls) = delta.get("tool_calls").and_then(|value| value.as_array()) {
-            for tool_call in tool_calls {
-                let tool_call_key = tool_call
-                    .get("index")
-                    .and_then(Value::as_i64)
-                    .map(|index| format!("idx:{index}"))
-                    .or_else(|| {
-                        tool_call
-                            .get("id")
-                            .and_then(|value| value.as_str())
-                            .map(str::to_string)
-                    })
-                    .unwrap_or_default();
-                let tool_call_id = tool_call
-                    .get("id")
-                    .and_then(|value| value.as_str())
-                    .map(str::to_string)
-                    .unwrap_or_default();
-                if let Some(name) = tool_call
-                    .get("function")
-                    .and_then(|value| value.get("name"))
-                    .and_then(|value| value.as_str())
-                {
-                    events.push(RuntimeProviderEvent::ToolCallStart {
-                        tool_call_key: tool_call_key.clone(),
-                        tool_call_id: tool_call_id.clone(),
-                        tool_name: name.to_string(),
-                    });
+        "response.output_text.delta" => {
+            if let Some(delta) = parsed.get("delta").and_then(Value::as_str) {
+                if !delta.is_empty() {
+                    events.push(RuntimeProviderEvent::AssistantDelta(delta.to_string()));
                 }
-                if let Some(arguments) = tool_call
-                    .get("function")
-                    .and_then(|value| value.get("arguments"))
-                {
-                    match arguments {
-                        Value::String(arguments) if !arguments.is_empty() => {
-                            events.push(RuntimeProviderEvent::ToolCallDelta {
-                                tool_call_key: tool_call_key.clone(),
-                                arguments_delta: arguments.to_string(),
-                            });
-                        }
-                        Value::Object(_) | Value::Array(_) => {
-                            if let Ok(serialized) = serde_json::to_string(arguments) {
-                                if !serialized.is_empty() {
-                                    events.push(RuntimeProviderEvent::ToolCallDelta {
-                                        tool_call_key: tool_call_key.clone(),
-                                        arguments_delta: serialized,
-                                    });
-                                }
-                            }
-                        }
-                        _ => {}
+            }
+        }
+        "response.reasoning_text.delta" | "response.reasoning_summary_text.delta" => {
+            if let Some(delta) = parsed.get("delta").and_then(Value::as_str) {
+                if !delta.is_empty() {
+                    events.push(RuntimeProviderEvent::ReasoningDelta(delta.to_string()));
+                }
+            }
+        }
+        "response.output_item.done" => {
+            if let Some(item) = parsed.get("item") {
+                if item.get("type").and_then(Value::as_str) == Some("function_call") {
+                    let tool_call_id = item
+                        .get("call_id")
+                        .and_then(Value::as_str)
+                        .unwrap_or_default()
+                        .to_string();
+                    let tool_call_key = if tool_call_id.trim().is_empty() {
+                        item.get("id")
+                            .and_then(Value::as_str)
+                            .unwrap_or_default()
+                            .to_string()
+                    } else {
+                        tool_call_id.clone()
+                    };
+                    let tool_name = item
+                        .get("name")
+                        .and_then(Value::as_str)
+                        .unwrap_or_default()
+                        .to_string();
+                    let arguments = match item.get("arguments") {
+                        Some(Value::String(value)) => value.to_string(),
+                        Some(Value::Object(_)) | Some(Value::Array(_)) => item
+                            .get("arguments")
+                            .and_then(|value| serde_json::to_string(value).ok())
+                            .unwrap_or_else(|| "{}".to_string()),
+                        _ => "{}".to_string(),
+                    };
+                    if !tool_name.trim().is_empty() {
+                        events.push(RuntimeProviderEvent::ToolCallDone {
+                            tool_call_key,
+                            tool_call_id,
+                            tool_name,
+                            arguments,
+                        });
                     }
                 }
             }
         }
-    }
-    if let Some(finish_reason) = parsed
-        .get("choices")
-        .and_then(|choices| choices.get(0))
-        .and_then(|choice| choice.get("finish_reason"))
-        .and_then(|value| value.as_str())
-    {
-        if !finish_reason.is_empty() {
-            events.push(RuntimeProviderEvent::StopReason(finish_reason.to_string()));
+        "response.completed" => {
+            events.push(RuntimeProviderEvent::StopReason("completed".to_string()));
         }
+        "response.failed" | "response.incomplete" => {
+            if let Some(kind) = parsed.get("type").and_then(Value::as_str) {
+                events.push(RuntimeProviderEvent::StopReason(kind.to_string()));
+            }
+        }
+        _ => {}
     }
     events
 }
@@ -704,6 +710,26 @@ pub(crate) fn collect_pending_tool_calls(
             arguments: serde_json::from_str(&tool_call.arguments).unwrap_or_else(|_| json!({})),
         })
         .collect()
+}
+
+pub(crate) fn should_continue_with_tools(
+    provider_id: &str,
+    tool_calls: &[RuntimeToolCall],
+    stop_reason: &str,
+    workspace_path: &str,
+) -> bool {
+    if tool_calls.is_empty() || workspace_path.trim().is_empty() {
+        return false;
+    }
+
+    if provider_id != "anthropic" && provider_id != "google" {
+        return true;
+    }
+
+    matches!(
+        stop_reason,
+        "tool_calls" | "tool_use" | "TOOL_CALL" | "STOP_REASON_TOOL_CALL"
+    )
 }
 
 fn runtime_tool_status(status: TurnStatus) -> &'static str {
@@ -1693,67 +1719,128 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parse_openai_sse_line_supports_object_arguments() {
+    fn build_provider_request_uses_responses_api_for_openai() {
+        let provider = RuntimeProviderConfig {
+            provider_id: "openai".to_string(),
+            base_url: "https://api.openai.com/v1/chat/completions".to_string(),
+            api_key: "sk-test".to_string(),
+            model: "gpt-5".to_string(),
+            system_prompt: "system prompt".to_string(),
+            temperature: Some(0.2),
+            max_tokens: None,
+        };
+        let history = vec![
+            ("user".to_string(), "U1".to_string()),
+            ("assistant".to_string(), "A1".to_string()),
+        ];
+        let continuation_messages = vec![
+            RuntimeContinuationMessage::Assistant {
+                content: "commentary".to_string(),
+                tool_calls: vec![RuntimeToolCall {
+                    id: "call_1".to_string(),
+                    name: "exec_command".to_string(),
+                    arguments: json!({ "cmd": "pwd" }),
+                }],
+            },
+            RuntimeContinuationMessage::ToolResults {
+                results: vec![RuntimeToolResult {
+                    tool_call_id: "call_1".to_string(),
+                    content: "{\"ok\":true}".to_string(),
+                    is_error: false,
+                }],
+            },
+        ];
+
+        let (url, _, body) =
+            build_provider_request(&provider, &history, "U2", &[], &continuation_messages)
+                .expect("build request");
+        let payload: Value = serde_json::from_str(&body).expect("parse payload");
+
+        assert_eq!(url.as_str(), "https://api.openai.com/v1/responses");
+        assert_eq!(
+            payload["instructions"],
+            Value::String("system prompt".to_string())
+        );
+        assert_eq!(
+            payload["input"][0]["role"],
+            Value::String("user".to_string())
+        );
+        assert_eq!(
+            payload["input"][0]["content"][0]["type"],
+            Value::String("input_text".to_string())
+        );
+        assert_eq!(
+            payload["input"][1]["role"],
+            Value::String("assistant".to_string())
+        );
+        assert_eq!(
+            payload["input"][1]["content"][0]["type"],
+            Value::String("output_text".to_string())
+        );
+        assert_eq!(
+            payload["input"][2]["role"],
+            Value::String("user".to_string())
+        );
+        assert_eq!(
+            payload["input"][3]["role"],
+            Value::String("assistant".to_string())
+        );
+        assert_eq!(
+            payload["input"][4]["type"],
+            Value::String("function_call".to_string())
+        );
+        assert_eq!(
+            payload["input"][5]["type"],
+            Value::String("function_call_output".to_string())
+        );
+    }
+
+    #[test]
+    fn parse_openai_sse_line_reads_responses_function_call_item() {
         let line = serde_json::to_string(&json!({
-            "choices": [{
-                "delta": {
-                    "tool_calls": [{
-                        "index": 0,
-                        "function": {
-                            "name": "exec_command",
-                            "arguments": {
-                                "cmd": "touch notes.md",
-                                "yield_time_ms": 1000
-                            }
-                        }
-                    }]
-                }
-            }]
+            "type": "response.output_item.done",
+            "item": {
+                "type": "function_call",
+                "call_id": "call_real_123",
+                "name": "exec_command",
+                "arguments": "{\"cmd\":\"touch notes.md\",\"yield_time_ms\":1000}"
+            }
         }))
         .expect("serialize sse");
 
         let events = parse_openai_sse_line(&line);
         assert!(matches!(
             events.first(),
-            Some(RuntimeProviderEvent::ToolCallStart { tool_call_key, tool_call_id, tool_name })
-                if tool_call_key == "idx:0" && tool_call_id.is_empty() && tool_name == "exec_command"
-        ));
-        assert!(matches!(
-            events.get(1),
-            Some(RuntimeProviderEvent::ToolCallDelta { tool_call_key, arguments_delta })
-                if tool_call_key == "idx:0"
-                    && arguments_delta.contains("\"cmd\":\"touch notes.md\"")
+            Some(RuntimeProviderEvent::ToolCallDone { tool_call_key, tool_call_id, tool_name, arguments })
+                if tool_call_key == "call_real_123"
+                    && tool_call_id == "call_real_123"
+                    && tool_name == "exec_command"
+                    && arguments.contains("\"cmd\":\"touch notes.md\"")
         ));
     }
 
     #[test]
-    fn parse_openai_sse_line_keeps_index_key_and_real_call_id() {
+    fn parse_openai_sse_line_reads_text_and_reasoning_deltas() {
         let line = serde_json::to_string(&json!({
-            "choices": [{
-                "delta": {
-                    "tool_calls": [{
-                        "id": "call_real_123",
-                        "index": 0,
-                        "function": {
-                            "name": "exec_command",
-                            "arguments": "{\"cmd\":\"touch notes.md\"}"
-                        }
-                    }]
-                }
-            }]
+            "type": "response.output_text.delta",
+            "delta": "hello"
+        }))
+        .expect("serialize sse");
+        let reasoning_line = serde_json::to_string(&json!({
+            "type": "response.reasoning_text.delta",
+            "delta": "think"
         }))
         .expect("serialize sse");
 
         let events = parse_openai_sse_line(&line);
+        let reasoning_events = parse_openai_sse_line(&reasoning_line);
         assert!(matches!(
             events.first(),
-            Some(RuntimeProviderEvent::ToolCallStart { tool_call_key, tool_call_id, tool_name })
-                if tool_call_key == "idx:0" && tool_call_id == "call_real_123" && tool_name == "exec_command"
+            Some(RuntimeProviderEvent::AssistantDelta(delta)) if delta == "hello"
         ));
         assert!(matches!(
-            events.get(1),
-            Some(RuntimeProviderEvent::ToolCallDelta { tool_call_key, arguments_delta })
-                if tool_call_key == "idx:0" && arguments_delta.contains("\"cmd\":\"touch notes.md\"")
+            reasoning_events.first(),
+            Some(RuntimeProviderEvent::ReasoningDelta(delta)) if delta == "think"
         ));
     }
 
@@ -1776,6 +1863,28 @@ mod tests {
             tool_calls[0].arguments["cmd"],
             Value::String("touch notes.md".to_string())
         );
+    }
+
+    #[test]
+    fn should_continue_with_tools_for_openai_without_tool_stop_reason() {
+        let tool_calls = vec![RuntimeToolCall {
+            id: "call_1".to_string(),
+            name: "exec_command".to_string(),
+            arguments: json!({ "cmd": "pwd" }),
+        }];
+
+        assert!(should_continue_with_tools(
+            "openai",
+            &tool_calls,
+            "completed",
+            "/tmp/workspace",
+        ));
+        assert!(!should_continue_with_tools(
+            "anthropic",
+            &tool_calls,
+            "completed",
+            "/tmp/workspace",
+        ));
     }
 }
 
@@ -2115,6 +2224,26 @@ pub async fn run_turn<R: Runtime>(
                                     tool_call.arguments.push_str(&arguments_delta);
                                 }
                             }
+                            RuntimeProviderEvent::ToolCallDone {
+                                tool_call_key,
+                                tool_call_id,
+                                tool_name,
+                                arguments,
+                            } => {
+                                let resolved_key = if tool_call_key.trim().is_empty() {
+                                    tool_call_id.clone()
+                                } else {
+                                    tool_call_key.clone()
+                                };
+                                pending_tool_calls.insert(
+                                    resolved_key,
+                                    PendingToolCall {
+                                        id: tool_call_id,
+                                        name: tool_name,
+                                        arguments,
+                                    },
+                                );
+                            }
                             RuntimeProviderEvent::StopReason(reason) => {
                                 stop_reason = reason;
                             }
@@ -2124,12 +2253,12 @@ pub async fn run_turn<R: Runtime>(
             }
 
             let tool_calls = collect_pending_tool_calls(&pending_tool_calls);
-            let should_continue_with_tools = !tool_calls.is_empty()
-                && matches!(
-                    stop_reason.as_str(),
-                    "tool_calls" | "tool_use" | "TOOL_CALL" | "STOP_REASON_TOOL_CALL"
-                )
-                && !workspace_path.trim().is_empty();
+            let should_continue_with_tools = should_continue_with_tools(
+                &provider_id,
+                &tool_calls,
+                &stop_reason,
+                &workspace_path,
+            );
 
             if should_continue_with_tools {
                 let tool_results = execute_runtime_tool_calls_with_approvals(

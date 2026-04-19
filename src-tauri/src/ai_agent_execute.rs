@@ -7,8 +7,8 @@ use std::time::Duration;
 
 use crate::ai_skill_support::load_skill_supporting_files;
 use crate::codex_runtime::providers::{
-    build_provider_request, collect_pending_tool_calls, parse_sse_line, PendingToolCall,
-    RuntimeContinuationMessage, RuntimeProviderEvent, MAX_TOOL_ROUNDS,
+    build_provider_request, collect_pending_tool_calls, parse_sse_line, should_continue_with_tools,
+    PendingToolCall, RuntimeContinuationMessage, RuntimeProviderEvent, MAX_TOOL_ROUNDS,
 };
 use crate::codex_runtime::tools::{
     execute_runtime_tool_calls_with_context, resolve_runtime_tool_definitions_with_context,
@@ -348,6 +348,26 @@ pub async fn ai_agent_execute(
                                 tool_call.arguments.push_str(&arguments_delta);
                             }
                         }
+                        RuntimeProviderEvent::ToolCallDone {
+                            tool_call_key,
+                            tool_call_id,
+                            tool_name,
+                            arguments,
+                        } => {
+                            let resolved_key = if tool_call_key.trim().is_empty() {
+                                tool_call_id.clone()
+                            } else {
+                                tool_call_key.clone()
+                            };
+                            pending_tool_calls.insert(
+                                resolved_key,
+                                PendingToolCall {
+                                    id: tool_call_id,
+                                    name: tool_name,
+                                    arguments,
+                                },
+                            );
+                        }
                         RuntimeProviderEvent::StopReason(reason) => {
                             stop_reason = reason;
                         }
@@ -361,12 +381,12 @@ pub async fn ai_agent_execute(
             final_reasoning = reasoning_text.clone();
         }
         let tool_calls = collect_pending_tool_calls(&pending_tool_calls);
-        let should_continue_with_tools = !tool_calls.is_empty()
-            && matches!(
-                stop_reason.as_str(),
-                "tool_calls" | "tool_use" | "TOOL_CALL" | "STOP_REASON_TOOL_CALL"
-            )
-            && !params.workspace_path.trim().is_empty();
+        let should_continue_with_tools = should_continue_with_tools(
+            &provider_id,
+            &tool_calls,
+            &stop_reason,
+            &params.workspace_path,
+        );
 
         if should_continue_with_tools {
             let tool_results = execute_runtime_tool_calls_with_context(

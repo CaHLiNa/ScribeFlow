@@ -217,26 +217,51 @@ pub async fn proxy_ai_chat_completion(
     let mut base_url = validate_ai_base_url(&request.base_url)?;
     let current_path = base_url.path().trim_end_matches('/').to_string();
     let next_path = if current_path.is_empty() {
-        "/chat/completions".to_string()
+        "/responses".to_string()
     } else {
-        format!("{current_path}/chat/completions")
+        format!("{current_path}/responses")
     };
     base_url.set_path(&next_path);
+
+    let input = request
+        .messages
+        .iter()
+        .map(|message| {
+            let role = if message.role.trim() == "assistant" {
+                "assistant"
+            } else {
+                "user"
+            };
+            let content_type = if role == "assistant" {
+                "output_text"
+            } else {
+                "input_text"
+            };
+            json!({
+                "type": "message",
+                "role": role,
+                "content": [{
+                    "type": content_type,
+                    "text": message.content,
+                }],
+            })
+        })
+        .collect::<Vec<_>>();
 
     let body = if request.response_format_json.unwrap_or(false) {
         json!({
             "model": request.model,
-            "messages": request.messages,
+            "input": input,
             "temperature": request.temperature.unwrap_or(0.2),
-            "max_tokens": request.max_tokens.unwrap_or(1400),
-            "response_format": { "type": "json_object" },
+            "max_output_tokens": request.max_tokens.unwrap_or(1400),
+            "text": { "format": { "type": "json_object" } },
         })
     } else {
         json!({
             "model": request.model,
-            "messages": request.messages,
+            "input": input,
             "temperature": request.temperature.unwrap_or(0.2),
-            "max_tokens": request.max_tokens.unwrap_or(1400),
+            "max_output_tokens": request.max_tokens.unwrap_or(1400),
         })
     };
 

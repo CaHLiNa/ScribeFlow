@@ -23,9 +23,11 @@ fn provider_definition_payload(definition: ProviderDefinition) -> Value {
 
 fn normalize_openai_base_url(base_url: &str) -> String {
     let mut normalized = normalize_base_url(base_url);
-    let suffix = "/chat/completions";
-    if normalized.to_lowercase().ends_with(suffix) {
-        normalized.truncate(normalized.len() - suffix.len());
+    for suffix in ["/chat/completions", "/responses"] {
+        if normalized.to_lowercase().ends_with(suffix) {
+            normalized.truncate(normalized.len() - suffix.len());
+            break;
+        }
     }
     normalized
 }
