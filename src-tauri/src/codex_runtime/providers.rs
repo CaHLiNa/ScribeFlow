@@ -22,9 +22,9 @@ use super::tools::{
     build_apply_patch_result, build_exec_command_result, execute_prepared_apply_patch,
     execute_prepared_exec_command, execute_prepared_write_stdin,
     execute_runtime_tool_call_with_context, is_apply_patch_tool_call, is_exec_command_tool_call,
-    is_write_stdin_tool_call, prepare_apply_patch_tool_call, prepare_exec_command_tool_call,
-    prepare_write_stdin_tool_call, resolve_runtime_tool_definitions_with_context, RuntimeToolCall,
-    RuntimeToolResult,
+    is_write_stdin_tool_call, poll_exec_session_updates, prepare_apply_patch_tool_call,
+    prepare_exec_command_tool_call, prepare_write_stdin_tool_call,
+    resolve_runtime_tool_definitions_with_context, RuntimeToolCall, RuntimeToolResult,
 };
 use super::turns::{build_runtime_item, start_turn};
 
@@ -588,6 +588,52 @@ pub(crate) fn collect_pending_tool_calls(
         .collect()
 }
 
+fn runtime_tool_status(status: TurnStatus) -> &'static str {
+    match status {
+        TurnStatus::Running => "running",
+        TurnStatus::Failed => "error",
+        _ => "done",
+    }
+}
+
+fn tool_call_item_text(tool_call: &RuntimeToolCall) -> String {
+    serde_json::to_string_pretty(&json!({
+        "kind": "toolCall",
+        "toolCallId": tool_call.id,
+        "toolName": tool_call.name,
+        "arguments": tool_call.arguments,
+    }))
+    .unwrap_or_else(|_| format!("{} {}", tool_call.name, tool_call.arguments))
+}
+
+fn parse_tool_result_content(content: &str) -> Value {
+    serde_json::from_str(content).unwrap_or_else(|_| Value::String(content.to_string()))
+}
+
+fn tool_result_item_text(
+    tool_call: &RuntimeToolCall,
+    result: &RuntimeToolResult,
+    status: TurnStatus,
+) -> String {
+    serde_json::to_string_pretty(&json!({
+        "kind": "toolResult",
+        "toolCallId": result.tool_call_id,
+        "toolName": tool_call.name,
+        "status": runtime_tool_status(status),
+        "isError": result.is_error,
+        "result": parse_tool_result_content(&result.content),
+    }))
+    .unwrap_or_else(|_| result.content.clone())
+}
+
+#[derive(Debug, Clone)]
+struct RuntimeToolItemPair {
+    tool_call: RuntimeToolCall,
+    tool_result: RuntimeToolResult,
+    tool_call_item_id: String,
+    tool_result_item_id: String,
+}
+
 async fn apply_item_delta<R: Runtime>(
     app: &AppHandle<R>,
     runtime: &CodexRuntimeHandle,
@@ -631,12 +677,12 @@ async fn append_runtime_tool_items<R: Runtime>(
     turn_id: &str,
     tool_calls: &[RuntimeToolCall],
     tool_results: &[RuntimeToolResult],
-) -> Vec<String> {
+) -> Vec<RuntimeToolItemPair> {
     let mut state = runtime.inner.lock().await;
     let now = chrono::Utc::now().timestamp();
     let thread = state.threads.get(thread_id).cloned();
     let turn = state.turns.get(turn_id).cloned();
-    let mut item_ids = Vec::new();
+    let mut item_pairs = Vec::new();
 
     for tool_call in tool_calls {
         let item = build_runtime_item(
@@ -644,20 +690,19 @@ async fn append_runtime_tool_items<R: Runtime>(
             turn_id,
             ItemKind::ToolCall,
             TurnStatus::Completed,
-            &format!("{} {}", tool_call.name, tool_call.arguments),
+            &tool_call_item_text(tool_call),
             now,
         );
         if let Some(turn_state) = state.turns.get_mut(turn_id) {
             turn_state.item_ids.push(item.id.clone());
         }
         state.items.insert(item.id.clone(), item.clone());
-        item_ids.push(item.id.clone());
         emit_runtime_event(
             app,
             "itemCompleted",
             thread.clone(),
             turn.clone(),
-            Some(item),
+            Some(item.clone()),
             None,
             None,
             None,
@@ -665,32 +710,56 @@ async fn append_runtime_tool_items<R: Runtime>(
             None,
             None,
         );
+        item_pairs.push(RuntimeToolItemPair {
+            tool_call: tool_call.clone(),
+            tool_result: RuntimeToolResult {
+                tool_call_id: tool_call.id.clone(),
+                content: String::new(),
+                is_error: false,
+            },
+            tool_call_item_id: item.id.clone(),
+            tool_result_item_id: String::new(),
+        });
     }
 
-    for result in tool_results {
+    for (index, result) in tool_results.iter().enumerate() {
+        let tool_call = tool_calls.get(index).cloned().unwrap_or(RuntimeToolCall {
+            id: result.tool_call_id.clone(),
+            name: "tool".to_string(),
+            arguments: Value::Null,
+        });
+        let item_status = if result.content.contains("\"sessionId\":")
+            && !result.content.contains("\"sessionId\": null")
+            && !result.content.contains("\"done\": true")
+        {
+            TurnStatus::Running
+        } else if result.is_error {
+            TurnStatus::Failed
+        } else {
+            TurnStatus::Completed
+        };
         let item = build_runtime_item(
             thread_id,
             turn_id,
             ItemKind::ToolResult,
-            if result.is_error {
-                TurnStatus::Failed
-            } else {
-                TurnStatus::Completed
-            },
-            &result.content,
+            item_status.clone(),
+            &tool_result_item_text(&tool_call, result, item_status.clone()),
             now,
         );
         if let Some(turn_state) = state.turns.get_mut(turn_id) {
             turn_state.item_ids.push(item.id.clone());
         }
         state.items.insert(item.id.clone(), item.clone());
-        item_ids.push(item.id.clone());
         emit_runtime_event(
             app,
-            "itemCompleted",
+            if item_status == TurnStatus::Running {
+                "itemDelta"
+            } else {
+                "itemCompleted"
+            },
             thread.clone(),
             turn.clone(),
-            Some(item),
+            Some(item.clone()),
             None,
             None,
             None,
@@ -698,11 +767,172 @@ async fn append_runtime_tool_items<R: Runtime>(
             None,
             None,
         );
+        if let Some(entry) = item_pairs.get_mut(index) {
+            entry.tool_result = result.clone();
+            entry.tool_result_item_id = item.id.clone();
+        } else {
+            item_pairs.push(RuntimeToolItemPair {
+                tool_call,
+                tool_result: result.clone(),
+                tool_call_item_id: String::new(),
+                tool_result_item_id: item.id.clone(),
+            });
+        }
     }
 
     let _ = persist_runtime_state(&state);
 
-    item_ids
+    item_pairs
+}
+
+fn tool_result_is_running(result: &RuntimeToolResult) -> bool {
+    let Ok(parsed) = serde_json::from_str::<Value>(&result.content) else {
+        return false;
+    };
+    parsed
+        .get("sessionId")
+        .map(|value| !value.is_null())
+        .unwrap_or(false)
+        && !parsed.get("done").and_then(Value::as_bool).unwrap_or(false)
+}
+
+async fn update_runtime_item<R: Runtime>(
+    app: &AppHandle<R>,
+    runtime: &CodexRuntimeHandle,
+    thread_id: &str,
+    turn_id: &str,
+    item_id: &str,
+    text: String,
+    status: TurnStatus,
+    event_type: &str,
+) -> Result<(), String> {
+    let mut state = runtime.inner.lock().await;
+    let thread = state.threads.get(thread_id).cloned();
+    let turn = state.turns.get(turn_id).cloned();
+    let Some(item) = state.items.get_mut(item_id) else {
+        return Err(format!("Runtime item not found: {item_id}"));
+    };
+    item.text = text;
+    item.status = status;
+    item.updated_at = chrono::Utc::now().timestamp();
+    let item_snapshot = item.clone();
+    persist_runtime_state(&state)?;
+    emit_runtime_event(
+        app,
+        event_type,
+        thread,
+        turn,
+        Some(item_snapshot),
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+    );
+    Ok(())
+}
+
+fn session_id_from_tool_result(result: &RuntimeToolResult) -> Option<i32> {
+    serde_json::from_str::<Value>(&result.content)
+        .ok()
+        .and_then(|value| value.get("sessionId").and_then(Value::as_i64))
+        .map(|value| value as i32)
+}
+
+fn next_event_index_from_tool_result(result: &RuntimeToolResult) -> usize {
+    serde_json::from_str::<Value>(&result.content)
+        .ok()
+        .and_then(|value| value.get("nextEventIndex").and_then(Value::as_u64))
+        .unwrap_or_default() as usize
+}
+
+fn build_streaming_tool_result_text(
+    tool_call: &RuntimeToolCall,
+    update: &Value,
+) -> Result<String, String> {
+    serde_json::to_string_pretty(&json!({
+        "kind": "toolResult",
+        "toolCallId": tool_call.id,
+        "toolName": tool_call.name,
+        "status": if update.get("done").and_then(Value::as_bool).unwrap_or(false) {
+            if update.get("ok").and_then(Value::as_bool).unwrap_or(false) {
+                "done"
+            } else {
+                "error"
+            }
+        } else {
+            "running"
+        },
+        "isError": !update.get("ok").and_then(Value::as_bool).unwrap_or(false),
+        "result": update,
+    }))
+    .map_err(|error| format!("Failed to serialize streaming tool result: {error}"))
+}
+
+fn spawn_exec_output_stream_task<R: Runtime>(
+    app: &AppHandle<R>,
+    runtime: &CodexRuntimeHandle,
+    thread_id: &str,
+    turn_id: &str,
+    tool_call: &RuntimeToolCall,
+    tool_result_item_id: &str,
+    session_id: i32,
+    from_event_index: usize,
+) {
+    let app = app.clone();
+    let runtime = runtime.clone();
+    let thread_id = thread_id.to_string();
+    let turn_id = turn_id.to_string();
+    let tool_call = tool_call.clone();
+    let tool_result_item_id = tool_result_item_id.to_string();
+    tokio::spawn(async move {
+        let mut cursor = from_event_index;
+        loop {
+            let update = match poll_exec_session_updates(session_id, cursor, 250, 16_000).await {
+                Ok(update) => update,
+                Err(_) => break,
+            };
+            cursor = update
+                .get("nextEventIndex")
+                .and_then(Value::as_u64)
+                .unwrap_or(cursor as u64) as usize;
+
+            let text = match build_streaming_tool_result_text(&tool_call, &update) {
+                Ok(text) => text,
+                Err(_) => break,
+            };
+            let status = if update.get("done").and_then(Value::as_bool).unwrap_or(false) {
+                if update.get("ok").and_then(Value::as_bool).unwrap_or(false) {
+                    TurnStatus::Completed
+                } else {
+                    TurnStatus::Failed
+                }
+            } else {
+                TurnStatus::Running
+            };
+            let event_type = if status == TurnStatus::Running {
+                "itemDelta"
+            } else {
+                "itemCompleted"
+            };
+            let _ = update_runtime_item(
+                &app,
+                &runtime,
+                &thread_id,
+                &turn_id,
+                &tool_result_item_id,
+                text,
+                status.clone(),
+                event_type,
+            )
+            .await;
+
+            if status != TurnStatus::Running {
+                break;
+            }
+        }
+    });
 }
 
 async fn request_runtime_tool_permission<R: Runtime>(
@@ -801,7 +1031,9 @@ async fn execute_runtime_tool_calls_with_approvals<R: Runtime>(
                             "tool": tool_call.name,
                             "error": error,
                         }))
-                        .unwrap_or_else(|_| "{\"error\":\"Failed to serialize tool result.\"}".to_string()),
+                        .unwrap_or_else(|_| {
+                            "{\"error\":\"Failed to serialize tool result.\"}".to_string()
+                        }),
                         is_error: true,
                     });
                     continue;
@@ -842,7 +1074,9 @@ async fn execute_runtime_tool_calls_with_approvals<R: Runtime>(
                             "tool": tool_call.name,
                             "error": error,
                         }))
-                        .unwrap_or_else(|_| "{\"error\":\"Failed to serialize tool result.\"}".to_string()),
+                        .unwrap_or_else(|_| {
+                            "{\"error\":\"Failed to serialize tool result.\"}".to_string()
+                        }),
                         is_error: true,
                     });
                     continue;
@@ -858,7 +1092,9 @@ async fn execute_runtime_tool_calls_with_approvals<R: Runtime>(
                         "tool": tool_call.name,
                         "error": "Patch application was denied by the user.",
                     }))
-                    .unwrap_or_else(|_| "{\"error\":\"Failed to serialize tool result.\"}".to_string()),
+                    .unwrap_or_else(|_| {
+                        "{\"error\":\"Failed to serialize tool result.\"}".to_string()
+                    }),
                     is_error: true,
                 });
                 continue;
@@ -878,7 +1114,9 @@ async fn execute_runtime_tool_calls_with_approvals<R: Runtime>(
                         "tool": tool_call.name,
                         "error": error,
                     }))
-                    .unwrap_or_else(|_| "{\"error\":\"Failed to serialize tool result.\"}".to_string()),
+                    .unwrap_or_else(|_| {
+                        "{\"error\":\"Failed to serialize tool result.\"}".to_string()
+                    }),
                     is_error: true,
                 }),
             }
@@ -895,7 +1133,9 @@ async fn execute_runtime_tool_calls_with_approvals<R: Runtime>(
                             "tool": tool_call.name,
                             "error": error,
                         }))
-                        .unwrap_or_else(|_| "{\"error\":\"Failed to serialize tool result.\"}".to_string()),
+                        .unwrap_or_else(|_| {
+                            "{\"error\":\"Failed to serialize tool result.\"}".to_string()
+                        }),
                         is_error: true,
                     });
                     continue;
@@ -935,7 +1175,9 @@ async fn execute_runtime_tool_calls_with_approvals<R: Runtime>(
                             "tool": tool_call.name,
                             "error": error,
                         }))
-                        .unwrap_or_else(|_| "{\"error\":\"Failed to serialize tool result.\"}".to_string()),
+                        .unwrap_or_else(|_| {
+                            "{\"error\":\"Failed to serialize tool result.\"}".to_string()
+                        }),
                         is_error: true,
                     });
                     continue;
@@ -951,7 +1193,9 @@ async fn execute_runtime_tool_calls_with_approvals<R: Runtime>(
                         "tool": tool_call.name,
                         "error": "Command execution was denied by the user.",
                     }))
-                    .unwrap_or_else(|_| "{\"error\":\"Failed to serialize tool result.\"}".to_string()),
+                    .unwrap_or_else(|_| {
+                        "{\"error\":\"Failed to serialize tool result.\"}".to_string()
+                    }),
                     is_error: true,
                 });
                 continue;
@@ -971,7 +1215,9 @@ async fn execute_runtime_tool_calls_with_approvals<R: Runtime>(
                         "tool": tool_call.name,
                         "error": error,
                     }))
-                    .unwrap_or_else(|_| "{\"error\":\"Failed to serialize tool result.\"}".to_string()),
+                    .unwrap_or_else(|_| {
+                        "{\"error\":\"Failed to serialize tool result.\"}".to_string()
+                    }),
                     is_error: true,
                 }),
             }
@@ -988,7 +1234,9 @@ async fn execute_runtime_tool_calls_with_approvals<R: Runtime>(
                             "tool": tool_call.name,
                             "error": error,
                         }))
-                        .unwrap_or_else(|_| "{\"error\":\"Failed to serialize tool result.\"}".to_string()),
+                        .unwrap_or_else(|_| {
+                            "{\"error\":\"Failed to serialize tool result.\"}".to_string()
+                        }),
                         is_error: true,
                     });
                     continue;
@@ -1009,7 +1257,9 @@ async fn execute_runtime_tool_calls_with_approvals<R: Runtime>(
                         "tool": tool_call.name,
                         "error": error,
                     }))
-                    .unwrap_or_else(|_| "{\"error\":\"Failed to serialize tool result.\"}".to_string()),
+                    .unwrap_or_else(|_| {
+                        "{\"error\":\"Failed to serialize tool result.\"}".to_string()
+                    }),
                     is_error: true,
                 }),
             }
@@ -1051,6 +1301,9 @@ async fn finish_turn_success<R: Runtime>(
     let turn = state.turns.get(turn_id).cloned();
     for item_id in item_ids {
         if let Some(item) = state.items.get_mut(item_id) {
+            if item.kind == ItemKind::ToolResult && item.status == TurnStatus::Running {
+                continue;
+            }
             item.status = TurnStatus::Completed;
             item.updated_at = now;
             emit_runtime_event(
@@ -1500,7 +1753,28 @@ pub async fn run_turn<R: Runtime>(
                     &tool_results,
                 )
                 .await;
-                tracked_item_ids.extend(new_item_ids);
+                for pair in &new_item_ids {
+                    if !pair.tool_call_item_id.is_empty() {
+                        tracked_item_ids.push(pair.tool_call_item_id.clone());
+                    }
+                    if !pair.tool_result_item_id.is_empty() {
+                        tracked_item_ids.push(pair.tool_result_item_id.clone());
+                    }
+                    if tool_result_is_running(&pair.tool_result) {
+                        if let Some(session_id) = session_id_from_tool_result(&pair.tool_result) {
+                            spawn_exec_output_stream_task(
+                                &app_for_task,
+                                &runtime_for_task,
+                                &thread_id,
+                                &turn_id,
+                                &pair.tool_call,
+                                &pair.tool_result_item_id,
+                                session_id,
+                                next_event_index_from_tool_result(&pair.tool_result),
+                            );
+                        }
+                    }
+                }
                 continuation_messages.push(RuntimeContinuationMessage::Assistant {
                     content: assistant_text,
                     tool_calls,

@@ -941,14 +941,32 @@ async fn collect_session_output(
     yield_time_ms: u64,
     max_output_chars: usize,
 ) -> Value {
+    let from_event_index = *session.delivered_event_count.lock().await;
+    let result = collect_session_output_from_index(
+        session,
+        from_event_index,
+        yield_time_ms,
+        max_output_chars,
+    )
+    .await;
+    let next_event_index = result
+        .get("nextEventIndex")
+        .and_then(Value::as_u64)
+        .unwrap_or(from_event_index as u64) as usize;
+    *session.delivered_event_count.lock().await = next_event_index;
+    result
+}
+
+async fn collect_session_output_from_index(
+    session: &Arc<ExecSession>,
+    from_event_index: usize,
+    yield_time_ms: u64,
+    max_output_chars: usize,
+) -> Value {
     let deadline = tokio::time::Instant::now() + Duration::from_millis(yield_time_ms);
     loop {
-        {
-            let event_count = session.events.lock().await.len();
-            let delivered_count = *session.delivered_event_count.lock().await;
-            if event_count > delivered_count || session.done.load(Ordering::Relaxed) {
-                break;
-            }
+        if session.done.load(Ordering::Relaxed) {
+            break;
         }
 
         let now = tokio::time::Instant::now();
@@ -961,17 +979,18 @@ async fn collect_session_output(
         }
     }
 
-    let mut delivered_count = session.delivered_event_count.lock().await;
     let events = session.events.lock().await;
     let next_events = events
         .iter()
-        .skip(*delivered_count)
+        .skip(from_event_index)
         .cloned()
         .collect::<Vec<_>>();
-    *delivered_count = events.len();
+    let next_event_index = events.len();
     let exit_code = *session.exit_code.lock().await;
     let done = session.done.load(Ordering::Relaxed);
     drop(events);
+    let stdout_full = session.stdout.lock().await.clone();
+    let stderr_full = session.stderr.lock().await.clone();
 
     let merged_delta = next_events
         .iter()
@@ -987,21 +1006,26 @@ async fn collect_session_output(
         .filter(|event| event.stream == ExecOutputStream::Stderr)
         .map(|event| event.text.as_str())
         .collect::<String>();
+    let full_output = format!("{stdout_full}{stderr_full}");
     let trimmed_output = preview_text(&merged_delta, max_output_chars);
     let session_id = if done { None } else { Some(session.session_id) };
     json!({
         "ok": exit_code.unwrap_or(0) == 0,
         "sessionId": session_id,
+        "nextEventIndex": next_event_index,
         "output": trimmed_output,
         "stdout": preview_text(&stdout_delta, max_output_chars),
         "stderr": preview_text(&stderr_delta, max_output_chars),
+        "outputFull": preview_text(&full_output, max_output_chars),
+        "stdoutFull": preview_text(&stdout_full, max_output_chars),
+        "stderrFull": preview_text(&stderr_full, max_output_chars),
         "tty": session.tty_active,
         "events": next_events
             .iter()
             .enumerate()
             .map(|(index, event)| {
                 json!({
-                    "eventIndex": *delivered_count - next_events.len() + index,
+                    "eventIndex": from_event_index + index,
                     "stream": event.stream.as_str(),
                     "delta": event.text,
                     "deltaBase64": BASE64_STANDARD.encode(event.text.as_bytes()),
@@ -1089,6 +1113,27 @@ pub(crate) async fn execute_prepared_exec_command(
         exec_sessions().lock().await.remove(&session.session_id);
     }
     Ok(result)
+}
+
+pub(crate) async fn poll_exec_session_updates(
+    session_id: i32,
+    from_event_index: usize,
+    yield_time_ms: u64,
+    max_output_chars: usize,
+) -> Result<Value, String> {
+    let session = exec_sessions()
+        .lock()
+        .await
+        .get(&session_id)
+        .cloned()
+        .ok_or_else(|| format!("Exec session not found: {session_id}"))?;
+    Ok(collect_session_output_from_index(
+        &session,
+        from_event_index,
+        yield_time_ms,
+        max_output_chars,
+    )
+    .await)
 }
 
 pub(crate) async fn execute_prepared_write_stdin(

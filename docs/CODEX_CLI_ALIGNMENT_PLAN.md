@@ -111,5 +111,7 @@
 - 命令输出以结构化 JSON 回传给模型续轮消费
 - `exec_command` 已补充 `tty` 参数，Unix 下优先走系统 PTY 适配
 - 命令输出已补充更细粒度的 `events` 结构，并拆分 `stdout` / `stderr` 增量结果，同时保留兼容性的 `output`
+- runtime snapshot 与 event reducer 已开始把 `ToolCall / ToolResult` 真正映射进 assistant message，而不是只保留在底层 state
+- exec session 的后台输出现在会持续推送到 runtime item，并被前端会话消息实时消费，不再只在 tool result 结束后一次性可见
 
 阶段 1 完成后，ScribeFlow 将从“Codex 风格 skill/runtime 外壳”进入“具备最小执行能力的 Codex 风格 agent runtime”。

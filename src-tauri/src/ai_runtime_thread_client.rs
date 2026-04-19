@@ -110,6 +110,7 @@ fn build_assistant_message(
     turn: &Value,
     assistant_item: Option<&Value>,
     reasoning_item: Option<&Value>,
+    tool_parts: &[Value],
 ) -> Value {
     let assistant_text = assistant_item
         .map(|value| string_field(value, &["text"]))
@@ -127,6 +128,7 @@ fn build_assistant_message(
             "text": reasoning_text,
         }));
     }
+    parts.extend(tool_parts.iter().cloned());
     if !assistant_text.is_empty() {
         parts.push(json!({
             "type": "text",
@@ -165,6 +167,85 @@ fn build_assistant_message(
     })
 }
 
+fn parse_runtime_tool_payload(item: &Value) -> Value {
+    serde_json::from_str(&string_field(item, &["text"])).unwrap_or(Value::Null)
+}
+
+fn tool_status_from_runtime_item(item: &Value, payload: &Value) -> String {
+    let payload_status = string_field(payload, &["status"]);
+    if !payload_status.is_empty() {
+        return payload_status;
+    }
+    match string_field(item, &["status"]).as_str() {
+        "running" => "running".to_string(),
+        "failed" => "error".to_string(),
+        _ => "done".to_string(),
+    }
+}
+
+fn runtime_tool_part_from_item(item: &Value) -> Option<Value> {
+    let kind = string_field(item, &["kind"]);
+    if kind != "toolCall" && kind != "toolResult" {
+        return None;
+    }
+
+    let payload = parse_runtime_tool_payload(item);
+    let tool_name = string_field(&payload, &["toolName"]);
+    let label = if tool_name.is_empty() {
+        if kind == "toolCall" {
+            "tool".to_string()
+        } else {
+            "result".to_string()
+        }
+    } else {
+        tool_name
+    };
+    let detail = if kind == "toolCall" {
+        let args = payload.get("arguments").cloned().unwrap_or(Value::Null);
+        serde_json::to_string_pretty(&args).unwrap_or_default()
+    } else {
+        let result = payload.get("result").cloned().unwrap_or(Value::Null);
+        if let Some(error) = result.get("error").and_then(Value::as_str) {
+            error.to_string()
+        } else if let Some(output) = result.get("outputFull").and_then(Value::as_str) {
+            output.to_string()
+        } else if let Some(output) = result.get("output").and_then(Value::as_str) {
+            output.to_string()
+        } else {
+            String::new()
+        }
+    };
+    let context = if kind == "toolCall" {
+        if let Some(workdir) = payload
+            .get("arguments")
+            .and_then(|args| args.get("workdir"))
+            .and_then(Value::as_str)
+        {
+            workdir.to_string()
+        } else if let Some(path) = payload
+            .get("arguments")
+            .and_then(|args| args.get("path"))
+            .and_then(Value::as_str)
+        {
+            path.to_string()
+        } else {
+            String::new()
+        }
+    } else {
+        String::new()
+    };
+
+    Some(json!({
+        "type": "tool",
+        "toolId": string_field(item, &["id"]),
+        "status": tool_status_from_runtime_item(item, &payload),
+        "label": label,
+        "context": context,
+        "detail": detail,
+        "payload": payload,
+    }))
+}
+
 fn build_session_messages_from_runtime_snapshot(snapshot: &Value) -> Vec<Value> {
     let turns = snapshot
         .get("turns")
@@ -197,17 +278,26 @@ fn build_session_messages_from_runtime_snapshot(snapshot: &Value) -> Vec<Value> 
         let reasoning_item = turn_items
             .iter()
             .find(|item| string_field(item, &["kind"]) == "reasoning");
+        let tool_parts = turn_items
+            .iter()
+            .filter_map(runtime_tool_part_from_item)
+            .collect::<Vec<_>>();
 
         if let Some(user_item) = user_item {
             messages.push(build_user_message(user_item));
         }
 
         let status = string_field(&turn, &["status"]);
-        if assistant_item.is_some() || reasoning_item.is_some() || status == "failed" {
+        if assistant_item.is_some()
+            || reasoning_item.is_some()
+            || !tool_parts.is_empty()
+            || status == "failed"
+        {
             messages.push(build_assistant_message(
                 &turn,
                 assistant_item,
                 reasoning_item,
+                &tool_parts,
             ));
         }
     }
@@ -370,6 +460,20 @@ fn should_sync_session_from_runtime(event_type: &str, payload: &Value) -> bool {
                 || payload.get("exitPlanRequest").is_some()
         }
     }
+}
+
+fn runtime_tool_event_from_item(item: &Value) -> Option<Value> {
+    let part = runtime_tool_part_from_item(item)?;
+    Some(json!({
+        "eventType": "tool",
+        "toolId": string_field(&part, &["toolId"]),
+        "label": string_field(&part, &["label"]),
+        "status": string_field(&part, &["status"]),
+        "context": string_field(&part, &["context"]),
+        "detail": string_field(&part, &["detail"]),
+        "payload": part.get("payload").cloned().unwrap_or(Value::Null),
+        "transport": "codex-runtime",
+    }))
 }
 
 pub fn map_runtime_thread_snapshot_to_session(session: &Value, snapshot: &Value) -> Value {
@@ -615,6 +719,28 @@ async fn ai_runtime_event_reduce(
             delete_session: false,
             session: next_session,
         });
+    }
+
+    if (event_type == "itemDelta" || event_type == "itemCompleted")
+        && !trim(&params.pending_assistant_id).is_empty()
+    {
+        let item = payload.get("item").cloned().unwrap_or(Value::Null);
+        let kind = string_field(&item, &["kind"]);
+        if kind == "toolCall" || kind == "toolResult" {
+            if let Some(event) = runtime_tool_event_from_item(&item) {
+                let response = ai_agent_session_apply_event(AiAgentSessionApplyEventParams {
+                    session,
+                    event,
+                    pending_assistant_id: params.pending_assistant_id,
+                })
+                .await?;
+                return Ok(AiRuntimeEventReduceResponse {
+                    handled: true,
+                    delete_session: false,
+                    session: response.session,
+                });
+            }
+        }
     }
 
     if event_type == "itemDelta" && !trim(&params.pending_assistant_id).is_empty() {
