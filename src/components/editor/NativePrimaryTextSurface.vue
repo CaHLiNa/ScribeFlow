@@ -969,6 +969,92 @@ function applyDraftEdits(text = '', edits = []) {
   return nextText
 }
 
+function previousCharStart(text = '', offset = 0) {
+  const normalized = String(text || '')
+  const safeOffset = clampNativePrimaryOffset(normalized, offset)
+  if (safeOffset <= 0) return 0
+  const chars = Array.from(normalized.slice(0, safeOffset))
+  if (chars.length <= 1) return 0
+  return chars.slice(0, -1).join('').length
+}
+
+function nextCharEnd(text = '', offset = 0) {
+  const normalized = String(text || '')
+  const safeOffset = clampNativePrimaryOffset(normalized, offset)
+  if (safeOffset >= normalized.length) return normalized.length
+  const nextChar = normalized.slice(safeOffset)[0]
+  return safeOffset + (nextChar ? nextChar.length : 1)
+}
+
+function buildSimpleInputPlan(insertText = '', options = {}) {
+  const selection = deriveSelectionPayload()
+  const from = Number(selection?.from || 0)
+  const to = Number(selection?.to || from)
+  const nextOffset = from + String(insertText || '').length
+  return {
+    handled: true,
+    edits: [
+      {
+        start: from,
+        end: to,
+        text: String(insertText || ''),
+      },
+    ],
+    selections: [
+      {
+        anchor: nextOffset,
+        head: nextOffset,
+      },
+    ],
+    ...options,
+  }
+}
+
+function buildDeleteInputPlan(direction = 'backward') {
+  const selection = deriveSelectionPayload()
+  const from = Number(selection?.from || 0)
+  const to = Number(selection?.to || from)
+  if (from !== to) {
+    return buildSimpleInputPlan('')
+  }
+  if (direction === 'backward') {
+    const start = previousCharStart(draftText.value, from)
+    return {
+      handled: true,
+      edits: [
+        {
+          start,
+          end: from,
+          text: '',
+        },
+      ],
+      selections: [
+        {
+          anchor: start,
+          head: start,
+        },
+      ],
+    }
+  }
+  const end = nextCharEnd(draftText.value, to)
+  return {
+    handled: true,
+    edits: [
+      {
+        start: to,
+        end,
+        text: '',
+      },
+    ],
+    selections: [
+      {
+        anchor: to,
+        head: to,
+      },
+    ],
+  }
+}
+
 async function applyCharacterInputPlan(plan = null) {
   if (!plan?.handled) return false
   const nextText =
@@ -1030,6 +1116,43 @@ async function handleKeydown(event) {
     event.preventDefault()
     void persistNativePrimaryContent(draftText.value)
     return
+  }
+  if (!isComposing.value && !event.ctrlKey && !event.metaKey && !event.altKey) {
+    if (event.key === 'Backspace') {
+      event.preventDefault()
+      await applyCharacterInputPlan(buildDeleteInputPlan('backward'))
+      return
+    }
+    if (event.key === 'Delete') {
+      event.preventDefault()
+      await applyCharacterInputPlan(buildDeleteInputPlan('forward'))
+      return
+    }
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      await applyCharacterInputPlan(buildSimpleInputPlan('\n'))
+      return
+    }
+    if (event.key === 'Tab') {
+      event.preventDefault()
+      await applyCharacterInputPlan(buildSimpleInputPlan('  '))
+      return
+    }
+    if (typeof event.key === 'string' && event.key.length === 1) {
+      event.preventDefault()
+      if (shouldHandleAutoPairInput(event)) {
+        const plan = await editorRuntimeStore.planNativeCharacterInput({
+          path: props.filePath,
+          input: event.key,
+          selection: deriveSelectionPayload(),
+        })
+        if (!plan) return
+        await applyCharacterInputPlan(plan)
+        return
+      }
+      await applyCharacterInputPlan(buildSimpleInputPlan(event.key))
+      return
+    }
   }
   if (!shouldHandleAutoPairInput(event)) return
   event.preventDefault()
@@ -1623,6 +1746,7 @@ defineExpose({
   border-radius: 999px;
   pointer-events: none;
   z-index: 3;
+  animation: native-primary-caret-blink 1.08s steps(1, end) infinite;
 }
 
 .native-primary-drop-cursor {
@@ -1632,6 +1756,17 @@ defineExpose({
   border-radius: 999px;
   pointer-events: none;
   z-index: 4;
+}
+
+@keyframes native-primary-caret-blink {
+  0%,
+  48% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
 }
 
 .native-primary-input-bridge {
