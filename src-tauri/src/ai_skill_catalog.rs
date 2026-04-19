@@ -244,26 +244,24 @@ fn discover_skills_in_root(
         } else {
             parsed.slug
         };
+        let description = parsed.description.clone();
 
         discovered.push(json!({
             "id": build_skill_id(&root.scope, &slug, &skill_file_path),
             "kind": "codex-skill",
             "name": parsed.name,
             "slug": slug,
-            "description": parsed.description,
+            "description": description,
             "shortDescription": parsed.description,
             "directoryName": directory_name,
             "pathToSkillDir": directory_path,
             "pathToSkillMd": skill_file_path,
             "pathToSkillRoot": source_root_path,
-            "directoryPath": directory_path,
-            "skillFilePath": skill_file_path,
             "markdown": markdown,
             "body": parsed.body,
             "frontmatter": Value::Object(parsed.frontmatter),
             "scope": root.scope,
             "source": root.source,
-            "sourceRootPath": source_root_path,
             "precedence": precedence,
             "supportingFiles": supporting_files,
             "managedByScribeFlow": managed_by_scribeflow,

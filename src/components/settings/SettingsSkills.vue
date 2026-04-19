@@ -576,14 +576,14 @@ async function duplicateSkill(skill = {}) {
 }
 
 async function openSkillFile(skill = {}) {
-  if (!skill?.skillFilePath) return
+  if (!skill?.pathToSkillMd) return
   workspace.closeSettings()
-  editorStore.openFile(skill.skillFilePath)
+  editorStore.openFile(skill.pathToSkillMd)
 }
 
 async function revealSkillDirectory(skill = {}) {
-  if (!skill?.directoryPath) return
-  await revealPathInFileManager({ path: skill.directoryPath })
+  if (!skill?.pathToSkillDir) return
+  await revealPathInFileManager({ path: skill.pathToSkillDir })
 }
 
 onMounted(async () => {
