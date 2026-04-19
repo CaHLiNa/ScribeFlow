@@ -194,10 +194,10 @@ fn collect_supporting_files(root: &Path, current: &Path, collected: &mut Vec<Str
     }
 }
 
-fn build_skill_id(scope: &str, slug: &str, directory_path: &str) -> String {
+fn build_skill_id(scope: &str, slug: &str, skill_file_path: &str) -> String {
     let encoded =
-        url::form_urlencoded::byte_serialize(directory_path.as_bytes()).collect::<String>();
-    format!("fs-skill:{scope}:{slug}:{encoded}")
+        url::form_urlencoded::byte_serialize(skill_file_path.as_bytes()).collect::<String>();
+    format!("skill:{scope}:{slug}:{encoded}")
 }
 
 fn discover_skills_in_root(
@@ -226,6 +226,7 @@ fn discover_skills_in_root(
         let directory_name = entry.file_name().to_string_lossy().to_string();
         let parsed = parse_skill_markdown(&markdown, &directory_name);
         let directory_path = normalize_path(&entry_path.to_string_lossy());
+        let skill_file_path = normalize_path(&skill_file.to_string_lossy());
         let source_root_path = normalize_path(&root.path);
         let mut supporting_files = Vec::new();
         collect_supporting_files(&entry_path, &entry_path, &mut supporting_files);
@@ -245,14 +246,18 @@ fn discover_skills_in_root(
         };
 
         discovered.push(json!({
-            "id": build_skill_id(&root.scope, &slug, &directory_path),
-            "kind": "filesystem-skill",
+            "id": build_skill_id(&root.scope, &slug, &skill_file_path),
+            "kind": "codex-skill",
             "name": parsed.name,
             "slug": slug,
             "description": parsed.description,
+            "shortDescription": parsed.description,
             "directoryName": directory_name,
+            "pathToSkillDir": directory_path,
+            "pathToSkillMd": skill_file_path,
+            "pathToSkillRoot": source_root_path,
             "directoryPath": directory_path,
-            "skillFilePath": normalize_path(&skill_file.to_string_lossy()),
+            "skillFilePath": skill_file_path,
             "markdown": markdown,
             "body": parsed.body,
             "frontmatter": Value::Object(parsed.frontmatter),

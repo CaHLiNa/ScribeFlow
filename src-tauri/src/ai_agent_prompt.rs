@@ -62,7 +62,10 @@ fn bool_field(value: &Value, keys: &[&str]) -> bool {
 
 fn get_ai_skill_behavior_id(skill: &Value) -> String {
     let kind = string_field(skill, &["kind"]);
-    if kind == "filesystem-skill" {
+    if kind == "codex-skill"
+        || kind == "filesystem-skill"
+        || !string_field(skill, &["pathToSkillMd", "skillFilePath"]).is_empty()
+    {
         return string_field(skill, &["slug", "name", "id"]);
     }
     string_field(skill, &["id"])
@@ -334,7 +337,12 @@ fn build_workspace_context_prompt_block(context_bundle: &Value) -> String {
 fn build_available_skills_block(scribeflow_skills: &[Value]) -> String {
     let entries = scribeflow_skills
         .iter()
-        .filter(|skill| string_field(skill, &["kind"]) == "filesystem-skill")
+        .filter(|skill| {
+            matches!(
+                string_field(skill, &["kind"]).as_str(),
+                "codex-skill" | "filesystem-skill"
+            ) || !string_field(skill, &["pathToSkillMd", "skillFilePath"]).is_empty()
+        })
         .filter_map(|skill| {
             let name = string_field(
                 skill,
@@ -345,37 +353,44 @@ fn build_available_skills_block(scribeflow_skills: &[Value]) -> String {
             }
             Some((
                 name,
-                string_field(skill, &["description"]),
-                string_field(skill, &["scope"]),
+                string_field(skill, &["description", "shortDescription"]),
+                string_field(skill, &["pathToSkillMd", "skillFilePath"]),
             ))
         })
         .collect::<Vec<_>>();
     if entries.is_empty() {
-        return "Available filesystem skills:\n- None discovered.".to_string();
+        return [
+            "## Skills".to_string(),
+            "A skill is a set of local instructions stored in a `SKILL.md` package. No skills are currently available in this session.".to_string(),
+        ]
+        .join("\n");
     }
-    let mut lines = vec!["Available filesystem skills:".to_string()];
-    for (name, description, scope) in entries {
-        let scope_text = if scope.is_empty() {
-            String::new()
-        } else {
-            format!(" [{scope}]")
-        };
+    let mut lines = vec![
+        "## Skills".to_string(),
+        "A skill is a set of local instructions to follow that is stored in a `SKILL.md` file. Below is the list of skills that can be used in this session.".to_string(),
+        "### Available skills".to_string(),
+    ];
+    for (name, description, path) in entries {
         let description_text = if description.is_empty() {
             String::new()
         } else {
             format!(": {description}")
         };
-        lines.push(format!("- {name}{scope_text}{description_text}"));
+        let path_text = if path.is_empty() {
+            String::new()
+        } else {
+            format!(" (file: {path})")
+        };
+        lines.push(format!("- {name}{description_text}{path_text}"));
     }
     lines.join("\n")
 }
 
 fn build_skill_support_prompt_block(files: &[Value]) -> String {
     if files.is_empty() {
-        return "Instruction-pack support files loaded: none.".to_string();
+        return "Skill support files loaded: none.".to_string();
     }
-    let mut lines =
-        vec!["Instruction-pack support files loaded from the current skill directory:".to_string()];
+    let mut lines = vec!["Skill support files loaded from the active skill package:".to_string()];
     for file in files {
         lines.push(format!(
             "- {}",
@@ -389,7 +404,11 @@ fn build_skill_support_prompt_block(files: &[Value]) -> String {
 }
 
 fn build_agent_context_snapshot(skill: &Value, context_bundle: &Value) -> String {
-    if string_field(skill, &["kind"]) == "filesystem-skill" {
+    if matches!(
+        string_field(skill, &["kind"]).as_str(),
+        "codex-skill" | "filesystem-skill"
+    ) || !string_field(skill, &["pathToSkillMd", "skillFilePath"]).is_empty()
+    {
         let supporting_files = skill
             .get("supportingFiles")
             .or_else(|| skill.get("supporting_files"))
@@ -414,11 +433,21 @@ fn build_agent_context_snapshot(skill: &Value, context_bundle: &Value) -> String
                     }
                 }
             ),
-            "Type: Filesystem skill".to_string(),
+            "Type: Codex skill package".to_string(),
             format!(
                 "Source path: {}",
                 {
-                    let path = string_field(skill, &["skillFilePath", "skill_file_path", "directoryPath", "directory_path"]);
+                    let path = string_field(
+                        skill,
+                        &[
+                            "pathToSkillMd",
+                            "skillFilePath",
+                            "skill_file_path",
+                            "pathToSkillDir",
+                            "directoryPath",
+                            "directory_path",
+                        ],
+                    );
                     if path.is_empty() {
                         "unknown".to_string()
                     } else {
@@ -454,7 +483,7 @@ fn build_agent_context_snapshot(skill: &Value, context_bundle: &Value) -> String
             "```".to_string(),
             String::new(),
             "Requirements:".to_string(),
-            "- Treat the skill instructions as the active instruction pack.".to_string(),
+            "- Treat the skill instructions as the active workflow.".to_string(),
             "- Stay close to the supplied workspace context.".to_string(),
             "- If the skill expects tools or files not yet available, say so explicitly instead of inventing them.".to_string(),
         ]
@@ -558,7 +587,10 @@ pub async fn ai_agent_build_prompt(
 ) -> Result<AiAgentPromptResponse, String> {
     let mut params = params;
     if params.support_files.is_empty()
-        && string_field(&params.skill, &["kind"]) == "filesystem-skill"
+        && matches!(
+            string_field(&params.skill, &["kind"]).as_str(),
+            "codex-skill" | "filesystem-skill"
+        )
         && params
             .enabled_tool_ids
             .iter()
@@ -582,7 +614,7 @@ pub async fn ai_agent_build_prompt(
                 "Use the supplied workspace context carefully and do not invent file contents, evidence, or citations."
             }
             .to_string(),
-            "Filesystem skills are provided as an explicit catalog in the prompt. Do not infer available skills by searching workspace filenames.".to_string(),
+            "Skills are provided as an explicit catalog in the prompt. Treat them as Codex-style `SKILL.md` packages and do not infer extra skills from workspace filenames.".to_string(),
             "Do not invent unavailable runtime capabilities or workspace edit powers.".to_string(),
             format!(
                 "{}: {}.",

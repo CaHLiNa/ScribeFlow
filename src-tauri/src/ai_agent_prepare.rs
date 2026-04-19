@@ -189,14 +189,17 @@ fn build_skill_slug(skill: &Value) -> String {
     ))
 }
 
-fn is_filesystem_skill(skill: &Value) -> bool {
-    string_field(skill, &["kind"]) == "filesystem-skill"
+fn is_catalog_skill(skill: &Value) -> bool {
+    let kind = string_field(skill, &["kind"]);
+    kind == "codex-skill"
+        || (!kind.is_empty() && kind == "filesystem-skill")
+        || !string_field(skill, &["pathToSkillMd", "skillFilePath"]).is_empty()
 }
 
-fn match_filesystem_skill(name: &str, skills: &[Value]) -> Option<Value> {
+fn match_catalog_skill(name: &str, skills: &[Value]) -> Option<Value> {
     skills
         .iter()
-        .find(|skill| is_filesystem_skill(skill) && build_skill_slug(skill) == name)
+        .find(|skill| is_catalog_skill(skill) && build_skill_slug(skill) == name)
         .cloned()
 }
 
@@ -363,7 +366,7 @@ fn infer_skill_from_prompt(
     let prompt_tokens = tokenize_prompt(prompt);
     let ranked = scribeflow_skills
         .iter()
-        .filter(|skill| is_filesystem_skill(skill))
+        .filter(|skill| is_catalog_skill(skill))
         .filter(|skill| has_context(&explicit_skill_requirements(skill), context_bundle))
         .map(|skill| {
             (
@@ -426,7 +429,7 @@ fn resolve_ai_invocation(
     });
 
     if mode == "agent" {
-        if let Some(skill) = match_filesystem_skill(
+        if let Some(skill) = match_catalog_skill(
             invocation
                 .get("name")
                 .and_then(Value::as_str)
@@ -448,7 +451,7 @@ fn resolve_ai_invocation(
     }
 
     if invocation.get("prefix").and_then(Value::as_str) == Some("$") {
-        if let Some(skill) = match_filesystem_skill(
+        if let Some(skill) = match_catalog_skill(
             invocation
                 .get("name")
                 .and_then(Value::as_str)
@@ -566,7 +569,7 @@ async fn ai_agent_prepare(params: AiAgentPrepareParams) -> Result<Value, String>
         ));
     }
 
-    if skill.is_object() && string_field(&skill, &["kind"]) != "filesystem-skill" {
+    if skill.is_object() && !is_catalog_skill(&skill) {
         let required_context = array_field(&skill, &["requiredContext", "required_context"])
             .into_iter()
             .filter_map(|entry| entry.as_str().map(|value| value.to_string()))

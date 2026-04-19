@@ -51,7 +51,10 @@ fn preview_text(value: &str, max_chars: usize) -> String {
 
 fn skill_label(skill: &Value) -> String {
     let kind = string_field(skill, &["kind"]);
-    if kind == "filesystem-skill" {
+    if kind == "codex-skill"
+        || kind == "filesystem-skill"
+        || !string_field(skill, &["pathToSkillMd", "skillFilePath"]).is_empty()
+    {
         let label = string_field(skill, &["name", "slug"]);
         if !label.is_empty() {
             return label;

@@ -86,7 +86,8 @@ fn walk_skill_directory(root_path: &str, current_path: &str, collected: &mut Vec
 
 pub fn load_skill_supporting_files(skill: &Value) -> Vec<Value> {
     let root_path = skill
-        .get("directoryPath")
+        .get("pathToSkillDir")
+        .or_else(|| skill.get("directoryPath"))
         .or_else(|| skill.get("directory_path"))
         .and_then(|value| value.as_str())
         .unwrap_or_default()

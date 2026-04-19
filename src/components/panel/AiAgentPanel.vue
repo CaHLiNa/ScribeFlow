@@ -528,12 +528,12 @@ function summarizeStatusDetail(value = '', maxLength = 72) {
 const skillSuggestions = computed(() =>
   scribeflowSkills.value.map((skill) => ({
     id: skill.id,
-    kind: 'filesystem-skill',
+    kind: 'codex-skill',
     prefix: '$',
     groupKey: 'skills',
     groupLabel: t('Skills'),
     label: skill.name || skill.slug || skill.directoryName || skill.id,
-    description: skill.description || t('Filesystem skill with no description.'),
+    description: skill.description || t('Skill package with no description.'),
     insertText: `$${toInvocationSlug(skill.slug || skill.name || skill.directoryName || skill.id)} `,
   }))
 )
