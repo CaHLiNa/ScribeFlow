@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::ai_skill_support::load_skill_supporting_files;
-use crate::ai_tool_catalog::{build_ai_tool_prompt_block, resolve_runtime_tool_ids};
+use crate::ai_tool_catalog::resolve_runtime_tool_ids;
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -233,7 +233,6 @@ fn build_requested_tools_block(requested_tools: &[Value]) -> String {
 fn build_selection_precedence_block(params: &AiAgentPromptParams) -> String {
     let has_explicit_skill = params.invocation.get("prefix").and_then(Value::as_str) == Some("$");
     let skill_name = string_field(&params.invocation, &["rawName", "name"]);
-    let has_explicit_tools = !params.requested_tool_mentions.is_empty();
 
     let mut lines = vec!["Selection precedence:".to_string()];
     if has_explicit_skill {
@@ -251,23 +250,8 @@ fn build_selection_precedence_block(params: &AiAgentPromptParams) -> String {
                 .to_string(),
         );
     }
-    if has_explicit_tools {
-        lines.push(format!(
-            "- Explicit tool requests take precedence over implicit tool choice inside that workflow: {}.",
-            params.requested_tool_mentions.join(", ")
-        ));
-    } else {
-        lines.push(
-            "- If the user explicitly names tools with #tool, prefer those tools before falling back to implicit selection."
-                .to_string(),
-        );
-    }
     lines.push(
-        "- When no explicit tool is requested, prefer built-in workspace tools before MCP tools for local file and directory work."
-            .to_string(),
-    );
-    lines.push(
-        "- Use MCP tools only when the task needs external capability or when the user explicitly asks for that external tool."
+        "- Use only the capabilities explicitly exposed by the runtime. Do not invent or describe unavailable tools."
             .to_string(),
     );
     lines.join("\n")
@@ -391,65 +375,6 @@ fn build_available_skills_block(scribeflow_skills: &[Value]) -> String {
     lines.join("\n")
 }
 
-fn build_available_tools_block(enabled_tool_ids: &[String], runtime_intent: &str) -> String {
-    build_ai_tool_prompt_block(enabled_tool_ids, runtime_intent)
-}
-
-fn build_available_extensions_block(extension_catalog: &Value) -> String {
-    let servers = extension_catalog
-        .get("mcpServers")
-        .and_then(Value::as_array)
-        .cloned()
-        .unwrap_or_default();
-    if servers.is_empty() {
-        return "Available MCP servers: none discovered.".to_string();
-    }
-
-    let mut lines = vec!["Available MCP servers:".to_string()];
-    for server in servers {
-        let name = string_field(&server, &["name"]);
-        let transport = string_field(&server, &["transport"]);
-        let scope = string_field(&server, &["sourceScope", "source_scope"]);
-        let source_path = string_field(&server, &["sourcePath", "source_path"]);
-        let enabled = server
-            .get("enabled")
-            .and_then(Value::as_bool)
-            .unwrap_or(true);
-        let transport_text = if transport.is_empty() {
-            "unknown".to_string()
-        } else {
-            transport
-        };
-        let scope_text = if scope.is_empty() {
-            String::new()
-        } else {
-            format!(" ({scope})")
-        };
-        let status_text = if enabled {
-            String::new()
-        } else {
-            " disabled".to_string()
-        };
-        let source_text = if source_path.is_empty() {
-            String::new()
-        } else {
-            format!(" — {}{}", source_path, scope_text)
-        };
-        lines.push(format!(
-            "- {} [{}]{}{}",
-            if name.is_empty() {
-                "Unnamed MCP server".to_string()
-            } else {
-                name
-            },
-            transport_text,
-            status_text,
-            source_text
-        ));
-    }
-    lines.join("\n")
-}
-
 fn build_skill_support_prompt_block(files: &[Value]) -> String {
     if files.is_empty() {
         return "Instruction-pack support files loaded: none.".to_string();
@@ -561,10 +486,6 @@ fn build_agent_mode_user_prompt(params: &AiAgentPromptParams) -> String {
         build_available_skills_block(&params.scribeflow_skills),
         String::new(),
         build_selection_precedence_block(params),
-        String::new(),
-        build_available_extensions_block(&params.extension_catalog),
-        String::new(),
-        build_available_tools_block(&params.enabled_tool_ids, &params.runtime_intent),
     ];
     let referenced = build_referenced_files_block(&params.referenced_files);
     if !referenced.is_empty() {
@@ -600,10 +521,6 @@ fn build_skill_mode_user_prompt(
         build_skill_support_prompt_block(&params.support_files),
         String::new(),
         build_selection_precedence_block(params),
-        String::new(),
-        build_available_extensions_block(&params.extension_catalog),
-        String::new(),
-        build_available_tools_block(&params.enabled_tool_ids, &params.runtime_intent),
     ];
     let referenced = build_referenced_files_block(&params.referenced_files);
     if !referenced.is_empty() {
@@ -671,8 +588,7 @@ pub async fn ai_agent_build_prompt(
             }
             .to_string(),
             "Filesystem skills are provided as an explicit catalog in the prompt. Do not infer available skills by searching workspace filenames.".to_string(),
-            "Built-in tools operate inside the current workspace. MCP tools are external capabilities exposed by connected servers. Prefer built-in workspace tools when they can complete the task locally, and use MCP only when external capability is actually needed.".to_string(),
-            "If the request involves creating, writing, editing, or opening workspace files and matching tools are listed as available, call those tools instead of claiming the capability is unavailable.".to_string(),
+            "Do not invent non-existent local tools, MCP servers, or write capabilities.".to_string(),
             format!(
                 "{}: {}.",
                 if params.runtime_intent.trim() == "agent" {

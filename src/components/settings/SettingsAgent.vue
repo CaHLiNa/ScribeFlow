@@ -47,14 +47,13 @@ import { isBrowserPreviewRuntime } from '../../app/browserPreview/routes.js'
 
 const SettingsAi = defineAsyncComponent(() => import('./SettingsAi.vue'))
 const SettingsSkills = defineAsyncComponent(() => import('./SettingsSkills.vue'))
-const SettingsTools = defineAsyncComponent(() => import('./SettingsTools.vue'))
 
 const AGENT_SETTINGS_SUBPAGE_STORAGE_KEY = 'scribeflow.settings.agentSubpage'
 
 const { t } = useI18n()
 const browserPreview = isBrowserPreviewRuntime()
 
-const AGENT_SETTINGS_SUBPAGES = Object.freeze(['models', 'skills', 'tools'])
+const AGENT_SETTINGS_SUBPAGES = Object.freeze(['models', 'skills'])
 
 function normalizeAgentSubpage(value = '') {
   const normalized = String(value || '')
@@ -92,16 +91,11 @@ const subpages = computed(() => [
     id: 'skills',
     label: t('Agent Skills'),
   },
-  {
-    id: 'tools',
-    label: t('Tools'),
-  },
 ])
 
 const activeComponent = computed(() => {
   if (browserPreview) return null
   if (activeSubpage.value === 'skills') return SettingsSkills
-  if (activeSubpage.value === 'tools') return SettingsTools
   return SettingsAi
 })
 
