@@ -84,6 +84,50 @@ fn build_headers(values: &[(&str, String)]) -> Result<HeaderMap, String> {
 }
 
 fn compact_tool_result_for_continuation(result: &RuntimeToolResult) -> RuntimeToolResult {
+    let parsed = serde_json::from_str::<Value>(&result.content).ok();
+    if let Some(parsed) = parsed {
+        let summarized = if let Some(entries) = parsed.get("entries").and_then(Value::as_array) {
+            Some(json!({
+                "kind": "toolResultSummary",
+                "truncated": entries.len() > 24,
+                "path": parsed.get("path").cloned().unwrap_or(Value::String(String::new())),
+                "entryCount": entries.len(),
+                "samplePaths": entries
+                    .iter()
+                    .take(24)
+                    .filter_map(|entry| entry.get("path").and_then(Value::as_str))
+                    .collect::<Vec<_>>(),
+            }))
+        } else if let Some(matches) = parsed.get("matches").and_then(Value::as_array) {
+            Some(json!({
+                "kind": "toolResultSummary",
+                "truncated": matches.len() > 20,
+                "query": parsed.get("query").cloned().unwrap_or(Value::String(String::new())),
+                "path": parsed.get("path").cloned().unwrap_or(Value::String(String::new())),
+                "matchCount": matches.len(),
+                "sampleMatches": matches.iter().take(20).cloned().collect::<Vec<_>>(),
+            }))
+        } else if let Some(content) = parsed.get("content").and_then(Value::as_str) {
+            Some(json!({
+                "kind": "toolResultSummary",
+                "truncated": content.chars().count() > 6000,
+                "path": parsed.get("path").cloned().unwrap_or(Value::String(String::new())),
+                "preview": content.chars().take(6000).collect::<String>(),
+            }))
+        } else {
+            None
+        };
+
+        if let Some(summarized) = summarized {
+            return RuntimeToolResult {
+                tool_call_id: result.tool_call_id.clone(),
+                content: serde_json::to_string_pretty(&summarized)
+                    .unwrap_or_else(|_| "{\"kind\":\"toolResultSummary\"}".to_string()),
+                is_error: result.is_error,
+            };
+        }
+    }
+
     if result.content.chars().count() <= TOOL_RESULT_CONTINUATION_MAX_CHARS {
         return result.clone();
     }
@@ -308,7 +352,7 @@ pub(crate) fn build_provider_request(
                     } => {
                         messages.push(json!({
                             "role": "assistant",
-                            "content": if content.trim().is_empty() { Value::Null } else { Value::String(content.clone()) },
+                            "content": Value::String(content.clone()),
                             "tool_calls": tool_calls
                                 .iter()
                                 .map(|tool_call| json!({
