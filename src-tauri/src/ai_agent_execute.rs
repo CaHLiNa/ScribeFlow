@@ -212,7 +212,12 @@ pub async fn ai_agent_execute(
 ) -> Result<AiAgentExecuteResponse, String> {
     let mut params = params;
     if params.support_files.is_empty()
-        && params.skill.get("kind").and_then(Value::as_str).unwrap_or_default() == "codex-skill"
+        && params
+            .skill
+            .get("kind")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            == "codex-skill"
         && params
             .enabled_tool_ids
             .iter()
@@ -309,28 +314,37 @@ pub async fn ai_agent_execute(
                             reasoning_text.push_str(&delta);
                         }
                         RuntimeProviderEvent::ToolCallStart {
+                            tool_call_key,
                             tool_call_id,
                             tool_name,
                         } => {
-                            current_tool_call_id = tool_call_id.clone();
-                            pending_tool_calls.entry(tool_call_id.clone()).or_insert(
+                            let resolved_key = if tool_call_key.trim().is_empty() {
+                                tool_call_id.clone()
+                            } else {
+                                tool_call_key.clone()
+                            };
+                            current_tool_call_id = resolved_key.clone();
+                            let entry = pending_tool_calls.entry(resolved_key.clone()).or_insert(
                                 PendingToolCall {
-                                    id: tool_call_id,
+                                    id: tool_call_id.clone(),
                                     name: tool_name,
                                     arguments: String::new(),
                                 },
                             );
+                            if entry.id.trim().is_empty() && !tool_call_id.trim().is_empty() {
+                                entry.id = tool_call_id;
+                            }
                         }
                         RuntimeProviderEvent::ToolCallDelta {
-                            tool_call_id,
+                            tool_call_key,
                             arguments_delta,
                         } => {
-                            let resolved_id = if tool_call_id.trim().is_empty() {
+                            let resolved_key = if tool_call_key.trim().is_empty() {
                                 current_tool_call_id.clone()
                             } else {
-                                tool_call_id
+                                tool_call_key
                             };
-                            if let Some(tool_call) = pending_tool_calls.get_mut(&resolved_id) {
+                            if let Some(tool_call) = pending_tool_calls.get_mut(&resolved_key) {
                                 tool_call.arguments.push_str(&arguments_delta);
                             }
                         }

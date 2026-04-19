@@ -129,11 +129,12 @@ pub(crate) enum RuntimeProviderEvent {
     AssistantDelta(String),
     ReasoningDelta(String),
     ToolCallStart {
+        tool_call_key: String,
         tool_call_id: String,
         tool_name: String,
     },
     ToolCallDelta {
-        tool_call_id: String,
+        tool_call_key: String,
         arguments_delta: String,
     },
     StopReason(String),
@@ -463,16 +464,21 @@ fn parse_openai_sse_line(line: &str) -> Vec<RuntimeProviderEvent> {
         }
         if let Some(tool_calls) = delta.get("tool_calls").and_then(|value| value.as_array()) {
             for tool_call in tool_calls {
+                let tool_call_key = tool_call
+                    .get("index")
+                    .and_then(Value::as_i64)
+                    .map(|index| format!("idx:{index}"))
+                    .or_else(|| {
+                        tool_call
+                            .get("id")
+                            .and_then(|value| value.as_str())
+                            .map(str::to_string)
+                    })
+                    .unwrap_or_default();
                 let tool_call_id = tool_call
                     .get("id")
                     .and_then(|value| value.as_str())
                     .map(str::to_string)
-                    .or_else(|| {
-                        tool_call
-                            .get("index")
-                            .and_then(Value::as_i64)
-                            .map(|index| format!("idx:{index}"))
-                    })
                     .unwrap_or_default();
                 if let Some(name) = tool_call
                     .get("function")
@@ -480,6 +486,7 @@ fn parse_openai_sse_line(line: &str) -> Vec<RuntimeProviderEvent> {
                     .and_then(|value| value.as_str())
                 {
                     events.push(RuntimeProviderEvent::ToolCallStart {
+                        tool_call_key: tool_call_key.clone(),
                         tool_call_id: tool_call_id.clone(),
                         tool_name: name.to_string(),
                     });
@@ -491,7 +498,7 @@ fn parse_openai_sse_line(line: &str) -> Vec<RuntimeProviderEvent> {
                     match arguments {
                         Value::String(arguments) if !arguments.is_empty() => {
                             events.push(RuntimeProviderEvent::ToolCallDelta {
-                                tool_call_id: tool_call_id.clone(),
+                                tool_call_key: tool_call_key.clone(),
                                 arguments_delta: arguments.to_string(),
                             });
                         }
@@ -499,7 +506,7 @@ fn parse_openai_sse_line(line: &str) -> Vec<RuntimeProviderEvent> {
                             if let Ok(serialized) = serde_json::to_string(arguments) {
                                 if !serialized.is_empty() {
                                     events.push(RuntimeProviderEvent::ToolCallDelta {
-                                        tool_call_id: tool_call_id.clone(),
+                                        tool_call_key: tool_call_key.clone(),
                                         arguments_delta: serialized,
                                     });
                                 }
@@ -537,6 +544,12 @@ fn parse_anthropic_sse_line(line: &str) -> Vec<RuntimeProviderEvent> {
             == Some("tool_use")
         {
             events.push(RuntimeProviderEvent::ToolCallStart {
+                tool_call_key: parsed
+                    .get("content_block")
+                    .and_then(|value| value.get("id"))
+                    .and_then(|value| value.as_str())
+                    .unwrap_or_default()
+                    .to_string(),
                 tool_call_id: parsed
                     .get("content_block")
                     .and_then(|value| value.get("id"))
@@ -566,7 +579,7 @@ fn parse_anthropic_sse_line(line: &str) -> Vec<RuntimeProviderEvent> {
         if let Some(partial_json) = delta.get("partial_json").and_then(|value| value.as_str()) {
             if !partial_json.is_empty() {
                 events.push(RuntimeProviderEvent::ToolCallDelta {
-                    tool_call_id: String::new(),
+                    tool_call_key: String::new(),
                     arguments_delta: partial_json.to_string(),
                 });
             }
@@ -1658,15 +1671,67 @@ mod tests {
         let events = parse_openai_sse_line(&line);
         assert!(matches!(
             events.first(),
-            Some(RuntimeProviderEvent::ToolCallStart { tool_call_id, tool_name })
-                if tool_call_id == "idx:0" && tool_name == "exec_command"
+            Some(RuntimeProviderEvent::ToolCallStart { tool_call_key, tool_call_id, tool_name })
+                if tool_call_key == "idx:0" && tool_call_id.is_empty() && tool_name == "exec_command"
         ));
         assert!(matches!(
             events.get(1),
-            Some(RuntimeProviderEvent::ToolCallDelta { tool_call_id, arguments_delta })
-                if tool_call_id == "idx:0"
+            Some(RuntimeProviderEvent::ToolCallDelta { tool_call_key, arguments_delta })
+                if tool_call_key == "idx:0"
                     && arguments_delta.contains("\"cmd\":\"touch notes.md\"")
         ));
+    }
+
+    #[test]
+    fn parse_openai_sse_line_keeps_index_key_and_real_call_id() {
+        let line = serde_json::to_string(&json!({
+            "choices": [{
+                "delta": {
+                    "tool_calls": [{
+                        "id": "call_real_123",
+                        "index": 0,
+                        "function": {
+                            "name": "exec_command",
+                            "arguments": "{\"cmd\":\"touch notes.md\"}"
+                        }
+                    }]
+                }
+            }]
+        }))
+        .expect("serialize sse");
+
+        let events = parse_openai_sse_line(&line);
+        assert!(matches!(
+            events.first(),
+            Some(RuntimeProviderEvent::ToolCallStart { tool_call_key, tool_call_id, tool_name })
+                if tool_call_key == "idx:0" && tool_call_id == "call_real_123" && tool_name == "exec_command"
+        ));
+        assert!(matches!(
+            events.get(1),
+            Some(RuntimeProviderEvent::ToolCallDelta { tool_call_key, arguments_delta })
+                if tool_call_key == "idx:0" && arguments_delta.contains("\"cmd\":\"touch notes.md\"")
+        ));
+    }
+
+    #[test]
+    fn collect_pending_tool_calls_preserves_real_call_id() {
+        let pending = HashMap::from([(
+            "idx:0".to_string(),
+            PendingToolCall {
+                id: "call_real_123".to_string(),
+                name: "exec_command".to_string(),
+                arguments: "{\"cmd\":\"touch notes.md\"}".to_string(),
+            },
+        )]);
+
+        let tool_calls = collect_pending_tool_calls(&pending);
+        assert_eq!(tool_calls.len(), 1);
+        assert_eq!(tool_calls[0].id, "call_real_123");
+        assert_eq!(tool_calls[0].name, "exec_command");
+        assert_eq!(
+            tool_calls[0].arguments["cmd"],
+            Value::String("touch notes.md".to_string())
+        );
     }
 }
 
@@ -1972,28 +2037,37 @@ pub async fn run_turn<R: Runtime>(
                                 .await;
                             }
                             RuntimeProviderEvent::ToolCallStart {
+                                tool_call_key,
                                 tool_call_id,
                                 tool_name,
                             } => {
-                                current_tool_call_id = tool_call_id.clone();
-                                pending_tool_calls.entry(tool_call_id.clone()).or_insert(
-                                    PendingToolCall {
-                                        id: tool_call_id,
+                                let resolved_key = if tool_call_key.trim().is_empty() {
+                                    tool_call_id.clone()
+                                } else {
+                                    tool_call_key.clone()
+                                };
+                                current_tool_call_id = resolved_key.clone();
+                                let entry = pending_tool_calls
+                                    .entry(resolved_key.clone())
+                                    .or_insert(PendingToolCall {
+                                        id: tool_call_id.clone(),
                                         name: tool_name,
                                         arguments: String::new(),
-                                    },
-                                );
+                                    });
+                                if entry.id.trim().is_empty() && !tool_call_id.trim().is_empty() {
+                                    entry.id = tool_call_id;
+                                }
                             }
                             RuntimeProviderEvent::ToolCallDelta {
-                                tool_call_id,
+                                tool_call_key,
                                 arguments_delta,
                             } => {
-                                let resolved_id = if tool_call_id.trim().is_empty() {
+                                let resolved_key = if tool_call_key.trim().is_empty() {
                                     current_tool_call_id.clone()
                                 } else {
-                                    tool_call_id
+                                    tool_call_key
                                 };
-                                if let Some(tool_call) = pending_tool_calls.get_mut(&resolved_id) {
+                                if let Some(tool_call) = pending_tool_calls.get_mut(&resolved_key) {
                                     tool_call.arguments.push_str(&arguments_delta);
                                 }
                             }
