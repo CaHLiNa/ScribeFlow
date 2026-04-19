@@ -1,19 +1,26 @@
 use serde_json::{json, Value};
+use std::collections::HashMap;
 use std::fs;
-use std::process::Stdio;
 use std::path::{Component, Path, PathBuf};
+use std::process::Stdio;
+use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
+use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
 use crate::fs_io::read_text_file_with_limit;
 use crate::fs_tree::{collect_files_recursive, read_dir_shallow_entries, FileEntry};
 use crate::process_utils::background_tokio_command;
 use crate::security::canonicalize_for_scope;
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
+use tokio::process::ChildStdin;
+use tokio::sync::{Mutex, Notify};
 
 const READ_FILE_TOOL: &str = "read_file";
 const LIST_FILES_TOOL: &str = "list_files";
 const SEARCH_FILES_TOOL: &str = "search_files";
 pub(crate) const APPLY_PATCH_TOOL: &str = "apply_patch";
 pub(crate) const EXEC_COMMAND_TOOL: &str = "exec_command";
+pub(crate) const WRITE_STDIN_TOOL: &str = "write_stdin";
 
 const DEFAULT_READ_MAX_BYTES: u64 = 64 * 1024;
 const MAX_READ_BYTES: u64 = 256 * 1024;
@@ -23,9 +30,14 @@ const DEFAULT_SEARCH_MAX_RESULTS: usize = 100;
 const MAX_SEARCH_RESULTS: usize = 500;
 const SEARCH_FILE_MAX_BYTES: u64 = 256 * 1024;
 const APPLY_PATCH_PREVIEW_MAX_CHARS: usize = 1200;
-const DEFAULT_EXEC_TIMEOUT_MS: u64 = 20_000;
-const MAX_EXEC_TIMEOUT_MS: u64 = 120_000;
+const DEFAULT_EXEC_YIELD_MS: u64 = 1_000;
+const MAX_EXEC_YIELD_MS: u64 = 30_000;
 const EXEC_OUTPUT_MAX_CHARS: usize = 16_000;
+const DEFAULT_EXEC_MAX_OUTPUT_TOKENS: usize = 2_000;
+
+static EXEC_SESSION_IDS: AtomicI32 = AtomicI32::new(1000);
+type ExecSessionMap = Mutex<HashMap<i32, Arc<ExecSession>>>;
+static EXEC_SESSIONS: OnceLock<ExecSessionMap> = OnceLock::new();
 
 #[derive(Debug, Clone)]
 pub struct RuntimeToolDefinition {
@@ -110,7 +122,27 @@ pub(crate) struct PreparedExecCommand {
     pub command: String,
     pub workdir: String,
     pub shell: String,
-    pub timeout_ms: u64,
+    pub yield_time_ms: u64,
+    pub max_output_chars: usize,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct PreparedWriteStdin {
+    pub session_id: i32,
+    pub chars: String,
+    pub yield_time_ms: u64,
+    pub max_output_chars: usize,
+}
+
+#[derive(Debug)]
+struct ExecSession {
+    session_id: i32,
+    stdin: Mutex<Option<ChildStdin>>,
+    output: Mutex<String>,
+    delivered_len: Mutex<usize>,
+    exit_code: Mutex<Option<i32>>,
+    done: AtomicBool,
+    notify: Notify,
 }
 
 fn string_arg(arguments: &Value, key: &str) -> String {
@@ -148,6 +180,14 @@ fn u64_arg(arguments: &Value, key: &str, default: u64, max: u64) -> u64 {
 
 fn normalize_display_path(path: &Path) -> String {
     path.to_string_lossy().replace('\\', "/")
+}
+
+fn exec_sessions() -> &'static ExecSessionMap {
+    EXEC_SESSIONS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn next_exec_session_id() -> i32 {
+    EXEC_SESSION_IDS.fetch_add(1, Ordering::Relaxed)
 }
 
 fn workspace_root(workspace_path: &str) -> Result<PathBuf, String> {
@@ -665,7 +705,7 @@ pub(crate) fn build_exec_command_result(prepared: &PreparedExecCommand) -> Value
         "command": prepared.command,
         "workdir": prepared.workdir,
         "shell": prepared.shell,
-        "timeoutMs": prepared.timeout_ms,
+        "yieldTimeMs": prepared.yield_time_ms,
     })
 }
 
@@ -688,18 +728,128 @@ pub(crate) fn prepare_exec_command_tool_call(
     }
 
     let shell = shell_program(&string_arg(&tool_call.arguments, "shell"));
-    let timeout_ms = u64_arg(
+    let yield_time_ms = u64_arg(
         &tool_call.arguments,
-        "timeout_ms",
-        DEFAULT_EXEC_TIMEOUT_MS,
-        MAX_EXEC_TIMEOUT_MS,
+        "yield_time_ms",
+        DEFAULT_EXEC_YIELD_MS,
+        MAX_EXEC_YIELD_MS,
+    );
+    let max_output_tokens = usize_arg(
+        &tool_call.arguments,
+        "max_output_tokens",
+        DEFAULT_EXEC_MAX_OUTPUT_TOKENS,
+        EXEC_OUTPUT_MAX_CHARS / 4,
     );
 
     Ok(PreparedExecCommand {
         command,
         workdir: normalize_display_path(&workdir),
         shell,
-        timeout_ms,
+        yield_time_ms,
+        max_output_chars: max_output_tokens.saturating_mul(4),
+    })
+}
+
+pub(crate) fn prepare_write_stdin_tool_call(
+    tool_call: &RuntimeToolCall,
+) -> Result<PreparedWriteStdin, String> {
+    let session_id = tool_call
+        .arguments
+        .get("session_id")
+        .and_then(Value::as_i64)
+        .ok_or_else(|| "`session_id` is required for write_stdin.".to_string())? as i32;
+    let yield_time_ms = u64_arg(
+        &tool_call.arguments,
+        "yield_time_ms",
+        DEFAULT_EXEC_YIELD_MS,
+        MAX_EXEC_YIELD_MS,
+    );
+    let max_output_tokens = usize_arg(
+        &tool_call.arguments,
+        "max_output_tokens",
+        DEFAULT_EXEC_MAX_OUTPUT_TOKENS,
+        EXEC_OUTPUT_MAX_CHARS / 4,
+    );
+    Ok(PreparedWriteStdin {
+        session_id,
+        chars: string_arg(&tool_call.arguments, "chars"),
+        yield_time_ms,
+        max_output_chars: max_output_tokens.saturating_mul(4),
+    })
+}
+
+async fn append_session_output(session: &Arc<ExecSession>, chunk: &[u8]) {
+    if chunk.is_empty() {
+        return;
+    }
+    let text = String::from_utf8_lossy(chunk);
+    let mut output = session.output.lock().await;
+    output.push_str(&text);
+    session.notify.notify_waiters();
+}
+
+async fn spawn_session_output_reader<R: AsyncRead + Unpin>(
+    mut reader: R,
+    session: Arc<ExecSession>,
+) {
+    let mut buffer = [0u8; 4096];
+    loop {
+        match reader.read(&mut buffer).await {
+            Ok(0) => break,
+            Ok(count) => append_session_output(&session, &buffer[..count]).await,
+            Err(error) => {
+                append_session_output(
+                    &session,
+                    format!("\n[exec error] {error}\n").as_bytes(),
+                )
+                .await;
+                break;
+            }
+        }
+    }
+}
+
+async fn collect_session_output(
+    session: &Arc<ExecSession>,
+    yield_time_ms: u64,
+    max_output_chars: usize,
+) -> Value {
+    let deadline = tokio::time::Instant::now() + Duration::from_millis(yield_time_ms);
+    loop {
+        {
+            let output_len = session.output.lock().await.len();
+            let delivered_len = *session.delivered_len.lock().await;
+            if output_len > delivered_len || session.done.load(Ordering::Relaxed) {
+                break;
+            }
+        }
+
+        let now = tokio::time::Instant::now();
+        if now >= deadline {
+            break;
+        }
+        tokio::select! {
+            _ = session.notify.notified() => {}
+            _ = tokio::time::sleep_until(deadline) => break,
+        }
+    }
+
+    let mut delivered_len = session.delivered_len.lock().await;
+    let output = session.output.lock().await;
+    let next = output.get(*delivered_len..).unwrap_or_default().to_string();
+    *delivered_len = output.len();
+    let exit_code = *session.exit_code.lock().await;
+    let done = session.done.load(Ordering::Relaxed);
+    drop(output);
+
+    let trimmed_output = preview_text(&next, max_output_chars);
+    let session_id = if done { None } else { Some(session.session_id) };
+    json!({
+        "ok": exit_code.unwrap_or(0) == 0,
+        "sessionId": session_id,
+        "output": trimmed_output,
+        "exitCode": exit_code,
+        "done": done,
     })
 }
 
@@ -710,36 +860,93 @@ pub(crate) async fn execute_prepared_exec_command(
     command
         .args(shell_arguments(&prepared.shell, &prepared.command))
         .current_dir(&prepared.workdir)
-        .stdin(Stdio::null())
+        .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true);
 
-    let output = tokio::time::timeout(
-        Duration::from_millis(prepared.timeout_ms),
-        command.output(),
-    )
-    .await
-    .map_err(|_| {
-        format!(
-            "Command timed out after {} ms: {}",
-            prepared.timeout_ms, prepared.command
-        )
-    })?
-    .map_err(|error| format!("Failed to execute command: {error}"))?;
+    let mut child = command
+        .spawn()
+        .map_err(|error| format!("Failed to execute command: {error}"))?;
+    let stdin = child.stdin.take();
+    let stdout = child.stdout.take();
+    let stderr = child.stderr.take();
+    let session = Arc::new(ExecSession {
+        session_id: next_exec_session_id(),
+        stdin: Mutex::new(stdin),
+        output: Mutex::new(String::new()),
+        delivered_len: Mutex::new(0),
+        exit_code: Mutex::new(None),
+        done: AtomicBool::new(false),
+        notify: Notify::new(),
+    });
 
-    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-    let exit_code = output.status.code().unwrap_or(-1);
+    if let Some(stdout) = stdout {
+        tokio::spawn(spawn_session_output_reader(stdout, session.clone()));
+    }
+    if let Some(stderr) = stderr {
+        tokio::spawn(spawn_session_output_reader(stderr, session.clone()));
+    }
 
+    let watcher = session.clone();
+    tokio::spawn(async move {
+        let exit_code = child.wait().await.ok().and_then(|status| status.code());
+        let mut code = watcher.exit_code.lock().await;
+        *code = exit_code;
+        watcher.done.store(true, Ordering::Relaxed);
+        watcher.notify.notify_waiters();
+    });
+
+    exec_sessions()
+        .lock()
+        .await
+        .insert(session.session_id, session.clone());
+
+    let mut result = collect_session_output(&session, prepared.yield_time_ms, prepared.max_output_chars).await;
+    result["command"] = Value::String(prepared.command.clone());
+    result["workdir"] = Value::String(prepared.workdir.clone());
+    result["shell"] = Value::String(prepared.shell.clone());
+    if result.get("done").and_then(Value::as_bool).unwrap_or(false) {
+        exec_sessions().lock().await.remove(&session.session_id);
+    }
+    Ok(result)
+}
+
+pub(crate) async fn execute_prepared_write_stdin(
+    prepared: &PreparedWriteStdin,
+) -> Result<Value, String> {
+    let session = exec_sessions()
+        .lock()
+        .await
+        .get(&prepared.session_id)
+        .cloned()
+        .ok_or_else(|| format!("Exec session not found: {}", prepared.session_id))?;
+
+    if !prepared.chars.is_empty() {
+        let mut stdin = session.stdin.lock().await;
+        let handle = stdin
+            .as_mut()
+            .ok_or_else(|| "Exec session stdin is closed.".to_string())?;
+        handle
+            .write_all(prepared.chars.as_bytes())
+            .await
+            .map_err(|error| format!("Failed to write stdin: {error}"))?;
+        handle
+            .flush()
+            .await
+            .map_err(|error| format!("Failed to flush stdin: {error}"))?;
+    }
+
+    let result = collect_session_output(&session, prepared.yield_time_ms, prepared.max_output_chars).await;
+    if result.get("done").and_then(Value::as_bool).unwrap_or(false) {
+        exec_sessions().lock().await.remove(&prepared.session_id);
+    }
     Ok(json!({
-        "ok": output.status.success(),
-        "command": prepared.command,
-        "workdir": prepared.workdir,
-        "shell": prepared.shell,
-        "exitCode": exit_code,
-        "stdout": preview_text(&stdout, EXEC_OUTPUT_MAX_CHARS),
-        "stderr": preview_text(&stderr, EXEC_OUTPUT_MAX_CHARS),
+        "sessionId": result.get("sessionId").cloned().unwrap_or(Value::Null),
+        "output": result.get("output").cloned().unwrap_or(Value::String(String::new())),
+        "exitCode": result.get("exitCode").cloned().unwrap_or(Value::Null),
+        "done": result.get("done").cloned().unwrap_or(Value::Bool(false)),
+        "ok": result.get("ok").cloned().unwrap_or(Value::Bool(false)),
     }))
 }
 
@@ -925,6 +1132,10 @@ pub(crate) fn is_exec_command_tool_call(tool_call: &RuntimeToolCall) -> bool {
     tool_call.name.trim() == EXEC_COMMAND_TOOL
 }
 
+pub(crate) fn is_write_stdin_tool_call(tool_call: &RuntimeToolCall) -> bool {
+    tool_call.name.trim() == WRITE_STDIN_TOOL
+}
+
 pub(crate) fn prepare_apply_patch_tool_call(
     workspace_path: &str,
     tool_call: &RuntimeToolCall,
@@ -955,6 +1166,11 @@ pub(crate) fn execute_runtime_tool_call_with_context(
             &tool_call.id,
             EXEC_COMMAND_TOOL,
             "exec_command requires runtime-managed approval.",
+        ),
+        WRITE_STDIN_TOOL => err_result(
+            &tool_call.id,
+            WRITE_STDIN_TOOL,
+            "write_stdin requires a live exec session.",
         ),
         other => err_result(
             &tool_call.id,
@@ -1077,12 +1293,43 @@ pub fn resolve_runtime_tool_definitions_with_context(
                         "type": "string",
                         "description": "Optional shell binary override."
                     },
-                    "timeout_ms": {
+                    "yield_time_ms": {
                         "type": "integer",
-                        "description": "Maximum time to wait before aborting the command. Defaults to 20000."
+                        "description": "How long to wait for output before returning. Defaults to 1000."
+                    },
+                    "max_output_tokens": {
+                        "type": "integer",
+                        "description": "Maximum output tokens to return. Defaults to 2000."
                     }
                 },
                 "required": ["cmd"],
+                "additionalProperties": false
+            }),
+        },
+        RuntimeToolDefinition {
+            name: WRITE_STDIN_TOOL,
+            description: "Write to an existing exec session or poll for more output.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "session_id": {
+                        "type": "integer",
+                        "description": "Identifier of the running exec session."
+                    },
+                    "chars": {
+                        "type": "string",
+                        "description": "Optional bytes to write to stdin. May be empty to poll."
+                    },
+                    "yield_time_ms": {
+                        "type": "integer",
+                        "description": "How long to wait for output before returning. Defaults to 1000."
+                    },
+                    "max_output_tokens": {
+                        "type": "integer",
+                        "description": "Maximum output tokens to return. Defaults to 2000."
+                    }
+                },
+                "required": ["session_id"],
                 "additionalProperties": false
             }),
         },
@@ -1287,7 +1534,7 @@ mod tests {
                 name: EXEC_COMMAND_TOOL.to_string(),
                 arguments: json!({
                     "cmd": if cfg!(windows) { "Write-Output hello" } else { "printf hello" },
-                    "timeout_ms": 5000,
+                    "yield_time_ms": 500,
                 }),
             },
         )
@@ -1298,7 +1545,61 @@ mod tests {
             .expect("exec command");
 
         assert_eq!(result["ok"], Value::Bool(true));
-        assert!(result["stdout"].as_str().unwrap_or_default().contains("hello"));
+        assert!(result["output"].as_str().unwrap_or_default().contains("hello"));
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn exec_command_can_resume_with_write_stdin_poll() {
+        let root = temp_workspace();
+        let prepared = prepare_exec_command_tool_call(
+            &normalize_display_path(&root),
+            &RuntimeToolCall {
+                id: "call_8".to_string(),
+                name: EXEC_COMMAND_TOOL.to_string(),
+                arguments: json!({
+                    "cmd": if cfg!(windows) {
+                        "Write-Output hello; Start-Sleep -Milliseconds 300; Write-Output world"
+                    } else {
+                        "printf hello; sleep 0.3; printf world"
+                    },
+                    "yield_time_ms": 50,
+                }),
+            },
+        )
+        .expect("prepare exec");
+
+        let first = execute_prepared_exec_command(&prepared)
+            .await
+            .expect("start session");
+        let session_id = first
+            .get("sessionId")
+            .and_then(Value::as_i64)
+            .expect("session id") as i32;
+        assert!(first["output"].as_str().unwrap_or_default().contains("hello"));
+
+        let follow_up = execute_prepared_write_stdin(&PreparedWriteStdin {
+            session_id,
+            chars: String::new(),
+            yield_time_ms: 600,
+            max_output_chars: EXEC_OUTPUT_MAX_CHARS,
+        })
+        .await
+        .expect("poll session");
+
+        assert!(follow_up["output"].as_str().unwrap_or_default().contains("world"));
+        if follow_up["done"] != Value::Bool(true) {
+            let final_poll = execute_prepared_write_stdin(&PreparedWriteStdin {
+                session_id,
+                chars: String::new(),
+                yield_time_ms: 300,
+                max_output_chars: EXEC_OUTPUT_MAX_CHARS,
+            })
+            .await
+            .expect("final poll");
+            assert_eq!(final_poll["done"], Value::Bool(true));
+        }
 
         let _ = fs::remove_dir_all(root);
     }

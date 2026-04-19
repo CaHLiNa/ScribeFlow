@@ -19,10 +19,12 @@ use super::protocol::{
 use super::state::{CodexRuntimeHandle, CodexRuntimeState};
 use super::storage::persist_runtime_state;
 use super::tools::{
-    build_apply_patch_result, execute_prepared_apply_patch, execute_runtime_tool_call_with_context,
-    build_exec_command_result, execute_prepared_exec_command, is_apply_patch_tool_call,
-    is_exec_command_tool_call, prepare_apply_patch_tool_call, prepare_exec_command_tool_call,
-    resolve_runtime_tool_definitions_with_context, RuntimeToolCall, RuntimeToolResult,
+    build_apply_patch_result, build_exec_command_result, execute_prepared_apply_patch,
+    execute_prepared_exec_command, execute_prepared_write_stdin,
+    execute_runtime_tool_call_with_context, is_apply_patch_tool_call, is_exec_command_tool_call,
+    is_write_stdin_tool_call, prepare_apply_patch_tool_call, prepare_exec_command_tool_call,
+    prepare_write_stdin_tool_call, resolve_runtime_tool_definitions_with_context, RuntimeToolCall,
+    RuntimeToolResult,
 };
 use super::turns::{build_runtime_item, start_turn};
 
@@ -962,6 +964,44 @@ async fn execute_runtime_tool_calls_with_approvals<R: Runtime>(
                         "{\"error\":\"Failed to serialize tool result.\"}".to_string()
                     }),
                     is_error: !content.get("ok").and_then(Value::as_bool).unwrap_or(false),
+                }),
+                Err(error) => results.push(RuntimeToolResult {
+                    tool_call_id: tool_call.id.clone(),
+                    content: serde_json::to_string_pretty(&json!({
+                        "tool": tool_call.name,
+                        "error": error,
+                    }))
+                    .unwrap_or_else(|_| "{\"error\":\"Failed to serialize tool result.\"}".to_string()),
+                    is_error: true,
+                }),
+            }
+            continue;
+        }
+
+        if is_write_stdin_tool_call(tool_call) {
+            let prepared = match prepare_write_stdin_tool_call(tool_call) {
+                Ok(prepared) => prepared,
+                Err(error) => {
+                    results.push(RuntimeToolResult {
+                        tool_call_id: tool_call.id.clone(),
+                        content: serde_json::to_string_pretty(&json!({
+                            "tool": tool_call.name,
+                            "error": error,
+                        }))
+                        .unwrap_or_else(|_| "{\"error\":\"Failed to serialize tool result.\"}".to_string()),
+                        is_error: true,
+                    });
+                    continue;
+                }
+            };
+
+            match execute_prepared_write_stdin(&prepared).await {
+                Ok(content) => results.push(RuntimeToolResult {
+                    tool_call_id: tool_call.id.clone(),
+                    content: serde_json::to_string_pretty(&content).unwrap_or_else(|_| {
+                        "{\"error\":\"Failed to serialize tool result.\"}".to_string()
+                    }),
+                    is_error: false,
                 }),
                 Err(error) => results.push(RuntimeToolResult {
                     tool_call_id: tool_call.id.clone(),

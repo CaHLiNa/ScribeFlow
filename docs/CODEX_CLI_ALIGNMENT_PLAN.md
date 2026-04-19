@@ -78,7 +78,7 @@
 - 审批流与输出回传完整
 - 形成可扩展的工具注册与执行边界
 
-状态：已实现首个闭环（`exec_command` + runtime 审批 + 结果回传）
+状态：已实现首版统一 exec session（`exec_command` + `write_stdin` + runtime 审批 + 结果回传）
 
 ## 本次切片
 
@@ -104,9 +104,10 @@
 
 阶段 3 已额外完成：
 
-- 在 `src-tauri/src/codex_runtime/tools.rs` 中实现受限版 `exec_command`
+- 在 `src-tauri/src/codex_runtime/tools.rs` 中实现首版统一 exec session（`exec_command` / `write_stdin`）
 - 在 `src-tauri/src/codex_runtime/providers.rs` 中接入命令执行的 runtime-managed permission request / resolve 等待
-- 命令执行默认受限在当前 workspace 内工作目录，支持超时与 shell override
+- 命令执行默认受限在当前 workspace 内工作目录，支持 shell override
+- 长命令可返回 `sessionId`，后续通过 `write_stdin` 继续轮询或写入 stdin
 - 命令输出以结构化 JSON 回传给模型续轮消费
 
 阶段 1 完成后，ScribeFlow 将从“Codex 风格 skill/runtime 外壳”进入“具备最小执行能力的 Codex 风格 agent runtime”。
