@@ -693,7 +693,27 @@ export const useEditorRuntimeStore = defineStore('editorRuntime', {
             ? null
             : jsOffsetToUtf8Offset(currentText, viewportOffset),
       })
-      await this.refreshNativeDocumentState({ path: normalizedPath })
+      const primarySelection = Array.isArray(selections) ? selections[0] || null : null
+      const nextCursor = primarySelection
+        ? buildNativePrimaryCursorSnapshot(currentText, {
+            head: Number(primarySelection?.head ?? 0),
+          })
+        : this.nativeDocuments[normalizedPath]?.cursor || null
+      this.nativeDocuments = {
+        ...this.nativeDocuments,
+        [normalizedPath]: {
+          ...(this.nativeDocuments[normalizedPath] || {}),
+          selections: Array.isArray(selections) ? selections : [],
+          cursor: nextCursor,
+          primaryCaret: nextCursor,
+          viewport:
+            viewportOffset === null || viewportOffset === undefined
+              ? this.nativeDocuments[normalizedPath]?.viewport || null
+              : buildNativePrimaryCursorSnapshot(currentText, {
+                  head: Number(viewportOffset || 0),
+                }),
+        },
+      }
       return true
     },
 
