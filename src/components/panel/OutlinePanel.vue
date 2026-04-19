@@ -46,17 +46,52 @@
         </button>
         <div v-if="!isSectionCollapsed(section.key)">
           <div
-            v-for="item in section.items"
-            :key="outlineItemKey(item)"
+            v-for="renderItem in sectionRenderItems(section)"
+            :key="renderItem.key"
             class="outline-panel-row ui-list-row"
-            :class="{ 'is-active': outlineItemKey(item) === activeOutlineItemKey }"
-            :style="{ paddingLeft: getOutlineItemPadding(section.key, item) + 'px' }"
-            @click="navigateToOutlineItem(item)"
+            :class="{ 'is-active': renderItem.key === activeOutlineItemKey }"
+            :style="{ paddingLeft: getOutlineItemPadding(section.key, renderItem.item) + 'px' }"
+            @click="navigateToOutlineItem(renderItem.item)"
           >
-            <span v-if="getOutlineKindLabel(item.kind)" class="outline-panel-kind">
-              {{ getOutlineKindLabel(item.kind) }}
+            <button
+              v-if="renderItem.hasChildren"
+              type="button"
+              class="outline-panel-item-toggle"
+              :class="{ 'is-collapsed': isHeadingCollapsed(renderItem.key) }"
+              :aria-label="
+                isHeadingCollapsed(renderItem.key)
+                  ? t('Expand outline level')
+                  : t('Collapse outline level')
+              "
+              @click.stop="toggleHeadingCollapse(renderItem.key)"
+            >
+              <svg
+                class="outline-panel-item-chevron"
+                width="12"
+                height="12"
+                viewBox="0 0 12 12"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.7"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M4 2.5 7.5 6 4 9.5" />
+              </svg>
+            </button>
+            <span
+              v-else-if="section.key === 'contents'"
+              class="outline-panel-item-toggle outline-panel-item-toggle--placeholder"
+              aria-hidden="true"
+            ></span>
+            <span
+              v-if="getOutlineKindLabel(renderItem.item.kind)"
+              class="outline-panel-kind"
+            >
+              {{ getOutlineKindLabel(renderItem.item.kind) }}
             </span>
-            <span class="truncate">{{ item.text }}</span>
+            <span class="truncate">{{ renderItem.item.text }}</span>
           </div>
         </div>
       </div>
@@ -85,6 +120,7 @@ const workflowStore = useDocumentWorkflowStore()
 const filesStore = useFilesStore()
 const { t } = useI18n()
 const collapsedSections = ref({})
+const collapsedHeadings = ref({})
 const OUTLINE_SECTION_KEYS = [
   { key: 'contents', titleKey: 'Contents' },
   { key: 'figures', titleKey: 'Figures and tables' },
@@ -318,6 +354,61 @@ function toggleSectionCollapse(sectionKey) {
   }
 }
 
+function isHeadingCollapsed(itemKey) {
+  return collapsedHeadings.value[itemKey] === true
+}
+
+function toggleHeadingCollapse(itemKey) {
+  collapsedHeadings.value = {
+    ...collapsedHeadings.value,
+    [itemKey]: !isHeadingCollapsed(itemKey),
+  }
+}
+
+function sectionRenderItems(section = {}) {
+  if (section.key !== 'contents') {
+    return section.items.map((item) => ({
+      key: outlineItemKey(item),
+      item,
+      hasChildren: false,
+    }))
+  }
+
+  const nodes = []
+  const stack = []
+  const parentKeys = new Map()
+  const branchKeys = new Set()
+
+  for (const item of section.items) {
+    const key = outlineItemKey(item)
+    const level = Math.max(1, Number(item.displayLevel || item.level) || 1)
+
+    while (stack.length && stack[stack.length - 1].level >= level) {
+      stack.pop()
+    }
+
+    if (stack.length) {
+      branchKeys.add(stack[stack.length - 1].key)
+    }
+
+    parentKeys.set(
+      key,
+      stack.map((entry) => entry.key)
+    )
+
+    nodes.push({ key, item, level })
+    stack.push({ key, level })
+  }
+
+  return nodes
+    .filter((node) => parentKeys.get(node.key)?.every((key) => !isHeadingCollapsed(key)) !== false)
+    .map((node) => ({
+      key: node.key,
+      item: node.item,
+      hasChildren: branchKeys.has(node.key),
+    }))
+}
+
 watch(
   () => [activeFile.value, fileType.value, currentDocumentText(activeFile.value || '')],
   () => {
@@ -334,6 +425,16 @@ watch(
       nextState[section.key] = collapsedSections.value[section.key] === true
     }
     collapsedSections.value = nextState
+
+    const nextHeadingState = {}
+    for (const section of sections) {
+      if (section.key !== 'contents') continue
+      for (const item of section.items) {
+        const key = outlineItemKey(item)
+        nextHeadingState[key] = collapsedHeadings.value[key] === true
+      }
+    }
+    collapsedHeadings.value = nextHeadingState
   },
   { immediate: true }
 )
@@ -508,5 +609,47 @@ onUnmounted(() => {})
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-muted);
+}
+
+.outline-panel-item-toggle {
+  width: 16px;
+  height: 16px;
+  margin-right: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.outline-panel-item-toggle:hover {
+  background: var(--sidebar-item-hover);
+  color: var(--text-primary);
+}
+
+.outline-panel-item-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.outline-panel-item-toggle--placeholder {
+  pointer-events: none;
+  opacity: 0;
+}
+
+.outline-panel-item-chevron {
+  transition: transform 120ms ease;
+}
+
+.outline-panel-item-toggle.is-collapsed .outline-panel-item-chevron {
+  transform: rotate(0deg);
+}
+
+.outline-panel-item-toggle:not(.is-collapsed) .outline-panel-item-chevron {
+  transform: rotate(90deg);
 }
 </style>
