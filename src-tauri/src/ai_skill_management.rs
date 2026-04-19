@@ -79,7 +79,6 @@ fn ensure_managed_root(params: &AiSkillCatalogParams, scope: &str) -> Result<Str
 fn ensure_skill_is_managed(params: &AiSkillCatalogParams, skill: &Value) -> Result<String, String> {
     let directory_path = skill
         .get("pathToSkillDir")
-        .or_else(|| skill.get("directoryPath"))
         .and_then(Value::as_str)
         .unwrap_or_default()
         .trim();
@@ -102,7 +101,6 @@ fn ensure_skill_is_writable(
 ) -> Result<String, String> {
     let directory_path = skill
         .get("pathToSkillDir")
-        .or_else(|| skill.get("directoryPath"))
         .and_then(Value::as_str)
         .unwrap_or_default()
         .trim();
