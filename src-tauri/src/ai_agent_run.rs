@@ -15,6 +15,7 @@ use crate::ai_agent_session_runtime::{
     AiAgentSessionStartParams,
 };
 use crate::ai_runtime_turn_wait::run_turn_and_wait;
+use crate::ai_skill_support::load_skill_supporting_files;
 use crate::codex_runtime::{
     protocol::{RuntimeProviderConfig, RuntimeThreadStartParams, RuntimeTurnRunParams},
     storage::persist_runtime_state,
@@ -297,6 +298,44 @@ fn should_use_codex_runtime_run(prepared_run: &Value) -> bool {
     true
 }
 
+fn should_use_native_runtime_inputs(provider_id: &str, runtime_intent: &str) -> bool {
+    if runtime_intent.trim() != "agent" {
+        return false;
+    }
+    let normalized = provider_id.trim().to_lowercase();
+    normalized != "anthropic" && normalized != "google"
+}
+
+fn truncate_text(value: &str, max_chars: usize) -> String {
+    let normalized = value.trim();
+    if normalized.chars().count() <= max_chars {
+        return normalized.to_string();
+    }
+    format!(
+        "{}…",
+        normalized
+            .chars()
+            .take(max_chars)
+            .collect::<String>()
+            .trim_end()
+    )
+}
+
+fn build_native_text_input_item(text: String) -> Option<Value> {
+    let normalized = text.trim().to_string();
+    if normalized.is_empty() {
+        return None;
+    }
+    Some(json!({
+        "type": "message",
+        "role": "user",
+        "content": [{
+            "type": "input_text",
+            "text": normalized,
+        }],
+    }))
+}
+
 fn build_native_attachment_input_items(attachments: &[Value]) -> Vec<Value> {
     attachments
         .iter()
@@ -405,6 +444,147 @@ fn build_native_attachment_input_items(attachments: &[Value]) -> Vec<Value> {
         .collect()
 }
 
+fn build_native_context_bundle_input_items(context_bundle: &Value) -> Vec<Value> {
+    let workspace = context_bundle.get("workspace").unwrap_or(&Value::Null);
+    let document = context_bundle.get("document").unwrap_or(&Value::Null);
+    let selection = context_bundle.get("selection").unwrap_or(&Value::Null);
+    let reference = context_bundle.get("reference").unwrap_or(&Value::Null);
+
+    let selection_text = {
+        let preview = string_field(selection, &["preview"]);
+        if preview.is_empty() {
+            string_field(selection, &["text"])
+        } else {
+            preview
+        }
+    };
+    let reference_bits = [
+        string_field(reference, &["citationKey", "citation_key"]),
+        string_field(reference, &["title"]),
+    ]
+    .into_iter()
+    .filter(|entry| !entry.is_empty())
+    .collect::<Vec<_>>()
+    .join(" · ");
+
+    let context_text = [
+        "Runtime context:".to_string(),
+        format!("- Workspace: {}", {
+            let path = string_field(workspace, &["path"]);
+            if path.is_empty() {
+                "Unavailable".to_string()
+            } else {
+                path
+            }
+        }),
+        format!("- Active document: {}", {
+            let path = string_field(document, &["filePath", "file_path"]);
+            if path.is_empty() {
+                "Unavailable".to_string()
+            } else {
+                path
+            }
+        }),
+        format!(
+            "- Selection: {}",
+            if selection_text.is_empty() {
+                "Unavailable".to_string()
+            } else {
+                truncate_text(&selection_text, 4000)
+            }
+        ),
+        format!(
+            "- Reference: {}",
+            if reference_bits.is_empty() {
+                "Unavailable".to_string()
+            } else {
+                reference_bits
+            }
+        ),
+    ]
+    .join("\n");
+
+    build_native_text_input_item(context_text)
+        .into_iter()
+        .collect()
+}
+
+fn build_native_referenced_file_input_items(referenced_files: &[Value]) -> Vec<Value> {
+    referenced_files
+        .iter()
+        .filter_map(|file| {
+            let path = {
+                let relative = string_field(file, &["relativePath", "relative_path"]);
+                if relative.is_empty() {
+                    string_field(file, &["path"])
+                } else {
+                    relative
+                }
+            };
+            let content = string_field(file, &["content"]);
+            let text = if content.is_empty() {
+                format!("Referenced file: {path}\n(content unavailable)")
+            } else {
+                format!(
+                    "Referenced file: {path}\n\n```text\n{}\n```",
+                    truncate_text(&content, 5000)
+                )
+            };
+            build_native_text_input_item(text)
+        })
+        .collect()
+}
+
+fn build_native_support_file_input_items(skill: &Value) -> Vec<Value> {
+    load_skill_supporting_files(skill)
+        .into_iter()
+        .filter_map(|file| {
+            let relative_path = string_field(&file, &["relativePath", "relative_path"]);
+            let content = string_field(&file, &["content"]);
+            build_native_text_input_item(format!(
+                "Skill support file: {}\n\n```text\n{}\n```",
+                if relative_path.is_empty() {
+                    "unknown".to_string()
+                } else {
+                    relative_path
+                },
+                truncate_text(&content, 5000)
+            ))
+        })
+        .collect()
+}
+
+fn build_native_requested_tool_input_items(requested_tools: &[Value]) -> Vec<Value> {
+    let items = requested_tools
+        .iter()
+        .filter_map(|tool| tool.as_str().map(str::trim))
+        .filter(|tool| !tool.is_empty())
+        .map(|tool| format!("- {tool}"))
+        .collect::<Vec<_>>();
+    if items.is_empty() {
+        return Vec::new();
+    }
+    build_native_text_input_item(format!("User-mentioned tools:\n{}", items.join("\n")))
+        .into_iter()
+        .collect()
+}
+
+fn build_native_runtime_input_items(
+    skill: &Value,
+    context_bundle: &Value,
+    attachments: &[Value],
+    referenced_files: &[Value],
+    requested_tools: &[Value],
+) -> Vec<Value> {
+    let mut items = Vec::new();
+    items.extend(build_native_context_bundle_input_items(context_bundle));
+    items.extend(build_native_attachment_input_items(attachments));
+    items.extend(build_native_referenced_file_input_items(referenced_files));
+    items.extend(build_native_support_file_input_items(skill));
+    items.extend(build_native_requested_tool_input_items(requested_tools));
+    items
+}
+
 fn build_runtime_provider_config(
     provider_id: &str,
     config: &Value,
@@ -509,17 +689,22 @@ async fn ai_agent_run(params: AiAgentRunParams) -> Result<AiAgentRunResponse, St
                 .collect::<Vec<_>>()
         })
         .unwrap_or_default();
-    let should_use_native_attachment_inputs = params
-        .config
-        .get("providerId")
-        .and_then(Value::as_str)
-        .map(|provider_id| {
-            let normalized = provider_id.trim().to_lowercase();
-            normalized != "anthropic" && normalized != "google"
-        })
-        .unwrap_or(true);
-    let native_attachment_inputs = if should_use_native_attachment_inputs {
-        build_native_attachment_input_items(&params.attachments)
+    let should_use_native_runtime_items = should_use_native_runtime_inputs(
+        params
+            .config
+            .get("providerId")
+            .and_then(Value::as_str)
+            .unwrap_or("openai"),
+        &params.runtime_intent,
+    );
+    let native_runtime_inputs = if should_use_native_runtime_items {
+        build_native_runtime_input_items(
+            &params.skill,
+            &params.context_bundle,
+            &params.attachments,
+            &params.referenced_files,
+            &params.requested_tools,
+        )
     } else {
         Vec::new()
     };
@@ -531,15 +716,24 @@ async fn ai_agent_run(params: AiAgentRunParams) -> Result<AiAgentRunResponse, St
         conversation: params.conversation.clone(),
         scribeflow_skills: params.scribeflow_skills.clone(),
         support_files: Vec::new(),
-        attachments: if should_use_native_attachment_inputs {
+        attachments: if should_use_native_runtime_items {
             Vec::new()
         } else {
             params.attachments.clone()
         },
-        referenced_files: params.referenced_files.clone(),
-        requested_tools: params.requested_tools.clone(),
+        referenced_files: if should_use_native_runtime_items {
+            Vec::new()
+        } else {
+            params.referenced_files.clone()
+        },
+        requested_tools: if should_use_native_runtime_items {
+            Vec::new()
+        } else {
+            params.requested_tools.clone()
+        },
         enabled_tool_ids: enabled_tool_ids.clone(),
         runtime_intent: params.runtime_intent.clone(),
+        runtime_native_inputs: should_use_native_runtime_items,
         invocation: params.invocation.clone(),
     })
     .await?;
@@ -556,7 +750,7 @@ async fn ai_agent_run(params: AiAgentRunParams) -> Result<AiAgentRunResponse, St
         api_key: params.api_key.clone(),
         conversation: params.conversation.clone(),
         user_prompt: prompt.user_prompt.clone(),
-        supplemental_user_items: native_attachment_inputs,
+        supplemental_user_items: native_runtime_inputs,
         system_prompt: prompt.system_prompt.clone(),
         context_bundle: params.context_bundle.clone(),
         support_files: Vec::new(),
@@ -648,12 +842,16 @@ async fn ai_agent_run_started_session<R: Runtime>(
                 })
                 .unwrap_or_default();
 
-            let should_use_native_attachment_inputs = {
-                let normalized = provider_id.trim().to_lowercase();
-                normalized != "anthropic" && normalized != "google"
-            };
-            let native_attachment_inputs = if should_use_native_attachment_inputs {
-                build_native_attachment_input_items(&attachments)
+            let should_use_native_runtime_items =
+                should_use_native_runtime_inputs(&provider_id, &runtime_intent);
+            let native_runtime_inputs = if should_use_native_runtime_items {
+                build_native_runtime_input_items(
+                    &skill,
+                    &context_bundle,
+                    &attachments,
+                    &referenced_files,
+                    &requested_tools,
+                )
             } else {
                 Vec::new()
             };
@@ -664,15 +862,24 @@ async fn ai_agent_run_started_session<R: Runtime>(
                 conversation: prior_conversation.clone(),
                 scribeflow_skills: params.scribeflow_skills.clone(),
                 support_files: Vec::new(),
-                attachments: if should_use_native_attachment_inputs {
+                attachments: if should_use_native_runtime_items {
                     Vec::new()
                 } else {
                     attachments.clone()
                 },
-                referenced_files: referenced_files.clone(),
-                requested_tools: requested_tools.clone(),
+                referenced_files: if should_use_native_runtime_items {
+                    Vec::new()
+                } else {
+                    referenced_files.clone()
+                },
+                requested_tools: if should_use_native_runtime_items {
+                    Vec::new()
+                } else {
+                    requested_tools.clone()
+                },
                 enabled_tool_ids,
                 runtime_intent: runtime_intent.clone(),
+                runtime_native_inputs: should_use_native_runtime_items,
                 invocation: invocation.clone(),
             })
             .await?;
@@ -693,7 +900,7 @@ async fn ai_agent_run_started_session<R: Runtime>(
                         context_bundle.get("workspace").unwrap_or(&Value::Null),
                         &["path"],
                     ),
-                    supplemental_user_items: native_attachment_inputs,
+                    supplemental_user_items: native_runtime_inputs,
                     enabled_tool_ids: prompt.enabled_tool_ids,
                     requested_tool_mentions: requested_tool_mentions.clone(),
                 },

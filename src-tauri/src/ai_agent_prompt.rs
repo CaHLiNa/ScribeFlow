@@ -30,6 +30,8 @@ pub struct AiAgentPromptParams {
     pub enabled_tool_ids: Vec<String>,
     #[serde(default)]
     pub runtime_intent: String,
+    #[serde(default)]
+    pub runtime_native_inputs: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -488,25 +490,27 @@ fn build_agent_mode_user_prompt(params: &AiAgentPromptParams) -> String {
         String::new(),
         build_selection_precedence_block(params),
     ];
-    let referenced = build_referenced_files_block(&params.referenced_files);
-    if !referenced.is_empty() {
-        lines.push(String::new());
-        lines.push(referenced);
-    }
-    let attachments = build_attachment_block(&params.attachments);
-    if !attachments.is_empty() {
-        lines.push(String::new());
-        lines.push(attachments);
-    }
-    let requested = build_requested_tools_block(&params.requested_tools);
-    if !requested.is_empty() {
-        lines.push(String::new());
-        lines.push(requested);
-    }
-    let conversation = build_conversation_block(&params.conversation);
-    if !conversation.is_empty() {
-        lines.push(String::new());
-        lines.push(conversation);
+    if !params.runtime_native_inputs {
+        let referenced = build_referenced_files_block(&params.referenced_files);
+        if !referenced.is_empty() {
+            lines.push(String::new());
+            lines.push(referenced);
+        }
+        let attachments = build_attachment_block(&params.attachments);
+        if !attachments.is_empty() {
+            lines.push(String::new());
+            lines.push(attachments);
+        }
+        let requested = build_requested_tools_block(&params.requested_tools);
+        if !requested.is_empty() {
+            lines.push(String::new());
+            lines.push(requested);
+        }
+        let conversation = build_conversation_block(&params.conversation);
+        if !conversation.is_empty() {
+            lines.push(String::new());
+            lines.push(conversation);
+        }
     }
     lines.join("\n")
 }
@@ -563,7 +567,8 @@ pub async fn ai_agent_build_prompt(
     params: AiAgentPromptParams,
 ) -> Result<AiAgentPromptResponse, String> {
     let mut params = params;
-    if params.support_files.is_empty()
+    if !params.runtime_native_inputs
+        && params.support_files.is_empty()
         && string_field(&params.skill, &["kind"]) == "codex-skill"
         && params
             .enabled_tool_ids
@@ -590,6 +595,11 @@ pub async fn ai_agent_build_prompt(
             .to_string(),
             "Skills are provided as an explicit catalog in the prompt. Treat them as Codex-style `SKILL.md` packages and do not infer extra skills from workspace filenames.".to_string(),
             "Do not invent unavailable runtime capabilities or workspace edit powers.".to_string(),
+            if params.runtime_native_inputs {
+                "Runtime-native context inputs may already include attachments, files, selections, references, and tool hints. Do not ask for them again unless genuinely missing.".to_string()
+            } else {
+                String::new()
+            },
             format!(
                 "{}: {}.",
                 if params.runtime_intent.trim() == "agent" {
@@ -607,7 +617,11 @@ pub async fn ai_agent_build_prompt(
         if structured {
             lines.push("Return valid JSON only.".to_string());
         }
-        lines.join(" ")
+        lines
+            .into_iter()
+            .filter(|line| !line.trim().is_empty())
+            .collect::<Vec<_>>()
+            .join(" ")
     };
     let user_prompt = if params.runtime_intent.trim() == "agent" {
         build_agent_mode_user_prompt(&params)
