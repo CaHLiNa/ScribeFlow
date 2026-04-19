@@ -60,7 +60,7 @@
 - UI 可见审批与结果
 - 工作区越权写入被阻止
 
-状态：待开始
+状态：已实现首个闭环（`apply_patch` + runtime 审批 + 结果回传）
 
 ### 阶段 3：命令执行与交互编排
 
@@ -82,7 +82,10 @@
 
 ## 本次切片
 
-本次只做阶段 1，不提前混入 patch/exec。原因很简单：当前最大的结构性短板是“没有真实工具执行层”，而不是“写工具太少”。
+当前已完成两个切片：
+
+1. 阶段 1：只读工具层
+2. 阶段 2：`apply_patch` 的首个受控闭环
 
 本次已完成：
 
@@ -91,5 +94,12 @@
 - 在 `src-tauri/src/codex_runtime/tools.rs` 中实现 `search_files`
 - 三个工具都限制在当前 workspace root 内执行
 - 工具结果统一输出为结构化 JSON 文本
+
+阶段 2 已额外完成：
+
+- 在 `src-tauri/src/codex_runtime/tools.rs` 中实现受限版 `apply_patch`
+- 在 `src-tauri/src/codex_runtime/providers.rs` 中接入 runtime-managed permission request / resolve 等待
+- 用户拒绝 patch 时，错误结果会回传给模型进入续轮
+- 用户批准 patch 时，变更会在 workspace root 内执行
 
 阶段 1 完成后，ScribeFlow 将从“Codex 风格 skill/runtime 外壳”进入“具备最小执行能力的 Codex 风格 agent runtime”。

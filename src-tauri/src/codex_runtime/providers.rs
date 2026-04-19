@@ -7,18 +7,21 @@ use std::time::Duration;
 use tauri::{AppHandle, Runtime};
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
+use tokio::time::sleep;
 use url::Url;
 
+use super::approvals::request_permission;
 use super::events::emit_runtime_event;
 use super::protocol::{
-    ItemKind, RuntimeProviderConfig, RuntimeTurnRunParams, RuntimeTurnRunResponse, ThreadStatus,
-    TurnStatus,
+    ItemKind, RuntimePermissionRequestParams, RuntimeProviderConfig, RuntimeTurnRunParams,
+    RuntimeTurnRunResponse, ThreadStatus, TurnStatus,
 };
 use super::state::{CodexRuntimeHandle, CodexRuntimeState};
 use super::storage::persist_runtime_state;
 use super::tools::{
-    execute_runtime_tool_calls, resolve_runtime_tool_definitions_with_context, RuntimeToolCall,
-    RuntimeToolResult,
+    build_apply_patch_result, execute_prepared_apply_patch, execute_runtime_tool_call_with_context,
+    is_apply_patch_tool_call, prepare_apply_patch_tool_call,
+    resolve_runtime_tool_definitions_with_context, RuntimeToolCall, RuntimeToolResult,
 };
 use super::turns::{build_runtime_item, start_turn};
 
@@ -699,6 +702,188 @@ async fn append_runtime_tool_items<R: Runtime>(
     item_ids
 }
 
+async fn request_apply_patch_permission<R: Runtime>(
+    app: &AppHandle<R>,
+    runtime: &CodexRuntimeHandle,
+    thread_id: &str,
+    turn_id: &str,
+    tool_call: &RuntimeToolCall,
+    tool_result: &Value,
+) -> Result<String, String> {
+    let mut state = runtime.inner.lock().await;
+    let response = request_permission(
+        &mut state,
+        RuntimePermissionRequestParams {
+            thread_id: thread_id.to_string(),
+            turn_id: Some(turn_id.to_string()),
+            tool_name: tool_call.name.clone(),
+            display_name: "apply_patch".to_string(),
+            title: "Approve patch application".to_string(),
+            description: "The agent wants to modify files in the current workspace.".to_string(),
+            decision_reason: format!(
+                "{} file change(s) requested.",
+                tool_result
+                    .get("files")
+                    .and_then(Value::as_array)
+                    .map(|entries| entries.len())
+                    .unwrap_or_default()
+            ),
+            input_preview: tool_result
+                .get("preview")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string(),
+        },
+    )?;
+    persist_runtime_state(&state)?;
+    emit_runtime_event(
+        app,
+        "permissionRequest",
+        state.threads.get(thread_id).cloned(),
+        state.turns.get(turn_id).cloned(),
+        None,
+        Some(response.request.clone()),
+        None,
+        None,
+        None,
+        None,
+        None,
+    );
+    Ok(response.request.request_id)
+}
+
+async fn await_permission_resolution(
+    runtime: &CodexRuntimeHandle,
+    thread_id: &str,
+    turn_id: &str,
+    request_id: &str,
+) -> String {
+    loop {
+        {
+            let mut state = runtime.inner.lock().await;
+            if let Some(response) = state.permission_resolutions.remove(request_id) {
+                return response.behavior;
+            }
+            if state
+                .turns
+                .get(turn_id)
+                .map(|turn| turn.status != TurnStatus::Running)
+                .unwrap_or(true)
+            {
+                return "deny".to_string();
+            }
+            if state
+                .threads
+                .get(thread_id)
+                .map(|thread| thread.status != ThreadStatus::Running)
+                .unwrap_or(true)
+            {
+                return "deny".to_string();
+            }
+        }
+        sleep(Duration::from_millis(80)).await;
+    }
+}
+
+async fn execute_runtime_tool_calls_with_approvals<R: Runtime>(
+    app: &AppHandle<R>,
+    runtime: &CodexRuntimeHandle,
+    thread_id: &str,
+    turn_id: &str,
+    workspace_path: &str,
+    tool_calls: &[RuntimeToolCall],
+) -> Vec<RuntimeToolResult> {
+    let mut results = Vec::with_capacity(tool_calls.len());
+    for tool_call in tool_calls {
+        if is_apply_patch_tool_call(tool_call) {
+            let prepared = match prepare_apply_patch_tool_call(workspace_path, tool_call) {
+                Ok(prepared) => prepared,
+                Err(error) => {
+                    results.push(RuntimeToolResult {
+                        tool_call_id: tool_call.id.clone(),
+                        content: serde_json::to_string_pretty(&json!({
+                            "tool": tool_call.name,
+                            "error": error,
+                        }))
+                        .unwrap_or_else(|_| "{\"error\":\"Failed to serialize tool result.\"}".to_string()),
+                        is_error: true,
+                    });
+                    continue;
+                }
+            };
+
+            let permission_payload = build_apply_patch_result(workspace_path, &prepared);
+            let request_id = match request_apply_patch_permission(
+                app,
+                runtime,
+                thread_id,
+                turn_id,
+                tool_call,
+                &permission_payload,
+            )
+            .await
+            {
+                Ok(request_id) => request_id,
+                Err(error) => {
+                    results.push(RuntimeToolResult {
+                        tool_call_id: tool_call.id.clone(),
+                        content: serde_json::to_string_pretty(&json!({
+                            "tool": tool_call.name,
+                            "error": error,
+                        }))
+                        .unwrap_or_else(|_| "{\"error\":\"Failed to serialize tool result.\"}".to_string()),
+                        is_error: true,
+                    });
+                    continue;
+                }
+            };
+
+            let behavior =
+                await_permission_resolution(runtime, thread_id, turn_id, &request_id).await;
+            if behavior.trim() != "allow" {
+                results.push(RuntimeToolResult {
+                    tool_call_id: tool_call.id.clone(),
+                    content: serde_json::to_string_pretty(&json!({
+                        "tool": tool_call.name,
+                        "error": "Patch application was denied by the user.",
+                    }))
+                    .unwrap_or_else(|_| "{\"error\":\"Failed to serialize tool result.\"}".to_string()),
+                    is_error: true,
+                });
+                continue;
+            }
+
+            match execute_prepared_apply_patch(workspace_path, &prepared) {
+                Ok(content) => results.push(RuntimeToolResult {
+                    tool_call_id: tool_call.id.clone(),
+                    content: serde_json::to_string_pretty(&content).unwrap_or_else(|_| {
+                        "{\"error\":\"Failed to serialize tool result.\"}".to_string()
+                    }),
+                    is_error: false,
+                }),
+                Err(error) => results.push(RuntimeToolResult {
+                    tool_call_id: tool_call.id.clone(),
+                    content: serde_json::to_string_pretty(&json!({
+                        "tool": tool_call.name,
+                        "error": error,
+                    }))
+                    .unwrap_or_else(|_| "{\"error\":\"Failed to serialize tool result.\"}".to_string()),
+                    is_error: true,
+                }),
+            }
+            continue;
+        }
+
+        results.push(execute_runtime_tool_call_with_context(
+            workspace_path,
+            tool_call,
+            &Value::Null,
+            &[],
+        ));
+    }
+    results
+}
+
 async fn finish_turn_success<R: Runtime>(
     app: &AppHandle<R>,
     runtime: &CodexRuntimeHandle,
@@ -1155,7 +1340,15 @@ pub async fn run_turn<R: Runtime>(
                 && !workspace_path.trim().is_empty();
 
             if should_continue_with_tools {
-                let tool_results = execute_runtime_tool_calls(&workspace_path, &tool_calls);
+                let tool_results = execute_runtime_tool_calls_with_approvals(
+                    &app_for_task,
+                    &runtime_for_task,
+                    &thread_id,
+                    &turn_id,
+                    &workspace_path,
+                    &tool_calls,
+                )
+                .await;
                 let new_item_ids = append_runtime_tool_items(
                     &app_for_task,
                     &runtime_for_task,

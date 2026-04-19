@@ -37,6 +37,7 @@ pub fn request_permission(
     state
         .permission_requests
         .insert(request.request_id.clone(), request.clone());
+    state.permission_resolutions.remove(&request.request_id);
     Ok(RuntimePermissionRequestResponse { request })
 }
 
@@ -48,14 +49,18 @@ pub fn resolve_permission(
         .permission_requests
         .remove(&params.request_id)
         .ok_or_else(|| format!("Permission request not found: {}", params.request_id))?;
-    Ok(RuntimePermissionResolveResponse {
+    let response = RuntimePermissionResolveResponse {
         request_id: request.request_id,
         behavior: if params.behavior.trim().is_empty() {
             "deny".to_string()
         } else {
             params.behavior
         },
-    })
+    };
+    state
+        .permission_resolutions
+        .insert(response.request_id.clone(), response.clone());
+    Ok(response)
 }
 
 pub fn request_ask_user(

@@ -6,7 +6,7 @@ use tokio::sync::Mutex;
 
 use super::protocol::{
     RuntimeAskUserRequest, RuntimeExitPlanRequest, RuntimeItem, RuntimePermissionRequest,
-    RuntimePlanModeState, RuntimeThread, RuntimeTurn,
+    RuntimePermissionResolveResponse, RuntimePlanModeState, RuntimeThread, RuntimeTurn,
 };
 use super::storage::load_runtime_state;
 
@@ -20,6 +20,8 @@ pub struct CodexRuntimeState {
     pub ask_user_requests: HashMap<String, RuntimeAskUserRequest>,
     pub exit_plan_requests: HashMap<String, RuntimeExitPlanRequest>,
     pub plan_modes: HashMap<String, RuntimePlanModeState>,
+    #[serde(skip)]
+    pub permission_resolutions: HashMap<String, RuntimePermissionResolveResponse>,
 }
 
 #[derive(Clone)]
