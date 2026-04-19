@@ -15,21 +15,49 @@
 
     <div v-else class="outline-panel-scroll">
       <div v-for="section in groupedOutlineSections" :key="section.key" class="mb-1 last:mb-0">
-        <div class="outline-panel-section-label">
-          {{ section.title }}
-        </div>
-        <div
-          v-for="item in section.items"
-          :key="outlineItemKey(item)"
-          class="outline-panel-row ui-list-row"
-          :class="{ 'is-active': outlineItemKey(item) === activeOutlineItemKey }"
-          :style="{ paddingLeft: getOutlineItemPadding(section.key, item) + 'px' }"
-          @click="navigateToOutlineItem(item)"
+        <button
+          type="button"
+          class="outline-panel-section-toggle"
+          :class="{ 'is-collapsed': isSectionCollapsed(section.key) }"
+          @click="toggleSectionCollapse(section.key)"
         >
-          <span v-if="getOutlineKindLabel(item.kind)" class="outline-panel-kind">
-            {{ getOutlineKindLabel(item.kind) }}
+          <span class="outline-panel-section-leading">
+            <svg
+              class="outline-panel-section-chevron"
+              width="12"
+              height="12"
+              viewBox="0 0 12 12"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.7"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M4 2.5 7.5 6 4 9.5" />
+            </svg>
+            <span class="outline-panel-section-label">
+              {{ section.title }}
+            </span>
           </span>
-          <span class="truncate">{{ item.text }}</span>
+          <span class="outline-panel-section-count">
+            {{ section.items.length }}
+          </span>
+        </button>
+        <div v-if="!isSectionCollapsed(section.key)">
+          <div
+            v-for="item in section.items"
+            :key="outlineItemKey(item)"
+            class="outline-panel-row ui-list-row"
+            :class="{ 'is-active': outlineItemKey(item) === activeOutlineItemKey }"
+            :style="{ paddingLeft: getOutlineItemPadding(section.key, item) + 'px' }"
+            @click="navigateToOutlineItem(item)"
+          >
+            <span v-if="getOutlineKindLabel(item.kind)" class="outline-panel-kind">
+              {{ getOutlineKindLabel(item.kind) }}
+            </span>
+            <span class="truncate">{{ item.text }}</span>
+          </div>
         </div>
       </div>
     </div>
@@ -56,6 +84,7 @@ const editorStore = useEditorStore()
 const workflowStore = useDocumentWorkflowStore()
 const filesStore = useFilesStore()
 const { t } = useI18n()
+const collapsedSections = ref({})
 const OUTLINE_SECTION_KEYS = [
   { key: 'contents', titleKey: 'Contents' },
   { key: 'figures', titleKey: 'Figures and tables' },
@@ -278,10 +307,33 @@ function outlineItemKey(item = {}) {
   ].join('::')
 }
 
+function isSectionCollapsed(sectionKey) {
+  return collapsedSections.value[sectionKey] === true
+}
+
+function toggleSectionCollapse(sectionKey) {
+  collapsedSections.value = {
+    ...collapsedSections.value,
+    [sectionKey]: !isSectionCollapsed(sectionKey),
+  }
+}
+
 watch(
   () => [activeFile.value, fileType.value, currentDocumentText(activeFile.value || '')],
   () => {
     void refreshMarkdownOutline()
+  },
+  { immediate: true }
+)
+
+watch(
+  groupedOutlineSections,
+  (sections) => {
+    const nextState = {}
+    for (const section of sections) {
+      nextState[section.key] = collapsedSections.value[section.key] === true
+    }
+    collapsedSections.value = nextState
   },
   { immediate: true }
 )
@@ -352,13 +404,64 @@ onUnmounted(() => {})
   mask-repeat: no-repeat;
 }
 
-.outline-panel-section-label {
+.outline-panel-section-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   padding: 6px 10px 4px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-muted);
+  cursor: pointer;
+  text-align: left;
+}
+
+.outline-panel-section-toggle:hover {
+  background: var(--sidebar-item-hover);
+  color: var(--text-primary);
+}
+
+.outline-panel-section-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.outline-panel-section-leading {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.outline-panel-section-label {
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--text-muted);
+}
+
+.outline-panel-section-chevron {
+  flex-shrink: 0;
+  transition: transform 120ms ease;
+}
+
+.outline-panel-section-toggle.is-collapsed .outline-panel-section-chevron {
+  transform: rotate(0deg);
+}
+
+.outline-panel-section-toggle:not(.is-collapsed) .outline-panel-section-chevron {
+  transform: rotate(90deg);
+}
+
+.outline-panel-section-count {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  opacity: 0.8;
 }
 
 /* =========================================================
