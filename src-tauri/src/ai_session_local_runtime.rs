@@ -118,6 +118,37 @@ fn normalize_research_task(task: &Value) -> Value {
     })
 }
 
+fn normalize_research_evidence(entries: &Value) -> Value {
+    let evidence = entries
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|entry| {
+            let id = string_field(&entry, "id");
+            let label = string_field(&entry, "label");
+            if id.trim().is_empty() && label.trim().is_empty() {
+                return None;
+            }
+            Some(json!({
+                "id": id.trim(),
+                "taskId": string_field(&entry, "taskId").trim(),
+                "sourceType": string_field(&entry, "sourceType").trim(),
+                "label": label.trim(),
+                "sourcePath": string_field(&entry, "sourcePath").trim(),
+                "sourceRange": string_field(&entry, "sourceRange").trim(),
+                "referenceId": string_field(&entry, "referenceId").trim(),
+                "citationKey": string_field(&entry, "citationKey").trim(),
+                "excerpt": string_field(&entry, "excerpt").trim(),
+                "confidence": entry.get("confidence").and_then(Value::as_f64).unwrap_or(0.0),
+                "whyRelevant": string_field(&entry, "whyRelevant").trim(),
+                "updatedAt": number_field(&entry, "updatedAt"),
+            }))
+        })
+        .collect::<Vec<_>>();
+    Value::Array(evidence)
+}
+
 fn normalize_session(session: &Value, fallback_title: &str) -> Value {
     let fallback = if fallback_title.trim().is_empty() {
         "New session"
@@ -197,6 +228,7 @@ fn normalize_session(session: &Value, fallback_title: &str) -> Value {
         "waitingResumeMessage": string_field(session, "waitingResumeMessage"),
         "planMode": normalize_plan_mode(session.get("planMode").unwrap_or(&Value::Null)),
         "researchTask": normalize_research_task(session.get("researchTask").unwrap_or(&Value::Null)),
+        "researchEvidence": normalize_research_evidence(session.get("researchEvidence").unwrap_or(&Value::Null)),
         "isRunning": bool_field(session, "isRunning"),
         "lastError": string_field(session, "lastError"),
     })

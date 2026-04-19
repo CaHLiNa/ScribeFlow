@@ -597,6 +597,12 @@ export const useAiStore = defineStore('ai', {
       return Array.isArray(this.currentSession?.artifacts) ? this.currentSession.artifacts : []
     },
 
+    researchEvidence() {
+      return Array.isArray(this.currentSession?.researchEvidence)
+        ? this.currentSession.researchEvidence
+        : []
+    },
+
     attachments() {
       return Array.isArray(this.currentSession?.attachments) ? this.currentSession.attachments : []
     },

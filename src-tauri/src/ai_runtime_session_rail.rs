@@ -4,6 +4,7 @@ use tauri::State;
 
 use crate::codex_runtime::state::CodexRuntimeHandle;
 use crate::codex_runtime::threads::{list_threads, read_thread};
+use crate::research_evidence_runtime::list_research_evidence_for_task;
 use crate::research_task_runtime::find_research_task_by_thread_id;
 
 fn trim(value: &str) -> String {
@@ -105,6 +106,7 @@ fn ensure_session_shape(session: &Value, fallback_title: &str) -> Value {
         "waitingResumeMessage": session.get("waitingResumeMessage").cloned().unwrap_or(Value::String(String::new())),
         "planMode": session.get("planMode").cloned().unwrap_or(default_plan_mode),
         "researchTask": session.get("researchTask").cloned().unwrap_or(Value::Null),
+        "researchEvidence": session.get("researchEvidence").cloned().unwrap_or(Value::Array(vec![])),
         "isRunning": session.get("isRunning").cloned().unwrap_or(Value::Bool(false)),
         "lastError": session.get("lastError").cloned().unwrap_or(Value::String(String::new())),
     })
@@ -134,11 +136,18 @@ fn apply_snapshot_to_session(
     session =
         crate::ai_runtime_thread_client::map_runtime_thread_snapshot_to_session(&session, snapshot);
     let runtime_thread_id = string_field(&thread, &["id"]);
-    session["researchTask"] = find_research_task_by_thread_id(workspace_path, &runtime_thread_id)
+    let research_task = find_research_task_by_thread_id(workspace_path, &runtime_thread_id)
         .ok()
-        .flatten()
+        .flatten();
+    session["researchTask"] = research_task
+        .as_ref()
         .and_then(|task| serde_json::to_value(task).ok())
         .unwrap_or(Value::Null);
+    session["researchEvidence"] = research_task
+        .as_ref()
+        .map(|task| list_research_evidence_for_task(workspace_path, &task.id).unwrap_or_default())
+        .and_then(|evidence| serde_json::to_value(evidence).ok())
+        .unwrap_or(Value::Array(vec![]));
     session
 }
 

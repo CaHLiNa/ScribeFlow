@@ -22,6 +22,12 @@ use crate::codex_runtime::{
     threads::start_thread,
     CodexRuntimeHandle,
 };
+use crate::research_evidence_runtime::{
+    ensure_context_bundle_evidence, list_research_evidence_for_task,
+};
+use crate::research_task_runtime::{
+    ensure_research_task_for_thread, sync_research_task_context_for_thread,
+};
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -144,6 +150,123 @@ fn array_field(value: &Value, keys: &[&str]) -> Vec<Value> {
     keys.iter()
         .find_map(|key| value.get(*key).and_then(Value::as_array).cloned())
         .unwrap_or_default()
+}
+
+fn normalize_string_entries(values: Vec<String>) -> Vec<String> {
+    let mut entries = values
+        .into_iter()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .collect::<Vec<_>>();
+    entries.sort();
+    entries.dedup();
+    entries
+}
+
+fn infer_research_task_kind(skill: &Value, user_instruction: &str) -> String {
+    let skill_haystack = [
+        string_field(skill, &["id"]),
+        string_field(skill, &["slug"]),
+        string_field(skill, &["name"]),
+        user_instruction.trim().to_lowercase(),
+    ]
+    .join(" ")
+    .to_lowercase();
+
+    if skill_haystack.contains("citation") || skill_haystack.contains("reference") {
+        return "revise-with-citations".to_string();
+    }
+    if skill_haystack.contains("related-work") || skill_haystack.contains("related work") {
+        return "draft-related-work".to_string();
+    }
+    if skill_haystack.contains("summary") || skill_haystack.contains("summarize") {
+        return "summarize-paper".to_string();
+    }
+    "general-research".to_string()
+}
+
+fn hydrate_research_context_for_session(
+    mut session: Value,
+    skill: &Value,
+    context_bundle: &Value,
+    user_instruction: &str,
+) -> Result<Value, String> {
+    let workspace_path = string_field(
+        context_bundle.get("workspace").unwrap_or(&Value::Null),
+        &["path"],
+    );
+    let runtime_thread_id = string_field(&session, &["runtimeThreadId"]);
+    if workspace_path.is_empty() || runtime_thread_id.is_empty() {
+        return Ok(session);
+    }
+
+    let task_title = {
+        let current = string_field(&session, &["title"]);
+        if current.is_empty() {
+            let instruction = user_instruction.trim();
+            if instruction.is_empty() {
+                "研究任务".to_string()
+            } else {
+                truncate_text(instruction, 64)
+            }
+        } else {
+            current
+        }
+    };
+    let task_goal = if user_instruction.trim().is_empty() {
+        format!("完成研究任务：{}", task_title)
+    } else {
+        user_instruction.trim().to_string()
+    };
+    let task_kind = infer_research_task_kind(skill, user_instruction);
+    let active_document_paths = {
+        let document = context_bundle.get("document").unwrap_or(&Value::Null);
+        let path = string_field(document, &["filePath", "file_path"]);
+        normalize_string_entries(if path.is_empty() {
+            Vec::new()
+        } else {
+            vec![path]
+        })
+    };
+
+    let task = ensure_research_task_for_thread(
+        &workspace_path,
+        &runtime_thread_id,
+        &task_title,
+        &task_goal,
+        &task_kind,
+        active_document_paths.clone(),
+    )?;
+    let evidence = ensure_context_bundle_evidence(&workspace_path, &task.id, context_bundle)?;
+    let evidence_ids = evidence
+        .iter()
+        .map(|entry| entry.id.clone())
+        .collect::<Vec<_>>();
+    let reference_ids = normalize_string_entries(
+        evidence
+            .iter()
+            .filter_map(|entry| {
+                if entry.reference_id.is_empty() {
+                    None
+                } else {
+                    Some(entry.reference_id.clone())
+                }
+            })
+            .collect(),
+    );
+    let task = sync_research_task_context_for_thread(
+        &workspace_path,
+        &runtime_thread_id,
+        evidence_ids,
+        active_document_paths,
+        reference_ids,
+    )?
+    .unwrap_or(task);
+    let evidence = list_research_evidence_for_task(&workspace_path, &task.id)?;
+
+    session["researchTask"] = serde_json::to_value(task).unwrap_or(Value::Null);
+    session["researchEvidence"] = serde_json::to_value(evidence).unwrap_or(Value::Array(vec![]));
+    Ok(session)
 }
 
 fn now_ms() -> i64 {
@@ -783,7 +906,7 @@ async fn ai_agent_run_started_session<R: Runtime>(
     params: AiAgentRunStartedSessionParams,
 ) -> Result<AiAgentRunStartedSessionResponse, String> {
     let prepared_run = params.prepared_run;
-    let mut session = params.session;
+    let session = params.session;
     let skill = prepared_run.get("skill").cloned().unwrap_or(Value::Null);
     let provider_state = prepared_run
         .get("providerState")
@@ -817,19 +940,26 @@ async fn ai_agent_run_started_session<R: Runtime>(
         .cloned()
         .unwrap_or(Value::Null);
 
-    let execution_result: Result<(Value, Option<Value>, Option<Value>), String> = async {
+    let execution_result: Result<(Value, Option<Value>, Option<Value>, Value), String> = async {
+        let mut execution_session = session.clone();
         if should_use_codex_runtime_run(&prepared_run) {
             let runtime_handle = runtime_state.inner().clone();
             let runtime_thread_id = ensure_runtime_thread(
                 &runtime_handle,
-                &session,
-                &string_field(&session, &["title"]),
+                &execution_session,
+                &string_field(&execution_session, &["title"]),
                 &params.cwd,
             )
             .await?;
-            session["runtimeThreadId"] = Value::String(runtime_thread_id.clone());
-            session["runtimeProviderId"] = Value::String(provider_id.clone());
-            session["runtimeTransport"] = Value::String("codex-runtime".to_string());
+            execution_session["runtimeThreadId"] = Value::String(runtime_thread_id.clone());
+            execution_session["runtimeProviderId"] = Value::String(provider_id.clone());
+            execution_session["runtimeTransport"] = Value::String("codex-runtime".to_string());
+            execution_session = hydrate_research_context_for_session(
+                execution_session,
+                &skill,
+                &context_bundle,
+                &user_instruction,
+            )?;
 
             let enabled_tool_ids = config
                 .get("enabledTools")
@@ -907,7 +1037,7 @@ async fn ai_agent_run_started_session<R: Runtime>(
             )
             .await?;
 
-            session["runtimeTurnId"] = Value::String(runtime_result.turn_id.clone());
+            execution_session["runtimeTurnId"] = Value::String(runtime_result.turn_id.clone());
             let result = json!({
                 "content": runtime_result.content,
                 "reasoning": runtime_result.reasoning,
@@ -915,8 +1045,14 @@ async fn ai_agent_run_started_session<R: Runtime>(
                 "transport": runtime_result.transport,
             });
 
-            Ok((result, None, None))
+            Ok((result, None, None, execution_session))
         } else {
+            execution_session = hydrate_research_context_for_session(
+                execution_session,
+                &skill,
+                &context_bundle,
+                &user_instruction,
+            )?;
             let response = ai_agent_run(AiAgentRunParams {
                 skill: skill.clone(),
                 context_bundle: context_bundle.clone(),
@@ -940,19 +1076,24 @@ async fn ai_agent_run_started_session<R: Runtime>(
                 "payload": response.payload,
                 "transport": response.transport,
             });
-            Ok((result, response.artifact, Some(response.skill)))
+            Ok((
+                result,
+                response.artifact,
+                Some(response.skill),
+                execution_session,
+            ))
         }
     }
     .await;
 
     match execution_result {
-        Ok((result, raw_artifact, response_skill)) => {
+        Ok((result, raw_artifact, response_skill, completed_session_input)) => {
             let artifact = build_artifact_record(
                 &string_field(response_skill.as_ref().unwrap_or(&skill), &["id"]),
                 raw_artifact,
             );
             let completed = ai_agent_session_complete(AiAgentSessionCompleteParams {
-                session,
+                session: completed_session_input,
                 pending_assistant_id: params.pending_assistant_id,
                 skill: response_skill.unwrap_or(skill),
                 result,

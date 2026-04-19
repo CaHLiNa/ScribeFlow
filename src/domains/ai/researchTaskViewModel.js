@@ -61,11 +61,17 @@ export function resolveSessionTaskTitle(session = null, fallbackTitle = 'Session
 
 export function resolveSessionTaskSubtitle(session = null) {
   const task = normalizeResearchTask(session?.researchTask)
-  if (!task) return ''
+  const evidenceCount = Array.isArray(session?.researchEvidence) ? session.researchEvidence.length : 0
+  if (!task) {
+    return evidenceCount > 0 ? `Evidence · ${evidenceCount}` : ''
+  }
   if (task.status === 'blocked' && task.blockedReason) {
-    return `Blocked · ${task.blockedReason}`
+    return `Blocked · ${task.blockedReason}${evidenceCount > 0 ? ` · Evidence ${evidenceCount}` : ''}`
   }
 
   const parts = [humanizeTaskPhase(task.phase), humanizeTaskStatus(task.status)].filter(Boolean)
+  if (evidenceCount > 0) {
+    parts.push(`Evidence ${evidenceCount}`)
+  }
   return parts.join(' · ')
 }
