@@ -16,6 +16,7 @@ import {
 } from '../services/latex/runtime'
 import { resolveExistingLatexSynctexPath } from '../services/latex/synctex'
 import { isBrowserPreviewRuntime } from '../app/browserPreview/routes.js'
+import { basenamePath } from '../utils/path'
 
 const COMPILER_CHECK_CACHE_MS = 5 * 60 * 1000
 const TOOL_CHECK_CACHE_MS = 5 * 60 * 1000
@@ -72,7 +73,7 @@ export function formatLatexBuildRecipeLabel(recipe, translate = t) {
 }
 
 function fileNameForLog(texPath = '') {
-  return String(texPath).split('/').pop() || texPath
+  return basenamePath(texPath) || texPath
 }
 
 function formatIssue(issue) {

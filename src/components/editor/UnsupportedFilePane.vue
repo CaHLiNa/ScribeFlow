@@ -19,13 +19,14 @@
 <script setup>
 import { computed } from 'vue'
 import { useI18n } from '../../i18n'
+import { basenamePath } from '../../utils/path'
 
 const props = defineProps({
   filePath: { type: String, required: true },
 })
 
 const { t } = useI18n()
-const fileName = computed(() => props.filePath.split('/').pop() || props.filePath)
+const fileName = computed(() => basenamePath(props.filePath) || props.filePath)
 </script>
 
 <style scoped>

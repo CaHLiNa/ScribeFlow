@@ -1,5 +1,6 @@
 import { onMounted, onUnmounted, ref } from 'vue'
 import { listenNativeFileDropEvents } from '../services/fileTreeSystem'
+import { basenamePath } from '../utils/path'
 
 export function useFileTreeDrag(options) {
   const {
@@ -43,7 +44,7 @@ export function useFileTreeDrag(options) {
       draggedPaths = [path]
     }
 
-    const names = draggedPaths.map((itemPath) => itemPath.split('/').pop())
+    const names = draggedPaths.map((itemPath) => basenamePath(itemPath))
     dragGhostLabel.value = names.length === 1 ? names[0] : `${names.length} items`
     dragGhostVisible.value = true
     dragGhostX.value = event.clientX

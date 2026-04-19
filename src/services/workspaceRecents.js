@@ -1,6 +1,16 @@
+import { basenamePath } from '../utils/path'
+
 function readRecentWorkspaces() {
   try {
-    return JSON.parse(localStorage.getItem('recentWorkspaces') || '[]')
+    const parsed = JSON.parse(localStorage.getItem('recentWorkspaces') || '[]')
+    if (!Array.isArray(parsed)) return []
+    return parsed
+      .filter((item) => item && item.path)
+      .map((item) => ({
+        ...item,
+        path: String(item.path),
+        name: basenamePath(item.path) || String(item.name || item.path),
+      }))
   } catch {
     return []
   }
@@ -20,7 +30,11 @@ export function getRecentWorkspaces() {
 
 export function addRecentWorkspace(path) {
   const recents = readRecentWorkspaces().filter(item => item.path !== path)
-  recents.unshift({ path, name: path.split('/').pop(), lastOpened: new Date().toISOString() })
+  recents.unshift({
+    path,
+    name: basenamePath(path) || String(path || ''),
+    lastOpened: new Date().toISOString(),
+  })
   if (recents.length > 10) recents.length = 10
   writeRecentWorkspaces(recents)
 }

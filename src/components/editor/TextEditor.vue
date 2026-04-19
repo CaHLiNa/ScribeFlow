@@ -105,6 +105,7 @@ import {
 import { revealLatexSourceLocation } from '../../services/latex/previewSync.js'
 import { rememberPendingMarkdownForwardSync } from '../../services/markdown/previewSync.js'
 import { readWorkspaceTextFile, saveWorkspaceTextFile } from '../../services/fileStoreIO.js'
+import { basenamePath, dirnamePath } from '../../utils/path'
 import EditorContextMenu from './EditorContextMenu.vue'
 import CitationPalette from './CitationPalette.vue'
 import { useTextEditorBridges } from '../../composables/useTextEditorBridges'
@@ -615,7 +616,7 @@ async function loadLanguageExtension() {
   }
 
   const matched = languages.filter((lang) => {
-    const name = props.filePath.split('/').pop() || ''
+    const name = basenamePath(props.filePath)
     if (lang.filename && lang.filename.test(name)) return true
     if (lang.extensions) {
       const dot = name.lastIndexOf('.')
@@ -877,8 +878,8 @@ function ensureLatexWindowHandlers() {
         location,
       })
       if (normalizedFile) {
-        const targetFileName = normalizedFile.split('/').pop() || normalizedFile
-        const currentFileName = normalizedCurrentPath.split('/').pop() || normalizedCurrentPath
+        const targetFileName = basenamePath(normalizedFile) || normalizedFile
+        const currentFileName = basenamePath(normalizedCurrentPath) || normalizedCurrentPath
         const exactMatch = normalizedFile === normalizedCurrentPath
         const fileNameOnlyMatch =
           !normalizedFile.includes('/') && targetFileName === currentFileName
@@ -1047,7 +1048,7 @@ function handleWikiLinkClick(event) {
     if (resolved) {
       editorStore.openFile(resolved.path)
     } else {
-      const dir = props.filePath.split('/').slice(0, -1).join('/')
+      const dir = dirnamePath(props.filePath)
       const newName = target.endsWith('.md') ? target : `${target}.md`
       files.createFile(dir, newName).then((newPath) => {
         if (newPath) editorStore.openFile(newPath)

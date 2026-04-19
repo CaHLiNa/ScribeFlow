@@ -374,6 +374,7 @@ import { useFileTreeFilter } from '../../composables/useFileTreeFilter'
 import { useFileTreeDrag } from '../../composables/useFileTreeDrag'
 import { useTransientOverlayDismiss } from '../../composables/useTransientOverlayDismiss'
 import { resolveFloatingReference } from '../../utils/floatingReference'
+import { basenamePath, dirnamePath } from '../../utils/path'
 
 const props = defineProps({
   collapsed: { type: Boolean, default: false },
@@ -397,7 +398,7 @@ const documentTemplates = computed(() => listWorkspaceDocumentTemplates(t))
 
 const workspaceName = computed(() => {
   if (!workspace.path) return t('Explorer')
-  return workspace.path.split('/').pop()
+  return basenamePath(workspace.path)
 })
 const recentWorkspaces = computed(() => workspace.getRecentWorkspaces().slice(0, 5))
 const workspaceSnapshot = computed(
@@ -725,7 +726,7 @@ function handleContextCreate({ ext, isDir, suggestedName = '', initialContent = 
 async function handleDuplicate(entry) {
   const newPath = await files.duplicatePath(entry.path)
   if (newPath) {
-    const newName = newPath.split('/').pop()
+    const newName = basenamePath(newPath)
     if (!entry.is_dir) {
       workspace.openWorkspaceSurface()
       editor.openFile(newPath)
@@ -805,7 +806,7 @@ async function finishRename() {
       if (renaming.autoExtension && !name.includes('.')) {
         name = name + renaming.autoExtension
       }
-      const dir = renaming.originalPath.substring(0, renaming.originalPath.lastIndexOf('/'))
+      const dir = dirnamePath(renaming.originalPath)
       const newPath = `${dir}/${name}`
       if (newPath !== renaming.originalPath) {
         await files.renamePath(renaming.originalPath, newPath)
@@ -840,7 +841,7 @@ async function handleDeleteSelected() {
   if (paths.length === 0) return
   const msg =
     paths.length === 1
-      ? t('Delete "{name}"?', { name: paths[0].split('/').pop() })
+      ? t('Delete "{name}"?', { name: basenamePath(paths[0]) })
       : t('Delete {count} items?', { count: paths.length })
   const yes = await ask(msg, { title: t('Confirm Delete'), kind: 'warning' })
   if (yes) {
@@ -871,7 +872,7 @@ defineExpose({
           targetDir = entry.path
           files.expandedDirs.add(targetDir)
         } else {
-          targetDir = selectedPath.substring(0, selectedPath.lastIndexOf('/'))
+          targetDir = dirnamePath(selectedPath)
         }
       }
     }
@@ -894,7 +895,7 @@ defineExpose({
           targetDir = entry.path
           files.expandedDirs.add(targetDir)
         } else {
-          targetDir = selectedPath.substring(0, selectedPath.lastIndexOf('/'))
+          targetDir = dirnamePath(selectedPath)
         }
       }
     }

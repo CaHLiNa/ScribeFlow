@@ -1,4 +1,5 @@
 import { isImage, relativePath } from '../utils/fileTypes'
+import { basenamePath, stripExtension } from '../utils/path'
 
 export function parseCitationGroup(text) {
   const inner = text.slice(1, -1)
@@ -23,8 +24,8 @@ export function buildInsertText(paths, options) {
 
   return paths.map((path) => {
     const relPath = relativePath(filePath, path)
-    const fileName = path.split('/').pop()
-    const nameNoExt = fileName.includes('.') ? fileName.substring(0, fileName.lastIndexOf('.')) : fileName
+    const fileName = basenamePath(path)
+    const nameNoExt = stripExtension(fileName)
 
     if (isMarkdownFile) {
       return isImage(path) ? `![${nameNoExt}](${relPath})` : `[${fileName}](${relPath})`

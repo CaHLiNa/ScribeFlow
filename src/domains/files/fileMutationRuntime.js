@@ -1,3 +1,5 @@
+import { basenamePath, dirnamePath } from '../../utils/path'
+
 function moveCachedValue(oldPath, newPath, { hasValue, getValue, setValue, deleteValue } = {}) {
   if (!hasValue?.(oldPath)) return
   setValue?.(newPath, getValue?.(oldPath))
@@ -38,7 +40,7 @@ export function createFileMutationRuntime({
         return false
       }
 
-      const targetDir = newPath.substring(0, newPath.lastIndexOf('/'))
+      const targetDir = dirnamePath(newPath)
       await syncTreeAfterMutation?.({ expandPath: targetDir })
 
       moveCachedValue(oldPath, newPath, {
@@ -69,7 +71,7 @@ export function createFileMutationRuntime({
   }
 
   async function movePath(srcPath, destDir) {
-    const name = srcPath.split('/').pop()
+    const name = basenamePath(srcPath)
     let destPath = `${destDir}/${name}`
     if (srcPath === destPath) return true
 

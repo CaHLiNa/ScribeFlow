@@ -4,6 +4,7 @@ import { useWorkspaceStore } from './workspace'
 import { useFilesStore } from './files'
 import { extractMarkdownHeadingTexts } from '../services/markdown/parser.js'
 import { filterWorkspaceFlatFilesByExtension } from '../domains/files/workspaceSnapshotFlatFilesRuntime.js'
+import { basenamePath, dirnamePath } from '../utils/path'
 
 // --- Pure helpers ---
 
@@ -47,14 +48,12 @@ export function parseHeadings(content) {
 }
 
 function fileNameFromPath(path) {
-  const name = path.split('/').pop()
+  const name = basenamePath(path)
   return name.replace(/\.md$/, '')
 }
 
 function dirFromPath(path) {
-  const parts = path.split('/')
-  parts.pop()
-  return parts.join('/')
+  return dirnamePath(path)
 }
 
 // Check if a character offset is inside a code block

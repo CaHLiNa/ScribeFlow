@@ -1,3 +1,5 @@
+import { dirnamePath } from '../../utils/path'
+
 export function createFileCreationRuntime({
   createWorkspaceFile,
   duplicateWorkspacePath,
@@ -29,7 +31,7 @@ export function createFileCreationRuntime({
   }
 
   async function duplicatePath(path) {
-    const dir = path.substring(0, path.lastIndexOf('/'))
+    const dir = dirnamePath(path)
     try {
       const newPath = await duplicateWorkspacePath?.(path)
       await syncTreeAfterMutation?.({ expandPath: dir })

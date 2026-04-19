@@ -2,6 +2,7 @@ import {
   REFERENCE_COLLECTIONS,
   REFERENCE_TAGS,
 } from '../../services/references/referenceLibraryFixtures.js'
+import { basenamePath } from '../../utils/path'
 
 export const BROWSER_PREVIEW_WORKSPACE_PATH = '/ScribeFlow Preview Workspace'
 export const BROWSER_PREVIEW_GLOBAL_CONFIG_DIR = '/.scribeflow-preview'
@@ -58,7 +59,7 @@ function clone(value) {
 }
 
 function basename(path = '') {
-  return String(path || '').split('/').pop() || ''
+  return basenamePath(path)
 }
 
 function createFileEntry(path) {

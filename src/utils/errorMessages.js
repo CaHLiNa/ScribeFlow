@@ -1,8 +1,10 @@
 /**
  * Shared file-operation error formatter for toast and dialog surfaces.
  */
+import { basenamePath } from './path'
+
 export function formatFileError(operation, filePath, error) {
-  const name = filePath ? filePath.split('/').pop() : 'file'
+  const name = filePath ? basenamePath(filePath) : 'file'
   const str = typeof error === 'string' ? error : String(error || '')
 
   let reason = ''

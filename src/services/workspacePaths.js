@@ -1,3 +1,5 @@
+import { dirnamePath, normalizeFsPath } from '../utils/path'
+
 let cachedHomeDir = undefined
 
 export async function hashWorkspacePath(value = '') {
@@ -12,10 +14,11 @@ export function resolveWorkspaceDataDir(globalConfigDir = '', workspaceId = '') 
 }
 
 export function resolveClaudeConfigDir(globalConfigDir = '') {
-  const normalized = String(globalConfigDir || '').replace(/\/+$/, '')
-  const idx = normalized.lastIndexOf('/')
-  if (idx < 0) return ''
-  return `${normalized.slice(0, idx)}/.claude`
+  const normalized = normalizeFsPath(globalConfigDir).replace(/\/+$/, '')
+  if (!normalized) return ''
+  const parentDir = dirnamePath(normalized)
+  if (!parentDir || parentDir === '.') return ''
+  return `${parentDir}/.claude`
 }
 
 export function resolveSkillPath(projectDir = '', rawPath = '') {
@@ -27,7 +30,7 @@ export function resolveSkillPath(projectDir = '', rawPath = '') {
 }
 
 export function normalizePathValue(value = '') {
-  const normalized = String(value || '').replace(/\/+$/, '')
+  const normalized = normalizeFsPath(value).replace(/\/+$/, '')
   return normalized || '/'
 }
 

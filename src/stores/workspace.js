@@ -38,6 +38,7 @@ import {
   removeRecentWorkspace,
   setLastWorkspace,
 } from '../services/workspaceRecents'
+import { basenamePath } from '../utils/path'
 
 async function ensureDir(path) {
   if (!path) return
@@ -51,12 +52,12 @@ async function bootstrapWorkspaceDirs(store) {
   await invoke('write_file', {
     path: `${store.workspaceDataDir}/workspace.json`,
     content: JSON.stringify(
-      {
-        id: store.workspaceId,
-        path: store.path,
-        name: store.path?.split('/').pop() || '',
-        lastOpenedAt: new Date().toISOString(),
-      },
+        {
+          id: store.workspaceId,
+          path: store.path,
+          name: basenamePath(store.path) || '',
+          lastOpenedAt: new Date().toISOString(),
+        },
       null,
       2
     ),

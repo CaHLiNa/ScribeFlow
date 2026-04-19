@@ -175,6 +175,7 @@ import { useSurfaceContextMenu } from '../../composables/useSurfaceContextMenu.j
 import { readWorkspaceTextFile, renameWorkspacePath } from '../../services/fileStoreIO'
 import { cslToReferenceRecord } from '../../domains/references/referenceInterop.js'
 import { lookupByDoi, searchByMetadata } from '../../services/references/crossref.js'
+import { basenamePath, dirnamePath } from '../../utils/path'
 import ReferenceAddDialog from './ReferenceAddDialog.vue'
 import SurfaceContextMenu from '../shared/SurfaceContextMenu.vue'
 import UiButton from '../shared/ui/UiButton.vue'
@@ -261,10 +262,10 @@ function getPdfRenameTarget(reference = {}, nextBaseName = '') {
   const currentPath = String(reference?.pdfPath || '').trim()
   if (!currentPath) return null
 
-  const filename = currentPath.split('/').pop() || ''
+  const filename = basenamePath(currentPath)
   const extensionIndex = filename.lastIndexOf('.')
   const extension = extensionIndex >= 0 ? filename.slice(extensionIndex) : ''
-  const dir = currentPath.slice(0, Math.max(0, currentPath.lastIndexOf('/')))
+  const dir = dirnamePath(currentPath)
   const baseName = normalizeFilenameSegment(nextBaseName, filename.replace(/\.[^.]+$/, ''))
 
   return {
@@ -279,14 +280,14 @@ function getFulltextRenameTarget(reference = {}, oldBaseName = '', nextBaseName 
   const currentPath = String(reference?.fulltextPath || '').trim()
   if (!currentPath) return null
 
-  const filename = currentPath.split('/').pop() || ''
+  const filename = basenamePath(currentPath)
   const extensionIndex = filename.lastIndexOf('.')
   const extension = extensionIndex >= 0 ? filename.slice(extensionIndex) : ''
   const currentBaseName = extensionIndex >= 0 ? filename.slice(0, extensionIndex) : filename
 
   if (currentBaseName !== oldBaseName) return null
 
-  const dir = currentPath.slice(0, Math.max(0, currentPath.lastIndexOf('/')))
+  const dir = dirnamePath(currentPath)
   return {
     oldPath: currentPath,
     newPath: `${dir}/${nextBaseName}${extension}`,

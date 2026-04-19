@@ -43,6 +43,7 @@ import { createFileCreationRuntime } from '../domains/files/fileCreationRuntime'
 import { createFileMutationRuntime } from '../domains/files/fileMutationRuntime'
 import { formatFileError } from '../utils/errorMessages'
 import { isBinaryFile } from '../utils/fileTypes'
+import { basenamePath, dirnamePath } from '../utils/path'
 import { t } from '../i18n'
 import { useToastStore } from './toast'
 import { useUxStatusStore } from './uxStatus'
@@ -79,7 +80,7 @@ function parseFileReadError(path, error) {
     }
   }
 
-  const name = path ? path.split('/').pop() : 'file'
+  const name = path ? basenamePath(path) : 'file'
   return {
     code: 'READ_FAILED',
     raw,
@@ -380,7 +381,7 @@ export const useFilesStore = defineStore('files', {
             this.deletingPaths.delete(path)
           },
           showRenameExistsError: (newPath) => {
-            const name = newPath.split('/').pop()
+            const name = basenamePath(newPath)
             useToastStore().showOnce(`rename:${newPath}`, `"${name}" already exists`, {
               type: 'error',
               duration: 4000,
@@ -533,7 +534,7 @@ export const useFilesStore = defineStore('files', {
       if (!draftPath || !targetPath) return false
       const saved = await this._getFileContentRuntime().saveFile(targetPath, content)
       if (!saved) return false
-      const targetDir = targetPath.substring(0, targetPath.lastIndexOf('/'))
+      const targetDir = dirnamePath(targetPath)
       await this.syncTreeAfterMutation({ expandPath: targetDir })
       this.clearDraftFile(draftPath)
       return true

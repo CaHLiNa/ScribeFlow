@@ -1,14 +1,12 @@
+import { basenamePath } from '../../utils/path'
+
 function normalizeFlatFilePath(entry = null) {
   if (typeof entry === 'string') return entry
   return entry?.path || ''
 }
 
 function basename(path = '') {
-  return (
-    String(path || '')
-      .split('/')
-      .pop() || ''
-  )
+  return basenamePath(path)
 }
 
 function normalizeFlatFileEntry(entry = null) {

@@ -1,3 +1,5 @@
+import { basenamePath, dirnamePath, normalizeFsPath } from './path'
+
 const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp', 'ico']
 const MULTIMODAL_IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'webp']
 const CSV_EXTS = ['csv', 'tsv']
@@ -9,7 +11,7 @@ const SUPPORTED_TEXT_EXTS = ['md', 'markdown', 'txt', 'bib', ...LATEX_EDITOR_EXT
 const RUNNABLE_MAP = {}
 
 function getExt(path) {
-  const name = path.split('/').pop() || ''
+  const name = basenamePath(path)
   const dot = name.lastIndexOf('.')
   return dot > 0 ? name.substring(dot + 1).toLowerCase() : ''
 }
@@ -78,9 +80,15 @@ export function isPdf(path) {
 }
 
 export function relativePath(fromFile, toFile) {
-  const fromDir = fromFile.substring(0, fromFile.lastIndexOf('/'))
+  const normalizedFrom = normalizeFsPath(fromFile)
+  const normalizedTo = normalizeFsPath(toFile)
+  const fromDrive = normalizedFrom.match(/^[A-Za-z]:/)?.[0]?.toLowerCase() || ''
+  const toDrive = normalizedTo.match(/^[A-Za-z]:/)?.[0]?.toLowerCase() || ''
+  if (fromDrive && toDrive && fromDrive !== toDrive) return normalizedTo
+
+  const fromDir = dirnamePath(normalizedFrom)
   const fromParts = fromDir.split('/')
-  const toParts = toFile.split('/')
+  const toParts = normalizedTo.split('/')
   let common = 0
   while (common < fromParts.length && common < toParts.length && fromParts[common] === toParts[common]) {
     common++

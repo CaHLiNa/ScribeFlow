@@ -23,6 +23,7 @@ import {
   parseBrowserPreviewPath,
   syncBrowserPreviewHistory,
 } from '../browserPreview/routes.js'
+import { basenamePath } from '../../utils/path'
 
 export function useWorkspaceLifecycle() {
   const workspace = useWorkspaceStore()
@@ -145,7 +146,7 @@ export function useWorkspaceLifecycle() {
 
     cancelWorkspaceBackgroundTasks()
     const loadGeneration = ++workspaceLoadGeneration
-    const workspaceName = targetPath.split('/').pop() || targetPath
+    const workspaceName = basenamePath(targetPath) || targetPath
     const workspaceStatusId = uxStatusStore.show(t('Opening {name}...', { name: workspaceName }), {
       type: 'info',
       duration: 0,

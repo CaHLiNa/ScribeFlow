@@ -1,4 +1,5 @@
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { dirnamePath } from '../utils/path'
 
 const TREE_ROW_HEIGHT = 24
 const TREE_OVERSCAN = 12
@@ -193,7 +194,7 @@ export function useFileTreeFilter(options) {
       return
     }
 
-    const parentPath = currentPath.substring(0, currentPath.lastIndexOf('/'))
+    const parentPath = dirnamePath(currentPath)
     if (parentPath && parentPath !== workspace.path && parentPath.startsWith(workspace.path)) {
       selectSinglePath(parentPath)
     }
