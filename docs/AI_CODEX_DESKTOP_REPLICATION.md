@@ -71,7 +71,6 @@ Rust 持有的接缝包括：
 - `codex` launcher config 读写
 - `codex` 命令可用性解析
 - `codex-acp` bridge 启动与 session 管理
-- skill catalog 加载
 - prompt dispatch
 - turn prepare
 - turn run
@@ -207,14 +206,12 @@ Phase 3 已完成。当前已交付结果包括：
 
 仍待完成：
 
-- skills 与 MCP 的优先级及展示规则
 - 超出当前 stdio-first 切片之外的更丰富 transport 支持
 - 比摘要可见性更深入的 failure recovery 与 invocation UX
 
 ### Phase 4 稳定规则
 
 - 扩展保持低强调
-- MCP 与 skills 必须共享同一套心智模型
 - runtime truth 必须在 Rust
 - 桌面界面只展示与决策相关的 extension 状态
 
@@ -230,7 +227,6 @@ Phase 3 已完成。当前已交付结果包括：
 - 用户能从桌面界面理解 extension availability
 - MCP 缺失或断连时能优雅退化
 - MCP 的存在不会压垮默认 composer 路径
-- skills 与 MCP 不会呈现彼此冲突的心智模型
 
 ---
 

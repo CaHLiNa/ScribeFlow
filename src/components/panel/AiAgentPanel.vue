@@ -294,7 +294,6 @@ const respondingExitPlanRequestId = ref('')
 const COMPOSER_MIN_HEIGHT = 38
 const COMPOSER_MAX_HEIGHT = 220
 
-const scribeflowSkills = computed(() => aiStore.scribeflowSkills)
 const messages = computed(() => aiStore.messages)
 const artifacts = computed(() => aiStore.artifacts)
 const attachments = computed(() => aiStore.attachments)
@@ -393,7 +392,7 @@ const sendButtonTitle = computed(() => {
 const stopButtonTitle = computed(() => t('Stop response'))
 const composerPlaceholder = computed(() =>
   isAgentMode.value
-    ? t('Describe the next task, or type $skill.')
+    ? t('Describe the next task.')
     : t('Ask anything about this project.')
 )
 const emptyStateTitle = computed(() =>
@@ -503,34 +502,12 @@ const blockingContextItems = computed(() => {
   return items
 })
 
-function toInvocationSlug(value = '') {
-  return String(value || '')
-    .trim()
-    .toLowerCase()
-    .replace(/^[/$]+/, '')
-    .replace(/[^a-z0-9\u4e00-\u9fff]+/gu, '-')
-    .replace(/^-+|-+$/g, '')
-}
-
 function summarizeStatusDetail(value = '', maxLength = 72) {
   const normalized = String(value || '').trim().replace(/\s+/g, ' ')
   if (!normalized) return ''
   if (normalized.length <= maxLength) return normalized
   return `${normalized.slice(0, maxLength - 1).trimEnd()}…`
 }
-
-const skillSuggestions = computed(() =>
-  scribeflowSkills.value.map((skill) => ({
-    id: skill.id,
-    kind: 'codex-skill',
-    prefix: '$',
-    groupKey: 'skills',
-    groupLabel: t('Skills'),
-    label: skill.name || skill.slug || skill.directoryName || skill.id,
-    description: skill.description || t('Skill package with no description.'),
-    insertText: `$${toInvocationSlug(skill.slug || skill.name || skill.directoryName || skill.id)} `,
-  }))
-)
 const composerToken = computed(() => detectAiComposerToken(aiStore.promptDraft))
 
 const composerSuggestions = computed(() => {
@@ -540,7 +517,7 @@ const composerSuggestions = computed(() => {
     files: isAgentMode.value ? filesStore.flatFiles : [],
     tools: [],
     slashSuggestions: [],
-    skillSuggestions: skillSuggestions.value,
+    skillSuggestions: [],
   })
 
   return suggestions.map((suggestion) => ({
@@ -856,7 +833,6 @@ async function hydrateWorkspaceSessions() {
 onMounted(() => {
   void hydrateWorkspaceSessions()
   void refreshProviderRuntime()
-  void aiStore.refreshScribeFlowSkills()
   scrollToBottom('auto')
   syncComposerTextareaHeight()
 })
@@ -864,7 +840,6 @@ onMounted(() => {
 onActivated(() => {
   void hydrateWorkspaceSessions()
   void refreshProviderRuntime()
-  void aiStore.refreshScribeFlowSkills()
   scrollToBottom('auto')
   syncComposerTextareaHeight()
 })
@@ -873,7 +848,6 @@ watch(
   () => [workspace.path, workspace.globalConfigDir],
   () => {
     void hydrateWorkspaceSessions()
-    void aiStore.refreshScribeFlowSkills()
     void filesStore.ensureFlatFilesReady({ force: true }).catch(() => {})
   }
 )

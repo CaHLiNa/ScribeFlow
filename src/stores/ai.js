@@ -440,9 +440,6 @@ export const useAiStore = defineStore('ai', {
     ...createInitialAgentSessionsState({
       fallbackTitle: buildDefaultSessionTitle(1),
     }),
-    scribeflowSkillCatalog: [],
-    isRefreshingScribeFlowSkills: false,
-    lastSkillCatalogError: '',
     providerState: {
       ready: false,
       currentProviderId: 'codex-acp',
@@ -494,10 +491,6 @@ export const useAiStore = defineStore('ai', {
         referenceActive:
           workspaceStore.isWorkspaceSurface && workspaceStore.leftSidebarPanel === 'references',
       })
-    },
-
-    scribeflowSkills(state) {
-      return Array.isArray(state.scribeflowSkillCatalog) ? state.scribeflowSkillCatalog : []
     },
 
     promptDraft() {
@@ -1044,32 +1037,6 @@ export const useAiStore = defineStore('ai', {
       void this.mutateSessionById(sessionId || this.currentSessionId, 'clearBackgroundTask', {
         taskId: normalizedTaskId,
       })
-    },
-
-    async refreshScribeFlowSkills() {
-      const workspace = useWorkspaceStore()
-      this.isRefreshingScribeFlowSkills = true
-      this.lastSkillCatalogError = ''
-
-      try {
-        const response = await invoke('ai_skill_catalog_load', {
-          params: {
-            workspacePath: workspace.path || '',
-            globalConfigDir: workspace.globalConfigDir || '',
-          },
-        })
-        const skills = Array.isArray(response?.skills) ? response.skills : []
-        this.scribeflowSkillCatalog = skills
-        return skills
-      } catch (error) {
-        this.lastSkillCatalogError =
-          error instanceof Error
-            ? error.message
-            : String(error || t('Failed to load skills.'))
-        return []
-      } finally {
-        this.isRefreshingScribeFlowSkills = false
-      }
     },
 
     queuePermissionRequest(event = {}, sessionId = '') {

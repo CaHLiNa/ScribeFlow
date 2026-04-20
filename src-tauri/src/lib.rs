@@ -5,9 +5,6 @@ mod ai_client_session_runtime;
 mod ai_config;
 mod ai_session_local_runtime;
 mod ai_session_storage;
-mod ai_skill_catalog;
-mod ai_skill_management;
-mod ai_skill_text;
 mod app_dirs;
 mod codex_acp_runtime;
 mod codex_cli;
@@ -463,12 +460,6 @@ pub fn run() {
             codex_cli::codex_cli_state_resolve,
             ai_session_local_runtime::ai_session_local_mutate,
             ai_session_local_runtime::ai_session_state_normalize,
-            ai_skill_catalog::ai_skill_catalog_load,
-            ai_skill_management::ai_skill_create,
-            ai_skill_management::ai_skill_import,
-            ai_skill_management::ai_skill_delete,
-            ai_skill_management::ai_skill_update,
-            ai_skill_management::ai_skill_duplicate,
             ai_session_storage::ai_session_overlay_load,
             ai_session_storage::ai_session_overlay_save,
             ai_session_storage::ai_session_overlay_restore,

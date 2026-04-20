@@ -110,6 +110,7 @@ Rust 侧当前承担以下职责：
 本次收敛明确移除了以下历史路径：
 
 - Tauri `network.rs` 中未被前端使用的 AI proxy / stream 命令
+- 应用内 skill catalog / skill management / `$skill` 补全壳层
 - AI config 中未使用的 `enabledTools`
 - 前端 store 中的伪 provider/model pool 壳层
 - 失效的 artifact capability gating
