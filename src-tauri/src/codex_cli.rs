@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::OnceLock;
 
-use tokio::io::AsyncWriteExt;
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::Command;
 use tokio::sync::Mutex;
 
@@ -197,17 +197,12 @@ async fn codex_exec_supports_search_flag(command_path: &str) -> bool {
     supported
 }
 
-fn parse_codex_jsonl_events(stdout: &str) -> Vec<Value> {
-    stdout
-        .lines()
-        .filter_map(|line| {
-            let trimmed = line.trim();
-            if !trimmed.starts_with('{') {
-                return None;
-            }
-            serde_json::from_str::<Value>(trimmed).ok()
-        })
-        .collect()
+fn parse_codex_jsonl_event(line: &str) -> Option<Value> {
+    let trimmed = line.trim();
+    if !trimmed.starts_with('{') {
+        return None;
+    }
+    serde_json::from_str::<Value>(trimmed).ok()
 }
 
 fn last_error_message(events: &[Value], stderr_text: &str, exit_code: Option<i32>) -> String {
@@ -324,6 +319,15 @@ pub async fn codex_cli_run(params: CodexCliRunParams) -> Result<Value, String> {
     command
         .arg("exec")
         .arg("--json")
+        .arg("--ephemeral")
+        .arg("--disable")
+        .arg("codex_hooks")
+        .arg("--disable")
+        .arg("plugins")
+        .arg("--disable")
+        .arg("responses_websockets")
+        .arg("--disable")
+        .arg("responses_websockets_v2")
         .arg("--output-last-message")
         .arg(&output_file)
         .arg("--sandbox")
@@ -371,23 +375,95 @@ pub async fn codex_cli_run(params: CodexCliRunParams) -> Result<Value, String> {
         stdin.shutdown().await.ok();
     }
 
-    let output = child
-        .wait_with_output()
+    let stdout_pipe = child
+        .stdout
+        .take()
+        .ok_or_else(|| "Failed to capture Codex CLI stdout.".to_string())?;
+    let stderr_pipe = child
+        .stderr
+        .take()
+        .ok_or_else(|| "Failed to capture Codex CLI stderr.".to_string())?;
+    let mut stdout_lines = BufReader::new(stdout_pipe).lines();
+    let mut stderr_lines = BufReader::new(stderr_pipe).lines();
+    let mut stdout_done = false;
+    let mut stderr_done = false;
+    let mut stdout = String::new();
+    let mut stderr = String::new();
+    let mut events: Vec<Value> = Vec::new();
+    let mut content = String::new();
+    let mut early_terminated = false;
+
+    while !stdout_done || !stderr_done {
+        tokio::select! {
+            line = stdout_lines.next_line(), if !stdout_done => {
+                match line {
+                    Ok(Some(line)) => {
+                        stdout.push_str(&line);
+                        stdout.push('\n');
+                        if let Some(event) = parse_codex_jsonl_event(&line) {
+                            if content.trim().is_empty()
+                                && event.get("type").and_then(Value::as_str) == Some("item.completed")
+                            {
+                                let item = event.get("item").unwrap_or(&Value::Null);
+                                if item.get("type").and_then(Value::as_str) == Some("agent_message") {
+                                    content = item
+                                        .get("text")
+                                        .and_then(Value::as_str)
+                                        .map(trim)
+                                        .unwrap_or_default();
+                                }
+                            }
+                            events.push(event);
+                        }
+
+                        if !content.trim().is_empty() {
+                            early_terminated = true;
+                            break;
+                        }
+                    }
+                    Ok(None) => stdout_done = true,
+                    Err(error) => {
+                        stderr.push_str(&format!("Failed to read Codex CLI stdout: {error}\n"));
+                        stdout_done = true;
+                    }
+                }
+            }
+            line = stderr_lines.next_line(), if !stderr_done => {
+                match line {
+                    Ok(Some(line)) => {
+                        stderr.push_str(&line);
+                        stderr.push('\n');
+                    }
+                    Ok(None) => stderr_done = true,
+                    Err(error) => {
+                        stderr.push_str(&format!("Failed to read Codex CLI stderr: {error}\n"));
+                        stderr_done = true;
+                    }
+                }
+            }
+        }
+    }
+
+    if early_terminated {
+        let _ = child.kill().await;
+    }
+
+    let output_status = child
+        .wait()
         .await
         .map_err(|error| format!("Codex CLI execution failed: {error}"))?;
 
     running_sessions().lock().await.remove(&session_id);
     let interrupted = interrupted_sessions().lock().await.remove(&session_id);
-    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-    let events = parse_codex_jsonl_events(&stdout);
 
     if interrupted {
         let _ = fs::remove_file(&output_file);
         return Err("AI execution stopped.".to_string());
     }
 
-    let mut content = fs::read_to_string(&output_file).unwrap_or_default();
+    if content.trim().is_empty() {
+        content = fs::read_to_string(&output_file).unwrap_or_default();
+    }
     if content.trim().is_empty() {
         content = events
             .iter()
@@ -405,8 +481,8 @@ pub async fn codex_cli_run(params: CodexCliRunParams) -> Result<Value, String> {
     }
     let _ = fs::remove_file(&output_file);
 
-    if !output.status.success() && content.trim().is_empty() {
-        return Err(last_error_message(&events, &stderr, output.status.code()));
+    if !output_status.success() && content.trim().is_empty() {
+        return Err(last_error_message(&events, &stderr, output_status.code()));
     }
 
     Ok(json!({
