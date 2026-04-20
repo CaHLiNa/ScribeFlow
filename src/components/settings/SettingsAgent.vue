@@ -19,19 +19,24 @@
     </section>
 
     <section class="settings-group">
-      <div class="ui-segmented-control" role="tablist" :aria-label="t('Agent pages')">
-        <UiButton
-          v-for="item in subpages"
-          :key="item.id"
-          variant="ghost"
-          size="sm"
-          class="ui-segmented-item"
-          :class="{ 'is-active': activeSubpage === item.id }"
-          :aria-selected="activeSubpage === item.id"
-          @click="setActiveSubpage(item.id)"
-        >
-          {{ item.label }}
-        </UiButton>
+      <div class="settings-group-body">
+        <div class="settings-row">
+          <div class="settings-row-control settings-agent-subpage-control">
+            <div class="settings-segmented" role="tablist" :aria-label="t('Agent pages')">
+              <button
+                v-for="item in subpages"
+                :key="item.id"
+                type="button"
+                class="settings-segmented-btn"
+                :class="{ 'is-active': activeSubpage === item.id }"
+                :aria-selected="activeSubpage === item.id"
+                @click="setActiveSubpage(item.id)"
+              >
+                {{ item.label }}
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -42,7 +47,6 @@
 <script setup>
 import { computed, defineAsyncComponent, ref } from 'vue'
 import { useI18n } from '../../i18n'
-import UiButton from '../shared/ui/UiButton.vue'
 import { isBrowserPreviewRuntime } from '../../app/browserPreview/routes.js'
 
 const SettingsAi = defineAsyncComponent(() => import('./SettingsAi.vue'))
@@ -89,7 +93,7 @@ const subpages = computed(() => [
   },
   {
     id: 'skills',
-    label: t('Agent Skills'),
+    label: t('Skills'),
   },
 ])
 
@@ -108,6 +112,11 @@ function setActiveSubpage(subpageId = 'models') {
 <style scoped>
 .settings-agent-page {
   gap: 24px;
+}
+
+.settings-agent-subpage-control {
+  width: 100%;
+  justify-content: flex-start;
 }
 
 .settings-preview-card {

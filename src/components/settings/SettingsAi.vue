@@ -4,57 +4,34 @@
 
     <section class="settings-group">
       <h4 class="settings-group-title">{{ t('Research defaults') }}</h4>
-
-      <div class="settings-ai-research-panel">
-        <div class="settings-ai-research-intro">
-          <div class="settings-ai-research-intro-title">
-            {{ t('Workspace-first AI defaults') }}
+      <div class="settings-group-body">
+        <div class="settings-row">
+          <div class="settings-row-copy">
+            <div class="settings-row-title">{{ t('Evidence strategy') }}</div>
           </div>
-          <div class="settings-ai-research-intro-copy">
-            {{
-              t(
-                'Set the evidence strictness and completion threshold before tuning the Codex runtime.'
-              )
-            }}
-          </div>
-        </div>
-
-        <div class="settings-ai-research-summary">
-          <div class="settings-ai-research-summary-label">{{ t('Current workspace') }}</div>
-          <div class="settings-ai-research-summary-value">
-            {{ currentWorkspacePath || t('No workspace open') }}
+          <div class="settings-row-control">
+            <UiSelect
+              :model-value="researchDefaults.evidenceStrategy"
+              size="sm"
+              class="settings-ai-input"
+              :options="evidenceStrategyOptions"
+              @update:model-value="updateResearchDefault('evidenceStrategy', $event)"
+            />
           </div>
         </div>
 
-        <div class="settings-ai-research-grid">
-          <div class="settings-row settings-ai-runtime-row">
-            <div class="settings-row-copy">
-              <div class="settings-row-title">{{ t('Evidence strategy') }}</div>
-            </div>
-            <div class="settings-row-control">
-              <UiSelect
-                :model-value="researchDefaults.evidenceStrategy"
-                size="sm"
-                class="settings-ai-input"
-                :options="evidenceStrategyOptions"
-                @update:model-value="updateResearchDefault('evidenceStrategy', $event)"
-              />
-            </div>
+        <div class="settings-row">
+          <div class="settings-row-copy">
+            <div class="settings-row-title">{{ t('Task completion threshold') }}</div>
           </div>
-
-          <div class="settings-row settings-ai-runtime-row">
-            <div class="settings-row-copy">
-              <div class="settings-row-title">{{ t('Task completion threshold') }}</div>
-            </div>
-            <div class="settings-row-control">
-              <UiSelect
-                :model-value="researchDefaults.taskCompletionThreshold"
-                size="sm"
-                class="settings-ai-input"
-                :options="completionThresholdOptions"
-                @update:model-value="updateResearchDefault('taskCompletionThreshold', $event)"
-              />
-            </div>
+          <div class="settings-row-control">
+            <UiSelect
+              :model-value="researchDefaults.taskCompletionThreshold"
+              size="sm"
+              class="settings-ai-input"
+              :options="completionThresholdOptions"
+              @update:model-value="updateResearchDefault('taskCompletionThreshold', $event)"
+            />
           </div>
         </div>
       </div>
@@ -64,24 +41,13 @@
 
     <section class="settings-group">
       <h4 class="settings-group-title">{{ t('Codex runtime') }}</h4>
-
-      <div class="settings-ai-runtime-panel">
-        <div class="settings-ai-runtime-intro">
-          <div class="settings-ai-research-intro-title">
-            {{ t('System Codex CLI is the execution authority') }}
+      <div class="settings-group-body">
+        <div class="settings-row">
+          <div class="settings-row-copy">
+            <div class="settings-row-title">{{ t('Runtime status') }}</div>
+            <div class="settings-row-hint">{{ runtimeSummary }}</div>
           </div>
-          <div class="settings-ai-research-intro-copy">
-            {{
-              t(
-                'ScribeFlow now launches the system Codex CLI and only manages launcher defaults, workspace context, and research integration.'
-              )
-            }}
-          </div>
-        </div>
-
-        <div class="settings-ai-runtime-summary">
-          <div class="settings-ai-runtime-status">
-            <span class="settings-ai-runtime-status__label">{{ t('Runtime status') }}</span>
+          <div class="settings-row-control compact">
             <span
               class="settings-ai-runtime-status__badge"
               :class="{ 'is-ready': runtimeState.installed }"
@@ -89,122 +55,104 @@
               {{ runtimeState.installed ? t('Configured') : t('Codex CLI missing') }}
             </span>
           </div>
-          <div class="settings-ai-runtime-summary-copy">
-            {{ runtimeSummary }}
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-row-copy">
+            <div class="settings-row-title">{{ t('Codex command') }}</div>
+          </div>
+          <div class="settings-row-control">
+            <UiInput
+              :model-value="codexCli.commandPath"
+              size="sm"
+              class="settings-ai-input"
+              placeholder="codex"
+              @update:model-value="updateCodexCliField('commandPath', $event)"
+            />
           </div>
         </div>
 
-        <div class="settings-ai-runtime-grid">
-          <div class="settings-row settings-ai-runtime-row">
-            <div class="settings-row-copy">
-              <div class="settings-row-title">{{ t('Codex command') }}</div>
-              <div class="settings-row-hint">
-                {{ t('Use a command name from PATH or an absolute executable path.') }}
-              </div>
-            </div>
-            <div class="settings-row-control">
-              <UiInput
-                :model-value="codexCli.commandPath"
-                size="sm"
-                class="settings-ai-input"
-                placeholder="codex"
-                @update:model-value="updateCodexCliField('commandPath', $event)"
-              />
-            </div>
+        <div class="settings-row">
+          <div class="settings-row-copy">
+            <div class="settings-row-title">{{ t('Model') }}</div>
           </div>
-
-          <div class="settings-row settings-ai-runtime-row">
-            <div class="settings-row-copy">
-              <div class="settings-row-title">{{ t('Model') }}</div>
-              <div class="settings-row-hint">
-                {{ t('Leave blank to use the model configured in Codex CLI itself.') }}
-              </div>
-            </div>
-            <div class="settings-row-control">
-              <UiInput
-                :model-value="codexCli.model"
-                size="sm"
-                class="settings-ai-input"
-                :placeholder="t('e.g. gpt-5')"
-                @update:model-value="updateCodexCliField('model', $event)"
-              />
-            </div>
-          </div>
-
-          <div class="settings-row settings-ai-runtime-row">
-            <div class="settings-row-copy">
-              <div class="settings-row-title">{{ t('Profile') }}</div>
-              <div class="settings-row-hint">
-                {{ t('Optional Codex config profile from ~/.codex/config.toml.') }}
-              </div>
-            </div>
-            <div class="settings-row-control">
-              <UiInput
-                :model-value="codexCli.profile"
-                size="sm"
-                class="settings-ai-input"
-                :placeholder="t('e.g. balanced')"
-                @update:model-value="updateCodexCliField('profile', $event)"
-              />
-            </div>
-          </div>
-
-          <div class="settings-row settings-ai-runtime-row">
-            <div class="settings-row-copy">
-              <div class="settings-row-title">{{ t('Sandbox mode') }}</div>
-              <div class="settings-row-hint">
-                {{ t('Controls how much filesystem access the launched Codex CLI receives.') }}
-              </div>
-            </div>
-            <div class="settings-row-control">
-              <UiSelect
-                :model-value="codexCli.sandboxMode"
-                size="sm"
-                class="settings-ai-input"
-                :options="sandboxModeOptions"
-                @update:model-value="updateCodexCliField('sandboxMode', $event)"
-              />
-            </div>
-          </div>
-
-          <div class="settings-row settings-ai-runtime-row">
-            <div class="settings-row-copy">
-              <div class="settings-row-title">{{ t('Enable web search') }}</div>
-              <div class="settings-row-hint">
-                {{ t('Expose Codex live web search when the runtime is launched.') }}
-              </div>
-            </div>
-            <div class="settings-row-control compact">
-              <UiSwitch
-                :model-value="codexCli.webSearch"
-                @update:model-value="updateCodexCliBoolean('webSearch', $event)"
-              />
-            </div>
-          </div>
-
-          <div class="settings-row settings-ai-runtime-row">
-            <div class="settings-row-copy">
-              <div class="settings-row-title">{{ t('ASCII workspace alias') }}</div>
-              <div class="settings-row-hint">
-                {{ t('Create a safe ASCII alias before launching Codex CLI so non-ASCII workspace paths do not break the runtime.') }}
-              </div>
-            </div>
-            <div class="settings-row-control compact">
-              <UiSwitch
-                :model-value="codexCli.useAsciiWorkspaceAlias"
-                @update:model-value="updateCodexCliBoolean('useAsciiWorkspaceAlias', $event)"
-              />
-            </div>
+          <div class="settings-row-control">
+            <UiInput
+              :model-value="codexCli.model"
+              size="sm"
+              class="settings-ai-input"
+              :placeholder="t('Use Codex defaults')"
+              @update:model-value="updateCodexCliField('model', $event)"
+            />
           </div>
         </div>
 
-        <div class="settings-ai-runtime-actions">
-          <UiButton variant="secondary" size="sm" :disabled="saving" @click="refreshRuntimeState">
-            {{ runtimeStateLoading ? t('Refreshing...') : t('Refresh runtime') }}
-          </UiButton>
-          <UiButton variant="secondary" size="sm" :disabled="saving" @click="handleSave">
-            {{ saving ? t('Saving...') : t('Save runtime settings') }}
-          </UiButton>
+        <div class="settings-row">
+          <div class="settings-row-copy">
+            <div class="settings-row-title">{{ t('Profile') }}</div>
+          </div>
+          <div class="settings-row-control">
+            <UiInput
+              :model-value="codexCli.profile"
+              size="sm"
+              class="settings-ai-input"
+              :placeholder="t('Optional')"
+              @update:model-value="updateCodexCliField('profile', $event)"
+            />
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-row-copy">
+            <div class="settings-row-title">{{ t('Sandbox mode') }}</div>
+          </div>
+          <div class="settings-row-control">
+            <UiSelect
+              :model-value="codexCli.sandboxMode"
+              size="sm"
+              class="settings-ai-input"
+              :options="sandboxModeOptions"
+              @update:model-value="updateCodexCliField('sandboxMode', $event)"
+            />
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-row-copy">
+            <div class="settings-row-title">{{ t('Enable web search') }}</div>
+          </div>
+          <div class="settings-row-control compact">
+            <UiSwitch
+              :model-value="codexCli.webSearch"
+              @update:model-value="updateCodexCliBoolean('webSearch', $event)"
+            />
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-row-copy">
+            <div class="settings-row-title">{{ t('ASCII workspace alias') }}</div>
+          </div>
+          <div class="settings-row-control compact">
+            <UiSwitch
+              :model-value="codexCli.useAsciiWorkspaceAlias"
+              @update:model-value="updateCodexCliBoolean('useAsciiWorkspaceAlias', $event)"
+            />
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-row-copy">
+            <div class="settings-row-title">{{ t('Actions') }}</div>
+          </div>
+          <div class="settings-row-control settings-ai-runtime-actions">
+            <UiButton variant="secondary" size="sm" :disabled="saving" @click="refreshRuntimeState">
+              {{ runtimeStateLoading ? t('Refreshing...') : t('Refresh runtime') }}
+            </UiButton>
+            <UiButton variant="secondary" size="sm" :disabled="saving" @click="handleSave">
+              {{ saving ? t('Saving...') : t('Save runtime settings') }}
+            </UiButton>
+          </div>
         </div>
 
         <div v-if="inlineMessage" class="settings-inline-message">{{ inlineMessage }}</div>
@@ -222,7 +170,6 @@ import { invoke } from '@tauri-apps/api/core'
 import { useToastStore } from '../../stores/toast'
 import { useI18n } from '../../i18n'
 import { useAiStore } from '../../stores/ai'
-import { useWorkspaceStore } from '../../stores/workspace'
 import { useReferencesStore } from '../../stores/references'
 import UiButton from '../shared/ui/UiButton.vue'
 import UiInput from '../shared/ui/UiInput.vue'
@@ -232,7 +179,6 @@ import UiSwitch from '../shared/ui/UiSwitch.vue'
 const { t } = useI18n()
 const aiStore = useAiStore()
 const toastStore = useToastStore()
-const workspaceStore = useWorkspaceStore()
 const referencesStore = useReferencesStore()
 
 async function loadAiConfig() {
@@ -290,7 +236,6 @@ const researchDefaults = ref({
   taskCompletionThreshold: 'strict',
 })
 
-const currentWorkspacePath = computed(() => String(workspaceStore.path || '').trim())
 const evidenceStrategyOptions = computed(() => [
   { value: 'focused', label: t('Focused evidence') },
   { value: 'balanced', label: t('Balanced evidence') },
@@ -314,7 +259,8 @@ const runtimeSummary = computed(() => {
 
   const bits = [
     runtimeState.value.version,
-    codexCli.value.model || (codexCli.value.profile ? `profile:${codexCli.value.profile}` : t('Using Codex defaults')),
+    codexCli.value.model
+      || (codexCli.value.profile ? `profile:${codexCli.value.profile}` : t('Using Codex defaults')),
     codexCli.value.sandboxMode,
     codexCli.value.webSearch ? t('Web search on') : t('Web search off'),
   ].filter(Boolean)
@@ -372,9 +318,13 @@ function buildConfig() {
     },
     researchDefaults: {
       defaultCitationStyle:
-        String(currentConfig?.researchDefaults?.defaultCitationStyle || referencesStore.citationStyle || 'apa').trim()
-        || 'apa',
-      evidenceStrategy: String(researchDefaults.value.evidenceStrategy || 'balanced').trim() || 'balanced',
+        String(
+          currentConfig?.researchDefaults?.defaultCitationStyle
+            || referencesStore.citationStyle
+            || 'apa'
+        ).trim() || 'apa',
+      evidenceStrategy:
+        String(researchDefaults.value.evidenceStrategy || 'balanced').trim() || 'balanced',
       taskCompletionThreshold:
         String(researchDefaults.value.taskCompletionThreshold || 'strict').trim() || 'strict',
     },
@@ -391,7 +341,8 @@ async function loadState() {
       ...(config?.codexCli || {}),
     }
     researchDefaults.value = {
-      evidenceStrategy: String(config?.researchDefaults?.evidenceStrategy || 'balanced').trim() || 'balanced',
+      evidenceStrategy:
+        String(config?.researchDefaults?.evidenceStrategy || 'balanced').trim() || 'balanced',
       taskCompletionThreshold:
         String(config?.researchDefaults?.taskCompletionThreshold || 'strict').trim() || 'strict',
     }
@@ -432,68 +383,6 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.settings-ai-research-panel,
-.settings-ai-runtime-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  padding: 16px;
-  border-radius: 10px;
-  border: 1px solid color-mix(in srgb, var(--border) 52%, transparent);
-  background: color-mix(in srgb, var(--surface-base) 82%, transparent);
-}
-
-.settings-ai-research-intro,
-.settings-ai-runtime-intro {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.settings-ai-research-intro-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.settings-ai-research-intro-copy {
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--text-secondary);
-}
-
-.settings-ai-research-summary,
-.settings-ai-runtime-summary {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 12px;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--surface-hover) 28%, transparent);
-}
-
-.settings-ai-research-summary-label,
-.settings-ai-runtime-status__label {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-tertiary);
-}
-
-.settings-ai-research-summary-value,
-.settings-ai-runtime-summary-copy {
-  font-size: 13px;
-  color: var(--text-primary);
-  word-break: break-word;
-}
-
-.settings-ai-runtime-status {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
 .settings-ai-runtime-status__badge {
   display: inline-flex;
   align-items: center;
@@ -512,43 +401,27 @@ onMounted(() => {
   color: var(--success);
 }
 
-.settings-ai-research-grid,
-.settings-ai-runtime-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 12px;
-}
-
-.settings-ai-runtime-row {
-  padding: 12px 0;
-}
-
 .settings-ai-input {
-  width: 320px;
-  max-width: 100%;
+  width: min(100%, 320px);
 }
 
 .settings-ai-runtime-actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
-  flex-wrap: wrap;
+  width: 100%;
 }
 
 .settings-inline-message {
-  font-size: 12px;
+  padding: 12px 16px;
+  font-size: 13px;
   line-height: 1.5;
-  color: var(--success);
+  color: var(--text-muted);
 }
 
 .settings-inline-message-error {
   color: var(--error);
-}
-
-@media (max-width: 720px) {
-  .settings-ai-research-grid,
-  .settings-ai-runtime-grid {
-    grid-template-columns: 1fr;
-  }
+  padding-top: 0;
 }
 </style>
