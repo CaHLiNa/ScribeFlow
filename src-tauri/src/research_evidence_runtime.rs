@@ -7,7 +7,6 @@ fn trim(value: &str) -> String {
     value.trim().to_string()
 }
 
-
 pub(crate) fn list_research_evidence_for_task(
     workspace_path: &str,
     task_id: &str,

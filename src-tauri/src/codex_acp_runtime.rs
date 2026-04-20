@@ -131,7 +131,8 @@ fn object_field<'a>(value: &'a Value, key: &str) -> Option<&'a serde_json::Map<S
 }
 
 fn array_field(value: &Value, key: &str) -> Vec<Value> {
-    value.get(key)
+    value
+        .get(key)
         .and_then(Value::as_array)
         .cloned()
         .unwrap_or_default()
@@ -170,9 +171,19 @@ fn local_codex_acp_bin_candidates(workspace_path: &str) -> Vec<PathBuf> {
     }
 
     if let Ok(current_dir) = env::current_dir() {
-        candidates.push(current_dir.join("node_modules").join(".bin").join("codex-acp"));
+        candidates.push(
+            current_dir
+                .join("node_modules")
+                .join(".bin")
+                .join("codex-acp"),
+        );
         #[cfg(windows)]
-        candidates.push(current_dir.join("node_modules").join(".bin").join("codex-acp.cmd"));
+        candidates.push(
+            current_dir
+                .join("node_modules")
+                .join(".bin")
+                .join("codex-acp.cmd"),
+        );
     }
 
     candidates
@@ -504,15 +515,18 @@ async fn handle_permission_request<R: Runtime>(
     request_id: u64,
     params: &Value,
 ) {
-    session.open_permission_requests.lock().await.insert(request_id);
+    session
+        .open_permission_requests
+        .lock()
+        .await
+        .insert(request_id);
     let options = array_field(params, "options");
     let tool_call = params.get("toolCall").cloned().unwrap_or(Value::Null);
     let raw_input = tool_call.get("rawInput").cloned().unwrap_or(Value::Null);
     let input_preview = if raw_input.is_null() {
         String::new()
     } else {
-        serde_json::to_string_pretty(&raw_input)
-            .unwrap_or_else(|_| raw_input.to_string())
+        serde_json::to_string_pretty(&raw_input).unwrap_or_else(|_| raw_input.to_string())
     };
 
     emit_ai_agent_event(
@@ -578,13 +592,16 @@ async fn handle_message_line<R: Runtime>(
     }
 }
 
-fn resolve_codex_acp_command(
-    workspace_path: &str,
-) -> (String, Vec<String>) {
+fn resolve_codex_acp_command(workspace_path: &str) -> (String, Vec<String>) {
     codex_acp_command_candidates(workspace_path)
         .into_iter()
         .next()
-        .unwrap_or_else(|| ("npx".to_string(), vec!["-y".to_string(), CODEX_ACP_NPM_PACKAGE.to_string()]))
+        .unwrap_or_else(|| {
+            (
+                "npx".to_string(),
+                vec!["-y".to_string(), CODEX_ACP_NPM_PACKAGE.to_string()],
+            )
+        })
 }
 
 async fn spawn_codex_acp_session<R: Runtime>(
@@ -725,7 +742,8 @@ async fn spawn_codex_acp_session<R: Runtime>(
         );
     });
 
-    let initialize_response = send_request(&session, "initialize", acp_client_capabilities()).await?;
+    let initialize_response =
+        send_request(&session, "initialize", acp_client_capabilities()).await?;
     if initialize_response.is_null() {
         return Err("Codex ACP initialize returned empty response.".to_string());
     }
@@ -741,7 +759,9 @@ async fn create_or_load_runtime_session(
     let normalized_cwd = {
         let trimmed_cwd = trim(cwd);
         if trimmed_cwd.is_empty() {
-            PathBuf::from(&session.workspace_path).to_string_lossy().to_string()
+            PathBuf::from(&session.workspace_path)
+                .to_string_lossy()
+                .to_string()
         } else if Path::new(&trimmed_cwd).is_absolute() {
             trimmed_cwd
         } else {
@@ -791,7 +811,8 @@ async fn create_or_load_runtime_session(
         }
     };
 
-    let runtime_session_id = runtime_session_id_from_response(&response, &normalized_runtime_session_id);
+    let runtime_session_id =
+        runtime_session_id_from_response(&response, &normalized_runtime_session_id);
     if runtime_session_id.is_empty() {
         return Err("Codex ACP session did not return a session id.".to_string());
     }
@@ -800,10 +821,7 @@ async fn create_or_load_runtime_session(
     Ok(runtime_session_id)
 }
 
-async fn try_apply_model(
-    session: &CodexAcpSessionHandle,
-    config: &Value,
-) {
+async fn try_apply_model(session: &CodexAcpSessionHandle, config: &Value) {
     let model = string_field(config, &["model"]);
     if model.is_empty() {
         return;
@@ -1083,7 +1101,12 @@ pub async fn codex_acp_session_close(
     if overlay_session_id.is_empty() {
         return Ok(json!({ "ok": false }));
     }
-    let Some(session) = runtime_state.sessions.lock().await.remove(&overlay_session_id) else {
+    let Some(session) = runtime_state
+        .sessions
+        .lock()
+        .await
+        .remove(&overlay_session_id)
+    else {
         return Ok(json!({ "ok": false }));
     };
 
