@@ -68,6 +68,7 @@
 
 <script setup>
 import { computed, onUnmounted, ref, watch } from 'vue'
+import { focusEditorRangeWithHighlight } from '../../editor/revealHighlight'
 import { useEditorStore } from '../../stores/editor'
 import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { useFilesStore } from '../../stores/files'
@@ -196,11 +197,9 @@ function focusTextOffset(path, offset, attempts = 0) {
   }
 
   const pos = Math.min(Number(offset) || 0, targetView.state.doc.length)
-  targetView.dispatch({
-    selection: { anchor: pos },
-    scrollIntoView: true,
+  focusEditorRangeWithHighlight(targetView, pos, pos, {
+    center: true,
   })
-  targetView.focus()
 }
 
 function navigateToOutlineItem(item) {
