@@ -8,13 +8,6 @@
 
 调查阶段应运行能为当前改动切片提供最佳信心的检查；未完成相关验证前，不要宣称任务完成。
 
-## AI 审查工作流
-
-- `npm run agent:enable-codex-gate`
-  在新机器或全新 checkout 上启用 Codex 的 stop-time review gate。
-- `npm run agent:codex-review`
-  运行针对基线分支的 Codex 审查流程。
-
 ## 提交与推送
 
 - 在本仓库中，只要用户没有明确禁止，Codex 在完成本轮改动并完成对应验证后，默认应自动执行 `git add`、`git commit` 和 `git push`。

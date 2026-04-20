@@ -118,8 +118,6 @@ ScribeFlow 是一个本地优先的桌面学术研究平台，围绕 Markdown、
 ## AI 审查工作流
 
 - 本仓库默认只保留 Codex 工作流，不再依赖其他 AI 审查链路。
-- 如需启用仓库内的 Codex 审查门禁，在新机器或全新 checkout 初始化时运行一次 `npm run agent:enable-codex-gate`。
-- 需要进行 Codex 审查时，统一使用 `npm run agent:codex-review`。
 
 ## Git 执行规则
 
