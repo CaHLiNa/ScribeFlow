@@ -250,6 +250,20 @@ fn normalize_display_path(path: &Path) -> String {
     path.to_string_lossy().replace('\\', "/")
 }
 
+fn normalize_tool_name(name: &str) -> String {
+    name.trim().to_lowercase()
+}
+
+fn tool_enabled(enabled_tool_ids: &[String], tool_name: &str) -> bool {
+    if enabled_tool_ids.is_empty() {
+        return true;
+    }
+    let normalized = normalize_tool_name(tool_name);
+    enabled_tool_ids
+        .iter()
+        .any(|entry| normalize_tool_name(entry) == normalized)
+}
+
 fn exec_sessions() -> &'static ExecSessionMap {
     EXEC_SESSIONS.get_or_init(|| Mutex::new(HashMap::new()))
 }
@@ -1858,7 +1872,7 @@ pub(crate) fn execute_runtime_tool_call_with_context(
 
 pub fn resolve_runtime_tool_definitions_with_context(
     workspace_path: &str,
-    _enabled_tool_ids: &[String],
+    enabled_tool_ids: &[String],
     _requested_tool_mentions: &[String],
     _context_bundle: &Value,
     _support_files: &[Value],
@@ -1867,8 +1881,10 @@ pub fn resolve_runtime_tool_definitions_with_context(
         return Vec::new();
     }
 
-    vec![
-        RuntimeToolDefinition {
+    let mut definitions = Vec::new();
+
+    if tool_enabled(enabled_tool_ids, READ_FILE_TOOL) {
+        definitions.push(RuntimeToolDefinition {
             name: READ_FILE_TOOL,
             description: "Read a UTF-8 text file from the current workspace.",
             parameters: json!({
@@ -1886,8 +1902,10 @@ pub fn resolve_runtime_tool_definitions_with_context(
                 "required": ["path"],
                 "additionalProperties": false
             }),
-        },
-        RuntimeToolDefinition {
+        });
+    }
+    if tool_enabled(enabled_tool_ids, LIST_FILES_TOOL) {
+        definitions.push(RuntimeToolDefinition {
             name: LIST_FILES_TOOL,
             description: "List files and directories inside the current workspace.",
             parameters: json!({
@@ -1908,8 +1926,10 @@ pub fn resolve_runtime_tool_definitions_with_context(
                 },
                 "additionalProperties": false
             }),
-        },
-        RuntimeToolDefinition {
+        });
+    }
+    if tool_enabled(enabled_tool_ids, SEARCH_FILES_TOOL) {
+        definitions.push(RuntimeToolDefinition {
             name: SEARCH_FILES_TOOL,
             description: "Search text content in UTF-8 workspace files and return matching lines.",
             parameters: json!({
@@ -1935,8 +1955,10 @@ pub fn resolve_runtime_tool_definitions_with_context(
                 "required": ["query"],
                 "additionalProperties": false
             }),
-        },
-        RuntimeToolDefinition {
+        });
+    }
+    if tool_enabled(enabled_tool_ids, VIEW_IMAGE_TOOL) {
+        definitions.push(RuntimeToolDefinition {
             name: VIEW_IMAGE_TOOL,
             description: "Read a local image file from the current workspace and attach it for model inspection.",
             parameters: json!({
@@ -1950,8 +1972,10 @@ pub fn resolve_runtime_tool_definitions_with_context(
                 "required": ["path"],
                 "additionalProperties": false
             }),
-        },
-        RuntimeToolDefinition {
+        });
+    }
+    if tool_enabled(enabled_tool_ids, APPLY_PATCH_TOOL) {
+        definitions.push(RuntimeToolDefinition {
             name: APPLY_PATCH_TOOL,
             description: "Apply a structured multi-file patch inside the current workspace.",
             parameters: json!({
@@ -1965,10 +1989,13 @@ pub fn resolve_runtime_tool_definitions_with_context(
                 "required": ["input"],
                 "additionalProperties": false
             }),
-        },
-        RuntimeToolDefinition {
+        });
+    }
+    if tool_enabled(enabled_tool_ids, REQUEST_USER_INPUT_TOOL) {
+        definitions.push(RuntimeToolDefinition {
             name: REQUEST_USER_INPUT_TOOL,
-            description: "Ask the user one to three structured questions and wait for their response.",
+            description:
+                "Ask the user one to three structured questions and wait for their response.",
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -2016,8 +2043,10 @@ pub fn resolve_runtime_tool_definitions_with_context(
                 "required": ["questions"],
                 "additionalProperties": false
             }),
-        },
-        RuntimeToolDefinition {
+        });
+    }
+    if tool_enabled(enabled_tool_ids, EXEC_COMMAND_TOOL) {
+        definitions.push(RuntimeToolDefinition {
             name: EXEC_COMMAND_TOOL,
             description: "Execute a shell command in the current workspace after approval.",
             parameters: json!({
@@ -2051,8 +2080,10 @@ pub fn resolve_runtime_tool_definitions_with_context(
                 "required": ["cmd"],
                 "additionalProperties": false
             }),
-        },
-        RuntimeToolDefinition {
+        });
+    }
+    if tool_enabled(enabled_tool_ids, WRITE_STDIN_TOOL) {
+        definitions.push(RuntimeToolDefinition {
             name: WRITE_STDIN_TOOL,
             description: "Write to an existing exec session or poll for more output.",
             parameters: json!({
@@ -2082,8 +2113,10 @@ pub fn resolve_runtime_tool_definitions_with_context(
                 "required": ["session_id"],
                 "additionalProperties": false
             }),
-        },
-        RuntimeToolDefinition {
+        });
+    }
+    if tool_enabled(enabled_tool_ids, RESIZE_TERMINAL_TOOL) {
+        definitions.push(RuntimeToolDefinition {
             name: RESIZE_TERMINAL_TOOL,
             description: "Resize a running PTY-backed exec session.",
             parameters: json!({
@@ -2105,8 +2138,10 @@ pub fn resolve_runtime_tool_definitions_with_context(
                 "required": ["session_id", "rows", "cols"],
                 "additionalProperties": false
             }),
-        },
-        RuntimeToolDefinition {
+        });
+    }
+    if tool_enabled(enabled_tool_ids, TERMINATE_COMMAND_TOOL) {
+        definitions.push(RuntimeToolDefinition {
             name: TERMINATE_COMMAND_TOOL,
             description: "Terminate a running exec session.",
             parameters: json!({
@@ -2120,8 +2155,10 @@ pub fn resolve_runtime_tool_definitions_with_context(
                 "required": ["session_id"],
                 "additionalProperties": false
             }),
-        },
-    ]
+        });
+    }
+
+    definitions
 }
 
 #[cfg_attr(not(test), allow(dead_code))]
@@ -2168,6 +2205,25 @@ mod tests {
         let root = std::env::temp_dir().join(unique);
         fs::create_dir_all(&root).expect("create temp workspace");
         root
+    }
+
+    #[test]
+    fn resolve_tool_definitions_respects_enabled_tool_ids() {
+        let definitions = resolve_runtime_tool_definitions_with_context(
+            "/tmp/workspace",
+            &["read_file".to_string(), "apply_patch".to_string()],
+            &[],
+            &Value::Null,
+            &[],
+        );
+        let names = definitions
+            .iter()
+            .map(|entry| entry.name)
+            .collect::<Vec<_>>();
+        assert!(names.contains(&READ_FILE_TOOL));
+        assert!(names.contains(&APPLY_PATCH_TOOL));
+        assert!(!names.contains(&EXEC_COMMAND_TOOL));
+        assert!(!names.contains(&LIST_FILES_TOOL));
     }
 
     #[test]

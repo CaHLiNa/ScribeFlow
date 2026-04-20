@@ -59,6 +59,8 @@ pub struct AiAgentRunParams {
     #[serde(default)]
     pub runtime_intent: String,
     #[serde(default)]
+    pub turn_route: Value,
+    #[serde(default)]
     pub invocation: Value,
     #[serde(default)]
     pub resolved_task: Value,
@@ -854,7 +856,12 @@ fn should_use_codex_runtime_run(prepared_run: &Value) -> bool {
     if !bool_field(prepared_run, &["ok"]) {
         return false;
     }
-    if string_field(prepared_run, &["runtimeIntent"]) != "agent" {
+    if string_field(
+        prepared_run.get("turnRoute").unwrap_or(&Value::Null),
+        &["runtimeIntent", "runtime_intent"],
+    ) != "agent"
+        && string_field(prepared_run, &["runtimeIntent"]) != "agent"
+    {
         return false;
     }
     let config = prepared_run.get("config").unwrap_or(&Value::Null);
@@ -867,12 +874,28 @@ fn should_use_codex_runtime_run(prepared_run: &Value) -> bool {
     true
 }
 
-fn should_use_native_runtime_inputs(provider_id: &str, runtime_intent: &str) -> bool {
-    if runtime_intent.trim() != "agent" {
+fn should_use_native_runtime_inputs(
+    provider_id: &str,
+    turn_route: &Value,
+    runtime_intent: &str,
+) -> bool {
+    let route_runtime_intent = string_field(turn_route, &["runtimeIntent", "runtime_intent"]);
+    if route_runtime_intent.trim() != "agent" && runtime_intent.trim() != "agent" {
         return false;
     }
     let normalized = provider_id.trim().to_lowercase();
     normalized != "anthropic" && normalized != "google"
+}
+
+fn should_hydrate_research_task(turn_route: &Value, runtime_intent: &str) -> bool {
+    if turn_route
+        .get("shouldHydrateResearchTask")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    {
+        return true;
+    }
+    runtime_intent.trim() == "skill"
 }
 
 fn truncate_text(value: &str, max_chars: usize) -> String {
@@ -1264,6 +1287,7 @@ async fn ai_agent_run(params: AiAgentRunParams) -> Result<AiAgentRunResponse, St
             .get("providerId")
             .and_then(Value::as_str)
             .unwrap_or("openai"),
+        &params.turn_route,
         &params.runtime_intent,
     );
     let native_runtime_inputs = if should_use_native_runtime_items {
@@ -1303,6 +1327,7 @@ async fn ai_agent_run(params: AiAgentRunParams) -> Result<AiAgentRunResponse, St
         enabled_tool_ids: enabled_tool_ids.clone(),
         runtime_intent: params.runtime_intent.clone(),
         runtime_native_inputs: should_use_native_runtime_items,
+        turn_route: params.turn_route.clone(),
         invocation: params.invocation.clone(),
         resolved_task: params.resolved_task.clone(),
         required_evidence: params.required_evidence.clone(),
@@ -1373,6 +1398,10 @@ async fn ai_agent_run_started_session<R: Runtime>(
     let api_key = string_field(&prepared_run, &["apiKey"]);
     let user_instruction = string_field(&prepared_run, &["userInstruction"]);
     let runtime_intent = string_field(&prepared_run, &["runtimeIntent"]);
+    let turn_route = prepared_run
+        .get("turnRoute")
+        .cloned()
+        .unwrap_or(Value::Null);
     let prior_conversation = array_field(&prepared_run, &["priorConversation"]);
     let attachments = array_field(&prepared_run, &["attachments"]);
     let referenced_files = array_field(&prepared_run, &["referencedFiles"]);
@@ -1445,17 +1474,19 @@ async fn ai_agent_run_started_session<R: Runtime>(
             execution_session["runtimeThreadId"] = Value::String(runtime_thread_id.clone());
             execution_session["runtimeProviderId"] = Value::String(provider_id.clone());
             execution_session["runtimeTransport"] = Value::String("codex-runtime".to_string());
-            execution_session = hydrate_research_context_for_session(
-                execution_session,
-                &skill,
-                &context_bundle,
-                &user_instruction,
-                &resolved_task,
-            )
-            .await?;
+            if should_hydrate_research_task(&turn_route, &runtime_intent) {
+                execution_session = hydrate_research_context_for_session(
+                    execution_session,
+                    &skill,
+                    &context_bundle,
+                    &user_instruction,
+                    &resolved_task,
+                )
+                .await?;
+            }
 
-            let enabled_tool_ids = config
-                .get("enabledTools")
+            let enabled_tool_ids = prepared_run
+                .get("enabledToolIds")
                 .and_then(Value::as_array)
                 .map(|entries| {
                     entries
@@ -1463,10 +1494,21 @@ async fn ai_agent_run_started_session<R: Runtime>(
                         .filter_map(|entry| entry.as_str().map(|value| value.to_string()))
                         .collect::<Vec<_>>()
                 })
-                .unwrap_or_default();
+                .unwrap_or_else(|| {
+                    config
+                        .get("enabledTools")
+                        .and_then(Value::as_array)
+                        .map(|entries| {
+                            entries
+                                .iter()
+                                .filter_map(|entry| entry.as_str().map(|value| value.to_string()))
+                                .collect::<Vec<_>>()
+                        })
+                        .unwrap_or_default()
+                });
 
             let should_use_native_runtime_items =
-                should_use_native_runtime_inputs(&provider_id, &runtime_intent);
+                should_use_native_runtime_inputs(&provider_id, &turn_route, &runtime_intent);
             let native_runtime_inputs = if should_use_native_runtime_items {
                 build_native_runtime_input_items(
                     &skill,
@@ -1503,6 +1545,7 @@ async fn ai_agent_run_started_session<R: Runtime>(
                 enabled_tool_ids,
                 runtime_intent: runtime_intent.clone(),
                 runtime_native_inputs: should_use_native_runtime_items,
+                turn_route: turn_route.clone(),
                 invocation: invocation.clone(),
                 resolved_task: resolved_task.clone(),
                 required_evidence: required_evidence.clone(),
@@ -1546,7 +1589,7 @@ async fn ai_agent_run_started_session<R: Runtime>(
 
             Ok((result, None, None, execution_session))
         } else {
-            if runtime_intent == "agent" || runtime_intent == "skill" {
+            if should_hydrate_research_task(&turn_route, &runtime_intent) {
                 execution_session = hydrate_research_context_for_session(
                     execution_session,
                     &skill,
@@ -1569,6 +1612,7 @@ async fn ai_agent_run_started_session<R: Runtime>(
                 requested_tools: requested_tools.clone(),
                 requested_tool_mentions: requested_tool_mentions.clone(),
                 runtime_intent: runtime_intent.clone(),
+                turn_route: turn_route.clone(),
                 invocation: invocation.clone(),
                 resolved_task: resolved_task.clone(),
                 required_evidence: required_evidence.clone(),

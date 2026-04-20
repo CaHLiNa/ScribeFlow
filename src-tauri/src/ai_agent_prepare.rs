@@ -6,6 +6,8 @@ use tokio::task;
 use crate::ai_config::ai_config_load_internal;
 use crate::ai_provider_catalog::resolve_provider_state_value;
 use crate::ai_provider_credentials::load_ai_provider_api_key_internal;
+use crate::ai_turn_policy::{normalize_permission_mode, resolve_default_permission_mode};
+use crate::ai_turn_router::{resolve_turn_route, TurnRouterInput};
 use crate::fs_io::read_text_file_with_limit;
 use crate::research_context_graph::build_research_context_graph;
 
@@ -473,36 +475,6 @@ fn resolve_ai_invocation(
     (fallback_skill, prompt.trim().to_string(), None)
 }
 
-fn normalize_permission_mode(value: &str) -> String {
-    let normalized = value.trim();
-    if normalized == "plan" {
-        "plan".to_string()
-    } else if ["acceptEdits", "accept-edits", "per-tool"].contains(&normalized) {
-        "accept-edits".to_string()
-    } else if ["bypassPermissions", "bypass-permissions", "auto"].contains(&normalized) {
-        "bypass-permissions".to_string()
-    } else {
-        "accept-edits".to_string()
-    }
-}
-
-fn resolve_default_permission_mode(
-    mode: &str,
-    provider_id: &str,
-    provider_config: &Value,
-) -> String {
-    if mode == "chat" {
-        return "accept-edits".to_string();
-    }
-    if provider_id == "anthropic" {
-        return normalize_permission_mode(&string_field(
-            provider_config.get("sdk").unwrap_or(&Value::Null),
-            &["approvalMode", "approval_mode"],
-        ));
-    }
-    "accept-edits".to_string()
-}
-
 fn normalize_conversation(messages: &[Value]) -> Vec<Value> {
     messages
         .iter()
@@ -533,103 +505,6 @@ fn build_error(code: &str, extra: Value) -> Value {
         }
     }
     Value::Object(payload)
-}
-
-fn contains_any(haystack: &str, needles: &[&str]) -> bool {
-    let normalized = normalize_search_text(haystack);
-    needles.iter().any(|needle| normalized.contains(needle))
-}
-
-fn should_prefer_agent_execution(
-    prompt: &str,
-    skill: &Value,
-    invocation: Option<&Value>,
-    tool_mentions: &[String],
-) -> bool {
-    let normalized_prompt = normalize_search_text(prompt);
-
-    if !tool_mentions.is_empty() {
-        return true;
-    }
-
-    if invocation
-        .and_then(|value| value.get("prefix"))
-        .and_then(Value::as_str)
-        == Some("/")
-    {
-        return true;
-    }
-
-    let file_action_requested = [
-        "create", "new", "write", "save", "touch ", "mkdir ", "创建", "新建", "写入", "保存",
-    ]
-    .iter()
-    .any(|needle| normalized_prompt.contains(needle));
-    let file_target_requested = [
-        "file",
-        "folder",
-        "directory",
-        "path",
-        "文件",
-        "文件夹",
-        "目录",
-        ".md",
-        ".txt",
-        ".tex",
-        ".json",
-        ".yaml",
-        ".yml",
-        ".toml",
-    ]
-    .iter()
-    .any(|needle| normalized_prompt.contains(needle));
-    if file_action_requested && file_target_requested {
-        return true;
-    }
-
-    if contains_any(
-        prompt,
-        &[
-            "edit",
-            "patch",
-            "apply",
-            "insert citation",
-            "update reference",
-            "fix",
-            "debug",
-            "run ",
-            "execute",
-            "compile",
-            "rewrite",
-            "search files",
-            "list files",
-            "rename",
-            "delete",
-            "modify",
-            "修改",
-            "修复",
-            "调试",
-            "运行",
-            "执行",
-            "编译",
-            "插入引用",
-            "补引用",
-            "更新文献",
-            "搜索文件",
-            "列出文件",
-            "删除",
-            "重命名",
-            "改写",
-        ],
-    ) {
-        return true;
-    }
-
-    let slug = build_skill_slug(skill);
-    matches!(
-        slug.as_str(),
-        "revise-with-citations" | "find-supporting-references" | "fix-latex-compile"
-    )
 }
 
 fn list_string_field(value: &Value, keys: &[&str]) -> Vec<String> {
@@ -916,48 +791,20 @@ async fn ai_agent_prepare(params: AiAgentPrepareParams) -> Result<Value, String>
             normalize_permission_mode(&session_mode)
         }
     };
+    let enabled_tool_ids = params
+        .provider_state
+        .get("enabledToolIds")
+        .and_then(Value::as_array)
+        .map(|entries| {
+            entries
+                .iter()
+                .filter_map(|entry| entry.as_str().map(|value| value.trim().to_string()))
+                .filter(|value| !value.is_empty())
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
 
     let mut config = params.provider_config.clone();
-    if let Some(map) = config.as_object_mut() {
-        let existing_sdk = map.get("sdk").cloned().unwrap_or(Value::Null);
-        map.insert(
-            "enabledTools".to_string(),
-            params
-                .provider_state
-                .get("enabledToolIds")
-                .cloned()
-                .unwrap_or_else(|| Value::Array(Vec::new())),
-        );
-        if provider_id == "anthropic" {
-            let mut sdk = existing_sdk.as_object().cloned().unwrap_or_default();
-            let runtime_mode = string_field(&existing_sdk, &["runtimeMode", "runtime_mode"]);
-            sdk.insert(
-                "runtimeMode".to_string(),
-                Value::String(if !is_agent_session {
-                    "http".to_string()
-                } else {
-                    if runtime_mode.is_empty() {
-                        "sdk".to_string()
-                    } else {
-                        runtime_mode
-                    }
-                }),
-            );
-            sdk.insert(
-                "approvalMode".to_string(),
-                Value::String(if effective_permission_mode == "plan" {
-                    "plan".to_string()
-                } else {
-                    "per-tool".to_string()
-                }),
-            );
-            sdk.insert(
-                "autoAllowAll".to_string(),
-                Value::Bool(effective_permission_mode == "bypass-permissions"),
-            );
-            map.insert("sdk".to_string(), Value::Object(sdk));
-        }
-    }
 
     let referenced_entries = resolve_mentioned_workspace_files(
         &file_mentions,
@@ -990,7 +837,63 @@ async fn ai_agent_prepare(params: AiAgentPrepareParams) -> Result<Value, String>
     let research_config = build_research_defaults(&params.research_config);
     let research_context_graph =
         build_research_context_graph(&params.context_bundle, &resolved_task, &required_evidence);
-    let requested_tools = Vec::new();
+    let turn_route = resolve_turn_route(TurnRouterInput {
+        session: session.clone(),
+        session_mode: normalized_session_mode.clone(),
+        prompt: prompt_draft.clone(),
+        skill: skill.clone(),
+        invocation: invocation.clone(),
+        tool_mentions: tool_mentions.clone(),
+        enabled_tool_ids: enabled_tool_ids.clone(),
+        permission_mode: effective_permission_mode.clone(),
+    });
+    if let Some(map) = config.as_object_mut() {
+        let existing_sdk = map.get("sdk").cloned().unwrap_or(Value::Null);
+        map.insert(
+            "enabledTools".to_string(),
+            Value::Array(
+                turn_route
+                    .allowed_tool_ids
+                    .iter()
+                    .cloned()
+                    .map(Value::String)
+                    .collect(),
+            ),
+        );
+        if provider_id == "anthropic" {
+            let mut sdk = existing_sdk.as_object().cloned().unwrap_or_default();
+            let runtime_mode = string_field(&existing_sdk, &["runtimeMode", "runtime_mode"]);
+            sdk.insert(
+                "runtimeMode".to_string(),
+                Value::String(if turn_route.runtime_intent != "agent" {
+                    "http".to_string()
+                } else if runtime_mode.is_empty() {
+                    "sdk".to_string()
+                } else {
+                    runtime_mode
+                }),
+            );
+            sdk.insert(
+                "approvalMode".to_string(),
+                Value::String(if effective_permission_mode == "plan" {
+                    "plan".to_string()
+                } else {
+                    "per-tool".to_string()
+                }),
+            );
+            sdk.insert(
+                "autoAllowAll".to_string(),
+                Value::Bool(effective_permission_mode == "bypass-permissions"),
+            );
+            map.insert("sdk".to_string(), Value::Object(sdk));
+        }
+    }
+    let requested_tools = turn_route
+        .requested_tool_mentions
+        .iter()
+        .cloned()
+        .map(Value::String)
+        .collect::<Vec<_>>();
     let referenced_files = task::spawn_blocking(move || {
         referenced_entries
             .into_iter()
@@ -1024,20 +927,7 @@ async fn ai_agent_prepare(params: AiAgentPrepareParams) -> Result<Value, String>
             .collect::<Vec<_>>(),
     );
 
-    let runtime_intent = if is_agent_session {
-        if should_prefer_agent_execution(&prompt_draft, &skill, invocation.as_ref(), &tool_mentions)
-        {
-            "agent".to_string()
-        } else if skill.is_object() {
-            "skill".to_string()
-        } else {
-            "chat".to_string()
-        }
-    } else if invocation.is_some() {
-        "skill".to_string()
-    } else {
-        "chat".to_string()
-    };
+    let runtime_intent = turn_route.runtime_intent.clone();
 
     Ok(json!({
         "ok": true,
@@ -1049,17 +939,21 @@ async fn ai_agent_prepare(params: AiAgentPrepareParams) -> Result<Value, String>
             "fileMentions": file_mentions,
             "toolMentions": tool_mentions,
         },
-        "requestedToolMentions": if is_agent_session {
-            Value::Array(tool_mentions.iter().cloned().map(Value::String).collect())
-        } else {
-            Value::Array(Vec::new())
-        },
+        "requestedToolMentions": Value::Array(
+            turn_route
+                .requested_tool_mentions
+                .iter()
+                .cloned()
+                .map(Value::String)
+                .collect()
+        ),
         "invocation": invocation,
         "selectionPolicy": {
             "explicitSkillWins": true,
             "explicitToolsWinOverInference": true,
             "builtInToolsBeforeMcpByDefault": true,
         },
+        "turnRoute": serde_json::to_value(&turn_route).unwrap_or(Value::Null),
         "resolvedTask": resolved_task,
         "requiredEvidence": required_evidence,
         "selectedArtifacts": selected_artifacts,
@@ -1071,6 +965,14 @@ async fn ai_agent_prepare(params: AiAgentPrepareParams) -> Result<Value, String>
         "providerId": provider_id,
         "apiKey": params.api_key,
         "effectivePermissionMode": effective_permission_mode,
+        "enabledToolIds": Value::Array(
+            turn_route
+                .allowed_tool_ids
+                .iter()
+                .cloned()
+                .map(Value::String)
+                .collect()
+        ),
         "config": config,
         "contextBundle": params.context_bundle,
         "userInstruction": if is_agent_session && user_instruction.is_empty() {
@@ -1082,7 +984,7 @@ async fn ai_agent_prepare(params: AiAgentPrepareParams) -> Result<Value, String>
         "referencedFiles": referenced_files,
         "priorConversation": prior_conversation,
         "attachments": session.get("attachments").cloned().unwrap_or_else(|| Value::Array(Vec::new())),
-        "requestedTools": Value::Array(requested_tools.into_iter().map(Value::String).collect()),
+        "requestedTools": Value::Array(requested_tools),
     }))
 }
 

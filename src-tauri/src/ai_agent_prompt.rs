@@ -33,6 +33,8 @@ pub struct AiAgentPromptParams {
     #[serde(default)]
     pub runtime_native_inputs: bool,
     #[serde(default)]
+    pub turn_route: Value,
+    #[serde(default)]
     pub resolved_task: Value,
     #[serde(default)]
     pub required_evidence: Vec<String>,
@@ -400,6 +402,81 @@ fn build_resolved_task_block(params: &AiAgentPromptParams) -> String {
     lines.join("\n")
 }
 
+fn build_turn_route_block(turn_route: &Value) -> String {
+    if !turn_route.is_object() {
+        return String::new();
+    }
+    let label = string_field(turn_route, &["label"]);
+    let summary = string_field(turn_route, &["summary"]);
+    let runtime_intent = string_field(turn_route, &["runtimeIntent", "runtime_intent"]);
+    let allowed_tool_ids = turn_route
+        .get("allowedToolIds")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|entry| entry.as_str().map(|value| value.trim().to_string()))
+        .filter(|entry| !entry.is_empty())
+        .collect::<Vec<_>>();
+    let capability_plan = turn_route
+        .get("capabilityPlan")
+        .cloned()
+        .unwrap_or(Value::Null);
+    let approval_preflight = turn_route
+        .get("approvalPreflight")
+        .cloned()
+        .unwrap_or(Value::Null);
+
+    let mut lines = vec!["Turn route:".to_string()];
+    if !label.is_empty() {
+        lines.push(format!("- Label: {label}"));
+    }
+    if !runtime_intent.is_empty() {
+        lines.push(format!("- Runtime intent: {runtime_intent}"));
+    }
+    if !summary.is_empty() {
+        lines.push(format!("- Summary: {summary}"));
+    }
+    if capability_plan.is_object() {
+        lines.push("- Capability plan:".to_string());
+        if bool_field(&capability_plan, &["readWorkspace"]) {
+            lines.push("  - Read workspace".to_string());
+        }
+        if bool_field(&capability_plan, &["writeWorkspace"]) {
+            lines.push("  - Write workspace".to_string());
+        }
+        if bool_field(&capability_plan, &["execCommand"]) {
+            lines.push("  - Execute commands".to_string());
+        }
+        if bool_field(&capability_plan, &["useResearchTask"]) {
+            lines.push("  - Hydrate research task".to_string());
+        }
+        if bool_field(&capability_plan, &["useSkillResponse"]) {
+            lines.push("  - Keep skill response contract".to_string());
+        }
+        let response_mode = string_field(&capability_plan, &["responseMode"]);
+        if !response_mode.is_empty() {
+            lines.push(format!("  - Response mode: {response_mode}"));
+        }
+    }
+    if approval_preflight.is_object() {
+        lines.push(format!(
+            "- Approval preflight: {} ({})",
+            string_field(&approval_preflight, &["status"]),
+            string_field(&approval_preflight, &["reason"])
+        ));
+    }
+    if !allowed_tool_ids.is_empty() {
+        lines.push("- Allowed tools:".to_string());
+        lines.extend(
+            allowed_tool_ids
+                .into_iter()
+                .map(|entry| format!("  - {entry}")),
+        );
+    }
+    lines.join("\n")
+}
+
 fn build_research_defaults_block(research_config: &Value) -> String {
     let citation_style = string_field(research_config, &["defaultCitationStyle"]);
     let evidence_strategy = string_field(research_config, &["evidenceStrategy"]);
@@ -669,6 +746,8 @@ fn build_agent_mode_user_prompt(params: &AiAgentPromptParams) -> String {
         String::new(),
         build_research_defaults_block(&params.research_config),
         String::new(),
+        build_turn_route_block(&params.turn_route),
+        String::new(),
         build_resolved_task_block(params),
         String::new(),
         build_research_plan_block(params),
@@ -716,6 +795,8 @@ fn build_chat_mode_user_prompt(params: &AiAgentPromptParams) -> String {
             params.user_instruction.trim().to_string()
         },
         String::new(),
+        build_turn_route_block(&params.turn_route),
+        String::new(),
         build_workspace_context_prompt_block(&params.context_bundle),
     ];
     if !params.runtime_native_inputs {
@@ -747,6 +828,8 @@ fn build_skill_mode_user_prompt(
         build_agent_context_snapshot(&params.skill, &params.context_bundle),
         String::new(),
         build_skill_support_prompt_block(&params.support_files),
+        String::new(),
+        build_turn_route_block(&params.turn_route),
         String::new(),
         build_selection_precedence_block(params),
     ];
@@ -803,6 +886,8 @@ pub async fn ai_agent_build_prompt(
     let behavior_id = get_ai_skill_behavior_id(&params.skill);
     let structured = requires_structured_agent_response(&behavior_id, &params.runtime_intent);
     let system_prompt = {
+        let route_label = string_field(&params.turn_route, &["label"]);
+        let route_summary = string_field(&params.turn_route, &["summary"]);
         let mut lines = vec![
             if params.runtime_intent.trim() == "agent" {
                 "You are an agent embedded in a local-first desktop research and coding workbench."
@@ -821,6 +906,16 @@ pub async fn ai_agent_build_prompt(
             "Skills are provided as an explicit catalog in the prompt. Treat them as Codex-style `SKILL.md` packages and do not infer extra skills from workspace filenames.".to_string(),
             "Do not invent unavailable runtime capabilities or workspace edit powers.".to_string(),
             "Treat the resolved research task, evidence requirements, preferred artifacts, and verification plan as the primary contract for this run.".to_string(),
+            if !route_label.is_empty() {
+                format!("The Rust router already resolved this turn as `{route_label}`.")
+            } else {
+                String::new()
+            },
+            if !route_summary.is_empty() {
+                format!("Follow the capability plan exactly: {route_summary}.")
+            } else {
+                String::new()
+            },
             if params.runtime_native_inputs {
                 "Runtime-native context inputs may already include attachments, files, selections, references, and tool hints. Do not ask for them again unless genuinely missing.".to_string()
             } else {
