@@ -93,6 +93,7 @@ fn normalize_runtime_user_text(text: &str) -> String {
         let task_body = &normalized[task_start + current_task_prefix.len()..];
         let section_markers = [
             "\n\nTurn route:",
+            "\n\nExecution context:",
             "\n\nResearch defaults:",
             "\n\nResolved research task:",
             "\n\nRequired evidence:",
@@ -100,6 +101,9 @@ fn normalize_runtime_user_text(text: &str) -> String {
             "\n\nVerification plan:",
             "\n\nResearch context graph:",
             "\n\nWorkspace context:",
+            "\n\nReferenced files:",
+            "\n\nAttached files:",
+            "\n\nRecent conversation:",
             "\n\n## Skills",
             "\n\nSelection precedence:",
         ];
