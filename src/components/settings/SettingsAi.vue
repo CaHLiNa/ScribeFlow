@@ -1,5 +1,80 @@
 <template>
   <div class="settings-page">
+    <h3 class="settings-section-title">{{ t('Research defaults') }}</h3>
+
+    <section class="settings-group">
+      <h4 class="settings-group-title">{{ t('Research defaults') }}</h4>
+
+      <div class="settings-ai-research-panel">
+        <div class="settings-ai-research-intro">
+          <div class="settings-ai-research-intro-title">
+            {{ t('Workspace-first AI defaults') }}
+          </div>
+          <div class="settings-ai-research-intro-copy">
+            {{
+              t(
+                'Set the default citation style, evidence strictness, and completion threshold before tuning providers.'
+              )
+            }}
+          </div>
+        </div>
+
+        <div class="settings-ai-research-summary">
+          <div class="settings-ai-research-summary-label">{{ t('Current workspace') }}</div>
+          <div class="settings-ai-research-summary-value">
+            {{ currentWorkspacePath || t('No workspace open') }}
+          </div>
+        </div>
+
+        <div class="settings-ai-research-grid">
+          <div class="settings-row settings-ai-provider-row">
+            <div class="settings-row-copy">
+              <div class="settings-row-title">{{ t('Default citation style') }}</div>
+            </div>
+            <div class="settings-row-control">
+              <UiSelect
+                :model-value="researchDefaults.defaultCitationStyle"
+                size="sm"
+                class="settings-ai-input"
+                :options="citationStyleOptions"
+                @update:model-value="updateResearchDefault('defaultCitationStyle', $event)"
+              />
+            </div>
+          </div>
+
+          <div class="settings-row settings-ai-provider-row">
+            <div class="settings-row-copy">
+              <div class="settings-row-title">{{ t('Evidence strategy') }}</div>
+            </div>
+            <div class="settings-row-control">
+              <UiSelect
+                :model-value="researchDefaults.evidenceStrategy"
+                size="sm"
+                class="settings-ai-input"
+                :options="evidenceStrategyOptions"
+                @update:model-value="updateResearchDefault('evidenceStrategy', $event)"
+              />
+            </div>
+          </div>
+
+          <div class="settings-row settings-ai-provider-row">
+            <div class="settings-row-copy">
+              <div class="settings-row-title">{{ t('Task completion threshold') }}</div>
+            </div>
+            <div class="settings-row-control">
+              <UiSelect
+                :model-value="researchDefaults.taskCompletionThreshold"
+                size="sm"
+                class="settings-ai-input"
+                :options="completionThresholdOptions"
+                @update:model-value="updateResearchDefault('taskCompletionThreshold', $event)"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <h3 class="settings-section-title">{{ t('Model providers') }}</h3>
 
     <section class="settings-group">
@@ -180,11 +255,14 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { useToastStore } from '../../stores/toast'
 import { useI18n } from '../../i18n'
 import { useAiStore } from '../../stores/ai'
+import { useWorkspaceStore } from '../../stores/workspace'
+import { useReferencesStore } from '../../stores/references'
+import { getAvailableCitationStyles } from '../../services/references/citationStyleRegistry.js'
 import UiButton from '../shared/ui/UiButton.vue'
 import UiInput from '../shared/ui/UiInput.vue'
 import UiSelect from '../shared/ui/UiSelect.vue'
@@ -192,6 +270,8 @@ import UiSelect from '../shared/ui/UiSelect.vue'
 const { t } = useI18n()
 const aiStore = useAiStore()
 const toastStore = useToastStore()
+const workspaceStore = useWorkspaceStore()
+const referencesStore = useReferencesStore()
 
 async function listAiProviderDefinitions() {
   const response = await invoke('ai_provider_catalog_list')
@@ -251,6 +331,29 @@ const providerModelOptions = ref({})
 const providerModelLoading = ref({})
 const providerModelErrors = ref({})
 const loadedConfig = ref(null)
+const researchDefaults = ref({
+  defaultCitationStyle: 'apa',
+  evidenceStrategy: 'balanced',
+  taskCompletionThreshold: 'strict',
+})
+
+const currentWorkspacePath = computed(() => String(workspaceStore.path || '').trim())
+const citationStyleOptions = computed(() =>
+  getAvailableCitationStyles().map((style) => ({
+    value: style.id,
+    label: style.label,
+  }))
+)
+const evidenceStrategyOptions = computed(() => [
+  { value: 'focused', label: t('Focused evidence') },
+  { value: 'balanced', label: t('Balanced evidence') },
+  { value: 'strict', label: t('Strict evidence') },
+])
+const completionThresholdOptions = computed(() => [
+  { value: 'fast', label: t('Fast') },
+  { value: 'balanced', label: t('Balanced') },
+  { value: 'strict', label: t('Strict') },
+])
 
 const expandedProvider = ref(null)
 function toggleProvider(id) {
@@ -388,9 +491,22 @@ function buildConfig() {
     ...currentConfig,
     currentProviderId: String(currentConfig.currentProviderId || 'openai').trim(),
     enabledTools: Array.isArray(currentConfig.enabledTools) ? [...currentConfig.enabledTools] : [],
+    researchDefaults: {
+      defaultCitationStyle: String(researchDefaults.value.defaultCitationStyle || 'apa').trim() || 'apa',
+      evidenceStrategy: String(researchDefaults.value.evidenceStrategy || 'balanced').trim() || 'balanced',
+      taskCompletionThreshold:
+        String(researchDefaults.value.taskCompletionThreshold || 'strict').trim() || 'strict',
+    },
     providers: Object.fromEntries(
       providerDefinitions.value.map((provider) => [provider.id, buildProviderConfig(provider.id)])
     ),
+  }
+}
+
+function updateResearchDefault(field = '', value = '') {
+  researchDefaults.value = {
+    ...researchDefaults.value,
+    [field]: String(value ?? '').trim(),
   }
 }
 
@@ -521,6 +637,15 @@ async function loadState() {
       keyEntries.map(([providerId, apiKey]) => [providerId, String(apiKey || '')])
     )
     loadedConfig.value = config
+    researchDefaults.value = {
+      defaultCitationStyle: String(
+        config?.researchDefaults?.defaultCitationStyle || referencesStore.citationStyle || 'apa'
+      ).trim() || 'apa',
+      evidenceStrategy: String(config?.researchDefaults?.evidenceStrategy || 'balanced').trim() || 'balanced',
+      taskCompletionThreshold:
+        String(config?.researchDefaults?.taskCompletionThreshold || 'strict').trim() || 'strict',
+    }
+    referencesStore.setCitationStyle(researchDefaults.value.defaultCitationStyle)
     await aiStore.refreshProviderState()
   } catch (error) {
     toastStore.show(normalizeErrorMessage(error, t('Failed to load AI settings.')), {
@@ -535,6 +660,7 @@ async function persistAllProviders() {
   const nextConfig = buildConfig()
   await saveAiConfig(nextConfig)
   loadedConfig.value = nextConfig
+  referencesStore.setCitationStyle(researchDefaults.value.defaultCitationStyle)
   for (const provider of providerDefinitions.value) {
     await storeAiApiKey(provider.id, getProviderKey(provider.id).trim())
   }
@@ -636,6 +762,62 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.settings-ai-research-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--border) 52%, transparent);
+  background: color-mix(in srgb, var(--surface-base) 82%, transparent);
+}
+
+.settings-ai-research-intro {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.settings-ai-research-intro-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.settings-ai-research-intro-copy {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.settings-ai-research-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-hover) 28%, transparent);
+}
+
+.settings-ai-research-summary-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-tertiary);
+}
+
+.settings-ai-research-summary-value {
+  font-size: 13px;
+  color: var(--text-primary);
+  word-break: break-word;
+}
+
+.settings-ai-research-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+}
+
 .settings-ai-static-value {
   display: inline-flex;
   align-items: center;
@@ -787,6 +969,12 @@ onMounted(() => {
 
 .settings-inline-message-error {
   color: var(--error);
+}
+
+@media (max-width: 720px) {
+  .settings-ai-research-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .ai-provider-collapse-enter-active,

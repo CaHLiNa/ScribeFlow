@@ -350,9 +350,12 @@ fn apply_conversation_event_to_message(message: &Value, event: &Value) -> Value 
 fn artifact_preview(artifact: &Value) -> String {
     match string_field(artifact, &["type"]).as_str() {
         "doc_patch" => preview_text(&string_field(artifact, &["replacementText"]), 180),
-        "note_draft" | "related_work_outline" | "reading_note_bundle" => {
-            preview_text(&string_field(artifact, &["content"]), 180)
-        }
+        "note_draft"
+        | "related_work_outline"
+        | "reading_note_bundle"
+        | "claim_evidence_map"
+        | "compile_fix"
+        | "comparison_table" => preview_text(&string_field(artifact, &["content"]), 180),
         "citation_insert" => preview_text(
             &[
                 string_field(artifact, &["citationKey"]),
@@ -484,6 +487,9 @@ fn build_assistant_message(
         || artifact_type == "related_work_outline"
         || artifact_type == "reading_note_bundle"
         || artifact_type == "evidence_bundle"
+        || artifact_type == "claim_evidence_map"
+        || artifact_type == "compile_fix"
+        || artifact_type == "comparison_table"
     {
         string_field(artifact, &["content"])
     } else if artifact_type == "reference_patch" {

@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use crate::app_dirs;
 
-const AI_CONFIG_VERSION: i64 = 5;
+const AI_CONFIG_VERSION: i64 = 6;
 const DEFAULT_TEMPERATURE: f64 = 0.2;
 const CONFIGURABLE_AI_TOOL_IDS: &[&str] = &["delete-workspace-path"];
 
@@ -152,6 +152,44 @@ fn normalize_enabled_tool_ids(value: &Value) -> Vec<String> {
             normalized
         })
         .unwrap_or_default()
+}
+
+fn normalize_research_defaults(value: &Value) -> Value {
+    let default_citation_style = value
+        .get("defaultCitationStyle")
+        .and_then(Value::as_str)
+        .unwrap_or("apa")
+        .trim();
+    let evidence_strategy = match value
+        .get("evidenceStrategy")
+        .and_then(Value::as_str)
+        .unwrap_or("balanced")
+        .trim()
+    {
+        "strict" => "strict",
+        "focused" => "focused",
+        _ => "balanced",
+    };
+    let completion_threshold = match value
+        .get("taskCompletionThreshold")
+        .and_then(Value::as_str)
+        .unwrap_or("strict")
+        .trim()
+    {
+        "fast" => "fast",
+        "balanced" => "balanced",
+        _ => "strict",
+    };
+
+    json!({
+        "defaultCitationStyle": if default_citation_style.is_empty() {
+            "apa"
+        } else {
+            default_citation_style
+        },
+        "evidenceStrategy": evidence_strategy,
+        "taskCompletionThreshold": completion_threshold,
+    })
 }
 
 fn normalize_string_map(value: &Value) -> Value {
@@ -324,6 +362,7 @@ fn create_default_ai_config() -> Value {
         "currentProviderId": "openai",
         "enabledTools": [],
         "providers": Value::Object(providers),
+        "researchDefaults": normalize_research_defaults(&Value::Null),
     })
 }
 
@@ -391,6 +430,7 @@ pub(crate) fn normalize_ai_config(raw_config: Option<&Value>) -> Value {
         },
         "enabledTools": normalize_enabled_tool_ids(raw_config.get("enabledTools").unwrap_or(&Value::Null)),
         "providers": Value::Object(providers),
+        "researchDefaults": normalize_research_defaults(raw_config.get("researchDefaults").unwrap_or(&Value::Null)),
         "_credentialStorage": credential_storage,
         "_apiKeyFallbacks": api_key_fallbacks,
     })
@@ -405,6 +445,7 @@ fn sanitize_public_ai_config(config: &Value) -> Value {
         ),
         "enabledTools": normalize_enabled_tool_ids(normalized.get("enabledTools").unwrap_or(&Value::Null)),
         "providers": normalized.get("providers").cloned().unwrap_or_else(|| create_default_ai_config()["providers"].clone()),
+        "researchDefaults": normalized.get("researchDefaults").cloned().unwrap_or_else(|| normalize_research_defaults(&Value::Null)),
     })
 }
 
@@ -454,6 +495,7 @@ pub async fn ai_config_save(config: Value) -> Result<Value, String> {
         "currentProviderId": sanitized.get("currentProviderId").cloned().unwrap_or(Value::String("openai".to_string())),
         "enabledTools": sanitized.get("enabledTools").cloned().unwrap_or(Value::Array(vec![])),
         "providers": sanitized.get("providers").cloned().unwrap_or_else(|| create_default_ai_config()["providers"].clone()),
+        "researchDefaults": sanitized.get("researchDefaults").cloned().unwrap_or_else(|| normalize_research_defaults(&Value::Null)),
         "_apiKeyFallbacks": raw_config.get("_apiKeyFallbacks").cloned().unwrap_or_else(|| json!({})),
         "_credentialStorage": raw_config.get("_credentialStorage").cloned().unwrap_or_else(|| json!({})),
     });

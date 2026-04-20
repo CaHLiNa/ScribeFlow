@@ -25,8 +25,9 @@ use crate::codex_runtime::{
 use crate::research_evidence_runtime::{
     ensure_context_bundle_evidence, list_research_evidence_for_task,
 };
+use crate::research_task_protocol::ResearchTaskUpdateParams;
 use crate::research_task_runtime::{
-    ensure_research_task_for_thread, sync_research_task_artifacts_for_thread,
+    ensure_research_task_for_thread, research_task_update, sync_research_task_artifacts_for_thread,
     sync_research_task_context_for_thread,
 };
 
@@ -59,6 +60,18 @@ pub struct AiAgentRunParams {
     pub runtime_intent: String,
     #[serde(default)]
     pub invocation: Value,
+    #[serde(default)]
+    pub resolved_task: Value,
+    #[serde(default)]
+    pub required_evidence: Vec<String>,
+    #[serde(default)]
+    pub selected_artifacts: Vec<String>,
+    #[serde(default)]
+    pub verification_plan: Vec<String>,
+    #[serde(default)]
+    pub research_context_graph: Value,
+    #[serde(default)]
+    pub research_config: Value,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -197,11 +210,12 @@ fn infer_research_task_kind(skill: &Value, user_instruction: &str) -> String {
     "general-research".to_string()
 }
 
-fn hydrate_research_context_for_session(
+async fn hydrate_research_context_for_session(
     mut session: Value,
     skill: &Value,
     context_bundle: &Value,
     user_instruction: &str,
+    resolved_task: &Value,
 ) -> Result<Value, String> {
     let workspace_path = string_field(
         context_bundle.get("workspace").unwrap_or(&Value::Null),
@@ -213,24 +227,35 @@ fn hydrate_research_context_for_session(
     }
 
     let task_title = {
-        let current = string_field(&session, &["title"]);
+        let current = string_field(resolved_task, &["title"]);
         if current.is_empty() {
-            let instruction = user_instruction.trim();
-            if instruction.is_empty() {
-                "研究任务".to_string()
+            let current = string_field(&session, &["title"]);
+            if current.is_empty() {
+                let instruction = user_instruction.trim();
+                if instruction.is_empty() {
+                    "研究任务".to_string()
+                } else {
+                    truncate_text(instruction, 64)
+                }
             } else {
-                truncate_text(instruction, 64)
+                current
             }
         } else {
             current
         }
     };
-    let task_goal = if user_instruction.trim().is_empty() {
+    let task_goal = if !string_field(resolved_task, &["goal"]).is_empty() {
+        string_field(resolved_task, &["goal"])
+    } else if user_instruction.trim().is_empty() {
         format!("完成研究任务：{}", task_title)
     } else {
         user_instruction.trim().to_string()
     };
-    let task_kind = infer_research_task_kind(skill, user_instruction);
+    let task_kind = if !string_field(resolved_task, &["kind"]).is_empty() {
+        string_field(resolved_task, &["kind"])
+    } else {
+        infer_research_task_kind(skill, user_instruction)
+    };
     let active_document_paths = {
         let document = context_bundle.get("document").unwrap_or(&Value::Null);
         let path = string_field(document, &["filePath", "file_path"]);
@@ -274,6 +299,47 @@ fn hydrate_research_context_for_session(
         reference_ids,
     )?
     .unwrap_or(task);
+    let success_criteria = resolved_task
+        .get("successCriteria")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|entry| entry.as_str().map(|value| value.trim().to_string()))
+        .filter(|value| !value.is_empty())
+        .collect::<Vec<_>>();
+    let task = if success_criteria.is_empty() {
+        task
+    } else {
+        research_task_update(ResearchTaskUpdateParams {
+            workspace_path: workspace_path.clone(),
+            task_id: task.id.clone(),
+            title: None,
+            goal: None,
+            kind: None,
+            status: Some("active".to_string()),
+            phase: Some({
+                let phase = string_field(resolved_task, &["phase"]);
+                if phase.is_empty() {
+                    "scoping".to_string()
+                } else {
+                    phase
+                }
+            }),
+            success_criteria: Some(success_criteria),
+            active_document_paths: None,
+            reference_ids: None,
+            evidence_ids: None,
+            artifact_ids: None,
+            verification_verdict: None,
+            verification_summary: None,
+            blocked_reason: None,
+            resume_hint: None,
+        })
+        .await
+        .map(|response| response.task)
+        .unwrap_or(task)
+    };
     let evidence = list_research_evidence_for_task(&workspace_path, &task.id)?;
 
     session["researchTask"] = serde_json::to_value(task).unwrap_or(Value::Null);
@@ -594,6 +660,54 @@ fn build_evidence_bundle_artifact(payload: &Value, context_bundle: &Value) -> Op
     }))
 }
 
+fn build_claim_evidence_map_artifact(payload: &Value, context_bundle: &Value) -> Option<Value> {
+    build_note_style_artifact(
+        "claim_evidence_map",
+        payload,
+        context_bundle,
+        &[
+            "claim_evidence_markdown",
+            "claim_map_markdown",
+            "evidence_bundle_markdown",
+            "content",
+        ],
+        "Claim evidence map",
+        "Open claim map",
+    )
+}
+
+fn build_compile_fix_artifact(payload: &Value, context_bundle: &Value) -> Option<Value> {
+    build_note_style_artifact(
+        "compile_fix",
+        payload,
+        context_bundle,
+        &[
+            "compile_fix_markdown",
+            "fix_markdown",
+            "steps_markdown",
+            "content",
+        ],
+        "Compile fix",
+        "Open compile fix",
+    )
+}
+
+fn build_comparison_table_artifact(payload: &Value, context_bundle: &Value) -> Option<Value> {
+    build_note_style_artifact(
+        "comparison_table",
+        payload,
+        context_bundle,
+        &[
+            "comparison_table_markdown",
+            "table_markdown",
+            "comparison_markdown",
+            "content",
+        ],
+        "Paper comparison",
+        "Open comparison table",
+    )
+}
+
 fn normalize_artifact(behavior_id: &str, payload: &Value, context_bundle: &Value) -> Option<Value> {
     match behavior_id {
         "revise-with-citations" => build_doc_patch_artifact(payload, context_bundle),
@@ -613,9 +727,17 @@ fn normalize_artifact(behavior_id: &str, payload: &Value, context_bundle: &Value
             .or_else(|| build_note_draft_artifact(payload, context_bundle)),
         "find-supporting-references" => build_reference_patch_artifact(payload, context_bundle)
             .or_else(|| build_citation_insert_artifact(payload, context_bundle))
+            .or_else(|| build_claim_evidence_map_artifact(payload, context_bundle))
             .or_else(|| build_evidence_bundle_artifact(payload, context_bundle)),
+        "fix-latex-compile" => build_compile_fix_artifact(payload, context_bundle)
+            .or_else(|| build_note_draft_artifact(payload, context_bundle)),
+        "compare-papers" => build_comparison_table_artifact(payload, context_bundle)
+            .or_else(|| build_note_draft_artifact(payload, context_bundle)),
         _ => None,
     }
+    .or_else(|| build_claim_evidence_map_artifact(payload, context_bundle))
+    .or_else(|| build_compile_fix_artifact(payload, context_bundle))
+    .or_else(|| build_comparison_table_artifact(payload, context_bundle))
 }
 
 fn build_artifact_evidence_preview(evidence_entries: &[Value]) -> Vec<Value> {
@@ -1142,6 +1264,12 @@ async fn ai_agent_run(params: AiAgentRunParams) -> Result<AiAgentRunResponse, St
         runtime_intent: params.runtime_intent.clone(),
         runtime_native_inputs: should_use_native_runtime_items,
         invocation: params.invocation.clone(),
+        resolved_task: params.resolved_task.clone(),
+        required_evidence: params.required_evidence.clone(),
+        selected_artifacts: params.selected_artifacts.clone(),
+        verification_plan: params.verification_plan.clone(),
+        research_context_graph: params.research_context_graph.clone(),
+        research_config: params.research_config.clone(),
     })
     .await?;
 
@@ -1209,6 +1337,33 @@ async fn ai_agent_run_started_session<R: Runtime>(
     let attachments = array_field(&prepared_run, &["attachments"]);
     let referenced_files = array_field(&prepared_run, &["referencedFiles"]);
     let requested_tools = array_field(&prepared_run, &["requestedTools"]);
+    let required_evidence = prepared_run
+        .get("requiredEvidence")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|entry| entry.as_str().map(|value| value.trim().to_string()))
+        .filter(|value| !value.is_empty())
+        .collect::<Vec<_>>();
+    let selected_artifacts = prepared_run
+        .get("selectedArtifacts")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|entry| entry.as_str().map(|value| value.trim().to_string()))
+        .filter(|value| !value.is_empty())
+        .collect::<Vec<_>>();
+    let verification_plan = prepared_run
+        .get("verificationPlan")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|entry| entry.as_str().map(|value| value.trim().to_string()))
+        .filter(|value| !value.is_empty())
+        .collect::<Vec<_>>();
     let requested_tool_mentions = prepared_run
         .get("requestedToolMentions")
         .and_then(Value::as_array)
@@ -1221,6 +1376,18 @@ async fn ai_agent_run_started_session<R: Runtime>(
         .unwrap_or_default();
     let invocation = prepared_run
         .get("invocation")
+        .cloned()
+        .unwrap_or(Value::Null);
+    let resolved_task = prepared_run
+        .get("resolvedTask")
+        .cloned()
+        .unwrap_or(Value::Null);
+    let research_context_graph = prepared_run
+        .get("researchContextGraph")
+        .cloned()
+        .unwrap_or(Value::Null);
+    let research_config = prepared_run
+        .get("researchConfig")
         .cloned()
         .unwrap_or(Value::Null);
 
@@ -1243,7 +1410,9 @@ async fn ai_agent_run_started_session<R: Runtime>(
                 &skill,
                 &context_bundle,
                 &user_instruction,
-            )?;
+                &resolved_task,
+            )
+            .await?;
 
             let enabled_tool_ids = config
                 .get("enabledTools")
@@ -1295,6 +1464,12 @@ async fn ai_agent_run_started_session<R: Runtime>(
                 runtime_intent: runtime_intent.clone(),
                 runtime_native_inputs: should_use_native_runtime_items,
                 invocation: invocation.clone(),
+                resolved_task: resolved_task.clone(),
+                required_evidence: required_evidence.clone(),
+                selected_artifacts: selected_artifacts.clone(),
+                verification_plan: verification_plan.clone(),
+                research_context_graph: research_context_graph.clone(),
+                research_config: research_config.clone(),
             })
             .await?;
 
@@ -1336,7 +1511,9 @@ async fn ai_agent_run_started_session<R: Runtime>(
                 &skill,
                 &context_bundle,
                 &user_instruction,
-            )?;
+                &resolved_task,
+            )
+            .await?;
             let response = ai_agent_run(AiAgentRunParams {
                 skill: skill.clone(),
                 context_bundle: context_bundle.clone(),
@@ -1351,6 +1528,12 @@ async fn ai_agent_run_started_session<R: Runtime>(
                 requested_tool_mentions: requested_tool_mentions.clone(),
                 runtime_intent: runtime_intent.clone(),
                 invocation: invocation.clone(),
+                resolved_task: resolved_task.clone(),
+                required_evidence: required_evidence.clone(),
+                selected_artifacts: selected_artifacts.clone(),
+                verification_plan: verification_plan.clone(),
+                research_context_graph: research_context_graph.clone(),
+                research_config: research_config.clone(),
             })
             .await?;
 

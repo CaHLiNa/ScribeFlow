@@ -32,6 +32,18 @@ pub struct AiAgentPromptParams {
     pub runtime_intent: String,
     #[serde(default)]
     pub runtime_native_inputs: bool,
+    #[serde(default)]
+    pub resolved_task: Value,
+    #[serde(default)]
+    pub required_evidence: Vec<String>,
+    #[serde(default)]
+    pub selected_artifacts: Vec<String>,
+    #[serde(default)]
+    pub verification_plan: Vec<String>,
+    #[serde(default)]
+    pub research_context_graph: Value,
+    #[serde(default)]
+    pub research_config: Value,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -349,6 +361,160 @@ fn build_workspace_context_prompt_block(context_bundle: &Value) -> String {
     .join("\n")
 }
 
+fn build_resolved_task_block(params: &AiAgentPromptParams) -> String {
+    if !params.resolved_task.is_object() {
+        return String::new();
+    }
+    let kind = string_field(&params.resolved_task, &["kind"]);
+    let title = string_field(&params.resolved_task, &["title"]);
+    let goal = string_field(&params.resolved_task, &["goal"]);
+    let success_criteria = params
+        .resolved_task
+        .get("successCriteria")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|entry| entry.as_str().map(|value| value.trim().to_string()))
+        .filter(|entry| !entry.is_empty())
+        .collect::<Vec<_>>();
+
+    let mut lines = vec!["Resolved research task:".to_string()];
+    if !kind.is_empty() {
+        lines.push(format!("- Kind: {kind}"));
+    }
+    if !title.is_empty() {
+        lines.push(format!("- Title: {title}"));
+    }
+    if !goal.is_empty() {
+        lines.push(format!("- Goal: {goal}"));
+    }
+    if !success_criteria.is_empty() {
+        lines.push("- Success criteria:".to_string());
+        lines.extend(
+            success_criteria
+                .into_iter()
+                .map(|entry| format!("  - {entry}")),
+        );
+    }
+    lines.join("\n")
+}
+
+fn build_research_defaults_block(research_config: &Value) -> String {
+    let citation_style = string_field(research_config, &["defaultCitationStyle"]);
+    let evidence_strategy = string_field(research_config, &["evidenceStrategy"]);
+    let completion_threshold = string_field(research_config, &["taskCompletionThreshold"]);
+    if citation_style.is_empty() && evidence_strategy.is_empty() && completion_threshold.is_empty()
+    {
+        return String::new();
+    }
+    [
+        "Research defaults:".to_string(),
+        format!(
+            "- Citation style: {}",
+            if citation_style.is_empty() {
+                "apa".to_string()
+            } else {
+                citation_style
+            }
+        ),
+        format!(
+            "- Evidence strategy: {}",
+            if evidence_strategy.is_empty() {
+                "balanced".to_string()
+            } else {
+                evidence_strategy
+            }
+        ),
+        format!(
+            "- Completion threshold: {}",
+            if completion_threshold.is_empty() {
+                "strict".to_string()
+            } else {
+                completion_threshold
+            }
+        ),
+    ]
+    .join("\n")
+}
+
+fn build_research_plan_block(params: &AiAgentPromptParams) -> String {
+    let mut lines = Vec::new();
+    if !params.required_evidence.is_empty() {
+        lines.push("Required evidence:".to_string());
+        lines.extend(
+            params
+                .required_evidence
+                .iter()
+                .map(|entry| format!("- {entry}")),
+        );
+    }
+    if !params.selected_artifacts.is_empty() {
+        if !lines.is_empty() {
+            lines.push(String::new());
+        }
+        lines.push("Preferred artifacts:".to_string());
+        lines.extend(
+            params
+                .selected_artifacts
+                .iter()
+                .map(|entry| format!("- {entry}")),
+        );
+    }
+    if !params.verification_plan.is_empty() {
+        if !lines.is_empty() {
+            lines.push(String::new());
+        }
+        lines.push("Verification plan:".to_string());
+        lines.extend(
+            params
+                .verification_plan
+                .iter()
+                .map(|entry| format!("- {entry}")),
+        );
+    }
+    lines.join("\n")
+}
+
+fn build_research_context_graph_block(graph: &Value) -> String {
+    let nodes = graph
+        .get("nodes")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let edges = graph
+        .get("edges")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    if nodes.is_empty() && edges.is_empty() {
+        return String::new();
+    }
+    let mut lines = vec!["Research context graph:".to_string()];
+    if !nodes.is_empty() {
+        lines.push("- Nodes:".to_string());
+        for node in nodes.iter().take(8) {
+            let kind = string_field(node, &["kind"]);
+            let label = string_field(node, &["label"]);
+            if !label.is_empty() {
+                lines.push(format!("  - {kind}: {label}"));
+            }
+        }
+    }
+    if !edges.is_empty() {
+        lines.push("- Edges:".to_string());
+        for edge in edges.iter().take(10) {
+            let from = string_field(edge, &["from"]);
+            let to = string_field(edge, &["to"]);
+            let relation = string_field(edge, &["relation"]);
+            if !from.is_empty() && !to.is_empty() {
+                lines.push(format!("  - {from} --{relation}--> {to}"));
+            }
+        }
+    }
+    lines.join("\n")
+}
+
 fn build_available_skills_block(scribeflow_skills: &[Value]) -> String {
     let entries = scribeflow_skills
         .iter()
@@ -501,6 +667,14 @@ fn build_agent_mode_user_prompt(params: &AiAgentPromptParams) -> String {
             params.user_instruction.trim().to_string()
         },
         String::new(),
+        build_research_defaults_block(&params.research_config),
+        String::new(),
+        build_resolved_task_block(params),
+        String::new(),
+        build_research_plan_block(params),
+        String::new(),
+        build_research_context_graph_block(&params.research_context_graph),
+        String::new(),
         build_workspace_context_prompt_block(&params.context_bundle),
         String::new(),
         build_available_skills_block(&params.scribeflow_skills),
@@ -614,6 +788,7 @@ pub async fn ai_agent_build_prompt(
             "If the task touches citations, references, or bibliography, preserve cite keys and source traceability so the runtime can verify the result.".to_string(),
             "Skills are provided as an explicit catalog in the prompt. Treat them as Codex-style `SKILL.md` packages and do not infer extra skills from workspace filenames.".to_string(),
             "Do not invent unavailable runtime capabilities or workspace edit powers.".to_string(),
+            "Treat the resolved research task, evidence requirements, preferred artifacts, and verification plan as the primary contract for this run.".to_string(),
             if params.runtime_native_inputs {
                 "Runtime-native context inputs may already include attachments, files, selections, references, and tool hints. Do not ask for them again unless genuinely missing.".to_string()
             } else {

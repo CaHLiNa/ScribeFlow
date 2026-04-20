@@ -298,9 +298,12 @@ fn build_resume_hint(kind: &str, blocking: bool) -> String {
             "修复 citation 或 bibliography 问题后重新应用相关 artifact。".to_string()
         }
         "doc_patch" => "检查文档当前内容与 patch 适用范围后重新应用。".to_string(),
-        "note_draft" | "related_work_outline" | "reading_note_bundle" => {
-            "检查生成内容与目标路径后重新生成草稿。".to_string()
-        }
+        "note_draft"
+        | "related_work_outline"
+        | "reading_note_bundle"
+        | "claim_evidence_map"
+        | "compile_fix"
+        | "comparison_table" => "检查生成内容与目标路径后重新生成草稿。".to_string(),
         _ => "修复当前验证失败项后重新运行对应 artifact。".to_string(),
     }
 }
@@ -403,9 +406,12 @@ async fn build_verification_record(
             )
             .await
         }
-        "note_draft" | "related_work_outline" | "reading_note_bundle" => {
-            verify_note_draft(&params.created_path)
-        }
+        "note_draft"
+        | "related_work_outline"
+        | "reading_note_bundle"
+        | "claim_evidence_map"
+        | "compile_fix"
+        | "comparison_table" => verify_note_draft(&params.created_path),
         _ => (
             false,
             vec!["Unsupported artifact type for verification.".to_string()],

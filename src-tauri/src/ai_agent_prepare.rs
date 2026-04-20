@@ -7,6 +7,7 @@ use crate::ai_config::ai_config_load_internal;
 use crate::ai_provider_catalog::resolve_provider_state_value;
 use crate::ai_provider_credentials::load_ai_provider_api_key_internal;
 use crate::fs_io::read_text_file_with_limit;
+use crate::research_context_graph::build_research_context_graph;
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -32,6 +33,8 @@ pub struct AiAgentPrepareParams {
     pub workspace_path: String,
     #[serde(default)]
     pub flat_files: Vec<Value>,
+    #[serde(default)]
+    pub research_config: Value,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -532,6 +535,197 @@ fn build_error(code: &str, extra: Value) -> Value {
     Value::Object(payload)
 }
 
+fn list_string_field(value: &Value, keys: &[&str]) -> Vec<String> {
+    keys.iter()
+        .find_map(|key| value.get(*key))
+        .map(|entry| match entry {
+            Value::Array(values) => values
+                .iter()
+                .filter_map(Value::as_str)
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+                .collect(),
+            Value::String(text) => text
+                .split([',', '\n'])
+                .map(|value| value.trim().trim_start_matches('-').trim().to_string())
+                .filter(|value| !value.is_empty())
+                .collect(),
+            _ => Vec::new(),
+        })
+        .unwrap_or_default()
+}
+
+fn inferred_task_kind(skill: &Value, prompt: &str) -> String {
+    let explicit = list_string_field(skill, &["researchTaskTypes"]);
+    if let Some(kind) = explicit.first() {
+        return kind.clone();
+    }
+
+    let haystack = [
+        string_field(skill, &["slug", "name", "id"]),
+        prompt.trim().to_lowercase(),
+    ]
+    .join(" ")
+    .to_lowercase();
+    if haystack.contains("related work") || haystack.contains("related-work") {
+        return "draft-related-work".to_string();
+    }
+    if haystack.contains("supporting reference")
+        || haystack.contains("supporting references")
+        || haystack.contains("缺引用")
+        || haystack.contains("补文献")
+    {
+        return "find-supporting-references".to_string();
+    }
+    if haystack.contains("summarize")
+        || haystack.contains("summary")
+        || haystack.contains("reading note")
+        || haystack.contains("笔记")
+    {
+        return "build-reading-note".to_string();
+    }
+    if haystack.contains("latex")
+        || haystack.contains("bibliography")
+        || haystack.contains("compile")
+    {
+        return "fix-latex-compile".to_string();
+    }
+    if haystack.contains("compare") || haystack.contains("对比") {
+        return "compare-papers".to_string();
+    }
+    "general-research".to_string()
+}
+
+fn default_required_evidence_for_task(task_kind: &str) -> Vec<String> {
+    match task_kind {
+        "revise-with-citations" => vec!["workspace", "document", "selection", "reference"],
+        "draft-related-work" => vec!["workspace", "document", "reference"],
+        "find-supporting-references" => vec!["workspace", "selection", "reference"],
+        "build-reading-note" | "summarize-paper" => vec!["workspace", "selection"],
+        "fix-latex-compile" => vec!["workspace", "document"],
+        "compare-papers" => vec!["workspace", "reference"],
+        _ => vec!["workspace"],
+    }
+    .into_iter()
+    .map(String::from)
+    .collect()
+}
+
+fn default_selected_artifacts_for_task(task_kind: &str) -> Vec<String> {
+    match task_kind {
+        "revise-with-citations" => vec!["doc_patch", "citation_insert"],
+        "draft-related-work" => vec!["related_work_outline", "doc_patch"],
+        "find-supporting-references" => {
+            vec![
+                "citation_insert",
+                "reference_patch",
+                "claim_evidence_map",
+                "evidence_bundle",
+            ]
+        }
+        "build-reading-note" | "summarize-paper" => vec!["reading_note_bundle", "note_draft"],
+        "fix-latex-compile" => vec!["compile_fix"],
+        "compare-papers" => vec!["comparison_table"],
+        _ => vec!["note_draft"],
+    }
+    .into_iter()
+    .map(String::from)
+    .collect()
+}
+
+fn default_verification_plan_for_task(task_kind: &str) -> Vec<String> {
+    match task_kind {
+        "revise-with-citations" | "find-supporting-references" => vec![
+            "验证 citation key 是否可解析".to_string(),
+            "验证 reference render 与 BibTeX 导出".to_string(),
+        ],
+        "fix-latex-compile" => vec![
+            "写出 bibliography 文件".to_string(),
+            "执行最小 LaTeX compile".to_string(),
+        ],
+        "draft-related-work" | "build-reading-note" | "summarize-paper" | "compare-papers" => {
+            vec!["验证 artifact 草稿文件是否真实创建".to_string()]
+        }
+        _ => vec!["验证 artifact 是否可审查或可应用".to_string()],
+    }
+}
+
+fn build_research_defaults(research_config: &Value) -> Value {
+    json!({
+        "defaultCitationStyle": string_field(research_config, &["defaultCitationStyle"]).if_empty_then(|| "apa".to_string()),
+        "evidenceStrategy": string_field(research_config, &["evidenceStrategy"]).if_empty_then(|| "balanced".to_string()),
+        "taskCompletionThreshold": string_field(research_config, &["taskCompletionThreshold"]).if_empty_then(|| "strict".to_string()),
+    })
+}
+
+fn build_resolved_task(skill: &Value, prompt_draft: &str, user_instruction: &str) -> Value {
+    let normalized_instruction = if user_instruction.trim().is_empty() {
+        prompt_draft.trim().to_string()
+    } else {
+        user_instruction.trim().to_string()
+    };
+    let task_kind = inferred_task_kind(skill, &normalized_instruction);
+    let selected_artifacts = {
+        let from_skill = list_string_field(skill, &["outputArtifactTypes"]);
+        if from_skill.is_empty() {
+            default_selected_artifacts_for_task(&task_kind)
+        } else {
+            from_skill
+        }
+    };
+    let resolved_title = if normalized_instruction.is_empty() {
+        "研究任务".to_string()
+    } else {
+        normalized_instruction
+            .chars()
+            .take(72)
+            .collect::<String>()
+            .trim()
+            .to_string()
+    };
+    let success_criteria = {
+        let mut criteria = Vec::new();
+        criteria.push("任务输出必须可回溯到 workspace context 和 research evidence。".to_string());
+        criteria.push("输出应优先落到 artifact，而不是停留在聊天文本。".to_string());
+        if task_kind == "revise-with-citations" || task_kind == "find-supporting-references" {
+            criteria
+                .push("涉及引用时必须保持 citation key 与 reference traceability。".to_string());
+        }
+        if task_kind == "fix-latex-compile" {
+            criteria.push("需要给出 compile 级别的验证结论。".to_string());
+        }
+        criteria
+    };
+
+    json!({
+        "kind": task_kind,
+        "title": resolved_title,
+        "goal": if normalized_instruction.is_empty() {
+            "完成当前研究任务".to_string()
+        } else {
+            normalized_instruction
+        },
+        "status": "active",
+        "phase": "scoping",
+        "successCriteria": success_criteria,
+        "selectedArtifacts": selected_artifacts,
+    })
+}
+
+trait StringExt {
+    fn if_empty_then<F: FnOnce() -> String>(self, fallback: F) -> String;
+}
+
+impl StringExt for String {
+    fn if_empty_then<F: FnOnce() -> String>(self, fallback: F) -> String {
+        if self.trim().is_empty() {
+            fallback()
+        } else {
+            self
+        }
+    }
+}
+
 async fn ai_agent_prepare(params: AiAgentPrepareParams) -> Result<Value, String> {
     let session = params.active_session;
     if !session.is_object() {
@@ -673,6 +867,32 @@ async fn ai_agent_prepare(params: AiAgentPrepareParams) -> Result<Value, String>
         &params.flat_files,
         &params.workspace_path,
     );
+    let resolved_task = build_resolved_task(&skill, &prompt_draft, &user_instruction);
+    let task_kind = string_field(&resolved_task, &["kind"]);
+    let required_evidence = {
+        let from_skill = list_string_field(&skill, &["requiredEvidenceTypes"]);
+        if from_skill.is_empty() {
+            default_required_evidence_for_task(&task_kind)
+        } else {
+            from_skill
+        }
+    };
+    let selected_artifacts = array_field(&resolved_task, &["selectedArtifacts"])
+        .into_iter()
+        .filter_map(|entry| entry.as_str().map(|value| value.trim().to_string()))
+        .filter(|value| !value.is_empty())
+        .collect::<Vec<_>>();
+    let verification_plan = {
+        let from_skill = list_string_field(&skill, &["verificationHints"]);
+        if from_skill.is_empty() {
+            default_verification_plan_for_task(&task_kind)
+        } else {
+            from_skill
+        }
+    };
+    let research_config = build_research_defaults(&params.research_config);
+    let research_context_graph =
+        build_research_context_graph(&params.context_bundle, &resolved_task, &required_evidence);
     let requested_tools = Vec::new();
     let referenced_files = task::spawn_blocking(move || {
         referenced_entries
@@ -728,6 +948,12 @@ async fn ai_agent_prepare(params: AiAgentPrepareParams) -> Result<Value, String>
             "explicitToolsWinOverInference": true,
             "builtInToolsBeforeMcpByDefault": true,
         },
+        "resolvedTask": resolved_task,
+        "requiredEvidence": required_evidence,
+        "selectedArtifacts": selected_artifacts,
+        "verificationPlan": verification_plan,
+        "researchContextGraph": research_context_graph,
+        "researchConfig": research_config,
         "skill": skill,
         "providerState": params.provider_state,
         "providerId": provider_id,
@@ -789,6 +1015,10 @@ pub async fn ai_agent_prepare_current_config(
         api_key,
         workspace_path: params.workspace_path,
         flat_files: params.flat_files,
+        research_config: config
+            .get("researchDefaults")
+            .cloned()
+            .unwrap_or(Value::Null),
     })
     .await
 }

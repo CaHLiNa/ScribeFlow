@@ -47,6 +47,7 @@ mod references_pdf;
 mod references_runtime;
 mod references_zotero;
 mod references_zotero_account;
+mod research_context_graph;
 mod research_evidence_protocol;
 mod research_evidence_runtime;
 mod research_evidence_storage;

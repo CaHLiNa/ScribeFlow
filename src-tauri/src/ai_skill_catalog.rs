@@ -200,6 +200,118 @@ fn build_skill_id(scope: &str, slug: &str, skill_file_path: &str) -> String {
     format!("skill:{scope}:{slug}:{encoded}")
 }
 
+fn metadata_list(frontmatter: &serde_json::Map<String, Value>, key: &str) -> Vec<String> {
+    let Some(value) = frontmatter.get(key) else {
+        return Vec::new();
+    };
+    match value {
+        Value::Array(entries) => entries
+            .iter()
+            .filter_map(Value::as_str)
+            .map(|entry| entry.trim().to_string())
+            .filter(|entry| !entry.is_empty())
+            .collect(),
+        Value::String(text) => text
+            .split([',', '\n'])
+            .map(|entry| entry.trim().trim_start_matches('-').trim().to_string())
+            .filter(|entry| !entry.is_empty())
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+fn infer_research_task_types(slug: &str) -> Vec<String> {
+    if slug.contains("revise-with-citations") {
+        return vec!["revise-with-citations".to_string()];
+    }
+    if slug.contains("summarize-selection") {
+        return vec![
+            "build-reading-note".to_string(),
+            "summarize-paper".to_string(),
+        ];
+    }
+    if slug.contains("draft-related-work") {
+        return vec!["draft-related-work".to_string()];
+    }
+    if slug.contains("find-supporting-references") {
+        return vec!["find-supporting-references".to_string()];
+    }
+    Vec::new()
+}
+
+fn infer_required_evidence(slug: &str) -> Vec<String> {
+    if slug.contains("revise-with-citations") {
+        return vec![
+            "workspace".to_string(),
+            "document".to_string(),
+            "selection".to_string(),
+            "reference".to_string(),
+        ];
+    }
+    if slug.contains("draft-related-work") {
+        return vec![
+            "workspace".to_string(),
+            "document".to_string(),
+            "reference".to_string(),
+        ];
+    }
+    if slug.contains("find-supporting-references") {
+        return vec![
+            "workspace".to_string(),
+            "selection".to_string(),
+            "reference".to_string(),
+        ];
+    }
+    if slug.contains("summarize-selection") {
+        return vec!["workspace".to_string(), "selection".to_string()];
+    }
+    vec!["workspace".to_string()]
+}
+
+fn infer_output_artifacts(slug: &str) -> Vec<String> {
+    if slug.contains("revise-with-citations") {
+        return vec!["doc_patch".to_string(), "citation_insert".to_string()];
+    }
+    if slug.contains("draft-related-work") {
+        return vec!["related_work_outline".to_string(), "doc_patch".to_string()];
+    }
+    if slug.contains("find-supporting-references") {
+        return vec![
+            "citation_insert".to_string(),
+            "reference_patch".to_string(),
+            "evidence_bundle".to_string(),
+            "claim_evidence_map".to_string(),
+        ];
+    }
+    if slug.contains("summarize-selection") {
+        return vec!["reading_note_bundle".to_string(), "note_draft".to_string()];
+    }
+    Vec::new()
+}
+
+fn infer_verification_hints(slug: &str) -> Vec<String> {
+    if slug.contains("citation") || slug.contains("reference") {
+        return vec![
+            "检查 citation key 是否可解析".to_string(),
+            "检查 BibTeX 是否可导出".to_string(),
+        ];
+    }
+    if slug.contains("summarize-selection") || slug.contains("related-work") {
+        return vec!["检查草稿文件是否成功创建".to_string()];
+    }
+    Vec::new()
+}
+
+fn infer_risk_notes(slug: &str) -> Vec<String> {
+    if slug.contains("citation") || slug.contains("reference") {
+        return vec!["不要编造 citation key 或参考文献字段".to_string()];
+    }
+    if slug.contains("related-work") {
+        return vec!["避免在没有证据的情况下生成 related work 断言".to_string()];
+    }
+    Vec::new()
+}
+
 fn discover_skills_in_root(
     root: &SkillRoot,
     precedence: usize,
@@ -245,6 +357,46 @@ fn discover_skills_in_root(
             parsed.slug
         };
         let description = parsed.description.clone();
+        let research_task_types = {
+            let metadata = metadata_list(&parsed.frontmatter, "researchTaskTypes");
+            if metadata.is_empty() {
+                infer_research_task_types(&slug)
+            } else {
+                metadata
+            }
+        };
+        let required_evidence_types = {
+            let metadata = metadata_list(&parsed.frontmatter, "requiredEvidenceTypes");
+            if metadata.is_empty() {
+                infer_required_evidence(&slug)
+            } else {
+                metadata
+            }
+        };
+        let output_artifact_types = {
+            let metadata = metadata_list(&parsed.frontmatter, "outputArtifactTypes");
+            if metadata.is_empty() {
+                infer_output_artifacts(&slug)
+            } else {
+                metadata
+            }
+        };
+        let verification_hints = {
+            let metadata = metadata_list(&parsed.frontmatter, "verificationHints");
+            if metadata.is_empty() {
+                infer_verification_hints(&slug)
+            } else {
+                metadata
+            }
+        };
+        let risk_notes = {
+            let metadata = metadata_list(&parsed.frontmatter, "riskNotes");
+            if metadata.is_empty() {
+                infer_risk_notes(&slug)
+            } else {
+                metadata
+            }
+        };
 
         discovered.push(json!({
             "id": build_skill_id(&root.scope, &slug, &skill_file_path),
@@ -264,6 +416,11 @@ fn discover_skills_in_root(
             "source": root.source,
             "precedence": precedence,
             "supportingFiles": supporting_files,
+            "researchTaskTypes": research_task_types,
+            "requiredEvidenceTypes": required_evidence_types,
+            "outputArtifactTypes": output_artifact_types,
+            "verificationHints": verification_hints,
+            "riskNotes": risk_notes,
             "managedByScribeFlow": managed_by_scribeflow,
             "writableByScribeFlow": writable_by_scribeflow,
         }));

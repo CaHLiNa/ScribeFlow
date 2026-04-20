@@ -91,6 +91,9 @@ const artifactTypeLabel = computed(() => {
   if (props.artifact.type === 'related_work_outline') return t('Related work outline')
   if (props.artifact.type === 'reading_note_bundle') return t('Reading note')
   if (props.artifact.type === 'evidence_bundle') return t('Evidence bundle')
+  if (props.artifact.type === 'claim_evidence_map') return t('Claim evidence map')
+  if (props.artifact.type === 'compile_fix') return t('Compile fix')
+  if (props.artifact.type === 'comparison_table') return t('Comparison table')
   return props.artifact.type
 })
 

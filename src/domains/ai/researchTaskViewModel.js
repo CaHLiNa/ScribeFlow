@@ -55,6 +55,19 @@ function humanizeTaskStatus(status = '') {
   }
 }
 
+function humanizeVerificationVerdict(verdict = '') {
+  switch (trim(verdict).toLowerCase()) {
+    case 'pass':
+      return 'PASS'
+    case 'block':
+      return 'BLOCK'
+    case 'fail':
+      return 'FAIL'
+    default:
+      return ''
+  }
+}
+
 export function resolveSessionTaskTitle(session = null, fallbackTitle = 'Session') {
   const task = normalizeResearchTask(session?.researchTask)
   return task?.title || trim(session?.title) || trim(fallbackTitle) || 'Session'
@@ -72,6 +85,9 @@ export function resolveSessionTaskSubtitle(session = null) {
   }
 
   const parts = [humanizeTaskPhase(task.phase), humanizeTaskStatus(task.status)].filter(Boolean)
+  if (task.verificationVerdict) {
+    parts.push(humanizeVerificationVerdict(task.verificationVerdict))
+  }
   if (evidenceCount > 0) {
     parts.push(`Evidence ${evidenceCount}`)
   }

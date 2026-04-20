@@ -1577,7 +1577,7 @@ export const useAiStore = defineStore('ai', {
           preparedRun?.userInstruction || preparedRun?.promptDraft || activeSession?.promptDraft || ''
         ).trim()
         const preferredTitle = summarizeSessionTitle(
-          optimisticPrompt,
+          String(preparedRun?.resolvedTask?.title || optimisticPrompt || '').trim(),
           buildDefaultSessionTitle(this.sessions.length)
         )
 
@@ -1884,6 +1884,9 @@ export const useAiStore = defineStore('ai', {
           artifact.type === 'note_draft'
           || artifact.type === 'related_work_outline'
           || artifact.type === 'reading_note_bundle'
+          || artifact.type === 'claim_evidence_map'
+          || artifact.type === 'compile_fix'
+          || artifact.type === 'comparison_table'
         ) {
           const draftPath = filesStore.createDraftFile({
             ext: '.md',
@@ -1906,6 +1909,12 @@ export const useAiStore = defineStore('ai', {
               ? t('Related work outline opened as a draft.')
               : artifact.type === 'reading_note_bundle'
                 ? t('Reading note opened as a draft.')
+                : artifact.type === 'claim_evidence_map'
+                  ? t('Claim evidence map opened as a draft.')
+                  : artifact.type === 'compile_fix'
+                    ? t('Compile fix opened as a draft.')
+                    : artifact.type === 'comparison_table'
+                      ? t('Comparison table opened as a draft.')
                 : t('AI note opened as a draft.'),
             { type: 'success' }
           )
