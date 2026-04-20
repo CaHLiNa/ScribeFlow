@@ -13,85 +13,95 @@
       </div>
     </header>
 
-    <div
-      ref="threadRef"
-      class="ai-agent-panel__thread scrollbar-hidden"
-      data-surface-context-guard="true"
-      @contextmenu="openThreadContextMenu"
-    >
-      <div class="ai-agent-panel__messages">
-        <div v-if="messages.length === 0" class="ai-agent-panel__empty">
-          <div class="ai-agent-panel__empty-title">
-            {{ emptyStateTitle }}
-          </div>
-          <div class="ai-agent-panel__empty-note">
-            {{ emptyStateNote }}
-          </div>
+    <div class="ai-agent-panel__workspace">
+      <section class="ai-agent-panel__hero" :class="{ 'is-busy': aiStore.isRunning }">
+        <div class="ai-agent-panel__hero-eyebrow">
+          {{ heroTitle }}
         </div>
+        <div class="ai-agent-panel__hero-note">
+          {{ heroNote }}
+        </div>
+      </section>
 
-        <AiConversationMessage
-          v-for="(message, index) in messages"
-          :key="message.id"
-          :message="message"
-          :artifacts-by-id="artifactsById"
-          :animate-latest="message.role === 'assistant' && index === messages.length - 1"
-          @apply-artifact="aiStore.applyArtifact($event)"
-          @dismiss-artifact="aiStore.dismissArtifact($event)"
-          @rollback-artifact="aiStore.rollbackArtifact($event)"
+      <div v-if="isAgentMode && hasRuntimeStateStack" class="ai-agent-panel__runtime-stack">
+        <AiPlanModeBanner
+          v-if="showPlanModeBanner"
+          :plan-mode="planModeState"
+        />
+        <AiResumeBanner
+          v-if="showResumeBanner"
+          :resume-state="resumeState"
+        />
+        <AiTurnStatusCard
+          v-if="showTurnStatusCard"
+          :turn="activeTurnState"
+        />
+        <AiCompactingBanner
+          v-if="showCompactingBanner"
+          :compaction="compactionState"
+        />
+        <AiActiveTasksBar
+          v-if="showActiveTasksBar"
+          :tasks="backgroundTaskItems"
         />
       </div>
-      <div ref="threadBottomRef"></div>
-    </div>
 
-    <footer class="ai-agent-panel__composer">
-      <div class="ai-agent-panel__composer-stack">
-        <div v-if="isAgentMode && hasRuntimeStateStack" class="ai-agent-panel__runtime-stack">
-          <AiPlanModeBanner
-            v-if="showPlanModeBanner"
-            :plan-mode="planModeState"
-          />
-          <AiResumeBanner
-            v-if="showResumeBanner"
-            :resume-state="resumeState"
-          />
-          <AiTurnStatusCard
-            v-if="showTurnStatusCard"
-            :turn="activeTurnState"
-          />
-          <AiCompactingBanner
-            v-if="showCompactingBanner"
-            :compaction="compactionState"
-          />
-          <AiActiveTasksBar
-            v-if="showActiveTasksBar"
-            :tasks="backgroundTaskItems"
-          />
+      <AiAskUserBanner
+        v-if="isAgentMode && blockingState === 'ask-user'"
+        :request="activeAskUserRequest"
+        :context-items="blockingContextItems"
+        :submitting="respondingAskUserRequestId === activeAskUserRequest?.requestId"
+        @submit="submitAskUserResponse"
+      />
+      <AiExitPlanBanner
+        v-else-if="isAgentMode && blockingState === 'exit-plan'"
+        :request="activeExitPlanRequest"
+        :context-items="blockingContextItems"
+        :submitting="respondingExitPlanRequestId === activeExitPlanRequest?.requestId"
+        @submit="submitExitPlanResponse"
+      />
+      <AiPermissionBanner
+        v-else-if="isAgentMode && blockingState === 'permission' && activePermissionRequest"
+        :request="activePermissionRequest"
+        :context-items="blockingContextItems"
+        :submitting="respondingPermissionRequestId === activePermissionRequest?.requestId"
+        @deny="denyPermissionRequest"
+        @allow-once="allowPermissionRequest"
+        @allow-always="alwaysAllowPermissionRequest"
+      />
+
+      <div class="ai-agent-panel__thread-shell">
+        <div
+          ref="threadRef"
+          class="ai-agent-panel__thread scrollbar-hidden"
+          data-surface-context-guard="true"
+          @contextmenu="openThreadContextMenu"
+        >
+          <div class="ai-agent-panel__messages">
+            <div v-if="messages.length === 0" class="ai-agent-panel__empty">
+              <div class="ai-agent-panel__empty-title">
+                {{ emptyStateTitle }}
+              </div>
+              <div class="ai-agent-panel__empty-note">
+                {{ emptyStateNote }}
+              </div>
+            </div>
+
+            <AiConversationMessage
+              v-for="(message, index) in messages"
+              :key="message.id"
+              :message="message"
+              :artifacts-by-id="artifactsById"
+              :animate-latest="message.role === 'assistant' && index === messages.length - 1"
+              @apply-artifact="aiStore.applyArtifact($event)"
+              @dismiss-artifact="aiStore.dismissArtifact($event)"
+              @rollback-artifact="aiStore.rollbackArtifact($event)"
+            />
+          </div>
+          <div ref="threadBottomRef"></div>
         </div>
-
-        <AiAskUserBanner
-          v-if="isAgentMode && blockingState === 'ask-user'"
-          :request="activeAskUserRequest"
-          :context-items="blockingContextItems"
-          :submitting="respondingAskUserRequestId === activeAskUserRequest?.requestId"
-          @submit="submitAskUserResponse"
-        />
-        <AiExitPlanBanner
-          v-else-if="isAgentMode && blockingState === 'exit-plan'"
-          :request="activeExitPlanRequest"
-          :context-items="blockingContextItems"
-          :submitting="respondingExitPlanRequestId === activeExitPlanRequest?.requestId"
-          @submit="submitExitPlanResponse"
-        />
-        <AiPermissionBanner
-          v-else-if="isAgentMode && blockingState === 'permission' && activePermissionRequest"
-          :request="activePermissionRequest"
-          :context-items="blockingContextItems"
-          :submitting="respondingPermissionRequestId === activePermissionRequest?.requestId"
-          @deny="denyPermissionRequest"
-          @allow-once="allowPermissionRequest"
-          @allow-always="alwaysAllowPermissionRequest"
-        />
-
+      </div>
+      <footer class="ai-agent-panel__composer">
         <AiAttachmentList :attachments="attachments" @remove="removeAttachment" />
 
         <div class="ai-agent-panel__composer-well">
@@ -116,74 +126,8 @@
             />
           </div>
 
-          <div class="ai-agent-panel__composer-meta">
-            <UiSelect
-              :model-value="selectedModelValue"
-              size="sm"
-              shell-class="ai-agent-panel__model-chip-shell"
-              :options="modelOptions"
-              :placeholder="t('Use Codex defaults')"
-              :disabled="aiStore.isRunning || modelUpdatePending"
-              :aria-label="t('Model')"
-              @update:model-value="handleModelChange"
-            />
-          </div>
-
           <div class="ai-agent-panel__composer-actions">
             <div class="ai-agent-panel__composer-tools">
-              <div v-if="showExecutionPolicyControls" class="ai-agent-panel__execution-policy">
-                <button
-                  type="button"
-                  class="ai-agent-panel__policy-button ai-agent-panel__policy-button--plan"
-                  :class="{
-                    'is-active': isPlanModeEnabled,
-                    'is-disabled': isExecutionPolicyLocked,
-                  }"
-                  :disabled="isExecutionPolicyLocked"
-                  :title="planModeButtonTitle"
-                  :aria-label="planModeButtonTitle"
-                  @click="togglePlanMode(!isPlanModeEnabled)"
-                >
-                  <IconChecklist :size="15" :stroke-width="1.9" />
-                  <span
-                    class="ai-agent-panel__policy-indicator"
-                    :class="{ 'is-plan-active': isPlanModeEnabled }"
-                    aria-hidden="true"
-                  ></span>
-                </button>
-
-                <button
-                  type="button"
-                  class="ai-agent-panel__policy-button ai-agent-panel__policy-button--permission"
-                  :class="{
-                    'is-active': isFullAccessMode,
-                    'is-disabled': isExecutionPolicyLocked,
-                  }"
-                  :disabled="isExecutionPolicyLocked"
-                  :title="permissionModeButtonTitle"
-                  :aria-label="permissionModeButtonTitle"
-                  @click="cyclePermissionMode"
-                >
-                  <IconShieldHalf
-                    v-if="!isFullAccessMode"
-                    :size="15"
-                    :stroke-width="1.85"
-                  />
-                  <IconShieldBolt
-                    v-else
-                    :size="15"
-                    :stroke-width="1.85"
-                  />
-                  <span
-                    class="ai-agent-panel__policy-indicator"
-                    :class="{ 'is-full-access': isFullAccessMode }"
-                    aria-hidden="true"
-                  ></span>
-                </button>
-              </div>
-
-              <span class="ai-agent-panel__composer-divider" aria-hidden="true"></span>
-
               <UiButton
                 variant="ghost"
                 size="sm"
@@ -193,11 +137,59 @@
                 @click="attachFiles"
                 :title="isComposerLockedByBlockingState ? blockedComposerMessage : t('Attach files')"
               >
-                <IconPaperclip :size="16" :stroke-width="1.5" />
+                <IconPaperclip :size="17" :stroke-width="1.6" />
               </UiButton>
+
+              <div v-if="showExecutionPolicyControls" class="ai-agent-panel__execution-policy">
+                <button
+                  type="button"
+                  class="ai-agent-panel__policy-pill"
+                  :class="{
+                    'is-warning': isFullAccessMode,
+                    'is-disabled': isExecutionPolicyLocked,
+                  }"
+                  :disabled="isExecutionPolicyLocked"
+                  :title="permissionModeButtonTitle"
+                  :aria-label="permissionModeButtonTitle"
+                  @click="cyclePermissionMode"
+                >
+                  <IconShieldBolt v-if="isFullAccessMode" :size="14" :stroke-width="1.8" />
+                  <IconShieldHalf v-else :size="14" :stroke-width="1.8" />
+                  <span>
+                    {{ isFullAccessMode ? t('Full access') : t('Ask before edits') }}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  class="ai-agent-panel__policy-pill"
+                  :class="{
+                    'is-active': isPlanModeEnabled,
+                    'is-disabled': isExecutionPolicyLocked,
+                  }"
+                  :disabled="isExecutionPolicyLocked"
+                  :title="planModeButtonTitle"
+                  :aria-label="planModeButtonTitle"
+                  @click="togglePlanMode(!isPlanModeEnabled)"
+                >
+                  <IconChecklist :size="14" :stroke-width="1.8" />
+                  <span>{{ t('Plan mode') }}</span>
+                </button>
+              </div>
             </div>
 
             <div class="ai-agent-panel__composer-primary">
+              <UiSelect
+                :model-value="selectedModelValue"
+                size="sm"
+                shell-class="ai-agent-panel__model-chip-shell"
+                :options="modelOptions"
+                :placeholder="t('Use Codex defaults')"
+                :disabled="aiStore.isRunning || modelUpdatePending"
+                :aria-label="t('Model')"
+                @update:model-value="handleModelChange"
+              />
+
               <button
                 type="button"
                 class="ai-agent-panel__send-button"
@@ -217,8 +209,8 @@
             </div>
           </div>
         </div>
-      </div>
-    </footer>
+      </footer>
+    </div>
 
     <SurfaceContextMenu
       :visible="menuVisible"
@@ -432,6 +424,46 @@ const blockingState = computed(() => {
   return ''
 })
 const hasBlockingState = computed(() => blockingState.value !== '')
+const heroTitle = computed(() => {
+  if (blockingState.value === 'permission') return t('Awaiting permission')
+  if (blockingState.value === 'ask-user') return t('Awaiting user input')
+  if (blockingState.value === 'exit-plan') return t('Awaiting plan confirmation')
+
+  const turnStatus = String(activeTurnState.value?.status || '').trim().toLowerCase()
+  if (['running', 'responding', 'preparing'].includes(turnStatus) || aiStore.isRunning) {
+    return t('Thinking')
+  }
+  if (messages.value.length > 0) return t('Ready for next task')
+  return emptyStateTitle.value
+})
+const heroNote = computed(() => {
+  if (blockingState.value === 'permission') {
+    return (
+      String(activePermissionRequest.value?.title || '').trim()
+      || String(activePermissionRequest.value?.description || '').trim()
+      || t('The model is waiting for your approval before using a built-in tool.')
+    )
+  }
+  if (blockingState.value === 'ask-user') {
+    return (
+      String(activeAskUserRequest.value?.question || '').trim()
+      || t('The model needs your answer before it can continue.')
+    )
+  }
+  if (blockingState.value === 'exit-plan') {
+    return (
+      String(activeExitPlanRequest.value?.summary || '').trim()
+      || t('Review the plan outcome before the run continues.')
+    )
+  }
+
+  const summary = String(activeTurnState.value?.summary || '').trim()
+  if (summary) return summary
+  const lastToolName = String(activeTurnState.value?.lastToolName || '').trim()
+  if (lastToolName) return `${t('Running')} · ${lastToolName}`
+  if (messages.value.length > 0) return t('Continue from the current workspace, references, and active draft.')
+  return emptyStateNote.value
+})
 const showPlanModeBanner = computed(
   () => planModeState.value?.active === true && blockingState.value !== 'exit-plan' && !hasBlockingState.value
 )
@@ -952,57 +984,29 @@ watch(
   min-height: 0;
   container-type: inline-size;
   color: var(--text-primary);
-  background: transparent;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-base) 70%, var(--surface-raised) 30%), transparent 34%),
+    radial-gradient(circle at top right, color-mix(in srgb, var(--accent) 8%, transparent), transparent 42%);
   isolation: isolate;
-}
-
-.ai-agent-panel__thread {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 8px 12px 10px;
-  background: transparent;
-}
-
-.ai-agent-panel__messages {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.ai-agent-panel__composer {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 4px 8px 2px;
-  border-top: 1px solid color-mix(in srgb, var(--border-color) 12%, transparent);
-  background: transparent;
-  backdrop-filter: none;
 }
 
 .ai-agent-panel__header {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 4px 12px 8px;
-  border-bottom: 1px solid color-mix(in srgb, var(--border-color) 10%, transparent);
+  padding: 6px 12px 10px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border-color) 12%, transparent);
   background: transparent;
-  backdrop-filter: none;
   z-index: 10;
 }
 
-.ai-agent-panel__subnav {
-  display: flex;
-  align-items: center;
-  padding: 8px 14px 4px;
-}
-
-.ai-agent-panel__composer-stack {
+.ai-agent-panel__workspace {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  position: relative;
-  z-index: 10;
+  gap: 12px;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 14px 14px 12px;
 }
 
 .ai-agent-panel__session-control {
@@ -1012,69 +1016,88 @@ watch(
   min-width: 0;
 }
 
-.ai-agent-panel__composer-well {
+.ai-agent-panel__hero {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 4px 10px 0;
-  border-radius: 16px;
-  border: none;
-  background: transparent;
-  box-shadow: none;
-  backdrop-filter: none;
+  padding: 4px 2px 2px;
+}
+
+.ai-agent-panel__hero.is-busy .ai-agent-panel__hero-eyebrow {
+  color: color-mix(in srgb, var(--text-primary) 86%, var(--accent) 14%);
+}
+
+.ai-agent-panel__hero-eyebrow {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--text-secondary);
+}
+
+.ai-agent-panel__hero-note {
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text-tertiary);
+  max-width: 34ch;
 }
 
 .ai-agent-panel__runtime-stack {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
+}
+
+.ai-agent-panel__thread-shell {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  border-radius: 24px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 16%, transparent);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-base) 92%, transparent), color-mix(in srgb, var(--surface-raised) 96%, transparent));
+  box-shadow:
+    0 18px 50px rgba(15, 23, 42, 0.05),
+    inset 0 1px 0 color-mix(in srgb, white 55%, transparent);
+}
+
+.ai-agent-panel__thread {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px 14px 18px;
+  background: transparent;
+}
+
+.ai-agent-panel__messages {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ai-agent-panel__composer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0;
+  background: transparent;
+}
+
+.ai-agent-panel__composer-well {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .ai-agent-panel__composer-input {
   position: relative;
 }
 
-.ai-agent-panel__composer-meta {
-  display: flex;
-  align-items: center;
-  padding-top: 6px;
-}
-
-.ai-agent-panel__model-chip {
-  flex: 0 1 auto;
-  min-width: 0;
-  max-width: 176px;
-}
-
-.ai-agent-panel__model-fallback {
-  display: flex;
-  align-items: center;
-  min-width: 0;
-  max-width: 176px;
-  min-height: 28px;
-  padding: 0 10px;
-  border-radius: 10px;
-  border: none;
-  background: transparent;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.ai-agent-panel__model-fallback.is-muted {
-  color: var(--text-tertiary);
-}
-
 .ai-agent-panel__composer-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
-  min-height: 32px;
-  padding-top: 6px;
-  border-top: 1px solid color-mix(in srgb, var(--border-color) 14%, transparent);
+  gap: 12px;
+  min-height: 40px;
 }
 
 .ai-agent-panel__composer-tools {
@@ -1086,98 +1109,70 @@ watch(
   min-width: 0;
 }
 
-.ai-agent-panel__composer-divider {
-  flex: 0 0 auto;
-  width: 1px;
-  height: 18px;
-  background: color-mix(in srgb, var(--border-color) 22%, transparent);
-}
-
-.ai-agent-panel__model-group {
-  display: flex;
-  align-items: center;
-  min-width: 0;
-  flex: 0 1 auto;
-}
-
 .ai-agent-panel__execution-policy {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
-  flex: 0 0 auto;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
-.ai-agent-panel__policy-button {
-  position: relative;
+.ai-agent-panel__policy-pill {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  padding: 0;
-  border: none;
-  border-radius: 9px;
-  background: transparent;
-  color: color-mix(in srgb, var(--text-secondary) 82%, var(--text-tertiary) 18%);
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 12px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 22%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-base) 92%, transparent);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
   cursor: pointer;
   transition:
     color 0.12s ease,
     background-color 0.12s ease,
+    border-color 0.12s ease,
     opacity 0.12s ease,
     transform 0.12s ease;
 }
 
-.ai-agent-panel__policy-button:hover:not(:disabled) {
+.ai-agent-panel__policy-pill:hover:not(:disabled) {
   color: var(--text-primary);
-  background: color-mix(in srgb, var(--surface-hover) 8%, transparent);
+  background: color-mix(in srgb, var(--surface-hover) 26%, transparent);
   transform: translateY(-0.5px);
 }
 
-.ai-agent-panel__policy-button:focus-visible {
+.ai-agent-panel__policy-pill:focus-visible {
   outline: none;
   box-shadow:
     0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent),
-    inset 0 -2px 0 color-mix(in srgb, var(--accent) 60%, transparent);
+    0 0 0 1px color-mix(in srgb, var(--accent) 42%, transparent);
 }
 
-.ai-agent-panel__policy-button.is-disabled,
-.ai-agent-panel__policy-button:disabled {
+.ai-agent-panel__policy-pill.is-active {
+  color: color-mix(in srgb, var(--accent) 82%, var(--text-primary) 18%);
+  border-color: color-mix(in srgb, var(--accent) 26%, transparent);
+}
+
+.ai-agent-panel__policy-pill.is-warning {
+  color: color-mix(in srgb, var(--warning) 86%, var(--text-primary) 14%);
+  border-color: color-mix(in srgb, var(--warning) 30%, transparent);
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
+}
+
+.ai-agent-panel__policy-pill.is-disabled,
+.ai-agent-panel__policy-pill:disabled {
   opacity: 0.46;
   cursor: default;
   transform: none;
 }
 
-.ai-agent-panel__policy-button--plan.is-active {
-  color: color-mix(in srgb, var(--accent) 82%, var(--text-primary) 18%);
-}
-
-.ai-agent-panel__policy-button--permission.is-active {
-  color: color-mix(in srgb, var(--warning) 82%, var(--text-primary) 18%);
-}
-
-.ai-agent-panel__policy-indicator {
-  position: absolute;
-  left: 2px;
-  right: 2px;
-  bottom: -1px;
-  height: 2px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--border-color) 58%, transparent);
-  opacity: 0.9;
-}
-
-.ai-agent-panel__policy-indicator.is-full-access {
-  background: color-mix(in srgb, var(--warning) 84%, transparent);
-}
-
-.ai-agent-panel__policy-indicator.is-plan-active {
-  background: color-mix(in srgb, var(--accent) 84%, transparent);
-}
-
 .ai-agent-panel__composer-primary {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 10px;
   flex: 0 0 auto;
   margin-left: auto;
 }
@@ -1186,40 +1181,38 @@ watch(
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 50px;
+  height: 50px;
   padding: 0;
-  border: 1px solid color-mix(in srgb, var(--border-color) 18%, transparent);
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--surface-base) 4%, transparent);
-  color: var(--text-primary);
-  box-shadow: none;
+  border: none;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-primary) 92%, transparent);
+  color: color-mix(in srgb, var(--surface-base) 88%, black 12%);
+  box-shadow: 0 16px 28px rgba(15, 23, 42, 0.14);
   cursor: pointer;
   transition:
     transform 0.1s ease,
     opacity 0.1s ease,
     background-color 0.12s ease,
-    border-color 0.12s ease,
+    box-shadow 0.12s ease,
     color 0.12s ease;
 }
 
 .ai-agent-panel__send-button:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--accent) 18%, var(--border-color) 82%);
-  background: color-mix(in srgb, var(--surface-hover) 8%, transparent);
-  color: var(--text-primary);
+  background: color-mix(in srgb, var(--text-primary) 98%, transparent);
   transform: translateY(-0.5px);
+  box-shadow: 0 20px 32px rgba(15, 23, 42, 0.18);
 }
 
 .ai-agent-panel__stop-button {
-  border-color: color-mix(in srgb, var(--error) 14%, var(--border-color) 86%);
-  background: color-mix(in srgb, var(--error) 6%, transparent);
-  color: color-mix(in srgb, var(--error) 76%, var(--text-primary) 24%);
+  background: color-mix(in srgb, var(--text-primary) 10%, var(--surface-base) 90%);
+  color: var(--text-primary);
+  box-shadow: 0 16px 28px rgba(15, 23, 42, 0.08);
 }
 
 .ai-agent-panel__stop-button:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--error) 22%, var(--border-color) 78%);
-  background: color-mix(in srgb, var(--error) 9%, transparent);
-  color: color-mix(in srgb, var(--error) 84%, var(--text-primary) 16%);
+  background: color-mix(in srgb, var(--text-primary) 14%, var(--surface-base) 86%);
+  color: var(--text-primary);
 }
 
 .ai-agent-panel__send-button:active:not(:disabled) {
@@ -1230,7 +1223,8 @@ watch(
   outline: none;
   box-shadow:
     0 0 0 3px color-mix(in srgb, var(--accent) 28%, transparent),
-    0 0 0 1px var(--accent);
+    0 0 0 1px var(--accent),
+    0 18px 30px rgba(15, 23, 42, 0.16);
 }
 
 .ai-agent-panel__send-button.is-disabled,
@@ -1249,11 +1243,6 @@ watch(
   max-height: 400px;
 }
 
-.ai-agent-panel__provider-select {
-  min-width: 88px;
-  max-width: 104px;
-}
-
 .ai-agent-panel__error {
   font-size: 12px;
   line-height: 1.5;
@@ -1263,11 +1252,11 @@ watch(
 .ai-agent-panel__empty {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 12px 4px 18px;
+  gap: 6px;
+  padding: 20px 4px 22px;
   align-items: flex-start;
   text-align: left;
-  max-width: 220px;
+  max-width: 280px;
 }
 
 .ai-agent-panel__empty-title {
@@ -1284,51 +1273,55 @@ watch(
 }
 
 .ai-agent-panel__composer :deep(.ai-agent-panel__textarea-shell) {
-  border: none !important;
-  border-radius: 0 !important;
-  background: transparent !important;
-  box-shadow: none !important;
+  border: 1px solid color-mix(in srgb, var(--border-color) 18%, transparent) !important;
+  border-radius: 28px !important;
+  background: color-mix(in srgb, var(--surface-base) 94%, transparent) !important;
+  box-shadow:
+    0 14px 30px rgba(15, 23, 42, 0.06),
+    inset 0 1px 0 color-mix(in srgb, white 46%, transparent) !important;
 }
 
 .ai-agent-panel__composer :deep(.ai-agent-panel__textarea-shell.ui-textarea-shell--ghost:hover),
 .ai-agent-panel__composer :deep(.ai-agent-panel__textarea-shell.ui-textarea-shell--ghost:focus-within) {
-  background: transparent !important;
-  border-color: transparent !important;
-  box-shadow: none !important;
+  background: color-mix(in srgb, var(--surface-base) 96%, transparent) !important;
+  border-color: color-mix(in srgb, var(--border-color) 24%, transparent) !important;
+  box-shadow:
+    0 18px 32px rgba(15, 23, 42, 0.08),
+    0 0 0 3px color-mix(in srgb, var(--accent) 10%, transparent) !important;
 }
 
 .ai-agent-panel__composer :deep(.ai-agent-panel__textarea-shell .ui-textarea-control) {
-  min-height: 38px;
-  height: 38px;
-  max-height: 220px;
-  padding: 2px 0 2px !important;
+  min-height: 132px;
+  height: 132px;
+  max-height: 240px;
+  padding: 18px 22px 8px !important;
   resize: none;
-  font-size: 13px;
-  line-height: 1.58;
+  font-size: 17px;
+  line-height: 1.6;
   color: var(--text-primary);
 }
 
 .ai-agent-panel__composer :deep(.ai-agent-panel__model-chip-shell) {
   width: auto;
-  max-width: 220px;
+  max-width: 168px;
 }
 
 .ai-agent-panel__composer :deep(.ai-agent-panel__model-chip-shell .ui-select-trigger) {
-  height: 30px;
+  height: 38px;
   width: auto;
-  max-width: 220px;
-  padding: 0 24px 0 10px;
-  border-color: transparent;
-  border-radius: 9px;
-  background: transparent;
+  max-width: 168px;
+  padding: 0 30px 0 14px;
+  border-color: color-mix(in srgb, var(--border-color) 16%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-hover) 55%, transparent);
   box-shadow: none;
   color: var(--text-secondary);
 }
 
 .ai-agent-panel__composer :deep(.ai-agent-panel__model-chip-shell .ui-select-trigger:hover),
 .ai-agent-panel__composer :deep(.ai-agent-panel__model-chip-shell .ui-select-trigger:focus-visible) {
-  border-color: transparent;
-  background: transparent;
+  border-color: color-mix(in srgb, var(--border-color) 26%, transparent);
+  background: color-mix(in srgb, var(--surface-hover) 78%, transparent);
   color: var(--text-primary);
 }
 
@@ -1347,55 +1340,52 @@ watch(
 }
 
 .ai-agent-panel__tool-button {
-  width: 30px;
-  height: 30px;
+  width: 38px;
+  height: 38px;
   padding: 0;
-  border-radius: 9px;
+  border-radius: 999px;
   border: none;
-  background: transparent;
+  background: color-mix(in srgb, var(--surface-hover) 60%, transparent);
   color: var(--text-secondary);
   box-shadow: none;
 }
 
 .ai-agent-panel__tool-button:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--surface-hover) 8%, transparent);
+  background: color-mix(in srgb, var(--surface-hover) 92%, transparent);
   color: var(--text-primary);
 }
 
 @container (max-width: 380px) {
-  .ai-agent-panel__header {
-    padding-bottom: 6px;
+  .ai-agent-panel__workspace {
+    padding-inline: 10px;
   }
 
-  .ai-agent-panel__composer {
-    padding-inline: 8px;
-  }
-
-  .ai-agent-panel__composer-well {
-    padding-inline: 8px;
+  .ai-agent-panel__composer :deep(.ai-agent-panel__textarea-shell .ui-textarea-control) {
+    min-height: 110px;
+    height: 110px;
+    padding-inline: 18px !important;
   }
 }
 
 @container (max-width: 320px) {
-  .ai-agent-panel__thread {
-    padding-inline: 10px;
+  .ai-agent-panel__composer-actions {
+    align-items: stretch;
+    flex-direction: column;
   }
 
-  .ai-agent-panel__model-chip,
-  .ai-agent-panel__model-fallback {
-    max-width: 112px;
+  .ai-agent-panel__composer-primary {
+    margin-left: 0;
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .ai-agent-panel__composer :deep(.ai-agent-panel__model-chip-shell) {
+    max-width: none;
+    flex: 1 1 auto;
   }
 
   .ai-agent-panel__empty {
     max-width: none;
-  }
-
-  .ai-agent-panel__composer-actions {
-    gap: 8px;
-  }
-
-  .ai-agent-panel__composer-divider {
-    height: 16px;
   }
 }
 </style>
