@@ -211,6 +211,50 @@ fn with_cleared_active_turn(mut session: Value) -> Value {
     session
 }
 
+fn parse_plan_items_from_text(text: &str) -> Vec<Value> {
+    text.lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .filter_map(|line| {
+            let normalized = line
+                .trim_start_matches("- ")
+                .trim_start_matches("* ")
+                .trim();
+            let normalized = if let Some((prefix, rest)) = normalized.split_once(". ") {
+                if prefix.chars().all(|ch| ch.is_ascii_digit()) {
+                    rest.trim()
+                } else {
+                    normalized
+                }
+            } else {
+                normalized
+            };
+            if normalized.is_empty() || normalized.chars().count() < 4 {
+                return None;
+            }
+            Some(json!({
+                "id": normalized,
+                "text": normalized,
+                "status": "pending",
+            }))
+        })
+        .take(8)
+        .collect()
+}
+
+fn update_plan_mode_with_reasoning(plan_mode: &Value, reasoning_text: &str) -> Value {
+    let items = parse_plan_items_from_text(reasoning_text);
+    if items.is_empty() {
+        return plan_mode.clone();
+    }
+    json!({
+        "active": plan_mode.get("active").and_then(Value::as_bool).unwrap_or(false),
+        "summary": string_field(plan_mode, &["summary"]),
+        "note": string_field(plan_mode, &["note"]),
+        "items": items,
+    })
+}
+
 fn build_context_chips(context_bundle: &Value) -> Vec<Value> {
     let mut chips = Vec::new();
 
@@ -1253,6 +1297,7 @@ pub async fn ai_agent_session_apply_event(
                 "active": true,
                 "summary": string_field(&current_event, &["summary"]),
                 "note": string_field(&current_event, &["note"]),
+                "items": current_event.get("items").cloned().unwrap_or(Value::Array(vec![])),
             });
         }
         "plan_mode_end" => {
@@ -1260,6 +1305,42 @@ pub async fn ai_agent_session_apply_event(
                 "active": false,
                 "summary": "",
                 "note": "",
+                "items": [],
+            });
+        }
+        "plan_delta" => {
+            let mut items = array_entries(
+                next_session.get("planMode").unwrap_or(&Value::Null),
+                "items",
+            );
+            let item_id = string_field(&current_event, &["itemId", "item_id"]);
+            let delta = string_field(&current_event, &["delta"]);
+            if !delta.is_empty() {
+                if let Some(index) = items
+                    .iter()
+                    .position(|entry| string_field(entry, &["id"]) == item_id)
+                {
+                    let mut next = items[index].clone();
+                    next["text"] =
+                        Value::String(format!("{}{}", string_field(&next, &["text"]), delta));
+                    items[index] = next;
+                } else {
+                    items.push(json!({
+                        "id": if item_id.is_empty() { delta.clone() } else { item_id },
+                        "text": delta,
+                        "status": "pending",
+                    }));
+                }
+            }
+            next_session["planMode"] = json!({
+                "active": next_session
+                    .get("planMode")
+                    .and_then(|value| value.get("active"))
+                    .and_then(Value::as_bool)
+                    .unwrap_or(true),
+                "summary": string_field(next_session.get("planMode").unwrap_or(&Value::Null), &["summary"]),
+                "note": string_field(next_session.get("planMode").unwrap_or(&Value::Null), &["note"]),
+                "items": items,
             });
         }
         "compacting" => {
@@ -1360,6 +1441,11 @@ pub async fn ai_agent_session_apply_event(
                 "active": true,
                 "summary": "The agent is currently drafting a plan.",
                 "note": "Plan mode stays visible until the runtime exits it.",
+                "items": next_session
+                    .get("planMode")
+                    .and_then(|value| value.get("items"))
+                    .cloned()
+                    .unwrap_or(Value::Array(vec![])),
             });
         }
 
@@ -1368,7 +1454,24 @@ pub async fn ai_agent_session_apply_event(
                 "active": false,
                 "summary": "",
                 "note": "",
+                "items": [],
             });
+        }
+    }
+
+    if current_event.get("eventType").and_then(Value::as_str) == Some("assistant-reasoning")
+        && next_session
+            .get("planMode")
+            .and_then(|value| value.get("active"))
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+    {
+        let reasoning_text = string_field(&current_event, &["text"]);
+        if !reasoning_text.is_empty() {
+            next_session["planMode"] = update_plan_mode_with_reasoning(
+                next_session.get("planMode").unwrap_or(&Value::Null),
+                &reasoning_text,
+            );
         }
     }
 

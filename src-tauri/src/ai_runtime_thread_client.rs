@@ -378,6 +378,11 @@ fn build_session_plan_mode_from_runtime_snapshot(snapshot: &Value) -> Value {
             .unwrap_or(false),
         "summary": string_field(snapshot.get("planMode").unwrap_or(&Value::Null), &["summary"]),
         "note": string_field(snapshot.get("planMode").unwrap_or(&Value::Null), &["note"]),
+        "items": snapshot
+            .get("planMode")
+            .and_then(|value| value.get("items"))
+            .cloned()
+            .unwrap_or(Value::Array(vec![])),
     })
 }
 

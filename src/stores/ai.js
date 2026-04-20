@@ -251,7 +251,7 @@ function createInitialSessionRecord(title = 'New session') {
     lastCompactAt: 0,
     waitingResume: false,
     waitingResumeMessage: '',
-    planMode: { active: false, summary: '', note: '' },
+    planMode: { active: false, summary: '', note: '', items: [] },
     activeTurn: null,
     researchTask: null,
     isRunning: false,
@@ -519,7 +519,7 @@ function scrubTransientAgentSessionState(session = {}) {
     lastCompactAt: 0,
     waitingResume: false,
     waitingResumeMessage: '',
-    planMode: { active: false, summary: '', note: '' },
+    planMode: { active: false, summary: '', note: '', items: [] },
     activeTurn: null,
   }
 }

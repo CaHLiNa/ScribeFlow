@@ -78,6 +78,7 @@ fn ensure_session_shape(session: &Value, fallback_title: &str) -> Value {
         "active": false,
         "summary": "",
         "note": "",
+        "items": [],
     });
 
     json!({

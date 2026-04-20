@@ -86,10 +86,30 @@ fn create_session_id() -> String {
 }
 
 fn normalize_plan_mode(value: &Value) -> Value {
+    let items = value
+        .get("items")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|entry| {
+            let id = string_field(&entry, "id");
+            let text = string_field(&entry, "text");
+            if id.trim().is_empty() && text.trim().is_empty() {
+                return None;
+            }
+            Some(json!({
+                "id": if id.trim().is_empty() { text.trim() } else { id.trim() },
+                "text": text.trim(),
+                "status": string_field(&entry, "status").trim(),
+            }))
+        })
+        .collect::<Vec<_>>();
     json!({
         "active": bool_field(value, "active"),
         "summary": string_field(value, "summary").trim(),
         "note": string_field(value, "note").trim(),
+        "items": items,
     })
 }
 
@@ -711,6 +731,7 @@ fn mutate_session(session: &Value, kind: &str, payload: &Value) -> Value {
                     "active": bool_field(payload, "active"),
                     "summary": string_field(payload, "summary").trim(),
                     "note": string_field(payload, "note").trim(),
+                    "items": payload.get("items").cloned().unwrap_or(Value::Array(Vec::new())),
                 }),
             );
         }
