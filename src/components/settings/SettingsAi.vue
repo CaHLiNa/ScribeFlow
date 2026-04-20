@@ -7,7 +7,10 @@
       <div class="settings-group-body">
         <div class="settings-row">
           <div class="settings-row-copy">
-            <div class="settings-row-title">{{ t('Evidence strategy') }}</div>
+            <div class="settings-row-title">{{ t('Verification depth') }}</div>
+            <div class="settings-row-hint">
+              {{ t('Controls how much extra checking and evidence gathering the AI should do before answering.') }}
+            </div>
           </div>
           <div class="settings-row-control">
             <UiSelect
@@ -22,7 +25,10 @@
 
         <div class="settings-row">
           <div class="settings-row-copy">
-            <div class="settings-row-title">{{ t('Task completion threshold') }}</div>
+            <div class="settings-row-title">{{ t('Completion standard') }}</div>
+            <div class="settings-row-hint">
+              {{ t('Controls how complete the AI should make the task before it can stop.') }}
+            </div>
           </div>
           <div class="settings-row-control">
             <UiSelect
@@ -237,14 +243,14 @@ const researchDefaults = ref({
 })
 
 const evidenceStrategyOptions = computed(() => [
-  { value: 'focused', label: t('Focused evidence') },
-  { value: 'balanced', label: t('Balanced evidence') },
-  { value: 'strict', label: t('Strict evidence') },
+  { value: 'focused', label: t('Light verification') },
+  { value: 'balanced', label: t('Standard verification') },
+  { value: 'strict', label: t('Strict verification') },
 ])
 const completionThresholdOptions = computed(() => [
-  { value: 'fast', label: t('Fast') },
-  { value: 'balanced', label: t('Balanced') },
-  { value: 'strict', label: t('Strict') },
+  { value: 'fast', label: t('Good enough') },
+  { value: 'balanced', label: t('Mostly complete') },
+  { value: 'strict', label: t('Fully checked') },
 ])
 const sandboxModeOptions = computed(() => [
   { value: 'read-only', label: t('Read-only') },
