@@ -1,5 +1,5 @@
 <template>
-  <div class="settings-page">
+  <div class="settings-agent-subpage">
     <h3 class="settings-section-title">{{ t('Research defaults') }}</h3>
 
     <section class="settings-group">

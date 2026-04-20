@@ -104,6 +104,10 @@ function setActiveSubpage(subpageId = 'models') {
 </script>
 
 <style scoped>
+.settings-agent-page {
+  gap: 24px;
+}
+
 .settings-agent-tabs-group {
   gap: 0;
 }

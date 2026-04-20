@@ -1,283 +1,285 @@
 <template>
-  <div class="settings-page">
+  <div class="settings-agent-subpage settings-skills-page">
     <h3 class="settings-section-title">{{ t('Agent Skills') }}</h3>
 
     <section class="settings-group">
-      <div class="settings-row">
-        <div class="settings-row-copy">
-          <div class="settings-row-title">{{ t('Management scope') }}</div>
-          <div class="settings-row-hint">
-            {{ t('Choose whether new skills go into the shared global library or the ScribeFlow library.') }}
+      <h4 class="settings-group-title">{{ t('Management scope') }}</h4>
+      <div class="settings-group-body">
+        <div class="settings-row">
+          <div class="settings-row-copy">
+            <div class="settings-row-title">{{ t('Management scope') }}</div>
+            <div class="settings-row-hint">
+              {{ t('Choose whether new skills go into the shared global library or the ScribeFlow library.') }}
+            </div>
+          </div>
+          <div class="settings-row-control">
+            <UiSelect v-model="managementScope" size="sm" :options="scopeOptions" />
           </div>
         </div>
-        <div class="settings-row-control">
-          <UiSelect v-model="managementScope" size="sm" :options="scopeOptions" />
-        </div>
       </div>
+    </section>
 
-      <div
-        class="settings-skills-header-row"
-        style="display: flex; align-items: center; justify-content: space-between"
-      >
-        <h4 class="settings-group-title" style="margin-bottom: 0; padding-top: 0">
-          {{ t('Skill Library') }}
-        </h4>
-        <div class="settings-skills-actions">
+    <section class="settings-group">
+      <h4 class="settings-group-title">{{ t('Skill Library') }}</h4>
+      <div class="settings-group-body">
+        <div class="settings-skills-toolbar">
           <UiInput
             v-model="searchQuery"
             size="sm"
             class="settings-skills-search"
             :placeholder="t('Search...')"
           />
-          <UiButton variant="ghost" size="sm" @click="createModalVisible = true">
-            <template #leading>
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <line x1="12" y1="5" x2="12" y2="19" />
-                <line x1="5" y1="12" x2="19" y2="12" />
-              </svg>
-            </template>
-            {{ t('Create') }}
-          </UiButton>
-          <UiButton variant="ghost" size="sm" @click="importSkillFile">
-            <template #leading>
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="7 10 12 15 17 10" />
-                <line x1="12" y1="15" x2="12" y2="3" />
-              </svg>
-            </template>
-            {{ t('File') }}
-          </UiButton>
-          <UiButton variant="ghost" size="sm" @click="importSkillDirectory">
-            <template #leading>
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path
-                  d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
-                />
-                <line x1="12" y1="11" x2="12" y2="17" />
-                <line x1="9" y1="14" x2="15" y2="14" />
-              </svg>
-            </template>
-            {{ t('Folder') }}
-          </UiButton>
-          <div class="settings-skills-actions-divider"></div>
-          <UiButton
-            variant="ghost"
-            size="sm"
-            :disabled="aiStore.isRefreshingScribeFlowSkills"
-            @click="refreshSkills"
-          >
-            <template #leading>
-              <svg
-                :class="{ 'ai-icon-spin': aiStore.isRefreshingScribeFlowSkills }"
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
-                <path d="M21 3v5h-5" />
-              </svg>
-            </template>
-            {{ t('Refresh') }}
-          </UiButton>
+          <div class="settings-skills-actions">
+            <UiButton variant="ghost" size="sm" @click="createModalVisible = true">
+              <template #leading>
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+              </template>
+              {{ t('Create') }}
+            </UiButton>
+            <UiButton variant="ghost" size="sm" @click="importSkillFile">
+              <template #leading>
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+              </template>
+              {{ t('File') }}
+            </UiButton>
+            <UiButton variant="ghost" size="sm" @click="importSkillDirectory">
+              <template #leading>
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path
+                    d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
+                  />
+                  <line x1="12" y1="11" x2="12" y2="17" />
+                  <line x1="9" y1="14" x2="15" y2="14" />
+                </svg>
+              </template>
+              {{ t('Folder') }}
+            </UiButton>
+            <div class="settings-skills-actions-divider"></div>
+            <UiButton
+              variant="ghost"
+              size="sm"
+              :disabled="aiStore.isRefreshingScribeFlowSkills"
+              @click="refreshSkills"
+            >
+              <template #leading>
+                <svg
+                  :class="{ 'ai-icon-spin': aiStore.isRefreshingScribeFlowSkills }"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
+                  <path d="M21 3v5h-5" />
+                </svg>
+              </template>
+              {{ t('Refresh') }}
+            </UiButton>
+          </div>
         </div>
-      </div>
 
-      <div v-if="pageError" class="settings-inline-message settings-inline-message-error">
-        {{ pageError }}
-      </div>
-      <div v-else-if="pageSuccess" class="settings-inline-message">{{ pageSuccess }}</div>
-      <div
-        v-if="aiStore.lastSkillCatalogError"
-        class="settings-inline-message settings-inline-message-error"
-      >
-        {{ aiStore.lastSkillCatalogError }}
-      </div>
-
-      <div v-if="skillGroups.length === 0" class="settings-empty-state">
-        <svg
-          width="24"
-          height="24"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.5"
-          stroke-linecap="round"
-          stroke-linejoin="round"
+        <div v-if="pageError" class="settings-inline-message settings-inline-message-error">
+          {{ pageError }}
+        </div>
+        <div v-else-if="pageSuccess" class="settings-inline-message">{{ pageSuccess }}</div>
+        <div
+          v-if="aiStore.lastSkillCatalogError"
+          class="settings-inline-message settings-inline-message-error"
         >
-          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-        </svg>
-        <p>{{ t('No skills found.') }}</p>
-      </div>
-      <div v-else class="settings-skills-group-list">
-        <section v-for="group in skillGroups" :key="group.id" class="settings-skills-group">
-          <div class="settings-skills-group__header">
-            <h5 class="settings-skills-group__title">
-              {{ group.label }}
-              <span class="settings-skills-group__count">{{ group.skills.length }}</span>
-            </h5>
-          </div>
+          {{ aiStore.lastSkillCatalogError }}
+        </div>
 
-          <div class="settings-skills-grid">
-            <article v-for="skill in group.skills" :key="skill.id" class="settings-skills-card">
-              <div class="settings-skills-card__body">
-                <h5 class="settings-skills-card__title" :title="skill.name">{{ skill.name }}</h5>
-                <p class="settings-skills-card__description" :title="skill.description">
-                  {{ skill.description || t('No description.') }}
-                </p>
-              </div>
+        <div v-if="skillGroups.length === 0" class="settings-empty-state">
+          <svg
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+          </svg>
+          <p>{{ t('No skills found.') }}</p>
+        </div>
+        <div v-else class="settings-skills-group-list">
+          <section v-for="group in skillGroups" :key="group.id" class="settings-skills-group">
+            <div class="settings-skills-group__header">
+              <h5 class="settings-skills-group__title">
+                {{ group.label }}
+                <span class="settings-skills-group__count">{{ group.skills.length }}</span>
+              </h5>
+            </div>
 
-              <div v-if="canManageSkill(skill)" class="settings-skills-card__actions">
-                <UiButton
-                  variant="ghost"
-                  size="sm"
-                  icon-only
-                  :title="t('Open skill file')"
-                  @click="openSkillFile(skill)"
-                >
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
+            <div class="settings-skills-grid">
+              <article v-for="skill in group.skills" :key="skill.id" class="settings-skills-card">
+                <div class="settings-skills-card__body">
+                  <h5 class="settings-skills-card__title" :title="skill.name">{{ skill.name }}</h5>
+                  <p class="settings-skills-card__description" :title="skill.description">
+                    {{ skill.description || t('No description.') }}
+                  </p>
+                </div>
+
+                <div v-if="canManageSkill(skill)" class="settings-skills-card__actions">
+                  <UiButton
+                    variant="ghost"
+                    size="sm"
+                    icon-only
+                    :title="t('Open skill file')"
+                    @click="openSkillFile(skill)"
                   >
-                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                    <polyline points="15 3 21 3 21 9" />
-                    <line x1="10" y1="14" x2="21" y2="3" />
-                  </svg>
-                </UiButton>
-                <UiButton
-                  variant="ghost"
-                  size="sm"
-                  icon-only
-                  :title="t('Reveal directory')"
-                  @click="revealSkillDirectory(skill)"
-                >
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                      <polyline points="15 3 21 3 21 9" />
+                      <line x1="10" y1="14" x2="21" y2="3" />
+                    </svg>
+                  </UiButton>
+                  <UiButton
+                    variant="ghost"
+                    size="sm"
+                    icon-only
+                    :title="t('Reveal directory')"
+                    @click="revealSkillDirectory(skill)"
                   >
-                    <path
-                      d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
-                    />
-                  </svg>
-                </UiButton>
-                <UiButton
-                  v-if="canEditSkill(skill)"
-                  variant="ghost"
-                  size="sm"
-                  icon-only
-                  :title="t('Edit skill')"
-                  @click="beginEditSkill(skill)"
-                >
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <path
+                        d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
+                      />
+                    </svg>
+                  </UiButton>
+                  <UiButton
+                    v-if="canEditSkill(skill)"
+                    variant="ghost"
+                    size="sm"
+                    icon-only
+                    :title="t('Edit skill')"
+                    @click="beginEditSkill(skill)"
                   >
-                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                  </svg>
-                </UiButton>
-                <UiButton
-                  v-if="canDuplicateSkill(skill)"
-                  variant="ghost"
-                  size="sm"
-                  icon-only
-                  :title="t('Duplicate')"
-                  @click="duplicateSkill(skill)"
-                >
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                    </svg>
+                  </UiButton>
+                  <UiButton
+                    v-if="canDuplicateSkill(skill)"
+                    variant="ghost"
+                    size="sm"
+                    icon-only
+                    :title="t('Duplicate')"
+                    @click="duplicateSkill(skill)"
                   >
-                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                  </svg>
-                </UiButton>
-                <UiButton
-                  v-if="canDeleteSkill(skill)"
-                  variant="ghost"
-                  size="sm"
-                  icon-only
-                  :title="t('Delete')"
-                  @click="deleteSkill(skill)"
-                >
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                    </svg>
+                  </UiButton>
+                  <UiButton
+                    v-if="canDeleteSkill(skill)"
+                    variant="ghost"
+                    size="sm"
+                    icon-only
+                    :title="t('Delete')"
+                    @click="deleteSkill(skill)"
                   >
-                    <polyline points="3 6 5 6 21 6" />
-                    <path
-                      d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
-                    />
-                    <line x1="10" y1="11" x2="10" y2="17" />
-                    <line x1="14" y1="11" x2="14" y2="17" />
-                  </svg>
-                </UiButton>
-              </div>
-            </article>
-          </div>
-        </section>
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <polyline points="3 6 5 6 21 6" />
+                      <path
+                        d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+                      />
+                      <line x1="10" y1="11" x2="10" y2="17" />
+                      <line x1="14" y1="11" x2="14" y2="17" />
+                    </svg>
+                  </UiButton>
+                </div>
+              </article>
+            </div>
+          </section>
+        </div>
       </div>
     </section>
 
@@ -604,10 +606,13 @@ onMounted(async () => {
 }
 
 /* Skills Library specific */
-.settings-skills-header-row {
-  flex-wrap: wrap;
+.settings-skills-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 16px;
-  margin-bottom: 4px;
+  padding: 16px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
 }
 
 .settings-skills-actions {
@@ -617,8 +622,7 @@ onMounted(async () => {
 }
 
 .settings-skills-search {
-  width: 180px;
-  margin-right: 4px;
+  width: 220px;
 }
 
 .settings-skills-actions-divider {
@@ -646,6 +650,7 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 28px;
+  padding: 16px;
 }
 
 .settings-skills-group {
@@ -677,6 +682,17 @@ onMounted(async () => {
   color: var(--text-primary);
   font-size: 10px;
   font-weight: 600;
+}
+
+.settings-inline-message {
+  padding: 12px 16px 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.settings-inline-message-error {
+  color: var(--error);
 }
 
 .settings-skills-grid {
