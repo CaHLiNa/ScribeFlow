@@ -18,25 +18,19 @@
       </div>
     </section>
 
-    <section class="settings-group">
-      <div class="settings-group-body">
-        <div class="settings-row">
-          <div class="settings-row-control settings-agent-subpage-control">
-            <div class="settings-segmented" role="tablist" :aria-label="t('Agent pages')">
-              <button
-                v-for="item in subpages"
-                :key="item.id"
-                type="button"
-                class="settings-segmented-btn"
-                :class="{ 'is-active': activeSubpage === item.id }"
-                :aria-selected="activeSubpage === item.id"
-                @click="setActiveSubpage(item.id)"
-              >
-                {{ item.label }}
-              </button>
-            </div>
-          </div>
-        </div>
+    <section class="settings-group settings-agent-tabs-group">
+      <div class="settings-agent-tabs" role="tablist" :aria-label="t('Agent pages')">
+        <button
+          v-for="item in subpages"
+          :key="item.id"
+          type="button"
+          class="settings-segmented-btn"
+          :class="{ 'is-active': activeSubpage === item.id }"
+          :aria-selected="activeSubpage === item.id"
+          @click="setActiveSubpage(item.id)"
+        >
+          {{ item.label }}
+        </button>
       </div>
     </section>
 
@@ -89,7 +83,7 @@ const activeSubpage = ref(readPersistedAgentSubpage())
 const subpages = computed(() => [
   {
     id: 'models',
-    label: t('Codex runtime'),
+    label: 'Codex',
   },
   {
     id: 'skills',
@@ -110,13 +104,19 @@ function setActiveSubpage(subpageId = 'models') {
 </script>
 
 <style scoped>
-.settings-agent-page {
-  gap: 24px;
+.settings-agent-tabs-group {
+  gap: 0;
 }
 
-.settings-agent-subpage-control {
-  width: 100%;
-  justify-content: flex-start;
+.settings-agent-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  padding: 2px;
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--surface-raised) 50%, transparent);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
 }
 
 .settings-preview-card {

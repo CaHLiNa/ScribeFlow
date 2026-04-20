@@ -43,10 +43,10 @@
       </div>
     </section>
 
-    <h3 class="settings-section-title">{{ t('Codex runtime') }}</h3>
+    <h3 class="settings-section-title">Codex</h3>
 
     <section class="settings-group">
-      <h4 class="settings-group-title">{{ t('Codex runtime') }}</h4>
+      <h4 class="settings-group-title">Codex</h4>
       <div class="settings-group-body">
         <div class="settings-row">
           <div class="settings-row-copy">
@@ -147,10 +147,7 @@
           </div>
         </div>
 
-        <div class="settings-row">
-          <div class="settings-row-copy">
-            <div class="settings-row-title">{{ t('Actions') }}</div>
-          </div>
+        <div class="settings-row settings-ai-actions-row">
           <div class="settings-row-control settings-ai-runtime-actions">
             <UiButton variant="secondary" size="sm" :disabled="saving" @click="refreshRuntimeState">
               {{ runtimeStateLoading ? t('Refreshing...') : t('Refresh runtime') }}
@@ -408,7 +405,7 @@ onMounted(() => {
 }
 
 .settings-ai-input {
-  width: min(100%, 320px);
+  width: min(100%, 280px);
 }
 
 .settings-ai-runtime-actions {
@@ -417,6 +414,10 @@ onMounted(() => {
   justify-content: flex-end;
   gap: 8px;
   width: 100%;
+}
+
+.settings-ai-actions-row {
+  justify-content: flex-end;
 }
 
 .settings-inline-message {
