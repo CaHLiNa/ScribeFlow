@@ -252,6 +252,7 @@ function createInitialSessionRecord(title = 'New session') {
     waitingResume: false,
     waitingResumeMessage: '',
     planMode: { active: false, summary: '', note: '' },
+    activeTurn: null,
     researchTask: null,
     isRunning: false,
     lastError: '',
@@ -519,6 +520,7 @@ function scrubTransientAgentSessionState(session = {}) {
     waitingResume: false,
     waitingResumeMessage: '',
     planMode: { active: false, summary: '', note: '' },
+    activeTurn: null,
   }
 }
 
@@ -665,6 +667,10 @@ export const useAiStore = defineStore('ai', {
       return this.currentSession?.planMode || { active: false, summary: '', note: '' }
     },
 
+    activeTurnState() {
+      return this.currentSession?.activeTurn || null
+    },
+
     compactionState() {
       return {
         active: this.currentSession?.isCompacting === true,
@@ -690,6 +696,21 @@ export const useAiStore = defineStore('ai', {
     },
 
     resumeState() {
+      const activeTurn = this.currentSession?.activeTurn || null
+      const pendingKind = String(activeTurn?.pendingRequestKind || '').trim()
+      if (pendingKind) {
+        const summary = String(activeTurn?.summary || '').trim()
+        return {
+          active: true,
+          message:
+            summary ||
+            (pendingKind === 'permission'
+              ? t('Waiting for permission approval.')
+              : pendingKind === 'ask-user'
+                ? t('Waiting for user input.')
+                : t('Waiting for plan confirmation.')),
+        }
+      }
       return {
         active: this.currentSession?.waitingResume === true,
         message: String(this.currentSession?.waitingResumeMessage || '').trim(),

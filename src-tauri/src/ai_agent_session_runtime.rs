@@ -89,6 +89,128 @@ fn provider_summary(provider_state: &Value, transport: &str) -> String {
         .join(" · ")
 }
 
+fn active_turn_route(prepared_run: &Value) -> Value {
+    prepared_run
+        .get("turnRoute")
+        .cloned()
+        .unwrap_or(Value::Null)
+}
+
+fn active_turn_label(route: &Value) -> String {
+    let label = string_field(route, &["label"]);
+    if !label.is_empty() {
+        return label;
+    }
+    "Agent turn".to_string()
+}
+
+fn active_turn_summary(route: &Value) -> String {
+    string_field(route, &["summary"])
+}
+
+fn build_active_turn_from_prepared_run(
+    prepared_run: &Value,
+    pending_assistant_id: &str,
+    created_at: i64,
+) -> Value {
+    let route = active_turn_route(prepared_run);
+    json!({
+        "id": string_field(prepared_run, &["turnId"]),
+        "threadId": string_field(prepared_run, &["runtimeThreadId"]),
+        "runtimeTurnId": string_field(prepared_run, &["turnId"]),
+        "status": "starting",
+        "phase": "dispatch",
+        "label": active_turn_label(&route),
+        "summary": active_turn_summary(&route),
+        "userInstruction": string_field(prepared_run, &["userInstruction", "promptDraft"]),
+        "pendingAssistantId": trim(pending_assistant_id),
+        "pendingRequestKind": "",
+        "pendingRequestId": "",
+        "pendingRequestCount": 0,
+        "lastToolName": "",
+        "transport": string_field(prepared_run, &["runtimeTransport"]),
+        "route": route,
+        "startedAt": created_at,
+        "updatedAt": created_at,
+    })
+}
+
+fn update_active_turn_with_event(active_turn: &Value, event: &Value) -> Value {
+    let mut turn = if active_turn.is_object() {
+        active_turn.clone()
+    } else {
+        json!({})
+    };
+    let event_type = string_field(event, &["type", "eventType"]);
+    let current_status = string_field(&turn, &["status"]);
+    let next_status = match event_type.as_str() {
+        "permission_request" => "awaiting-permission",
+        "ask_user_request" => "awaiting-user-input",
+        "exit_plan_mode_request" => "awaiting-plan-exit",
+        "assistant-content" | "assistant-reasoning" => "responding",
+        "task_started" | "task_progress" | "task_notification" => "running",
+        "permission_resolved" | "ask_user_resolved" | "exit_plan_mode_resolved" => {
+            if current_status.starts_with("awaiting") {
+                "running"
+            } else {
+                current_status.as_str()
+            }
+        }
+        _ => current_status.as_str(),
+    };
+    turn["status"] = Value::String(next_status.to_string());
+    let next_phase = match event_type.as_str() {
+        "permission_request" => "approval".to_string(),
+        "ask_user_request" => "user-input".to_string(),
+        "exit_plan_mode_request" => "plan".to_string(),
+        "assistant-content" | "assistant-reasoning" => "responding".to_string(),
+        "task_started" | "task_progress" | "task_notification" => "executing".to_string(),
+        _ => string_field(&turn, &["phase"]),
+    };
+    turn["phase"] = Value::String(next_phase);
+    turn["updatedAt"] = Value::Number(now_ms().into());
+
+    if !string_field(event, &["toolName"]).is_empty() {
+        turn["lastToolName"] = Value::String(string_field(event, &["toolName"]));
+    } else if !string_field(event, &["lastToolName"]).is_empty() {
+        turn["lastToolName"] = Value::String(string_field(event, &["lastToolName"]));
+    }
+
+    match event_type.as_str() {
+        "permission_request" => {
+            turn["pendingRequestKind"] = Value::String("permission".to_string());
+            turn["pendingRequestId"] =
+                Value::String(string_field(event, &["requestId", "toolUseId"]));
+        }
+        "ask_user_request" => {
+            turn["pendingRequestKind"] = Value::String("ask-user".to_string());
+            turn["pendingRequestId"] = Value::String(string_field(event, &["requestId"]));
+        }
+        "exit_plan_mode_request" => {
+            turn["pendingRequestKind"] = Value::String("exit-plan".to_string());
+            turn["pendingRequestId"] = Value::String(string_field(event, &["requestId"]));
+        }
+        "permission_resolved" | "ask_user_resolved" | "exit_plan_mode_resolved" => {
+            turn["pendingRequestKind"] = Value::String(String::new());
+            turn["pendingRequestId"] = Value::String(String::new());
+        }
+        _ => {}
+    }
+
+    if !string_field(event, &["transport"]).is_empty() {
+        turn["transport"] = Value::String(string_field(event, &["transport"]));
+    }
+    if !string_field(event, &["summary"]).is_empty() {
+        turn["summary"] = Value::String(string_field(event, &["summary"]));
+    }
+    turn
+}
+
+fn with_cleared_active_turn(mut session: Value) -> Value {
+    session["activeTurn"] = Value::Null;
+    session
+}
+
 fn build_context_chips(context_bundle: &Value) -> Vec<Value> {
     let mut chips = Vec::new();
 
@@ -841,6 +963,8 @@ pub struct AiAgentSessionStartParams {
     #[serde(default)]
     pub session: Value,
     #[serde(default)]
+    pub prepared_run: Value,
+    #[serde(default)]
     pub skill: Value,
     #[serde(default)]
     pub provider_state: Value,
@@ -1025,6 +1149,11 @@ pub async fn ai_agent_session_start(
     session["attachments"] = Value::Array(Vec::new());
     session["waitingResume"] = Value::Bool(false);
     session["waitingResumeMessage"] = Value::String(String::new());
+    session["activeTurn"] = build_active_turn_from_prepared_run(
+        &params.prepared_run,
+        &params.pending_assistant_id,
+        params.created_at,
+    );
     if trim(&params.effective_permission_mode) != "chat" {
         session["permissionMode"] = Value::String(trim(&params.effective_permission_mode));
     }
@@ -1196,6 +1325,22 @@ pub async fn ai_agent_session_apply_event(
         _ => {}
     }
 
+    next_session["activeTurn"] = update_active_turn_with_event(
+        next_session.get("activeTurn").unwrap_or(&Value::Null),
+        &current_event,
+    );
+    let pending_request_count = array_entries(&next_session, "permissionRequests").len()
+        + array_entries(&next_session, "askUserRequests").len()
+        + array_entries(&next_session, "exitPlanRequests").len();
+    if next_session
+        .get("activeTurn")
+        .and_then(Value::as_object)
+        .is_some()
+    {
+        next_session["activeTurn"]["pendingRequestCount"] =
+            Value::Number((pending_request_count as i64).into());
+    }
+
     if current_event.get("eventType").and_then(Value::as_str) == Some("tool")
         || current_event.get("toolId").is_some()
     {
@@ -1278,6 +1423,20 @@ pub async fn ai_agent_session_complete(
     session["artifacts"] = Value::Array(artifacts);
     session["attachments"] = Value::Array(Vec::new());
     session["promptDraft"] = Value::String(String::new());
+    if session
+        .get("activeTurn")
+        .and_then(Value::as_object)
+        .is_some()
+    {
+        session["activeTurn"]["status"] = Value::String("completed".to_string());
+        session["activeTurn"]["phase"] = Value::String("completed".to_string());
+        session["activeTurn"]["pendingRequestKind"] = Value::String(String::new());
+        session["activeTurn"]["pendingRequestId"] = Value::String(String::new());
+        session["activeTurn"]["pendingRequestCount"] = Value::Number(0.into());
+        session["activeTurn"]["updatedAt"] = Value::Number(now_ms().into());
+        session["activeTurn"]["transport"] =
+            Value::String(string_field(&params.result, &["transport"]));
+    }
 
     Ok(AiAgentSessionMutationResponse {
         session,
@@ -1317,6 +1476,19 @@ pub async fn ai_agent_session_fail(
         }
     });
     session["messages"] = Value::Array(messages);
+    if session
+        .get("activeTurn")
+        .and_then(Value::as_object)
+        .is_some()
+    {
+        session["activeTurn"]["status"] = Value::String("failed".to_string());
+        session["activeTurn"]["phase"] = Value::String("failed".to_string());
+        session["activeTurn"]["pendingRequestKind"] = Value::String(String::new());
+        session["activeTurn"]["pendingRequestId"] = Value::String(String::new());
+        session["activeTurn"]["pendingRequestCount"] = Value::Number(0.into());
+        session["activeTurn"]["summary"] = Value::String(trim(&params.error));
+        session["activeTurn"]["updatedAt"] = Value::Number(now_ms().into());
+    }
 
     Ok(AiAgentSessionMutationResponse {
         session,
@@ -1329,9 +1501,10 @@ pub async fn ai_agent_session_fail(
 pub async fn ai_agent_session_finalize(
     params: AiAgentSessionFinalizeParams,
 ) -> Result<AiAgentSessionMutationResponse, String> {
-    let mut session = params.session;
+    let mut session = with_cleared_active_turn(params.session);
     session["isRunning"] = Value::Bool(false);
     session["permissionRequests"] = Value::Array(Vec::new());
+    session["askUserRequests"] = Value::Array(Vec::new());
     session["exitPlanRequests"] = Value::Array(Vec::new());
     session["waitingResume"] = Value::Bool(false);
     session["waitingResumeMessage"] = Value::String(String::new());
@@ -1377,6 +1550,18 @@ pub async fn ai_agent_session_interrupt(
     let mut session = params.session;
     session["messages"] = Value::Array(messages);
     session["lastError"] = Value::String(String::new());
+    if session
+        .get("activeTurn")
+        .and_then(Value::as_object)
+        .is_some()
+    {
+        session["activeTurn"]["status"] = Value::String("interrupted".to_string());
+        session["activeTurn"]["phase"] = Value::String("interrupted".to_string());
+        session["activeTurn"]["pendingRequestKind"] = Value::String(String::new());
+        session["activeTurn"]["pendingRequestId"] = Value::String(String::new());
+        session["activeTurn"]["pendingRequestCount"] = Value::Number(0.into());
+        session["activeTurn"]["updatedAt"] = Value::Number(now_ms().into());
+    }
 
     Ok(AiAgentSessionMutationResponse {
         session,

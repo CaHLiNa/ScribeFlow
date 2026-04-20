@@ -1763,6 +1763,7 @@ pub async fn ai_agent_run_prepared_session<R: Runtime>(
 
     let started = ai_agent_session_start(AiAgentSessionStartParams {
         session: params.session,
+        prepared_run: prepared_run.clone(),
         skill,
         provider_state,
         context_bundle,

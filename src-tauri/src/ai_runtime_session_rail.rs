@@ -106,6 +106,7 @@ fn ensure_session_shape(session: &Value, fallback_title: &str) -> Value {
         "waitingResume": session.get("waitingResume").cloned().unwrap_or(Value::Bool(false)),
         "waitingResumeMessage": session.get("waitingResumeMessage").cloned().unwrap_or(Value::String(String::new())),
         "planMode": session.get("planMode").cloned().unwrap_or(default_plan_mode),
+        "activeTurn": session.get("activeTurn").cloned().unwrap_or(Value::Null),
         "researchTask": session.get("researchTask").cloned().unwrap_or(Value::Null),
         "researchEvidence": session.get("researchEvidence").cloned().unwrap_or(Value::Array(vec![])),
         "researchVerifications": session.get("researchVerifications").cloned().unwrap_or(Value::Array(vec![])),

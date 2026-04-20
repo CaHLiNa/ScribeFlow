@@ -381,6 +381,92 @@ fn build_session_plan_mode_from_runtime_snapshot(snapshot: &Value) -> Value {
     })
 }
 
+fn build_session_active_turn_from_runtime_snapshot(snapshot: &Value, session: &Value) -> Value {
+    let thread = snapshot.get("thread").unwrap_or(&Value::Null);
+    let active_turn_id = string_field(thread, &["activeTurnId"]);
+    if active_turn_id.is_empty() || string_field(thread, &["status"]) != "running" {
+        return Value::Null;
+    }
+    let turns = snapshot
+        .get("turns")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let active_turn = turns
+        .into_iter()
+        .find(|turn| string_field(turn, &["id"]) == active_turn_id)
+        .unwrap_or(Value::Null);
+    let existing_active_turn = session.get("activeTurn").cloned().unwrap_or(Value::Null);
+    let permission_requests = snapshot
+        .get("permissionRequests")
+        .and_then(Value::as_array)
+        .map(|entries| entries.len())
+        .unwrap_or(0);
+    let ask_user_requests = snapshot
+        .get("askUserRequests")
+        .and_then(Value::as_array)
+        .map(|entries| entries.len())
+        .unwrap_or(0);
+    let exit_plan_requests = snapshot
+        .get("exitPlanRequests")
+        .and_then(Value::as_array)
+        .map(|entries| entries.len())
+        .unwrap_or(0);
+    let pending_request_count = permission_requests + ask_user_requests + exit_plan_requests;
+    let pending_request_kind = if permission_requests > 0 {
+        "permission"
+    } else if ask_user_requests > 0 {
+        "ask-user"
+    } else if exit_plan_requests > 0 {
+        "exit-plan"
+    } else {
+        ""
+    };
+    let phase = if snapshot
+        .get("planMode")
+        .and_then(|value| value.get("active"))
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    {
+        "plan"
+    } else if pending_request_count > 0 {
+        "approval"
+    } else {
+        "executing"
+    };
+    let label = {
+        let label = string_field(&existing_active_turn, &["label"]);
+        if label.is_empty() {
+            "Runtime turn".to_string()
+        } else {
+            label
+        }
+    };
+    json!({
+        "id": active_turn_id,
+        "threadId": string_field(thread, &["id"]),
+        "runtimeTurnId": active_turn_id,
+        "status": if pending_request_count > 0 { "awaiting-input" } else { "running" },
+        "phase": phase,
+        "label": label,
+        "summary": string_field(&existing_active_turn, &["summary"]),
+        "userInstruction": string_field(&existing_active_turn, &["userInstruction"]),
+        "pendingAssistantId": string_field(&existing_active_turn, &["pendingAssistantId"]),
+        "pendingRequestKind": pending_request_kind,
+        "pendingRequestId": string_field(&existing_active_turn, &["pendingRequestId"]),
+        "pendingRequestCount": pending_request_count,
+        "lastToolName": string_field(&existing_active_turn, &["lastToolName"]),
+        "transport": "codex-runtime",
+        "route": existing_active_turn.get("route").cloned().unwrap_or(Value::Null),
+        "startedAt": active_turn
+            .get("createdAt")
+            .or_else(|| active_turn.get("created_at"))
+            .and_then(Value::as_i64)
+            .unwrap_or_default(),
+        "updatedAt": chrono::Utc::now().timestamp_millis(),
+    })
+}
+
 fn build_runtime_snapshot_value(runtime: &CodexRuntimeState, thread_id: &str) -> Option<Value> {
     let thread = runtime.threads.get(thread_id)?.clone();
     let turns = thread
@@ -517,6 +603,7 @@ pub fn map_runtime_thread_snapshot_to_session(session: &Value, snapshot: &Value)
         build_session_exit_plan_requests_from_runtime_snapshot(snapshot),
     );
     next_session["planMode"] = build_session_plan_mode_from_runtime_snapshot(snapshot);
+    next_session["activeTurn"] = build_session_active_turn_from_runtime_snapshot(snapshot, session);
     next_session
 }
 
@@ -712,8 +799,23 @@ async fn ai_runtime_event_reduce(
     if event_type == "turnStarted" && !thread_id.is_empty() && !turn_id.is_empty() {
         let mut next_session = session.clone();
         next_session["runtimeThreadId"] = Value::String(thread_id);
-        next_session["runtimeTurnId"] = Value::String(turn_id);
+        next_session["runtimeTurnId"] = Value::String(turn_id.clone());
         next_session["runtimeTransport"] = Value::String("codex-runtime".to_string());
+        if next_session
+            .get("activeTurn")
+            .and_then(Value::as_object)
+            .is_some()
+        {
+            next_session["activeTurn"]["id"] = Value::String(turn_id.clone());
+            next_session["activeTurn"]["threadId"] =
+                Value::String(string_field(&next_session, &["runtimeThreadId"]));
+            next_session["activeTurn"]["runtimeTurnId"] = Value::String(turn_id);
+            next_session["activeTurn"]["status"] = Value::String("running".to_string());
+            next_session["activeTurn"]["phase"] = Value::String("executing".to_string());
+            next_session["activeTurn"]["transport"] = Value::String("codex-runtime".to_string());
+            next_session["activeTurn"]["updatedAt"] =
+                Value::Number(chrono::Utc::now().timestamp_millis().into());
+        }
         return Ok(AiRuntimeEventReduceResponse {
             handled: true,
             delete_session: false,

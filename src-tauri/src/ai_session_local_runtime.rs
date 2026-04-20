@@ -181,6 +181,38 @@ fn normalize_research_verifications(entries: &Value) -> Value {
     Value::Array(verifications)
 }
 
+fn normalize_active_turn(turn: &Value) -> Value {
+    if !turn.is_object() {
+        return Value::Null;
+    }
+
+    let id = string_field(turn, "id");
+    let status = string_field(turn, "status");
+    if id.trim().is_empty() && status.trim().is_empty() {
+        return Value::Null;
+    }
+
+    json!({
+        "id": id.trim(),
+        "threadId": string_field(turn, "threadId").trim(),
+        "runtimeTurnId": string_field(turn, "runtimeTurnId").trim(),
+        "status": status.trim(),
+        "phase": string_field(turn, "phase").trim(),
+        "label": string_field(turn, "label").trim(),
+        "summary": string_field(turn, "summary").trim(),
+        "userInstruction": string_field(turn, "userInstruction").trim(),
+        "pendingAssistantId": string_field(turn, "pendingAssistantId").trim(),
+        "pendingRequestKind": string_field(turn, "pendingRequestKind").trim(),
+        "pendingRequestId": string_field(turn, "pendingRequestId").trim(),
+        "pendingRequestCount": number_field(turn, "pendingRequestCount").max(0),
+        "lastToolName": string_field(turn, "lastToolName").trim(),
+        "transport": string_field(turn, "transport").trim(),
+        "route": turn.get("route").cloned().unwrap_or(Value::Null),
+        "startedAt": number_field(turn, "startedAt").max(0),
+        "updatedAt": number_field(turn, "updatedAt").max(0),
+    })
+}
+
 fn normalize_session(session: &Value, fallback_title: &str) -> Value {
     let fallback = if fallback_title.trim().is_empty() {
         "New session"
@@ -259,6 +291,7 @@ fn normalize_session(session: &Value, fallback_title: &str) -> Value {
         "waitingResume": bool_field(session, "waitingResume"),
         "waitingResumeMessage": string_field(session, "waitingResumeMessage"),
         "planMode": normalize_plan_mode(session.get("planMode").unwrap_or(&Value::Null)),
+        "activeTurn": normalize_active_turn(session.get("activeTurn").unwrap_or(&Value::Null)),
         "researchTask": normalize_research_task(session.get("researchTask").unwrap_or(&Value::Null)),
         "researchEvidence": normalize_research_evidence(session.get("researchEvidence").unwrap_or(&Value::Null)),
         "researchVerifications": normalize_research_verifications(session.get("researchVerifications").unwrap_or(&Value::Null)),
