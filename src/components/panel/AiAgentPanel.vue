@@ -310,8 +310,6 @@ const currentPermissionMode = computed(() => aiStore.currentPermissionMode)
 const currentRuntimeLabel = computed(() => {
   const model = String(aiStore.providerState.model || '').trim()
   if (model) return model
-  const profile = String(aiStore.providerState.profile || '').trim()
-  if (profile) return `profile:${profile}`
   return t('Using Codex defaults')
 })
 

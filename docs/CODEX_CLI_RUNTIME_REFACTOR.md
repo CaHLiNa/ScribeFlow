@@ -25,22 +25,15 @@
 
 1. `researchDefaults`
    - 默认引用样式
-   - evidence strategy
-   - completion threshold
 
 2. `codexCli`
    - `commandPath`
    - `model`
-   - `profile`
-   - `sandboxMode`
-   - `webSearch`
-   - `useAsciiWorkspaceAlias`
 
 这里的 `codexCli` 不是旧式模型接入配置，而是：
 
 - ACP bridge 要连接的 `codex` launcher
-- 默认 model/profile 覆盖
-- 运行时工作目录兼容设置
+- 可选的 model 覆盖
 
 ## Rust 运行时职责
 
@@ -95,14 +88,18 @@ Rust 侧当前承担以下职责：
 
 设置页保留：
 
-- `Research defaults`
 - `Codex ACP` runtime settings
 
 设置页不再表达：
 
 - 模型来源列表
+- 查证强度 / 完成标准
 - API key
 - 接入层连接测试
+- `profile`
+- `sandboxMode`
+- `webSearch`
+- `useAsciiWorkspaceAlias`
 - model pool
 
 ## 已删除的残留

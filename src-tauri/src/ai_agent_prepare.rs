@@ -238,12 +238,6 @@ fn build_codex_acp_runtime_state(config: &Value) -> Value {
         "label": "Codex ACP",
         "ready": true,
         "model": string_field(config, &["model"]),
-        "profile": string_field(config, &["profile"]),
-        "sandboxMode": string_field(config, &["sandboxMode", "sandbox"]),
-        "webSearch": config
-            .get("webSearch")
-            .and_then(Value::as_bool)
-            .unwrap_or(false),
         "runtimeBackend": "codex-acp",
     })
 }

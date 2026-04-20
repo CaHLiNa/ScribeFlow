@@ -41,9 +41,9 @@
 
 目标：删除 `hasKey`、`requiresApiKey`、`baseUrl`、`unifiedModelPool*`、`setCurrentProvider()`、`refreshUnifiedModelPool()` 这类旧 provider 模型残留，保留真正被 ACP 路径使用的 runtime 状态。
 
-- [ ] **Step 2: 简化面板中的模型与 provider 表达**
+- [ ] **Step 2: 简化面板中的模型与运行时表达**
 
-目标：AI 面板不再显示“伪 model pool 选择器”，改为 ACP runtime 状态展示；用户修改 `model/profile` 仍通过设置页完成。
+目标：AI 面板不再显示“伪 model pool 选择器”，改为 ACP runtime 状态展示；用户只保留 `model` 覆盖和 `commandPath` 配置。
 
 - [ ] **Step 3: 去掉无效 tool capability gating**
 

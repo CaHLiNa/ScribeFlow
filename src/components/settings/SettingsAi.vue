@@ -1,48 +1,5 @@
 <template>
   <div class="settings-agent-subpage">
-    <h3 class="settings-section-title">{{ t('Research defaults') }}</h3>
-
-    <section class="settings-group">
-      <h4 class="settings-group-title">{{ t('Research defaults') }}</h4>
-      <div class="settings-group-body">
-        <div class="settings-row">
-          <div class="settings-row-copy">
-            <div class="settings-row-title">{{ t('Verification depth') }}</div>
-            <div class="settings-row-hint">
-              {{ t('Controls how much extra checking and evidence gathering the AI should do before answering.') }}
-            </div>
-          </div>
-          <div class="settings-row-control">
-            <UiSelect
-              :model-value="researchDefaults.evidenceStrategy"
-              size="sm"
-              class="settings-ai-input"
-              :options="evidenceStrategyOptions"
-              @update:model-value="updateResearchDefault('evidenceStrategy', $event)"
-            />
-          </div>
-        </div>
-
-        <div class="settings-row">
-          <div class="settings-row-copy">
-            <div class="settings-row-title">{{ t('Completion standard') }}</div>
-            <div class="settings-row-hint">
-              {{ t('Controls how complete the AI should make the task before it can stop.') }}
-            </div>
-          </div>
-          <div class="settings-row-control">
-            <UiSelect
-              :model-value="researchDefaults.taskCompletionThreshold"
-              size="sm"
-              class="settings-ai-input"
-              :options="completionThresholdOptions"
-              @update:model-value="updateResearchDefault('taskCompletionThreshold', $event)"
-            />
-          </div>
-        </div>
-      </div>
-    </section>
-
     <h3 class="settings-section-title">Codex ACP</h3>
 
     <section class="settings-group">
@@ -93,60 +50,6 @@
           </div>
         </div>
 
-        <div class="settings-row">
-          <div class="settings-row-copy">
-            <div class="settings-row-title">{{ t('Profile') }}</div>
-          </div>
-          <div class="settings-row-control">
-            <UiInput
-              :model-value="codexCli.profile"
-              size="sm"
-              class="settings-ai-input"
-              :placeholder="t('Optional')"
-              @update:model-value="updateCodexCliField('profile', $event)"
-            />
-          </div>
-        </div>
-
-        <div class="settings-row">
-          <div class="settings-row-copy">
-            <div class="settings-row-title">{{ t('Sandbox mode') }}</div>
-          </div>
-          <div class="settings-row-control">
-            <UiSelect
-              :model-value="codexCli.sandboxMode"
-              size="sm"
-              class="settings-ai-input"
-              :options="sandboxModeOptions"
-              @update:model-value="updateCodexCliField('sandboxMode', $event)"
-            />
-          </div>
-        </div>
-
-        <div class="settings-row">
-          <div class="settings-row-copy">
-            <div class="settings-row-title">{{ t('Enable web search') }}</div>
-          </div>
-          <div class="settings-row-control compact">
-            <UiSwitch
-              :model-value="codexCli.webSearch"
-              @update:model-value="updateCodexCliBoolean('webSearch', $event)"
-            />
-          </div>
-        </div>
-
-        <div class="settings-row">
-          <div class="settings-row-copy">
-            <div class="settings-row-title">{{ t('ASCII workspace alias') }}</div>
-          </div>
-          <div class="settings-row-control compact">
-            <UiSwitch
-              :model-value="codexCli.useAsciiWorkspaceAlias"
-              @update:model-value="updateCodexCliBoolean('useAsciiWorkspaceAlias', $event)"
-            />
-          </div>
-        </div>
-
         <div class="settings-row settings-ai-actions-row">
           <div class="settings-row-control settings-ai-runtime-actions">
             <UiButton variant="secondary" size="sm" :disabled="saving" @click="refreshRuntimeState">
@@ -176,8 +79,6 @@ import { useAiStore } from '../../stores/ai'
 import { useReferencesStore } from '../../stores/references'
 import UiButton from '../shared/ui/UiButton.vue'
 import UiInput from '../shared/ui/UiInput.vue'
-import UiSelect from '../shared/ui/UiSelect.vue'
-import UiSwitch from '../shared/ui/UiSwitch.vue'
 
 const { t } = useI18n()
 const aiStore = useAiStore()
@@ -210,10 +111,6 @@ function defaultCodexCliConfig() {
   return {
     commandPath: 'codex',
     model: '',
-    profile: '',
-    sandboxMode: 'workspace-write',
-    webSearch: false,
-    useAsciiWorkspaceAlias: true,
   }
 }
 
@@ -228,67 +125,22 @@ const runtimeState = ref({
   version: '',
   error: '',
   model: '',
-  profile: '',
-  sandboxMode: 'workspace-write',
-  webSearch: false,
-  useAsciiWorkspaceAlias: true,
 })
 const codexCli = ref(defaultCodexCliConfig())
-const researchDefaults = ref({
-  evidenceStrategy: 'balanced',
-  taskCompletionThreshold: 'strict',
-})
-
-const evidenceStrategyOptions = computed(() => [
-  { value: 'focused', label: t('Light verification') },
-  { value: 'balanced', label: t('Standard verification') },
-  { value: 'strict', label: t('Strict verification') },
-])
-const completionThresholdOptions = computed(() => [
-  { value: 'fast', label: t('Good enough') },
-  { value: 'balanced', label: t('Mostly complete') },
-  { value: 'strict', label: t('Fully checked') },
-])
-const sandboxModeOptions = computed(() => [
-  { value: 'read-only', label: t('Read-only') },
-  { value: 'workspace-write', label: t('Workspace write') },
-  { value: 'danger-full-access', label: t('Danger full access') },
-])
 
 const runtimeSummary = computed(() => {
   if (!runtimeState.value.installed) {
     return t('ScribeFlow could not launch the configured Codex CLI command for the ACP bridge.')
   }
 
-  const bits = [
-    runtimeState.value.version,
-    codexCli.value.model
-      || (codexCli.value.profile ? `profile:${codexCli.value.profile}` : t('Using Codex defaults')),
-    codexCli.value.sandboxMode,
-    codexCli.value.webSearch ? t('Web search on') : t('Web search off'),
-  ].filter(Boolean)
+  const bits = [runtimeState.value.version, codexCli.value.model || t('Using Codex defaults')].filter(Boolean)
   return bits.join(' · ')
 })
-
-function updateResearchDefault(field = '', value = '') {
-  researchDefaults.value = {
-    ...researchDefaults.value,
-    [field]: String(value ?? '').trim(),
-  }
-}
 
 function updateCodexCliField(field = '', value = '') {
   codexCli.value = {
     ...codexCli.value,
     [field]: String(value ?? '').trim(),
-  }
-  inlineMessage.value = ''
-}
-
-function updateCodexCliBoolean(field = '', value = false) {
-  codexCli.value = {
-    ...codexCli.value,
-    [field]: value === true,
   }
   inlineMessage.value = ''
 }
@@ -326,10 +178,6 @@ function buildConfig() {
             || referencesStore.citationStyle
             || 'apa'
         ).trim() || 'apa',
-      evidenceStrategy:
-        String(researchDefaults.value.evidenceStrategy || 'balanced').trim() || 'balanced',
-      taskCompletionThreshold:
-        String(researchDefaults.value.taskCompletionThreshold || 'strict').trim() || 'strict',
     },
   }
 }
@@ -342,12 +190,6 @@ async function loadState() {
     codexCli.value = {
       ...defaultCodexCliConfig(),
       ...(config?.codexCli || {}),
-    }
-    researchDefaults.value = {
-      evidenceStrategy:
-        String(config?.researchDefaults?.evidenceStrategy || 'balanced').trim() || 'balanced',
-      taskCompletionThreshold:
-        String(config?.researchDefaults?.taskCompletionThreshold || 'strict').trim() || 'strict',
     }
     await refreshRuntimeState()
     await aiStore.refreshProviderState()

@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use crate::app_dirs;
 
-const AI_CONFIG_VERSION: i64 = 9;
+const AI_CONFIG_VERSION: i64 = 10;
 
 fn normalize_codex_cli_config(value: &Value) -> Value {
     let command_path = value
@@ -13,28 +13,10 @@ fn normalize_codex_cli_config(value: &Value) -> Value {
         .and_then(Value::as_str)
         .unwrap_or("codex")
         .trim();
-    let sandbox_mode = match value
-        .get("sandboxMode")
-        .or_else(|| value.get("sandbox"))
-        .and_then(Value::as_str)
-        .unwrap_or("workspace-write")
-        .trim()
-    {
-        "read-only" => "read-only",
-        "danger-full-access" => "danger-full-access",
-        _ => "workspace-write",
-    };
 
     json!({
         "commandPath": if command_path.is_empty() { "codex" } else { command_path },
         "model": value.get("model").and_then(Value::as_str).unwrap_or("").trim(),
-        "profile": value.get("profile").and_then(Value::as_str).unwrap_or("").trim(),
-        "sandboxMode": sandbox_mode,
-        "webSearch": value.get("webSearch").and_then(Value::as_bool).unwrap_or(false),
-        "useAsciiWorkspaceAlias": value
-            .get("useAsciiWorkspaceAlias")
-            .and_then(Value::as_bool)
-            .unwrap_or(true),
     })
 }
 
@@ -48,26 +30,6 @@ fn normalize_research_defaults(value: &Value) -> Value {
         .and_then(Value::as_str)
         .unwrap_or("apa")
         .trim();
-    let evidence_strategy = match value
-        .get("evidenceStrategy")
-        .and_then(Value::as_str)
-        .unwrap_or("balanced")
-        .trim()
-    {
-        "strict" => "strict",
-        "focused" => "focused",
-        _ => "balanced",
-    };
-    let completion_threshold = match value
-        .get("taskCompletionThreshold")
-        .and_then(Value::as_str)
-        .unwrap_or("strict")
-        .trim()
-    {
-        "fast" => "fast",
-        "balanced" => "balanced",
-        _ => "strict",
-    };
 
     json!({
         "defaultCitationStyle": if default_citation_style.is_empty() {
@@ -75,8 +37,6 @@ fn normalize_research_defaults(value: &Value) -> Value {
         } else {
             default_citation_style
         },
-        "evidenceStrategy": evidence_strategy,
-        "taskCompletionThreshold": completion_threshold,
     })
 }
 
