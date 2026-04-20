@@ -1,4 +1,3 @@
-mod ai_agent_execute;
 mod ai_agent_prepare;
 mod ai_agent_prompt;
 mod ai_agent_run;
@@ -7,12 +6,6 @@ mod ai_artifact_runtime;
 mod ai_attachment_runtime;
 mod ai_client_session_runtime;
 mod ai_config;
-mod ai_provider_catalog;
-mod ai_provider_credentials;
-mod ai_runtime;
-mod ai_runtime_session_rail;
-mod ai_runtime_thread_client;
-mod ai_runtime_turn_wait;
 mod ai_session_local_runtime;
 mod ai_session_storage;
 mod ai_skill_catalog;
@@ -463,11 +456,6 @@ pub fn run() {
             network::proxy_ai_responses,
             network::start_ai_responses_stream,
             network::abort_ai_responses_stream,
-            ai_runtime::start_ai_anthropic_sdk_stream,
-            ai_runtime::abort_ai_anthropic_sdk_stream,
-            ai_runtime::respond_ai_anthropic_sdk_permission,
-            ai_runtime::respond_ai_anthropic_sdk_ask_user,
-            ai_runtime::respond_ai_anthropic_sdk_exit_plan,
             ai_agent_prepare::ai_agent_prepare_current_config,
             ai_agent_run::ai_agent_run_prepared_session,
             ai_artifact_runtime::ai_artifact_apply_doc_patch,
@@ -485,20 +473,8 @@ pub fn run() {
             codex_cli::codex_cli_state_resolve,
             codex_cli::codex_cli_run,
             codex_cli::codex_cli_interrupt,
-            ai_provider_catalog::ai_provider_catalog_list,
-            ai_provider_catalog::ai_provider_state_resolve,
-            ai_provider_catalog::ai_provider_models_list,
-            ai_provider_catalog::ai_provider_connection_test,
-            ai_provider_credentials::ai_provider_api_key_load,
-            ai_provider_credentials::ai_provider_api_key_store,
-            ai_provider_credentials::ai_provider_api_key_clear,
             ai_session_local_runtime::ai_session_local_mutate,
             ai_session_local_runtime::ai_session_state_normalize,
-            ai_runtime_session_rail::ai_runtime_session_rail_reconcile,
-            ai_runtime_thread_client::ai_runtime_thread_snapshot_to_session,
-            ai_runtime_thread_client::ai_runtime_interrupt_session,
-            ai_runtime_thread_client::ai_runtime_event_route,
-            ai_runtime_turn_wait::ai_runtime_turn_run_wait,
             ai_skill_catalog::ai_skill_catalog_load,
             ai_skill_management::ai_skill_create,
             ai_skill_management::ai_skill_import,
@@ -518,24 +494,6 @@ pub fn run() {
             research_task_runtime::research_task_update,
             research_verification_runtime::research_verification_run,
             research_verification_runtime::research_verification_list,
-            codex_runtime::runtime_thread_start,
-            codex_runtime::runtime_thread_list,
-            codex_runtime::runtime_thread_read,
-            codex_runtime::runtime_thread_rename,
-            codex_runtime::runtime_thread_archive,
-            codex_runtime::runtime_thread_unarchive,
-            codex_runtime::runtime_thread_fork,
-            codex_runtime::runtime_thread_rollback,
-            codex_runtime::runtime_turn_start,
-            codex_runtime::runtime_turn_interrupt,
-            codex_runtime::runtime_turn_run,
-            codex_runtime::runtime_permission_request,
-            codex_runtime::runtime_permission_resolve,
-            codex_runtime::runtime_ask_user_request,
-            codex_runtime::runtime_ask_user_resolve,
-            codex_runtime::runtime_exit_plan_request,
-            codex_runtime::runtime_exit_plan_resolve,
-            codex_runtime::runtime_plan_mode_set,
             keychain::keychain_set,
             keychain::keychain_get,
             keychain::keychain_delete,

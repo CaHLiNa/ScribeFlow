@@ -4,8 +4,6 @@ use std::path::Path;
 use tokio::task;
 
 use crate::ai_config::ai_config_load_internal;
-use crate::ai_provider_catalog::resolve_provider_state_value;
-use crate::ai_provider_credentials::load_ai_provider_api_key_internal;
 use crate::ai_turn_policy::{normalize_permission_mode, resolve_default_permission_mode};
 use crate::ai_turn_router::{resolve_turn_route, TurnRouterInput};
 use crate::fs_io::read_text_file_with_limit;
@@ -993,35 +991,19 @@ pub async fn ai_agent_prepare_current_config(
     params: AiAgentPrepareCurrentConfigParams,
 ) -> Result<Value, String> {
     let config = ai_config_load_internal().await?;
-    let runtime_backend = string_field(&config, &["runtimeBackend"]);
-    let (provider_id, provider_config, api_key, mut provider_state) =
-        if runtime_backend == "codex-cli" {
-            let codex_cli_config = config.get("codexCli").cloned().unwrap_or(Value::Null);
-            (
-                "codex-cli".to_string(),
-                codex_cli_config.clone(),
-                String::new(),
-                json!({
-                    "providerId": "codex-cli",
-                    "label": "Codex CLI",
-                    "ready": true,
-                    "requiresApiKey": false,
-                    "baseUrl": "",
-                    "model": string_field(&codex_cli_config, &["model"]),
-                    "approvalMode": "never",
-                }),
-            )
-        } else {
-            let provider_id = string_field(&config, &["currentProviderId"]);
-            let provider_config = config
-                .get("providers")
-                .and_then(|providers| providers.get(&provider_id))
-                .cloned()
-                .unwrap_or(Value::Null);
-            let api_key = load_ai_provider_api_key_internal(&provider_id)?.unwrap_or_default();
-            let provider_state = resolve_provider_state_value(&provider_id, &provider_config, &api_key);
-            (provider_id, provider_config, api_key, provider_state)
-        };
+    let runtime_backend = "codex-cli".to_string();
+    let provider_id = "codex-cli".to_string();
+    let provider_config = config.get("codexCli").cloned().unwrap_or(Value::Null);
+    let api_key = String::new();
+    let mut provider_state = json!({
+        "providerId": "codex-cli",
+        "label": "Codex CLI",
+        "ready": true,
+        "requiresApiKey": false,
+        "baseUrl": "",
+        "model": string_field(&provider_config, &["model"]),
+        "approvalMode": "never",
+    });
     if let Some(map) = provider_state.as_object_mut() {
         map.insert(
             "enabledToolIds".to_string(),
@@ -1032,11 +1014,7 @@ pub async fn ai_agent_prepare_current_config(
         );
         map.insert(
             "runtimeBackend".to_string(),
-            Value::String(if runtime_backend.is_empty() {
-                "codex-cli".to_string()
-            } else {
-                runtime_backend.clone()
-            }),
+            Value::String(runtime_backend.clone()),
         );
     }
 

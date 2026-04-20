@@ -1,6 +1,5 @@
 import { defineStore } from 'pinia'
 import { invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
 import { nanoid } from './utils'
 import {
   buildAiContextBundle,
@@ -18,20 +17,12 @@ import { useToastStore } from './toast'
 import { t } from '../i18n/index.js'
 import { useWorkspaceStore } from './workspace'
 
-const CODEX_RUNTIME_EVENT = 'codex-runtime-event'
-let codexRuntimeUnlisten = null
-
 async function loadAiConfig() {
   return invoke('ai_config_load')
 }
 
 async function saveAiConfig(config = null) {
   return invoke('ai_config_save', { config: config || {} })
-}
-
-async function loadAiApiKey(providerId = 'openai') {
-  const apiKey = await invoke('ai_provider_api_key_load', { providerId })
-  return normalizeAiApiKey(apiKey)
 }
 
 async function resolveCodexCliState(config = {}) {
@@ -46,77 +37,18 @@ async function interruptCodexCliRun(sessionId = '') {
   })
 }
 
-function normalizeAiApiKey(apiKey = '') {
-  return typeof apiKey === 'string' ? apiKey : String(apiKey ?? '')
-}
-
-async function resolveAiProviderState(providerId = 'openai', providerConfig = {}, apiKey = '') {
-  return invoke('ai_provider_state_resolve', {
-    providerId,
-    providerConfig,
-    apiKey: normalizeAiApiKey(apiKey),
-  })
-}
-
-async function listAiProviderModels(providerId = 'openai', providerConfig = {}, apiKey = '') {
-  return invoke('ai_provider_models_list', {
-    providerId,
-    providerConfig,
-    apiKey: normalizeAiApiKey(apiKey),
-  })
-}
-
-async function listAiProviderDefinitions() {
-  return invoke('ai_provider_catalog_list')
-}
-
-async function setCurrentAiProvider(providerId = 'openai') {
+async function setCurrentAiProviderAndModel(providerId = 'codex-cli', model = '') {
   const config = await loadAiConfig()
-  if (String(config?.runtimeBackend || '').trim() === 'codex-cli') {
-    return config
-  }
-  const normalizedProviderId = String(providerId || '').trim().toLowerCase() || 'openai'
   const nextConfig = {
     ...(config || {}),
-    currentProviderId: normalizedProviderId === 'openai-compatible' ? 'openai' : normalizedProviderId,
-  }
-  await saveAiConfig(nextConfig)
-  return nextConfig
-}
-
-async function setCurrentAiProviderAndModel(providerId = 'openai', model = '') {
-  const config = await loadAiConfig()
-  if (String(config?.runtimeBackend || '').trim() === 'codex-cli') {
-    const nextConfig = {
-      ...(config || {}),
-      codexCli: {
-        ...(config?.codexCli || {}),
-        model: String(model || '').trim(),
-      },
-    }
-    await saveAiConfig(nextConfig)
-    return nextConfig
-  }
-  const currentProviderId = String(providerId || config?.currentProviderId || 'openai').trim() || 'openai'
-  const providerConfig = config?.providers?.[currentProviderId] || {}
-  const normalizedModel = String(model || '').trim()
-  const nextConfig = {
-    ...(config || {}),
-    currentProviderId,
-    providers: {
-      ...(config?.providers || {}),
-      [currentProviderId]: {
-        ...providerConfig,
-        model: normalizedModel,
-      },
+    codexCli: {
+      ...(config?.codexCli || {}),
+      providerId: String(providerId || 'codex-cli').trim() || 'codex-cli',
+      model: String(model || '').trim(),
     },
   }
   await saveAiConfig(nextConfig)
   return nextConfig
-}
-
-function buildUnifiedModelPoolKey(providerId = '', model = '') {
-  return `${String(providerId || '').trim()}::${String(model || '').trim()}`
 }
 
 function parseUnifiedModelPoolKey(value = '') {
@@ -129,50 +61,6 @@ function parseUnifiedModelPoolKey(value = '') {
     providerId: normalized.slice(0, separatorIndex).trim(),
     model: normalized.slice(separatorIndex + 2).trim(),
   }
-}
-
-async function respondAnthropicAgentSdkPermission({
-  streamId = '',
-  requestId = '',
-  behavior = 'deny',
-  persist = false,
-  message = '',
-} = {}) {
-  return invoke('respond_ai_anthropic_sdk_permission', {
-    response: {
-      stream_id: streamId,
-      request_id: requestId,
-      behavior,
-      persist,
-      message,
-    },
-  })
-}
-
-async function respondAnthropicAgentSdkAskUser({ streamId = '', requestId = '', answers = {} } = {}) {
-  return invoke('respond_ai_anthropic_sdk_ask_user', {
-    response: {
-      stream_id: streamId,
-      request_id: requestId,
-      answers,
-    },
-  })
-}
-
-async function respondAnthropicAgentSdkExitPlan({
-  streamId = '',
-  requestId = '',
-  action = 'deny',
-  feedback = '',
-} = {}) {
-  return invoke('respond_ai_anthropic_sdk_exit_plan', {
-    response: {
-      stream_id: streamId,
-      request_id: requestId,
-      action,
-      feedback,
-    },
-  })
 }
 
 async function createClientSessionRust(params = {}) {
@@ -198,32 +86,6 @@ async function createAiAttachmentRecord(path = '', { workspacePath = '' } = {}) 
       path,
       workspacePath,
     },
-  })
-}
-
-async function readCodexRuntimeThread(threadId = '') {
-  return invoke('runtime_thread_read', {
-    params: {
-      threadId,
-    },
-  })
-}
-
-async function resolveCodexRuntimePermission(request = {}) {
-  return invoke('runtime_permission_resolve', { params: request })
-}
-
-async function resolveCodexRuntimeAskUser(request = {}) {
-  return invoke('runtime_ask_user_resolve', { params: request })
-}
-
-async function resolveCodexRuntimeExitPlan(request = {}) {
-  return invoke('runtime_exit_plan_resolve', { params: request })
-}
-
-async function listenCodexRuntimeEvents(onEvent = () => {}) {
-  return listen(CODEX_RUNTIME_EVENT, (event) => {
-    onEvent(event?.payload || {})
   })
 }
 
@@ -419,22 +281,6 @@ async function runPreparedAgentSessionRust(params = {}) {
   return invoke('ai_agent_run_prepared_session', { params })
 }
 
-async function syncRuntimeThreadSnapshotToSessionRust(params = {}) {
-  return invoke('ai_runtime_thread_snapshot_to_session', { params })
-}
-
-async function interruptRuntimeSessionRust(params = {}) {
-  return invoke('ai_runtime_interrupt_session', { params })
-}
-
-async function routeRuntimeEventRust(params = {}) {
-  return invoke('ai_runtime_event_route', { params })
-}
-
-async function reconcileRuntimeSessionRailRust(params = {}) {
-  return invoke('ai_runtime_session_rail_reconcile', { params })
-}
-
 async function mutateSessionLocalRust(session = {}, kind = '', payload = {}) {
   const response = await invoke('ai_session_local_mutate', {
     params: {
@@ -494,39 +340,22 @@ function currentWorkspacePath() {
   return String(useWorkspaceStore().path || '').trim()
 }
 
-function resolveDefaultSessionPermissionMode({
-  mode = 'agent',
-  providerId = '',
-  providerConfig = null,
-} = {}) {
+function resolveDefaultSessionPermissionMode({ mode = 'agent' } = {}) {
   if (String(mode || '').trim() === 'chat') {
     return 'accept-edits'
-  }
-
-  if (String(providerId || '').trim() === 'anthropic') {
-    return normalizeSessionPermissionMode(providerConfig?.sdk?.approvalMode || 'per-tool')
   }
 
   return 'accept-edits'
 }
 
-function resolveEffectiveSessionPermissionMode({
-  session = null,
-  mode = '',
-  providerId = '',
-  providerConfig = null,
-} = {}) {
+function resolveEffectiveSessionPermissionMode({ session = null, mode = '' } = {}) {
   if (String(mode || session?.mode || '').trim() === 'chat') {
     return 'chat'
   }
 
-  const fallback = resolveDefaultSessionPermissionMode({
-    mode: 'agent',
-    providerId,
-    providerConfig,
-  })
-
-  return normalizeSessionPermissionMode(session?.permissionMode || fallback)
+  return normalizeSessionPermissionMode(
+    session?.permissionMode || resolveDefaultSessionPermissionMode({ mode: 'agent' })
+  )
 }
 
 function scrubTransientAgentSessionState(session = {}) {
@@ -568,7 +397,6 @@ export const useAiStore = defineStore('ai', {
       enabledToolIds: [],
       baseUrl: '',
       model: '',
-      approvalMode: 'per-tool',
       profile: '',
       sandboxMode: 'workspace-write',
       runtimeBackend: 'codex-cli',
@@ -716,12 +544,6 @@ export const useAiStore = defineStore('ai', {
       return resolveEffectiveSessionPermissionMode({
         session: this.currentSession,
         mode: this.currentSession?.mode,
-        providerId: this.providerState.currentProviderId,
-        providerConfig: {
-          sdk: {
-            approvalMode: this.providerState.approvalMode,
-          },
-        },
       })
     },
 
@@ -881,15 +703,7 @@ export const useAiStore = defineStore('ai', {
         title: String(title || '').trim() || buildDefaultSessionTitle(this.sessions.length + 1),
         activate,
         mode: normalizedMode,
-        permissionMode: resolveDefaultSessionPermissionMode({
-          mode: normalizedMode,
-          providerId: this.providerState.currentProviderId,
-          providerConfig: {
-            sdk: {
-              approvalMode: this.providerState.approvalMode,
-            },
-          },
-        }),
+        permissionMode: resolveDefaultSessionPermissionMode({ mode: normalizedMode }),
         fallbackTitle: buildDefaultSessionTitle(1),
         cwd: useWorkspaceStore().path || '',
       })
@@ -920,7 +734,6 @@ export const useAiStore = defineStore('ai', {
       )
       this.currentSessionId = String(nextState?.state?.currentSessionId || '').trim()
       this.persistCurrentWorkspaceSessions()
-      void this.syncSessionFromCodexRuntimeThread(this.currentSessionId)
       return true
     },
 
@@ -1101,33 +914,8 @@ export const useAiStore = defineStore('ai', {
       )
       if (!request) return false
 
-      try {
-        if (request.runtimeManaged === true) {
-          await resolveCodexRuntimeAskUser({
-            requestId: request.requestId,
-            answers: answers && typeof answers === 'object' ? answers : {},
-          })
-        } else {
-          await respondAnthropicAgentSdkAskUser({
-            streamId: request.streamId,
-            requestId: request.requestId,
-            answers: answers && typeof answers === 'object' ? answers : {},
-          })
-        }
-        this.clearAskUserRequest(normalizedRequestId, targetSession?.id)
-        return true
-      } catch (error) {
-        const message =
-          error instanceof Error ? error.message : String(error || t('AI execution failed.'))
-        if (targetSession) {
-          await this.updateSessionById(targetSession.id, (session) => ({
-            ...session,
-            lastError: message,
-          }))
-        }
-        useToastStore().show(message, { type: 'error' })
-        return false
-      }
+      this.clearAskUserRequest(normalizedRequestId, targetSession?.id)
+      return true
     },
 
     queueExitPlanRequest(event = {}, sessionId = '') {
@@ -1176,35 +964,8 @@ export const useAiStore = defineStore('ai', {
       )
       if (!request) return false
 
-      try {
-        if (request.runtimeManaged === true) {
-          await resolveCodexRuntimeExitPlan({
-            requestId: request.requestId,
-            action,
-            feedback,
-          })
-        } else {
-          await respondAnthropicAgentSdkExitPlan({
-            streamId: request.streamId,
-            requestId: request.requestId,
-            action,
-            feedback,
-          })
-        }
-        this.clearExitPlanRequest(normalizedRequestId, targetSession?.id)
-        return true
-      } catch (error) {
-        const message =
-          error instanceof Error ? error.message : String(error || t('AI execution failed.'))
-        if (targetSession) {
-          await this.updateSessionById(targetSession.id, (session) => ({
-            ...session,
-            lastError: message,
-          }))
-        }
-        useToastStore().show(message, { type: 'error' })
-        return false
-      }
+      this.clearExitPlanRequest(normalizedRequestId, targetSession?.id)
+      return true
     },
 
     setPlanModeState(sessionId = '', planMode = {}) {
@@ -1313,288 +1074,49 @@ export const useAiStore = defineStore('ai', {
       )
       if (!request) return false
 
-      try {
-        if (request.runtimeManaged === true) {
-          await resolveCodexRuntimePermission({
-            requestId: request.requestId,
-            behavior,
-            persist,
-            message: '',
-          })
-        } else if (persist && this.providerState.currentProviderId === 'anthropic' && request.toolName) {
-          const config = await loadAiConfig()
-          const anthropicConfig = config?.providers?.anthropic || {}
-          await saveAiConfig({
-            ...config,
-            providers: {
-              ...config.providers,
-              anthropic: {
-                ...anthropicConfig,
-                sdk: {
-                  ...(anthropicConfig.sdk || {}),
-                  toolPolicies: {
-                    ...((anthropicConfig.sdk && anthropicConfig.sdk.toolPolicies) || {}),
-                    [request.toolName]: 'allow',
-                  },
-                },
-              },
-            },
-          })
-          await this.refreshProviderState()
-        }
-
-        if (request.runtimeManaged !== true) {
-          await respondAnthropicAgentSdkPermission({
-            streamId: request.streamId,
-            requestId: request.requestId,
-            behavior,
-            persist,
-          })
-        }
-        this.clearPermissionRequest(normalizedRequestId, targetSession?.id)
-        return true
-      } catch (error) {
-        const message =
-          error instanceof Error ? error.message : String(error || t('AI execution failed.'))
-        if (targetSession) {
-          await this.updateSessionById(targetSession.id, (session) => ({
-            ...session,
-            lastError: message,
-          }))
-        }
-        useToastStore().show(message, { type: 'error' })
-        return false
-      }
+      this.clearPermissionRequest(normalizedRequestId, targetSession?.id)
+      return true
     },
 
     async refreshProviderState() {
       const config = await loadAiConfig()
-      const runtimeBackend = String(config?.runtimeBackend || 'codex-cli').trim() || 'codex-cli'
-      if (runtimeBackend === 'codex-cli') {
-        const resolvedState = await resolveCodexCliState(config?.codexCli || {})
-        this.providerState = {
-          ready: resolvedState?.ready === true,
-          hasKey: true,
-          requiresApiKey: false,
-          currentProviderId: 'codex-cli',
-          currentProviderLabel: 'Codex CLI',
-          enabledToolIds: [],
-          baseUrl: '',
-          model: String(resolvedState?.model || '').trim(),
-          approvalMode: 'never',
-          profile: String(resolvedState?.profile || '').trim(),
-          sandboxMode: String(resolvedState?.sandboxMode || 'workspace-write').trim(),
-          runtimeBackend,
-          installed: resolvedState?.installed === true,
-          version: String(resolvedState?.version || '').trim(),
-        }
-        this.unifiedModelPoolOptions = []
-        this.unifiedModelPoolError = ''
-        return this.providerState
-      }
-      const currentProviderId = String(config?.currentProviderId || 'openai').trim()
-      const providerConfig = config?.providers?.[currentProviderId] || {}
-      const apiKey = await loadAiApiKey(currentProviderId)
-      const resolvedState = await resolveAiProviderState(currentProviderId, providerConfig, apiKey)
-
+      const resolvedState = await resolveCodexCliState(config?.codexCli || {})
       this.providerState = {
         ready: resolvedState?.ready === true,
-        hasKey: !!String(apiKey || '').trim(),
-        requiresApiKey: resolvedState?.requiresApiKey !== false,
-        currentProviderId,
-        currentProviderLabel: String(resolvedState?.label || currentProviderId).trim(),
+        hasKey: true,
+        requiresApiKey: false,
+        currentProviderId: 'codex-cli',
+        currentProviderLabel: 'Codex CLI',
         enabledToolIds: [],
-        baseUrl: String(resolvedState?.baseUrl || providerConfig?.baseUrl || '').trim(),
-        model: String(resolvedState?.model || providerConfig?.model || '').trim(),
-        approvalMode: String(resolvedState?.approvalMode || providerConfig?.sdk?.approvalMode || 'per-tool').trim(),
+        baseUrl: '',
+        model: String(resolvedState?.model || '').trim(),
+        profile: String(resolvedState?.profile || '').trim(),
+        sandboxMode: String(resolvedState?.sandboxMode || 'workspace-write').trim(),
+        runtimeBackend: 'codex-cli',
+        installed: resolvedState?.installed === true,
+        version: String(resolvedState?.version || '').trim(),
       }
+      this.unifiedModelPoolOptions = []
+      this.unifiedModelPoolError = ''
       return this.providerState
     },
 
-    async setCurrentProvider(providerId = '') {
-      await setCurrentAiProvider(providerId)
+    async setCurrentProvider(_providerId = '') {
       return this.refreshProviderState()
     },
 
     async refreshUnifiedModelPool({ force = false } = {}) {
-      const config = await loadAiConfig()
-      if (String(config?.runtimeBackend || 'codex-cli').trim() === 'codex-cli') {
-        this.unifiedModelPoolOptions = []
-        this.unifiedModelPoolError = ''
-        return []
-      }
-      if (this.unifiedModelPoolLoading) {
-        return this.unifiedModelPoolOptions
-      }
-      if (!force && Array.isArray(this.unifiedModelPoolOptions) && this.unifiedModelPoolOptions.length > 0) {
-        return this.unifiedModelPoolOptions
-      }
-
-      this.unifiedModelPoolLoading = true
+      void force
+      this.unifiedModelPoolOptions = []
       this.unifiedModelPoolError = ''
-
-      try {
-        const [config, catalog] = await Promise.all([loadAiConfig(), listAiProviderDefinitions()])
-        const providerDefinitions = Array.isArray(catalog?.providers) ? catalog.providers : []
-        const options = []
-
-        for (const provider of providerDefinitions) {
-          const providerId = String(provider?.id || '').trim()
-          if (!providerId) continue
-
-          const providerConfig = config?.providers?.[providerId] || {}
-          const baseUrl = String(providerConfig?.baseUrl || provider?.defaultBaseUrl || '').trim()
-          if (!baseUrl) continue
-
-          const apiKey = await loadAiApiKey(providerId).catch(() => '')
-          const response = await listAiProviderModels(providerId, providerConfig, apiKey).catch(() => null)
-          const providerOptions = Array.isArray(response?.options) ? response.options : []
-
-          for (const option of providerOptions) {
-            const modelValue = String(option?.value || '').trim()
-            if (!modelValue) continue
-            const modelLabel = String(option?.label || modelValue).trim() || modelValue
-            const providerLabel = String(provider?.label || providerId).trim() || providerId
-            options.push({
-              value: buildUnifiedModelPoolKey(providerId, modelValue),
-              label: `${modelLabel} · ${providerLabel}`,
-              triggerLabel: modelLabel,
-              providerId,
-              providerLabel,
-              model: modelValue,
-              modelLabel,
-            })
-          }
-        }
-
-        options.sort((left, right) => {
-          const leftLabel = String(left?.modelLabel || left?.triggerLabel || '').trim()
-          const rightLabel = String(right?.modelLabel || right?.triggerLabel || '').trim()
-          if (leftLabel === rightLabel) {
-            return String(left?.providerLabel || left?.providerId || '').localeCompare(
-              String(right?.providerLabel || right?.providerId || '').trim()
-            )
-          }
-          return leftLabel.localeCompare(rightLabel)
-        })
-
-        this.unifiedModelPoolOptions = options
-        return this.unifiedModelPoolOptions
-      } catch (error) {
-        this.unifiedModelPoolOptions = []
-        this.unifiedModelPoolError =
-          error instanceof Error ? error.message : String(error || t('Failed to load models.'))
-        return []
-      } finally {
-        this.unifiedModelPoolLoading = false
-      }
+      return []
     },
 
     async setCurrentModel(modelSelection = '') {
-      const { providerId, model } = parseUnifiedModelPoolKey(modelSelection)
-      const targetProviderId = providerId || this.providerState.currentProviderId || 'openai'
-      await setCurrentAiProviderAndModel(targetProviderId, model)
+      const { model } = parseUnifiedModelPoolKey(modelSelection)
+      await setCurrentAiProviderAndModel('codex-cli', model)
       await this.refreshProviderState()
       return this.providerState
-    },
-
-    async ensureCodexRuntimeBridge() {
-      if (typeof codexRuntimeUnlisten !== 'function') {
-        const store = this
-        codexRuntimeUnlisten = await listenCodexRuntimeEvents((payload = {}) => {
-          void store.handleCodexRuntimeEvent(payload)
-        })
-      }
-
-      await this.refreshCodexRuntimeSessions()
-    },
-
-    async refreshCodexRuntimeSessions() {
-      try {
-        const reconciled = await reconcileRuntimeSessionRailRust({
-          sessions: this.sessions,
-          currentSessionId: this.currentSessionId,
-          fallbackTitle: buildDefaultSessionTitle(1),
-          workspacePath: currentWorkspacePath(),
-        })
-        const normalized = ensureManagedAgentSessionsState({
-          sessions: mergeOverlaySessionState(
-            this.sessions,
-            Array.isArray(reconciled?.sessions) ? reconciled.sessions : [],
-            buildDefaultSessionTitle(1)
-          ),
-          currentSessionId: String(reconciled?.currentSessionId || '').trim(),
-          fallbackTitle: buildDefaultSessionTitle(1),
-        })
-        const nextState = await normalizeSessionStateRust({
-          sessions: normalized.sessions,
-          currentSessionId: normalized.currentSessionId,
-          fallbackTitle: normalized.fallbackTitle,
-        })
-        this.sessions = Array.isArray(nextState?.sessions) ? nextState.sessions : []
-        this.currentSessionId = String(nextState?.currentSessionId || '').trim()
-        this.persistCurrentWorkspaceSessions()
-        return this.sessions
-      } catch {
-        return []
-      }
-    },
-
-    async syncSessionFromCodexRuntimeThread(sessionId = '') {
-      const targetSession = resolveAgentSessionRecord(
-        this.sessions,
-        sessionId || this.currentSessionId
-      )
-      const runtimeThreadId = String(targetSession?.runtimeThreadId || '').trim()
-      if (!targetSession || !runtimeThreadId) return null
-
-      try {
-        const response = await readCodexRuntimeThread(runtimeThreadId)
-        const snapshot = response?.snapshot || null
-        if (!snapshot?.thread) return null
-
-        const mapped = await syncRuntimeThreadSnapshotToSessionRust({
-          session: targetSession,
-          snapshot,
-        })
-        await this.updateSessionById(targetSession.id, () => mapped.session)
-        return snapshot
-      } catch {
-        return null
-      }
-    },
-
-    async handleCodexRuntimeEvent(payload = {}) {
-      const routed = await routeRuntimeEventRust({
-        sessions: this.sessions,
-        payload,
-        pendingSessions: Object.entries(this.runtimePendingSessions || {}).map(
-          ([sessionId, state]) => ({
-            sessionId,
-            pendingAssistantId: String(state?.pendingAssistantId || '').trim(),
-            stopRequested: state?.stopRequested === true,
-          })
-        ),
-      })
-      if (routed?.handled !== true) return
-
-      if (String(routed?.deleteSessionId || '').trim()) {
-        if (this.sessions.length > 1) {
-          void this.deleteSession(routed.deleteSessionId)
-        }
-        return
-      }
-
-      const targetSessionId = String(routed?.targetSessionId || '').trim()
-      if (!targetSessionId) return
-
-      if (routed?.session) {
-        await this.updateSessionById(targetSessionId, () => routed.session)
-      }
-
-      if (routed?.stopRequested === true) {
-        void this.stopCurrentRun(targetSessionId)
-      }
     },
 
     async runActiveSkill(options = {}) {
@@ -1706,7 +1228,7 @@ export const useAiStore = defineStore('ai', {
             ensuredThreadState?.session?.runtime_transport
               || ensuredThreadState?.session?.runtimeTransport
               || session.runtimeTransport
-              || 'codex-runtime'
+              || 'codex-cli'
           ).trim(),
           title:
             Array.isArray(session.messages) && session.messages.length > 0
@@ -1763,7 +1285,6 @@ export const useAiStore = defineStore('ai', {
           userMessageId,
           createdAt: Date.now(),
           fallbackTitle: buildDefaultSessionTitle(this.sessions.length),
-          cwd: useWorkspaceStore().path || '',
         })
 
         await this.updateSessionById(sessionId, () => runResponse?.session)
@@ -1839,11 +1360,7 @@ export const useAiStore = defineStore('ai', {
       }
 
       const response =
-        String(targetSession.runtimeTransport || '').trim() === 'codex-cli'
-          ? await interruptCodexCliRun(targetSession.id).catch(() => null)
-          : await interruptRuntimeSessionRust({
-              session: targetSession,
-            }).catch(() => null)
+        await interruptCodexCliRun(targetSession.id).catch(() => null)
       if (response?.interrupted === true) {
         return true
       }

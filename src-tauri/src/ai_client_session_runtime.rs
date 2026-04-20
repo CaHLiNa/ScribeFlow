@@ -76,7 +76,7 @@ fn patch_overlay_session_thread_binding(
                 if session.id == normalized_session_id {
                     if !normalized_thread_id.is_empty() {
                         session.runtime_thread_id = normalized_thread_id.to_string();
-                        session.runtime_transport = "codex-runtime".to_string();
+                        session.runtime_transport = "codex-cli".to_string();
                     }
                     if !normalized_title.is_empty() {
                         session.title = normalized_title.to_string();

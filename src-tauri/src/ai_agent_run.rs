@@ -1,12 +1,8 @@
-use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
-use base64::Engine as _;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::fs;
-use tauri::{AppHandle, Runtime, State};
+use tauri::{AppHandle, Runtime};
 use uuid::Uuid;
 
-use crate::ai_agent_execute::{ai_agent_execute, AiAgentExecuteParams};
 use crate::ai_agent_prompt::{ai_agent_build_prompt, AiAgentPromptParams};
 use crate::ai_agent_session_runtime::{
     ai_agent_session_complete, ai_agent_session_fail, ai_agent_session_finalize,
@@ -14,15 +10,7 @@ use crate::ai_agent_session_runtime::{
     AiAgentSessionFailParams, AiAgentSessionFinalizeParams, AiAgentSessionInterruptParams,
     AiAgentSessionStartParams,
 };
-use crate::ai_runtime_turn_wait::run_turn_and_wait;
-use crate::ai_skill_support::load_skill_supporting_files;
 use crate::codex_cli::{codex_cli_run, CodexCliRunParams};
-use crate::codex_runtime::{
-    protocol::{RuntimeProviderConfig, RuntimeThreadStartParams, RuntimeTurnRunParams},
-    storage::persist_runtime_state,
-    threads::start_thread,
-    CodexRuntimeHandle,
-};
 use crate::research_evidence_runtime::{
     ensure_context_bundle_evidence, list_research_evidence_for_task,
 };
@@ -31,63 +19,6 @@ use crate::research_task_runtime::{
     ensure_research_task_for_thread, research_task_update, sync_research_task_artifacts_for_thread,
     sync_research_task_context_for_thread,
 };
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AiAgentRunParams {
-    #[serde(default)]
-    pub skill: Value,
-    #[serde(default)]
-    pub context_bundle: Value,
-    #[serde(default)]
-    pub config: Value,
-    #[serde(default)]
-    pub api_key: String,
-    #[serde(default)]
-    pub user_instruction: String,
-    #[serde(default)]
-    pub conversation: Vec<Value>,
-    #[serde(default)]
-    pub scribeflow_skills: Vec<Value>,
-    #[serde(default)]
-    pub attachments: Vec<Value>,
-    #[serde(default)]
-    pub referenced_files: Vec<Value>,
-    #[serde(default)]
-    pub requested_tools: Vec<Value>,
-    #[serde(default)]
-    pub requested_tool_mentions: Vec<String>,
-    #[serde(default)]
-    pub runtime_intent: String,
-    #[serde(default)]
-    pub turn_route: Value,
-    #[serde(default)]
-    pub invocation: Value,
-    #[serde(default)]
-    pub resolved_task: Value,
-    #[serde(default)]
-    pub required_evidence: Vec<String>,
-    #[serde(default)]
-    pub selected_artifacts: Vec<String>,
-    #[serde(default)]
-    pub verification_plan: Vec<String>,
-    #[serde(default)]
-    pub research_context_graph: Value,
-    #[serde(default)]
-    pub research_config: Value,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AiAgentRunResponse {
-    pub skill: Value,
-    pub behavior_id: String,
-    pub events: Vec<Value>,
-    pub transport: String,
-    pub content: String,
-    pub payload: Value,
-    pub artifact: Option<Value>,
-}
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -102,8 +33,6 @@ pub struct AiAgentRunStartedSessionParams {
     pub pending_assistant_id: String,
     #[serde(default)]
     pub created_at: i64,
-    #[serde(default)]
-    pub cwd: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -123,8 +52,6 @@ pub struct AiAgentRunPreparedSessionParams {
     pub created_at: i64,
     #[serde(default)]
     pub fallback_title: String,
-    #[serde(default)]
-    pub cwd: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -148,19 +75,6 @@ fn string_field(value: &Value, keys: &[&str]) -> String {
         }
     }
     String::new()
-}
-
-fn bool_available(section: &Value) -> bool {
-    section
-        .get("available")
-        .and_then(Value::as_bool)
-        .unwrap_or(false)
-}
-
-fn bool_field(value: &Value, keys: &[&str]) -> bool {
-    keys.iter()
-        .find_map(|key| value.get(*key).and_then(Value::as_bool))
-        .unwrap_or(false)
 }
 
 fn array_field(value: &Value, keys: &[&str]) -> Vec<Value> {
@@ -354,396 +268,6 @@ fn now_ms() -> i64 {
     chrono::Utc::now().timestamp_millis()
 }
 
-fn slugify(value: &str) -> String {
-    let mut output = String::new();
-    let mut last_dash = false;
-    for ch in value.trim().chars().flat_map(|ch| ch.to_lowercase()) {
-        if ch.is_ascii_alphanumeric() {
-            output.push(ch);
-            last_dash = false;
-        } else if !last_dash {
-            output.push('-');
-            last_dash = true;
-        }
-    }
-    output.trim_matches('-').to_string()
-}
-
-fn build_doc_patch_artifact(payload: &Value, context_bundle: &Value) -> Option<Value> {
-    let replacement_text = {
-        let text = string_field(
-            payload,
-            &["replacement_text", "revised_paragraph", "paragraph"],
-        );
-        if text.is_empty() {
-            return None;
-        }
-        text
-    };
-    let selection = context_bundle.get("selection").unwrap_or(&Value::Null);
-    let document = context_bundle.get("document").unwrap_or(&Value::Null);
-    if !bool_available(selection) || !bool_available(document) {
-        return None;
-    }
-    let title = {
-        let title = string_field(payload, &["title"]);
-        if title.is_empty() {
-            "Document patch".to_string()
-        } else {
-            title
-        }
-    };
-
-    Some(json!({
-        "type": "doc_patch",
-        "capabilityToolId": "apply-document-patch",
-        "capabilityLabelKey": "Apply to draft",
-        "filePath": string_field(document, &["filePath", "file_path"]),
-        "from": selection.get("from").cloned().unwrap_or(Value::Null),
-        "to": selection.get("to").cloned().unwrap_or(Value::Null),
-        "originalText": string_field(selection, &["text"]),
-        "replacementText": replacement_text,
-        "title": title,
-        "rationale": string_field(payload, &["rationale"]),
-        "citationSuggestion": string_field(payload, &["citation_suggestion"]),
-    }))
-}
-
-fn build_citation_insert_artifact(payload: &Value, context_bundle: &Value) -> Option<Value> {
-    let document = context_bundle.get("document").unwrap_or(&Value::Null);
-    let selection = context_bundle.get("selection").unwrap_or(&Value::Null);
-    let reference = context_bundle.get("reference").unwrap_or(&Value::Null);
-    if !bool_available(document) || !bool_available(selection) || !bool_available(reference) {
-        return None;
-    }
-
-    let file_path = string_field(document, &["filePath", "file_path"]);
-    let insert_at = selection.get("to").and_then(Value::as_i64).unwrap_or(-1);
-    let reference_id = string_field(reference, &["id"]);
-    let citation_key = string_field(reference, &["citationKey", "citation_key"]);
-    if file_path.is_empty() || insert_at < 0 || (reference_id.is_empty() && citation_key.is_empty())
-    {
-        return None;
-    }
-    let title = {
-        let title = string_field(payload, &["title"]);
-        if title.is_empty() {
-            "Insert citation".to_string()
-        } else {
-            title
-        }
-    };
-
-    Some(json!({
-        "type": "citation_insert",
-        "capabilityToolId": "apply-document-patch",
-        "capabilityLabelKey": "Insert citation",
-        "title": title,
-        "filePath": file_path,
-        "insertAt": insert_at,
-        "referenceId": reference_id,
-        "citationKey": citation_key,
-        "selectionPreview": string_field(selection, &["preview", "text"]),
-        "citationSuggestion": string_field(payload, &["citation_suggestion"]),
-        "rationale": string_field(payload, &["rationale"]),
-    }))
-}
-
-fn build_reference_patch_artifact(payload: &Value, context_bundle: &Value) -> Option<Value> {
-    let reference = context_bundle.get("reference").unwrap_or(&Value::Null);
-    if !bool_available(reference) {
-        return None;
-    }
-    let updates = payload
-        .get("reference_updates")
-        .filter(|value| value.is_object())
-        .cloned()
-        .unwrap_or(Value::Null);
-    if !updates.is_object() {
-        return None;
-    }
-    let reference_id = string_field(reference, &["id"]);
-    if reference_id.is_empty() {
-        return None;
-    }
-    let title = {
-        let title = string_field(payload, &["title"]);
-        if title.is_empty() {
-            "Reference update".to_string()
-        } else {
-            title
-        }
-    };
-    Some(json!({
-        "type": "reference_patch",
-        "capabilityLabelKey": "Apply reference update",
-        "title": title,
-        "referenceId": reference_id,
-        "citationKey": string_field(reference, &["citationKey", "citation_key"]),
-        "referenceTitle": string_field(reference, &["title"]),
-        "updates": updates,
-        "originalReference": reference.clone(),
-        "rationale": string_field(payload, &["rationale"]),
-    }))
-}
-
-fn build_note_draft_artifact(payload: &Value, context_bundle: &Value) -> Option<Value> {
-    build_note_style_artifact(
-        "note_draft",
-        payload,
-        context_bundle,
-        &["note_markdown", "content", "summary_markdown", "paragraph"],
-        "AI note",
-        "Open as draft",
-    )
-}
-
-fn build_note_style_artifact(
-    artifact_type: &str,
-    payload: &Value,
-    context_bundle: &Value,
-    content_keys: &[&str],
-    default_title: &str,
-    capability_label_key: &str,
-) -> Option<Value> {
-    let content = string_field(payload, content_keys);
-    if content.is_empty() {
-        return None;
-    }
-    let title = {
-        let title = string_field(payload, &["title"]);
-        if title.is_empty() {
-            default_title.to_string()
-        } else {
-            title
-        }
-    };
-    let slug = {
-        let value = slugify(&title);
-        if value.is_empty() {
-            "ai-note".to_string()
-        } else {
-            value
-        }
-    };
-    let rationale = string_field(payload, &["rationale", "takeaway"]);
-    Some(json!({
-        "type": artifact_type,
-        "capabilityToolId": "open-note-draft",
-        "capabilityLabelKey": capability_label_key,
-        "title": title,
-        "suggestedName": format!("{slug}.md"),
-        "content": content,
-        "sourceFilePath": string_field(context_bundle.get("document").unwrap_or(&Value::Null), &["filePath", "file_path"]),
-        "rationale": rationale,
-    }))
-}
-
-fn build_related_work_outline_artifact(payload: &Value, context_bundle: &Value) -> Option<Value> {
-    build_note_style_artifact(
-        "related_work_outline",
-        payload,
-        context_bundle,
-        &["outline_markdown", "note_markdown", "outline", "content"],
-        "Related work outline",
-        "Open outline draft",
-    )
-}
-
-fn build_reading_note_bundle_artifact(payload: &Value, context_bundle: &Value) -> Option<Value> {
-    build_note_style_artifact(
-        "reading_note_bundle",
-        payload,
-        context_bundle,
-        &[
-            "reading_note_markdown",
-            "note_markdown",
-            "summary_markdown",
-            "content",
-        ],
-        "Reading note",
-        "Open reading note",
-    )
-}
-
-fn build_supporting_reference_lines(payload: &Value) -> Vec<String> {
-    payload
-        .get("supporting_references")
-        .and_then(Value::as_array)
-        .cloned()
-        .unwrap_or_default()
-        .into_iter()
-        .filter_map(|entry| {
-            let citation_key = string_field(&entry, &["citationKey", "citation_key"]);
-            let title = string_field(&entry, &["title"]);
-            let why_relevant = string_field(&entry, &["whyRelevant", "why_relevant"]);
-            let evidence_excerpt = string_field(&entry, &["evidenceExcerpt", "evidence_excerpt"]);
-            if citation_key.is_empty()
-                && title.is_empty()
-                && why_relevant.is_empty()
-                && evidence_excerpt.is_empty()
-            {
-                return None;
-            }
-
-            let header = [citation_key, title]
-                .into_iter()
-                .filter(|value| !value.is_empty())
-                .collect::<Vec<_>>()
-                .join(" · ");
-            let mut lines = vec![format!(
-                "- {}",
-                if header.is_empty() {
-                    "Supporting reference".to_string()
-                } else {
-                    header
-                }
-            )];
-            if !why_relevant.is_empty() {
-                lines.push(format!("  - Why relevant: {why_relevant}"));
-            }
-            if !evidence_excerpt.is_empty() {
-                lines.push(format!("  - Evidence: {evidence_excerpt}"));
-            }
-            Some(lines.join("\n"))
-        })
-        .collect()
-}
-
-fn build_evidence_bundle_artifact(payload: &Value, context_bundle: &Value) -> Option<Value> {
-    let mut sections = Vec::new();
-    let answer = string_field(payload, &["answer"]);
-    if !answer.is_empty() {
-        sections.push(answer);
-    }
-    let supporting_lines = build_supporting_reference_lines(payload);
-    if !supporting_lines.is_empty() {
-        sections.push(format!(
-            "## Supporting references\n{}",
-            supporting_lines.join("\n")
-        ));
-    }
-    let evidence_markdown = string_field(
-        payload,
-        &[
-            "evidence_bundle_markdown",
-            "evidence_markdown",
-            "claim_evidence_markdown",
-        ],
-    );
-    if !evidence_markdown.is_empty() {
-        sections.push(evidence_markdown);
-    }
-    let rationale = string_field(payload, &["rationale"]);
-    if !rationale.is_empty() {
-        sections.push(format!("## Why this matters\n{rationale}"));
-    }
-    let content = sections
-        .into_iter()
-        .filter(|section| !section.trim().is_empty())
-        .collect::<Vec<_>>()
-        .join("\n\n");
-    if content.is_empty() {
-        return None;
-    }
-    let selection = context_bundle.get("selection").unwrap_or(&Value::Null);
-    let title = {
-        let value = string_field(payload, &["title"]);
-        if value.is_empty() {
-            "Evidence bundle".to_string()
-        } else {
-            value
-        }
-    };
-    Some(json!({
-        "type": "evidence_bundle",
-        "title": title,
-        "content": content,
-        "selectionPreview": string_field(selection, &["preview", "text"]),
-        "rationale": string_field(payload, &["rationale"]),
-    }))
-}
-
-fn build_claim_evidence_map_artifact(payload: &Value, context_bundle: &Value) -> Option<Value> {
-    build_note_style_artifact(
-        "claim_evidence_map",
-        payload,
-        context_bundle,
-        &[
-            "claim_evidence_markdown",
-            "claim_map_markdown",
-            "evidence_bundle_markdown",
-            "content",
-        ],
-        "Claim evidence map",
-        "Open claim map",
-    )
-}
-
-fn build_compile_fix_artifact(payload: &Value, context_bundle: &Value) -> Option<Value> {
-    build_note_style_artifact(
-        "compile_fix",
-        payload,
-        context_bundle,
-        &[
-            "compile_fix_markdown",
-            "fix_markdown",
-            "steps_markdown",
-            "content",
-        ],
-        "Compile fix",
-        "Open compile fix",
-    )
-}
-
-fn build_comparison_table_artifact(payload: &Value, context_bundle: &Value) -> Option<Value> {
-    build_note_style_artifact(
-        "comparison_table",
-        payload,
-        context_bundle,
-        &[
-            "comparison_table_markdown",
-            "table_markdown",
-            "comparison_markdown",
-            "content",
-        ],
-        "Paper comparison",
-        "Open comparison table",
-    )
-}
-
-fn normalize_artifact(behavior_id: &str, payload: &Value, context_bundle: &Value) -> Option<Value> {
-    match behavior_id {
-        "revise-with-citations" => build_doc_patch_artifact(payload, context_bundle),
-        "draft-related-work" => {
-            let selection_available =
-                bool_available(context_bundle.get("selection").unwrap_or(&Value::Null));
-            if selection_available {
-                build_doc_patch_artifact(payload, context_bundle)
-                    .or_else(|| build_related_work_outline_artifact(payload, context_bundle))
-                    .or_else(|| build_note_draft_artifact(payload, context_bundle))
-            } else {
-                build_related_work_outline_artifact(payload, context_bundle)
-                    .or_else(|| build_note_draft_artifact(payload, context_bundle))
-            }
-        }
-        "summarize-selection" => build_reading_note_bundle_artifact(payload, context_bundle)
-            .or_else(|| build_note_draft_artifact(payload, context_bundle)),
-        "find-supporting-references" => build_reference_patch_artifact(payload, context_bundle)
-            .or_else(|| build_citation_insert_artifact(payload, context_bundle))
-            .or_else(|| build_claim_evidence_map_artifact(payload, context_bundle))
-            .or_else(|| build_evidence_bundle_artifact(payload, context_bundle)),
-        "fix-latex-compile" => build_compile_fix_artifact(payload, context_bundle)
-            .or_else(|| build_note_draft_artifact(payload, context_bundle)),
-        "compare-papers" => build_comparison_table_artifact(payload, context_bundle)
-            .or_else(|| build_note_draft_artifact(payload, context_bundle)),
-        _ => None,
-    }
-    .or_else(|| build_claim_evidence_map_artifact(payload, context_bundle))
-    .or_else(|| build_compile_fix_artifact(payload, context_bundle))
-    .or_else(|| build_comparison_table_artifact(payload, context_bundle))
-}
-
 fn build_artifact_evidence_preview(evidence_entries: &[Value]) -> Vec<Value> {
     evidence_entries
         .iter()
@@ -853,41 +377,6 @@ fn build_artifact_record(
     Some(Value::Object(object))
 }
 
-fn should_use_codex_runtime_run(prepared_run: &Value) -> bool {
-    if !bool_field(prepared_run, &["ok"]) {
-        return false;
-    }
-    if string_field(
-        prepared_run.get("turnRoute").unwrap_or(&Value::Null),
-        &["runtimeIntent", "runtime_intent"],
-    ) != "agent"
-        && string_field(prepared_run, &["runtimeIntent"]) != "agent"
-    {
-        return false;
-    }
-    let config = prepared_run.get("config").unwrap_or(&Value::Null);
-    if string_field(prepared_run, &["providerId"]) == "anthropic" {
-        let sdk = config.get("sdk").unwrap_or(&Value::Null);
-        if string_field(sdk, &["runtimeMode", "runtime_mode"]) == "sdk" {
-            return false;
-        }
-    }
-    true
-}
-
-fn should_use_native_runtime_inputs(
-    provider_id: &str,
-    turn_route: &Value,
-    runtime_intent: &str,
-) -> bool {
-    let route_runtime_intent = string_field(turn_route, &["runtimeIntent", "runtime_intent"]);
-    if route_runtime_intent.trim() != "agent" && runtime_intent.trim() != "agent" {
-        return false;
-    }
-    let normalized = provider_id.trim().to_lowercase();
-    normalized != "anthropic" && normalized != "google"
-}
-
 fn should_hydrate_research_task(turn_route: &Value, runtime_intent: &str) -> bool {
     if turn_route
         .get("shouldHydrateResearchTask")
@@ -912,339 +401,6 @@ fn truncate_text(value: &str, max_chars: usize) -> String {
             .collect::<String>()
             .trim_end()
     )
-}
-
-fn build_native_text_input_item(text: String) -> Option<Value> {
-    let normalized = text.trim().to_string();
-    if normalized.is_empty() {
-        return None;
-    }
-    Some(json!({
-        "type": "message",
-        "role": "user",
-        "content": [{
-            "type": "input_text",
-            "text": normalized,
-        }],
-    }))
-}
-
-fn build_native_attachment_input_items(attachments: &[Value]) -> Vec<Value> {
-    attachments
-        .iter()
-        .filter_map(|attachment| {
-            let name = string_field(attachment, &["name"]);
-            let path = string_field(attachment, &["path"]);
-            let relative_path = string_field(attachment, &["relativePath", "relative_path"]);
-            let display_path = if relative_path.is_empty() {
-                path.clone()
-            } else {
-                relative_path
-            };
-            let media_type = string_field(attachment, &["mediaType", "media_type"]);
-
-            if media_type.starts_with("image/") && !path.is_empty() {
-                match fs::read(&path) {
-                    Ok(bytes) => Some(json!({
-                        "type": "message",
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "input_text",
-                                "text": format!(
-                                    "Attached image: {}{}",
-                                    if name.is_empty() { "image".to_string() } else { name.clone() },
-                                    if display_path.is_empty() {
-                                        String::new()
-                                    } else {
-                                        format!(" ({display_path})")
-                                    }
-                                ),
-                            },
-                            {
-                                "type": "input_image",
-                                "image_url": format!(
-                                    "data:{};base64,{}",
-                                    media_type,
-                                    BASE64_STANDARD.encode(bytes)
-                                ),
-                            }
-                        ],
-                    })),
-                    Err(error) => Some(json!({
-                        "type": "message",
-                        "role": "user",
-                        "content": [{
-                            "type": "input_text",
-                            "text": format!(
-                                "Attached image could not be read: {}{}: {}",
-                                if name.is_empty() { "image".to_string() } else { name.clone() },
-                                if display_path.is_empty() {
-                                    String::new()
-                                } else {
-                                    format!(" ({display_path})")
-                                },
-                                error
-                            ),
-                        }],
-                    })),
-                }
-            } else {
-                let read_error = string_field(attachment, &["readError", "read_error"]);
-                let content = string_field(attachment, &["content"]);
-                if !read_error.is_empty() {
-                    return Some(json!({
-                        "type": "message",
-                        "role": "user",
-                        "content": [{
-                            "type": "input_text",
-                            "text": format!(
-                                "Attached file could not be read: {}{}: {}",
-                                if name.is_empty() { "file".to_string() } else { name.clone() },
-                                if display_path.is_empty() {
-                                    String::new()
-                                } else {
-                                    format!(" ({display_path})")
-                                },
-                                read_error
-                            ),
-                        }],
-                    }));
-                }
-                if content.is_empty() {
-                    return None;
-                }
-                Some(json!({
-                    "type": "message",
-                    "role": "user",
-                    "content": [{
-                        "type": "input_text",
-                        "text": format!(
-                            "Attached file: {}{} ({})\n\n{}",
-                            if name.is_empty() { "file".to_string() } else { name.clone() },
-                            if display_path.is_empty() {
-                                String::new()
-                            } else {
-                                format!(" ({display_path})")
-                            },
-                            if media_type.is_empty() { "unknown".to_string() } else { media_type },
-                            content
-                        ),
-                    }],
-                }))
-            }
-        })
-        .collect()
-}
-
-fn build_native_context_bundle_input_items(context_bundle: &Value) -> Vec<Value> {
-    let workspace = context_bundle.get("workspace").unwrap_or(&Value::Null);
-    let document = context_bundle.get("document").unwrap_or(&Value::Null);
-    let selection = context_bundle.get("selection").unwrap_or(&Value::Null);
-    let reference = context_bundle.get("reference").unwrap_or(&Value::Null);
-
-    let selection_text = {
-        let preview = string_field(selection, &["preview"]);
-        if preview.is_empty() {
-            string_field(selection, &["text"])
-        } else {
-            preview
-        }
-    };
-    let reference_bits = [
-        string_field(reference, &["citationKey", "citation_key"]),
-        string_field(reference, &["title"]),
-    ]
-    .into_iter()
-    .filter(|entry| !entry.is_empty())
-    .collect::<Vec<_>>()
-    .join(" · ");
-
-    let context_text = [
-        "Runtime context:".to_string(),
-        format!("- Workspace: {}", {
-            let path = string_field(workspace, &["path"]);
-            if path.is_empty() {
-                "Unavailable".to_string()
-            } else {
-                path
-            }
-        }),
-        format!("- Active document: {}", {
-            let path = string_field(document, &["filePath", "file_path"]);
-            if path.is_empty() {
-                "Unavailable".to_string()
-            } else {
-                path
-            }
-        }),
-        format!(
-            "- Selection: {}",
-            if selection_text.is_empty() {
-                "Unavailable".to_string()
-            } else {
-                truncate_text(&selection_text, 4000)
-            }
-        ),
-        format!(
-            "- Reference: {}",
-            if reference_bits.is_empty() {
-                "Unavailable".to_string()
-            } else {
-                reference_bits
-            }
-        ),
-    ]
-    .join("\n");
-
-    build_native_text_input_item(context_text)
-        .into_iter()
-        .collect()
-}
-
-fn build_native_referenced_file_input_items(referenced_files: &[Value]) -> Vec<Value> {
-    referenced_files
-        .iter()
-        .filter_map(|file| {
-            let path = {
-                let relative = string_field(file, &["relativePath", "relative_path"]);
-                if relative.is_empty() {
-                    string_field(file, &["path"])
-                } else {
-                    relative
-                }
-            };
-            let content = string_field(file, &["content"]);
-            let text = if content.is_empty() {
-                format!("Referenced file: {path}\n(content unavailable)")
-            } else {
-                format!(
-                    "Referenced file: {path}\n\n```text\n{}\n```",
-                    truncate_text(&content, 5000)
-                )
-            };
-            build_native_text_input_item(text)
-        })
-        .collect()
-}
-
-fn build_native_support_file_input_items(skill: &Value) -> Vec<Value> {
-    load_skill_supporting_files(skill)
-        .into_iter()
-        .filter_map(|file| {
-            let relative_path = string_field(&file, &["relativePath", "relative_path"]);
-            let content = string_field(&file, &["content"]);
-            build_native_text_input_item(format!(
-                "Skill support file: {}\n\n```text\n{}\n```",
-                if relative_path.is_empty() {
-                    "unknown".to_string()
-                } else {
-                    relative_path
-                },
-                truncate_text(&content, 5000)
-            ))
-        })
-        .collect()
-}
-
-fn build_native_requested_tool_input_items(requested_tools: &[Value]) -> Vec<Value> {
-    let items = requested_tools
-        .iter()
-        .filter_map(|tool| tool.as_str().map(str::trim))
-        .filter(|tool| !tool.is_empty())
-        .map(|tool| format!("- {tool}"))
-        .collect::<Vec<_>>();
-    if items.is_empty() {
-        return Vec::new();
-    }
-    build_native_text_input_item(format!("User-mentioned tools:\n{}", items.join("\n")))
-        .into_iter()
-        .collect()
-}
-
-fn build_native_runtime_input_items(
-    skill: &Value,
-    context_bundle: &Value,
-    attachments: &[Value],
-    referenced_files: &[Value],
-    requested_tools: &[Value],
-) -> Vec<Value> {
-    let mut items = Vec::new();
-    items.extend(build_native_context_bundle_input_items(context_bundle));
-    items.extend(build_native_attachment_input_items(attachments));
-    items.extend(build_native_referenced_file_input_items(referenced_files));
-    items.extend(build_native_support_file_input_items(skill));
-    items.extend(build_native_requested_tool_input_items(requested_tools));
-    items
-}
-
-fn build_runtime_provider_config(
-    provider_id: &str,
-    config: &Value,
-    api_key: &str,
-    system_prompt: &str,
-    permission_mode: &str,
-) -> RuntimeProviderConfig {
-    RuntimeProviderConfig {
-        provider_id: provider_id.to_string(),
-        base_url: config
-            .get("baseUrl")
-            .or_else(|| config.get("base_url"))
-            .and_then(Value::as_str)
-            .unwrap_or_default()
-            .to_string(),
-        api_key: api_key.to_string(),
-        model: config
-            .get("model")
-            .and_then(Value::as_str)
-            .unwrap_or_default()
-            .to_string(),
-        permission_mode: permission_mode.to_string(),
-        system_prompt: system_prompt.to_string(),
-        temperature: config
-            .get("temperature")
-            .and_then(Value::as_f64)
-            .map(|value| value as f32),
-        max_tokens: config
-            .get("maxTokens")
-            .or_else(|| config.get("max_tokens"))
-            .and_then(Value::as_u64)
-            .map(|value| value as u32),
-    }
-}
-
-async fn ensure_runtime_thread(
-    runtime_handle: &CodexRuntimeHandle,
-    session: &Value,
-    fallback_title: &str,
-    cwd: &str,
-) -> Result<String, String> {
-    let existing_thread_id = string_field(session, &["runtimeThreadId", "runtime_thread_id"]);
-    if !existing_thread_id.is_empty() {
-        return Ok(existing_thread_id);
-    }
-
-    let mut runtime = runtime_handle.inner.lock().await;
-    let thread = start_thread(
-        &mut runtime,
-        RuntimeThreadStartParams {
-            title: {
-                let current_title = string_field(session, &["title"]);
-                if current_title.is_empty() {
-                    fallback_title.trim().to_string()
-                } else {
-                    current_title
-                }
-            },
-            cwd: if cwd.trim().is_empty() {
-                None
-            } else {
-                Some(cwd.trim().to_string())
-            },
-        },
-    );
-    persist_runtime_state(&runtime)?;
-    Ok(thread.id)
 }
 
 fn response_with_session(
@@ -1287,124 +443,8 @@ fn codex_cli_session_id(session: &Value) -> String {
     format!("codex-cli:{}", Uuid::new_v4())
 }
 
-async fn ai_agent_run(params: AiAgentRunParams) -> Result<AiAgentRunResponse, String> {
-    let workspace_path = string_field(
-        params
-            .context_bundle
-            .get("workspace")
-            .unwrap_or(&Value::Null),
-        &["path"],
-    );
-    let enabled_tool_ids = params
-        .config
-        .get("enabledTools")
-        .and_then(Value::as_array)
-        .map(|entries| {
-            entries
-                .iter()
-                .filter_map(|entry| entry.as_str().map(|value| value.to_string()))
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default();
-    let should_use_native_runtime_items = should_use_native_runtime_inputs(
-        params
-            .config
-            .get("providerId")
-            .and_then(Value::as_str)
-            .unwrap_or("openai"),
-        &params.turn_route,
-        &params.runtime_intent,
-    );
-    let native_runtime_inputs = if should_use_native_runtime_items {
-        build_native_runtime_input_items(
-            &params.skill,
-            &params.context_bundle,
-            &params.attachments,
-            &params.referenced_files,
-            &params.requested_tools,
-        )
-    } else {
-        Vec::new()
-    };
-
-    let prompt = ai_agent_build_prompt(AiAgentPromptParams {
-        skill: params.skill.clone(),
-        context_bundle: params.context_bundle.clone(),
-        user_instruction: params.user_instruction.clone(),
-        conversation: params.conversation.clone(),
-        scribeflow_skills: params.scribeflow_skills.clone(),
-        support_files: Vec::new(),
-        attachments: if should_use_native_runtime_items {
-            Vec::new()
-        } else {
-            params.attachments.clone()
-        },
-        referenced_files: if should_use_native_runtime_items {
-            Vec::new()
-        } else {
-            params.referenced_files.clone()
-        },
-        requested_tools: if should_use_native_runtime_items {
-            Vec::new()
-        } else {
-            params.requested_tools.clone()
-        },
-        enabled_tool_ids: enabled_tool_ids.clone(),
-        runtime_intent: params.runtime_intent.clone(),
-        runtime_native_inputs: should_use_native_runtime_items,
-        turn_route: params.turn_route.clone(),
-        invocation: params.invocation.clone(),
-        resolved_task: params.resolved_task.clone(),
-        required_evidence: params.required_evidence.clone(),
-        selected_artifacts: params.selected_artifacts.clone(),
-        verification_plan: params.verification_plan.clone(),
-        research_context_graph: params.research_context_graph.clone(),
-        research_config: params.research_config.clone(),
-    })
-    .await?;
-
-    let executed = ai_agent_execute(AiAgentExecuteParams {
-        provider_id: params
-            .config
-            .get("providerId")
-            .and_then(Value::as_str)
-            .unwrap_or("openai")
-            .to_string(),
-        skill: params.skill.clone(),
-        config: params.config.clone(),
-        api_key: params.api_key.clone(),
-        conversation: params.conversation.clone(),
-        user_prompt: prompt.user_prompt.clone(),
-        supplemental_user_items: native_runtime_inputs,
-        system_prompt: prompt.system_prompt.clone(),
-        context_bundle: params.context_bundle.clone(),
-        support_files: Vec::new(),
-        enabled_tool_ids: prompt.enabled_tool_ids.clone(),
-        requested_tool_mentions: params.requested_tool_mentions.clone(),
-        workspace_path,
-    })
-    .await?;
-
-    let artifact = normalize_artifact(
-        &prompt.behavior_id,
-        &executed.payload,
-        &params.context_bundle,
-    );
-
-    Ok(AiAgentRunResponse {
-        skill: params.skill,
-        behavior_id: prompt.behavior_id,
-        events: executed.events,
-        transport: executed.transport,
-        content: executed.content,
-        payload: executed.payload,
-        artifact,
-    })
-}
-
 async fn ai_agent_run_started_session<R: Runtime>(
-    app: AppHandle<R>,
-    runtime_state: State<'_, CodexRuntimeHandle>,
+    _app: AppHandle<R>,
     params: AiAgentRunStartedSessionParams,
 ) -> Result<AiAgentRunStartedSessionResponse, String> {
     let prepared_run = params.prepared_run;
@@ -1418,12 +458,9 @@ async fn ai_agent_run_started_session<R: Runtime>(
         .get("contextBundle")
         .cloned()
         .unwrap_or(Value::Null);
-    let provider_id = string_field(&prepared_run, &["providerId"]);
     let config = prepared_run.get("config").cloned().unwrap_or(Value::Null);
-    let api_key = string_field(&prepared_run, &["apiKey"]);
     let user_instruction = string_field(&prepared_run, &["userInstruction"]);
     let runtime_intent = string_field(&prepared_run, &["runtimeIntent"]);
-    let effective_permission_mode = string_field(&prepared_run, &["effectivePermissionMode"]);
     let turn_route = prepared_run
         .get("turnRoute")
         .cloned()
@@ -1459,16 +496,6 @@ async fn ai_agent_run_started_session<R: Runtime>(
         .filter_map(|entry| entry.as_str().map(|value| value.trim().to_string()))
         .filter(|value| !value.is_empty())
         .collect::<Vec<_>>();
-    let requested_tool_mentions = prepared_run
-        .get("requestedToolMentions")
-        .and_then(Value::as_array)
-        .map(|entries| {
-            entries
-                .iter()
-                .filter_map(|entry| entry.as_str().map(|value| value.to_string()))
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default();
     let invocation = prepared_run
         .get("invocation")
         .cloned()
@@ -1488,256 +515,80 @@ async fn ai_agent_run_started_session<R: Runtime>(
 
     let execution_result: Result<(Value, Option<Value>, Option<Value>, Value), String> = async {
         let mut execution_session = session.clone();
-        if provider_id == "codex-cli" {
-            if should_hydrate_research_task(&turn_route, &runtime_intent) {
-                execution_session = hydrate_research_context_for_session(
-                    execution_session,
-                    &skill,
-                    &context_bundle,
-                    &user_instruction,
-                    &resolved_task,
-                )
-                .await?;
-            }
-
-            let enabled_tool_ids = prepared_run
-                .get("enabledToolIds")
-                .and_then(Value::as_array)
-                .map(|entries| {
-                    entries
-                        .iter()
-                        .filter_map(|entry| entry.as_str().map(|value| value.to_string()))
-                        .collect::<Vec<_>>()
-                })
-                .unwrap_or_default();
-            let prompt = ai_agent_build_prompt(AiAgentPromptParams {
-                skill: skill.clone(),
-                context_bundle: context_bundle.clone(),
-                user_instruction: user_instruction.clone(),
-                conversation: prior_conversation.clone(),
-                scribeflow_skills: params.scribeflow_skills.clone(),
-                support_files: Vec::new(),
-                attachments: attachments.clone(),
-                referenced_files: referenced_files.clone(),
-                requested_tools: requested_tools.clone(),
-                enabled_tool_ids,
-                runtime_intent: runtime_intent.clone(),
-                runtime_native_inputs: false,
-                turn_route: turn_route.clone(),
-                invocation: invocation.clone(),
-                resolved_task: resolved_task.clone(),
-                required_evidence: required_evidence.clone(),
-                selected_artifacts: selected_artifacts.clone(),
-                verification_plan: verification_plan.clone(),
-                research_context_graph: research_context_graph.clone(),
-                research_config: research_config.clone(),
-            })
-            .await?;
-
-            let codex_result = codex_cli_run(CodexCliRunParams {
-                session_id: codex_cli_session_id(&execution_session),
-                prompt: codex_cli_prompt_text(&prompt.system_prompt, &prompt.user_prompt),
-                cwd: string_field(
-                    context_bundle.get("workspace").unwrap_or(&Value::Null),
-                    &["path"],
-                ),
-                config: config.clone(),
-            })
-            .await?;
-
-            let runtime_thread_id = string_field(&codex_result, &["threadId", "thread_id"]);
-            if !runtime_thread_id.is_empty() {
-                execution_session["runtimeThreadId"] = Value::String(runtime_thread_id);
-            }
-            execution_session["runtimeProviderId"] = Value::String("codex-cli".to_string());
-            execution_session["runtimeTransport"] = Value::String("codex-cli".to_string());
-
-            let result = json!({
-                "content": string_field(&codex_result, &["content"]),
-                "reasoning": "",
-                "payload": {
-                    "events": codex_result.get("events").cloned().unwrap_or(Value::Array(vec![])),
-                    "stderrPreview": codex_result.get("stderrPreview").cloned().unwrap_or(Value::String(String::new())),
-                },
-                "transport": "codex-cli",
-            });
-
-            Ok((result, None, Some(skill.clone()), execution_session))
-        } else if should_use_codex_runtime_run(&prepared_run) {
-            let runtime_handle = runtime_state.inner().clone();
-            let runtime_thread_id = ensure_runtime_thread(
-                &runtime_handle,
-                &execution_session,
-                &string_field(&execution_session, &["title"]),
-                &params.cwd,
-            )
-            .await?;
-            execution_session["runtimeThreadId"] = Value::String(runtime_thread_id.clone());
-            execution_session["runtimeProviderId"] = Value::String(provider_id.clone());
-            execution_session["runtimeTransport"] = Value::String("codex-runtime".to_string());
-            if should_hydrate_research_task(&turn_route, &runtime_intent) {
-                execution_session = hydrate_research_context_for_session(
-                    execution_session,
-                    &skill,
-                    &context_bundle,
-                    &user_instruction,
-                    &resolved_task,
-                )
-                .await?;
-            }
-
-            let enabled_tool_ids = prepared_run
-                .get("enabledToolIds")
-                .and_then(Value::as_array)
-                .map(|entries| {
-                    entries
-                        .iter()
-                        .filter_map(|entry| entry.as_str().map(|value| value.to_string()))
-                        .collect::<Vec<_>>()
-                })
-                .unwrap_or_else(|| {
-                    config
-                        .get("enabledTools")
-                        .and_then(Value::as_array)
-                        .map(|entries| {
-                            entries
-                                .iter()
-                                .filter_map(|entry| entry.as_str().map(|value| value.to_string()))
-                                .collect::<Vec<_>>()
-                        })
-                        .unwrap_or_default()
-                });
-
-            let should_use_native_runtime_items =
-                should_use_native_runtime_inputs(&provider_id, &turn_route, &runtime_intent);
-            let native_runtime_inputs = if should_use_native_runtime_items {
-                build_native_runtime_input_items(
-                    &skill,
-                    &context_bundle,
-                    &attachments,
-                    &referenced_files,
-                    &requested_tools,
-                )
-            } else {
-                Vec::new()
-            };
-            let prompt = ai_agent_build_prompt(AiAgentPromptParams {
-                skill: skill.clone(),
-                context_bundle: context_bundle.clone(),
-                user_instruction: user_instruction.clone(),
-                conversation: prior_conversation.clone(),
-                scribeflow_skills: params.scribeflow_skills.clone(),
-                support_files: Vec::new(),
-                attachments: if should_use_native_runtime_items {
-                    Vec::new()
-                } else {
-                    attachments.clone()
-                },
-                referenced_files: if should_use_native_runtime_items {
-                    Vec::new()
-                } else {
-                    referenced_files.clone()
-                },
-                requested_tools: if should_use_native_runtime_items {
-                    Vec::new()
-                } else {
-                    requested_tools.clone()
-                },
-                enabled_tool_ids,
-                runtime_intent: runtime_intent.clone(),
-                runtime_native_inputs: should_use_native_runtime_items,
-                turn_route: turn_route.clone(),
-                invocation: invocation.clone(),
-                resolved_task: resolved_task.clone(),
-                required_evidence: required_evidence.clone(),
-                selected_artifacts: selected_artifacts.clone(),
-                verification_plan: verification_plan.clone(),
-                research_context_graph: research_context_graph.clone(),
-                research_config: research_config.clone(),
-            })
-            .await?;
-
-            let runtime_result = run_turn_and_wait(
-                app,
-                runtime_handle,
-                RuntimeTurnRunParams {
-                    thread_id: runtime_thread_id,
-                    user_text: prompt.user_prompt,
-                    provider: build_runtime_provider_config(
-                        &provider_id,
-                        &config,
-                        &api_key,
-                        &prompt.system_prompt,
-                        &effective_permission_mode,
-                    ),
-                    workspace_path: string_field(
-                        context_bundle.get("workspace").unwrap_or(&Value::Null),
-                        &["path"],
-                    ),
-                    supplemental_user_items: native_runtime_inputs,
-                    enabled_tool_ids: prompt.enabled_tool_ids,
-                    requested_tool_mentions: requested_tool_mentions.clone(),
-                },
-            )
-            .await?;
-
-            execution_session["runtimeTurnId"] = Value::String(runtime_result.turn_id.clone());
-            let result = json!({
-                "content": runtime_result.content,
-                "reasoning": runtime_result.reasoning,
-                "payload": Value::Object(Default::default()),
-                "transport": runtime_result.transport,
-            });
-
-            Ok((result, None, None, execution_session))
-        } else {
-            if should_hydrate_research_task(&turn_route, &runtime_intent) {
-                execution_session = hydrate_research_context_for_session(
-                    execution_session,
-                    &skill,
-                    &context_bundle,
-                    &user_instruction,
-                    &resolved_task,
-                )
-                .await?;
-            }
-            let response = ai_agent_run(AiAgentRunParams {
-                skill: skill.clone(),
-                context_bundle: context_bundle.clone(),
-                config: config.clone(),
-                api_key: api_key.clone(),
-                user_instruction: user_instruction.clone(),
-                conversation: prior_conversation.clone(),
-                scribeflow_skills: params.scribeflow_skills.clone(),
-                attachments: attachments.clone(),
-                referenced_files: referenced_files.clone(),
-                requested_tools: requested_tools.clone(),
-                requested_tool_mentions: requested_tool_mentions.clone(),
-                runtime_intent: runtime_intent.clone(),
-                turn_route: turn_route.clone(),
-                invocation: invocation.clone(),
-                resolved_task: resolved_task.clone(),
-                required_evidence: required_evidence.clone(),
-                selected_artifacts: selected_artifacts.clone(),
-                verification_plan: verification_plan.clone(),
-                research_context_graph: research_context_graph.clone(),
-                research_config: research_config.clone(),
-            })
-            .await?;
-
-            let result = json!({
-                "content": response.content,
-                "reasoning": "",
-                "payload": response.payload,
-                "transport": response.transport,
-            });
-            Ok((
-                result,
-                response.artifact,
-                Some(response.skill),
+        if should_hydrate_research_task(&turn_route, &runtime_intent) {
+            execution_session = hydrate_research_context_for_session(
                 execution_session,
-            ))
+                &skill,
+                &context_bundle,
+                &user_instruction,
+                &resolved_task,
+            )
+            .await?;
         }
+
+        let enabled_tool_ids = prepared_run
+            .get("enabledToolIds")
+            .and_then(Value::as_array)
+            .map(|entries| {
+                entries
+                    .iter()
+                    .filter_map(|entry| entry.as_str().map(|value| value.to_string()))
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        let prompt = ai_agent_build_prompt(AiAgentPromptParams {
+            skill: skill.clone(),
+            context_bundle: context_bundle.clone(),
+            user_instruction: user_instruction.clone(),
+            conversation: prior_conversation.clone(),
+            scribeflow_skills: params.scribeflow_skills.clone(),
+            support_files: Vec::new(),
+            attachments: attachments.clone(),
+            referenced_files: referenced_files.clone(),
+            requested_tools: requested_tools.clone(),
+            enabled_tool_ids,
+            runtime_intent: runtime_intent.clone(),
+            runtime_native_inputs: false,
+            turn_route: turn_route.clone(),
+            invocation: invocation.clone(),
+            resolved_task: resolved_task.clone(),
+            required_evidence: required_evidence.clone(),
+            selected_artifacts: selected_artifacts.clone(),
+            verification_plan: verification_plan.clone(),
+            research_context_graph: research_context_graph.clone(),
+            research_config: research_config.clone(),
+        })
+        .await?;
+
+        let codex_result = codex_cli_run(CodexCliRunParams {
+            session_id: codex_cli_session_id(&execution_session),
+            prompt: codex_cli_prompt_text(&prompt.system_prompt, &prompt.user_prompt),
+            cwd: string_field(
+                context_bundle.get("workspace").unwrap_or(&Value::Null),
+                &["path"],
+            ),
+            config: config.clone(),
+        })
+        .await?;
+
+        let runtime_thread_id = string_field(&codex_result, &["threadId", "thread_id"]);
+        if !runtime_thread_id.is_empty() {
+            execution_session["runtimeThreadId"] = Value::String(runtime_thread_id);
+        }
+        execution_session["runtimeProviderId"] = Value::String("codex-cli".to_string());
+        execution_session["runtimeTransport"] = Value::String("codex-cli".to_string());
+
+        let result = json!({
+            "content": string_field(&codex_result, &["content"]),
+            "reasoning": "",
+            "payload": {
+                "events": codex_result.get("events").cloned().unwrap_or(Value::Array(vec![])),
+                "stderrPreview": codex_result.get("stderrPreview").cloned().unwrap_or(Value::String(String::new())),
+            },
+            "transport": "codex-cli",
+        });
+
+        Ok((result, None, Some(skill.clone()), execution_session))
     }
     .await;
 
@@ -1846,7 +697,6 @@ async fn ai_agent_run_started_session<R: Runtime>(
 #[tauri::command]
 pub async fn ai_agent_run_prepared_session<R: Runtime>(
     app: AppHandle<R>,
-    runtime_state: State<'_, CodexRuntimeHandle>,
     params: AiAgentRunPreparedSessionParams,
 ) -> Result<AiAgentRunStartedSessionResponse, String> {
     let prepared_run = params.prepared_run.clone();
@@ -1880,14 +730,12 @@ pub async fn ai_agent_run_prepared_session<R: Runtime>(
 
     ai_agent_run_started_session(
         app,
-        runtime_state,
         AiAgentRunStartedSessionParams {
             session: started.session,
             prepared_run: params.prepared_run,
             scribeflow_skills: params.scribeflow_skills,
             pending_assistant_id: params.pending_assistant_id,
             created_at: params.created_at,
-            cwd: params.cwd,
         },
     )
     .await

@@ -115,19 +115,6 @@ fn create_task(
     }
 }
 
-pub(crate) fn find_research_task_by_thread_id(
-    workspace_path: &str,
-    runtime_thread_id: &str,
-) -> Result<Option<ResearchTask>, String> {
-    let normalized_thread_id = trim(runtime_thread_id);
-    if trim(workspace_path).is_empty() || normalized_thread_id.is_empty() {
-        return Ok(None);
-    }
-    Ok(load_workspace_tasks(workspace_path)?
-        .into_iter()
-        .find(|task| task.runtime_thread_id == normalized_thread_id))
-}
-
 pub(crate) fn ensure_research_task_for_thread(
     workspace_path: &str,
     runtime_thread_id: &str,

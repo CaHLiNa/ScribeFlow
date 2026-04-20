@@ -918,7 +918,7 @@ async function refreshProviderRuntime() {
 
 async function hydrateWorkspaceSessions() {
   await aiStore.restoreWorkspaceSessions(workspace.path || '')
-  void aiStore.ensureCodexRuntimeBridge()
+  await aiStore.ensureSessionState()
 }
 
 onMounted(() => {

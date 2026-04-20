@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use super::protocol::{ThreadStatus, TurnStatus};
+use super::protocol::ThreadStatus;
 use super::state::CodexRuntimeState;
 use crate::app_dirs;
 
@@ -25,19 +25,6 @@ fn normalize_loaded_state(mut state: CodexRuntimeState) -> CodexRuntimeState {
     for thread in state.threads.values_mut() {
         if thread.status == ThreadStatus::Running {
             thread.status = ThreadStatus::Interrupted;
-            thread.active_turn_id = None;
-        }
-    }
-
-    for turn in state.turns.values_mut() {
-        if turn.status == TurnStatus::Running {
-            turn.status = TurnStatus::Interrupted;
-        }
-    }
-
-    for item in state.items.values_mut() {
-        if item.status == TurnStatus::Running {
-            item.status = TurnStatus::Interrupted;
         }
     }
 

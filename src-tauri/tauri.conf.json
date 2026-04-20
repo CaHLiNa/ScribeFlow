@@ -30,8 +30,7 @@
     "targets": "all",
     "createUpdaterArtifacts": false,
     "resources": [
-      "../public/fonts",
-      "resources/ai/anthropicAgentBridge.mjs"
+      "../public/fonts"
     ],
     "icon": [
       "icons/32x32.png",
