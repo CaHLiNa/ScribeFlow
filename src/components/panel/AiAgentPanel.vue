@@ -169,17 +169,6 @@
             </div>
 
             <div class="ai-agent-panel__composer-primary">
-              <UiSelect
-                :model-value="selectedModelValue"
-                size="sm"
-                shell-class="ai-agent-panel__model-chip-shell"
-                :options="modelOptions"
-                :placeholder="t('Use Codex defaults')"
-                :disabled="aiStore.isRunning || modelUpdatePending"
-                :aria-label="t('Model')"
-                @update:model-value="handleModelChange"
-              />
-
               <button
                 type="button"
                 class="ai-agent-panel__send-button"
@@ -236,7 +225,6 @@ import {
 } from '@tabler/icons-vue'
 import { useSurfaceContextMenu } from '../../composables/useSurfaceContextMenu'
 import UiButton from '../shared/ui/UiButton.vue'
-import UiSelect from '../shared/ui/UiSelect.vue'
 import UiTextarea from '../shared/ui/UiTextarea.vue'
 import AiActiveTasksBar from './AiActiveTasksBar.vue'
 import AiAskUserBanner from './AiAskUserBanner.vue'
@@ -275,7 +263,6 @@ const activeInvocationIndex = ref(0)
 const respondingPermissionRequestId = ref('')
 const respondingAskUserRequestId = ref('')
 const respondingExitPlanRequestId = ref('')
-const modelUpdatePending = ref(false)
 const COMPOSER_MIN_HEIGHT = 72
 const COMPOSER_MAX_HEIGHT = 220
 
@@ -292,31 +279,6 @@ const resumeState = computed(() => aiStore.resumeState)
 const activeTurnState = computed(() => aiStore.activeTurnState)
 const sessionItems = computed(() => aiStore.sessionList)
 const currentPermissionMode = computed(() => aiStore.currentPermissionMode)
-const selectedModelValue = computed(() => String(aiStore.providerState.model || '').trim())
-const modelOptions = computed(() => {
-  const options = [
-    {
-      value: '',
-      label: t('Use Codex defaults'),
-      triggerLabel: t('Use Codex defaults'),
-    },
-    { value: 'gpt-5.4', label: 'GPT-5.4', triggerLabel: 'GPT-5.4' },
-    { value: 'gpt-5.3-codex', label: 'GPT-5.3-Codex', triggerLabel: 'GPT-5.3-Codex' },
-    { value: 'gpt-5.2-codex', label: 'GPT-5.2-Codex', triggerLabel: 'GPT-5.2-Codex' },
-    { value: 'gpt-5-codex', label: 'GPT-5-Codex', triggerLabel: 'GPT-5-Codex' },
-  ]
-  if (
-    selectedModelValue.value &&
-    !options.some((option) => String(option.value || '').trim() === selectedModelValue.value)
-  ) {
-    options.push({
-      value: selectedModelValue.value,
-      label: selectedModelValue.value,
-      triggerLabel: selectedModelValue.value,
-    })
-  }
-  return options
-})
 
 const artifactsById = computed(() =>
   Object.fromEntries(artifacts.value.map((artifact) => [artifact.id, artifact]))
@@ -541,23 +503,6 @@ async function runSkill() {
     return
   }
   await aiStore.runActiveSkill()
-}
-
-async function handleModelChange(nextValue = '') {
-  const normalizedValue = String(nextValue || '').trim()
-  if (aiStore.isRunning || modelUpdatePending.value) return
-
-  modelUpdatePending.value = true
-  try {
-    await aiStore.setPreferredModel(normalizedValue)
-  } catch (error) {
-    toastStore.show(
-      error instanceof Error ? error.message : String(error || t('Failed to save AI settings.')),
-      { type: 'error' }
-    )
-  } finally {
-    modelUpdatePending.value = false
-  }
 }
 
 function handleSendClick() {
