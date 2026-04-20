@@ -22,38 +22,8 @@ async function loadAiConfig() {
   return invoke('ai_config_load')
 }
 
-async function saveAiConfig(config = null) {
-  return invoke('ai_config_save', { config: config || {} })
-}
-
 async function resolveCodexCliState(config = {}) {
   return invoke('codex_cli_state_resolve', { params: { config } })
-}
-
-async function setCurrentAiProviderAndModel(providerId = 'codex-cli', model = '') {
-  const config = await loadAiConfig()
-  const nextConfig = {
-    ...(config || {}),
-    codexCli: {
-      ...(config?.codexCli || {}),
-      providerId: String(providerId || 'codex-cli').trim() || 'codex-cli',
-      model: String(model || '').trim(),
-    },
-  }
-  await saveAiConfig(nextConfig)
-  return nextConfig
-}
-
-function parseUnifiedModelPoolKey(value = '') {
-  const normalized = String(value || '').trim()
-  const separatorIndex = normalized.indexOf('::')
-  if (separatorIndex <= 0) {
-    return { providerId: '', model: normalized }
-  }
-  return {
-    providerId: normalized.slice(0, separatorIndex).trim(),
-    model: normalized.slice(separatorIndex + 2).trim(),
-  }
 }
 
 async function createClientSessionRust(params = {}) {
@@ -483,21 +453,17 @@ export const useAiStore = defineStore('ai', {
     lastSkillCatalogError: '',
     providerState: {
       ready: false,
-      hasKey: false,
-      requiresApiKey: true,
-      currentProviderId: 'codex-cli',
-      currentProviderLabel: 'Codex CLI',
-      enabledToolIds: [],
-      baseUrl: '',
+      currentProviderId: 'codex-acp',
+      currentProviderLabel: 'Codex ACP',
+      commandPath: 'codex',
       model: '',
       profile: '',
       sandboxMode: 'workspace-write',
-      runtimeBackend: 'codex-cli',
+      webSearch: false,
+      runtimeBackend: 'codex-acp',
       installed: false,
+      version: '',
     },
-    unifiedModelPoolOptions: [],
-    unifiedModelPoolLoading: false,
-    unifiedModelPoolError: '',
     runtimePendingSessions: {},
   }),
 
@@ -662,11 +628,6 @@ export const useAiStore = defineStore('ai', {
       }
     },
 
-    enabledToolIds(state) {
-      return Array.isArray(state.providerState.enabledToolIds)
-        ? state.providerState.enabledToolIds
-        : []
-    },
   },
 
   actions: {
@@ -1093,10 +1054,6 @@ export const useAiStore = defineStore('ai', {
       })
     },
 
-    isToolEnabled(toolId = '') {
-      return this.enabledToolIds.includes(String(toolId || '').trim())
-    },
-
     async refreshScribeFlowSkills() {
       const workspace = useWorkspaceStore()
       this.isRefreshingScribeFlowSkills = true
@@ -1243,7 +1200,7 @@ export const useAiStore = defineStore('ai', {
         await this.updateSessionById(sessionId, (session) => ({
           ...session,
           runtimeThreadId: String(payload?.runtimeSessionId || session.runtimeThreadId || '').trim(),
-          runtimeProviderId: 'codex-cli',
+          runtimeProviderId: 'codex-acp',
           runtimeTransport: String(payload?.transport || 'codex-acp').trim(),
         }))
         return
@@ -1419,39 +1376,17 @@ export const useAiStore = defineStore('ai', {
       const resolvedState = await resolveCodexCliState(config?.codexCli || {})
       this.providerState = {
         ready: resolvedState?.ready === true,
-        hasKey: true,
-        requiresApiKey: false,
-        currentProviderId: 'codex-cli',
-        currentProviderLabel: 'Codex CLI',
-        enabledToolIds: [],
-        baseUrl: '',
+        currentProviderId: 'codex-acp',
+        currentProviderLabel: 'Codex ACP',
+        commandPath: String(resolvedState?.commandPath || 'codex').trim() || 'codex',
         model: String(resolvedState?.model || '').trim(),
         profile: String(resolvedState?.profile || '').trim(),
         sandboxMode: String(resolvedState?.sandboxMode || 'workspace-write').trim(),
+        webSearch: resolvedState?.webSearch === true,
         runtimeBackend: 'codex-acp',
         installed: resolvedState?.installed === true,
         version: String(resolvedState?.version || '').trim(),
       }
-      this.unifiedModelPoolOptions = []
-      this.unifiedModelPoolError = ''
-      return this.providerState
-    },
-
-    async setCurrentProvider(_providerId = '') {
-      return this.refreshProviderState()
-    },
-
-    async refreshUnifiedModelPool({ force = false } = {}) {
-      void force
-      this.unifiedModelPoolOptions = []
-      this.unifiedModelPoolError = ''
-      return []
-    },
-
-    async setCurrentModel(modelSelection = '') {
-      const { model } = parseUnifiedModelPoolKey(modelSelection)
-      await setCurrentAiProviderAndModel('codex-cli', model)
-      await this.refreshProviderState()
       return this.providerState
     },
 
@@ -1490,12 +1425,7 @@ export const useAiStore = defineStore('ai', {
             SESSION_UNAVAILABLE: t('AI execution failed.'),
             AI_SKILL_UNAVAILABLE: t('AI skill is not available.'),
             MISSING_CONTEXT: t('The selected AI skill is missing required context.'),
-            PROVIDER_NOT_READY:
-              preparedRun.providerState?.requiresApiKey === false
-                ? t('Agent runtime is not ready. Configure the provider and model before sending.')
-                : t(
-                    'Agent runtime is not ready. Configure the provider, model, and API key before sending.'
-                  ),
+            PROVIDER_NOT_READY: t('Codex ACP runtime is not ready. Check the configured Codex command first.'),
           }
           const message = errorMessageByCode[preparedRun.code] || t('AI execution failed.')
           await this.updateSessionById(sessionId, (session) => ({
@@ -1516,7 +1446,7 @@ export const useAiStore = defineStore('ai', {
           preparedRun?.userInstruction || preparedRun?.promptDraft || activeSession?.promptDraft || ''
         ).trim()
         const preferredTitle = summarizeSessionTitle(
-          String(preparedRun?.resolvedTask?.title || optimisticPrompt || '').trim(),
+          String(optimisticPrompt || '').trim(),
           buildDefaultSessionTitle(this.sessions.length)
         )
 
@@ -1532,7 +1462,7 @@ export const useAiStore = defineStore('ai', {
         await this.updateSessionById(sessionId, (session) => ({
           ...session,
           runtimeTransport: 'codex-acp',
-          runtimeProviderId: 'codex-cli',
+          runtimeProviderId: 'codex-acp',
           title:
             Array.isArray(session.messages) && session.messages.length > 0
               ? session.title
@@ -1563,16 +1493,7 @@ export const useAiStore = defineStore('ai', {
               createdAt: Date.now() + 1,
               content: '',
               parts: [],
-              metadata: {
-                skillId: String(preparedRun?.skill?.id || '').trim(),
-                skillLabel: String(
-                  preparedRun?.skill?.name
-                    || preparedRun?.skill?.slug
-                    || preparedRun?.skill?.id
-                    || ''
-                ).trim(),
-                contextChips: [],
-              },
+              metadata: { skillId: '', skillLabel: '', contextChips: [] },
             },
           ],
           isRunning: true,
@@ -1620,7 +1541,7 @@ export const useAiStore = defineStore('ai', {
             ensuredSession?.runtimeSessionId || session.runtimeThreadId || ''
           ).trim(),
           runtimeTransport: 'codex-acp',
-          runtimeProviderId: 'codex-cli',
+          runtimeProviderId: 'codex-acp',
           activeTurn: session.activeTurn
             ? {
                 ...session.activeTurn,
@@ -1725,11 +1646,6 @@ export const useAiStore = defineStore('ai', {
       const referencesStore = useReferencesStore()
 
       try {
-        const capabilityToolId = String(artifact.capabilityToolId || '').trim()
-        if (capabilityToolId && !this.enabledToolIds.includes(capabilityToolId)) {
-          throw new Error(t('The required artifact capability is disabled.'))
-        }
-
         let applied = false
         let verification = null
         let verificationTask = null

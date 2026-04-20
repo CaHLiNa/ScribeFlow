@@ -4,8 +4,7 @@ use std::path::PathBuf;
 
 use crate::app_dirs;
 
-const AI_CONFIG_VERSION: i64 = 8;
-const CONFIGURABLE_AI_TOOL_IDS: &[&str] = &["delete-workspace-path"];
+const AI_CONFIG_VERSION: i64 = 9;
 
 fn normalize_codex_cli_config(value: &Value) -> Value {
     let command_path = value
@@ -41,29 +40,6 @@ fn normalize_codex_cli_config(value: &Value) -> Value {
 
 fn ai_config_path() -> Result<PathBuf, String> {
     Ok(app_dirs::data_root_dir()?.join("ai.json"))
-}
-
-fn normalize_enabled_tool_ids(value: &Value) -> Vec<String> {
-    value
-        .as_array()
-        .map(|entries| {
-            let mut normalized = Vec::new();
-            for entry in entries {
-                let tool_id = entry.as_str().unwrap_or_default().trim();
-                if tool_id.is_empty()
-                    || !CONFIGURABLE_AI_TOOL_IDS
-                        .iter()
-                        .any(|allowed| allowed == &tool_id)
-                {
-                    continue;
-                }
-                if !normalized.iter().any(|existing| existing == tool_id) {
-                    normalized.push(tool_id.to_string());
-                }
-            }
-            normalized
-        })
-        .unwrap_or_default()
 }
 
 fn normalize_research_defaults(value: &Value) -> Value {
@@ -109,9 +85,8 @@ pub(crate) fn normalize_ai_config(raw_config: Option<&Value>) -> Value {
 
     json!({
         "version": AI_CONFIG_VERSION,
-        "runtimeBackend": "codex-cli",
+        "runtimeBackend": "codex-acp",
         "codexCli": normalize_codex_cli_config(raw_config.get("codexCli").unwrap_or(&Value::Null)),
-        "enabledTools": normalize_enabled_tool_ids(raw_config.get("enabledTools").unwrap_or(&Value::Null)),
         "researchDefaults": normalize_research_defaults(raw_config.get("researchDefaults").unwrap_or(&Value::Null)),
     })
 }
@@ -123,15 +98,11 @@ fn sanitize_public_ai_config(config: &Value) -> Value {
             .get("version")
             .cloned()
             .unwrap_or(Value::Number(AI_CONFIG_VERSION.into())),
-        "runtimeBackend": Value::String("codex-cli".to_string()),
+        "runtimeBackend": Value::String("codex-acp".to_string()),
         "codexCli": normalized
             .get("codexCli")
             .cloned()
             .unwrap_or_else(|| normalize_codex_cli_config(&Value::Null)),
-        "enabledTools": normalized
-            .get("enabledTools")
-            .cloned()
-            .unwrap_or_else(|| Value::Array(vec![])),
         "researchDefaults": normalized
             .get("researchDefaults")
             .cloned()

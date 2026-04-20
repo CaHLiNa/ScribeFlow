@@ -97,7 +97,6 @@ import AiToolLine from './AiToolLine.vue'
 const props = defineProps({
   message: { type: Object, required: true },
   artifactsById: { type: Object, default: () => ({}) },
-  enabledToolIds: { type: Array, default: () => [] },
   animateLatest: { type: Boolean, default: false },
 })
 
@@ -143,31 +142,21 @@ const displayParts = computed(() => {
 
 function getAiArtifactCapability(artifact = null) {
   const type = String(artifact?.type || '').trim()
-  const toolId = String(artifact?.capabilityToolId || '').trim()
-  const labelKey = String(artifact?.capabilityLabelKey || '').trim()
   if (!type) return null
-  if (type === 'reference_patch') {
-    return {
-      artifactType: type,
-      toolId: '',
-      labelKey: labelKey || 'Apply reference update',
-      localOnly: true,
-    }
+  const capabilityByType = {
+    doc_patch: 'Apply patch',
+    note_draft: 'Open draft',
+    citation_insert: 'Insert citation',
+    reference_patch: 'Apply reference update',
+    related_work_outline: 'Open outline',
+    reading_note_bundle: 'Open reading note',
+    claim_evidence_map: 'Open evidence map',
+    compile_fix: 'Open compile fix',
+    comparison_table: 'Open comparison table',
   }
-  if (!toolId) return null
-  return {
-    artifactType: type,
-    toolId,
-    labelKey,
-    localOnly: false,
-  }
-}
-
-function canApplyAiArtifact(artifact = null, enabledToolIds = []) {
-  const capability = getAiArtifactCapability(artifact)
-  if (!capability) return false
-  if (capability.localOnly) return true
-  return Array.isArray(enabledToolIds) && enabledToolIds.includes(capability.toolId)
+  const labelKey = capabilityByType[type]
+  if (!labelKey) return null
+  return { artifactType: type, labelKey }
 }
 
 const messageText = computed(() => extractAiMessageText(props.message))
@@ -203,7 +192,7 @@ function resolveArtifact(artifactId = '') {
 function artifactCanApply(artifactId = '') {
   const artifact = resolveArtifact(artifactId)
   if (['dismissed', 'rolled-back'].includes(String(artifact?.status || '').trim())) return false
-  return canApplyAiArtifact(artifact, props.enabledToolIds)
+  return !!getAiArtifactCapability(artifact)
 }
 
 function artifactCanDismiss(artifactId = '') {

@@ -1,28 +1,27 @@
-# Codex CLI 运行时重构
+# Codex ACP 运行时收敛
 
 ## 目标
 
-把 ScribeFlow 的 AI 执行权威从“应用内维护的 provider / model runtime”收敛到“系统 `codex cli`”，让桌面应用只承担：
+把 ScribeFlow 的 AI 执行边界收敛到一条清晰主路径：
 
-- 上下文装配
-- 研究工作流提示词构建
-- skill 管理
-- 文档 / 引用 / artifact 集成
-- 面板状态与结果呈现
+- `codex` 负责用户本机的 launcher defaults
+- `codex-acp` 负责桌面应用与 Codex 之间的 ACP bridge
+- ScribeFlow 只负责桌面端 session、artifact、verification 与研究工作流集成
 
-## 重构结论
+这意味着应用不再维护自建 provider runtime，也不再假装自己是另一套 model gateway。
 
-本次重构采用以下边界：
+## 收敛结论
 
-- 系统 `codex cli` 是唯一执行引擎
-- ScribeFlow 设置页不再维护 provider catalog / API key / model list
-- ScribeFlow 只维护 Codex launcher defaults
-- `~/.config/agents/skills` 是电脑共享全局 skills
-- `~/.scribeflow/skills` 是 ScribeFlow 专属 skills
+当前稳定边界如下：
+
+- `runtimeBackend = "codex-acp"`
+- `codexCli` 配置块继续保留，表示 launcher defaults，而不是 transport 本身
+- `codex_acp_runtime.rs` 是唯一执行主路径
+- `codex_cli.rs` 只负责检测本机 `codex` 命令与 launcher 状态
 
 ## 配置模型
 
-`ai.json` 现在保留两层信息：
+`ai.json` 现在只保留两类信息：
 
 1. `researchDefaults`
    - 默认引用样式
@@ -37,91 +36,96 @@
    - `webSearch`
    - `useAsciiWorkspaceAlias`
 
-同时新增：
+这里的 `codexCli` 不是旧式 provider config，而是：
 
-- `runtimeBackend = "codex-cli"`
+- ACP bridge 要连接的 `codex` launcher
+- 默认 model/profile 覆盖
+- 运行时工作目录兼容设置
 
-旧的 provider 配置仍被保留在配置结构里，目的是：
+## Rust 运行时职责
 
-- 避免一次迁移直接破坏旧数据
-- 给后续清理阶段留出删除窗口
+Rust 侧当前承担以下职责：
 
-但它们不再是设置页主入口，也不应继续扩张。
+- 解析与持久化 `ai.json`
+- 检测本机 `codex` 命令是否可用
+- 启动 `codex-acp` bridge
+- 建立与恢复 ACP session
+- 发送 prompt、处理中断、消费 permission 事件
+- 持久化 session overlay
+- 应用 artifact
+- 执行 reference / citation / bibliography / compile verification
 
-## 运行时改动
+前端不再承担：
 
-### 1. 准备阶段
+- provider catalog
+- API key 管理
+- model pool 聚合
+- HTTP AI proxy / 自建 responses stream
 
-`ai_agent_prepare_current_config` 现在会优先读取 `runtimeBackend`。
+## Prepare 层
 
-当值为 `codex-cli` 时：
+`ai_agent_prepare_current_config` 现在是 thin prepare layer。
 
-- 构造一个伪 `providerState`
-- `providerId` 固定为 `codex-cli`
-- `config` 改为读取 `codexCli`
-- 不再依赖 provider API key
+它只负责：
 
-### 2. 执行阶段
+- 读取当前 session
+- 注入当前 workspacePath
+- 注入 `codexCli` launcher defaults
+- 返回 ACP 主路径需要的最小 prepared run
 
-新增 `src-tauri/src/codex_cli.rs`，负责：
+它不再承担：
 
-- 检测 `codex` 可执行命令
-- 解析 Codex launcher config
-- 通过 `codex exec --json` 运行任务
-- 用 `--output-last-message` 收敛最终回复
-- 管理运行中的 PID
-- 提供中断能力
+- 旧 provider 兼容语义
+- 伪 model/provider runtime 拼装
+- 未接实的 research planner 外壳
 
-### 3. 非 ASCII 路径兼容
+## UI 语义
 
-由于系统 `codex cli` 在非 ASCII 工作区路径下会出现 header / websocket 断流问题，本次实现加入了 ASCII alias 层：
+桌面端 AI 面板现在应该按这套心智模型理解：
 
-- 真实工作区有非 ASCII 路径时
-- 在 `~/.scribeflow/workspaces/<encoded>/codex-root` 创建安全别名
-- 启动 Codex CLI 时使用该别名作为 `-C` 工作目录
+- 面板展示的是 `Codex ACP` session
+- 模型信息是当前 launcher override 的展示值，不是“可浏览的 provider model catalog”
+- artifact apply 是 ScribeFlow 本地产品能力，不依赖一层失效的 tool gating
 
-这是本次切换里的关键兼容层，否则你的中文路径工作区无法稳定运行。
-
-## 前端设置页
-
-`SettingsAi.vue` 已从 provider 设置页改为 Codex launcher 设置页，保留：
+设置页保留：
 
 - `Research defaults`
-- `Codex runtime`
+- `Codex ACP` runtime settings
 
-不再保留：
+设置页不再表达：
 
 - provider 列表
-- Base URL
 - API key
-- provider model catalog
 - provider connection test
+- model pool
 
-## 面板行为
+## 已删除的残留
 
-AI 面板现在按 Codex runtime 语义展示：
+本次收敛明确移除了以下历史路径：
 
-- 模型显示优先取显式 `model`
-- 否则回退到 `profile`
-- 再回退到 “Using Codex defaults”
+- Tauri `network.rs` 中未被前端使用的 AI proxy / stream 命令
+- AI config 中未使用的 `enabledTools`
+- 前端 store 中的伪 provider/model pool 壳层
+- 失效的 artifact capability gating
 
-由于 `codex exec` 不提供之前那套应用内 approval / plan mode 语义，本次切换中：
+## 兼容说明
 
-- 保留原有会话外壳
-- 但在 Codex CLI 模式下隐藏旧的 execution policy 切换按钮
+为了避免一次性破坏已有用户设置：
 
-## 已知限制
+- `codexCli` 字段名继续沿用
+- `commandPath` 仍指向用户本机的 `codex` 命令
 
-这次切换解决了执行引擎与设置页双权威的问题，但仍保留几个后续收尾点：
+这只是配置名兼容，不代表应用仍走旧式 `codex exec` 直连模式。
 
-1. 旧 provider 后端代码仍在仓库中
-2. 旧的 provider credential / catalog 命令仍可被调用，但不再是主路径
-3. Codex CLI 运行结果当前以最终消息收敛为主，不复刻旧 runtime 的完整流式细粒度事件
+## 后续方向
 
-## 下一步清理
+后续若继续扩展，应遵循同一条原则：
 
-后续建议按顺序继续：
+- transport 扩展走 ACP / MCP
+- 产品差异继续落在 ScribeFlow 的 artifact / verification / research workflow
 
-1. 删除设置页与 store 中不再使用的 provider catalog / API key 逻辑
-2. 评估是否彻底移除旧的 HTTP / SDK 执行路径
-3. 如果需要更强交互能力，再评估接 `codex app-server` / `mcp-server`，而不是继续扩张自研 runtime
+不要重新引入：
+
+- 自建 provider runtime
+- 应用内 API key 体系
+- 另一套独立 model catalog

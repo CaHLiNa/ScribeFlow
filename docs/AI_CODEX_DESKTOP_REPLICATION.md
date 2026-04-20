@@ -40,7 +40,7 @@ AI 运行时权威由 Rust 持有。
 - 用户意图发射
 - 面板局部派生视图状态
 - 轻量 input / composer helper
-- provider 与 model 选择 UI
+- launcher defaults 设置 UI
 
 前端不应持有：
 
@@ -68,13 +68,11 @@ AI 运行时权威由 Rust 持有。
 
 Rust 持有的接缝包括：
 
-- provider config 读写
-- provider 凭证查询
-- provider 就绪解析
-- model 列表获取
-- tool catalog 解析
+- `codex` launcher config 读写
+- `codex` 命令可用性解析
+- `codex-acp` bridge 启动与 session 管理
 - skill catalog 加载
-- prompt 构建
+- prompt dispatch
 - turn prepare
 - turn run
 - runtime thread creation 与 waiting
@@ -93,8 +91,7 @@ Rust 持有的接缝包括：
 - session rail 渲染
 - composer input 绑定
 - 文件附件选择器接线
-- provider 设置 UI
-- unified model pool UI 聚合
+- launcher defaults 设置 UI
 - toast
 - 编辑器选区归一化与面板可读的派生状态
 
@@ -104,7 +101,7 @@ Rust 持有的接缝包括：
 
 - 待发送 message id 生成
 - `src/domains/ai/aiContextRuntime.js` 中的 context normalization policy
-- provider / model pool 聚合
+- 更丰富的 ACP/MCP 扩展展示
 
 ### 执行规则
 
@@ -206,8 +203,7 @@ Phase 3 已完成。当前已交付结果包括：
 - Rust 持有的 stdio probe 与 runtime tool-call 接线
 - Rust 持有的、供桌面 UI 使用的 runtime extension status summary
 - 在 Settings 与 AI panel 中，以低强调方式展示 ready / degraded MCP 状态
-- Rust 持有的 runtime tool catalog，可把 MCP-backed tools 与 built-in tools 一并暴露出来
-- 统一的 `#tool` suggestion 接线，使 agent-mode composer suggestion 不再只停留在 built-in tools
+- Rust 持有的 runtime extension discovery，与 ACP 主路径共享同一状态来源
 
 仍待完成：
 
@@ -257,4 +253,4 @@ Phase 3 已完成。当前已交付结果包括：
 - 本地 UI affordance
 - 用户输入控件
 - 纯展示型派生状态
-- model / provider picker 交互
+- launcher 状态展示

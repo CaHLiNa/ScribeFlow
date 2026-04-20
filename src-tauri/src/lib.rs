@@ -28,7 +28,6 @@ mod latex_project_graph;
 mod latex_runtime;
 mod latex_tools;
 mod markdown_runtime;
-mod network;
 mod process_utils;
 mod references_backend;
 mod references_citation;
@@ -443,11 +442,6 @@ pub fn run() {
             fs_tree_runtime::fs_tree_collect_loaded_dirs,
             fs_tree_runtime::fs_tree_patch_dir_children,
             fs_tree_runtime::fs_tree_ancestor_dirs,
-            network::proxy_api_call,
-            network::proxy_api_call_full,
-            network::proxy_ai_responses,
-            network::start_ai_responses_stream,
-            network::abort_ai_responses_stream,
             ai_agent_prepare::ai_agent_prepare_current_config,
             ai_artifact_runtime::ai_artifact_apply_doc_patch,
             ai_artifact_runtime::ai_artifact_apply_citation_insert,

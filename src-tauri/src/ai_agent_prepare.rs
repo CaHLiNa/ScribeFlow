@@ -23,20 +23,23 @@ fn string_field(value: &Value, keys: &[&str]) -> String {
     String::new()
 }
 
-fn build_codex_cli_provider_state(config: &Value) -> Value {
+fn build_codex_acp_runtime_state(config: &Value) -> Value {
     json!({
-        "providerId": "codex-cli",
-        "label": "Codex CLI",
+        "providerId": "codex-acp",
+        "label": "Codex ACP",
         "ready": true,
-        "requiresApiKey": false,
-        "baseUrl": string_field(config, &["openai_base_url", "openaiBaseUrl", "baseUrl"]),
         "model": string_field(config, &["model"]),
-        "runtimeBackend": "codex-cli",
-        "enabledToolIds": Value::Array(Vec::new()),
+        "profile": string_field(config, &["profile"]),
+        "sandboxMode": string_field(config, &["sandboxMode", "sandbox"]),
+        "webSearch": config
+            .get("webSearch")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
+        "runtimeBackend": "codex-acp",
     })
 }
 
-fn build_minimal_codex_cli_prepared_run(
+fn build_minimal_codex_acp_prepared_run(
     session: Value,
     workspace_path: &str,
     provider_config: Value,
@@ -52,30 +55,16 @@ fn build_minimal_codex_cli_prepared_run(
         "promptDraft": prompt_draft.clone(),
         "userInstruction": prompt_draft,
         "providerState": provider_state,
-        "providerId": "codex-cli",
+        "providerId": "codex-acp",
         "config": provider_config,
         "effectivePermissionMode": "accept-edits",
-        "enabledToolIds": Value::Array(Vec::new()),
-        "contextBundle": Value::Null,
-        "turnRoute": Value::Null,
-        "resolvedTask": Value::Null,
-        "requiredEvidence": Value::Array(Vec::new()),
-        "selectedArtifacts": Value::Array(Vec::new()),
-        "verificationPlan": Value::Array(Vec::new()),
-        "researchContextGraph": Value::Null,
-        "researchConfig": Value::Null,
         "runtimeIntent": "agent",
-        "invocation": Value::Null,
-        "requestedToolMentions": Value::Array(Vec::new()),
-        "referencedFiles": Value::Array(Vec::new()),
-        "priorConversation": Value::Array(Vec::new()),
         "attachments": session
             .get("attachments")
             .cloned()
             .unwrap_or_else(|| Value::Array(Vec::new())),
-        "requestedTools": Value::Array(Vec::new()),
         "workspacePath": workspace_path.trim(),
-        "rawCodexCli": true,
+        "runtimeTransport": "codex-acp",
     })
 }
 
@@ -85,9 +74,9 @@ pub async fn ai_agent_prepare_current_config(
 ) -> Result<Value, String> {
     let config = ai_config_load_internal().await?;
     let provider_config = config.get("codexCli").cloned().unwrap_or(Value::Null);
-    let provider_state = build_codex_cli_provider_state(&provider_config);
+    let provider_state = build_codex_acp_runtime_state(&provider_config);
 
-    Ok(build_minimal_codex_cli_prepared_run(
+    Ok(build_minimal_codex_acp_prepared_run(
         params.active_session,
         &params.workspace_path,
         provider_config,

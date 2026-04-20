@@ -43,10 +43,10 @@
       </div>
     </section>
 
-    <h3 class="settings-section-title">Codex</h3>
+    <h3 class="settings-section-title">Codex ACP</h3>
 
     <section class="settings-group">
-      <h4 class="settings-group-title">Codex</h4>
+      <h4 class="settings-group-title">Codex ACP</h4>
       <div class="settings-group-body">
         <div class="settings-row">
           <div class="settings-row-copy">
@@ -257,7 +257,7 @@ const sandboxModeOptions = computed(() => [
 
 const runtimeSummary = computed(() => {
   if (!runtimeState.value.installed) {
-    return t('ScribeFlow could not launch the configured Codex CLI command.')
+    return t('ScribeFlow could not launch the configured Codex CLI command for the ACP bridge.')
   }
 
   const bits = [
@@ -314,7 +314,7 @@ function buildConfig() {
   const currentConfig = loadedConfig.value || {}
   return {
     ...currentConfig,
-    runtimeBackend: 'codex-cli',
+    runtimeBackend: 'codex-acp',
     codexCli: {
       ...defaultCodexCliConfig(),
       ...codexCli.value,

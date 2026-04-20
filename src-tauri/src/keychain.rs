@@ -1,16 +1,5 @@
 const SERVICE_NAME: &str = "ScribeFlow";
-const ALLOWED_KEYCHAIN_KEYS: &[&str] = &[
-    "zotero-api-key",
-    "ai-api-key",
-    "ai-api-key-openai",
-    "ai-api-key-anthropic",
-    "ai-api-key-google",
-    "ai-api-key-deepseek",
-    "ai-api-key-glm",
-    "ai-api-key-kimi",
-    "ai-api-key-minimax",
-    "ai-api-key-custom",
-];
+const ALLOWED_KEYCHAIN_KEYS: &[&str] = &["zotero-api-key"];
 
 fn ensure_allowed_key(key: &str) -> Result<(), String> {
     if ALLOWED_KEYCHAIN_KEYS.contains(&key) {

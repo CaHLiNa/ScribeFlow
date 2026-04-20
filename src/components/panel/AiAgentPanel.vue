@@ -34,7 +34,6 @@
           :key="message.id"
           :message="message"
           :artifacts-by-id="artifactsById"
-          :enabled-tool-ids="aiStore.enabledToolIds"
           :animate-latest="message.role === 'assistant' && index === messages.length - 1"
           @apply-artifact="aiStore.applyArtifact($event)"
           @dismiss-artifact="aiStore.dismissArtifact($event)"
@@ -119,7 +118,7 @@
 
           <div class="ai-agent-panel__composer-actions">
             <div class="ai-agent-panel__composer-tools">
-              <div v-if="!isCodexCliRuntime" class="ai-agent-panel__execution-policy">
+              <div v-if="showExecutionPolicyControls" class="ai-agent-panel__execution-policy">
                 <button
                   type="button"
                   class="ai-agent-panel__policy-button ai-agent-panel__policy-button--plan"
@@ -173,24 +172,11 @@
               <span class="ai-agent-panel__composer-divider" aria-hidden="true"></span>
 
               <div class="ai-agent-panel__model-group">
-                <UiSelect
-                  v-if="modelMenuOptions.length > 0"
-                  :model-value="currentModelValue"
-                  :disabled="isComposerLockedByBlockingState"
-                  size="sm"
-                  class="ai-agent-panel__model-chip"
-                  shell-class="ai-agent-panel__model-chip-shell"
-                  :options="modelMenuOptions"
-                  :placeholder="loadingModelLabel"
-                  :aria-label="t('Current model')"
-                  @update:model-value="switchModel"
-                />
                 <div
-                  v-else
                   class="ai-agent-panel__model-fallback"
-                  :class="{ 'is-muted': !currentModelLabel }"
+                  :class="{ 'is-muted': !currentRuntimeLabel }"
                 >
-                  {{ currentModelLabel || loadingModelLabel }}
+                  {{ currentRuntimeLabel || t('Codex ACP') }}
                 </div>
               </div>
 
@@ -266,7 +252,6 @@ import {
 } from '@tabler/icons-vue'
 import { useSurfaceContextMenu } from '../../composables/useSurfaceContextMenu'
 import UiButton from '../shared/ui/UiButton.vue'
-import UiSelect from '../shared/ui/UiSelect.vue'
 import UiTextarea from '../shared/ui/UiTextarea.vue'
 import AiActiveTasksBar from './AiActiveTasksBar.vue'
 import AiAskUserBanner from './AiAskUserBanner.vue'
@@ -302,7 +287,6 @@ void aiStore.resetTransientRuntimeState()
 const threadRef = ref(null)
 const threadBottomRef = ref(null)
 const composerTextareaRef = ref(null)
-const enabledTools = ref([])
 const activeInvocationIndex = ref(0)
 const respondingPermissionRequestId = ref('')
 const respondingAskUserRequestId = ref('')
@@ -324,47 +308,12 @@ const resumeState = computed(() => aiStore.resumeState)
 const activeTurnState = computed(() => aiStore.activeTurnState)
 const sessionItems = computed(() => aiStore.sessionList)
 const currentPermissionMode = computed(() => aiStore.currentPermissionMode)
-const modelOptions = computed(() =>
-  Array.isArray(aiStore.unifiedModelPoolOptions) ? aiStore.unifiedModelPoolOptions : []
-)
-const currentModelValue = computed(() =>
-  `${String(aiStore.providerState.currentProviderId || '').trim()}::${String(aiStore.providerState.model || '').trim()}`
-)
-const modelMenuOptions = computed(() => {
-  const options = Array.isArray(modelOptions.value) ? [...modelOptions.value] : []
-  const currentModel = String(aiStore.providerState.model || '').trim()
-  const currentProviderId = String(aiStore.providerState.currentProviderId || '').trim()
-  if (!currentModel || !currentProviderId) return options
-  const selectedValue = currentModelValue.value
-  const hasCurrent = options.some((option) => option?.value === selectedValue)
-  if (hasCurrent) return options
-  return [
-    {
-      value: selectedValue,
-      label: `${currentModel} · ${aiStore.providerState.currentProviderLabel || currentProviderId}`,
-      triggerLabel: currentModel,
-      providerId: currentProviderId,
-      providerLabel: aiStore.providerState.currentProviderLabel || currentProviderId,
-      model: currentModel,
-      modelLabel: currentModel,
-    },
-    ...options,
-  ]
-})
-const currentModelLabel = computed(() => {
-  const currentModel = String(aiStore.providerState.model || '').trim()
-  if (!currentModel) return ''
-  const matchedOption = modelMenuOptions.value.find((option) => option?.value === currentModelValue.value)
-  return String(matchedOption?.triggerLabel || matchedOption?.modelLabel || currentModel).trim()
-})
-const isCodexCliRuntime = computed(() => aiStore.providerState.currentProviderId === 'codex-cli')
-const loadingModelLabel = computed(() => {
-  if (aiStore.unifiedModelPoolLoading) return t('Loading models...')
-  if (isCodexCliRuntime.value) {
-    const profile = String(aiStore.providerState.profile || '').trim()
-    return profile ? `profile:${profile}` : t('Using Codex defaults')
-  }
-  return t('No model selected')
+const currentRuntimeLabel = computed(() => {
+  const model = String(aiStore.providerState.model || '').trim()
+  if (model) return model
+  const profile = String(aiStore.providerState.profile || '').trim()
+  if (profile) return `profile:${profile}`
+  return t('Using Codex defaults')
 })
 
 const artifactsById = computed(() =>
@@ -387,6 +336,9 @@ const canSend = computed(
   () => String(aiStore.promptDraft || '').trim().length > 0 || attachments.value.length > 0
 )
 const isProviderReady = computed(() => aiStore.providerState.ready === true)
+const showExecutionPolicyControls = computed(
+  () => aiStore.providerState.runtimeBackend !== 'codex-acp'
+)
 const isComposerLockedByBlockingState = computed(() => hasBlockingState.value && !aiStore.isRunning)
 const permissionModeFallbackBySession = ref({})
 const isPlanModeEnabled = computed(() => currentPermissionMode.value === 'plan')
@@ -426,11 +378,7 @@ const blockedComposerMessage = computed(() =>
   t('Resolve the current blocking state before sending a new task.')
 )
 const providerNotReadyMessage = computed(() =>
-  isCodexCliRuntime.value
-    ? t('Codex CLI runtime is not ready. Install Codex CLI or fix the configured command path first.')
-    : aiStore.providerState.requiresApiKey === false
-    ? t('Agent runtime is not ready. Configure the provider and model before sending.')
-    : t('Agent runtime is not ready. Configure the provider, model, and API key before sending.')
+  t('Codex ACP runtime is not ready. Install Codex CLI or fix the configured command path first.')
 )
 const isSendBlocked = computed(
   () => isComposerLockedByBlockingState.value || !isProviderReady.value || !canSend.value
@@ -590,18 +538,7 @@ const composerSuggestions = computed(() => {
     prompt: aiStore.promptDraft,
     workspacePath: workspace.path || '',
     files: isAgentMode.value ? filesStore.flatFiles : [],
-    tools: isAgentMode.value
-      ? enabledTools.value.map((tool) => ({
-          id: tool.id,
-          label: t(tool.labelKey || tool.label || tool.id),
-          description: t(tool.descriptionKey || tool.description || ''),
-          groupKey: tool.groupKey || 'tools',
-          groupLabel: tool.groupLabel || 'Tools',
-          sourceKind: tool.sourceKind || '',
-          sourceLabel: tool.sourceLabel || '',
-          invocationName: tool.invocationName || '',
-        }))
-      : [],
+    tools: [],
     slashSuggestions: [],
     skillSuggestions: skillSuggestions.value,
   })
@@ -661,10 +598,6 @@ function handlePrimaryActionClick() {
     return
   }
   handleSendClick()
-}
-
-async function switchModel(model = '') {
-  await aiStore.setCurrentModel(model)
 }
 
 async function setResolvedPermissionMode(mode = 'accept-edits') {
@@ -913,7 +846,6 @@ function syncComposerTextareaHeight() {
 
 async function refreshProviderRuntime() {
   await aiStore.refreshProviderState()
-  await aiStore.refreshUnifiedModelPool({ force: true }).catch(() => [])
 }
 
 async function hydrateWorkspaceSessions() {
