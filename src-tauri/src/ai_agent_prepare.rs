@@ -8,17 +8,7 @@ use crate::ai_config::ai_config_load_internal;
 pub struct AiAgentPrepareCurrentConfigParams {
     pub active_session: Value,
     #[serde(default)]
-    pub active_skill: Option<Value>,
-    #[serde(default)]
-    pub scribeflow_skills: Vec<Value>,
-    #[serde(default)]
-    pub context_bundle: Value,
-    #[serde(default)]
-    pub session_mode: String,
-    #[serde(default)]
     pub workspace_path: String,
-    #[serde(default)]
-    pub flat_files: Vec<Value>,
 }
 
 fn string_field(value: &Value, keys: &[&str]) -> String {

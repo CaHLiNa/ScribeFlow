@@ -45,8 +45,6 @@ pub struct CodexAcpEnsureSessionParams {
     #[serde(default)]
     pub cwd: String,
     #[serde(default)]
-    pub title: String,
-    #[serde(default)]
     pub config: Value,
 }
 

@@ -7,7 +7,6 @@ mod ai_session_local_runtime;
 mod ai_session_storage;
 mod ai_skill_catalog;
 mod ai_skill_management;
-mod ai_skill_support;
 mod ai_skill_text;
 mod app_dirs;
 mod codex_acp_runtime;

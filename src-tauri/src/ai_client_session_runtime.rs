@@ -26,10 +26,6 @@ pub struct AiClientSessionEnsureThreadParams {
     pub sessions: Vec<crate::ai_session_storage::AiSessionOverlayRecord>,
     #[serde(default)]
     pub session_id: String,
-    #[serde(default)]
-    pub preferred_title: String,
-    #[serde(default)]
-    pub cwd: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
