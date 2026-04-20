@@ -13,7 +13,7 @@
           <div class="settings-ai-research-intro-copy">
             {{
               t(
-                'Set the default citation style, evidence strictness, and completion threshold before tuning the Codex runtime.'
+                'Set the evidence strictness and completion threshold before tuning the Codex runtime.'
               )
             }}
           </div>
@@ -27,21 +27,6 @@
         </div>
 
         <div class="settings-ai-research-grid">
-          <div class="settings-row settings-ai-runtime-row">
-            <div class="settings-row-copy">
-              <div class="settings-row-title">{{ t('Default citation style') }}</div>
-            </div>
-            <div class="settings-row-control">
-              <UiSelect
-                :model-value="researchDefaults.defaultCitationStyle"
-                size="sm"
-                class="settings-ai-input"
-                :options="citationStyleOptions"
-                @update:model-value="updateResearchDefault('defaultCitationStyle', $event)"
-              />
-            </div>
-          </div>
-
           <div class="settings-row settings-ai-runtime-row">
             <div class="settings-row-copy">
               <div class="settings-row-title">{{ t('Evidence strategy') }}</div>
@@ -239,7 +224,6 @@ import { useI18n } from '../../i18n'
 import { useAiStore } from '../../stores/ai'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useReferencesStore } from '../../stores/references'
-import { getAvailableCitationStyles } from '../../services/references/citationStyleRegistry.js'
 import UiButton from '../shared/ui/UiButton.vue'
 import UiInput from '../shared/ui/UiInput.vue'
 import UiSelect from '../shared/ui/UiSelect.vue'
@@ -302,18 +286,11 @@ const runtimeState = ref({
 })
 const codexCli = ref(defaultCodexCliConfig())
 const researchDefaults = ref({
-  defaultCitationStyle: 'apa',
   evidenceStrategy: 'balanced',
   taskCompletionThreshold: 'strict',
 })
 
 const currentWorkspacePath = computed(() => String(workspaceStore.path || '').trim())
-const citationStyleOptions = computed(() =>
-  getAvailableCitationStyles().map((style) => ({
-    value: style.id,
-    label: style.label,
-  }))
-)
 const evidenceStrategyOptions = computed(() => [
   { value: 'focused', label: t('Focused evidence') },
   { value: 'balanced', label: t('Balanced evidence') },
@@ -394,7 +371,9 @@ function buildConfig() {
       ...codexCli.value,
     },
     researchDefaults: {
-      defaultCitationStyle: String(researchDefaults.value.defaultCitationStyle || 'apa').trim() || 'apa',
+      defaultCitationStyle:
+        String(currentConfig?.researchDefaults?.defaultCitationStyle || referencesStore.citationStyle || 'apa').trim()
+        || 'apa',
       evidenceStrategy: String(researchDefaults.value.evidenceStrategy || 'balanced').trim() || 'balanced',
       taskCompletionThreshold:
         String(researchDefaults.value.taskCompletionThreshold || 'strict').trim() || 'strict',
@@ -412,14 +391,10 @@ async function loadState() {
       ...(config?.codexCli || {}),
     }
     researchDefaults.value = {
-      defaultCitationStyle: String(
-        config?.researchDefaults?.defaultCitationStyle || referencesStore.citationStyle || 'apa'
-      ).trim() || 'apa',
       evidenceStrategy: String(config?.researchDefaults?.evidenceStrategy || 'balanced').trim() || 'balanced',
       taskCompletionThreshold:
         String(config?.researchDefaults?.taskCompletionThreshold || 'strict').trim() || 'strict',
     }
-    referencesStore.setCitationStyle(researchDefaults.value.defaultCitationStyle)
     await refreshRuntimeState()
     await aiStore.refreshProviderState()
   } catch (error) {
@@ -438,7 +413,6 @@ async function handleSave() {
     const nextConfig = buildConfig()
     const saved = await saveAiConfig(nextConfig)
     loadedConfig.value = saved
-    referencesStore.setCitationStyle(researchDefaults.value.defaultCitationStyle)
     await refreshRuntimeState()
     await aiStore.refreshProviderState()
     inlineMessage.value = t('Codex runtime settings saved.')
