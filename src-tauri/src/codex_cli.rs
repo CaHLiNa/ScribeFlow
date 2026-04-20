@@ -18,6 +18,7 @@ use crate::process_utils::background_command;
 
 static RUNNING_CODEX_CLI_SESSIONS: OnceLock<Mutex<HashMap<String, u32>>> = OnceLock::new();
 static INTERRUPTED_CODEX_CLI_SESSIONS: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
+static CODEX_EXEC_SEARCH_FLAG_SUPPORT: OnceLock<Mutex<HashMap<String, bool>>> = OnceLock::new();
 
 fn running_sessions() -> &'static Mutex<HashMap<String, u32>> {
     RUNNING_CODEX_CLI_SESSIONS.get_or_init(|| Mutex::new(HashMap::new()))
@@ -25,6 +26,10 @@ fn running_sessions() -> &'static Mutex<HashMap<String, u32>> {
 
 fn interrupted_sessions() -> &'static Mutex<HashSet<String>> {
     INTERRUPTED_CODEX_CLI_SESSIONS.get_or_init(|| Mutex::new(HashSet::new()))
+}
+
+fn search_flag_support_cache() -> &'static Mutex<HashMap<String, bool>> {
+    CODEX_EXEC_SEARCH_FLAG_SUPPORT.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
 fn trim(value: &str) -> String {
@@ -153,6 +158,45 @@ async fn resolve_command_state(command_path: &str) -> (bool, String, String) {
     }
 }
 
+async fn codex_exec_supports_search_flag(command_path: &str) -> bool {
+    let normalized = if command_path.trim().is_empty() {
+        "codex".to_string()
+    } else {
+        command_path.trim().to_string()
+    };
+
+    if let Some(cached) = search_flag_support_cache()
+        .lock()
+        .await
+        .get(&normalized)
+        .copied()
+    {
+        return cached;
+    }
+
+    let supported = match Command::new(&normalized)
+        .arg("exec")
+        .arg("--help")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .await
+    {
+        Ok(output) => {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            stdout.contains("--search") || stderr.contains("--search")
+        }
+        Err(_) => false,
+    };
+
+    search_flag_support_cache()
+        .lock()
+        .await
+        .insert(normalized, supported);
+    supported
+}
+
 fn parse_codex_jsonl_events(stdout: &str) -> Vec<Value> {
     stdout
         .lines()
@@ -200,6 +244,11 @@ pub async fn codex_cli_state_resolve(params: CodexCliStateResolveParams) -> Resu
     let normalized = normalize_codex_cli_config(&params.config);
     let command_path = string_field(&normalized, &["commandPath"]);
     let (installed, version, error) = resolve_command_state(&command_path).await;
+    let supports_search_flag = if installed {
+        codex_exec_supports_search_flag(&command_path).await
+    } else {
+        false
+    };
     let model = string_field(&normalized, &["model"]);
     let profile = string_field(&normalized, &["profile"]);
 
@@ -213,6 +262,7 @@ pub async fn codex_cli_state_resolve(params: CodexCliStateResolveParams) -> Resu
         "profile": profile,
         "sandboxMode": string_field(&normalized, &["sandboxMode"]),
         "webSearch": bool_field(&normalized, &["webSearch"]),
+        "supportsSearchFlag": supports_search_flag,
         "useAsciiWorkspaceAlias": normalized
             .get("useAsciiWorkspaceAlias")
             .and_then(Value::as_bool)
@@ -254,6 +304,7 @@ pub async fn codex_cli_run(params: CodexCliRunParams) -> Result<Value, String> {
 
     let normalized = normalize_codex_cli_config(&params.config);
     let command_path = string_field(&normalized, &["commandPath"]);
+    let supports_search_flag = codex_exec_supports_search_flag(&command_path).await;
     let use_alias = normalized
         .get("useAsciiWorkspaceAlias")
         .and_then(Value::as_bool)
@@ -295,7 +346,7 @@ pub async fn codex_cli_run(params: CodexCliRunParams) -> Result<Value, String> {
         command.arg("--profile").arg(profile);
     }
 
-    if bool_field(&normalized, &["webSearch"]) {
+    if bool_field(&normalized, &["webSearch"]) && supports_search_flag {
         command.arg("--search");
     }
 
@@ -371,6 +422,7 @@ pub async fn codex_cli_run(params: CodexCliRunParams) -> Result<Value, String> {
         "events": events,
         "stderrPreview": preview_text(&stderr, 4000),
         "cwd": target_cwd,
+        "supportsSearchFlag": supports_search_flag,
     }))
 }
 
