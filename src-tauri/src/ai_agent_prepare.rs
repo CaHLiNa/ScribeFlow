@@ -546,6 +546,8 @@ fn should_prefer_agent_execution(
     invocation: Option<&Value>,
     tool_mentions: &[String],
 ) -> bool {
+    let normalized_prompt = normalize_search_text(prompt);
+
     if !tool_mentions.is_empty() {
         return true;
     }
@@ -555,6 +557,33 @@ fn should_prefer_agent_execution(
         .and_then(Value::as_str)
         == Some("/")
     {
+        return true;
+    }
+
+    let file_action_requested = [
+        "create", "new", "write", "save", "touch ", "mkdir ", "创建", "新建", "写入", "保存",
+    ]
+    .iter()
+    .any(|needle| normalized_prompt.contains(needle));
+    let file_target_requested = [
+        "file",
+        "folder",
+        "directory",
+        "path",
+        "文件",
+        "文件夹",
+        "目录",
+        ".md",
+        ".txt",
+        ".tex",
+        ".json",
+        ".yaml",
+        ".yml",
+        ".toml",
+    ]
+    .iter()
+    .any(|needle| normalized_prompt.contains(needle));
+    if file_action_requested && file_target_requested {
         return true;
     }
 
