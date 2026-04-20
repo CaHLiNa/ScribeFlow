@@ -706,6 +706,38 @@ fn build_agent_mode_user_prompt(params: &AiAgentPromptParams) -> String {
     lines.join("\n")
 }
 
+fn build_chat_mode_user_prompt(params: &AiAgentPromptParams) -> String {
+    let mut lines = vec![
+        "User request:".to_string(),
+        if params.user_instruction.trim().is_empty() {
+            "Respond to the user using the available conversation and workspace context when relevant."
+                .to_string()
+        } else {
+            params.user_instruction.trim().to_string()
+        },
+        String::new(),
+        build_workspace_context_prompt_block(&params.context_bundle),
+    ];
+    if !params.runtime_native_inputs {
+        let conversation = build_conversation_block(&params.conversation);
+        if !conversation.is_empty() {
+            lines.push(String::new());
+            lines.push(conversation);
+        }
+        let referenced = build_referenced_files_block(&params.referenced_files);
+        if !referenced.is_empty() {
+            lines.push(String::new());
+            lines.push(referenced);
+        }
+        let attachments = build_attachment_block(&params.attachments);
+        if !attachments.is_empty() {
+            lines.push(String::new());
+            lines.push(attachments);
+        }
+    }
+    lines.join("\n")
+}
+
 fn build_skill_mode_user_prompt(
     params: &AiAgentPromptParams,
     behavior_id: &str,
@@ -819,6 +851,8 @@ pub async fn ai_agent_build_prompt(
     };
     let user_prompt = if params.runtime_intent.trim() == "agent" {
         build_agent_mode_user_prompt(&params)
+    } else if params.runtime_intent.trim() == "chat" && behavior_id.is_empty() {
+        build_chat_mode_user_prompt(&params)
     } else {
         build_skill_mode_user_prompt(&params, &behavior_id, structured)
     };

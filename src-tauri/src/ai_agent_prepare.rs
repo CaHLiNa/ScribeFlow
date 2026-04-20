@@ -535,6 +535,74 @@ fn build_error(code: &str, extra: Value) -> Value {
     Value::Object(payload)
 }
 
+fn contains_any(haystack: &str, needles: &[&str]) -> bool {
+    let normalized = normalize_search_text(haystack);
+    needles.iter().any(|needle| normalized.contains(needle))
+}
+
+fn should_prefer_agent_execution(
+    prompt: &str,
+    skill: &Value,
+    invocation: Option<&Value>,
+    tool_mentions: &[String],
+) -> bool {
+    if !tool_mentions.is_empty() {
+        return true;
+    }
+
+    if invocation
+        .and_then(|value| value.get("prefix"))
+        .and_then(Value::as_str)
+        == Some("/")
+    {
+        return true;
+    }
+
+    if contains_any(
+        prompt,
+        &[
+            "edit",
+            "patch",
+            "apply",
+            "insert citation",
+            "update reference",
+            "fix",
+            "debug",
+            "run ",
+            "execute",
+            "compile",
+            "rewrite",
+            "search files",
+            "list files",
+            "rename",
+            "delete",
+            "modify",
+            "修改",
+            "修复",
+            "调试",
+            "运行",
+            "执行",
+            "编译",
+            "插入引用",
+            "补引用",
+            "更新文献",
+            "搜索文件",
+            "列出文件",
+            "删除",
+            "重命名",
+            "改写",
+        ],
+    ) {
+        return true;
+    }
+
+    let slug = build_skill_slug(skill);
+    matches!(
+        slug.as_str(),
+        "revise-with-citations" | "find-supporting-references" | "fix-latex-compile"
+    )
+}
+
 fn list_string_field(value: &Value, keys: &[&str]) -> Vec<String> {
     keys.iter()
         .find_map(|key| value.get(*key))
@@ -927,6 +995,21 @@ async fn ai_agent_prepare(params: AiAgentPrepareParams) -> Result<Value, String>
             .collect::<Vec<_>>(),
     );
 
+    let runtime_intent = if is_agent_session {
+        if should_prefer_agent_execution(&prompt_draft, &skill, invocation.as_ref(), &tool_mentions)
+        {
+            "agent".to_string()
+        } else if skill.is_object() {
+            "skill".to_string()
+        } else {
+            "chat".to_string()
+        }
+    } else if invocation.is_some() {
+        "skill".to_string()
+    } else {
+        "chat".to_string()
+    };
+
     Ok(json!({
         "ok": true,
         "session": session,
@@ -966,13 +1049,7 @@ async fn ai_agent_prepare(params: AiAgentPrepareParams) -> Result<Value, String>
         } else {
             user_instruction
         },
-        "runtimeIntent": if is_agent_session {
-            "agent"
-        } else if invocation.is_some() {
-            "skill"
-        } else {
-            "chat"
-        },
+        "runtimeIntent": runtime_intent,
         "referencedFiles": referenced_files,
         "priorConversation": prior_conversation,
         "attachments": session.get("attachments").cloned().unwrap_or_else(|| Value::Array(Vec::new())),

@@ -1546,14 +1546,16 @@ async fn ai_agent_run_started_session<R: Runtime>(
 
             Ok((result, None, None, execution_session))
         } else {
-            execution_session = hydrate_research_context_for_session(
-                execution_session,
-                &skill,
-                &context_bundle,
-                &user_instruction,
-                &resolved_task,
-            )
-            .await?;
+            if runtime_intent == "agent" || runtime_intent == "skill" {
+                execution_session = hydrate_research_context_for_session(
+                    execution_session,
+                    &skill,
+                    &context_bundle,
+                    &user_instruction,
+                    &resolved_task,
+                )
+                .await?;
+            }
             let response = ai_agent_run(AiAgentRunParams {
                 skill: skill.clone(),
                 context_bundle: context_bundle.clone(),
