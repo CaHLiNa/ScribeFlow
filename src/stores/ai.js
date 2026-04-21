@@ -440,6 +440,7 @@ export const useAiStore = defineStore('ai', {
     ...createInitialAgentSessionsState({
       fallbackTitle: buildDefaultSessionTitle(1),
     }),
+    restoredWorkspacePath: '',
     providerState: {
       ready: false,
       currentProviderId: 'codex-acp',
@@ -613,19 +614,51 @@ export const useAiStore = defineStore('ai', {
   },
 
   actions: {
-    persistCurrentWorkspaceSessions() {
-      const workspacePath = currentWorkspacePath()
-      if (!workspacePath) return
+    persistCurrentWorkspaceSessions({ workspacePath = '', force = false } = {}) {
+      const normalizedWorkspacePath = String(workspacePath || currentWorkspacePath()).trim()
+      if (!normalizedWorkspacePath) return
+      if (!force && String(this.restoredWorkspacePath || '').trim() !== normalizedWorkspacePath) {
+        return
+      }
+      const targetWorkspacePath = normalizedWorkspacePath
+      if (!targetWorkspacePath) return
       void saveSessionOverlayState({
-        workspacePath,
+        workspacePath: targetWorkspacePath,
         currentSessionId: this.currentSessionId,
         sessions: this.sessions,
       }).catch(() => {})
     },
 
+    async initializeWorkspaceSessions(workspacePath = '') {
+      const normalizedWorkspacePath = String(workspacePath || currentWorkspacePath()).trim()
+      const restored = await restoreSessionOverlayState({
+        workspacePath: normalizedWorkspacePath,
+        fallbackTitle: buildDefaultSessionTitle(1),
+      })
+      const restoredSessions = Array.isArray(restored?.sessions) ? restored.sessions : []
+      const restoredCurrentSessionId = String(restored?.currentSessionId || '').trim()
+      const nextState = await normalizeSessionStateRust({
+        sessions: restoredSessions.map(scrubTransientAgentSessionState),
+        currentSessionId: restoredCurrentSessionId,
+        fallbackTitle: buildDefaultSessionTitle(1),
+      })
+      this.sessions = Array.isArray(nextState?.sessions) ? nextState.sessions : []
+      this.currentSessionId = String(nextState?.currentSessionId || '').trim()
+      this.restoredWorkspacePath = normalizedWorkspacePath
+      this.persistCurrentWorkspaceSessions({
+        workspacePath: normalizedWorkspacePath,
+        force: true,
+      })
+      return {
+        sessions: this.sessions,
+        currentSessionId: this.currentSessionId,
+      }
+    },
+
     async restoreWorkspaceSessions(workspacePath = '') {
+      const normalizedWorkspacePath = String(workspacePath || currentWorkspacePath()).trim()
       const normalized = await restoreSessionOverlayState({
-        workspacePath: String(workspacePath || currentWorkspacePath()).trim(),
+        workspacePath: normalizedWorkspacePath,
         fallbackTitle: buildDefaultSessionTitle(1),
       })
       this.sessions = mergeOverlaySessionState(
@@ -634,6 +667,7 @@ export const useAiStore = defineStore('ai', {
         buildDefaultSessionTitle(1)
       )
       this.currentSessionId = String(normalized?.currentSessionId || '').trim()
+      this.restoredWorkspacePath = normalizedWorkspacePath
     },
 
     async resetTransientRuntimeState() {

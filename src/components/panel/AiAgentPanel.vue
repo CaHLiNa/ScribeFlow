@@ -254,8 +254,6 @@ const {
   handleSurfaceContextMenuSelect,
 } = useSurfaceContextMenu()
 
-void aiStore.resetTransientRuntimeState()
-
 const threadRef = ref(null)
 const threadBottomRef = ref(null)
 const composerInputRef = ref(null)
@@ -820,8 +818,7 @@ async function refreshProviderRuntime() {
 }
 
 async function hydrateWorkspaceSessions() {
-  await aiStore.restoreWorkspaceSessions(workspace.path || '')
-  await aiStore.ensureSessionState()
+  await aiStore.initializeWorkspaceSessions(workspace.path || '')
 }
 
 onMounted(() => {

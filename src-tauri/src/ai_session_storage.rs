@@ -1,6 +1,6 @@
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Map, Value};
 use std::fs;
 use std::path::{Path, PathBuf};
 use tokio::task;
@@ -23,6 +23,8 @@ pub struct AiSessionOverlayRecord {
     pub queued_prompt_draft: String,
     pub attachments: Vec<Value>,
     pub queued_attachments: Vec<Value>,
+    #[serde(flatten, default)]
+    pub extra: Map<String, Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -205,6 +207,7 @@ fn normalize_session_record(
         queued_prompt_draft: record.queued_prompt_draft,
         attachments: record.attachments,
         queued_attachments: record.queued_attachments,
+        extra: record.extra,
     }
 }
 
@@ -229,6 +232,7 @@ fn create_initial_state(fallback_title: &str) -> AiSessionOverlayState {
             queued_prompt_draft: String::new(),
             attachments: Vec::new(),
             queued_attachments: Vec::new(),
+            extra: Map::new(),
         },
         fallback,
     );
@@ -434,6 +438,7 @@ pub async fn ai_session_overlay_create(
                 queued_prompt_draft: String::new(),
                 attachments: Vec::new(),
                 queued_attachments: Vec::new(),
+                extra: Map::new(),
             },
             fallback,
         );
@@ -449,6 +454,52 @@ pub async fn ai_session_overlay_create(
         })
     })
     .await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn normalize_session_record_preserves_extra_fields() {
+        let mut extra = Map::new();
+        extra.insert(
+            "messages".to_string(),
+            json!([{ "id": "m1", "role": "assistant", "content": "hello" }]),
+        );
+        extra.insert(
+            "researchTask".to_string(),
+            json!({ "id": "task-1", "title": "Persisted task" }),
+        );
+
+        let record = AiSessionOverlayRecord {
+            id: "session-1".to_string(),
+            mode: "agent".to_string(),
+            permission_mode: "accept-edits".to_string(),
+            runtime_thread_id: String::new(),
+            runtime_provider_id: String::new(),
+            runtime_transport: String::new(),
+            title: "Saved session".to_string(),
+            created_at: 1,
+            updated_at: 2,
+            prompt_draft: String::new(),
+            queued_prompt_draft: String::new(),
+            attachments: Vec::new(),
+            queued_attachments: Vec::new(),
+            extra,
+        };
+
+        let normalized = normalize_session_record(record, "Fallback");
+        assert_eq!(
+            normalized.extra.get("messages"),
+            Some(&json!([{ "id": "m1", "role": "assistant", "content": "hello" }]))
+        );
+        assert_eq!(
+            normalized.extra.get("researchTask"),
+            Some(&json!({ "id": "task-1", "title": "Persisted task" }))
+        );
+    }
 }
 
 #[tauri::command]
