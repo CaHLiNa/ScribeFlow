@@ -222,6 +222,117 @@ function clearPlaceholderParts(message = null) {
   return parts.length > 0 ? parts : []
 }
 
+function createConversationMessage({
+  id = '',
+  role = 'assistant',
+  createdAt = Date.now(),
+  content = '',
+  parts = [],
+  metadata = {},
+} = {}) {
+  return {
+    id: String(id || '').trim(),
+    role,
+    createdAt,
+    content: String(content || ''),
+    parts: Array.isArray(parts) ? parts : [],
+    metadata: {
+      ...(metadata || {}),
+    },
+  }
+}
+
+function replaceMessageById(messages = [], messageId = '', updater = (message) => message) {
+  const normalizedId = String(messageId || '').trim()
+  return (Array.isArray(messages) ? messages : []).map((message) => {
+    if (String(message?.id || '').trim() !== normalizedId) return message
+    const nextMessage = typeof updater === 'function' ? updater(message) : message
+    return {
+      ...message,
+      ...nextMessage,
+    }
+  })
+}
+
+function upsertMessageById(messages = [], nextMessage = null) {
+  const normalizedId = String(nextMessage?.id || '').trim()
+  if (!normalizedId) return Array.isArray(messages) ? messages : []
+
+  const list = Array.isArray(messages) ? messages : []
+  const existingIndex = list.findIndex((message) => String(message?.id || '').trim() === normalizedId)
+  if (existingIndex < 0) {
+    return [...list, nextMessage]
+  }
+
+  const merged = {
+    ...list[existingIndex],
+    ...nextMessage,
+    metadata: {
+      ...(list[existingIndex]?.metadata || {}),
+      ...(nextMessage?.metadata || {}),
+    },
+  }
+  const nextList = list.slice()
+  nextList[existingIndex] = merged
+  return nextList
+}
+
+function buildToolMessageId(pendingAssistantId = '', toolCallId = '') {
+  const baseId = String(pendingAssistantId || '').trim()
+  const normalizedToolCallId = String(toolCallId || '').trim()
+  if (!baseId || !normalizedToolCallId) return ''
+  return `${baseId}:tool:${normalizedToolCallId}`
+}
+
+function buildToolMessage(payload = {}, pendingAssistantId = '', metadata = {}) {
+  const toolCallId = String(payload?.toolCallId || '').trim()
+  if (!toolCallId || !isMeaningfulToolPayload(payload)) return null
+  const messageId = buildToolMessageId(pendingAssistantId, toolCallId)
+  if (!messageId) return null
+
+  const parts = upsertToolPart(null, payload)
+  if (!parts.length) return null
+
+  return createConversationMessage({
+    id: messageId,
+    role: 'assistant',
+    createdAt: Date.now(),
+    content: '',
+    parts,
+    metadata: {
+      ...(metadata || {}),
+      streamKind: 'tool',
+      toolCallId,
+    },
+  })
+}
+
+function appendAssistantTextMessage(messages = [], pendingAssistantId = '', text = '', metadata = {}) {
+  const normalizedId = String(pendingAssistantId || '').trim()
+  const normalizedText = String(text || '')
+  if (!normalizedId || !normalizedText) return Array.isArray(messages) ? messages : []
+
+  const list = Array.isArray(messages) ? messages : []
+  const existing = list.find((message) => String(message?.id || '').trim() === normalizedId) || null
+  const nextParts = appendAssistantTextPart(
+    existing ? { ...existing, parts: clearPlaceholderParts(existing) } : null,
+    normalizedText
+  )
+  const nextMessage = createConversationMessage({
+    id: normalizedId,
+    role: 'assistant',
+    createdAt: existing?.createdAt || Date.now(),
+    content: `${String(existing?.content || '')}${normalizedText}`,
+    parts: nextParts,
+    metadata: {
+      ...(existing?.metadata || {}),
+      ...(metadata || {}),
+      streamKind: 'assistant-text',
+    },
+  })
+  return upsertMessageById(list, nextMessage)
+}
+
 function ensureManagedAgentSessionsState({
   sessions = [],
   currentSessionId = '',
@@ -1304,14 +1415,14 @@ export const useAiStore = defineStore('ai', {
       if (kind === 'tool-update') {
         await this.updateSessionById(sessionId, (session) => {
           const pendingAssistantId = String(session?.activeTurn?.pendingAssistantId || '').trim()
-          const nextMessages = Array.isArray(session.messages)
-            ? session.messages.map((message) => {
-              if (message?.id !== pendingAssistantId) return message
-              return {
-                ...message,
-                parts: upsertToolPart(message, payload),
-              }
-            })
+          const pendingAssistantMessage = Array.isArray(session.messages)
+            ? session.messages.find((message) => message?.id === pendingAssistantId) || null
+            : null
+          const nextToolMessage = buildToolMessage(payload, pendingAssistantId, {
+            contextChips: pendingAssistantMessage?.metadata?.contextChips || [],
+          })
+          const nextMessages = nextToolMessage
+            ? upsertMessageById(session.messages, nextToolMessage)
             : session.messages
 
           return {
@@ -1334,19 +1445,17 @@ export const useAiStore = defineStore('ai', {
       if (kind === 'assistant-delta') {
         await this.updateSessionById(sessionId, (session) => {
           const pendingAssistantId = String(session?.activeTurn?.pendingAssistantId || '').trim()
-          const nextMessages = Array.isArray(session.messages)
-            ? session.messages.map((message) => {
-              if (message?.id !== pendingAssistantId) return message
-              return {
-                ...message,
-                content: String(message?.content || '') + String(payload?.text || ''),
-                parts: appendAssistantTextPart(
-                  { ...message, parts: clearPlaceholderParts(message) },
-                  payload?.text
-                ),
-              }
-            })
-            : session.messages
+          const pendingAssistantMessage = Array.isArray(session.messages)
+            ? session.messages.find((message) => message?.id === pendingAssistantId) || null
+            : null
+          const nextMessages = appendAssistantTextMessage(
+            session.messages,
+            pendingAssistantId,
+            payload?.text,
+            {
+              contextChips: pendingAssistantMessage?.metadata?.contextChips || [],
+            }
+          )
 
           return {
             ...session,
@@ -1507,14 +1616,6 @@ export const useAiStore = defineStore('ai', {
                 skillLabel: '',
                 contextChips,
               },
-            },
-            {
-              id: pendingAssistantId,
-              role: 'assistant',
-              createdAt: Date.now() + 1,
-              content: '',
-              parts: [],
-              metadata: { skillId: '', skillLabel: '', contextChips },
             },
           ],
           isRunning: true,
