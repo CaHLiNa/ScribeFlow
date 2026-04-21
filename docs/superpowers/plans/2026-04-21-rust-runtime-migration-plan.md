@@ -623,6 +623,14 @@ Rust 接管：
 
 **目标：** 只在前 4 个 phase 完成后，再开始体验与性能优化。
 
+当前进度：
+
+- 已完成 LaTeX compile / PDF preview 交互优化：当 PDF artifact 尚不存在时，`reveal-pdf` / `open-output` 不再空转，而是先触发 compile，再在成功后自动打开 PDF preview 或外部输出
+- 已完成 references insertion 体验优化：Citation palette 导入 DOI / BibTeX / RIS / 标题后，无论是新增文献还是命中现有重复文献，都能稳定选中并直接插入 / 加入当前 citation group
+- 已完成 settings UX 收束：citation style 不再依赖 Zotero account 已连接，sync summary 会在设置页内直接反馈
+- 已完成 editor 打开 / 恢复性能优化：editor session save 增加去重，重复打开当前 tab / pane 不再无意义触发持久化
+- 当前仍未做真实桌面点击回归；原因仍是 Computer Use 无法附着 `tauri dev` 窗口，并且本机 `1420` 端口已有既有 Vite 进程占用
+
 **允许开始的前提：**
 
 - Workspace / Preferences 的 Rust 权威完成
@@ -641,6 +649,40 @@ Rust 接管：
 
 - 在 phase 1-4 未完成前提前做大规模 UI polish
 - 在旧前端权威上继续叠加新功能
+
+### 当前结果
+
+- `DocumentWorkflowBar` 的 PDF action 已从“无 artifact 时禁用 / 空转”变为“build and open PDF”，闭合了 LaTeX compile-preview 主路径
+- references 导入结果现在会返回结构化 selection 信息，citation palette 与 reference workbench 不再依赖脆弱的“读 selectedReference 猜结果”
+- Zotero settings 中 citation style 已回到 workspace-level references 能力本身，不再错误耦合账号连接状态
+- editor persistence 增加了 state payload 去重，减少了重复写盘和 reopen 当前 tab 时的无意义状态更新
+
+### 验证
+
+- `cargo fmt --manifest-path src-tauri/Cargo.toml`
+- `cargo check --manifest-path src-tauri/Cargo.toml`
+- `cargo test --manifest-path src-tauri/Cargo.toml document_workflow`
+- `npm run build`
+- `npm run lint`
+- `npm run tauri -- dev`
+
+当前验证记录：
+
+- 已执行 `cargo fmt --manifest-path src-tauri/Cargo.toml`
+- 已执行 `cargo check --manifest-path src-tauri/Cargo.toml`
+- 已执行 `cargo test --manifest-path src-tauri/Cargo.toml document_workflow`
+- 已执行 `npm run build`
+- 已执行 `npm run lint`
+- 已尝试执行 `npm run tauri -- dev`，但当前环境中 `1420` 端口已被既有 `node` 进程占用，`beforeDevCommand` 无法启动，因此本轮未完成桌面启动验证
+
+### Phase 5 完成定义核对
+
+1. 已完成的优化职责：
+   LaTeX preview/build 交互闭环、references import/insert 闭环、settings UX 收束、editor 持久化去噪
+2. 已删除或降权的旧前端行为：
+   PDF artifact 缺失时的空动作、citation style 对 Zotero account 连接态的错误前置依赖、citation import 对隐式 `selectedReference` 的脆弱依赖、editor 对重复状态的无差别写盘
+3. 剩余阻塞点：
+   仍缺一次真实桌面点击回归；当前阻塞来自 Computer Use 无法附着 `tauri dev` 窗口，以及本机已有 `:1420` Vite 进程占用
 
 ---
 

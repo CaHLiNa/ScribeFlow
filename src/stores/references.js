@@ -260,6 +260,28 @@ function buildCitationUsageIndex(fileContents = {}) {
   return usage
 }
 
+async function resolveImportedSelectionReference(
+  mergedReferences = [],
+  markedReferences = [],
+) {
+  if (!markedReferences[0]) return null
+
+  let importedSelection = mergedReferences.find((reference) =>
+    markedReferences.some((candidate) => candidate.id === reference.id)
+  )
+  if (importedSelection) return importedSelection
+
+  for (const reference of mergedReferences) {
+    const duplicate = await findDuplicateReference(markedReferences, reference)
+    if (duplicate) {
+      importedSelection = reference
+      break
+    }
+  }
+
+  return importedSelection || null
+}
+
 export const useReferencesStore = defineStore('references', {
   state: () => ({
     librarySections: REFERENCE_LIBRARY_SECTIONS,
@@ -478,23 +500,15 @@ export const useReferencesStore = defineStore('references', {
         }
         const persisted = await writeReferenceLibrarySnapshot(projectRoot, snapshot)
         this.applyLibrarySnapshot(persisted)
-        if (markedReferences[0]) {
-          let importedSelection = mergedReferences.find((reference) =>
-            markedReferences.some((candidate) => candidate.id === reference.id)
-          )
-          if (!importedSelection) {
-            for (const reference of mergedReferences) {
-              const duplicate = await findDuplicateReference(markedReferences, reference)
-              if (duplicate) {
-                importedSelection = reference
-                break
-              }
-            }
-          }
-          if (importedSelection) this.selectedReferenceId = importedSelection.id
-        }
+        const importedSelection = await resolveImportedSelectionReference(mergedReferences, markedReferences)
+        if (importedSelection) this.selectedReferenceId = importedSelection.id
         this.ensureSelectedReferenceVisible()
-        return importedCount
+        return {
+          importedCount,
+          selectedReferenceId: importedSelection?.id || '',
+          selectedReference: importedSelection || null,
+          reusedExisting: importedCount === 0 && !!importedSelection,
+        }
       } finally {
         this.importInFlight = false
       }
@@ -504,7 +518,14 @@ export const useReferencesStore = defineStore('references', {
       this.importInFlight = true
       try {
         const importedReferences = await importReferencesFromText(content)
-        if (importedReferences.length === 0) return 0
+        if (importedReferences.length === 0) {
+          return {
+            importedCount: 0,
+            selectedReferenceId: '',
+            selectedReference: null,
+            reusedExisting: false,
+          }
+        }
 
         const shouldMark = await shouldMarkReferenceForZoteroPush()
         const markedReferences = shouldMark
@@ -521,25 +542,17 @@ export const useReferencesStore = defineStore('references', {
         }
         const persisted = await writeReferenceLibrarySnapshot(projectRoot, snapshot)
         this.applyLibrarySnapshot(persisted)
-        if (markedReferences[0]) {
-          let importedSelection = mergedReferences.find((reference) =>
-            markedReferences.some((candidate) => candidate.id === reference.id)
-          )
-          if (!importedSelection) {
-            for (const reference of mergedReferences) {
-              const duplicate = await findDuplicateReference(markedReferences, reference)
-              if (duplicate) {
-                importedSelection = reference
-                break
-              }
-            }
-          }
-          if (importedSelection) {
-            this.selectedReferenceId = importedSelection.id
-          }
+        const importedSelection = await resolveImportedSelectionReference(mergedReferences, markedReferences)
+        if (importedSelection) {
+          this.selectedReferenceId = importedSelection.id
         }
         this.ensureSelectedReferenceVisible()
-        return importedCount
+        return {
+          importedCount,
+          selectedReferenceId: importedSelection?.id || '',
+          selectedReference: importedSelection || null,
+          reusedExisting: importedCount === 0 && !!importedSelection,
+        }
       } finally {
         this.importInFlight = false
       }

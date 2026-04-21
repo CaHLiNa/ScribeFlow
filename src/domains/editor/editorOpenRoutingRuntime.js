@@ -26,11 +26,16 @@ export function createEditorOpenRoutingRuntime({
   function openFile(path) {
     const existingPane = findPaneWithTab?.(path)
     if (existingPane) {
+      const alreadyActive = existingPane.activeTab === path && getActivePaneId?.() === existingPane.id
+      if (alreadyActive) {
+        rememberOpenedPath(path)
+        return existingPane.id
+      }
       existingPane.activeTab = path
       setActivePaneId?.(existingPane.id)
       rememberOpenedPath(path)
       saveEditorState?.()
-      return
+      return existingPane.id
     }
 
     const pane = findPane?.(getActivePaneId?.())
@@ -42,6 +47,7 @@ export function createEditorOpenRoutingRuntime({
     rememberOpenedPath(path)
     revealInTree?.(path)
     saveEditorState?.()
+    return pane.id
   }
 
   function openNewTab(paneId = null) {
@@ -58,13 +64,29 @@ export function createEditorOpenRoutingRuntime({
     const pane = findPane?.(paneId)
     if (!pane) return null
 
+    const shouldActivatePane = options.activatePane === true
+    const alreadyOpenInTargetPane = pane.activeTab === path && pane.tabs.includes(path)
+    const alreadyActivePane = getActivePaneId?.() === paneId
+
+    if (alreadyOpenInTargetPane && (!shouldActivatePane || alreadyActivePane)) {
+      if (shouldActivatePane && !alreadyActivePane) {
+        setActivePaneId?.(paneId)
+        rememberContextPath?.(path)
+      } else {
+        rememberOpenedPath(path)
+      }
+      return paneId
+    }
+
     activateOrOpenPaneTab(pane, path, {
       replaceLauncher: options.replaceNewTab !== false,
     })
 
-    if (options.activatePane) {
+    if (shouldActivatePane) {
       setActivePaneId?.(paneId)
       rememberContextPath?.(path)
+    } else {
+      rememberOpenedPath(path)
     }
 
     saveEditorState?.()

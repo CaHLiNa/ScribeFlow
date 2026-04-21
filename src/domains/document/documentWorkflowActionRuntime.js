@@ -29,6 +29,10 @@ function createLegacyPanePreviewToggle(workflowStore, filePath, options = {}) {
   return workflowStore?.togglePreviewForSource?.(filePath, toggleOptions) || null
 }
 
+function planHasFollowUp(plan = null) {
+  return !!(plan && typeof plan === 'object' && plan.followUpAction && typeof plan.followUpAction === 'object')
+}
+
 export function createDocumentWorkflowActionRuntime({
   getWorkflowStore,
   getBuildOperationRuntime = () => createDocumentWorkflowBuildOperationRuntime(),
@@ -61,11 +65,33 @@ export function createDocumentWorkflowActionRuntime({
     switch (plan.actionType) {
       case 'run-build': {
         const buildOperationRuntime = getBuildOperationRuntime?.() || null
-        return buildOperationRuntime?.runBuildForFile?.(filePath, {
+        const buildResult = await (buildOperationRuntime?.runBuildForFile?.(filePath, {
           ...(options.buildOptions || {}),
           sourcePaneId: options.sourcePaneId,
           trigger: options.trigger || `${options.uiState?.kind || 'document'}-compile-button`,
-        }) || null
+        }) || null)
+
+        if (!planHasFollowUp(plan)) {
+          return buildResult
+        }
+
+        const followUpArtifactPath = workflowStore.getArtifactPathForFile?.(
+          filePath,
+          options.buildOptions || {},
+        ) || ''
+        if (!String(followUpArtifactPath || '').trim()) {
+          return buildResult
+        }
+
+        const followUpPlan = {
+          ...plan.followUpAction,
+        }
+        if (followUpPlan.actionType === 'open-external-output') {
+          followUpPlan.artifactPath = followUpArtifactPath
+        }
+
+        const followUpResult = await executeActionPlan(filePath, followUpPlan, options)
+        return followUpResult || buildResult
       }
       case 'legacy-toggle-preview':
         return createLegacyPanePreviewToggle(workflowStore, filePath, {

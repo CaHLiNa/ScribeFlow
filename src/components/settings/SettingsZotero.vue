@@ -135,12 +135,19 @@
         </div>
       </section>
 
-      <section v-if="connected" class="settings-group">
+      <section class="settings-group">
         <h4 class="settings-group-title">{{ t('Citations') }}</h4>
         <div class="settings-group-body">
           <div class="settings-row">
             <div class="settings-row-copy">
               <div class="settings-row-title">{{ t('Citation style') }}</div>
+              <div class="settings-row-hint">
+                {{
+                  connected
+                    ? t('Controls local citation rendering and bibliography export for the current workspace.')
+                    : t('Works locally even before connecting Zotero.')
+                }}
+              </div>
             </div>
             <div class="settings-row-control">
               <UiSelect
@@ -211,6 +218,10 @@
               </UiButton>
             </div>
           </div>
+
+          <div v-if="syncSummary" class="settings-inline-message">
+            {{ syncSummary }}
+          </div>
         </div>
       </section>
     </template>
@@ -257,12 +268,13 @@ const selectedGroupIds = ref(new Set())
 const pushTargetValue = ref('')
 const collectionOptions = ref([])
 const syncSummary = ref('')
-const citationStyle = ref('apa')
 const previewCitationStyleOptions = computed(() => [
   { value: 'apa', label: 'APA 7th' },
   { value: 'ieee', label: 'IEEE' },
   { value: 'chicago-author-date', label: 'Chicago Author-Date' },
 ])
+
+const citationStyle = computed(() => referencesStore.citationStyle || 'apa')
 
 // 防御性 computed：确保不会由于 referencesStore 尚未初始化而崩溃
 const citationStyleOptions = computed(() => {
@@ -381,7 +393,7 @@ function handlePushTargetChange(val) {
 }
 
 async function handleCitationStyleChange(val) {
-  citationStyle.value = val
+  if (citationStyle.value === val) return
   referencesStore.setCitationStyle(val)
   await referencesStore.persistLibrarySnapshot(workspace.globalConfigDir)
 }
@@ -416,6 +428,7 @@ async function handleConnect() {
 async function handleDisconnect() {
   loading.value = true
   error.value = ''
+  syncSummary.value = ''
   try {
     await disconnectZotero()
     connected.value = false
@@ -462,7 +475,6 @@ onMounted(async () => {
     }
     userId.value = String(savedConfig?.userId || '')
     autoSync.value = savedConfig?.autoSync !== false
-    citationStyle.value = referencesStore.citationStyle || 'apa'
     pushTargetValue.value = (() => {
       const target = savedConfig?.pushTarget
       if (!target?.libraryType || !target?.libraryId) return ''

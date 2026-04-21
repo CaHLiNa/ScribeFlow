@@ -191,6 +191,14 @@ const paletteStyle = computed(() => ({
   top: `${Math.min(props.posY + 4, window.innerHeight - 560)}px`,
 }))
 
+watch(filteredResults, (results) => {
+  selectedIdx.value = Math.min(selectedIdx.value, Math.max(results.length - 1, 0))
+})
+
+watch(addResults, (results) => {
+  addSelectedIdx.value = Math.min(addSelectedIdx.value, Math.max(results.length - 1, 0))
+})
+
 function formatAuthor(reference = {}) {
   const authors = Array.isArray(reference.authors) ? reference.authors : []
   if (authors.length === 0) return 'Unknown'
@@ -204,6 +212,9 @@ function selectResult(key, stayOpen = false) {
 }
 
 function addToGroup(key) {
+  if (editCites.value.some((cite) => cite.key === key)) {
+    return
+  }
   editCites.value.push({ key, locator: '', prefix: '' })
   addQuery.value = ''
   addSelectedIdx.value = 0
@@ -250,22 +261,31 @@ async function doImport() {
   importError.value = ''
   importStatus.value = ''
   try {
-    const importedCount = await referencesStore.importResolvedReferenceText(
+    const result = await referencesStore.importResolvedReferenceText(
       workspace.globalConfigDir,
       importText.value
     )
-    if (importedCount === 0) {
-      importStatus.value = '没有新增文献'
+    const importedCount = Number(result?.importedCount || 0)
+    const selectedReference = result?.selectedReference || null
+    const key = selectedReference?.citationKey || selectedReference?.id || ''
+
+    if (importedCount === 0 && !key) {
+      importStatus.value = '没有找到可导入的文献'
     } else {
-      importStatus.value = `已导入 ${importedCount} 条文献`
-      const selected = referencesStore.selectedReference
-      const key = selected?.citationKey || selected?.id
-      if (key) {
-        if (isInsert.value) {
-          emit('insert', { keys: [key], stayOpen: false, latexCommand: props.latexCommand })
-        } else {
-          addToGroup(key)
-        }
+      importStatus.value = importedCount > 0
+        ? `已导入 ${importedCount} 条文献`
+        : '已定位到现有文献'
+    }
+
+    if (key) {
+      importText.value = ''
+      if (isInsert.value) {
+        emit('insert', { keys: [key], stayOpen: false, latexCommand: props.latexCommand })
+      } else {
+        addToGroup(key)
+        showImport.value = false
+        await nextTick()
+        addInputEl.value?.focus()
       }
     }
   } catch (error) {

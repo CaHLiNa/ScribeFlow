@@ -596,8 +596,9 @@ async function handleImportBibTeX() {
 
   try {
     const content = await readWorkspaceTextFile(String(selected))
-    const importedCount =
+    const importResult =
       await referencesStore.importBibTeXContent(workspace.globalConfigDir, content)
+    const importedCount = Number(importResult?.importedCount || 0)
 
     uxStatusStore.success(
       importedCount > 0

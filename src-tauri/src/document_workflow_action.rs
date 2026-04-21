@@ -115,6 +115,13 @@ fn build_run_build() -> Value {
     })
 }
 
+fn build_run_build_with_follow_up(follow_up_action: Value) -> Value {
+    json!({
+        "actionType": "run-build",
+        "followUpAction": follow_up_action,
+    })
+}
+
 fn build_noop() -> Value {
     json!({
         "actionType": "noop",
@@ -284,7 +291,7 @@ fn resolve_latex_action(
             if artifact_ready {
                 build_external_output(artifact_path)
             } else {
-                build_noop()
+                build_run_build_with_follow_up(build_external_output(artifact_path))
             }
         }
         "toggle-pdf-preview" | "reveal-pdf" => {
@@ -294,7 +301,7 @@ fn resolve_latex_action(
             if artifact_ready {
                 return build_workspace_show("pdf", false);
             }
-            build_external_output(artifact_path)
+            build_run_build_with_follow_up(build_workspace_show("pdf", false))
         }
         "reveal-preview" => {
             if requested_preview_kind.is_empty() {
@@ -371,7 +378,10 @@ pub async fn document_workflow_ui_resolve(
 
 #[cfg(test)]
 mod tests {
-    use super::{document_workflow_ui_resolve, DocumentWorkflowUiResolveParams};
+    use super::{
+        document_workflow_action_resolve, document_workflow_ui_resolve,
+        DocumentWorkflowActionResolveParams, DocumentWorkflowUiResolveParams,
+    };
     use serde_json::{json, Value};
 
     #[tokio::test]
@@ -430,5 +440,73 @@ mod tests {
         assert_eq!(value.get("phase").and_then(Value::as_str), Some("ready"));
         assert_eq!(value.get("canOpenPdf").and_then(Value::as_bool), Some(true));
         assert_eq!(value.get("warningCount").and_then(Value::as_u64), Some(1));
+    }
+
+    #[tokio::test]
+    async fn resolves_latex_pdf_preview_to_build_then_reveal_when_artifact_missing() {
+        let value = document_workflow_action_resolve(DocumentWorkflowActionResolveParams {
+            file_path: "/tmp/test.tex".to_string(),
+            intent: "reveal-pdf".to_string(),
+            preview_delivery: "workspace".to_string(),
+            ui_state: json!({
+                "kind": "latex",
+                "previewKind": "pdf",
+            }),
+            preview_state: json!({
+                "previewVisible": false,
+                "previewMode": "",
+            }),
+            artifact_path: String::new(),
+        })
+        .await
+        .expect("resolve latex action");
+
+        assert_eq!(
+            value.get("actionType").and_then(Value::as_str),
+            Some("run-build")
+        );
+        assert_eq!(
+            value
+                .get("followUpAction")
+                .and_then(|follow_up| follow_up.get("actionType"))
+                .and_then(Value::as_str),
+            Some("show-workspace-preview")
+        );
+        assert_eq!(
+            value
+                .get("followUpAction")
+                .and_then(|follow_up| follow_up.get("previewKind"))
+                .and_then(Value::as_str),
+            Some("pdf")
+        );
+    }
+
+    #[tokio::test]
+    async fn resolves_latex_open_output_to_build_then_open_when_artifact_missing() {
+        let value = document_workflow_action_resolve(DocumentWorkflowActionResolveParams {
+            file_path: "/tmp/test.tex".to_string(),
+            intent: "open-output".to_string(),
+            preview_delivery: "workspace".to_string(),
+            ui_state: json!({
+                "kind": "latex",
+                "previewKind": "pdf",
+            }),
+            preview_state: Value::Null,
+            artifact_path: String::new(),
+        })
+        .await
+        .expect("resolve latex open output action");
+
+        assert_eq!(
+            value.get("actionType").and_then(Value::as_str),
+            Some("run-build")
+        );
+        assert_eq!(
+            value
+                .get("followUpAction")
+                .and_then(|follow_up| follow_up.get("actionType"))
+                .and_then(Value::as_str),
+            Some("open-external-output")
+        );
     }
 }

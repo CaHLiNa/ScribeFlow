@@ -67,7 +67,6 @@
             variant="ghost"
             size="icon-sm"
             icon-only
-            :disabled="!canOpenPdf"
             :active="isPdfButtonActive"
             :title="pdfButtonLabel"
             :aria-label="pdfButtonLabel"
@@ -158,7 +157,7 @@ const showPdfButton = computed(() => {
   return canOpenPdf.value
 })
 const pdfButtonLabel = computed(() => {
-  if (!canOpenPdf.value) return t('Compile to generate PDF')
+  if (!canOpenPdf.value) return t('Build and open PDF')
   return activePreviewMode.value === 'pdf-artifact' ? t('Hide PDF preview') : t('Open PDF')
 })
 
