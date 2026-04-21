@@ -295,6 +295,16 @@ fn sort_system_font_families(fonts: &mut [String]) {
     });
 }
 
+fn should_expose_system_font_family(name: &str) -> bool {
+    let trimmed = name.trim();
+    if trimmed.is_empty() || trimmed.starts_with('.') {
+        return false;
+    }
+
+    let lowered = trimmed.to_lowercase();
+    !lowered.contains("fallback") && !lowered.contains("lastresort")
+}
+
 #[cfg(target_os = "macos")]
 fn load_macos_system_font_families() -> Result<Vec<String>, String> {
     let output = background_command("system_profiler")
@@ -357,7 +367,9 @@ fn load_macos_system_font_families() -> Result<Vec<String>, String> {
             };
 
             let normalized = family.trim();
-            if normalized.is_empty() || families.iter().any(|item| item == normalized) {
+            if !should_expose_system_font_family(normalized)
+                || families.iter().any(|item| item == normalized)
+            {
                 continue;
             }
 
@@ -545,7 +557,8 @@ pub async fn workspace_preferences_list_system_fonts() -> Result<Vec<String>, St
 #[cfg(test)]
 mod tests {
     use super::{
-        migrate_legacy_preferences, normalize_workspace_preferences, WorkspacePreferences,
+        migrate_legacy_preferences, normalize_workspace_preferences, should_expose_system_font_family,
+        WorkspacePreferences,
     };
 
     #[test]
@@ -594,5 +607,13 @@ mod tests {
         let migrated = migrate_legacy_preferences(&legacy);
         assert_eq!(migrated.markdown_font, "system:New York");
         assert_eq!(migrated.latex_font, "mono");
+    }
+
+    #[test]
+    fn hides_internal_or_fallback_font_families() {
+        assert!(!should_expose_system_font_family(".Beirut PUA"));
+        assert!(!should_expose_system_font_family(".CJK Symbols Fallback SC"));
+        assert!(!should_expose_system_font_family("LastResort"));
+        assert!(should_expose_system_font_family("PingFang SC"));
     }
 }
