@@ -28,12 +28,13 @@ export async function persistEditorPath({
   editorViews,
   filesStore,
   onPersisted,
+  persistOptions,
 } = {}) {
   if (!path || !filesStore) return false
 
   const view = getAnyRegisteredEditorView(editorViews, path)
   if (view?.altalsPersist) {
-    return (await view.altalsPersist()) !== false
+    return (await view.altalsPersist(persistOptions || {})) !== false
   }
 
   if (filesStore.isDraftFile?.(path)) {

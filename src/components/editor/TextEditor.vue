@@ -414,7 +414,7 @@ function handleInsertMarkdownTable() {
 }
 
 function shouldPadCitationEdge(char = '') {
-  return Boolean(char) && !/\s|[\[({,;:!?]/.test(char)
+  return Boolean(char) && !/[\s[({,;:!?]/.test(char)
 }
 
 function shouldPadCitationTrailingEdge(char = '') {
@@ -593,9 +593,15 @@ async function persistDraftContent(content) {
   return true
 }
 
-async function persistEditorContent(content) {
+async function persistEditorContent(content, options = {}) {
   const currentContent =
     typeof content === 'string' ? content : view ? view.state.doc.toString() : ''
+  const suppressLatexAutoBuild = options.suppressLatexAutoBuild === true
+
+  if (currentContent === lastPersistedContent && latexNormalizedSaveContent == null) {
+    editorStore.clearFileDirty(props.filePath)
+    return true
+  }
 
   if (isDraftFile) {
     return persistDraftContent(currentContent)
@@ -650,7 +656,7 @@ async function persistEditorContent(content) {
     if (!saved) return false
     lastPersistedContent = nextContent
     editorStore.clearFileDirty(props.filePath)
-    if (supportsLatexRuntime) {
+    if (supportsLatexRuntime && !suppressLatexAutoBuild) {
       void latexStore.scheduleAutoBuildForPath(props.filePath, {
         sourceContent: nextContent,
       })
@@ -948,7 +954,8 @@ onMounted(async () => {
     parent: editorContainer.value,
   })
 
-  view.altalsPersist = async () => persistEditorContent(view?.state.doc.toString() || '')
+  view.altalsPersist = async (options = {}) =>
+    persistEditorContent(view?.state.doc.toString() || '', options)
   view.altalsGetContent = () => view?.state.doc.toString() || ''
   view.altalsApplyExternalContent = async (nextContent = '') => {
     const normalizedContent = typeof nextContent === 'string' ? nextContent : ''

@@ -12,6 +12,14 @@ export function createDocumentWorkflowBuildOperationRuntime({
     }
 
     const context = buildRuntime.buildAdapterContext(filePath, options)
+    if (context?.adapter?.kind === 'latex' && context.editorStore?.isFileDirty?.(filePath)) {
+      const persisted = await context.editorStore.persistPath(filePath, {
+        suppressLatexAutoBuild: true,
+      })
+      if (!persisted) {
+        return null
+      }
+    }
     const compileAdapter = context?.adapter?.compile || null
     if (!compileAdapter?.compile) {
       return null

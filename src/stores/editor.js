@@ -503,11 +503,12 @@ export const useEditorStore = defineStore('editor', {
       return collectDirtyPaths(this.dirtyFiles, paths)
     },
 
-    async persistPath(path) {
+    async persistPath(path, persistOptions = {}) {
       return persistEditorPath({
         path,
         editorViews: this.editorViews,
         filesStore: useFilesStore(),
+        persistOptions,
         onPersisted: (savedPath, originalPath = savedPath) => {
           if (originalPath !== savedPath) {
             this.updateFilePath(originalPath, savedPath)
