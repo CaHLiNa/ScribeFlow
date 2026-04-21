@@ -64,7 +64,6 @@ import {
 } from 'vue'
 import { Prec } from '@codemirror/state'
 import { EditorView, keymap } from '@codemirror/view'
-import { hoverTooltip } from '@codemirror/view'
 import {
   createEditorExtensions,
   createEditorState,
@@ -193,7 +192,7 @@ const citPalette = reactive({
   x: 0,
   y: 0,
   query: '',
-  cites:[],
+  cites: [],
   latexCommand: null,
   triggerFrom: 0,
   triggerTo: 0,
@@ -414,7 +413,7 @@ function handleInsertMarkdownTable() {
 }
 
 function shouldPadCitationEdge(char = '') {
-  return Boolean(char) && !/\s|[\[({,;:!?]/.test(char)
+  return Boolean(char) && !/\s|[[({,;:!?]/.test(char)
 }
 
 function shouldPadCitationTrailingEdge(char = '') {
@@ -470,7 +469,7 @@ function openCitationPaletteAtCursor() {
   citPalette.x = coords?.left ?? fallbackRect?.left ?? 0
   citPalette.y = (coords?.bottom ?? fallbackRect?.top ?? 0) + 2
   citPalette.query = ''
-  citPalette.cites =[]
+  citPalette.cites = []
   citPalette.triggerFrom = from
   citPalette.triggerTo = to
   citPalette.insideBrackets = false
@@ -484,7 +483,7 @@ function handleInsertCitation() {
   view.focus()
 }
 
-function onCitInsert({ keys =[], stayOpen = false, latexCommand = null }) {
+function onCitInsert({ keys = [], stayOpen = false, latexCommand = null }) {
   if (!view || keys.length === 0) return
   const key = keys[0]
   const nextText = isLatexEditor
@@ -518,7 +517,7 @@ function onCitInsert({ keys =[], stayOpen = false, latexCommand = null }) {
   view.focus()
 }
 
-function onCitUpdate({ cites =[] }) {
+function onCitUpdate({ cites = [] }) {
   if (!view) return
 
   if (isLatexEditor) {
@@ -566,7 +565,7 @@ function parseCitationGroup(text = '') {
     .map((segment) => segment.trim())
     .filter(Boolean)
 
-  const cites =[]
+  const cites = []
   for (const part of parts) {
     const keyMatch = part.match(/@([a-zA-Z][\w.-]*)/)
     if (!keyMatch) continue
@@ -722,13 +721,9 @@ onMounted(async () => {
   }
 
   const langExt = await loadLanguageExtension()
-  const extraExtensions =[
+  const extraExtensions = [
     ...createRevealHighlightExtension(),
     EditorView.updateListener.of((update) => {
-      // 触发 Zen 专注模式事件
-      if (update.docChanged && update.selectionSet) {
-        window.dispatchEvent(new CustomEvent('editor-typing'))
-      }
       if (update.selectionSet || update.docChanged) {
         const selection = update.state.selection.main
         emit('selection-change', {
@@ -747,56 +742,6 @@ onMounted(async () => {
       }
     }),
   ]
-
-  // ===============================================
-  // 学术魔法：加入自动识别文献的 Hover Tooltip 悬浮卡片
-  // ===============================================
-  extraExtensions.push(
-    hoverTooltip((view, pos, side) => {
-      const { from, to, text } = view.state.doc.lineAt(pos)
-      // 匹配 Markdown [@Smith2024] 或者 LaTeX \cite{Smith2024} 等
-      const re = /\[@([^\]]+)\]|\\[a-zA-Z]*cite[a-zA-Z]*\*?(?:\[[^\]]*\])*\{([^}]+)\}/g
-      let match
-      while ((match = re.exec(text)) !== null) {
-        const start = from + match.index
-        const end = start + match[0].length
-        if (pos >= start && pos <= end) {
-          const rawKeys = match[1] || match[2]
-          const keys = rawKeys.split(',').map(k => k.trim())
-
-          return {
-            pos: start,
-            end,
-            above: true,
-            create(view) {
-              const dom = document.createElement("div")
-              dom.className = "cm-citation-hover-card"
-
-              const refsHtml = keys.map(k => {
-                const ref = referencesStore.getByKey(k)
-                if (ref) {
-                  const author = Array.isArray(ref.authors) && ref.authors.length > 0 
-                    ? (ref.authors[0] + (ref.authors.length > 1 ? ' et al.' : '')) 
-                    : 'Unknown'
-                  return `
-                    <div class="cit-hover-item">
-                      <div class="cit-hover-title">${ref.title || k}</div>
-                      <div class="cit-hover-meta">${author} · ${ref.year || ''}</div>
-                    </div>
-                  `
-                }
-                return `<div class="cit-hover-item"><div class="cit-hover-meta">Unknown reference: ${k}</div></div>`
-              }).join('<div class="cit-hover-separator"></div>')
-
-              dom.innerHTML = refsHtml
-              return { dom }
-            }
-          }
-        }
-      }
-      return null
-    })
-  )
 
   if (isMd) {
     const [{ autocompletion }, { createMarkdownDraftEditorExtensions }] = await Promise.all([
@@ -828,7 +773,7 @@ onMounted(async () => {
           citPalette.x = x
           citPalette.y = y
           citPalette.query = query
-          citPalette.cites =[]
+          citPalette.cites = []
           citPalette.triggerFrom = triggerFrom
           citPalette.triggerTo = triggerTo
           citPalette.insideBrackets = insideBrackets
@@ -872,7 +817,7 @@ onMounted(async () => {
           citPalette.x = x
           citPalette.y = y
           citPalette.query = query
-          citPalette.cites =[]
+          citPalette.cites = []
           citPalette.triggerFrom = triggerFrom
           citPalette.triggerTo = triggerTo
           citPalette.insideBrackets = insideBrackets
@@ -891,7 +836,7 @@ onMounted(async () => {
 
     extraExtensions.push(
       autocompletion({
-        override:[
+        override: [
           createLatexCompletionSource({
             filePath: props.filePath,
             filesStore: files,
@@ -1359,7 +1304,7 @@ watch(
   (wrap) => {
     if (!view) return
     view.dispatch({
-      effects: wrapCompartment.reconfigure(wrap ? EditorView.lineWrapping :[]),
+      effects: wrapCompartment.reconfigure(wrap ? EditorView.lineWrapping : []),
     })
   }
 )

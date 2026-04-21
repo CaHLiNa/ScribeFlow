@@ -181,13 +181,12 @@ const secondaryActionIconSize = computed(() => 16)
 const pdfActionIconSize = computed(() => 16)
 </script>
 
-/* START OF FILE src/components/editor/DocumentWorkflowBar.vue (只替换 style 部分) */
 <style scoped>
 .workflow-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 4px;
   width: 100%;
   height: var(--document-header-row-height, 30px);
   min-width: 0;
@@ -239,17 +238,15 @@ const pdfActionIconSize = computed(() => 16)
 .workflow-meta {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   min-width: 0;
   flex: 1 1 auto;
   overflow: hidden;
-  font-family: var(--font-ui);
   font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text-muted);
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .workflow-bar.is-inline-header .workflow-meta {
@@ -263,18 +260,22 @@ const pdfActionIconSize = computed(() => 16)
   min-width: 0;
   white-space: nowrap;
   font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  font-weight: 500;
   color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
 }
 
 .workflow-kind {
-  color: var(--text-primary);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .workflow-phase {
   color: var(--text-muted);
+  font-size: 11px;
 }
 
 .workflow-separator {
@@ -314,23 +315,36 @@ const pdfActionIconSize = computed(() => 16)
   background: currentColor;
 }
 
-.workflow-status-success { color: var(--success); }
-.workflow-status-warning { color: var(--warning); }
-.workflow-status-error { color: var(--error); }
-.workflow-status-running { color: var(--fg-muted); }
+.workflow-status-success {
+  color: var(--success);
+}
+
+.workflow-status-warning {
+  color: var(--warning);
+}
+
+.workflow-status-error {
+  color: var(--error);
+}
+
+.workflow-status-running {
+  color: var(--fg-muted);
+}
 
 .workflow-primary-btn,
 .workflow-secondary-btn {
   flex: 0 0 auto;
-  width: 28px;
-  height: 28px;
-  min-height: 28px;
+  width: 30px;
+  height: 30px;
+  min-height: 30px;
   white-space: nowrap;
   color: var(--text-secondary);
   border-radius: 6px;
   background: transparent;
   box-shadow: none;
-  transition: background-color 0.1s, color 0.1s;
+  transition:
+    background-color 0.1s,
+    color 0.1s;
 }
 
 .workflow-bar.is-inline-header .workflow-primary-btn,
@@ -359,6 +373,7 @@ const pdfActionIconSize = computed(() => 16)
   color: var(--text-primary);
 }
 
+/* 彻底删除选中态时的方框背景 */
 .workflow-secondary-btn.is-active,
 .workflow-bar.is-inline-header .workflow-secondary-btn.is-active,
 .workflow-bar.is-shell-integrated .workflow-primary-btn.is-active,

@@ -4,11 +4,11 @@
       :sourcePath="sourcePath"
       :artifactPath="artifactPath"
       :kind="kind"
-      :previewRevision="previewRevision"
       :workspacePath="workspace.path || ''"
       :workspaceDataDir="workspace.workspaceDataDir || ''"
       :globalConfigDir="workspace.globalConfigDir || ''"
       :compileState="compileState"
+      :documentVersion="documentVersion"
       :forwardSyncRequest="forwardSyncRequest"
       :resolvedTheme="resolvedTheme"
       :pdfPageBackgroundFollowsTheme="workspace.pdfPageBackgroundFollowsTheme"
@@ -31,7 +31,6 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useLatexStore } from '../../stores/latex.js'
 import { useWorkspaceStore } from '../../stores/workspace.js'
 import { dispatchLatexBackwardSync } from '../../services/latex/pdfPreviewSync.js'
-import { resolvePdfPreviewRevision } from '../../domains/document/pdfPreviewSessionRuntime.js'
 import PdfIframeSurface from './PdfIframeSurface.vue'
 
 const PDF_PREVIEW_THEME_TOKEN_NAMES = [
@@ -69,17 +68,9 @@ const compileState = computed(() => {
   return null
 })
 
+const documentVersion = computed(() => compileState.value?.lastCompiled || '')
 const forwardSyncRequest = computed(() =>
   props.kind === 'latex' ? latexStore.forwardSyncRequestFor(props.sourcePath) : null
-)
-const previewRevision = computed(() =>
-  resolvePdfPreviewRevision({
-    paneId: props.paneId,
-    sourcePath: props.sourcePath,
-    artifactPath: props.artifactPath,
-    kind: props.kind,
-    compileState: compileState.value,
-  })
 )
 
 function normalizeResolvedThemeValue(value) {
@@ -166,12 +157,6 @@ async function ensureLatexSynctexState() {
   if (props.kind !== 'latex') return
   const pdfPath = String(compileState.value?.pdfPath || props.artifactPath || '').trim()
   if (!pdfPath || String(compileState.value?.synctexPath || '').trim()) return
-  if (
-    compileState.value?.synctexProbeResolved === true
-    && String(compileState.value?.synctexProbePath || '').trim() === pdfPath
-  ) {
-    return
-  }
   await latexStore.registerExistingArtifact?.(props.sourcePath, pdfPath, {
     targetPath: compileState.value?.compileTargetPath || '',
   })
@@ -197,7 +182,7 @@ function handleWorkspaceThemeUpdated(event) {
 }
 
 watch(
-  () => [props.artifactPath, previewRevision.value?.revisionKey || ''],
+  () => [props.artifactPath, documentVersion.value],
   () => {
     void ensureLatexSynctexState()
   },

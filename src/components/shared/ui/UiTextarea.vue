@@ -190,7 +190,6 @@ defineExpose({
 })
 </script>
 
-/* START OF FILE src/components/shared/ui/UiTextarea.vue (只替换 style 部分) */
 <style scoped>
 .ui-textarea-shell {
   display: flex;
@@ -215,27 +214,25 @@ defineExpose({
   opacity: 0.55;
 }
 
-/* ========================================================
-   Ghost Variant
-======================================================== */
+/* Ghost variant */
 .ui-textarea-shell--ghost {
-  border: 1px solid transparent;
+  border-color: transparent;
   background: transparent;
   box-shadow: none;
 }
 
 .ui-textarea-shell--ghost:hover:not(.is-disabled):not(:focus-within) {
-  background: color-mix(in srgb, var(--surface-hover) 40%, transparent);
+  background: color-mix(in srgb, var(--surface-hover) 50%, transparent);
 }
 
 .ui-textarea-shell--ghost:focus-within {
   background: var(--surface-base);
-  border-color: var(--border-subtle);
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--focus-ring);
 }
 
 .ui-textarea-shell--ghost .ui-textarea-control {
-  padding: 4px 6px; /* 极小的内边距保证静默对齐 */
+  padding: 4px;
 }
 
 .ui-textarea-control {
