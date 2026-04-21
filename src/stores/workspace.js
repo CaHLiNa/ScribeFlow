@@ -27,11 +27,10 @@ import {
   setWrapColumnPreference,
 } from '../services/workspacePreferences'
 import {
-  addRecentWorkspace,
-  clearLastWorkspace,
-  getRecentWorkspaces as readRecentWorkspaces,
-  removeRecentWorkspace,
-  setLastWorkspace,
+  buildNextRecentWorkspaces,
+  createWorkspaceLifecycleState,
+  loadWorkspaceLifecycleState as loadWorkspaceLifecycleStateFromRust,
+  saveWorkspaceLifecycleState as saveWorkspaceLifecycleStateToRust,
 } from '../services/workspaceRecents'
 import { basenamePath } from '../utils/path'
 
@@ -86,6 +85,16 @@ function normalizeSettingsSectionValue(section = '') {
   return normalized || 'theme'
 }
 
+const WORKSPACE_LIFECYCLE_KEYS = [
+  'recentWorkspaces',
+  'lastWorkspace',
+  'setupComplete',
+]
+
+function snapshotWorkspaceLifecycleState(store) {
+  return Object.fromEntries(WORKSPACE_LIFECYCLE_KEYS.map((key) => [key, store[key]]))
+}
+
 export const useWorkspaceStore = defineStore('workspace', {
   state: () => ({
     path: null,
@@ -99,6 +108,8 @@ export const useWorkspaceStore = defineStore('workspace', {
     _workspaceBootstrapGeneration: 0,
     _lastAppZoomInteractionAt: 0,
     _preferencesHydrated: false,
+    _lifecycleHydrated: false,
+    ...createWorkspaceLifecycleState(),
     ...createWorkspacePreferenceState(),
   }),
 
@@ -134,6 +145,17 @@ export const useWorkspaceStore = defineStore('workspace', {
       }
     },
 
+    applyWorkspaceLifecycleState(state = {}) {
+      const next = {
+        ...createWorkspaceLifecycleState(),
+        ...state,
+      }
+
+      for (const key of WORKSPACE_LIFECYCLE_KEYS) {
+        this[key] = next[key]
+      }
+    },
+
     async ensureGlobalConfigDir() {
       if (this.globalConfigDir) return this.globalConfigDir
 
@@ -154,6 +176,16 @@ export const useWorkspaceStore = defineStore('workspace', {
       this.applyWorkspacePreferenceState(preferences)
       this._preferencesHydrated = true
       return preferences
+    },
+
+    async hydrateLifecycleState(force = false) {
+      if (!force && this._lifecycleHydrated) return snapshotWorkspaceLifecycleState(this)
+
+      const globalConfigDir = await this.ensureGlobalConfigDir()
+      const state = await loadWorkspaceLifecycleStateFromRust(globalConfigDir)
+      this.applyWorkspaceLifecycleState(state)
+      this._lifecycleHydrated = true
+      return state
     },
 
     async persistPreferences(patch = {}) {
@@ -178,6 +210,28 @@ export const useWorkspaceStore = defineStore('workspace', {
       }
     },
 
+    async persistLifecycleState(patch = {}) {
+      const globalConfigDir = await this.ensureGlobalConfigDir()
+      const previous = snapshotWorkspaceLifecycleState(this)
+      const optimistic = {
+        ...previous,
+        ...patch,
+      }
+
+      this.applyWorkspaceLifecycleState(optimistic)
+      this._lifecycleHydrated = true
+
+      try {
+        const state = await saveWorkspaceLifecycleStateToRust(globalConfigDir, optimistic)
+        this.applyWorkspaceLifecycleState(state)
+        this._lifecycleHydrated = true
+        return state
+      } catch (error) {
+        this.applyWorkspaceLifecycleState(previous)
+        throw error
+      }
+    },
+
     async openWorkspace(path) {
       this.path = path
       await this.ensureGlobalConfigDir()
@@ -193,12 +247,11 @@ export const useWorkspaceStore = defineStore('workspace', {
         console.warn('[workspace] bootstrap failed:', error)
       })
 
-      try {
-        setLastWorkspace(path)
-        this.addRecent(path)
-      } catch {
-        // Ignore local storage failures.
-      }
+      const nextRecentWorkspaces = buildNextRecentWorkspaces(this.recentWorkspaces, path)
+      await this.persistLifecycleState({
+        recentWorkspaces: nextRecentWorkspaces,
+        lastWorkspace: path,
+      })
     },
 
     async ensureWorkspaceBootstrapReady(path = this.path) {
@@ -212,16 +265,27 @@ export const useWorkspaceStore = defineStore('workspace', {
     },
 
     getRecentWorkspaces() {
-      return readRecentWorkspaces()
+      return this.recentWorkspaces
     },
 
-    addRecent(path) {
-      addRecentWorkspace(path)
+    async addRecent(path) {
+      const nextRecentWorkspaces = buildNextRecentWorkspaces(this.recentWorkspaces, path)
+      await this.persistLifecycleState({
+        recentWorkspaces: nextRecentWorkspaces,
+      })
     },
 
-    removeRecent(path) {
-      removeRecentWorkspace(path)
+    async removeRecent(path) {
+      const normalizedPath = String(path || '').replace(/\/+$/, '')
+      await this.persistLifecycleState({
+        recentWorkspaces: this.recentWorkspaces.filter((item) => item.path !== normalizedPath),
+        lastWorkspace: this.lastWorkspace === normalizedPath ? '' : this.lastWorkspace,
+      })
       removeWorkspaceBookmark(path)
+    },
+
+    async completeSetupWizard() {
+      await this.persistLifecycleState({ setupComplete: true })
     },
 
     async closeWorkspace() {
@@ -229,12 +293,12 @@ export const useWorkspaceStore = defineStore('workspace', {
       this._workspaceBootstrapPromise = null
       await this.cleanup()
       await this.openWorkspaceSurface()
+      await this.persistLifecycleState({ lastWorkspace: '' })
       this.path = null
       this.globalConfigDir = ''
       this.workspaceId = ''
       this.workspaceDataDir = ''
       this.claudeConfigDir = ''
-      clearLastWorkspace()
     },
 
     async applyBrowserPreviewState(options = {}) {

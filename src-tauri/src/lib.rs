@@ -30,6 +30,7 @@ mod references_zotero_account;
 mod security;
 mod workbench_state;
 mod workspace_access;
+mod workspace_lifecycle;
 mod workspace_preferences;
 
 use percent_encoding::percent_decode_str;
@@ -492,6 +493,8 @@ pub fn run() {
             workspace_access::macos_create_workspace_bookmark,
             workspace_access::macos_activate_workspace_bookmark,
             workspace_access::macos_release_workspace_access,
+            workspace_lifecycle::workspace_lifecycle_load,
+            workspace_lifecycle::workspace_lifecycle_save,
             workbench_state::workbench_state_normalize,
             workspace_preferences::workspace_preferences_load,
             workspace_preferences::workspace_preferences_save,

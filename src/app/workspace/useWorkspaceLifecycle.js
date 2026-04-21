@@ -228,7 +228,7 @@ export function useWorkspaceLifecycle() {
       uxStatusStore.clear(workspaceStatusId)
     }
 
-    if (!localStorage.getItem('setupComplete')) {
+    if (!workspace.setupComplete) {
       setupWizardVisible.value = true
     }
   }
@@ -267,6 +267,7 @@ export function useWorkspaceLifecycle() {
     try {
       await Promise.all([
         workspace.hydratePreferences(),
+        workspace.hydrateLifecycleState(),
         latexStore.hydratePreferences(),
       ])
     } catch (error) {
@@ -288,7 +289,7 @@ export function useWorkspaceLifecycle() {
     workspace.restoreProseFont()
     await workspace.applyAppZoom()
 
-    const lastWorkspace = localStorage.getItem('lastWorkspace')
+    const lastWorkspace = workspace.lastWorkspace
     if (!lastWorkspace) return
 
     try {

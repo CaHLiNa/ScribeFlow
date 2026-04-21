@@ -792,6 +792,84 @@ Rust 接管：
 
 ---
 
+## Task 7: Workspace Lifecycle Persistence Migration
+
+**目标：** 把 recent workspaces、last workspace 恢复和 setup wizard 完成状态从前端 `localStorage` 下沉到 Rust。
+
+当前进度：
+
+- 已新增 Rust `workspace_lifecycle.rs`
+- 已新增 `workspace_lifecycle_load` / `workspace_lifecycle_save`
+- 已把前端 `src/services/workspaceRecents.js` 收口成 Rust bridge，browser preview 仅保留 fallback
+- 已把 `src/stores/workspace.js` 改成持有 Rust-backed 的 `recentWorkspaces` / `lastWorkspace` / `setupComplete` state
+- 已把 `src/app/workspace/useWorkspaceLifecycle.js` 和 `src/components/SetupWizard.vue` 改为只消费 store state，不再直接读取这三个 `localStorage` key
+
+**Files:**
+
+- Create: `src-tauri/src/workspace_lifecycle.rs`
+- Modify: `src-tauri/src/lib.rs`
+- Modify: `src/services/workspaceRecents.js`
+- Modify: `src/stores/workspace.js`
+- Modify: `src/app/workspace/useWorkspaceLifecycle.js`
+- Modify: `src/components/SetupWizard.vue`
+- Modify: `docs/superpowers/plans/2026-04-21-rust-runtime-migration-plan.md`
+
+### 边界
+
+Rust 接管：
+
+- `recentWorkspaces`
+- `lastWorkspace`
+- `setupComplete`
+- legacy `localStorage` 迁移
+- recents 去重、裁剪与 path normalize
+
+前端保留：
+
+- workspace picker / launcher UI
+- setup wizard 展示与关闭交互
+- workspace bookmark capture / activate / release
+
+### 验收标准
+
+- 前端不再直接读取 `recentWorkspaces` / `lastWorkspace` / `setupComplete` 作为桌面端权威
+- workspace 最近列表、上次工作区恢复、setup wizard 完成态均由 Rust 单点落盘
+- 旧 `localStorage` key 在迁移后被清理，不再继续作为桌面端真实来源
+
+当前结果：
+
+- 已满足“workspace lifecycle persistence 权威由 Rust 持有”的 phase 目标
+- 前端 `workspace` store 已从直接读写 `localStorage` 改为 Rust-backed lifecycle state consumer
+- `~/.scribeflow/workspace-lifecycle.json` 已成为 recent workspace / last workspace / setupComplete 的实际持久化位置
+
+### 验证
+
+- `cargo fmt --manifest-path src-tauri/Cargo.toml`
+- `cargo check --manifest-path src-tauri/Cargo.toml`
+- `cargo test --manifest-path src-tauri/Cargo.toml workspace_lifecycle`
+- `npm run build`
+- `npm run lint`
+
+当前验证记录：
+
+- 已执行 `cargo fmt --manifest-path src-tauri/Cargo.toml`
+- 已执行 `cargo check --manifest-path src-tauri/Cargo.toml`
+- 已执行 `cargo test --manifest-path src-tauri/Cargo.toml workspace_lifecycle`
+- 已执行 `npm run build`
+- 已执行 `npm run lint`
+- 本轮未执行 `npm run tauri -- dev`；原因是当前 phase 未修改桌面启动链路，且环境中仍有既有 dev server / Computer Use 附着问题
+
+### Phase 7 完成定义核对
+
+1. 已迁到 Rust 的职责：
+   recent workspace 列表、last workspace 恢复、setup wizard 完成态，以及 legacy `localStorage` 迁移与 recents normalize
+2. 已删除或降权的前端旧实现：
+   `src/app/workspace/useWorkspaceLifecycle.js` 和 `src/components/SetupWizard.vue` 对这三个 `localStorage` key 的直接读取 / 写入；`workspaceRecents.js` 不再是桌面端主持久化实现
+3. 剩余未迁部分的阻塞点：
+   document workflow session 仍有前端 preview/session orchestration state；bookmark 存储也仍在前端 `localStorage`，但它属于 macOS access glue，未纳入当前 phase
+
+---
+
 ## Phase 完成定义
 
 每个 phase 完成时，必须在验收说明里明确回答三件事：

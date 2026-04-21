@@ -88,8 +88,8 @@ function selectTheme(id) {
   workspace.setTheme(id)
 }
 
-function finish() {
-  localStorage.setItem('setupComplete', 'true')
+async function finish() {
+  await workspace.completeSetupWizard()
   emit('close')
 }
 </script>
