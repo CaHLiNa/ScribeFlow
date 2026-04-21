@@ -85,7 +85,7 @@ function snapshotWorkspacePreferences(store) {
 
 function normalizeSettingsSectionValue(section = '') {
   const normalized = String(section || '').trim()
-  return normalized || 'theme'
+  return normalized || 'general'
 }
 
 const WORKSPACE_LIFECYCLE_KEYS = [
@@ -144,7 +144,7 @@ export const useWorkspaceStore = defineStore('workspace', {
       if (!this.settingsOpen) {
         this.settingsSection = null
       } else if (!this.settingsSection) {
-        this.settingsSection = normalizeSettingsSectionValue('theme')
+        this.settingsSection = normalizeSettingsSectionValue('general')
       }
     },
 
@@ -309,7 +309,9 @@ export const useWorkspaceStore = defineStore('workspace', {
       this.settingsOpen = workbenchState.primarySurface === 'settings'
       this.settingsSection =
         this.settingsOpen
-          ? normalizeSettingsSectionValue(options.settingsSection || this.settingsSection || 'theme')
+          ? normalizeSettingsSectionValue(
+              options.settingsSection || this.settingsSection || 'general'
+            )
           : null
 
       this.leftSidebarOpen = workbenchState.leftSidebarOpen
@@ -379,7 +381,7 @@ export const useWorkspaceStore = defineStore('workspace', {
 
     openSettings(section = null) {
       this.settingsSection = normalizeSettingsSectionValue(
-        section || this.settingsSection || 'theme'
+        section || this.settingsSection || 'general'
       )
       return this.setPrimarySurface('settings')
     },

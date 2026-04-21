@@ -17,6 +17,7 @@ import { useI18n } from '../../i18n'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { SETTINGS_SECTION_DEFINITIONS, normalizeSettingsSectionId } from './settingsSections.js'
 
+const SettingsGeneral = defineAsyncComponent(() => import('./SettingsGeneral.vue'))
 const SettingsTheme = defineAsyncComponent(() => import('./SettingsTheme.vue'))
 const SettingsEditor = defineAsyncComponent(() => import('./SettingsEditor.vue'))
 const SettingsEnvironment = defineAsyncComponent(() => import('./SettingsEnvironment.vue'))
@@ -34,6 +35,7 @@ const sections = computed(() =>
 )
 
 const sectionComponents = {
+  general: SettingsGeneral,
   theme: SettingsTheme,
   editor: SettingsEditor,
   system: SettingsEnvironment,
@@ -44,7 +46,7 @@ const sectionComponents = {
 const activeSection = computed(() =>
   sectionComponents[normalizeSettingsSectionId(workspace.settingsSection)]
     ? normalizeSettingsSectionId(workspace.settingsSection)
-    : 'theme'
+    : 'general'
 )
 
 const activeSectionMeta = computed(
@@ -53,7 +55,7 @@ const activeSectionMeta = computed(
 
 const activeSectionLabel = computed(() => activeSectionMeta.value?.label ?? t('Settings'))
 const activeSectionComponent = computed(
-  () => sectionComponents[activeSection.value] || SettingsTheme
+  () => sectionComponents[activeSection.value] || SettingsGeneral
 )
 </script>
 

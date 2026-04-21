@@ -1,4 +1,5 @@
 import {
+  IconAdjustmentsHorizontal,
   IconBooks,
   IconCpu,
   IconEdit,
@@ -7,6 +8,12 @@ import {
 } from '@tabler/icons-vue'
 
 export const SETTINGS_SECTION_DEFINITIONS = [
+  {
+    id: 'general',
+    labelKey: 'General',
+    descriptionKey: 'Everyday app preferences, fonts, theme, and editor sizing.',
+    icon: IconAdjustmentsHorizontal,
+  },
   {
     id: 'theme',
     labelKey: 'Appearance',
@@ -41,5 +48,5 @@ export const SETTINGS_SECTION_DEFINITIONS = [
 
 export function normalizeSettingsSectionId(sectionId = '') {
   const normalized = String(sectionId || '').trim()
-  return normalized || 'theme'
+  return normalized || 'general'
 }

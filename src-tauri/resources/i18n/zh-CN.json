@@ -1,5 +1,6 @@
 {
   "Settings": "设置",
+  "General": "通用",
   "Theme": "主题",
   "About": "关于",
   "Environment": "环境",
@@ -18,6 +19,7 @@
   "Appearance": "外观",
   "Themes, reading surfaces, and PDF viewing.": "主题、阅读界面和 PDF 浏览相关设置。",
   "Writing defaults, editor behavior, and drafting tools.": "写作默认项、编辑器行为和起草工具设置。",
+  "Everyday app preferences, fonts, theme, and editor sizing.": "日常应用偏好、字体、主题和编辑器字号。",
   "LaTeX compilers, engines, downloads, and diagnostics.": "LaTeX 编译器、引擎、下载项和诊断设置。",
   "Application version, release notes, and downloads.": "应用版本、发布信息和下载入口。",
   "Reference sync, citations, and Zotero connection.": "文献同步、引用样式和 Zotero 连接设置。",

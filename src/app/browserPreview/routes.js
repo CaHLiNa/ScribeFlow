@@ -2,6 +2,7 @@ export const BROWSER_PREVIEW_BASE_PATH = '/preview'
 export const BROWSER_PREVIEW_DEFAULT_PATH = `${BROWSER_PREVIEW_BASE_PATH}/workspace/document`
 
 export const BROWSER_PREVIEW_SETTINGS_SECTIONS = Object.freeze([
+  'general',
   'theme',
   'editor',
   'agent',
@@ -25,7 +26,7 @@ function normalizePathname(pathname = '') {
 
 function normalizeSettingsSection(section = '') {
   const normalized = String(section || '').trim().toLowerCase()
-  return BROWSER_PREVIEW_SETTINGS_SECTIONS.includes(normalized) ? normalized : 'theme'
+  return BROWSER_PREVIEW_SETTINGS_SECTIONS.includes(normalized) ? normalized : 'general'
 }
 
 export function parseBrowserPreviewPath(pathname = '') {
@@ -56,7 +57,7 @@ export function parseBrowserPreviewPath(pathname = '') {
   }
 
   if (surface === 'settings') {
-    const section = normalizeSettingsSection(parts[2] || 'theme')
+    const section = normalizeSettingsSection(parts[2] || 'general')
     return {
       surface: 'settings',
       section,
