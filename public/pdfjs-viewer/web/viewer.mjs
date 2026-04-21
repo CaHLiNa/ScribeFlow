@@ -17687,12 +17687,9 @@ const PDFViewerApplication = {
       document.getElementById("viewBookmarkSeparator")?.classList.add("hidden");
     }
   },
-  async close(options = null) {
-    const preserveRenderedView = options?.preserveRenderedView === true;
+  async close() {
     this._unblockDocumentLoadEvent();
-    if (!preserveRenderedView) {
-      this._hideViewBookmark();
-    }
+    this._hideViewBookmark();
     if (!this.pdfLoadingTask) {
       return;
     }
@@ -17706,13 +17703,11 @@ const PDFViewerApplication = {
     this.pdfLoadingTask = null;
     if (this.pdfDocument) {
       this.pdfDocument = null;
-      if (!preserveRenderedView) {
-        this.pdfThumbnailViewer?.setDocument(null);
-        this.pdfViewer.setDocument(null);
-        this.pdfLinkService.setDocument(null);
-        this.pdfDocumentProperties?.setDocument(null);
-        this.pdfTextExtractor?.setViewer(null);
-      }
+      this.pdfThumbnailViewer?.setDocument(null);
+      this.pdfViewer.setDocument(null);
+      this.pdfLinkService.setDocument(null);
+      this.pdfDocumentProperties?.setDocument(null);
+      this.pdfTextExtractor?.setViewer(null);
     }
     this.pdfLinkService.externalLinkEnabled = true;
     this.store = null;
@@ -17728,26 +17723,21 @@ const PDFViewerApplication = {
     this._hasAnnotationEditors = false;
     promises.push(this.pdfScriptingManager.destroyPromise, this.passwordPrompt.close());
     this.setTitle();
-    if (!preserveRenderedView) {
-      this.viewsManager?.reset();
-      this.pdfOutlineViewer?.reset();
-      this.pdfAttachmentViewer?.reset();
-      this.pdfLayerViewer?.reset();
-      this.pdfHistory?.reset();
-      this.findBar?.reset();
-      this.toolbar?.reset();
-      this.secondaryToolbar?.reset();
-    }
+    this.viewsManager?.reset();
+    this.pdfOutlineViewer?.reset();
+    this.pdfAttachmentViewer?.reset();
+    this.pdfLayerViewer?.reset();
+    this.pdfHistory?.reset();
+    this.findBar?.reset();
+    this.toolbar?.reset();
+    this.secondaryToolbar?.reset();
     this._PDFBug?.cleanup();
     await Promise.all(promises);
   },
   async open(args) {
-    this._scribeflowHotReload = args?.scribeflowHotReload === true;
     this._scribeflowOpenPhase = "open:start";
     if (this.pdfLoadingTask) {
-      await this.close({
-        preserveRenderedView: this._scribeflowHotReload
-      });
+      await this.close();
     }
     postScribeFlowDebugMessage("open-start", {
       url: args?.url || "",
@@ -17880,10 +17870,6 @@ const PDFViewerApplication = {
     return message;
   },
   progress(percent) {
-    if (this._scribeflowHotReload) {
-      this.loadingBar?.hide();
-      return;
-    }
     if (!this.loadingBar || percent <= this.loadingBar.percent) {
       return;
     }
@@ -17912,7 +17898,6 @@ const PDFViewerApplication = {
     }) => {
       this._contentLength = length;
       this.loadingBar?.hide();
-      this._scribeflowHotReload = false;
       firstPagePromise.then(() => {
         this.eventBus.dispatch("documentloaded", {
           source: this
@@ -18011,10 +17996,8 @@ const PDFViewerApplication = {
     });
     pagesPromise.then(() => {
       this._unblockDocumentLoadEvent();
-      this._scribeflowHotReload = false;
       this._initializeAutoPrint(pdfDocument, openActionPromise);
     }, reason => {
-      this._scribeflowHotReload = false;
       this._documentError("pdfjs-loading-error", {
         message: reason.message
       });
