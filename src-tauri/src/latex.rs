@@ -17,6 +17,53 @@ use crate::process_utils::{background_command, background_tokio_command};
 
 const LATEX_COMPILE_STREAM_EVENT: &str = "latex-compile-stream";
 
+fn apply_user_perl_local_lib_env_tokio(command: &mut tokio::process::Command) {
+    let Some(home_dir) = dirs::home_dir() else {
+        return;
+    };
+
+    let perl_root = home_dir.join("perl5");
+    let perl_lib = perl_root.join("lib").join("perl5");
+    let perl_bin = perl_root.join("bin");
+
+    if perl_lib.exists() {
+        command.env("PERL5LIB", perl_lib.as_os_str());
+        command.env("PERL_LOCAL_LIB_ROOT", perl_root.as_os_str());
+        command.env(
+            "PERL_MB_OPT",
+            format!("--install_base {}", perl_root.to_string_lossy()),
+        );
+        command.env(
+            "PERL_MM_OPT",
+            format!("INSTALL_BASE={}", perl_root.to_string_lossy()),
+        );
+    }
+
+    if perl_bin.exists() {
+        let current_path = std::env::var_os("PATH").unwrap_or_default();
+        let mut path_entries = std::env::split_paths(&current_path).collect::<Vec<_>>();
+        if !path_entries.iter().any(|entry| entry == &perl_bin) {
+            path_entries.insert(0, perl_bin);
+        }
+        if let Ok(joined) = std::env::join_paths(path_entries) {
+            command.env("PATH", joined);
+        }
+    }
+}
+
+async fn latexindent_is_healthy(path: &str) -> bool {
+    let mut command = background_tokio_command(path);
+    apply_user_perl_local_lib_env_tokio(&mut command);
+    command.arg("--version");
+    command.stdout(Stdio::null());
+    command.stderr(Stdio::null());
+    command
+        .status()
+        .await
+        .map(|status| status.success())
+        .unwrap_or(false)
+}
+
 pub struct LatexState {
     pub compiling: Mutex<HashMap<String, bool>>,
 }
@@ -1028,7 +1075,10 @@ pub async fn check_latex_tools(
     custom_system_tex_path: Option<String>,
 ) -> Result<LatexToolStatus, String> {
     let chktex = find_chktex(custom_system_tex_path.as_deref());
-    let latexindent = find_latexindent(custom_system_tex_path.as_deref());
+    let latexindent = match find_latexindent(custom_system_tex_path.as_deref()) {
+        Some(path) if latexindent_is_healthy(&path).await => Some(path),
+        _ => None,
+    };
 
     Ok(LatexToolStatus {
         chktex: binary_status(chktex),
@@ -1106,6 +1156,7 @@ pub async fn format_latex_document(
     let mut command = background_tokio_command(&latexindent);
     command.current_dir(dir);
     apply_tex_locale_tokio(&mut command);
+    apply_user_perl_local_lib_env_tokio(&mut command);
     command.arg(format!("-g={}", latexindent_null_path()));
     command.arg("-");
 
