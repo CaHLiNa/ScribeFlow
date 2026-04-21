@@ -1,6 +1,5 @@
 import { defineStore } from 'pinia'
 import { invoke } from '@tauri-apps/api/core'
-import { removeWorkspaceBookmark } from '../services/workspacePermissions'
 import {
   hashWorkspacePath,
   resolveClaudeConfigDir,
@@ -262,26 +261,6 @@ export const useWorkspaceStore = defineStore('workspace', {
       if (path !== this.path) {
         throw new Error('Workspace changed during bootstrap')
       }
-    },
-
-    getRecentWorkspaces() {
-      return this.recentWorkspaces
-    },
-
-    async addRecent(path) {
-      const nextRecentWorkspaces = buildNextRecentWorkspaces(this.recentWorkspaces, path)
-      await this.persistLifecycleState({
-        recentWorkspaces: nextRecentWorkspaces,
-      })
-    },
-
-    async removeRecent(path) {
-      const normalizedPath = String(path || '').replace(/\/+$/, '')
-      await this.persistLifecycleState({
-        recentWorkspaces: this.recentWorkspaces.filter((item) => item.path !== normalizedPath),
-        lastWorkspace: this.lastWorkspace === normalizedPath ? '' : this.lastWorkspace,
-      })
-      removeWorkspaceBookmark(path)
     },
 
     async completeSetupWizard() {

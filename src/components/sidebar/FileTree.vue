@@ -400,7 +400,7 @@ const workspaceName = computed(() => {
   if (!workspace.path) return t('Explorer')
   return basenamePath(workspace.path)
 })
-const recentWorkspaces = computed(() => workspace.getRecentWorkspaces().slice(0, 5))
+const recentWorkspaces = computed(() => workspace.recentWorkspaces.slice(0, 5))
 const workspaceSnapshot = computed(
   () => files.lastWorkspaceSnapshot || { flatFiles: files.flatFiles }
 )

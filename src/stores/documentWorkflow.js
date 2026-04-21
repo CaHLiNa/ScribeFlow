@@ -736,10 +736,7 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
       this._persistentStateSaveTimer = null
       this._persistentStateSaveRevision = 0
       this.applyPersistentState(defaultPersistentState())
-      this.previewBindings = {}
       this.markdownPreviewState = {}
-      this.workspacePreviewVisibility = {}
-      this.workspacePreviewRequests = {}
       this.resolvedWorkspacePreviewStates = {}
       this.resolvedWorkflowUiStates = {}
       this._isReconciling = false
