@@ -55,13 +55,32 @@ async fn latexindent_is_healthy(path: &str) -> bool {
     let mut command = background_tokio_command(path);
     apply_user_perl_local_lib_env_tokio(&mut command);
     command.arg("--version");
-    command.stdout(Stdio::null());
-    command.stderr(Stdio::null());
-    command
-        .status()
-        .await
-        .map(|status| status.success())
-        .unwrap_or(false)
+    let result = command.output().await;
+    let healthy = result
+        .as_ref()
+        .map(|output| output.status.success())
+        .unwrap_or(false);
+    match result {
+        Ok(output) => {
+            let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            eprintln!(
+                "[latex] latexindent health path={} healthy={} status={:?} stdout={:?} stderr={:?}",
+                path,
+                healthy,
+                output.status.code(),
+                stdout,
+                stderr
+            );
+        }
+        Err(error) => {
+            eprintln!(
+                "[latex] latexindent health path={} healthy=false spawn_error={}",
+                path, error
+            );
+        }
+    }
+    healthy
 }
 
 pub struct LatexState {
@@ -1075,10 +1094,12 @@ pub async fn check_latex_tools(
     custom_system_tex_path: Option<String>,
 ) -> Result<LatexToolStatus, String> {
     let chktex = find_chktex(custom_system_tex_path.as_deref());
+    eprintln!("[latex] check_latex_tools chktex={:?}", chktex);
     let latexindent = match find_latexindent(custom_system_tex_path.as_deref()) {
         Some(path) if latexindent_is_healthy(&path).await => Some(path),
         _ => None,
     };
+    eprintln!("[latex] check_latex_tools latexindent={:?}", latexindent);
 
     Ok(LatexToolStatus {
         chktex: binary_status(chktex),

@@ -15,6 +15,7 @@ defineProps({
 })
 </script>
 
+/* START OF FILE src/components/editor/DocumentWorkspaceTab.vue (只替换 style 部分) */
 <style scoped>
 .document-workspace-tab {
   display: flex;
@@ -39,5 +40,6 @@ defineProps({
 .document-workspace-tab-preview {
   flex: 1 1 0;
   background: var(--shell-preview-surface);
+  border-left: 1px solid var(--workbench-divider-soft);
 }
 </style>

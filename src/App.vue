@@ -1,3 +1,5 @@
+--- START OF FILE src/App.vue ---
+
 <template>
   <div
     class="app-shell-root flex flex-col h-screen w-screen overflow-hidden"
@@ -6,6 +8,7 @@
       'is-right-resizing': isRightSidebarResizing,
       'is-shell-resizing': isLeftSidebarResizing || isRightSidebarResizing,
       'is-mac-vibrant': isMacDesktop && workspace.isOpen,
+      'is-zen-mode': isZenMode
     }"
   >
     <div class="app-shell-workspace flex flex-1 flex-col overflow-hidden">
@@ -158,7 +161,7 @@
 </template>
 
 <script setup>
-import { ref, computed, defineAsyncComponent } from 'vue'
+import { ref, computed, defineAsyncComponent, onMounted, onBeforeUnmount } from 'vue'
 import { useWorkspaceStore } from './stores/workspace'
 import { useFilesStore } from './stores/files'
 import { useEditorStore } from './stores/editor'
@@ -211,6 +214,7 @@ const isMacDesktop = typeof window !== 'undefined' && isMac && !!window.__TAURI_
 void applyAppWindowConstraints()
 
 const leftSidebarRef = ref(null)
+const isZenMode = ref(false)
 
 const supportsRightSidebar = computed(() => workspace.isOpen && workspace.isWorkspaceSurface)
 const leftSidebarVisible = computed(
@@ -297,7 +301,7 @@ async function toggleSplitPane() {
     const newPaneId = editorStore.splitPane('vertical')
     if (!newPaneId) return
     const newPane = editorStore.findPane(editorStore.paneTree, newPaneId)
-    if (newPane && !(newPane.tabs || []).length) {
+    if (newPane && !(newPane.tabs ||[]).length) {
       editorStore.openNewTab(newPaneId)
     }
     return
@@ -306,15 +310,35 @@ async function toggleSplitPane() {
   const secondaryPane = getSecondaryPane()
   if (!secondaryPane) return
 
-  const result = await confirmUnsavedChanges(secondaryPane.tabs || [])
+  const result = await confirmUnsavedChanges(secondaryPane.tabs ||[])
   if (result.choice === 'cancel') return
 
-  for (const tab of secondaryPane.tabs || []) {
+  for (const tab of secondaryPane.tabs ||[]) {
     workflowStore.handlePreviewClosed(tab)
   }
 
   editorStore.collapsePane(secondaryPane.id)
 }
+
+function handleEditorTyping() {
+  isZenMode.value = true
+}
+
+function handleMouseMoveBreakZen() {
+  if (isZenMode.value) {
+    isZenMode.value = false
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('editor-typing', handleEditorTyping)
+  window.addEventListener('mousemove', handleMouseMoveBreakZen)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('editor-typing', handleEditorTyping)
+  window.removeEventListener('mousemove', handleMouseMoveBreakZen)
+})
 
 const {
   leftSidebarWidth,
@@ -406,6 +430,23 @@ useBrowserPreviewRuntime({
   border-left: none;
 }
 
+/* =========================================================================
+   Zen Mode (Focus Fade-out Transitions)
+========================================================================= */
+.app-shell-topbar,
+.app-shell-region-left,
+.app-shell-region-right {
+  transition: opacity 0.25s ease-out, width 260ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* 在打字时，侧边栏和顶栏在 1.5 秒后优雅地淡出到 8% 不透明度 */
+.app-shell-root.is-zen-mode .app-shell-topbar:not(:hover),
+.app-shell-root.is-zen-mode .app-shell-region-left:not(:hover),
+.app-shell-root.is-zen-mode .app-shell-region-right:not(:hover) {
+  opacity: 0.08;
+  transition: opacity 1.5s ease-out 1.5s, width 260ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
 .app-shell-topbar {
   position: absolute;
   top: 0;
@@ -430,7 +471,6 @@ useBrowserPreviewRuntime({
 .app-shell-region-left {
   background: transparent;
   will-change: width;
-  transition: width 260ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .app-shell-region-left.is-workspace-left-region {
@@ -445,7 +485,6 @@ useBrowserPreviewRuntime({
 .app-shell-region-right {
   background: transparent;
   will-change: width;
-  transition: width 260ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 :global(body.altals-shell-resizing) .app-shell-region-left,
@@ -591,3 +630,4 @@ useBrowserPreviewRuntime({
   right: -14px;
 }
 </style>
+--- END OF FILE src/App.vue ---

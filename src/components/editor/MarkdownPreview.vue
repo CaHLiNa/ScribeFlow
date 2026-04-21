@@ -83,10 +83,10 @@ const renderedHtml = ref('')
 let flashTimer = null
 
 function getSourceAnchors() {
-  return [
+  return[
     ...(containerEl.value?.querySelectorAll?.(
       '.md-preview-source-anchor[data-source-start-offset]'
-    ) || []),
+    ) ||[]),
   ]
 }
 
@@ -252,7 +252,7 @@ async function doRender() {
   if (md === undefined) return
   workflowStore.setMarkdownPreviewState(resolvedSourcePath.value, {
     status: 'rendering',
-    problems: [],
+    problems:[],
   })
 
   try {
@@ -262,13 +262,13 @@ async function doRender() {
     flushPendingForwardSync()
     workflowStore.setMarkdownPreviewState(resolvedSourcePath.value, {
       status: 'ready',
-      problems: [],
+      problems:[],
     })
   } catch (error) {
     renderedHtml.value = ''
     workflowStore.setMarkdownPreviewState(resolvedSourcePath.value, {
       status: 'error',
-      problems: [
+      problems:[
         {
           id: `markdown-preview:${resolvedSourcePath.value}`,
           sourcePath: resolvedSourcePath.value,
@@ -371,10 +371,10 @@ function handleContextMenu(event) {
   openSurfaceContextMenu({
     x: event.clientX,
     y: event.clientY,
-    groups: [
+    groups:[
       {
         key: 'markdown-preview-actions',
-        items: [
+        items:[
           {
             key: 'copy',
             label: t('Copy'),
@@ -391,23 +391,23 @@ function handleContextMenu(event) {
             },
           },
           ...(externalLink
-            ? [{
+            ?[{
               key: 'open-link',
               label: t('Open Link'),
               action: () => {
                 void openExternalHttpUrl(externalLink.url)
               },
             }]
-            : []),
+            :[]),
           ...(sourceLocation
-            ? [{
+            ?[{
               key: 'reveal-source',
               label: t('Reveal Source'),
               action: () => {
                 void revealSourceLocation(sourceLocation)
               },
             }]
-            : []),
+            :[]),
         ],
       },
     ],
@@ -442,10 +442,13 @@ function handleContextMenu(event) {
   mask-repeat: no-repeat;
 }
 
+/* =========================================================
+   Typography & Layout Box: 收紧排版，提升学术感
+========================================================= */
 .md-preview-content {
-  max-width: 860px;
+  max-width: 760px; /* 收窄阅读区，提升注视焦点体验 */
   margin: 0 auto;
-  line-height: 1.74;
+  line-height: 1.6; /* 稍微收紧行高，呈现高密度严谨感 */
   font-family: var(--font-markdown);
   font-size: calc(var(--editor-font-size, 14px) + 0.5px);
   color: var(--workspace-ink);
@@ -465,7 +468,7 @@ function handleContextMenu(event) {
 }
 
 .md-preview-error {
-  max-width: 860px;
+  max-width: 760px;
   margin: 24px auto 0;
   padding: 16px;
   border: 1px solid color-mix(in srgb, var(--shell-border) 84%, transparent);
@@ -486,16 +489,73 @@ function handleContextMenu(event) {
 }
 </style>
 
+/* START OF FILE src/components/editor/MarkdownPreview.vue (只替换 style 部分) */
+<style scoped>
+.md-preview-container {
+  height: 100%;
+  overflow-y: auto;
+  padding: 32px 24px 64px;
+  background: inherit;
+  color: var(--workspace-ink);
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    black 16px,
+    black calc(100% - 24px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    black 16px,
+    black calc(100% - 24px),
+    transparent 100%
+  );
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+}
+
+.md-preview-content {
+  max-width: 760px; /* 收束阅读区，符合最适眼球追踪宽度 */
+  margin: 0 auto;
+  line-height: 1.8;
+  font-family: var(--font-markdown);
+  font-size: var(--editor-font-size, 15px);
+  color: var(--workspace-ink);
+}
+
+:deep(.md-preview-source-anchor-active) {
+  animation: md-preview-source-flash 1.2s ease;
+}
+
+@keyframes md-preview-source-flash {
+  0% { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+  100% { background: transparent; }
+}
+
+.md-preview-error {
+  max-width: 760px;
+  margin: 24px auto 0;
+  padding: 16px;
+  border: 1px solid color-mix(in srgb, var(--shell-border) 84%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--workspace-paper) 92%, transparent);
+  color: var(--text-secondary);
+}
+
+.md-preview-error-detail {
+  margin-top: 8px;
+  font-size: 12px;
+}
+</style>
+
 <style>
-/* Prose styles for markdown preview — must be global to reach v-html content */
-.md-preview-content > :first-child {
-  margin-top: 0 !important;
-}
+.md-preview-content > :first-child { margin-top: 0 !important; }
+.md-preview-content > :last-child { margin-bottom: 0 !important; }
 
-.md-preview-content > :last-child {
-  margin-bottom: 0 !important;
-}
-
+/* Headings */
 .md-preview-content h1,
 .md-preview-content h2,
 .md-preview-content h3,
@@ -503,278 +563,133 @@ function handleContextMenu(event) {
 .md-preview-content h5,
 .md-preview-content h6 {
   color: var(--hl-heading, var(--workspace-ink));
-  font-family: var(--font-markdown, var(--font-sans, system-ui, sans-serif));
-  margin: 1.8em 0 0.55em;
-  line-height: 1.2;
-  letter-spacing: 0.01em;
+  font-family: var(--font-display);
+  margin: 2em 0 0.8em; 
+  line-height: 1.25;
+  letter-spacing: -0.01em;
 }
+
 .md-preview-content h1 {
-  font-size: 2.05em;
-  border-bottom: 1px solid color-mix(in srgb, var(--shell-border) 74%, transparent);
-  padding-bottom: 0.36em;
+  font-size: 2.2em;
+  font-weight: 600;
+  border-bottom: 1px solid var(--border-subtle);
+  padding-bottom: 0.3em;
 }
-.md-preview-content h2 {
-  font-size: 1.56em;
-  border-bottom: 1px solid color-mix(in srgb, var(--shell-border) 68%, transparent);
-  padding-bottom: 0.26em;
-}
-.md-preview-content h3 {
-  font-size: 1.28em;
-}
-.md-preview-content h4 {
-  font-size: 1.1em;
-}
+.md-preview-content h2 { font-size: 1.6em; font-weight: 600; }
+.md-preview-content h3 { font-size: 1.3em; font-weight: 600; }
+.md-preview-content h4 { font-size: 1.1em; font-weight: 600; font-family: var(--font-markdown); }
 .md-preview-content h5,
-.md-preview-content h6 {
-  color: var(--text-secondary);
-}
+.md-preview-content h6 { color: var(--text-secondary); font-family: var(--font-markdown); }
 
-.md-preview-content p {
-  margin: 0.92em 0;
-}
+.md-preview-content p { margin: 1.2em 0; }
 
+/* 隐没的超链接气泡悬浮质感 */
 .md-preview-content a {
-  color: var(--accent);
-  text-decoration: underline;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 3px;
+  color: var(--hl-link);
+  text-decoration: none;
+  padding: 2px 4px;
+  margin: 0 -4px;
+  border-radius: 4px;
+  transition: background 0.15s ease, color 0.15s ease;
 }
 .md-preview-content a:hover {
-  opacity: 0.8;
+  background: color-mix(in srgb, var(--hl-link) 15%, transparent);
 }
 
-.md-preview-content strong {
-  font-weight: 700;
-  color: var(--workspace-ink);
-}
-
-.md-preview-content em {
-  font-style: italic;
-}
-
-.md-preview-content del {
-  text-decoration: line-through;
-  opacity: 0.6;
-}
+.md-preview-content strong { font-weight: 600; color: var(--workspace-ink); }
+.md-preview-content em { font-style: italic; }
+.md-preview-content del { text-decoration: line-through; opacity: 0.6; }
 
 .md-preview-content code {
   font-family: var(--font-mono, 'SF Mono', 'Fira Code', monospace);
-  font-size: 0.9em;
-  padding: 0.18em 0.42em;
+  font-size: 0.85em;
+  padding: 0.2em 0.4em;
   border-radius: 4px;
-  background: color-mix(in srgb, var(--workspace-paper-muted) 84%, transparent);
-  color: var(--hl-code, var(--accent));
-  border: 1px solid color-mix(in srgb, var(--shell-border) 72%, transparent);
+  background: var(--surface-raised);
+  color: var(--workspace-ink);
+  border: 1px solid var(--border-subtle); 
 }
 
 .md-preview-content pre {
-  margin: 1.15em 0;
-  padding: 14px 16px;
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--workspace-paper) 92%, transparent);
+  margin: 1.5em 0;
+  padding: 16px 20px;
+  border-radius: 8px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-subtle);
   overflow-x: auto;
-  border: 1px solid color-mix(in srgb, var(--shell-border) 80%, transparent);
-}
-.md-preview-content pre code {
-  padding: 0;
-  background: none;
   font-size: 0.85em;
-  color: var(--workspace-ink);
-  border: none;
+  line-height: 1.6;
 }
+.md-preview-content pre code { padding: 0; background: none; font-size: 1em; color: var(--workspace-ink); border: none; }
 
 .md-preview-content blockquote {
-  margin: 1.1em 0;
-  padding: 0.7em 1em 0.7em 1.1em;
-  border-left: 3px solid color-mix(in srgb, var(--accent) 82%, transparent);
-  background: color-mix(in srgb, var(--workspace-paper) 90%, transparent);
-  border-radius: 0 8px 8px 0;
+  margin: 1.5em 0;
+  padding: 0.5em 1.2em;
+  border-left: 3px solid var(--border-strong);
+  background: transparent;
   color: var(--text-secondary);
+  font-style: italic;
 }
-.md-preview-content blockquote p {
-  margin: 0.4em 0;
-}
+.md-preview-content blockquote p { margin: 0.4em 0; }
 
 .md-preview-content ul,
-.md-preview-content ol {
-  padding-left: 1.65em;
-  margin: 0.92em 0;
-  list-style-position: outside;
-}
-.md-preview-content ul {
-  list-style-type: disc;
-}
-.md-preview-content ol {
-  list-style-type: decimal;
-}
-.md-preview-content li {
-  margin: 0.34em 0;
-  display: list-item;
-}
-.md-preview-content li > p {
-  margin: 0.4em 0;
-}
-.md-preview-content li > ul {
-  margin: 0.28em 0;
-  list-style-type: circle;
-}
-.md-preview-content li > ol {
-  margin: 0.28em 0;
-  list-style-type: lower-alpha;
-}
+.md-preview-content ol { padding-left: 1.65em; margin: 1em 0; list-style-position: outside; }
+.md-preview-content ul { list-style-type: disc; }
+.md-preview-content ol { list-style-type: decimal; }
+.md-preview-content li { margin: 0.5em 0; display: list-item; }
 
-.md-preview-content hr {
-  border: none;
-  border-top: 1px solid color-mix(in srgb, var(--shell-border) 82%, transparent);
-  margin: 2em 0;
-}
+.md-preview-content hr { border: none; border-top: 1px solid var(--border-subtle); margin: 2.5em 0; }
 
 .md-preview-content table {
   border-collapse: collapse;
   width: 100%;
-  margin: 1.15em 0;
+  margin: 1.5em 0;
   overflow: hidden;
-  border-radius: 10px;
+  border-radius: 6px;
   border-style: hidden;
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--shell-border) 78%, transparent);
-  background: color-mix(in srgb, var(--workspace-paper) 94%, transparent);
+  box-shadow: 0 0 0 1px var(--border-subtle);
+  background: transparent;
 }
 .md-preview-content th,
-.md-preview-content td {
-  border: 1px solid color-mix(in srgb, var(--shell-border) 72%, transparent);
-  padding: 11px 14px;
-  text-align: left;
-  vertical-align: top;
-}
-.md-preview-content th {
-  background: color-mix(in srgb, var(--workspace-paper-muted) 88%, transparent);
-  font-weight: 600;
-}
+.md-preview-content td { border: 1px solid var(--border-subtle); padding: 12px 16px; text-align: left; vertical-align: top; }
+.md-preview-content th { background: color-mix(in srgb, var(--surface-raised) 50%, transparent); font-weight: 600; }
 
-.md-preview-content img {
-  max-width: 100%;
-  border-radius: 10px;
-  margin: 1.2em 0;
-  border: 1px solid color-mix(in srgb, var(--shell-border) 74%, transparent);
-}
+.md-preview-content img { max-width: 100%; border-radius: 8px; margin: 1.5em 0; border: 1px solid var(--border-subtle); }
 
-/* Wiki links */
 .md-preview-content .md-preview-wikilink {
-  color: var(--accent);
+  color: var(--hl-link);
   cursor: pointer;
   text-decoration: none;
-  border-bottom: 1px dashed var(--accent);
+  padding: 2px 4px;
+  margin: 0 -4px;
+  border-radius: 4px;
+  transition: background 0.15s ease;
 }
 .md-preview-content .md-preview-wikilink:hover {
-  opacity: 0.8;
+  background: color-mix(in srgb, var(--hl-link) 15%, transparent);
 }
 
-/* Footnotes */
 .md-preview-content .footnotes {
-  margin-top: 2.6em;
-  padding-top: 1.1em;
-  border-top: 1px solid color-mix(in srgb, var(--shell-border) 72%, transparent);
-  font-size: 0.92em;
+  margin-top: 3em;
+  padding-top: 1.5em;
+  border-top: 1px solid var(--border-subtle);
+  font-size: 0.9em;
   color: var(--text-secondary);
 }
 
-.md-preview-content .footnote-ref,
-.md-preview-content .footnote-backref {
-  text-decoration: none;
-  font-weight: 600;
-}
-
-.md-preview-content .footnotes ol {
-  padding-left: 1.35em;
-}
-
-.md-preview-content .footnotes li {
-  margin: 0.55em 0;
-}
-
-/* Highlight.js theme mapping — uses existing editor CSS vars */
-.md-preview-content .hljs {
-  color: var(--workspace-ink);
-}
-.md-preview-content .hljs-keyword {
-  color: var(--hl-keyword, #c678dd);
-}
-.md-preview-content .hljs-string {
-  color: var(--hl-string, #e9967a);
-}
-.md-preview-content .hljs-number {
-  color: var(--hl-number, #d19a66);
-}
-.md-preview-content .hljs-comment {
-  color: var(--hl-comment, #5c6370);
-  font-style: italic;
-}
-.md-preview-content .hljs-function {
-  color: var(--hl-function, #61afef);
-}
-.md-preview-content .hljs-title {
-  color: var(--hl-function, #61afef);
-}
-.md-preview-content .hljs-title.function_ {
-  color: var(--hl-function, #61afef);
-}
-.md-preview-content .hljs-params {
-  color: var(--hl-variable, #e06c75);
-}
-.md-preview-content .hljs-type {
-  color: var(--hl-type, #e5c07b);
-}
-.md-preview-content .hljs-built_in {
-  color: var(--hl-builtin, #56b6c2);
-}
-.md-preview-content .hljs-literal {
-  color: var(--hl-constant, #d19a66);
-}
-.md-preview-content .hljs-attr {
-  color: var(--hl-property, #d19a66);
-}
-.md-preview-content .hljs-attribute {
-  color: var(--hl-property, #d19a66);
-}
-.md-preview-content .hljs-selector-tag {
-  color: var(--hl-keyword, #c678dd);
-}
-.md-preview-content .hljs-selector-class {
-  color: var(--hl-type, #e5c07b);
-}
-.md-preview-content .hljs-meta {
-  color: var(--hl-meta, #abb2bf);
-}
-.md-preview-content .hljs-variable {
-  color: var(--hl-variable, #e06c75);
-}
-.md-preview-content .hljs-name {
-  color: var(--hl-tag, #e06c75);
-}
-.md-preview-content .hljs-tag {
-  color: var(--fg-muted);
-}
-.md-preview-content .hljs-deletion {
-  color: var(--error, #e06c75);
-}
-.md-preview-content .hljs-addition {
-  color: var(--success, #98c379);
-}
-
-/* KaTeX styles */
+/* 核心优化：隐藏 KaTeX 公式长宽的物理滚动条，保持滑动功能且外观纯净 */
 .md-preview-content .katex-display {
-  margin: 1.25em 0;
+  margin: 1.5em 0;
   overflow-x: auto;
   overflow-y: hidden;
-  padding: 0.2em 0;
+  padding: 0.5em 0;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE */
 }
-.md-preview-content .katex {
-  font-size: 1.1em;
+.md-preview-content .katex-display::-webkit-scrollbar {
+  display: none; /* Safari/Chrome 极致隐藏 */
 }
+.md-preview-content .katex { font-size: 1.1em; }
 
-/* Task list checkboxes */
-.md-preview-content input[type='checkbox'] {
-  margin-right: 6px;
-  accent-color: var(--accent);
-}
+.md-preview-content input[type='checkbox'] { margin-right: 8px; accent-color: var(--accent); }
 </style>

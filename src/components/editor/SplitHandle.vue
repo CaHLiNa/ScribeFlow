@@ -1,3 +1,4 @@
+<!-- START OF FILE src/components/editor/SplitHandle.vue -->
 <template>
   <div
     class="split-handle shrink-0"
@@ -22,7 +23,6 @@ function startDrag(e) {
   emit('resize-start')
   setShellResizeActive(true, { source: 'split-handle', direction: props.direction })
 
-  // Prevent iframes from capturing mouse events during drag
   const style = document.createElement('style')
   style.id = 'split-drag-iframe-block'
   style.textContent = 'iframe { pointer-events: none !important; }'
@@ -52,54 +52,71 @@ function startDrag(e) {
 
 <style scoped>
 .split-handle {
+  position: relative;
   z-index: 5;
   background: transparent;
-  position: relative;
 }
+
+/* 核心：将边框设为透明，鼠标经过才展示亮色 Accent */
 .split-handle::before {
   content: '';
   position: absolute;
   background: var(--workbench-divider-soft);
-  opacity: 1;
-  transition:
-    background 0.15s,
-    opacity 0.15s;
+  opacity: 0;
+  transition: opacity 0.2s ease, background 0.2s ease;
 }
+
 .split-handle.vertical {
   width: 1px;
   margin: 0;
   cursor: col-resize;
 }
+
+/* 热区（不可见） */
+.split-handle.vertical::after {
+  content: '';
+  position: absolute;
+  left: -4px;
+  right: -4px;
+  top: 0;
+  bottom: 0;
+  z-index: 1;
+}
+
+/* 视觉线 */
 .split-handle.vertical::before {
   top: 0;
   bottom: 0;
-  left: 50%;
-  transform: translateX(-0.5px);
-  width: 1px;
+  left: -1px;
+  width: 3px;
 }
+
 .split-handle.horizontal {
   height: 1px;
   margin: 0;
   cursor: row-resize;
 }
+
+.split-handle.horizontal::after {
+  content: '';
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  left: 0;
+  right: 0;
+  z-index: 1;
+}
+
 .split-handle.horizontal::before {
   left: 0;
   right: 0;
-  top: 50%;
-  transform: translateY(-0.5px);
-  height: 1px;
+  top: -1px;
+  height: 3px;
 }
+
 .split-handle:hover::before,
 .split-handle.dragging::before {
   opacity: 1;
-}
-
-.split-handle:hover::before {
-  background: var(--workbench-divider);
-}
-
-.split-handle.dragging::before {
-  opacity: 1;
-  background: color-mix(in srgb, var(--accent) 26%, var(--workbench-divider));
+  background: var(--accent);
 }
 </style>

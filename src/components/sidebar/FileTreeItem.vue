@@ -68,7 +68,7 @@
               <template v-else>{{ seg.text }}</template>
             </template>
           </template>
-          <template v-else>{{ displayName }}</template>
+          <template v-else>{{ entry.name }}</template>
         </span>
       </template>
     </div>
@@ -219,7 +219,6 @@ const isFilterHighlighted = computed(
 const isActive = computed(() => editor.activeTab === props.entry.path)
 const isSelected = computed(() => props.selectedPaths.has(props.entry.path))
 const isRenaming = computed(() => props.renamingPath === props.entry.path)
-const displayName = computed(() => String(props.entry.display_name || props.entry.name || ''))
 
 const ICON_COMPONENTS = {
   IconFile,
@@ -252,12 +251,12 @@ const fileIconComponent = computed(() => {
 })
 
 const nameSegments = computed(() => {
-  if (!props.filterQuery) return [{ text: displayName.value, match: false }]
+  if (!props.filterQuery) return[{ text: props.entry.name, match: false }]
   const q = props.filterQuery.toLowerCase()
-  const name = displayName.value
+  const name = props.entry.name
   const idx = name.toLowerCase().indexOf(q)
   if (idx === -1) return [{ text: name, match: false }]
-  const segments = []
+  const segments =[]
   if (idx > 0) segments.push({ text: name.slice(0, idx), match: false })
   segments.push({ text: name.slice(idx, idx + q.length), match: true })
   if (idx + q.length < name.length)
@@ -295,6 +294,7 @@ watch(
 )
 
 let mouseDownInfo = null
+let dragExpandTimer = null
 
 function handleMouseDown(event) {
   if (event.button !== 0 || isRenaming.value) return
@@ -353,15 +353,30 @@ function handleNativeDragOver(e) {
   if (!e.dataTransfer?.types?.includes('Files')) return
   e.dataTransfer.dropEffect = 'copy'
   emit('drag-over-dir', props.entry.path)
+  
+  // 核心魔法：悬停 800ms 后自动展开文件夹
+  if (!isExpanded.value && !dragExpandTimer) {
+    dragExpandTimer = setTimeout(() => {
+      files.expandedDirs.add(props.entry.path)
+    }, 800)
+  }
 }
 
 function handleNativeDragLeave() {
   if (!props.entry.is_dir) return
   emit('drag-leave-dir', props.entry.path)
+  if (dragExpandTimer) {
+    clearTimeout(dragExpandTimer)
+    dragExpandTimer = null
+  }
 }
 
 function handleNativeDrop(e) {
   if (!props.entry.is_dir) return
+  if (dragExpandTimer) {
+    clearTimeout(dragExpandTimer)
+    dragExpandTimer = null
+  }
   if (!e.dataTransfer?.files?.length) return
   emit('external-drop', { dir: props.entry.path, files: e.dataTransfer.files })
 }
@@ -424,10 +439,9 @@ function treeNewItemPadding(depth) {
 .file-tree-item-row.is-active-row .file-tree-item-label,
 .file-tree-item-row.is-selected-row .file-tree-item-label {
   color: var(--list-active-fg) !important;
-  font-weight: 600; /* 选中时加粗以增加识别度 */
+  font-weight: 600; 
 }
 
-/* 移除强制覆盖，让 icon 在选中时依然保持柔和的层级 */
 .file-tree-item-row.is-active-row .file-tree-item-icon,
 .file-tree-item-row.is-selected-row .file-tree-item-icon {
   opacity: 0.9;

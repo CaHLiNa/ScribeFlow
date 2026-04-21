@@ -10,7 +10,7 @@ import {
 
 const SOURCE_GRAPH_CACHE = new Map()
 
-function stableContentFingerprint(value = '') {
+export function stableContentFingerprint(value = '') {
   const text = String(value || '')
   let hash = 2166136261
   for (let index = 0; index < text.length; index += 1) {

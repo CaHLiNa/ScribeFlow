@@ -366,7 +366,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border-radius: 10px; /* 缩减为标准弹窗圆角 */
+  border-radius: 10px;
   border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
   background: color-mix(in srgb, var(--surface-raised) 85%, transparent);
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(0, 0, 0, 0.05);
@@ -378,35 +378,40 @@ onUnmounted(() => {
   box-shadow: 0 12px 36px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.05);
 }
 
+/* 列表容器：增加微小的内边距，让选中的圆角背景不贴边 */
 .citation-palette-results,
 .citation-palette-entries,
 .citation-palette-add-results,
 .citation-palette-import {
   overflow-y: auto;
+  padding: 4px;
 }
 
 .citation-palette-item,
 .citation-palette-entry {
   width: 100%;
-  padding: 10px 14px;
-  border: 0;
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
+  padding: 6px 10px; /* 大幅收紧上下间距 */
+  border: 0; /* 彻底移除下划线分割 */
+  border-radius: 6px; /* 选中时呈现圆角块 */
+  margin-bottom: 1px;
   background: transparent;
   text-align: left;
+  transition: background-color 0.1s;
 }
 
-/* 列表最后一行去掉底部横线 */
 .citation-palette-item:last-child {
-  border-bottom: none;
+  margin-bottom: 0;
 }
 
-/* 原生高亮蓝/强色 */
+/* 柔和的原生高亮色，替换掉死黑 */
 .citation-palette-item.is-active {
-  background: var(--accent);
+  background: var(--list-active-bg);
 }
 
-.citation-palette-item.is-active * {
-  color: var(--bg-primary) !important;
+/* 选中时不再反转所有文字颜色，只需让主要文本变亮/清晰 */
+.citation-palette-item.is-active .citation-palette-title,
+.citation-palette-item.is-active .citation-palette-author {
+  color: var(--list-active-fg);
 }
 
 .citation-palette-line1,
@@ -458,10 +463,9 @@ onUnmounted(() => {
   display: flex;
   gap: 6px;
   align-items: center;
-  margin-top: 8px;
+  margin-top: 6px;
 }
 
-/* 彻底剥离 Input 的表单感，使其变为沉浸式搜索框 */
 .citation-palette-locator,
 .citation-palette-add-input,
 .citation-palette-import-textarea {
@@ -477,10 +481,9 @@ onUnmounted(() => {
 .citation-palette-add-input {
   min-height: 40px;
   padding: 0 14px;
-  font-size: 15px; /* 搜索框字号放大 */
+  font-size: 14px; 
 }
 
-/* 搜索框下面加一条明确的分割线 */
 .citation-palette-add {
   padding: 0;
   border-top: 1px solid color-mix(in srgb, var(--border) 50%, transparent);

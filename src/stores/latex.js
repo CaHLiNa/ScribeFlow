@@ -6,6 +6,7 @@ import { useWorkspaceStore } from './workspace'
 import { t } from '../i18n'
 import { resolveCachedLatexRootPath, resolveLatexCompileTarget } from '../services/latex/root'
 import {
+  stableContentFingerprint,
   resolveLatexCompileTargetsForChange,
   resolveLatexProjectGraph,
 } from '../services/latex/projectGraph'
@@ -437,6 +438,12 @@ export const useLatexStore = defineStore('latex', {
         const targetKey = compileTargetPath || texPath
         const reason = options.reason || 'manual'
         const queueState = this.buildQueueState[targetKey] || null
+        const sourceContent =
+          typeof options.sourceContent === 'string'
+            ? options.sourceContent
+            : filesStore.fileContents?.[texPath]
+        const sourceFingerprint =
+          typeof sourceContent === 'string' ? stableContentFingerprint(sourceContent) : ''
         this._latestSourceByTarget[targetKey] = texPath
         const buildOptions = this.currentBuildOptions()
         const compileStart = await resolveLatexCompileStart({
@@ -481,6 +488,14 @@ export const useLatexStore = defineStore('latex', {
           queueState: this.buildQueueState[targetKey] || null,
           result,
         })
+        if (sourceFingerprint) {
+          if (compileFinish?.sourceState && typeof compileFinish.sourceState === 'object') {
+            compileFinish.sourceState.sourceFingerprint = sourceFingerprint
+          }
+          if (compileFinish?.targetState && typeof compileFinish.targetState === 'object') {
+            compileFinish.targetState.sourceFingerprint = sourceFingerprint
+          }
+        }
         this.applyCompileStatePatch(texPath, compileFinish?.sourceState)
         if (targetKey !== texPath) {
           this.applyCompileStatePatch(targetKey, compileFinish?.targetState)

@@ -114,6 +114,7 @@ defineExpose({
 })
 </script>
 
+/* START OF FILE src/components/shared/ui/UiInput.vue (只替换 style 部分) */
 <style scoped>
 .ui-input-shell {
   display: inline-flex;
@@ -143,25 +144,32 @@ defineExpose({
   opacity: 0.55;
 }
 
-/* Ghost variant */
+/* ========================================================
+   Ghost Variant: macOS Native Inspector Style 
+======================================================== */
 .ui-input-shell--ghost {
-  border-color: transparent;
+  border: 1px solid transparent;
   background: transparent;
   box-shadow: none;
-  padding-inline: 4px !important;
+  /* 取消 padding-inline 的 hack，交由 control 处理，以便文本完美左对齐 */
+  padding-inline: 0 !important;
 }
 
 .ui-input-shell--ghost:hover:not(.is-disabled):not(:focus-within) {
-  background: color-mix(in srgb, var(--surface-hover) 50%, transparent);
+  background: color-mix(in srgb, var(--surface-hover) 40%, transparent);
   border-color: transparent;
 }
 
 .ui-input-shell--ghost:focus-within {
   background: var(--surface-base);
-  border-color: var(--accent);
-  box-shadow:
-    0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent),
-    0 0 0 1px var(--accent);
+  border-color: var(--border-subtle);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05); /* 原生的微弱卡片感 */
+}
+
+/* 抵消 ghost 下的 control padding，保持静默态的绝对对齐 */
+.ui-input-shell--ghost .ui-input-control {
+  padding-left: 6px !important;
+  padding-right: 6px !important;
 }
 
 .ui-input-shell--sm {

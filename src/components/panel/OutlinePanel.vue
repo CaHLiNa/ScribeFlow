@@ -1,3 +1,4 @@
+<!-- START OF FILE src/components/panel/OutlinePanel.vue -->
 <template>
   <div class="outline-panel" :class="{ 'outline-panel--embedded': embedded }">
     <div v-if="!hasOutlineSupport" class="outline-panel-empty">
@@ -19,9 +20,17 @@
         :key="renderItem.key"
         class="outline-panel-row ui-list-row"
         :class="{ 'is-active': renderItem.key === activeOutlineItemKey }"
-        :style="{ paddingLeft: getOutlineItemPadding(renderItem.item) + 'px' }"
         @click="navigateToOutlineItem(renderItem.item)"
       >
+        <!-- 核心重构：独立抽出缩进和参考线容器 -->
+        <div class="outline-indent" :style="{ width: getIndentWidth(renderItem.item) + 'px' }">
+          <div 
+            v-for="i in getIndentLevels(renderItem.item)" 
+            :key="i" 
+            class="outline-guide"
+          ></div>
+        </div>
+
         <button
           v-if="renderItem.hasChildren"
           type="button"
@@ -54,6 +63,7 @@
           class="outline-panel-item-toggle outline-panel-item-toggle--placeholder"
           aria-hidden="true"
         ></span>
+        
         <span
           v-if="getOutlineKindLabel(renderItem.item.kind)"
           class="outline-panel-kind"
@@ -102,32 +112,19 @@ function resolveOutlinePath(path) {
   if (outlineTypeForPath(path)) return path
 
   const sourcePath = workflowStore.getSourcePathForPreview(path)
-  if (outlineTypeForPath(sourcePath)) {
-    return sourcePath
-  }
-
+  if (outlineTypeForPath(sourcePath)) return sourcePath
   return path
 }
 
-// Determine if active file supports outline
-// Use overrideActiveFile prop when provided (e.g., from right sidebar when chat tab is focused)
-const activeFile = computed(() =>
-  resolveOutlinePath(props.overrideActiveFile || editorStore.activeTab)
-)
-
-const fileType = computed(() => {
-  return outlineTypeForPath(activeFile.value)
-})
-
+const activeFile = computed(() => resolveOutlinePath(props.overrideActiveFile || editorStore.activeTab))
+const fileType = computed(() => outlineTypeForPath(activeFile.value))
 const hasOutlineSupport = computed(() => fileType.value !== null)
 const outlineItems = ref([])
 let outlineRequestId = 0
 
 function currentDocumentText(path) {
   const view = editorStore.getAnyEditorView(path)
-  if (view) {
-    return view.state.doc.toString()
-  }
+  if (view) return view.state.doc.toString()
   return filesStore.fileContents[path] || ''
 }
 
@@ -137,9 +134,7 @@ async function refreshDocumentOutline() {
   const requestId = ++outlineRequestId
 
   if (!path || !fileType.value || !content) {
-    if (requestId === outlineRequestId) {
-      outlineItems.value = []
-    }
+    if (requestId === outlineRequestId) outlineItems.value =[]
     return
   }
 
@@ -147,27 +142,21 @@ async function refreshDocumentOutline() {
     const items = await resolveDocumentOutlineItems(path, {
       content,
       filesStore,
-      contentOverrides: {
-        [path]: content,
-      },
+      contentOverrides: { [path]: content },
     })
     if (requestId === outlineRequestId && activeFile.value === path) {
-      outlineItems.value = Array.isArray(items) ? items : []
+      outlineItems.value = Array.isArray(items) ? items :[]
     }
   } catch {
-    if (requestId === outlineRequestId) {
-      outlineItems.value = []
-    }
+    if (requestId === outlineRequestId) outlineItems.value =[]
   }
 }
 
 const visibleOutlineItems = computed(() =>
-  outlineItems.value.filter((item) =>
-    ['heading', 'appendix', 'figure', 'table', 'bibliography'].includes(item.kind)
+  outlineItems.value.filter((item) =>['heading', 'appendix', 'figure', 'table', 'bibliography'].includes(item.kind)
   )
 )
 
-// Current heading highlight (for CM6 files)
 const activeOutlineItemKey = computed(() => {
   const ft = fileType.value
   if (!ft) return ''
@@ -197,9 +186,7 @@ function focusTextOffset(path, offset, attempts = 0) {
   }
 
   const pos = Math.min(Number(offset) || 0, targetView.state.doc.length)
-  focusEditorRangeWithHighlight(targetView, pos, pos, {
-    center: true,
-  })
+  focusEditorRangeWithHighlight(targetView, pos, pos, { center: true })
 }
 
 function navigateToOutlineItem(item) {
@@ -223,15 +210,22 @@ function getOutlineKindLabel(kind) {
   return ''
 }
 
-function getOutlineItemPadding(item = {}) {
-  if (!['heading', 'appendix'].includes(item.kind)) return 6
+// 辅助线逻辑
+const INDENT_STEP = 12; // 加宽一点缩进距，让视觉不拥挤
+function getIndentLevels(item = {}) {
+  if (!['heading', 'appendix'].includes(item.kind)) return 0
   const displayLevel = Math.max(1, Number(item.displayLevel || item.level) || 1)
-  return (displayLevel - 1) * 8 + 6
+  return Math.max(0, displayLevel - 1)
+}
+
+function getIndentWidth(item = {}) {
+  const levels = getIndentLevels(item)
+  return levels * INDENT_STEP + 6
 }
 
 function outlineItemKey(item = {}) {
   if (item.nodeKey) return String(item.nodeKey)
-  return [
+  return[
     item.filePath || activeFile.value || '',
     item.offset || 0,
     item.kind || 'heading',
@@ -245,8 +239,7 @@ function isHeadingCollapsed(itemKey) {
 
 function toggleHeadingCollapse(itemKey) {
   collapsedHeadings.value = {
-    ...collapsedHeadings.value,
-    [itemKey]: !isHeadingCollapsed(itemKey),
+    ...collapsedHeadings.value,[itemKey]: !isHeadingCollapsed(itemKey),
   }
 }
 
@@ -259,17 +252,15 @@ const outlineRenderItems = computed(() => {
         item,
         hasChildren: item.hasChildren === true,
         isTreeNode: item.isTreeNode === true,
-        ancestorKeys: Array.isArray(item.ancestorKeys) ? item.ancestorKeys : [],
+        ancestorKeys: Array.isArray(item.ancestorKeys) ? item.ancestorKeys :[],
       }
     })
     .filter((node) => node.ancestorKeys.every((key) => !isHeadingCollapsed(key)))
 })
 
 watch(
-  () => [activeFile.value, fileType.value, currentDocumentText(activeFile.value || '')],
-  () => {
-    void refreshDocumentOutline()
-  },
+  () =>[activeFile.value, fileType.value, currentDocumentText(activeFile.value || '')],
+  () => { void refreshDocumentOutline() },
   { immediate: true }
 )
 
@@ -285,8 +276,6 @@ watch(
   },
   { immediate: true }
 )
-
-onUnmounted(() => {})
 </script>
 
 <style scoped>
@@ -331,21 +320,9 @@ onUnmounted(() => {})
 .outline-panel-scroll {
   flex: 1 1 auto;
   overflow-y: auto;
-  padding: 0 4px 4px;
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    transparent 0,
-    black 18px,
-    black calc(100% - 18px),
-    transparent 100%
-  );
-  mask-image: linear-gradient(
-    to bottom,
-    transparent 0,
-    black 18px,
-    black calc(100% - 18px),
-    transparent 100%
-  );
+  padding: 0 8px 4px; /* 增加整体侧边留白 */
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, black 18px, black calc(100% - 18px), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, black 18px, black calc(100% - 18px), transparent 100%);
   -webkit-mask-size: 100% 100%;
   mask-size: 100% 100%;
   -webkit-mask-repeat: no-repeat;
@@ -353,22 +330,22 @@ onUnmounted(() => {})
 }
 
 /* =========================================================
-   完全对齐 FileTree 的 macOS 原生列表样式 
+   排版更新
 ========================================================= */
 .outline-panel-row {
   display: flex;
   align-items: center;
   position: relative;
-  min-height: 26px; /* 统一行高 */
-  padding: 0 10px 0 12px;
-  border-radius: 4px; /* 统一圆角 */
+  min-height: 26px; 
+  padding: 0 10px 0 0; /* 左侧边距交由动态计算的 indent div 处理 */
+  border-radius: 4px;
   margin: 1px 0;
   cursor: pointer;
   user-select: none;
   color: var(--text-secondary);
   font-size: 13px;
   line-height: 1.3;
-  transition: none; /* 原生无过渡 */
+  transition: none; 
 }
 
 .outline-panel-row:hover {
@@ -376,7 +353,6 @@ onUnmounted(() => {})
   color: var(--text-primary);
 }
 
-/* 移除之前的发光描边、前置点等杂乱设计，直接使用原生强色铺满 */
 .outline-panel-row.is-active {
   background: var(--list-active-bg);
   color: var(--list-active-fg);
@@ -386,6 +362,23 @@ onUnmounted(() => {})
 .outline-panel-row.is-active .outline-panel-kind {
   color: var(--list-active-fg);
   opacity: 0.9;
+}
+
+/* 缩进与树状参考线 (Tree Guides) */
+.outline-indent {
+  display: flex;
+  height: 100%;
+  flex-shrink: 0;
+}
+
+.outline-guide {
+  width: 12px; /* 和上面的 INDENT_STEP 对应 */
+  height: 100%;
+  border-left: 1px solid color-mix(in srgb, var(--border) 35%, transparent);
+}
+/* 第一根线不需要画出来，从第二根（子级）开始画 */
+.outline-guide:first-child {
+  border-left: none;
 }
 
 .outline-panel-kind {

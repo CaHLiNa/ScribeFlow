@@ -15,7 +15,7 @@
       @load="onIframeLoad"
     />
 
-    <div v-if="loading" class="pdf-artifact-preview__state">
+    <div v-if="loading && !hotReloadInFlight" class="pdf-artifact-preview__state">
       {{ t('Loading PDF...') }}
     </div>
 
@@ -71,6 +71,12 @@ import {
   shouldUsePdfCanvasFilterFallback,
 } from '../../services/pdf/viewerUrl.js'
 import { createPdfViewerScaleLock } from '../../services/pdf/viewerResize.js'
+import {
+  createPdfPreviewSessionState,
+  resolvePdfPreviewRevision,
+  resolvePdfPreviewSessionTransition,
+  snapshotPdfPreviewViewState,
+} from '../../domains/document/pdfPreviewSessionRuntime.js'
 import { openExternalHttpUrl, resolveExternalHttpAnchor } from '../../services/externalLinks.js'
 import { toWorkspaceProtocolUrl } from '../../utils/workspaceProtocol.js'
 import { useSurfaceContextMenu } from '../../composables/useSurfaceContextMenu.js'
@@ -81,11 +87,11 @@ const props = defineProps({
   sourcePath: { type: String, required: true },
   artifactPath: { type: String, required: true },
   kind: { type: String, required: true },
+  previewRevision: { type: Object, default: null },
   workspacePath: { type: String, default: '' },
   workspaceDataDir: { type: String, default: '' },
   globalConfigDir: { type: String, default: '' },
   compileState: { type: Object, default: null },
-  documentVersion: { type: [String, Number], default: '' },
   forwardSyncRequest: { type: Object, default: null },
   resolvedTheme: { type: String, default: 'dark' },
   pdfPageBackgroundFollowsTheme: { type: Boolean, default: true },
@@ -115,6 +121,7 @@ const { dismissOtherTransientOverlays } = useTransientOverlayDismiss('pdf-iframe
 const iframeRef = ref(null)
 const viewerSrc = ref(null)
 const loading = ref(true)
+const hotReloadInFlight = ref(false)
 const loadError = ref('')
 const viewerKey = ref(0)
 const latexViewerReady = ref(false)
@@ -126,10 +133,23 @@ const viewerThemeReloadKey = computed(() =>
   })
 )
 
+function getActivePreviewRevision() {
+  return (
+    props.previewRevision
+    || resolvePdfPreviewRevision({
+      sourcePath: props.sourcePath,
+      artifactPath: props.artifactPath,
+      kind: props.kind,
+      compileState: props.compileState,
+    })
+  )
+}
+
 let currentBlobUrl = null
 let pdfSaveInProgress = false
 let lastHandledForwardSyncId = 0
 let pendingForwardSync = null
+let pendingViewerRestore = null
 let loadToken = 0
 let latexReverseSyncCleanup = null
 let viewerContextMenuCleanup = null
@@ -143,6 +163,7 @@ let activeLoadSourceMode = ''
 let protocolFailureFallbackTriggered = false
 const PROTOCOL_LOAD_TIMEOUT_MS = 1200
 const BLOB_LOAD_TIMEOUT_MS = 2200
+const previewSessionState = createPdfPreviewSessionState()
 
 function resolvePdfViewerSpreadModeValue() {
   return String(props.pdfViewerSpreadMode || '').trim().toLowerCase() === 'double' ? 1 : 0
@@ -263,6 +284,7 @@ function resetViewerRuntime() {
   persistViewerScalePreference()
   loadToken += 1
   pendingForwardSync = null
+  pendingViewerRestore = null
   viewerScaleLock = null
   latexViewerReady.value = false
   if (viewerLoadTimeout) {
@@ -302,6 +324,132 @@ function getViewerApp() {
   return iframeRef.value?.contentWindow?.PDFViewerApplication || null
 }
 
+function getViewerContainer(app = getViewerApp()) {
+  return (
+    app?.appConfig?.mainContainer ||
+    iframeRef.value?.contentDocument?.getElementById?.('viewerContainer') ||
+    null
+  )
+}
+
+function captureViewerRestoreState(app = getViewerApp()) {
+  const pdfViewer = app?.pdfViewer
+  const container = getViewerContainer(app)
+  if (!pdfViewer || !container) return null
+
+  const location = pdfViewer._location || null
+  const pageNumber = Math.max(1, Number(pdfViewer.currentPageNumber || 1))
+  const pageView = pdfViewer._pages?.[pageNumber - 1]
+  const pageElement = pageView?.div
+  const pageHeight = Number(pageElement?.clientHeight || pageElement?.offsetHeight || 0)
+  const pageTop = Number(pageElement?.offsetTop || 0)
+  const relativeTop = container.scrollTop - pageTop
+  const normalizedScaleValue = normalizeWorkspacePdfViewerLastScale(pdfViewer.currentScaleValue)
+  const rawScaleValue = String(pdfViewer.currentScaleValue || '').trim()
+
+  return {
+    pageNumber,
+    scaleValue: normalizedScaleValue || rawScaleValue || '',
+    pdfOpenParams: String(location?.pdfOpenParams || '').trim(),
+    pdfPointLeft: Number(location?.left),
+    pdfPointTop: Number(location?.top),
+    pageScrollRatio:
+      Number.isFinite(pageHeight) && pageHeight > 0
+        ? Math.max(0, Math.min(1, relativeTop / pageHeight))
+        : null,
+    scrollLeft: Number(container.scrollLeft || 0),
+  }
+}
+
+function restoreViewerState(snapshot, app = getViewerApp()) {
+  if (!snapshot) return false
+
+  const pdfViewer = app?.pdfViewer
+  const pdfLinkService = app?.pdfLinkService
+  const container = getViewerContainer(app)
+  if (!pdfViewer || !container) return false
+
+  const pdfOpenParams = String(snapshot.pdfOpenParams || '').trim()
+  if (pdfOpenParams && pdfLinkService?.setHash) {
+    try {
+      pdfLinkService.setHash(pdfOpenParams.replace(/^#/, ''))
+      return true
+    } catch {
+      // Fall through to the manual restoration path below.
+    }
+  }
+
+  const pdfPointLeft = Number(snapshot.pdfPointLeft)
+  const pdfPointTop = Number(snapshot.pdfPointTop)
+  if (
+    Number.isFinite(pdfPointLeft)
+    && Number.isFinite(pdfPointTop)
+    && typeof pdfViewer.scrollPageIntoView === 'function'
+  ) {
+    try {
+      pdfViewer.scrollPageIntoView({
+        pageNumber: Math.max(1, Number(snapshot.pageNumber || 1)),
+        destArray: [null, { name: 'XYZ' }, pdfPointLeft, pdfPointTop, null],
+        allowNegativeOffset: true,
+      })
+      return true
+    } catch {
+      // Fall through to the manual restoration path below.
+    }
+  }
+
+  const scaleValue = String(snapshot.scaleValue || '').trim()
+  if (scaleValue) {
+    try {
+      pdfViewer.currentScaleValue = scaleValue
+    } catch {
+      // Ignore invalid scale restoration and keep the viewer stable.
+    }
+  }
+
+  const pageCount = Math.max(1, Number(app?.pagesCount || pdfViewer.pagesCount || 1))
+  const pageNumber = Math.min(Math.max(1, Number(snapshot.pageNumber || 1)), pageCount)
+  pdfViewer.currentPageNumber = pageNumber
+
+  window.requestAnimationFrame(() => {
+    const restoredPage = pdfViewer._pages?.[pageNumber - 1]?.div
+    const restoredHeight = Number(restoredPage?.clientHeight || restoredPage?.offsetHeight || 0)
+    const restoredTop = Number(restoredPage?.offsetTop || 0)
+    const scrollRatio = Number(snapshot.pageScrollRatio)
+    if (Number.isFinite(scrollRatio) && Number.isFinite(restoredHeight) && restoredHeight > 0) {
+      container.scrollTop = restoredTop + restoredHeight * Math.max(0, Math.min(1, scrollRatio))
+    }
+    const scrollLeft = Number(snapshot.scrollLeft)
+    if (Number.isFinite(scrollLeft)) {
+      container.scrollLeft = scrollLeft
+    }
+  })
+
+  return true
+}
+
+function restorePendingViewerState(app = getViewerApp()) {
+  if (!pendingViewerRestore) return false
+  const snapshot = pendingViewerRestore
+  pendingViewerRestore = null
+  return restoreViewerState(snapshot, app)
+}
+
+function captureCurrentPreviewViewState() {
+  return snapshotPdfPreviewViewState(captureViewerRestoreState())
+}
+
+function syncPreviewSessionState(nextSession = {}) {
+  previewSessionState.sessionKey = nextSession.sessionKey || ''
+  previewSessionState.sourcePath = nextSession.sourcePath || ''
+  previewSessionState.artifactPath = nextSession.artifactPath || ''
+  previewSessionState.buildId = nextSession.buildId || ''
+  previewSessionState.revisionKey = nextSession.revisionKey || ''
+  previewSessionState.synctexPath = nextSession.synctexPath || ''
+  previewSessionState.sourceFingerprint = nextSession.sourceFingerprint || ''
+  previewSessionState.viewState = nextSession.viewState || null
+}
+
 function lockViewerScaleForResize() {
   const pdfViewer = getViewerApp()?.pdfViewer
   if (!pdfViewer) return false
@@ -323,6 +471,74 @@ function restoreViewerScaleAfterResize() {
   if (!pdfViewer) return false
   pdfViewer.currentScaleValue = restoreScaleValue
   return true
+}
+
+async function resolvePdfDocumentSource(options = {}) {
+  const artifactPath = String(props.artifactPath || '').trim()
+  const preferProtocol = options.preferProtocol !== false
+  const expectedToken = Number(options.expectedToken || 0)
+  const protocolUrl = preferProtocol ? resolveProtocolViewerUrl(artifactPath) : ''
+  let documentUrl = protocolUrl || ''
+  let blobUrl = null
+  const sourceMode = documentUrl ? 'protocol' : 'blob'
+
+  if (!documentUrl) {
+    const base64 = await readPdfArtifactBase64(artifactPath)
+    if (expectedToken && expectedToken !== loadToken) return null
+
+    const bytes = base64ToUint8Array(base64)
+    blobUrl = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }))
+    documentUrl = blobUrl
+  }
+
+  return {
+    documentUrl,
+    blobUrl,
+    sourceMode,
+  }
+}
+
+async function reopenPdfInPlace(options = {}) {
+  const app = getViewerApp()
+  if (!viewerRuntimeActive || !viewerSrc.value || !app?.open || !app?.pdfViewer) {
+    return false
+  }
+
+  const snapshot = options.viewState || previewSessionState.viewState || captureViewerRestoreState(app)
+  const source = await resolvePdfDocumentSource(options)
+  if (!source?.documentUrl) return false
+
+  const previousBlobUrl = currentBlobUrl
+  activeLoadSourceMode = source.sourceMode
+  protocolFailureFallbackTriggered = source.sourceMode !== 'protocol'
+  loadError.value = ''
+  latexViewerReady.value = false
+  pendingViewerRestore = snapshot
+  hotReloadInFlight.value = true
+  const initialBookmark = String(snapshot?.pdfOpenParams || '').replace(/^#/, '').trim()
+
+  try {
+    if (initialBookmark) {
+      app.initialBookmark = initialBookmark
+    }
+    app.loadingBar?.hide?.()
+    await app.open({
+      url: source.documentUrl,
+      originalUrl: props.artifactPath,
+    })
+    currentBlobUrl = source.blobUrl || null
+    if (previousBlobUrl && previousBlobUrl !== currentBlobUrl) {
+      URL.revokeObjectURL(previousBlobUrl)
+    }
+    return true
+  } catch {
+    pendingViewerRestore = null
+    hotReloadInFlight.value = false
+    if (source.blobUrl) {
+      URL.revokeObjectURL(source.blobUrl)
+    }
+    return false
+  }
 }
 
 function handleShellResizePhase(event) {
@@ -655,16 +871,21 @@ function installViewerAppPatches(options = {}) {
       viewerLoadTimeout = 0
     }
     loading.value = false
+    hotReloadInFlight.value = false
     loadError.value = ''
     applyTheme()
     normalizeViewerChromeText()
+    app.loadingBar?.hide?.()
   }
   const handlePagesLoaded = () => {
     applyTheme()
     normalizeViewerChromeText()
     installLatexReverseSyncHandlers()
     latexViewerReady.value = true
+    hotReloadInFlight.value = false
+    restorePendingViewerState(app)
     flushPendingLatexForwardSync()
+    app.loadingBar?.hide?.()
   }
   const handleDocumentError = (event) => {
     if (
@@ -679,6 +900,7 @@ function installViewerAppPatches(options = {}) {
       window.clearTimeout(viewerLoadTimeout)
       viewerLoadTimeout = 0
     }
+    hotReloadInFlight.value = false
     loading.value = false
     loadError.value = String(event?.reason || event?.message || t('Could not load PDF')).trim()
   }
@@ -803,6 +1025,7 @@ function onIframeLoad() {
 }
 
 function resolveProtocolViewerUrl(artifactPath = '') {
+  const revision = getActivePreviewRevision()
   return toWorkspaceProtocolUrl(
     artifactPath,
     {
@@ -811,7 +1034,7 @@ function resolveProtocolViewerUrl(artifactPath = '') {
       globalConfigDir: props.globalConfigDir,
     },
     {
-      version: props.documentVersion,
+      version: revision?.buildId || '',
     }
   )
 }
@@ -857,6 +1080,7 @@ async function loadPdfWithStrategy(options = {}) {
   const currentToken = loadToken
 
   loading.value = true
+  hotReloadInFlight.value = false
   loadError.value = ''
   latexViewerReady.value = false
   viewerAppEventCleanup?.()
@@ -890,25 +1114,30 @@ async function loadPdfWithStrategy(options = {}) {
   }
 
   try {
-    const protocolUrl = preferProtocol ? resolveProtocolViewerUrl(artifactPath) : ''
-    const fileUrl = protocolUrl || null
-    let sourceMode = fileUrl ? 'protocol' : 'blob'
-    activeLoadSourceMode = sourceMode
-    protocolFailureFallbackTriggered = sourceMode !== 'protocol'
-
-    if (!fileUrl) {
-      const base64 = await readPdfArtifactBase64(artifactPath)
-      if (currentToken !== loadToken) return
-
-      const bytes = base64ToUint8Array(base64)
-      currentBlobUrl = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }))
+    const previousBlobUrl = currentBlobUrl
+    const source = await resolvePdfDocumentSource({
+      preferProtocol,
+      expectedToken: currentToken,
+    })
+    if (!source || currentToken !== loadToken) {
+      if (source?.blobUrl) {
+        URL.revokeObjectURL(source.blobUrl)
+      }
+      return
     }
 
-    viewerSrc.value = buildPdfViewerSrc(fileUrl || currentBlobUrl, {
+    activeLoadSourceMode = source.sourceMode
+    protocolFailureFallbackTriggered = source.sourceMode !== 'protocol'
+    currentBlobUrl = source.blobUrl || null
+
+    viewerSrc.value = buildPdfViewerSrc(source.documentUrl, {
       ...getViewerThemeOptions(),
       locale: getViewerLocale(),
     })
     viewerKey.value += 1
+    if (previousBlobUrl && previousBlobUrl !== currentBlobUrl) {
+      URL.revokeObjectURL(previousBlobUrl)
+    }
 
     viewerLoadTimeout = window.setTimeout(
       () => {
@@ -917,14 +1146,14 @@ async function loadPdfWithStrategy(options = {}) {
         if (syncViewerLoadedState()) {
           return
         }
-        if (sourceMode === 'protocol') {
+        if (source.sourceMode === 'protocol') {
           void loadPdfWithStrategy({ preferProtocol: false })
           return
         }
         loadError.value = t('PDF viewer did not finish rendering the document.')
         loading.value = false
       },
-      sourceMode === 'protocol' ? PROTOCOL_LOAD_TIMEOUT_MS : BLOB_LOAD_TIMEOUT_MS
+      source.sourceMode === 'protocol' ? PROTOCOL_LOAD_TIMEOUT_MS : BLOB_LOAD_TIMEOUT_MS
     )
   } catch (error) {
     if (currentToken !== loadToken) return
@@ -960,6 +1189,7 @@ async function handleIframeViewerMessage(event) {
         viewerLoadTimeout = 0
       }
       loadError.value = String(data.reason || data.message || t('Could not load PDF')).trim()
+      hotReloadInFlight.value = false
       loading.value = false
       return
     }
@@ -969,6 +1199,7 @@ async function handleIframeViewerMessage(event) {
         viewerLoadTimeout = 0
       }
       loadError.value = ''
+      hotReloadInFlight.value = false
       loading.value = false
       return
     }
@@ -1037,6 +1268,28 @@ async function handleForwardSyncRequest(request) {
   }
 }
 
+async function handlePreviewRevisionChange(nextRevision, previousRevision) {
+  const transition = resolvePdfPreviewSessionTransition(previewSessionState, nextRevision, {
+    viewState: captureCurrentPreviewViewState(),
+  })
+  syncPreviewSessionState(transition.nextSession)
+
+  const previousRevisionKey = previousRevision?.revisionKey || ''
+  const nextRevisionKey = nextRevision?.revisionKey || ''
+  if (!nextRevisionKey || nextRevisionKey === previousRevisionKey) return
+  if (transition.action === 'noop') return
+
+  if (transition.action === 'refresh-document') {
+    const reopened = await reopenPdfInPlace({
+      preferProtocol: true,
+      viewState: transition.nextSession.viewState,
+    }).catch(() => false)
+    if (reopened) return
+  }
+
+  void loadPdf()
+}
+
 watch(
   () => props.themeTokens,
   () => {
@@ -1064,11 +1317,11 @@ watch(
 )
 
 watch(
-  () => [props.artifactPath, props.documentVersion],
-  () => {
-    void loadPdf()
+  () => props.previewRevision || getActivePreviewRevision(),
+  (nextRevision, previousRevision) => {
+    void handlePreviewRevisionChange(nextRevision, previousRevision)
   },
-  { immediate: true }
+  { immediate: true, deep: true }
 )
 
 watch(

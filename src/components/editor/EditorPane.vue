@@ -383,7 +383,7 @@ const EditorTextWorkspaceSurface = defineAsyncComponent(
 
 const props = defineProps({
   paneId: { type: String, required: true },
-  tabs: { type: Array, default: () => [] },
+  tabs: { type: Array, default: () =>[] },
   activeTab: { type: String, default: null },
   topbarTabsTargetSelector: { type: String, default: '' },
   topbarWorkflowTargetSelector: { type: String, default: '' },
@@ -498,7 +498,7 @@ function fileName(path) {
 function countLeafPanes(node) {
   if (!node) return 0
   if (node.type === 'leaf') return 1
-  return (node.children || []).reduce((total, child) => total + countLeafPanes(child), 0)
+  return (node.children ||[]).reduce((total, child) => total + countLeafPanes(child), 0)
 }
 
 function handleOpenExternalPdf() {
@@ -569,6 +569,7 @@ onUnmounted(() => {
 })
 </script>
 
+/* START OF FILE src/components/editor/EditorPane.vue (只替换 style 部分) */
 <style scoped>
 .editor-pane-shell {
   height: 100%;
@@ -609,13 +610,13 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   min-height: 31px;
-  padding: 0 12px;
+  padding: 0 16px;
   border-bottom: 1px solid var(--workbench-divider-soft);
   background: var(--shell-editor-surface);
 }
 
 .document-header-stack {
-  --document-header-row-height: 31px;
+  --document-header-row-height: 36px;
   flex: none;
   display: flex;
   flex-direction: column;
@@ -623,7 +624,7 @@ onUnmounted(() => {
   z-index: 4;
   width: 100%;
   box-sizing: border-box;
-  padding: 1px 12px 2px;
+  padding: 8px 16px 0px;
   background: transparent;
 }
 
@@ -679,31 +680,23 @@ onUnmounted(() => {
   min-height: var(--document-header-row-height);
   padding: 0 8px;
   border: 0;
-  border-radius: 7px;
+  border-radius: 6px;
   background: transparent;
   color: var(--text-primary);
   font: inherit;
   font-size: var(--workbench-font-primary);
-  font-weight: var(--workbench-weight-medium);
-  letter-spacing: -0.015em;
   cursor: pointer;
-  transition:
-    background-color 140ms ease,
-    color 140ms ease;
-}
-
-.document-title-button:hover {
-  background: color-mix(in srgb, var(--surface-hover) 18%, transparent);
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 .document-title-button--pane {
-  min-height: 24px;
-  padding: 0 6px;
+  min-height: 26px;
+  padding: 4px 8px;
   border-radius: 6px;
   color: color-mix(in srgb, var(--text-secondary) 84%, transparent);
-  font-size: var(--workbench-font-primary);
-  font-weight: var(--workbench-weight-medium);
-  letter-spacing: -0.005em;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
 }
 
 .editor-pane-shell:not([data-pane-id='pane-root']) .document-title-button--pane {
@@ -712,13 +705,11 @@ onUnmounted(() => {
 
 .editor-pane-shell[data-pane-id='pane-root'] .document-title-button--pane {
   color: color-mix(in srgb, var(--text-secondary) 86%, transparent);
-  font-size: var(--workbench-font-primary);
-  font-weight: var(--workbench-weight-medium);
 }
 
 .document-title-button--pane:hover {
   color: var(--text-primary);
-  background: color-mix(in srgb, var(--surface-hover) 7%, transparent);
+  background: color-mix(in srgb, var(--surface-hover) 40%, transparent);
 }
 
 .document-title-button--rail {
@@ -726,9 +717,8 @@ onUnmounted(() => {
   padding: 0 8px;
   border-radius: 8px;
   color: color-mix(in srgb, var(--text-primary) 92%, transparent);
-  font-size: var(--workbench-font-title);
-  font-weight: var(--workbench-weight-strong);
-  letter-spacing: -0.003em;
+  font-size: 14px;
+  font-weight: 600;
 }
 
 .document-title-button--rail:hover {
@@ -750,21 +740,26 @@ onUnmounted(() => {
   color: var(--text-muted);
 }
 
+/* Tabs Menu 保持原生感 */
 .document-tabs-menu {
   position: absolute;
   top: calc(100% + 6px);
   left: 0;
   z-index: 30;
-  width: min(242px, calc(100vw - 32px));
-  padding: 4px;
-  border-radius: 11px;
-  background: color-mix(in srgb, var(--surface-base) 97%, var(--panel-surface));
-  box-shadow:
-    0 18px 40px color-mix(in srgb, black 14%, transparent),
-    0 3px 10px color-mix(in srgb, black 6%, transparent),
-    inset 0 0 0 1px color-mix(in srgb, white 8%, transparent),
-    inset 0 0 0 1px color-mix(in srgb, var(--border) 12%, transparent);
-  backdrop-filter: blur(22px) saturate(1.05);
+  width: min(240px, calc(100vw - 32px));
+  padding: 5px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  background: color-mix(in srgb, var(--surface-raised) 85%, transparent);
+  box-shadow: 
+    0 8px 24px rgba(0, 0, 0, 0.12), 
+    0 0 0 1px rgba(0, 0, 0, 0.04);
+  backdrop-filter: blur(24px) saturate(1.5);
+}
+
+.theme-light .document-tabs-menu {
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.04);
 }
 
 .document-tabs-menu--rail {
@@ -786,13 +781,11 @@ onUnmounted(() => {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 2px;
+  border-radius: 5px;
 }
 
-.document-tabs-menu-select {
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
+.document-tabs-menu-item:hover {
+  background: var(--surface-hover);
 }
 
 .document-tabs-menu-select {
@@ -803,12 +796,13 @@ onUnmounted(() => {
   width: 100%;
   min-height: 26px;
   padding: 0 8px 0 10px;
-  color: color-mix(in srgb, var(--text-secondary) 92%, transparent);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
   cursor: pointer;
-  border-radius: 7px;
-  transition:
-    background-color 140ms ease,
-    color 140ms ease;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
 }
 
 .document-tabs-menu-glyph {
@@ -817,18 +811,11 @@ onUnmounted(() => {
   justify-content: center;
   width: 12px;
   height: 12px;
-  color: color-mix(in srgb, var(--text-secondary) 88%, transparent);
-  font-size: var(--workbench-font-secondary);
-}
-
-.document-tabs-menu-check {
-  width: 12px;
-  height: 12px;
+  color: var(--text-secondary);
 }
 
 .document-tabs-menu-item.is-active .document-tabs-menu-select {
-  color: var(--text-primary);
-  font-weight: var(--workbench-weight-strong);
+  font-weight: 600;
 }
 
 .document-tabs-menu-label {
@@ -848,42 +835,28 @@ onUnmounted(() => {
   opacity: 0.94;
 }
 
-.document-tabs-menu-select:hover {
-  background: color-mix(in srgb, var(--surface-hover) 12%, transparent);
-  color: var(--text-primary);
-}
-
 .document-tabs-menu-close {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 20px;
   height: 20px;
-  margin-right: 0;
+  margin-right: 2px;
   border: 0;
-  border-radius: 6px;
+  border-radius: 4px;
   background: transparent;
-  color: color-mix(in srgb, var(--text-secondary) 88%, transparent);
+  color: var(--text-secondary);
   cursor: pointer;
-  transition:
-    background-color 140ms ease,
-    color 140ms ease;
 }
 
 .document-tabs-menu-close:hover {
-  background: color-mix(in srgb, var(--surface-hover) 12%, transparent);
-  color: var(--text-primary);
-}
-
-.document-tabs-menu-close-icon {
-  width: 12px;
-  height: 12px;
+  background: color-mix(in srgb, var(--text-primary) 10%, transparent);
 }
 
 .document-tabs-menu-separator {
   height: 1px;
-  margin: 4px 6px;
-  background: color-mix(in srgb, var(--border-subtle) 44%, transparent);
+  margin: 4px 0;
+  background: color-mix(in srgb, var(--border-subtle) 60%, transparent);
 }
 
 .document-tabs-menu-create {
@@ -895,34 +868,15 @@ onUnmounted(() => {
   min-height: 26px;
   padding: 0 10px;
   border: 0;
-  border-radius: 7px;
+  border-radius: 5px;
   background: transparent;
-  color: color-mix(in srgb, var(--text-secondary) 92%, transparent);
+  color: var(--text-primary);
   font: inherit;
+  font-size: 13px;
   cursor: pointer;
-  transition:
-    background-color 140ms ease,
-    color 140ms ease;
 }
 
 .document-tabs-menu-create:hover {
-  background: color-mix(in srgb, var(--surface-hover) 12%, transparent);
-  color: var(--text-primary);
-}
-
-.document-tabs-menu-create-icon {
-  width: 12px;
-  height: 12px;
-  opacity: 0.86;
-}
-
-.document-tabs-menu-command-label {
-  min-width: 0;
-  text-align: left;
-}
-
-.document-header-tools :deep(.workflow-bar) {
-  flex: 0 0 auto;
-  margin-left: 0;
+  background: var(--surface-hover);
 }
 </style>

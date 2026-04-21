@@ -1,3 +1,5 @@
+/* START OF FILE src/style.css */
+
 @import './css/fonts.css';
 @import './css/themes.css';
 @import './css/ui.css';
@@ -67,126 +69,53 @@ select,
 }
 
 @layer utilities {
-  .text-xs {
-    font-size: var(--ui-font-caption) !important;
-    line-height: var(--ui-line-height) !important;
-  }
-
-  .text-sm {
-    font-size: var(--ui-font-label) !important;
-    line-height: var(--ui-line-height) !important;
-  }
-
-  .text-base {
-    font-size: var(--ui-font-body) !important;
-    line-height: var(--ui-line-height) !important;
-  }
-
-  .text-lg {
-    font-size: var(--ui-font-title) !important;
-    line-height: var(--ui-line-height) !important;
-  }
-
-  .text-xl {
-    font-size: var(--ui-font-display) !important;
-    line-height: var(--ui-line-height) !important;
-  }
-
-  .text-\[9px\],
-  .text-\[10px\],
-  .text-\[11px\] {
-    line-height: var(--ui-line-height) !important;
-  }
-
-  .text-\[9px\] {
-    font-size: var(--ui-font-fine) !important;
-    line-height: var(--ui-line-height) !important;
-  }
-
-  .text-\[10px\] {
-    font-size: var(--ui-font-micro) !important;
-    line-height: var(--ui-line-height) !important;
-  }
-
-  .text-\[11px\] {
-    font-size: var(--ui-font-caption) !important;
-    line-height: var(--ui-line-height) !important;
-  }
-
-  .text-\[12px\] {
-    font-size: var(--ui-font-label) !important;
-    line-height: var(--ui-line-height) !important;
-  }
-
-  .text-\[13px\] {
-    font-size: var(--ui-font-body) !important;
-    line-height: var(--ui-line-height) !important;
-  }
-
-  .text-\[14px\] {
-    font-size: var(--ui-font-title) !important;
-    line-height: var(--ui-line-height) !important;
-  }
-
-  .text-\[15px\] {
-    font-size: var(--ui-font-display) !important;
-    line-height: var(--ui-line-height) !important;
-  }
-
-  .text-\[16px\] {
-    font-size: var(--ui-font-display-sm) !important;
-    line-height: var(--ui-line-height) !important;
-  }
-
-  .text-\[20px\] {
-    font-size: var(--ui-font-hero-xs) !important;
-    line-height: 1.2 !important;
-  }
-
-  .text-\[24px\] {
-    font-size: var(--ui-font-hero-sm) !important;
-    line-height: 1.15 !important;
-  }
-
-  .text-\[28px\] {
-    font-size: var(--ui-font-hero-md) !important;
-    line-height: 1.1 !important;
-  }
-
-  .text-\[32px\] {
-    font-size: var(--ui-font-hero-lg) !important;
-    line-height: 1.05 !important;
-  }
-
-  .text-\[44px\] {
-    font-size: var(--ui-font-hero-xl) !important;
-    line-height: 1 !important;
-  }
+  .text-xs { font-size: var(--ui-font-caption) !important; line-height: var(--ui-line-height) !important; }
+  .text-sm { font-size: var(--ui-font-label) !important; line-height: var(--ui-line-height) !important; }
+  .text-base { font-size: var(--ui-font-body) !important; line-height: var(--ui-line-height) !important; }
+  .text-lg { font-size: var(--ui-font-title) !important; line-height: var(--ui-line-height) !important; }
+  .text-xl { font-size: var(--ui-font-display) !important; line-height: var(--ui-line-height) !important; }
+  .text-\[9px\] { font-size: var(--ui-font-fine) !important; line-height: var(--ui-line-height) !important; }
+  .text-\[10px\] { font-size: var(--ui-font-micro) !important; line-height: var(--ui-line-height) !important; }
+  .text-\[11px\] { font-size: var(--ui-font-caption) !important; line-height: var(--ui-line-height) !important; }
+  .text-\[12px\] { font-size: var(--ui-font-label) !important; line-height: var(--ui-line-height) !important; }
+  .text-\[13px\] { font-size: var(--ui-font-body) !important; line-height: var(--ui-line-height) !important; }
+  .text-\[14px\] { font-size: var(--ui-font-title) !important; line-height: var(--ui-line-height) !important; }
+  .text-\[15px\] { font-size: var(--ui-font-display) !important; line-height: var(--ui-line-height) !important; }
+  .text-\[16px\] { font-size: var(--ui-font-display-sm) !important; line-height: var(--ui-line-height) !important; }
+  .text-\[20px\] { font-size: var(--ui-font-hero-xs) !important; line-height: 1.2 !important; }
+  .text-\[24px\] { font-size: var(--ui-font-hero-sm) !important; line-height: 1.15 !important; }
+  .text-\[28px\] { font-size: var(--ui-font-hero-md) !important; line-height: 1.1 !important; }
+  .text-\[32px\] { font-size: var(--ui-font-hero-lg) !important; line-height: 1.05 !important; }
+  .text-\[44px\] { font-size: var(--ui-font-hero-xl) !important; line-height: 1 !important; }
 }
 
-/* Scrollbar */
+/* =========================================================================
+   极致原生悬浮滚动条 (Floating Capsule Scrollbar)
+========================================================================= */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 14px;  /* 增加基础宽度确保容易抓取 */
+  height: 14px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  border: 1px solid transparent;
+  /* 魔法：利用透明边框和 content-box 压缩背景，形成不贴边的悬浮胶囊 */
+  border: 4px solid transparent; 
+  background-clip: content-box; 
   border-radius: 999px;
-  background: color-mix(in srgb, var(--fg-muted) 38%, transparent);
-  background-clip: padding-box;
-  transition: background 0.15s;
+  background-color: color-mix(in srgb, var(--fg-muted) 20%, transparent);
+  transition: background-color 0.2s ease;
 }
 *:hover::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--fg-muted) 56%, transparent);
+  background-color: color-mix(in srgb, var(--fg-muted) 45%, transparent);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in srgb, var(--fg-secondary) 72%, transparent);
+  background-color: color-mix(in srgb, var(--fg-secondary) 70%, transparent);
+  border-width: 3px; /* Hover 时微膨胀 */
 }
 
-/* Hidden scrollbar (keeps scroll, hides bar) */
+/* Hidden scrollbar */
 .scrollbar-hidden::-webkit-scrollbar {
   display: none;
 }
@@ -200,7 +129,6 @@ select,
   background: var(--editor-selection);
 }
 
-/* PDF.js font-measurement canvases (appended to body, need absolute positioning) */
 .hiddenCanvasElement {
   position: absolute !important;
   top: 0;
