@@ -90,14 +90,9 @@ export function useWorkspaceLifecycle() {
     }
   }
 
-  function shouldSkipFocusRefresh() {
-    return Date.now() - (workspace._lastAppZoomInteractionAt || 0) < 1500
-  }
-
   function refreshWorkspaceStateAfterVisibility(reason = 'visibility') {
     if (isBrowserPreviewRuntime()) return
     if (!workspace.isOpen) return
-    if (shouldSkipFocusRefresh()) return
 
     const now = Date.now()
     if (now - lastFocusRefresh < 2000) return
@@ -281,10 +276,10 @@ export function useWorkspaceLifecycle() {
     if (isBrowserPreviewRuntime()) {
       workspace.restoreTheme()
       workspace.applyFontSizes()
+      await workspace.restorePreferredLocale()
       workspace.restoreUiFont()
       workspace.restoreMarkdownFont()
       workspace.restoreLatexFont()
-      await workspace.applyAppZoom()
       return
     }
 
@@ -292,11 +287,12 @@ export function useWorkspaceLifecycle() {
 
     workspace.restoreTheme()
     workspace.applyFontSizes()
+    await workspace.restorePreferredLocale()
     workspace.restoreUiFont()
     workspace.restoreMarkdownFont()
     workspace.restoreLatexFont()
-    await workspace.applyAppZoom()
 
+    if (!workspace.reopenLastWorkspaceOnLaunch) return
     const lastWorkspace = workspace.lastWorkspace
     if (!lastWorkspace) return
 

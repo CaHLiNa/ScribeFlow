@@ -6,16 +6,10 @@ import {
   resolveWorkspaceDataDir,
 } from '../services/workspacePaths'
 import {
-  applyWorkspaceAppZoom,
   applyWorkspaceFontSizes,
   createWorkspacePreferenceState,
-  decreaseWorkspaceZoom,
-  increaseWorkspaceZoom,
   loadWorkspacePreferences as loadWorkspacePreferencesFromRust,
   normalizeWorkbenchState,
-  normalizeAppZoomPercent,
-  normalizeEditorFontSize,
-  resetWorkspaceZoom,
   restoreWorkspaceTheme,
   saveWorkspacePreferences as saveWorkspacePreferencesToRust,
   setWorkspaceEditorFontSize,
@@ -23,10 +17,11 @@ import {
   setWorkspaceMarkdownFont,
   setWorkspacePdfCustomPageBackground,
   setWorkspacePdfPageBackgroundFollowsTheme,
+  setWorkspacePreferredLocale,
   setWorkspaceUiFont,
-  setWorkspaceZoomPercent,
   setWrapColumnPreference,
 } from '../services/workspacePreferences'
+import { applyLocalePreference } from '../i18n'
 import {
   buildNextRecentWorkspaces,
   createWorkspaceLifecycleState,
@@ -70,7 +65,7 @@ const WORKSPACE_PREFERENCE_KEYS = [
   'wrapColumn',
   'editorFontSize',
   'uiFontSize',
-  'appZoomPercent',
+  'preferredLocale',
   'uiFont',
   'markdownFont',
   'latexFont',
@@ -92,6 +87,7 @@ const WORKSPACE_LIFECYCLE_KEYS = [
   'recentWorkspaces',
   'lastWorkspace',
   'setupComplete',
+  'reopenLastWorkspaceOnLaunch',
 ]
 
 function snapshotWorkspaceLifecycleState(store) {
@@ -109,7 +105,6 @@ export const useWorkspaceStore = defineStore('workspace', {
     claudeConfigDir: '',
     _workspaceBootstrapPromise: null,
     _workspaceBootstrapGeneration: 0,
-    _lastAppZoomInteractionAt: 0,
     _preferencesHydrated: false,
     _lifecycleHydrated: false,
     ...createWorkspaceLifecycleState(),
@@ -418,29 +413,6 @@ export const useWorkspaceStore = defineStore('workspace', {
       })
     },
 
-    async zoomIn() {
-      this._lastAppZoomInteractionAt = Date.now()
-      await this.setZoomPercent(increaseWorkspaceZoom(this.appZoomPercent))
-    },
-
-    async zoomOut() {
-      this._lastAppZoomInteractionAt = Date.now()
-      await this.setZoomPercent(decreaseWorkspaceZoom(this.appZoomPercent))
-    },
-
-    async resetZoom() {
-      this._lastAppZoomInteractionAt = Date.now()
-      await this.setZoomPercent(resetWorkspaceZoom())
-    },
-
-    async setZoomPercent(percent) {
-      this._lastAppZoomInteractionAt = Date.now()
-      await this.persistPreferences({
-        appZoomPercent: setWorkspaceZoomPercent(percent),
-      })
-      await this.applyAppZoom()
-    },
-
     applyFontSizes() {
       applyWorkspaceFontSizes(this.editorFontSize, this.uiFontSize)
     },
@@ -450,11 +422,6 @@ export const useWorkspaceStore = defineStore('workspace', {
         editorFontSize: setWorkspaceEditorFontSize(value),
       })
       this.applyFontSizes()
-    },
-
-    async applyAppZoom() {
-      this.appZoomPercent = normalizeAppZoomPercent(this.appZoomPercent)
-      await applyWorkspaceAppZoom(this.appZoomPercent)
     },
 
     async setUiFont(name) {
@@ -488,6 +455,24 @@ export const useWorkspaceStore = defineStore('workspace', {
 
     restoreLatexFont() {
       this.latexFont = setWorkspaceLatexFont(this.latexFont)
+    },
+
+    async setPreferredLocale(value) {
+      await this.persistPreferences({
+        preferredLocale: setWorkspacePreferredLocale(value),
+      })
+      await this.restorePreferredLocale()
+    },
+
+    async restorePreferredLocale() {
+      this.preferredLocale = setWorkspacePreferredLocale(this.preferredLocale)
+      await applyLocalePreference(this.preferredLocale)
+    },
+
+    setReopenLastWorkspaceOnLaunch(value) {
+      return this.persistLifecycleState({
+        reopenLastWorkspaceOnLaunch: value !== false,
+      })
     },
 
     async setTheme(name) {

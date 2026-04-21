@@ -13,7 +13,6 @@
     "core:webview:allow-webview-show",
     "core:webview:allow-webview-hide",
     "core:webview:allow-webview-close",
-    "core:webview:allow-set-webview-zoom",
     "clipboard-manager:allow-read-text",
     "dialog:default",
     "dialog:allow-open",

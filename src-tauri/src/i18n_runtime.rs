@@ -9,8 +9,16 @@ static MESSAGE_KEY_ALIASES: OnceLock<HashMap<String, String>> = OnceLock::new();
 #[serde(rename_all = "camelCase")]
 pub struct I18nRuntimePayload {
     locale: String,
+    system_locale: String,
     aliases: HashMap<String, String>,
     messages: HashMap<String, String>,
+}
+
+#[derive(Debug, Clone, Default, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct I18nRuntimeLoadParams {
+    #[serde(default)]
+    preferred_locale: String,
 }
 
 fn normalize_locale(value: &str) -> String {
@@ -18,6 +26,14 @@ fn normalize_locale(value: &str) -> String {
         "zh-CN".to_string()
     } else {
         "en-US".to_string()
+    }
+}
+
+fn normalize_locale_preference(value: &str) -> String {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "zh" | "zh-cn" => "zh-CN".to_string(),
+        "en" | "en-us" => "en-US".to_string(),
+        _ => "system".to_string(),
     }
 }
 
@@ -45,8 +61,18 @@ fn load_aliases() -> &'static HashMap<String, String> {
 }
 
 #[tauri::command]
-pub async fn i18n_runtime_load() -> Result<I18nRuntimePayload, String> {
-    let locale = detect_system_locale();
+pub async fn i18n_runtime_load(
+    params: Option<I18nRuntimeLoadParams>,
+) -> Result<I18nRuntimePayload, String> {
+    let system_locale = detect_system_locale();
+    let preferred_locale =
+        normalize_locale_preference(&params.unwrap_or_default().preferred_locale);
+    let locale = if preferred_locale == "system" {
+        system_locale.clone()
+    } else {
+        preferred_locale
+    };
+
     let messages = if locale == "zh-CN" {
         load_messages().clone()
     } else {
@@ -55,6 +81,7 @@ pub async fn i18n_runtime_load() -> Result<I18nRuntimePayload, String> {
 
     Ok(I18nRuntimePayload {
         locale,
+        system_locale,
         aliases: load_aliases().clone(),
         messages,
     })

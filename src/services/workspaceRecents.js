@@ -17,6 +17,7 @@ export function createWorkspaceLifecycleState() {
     recentWorkspaces: [],
     lastWorkspace: '',
     setupComplete: false,
+    reopenLastWorkspaceOnLaunch: true,
   }
 }
 
@@ -41,7 +42,12 @@ function readLegacySetupComplete() {
 }
 
 function clearLegacyWorkspaceLifecycleStorage() {
-  clearStorageKeys(['recentWorkspaces', 'lastWorkspace', 'setupComplete'])
+  clearStorageKeys([
+    'recentWorkspaces',
+    'lastWorkspace',
+    'setupComplete',
+    'reopenLastWorkspaceOnLaunch',
+  ])
 }
 
 function normalizeRecentWorkspaces(recentWorkspaces = []) {
@@ -68,6 +74,7 @@ function normalizeWorkspaceLifecycleState(state = {}) {
     recentWorkspaces: normalizeRecentWorkspaces(state.recentWorkspaces),
     lastWorkspace: String(state.lastWorkspace || '').replace(/\/+$/, ''),
     setupComplete: state.setupComplete === true,
+    reopenLastWorkspaceOnLaunch: state.reopenLastWorkspaceOnLaunch !== false,
   }
 }
 
@@ -76,6 +83,7 @@ function loadBrowserPreviewWorkspaceLifecycleState() {
     recentWorkspaces: readLegacyRecentWorkspaces(),
     lastWorkspace: readLegacyLastWorkspace(),
     setupComplete: readLegacySetupComplete(),
+    reopenLastWorkspaceOnLaunch: readStorageBoolean('reopenLastWorkspaceOnLaunch', true),
   })
   clearLegacyWorkspaceLifecycleStorage()
   return state
@@ -86,6 +94,10 @@ function saveBrowserPreviewWorkspaceLifecycleState(state = {}) {
   writeStorageJson('recentWorkspaces', normalized.recentWorkspaces)
   writeStorageValue('lastWorkspace', normalized.lastWorkspace)
   writeStorageValue('setupComplete', normalized.setupComplete ? 'true' : 'false')
+  writeStorageValue(
+    'reopenLastWorkspaceOnLaunch',
+    normalized.reopenLastWorkspaceOnLaunch ? 'true' : 'false'
+  )
   return normalized
 }
 
@@ -101,6 +113,7 @@ export async function loadWorkspaceLifecycleState(globalConfigDir = '') {
         recentWorkspaces: readLegacyRecentWorkspaces(),
         lastWorkspace: readLegacyLastWorkspace(),
         setupComplete: readLegacySetupComplete(),
+        reopenLastWorkspaceOnLaunch: readStorageBoolean('reopenLastWorkspaceOnLaunch', true),
       },
     },
   })

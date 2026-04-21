@@ -58,6 +58,45 @@
     </section>
 
     <section class="settings-group">
+      <h4 class="settings-group-title">{{ t('General') }}</h4>
+      <div class="settings-group-body">
+        <div class="settings-row">
+          <div class="settings-row-copy">
+            <div class="settings-row-title">{{ t('Language') }}</div>
+            <div class="settings-row-hint">
+              {{ t('Choose the display language for the app interface.') }}
+            </div>
+          </div>
+          <div class="settings-row-control">
+            <UiSelect
+              shell-class="font-select"
+              :model-value="workspace.preferredLocale"
+              :options="languageOptions"
+              :placeholder="t('Select')"
+              @update:model-value="workspace.setPreferredLocale"
+            />
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-row-copy">
+            <div class="settings-row-title">{{ t('Reopen last workspace on launch') }}</div>
+            <div class="settings-row-hint">
+              {{ t('Restore the last opened workspace automatically when the app starts.') }}
+            </div>
+          </div>
+          <div class="settings-row-control compact">
+            <UiSwitch
+              :model-value="workspace.reopenLastWorkspaceOnLaunch"
+              :aria-label="t('Reopen last workspace on launch')"
+              @update:model-value="workspace.setReopenLastWorkspaceOnLaunch($event)"
+            />
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="settings-group">
       <h4 class="settings-group-title">{{ t('Fonts') }}</h4>
       <div class="settings-group-body">
         <div class="settings-row">
@@ -214,6 +253,12 @@ const editorFontSizeOptions = EDITOR_FONT_SIZE_PRESETS.map((value) => ({
   value,
   label: `${value} px`,
 }))
+
+const languageOptions = computed(() => [
+  { value: 'system', label: t('Follow system') },
+  { value: 'zh-CN', label: '中文' },
+  { value: 'en-US', label: 'English' },
+])
 
 const resolvedPdfPagePreviewBackground = computed(() =>
   workspace.pdfPageBackgroundFollowsTheme

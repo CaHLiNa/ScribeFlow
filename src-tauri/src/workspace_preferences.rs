@@ -12,13 +12,11 @@ const DEFAULT_EDITOR_FONT_SIZE: i64 = 14;
 const DEFAULT_UI_FONT_SIZE: i64 = 13;
 const MIN_EDITOR_FONT_SIZE: i64 = 12;
 const MAX_EDITOR_FONT_SIZE: i64 = 20;
-const DEFAULT_APP_ZOOM_PERCENT: i64 = 100;
-const MIN_APP_ZOOM_PERCENT: i64 = 100;
-const MAX_APP_ZOOM_PERCENT: i64 = 100;
 const DEFAULT_WRAP_COLUMN: i64 = 0;
 const DEFAULT_UI_FONT: &str = "inter";
 const DEFAULT_MARKDOWN_FONT: &str = "inter";
 const DEFAULT_LATEX_FONT: &str = "mono";
+const DEFAULT_PREFERRED_LOCALE: &str = "system";
 const DEFAULT_THEME: &str = "system";
 const DEFAULT_PDF_CUSTOM_PAGE_BACKGROUND: &str = "#1e1e1e";
 const DEFAULT_PDF_PAGE_BACKGROUND_FOLLOWS_THEME: bool = true;
@@ -39,14 +37,14 @@ pub struct WorkspacePreferences {
     pub editor_font_size: i64,
     #[serde(default = "default_ui_font_size")]
     pub ui_font_size: i64,
-    #[serde(default = "default_app_zoom_percent")]
-    pub app_zoom_percent: i64,
     #[serde(default = "default_ui_font")]
     pub ui_font: String,
     #[serde(default = "default_markdown_font", alias = "proseFont")]
     pub markdown_font: String,
     #[serde(default = "default_latex_font")]
     pub latex_font: String,
+    #[serde(default = "default_preferred_locale")]
+    pub preferred_locale: String,
     #[serde(default = "default_pdf_page_background_follows_theme")]
     pub pdf_page_background_follows_theme: bool,
     #[serde(default = "default_pdf_custom_page_background")]
@@ -64,10 +62,10 @@ impl Default for WorkspacePreferences {
             wrap_column: default_wrap_column(),
             editor_font_size: default_editor_font_size(),
             ui_font_size: default_ui_font_size(),
-            app_zoom_percent: default_app_zoom_percent(),
             ui_font: default_ui_font(),
             markdown_font: default_markdown_font(),
             latex_font: default_latex_font(),
+            preferred_locale: default_preferred_locale(),
             pdf_page_background_follows_theme: default_pdf_page_background_follows_theme(),
             pdf_custom_page_background: default_pdf_custom_page_background(),
             theme: default_theme(),
@@ -146,10 +144,6 @@ fn default_ui_font_size() -> i64 {
     DEFAULT_UI_FONT_SIZE
 }
 
-fn default_app_zoom_percent() -> i64 {
-    DEFAULT_APP_ZOOM_PERCENT
-}
-
 fn default_ui_font() -> String {
     DEFAULT_UI_FONT.to_string()
 }
@@ -160,6 +154,10 @@ fn default_markdown_font() -> String {
 
 fn default_latex_font() -> String {
     DEFAULT_LATEX_FONT.to_string()
+}
+
+fn default_preferred_locale() -> String {
+    DEFAULT_PREFERRED_LOCALE.to_string()
 }
 
 fn default_pdf_page_background_follows_theme() -> bool {
@@ -245,10 +243,6 @@ fn normalize_ui_font_size(value: i64) -> i64 {
     }
 }
 
-fn normalize_app_zoom_percent(value: i64) -> i64 {
-    clamp(value, MIN_APP_ZOOM_PERCENT, MAX_APP_ZOOM_PERCENT)
-}
-
 fn normalize_wrap_column(value: i64) -> i64 {
     value.max(0)
 }
@@ -268,6 +262,14 @@ fn normalize_font_preference(value: &str, fallback: &str) -> String {
             })
             .map(|(_, family)| format!("system:{}", family.trim()))
             .unwrap_or_else(|| fallback.to_string()),
+    }
+}
+
+fn normalize_preferred_locale(value: &str) -> String {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "zh" | "zh-cn" => "zh-CN".to_string(),
+        "en" | "en-us" => "en-US".to_string(),
+        _ => DEFAULT_PREFERRED_LOCALE.to_string(),
     }
 }
 
@@ -438,10 +440,10 @@ fn normalize_workspace_preferences(preferences: WorkspacePreferences) -> Workspa
         wrap_column: normalize_wrap_column(preferences.wrap_column),
         editor_font_size: normalize_editor_font_size(preferences.editor_font_size),
         ui_font_size: normalize_ui_font_size(preferences.ui_font_size),
-        app_zoom_percent: normalize_app_zoom_percent(preferences.app_zoom_percent),
         ui_font: normalize_font_preference(&preferences.ui_font, DEFAULT_UI_FONT),
         markdown_font: normalize_font_preference(&preferences.markdown_font, DEFAULT_MARKDOWN_FONT),
         latex_font: normalize_font_preference(&preferences.latex_font, DEFAULT_LATEX_FONT),
+        preferred_locale: normalize_preferred_locale(&preferences.preferred_locale),
         pdf_page_background_follows_theme: preferences.pdf_page_background_follows_theme,
         pdf_custom_page_background: normalize_hex_color(
             &preferences.pdf_custom_page_background,
@@ -500,17 +502,14 @@ fn migrate_legacy_preferences(snapshot: &HashMap<String, String>) -> WorkspacePr
     preferences.editor_font_size =
         legacy_number(snapshot, "editorFontSize", default_editor_font_size());
     preferences.ui_font_size = legacy_number(snapshot, "uiFontSize", default_ui_font_size());
-    preferences.app_zoom_percent = if snapshot.contains_key("appZoomPercent") {
-        legacy_number(snapshot, "appZoomPercent", default_app_zoom_percent())
-    } else {
-        default_app_zoom_percent()
-    };
     preferences.ui_font = legacy_string(snapshot, "uiFont").unwrap_or_else(default_ui_font);
     preferences.markdown_font = legacy_string(snapshot, "markdownFont")
         .or_else(|| legacy_string(snapshot, "proseFont"))
         .unwrap_or_else(default_markdown_font);
     preferences.latex_font =
         legacy_string(snapshot, "latexFont").unwrap_or_else(default_latex_font);
+    preferences.preferred_locale =
+        legacy_string(snapshot, "preferredLocale").unwrap_or_else(default_preferred_locale);
     preferences.pdf_page_background_follows_theme = legacy_boolean(
         snapshot,
         "pdfPageBackgroundFollowsTheme",
@@ -557,8 +556,8 @@ pub async fn workspace_preferences_list_system_fonts() -> Result<Vec<String>, St
 #[cfg(test)]
 mod tests {
     use super::{
-        migrate_legacy_preferences, normalize_workspace_preferences, should_expose_system_font_family,
-        WorkspacePreferences,
+        migrate_legacy_preferences, normalize_workspace_preferences,
+        should_expose_system_font_family, WorkspacePreferences,
     };
 
     #[test]
@@ -577,13 +576,13 @@ mod tests {
     fn normalization_clamps_numbers_and_colors() {
         let normalized = normalize_workspace_preferences(WorkspacePreferences {
             editor_font_size: 50,
-            app_zoom_percent: 180,
+            preferred_locale: "zh".to_string(),
             pdf_custom_page_background: "fff".to_string(),
             ..WorkspacePreferences::default()
         });
 
         assert_eq!(normalized.editor_font_size, 20);
-        assert_eq!(normalized.app_zoom_percent, 100);
+        assert_eq!(normalized.preferred_locale, "zh-CN");
         assert_eq!(normalized.pdf_custom_page_background, "#1e1e1e");
     }
 
@@ -612,7 +611,9 @@ mod tests {
     #[test]
     fn hides_internal_or_fallback_font_families() {
         assert!(!should_expose_system_font_family(".Beirut PUA"));
-        assert!(!should_expose_system_font_family(".CJK Symbols Fallback SC"));
+        assert!(!should_expose_system_font_family(
+            ".CJK Symbols Fallback SC"
+        ));
         assert!(!should_expose_system_font_family("LastResort"));
         assert!(should_expose_system_font_family("PingFang SC"));
     }

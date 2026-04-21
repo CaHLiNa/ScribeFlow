@@ -69,11 +69,6 @@ import {
   columnWidthCompartment,
   columnWidthExtension,
 } from '../../editor/setup'
-import {
-  getCssRootZoomScale,
-  getZoomCompensatedClientPoint,
-  zoomAwareMouseSelectionExtension,
-} from '../../editor/zoomCompensation'
 import { createRevealHighlightExtension } from '../../editor/revealHighlight'
 import {
   captureContextMenuState,
@@ -246,7 +241,7 @@ function scheduleContextMenuSelectionRestore(selection) {
 function resolveContextMenuClickPos(event) {
   if (!view) return null
 
-  const coords = getZoomCompensatedClientPoint(event)
+  const coords = { x: event.clientX, y: event.clientY }
   const approxPos = view.posAtCoords(coords, false)
   if (approxPos === null) return null
 
@@ -653,7 +648,6 @@ onMounted(async () => {
 
   const langExt = await loadLanguageExtension()
   const extraExtensions = [
-    Prec.highest(zoomAwareMouseSelectionExtension(getCssRootZoomScale)),
     ...createRevealHighlightExtension(),
     EditorView.updateListener.of((update) => {
       if (update.selectionSet || update.docChanged) {
@@ -1022,7 +1016,7 @@ onDeactivated(() => {
 function handleWikiLinkClick(event) {
   if (!view) return
 
-  const pos = view.posAtCoords(getZoomCompensatedClientPoint(event))
+  const pos = view.posAtCoords({ x: event.clientX, y: event.clientY })
   if (pos === null) return
 
   const line = view.state.doc.lineAt(pos)
@@ -1064,7 +1058,7 @@ function handleWikiLinkClick(event) {
 function handleCitationClick(event) {
   if (!view || event.metaKey || event.ctrlKey) return
 
-  const pos = view.posAtCoords(getZoomCompensatedClientPoint(event))
+  const pos = view.posAtCoords({ x: event.clientX, y: event.clientY })
   if (pos === null) return
 
   const line = view.state.doc.lineAt(pos)
@@ -1095,7 +1089,7 @@ function handleCitationClick(event) {
 function handleLatexCitationClick(event) {
   if (!view || event.metaKey || event.ctrlKey) return
 
-  const pos = view.posAtCoords(getZoomCompensatedClientPoint(event))
+  const pos = view.posAtCoords({ x: event.clientX, y: event.clientY })
   if (pos === null) return
 
   const line = view.state.doc.lineAt(pos)
@@ -1201,7 +1195,7 @@ function triggerLatexForwardSyncAtPos(pos) {
 
 function handleLatexDoubleClick(event) {
   if (!supportsLatexRuntime || !view || event.button !== 0) return
-  const pos = view.posAtCoords(getZoomCompensatedClientPoint(event))
+  const pos = view.posAtCoords({ x: event.clientX, y: event.clientY })
   if (pos === null) return
   triggerLatexForwardSyncAtPos(pos)
 }
@@ -1242,16 +1236,6 @@ watch(
     if (!view) return
     view.dispatch({
       effects: columnWidthCompartment.reconfigure(columnWidthExtension(column)),
-    })
-  }
-)
-
-watch(
-  () => workspace.appZoomPercent,
-  () => {
-    if (!view) return
-    requestAnimationFrame(() => {
-      view?.requestMeasure?.()
     })
   }
 )

@@ -1,5 +1,4 @@
 import { invoke } from '@tauri-apps/api/core'
-import { getCurrentWebview } from '@tauri-apps/api/webview'
 import {
   clearStorageKeys,
   hasDesktopInvoke,
@@ -31,7 +30,7 @@ const DEFAULT_EDITOR_FONT_SIZE = 14
 const DEFAULT_UI_FONT_SIZE = 13
 const MIN_EDITOR_FONT_SIZE = 12
 const MAX_EDITOR_FONT_SIZE = 20
-const DEFAULT_APP_ZOOM_PERCENT = 100
+const DEFAULT_PREFERRED_LOCALE = 'system'
 const DEFAULT_PDF_PAGE_BACKGROUND_FOLLOWS_THEME = true
 const DEFAULT_PDF_CUSTOM_PAGE_BACKGROUND = '#1e1e1e'
 const DEFAULT_PDF_CUSTOM_PAGE_FOREGROUND_DARK = '#1f2a1f'
@@ -54,7 +53,7 @@ const LEGACY_WORKSPACE_PREFERENCE_KEYS = [
   'wrapColumn',
   'editorFontSize',
   'uiFontSize',
-  'appZoomPercent',
+  'preferredLocale',
   'uiFont',
   'markdownFont',
   'latexFont',
@@ -67,7 +66,6 @@ const LEGACY_WORKSPACE_PREFERENCE_KEYS = [
 ]
 
 export const EDITOR_FONT_SIZE_PRESETS = [12, 13, 14, 15, 16, 18]
-export const APP_ZOOM_PRESETS = [100]
 export const WORKSPACE_FONT_PRESETS = [
   { value: 'inter', labelKey: 'Sans' },
   { value: 'stix', labelKey: 'Serif' },
@@ -189,7 +187,7 @@ export function createWorkspacePreferenceState() {
     wrapColumn: 0,
     editorFontSize: DEFAULT_EDITOR_FONT_SIZE,
     uiFontSize: DEFAULT_UI_FONT_SIZE,
-    appZoomPercent: DEFAULT_APP_ZOOM_PERCENT,
+    preferredLocale: DEFAULT_PREFERRED_LOCALE,
     uiFont: 'inter',
     markdownFont: 'inter',
     latexFont: 'mono',
@@ -270,14 +268,22 @@ export function resolvePdfCustomPageForeground(value) {
     : DEFAULT_PDF_CUSTOM_PAGE_FOREGROUND_LIGHT
 }
 
-export function normalizeAppZoomPercent(value) {
-  const parsed = Math.round(Number(value) || DEFAULT_APP_ZOOM_PERCENT)
-  return clamp(parsed, APP_ZOOM_PRESETS[0], APP_ZOOM_PRESETS[APP_ZOOM_PRESETS.length - 1])
-}
-
 export function normalizeEditorFontSize(value) {
   const parsed = Math.round(Number(value) || DEFAULT_EDITOR_FONT_SIZE)
   return clamp(parsed, MIN_EDITOR_FONT_SIZE, MAX_EDITOR_FONT_SIZE)
+}
+
+export function normalizeWorkspacePreferredLocale(value) {
+  switch (String(value || '').trim().toLowerCase()) {
+    case 'zh':
+    case 'zh-cn':
+      return 'zh-CN'
+    case 'en':
+    case 'en-us':
+      return 'en-US'
+    default:
+      return DEFAULT_PREFERRED_LOCALE
+  }
 }
 
 export function encodeWorkspaceSystemFontFamily(family) {
@@ -345,53 +351,6 @@ export function setWorkspacePdfPageBackgroundFollowsTheme(value) {
   return value !== false
 }
 
-export function increaseWorkspaceZoom(currentPercent) {
-  const normalized = normalizeAppZoomPercent(currentPercent)
-  return (
-    APP_ZOOM_PRESETS.find((preset) => preset > normalized) ||
-    APP_ZOOM_PRESETS[APP_ZOOM_PRESETS.length - 1]
-  )
-}
-
-export function decreaseWorkspaceZoom(currentPercent) {
-  const normalized = normalizeAppZoomPercent(currentPercent)
-  for (let idx = APP_ZOOM_PRESETS.length - 1; idx >= 0; idx -= 1) {
-    if (APP_ZOOM_PRESETS[idx] < normalized) {
-      return APP_ZOOM_PRESETS[idx]
-    }
-  }
-  return APP_ZOOM_PRESETS[0]
-}
-
-export function resetWorkspaceZoom() {
-  return DEFAULT_APP_ZOOM_PERCENT
-}
-
-export function setWorkspaceZoomPercent(percent) {
-  return normalizeAppZoomPercent(percent)
-}
-
-export async function applyWorkspaceAppZoom(percent) {
-  const nextValue = normalizeAppZoomPercent(percent)
-
-  if (typeof document === 'undefined') return nextValue
-
-  const root = document.documentElement
-  root.style.removeProperty('zoom')
-
-  const isTauriWebview =
-    typeof window !== 'undefined' && !!window.__TAURI_INTERNALS__?.metadata?.currentWebview
-  if (isTauriWebview) {
-    try {
-      await getCurrentWebview().setZoom(1)
-    } catch (error) {
-      console.warn('[workspace] failed to reset native app zoom:', error)
-    }
-  }
-
-  return nextValue
-}
-
 export function applyWorkspaceFontSizes(editorFontSize, uiFontSize) {
   if (typeof document === 'undefined') return
 
@@ -411,6 +370,10 @@ export function setWorkspaceEditorFontSize(editorFontSize) {
     document.documentElement.style.setProperty('--editor-font-size', `${nextValue}px`)
   }
   return nextValue
+}
+
+export function setWorkspacePreferredLocale(preferredLocale) {
+  return normalizeWorkspacePreferredLocale(preferredLocale)
 }
 
 function applyWorkspaceFontVariable(cssVariable, name, fallback = 'inter') {

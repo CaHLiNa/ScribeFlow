@@ -2,6 +2,7 @@ import { computed, ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 
 const DEFAULT_LOCALE = 'en-US'
+const DEFAULT_LOCALE_PREFERENCE = 'system'
 
 const locale = ref(DEFAULT_LOCALE)
 const translationMessages = ref({})
@@ -13,6 +14,19 @@ export const isZh = computed(() => locale.value === 'zh-CN')
 
 function normalizeLocale(value = '') {
   return String(value).toLowerCase().startsWith('zh') ? 'zh-CN' : 'en-US'
+}
+
+function normalizeLocalePreference(value = '') {
+  switch (String(value || '').trim().toLowerCase()) {
+    case 'zh':
+    case 'zh-cn':
+      return 'zh-CN'
+    case 'en':
+    case 'en-us':
+      return 'en-US'
+    default:
+      return DEFAULT_LOCALE_PREFERENCE
+  }
 }
 
 function detectBrowserLocale() {
@@ -50,15 +64,22 @@ async function loadRuntimeBundle() {
   if (typeof window === 'undefined' || typeof window.__TAURI_INTERNALS__?.invoke !== 'function') {
     return {
       locale: detectBrowserLocale(),
+      systemLocale: detectBrowserLocale(),
       messages: {},
       aliases: {},
     }
   }
 
   try {
-    const payload = await invoke('i18n_runtime_load')
+    const preferredLocale = await loadSavedLocalePreference()
+    const payload = await invoke('i18n_runtime_load', {
+      params: {
+        preferredLocale,
+      },
+    })
     return {
       locale: normalizeLocale(payload?.locale || DEFAULT_LOCALE),
+      systemLocale: normalizeLocale(payload?.systemLocale || payload?.locale || DEFAULT_LOCALE),
       messages:
         payload?.locale === 'zh-CN' && payload?.messages && typeof payload.messages === 'object'
           ? payload.messages
@@ -68,21 +89,66 @@ async function loadRuntimeBundle() {
   } catch {
     return {
       locale: detectBrowserLocale(),
+      systemLocale: detectBrowserLocale(),
       messages: {},
       aliases: {},
     }
   }
 }
 
-export async function initLocale() {
-  const payload = await loadRuntimeBundle()
-  locale.value = payload.locale
-  translationMessages.value = payload.messages
-  messageKeyAliases.value = payload.aliases
+async function loadSavedLocalePreference() {
+  if (typeof window === 'undefined' || typeof window.__TAURI_INTERNALS__?.invoke !== 'function') {
+    return DEFAULT_LOCALE_PREFERENCE
+  }
+
+  try {
+    const globalConfigDir = await invoke('get_global_config_dir')
+    const preferences = await invoke('workspace_preferences_load', {
+      params: {
+        globalConfigDir: String(globalConfigDir || ''),
+        legacyPreferences: {},
+      },
+    })
+    return normalizeLocalePreference(preferences?.preferredLocale || DEFAULT_LOCALE_PREFERENCE)
+  } catch {
+    return DEFAULT_LOCALE_PREFERENCE
+  }
+}
+
+function applyLocaleState(nextLocale, messages = {}, aliases = {}) {
+  locale.value = normalizeLocale(nextLocale || DEFAULT_LOCALE)
+  translationMessages.value = messages
+  messageKeyAliases.value = aliases
 
   if (typeof document !== 'undefined') {
     document.documentElement.lang = locale.value
   }
+}
+
+export async function initLocale() {
+  const payload = await loadRuntimeBundle()
+  applyLocaleState(payload.locale, payload.messages, payload.aliases)
+}
+
+export async function applyLocalePreference(preferredLocale = DEFAULT_LOCALE_PREFERENCE) {
+  const normalizedPreference = normalizeLocalePreference(preferredLocale)
+
+  if (typeof window === 'undefined' || typeof window.__TAURI_INTERNALS__?.invoke !== 'function') {
+    const fallbackLocale =
+      normalizedPreference === DEFAULT_LOCALE_PREFERENCE
+        ? detectBrowserLocale()
+        : normalizedPreference
+    applyLocaleState(fallbackLocale)
+    return locale.value
+  }
+
+  const payload = await invoke('i18n_runtime_load', {
+    params: {
+      preferredLocale: normalizedPreference,
+    },
+  })
+  applyLocaleState(payload?.locale, payload?.messages, payload?.aliases)
+  return locale.value
 }
 
 export function formatDate(value, options = {}) {

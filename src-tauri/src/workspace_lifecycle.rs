@@ -27,6 +27,8 @@ pub struct WorkspaceLifecycleState {
     pub last_workspace: String,
     #[serde(default)]
     pub setup_complete: bool,
+    #[serde(default = "default_reopen_last_workspace_on_launch")]
+    pub reopen_last_workspace_on_launch: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -62,12 +64,17 @@ impl Default for WorkspaceLifecycleState {
             recent_workspaces: Vec::new(),
             last_workspace: String::new(),
             setup_complete: false,
+            reopen_last_workspace_on_launch: default_reopen_last_workspace_on_launch(),
         }
     }
 }
 
 fn default_workspace_lifecycle_version() -> u32 {
     WORKSPACE_LIFECYCLE_VERSION
+}
+
+fn default_reopen_last_workspace_on_launch() -> bool {
+    true
 }
 
 fn normalize_root(path: &str) -> String {
@@ -147,6 +154,7 @@ pub fn normalize_workspace_lifecycle_state(
         recent_workspaces,
         last_workspace,
         setup_complete: state.setup_complete,
+        reopen_last_workspace_on_launch: state.reopen_last_workspace_on_launch,
     }
 }
 
@@ -235,6 +243,7 @@ mod tests {
             ],
             last_workspace: "/tmp/project/".to_string(),
             setup_complete: true,
+            reopen_last_workspace_on_launch: false,
         });
 
         assert_eq!(normalized.recent_workspaces.len(), 1);
@@ -242,6 +251,7 @@ mod tests {
         assert_eq!(normalized.recent_workspaces[0].name, "project");
         assert_eq!(normalized.last_workspace, "/tmp/project");
         assert!(normalized.setup_complete);
+        assert!(!normalized.reopen_last_workspace_on_launch);
     }
 
     #[tokio::test]
@@ -262,6 +272,7 @@ mod tests {
                 }],
                 last_workspace: "/tmp/demo".to_string(),
                 setup_complete: true,
+                reopen_last_workspace_on_launch: false,
             },
         })
         .await
@@ -275,6 +286,7 @@ mod tests {
         .expect("load lifecycle");
 
         assert_eq!(saved, loaded);
+        assert!(!loaded.reopen_last_workspace_on_launch);
         fs::remove_dir_all(temp_dir).ok();
     }
 }
