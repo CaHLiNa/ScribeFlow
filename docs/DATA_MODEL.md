@@ -10,13 +10,9 @@
   预览、编译、诊断与工作流能力状态。
 - `src/stores/references.js`
   文献库、筛选、选中项、导入与引用相关状态。
-- `src/stores/ai.js`
-  前端 AI 面板状态，以及与 Rust 运行时集成相关的状态。
 
 ## 后端 / 运行时接缝
 
-- `src-tauri/src/codex_runtime/*`
-  运行时线程、turn、item、审批、事件、持久化与工具协议类型。
 - `src-tauri/src/document_workflow.rs`
   桌面端文档工作流命令面。
 - `src-tauri/src/references_*`

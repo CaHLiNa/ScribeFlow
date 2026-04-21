@@ -20,7 +20,7 @@ function isVirtualDraftTab(path = '') {
   return path.startsWith('draft:')
 }
 
-const REMOVED_VIRTUAL_TAB_PREFIXES = ['library:', 'chat:', 'ai-launcher:', 'ref:@']
+const REMOVED_VIRTUAL_TAB_PREFIXES = ['library:', 'ref:@']
 
 function isRemovedVirtualTabPath(path = '') {
   return REMOVED_VIRTUAL_TAB_PREFIXES.some((prefix) => path.startsWith(prefix))

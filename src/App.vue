@@ -28,7 +28,6 @@
         :split-pane-open="splitPaneOpen"
         :inspector-available="supportsRightSidebar"
         @open-reference-library="toggleReferenceLibrary"
-        @open-ai-agent="openAiAgent"
         @open-outline-inspector="openOutlineInspector"
         @toggle-left-sidebar="workspace.toggleLeftSidebar()"
         @toggle-split-pane="toggleSplitPane"
@@ -167,7 +166,6 @@ import { useDocumentWorkflowStore } from './stores/documentWorkflow'
 import { useLinksStore } from './stores/links'
 import { useLatexStore } from './stores/latex'
 import { useReferencesStore } from './stores/references'
-import { useAiStore } from './stores/ai'
 
 import ResizeHandle from './components/layout/ResizeHandle.vue'
 import WorkbenchRail from './components/layout/WorkbenchRail.vue'
@@ -207,7 +205,6 @@ const workflowStore = useDocumentWorkflowStore()
 const linksStore = useLinksStore()
 const latexStore = useLatexStore()
 const referencesStore = useReferencesStore()
-const aiStore = useAiStore()
 const { t } = useI18n()
 const isMacDesktop = typeof window !== 'undefined' && isMac && !!window.__TAURI_INTERNALS__
 
@@ -285,11 +282,6 @@ function toggleReferenceLibrary() {
   }
 }
 
-function openAiAgent() {
-  workspace.setRightSidebarPanel('ai')
-  workspace.openRightSidebar()
-}
-
 function openOutlineInspector() {
   workspace.setRightSidebarPanel('outline')
   workspace.openRightSidebar()
@@ -347,7 +339,7 @@ function onCursorChange(pos) {
 }
 
 function onSelectionChange(selection) {
-  aiStore.updateEditorSelection(selection)
+  void selection
 }
 
 useAppShellEventBridge({

@@ -1,17 +1,8 @@
 <template>
-  <div
-    class="right-shell-sidebar"
-    :class="{ 'right-shell-sidebar--ai': workspace.rightSidebarPanel === 'ai' }"
-    data-surface-context-guard="true"
-  >
+  <div class="right-shell-sidebar" data-surface-context-guard="true">
     <KeepAlive :max="2">
-      <AiAgentPanel
-        v-if="workspace.rightSidebarOpen && workspace.rightSidebarPanel === 'ai'"
-        key="workspace-ai-agent"
-        class="right-shell-pane"
-      />
       <ReferenceDetailPanel
-        v-else-if="workspace.rightSidebarOpen && workspace.leftSidebarPanel === 'references'"
+        v-if="workspace.rightSidebarOpen && workspace.leftSidebarPanel === 'references'"
         key="workspace-reference-detail"
         class="right-shell-pane"
       />
@@ -32,7 +23,6 @@ import { useEditorStore } from '../../stores/editor'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { isNewTab } from '../../utils/fileTypes'
 
-const AiAgentPanel = defineAsyncComponent(() => import('../panel/AiAgentPanel.vue'))
 const OutlinePanel = defineAsyncComponent(() => import('../panel/OutlinePanel.vue'))
 const ReferenceDetailPanel = defineAsyncComponent(() => import('../panel/ReferenceDetailPanel.vue'))
 
@@ -79,10 +69,6 @@ watch(
   box-shadow: none;
   backdrop-filter: blur(var(--sidebar-shell-blur, 18px))
     saturate(var(--sidebar-shell-saturate, 1.08));
-}
-
-.right-shell-sidebar--ai {
-  --sidebar-shell-top: 18px;
 }
 
 .right-shell-pane {

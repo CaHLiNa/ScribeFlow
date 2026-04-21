@@ -4,7 +4,6 @@ import {
   IconEdit,
   IconPalette,
   IconRefresh,
-  IconSparkles,
 } from '@tabler/icons-vue'
 
 export const SETTINGS_SECTION_DEFINITIONS = [
@@ -19,12 +18,6 @@ export const SETTINGS_SECTION_DEFINITIONS = [
     labelKey: 'Writing',
     descriptionKey: 'Writing defaults, editor behavior, and drafting tools.',
     icon: IconEdit,
-  },
-  {
-    id: 'agent',
-    labelKey: 'Agent',
-    descriptionKey: 'Codex runtime, skills, research defaults, and built-in tools.',
-    icon: IconSparkles,
   },
   {
     id: 'zotero',
@@ -48,6 +41,5 @@ export const SETTINGS_SECTION_DEFINITIONS = [
 
 export function normalizeSettingsSectionId(sectionId = '') {
   const normalized = String(sectionId || '').trim()
-  if (normalized === 'ai' || normalized === 'skills') return 'agent'
   return normalized || 'theme'
 }

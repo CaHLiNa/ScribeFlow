@@ -6,8 +6,6 @@
 
 ## 当前领域划分
 
-- `src/domains/ai`
-  面向 AI 运行时的前端展示与上下文辅助逻辑。
 - `src/domains/document`
   文档工作流解析、构建编排、预览适配与对账逻辑。
 - `src/domains/editor`

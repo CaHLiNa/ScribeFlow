@@ -16,5 +16,4 @@
 
 ## 备注
 
-- 桌面应用内的 AI 运行时主路径是 `codex-acp bridge`，`codex` 配置仅表示 launcher defaults。
 - 如果仓库策略变化，要同步更新本文档以及相关脚本。

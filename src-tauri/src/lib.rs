@@ -1,13 +1,4 @@
-mod ai_agent_prepare;
-mod ai_artifact_runtime;
-mod ai_attachment_runtime;
-mod ai_client_session_runtime;
-mod ai_config;
-mod ai_session_local_runtime;
-mod ai_session_storage;
 mod app_dirs;
-mod codex_acp_runtime;
-mod codex_cli;
 mod document_outline;
 mod document_workflow;
 mod document_workflow_action;
@@ -33,15 +24,6 @@ mod references_pdf;
 mod references_runtime;
 mod references_zotero;
 mod references_zotero_account;
-mod research_evidence_protocol;
-mod research_evidence_runtime;
-mod research_evidence_storage;
-mod research_task_protocol;
-mod research_task_runtime;
-mod research_task_storage;
-mod research_verification_protocol;
-mod research_verification_runtime;
-mod research_verification_storage;
 mod security;
 mod workspace_access;
 
@@ -398,7 +380,6 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
-        .manage(codex_acp_runtime::CodexAcpRuntimeHandle::default())
         .manage(latex::LatexState::default())
         .manage(security::WorkspaceScopeState::default())
         .manage(workspace_access::WorkspaceAccessState::default());
@@ -439,40 +420,7 @@ pub fn run() {
             fs_tree_runtime::fs_tree_collect_loaded_dirs,
             fs_tree_runtime::fs_tree_patch_dir_children,
             fs_tree_runtime::fs_tree_ancestor_dirs,
-            ai_agent_prepare::ai_agent_prepare_current_config,
-            ai_artifact_runtime::ai_artifact_apply_doc_patch,
-            ai_artifact_runtime::ai_artifact_apply_citation_insert,
-            ai_attachment_runtime::ai_attachment_create,
-            ai_client_session_runtime::ai_client_session_create,
-            ai_client_session_runtime::ai_client_session_ensure_thread,
-            ai_client_session_runtime::ai_client_session_rename,
-            ai_client_session_runtime::ai_client_session_delete,
             document_workflow::document_workflow_reconcile,
-            ai_config::ai_config_load,
-            ai_config::ai_config_load_internal,
-            ai_config::ai_config_save,
-            ai_config::ai_config_save_internal,
-            codex_acp_runtime::codex_acp_session_ensure,
-            codex_acp_runtime::codex_acp_prompt_start,
-            codex_acp_runtime::codex_acp_prompt_cancel,
-            codex_acp_runtime::codex_acp_permission_respond,
-            codex_acp_runtime::codex_acp_session_close,
-            codex_cli::codex_cli_state_resolve,
-            ai_session_local_runtime::ai_session_local_mutate,
-            ai_session_local_runtime::ai_session_state_normalize,
-            ai_session_storage::ai_session_overlay_load,
-            ai_session_storage::ai_session_overlay_save,
-            ai_session_storage::ai_session_overlay_restore,
-            ai_session_storage::ai_session_overlay_create,
-            ai_session_storage::ai_session_overlay_switch,
-            ai_session_storage::ai_session_overlay_delete,
-            ai_session_storage::ai_session_overlay_rename,
-            research_evidence_runtime::research_evidence_list,
-            research_task_runtime::research_task_list,
-            research_task_runtime::research_task_ensure,
-            research_task_runtime::research_task_update,
-            research_verification_runtime::research_verification_run,
-            research_verification_runtime::research_verification_list,
             keychain::keychain_set,
             keychain::keychain_get,
             keychain::keychain_delete,

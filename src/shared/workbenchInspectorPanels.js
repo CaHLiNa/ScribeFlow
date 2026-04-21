@@ -1,4 +1,4 @@
-export const WORKSPACE_INSPECTOR_PANELS = ['outline', 'ai']
+export const WORKSPACE_INSPECTOR_PANELS = ['outline']
 export const SETTINGS_INSPECTOR_PANELS = []
 
 export const WORKBENCH_INSPECTOR_PANELS = {

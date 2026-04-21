@@ -87,25 +87,6 @@
           shell-class="workbench-rail-pane-button"
           variant="ghost"
           size="icon-sm"
-          :active="rightSidebarOpen && rightSidebarPanel === 'ai'"
-          :title="
-            rightSidebarOpen && rightSidebarPanel === 'ai' ? t('Hide AI agent') : t('Open AI agent')
-          "
-          :aria-label="
-            rightSidebarOpen && rightSidebarPanel === 'ai' ? t('Hide AI agent') : t('Open AI agent')
-          "
-          data-window-drag-ignore="true"
-          @click="handleAiButtonClick"
-        >
-          <IconSparkles :size="16" :stroke-width="1.75" />
-        </UiButton>
-
-        <UiButton
-          v-if="inspectorAvailable"
-          class="workbench-rail-button"
-          shell-class="workbench-rail-pane-button"
-          variant="ghost"
-          size="icon-sm"
           :active="rightSidebarOpen && rightSidebarPanel === 'outline'"
           :title="
             rightSidebarOpen && rightSidebarPanel === 'outline'
@@ -145,7 +126,6 @@ import {
   IconLayoutSidebarLeftCollapse,
   IconLayoutSidebarRight,
   IconLayoutSidebarRightCollapse,
-  IconSparkles,
 } from '@tabler/icons-vue'
 import UiButton from '../shared/ui/UiButton.vue'
 import { isMac, modKey } from '../../platform'
@@ -170,7 +150,6 @@ const props = defineProps({
 const emit = defineEmits([
   'toggle-left-sidebar',
   'open-reference-library',
-  'open-ai-agent',
   'open-outline-inspector',
   'toggle-right-sidebar',
   'toggle-split-pane',
@@ -247,14 +226,6 @@ function endWindowDragGuard() {
   document.body.classList.remove(WINDOW_DRAGGING_CLASS)
   removeDragGuards?.()
   removeDragGuards = null
-}
-
-function handleAiButtonClick() {
-  if (props.rightSidebarOpen && props.rightSidebarPanel === 'ai') {
-    emit('toggle-right-sidebar')
-    return
-  }
-  emit('open-ai-agent')
 }
 
 function handleInspectorButtonClick() {

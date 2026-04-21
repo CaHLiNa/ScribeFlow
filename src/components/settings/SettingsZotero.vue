@@ -219,7 +219,6 @@
 
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
 import { useI18n } from '../../i18n'
 import { useReferencesStore } from '../../stores/references'
 import { useWorkspaceStore } from '../../stores/workspace'
@@ -273,14 +272,6 @@ const citationStyleOptions = computed(() => {
     label: style.name,
   }))
 })
-
-async function loadAiConfig() {
-  return invoke('ai_config_load')
-}
-
-async function saveAiConfig(config = null) {
-  return invoke('ai_config_save', { config: config || {} })
-}
 
 // 防御性 computed：确保 config 不为空对象时也能安全访问 userId
 const pushTargetOptions = computed(() => {
@@ -393,18 +384,6 @@ async function handleCitationStyleChange(val) {
   citationStyle.value = val
   referencesStore.setCitationStyle(val)
   await referencesStore.persistLibrarySnapshot(workspace.globalConfigDir)
-  try {
-    const currentAiConfig = await loadAiConfig()
-    await saveAiConfig({
-      ...currentAiConfig,
-      researchDefaults: {
-        ...(currentAiConfig?.researchDefaults || {}),
-        defaultCitationStyle: String(val || 'apa').trim() || 'apa',
-      },
-    })
-  } catch (cause) {
-    console.error('Failed to sync AI citation style default:', cause)
-  }
 }
 
 async function handleConnect() {

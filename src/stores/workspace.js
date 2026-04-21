@@ -66,7 +66,6 @@ async function bootstrapWorkspaceDirs(store) {
 
 function normalizeSettingsSectionValue(section = '') {
   const normalized = String(section || '').trim()
-  if (normalized === 'ai' || normalized === 'skills') return 'agent'
   return normalized || 'theme'
 }
 
