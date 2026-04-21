@@ -1,5 +1,3 @@
---- START OF FILE src/components/editor/TextEditor.vue ---
-
 <template>
   <div
     class="text-editor-shell h-full w-full"
@@ -1454,4 +1452,3 @@ onUnmounted(() => {
   background: color-mix(in srgb, var(--workspace-paper) 80%, transparent);
 }
 </style>
---- END OF FILE src/components/editor/TextEditor.vue ---
