@@ -281,7 +281,9 @@ export function useWorkspaceLifecycle() {
     if (isBrowserPreviewRuntime()) {
       workspace.restoreTheme()
       workspace.applyFontSizes()
-      workspace.restoreProseFont()
+      workspace.restoreUiFont()
+      workspace.restoreMarkdownFont()
+      workspace.restoreLatexFont()
       await workspace.applyAppZoom()
       return
     }
@@ -290,7 +292,9 @@ export function useWorkspaceLifecycle() {
 
     workspace.restoreTheme()
     workspace.applyFontSizes()
-    workspace.restoreProseFont()
+    workspace.restoreUiFont()
+    workspace.restoreMarkdownFont()
+    workspace.restoreLatexFont()
     await workspace.applyAppZoom()
 
     const lastWorkspace = workspace.lastWorkspace

@@ -55,6 +55,9 @@ const LEGACY_WORKSPACE_PREFERENCE_KEYS = [
   'editorFontSize',
   'uiFontSize',
   'appZoomPercent',
+  'uiFont',
+  'markdownFont',
+  'latexFont',
   'proseFont',
   'pdfPageBackgroundFollowsTheme',
   'pdfCustomPageBackground',
@@ -65,7 +68,7 @@ const LEGACY_WORKSPACE_PREFERENCE_KEYS = [
 
 export const EDITOR_FONT_SIZE_PRESETS = [12, 13, 14, 15, 16, 18]
 export const APP_ZOOM_PRESETS = [100]
-export const WORKSPACE_PROSE_FONT_PRESETS = [
+export const WORKSPACE_FONT_PRESETS = [
   { value: 'inter', labelKey: 'Sans' },
   { value: 'stix', labelKey: 'Serif' },
   { value: 'mono', labelKey: 'Mono' },
@@ -187,7 +190,9 @@ export function createWorkspacePreferenceState() {
     editorFontSize: DEFAULT_EDITOR_FONT_SIZE,
     uiFontSize: DEFAULT_UI_FONT_SIZE,
     appZoomPercent: DEFAULT_APP_ZOOM_PERCENT,
-    proseFont: 'inter',
+    uiFont: 'inter',
+    markdownFont: 'inter',
+    latexFont: 'mono',
     pdfPageBackgroundFollowsTheme: DEFAULT_PDF_PAGE_BACKGROUND_FOLLOWS_THEME,
     pdfCustomPageBackground: DEFAULT_PDF_CUSTOM_PAGE_BACKGROUND,
     theme: 'system',
@@ -288,7 +293,7 @@ export function decodeWorkspaceSystemFontFamily(value) {
   return normalized.slice(SYSTEM_FONT_PREFIX.length).trim()
 }
 
-export function getWorkspaceProseFontKind(value) {
+export function getWorkspaceFontKind(value, fallback = 'inter') {
   const normalized = String(value || '')
     .trim()
     .toLowerCase()
@@ -297,7 +302,7 @@ export function getWorkspaceProseFontKind(value) {
     return normalized
   }
 
-  return decodeWorkspaceSystemFontFamily(value) ? 'system' : 'inter'
+  return decodeWorkspaceSystemFontFamily(value) ? 'system' : fallback
 }
 
 function escapeCssFontFamily(value) {
@@ -315,7 +320,7 @@ function buildSystemFontStack(family) {
   return `${escapeCssFontFamily(normalized)}, ${SYSTEM_FONT_FALLBACK_STACK}`
 }
 
-function normalizeWorkspaceProseFont(value) {
+function normalizeWorkspaceFont(value, fallback = 'inter') {
   const preset = String(value || '')
     .trim()
     .toLowerCase()
@@ -325,7 +330,7 @@ function normalizeWorkspaceProseFont(value) {
   }
 
   const systemFamily = decodeWorkspaceSystemFontFamily(value)
-  return systemFamily ? encodeWorkspaceSystemFontFamily(systemFamily) : 'inter'
+  return systemFamily ? encodeWorkspaceSystemFontFamily(systemFamily) : fallback
 }
 
 export function setWrapColumnPreference(value) {
@@ -408,15 +413,27 @@ export function setWorkspaceEditorFontSize(editorFontSize) {
   return nextValue
 }
 
-export function setWorkspaceProseFont(name) {
-  const nextFont = normalizeWorkspaceProseFont(name)
+function applyWorkspaceFontVariable(cssVariable, name, fallback = 'inter') {
+  const nextFont = normalizeWorkspaceFont(name, fallback)
   if (typeof document !== 'undefined') {
     document.documentElement.style.setProperty(
-      '--font-prose',
+      cssVariable,
       PROSE_FONT_STACKS[nextFont] || buildSystemFontStack(nextFont)
     )
   }
   return nextFont
+}
+
+export function setWorkspaceUiFont(name) {
+  return applyWorkspaceFontVariable('--font-ui', name, 'inter')
+}
+
+export function setWorkspaceMarkdownFont(name) {
+  return applyWorkspaceFontVariable('--font-markdown', name, 'inter')
+}
+
+export function setWorkspaceLatexFont(name) {
+  return applyWorkspaceFontVariable('--font-latex', name, 'mono')
 }
 
 export async function loadWorkspaceSystemFontFamilies() {

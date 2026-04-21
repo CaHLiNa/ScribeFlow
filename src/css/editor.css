@@ -26,9 +26,13 @@
 
 /* 长文写作（Markdown）的独立排版 */
 .cm-prose-file .cm-content {
-  font-family: var(--font-prose);
+  font-family: var(--font-markdown);
   font-variant-ligatures: normal;
   line-height: 1.7 !important; /* 更宽的行距，适合阅读 */
+}
+
+.cm-latex-file .cm-content {
+  font-family: var(--font-latex);
 }
 
 /* 保持行内代码依然是等宽字体 */

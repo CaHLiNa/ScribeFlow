@@ -16,7 +16,9 @@ const DEFAULT_APP_ZOOM_PERCENT: i64 = 100;
 const MIN_APP_ZOOM_PERCENT: i64 = 100;
 const MAX_APP_ZOOM_PERCENT: i64 = 100;
 const DEFAULT_WRAP_COLUMN: i64 = 0;
-const DEFAULT_PROSE_FONT: &str = "inter";
+const DEFAULT_UI_FONT: &str = "inter";
+const DEFAULT_MARKDOWN_FONT: &str = "inter";
+const DEFAULT_LATEX_FONT: &str = "mono";
 const DEFAULT_THEME: &str = "system";
 const DEFAULT_PDF_CUSTOM_PAGE_BACKGROUND: &str = "#1e1e1e";
 const DEFAULT_PDF_PAGE_BACKGROUND_FOLLOWS_THEME: bool = true;
@@ -39,8 +41,12 @@ pub struct WorkspacePreferences {
     pub ui_font_size: i64,
     #[serde(default = "default_app_zoom_percent")]
     pub app_zoom_percent: i64,
-    #[serde(default = "default_prose_font")]
-    pub prose_font: String,
+    #[serde(default = "default_ui_font")]
+    pub ui_font: String,
+    #[serde(default = "default_markdown_font", alias = "proseFont")]
+    pub markdown_font: String,
+    #[serde(default = "default_latex_font")]
+    pub latex_font: String,
     #[serde(default = "default_pdf_page_background_follows_theme")]
     pub pdf_page_background_follows_theme: bool,
     #[serde(default = "default_pdf_custom_page_background")]
@@ -59,7 +65,9 @@ impl Default for WorkspacePreferences {
             editor_font_size: default_editor_font_size(),
             ui_font_size: default_ui_font_size(),
             app_zoom_percent: default_app_zoom_percent(),
-            prose_font: default_prose_font(),
+            ui_font: default_ui_font(),
+            markdown_font: default_markdown_font(),
+            latex_font: default_latex_font(),
             pdf_page_background_follows_theme: default_pdf_page_background_follows_theme(),
             pdf_custom_page_background: default_pdf_custom_page_background(),
             theme: default_theme(),
@@ -142,8 +150,16 @@ fn default_app_zoom_percent() -> i64 {
     DEFAULT_APP_ZOOM_PERCENT
 }
 
-fn default_prose_font() -> String {
-    DEFAULT_PROSE_FONT.to_string()
+fn default_ui_font() -> String {
+    DEFAULT_UI_FONT.to_string()
+}
+
+fn default_markdown_font() -> String {
+    DEFAULT_MARKDOWN_FONT.to_string()
+}
+
+fn default_latex_font() -> String {
+    DEFAULT_LATEX_FONT.to_string()
 }
 
 fn default_pdf_page_background_follows_theme() -> bool {
@@ -237,7 +253,7 @@ fn normalize_wrap_column(value: i64) -> i64 {
     value.max(0)
 }
 
-fn normalize_prose_font(value: &str) -> String {
+fn normalize_font_preference(value: &str, fallback: &str) -> String {
     let trimmed = value.trim();
     let lowered = trimmed.to_lowercase();
 
@@ -251,7 +267,7 @@ fn normalize_prose_font(value: &str) -> String {
                 prefix.eq_ignore_ascii_case("system") && !family.trim().is_empty()
             })
             .map(|(_, family)| format!("system:{}", family.trim()))
-            .unwrap_or_else(|| "inter".to_string()),
+            .unwrap_or_else(|| fallback.to_string()),
     }
 }
 
@@ -411,7 +427,9 @@ fn normalize_workspace_preferences(preferences: WorkspacePreferences) -> Workspa
         editor_font_size: normalize_editor_font_size(preferences.editor_font_size),
         ui_font_size: normalize_ui_font_size(preferences.ui_font_size),
         app_zoom_percent: normalize_app_zoom_percent(preferences.app_zoom_percent),
-        prose_font: normalize_prose_font(&preferences.prose_font),
+        ui_font: normalize_font_preference(&preferences.ui_font, DEFAULT_UI_FONT),
+        markdown_font: normalize_font_preference(&preferences.markdown_font, DEFAULT_MARKDOWN_FONT),
+        latex_font: normalize_font_preference(&preferences.latex_font, DEFAULT_LATEX_FONT),
         pdf_page_background_follows_theme: preferences.pdf_page_background_follows_theme,
         pdf_custom_page_background: normalize_hex_color(
             &preferences.pdf_custom_page_background,
@@ -475,8 +493,12 @@ fn migrate_legacy_preferences(snapshot: &HashMap<String, String>) -> WorkspacePr
     } else {
         default_app_zoom_percent()
     };
-    preferences.prose_font =
-        legacy_string(snapshot, "proseFont").unwrap_or_else(default_prose_font);
+    preferences.ui_font = legacy_string(snapshot, "uiFont").unwrap_or_else(default_ui_font);
+    preferences.markdown_font = legacy_string(snapshot, "markdownFont")
+        .or_else(|| legacy_string(snapshot, "proseFont"))
+        .unwrap_or_else(default_markdown_font);
+    preferences.latex_font =
+        legacy_string(snapshot, "latexFont").unwrap_or_else(default_latex_font);
     preferences.pdf_page_background_follows_theme = legacy_boolean(
         snapshot,
         "pdfPageBackgroundFollowsTheme",
@@ -555,10 +577,22 @@ mod tests {
     #[test]
     fn normalization_preserves_system_font_family() {
         let normalized = normalize_workspace_preferences(WorkspacePreferences {
-            prose_font: "system: PingFang SC ".to_string(),
+            markdown_font: "system: PingFang SC ".to_string(),
             ..WorkspacePreferences::default()
         });
 
-        assert_eq!(normalized.prose_font, "system:PingFang SC");
+        assert_eq!(normalized.markdown_font, "system:PingFang SC");
+    }
+
+    #[test]
+    fn legacy_migration_maps_old_prose_font_to_markdown_font() {
+        let legacy = std::collections::HashMap::from([(
+            "proseFont".to_string(),
+            "system: New York".to_string(),
+        )]);
+
+        let migrated = migrate_legacy_preferences(&legacy);
+        assert_eq!(migrated.markdown_font, "system:New York");
+        assert_eq!(migrated.latex_font, "mono");
     }
 }

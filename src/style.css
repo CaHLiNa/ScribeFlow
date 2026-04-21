@@ -22,7 +22,7 @@ body,
   overflow: hidden;
   background: transparent;
   color: var(--fg-primary);
-  font-family: var(--font-sans);
+  font-family: var(--font-ui, var(--font-sans));
   font-size: var(--ui-font-size);
   line-height: var(--ui-line-height);
   -webkit-font-smoothing: antialiased;

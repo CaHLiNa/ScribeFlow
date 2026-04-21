@@ -19,9 +19,11 @@ import {
   restoreWorkspaceTheme,
   saveWorkspacePreferences as saveWorkspacePreferencesToRust,
   setWorkspaceEditorFontSize,
+  setWorkspaceLatexFont,
+  setWorkspaceMarkdownFont,
   setWorkspacePdfCustomPageBackground,
   setWorkspacePdfPageBackgroundFollowsTheme,
-  setWorkspaceProseFont,
+  setWorkspaceUiFont,
   setWorkspaceZoomPercent,
   setWrapColumnPreference,
 } from '../services/workspacePreferences'
@@ -69,7 +71,9 @@ const WORKSPACE_PREFERENCE_KEYS = [
   'editorFontSize',
   'uiFontSize',
   'appZoomPercent',
-  'proseFont',
+  'uiFont',
+  'markdownFont',
+  'latexFont',
   'pdfPageBackgroundFollowsTheme',
   'pdfCustomPageBackground',
   'theme',
@@ -451,15 +455,37 @@ export const useWorkspaceStore = defineStore('workspace', {
       await applyWorkspaceAppZoom(this.appZoomPercent)
     },
 
-    async setProseFont(name) {
+    async setUiFont(name) {
       await this.persistPreferences({
-        proseFont: name,
+        uiFont: name,
       })
-      this.restoreProseFont()
+      this.restoreUiFont()
     },
 
-    restoreProseFont() {
-      this.proseFont = setWorkspaceProseFont(this.proseFont)
+    restoreUiFont() {
+      this.uiFont = setWorkspaceUiFont(this.uiFont)
+    },
+
+    async setMarkdownFont(name) {
+      await this.persistPreferences({
+        markdownFont: name,
+      })
+      this.restoreMarkdownFont()
+    },
+
+    restoreMarkdownFont() {
+      this.markdownFont = setWorkspaceMarkdownFont(this.markdownFont)
+    },
+
+    async setLatexFont(name) {
+      await this.persistPreferences({
+        latexFont: name,
+      })
+      this.restoreLatexFont()
+    },
+
+    restoreLatexFont() {
+      this.latexFont = setWorkspaceLatexFont(this.latexFont)
     },
 
     async setTheme(name) {

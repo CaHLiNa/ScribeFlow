@@ -3,23 +3,25 @@
   <div class="editor-page settings-page">
     <h3 class="settings-section-title">{{ t('Writing') }}</h3>
 
-    <!-- Appearance -->
     <section class="settings-group">
       <h4 class="settings-group-title">{{ t('Appearance') }}</h4>
       <div class="settings-group-body">
         <div class="settings-row">
           <div class="settings-row-copy">
-            <div class="settings-row-title">{{ t('Writing font') }}</div>
+            <div class="settings-row-title">{{ t('UI font') }}</div>
+            <div class="settings-row-hint">
+              {{ t('Affects sidebar, tabs, settings, and general app chrome.') }}
+            </div>
           </div>
           <div class="settings-row-control">
             <div class="settings-segmented">
               <button
-                v-for="font in proseFontKinds"
-                :key="font.value"
+                v-for="font in fontKinds"
+                :key="`ui-${font.value}`"
                 type="button"
                 class="settings-segmented-btn"
-                :class="{ 'is-active': selectedProseFontKind === font.value }"
-                @click="selectProseFontKind(font.value)"
+                :class="{ 'is-active': selectedUiFontKind === font.value }"
+                @click="selectUiFontKind(font.value)"
               >
                 {{ t(font.labelKey) }}
               </button>
@@ -27,17 +29,97 @@
           </div>
         </div>
 
-        <div v-if="selectedProseFontKind === 'system'" class="settings-row">
+        <div v-if="selectedUiFontKind === 'system'" class="settings-row">
           <div class="settings-row-copy">
-            <div class="settings-row-title">{{ t('System') }}</div>
+            <div class="settings-row-title">{{ t('System family') }}</div>
           </div>
           <div class="settings-row-control">
             <UiSelect
               shell-class="system-font-select"
-              :model-value="selectedSystemFontFamily"
-              :options="systemFontOptions"
+              :model-value="selectedUiSystemFontFamily"
+              :options="buildSystemFontOptions(selectedUiSystemFontFamily)"
               :placeholder="t('Select')"
-              @update:model-value="selectSystemFontFamily"
+              @update:model-value="selectUiSystemFontFamily"
+            />
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-row-copy">
+            <div class="settings-row-title">{{ t('Markdown font') }}</div>
+            <div class="settings-row-hint">
+              {{ t('Affects Markdown editor prose and Markdown preview.') }}
+            </div>
+          </div>
+          <div class="settings-row-control">
+            <div class="settings-segmented">
+              <button
+                v-for="font in fontKinds"
+                :key="`markdown-${font.value}`"
+                type="button"
+                class="settings-segmented-btn"
+                :class="{ 'is-active': selectedMarkdownFontKind === font.value }"
+                @click="selectMarkdownFontKind(font.value)"
+              >
+                {{ t(font.labelKey) }}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="selectedMarkdownFontKind === 'system'" class="settings-row">
+          <div class="settings-row-copy">
+            <div class="settings-row-title">{{ t('System family') }}</div>
+          </div>
+          <div class="settings-row-control">
+            <UiSelect
+              shell-class="system-font-select"
+              :model-value="selectedMarkdownSystemFontFamily"
+              :options="buildSystemFontOptions(selectedMarkdownSystemFontFamily)"
+              :placeholder="t('Select')"
+              @update:model-value="selectMarkdownSystemFontFamily"
+            />
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-row-copy">
+            <div class="settings-row-title">{{ t('LaTeX editor font') }}</div>
+            <div class="settings-row-hint">
+              {{
+                t(
+                  'Affects the .tex source editor only. Compiled PDF output still follows your document template.'
+                )
+              }}
+            </div>
+          </div>
+          <div class="settings-row-control">
+            <div class="settings-segmented">
+              <button
+                v-for="font in fontKinds"
+                :key="`latex-${font.value}`"
+                type="button"
+                class="settings-segmented-btn"
+                :class="{ 'is-active': selectedLatexFontKind === font.value }"
+                @click="selectLatexFontKind(font.value)"
+              >
+                {{ t(font.labelKey) }}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="selectedLatexFontKind === 'system'" class="settings-row">
+          <div class="settings-row-copy">
+            <div class="settings-row-title">{{ t('System family') }}</div>
+          </div>
+          <div class="settings-row-control">
+            <UiSelect
+              shell-class="system-font-select"
+              :model-value="selectedLatexSystemFontFamily"
+              :options="buildSystemFontOptions(selectedLatexSystemFontFamily)"
+              :placeholder="t('Select')"
+              @update:model-value="selectLatexSystemFontFamily"
             />
           </div>
         </div>
@@ -57,7 +139,6 @@
       </div>
     </section>
 
-    <!-- Writing -->
     <section class="settings-group">
       <h4 class="settings-group-title">{{ t('Writing') }}</h4>
       <div class="settings-group-body">
@@ -108,7 +189,6 @@
       </div>
     </section>
 
-    <!-- LaTeX -->
     <section class="settings-group">
       <h4 class="settings-group-title">LaTeX</h4>
       <div class="settings-group-body">
@@ -147,10 +227,10 @@ import { useLatexStore } from '../../stores/latex'
 import {
   EDITOR_FONT_SIZE_PRESETS,
   FALLBACK_SYSTEM_FONT_FAMILIES,
-  WORKSPACE_PROSE_FONT_PRESETS,
+  WORKSPACE_FONT_PRESETS,
   decodeWorkspaceSystemFontFamily,
   encodeWorkspaceSystemFontFamily,
-  getWorkspaceProseFontKind,
+  getWorkspaceFontKind,
   loadWorkspaceSystemFontFamilies,
 } from '../../services/workspacePreferences'
 import { useI18n } from '../../i18n'
@@ -160,7 +240,7 @@ import UiSelect from '../shared/ui/UiSelect.vue'
 const workspace = useWorkspaceStore()
 const latexStore = useLatexStore()
 const { t } = useI18n()
-const proseFontKinds = WORKSPACE_PROSE_FONT_PRESETS
+const fontKinds = WORKSPACE_FONT_PRESETS
 const systemFontFamilies = ref([...FALLBACK_SYSTEM_FONT_FAMILIES])
 
 const editorFontSizeOptions = EDITOR_FONT_SIZE_PRESETS.map((value) => ({
@@ -175,12 +255,21 @@ const WRAP_PRESETS = [
   { value: 120, labelKey: '120 ch' },
 ]
 
-const selectedProseFontKind = computed(() => getWorkspaceProseFontKind(workspace.proseFont))
-const selectedSystemFontFamily = computed(() => decodeWorkspaceSystemFontFamily(workspace.proseFont))
+const selectedUiFontKind = computed(() => getWorkspaceFontKind(workspace.uiFont, 'inter'))
+const selectedUiSystemFontFamily = computed(() => decodeWorkspaceSystemFontFamily(workspace.uiFont))
+const selectedMarkdownFontKind = computed(() =>
+  getWorkspaceFontKind(workspace.markdownFont, 'inter')
+)
+const selectedMarkdownSystemFontFamily = computed(() =>
+  decodeWorkspaceSystemFontFamily(workspace.markdownFont)
+)
+const selectedLatexFontKind = computed(() => getWorkspaceFontKind(workspace.latexFont, 'mono'))
+const selectedLatexSystemFontFamily = computed(() =>
+  decodeWorkspaceSystemFontFamily(workspace.latexFont)
+)
 
-const systemFontOptions = computed(() => {
+function buildSystemFontOptions(currentFamily = '') {
   const families = [...systemFontFamilies.value]
-  const currentFamily = selectedSystemFontFamily.value
 
   if (currentFamily && !families.includes(currentFamily)) {
     families.unshift(currentFamily)
@@ -190,28 +279,48 @@ const systemFontOptions = computed(() => {
     value: family,
     label: family,
   }))
-})
+}
 
-function pickDefaultSystemFontFamily() {
+function pickDefaultSystemFontFamily(currentFamily = '') {
   return (
-    selectedSystemFontFamily.value ||
+    currentFamily ||
     systemFontFamilies.value.find((family) => family === 'PingFang SC') ||
     systemFontFamilies.value[0] ||
     FALLBACK_SYSTEM_FONT_FAMILIES[0]
   )
 }
 
-async function selectProseFontKind(kind) {
+async function selectFontKind(kind, currentSystemFamily, setter) {
   if (kind === 'system') {
-    await workspace.setProseFont(encodeWorkspaceSystemFontFamily(pickDefaultSystemFontFamily()))
+    await setter(encodeWorkspaceSystemFontFamily(pickDefaultSystemFontFamily(currentSystemFamily)))
     return
   }
 
-  await workspace.setProseFont(kind)
+  await setter(kind)
 }
 
-async function selectSystemFontFamily(family) {
-  await workspace.setProseFont(encodeWorkspaceSystemFontFamily(family))
+async function selectUiFontKind(kind) {
+  await selectFontKind(kind, selectedUiSystemFontFamily.value, workspace.setUiFont)
+}
+
+async function selectUiSystemFontFamily(family) {
+  await workspace.setUiFont(encodeWorkspaceSystemFontFamily(family))
+}
+
+async function selectMarkdownFontKind(kind) {
+  await selectFontKind(kind, selectedMarkdownSystemFontFamily.value, workspace.setMarkdownFont)
+}
+
+async function selectMarkdownSystemFontFamily(family) {
+  await workspace.setMarkdownFont(encodeWorkspaceSystemFontFamily(family))
+}
+
+async function selectLatexFontKind(kind) {
+  await selectFontKind(kind, selectedLatexSystemFontFamily.value, workspace.setLatexFont)
+}
+
+async function selectLatexSystemFontFamily(family) {
+  await workspace.setLatexFont(encodeWorkspaceSystemFontFamily(family))
 }
 
 onMounted(async () => {
@@ -226,7 +335,7 @@ onMounted(async () => {
 }
 
 :deep(.ui-select-shell) {
-  width: min(100%, 140px); /* 字号选择框比较短，不需要太宽 */
+  width: min(100%, 140px);
 }
 
 :deep(.ui-select-shell.system-font-select) {

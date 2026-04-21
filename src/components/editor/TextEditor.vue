@@ -1,7 +1,7 @@
 <template>
   <div
     class="text-editor-shell h-full w-full"
-    :class="{ 'cm-prose-file': isMd }"
+    :class="{ 'cm-prose-file': isMd, 'cm-latex-file': isLatexEditor }"
     :data-editor-filepath="props.filePath"
   >
     <div

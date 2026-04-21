@@ -446,7 +446,7 @@ function handleContextMenu(event) {
   max-width: 860px;
   margin: 0 auto;
   line-height: 1.74;
-  font-family: var(--font-prose);
+  font-family: var(--font-markdown);
   font-size: calc(var(--editor-font-size, 14px) + 0.5px);
   color: var(--workspace-ink);
 }
@@ -503,7 +503,7 @@ function handleContextMenu(event) {
 .md-preview-content h5,
 .md-preview-content h6 {
   color: var(--hl-heading, var(--workspace-ink));
-  font-family: var(--font-display, var(--font-prose, Georgia, serif));
+  font-family: var(--font-markdown, var(--font-sans, system-ui, sans-serif));
   margin: 1.8em 0 0.55em;
   line-height: 1.2;
   letter-spacing: 0.01em;

@@ -130,7 +130,9 @@
     'Geist', 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui,
     sans-serif;
   --font-mono: 'JetBrains Mono', 'Menlo', 'Consolas', monospace;
-  --font-prose: 'STIX Two Text', 'Lora', Georgia, serif;
+  --font-ui: var(--font-sans);
+  --font-markdown: var(--font-sans);
+  --font-latex: var(--font-mono);
   --font-display: 'Crimson Text', 'STIX Two Text', 'Lora', Georgia, serif;
   --ui-font: var(--font-sans);
 
