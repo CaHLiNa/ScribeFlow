@@ -990,12 +990,12 @@ watch(
   gap: 6px;
   padding: 8px 10px 9px;
   border-radius: 20px;
-  border: 1px solid color-mix(in srgb, var(--sidebar-search-border) 72%, transparent);
-  background: color-mix(in srgb, var(--sidebar-shell-surface) 74%, transparent);
+  border: 1px solid color-mix(in srgb, var(--sidebar-search-border) 48%, transparent);
+  background: color-mix(in srgb, var(--panel-surface) 18%, transparent);
   box-shadow:
-    inset 0 1px 0 color-mix(in srgb, white 28%, transparent),
-    0 6px 18px rgba(15, 23, 42, 0.03);
-  backdrop-filter: blur(14px) saturate(1.04);
+    inset 0 1px 0 color-mix(in srgb, white 12%, transparent),
+    0 4px 12px rgba(15, 23, 42, 0.02);
+  backdrop-filter: blur(14px) saturate(1.02);
 }
 
 .ai-agent-panel__runtime-stack {
@@ -1209,13 +1209,13 @@ watch(
   padding: 0;
   border-radius: 999px;
   border: none;
-  background: color-mix(in srgb, var(--surface-hover) 68%, transparent);
+  background: color-mix(in srgb, var(--panel-surface) 12%, transparent);
   color: var(--text-secondary);
   box-shadow: none;
 }
 
 .ai-agent-panel__tool-button:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--surface-hover) 96%, transparent);
+  background: color-mix(in srgb, var(--panel-surface) 20%, transparent);
   color: var(--text-primary);
 }
 
