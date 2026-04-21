@@ -170,6 +170,15 @@ pub fn find_chktex(custom_system_tex_path: Option<&str>) -> Option<String> {
 }
 
 pub fn find_latexindent(custom_system_tex_path: Option<&str>) -> Option<String> {
+    for bin_dir in app_dirs::candidate_bin_dirs() {
+        for name in ["latexindent", "latexindent.pl"] {
+            let path = bin_dir.join(name);
+            if path.exists() {
+                return Some(path.to_string_lossy().to_string());
+            }
+        }
+    }
+
     if let Some(system_tex_path) = custom_system_tex_path.filter(|value| !value.trim().is_empty()) {
         if let Some(path) = find_binary_in_sibling_dir(
             system_tex_path,
