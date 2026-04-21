@@ -186,16 +186,18 @@ const activeSectionComponent = computed(
 .settings-surface .settings-row-control {
   flex: 0 0 auto;
   min-width: 160px;
+  width: min(100%, var(--settings-select-width));
   display: flex;
   justify-content: flex-end;
 }
 
 .settings-surface .settings-row-control.compact {
+  width: auto;
   min-width: auto;
 }
 
 .settings-surface .settings-row-control .ui-select-shell {
-  width: min(100%, var(--settings-select-width));
+  width: 100%;
 }
 
 /* =========================================================================
@@ -409,16 +411,18 @@ const activeSectionComponent = computed(
 .settings-surface .settings-row-control {
   flex: 0 0 auto;
   min-width: 160px;
+  width: min(100%, var(--settings-select-width));
   display: flex;
   justify-content: flex-end;
 }
 
 .settings-surface .settings-row-control.compact {
+  width: auto;
   min-width: auto;
 }
 
 .settings-surface .settings-row-control .ui-select-shell {
-  width: min(100%, var(--settings-select-width));
+  width: 100%;
 }
 
 /* =========================================================================
