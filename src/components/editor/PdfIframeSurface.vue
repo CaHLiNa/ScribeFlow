@@ -525,6 +525,7 @@ async function reopenPdfInPlace(options = {}) {
     await app.open({
       url: source.documentUrl,
       originalUrl: props.artifactPath,
+      scribeflowHotReload: true,
     })
     currentBlobUrl = source.blobUrl || null
     if (previousBlobUrl && previousBlobUrl !== currentBlobUrl) {
