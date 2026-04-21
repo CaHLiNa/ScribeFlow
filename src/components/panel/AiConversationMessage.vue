@@ -244,14 +244,14 @@ watch(
 .ai-conversation-message {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 
 .ai-conversation-message__meta {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-secondary);
 }
 
@@ -291,20 +291,20 @@ watch(
 .ai-conversation-message__surface {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 3px;
   min-width: 0;
 }
 
 .ai-conversation-message__surface--assistant {
   width: 100%;
-  padding: 0;
+  padding: 2px 0;
   background: transparent;
   border: none;
 }
 
 .ai-conversation-message__surface--user {
-  max-width: min(92%, 680px);
-  padding: 0;
+  max-width: 92%;
+  padding: 2px 0;
   background: transparent;
   border: none;
 }
@@ -314,8 +314,8 @@ watch(
 .ai-conversation-message__support-body,
 .ai-conversation-message__note-text,
 .ai-conversation-message__error {
-  font-size: 15px;
-  line-height: 1.7;
+  font-size: 13px;
+  line-height: 1.58;
   white-space: pre-wrap;
   word-break: break-word;
 }

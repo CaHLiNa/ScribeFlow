@@ -1,21 +1,50 @@
 <template>
   <section ref="rootRef" class="ai-session-rail">
-    <div class="ai-session-rail__strip-wrap">
-      <div
-        v-if="fadeState.left"
-        class="ai-session-rail__fade ai-session-rail__fade--left"
+    <button
+      type="button"
+      class="ai-session-rail__current"
+      :class="{
+        'is-open': menuOpen,
+        'is-running': currentSession?.isRunning,
+        'has-error': currentSession?.hasError,
+      }"
+      :title="currentSession?.title || t('Session')"
+      @click="toggleMenu"
+    >
+      <span
+        class="ai-session-rail__status-dot"
+        :class="{
+          'is-running': currentSession?.isRunning,
+          'has-error': currentSession?.hasError,
+        }"
         aria-hidden="true"
-      ></div>
+      ></span>
+      <span class="ai-session-rail__current-title">
+        {{ currentSession?.title || t('New session') }}
+      </span>
+      <IconChevronDown class="ai-session-rail__chevron" :size="14" :stroke-width="2.1" />
+    </button>
 
-      <div ref="scrollRef" class="ai-session-rail__strip scrollbar-hidden">
+    <button
+      type="button"
+      class="ai-session-rail__create"
+      :title="t('New session')"
+      :aria-label="t('New session')"
+      @click="handleCreate"
+    >
+      <IconPlus :size="14" :stroke-width="2.3" />
+    </button>
+
+    <div v-if="menuOpen" class="ai-session-rail__menu">
+      <div class="ai-session-rail__menu-list scrollbar-hidden">
         <div
           v-for="session in sessions"
           :key="session.id"
-          class="ai-session-rail__tab-shell"
+          class="ai-session-rail__item"
           :class="{
             'is-active': session.id === currentSessionId,
-            'is-running': session.isRunning,
             'has-error': session.hasError,
+            'is-running': session.isRunning,
           }"
         >
           <div v-if="editingSessionId === session.id" class="ai-session-rail__editor">
@@ -33,61 +62,60 @@
           <button
             v-else
             type="button"
-            class="ai-session-rail__tab"
+            class="ai-session-rail__main"
             :class="{ 'is-active': session.id === currentSessionId }"
             :title="session.title"
-            @click="$emit('switch', session.id)"
-            @dblclick="beginRename(session)"
+            @click="handleSessionClick($event, session.id)"
+            @dblclick="handleSessionDoubleClick(session)"
           >
             <span
               class="ai-session-rail__status-dot"
               :class="{
+                'is-active': session.id === currentSessionId,
                 'is-running': session.isRunning,
                 'has-error': session.hasError,
               }"
               aria-hidden="true"
             ></span>
-            <span class="ai-session-rail__title">{{ session.title }}</span>
-            <span v-if="session.isRunning" class="ai-session-rail__running-pill">
-              {{ t('Running') }}
+            <span class="ai-session-rail__copy">
+              <span class="ai-session-rail__title">{{ session.title }}</span>
+              <span v-if="session.subtitle" class="ai-session-rail__subtitle">
+                {{ session.subtitle }}
+              </span>
             </span>
           </button>
 
-          <button
-            v-if="editingSessionId !== session.id && sessions.length > 1"
-            type="button"
-            class="ai-session-rail__close"
-            :title="t('Delete session')"
-            :aria-label="t('Delete session')"
-            @click.stop="$emit('delete', session.id)"
-          >
-            <IconX :size="12" :stroke-width="2.15" />
-          </button>
+          <div v-if="editingSessionId !== session.id" class="ai-session-rail__actions">
+            <button
+              type="button"
+              class="ai-session-rail__action"
+              :title="t('Rename session')"
+              :aria-label="t('Rename session')"
+              @click.stop="beginRename(session)"
+            >
+              <IconPencil :size="11" :stroke-width="2.1" />
+            </button>
+
+            <button
+              v-if="sessions.length > 1"
+              type="button"
+              class="ai-session-rail__action ai-session-rail__action--danger"
+              :title="t('Delete session')"
+              :aria-label="t('Delete session')"
+              @click.stop="$emit('delete', session.id)"
+            >
+              <IconX :size="12" :stroke-width="2.2" />
+            </button>
+          </div>
         </div>
       </div>
-
-      <div
-        v-if="fadeState.right"
-        class="ai-session-rail__fade ai-session-rail__fade--right"
-        aria-hidden="true"
-      ></div>
     </div>
-
-    <button
-      type="button"
-      class="ai-session-rail__create"
-      :title="t('New session')"
-      :aria-label="t('New session')"
-      @click="$emit('create')"
-    >
-      <IconPlus :size="15" :stroke-width="2.4" />
-    </button>
   </section>
 </template>
 
 <script setup>
-import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { IconPlus, IconX } from '@tabler/icons-vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { IconChevronDown, IconPencil, IconPlus, IconX } from '@tabler/icons-vue'
 import { useI18n } from '../../i18n'
 import UiInput from '../shared/ui/UiInput.vue'
 
@@ -97,32 +125,86 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['create', 'switch', 'rename', 'delete'])
+
 const { t } = useI18n()
 
 const rootRef = ref(null)
-const scrollRef = ref(null)
 const editingInputRef = ref(null)
 const editingSessionId = ref('')
 const editingTitle = ref('')
-const fadeState = ref({ left: false, right: false })
-let resizeObserver = null
+const menuOpen = ref(false)
+let pendingSwitchTimer = null
 
-function updateFadeState() {
-  const el = scrollRef.value
-  if (!el) return
-  const { scrollLeft, clientWidth, scrollWidth } = el
-  const hasOverflow = scrollWidth - clientWidth > 2
-  fadeState.value = {
-    left: hasOverflow && scrollLeft > 6,
-    right: hasOverflow && scrollLeft + clientWidth < scrollWidth - 6,
+const currentSession = computed(
+  () =>
+    props.sessions.find((session) => session.id === props.currentSessionId) ||
+    props.sessions[0] ||
+    null
+)
+
+function closeMenu() {
+  clearPendingSwitch()
+  menuOpen.value = false
+}
+
+function toggleMenu() {
+  menuOpen.value = !menuOpen.value
+}
+
+function handleCreate() {
+  emit('create')
+  closeMenu()
+}
+
+function handleSwitchFromMenu(sessionId = '') {
+  emit('switch', sessionId)
+  closeMenu()
+}
+
+function clearPendingSwitch() {
+  if (pendingSwitchTimer !== null) {
+    clearTimeout(pendingSwitchTimer)
+    pendingSwitchTimer = null
   }
+}
+
+function handleSessionClick(event, sessionId = '') {
+  if (event?.detail > 1) return
+  clearPendingSwitch()
+  pendingSwitchTimer = window.setTimeout(() => {
+    pendingSwitchTimer = null
+    handleSwitchFromMenu(sessionId)
+  }, 180)
+}
+
+function handleSessionDoubleClick(session = null) {
+  clearPendingSwitch()
+  beginRename(session)
+}
+
+function handlePointerDown(event) {
+  if (!menuOpen.value) return
+  if (rootRef.value?.contains(event.target)) return
+  closeMenu()
+}
+
+function handleEscape(event) {
+  if (event.key !== 'Escape') return
+  if (editingSessionId.value) {
+    cancelRename()
+    return
+  }
+  closeMenu()
 }
 
 function beginRename(session = null) {
   const sessionId = String(session?.id || '').trim()
   if (!sessionId) return
+
+  menuOpen.value = true
   editingSessionId.value = sessionId
   editingTitle.value = String(session?.title || '')
+
   nextTick(() => {
     editingInputRef.value?.focus?.()
     editingInputRef.value?.select?.()
@@ -159,219 +241,324 @@ function handleRenameKeydown(event, sessionId = '') {
   }
 }
 
-function handleScroll() {
-  updateFadeState()
-}
-
-onMounted(() => {
-  const el = scrollRef.value
-  el?.addEventListener('scroll', handleScroll, { passive: true })
-  if (typeof ResizeObserver !== 'undefined' && el) {
-    resizeObserver = new ResizeObserver(() => updateFadeState())
-    resizeObserver.observe(el)
-  }
-  updateFadeState()
-})
-
-onBeforeUnmount(() => {
-  scrollRef.value?.removeEventListener('scroll', handleScroll)
-  resizeObserver?.disconnect?.()
-  resizeObserver = null
-})
-
-watch(
-  () => props.sessions.length,
-  () => {
-    nextTick(() => updateFadeState())
-  },
-  { immediate: true }
-)
-
 watch(
   () => props.currentSessionId,
   () => {
     if (editingSessionId.value && editingSessionId.value !== props.currentSessionId) {
       cancelRename()
     }
-    nextTick(() => updateFadeState())
   }
 )
+
+watch(
+  () => props.sessions.length,
+  () => {
+    if (props.sessions.length <= 1) {
+      closeMenu()
+    }
+  }
+)
+
+onMounted(() => {
+  document.addEventListener('mousedown', handlePointerDown)
+  document.addEventListener('keydown', handleEscape)
+})
+
+onUnmounted(() => {
+  clearPendingSwitch()
+  document.removeEventListener('mousedown', handlePointerDown)
+  document.removeEventListener('keydown', handleEscape)
+})
 </script>
 
 <style scoped>
 .ai-session-rail {
-  display: flex;
-  align-items: stretch;
-  gap: 0;
-  min-width: 0;
-  width: 100%;
-  height: 40px;
-  border-top: 1px solid var(--border-base, color-mix(in srgb, var(--border-color) 24%, transparent));
-  border-left: 1px solid var(--border-base, color-mix(in srgb, var(--border-color) 24%, transparent));
-  border-right: 1px solid var(--border-base, color-mix(in srgb, var(--border-color) 24%, transparent));
-  background: color-mix(in srgb, var(--surface-hover) 26%, transparent);
-}
-
-.ai-session-rail__strip-wrap {
   position: relative;
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-}
-
-.ai-session-rail__strip {
-  display: flex;
-  align-items: stretch;
-  height: 100%;
-  overflow-x: auto;
-  overflow-y: hidden;
-  min-width: 0;
-  scrollbar-width: none;
-}
-
-.ai-session-rail__strip::-webkit-scrollbar {
-  display: none;
-}
-
-.ai-session-rail__tab-shell {
-  position: relative;
-  display: flex;
-  align-items: stretch;
-  flex: 0 0 auto;
-  min-width: 0;
-  max-width: 220px;
-  border-right: 1px solid var(--border-base, color-mix(in srgb, var(--border-color) 24%, transparent));
-}
-
-.ai-session-rail__tab {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  width: auto;
+  max-width: 100%;
   min-width: 0;
-  flex: 1 1 auto;
-  padding: 0 12px;
+}
+
+.ai-session-rail__current {
+  flex: 0 1 auto;
+  min-width: 96px;
+  max-width: 212px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 30px;
+  padding: 0 11px;
+  border-radius: 10px;
   border: none;
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
-  text-align: left;
-  transition: background-color 140ms ease, color 140ms ease;
+  transition:
+    color 160ms ease,
+    box-shadow 160ms ease;
 }
 
-.ai-session-rail__tab:hover {
-  background: color-mix(in srgb, var(--surface-hover) 44%, transparent);
+.ai-session-rail__current:hover,
+.ai-session-rail__current.is-open {
   color: var(--text-primary);
 }
 
-.ai-session-rail__tab.is-active {
-  background: color-mix(in srgb, var(--surface-base) 68%, transparent);
-  color: var(--text-primary);
-  font-weight: 600;
+.ai-session-rail__current.is-open {
+  box-shadow: none;
 }
 
-.ai-session-rail__status-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 999px;
-  flex: 0 0 auto;
-  background: color-mix(in srgb, var(--text-tertiary) 68%, transparent);
+.ai-session-rail__current-copy {
+  display: none;
 }
 
-.ai-session-rail__status-dot.is-running {
-  background: color-mix(in srgb, var(--warning) 82%, white 18%);
-}
-
-.ai-session-rail__status-dot.has-error {
-  background: color-mix(in srgb, var(--error) 82%, white 18%);
-}
-
-.ai-session-rail__title {
+.ai-session-rail__current-title {
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 14px;
-  line-height: 1.2;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  color: inherit;
 }
 
-.ai-session-rail__running-pill {
+.ai-session-rail__chevron {
   flex: 0 0 auto;
-  padding: 2px 6px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--warning) 14%, transparent);
-  font-size: 10px;
-  line-height: 1.2;
-  color: color-mix(in srgb, var(--warning) 82%, var(--text-primary) 18%);
+  color: var(--text-tertiary);
+  transition: transform 160ms ease, color 160ms ease;
 }
 
-.ai-session-rail__close,
+.ai-session-rail__current.is-open .ai-session-rail__chevron {
+  transform: rotate(180deg);
+  color: var(--text-secondary);
+}
+
+.ai-session-rail__status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+  background: color-mix(in srgb, var(--accent) 68%, white 32%);
+}
+
+.ai-session-rail__status-dot.is-running {
+  background: color-mix(in srgb, var(--warning) 80%, white 20%);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--warning) 12%, transparent);
+}
+
+.ai-session-rail__status-dot.has-error {
+  background: color-mix(in srgb, var(--error) 82%, white 18%);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--error) 10%, transparent);
+}
+
 .ai-session-rail__create {
+  flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
   border: none;
   background: transparent;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   cursor: pointer;
-  transition: background-color 140ms ease, color 140ms ease;
+  transition:
+    color 160ms ease,
+    transform 160ms ease;
 }
 
-.ai-session-rail__close {
-  opacity: 0;
-}
-
-.ai-session-rail__tab-shell:hover .ai-session-rail__close,
-.ai-session-rail__tab-shell.is-active .ai-session-rail__close {
-  opacity: 1;
-}
-
-.ai-session-rail__close:hover,
 .ai-session-rail__create:hover {
-  background: color-mix(in srgb, var(--surface-hover) 50%, transparent);
   color: var(--text-primary);
 }
 
-.ai-session-rail__create {
-  flex: 0 0 auto;
-  border-left: 1px solid var(--border-base, color-mix(in srgb, var(--border-color) 24%, transparent));
+.ai-session-rail__create:active {
+  transform: translateY(0.5px);
 }
 
+.ai-session-rail__create:focus-visible,
+.ai-session-rail__current:focus-visible,
+.ai-session-rail__action:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.ai-session-rail__menu {
+  position: absolute;
+  left: 0;
+  min-width: 204px;
+  width: max-content;
+  top: calc(100% + 4px);
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 18%, transparent);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--surface-base) 12%, transparent),
+      color-mix(in srgb, var(--panel-surface) 20%, transparent)
+    );
+  box-shadow:
+    0 6px 18px color-mix(in srgb, black 8%, transparent),
+    0 1px 2px color-mix(in srgb, black 4%, transparent);
+  backdrop-filter: blur(12px) saturate(1.02);
+  isolation: isolate;
+}
+
+.ai-session-rail__menu-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 216px;
+  overflow-y: auto;
+}
+
+.ai-session-rail__item {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  transition: all 160ms ease;
+}
+
+.ai-session-rail__item:hover,
+.ai-session-rail__item.is-active {
+  background: color-mix(in srgb, var(--surface-hover) 36%, transparent);
+  border-color: transparent;
+}
+
+.ai-session-rail__item.is-active {
+  background: color-mix(in srgb, var(--surface-active) 42%, transparent);
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.ai-session-rail__main,
 .ai-session-rail__editor {
   display: flex;
   align-items: center;
-  padding: 5px 8px;
-  min-width: 180px;
-  background: color-mix(in srgb, var(--surface-base) 62%, transparent);
+  gap: 7px;
+  min-width: 0;
+  width: 100%;
+  padding: 6px 8px;
+  border: none;
+  background: transparent;
+}
+
+.ai-session-rail__main {
+  appearance: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  text-align: left;
+}
+
+.ai-session-rail__main:hover,
+.ai-session-rail__item:hover .ai-session-rail__main,
+.ai-session-rail__main.is-active {
+  color: var(--text-primary);
+}
+
+.ai-session-rail__title {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+
+.ai-session-rail__copy {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.ai-session-rail__subtitle {
+  display: block;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+  line-height: 1.2;
+  color: var(--text-tertiary);
 }
 
 .ai-session-rail__input {
-  width: 100%;
+  min-width: 136px;
 }
 
 .ai-session-rail__editor :deep(.ui-input-shell) {
+  width: 100%;
+  min-width: 136px;
   border-radius: 8px;
-  background: color-mix(in srgb, var(--surface-base) 92%, transparent);
+  background: color-mix(in srgb, white 12%, transparent);
+  box-shadow: none;
 }
 
-.ai-session-rail__fade {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 28px;
-  pointer-events: none;
-  z-index: 1;
+.ai-session-rail__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding-right: 4px;
+  flex: 0 0 auto;
+  opacity: 0;
+  transform: translateX(2px);
+  transition:
+    opacity 140ms ease,
+    transform 140ms ease;
 }
 
-.ai-session-rail__fade--left {
-  left: 0;
-  background: linear-gradient(90deg, color-mix(in srgb, var(--surface-hover) 56%, transparent), transparent);
+.ai-session-rail__item.is-active .ai-session-rail__actions,
+.ai-session-rail__item:hover .ai-session-rail__actions {
+  opacity: 1;
+  transform: translateX(0);
 }
 
-.ai-session-rail__fade--right {
-  right: 0;
-  background: linear-gradient(270deg, color-mix(in srgb, var(--surface-hover) 56%, transparent), transparent);
+.ai-session-rail__action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-tertiary);
+  padding: 0;
+  cursor: pointer;
+  flex: 0 0 auto;
+  transition:
+    background-color 140ms ease,
+    color 140ms ease,
+    border-color 140ms ease;
+}
+
+.ai-session-rail__action:hover {
+  background: color-mix(in srgb, var(--surface-hover) 88%, transparent);
+  border-color: color-mix(in srgb, var(--border-color) 18%, transparent);
+  color: var(--text-primary);
+}
+
+.ai-session-rail__action--danger:hover {
+  color: var(--error);
+}
+
+.scrollbar-hidden::-webkit-scrollbar {
+  display: none;
 }
 </style>

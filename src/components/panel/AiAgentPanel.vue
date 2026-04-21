@@ -928,25 +928,23 @@ watch(
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
-  padding: 8px 10px 12px;
+  padding: 8px 12px 10px;
   background: transparent;
 }
 
 .ai-agent-panel__messages {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
   min-height: 100%;
-  width: min(100%, 780px);
-  margin: 0 auto;
 }
 
 .ai-agent-panel__composer {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 8px 10px 10px;
-  border-top: 1px solid color-mix(in srgb, var(--border-color) 10%, transparent);
+  gap: 8px;
+  padding: 6px 10px 8px;
+  border-top: 1px solid color-mix(in srgb, var(--border-color) 12%, transparent);
   background: transparent;
   backdrop-filter: none;
 }
@@ -954,8 +952,8 @@ watch(
 .ai-agent-panel__header {
   display: flex;
   align-items: center;
-  gap: 0;
-  padding: 0 10px 8px;
+  gap: 10px;
+  padding: 4px 12px 8px;
   border-bottom: 1px solid color-mix(in srgb, var(--border-color) 10%, transparent);
   background: transparent;
   backdrop-filter: none;
@@ -971,11 +969,9 @@ watch(
 .ai-agent-panel__composer-stack {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   position: relative;
   z-index: 10;
-  width: min(100%, 780px);
-  margin: 0 auto;
 }
 
 .ai-agent-panel__session-control {
@@ -989,11 +985,12 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 12px 14px 10px;
-  border-radius: 22px;
-  border: 1px solid color-mix(in srgb, var(--border-color) 18%, transparent);
-  background: color-mix(in srgb, var(--surface-base) 82%, transparent);
-  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.04);
+  padding: 8px 10px 9px;
+  border-radius: 20px;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
 }
 
 .ai-agent-panel__runtime-stack {
@@ -1010,7 +1007,7 @@ watch(
   display: flex;
   align-items: center;
   gap: 10px;
-  min-height: 36px;
+  min-height: 34px;
 }
 
 .ai-agent-panel__composer-tools {
@@ -1099,7 +1096,7 @@ watch(
 .ai-agent-panel__composer-primary {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   flex: 0 0 auto;
   margin-left: auto;
 }
@@ -1108,8 +1105,8 @@ watch(
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: 34px;
+  height: 34px;
   padding: 0;
   border: none;
   border-radius: 999px;
@@ -1178,7 +1175,7 @@ watch(
 
 .ai-agent-panel__composer :deep(.ai-agent-panel__textarea-shell) {
   border: none !important;
-  border-radius: 0 !important;
+  border-radius: 18px !important;
   background: transparent !important;
   box-shadow: none !important;
 }
@@ -1194,26 +1191,26 @@ watch(
   min-height: 48px;
   height: auto;
   max-height: 168px;
-  padding: 4px 0 6px !important;
+  padding: 6px 4px 5px !important;
   resize: none;
   font-size: 15px;
-  line-height: 1.58;
+  line-height: 1.6;
   color: var(--text-primary);
 }
 
 .ai-agent-panel__tool-button {
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   padding: 0;
   border-radius: 999px;
   border: none;
-  background: color-mix(in srgb, var(--surface-hover) 56%, transparent);
+  background: color-mix(in srgb, var(--panel-surface) 12%, transparent);
   color: var(--text-secondary);
   box-shadow: none;
 }
 
 .ai-agent-panel__tool-button:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--surface-hover) 90%, transparent);
+  background: color-mix(in srgb, var(--panel-surface) 20%, transparent);
   color: var(--text-primary);
 }
 
