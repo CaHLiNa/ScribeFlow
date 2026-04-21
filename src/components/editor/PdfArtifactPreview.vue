@@ -4,11 +4,11 @@
       :sourcePath="sourcePath"
       :artifactPath="artifactPath"
       :kind="kind"
+      :previewRevision="previewRevision"
       :workspacePath="workspace.path || ''"
       :workspaceDataDir="workspace.workspaceDataDir || ''"
       :globalConfigDir="workspace.globalConfigDir || ''"
       :compileState="compileState"
-      :documentVersion="documentVersion"
       :forwardSyncRequest="forwardSyncRequest"
       :resolvedTheme="resolvedTheme"
       :pdfPageBackgroundFollowsTheme="workspace.pdfPageBackgroundFollowsTheme"
@@ -31,6 +31,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useLatexStore } from '../../stores/latex.js'
 import { useWorkspaceStore } from '../../stores/workspace.js'
 import { dispatchLatexBackwardSync } from '../../services/latex/pdfPreviewSync.js'
+import { resolvePdfPreviewRevision } from '../../domains/document/pdfPreviewSessionRuntime.js'
 import PdfIframeSurface from './PdfIframeSurface.vue'
 
 const PDF_PREVIEW_THEME_TOKEN_NAMES = [
@@ -68,9 +69,17 @@ const compileState = computed(() => {
   return null
 })
 
-const documentVersion = computed(() => compileState.value?.lastCompiled || '')
 const forwardSyncRequest = computed(() =>
   props.kind === 'latex' ? latexStore.forwardSyncRequestFor(props.sourcePath) : null
+)
+const previewRevision = computed(() =>
+  resolvePdfPreviewRevision({
+    paneId: props.paneId,
+    sourcePath: props.sourcePath,
+    artifactPath: props.artifactPath,
+    kind: props.kind,
+    compileState: compileState.value,
+  })
 )
 
 function normalizeResolvedThemeValue(value) {
@@ -182,7 +191,7 @@ function handleWorkspaceThemeUpdated(event) {
 }
 
 watch(
-  () => [props.artifactPath, documentVersion.value],
+  () => [props.artifactPath, previewRevision.value?.revisionKey || ''],
   () => {
     void ensureLatexSynctexState()
   },
