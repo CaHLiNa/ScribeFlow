@@ -9,7 +9,7 @@ import {
 export const SETTINGS_SECTION_DEFINITIONS = [
   {
     id: 'general',
-    labelKey: 'General',
+    labelKey: 'Fonts',
     descriptionKey: 'Everyday app preferences, fonts, theme, and editor sizing.',
     icon: IconAdjustmentsHorizontal,
   },
