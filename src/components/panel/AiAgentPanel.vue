@@ -990,13 +990,10 @@ watch(
   gap: 6px;
   padding: 8px 10px 9px;
   border-radius: 20px;
-  border: 1px solid color-mix(in srgb, var(--sidebar-search-border) 48%, transparent);
-  background: var(
-    --sidebar-shell-surface,
-    color-mix(in srgb, var(--panel-surface) 56%, transparent)
-  );
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.02);
-  backdrop-filter: blur(14px) saturate(1.02);
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
 }
 
 .ai-agent-panel__runtime-stack {
