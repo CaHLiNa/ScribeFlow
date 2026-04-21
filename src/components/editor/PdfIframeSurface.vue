@@ -48,7 +48,9 @@ import { computed, onActivated, onDeactivated, onMounted, onUnmounted, ref, watc
 import UiButton from '../shared/ui/UiButton.vue'
 import SurfaceContextMenu from '../shared/SurfaceContextMenu.vue'
 import { useI18n } from '../../i18n'
+import { useWorkspaceStore } from '../../stores/workspace.js'
 import {
+  normalizeWorkspacePdfViewerLastScale,
   normalizeWorkspacePdfCustomPageBackground,
   resolvePdfCustomPageForeground,
 } from '../../services/workspacePreferences.js'
@@ -88,12 +90,17 @@ const props = defineProps({
   resolvedTheme: { type: String, default: 'dark' },
   pdfPageBackgroundFollowsTheme: { type: Boolean, default: true },
   pdfCustomPageBackground: { type: String, default: '#1e1e1e' },
+  pdfViewerZoomMode: { type: String, default: 'page-width' },
+  pdfViewerSpreadMode: { type: String, default: 'single' },
+  pdfViewerAutoSync: { type: Boolean, default: true },
+  pdfViewerLastScale: { type: String, default: '' },
   themeTokens: { type: Object, default: () => ({}) },
 })
 
 const emit = defineEmits(['open-external', 'backward-sync', 'forward-sync-handled'])
 
 const { locale: uiLocale, t } = useI18n()
+const workspace = useWorkspaceStore()
 const {
   menuVisible,
   menuX,
@@ -136,6 +143,42 @@ let activeLoadSourceMode = ''
 let protocolFailureFallbackTriggered = false
 const PROTOCOL_LOAD_TIMEOUT_MS = 1200
 const BLOB_LOAD_TIMEOUT_MS = 2200
+
+function resolvePdfViewerSpreadModeValue() {
+  return String(props.pdfViewerSpreadMode || '').trim().toLowerCase() === 'double' ? 1 : 0
+}
+
+function resolvePdfViewerScaleValue() {
+  const zoomMode = String(props.pdfViewerZoomMode || '').trim().toLowerCase()
+  if (zoomMode === 'remember-last') {
+    return normalizeWorkspacePdfViewerLastScale(props.pdfViewerLastScale) || 'page-width'
+  }
+  return zoomMode === 'page-fit' ? 'page-fit' : 'page-width'
+}
+
+function persistViewerScalePreference() {
+  const scaleValue = normalizeWorkspacePdfViewerLastScale(getViewerApp()?.pdfViewer?.currentScaleValue)
+  if (!scaleValue || workspace.pdfViewerLastScale === scaleValue) return
+  void workspace.setPdfViewerLastScale(scaleValue).catch(() => {})
+}
+
+function applyViewerDefaults(app = getViewerApp()) {
+  const pdfViewer = app?.pdfViewer
+  if (!pdfViewer) return false
+
+  try {
+    pdfViewer.spreadMode = resolvePdfViewerSpreadModeValue()
+  } catch {
+    // Ignore unsupported spread mode transitions.
+  }
+
+  const preferredScale = resolvePdfViewerScaleValue()
+  if (preferredScale) {
+    pdfViewer.currentScaleValue = preferredScale
+  }
+
+  return true
+}
 
 function getResolvedTheme() {
   return String(props.resolvedTheme || '')
@@ -217,6 +260,7 @@ function revokeCurrentBlobUrl() {
 }
 
 function resetViewerRuntime() {
+  persistViewerScalePreference()
   loadToken += 1
   pendingForwardSync = null
   viewerScaleLock = null
@@ -601,6 +645,7 @@ function installViewerAppPatches(options = {}) {
   }
 
   const handlePagesInit = () => {
+    applyViewerDefaults(app)
     latexViewerReady.value = true
     flushPendingLatexForwardSync()
   }
@@ -948,6 +993,10 @@ async function handleIframeViewerMessage(event) {
 
 async function handleForwardSyncRequest(request) {
   if (props.kind !== 'latex' || !request?.id || request.id === lastHandledForwardSyncId) return
+  if (props.pdfViewerAutoSync !== true) {
+    emit('forward-sync-handled', { id: request.id, sourcePath: props.sourcePath })
+    return
+  }
 
   const synctexPath = String(props.compileState?.synctexPath || '').trim()
   if (!synctexPath) {
@@ -1004,6 +1053,13 @@ watch(
       return
     }
     applyTheme()
+  }
+)
+
+watch(
+  () => [props.pdfViewerZoomMode, props.pdfViewerSpreadMode],
+  () => {
+    applyViewerDefaults()
   }
 )
 

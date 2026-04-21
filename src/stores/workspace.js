@@ -12,10 +12,21 @@ import {
   normalizeWorkbenchState,
   restoreWorkspaceTheme,
   saveWorkspacePreferences as saveWorkspacePreferencesToRust,
+  setWorkspaceCitationInsertAddsSpace,
+  setWorkspaceEditorHighlightActiveLine,
+  setWorkspaceEditorLineNumbers,
+  setWorkspaceEditorSpellcheck,
   setWorkspaceEditorFontSize,
   setWorkspaceLatexFont,
+  setWorkspaceLatexCitationCommand,
+  setWorkspaceMarkdownCitationFormat,
   setWorkspaceMarkdownFont,
+  setWorkspaceMarkdownPreviewSync,
   setWorkspacePdfCustomPageBackground,
+  setWorkspacePdfViewerAutoSync,
+  setWorkspacePdfViewerLastScale,
+  setWorkspacePdfViewerSpreadMode,
+  setWorkspacePdfViewerZoomMode,
   setWorkspacePdfPageBackgroundFollowsTheme,
   setWorkspacePreferredLocale,
   setWorkspaceUiFont,
@@ -66,11 +77,22 @@ const WORKSPACE_PREFERENCE_KEYS = [
   'editorFontSize',
   'uiFontSize',
   'preferredLocale',
+  'markdownPreviewSync',
+  'editorSpellcheck',
+  'editorLineNumbers',
+  'editorHighlightActiveLine',
   'uiFont',
   'markdownFont',
   'latexFont',
   'pdfPageBackgroundFollowsTheme',
   'pdfCustomPageBackground',
+  'pdfViewerZoomMode',
+  'pdfViewerSpreadMode',
+  'pdfViewerAutoSync',
+  'pdfViewerLastScale',
+  'markdownCitationFormat',
+  'latexCitationCommand',
+  'citationInsertAddsSpace',
   'theme',
 ]
 
@@ -88,6 +110,7 @@ const WORKSPACE_LIFECYCLE_KEYS = [
   'lastWorkspace',
   'setupComplete',
   'reopenLastWorkspaceOnLaunch',
+  'reopenLastSessionOnLaunch',
 ]
 
 function snapshotWorkspaceLifecycleState(store) {
@@ -413,6 +436,72 @@ export const useWorkspaceStore = defineStore('workspace', {
       })
     },
 
+    setMarkdownPreviewSync(value) {
+      return this.persistPreferences({
+        markdownPreviewSync: setWorkspaceMarkdownPreviewSync(value),
+      })
+    },
+
+    setEditorSpellcheck(value) {
+      return this.persistPreferences({
+        editorSpellcheck: setWorkspaceEditorSpellcheck(value),
+      })
+    },
+
+    setEditorLineNumbers(value) {
+      return this.persistPreferences({
+        editorLineNumbers: setWorkspaceEditorLineNumbers(value),
+      })
+    },
+
+    setEditorHighlightActiveLine(value) {
+      return this.persistPreferences({
+        editorHighlightActiveLine: setWorkspaceEditorHighlightActiveLine(value),
+      })
+    },
+
+    setPdfViewerZoomMode(value) {
+      return this.persistPreferences({
+        pdfViewerZoomMode: setWorkspacePdfViewerZoomMode(value),
+      })
+    },
+
+    setPdfViewerSpreadMode(value) {
+      return this.persistPreferences({
+        pdfViewerSpreadMode: setWorkspacePdfViewerSpreadMode(value),
+      })
+    },
+
+    setPdfViewerAutoSync(value) {
+      return this.persistPreferences({
+        pdfViewerAutoSync: setWorkspacePdfViewerAutoSync(value),
+      })
+    },
+
+    setPdfViewerLastScale(value) {
+      return this.persistPreferences({
+        pdfViewerLastScale: setWorkspacePdfViewerLastScale(value),
+      })
+    },
+
+    setMarkdownCitationFormat(value) {
+      return this.persistPreferences({
+        markdownCitationFormat: setWorkspaceMarkdownCitationFormat(value),
+      })
+    },
+
+    setLatexCitationCommand(value) {
+      return this.persistPreferences({
+        latexCitationCommand: setWorkspaceLatexCitationCommand(value),
+      })
+    },
+
+    setCitationInsertAddsSpace(value) {
+      return this.persistPreferences({
+        citationInsertAddsSpace: setWorkspaceCitationInsertAddsSpace(value),
+      })
+    },
+
     applyFontSizes() {
       applyWorkspaceFontSizes(this.editorFontSize, this.uiFontSize)
     },
@@ -472,6 +561,12 @@ export const useWorkspaceStore = defineStore('workspace', {
     setReopenLastWorkspaceOnLaunch(value) {
       return this.persistLifecycleState({
         reopenLastWorkspaceOnLaunch: value !== false,
+      })
+    },
+
+    setReopenLastSessionOnLaunch(value) {
+      return this.persistLifecycleState({
+        reopenLastSessionOnLaunch: value !== false,
       })
     },
 

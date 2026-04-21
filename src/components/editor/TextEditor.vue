@@ -27,10 +27,12 @@
     :has-selection="ctxMenu.hasSelection"
     :view="view"
     :show-format-document="isLatexEditor"
+    :show-insert-citation="isMd || isLatexEditor"
     :show-markdown-insert-table="isMd"
     :show-markdown-format-table="ctxMenu.showMarkdownFormatTable"
     @close="closeContextMenu"
     @format-document="handleFormatDocument"
+    @insert-citation="handleInsertCitation"
     @insert-markdown-table="handleInsertMarkdownTable"
     @format-markdown-table="handleFormatMarkdownTable"
     @paste-unavailable="handleContextMenuPasteUnavailable"
@@ -68,6 +70,12 @@ import {
   wrapCompartment,
   columnWidthCompartment,
   columnWidthExtension,
+  editorInputAttributesCompartment,
+  editorInputAttributesExtension,
+  lineNumbersCompartment,
+  lineNumbersExtension,
+  activeLineCompartment,
+  activeLineExtension,
 } from '../../editor/setup'
 import { createRevealHighlightExtension } from '../../editor/revealHighlight'
 import {
@@ -404,21 +412,87 @@ function handleInsertMarkdownTable() {
   insertMarkdownTable(view)
 }
 
+function shouldPadCitationEdge(char = '') {
+  return Boolean(char) && !/\s|[[({,;:!?]/.test(char)
+}
+
+function shouldPadCitationTrailingEdge(char = '') {
+  return Boolean(char) && !/\s|[\])},;:!?]/.test(char)
+}
+
+function applyCitationSpacing(insertText, from, to) {
+  if (!view || workspace.citationInsertAddsSpace !== true) {
+    return {
+      text: insertText,
+      from,
+      to,
+    }
+  }
+
+  const doc = view.state.doc
+  const previousChar = from > 0 ? doc.sliceString(from - 1, from) : ''
+  const nextChar = to < doc.length ? doc.sliceString(to, to + 1) : ''
+
+  let text = insertText
+  if (shouldPadCitationEdge(previousChar) && !text.startsWith(' ')) {
+    text = ` ${text}`
+  }
+  if (shouldPadCitationTrailingEdge(nextChar) && !text.endsWith(' ')) {
+    text = `${text} `
+  }
+
+  return { text, from, to }
+}
+
+function buildMarkdownCitationInsertText(key) {
+  if (citPalette.insideBrackets) return `@${key}`
+  return workspace.markdownCitationFormat === 'bare' ? `@${key}` : `[@${key}]`
+}
+
+function buildLatexCitationInsertText(key, latexCommand = null) {
+  const command = latexCommand || workspace.latexCitationCommand || 'cite'
+  return citPalette.insideBrackets ? key : `\\${command}{${key}}`
+}
+
+function openCitationPaletteAtCursor() {
+  if (!view) return
+
+  const selection = view.state.selection.main
+  const from = selection?.from ?? 0
+  const to = selection?.to ?? from
+  const anchor = to
+  const coords = view.coordsAtPos(anchor) || view.coordsAtPos(from)
+  const fallbackRect = editorContainer.value?.getBoundingClientRect?.()
+
+  citPalette.show = true
+  citPalette.mode = 'insert'
+  citPalette.x = coords?.left ?? fallbackRect?.left ?? 0
+  citPalette.y = (coords?.bottom ?? fallbackRect?.top ?? 0) + 2
+  citPalette.query = ''
+  citPalette.cites = []
+  citPalette.triggerFrom = from
+  citPalette.triggerTo = to
+  citPalette.insideBrackets = false
+  citPalette.latexCommand = isLatexEditor ? workspace.latexCitationCommand : null
+}
+
+function handleInsertCitation() {
+  if (!view || (!isMd && !isLatexEditor)) return
+  closeContextMenu()
+  openCitationPaletteAtCursor()
+  view.focus()
+}
+
 function onCitInsert({ keys = [], stayOpen = false, latexCommand = null }) {
   if (!view || keys.length === 0) return
   const key = keys[0]
-
-  if (isLatexEditor && latexCommand) {
-    const text = citPalette.insideBrackets ? key : `\\${latexCommand}{${key}}`
-    view.dispatch({
-      changes: { from: citPalette.triggerFrom, to: citPalette.triggerTo, insert: text },
-    })
-  } else {
-    const text = citPalette.insideBrackets ? `@${key}` : `[@${key}]`
-    view.dispatch({
-      changes: { from: citPalette.triggerFrom, to: citPalette.triggerTo, insert: text },
-    })
-  }
+  const nextText = isLatexEditor
+    ? buildLatexCitationInsertText(key, latexCommand)
+    : buildMarkdownCitationInsertText(key)
+  const change = applyCitationSpacing(nextText, citPalette.triggerFrom, citPalette.triggerTo)
+  view.dispatch({
+    changes: { from: change.from, to: change.to, insert: change.text },
+  })
 
   if (stayOpen && !isLatexEditor) {
     const cursor = view.state.selection.main.head
@@ -448,7 +522,7 @@ function onCitUpdate({ cites = [] }) {
 
   if (isLatexEditor) {
     const keys = cites.map((cite) => cite.key)
-    const command = citPalette.latexCommand || 'cite'
+    const command = citPalette.latexCommand || workspace.latexCitationCommand || 'cite'
     const text = `\\${command}{${keys.join(', ')}}`
     view.dispatch({
       changes: { from: citPalette.groupFrom, to: citPalette.groupTo, insert: text },
@@ -800,6 +874,9 @@ onMounted(async () => {
   const extensions = createEditorExtensions({
     softWrap: workspace.softWrap,
     wrapColumn: workspace.wrapColumn,
+    spellcheckEnabled: workspace.editorSpellcheck,
+    showLineNumbers: workspace.editorLineNumbers,
+    highlightActiveLineEnabled: workspace.editorHighlightActiveLine,
     languageExtension: langExt,
     autoSaveEnabled: workspace.autoSave && !isDraftFile,
     onDocChanged: handleDocumentChanged,
@@ -1123,6 +1200,7 @@ function handleLatexCitationClick(event) {
 
 function scheduleMarkdownSelectionPreviewSync(selection) {
   if (!isMd || !view) return
+  if (!workspace.markdownPreviewSync) return
   if (!hasActiveMarkdownPreviewTarget()) return
   if ((selection?.from ?? 0) !== (selection?.to ?? 0)) return
 
@@ -1187,6 +1265,7 @@ function hasActiveLatexPdfPreviewTarget() {
 
 function triggerLatexForwardSyncAtPos(pos) {
   if (!supportsLatexRuntime || !view) return
+  if (!workspace.pdfViewerAutoSync) return
   if (!hasActiveLatexPdfPreviewTarget()) return
   const location = getLatexSyncLocation(pos)
   if (!location) return
@@ -1236,6 +1315,47 @@ watch(
     if (!view) return
     view.dispatch({
       effects: columnWidthCompartment.reconfigure(columnWidthExtension(column)),
+    })
+  }
+)
+
+watch(
+  () => workspace.markdownPreviewSync,
+  (enabled) => {
+    if (enabled || markdownPreviewSyncTimer == null) return
+    window.clearTimeout(markdownPreviewSyncTimer)
+    markdownPreviewSyncTimer = null
+  }
+)
+
+watch(
+  () => workspace.editorSpellcheck,
+  (enabled) => {
+    if (!view) return
+    view.dispatch({
+      effects: editorInputAttributesCompartment.reconfigure(
+        editorInputAttributesExtension({ spellcheck: enabled })
+      ),
+    })
+  }
+)
+
+watch(
+  () => workspace.editorLineNumbers,
+  (enabled) => {
+    if (!view) return
+    view.dispatch({
+      effects: lineNumbersCompartment.reconfigure(lineNumbersExtension(enabled)),
+    })
+  }
+)
+
+watch(
+  () => workspace.editorHighlightActiveLine,
+  (enabled) => {
+    if (!view) return
+    view.dispatch({
+      effects: activeLineCompartment.reconfigure(activeLineExtension(enabled)),
     })
   }
 )

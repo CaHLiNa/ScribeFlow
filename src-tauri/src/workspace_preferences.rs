@@ -18,8 +18,19 @@ const DEFAULT_MARKDOWN_FONT: &str = "inter";
 const DEFAULT_LATEX_FONT: &str = "mono";
 const DEFAULT_PREFERRED_LOCALE: &str = "system";
 const DEFAULT_THEME: &str = "system";
+const DEFAULT_MARKDOWN_PREVIEW_SYNC: bool = true;
+const DEFAULT_EDITOR_SPELLCHECK: bool = false;
+const DEFAULT_EDITOR_LINE_NUMBERS: bool = true;
+const DEFAULT_EDITOR_HIGHLIGHT_ACTIVE_LINE: bool = true;
 const DEFAULT_PDF_CUSTOM_PAGE_BACKGROUND: &str = "#1e1e1e";
 const DEFAULT_PDF_PAGE_BACKGROUND_FOLLOWS_THEME: bool = true;
+const DEFAULT_PDF_VIEWER_ZOOM_MODE: &str = "page-width";
+const DEFAULT_PDF_VIEWER_SPREAD_MODE: &str = "single";
+const DEFAULT_PDF_VIEWER_AUTO_SYNC: bool = true;
+const DEFAULT_PDF_VIEWER_LAST_SCALE: &str = "";
+const DEFAULT_MARKDOWN_CITATION_FORMAT: &str = "bracketed";
+const DEFAULT_LATEX_CITATION_COMMAND: &str = "cite";
+const DEFAULT_CITATION_INSERT_ADDS_SPACE: bool = false;
 static SYSTEM_FONT_FAMILIES_CACHE: OnceLock<Vec<String>> = OnceLock::new();
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -45,10 +56,32 @@ pub struct WorkspacePreferences {
     pub latex_font: String,
     #[serde(default = "default_preferred_locale")]
     pub preferred_locale: String,
+    #[serde(default = "default_markdown_preview_sync")]
+    pub markdown_preview_sync: bool,
+    #[serde(default = "default_editor_spellcheck")]
+    pub editor_spellcheck: bool,
+    #[serde(default = "default_editor_line_numbers")]
+    pub editor_line_numbers: bool,
+    #[serde(default = "default_editor_highlight_active_line")]
+    pub editor_highlight_active_line: bool,
     #[serde(default = "default_pdf_page_background_follows_theme")]
     pub pdf_page_background_follows_theme: bool,
     #[serde(default = "default_pdf_custom_page_background")]
     pub pdf_custom_page_background: String,
+    #[serde(default = "default_pdf_viewer_zoom_mode")]
+    pub pdf_viewer_zoom_mode: String,
+    #[serde(default = "default_pdf_viewer_spread_mode")]
+    pub pdf_viewer_spread_mode: String,
+    #[serde(default = "default_pdf_viewer_auto_sync")]
+    pub pdf_viewer_auto_sync: bool,
+    #[serde(default = "default_pdf_viewer_last_scale")]
+    pub pdf_viewer_last_scale: String,
+    #[serde(default = "default_markdown_citation_format")]
+    pub markdown_citation_format: String,
+    #[serde(default = "default_latex_citation_command")]
+    pub latex_citation_command: String,
+    #[serde(default = "default_citation_insert_adds_space")]
+    pub citation_insert_adds_space: bool,
     #[serde(default = "default_theme")]
     pub theme: String,
 }
@@ -66,8 +99,19 @@ impl Default for WorkspacePreferences {
             markdown_font: default_markdown_font(),
             latex_font: default_latex_font(),
             preferred_locale: default_preferred_locale(),
+            markdown_preview_sync: default_markdown_preview_sync(),
+            editor_spellcheck: default_editor_spellcheck(),
+            editor_line_numbers: default_editor_line_numbers(),
+            editor_highlight_active_line: default_editor_highlight_active_line(),
             pdf_page_background_follows_theme: default_pdf_page_background_follows_theme(),
             pdf_custom_page_background: default_pdf_custom_page_background(),
+            pdf_viewer_zoom_mode: default_pdf_viewer_zoom_mode(),
+            pdf_viewer_spread_mode: default_pdf_viewer_spread_mode(),
+            pdf_viewer_auto_sync: default_pdf_viewer_auto_sync(),
+            pdf_viewer_last_scale: default_pdf_viewer_last_scale(),
+            markdown_citation_format: default_markdown_citation_format(),
+            latex_citation_command: default_latex_citation_command(),
+            citation_insert_adds_space: default_citation_insert_adds_space(),
             theme: default_theme(),
         }
     }
@@ -160,12 +204,56 @@ fn default_preferred_locale() -> String {
     DEFAULT_PREFERRED_LOCALE.to_string()
 }
 
+fn default_markdown_preview_sync() -> bool {
+    DEFAULT_MARKDOWN_PREVIEW_SYNC
+}
+
+fn default_editor_spellcheck() -> bool {
+    DEFAULT_EDITOR_SPELLCHECK
+}
+
+fn default_editor_line_numbers() -> bool {
+    DEFAULT_EDITOR_LINE_NUMBERS
+}
+
+fn default_editor_highlight_active_line() -> bool {
+    DEFAULT_EDITOR_HIGHLIGHT_ACTIVE_LINE
+}
+
 fn default_pdf_page_background_follows_theme() -> bool {
     DEFAULT_PDF_PAGE_BACKGROUND_FOLLOWS_THEME
 }
 
 fn default_pdf_custom_page_background() -> String {
     DEFAULT_PDF_CUSTOM_PAGE_BACKGROUND.to_string()
+}
+
+fn default_pdf_viewer_zoom_mode() -> String {
+    DEFAULT_PDF_VIEWER_ZOOM_MODE.to_string()
+}
+
+fn default_pdf_viewer_spread_mode() -> String {
+    DEFAULT_PDF_VIEWER_SPREAD_MODE.to_string()
+}
+
+fn default_pdf_viewer_auto_sync() -> bool {
+    DEFAULT_PDF_VIEWER_AUTO_SYNC
+}
+
+fn default_pdf_viewer_last_scale() -> String {
+    DEFAULT_PDF_VIEWER_LAST_SCALE.to_string()
+}
+
+fn default_markdown_citation_format() -> String {
+    DEFAULT_MARKDOWN_CITATION_FORMAT.to_string()
+}
+
+fn default_latex_citation_command() -> String {
+    DEFAULT_LATEX_CITATION_COMMAND.to_string()
+}
+
+fn default_citation_insert_adds_space() -> bool {
+    DEFAULT_CITATION_INSERT_ADDS_SPACE
 }
 
 fn default_theme() -> String {
@@ -270,6 +358,59 @@ fn normalize_preferred_locale(value: &str) -> String {
         "zh" | "zh-cn" => "zh-CN".to_string(),
         "en" | "en-us" => "en-US".to_string(),
         _ => DEFAULT_PREFERRED_LOCALE.to_string(),
+    }
+}
+
+fn normalize_pdf_viewer_zoom_mode(value: &str) -> String {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "page-fit" => "page-fit".to_string(),
+        "remember-last" => "remember-last".to_string(),
+        _ => "page-width".to_string(),
+    }
+}
+
+fn normalize_pdf_viewer_spread_mode(value: &str) -> String {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "double" => "double".to_string(),
+        _ => "single".to_string(),
+    }
+}
+
+fn normalize_pdf_viewer_last_scale(value: &str) -> String {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return String::new();
+    }
+
+    match trimmed.to_ascii_lowercase().as_str() {
+        "auto" | "page-fit" | "page-width" => trimmed.to_ascii_lowercase(),
+        _ => trimmed
+            .parse::<f64>()
+            .ok()
+            .filter(|value| value.is_finite() && *value > 0.0)
+            .map(|value| {
+                let rounded = (value * 10_000.0).round() / 10_000.0;
+                rounded.to_string()
+            })
+            .unwrap_or_default(),
+    }
+}
+
+fn normalize_markdown_citation_format(value: &str) -> String {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "bare" => "bare".to_string(),
+        _ => "bracketed".to_string(),
+    }
+}
+
+fn normalize_latex_citation_command(value: &str) -> String {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "citep" => "citep".to_string(),
+        "citet" => "citet".to_string(),
+        "parencite" => "parencite".to_string(),
+        "textcite" => "textcite".to_string(),
+        "autocite" => "autocite".to_string(),
+        _ => "cite".to_string(),
     }
 }
 
@@ -444,11 +585,26 @@ fn normalize_workspace_preferences(preferences: WorkspacePreferences) -> Workspa
         markdown_font: normalize_font_preference(&preferences.markdown_font, DEFAULT_MARKDOWN_FONT),
         latex_font: normalize_font_preference(&preferences.latex_font, DEFAULT_LATEX_FONT),
         preferred_locale: normalize_preferred_locale(&preferences.preferred_locale),
+        markdown_preview_sync: preferences.markdown_preview_sync,
+        editor_spellcheck: preferences.editor_spellcheck,
+        editor_line_numbers: preferences.editor_line_numbers,
+        editor_highlight_active_line: preferences.editor_highlight_active_line,
         pdf_page_background_follows_theme: preferences.pdf_page_background_follows_theme,
         pdf_custom_page_background: normalize_hex_color(
             &preferences.pdf_custom_page_background,
             DEFAULT_PDF_CUSTOM_PAGE_BACKGROUND,
         ),
+        pdf_viewer_zoom_mode: normalize_pdf_viewer_zoom_mode(&preferences.pdf_viewer_zoom_mode),
+        pdf_viewer_spread_mode: normalize_pdf_viewer_spread_mode(&preferences.pdf_viewer_spread_mode),
+        pdf_viewer_auto_sync: preferences.pdf_viewer_auto_sync,
+        pdf_viewer_last_scale: normalize_pdf_viewer_last_scale(&preferences.pdf_viewer_last_scale),
+        markdown_citation_format: normalize_markdown_citation_format(
+            &preferences.markdown_citation_format,
+        ),
+        latex_citation_command: normalize_latex_citation_command(
+            &preferences.latex_citation_command,
+        ),
+        citation_insert_adds_space: preferences.citation_insert_adds_space,
         theme: normalize_theme(&preferences.theme),
     }
 }
@@ -510,6 +666,17 @@ fn migrate_legacy_preferences(snapshot: &HashMap<String, String>) -> WorkspacePr
         legacy_string(snapshot, "latexFont").unwrap_or_else(default_latex_font);
     preferences.preferred_locale =
         legacy_string(snapshot, "preferredLocale").unwrap_or_else(default_preferred_locale);
+    preferences.markdown_preview_sync =
+        legacy_boolean(snapshot, "markdownPreviewSync", default_markdown_preview_sync());
+    preferences.editor_spellcheck =
+        legacy_true_only_boolean(snapshot, "editorSpellcheck", default_editor_spellcheck());
+    preferences.editor_line_numbers =
+        legacy_boolean(snapshot, "editorLineNumbers", default_editor_line_numbers());
+    preferences.editor_highlight_active_line = legacy_boolean(
+        snapshot,
+        "editorHighlightActiveLine",
+        default_editor_highlight_active_line(),
+    );
     preferences.pdf_page_background_follows_theme = legacy_boolean(
         snapshot,
         "pdfPageBackgroundFollowsTheme",
@@ -517,6 +684,23 @@ fn migrate_legacy_preferences(snapshot: &HashMap<String, String>) -> WorkspacePr
     );
     preferences.pdf_custom_page_background = legacy_string(snapshot, "pdfCustomPageBackground")
         .unwrap_or_else(default_pdf_custom_page_background);
+    preferences.pdf_viewer_zoom_mode = legacy_string(snapshot, "pdfViewerZoomMode")
+        .unwrap_or_else(default_pdf_viewer_zoom_mode);
+    preferences.pdf_viewer_spread_mode = legacy_string(snapshot, "pdfViewerSpreadMode")
+        .unwrap_or_else(default_pdf_viewer_spread_mode);
+    preferences.pdf_viewer_auto_sync =
+        legacy_boolean(snapshot, "pdfViewerAutoSync", default_pdf_viewer_auto_sync());
+    preferences.pdf_viewer_last_scale = legacy_string(snapshot, "pdfViewerLastScale")
+        .unwrap_or_else(default_pdf_viewer_last_scale);
+    preferences.markdown_citation_format = legacy_string(snapshot, "markdownCitationFormat")
+        .unwrap_or_else(default_markdown_citation_format);
+    preferences.latex_citation_command = legacy_string(snapshot, "latexCitationCommand")
+        .unwrap_or_else(default_latex_citation_command);
+    preferences.citation_insert_adds_space = legacy_true_only_boolean(
+        snapshot,
+        "citationInsertAddsSpace",
+        default_citation_insert_adds_space(),
+    );
     preferences.theme = legacy_string(snapshot, "theme").unwrap_or_else(default_theme);
 
     normalize_workspace_preferences(preferences)
@@ -584,6 +768,24 @@ mod tests {
         assert_eq!(normalized.editor_font_size, 20);
         assert_eq!(normalized.preferred_locale, "zh-CN");
         assert_eq!(normalized.pdf_custom_page_background, "#1e1e1e");
+    }
+
+    #[test]
+    fn normalization_clamps_new_preference_values() {
+        let normalized = normalize_workspace_preferences(WorkspacePreferences {
+            pdf_viewer_zoom_mode: "weird".to_string(),
+            pdf_viewer_spread_mode: "spread".to_string(),
+            pdf_viewer_last_scale: "-1".to_string(),
+            markdown_citation_format: "inline".to_string(),
+            latex_citation_command: "smartcite".to_string(),
+            ..WorkspacePreferences::default()
+        });
+
+        assert_eq!(normalized.pdf_viewer_zoom_mode, "page-width");
+        assert_eq!(normalized.pdf_viewer_spread_mode, "single");
+        assert_eq!(normalized.pdf_viewer_last_scale, "");
+        assert_eq!(normalized.markdown_citation_format, "bracketed");
+        assert_eq!(normalized.latex_citation_command, "cite");
     }
 
     #[test]

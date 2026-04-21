@@ -13,6 +13,9 @@ export const wrapCompartment = new Compartment()
 
 // Shared compartment for wrap column width - constrains content to N characters
 export const columnWidthCompartment = new Compartment()
+export const editorInputAttributesCompartment = new Compartment()
+export const lineNumbersCompartment = new Compartment()
+export const activeLineCompartment = new Compartment()
 
 const SELECTION_HIGHLIGHT_MAX_MATCHES = 100
 const selectionMatchMark = Decoration.mark({ class: 'cm-selectionMatch' })
@@ -72,6 +75,18 @@ export function columnWidthExtension(col) {
     return EditorView.theme({ '.cm-content': { maxWidth: col + 'ch' } })
   }
   return []
+}
+
+export function editorInputAttributesExtension(options = {}) {
+  return EditorView.contentAttributes.of(buildEditorInputAttributes(options))
+}
+
+export function lineNumbersExtension(showLineNumbers = true) {
+  return showLineNumbers ? [lineNumbers(), highlightActiveLineGutter()] : []
+}
+
+export function activeLineExtension(enabled = true) {
+  return enabled ? [highlightActiveLine()] : []
 }
 
 /**
@@ -153,6 +168,9 @@ export function createEditorExtensions({
   onStats,
   softWrap = true,
   wrapColumn = 0,
+  spellcheckEnabled = false,
+  showLineNumbers = true,
+  highlightActiveLineEnabled = true,
   languageExtension = null,
   extraExtensions = [],
   autoSaveEnabled = true,
@@ -165,12 +183,13 @@ export function createEditorExtensions({
     columnWidthCompartment.of(columnWidthExtension(wrapColumn)),
 
     // Keep browser-native text services off so the editor owns selection and context menu behavior.
-    EditorView.contentAttributes.of(buildEditorInputAttributes()),
+    editorInputAttributesCompartment.of(
+      editorInputAttributesExtension({ spellcheck: spellcheckEnabled })
+    ),
 
     // Core
-    lineNumbers(),
-    highlightActiveLineGutter(),
-    highlightActiveLine(),
+    lineNumbersCompartment.of(lineNumbersExtension(showLineNumbers)),
+    activeLineCompartment.of(activeLineExtension(highlightActiveLineEnabled)),
     history(),
     foldGutter(),
     drawSelection(),

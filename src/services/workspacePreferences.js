@@ -31,10 +31,21 @@ const DEFAULT_UI_FONT_SIZE = 13
 const MIN_EDITOR_FONT_SIZE = 12
 const MAX_EDITOR_FONT_SIZE = 20
 const DEFAULT_PREFERRED_LOCALE = 'system'
+const DEFAULT_MARKDOWN_PREVIEW_SYNC = true
+const DEFAULT_EDITOR_SPELLCHECK = false
+const DEFAULT_EDITOR_LINE_NUMBERS = true
+const DEFAULT_EDITOR_HIGHLIGHT_ACTIVE_LINE = true
 const DEFAULT_PDF_PAGE_BACKGROUND_FOLLOWS_THEME = true
 const DEFAULT_PDF_CUSTOM_PAGE_BACKGROUND = '#1e1e1e'
 const DEFAULT_PDF_CUSTOM_PAGE_FOREGROUND_DARK = '#1f2a1f'
 const DEFAULT_PDF_CUSTOM_PAGE_FOREGROUND_LIGHT = '#f5faef'
+const DEFAULT_PDF_VIEWER_ZOOM_MODE = 'page-width'
+const DEFAULT_PDF_VIEWER_SPREAD_MODE = 'single'
+const DEFAULT_PDF_VIEWER_AUTO_SYNC = true
+const DEFAULT_PDF_VIEWER_LAST_SCALE = ''
+const DEFAULT_MARKDOWN_CITATION_FORMAT = 'bracketed'
+const DEFAULT_LATEX_CITATION_COMMAND = 'cite'
+const DEFAULT_CITATION_INSERT_ADDS_SPACE = false
 const SYSTEM_THEME_MEDIA = '(prefers-color-scheme: dark)'
 const DEFAULT_WORKBENCH_SURFACE = 'workspace'
 const DEFAULT_WORKSPACE_SIDEBAR_PANEL = 'files'
@@ -54,12 +65,23 @@ const LEGACY_WORKSPACE_PREFERENCE_KEYS = [
   'editorFontSize',
   'uiFontSize',
   'preferredLocale',
+  'markdownPreviewSync',
+  'editorSpellcheck',
+  'editorLineNumbers',
+  'editorHighlightActiveLine',
   'uiFont',
   'markdownFont',
   'latexFont',
   'proseFont',
   'pdfPageBackgroundFollowsTheme',
   'pdfCustomPageBackground',
+  'pdfViewerZoomMode',
+  'pdfViewerSpreadMode',
+  'pdfViewerAutoSync',
+  'pdfViewerLastScale',
+  'markdownCitationFormat',
+  'latexCitationCommand',
+  'citationInsertAddsSpace',
   'pdfCustomPageForegroundMode',
   'pdfCustomPageForeground',
   'theme',
@@ -188,11 +210,22 @@ export function createWorkspacePreferenceState() {
     editorFontSize: DEFAULT_EDITOR_FONT_SIZE,
     uiFontSize: DEFAULT_UI_FONT_SIZE,
     preferredLocale: DEFAULT_PREFERRED_LOCALE,
+    markdownPreviewSync: DEFAULT_MARKDOWN_PREVIEW_SYNC,
+    editorSpellcheck: DEFAULT_EDITOR_SPELLCHECK,
+    editorLineNumbers: DEFAULT_EDITOR_LINE_NUMBERS,
+    editorHighlightActiveLine: DEFAULT_EDITOR_HIGHLIGHT_ACTIVE_LINE,
     uiFont: 'inter',
     markdownFont: 'inter',
     latexFont: 'mono',
     pdfPageBackgroundFollowsTheme: DEFAULT_PDF_PAGE_BACKGROUND_FOLLOWS_THEME,
     pdfCustomPageBackground: DEFAULT_PDF_CUSTOM_PAGE_BACKGROUND,
+    pdfViewerZoomMode: DEFAULT_PDF_VIEWER_ZOOM_MODE,
+    pdfViewerSpreadMode: DEFAULT_PDF_VIEWER_SPREAD_MODE,
+    pdfViewerAutoSync: DEFAULT_PDF_VIEWER_AUTO_SYNC,
+    pdfViewerLastScale: DEFAULT_PDF_VIEWER_LAST_SCALE,
+    markdownCitationFormat: DEFAULT_MARKDOWN_CITATION_FORMAT,
+    latexCitationCommand: DEFAULT_LATEX_CITATION_COMMAND,
+    citationInsertAddsSpace: DEFAULT_CITATION_INSERT_ADDS_SPACE,
     theme: 'system',
   }
 }
@@ -286,6 +319,51 @@ export function normalizeWorkspacePreferredLocale(value) {
   }
 }
 
+export function normalizeWorkspacePdfViewerZoomMode(value) {
+  switch (String(value || '').trim().toLowerCase()) {
+    case 'page-fit':
+      return 'page-fit'
+    case 'remember-last':
+      return 'remember-last'
+    default:
+      return DEFAULT_PDF_VIEWER_ZOOM_MODE
+  }
+}
+
+export function normalizeWorkspacePdfViewerSpreadMode(value) {
+  return String(value || '').trim().toLowerCase() === 'double'
+    ? 'double'
+    : DEFAULT_PDF_VIEWER_SPREAD_MODE
+}
+
+export function normalizeWorkspacePdfViewerLastScale(value) {
+  const normalized = String(value || '').trim().toLowerCase()
+  if (!normalized) return DEFAULT_PDF_VIEWER_LAST_SCALE
+  if (['auto', 'page-fit', 'page-width'].includes(normalized)) return normalized
+  const numeric = Number(normalized)
+  if (!Number.isFinite(numeric) || numeric <= 0) return DEFAULT_PDF_VIEWER_LAST_SCALE
+  return String(Math.round(numeric * 10000) / 10000)
+}
+
+export function normalizeWorkspaceMarkdownCitationFormat(value) {
+  return String(value || '').trim().toLowerCase() === 'bare'
+    ? 'bare'
+    : DEFAULT_MARKDOWN_CITATION_FORMAT
+}
+
+export function normalizeWorkspaceLatexCitationCommand(value) {
+  switch (String(value || '').trim().toLowerCase()) {
+    case 'citep':
+    case 'citet':
+    case 'parencite':
+    case 'textcite':
+    case 'autocite':
+      return String(value || '').trim().toLowerCase()
+    default:
+      return DEFAULT_LATEX_CITATION_COMMAND
+  }
+}
+
 export function encodeWorkspaceSystemFontFamily(family) {
   const normalized = String(family || '').trim()
   return normalized ? `${SYSTEM_FONT_PREFIX}${normalized}` : 'inter'
@@ -349,6 +427,50 @@ export function setWorkspacePdfCustomPageBackground(value) {
 
 export function setWorkspacePdfPageBackgroundFollowsTheme(value) {
   return value !== false
+}
+
+export function setWorkspaceMarkdownPreviewSync(value) {
+  return value !== false
+}
+
+export function setWorkspaceEditorSpellcheck(value) {
+  return value === true
+}
+
+export function setWorkspaceEditorLineNumbers(value) {
+  return value !== false
+}
+
+export function setWorkspaceEditorHighlightActiveLine(value) {
+  return value !== false
+}
+
+export function setWorkspacePdfViewerZoomMode(value) {
+  return normalizeWorkspacePdfViewerZoomMode(value)
+}
+
+export function setWorkspacePdfViewerSpreadMode(value) {
+  return normalizeWorkspacePdfViewerSpreadMode(value)
+}
+
+export function setWorkspacePdfViewerAutoSync(value) {
+  return value !== false
+}
+
+export function setWorkspacePdfViewerLastScale(value) {
+  return normalizeWorkspacePdfViewerLastScale(value)
+}
+
+export function setWorkspaceMarkdownCitationFormat(value) {
+  return normalizeWorkspaceMarkdownCitationFormat(value)
+}
+
+export function setWorkspaceLatexCitationCommand(value) {
+  return normalizeWorkspaceLatexCitationCommand(value)
+}
+
+export function setWorkspaceCitationInsertAddsSpace(value) {
+  return value === true
 }
 
 export function applyWorkspaceFontSizes(editorFontSize, uiFontSize) {

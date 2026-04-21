@@ -93,6 +93,22 @@
             />
           </div>
         </div>
+
+        <div class="settings-row">
+          <div class="settings-row-copy">
+            <div class="settings-row-title">{{ t('Restore last layout and files on launch') }}</div>
+            <div class="settings-row-hint">
+              {{ t('When reopening the previous workspace on launch, also restore its tabs and split layout.') }}
+            </div>
+          </div>
+          <div class="settings-row-control compact">
+            <UiSwitch
+              :model-value="workspace.reopenLastSessionOnLaunch"
+              :aria-label="t('Restore last layout and files on launch')"
+              @update:model-value="workspace.setReopenLastSessionOnLaunch($event)"
+            />
+          </div>
+        </div>
       </div>
     </section>
 
@@ -177,7 +193,58 @@
       <div class="settings-group-body">
         <div class="settings-row">
           <div class="settings-row-copy">
+            <div class="settings-row-title">{{ t('Default zoom') }}</div>
+            <div class="settings-row-hint">
+              {{ t('Choose how embedded PDFs open before any manual zooming.') }}
+            </div>
+          </div>
+          <div class="settings-row-control">
+            <UiSelect
+              :model-value="workspace.pdfViewerZoomMode"
+              :options="pdfViewerZoomOptions"
+              @update:model-value="workspace.setPdfViewerZoomMode"
+            />
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-row-copy">
+            <div class="settings-row-title">{{ t('Page layout') }}</div>
+            <div class="settings-row-hint">
+              {{ t('Choose whether embedded PDFs open in single-page or two-page spreads.') }}
+            </div>
+          </div>
+          <div class="settings-row-control">
+            <UiSelect
+              :model-value="workspace.pdfViewerSpreadMode"
+              :options="pdfViewerSpreadOptions"
+              @update:model-value="workspace.setPdfViewerSpreadMode"
+            />
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-row-copy">
+            <div class="settings-row-title">{{ t('Follow source sync') }}</div>
+            <div class="settings-row-hint">
+              {{ t('Allow LaTeX source jumps to move the embedded PDF preview automatically.') }}
+            </div>
+          </div>
+          <div class="settings-row-control compact">
+            <UiSwitch
+              :model-value="workspace.pdfViewerAutoSync"
+              :aria-label="t('Follow source sync')"
+              @update:model-value="workspace.setPdfViewerAutoSync($event)"
+            />
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('Match app theme') }}</div>
+            <div class="settings-row-hint">
+              {{ t('Use the same PDF page background as the current app theme. Turn this off to use a custom PDF page color.') }}
+            </div>
           </div>
           <div class="settings-row-control compact">
             <UiSwitch
@@ -258,6 +325,17 @@ const languageOptions = computed(() => [
   { value: 'system', label: t('Follow system') },
   { value: 'zh-CN', label: '中文' },
   { value: 'en-US', label: 'English' },
+])
+
+const pdfViewerZoomOptions = computed(() => [
+  { value: 'page-width', label: t('Page Width') },
+  { value: 'page-fit', label: t('Page Fit') },
+  { value: 'remember-last', label: t('Remember last zoom') },
+])
+
+const pdfViewerSpreadOptions = computed(() => [
+  { value: 'single', label: t('Single page') },
+  { value: 'double', label: t('Two-page spread') },
 ])
 
 const resolvedPdfPagePreviewBackground = computed(() =>

@@ -130,7 +130,7 @@ export function useWorkspaceLifecycle() {
   }
 
   async function openWorkspace(path, options = {}) {
-    const { skipBookmarkActivation = false } = options
+    const { skipBookmarkActivation = false, restoreEditorSession = true } = options
     let targetPath = path
     if (!skipBookmarkActivation) {
       targetPath = await activateWorkspaceBookmark(path)
@@ -192,7 +192,10 @@ export function useWorkspaceLifecycle() {
       if (editorStore.allOpenFiles.size === 0) editorStore.openNewTab()
 
       scheduleWorkspaceBackgroundTask(hadCachedTree ? 30 : 90, loadGeneration, targetPath, async () => {
-        const restored = await editorStore.restoreEditorState()
+        let restored = false
+        if (restoreEditorSession) {
+          restored = await editorStore.restoreEditorState()
+        }
         if (loadGeneration !== workspaceLoadGeneration || workspace.path !== targetPath) return
         if (!restored && editorStore.allOpenFiles.size === 0) {
           editorStore.openNewTab()
@@ -300,7 +303,10 @@ export function useWorkspaceLifecycle() {
       const restoredWorkspace = await activateWorkspaceBookmark(lastWorkspace)
       const exists = await invoke('path_exists', { path: restoredWorkspace })
       if (exists) {
-        await openWorkspace(restoredWorkspace, { skipBookmarkActivation: true })
+        await openWorkspace(restoredWorkspace, {
+          skipBookmarkActivation: true,
+          restoreEditorSession: workspace.reopenLastSessionOnLaunch,
+        })
       }
     } catch {
       // Fall through to launcher when bookmark restore fails.

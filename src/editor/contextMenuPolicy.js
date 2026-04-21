@@ -7,8 +7,11 @@ export const EDITOR_INPUT_ATTRIBUTES = Object.freeze({
   spellcheck: 'false',
 })
 
-export function buildEditorInputAttributes() {
-  return { ...EDITOR_INPUT_ATTRIBUTES }
+export function buildEditorInputAttributes(options = {}) {
+  return {
+    ...EDITOR_INPUT_ATTRIBUTES,
+    spellcheck: options.spellcheck === true ? 'true' : 'false',
+  }
 }
 
 export function normalizeContextMenuClickPos(clickPos, lineRange) {

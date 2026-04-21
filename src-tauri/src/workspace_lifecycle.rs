@@ -29,6 +29,8 @@ pub struct WorkspaceLifecycleState {
     pub setup_complete: bool,
     #[serde(default = "default_reopen_last_workspace_on_launch")]
     pub reopen_last_workspace_on_launch: bool,
+    #[serde(default = "default_reopen_last_session_on_launch")]
+    pub reopen_last_session_on_launch: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -65,6 +67,7 @@ impl Default for WorkspaceLifecycleState {
             last_workspace: String::new(),
             setup_complete: false,
             reopen_last_workspace_on_launch: default_reopen_last_workspace_on_launch(),
+            reopen_last_session_on_launch: default_reopen_last_session_on_launch(),
         }
     }
 }
@@ -74,6 +77,10 @@ fn default_workspace_lifecycle_version() -> u32 {
 }
 
 fn default_reopen_last_workspace_on_launch() -> bool {
+    true
+}
+
+fn default_reopen_last_session_on_launch() -> bool {
     true
 }
 
@@ -155,6 +162,7 @@ pub fn normalize_workspace_lifecycle_state(
         last_workspace,
         setup_complete: state.setup_complete,
         reopen_last_workspace_on_launch: state.reopen_last_workspace_on_launch,
+        reopen_last_session_on_launch: state.reopen_last_session_on_launch,
     }
 }
 
@@ -244,6 +252,7 @@ mod tests {
             last_workspace: "/tmp/project/".to_string(),
             setup_complete: true,
             reopen_last_workspace_on_launch: false,
+            reopen_last_session_on_launch: false,
         });
 
         assert_eq!(normalized.recent_workspaces.len(), 1);
@@ -252,6 +261,7 @@ mod tests {
         assert_eq!(normalized.last_workspace, "/tmp/project");
         assert!(normalized.setup_complete);
         assert!(!normalized.reopen_last_workspace_on_launch);
+        assert!(!normalized.reopen_last_session_on_launch);
     }
 
     #[tokio::test]
@@ -273,6 +283,7 @@ mod tests {
                 last_workspace: "/tmp/demo".to_string(),
                 setup_complete: true,
                 reopen_last_workspace_on_launch: false,
+                reopen_last_session_on_launch: false,
             },
         })
         .await
@@ -287,6 +298,7 @@ mod tests {
 
         assert_eq!(saved, loaded);
         assert!(!loaded.reopen_last_workspace_on_launch);
+        assert!(!loaded.reopen_last_session_on_launch);
         fs::remove_dir_all(temp_dir).ok();
     }
 }

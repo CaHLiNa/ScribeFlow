@@ -33,6 +33,9 @@
         <div class="settings-row" :class="{ 'is-disabled-row': !workspace.softWrap }">
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('Preferred line width') }}</div>
+            <div class="settings-row-hint">
+              {{ t('Used when soft wrap is enabled for long-form writing layouts.') }}
+            </div>
           </div>
           <div class="settings-row-control">
             <div class="settings-segmented">
@@ -48,6 +51,66 @@
                 {{ t(preset.labelKey) }}
               </button>
             </div>
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-row-copy">
+            <div class="settings-row-title">{{ t('Sync Markdown preview') }}</div>
+            <div class="settings-row-hint">
+              {{ t('Follow the editor cursor in Markdown preview when a preview is open.') }}
+            </div>
+          </div>
+          <div class="settings-row-control compact">
+            <UiSwitch
+              :model-value="workspace.markdownPreviewSync"
+              @update:model-value="workspace.setMarkdownPreviewSync($event)"
+            />
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-row-copy">
+            <div class="settings-row-title">{{ t('Spellcheck') }}</div>
+            <div class="settings-row-hint">
+              {{ t('Underline spelling issues while drafting in Markdown documents.') }}
+            </div>
+          </div>
+          <div class="settings-row-control compact">
+            <UiSwitch
+              :model-value="workspace.editorSpellcheck"
+              @update:model-value="workspace.setEditorSpellcheck($event)"
+            />
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-row-copy">
+            <div class="settings-row-title">{{ t('Show line numbers') }}</div>
+            <div class="settings-row-hint">
+              {{ t('Display a line-number gutter for editor navigation and diagnostics.') }}
+            </div>
+          </div>
+          <div class="settings-row-control compact">
+            <UiSwitch
+              :model-value="workspace.editorLineNumbers"
+              @update:model-value="workspace.setEditorLineNumbers($event)"
+            />
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-row-copy">
+            <div class="settings-row-title">{{ t('Highlight current line') }}</div>
+            <div class="settings-row-hint">
+              {{ t('Keep the active line visually anchored while editing long documents.') }}
+            </div>
+          </div>
+          <div class="settings-row-control compact">
+            <UiSwitch
+              :model-value="workspace.editorHighlightActiveLine"
+              @update:model-value="workspace.setEditorHighlightActiveLine($event)"
+            />
           </div>
         </div>
       </div>

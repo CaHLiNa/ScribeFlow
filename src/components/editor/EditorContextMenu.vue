@@ -46,6 +46,7 @@ const props = defineProps({
   hasSelection: { type: Boolean, default: false },
   view: { type: Object, default: null },
   showFormatDocument: { type: Boolean, default: false },
+  showInsertCitation: { type: Boolean, default: false },
   showMarkdownInsertTable: { type: Boolean, default: false },
   showMarkdownFormatTable: { type: Boolean, default: false },
 })
@@ -53,6 +54,7 @@ const props = defineProps({
 const emit = defineEmits([
   'close',
   'format-document',
+  'insert-citation',
   'insert-markdown-table',
   'format-markdown-table',
   'paste-unavailable',
@@ -78,6 +80,9 @@ const menuGroups = computed(() => {
       ]
 
   const tableItems = []
+  const citationItems = props.showInsertCitation
+    ? [{ key: 'insert-citation', label: t('Insert Citation'), action: insertCitation }]
+    : []
   if (props.showMarkdownInsertTable)
     tableItems.push({ key: 'insert', label: t('Insert Table'), action: insertMarkdownTable })
   if (props.showMarkdownFormatTable)
@@ -89,6 +94,7 @@ const menuGroups = computed(() => {
 
   return [
     { key: 'editing', items: editingItems },
+    ...(citationItems.length ? [{ key: 'citations', items: citationItems }] : []),
     ...(tableItems.length ? [{ key: 'tables', items: tableItems }] : []),
     ...(formatItems.length ? [{ key: 'document', items: formatItems }] : []),
   ]
@@ -149,6 +155,9 @@ function selectAll() {
 function formatDocument() {
   emit('format-document')
 }
+function insertCitation() {
+  emit('insert-citation')
+}
 function formatMarkdownTable() {
   emit('format-markdown-table')
 }
@@ -197,6 +206,7 @@ onBeforeUnmount(() => {
 })
 </script>
 
+<!-- (仅修改 style 部分) -->
 <style scoped>
 .context-menu-backdrop {
   position: fixed;
@@ -204,27 +214,64 @@ onBeforeUnmount(() => {
   z-index: 9998;
   cursor: default;
 }
+
 .context-menu {
   position: fixed;
-  min-width: 180px !important;
+  z-index: 9999;
+  min-width: 200px !important;
+  padding: 5px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  background: color-mix(in srgb, var(--surface-raised) 85%, transparent);
+  box-shadow: 
+    0 8px 24px rgba(0, 0, 0, 0.12), 
+    0 0 0 1px rgba(0, 0, 0, 0.04);
+  backdrop-filter: blur(24px) saturate(1.5);
+  display: flex;
+  flex-direction: column;
 }
+
+.theme-light .context-menu {
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.04);
+}
+
+.context-menu-separator {
+  height: 1px;
+  margin: 4px 0;
+  background: color-mix(in srgb, var(--border-subtle) 60%, transparent);
+}
+
 .context-menu-item {
   width: 100%;
-  background: transparent;
+  padding: 4px 10px;
+  text-align: left;
   border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 13px;
+  cursor: default;
   outline: none;
+  transition: none; /* 移除过渡，原生菜单 hover 应该立刻响应 */
 }
+
+/* 原生高亮蓝 */
+.context-menu-item:hover,
+.context-menu-item:focus-visible {
+  background: var(--accent);
+  color: #ffffff;
+}
+
 .menu-fade-enter-active {
-  transition:
-    opacity 0.1s ease-out,
-    transform 0.1s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: opacity 0.08s ease-out, transform 0.08s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .menu-fade-leave-active {
-  transition: opacity 0.1s ease-in;
+  transition: opacity 0.08s ease-in;
 }
 .menu-fade-enter-from {
   opacity: 0;
-  transform: scaleY(0.98) translateY(-2px);
+  transform: scale(0.98);
 }
 .menu-fade-leave-to {
   opacity: 0;

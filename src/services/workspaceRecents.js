@@ -18,6 +18,7 @@ export function createWorkspaceLifecycleState() {
     lastWorkspace: '',
     setupComplete: false,
     reopenLastWorkspaceOnLaunch: true,
+    reopenLastSessionOnLaunch: true,
   }
 }
 
@@ -47,6 +48,7 @@ function clearLegacyWorkspaceLifecycleStorage() {
     'lastWorkspace',
     'setupComplete',
     'reopenLastWorkspaceOnLaunch',
+    'reopenLastSessionOnLaunch',
   ])
 }
 
@@ -75,6 +77,7 @@ function normalizeWorkspaceLifecycleState(state = {}) {
     lastWorkspace: String(state.lastWorkspace || '').replace(/\/+$/, ''),
     setupComplete: state.setupComplete === true,
     reopenLastWorkspaceOnLaunch: state.reopenLastWorkspaceOnLaunch !== false,
+    reopenLastSessionOnLaunch: state.reopenLastSessionOnLaunch !== false,
   }
 }
 
@@ -84,6 +87,7 @@ function loadBrowserPreviewWorkspaceLifecycleState() {
     lastWorkspace: readLegacyLastWorkspace(),
     setupComplete: readLegacySetupComplete(),
     reopenLastWorkspaceOnLaunch: readStorageBoolean('reopenLastWorkspaceOnLaunch', true),
+    reopenLastSessionOnLaunch: readStorageBoolean('reopenLastSessionOnLaunch', true),
   })
   clearLegacyWorkspaceLifecycleStorage()
   return state
@@ -97,6 +101,10 @@ function saveBrowserPreviewWorkspaceLifecycleState(state = {}) {
   writeStorageValue(
     'reopenLastWorkspaceOnLaunch',
     normalized.reopenLastWorkspaceOnLaunch ? 'true' : 'false'
+  )
+  writeStorageValue(
+    'reopenLastSessionOnLaunch',
+    normalized.reopenLastSessionOnLaunch ? 'true' : 'false'
   )
   return normalized
 }
@@ -114,6 +122,7 @@ export async function loadWorkspaceLifecycleState(globalConfigDir = '') {
         lastWorkspace: readLegacyLastWorkspace(),
         setupComplete: readLegacySetupComplete(),
         reopenLastWorkspaceOnLaunch: readStorageBoolean('reopenLastWorkspaceOnLaunch', true),
+        reopenLastSessionOnLaunch: readStorageBoolean('reopenLastSessionOnLaunch', true),
       },
     },
   })

@@ -41,6 +41,55 @@
               />
             </div>
           </div>
+
+          <div class="settings-row">
+            <div class="settings-row-copy">
+              <div class="settings-row-title">{{ t('Markdown citation format') }}</div>
+              <div class="settings-row-hint">
+                {{ t('Choose how new citations are inserted into Markdown documents.') }}
+              </div>
+            </div>
+            <div class="settings-row-control">
+              <UiSelect
+                :model-value="workspace.markdownCitationFormat"
+                :options="markdownCitationFormatOptions"
+                size="sm"
+                @update:model-value="workspace.setMarkdownCitationFormat"
+              />
+            </div>
+          </div>
+
+          <div class="settings-row">
+            <div class="settings-row-copy">
+              <div class="settings-row-title">{{ t('LaTeX citation command') }}</div>
+              <div class="settings-row-hint">
+                {{ t('Used by the Insert Citation action and new LaTeX citation insertions.') }}
+              </div>
+            </div>
+            <div class="settings-row-control">
+              <UiSelect
+                :model-value="workspace.latexCitationCommand"
+                :options="latexCitationCommandOptions"
+                size="sm"
+                @update:model-value="workspace.setLatexCitationCommand"
+              />
+            </div>
+          </div>
+
+          <div class="settings-row">
+            <div class="settings-row-copy">
+              <div class="settings-row-title">{{ t('Add spaces around inserted citations') }}</div>
+              <div class="settings-row-hint">
+                {{ t('Automatically pad inserted citations so they do not stick to surrounding text.') }}
+              </div>
+            </div>
+            <div class="settings-row-control compact">
+              <UiSwitch
+                :model-value="workspace.citationInsertAddsSpace"
+                @update:model-value="workspace.setCitationInsertAddsSpace($event)"
+              />
+            </div>
+          </div>
         </div>
       </section>
 
@@ -275,6 +324,18 @@ const previewCitationStyleOptions = computed(() => [
 ])
 
 const citationStyle = computed(() => referencesStore.citationStyle || 'apa')
+const markdownCitationFormatOptions = computed(() => [
+  { value: 'bracketed', label: '[@key]' },
+  { value: 'bare', label: '@key' },
+])
+const latexCitationCommandOptions = computed(() => [
+  { value: 'cite', label: '\\cite{}' },
+  { value: 'citep', label: '\\citep{}' },
+  { value: 'citet', label: '\\citet{}' },
+  { value: 'parencite', label: '\\parencite{}' },
+  { value: 'textcite', label: '\\textcite{}' },
+  { value: 'autocite', label: '\\autocite{}' },
+])
 
 // 防御性 computed：确保不会由于 referencesStore 尚未初始化而崩溃
 const citationStyleOptions = computed(() => {
