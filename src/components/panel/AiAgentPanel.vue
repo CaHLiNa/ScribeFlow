@@ -264,8 +264,8 @@ const activeInvocationIndex = ref(0)
 const respondingPermissionRequestId = ref('')
 const respondingAskUserRequestId = ref('')
 const respondingExitPlanRequestId = ref('')
-const COMPOSER_MIN_HEIGHT = 56
-const COMPOSER_MAX_HEIGHT = 180
+const COMPOSER_MIN_HEIGHT = 48
+const COMPOSER_MAX_HEIGHT = 168
 let composerResizeObserver = null
 let lastComposerWidth = 0
 
@@ -987,15 +987,15 @@ watch(
 .ai-agent-panel__composer-well {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 8px 12px 10px;
-  border-radius: 22px;
-  border: 1px solid color-mix(in srgb, var(--border-color) 14%, transparent);
-  background: color-mix(in srgb, var(--surface-base) 92%, transparent);
+  gap: 6px;
+  padding: 8px 10px 9px;
+  border-radius: 20px;
+  border: 1px solid color-mix(in srgb, var(--sidebar-search-border) 72%, transparent);
+  background: color-mix(in srgb, var(--sidebar-shell-surface) 74%, transparent);
   box-shadow:
-    inset 0 1px 0 color-mix(in srgb, white 45%, transparent),
-    0 8px 24px rgba(15, 23, 42, 0.04);
-  backdrop-filter: blur(12px);
+    inset 0 1px 0 color-mix(in srgb, white 28%, transparent),
+    0 6px 18px rgba(15, 23, 42, 0.03);
+  backdrop-filter: blur(14px) saturate(1.04);
 }
 
 .ai-agent-panel__runtime-stack {
@@ -1193,10 +1193,10 @@ watch(
 }
 
 .ai-agent-panel__composer :deep(.ai-agent-panel__textarea-shell .ui-textarea-control) {
-  min-height: 56px;
+  min-height: 48px;
   height: auto;
-  max-height: 180px;
-  padding: 8px 4px 6px !important;
+  max-height: 168px;
+  padding: 6px 4px 5px !important;
   resize: none;
   font-size: 15px;
   line-height: 1.6;
