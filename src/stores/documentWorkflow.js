@@ -26,6 +26,7 @@ import { resolveDocumentPreviewCloseEffect } from '../domains/document/documentW
 import { openLocalPath } from '../services/localFileOpen.js'
 import { mutateDocumentWorkspacePreview } from '../services/documentWorkflow/workspacePreviewBridge.js'
 import { resolveDocumentWorkspacePreviewState as resolveDocumentWorkspacePreviewStateFromBackend } from '../services/documentWorkflow/workspacePreviewStateBridge.js'
+import { resolveDocumentWorkflowUiState as resolveDocumentWorkflowUiStateFromBackend } from '../services/documentWorkflow/workflowUiStateBridge.js'
 
 const PREFS_KEY = 'documentWorkflow.previewPrefs'
 
@@ -69,6 +70,7 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
     workspacePreviewVisibility: {},
     workspacePreviewRequests: {},
     resolvedWorkspacePreviewStates: {},
+    resolvedWorkflowUiStates: {},
     _isReconciling: false,
     _lastTrigger: null,
   }),
@@ -293,6 +295,75 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
           state,
         },
       }
+    },
+
+    buildResolvedWorkflowUiStateKey(request = {}) {
+      return JSON.stringify({
+        filePath: String(request.filePath || ''),
+        artifactPath: String(request.artifactPath || ''),
+        previewState: request.previewState || null,
+        markdownState: request.markdownState || null,
+        latexState: request.latexState || null,
+        queueState: request.queueState || null,
+      })
+    },
+
+    getResolvedWorkflowUiState(filePath, request = {}) {
+      const normalizedPath = String(filePath || '')
+      if (!normalizedPath) return null
+      const entry = this.resolvedWorkflowUiStates[normalizedPath] || null
+      if (!entry) return null
+      const key = this.buildResolvedWorkflowUiStateKey(request)
+      return entry.key === key ? entry.state : null
+    },
+
+    setResolvedWorkflowUiState(filePath, request = {}, state = null) {
+      const normalizedPath = String(filePath || '')
+      if (!normalizedPath) return
+      this.resolvedWorkflowUiStates = {
+        ...this.resolvedWorkflowUiStates,
+        [normalizedPath]: {
+          key: this.buildResolvedWorkflowUiStateKey(request),
+          state,
+        },
+      }
+    },
+
+    async refreshResolvedWorkflowUiState(filePath, request = {}) {
+      const normalizedPath = String(filePath || '')
+      if (!normalizedPath) return null
+
+      if (!this._resolvedWorkflowUiStateInflight) {
+        this._resolvedWorkflowUiStateInflight = new Map()
+      }
+
+      const key = this.buildResolvedWorkflowUiStateKey(request)
+      const inflightKey = `${normalizedPath}::${key}`
+      if (this._resolvedWorkflowUiStateInflight.has(inflightKey)) {
+        return this._resolvedWorkflowUiStateInflight.get(inflightKey)
+      }
+
+      const task = resolveDocumentWorkflowUiStateFromBackend(request)
+        .then((state) => {
+          this.setResolvedWorkflowUiState(normalizedPath, request, state)
+          return state
+        })
+        .catch(() => null)
+        .finally(() => {
+          this._resolvedWorkflowUiStateInflight.delete(inflightKey)
+        })
+
+      this._resolvedWorkflowUiStateInflight.set(inflightKey, task)
+      return task
+    },
+
+    ensureResolvedWorkflowUiState(filePath, request = {}) {
+      const normalizedPath = String(filePath || '')
+      if (!normalizedPath) return null
+      const cached = this.getResolvedWorkflowUiState(normalizedPath, request)
+      if (cached) return cached
+      void this.refreshResolvedWorkflowUiState(normalizedPath, request)
+      return null
     },
 
     async refreshResolvedWorkspacePreviewState(filePath, request = {}) {
@@ -618,9 +689,11 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
       this.workspacePreviewVisibility = {}
       this.workspacePreviewRequests = {}
       this.resolvedWorkspacePreviewStates = {}
+      this.resolvedWorkflowUiStates = {}
       this._isReconciling = false
       this._lastTrigger = null
       this._resolvedWorkspacePreviewStateInflight?.clear?.()
+      this._resolvedWorkflowUiStateInflight?.clear?.()
     },
   },
 })

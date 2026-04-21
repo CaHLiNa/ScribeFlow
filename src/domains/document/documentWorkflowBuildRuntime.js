@@ -1,4 +1,3 @@
-import { resolveDocumentWorkspacePreviewState } from './documentWorkspacePreviewRuntime.js'
 import {
   getDocumentAdapterForFile,
   getDocumentAdapterForWorkflow,
@@ -122,30 +121,32 @@ function resolvePreviewState(filePath, adapter, context, options = {}) {
   if (!adapter) return null
 
   const request = buildPreviewStateRequest(filePath, adapter, context, options)
-  const cached = context.workflowStore?.getResolvedWorkspacePreviewState?.(filePath, request) || null
-  context.workflowStore?.ensureResolvedWorkspacePreviewState?.(filePath, request)
-  if (cached) return cached
+  return context.workflowStore?.ensureResolvedWorkspacePreviewState?.(filePath, request) || null
+}
 
-  return resolveDocumentWorkspacePreviewState({
-    path: request.path,
-    sourcePath: request.sourcePath,
-    workflowUiState: { kind: request.workflowKind, previewKind: request.workflowPreviewKind || null },
-    previewKind: request.previewKind,
-    resolvedTargetPath: request.resolvedTargetPath,
-    expectedTargetPath: resolveExpectedPreviewTargetPath(filePath, adapter, context, options),
-    nativePreviewSupported: resolveNativePreviewSupported(
-      filePath,
-      adapter,
-      context,
-      request.previewKind,
-      options,
-    ),
-    previewRequested: request.previewRequested,
-    artifactReady: request.artifactReady,
-    hasOpenLegacyPreview: request.hasOpenLegacyPreview,
-    preserveOpenLegacy: request.preserveOpenLegacy,
-    hiddenByUser: request.hiddenByUser,
-  })
+function buildWorkflowUiStateRequest(filePath, adapter, context, options = {}, previewState = null) {
+  if (!adapter) return null
+
+  return {
+    filePath,
+    artifactPath: resolveExpectedPreviewTargetPath(filePath, adapter, context, options),
+    previewState,
+    markdownState: adapter.kind === 'markdown'
+      ? context.workflowStore?.markdownPreviewState?.[filePath] || {}
+      : null,
+    latexState: adapter.kind === 'latex'
+      ? context.latexStore?.stateForFile?.(filePath) || {}
+      : null,
+    queueState: adapter.kind === 'latex'
+      ? context.latexStore?.queueStateForFile?.(filePath) || {}
+      : null,
+  }
+}
+
+function resolveWorkflowUiState(filePath, adapter, context, options = {}, previewState = null) {
+  if (!adapter) return null
+  const request = buildWorkflowUiStateRequest(filePath, adapter, context, options, previewState)
+  return context.workflowStore?.ensureResolvedWorkflowUiState?.(filePath, request) || null
 }
 
 export function getDocumentWorkflowStatusTone(uiState = null) {
@@ -203,6 +204,7 @@ export function createDocumentWorkflowBuildRuntime({
     }
 
     const previewState = resolvePreviewState(filePath, adapter, context, options)
+    const uiState = resolveWorkflowUiState(filePath, adapter, context, options, previewState)
     const artifactReady = resolveArtifactReady(filePath, adapter, context)
     const nativePreviewSupported = resolveNativePreviewSupported(
       filePath,
@@ -214,9 +216,10 @@ export function createDocumentWorkflowBuildRuntime({
     return {
       ...context,
       adapter,
+      workflowUiState: uiState,
       previewState,
       workspacePreviewState: previewState,
-      previewKind: previewState?.previewKind || null,
+      previewKind: uiState?.previewKind || previewState?.previewKind || null,
       previewMode: previewState?.previewMode || null,
       previewAvailable: previewState?.previewVisible === true,
       previewVisible: previewState?.previewVisible === true,
@@ -238,8 +241,7 @@ export function createDocumentWorkflowBuildRuntime({
   }
 
   function getUiStateForFile(filePath, options = {}) {
-    const context = buildAdapterContext(filePath, options)
-    return context.adapter?.getUiState?.(filePath, context) || null
+    return buildAdapterContext(filePath, options).workflowUiState || null
   }
 
   function getStatusTextForFile(filePath, options = {}) {

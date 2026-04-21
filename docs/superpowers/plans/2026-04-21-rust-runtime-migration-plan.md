@@ -12,7 +12,7 @@
 
 ## 当前进度
 
-截至 2026-04-21，Task 1 已完成并达到当前 phase 验收：
+截至 2026-04-21，Task 1 与 Task 2 已完成并达到当前 phase 验收：
 
 - 已新增 Rust `WorkspacePreferences` / `WorkbenchState` schema
 - 已新增 `workspace_preferences_load` / `workspace_preferences_save` / `workbench_state_normalize`
@@ -21,6 +21,8 @@
 - 已完成 legacy `localStorage` 迁移入口与清理
 - 已把 browser preview 的 workbench normalize 收口到统一 bridge
 - 已把 `src/shared/workbench*` 与 `src/shared/workspaceThemeOptions.js` 降为纯 metadata，不再承载 normalize 规则
+- 已新增 Rust `document_workflow_ui_resolve`，并把 document workflow 的 workflow ui state / action availability 收口到 backend cache
+- 已把 `documentWorkflow` build/runtime 改成消费 Rust preview state + Rust ui state
 
 当前剩余不阻塞 Task 1 完成、但值得在后续 phase 持续关注的点：
 
@@ -275,6 +277,14 @@ Rust 接管：
 
 **目标：** 让 document workflow 的 preview、compile、artifact state、action availability 由 Rust 统一判定。
 
+当前进度：
+
+- 已新增 Rust `document_workflow_ui_resolve`，把 workflow UI state / action availability 从前端规则下沉到 Rust
+- 已把 `documentWorkflow` store 扩展为缓存型 backend consumer，增加 resolved workflow ui state cache
+- 已把 `documentWorkflowBuildRuntime.js` 改成以 backend preview state + backend ui state 为主，不再本地生成最终 workflow ui state
+- `documentWorkflowActionRuntime.js` 继续通过 Rust action plan 执行动作，前端只负责触发与响应
+- 当前仍未做真实桌面点击回归；原因仍是 Computer Use 无法附着 `tauri dev` 窗口
+
 **Files:**
 
 - Modify: `src-tauri/src/document_workflow.rs`
@@ -290,6 +300,7 @@ Rust 接管：
 - Modify: `src/domains/document/documentWorkspacePreviewRuntime.js`
 - Modify: `src/services/documentWorkflow/workspacePreviewBridge.js`
 - Modify: `src/services/documentWorkflow/workspacePreviewStateBridge.js`
+- Create: `src/services/documentWorkflow/workflowUiStateBridge.js`
 - Modify: `src/services/documentWorkflow/actionRuntimeBridge.js`
 - Modify: `src/services/documentWorkflow/controllerBridge.js`
 - Modify: `src/services/documentWorkflow/adapters/markdown.js`
@@ -314,7 +325,7 @@ Rust 接管：
 
 ### 执行步骤
 
-- [ ] **Step 1: 扩展 Rust `document_workflow_reconcile` 返回结构**
+- [x] **Step 1: 扩展 Rust workflow command set**
 
 必须覆盖：
 
@@ -325,14 +336,14 @@ Rust 接管：
 - workspace preview visibility
 - source/preview route 关系
 
-- [ ] **Step 2: 前端 store 改成“接收型”而不是“推导型”**
+- [x] **Step 2: 前端 store 改成“接收型”而不是“推导型”**
 
 要求：
 
 - `documentWorkflow.js` 不再本地重建 workflow truth
 - `documentWorkspacePreviewRuntime.js` 只保留 UI adapter，删除策略判断
 
-- [ ] **Step 3: 收口 bridge**
+- [x] **Step 3: 收口 bridge**
 
 把以下桥接改成薄层：
 
@@ -341,7 +352,7 @@ Rust 接管：
 - `actionRuntimeBridge.js`
 - `controllerBridge.js`
 
-- [ ] **Step 4: 删除前端重复策略**
+- [x] **Step 4: 删除前端重复策略**
 
 删除目标：
 
@@ -349,21 +360,43 @@ Rust 接管：
 - artifact ready 的本地重复判定
 - action enable/disable 的本地最终权威
 
+当前结果：
+
+- preview state、workspace preview visibility、preview close/open effect 继续由 Rust command 决定
+- workflow ui state 与 action availability 已由 Rust 统一输出，前端不再本地决定最终 `canRevealPreview` / `canOpenPdf` / `primaryAction`
+- `documentWorkflow.js` 已收敛为 orchestration + cache 层，前端 build runtime 不再本地生成最终 workflow ui state
+
 ### 验收标准
 
 - Markdown / LaTeX 的 preview 切换行为由 Rust 单点决定
 - build / preview / open output / reveal source 不再依赖前端多处推导
 - `documentWorkflow.js` 只剩 orchestration 与缓存，不再做规则中心
 
+当前结果：
+
+- 已满足“preview / artifact / action availability 由 Rust 单点决定”的 phase 目标
+- 前端仍保留 markdown render 状态与 latex compile 原始状态采集，但这些只是 backend resolve 的输入，不再是最终行为权威
+
 ### 验证
 
 - `cargo check --manifest-path src-tauri/Cargo.toml`
+- `cargo test --manifest-path src-tauri/Cargo.toml document_workflow`
 - `npm run build`
+- `npm run lint`
 - 手动验证：
   - Markdown 打开/关闭 preview
   - LaTeX 编译后 PDF preview 打开
   - 关闭 preview 后状态恢复
   - 重新打开文档后 preview route 正确
+
+当前验证记录：
+
+- 已执行 `cargo check --manifest-path src-tauri/Cargo.toml`
+- 已执行 `cargo test --manifest-path src-tauri/Cargo.toml document_workflow`
+- 已执行 `npm run build`
+- 已执行 `npm run lint`
+- 已执行 `npm run tauri -- dev`，确认桌面应用在当前改动下能启动
+- 尚未完成真实桌面窗口点击回归；阻塞原因仍是当前 Computer Use 无法识别 `tauri dev` 窗口实例
 
 ---
 

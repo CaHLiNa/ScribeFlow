@@ -466,6 +466,7 @@ pub fn run() {
             references_zotero::references_zotero_delete_item,
             document_outline::document_outline_resolve,
             document_workflow_action::document_workflow_action_resolve,
+            document_workflow_action::document_workflow_ui_resolve,
             document_workflow_controller::document_workflow_controller_execute,
             document_workspace_preview::document_workspace_preview_mutate,
             document_workspace_preview_state::document_workspace_preview_state_resolve,
