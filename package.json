@@ -54,7 +54,6 @@
     "highlight.js": "^11.11.1",
     "katex": "^0.16.28",
     "mdast-util-to-string": "^4.0.0",
-    "pdfjs-dist": "^5.6.205",
     "pinia": "^2.2.0",
     "rehype-highlight": "^7.0.2",
     "rehype-katex": "^7.0.1",

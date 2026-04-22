@@ -1,20 +1,15 @@
 <template>
   <div ref="previewHostRef" class="pdf-artifact-preview-host">
     <component
-      :is="activePdfSurface"
+      :is="PdfEmbedSurface"
       :sourcePath="sourcePath"
       :artifactPath="artifactPath"
       :previewRevision="previewRevision"
       :themeTokens="themeTokens"
       :kind="kind"
       :workspacePath="workspace.path || ''"
-      :workspaceDataDir="workspace.workspaceDataDir || ''"
-      :globalConfigDir="workspace.globalConfigDir || ''"
       :compileState="compileState"
       :forwardSyncRequest="forwardSyncRequest"
-      :resolvedTheme="resolvedTheme"
-      :pdfPageBackgroundFollowsTheme="workspace.pdfPageBackgroundFollowsTheme"
-      :pdfCustomPageBackground="workspace.pdfCustomPageBackground"
       :pdfViewerZoomMode="workspace.pdfViewerZoomMode"
       :pdfViewerSpreadMode="workspace.pdfViewerSpreadMode"
       :pdfViewerAutoSync="workspace.pdfViewerAutoSync"
@@ -34,8 +29,6 @@ import { useDocumentWorkflowStore } from '../../stores/documentWorkflow.js'
 import { useWorkspaceStore } from '../../stores/workspace.js'
 import { dispatchLatexBackwardSync } from '../../services/latex/pdfPreviewSync.js'
 import { resolvePdfPreviewRevision } from '../../domains/document/pdfPreviewSessionRuntime.js'
-import { shouldUseEmbedPdfBackend } from '../../services/pdf/pdfViewerBackend.js'
-import PdfIframeSurface from './PdfIframeSurface.vue'
 import PdfEmbedSurface from './PdfEmbedSurface.vue'
 
 const PDF_PREVIEW_THEME_TOKEN_NAMES = [
@@ -67,7 +60,6 @@ const latexStore = useLatexStore()
 const workflowStore = useDocumentWorkflowStore()
 const previewHostRef = ref(null)
 const themeTokens = ref(capturePdfPreviewThemeTokens())
-const resolvedTheme = ref(resolveThemePreference())
 
 const compileState = computed(() => {
   if (props.kind !== 'latex') return null
@@ -87,13 +79,6 @@ const compileState = computed(() => {
 const forwardSyncRequest = computed(() =>
   props.kind === 'latex' ? latexStore.forwardSyncRequestFor(props.sourcePath) : null
 )
-const activePdfSurface = computed(() => {
-  if (props.kind !== 'pdf' && props.kind !== 'latex') {
-    return PdfIframeSurface
-  }
-
-  return shouldUseEmbedPdfBackend() ? PdfEmbedSurface : PdfIframeSurface
-})
 const previewRevision = computed(() =>
   resolvePdfPreviewRevision({
     paneId: props.paneId,
@@ -104,40 +89,7 @@ const previewRevision = computed(() =>
   })
 )
 
-function normalizeResolvedThemeValue(value) {
-  return String(value || '')
-    .trim()
-    .toLowerCase() === 'light'
-    ? 'light'
-    : 'dark'
-}
-
-function resolveThemePreference() {
-  if (typeof document !== 'undefined') {
-    const datasetResolved = String(document.documentElement.dataset.themeResolved || '')
-      .trim()
-      .toLowerCase()
-    if (datasetResolved === 'light' || datasetResolved === 'dark') {
-      return datasetResolved
-    }
-  }
-
-  const normalizedTheme = String(workspace.theme || '')
-    .trim()
-    .toLowerCase()
-  if (normalizedTheme === 'light' || normalizedTheme === 'dark') {
-    return normalizedTheme
-  }
-
-  if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-  }
-
-  return 'dark'
-}
-
 function refreshThemeTokens() {
-  resolvedTheme.value = resolveThemePreference()
   themeTokens.value = capturePdfPreviewThemeTokens()
 }
 
@@ -196,10 +148,7 @@ function handleForwardSyncHandled(detail) {
   latexStore.clearForwardSync(props.sourcePath, requestId)
 }
 
-function handleWorkspaceThemeUpdated(event) {
-  resolvedTheme.value = normalizeResolvedThemeValue(
-    event?.detail?.resolvedTheme || resolveThemePreference()
-  )
+function handleWorkspaceThemeUpdated() {
   void scheduleThemeSnapshot()
 }
 

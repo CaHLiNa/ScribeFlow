@@ -110,17 +110,6 @@ const chunkGroups = [
     '/node_modules/@codemirror/',
     '/node_modules/codemirror/',
   ]],
-  ['vendor-pdf-viewer', [
-    '/node_modules/pdfjs-dist/legacy/web/',
-    '/node_modules/pdfjs-dist/web/',
-  ]],
-  ['vendor-pdf', [
-    '/node_modules/pdfjs-dist/legacy/build/',
-    ]],
-  ['vendor-pdf-worker', [
-    '/node_modules/pdfjs-dist/build/',
-    '/node_modules/pdfjs-dist/',
-  ]],
 ]
 
 function getManualChunk(id) {

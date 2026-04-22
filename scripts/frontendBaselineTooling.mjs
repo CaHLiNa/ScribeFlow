@@ -16,7 +16,6 @@ export const FRONTEND_BASELINE_LINT_TARGETS = Object.freeze(
     'src/components/editor/EditorTextWorkspaceSurface.vue',
     'src/components/editor/EditorContextMenu.vue',
     'src/components/editor/TextEditor.vue',
-    'src/components/editor/PdfIframeSurface.vue',
     'src/components/sidebar/FileTree.vue',
     'src/components/sidebar/FileTreeItem.vue',
     'src/components/layout/WorkbenchRail.vue',
@@ -52,7 +51,6 @@ export const FRONTEND_BASELINE_RAW_FORM_CONTROL_FILES = Object.freeze([
 export const FRONTEND_BASELINE_INLINE_STYLE_FILES = Object.freeze([
   'src/components/editor/EditorPane.vue',
   'src/components/editor/TextEditor.vue',
-  'src/components/editor/PdfIframeSurface.vue',
 ])
 
 const TOOL_COMMANDS = {
