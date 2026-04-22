@@ -25,6 +25,30 @@
           >
             <IconLayoutSidebarLeftExpand :size="16" :stroke-width="1.8" />
           </UiButton>
+          <div class="pdf-artifact-preview__toolbar-icon-group">
+            <UiButton
+              variant="ghost"
+              size="sm"
+              icon-only
+              :active="currentSpreadMode === 'single'"
+              :title="t('Single page')"
+              :aria-label="t('Single page')"
+              @click="setPreferredSpreadMode('single')"
+            >
+              <IconRectangleVertical :size="16" :stroke-width="1.8" />
+            </UiButton>
+            <UiButton
+              variant="ghost"
+              size="sm"
+              icon-only
+              :active="currentSpreadMode === 'double'"
+              :title="t('Two-page spread')"
+              :aria-label="t('Two-page spread')"
+              @click="setPreferredSpreadMode('double')"
+            >
+              <IconColumns2 :size="16" :stroke-width="1.8" />
+            </UiButton>
+          </div>
           <UiButton
             variant="ghost"
             size="sm"
@@ -82,32 +106,6 @@
               / {{ totalPageCount }}
             </span>
           </div>
-
-          <div class="pdf-artifact-preview__toolbar-icon-group">
-            <UiButton
-              variant="ghost"
-              size="sm"
-              icon-only
-              :active="currentSpreadMode === 'single'"
-              :title="t('Single page')"
-              :aria-label="t('Single page')"
-              @click="setPreferredSpreadMode('single')"
-            >
-              <IconRectangleVertical :size="16" :stroke-width="1.8" />
-            </UiButton>
-            <UiButton
-              variant="ghost"
-              size="sm"
-              icon-only
-              :active="currentSpreadMode === 'double'"
-              :title="t('Two-page spread')"
-              :aria-label="t('Two-page spread')"
-              @click="setPreferredSpreadMode('double')"
-            >
-              <IconColumns2 :size="16" :stroke-width="1.8" />
-            </UiButton>
-          </div>
-
         </div>
 
       </div>
