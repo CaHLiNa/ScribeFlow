@@ -1,10 +1,12 @@
 <template>
   <div ref="previewHostRef" class="pdf-artifact-preview-host">
-    <PdfIframeSurface
+    <component
+      :is="activePdfSurface"
       :sourcePath="sourcePath"
       :artifactPath="artifactPath"
-      :kind="kind"
       :previewRevision="previewRevision"
+      :themeTokens="themeTokens"
+      :kind="kind"
       :workspacePath="workspace.path || ''"
       :workspaceDataDir="workspace.workspaceDataDir || ''"
       :globalConfigDir="workspace.globalConfigDir || ''"
@@ -17,7 +19,6 @@
       :pdfViewerSpreadMode="workspace.pdfViewerSpreadMode"
       :pdfViewerAutoSync="workspace.pdfViewerAutoSync"
       :pdfViewerLastScale="workspace.pdfViewerLastScale"
-      :themeTokens="themeTokens"
       @open-external="$emit('open-external')"
       @backward-sync="handleBackwardSync"
       @forward-sync-handled="handleForwardSyncHandled"
@@ -32,7 +33,9 @@ import { useLatexStore } from '../../stores/latex.js'
 import { useWorkspaceStore } from '../../stores/workspace.js'
 import { dispatchLatexBackwardSync } from '../../services/latex/pdfPreviewSync.js'
 import { resolvePdfPreviewRevision } from '../../domains/document/pdfPreviewSessionRuntime.js'
+import { shouldUseEmbedPdfBackend } from '../../services/pdf/pdfViewerBackend.js'
 import PdfIframeSurface from './PdfIframeSurface.vue'
+import PdfEmbedSurface from './PdfEmbedSurface.vue'
 
 const PDF_PREVIEW_THEME_TOKEN_NAMES = [
   '--surface-base',
@@ -72,6 +75,13 @@ const compileState = computed(() => {
 const forwardSyncRequest = computed(() =>
   props.kind === 'latex' ? latexStore.forwardSyncRequestFor(props.sourcePath) : null
 )
+const activePdfSurface = computed(() => {
+  if (props.kind !== 'pdf') {
+    return PdfIframeSurface
+  }
+
+  return shouldUseEmbedPdfBackend() ? PdfEmbedSurface : PdfIframeSurface
+})
 const previewRevision = computed(() =>
   resolvePdfPreviewRevision({
     paneId: props.paneId,
