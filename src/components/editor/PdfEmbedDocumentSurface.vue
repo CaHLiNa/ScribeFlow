@@ -66,9 +66,14 @@
           <UiButton variant="ghost" size="sm" :title="t('Zoom out')" @click="zoomBy(-1)">
             -
           </UiButton>
-          <span class="pdf-artifact-preview__toolbar-value" :title="t('Current zoom')">
-            {{ zoomDisplayLabel }}
-          </span>
+          <UiSelect
+            shell-class="pdf-artifact-preview__toolbar-select"
+            size="sm"
+            :model-value="zoomMenuValue"
+            :options="zoomMenuOptions"
+            :aria-label="t('Current zoom')"
+            @update:model-value="handleZoomMenuSelection"
+          />
           <UiButton variant="ghost" size="sm" :title="t('Zoom in')" @click="zoomBy(1)">
             +
           </UiButton>
@@ -317,6 +322,7 @@ import { useWorkspaceStore } from '../../stores/workspace.js'
 import { basenamePath } from '../../utils/path.js'
 import SurfaceContextMenu from '../shared/SurfaceContextMenu.vue'
 import UiButton from '../shared/ui/UiButton.vue'
+import UiSelect from '../shared/ui/UiSelect.vue'
 
 const props = defineProps({
   documentId: { type: String, required: true },
@@ -339,6 +345,7 @@ const emit = defineEmits([
 ])
 
 const SEARCH_DEBOUNCE_MS = 140
+const ZOOM_MENU_PRESET_VALUES = ['0.5', '0.75', '1', '1.25', '1.5', '2', '3', '4']
 
 const { t } = useI18n()
 const workspace = useWorkspaceStore()
@@ -403,6 +410,39 @@ const zoomDisplayLabel = computed(() => {
   const numericScale = Number(scaleValue)
   if (!Number.isFinite(numericScale) || numericScale <= 0) return '100%'
   return `${Math.round(numericScale * 100)}%`
+})
+const zoomMenuValue = computed(() => {
+  const scaleValue = resolveScaleValueFromZoomState()
+  if (scaleValue === 'page-fit' || scaleValue === 'page-width') return scaleValue
+
+  const normalizedScale = normalizeWorkspacePdfViewerLastScale(scaleValue)
+  if (normalizedScale) return normalizedScale
+  return '1'
+})
+const zoomMenuOptions = computed(() => {
+  const options = [
+    { value: 'page-width', label: t('Width'), triggerLabel: t('Width') },
+    { value: 'page-fit', label: t('Fit'), triggerLabel: t('Fit') },
+  ]
+
+  if (!ZOOM_MENU_PRESET_VALUES.includes(zoomMenuValue.value)) {
+    options.push({
+      value: zoomMenuValue.value,
+      label: zoomDisplayLabel.value,
+      triggerLabel: zoomDisplayLabel.value,
+    })
+  }
+
+  return options.concat(
+    ZOOM_MENU_PRESET_VALUES.map((value) => {
+      const percentage = Math.round(Number(value) * 100)
+      return {
+        value,
+        label: `${percentage}%`,
+        triggerLabel: `${percentage}%`,
+      }
+    })
+  )
 })
 const searchSummary = computed(() => {
   if (search.state.value?.loading) return t('Searching...')
@@ -665,6 +705,19 @@ function setPreferredZoomMode(mode = 'page-width') {
   const normalizedMode = mode === 'page-fit' ? 'page-fit' : 'page-width'
   applyZoomValue(normalizedMode)
   void workspace.setPdfViewerZoomMode(normalizedMode).catch(() => {})
+}
+
+function handleZoomMenuSelection(value = 'page-width') {
+  const normalizedValue = String(value || '').trim()
+  if (!normalizedValue) return
+
+  if (normalizedValue === 'page-fit' || normalizedValue === 'page-width') {
+    setPreferredZoomMode(normalizedValue)
+    return
+  }
+
+  if (!applyZoomValue(normalizedValue)) return
+  void workspace.setPdfViewerZoomMode('remember-last').catch(() => {})
 }
 
 function setPreferredSpreadMode(mode = 'single') {
@@ -1387,20 +1440,6 @@ onUnmounted(() => {
   justify-content: flex-end;
 }
 
-.pdf-artifact-preview__toolbar-value {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 36px;
-  height: 28px;
-  padding: 0 8px;
-  color: var(--text-primary);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 500;
-  white-space: nowrap;
-}
-
 .pdf-artifact-preview__toolbar-page-group,
 .pdf-artifact-preview__toolbar-icon-group {
   display: inline-flex;
@@ -1680,6 +1719,36 @@ onUnmounted(() => {
 :deep(.pdf-artifact-preview__toolbar .ui-button.is-icon-only) {
   width: 28px;
   padding: 0;
+}
+
+:deep(.pdf-artifact-preview__toolbar .pdf-artifact-preview__toolbar-select) {
+  width: auto;
+  min-width: 68px;
+}
+
+:deep(.pdf-artifact-preview__toolbar .pdf-artifact-preview__toolbar-select .ui-select-trigger) {
+  height: 28px;
+  padding: 0 22px 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 500;
+  box-shadow: none;
+}
+
+:deep(.pdf-artifact-preview__toolbar .pdf-artifact-preview__toolbar-select .ui-select-trigger:hover:not(:disabled)) {
+  background: color-mix(in srgb, var(--surface-hover) 12%, transparent);
+}
+
+:deep(.pdf-artifact-preview__toolbar .pdf-artifact-preview__toolbar-select .ui-select-trigger:focus-visible) {
+  background: color-mix(in srgb, var(--surface-hover) 10%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--focus-ring) 44%, transparent);
+}
+
+:deep(.pdf-artifact-preview__toolbar .pdf-artifact-preview__toolbar-select .ui-select-caret) {
+  right: 6px;
 }
 
 @media (max-width: 720px) {
