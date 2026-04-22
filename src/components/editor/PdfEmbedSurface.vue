@@ -43,10 +43,17 @@
             <PdfEmbedDocumentSurface
               v-else-if="isLoaded"
               :document-id="activeDocumentId"
+              :artifactPath="artifactPath"
+              :kind="kind"
               :pdfViewerZoomMode="pdfViewerZoomMode"
               :pdfViewerSpreadMode="pdfViewerSpreadMode"
               :pdfViewerLastScale="pdfViewerLastScale"
               :restore-state="pendingRestoreState"
+              :forward-sync-point="pendingForwardSyncPoint"
+              @open-external="$emit('open-external')"
+              @reload-requested="reloadPdf"
+              @reverse-sync-request="handleReverseSyncRequest"
+              @forward-sync-point-consumed="handleForwardSyncPointConsumed"
               @view-state-change="handleViewStateChange"
               @restore-state-consumed="handleRestoreStateConsumed"
             />
@@ -66,7 +73,11 @@ import { DocumentContent } from '@embedpdf/plugin-document-manager/vue'
 
 import { useI18n } from '../../i18n'
 import UiButton from '../shared/ui/UiButton.vue'
-import { readPdfArtifactBase64 } from '../../services/pdf/artifactPreview.js'
+import {
+  requestLatexPdfBackwardSync,
+  readPdfArtifactBase64,
+  requestLatexPdfForwardSync,
+} from '../../services/pdf/artifactPreview.js'
 import {
   buildEmbedPdfPluginRegistrations,
   decodePdfBase64ToArrayBuffer,
@@ -76,20 +87,26 @@ import {
   resolvePdfPreviewSessionTransition,
   snapshotPdfPreviewViewState,
 } from '../../domains/document/pdfPreviewSessionRuntime.js'
+import { resolveLatexSyncTargetPath } from '../../services/latex/previewSync.js'
 import { basenamePath } from '../../utils/path.js'
 import PdfEmbedDocumentSurface from './PdfEmbedDocumentSurface.vue'
 
 const props = defineProps({
   sourcePath: { type: String, required: true },
   artifactPath: { type: String, required: true },
+  kind: { type: String, default: 'pdf' },
+  compileState: { type: Object, default: null },
+  forwardSyncRequest: { type: Object, default: null },
   previewRevision: { type: Object, default: null },
+  workspacePath: { type: String, default: '' },
   themeTokens: { type: Object, default: () => ({}) },
+  pdfViewerAutoSync: { type: Boolean, default: true },
   pdfViewerZoomMode: { type: String, default: 'page-width' },
   pdfViewerSpreadMode: { type: String, default: 'single' },
   pdfViewerLastScale: { type: String, default: '' },
 })
 
-defineEmits(['open-external'])
+const emit = defineEmits(['open-external', 'backward-sync', 'forward-sync-handled'])
 
 const { t } = useI18n()
 const { engine, isLoading: engineLoading, error: engineError } = usePdfiumEngine()
@@ -98,10 +115,12 @@ const documentBuffer = ref(null)
 const documentName = ref('')
 const latestViewState = ref(null)
 const pendingRestoreState = ref(null)
+const pendingForwardSyncPoint = ref(null)
 const previewLoadPending = ref(true)
 const previewLoadError = ref('')
 const embedViewerKey = ref(0)
 const previewSessionState = createPdfPreviewSessionState()
+let lastHandledForwardSyncId = 0
 
 const plugins = computed(() =>
   buildEmbedPdfPluginRegistrations({
@@ -158,6 +177,7 @@ async function loadPdfDocument(options = {}) {
     previewLoadPending.value = false
     previewLoadError.value = t('Could not load PDF')
     pendingRestoreState.value = null
+    pendingForwardSyncPoint.value = null
     return
   }
 
@@ -186,6 +206,78 @@ function handleViewStateChange(nextState) {
 
 function handleRestoreStateConsumed() {
   pendingRestoreState.value = null
+}
+
+function handleForwardSyncPointConsumed() {
+  pendingForwardSyncPoint.value = null
+}
+
+async function handleReverseSyncRequest(detail = {}) {
+  if (props.kind !== 'latex') return
+
+  const synctexPath = String(props.compileState?.synctexPath || '').trim()
+  if (!synctexPath) return
+
+  try {
+    const result = await requestLatexPdfBackwardSync({
+      synctexPath,
+      page: Number(detail.page || 0),
+      x: Number(detail.pos?.[0]),
+      y: Number(detail.pos?.[1]),
+    })
+
+    if (result?.file && result?.line) {
+      const resolvedFile = resolveLatexSyncTargetPath(result.file, {
+        sourcePath: props.sourcePath,
+        compileTargetPath: props.compileState?.compileTargetPath || '',
+        workspacePath: props.workspacePath || '',
+      })
+      emit('backward-sync', {
+        ...result,
+        file: resolvedFile || result.file,
+        textBeforeSelection: String(detail.textBeforeSelection || ''),
+        textAfterSelection: String(detail.textAfterSelection || ''),
+      })
+    }
+  } catch {
+    // Reverse sync is optional; keep the current preview stable when it fails.
+  }
+}
+
+async function handleForwardSyncRequest(request) {
+  if (props.kind !== 'latex' || !request?.id || request.id === lastHandledForwardSyncId) return
+  if (props.pdfViewerAutoSync !== true) {
+    emit('forward-sync-handled', { id: request.id, sourcePath: props.sourcePath })
+    return
+  }
+
+  const synctexPath = String(props.compileState?.synctexPath || '').trim()
+  if (!synctexPath) {
+    emit('forward-sync-handled', { id: request.id, sourcePath: props.sourcePath })
+    return
+  }
+
+  lastHandledForwardSyncId = request.id
+  try {
+    const result = await requestLatexPdfForwardSync({
+      synctexPath,
+      texPath: props.sourcePath,
+      line: request.line,
+      column: request.column,
+    })
+
+    if (result?.page && Number.isFinite(result?.x) && Number.isFinite(result?.y)) {
+      pendingForwardSyncPoint.value = {
+        page: Number(result.page),
+        x: Number(result.x),
+        y: Number(result.y),
+      }
+    }
+  } catch {
+    // Forward sync is optional; keep the current preview stable when it fails.
+  } finally {
+    emit('forward-sync-handled', { id: request.id, sourcePath: props.sourcePath })
+  }
 }
 
 async function handlePreviewRevisionChange(nextRevision, previousRevision, options = {}) {
@@ -224,6 +316,13 @@ watch(
     void handlePreviewRevisionChange(nextRevision, previousRevision, { forceInitialLoad: true })
   },
   { immediate: true }
+)
+
+watch(
+  () => props.forwardSyncRequest,
+  (request) => {
+    void handleForwardSyncRequest(request)
+  }
 )
 </script>
 

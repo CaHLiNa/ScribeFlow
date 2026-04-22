@@ -76,7 +76,7 @@ const forwardSyncRequest = computed(() =>
   props.kind === 'latex' ? latexStore.forwardSyncRequestFor(props.sourcePath) : null
 )
 const activePdfSurface = computed(() => {
-  if (props.kind !== 'pdf') {
+  if (props.kind !== 'pdf' && props.kind !== 'latex') {
     return PdfIframeSurface
   }
 

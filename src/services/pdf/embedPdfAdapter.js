@@ -1,5 +1,6 @@
 import { createPluginRegistration } from '@embedpdf/core'
 import { DocumentManagerPluginPackage } from '@embedpdf/plugin-document-manager/vue'
+import { ExportPluginPackage } from '@embedpdf/plugin-export/vue'
 import { RenderPluginPackage } from '@embedpdf/plugin-render/vue'
 import { ScrollPluginPackage, ScrollStrategy } from '@embedpdf/plugin-scroll/vue'
 import { SpreadMode, SpreadPluginPackage } from '@embedpdf/plugin-spread/vue'
@@ -40,6 +41,18 @@ export function decodePdfBase64ToArrayBuffer(base64 = '') {
   return bytes.buffer
 }
 
+export function encodePdfArrayBufferToBase64(buffer) {
+  const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer)
+  let binary = ''
+  const chunkSize = 8192
+
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize))
+  }
+
+  return btoa(binary)
+}
+
 export function buildEmbedPdfPluginRegistrations(options = {}) {
   const documentBuffer = options.documentBuffer
   const documentName = String(options.documentName || 'document.pdf').trim() || 'document.pdf'
@@ -69,6 +82,9 @@ export function buildEmbedPdfPluginRegistrations(options = {}) {
     }),
     createPluginRegistration(ZoomPluginPackage, {
       defaultZoomLevel: resolveEmbedPdfZoomLevel(options),
+    }),
+    createPluginRegistration(ExportPluginPackage, {
+      defaultFileName: documentName,
     }),
     createPluginRegistration(RenderPluginPackage),
   ]

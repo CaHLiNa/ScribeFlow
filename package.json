@@ -32,6 +32,7 @@
     "@embedpdf/core": "^2.14.0",
     "@embedpdf/engines": "^2.14.0",
     "@embedpdf/plugin-document-manager": "^2.14.0",
+    "@embedpdf/plugin-export": "^2.14.0",
     "@embedpdf/plugin-render": "^2.14.0",
     "@embedpdf/plugin-scroll": "^2.14.0",
     "@embedpdf/plugin-search": "^2.14.0",
