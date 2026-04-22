@@ -457,6 +457,12 @@ function readDomSelectedText() {
   )
 }
 
+function resolveEventTargetElement(target) {
+  if (target?.nodeType === Node.ELEMENT_NODE) return target
+  if (target?.nodeType === Node.TEXT_NODE) return target.parentElement || null
+  return null
+}
+
 function captureSelectionTextContext() {
   if (typeof window === 'undefined' || typeof document === 'undefined') {
     return { textBeforeSelection: '', textAfterSelection: '' }
@@ -1108,7 +1114,8 @@ async function savePdfToDisk() {
 function resolveReverseSyncDetail(event) {
   if (props.kind !== 'latex') return null
 
-  const pageElement = event?.target?.closest?.('.pdf-artifact-preview__page-shell')
+  const eventTarget = resolveEventTargetElement(event?.target)
+  const pageElement = eventTarget?.closest?.('.pdf-artifact-preview__page-shell') || null
   const pageNumber = Number(pageElement?.dataset?.pageNumber || 0)
   const pointer = resolveMouseClientPoint(event)
   const pageBinding = resolvePageBinding(pageNumber)
