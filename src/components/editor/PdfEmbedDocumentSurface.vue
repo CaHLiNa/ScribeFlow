@@ -1161,6 +1161,16 @@ function resolveForwardSyncAnchorPoint(point = {}) {
   const pageNumber = Number(point.page || 0)
   if (!Number.isInteger(pageNumber) || pageNumber < 1) return null
 
+  const x = Number(point.x)
+  const y = Number(point.y)
+  if (Number.isFinite(x) && Number.isFinite(y)) {
+    return {
+      page: pageNumber,
+      x,
+      y,
+    }
+  }
+
   const rectLeft = Number(point.rectLeft)
   const rectTop = Number(point.rectTop)
   if (Number.isFinite(rectLeft) && Number.isFinite(rectTop)) {
@@ -1171,15 +1181,7 @@ function resolveForwardSyncAnchorPoint(point = {}) {
     }
   }
 
-  const x = Number(point.x)
-  const y = Number(point.y)
-  if (!Number.isFinite(x) || !Number.isFinite(y)) return null
-
-  return {
-    page: pageNumber,
-    x,
-    y,
-  }
+  return null
 }
 
 function resolveForwardSyncRect(point = {}) {
@@ -1199,6 +1201,11 @@ function resolveForwardSyncRect(point = {}) {
     return null
   }
 
+  const currentScale = Number(documentState.value?.scale || 1)
+  const safeScale = Number.isFinite(currentScale) && currentScale > 0 ? currentScale : 1
+  const maxHighlightHeight = 28 / safeScale
+  const clampedHeight = Math.min(rectHeight, maxHighlightHeight)
+
   return {
     origin: {
       x: rectLeft,
@@ -1206,7 +1213,7 @@ function resolveForwardSyncRect(point = {}) {
     },
     size: {
       width: rectWidth,
-      height: rectHeight,
+      height: clampedHeight,
     },
   }
 }
