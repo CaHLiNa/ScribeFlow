@@ -202,6 +202,12 @@ export const shouldersTheme = EditorView.theme(
     '.cm-tm-command-punctuation': {
       color: 'var(--latex-command-punctuation)',
     },
+    '.cm-tm-package-class': {
+      color: 'var(--latex-package-class)',
+    },
+    '.cm-tm-option-value': {
+      color: 'var(--latex-option-value)',
+    },
     '.cm-tm-arg-brace': {
       color: 'var(--latex-arg-brace)',
     },

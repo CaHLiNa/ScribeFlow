@@ -43,7 +43,6 @@ const TEXTMATE_SCOPE_CLASSIFIERS = Object.freeze([
   ['constant.other.reference.citation', 'cm-tm-citation-key'],
   ['constant.other.reference.label', 'cm-tm-label-name'],
   ['variable.parameter.definition.label', 'cm-tm-label-name'],
-  ['variable.parameter.function', 'cm-tm-environment-name'],
   ['storage.type.function', 'cm-tm-function-definition'],
   ['storage.type', 'cm-tm-function-definition'],
   ['keyword.other.item', 'cm-tm-item-command'],
@@ -66,14 +65,13 @@ const TEXTMATE_SCOPE_CLASSIFIERS = Object.freeze([
   ['support.function.general', 'cm-tm-general-command'],
   ['support.class.math.block.environment', 'cm-tm-math-variable'],
   ['support.class.math.block.tex', 'cm-tm-math-variable'],
+  ['support.class.latex', 'cm-tm-package-class'],
   ['constant.character.math', 'cm-tm-math-symbol'],
   ['constant.other.general.math', 'cm-tm-math-function'],
   ['constant.other.math', 'cm-tm-math-function'],
   ['constant.character.escape', 'cm-tm-escape'],
   ['meta.preamble', 'cm-tm-preamble'],
   ['meta.include', 'cm-tm-include'],
-  ['punctuation.definition.function', 'cm-tm-command-punctuation'],
-  ['punctuation.definition.keyword', 'cm-tm-command-punctuation'],
   ['punctuation.definition.constant.math', 'cm-tm-math-command-punctuation'],
   ['punctuation.definition.arguments.optional.begin', 'cm-tm-optional-brace'],
   ['punctuation.definition.arguments.optional.end', 'cm-tm-optional-brace'],
@@ -102,6 +100,53 @@ function getDecorationForClasses(className) {
 
 function classifyTextmateScopes(scopes = []) {
   const classes = new Set()
+  const hasScope = (prefix) => scopes.some((scope) => scope.startsWith(prefix))
+
+  if (hasScope('punctuation.definition.function') || hasScope('punctuation.definition.keyword')) {
+    if (hasScope('storage.type.function')) {
+      classes.add('cm-tm-function-definition')
+    } else if (hasScope('keyword.control.preamble')) {
+      classes.add('cm-tm-preamble-command')
+    } else if (hasScope('support.function.be')) {
+      classes.add('cm-tm-begin-end')
+    } else if (hasScope('support.function.section')) {
+      classes.add('cm-tm-section-command')
+    } else if (hasScope('support.function.url')) {
+      classes.add('cm-tm-link-function')
+    } else if (hasScope('keyword.control.label')) {
+      classes.add('cm-tm-label-command')
+    } else if (hasScope('keyword.control.cite')) {
+      classes.add('cm-tm-citation-command')
+    } else if (hasScope('keyword.control.ref')) {
+      classes.add('cm-tm-reference-command')
+    } else if (hasScope('keyword.control.include')) {
+      classes.add('cm-tm-include-command')
+    } else if (hasScope('keyword.control.layout')) {
+      classes.add('cm-tm-layout-command')
+    } else if (hasScope('keyword.other.item')) {
+      classes.add('cm-tm-item-command')
+    } else if (hasScope('support.function.general')) {
+      classes.add('cm-tm-general-command')
+    } else {
+      classes.add('cm-tm-command-punctuation')
+    }
+  }
+
+  if (hasScope('punctuation.definition.constant.math')) {
+    if (hasScope('constant.other.general.math') || hasScope('constant.other.math')) {
+      classes.add('cm-tm-math-function')
+    } else if (hasScope('constant.character.math')) {
+      classes.add('cm-tm-math-symbol')
+    }
+  }
+
+  if (hasScope('variable.parameter.function')) {
+    if (hasScope('meta.parameter.optional')) {
+      classes.add('cm-tm-option-value')
+    } else if (hasScope('meta.function.environment')) {
+      classes.add('cm-tm-environment-name')
+    }
+  }
 
   for (const scope of scopes) {
     for (const [prefix, className] of TEXTMATE_SCOPE_CLASSIFIERS) {

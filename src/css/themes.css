@@ -51,12 +51,12 @@
   --hl-code: #a3c2a0;
 
   /* LaTeX TextMate palette */
-  --latex-command-punctuation: #d8d6c0;
+  --latex-command-punctuation: #d8d6a6;
   --latex-begin-end: #d8d6a6;
-  --latex-environment-name: #ffd75e;
+  --latex-environment-name: #d9dde7;
   --latex-item-command: #ff8b86;
-  --latex-function-definition: #f4c27a;
-  --latex-general-command: #7fb4ff;
+  --latex-function-definition: #ff8b86;
+  --latex-general-command: #d8d6a6;
   --latex-section-command: #d8d6a6;
   --latex-section-title: #f6ad55;
   --latex-text-command: #d8d6a6;
@@ -67,7 +67,9 @@
   --latex-label-command: #d9a6ff;
   --latex-citation-key: #f6ad55;
   --latex-label-name: #f6ad55;
-  --latex-preamble-command: #8cb6d9;
+  --latex-preamble-command: #d597d8;
+  --latex-package-class: #58d1c9;
+  --latex-option-value: #d9dde7;
   --latex-include-command: #8cb6d9;
   --latex-layout-command: #ffd75e;
   --latex-arg-brace: #d9dde7;
@@ -379,12 +381,12 @@
   --hl-code: #4f8752;
 
   /* LaTeX TextMate palette */
-  --latex-command-punctuation: #8b826e;
+  --latex-command-punctuation: #7a6f41;
   --latex-begin-end: #7a6f41;
-  --latex-environment-name: #b57a10;
+  --latex-environment-name: #5e6572;
   --latex-item-command: #c85d55;
-  --latex-function-definition: #b98538;
-  --latex-general-command: #3a71a3;
+  --latex-function-definition: #c85d55;
+  --latex-general-command: #7a6f41;
   --latex-section-command: #7a6f41;
   --latex-section-title: #bd6d1f;
   --latex-text-command: #7a6f41;
@@ -395,7 +397,9 @@
   --latex-label-command: #915bb8;
   --latex-citation-key: #b97028;
   --latex-label-name: #b97028;
-  --latex-preamble-command: #376490;
+  --latex-preamble-command: #9b6bc4;
+  --latex-package-class: #278d86;
+  --latex-option-value: #5e6572;
   --latex-include-command: #376490;
   --latex-layout-command: #b57a10;
   --latex-arg-brace: #6d7787;
