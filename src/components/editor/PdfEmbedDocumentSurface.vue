@@ -1040,8 +1040,8 @@ function scrollToPdfPoint(point = {}) {
     scrollScope.scrollToPage({
       pageNumber,
       pageCoordinates: {
-        x: Math.max(0, x),
-        y: Math.max(0, pageHeight - y),
+        x: clamp(x, 0, pageBinding?.page?.width || x),
+        y: clamp(y, 0, pageHeight),
       },
       behavior: 'instant',
       alignY: 35,
