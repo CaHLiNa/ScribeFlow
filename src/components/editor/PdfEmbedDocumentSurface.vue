@@ -457,6 +457,24 @@ function readDomSelectedText() {
   )
 }
 
+function captureSelectionTextContext() {
+  if (typeof window === 'undefined' || typeof document === 'undefined') {
+    return { textBeforeSelection: '', textAfterSelection: '' }
+  }
+
+  const selection = window.getSelection?.() || document.getSelection?.()
+  if (!selection?.anchorNode || selection.anchorNode.nodeType !== Node.TEXT_NODE) {
+    return { textBeforeSelection: '', textAfterSelection: '' }
+  }
+
+  const text = String(selection.anchorNode.textContent || '')
+  const offset = clamp(Number(selection.anchorOffset || 0), 0, text.length)
+  return {
+    textBeforeSelection: text.slice(0, offset),
+    textAfterSelection: text.slice(offset),
+  }
+}
+
 function isContextMenuTriggerEvent(event) {
   const button = Number(event?.button)
   return button === 2 || (button === 0 && Boolean(event?.ctrlKey))
@@ -1124,8 +1142,7 @@ function resolveReverseSyncDetail(event) {
   return {
     page: pageNumber,
     pos: [pdfX, pdfY],
-    textBeforeSelection: '',
-    textAfterSelection: '',
+    ...captureSelectionTextContext(),
   }
 }
 
@@ -1136,8 +1153,6 @@ async function handleDoubleClick(event) {
   if (typeof window !== 'undefined') {
     await new Promise((resolve) => window.requestAnimationFrame(resolve))
   }
-
-  if (!event?.altKey && selectionActive.value) return
 
   const detail = resolveReverseSyncDetail(event)
   if (!detail) return

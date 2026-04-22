@@ -1,5 +1,8 @@
 import { invoke } from '@tauri-apps/api/core'
-import { requestLatexWorkshopBackwardSync } from '../latex/latexWorkshopSynctex.js'
+import {
+  requestLatexWorkshopBackwardSync,
+  requestLatexWorkshopForwardSync,
+} from '../latex/latexWorkshopSynctex.js'
 
 export async function readPdfArtifactBase64(filePath) {
   const normalizedPath = String(filePath || '').trim()
@@ -15,12 +18,20 @@ export async function requestLatexPdfForwardSync(options = {}) {
   const column = Number(options.column || 0)
   if (!synctexPath || !texPath || !Number.isInteger(line) || line < 1) return null
 
-  return invoke('synctex_forward', {
-    synctexPath,
-    texPath,
-    line,
-    column: Number.isInteger(column) && column >= 0 ? column : 0,
-  })
+  try {
+    return await invoke('synctex_forward', {
+      synctexPath,
+      texPath,
+      line,
+      column: Number.isInteger(column) && column >= 0 ? column : 0,
+    })
+  } catch {
+    return requestLatexWorkshopForwardSync({
+      synctexPath,
+      texPath,
+      line,
+    })
+  }
 }
 
 export async function requestLatexPdfBackwardSync(options = {}) {

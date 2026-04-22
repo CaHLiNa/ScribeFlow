@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-const DOCUMENT_WORKFLOW_SESSION_VERSION: u32 = 2;
+const DOCUMENT_WORKFLOW_SESSION_VERSION: u32 = 3;
 const DEFAULT_SESSION_STATE: &str = "inactive";
 const PREF_KIND_MARKDOWN: &str = "markdown";
 const PREVIEW_KIND_HTML: &str = "html";
@@ -54,6 +54,21 @@ pub struct DocumentWorkflowPreviewBinding {
     pub detach_on_close: bool,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct DocumentWorkflowLatexPreviewState {
+    #[serde(default)]
+    pub artifact_path: String,
+    #[serde(default)]
+    pub synctex_path: String,
+    #[serde(default)]
+    pub compile_target_path: String,
+    #[serde(default)]
+    pub last_compiled: u64,
+    #[serde(default)]
+    pub source_fingerprint: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct DocumentWorkflowPersistentState {
@@ -69,6 +84,8 @@ pub struct DocumentWorkflowPersistentState {
     pub workspace_preview_requests: HashMap<String, String>,
     #[serde(default)]
     pub latex_artifact_paths: HashMap<String, String>,
+    #[serde(default)]
+    pub latex_preview_states: HashMap<String, DocumentWorkflowLatexPreviewState>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -142,6 +159,7 @@ impl Default for DocumentWorkflowPersistentState {
             workspace_preview_visibility: HashMap::new(),
             workspace_preview_requests: HashMap::new(),
             latex_artifact_paths: HashMap::new(),
+            latex_preview_states: HashMap::new(),
         }
     }
 }
@@ -377,9 +395,57 @@ fn normalize_latex_artifact_paths(values: HashMap<String, String>) -> HashMap<St
         .collect()
 }
 
+fn normalize_latex_preview_states(
+    values: HashMap<String, DocumentWorkflowLatexPreviewState>,
+) -> HashMap<String, DocumentWorkflowLatexPreviewState> {
+    values
+        .into_iter()
+        .filter_map(|(path, state)| {
+            let normalized_path = normalize_path(&path);
+            if normalized_path.is_empty() {
+                return None;
+            }
+
+            let normalized_state = DocumentWorkflowLatexPreviewState {
+                artifact_path: normalize_path(&state.artifact_path),
+                synctex_path: normalize_path(&state.synctex_path),
+                compile_target_path: normalize_path(&state.compile_target_path),
+                last_compiled: state.last_compiled,
+                source_fingerprint: normalize_path(&state.source_fingerprint),
+            };
+
+            if normalized_state.artifact_path.is_empty()
+                && normalized_state.synctex_path.is_empty()
+                && normalized_state.compile_target_path.is_empty()
+                && normalized_state.last_compiled == 0
+                && normalized_state.source_fingerprint.is_empty()
+            {
+                None
+            } else {
+                Some((normalized_path, normalized_state))
+            }
+        })
+        .collect()
+}
+
 pub fn normalize_document_workflow_persistent_state(
     state: DocumentWorkflowPersistentState,
 ) -> DocumentWorkflowPersistentState {
+    let latex_artifact_paths = normalize_latex_artifact_paths(state.latex_artifact_paths);
+    let mut latex_preview_states = normalize_latex_preview_states(state.latex_preview_states);
+
+    for (source_path, artifact_path) in &latex_artifact_paths {
+        latex_preview_states
+            .entry(source_path.clone())
+            .or_insert_with(|| DocumentWorkflowLatexPreviewState {
+                artifact_path: artifact_path.clone(),
+                synctex_path: String::new(),
+                compile_target_path: String::new(),
+                last_compiled: 0,
+                source_fingerprint: String::new(),
+            });
+    }
+
     DocumentWorkflowPersistentState {
         preview_prefs: normalize_preview_prefs(state.preview_prefs),
         session: normalize_session(state.session),
@@ -390,7 +456,8 @@ pub fn normalize_document_workflow_persistent_state(
         workspace_preview_requests: normalize_workspace_preview_requests(
             state.workspace_preview_requests,
         ),
-        latex_artifact_paths: normalize_latex_artifact_paths(state.latex_artifact_paths),
+        latex_artifact_paths,
+        latex_preview_states,
     }
 }
 
@@ -421,6 +488,7 @@ mod tests {
     use super::{
         document_workflow_session_load, document_workflow_session_save,
         normalize_document_workflow_persistent_state, DocumentWorkflowPersistentState,
+        DocumentWorkflowLatexPreviewState,
         DocumentWorkflowPersistentStateLoadParams, DocumentWorkflowPersistentStateSaveParams,
         DocumentWorkflowPreviewBinding, DocumentWorkflowPreviewPreference, DocumentWorkflowSession,
     };
@@ -468,6 +536,7 @@ mod tests {
                 workspace_preview_visibility: HashMap::new(),
                 workspace_preview_requests: HashMap::new(),
                 latex_artifact_paths: HashMap::new(),
+                latex_preview_states: HashMap::new(),
             });
 
         assert_eq!(
@@ -485,6 +554,31 @@ mod tests {
             Some("pdf")
         );
         assert_eq!(normalized.preview_bindings.len(), 1);
+    }
+
+    #[test]
+    fn migrates_legacy_latex_artifact_paths_into_preview_states() {
+        let normalized =
+            normalize_document_workflow_persistent_state(DocumentWorkflowPersistentState {
+                preview_prefs: HashMap::new(),
+                session: DocumentWorkflowSession::default(),
+                preview_bindings: Vec::new(),
+                workspace_preview_visibility: HashMap::new(),
+                workspace_preview_requests: HashMap::new(),
+                latex_artifact_paths: HashMap::from([(
+                    "/tmp/main.tex".to_string(),
+                    "/tmp/main.pdf".to_string(),
+                )]),
+                latex_preview_states: HashMap::new(),
+            });
+
+        assert_eq!(
+            normalized
+                .latex_preview_states
+                .get("/tmp/main.tex")
+                .map(|value| value.artifact_path.as_str()),
+            Some("/tmp/main.pdf")
+        );
     }
 
     #[tokio::test]
@@ -533,6 +627,16 @@ mod tests {
                 latex_artifact_paths: HashMap::from([(
                     "/tmp/main.tex".to_string(),
                     "/tmp/main.pdf".to_string(),
+                )]),
+                latex_preview_states: HashMap::from([(
+                    "/tmp/main.tex".to_string(),
+                    DocumentWorkflowLatexPreviewState {
+                        artifact_path: "/tmp/main.pdf".to_string(),
+                        synctex_path: "/tmp/main.synctex.gz".to_string(),
+                        compile_target_path: "/tmp/main.tex".to_string(),
+                        last_compiled: 42,
+                        source_fingerprint: "fp:123".to_string(),
+                    },
                 )]),
             },
         })

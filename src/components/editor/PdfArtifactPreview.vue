@@ -30,6 +30,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 
 import { useLatexStore } from '../../stores/latex.js'
+import { useDocumentWorkflowStore } from '../../stores/documentWorkflow.js'
 import { useWorkspaceStore } from '../../stores/workspace.js'
 import { dispatchLatexBackwardSync } from '../../services/latex/pdfPreviewSync.js'
 import { resolvePdfPreviewRevision } from '../../domains/document/pdfPreviewSessionRuntime.js'
@@ -63,13 +64,24 @@ defineEmits(['open-external'])
 
 const workspace = useWorkspaceStore()
 const latexStore = useLatexStore()
+const workflowStore = useDocumentWorkflowStore()
 const previewHostRef = ref(null)
 const themeTokens = ref(capturePdfPreviewThemeTokens())
 const resolvedTheme = ref(resolveThemePreference())
 
 const compileState = computed(() => {
-  if (props.kind === 'latex') return latexStore.stateForFile(props.sourcePath) || null
-  return null
+  if (props.kind !== 'latex') return null
+
+  const liveState = latexStore.stateForFile(props.sourcePath) || null
+  const persistedState = workflowStore.getLatexPreviewStateForFile(props.sourcePath) || null
+  if (liveState && persistedState) {
+    return {
+      ...persistedState,
+      ...liveState,
+    }
+  }
+
+  return liveState || persistedState || null
 })
 
 const forwardSyncRequest = computed(() =>

@@ -52,6 +52,7 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
     workspacePreviewVisibility: {},
     workspacePreviewRequests: {},
     latexArtifactPaths: {},
+    latexPreviewStates: {},
     resolvedWorkspacePreviewStates: {},
     resolvedWorkflowUiStates: {},
     _isReconciling: false,
@@ -143,6 +144,7 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
         workspacePreviewVisibility: this.workspacePreviewVisibility,
         workspacePreviewRequests: this.workspacePreviewRequests,
         latexArtifactPaths: this.latexArtifactPaths,
+        latexPreviewStates: this.latexPreviewStates,
       }
     },
 
@@ -165,6 +167,7 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
       this.workspacePreviewVisibility = next.workspacePreviewVisibility || {}
       this.workspacePreviewRequests = next.workspacePreviewRequests || {}
       this.latexArtifactPaths = next.latexArtifactPaths || {}
+      this.latexPreviewStates = next.latexPreviewStates || {}
     },
 
     async hydratePersistentState(force = false) {
@@ -179,7 +182,7 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
 
       const state = await loadDocumentWorkflowSessionState(workspace.workspaceDataDir)
       this.applyPersistentState(state)
-      await this.reconcileLatexArtifactPaths()
+      await this.reconcileLatexPreviewStates()
       this._persistentStateHydrated = true
       return this.snapshotPersistentState()
     },
@@ -241,65 +244,167 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
       this._latexArtifactPersistenceListenerAttached = true
       window.addEventListener('latex-compile-done', (event) => {
         const detail = event?.detail || {}
-        const artifactPath = String(detail.previewPath || detail.pdfPath || detail.pdf_path || '').trim()
-        if (!artifactPath) return
-
         const sourcePath = String(detail.texPath || '').trim()
         const targetPath = String(detail.compileTargetPath || '').trim()
+        const nextPreviewState = {
+          artifactPath: String(detail.previewPath || detail.pdfPath || detail.pdf_path || '').trim(),
+          synctexPath: String(detail.synctexPath || detail.synctex_path || '').trim(),
+          compileTargetPath: targetPath,
+          lastCompiled: Number(detail.lastCompiled || 0),
+          sourceFingerprint: String(detail.sourceFingerprint || '').trim(),
+        }
         if (sourcePath) {
-          this.setLatexArtifactPathForFile(sourcePath, artifactPath)
+          this.setLatexPreviewStateForFile(sourcePath, nextPreviewState)
         }
         if (targetPath && targetPath !== sourcePath) {
-          this.setLatexArtifactPathForFile(targetPath, artifactPath)
+          this.setLatexPreviewStateForFile(targetPath, nextPreviewState)
         }
       })
     },
 
-    setLatexArtifactPathForFile(filePath, artifactPath = '') {
+    setLatexPreviewStateForFile(filePath, state = {}) {
       const normalizedFilePath = String(filePath || '').trim()
       if (!normalizedFilePath) return
 
-      const normalizedArtifactPath = String(artifactPath || '').trim()
-      const next = { ...(this.latexArtifactPaths || {}) }
-      if (!normalizedArtifactPath) {
-        if (!next[normalizedFilePath]) return
-        delete next[normalizedFilePath]
+      const normalizedState = {
+        artifactPath: String(state.artifactPath || '').trim(),
+        synctexPath: String(state.synctexPath || '').trim(),
+        compileTargetPath: String(state.compileTargetPath || '').trim(),
+        lastCompiled: Number(state.lastCompiled || 0),
+        sourceFingerprint: String(state.sourceFingerprint || '').trim(),
+      }
+      const hasRuntimeState = Boolean(
+        normalizedState.artifactPath
+        || normalizedState.synctexPath
+        || normalizedState.compileTargetPath
+        || normalizedState.lastCompiled
+        || normalizedState.sourceFingerprint
+      )
+
+      const nextArtifactPaths = { ...(this.latexArtifactPaths || {}) }
+      const nextPreviewStates = { ...(this.latexPreviewStates || {}) }
+
+      if (!hasRuntimeState) {
+        if (!nextArtifactPaths[normalizedFilePath] && !nextPreviewStates[normalizedFilePath]) return
+        delete nextArtifactPaths[normalizedFilePath]
+        delete nextPreviewStates[normalizedFilePath]
       } else {
-        if (next[normalizedFilePath] === normalizedArtifactPath) return
-        next[normalizedFilePath] = normalizedArtifactPath
+        const previousArtifactPath = String(nextArtifactPaths[normalizedFilePath] || '')
+        const previousState = nextPreviewStates[normalizedFilePath] || null
+        const unchanged =
+          previousArtifactPath === normalizedState.artifactPath
+          && previousState
+          && previousState.artifactPath === normalizedState.artifactPath
+          && previousState.synctexPath === normalizedState.synctexPath
+          && previousState.compileTargetPath === normalizedState.compileTargetPath
+          && Number(previousState.lastCompiled || 0) === normalizedState.lastCompiled
+          && previousState.sourceFingerprint === normalizedState.sourceFingerprint
+        if (unchanged) return
+
+        if (normalizedState.artifactPath) {
+          nextArtifactPaths[normalizedFilePath] = normalizedState.artifactPath
+        } else {
+          delete nextArtifactPaths[normalizedFilePath]
+        }
+        nextPreviewStates[normalizedFilePath] = normalizedState
       }
 
-      this.latexArtifactPaths = next
+      this.latexArtifactPaths = nextArtifactPaths
+      this.latexPreviewStates = nextPreviewStates
       this.queuePersistentStateSave()
     },
 
     getLatexArtifactPathForFile(filePath) {
       const normalizedFilePath = String(filePath || '').trim()
       if (!normalizedFilePath) return ''
-      return String(this.latexArtifactPaths?.[normalizedFilePath] || '')
+      return String(
+        this.latexPreviewStates?.[normalizedFilePath]?.artifactPath
+        || this.latexArtifactPaths?.[normalizedFilePath]
+        || ''
+      )
     },
 
-    async reconcileLatexArtifactPaths() {
-      const entries = Object.entries(this.latexArtifactPaths || {})
-      if (entries.length === 0) return this.latexArtifactPaths || {}
+    getLatexPreviewStateForFile(filePath) {
+      const normalizedFilePath = String(filePath || '').trim()
+      if (!normalizedFilePath) return null
 
-      const keptEntries = await Promise.all(entries.map(async ([sourcePath, artifactPath]) => {
-        if (await pathExists(artifactPath)) {
-          return [sourcePath, artifactPath]
+      const previewState = this.latexPreviewStates?.[normalizedFilePath] || null
+      const artifactPath = String(previewState?.artifactPath || this.latexArtifactPaths?.[normalizedFilePath] || '')
+      if (!artifactPath && !previewState) return null
+
+      return {
+        status: artifactPath ? 'success' : '',
+        pdfPath: artifactPath,
+        previewPath: artifactPath,
+        synctexPath: String(previewState?.synctexPath || ''),
+        compileTargetPath: String(previewState?.compileTargetPath || ''),
+        lastCompiled: Number(previewState?.lastCompiled || 0),
+        sourceFingerprint: String(previewState?.sourceFingerprint || ''),
+      }
+    },
+
+    async reconcileLatexPreviewStates() {
+      const sourcePaths = Array.from(new Set([
+        ...Object.keys(this.latexArtifactPaths || {}),
+        ...Object.keys(this.latexPreviewStates || {}),
+      ]))
+      if (sourcePaths.length === 0) {
+        return {
+          latexArtifactPaths: this.latexArtifactPaths || {},
+          latexPreviewStates: this.latexPreviewStates || {},
         }
-        return null
+      }
+
+      const keptEntries = await Promise.all(sourcePaths.map(async (sourcePath) => {
+        const previewState = this.latexPreviewStates?.[sourcePath] || null
+        const artifactPath = String(previewState?.artifactPath || this.latexArtifactPaths?.[sourcePath] || '')
+        if (!artifactPath || !(await pathExists(artifactPath))) {
+          return null
+        }
+
+        const synctexPath = String(previewState?.synctexPath || '')
+        const hasSynctexPath = synctexPath ? await pathExists(synctexPath) : false
+
+        return [
+          sourcePath,
+          artifactPath,
+          {
+            artifactPath,
+            synctexPath: hasSynctexPath ? synctexPath : '',
+            compileTargetPath: String(previewState?.compileTargetPath || ''),
+            lastCompiled: Number(previewState?.lastCompiled || 0),
+            sourceFingerprint: String(previewState?.sourceFingerprint || ''),
+          },
+        ]
       }))
 
-      const next = Object.fromEntries(keptEntries.filter(Boolean))
-      const currentKeys = Object.keys(this.latexArtifactPaths || {})
-      const nextKeys = Object.keys(next)
-      const unchanged = currentKeys.length === nextKeys.length
-        && currentKeys.every((key) => next[key] === this.latexArtifactPaths[key])
-      if (unchanged) return next
+      const nextArtifactPaths = Object.fromEntries(
+        keptEntries
+          .filter(Boolean)
+          .map(([sourcePath, artifactPath]) => [sourcePath, artifactPath])
+      )
+      const nextPreviewStates = Object.fromEntries(
+        keptEntries
+          .filter(Boolean)
+          .map(([sourcePath, , previewState]) => [sourcePath, previewState])
+      )
 
-      this.latexArtifactPaths = next
+      const artifactPathsUnchanged = JSON.stringify(nextArtifactPaths) === JSON.stringify(this.latexArtifactPaths || {})
+      const previewStatesUnchanged = JSON.stringify(nextPreviewStates) === JSON.stringify(this.latexPreviewStates || {})
+      if (artifactPathsUnchanged && previewStatesUnchanged) {
+        return {
+          latexArtifactPaths: nextArtifactPaths,
+          latexPreviewStates: nextPreviewStates,
+        }
+      }
+
+      this.latexArtifactPaths = nextArtifactPaths
+      this.latexPreviewStates = nextPreviewStates
       this.queuePersistentStateSave()
-      return next
+      return {
+        latexArtifactPaths: nextArtifactPaths,
+        latexPreviewStates: nextPreviewStates,
+      }
     },
 
     bindPreview({ previewPath, sourcePath, previewKind, kind, paneId = null, detachOnClose = true }) {

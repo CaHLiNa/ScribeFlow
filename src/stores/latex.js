@@ -507,6 +507,9 @@ export const useLatexStore = defineStore('latex', {
             compileTargetPath,
             pdfPath: compileFinish?.sourceState?.pdfPath || result.pdf_path || '',
             previewPath: compileFinish?.sourceState?.previewPath || result.pdf_path || '',
+            synctexPath: compileFinish?.sourceState?.synctexPath || result.synctex_path || '',
+            lastCompiled: Number(compileFinish?.sourceState?.lastCompiled || Date.now()),
+            sourceFingerprint: String(compileFinish?.sourceState?.sourceFingerprint || sourceFingerprint || ''),
             ...result,
           },
         }))
