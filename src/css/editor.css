@@ -19,7 +19,7 @@
   font-variant-ligatures: normal;
   line-height: 1.8 !important; 
   /* 加大底部留白，原生实现“打字机”滚动，允许把最后一行滚至屏幕中央 */
-  padding: 0 24px 45vh !important; 
+  padding: 12px 24px 45vh !important; 
   color: var(--workspace-ink);
 }
 
@@ -28,7 +28,7 @@
   margin: 0 auto;
   font-family: var(--font-latex);
   line-height: 1.65 !important;
-  padding: 0 24px 45vh !important;
+  padding: 12px 24px 45vh !important;
   color: var(--workspace-ink);
 }
 
