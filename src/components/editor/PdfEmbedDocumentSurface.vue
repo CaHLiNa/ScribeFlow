@@ -42,21 +42,15 @@
           <UiButton variant="ghost" size="sm" :title="t('Zoom out')" @click="zoomBy(-1)">
             -
           </UiButton>
-          <button
-            type="button"
-            class="pdf-artifact-preview__toolbar-pill"
-            :title="t('Remember current zoom')"
-            @click="persistCurrentZoomMode"
-          >
+          <span class="pdf-artifact-preview__toolbar-value" :title="t('Current zoom')">
             {{ zoomDisplayLabel }}
-          </button>
+          </span>
           <UiButton variant="ghost" size="sm" :title="t('Zoom in')" @click="zoomBy(1)">
             +
           </UiButton>
           <UiButton
             variant="ghost"
             size="sm"
-            :active="currentZoomPreset === 'page-width'"
             :title="t('Fit width')"
             @click="setPreferredZoomMode('page-width')"
           >
@@ -65,7 +59,6 @@
           <UiButton
             variant="ghost"
             size="sm"
-            :active="currentZoomPreset === 'page-fit'"
             :title="t('Fit page')"
             @click="setPreferredZoomMode('page-fit')"
           >
@@ -398,12 +391,6 @@ const isWholeWordEnabled = computed(() =>
   Array.isArray(search.state.value?.flags)
     && search.state.value.flags.includes(MatchFlag.MatchWholeWord)
 )
-const currentZoomPreset = computed(() => {
-  const scaleValue = resolveScaleValueFromZoomState()
-  if (scaleValue === 'page-fit') return 'page-fit'
-  if (scaleValue === 'page-width') return 'page-width'
-  return 'custom'
-})
 const currentSpreadMode = computed(() =>
   spread.spreadMode.value === SpreadMode.Odd ? 'double' : 'single'
 )
@@ -680,10 +667,6 @@ function setPreferredZoomMode(mode = 'page-width') {
   const normalizedMode = mode === 'page-fit' ? 'page-fit' : 'page-width'
   applyZoomValue(normalizedMode)
   void workspace.setPdfViewerZoomMode(normalizedMode).catch(() => {})
-}
-
-function persistCurrentZoomMode() {
-  void workspace.setPdfViewerZoomMode('remember-last').catch(() => {})
 }
 
 function setPreferredSpreadMode(mode = 'single') {
@@ -1406,21 +1389,18 @@ onUnmounted(() => {
   justify-content: flex-end;
 }
 
-.pdf-artifact-preview__toolbar-pill {
+.pdf-artifact-preview__toolbar-value {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   min-width: 36px;
   height: 28px;
   padding: 0 8px;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
   color: var(--text-primary);
   font: inherit;
   font-size: 12px;
   font-weight: 500;
-  cursor: pointer;
+  white-space: nowrap;
 }
 
 .pdf-artifact-preview__toolbar-page-group,
