@@ -236,19 +236,7 @@
                   borderColor: 'rgba(80, 132, 255, 0.72)',
                   borderStyle: 'solid',
                 }"
-              >
-                <template #selection-menu="{ menuWrapperProps }">
-                  <div
-                    v-bind="menuWrapperProps"
-                    class="pdf-artifact-preview__selection-menu"
-                    data-no-embedpdf-interaction="true"
-                  >
-                    <UiButton variant="secondary" size="sm" @click.stop="copySelectedText">
-                      {{ t('Copy') }}
-                    </UiButton>
-                  </div>
-                </template>
-              </SelectionLayer>
+              />
             </PagePointerProvider>
           </div>
         </Scroller>
@@ -1559,16 +1547,6 @@ onUnmounted(() => {
   height: 100%;
   background: var(--embedpdf-page);
   user-select: none;
-}
-
-.pdf-artifact-preview__selection-menu {
-  display: inline-flex;
-  align-items: center;
-  padding: 4px;
-  border: 1px solid color-mix(in srgb, var(--border-subtle) 88%, transparent);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--surface-base) 96%, transparent);
-  box-shadow: 0 12px 28px rgb(0 0 0 / 0.18);
 }
 
 .pdf-artifact-preview__toolbar-search {
