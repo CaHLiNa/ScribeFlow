@@ -23,7 +23,7 @@
             :aria-label="t('Toggle thumbnails')"
             @click="toggleThumbnails"
           >
-            <IconLayoutSidebarLeftExpand :size="14" :stroke-width="1.8" />
+            <IconLayoutSidebarLeftExpand :size="16" :stroke-width="1.8" />
           </UiButton>
           <UiButton
             variant="ghost"
@@ -34,7 +34,7 @@
             :aria-label="t('Search in PDF')"
             @click="toggleSearchUi"
           >
-            <IconSearch :size="14" :stroke-width="1.8" />
+            <IconSearch :size="16" :stroke-width="1.8" />
           </UiButton>
         </div>
 
@@ -100,7 +100,7 @@
               :aria-label="t('Single page')"
               @click="setPreferredSpreadMode('single')"
             >
-              <IconRectangleVertical :size="14" :stroke-width="1.8" />
+              <IconRectangleVertical :size="16" :stroke-width="1.8" />
             </UiButton>
             <UiButton
               variant="ghost"
@@ -111,7 +111,7 @@
               :aria-label="t('Two-page spread')"
               @click="setPreferredSpreadMode('double')"
             >
-              <IconColumns2 :size="14" :stroke-width="1.8" />
+              <IconColumns2 :size="16" :stroke-width="1.8" />
             </UiButton>
           </div>
 
@@ -125,7 +125,7 @@
               :aria-label="t('Save')"
               @click="savePdfToDisk"
             >
-              <IconDeviceFloppy :size="14" :stroke-width="1.8" />
+              <IconDeviceFloppy :size="16" :stroke-width="1.8" />
             </UiButton>
             <UiButton
               variant="ghost"
@@ -135,7 +135,7 @@
               :aria-label="t('Reload PDF')"
               @click="$emit('reload-requested')"
             >
-              <IconReload :size="14" :stroke-width="1.8" />
+              <IconReload :size="16" :stroke-width="1.8" />
             </UiButton>
             <UiButton
               variant="ghost"
@@ -145,7 +145,7 @@
               :aria-label="t('Open PDF')"
               @click="$emit('open-external')"
             >
-              <IconExternalLink :size="14" :stroke-width="1.8" />
+              <IconExternalLink :size="16" :stroke-width="1.8" />
             </UiButton>
           </div>
         </div>
@@ -1395,7 +1395,8 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 0;
-  padding: 1px 6px;
+  min-height: 30px;
+  padding: 0 6px;
   box-sizing: border-box;
   font: message-box;
   background: color-mix(
@@ -1412,7 +1413,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  min-height: 28px;
+  min-height: 30px;
 }
 
 .pdf-artifact-preview__toolbar-main-left,
@@ -1422,7 +1423,7 @@ onUnmounted(() => {
 .pdf-artifact-preview__toolbar-group {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
   min-width: 0;
 }
 
@@ -1445,15 +1446,15 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 34px;
-  height: 22px;
-  padding: 0 4px;
+  min-width: 36px;
+  height: 28px;
+  padding: 0 8px;
   border: 0;
-  border-radius: 0;
+  border-radius: 6px;
   background: transparent;
   color: var(--text-primary);
   font: inherit;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   cursor: pointer;
 }
@@ -1462,7 +1463,7 @@ onUnmounted(() => {
 .pdf-artifact-preview__toolbar-icon-group {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
 }
 
 .pdf-artifact-preview__toolbar-page-group {
@@ -1471,16 +1472,16 @@ onUnmounted(() => {
 }
 
 .pdf-artifact-preview__toolbar-page-input {
-  width: 34px;
-  height: 22px;
-  padding: 0 4px;
+  width: 38px;
+  height: 28px;
+  padding: 0 6px;
   border: 0;
   border-radius: 6px;
   background: transparent;
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border-subtle) 24%, transparent);
   color: var(--text-primary);
   font: inherit;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   line-height: 1;
   text-align: center;
@@ -1494,7 +1495,7 @@ onUnmounted(() => {
 .pdf-artifact-preview__toolbar-page-total {
   min-width: 28px;
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   white-space: nowrap;
 }
@@ -1717,14 +1718,14 @@ onUnmounted(() => {
 }
 
 :deep(.pdf-artifact-preview__toolbar .ui-button) {
-  height: 22px;
-  padding: 0 6px;
+  height: 28px;
+  padding: 0 8px;
   border: 0;
   border-radius: 6px;
   background: transparent;
   box-shadow: none;
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
 }
 
@@ -1735,7 +1736,7 @@ onUnmounted(() => {
 }
 
 :deep(.pdf-artifact-preview__toolbar .ui-button.is-icon-only) {
-  width: 22px;
+  width: 28px;
   padding: 0;
 }
 
