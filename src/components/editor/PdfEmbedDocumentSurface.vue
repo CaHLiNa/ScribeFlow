@@ -221,7 +221,11 @@
             :data-page-number="page.pageNumber"
             :style="{ width: `${page.width}px`, height: `${page.height}px` }"
           >
-            <div class="pdf-artifact-preview__page">
+            <PagePointerProvider
+              :document-id="documentId"
+              :page-index="page.pageIndex"
+              class="pdf-artifact-preview__page"
+            >
               <RenderLayer :document-id="documentId" :page-index="page.pageIndex" />
               <SearchLayer :document-id="documentId" :page-index="page.pageIndex" />
               <SelectionLayer
@@ -234,7 +238,7 @@
                   borderStyle: 'solid',
                 }"
               />
-            </div>
+            </PagePointerProvider>
           </div>
         </Scroller>
       </Viewport>
@@ -265,6 +269,7 @@ import {
   IconSearch,
 } from '@tabler/icons-vue'
 import { useExport } from '@embedpdf/plugin-export/vue'
+import { PagePointerProvider } from '@embedpdf/plugin-interaction-manager/vue'
 import { RenderLayer } from '@embedpdf/plugin-render/vue'
 import { SearchLayer, useSearch } from '@embedpdf/plugin-search/vue'
 import { Scroller, useScroll, useScrollCapability } from '@embedpdf/plugin-scroll/vue'
