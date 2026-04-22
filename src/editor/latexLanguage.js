@@ -26,6 +26,7 @@ const FONT_STYLE_MASK = 30720
 const FONT_STYLE_OFFSET = 11
 const FOREGROUND_MASK = 16744448
 const FOREGROUND_OFFSET = 15
+const BRACKET_COLOR_COUNT = 6
 
 const parsedLatexGrammar = parseRawGrammar(
   JSON.stringify(latexWorkshopLatexGrammar),
@@ -267,6 +268,114 @@ function buildInlineTextStyle(metadata) {
   return styleParts.join('; ')
 }
 
+function isEscaped(text, index) {
+  let slashCount = 0
+  let cursor = index - 1
+  while (cursor >= 0 && text[cursor] === '\\') {
+    slashCount += 1
+    cursor -= 1
+  }
+  return slashCount % 2 === 1
+}
+
+function getBracketColorStyle(depth) {
+  const bracketColorIndex = (depth % BRACKET_COLOR_COUNT) + 1
+  return `color: var(--editor-bracket-highlight-${bracketColorIndex})`
+}
+
+function buildLatexBracketSpans(state) {
+  const text = state.doc.toString()
+  const stack = []
+  const spans = []
+  let index = 0
+
+  while (index < text.length) {
+    const current = text[index]
+    const next = text[index + 1]
+
+    if (current === '%' && !isEscaped(text, index)) {
+      index += 1
+      while (index < text.length && text[index] !== '\n') {
+        index += 1
+      }
+      continue
+    }
+
+    if (current === '\\' && next) {
+      const escapedBracketPairs = {
+        '{': '}',
+        '[': ']',
+        '(': ')',
+        '}': null,
+        ']': null,
+        ')': null,
+      }
+
+      if (Object.hasOwn(escapedBracketPairs, next)) {
+        const from = index
+        const to = index + 2
+
+        if (next === '{' || next === '[' || next === '(') {
+          const style = getBracketColorStyle(stack.length)
+          stack.push({
+            close: `\\${escapedBracketPairs[next]}`,
+            style,
+          })
+          spans.push({ from, to, style })
+          index += 2
+          continue
+        }
+
+        const token = `\\${next}`
+        const expected = stack[stack.length - 1]
+        if (expected && expected.close === token) {
+          spans.push({ from, to, style: expected.style })
+          stack.pop()
+          index += 2
+          continue
+        }
+      }
+    }
+
+    const openingBrackets = {
+      '{': '}',
+      '[': ']',
+      '(': ')',
+    }
+    const closingBrackets = new Set(['}', ']', ')'])
+
+    if (Object.hasOwn(openingBrackets, current)) {
+      const style = getBracketColorStyle(stack.length)
+      stack.push({
+        close: openingBrackets[current],
+        style,
+      })
+      spans.push({ from: index, to: index + 1, style })
+      index += 1
+      continue
+    }
+
+    if (closingBrackets.has(current)) {
+      const expected = stack[stack.length - 1]
+      if (expected && expected.close === current) {
+        spans.push({ from: index, to: index + 1, style: expected.style })
+        stack.pop()
+      }
+      index += 1
+      continue
+    }
+
+    index += 1
+  }
+
+  return spans.sort((left, right) => left.from - right.from)
+}
+
+function addStyledRange(builder, from, to, style) {
+  if (to <= from || !style) return
+  builder.add(from, to, getDecorationForStyle(style))
+}
+
 async function ensureOnigurumaReady() {
   if (!onigurumaReadyPromise) {
     onigurumaReadyPromise = (async () => {
@@ -323,6 +432,8 @@ function requireLatexTextmateGrammar() {
 function buildLatexTextmateDecorations(state) {
   const grammar = requireLatexTextmateGrammar()
   const builder = new RangeSetBuilder()
+  const bracketSpans = buildLatexBracketSpans(state)
+  let bracketIndex = 0
   let ruleStack = INITIAL
 
   for (let lineNumber = 1; lineNumber <= state.doc.lines; lineNumber += 1) {
@@ -342,11 +453,28 @@ function buildLatexTextmateDecorations(state) {
       const style = buildInlineTextStyle(metadata)
       if (!style) continue
 
-      builder.add(
-        line.from + startIndex,
-        line.from + endIndex,
-        getDecorationForStyle(style)
-      )
+      const tokenFrom = line.from + startIndex
+      const tokenTo = line.from + endIndex
+      let cursor = tokenFrom
+
+      while (bracketIndex < bracketSpans.length && bracketSpans[bracketIndex].to <= tokenFrom) {
+        bracketIndex += 1
+      }
+
+      let scanIndex = bracketIndex
+      while (scanIndex < bracketSpans.length && bracketSpans[scanIndex].from < tokenTo) {
+        const span = bracketSpans[scanIndex]
+        if (span.from > cursor) {
+          addStyledRange(builder, cursor, span.from, style)
+        }
+        addStyledRange(builder, Math.max(span.from, tokenFrom), Math.min(span.to, tokenTo), span.style)
+        cursor = Math.max(cursor, span.to)
+        scanIndex += 1
+      }
+
+      if (cursor < tokenTo) {
+        addStyledRange(builder, cursor, tokenTo, style)
+      }
     }
   }
 

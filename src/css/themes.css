@@ -49,6 +49,12 @@
   --hl-punctuation: #788596; 
   --hl-bracket: #92a1b5; 
   --hl-code: #a3c2a0;
+  --editor-bracket-highlight-1: #ffd700;
+  --editor-bracket-highlight-2: #da70d6;
+  --editor-bracket-highlight-3: #179fff;
+  --editor-bracket-highlight-4: #ffd700;
+  --editor-bracket-highlight-5: #da70d6;
+  --editor-bracket-highlight-6: #179fff;
 
   /* LaTeX TextMate palette */
   --latex-command-punctuation: #d8d6a6;
@@ -382,6 +388,12 @@
   --hl-punctuation: #8e99a8; 
   --hl-bracket: #737f8f; 
   --hl-code: #4f8752;
+  --editor-bracket-highlight-1: #0431faff;
+  --editor-bracket-highlight-2: #319331ff;
+  --editor-bracket-highlight-3: #7b3814ff;
+  --editor-bracket-highlight-4: #0431faff;
+  --editor-bracket-highlight-5: #319331ff;
+  --editor-bracket-highlight-6: #7b3814ff;
 
   /* LaTeX TextMate palette */
   --latex-command-punctuation: #7a6f41;
