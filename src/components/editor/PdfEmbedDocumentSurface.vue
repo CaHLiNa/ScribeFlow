@@ -25,30 +25,28 @@
           >
             <IconLayoutSidebarLeftExpand :size="16" :stroke-width="1.8" />
           </UiButton>
-          <div class="pdf-artifact-preview__toolbar-icon-group">
-            <UiButton
-              variant="ghost"
-              size="sm"
-              icon-only
-              :active="currentSpreadMode === 'single'"
-              :title="t('Single page')"
-              :aria-label="t('Single page')"
-              @click="setPreferredSpreadMode('single')"
-            >
-              <IconRectangleVertical :size="16" :stroke-width="1.8" />
-            </UiButton>
-            <UiButton
-              variant="ghost"
-              size="sm"
-              icon-only
-              :active="currentSpreadMode === 'double'"
-              :title="t('Two-page spread')"
-              :aria-label="t('Two-page spread')"
-              @click="setPreferredSpreadMode('double')"
-            >
-              <IconColumns2 :size="16" :stroke-width="1.8" />
-            </UiButton>
-          </div>
+          <UiButton
+            variant="ghost"
+            size="sm"
+            icon-only
+            :active="currentSpreadMode === 'single'"
+            :title="t('Single page')"
+            :aria-label="t('Single page')"
+            @click="setPreferredSpreadMode('single')"
+          >
+            <IconRectangleVertical :size="16" :stroke-width="1.8" />
+          </UiButton>
+          <UiButton
+            variant="ghost"
+            size="sm"
+            icon-only
+            :active="currentSpreadMode === 'double'"
+            :title="t('Two-page spread')"
+            :aria-label="t('Two-page spread')"
+            @click="setPreferredSpreadMode('double')"
+          >
+            <IconColumns2 :size="16" :stroke-width="1.8" />
+          </UiButton>
           <UiButton
             variant="ghost"
             size="sm"
@@ -76,22 +74,6 @@
           />
           <UiButton variant="ghost" size="sm" :title="t('Zoom in')" @click="zoomBy(1)">
             +
-          </UiButton>
-          <UiButton
-            variant="ghost"
-            size="sm"
-            :title="t('Fit width')"
-            @click="setPreferredZoomMode('page-width')"
-          >
-            {{ t('Width') }}
-          </UiButton>
-          <UiButton
-            variant="ghost"
-            size="sm"
-            :title="t('Fit page')"
-            @click="setPreferredZoomMode('page-fit')"
-          >
-            {{ t('Fit') }}
           </UiButton>
         </div>
 
@@ -376,7 +358,7 @@ const saveInProgress = ref(false)
 const selectedText = ref('')
 const selectionActive = ref(false)
 const searchUiVisible = ref(false)
-const thumbnailsVisible = ref(true)
+const thumbnailsVisible = ref(false)
 const searchQuery = ref('')
 const pageInputValue = ref('1')
 const searchInputRef = ref(null)
@@ -425,7 +407,10 @@ const zoomMenuOptions = computed(() => {
     { value: 'page-fit', label: t('Fit'), triggerLabel: t('Fit') },
   ]
 
-  if (!ZOOM_MENU_PRESET_VALUES.includes(zoomMenuValue.value)) {
+  const isPresetScale = ZOOM_MENU_PRESET_VALUES.includes(zoomMenuValue.value)
+  const isBuiltinMode = zoomMenuValue.value === 'page-width' || zoomMenuValue.value === 'page-fit'
+
+  if (!isPresetScale && !isBuiltinMode) {
     options.push({
       value: zoomMenuValue.value,
       label: zoomDisplayLabel.value,
@@ -1723,12 +1708,12 @@ onUnmounted(() => {
 
 :deep(.pdf-artifact-preview__toolbar .pdf-artifact-preview__toolbar-select) {
   width: auto;
-  min-width: 68px;
+  min-width: 58px;
 }
 
 :deep(.pdf-artifact-preview__toolbar .pdf-artifact-preview__toolbar-select .ui-select-trigger) {
   height: 28px;
-  padding: 0 22px 0 8px;
+  padding: 0 18px 0 6px;
   border: 0;
   border-radius: 6px;
   background: transparent;
@@ -1748,7 +1733,7 @@ onUnmounted(() => {
 }
 
 :deep(.pdf-artifact-preview__toolbar .pdf-artifact-preview__toolbar-select .ui-select-caret) {
-  right: 6px;
+  right: 4px;
 }
 
 @media (max-width: 720px) {
