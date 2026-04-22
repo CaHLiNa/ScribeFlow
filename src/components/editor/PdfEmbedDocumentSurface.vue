@@ -8,6 +8,7 @@
     tabindex="0"
     data-surface-context-guard="true"
     @contextmenu.prevent="handleShellContextMenu"
+    @pointerdown.capture="handleContextPointerCapture"
     @mousedown.capture="handleMouseDownCapture"
     @keydown.capture="handleKeydown"
     @dblclick.capture="handleDoubleClick"
@@ -454,6 +455,11 @@ function readDomSelectedText() {
   return normalizeSelectedText(
     window.getSelection?.()?.toString?.() || document.getSelection?.()?.toString?.() || ''
   )
+}
+
+function isContextMenuTriggerEvent(event) {
+  const button = Number(event?.button)
+  return button === 2 || (button === 0 && Boolean(event?.ctrlKey))
 }
 
 function setPageElement(page, element) {
@@ -917,8 +923,8 @@ async function handleShellContextMenu(event) {
   })
 }
 
-function handleMouseDownCapture(event) {
-  if (Number(event?.button) !== 2) return
+function handleContextPointerCapture(event) {
+  if (!isContextMenuTriggerEvent(event)) return
 
   const snapshot = readDomSelectedText()
   const selectionState = selectionCapability.value?.forDocument(props.documentId)?.getState?.()
@@ -932,9 +938,12 @@ function handleMouseDownCapture(event) {
   if (!hasSelection) return
 
   contextMenuSelectionText.value = snapshot || selectedText.value || contextMenuSelectionText.value
-  event.preventDefault()
   event.stopPropagation()
   event.stopImmediatePropagation?.()
+}
+
+function handleMouseDownCapture(event) {
+  handleContextPointerCapture(event)
 }
 
 function handleKeydown(event) {
