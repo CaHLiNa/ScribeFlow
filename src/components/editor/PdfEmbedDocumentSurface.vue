@@ -28,14 +28,13 @@
           <UiButton
             variant="ghost"
             size="sm"
+            icon-only
             :active="searchUiVisible"
             :title="t('Search in PDF')"
+            :aria-label="t('Search in PDF')"
             @click="toggleSearchUi"
           >
-            <template #leading>
-              <IconSearch :size="14" :stroke-width="1.8" />
-            </template>
-            {{ t('Search') }}
+            <IconSearch :size="14" :stroke-width="1.8" />
           </UiButton>
         </div>
 
@@ -75,43 +74,82 @@
         </div>
 
         <div class="pdf-artifact-preview__toolbar-main-right">
-          <UiButton
-            variant="ghost"
-            size="sm"
-            :active="currentSpreadMode === 'single'"
-            :title="t('Single page')"
-            @click="setPreferredSpreadMode('single')"
-          >
-            {{ t('Single') }}
-          </UiButton>
-          <UiButton
-            variant="ghost"
-            size="sm"
-            :active="currentSpreadMode === 'double'"
-            :title="t('Two-page spread')"
-            @click="setPreferredSpreadMode('double')"
-          >
-            {{ t('Double') }}
-          </UiButton>
+          <div class="pdf-artifact-preview__toolbar-page-group">
+            <input
+              v-model="pageInputValue"
+              class="pdf-artifact-preview__toolbar-page-input"
+              :title="t('Page number')"
+              :aria-label="t('Page number')"
+              inputmode="numeric"
+              autocomplete="off"
+              @keydown.enter.prevent="submitPageNumberInput"
+              @blur="submitPageNumberInput"
+            />
+            <span class="pdf-artifact-preview__toolbar-page-total">
+              / {{ totalPageCount }}
+            </span>
+          </div>
+
+          <div class="pdf-artifact-preview__toolbar-icon-group">
+            <UiButton
+              variant="ghost"
+              size="sm"
+              icon-only
+              :active="currentSpreadMode === 'single'"
+              :title="t('Single page')"
+              :aria-label="t('Single page')"
+              @click="setPreferredSpreadMode('single')"
+            >
+              <IconRectangleVertical :size="14" :stroke-width="1.8" />
+            </UiButton>
+            <UiButton
+              variant="ghost"
+              size="sm"
+              icon-only
+              :active="currentSpreadMode === 'double'"
+              :title="t('Two-page spread')"
+              :aria-label="t('Two-page spread')"
+              @click="setPreferredSpreadMode('double')"
+            >
+              <IconColumns2 :size="14" :stroke-width="1.8" />
+            </UiButton>
+          </div>
+
+          <div class="pdf-artifact-preview__toolbar-icon-group">
+            <UiButton
+              variant="ghost"
+              size="sm"
+              icon-only
+              :disabled="saveInProgress || !exportScope.provides.value"
+              :title="t('Save')"
+              :aria-label="t('Save')"
+              @click="savePdfToDisk"
+            >
+              <IconDeviceFloppy :size="14" :stroke-width="1.8" />
+            </UiButton>
+            <UiButton
+              variant="ghost"
+              size="sm"
+              icon-only
+              :title="t('Reload PDF')"
+              :aria-label="t('Reload PDF')"
+              @click="$emit('reload-requested')"
+            >
+              <IconReload :size="14" :stroke-width="1.8" />
+            </UiButton>
+            <UiButton
+              variant="ghost"
+              size="sm"
+              icon-only
+              :title="t('Open PDF')"
+              :aria-label="t('Open PDF')"
+              @click="$emit('open-external')"
+            >
+              <IconExternalLink :size="14" :stroke-width="1.8" />
+            </UiButton>
+          </div>
         </div>
 
-        <div class="pdf-artifact-preview__toolbar-group">
-          <UiButton
-            variant="ghost"
-            size="sm"
-            :disabled="saveInProgress || !exportScope.provides.value"
-            :title="t('Save')"
-            @click="savePdfToDisk"
-          >
-            {{ t('Save') }}
-          </UiButton>
-          <UiButton variant="ghost" size="sm" :title="t('Reload PDF')" @click="$emit('reload-requested')">
-            {{ t('Reload') }}
-          </UiButton>
-          <UiButton variant="ghost" size="sm" :title="t('Open PDF')" @click="$emit('open-external')">
-            {{ t('Open') }}
-          </UiButton>
-        </div>
       </div>
 
       <div v-if="searchUiVisible" class="pdf-artifact-preview__toolbar-search">
@@ -289,9 +327,14 @@ import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { MatchFlag } from '@embedpdf/models'
 import { writeText as writeClipboardText } from '@tauri-apps/plugin-clipboard-manager'
 import {
+  IconColumns2,
   IconChevronDown,
   IconChevronUp,
+  IconDeviceFloppy,
+  IconExternalLink,
   IconLayoutSidebarLeftExpand,
+  IconRectangleVertical,
+  IconReload,
   IconSearch,
 } from '@tabler/icons-vue'
 import { useExport } from '@embedpdf/plugin-export/vue'
@@ -373,6 +416,7 @@ const selectionActive = ref(false)
 const searchUiVisible = ref(false)
 const thumbnailsVisible = ref(true)
 const searchQuery = ref('')
+const pageInputValue = ref('1')
 const searchInputRef = ref(null)
 const currentContextMenuReverseSyncDetail = ref(null)
 
@@ -400,6 +444,7 @@ const currentSpreadMode = computed(() =>
   spread.spreadMode.value === SpreadMode.Odd ? 'double' : 'single'
 )
 const currentPageNumber = computed(() => Math.max(1, Number(scroll.state.value?.currentPage || 1)))
+const totalPageCount = computed(() => Math.max(1, Number(scroll.state.value?.totalPages || 1)))
 const zoomDisplayLabel = computed(() => {
   const scaleValue = resolveScaleValueFromZoomState()
   if (scaleValue === 'page-fit') return t('Fit')
@@ -691,6 +736,17 @@ function scrollToThumbnailPage(pageNumber = 1) {
     behavior: 'smooth',
     alignY: 8,
   })
+}
+
+function submitPageNumberInput() {
+  const numericPageNumber = Math.round(Number(pageInputValue.value || 0))
+  const nextPageNumber = clamp(
+    Number.isFinite(numericPageNumber) ? numericPageNumber : currentPageNumber.value,
+    1,
+    totalPageCount.value
+  )
+  pageInputValue.value = String(nextPageNumber)
+  scrollToThumbnailPage(nextPageNumber)
 }
 
 function navigateSearch(direction = 1) {
@@ -1166,6 +1222,7 @@ watch(
 watch(
   () => scroll.state.value?.currentPage,
   () => {
+    pageInputValue.value = String(currentPageNumber.value)
     scheduleViewStateEmission()
   }
 )
@@ -1399,6 +1456,47 @@ onUnmounted(() => {
   font-size: 11px;
   font-weight: 500;
   cursor: pointer;
+}
+
+.pdf-artifact-preview__toolbar-page-group,
+.pdf-artifact-preview__toolbar-icon-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.pdf-artifact-preview__toolbar-page-group {
+  gap: 4px;
+  margin-inline-end: 2px;
+}
+
+.pdf-artifact-preview__toolbar-page-input {
+  width: 34px;
+  height: 22px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border-subtle) 24%, transparent);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+  text-align: center;
+  outline: 0;
+}
+
+.pdf-artifact-preview__toolbar-page-input:focus {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--focus-ring) 44%, transparent);
+}
+
+.pdf-artifact-preview__toolbar-page-total {
+  min-width: 28px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
 }
 
 .pdf-artifact-preview__toolbar-actions {
