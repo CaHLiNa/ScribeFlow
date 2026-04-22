@@ -1,5 +1,6 @@
 use serde::Deserialize;
 use serde_json::{json, Value};
+use std::path::Path;
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -123,6 +124,10 @@ fn normalize_target_resolution(value: &str, fallback: &str) -> Value {
     }
 }
 
+fn resolved_target_exists(path: &str) -> bool {
+    !path.is_empty() && Path::new(path).exists()
+}
+
 #[tauri::command]
 pub async fn document_workspace_preview_state_resolve(
     params: DocumentWorkspacePreviewStateResolveParams,
@@ -170,7 +175,7 @@ pub async fn document_workspace_preview_state_resolve(
         params.workflow_preview_kind.trim().to_string()
     };
     let resolved_target_path = normalize_path(&params.resolved_target_path);
-    let artifact_ready = params.artifact_ready || !resolved_target_path.is_empty();
+    let artifact_ready = params.artifact_ready || resolved_target_exists(&resolved_target_path);
 
     if kind == "markdown" {
         let state = create_preview_state(json!({

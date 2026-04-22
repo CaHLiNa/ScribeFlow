@@ -2,6 +2,16 @@ import { isLatex } from '../../../utils/fileTypes.js'
 import { buildLatexLintProblems, buildLatexProjectProblemsSync } from '../../latex/diagnostics.js'
 import { resolveCachedLatexPreviewPath } from '../../latex/root.js'
 
+function resolveKnownLatexArtifactPath(sourcePath, context = {}) {
+  const state = latexCompileAdapter.stateForFile(sourcePath, context) || null
+  return (
+    state?.previewPath
+    || state?.pdfPath
+    || context.workflowStore?.getLatexArtifactPathForFile?.(sourcePath)
+    || ''
+  )
+}
+
 function buildRecipeStatusSuffix(context = {}, state = {}, queueState = null) {
   const recipe = state?.buildRecipe || queueState?.recipe || 'default'
   const extraArgs = state?.buildExtraArgs || queueState?.buildExtraArgs || ''
@@ -112,8 +122,9 @@ const latexPreviewAdapter = {
   },
 
   getTargetPath(sourcePath, context) {
-    const state = latexCompileAdapter.stateForFile(sourcePath, context) || null
-    return state?.previewPath || state?.pdfPath || ''
+    return resolveKnownLatexArtifactPath(sourcePath, context)
+      || resolveCachedLatexPreviewPath(sourcePath)
+      || ''
   },
 
   ensure(sourcePath, context, options = {}) {
@@ -156,7 +167,9 @@ const latexCompileAdapter = {
   },
 
   getArtifactPath(filePath, context) {
-    return this.stateForFile(filePath, context)?.pdfPath || resolveCachedLatexPreviewPath(filePath) || ''
+    return resolveKnownLatexArtifactPath(filePath, context)
+      || resolveCachedLatexPreviewPath(filePath)
+      || ''
   },
 
   getStatusText(filePath, context) {

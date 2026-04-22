@@ -502,7 +502,13 @@ export const useLatexStore = defineStore('latex', {
 
         // Dispatch event for PDF viewer to refresh
         window.dispatchEvent(new CustomEvent('latex-compile-done', {
-          detail: { texPath, compileTargetPath, ...result },
+          detail: {
+            texPath,
+            compileTargetPath,
+            pdfPath: compileFinish?.sourceState?.pdfPath || result.pdf_path || '',
+            previewPath: compileFinish?.sourceState?.previewPath || result.pdf_path || '',
+            ...result,
+          },
         }))
         pushLatexLogToTerminal(texPath, result)
 

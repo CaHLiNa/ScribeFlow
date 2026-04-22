@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-const DOCUMENT_WORKFLOW_SESSION_VERSION: u32 = 1;
+const DOCUMENT_WORKFLOW_SESSION_VERSION: u32 = 2;
 const DEFAULT_SESSION_STATE: &str = "inactive";
 const PREF_KIND_MARKDOWN: &str = "markdown";
 const PREVIEW_KIND_HTML: &str = "html";
@@ -67,6 +67,8 @@ pub struct DocumentWorkflowPersistentState {
     pub workspace_preview_visibility: HashMap<String, String>,
     #[serde(default)]
     pub workspace_preview_requests: HashMap<String, String>,
+    #[serde(default)]
+    pub latex_artifact_paths: HashMap<String, String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -139,6 +141,7 @@ impl Default for DocumentWorkflowPersistentState {
             preview_bindings: Vec::new(),
             workspace_preview_visibility: HashMap::new(),
             workspace_preview_requests: HashMap::new(),
+            latex_artifact_paths: HashMap::new(),
         }
     }
 }
@@ -359,6 +362,21 @@ fn normalize_workspace_preview_requests(
         .collect()
 }
 
+fn normalize_latex_artifact_paths(values: HashMap<String, String>) -> HashMap<String, String> {
+    values
+        .into_iter()
+        .filter_map(|(path, artifact_path)| {
+            let normalized_path = normalize_path(&path);
+            let normalized_artifact_path = normalize_path(&artifact_path);
+            if normalized_path.is_empty() || normalized_artifact_path.is_empty() {
+                None
+            } else {
+                Some((normalized_path, normalized_artifact_path))
+            }
+        })
+        .collect()
+}
+
 pub fn normalize_document_workflow_persistent_state(
     state: DocumentWorkflowPersistentState,
 ) -> DocumentWorkflowPersistentState {
@@ -372,6 +390,7 @@ pub fn normalize_document_workflow_persistent_state(
         workspace_preview_requests: normalize_workspace_preview_requests(
             state.workspace_preview_requests,
         ),
+        latex_artifact_paths: normalize_latex_artifact_paths(state.latex_artifact_paths),
     }
 }
 
@@ -448,6 +467,7 @@ mod tests {
                 ],
                 workspace_preview_visibility: HashMap::new(),
                 workspace_preview_requests: HashMap::new(),
+                latex_artifact_paths: HashMap::new(),
             });
 
         assert_eq!(
@@ -509,6 +529,10 @@ mod tests {
                 workspace_preview_requests: HashMap::from([(
                     "/tmp/demo.md".to_string(),
                     "html".to_string(),
+                )]),
+                latex_artifact_paths: HashMap::from([(
+                    "/tmp/main.tex".to_string(),
+                    "/tmp/main.pdf".to_string(),
                 )]),
             },
         })

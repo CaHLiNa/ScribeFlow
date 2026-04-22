@@ -76,7 +76,12 @@ function resolveNativePreviewSupported(filePath, adapter, context, requestedPrev
 function resolveArtifactReady(filePath, adapter, context) {
   if (!adapter || !filePath) return false
   if (adapter.kind === 'latex') {
-    return Boolean(context.latexStore?.stateForFile?.(filePath)?.pdfPath)
+    const latexState = context.latexStore?.stateForFile?.(filePath) || null
+    return Boolean(
+      latexState?.pdfPath
+      || latexState?.previewPath
+      || context.workflowStore?.getLatexArtifactPathForFile?.(filePath),
+    )
   }
   return false
 }

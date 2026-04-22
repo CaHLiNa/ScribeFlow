@@ -24,6 +24,7 @@ export function createDocumentWorkflowPersistentState() {
     previewBindings: [],
     workspacePreviewVisibility: {},
     workspacePreviewRequests: {},
+    latexArtifactPaths: {},
   }
 }
 

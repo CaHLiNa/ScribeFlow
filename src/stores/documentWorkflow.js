@@ -29,6 +29,7 @@ import {
   loadDocumentWorkflowSessionState,
   saveDocumentWorkflowSessionState,
 } from '../services/documentWorkflow/sessionStateBridge.js'
+import { pathExists } from '../services/pathExists.js'
 
 function defaultPrefs() {
   return createDocumentWorkflowPersistentState().previewPrefs
@@ -50,6 +51,7 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
     markdownPreviewState: {},
     workspacePreviewVisibility: {},
     workspacePreviewRequests: {},
+    latexArtifactPaths: {},
     resolvedWorkspacePreviewStates: {},
     resolvedWorkflowUiStates: {},
     _isReconciling: false,
@@ -140,6 +142,7 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
         previewBindings: Object.values(this.previewBindings || {}),
         workspacePreviewVisibility: this.workspacePreviewVisibility,
         workspacePreviewRequests: this.workspacePreviewRequests,
+        latexArtifactPaths: this.latexArtifactPaths,
       }
     },
 
@@ -161,9 +164,11 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
       )
       this.workspacePreviewVisibility = next.workspacePreviewVisibility || {}
       this.workspacePreviewRequests = next.workspacePreviewRequests || {}
+      this.latexArtifactPaths = next.latexArtifactPaths || {}
     },
 
     async hydratePersistentState(force = false) {
+      this.ensureLatexArtifactPersistenceListener()
       const workspace = useWorkspaceStore()
       if (!workspace.workspaceDataDir) {
         this.applyPersistentState(defaultPersistentState())
@@ -174,8 +179,9 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
 
       const state = await loadDocumentWorkflowSessionState(workspace.workspaceDataDir)
       this.applyPersistentState(state)
+      await this.reconcileLatexArtifactPaths()
       this._persistentStateHydrated = true
-      return state
+      return this.snapshotPersistentState()
     },
 
     queuePersistentStateSave() {
@@ -228,6 +234,72 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
 
     getPreviewBinding(previewPath) {
       return previewPath ? this.previewBindings[previewPath] || null : null
+    },
+
+    ensureLatexArtifactPersistenceListener() {
+      if (typeof window === 'undefined' || this._latexArtifactPersistenceListenerAttached) return
+      this._latexArtifactPersistenceListenerAttached = true
+      window.addEventListener('latex-compile-done', (event) => {
+        const detail = event?.detail || {}
+        const artifactPath = String(detail.previewPath || detail.pdfPath || detail.pdf_path || '').trim()
+        if (!artifactPath) return
+
+        const sourcePath = String(detail.texPath || '').trim()
+        const targetPath = String(detail.compileTargetPath || '').trim()
+        if (sourcePath) {
+          this.setLatexArtifactPathForFile(sourcePath, artifactPath)
+        }
+        if (targetPath && targetPath !== sourcePath) {
+          this.setLatexArtifactPathForFile(targetPath, artifactPath)
+        }
+      })
+    },
+
+    setLatexArtifactPathForFile(filePath, artifactPath = '') {
+      const normalizedFilePath = String(filePath || '').trim()
+      if (!normalizedFilePath) return
+
+      const normalizedArtifactPath = String(artifactPath || '').trim()
+      const next = { ...(this.latexArtifactPaths || {}) }
+      if (!normalizedArtifactPath) {
+        if (!next[normalizedFilePath]) return
+        delete next[normalizedFilePath]
+      } else {
+        if (next[normalizedFilePath] === normalizedArtifactPath) return
+        next[normalizedFilePath] = normalizedArtifactPath
+      }
+
+      this.latexArtifactPaths = next
+      this.queuePersistentStateSave()
+    },
+
+    getLatexArtifactPathForFile(filePath) {
+      const normalizedFilePath = String(filePath || '').trim()
+      if (!normalizedFilePath) return ''
+      return String(this.latexArtifactPaths?.[normalizedFilePath] || '')
+    },
+
+    async reconcileLatexArtifactPaths() {
+      const entries = Object.entries(this.latexArtifactPaths || {})
+      if (entries.length === 0) return this.latexArtifactPaths || {}
+
+      const keptEntries = await Promise.all(entries.map(async ([sourcePath, artifactPath]) => {
+        if (await pathExists(artifactPath)) {
+          return [sourcePath, artifactPath]
+        }
+        return null
+      }))
+
+      const next = Object.fromEntries(keptEntries.filter(Boolean))
+      const currentKeys = Object.keys(this.latexArtifactPaths || {})
+      const nextKeys = Object.keys(next)
+      const unchanged = currentKeys.length === nextKeys.length
+        && currentKeys.every((key) => next[key] === this.latexArtifactPaths[key])
+      if (unchanged) return next
+
+      this.latexArtifactPaths = next
+      this.queuePersistentStateSave()
+      return next
     },
 
     bindPreview({ previewPath, sourcePath, previewKind, kind, paneId = null, detachOnClose = true }) {
