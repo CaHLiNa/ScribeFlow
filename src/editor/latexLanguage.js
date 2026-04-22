@@ -11,9 +11,13 @@ import onigWasmUrl from 'vscode-oniguruma/release/onig.wasm?url'
 import latexWorkshopLatexGrammar from './textmate/latex-workshop/LaTeX.tmLanguage.json'
 import latexWorkshopTexGrammar from './textmate/latex-workshop/TeX.tmLanguage.json'
 import vscode2026DarkThemeRaw from './textmate/vscode-themes/2026-dark.json?raw'
+import vscode2026LightThemeRaw from './textmate/vscode-themes/2026-light.json?raw'
 import vscodeDarkModernThemeRaw from './textmate/vscode-themes/dark_modern.json?raw'
 import vscodeDarkPlusThemeRaw from './textmate/vscode-themes/dark_plus.json?raw'
 import vscodeDarkVsThemeRaw from './textmate/vscode-themes/dark_vs.json?raw'
+import vscodeLightModernThemeRaw from './textmate/vscode-themes/light_modern.json?raw'
+import vscodeLightPlusThemeRaw from './textmate/vscode-themes/light_plus.json?raw'
+import vscodeLightVsThemeRaw from './textmate/vscode-themes/light_vs.json?raw'
 
 const LATEX_SCOPE_NAME = 'text.tex.latex'
 const TEX_SCOPE_NAME = 'text.tex'
@@ -27,6 +31,8 @@ const FONT_STYLE_OFFSET = 11
 const FOREGROUND_MASK = 16744448
 const FOREGROUND_OFFSET = 15
 const BRACKET_COLOR_COUNT = 6
+const LATEX_THEME_MODE_DARK = 'dark'
+const LATEX_THEME_MODE_LIGHT = 'light'
 
 const parsedLatexGrammar = parseRawGrammar(
   JSON.stringify(latexWorkshopLatexGrammar),
@@ -150,16 +156,25 @@ function parseJsonc(source) {
 
 const rawThemeFiles = Object.freeze({
   './2026-dark.json': parseJsonc(vscode2026DarkThemeRaw),
+  './2026-light.json': parseJsonc(vscode2026LightThemeRaw),
   './dark_modern.json': parseJsonc(vscodeDarkModernThemeRaw),
   './dark_plus.json': parseJsonc(vscodeDarkPlusThemeRaw),
   './dark_vs.json': parseJsonc(vscodeDarkVsThemeRaw),
+  './light_modern.json': parseJsonc(vscodeLightModernThemeRaw),
+  './light_plus.json': parseJsonc(vscodeLightPlusThemeRaw),
+  './light_vs.json': parseJsonc(vscodeLightVsThemeRaw),
 })
 
 const decorationCache = new Map()
-const mergedVsCode2026DarkTheme = createRawTextmateTheme(rawThemeFiles['./2026-dark.json'])
+const mergedVsCode2026ThemeDefinitions = Object.freeze({
+  [LATEX_THEME_MODE_DARK]: createRawTextmateTheme(rawThemeFiles['./2026-dark.json']),
+  [LATEX_THEME_MODE_LIGHT]: createRawTextmateTheme(rawThemeFiles['./2026-light.json']),
+})
 
-let latexTextmateGrammar = null
-let latexTextmateColorMap = null
+const latexTextmateRuntime = {
+  [LATEX_THEME_MODE_DARK]: null,
+  [LATEX_THEME_MODE_LIGHT]: null,
+}
 let latexTextmateReadyPromise = null
 let onigurumaReadyPromise = null
 
@@ -238,10 +253,26 @@ function getForegroundId(metadata) {
   return (metadata & FOREGROUND_MASK) >>> FOREGROUND_OFFSET
 }
 
-function buildInlineTextStyle(metadata) {
+function getResolvedLatexThemeMode(view) {
+  const root =
+    view?.dom?.ownerDocument?.documentElement ||
+    (typeof document !== 'undefined' ? document.documentElement : null)
+  const resolvedTheme = String(root?.dataset?.themeResolved || '').trim().toLowerCase()
+  return resolvedTheme === LATEX_THEME_MODE_LIGHT ? LATEX_THEME_MODE_LIGHT : LATEX_THEME_MODE_DARK
+}
+
+function getLatexTextmateRuntime(themeMode = LATEX_THEME_MODE_DARK) {
+  const runtime = latexTextmateRuntime[themeMode]
+  if (!runtime?.grammar || !runtime?.colorMap) {
+    throw new Error(`LaTeX TextMate runtime has not been initialized for theme: ${themeMode}`)
+  }
+  return runtime
+}
+
+function buildInlineTextStyle(metadata, colorMap) {
   const styleParts = []
   const foregroundId = getForegroundId(metadata)
-  const foreground = latexTextmateColorMap?.[foregroundId]
+  const foreground = colorMap?.[foregroundId]
   const fontStyle = getFontStyle(metadata)
 
   if (foreground) {
@@ -403,34 +434,39 @@ function loadRawGrammar(scopeName) {
 export async function ensureLatexTextmateReady() {
   if (!latexTextmateReadyPromise) {
     latexTextmateReadyPromise = (async () => {
-      const registry = new Registry({
-        theme: mergedVsCode2026DarkTheme,
-        onigLib: ensureOnigurumaReady(),
-        loadGrammar: async (scopeName) => loadRawGrammar(scopeName),
-      })
-
-      latexTextmateGrammar = await registry.loadGrammar(LATEX_SCOPE_NAME)
-      latexTextmateColorMap = registry.getColorMap()
-      if (!latexTextmateGrammar || !latexTextmateColorMap) {
-        throw new Error('Failed to initialize LaTeX TextMate grammar or VS Code theme.')
+      const onigLib = ensureOnigurumaReady()
+      const createRuntimeForTheme = async (themeMode, themeDefinition) => {
+        const registry = new Registry({
+          theme: themeDefinition,
+          onigLib,
+          loadGrammar: async (scopeName) => loadRawGrammar(scopeName),
+        })
+        const grammar = await registry.loadGrammar(LATEX_SCOPE_NAME)
+        const colorMap = registry.getColorMap()
+        if (!grammar || !colorMap) {
+          throw new Error(`Failed to initialize LaTeX TextMate runtime for theme: ${themeMode}`)
+        }
+        latexTextmateRuntime[themeMode] = { grammar, colorMap }
       }
 
-      return latexTextmateGrammar
+      await Promise.all([
+        createRuntimeForTheme(
+          LATEX_THEME_MODE_DARK,
+          mergedVsCode2026ThemeDefinitions[LATEX_THEME_MODE_DARK]
+        ),
+        createRuntimeForTheme(
+          LATEX_THEME_MODE_LIGHT,
+          mergedVsCode2026ThemeDefinitions[LATEX_THEME_MODE_LIGHT]
+        ),
+      ])
     })()
   }
 
   return latexTextmateReadyPromise
 }
 
-function requireLatexTextmateGrammar() {
-  if (!latexTextmateGrammar) {
-    throw new Error('LaTeX-Workshop TextMate grammar has not been initialized yet.')
-  }
-  return latexTextmateGrammar
-}
-
-function buildLatexTextmateDecorations(state) {
-  const grammar = requireLatexTextmateGrammar()
+function buildLatexTextmateDecorations(state, themeMode = LATEX_THEME_MODE_DARK) {
+  const { grammar, colorMap } = getLatexTextmateRuntime(themeMode)
   const builder = new RangeSetBuilder()
   const bracketSpans = buildLatexBracketSpans(state)
   let bracketIndex = 0
@@ -450,7 +486,7 @@ function buildLatexTextmateDecorations(state) {
 
       if (endIndex <= startIndex) continue
 
-      const style = buildInlineTextStyle(metadata)
+      const style = buildInlineTextStyle(metadata, colorMap)
       if (!style) continue
 
       const tokenFrom = line.from + startIndex
@@ -485,12 +521,33 @@ export function createLatexTextmateHighlightExtension() {
   return ViewPlugin.fromClass(
     class {
       constructor(view) {
-        this.decorations = buildLatexTextmateDecorations(view.state)
+        this.view = view
+        this.themeMode = getResolvedLatexThemeMode(view)
+        this.decorations = buildLatexTextmateDecorations(view.state, this.themeMode)
+        this.handleWorkspaceThemeUpdated = () => {
+          const nextThemeMode = getResolvedLatexThemeMode(this.view)
+          if (nextThemeMode === this.themeMode) return
+          this.themeMode = nextThemeMode
+          this.decorations = buildLatexTextmateDecorations(this.view.state, this.themeMode)
+          this.view.dispatch({})
+        }
+
+        if (typeof window !== 'undefined') {
+          window.addEventListener('workspace-theme-updated', this.handleWorkspaceThemeUpdated)
+        }
       }
 
       update(update) {
-        if (update.docChanged) {
-          this.decorations = buildLatexTextmateDecorations(update.state)
+        const nextThemeMode = getResolvedLatexThemeMode(update.view)
+        if (update.docChanged || nextThemeMode !== this.themeMode) {
+          this.themeMode = nextThemeMode
+          this.decorations = buildLatexTextmateDecorations(update.state, this.themeMode)
+        }
+      }
+
+      destroy() {
+        if (typeof window !== 'undefined') {
+          window.removeEventListener('workspace-theme-updated', this.handleWorkspaceThemeUpdated)
         }
       }
     },
