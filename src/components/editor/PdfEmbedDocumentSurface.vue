@@ -429,6 +429,10 @@ const searchSummary = computed(() => {
 const contextMenuCopyText = computed(() =>
   normalizeSelectedText(selectedText.value || contextMenuSelectionText.value)
 )
+const hasCopyableSelection = computed(() => {
+  const selectionState = selectionCapability.value?.forDocument(props.documentId)?.getState?.()
+  return Boolean(contextMenuCopyText.value || selectionActive.value || selectionState?.selection)
+})
 
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max)
@@ -850,6 +854,7 @@ async function copySelectedText(preferredText = '') {
 function buildSurfaceMenuGroups() {
   const revealDetail = currentContextMenuReverseSyncDetail.value
   const copyText = contextMenuCopyText.value
+  const canCopy = hasCopyableSelection.value
 
   return [
     {
@@ -858,7 +863,7 @@ function buildSurfaceMenuGroups() {
         {
           key: 'copy',
           label: t('Copy'),
-          disabled: !copyText,
+          disabled: !canCopy,
           action: () => {
             void copySelectedText(copyText)
           },
@@ -916,10 +921,20 @@ function handleMouseDownCapture(event) {
   if (Number(event?.button) !== 2) return
 
   const snapshot = readDomSelectedText()
-  if (!snapshot) return
+  const selectionState = selectionCapability.value?.forDocument(props.documentId)?.getState?.()
+  const hasSelection = Boolean(
+    snapshot
+    || contextMenuSelectionText.value
+    || selectedText.value
+    || selectionActive.value
+    || selectionState?.selection
+  )
+  if (!hasSelection) return
 
-  contextMenuSelectionText.value = snapshot
+  contextMenuSelectionText.value = snapshot || selectedText.value || contextMenuSelectionText.value
   event.preventDefault()
+  event.stopPropagation()
+  event.stopImmediatePropagation?.()
 }
 
 function handleKeydown(event) {
