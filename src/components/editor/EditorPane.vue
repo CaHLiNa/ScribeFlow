@@ -526,9 +526,10 @@ function handleOpenExternalPdf() {
 
 async function closeTab(path) {
   const result = await confirmUnsavedChanges([path])
-  if (result.choice === 'cancel') return
+  if (result.choice === 'cancel') return false
   workflowStore.handlePreviewClosed(path)
   editorStore.closeTab(props.paneId, path)
+  return true
 }
 
 function toggleTabsMenu() {
@@ -555,9 +556,14 @@ function selectTabFromMenu(path) {
 }
 
 async function closeTabFromMenu(path) {
-  closeTabsMenu()
   if (!path) return
-  await closeTab(path)
+  const closed = await closeTab(path)
+  if (!closed) return
+
+  const pane = editorStore.findPane(editorStore.paneTree, props.paneId)
+  if (!pane || !Array.isArray(pane.tabs) || pane.tabs.length === 0) {
+    closeTabsMenu()
+  }
 }
 
 function openNewTabDirect() {
