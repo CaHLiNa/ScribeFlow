@@ -35,9 +35,9 @@ import {
 } from '../services/workspacePreferences'
 import { applyLocalePreference } from '../i18n'
 import {
-  buildNextRecentWorkspaces,
   createWorkspaceLifecycleState,
   loadWorkspaceLifecycleState as loadWorkspaceLifecycleStateFromRust,
+  recordWorkspaceOpened as recordWorkspaceOpenedInRust,
   saveWorkspaceLifecycleState as saveWorkspaceLifecycleStateToRust,
 } from '../services/workspaceRecents'
 import { basenamePath } from '../utils/path'
@@ -152,7 +152,7 @@ export const useWorkspaceStore = defineStore('workspace', {
   actions: {
     applyWorkspacePreferenceState(preferences = {}) {
       const next = {
-        ...createWorkspacePreferenceState(),
+        ...snapshotWorkspacePreferences(this),
         ...preferences,
       }
 
@@ -170,7 +170,7 @@ export const useWorkspaceStore = defineStore('workspace', {
 
     applyWorkspaceLifecycleState(state = {}) {
       const next = {
-        ...createWorkspaceLifecycleState(),
+        ...snapshotWorkspaceLifecycleState(this),
         ...state,
       }
 
@@ -201,6 +201,13 @@ export const useWorkspaceStore = defineStore('workspace', {
       return preferences
     },
 
+    hydrateWorkspaceRuntime(force = false) {
+      return Promise.all([
+        this.hydratePreferences(force),
+        this.hydrateLifecycleState(force),
+      ])
+    },
+
     async hydrateLifecycleState(force = false) {
       if (!force && this._lifecycleHydrated) return snapshotWorkspaceLifecycleState(this)
 
@@ -211,7 +218,7 @@ export const useWorkspaceStore = defineStore('workspace', {
       return state
     },
 
-    async persistPreferences(patch = {}) {
+    async persistWorkspacePreferencesPatch(patch = {}) {
       const globalConfigDir = await this.ensureGlobalConfigDir()
       const previous = snapshotWorkspacePreferences(this)
       const optimistic = {
@@ -233,7 +240,11 @@ export const useWorkspaceStore = defineStore('workspace', {
       }
     },
 
-    async persistLifecycleState(patch = {}) {
+    persistPreferences(patch = {}) {
+      return this.persistWorkspacePreferencesPatch(patch)
+    },
+
+    async persistWorkspaceLifecyclePatch(patch = {}) {
       const globalConfigDir = await this.ensureGlobalConfigDir()
       const previous = snapshotWorkspaceLifecycleState(this)
       const optimistic = {
@@ -255,6 +266,10 @@ export const useWorkspaceStore = defineStore('workspace', {
       }
     },
 
+    persistLifecycleState(patch = {}) {
+      return this.persistWorkspaceLifecyclePatch(patch)
+    },
+
     async openWorkspace(path) {
       this.path = path
       await this.ensureGlobalConfigDir()
@@ -270,11 +285,9 @@ export const useWorkspaceStore = defineStore('workspace', {
         console.warn('[workspace] bootstrap failed:', error)
       })
 
-      const nextRecentWorkspaces = buildNextRecentWorkspaces(this.recentWorkspaces, path)
-      await this.persistLifecycleState({
-        recentWorkspaces: nextRecentWorkspaces,
-        lastWorkspace: path,
-      })
+      const lifecycleState = await recordWorkspaceOpenedInRust(this.globalConfigDir, path)
+      this.applyWorkspaceLifecycleState(lifecycleState)
+      this._lifecycleHydrated = true
     },
 
     async ensureWorkspaceBootstrapReady(path = this.path) {

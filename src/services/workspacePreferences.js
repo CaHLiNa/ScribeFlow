@@ -130,12 +130,12 @@ function normalizeWorkspaceThemeId(value) {
   }
 }
 
-function normalizeWorkbenchSurfaceLocally(value) {
+function normalizeBrowserPreviewWorkbenchSurface(value) {
   return String(value || '').trim() === 'settings' ? 'settings' : DEFAULT_WORKBENCH_SURFACE
 }
 
-function normalizeWorkbenchSidebarPanelLocally(surface, panel) {
-  const normalizedSurface = normalizeWorkbenchSurfaceLocally(surface)
+function normalizeBrowserPreviewWorkbenchSidebarPanel(surface, panel) {
+  const normalizedSurface = normalizeBrowserPreviewWorkbenchSurface(surface)
   const normalizedPanel = String(panel || '').trim()
   if (normalizedSurface === 'settings') {
     return normalizedPanel === DEFAULT_SETTINGS_SIDEBAR_PANEL
@@ -148,8 +148,8 @@ function normalizeWorkbenchSidebarPanelLocally(surface, panel) {
     : DEFAULT_WORKSPACE_SIDEBAR_PANEL
 }
 
-function normalizeWorkbenchInspectorPanelLocally(surface, panel) {
-  const normalizedSurface = normalizeWorkbenchSurfaceLocally(surface)
+function normalizeBrowserPreviewWorkbenchInspectorPanel(surface, panel) {
+  const normalizedSurface = normalizeBrowserPreviewWorkbenchSurface(surface)
   const normalizedPanel = String(panel || '').trim()
   if (normalizedSurface === 'settings') {
     return DEFAULT_SETTINGS_INSPECTOR_PANEL
@@ -214,10 +214,7 @@ export async function loadWorkspacePreferences(globalConfigDir = '') {
   })
 
   clearLegacyWorkspacePreferenceStorage()
-  return {
-    ...createWorkspacePreferenceState(),
-    ...preferences,
-  }
+  return preferences
 }
 
 export async function saveWorkspacePreferences(globalConfigDir = '', preferences = {}) {
@@ -229,24 +226,21 @@ export async function saveWorkspacePreferences(globalConfigDir = '', preferences
   })
 
   clearLegacyWorkspacePreferenceStorage()
-  return {
-    ...createWorkspacePreferenceState(),
-    ...normalized,
-  }
+  return normalized
 }
 
 export async function normalizeWorkbenchState(state = {}) {
   if (!hasDesktopInvoke()) {
-    const primarySurface = normalizeWorkbenchSurfaceLocally(state.primarySurface)
+    const primarySurface = normalizeBrowserPreviewWorkbenchSurface(state.primarySurface)
     return {
       primarySurface,
       leftSidebarOpen: state.leftSidebarOpen !== false,
-      leftSidebarPanel: normalizeWorkbenchSidebarPanelLocally(
+      leftSidebarPanel: normalizeBrowserPreviewWorkbenchSidebarPanel(
         primarySurface,
         state.leftSidebarPanel
       ),
       rightSidebarOpen: state.rightSidebarOpen === true,
-      rightSidebarPanel: normalizeWorkbenchInspectorPanelLocally(
+      rightSidebarPanel: normalizeBrowserPreviewWorkbenchInspectorPanel(
         primarySurface,
         state.rightSidebarPanel
       ),

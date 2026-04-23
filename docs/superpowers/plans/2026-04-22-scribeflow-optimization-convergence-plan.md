@@ -151,7 +151,7 @@
   - DOM side effect
   - optimistic 更新与失败回滚
 
-- [ ] **Step 1: 冻结现有 authority contract**
+- [x] **Step 1: 冻结现有 authority contract**
 
 输出一份简短审计记录到 `docs/2026-04-22-runtime-authority-audit.md`，列明以下内容：
 
@@ -166,7 +166,7 @@ Run: `rg -n "loadWorkspacePreferences|saveWorkspacePreferences|loadWorkspaceLife
 
 Expected: 能完整列出当前 workspace 读写链路。
 
-- [ ] **Step 2: 为 workspace bootstrap 定义 Rust 返回结构**
+- [x] **Step 2: 为 workspace bootstrap 定义 Rust 返回结构**
 
 在 `src-tauri/src/workspace_lifecycle.rs` 增加统一返回结构，至少包含：
 
@@ -185,7 +185,7 @@ pub struct WorkspaceBootstrapState {
 - 不再让前端自行推导默认值。
 - 归一化尾部 `/`、空字符串、重复 recent workspace。
 
-- [ ] **Step 3: 收口前端 service 为 bridge-only**
+- [x] **Step 3: 收口前端 service 为 bridge-only**
 
 把以下文件收敛为“调用 Rust + 执行最少本地 fallback”的 bridge：
 
@@ -203,7 +203,7 @@ Run: `rg -n "normalizeWorkspaceLifecycleState|normalizeWorkbenchSurfaceLocally|n
 
 Expected: 只保留 browser preview 所必需的 fallback；桌面端路径不再依赖这些本地 normalize。
 
-- [ ] **Step 4: 瘦身 workspace store**
+- [x] **Step 4: 瘦身 workspace store**
 
 调整 `src/stores/workspace.js`，让它只做：
 
@@ -225,7 +225,7 @@ async persistWorkspacePreferencesPatch(patch) {}
 async persistWorkspaceLifecyclePatch(patch) {}
 ```
 
-- [ ] **Step 5: 跑验证并提交**
+- [x] **Step 5: 跑验证并提交**
 
 Run:
 

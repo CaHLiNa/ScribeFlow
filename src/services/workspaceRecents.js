@@ -71,7 +71,7 @@ function normalizeRecentWorkspaces(recentWorkspaces = []) {
   return next
 }
 
-function normalizeWorkspaceLifecycleState(state = {}) {
+function normalizeBrowserPreviewWorkspaceLifecycleState(state = {}) {
   return {
     recentWorkspaces: normalizeRecentWorkspaces(state.recentWorkspaces),
     lastWorkspace: String(state.lastWorkspace || '').replace(/\/+$/, ''),
@@ -82,7 +82,7 @@ function normalizeWorkspaceLifecycleState(state = {}) {
 }
 
 function loadBrowserPreviewWorkspaceLifecycleState() {
-  const state = normalizeWorkspaceLifecycleState({
+  const state = normalizeBrowserPreviewWorkspaceLifecycleState({
     recentWorkspaces: readLegacyRecentWorkspaces(),
     lastWorkspace: readLegacyLastWorkspace(),
     setupComplete: readLegacySetupComplete(),
@@ -94,7 +94,7 @@ function loadBrowserPreviewWorkspaceLifecycleState() {
 }
 
 function saveBrowserPreviewWorkspaceLifecycleState(state = {}) {
-  const normalized = normalizeWorkspaceLifecycleState(state)
+  const normalized = normalizeBrowserPreviewWorkspaceLifecycleState(state)
   writeStorageJson('recentWorkspaces', normalized.recentWorkspaces)
   writeStorageValue('lastWorkspace', normalized.lastWorkspace)
   writeStorageValue('setupComplete', normalized.setupComplete ? 'true' : 'false')
@@ -128,11 +128,7 @@ export async function loadWorkspaceLifecycleState(globalConfigDir = '') {
   })
 
   clearLegacyWorkspaceLifecycleStorage()
-  return {
-    ...createWorkspaceLifecycleState(),
-    ...state,
-    recentWorkspaces: normalizeRecentWorkspaces(state?.recentWorkspaces),
-  }
+  return state
 }
 
 export async function saveWorkspaceLifecycleState(globalConfigDir = '', state = {}) {
@@ -148,23 +144,33 @@ export async function saveWorkspaceLifecycleState(globalConfigDir = '', state = 
   })
 
   clearLegacyWorkspaceLifecycleStorage()
-  return {
-    ...createWorkspaceLifecycleState(),
-    ...normalized,
-    recentWorkspaces: normalizeRecentWorkspaces(normalized?.recentWorkspaces),
-  }
+  return normalized
 }
 
-export function buildNextRecentWorkspaces(current = [], path = '') {
-  const normalizedPath = String(path || '').replace(/\/+$/, '')
-  if (!normalizedPath) return normalizeRecentWorkspaces(current)
+export async function recordWorkspaceOpened(globalConfigDir = '', path = '') {
+  if (!hasDesktopInvoke()) {
+    const current = loadBrowserPreviewWorkspaceLifecycleState()
+    return saveBrowserPreviewWorkspaceLifecycleState({
+      ...current,
+      recentWorkspaces: normalizeRecentWorkspaces([
+        {
+          path: String(path || ''),
+          name: basenamePath(path) || String(path || ''),
+          lastOpened: new Date().toISOString(),
+        },
+        ...current.recentWorkspaces,
+      ]),
+      lastWorkspace: String(path || ''),
+    })
+  }
 
-  const next = normalizeRecentWorkspaces(current).filter((item) => item.path !== normalizedPath)
-  next.unshift({
-    path: normalizedPath,
-    name: basenamePath(normalizedPath) || normalizedPath,
-    lastOpened: new Date().toISOString(),
+  const state = await invoke('workspace_lifecycle_record_opened', {
+    params: {
+      globalConfigDir: String(globalConfigDir || ''),
+      path: String(path || ''),
+    },
   })
-  if (next.length > MAX_RECENT_WORKSPACES) next.length = MAX_RECENT_WORKSPACES
-  return next
+
+  clearLegacyWorkspaceLifecycleStorage()
+  return state
 }

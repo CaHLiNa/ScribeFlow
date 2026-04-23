@@ -268,8 +268,7 @@ export function useWorkspaceLifecycle() {
   onMounted(async () => {
     try {
       await Promise.all([
-        workspace.hydratePreferences(),
-        workspace.hydrateLifecycleState(),
+        workspace.hydrateWorkspaceRuntime(),
         latexStore.hydratePreferences(),
       ])
     } catch (error) {

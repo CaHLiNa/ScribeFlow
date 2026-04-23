@@ -1,4 +1,5 @@
 use crate::app_dirs;
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fs;
@@ -21,6 +22,21 @@ pub struct RecentWorkspaceEntry {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkspaceLifecycleState {
+    #[serde(default)]
+    pub recent_workspaces: Vec<RecentWorkspaceEntry>,
+    #[serde(default)]
+    pub last_workspace: String,
+    #[serde(default)]
+    pub setup_complete: bool,
+    #[serde(default = "default_reopen_last_workspace_on_launch")]
+    pub reopen_last_workspace_on_launch: bool,
+    #[serde(default = "default_reopen_last_session_on_launch")]
+    pub reopen_last_session_on_launch: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceBootstrapState {
     #[serde(default)]
     pub recent_workspaces: Vec<RecentWorkspaceEntry>,
     #[serde(default)]
@@ -60,6 +76,15 @@ pub struct WorkspaceLifecycleSaveParams {
     pub state: WorkspaceLifecycleState,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceLifecycleRecordOpenedParams {
+    #[serde(default)]
+    pub global_config_dir: String,
+    #[serde(default)]
+    pub path: String,
+}
+
 impl Default for WorkspaceLifecycleState {
     fn default() -> Self {
         Self {
@@ -68,6 +93,30 @@ impl Default for WorkspaceLifecycleState {
             setup_complete: false,
             reopen_last_workspace_on_launch: default_reopen_last_workspace_on_launch(),
             reopen_last_session_on_launch: default_reopen_last_session_on_launch(),
+        }
+    }
+}
+
+impl From<WorkspaceLifecycleState> for WorkspaceBootstrapState {
+    fn from(state: WorkspaceLifecycleState) -> Self {
+        Self {
+            recent_workspaces: state.recent_workspaces,
+            last_workspace: state.last_workspace,
+            setup_complete: state.setup_complete,
+            reopen_last_workspace_on_launch: state.reopen_last_workspace_on_launch,
+            reopen_last_session_on_launch: state.reopen_last_session_on_launch,
+        }
+    }
+}
+
+impl From<WorkspaceBootstrapState> for WorkspaceLifecycleState {
+    fn from(state: WorkspaceBootstrapState) -> Self {
+        Self {
+            recent_workspaces: state.recent_workspaces,
+            last_workspace: state.last_workspace,
+            setup_complete: state.setup_complete,
+            reopen_last_workspace_on_launch: state.reopen_last_workspace_on_launch,
+            reopen_last_session_on_launch: state.reopen_last_session_on_launch,
         }
     }
 }
@@ -203,34 +252,82 @@ fn write_workspace_lifecycle_state(
     fs::write(path, serialized).map_err(|error| error.to_string())
 }
 
-#[tauri::command]
-pub async fn workspace_lifecycle_load(
-    params: WorkspaceLifecycleLoadParams,
+fn load_or_migrate_workspace_lifecycle_state(
+    global_config_dir: &str,
+    legacy_state: WorkspaceLifecycleState,
 ) -> Result<WorkspaceLifecycleState, String> {
-    if let Some(current) = read_workspace_lifecycle_state(&params.global_config_dir)? {
+    if let Some(current) = read_workspace_lifecycle_state(global_config_dir)? {
         return Ok(normalize_workspace_lifecycle_state(current));
     }
 
-    let normalized = normalize_workspace_lifecycle_state(params.legacy_state);
-    write_workspace_lifecycle_state(&params.global_config_dir, &normalized)?;
+    let normalized = normalize_workspace_lifecycle_state(legacy_state);
+    write_workspace_lifecycle_state(global_config_dir, &normalized)?;
     Ok(normalized)
+}
+
+fn record_workspace_opened(state: WorkspaceLifecycleState, path: &str) -> WorkspaceLifecycleState {
+    let normalized_path = normalize_root(path);
+    if normalized_path.is_empty() {
+        return normalize_workspace_lifecycle_state(state);
+    }
+
+    let mut recent_workspaces =
+        normalize_workspace_lifecycle_state(state.clone()).recent_workspaces;
+    recent_workspaces.retain(|entry| entry.path != normalized_path);
+    recent_workspaces.insert(
+        0,
+        RecentWorkspaceEntry {
+            path: normalized_path.clone(),
+            name: fallback_workspace_name(&normalized_path),
+            last_opened: Utc::now().to_rfc3339(),
+        },
+    );
+
+    normalize_workspace_lifecycle_state(WorkspaceLifecycleState {
+        recent_workspaces,
+        last_workspace: normalized_path,
+        setup_complete: state.setup_complete,
+        reopen_last_workspace_on_launch: state.reopen_last_workspace_on_launch,
+        reopen_last_session_on_launch: state.reopen_last_session_on_launch,
+    })
+}
+
+#[tauri::command]
+pub async fn workspace_lifecycle_load(
+    params: WorkspaceLifecycleLoadParams,
+) -> Result<WorkspaceBootstrapState, String> {
+    load_or_migrate_workspace_lifecycle_state(&params.global_config_dir, params.legacy_state)
+        .map(WorkspaceBootstrapState::from)
 }
 
 #[tauri::command]
 pub async fn workspace_lifecycle_save(
     params: WorkspaceLifecycleSaveParams,
-) -> Result<WorkspaceLifecycleState, String> {
+) -> Result<WorkspaceBootstrapState, String> {
     let normalized = normalize_workspace_lifecycle_state(params.state);
     write_workspace_lifecycle_state(&params.global_config_dir, &normalized)?;
-    Ok(normalized)
+    Ok(WorkspaceBootstrapState::from(normalized))
+}
+
+#[tauri::command]
+pub async fn workspace_lifecycle_record_opened(
+    params: WorkspaceLifecycleRecordOpenedParams,
+) -> Result<WorkspaceBootstrapState, String> {
+    let state = load_or_migrate_workspace_lifecycle_state(
+        &params.global_config_dir,
+        WorkspaceLifecycleState::default(),
+    )?;
+    let normalized = record_workspace_opened(state, &params.path);
+    write_workspace_lifecycle_state(&params.global_config_dir, &normalized)?;
+    Ok(WorkspaceBootstrapState::from(normalized))
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        normalize_workspace_lifecycle_state, workspace_lifecycle_load, workspace_lifecycle_save,
-        RecentWorkspaceEntry, WorkspaceLifecycleLoadParams, WorkspaceLifecycleSaveParams,
-        WorkspaceLifecycleState,
+        normalize_workspace_lifecycle_state, record_workspace_opened, workspace_lifecycle_load,
+        workspace_lifecycle_save, RecentWorkspaceEntry, WorkspaceLifecycleLoadParams,
+        WorkspaceLifecycleSaveParams, WorkspaceLifecycleState,
     };
     use std::fs;
 
@@ -300,5 +397,33 @@ mod tests {
         assert!(!loaded.reopen_last_workspace_on_launch);
         assert!(!loaded.reopen_last_session_on_launch);
         fs::remove_dir_all(temp_dir).ok();
+    }
+
+    #[test]
+    fn records_opened_workspace_at_front() {
+        let normalized = record_workspace_opened(
+            WorkspaceLifecycleState {
+                recent_workspaces: vec![
+                    RecentWorkspaceEntry {
+                        path: "/tmp/old".to_string(),
+                        name: "old".to_string(),
+                        last_opened: "2026-04-21T00:00:00Z".to_string(),
+                    },
+                    RecentWorkspaceEntry {
+                        path: "/tmp/demo".to_string(),
+                        name: "demo".to_string(),
+                        last_opened: "2026-04-20T00:00:00Z".to_string(),
+                    },
+                ],
+                ..WorkspaceLifecycleState::default()
+            },
+            "/tmp/demo/",
+        );
+
+        assert_eq!(normalized.recent_workspaces.len(), 2);
+        assert_eq!(normalized.recent_workspaces[0].path, "/tmp/demo");
+        assert_eq!(normalized.recent_workspaces[0].name, "demo");
+        assert_eq!(normalized.recent_workspaces[1].path, "/tmp/old");
+        assert_eq!(normalized.last_workspace, "/tmp/demo");
     }
 }
