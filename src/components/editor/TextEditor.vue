@@ -107,7 +107,11 @@ import {
   resolveLatexProjectGraph,
 } from '../../services/latex/projectGraph'
 import { revealLatexSourceLocation } from '../../services/latex/previewSync.js'
-import { rememberPendingMarkdownForwardSync } from '../../services/markdown/previewSync.js'
+import {
+  MARKDOWN_BACKWARD_SYNC_EVENT,
+  dispatchMarkdownForwardSync,
+  rememberPendingMarkdownForwardSync,
+} from '../../services/markdown/previewSync.js'
 import { readWorkspaceTextFile, saveWorkspaceTextFile } from '../../services/fileStoreIO.js'
 import { basenamePath, dirnamePath } from '../../utils/path'
 import EditorContextMenu from './EditorContextMenu.vue'
@@ -157,7 +161,9 @@ let view = null
 let backwardSyncHandler = null
 let latexCursorRequestHandler = null
 let markdownCursorRequestHandler = null
+let markdownBackwardSyncHandler = null
 let markdownPreviewSyncTimer = null
+let markdownPreviewScrollSyncFrame = null
 let editorRuntimeActive = false
 let pendingContextMenuState = null
 let contextMenuRestoreFrame = null
@@ -167,6 +173,7 @@ let latexFormatOnSaveInFlight = false
 let latexWarmupHandle = null
 let lastPersistedContent = ''
 const LATEX_SYNC_DEBUG_LOG = '.altals-latex-sync-debug.jsonl'
+let suppressMarkdownPreviewScrollSyncUntil = 0
 
 const isDraftFile = isDraftPath(props.filePath)
 const isMd = isMarkdown(props.filePath)
@@ -752,6 +759,9 @@ onMounted(async () => {
       if (isMd && update.selectionSet) {
         scheduleMarkdownSelectionPreviewSync(update.state.selection.main)
       }
+      if (isMd && update.viewportChanged) {
+        scheduleMarkdownViewportPreviewSync(update.view)
+      }
     }),
   ]
 
@@ -1061,29 +1071,35 @@ function ensureLatexWindowHandlers() {
 }
 
 function ensureMarkdownWindowHandlers() {
-  if (!isMd || markdownCursorRequestHandler) return
+  if (!isMd) return
 
-  markdownCursorRequestHandler = (event) => {
-    if (!view || event.detail?.sourcePath !== props.filePath) return
-    const pos = view.state.selection.main.head
-    const location = getMarkdownSyncLocation(pos)
-    if (!location) return
+  if (!markdownCursorRequestHandler) {
+    markdownCursorRequestHandler = (event) => {
+      if (!view || event.detail?.sourcePath !== props.filePath) return
+      const pos = view.state.selection.main.head
+      const location = getMarkdownSyncLocation(pos)
+      if (!location) return
 
-    rememberPendingMarkdownForwardSync({
-      sourcePath: props.filePath,
-      line: location.line,
-      offset: location.offset,
-    })
-
-    window.dispatchEvent(
-      new CustomEvent('markdown-forward-sync-location', {
-        detail: {
-          sourcePath: props.filePath,
-          line: location.line,
-          offset: location.offset,
-        },
+      rememberPendingMarkdownForwardSync({
+        sourcePath: props.filePath,
+        line: location.line,
+        offset: location.offset,
       })
-    )
+
+      dispatchMarkdownForwardSync({
+        sourcePath: props.filePath,
+        line: location.line,
+        offset: location.offset,
+        reason: 'selection',
+      })
+    }
+  }
+
+  if (!markdownBackwardSyncHandler) {
+    markdownBackwardSyncHandler = (event) => {
+      if (!view || event.detail?.sourcePath !== props.filePath) return
+      scrollMarkdownEditorToLocation(event.detail || {})
+    }
   }
 }
 
@@ -1101,6 +1117,9 @@ function attachEditorRuntimeListeners() {
   if (isMd && !isDraftFile) {
     ensureMarkdownWindowHandlers()
     window.addEventListener('markdown-request-cursor', markdownCursorRequestHandler)
+    if (markdownBackwardSyncHandler) {
+      window.addEventListener(MARKDOWN_BACKWARD_SYNC_EVENT, markdownBackwardSyncHandler)
+    }
   }
   if (supportsLatexRuntime) {
     ensureLatexWindowHandlers()
@@ -1121,6 +1140,9 @@ function detachEditorRuntimeListeners() {
   }
   if (markdownCursorRequestHandler) {
     window.removeEventListener('markdown-request-cursor', markdownCursorRequestHandler)
+  }
+  if (markdownBackwardSyncHandler) {
+    window.removeEventListener(MARKDOWN_BACKWARD_SYNC_EVENT, markdownBackwardSyncHandler)
   }
   if (backwardSyncHandler) {
     window.removeEventListener('latex-backward-sync', backwardSyncHandler)
@@ -1292,16 +1314,97 @@ function scheduleMarkdownSelectionPreviewSync(selection) {
       offset: location.offset,
     })
 
-    window.dispatchEvent(
-      new CustomEvent('markdown-forward-sync-location', {
-        detail: {
-          sourcePath: props.filePath,
-          line: location.line,
-          offset: location.offset,
-        },
-      })
-    )
+    dispatchMarkdownForwardSync({
+      sourcePath: props.filePath,
+      line: location.line,
+      offset: location.offset,
+      reason: 'selection',
+    })
   }, 90)
+}
+
+function suppressMarkdownPreviewScrollSync(durationMs = 220) {
+  suppressMarkdownPreviewScrollSyncUntil = Date.now() + Math.max(0, Number(durationMs) || 0)
+}
+
+function isMarkdownPreviewScrollSyncSuppressed() {
+  return Date.now() < suppressMarkdownPreviewScrollSyncUntil
+}
+
+function getMarkdownViewportSyncLocation(targetView = view) {
+  if (!targetView?.state?.doc) return null
+  const viewportFrom = Number(targetView.viewport?.from ?? -1)
+  const pos =
+    Number.isInteger(viewportFrom) && viewportFrom >= 0
+      ? viewportFrom
+      : targetView.state.selection.main.head
+  return getMarkdownSyncLocation(pos)
+}
+
+function scheduleMarkdownViewportPreviewSync(targetView = view) {
+  if (!isMd || !targetView) return
+  if (!workspace.markdownPreviewSync) return
+  if (!hasActiveMarkdownPreviewTarget()) return
+  if (isMarkdownPreviewScrollSyncSuppressed()) return
+
+  if (markdownPreviewScrollSyncFrame != null) {
+    window.cancelAnimationFrame(markdownPreviewScrollSyncFrame)
+    markdownPreviewScrollSyncFrame = null
+  }
+
+  markdownPreviewScrollSyncFrame = window.requestAnimationFrame(() => {
+    markdownPreviewScrollSyncFrame = null
+    if (isMarkdownPreviewScrollSyncSuppressed()) return
+    const location = getMarkdownViewportSyncLocation(targetView)
+    if (!location) return
+
+    dispatchMarkdownForwardSync({
+      sourcePath: props.filePath,
+      line: location.line,
+      offset: location.offset,
+      reason: 'editor-scroll',
+    })
+  })
+}
+
+function scrollMarkdownEditorToLocation(detail = {}) {
+  if (!view?.state?.doc) return false
+
+  let pos = Number(detail.offset ?? -1)
+  if (!Number.isInteger(pos) || pos < 0) {
+    const lineNumber = Math.max(1, Number(detail.line || 1))
+    pos = view.state.doc.line(Math.min(lineNumber, view.state.doc.lines)).from
+  }
+
+  pos = Math.max(0, Math.min(pos, view.state.doc.length))
+
+  const scroller = view.scrollDOM
+  if (!scroller) return false
+
+  let targetTop = null
+  if (typeof view.lineBlockAt === 'function') {
+    const block = view.lineBlockAt(pos)
+    if (Number.isFinite(block?.top)) {
+      targetTop = Math.max(0, Number(block.top) - 40)
+    }
+  }
+
+  if (!Number.isFinite(targetTop)) {
+    const coords = view.coordsAtPos(pos)
+    const scrollerRect = scroller.getBoundingClientRect()
+    if (coords && scrollerRect) {
+      targetTop = Math.max(0, scroller.scrollTop + (coords.top - scrollerRect.top) - 40)
+    }
+  }
+
+  if (!Number.isFinite(targetTop)) return false
+
+  suppressMarkdownPreviewScrollSync()
+  scroller.scrollTo({
+    top: targetTop,
+    behavior: 'auto',
+  })
+  return true
 }
 
 function hasActiveMarkdownPreviewTarget() {
@@ -1391,9 +1494,15 @@ watch(
 watch(
   () => workspace.markdownPreviewSync,
   (enabled) => {
-    if (enabled || markdownPreviewSyncTimer == null) return
-    window.clearTimeout(markdownPreviewSyncTimer)
-    markdownPreviewSyncTimer = null
+    if (enabled) return
+    if (markdownPreviewSyncTimer != null) {
+      window.clearTimeout(markdownPreviewSyncTimer)
+      markdownPreviewSyncTimer = null
+    }
+    if (markdownPreviewScrollSyncFrame != null) {
+      window.cancelAnimationFrame(markdownPreviewScrollSyncFrame)
+      markdownPreviewScrollSyncFrame = null
+    }
   }
 )
 
@@ -1436,6 +1545,10 @@ onUnmounted(() => {
     window.clearTimeout(markdownPreviewSyncTimer)
     markdownPreviewSyncTimer = null
   }
+  if (markdownPreviewScrollSyncFrame != null) {
+    window.cancelAnimationFrame(markdownPreviewScrollSyncFrame)
+    markdownPreviewScrollSyncFrame = null
+  }
   if (view) {
     view.destroy()
     view = null
@@ -1445,6 +1558,7 @@ onUnmounted(() => {
   backwardSyncHandler = null
   latexCursorRequestHandler = null
   markdownCursorRequestHandler = null
+  markdownBackwardSyncHandler = null
 })
 </script>
 

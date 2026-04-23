@@ -33,6 +33,7 @@ import { useFilesStore } from '../../stores/files'
 import { useEditorStore } from '../../stores/editor'
 import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { useLinksStore } from '../../stores/links'
+import { useWorkspaceStore } from '../../stores/workspace'
 import { useI18n } from '../../i18n'
 import { renderPreview } from '../../utils/markdownPreview'
 import { openExternalHttpUrl, resolveExternalHttpAnchor } from '../../services/externalLinks.js'
@@ -41,6 +42,8 @@ import { resolveMarkdownPreviewInput } from '../../domains/document/documentWork
 import SurfaceContextMenu from '../shared/SurfaceContextMenu.vue'
 import { useSurfaceContextMenu } from '../../composables/useSurfaceContextMenu.js'
 import {
+  MARKDOWN_FORWARD_SYNC_EVENT,
+  dispatchMarkdownBackwardSync,
   clearPendingMarkdownForwardSync,
   rememberPendingMarkdownForwardSync,
   takePendingMarkdownForwardSync,
@@ -56,6 +59,7 @@ const filesStore = useFilesStore()
 const editorStore = useEditorStore()
 const workflowStore = useDocumentWorkflowStore()
 const linksStore = useLinksStore()
+const workspace = useWorkspaceStore()
 const { t } = useI18n()
 const containerEl = ref(null)
 const {
@@ -81,6 +85,8 @@ const loadError = computed(() => filesStore.getFileLoadError(resolvedSourcePath.
 let renderTimer = null
 const renderedHtml = ref('')
 let flashTimer = null
+let previewScrollSyncFrame = null
+let suppressPreviewScrollSyncUntil = 0
 
 function getSourceAnchors() {
   return[
@@ -169,10 +175,39 @@ function flashAnchor(element) {
   }, 1200)
 }
 
+function suppressPreviewScrollSync(durationMs = 220) {
+  suppressPreviewScrollSyncUntil = Date.now() + Math.max(0, Number(durationMs) || 0)
+}
+
+function isPreviewScrollSyncSuppressed() {
+  return Date.now() < suppressPreviewScrollSyncUntil
+}
+
+function scrollAnchorNearTop(anchor, topOffset = 40) {
+  const container = containerEl.value
+  if (!container || !anchor) return false
+  const containerRect = container.getBoundingClientRect()
+  const anchorRect = anchor.getBoundingClientRect()
+  const targetTop = Math.max(0, container.scrollTop + (anchorRect.top - containerRect.top) - topOffset)
+  container.scrollTo({
+    top: targetTop,
+    behavior: 'auto',
+  })
+  return true
+}
+
 function scrollToSourceLocation(detail = {}) {
   const anchor = findBestAnchor(detail)
   if (!anchor) return false
+  const reason = String(detail.reason || '').trim()
+  if (reason === 'editor-scroll') {
+    suppressPreviewScrollSync()
+    scrollAnchorNearTop(anchor)
+    return true
+  }
+
   flashAnchor(anchor)
+  suppressPreviewScrollSync()
   anchor.scrollIntoView({
     block: 'center',
     inline: 'nearest',
@@ -231,6 +266,58 @@ function getSelectedPreviewText() {
     return ''
   }
   return String(selection.toString() || '').trim()
+}
+
+function findTopVisibleAnchor() {
+  const container = containerEl.value
+  if (!container) return null
+
+  const anchors = getSourceAnchors()
+  if (anchors.length === 0) return null
+
+  const containerRect = container.getBoundingClientRect()
+  const targetY = containerRect.top + Math.min(Math.max(containerRect.height * 0.2, 24), 120)
+
+  let best = null
+  let bestDistance = Number.POSITIVE_INFINITY
+
+  for (const anchor of anchors) {
+    const rect = anchor.getBoundingClientRect()
+    if (rect.bottom < containerRect.top) continue
+    const distance = Math.abs(rect.top - targetY)
+    if (distance < bestDistance) {
+      best = anchor
+      bestDistance = distance
+    }
+    if (rect.top >= targetY) break
+  }
+
+  return best || anchors[anchors.length - 1] || null
+}
+
+function scheduleBackwardScrollSync() {
+  if (!workspace.markdownPreviewSync) return
+  if (isPreviewScrollSyncSuppressed()) return
+
+  if (previewScrollSyncFrame != null) {
+    window.cancelAnimationFrame(previewScrollSyncFrame)
+    previewScrollSyncFrame = null
+  }
+
+  previewScrollSyncFrame = window.requestAnimationFrame(() => {
+    previewScrollSyncFrame = null
+    if (isPreviewScrollSyncSuppressed()) return
+    const anchor = findTopVisibleAnchor()
+    const location = readAnchorLocation(anchor)
+    if (!location) return
+
+    dispatchMarkdownBackwardSync({
+      sourcePath: location.filePath,
+      line: location.line,
+      offset: location.offset,
+      reason: 'preview-scroll',
+    })
+  })
 }
 
 async function copySelectedPreviewText() {
@@ -299,6 +386,15 @@ watch(loadError, (nextError) => {
   }
 })
 
+watch(
+  () => workspace.markdownPreviewSync,
+  (enabled) => {
+    if (enabled || previewScrollSyncFrame == null) return
+    window.cancelAnimationFrame(previewScrollSyncFrame)
+    previewScrollSyncFrame = null
+  }
+)
+
 onMounted(async () => {
   let content = filesStore.fileContents[resolvedSourcePath.value]
   if (content === undefined) {
@@ -307,14 +403,20 @@ onMounted(async () => {
   if (content === null && loadError.value) return
 
   doRender()
-  window.addEventListener('markdown-forward-sync-location', handleForwardSyncRequest)
+  containerEl.value?.addEventListener('scroll', handlePreviewScroll, { passive: true })
+  window.addEventListener(MARKDOWN_FORWARD_SYNC_EVENT, handleForwardSyncRequest)
 })
 
 onUnmounted(() => {
-  window.removeEventListener('markdown-forward-sync-location', handleForwardSyncRequest)
+  containerEl.value?.removeEventListener('scroll', handlePreviewScroll)
+  window.removeEventListener(MARKDOWN_FORWARD_SYNC_EVENT, handleForwardSyncRequest)
   if (flashTimer) {
     window.clearTimeout(flashTimer)
     flashTimer = null
+  }
+  if (previewScrollSyncFrame != null) {
+    window.cancelAnimationFrame(previewScrollSyncFrame)
+    previewScrollSyncFrame = null
   }
 })
 
@@ -328,6 +430,10 @@ function handleForwardSyncRequest(event) {
       rememberPendingMarkdownForwardSync(detail)
     }
   })
+}
+
+function handlePreviewScroll() {
+  scheduleBackwardScrollSync()
 }
 
 function handleClick(e) {

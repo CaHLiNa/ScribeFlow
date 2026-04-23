@@ -58,7 +58,7 @@
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('Sync Markdown preview') }}</div>
             <div class="settings-row-hint">
-              {{ t('Follow the editor cursor in Markdown preview when a preview is open.') }}
+              {{ t('Keep Markdown source and preview aligned while moving the cursor or scrolling.') }}
             </div>
           </div>
           <div class="settings-row-control compact">
