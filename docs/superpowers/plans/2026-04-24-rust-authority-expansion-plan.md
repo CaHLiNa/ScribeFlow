@@ -76,6 +76,33 @@
 
 不能让 bridge 重新长成新的 JS 功能中心。
 
+### 3.1 禁止用“新增 JS 文件”承接 backend Rust 迁移
+
+本 phase 增加一条硬约束：
+
+- **禁止为了 backend Rust 迁移而新建 JS / TS 文件去承载 runtime 逻辑。**
+- 如果某个 backend 规则准备迁到 Rust，正确做法是：
+  - 直接新增 Rust 模块
+  - 在现有前端文件中保留极薄 invoke / adapter
+  - 逐步删除旧 JS authority
+- 不允许出现“从一个 JS 文件减掉，再新建另一个 JS 文件继续承载同类 backend 语义”的做法。
+
+这条规则适用于：
+
+- `src/domains/*.js`
+- `src/services/*.js`
+- `src/stores/*.js`
+- 任何为 query / mutation / reconcile / orchestration / normalize / cache / restore 新开的前端 runtime 文件
+
+换句话说：
+
+- **允许新增 Rust 文件**
+- **允许缩薄现有前端文件**
+- **允许删除旧 JS runtime**
+- **禁止新建 JS backend runtime**
+
+已有同类 JS bridge / runtime 文件，只能被视为待删除迁移债，不能继续扩张成功能中心。
+
 ### 4. 每一刀都要减少 JS 架构面积
 
 验收不是“Rust 新增了一个 command”，而是：
@@ -312,6 +339,7 @@
 - 对应 JS 文件职责和行数同时下降。
 - Rust 新模块有直接测试入口。
 - 若仍保留前端 fallback，必须明确是 fallback-only，而不是桌面端真实实现。
+- 不允许为了迁移而新增新的 JS backend runtime / bridge 文件；若出现新增前端文件，必须证明它只是纯 UI adapter，而不是 backend 规则载体。
 
 ## 建议配套审计
 
