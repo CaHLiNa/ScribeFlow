@@ -456,6 +456,22 @@ function firstMeaningfulColumn(lineText = '') {
   return match ? match.index + 1 : 1
 }
 
+function centeredMeaningfulColumn(lineText = '') {
+  const content = stripLatexLineComment(String(lineText || ''))
+  const firstIndex = content.search(/\S/)
+  if (firstIndex < 0) return 1
+
+  let lastIndex = firstIndex
+  for (let index = content.length - 1; index >= firstIndex; index -= 1) {
+    if (!/\s/.test(content[index])) {
+      lastIndex = index
+      break
+    }
+  }
+
+  return Math.max(1, Math.round((firstIndex + lastIndex) / 2) + 1)
+}
+
 function resolveLatexForwardSyncTarget(viewInstance, pos = 0) {
   if (!viewInstance?.state?.doc) return null
 
@@ -466,6 +482,7 @@ function resolveLatexForwardSyncTarget(viewInstance, pos = 0) {
     return {
       line: currentLine.number,
       column: Math.max(1, pos - currentLine.from + 1),
+      semanticOrigin: 'direct',
     }
   }
 
@@ -488,7 +505,9 @@ function resolveLatexForwardSyncTarget(viewInstance, pos = 0) {
       if (depth === 0 && !isIgnorableLatexForwardSyncLine(line.text)) {
         return {
           line: line.number,
-          column: firstMeaningfulColumn(line.text),
+          column: centeredMeaningfulColumn(line.text),
+          semanticOrigin: 'environment-begin',
+          semanticToken: boundary.token,
         }
       }
     }
@@ -513,7 +532,9 @@ function resolveLatexForwardSyncTarget(viewInstance, pos = 0) {
       if (depth === 0 && !isIgnorableLatexForwardSyncLine(line.text)) {
         return {
           line: line.number,
-          column: firstMeaningfulColumn(line.text),
+          column: centeredMeaningfulColumn(line.text),
+          semanticOrigin: 'environment-end',
+          semanticToken: boundary.token,
         }
       }
     }
@@ -529,7 +550,9 @@ function resolveLatexForwardSyncTarget(viewInstance, pos = 0) {
       if (!isIgnorableLatexForwardSyncLine(line.text)) {
         return {
           line: line.number,
-          column: firstMeaningfulColumn(line.text),
+          column: centeredMeaningfulColumn(line.text),
+          semanticOrigin: 'environment-begin',
+          semanticToken: boundary.token,
         }
       }
     }
@@ -545,7 +568,9 @@ function resolveLatexForwardSyncTarget(viewInstance, pos = 0) {
       if (!isIgnorableLatexForwardSyncLine(line.text)) {
         return {
           line: line.number,
-          column: firstMeaningfulColumn(line.text),
+          column: centeredMeaningfulColumn(line.text),
+          semanticOrigin: 'environment-end',
+          semanticToken: boundary.token,
         }
       }
     }
@@ -553,7 +578,9 @@ function resolveLatexForwardSyncTarget(viewInstance, pos = 0) {
 
   return {
     line: currentLine.number,
-    column: firstMeaningfulColumn(currentLine.text),
+    column: centeredMeaningfulColumn(currentLine.text),
+    semanticOrigin: boundary.type === 'end' ? 'environment-end' : 'environment-begin',
+    semanticToken: boundary.token,
   }
 }
 
@@ -1287,6 +1314,8 @@ function ensureLatexEditorHandlers() {
         filePath: props.filePath,
         line: target.line,
         column: target.column,
+        semanticOrigin: target.semanticOrigin || 'direct',
+        semanticToken: target.semanticToken || '',
         paneId: props.paneId,
         reason: 'double-click',
       }
