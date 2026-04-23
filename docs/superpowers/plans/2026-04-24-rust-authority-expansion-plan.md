@@ -326,6 +326,7 @@
 - Rust 新增 `references_mutation.rs`
 - 前端 `references.js` 已开始消费 Rust query result
 - collection mutation 与 import selection contract 已开始消费 Rust mutation result
+- `referenceQueryBridge.js` / `referenceQueryRuntime.js` 已删除，query 侧不再保留独立 JS runtime 文件
 
 剩余内容：
 

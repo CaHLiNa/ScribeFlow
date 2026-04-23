@@ -30,9 +30,7 @@ import {
   importReferencesFromText,
   parseReferenceImportText,
 } from '../services/references/bibtexImport.js'
-import { resolveReferenceQueryState } from '../services/references/referenceQueryBridge.js'
 import { deleteFromZotero, loadZoteroConfig } from '../services/references/zoteroSync.js'
-import { resolveReferenceQueryStateLocally } from '../domains/references/referenceQueryRuntime.js'
 import { isBrowserPreviewRuntime } from '../app/browserPreview/routes.js'
 
 function normalizeCollectionMembershipValue(value = '') {
@@ -64,20 +62,23 @@ async function shouldMarkReferenceForZoteroPush() {
 }
 
 function buildDefaultResolvedQueryState(state = {}) {
-  return resolveReferenceQueryStateLocally({
-    librarySections: state.librarySections || [],
-    sourceSections: state.sourceSections || [],
-    collections: state.collections || [],
-    tags: state.tags || [],
-    references: state.references || [],
-    selectedSectionKey: state.selectedSectionKey || 'all',
-    selectedSourceKey: state.selectedSourceKey || '',
-    selectedCollectionKey: state.selectedCollectionKey || '',
-    selectedTagKey: state.selectedTagKey || '',
-    searchQuery: state.searchQuery || '',
-    sortKey: state.sortKey || 'year-desc',
-    fileContents: {},
-  })
+  return {
+    query: {
+      selectedSectionKey: state.selectedSectionKey || 'all',
+      selectedSourceKey: state.selectedSourceKey || '',
+      selectedCollectionKey: state.selectedCollectionKey || '',
+      selectedTagKey: state.selectedTagKey || '',
+      searchQuery: state.searchQuery || '',
+      sortKey: state.sortKey || 'year-desc',
+    },
+    sectionCounts: {},
+    sourceCounts: {},
+    collectionCounts: {},
+    tagCounts: {},
+    sortedReferences: Array.isArray(state.references) ? state.references : [],
+    filteredReferences: Array.isArray(state.references) ? state.references : [],
+    citationUsageIndex: {},
+  }
 }
 
 function hasDesktopInvoke() {
@@ -93,6 +94,29 @@ async function invokeReferenceMutation(params = {}) {
     params: {
       snapshot: params.snapshot && typeof params.snapshot === 'object' ? params.snapshot : {},
       action: params.action && typeof params.action === 'object' ? params.action : { type: '' },
+    },
+  })
+}
+
+async function invokeReferenceQuery(params = {}) {
+  if (!hasDesktopInvoke()) {
+    throw new Error('References query runtime requires desktop Rust backend.')
+  }
+
+  return invoke('references_query_resolve', {
+    params: {
+      librarySections: Array.isArray(params.librarySections) ? params.librarySections : [],
+      sourceSections: Array.isArray(params.sourceSections) ? params.sourceSections : [],
+      collections: Array.isArray(params.collections) ? params.collections : [],
+      tags: Array.isArray(params.tags) ? params.tags : [],
+      references: Array.isArray(params.references) ? params.references : [],
+      selectedSectionKey: String(params.selectedSectionKey || ''),
+      selectedSourceKey: String(params.selectedSourceKey || ''),
+      selectedCollectionKey: String(params.selectedCollectionKey || ''),
+      selectedTagKey: String(params.selectedTagKey || ''),
+      searchQuery: String(params.searchQuery || ''),
+      sortKey: String(params.sortKey || ''),
+      fileContents: params.fileContents && typeof params.fileContents === 'object' ? params.fileContents : {},
     },
   })
 }
@@ -194,7 +218,7 @@ export const useReferencesStore = defineStore('references', {
     async refreshResolvedQueryState() {
       const pinia = getActivePinia()
       const fileContents = pinia?.state?.value?.files?.fileContents || {}
-      const resolved = await resolveReferenceQueryState({
+      const resolved = await invokeReferenceQuery({
         librarySections: this.librarySections,
         sourceSections: this.sourceSections,
         collections: this.collections,
@@ -221,7 +245,8 @@ export const useReferencesStore = defineStore('references', {
       this.searchQuery = String(query.searchQuery ?? this.searchQuery ?? '')
     },
 
-    syncResolvedQueryState() {
+    async syncResolvedQueryState(options = {}) {
+      const { ensureVisible = false } = options
       this.resolvedQueryState = buildDefaultResolvedQueryState({
         librarySections: this.librarySections,
         sourceSections: this.sourceSections,
@@ -234,9 +259,11 @@ export const useReferencesStore = defineStore('references', {
         selectedTagKey: this.selectedTagKey,
         searchQuery: this.searchQuery,
         sortKey: this.sortKey,
-        fileContents: getActivePinia()?.state?.value?.files?.fileContents || {},
       })
-      void this.refreshResolvedQueryState()
+      await this.refreshResolvedQueryState()
+      if (ensureVisible) {
+        this.ensureSelectedReferenceVisible()
+      }
     },
 
     ensureSelectedReferenceVisible() {
@@ -273,8 +300,7 @@ export const useReferencesStore = defineStore('references', {
       if (!this.references.some((reference) => reference.id === this.selectedReferenceId)) {
         this.selectedReferenceId = this.references[0]?.id || ''
       }
-      this.syncResolvedQueryState()
-      this.ensureSelectedReferenceVisible()
+      void this.syncResolvedQueryState({ ensureVisible: true })
     },
 
     async loadWorkspaceLibrary(projectRoot = '', options = {}) {
@@ -454,64 +480,49 @@ export const useReferencesStore = defineStore('references', {
       return true
     },
 
-    setSelectedSection(sectionKey) {
+    async setSelectedSection(sectionKey) {
       const exists = this.librarySections.some((section) => section.key === sectionKey)
       this.selectedSectionKey = exists ? sectionKey : 'all'
       this.selectedSourceKey = ''
       this.selectedCollectionKey = ''
       this.selectedTagKey = ''
-      this.syncResolvedQueryState()
-      if (!this.filteredReferences.some((reference) => reference.id === this.selectedReferenceId)) {
-        this.selectedReferenceId = this.filteredReferences[0]?.id || ''
-      }
+      await this.syncResolvedQueryState({ ensureVisible: true })
     },
 
-    setSelectedSource(sourceKey = '') {
+    async setSelectedSource(sourceKey = '') {
       const exists = this.sourceSections.some((section) => section.key === sourceKey)
       this.selectedSourceKey = exists ? sourceKey : ''
       this.selectedSectionKey = 'all'
       this.selectedCollectionKey = ''
       this.selectedTagKey = ''
-      this.syncResolvedQueryState()
-      if (!this.filteredReferences.some((reference) => reference.id === this.selectedReferenceId)) {
-        this.selectedReferenceId = this.filteredReferences[0]?.id || ''
-      }
+      await this.syncResolvedQueryState({ ensureVisible: true })
     },
 
-    setSelectedCollection(collectionKey = '') {
+    async setSelectedCollection(collectionKey = '') {
       const collection = resolveCollection(this.collections, collectionKey)
       this.selectedCollectionKey = collection?.key || ''
       this.selectedSectionKey = 'all'
       this.selectedSourceKey = ''
       this.selectedTagKey = ''
-      this.syncResolvedQueryState()
-      if (!this.filteredReferences.some((reference) => reference.id === this.selectedReferenceId)) {
-        this.selectedReferenceId = this.filteredReferences[0]?.id || ''
-      }
+      await this.syncResolvedQueryState({ ensureVisible: true })
     },
 
-    setSelectedTag(tagKey = '') {
+    async setSelectedTag(tagKey = '') {
       const normalized = normalizeTagKey(tagKey)
       const exists = this.tags.some((tag) => normalizeTagKey(tag.key) === normalized)
       this.selectedTagKey = exists ? normalized : ''
       this.selectedSectionKey = 'all'
       this.selectedSourceKey = ''
       this.selectedCollectionKey = ''
-      this.syncResolvedQueryState()
-      if (!this.filteredReferences.some((reference) => reference.id === this.selectedReferenceId)) {
-        this.selectedReferenceId = this.filteredReferences[0]?.id || ''
-      }
+      await this.syncResolvedQueryState({ ensureVisible: true })
     },
 
-    setSearchQuery(value = '') {
+    async setSearchQuery(value = '') {
       this.searchQuery = String(value || '')
-      this.syncResolvedQueryState()
-      if (!this.filteredReferences.some((reference) => reference.id === this.selectedReferenceId)) {
-        this.selectedReferenceId = this.filteredReferences[0]?.id || ''
-      }
+      await this.syncResolvedQueryState({ ensureVisible: true })
     },
 
-    setSortKey(value = '') {
+    async setSortKey(value = '') {
       this.sortKey = [
         'year-desc',
         'year-asc',
@@ -522,10 +533,7 @@ export const useReferencesStore = defineStore('references', {
       ].includes(value)
         ? value
         : 'year-desc'
-      this.syncResolvedQueryState()
-      if (!this.filteredReferences.some((reference) => reference.id === this.selectedReferenceId)) {
-        this.selectedReferenceId = this.filteredReferences[0]?.id || ''
-      }
+      await this.syncResolvedQueryState({ ensureVisible: true })
     },
 
     setCitationStyle(style = 'apa') {
