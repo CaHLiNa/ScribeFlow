@@ -3,7 +3,7 @@
   <div class="env-page settings-page">
     <section class="settings-group">
       <div class="settings-group-heading">
-        <h4 class="settings-group-title">LaTeX</h4>
+        <h4 class="settings-group-title">{{ t('LaTeX') }}</h4>
         <button
           type="button"
           class="diagnostics-refresh-btn"
@@ -95,7 +95,9 @@
               <span class="status-text">{{ t('Installed') }}</span>
             </template>
             <template v-else-if="latexStore.downloading">
-              <span class="status-text">{{ `Downloading ${latexStore.downloadProgress}%` }}</span>
+              <span class="status-text">{{
+                t('Downloading {progress}%', { progress: latexStore.downloadProgress })
+              }}</span>
             </template>
             <template v-else>
               <button class="diagnostic-action-btn" @click="latexStore.downloadTectonic()">
@@ -138,7 +140,7 @@
     </section>
 
     <section class="settings-group">
-      <h4 class="settings-group-title">Python</h4>
+      <h4 class="settings-group-title">{{ t('Python') }}</h4>
       <div class="settings-group-body">
         <div class="settings-row">
           <div class="settings-row-copy">
@@ -315,6 +317,11 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+
+.settings-group-title {
+  text-transform: none;
+  letter-spacing: 0.02em;
 }
 
 .is-disabled-row {
