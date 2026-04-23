@@ -1291,7 +1291,7 @@ function handleLatexCitationClick(event) {
 
 function scheduleMarkdownSelectionPreviewSync(selection) {
   if (!isMd || !view) return
-  if (!workspace.markdownPreviewSync) return
+  if (workspace.markdownPreviewSync) return
   if (!hasActiveMarkdownPreviewTarget()) return
   if ((selection?.from ?? 0) !== (selection?.to ?? 0)) return
 
@@ -1343,7 +1343,7 @@ function getMarkdownViewportSyncLocation(targetView = view) {
 
 function scheduleMarkdownViewportPreviewSync(targetView = view) {
   if (!isMd || !targetView) return
-  if (!workspace.markdownPreviewSync) return
+  if (workspace.markdownPreviewSync !== true) return
   if (!hasActiveMarkdownPreviewTarget()) return
   if (isMarkdownPreviewScrollSyncSuppressed()) return
 
@@ -1494,7 +1494,6 @@ watch(
 watch(
   () => workspace.markdownPreviewSync,
   (enabled) => {
-    if (enabled) return
     if (markdownPreviewSyncTimer != null) {
       window.clearTimeout(markdownPreviewSyncTimer)
       markdownPreviewSyncTimer = null
@@ -1503,6 +1502,15 @@ watch(
       window.cancelAnimationFrame(markdownPreviewScrollSyncFrame)
       markdownPreviewScrollSyncFrame = null
     }
+
+    if (!isMd || !view || !hasActiveMarkdownPreviewTarget()) return
+
+    if (enabled) {
+      scheduleMarkdownViewportPreviewSync(view)
+      return
+    }
+
+    scheduleMarkdownSelectionPreviewSync(view.state.selection.main)
   }
 )
 
