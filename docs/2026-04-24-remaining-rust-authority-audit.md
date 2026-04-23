@@ -95,6 +95,8 @@
 
 - `latex.rs` 已拆模块，但 compile orchestration 仍大量停在前端。
 - 它不再只是一个 UI-facing store。
+- 当前进度已前推一轮：`services/latex/runtime.js` 已删除，`latex.js` 直接 invoke Rust `latex_runtime_*` 命令。
+- queue / rerun 调度语义已继续下沉到 `latex_runtime.rs`，前端不再自己持有完整 schedule state machine。
 
 建议 Rust 边界：
 

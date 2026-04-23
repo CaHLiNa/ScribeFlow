@@ -525,6 +525,7 @@ pub fn run() {
             latex_project_graph::latex_compile_targets_resolve,
             latex_project_graph::latex_affected_root_targets_resolve,
             latex_runtime::latex_runtime_compile_start,
+            latex_runtime::latex_runtime_schedule,
             latex_runtime::latex_runtime_compile_finish,
             latex_runtime::latex_runtime_compile_fail,
             latex_preferences::latex_preferences_load,

@@ -209,6 +209,7 @@
 后续目标：
 
 - `latex.js` 从 runtime coordinator 降为 UI-facing state consumer
+- 当前进度已开始收旧债：`services/latex/runtime.js` 已删除，`latex.js` 已直接消费 Rust `latex_runtime_*` 命令，queue / rerun 调度语义已继续下沉到 Rust。
 
 建议 Rust 边界：
 

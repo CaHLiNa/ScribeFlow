@@ -10,11 +10,6 @@ import {
   resolveLatexCompileTargetsForChange,
   resolveLatexProjectGraph,
 } from '../services/latex/projectGraph'
-import {
-  resolveLatexCompileFail,
-  resolveLatexCompileFinish,
-  resolveLatexCompileStart,
-} from '../services/latex/runtime'
 import { isBrowserPreviewRuntime } from '../app/browserPreview/routes.js'
 import { basenamePath } from '../utils/path'
 import {
@@ -177,8 +172,6 @@ export const useLatexStore = defineStore('latex', {
     compileState: {},
     // Debounce timers keyed by compile target
     _timers: {},
-    // Latest source file that requested work for a given compile target
-    _latestSourceByTarget: {},
     buildQueueState: {},
     lintState: {},
     _preferencesHydrated: false,
@@ -341,6 +334,21 @@ export const useLatexStore = defineStore('latex', {
       this.buildQueueState = nextState
     },
 
+    async resolveScheduleRequest(sourcePath, targetPath, options = {}) {
+      const buildOptions = this.currentBuildOptions()
+      return invoke('latex_runtime_schedule', {
+        params: {
+          sourcePath,
+          targetPath,
+          reason: options.reason || 'save',
+          buildRecipe: buildOptions.buildRecipe,
+          buildExtraArgs: buildOptions.buildExtraArgs,
+          now: Date.now(),
+          queueState: this.buildQueueState[targetPath] || null,
+        },
+      })
+    },
+
     applyCompileStatePatch(filePath, patch = null) {
       if (!filePath || !patch || typeof patch !== 'object') return
       this.compileState[filePath] = {
@@ -393,29 +401,29 @@ export const useLatexStore = defineStore('latex', {
       if (!timerKey) return null
 
       const nextSourcePath = sourcePath || timerKey
-      const reason = options.reason || 'save'
-      this._latestSourceByTarget[timerKey] = nextSourcePath
-      this.setBuildQueueState(timerKey, {
-        phase: 'scheduled',
-        sourcePath: nextSourcePath,
-        reason,
-        pendingCount: 0,
-        scheduledAt: Date.now(),
-      })
+      void this.resolveScheduleRequest(nextSourcePath, timerKey, options)
+        .then((schedule) => {
+          if (schedule?.queueState) {
+            this.setBuildQueueState(timerKey, schedule.queueState)
+          }
+          if (schedule?.shouldScheduleTimer !== true) {
+            return
+          }
 
-      if (this._timers[timerKey]) {
-        clearTimeout(this._timers[timerKey])
-      }
+          if (this._timers[timerKey]) {
+            clearTimeout(this._timers[timerKey])
+          }
 
-      // Auto-save is 1s, so this keeps the total delay much closer to VS Code.
-      this._timers[timerKey] = setTimeout(() => {
-        const resolvedSourcePath = this._latestSourceByTarget[timerKey] || nextSourcePath
-        delete this._timers[timerKey]
-        void this.compile(resolvedSourcePath, {
-          reason,
-          targetPath: timerKey,
+          this._timers[timerKey] = setTimeout(() => {
+            const queuedSourcePath = this.buildQueueState[timerKey]?.sourcePath || nextSourcePath
+            delete this._timers[timerKey]
+            void this.compile(queuedSourcePath, {
+              reason: options.reason || 'save',
+              targetPath: timerKey,
+            })
+          }, LATEX_AUTOCOMPILE_DEBOUNCE_MS)
         })
-      }, LATEX_AUTOCOMPILE_DEBOUNCE_MS)
+        .catch(() => {})
 
       return timerKey
     },
@@ -435,16 +443,17 @@ export const useLatexStore = defineStore('latex', {
             : filesStore.fileContents?.[texPath]
         const sourceFingerprint =
           typeof sourceContent === 'string' ? stableContentFingerprint(sourceContent) : ''
-        this._latestSourceByTarget[targetKey] = texPath
         const buildOptions = this.currentBuildOptions()
-        const compileStart = await resolveLatexCompileStart({
-          texPath,
-          targetPath: targetKey,
-          reason,
-          queueState,
-          buildRecipe: buildOptions.buildRecipe,
-          buildExtraArgs: buildOptions.buildExtraArgs,
-          now: Date.now(),
+        const compileStart = await invoke('latex_runtime_compile_start', {
+          params: {
+            texPath,
+            targetPath: targetKey,
+            reason,
+            queueState,
+            buildRecipe: buildOptions.buildRecipe,
+            buildExtraArgs: buildOptions.buildExtraArgs,
+            now: Date.now(),
+          },
         })
 
         if (compileStart?.queueState) {
@@ -468,16 +477,18 @@ export const useLatexStore = defineStore('latex', {
           customTectonicPath: null,
         })
 
-        const compileFinish = await resolveLatexCompileFinish({
-          texPath,
-          targetPath: targetKey,
-          projectRootPath: project?.rootPath || compileTargetPath || targetKey,
-          projectPreviewPath: project?.previewPath || result.pdf_path || '',
-          buildRecipe: buildOptions.buildRecipe,
-          buildExtraArgs: buildOptions.buildExtraArgs,
-          now: Date.now(),
-          queueState: this.buildQueueState[targetKey] || null,
-          result,
+        const compileFinish = await invoke('latex_runtime_compile_finish', {
+          params: {
+            texPath,
+            targetPath: targetKey,
+            projectRootPath: project?.rootPath || compileTargetPath || targetKey,
+            projectPreviewPath: project?.previewPath || result.pdf_path || '',
+            buildRecipe: buildOptions.buildRecipe,
+            buildExtraArgs: buildOptions.buildExtraArgs,
+            now: Date.now(),
+            queueState: this.buildQueueState[targetKey] || null,
+            result,
+          },
         })
         if (sourceFingerprint) {
           if (compileFinish?.sourceState && typeof compileFinish.sourceState === 'object') {
@@ -508,7 +519,7 @@ export const useLatexStore = defineStore('latex', {
         pushLatexLogToTerminal(texPath, result)
 
         if (compileFinish?.rerunRequested) {
-          const nextSourcePath = compileFinish.nextSourcePath || this._latestSourceByTarget[targetKey] || texPath
+          const nextSourcePath = compileFinish.nextSourcePath || this.buildQueueState[targetKey]?.sourcePath || texPath
           if (compileFinish.queueState) {
             this.setBuildQueueState(targetKey, compileFinish.queueState)
           }
@@ -522,27 +533,29 @@ export const useLatexStore = defineStore('latex', {
       } catch (err) {
         const targetKey = this.compileState[texPath]?.compileTargetPath || options.targetPath || resolveCachedLatexRootPath(texPath) || texPath
         const buildOptions = this.currentBuildOptions()
-        const compileFail = await resolveLatexCompileFail({
-          texPath,
-          targetPath: targetKey,
-          projectRootPath: this.compileState[targetKey]?.projectRootPath || targetKey,
-          projectPreviewPath: this.compileState[targetKey]?.previewPath || '',
-          buildRecipe: buildOptions.buildRecipe,
-          buildExtraArgs: buildOptions.buildExtraArgs,
-          now: Date.now(),
-          queueState: this.buildQueueState[targetKey] || null,
-          result: {
-            success: false,
-            pdf_path: null,
-            synctex_path: null,
-            errors: [{ line: null, message: err, severity: 'error' }],
-            warnings: [],
-            log: String(err || ''),
-            duration_ms: 0,
-            compiler_backend: null,
-            command_preview: null,
-            requested_program: null,
-            requested_program_applied: false,
+        const compileFail = await invoke('latex_runtime_compile_fail', {
+          params: {
+            texPath,
+            targetPath: targetKey,
+            projectRootPath: this.compileState[targetKey]?.projectRootPath || targetKey,
+            projectPreviewPath: this.compileState[targetKey]?.previewPath || '',
+            buildRecipe: buildOptions.buildRecipe,
+            buildExtraArgs: buildOptions.buildExtraArgs,
+            now: Date.now(),
+            queueState: this.buildQueueState[targetKey] || null,
+            result: {
+              success: false,
+              pdf_path: null,
+              synctex_path: null,
+              errors: [{ line: null, message: err, severity: 'error' }],
+              warnings: [],
+              log: String(err || ''),
+              duration_ms: 0,
+              compiler_backend: null,
+              command_preview: null,
+              requested_program: null,
+              requested_program_applied: false,
+            },
           },
         }).catch(() => null)
         this.applyCompileStatePatch(texPath, compileFail?.sourceState || {
@@ -685,7 +698,6 @@ export const useLatexStore = defineStore('latex', {
         clearTimeout(this._timers[texPath])
       }
       this._timers = {}
-      this._latestSourceByTarget = {}
       this.buildQueueState = {}
       this.compileState = {}
       this.lintState = {}
