@@ -405,6 +405,7 @@
   "Open Workspace": "打开工作区",
   "Failed to open workspace: {error}": "打开工作区失败：{error}",
   "Failed to open file: {error}": "打开文件失败：{error}",
+  "Editor language features failed to load. Falling back to plain text.": "编辑器语言能力加载失败，已回退到纯文本模式。",
   "All saved (no changes)": "全部已保存（没有新改动）",
   "Save: {ts}": "保存：{ts}",
   "New Tab": "新建标签页",

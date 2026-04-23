@@ -958,13 +958,13 @@ onMounted(async () => {
     )
   }
 
-  const extensions = createEditorExtensions({
+  const buildExtensions = (languageExtension, runtimeExtensions) => createEditorExtensions({
     softWrap: workspace.softWrap,
     wrapColumn: workspace.wrapColumn,
     spellcheckEnabled: workspace.editorSpellcheck,
     showLineNumbers: workspace.editorLineNumbers,
     highlightActiveLineEnabled: workspace.editorHighlightActiveLine,
-    languageExtension: langExt,
+    languageExtension,
     autoSaveEnabled: workspace.autoSave && !isDraftFile,
     onDocChanged: handleDocumentChanged,
     onSave: (nextContent) => {
@@ -972,13 +972,29 @@ onMounted(async () => {
     },
     onCursorChange: (pos) => emit('cursor-change', pos),
     onStats: (stats) => emit('editor-stats', stats),
-    extraExtensions,
+    extraExtensions: runtimeExtensions,
   })
 
-  view = new EditorView({
-    state: createEditorState(content, extensions),
-    parent: editorContainer.value,
-  })
+  try {
+    const extensions = buildExtensions(langExt, extraExtensions)
+    view = new EditorView({
+      state: createEditorState(content, extensions),
+      parent: editorContainer.value,
+    })
+  } catch (error) {
+    console.error('[editor] failed to initialize rich editor, falling back to plain text:', error)
+    toastStore.showOnce(
+      `editor-init:${props.filePath}`,
+      t('Editor language features failed to load. Falling back to plain text.'),
+      { type: 'error', duration: 5000 },
+      1000
+    )
+    const fallbackExtensions = buildExtensions(null, [])
+    view = new EditorView({
+      state: createEditorState(content, fallbackExtensions),
+      parent: editorContainer.value,
+    })
+  }
 
   view.altalsPersist = async (options = {}) =>
     persistEditorContent(view?.state.doc.toString() || '', options)
