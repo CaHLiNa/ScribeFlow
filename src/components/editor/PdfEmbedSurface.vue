@@ -146,12 +146,11 @@ const surfaceStyle = computed(() => ({
       || props.themeTokens?.['--shell-editor-surface']
       || '#141311'
   ).trim(),
+  // PDF render output may preserve transparent page backgrounds, so keep the paper shell light.
   '--embedpdf-page': String(
-    props.resolvedTheme === 'dark'
-      ? props.themeTokens?.['--surface-raised']
-        || props.themeTokens?.['--surface-base']
-        || '#1b1917'
-      : props.themeTokens?.['--surface-base'] || '#ffffff'
+    props.themeTokens?.['--pdf-paper-surface']
+      || (props.resolvedTheme === 'dark' ? '#f7f4ee' : props.themeTokens?.['--surface-base'])
+      || '#ffffff'
   ).trim(),
 }))
 
