@@ -73,7 +73,6 @@ const WORKSPACE_PREFERENCE_KEYS = [
   'rightSidebarOpen',
   'rightSidebarPanel',
   'autoSave',
-  'softWrap',
   'wrapColumn',
   'editorFontSize',
   'uiFontSize',
@@ -159,6 +158,7 @@ export const useWorkspaceStore = defineStore('workspace', {
       for (const key of WORKSPACE_PREFERENCE_KEYS) {
         this[key] = next[key]
       }
+      this.softWrap = true
 
       this.settingsOpen = this.primarySurface === 'settings'
       if (!this.settingsOpen) {
@@ -425,12 +425,6 @@ export const useWorkspaceStore = defineStore('workspace', {
 
     setSettingsSection(section) {
       this.settingsSection = normalizeSettingsSectionValue(section)
-    },
-
-    toggleSoftWrap() {
-      return this.persistPreferences({
-        softWrap: !this.softWrap,
-      })
     },
 
     setWrapColumn(value) {

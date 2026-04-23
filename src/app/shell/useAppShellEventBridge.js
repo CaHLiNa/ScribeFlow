@@ -113,17 +113,6 @@ export function useAppShellEventBridge({
       return
     }
 
-    if (
-      event.altKey &&
-      !event.metaKey &&
-      !event.ctrlKey &&
-      (event.code === 'KeyZ' || event.code === 'KeyY' || event.key.toLowerCase() === 'z')
-    ) {
-      event.preventDefault()
-      workspace.toggleSoftWrap()
-      return
-    }
-
     if (isMod(event) && event.key === 'f') {
       const sidebarEl = document.querySelector('[data-sidebar="left"]')
       if (sidebarEl && sidebarEl.contains(document.activeElement)) {

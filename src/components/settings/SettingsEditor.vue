@@ -56,34 +56,14 @@
 
         <div class="settings-row">
           <div class="settings-row-copy">
-            <div class="settings-row-title">{{ t('Soft Wrap') }}</div>
-          </div>
-          <div class="settings-row-control compact">
-            <UiSwitch
-              :model-value="workspace.softWrap"
-              @update:model-value="workspace.toggleSoftWrap()"
-            />
-          </div>
-        </div>
-
-        <div class="settings-row" :class="{ 'is-disabled-row': !workspace.softWrap }">
-          <div class="settings-row-copy">
-            <div class="settings-row-title">{{ t('Preferred line width') }}</div>
+            <div class="settings-row-title">{{ t('Text measure') }}</div>
           </div>
           <div class="settings-row-control">
-            <div class="settings-segmented">
-              <button
-                v-for="preset in WRAP_PRESETS"
-                :key="preset.value"
-                type="button"
-                class="settings-segmented-btn"
-                :class="{ 'is-active': workspace.wrapColumn === preset.value }"
-                :disabled="!workspace.softWrap"
-                @click="workspace.setWrapColumn(preset.value)"
-              >
-                {{ t(preset.labelKey) }}
-              </button>
-            </div>
+            <UiSelect
+              :model-value="workspace.wrapColumn"
+              :options="textMeasureOptions"
+              @update:model-value="workspace.setWrapColumn"
+            />
           </div>
         </div>
 
@@ -205,11 +185,11 @@ const editorFontSizeOptions = EDITOR_FONT_SIZE_PRESETS.map((value) => ({
   label: `${value} px`,
 }))
 
-const WRAP_PRESETS = [
-  { value: 0, labelKey: 'Auto' },
-  { value: 80, labelKey: '80 ch' },
-  { value: 100, labelKey: '100 ch' },
-  { value: 120, labelKey: '120 ch' },
+const textMeasureOptions = [
+  { value: 0, label: t('Adaptive') },
+  { value: 80, label: t('Compact · 80 ch') },
+  { value: 100, label: t('Balanced · 100 ch') },
+  { value: 120, label: t('Expansive · 120 ch') },
 ]
 
 const presetOptions = computed(() =>

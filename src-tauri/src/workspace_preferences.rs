@@ -574,7 +574,7 @@ fn normalize_workspace_preferences(preferences: WorkspacePreferences) -> Workspa
     WorkspacePreferences {
         workbench: normalize_workbench_state(preferences.workbench),
         auto_save: preferences.auto_save,
-        soft_wrap: preferences.soft_wrap,
+        soft_wrap: true,
         wrap_column: normalize_wrap_column(preferences.wrap_column),
         editor_font_size: normalize_editor_font_size(preferences.editor_font_size),
         ui_font_size: normalize_ui_font_size(preferences.ui_font_size),
@@ -760,11 +760,13 @@ mod tests {
         let normalized = normalize_workspace_preferences(WorkspacePreferences {
             editor_font_size: 50,
             preferred_locale: "zh".to_string(),
+            soft_wrap: false,
             ..WorkspacePreferences::default()
         });
 
         assert_eq!(normalized.editor_font_size, 20);
         assert_eq!(normalized.preferred_locale, "zh-CN");
+        assert!(normalized.soft_wrap);
     }
 
     #[test]

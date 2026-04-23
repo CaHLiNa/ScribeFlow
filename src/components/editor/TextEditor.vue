@@ -68,7 +68,6 @@ import { hoverTooltip } from '@codemirror/view'
 import {
   createEditorExtensions,
   createEditorState,
-  wrapCompartment,
   columnWidthCompartment,
   columnWidthExtension,
   editorInputAttributesCompartment,
@@ -1141,7 +1140,7 @@ onMounted(async () => {
   }
 
   const buildExtensions = (languageExtension, runtimeExtensions) => createEditorExtensions({
-    softWrap: workspace.softWrap,
+    softWrap: true,
     wrapColumn: workspace.wrapColumn,
     spellcheckEnabled: workspace.editorSpellcheck,
     showLineNumbers: workspace.editorLineNumbers,
@@ -1664,16 +1663,6 @@ function getMarkdownSyncLocation(pos) {
     offset: Math.max(0, pos),
   }
 }
-
-watch(
-  () => workspace.softWrap,
-  (wrap) => {
-    if (!view) return
-    view.dispatch({
-      effects: wrapCompartment.reconfigure(wrap ? EditorView.lineWrapping :[]),
-    })
-  }
-)
 
 watch(
   () => workspace.wrapColumn,
