@@ -3,6 +3,7 @@ import {
   requestLatexWorkshopBackwardSync,
   requestLatexWorkshopForwardSync,
 } from '../latex/latexWorkshopSynctex.js'
+import { resolveLatexSynctexInputPath } from '../latex/synctex.js'
 
 export async function readPdfArtifactBase64(filePath) {
   const normalizedPath = String(filePath || '').trim()
@@ -18,17 +19,19 @@ export async function requestLatexPdfForwardSync(options = {}) {
   const column = Number(options.column || 0)
   if (!synctexPath || !texPath || !Number.isInteger(line) || line < 1) return null
 
+  const effectiveTexPath = await resolveLatexSynctexInputPath(synctexPath, texPath)
+
   try {
     return await invoke('synctex_forward', {
       synctexPath,
-      texPath,
+      texPath: effectiveTexPath,
       line,
       column: Number.isInteger(column) && column >= 0 ? column : 0,
     })
   } catch {
     return requestLatexWorkshopForwardSync({
       synctexPath,
-      texPath,
+      texPath: effectiveTexPath,
       line,
     })
   }

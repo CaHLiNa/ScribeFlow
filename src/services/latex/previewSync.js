@@ -4,8 +4,11 @@ import {
   normalizeFsPath,
   resolveRelativePath,
 } from '../documentIntelligence/workspaceGraph.js'
+import { pathExists } from '../pathExists.js'
+import { readWorkspaceFlatFiles } from '../workspaceSnapshotIO.js'
 
 const VIEW_WAIT_TIMEOUT_MS = 1500
+const WORKSPACE_TEX_PATH_CACHE = new Map()
 
 function collapseFsPathSegments(value = '') {
   const normalized = normalizeFsPath(value)
@@ -35,13 +38,112 @@ function collapseFsPathSegments(value = '') {
   return normalizeFsPath(nextSegments.join('/'))
 }
 
-export function resolveLatexSyncTargetPath(reportedFile = '', options = {}) {
+function splitPathSegments(value = '') {
+  const normalized = collapseFsPathSegments(value)
+  if (!normalized) return []
+  return normalized.replace(/^[A-Za-z]:\//, '').split('/').filter(Boolean)
+}
+
+function trailingSegmentMatchCount(left = '', right = '') {
+  const leftSegments = splitPathSegments(left)
+  const rightSegments = splitPathSegments(right)
+  let matches = 0
+
+  while (
+    matches < leftSegments.length
+    && matches < rightSegments.length
+    && leftSegments[leftSegments.length - 1 - matches] === rightSegments[rightSegments.length - 1 - matches]
+  ) {
+    matches += 1
+  }
+
+  return matches
+}
+
+function isTexPath(value = '') {
+  const normalized = normalizeFsPath(value).toLowerCase()
+  return normalized.endsWith('.tex') || normalized.endsWith('.latex')
+}
+
+function scoreMovedPathCandidate(candidatePath = '', reportedPath = '') {
+  const normalizedCandidate = collapseFsPathSegments(candidatePath)
+  const normalizedReported = collapseFsPathSegments(reportedPath)
+  if (!normalizedCandidate || !normalizedReported) return -1
+  if (normalizedCandidate === normalizedReported) return 10_000
+
+  const candidateSegments = splitPathSegments(normalizedCandidate)
+  const reportedSegments = splitPathSegments(normalizedReported)
+  if (candidateSegments.length === 0 || reportedSegments.length === 0) return -1
+  if (candidateSegments[candidateSegments.length - 1] !== reportedSegments[reportedSegments.length - 1]) {
+    return -1
+  }
+
+  const trailingMatches = trailingSegmentMatchCount(normalizedCandidate, normalizedReported)
+  return 100 + trailingMatches * 25
+}
+
+async function readWorkspaceTexPaths(workspacePath = '') {
+  const normalizedWorkspacePath = normalizeFsPath(workspacePath)
+  if (!normalizedWorkspacePath) return []
+
+  const cached = WORKSPACE_TEX_PATH_CACHE.get(normalizedWorkspacePath)
+  if (cached) return cached
+
+  const entries = await readWorkspaceFlatFiles(normalizedWorkspacePath).catch(() => [])
+  const paths = Array.isArray(entries)
+    ? entries
+      .map((entry) => normalizeFsPath(entry.path || entry))
+      .filter((path) => isTexPath(path))
+    : []
+  WORKSPACE_TEX_PATH_CACHE.set(normalizedWorkspacePath, paths)
+  return paths
+}
+
+async function resolveMovedAbsoluteLatexPath(reportedFile = '', options = {}) {
+  const normalizedReported = collapseFsPathSegments(reportedFile)
+  if (!normalizedReported || (!normalizedReported.startsWith('/') && !/^[A-Za-z]:\//.test(normalizedReported))) {
+    return normalizedReported
+  }
+  if (await pathExists(normalizedReported)) return normalizedReported
+
+  const sourcePath = normalizeFsPath(options.sourcePath || '')
+  const compileTargetPath = normalizeFsPath(options.compileTargetPath || '')
+  const workspacePath = normalizeFsPath(options.workspacePath || '')
+  const candidates = [
+    sourcePath,
+    compileTargetPath,
+    ...(await readWorkspaceTexPaths(workspacePath)),
+  ]
+
+  let bestPath = ''
+  let bestScore = -1
+  for (const candidate of candidates) {
+    const score = scoreMovedPathCandidate(candidate, normalizedReported)
+    if (score > bestScore) {
+      bestPath = candidate
+      bestScore = score
+    }
+  }
+
+  if (bestPath && bestScore >= 125 && await pathExists(bestPath)) {
+    return bestPath
+  }
+
+  return normalizedReported
+}
+
+export async function resolveLatexSyncTargetPath(reportedFile = '', options = {}) {
   const normalizedReported = collapseFsPathSegments(reportedFile)
   const normalizedCompileTargetPath = normalizeFsPath(options.compileTargetPath || '')
   const normalizedSourcePath = normalizeFsPath(options.sourcePath || '')
   if (!normalizedReported) return ''
+
   if (normalizedReported.startsWith('/') || /^[A-Za-z]:\//.test(normalizedReported)) {
-    return normalizedReported
+    return resolveMovedAbsoluteLatexPath(normalizedReported, {
+      sourcePath: normalizedSourcePath,
+      compileTargetPath: normalizedCompileTargetPath,
+      workspacePath: options.workspacePath || '',
+    })
   }
 
   const baseDirs = [
@@ -49,6 +151,11 @@ export function resolveLatexSyncTargetPath(reportedFile = '', options = {}) {
     normalizedSourcePath ? dirnamePath(normalizedSourcePath) : '',
     normalizeFsPath(options.workspacePath || ''),
   ].filter(Boolean)
+
+  for (const baseDir of baseDirs) {
+    const resolved = resolveRelativePath(baseDir, normalizedReported)
+    if (resolved && await pathExists(resolved)) return resolved
+  }
 
   for (const baseDir of baseDirs) {
     const resolved = resolveRelativePath(baseDir, normalizedReported)

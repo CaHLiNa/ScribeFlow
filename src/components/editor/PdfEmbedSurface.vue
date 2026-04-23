@@ -251,7 +251,7 @@ async function handleReverseSyncRequest(detail = {}) {
     })
 
     if (result?.file && result?.line) {
-      const resolvedFile = resolveLatexSyncTargetPath(result.file, {
+      const resolvedFile = await resolveLatexSyncTargetPath(result.file, {
         sourcePath: props.sourcePath,
         compileTargetPath: props.compileState?.compileTargetPath || '',
         workspacePath: props.workspacePath || '',
