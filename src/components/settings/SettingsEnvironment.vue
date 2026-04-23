@@ -44,7 +44,7 @@
 
         <div class="settings-row">
           <div class="settings-row-copy">
-            <div class="settings-row-title">{{ t('Python Interpreter') }}</div>
+            <div class="settings-row-title">{{ t('Python') }}</div>
           </div>
           <div class="settings-row-control">
             <UiSelect
@@ -224,15 +224,10 @@ const pythonInterpreterOptions = computed(() => {
     if (!runtimePath) continue
 
     const versionLabel = runtime?.version ? `Python ${runtime.version}` : basenamePath(runtimePath)
-    const detail = runtimePath
-    const source = String(runtime?.source || '').trim()
-    const label = source && source !== runtimePath
-      ? `${versionLabel} · ${detail} · ${source}`
-      : `${versionLabel} · ${detail}`
 
     options.push({
       value: runtimePath,
-      label,
+      label: `${versionLabel} · ${runtimePath}`,
       triggerLabel: versionLabel,
     })
   }
@@ -285,16 +280,15 @@ const pythonDiagnosticsText = computed(() => {
     pythonStore.interpreterPreference !== 'auto'
     && pythonStore.detectedInterpreterCount > 0
   ) {
-    return t('Selected interpreter unavailable')
+    return t('Unavailable')
   }
 
   return pythonStore.detectedInterpreterCount > 0
-    ? t('{count} detected', { count: pythonStore.detectedInterpreterCount })
+    ? t('Available')
     : t('Not found')
 })
 
 const pythonDiagnosticsHint = computed(() => {
-  const count = pythonStore.detectedInterpreterCount
   const selectedPath = String(
     pythonStore.interpreter.path
     || pythonStore.selectedInterpreter.path
@@ -310,8 +304,7 @@ const pythonDiagnosticsHint = computed(() => {
   }
 
   if (pythonStore.interpreterPreference === 'auto') {
-    if (!count || !selectedPath) return ''
-    return `${t('{count} detected', { count })} · ${selectedPath}`
+    return selectedPath
   }
 
   return selectedPath || pythonStore.interpreterPreference

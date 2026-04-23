@@ -5,7 +5,7 @@ use std::collections::HashSet;
 use std::path::Path;
 use std::time::Instant;
 
-const PYTHON_PROBE_SCRIPT: &str = r#"import json, platform, sys; print(json.dumps({"version": platform.python_version(), "executable": sys.executable}))"#;
+const PYTHON_PROBE_SCRIPT: &str = r#"import json, os, platform, sys; print(json.dumps({"version": platform.python_version(), "executable": os.path.realpath(sys.executable)}))"#;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
