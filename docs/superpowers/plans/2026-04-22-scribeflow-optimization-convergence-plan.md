@@ -328,14 +328,16 @@ pub fn normalize_preview_binding_set(...) -> Vec<PreviewBinding>
 pub fn reconcile_preview_session(...) -> Value
 ```
 
-- [ ] **Step 3: 瘦身前端 documentWorkflow store**
+- [x] **Step 3: 瘦身前端 documentWorkflow store**
 
-当前进度：
+当前结果：
 
 - 已把 UI state resolve 从 `document_workflow_action.rs` 拆到 `document_workflow_ui_state.rs`
 - 已把 preview binding schema / normalize 从 session 模块拆到 `document_workflow_preview_binding.rs`
 - 已让 close-preview plan 的 detach / unbind effect 优先由 Rust controller 输出驱动
-- `documentWorkflow` store 仍需后续继续拆分以满足体量下降目标
+- 已把 persistent/session cache 逻辑拆到 `src/domains/document/documentWorkflowSessionRuntime.js`
+- 已把 resolved preview / UI state cache 逻辑拆到 `src/domains/document/documentWorkflowResolvedStateRuntime.js`
+- `src/stores/documentWorkflow.js` 已从 899 行降到 329 行，退回为 cache + dispatch coordinator
 
 重写 `src/stores/documentWorkflow.js` 的职责边界：
 
@@ -373,7 +375,7 @@ fn resolves_markdown_preview_without_legacy_pane_result() {}
 fn preserves_detached_preview_binding_until_user_rebinds() {}
 ```
 
-- [ ] **Step 5: 跑验证并提交**
+- [x] **Step 5: 跑验证并提交**
 
 Run:
 
