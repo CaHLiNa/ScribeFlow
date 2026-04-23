@@ -3,11 +3,80 @@ import { basenamePath, dirnamePath, normalizeFsPath } from './path'
 const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp', 'ico']
 const MULTIMODAL_IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'webp']
 const CSV_EXTS = ['csv', 'tsv']
+const HTML_EXTS = ['html', 'htm']
 const PDF_EXTS = ['pdf']
 const DOCX_EXTS = ['docx']
-const LATEX_AUX_TEXT_EXTS = ['aux', 'bbl', 'blg', 'log', 'out', 'toc']
+const LATEX_AUX_TEXT_EXTS = [
+  'aux',
+  'acn',
+  'acr',
+  'alg',
+  'bcf',
+  'bbl',
+  'blg',
+  'fdb_latexmk',
+  'fls',
+  'glg',
+  'glo',
+  'gls',
+  'idx',
+  'ilg',
+  'ind',
+  'ist',
+  'lof',
+  'log',
+  'lot',
+  'nav',
+  'out',
+  'run.xml',
+  'snm',
+  'synctex',
+  'toc',
+  'vrb',
+]
 const LATEX_EDITOR_EXTS = ['tex', 'latex', 'cls', 'sty']
-const SUPPORTED_TEXT_EXTS = ['md', 'markdown', 'txt', 'bib', ...LATEX_EDITOR_EXTS, ...LATEX_AUX_TEXT_EXTS]
+const GENERAL_TEXT_EXTS = [
+  'bib',
+  'c',
+  'cpp',
+  'css',
+  'cjs',
+  'go',
+  'h',
+  'java',
+  'jl',
+  'js',
+  'json',
+  'jsx',
+  'kt',
+  'lua',
+  'markdown',
+  'md',
+  'mjs',
+  'php',
+  'py',
+  'qmd',
+  'r',
+  'rb',
+  'rmd',
+  'rs',
+  'scss',
+  'sh',
+  'sql',
+  'svelte',
+  'toml',
+  'ts',
+  'tsx',
+  'txt',
+  'vue',
+  'xml',
+  'yaml',
+  'yml',
+  'zig',
+  'zsh',
+  'bash',
+]
+const SUPPORTED_TEXT_EXTS = [...GENERAL_TEXT_EXTS, ...LATEX_EDITOR_EXTS, ...LATEX_AUX_TEXT_EXTS]
 const RUNNABLE_MAP = {}
 
 function getExt(path) {
@@ -41,6 +110,9 @@ export function getViewerType(path) {
   if (isNewTab(path)) return 'newtab'
   if (isMarkdownPreviewPath(path)) return 'markdown-preview'
   const ext = getExt(path)
+  if (IMAGE_EXTS.includes(ext)) return 'image'
+  if (CSV_EXTS.includes(ext)) return 'csv'
+  if (HTML_EXTS.includes(ext)) return 'html'
   if (SUPPORTED_TEXT_EXTS.includes(ext)) return 'text'
   if (PDF_EXTS.includes(ext)) return 'pdf'
   return 'unsupported-binary'
@@ -48,7 +120,7 @@ export function getViewerType(path) {
 
 export function isMarkdown(path) {
   const ext = getExt(path)
-  return ext === 'md' || ext === 'markdown'
+  return ext === 'md' || ext === 'markdown' || ext === 'qmd' || ext === 'rmd'
 }
 
 export function isLatex(path) {
@@ -67,6 +139,11 @@ export function isBibFile(path) {
 export function isImage(path) {
   const ext = getExt(path)
   return IMAGE_EXTS.includes(ext)
+}
+
+export function isHtml(path) {
+  const ext = getExt(path)
+  return HTML_EXTS.includes(ext)
 }
 
 export function isMultimodalImage(path) {

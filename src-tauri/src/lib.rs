@@ -71,10 +71,21 @@ fn workspace_file_content_type(path: &Path) -> &'static str {
         .map(|ext| ext.to_ascii_lowercase())
         .as_deref()
     {
+        Some("css") => "text/css; charset=utf-8",
+        Some("csv") => "text/csv; charset=utf-8",
+        Some("gif") => "image/gif",
+        Some("htm") | Some("html") => "text/html; charset=utf-8",
+        Some("ico") => "image/x-icon",
+        Some("js") | Some("mjs") => "text/javascript; charset=utf-8",
+        Some("json") => "application/json; charset=utf-8",
         Some("pdf") => "application/pdf",
+        Some("txt") | Some("log") => "text/plain; charset=utf-8",
+        Some("tsv") => "text/tab-separated-values; charset=utf-8",
+        Some("webp") => "image/webp",
         Some("png") => "image/png",
         Some("jpg") | Some("jpeg") => "image/jpeg",
         Some("svg") => "image/svg+xml",
+        Some("bmp") => "image/bmp",
         _ => "application/octet-stream",
     }
 }

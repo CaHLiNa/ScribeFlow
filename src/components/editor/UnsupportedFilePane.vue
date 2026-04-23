@@ -4,13 +4,13 @@
       <div class="unsupported-file-badge">{{ t('Removed surface') }}</div>
       <div class="unsupported-file-title">{{ fileName }}</div>
       <div class="unsupported-file-copy">
-        {{ t('ScribeFlow now only opens Markdown and LaTeX documents in the main workspace.') }}
+        {{ primaryCopy }}
       </div>
       <div class="unsupported-file-copy unsupported-file-copy-muted">
-        {{ t('This file can stay in your project, but this trimmed build no longer opens or edits this file type inside ScribeFlow.') }}
+        {{ secondaryCopy }}
       </div>
       <div class="unsupported-file-copy unsupported-file-copy-muted">
-        {{ t('Keep it as a project asset or open it in another app when you still need it.') }}
+        {{ tertiaryCopy }}
       </div>
     </div>
   </div>
@@ -27,6 +27,24 @@ const props = defineProps({
 
 const { t } = useI18n()
 const fileName = computed(() => basenamePath(props.filePath) || props.filePath)
+const isCompressedLatexArtifact = computed(() =>
+  /\.synctex\.gz$/i.test(props.filePath) || /\.(dvi|xdv)$/i.test(props.filePath)
+)
+const primaryCopy = computed(() =>
+  isCompressedLatexArtifact.value
+    ? t('This LaTeX artifact is compressed or binary, so ScribeFlow cannot open it as editable text.')
+    : t('ScribeFlow cannot open this file type inside the workspace yet.')
+)
+const secondaryCopy = computed(() =>
+  isCompressedLatexArtifact.value
+    ? t('Keep using it as a build artifact, or open it in another app when you need to inspect it directly.')
+    : t('This file can stay in your project, but this surface is not available in the current workspace build.')
+)
+const tertiaryCopy = computed(() =>
+  isCompressedLatexArtifact.value
+    ? t('Common text-based LaTeX outputs such as .log, .aux, .fls, and .fdb_latexmk can now open directly.')
+    : t('Keep it as a project asset or open it in another app when you still need it.')
+)
 </script>
 
 <style scoped>

@@ -331,6 +331,21 @@
           kind="pdf"
           @open-external="handleOpenExternalPdf"
         />
+        <CsvPreviewPane
+          v-else-if="activeTab && viewerType === 'csv'"
+          :key="`csv:${activeTab}:${editorStore.restoreGeneration}`"
+          :filePath="activeTab"
+        />
+        <HtmlPreviewPane
+          v-else-if="activeTab && viewerType === 'html'"
+          :key="`html:${activeTab}:${editorStore.restoreGeneration}`"
+          :filePath="activeTab"
+        />
+        <ImagePreviewPane
+          v-else-if="activeTab && viewerType === 'image'"
+          :key="`image:${activeTab}:${editorStore.restoreGeneration}`"
+          :filePath="activeTab"
+        />
         <MarkdownPreview
           v-else-if="activeTab && viewerType === 'markdown-preview'"
           :key="`legacy-preview:${activeTab}:${editorStore.restoreGeneration}`"
@@ -374,7 +389,10 @@ const EditorTextRouteSurface = defineAsyncComponent(() => import('./EditorTextRo
 const UnsupportedFilePane = defineAsyncComponent(() => import('./UnsupportedFilePane.vue'))
 const MarkdownPreview = defineAsyncComponent(() => import('./MarkdownPreview.vue'))
 const PdfArtifactPreview = defineAsyncComponent(() => import('./PdfArtifactPreview.vue'))
+const CsvPreviewPane = defineAsyncComponent(() => import('./CsvPreviewPane.vue'))
 const DocumentWorkflowBar = defineAsyncComponent(() => import('./DocumentWorkflowBar.vue'))
+const HtmlPreviewPane = defineAsyncComponent(() => import('./HtmlPreviewPane.vue'))
+const ImagePreviewPane = defineAsyncComponent(() => import('./ImagePreviewPane.vue'))
 const NewTab = defineAsyncComponent(() => import('./NewTab.vue'))
 const EmptyPane = defineAsyncComponent(() => import('./EmptyPane.vue'))
 const EditorTextWorkspaceSurface = defineAsyncComponent(
