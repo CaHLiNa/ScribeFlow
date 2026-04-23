@@ -76,8 +76,8 @@ export const pythonDocumentAdapter = {
   },
 
   preview: {
-    defaultKind: null,
-    supportedKinds: [],
+    defaultKind: 'terminal',
+    supportedKinds: ['terminal'],
     createPath() {
       return null
     },
@@ -105,12 +105,12 @@ export const pythonDocumentAdapter = {
 
     return {
       kind: 'python',
-      previewKind: null,
+      previewKind: 'terminal',
       phase,
       errorCount,
       warningCount,
       canShowProblems: errorCount > 0 || warningCount > 0,
-      canRevealPreview: false,
+      canRevealPreview: true,
       canOpenPdf: false,
       backwardSync: false,
       primaryAction: 'compile',

@@ -292,6 +292,12 @@
               :kind="toolbarUiState?.kind || 'document'"
               @open-external="handleWorkflowOpenExternalPdf"
             />
+            <PythonTerminalPreview
+              v-else-if="documentWorkspaceRoute.previewMode === 'terminal-output'"
+              :key="`workspace-python-terminal:${activeTab}:${editorStore.restoreGeneration}`"
+              :filePath="activeTab"
+              :sourcePath="activeTab"
+            />
           </template>
           <template #source>
             <div v-if="showWorkspaceSourceWorkflowBar" class="workspace-source-stack">
@@ -389,6 +395,7 @@ const EditorTextRouteSurface = defineAsyncComponent(() => import('./EditorTextRo
 const UnsupportedFilePane = defineAsyncComponent(() => import('./UnsupportedFilePane.vue'))
 const MarkdownPreview = defineAsyncComponent(() => import('./MarkdownPreview.vue'))
 const PdfArtifactPreview = defineAsyncComponent(() => import('./PdfArtifactPreview.vue'))
+const PythonTerminalPreview = defineAsyncComponent(() => import('./PythonTerminalPreview.vue'))
 const CsvPreviewPane = defineAsyncComponent(() => import('./CsvPreviewPane.vue'))
 const DocumentWorkflowBar = defineAsyncComponent(() => import('./DocumentWorkflowBar.vue'))
 const HtmlPreviewPane = defineAsyncComponent(() => import('./HtmlPreviewPane.vue'))

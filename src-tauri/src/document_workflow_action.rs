@@ -43,6 +43,7 @@ fn normalize_mode(preview_kind: &str) -> Option<&'static str> {
     match preview_kind {
         "html" => Some("markdown"),
         "pdf" => Some("pdf-artifact"),
+        "terminal" => Some("terminal-output"),
         _ => None,
     }
 }
@@ -273,10 +274,10 @@ fn resolve_python_ui_state(params: &DocumentWorkflowUiResolveParams) -> Value {
     build_ui_state(
         "python",
         phase,
-        None,
+        Some("terminal"),
         error_count,
         warning_count,
-        false,
+        true,
         false,
         "compile",
     )
@@ -351,9 +352,20 @@ fn resolve_latex_action(
     }
 }
 
-fn resolve_python_action(intent: &str) -> Value {
+fn resolve_python_action(intent: &str, preview_state: &Value) -> Value {
+    let current_visible = preview_visible(preview_state);
+    let current_mode = preview_mode(preview_state);
+
     match intent {
-        "primary-action" => build_run_build(),
+        "primary-action" => {
+            build_run_build_with_follow_up(build_workspace_show("terminal", false))
+        }
+        "reveal-preview" => {
+            if current_visible && current_mode == "terminal-output" {
+                return build_workspace_hide();
+            }
+            build_workspace_show("terminal", false)
+        }
         _ => build_noop(),
     }
 }
@@ -384,7 +396,7 @@ pub async fn document_workflow_action_resolve(
             &params.preview_state,
             &params.artifact_path,
         ),
-        "python" => resolve_python_action(&params.intent),
+        "python" => resolve_python_action(&params.intent, &params.preview_state),
         _ => build_noop(),
     };
 

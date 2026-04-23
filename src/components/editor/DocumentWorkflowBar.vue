@@ -145,7 +145,11 @@ const primaryIcon = computed(() => {
 const showPreviewButton = computed(() => props.uiState?.canRevealPreview === true)
 
 const previewButtonLabel = computed(() =>
-  props.uiState?.kind === 'markdown' ? t('Toggle preview') : t('Preview')
+  props.uiState?.kind === 'markdown'
+    ? t('Toggle preview')
+    : props.uiState?.kind === 'python'
+      ? t('Toggle terminal output')
+      : t('Preview')
 )
 
 const canOpenPdf = computed(() => props.uiState?.canOpenPdf === true)
@@ -160,7 +164,9 @@ const pdfButtonLabel = computed(() => {
 
 const activePreviewMode = computed(() => props.previewState?.previewMode || null)
 
-const isPreviewButtonActive = computed(() => activePreviewMode.value === 'markdown')
+const isPreviewButtonActive = computed(
+  () => activePreviewMode.value === 'markdown' || activePreviewMode.value === 'terminal-output'
+)
 const isPdfButtonActive = computed(() => activePreviewMode.value === 'pdf-artifact')
 
 const statusClass = computed(() => ({
