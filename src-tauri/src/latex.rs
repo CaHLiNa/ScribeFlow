@@ -1382,29 +1382,20 @@ pub async fn synctex_forward(
         return Err("SyncTeX file not found. Recompile with SyncTeX enabled.".to_string());
     }
 
-    let parsed_point = parse_synctex_gz(&synctex_path)
-        .ok()
-        .and_then(|data| forward_sync_point(&data, &tex_path, line).ok());
-
     if let Some(pdf_path) = derive_pdf_path_from_synctex_path(&synctex_path) {
         if let Some(binary) = find_synctex(None) {
             if let Ok(results) =
                 run_synctex_view_cli(&binary, &pdf_path, &tex_path, line, column.unwrap_or(0))
             {
-                if let Some(result) = select_best_forward_sync_hit(&results, parsed_point.as_ref()) {
-                    return Ok(refine_forward_sync_hit(result, parsed_point.as_ref()).into_json());
+                if let Some(result) = results.last() {
+                    return Ok(result.clone().into_json());
                 }
             }
         }
     }
 
-    match parsed_point {
-        Some(result) => Ok(result.into_json()),
-        None => {
-            let data = parse_synctex_gz(&synctex_path)?;
-            forward_sync(&data, &tex_path, line)
-        }
-    }
+    let data = parse_synctex_gz(&synctex_path)?;
+    forward_sync(&data, &tex_path, line)
 }
 
 #[tauri::command]
@@ -1833,77 +1824,6 @@ fn parse_synctex_gz(path: &str) -> Result<Vec<SyncNode>, String> {
     Ok(parse_synctex_content(&content))
 }
 
-fn select_best_forward_sync_hit(
-    hits: &[ForwardSyncHit],
-    anchor: Option<&ForwardSyncPoint>,
-) -> Option<ForwardSyncHit> {
-    let first = hits.first()?.clone();
-    let Some(anchor) = anchor else {
-        return Some(first);
-    };
-
-    let mut best = first;
-    let mut best_page_mismatch = best.page != anchor.page;
-    let mut best_distance = (best.x - anchor.x).powi(2) + (best.y - anchor.y).powi(2);
-
-    for hit in hits.iter().skip(1) {
-        let page_mismatch = hit.page != anchor.page;
-        let distance = (hit.x - anchor.x).powi(2) + (hit.y - anchor.y).powi(2);
-        let should_replace = if page_mismatch != best_page_mismatch {
-            !page_mismatch
-        } else if distance < best_distance {
-            true
-        } else if (distance - best_distance).abs() < f64::EPSILON {
-            hit.y < best.y
-        } else {
-            false
-        };
-
-        if should_replace {
-            best = hit.clone();
-            best_page_mismatch = page_mismatch;
-            best_distance = distance;
-        }
-    }
-
-    Some(best)
-}
-
-fn refine_forward_sync_hit(
-    mut hit: ForwardSyncHit,
-    anchor: Option<&ForwardSyncPoint>,
-) -> ForwardSyncHit {
-    let Some(anchor) = anchor else {
-        return hit;
-    };
-    if hit.page != anchor.page {
-        return hit;
-    }
-
-    let (Some(rect_top), Some(rect_height)) = (hit.rect_top, hit.rect_height) else {
-        return hit;
-    };
-    if rect_height <= 22.0 {
-        return hit;
-    }
-
-    let rect_left = hit.rect_left.unwrap_or(hit.x);
-    let rect_width = hit.rect_width.unwrap_or(0.0);
-    let anchor_within_y = anchor.y >= rect_top - 2.0 && anchor.y <= rect_top + rect_height + 2.0;
-    let anchor_within_x =
-        anchor.x >= rect_left - 24.0 && anchor.x <= rect_left + rect_width + 24.0;
-    let delta_y = (anchor.y - hit.y).abs();
-
-    // SyncTeX CLI 在矩阵、cases、aligned 等多行 block 内常返回整块命中，这里优先用
-    // 本地 parser 的细锚点收紧 x/y，同时保留 CLI rect 几何供高亮和 block 语义使用。
-    if anchor_within_x && anchor_within_y && delta_y >= 4.0 {
-        hit.x = anchor.x;
-        hit.y = anchor.y;
-    }
-
-    hit
-}
-
 fn forward_sync(
     nodes: &[SyncNode],
     tex_path: &str,
@@ -1996,10 +1916,7 @@ fn backward_sync(
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        parse_synctex_view_output, refine_forward_sync_hit, select_best_forward_sync_hit,
-        ForwardSyncHit, ForwardSyncPoint,
-    };
+    use super::parse_synctex_view_output;
 
     #[test]
     fn parse_synctex_view_output_collects_all_hits_and_rects() {
@@ -2036,108 +1953,5 @@ SyncTeX result end
         assert_eq!(hits[0].rect_width, Some(239.527695));
         assert_eq!(hits[0].rect_height, Some(8.966360));
         assert_eq!(hits[1].rect_left, None);
-    }
-
-    #[test]
-    fn select_best_forward_sync_hit_prefers_anchor_page_and_distance() {
-        let hits = vec![
-            ForwardSyncHit {
-                page: 1,
-                x: 48.188896,
-                y: 131.612198,
-                rect_left: None,
-                rect_top: None,
-                rect_width: None,
-                rect_height: None,
-            },
-            ForwardSyncHit {
-                page: 1,
-                x: 48.188896,
-                y: 237.606873,
-                rect_left: None,
-                rect_top: None,
-                rect_width: None,
-                rect_height: None,
-            },
-            ForwardSyncHit {
-                page: 2,
-                x: 58.151535,
-                y: 400.447205,
-                rect_left: None,
-                rect_top: None,
-                rect_width: None,
-                rect_height: None,
-            },
-        ];
-
-        let selected = select_best_forward_sync_hit(
-            &hits,
-            Some(&ForwardSyncPoint {
-                page: 1,
-                x: 48.188890,
-                y: 237.606884,
-            }),
-        )
-        .expect("expected a selected hit");
-
-        assert_eq!(
-            selected,
-            ForwardSyncHit {
-                page: 1,
-                x: 48.188896,
-                y: 237.606873,
-                rect_left: None,
-                rect_top: None,
-                rect_width: None,
-                rect_height: None,
-            }
-        );
-    }
-
-    #[test]
-    fn refine_forward_sync_hit_uses_parser_anchor_for_oversized_block_hits() {
-        let refined = refine_forward_sync_hit(
-            ForwardSyncHit {
-                page: 2,
-                x: 148.041168,
-                y: 421.229248,
-                rect_left: Some(102.698502),
-                rect_top: Some(403.196853),
-                rect_width: Some(130.508499),
-                rect_height: Some(31.083481),
-            },
-            Some(&ForwardSyncPoint {
-                page: 2,
-                x: 174.502491,
-                y: 414.076060,
-            }),
-        );
-
-        assert_eq!(refined.x, 174.502491);
-        assert_eq!(refined.y, 414.076060);
-        assert_eq!(refined.rect_height, Some(31.083481));
-    }
-
-    #[test]
-    fn refine_forward_sync_hit_keeps_compact_line_hits_unchanged() {
-        let refined = refine_forward_sync_hit(
-            ForwardSyncHit {
-                page: 2,
-                x: 58.151535,
-                y: 400.447205,
-                rect_left: Some(48.188896),
-                rect_top: Some(392.696287),
-                rect_width: Some(239.527695),
-                rect_height: Some(9.504336),
-            },
-            Some(&ForwardSyncPoint {
-                page: 2,
-                x: 135.696400,
-                y: 374.992445,
-            }),
-        );
-
-        assert_eq!(refined.x, 58.151535);
-        assert_eq!(refined.y, 400.447205);
     }
 }
