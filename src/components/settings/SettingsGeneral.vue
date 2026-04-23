@@ -51,7 +51,6 @@
 
           <div class="theme-info">
             <div class="theme-name">{{ t(theme.label) }}</div>
-            <div class="theme-desc">{{ t(theme.description) }}</div>
           </div>
         </button>
       </div>
@@ -63,9 +62,6 @@
         <div class="settings-row">
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('Language') }}</div>
-            <div class="settings-row-hint">
-              {{ t('Choose the display language for the app interface.') }}
-            </div>
           </div>
           <div class="settings-row-control">
             <UiSelect
@@ -81,9 +77,6 @@
         <div class="settings-row">
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('Reopen last workspace on launch') }}</div>
-            <div class="settings-row-hint">
-              {{ t('Restore the last opened workspace automatically when the app starts.') }}
-            </div>
           </div>
           <div class="settings-row-control compact">
             <UiSwitch
@@ -97,9 +90,6 @@
         <div class="settings-row">
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('Restore last layout and files on launch') }}</div>
-            <div class="settings-row-hint">
-              {{ t('When reopening the previous workspace on launch, also restore its tabs and split layout.') }}
-            </div>
           </div>
           <div class="settings-row-control compact">
             <UiSwitch
@@ -118,9 +108,6 @@
         <div class="settings-row">
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('UI font') }}</div>
-            <div class="settings-row-hint">
-              {{ t('Affects sidebar, tabs, settings, and general app chrome.') }}
-            </div>
           </div>
           <div class="settings-row-control">
             <UiSelect
@@ -136,9 +123,6 @@
         <div class="settings-row">
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('Markdown font') }}</div>
-            <div class="settings-row-hint">
-              {{ t('Affects Markdown editor prose and Markdown preview.') }}
-            </div>
           </div>
           <div class="settings-row-control">
             <UiSelect
@@ -154,13 +138,6 @@
         <div class="settings-row">
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('LaTeX editor font') }}</div>
-            <div class="settings-row-hint">
-              {{
-                t(
-                  'Affects the .tex source editor only. Compiled PDF output still follows your document template.'
-                )
-              }}
-            </div>
           </div>
           <div class="settings-row-control">
             <UiSelect
@@ -194,9 +171,6 @@
         <div class="settings-row">
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('Show hidden files and folders') }}</div>
-            <div class="settings-row-hint">
-              {{ t('Reveal dotfiles and hidden directories inside the project tree.') }}
-            </div>
           </div>
           <div class="settings-row-control compact">
             <UiSwitch
@@ -210,31 +184,12 @@
         <div class="settings-row">
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('Sort files by') }}</div>
-            <div class="settings-row-hint">
-              {{ t('Choose whether the project tree is ordered alphabetically or by recent file changes.') }}
-            </div>
           </div>
           <div class="settings-row-control">
             <UiSelect
               :model-value="workspace.fileTreeSortMode"
               :options="fileTreeSortOptions"
               @update:model-value="workspace.setFileTreeSortMode"
-            />
-          </div>
-        </div>
-
-        <div class="settings-row">
-          <div class="settings-row-copy">
-            <div class="settings-row-title">{{ t('Fold single-child folders') }}</div>
-            <div class="settings-row-hint">
-              {{ t('Collapse directory chains like src/components/editor into one visible row.') }}
-            </div>
-          </div>
-          <div class="settings-row-control compact">
-            <UiSwitch
-              :model-value="workspace.fileTreeFoldDirectories"
-              :aria-label="t('Fold single-child folders')"
-              @update:model-value="workspace.setFileTreeFoldDirectories($event)"
             />
           </div>
         </div>
@@ -247,9 +202,6 @@
         <div class="settings-row">
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('Default zoom') }}</div>
-            <div class="settings-row-hint">
-              {{ t('Choose how embedded PDFs open before any manual zooming.') }}
-            </div>
           </div>
           <div class="settings-row-control">
             <UiSelect
@@ -263,9 +215,6 @@
         <div class="settings-row">
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('Page layout') }}</div>
-            <div class="settings-row-hint">
-              {{ t('Choose whether embedded PDFs open in single-page or two-page spreads.') }}
-            </div>
           </div>
           <div class="settings-row-control">
             <UiSelect
@@ -444,7 +393,6 @@ onMounted(async () => {
 .theme-info {
   display: flex;
   flex-direction: column;
-  gap: 2px;
   padding: 10px 4px 0;
 }
 
@@ -452,12 +400,6 @@ onMounted(async () => {
   font-size: 13px;
   font-weight: 500;
   color: var(--text-primary);
-}
-
-.theme-desc {
-  font-size: 12px;
-  color: var(--text-muted);
-  line-height: 1.4;
 }
 
 .theme-card.is-active .theme-name {

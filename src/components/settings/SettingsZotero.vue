@@ -8,13 +8,6 @@
           <div class="settings-row">
             <div class="settings-row-copy">
               <div class="settings-row-title">ScribeFlow Preview Library</div>
-              <div class="settings-row-hint">
-                {{
-                  t(
-                    'Browser preview mode shows the Zotero settings layout with mock data. Real account, sync, and keychain flows remain desktop-only.'
-                  )
-                }}
-              </div>
             </div>
             <div class="settings-row-control compact">
               <UiButton variant="secondary" size="sm" disabled>
@@ -45,9 +38,6 @@
           <div class="settings-row">
             <div class="settings-row-copy">
               <div class="settings-row-title">{{ t('Markdown citation format') }}</div>
-              <div class="settings-row-hint">
-                {{ t('Choose how new citations are inserted into Markdown documents.') }}
-              </div>
             </div>
             <div class="settings-row-control">
               <UiSelect
@@ -62,9 +52,6 @@
           <div class="settings-row">
             <div class="settings-row-copy">
               <div class="settings-row-title">{{ t('LaTeX citation command') }}</div>
-              <div class="settings-row-hint">
-                {{ t('Used by the Insert Citation action and new LaTeX citation insertions.') }}
-              </div>
             </div>
             <div class="settings-row-control">
               <UiSelect
@@ -79,9 +66,6 @@
           <div class="settings-row">
             <div class="settings-row-copy">
               <div class="settings-row-title">{{ t('Add spaces around inserted citations') }}</div>
-              <div class="settings-row-hint">
-                {{ t('Automatically pad inserted citations so they do not stick to surrounding text.') }}
-              </div>
             </div>
             <div class="settings-row-control compact">
               <UiSwitch
@@ -190,13 +174,6 @@
           <div class="settings-row">
             <div class="settings-row-copy">
               <div class="settings-row-title">{{ t('Citation style') }}</div>
-              <div class="settings-row-hint">
-                {{
-                  connected
-                    ? t('Controls local citation rendering and bibliography export for the current workspace.')
-                    : t('Works locally even before connecting Zotero.')
-                }}
-              </div>
             </div>
             <div class="settings-row-control">
               <UiSelect

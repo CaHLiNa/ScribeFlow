@@ -33,9 +33,6 @@
         <div class="settings-row" :class="{ 'is-disabled-row': !workspace.softWrap }">
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('Preferred line width') }}</div>
-            <div class="settings-row-hint">
-              {{ t('Used when soft wrap is enabled for long-form writing layouts.') }}
-            </div>
           </div>
           <div class="settings-row-control">
             <div class="settings-segmented">
@@ -57,9 +54,6 @@
         <div class="settings-row">
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('Sync Markdown preview') }}</div>
-            <div class="settings-row-hint">
-              {{ t('On: source and preview scroll together. Off: preview follows the editor cursor.') }}
-            </div>
           </div>
           <div class="settings-row-control compact">
             <UiSwitch
@@ -72,9 +66,6 @@
         <div class="settings-row">
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('Spellcheck') }}</div>
-            <div class="settings-row-hint">
-              {{ t('Underline spelling issues while drafting in Markdown documents.') }}
-            </div>
           </div>
           <div class="settings-row-control compact">
             <UiSwitch
@@ -87,9 +78,6 @@
         <div class="settings-row">
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('Show line numbers') }}</div>
-            <div class="settings-row-hint">
-              {{ t('Display a line-number gutter for editor navigation and diagnostics.') }}
-            </div>
           </div>
           <div class="settings-row-control compact">
             <UiSwitch
@@ -102,9 +90,6 @@
         <div class="settings-row">
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('Highlight current line') }}</div>
-            <div class="settings-row-hint">
-              {{ t('Keep the active line visually anchored while editing long documents.') }}
-            </div>
           </div>
           <div class="settings-row-control compact">
             <UiSwitch
