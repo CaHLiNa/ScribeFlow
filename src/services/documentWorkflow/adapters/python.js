@@ -22,8 +22,8 @@ function buildPythonWorkflowProblems(sourcePath, state = {}) {
 
 function formatPythonCompileDuration(state = {}, context = {}) {
   const t = context.t || ((value) => value)
-  if (state?.status === 'compiling') return t('Compiling...')
-  if (state?.status === 'error') return t('Compile failed')
+  if (state?.status === 'running') return t('Running...')
+  if (state?.status === 'error') return t('Run failed')
 
   const durationMs = Number(state?.durationMs || 0)
   const durationText = durationMs > 0
@@ -99,7 +99,7 @@ export const pythonDocumentAdapter = {
     const state = pythonCompileAdapter.stateForFile(filePath, context) || {}
 
     let phase = 'idle'
-    if (state?.status === 'compiling') phase = 'compiling'
+    if (state?.status === 'running') phase = 'running'
     else if (state?.status === 'error') phase = 'error'
     else if (state?.status === 'success') phase = 'ready'
 
@@ -113,7 +113,7 @@ export const pythonDocumentAdapter = {
       canRevealPreview: true,
       canOpenPdf: false,
       backwardSync: false,
-      primaryAction: 'compile',
+      primaryAction: 'run',
     }
   },
 }

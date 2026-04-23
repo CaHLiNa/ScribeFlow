@@ -70,9 +70,11 @@ export const usePythonStore = defineStore('python', {
       const previousState = this.stateForFile(normalizedPath) || null
       this.setCompileState(normalizedPath, {
         ...(previousState || {}),
-        status: 'compiling',
+        status: 'running',
         errors: [],
         warnings: [],
+        stdout: '',
+        stderr: '',
       })
 
       try {
@@ -87,8 +89,10 @@ export const usePythonStore = defineStore('python', {
           status: result?.success ? 'success' : 'error',
           errors: Array.isArray(result?.errors) ? result.errors.map(normalizeIssue) : [],
           warnings: Array.isArray(result?.warnings) ? result.warnings.map(normalizeIssue) : [],
+          stdout: String(result?.stdout || ''),
           stderr: String(result?.stderr || ''),
-          cachePath: String(result?.cachePath || ''),
+          commandPreview: String(result?.commandPreview || ''),
+          exitCode: Number(result?.exitCode ?? (result?.success ? 0 : -1)),
           durationMs: Number(result?.durationMs || 0),
           interpreterPath: String(result?.interpreterPath || ''),
           interpreterVersion: String(result?.interpreterVersion || ''),
@@ -102,8 +106,10 @@ export const usePythonStore = defineStore('python', {
           status: 'error',
           errors: [{ line: null, column: null, message, raw: message }],
           warnings: [],
+          stdout: '',
           stderr: message,
-          cachePath: '',
+          commandPreview: '',
+          exitCode: -1,
           durationMs: 0,
           interpreterPath: this.interpreter.path || '',
           interpreterVersion: this.interpreter.version || '',

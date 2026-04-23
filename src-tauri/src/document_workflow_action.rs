@@ -263,6 +263,8 @@ fn resolve_python_ui_state(params: &DocumentWorkflowUiResolveParams) -> Value {
 
     let phase = if status == "compiling" {
         "compiling"
+    } else if status == "running" {
+        "running"
     } else if status == "error" {
         "error"
     } else if status == "success" {
@@ -279,7 +281,7 @@ fn resolve_python_ui_state(params: &DocumentWorkflowUiResolveParams) -> Value {
         warning_count,
         true,
         false,
-        "compile",
+        "run",
     )
 }
 

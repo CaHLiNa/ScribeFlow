@@ -8,7 +8,7 @@
       <div
         class="python-terminal-preview__status"
         :class="{
-          'is-running': compileState?.status === 'compiling',
+          'is-running': compileState?.status === 'running',
           'is-error': compileState?.status === 'error',
           'is-ready': compileState?.status === 'success',
         }"
@@ -19,7 +19,7 @@
 
     <div class="python-terminal-preview__meta">
       <span v-if="interpreterLabel">{{ interpreterLabel }}</span>
-      <span v-if="cachePathLabel">{{ cachePathLabel }}</span>
+      <span v-if="commandLabel">{{ commandLabel }}</span>
     </div>
 
     <pre class="python-terminal-preview__body">{{ terminalText }}</pre>
@@ -47,8 +47,8 @@ const fileLabel = computed(() => basenamePath(resolvedSourcePath.value) || resol
 
 const statusLabel = computed(() => {
   if (!pythonStore.hasInterpreter) return t('Python interpreter not found')
-  if (compileState.value?.status === 'compiling') return t('Compiling...')
-  if (compileState.value?.status === 'error') return t('Compile failed')
+  if (compileState.value?.status === 'running') return t('Running...')
+  if (compileState.value?.status === 'error') return t('Run failed')
   if (compileState.value?.status === 'success') return t('Ready')
   return t('Ready to start')
 })
@@ -66,10 +66,10 @@ const interpreterLabel = computed(() => {
   return `${t('Python interpreter')}: Python ${version}`
 })
 
-const cachePathLabel = computed(() => {
-  const cachePath = String(compileState.value?.cachePath || '').trim()
-  if (!cachePath) return ''
-  return `${t('Compiled bytecode cache')}: ${cachePath}`
+const commandLabel = computed(() => {
+  const commandPreview = String(compileState.value?.commandPreview || '').trim()
+  if (!commandPreview) return ''
+  return `${t('Command')}: ${commandPreview}`
 })
 
 const terminalText = computed(() => {
@@ -80,27 +80,31 @@ const terminalText = computed(() => {
   }
 
   if (!state) {
-    return t('Compile to see Python terminal output.')
+    return t('Run current Python file to see terminal output.')
   }
 
-  if (state.status === 'compiling') {
-    return t('Compiling current Python file...')
+  if (state.status === 'running') {
+    return `${commandLabel.value || `$ python ${fileLabel.value}`}\n\n${t('Running...')}`
   }
 
   if (state.status === 'error') {
-    return (
+    const lines = [
+      commandLabel.value,
       state.stderr
-      || state.errors?.map((issue) => issue.raw || issue.message).join('\n\n')
-      || t('Compile failed')
-    )
+        || state.errors?.map((issue) => issue.raw || issue.message).join('\n\n')
+        || t('Run failed'),
+      `${t('Exit code')}: ${state.exitCode ?? -1}`,
+    ].filter(Boolean)
+    return lines.join('\n\n')
   }
 
+  const outputText = String(state.stdout || '').trim()
   const lines = [
-    `[Python] ${fileLabel.value}`,
-    interpreterLabel.value,
-    cachePathLabel.value,
+    commandLabel.value,
+    outputText || `[${t('no output')}]`,
+    `${t('Exit code')}: ${state.exitCode ?? 0}`,
     state.durationMs
-      ? `${t('Compiled')}: ${
+      ? `${t('Running time')}: ${
           state.durationMs < 1000
             ? `${state.durationMs}ms`
             : `${(state.durationMs / 1000).toFixed(1)}s`

@@ -110,6 +110,7 @@ const kindLabel = computed(() => {
 
 const phaseLabel = computed(() => {
   if (!props.uiState || props.uiState.kind === 'text') return ''
+  if (props.uiState.phase === 'running') return t('Running...')
   if (props.uiState.phase === 'compiling') return t('Compiling...')
   if (props.uiState.phase === 'queued') return t('Queued')
   if (props.uiState.phase === 'rendering') return t('Rendering...')
@@ -129,6 +130,9 @@ const showShellStatus = computed(
 const showPrimaryAction = computed(() => !!props.uiState && props.uiState.kind !== 'text')
 
 const primaryLabel = computed(() => {
+  if (props.uiState?.primaryAction === 'run') {
+    return t('Run')
+  }
   if (props.uiState?.primaryAction === 'compile' || props.uiState?.kind === 'latex') {
     return t('Compile')
   }

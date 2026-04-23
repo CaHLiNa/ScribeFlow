@@ -28,9 +28,11 @@ pub struct PythonCompileResult {
     pub success: bool,
     pub interpreter_path: String,
     pub interpreter_version: String,
-    pub cache_path: String,
+    pub command_preview: String,
     pub duration_ms: u64,
+    pub stdout: String,
     pub stderr: String,
+    pub exit_code: i32,
     pub errors: Vec<PythonCompileIssue>,
     pub warnings: Vec<PythonCompileIssue>,
 }
@@ -261,38 +263,31 @@ pub async fn python_runtime_compile(
         return Err("Python interpreter not found in PATH.".to_string());
     };
 
-    let compile_script = r#"
-import importlib.util
-import py_compile
-import sys
-
-source = sys.argv[1]
-py_compile.compile(source, doraise=True)
-cache_path = importlib.util.cache_from_source(source)
-print(cache_path)
-"#;
-
     let started_at = Instant::now();
     let mut command = background_tokio_command(&invocation.program);
     command.args(&invocation.args);
-    command.args(["-c", compile_script, &file_path]);
+    command.arg(&file_path);
     let output = command
         .output()
         .await
-        .map_err(|error| format!("Failed to run Python compiler: {error}"))?;
+        .map_err(|error| format!("Failed to run Python file: {error}"))?;
 
     let duration_ms = started_at.elapsed().as_millis() as u64;
     let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
     let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
     let success = output.status.success();
+    let exit_code = output.status.code().unwrap_or(-1);
+    let command_preview = format!("{} {}", invocation.display_path, file_path);
 
     Ok(PythonCompileResult {
         success,
         interpreter_path: info.path,
         interpreter_version: info.version,
-        cache_path: if success { stdout } else { String::new() },
+        command_preview,
         duration_ms,
+        stdout: if success { stdout } else { String::new() },
         stderr: stderr.clone(),
+        exit_code,
         errors: if success {
             vec![]
         } else {
