@@ -697,8 +697,8 @@ function buildForwardSyncOverlayEntries(request = null) {
         style: {
           left: `${Math.max(0, rotatedRect.origin.x)}px`,
           top: `${Math.max(0, rotatedRect.origin.y)}px`,
-          width: `${Math.max(12, rotatedRect.size.width)}px`,
-          height: `${Math.max(10, rotatedRect.size.height)}px`,
+          width: `${Math.max(4, rotatedRect.size.width)}px`,
+          height: `${Math.max(4, rotatedRect.size.height)}px`,
         },
       }
     })
@@ -1809,11 +1809,10 @@ onUnmounted(() => {
 }
 
 .pdf-artifact-preview__page-shell.is-forward-sync-target {
-  background: color-mix(in srgb, var(--focus-ring) 8%, var(--embedpdf-page));
   box-shadow:
-    inset 0 0 0 2px color-mix(in srgb, var(--focus-ring) 60%, #ffd667 40%),
-    0 0 0 1px color-mix(in srgb, #ffffff 14%, transparent),
-    0 18px 42px color-mix(in srgb, var(--focus-ring) 18%, transparent);
+    inset 0 0 0 1px color-mix(in srgb, var(--focus-ring) 24%, #d6b565 76%),
+    0 0 0 2px color-mix(in srgb, var(--focus-ring) 10%, transparent),
+    0 10px 30px rgb(0 0 0 / 0.16);
 }
 
 .pdf-artifact-preview__page {
@@ -2000,25 +1999,17 @@ onUnmounted(() => {
 .pdf-artifact-preview__forward-sync-highlight {
   position: absolute;
   z-index: 6;
-  border-radius: 6px;
-  border: 1.5px solid color-mix(in srgb, var(--focus-ring) 72%, #ffd667 28%);
-  background:
-    linear-gradient(
-      135deg,
-      color-mix(in srgb, var(--focus-ring) 24%, transparent),
-      color-mix(in srgb, #ffd667 34%, transparent)
-    );
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, #ffffff 28%, transparent),
-    0 12px 24px color-mix(in srgb, var(--focus-ring) 18%, transparent);
+  border-radius: 3px;
+  border: 1px solid color-mix(in srgb, #c69a2d 48%, transparent);
+  background: color-mix(in srgb, #f0d27a 34%, transparent);
   pointer-events: none;
-  animation: pdf-forward-sync-highlight 1.8s ease-out forwards;
+  animation: pdf-forward-sync-highlight 1.35s ease-out forwards;
 }
 
 @keyframes pdf-forward-sync-highlight {
   0% {
     opacity: 0;
-    transform: scale(0.98);
+    transform: scale(0.995);
   }
 
   12% {
@@ -2027,12 +2018,12 @@ onUnmounted(() => {
   }
 
   72% {
-    opacity: 0.94;
+    opacity: 0.78;
   }
 
   100% {
     opacity: 0;
-    transform: scale(1.015);
+    transform: scale(1.003);
   }
 }
 
