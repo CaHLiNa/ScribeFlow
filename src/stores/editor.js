@@ -522,13 +522,13 @@ export const useEditorStore = defineStore('editor', {
       return persistEditorPaths(paths, (path) => this.persistPath(path))
     },
 
-    loadRecentFiles(workspacePath) {
-      this.recentFiles = loadRecentFilesForWorkspace(workspacePath)
+    async loadRecentFiles(workspacePath) {
+      this.recentFiles = await loadRecentFilesForWorkspace(useWorkspaceStore().workspaceDataDir, workspacePath)
     },
 
     _persistRecentFiles() {
       const workspace = useWorkspaceStore()
-      persistRecentFilesForWorkspace(workspace.path, this.recentFiles)
+      void persistRecentFilesForWorkspace(workspace.workspaceDataDir, workspace.path, this.recentFiles)
     },
 
     saveEditorState() {

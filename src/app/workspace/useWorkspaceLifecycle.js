@@ -175,7 +175,7 @@ export function useWorkspaceLifecycle() {
         if (!zoteroConfig?.userId || zoteroConfig?.autoSync === false) return
         await syncNow(workspace.globalConfigDir, referencesStore)
       }, 'references.zoteroAutoSync')
-      editorStore.loadRecentFiles(targetPath)
+      await editorStore.loadRecentFiles(targetPath)
 
       const hadCachedTree = filesStore.restoreCachedTree(targetPath)
       const loadTreePromise = filesStore.loadFileTree({

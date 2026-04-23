@@ -688,14 +688,20 @@ Rust 接管：
 
 ## 剩余未 Rust 化清单
 
-### 必须继续下沉的 runtime 权威
+### 已收口的 runtime 权威
 
 1. `LaTeX runtime preferences / toolchain policy`
-   当前 `src/stores/latex.js` 仍在前端持有 `compilerPreference`、`enginePreference`、`autoCompile`、`formatOnSave`、`buildRecipe`、`buildExtraArgs`、`customSystemTexPath` 的默认值、`localStorage` 持久化与 normalize 逻辑。
+   已迁到 Rust，前端仅作为 optimistic consumer 与 runtime coordinator。
 2. `Workspace lifecycle persistence`
-   当前 `src/services/workspaceRecents.js` 与 `src/app/workspace/useWorkspaceLifecycle.js` 仍在前端持有 `recentWorkspaces`、`lastWorkspace`、`setupComplete` 的主持久化与恢复逻辑。
+   已迁到 Rust，前端仅保留 workspace picker / setup wizard 的 UI 编排。
 3. `Document workflow session convergence`
-   当前 `src/stores/documentWorkflow.js` 与 `src/domains/document/documentWorkflowRuntime.js` 仍在前端维护 `previewPrefs`、`workspacePreviewVisibility`、`workspacePreviewRequests`、`previewBindings`、`detachedSources` 和部分 session orchestration。
+   已迁到 Rust，前端仅保留 transient cache、markdown render 和 pane UI 编排。
+4. `Workspace bookmark storage`
+   已迁到 Rust，macOS security-scoped bookmark 不再由前端 `localStorage` 持久化。
+5. `Editor recent files`
+   已迁到 Rust，最近文件列表由 workspace data dir 下的 `editor-recent-files.json` 持久化，前端只保留 browser preview fallback 与一次性 legacy 迁移输入。
+6. `Workbench shell layout`
+   已迁到 Rust，左右侧栏宽度与 bottom panel 高度由全局 `workbench-layout.json` 持久化，前端只负责拖拽交互和视口约束。
 
 ### 可以保留在前端的 UI coordination
 
@@ -717,7 +723,7 @@ Rust 接管：
 - `Task 6` 已完成
 - `Task 7` 已完成
 - `Task 8` 已完成
-- 当前 migration plan 的后续新增 phase 已全部收口；后续又补充完成了 workspace bookmark storage 的 Rust 化，macOS security-scoped bookmark 不再由前端 `localStorage` 持久化。
+- 当前 migration plan 的后续新增 phase 已全部收口；后续又补充完成了 workspace bookmark storage、editor recent files 和 workbench shell layout 的 Rust 化。桌面端剩余前端持久化入口仅作为 browser preview fallback 或 legacy 迁移输入，不再作为 runtime 权威。
 
 ---
 
@@ -952,6 +958,77 @@ Rust 接管：
    `src/stores/documentWorkflow.js` 中基于 `localStorage` 的 `previewPrefs` 主持久化与本地 session/binding 权威
 3. 剩余未迁部分的阻塞点：
    仅剩 resolved cache、markdown render transient state、pane UI 编排等前端 coordination；workspace bookmark storage 已补充迁到 Rust，前端只保留非桌面 fallback。
+
+---
+
+## Task 9: Remaining Persistence Authority Sweep
+
+**目标：** 扫描剩余前端持久化入口，把仍属于桌面 runtime 权威的 editor recent files 与 workbench shell layout 下沉到 Rust。
+
+当前进度：
+
+- 已在 Rust `editor_session_runtime.rs` 中新增 `editor_recent_files_load` / `editor_recent_files_save`
+- 已在 Rust `workbench_state.rs` 中新增 `workbench_layout_load` / `workbench_layout_save`
+- 已把 `src/services/editorPersistence.js` 收口为 recent files Rust bridge，browser preview 仅保留 fallback
+- 已把 `src/composables/useAppShellLayout.js` 的左右侧栏宽度与 bottom panel 高度持久化改为 Rust-backed
+- 已把 workspace 打开流程改为等待 recent files hydrate，避免最近文件列表继续由旧前端 storage 主持久化
+
+**Files:**
+
+- Modify: `src-tauri/src/editor_session_runtime.rs`
+- Modify: `src-tauri/src/workbench_state.rs`
+- Modify: `src-tauri/src/lib.rs`
+- Modify: `src/services/editorPersistence.js`
+- Modify: `src/domains/editor/editorPersistenceRuntime.js`
+- Modify: `src/stores/editor.js`
+- Modify: `src/app/workspace/useWorkspaceLifecycle.js`
+- Modify: `src/composables/useAppShellLayout.js`
+- Modify: `docs/superpowers/plans/2026-04-21-rust-runtime-migration-plan.md`
+
+### 边界
+
+Rust 接管：
+
+- editor recent files schema、去重、裁剪、legacy migration 与 workspace 级持久化
+- workbench shell layout schema、尺寸 clamp、legacy migration 与全局持久化
+
+前端保留：
+
+- editor recent files 的打开意图、空状态展示与当前会话内 optimistic 更新
+- shell resize / snap / viewport clamp 等 UI 交互编排
+- browser preview runtime 的 fallback storage
+
+### 验收标准
+
+- 桌面端不再把 recent files 存在 `localStorage`
+- 桌面端不再把 shell layout 尺寸存在 `localStorage`
+- 旧 `localStorage` key 在 Rust 迁移成功后被清理
+- 前端仅通过 Tauri command 消费 Rust-normalized 结果
+
+当前结果：
+
+- 已满足“remaining persistence authority sweep”的目标
+- `workspaceDataDir/editor-recent-files.json` 成为最近文件列表的实际持久化位置
+- `~/.scribeflow/workbench-layout.json` 成为 shell layout 尺寸的实际持久化位置
+
+### 验证
+
+- `cargo fmt --manifest-path src-tauri/Cargo.toml`
+- `cargo check --manifest-path src-tauri/Cargo.toml`
+- `cargo test --manifest-path src-tauri/Cargo.toml editor_session`
+- `cargo test --manifest-path src-tauri/Cargo.toml workbench_state`
+- `cargo test --manifest-path src-tauri/Cargo.toml workspace_access`
+- `npm run lint`
+- `npm run build`
+
+### Phase 9 完成定义核对
+
+1. 已迁到 Rust 的职责：
+   editor recent files 与 workbench shell layout 的 schema、normalize、legacy 迁移和持久化
+2. 已删除或降权的前端旧实现：
+   `recentFiles:${workspacePath}`、`leftSidebarWidth`、`rightSidebarWidth`、`bottomPanelHeight` 不再是桌面端权威；前端只保留 browser preview fallback
+3. 剩余未迁部分的阻塞点：
+   纯 UI state、CodeMirror / DOM 交互、browser preview mock/fallback 和 markdown render transient state 不应迁到 Rust；它们没有作为桌面 runtime 权威继续留在前端
 
 ---
 

@@ -1,11 +1,14 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
 
 const STATE_FILE: &str = "editor-state.json";
+const RECENT_FILES_FILE: &str = "editor-recent-files.json";
 const STATE_VERSION: u64 = 1;
+const RECENT_FILES_VERSION: u64 = 1;
+const MAX_RECENT_FILES: usize = 20;
 const ROOT_PANE_ID: &str = "pane-root";
 const DEFAULT_SPLIT_RATIO: f64 = 0.5;
 const MIN_SPLIT_RATIO: f64 = 0.15;
@@ -32,6 +35,55 @@ pub struct EditorSessionSaveParams {
     pub legacy_preview_paths: Vec<String>,
     #[serde(default)]
     pub last_context_path: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RecentFileEntry {
+    #[serde(default)]
+    pub path: String,
+    #[serde(default)]
+    pub opened_at: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RecentFilesFile {
+    #[serde(default = "default_recent_files_version")]
+    version: u64,
+    #[serde(default)]
+    recent_files: Vec<RecentFileEntry>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EditorRecentFilesLoadParams {
+    #[serde(default)]
+    pub workspace_data_dir: String,
+    #[serde(default)]
+    pub legacy_recent_files: Vec<RecentFileEntry>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EditorRecentFilesSaveParams {
+    #[serde(default)]
+    pub workspace_data_dir: String,
+    #[serde(default)]
+    pub recent_files: Vec<RecentFileEntry>,
+}
+
+impl Default for RecentFilesFile {
+    fn default() -> Self {
+        Self {
+            version: RECENT_FILES_VERSION,
+            recent_files: Vec::new(),
+        }
+    }
+}
+
+fn default_recent_files_version() -> u64 {
+    RECENT_FILES_VERSION
 }
 
 fn clamp_ratio(value: f64) -> f64 {
@@ -413,6 +465,70 @@ fn state_file_path(workspace_data_dir: &str) -> String {
     )
 }
 
+fn recent_files_path(workspace_data_dir: &str) -> String {
+    format!(
+        "{}/{}",
+        workspace_data_dir.trim_end_matches('/'),
+        RECENT_FILES_FILE
+    )
+}
+
+fn normalize_recent_files(recent_files: Vec<RecentFileEntry>) -> Vec<RecentFileEntry> {
+    let mut seen = HashSet::new();
+    let mut normalized = Vec::new();
+
+    for entry in recent_files {
+        let path = entry.path.trim().to_string();
+        if path.is_empty() || !seen.insert(path.clone()) {
+            continue;
+        }
+        normalized.push(RecentFileEntry {
+            path,
+            opened_at: entry.opened_at,
+        });
+        if normalized.len() >= MAX_RECENT_FILES {
+            break;
+        }
+    }
+
+    normalized
+}
+
+fn read_recent_files(workspace_data_dir: &str) -> Result<Option<Vec<RecentFileEntry>>, String> {
+    let file_path = recent_files_path(workspace_data_dir);
+    if !Path::new(&file_path).exists() {
+        return Ok(None);
+    }
+
+    let content = fs::read_to_string(&file_path).map_err(|error| error.to_string())?;
+    if let Ok(parsed) = serde_json::from_str::<RecentFilesFile>(&content) {
+        return Ok(Some(normalize_recent_files(parsed.recent_files)));
+    }
+
+    let parsed = serde_json::from_str::<Vec<RecentFileEntry>>(&content)
+        .map_err(|error| format!("Invalid editor recent files: {error}"))?;
+    Ok(Some(normalize_recent_files(parsed)))
+}
+
+fn write_recent_files(
+    workspace_data_dir: &str,
+    recent_files: &[RecentFileEntry],
+) -> Result<Vec<RecentFileEntry>, String> {
+    let normalized = normalize_recent_files(recent_files.to_vec());
+    let file_path = recent_files_path(workspace_data_dir);
+    if let Some(parent) = Path::new(&file_path).parent() {
+        fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+    }
+    let payload = RecentFilesFile {
+        version: RECENT_FILES_VERSION,
+        recent_files: normalized.clone(),
+    };
+    let serialized = serde_json::to_string_pretty(&payload)
+        .map_err(|error| format!("Failed to serialize editor recent files: {error}"))?;
+    fs::write(&file_path, serialized).map_err(|error| error.to_string())?;
+    Ok(normalized)
+}
+
 #[tauri::command]
 pub async fn editor_session_save(params: EditorSessionSaveParams) -> Result<Value, String> {
     let workspace_data_dir = params.workspace_data_dir.trim();
@@ -455,9 +571,39 @@ pub async fn editor_session_load(params: EditorSessionLoadParams) -> Result<Valu
     Ok(normalize_loaded_editor_state(&parsed))
 }
 
+#[tauri::command]
+pub async fn editor_recent_files_load(
+    params: EditorRecentFilesLoadParams,
+) -> Result<Vec<RecentFileEntry>, String> {
+    let workspace_data_dir = params.workspace_data_dir.trim();
+    if workspace_data_dir.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    if let Some(current) = read_recent_files(workspace_data_dir)? {
+        return Ok(current);
+    }
+
+    write_recent_files(workspace_data_dir, &params.legacy_recent_files)
+}
+
+#[tauri::command]
+pub async fn editor_recent_files_save(
+    params: EditorRecentFilesSaveParams,
+) -> Result<Vec<RecentFileEntry>, String> {
+    let workspace_data_dir = params.workspace_data_dir.trim();
+    if workspace_data_dir.is_empty() {
+        return Ok(Vec::new());
+    }
+    write_recent_files(workspace_data_dir, &params.recent_files)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{build_persisted_editor_state, normalize_loaded_editor_state};
+    use super::{
+        build_persisted_editor_state, normalize_loaded_editor_state, normalize_recent_files,
+        RecentFileEntry,
+    };
     use serde_json::json;
     use std::fs;
 
@@ -503,5 +649,30 @@ mod tests {
 
         assert_eq!(state["activePaneId"].as_str(), Some("pane-left"));
         assert_eq!(state["lastContextPath"].as_str(), Some(file_path.as_str()));
+    }
+
+    #[test]
+    fn recent_files_are_deduped_and_limited() {
+        let mut entries = vec![
+            RecentFileEntry {
+                path: "/tmp/a.md".to_string(),
+                opened_at: 2,
+            },
+            RecentFileEntry {
+                path: "/tmp/a.md".to_string(),
+                opened_at: 1,
+            },
+        ];
+        for index in 0..25 {
+            entries.push(RecentFileEntry {
+                path: format!("/tmp/{index}.md"),
+                opened_at: index,
+            });
+        }
+
+        let normalized = normalize_recent_files(entries);
+        assert_eq!(normalized.len(), 20);
+        assert_eq!(normalized[0].path, "/tmp/a.md");
+        assert_eq!(normalized[0].opened_at, 2);
     }
 }

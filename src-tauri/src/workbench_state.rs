@@ -1,7 +1,18 @@
+use crate::app_dirs;
 use serde::{Deserialize, Serialize};
+use std::fs;
+use std::path::PathBuf;
 
 const WORKSPACE_SURFACE: &str = "workspace";
 const SETTINGS_SURFACE: &str = "settings";
+const WORKBENCH_LAYOUT_VERSION: u32 = 1;
+const DEFAULT_LEFT_SIDEBAR_WIDTH: i64 = 240;
+const DEFAULT_RIGHT_SIDEBAR_WIDTH: i64 = 360;
+const DEFAULT_BOTTOM_PANEL_HEIGHT: i64 = 250;
+const MIN_SIDEBAR_WIDTH: i64 = 0;
+const MAX_SIDEBAR_WIDTH: i64 = 2000;
+const MIN_BOTTOM_PANEL_HEIGHT: i64 = 100;
+const MAX_BOTTOM_PANEL_HEIGHT: i64 = 600;
 
 const DEFAULT_WORKSPACE_SIDEBAR_PANEL: &str = "files";
 const DEFAULT_SETTINGS_SIDEBAR_PANEL: &str = "files";
@@ -23,6 +34,40 @@ pub struct WorkbenchState {
     pub right_sidebar_panel: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkbenchLayoutState {
+    #[serde(default = "default_left_sidebar_width")]
+    pub left_sidebar_width: i64,
+    #[serde(default = "default_right_sidebar_width")]
+    pub right_sidebar_width: i64,
+    #[serde(default = "default_bottom_panel_height")]
+    pub bottom_panel_height: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WorkbenchLayoutFile {
+    #[serde(default = "default_workbench_layout_version")]
+    version: u32,
+    #[serde(flatten)]
+    state: WorkbenchLayoutState,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkbenchLayoutLoadParams {
+    #[serde(default)]
+    pub legacy_state: WorkbenchLayoutState,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkbenchLayoutSaveParams {
+    #[serde(default)]
+    pub state: WorkbenchLayoutState,
+}
+
 impl Default for WorkbenchState {
     fn default() -> Self {
         Self {
@@ -33,6 +78,32 @@ impl Default for WorkbenchState {
             right_sidebar_panel: default_right_sidebar_panel(),
         }
     }
+}
+
+impl Default for WorkbenchLayoutState {
+    fn default() -> Self {
+        Self {
+            left_sidebar_width: default_left_sidebar_width(),
+            right_sidebar_width: default_right_sidebar_width(),
+            bottom_panel_height: default_bottom_panel_height(),
+        }
+    }
+}
+
+fn default_workbench_layout_version() -> u32 {
+    WORKBENCH_LAYOUT_VERSION
+}
+
+fn default_left_sidebar_width() -> i64 {
+    DEFAULT_LEFT_SIDEBAR_WIDTH
+}
+
+fn default_right_sidebar_width() -> i64 {
+    DEFAULT_RIGHT_SIDEBAR_WIDTH
+}
+
+fn default_bottom_panel_height() -> i64 {
+    DEFAULT_BOTTOM_PANEL_HEIGHT
 }
 
 fn default_primary_surface() -> String {
@@ -128,16 +199,95 @@ pub fn normalize_workbench_state(state: WorkbenchState) -> WorkbenchState {
     }
 }
 
+fn clamp_i64(value: i64, minimum: i64, maximum: i64) -> i64 {
+    value.max(minimum).min(maximum)
+}
+
+pub fn normalize_workbench_layout_state(state: WorkbenchLayoutState) -> WorkbenchLayoutState {
+    WorkbenchLayoutState {
+        left_sidebar_width: clamp_i64(
+            state.left_sidebar_width,
+            MIN_SIDEBAR_WIDTH,
+            MAX_SIDEBAR_WIDTH,
+        ),
+        right_sidebar_width: clamp_i64(
+            state.right_sidebar_width,
+            MIN_SIDEBAR_WIDTH,
+            MAX_SIDEBAR_WIDTH,
+        ),
+        bottom_panel_height: clamp_i64(
+            state.bottom_panel_height,
+            MIN_BOTTOM_PANEL_HEIGHT,
+            MAX_BOTTOM_PANEL_HEIGHT,
+        ),
+    }
+}
+
+fn workbench_layout_path() -> Result<PathBuf, String> {
+    Ok(app_dirs::data_root_dir()?.join("workbench-layout.json"))
+}
+
+fn read_workbench_layout_state() -> Result<Option<WorkbenchLayoutState>, String> {
+    let path = workbench_layout_path()?;
+    if !path.exists() {
+        return Ok(None);
+    }
+
+    let content = fs::read_to_string(&path).map_err(|error| error.to_string())?;
+    if let Ok(parsed) = serde_json::from_str::<WorkbenchLayoutFile>(&content) {
+        return Ok(Some(parsed.state));
+    }
+    let parsed = serde_json::from_str::<WorkbenchLayoutState>(&content)
+        .map_err(|error| format!("Failed to parse workbench layout state: {error}"))?;
+    Ok(Some(parsed))
+}
+
+fn write_workbench_layout_state(
+    state: WorkbenchLayoutState,
+) -> Result<WorkbenchLayoutState, String> {
+    let normalized = normalize_workbench_layout_state(state);
+    let path = workbench_layout_path()?;
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+    }
+    let payload = WorkbenchLayoutFile {
+        version: WORKBENCH_LAYOUT_VERSION,
+        state: normalized.clone(),
+    };
+    let serialized = serde_json::to_string_pretty(&payload)
+        .map_err(|error| format!("Failed to serialize workbench layout state: {error}"))?;
+    fs::write(path, serialized).map_err(|error| error.to_string())?;
+    Ok(normalized)
+}
+
 #[tauri::command]
 pub async fn workbench_state_normalize(params: WorkbenchState) -> Result<WorkbenchState, String> {
     Ok(normalize_workbench_state(params))
 }
 
+#[tauri::command]
+pub async fn workbench_layout_load(
+    params: WorkbenchLayoutLoadParams,
+) -> Result<WorkbenchLayoutState, String> {
+    if let Some(current) = read_workbench_layout_state()? {
+        return Ok(normalize_workbench_layout_state(current));
+    }
+    write_workbench_layout_state(params.legacy_state)
+}
+
+#[tauri::command]
+pub async fn workbench_layout_save(
+    params: WorkbenchLayoutSaveParams,
+) -> Result<WorkbenchLayoutState, String> {
+    write_workbench_layout_state(params.state)
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        normalize_workbench_inspector_panel, normalize_workbench_sidebar_panel,
-        normalize_workbench_state, WorkbenchState,
+        normalize_workbench_inspector_panel, normalize_workbench_layout_state,
+        normalize_workbench_sidebar_panel, normalize_workbench_state, WorkbenchLayoutState,
+        WorkbenchState,
     };
 
     #[test]
@@ -173,5 +323,18 @@ mod tests {
         assert_eq!(normalized.primary_surface, "settings");
         assert_eq!(normalized.left_sidebar_panel, "files");
         assert_eq!(normalized.right_sidebar_panel, "");
+    }
+
+    #[test]
+    fn layout_state_clamps_persisted_dimensions() {
+        let normalized = normalize_workbench_layout_state(WorkbenchLayoutState {
+            left_sidebar_width: -1,
+            right_sidebar_width: 5000,
+            bottom_panel_height: 10,
+        });
+
+        assert_eq!(normalized.left_sidebar_width, 0);
+        assert_eq!(normalized.right_sidebar_width, 2000);
+        assert_eq!(normalized.bottom_panel_height, 100);
     }
 }

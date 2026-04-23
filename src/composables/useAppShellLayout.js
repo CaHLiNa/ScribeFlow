@@ -1,8 +1,15 @@
+import { invoke } from '@tauri-apps/api/core'
 import { onMounted, ref } from 'vue'
 import {
   flushWorkbenchMotionCommit,
   scheduleWorkbenchMotionCommit,
 } from '../domains/workbench/workbenchMotionRuntime.js'
+import {
+  clearStorageKeys,
+  hasDesktopInvoke,
+  readStorageValue,
+  writeStorageValue,
+} from '../services/bridgeStorage.js'
 import { MAX_WORKBENCH_SIDEBAR_PANEL_COUNT } from '../shared/workbenchSidebarPanels.js'
 import { MAX_WORKBENCH_INSPECTOR_PANEL_COUNT } from '../shared/workbenchInspectorPanels.js'
 
@@ -24,13 +31,11 @@ const SHELL_CHROME_BUTTON_SIZE = 30
 const SHELL_CHROME_BUTTON_GAP = 4
 const SHELL_CHROME_HORIZONTAL_PADDING = 16
 
-const leftSidebarWidth = ref(readNumberFromStorage('leftSidebarWidth', DEFAULT_LEFT_SIDEBAR_WIDTH))
-const rightSidebarWidth = ref(
-  readNumberFromStorage('rightSidebarWidth', DEFAULT_RIGHT_SIDEBAR_WIDTH)
-)
-const bottomPanelHeight = ref(
-  readNumberFromStorage('bottomPanelHeight', DEFAULT_BOTTOM_PANEL_HEIGHT)
-)
+const LAYOUT_STORAGE_KEYS = ['leftSidebarWidth', 'rightSidebarWidth', 'bottomPanelHeight']
+
+const leftSidebarWidth = ref(DEFAULT_LEFT_SIDEBAR_WIDTH)
+const rightSidebarWidth = ref(DEFAULT_RIGHT_SIDEBAR_WIDTH)
+const bottomPanelHeight = ref(DEFAULT_BOTTOM_PANEL_HEIGHT)
 const rightSidebarPreSnapWidth = ref(null)
 const isLeftSidebarResizing = ref(false)
 const isRightSidebarResizing = ref(false)
@@ -47,29 +52,70 @@ function clamp(value, minimum, maximum) {
 }
 
 function readNumberFromStorage(key, fallback) {
-  try {
-    const raw = localStorage.getItem(key)
-    if (!raw) return fallback
-    const parsed = parseInt(raw, 10)
-    return Number.isFinite(parsed) ? parsed : fallback
-  } catch {
-    return fallback
+  const raw = readStorageValue(key, '')
+  if (!raw) return fallback
+  const parsed = parseInt(raw, 10)
+  return Number.isFinite(parsed) ? parsed : fallback
+}
+
+function clearLegacyLayoutStorage() {
+  clearStorageKeys(LAYOUT_STORAGE_KEYS)
+}
+
+function readLegacyLayoutState() {
+  return {
+    leftSidebarWidth: readNumberFromStorage('leftSidebarWidth', DEFAULT_LEFT_SIDEBAR_WIDTH),
+    rightSidebarWidth: readNumberFromStorage('rightSidebarWidth', DEFAULT_RIGHT_SIDEBAR_WIDTH),
+    bottomPanelHeight: readNumberFromStorage('bottomPanelHeight', DEFAULT_BOTTOM_PANEL_HEIGHT),
   }
 }
 
-function saveNumberToStorage(key, value) {
-  try {
-    localStorage.setItem(key, String(value))
-  } catch {
-    // Ignore localStorage failures.
+function saveBrowserPreviewLayoutState(state = {}) {
+  writeStorageValue('leftSidebarWidth', state.leftSidebarWidth)
+  writeStorageValue('rightSidebarWidth', state.rightSidebarWidth)
+  writeStorageValue('bottomPanelHeight', state.bottomPanelHeight)
+}
+
+async function loadWorkbenchLayoutState() {
+  const legacyState = readLegacyLayoutState()
+  if (!hasDesktopInvoke()) return legacyState
+
+  const state = await invoke('workbench_layout_load', {
+    params: {
+      legacyState,
+    },
+  })
+  clearLegacyLayoutStorage()
+  return {
+    ...legacyState,
+    ...(state || {}),
   }
+}
+
+async function saveWorkbenchLayoutState() {
+  const state = {
+    leftSidebarWidth: leftSidebarWidth.value,
+    rightSidebarWidth: rightSidebarWidth.value,
+    bottomPanelHeight: bottomPanelHeight.value,
+  }
+  if (!hasDesktopInvoke()) {
+    saveBrowserPreviewLayoutState(state)
+    return state
+  }
+
+  const saved = await invoke('workbench_layout_save', {
+    params: {
+      state,
+    },
+  })
+  clearLegacyLayoutStorage()
+  return saved || state
 }
 
 function debounceSidebarWidthSave() {
   clearTimeout(sidebarWidthSaveTimer)
   sidebarWidthSaveTimer = window.setTimeout(() => {
-    saveNumberToStorage('leftSidebarWidth', leftSidebarWidth.value)
-    saveNumberToStorage('rightSidebarWidth', rightSidebarWidth.value)
+    void saveWorkbenchLayoutState()
   }, 300)
 }
 
@@ -254,7 +300,7 @@ function scheduleViewportSidebarClamp() {
 
 function setBottomPanelHeight(value) {
   bottomPanelHeight.value = Math.max(100, Math.min(600, value))
-  saveNumberToStorage('bottomPanelHeight', bottomPanelHeight.value)
+  void saveWorkbenchLayoutState()
 }
 
 function onLeftResize(event) {
@@ -318,7 +364,23 @@ function cleanupAppShellLayout() {
 }
 
 export function useAppShellLayout() {
-  onMounted(() => {
+  onMounted(async () => {
+    const layoutState = await loadWorkbenchLayoutState().catch(() => readLegacyLayoutState())
+    leftSidebarWidth.value = normalizeSidebarWidth(
+      layoutState.leftSidebarWidth,
+      DEFAULT_LEFT_SIDEBAR_WIDTH
+    )
+    rightSidebarWidth.value = normalizeSidebarWidth(
+      layoutState.rightSidebarWidth,
+      DEFAULT_RIGHT_SIDEBAR_WIDTH
+    )
+    bottomPanelHeight.value = Math.max(
+      100,
+      Math.min(600, normalizeSidebarWidth(layoutState.bottomPanelHeight, DEFAULT_BOTTOM_PANEL_HEIGHT))
+    )
+    pendingLeftSidebarWidth = leftSidebarWidth.value
+    pendingRightSidebarWidth = rightSidebarWidth.value
+
     window.addEventListener('resize', onWindowResize)
     scheduleViewportSidebarClamp()
   })

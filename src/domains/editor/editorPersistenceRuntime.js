@@ -1,4 +1,9 @@
-import { loadState, saveState } from '../../services/editorPersistence.js'
+import {
+  loadRecentFiles,
+  loadState,
+  saveRecentFiles,
+  saveState,
+} from '../../services/editorPersistence.js'
 
 let saveStateTimer = null
 let queuedStateKey = ''
@@ -33,19 +38,12 @@ export function buildRecentFilesAfterOpen(recentFiles = [], path = '') {
   return nextRecentFiles
 }
 
-export function loadRecentFilesForWorkspace(workspacePath) {
-  try {
-    const stored = localStorage.getItem(`recentFiles:${workspacePath}`)
-    return stored ? JSON.parse(stored) : []
-  } catch {
-    return []
-  }
+export async function loadRecentFilesForWorkspace(workspaceDataDir, workspacePath) {
+  return loadRecentFiles(workspaceDataDir, workspacePath)
 }
 
-export function persistRecentFilesForWorkspace(workspacePath, recentFiles = []) {
-  if (!workspacePath) return false
-  localStorage.setItem(`recentFiles:${workspacePath}`, JSON.stringify(recentFiles))
-  return true
+export async function persistRecentFilesForWorkspace(workspaceDataDir, workspacePath, recentFiles = []) {
+  return saveRecentFiles(workspaceDataDir, workspacePath, recentFiles)
 }
 
 export function scheduleEditorStateSave({
