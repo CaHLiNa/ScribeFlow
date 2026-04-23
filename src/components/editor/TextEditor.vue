@@ -484,7 +484,7 @@ function resolveLatexForwardSyncTarget(viewInstance, pos = 0) {
         return {
           line: line.number,
           column: firstMeaningfulColumn(line.text),
-          semanticOrigin: 'direct',
+          semanticOrigin: 'environment-begin',
         }
       }
     }
@@ -510,7 +510,7 @@ function resolveLatexForwardSyncTarget(viewInstance, pos = 0) {
         return {
           line: line.number,
           column: firstMeaningfulColumn(line.text),
-          semanticOrigin: 'direct',
+          semanticOrigin: 'environment-end',
         }
       }
     }
@@ -527,7 +527,7 @@ function resolveLatexForwardSyncTarget(viewInstance, pos = 0) {
         return {
           line: line.number,
           column: firstMeaningfulColumn(line.text),
-          semanticOrigin: 'direct',
+          semanticOrigin: 'environment-begin',
         }
       }
     }
@@ -544,7 +544,7 @@ function resolveLatexForwardSyncTarget(viewInstance, pos = 0) {
         return {
           line: line.number,
           column: firstMeaningfulColumn(line.text),
-          semanticOrigin: 'direct',
+          semanticOrigin: 'environment-end',
         }
       }
     }

@@ -736,9 +736,64 @@ function mergeForwardSyncOverlayEntries(entries = []) {
   return merged
 }
 
+function resolveForwardSyncRecordVerticalAnchor(record = {}) {
+  const v = Number(record.v)
+  if (Number.isFinite(v)) return v
+  const y = Number(record.y)
+  if (Number.isFinite(y)) return y
+  return 0
+}
+
+function selectBoundaryForwardSyncRecords(records = [], sourceLocation = {}) {
+  const semanticOrigin = String(sourceLocation?.semanticOrigin || '').trim()
+  if (!Array.isArray(records) || records.length === 0) return []
+  if (semanticOrigin !== 'environment-begin' && semanticOrigin !== 'environment-end') {
+    return records
+  }
+
+  const sortedRecords = [...records].sort((left, right) => {
+    const pageDelta = Number(left?.page || 0) - Number(right?.page || 0)
+    if (pageDelta !== 0) return pageDelta
+    return resolveForwardSyncRecordVerticalAnchor(left) - resolveForwardSyncRecordVerticalAnchor(right)
+  })
+
+  const clusters = []
+  for (const record of sortedRecords) {
+    const page = Number(record?.page || 0)
+    const anchor = resolveForwardSyncRecordVerticalAnchor(record)
+    const previousCluster = clusters[clusters.length - 1]
+
+    if (
+      !previousCluster
+      || previousCluster.page !== page
+      || Math.abs(anchor - previousCluster.maxAnchor) > 18
+    ) {
+      clusters.push({
+        page,
+        minAnchor: anchor,
+        maxAnchor: anchor,
+        records: [record],
+      })
+      continue
+    }
+
+    previousCluster.records.push(record)
+    previousCluster.minAnchor = Math.min(previousCluster.minAnchor, anchor)
+    previousCluster.maxAnchor = Math.max(previousCluster.maxAnchor, anchor)
+  }
+
+  if (clusters.length === 0) return records
+  return semanticOrigin === 'environment-end'
+    ? clusters[clusters.length - 1].records
+    : clusters[0].records
+}
+
 function buildForwardSyncOverlayEntries(request = null) {
   const requestId = Number(request?.requestId || 0)
-  const records = Array.isArray(request?.target?.records) ? request.target.records : []
+  const records = selectBoundaryForwardSyncRecords(
+    Array.isArray(request?.target?.records) ? request.target.records : [],
+    request?.target?.sourceLocation || {},
+  )
   if (!Number.isInteger(requestId) || requestId < 1 || records.length === 0) return []
 
   const rawEntries = records
@@ -1398,7 +1453,12 @@ async function applyForwardSyncRequest(request = null) {
   const requestId = Number(request?.requestId || 0)
   if (!Number.isInteger(requestId) || requestId < 1) return false
 
-  const focusRecord = request?.target?.record
+  const scopedRecords = selectBoundaryForwardSyncRecords(
+    Array.isArray(request?.target?.records) ? request.target.records : [],
+    request?.target?.sourceLocation || {},
+  )
+  const focusRecord = scopedRecords[0]
+    || request?.target?.record
     || (Array.isArray(request?.target?.records) ? request.target.records[0] : null)
   const pageNumber = Number(focusRecord?.page || 0)
   const scrollScope = scroll.provides.value

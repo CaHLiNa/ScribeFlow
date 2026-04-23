@@ -316,6 +316,7 @@ async function handleForwardSyncLocation(detail = {}) {
       filePath: props.sourcePath,
       line,
       column,
+      semanticOrigin: String(detail.semanticOrigin || 'direct'),
     },
   })
 }
