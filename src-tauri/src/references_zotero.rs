@@ -567,6 +567,14 @@ fn extract_items_array(body: &Value) -> Vec<Value> {
         .unwrap_or_default()
 }
 
+fn has_local_references_for_library(references: &[Value], library_label: &str) -> bool {
+    references.iter().any(|reference| {
+        trim_string(reference.get("_source")) == "zotero"
+            && trim_string(reference.get("_zoteroLibrary")) == library_label
+            && !trim_string(reference.get("_zoteroKey")).is_empty()
+    })
+}
+
 async fn fetch_all_items(
     api_key: &str,
     library_type: &str,
@@ -772,8 +780,14 @@ async fn perform_sync(params: ZoteroSyncParams) -> Result<Value, String> {
             .and_then(|versions| versions.get(&version_key))
             .and_then(Value::as_i64)
             .unwrap_or(0);
+        let effective_since_version =
+            if since_version > 0 && !has_local_references_for_library(&references, &version_key) {
+                0
+            } else {
+                since_version
+            };
         let (items, last_version) =
-            fetch_all_items(&api_key, &library_type, &library_id, since_version).await?;
+            fetch_all_items(&api_key, &library_type, &library_id, effective_since_version).await?;
         if let Some(versions) = config
             .get_mut("lastSyncVersions")
             .and_then(Value::as_object_mut)
@@ -1093,7 +1107,7 @@ impl StringExt for String {
 
 #[cfg(test)]
 mod tests {
-    use super::extract_items_array;
+    use super::{extract_items_array, has_local_references_for_library};
     use serde_json::json;
 
     #[test]
@@ -1122,5 +1136,30 @@ mod tests {
 
         assert_eq!(items.len(), 1);
         assert_eq!(items[0]["title"], "Paper A");
+    }
+
+    #[test]
+    fn has_local_references_for_library_checks_zotero_anchor_fields() {
+        let references = vec![
+            json!({
+                "_source": "zotero",
+                "_zoteroLibrary": "user/16788433",
+                "_zoteroKey": "ABCD1234"
+            }),
+            json!({
+                "_source": "manual",
+                "_zoteroLibrary": "user/16788433",
+                "_zoteroKey": ""
+            }),
+        ];
+
+        assert!(has_local_references_for_library(
+            &references,
+            "user/16788433"
+        ));
+        assert!(!has_local_references_for_library(
+            &references,
+            "group/123456"
+        ));
     }
 }
