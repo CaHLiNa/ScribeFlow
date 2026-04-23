@@ -56,6 +56,36 @@
   font-weight: 500;
 }
 
+.cm-foldGutter .cm-gutterElement {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cm-foldMarker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  color: var(--text-muted);
+  transition: opacity 0.14s ease, color 0.14s ease;
+}
+
+.cm-foldMarker--open-visible {
+  opacity: 0.72;
+}
+
+.cm-editor:not(.cm-focused) .cm-foldMarker--open-visible,
+.cm-foldMarker--open-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.cm-foldMarker--closed {
+  opacity: 0.9;
+  color: var(--text-secondary);
+}
+
 /* =========================================
    原生体验：光标与选区 (Caret & Selection)
 ========================================= */

@@ -1,12 +1,13 @@
 import { EditorState, Compartment } from '@codemirror/state'
 import { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter, drawSelection, dropCursor, rectangularSelection, crosshairCursor, Decoration, ViewPlugin } from '@codemirror/view'
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
-import { bracketMatching, indentOnInput, foldGutter, foldKeymap, syntaxHighlighting, defaultHighlightStyle } from '@codemirror/language'
+import { bracketMatching, indentOnInput, foldKeymap } from '@codemirror/language'
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete'
 import { searchKeymap, SearchCursor } from '@codemirror/search'
 import { shouldersTheme, shouldersHighlighting } from './theme'
 import { buildEditorInputAttributes } from './contextMenuPolicy'
 import { shouldHighlightSelectionMatches } from './selectionHighlightPolicy'
+import { createFoldGutterExtension } from './foldGutterRuntime'
 
 // Shared compartment for line wrapping - reconfigured when user toggles soft wrap
 export const wrapCompartment = new Compartment()
@@ -191,7 +192,7 @@ export function createEditorExtensions({
     lineNumbersCompartment.of(lineNumbersExtension(showLineNumbers)),
     activeLineCompartment.of(activeLineExtension(highlightActiveLineEnabled)),
     history(),
-    foldGutter(),
+    createFoldGutterExtension(),
     drawSelection(),
     dropCursor(),
     indentOnInput(),
