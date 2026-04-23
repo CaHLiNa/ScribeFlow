@@ -542,12 +542,7 @@ async fn fetch_items_page(
         return Ok((Vec::new(), 0, since));
     }
 
-    let items = response
-        .body
-        .get("items")
-        .and_then(Value::as_array)
-        .cloned()
-        .unwrap_or_default();
+    let items = extract_items_array(&response.body);
     let total_results = response
         .headers
         .get("total-results")
@@ -559,6 +554,17 @@ async fn fetch_items_page(
         .and_then(|value| value.parse::<i64>().ok())
         .unwrap_or(since);
     Ok((items, total_results, last_version))
+}
+
+fn extract_items_array(body: &Value) -> Vec<Value> {
+    if let Some(items) = body.as_array() {
+        return items.to_vec();
+    }
+
+    body.get("items")
+        .and_then(Value::as_array)
+        .map(|items| items.to_vec())
+        .unwrap_or_default()
 }
 
 async fn fetch_all_items(
@@ -1082,5 +1088,39 @@ impl StringExt for String {
         } else {
             self
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::extract_items_array;
+    use serde_json::json;
+
+    #[test]
+    fn extract_items_array_supports_top_level_array_payload() {
+        let payload = json!([
+            { "title": "Paper A" },
+            { "title": "Paper B" }
+        ]);
+
+        let items = extract_items_array(&payload);
+
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[0]["title"], "Paper A");
+        assert_eq!(items[1]["title"], "Paper B");
+    }
+
+    #[test]
+    fn extract_items_array_supports_wrapped_items_payload() {
+        let payload = json!({
+            "items": [
+                { "title": "Paper A" }
+            ]
+        });
+
+        let items = extract_items_array(&payload);
+
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0]["title"], "Paper A");
     }
 }
