@@ -20,20 +20,34 @@ export async function requestLatexPdfForwardSync(options = {}) {
   if (!synctexPath || !texPath || !Number.isInteger(line) || line < 1) return null
 
   const effectiveTexPath = await resolveLatexSynctexInputPath(synctexPath, texPath)
+  const parserResult = await requestLatexWorkshopForwardSync({
+    synctexPath,
+    texPath: effectiveTexPath,
+    line,
+  }).catch(() => null)
 
   try {
-    return await invoke('synctex_forward', {
+    const invokeResult = await invoke('synctex_forward', {
       synctexPath,
       texPath: effectiveTexPath,
       line,
       column: Number.isInteger(column) && column >= 0 ? column : 0,
     })
+
+    if (parserResult?.page && Number.isFinite(parserResult?.x) && Number.isFinite(parserResult?.y)) {
+      if (invokeResult?.page === parserResult.page) {
+        return {
+          ...invokeResult,
+          x: parserResult.x,
+          y: parserResult.y,
+        }
+      }
+      return parserResult
+    }
+
+    return invokeResult
   } catch {
-    return requestLatexWorkshopForwardSync({
-      synctexPath,
-      texPath: effectiveTexPath,
-      line,
-    })
+    return parserResult
   }
 }
 
