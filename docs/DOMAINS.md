@@ -23,6 +23,14 @@
 
 如果某段行为属于产品策略，而不是单纯副作用 plumbing，就优先放进 `domains`，而不是 `components`、`services` 或 `stores`。
 
+当前前端 `domains` 的默认职责是：
+
+- 消费 Rust authority 的输出
+- 组织 UI 事件、cache 与短期 orchestration
+- 为组件提供可复用但不持有最终业务权威的运行时 helper
+
+不再允许把桌面端的最终 normalize、merge、session state machine 或 preview/build rule 长期放回前端 `domains`。
+
 ## Rust Bounded Context
 
 - `src-tauri/src/latex.rs`

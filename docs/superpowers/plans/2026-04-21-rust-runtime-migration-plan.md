@@ -12,24 +12,24 @@
 
 ## 当前进度
 
-截至 2026-04-21，Task 1、Task 2、Task 3 与 Task 4 已完成并达到当前 phase 验收：
+截至 2026-04-24，这份 migration plan 对应的核心目标已完成，并在后续 `2026-04-22` convergence plan 中继续完成了 legacy off-ramp、quality gate 和模块拆分。
 
-- 已新增 Rust `WorkspacePreferences` / `WorkbenchState` schema
-- 已新增 `workspace_preferences_load` / `workspace_preferences_save` / `workbench_state_normalize`
-- 已把前端 `workspacePreferences.js` 收口为 Rust bridge + DOM side effect helper
-- 已把 `workspace.js` 的主要 preferences 更新路径改为消费 Rust-normalized 结果
-- 已完成 legacy `localStorage` 迁移入口与清理
-- 已把 browser preview 的 workbench normalize 收口到统一 bridge
-- 已把 `src/shared/workbench*` 与 `src/shared/workspaceThemeOptions.js` 降为纯 metadata，不再承载 normalize 规则
-- 已新增 Rust `document_workflow_ui_resolve`，并把 document workflow 的 workflow ui state / action availability 收口到 backend cache
-- 已把 `documentWorkflow` build/runtime 改成消费 Rust preview state + Rust ui state
-- 已新增 Rust references snapshot/record normalize 与 CSL hydrate 入口，references snapshot、citation、BibTeX、metadata refresh、sync 持久化均改为消费 Rust 结果
-- 已新增 Rust editor session runtime，editor session save/load/restore、virtual tab 清理、active pane/context 恢复已由 backend 决定
+当前稳定状态：
 
-当前剩余不阻塞 Task 1 完成、但值得在后续 phase 持续关注的点：
+- Workspace / preferences / lifecycle / workbench shell layout 已由 Rust 持有权威。
+- Document workflow 的 preview binding、session、workspace preview state、workflow UI state、action availability 已由 Rust 持有权威。
+- References 的 snapshot normalize、record normalize、duplicate/merge、citation、BibTeX 输出与 metadata hydrate 已由 Rust 持有权威。
+- Editor session / recent files 已由 Rust 持有权威；前端只保留 restore glue 与 UI state。
+- `latex` 与 `references` 的 Rust 大模块已完成第一轮 bounded context 拆分。
+- 本地与 CI 已共用 `npm run check`、`npm run check:rust`、`npm run test:rust` 作为 baseline quality gate。
 
-- Computer Use 当前无法附着到 `tauri dev` 窗口，缺少一次真实桌面点击验证
-- browser preview 为非桌面环境，仍保留只读 fallback normalize；它不再是桌面产品权威
+仍保留但已降为非主路径的部分：
+
+- browser preview fallback：只服务非桌面环境，不再代表桌面 authority。
+- `preview:` tab legacy compat：只用于旧会话恢复与只读展示，不再作为 document workflow 主路径。
+- desktop smoke 验证仍依赖当前环境是否可附着桌面窗口；若不可附着，需要在验收说明里明确缺口。
+
+下面各 task section 主要保留为历史迁移记录与验收痕迹；当前真实 authority 分布请以 `docs/ARCHITECTURE.md`、`docs/DOMAINS.md`、`docs/DOCUMENT_WORKFLOW.md` 与 `docs/OPERATIONS.md` 为准。
 
 ---
 

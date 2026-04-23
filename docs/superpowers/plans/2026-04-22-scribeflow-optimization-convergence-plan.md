@@ -714,7 +714,7 @@ git commit -m "refactor: split latex and references runtimes"
 - Modify: `docs/OPERATIONS.md`
 - Modify: `docs/superpowers/plans/2026-04-21-rust-runtime-migration-plan.md`
 
-- [ ] **Step 1: 更新 authority 分布**
+- [x] **Step 1: 更新 authority 分布**
 
 文档必须明确写出：
 
@@ -722,7 +722,7 @@ git commit -m "refactor: split latex and references runtimes"
 - 哪些仍在前端但属于纯 UI glue
 - 哪些 fallback 尚未删除，以及为什么
 
-- [ ] **Step 2: 更新开发与验证入口**
+- [x] **Step 2: 更新开发与验证入口**
 
 把以下内容写入 `docs/OPERATIONS.md`：
 
@@ -730,14 +730,21 @@ git commit -m "refactor: split latex and references runtimes"
 - CI 覆盖内容
 - release 与 CI 的先后关系
 
-- [ ] **Step 3: 更新 document workflow 与 domains 文档**
+- [x] **Step 3: 更新 document workflow 与 domains 文档**
 
 要求：
 
 - 反映新的 preview binding / session / ui resolve authority
 - 反映 `latex` 与 `references` 的新模块边界
 
-- [ ] **Step 4: 跑最终验收**
+- [x] **Step 4: 跑最终验收**
+
+当前结果：
+
+- 已执行 `npm run check`
+- 已执行 `npm run check:rust`
+- 已执行 `npm run test:rust`
+- 桌面 smoke 未执行；当前回合仍缺少稳定附着桌面窗口并逐步操作 Tauri 应用的环境条件
 
 Run:
 
@@ -755,7 +762,7 @@ npm run test:rust
 4. 打开 LaTeX 文档并触发编译/预览
 5. 打开 references library
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add docs/PRODUCT.md docs/ARCHITECTURE.md docs/DOMAINS.md docs/DOCUMENT_WORKFLOW.md docs/OPERATIONS.md docs/superpowers/plans/2026-04-21-rust-runtime-migration-plan.md

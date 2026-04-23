@@ -10,6 +10,15 @@
 - `src/composables/*`：可复用的 UI 胶水。
 - `src-tauri/*`：原生后端命令、进程执行、文件系统访问与类型化桌面接缝。
 
+## 当前 Authority
+
+- Rust owns:
+  workspace preferences、workspace lifecycle、workbench shell layout、editor session/recent files、document workflow session/preview binding/ui resolve/action resolve、references snapshot/merge/citation/BibTeX、LaTeX preferences 与 compile/runtime 底层能力。
+- Frontend owns:
+  组件渲染、Pane/UI 交互、transient view state、optimistic patch、backend resolve 的输入采集与短期 cache。
+- Browser preview fallback:
+  仅服务非桌面环境预览与 demo，不再代表桌面产品权威。
+
 ## 方向性规则
 
 - 能放在 `domains` 的产品策略，不要留在组件层。
@@ -29,6 +38,14 @@
 - 本地与 CI 必须共用同一套 baseline 命令入口，避免出现“CI 跑的是另一套脚本”。
 - release workflow 必须依赖或重复 baseline quality gate，不能让打包发布成为首次完整验证。
 - 质量门的默认基线包括 frontend `check`、Rust `check` 和 Rust `test`；新增 phase 默认应复用这套基线，而不是重新发明检查入口。
+
+## Module Boundaries
+
+- `latex` 运行时已按 facade / compile / diagnostics 拆分：
+  `latex.rs`、`latex_compile.rs`、`latex_diagnostics.rs`。
+- `references` 运行时已按 facade / snapshot / merge 拆分：
+  `references_runtime.rs`、`references_backend.rs`、`references_snapshot.rs`、`references_merge.rs`。
+- 后续新增能力应优先进入这些 bounded context，而不是重新把实现堆回 facade 文件。
 
 ## 桌面 UX 护栏
 

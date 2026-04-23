@@ -13,6 +13,7 @@
 - 默认提交前至少运行 `npm run check`、`npm run check:rust`、`npm run test:rust`。
 - 如果改动只覆盖其中一个层面，也应说明为什么缩小验证范围，而不是跳过说明。
 - Rust / Tauri、workflow、release 相关改动，优先跑完整基线，不要只依赖单个模块测试。
+- 如果改动涉及桌面工作流主路径，且当前环境允许，应额外补一次桌面 smoke：打开 workspace、恢复 session、检查 Markdown preview、LaTeX compile/preview 与 references library。
 
 ## CI 与 Release
 
@@ -30,3 +31,4 @@
 ## 备注
 
 - 如果仓库策略变化，要同步更新本文档以及相关脚本。
+- 当前会话若无法附着桌面窗口，应明确把 desktop smoke 缺口写进验证说明，而不是默认省略。

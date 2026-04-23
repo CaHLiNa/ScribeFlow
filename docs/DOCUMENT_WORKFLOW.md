@@ -19,6 +19,15 @@
 - 文件格式适配器要与 `src/services/documentWorkflow/adapters/*` 和 `src/domains/document/*` 下的运行时适配层保持一致。
 - 编辑器相关的 UI 胶水放在 `src/components/*` 和 `src/composables/*`，不要塞进业务策略模块。
 
+## 当前 Authority 分布
+
+- Rust owns:
+  preview binding normalize、document workflow session、detached/reopen state、workspace preview state resolve、workflow UI state resolve、action availability、preview close/open effect。
+- Frontend owns:
+  preview surface 渲染、工具条事件触发、markdown render transient state、compile queue 输入采集与 resolve cache。
+- Legacy compat:
+  旧 `preview:` tab 仍可通过只读路径恢复，但它不再是新的 preview 主路径。
+
 ## Legacy Off-Ramp
 
 - 主 document workflow 已不再主动走 legacy preview pane；Markdown / LaTeX / Python 的主预览语义统一落在 workspace preview 与 Rust action / state resolve。
@@ -32,3 +41,4 @@
 - 只要前端或集成层有实质变化，就运行 `npm run build`。
 - 只要 Tauri / 后端接缝有变化，就运行 `cargo check --manifest-path src-tauri/Cargo.toml`。
 - 只要预览或编译行为有变化，就至少用一条真实文档路径做端到端验证。
+- release-affecting 文档工作流改动默认还应跑 `npm run check`、`npm run check:rust`、`npm run test:rust`。
