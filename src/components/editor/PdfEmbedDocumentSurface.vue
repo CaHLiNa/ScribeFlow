@@ -5,7 +5,6 @@
     :style="surfaceStyle"
     :class="{
       'is-dark-page-theme': shouldUseDarkPageTheme,
-      'is-dark-page-theme-suspended': shouldSuspendDarkPageTheme,
       'is-search-open': searchUiVisible,
       'has-thumbnails-open': thumbnailsVisible,
     }"
@@ -363,7 +362,6 @@ const surfaceRef = ref(null)
 const pendingRestoreState = ref(null)
 const initialLayoutHandled = ref(false)
 const layoutNudge = ref(0)
-const shouldSuspendDarkPageTheme = ref(false)
 const saveInProgress = ref(false)
 const selectedText = ref('')
 const selectionActive = ref(false)
@@ -421,9 +419,6 @@ let forwardSyncHighlightTimer = 0
 let lastHandledForwardSyncRequestId = 0
 let scheduledLayoutNudgeFrame = 0
 let layoutNudgeResetFrame = 0
-let darkPageThemeResumeTimer = 0
-let surfaceResizeObserver = null
-let lastObservedSurfaceWidth = 0
 
 const hasSearchResults = computed(() => Number(search.state.value?.total || 0) > 0)
 const isMatchCaseEnabled = computed(() =>
@@ -984,23 +979,6 @@ function clearScheduledLayoutNudge() {
     layoutNudgeResetFrame = 0
   }
   layoutNudge.value = 0
-}
-
-function clearDarkPageThemeSuspensionTimer() {
-  if (typeof window === 'undefined' || !darkPageThemeResumeTimer) return
-  window.clearTimeout(darkPageThemeResumeTimer)
-  darkPageThemeResumeTimer = 0
-}
-
-function suspendDarkPageThemeTemporarily() {
-  if (!shouldUseDarkPageTheme.value || typeof window === 'undefined') return
-
-  shouldSuspendDarkPageTheme.value = true
-  clearDarkPageThemeSuspensionTimer()
-  darkPageThemeResumeTimer = window.setTimeout(() => {
-    darkPageThemeResumeTimer = 0
-    shouldSuspendDarkPageTheme.value = false
-  }, 180)
 }
 
 function scheduleInitialLayoutNudge() {
@@ -1706,16 +1684,6 @@ watch(
 )
 
 watch(
-  shouldUseDarkPageTheme,
-  (enabled) => {
-    if (enabled) return
-    clearDarkPageThemeSuspensionTimer()
-    shouldSuspendDarkPageTheme.value = false
-  },
-  { immediate: true }
-)
-
-watch(
   () => search.state.value?.query,
   (nextQuery) => {
     const normalizedQuery = String(nextQuery || '')
@@ -1836,11 +1804,6 @@ watch(
 
 onUnmounted(() => {
   clearScheduledLayoutNudge()
-  clearDarkPageThemeSuspensionTimer()
-  if (surfaceResizeObserver) {
-    surfaceResizeObserver.disconnect()
-    surfaceResizeObserver = null
-  }
   pageBindings.clear()
   clearSearchDebounceTimer()
   clearForwardSyncHighlight()
@@ -1853,22 +1816,6 @@ onUnmounted(() => {
 
 onMounted(() => {
   scheduleInitialLayoutNudge()
-
-  if (typeof window === 'undefined' || typeof ResizeObserver === 'undefined') return
-
-  surfaceResizeObserver = new ResizeObserver((entries) => {
-    const entry = entries[0]
-    const nextWidth = Math.round(Number(entry?.contentRect?.width || 0))
-    if (!Number.isFinite(nextWidth) || nextWidth <= 0) return
-    if (lastObservedSurfaceWidth > 0 && nextWidth !== lastObservedSurfaceWidth) {
-      suspendDarkPageThemeTemporarily()
-    }
-    lastObservedSurfaceWidth = nextWidth
-  })
-
-  if (surfaceRef.value) {
-    surfaceResizeObserver.observe(surfaceRef.value)
-  }
 })
 </script>
 
@@ -2033,7 +1980,7 @@ onMounted(() => {
   overflow: hidden;
 }
 
-.pdf-artifact-preview__surface.is-dark-page-theme:not(.is-dark-page-theme-suspended) :deep(.pdf-artifact-preview__thumbnail-image img) {
+.pdf-artifact-preview__surface.is-dark-page-theme :deep(.pdf-artifact-preview__thumbnail-image img) {
   filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.88);
 }
 
@@ -2084,8 +2031,8 @@ onMounted(() => {
   user-select: none;
 }
 
-.pdf-artifact-preview__surface.is-dark-page-theme:not(.is-dark-page-theme-suspended) :deep(.pdf-artifact-preview__page canvas),
-.pdf-artifact-preview__surface.is-dark-page-theme:not(.is-dark-page-theme-suspended) :deep(.pdf-artifact-preview__page img) {
+.pdf-artifact-preview__surface.is-dark-page-theme :deep(.pdf-artifact-preview__page canvas),
+.pdf-artifact-preview__surface.is-dark-page-theme :deep(.pdf-artifact-preview__page img) {
   filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.88);
 }
 
