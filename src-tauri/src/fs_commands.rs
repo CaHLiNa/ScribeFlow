@@ -321,8 +321,7 @@ fn render_postscript_preview(path: &Path, max_size: u32) -> Result<ImagePreviewR
         {
             args.push("-dEPSCrop".to_string());
         }
-        args.push("-r".to_string());
-        args.push(resolution.to_string());
+        args.push(format!("-r{resolution}"));
         args.push("-sOutputFile".to_string());
         args.push(preview_path.to_string_lossy().to_string());
         args.push(path.to_string_lossy().to_string());
