@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { useEditorStore } from './editor.js'
 import { useLatexStore } from './latex.js'
 import { useFilesStore } from './files.js'
+import { usePythonStore } from './python.js'
 import { useWorkspaceStore } from './workspace.js'
 import { previewSourcePathFromPath } from '../utils/fileTypes.js'
 import {
@@ -104,6 +105,7 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
           getFilesStore: () => useFilesStore(),
           getWorkspaceStore: () => useWorkspaceStore(),
           getLatexStore: () => useLatexStore(),
+          getPythonStore: () => usePythonStore(),
         })
       }
       return this._documentWorkflowBuildRuntime
@@ -520,6 +522,7 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
         previewState: request.previewState || null,
         markdownState: request.markdownState || null,
         latexState: request.latexState || null,
+        pythonState: request.pythonState || null,
         queueState: request.queueState || null,
       })
     },

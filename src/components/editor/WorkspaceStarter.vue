@@ -83,7 +83,7 @@
             <div class="starter-card-inner">
               <div class="starter-card-icon-plate">
                 <component
-                  :is="template.ext === '.tex' ? IconMath : IconFileText"
+                  :is="template.ext === '.tex' ? IconMath : template.ext === '.py' ? IconBrandPython : IconFileText"
                   :size="24"
                   :stroke-width="1.5"
                   class="card-icon"
@@ -110,6 +110,7 @@ import {
   IconStack2,
   IconMath,
   IconFileText,
+  IconBrandPython,
   IconMarkdown,
   IconBook2,
   IconLayoutSidebarRight,

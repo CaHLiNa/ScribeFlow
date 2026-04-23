@@ -32,6 +32,8 @@ pub struct DocumentWorkflowUiResolveParams {
     #[serde(default)]
     pub latex_state: Value,
     #[serde(default)]
+    pub python_state: Value,
+    #[serde(default)]
     pub queue_state: Value,
     #[serde(default)]
     pub artifact_path: String,
@@ -41,6 +43,7 @@ fn normalize_mode(preview_kind: &str) -> Option<&'static str> {
     match preview_kind {
         "html" => Some("markdown"),
         "pdf" => Some("pdf-artifact"),
+        "terminal" => Some("terminal-output"),
         _ => None,
     }
 }
@@ -253,6 +256,35 @@ fn resolve_latex_ui_state(params: &DocumentWorkflowUiResolveParams) -> Value {
     )
 }
 
+fn resolve_python_ui_state(params: &DocumentWorkflowUiResolveParams) -> Value {
+    let error_count = array_len(params.python_state.get("errors"));
+    let warning_count = array_len(params.python_state.get("warnings"));
+    let status = string_at(&params.python_state, "status");
+
+    let phase = if status == "compiling" {
+        "compiling"
+    } else if status == "running" {
+        "running"
+    } else if status == "error" {
+        "error"
+    } else if status == "success" {
+        "ready"
+    } else {
+        "idle"
+    };
+
+    build_ui_state(
+        "python",
+        phase,
+        Some("terminal"),
+        error_count,
+        warning_count,
+        true,
+        false,
+        "run",
+    )
+}
+
 fn resolve_markdown_action(intent: &str, preview_delivery: &str, preview_state: &Value) -> Value {
     let current_visible = preview_visible(preview_state);
     let current_mode = preview_mode(preview_state);
@@ -322,6 +354,24 @@ fn resolve_latex_action(
     }
 }
 
+fn resolve_python_action(intent: &str, preview_state: &Value) -> Value {
+    let current_visible = preview_visible(preview_state);
+    let current_mode = preview_mode(preview_state);
+
+    match intent {
+        "primary-action" => {
+            build_run_build_with_follow_up(build_workspace_show("terminal", false))
+        }
+        "reveal-preview" => {
+            if current_visible && current_mode == "terminal-output" {
+                return build_workspace_hide();
+            }
+            build_workspace_show("terminal", false)
+        }
+        _ => build_noop(),
+    }
+}
+
 #[tauri::command]
 pub async fn document_workflow_action_resolve(
     params: DocumentWorkflowActionResolveParams,
@@ -348,6 +398,7 @@ pub async fn document_workflow_action_resolve(
             &params.preview_state,
             &params.artifact_path,
         ),
+        "python" => resolve_python_action(&params.intent, &params.preview_state),
         _ => build_noop(),
     };
 
@@ -370,6 +421,7 @@ pub async fn document_workflow_ui_resolve(
     let ui_state = match kind {
         "markdown" => resolve_markdown_ui_state(&params),
         "latex" => resolve_latex_ui_state(&params),
+        "python" => resolve_python_ui_state(&params),
         _ => Value::Null,
     };
 
@@ -399,6 +451,7 @@ mod tests {
                 ]
             }),
             latex_state: Value::Null,
+            python_state: Value::Null,
             queue_state: Value::Null,
             artifact_path: String::new(),
         })
@@ -428,6 +481,7 @@ mod tests {
                 "errors": [],
                 "warnings": [{ "message": "warn" }],
             }),
+            python_state: Value::Null,
             queue_state: json!({
                 "phase": "idle"
             }),
@@ -440,6 +494,29 @@ mod tests {
         assert_eq!(value.get("phase").and_then(Value::as_str), Some("ready"));
         assert_eq!(value.get("canOpenPdf").and_then(Value::as_bool), Some(true));
         assert_eq!(value.get("warningCount").and_then(Value::as_u64), Some(1));
+    }
+
+    #[tokio::test]
+    async fn resolves_python_ui_state_from_compile_inputs() {
+        let value = document_workflow_ui_resolve(DocumentWorkflowUiResolveParams {
+            file_path: "/tmp/test.py".to_string(),
+            preview_state: Value::Null,
+            markdown_state: Value::Null,
+            latex_state: Value::Null,
+            python_state: json!({
+                "status": "error",
+                "errors": [{ "message": "SyntaxError" }],
+                "warnings": [],
+            }),
+            queue_state: Value::Null,
+            artifact_path: String::new(),
+        })
+        .await
+        .expect("resolve python ui");
+
+        assert_eq!(value.get("kind").and_then(Value::as_str), Some("python"));
+        assert_eq!(value.get("phase").and_then(Value::as_str), Some("error"));
+        assert_eq!(value.get("errorCount").and_then(Value::as_u64), Some(1));
     }
 
     #[tokio::test]
@@ -507,6 +584,28 @@ mod tests {
                 .and_then(|follow_up| follow_up.get("actionType"))
                 .and_then(Value::as_str),
             Some("open-external-output")
+        );
+    }
+
+    #[tokio::test]
+    async fn resolves_python_primary_action_to_build() {
+        let value = document_workflow_action_resolve(DocumentWorkflowActionResolveParams {
+            file_path: "/tmp/test.py".to_string(),
+            intent: "primary-action".to_string(),
+            preview_delivery: String::new(),
+            ui_state: json!({
+                "kind": "python",
+                "phase": "idle",
+            }),
+            preview_state: Value::Null,
+            artifact_path: String::new(),
+        })
+        .await
+        .expect("resolve python action");
+
+        assert_eq!(
+            value.get("actionType").and_then(Value::as_str),
+            Some("run-build")
         );
     }
 }

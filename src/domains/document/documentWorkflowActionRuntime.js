@@ -75,16 +75,18 @@ export function createDocumentWorkflowActionRuntime({
           return buildResult
         }
 
+        const followUpPlan = {
+          ...plan.followUpAction,
+        }
         const followUpArtifactPath = workflowStore.getArtifactPathForFile?.(
           filePath,
           options.buildOptions || {},
         ) || ''
-        if (!String(followUpArtifactPath || '').trim()) {
+        if (
+          followUpPlan.actionType === 'open-external-output'
+          && !String(followUpArtifactPath || '').trim()
+        ) {
           return buildResult
-        }
-
-        const followUpPlan = {
-          ...plan.followUpAction,
         }
         if (followUpPlan.actionType === 'open-external-output') {
           followUpPlan.artifactPath = followUpArtifactPath

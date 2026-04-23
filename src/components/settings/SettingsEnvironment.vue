@@ -1,11 +1,36 @@
 <!-- START OF FILE src/components/settings/SettingsEnvironment.vue -->
 <template>
   <div class="env-page settings-page">
-    <h3 class="settings-section-title">{{ t('Environment') }}</h3>
-
-    <!-- 第一组：核心编译设置 -->
     <section class="settings-group">
-      <h4 class="settings-group-title">{{ t('Compilation') }}</h4>
+      <div class="settings-group-heading">
+        <h4 class="settings-group-title">{{ t('LaTeX') }}</h4>
+        <button
+          type="button"
+          class="diagnostics-refresh-btn"
+          :disabled="isRefreshingDiagnostics"
+          @click="redetectSystem"
+          :title="t('Refresh diagnostics')"
+        >
+          <svg
+            v-if="!isRefreshingDiagnostics"
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+            <path d="M3 3v5h5"></path>
+            <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"></path>
+            <path d="M16 21v-5h5"></path>
+          </svg>
+          <span v-else class="diagnostics-spinner"></span>
+          <span class="diagnostics-refresh-label">{{ t('Refresh') }}</span>
+        </button>
+      </div>
       <div class="settings-group-body">
         <div class="settings-row">
           <div class="settings-row-copy">
@@ -41,41 +66,7 @@
             <UiSelect v-model="buildRecipe" size="sm" :options="latexBuildRecipeOptions" />
           </div>
         </div>
-      </div>
-    </section>
 
-    <!-- 第二组：环境诊断 (现在也放入标准的卡片中) -->
-    <section class="settings-group">
-      <div class="settings-group-header-row">
-        <h4 class="settings-group-title">{{ t('Environment Diagnostics') }}</h4>
-        <button
-          type="button"
-          class="diagnostics-refresh-btn"
-          :disabled="latexStore.checkingCompilers"
-          @click="redetectSystem"
-          :title="t('Refresh diagnostics')"
-        >
-          <svg
-            v-if="!latexStore.checkingCompilers"
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
-            <path d="M3 3v5h5"></path>
-            <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"></path>
-            <path d="M16 21v-5h5"></path>
-          </svg>
-          <span v-else class="diagnostics-spinner"></span>
-        </button>
-      </div>
-
-      <div class="settings-group-body">
         <div class="settings-row">
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('System TeX') }}</div>
@@ -104,7 +95,9 @@
               <span class="status-text">{{ t('Installed') }}</span>
             </template>
             <template v-else-if="latexStore.downloading">
-              <span class="status-text">{{ `Downloading ${latexStore.downloadProgress}%` }}</span>
+              <span class="status-text">{{
+                t('Downloading {progress}%', { progress: latexStore.downloadProgress })
+              }}</span>
             </template>
             <template v-else>
               <button class="diagnostic-action-btn" @click="latexStore.downloadTectonic()">
@@ -145,6 +138,37 @@
         </div>
       </div>
     </section>
+
+    <section class="settings-group">
+      <h4 class="settings-group-title">{{ t('Python') }}</h4>
+      <div class="settings-group-body">
+        <div class="settings-row">
+          <div class="settings-row-copy">
+            <div class="settings-row-title">{{ t('Interpreter') }}</div>
+          </div>
+          <div class="settings-row-control">
+            <UiSelect
+              v-model="pythonInterpreterPreference"
+              size="sm"
+              :options="pythonInterpreterOptions"
+            />
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-row-copy">
+            <div class="settings-row-title">{{ t('Runtime') }}</div>
+          </div>
+          <div class="settings-row-control compact diagnostic-status">
+            <span
+              class="status-dot"
+              :class="pythonDiagnosticsDotClass"
+            ></span>
+            <span class="status-text">{{ pythonDiagnosticsText }}</span>
+          </div>
+        </div>
+      </div>
+    </section>
   </div>
 </template>
 
@@ -155,10 +179,12 @@ import {
   formatLatexBuildRecipeLabel,
   useLatexStore,
 } from '../../stores/latex'
+import { usePythonStore } from '../../stores/python'
 import { useI18n } from '../../i18n'
 import UiSelect from '../shared/ui/UiSelect.vue'
 
 const latexStore = useLatexStore()
+const pythonStore = usePythonStore()
 const { t } = useI18n()
 
 const latexBuildRecipeOptions = computed(() =>
@@ -178,6 +204,41 @@ const engineOptions = computed(() => [
   { value: 'pdflatex', label: 'pdfLaTeX' },
   { value: 'lualatex', label: 'LuaLaTeX' },
 ])
+const pythonInterpreterOptions = computed(() => {
+  const options = [
+    {
+      value: 'auto',
+      label: t('Auto'),
+      triggerLabel: t('Auto'),
+    },
+  ]
+
+  for (const runtime of pythonStore.availableInterpreters) {
+    const runtimePath = String(runtime?.path || '').trim()
+    if (!runtimePath) continue
+
+    const versionLabel = runtime?.version ? `Python ${runtime.version}` : t('Python')
+
+    options.push({
+      value: runtimePath,
+      label: versionLabel,
+      triggerLabel: versionLabel,
+    })
+  }
+
+  if (
+    pythonStore.interpreterPreference !== 'auto'
+    && !options.some((option) => option.value === pythonStore.interpreterPreference)
+  ) {
+    options.push({
+      value: pythonStore.interpreterPreference,
+      label: `${t('Unavailable interpreter')} · ${pythonStore.interpreterPreference}`,
+      triggerLabel: t('Unavailable interpreter'),
+    })
+  }
+
+  return options
+})
 
 const compilerPreference = computed({
   get: () => latexStore.compilerPreference,
@@ -191,59 +252,117 @@ const buildRecipe = computed({
   get: () => latexStore.buildRecipe,
   set: (value) => latexStore.setBuildRecipe(value),
 })
+const pythonInterpreterPreference = computed({
+  get: () => pythonStore.interpreterPreference,
+  set: (value) => pythonStore.setInterpreterPreference(value),
+})
+
+const pythonDiagnosticsDotClass = computed(() => {
+  if (pythonStore.hasInterpreter) return 'is-good'
+  if (pythonStore.detectedInterpreterCount > 0) return 'is-none'
+  return 'is-none'
+})
+
+const pythonDiagnosticsText = computed(() => {
+  if (pythonStore.hasInterpreter) {
+    return pythonStore.interpreter.version
+      ? `Python ${pythonStore.interpreter.version}`
+      : t('Selected')
+  }
+
+  if (
+    pythonStore.interpreterPreference !== 'auto'
+    && pythonStore.detectedInterpreterCount > 0
+  ) {
+    return t('Unavailable')
+  }
+
+  return pythonStore.detectedInterpreterCount > 0
+    ? t('Available')
+    : t('Not found')
+})
+
+const isRefreshingDiagnostics = computed(
+  () =>
+    pythonStore.checkingInterpreter
+    || latexStore.checkingCompilers
+    || latexStore.checkingTools,
+)
 
 async function redetectSystem() {
-  await Promise.all([latexStore.checkCompilers(true), latexStore.checkTools(true)])
+  await Promise.all([
+    pythonStore.checkInterpreter(true),
+    latexStore.checkCompilers(true),
+    latexStore.checkTools(true),
+  ])
 }
 
 onMounted(() => {
   if (typeof window !== 'undefined') {
     window.requestAnimationFrame(() => {
-      Promise.all([latexStore.checkCompilers(), latexStore.checkTools()]).catch(() => {})
+      Promise.all([
+        pythonStore.hydratePreferences(),
+        pythonStore.checkInterpreter(),
+        latexStore.checkCompilers(),
+        latexStore.checkTools(),
+      ]).catch(() => {})
     })
   }
 })
 </script>
 
 <style scoped>
+.settings-group-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.settings-group-title {
+  text-transform: none;
+  letter-spacing: 0.02em;
+}
+
 .is-disabled-row {
   opacity: 0.5;
   pointer-events: none;
 }
 
-.settings-group-header-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-}
-
-.settings-group-header-row .settings-group-title {
-  margin-bottom: 0;
-}
-
 .diagnostics-refresh-btn {
-  background: transparent;
-  border: none;
-  color: var(--text-muted);
+  appearance: none;
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  background: var(--surface-base);
+  color: var(--text-secondary);
   cursor: pointer;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 4px;
-  transition: all 0.15s;
+  gap: 8px;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 6px;
+  transition:
+    background-color 0.15s,
+    border-color 0.15s,
+    color 0.15s;
 }
 
 .diagnostics-refresh-btn:hover:not(:disabled) {
   background: var(--surface-hover);
   color: var(--text-primary);
+  border-color: var(--border);
 }
 
 .diagnostics-refresh-btn:disabled {
   opacity: 0.5;
   cursor: default;
+}
+
+.diagnostics-refresh-label {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
 }
 
 .diagnostics-spinner {
@@ -282,6 +401,16 @@ onMounted(() => {
 .status-text {
   font-size: 13px;
   color: var(--text-muted);
+}
+
+@media (max-width: 720px) {
+  .settings-group-heading {
+    align-items: flex-start;
+  }
+
+  .diagnostics-refresh-label {
+    display: none;
+  }
 }
 
 .text-error {

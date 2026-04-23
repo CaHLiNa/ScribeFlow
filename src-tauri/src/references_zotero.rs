@@ -542,12 +542,7 @@ async fn fetch_items_page(
         return Ok((Vec::new(), 0, since));
     }
 
-    let items = response
-        .body
-        .get("items")
-        .and_then(Value::as_array)
-        .cloned()
-        .unwrap_or_default();
+    let items = extract_items_array(&response.body);
     let total_results = response
         .headers
         .get("total-results")
@@ -559,6 +554,25 @@ async fn fetch_items_page(
         .and_then(|value| value.parse::<i64>().ok())
         .unwrap_or(since);
     Ok((items, total_results, last_version))
+}
+
+fn extract_items_array(body: &Value) -> Vec<Value> {
+    if let Some(items) = body.as_array() {
+        return items.to_vec();
+    }
+
+    body.get("items")
+        .and_then(Value::as_array)
+        .map(|items| items.to_vec())
+        .unwrap_or_default()
+}
+
+fn has_local_references_for_library(references: &[Value], library_label: &str) -> bool {
+    references.iter().any(|reference| {
+        trim_string(reference.get("_source")) == "zotero"
+            && trim_string(reference.get("_zoteroLibrary")) == library_label
+            && !trim_string(reference.get("_zoteroKey")).is_empty()
+    })
 }
 
 async fn fetch_all_items(
@@ -766,8 +780,14 @@ async fn perform_sync(params: ZoteroSyncParams) -> Result<Value, String> {
             .and_then(|versions| versions.get(&version_key))
             .and_then(Value::as_i64)
             .unwrap_or(0);
+        let effective_since_version =
+            if since_version > 0 && !has_local_references_for_library(&references, &version_key) {
+                0
+            } else {
+                since_version
+            };
         let (items, last_version) =
-            fetch_all_items(&api_key, &library_type, &library_id, since_version).await?;
+            fetch_all_items(&api_key, &library_type, &library_id, effective_since_version).await?;
         if let Some(versions) = config
             .get_mut("lastSyncVersions")
             .and_then(Value::as_object_mut)
@@ -1082,5 +1102,64 @@ impl StringExt for String {
         } else {
             self
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{extract_items_array, has_local_references_for_library};
+    use serde_json::json;
+
+    #[test]
+    fn extract_items_array_supports_top_level_array_payload() {
+        let payload = json!([
+            { "title": "Paper A" },
+            { "title": "Paper B" }
+        ]);
+
+        let items = extract_items_array(&payload);
+
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[0]["title"], "Paper A");
+        assert_eq!(items[1]["title"], "Paper B");
+    }
+
+    #[test]
+    fn extract_items_array_supports_wrapped_items_payload() {
+        let payload = json!({
+            "items": [
+                { "title": "Paper A" }
+            ]
+        });
+
+        let items = extract_items_array(&payload);
+
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0]["title"], "Paper A");
+    }
+
+    #[test]
+    fn has_local_references_for_library_checks_zotero_anchor_fields() {
+        let references = vec![
+            json!({
+                "_source": "zotero",
+                "_zoteroLibrary": "user/16788433",
+                "_zoteroKey": "ABCD1234"
+            }),
+            json!({
+                "_source": "manual",
+                "_zoteroLibrary": "user/16788433",
+                "_zoteroKey": ""
+            }),
+        ];
+
+        assert!(has_local_references_for_library(
+            &references,
+            "user/16788433"
+        ));
+        assert!(!has_local_references_for_library(
+            &references,
+            "group/123456"
+        ));
     }
 }

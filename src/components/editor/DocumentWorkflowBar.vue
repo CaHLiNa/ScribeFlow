@@ -72,7 +72,7 @@
             :aria-label="pdfButtonLabel"
             @click="$emit('reveal-pdf')"
           >
-            <IconFileTypePdf :size="pdfActionIconSize" :stroke-width="buttonIconStroke" />
+            <component :is="pdfIcon" :size="pdfActionIconSize" :stroke-width="buttonIconStroke" />
           </UiButton>
         </div>
       </div>
@@ -104,11 +104,13 @@ const kindLabel = computed(() => {
   if (!props.uiState || props.uiState.kind === 'text') return ''
   if (props.uiState.kind === 'markdown') return t('Markdown')
   if (props.uiState.kind === 'latex') return t('LaTeX')
+  if (props.uiState.kind === 'python') return t('Python')
   return ''
 })
 
 const phaseLabel = computed(() => {
   if (!props.uiState || props.uiState.kind === 'text') return ''
+  if (props.uiState.phase === 'running') return t('Running...')
   if (props.uiState.phase === 'compiling') return t('Compiling...')
   if (props.uiState.phase === 'queued') return t('Queued')
   if (props.uiState.phase === 'rendering') return t('Rendering...')
@@ -128,27 +130,34 @@ const showShellStatus = computed(
 const showPrimaryAction = computed(() => !!props.uiState && props.uiState.kind !== 'text')
 
 const primaryLabel = computed(() => {
-  if (props.uiState?.kind === 'latex') {
+  if (props.uiState?.primaryAction === 'run') {
+    return t('Run')
+  }
+  if (props.uiState?.primaryAction === 'compile' || props.uiState?.kind === 'latex') {
     return t('Compile')
   }
   return t('Preview')
 })
 
 const primaryIcon = computed(() => {
-  if (props.uiState?.kind === 'latex') {
+  if (
+    props.uiState?.primaryAction === 'run'
+    || props.uiState?.primaryAction === 'compile'
+    || props.uiState?.kind === 'latex'
+  ) {
     return IconPlayerPlay
   }
   return IconEye
 })
 
-const showPreviewButton = computed(() => {
-  if (!props.uiState?.kind || props.uiState.kind === 'text') return false
-  if (props.uiState.kind === 'latex') return false
-  return true
-})
+const showPreviewButton = computed(() => props.uiState?.canRevealPreview === true)
 
 const previewButtonLabel = computed(() =>
-  props.uiState?.kind === 'markdown' ? t('Toggle preview') : t('Preview')
+  props.uiState?.kind === 'markdown'
+    ? t('Toggle preview')
+    : props.uiState?.kind === 'python'
+      ? t('Toggle terminal output')
+      : t('Preview')
 )
 
 const canOpenPdf = computed(() => props.uiState?.canOpenPdf === true)
@@ -160,10 +169,15 @@ const pdfButtonLabel = computed(() => {
   if (!canOpenPdf.value) return t('Build and open PDF')
   return activePreviewMode.value === 'pdf-artifact' ? t('Hide PDF preview') : t('Open PDF')
 })
+const pdfIcon = computed(() =>
+  props.uiState?.kind === 'latex' ? IconEye : IconFileTypePdf
+)
 
 const activePreviewMode = computed(() => props.previewState?.previewMode || null)
 
-const isPreviewButtonActive = computed(() => activePreviewMode.value === 'markdown')
+const isPreviewButtonActive = computed(
+  () => activePreviewMode.value === 'markdown' || activePreviewMode.value === 'terminal-output'
+)
 const isPdfButtonActive = computed(() => activePreviewMode.value === 'pdf-artifact')
 
 const statusClass = computed(() => ({
@@ -247,8 +261,8 @@ const pdfActionIconSize = computed(() => 16)
   overflow: hidden;
   font-family: var(--font-ui);
   font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  text-transform: none;
+  letter-spacing: 0.02em;
   font-weight: 600;
   color: var(--text-muted);
   white-space: nowrap;
@@ -266,8 +280,8 @@ const pdfActionIconSize = computed(() => 16)
   white-space: nowrap;
   font-size: 11px;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  text-transform: none;
+  letter-spacing: 0.02em;
   color: var(--text-muted);
 }
 

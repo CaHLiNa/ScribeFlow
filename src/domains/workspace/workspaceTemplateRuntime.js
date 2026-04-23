@@ -18,6 +18,15 @@ export const WORKSPACE_DOCUMENT_TEMPLATES = Object.freeze([
     content:
       '\\documentclass{article}\n\\title{Title}\n\\author{}\n\\date{}\n\n\\begin{document}\n\\maketitle\n\n\\section{Introduction}\n\nStart writing here.\n\n\\end{document}\n',
   },
+  {
+    id: 'python-script',
+    ext: '.py',
+    label: 'Python script',
+    description: 'Quick scripts, experiments, and small research helpers.',
+    filename: 'script.py',
+    content:
+      'def main() -> None:\n    print("Hello from ScribeFlow")\n\n\nif __name__ == "__main__":\n    main()\n',
+  },
 ])
 
 export function listWorkspaceDocumentTemplates(t = DEFAULT_TRANSLATOR) {

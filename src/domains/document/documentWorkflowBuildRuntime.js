@@ -142,6 +142,9 @@ function buildWorkflowUiStateRequest(filePath, adapter, context, options = {}, p
     latexState: adapter.kind === 'latex'
       ? context.latexStore?.stateForFile?.(filePath) || {}
       : null,
+    pythonState: adapter.kind === 'python'
+      ? context.pythonStore?.stateForFile?.(filePath) || {}
+      : null,
     queueState: adapter.kind === 'latex'
       ? context.latexStore?.queueStateForFile?.(filePath) || {}
       : null,
@@ -163,7 +166,7 @@ export function getDocumentWorkflowStatusTone(uiState = null) {
     if (uiState.phase === 'ready' || uiState.exportPhase === 'ready') return 'success'
     return 'muted'
   }
-  if (uiState.phase === 'compiling' || uiState.phase === 'rendering') return 'running'
+  if (uiState.phase === 'running' || uiState.phase === 'compiling' || uiState.phase === 'rendering') return 'running'
   if (uiState.phase === 'queued') return 'warning'
   if (uiState.phase === 'error') return 'error'
   if (uiState.phase === 'ready') return 'success'
@@ -176,6 +179,7 @@ export function createDocumentWorkflowBuildRuntime({
   getFilesStore,
   getWorkspaceStore,
   getLatexStore,
+  getPythonStore,
 } = {}) {
   function resolveBaseContext(options = {}) {
     return {
@@ -185,6 +189,7 @@ export function createDocumentWorkflowBuildRuntime({
       chatStore: options.chatStore || null,
       workspace: options.workspace || getWorkspaceStore?.() || null,
       latexStore: options.latexStore || getLatexStore?.() || null,
+      pythonStore: options.pythonStore || getPythonStore?.() || null,
       toastStore: options.toastStore || null,
       t: options.t || null,
     }

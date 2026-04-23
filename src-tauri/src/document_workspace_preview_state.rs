@@ -45,6 +45,10 @@ fn is_latex_path(path: &str) -> bool {
     path.ends_with(".tex") || path.ends_with(".latex")
 }
 
+fn is_python_path(path: &str) -> bool {
+    normalize_path(path).to_ascii_lowercase().ends_with(".py")
+}
+
 fn is_markdown_preview_path(path: &str) -> bool {
     normalize_path(path).starts_with("preview:")
 }
@@ -65,6 +69,8 @@ fn get_workspace_document_kind(path: &str, workflow_kind: &str) -> Option<&'stat
                 Some("markdown")
             } else if is_latex_path(path) {
                 Some("latex")
+            } else if is_python_path(path) {
+                Some("python")
             } else {
                 None
             }
@@ -111,6 +117,7 @@ fn resolve_preview_mode(preview_kind: &str) -> Value {
     match preview_kind {
         "html" => Value::String("markdown".to_string()),
         "pdf" => Value::String("pdf-artifact".to_string()),
+        "terminal" => Value::String("terminal-output".to_string()),
         _ => Value::Null,
     }
 }
@@ -190,6 +197,35 @@ pub async fn document_workspace_preview_state_resolve(
             "preserveOpenLegacy": preserve_open_legacy,
             "sourcePath": path,
             "previewFilePath": format!("preview:{path}"),
+        }));
+        return Ok(if params.hidden_by_user {
+            hide_preview_state(&state, "hidden-by-user")
+        } else {
+            state
+        });
+    }
+
+    if kind == "python" {
+        let terminal_preview_requested =
+            requested_preview_kind == "terminal" && params.preview_requested;
+        let state = create_preview_state(json!({
+            "useWorkspace": true,
+            "previewVisible": terminal_preview_requested && !params.hidden_by_user,
+            "previewKind": if terminal_preview_requested || params.hidden_by_user { Value::String("terminal".to_string()) } else { Value::Null },
+            "previewMode": if terminal_preview_requested && !params.hidden_by_user { resolve_preview_mode("terminal") } else { Value::Null },
+            "targetResolution": "not-needed",
+            "reason": if params.hidden_by_user {
+                Value::String("hidden-by-user".to_string())
+            } else if terminal_preview_requested {
+                Value::String("workspace-python-terminal".to_string())
+            } else {
+                Value::String("source-only".to_string())
+            },
+            "legacyReadOnly": false,
+            "allowPreviewCreation": true,
+            "preserveOpenLegacy": preserve_open_legacy,
+            "sourcePath": path,
+            "previewFilePath": if terminal_preview_requested && !params.hidden_by_user { Value::String(path.clone()) } else { Value::String(String::new()) },
         }));
         return Ok(if params.hidden_by_user {
             hide_preview_state(&state, "hidden-by-user")

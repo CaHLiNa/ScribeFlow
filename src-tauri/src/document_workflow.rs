@@ -44,6 +44,10 @@ fn is_latex(path: &str) -> bool {
     path.ends_with(".tex") || path.ends_with(".latex")
 }
 
+fn is_python(path: &str) -> bool {
+    path.to_lowercase().ends_with(".py")
+}
+
 pub(crate) fn get_document_workflow_kind(path: &str) -> Option<&'static str> {
     if path.trim().is_empty() || is_preview_path(path) || is_new_tab(path) {
         return None;
@@ -53,6 +57,9 @@ pub(crate) fn get_document_workflow_kind(path: &str) -> Option<&'static str> {
     }
     if is_latex(path) {
         return Some("latex");
+    }
+    if is_python(path) {
+        return Some("python");
     }
     None
 }
@@ -72,6 +79,7 @@ pub(crate) fn preferred_preview_kind(kind: &str, prefs: &Value) -> Option<&'stat
             }
         }
         "latex" => None,
+        "python" => None,
         _ => None,
     }
 }

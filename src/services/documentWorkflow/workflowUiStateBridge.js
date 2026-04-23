@@ -6,6 +6,7 @@ export async function resolveDocumentWorkflowUiState(params = {}) {
     previewState: params.previewState || null,
     markdownState: params.markdownState || null,
     latexState: params.latexState || null,
+    pythonState: params.pythonState || null,
     queueState: params.queueState || null,
     artifactPath: String(params.artifactPath || ''),
   })

@@ -1,10 +1,12 @@
 import { isNewTab, isPreviewPath } from '../../../utils/fileTypes.js'
 import { markdownDocumentAdapter } from './markdown.js'
 import { latexDocumentAdapter } from './latex.js'
+import { pythonDocumentAdapter } from './python.js'
 
 const DOCUMENT_ADAPTERS = [
   markdownDocumentAdapter,
   latexDocumentAdapter,
+  pythonDocumentAdapter,
 ]
 
 export function listDocumentAdapters() {
