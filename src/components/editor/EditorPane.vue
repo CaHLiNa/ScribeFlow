@@ -634,7 +634,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   min-height: 31px;
-  padding: 0 16px;
+  padding: 0 12px;
   border-bottom: 1px solid var(--workbench-divider-soft);
   background: var(--shell-editor-surface);
 }
@@ -648,7 +648,7 @@ onUnmounted(() => {
   z-index: 4;
   width: 100%;
   box-sizing: border-box;
-  padding: 8px 16px 0px;
+  padding: 8px 12px 0px;
   background: transparent;
 }
 

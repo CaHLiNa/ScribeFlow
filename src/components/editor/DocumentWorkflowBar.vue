@@ -184,6 +184,8 @@ const pdfActionIconSize = computed(() => 16)
 /* START OF FILE src/components/editor/DocumentWorkflowBar.vue (只替换 style 部分) */
 <style scoped>
 .workflow-bar {
+  --workflow-control-size: 30px;
+  --workflow-control-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -197,8 +199,8 @@ const pdfActionIconSize = computed(() => 16)
 }
 
 .workflow-bar.is-shell-integrated {
-  --shell-top-control-size: 30px;
-  --shell-top-control-radius: 6px;
+  --shell-top-control-size: var(--workflow-control-size);
+  --shell-top-control-radius: var(--workflow-control-radius);
   width: auto;
   min-height: var(--shell-top-control-size);
   height: var(--shell-top-control-size);
@@ -210,8 +212,8 @@ const pdfActionIconSize = computed(() => 16)
   width: auto;
   min-width: 0;
   flex: 0 1 auto;
-  min-height: 30px;
-  height: 30px;
+  min-height: var(--workflow-control-size);
+  height: var(--workflow-control-size);
   justify-content: flex-end;
   gap: 4px;
 }
@@ -287,8 +289,8 @@ const pdfActionIconSize = computed(() => 16)
   gap: 4px;
   min-width: 0;
   flex: 0 0 auto;
-  min-height: var(--document-header-row-height, 30px);
-  height: var(--document-header-row-height, 30px);
+  min-height: var(--workflow-control-size);
+  height: var(--workflow-control-size);
   padding: 0;
   border: 0;
   background: transparent;
@@ -322,12 +324,12 @@ const pdfActionIconSize = computed(() => 16)
 .workflow-primary-btn,
 .workflow-secondary-btn {
   flex: 0 0 auto;
-  width: 28px;
-  height: 28px;
-  min-height: 28px;
+  width: var(--workflow-control-size);
+  height: var(--workflow-control-size);
+  min-height: var(--workflow-control-size);
   white-space: nowrap;
   color: var(--text-secondary);
-  border-radius: 6px;
+  border-radius: var(--workflow-control-radius);
   background: transparent;
   box-shadow: none;
   transition: background-color 0.1s, color 0.1s;
@@ -335,10 +337,10 @@ const pdfActionIconSize = computed(() => 16)
 
 .workflow-bar.is-inline-header .workflow-primary-btn,
 .workflow-bar.is-inline-header .workflow-secondary-btn {
-  width: 28px;
-  height: 28px;
-  min-height: 28px;
-  border-radius: 5px;
+  width: var(--workflow-control-size);
+  height: var(--workflow-control-size);
+  min-height: var(--workflow-control-size);
+  border-radius: var(--workflow-control-radius);
 }
 
 .workflow-bar.is-shell-integrated .workflow-primary-btn,
@@ -365,5 +367,13 @@ const pdfActionIconSize = computed(() => 16)
 .workflow-bar.is-shell-integrated .workflow-secondary-btn.is-active {
   color: var(--text-primary);
   background: transparent !important;
+}
+
+.workflow-primary-btn :deep(svg),
+.workflow-secondary-btn :deep(svg) {
+  display: block;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
 }
 </style>
