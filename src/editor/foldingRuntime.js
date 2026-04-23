@@ -2,7 +2,17 @@ import { foldService } from '@codemirror/language'
 
 const INDENT_FOLD_EXTS = new Set(['m', 'py', 'pyw'])
 const LATEX_FOLD_EXTS = new Set(['tex', 'latex', 'cls', 'sty'])
+const LATEX_SECTION_COMMANDS = [
+  'part',
+  'chapter',
+  'section',
+  'subsection',
+  'subsubsection',
+  'paragraph',
+  'subparagraph',
+]
 const LATEX_SECTION_RE = /^\\(part|chapter|section|subsection|subsubsection|paragraph|subparagraph)\b/
+const LATEX_ENV_RE = /\\(begin){(.*?)}|\\(begingroup)[%\s\\]|\\(end){(.*?)}|\\(endgroup)[%\s\\]|^%\s*#?([rR]egion)|^%\s*#?([eE]ndregion)/gm
 
 function extname(path = '') {
   const value = String(path || '')
@@ -13,19 +23,6 @@ function extname(path = '') {
 function indentationWidth(lineText = '') {
   const match = String(lineText).match(/^[\t ]*/)
   return match ? match[0].length : 0
-}
-
-function countLiteral(haystack = '', needle = '') {
-  if (!needle) return 0
-  let count = 0
-  let fromIndex = 0
-  while (fromIndex < haystack.length) {
-    const found = haystack.indexOf(needle, fromIndex)
-    if (found === -1) break
-    count += 1
-    fromIndex = found + needle.length
-  }
-  return count
 }
 
 function findIndentedFold(state, lineStart) {
@@ -51,54 +48,120 @@ function findIndentedFold(state, lineStart) {
   return { from: startLine.to, to: lastBodyLine.to }
 }
 
-function findLatexEnvironmentFold(state, startLine, envName) {
-  const beginNeedle = `\\begin{${envName}}`
-  const endNeedle = `\\end{${envName}}`
-  let depth = 0
+function buildLatexSectionRegex() {
+  return LATEX_SECTION_COMMANDS.map((section) =>
+    new RegExp(String.raw`\\(?:${section})(?:\*)?(?:\[[^\[\]\{\}]*\])?{(.*)}`, 'm')
+  )
+}
 
-  for (let number = startLine.number; number <= state.doc.lines; number += 1) {
-    const line = state.doc.line(number)
-    const text = line.text
-    depth += countLiteral(text, beginNeedle)
-    depth -= countLiteral(text, endNeedle)
+function collectLatexSectionRanges(state) {
+  const sectionRegex = buildLatexSectionRegex()
+  const startingIndices = sectionRegex.map(() => -1)
+  const sections = []
+  let documentClassLine = -1
+  let lastNonemptyLineIndex = -1
 
-    if (number > startLine.number && depth <= 0) {
-      return { from: startLine.to, to: line.from }
+  for (let index = 1; index <= state.doc.lines; index += 1) {
+    const line = state.doc.line(index).text
+
+    for (let regIndex = 0; regIndex < sectionRegex.length; regIndex += 1) {
+      const regex = sectionRegex[regIndex]
+      if (!regex.exec(line)) continue
+
+      const originalIndex = startingIndices[regIndex]
+      if (originalIndex === -1) {
+        startingIndices[regIndex] = index
+        continue
+      }
+
+      let level = regIndex
+      while (level < sectionRegex.length) {
+        sections.push({
+          from: startingIndices[level],
+          to: lastNonemptyLineIndex,
+        })
+        startingIndices[level] = level === regIndex ? index : -1
+        level += 1
+      }
+    }
+
+    if (/\\documentclass/.test(line)) {
+      documentClassLine = index
+    }
+    if (/\\begin{document}/.test(line) && documentClassLine > -1) {
+      sections.push({
+        from: documentClassLine,
+        to: lastNonemptyLineIndex,
+      })
+    }
+    if (/\\end{document}/.test(line) || index === state.doc.lines) {
+      for (let level = 0; level < startingIndices.length; level += 1) {
+        if (startingIndices[level] === -1) continue
+        sections.push({
+          from: startingIndices[level],
+          to: lastNonemptyLineIndex,
+        })
+      }
+    }
+    if (!/^\s*$/.test(line)) {
+      lastNonemptyLineIndex = index
     }
   }
 
-  return null
+  return sections.filter((range) => range.from > 0 && range.to > range.from)
 }
 
-function findLatexSectionFold(state, startLine) {
-  let lastContentLine = null
+function collectLatexEnvironmentRanges(state) {
+  const ranges = []
+  const opStack = []
+  const text = state.doc.toString()
+  LATEX_ENV_RE.lastIndex = 0
 
-  for (let number = startLine.number + 1; number <= state.doc.lines; number += 1) {
-    const line = state.doc.line(number)
-    const trimmed = line.text.trim()
-    if (LATEX_SECTION_RE.test(trimmed)) break
-    if (trimmed) lastContentLine = line
+  while (true) {
+    const match = LATEX_ENV_RE.exec(text)
+    if (!match) return ranges
+
+    let keyword = ''
+    if (match[1]) {
+      keyword = match[2]
+    } else if (match[4]) {
+      keyword = match[5]
+    } else if (match[3] || match[6]) {
+      keyword = 'group'
+    } else if (match[7] || match[8]) {
+      keyword = 'region'
+    }
+
+    const item = { keyword, index: match.index }
+    const lastItem = opStack[opStack.length - 1]
+
+    if ((match[4] || match[6] || match[8]) && lastItem && lastItem.keyword === item.keyword) {
+      opStack.pop()
+      const fromLine = state.doc.lineAt(lastItem.index).number
+      const toLine = state.doc.lineAt(item.index).number - 1
+      if (toLine > fromLine) {
+        ranges.push({ from: fromLine, to: toLine })
+      }
+    } else {
+      opStack.push(item)
+    }
   }
-
-  if (!lastContentLine) return null
-  return { from: startLine.to, to: lastContentLine.to }
 }
 
 function findLatexFold(state, lineStart) {
-  const startLine = state.doc.lineAt(lineStart)
-  const text = startLine.text.trim()
-  if (!text) return null
+  const lineNumber = state.doc.lineAt(lineStart).number
+  const allRanges = [
+    ...collectLatexSectionRanges(state),
+    ...collectLatexEnvironmentRanges(state),
+  ]
 
-  const beginMatch = text.match(/^\\begin\{([^}]+)\}/)
-  if (beginMatch?.[1]) {
-    return findLatexEnvironmentFold(state, startLine, beginMatch[1])
+  const matched = allRanges.find((range) => range.from === lineNumber)
+  if (!matched) return null
+
+  return {
+    from: state.doc.line(matched.from).to,
+    to: state.doc.line(matched.to).to,
   }
-
-  if (LATEX_SECTION_RE.test(text)) {
-    return findLatexSectionFold(state, startLine)
-  }
-
-  return null
 }
 
 export function createFoldingExtension(filePath = '') {
