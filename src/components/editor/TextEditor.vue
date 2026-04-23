@@ -114,6 +114,7 @@ import {
 } from '../../services/markdown/previewSync.js'
 import { readWorkspaceTextFile, saveWorkspaceTextFile } from '../../services/fileStoreIO.js'
 import { basenamePath, dirnamePath } from '../../utils/path'
+import { createFoldingExtension } from '../../editor/foldingRuntime'
 import EditorContextMenu from './EditorContextMenu.vue'
 import CitationPalette from './CitationPalette.vue'
 import { useTextEditorBridges } from '../../composables/useTextEditorBridges'
@@ -689,6 +690,7 @@ function handleDocumentChanged(content) {
 
 async function loadLanguageExtension() {
   const { languages } = await import('@codemirror/language-data')
+  const ext = basenamePath(props.filePath).split('.').pop()?.toLowerCase() || ''
   if (isMd) {
     const { markdown, markdownLanguage } = await import('@codemirror/lang-markdown')
     return markdown({ base: markdownLanguage, codeLanguages: languages })
@@ -697,6 +699,12 @@ async function loadLanguageExtension() {
     const { altalsLatexLanguage, ensureLatexTextmateReady } = await import('../../editor/latexLanguage')
     await ensureLatexTextmateReady()
     return altalsLatexLanguage
+  }
+  if (ext === 'm') {
+    const octave = languages.find((lang) => lang.name === 'Octave')
+    if (octave) {
+      return octave.load()
+    }
   }
 
   const matched = languages.filter((lang) => {
@@ -737,6 +745,7 @@ onMounted(async () => {
 
   const langExt = await loadLanguageExtension()
   const extraExtensions =[
+    ...createFoldingExtension(props.filePath),
     ...createRevealHighlightExtension(),
     EditorView.updateListener.of((update) => {
       // 触发 Zen 专注模式事件
