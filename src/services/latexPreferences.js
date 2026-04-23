@@ -76,8 +76,6 @@ function loadBrowserPreviewLatexPreferences() {
   const preferences = normalizeBrowserPreviewPreferences({
     compilerPreference: readStorageValue('latex.compilerPreference', 'auto'),
     enginePreference: readStorageValue('latex.enginePreference', 'auto'),
-    autoCompile: readStorageBoolean('latex.autoCompile', false),
-    formatOnSave: readStorageBoolean('latex.formatOnSave', false),
     buildRecipe: readStorageValue('latex.buildRecipe', 'default'),
     buildExtraArgs: readStorageValue('latex.buildExtraArgs', ''),
     customSystemTexPath: readStorageValue('latex.customSystemTexPath', ''),
@@ -92,8 +90,8 @@ function saveBrowserPreviewLatexPreferences(preferences = {}) {
 
   writeStorageValue('latex.compilerPreference', normalized.compilerPreference)
   writeStorageValue('latex.enginePreference', normalized.enginePreference)
-  writeStorageValue('latex.autoCompile', normalized.autoCompile ? 'true' : 'false')
-  writeStorageValue('latex.formatOnSave', normalized.formatOnSave ? 'true' : 'false')
+  writeStorageValue('latex.autoCompile', null)
+  writeStorageValue('latex.formatOnSave', null)
   writeStorageValue('latex.buildRecipe', normalized.buildRecipe)
   writeStorageValue('latex.buildExtraArgs', normalized.buildExtraArgs)
   writeStorageValue('latex.customSystemTexPath', normalized.customSystemTexPath)

@@ -574,14 +574,6 @@ export const useLatexStore = defineStore('latex', {
       await this.persistPreferences({ enginePreference: preference })
     },
 
-    async setAutoCompile(enabled) {
-      await this.persistPreferences({ autoCompile: enabled === true })
-    },
-
-    async setFormatOnSave(enabled) {
-      await this.persistPreferences({ formatOnSave: enabled === true })
-    },
-
     async setBuildRecipe(recipe) {
       await this.persistPreferences({
         buildRecipe: normalizeLatexBuildRecipe(recipe),
