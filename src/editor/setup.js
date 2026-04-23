@@ -73,7 +73,7 @@ function selectionMatchesLikeVSCode() {
 
 export function columnWidthExtension(col) {
   if (col > 0) {
-    return EditorView.theme({ '.cm-content': { maxWidth: col + 'ch' } })
+    return EditorView.theme({ '&': { '--editor-wrap-column': col + 'ch' } })
   }
   return []
 }

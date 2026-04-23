@@ -13,7 +13,7 @@
 
 /* 呼吸感：收紧排版，让文字区居中 */
 .cm-prose-file .cm-content {
-  max-width: 760px; 
+  max-width: var(--editor-wrap-column, 760px);
   margin: 0 auto;
   font-family: var(--font-markdown);
   font-variant-ligatures: normal;
@@ -24,7 +24,7 @@
 }
 
 .cm-latex-file .cm-content {
-  max-width: 860px; 
+  max-width: var(--editor-wrap-column, 860px);
   margin: 0 auto;
   font-family: var(--font-latex);
   line-height: 1.65 !important;
