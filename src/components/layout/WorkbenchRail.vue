@@ -157,7 +157,7 @@ const emit = defineEmits([
 
 const { t } = useI18n()
 
-const TOPBAR_HEIGHT = 38
+const TOPBAR_HEIGHT = 42
 const DEFAULT_SIDE_PADDING = 12
 const MAC_TRAFFIC_LIGHT_SAFE_PADDING = 68
 const FULLSCREEN_LEFT_PADDING = 12
@@ -257,9 +257,9 @@ onUnmounted(() => {
 
 <style scoped>
 .workbench-rail {
-  --top-chrome-control-size: 28px;
+  --top-chrome-control-size: 30px;
   --top-chrome-control-radius: 6px;
-  --top-chrome-drag-height: 16px;
+  --top-chrome-drag-height: 18px;
   position: relative;
   display: flex;
   align-items: center;
@@ -268,8 +268,8 @@ onUnmounted(() => {
   flex: 0 0 auto;
   min-width: 0;
   margin: 0;
-  padding-top: 0;
-  padding-bottom: 0;
+  padding-top: 1px;
+  padding-bottom: 1px;
   border-bottom: 0;
   border-radius: 0;
   background: transparent;
@@ -329,7 +329,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   width: 100%;
-  min-height: 22px;
+  min-height: 24px;
   min-width: 0;
   max-width: min(440px, 100%);
   overflow: visible;
@@ -350,16 +350,16 @@ onUnmounted(() => {
   justify-content: center;
   max-width: 100%;
   min-width: 0;
-  min-height: 24px;
-  padding: 0 6px;
+  min-height: 26px;
+  padding: 0 8px;
   border-radius: 8px;
   background: transparent;
   box-shadow: none;
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   letter-spacing: -0.01em;
-  line-height: 1.2;
+  line-height: 1.25;
   user-select: none;
   -webkit-user-select: none;
 }

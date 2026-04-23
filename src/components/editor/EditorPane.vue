@@ -744,11 +744,11 @@ onUnmounted(() => {
 }
 
 .document-title-button--rail {
-  min-height: 24px;
-  padding: 0 6px;
+  min-height: 26px;
+  padding: 0 8px;
   border-radius: 8px;
   color: color-mix(in srgb, var(--text-primary) 92%, transparent);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
 }
 
@@ -766,8 +766,8 @@ onUnmounted(() => {
 
 .document-title-chevron {
   flex: 0 0 auto;
-  width: 13px;
-  height: 13px;
+  width: 14px;
+  height: 14px;
   color: var(--text-muted);
 }
 
