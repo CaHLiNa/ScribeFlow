@@ -390,12 +390,12 @@ import { openLocalPath } from '../../services/localFileOpen'
 import { confirmUnsavedChanges } from '../../services/unsavedChanges'
 import { resolveDocumentWorkspaceTextRoute } from '../../domains/document/documentWorkspacePreviewRuntime'
 import { shouldShowIntegratedDocumentTitle } from '../../domains/editor/paneChromeRuntime'
+import PythonTerminalPreview from './PythonTerminalPreview.vue'
 
 const EditorTextRouteSurface = defineAsyncComponent(() => import('./EditorTextRouteSurface.vue'))
 const UnsupportedFilePane = defineAsyncComponent(() => import('./UnsupportedFilePane.vue'))
 const MarkdownPreview = defineAsyncComponent(() => import('./MarkdownPreview.vue'))
 const PdfArtifactPreview = defineAsyncComponent(() => import('./PdfArtifactPreview.vue'))
-const PythonTerminalPreview = defineAsyncComponent(() => import('./PythonTerminalPreview.vue'))
 const CsvPreviewPane = defineAsyncComponent(() => import('./CsvPreviewPane.vue'))
 const DocumentWorkflowBar = defineAsyncComponent(() => import('./DocumentWorkflowBar.vue'))
 const HtmlPreviewPane = defineAsyncComponent(() => import('./HtmlPreviewPane.vue'))
