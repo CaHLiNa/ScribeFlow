@@ -218,7 +218,6 @@
           <div
             :ref="(element) => setPageElement(page, element)"
             class="pdf-artifact-preview__page-shell"
-            :class="{ 'is-forward-sync-target': forwardSyncPageNumber === page.pageNumber }"
             :data-page-number="page.pageNumber"
             :style="{ width: `${page.width}px`, height: `${page.height}px` }"
           >
@@ -367,7 +366,6 @@ const pageInputValue = ref('1')
 const searchInputRef = ref(null)
 const currentContextMenuReverseSyncDetail = ref(null)
 const forwardSyncOverlays = ref([])
-const forwardSyncPageNumber = ref(0)
 const queuedForwardSyncRequest = ref(null)
 
 const PdfEmbedPageSyncBridge = defineComponent({
@@ -556,7 +554,6 @@ function resolveDocumentPageMeta(pageNumber) {
 
 function clearForwardSyncHighlight() {
   forwardSyncOverlays.value = []
-  forwardSyncPageNumber.value = 0
   queuedForwardSyncRequest.value = null
   if (forwardSyncHighlightTimer && typeof window !== 'undefined') {
     window.clearTimeout(forwardSyncHighlightTimer)
@@ -572,7 +569,6 @@ function scheduleForwardSyncHighlightClear() {
   forwardSyncHighlightTimer = window.setTimeout(() => {
     forwardSyncHighlightTimer = 0
     forwardSyncOverlays.value = []
-    forwardSyncPageNumber.value = 0
   }, 1800)
 }
 
@@ -1418,7 +1414,6 @@ async function applyForwardSyncRequest(request = null) {
     behavior: 'smooth',
     alignY: 34,
   })
-  forwardSyncPageNumber.value = pageNumber
 
   await nextTick()
   if (typeof window !== 'undefined') {
@@ -1899,14 +1894,6 @@ onUnmounted(() => {
   margin: 12px auto;
   box-shadow: 0 10px 30px rgb(0 0 0 / 0.16);
   background: var(--embedpdf-page);
-  transition: box-shadow 180ms ease, background-color 180ms ease;
-}
-
-.pdf-artifact-preview__page-shell.is-forward-sync-target {
-  box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--focus-ring) 24%, #d6b565 76%),
-    0 0 0 2px color-mix(in srgb, var(--focus-ring) 10%, transparent),
-    0 10px 30px rgb(0 0 0 / 0.16);
 }
 
 .pdf-artifact-preview__page {
