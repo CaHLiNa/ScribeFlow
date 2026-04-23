@@ -28,7 +28,12 @@ const containerRef = ref(null)
 const previewRatio = ref(0.46)
 
 const sourceStyle = computed(() => {
-  if (!props.previewVisible) return {}
+  if (!props.previewVisible) {
+    return {
+      flex: '1 1 auto',
+      width: '100%',
+    }
+  }
   return {
     width: `${(1 - previewRatio.value) * 100}%`,
   }
