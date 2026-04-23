@@ -254,8 +254,8 @@ pub fn normalize_latex_preferences(preferences: LatexPreferences) -> LatexPrefer
             &compiler_preference,
             &preferences.engine_preference,
         ),
-        auto_compile: preferences.auto_compile,
-        format_on_save: preferences.format_on_save,
+        auto_compile: false,
+        format_on_save: false,
         build_recipe: normalize_build_recipe(&preferences.build_recipe),
         build_extra_args: normalize_build_extra_args(&preferences.build_extra_args),
         custom_system_tex_path: normalize_custom_system_tex_path(
@@ -325,6 +325,8 @@ mod tests {
 
         assert_eq!(saved.compiler_preference, "tectonic");
         assert_eq!(saved.engine_preference, "auto");
+        assert!(!saved.auto_compile);
+        assert!(!saved.format_on_save);
         assert_eq!(saved.build_extra_args, "-interaction=nonstopmode");
         assert_eq!(saved.custom_system_tex_path, "/Library/TeX/texbin/latexmk");
 
@@ -351,7 +353,8 @@ mod tests {
 
         assert_eq!(loaded.compiler_preference, "system");
         assert_eq!(loaded.engine_preference, "xelatex");
-        assert!(loaded.auto_compile);
+        assert!(!loaded.auto_compile);
+        assert!(!loaded.format_on_save);
         assert_eq!(loaded.build_recipe, "clean-build");
 
         fs::remove_dir_all(temp_dir).ok();

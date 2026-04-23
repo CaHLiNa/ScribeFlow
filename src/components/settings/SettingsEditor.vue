@@ -131,29 +131,6 @@
           </div>
         </div>
 
-        <div class="settings-row">
-          <div class="settings-row-copy">
-            <div class="settings-row-title">{{ t('Compile on save') }}</div>
-          </div>
-          <div class="settings-row-control compact">
-            <UiSwitch
-              :model-value="latexStore.autoCompile"
-              @update:model-value="latexStore.setAutoCompile(!latexStore.autoCompile)"
-            />
-          </div>
-        </div>
-
-        <div class="settings-row">
-          <div class="settings-row-copy">
-            <div class="settings-row-title">{{ t('Format on save') }}</div>
-          </div>
-          <div class="settings-row-control compact">
-            <UiSwitch
-              :model-value="latexStore.formatOnSave"
-              @update:model-value="latexStore.setFormatOnSave(!latexStore.formatOnSave)"
-            />
-          </div>
-        </div>
       </div>
     </section>
   </div>
@@ -162,7 +139,6 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useWorkspaceStore } from '../../stores/workspace'
-import { useLatexStore } from '../../stores/latex'
 import { useI18n } from '../../i18n'
 import {
   EDITOR_FONT_SIZE_PRESETS,
@@ -175,7 +151,6 @@ import UiSelect from '../shared/ui/UiSelect.vue'
 import UiSwitch from '../shared/ui/UiSwitch.vue'
 
 const workspace = useWorkspaceStore()
-const latexStore = useLatexStore()
 const { t } = useI18n()
 
 const systemFontFamilies = ref([...FALLBACK_SYSTEM_FONT_FAMILIES])
