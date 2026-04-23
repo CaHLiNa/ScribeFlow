@@ -119,49 +119,6 @@
             />
           </div>
         </div>
-
-        <div class="settings-row">
-          <div class="settings-row-copy">
-            <div class="settings-row-title">{{ t('Markdown font') }}</div>
-          </div>
-          <div class="settings-row-control">
-            <UiSelect
-              shell-class="font-select"
-              :model-value="workspace.markdownFont"
-              :options="fontSelectOptions(workspace.markdownFont)"
-              :placeholder="t('Select')"
-              @update:model-value="workspace.setMarkdownFont"
-            />
-          </div>
-        </div>
-
-        <div class="settings-row">
-          <div class="settings-row-copy">
-            <div class="settings-row-title">{{ t('LaTeX editor font') }}</div>
-          </div>
-          <div class="settings-row-control">
-            <UiSelect
-              shell-class="font-select"
-              :model-value="workspace.latexFont"
-              :options="fontSelectOptions(workspace.latexFont)"
-              :placeholder="t('Select')"
-              @update:model-value="workspace.setLatexFont"
-            />
-          </div>
-        </div>
-
-        <div class="settings-row">
-          <div class="settings-row-copy">
-            <div class="settings-row-title">{{ t('Editor text size') }}</div>
-          </div>
-          <div class="settings-row-control">
-            <UiSelect
-              :model-value="workspace.editorFontSize"
-              :options="editorFontSizeOptions"
-              @update:model-value="workspace.setEditorFontSize"
-            />
-          </div>
-        </div>
       </div>
     </section>
 
@@ -252,7 +209,6 @@ import { useWorkspaceStore } from '../../stores/workspace'
 import { useI18n } from '../../i18n'
 import { WORKSPACE_THEME_OPTIONS } from '../../shared/workspaceThemeOptions.js'
 import {
-  EDITOR_FONT_SIZE_PRESETS,
   FALLBACK_SYSTEM_FONT_FAMILIES,
   WORKSPACE_FONT_PRESETS,
   decodeWorkspaceSystemFontFamily,
@@ -265,11 +221,6 @@ const workspace = useWorkspaceStore()
 const { t } = useI18n()
 const themes = WORKSPACE_THEME_OPTIONS
 const systemFontFamilies = ref([...FALLBACK_SYSTEM_FONT_FAMILIES])
-
-const editorFontSizeOptions = EDITOR_FONT_SIZE_PRESETS.map((value) => ({
-  value,
-  label: `${value} px`,
-}))
 
 const languageOptions = computed(() => [
   { value: 'system', label: t('Follow system') },
