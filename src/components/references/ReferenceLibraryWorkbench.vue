@@ -116,7 +116,7 @@
         :key="reference.id"
         class="reference-workbench__row"
         :class="{ 'is-active': reference.id === selectedReference?.id }"
-        @click="referencesStore.selectReference(reference.id)"
+        @click="handleReferenceRowClick(reference)"
         @contextmenu.prevent="openReferenceContextMenu($event, reference)"
       >
         <div class="reference-workbench__cell reference-workbench__cell--title">
@@ -228,6 +228,12 @@ function toggleAuthorSort() {
 
 function toggleYearSort() {
   referencesStore.setSortKey(sortKey.value === 'year-desc' ? 'year-asc' : 'year-desc')
+}
+
+function handleReferenceRowClick(reference = {}) {
+  if (!reference?.id) return
+  referencesStore.selectReference(reference.id)
+  void workspace.openRightSidebar()
 }
 
 function referenceIsInCollection(reference = {}, collectionKey = '') {
