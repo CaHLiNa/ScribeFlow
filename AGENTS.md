@@ -103,27 +103,30 @@ ScribeFlow 是一个本地优先的桌面学术研究工作台。主产品是 Ta
 
 ## 4. Rust-first 硬约束
 
-本项目的长期方向是：**把可下沉的 backend / runtime authority 持续迁到 Rust。**
+本项目的长期方向是：**除渲染层与必要 UI 胶水外，尽可能把所有可实现的 backend / runtime authority 持续迁到 Rust。**
 
 默认判断规则：
 
-- 属于运行时能力、产品规则、文件系统、进程、解析、编译、同步、引用、文档状态机、workspace authority 的逻辑：优先 Rust
-- 属于 UI 渲染、交互反馈、视图层瞬时状态、轻量 orchestration 的逻辑：保留前端
+- 属于运行时能力、产品规则、文件系统、进程、解析、编译、同步、引用、文档状态机、workspace authority 的逻辑：必须优先 Rust
+- 属于 UI 渲染、样式、交互反馈、视图层瞬时状态的逻辑：保留前端
+- 只要一段逻辑可以稳定放进 Rust，就不要继续留在 Vue / JS
 
 硬约束：
 
-- 禁止新增用来承载 backend / runtime logic 的 JavaScript / TypeScript 文件
+- 禁止新增任何用来承载 backend / runtime logic 的 JavaScript / TypeScript 文件
+- 禁止为了迁移或扩展 backend 再新建 JS bridge、runtime、adapter、helper 文件
 - 禁止把新的底层权威继续塞进 `src/services/*`、`src/stores/*`、`src/composables/*`
 - 禁止制造长期双实现和双权威
 - 旧 JS / TS runtime 一旦被 Rust 覆盖，应尽快删除或降权
+- Vue 层默认只负责渲染、UI 交互和调用 Rust command，不再承载 backend authority
 
 明确禁止：
 
-- 为 Rust 迁移“临时”新建另一个 JS bridge / runtime 文件
-- 在前端新增未来还要迁走的 backend logic center
+- 为 Rust 迁移“临时”新建另一个 JS bridge / runtime / orchestration 文件
+- 在 Vue、store、service、composable 中新增未来还要迁走的 backend logic center
 - 让同一条规则同时由 Rust 和前端各维护一份真实来源
 
-如果这次没有把可迁移逻辑下沉到 Rust，必须有明确阻塞理由。
+如果这次没有把可迁移逻辑下沉到 Rust，必须有明确阻塞理由；默认不接受“先放 JS 以后再迁”。
 
 ## 5. 架构落点
 
@@ -145,13 +148,14 @@ ScribeFlow 是一个本地优先的桌面学术研究工作台。主产品是 Ta
 
 ## 6. 前端护栏
 
-前端不是附属品，但也不能替代 backend authority。
+前端不是附属品，但 Vue 不是 backend。
 
 - 保留现有桌面端视觉与交互方向，除非用户明确要求重设计
 - 如果必须改前端，优先做一致、稳定、可维护的结果
 - 兼顾 mobile、tablet、desktop
 - 关注 contrast、focus state、semantic structure、touch target、alt text
 - 动效应克制，并尊重 `prefers-reduced-motion`
+- Vue 层只负责渲染、UI 状态和用户意图发射；不要继续在这里沉积可迁移的运行时逻辑
 
 默认不为了“全 Rust”去迁移纯 UI 渲染层。
 
