@@ -28,7 +28,6 @@ import {
   buildRestoredCachedTreeState,
   buildTreeStatePatch,
   buildWorkspaceTreeCacheSnapshot,
-  replayCachedExpandedDirs,
 } from '../domains/files/fileTreeCacheRuntime'
 import { createFileContentRuntime } from '../domains/files/fileContentRuntime'
 import { createFileCreationRuntime } from '../domains/files/fileCreationRuntime'
@@ -39,15 +38,6 @@ import { basenamePath, dirnamePath } from '../utils/path'
 import { t } from '../i18n'
 import { useToastStore } from './toast'
 import { useUxStatusStore } from './uxStatus'
-
-function readVisibleTree(path, loadedDirs = []) {
-  const workspace = useWorkspaceStore()
-  return invoke('read_visible_tree', {
-    path,
-    loadedDirs,
-    includeHidden: workspace.fileTreeShowHidden !== false,
-  })
-}
 
 function readWorkspaceSnapshot(path, loadedDirs = []) {
   const workspace = useWorkspaceStore()
@@ -66,40 +56,39 @@ function isTauriDesktopRuntime() {
   return typeof window !== 'undefined' && !!window.__TAURI_INTERNALS__
 }
 
-async function mergeLoadedTreeEntries(nextEntries = [], previousEntries = []) {
-  return invoke('fs_tree_merge_loaded_children', {
+async function loadWorkspaceTreeState(currentTree = [], extraDirs = []) {
+  const workspace = useWorkspaceStore()
+  return invoke('fs_tree_load_workspace_state', {
     params: {
-      nextEntries,
-      previousEntries,
-    },
-  })
-}
-
-async function collectLoadedTreeDirs(entries = [], workspacePath = '', extraDirs = []) {
-  return invoke('fs_tree_collect_loaded_dirs', {
-    params: {
-      entries,
-      workspacePath,
+      workspacePath: workspace.path || '',
+      currentTree,
       extraDirs,
+      includeHidden: workspace.fileTreeShowHidden !== false,
     },
   })
 }
 
-async function patchTreeDirChildren(entries = [], targetPath = '', children = []) {
-  return invoke('fs_tree_patch_dir_children', {
+async function revealWorkspaceTreeState(targetPath = '', currentTree = []) {
+  const workspace = useWorkspaceStore()
+  return invoke('fs_tree_reveal_workspace_state', {
     params: {
-      entries,
+      workspacePath: workspace.path || '',
       targetPath,
-      children,
+      currentTree,
+      includeHidden: workspace.fileTreeShowHidden !== false,
     },
   })
 }
 
-async function listAncestorTreeDirs(workspacePath = '', targetPath = '') {
-  return invoke('fs_tree_ancestor_dirs', {
+async function restoreCachedExpandedTreeState(currentTree = [], cachedRootExpandedDirs = [], maxDirs = 6) {
+  const workspace = useWorkspaceStore()
+  return invoke('fs_tree_restore_cached_expanded_state', {
     params: {
-      workspacePath,
-      targetPath,
+      workspacePath: workspace.path || '',
+      currentTree,
+      cachedRootExpandedDirs,
+      maxDirs,
+      includeHidden: workspace.fileTreeShowHidden !== false,
     },
   })
 }
@@ -113,27 +102,6 @@ function findTreeEntry(entries = [], targetPath) {
     }
   }
   return null
-}
-
-async function patchTreeEntry(entries = [], targetPath, updater) {
-  const current = findTreeEntry(entries, targetPath)
-  if (!current) return entries
-  const nextEntry = updater(current)
-  const children = Array.isArray(nextEntry?.children) ? nextEntry.children : []
-  return patchTreeDirChildren(entries, targetPath, children)
-}
-
-async function mergePreservingLoadedChildren(nextEntries = [], previousEntries = []) {
-  return mergeLoadedTreeEntries(nextEntries, previousEntries)
-}
-
-function normalizeTreeSnapshot(entries = []) {
-  return entries.map((entry) => ({
-    path: entry.path,
-    is_dir: entry.is_dir,
-    modified: entry.modified ?? null,
-    children: Array.isArray(entry.children) ? normalizeTreeSnapshot(entry.children) : null,
-  }))
 }
 
 async function mapWithConcurrency(items, limit, mapper) {
@@ -284,10 +252,6 @@ export const useFilesStore = defineStore('files', {
       if (!patch) return false
       Object.assign(this, patch)
       return true
-    },
-
-    async _buildLoadedDirPaths(workspacePath, currentTree = [], extraDirs = []) {
-      return collectLoadedTreeDirs(currentTree, workspacePath, extraDirs)
     },
 
     _clearTreePollTimer() {
@@ -537,17 +501,25 @@ export const useFilesStore = defineStore('files', {
     },
 
     async restoreCachedExpandedDirs(workspacePath, options = {}) {
-      await replayCachedExpandedDirs({
-        workspacePath,
-        cachedSnapshot: this.treeCacheByWorkspace[workspacePath],
-        maxDirs: options.maxDirs,
-        getCurrentWorkspacePath: () => useWorkspaceStore().path,
-        ensureDirLoaded: (dirPath) => this.ensureDirLoaded(dirPath),
-        onDirExpanded: (dirPath) => {
-          this.expandedDirs.add(dirPath)
-        },
-        persistSnapshot: () => this._cacheWorkspaceSnapshot(workspacePath),
-      })
+      if (!workspacePath || useWorkspaceStore().path !== workspacePath) return
+      const cachedRootExpandedDirs = Array.isArray(this.treeCacheByWorkspace[workspacePath]?.rootExpandedDirs)
+        ? this.treeCacheByWorkspace[workspacePath].rootExpandedDirs
+        : []
+      if (cachedRootExpandedDirs.length === 0) {
+        this._cacheWorkspaceSnapshot(workspacePath)
+        return
+      }
+
+      const resolved = await restoreCachedExpandedTreeState(
+        this.tree ?? [],
+        cachedRootExpandedDirs,
+        options.maxDirs ?? 6,
+      )
+      this._applyWorkspaceSnapshot(resolved, workspacePath, { preserveFlatFiles: true })
+      for (const dirPath of resolved?.expandedDirs || []) {
+        this.expandedDirs.add(dirPath)
+      }
+      this._cacheWorkspaceSnapshot(workspacePath)
     },
 
     async indexWorkspaceFiles(options = {}) {
@@ -621,11 +593,10 @@ export const useFilesStore = defineStore('files', {
       } = options
 
       try {
-        const snapshot = await readWorkspaceSnapshot(workspacePath, [])
-        const nextTree = await mergePreservingLoadedChildren(snapshot?.tree || [], this.tree ?? [])
-        this._applyWorkspaceSnapshot({ ...(snapshot || {}), tree: nextTree }, workspacePath)
+        const snapshot = await loadWorkspaceTreeState(this.tree ?? [], [])
+        this._applyWorkspaceSnapshot(snapshot, workspacePath)
         this.lastLoadError = null
-        return nextTree
+        return snapshot?.tree || []
       } catch (error) {
         this.lastLoadError = error
         if (!suppressErrors) throw error
@@ -651,8 +622,7 @@ export const useFilesStore = defineStore('files', {
       const loadPromise = (async () => {
         const workspacePath = useWorkspaceStore().path
         if (workspacePath) {
-          const loadedDirs = await this._buildLoadedDirPaths(workspacePath, this.tree ?? [], [path])
-          const snapshot = await readWorkspaceSnapshot(workspacePath, loadedDirs)
+          const snapshot = await loadWorkspaceTreeState(this.tree ?? [], [path])
           this._applyWorkspaceSnapshot(snapshot, workspacePath, { preserveFlatFiles: true })
           return findTreeEntry(snapshot?.tree || [], path)?.children || []
         }
@@ -661,11 +631,11 @@ export const useFilesStore = defineStore('files', {
           path,
           includeHidden: useWorkspaceStore().fileTreeShowHidden !== false,
         })
-        const nextTree = await patchTreeEntry(this.tree ?? [], path, (current) => ({
-          ...current,
-          children,
-        }))
-        this._setTree(nextTree, workspacePath, { preserveFlatFiles: true })
+        const entry = findTreeEntry(this.tree ?? [], path)
+        if (entry) {
+          entry.children = children
+        }
+        this._setTree(this.tree ?? [], workspacePath, { preserveFlatFiles: true })
         return children
       })()
 
@@ -697,22 +667,12 @@ export const useFilesStore = defineStore('files', {
         this._beginReconcile(reason, { announce })
 
         try {
-          const currentTree = this.tree ?? []
-          const loadedDirectories = (await collectLoadedTreeDirs(currentTree, workspacePath))
-            .filter((path) => path !== workspacePath)
-
-          const snapshot = await readWorkspaceSnapshot(workspacePath, loadedDirectories)
+          const snapshot = await loadWorkspaceTreeState(this.tree ?? [], [])
           const nextTree = snapshot?.tree ?? []
           this._applyWorkspaceSnapshot(snapshot, workspacePath, { preserveFlatFiles: true })
 
           if (runGeneration !== (this._treeRefreshGeneration || 0)) {
             return this.tree ?? nextTree
-          }
-
-          const previousSnapshot = JSON.stringify(normalizeTreeSnapshot(currentTree))
-          const nextSnapshot = JSON.stringify(normalizeTreeSnapshot(nextTree))
-          if (previousSnapshot !== nextSnapshot) {
-            this._applyWorkspaceSnapshot(snapshot, workspacePath, { preserveFlatFiles: true })
           }
 
           this.lastLoadError = null
@@ -745,15 +705,11 @@ export const useFilesStore = defineStore('files', {
 
     async revealPath(path) {
       const workspacePath = useWorkspaceStore().path
-      const ancestorDirPaths = await listAncestorTreeDirs(workspacePath, path)
-      if (!workspacePath || ancestorDirPaths.length === 0) return
+      if (!workspacePath || !path) return
 
-      const nextTree = await readVisibleTree(
-        workspacePath,
-        await this._buildLoadedDirPaths(workspacePath, this.tree ?? [], ancestorDirPaths),
-      )
-      this._setTree(nextTree, workspacePath, { preserveFlatFiles: true })
-      for (const dirPath of ancestorDirPaths) {
+      const resolved = await revealWorkspaceTreeState(path, this.tree ?? [])
+      this._applyWorkspaceSnapshot(resolved, workspacePath, { preserveFlatFiles: true })
+      for (const dirPath of resolved?.expandedDirs || []) {
         this.expandedDirs.add(dirPath)
       }
       this._cacheWorkspaceSnapshot()
@@ -789,13 +745,9 @@ export const useFilesStore = defineStore('files', {
       const workspacePath = useWorkspaceStore().path
       if (!workspacePath) return
 
-      const extraDirs =
-        expandPath && expandPath !== workspacePath
-          ? [expandPath]
-          : []
-      const snapshot = await readWorkspaceSnapshot(
-        workspacePath,
-        await this._buildLoadedDirPaths(workspacePath, this.tree ?? [], extraDirs),
+      const snapshot = await loadWorkspaceTreeState(
+        this.tree ?? [],
+        expandPath && expandPath !== workspacePath ? [expandPath] : [],
       )
       this._applyWorkspaceSnapshot(snapshot, workspacePath, { preserveFlatFiles: true })
 
