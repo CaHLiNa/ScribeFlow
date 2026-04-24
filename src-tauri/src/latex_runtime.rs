@@ -5,7 +5,8 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, State};
 
-use crate::latex::{CompileResult, LatexError};
+use crate::latex::{CompileResult, LatexError, LatexState};
+use crate::latex_compile::compile_latex_with_preference;
 use crate::latex_tools::find_chktex;
 
 const LATEX_RUNTIME_COMPILE_REQUESTED_EVENT: &str = "latex-runtime-compile-requested";
@@ -109,6 +110,35 @@ pub struct LatexCompileFinishParams {
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct LatexCompileExecuteParams {
+    #[serde(default)]
+    pub tex_path: String,
+    #[serde(default)]
+    pub target_path: String,
+    #[serde(default)]
+    pub project_root_path: String,
+    #[serde(default)]
+    pub project_preview_path: String,
+    #[serde(default)]
+    pub reason: String,
+    #[serde(default)]
+    pub build_recipe: String,
+    #[serde(default)]
+    pub build_extra_args: String,
+    #[serde(default)]
+    pub now: u64,
+    #[serde(default)]
+    pub compiler_preference: Option<String>,
+    #[serde(default)]
+    pub engine_preference: Option<String>,
+    #[serde(default)]
+    pub custom_system_tex_path: Option<String>,
+    #[serde(default)]
+    pub custom_tectonic_path: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct LatexRuntimeCancelParams {
     #[serde(default)]
     pub target_paths: Vec<String>,
@@ -148,6 +178,15 @@ struct LatexCompileFinishResult {
     source_state: Value,
     target_state: Value,
     queue_state: Option<Value>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LatexCompileExecuteResult {
+    source_state: Value,
+    target_state: Value,
+    queue_state: Option<Value>,
+    result: CompileResult,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -684,6 +723,118 @@ pub async fn latex_runtime_compile_fail(
         },
     )
     .await
+}
+
+#[tauri::command]
+pub async fn latex_runtime_compile_execute(
+    app: AppHandle,
+    runtime_state: State<'_, LatexRuntimeState>,
+    latex_state: State<'_, LatexState>,
+    params: LatexCompileExecuteParams,
+) -> Result<Value, String> {
+    {
+        let mut compiling = latex_state
+            .compiling
+            .lock()
+            .map_err(|_| "Failed to acquire latex compiling state".to_string())?;
+        if *compiling.get(&params.tex_path).unwrap_or(&false) {
+            return Err("Compilation already in progress for this file.".to_string());
+        }
+        compiling.insert(params.tex_path.clone(), true);
+    }
+
+    let compile_start = latex_runtime_compile_start(
+        runtime_state.clone(),
+        LatexCompileStartParams {
+            tex_path: params.tex_path.clone(),
+            target_path: params.target_path.clone(),
+            reason: params.reason.clone(),
+            build_recipe: params.build_recipe.clone(),
+            build_extra_args: params.build_extra_args.clone(),
+            now: params.now,
+            queue_state: None,
+        },
+    )
+    .await?;
+
+    let should_run = compile_start
+        .get("shouldRun")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    if !should_run {
+        {
+            let mut compiling = latex_state
+                .compiling
+                .lock()
+                .map_err(|_| "Failed to acquire latex compiling state".to_string())?;
+            compiling.remove(&params.tex_path);
+        }
+        return Ok(serde_json::to_value(LatexCompileExecuteResult {
+            source_state: compile_start
+                .get("sourceState")
+                .cloned()
+                .unwrap_or(Value::Null),
+            target_state: compile_start
+                .get("targetState")
+                .cloned()
+                .unwrap_or(Value::Null),
+            queue_state: compile_start.get("queueState").cloned(),
+            result: build_error_result("Compilation skipped because a compile is already running."),
+        })
+        .unwrap_or(Value::Null));
+    }
+
+    let compile_result = compile_latex_with_preference(
+        &app,
+        &params.target_path,
+        params.compiler_preference,
+        params.engine_preference,
+        Some(params.build_recipe.clone()),
+        Some(params.build_extra_args.clone()),
+        params.custom_system_tex_path,
+        params.custom_tectonic_path,
+    )
+    .await;
+
+    {
+        let mut compiling = latex_state
+            .compiling
+            .lock()
+            .map_err(|_| "Failed to acquire latex compiling state".to_string())?;
+        compiling.remove(&params.tex_path);
+    }
+
+    let compile_result = match compile_result {
+        Ok(result) => result,
+        Err(error) => build_error_result(&error),
+    };
+
+    let finish = latex_runtime_compile_finish(
+        app,
+        runtime_state,
+        LatexCompileFinishParams {
+            tex_path: params.tex_path,
+            target_path: params.target_path,
+            project_root_path: params.project_root_path,
+            project_preview_path: params.project_preview_path,
+            build_recipe: params.build_recipe,
+            build_extra_args: params.build_extra_args,
+            now: current_time_ms(),
+            queue_state: None,
+            result: compile_result.clone(),
+        },
+    )
+    .await?;
+
+    Ok(
+        serde_json::to_value(LatexCompileExecuteResult {
+            source_state: finish.get("sourceState").cloned().unwrap_or(Value::Null),
+            target_state: finish.get("targetState").cloned().unwrap_or(Value::Null),
+            queue_state: finish.get("queueState").cloned(),
+            result: compile_result,
+        })
+        .unwrap_or(Value::Null),
+    )
 }
 
 #[cfg(test)]

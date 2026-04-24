@@ -509,7 +509,6 @@ export const useLatexStore = defineStore('latex', {
       try {
         const { filesStore, project, compileTargetPath } = await this.resolveCompileRequest(texPath, options)
         const targetKey = compileTargetPath || texPath
-        const reason = options.reason || 'manual'
         const sourceContent =
           typeof options.sourceContent === 'string'
             ? options.sourceContent
@@ -517,61 +516,33 @@ export const useLatexStore = defineStore('latex', {
         const sourceFingerprint =
           typeof sourceContent === 'string' ? stableContentFingerprint(sourceContent) : ''
         const buildOptions = this.currentBuildOptions()
-        const compileStart = await invoke('latex_runtime_compile_start', {
-          params: {
-            texPath,
-            targetPath: targetKey,
-            reason,
-            buildRecipe: buildOptions.buildRecipe,
-            buildExtraArgs: buildOptions.buildExtraArgs,
-            now: Date.now(),
-          },
-        })
-
-        if (compileStart?.queueState) {
-          this.setBuildQueueState(targetKey, compileStart.queueState)
-        }
-        this.applyCompileStatePatch(texPath, compileStart?.sourceState)
-        if (targetKey !== texPath) {
-          this.applyCompileStatePatch(targetKey, compileStart?.targetState)
-        }
-        if (compileStart?.shouldRun !== true) {
-          return
-        }
-
-        const result = await invoke('compile_latex', {
-          texPath: compileTargetPath,
-          compilerPreference: this.compilerPreference,
-          enginePreference: this.enginePreference,
-          buildRecipe: buildOptions.buildRecipe,
-          buildExtraArgs: buildOptions.buildExtraArgs || null,
-          customSystemTexPath: this.customSystemTexPath || null,
-          customTectonicPath: null,
-        })
-
-        const compileFinish = await invoke('latex_runtime_compile_finish', {
+        const compileExecution = await invoke('latex_runtime_compile_execute', {
           params: {
             texPath,
             targetPath: targetKey,
             projectRootPath: project?.rootPath || compileTargetPath || targetKey,
-            projectPreviewPath: project?.previewPath || result.pdf_path || '',
+            projectPreviewPath: project?.previewPath || '',
+            reason: options.reason || 'manual',
             buildRecipe: buildOptions.buildRecipe,
             buildExtraArgs: buildOptions.buildExtraArgs,
             now: Date.now(),
-            result,
+            compilerPreference: this.compilerPreference || null,
+            enginePreference: this.enginePreference || null,
+            customSystemTexPath: this.customSystemTexPath || null,
+            customTectonicPath: null,
           },
         })
         if (sourceFingerprint) {
-          if (compileFinish?.sourceState && typeof compileFinish.sourceState === 'object') {
-            compileFinish.sourceState.sourceFingerprint = sourceFingerprint
+          if (compileExecution?.sourceState && typeof compileExecution.sourceState === 'object') {
+            compileExecution.sourceState.sourceFingerprint = sourceFingerprint
           }
-          if (compileFinish?.targetState && typeof compileFinish.targetState === 'object') {
-            compileFinish.targetState.sourceFingerprint = sourceFingerprint
+          if (compileExecution?.targetState && typeof compileExecution.targetState === 'object') {
+            compileExecution.targetState.sourceFingerprint = sourceFingerprint
           }
         }
-        this.applyCompileStatePatch(texPath, compileFinish?.sourceState)
+        this.applyCompileStatePatch(texPath, compileExecution?.sourceState)
         if (targetKey !== texPath) {
-          this.applyCompileStatePatch(targetKey, compileFinish?.targetState)
+          this.applyCompileStatePatch(targetKey, compileExecution?.targetState)
         }
 
         // Dispatch event for PDF viewer to refresh
@@ -579,56 +550,34 @@ export const useLatexStore = defineStore('latex', {
           detail: {
             texPath,
             compileTargetPath,
-            pdfPath: compileFinish?.sourceState?.pdfPath || result.pdf_path || '',
-            previewPath: compileFinish?.sourceState?.previewPath || result.pdf_path || '',
-            synctexPath: compileFinish?.sourceState?.synctexPath || result.synctex_path || '',
-            lastCompiled: Number(compileFinish?.sourceState?.lastCompiled || Date.now()),
-            sourceFingerprint: String(compileFinish?.sourceState?.sourceFingerprint || sourceFingerprint || ''),
-            ...result,
+            pdfPath: compileExecution?.sourceState?.pdfPath || compileExecution?.result?.pdf_path || '',
+            previewPath: compileExecution?.sourceState?.previewPath || compileExecution?.result?.pdf_path || '',
+            synctexPath: compileExecution?.sourceState?.synctexPath || compileExecution?.result?.synctex_path || '',
+            lastCompiled: Number(compileExecution?.sourceState?.lastCompiled || Date.now()),
+            sourceFingerprint: String(compileExecution?.sourceState?.sourceFingerprint || sourceFingerprint || ''),
+            ...compileExecution?.result,
           },
         }))
-        pushLatexLogToTerminal(texPath, result)
+        pushLatexLogToTerminal(texPath, compileExecution?.result || {
+          success: false,
+          duration_ms: 0,
+          errors: [{ line: null, message: 'LaTeX runtime returned no result.', severity: 'error' }],
+          warnings: [],
+          log: 'LaTeX runtime returned no result.',
+        })
 
-        if (compileFinish?.queueState) {
-          this.setBuildQueueState(targetKey, compileFinish.queueState)
+        if (compileExecution?.queueState) {
+          this.setBuildQueueState(targetKey, compileExecution.queueState)
         } else {
           this.clearBuildQueueState(targetKey)
         }
       } catch (err) {
         const targetKey = this.compileState[texPath]?.compileTargetPath || options.targetPath || resolveCachedLatexRootPath(texPath) || texPath
-        const buildOptions = this.currentBuildOptions()
-        const compileFail = await invoke('latex_runtime_compile_fail', {
-          params: {
-            texPath,
-            targetPath: targetKey,
-            projectRootPath: this.compileState[targetKey]?.projectRootPath || targetKey,
-            projectPreviewPath: this.compileState[targetKey]?.previewPath || '',
-            buildRecipe: buildOptions.buildRecipe,
-            buildExtraArgs: buildOptions.buildExtraArgs,
-            now: Date.now(),
-            result: {
-              success: false,
-              pdf_path: null,
-              synctex_path: null,
-              errors: [{ line: null, message: err, severity: 'error' }],
-              warnings: [],
-              log: String(err || ''),
-              duration_ms: 0,
-              compiler_backend: null,
-              command_preview: null,
-              requested_program: null,
-              requested_program_applied: false,
-            },
-          },
-        }).catch(() => null)
-        this.applyCompileStatePatch(texPath, compileFail?.sourceState || {
+        this.applyCompileStatePatch(texPath, {
           status: 'error',
           errors: [{ line: null, message: err, severity: 'error' }],
           warnings: [],
         })
-        if (targetKey !== texPath) {
-          this.applyCompileStatePatch(targetKey, compileFail?.targetState)
-        }
         this.clearBuildQueueState(targetKey)
         pushLatexLogToTerminal(texPath, {
           success: false,
