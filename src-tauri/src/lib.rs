@@ -528,6 +528,7 @@ pub fn run() {
             latex_project_graph::latex_affected_root_targets_resolve,
             latex_runtime::latex_runtime_compile_start,
             latex_runtime::latex_runtime_cancel,
+            latex_runtime::latex_runtime_lint_resolve,
             latex_runtime::latex_runtime_schedule,
             latex_runtime::latex_runtime_compile_finish,
             latex_runtime::latex_runtime_compile_fail,

@@ -6,6 +6,7 @@ use std::time::Duration;
 use tauri::{AppHandle, Emitter, State};
 
 use crate::latex::{CompileResult, LatexError};
+use crate::latex_tools::find_chktex;
 
 const LATEX_RUNTIME_COMPILE_REQUESTED_EVENT: &str = "latex-runtime-compile-requested";
 const LATEX_AUTOCOMPILE_DEBOUNCE_MS: u64 = 1_200;
@@ -113,6 +114,19 @@ pub struct LatexRuntimeCancelParams {
     pub target_paths: Vec<String>,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LatexLintResolveParams {
+    #[serde(default)]
+    pub tex_path: String,
+    #[serde(default)]
+    pub content: Option<String>,
+    #[serde(default)]
+    pub custom_system_tex_path: Option<String>,
+    #[serde(default)]
+    pub workspace_path: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct LatexCompileStartResult {
@@ -144,6 +158,15 @@ struct LatexRuntimeCompileRequestPayload {
     reason: String,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LatexLintStateResult {
+    status: String,
+    diagnostics: Vec<LatexError>,
+    error: Option<String>,
+    updated_at: u64,
+}
+
 fn runtime_key(target_path: &str, tex_path: &str) -> String {
     if !target_path.trim().is_empty() {
         target_path.trim().to_string()
@@ -165,6 +188,13 @@ fn queue_state_to_value(state: &LatexQueueStateInput) -> Value {
         "scheduledAt": state.scheduled_at,
         "startedAt": state.started_at,
     })
+}
+
+fn current_time_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|value| value.as_millis() as u64)
+        .unwrap_or(0)
 }
 
 fn normalize_queue_state(
@@ -303,6 +333,20 @@ fn build_error_result(message: &str) -> CompileResult {
     }
 }
 
+fn build_lint_state_result(
+    status: &str,
+    diagnostics: Vec<LatexError>,
+    error: Option<String>,
+) -> Value {
+    serde_json::to_value(LatexLintStateResult {
+        status: status.to_string(),
+        diagnostics,
+        error,
+        updated_at: current_time_ms(),
+    })
+    .unwrap_or(Value::Null)
+}
+
 fn schedule_compile_request(
     app: AppHandle,
     queue: Arc<Mutex<HashMap<String, LatexRuntimeQueueEntry>>>,
@@ -433,6 +477,29 @@ pub async fn latex_runtime_cancel(
     }
 
     Ok(())
+}
+
+#[tauri::command]
+pub async fn latex_runtime_lint_resolve(params: LatexLintResolveParams) -> Result<Value, String> {
+    if params.tex_path.trim().is_empty() {
+        return Ok(build_lint_state_result("unavailable", Vec::new(), None));
+    }
+
+    if find_chktex(params.custom_system_tex_path.as_deref()).is_none() {
+        return Ok(build_lint_state_result("unavailable", Vec::new(), None));
+    }
+
+    match crate::latex::run_chktex(
+        params.tex_path,
+        params.content,
+        params.custom_system_tex_path,
+        params.workspace_path,
+    )
+    .await
+    {
+        Ok(diagnostics) => Ok(build_lint_state_result("ready", diagnostics, None)),
+        Err(error) => Ok(build_lint_state_result("error", Vec::new(), Some(error))),
+    }
 }
 
 #[tauri::command]

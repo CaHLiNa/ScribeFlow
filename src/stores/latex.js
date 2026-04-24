@@ -7,7 +7,6 @@ import { t } from '../i18n'
 import { resolveCachedLatexRootPath } from '../services/latex/root'
 import {
   stableContentFingerprint,
-  resolveLatexCompileTargetsForChange,
 } from '../services/latex/projectGraph'
 import { isBrowserPreviewRuntime } from '../app/browserPreview/routes.js'
 import { basenamePath } from '../utils/path'
@@ -217,6 +216,58 @@ async function resolveLatexCompileRequestFromRust(sourcePath, options = {}) {
     previewPath: String(resolved?.previewPath || `${rootPath.replace(/\.(tex|latex)$/i, '')}.pdf`),
     contentOverrides,
   }
+}
+
+async function resolveLatexCompileTargetsFromRust(changedPath, options = {}) {
+  const filesStore = useFilesStore()
+  const normalizedChangedPath = String(changedPath || '').trim()
+  if (!normalizedChangedPath) return []
+
+  const contentOverrides = options.sourceContent === undefined
+    ? (options.contentOverrides || {})
+    : {
+        ...(options.contentOverrides || {}),
+        [normalizedChangedPath]: options.sourceContent,
+      }
+
+  const flatFiles = await filesStore.ensureFlatFilesReady().catch(() => [])
+  const targets = await invoke('latex_compile_targets_resolve', {
+    params: {
+      changedPath: normalizedChangedPath,
+      flatFiles: Array.isArray(flatFiles)
+        ? flatFiles.map((entry) => String(entry?.path || entry || '')).filter(Boolean)
+        : [],
+      contentOverrides,
+    },
+  }).catch(() => [])
+
+  return Array.isArray(targets)
+    ? targets
+        .filter((entry) => entry && typeof entry === 'object')
+        .map((entry) => ({
+          sourcePath: String(entry.sourcePath || normalizedChangedPath),
+          rootPath: String(entry.rootPath || entry.sourcePath || normalizedChangedPath),
+          previewPath: String(
+            entry.previewPath
+            || `${String(entry.rootPath || entry.sourcePath || normalizedChangedPath).replace(/\.(tex|latex)$/i, '')}.pdf`,
+          ),
+        }))
+        .filter((entry) => entry.rootPath)
+    : []
+}
+
+async function resolveLatexLintStateFromRust(texPath, options = {}) {
+  const filesStore = useFilesStore()
+  const workspaceStore = useWorkspaceStore()
+  const sourceContent = options.sourceContent ?? filesStore.fileContents?.[texPath] ?? null
+  return invoke('latex_runtime_lint_resolve', {
+    params: {
+      texPath,
+      content: sourceContent,
+      customSystemTexPath: String(useLatexStore().customSystemTexPath || '').trim() || null,
+      workspacePath: workspaceStore.path || null,
+    },
+  }).catch(() => null)
 }
 
 export const useLatexStore = defineStore('latex', {
@@ -648,20 +699,7 @@ export const useLatexStore = defineStore('latex', {
 
     async scheduleAutoBuildForPath(filePath, options = {}) {
       if (!filePath) return []
-      const filesStore = useFilesStore()
-      const workspaceStore = useWorkspaceStore()
-      const contentOverrides = options.sourceContent === undefined
-        ? options.contentOverrides
-        : {
-            ...(options.contentOverrides || {}),
-            [filePath]: options.sourceContent,
-          }
-
-      const targets = await resolveLatexCompileTargetsForChange(filePath, {
-        filesStore,
-        workspacePath: workspaceStore.path,
-        contentOverrides,
-      }).catch(() => [])
+      const targets = await resolveLatexCompileTargetsFromRust(filePath, options).catch(() => [])
       if (!Array.isArray(targets) || targets.length === 0) {
         return []
       }
@@ -786,40 +824,12 @@ export const useLatexStore = defineStore('latex', {
 
     async refreshLint(texPath, options = {}) {
       if (!texPath) return []
-      if (this.lastToolCheckAt && !this.chktexInstalled) {
-        this.lintState[texPath] = {
-          status: 'unavailable',
-          diagnostics: [],
-          error: null,
-          updatedAt: Date.now(),
-        }
-        return []
-      }
-
-      const sourceContent = options.sourceContent ?? useFilesStore().fileContents?.[texPath] ?? null
-
-      try {
-        const workspaceStore = useWorkspaceStore()
-        const diagnostics = await invoke('run_chktex', {
-          texPath,
-          content: sourceContent,
-          customSystemTexPath: this.customSystemTexPath || null,
-          workspacePath: workspaceStore.path || null,
-        })
-        this.lintState[texPath] = {
-          status: 'ready',
-          diagnostics: Array.isArray(diagnostics) ? diagnostics : [],
-          error: null,
-          updatedAt: Date.now(),
-        }
-      } catch (error) {
-        console.warn('[latex] chktex failed:', error)
-        this.lintState[texPath] = {
-          status: 'error',
-          diagnostics: [],
-          error: error?.message || String(error || ''),
-          updatedAt: Date.now(),
-        }
+      const nextState = await resolveLatexLintStateFromRust(texPath, options)
+      this.lintState[texPath] = {
+        status: String(nextState?.status || 'unavailable'),
+        diagnostics: Array.isArray(nextState?.diagnostics) ? nextState.diagnostics : [],
+        error: nextState?.error || null,
+        updatedAt: Number(nextState?.updatedAt || Date.now()),
       }
 
       return this.lintState[texPath]?.diagnostics || []
