@@ -1,10 +1,13 @@
 use notify::{recommended_watcher, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::Duration;
 use tauri::{AppHandle, Emitter, State};
 
-pub const WORKSPACE_TREE_CHANGED_EVENT: &str = "workspace-tree-changed";
+pub const WORKSPACE_TREE_REFRESH_REQUESTED_EVENT: &str = "workspace-tree-refresh-requested";
+const WORKSPACE_TREE_REFRESH_DEBOUNCE_MS: u64 = 180;
 
 #[derive(Default)]
 pub struct WorkspaceTreeWatchState {
@@ -13,15 +16,46 @@ pub struct WorkspaceTreeWatchState {
 
 struct WorkspaceTreeWatchSession {
     workspace_path: String,
+    refresh_state: Arc<Mutex<WorkspaceTreeRefreshState>>,
     _watcher: RecommendedWatcher,
 }
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct WorkspaceTreeChangedPayload {
+struct WorkspaceTreeRefreshRequestedPayload {
     workspace_path: String,
     changed_paths: Vec<String>,
-    kind: String,
+    reason: String,
+}
+
+#[derive(Debug, Default)]
+struct WorkspaceTreeRefreshState {
+    generation: u64,
+    changed_paths: Vec<String>,
+}
+
+impl WorkspaceTreeRefreshState {
+    fn queue_paths(&mut self, changed_paths: Vec<String>) -> u64 {
+        self.generation = self.generation.saturating_add(1);
+        for path in changed_paths {
+            if !self.changed_paths.contains(&path) {
+                self.changed_paths.push(path);
+            }
+        }
+        self.generation
+    }
+
+    fn take_if_generation_matches(&mut self, generation: u64) -> Vec<String> {
+        if self.generation != generation {
+            return Vec::new();
+        }
+        std::mem::take(&mut self.changed_paths)
+    }
+
+    fn reset(&mut self) {
+        self.generation = self.generation.saturating_add(1);
+        self.changed_paths.clear();
+    }
 }
 
 fn normalize_workspace_path(path: &str) -> String {
@@ -70,6 +104,8 @@ fn create_workspace_tree_watcher(
     let emitted_workspace_path = workspace_path.clone();
     let watcher_root = workspace_root.clone();
     let watcher_app = app.clone();
+    let refresh_state = Arc::new(Mutex::new(WorkspaceTreeRefreshState::default()));
+    let refresh_state_for_watcher = Arc::clone(&refresh_state);
 
     let mut watcher = recommended_watcher(move |result: notify::Result<Event>| match result {
         Ok(event) => {
@@ -82,13 +118,32 @@ fn create_workspace_tree_watcher(
                 return;
             }
 
-            let payload = WorkspaceTreeChangedPayload {
-                workspace_path: emitted_workspace_path.clone(),
-                changed_paths,
-                kind: format!("{:?}", event.kind),
+            let generation = match refresh_state_for_watcher.lock() {
+                Ok(mut state) => state.queue_paths(changed_paths),
+                Err(_) => return,
             };
 
-            let _ = watcher_app.emit(WORKSPACE_TREE_CHANGED_EVENT, payload);
+            let refresh_state_for_emit = Arc::clone(&refresh_state_for_watcher);
+            let watcher_app = watcher_app.clone();
+            let emitted_workspace_path = emitted_workspace_path.clone();
+            thread::spawn(move || {
+                thread::sleep(Duration::from_millis(WORKSPACE_TREE_REFRESH_DEBOUNCE_MS));
+                let changed_paths = match refresh_state_for_emit.lock() {
+                    Ok(mut state) => state.take_if_generation_matches(generation),
+                    Err(_) => Vec::new(),
+                };
+                if changed_paths.is_empty() {
+                    return;
+                }
+
+                let payload = WorkspaceTreeRefreshRequestedPayload {
+                    workspace_path: emitted_workspace_path,
+                    changed_paths,
+                    reason: "fs-watch".to_string(),
+                };
+
+                let _ = watcher_app.emit(WORKSPACE_TREE_REFRESH_REQUESTED_EVENT, payload);
+            });
         }
         Err(error) => {
             eprintln!(
@@ -105,6 +160,7 @@ fn create_workspace_tree_watcher(
 
     Ok(WorkspaceTreeWatchSession {
         workspace_path,
+        refresh_state,
         _watcher: watcher,
     })
 }
@@ -146,6 +202,11 @@ pub fn workspace_tree_watch_stop(state: State<'_, WorkspaceTreeWatchState>) -> R
         .session
         .lock()
         .map_err(|_| "Failed to acquire workspace watch state".to_string())?;
+    if let Some(session) = guard.as_ref() {
+        if let Ok(mut refresh_state) = session.refresh_state.lock() {
+            refresh_state.reset();
+        }
+    }
     *guard = None;
     Ok(())
 }

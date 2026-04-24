@@ -49,8 +49,7 @@ function readWorkspaceSnapshot(path, loadedDirs = []) {
 const ACTIVE_TREE_POLL_INTERVAL_MS = 15000
 const IDLE_TREE_POLL_INTERVAL_MS = 60000
 const TREE_ACTIVITY_WINDOW_MS = 15000
-const NATIVE_TREE_REFRESH_DEBOUNCE_MS = 180
-const WORKSPACE_TREE_CHANGED_EVENT = 'workspace-tree-changed'
+const WORKSPACE_TREE_REFRESH_REQUESTED_EVENT = 'workspace-tree-refresh-requested'
 
 function isTauriDesktopRuntime() {
   return typeof window !== 'undefined' && !!window.__TAURI_INTERNALS__
@@ -260,14 +259,7 @@ export const useFilesStore = defineStore('files', {
       this._treePollTimer = null
     },
 
-    _clearNativeRefreshTimer() {
-      if (!this._nativeRefreshTimer) return
-      clearTimeout(this._nativeRefreshTimer)
-      this._nativeRefreshTimer = null
-    },
-
     _teardownNativeWatcher() {
-      this._clearNativeRefreshTimer()
       if (typeof this._nativeWatcherUnlisten === 'function') {
         this._nativeWatcherUnlisten()
       }
@@ -332,27 +324,6 @@ export const useFilesStore = defineStore('files', {
       document.addEventListener('visibilitychange', visibilityHandler)
     },
 
-    _scheduleNativeRefresh(reason = 'fs-watch') {
-      this._clearNativeRefreshTimer()
-      this._nativeRefreshTimer = window.setTimeout(async () => {
-        this._nativeRefreshTimer = null
-
-        const workspacePath = useWorkspaceStore().path
-        if (!workspacePath) return
-        if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
-
-        this._lastTreeActivityAt = Date.now()
-
-        try {
-          await this.refreshVisibleTree({ suppressErrors: true, reason })
-        } catch {
-          // Workspace may have changed while the refresh was queued.
-        } finally {
-          this._scheduleNextTreePoll()
-        }
-      }, NATIVE_TREE_REFRESH_DEBOUNCE_MS)
-    },
-
     async _setupNativeWatcher() {
       this._teardownNativeWatcher()
 
@@ -362,12 +333,21 @@ export const useFilesStore = defineStore('files', {
       try {
         await invoke('workspace_tree_watch_start', { path: workspacePath })
         this._nativeWatcherActive = true
-        this._nativeWatcherUnlisten = await listen(WORKSPACE_TREE_CHANGED_EVENT, (event) => {
+        this._nativeWatcherUnlisten = await listen(WORKSPACE_TREE_REFRESH_REQUESTED_EVENT, (event) => {
           const payload = event.payload || {}
           const activeWorkspacePath = useWorkspaceStore().path
           if (!activeWorkspacePath) return
           if (String(payload.workspacePath || '') !== String(activeWorkspacePath || '')) return
-          this._scheduleNativeRefresh('fs-watch')
+          if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
+          this._lastTreeActivityAt = Date.now()
+          void this.refreshVisibleTree({
+            suppressErrors: true,
+            reason: String(payload.reason || 'fs-watch'),
+          }).catch(() => {
+            // Workspace may have changed while the refresh event was in flight.
+          }).finally(() => {
+            this._scheduleNextTreePoll()
+          })
         }).catch(() => null)
       } catch (error) {
         this._nativeWatcherUnlisten = null
