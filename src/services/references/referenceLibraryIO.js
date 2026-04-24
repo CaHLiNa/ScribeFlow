@@ -13,7 +13,6 @@ import {
 } from './referenceLibraryFixtures.js'
 import {
   resolveGlobalReferencesDir,
-  migrateReferenceAssets,
 } from './referenceAssets.js'
 
 export const REFERENCE_LIBRARY_FILENAME = 'library.json'
@@ -126,7 +125,7 @@ export async function readOrCreateReferenceLibrarySnapshot(globalConfigDir = '',
     return normalizeReferenceLibrarySnapshot(readBrowserPreviewReferenceSnapshot())
   }
 
-  const backendSnapshot = await invoke('references_library_read_or_create', {
+  const backendSnapshot = await invoke('references_library_load_workspace', {
     params: {
       globalConfigDir,
       legacyWorkspaceDataDir,
@@ -134,20 +133,7 @@ export async function readOrCreateReferenceLibrarySnapshot(globalConfigDir = '',
     },
   })
 
-  const normalizedSnapshot = normalizeReferenceLibrarySnapshot(backendSnapshot)
-  const migratedReferences = await migrateReferenceAssets(globalConfigDir, normalizedSnapshot.references)
-  if (JSON.stringify(migratedReferences) === JSON.stringify(normalizedSnapshot.references)) {
-    return normalizedSnapshot
-  }
-
-  const migratedSnapshot = {
-    ...normalizedSnapshot,
-    version: 2,
-    legacyMigrationComplete: true,
-    citationStyle: String(normalizedSnapshot.citationStyle || 'apa'),
-    references: migratedReferences,
-  }
-  return writeReferenceLibrarySnapshot(globalConfigDir, migratedSnapshot)
+  return normalizeReferenceLibrarySnapshot(backendSnapshot)
 }
 
 export async function writeReferenceLibrarySnapshot(globalConfigDir = '', snapshot = {}) {

@@ -6,6 +6,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
+use crate::references_backend::write_library_snapshot;
+
 const ZOTERO_API_BASE: &str = "https://api.zotero.org";
 const ZOTERO_USER_AGENT: &str = "ScribeFlow-Desktop/1.0";
 
@@ -51,6 +53,17 @@ pub struct ZoteroSyncParams {
     pub api_key: String,
     #[serde(default)]
     pub references: Vec<Value>,
+    #[serde(default)]
+    pub selected_reference_id: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ZoteroSyncPersistParams {
+    pub global_config_dir: String,
+    pub api_key: String,
+    #[serde(default)]
+    pub snapshot: Value,
     #[serde(default)]
     pub selected_reference_id: String,
 }
@@ -1045,6 +1058,17 @@ async fn perform_sync(params: ZoteroSyncParams) -> Result<Value, String> {
     }))
 }
 
+fn build_synced_snapshot(snapshot: &Value, sync_result: &Value) -> Value {
+    json!({
+        "version": snapshot.get("version").and_then(Value::as_u64).unwrap_or(2),
+        "legacyMigrationComplete": snapshot.get("legacyMigrationComplete").and_then(Value::as_bool).unwrap_or(true),
+        "citationStyle": trim_string(snapshot.get("citationStyle")),
+        "collections": snapshot.get("collections").cloned().unwrap_or(Value::Array(Vec::new())),
+        "tags": snapshot.get("tags").cloned().unwrap_or(Value::Array(Vec::new())),
+        "references": sync_result.get("references").cloned().unwrap_or(Value::Array(Vec::new())),
+    })
+}
+
 #[tauri::command]
 pub async fn references_zotero_config_load(
     params: ZoteroConfigPathParams,
@@ -1153,6 +1177,45 @@ pub async fn references_zotero_fetch_collections(
 #[tauri::command]
 pub async fn references_zotero_sync(params: ZoteroSyncParams) -> Result<Value, String> {
     perform_sync(params).await
+}
+
+#[tauri::command]
+pub async fn references_zotero_sync_persist(
+    params: ZoteroSyncPersistParams,
+) -> Result<Value, String> {
+    let references = params
+        .snapshot
+        .get("references")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let selected_reference_id = if !params.selected_reference_id.trim().is_empty() {
+        params.selected_reference_id.clone()
+    } else {
+        trim_string(params.snapshot.get("selectedReferenceId"))
+    };
+
+    let sync_result = perform_sync(ZoteroSyncParams {
+        global_config_dir: params.global_config_dir.clone(),
+        api_key: params.api_key,
+        references,
+        selected_reference_id,
+    })
+    .await?;
+
+    let persisted_snapshot = write_library_snapshot(
+        &params.global_config_dir,
+        &build_synced_snapshot(&params.snapshot, &sync_result),
+    )?;
+
+    Ok(json!({
+        "snapshot": persisted_snapshot,
+        "selectedReferenceId": sync_result.get("selectedReferenceId").cloned().unwrap_or(Value::String(String::new())),
+        "imported": sync_result.get("imported").cloned().unwrap_or(Value::from(0)),
+        "linked": sync_result.get("linked").cloned().unwrap_or(Value::from(0)),
+        "updated": sync_result.get("updated").cloned().unwrap_or(Value::from(0)),
+        "lastSyncTime": sync_result.get("lastSyncTime").cloned().unwrap_or(Value::String(String::new())),
+    }))
 }
 
 #[tauri::command]

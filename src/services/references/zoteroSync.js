@@ -143,26 +143,19 @@ export async function syncNow(projectRoot = '', referencesStore) {
   setSyncState({ status: 'syncing', error: null, errorType: null, progress: null })
 
   try {
-    const result = await invoke('references_zotero_sync', {
+    const result = await invoke('references_zotero_sync_persist', {
       params: {
         globalConfigDir: projectRoot,
         apiKey,
-        references: referencesStore.references,
+        snapshot: referencesStore.buildLibrarySnapshotPayload(),
         selectedReferenceId: referencesStore.selectedReferenceId,
       },
     })
 
-    await referencesStore.applyLibrarySnapshot({
-      version: 2,
-      citationStyle: referencesStore.citationStyle,
-      collections: referencesStore.collections,
-      tags: referencesStore.tags,
-      references: Array.isArray(result?.references) ? result.references : [],
-    })
+    await referencesStore.applyLibrarySnapshot(result?.snapshot || {})
     if (result?.selectedReferenceId) {
       referencesStore.selectedReferenceId = result.selectedReferenceId
     }
-    await referencesStore.persistLibrarySnapshot(projectRoot)
 
     setSyncState({
       status: 'synced',
