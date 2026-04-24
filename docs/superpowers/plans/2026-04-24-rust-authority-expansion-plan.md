@@ -234,6 +234,7 @@
 后续目标：
 
 - 前端只保留 dialog / shell hook / side effect adapter
+- 当前进度已开始收旧债：workspace open 的底层 bootstrap（路径派生、目录创建、`workspace.json`、allowed roots、recent state）已开始由 Rust 接管，`useWorkspaceLifecycle.js` 已去掉这部分底层调用细节。
 
 建议 Rust 或 typed contract 边界：
 

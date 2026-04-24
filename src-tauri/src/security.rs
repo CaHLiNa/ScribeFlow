@@ -89,15 +89,14 @@ fn prepare_allowed_directory(path: &Path, create_if_missing: bool) -> Result<Pat
     Ok(canonical)
 }
 
-#[tauri::command]
-pub fn workspace_set_allowed_roots(
-    workspace_root: String,
-    data_dir: Option<String>,
-    global_config_dir: Option<String>,
-    claude_config_dir: Option<String>,
-    state: tauri::State<'_, WorkspaceScopeState>,
+pub fn set_allowed_roots_internal(
+    state: &WorkspaceScopeState,
+    workspace_root: &str,
+    data_dir: Option<&str>,
+    global_config_dir: Option<&str>,
+    claude_config_dir: Option<&str>,
 ) -> Result<(), String> {
-    let canonical_workspace_root = prepare_allowed_directory(Path::new(&workspace_root), false)
+    let canonical_workspace_root = prepare_allowed_directory(Path::new(workspace_root), false)
         .map_err(|error| {
             if error.starts_with("Allowed root is not a directory:") {
                 error.replacen("Allowed root", "Workspace root", 1)
@@ -108,7 +107,7 @@ pub fn workspace_set_allowed_roots(
 
     let canonical_data_dir = match data_dir {
         Some(path) if !path.trim().is_empty() => Some(
-            prepare_allowed_directory(Path::new(&path), true).map_err(|error| {
+            prepare_allowed_directory(Path::new(path), true).map_err(|error| {
                 if error.starts_with("Allowed root is not a directory:") {
                     error.replacen("Allowed root", "Workspace data directory", 1)
                 } else {
@@ -121,7 +120,7 @@ pub fn workspace_set_allowed_roots(
 
     let canonical_global_config_dir = match global_config_dir {
         Some(path) if !path.trim().is_empty() => Some(
-            prepare_allowed_directory(Path::new(&path), true).map_err(|error| {
+            prepare_allowed_directory(Path::new(path), true).map_err(|error| {
                 if error.starts_with("Allowed root is not a directory:") {
                     error.replacen("Allowed root", "Global config directory", 1)
                 } else {
@@ -134,7 +133,7 @@ pub fn workspace_set_allowed_roots(
 
     let canonical_claude_config_dir = match claude_config_dir {
         Some(path) if !path.trim().is_empty() => Some(
-            prepare_allowed_directory(Path::new(&path), true).map_err(|error| {
+            prepare_allowed_directory(Path::new(path), true).map_err(|error| {
                 if error.starts_with("Allowed root is not a directory:") {
                     error.replacen("Allowed root", "Claude config directory", 1)
                 } else {
@@ -158,16 +157,37 @@ pub fn workspace_set_allowed_roots(
     Ok(())
 }
 
-#[tauri::command]
-pub fn workspace_clear_allowed_roots(
-    state: tauri::State<'_, WorkspaceScopeState>,
-) -> Result<(), String> {
+pub fn clear_allowed_roots_internal(state: &WorkspaceScopeState) -> Result<(), String> {
     let mut guard = state
         .allowed_roots
         .lock()
         .map_err(|_| "Allowed roots state is unavailable".to_string())?;
     *guard = AllowedRoots::default();
     Ok(())
+}
+
+#[tauri::command]
+pub fn workspace_set_allowed_roots(
+    workspace_root: String,
+    data_dir: Option<String>,
+    global_config_dir: Option<String>,
+    claude_config_dir: Option<String>,
+    state: tauri::State<'_, WorkspaceScopeState>,
+) -> Result<(), String> {
+    set_allowed_roots_internal(
+        state.inner(),
+        &workspace_root,
+        data_dir.as_deref(),
+        global_config_dir.as_deref(),
+        claude_config_dir.as_deref(),
+    )
+}
+
+#[tauri::command]
+pub fn workspace_clear_allowed_roots(
+    state: tauri::State<'_, WorkspaceScopeState>,
+) -> Result<(), String> {
+    clear_allowed_roots_internal(state.inner())
 }
 
 pub fn ensure_allowed_mutation_path(

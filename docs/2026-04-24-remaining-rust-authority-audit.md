@@ -120,6 +120,8 @@
 
 - 这已经不是单纯 composable，而是 shell-level runtime contract。
 - 迁移前最好先定义 typed bootstrap contract。
+- 当前进度已前推一轮：workspace open 时的 `workspaceId` / `workspaceDataDir` / `claudeConfigDir` 解析、workspace bootstrap 目录创建、`workspace.json` 写入、allowed roots 注册、recent state 更新，已开始由 Rust `workspace_lifecycle_prepare_open` 接管。
+- close 时的 allowed roots 清理也已从 `useWorkspaceLifecycle.js` 挪到 Rust `workspace_lifecycle_prepare_close`。
 
 建议 Rust 或 typed contract 边界：
 

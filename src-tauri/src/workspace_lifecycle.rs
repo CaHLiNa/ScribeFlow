@@ -1,9 +1,12 @@
 use crate::app_dirs;
+use crate::security::{clear_allowed_roots_internal, set_allowed_roots_internal, WorkspaceScopeState};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::collections::HashSet;
 use std::fs;
 use std::path::PathBuf;
+use tauri::State;
 
 const WORKSPACE_LIFECYCLE_VERSION: u32 = 1;
 const MAX_RECENT_WORKSPACES: usize = 10;
@@ -85,6 +88,32 @@ pub struct WorkspaceLifecycleRecordOpenedParams {
     pub path: String,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceLifecyclePrepareOpenParams {
+    #[serde(default)]
+    pub global_config_dir: String,
+    #[serde(default)]
+    pub path: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceOpenState {
+    #[serde(default)]
+    pub path: String,
+    #[serde(default)]
+    pub global_config_dir: String,
+    #[serde(default)]
+    pub workspace_id: String,
+    #[serde(default)]
+    pub workspace_data_dir: String,
+    #[serde(default)]
+    pub claude_config_dir: String,
+    #[serde(flatten)]
+    pub lifecycle: WorkspaceBootstrapState,
+}
+
 impl Default for WorkspaceLifecycleState {
     fn default() -> Self {
         Self {
@@ -135,6 +164,32 @@ fn default_reopen_last_session_on_launch() -> bool {
 
 fn normalize_root(path: &str) -> String {
     path.trim().trim_end_matches('/').to_string()
+}
+
+fn hash_workspace_path(path: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(path.as_bytes());
+    format!("{:x}", hasher.finalize())
+}
+
+fn resolve_workspace_data_dir(global_config_dir: &str, workspace_id: &str) -> String {
+    let normalized = normalize_root(global_config_dir);
+    if normalized.is_empty() || workspace_id.trim().is_empty() {
+        return String::new();
+    }
+    format!("{normalized}/workspaces/{}", workspace_id.trim())
+}
+
+fn resolve_claude_config_dir(global_config_dir: &str) -> String {
+    let normalized = normalize_root(global_config_dir);
+    if normalized.is_empty() {
+        return String::new();
+    }
+    let path = PathBuf::from(&normalized);
+    let Some(parent) = path.parent() else {
+        return String::new();
+    };
+    parent.join(".claude").to_string_lossy().to_string()
 }
 
 fn resolve_global_config_dir(global_config_dir: &str) -> Result<PathBuf, String> {
@@ -292,6 +347,37 @@ fn record_workspace_opened(state: WorkspaceLifecycleState, path: &str) -> Worksp
     })
 }
 
+fn ensure_workspace_dir(path: &str) -> Result<(), String> {
+    if path.trim().is_empty() {
+        return Ok(());
+    }
+    fs::create_dir_all(path).map_err(|error| error.to_string())
+}
+
+fn write_workspace_bootstrap_file(
+    workspace_data_dir: &str,
+    workspace_id: &str,
+    path: &str,
+) -> Result<(), String> {
+    if workspace_data_dir.trim().is_empty() {
+        return Ok(());
+    }
+
+    let payload = serde_json::json!({
+        "id": workspace_id,
+        "path": path,
+        "name": fallback_workspace_name(path),
+        "lastOpenedAt": Utc::now().to_rfc3339(),
+    });
+
+    let target = PathBuf::from(workspace_data_dir).join("workspace.json");
+    fs::write(
+        target,
+        serde_json::to_string_pretty(&payload).map_err(|error| error.to_string())?,
+    )
+    .map_err(|error| error.to_string())
+}
+
 #[tauri::command]
 pub async fn workspace_lifecycle_load(
     params: WorkspaceLifecycleLoadParams,
@@ -322,10 +408,65 @@ pub async fn workspace_lifecycle_record_opened(
     Ok(WorkspaceBootstrapState::from(normalized))
 }
 
+#[tauri::command]
+pub async fn workspace_lifecycle_prepare_open(
+    params: WorkspaceLifecyclePrepareOpenParams,
+    scope_state: State<'_, WorkspaceScopeState>,
+) -> Result<WorkspaceOpenState, String> {
+    let global_config_dir = resolve_global_config_dir(&params.global_config_dir)?
+        .to_string_lossy()
+        .to_string();
+    let path = normalize_root(&params.path);
+    if path.is_empty() {
+        return Err("Workspace path is required".to_string());
+    }
+
+    let workspace_id = hash_workspace_path(&path);
+    let workspace_data_dir = resolve_workspace_data_dir(&global_config_dir, &workspace_id);
+    let claude_config_dir = resolve_claude_config_dir(&global_config_dir);
+
+    ensure_workspace_dir(&workspace_data_dir)?;
+    ensure_workspace_dir(&format!("{workspace_data_dir}/project"))?;
+    ensure_workspace_dir(&claude_config_dir)?;
+    write_workspace_bootstrap_file(&workspace_data_dir, &workspace_id, &path)?;
+
+    set_allowed_roots_internal(
+        scope_state.inner(),
+        &path,
+        Some(&workspace_data_dir),
+        Some(&global_config_dir),
+        Some(&claude_config_dir),
+    )?;
+
+    let state = load_or_migrate_workspace_lifecycle_state(
+        &global_config_dir,
+        WorkspaceLifecycleState::default(),
+    )?;
+    let normalized = record_workspace_opened(state, &path);
+    write_workspace_lifecycle_state(&global_config_dir, &normalized)?;
+
+    Ok(WorkspaceOpenState {
+        path,
+        global_config_dir,
+        workspace_id,
+        workspace_data_dir,
+        claude_config_dir,
+        lifecycle: WorkspaceBootstrapState::from(normalized),
+    })
+}
+
+#[tauri::command]
+pub async fn workspace_lifecycle_prepare_close(
+    scope_state: State<'_, WorkspaceScopeState>,
+) -> Result<(), String> {
+    clear_allowed_roots_internal(scope_state.inner())
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        normalize_workspace_lifecycle_state, record_workspace_opened, workspace_lifecycle_load,
+        hash_workspace_path, normalize_workspace_lifecycle_state, record_workspace_opened,
+        resolve_claude_config_dir, resolve_workspace_data_dir, workspace_lifecycle_load,
         workspace_lifecycle_save, RecentWorkspaceEntry, WorkspaceLifecycleLoadParams,
         WorkspaceLifecycleSaveParams, WorkspaceLifecycleState,
     };
@@ -359,6 +500,20 @@ mod tests {
         assert!(normalized.setup_complete);
         assert!(!normalized.reopen_last_workspace_on_launch);
         assert!(!normalized.reopen_last_session_on_launch);
+    }
+
+    #[test]
+    fn derives_workspace_paths_from_global_config_dir() {
+        let id = hash_workspace_path("/tmp/demo");
+        assert_eq!(id.len(), 64);
+        assert_eq!(
+            resolve_workspace_data_dir("/Users/demo/.scribeflow", &id),
+            format!("/Users/demo/.scribeflow/workspaces/{id}")
+        );
+        assert_eq!(
+            resolve_claude_config_dir("/Users/demo/.scribeflow"),
+            "/Users/demo/.claude"
+        );
     }
 
     #[tokio::test]

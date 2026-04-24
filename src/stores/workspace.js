@@ -1,11 +1,6 @@
 import { defineStore } from 'pinia'
 import { invoke } from '@tauri-apps/api/core'
 import {
-  hashWorkspacePath,
-  resolveClaudeConfigDir,
-  resolveWorkspaceDataDir,
-} from '../services/workspacePaths'
-import {
   applyWorkspaceFontSizes,
   createWorkspacePreferenceState,
   loadWorkspacePreferences as loadWorkspacePreferencesFromRust,
@@ -37,34 +32,8 @@ import { applyLocalePreference } from '../i18n'
 import {
   createWorkspaceLifecycleState,
   loadWorkspaceLifecycleState as loadWorkspaceLifecycleStateFromRust,
-  recordWorkspaceOpened as recordWorkspaceOpenedInRust,
   saveWorkspaceLifecycleState as saveWorkspaceLifecycleStateToRust,
 } from '../services/workspaceRecents'
-import { basenamePath } from '../utils/path'
-
-async function ensureDir(path) {
-  if (!path) return
-  await invoke('create_dir', { path }).catch(() => {})
-}
-
-async function bootstrapWorkspaceDirs(store) {
-  await ensureDir(store.workspaceDataDir)
-  await ensureDir(store.projectDir)
-
-  await invoke('write_file', {
-    path: `${store.workspaceDataDir}/workspace.json`,
-    content: JSON.stringify(
-        {
-          id: store.workspaceId,
-          path: store.path,
-          name: basenamePath(store.path) || '',
-          lastOpenedAt: new Date().toISOString(),
-        },
-      null,
-      2
-    ),
-  }).catch(() => {})
-}
 
 const WORKSPACE_PREFERENCE_KEYS = [
   'primarySurface',
@@ -271,22 +240,21 @@ export const useWorkspaceStore = defineStore('workspace', {
     },
 
     async openWorkspace(path) {
-      this.path = path
-      await this.ensureGlobalConfigDir()
-
-      this.workspaceId = this.globalConfigDir ? await hashWorkspacePath(path) : ''
-      this.workspaceDataDir = resolveWorkspaceDataDir(this.globalConfigDir, this.workspaceId)
-      this.claudeConfigDir = resolveClaudeConfigDir(this.globalConfigDir)
-
-      this._workspaceBootstrapGeneration += 1
-      const generation = this._workspaceBootstrapGeneration
-      this._workspaceBootstrapPromise = bootstrapWorkspaceDirs(this).catch((error) => {
-        if (generation !== this._workspaceBootstrapGeneration) return
-        console.warn('[workspace] bootstrap failed:', error)
+      const prepared = await invoke('workspace_lifecycle_prepare_open', {
+        params: {
+          globalConfigDir: this.globalConfigDir || '',
+          path,
+        },
       })
 
-      const lifecycleState = await recordWorkspaceOpenedInRust(this.globalConfigDir, path)
-      this.applyWorkspaceLifecycleState(lifecycleState)
+      this.path = String(prepared?.path || path || '')
+      this.globalConfigDir = String(prepared?.globalConfigDir || this.globalConfigDir || '')
+      this.workspaceId = String(prepared?.workspaceId || '')
+      this.workspaceDataDir = String(prepared?.workspaceDataDir || '')
+      this.claudeConfigDir = String(prepared?.claudeConfigDir || '')
+      this._workspaceBootstrapGeneration += 1
+      this._workspaceBootstrapPromise = Promise.resolve()
+      this.applyWorkspaceLifecycleState(prepared || {})
       this._lifecycleHydrated = true
     },
 
@@ -307,6 +275,7 @@ export const useWorkspaceStore = defineStore('workspace', {
     async closeWorkspace() {
       this._workspaceBootstrapGeneration += 1
       this._workspaceBootstrapPromise = null
+      await invoke('workspace_lifecycle_prepare_close').catch(() => {})
       await this.cleanup()
       await this.openWorkspaceSurface()
       await this.persistLifecycleState({ lastWorkspace: '' })

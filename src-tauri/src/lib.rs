@@ -539,6 +539,8 @@ pub fn run() {
             workspace_access::macos_release_workspace_access,
             workspace_access::workspace_bookmark_remove,
             workspace_lifecycle::workspace_lifecycle_load,
+            workspace_lifecycle::workspace_lifecycle_prepare_close,
+            workspace_lifecycle::workspace_lifecycle_prepare_open,
             workspace_lifecycle::workspace_lifecycle_record_opened,
             workspace_lifecycle::workspace_lifecycle_save,
             workbench_state::workbench_state_normalize,

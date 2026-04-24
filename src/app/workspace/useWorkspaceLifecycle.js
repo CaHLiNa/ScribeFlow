@@ -159,12 +159,6 @@ export function useWorkspaceLifecycle() {
 
     try {
       await workspace.openWorkspace(targetPath)
-      await invoke('workspace_set_allowed_roots', {
-        workspaceRoot: targetPath,
-        dataDir: workspace.workspaceDataDir || null,
-        globalConfigDir: workspace.globalConfigDir || null,
-        claudeConfigDir: workspace.claudeConfigDir || null,
-      })
       await referencesStore.loadWorkspaceLibrary(workspace.globalConfigDir, {
         legacyWorkspaceDataDir: workspace.workspaceDataDir,
         legacyProjectRoot: workspace.path,
@@ -258,9 +252,6 @@ export function useWorkspaceLifecycle() {
     referencesStore.cleanup()
     workflowStore.cleanup()
     await workspace.closeWorkspace()
-    await invoke('workspace_clear_allowed_roots').catch((error) => {
-      console.warn('[workspace] failed to clear allowed roots:', error)
-    })
     void releaseWorkspaceBookmark(closingWorkspacePath)
     return true
   }
