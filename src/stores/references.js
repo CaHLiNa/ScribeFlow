@@ -30,7 +30,6 @@ import {
   parseReferenceImportText,
 } from '../services/references/bibtexImport.js'
 import { deleteFromZotero, loadZoteroConfig } from '../services/references/zoteroSync.js'
-import { isBrowserPreviewRuntime } from '../app/browserPreview/routes.js'
 
 function normalizeCollectionMembershipValue(value = '') {
   return String(value || '').trim().toLowerCase()
@@ -334,11 +333,6 @@ export const useReferencesStore = defineStore('references', {
     },
 
     async loadWorkspaceCitationStyles() {
-      if (isBrowserPreviewRuntime()) {
-        setUserCitationStyles([])
-        return []
-      }
-
       const workspace = useWorkspaceStore()
       const workspacePath = String(workspace.path || '').trim()
       if (!workspacePath) {

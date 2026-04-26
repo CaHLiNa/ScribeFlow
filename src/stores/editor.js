@@ -190,23 +190,6 @@ export const useEditorStore = defineStore('editor', {
       return this._getEditorOpenRoutingRuntime().openFile(path)
     },
 
-    applyBrowserPreviewTabs(tabs = [], activeTab = null) {
-      cancelEditorStateSave()
-      destroyEditorRuntimeViews(this.editorViews)
-      Object.assign(this, createEmptyEditorRuntimeState({
-        restoreGeneration: this.restoreGeneration + 1,
-      }))
-      this._editorOpenRoutingRuntime = null
-      this.paneTree = {
-        type: 'leaf',
-        id: ROOT_PANE_ID,
-        tabs: [...tabs],
-        activeTab: activeTab || tabs[0] || null,
-      }
-      this.activePaneId = ROOT_PANE_ID
-      this.lastContextPath = activeTab || tabs[0] || null
-    },
-
     openNewTab(paneId = null) {
       return this._getEditorOpenRoutingRuntime().openNewTab(paneId)
     },

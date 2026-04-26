@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import { useWorkspaceStore } from '../../stores/workspace.js'
+import { normalizeCitationStyle } from './citationStyleRegistry.js'
 
 const FAST_STYLE_IDS = new Set(['apa', 'chicago', 'harvard', 'ieee', 'vancouver'])
 
@@ -24,9 +25,10 @@ async function resolveWorkspacePath() {
 
 async function formatFromReference(style = 'apa', mode = 'reference', reference = {}, number) {
   requireTauriInvoke()
+  const effectiveStyle = normalizeCitationStyle(style)
   return invoke('references_citation_render', {
     params: {
-      style,
+      style: effectiveStyle,
       mode,
       reference,
       references: mode === 'bibliography' ? [reference] : [],
@@ -40,9 +42,10 @@ async function formatFromReference(style = 'apa', mode = 'reference', reference 
 
 async function formatFromCsl(style = 'apa', mode = 'reference', cslItems = [], number, locale = 'en-GB') {
   requireTauriInvoke()
+  const effectiveStyle = normalizeCitationStyle(style)
   return invoke('references_citation_render', {
     params: {
-      style,
+      style: effectiveStyle,
       mode,
       reference: null,
       references: [],
@@ -72,9 +75,10 @@ export async function formatCitation(style = 'apa', mode = 'reference', referenc
 
 export async function formatBibliography(style = 'apa', references = []) {
   requireTauriInvoke()
+  const effectiveStyle = normalizeCitationStyle(style)
   return invoke('references_citation_render', {
     params: {
-      style,
+      style: effectiveStyle,
       mode: 'bibliography',
       reference: null,
       references,

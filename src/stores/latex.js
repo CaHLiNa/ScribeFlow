@@ -8,7 +8,6 @@ import { resolveCachedLatexRootPath } from '../services/latex/root'
 import {
   stableContentFingerprint,
 } from '../services/latex/projectGraph'
-import { isBrowserPreviewRuntime } from '../app/browserPreview/routes.js'
 import { basenamePath } from '../utils/path'
 import {
   createLatexPreferenceState,
@@ -702,25 +701,7 @@ export const useLatexStore = defineStore('latex', {
       this.lintState = {}
     },
 
-    applyBrowserPreviewDiagnostics() {
-      this.tectonicInstalled = true
-      this.tectonicPath = '/opt/preview/bin/tectonic'
-      this.systemTexInstalled = true
-      this.systemTexPath = '/Library/TeX/texbin/latexmk'
-      this.chktexInstalled = true
-      this.chktexPath = '/opt/preview/bin/chktex'
-      this.latexindentInstalled = true
-      this.latexindentPath = '/opt/preview/bin/latexindent'
-      this.lastCompilerCheckAt = Date.now()
-      this.lastToolCheckAt = Date.now()
-      this.downloadError = null
-    },
-
     async checkCompilers(force = false) {
-      if (isBrowserPreviewRuntime()) {
-        this.applyBrowserPreviewDiagnostics()
-        return
-      }
       if (this.checkingCompilers) return
       if (!force && this.lastCompilerCheckAt && Date.now() - this.lastCompilerCheckAt < COMPILER_CHECK_CACHE_MS) return
       this.checkingCompilers = true
@@ -745,10 +726,6 @@ export const useLatexStore = defineStore('latex', {
     },
 
     async checkTools(force = false) {
-      if (isBrowserPreviewRuntime()) {
-        this.applyBrowserPreviewDiagnostics()
-        return
-      }
       if (this.checkingTools) return
       if (!force && this.lastToolCheckAt && Date.now() - this.lastToolCheckAt < TOOL_CHECK_CACHE_MS) return
       this.checkingTools = true
@@ -797,10 +774,6 @@ export const useLatexStore = defineStore('latex', {
     },
 
     async downloadTectonic() {
-      if (isBrowserPreviewRuntime()) {
-        this.applyBrowserPreviewDiagnostics()
-        return
-      }
       this.downloading = true
       this.downloadProgress = 0
       this.downloadError = null

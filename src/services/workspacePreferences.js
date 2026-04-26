@@ -18,9 +18,9 @@ const THEME_CLASSES = [
 ]
 
 const PROSE_FONT_STACKS = {
-  inter: "'Inter', system-ui, sans-serif",
-  stix: "'STIX Two Text', Georgia, serif",
-  mono: "'JetBrains Mono', 'Menlo', 'Consolas', monospace",
+  inter: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif",
+  stix: "'New York', 'Times New Roman', Georgia, serif",
+  mono: "'SF Mono', 'Menlo', 'Consolas', monospace",
 }
 const SYSTEM_FONT_PREFIX = 'system:'
 const SYSTEM_FONT_FALLBACK_STACK =

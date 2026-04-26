@@ -4,7 +4,6 @@ import {
   applyWorkspaceFontSizes,
   createWorkspacePreferenceState,
   loadWorkspacePreferences as loadWorkspacePreferencesFromRust,
-  normalizeWorkbenchState,
   restoreWorkspaceTheme,
   saveWorkspacePreferences as saveWorkspacePreferencesToRust,
   setWorkspaceCitationInsertAddsSpace,
@@ -317,42 +316,6 @@ export const useWorkspaceStore = defineStore('workspace', {
       this.workspaceId = ''
       this.workspaceDataDir = ''
       this.claudeConfigDir = ''
-    },
-
-    async applyBrowserPreviewState(options = {}) {
-      const isOpen = options.isOpen !== false
-      this._workspaceBootstrapGeneration += 1
-      this._workspaceBootstrapPromise = null
-
-      this.path = isOpen ? String(options.path || this.path || '') : null
-      this.globalConfigDir = isOpen ? String(options.globalConfigDir || this.globalConfigDir || '') : ''
-      this.workspaceId = isOpen ? String(options.workspaceId || this.workspaceId || '') : ''
-      this.workspaceDataDir = isOpen
-        ? String(options.workspaceDataDir || this.workspaceDataDir || '')
-        : ''
-      this.claudeConfigDir = isOpen ? String(options.claudeConfigDir || this.claudeConfigDir || '') : ''
-
-      const workbenchState = await normalizeWorkbenchState({
-        primarySurface: options.primarySurface || this.primarySurface || 'workspace',
-        leftSidebarOpen: isOpen ? options.leftSidebarOpen !== false : false,
-        leftSidebarPanel: options.leftSidebarPanel || this.leftSidebarPanel || 'files',
-        rightSidebarOpen: isOpen ? options.rightSidebarOpen === true : false,
-        rightSidebarPanel: options.rightSidebarPanel || this.rightSidebarPanel || 'outline',
-      })
-
-      this.primarySurface = workbenchState.primarySurface
-      this.settingsOpen = workbenchState.primarySurface === 'settings'
-      this.settingsSection =
-        this.settingsOpen
-          ? normalizeSettingsSectionValue(
-              options.settingsSection || this.settingsSection || 'general'
-            )
-          : null
-
-      this.leftSidebarOpen = workbenchState.leftSidebarOpen
-      this.leftSidebarPanel = workbenchState.leftSidebarPanel
-      this.rightSidebarOpen = workbenchState.rightSidebarOpen
-      this.rightSidebarPanel = workbenchState.rightSidebarPanel
     },
 
     toggleLeftSidebar() {

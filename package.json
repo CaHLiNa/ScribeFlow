@@ -4,23 +4,13 @@
   "version": "1.0.14",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --host 0.0.0.0 --port 1420 --strictPort",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "node scripts/frontendBaselineTooling.mjs lint",
-    "check": "npm run lint && npm run build",
+    "check": "npm run build",
     "check:rust": "cargo check --manifest-path src-tauri/Cargo.toml",
     "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
-    "lint:fix": "node scripts/frontendBaselineTooling.mjs lint:fix",
-    "format": "node scripts/frontendBaselineTooling.mjs format",
-    "format:check": "node scripts/frontendBaselineTooling.mjs format:check",
-    "tauri": "node scripts/run-tauri.mjs",
-    "build:macos:app": "npm run tauri -- build --target aarch64-apple-darwin --bundles app --no-sign",
-    "build:macos:dmg": "npm run build:macos:app && node scripts/build-macos-dmg.mjs --target aarch64-apple-darwin",
-    "version:check": "node scripts/version-utils.mjs check",
-    "version:bump:patch": "node scripts/bump-version.mjs patch",
-    "version:bump:minor": "node scripts/bump-version.mjs minor",
-    "version:bump:major": "node scripts/bump-version.mjs major"
+    "tauri": "tauri"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.1",
@@ -34,6 +24,7 @@
     "@codemirror/view": "^6.41.1",
     "@embedpdf/core": "^2.14.0",
     "@embedpdf/engines": "^2.14.0",
+    "@embedpdf/models": "^2.14.0",
     "@embedpdf/plugin-document-manager": "^2.14.0",
     "@embedpdf/plugin-export": "^2.14.0",
     "@embedpdf/plugin-interaction-manager": "^2.14.0",
@@ -49,14 +40,10 @@
     "@tabler/icons-vue": "^3.36.1",
     "@tauri-apps/api": "^2.0.0",
     "@tauri-apps/plugin-clipboard-manager": "^2.3.2",
-    "@tauri-apps/plugin-dialog": "^2.0.0",
+    "@tauri-apps/plugin-dialog": "2.6.0",
     "@tauri-apps/plugin-shell": "^2.3.5",
-    "citeproc": "^2.4.63",
-    "codemirror": "^6.0.2",
     "dompurify": "^3.3.1",
-    "highlight.js": "^11.11.1",
     "katex": "^0.16.28",
-    "mdast-util-to-string": "^4.0.0",
     "pinia": "^2.2.0",
     "rehype-highlight": "^7.0.2",
     "rehype-katex": "^7.0.1",
@@ -72,18 +59,11 @@
     "vue": "^3.5.0"
   },
   "devDependencies": {
-    "@eslint/js": "^10.0.1",
     "@tauri-apps/cli": "^2.0.0",
     "@vitejs/plugin-vue": "^5.0.0",
     "autoprefixer": "^10.0.0",
-    "eslint": "^10.1.0",
-    "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-vue": "^10.8.0",
-    "globals": "^17.4.0",
     "postcss": "^8.0.0",
-    "prettier": "^3.8.1",
     "tailwindcss": "^3.4.0",
-    "vite": "^6.0.0",
-    "vue-eslint-parser": "^10.4.0"
+    "vite": "^6.0.0"
   }
 }

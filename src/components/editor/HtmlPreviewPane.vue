@@ -32,7 +32,7 @@ import { useWorkspaceStore } from '../../stores/workspace'
 import { basenamePath } from '../../utils/path'
 import { toWorkspaceProtocolUrl } from '../../utils/workspaceProtocol'
 import { openLocalPath } from '../../services/localFileOpen'
-import { isTauriDesktopRuntime } from '../../app/browserPreview/routes'
+import { isTauriDesktopRuntime } from '../../platform'
 import { useI18n } from '../../i18n'
 
 const props = defineProps({

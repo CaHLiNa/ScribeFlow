@@ -1,6 +1,8 @@
 // Platform detection — single source of truth for OS-specific behavior
 
 export const isMac = /Mac|iPhone|iPad/.test(navigator.platform)
+export const isTauriDesktopRuntime =
+  typeof window !== 'undefined' && !!window.__TAURI_INTERNALS__
 
 // Check the platform's primary modifier key (Cmd on macOS, Ctrl on Windows/Linux)
 export function isMod(e) {

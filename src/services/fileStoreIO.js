@@ -1,27 +1,11 @@
 import { invoke } from '@tauri-apps/api/core'
 import { TEXT_FILE_READ_LIMIT_BYTES } from '../domains/files/workspaceTextFileLimits.js'
-import {
-  readBrowserPreviewTextFile,
-  writeBrowserPreviewTextFile,
-} from '../app/browserPreview/state.js'
-import { isBrowserPreviewRuntime } from '../app/browserPreview/routes.js'
 
 export async function readWorkspaceTextFile(path, maxBytes = TEXT_FILE_READ_LIMIT_BYTES) {
-  if (isBrowserPreviewRuntime()) {
-    const content = readBrowserPreviewTextFile(path)
-    if (typeof content === 'string' && content.length > maxBytes) {
-      throw new Error(`FILE_TOO_LARGE:${maxBytes}:${content.length}`)
-    }
-    return content
-  }
   return invoke('read_file', { path, maxBytes })
 }
 
 export async function saveWorkspaceTextFile(path, content) {
-  if (isBrowserPreviewRuntime()) {
-    writeBrowserPreviewTextFile(path, content)
-    return
-  }
   await invoke('write_file', { path, content })
 }
 

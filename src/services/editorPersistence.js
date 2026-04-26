@@ -1,5 +1,4 @@
 import { invoke } from '@tauri-apps/api/core'
-import { isBrowserPreviewRuntime } from '../app/browserPreview/routes.js'
 import {
   clearStorageKeys,
   hasDesktopInvoke,
@@ -38,16 +37,6 @@ function createEmptyState() {
 
 export async function saveState(workspaceDataDir, paneTree, activePaneId, options = {}) {
   if (!workspaceDataDir) return null
-  if (isBrowserPreviewRuntime()) {
-    return {
-      ...createEmptyState(),
-      paneTree,
-      activePaneId,
-      legacyPreviewPaths: Array.isArray(options.legacyPreviewPaths) ? options.legacyPreviewPaths : [],
-      lastContextPath: String(options.lastContextPath || ''),
-    }
-  }
-
   return invoke('editor_session_save', {
     params: {
       workspaceDataDir,
@@ -63,7 +52,6 @@ export async function saveState(workspaceDataDir, paneTree, activePaneId, option
 
 export async function loadState(workspaceDataDir) {
   if (!workspaceDataDir) return null
-  if (isBrowserPreviewRuntime()) return null
 
   const loaded = await invoke('editor_session_load', {
     params: {
@@ -105,7 +93,7 @@ function clearLegacyRecentFiles(workspacePath = '') {
 
 export async function loadRecentFiles(workspaceDataDir = '', workspacePath = '') {
   if (!workspaceDataDir) return []
-  if (isBrowserPreviewRuntime() || !hasDesktopInvoke()) {
+  if (!hasDesktopInvoke()) {
     return readLegacyRecentFiles(workspacePath)
   }
 
@@ -122,7 +110,7 @@ export async function loadRecentFiles(workspaceDataDir = '', workspacePath = '')
 export async function saveRecentFiles(workspaceDataDir = '', workspacePath = '', recentFiles = []) {
   const normalized = normalizeRecentFiles(recentFiles)
   if (!workspaceDataDir) return normalized
-  if (isBrowserPreviewRuntime() || !hasDesktopInvoke()) {
+  if (!hasDesktopInvoke()) {
     if (workspacePath) {
       writeStorageJson(recentFilesStorageKey(workspacePath), normalized)
     }

@@ -1,8 +1,4 @@
 import { invoke } from '@tauri-apps/api/core'
-import {
-  readBrowserPreviewReferenceSnapshot,
-  writeBrowserPreviewReferenceSnapshot,
-} from '../../app/browserPreview/state.js'
 import { hasDesktopInvoke } from '../bridgeStorage.js'
 import {
   LEGACY_REFERENCE_FIXTURE_IDS,
@@ -122,7 +118,7 @@ export async function readOrCreateReferenceLibrarySnapshot(globalConfigDir = '',
   }
 
   if (!hasDesktopInvoke()) {
-    return normalizeReferenceLibrarySnapshot(readBrowserPreviewReferenceSnapshot())
+    return buildDefaultReferenceLibrarySnapshot()
   }
 
   const backendSnapshot = await invoke('references_library_load_workspace', {
@@ -142,7 +138,6 @@ export async function writeReferenceLibrarySnapshot(globalConfigDir = '', snapsh
   })
 
   if (!hasDesktopInvoke()) {
-    writeBrowserPreviewReferenceSnapshot(normalizedSnapshot)
     return normalizedSnapshot
   }
 

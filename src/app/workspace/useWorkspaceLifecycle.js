@@ -19,11 +19,6 @@ import {
 } from '../../services/workspacePermissions'
 import { confirmUnsavedChanges } from '../../services/unsavedChanges'
 import { syncNow } from '../../services/references/zoteroSync.js'
-import {
-  isBrowserPreviewRuntime,
-  parseBrowserPreviewPath,
-  syncBrowserPreviewHistory,
-} from '../browserPreview/routes.js'
 import { basenamePath } from '../../utils/path'
 
 export function useWorkspaceLifecycle() {
@@ -86,7 +81,6 @@ export function useWorkspaceLifecycle() {
   }
 
   function refreshWorkspaceStateAfterVisibility(reason = 'visibility') {
-    if (isBrowserPreviewRuntime()) return
     if (!workspace.isOpen) return
 
     const now = Date.now()
@@ -97,18 +91,12 @@ export function useWorkspaceLifecycle() {
   }
 
   function handleVisibilityChange() {
-    if (isBrowserPreviewRuntime()) return
     if (isTauriDesktop) return
     if (document.visibilityState !== 'visible') return
     refreshWorkspaceStateAfterVisibility('visibility')
   }
 
   async function pickWorkspace() {
-    if (isBrowserPreviewRuntime()) {
-      syncBrowserPreviewHistory(parseBrowserPreviewPath('/preview/workspace/document'), 'push')
-      return
-    }
-
     const { homeDir } = await import('@tauri-apps/api/path')
     const home = await homeDir()
     const selected = await open({
@@ -263,11 +251,6 @@ export function useWorkspaceLifecycle() {
   }
 
   async function closeWorkspace(options = {}) {
-    if (isBrowserPreviewRuntime()) {
-      syncBrowserPreviewHistory(parseBrowserPreviewPath('/preview/launcher'), 'push')
-      return true
-    }
-
     const { skipUnsavedCheck = false } = options
     if (!skipUnsavedCheck) {
       const result = await confirmUnsavedChanges([...editorStore.allOpenFiles])
@@ -298,16 +281,6 @@ export function useWorkspaceLifecycle() {
       ])
     } catch (error) {
       console.warn('[workspace] failed to hydrate preferences from Rust runtime:', error)
-    }
-
-    if (isBrowserPreviewRuntime()) {
-      workspace.restoreTheme()
-      workspace.applyFontSizes()
-      await workspace.restorePreferredLocale()
-      workspace.restoreUiFont()
-      workspace.restoreMarkdownFont()
-      workspace.restoreLatexFont()
-      return
     }
 
     await setupDesktopWindowFocusRefresh()

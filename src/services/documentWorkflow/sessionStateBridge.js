@@ -1,4 +1,3 @@
-import { isBrowserPreviewRuntime } from '../../app/browserPreview/routes.js'
 import { clearStorageKeys, hasDesktopInvoke, readStorageJson } from '../bridgeStorage.js'
 import { invokeDocumentWorkflowBridge } from './invokeBridge.js'
 
@@ -49,7 +48,7 @@ function loadBrowserPreviewState() {
 }
 
 export async function loadDocumentWorkflowSessionState(workspaceDataDir = '') {
-  if (isBrowserPreviewRuntime() || !hasDesktopInvoke()) {
+  if (!hasDesktopInvoke()) {
     return loadBrowserPreviewState()
   }
 
@@ -66,7 +65,7 @@ export async function loadDocumentWorkflowSessionState(workspaceDataDir = '') {
 }
 
 export async function saveDocumentWorkflowSessionState(workspaceDataDir = '', state = {}) {
-  if (isBrowserPreviewRuntime() || !hasDesktopInvoke()) {
+  if (!hasDesktopInvoke()) {
     return {
       ...createDocumentWorkflowPersistentState(),
       ...state,

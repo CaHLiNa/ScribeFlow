@@ -123,7 +123,7 @@ async function finish() {
 }
 
 .wizard-wordmark {
-  font-family: 'Crimson Text', 'Lora', 'Georgia', serif;
+  font-family: var(--font-display);
   font-size: var(--ui-font-hero-md);
   font-weight: 500;
   letter-spacing: -0.01em;

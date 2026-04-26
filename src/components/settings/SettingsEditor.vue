@@ -172,10 +172,10 @@ const presetOptions = computed(() =>
     value: font.value,
     label:
       font.value === 'inter'
-        ? t('Sans (Inter)')
+        ? t('Sans')
         : font.value === 'stix'
-          ? t('Serif (STIX Two Text)')
-          : t('Mono (JetBrains Mono)'),
+          ? t('Serif')
+          : t('Mono'),
   }))
 )
 

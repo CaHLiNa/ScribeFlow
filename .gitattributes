@@ -1,4 +1,0 @@
-# Exclude vendored third-party frontend assets from GitHub Linguist
-# so repository language stats reflect ScribeFlow source code more accurately.
-
-public/pdfjs-viewer/** linguist-vendored

@@ -175,12 +175,12 @@
   --content-icon-size: 13px;
 
   /* Font stacks */
-  --font-sans: 'Geist', 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif;
-  --font-mono: 'JetBrains Mono', 'Menlo', 'Consolas', monospace;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif;
+  --font-mono: 'SF Mono', 'Menlo', 'Consolas', monospace;
   --font-ui: var(--font-sans);
   --font-markdown: var(--font-sans);
   --font-latex: var(--font-mono);
-  --font-display: 'Crimson Text', 'STIX Two Text', 'Lora', Georgia, serif;
+  --font-display: 'New York', 'Times New Roman', Georgia, serif;
   --ui-font: var(--font-sans);
 
   /* Semantic design tokens */
