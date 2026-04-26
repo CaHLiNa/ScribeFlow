@@ -19,32 +19,26 @@ pub struct ReferencesMutationApplyParams {
 pub enum ReferencesMutationAction {
     AddReference {
         reference: Value,
+        #[serde(default)]
+        mark_for_zotero_push: bool,
     },
     UpdateReference {
         reference_id: String,
         #[serde(default)]
         updates: Value,
     },
-    RemoveReference {
-        reference_id: String,
-    },
-    CreateCollection {
-        label: String,
-    },
+    RemoveReference { reference_id: String },
+    CreateCollection { label: String },
     RenameCollection {
         collection_key: String,
         next_label: String,
     },
-    RemoveCollection {
-        collection_key: String,
-    },
+    RemoveCollection { collection_key: String },
     ToggleReferenceCollection {
         reference_id: String,
         collection_key: String,
     },
-    MergeImportedReferences {
-        imported: Vec<Value>,
-    },
+    MergeImportedReferences { imported: Vec<Value> },
 }
 
 fn normalize_collection_label(label: &str) -> String {
@@ -60,7 +54,8 @@ fn build_collection_key(label: &str) -> String {
     let mut pending_separator = false;
 
     for ch in label.trim().chars().flat_map(|ch| ch.to_lowercase()) {
-        let is_allowed = ch.is_ascii_alphanumeric() || ('\u{4e00}'..='\u{9fa5}').contains(&ch);
+        let is_allowed =
+            ch.is_ascii_alphanumeric() || ('\u{4e00}'..='\u{9fa5}').contains(&ch);
         if is_allowed {
             if pending_separator && !slug.is_empty() {
                 slug.push('-');
@@ -151,10 +146,7 @@ fn normalized_snapshot_with(
     normalize_snapshot(&Value::Object(next))
 }
 
-fn resolve_imported_selection_reference(
-    merged_references: &[Value],
-    imported: &[Value],
-) -> Option<Value> {
+fn resolve_imported_selection_reference(merged_references: &[Value], imported: &[Value]) -> Option<Value> {
     if imported.is_empty() {
         return None;
     }
@@ -171,7 +163,8 @@ fn resolve_imported_selection_reference(
         .cloned()
         .or_else(|| {
             merged_references.iter().find_map(|reference| {
-                find_duplicate_reference_internal(imported, reference).map(|_| reference.clone())
+                find_duplicate_reference_internal(imported, reference)
+                    .map(|_| reference.clone())
             })
         })
 }
@@ -379,7 +372,8 @@ fn apply_remove_collection(snapshot: &Value, collection_key: &str) -> Value {
                 .filter(|value| {
                     let normalized_value =
                         normalize_collection_membership_value(value.as_str().unwrap_or_default());
-                    normalized_value != normalize_collection_membership_value(&collection_key_value)
+                    normalized_value
+                        != normalize_collection_membership_value(&collection_key_value)
                         && normalized_value
                             != normalize_collection_membership_value(&collection_label_value)
                 })
@@ -449,13 +443,9 @@ fn apply_toggle_reference_collection(
                     let normalized_value =
                         normalize_collection_membership_value(value.as_str().unwrap_or_default());
                     normalized_value
-                        != normalize_collection_membership_value(&trim_string(
-                            collection.get("key"),
-                        ))
+                        != normalize_collection_membership_value(&trim_string(collection.get("key")))
                         && normalized_value
-                            != normalize_collection_membership_value(&trim_string(
-                                collection.get("label"),
-                            ))
+                            != normalize_collection_membership_value(&trim_string(collection.get("label")))
                 })
                 .collect::<Vec<_>>();
 
@@ -506,9 +496,13 @@ fn apply_merge_imported_references(snapshot: &Value, imported: &[Value]) -> Valu
     })
 }
 
-fn apply_add_reference(snapshot: &Value, reference: &Value) -> Value {
+fn apply_add_reference(snapshot: &Value, reference: &Value, mark_for_zotero_push: bool) -> Value {
     let references = normalize_snapshot_references(snapshot);
-    let normalized_candidate = normalize_reference_record(reference);
+    let mut candidate = reference.as_object().cloned().unwrap_or_default();
+    if mark_for_zotero_push {
+        candidate.insert("_appPushPending".to_string(), Value::Bool(true));
+    }
+    let normalized_candidate = normalize_reference_record(&Value::Object(candidate));
 
     if let Some(duplicate) = find_duplicate_reference_internal(&references, &normalized_candidate) {
         return json!({
@@ -550,8 +544,7 @@ fn apply_update_reference(snapshot: &Value, reference_id: &str, updates: &Value)
 
     let Some(reference_index) = references
         .iter()
-        .position(|reference| trim_string(reference.get("id")) == reference_id)
-    else {
+        .position(|reference| trim_string(reference.get("id")) == reference_id) else {
         return json!({
             "snapshot": normalize_snapshot(snapshot),
             "result": {
@@ -635,9 +628,10 @@ pub async fn references_mutation_apply(
 ) -> Result<Value, String> {
     let normalized_snapshot = normalize_snapshot(&params.snapshot);
     let result = match params.action {
-        ReferencesMutationAction::AddReference { reference } => {
-            apply_add_reference(&normalized_snapshot, &reference)
-        }
+        ReferencesMutationAction::AddReference {
+            reference,
+            mark_for_zotero_push,
+        } => apply_add_reference(&normalized_snapshot, &reference, mark_for_zotero_push),
         ReferencesMutationAction::UpdateReference {
             reference_id,
             updates,
@@ -658,9 +652,7 @@ pub async fn references_mutation_apply(
         ReferencesMutationAction::ToggleReferenceCollection {
             reference_id,
             collection_key,
-        } => {
-            apply_toggle_reference_collection(&normalized_snapshot, &reference_id, &collection_key)
-        }
+        } => apply_toggle_reference_collection(&normalized_snapshot, &reference_id, &collection_key),
         ReferencesMutationAction::MergeImportedReferences { imported } => {
             apply_merge_imported_references(&normalized_snapshot, &imported)
         }
@@ -671,9 +663,7 @@ pub async fn references_mutation_apply(
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        references_mutation_apply, ReferencesMutationAction, ReferencesMutationApplyParams,
-    };
+    use super::{references_mutation_apply, ReferencesMutationAction, ReferencesMutationApplyParams};
     use serde_json::json;
 
     fn sample_snapshot() -> serde_json::Value {
@@ -814,6 +804,7 @@ mod tests {
                     "collections": [],
                     "tags": []
                 }),
+                mark_for_zotero_push: false,
             },
         })
         .await
@@ -848,9 +839,7 @@ mod tests {
             Some("journal-article")
         );
         assert_eq!(
-            result["snapshot"]["tags"]
-                .as_array()
-                .map(|items| items.len()),
+            result["snapshot"]["tags"].as_array().map(|items| items.len()),
             Some(2)
         );
     }

@@ -4,9 +4,9 @@ use image::{ColorType, GenericImageView, ImageEncoder, ImageReader};
 use serde::Serialize;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashSet;
-use std::fs;
 use std::hash::{Hash, Hasher};
 use std::io::Cursor;
+use std::fs;
 use std::path::{Path, PathBuf};
 use tokio::task;
 
@@ -269,8 +269,8 @@ fn convert_postscript_to_pdf(path: &Path) -> Result<PathBuf, String> {
 
     let source = path.to_string_lossy().to_string();
     let output_path = pdf_path.to_string_lossy().to_string();
-    let ps2pdf = find_ps2pdf()
-        .ok_or_else(|| "ps2pdf is not installed or not available on PATH.".to_string())?;
+    let ps2pdf =
+        find_ps2pdf().ok_or_else(|| "ps2pdf is not installed or not available on PATH.".to_string())?;
     let output = background_command(&ps2pdf)
         .args([&source, &output_path])
         .output()
@@ -313,17 +313,13 @@ fn render_image_preview_blocking(path: &Path, max_size: u32) -> Result<ImagePrev
 }
 
 #[cfg(not(target_os = "macos"))]
-fn render_image_preview_blocking(
-    _path: &Path,
-    _max_size: u32,
-) -> Result<ImagePreviewResult, String> {
+fn render_image_preview_blocking(_path: &Path, _max_size: u32) -> Result<ImagePreviewResult, String> {
     Err("Generated image previews are only available on macOS.".to_string())
 }
 
 #[cfg(target_os = "macos")]
 fn render_tiff_preview(path: &Path, max_size: u32) -> Result<ImagePreviewResult, String> {
-    let reader =
-        ImageReader::open(path).map_err(|error| format!("Failed to open image: {error}"))?;
+    let reader = ImageReader::open(path).map_err(|error| format!("Failed to open image: {error}"))?;
     let dynamic = reader
         .with_guessed_format()
         .map_err(|error| format!("Failed to detect image format: {error}"))?
@@ -424,20 +420,14 @@ fn render_postscript_preview(path: &Path, max_size: u32) -> Result<ImagePreviewR
 }
 
 #[tauri::command]
-pub async fn read_dir_shallow(
-    path: String,
-    include_hidden: Option<bool>,
-) -> Result<Vec<FileEntry>, String> {
+pub async fn read_dir_shallow(path: String, include_hidden: Option<bool>) -> Result<Vec<FileEntry>, String> {
     let path_for_read = path.clone();
     let include_hidden = include_hidden.unwrap_or(true);
     run_blocking(move || read_dir_shallow_entries(Path::new(&path_for_read), include_hidden)).await
 }
 
 #[tauri::command]
-pub async fn list_files_recursive(
-    path: String,
-    include_hidden: Option<bool>,
-) -> Result<Vec<FileEntry>, String> {
+pub async fn list_files_recursive(path: String, include_hidden: Option<bool>) -> Result<Vec<FileEntry>, String> {
     let path_for_read = path.clone();
     let include_hidden = include_hidden.unwrap_or(true);
     run_blocking(move || {
@@ -458,8 +448,7 @@ pub async fn read_visible_tree(
     let path_for_read = path.clone();
     let loaded_set: HashSet<String> = loaded_dirs.unwrap_or_default().into_iter().collect();
     let include_hidden = include_hidden.unwrap_or(true);
-    run_blocking(move || build_visible_tree(Path::new(&path_for_read), &loaded_set, include_hidden))
-        .await
+    run_blocking(move || build_visible_tree(Path::new(&path_for_read), &loaded_set, include_hidden)).await
 }
 
 #[tauri::command]
@@ -474,7 +463,7 @@ pub async fn read_workspace_tree_snapshot(
     run_blocking(move || {
         build_workspace_tree_snapshot(Path::new(&path_for_read), &loaded_set, include_hidden)
     })
-    .await
+        .await
 }
 
 #[tauri::command]
@@ -868,18 +857,7 @@ pub async fn open_path_in_default_app(path: String) -> Result<(), String> {
             }
             let prefer_preview = matches!(
                 ext.as_str(),
-                "eps"
-                    | "ps"
-                    | "pdf"
-                    | "png"
-                    | "jpg"
-                    | "jpeg"
-                    | "gif"
-                    | "bmp"
-                    | "webp"
-                    | "svg"
-                    | "tif"
-                    | "tiff"
+                "eps" | "ps" | "pdf" | "png" | "jpg" | "jpeg" | "gif" | "bmp" | "webp" | "svg" | "tif" | "tiff"
             );
 
             if prefer_preview {

@@ -262,7 +262,10 @@ fn matches_runtime_path(runtime: &PythonRuntimeInfo, requested_path: &str) -> bo
     normalize_runtime_key(&runtime.path) == normalize_runtime_key(requested_path)
 }
 
-fn merge_selected_runtime(runtimes: &mut Vec<PythonRuntimeInfo>, selected: &PythonRuntimeInfo) {
+fn merge_selected_runtime(
+    runtimes: &mut Vec<PythonRuntimeInfo>,
+    selected: &PythonRuntimeInfo,
+) {
     if runtimes
         .iter()
         .any(|runtime| matches_runtime_path(runtime, &selected.path))
@@ -302,7 +305,9 @@ async fn probe_explicit_python(path: &str) -> Option<PythonRuntimeInfo> {
     .await
 }
 
-async fn resolve_python_runtime_list(requested_path: &str) -> PythonRuntimeListResult {
+async fn resolve_python_runtime_list(
+    requested_path: &str,
+) -> PythonRuntimeListResult {
     let normalized_request = normalize_interpreter_request(requested_path);
     let mut interpreters = discover_python_runtimes().await;
     let is_auto = normalized_request == "auto";
@@ -450,7 +455,9 @@ pub async fn python_runtime_compile(
 
 #[cfg(test)]
 mod tests {
-    use super::{merge_selected_runtime, normalize_interpreter_request, PythonRuntimeInfo};
+    use super::{
+        merge_selected_runtime, normalize_interpreter_request, PythonRuntimeInfo,
+    };
 
     fn runtime(path: &str, version: &str) -> PythonRuntimeInfo {
         PythonRuntimeInfo {

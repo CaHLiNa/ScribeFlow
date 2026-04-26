@@ -109,10 +109,7 @@ fn extract_year_from_text(value: &str) -> Option<i64> {
     value
         .split(|ch: char| !ch.is_ascii_digit())
         .find_map(|part| match part.len() {
-            4 => part
-                .parse::<i64>()
-                .ok()
-                .filter(|year| (1000..=2999).contains(year)),
+            4 => part.parse::<i64>().ok().filter(|year| (1000..=2999).contains(year)),
             _ => None,
         })
 }
@@ -145,8 +142,7 @@ fn extract_csl_year(csl: &Value) -> Option<i64> {
 }
 
 fn sanitize_citation_key_component(value: &str) -> String {
-    value
-        .chars()
+    value.chars()
         .filter(|ch| ch.is_ascii_alphanumeric())
         .collect::<String>()
         .to_lowercase()

@@ -590,9 +590,7 @@ fn normalize_workspace_preferences(preferences: WorkspacePreferences) -> Workspa
         file_tree_sort_mode: normalize_file_tree_sort_mode(&preferences.file_tree_sort_mode),
         file_tree_fold_directories: preferences.file_tree_fold_directories,
         pdf_viewer_zoom_mode: normalize_pdf_viewer_zoom_mode(&preferences.pdf_viewer_zoom_mode),
-        pdf_viewer_spread_mode: normalize_pdf_viewer_spread_mode(
-            &preferences.pdf_viewer_spread_mode,
-        ),
+        pdf_viewer_spread_mode: normalize_pdf_viewer_spread_mode(&preferences.pdf_viewer_spread_mode),
         pdf_viewer_last_scale: normalize_pdf_viewer_last_scale(&preferences.pdf_viewer_last_scale),
         pdf_viewer_page_theme_mode: normalize_pdf_viewer_page_theme_mode(
             &preferences.pdf_viewer_page_theme_mode,
@@ -665,11 +663,8 @@ fn migrate_legacy_preferences(snapshot: &HashMap<String, String>) -> WorkspacePr
         legacy_string(snapshot, "latexFont").unwrap_or_else(default_latex_font);
     preferences.preferred_locale =
         legacy_string(snapshot, "preferredLocale").unwrap_or_else(default_preferred_locale);
-    preferences.markdown_preview_sync = legacy_boolean(
-        snapshot,
-        "markdownPreviewSync",
-        default_markdown_preview_sync(),
-    );
+    preferences.markdown_preview_sync =
+        legacy_boolean(snapshot, "markdownPreviewSync", default_markdown_preview_sync());
     preferences.editor_spellcheck =
         legacy_true_only_boolean(snapshot, "editorSpellcheck", default_editor_spellcheck());
     preferences.editor_line_numbers =
@@ -679,11 +674,8 @@ fn migrate_legacy_preferences(snapshot: &HashMap<String, String>) -> WorkspacePr
         "editorHighlightActiveLine",
         default_editor_highlight_active_line(),
     );
-    preferences.file_tree_show_hidden = legacy_boolean(
-        snapshot,
-        "fileTreeShowHidden",
-        default_file_tree_show_hidden(),
-    );
+    preferences.file_tree_show_hidden =
+        legacy_boolean(snapshot, "fileTreeShowHidden", default_file_tree_show_hidden());
     preferences.file_tree_sort_mode =
         legacy_string(snapshot, "fileTreeSortMode").unwrap_or_else(default_file_tree_sort_mode);
     preferences.file_tree_fold_directories = legacy_boolean(
@@ -691,12 +683,12 @@ fn migrate_legacy_preferences(snapshot: &HashMap<String, String>) -> WorkspacePr
         "fileTreeFoldDirectories",
         default_file_tree_fold_directories(),
     );
-    preferences.pdf_viewer_zoom_mode =
-        legacy_string(snapshot, "pdfViewerZoomMode").unwrap_or_else(default_pdf_viewer_zoom_mode);
+    preferences.pdf_viewer_zoom_mode = legacy_string(snapshot, "pdfViewerZoomMode")
+        .unwrap_or_else(default_pdf_viewer_zoom_mode);
     preferences.pdf_viewer_spread_mode = legacy_string(snapshot, "pdfViewerSpreadMode")
         .unwrap_or_else(default_pdf_viewer_spread_mode);
-    preferences.pdf_viewer_last_scale =
-        legacy_string(snapshot, "pdfViewerLastScale").unwrap_or_else(default_pdf_viewer_last_scale);
+    preferences.pdf_viewer_last_scale = legacy_string(snapshot, "pdfViewerLastScale")
+        .unwrap_or_else(default_pdf_viewer_last_scale);
     preferences.pdf_viewer_page_theme_mode = legacy_string(snapshot, "pdfViewerPageThemeMode")
         .unwrap_or_else(default_pdf_viewer_page_theme_mode);
     preferences.markdown_citation_format = legacy_string(snapshot, "markdownCitationFormat")

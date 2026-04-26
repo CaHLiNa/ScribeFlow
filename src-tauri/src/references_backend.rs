@@ -186,9 +186,7 @@ fn load_or_create_snapshot(params: &ReferenceLibraryReadParams) -> Result<Value,
                 &params.legacy_project_root,
                 &params.legacy_workspace_data_dir,
             )? {
-                Some(legacy_snapshot) => {
-                    merge_library_snapshots(&project_snapshot, &legacy_snapshot)
-                }
+                Some(legacy_snapshot) => merge_library_snapshots(&project_snapshot, &legacy_snapshot),
                 None => project_snapshot,
             }
         } else {
@@ -330,10 +328,7 @@ fn store_reference_asset(params: &ReferenceAssetStoreParams) -> Result<Value, St
     Ok(normalize_reference_record(&Value::Object(map)))
 }
 
-fn migrate_reference_assets_values(
-    global_config_dir: &str,
-    references: &[Value],
-) -> Result<Vec<Value>, String> {
+fn migrate_reference_assets_values(global_config_dir: &str, references: &[Value]) -> Result<Vec<Value>, String> {
     if global_config_dir.trim().is_empty() || references.is_empty() {
         return Ok(references.to_vec());
     }

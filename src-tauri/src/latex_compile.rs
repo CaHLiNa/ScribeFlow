@@ -7,7 +7,7 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
 use crate::latex::{CompileResult, LatexError};
 use crate::latex_diagnostics::parse_latex_output;
-use crate::latex_tools::{find_system_tex, find_tectonic};
+use crate::latex_tools::{find_tectonic, find_system_tex};
 use crate::process_utils::background_tokio_command;
 
 const LATEX_COMPILE_STREAM_EVENT: &str = "latex-compile-stream";

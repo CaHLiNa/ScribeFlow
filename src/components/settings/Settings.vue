@@ -20,8 +20,8 @@ import { SETTINGS_SECTION_DEFINITIONS, normalizeSettingsSectionId } from './sett
 const SettingsGeneral = defineAsyncComponent(() => import('./SettingsGeneral.vue'))
 const SettingsEditor = defineAsyncComponent(() => import('./SettingsEditor.vue'))
 const SettingsEnvironment = defineAsyncComponent(() => import('./SettingsEnvironment.vue'))
-const SettingsReferences = defineAsyncComponent(() => import('./SettingsReferences.vue'))
 const SettingsUpdates = defineAsyncComponent(() => import('./SettingsUpdates.vue'))
+const SettingsZotero = defineAsyncComponent(() => import('./SettingsZotero.vue'))
 
 const workspace = useWorkspaceStore()
 const { t } = useI18n()
@@ -36,9 +36,9 @@ const sections = computed(() =>
 const sectionComponents = {
   general: SettingsGeneral,
   editor: SettingsEditor,
-  references: SettingsReferences,
   system: SettingsEnvironment,
   updates: SettingsUpdates,
+  zotero: SettingsZotero,
 }
 
 const activeSection = computed(() =>

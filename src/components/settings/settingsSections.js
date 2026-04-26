@@ -20,9 +20,9 @@ export const SETTINGS_SECTION_DEFINITIONS = [
     icon: IconEdit,
   },
   {
-    id: 'references',
+    id: 'zotero',
     labelKey: 'References',
-    descriptionKey: 'Reference library, citation output, and bibliography defaults.',
+    descriptionKey: 'Reference sync, citations, and Zotero connection.',
     icon: IconBooks,
   },
   {
@@ -41,6 +41,5 @@ export const SETTINGS_SECTION_DEFINITIONS = [
 
 export function normalizeSettingsSectionId(sectionId = '') {
   const normalized = String(sectionId || '').trim()
-  if (!normalized) return 'general'
-  return normalized === 'zotero' ? 'references' : normalized
+  return normalized || 'general'
 }

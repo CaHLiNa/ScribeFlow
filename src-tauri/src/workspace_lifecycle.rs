@@ -7,19 +7,18 @@ use crate::editor_session_runtime::{
     editor_recent_files_load, editor_session_load, EditorRecentFilesLoadParams,
     EditorSessionLoadParams, RecentFileEntry,
 };
+use crate::references_backend::{
+    references_library_load_workspace, ReferenceLibraryLoadWorkspaceParams,
+};
 use crate::fs_tree::FileEntry;
 use crate::fs_tree_runtime::{
     fs_tree_load_workspace_state, fs_tree_restore_cached_expanded_state,
     FsTreeLoadWorkspaceStateParams, FsTreeRestoreCachedExpandedStateParams,
     FsTreeWorkspaceStateResult,
 };
-use crate::references_backend::{
-    references_library_load_workspace, ReferenceLibraryLoadWorkspaceParams,
-};
 use crate::references_runtime::{references_scan_workspace_styles, CitationStyleScanParams};
-use crate::security::{
-    clear_allowed_roots_internal, set_allowed_roots_internal, WorkspaceScopeState,
-};
+use crate::references_zotero::{references_zotero_config_load, ZoteroConfigPathParams};
+use crate::security::{clear_allowed_roots_internal, set_allowed_roots_internal, WorkspaceScopeState};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -32,6 +31,7 @@ use tauri::State;
 const WORKSPACE_LIFECYCLE_VERSION: u32 = 1;
 const MAX_RECENT_WORKSPACES: usize = 10;
 const WORKSPACE_BOOTSTRAP_BACKGROUND_WINDOW_MS: u64 = 600;
+const WORKSPACE_BOOTSTRAP_ZOTERO_AUTOSYNC_DELAY_MS: u64 = 80;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -201,6 +201,8 @@ pub struct WorkspaceBootstrapHydratedData {
     pub references_snapshot: Value,
     #[serde(default)]
     pub reference_styles: Value,
+    #[serde(default)]
+    pub zotero_config: Value,
     #[serde(default)]
     pub document_workflow_state: DocumentWorkflowPersistentState,
     #[serde(default)]
@@ -474,10 +476,21 @@ fn workspace_bootstrap_task(
 }
 
 fn build_workspace_bootstrap_plan(has_cached_tree: bool) -> WorkspaceBootstrapPlan {
-    let tasks = vec![
+    let mut tasks = vec![
         workspace_bootstrap_task("workspace.loadBootstrapData", 0, true, false),
-        workspace_bootstrap_task("files.startWatching", 0, false, false),
+        workspace_bootstrap_task(
+            "references.zoteroAutoSync",
+            WORKSPACE_BOOTSTRAP_ZOTERO_AUTOSYNC_DELAY_MS,
+            false,
+            false,
+        ),
     ];
+    tasks.push(workspace_bootstrap_task(
+        "files.startWatching",
+        0,
+        false,
+        false,
+    ));
 
     WorkspaceBootstrapPlan {
         block_on_initial_tree_load: !has_cached_tree,
@@ -599,25 +612,30 @@ pub async fn workspace_lifecycle_resolve_bootstrap_plan(
 pub async fn workspace_lifecycle_load_bootstrap_data(
     params: WorkspaceLifecycleLoadBootstrapDataParams,
 ) -> Result<WorkspaceBootstrapHydratedData, String> {
-    let references_snapshot =
-        references_library_load_workspace(ReferenceLibraryLoadWorkspaceParams {
-            global_config_dir: params.global_config_dir.clone(),
-            legacy_workspace_data_dir: params.legacy_workspace_data_dir,
-            legacy_project_root: params.legacy_project_root,
-        })
-        .await?;
+    let references_snapshot = references_library_load_workspace(ReferenceLibraryLoadWorkspaceParams {
+        global_config_dir: params.global_config_dir.clone(),
+        legacy_workspace_data_dir: params.legacy_workspace_data_dir,
+        legacy_project_root: params.legacy_project_root,
+    })
+    .await?;
 
     let reference_styles = references_scan_workspace_styles(CitationStyleScanParams {
         workspace_path: params.workspace_path.clone(),
     })
     .await?;
 
-    let document_workflow_state =
-        document_workflow_session_load(DocumentWorkflowPersistentStateLoadParams {
+    let zotero_config = references_zotero_config_load(ZoteroConfigPathParams {
+        global_config_dir: params.global_config_dir.clone(),
+    })
+    .await?;
+
+    let document_workflow_state = document_workflow_session_load(
+        DocumentWorkflowPersistentStateLoadParams {
             workspace_data_dir: params.workspace_data_dir.clone(),
             legacy_state: DocumentWorkflowPersistentState::default(),
-        })
-        .await?;
+        },
+    )
+    .await?;
 
     let recent_files = editor_recent_files_load(EditorRecentFilesLoadParams {
         workspace_data_dir: params.workspace_data_dir.clone(),
@@ -662,6 +680,7 @@ pub async fn workspace_lifecycle_load_bootstrap_data(
     Ok(WorkspaceBootstrapHydratedData {
         references_snapshot,
         reference_styles,
+        zotero_config,
         document_workflow_state,
         recent_files,
         editor_session_state,
@@ -803,9 +822,7 @@ mod tests {
         assert!(!plan.block_on_initial_tree_load);
         assert_eq!(plan.background_window_ms, 600);
         assert_eq!(
-            plan.tasks
-                .iter()
-                .find(|task| task.key == "workspace.loadBootstrapData"),
+            plan.tasks.iter().find(|task| task.key == "workspace.loadBootstrapData"),
             Some(&super::WorkspaceBootstrapTask {
                 key: "workspace.loadBootstrapData".to_string(),
                 delay_ms: 0,
@@ -813,10 +830,7 @@ mod tests {
                 await_tree_load: false,
             })
         );
-        assert!(plan
-            .tasks
-            .iter()
-            .all(|task| task.key != "editor.restoreEditorState"));
+        assert!(plan.tasks.iter().all(|task| task.key != "editor.restoreEditorState"));
     }
 
     #[test]
@@ -825,9 +839,7 @@ mod tests {
 
         assert!(plan.block_on_initial_tree_load);
         assert_eq!(
-            plan.tasks
-                .iter()
-                .find(|task| task.key == "workspace.loadBootstrapData"),
+            plan.tasks.iter().find(|task| task.key == "workspace.loadBootstrapData"),
             Some(&super::WorkspaceBootstrapTask {
                 key: "workspace.loadBootstrapData".to_string(),
                 delay_ms: 0,
@@ -835,13 +847,11 @@ mod tests {
                 await_tree_load: false,
             })
         );
-        assert!(plan
-            .tasks
-            .iter()
-            .all(|task| task.key != "editor.restoreEditorState"));
-        assert!(plan
-            .tasks
-            .iter()
-            .all(|task| task.key != "files.restoreCachedExpandedDirs"));
+        assert!(
+            plan.tasks
+                .iter()
+                .all(|task| task.key != "editor.restoreEditorState")
+        );
+        assert!(plan.tasks.iter().all(|task| task.key != "files.restoreCachedExpandedDirs"));
     }
 }

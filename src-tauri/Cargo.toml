@@ -33,6 +33,7 @@ percent-encoding = "2"
 shell-words = "1"
 tauri-plugin-clipboard-manager = "2"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
+keyring = "3"
 url = "2"
 lopdf = "0.35"
 pdf-extract = "0.7"

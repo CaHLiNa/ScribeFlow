@@ -308,19 +308,15 @@ fn build_citation_usage_index(file_contents: &Value) -> Value {
 
     let mut result = Map::new();
     for (key, paths) in usage {
-        result.insert(
-            key,
-            Value::Array(paths.into_iter().map(Value::String).collect()),
-        );
+        result.insert(key, Value::Array(paths.into_iter().map(Value::String).collect()));
     }
     Value::Object(result)
 }
 
 fn normalize_sort_key(sort_key: &str) -> String {
     match sort_key.trim() {
-        "year-desc" | "year-asc" | "title-asc" | "title-desc" | "author-asc" | "author-desc" => {
-            sort_key.trim().to_string()
-        }
+        "year-desc" | "year-asc" | "title-asc" | "title-desc" | "author-asc"
+        | "author-desc" => sort_key.trim().to_string(),
         _ => "year-desc".to_string(),
     }
 }
@@ -343,17 +339,13 @@ pub async fn references_query_resolve(
         .map(|section| trim_string(section.get("key")))
         .unwrap_or_default();
 
-    let selected_collection_key =
-        resolve_collection(&params.collections, &params.selected_collection_key)
-            .and_then(|collection| Some(trim_string(collection.get("key"))))
-            .unwrap_or_default();
+    let selected_collection_key = resolve_collection(&params.collections, &params.selected_collection_key)
+        .and_then(|collection| Some(trim_string(collection.get("key"))))
+        .unwrap_or_default();
 
     let selected_tag_key = {
         let normalized = normalize_tag_key(&params.selected_tag_key);
-        if params
-            .tags
-            .iter()
-            .any(|tag| normalize_tag_key(&trim_string(tag.get("key"))) == normalized)
+        if params.tags.iter().any(|tag| normalize_tag_key(&trim_string(tag.get("key"))) == normalized)
         {
             normalized
         } else {
@@ -538,7 +530,10 @@ mod tests {
             result["filteredReferences"].as_array().map(|v| v.len()),
             Some(1)
         );
-        assert_eq!(result["filteredReferences"][0]["id"].as_str(), Some("a"));
+        assert_eq!(
+            result["filteredReferences"][0]["id"].as_str(),
+            Some("a")
+        );
         assert_eq!(result["sectionCounts"]["missing-pdf"].as_u64(), Some(1));
         assert_eq!(result["sourceCounts"]["zotero"].as_u64(), Some(1));
         assert_eq!(result["collectionCounts"]["reading"].as_u64(), Some(1));

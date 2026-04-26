@@ -15,6 +15,7 @@ mod fs_tree;
 mod fs_tree_runtime;
 mod fs_watch_runtime;
 mod i18n_runtime;
+mod keychain;
 mod latex;
 mod latex_compile;
 mod latex_diagnostics;
@@ -36,6 +37,8 @@ mod references_pdf;
 mod references_query;
 mod references_runtime;
 mod references_snapshot;
+mod references_zotero;
+mod references_zotero_account;
 mod security;
 mod workbench_state;
 mod workspace_access;
@@ -459,6 +462,9 @@ pub fn run() {
             fs_tree_runtime::fs_tree_reveal_workspace_state,
             fs_tree_runtime::fs_tree_restore_cached_expanded_state,
             document_workflow::document_workflow_reconcile,
+            keychain::keychain_set,
+            keychain::keychain_get,
+            keychain::keychain_delete,
             fs_commands::reveal_in_file_manager,
             fs_commands::open_path_in_default_app,
             fs_commands::get_global_config_dir,
@@ -488,6 +494,18 @@ pub fn run() {
             references_runtime::references_write_bib_file,
             references_mutation::references_mutation_apply,
             references_query::references_query_resolve,
+            references_zotero_account::references_zotero_api_key_store,
+            references_zotero_account::references_zotero_api_key_load,
+            references_zotero_account::references_zotero_api_key_clear,
+            references_zotero_account::references_zotero_disconnect,
+            references_zotero::references_zotero_config_load,
+            references_zotero::references_zotero_config_save,
+            references_zotero::references_zotero_validate_api_key,
+            references_zotero::references_zotero_fetch_user_groups,
+            references_zotero::references_zotero_fetch_collections,
+            references_zotero::references_zotero_sync,
+            references_zotero::references_zotero_sync_persist,
+            references_zotero::references_zotero_delete_item,
             document_outline::document_outline_resolve,
             document_workflow_action::document_workflow_action_resolve,
             document_workflow_controller::document_workflow_controller_execute,
