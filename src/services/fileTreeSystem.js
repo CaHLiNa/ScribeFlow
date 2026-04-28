@@ -1,9 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 
-export function pathExists(path) {
-  return invoke('path_exists', { path })
-}
+export { getPathStatus, pathExists } from './pathStatus.js'
 
 export function loadWorkspaceTreeState(params = {}) {
   return invoke('fs_tree_load_workspace_state', {

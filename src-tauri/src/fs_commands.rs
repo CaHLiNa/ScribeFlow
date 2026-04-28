@@ -62,6 +62,17 @@ pub struct ImagePreviewResult {
     pub renderer: String,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PathStatusResult {
+    pub path: String,
+    pub exists: bool,
+    pub is_dir: bool,
+    pub is_file: bool,
+    pub size: Option<u64>,
+    pub modified: Option<u64>,
+}
+
 fn build_copy_name(name: &str, index: usize, suffix: &str) -> String {
     if index == 1 {
         format!("{name} copy{suffix}")
@@ -76,6 +87,29 @@ fn path_exists_internal(path: &Path) -> bool {
 
 fn is_directory_internal(path: &Path) -> bool {
     path.is_dir()
+}
+
+fn path_status_internal(path: &Path) -> PathStatusResult {
+    let metadata = fs::metadata(path).ok();
+    let is_dir = metadata.as_ref().is_some_and(fs::Metadata::is_dir);
+    let is_file = metadata.as_ref().is_some_and(fs::Metadata::is_file);
+    let modified = metadata
+        .as_ref()
+        .and_then(|value| value.modified().ok())
+        .and_then(|value| value.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|value| value.as_secs());
+
+    PathStatusResult {
+        path: path.to_string_lossy().to_string(),
+        exists: metadata.is_some(),
+        is_dir,
+        is_file,
+        size: metadata
+            .as_ref()
+            .filter(|_| is_file)
+            .map(fs::Metadata::len),
+        modified,
+    }
 }
 
 fn resolve_unique_copy_destination(path: &Path, dir: &Path, is_dir: bool) -> PathBuf {
@@ -713,15 +747,8 @@ pub async fn workspace_copy_external_path(
 }
 
 #[tauri::command]
-pub async fn is_directory(path: String) -> Result<bool, String> {
-    Ok(Path::new(&path).is_dir())
-}
-
-#[tauri::command]
-pub async fn path_exists(path: String) -> Result<bool, String> {
-    let exists = Path::new(&path).exists();
-    eprintln!("[fs] path_exists path={} exists={}", path, exists);
-    Ok(exists)
+pub async fn path_status(path: String) -> Result<PathStatusResult, String> {
+    Ok(path_status_internal(Path::new(&path)))
 }
 
 #[tauri::command]
@@ -875,4 +902,37 @@ pub async fn get_global_config_dir() -> Result<String, String> {
 pub async fn get_home_dir() -> Result<String, String> {
     let dir = dirs::home_dir().ok_or("Cannot find home directory".to_string())?;
     Ok(dir.to_string_lossy().to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::path_status_internal;
+    use std::fs;
+
+    #[test]
+    fn path_status_reports_existing_file_and_missing_path() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "scribeflow-path-status-{}",
+            uuid::Uuid::new_v4()
+        ));
+        fs::create_dir_all(&temp_dir).expect("create temp dir");
+        let file_path = temp_dir.join("note.md");
+        fs::write(&file_path, "hello").expect("write temp file");
+
+        let file_status = path_status_internal(&file_path);
+        assert!(file_status.exists);
+        assert!(file_status.is_file);
+        assert!(!file_status.is_dir);
+        assert_eq!(file_status.size, Some(5));
+        assert!(file_status.modified.is_some());
+
+        let missing_status = path_status_internal(&temp_dir.join("missing.md"));
+        assert!(!missing_status.exists);
+        assert!(!missing_status.is_file);
+        assert!(!missing_status.is_dir);
+        assert_eq!(missing_status.size, None);
+        assert_eq!(missing_status.modified, None);
+
+        fs::remove_dir_all(temp_dir).ok();
+    }
 }
