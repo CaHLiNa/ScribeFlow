@@ -3,19 +3,15 @@ use image::codecs::png::PngEncoder;
 use image::{ColorType, GenericImageView, ImageEncoder, ImageReader};
 use serde::Serialize;
 use std::collections::hash_map::DefaultHasher;
-use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
-use std::io::Cursor;
 use std::fs;
+use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use tokio::task;
 
 use crate::app_dirs;
 use crate::fs_io::read_text_file_with_limit;
-use crate::fs_tree::{
-    build_visible_tree, build_workspace_tree_snapshot, collect_files_recursive,
-    read_dir_shallow_entries, FileEntry, WorkspaceTreeSnapshot,
-};
+use crate::fs_tree::{read_dir_shallow_entries, FileEntry};
 use crate::process_utils::background_command;
 use crate::security;
 use crate::security::WorkspaceScopeState;
@@ -424,46 +420,6 @@ pub async fn read_dir_shallow(path: String, include_hidden: Option<bool>) -> Res
     let path_for_read = path.clone();
     let include_hidden = include_hidden.unwrap_or(true);
     run_blocking(move || read_dir_shallow_entries(Path::new(&path_for_read), include_hidden)).await
-}
-
-#[tauri::command]
-pub async fn list_files_recursive(path: String, include_hidden: Option<bool>) -> Result<Vec<FileEntry>, String> {
-    let path_for_read = path.clone();
-    let include_hidden = include_hidden.unwrap_or(true);
-    run_blocking(move || {
-        let mut files = Vec::new();
-        collect_files_recursive(Path::new(&path_for_read), &mut files, include_hidden)?;
-        files.sort_by(|a, b| a.path.to_lowercase().cmp(&b.path.to_lowercase()));
-        Ok(files)
-    })
-    .await
-}
-
-#[tauri::command]
-pub async fn read_visible_tree(
-    path: String,
-    loaded_dirs: Option<Vec<String>>,
-    include_hidden: Option<bool>,
-) -> Result<Vec<FileEntry>, String> {
-    let path_for_read = path.clone();
-    let loaded_set: HashSet<String> = loaded_dirs.unwrap_or_default().into_iter().collect();
-    let include_hidden = include_hidden.unwrap_or(true);
-    run_blocking(move || build_visible_tree(Path::new(&path_for_read), &loaded_set, include_hidden)).await
-}
-
-#[tauri::command]
-pub async fn read_workspace_tree_snapshot(
-    path: String,
-    loaded_dirs: Option<Vec<String>>,
-    include_hidden: Option<bool>,
-) -> Result<WorkspaceTreeSnapshot, String> {
-    let path_for_read = path.clone();
-    let loaded_set: HashSet<String> = loaded_dirs.unwrap_or_default().into_iter().collect();
-    let include_hidden = include_hidden.unwrap_or(true);
-    run_blocking(move || {
-        build_workspace_tree_snapshot(Path::new(&path_for_read), &loaded_set, include_hidden)
-    })
-        .await
 }
 
 #[tauri::command]

@@ -433,9 +433,6 @@ pub fn run() {
     builder
         .invoke_handler(tauri::generate_handler![
             fs_commands::read_dir_shallow,
-            fs_commands::list_files_recursive,
-            fs_commands::read_visible_tree,
-            fs_commands::read_workspace_tree_snapshot,
             fs_watch_runtime::workspace_tree_watch_start,
             fs_watch_runtime::workspace_tree_watch_note_activity,
             fs_watch_runtime::workspace_tree_watch_set_visibility,

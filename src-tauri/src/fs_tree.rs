@@ -96,47 +96,6 @@ pub fn read_dir_shallow_entries(
     Ok(entries)
 }
 
-pub fn build_visible_tree(
-    dir: &Path,
-    loaded_dirs: &HashSet<String>,
-    include_hidden: bool,
-) -> Result<Vec<FileEntry>, String> {
-    let mut entries = Vec::new();
-    let read_dir = fs::read_dir(dir).map_err(|e| e.to_string())?;
-
-    for entry in read_dir {
-        let entry = entry.map_err(|e| e.to_string())?;
-        let path = entry.path();
-        let name = entry.file_name().to_string_lossy().to_string();
-        let metadata = fs::symlink_metadata(&path).map_err(|e| e.to_string())?;
-        let file_type = metadata.file_type();
-        let is_symlink = file_type.is_symlink();
-        let is_dir = file_type.is_dir();
-
-        if should_skip_entry(&name, is_dir, is_symlink, include_hidden) {
-            continue;
-        }
-
-        let path_string = path.to_string_lossy().to_string();
-        let children = if is_dir && loaded_dirs.contains(&path_string) {
-            Some(build_visible_tree(&path, loaded_dirs, include_hidden)?)
-        } else {
-            None
-        };
-
-        entries.push(FileEntry {
-            name,
-            path: path_string,
-            is_dir,
-            children,
-            modified: file_modified_timestamp(&metadata, is_dir),
-        });
-    }
-
-    sort_entries(&mut entries);
-    Ok(entries)
-}
-
 fn collect_snapshot_entries(
     dir: &Path,
     loaded_dirs: &HashSet<String>,
@@ -203,43 +162,6 @@ pub fn build_workspace_tree_snapshot(
     let tree = collect_snapshot_entries(dir, loaded_dirs, &mut flat_files, include_hidden)?;
     flat_files.sort_by(|a, b| a.path.to_lowercase().cmp(&b.path.to_lowercase()));
     Ok(WorkspaceTreeSnapshot { tree, flat_files })
-}
-
-pub fn collect_files_recursive(
-    dir: &Path,
-    files: &mut Vec<FileEntry>,
-    include_hidden: bool,
-) -> Result<(), String> {
-    let read_dir = fs::read_dir(dir).map_err(|e| e.to_string())?;
-
-    for entry in read_dir {
-        let entry = entry.map_err(|e| e.to_string())?;
-        let path = entry.path();
-        let name = entry.file_name().to_string_lossy().to_string();
-        let metadata = fs::symlink_metadata(&path).map_err(|e| e.to_string())?;
-        let file_type = metadata.file_type();
-        let is_symlink = file_type.is_symlink();
-        let is_dir = file_type.is_dir();
-
-        if should_skip_entry(&name, is_dir, is_symlink, include_hidden) {
-            continue;
-        }
-
-        if is_dir {
-            collect_files_recursive(&path, files, include_hidden)?;
-            continue;
-        }
-
-        files.push(FileEntry {
-            name,
-            path: path.to_string_lossy().to_string(),
-            is_dir: false,
-            children: None,
-            modified: file_modified_timestamp(&metadata, false),
-        });
-    }
-
-    Ok(())
 }
 
 #[cfg(test)]
