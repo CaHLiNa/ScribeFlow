@@ -377,6 +377,23 @@ pub fn normalize_workspace_lifecycle_state(
     }
 }
 
+fn prune_missing_workspace_lifecycle_state(
+    state: WorkspaceLifecycleState,
+) -> WorkspaceLifecycleState {
+    let mut normalized = normalize_workspace_lifecycle_state(state);
+    normalized
+        .recent_workspaces
+        .retain(|entry| PathBuf::from(&entry.path).is_dir());
+
+    if !normalized.last_workspace.is_empty()
+        && !PathBuf::from(&normalized.last_workspace).is_dir()
+    {
+        normalized.last_workspace = String::new();
+    }
+
+    normalized
+}
+
 fn read_workspace_lifecycle_state(
     global_config_dir: &str,
 ) -> Result<Option<WorkspaceLifecycleState>, String> {
@@ -419,10 +436,12 @@ fn load_or_migrate_workspace_lifecycle_state(
     legacy_state: WorkspaceLifecycleState,
 ) -> Result<WorkspaceLifecycleState, String> {
     if let Some(current) = read_workspace_lifecycle_state(global_config_dir)? {
-        return Ok(normalize_workspace_lifecycle_state(current));
+        let normalized = prune_missing_workspace_lifecycle_state(current);
+        write_workspace_lifecycle_state(global_config_dir, &normalized)?;
+        return Ok(normalized);
     }
 
-    let normalized = normalize_workspace_lifecycle_state(legacy_state);
+    let normalized = prune_missing_workspace_lifecycle_state(legacy_state);
     write_workspace_lifecycle_state(global_config_dir, &normalized)?;
     Ok(normalized)
 }
@@ -535,7 +554,7 @@ pub async fn workspace_lifecycle_load(
 pub async fn workspace_lifecycle_save(
     params: WorkspaceLifecycleSaveParams,
 ) -> Result<WorkspaceBootstrapState, String> {
-    let normalized = normalize_workspace_lifecycle_state(params.state);
+    let normalized = prune_missing_workspace_lifecycle_state(params.state);
     write_workspace_lifecycle_state(&params.global_config_dir, &normalized)?;
     Ok(WorkspaceBootstrapState::from(normalized))
 }
@@ -548,7 +567,10 @@ pub async fn workspace_lifecycle_record_opened(
         &params.global_config_dir,
         WorkspaceLifecycleState::default(),
     )?;
-    let normalized = record_workspace_opened(state, &params.path);
+    let normalized = prune_missing_workspace_lifecycle_state(record_workspace_opened(
+        state,
+        &params.path,
+    ));
     write_workspace_lifecycle_state(&params.global_config_dir, &normalized)?;
     Ok(WorkspaceBootstrapState::from(normalized))
 }
@@ -587,7 +609,10 @@ pub async fn workspace_lifecycle_prepare_open(
         &global_config_dir,
         WorkspaceLifecycleState::default(),
     )?;
-    let normalized = record_workspace_opened(state, &path);
+    let normalized = prune_missing_workspace_lifecycle_state(record_workspace_opened(
+        state,
+        &path,
+    ));
     write_workspace_lifecycle_state(&global_config_dir, &normalized)?;
 
     Ok(WorkspaceOpenState {
@@ -699,8 +724,9 @@ pub async fn workspace_lifecycle_prepare_close(
 mod tests {
     use super::{
         build_workspace_bootstrap_plan, hash_workspace_path, normalize_workspace_lifecycle_state,
-        record_workspace_opened, resolve_claude_config_dir, resolve_workspace_data_dir,
-        workspace_lifecycle_load, workspace_lifecycle_save, RecentWorkspaceEntry,
+        prune_missing_workspace_lifecycle_state, record_workspace_opened,
+        resolve_claude_config_dir, resolve_workspace_data_dir, workspace_lifecycle_load,
+        workspace_lifecycle_save, RecentWorkspaceEntry,
         WorkspaceLifecycleLoadParams, WorkspaceLifecycleSaveParams, WorkspaceLifecycleState,
     };
     use std::fs;
@@ -736,6 +762,46 @@ mod tests {
     }
 
     #[test]
+    fn prunes_missing_recent_workspaces_and_last_workspace() {
+        let existing_dir = std::env::temp_dir().join(format!(
+            "scribeflow-existing-workspace-{}",
+            uuid::Uuid::new_v4()
+        ));
+        fs::create_dir_all(&existing_dir).expect("create existing workspace");
+
+        let missing_dir = std::env::temp_dir().join(format!(
+            "scribeflow-missing-workspace-{}",
+            uuid::Uuid::new_v4()
+        ));
+
+        let normalized = prune_missing_workspace_lifecycle_state(WorkspaceLifecycleState {
+            recent_workspaces: vec![
+                RecentWorkspaceEntry {
+                    path: existing_dir.to_string_lossy().to_string(),
+                    name: "existing".to_string(),
+                    last_opened: "2026-04-21T00:00:00Z".to_string(),
+                },
+                RecentWorkspaceEntry {
+                    path: missing_dir.to_string_lossy().to_string(),
+                    name: "missing".to_string(),
+                    last_opened: "2026-04-20T00:00:00Z".to_string(),
+                },
+            ],
+            last_workspace: missing_dir.to_string_lossy().to_string(),
+            ..WorkspaceLifecycleState::default()
+        });
+
+        assert_eq!(normalized.recent_workspaces.len(), 1);
+        assert_eq!(
+            normalized.recent_workspaces[0].path,
+            existing_dir.to_string_lossy()
+        );
+        assert_eq!(normalized.last_workspace, "");
+
+        fs::remove_dir_all(existing_dir).ok();
+    }
+
+    #[test]
     fn derives_workspace_paths_from_global_config_dir() {
         let id = hash_workspace_path("/tmp/demo");
         assert_eq!(id.len(), 64);
@@ -756,16 +822,18 @@ mod tests {
             uuid::Uuid::new_v4()
         ));
         fs::create_dir_all(&temp_dir).expect("create temp dir");
+        let workspace_dir = temp_dir.join("demo");
+        fs::create_dir_all(&workspace_dir).expect("create workspace dir");
 
         let saved = workspace_lifecycle_save(WorkspaceLifecycleSaveParams {
             global_config_dir: temp_dir.to_string_lossy().to_string(),
             state: WorkspaceLifecycleState {
                 recent_workspaces: vec![RecentWorkspaceEntry {
-                    path: "/tmp/demo".to_string(),
+                    path: workspace_dir.to_string_lossy().to_string(),
                     name: "demo".to_string(),
                     last_opened: "2026-04-21T00:00:00Z".to_string(),
                 }],
-                last_workspace: "/tmp/demo".to_string(),
+                last_workspace: workspace_dir.to_string_lossy().to_string(),
                 setup_complete: true,
                 reopen_last_workspace_on_launch: false,
                 reopen_last_session_on_launch: false,
