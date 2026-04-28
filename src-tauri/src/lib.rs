@@ -436,7 +436,7 @@ pub fn run() {
             fs_watch_runtime::workspace_tree_watch_note_activity,
             fs_watch_runtime::workspace_tree_watch_set_visibility,
             fs_watch_runtime::workspace_tree_watch_stop,
-            fs_commands::render_image_preview,
+            fs_commands::workspace_render_image_preview,
             fs_commands::workspace_read_file_base64,
             fs_commands::workspace_write_file_base64,
             fs_commands::workspace_read_text_file,

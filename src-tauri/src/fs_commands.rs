@@ -560,15 +560,13 @@ fn render_postscript_preview(path: &Path, max_size: u32) -> Result<ImagePreviewR
 }
 
 #[tauri::command]
-pub async fn render_image_preview(
+pub async fn workspace_render_image_preview(
     path: String,
     max_size: Option<u32>,
+    scope_state: tauri::State<'_, WorkspaceScopeState>,
 ) -> Result<ImagePreviewResult, String> {
-    let path_for_render = path.clone();
-    run_blocking(move || {
-        render_image_preview_blocking(Path::new(&path_for_render), max_size.unwrap_or(1800))
-    })
-    .await
+    let resolved = security::ensure_allowed_workspace_path(scope_state.inner(), Path::new(&path))?;
+    run_blocking(move || render_image_preview_blocking(&resolved, max_size.unwrap_or(1800))).await
 }
 
 #[tauri::command]
