@@ -118,7 +118,6 @@
 
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { getCurrentWindow } from '@tauri-apps/api/window'
 import {
   IconBook2,
   IconLayoutColumns,
@@ -130,6 +129,11 @@ import {
 import UiButton from '../shared/ui/UiButton.vue'
 import { isMac, isTauriDesktopRuntime, modKey } from '../../platform'
 import { useI18n } from '../../i18n'
+import {
+  isNativeWindowFullscreen,
+  onNativeWindowResized,
+  startNativeWindowDrag,
+} from '../../services/nativeWindow.js'
 
 const props = defineProps({
   tabsTargetId: { type: String, default: 'app-shell-topbar-tabs' },
@@ -185,7 +189,7 @@ const railStyle = computed(() => ({
 async function syncNativeWindowChromeState() {
   if (!isTauriDesktop) return
   try {
-    isNativeFullscreen.value = await getCurrentWindow().isFullscreen()
+    isNativeFullscreen.value = await isNativeWindowFullscreen()
   } catch {
     isNativeFullscreen.value = false
   }
@@ -198,7 +202,7 @@ async function handleWindowDragStart(event) {
   event.preventDefault()
   beginWindowDragGuard()
   try {
-    await getCurrentWindow().startDragging()
+    await startNativeWindowDrag()
   } catch {
     // Ignore drag-start failures from unsupported environments.
   } finally {
@@ -240,7 +244,7 @@ onMounted(async () => {
   if (!isTauriDesktop) return
   await syncNativeWindowChromeState()
   try {
-    unlistenWindowResize = await getCurrentWindow().onResized(() => {
+    unlistenWindowResize = await onNativeWindowResized(() => {
       syncNativeWindowChromeState()
     })
   } catch {

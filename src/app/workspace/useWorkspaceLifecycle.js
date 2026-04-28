@@ -1,5 +1,4 @@
 import { onMounted, onUnmounted, ref } from 'vue'
-import { getCurrentWindow } from '@tauri-apps/api/window'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useFilesStore } from '../../stores/files'
@@ -19,6 +18,7 @@ import {
 import { confirmUnsavedChanges } from '../../services/unsavedChanges'
 import { syncNow } from '../../services/references/zoteroSync.js'
 import { pathExists } from '../../services/pathExists.js'
+import { onNativeWindowFocusChanged } from '../../services/nativeWindow.js'
 import { basenamePath } from '../../utils/path'
 import { isTauriDesktopRuntime } from '../../platform'
 
@@ -72,7 +72,7 @@ export function useWorkspaceLifecycle() {
   async function setupDesktopWindowFocusRefresh() {
     if (!isTauriDesktop) return
     try {
-      unlistenWindowFocusChange = await getCurrentWindow().onFocusChanged(({ payload: focused }) => {
+      unlistenWindowFocusChange = await onNativeWindowFocusChanged(({ payload: focused }) => {
         if (!focused) return
         refreshWorkspaceStateAfterVisibility('window-focus')
       })
