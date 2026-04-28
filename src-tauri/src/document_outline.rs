@@ -193,7 +193,9 @@ fn latex_outline_items(
 
     let graph = resolve_graph_value(&LatexProjectGraphParams {
         source_path: normalized_path.to_string(),
+        workspace_path: String::new(),
         flat_files: params.flat_files.clone(),
+        include_hidden: true,
         content_overrides,
     })
     .unwrap_or(Value::Null);

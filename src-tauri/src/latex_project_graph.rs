@@ -5,13 +5,19 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::fs;
 use std::path::Path;
 
+use crate::fs_tree::{collect_files_recursive, FileEntry};
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LatexProjectGraphParams {
     #[serde(default)]
     pub source_path: String,
     #[serde(default)]
+    pub workspace_path: String,
+    #[serde(default)]
     pub flat_files: Vec<String>,
+    #[serde(default = "default_include_hidden")]
+    pub include_hidden: bool,
     #[serde(default)]
     pub content_overrides: HashMap<String, String>,
 }
@@ -22,7 +28,11 @@ pub struct LatexAffectedRootsParams {
     #[serde(default)]
     pub changed_path: String,
     #[serde(default)]
+    pub workspace_path: String,
+    #[serde(default)]
     pub flat_files: Vec<String>,
+    #[serde(default = "default_include_hidden")]
+    pub include_hidden: bool,
     #[serde(default)]
     pub content_overrides: HashMap<String, String>,
 }
@@ -44,6 +54,10 @@ struct FileRecord {
 
 fn normalize_fs_path(path: &str) -> String {
     path.trim().replace('\\', "/")
+}
+
+fn default_include_hidden() -> bool {
+    true
 }
 
 fn dirname_path(path: &str) -> String {
@@ -889,17 +903,57 @@ fn build_preview_path(root_path: &str) -> String {
     }
 }
 
+fn resolve_graph_flat_files(
+    flat_files: &[String],
+    workspace_path: &str,
+    include_hidden: bool,
+) -> Vec<String> {
+    let explicit = flat_files
+        .iter()
+        .map(|path| normalize_fs_path(path))
+        .filter(|path| matches!(extname_path(path).as_str(), ".tex" | ".latex" | ".bib"))
+        .collect::<Vec<_>>();
+    if !explicit.is_empty() {
+        return explicit;
+    }
+
+    let normalized_workspace = normalize_fs_path(workspace_path);
+    if normalized_workspace.is_empty() {
+        return Vec::new();
+    }
+
+    let mut entries: Vec<FileEntry> = Vec::new();
+    if collect_files_recursive(Path::new(&normalized_workspace), &mut entries, include_hidden)
+        .is_err()
+    {
+        return Vec::new();
+    }
+
+    let mut resolved = entries
+        .into_iter()
+        .map(|entry| normalize_fs_path(&entry.path))
+        .filter(|path| matches!(extname_path(path).as_str(), ".tex" | ".latex" | ".bib"))
+        .collect::<Vec<_>>();
+    resolved.sort();
+    resolved.dedup();
+    resolved
+}
+
 pub(crate) fn resolve_graph_value(params: &LatexProjectGraphParams) -> Option<Value> {
     let normalized_source = normalize_fs_path(&params.source_path);
     if normalized_source.is_empty() {
         return None;
     }
 
-    let mut available_paths = params
-        .flat_files
+    let resolved_flat_files = resolve_graph_flat_files(
+        &params.flat_files,
+        &params.workspace_path,
+        params.include_hidden,
+    );
+
+    let mut available_paths = resolved_flat_files
         .iter()
-        .map(|path| normalize_fs_path(path))
-        .filter(|path| matches!(extname_path(path).as_str(), ".tex" | ".latex" | ".bib"))
+        .cloned()
         .collect::<HashSet<_>>();
     available_paths.insert(normalized_source.clone());
 
@@ -1083,10 +1137,12 @@ fn resolve_affected_root_targets_internal(params: &LatexAffectedRootsParams) -> 
         return Vec::new();
     }
 
-    let latex_files = params
-        .flat_files
-        .iter()
-        .map(|path| normalize_fs_path(path))
+    let latex_files = resolve_graph_flat_files(
+        &params.flat_files,
+        &params.workspace_path,
+        params.include_hidden,
+    )
+    .into_iter()
         .filter(|path| is_latex_source_path(path))
         .collect::<Vec<_>>();
 
@@ -1094,7 +1150,9 @@ fn resolve_affected_root_targets_internal(params: &LatexAffectedRootsParams) -> 
     for file_path in latex_files {
         let graph = resolve_graph_value(&LatexProjectGraphParams {
             source_path: file_path.clone(),
+            workspace_path: params.workspace_path.clone(),
             flat_files: params.flat_files.clone(),
+            include_hidden: params.include_hidden,
             content_overrides: params.content_overrides.clone(),
         });
         let Some(graph) = graph else { continue };
@@ -1175,7 +1233,9 @@ pub async fn latex_compile_targets_resolve(
     if is_latex_source_path(&normalized_changed) {
         let request = latex_compile_request_resolve(LatexProjectGraphParams {
             source_path: normalized_changed.clone(),
+            workspace_path: params.workspace_path.clone(),
             flat_files: params.flat_files.clone(),
+            include_hidden: params.include_hidden,
             content_overrides: params.content_overrides.clone(),
         })
         .await?;
@@ -1213,7 +1273,9 @@ mod tests {
         let content = "前言\n\\section{方法}\n";
         let graph = resolve_graph_value(&LatexProjectGraphParams {
             source_path: source_path.clone(),
+            workspace_path: String::new(),
             flat_files: vec![source_path.clone()],
+            include_hidden: true,
             content_overrides: HashMap::from([(source_path.clone(), content.to_string())]),
         })
         .unwrap();

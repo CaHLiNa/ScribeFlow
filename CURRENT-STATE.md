@@ -148,6 +148,7 @@ What is not fully cleaned up:
 - Remaining bridge calls are now concentrated in `services/*`, and several previously broad bridge files have started to split into narrower runtime slices.
 - SyncTeX fallback parsing now resolves in Rust, and the old frontend `latexWorkshopSynctex*` parser/runtime files have been removed from the active bridge path.
 - `latex/projectGraph` also carries less frontend surface now: unused JS facade entrypoints and an unused Rust command have been removed, leaving fewer non-UI call paths around project-target resolution.
+- `latex/projectGraph` workspace file discovery no longer depends on a dedicated frontend helper file; Rust can now resolve workspace flat files itself when the bridge only provides `workspacePath`.
 - The repo still carries light traces of earlier scope, even after the desktop-focused slim-down.
 
 ## Debt Map
