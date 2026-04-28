@@ -25,7 +25,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import {
   DOCUMENT_DOCK_FILE_PAGE,
   DOCUMENT_DOCK_PROBLEMS_PAGE,
@@ -35,6 +35,7 @@ import {
 import {
   findInlineDockPage,
   resolveInlineDockActivePageKey,
+  resolveInlineDockFallbackPage,
 } from '../../domains/workbench/inlineDockPageRegistry.js'
 import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { useEditorStore } from '../../stores/editor'
@@ -98,34 +99,66 @@ const dockPages = computed(() =>
 )
 const hasDockTabs = computed(() => dockPages.value.length > 0)
 const activeDockKey = computed(() => {
-  const activeFileKey =
-    editorStore.activeDocumentDockTab && comparisonTabs.value.includes(editorStore.activeDocumentDockTab)
-      ? documentDockFileKey(editorStore.activeDocumentDockTab)
-      : ''
   return resolveInlineDockActivePageKey(dockPages.value, workspace.documentDockActivePage, {
     defaultType: workspace.documentDockDefaultPage || DOCUMENT_DOCK_PREVIEW_PAGE,
     fallbackTypes: [DOCUMENT_DOCK_FILE_PAGE, DOCUMENT_DOCK_PROBLEMS_PAGE],
-    preferredKeysByType: {
-      [DOCUMENT_DOCK_FILE_PAGE]: activeFileKey,
-    },
+    preferredKeysByType: documentDockPreferredKeysByType(),
   })
 })
 const activeDockPage = computed(() => findInlineDockPage(dockPages.value, activeDockKey.value))
 const usesImmersivePreview = computed(() => activeDockPage.value?.immersive === true)
 
+function documentDockPreferredKeysByType() {
+  const activeFileKey =
+    editorStore.activeDocumentDockTab && comparisonTabs.value.includes(editorStore.activeDocumentDockTab)
+      ? documentDockFileKey(editorStore.activeDocumentDockTab)
+      : ''
+  return {
+    [DOCUMENT_DOCK_FILE_PAGE]: activeFileKey,
+  }
+}
+
+function resolveDocumentDockFallbackPage(closedPage = {}) {
+  const remainingPages = dockPages.value.filter((page) => page.key !== closedPage.key)
+  return resolveInlineDockFallbackPage(remainingPages, closedPage, {
+    defaultType: workspace.documentDockDefaultPage || DOCUMENT_DOCK_PREVIEW_PAGE,
+    preferredKeysByType: documentDockPreferredKeysByType(),
+  })
+}
+
+function resolveDocumentDockLifecyclePage(type = '') {
+  const definition = workspace.documentDockPageDefinitions.find((page) => page.id === type) || {}
+  return {
+    key: type,
+    type,
+    fallbackPage: definition.fallbackPage || workspace.documentDockDefaultPage || DOCUMENT_DOCK_PREVIEW_PAGE,
+    lifecycle: definition,
+  }
+}
+
+function activateResolvedDockPage(page = null) {
+  if (!page) {
+    emit('close')
+    return
+  }
+
+  if (page.type === DOCUMENT_DOCK_FILE_PAGE && page.path) {
+    editorStore.setActiveDocumentDockFile(page.path)
+  }
+
+  void workspace.setDocumentDockActivePage(page.type)
+}
+
+function settleClosedActivePage(page = {}, wasActive = true) {
+  if (!wasActive) return
+  activateResolvedDockPage(resolveDocumentDockFallbackPage(page))
+}
+
 watch(
   () => hasProblemsPage.value,
   (hasProblems) => {
     if (hasProblems || workspace.documentDockActivePage !== DOCUMENT_DOCK_PROBLEMS_PAGE) return
-    if (hasPreview.value) {
-      void workspace.setDocumentDockActivePage(DOCUMENT_DOCK_PREVIEW_PAGE)
-      return
-    }
-    if (comparisonTabs.value.length > 0) {
-      void workspace.setDocumentDockActivePage(DOCUMENT_DOCK_FILE_PAGE)
-      return
-    }
-    emit('close')
+    settleClosedActivePage(resolveDocumentDockLifecyclePage(DOCUMENT_DOCK_PROBLEMS_PAGE))
   },
   { immediate: true }
 )
@@ -147,18 +180,11 @@ function activateDockPage(page = {}) {
   }
 }
 
-function closePreview() {
-  void workflowStore.hideWorkspacePreviewForFile(props.filePath)
-  if (comparisonTabs.value.length > 0) {
-    void workspace.setDocumentDockActivePage(DOCUMENT_DOCK_FILE_PAGE)
-    return
-  }
-  if (hasProblemsPage.value) {
-    void workspace.openDocumentDock()
-    void workspace.setDocumentDockActivePage(DOCUMENT_DOCK_PROBLEMS_PAGE)
-    return
-  }
-  emit('close')
+async function closePreview(page = {}) {
+  await workflowStore.hideWorkspacePreviewForFile(props.filePath).catch(() => null)
+  await nextTick()
+  if (hasPreview.value) return
+  settleClosedActivePage(page)
 }
 
 function closeFilePage(page = {}) {
@@ -166,45 +192,20 @@ function closeFilePage(page = {}) {
   if (!path) return
 
   const isActivePage = activeDockKey.value === page.key
-  const onlyComparisonTab = comparisonTabs.value.length === 1 && comparisonTabs.value[0] === path
   editorStore.closeDocumentDockFile(path)
-
-  if (!hasPreview.value && onlyComparisonTab) {
-    if (hasProblemsPage.value) {
-      void workspace.setDocumentDockActivePage(DOCUMENT_DOCK_PROBLEMS_PAGE)
-      return
-    }
-    emit('close')
-    return
-  }
-
-  if (!isActivePage) return
-  if (comparisonTabs.value.length > 1) {
-    void workspace.setDocumentDockActivePage(DOCUMENT_DOCK_FILE_PAGE)
-    return
-  }
-  if (hasPreview.value) {
-    void workspace.setDocumentDockActivePage(DOCUMENT_DOCK_PREVIEW_PAGE)
-  }
+  settleClosedActivePage(page, isActivePage)
 }
 
-function closeProblemsPage() {
+function closeProblemsPage(page = {}) {
   dismissedProblemsRevealToken.value = props.problemsRevealToken
-
-  if (hasPreview.value) {
-    void workspace.setDocumentDockActivePage(DOCUMENT_DOCK_PREVIEW_PAGE)
-    return
-  }
-  if (comparisonTabs.value.length > 0) {
-    void workspace.setDocumentDockActivePage(DOCUMENT_DOCK_FILE_PAGE)
-    return
-  }
-  emit('close')
+  settleClosedActivePage(page)
 }
 
-function closeDockPage(page = {}) {
+async function closeDockPage(page = {}) {
+  if (page.closeable !== true) return
+
   if (page.type === DOCUMENT_DOCK_PREVIEW_PAGE) {
-    closePreview()
+    await closePreview(page)
     return
   }
   if (page.type === DOCUMENT_DOCK_FILE_PAGE) {
@@ -212,7 +213,7 @@ function closeDockPage(page = {}) {
     return
   }
   if (page.type === DOCUMENT_DOCK_PROBLEMS_PAGE) {
-    closeProblemsPage()
+    closeProblemsPage(page)
   }
 }
 

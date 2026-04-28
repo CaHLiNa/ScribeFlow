@@ -139,3 +139,24 @@ export function resolveInlineDockFallbackPageType(pages = [], closedPage = {}, o
 
   return normalizedPages[0]?.type || ''
 }
+
+export function resolveInlineDockFallbackPage(pages = [], closedPage = {}, options = {}) {
+  const normalizedPages = Array.isArray(pages) ? pages.filter((page) => page?.key) : []
+  if (normalizedPages.length === 0) return null
+
+  const preferredKeysByType = options.preferredKeysByType || {}
+  const resolveByType = (type) =>
+    findFirstInlineDockPageByType(
+      normalizedPages,
+      type,
+      preferredKeysByType[normalizeType(type)] || ''
+    )
+
+  if (options.preferSameType !== false) {
+    const siblingPage = resolveByType(closedPage?.type)
+    if (siblingPage) return siblingPage
+  }
+
+  const fallbackType = resolveInlineDockFallbackPageType(normalizedPages, closedPage, options)
+  return resolveByType(fallbackType) || normalizedPages[0] || null
+}
