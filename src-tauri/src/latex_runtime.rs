@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
+use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, State};
@@ -348,7 +349,91 @@ fn build_compiling_state(
     value
 }
 
+fn basename_path(path: &str) -> String {
+    Path::new(path)
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or(path)
+        .to_string()
+}
+
+fn format_terminal_issue(issue: &LatexError) -> String {
+    let prefix = issue
+        .line
+        .map(|line| format!("L{line}: "))
+        .unwrap_or_default();
+    format!("{prefix}{}", issue.message.trim()).trim().to_string()
+}
+
+fn build_terminal_text(display_path: &str, result: &CompileResult, include_raw_log: bool) -> String {
+    let mut lines = vec![format!("[LaTeX] {}", basename_path(display_path))];
+
+    if let Some(compiler_backend) = result.compiler_backend.as_ref() {
+        if !compiler_backend.trim().is_empty() {
+            lines.push(format!("Compiler: {compiler_backend}"));
+        }
+    }
+    if let Some(command_preview) = result.command_preview.as_ref() {
+        if !command_preview.trim().is_empty() {
+            lines.push(format!("Command: {command_preview}"));
+        }
+    }
+    if let Some(requested_program) = result.requested_program.as_ref() {
+        if !requested_program.trim().is_empty() {
+            lines.push(format!(
+                "Magic comment: % !TEX program = {} ({})",
+                requested_program,
+                if result.requested_program_applied {
+                    "applied"
+                } else {
+                    "detected but not applied"
+                }
+            ));
+        }
+    }
+
+    lines.push(if result.success {
+        format!("Compilation succeeded in {}ms", result.duration_ms)
+    } else {
+        "Compilation failed".to_string()
+    });
+    lines.push(format!("Errors: {}", result.errors.len()));
+    lines.push(format!("Warnings: {}", result.warnings.len()));
+
+    if !result.errors.is_empty() {
+        lines.push(String::new());
+        lines.push("Errors".to_string());
+        lines.extend(
+            result
+                .errors
+                .iter()
+                .map(|issue| format!("- {}", format_terminal_issue(issue))),
+        );
+    }
+
+    if !result.warnings.is_empty() {
+        lines.push(String::new());
+        lines.push("Warnings".to_string());
+        lines.extend(
+            result
+                .warnings
+                .iter()
+                .map(|issue| format!("- {}", format_terminal_issue(issue))),
+        );
+    }
+
+    let raw_log = result.log.trim();
+    if include_raw_log && !raw_log.is_empty() {
+        lines.push(String::new());
+        lines.push("----- Full log -----".to_string());
+        lines.push(raw_log.to_string());
+    }
+
+    format!("{}\n", lines.join("\n"))
+}
+
 fn build_finished_state(
+    display_path: &str,
     target_path: &str,
     project_root_path: &str,
     project_preview_path: &str,
@@ -370,6 +455,8 @@ fn build_finished_state(
         "projectRootPath": project_root_path,
         "previewPath": if project_preview_path.is_empty() { result.pdf_path.clone() } else { Some(project_preview_path.to_string()) },
         "buildExtraArgs": build_extra_args,
+        "terminalText": build_terminal_text(display_path, result, false),
+        "terminalTextFull": build_terminal_text(display_path, result, true),
     });
 
     if let Some(linked_source_path) = linked_source_path {
@@ -902,6 +989,7 @@ pub async fn latex_runtime_compile_finish(
 
     Ok(serde_json::to_value(LatexCompileFinishResult {
         source_state: build_finished_state(
+            &params.tex_path,
             &params.target_path,
             &params.project_root_path,
             &params.project_preview_path,
@@ -911,6 +999,7 @@ pub async fn latex_runtime_compile_finish(
             None,
         ),
         target_state: build_finished_state(
+            &params.target_path,
             &params.target_path,
             &params.project_root_path,
             &params.project_preview_path,

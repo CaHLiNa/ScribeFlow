@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia'
 import { useFilesStore } from './files'
 import { useWorkspaceStore } from './workspace'
-import { t } from '../i18n'
 import {
   checkLatexCompilers,
   checkLatexTools,
@@ -21,7 +20,6 @@ import {
   cacheLatexProjectGraph,
   stableContentFingerprint,
 } from '../services/latex/projectGraph'
-import { basenamePath } from '../utils/path'
 import {
   createLatexPreferenceState,
   loadLatexPreferences as loadLatexPreferencesFromRust,
@@ -41,10 +39,6 @@ const LATEX_PREFERENCE_KEYS = [
   'buildExtraArgs',
   'customSystemTexPath',
 ]
-
-function fileNameForLog(texPath = '') {
-  return basenamePath(texPath) || texPath
-}
 
 function normalizeLatexRuntimePath(path = '') {
   return String(path || '').trim()
@@ -78,66 +72,31 @@ function resolveLatexTargetPathFromState(storeState = {}, texPath = '') {
   return normalizedPath
 }
 
-function formatIssue(issue) {
-  const line = issue?.line ? `L${issue.line}: ` : ''
-  return `${line}${issue?.message || ''}`.trim()
-}
-
-function buildLatexTerminalOutput(
-  texPath,
-  result,
-  { includeRawLog = true } = {},
-) {
-  const errors = Array.isArray(result.errors) ? result.errors : []
-  const warnings = Array.isArray(result.warnings) ? result.warnings : []
-  const lines = [
-    `[LaTeX] ${fileNameForLog(texPath)}`,
-    result.compiler_backend
-      ? `${t('Compiler')}: ${result.compiler_backend}`
-      : null,
-    result.command_preview
-      ? `${t('Command')}: ${result.command_preview}`
-      : null,
-    result.requested_program
-      ? `${t('Magic comment')}: % !TEX program = ${result.requested_program} (${result.requested_program_applied ? t('applied') : t('detected but not applied')})`
-      : null,
-    result.success
-      ? t('Compilation succeeded in {duration}', {
-          duration: `${result.duration_ms || 0}ms`,
-        })
-      : t('Compilation failed'),
-    `${t('Errors')}: ${errors.length}`,
-    `${t('Warnings')}: ${warnings.length}`,
-  ].filter(Boolean)
-
-  if (errors.length > 0) {
-    lines.push('')
-    lines.push(t('Errors'))
-    for (const issue of errors) {
-      lines.push(`- ${formatIssue(issue)}`)
-    }
-  }
-
-  if (warnings.length > 0) {
-    lines.push('')
-    lines.push(t('Warnings'))
-    for (const issue of warnings) {
-      lines.push(`- ${formatIssue(issue)}`)
-    }
-  }
-
-  const rawLog = String(result.log || '').trim()
-  if (includeRawLog && rawLog) {
-    lines.push('')
-    lines.push(`----- ${t('Full log')} -----`)
-    lines.push(rawLog)
-  }
-
-  return `${lines.join('\n')}\n`
+function buildFallbackLatexTerminalText(texPath, message = '') {
+  const normalizedPath = String(texPath || '').trim() || 'unknown.tex'
+  const normalizedMessage = String(message || '').trim() || 'LaTeX runtime failed.'
+  return [
+    `[LaTeX] ${normalizedPath}`,
+    'Compilation failed',
+    'Errors: 1',
+    'Warnings: 0',
+    '',
+    'Errors',
+    `- ${normalizedMessage}`,
+    '',
+    '----- Full log -----',
+    normalizedMessage,
+    '',
+  ].join('\n')
 }
 
 function pushLatexLogToTerminal(texPath, result) {
   if (typeof window === 'undefined') return
+  const text = String(
+    result?.terminalText ||
+    buildFallbackLatexTerminalText(texPath, result?.log || result?.message || ''),
+  )
+  if (!text.trim()) return
   const shouldOpenTerminal =
     !result.success ||
     (Array.isArray(result.errors) && result.errors.length > 0)
@@ -146,9 +105,7 @@ function pushLatexLogToTerminal(texPath, result) {
       detail: {
         key: 'latex-log',
         label: 'LaTeX',
-        text: buildLatexTerminalOutput(texPath, result, {
-          includeRawLog: false,
-        }),
+        text,
         clear: false,
         open: shouldOpenTerminal,
         status: result.success ? 'success' : 'error',
@@ -692,18 +649,25 @@ export const useLatexStore = defineStore('latex', {
         )
         pushLatexLogToTerminal(
           texPath,
-          compileExecution?.result || {
-            success: false,
-            duration_ms: 0,
-            errors: [
-              {
-                line: null,
-                message: 'LaTeX runtime returned no result.',
-                severity: 'error',
-              },
-            ],
-            warnings: [],
-            log: 'LaTeX runtime returned no result.',
+          {
+            ...(compileExecution?.result || {
+              success: false,
+              duration_ms: 0,
+              errors: [
+                {
+                  line: null,
+                  message: 'LaTeX runtime returned no result.',
+                  severity: 'error',
+                },
+              ],
+              warnings: [],
+              log: 'LaTeX runtime returned no result.',
+            }),
+            terminalText: String(
+              compileExecution?.sourceState?.terminalText ||
+              compileExecution?.targetState?.terminalText ||
+              '',
+            ),
           },
         )
 
@@ -722,6 +686,8 @@ export const useLatexStore = defineStore('latex', {
           status: 'error',
           errors: [{ line: null, message: err, severity: 'error' }],
           warnings: [],
+          terminalText: buildFallbackLatexTerminalText(texPath, err),
+          terminalTextFull: buildFallbackLatexTerminalText(texPath, err),
         })
         this.clearBuildQueueState(targetKey)
         pushLatexLogToTerminal(texPath, {
@@ -730,6 +696,7 @@ export const useLatexStore = defineStore('latex', {
           errors: [{ line: null, message: err, severity: 'error' }],
           warnings: [],
           log: String(err || ''),
+          terminalText: buildFallbackLatexTerminalText(texPath, err),
         })
       }
     },
@@ -833,16 +800,10 @@ export const useLatexStore = defineStore('latex', {
           detail: {
             key: 'latex-log',
             label: 'LaTeX',
-            text: buildLatexTerminalOutput(
-              texPath,
-              {
-                success: state.status === 'success',
-                errors: state.errors || [],
-                warnings: state.warnings || [],
-                log: state.log || '',
-                duration_ms: state.durationMs || 0,
-              },
-              { includeRawLog: true },
+            text: String(
+              state.terminalTextFull ||
+              state.terminalText ||
+              buildFallbackLatexTerminalText(texPath, state.log || ''),
             ),
             clear: true,
             open: true,

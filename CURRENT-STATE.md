@@ -102,6 +102,7 @@ Current state:
 
 - LaTeX support includes compiler detection, runtime scheduling, diagnostics, logs, SyncTeX, formatting, and Tectonic download flow.
 - LaTeX source warmup, compile-request resolution, change-target resolution, and lint state now resolve through Rust runtime snapshot/change commands instead of frontend file-discovery helpers.
+- LaTeX terminal/log text is now also assembled in Rust compile state instead of being reformatted inside the frontend store before every terminal dispatch.
 - Python support includes interpreter detection, preference persistence, runtime listing, and compile state tracking.
 
 Interpretation:
@@ -153,6 +154,7 @@ What is not fully cleaned up:
 - `latex/projectGraph` workspace file discovery no longer depends on a dedicated frontend helper file; Rust can now resolve workspace flat files itself when the bridge only provides `workspacePath`.
 - `latex/root` fallback helpers have also been removed from the active path; compile target fallback now prefers existing runtime state, and the remaining project-graph cache is narrower instead of acting as a general root/preview authority.
 - `latex/runtime` has tightened further now: editor warmup, compile-request lookup, change-target lookup, and lint refresh no longer ask the frontend to prepare flat file lists before invoking Rust.
+- `latex/runtime` now also owns terminal/log text assembly for completed compile state, so the frontend store only forwards runtime-produced text to the terminal surface instead of rebuilding that output itself.
 - `documentOutline` follows the same direction now: the frontend no longer gathers workspace flat files for outline resolution, and Rust can derive the needed workspace file set from `workspacePath`.
 - `latex/previewSync` has now shed most of its non-UI authority too: moved-file path repair and in-editor selection matching resolve in Rust commands, while the frontend side only waits for views and applies the final editor focus.
 - `documentWorkflow` has now crossed the same boundary: the old adapter-local workflow derivation for Markdown / LaTeX / Python has been collapsed into a Rust summary resolver, and the deleted `latex/diagnostics.js` mapping layer no longer sits between runtime state and workflow UI.

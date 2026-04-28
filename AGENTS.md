@@ -48,6 +48,9 @@ ScribeFlow 是一个本地优先的桌面学术研究工作台。主产品是 Ta
 - 做 Rust 化收口时，禁止通过新增 JS 文件来承接被下沉的逻辑；如果只是把复杂度从一个 JS 文件拆到另一个新 JS 文件，视为未完成减 JS
 - 允许新增 Rust 模块与 command；如确实需要前端配套，优先收缩现有 JS 文件为薄 bridge，而不是扩张 `src/services/*` 的 JS 面积
 - 不新增新的前端 backend center
+- Rustification phase 的完成标准不仅是“功能迁到 Rust”，还必须满足“本 phase 结束时 `.js/.vue` 净面积下降或至少不增加”；如果 Rust 增了但 JS 也净增，视为该 phase 未完成
+- 做 Rust 化时，优先删除或压薄已有 JS 编排层；不要为了接入新 Rust command 再在 store/service 里新增一层新的 JS normalization、policy、warmup orchestration 或 cache policy
+- 如遇到必须短暂增加 JS 才能过渡的情况，不得把该状态当作 phase 完成；同一 phase 内必须继续收口到净减 JS 后才能提交
 
 默认模块职责：
 
