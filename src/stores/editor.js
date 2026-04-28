@@ -23,12 +23,12 @@ import {
   reorderPaneTabs,
 } from '../domains/editor/paneTabs'
 import {
-  buildRecentFilesAfterOpen,
   cancelEditorStateSave,
   flushEditorStateSave,
   loadEditorStateSnapshot,
   loadRecentFilesForWorkspace,
-  persistRecentFilesForWorkspace,
+  recordRecentFileOpenForWorkspace,
+  renameRecentFilePathForWorkspace,
   scheduleEditorStateSave,
 } from '../domains/editor/editorPersistenceRuntime'
 import {
@@ -372,11 +372,18 @@ export const useEditorStore = defineStore('editor', {
 
       walk(this.paneTree)
 
-      const entry = this.recentFiles.find((item) => item.path === oldPath)
-      if (entry) {
-        entry.path = newPath
-        this._persistRecentFiles()
-      }
+      const workspace = useWorkspaceStore()
+      const workspaceDataDir = workspace.workspaceDataDir
+      void renameRecentFilePathForWorkspace(
+        workspaceDataDir,
+        this.recentFiles,
+        oldPath,
+        newPath,
+      ).then((recentFiles) => {
+        if (useWorkspaceStore().workspaceDataDir === workspaceDataDir) {
+          this.recentFiles = recentFiles
+        }
+      })
 
       if (this.lastContextPath === oldPath) {
         this.lastContextPath = newPath
@@ -466,8 +473,17 @@ export const useEditorStore = defineStore('editor', {
 
     recordFileOpen(path) {
       if (!path || isLauncherTab(path) || isPreviewPath(path)) return
-      this.recentFiles = buildRecentFilesAfterOpen(this.recentFiles, path)
-      this._persistRecentFiles()
+      const workspace = useWorkspaceStore()
+      const workspaceDataDir = workspace.workspaceDataDir
+      void recordRecentFileOpenForWorkspace(
+        workspaceDataDir,
+        this.recentFiles,
+        path,
+      ).then((recentFiles) => {
+        if (useWorkspaceStore().workspaceDataDir === workspaceDataDir) {
+          this.recentFiles = recentFiles
+        }
+      })
     },
 
     markFileDirty(path) {
@@ -512,11 +528,6 @@ export const useEditorStore = defineStore('editor', {
     applyRecentFilesSnapshot(recentFiles = []) {
       this.recentFiles = Array.isArray(recentFiles) ? recentFiles : []
       return this.recentFiles
-    },
-
-    _persistRecentFiles() {
-      const workspace = useWorkspaceStore()
-      void persistRecentFilesForWorkspace(workspace.workspaceDataDir, workspace.path, this.recentFiles)
     },
 
     saveEditorState() {

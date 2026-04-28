@@ -5,25 +5,8 @@ function recentFilesStorageKey(workspacePath = '') {
   return `recentFiles:${workspacePath}`
 }
 
-function normalizeRecentFiles(recentFiles = []) {
-  const seen = new Set()
-  const normalized = []
-  for (const entry of Array.isArray(recentFiles) ? recentFiles : []) {
-    const path = String(entry?.path || '').trim()
-    if (!path || seen.has(path)) continue
-    seen.add(path)
-    normalized.push({
-      path,
-      openedAt: Number(entry?.openedAt) || 0,
-    })
-    if (normalized.length >= 20) break
-  }
-  return normalized
-}
-
 function readLegacyRecentFiles(workspacePath = '') {
-  if (!workspacePath) return []
-  return normalizeRecentFiles(readStorageJson(recentFilesStorageKey(workspacePath), []))
+  return workspacePath ? readStorageJson(recentFilesStorageKey(workspacePath), []) : []
 }
 
 function clearLegacyRecentFiles(workspacePath = '') {
@@ -41,19 +24,33 @@ export async function loadRecentFiles(workspaceDataDir = '', workspacePath = '')
     },
   })
   clearLegacyRecentFiles(workspacePath)
-  return normalizeRecentFiles(recentFiles)
+  return Array.isArray(recentFiles) ? recentFiles : []
 }
 
-export async function saveRecentFiles(workspaceDataDir = '', workspacePath = '', recentFiles = []) {
-  const normalized = normalizeRecentFiles(recentFiles)
-  if (!workspaceDataDir) return normalized
-
-  const saved = await invoke('editor_recent_files_save', {
+export async function recordRecentFileOpen(workspaceDataDir = '', recentFiles = [], path = '') {
+  const saved = await invoke('editor_recent_files_record_opened', {
     params: {
-      workspaceDataDir,
-      recentFiles: normalized,
+      workspaceDataDir: String(workspaceDataDir || ''),
+      recentFiles,
+      path: String(path || ''),
     },
   })
-  clearLegacyRecentFiles(workspacePath)
-  return normalizeRecentFiles(saved)
+  return Array.isArray(saved) ? saved : []
+}
+
+export async function renameRecentFilePath(
+  workspaceDataDir = '',
+  recentFiles = [],
+  oldPath = '',
+  newPath = '',
+) {
+  const saved = await invoke('editor_recent_files_rename_path', {
+    params: {
+      workspaceDataDir: String(workspaceDataDir || ''),
+      recentFiles,
+      oldPath: String(oldPath || ''),
+      newPath: String(newPath || ''),
+    },
+  })
+  return Array.isArray(saved) ? saved : []
 }

@@ -6,5 +6,6 @@ export {
 
 export {
   loadRecentFiles,
-  saveRecentFiles,
+  recordRecentFileOpen,
+  renameRecentFilePath,
 } from './editorRecentFilesPersistence.js'

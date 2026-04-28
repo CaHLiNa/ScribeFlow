@@ -3,6 +3,7 @@ use serde_json::{json, Value};
 use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 const STATE_FILE: &str = "editor-state.json";
 const RECENT_FILES_FILE: &str = "editor-recent-files.json";
@@ -61,16 +62,31 @@ pub struct EditorRecentFilesLoadParams {
     #[serde(default)]
     pub workspace_data_dir: String,
     #[serde(default)]
-    pub legacy_recent_files: Vec<RecentFileEntry>,
+    pub legacy_recent_files: Value,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct EditorRecentFilesSaveParams {
+pub struct EditorRecentFilesRecordOpenedParams {
     #[serde(default)]
     pub workspace_data_dir: String,
     #[serde(default)]
-    pub recent_files: Vec<RecentFileEntry>,
+    pub recent_files: Value,
+    #[serde(default)]
+    pub path: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EditorRecentFilesRenamePathParams {
+    #[serde(default)]
+    pub workspace_data_dir: String,
+    #[serde(default)]
+    pub recent_files: Value,
+    #[serde(default)]
+    pub old_path: String,
+    #[serde(default)]
+    pub new_path: String,
 }
 
 impl Default for RecentFilesFile {
@@ -494,6 +510,98 @@ fn normalize_recent_files(recent_files: Vec<RecentFileEntry>) -> Vec<RecentFileE
     normalized
 }
 
+fn recent_file_entries_from_value(value: &Value) -> Vec<RecentFileEntry> {
+    value
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|entry| {
+            let path = entry
+                .get("path")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .trim()
+                .to_string();
+            if path.is_empty() {
+                return None;
+            }
+            let opened_at = entry
+                .get("openedAt")
+                .or_else(|| entry.get("opened_at"))
+                .and_then(Value::as_u64)
+                .or_else(|| {
+                    entry
+                        .get("openedAt")
+                        .or_else(|| entry.get("opened_at"))
+                        .and_then(Value::as_f64)
+                        .filter(|value| value.is_finite() && *value > 0.0)
+                        .map(|value| value as u64)
+                })
+                .unwrap_or(0);
+            Some(RecentFileEntry { path, opened_at })
+        })
+        .collect()
+}
+
+fn now_millis() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .ok()
+        .map(|value| value.as_millis().min(u128::from(u64::MAX)) as u64)
+        .unwrap_or(0)
+}
+
+fn record_recent_file_opened(recent_files: Value, path: &str) -> Vec<RecentFileEntry> {
+    let normalized_path = path.trim();
+    if normalized_path.is_empty()
+        || is_virtual_new_tab(normalized_path)
+        || is_preview_path(normalized_path)
+    {
+        return normalize_recent_files(recent_file_entries_from_value(&recent_files));
+    }
+
+    let mut entries = recent_file_entries_from_value(&recent_files)
+        .into_iter()
+        .filter(|entry| entry.path != normalized_path)
+        .collect::<Vec<_>>();
+    entries.insert(
+        0,
+        RecentFileEntry {
+            path: normalized_path.to_string(),
+            opened_at: now_millis(),
+        },
+    );
+    normalize_recent_files(entries)
+}
+
+fn rename_recent_file_path(
+    recent_files: Value,
+    old_path: &str,
+    new_path: &str,
+) -> Vec<RecentFileEntry> {
+    let old_path = old_path.trim();
+    let new_path = new_path.trim();
+    if old_path.is_empty() || new_path.is_empty() {
+        return normalize_recent_files(recent_file_entries_from_value(&recent_files));
+    }
+
+    let entries = recent_file_entries_from_value(&recent_files)
+        .into_iter()
+        .map(|entry| {
+            if entry.path == old_path {
+                RecentFileEntry {
+                    path: new_path.to_string(),
+                    opened_at: entry.opened_at,
+                }
+            } else {
+                entry
+            }
+        })
+        .collect();
+    normalize_recent_files(entries)
+}
+
 fn read_recent_files(workspace_data_dir: &str) -> Result<Option<Vec<RecentFileEntry>>, String> {
     let file_path = recent_files_path(workspace_data_dir);
     if !Path::new(&file_path).exists() {
@@ -584,24 +692,40 @@ pub async fn editor_recent_files_load(
         return Ok(current);
     }
 
-    write_recent_files(workspace_data_dir, &params.legacy_recent_files)
+    let legacy_recent_files = recent_file_entries_from_value(&params.legacy_recent_files);
+    write_recent_files(workspace_data_dir, &legacy_recent_files)
 }
 
 #[tauri::command]
-pub async fn editor_recent_files_save(
-    params: EditorRecentFilesSaveParams,
+pub async fn editor_recent_files_record_opened(
+    params: EditorRecentFilesRecordOpenedParams,
 ) -> Result<Vec<RecentFileEntry>, String> {
     let workspace_data_dir = params.workspace_data_dir.trim();
+    let recent_files = record_recent_file_opened(params.recent_files, &params.path);
     if workspace_data_dir.is_empty() {
-        return Ok(Vec::new());
+        return Ok(recent_files);
     }
-    write_recent_files(workspace_data_dir, &params.recent_files)
+    write_recent_files(workspace_data_dir, &recent_files)
+}
+
+#[tauri::command]
+pub async fn editor_recent_files_rename_path(
+    params: EditorRecentFilesRenamePathParams,
+) -> Result<Vec<RecentFileEntry>, String> {
+    let workspace_data_dir = params.workspace_data_dir.trim();
+    let recent_files =
+        rename_recent_file_path(params.recent_files, &params.old_path, &params.new_path);
+    if workspace_data_dir.is_empty() {
+        return Ok(recent_files);
+    }
+    write_recent_files(workspace_data_dir, &recent_files)
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
         build_persisted_editor_state, normalize_loaded_editor_state, normalize_recent_files,
+        recent_file_entries_from_value, record_recent_file_opened, rename_recent_file_path,
         RecentFileEntry,
     };
     use serde_json::json;
@@ -692,7 +816,10 @@ mod tests {
         }));
 
         assert_eq!(
-            state["legacyPreviewPaths"].as_array().cloned().unwrap_or_default(),
+            state["legacyPreviewPaths"]
+                .as_array()
+                .cloned()
+                .unwrap_or_default(),
             vec![json!(format!("preview:{file_path}"))]
         );
         assert_eq!(state["lastContextPath"].as_str(), Some(""));
@@ -721,5 +848,76 @@ mod tests {
         assert_eq!(normalized.len(), 20);
         assert_eq!(normalized[0].path, "/tmp/a.md");
         assert_eq!(normalized[0].opened_at, 2);
+    }
+
+    #[test]
+    fn recent_file_open_replaces_existing_entry_and_moves_it_to_front() {
+        let result = record_recent_file_opened(
+            json!([
+                { "path": "/tmp/a.md", "openedAt": 1 },
+                { "path": "/tmp/b.md", "openedAt": 9 }
+            ]),
+            "/tmp/a.md",
+        );
+
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].path, "/tmp/a.md");
+        assert!(result[0].opened_at >= 1);
+        assert_eq!(result[1].path, "/tmp/b.md");
+    }
+
+    #[test]
+    fn recent_file_open_ignores_preview_and_newtab_paths() {
+        let recent_files = json!([
+            { "path": "/tmp/a.md", "openedAt": 2 },
+            { "path": "/tmp/b.md", "openedAt": 1 }
+        ]);
+
+        let preview_result = record_recent_file_opened(recent_files.clone(), "preview:/tmp/c.md");
+        let newtab_result = record_recent_file_opened(recent_files, "newtab:1");
+
+        assert_eq!(preview_result.len(), 2);
+        assert_eq!(preview_result[0].path, "/tmp/a.md");
+        assert_eq!(newtab_result.len(), 2);
+        assert_eq!(newtab_result[0].path, "/tmp/a.md");
+    }
+
+    #[test]
+    fn recent_file_rename_updates_path_and_preserves_order() {
+        let result = rename_recent_file_path(
+            json!([
+                { "path": "/tmp/a.md", "openedAt": 3 },
+                { "path": "/tmp/b.md", "openedAt": 2 }
+            ]),
+            "/tmp/b.md",
+            "/tmp/c.md",
+        );
+
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].path, "/tmp/a.md");
+        assert_eq!(result[1].path, "/tmp/c.md");
+        assert_eq!(result[1].opened_at, 2);
+    }
+
+    #[test]
+    fn recent_file_entries_parser_accepts_camel_and_snake_case_timestamps() {
+        let result = recent_file_entries_from_value(&json!([
+            { "path": "/tmp/a.md", "openedAt": 7 },
+            { "path": "/tmp/b.md", "opened_at": 4.0 }
+        ]));
+
+        assert_eq!(
+            result,
+            vec![
+                RecentFileEntry {
+                    path: "/tmp/a.md".to_string(),
+                    opened_at: 7,
+                },
+                RecentFileEntry {
+                    path: "/tmp/b.md".to_string(),
+                    opened_at: 4,
+                },
+            ]
+        );
     }
 }
