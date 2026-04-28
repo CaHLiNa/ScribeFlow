@@ -17,6 +17,7 @@ import { MAX_WORKBENCH_INSPECTOR_PANEL_COUNT } from '../shared/workbenchInspecto
 const DEFAULT_LEFT_SIDEBAR_WIDTH = 240
 const DEFAULT_RIGHT_SIDEBAR_WIDTH = 360
 const DEFAULT_DOCUMENT_DOCK_WIDTH = 360
+const DEFAULT_REFERENCE_DOCK_WIDTH = 420
 const DEFAULT_BOTTOM_PANEL_HEIGHT = 250
 const MIN_MAIN_WORKBENCH_WIDTH = 320
 const MIN_DOCUMENT_EDITOR_WIDTH = 320
@@ -40,15 +41,18 @@ const LAYOUT_STORAGE_KEYS = [
   'leftSidebarWidth',
   'rightSidebarWidth',
   'documentDockWidth',
+  'referenceDockWidth',
   'bottomPanelHeight',
 ]
 
 const leftSidebarWidth = ref(DEFAULT_LEFT_SIDEBAR_WIDTH)
 const rightSidebarWidth = ref(DEFAULT_RIGHT_SIDEBAR_WIDTH)
 const documentDockWidth = ref(DEFAULT_DOCUMENT_DOCK_WIDTH)
+const referenceDockWidth = ref(DEFAULT_REFERENCE_DOCK_WIDTH)
 const bottomPanelHeight = ref(DEFAULT_BOTTOM_PANEL_HEIGHT)
 const rightSidebarPreSnapWidth = ref(null)
 const documentDockPreSnapWidth = ref(null)
+const referenceDockPreSnapWidth = ref(null)
 const isLeftSidebarResizing = ref(false)
 const isRightSidebarResizing = ref(false)
 
@@ -57,9 +61,11 @@ let viewportResizeFrame = null
 let pendingLeftSidebarWidth = leftSidebarWidth.value
 let pendingRightSidebarWidth = rightSidebarWidth.value
 let pendingDocumentDockWidth = documentDockWidth.value
+let pendingReferenceDockWidth = referenceDockWidth.value
 const LEFT_SIDEBAR_WIDTH_MOTION_KEY = 'workbench:left-sidebar-width'
 const RIGHT_SIDEBAR_WIDTH_MOTION_KEY = 'workbench:right-sidebar-width'
 const DOCUMENT_DOCK_WIDTH_MOTION_KEY = 'workbench:document-dock-width'
+const REFERENCE_DOCK_WIDTH_MOTION_KEY = 'workbench:reference-dock-width'
 
 function clamp(value, minimum, maximum) {
   return Math.min(Math.max(value, minimum), maximum)
@@ -81,6 +87,7 @@ function readLegacyLayoutState() {
     leftSidebarWidth: readNumberFromStorage('leftSidebarWidth', DEFAULT_LEFT_SIDEBAR_WIDTH),
     rightSidebarWidth: readNumberFromStorage('rightSidebarWidth', DEFAULT_RIGHT_SIDEBAR_WIDTH),
     documentDockWidth: readNumberFromStorage('documentDockWidth', DEFAULT_DOCUMENT_DOCK_WIDTH),
+    referenceDockWidth: readNumberFromStorage('referenceDockWidth', DEFAULT_REFERENCE_DOCK_WIDTH),
     bottomPanelHeight: readNumberFromStorage('bottomPanelHeight', DEFAULT_BOTTOM_PANEL_HEIGHT),
   }
 }
@@ -101,6 +108,7 @@ async function saveWorkbenchLayoutState() {
     leftSidebarWidth: leftSidebarWidth.value,
     rightSidebarWidth: rightSidebarWidth.value,
     documentDockWidth: documentDockWidth.value,
+    referenceDockWidth: referenceDockWidth.value,
     bottomPanelHeight: bottomPanelHeight.value,
   }
   const saved = await saveWorkbenchLayout(state)
@@ -305,6 +313,14 @@ function commitDocumentDockWidth(value, containerWidth = window.innerWidth, opti
   debounceSidebarWidthSave()
 }
 
+function commitReferenceDockWidth(value, containerWidth = window.innerWidth, options = {}) {
+  const nextWidth = normalizeSidebarWidth(value, DEFAULT_REFERENCE_DOCK_WIDTH)
+  const resizeOptions = normalizeDocumentDockResizeOptions(options)
+  const maxWidth = resolveMaximumDocumentDockWidth(containerWidth, options)
+  referenceDockWidth.value = Math.max(resizeOptions.minDockWidth, Math.min(maxWidth, nextWidth))
+  debounceSidebarWidthSave()
+}
+
 function scheduleRightSidebarWidth(value) {
   pendingRightSidebarWidth = value
   scheduleWorkbenchMotionCommit(
@@ -323,16 +339,27 @@ function scheduleDocumentDockWidth(value, containerWidth = window.innerWidth, op
   )
 }
 
+function scheduleReferenceDockWidth(value, containerWidth = window.innerWidth, options = {}) {
+  pendingReferenceDockWidth = value
+  scheduleWorkbenchMotionCommit(
+    REFERENCE_DOCK_WIDTH_MOTION_KEY,
+    pendingReferenceDockWidth,
+    (nextWidth) => commitReferenceDockWidth(nextWidth, containerWidth, options),
+  )
+}
+
 function flushScheduledSidebarWidths() {
   flushWorkbenchMotionCommit(LEFT_SIDEBAR_WIDTH_MOTION_KEY)
   flushWorkbenchMotionCommit(RIGHT_SIDEBAR_WIDTH_MOTION_KEY)
   flushWorkbenchMotionCommit(DOCUMENT_DOCK_WIDTH_MOTION_KEY)
+  flushWorkbenchMotionCommit(REFERENCE_DOCK_WIDTH_MOTION_KEY)
 }
 
 function commitSidebarWidthsToViewport() {
   commitLeftSidebarWidth(leftSidebarWidth.value)
   commitRightSidebarWidth(rightSidebarWidth.value)
   commitDocumentDockWidth(documentDockWidth.value)
+  commitReferenceDockWidth(referenceDockWidth.value)
 }
 
 function scheduleViewportSidebarClamp() {
@@ -373,6 +400,11 @@ function setDocumentDockWidth(value, containerWidth = window.innerWidth, options
   documentDockPreSnapWidth.value = null
 }
 
+function setReferenceDockWidth(value, containerWidth = window.innerWidth, options = {}) {
+  scheduleReferenceDockWidth(value, containerWidth, options)
+  referenceDockPreSnapWidth.value = null
+}
+
 function snapDocumentDockWidth(containerWidth = window.innerWidth, options = {}) {
   const normalizedContainerWidth = Number(containerWidth)
   const snapBaseWidth =
@@ -388,6 +420,23 @@ function snapDocumentDockWidth(containerWidth = window.innerWidth, options = {})
 
   documentDockPreSnapWidth.value = documentDockWidth.value
   commitDocumentDockWidth(halfContainer, snapBaseWidth, options)
+}
+
+function snapReferenceDockWidth(containerWidth = window.innerWidth, options = {}) {
+  const normalizedContainerWidth = Number(containerWidth)
+  const snapBaseWidth =
+    Number.isFinite(normalizedContainerWidth) && normalizedContainerWidth > 0
+      ? normalizedContainerWidth
+      : window.innerWidth
+  const halfContainer = Math.floor(snapBaseWidth / 2)
+  if (referenceDockPreSnapWidth.value !== null) {
+    commitReferenceDockWidth(referenceDockPreSnapWidth.value, snapBaseWidth, options)
+    referenceDockPreSnapWidth.value = null
+    return
+  }
+
+  referenceDockPreSnapWidth.value = referenceDockWidth.value
+  commitReferenceDockWidth(halfContainer, snapBaseWidth, options)
 }
 
 function onRightResizeSnap() {
@@ -452,6 +501,13 @@ export function useAppShellLayout() {
       layoutState.documentDockWidth,
       layoutState.rightSidebarWidth || DEFAULT_DOCUMENT_DOCK_WIDTH
     )
+    referenceDockWidth.value = Math.max(
+      DEFAULT_REFERENCE_DOCK_WIDTH,
+      normalizeSidebarWidth(
+        layoutState.referenceDockWidth,
+        layoutState.documentDockWidth || layoutState.rightSidebarWidth || DEFAULT_REFERENCE_DOCK_WIDTH
+      )
+    )
     bottomPanelHeight.value = Math.max(
       100,
       Math.min(600, normalizeSidebarWidth(layoutState.bottomPanelHeight, DEFAULT_BOTTOM_PANEL_HEIGHT))
@@ -459,6 +515,7 @@ export function useAppShellLayout() {
     pendingLeftSidebarWidth = leftSidebarWidth.value
     pendingRightSidebarWidth = rightSidebarWidth.value
     pendingDocumentDockWidth = documentDockWidth.value
+    pendingReferenceDockWidth = referenceDockWidth.value
 
     window.addEventListener('resize', onWindowResize)
     scheduleViewportSidebarClamp()
@@ -468,6 +525,7 @@ export function useAppShellLayout() {
     leftSidebarWidth,
     rightSidebarWidth,
     documentDockWidth,
+    referenceDockWidth,
     bottomPanelHeight,
     isLeftSidebarResizing,
     isRightSidebarResizing,
@@ -478,7 +536,9 @@ export function useAppShellLayout() {
     onRightResize,
     setRightSidebarWidth,
     setDocumentDockWidth,
+    setReferenceDockWidth,
     snapDocumentDockWidth,
+    snapReferenceDockWidth,
     startRightSidebarResize,
     endRightSidebarResize,
     onRightResizeSnap,

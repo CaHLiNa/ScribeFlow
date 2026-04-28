@@ -9,6 +9,7 @@
       'has-thumbnails-open': thumbnailsVisible,
       'is-compact-toolbar': compactToolbar,
       'is-compact-fit-pending': compactToolbar && !compactFitWidthReady,
+      'is-compact-fit-deferred': compactToolbar && deferCompactResizeFit,
     }"
     tabindex="0"
     data-surface-context-guard="true"
@@ -2173,6 +2174,15 @@ onMounted(() => {
 .pdf-artifact-preview__surface.is-compact-toolbar .pdf-artifact-preview__viewport {
   padding-top: 0;
   visibility: visible;
+}
+
+.pdf-artifact-preview__surface.is-compact-fit-deferred .pdf-artifact-preview__viewport {
+  overflow-anchor: none;
+  contain: layout paint;
+}
+
+.pdf-artifact-preview__surface.is-compact-fit-deferred .pdf-artifact-preview__page-shell {
+  transition: none !important;
 }
 
 .pdf-artifact-preview__surface.is-compact-fit-pending .pdf-artifact-preview__viewport {

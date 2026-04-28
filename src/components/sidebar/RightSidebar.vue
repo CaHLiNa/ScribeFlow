@@ -2,7 +2,7 @@
   <div class="right-shell-sidebar" data-surface-context-guard="true">
     <KeepAlive :max="2">
       <ReferenceDetailPanel
-        v-if="workspace.rightSidebarOpen && workspace.leftSidebarPanel === 'references'"
+        v-if="workspace.referenceDockOpen && workspace.leftSidebarPanel === 'references'"
         key="workspace-reference-detail"
         class="right-shell-pane"
       />

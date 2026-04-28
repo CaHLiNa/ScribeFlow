@@ -121,7 +121,10 @@ export function useAppShellEventBridge({
         event.preventDefault()
         return
       }
-      if (workspace.rightSidebarOpen) {
+      const currentDockOpen = workspace.leftSidebarPanel === 'references'
+        ? workspace.referenceDockOpen
+        : workspace.documentDockOpen
+      if (currentDockOpen) {
         workspace.closeRightSidebar()
         event.preventDefault()
       }

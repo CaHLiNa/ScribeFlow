@@ -102,11 +102,11 @@
                 v-bind="activeWorkbenchProps"
                 :class="activeWorkbenchClass"
                 @cursor-change="onCursorChange"
-                @document-dock-close="closeDocumentDock"
-                @document-dock-resize="onDocumentDockResize"
-                @document-dock-resize-end="endRightSidebarResize"
-                @document-dock-resize-snap="onDocumentDockResizeSnap"
-                @document-dock-resize-start="startRightSidebarResize"
+                @inline-dock-close="closeDocumentDock"
+                @inline-dock-resize="onInlineDockResize"
+                @inline-dock-resize-end="endRightSidebarResize"
+                @inline-dock-resize-snap="onInlineDockResizeSnap"
+                @inline-dock-resize-start="startRightSidebarResize"
                 @selection-change="onSelectionChange"
               />
             </KeepAlive>
@@ -194,13 +194,13 @@ const referenceDetailOpen = computed(
   () =>
     workspace.isWorkspaceSurface &&
     workspace.leftSidebarPanel === 'references' &&
-    workspace.rightSidebarOpen
+    workspace.referenceDockOpen
 )
 const documentInternalDockOpen = computed(
   () =>
     workspace.isWorkspaceSurface &&
     workspace.leftSidebarPanel !== 'references' &&
-    (workspace.rightSidebarOpen || activeDocumentPreviewOpen.value)
+    (workspace.documentDockOpen || activeDocumentPreviewOpen.value)
 )
 const rightRailOpen = computed(
   () => supportsRightSidebar.value && (documentInternalDockOpen.value || referenceDetailOpen.value)
@@ -220,7 +220,7 @@ const activeWorkbenchProps = computed(() =>
     : workspace.leftSidebarPanel === 'references'
       ? {
           referenceDetailOpen: referenceDetailOpen.value,
-          referenceDetailWidth: documentDockWidth.value,
+          referenceDetailWidth: referenceDockWidth.value,
           referenceDetailResizing: isRightSidebarResizing.value,
         }
       : {
@@ -276,7 +276,7 @@ async function toggleRightDock() {
   if (!supportsRightSidebar.value) return
 
   if (workspace.leftSidebarPanel === 'references') {
-    workspace.toggleRightSidebar()
+    workspace.toggleReferenceDock()
     return
   }
 
@@ -285,12 +285,12 @@ async function toggleRightDock() {
     return
   }
 
-  workspace.openRightSidebar()
+  workspace.openDocumentDock()
 }
 
 async function closeDocumentDock() {
-  if (workspace.leftSidebarPanel !== 'references' && workspace.rightSidebarOpen) {
-    workspace.closeRightSidebar()
+  if (workspace.leftSidebarPanel !== 'references' && workspace.documentDockOpen) {
+    workspace.closeDocumentDock()
   }
 
   const activePath = editorStore.activeTab
@@ -327,13 +327,16 @@ onBeforeUnmount(() => {
 const {
   leftSidebarWidth,
   documentDockWidth,
+  referenceDockWidth,
   isLeftSidebarResizing,
   isRightSidebarResizing,
   onLeftResize,
   startLeftSidebarResize,
   endLeftSidebarResize,
   setDocumentDockWidth,
+  setReferenceDockWidth,
   snapDocumentDockWidth,
+  snapReferenceDockWidth,
   startRightSidebarResize,
   endRightSidebarResize,
   cleanupAppShellLayout,
@@ -350,16 +353,30 @@ function onSelectionChange(selection) {
   void selection
 }
 
-function onDocumentDockResize(event = {}) {
-  setDocumentDockWidth(event.width, event.containerWidth, {
+function resolveActiveInlineDockLayoutControls() {
+  return workspace.leftSidebarPanel === 'references'
+    ? {
+        setWidth: setReferenceDockWidth,
+        snapWidth: snapReferenceDockWidth,
+      }
+    : {
+        setWidth: setDocumentDockWidth,
+        snapWidth: snapDocumentDockWidth,
+      }
+}
+
+function onInlineDockResize(event = {}) {
+  const controls = resolveActiveInlineDockLayoutControls()
+  controls.setWidth(event.width, event.containerWidth, {
     minDockWidth: event.minDockWidth,
     minMainWidth: event.minMainWidth,
     maxContainerRatio: event.maxContainerRatio,
   })
 }
 
-function onDocumentDockResizeSnap(event = {}) {
-  snapDocumentDockWidth(event.containerWidth, {
+function onInlineDockResizeSnap(event = {}) {
+  const controls = resolveActiveInlineDockLayoutControls()
+  controls.snapWidth(event.containerWidth, {
     minDockWidth: event.minDockWidth,
     minMainWidth: event.minMainWidth,
     maxContainerRatio: event.maxContainerRatio,

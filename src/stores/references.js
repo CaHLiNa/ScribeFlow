@@ -36,6 +36,9 @@ import {
 } from '../services/references/referenceRuntime.js'
 import { deleteFromZotero, loadZoteroConfig } from '../services/references/zoteroSync.js'
 
+const REFERENCE_DOCK_DETAILS_TAB = 'details'
+const REFERENCE_DOCK_PDF_TAB = 'pdf'
+
 function normalizeCollectionMembershipValue(value = '') {
   return String(value || '').trim().toLowerCase()
 }
@@ -97,6 +100,9 @@ export const useReferencesStore = defineStore('references', {
     selectedCollectionKey: '',
     selectedTagKey: '',
     selectedReferenceId: REFERENCE_FIXTURES[0]?.id || '',
+    referenceDockActiveTab: REFERENCE_DOCK_DETAILS_TAB,
+    referenceDockPdfOpen: false,
+    referenceDockPdfReferenceId: '',
     sortKey: 'year-desc',
     resolvedQueryState: buildDefaultResolvedQueryState({
       librarySections: REFERENCE_LIBRARY_SECTIONS,
@@ -136,6 +142,13 @@ export const useReferencesStore = defineStore('references', {
         state.references.find((reference) => reference.id === state.selectedReferenceId) ||
         this.filteredReferences[0] ||
         null
+      )
+    },
+
+    selectedReferencePdfTabOpen(state) {
+      return (
+        state.referenceDockPdfOpen === true &&
+        String(state.referenceDockPdfReferenceId || '') === String(state.selectedReferenceId || '')
       )
     },
 
@@ -259,6 +272,17 @@ export const useReferencesStore = defineStore('references', {
         this.selectedReferenceId = ''
       }
       await this.syncResolvedQueryState()
+      if (
+        this.referenceDockPdfReferenceId &&
+        !this.references.some((reference) => reference.id === this.referenceDockPdfReferenceId)
+      ) {
+        this.closeReferenceDockPdf()
+      } else if (
+        this.referenceDockActiveTab === REFERENCE_DOCK_PDF_TAB &&
+        !this.selectedReferencePdfTabOpen
+      ) {
+        this.referenceDockActiveTab = REFERENCE_DOCK_DETAILS_TAB
+      }
     },
 
     async loadWorkspaceLibrary(projectRoot = '', options = {}) {
@@ -510,6 +534,34 @@ export const useReferencesStore = defineStore('references', {
       this.selectedReferenceId = referenceId
     },
 
+    activateReferenceDockDetails() {
+      this.referenceDockActiveTab = REFERENCE_DOCK_DETAILS_TAB
+    },
+
+    activateReferenceDockPdf(referenceId = this.selectedReferenceId) {
+      const normalizedReferenceId = String(referenceId || '').trim()
+      if (!normalizedReferenceId) return false
+      this.referenceDockPdfOpen = true
+      this.referenceDockPdfReferenceId = normalizedReferenceId
+      this.referenceDockActiveTab = REFERENCE_DOCK_PDF_TAB
+      return true
+    },
+
+    closeReferenceDockPdf(referenceId = this.referenceDockPdfReferenceId) {
+      const normalizedReferenceId = String(referenceId || '').trim()
+      if (!normalizedReferenceId || normalizedReferenceId === this.referenceDockPdfReferenceId) {
+        this.referenceDockPdfOpen = false
+        this.referenceDockPdfReferenceId = ''
+      }
+      this.referenceDockActiveTab = REFERENCE_DOCK_DETAILS_TAB
+    },
+
+    resetReferenceDockTabs() {
+      this.referenceDockActiveTab = REFERENCE_DOCK_DETAILS_TAB
+      this.referenceDockPdfOpen = false
+      this.referenceDockPdfReferenceId = ''
+    },
+
     getByKey(referenceKey = '') {
       const normalized = String(referenceKey || '').trim()
       if (!normalized) return null
@@ -701,6 +753,9 @@ export const useReferencesStore = defineStore('references', {
       this.selectedCollectionKey = ''
       this.selectedTagKey = ''
       this.selectedReferenceId = REFERENCE_FIXTURES[0]?.id || ''
+      this.referenceDockActiveTab = REFERENCE_DOCK_DETAILS_TAB
+      this.referenceDockPdfOpen = false
+      this.referenceDockPdfReferenceId = ''
       this.sortKey = 'year-desc'
       this.resolvedQueryState = buildDefaultResolvedQueryState({
         librarySections: this.librarySections,

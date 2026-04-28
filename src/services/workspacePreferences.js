@@ -52,6 +52,8 @@ const LEGACY_WORKSPACE_PREFERENCE_KEYS = [
   'leftSidebarPanel',
   'rightSidebarOpen',
   'rightSidebarPanel',
+  'documentDockOpen',
+  'referenceDockOpen',
   'autoSave',
   'softWrap',
   'wrapColumn',
@@ -143,6 +145,8 @@ export function createWorkspacePreferenceState() {
     leftSidebarPanel: 'files',
     rightSidebarOpen: false,
     rightSidebarPanel: 'dock',
+    documentDockOpen: false,
+    referenceDockOpen: false,
     autoSave: true,
     softWrap: true,
     wrapColumn: 0,
@@ -202,6 +206,8 @@ export async function normalizeWorkbenchState(state = {}) {
       leftSidebarPanel: String(state.leftSidebarPanel || ''),
       rightSidebarOpen: state.rightSidebarOpen === true,
       rightSidebarPanel: String(state.rightSidebarPanel || ''),
+      documentDockOpen: state.documentDockOpen === true,
+      referenceDockOpen: state.referenceDockOpen === true,
     },
   })
 }

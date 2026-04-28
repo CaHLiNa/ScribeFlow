@@ -458,7 +458,7 @@ function openFile(path) {
 function openInDocumentDock(entry) {
   if (!entry?.path || entry.is_dir) return
   workspace.openWorkspaceSurface()
-  workspace.openRightSidebar()
+  workspace.openDocumentDock()
   editor.openDocumentDockFile(entry.path)
 }
 

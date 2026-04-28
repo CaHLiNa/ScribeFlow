@@ -44,6 +44,8 @@ const WORKSPACE_PREFERENCE_KEYS = [
   'leftSidebarPanel',
   'rightSidebarOpen',
   'rightSidebarPanel',
+  'documentDockOpen',
+  'referenceDockOpen',
   'autoSave',
   'wrapColumn',
   'editorFontSize',
@@ -76,6 +78,38 @@ function snapshotWorkspacePreferences(store) {
 function normalizeSettingsSectionValue(section = '') {
   const normalized = String(section || '').trim()
   return normalized || 'general'
+}
+
+function patchTouchesDockPreference(patch = {}) {
+  return Object.prototype.hasOwnProperty.call(patch, 'rightSidebarOpen') ||
+    Object.prototype.hasOwnProperty.call(patch, 'documentDockOpen') ||
+    Object.prototype.hasOwnProperty.call(patch, 'referenceDockOpen') ||
+    Object.prototype.hasOwnProperty.call(patch, 'leftSidebarPanel')
+}
+
+function normalizeDockPreferenceSnapshot(previous = {}, patch = {}) {
+  const next = {
+    ...previous,
+    ...patch,
+  }
+
+  if (
+    Object.prototype.hasOwnProperty.call(patch, 'rightSidebarOpen') &&
+    !Object.prototype.hasOwnProperty.call(patch, 'documentDockOpen') &&
+    !Object.prototype.hasOwnProperty.call(patch, 'referenceDockOpen')
+  ) {
+    const isOpen = patch.rightSidebarOpen === true
+    if (next.leftSidebarPanel === 'references') {
+      next.referenceDockOpen = isOpen
+    } else {
+      next.documentDockOpen = isOpen
+    }
+  }
+
+  next.documentDockOpen = next.documentDockOpen === true
+  next.referenceDockOpen = next.referenceDockOpen === true
+  next.rightSidebarOpen = next.documentDockOpen || next.referenceDockOpen
+  return next
 }
 
 const WORKSPACE_LIFECYCLE_KEYS = [
@@ -193,10 +227,12 @@ export const useWorkspaceStore = defineStore('workspace', {
     async persistWorkspacePreferencesPatch(patch = {}) {
       const globalConfigDir = await this.ensureGlobalConfigDir()
       const previous = snapshotWorkspacePreferences(this)
-      const optimistic = {
-        ...previous,
-        ...patch,
-      }
+      const optimistic = patchTouchesDockPreference(patch)
+        ? normalizeDockPreferenceSnapshot(previous, patch)
+        : {
+            ...previous,
+            ...patch,
+          }
 
       this.applyWorkspacePreferenceState(optimistic)
       this._preferencesHydrated = true
@@ -344,22 +380,63 @@ export const useWorkspaceStore = defineStore('workspace', {
     },
 
     toggleRightSidebar() {
-      return this.persistPreferences({
-        rightSidebarOpen: !this.rightSidebarOpen,
-      })
+      if (this.leftSidebarPanel === 'references') {
+        return this.toggleReferenceDock()
+      }
+      return this.toggleDocumentDock()
     },
 
     openRightSidebar() {
-      if (this.rightSidebarOpen) return
-      return this.persistPreferences({
-        rightSidebarOpen: true,
-      })
+      if (this.leftSidebarPanel === 'references') {
+        return this.openReferenceDock()
+      }
+      return this.openDocumentDock()
     },
 
     closeRightSidebar() {
-      if (!this.rightSidebarOpen) return
+      if (this.leftSidebarPanel === 'references') {
+        return this.closeReferenceDock()
+      }
+      return this.closeDocumentDock()
+    },
+
+    toggleDocumentDock() {
       return this.persistPreferences({
-        rightSidebarOpen: false,
+        documentDockOpen: !this.documentDockOpen,
+      })
+    },
+
+    openDocumentDock() {
+      if (this.documentDockOpen) return
+      return this.persistPreferences({
+        documentDockOpen: true,
+      })
+    },
+
+    closeDocumentDock() {
+      if (!this.documentDockOpen) return
+      return this.persistPreferences({
+        documentDockOpen: false,
+      })
+    },
+
+    toggleReferenceDock() {
+      return this.persistPreferences({
+        referenceDockOpen: !this.referenceDockOpen,
+      })
+    },
+
+    openReferenceDock() {
+      if (this.referenceDockOpen) return
+      return this.persistPreferences({
+        referenceDockOpen: true,
+      })
+    },
+
+    closeReferenceDock() {
+      if (!this.referenceDockOpen) return
+      return this.persistPreferences({
+        referenceDockOpen: false,
       })
     },
 

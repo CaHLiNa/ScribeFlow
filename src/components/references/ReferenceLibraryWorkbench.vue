@@ -146,32 +146,21 @@
       </div>
     </div>
 
-    <div
-      class="reference-workbench__detail-resize-slot workbench-inline-dock-resize-slot"
-      :class="{ 'is-visible': referenceDetailOpen, 'is-hidden': !referenceDetailOpen }"
-    >
-      <ResizeHandle
-        class="reference-workbench__detail-resize-handle workbench-inline-dock-resize-handle"
-        direction="vertical"
-        @resize="handleReferenceDetailResize"
-        @resize-start="handleReferenceDetailResizeStart"
-        @resize-end="handleReferenceDetailResizeEnd"
-        @dblclick="handleReferenceDetailResizeSnap"
-      />
-    </div>
-
-    <aside
-      class="reference-workbench__detail-dock workbench-inline-dock-region"
-      :class="{
-        'is-open': referenceDetailOpen,
-        'is-collapsed': !referenceDetailOpen,
-        'is-resizing': referenceDetailResizing,
-      }"
-      :aria-hidden="referenceDetailOpen ? 'false' : 'true'"
-      :style="{ width: referenceDetailOpen ? `${referenceDetailDockWidth}px` : '0px' }"
+    <InlineDockFrame
+      :aria-label="t('Details')"
+      :open="referenceDetailOpen"
+      :width="referenceDetailDockWidth"
+      :resizing="referenceDetailResizing"
+      region-class="reference-workbench__detail-dock"
+      resize-slot-class="reference-workbench__detail-resize-slot"
+      resize-handle-class="reference-workbench__detail-resize-handle"
+      :get-container-width="resolveReferenceWorkbenchWidth"
+      @resize="handleReferenceDetailResize"
+      @resize-start="handleReferenceDetailResizeStart"
+      @resize-end="handleReferenceDetailResizeEnd"
+      @resize-snap="handleReferenceDetailResizeSnap"
     >
       <section
-        v-if="shouldRenderReferenceDetailDock"
         class="reference-workbench__detail-shell inline-dock"
         :aria-label="t('Details')"
       >
@@ -250,7 +239,7 @@
           </div>
         </div>
       </section>
-    </aside>
+    </InlineDockFrame>
 
     <SurfaceContextMenu
       :visible="menuVisible"
@@ -285,7 +274,6 @@ import { useToastStore } from '../../stores/toast'
 import { useUxStatusStore } from '../../stores/uxStatus'
 import { useI18n } from '../../i18n'
 import { useReferencesStore } from '../../stores/references'
-import { useDelayedRender } from '../../composables/useDelayedRender.js'
 import { useSurfaceContextMenu } from '../../composables/useSurfaceContextMenu.js'
 import { renameWorkspacePath, writeTextFile } from '../../services/fileStoreIO'
 import { openNativeDialog, saveNativeDialog } from '../../services/nativeDialog.js'
@@ -296,7 +284,7 @@ import {
 } from '../../services/references/crossref.js'
 import { basenamePath, dirnamePath } from '../../utils/path'
 import ReferenceAddDialog from './ReferenceAddDialog.vue'
-import ResizeHandle from '../layout/ResizeHandle.vue'
+import InlineDockFrame from '../layout/InlineDockFrame.vue'
 import SurfaceContextMenu from '../shared/SurfaceContextMenu.vue'
 import UiButton from '../shared/ui/UiButton.vue'
 
@@ -310,10 +298,10 @@ const props = defineProps({
 })
 
 const emit = defineEmits([
-  'document-dock-resize',
-  'document-dock-resize-start',
-  'document-dock-resize-end',
-  'document-dock-resize-snap',
+  'inline-dock-resize',
+  'inline-dock-resize-start',
+  'inline-dock-resize-end',
+  'inline-dock-resize-snap',
 ])
 
 const { t } = useI18n()
@@ -328,9 +316,6 @@ const REFERENCE_LIST_MIN_WIDTH = 520
 const REFERENCE_DETAIL_MAX_CONTAINER_RATIO = 0.52
 const showAddDialog = ref(false)
 const workbenchRef = ref(null)
-const detailResizeStartWidth = ref(null)
-const activeReferenceDockTab = ref(REFERENCE_DETAILS_TAB)
-const referencePdfTabOpen = ref(false)
 let referenceDockCloseResetTimer = null
 const {
   menuVisible,
@@ -344,16 +329,15 @@ const {
 
 const filteredReferences = computed(() => referencesStore.filteredReferences)
 const selectedReference = computed(() => referencesStore.selectedReference)
+const activeReferenceDockTab = computed(() => referencesStore.referenceDockActiveTab)
 const detailTabLabel = computed(() => selectedReference.value?.title || t('Details'))
 const selectedReferencePdfPath = computed(() => String(selectedReference.value?.pdfPath || '').trim())
 const canPreviewSelectedReferencePdf = computed(() => selectedReferencePdfPath.value.length > 0)
-const showReferencePdfTab = computed(() => referencePdfTabOpen.value && canPreviewSelectedReferencePdf.value)
+const showReferencePdfTab = computed(
+  () => referencesStore.selectedReferencePdfTabOpen && canPreviewSelectedReferencePdf.value
+)
 const referenceDetailDockWidth = computed(() =>
   Math.max(REFERENCE_DETAIL_MIN_WIDTH, Number(props.referenceDetailWidth) || 0)
-)
-const shouldRenderReferenceDetailDock = useDelayedRender(
-  () => props.referenceDetailOpen,
-  { delayMs: 280 }
 )
 const pdfTabLabel = computed(() => t('PDF'))
 const sortKey = computed({
@@ -388,25 +372,22 @@ function toggleYearSort() {
 function handleReferenceRowClick(reference = {}) {
   if (!reference?.id) return
   referencesStore.selectReference(reference.id)
-  referencePdfTabOpen.value = false
-  activeReferenceDockTab.value = REFERENCE_DETAILS_TAB
-  void workspace.openRightSidebar()
+  referencesStore.resetReferenceDockTabs()
+  void workspace.openReferenceDock()
 }
 
 function activateReferenceDetailsTab() {
-  activeReferenceDockTab.value = REFERENCE_DETAILS_TAB
+  referencesStore.activateReferenceDockDetails()
 }
 
 function activateReferencePdfTab() {
   if (!canPreviewSelectedReferencePdf.value) return
-  referencePdfTabOpen.value = true
-  activeReferenceDockTab.value = REFERENCE_PDF_TAB
-  void workspace.openRightSidebar()
+  referencesStore.activateReferenceDockPdf(selectedReference.value?.id)
+  void workspace.openReferenceDock()
 }
 
 function closeReferencePdfTab() {
-  referencePdfTabOpen.value = false
-  activeReferenceDockTab.value = REFERENCE_DETAILS_TAB
+  referencesStore.closeReferenceDockPdf(selectedReference.value?.id)
 }
 
 function clearReferenceDockCloseResetTimer() {
@@ -416,13 +397,11 @@ function clearReferenceDockCloseResetTimer() {
 }
 
 function resetReferenceDockTabs() {
-  referencePdfTabOpen.value = false
-  activeReferenceDockTab.value = REFERENCE_DETAILS_TAB
+  referencesStore.resetReferenceDockTabs()
 }
 
 function handleReferenceDetailResizeStart() {
-  detailResizeStartWidth.value = props.referenceDetailWidth
-  emit('document-dock-resize-start')
+  emit('inline-dock-resize-start')
 }
 
 function resolveReferenceWorkbenchWidth() {
@@ -441,7 +420,7 @@ function resolveReferenceDetailMaxWidth(containerWidth = resolveReferenceWorkben
 }
 
 function emitReferenceDetailResize(width, containerWidth = resolveReferenceWorkbenchWidth()) {
-  emit('document-dock-resize', {
+  emit('inline-dock-resize', {
     width,
     containerWidth,
     minDockWidth: REFERENCE_DETAIL_MIN_WIDTH,
@@ -466,18 +445,16 @@ function clampReferenceDetailWidthToList() {
 }
 
 function handleReferenceDetailResize(event = {}) {
-  const startWidth = detailResizeStartWidth.value ?? props.referenceDetailWidth
-  emitReferenceDetailResize(startWidth - Number(event.dx || 0))
+  emitReferenceDetailResize(event.width, event.containerWidth)
 }
 
 function handleReferenceDetailResizeEnd() {
-  detailResizeStartWidth.value = null
-  emit('document-dock-resize-end')
+  emit('inline-dock-resize-end')
 }
 
-function handleReferenceDetailResizeSnap() {
-  emit('document-dock-resize-snap', {
-    containerWidth: workbenchRef.value?.getBoundingClientRect?.().width || 0,
+function handleReferenceDetailResizeSnap(event = {}) {
+  emit('inline-dock-resize-snap', {
+    containerWidth: event.containerWidth || resolveReferenceWorkbenchWidth(),
     minDockWidth: REFERENCE_DETAIL_MIN_WIDTH,
     minMainWidth: REFERENCE_LIST_MIN_WIDTH,
     maxContainerRatio: REFERENCE_DETAIL_MAX_CONTAINER_RATIO,

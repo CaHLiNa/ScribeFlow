@@ -21,50 +21,41 @@
       />
     </div>
 
-    <div
-      class="pane-container__dock-resize-slot workbench-inline-dock-resize-slot"
-      :class="{ 'is-visible': isDocumentDockOpen, 'is-hidden': !isDocumentDockOpen }"
-    >
-      <ResizeHandle
-        class="pane-container__dock-resize-handle workbench-inline-dock-resize-handle"
-        direction="vertical"
-        @resize="handleDocumentDockResize"
-        @resize-start="handleDocumentDockResizeStart"
-        @resize-end="handleDocumentDockResizeEnd"
-        @dblclick="handleDocumentDockResizeSnap"
-      />
-    </div>
-
-    <aside
-      class="pane-container__document-dock workbench-inline-dock-region"
-      :class="{
-        'is-open': isDocumentDockOpen,
-        'is-collapsed': !isDocumentDockOpen,
-        'is-resizing': documentDockResizing,
-      }"
-      :aria-hidden="isDocumentDockOpen ? 'false' : 'true'"
-      :style="{ width: isDocumentDockOpen ? `${documentDockWidth}px` : '0px' }"
+    <InlineDockFrame
+      :aria-label="t('Document sidebar')"
+      :open="isDocumentDockOpen"
+      :render-active="!!dockContextPath"
+      :width="documentDockWidth"
+      :resizing="documentDockResizing"
+      region-class="pane-container__document-dock"
+      resize-slot-class="pane-container__dock-resize-slot"
+      resize-handle-class="pane-container__dock-resize-handle"
+      :get-container-width="resolveContainerWidth"
+      @resize="(event) => $emit('inline-dock-resize', event)"
+      @resize-start="$emit('inline-dock-resize-start')"
+      @resize-end="$emit('inline-dock-resize-end')"
+      @resize-snap="(event) => $emit('inline-dock-resize-snap', event)"
     >
       <DocumentDock
-        v-if="shouldRenderDocumentDock && dockContextPath"
+        v-if="dockContextPath"
         :file-path="dockContextPath"
         :pane-id="renderNode.id"
         :preview-state="documentPreviewState"
         :document-dock-resizing="documentDockResizing"
-        @close="$emit('document-dock-close')"
+        @close="$emit('inline-dock-close')"
       />
-    </aside>
+    </InlineDockFrame>
   </section>
 </template>
 
 <script setup>
 import { computed, defineAsyncComponent, ref, watch } from 'vue'
 import { ROOT_PANE_ID } from '../../domains/editor/paneTreeLayout.js'
-import { useDelayedRender } from '../../composables/useDelayedRender.js'
 import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { useEditorStore } from '../../stores/editor'
 import { isNewTab, isPreviewPath } from '../../utils/fileTypes'
-import ResizeHandle from '../layout/ResizeHandle.vue'
+import { useI18n } from '../../i18n'
+import InlineDockFrame from '../layout/InlineDockFrame.vue'
 import EditorPane from './EditorPane.vue'
 
 const DocumentDock = defineAsyncComponent(() => import('../sidebar/DocumentDock.vue'))
@@ -78,21 +69,21 @@ const props = defineProps({
   documentDockResizing: { type: Boolean, default: false },
 })
 
-const emit = defineEmits([
+defineEmits([
   'cursor-change',
   'editor-stats',
   'selection-change',
-  'document-dock-resize',
-  'document-dock-resize-start',
-  'document-dock-resize-end',
-  'document-dock-resize-snap',
-  'document-dock-close',
+  'inline-dock-resize',
+  'inline-dock-resize-start',
+  'inline-dock-resize-end',
+  'inline-dock-resize-snap',
+  'inline-dock-close',
 ])
 const editorStore = useEditorStore()
 const workflowStore = useDocumentWorkflowStore()
+const { t } = useI18n()
 const containerRef = ref(null)
 const lastDocumentTab = ref(null)
-const dockResizeStartWidth = ref(null)
 
 const renderNode = computed(() => {
   if (props.node?.type === 'leaf') return props.node
@@ -123,11 +114,6 @@ const dockContextPath = computed(
     editorStore.documentDockTabs?.[0] ||
     ''
 )
-const shouldRenderDocumentDock = useDelayedRender(
-  () => isDocumentDockOpen.value && !!dockContextPath.value,
-  { delayMs: 280 }
-)
-
 watch(
   () => editorStore.activeTab,
   (tab) => {
@@ -138,27 +124,8 @@ watch(
   { flush: 'post', immediate: true }
 )
 
-function handleDocumentDockResizeStart() {
-  dockResizeStartWidth.value = props.documentDockWidth
-  emit('document-dock-resize-start')
-}
-
-function handleDocumentDockResize(event = {}) {
-  const startWidth = dockResizeStartWidth.value ?? props.documentDockWidth
-  emit('document-dock-resize', {
-    width: startWidth - Number(event.dx || 0),
-    containerWidth: containerRef.value?.getBoundingClientRect?.().width || 0,
-  })
-}
-
-function handleDocumentDockResizeEnd() {
-  dockResizeStartWidth.value = null
-  emit('document-dock-resize-end')
-}
-
-function handleDocumentDockResizeSnap() {
-  const containerWidth = containerRef.value?.getBoundingClientRect?.().width || 0
-  emit('document-dock-resize-snap', { containerWidth })
+function resolveContainerWidth() {
+  return containerRef.value?.getBoundingClientRect?.().width || 0
 }
 </script>
 

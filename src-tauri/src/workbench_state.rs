@@ -9,6 +9,7 @@ const WORKBENCH_LAYOUT_VERSION: u32 = 1;
 const DEFAULT_LEFT_SIDEBAR_WIDTH: i64 = 240;
 const DEFAULT_RIGHT_SIDEBAR_WIDTH: i64 = 360;
 const DEFAULT_DOCUMENT_DOCK_WIDTH: i64 = 360;
+const DEFAULT_REFERENCE_DOCK_WIDTH: i64 = 420;
 const DEFAULT_BOTTOM_PANEL_HEIGHT: i64 = 250;
 const MIN_SIDEBAR_WIDTH: i64 = 0;
 const MAX_SIDEBAR_WIDTH: i64 = 2000;
@@ -33,6 +34,10 @@ pub struct WorkbenchState {
     pub right_sidebar_open: bool,
     #[serde(default = "default_right_sidebar_panel")]
     pub right_sidebar_panel: String,
+    #[serde(default = "default_document_dock_open")]
+    pub document_dock_open: bool,
+    #[serde(default = "default_reference_dock_open")]
+    pub reference_dock_open: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -44,6 +49,8 @@ pub struct WorkbenchLayoutState {
     pub right_sidebar_width: i64,
     #[serde(default = "default_document_dock_width")]
     pub document_dock_width: i64,
+    #[serde(default = "default_reference_dock_width")]
+    pub reference_dock_width: i64,
     #[serde(default = "default_bottom_panel_height")]
     pub bottom_panel_height: i64,
 }
@@ -79,6 +86,8 @@ impl Default for WorkbenchState {
             left_sidebar_panel: default_left_sidebar_panel(),
             right_sidebar_open: default_right_sidebar_open(),
             right_sidebar_panel: default_right_sidebar_panel(),
+            document_dock_open: default_document_dock_open(),
+            reference_dock_open: default_reference_dock_open(),
         }
     }
 }
@@ -89,6 +98,7 @@ impl Default for WorkbenchLayoutState {
             left_sidebar_width: default_left_sidebar_width(),
             right_sidebar_width: default_right_sidebar_width(),
             document_dock_width: default_document_dock_width(),
+            reference_dock_width: default_reference_dock_width(),
             bottom_panel_height: default_bottom_panel_height(),
         }
     }
@@ -108,6 +118,10 @@ fn default_right_sidebar_width() -> i64 {
 
 fn default_document_dock_width() -> i64 {
     DEFAULT_DOCUMENT_DOCK_WIDTH
+}
+
+fn default_reference_dock_width() -> i64 {
+    DEFAULT_REFERENCE_DOCK_WIDTH
 }
 
 fn default_bottom_panel_height() -> i64 {
@@ -132,6 +146,14 @@ fn default_right_sidebar_open() -> bool {
 
 fn default_right_sidebar_panel() -> String {
     DEFAULT_WORKSPACE_INSPECTOR_PANEL.to_string()
+}
+
+fn default_document_dock_open() -> bool {
+    false
+}
+
+fn default_reference_dock_open() -> bool {
+    false
 }
 
 fn allowed_sidebar_panels(surface: &str) -> &'static [&'static str] {
@@ -191,19 +213,31 @@ pub fn normalize_workbench_inspector_panel(surface: &str, panel: &str) -> String
 
 pub fn normalize_workbench_state(state: WorkbenchState) -> WorkbenchState {
     let primary_surface = normalize_workbench_surface(&state.primary_surface);
+    let left_sidebar_panel =
+        normalize_workbench_sidebar_panel(&primary_surface, &state.left_sidebar_panel);
+    let legacy_right_sidebar_open = state.right_sidebar_open;
+    let mut document_dock_open = state.document_dock_open;
+    let mut reference_dock_open = state.reference_dock_open;
+
+    if legacy_right_sidebar_open && !document_dock_open && !reference_dock_open {
+        if left_sidebar_panel == "references" {
+            reference_dock_open = true;
+        } else {
+            document_dock_open = true;
+        }
+    }
 
     WorkbenchState {
         primary_surface: primary_surface.clone(),
         left_sidebar_open: state.left_sidebar_open,
-        left_sidebar_panel: normalize_workbench_sidebar_panel(
-            &primary_surface,
-            &state.left_sidebar_panel,
-        ),
-        right_sidebar_open: state.right_sidebar_open,
+        left_sidebar_panel,
+        right_sidebar_open: document_dock_open || reference_dock_open,
         right_sidebar_panel: normalize_workbench_inspector_panel(
             &primary_surface,
             &state.right_sidebar_panel,
         ),
+        document_dock_open,
+        reference_dock_open,
     }
 }
 
@@ -225,6 +259,11 @@ pub fn normalize_workbench_layout_state(state: WorkbenchLayoutState) -> Workbenc
         ),
         document_dock_width: clamp_i64(
             state.document_dock_width,
+            MIN_SIDEBAR_WIDTH,
+            MAX_SIDEBAR_WIDTH,
+        ),
+        reference_dock_width: clamp_i64(
+            state.reference_dock_width,
             MIN_SIDEBAR_WIDTH,
             MAX_SIDEBAR_WIDTH,
         ),
@@ -331,11 +370,15 @@ mod tests {
             left_sidebar_panel: "references".to_string(),
             right_sidebar_open: true,
             right_sidebar_panel: "outline".to_string(),
+            document_dock_open: false,
+            reference_dock_open: false,
         });
 
         assert_eq!(normalized.primary_surface, "settings");
         assert_eq!(normalized.left_sidebar_panel, "files");
         assert_eq!(normalized.right_sidebar_panel, "");
+        assert!(normalized.document_dock_open);
+        assert!(normalized.right_sidebar_open);
     }
 
     #[test]
@@ -344,12 +387,14 @@ mod tests {
             left_sidebar_width: -1,
             right_sidebar_width: 5000,
             document_dock_width: 3200,
+            reference_dock_width: 3300,
             bottom_panel_height: 10,
         });
 
         assert_eq!(normalized.left_sidebar_width, 0);
         assert_eq!(normalized.right_sidebar_width, 2000);
         assert_eq!(normalized.document_dock_width, 2000);
+        assert_eq!(normalized.reference_dock_width, 2000);
         assert_eq!(normalized.bottom_panel_height, 100);
     }
 }
