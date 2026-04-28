@@ -1,4 +1,4 @@
-import { pathExists } from '../pathExists.js'
+import { workspacePathExists } from '../pathExists.js'
 
 export function buildLatexSynctexCandidates(pdfPath = '') {
   const normalizedPdfPath = String(pdfPath || '').trim()
@@ -13,7 +13,7 @@ export function buildLatexSynctexCandidates(pdfPath = '') {
 export async function resolveExistingLatexSynctexPath(pdfPath = '') {
   const candidates = buildLatexSynctexCandidates(pdfPath)
   for (const candidate of candidates) {
-    if (await pathExists(candidate)) {
+    if (await workspacePathExists(candidate)) {
       return candidate
     }
   }

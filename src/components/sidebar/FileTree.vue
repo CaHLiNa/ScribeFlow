@@ -369,7 +369,7 @@ import {
   IconSettings,
 } from '@tabler/icons-vue'
 import { useI18n } from '../../i18n'
-import { pathExists, revealPathInFileManager } from '../../services/fileTreeSystem'
+import { revealPathInFileManager, workspacePathExists } from '../../services/fileTreeSystem'
 import { askNativeDialog } from '../../services/nativeDialog.js'
 import { useFileTreeFilter } from '../../composables/useFileTreeFilter'
 import { useFileTreeDrag } from '../../composables/useFileTreeDrag'
@@ -687,7 +687,7 @@ async function createTypedFile(dir, ext, options = {}) {
   let i = 2
   while (
     workspaceFlatFiles.value.some((f) => f.name === name) ||
-    (await pathExists(`${dir}/${name}`))
+    (await workspacePathExists(`${dir}/${name}`))
   ) {
     name = `${baseName} ${i}${ext}`
     i++

@@ -4,7 +4,7 @@ import {
   normalizeFsPath,
   resolveRelativePath,
 } from '../documentIntelligence/workspaceGraph.js'
-import { pathExists } from '../pathExists.js'
+import { workspacePathExists } from '../pathExists.js'
 import { readWorkspaceFlatFiles } from '../workspaceSnapshotIO.js'
 
 const VIEW_WAIT_TIMEOUT_MS = 1500
@@ -104,7 +104,7 @@ async function resolveMovedAbsoluteLatexPath(reportedFile = '', options = {}) {
   if (!normalizedReported || (!normalizedReported.startsWith('/') && !/^[A-Za-z]:\//.test(normalizedReported))) {
     return normalizedReported
   }
-  if (await pathExists(normalizedReported)) return normalizedReported
+  if (await workspacePathExists(normalizedReported)) return normalizedReported
 
   const sourcePath = normalizeFsPath(options.sourcePath || '')
   const compileTargetPath = normalizeFsPath(options.compileTargetPath || '')
@@ -125,7 +125,7 @@ async function resolveMovedAbsoluteLatexPath(reportedFile = '', options = {}) {
     }
   }
 
-  if (bestPath && bestScore >= 125 && await pathExists(bestPath)) {
+  if (bestPath && bestScore >= 125 && await workspacePathExists(bestPath)) {
     return bestPath
   }
 
@@ -154,7 +154,7 @@ export async function resolveLatexSyncTargetPath(reportedFile = '', options = {}
 
   for (const baseDir of baseDirs) {
     const resolved = resolveRelativePath(baseDir, normalizedReported)
-    if (resolved && await pathExists(resolved)) return resolved
+    if (resolved && await workspacePathExists(resolved)) return resolved
   }
 
   for (const baseDir of baseDirs) {

@@ -136,6 +136,14 @@ fn path_status_internal(path: &Path) -> PathStatusResult {
     }
 }
 
+fn workspace_path_status_internal(
+    scope_state: &WorkspaceScopeState,
+    path: &Path,
+) -> Result<PathStatusResult, String> {
+    let resolved = security::ensure_allowed_workspace_path(scope_state, path)?;
+    Ok(path_status_internal(&resolved))
+}
+
 fn workspace_read_text_file_blocking(
     path: &Path,
     max_bytes: Option<u64>,
@@ -745,6 +753,14 @@ pub async fn path_status(path: String) -> Result<PathStatusResult, String> {
 }
 
 #[tauri::command]
+pub async fn workspace_path_status(
+    path: String,
+    scope_state: tauri::State<'_, WorkspaceScopeState>,
+) -> Result<PathStatusResult, String> {
+    workspace_path_status_internal(scope_state.inner(), Path::new(&path))
+}
+
+#[tauri::command]
 pub async fn reveal_in_file_manager(path: String) -> Result<(), String> {
     let target = Path::new(&path);
     if !target.exists() {
@@ -901,10 +917,11 @@ pub async fn get_home_dir() -> Result<String, String> {
 mod tests {
     use super::{
         path_status_internal, workspace_create_dir_blocking, workspace_delete_path_blocking,
-        workspace_duplicate_path_blocking, workspace_read_file_base64_blocking,
-        workspace_read_text_file_blocking, workspace_write_file_base64_blocking,
-        workspace_write_text_file_blocking,
+        workspace_duplicate_path_blocking, workspace_path_status_internal,
+        workspace_read_file_base64_blocking, workspace_read_text_file_blocking,
+        workspace_write_file_base64_blocking, workspace_write_text_file_blocking,
     };
+    use crate::security::{set_allowed_roots_internal, WorkspaceScopeState};
     use std::fs;
 
     #[test]
@@ -932,6 +949,47 @@ mod tests {
         assert_eq!(missing_status.modified, None);
 
         fs::remove_dir_all(temp_dir).ok();
+    }
+
+    #[test]
+    fn workspace_path_status_respects_registered_scope() {
+        let workspace_dir = std::env::temp_dir().join(format!(
+            "scribeflow-workspace-path-status-{}",
+            uuid::Uuid::new_v4()
+        ));
+        let outside_dir = std::env::temp_dir().join(format!(
+            "scribeflow-workspace-path-status-outside-{}",
+            uuid::Uuid::new_v4()
+        ));
+        fs::create_dir_all(&workspace_dir).expect("create workspace dir");
+        fs::create_dir_all(&outside_dir).expect("create outside dir");
+        let workspace_file = workspace_dir.join("note.md");
+        let outside_file = outside_dir.join("note.md");
+        fs::write(&workspace_file, "hello").expect("write workspace file");
+        fs::write(&outside_file, "outside").expect("write outside file");
+
+        let state = WorkspaceScopeState::default();
+        set_allowed_roots_internal(&state, &workspace_dir.to_string_lossy(), None, None, None)
+            .expect("register workspace root");
+
+        let file_status =
+            workspace_path_status_internal(&state, &workspace_file).expect("workspace file status");
+        assert!(file_status.exists);
+        assert!(file_status.is_file);
+        assert!(!file_status.is_dir);
+
+        let missing_status = workspace_path_status_internal(&state, &workspace_dir.join("missing.md"))
+            .expect("missing workspace path status");
+        assert!(!missing_status.exists);
+        assert!(!missing_status.is_file);
+        assert!(!missing_status.is_dir);
+
+        let outside_error = workspace_path_status_internal(&state, &outside_file)
+            .expect_err("outside path should be rejected");
+        assert!(outside_error.starts_with("Path is outside the allowed workspace roots:"));
+
+        fs::remove_dir_all(workspace_dir).ok();
+        fs::remove_dir_all(outside_dir).ok();
     }
 
     #[test]

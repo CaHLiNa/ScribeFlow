@@ -449,6 +449,7 @@ pub fn run() {
             fs_commands::workspace_move_path,
             fs_commands::workspace_copy_external_path,
             fs_commands::path_status,
+            fs_commands::workspace_path_status,
             fs_tree_runtime::fs_tree_load_workspace_state,
             fs_tree_runtime::fs_tree_reveal_workspace_state,
             fs_tree_runtime::fs_tree_restore_cached_expanded_state,

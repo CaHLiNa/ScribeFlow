@@ -24,6 +24,21 @@ export async function getPathStatus(path = '') {
   }
 }
 
+export async function getWorkspacePathStatus(path = '') {
+  const normalizedPath = String(path || '').trim()
+  if (!normalizedPath) return normalizePathStatus('')
+  try {
+    const status = await invoke('workspace_path_status', { path: normalizedPath })
+    return normalizePathStatus(normalizedPath, status)
+  } catch {
+    return normalizePathStatus(normalizedPath)
+  }
+}
+
 export async function pathExists(path = '') {
   return (await getPathStatus(path)).exists
+}
+
+export async function workspacePathExists(path = '') {
+  return (await getWorkspacePathStatus(path)).exists
 }

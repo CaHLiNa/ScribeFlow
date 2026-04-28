@@ -1,1 +1,1 @@
-export { pathExists } from './pathStatus.js'
+export { pathExists, workspacePathExists } from './pathStatus.js'

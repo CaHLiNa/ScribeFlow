@@ -1,4 +1,4 @@
-import { pathExists } from '../../services/pathExists.js'
+import { workspacePathExists } from '../../services/pathExists.js'
 import {
   createDocumentWorkflowPersistentState,
   loadDocumentWorkflowSessionState,
@@ -230,12 +230,12 @@ export const documentWorkflowSessionActions = {
     const keptEntries = await Promise.all(sourcePaths.map(async (sourcePath) => {
       const previewState = this.latexPreviewStates?.[sourcePath] || null
       const artifactPath = String(previewState?.artifactPath || this.latexArtifactPaths?.[sourcePath] || '')
-      if (!artifactPath || !(await pathExists(artifactPath))) {
+      if (!artifactPath || !(await workspacePathExists(artifactPath))) {
         return null
       }
 
       const synctexPath = String(previewState?.synctexPath || '')
-      const hasSynctexPath = synctexPath ? await pathExists(synctexPath) : false
+      const hasSynctexPath = synctexPath ? await workspacePathExists(synctexPath) : false
 
       return [
         sourcePath,
