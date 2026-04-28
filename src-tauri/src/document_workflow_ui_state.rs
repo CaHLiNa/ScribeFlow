@@ -6,6 +6,7 @@ use crate::document_workspace_preview_state::{
     document_workspace_preview_state_resolve, DocumentWorkspacePreviewStateResolveParams,
 };
 use crate::latex_project_graph::{resolve_graph_value, LatexProjectGraphParams};
+use crate::markdown_runtime::extract_markdown_draft_problems;
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -271,14 +272,19 @@ fn resolve_markdown_problems(
     file_path: &str,
     markdown_state: &Value,
     markdown_draft_problems: &Value,
+    source_content: &str,
 ) -> Vec<Value> {
     let mut problems = Vec::new();
 
-    for problem in markdown_draft_problems
-        .as_array()
-        .cloned()
-        .unwrap_or_default()
-    {
+    let draft_problems = if let Some(problems) = markdown_draft_problems.as_array() {
+        problems.clone()
+    } else if source_content.trim().is_empty() {
+        Vec::new()
+    } else {
+        extract_markdown_draft_problems(file_path, source_content).unwrap_or_default()
+    };
+
+    for problem in draft_problems {
         push_problem(
             &mut problems,
             &problem,
@@ -576,6 +582,7 @@ fn resolve_markdown_state(params: &DocumentWorkflowStateResolveParams) -> Value 
         file_path,
         &params.markdown_state,
         &params.markdown_draft_problems,
+        &params.source_content,
     );
     let (error_count, warning_count) = count_problems(&problems);
     let preview_visible = bool_at(&params.preview_state, "previewVisible");

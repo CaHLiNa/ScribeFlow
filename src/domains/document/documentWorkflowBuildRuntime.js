@@ -2,7 +2,6 @@ import {
   getDocumentAdapterForFile,
   getDocumentAdapterForWorkflow,
 } from '../../services/documentWorkflow/adapters/index.js'
-import { buildMarkdownDraftProblems } from '../../services/markdown/diagnostics.js'
 
 function resolveDocumentAdapter(filePath, options = {}) {
   if (options.adapter) return options.adapter
@@ -45,9 +44,7 @@ export function createDocumentWorkflowBuildRuntime({
       markdownState: adapter.kind === 'markdown'
         ? workflowStore?.markdownPreviewState?.[filePath] || {}
         : null,
-      markdownDraftProblems: adapter.kind === 'markdown'
-        ? buildMarkdownDraftProblems(filePath, context.filesStore?.fileContents?.[filePath] || '')
-        : null,
+      markdownDraftProblems: null,
       latexState: adapter.kind === 'latex'
         ? context.latexStore?.stateForFile?.(filePath) || {}
         : null,
@@ -57,7 +54,7 @@ export function createDocumentWorkflowBuildRuntime({
       workspacePath: adapter.kind === 'latex'
         ? context.workspace?.path || ''
         : '',
-      sourceContent: adapter.kind === 'latex'
+      sourceContent: adapter.kind === 'markdown' || adapter.kind === 'latex'
         ? context.filesStore?.fileContents?.[filePath] || ''
         : '',
       pythonState: adapter.kind === 'python'
