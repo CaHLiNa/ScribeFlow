@@ -56,29 +56,29 @@ export function createDocumentWorkflowRuntime({
     }
 
     if (typeof plan.clearDetachedSourcePath === 'string' && plan.clearDetachedSourcePath) {
-      await clearDetached?.(plan.clearDetachedSourcePath)
+      clearDetached?.(plan.clearDetachedSourcePath)
     }
 
     const binding = normalizeBinding(plan.bindPreview)
     if (binding) {
-      await bindPreview?.(binding)
+      bindPreview?.(binding)
     }
 
     if (plan.sessionState && typeof plan.sessionState === 'object') {
-      await setSessionState?.(plan.sessionState)
+      setSessionState?.(plan.sessionState)
     }
 
     if (typeof plan.markDetachedSourcePath === 'string' && plan.markDetachedSourcePath) {
-      await markDetached?.(plan.markDetachedSourcePath)
+      markDetached?.(plan.markDetachedSourcePath)
     }
 
     if (typeof plan.unbindPreviewPath === 'string' && plan.unbindPreviewPath) {
-      await unbindPreview?.(plan.unbindPreviewPath)
+      unbindPreview?.(plan.unbindPreviewPath)
     }
 
     if (typeof plan.closePreviewPath === 'string' && plan.closePreviewPath) {
       if (!plan.unbindPreviewPath && !plan.markDetachedSourcePath) {
-        await handlePreviewClosed?.(plan.closePreviewPath)
+        handlePreviewClosed?.(plan.closePreviewPath)
       }
       editorStore.closeFileFromAllPanes(plan.closePreviewPath)
     }

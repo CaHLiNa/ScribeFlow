@@ -1,5 +1,7 @@
 import { extractMarkdownHeadingItems as extractMarkdownHeadingItemsFromRuntime } from './runtimeBridge.js'
 
+export { parseMarkdownDraft } from './astParser.js'
+
 export async function extractMarkdownHeadingItems(content = '') {
   return extractMarkdownHeadingItemsFromRuntime(content)
 }

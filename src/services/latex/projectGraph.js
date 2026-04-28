@@ -10,6 +10,23 @@ export function stableContentFingerprint(value = '') {
   return `${text.length}:${(hash >>> 0).toString(16)}`
 }
 
+// Compatibility stubs for the pre-rustified document workspace path.
+export function getCachedLatexProjectGraph() {
+  return null
+}
+
+export async function resolveLatexProjectGraph() {
+  return null
+}
+
+export function buildRelativeLatexInputPath(inputPath = '') {
+  return String(inputPath || '')
+}
+
+export function resolveLatexCompileTargetsForChange() {
+  return []
+}
+
 export async function resolveLatexProjectCompletion(params = {}) {
   return invoke('latex_project_completion_resolve', {
     params: {

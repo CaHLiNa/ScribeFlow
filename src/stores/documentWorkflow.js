@@ -34,7 +34,8 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
     workspacePreviewRequests: {},
     latexArtifactPaths: {},
     latexPreviewStates: {},
-    resolvedWorkflowContexts: {},
+    resolvedWorkspacePreviewStates: {},
+    resolvedWorkflowUiStates: {},
     _isReconciling: false,
     _lastTrigger: null,
     _persistentStateHydrated: false,
@@ -123,7 +124,7 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
       return getPreferredWorkflowPreviewKind(kind, this.previewPrefs)
     },
 
-    async setPreferredPreviewKind(kind, previewKind) {
+    setPreferredPreviewKind(kind, previewKind) {
       if (!kind || !previewKind) return
       const adapter = getDocumentAdapterByKind(kind)
       if (!adapter?.preview?.supportedKinds?.includes(previewKind)) return
@@ -133,10 +134,7 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
           preferredPreview: previewKind,
         },
       }
-      const state = await this.persistPreviewPreference(kind, previewKind)
-      if (state?.previewPrefs) {
-        this.previewPrefs = state.previewPrefs
-      }
+      this.queuePersistentStateSave()
     },
 
     closePreviewForSource(sourcePath, options = {}) {
@@ -198,6 +196,14 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
       return this._getDocumentWorkflowBuildRuntime().getProblemsForFile(filePath, options)
     },
 
+    getUiStateForFile(filePath, options = {}) {
+      return this._getDocumentWorkflowBuildRuntime().getUiStateForFile(filePath, options)
+    },
+
+    getStatusTextForFile(filePath, options = {}) {
+      return this._getDocumentWorkflowBuildRuntime().getStatusTextForFile(filePath, options)
+    },
+
     getArtifactPathForFile(filePath, options = {}) {
       return this._getDocumentWorkflowBuildRuntime().getArtifactPathForFile(filePath, options)
     },
@@ -226,20 +232,20 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
       if (!mutation || typeof mutation !== 'object') return null
 
       if (mutation.persistedPreviewKind) {
-        await this.setPreferredPreviewKind(kind, String(mutation.persistedPreviewKind))
+        this.setPreferredPreviewKind(kind, String(mutation.persistedPreviewKind))
       }
-      await this.setWorkspacePreviewRequestForFile(
+      this.setWorkspacePreviewRequestForFile(
         filePath,
         typeof mutation.requestValue === 'string' ? mutation.requestValue : null,
       )
       if (typeof mutation.visibility === 'string') {
-        await this.setWorkspacePreviewVisibility(filePath, mutation.visibility)
+        this.setWorkspacePreviewVisibility(filePath, mutation.visibility)
       }
       if (typeof mutation.clearDetachedSourcePath === 'string' && mutation.clearDetachedSourcePath) {
-        await this.clearDetached(mutation.clearDetachedSourcePath)
+        this.clearDetached(mutation.clearDetachedSourcePath)
       }
       if (mutation.sessionState && typeof mutation.sessionState === 'object') {
-        await this.setSessionState(mutation.sessionState)
+        this.setSessionState(mutation.sessionState)
       }
 
       return mutation.result || null
@@ -258,12 +264,12 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
 
       if (!mutation || typeof mutation !== 'object') return null
 
-      await this.setWorkspacePreviewRequestForFile(filePath, null)
+      this.setWorkspacePreviewRequestForFile(filePath, null)
       if (typeof mutation.visibility === 'string') {
-        await this.setWorkspacePreviewVisibility(filePath, mutation.visibility)
+        this.setWorkspacePreviewVisibility(filePath, mutation.visibility)
       }
       if (mutation.sessionState && typeof mutation.sessionState === 'object') {
-        await this.setSessionState(mutation.sessionState)
+        this.setSessionState(mutation.sessionState)
       }
 
       return mutation.result || null
@@ -304,18 +310,24 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
     async applyHydratedPersistentState(state = {}) {
       this.ensureLatexArtifactPersistenceListener()
       this.applyPersistentState(state)
+      await this.reconcileLatexPreviewStates()
       this._persistentStateHydrated = true
       return this.snapshotPersistentState()
     },
 
     cleanup() {
+      clearTimeout(this._persistentStateSaveTimer)
+      this._persistentStateSaveTimer = null
+      this._persistentStateSaveRevision = 0
       this.applyPersistentState(createDefaultDocumentWorkflowPersistentState())
       this.markdownPreviewState = {}
-      this.resolvedWorkflowContexts = {}
+      this.resolvedWorkspacePreviewStates = {}
+      this.resolvedWorkflowUiStates = {}
       this._isReconciling = false
       this._lastTrigger = null
       this._persistentStateHydrated = false
-      this._resolvedWorkflowContextInflight?.clear?.()
+      this._resolvedWorkspacePreviewStateInflight?.clear?.()
+      this._resolvedWorkflowUiStateInflight?.clear?.()
     },
   },
 })
