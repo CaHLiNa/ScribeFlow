@@ -368,9 +368,9 @@ import {
   IconDotsVertical,
   IconSettings,
 } from '@tabler/icons-vue'
-import { ask } from '@tauri-apps/plugin-dialog'
 import { useI18n } from '../../i18n'
 import { pathExists, revealPathInFileManager } from '../../services/fileTreeSystem'
+import { askNativeDialog } from '../../services/nativeDialog.js'
 import { useFileTreeFilter } from '../../composables/useFileTreeFilter'
 import { useFileTreeDrag } from '../../composables/useFileTreeDrag'
 import { useTransientOverlayDismiss } from '../../composables/useTransientOverlayDismiss'
@@ -843,7 +843,7 @@ function cancelRename() {
 }
 
 async function handleDelete(entry) {
-  const yes = await ask(t('Delete "{name}"?', { name: entry.name }), {
+  const yes = await askNativeDialog(t('Delete "{name}"?', { name: entry.name }), {
     title: t('Confirm Delete'),
     kind: 'warning',
   })
@@ -859,7 +859,7 @@ async function handleDeleteSelected() {
     paths.length === 1
       ? t('Delete "{name}"?', { name: basenamePath(paths[0]) })
       : t('Delete {count} items?', { count: paths.length })
-  const yes = await ask(msg, { title: t('Confirm Delete'), kind: 'warning' })
+  const yes = await askNativeDialog(msg, { title: t('Confirm Delete'), kind: 'warning' })
   if (yes) {
     for (const path of paths) {
       await files.deletePath(path)

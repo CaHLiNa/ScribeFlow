@@ -273,7 +273,6 @@
 
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
-import { open } from '@tauri-apps/plugin-dialog'
 import {
   IconChevronRight,
   IconFileText,
@@ -289,6 +288,7 @@ import { useReferencesStore } from '../../stores/references'
 import { useToastStore } from '../../stores/toast'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { revealPathInFileManager } from '../../services/fileTreeSystem'
+import { openNativeDialog } from '../../services/nativeDialog.js'
 import {
   hydrateReferenceFromCsl,
   lookupByDoi,
@@ -641,7 +641,7 @@ async function handleRevealPdf() {
 async function handleAttachPdf() {
   if (!selectedReference.value?.id) return
 
-  const selected = await open({
+  const selected = await openNativeDialog({
     multiple: false,
     title: t('Attach PDF'),
     filters: [{ name: 'PDF', extensions: ['pdf'] }],

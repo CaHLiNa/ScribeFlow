@@ -1,5 +1,4 @@
 import { defineStore } from 'pinia'
-import { save as saveDialog } from '@tauri-apps/plugin-dialog'
 import { nanoid } from './utils'
 import { useWorkspaceStore } from './workspace'
 import { TEXT_FILE_READ_LIMIT_BYTES } from '../domains/files/workspaceTextFileLimits.js'
@@ -37,6 +36,7 @@ import { t } from '../i18n'
 import { useToastStore } from './toast'
 import { useUxStatusStore } from './uxStatus'
 import { isTauriDesktopRuntime } from '../platform'
+import { saveNativeDialog } from '../services/nativeDialog.js'
 import {
   listenWorkspaceTreeRefreshRequests,
   loadWorkspaceTreeState as loadWorkspaceTreeStateFromRust,
@@ -789,7 +789,7 @@ export const useFilesStore = defineStore('files', {
 
       let selectedPath = null
       try {
-        selectedPath = await saveDialog({
+        selectedPath = await saveNativeDialog({
           title: t('Save'),
           defaultPath,
         })

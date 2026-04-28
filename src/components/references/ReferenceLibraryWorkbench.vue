@@ -156,7 +156,6 @@
 
 <script setup>
 import { computed, ref } from 'vue'
-import { open, save } from '@tauri-apps/plugin-dialog'
 import { 
   IconFileText, 
   IconPlus, 
@@ -172,6 +171,7 @@ import { useI18n } from '../../i18n'
 import { useReferencesStore } from '../../stores/references'
 import { useSurfaceContextMenu } from '../../composables/useSurfaceContextMenu.js'
 import { readWorkspaceTextFile, renameWorkspacePath, writeTextFile } from '../../services/fileStoreIO'
+import { openNativeDialog, saveNativeDialog } from '../../services/nativeDialog.js'
 import {
   hydrateReferenceFromCsl,
   lookupByDoi,
@@ -433,7 +433,7 @@ async function handleExportReferenceBibTeX(reference = {}) {
   const content = await getReferenceBibTeX(reference)
   if (!content) return
 
-  const target = await save({
+  const target = await saveNativeDialog({
     title: t('Export BibTeX'),
     defaultPath: `${normalizeFilenameSegment(reference.citationKey || reference.title, 'reference')}.bib`,
     filters: [{ name: 'BibTeX', extensions: ['bib'] }],
@@ -453,7 +453,7 @@ async function handleExportReferenceBibTeX(reference = {}) {
 }
 
 async function handleDetailedExport(reference = {}) {
-  const target = await save({
+  const target = await saveNativeDialog({
     title: t('Detailed Export'),
     defaultPath: `${normalizeFilenameSegment(reference.citationKey || reference.title, 'reference')}.json`,
     filters: [{ name: 'JSON', extensions: ['json'] }],
@@ -580,7 +580,7 @@ function handleManualImport(importedCount = 0) {
 }
 
 async function handleImportBibTeX() {
-  const selected = await open({
+  const selected = await openNativeDialog({
     multiple: false,
     title: t('Import BibTeX'),
     filters: [{ name: 'BibTeX', extensions: ['bib'] }],
@@ -615,7 +615,7 @@ async function handleImportBibTeX() {
 }
 
 async function handleImportPdf() {
-  const selected = await open({
+  const selected = await openNativeDialog({
     multiple: false,
     title: t('Import PDF'),
     filters: [{ name: 'PDF', extensions: ['pdf'] }],
@@ -650,7 +650,7 @@ async function handleExportBibTeX() {
   const content = await referencesStore.exportBibTeXAsync(
     filteredReferences.value.map((reference) => reference.id)
   )
-  const target = await save({
+  const target = await saveNativeDialog({
     title: t('Export BibTeX'),
     defaultPath: 'references.bib',
     filters: [{ name: 'BibTeX', extensions: ['bib'] }],
