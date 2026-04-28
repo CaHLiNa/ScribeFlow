@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import { basenamePath } from '../utils/path'
+import { getGlobalConfigDir as getAppGlobalConfigDir } from './appDirs.js'
 import {
   clearStorageKeys,
   readStorageBoolean,
@@ -111,7 +112,7 @@ export async function recordWorkspaceOpened(globalConfigDir = '', path = '') {
 }
 
 export async function getGlobalConfigDir() {
-  return invoke('get_global_config_dir')
+  return getAppGlobalConfigDir()
 }
 
 export async function prepareWorkspaceOpen(globalConfigDir = '', path = '') {

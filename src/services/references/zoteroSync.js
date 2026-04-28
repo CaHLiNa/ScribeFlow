@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
+import { getGlobalConfigDir } from '../appDirs.js'
 
 export const zoteroSyncState = {
   status: 'disconnected',
@@ -18,10 +19,6 @@ function classifyError(error) {
   if (message.includes('rate-limit') || message.includes('retry after')) return 'rate-limit'
   if (/timeout|network|resolve|connect/.test(message)) return 'network'
   return 'generic'
-}
-
-async function getGlobalConfigDir() {
-  return invoke('get_global_config_dir')
 }
 
 export async function storeZoteroApiKey(apiKey = '') {
