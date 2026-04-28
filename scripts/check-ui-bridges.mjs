@@ -5,12 +5,6 @@ const repoRoot = new URL('..', import.meta.url).pathname
 const srcRoot = join(repoRoot, 'src')
 const disallowedImport = '@tauri-apps/api/core'
 
-const allowedFiles = new Set([
-  'src/composables/useAppShellLayout.js',
-  // Temporary seam: LaTeX compile scheduling/runtime will be bridged in a later phase.
-  'src/stores/latex.js',
-])
-
 function walk(dir) {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const path = join(dir, entry.name)
@@ -24,7 +18,6 @@ const violations = walk(srcRoot)
   .filter((path) => {
     const rel = relative(repoRoot, path)
     if (rel.startsWith('src/services/')) return false
-    if (allowedFiles.has(rel)) return false
     return readFileSync(path, 'utf8').includes(disallowedImport)
   })
   .map((path) => relative(repoRoot, path))
