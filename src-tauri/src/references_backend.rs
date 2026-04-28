@@ -187,7 +187,9 @@ fn load_or_create_snapshot(params: &ReferenceLibraryReadParams) -> Result<Value,
                 &params.legacy_project_root,
                 &params.legacy_workspace_data_dir,
             )? {
-                Some(legacy_snapshot) => merge_library_snapshots(&project_snapshot, &legacy_snapshot),
+                Some(legacy_snapshot) => {
+                    merge_library_snapshots(&project_snapshot, &legacy_snapshot)
+                }
                 None => project_snapshot,
             }
         } else {
@@ -257,12 +259,17 @@ fn fallback_asset_name() -> String {
     format!("reference-{timestamp}")
 }
 
+fn extract_reference_pdf_text_lossy(path: &Path) -> String {
+    pdf_extract::extract_text(path).unwrap_or_default()
+}
+
 fn store_reference_asset(params: &ReferenceAssetStoreParams) -> Result<Value, String> {
     let normalized_source = params.source_path.trim();
     if params.global_config_dir.trim().is_empty() || normalized_source.is_empty() {
         return Ok(normalize_reference_record(&params.reference));
     }
-    validate_reference_pdf_path(Path::new(normalized_source))?;
+    let source_path = Path::new(normalized_source);
+    validate_reference_pdf_path(source_path)?;
 
     let Some(references_dir) = references_dir(&params.global_config_dir) else {
         return Ok(normalize_reference_record(&params.reference));
@@ -293,7 +300,11 @@ fn store_reference_asset(params: &ReferenceAssetStoreParams) -> Result<Value, St
     }
 
     let mut fulltext_path = String::new();
-    let extracted_text = params.extracted_text.clone().unwrap_or_default();
+    let extracted_text = params
+        .extracted_text
+        .clone()
+        .filter(|text| !text.trim().is_empty())
+        .unwrap_or_else(|| extract_reference_pdf_text_lossy(source_path));
     if !extracted_text.trim().is_empty() {
         fs::write(&dest_text_path, extracted_text).map_err(|error| error.to_string())?;
         fulltext_path = dest_text_path.to_string_lossy().to_string();
@@ -330,7 +341,10 @@ fn store_reference_asset(params: &ReferenceAssetStoreParams) -> Result<Value, St
     Ok(normalize_reference_record(&Value::Object(map)))
 }
 
-fn migrate_reference_assets_values(global_config_dir: &str, references: &[Value]) -> Result<Vec<Value>, String> {
+fn migrate_reference_assets_values(
+    global_config_dir: &str,
+    references: &[Value],
+) -> Result<Vec<Value>, String> {
     if global_config_dir.trim().is_empty() || references.is_empty() {
         return Ok(references.to_vec());
     }
@@ -353,12 +367,11 @@ fn migrate_reference_assets_values(global_config_dir: &str, references: &[Value]
             continue;
         }
 
-        let extracted_text = pdf_extract::extract_text(Path::new(&pdf_path)).unwrap_or_default();
         let next = store_reference_asset(&ReferenceAssetStoreParams {
             global_config_dir: global_config_dir.to_string(),
             reference: normalized_reference.clone(),
             source_path: pdf_path.clone(),
-            extracted_text: Some(extracted_text),
+            extracted_text: None,
             existing_fulltext_source_path: if fulltext_path.is_empty() {
                 None
             } else {
@@ -448,8 +461,12 @@ pub async fn references_record_normalize(
 
 #[cfg(test)]
 mod tests {
-    use super::{normalize_reference_record, normalize_snapshot};
+    use super::{
+        normalize_reference_record, normalize_snapshot, store_reference_asset,
+        ReferenceAssetStoreParams,
+    };
     use serde_json::json;
+    use std::fs;
 
     #[test]
     fn snapshot_normalization_builds_tag_registry_and_drops_fixture_refs() {
@@ -497,5 +514,44 @@ mod tests {
         assert_eq!(normalized["typeKey"].as_str(), Some("journal-article"));
         assert_eq!(normalized["hasPdf"].as_bool(), Some(true));
         assert_eq!(normalized["tags"].as_array().map(|v| v.len()), Some(2));
+    }
+
+    #[test]
+    fn asset_store_copies_pdf_and_writes_extracted_fulltext() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "scribeflow-reference-asset-store-{}",
+            uuid::Uuid::new_v4()
+        ));
+        let global_config_dir = temp_dir.join("config");
+        let source_pdf = temp_dir.join("source.pdf");
+        fs::create_dir_all(&temp_dir).expect("create temp dir");
+        fs::write(&source_pdf, b"%PDF-1.4\n%%EOF").expect("write source pdf");
+
+        let stored = store_reference_asset(&ReferenceAssetStoreParams {
+            global_config_dir: global_config_dir.to_string_lossy().to_string(),
+            reference: json!({
+                "id": "ref-1",
+                "citationKey": "Ada 2024",
+                "title": "A Title"
+            }),
+            source_path: source_pdf.to_string_lossy().to_string(),
+            extracted_text: Some("Extracted full text".to_string()),
+            existing_fulltext_source_path: None,
+        })
+        .expect("store asset");
+
+        let pdf_path = stored["pdfPath"].as_str().expect("pdf path");
+        let fulltext_path = stored["fulltextPath"].as_str().expect("fulltext path");
+        assert!(pdf_path.ends_with("/references/pdfs/ada-2024.pdf"));
+        assert!(fulltext_path.ends_with("/references/fulltext/ada-2024.txt"));
+        assert!(std::path::Path::new(pdf_path).exists());
+        assert_eq!(
+            fs::read_to_string(fulltext_path).expect("read fulltext"),
+            "Extracted full text"
+        );
+        assert_eq!(stored["hasPdf"].as_bool(), Some(true));
+        assert_eq!(stored["hasFullText"].as_bool(), Some(true));
+
+        fs::remove_dir_all(temp_dir).ok();
     }
 }

@@ -1,5 +1,4 @@
 import { invoke } from '@tauri-apps/api/core'
-import { extractTextFromPdf } from './pdfMetadata.js'
 
 const REFERENCES_DIRNAME = 'references'
 const PDFS_DIRNAME = 'pdfs'
@@ -11,14 +10,6 @@ function normalizeRoot(path = '') {
 
 function normalizePath(path = '') {
   return String(path || '').trim()
-}
-
-function isWithinDirectory(path = '', root = '') {
-  const normalizedPath = normalizeRoot(path)
-  const normalizedRoot = normalizeRoot(root)
-  if (!normalizedPath || !normalizedRoot) return false
-  if (normalizedPath === normalizedRoot) return true
-  return normalizedPath.startsWith(`${normalizedRoot}/`)
 }
 
 export function resolveGlobalReferencesDir(globalConfigDir = '') {
@@ -45,19 +36,11 @@ async function storeReferencePdfWithOptions(
   const normalizedSource = normalizePath(sourcePath)
   if (!globalConfigDir || !normalizedSource) return reference
 
-  let extractedText = ''
-  try {
-    extractedText = await extractTextFromPdf(normalizedSource)
-  } catch (error) {
-    console.warn('[references] Failed to extract full text from PDF:', error)
-  }
-
   return invoke('references_asset_store', {
     params: {
       globalConfigDir,
       reference,
       sourcePath: normalizedSource,
-      extractedText,
       existingFulltextSourcePath: options.existingFulltextSourcePath || '',
     },
   })
