@@ -1,5 +1,5 @@
 import { computed, ref } from 'vue'
-import { loadI18nRuntime, loadSavedLocalePreference } from '../services/i18nRuntime'
+import { invoke } from '@tauri-apps/api/core'
 
 const DEFAULT_LOCALE = 'en-US'
 const DEFAULT_LOCALE_PREFERENCE = 'system'
@@ -29,6 +29,15 @@ function normalizeLocalePreference(value = '') {
   }
 }
 
+function detectBrowserLocale() {
+  if (typeof navigator === 'undefined') return DEFAULT_LOCALE
+  const preferred =
+    Array.isArray(navigator.languages) && navigator.languages.length > 0
+      ? navigator.languages.find(Boolean)
+      : navigator.language
+  return normalizeLocale(preferred || DEFAULT_LOCALE)
+}
+
 function interpolate(message, vars = {}) {
   return String(message).replace(/\{(\w+)\}/g, (_, key) =>
     vars[key] == null ? '' : String(vars[key])
@@ -54,7 +63,11 @@ export function useI18n() {
 async function loadRuntimeBundle() {
   try {
     const preferredLocale = await loadSavedLocalePreference()
-    const payload = await loadI18nRuntime(preferredLocale)
+    const payload = await invoke('i18n_runtime_load', {
+      params: {
+        preferredLocale,
+      },
+    })
     return {
       locale: normalizeLocale(payload?.locale || DEFAULT_LOCALE),
       systemLocale: normalizeLocale(payload?.systemLocale || payload?.locale || DEFAULT_LOCALE),
@@ -71,6 +84,21 @@ async function loadRuntimeBundle() {
       messages: {},
       aliases: {},
     }
+  }
+}
+
+async function loadSavedLocalePreference() {
+  try {
+    const globalConfigDir = await invoke('get_global_config_dir')
+    const preferences = await invoke('workspace_preferences_load', {
+      params: {
+        globalConfigDir: String(globalConfigDir || ''),
+        legacyPreferences: {},
+      },
+    })
+    return normalizeLocalePreference(preferences?.preferredLocale || DEFAULT_LOCALE_PREFERENCE)
+  } catch {
+    return DEFAULT_LOCALE_PREFERENCE
   }
 }
 
@@ -92,7 +120,11 @@ export async function initLocale() {
 export async function applyLocalePreference(preferredLocale = DEFAULT_LOCALE_PREFERENCE) {
   const normalizedPreference = normalizeLocalePreference(preferredLocale)
 
-  const payload = await loadI18nRuntime(normalizedPreference)
+  const payload = await invoke('i18n_runtime_load', {
+    params: {
+      preferredLocale: normalizedPreference,
+    },
+  })
   applyLocaleState(payload?.locale, payload?.messages, payload?.aliases)
   return locale.value
 }

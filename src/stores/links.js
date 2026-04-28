@@ -1,8 +1,8 @@
 import { defineStore } from 'pinia'
+import { invoke } from '@tauri-apps/api/core'
 import { useWorkspaceStore } from './workspace'
 import { useFilesStore } from './files'
 import { extractMarkdownHeadingTexts } from '../services/markdown/parser.js'
-import { readWorkspaceTextFileUnbounded } from '../services/fileStoreIO.js'
 import { filterWorkspaceFlatFilesByExtension } from '../domains/files/workspaceSnapshotFlatFilesRuntime.js'
 import { basenamePath, dirnamePath } from '../utils/path'
 
@@ -182,7 +182,7 @@ export const useLinksStore = defineStore('links', {
         try {
           let content = filesStore.fileContents[file.path]
           if (content == null) {
-            content = await readWorkspaceTextFileUnbounded(file.path)
+            content = await invoke('read_file', { path: file.path })
             filesStore.fileContents[file.path] = content
           }
           await this._indexFile(file.path, content)
@@ -205,14 +205,14 @@ export const useLinksStore = defineStore('links', {
       if (!this.initialized) return
 
       try {
-        const content = await readWorkspaceTextFileUnbounded(path)
+        const content = await invoke('read_file', { path })
         // Remove old index for this file
         this._removeFileFromIndex(path)
         // Re-index
         await this._indexFile(path, content)
         // Rebuild backlinks
         this._rebuildBacklinks()
-      } catch {
+      } catch (e) {
         // File may have been deleted
         this._removeFileFromIndex(path)
         this._rebuildBacklinks()
@@ -232,9 +232,9 @@ export const useLinksStore = defineStore('links', {
         // Just a move, not a rename — update indices only
         this._removeFileFromIndex(oldPath)
         try {
-          const content = await readWorkspaceTextFileUnbounded(newPath)
+          const content = await invoke('read_file', { path: newPath })
           await this._indexFile(newPath, content)
-        } catch { /* ignore */ }
+        } catch (e) { /* ignore */ }
         this._rebuildBacklinks()
         return
       }
@@ -245,7 +245,7 @@ export const useLinksStore = defineStore('links', {
         try {
           let content = filesStore.fileContents[file.path]
           if (content == null) {
-            content = await readWorkspaceTextFileUnbounded(file.path)
+            content = await invoke('read_file', { path: file.path })
           }
 
           const links = parseWikiLinks(content)
@@ -278,9 +278,9 @@ export const useLinksStore = defineStore('links', {
       // Re-index the renamed file
       this._removeFileFromIndex(oldPath)
       try {
-        const content = await readWorkspaceTextFileUnbounded(newPath)
+        const content = await invoke('read_file', { path: newPath })
         await this._indexFile(newPath, content)
-      } catch { /* ignore */ }
+      } catch (e) { /* ignore */ }
 
       // Full rebuild of backlinks since many files may have changed
       this._rebuildBacklinks()

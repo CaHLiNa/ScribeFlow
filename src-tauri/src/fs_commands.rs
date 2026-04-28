@@ -1,12 +1,12 @@
 use base64::{engine::general_purpose::STANDARD, Engine};
 use image::codecs::png::PngEncoder;
 use image::{ColorType, GenericImageView, ImageEncoder, ImageReader};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashSet;
-use std::fs;
 use std::hash::{Hash, Hasher};
 use std::io::Cursor;
+use std::fs;
 use std::path::{Path, PathBuf};
 use tokio::task;
 
@@ -35,29 +35,6 @@ where
 pub struct WorkspaceCreateFileResult {
     pub ok: bool,
     pub path: String,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct WorkspaceCreateDirResult {
-    pub ok: bool,
-    pub path: String,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct WorkspaceCreateDocumentFileParams {
-    pub dir_path: String,
-    pub ext: Option<String>,
-    pub template_id: Option<String>,
-    pub suggested_name: Option<String>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct WorkspaceDocumentTemplateContentParams {
-    pub template_id: String,
-    pub name: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -170,121 +147,6 @@ fn resolve_unique_move_destination(name: &str, dest_dir: &Path, is_dir: bool) ->
             return candidate;
         }
         index += 1;
-    }
-}
-
-fn normalize_extension(value: &str) -> String {
-    let trimmed = value.trim();
-    if trimmed.is_empty() {
-        return String::new();
-    }
-    if trimmed.starts_with('.') {
-        trimmed.to_string()
-    } else {
-        format!(".{trimmed}")
-    }
-}
-
-fn append_extension_if_missing(name: &str, ext: &str) -> String {
-    let trimmed = Path::new(name)
-        .file_name()
-        .and_then(|value| value.to_str())
-        .unwrap_or(name)
-        .trim();
-    let fallback = if trimmed.is_empty() {
-        "Untitled"
-    } else {
-        trimmed
-    };
-    let normalized_ext = normalize_extension(ext);
-    if normalized_ext.is_empty() || fallback.ends_with(&normalized_ext) {
-        fallback.to_string()
-    } else {
-        format!("{fallback}{normalized_ext}")
-    }
-}
-
-fn resolve_unique_file_destination(dir: &Path, name: &str) -> PathBuf {
-    let candidate = dir.join(name);
-    if !path_exists_internal(&candidate) {
-        return candidate;
-    }
-
-    let path = Path::new(name);
-    let stem = path
-        .file_stem()
-        .and_then(|value| value.to_str())
-        .unwrap_or(name);
-    let suffix = path
-        .extension()
-        .and_then(|value| value.to_str())
-        .map(|value| format!(".{value}"))
-        .unwrap_or_default();
-
-    let mut index = 2;
-    loop {
-        let candidate = dir.join(format!("{stem} {index}{suffix}"));
-        if !path_exists_internal(&candidate) {
-            return candidate;
-        }
-        index += 1;
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-struct WorkspaceDocumentTemplateSpec {
-    id: &'static str,
-    ext: &'static str,
-    filename: &'static str,
-}
-
-const WORKSPACE_DOCUMENT_TEMPLATES: &[WorkspaceDocumentTemplateSpec] = &[
-    WorkspaceDocumentTemplateSpec {
-        id: "markdown-note",
-        ext: ".md",
-        filename: "note.md",
-    },
-    WorkspaceDocumentTemplateSpec {
-        id: "latex-article",
-        ext: ".tex",
-        filename: "article.tex",
-    },
-    WorkspaceDocumentTemplateSpec {
-        id: "python-script",
-        ext: ".py",
-        filename: "script.py",
-    },
-];
-
-fn workspace_document_template_by_id(id: &str) -> Option<WorkspaceDocumentTemplateSpec> {
-    let normalized = id.trim();
-    WORKSPACE_DOCUMENT_TEMPLATES
-        .iter()
-        .copied()
-        .find(|template| template.id == normalized)
-}
-
-fn resolve_workspace_document_template_content(
-    template_id: &str,
-    name: &str,
-) -> Result<String, String> {
-    let Some(template) = workspace_document_template_by_id(template_id) else {
-        return Err(format!(
-            "Unknown workspace document template: {template_id}"
-        ));
-    };
-
-    match template.id {
-        "markdown-note" => Ok("# Title\n\nStart writing here.\n".to_string()),
-        "latex-article" => Ok(
-            "\\documentclass{article}\n\\title{Title}\n\\author{}\n\\date{}\n\n\\begin{document}\n\\maketitle\n\n\\section{Introduction}\n\nStart writing here.\n\n\\end{document}\n"
-                .to_string(),
-        ),
-        "python-script" => Ok(
-            "def main() -> None:\n    print(\"Hello from ScribeFlow\")\n\n\nif __name__ == \"__main__\":\n    main()\n"
-                .to_string(),
-        ),
-        _ => Ok(default_file_content(name, "")),
     }
 }
 
@@ -407,8 +269,8 @@ fn convert_postscript_to_pdf(path: &Path) -> Result<PathBuf, String> {
 
     let source = path.to_string_lossy().to_string();
     let output_path = pdf_path.to_string_lossy().to_string();
-    let ps2pdf = find_ps2pdf()
-        .ok_or_else(|| "ps2pdf is not installed or not available on PATH.".to_string())?;
+    let ps2pdf =
+        find_ps2pdf().ok_or_else(|| "ps2pdf is not installed or not available on PATH.".to_string())?;
     let output = background_command(&ps2pdf)
         .args([&source, &output_path])
         .output()
@@ -451,17 +313,13 @@ fn render_image_preview_blocking(path: &Path, max_size: u32) -> Result<ImagePrev
 }
 
 #[cfg(not(target_os = "macos"))]
-fn render_image_preview_blocking(
-    _path: &Path,
-    _max_size: u32,
-) -> Result<ImagePreviewResult, String> {
+fn render_image_preview_blocking(_path: &Path, _max_size: u32) -> Result<ImagePreviewResult, String> {
     Err("Generated image previews are only available on macOS.".to_string())
 }
 
 #[cfg(target_os = "macos")]
 fn render_tiff_preview(path: &Path, max_size: u32) -> Result<ImagePreviewResult, String> {
-    let reader =
-        ImageReader::open(path).map_err(|error| format!("Failed to open image: {error}"))?;
+    let reader = ImageReader::open(path).map_err(|error| format!("Failed to open image: {error}"))?;
     let dynamic = reader
         .with_guessed_format()
         .map_err(|error| format!("Failed to detect image format: {error}"))?
@@ -562,20 +420,14 @@ fn render_postscript_preview(path: &Path, max_size: u32) -> Result<ImagePreviewR
 }
 
 #[tauri::command]
-pub async fn read_dir_shallow(
-    path: String,
-    include_hidden: Option<bool>,
-) -> Result<Vec<FileEntry>, String> {
+pub async fn read_dir_shallow(path: String, include_hidden: Option<bool>) -> Result<Vec<FileEntry>, String> {
     let path_for_read = path.clone();
     let include_hidden = include_hidden.unwrap_or(true);
     run_blocking(move || read_dir_shallow_entries(Path::new(&path_for_read), include_hidden)).await
 }
 
 #[tauri::command]
-pub async fn list_files_recursive(
-    path: String,
-    include_hidden: Option<bool>,
-) -> Result<Vec<FileEntry>, String> {
+pub async fn list_files_recursive(path: String, include_hidden: Option<bool>) -> Result<Vec<FileEntry>, String> {
     let path_for_read = path.clone();
     let include_hidden = include_hidden.unwrap_or(true);
     run_blocking(move || {
@@ -596,8 +448,7 @@ pub async fn read_visible_tree(
     let path_for_read = path.clone();
     let loaded_set: HashSet<String> = loaded_dirs.unwrap_or_default().into_iter().collect();
     let include_hidden = include_hidden.unwrap_or(true);
-    run_blocking(move || build_visible_tree(Path::new(&path_for_read), &loaded_set, include_hidden))
-        .await
+    run_blocking(move || build_visible_tree(Path::new(&path_for_read), &loaded_set, include_hidden)).await
 }
 
 #[tauri::command]
@@ -612,7 +463,7 @@ pub async fn read_workspace_tree_snapshot(
     run_blocking(move || {
         build_workspace_tree_snapshot(Path::new(&path_for_read), &loaded_set, include_hidden)
     })
-    .await
+        .await
 }
 
 #[tauri::command]
@@ -727,98 +578,12 @@ pub async fn workspace_create_file(
 }
 
 #[tauri::command]
-pub async fn workspace_create_document_file(
-    params: WorkspaceCreateDocumentFileParams,
-    scope_state: tauri::State<'_, WorkspaceScopeState>,
-) -> Result<WorkspaceCreateFileResult, String> {
-    let resolved_dir =
-        security::ensure_allowed_mutation_path(scope_state.inner(), Path::new(&params.dir_path))?;
-
-    let template = params
-        .template_id
-        .as_deref()
-        .and_then(workspace_document_template_by_id);
-    let ext = template
-        .map(|value| value.ext.to_string())
-        .unwrap_or_else(|| normalize_extension(params.ext.as_deref().unwrap_or(".md")));
-    let suggested_name = params
-        .suggested_name
-        .as_deref()
-        .filter(|value| !value.trim().is_empty())
-        .map(str::to_string)
-        .or_else(|| template.map(|value| value.filename.to_string()))
-        .unwrap_or_else(|| format!("Untitled{ext}"));
-    let name = append_extension_if_missing(&suggested_name, &ext);
-    let content = match template {
-        Some(template) => resolve_workspace_document_template_content(template.id, &name)?,
-        None => default_file_content(&name, ""),
-    };
-
-    run_blocking(move || {
-        let resolved = resolve_unique_file_destination(&resolved_dir, &name);
-        fs::write(&resolved, content).map_err(|e| e.to_string())?;
-        Ok(WorkspaceCreateFileResult {
-            ok: true,
-            path: resolved.to_string_lossy().to_string(),
-        })
-    })
-    .await
-}
-
-#[tauri::command]
-pub async fn workspace_document_template_content(
-    params: WorkspaceDocumentTemplateContentParams,
-) -> Result<String, String> {
-    let template = workspace_document_template_by_id(&params.template_id).ok_or_else(|| {
-        format!(
-            "Unknown workspace document template: {}",
-            params.template_id
-        )
-    })?;
-    let name = params
-        .name
-        .as_deref()
-        .filter(|value| !value.trim().is_empty())
-        .unwrap_or(template.filename);
-    resolve_workspace_document_template_content(template.id, name)
-}
-
-#[tauri::command]
 pub async fn create_dir(
     path: String,
     scope_state: tauri::State<'_, WorkspaceScopeState>,
 ) -> Result<(), String> {
     let resolved = security::ensure_allowed_mutation_path(scope_state.inner(), Path::new(&path))?;
     run_blocking(move || fs::create_dir_all(&resolved).map_err(|e| e.to_string())).await
-}
-
-#[tauri::command]
-pub async fn workspace_create_dir(
-    dir_path: String,
-    name: String,
-    scope_state: tauri::State<'_, WorkspaceScopeState>,
-) -> Result<WorkspaceCreateDirResult, String> {
-    let resolved_dir =
-        security::ensure_allowed_mutation_path(scope_state.inner(), Path::new(&dir_path))?;
-    let normalized_name = Path::new(&name)
-        .file_name()
-        .and_then(|value| value.to_str())
-        .unwrap_or(name.trim())
-        .trim()
-        .to_string();
-    if normalized_name.is_empty() {
-        return Err("Missing directory name".to_string());
-    }
-
-    run_blocking(move || {
-        let resolved = resolved_dir.join(normalized_name);
-        fs::create_dir_all(&resolved).map_err(|e| e.to_string())?;
-        Ok(WorkspaceCreateDirResult {
-            ok: true,
-            path: resolved.to_string_lossy().to_string(),
-        })
-    })
-    .await
 }
 
 #[tauri::command]
@@ -945,12 +710,6 @@ pub async fn workspace_move_path(
             .unwrap_or_default()
             .to_string();
         let mut dest_path = resolved_dest_dir.join(&name);
-        if resolved_src == dest_path {
-            return Ok(WorkspaceMoveResult {
-                ok: true,
-                dest_path: dest_path.to_string_lossy().to_string(),
-            });
-        }
         if resolved_src != dest_path && dest_path.exists() {
             dest_path =
                 resolve_unique_move_destination(&name, &resolved_dest_dir, resolved_src.is_dir());
@@ -1098,18 +857,7 @@ pub async fn open_path_in_default_app(path: String) -> Result<(), String> {
             }
             let prefer_preview = matches!(
                 ext.as_str(),
-                "eps"
-                    | "ps"
-                    | "pdf"
-                    | "png"
-                    | "jpg"
-                    | "jpeg"
-                    | "gif"
-                    | "bmp"
-                    | "webp"
-                    | "svg"
-                    | "tif"
-                    | "tiff"
+                "eps" | "ps" | "pdf" | "png" | "jpg" | "jpeg" | "gif" | "bmp" | "webp" | "svg" | "tif" | "tiff"
             );
 
             if prefer_preview {
@@ -1171,58 +919,4 @@ pub async fn get_global_config_dir() -> Result<String, String> {
 pub async fn get_home_dir() -> Result<String, String> {
     let dir = dirs::home_dir().ok_or("Cannot find home directory".to_string())?;
     Ok(dir.to_string_lossy().to_string())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::time::{SystemTime, UNIX_EPOCH};
-
-    fn unique_temp_dir(name: &str) -> PathBuf {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("system time after epoch")
-            .as_nanos();
-        std::env::temp_dir().join(format!("scribeflow-{name}-{nanos}"))
-    }
-
-    #[test]
-    fn workspace_template_content_is_owned_by_rust() {
-        let markdown = resolve_workspace_document_template_content("markdown-note", "note.md")
-            .expect("markdown template content");
-        assert!(markdown.contains("Start writing here."));
-
-        let latex = resolve_workspace_document_template_content("latex-article", "article.tex")
-            .expect("latex template content");
-        assert!(latex.contains("\\section{Introduction}"));
-
-        let python = resolve_workspace_document_template_content("python-script", "script.py")
-            .expect("python template content");
-        assert!(python.contains("def main() -> None:"));
-    }
-
-    #[test]
-    fn document_file_name_normalization_keeps_template_extension() {
-        assert_eq!(append_extension_if_missing("note", ".md"), "note.md");
-        assert_eq!(
-            append_extension_if_missing("article.tex", ".tex"),
-            "article.tex"
-        );
-        assert_eq!(append_extension_if_missing("../script", ".py"), "script.py");
-    }
-
-    #[test]
-    fn unique_document_destination_uses_numeric_suffix() {
-        let dir = unique_temp_dir("document-destination");
-        fs::create_dir_all(&dir).expect("create temp dir");
-        fs::write(dir.join("note.md"), "").expect("create existing note");
-
-        let resolved = resolve_unique_file_destination(&dir, "note.md");
-        assert_eq!(
-            resolved.file_name().and_then(|value| value.to_str()),
-            Some("note 2.md")
-        );
-
-        fs::remove_dir_all(&dir).ok();
-    }
 }

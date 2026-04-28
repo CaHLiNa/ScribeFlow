@@ -1,4 +1,6 @@
 import { defineStore } from 'pinia'
+import { invoke } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
 import { save as saveDialog } from '@tauri-apps/plugin-dialog'
 import { nanoid } from './utils'
 import { useWorkspaceStore } from './workspace'
@@ -12,7 +14,6 @@ import {
 } from '../services/fileStoreEffects'
 import {
   copyExternalWorkspaceFile,
-  createWorkspaceDocumentFile,
   createWorkspaceFile,
   createWorkspaceFolder,
   deleteWorkspacePath as removeWorkspacePath,
@@ -22,17 +23,6 @@ import {
   renameWorkspacePath as renameWorkspaceEntry,
   saveWorkspaceTextFile,
 } from '../services/fileStoreIO'
-import {
-  loadWorkspaceTreeState as loadWorkspaceTreeStateFromRust,
-  noteWorkspaceTreeActivity as noteWorkspaceTreeActivityFromRust,
-  readDirShallow,
-  restoreCachedExpandedTreeState as restoreCachedExpandedTreeStateFromRust,
-  revealWorkspaceTreeState as revealWorkspaceTreeStateFromRust,
-  setWorkspaceTreeVisibility,
-  listenWorkspaceTreeRefreshRequested,
-  startWorkspaceTreeWatch,
-  stopWorkspaceTreeWatch,
-} from '../services/workspaceTreeRuntime'
 import {
   buildFlatFilesStatePatch,
   buildRestoredCachedTreeState,
@@ -57,34 +47,42 @@ function readWorkspaceSnapshot(path, loadedDirs = []) {
   })
 }
 
+const WORKSPACE_TREE_REFRESH_REQUESTED_EVENT = 'workspace-tree-refresh-requested'
+
 async function loadWorkspaceTreeState(currentTree = [], extraDirs = []) {
   const workspace = useWorkspaceStore()
-  return loadWorkspaceTreeStateFromRust({
-    workspacePath: workspace.path || '',
-    currentTree,
-    extraDirs,
-    includeHidden: workspace.fileTreeShowHidden !== false,
+  return invoke('fs_tree_load_workspace_state', {
+    params: {
+      workspacePath: workspace.path || '',
+      currentTree,
+      extraDirs,
+      includeHidden: workspace.fileTreeShowHidden !== false,
+    },
   })
 }
 
 async function revealWorkspaceTreeState(targetPath = '', currentTree = []) {
   const workspace = useWorkspaceStore()
-  return revealWorkspaceTreeStateFromRust({
-    workspacePath: workspace.path || '',
-    targetPath,
-    currentTree,
-    includeHidden: workspace.fileTreeShowHidden !== false,
+  return invoke('fs_tree_reveal_workspace_state', {
+    params: {
+      workspacePath: workspace.path || '',
+      targetPath,
+      currentTree,
+      includeHidden: workspace.fileTreeShowHidden !== false,
+    },
   })
 }
 
 async function restoreCachedExpandedTreeState(currentTree = [], cachedRootExpandedDirs = [], maxDirs = 6) {
   const workspace = useWorkspaceStore()
-  return restoreCachedExpandedTreeStateFromRust({
-    workspacePath: workspace.path || '',
-    currentTree,
-    cachedRootExpandedDirs,
-    maxDirs,
-    includeHidden: workspace.fileTreeShowHidden !== false,
+  return invoke('fs_tree_restore_cached_expanded_state', {
+    params: {
+      workspacePath: workspace.path || '',
+      currentTree,
+      cachedRootExpandedDirs,
+      maxDirs,
+      includeHidden: workspace.fileTreeShowHidden !== false,
+    },
   })
 }
 
@@ -97,6 +95,23 @@ function findTreeEntry(entries = [], targetPath) {
     }
   }
   return null
+}
+
+async function mapWithConcurrency(items, limit, mapper) {
+  const results = new Array(items.length)
+  let nextIndex = 0
+
+  async function worker() {
+    while (nextIndex < items.length) {
+      const currentIndex = nextIndex
+      nextIndex += 1
+      results[currentIndex] = await mapper(items[currentIndex], currentIndex)
+    }
+  }
+
+  const workers = Array.from({ length: Math.min(limit, items.length) }, () => worker())
+  await Promise.all(workers)
+  return results
 }
 
 function formatBytes(bytes = 0) {
@@ -246,7 +261,7 @@ export const useFilesStore = defineStore('files', {
       }
       this._nativeWatcherUnlisten = null
       if (this._nativeWatcherActive) {
-        stopWorkspaceTreeWatch().catch(() => {})
+        invoke('workspace_tree_watch_stop').catch(() => {})
       }
       this._nativeWatcherActive = false
     },
@@ -262,16 +277,22 @@ export const useFilesStore = defineStore('files', {
     _notifyTreeVisibility(visible) {
       const workspacePath = useWorkspaceStore().path
       if (!workspacePath) return
-      void setWorkspaceTreeVisibility({
-        path: workspacePath,
-        visible: visible === true,
+      void invoke('workspace_tree_watch_set_visibility', {
+        params: {
+          path: workspacePath,
+          visible: visible === true,
+        },
       }).catch(() => {})
     },
 
     noteTreeActivity() {
       const workspacePath = useWorkspaceStore().path
       if (!workspacePath) return
-      void noteWorkspaceTreeActivityFromRust(workspacePath).catch(() => {})
+      void invoke('workspace_tree_watch_note_activity', {
+        params: {
+          path: workspacePath,
+        },
+      }).catch(() => {})
     },
 
     _setupActivityHooks() {
@@ -295,9 +316,10 @@ export const useFilesStore = defineStore('files', {
       if (!workspacePath || !isTauriDesktopRuntime()) return
 
       try {
-        await startWorkspaceTreeWatch(workspacePath)
+        await invoke('workspace_tree_watch_start', { path: workspacePath })
         this._nativeWatcherActive = true
-        this._nativeWatcherUnlisten = await listenWorkspaceTreeRefreshRequested((payload) => {
+        this._nativeWatcherUnlisten = await listen(WORKSPACE_TREE_REFRESH_REQUESTED_EVENT, (event) => {
+          const payload = event.payload || {}
           const activeWorkspacePath = useWorkspaceStore().path
           if (!activeWorkspacePath) return
           if (String(payload.workspacePath || '') !== String(activeWorkspacePath || '')) return
@@ -308,7 +330,7 @@ export const useFilesStore = defineStore('files', {
           }).catch(() => {
             // Workspace may have changed while the refresh event was in flight.
           })
-        })
+        }).catch(() => null)
       } catch (error) {
         this._nativeWatcherUnlisten = null
         this._nativeWatcherActive = false
@@ -344,7 +366,6 @@ export const useFilesStore = defineStore('files', {
       if (!this._fileCreationRuntime) {
         this._fileCreationRuntime = createFileCreationRuntime({
           createWorkspaceFile: (dirPath, name, options = {}) => createWorkspaceFile(dirPath, name, options),
-          createWorkspaceDocumentFile: (dirPath, options = {}) => createWorkspaceDocumentFile(dirPath, options),
           duplicateWorkspacePath: (path) => duplicateWorkspacePath(path),
           createWorkspaceFolder: (dirPath, name) => createWorkspaceFolder(dirPath, name),
           copyExternalWorkspaceFile: (srcPath, destDir) => copyExternalWorkspaceFile(srcPath, destDir),
@@ -568,7 +589,8 @@ export const useFilesStore = defineStore('files', {
           return findTreeEntry(snapshot?.tree || [], path)?.children || []
         }
 
-        const children = await readDirShallow(path, {
+        const children = await invoke('read_dir_shallow', {
+          path,
           includeHidden: useWorkspaceStore().fileTreeShowHidden !== false,
         })
         const entry = findTreeEntry(this.tree ?? [], path)
@@ -627,12 +649,12 @@ export const useFilesStore = defineStore('files', {
       }
 
       const refreshLoop = async () => {
-        let latestTree
+        let latestTree = this.tree ?? []
         do {
           this._treeRefreshQueued = false
           latestTree = await refreshVisibleTreeOnce()
         } while (this._treeRefreshQueued)
-        return latestTree ?? this.tree ?? []
+        return latestTree
       }
 
       this._treeRefreshPromise = refreshLoop()
@@ -773,7 +795,7 @@ export const useFilesStore = defineStore('files', {
       const draftName = this.getDraftSuggestedName(draftPath) || 'Untitled.md'
       const defaultPath = workspaceRoot ? `${workspaceRoot}/${draftName}` : draftName
 
-      let selectedPath
+      let selectedPath = null
       try {
         selectedPath = await saveDialog({
           title: t('Save'),
@@ -817,10 +839,6 @@ export const useFilesStore = defineStore('files', {
 
     async createFile(dirPath, name, options = {}) {
       return this._getFileCreationRuntime().createFile(dirPath, name, options)
-    },
-
-    async createDocumentFile(dirPath, options = {}) {
-      return this._getFileCreationRuntime().createDocumentFile(dirPath, options)
     },
 
     async duplicatePath(path) {

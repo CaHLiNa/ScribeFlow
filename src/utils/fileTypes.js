@@ -282,7 +282,7 @@ export function getLanguage(path) {
   return RUNNABLE_MAP[ext] || null
 }
 
-export function isRmdOrQmd() {
+export function isRmdOrQmd(path) {
   return false
 }
 

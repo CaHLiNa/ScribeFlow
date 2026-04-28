@@ -2,15 +2,10 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 
 use crate::document_workflow::get_document_workflow_kind;
-use crate::document_workspace_preview_state::{
-    document_workspace_preview_state_resolve, DocumentWorkspacePreviewStateResolveParams,
-};
-use crate::latex_project_graph::{resolve_graph_value, LatexProjectGraphParams};
-use crate::markdown_runtime::extract_markdown_draft_problems;
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct DocumentWorkflowStateResolveParams {
+pub struct DocumentWorkflowUiResolveParams {
     #[serde(default)]
     pub file_path: String,
     #[serde(default)]
@@ -18,15 +13,7 @@ pub struct DocumentWorkflowStateResolveParams {
     #[serde(default)]
     pub markdown_state: Value,
     #[serde(default)]
-    pub markdown_draft_problems: Value,
-    #[serde(default)]
     pub latex_state: Value,
-    #[serde(default)]
-    pub latex_lint_diagnostics: Value,
-    #[serde(default)]
-    pub workspace_path: String,
-    #[serde(default)]
-    pub source_content: String,
     #[serde(default)]
     pub python_state: Value,
     #[serde(default)]
@@ -35,94 +22,33 @@ pub struct DocumentWorkflowStateResolveParams {
     pub artifact_path: String,
 }
 
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct DocumentWorkflowContextResolveParams {
-    #[serde(default)]
-    pub file_path: String,
-    #[serde(default)]
-    pub preview_prefs: Value,
-    #[serde(default)]
-    pub session: Value,
-    #[serde(default)]
-    pub workspace_preview_requests: Value,
-    #[serde(default)]
-    pub workspace_preview_visibility: Value,
-    #[serde(default)]
-    pub markdown_state: Value,
-    #[serde(default)]
-    pub markdown_draft_problems: Value,
-    #[serde(default)]
-    pub latex_state: Value,
-    #[serde(default)]
-    pub latex_lint_diagnostics: Value,
-    #[serde(default)]
-    pub workspace_path: String,
-    #[serde(default)]
-    pub source_content: String,
-    #[serde(default)]
-    pub python_state: Value,
-    #[serde(default)]
-    pub queue_state: Value,
-    #[serde(default)]
-    pub persisted_artifact_path: String,
-    #[serde(default = "default_native_preview_supported")]
-    pub native_preview_supported: bool,
+fn array_len(value: Option<&Value>) -> usize {
+    value
+        .and_then(Value::as_array)
+        .map(|items| items.len())
+        .unwrap_or(0)
 }
 
-fn default_native_preview_supported() -> bool {
-    true
-}
+fn count_markdown_problems(markdown_state: &Value) -> (usize, usize) {
+    let problems = markdown_state
+        .get("problems")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
 
-#[derive(Debug, Clone)]
-struct WorkflowProblem {
-    id: String,
-    source_path: String,
-    line: Option<u64>,
-    column: Option<u64>,
-    severity: String,
-    message: String,
-    origin: String,
-    actionable: bool,
-    raw: String,
-}
-
-impl WorkflowProblem {
-    fn severity_rank(&self) -> u8 {
-        if self.severity == "error" {
-            0
-        } else {
-            1
-        }
-    }
-
-    fn signature(&self) -> String {
-        [
-            self.source_path.clone(),
-            self.line.map(|value| value.to_string()).unwrap_or_default(),
-            self.column
-                .map(|value| value.to_string())
-                .unwrap_or_default(),
-            self.severity.clone(),
-            self.origin.clone(),
-            self.message.clone(),
-        ]
-        .join("::")
-    }
-
-    fn into_value(self) -> Value {
-        json!({
-            "id": self.id,
-            "sourcePath": self.source_path,
-            "line": self.line,
-            "column": self.column,
-            "severity": self.severity,
-            "message": self.message,
-            "origin": self.origin,
-            "actionable": self.actionable,
-            "raw": self.raw,
+    problems
+        .iter()
+        .fold((0usize, 0usize), |(errors, warnings), problem| {
+            let severity = problem
+                .get("severity")
+                .and_then(Value::as_str)
+                .unwrap_or("error");
+            if severity == "warning" {
+                (errors, warnings + 1)
+            } else {
+                (errors + 1, warnings)
+            }
         })
-    }
 }
 
 fn bool_at(value: &Value, key: &str) -> bool {
@@ -133,458 +59,33 @@ fn string_at<'a>(value: &'a Value, key: &str) -> &'a str {
     value.get(key).and_then(Value::as_str).unwrap_or_default()
 }
 
-fn u64_at(value: &Value, key: &str) -> u64 {
-    value.get(key).and_then(Value::as_u64).unwrap_or(0)
-}
-
-fn optional_string_at(value: &Value, key: &str) -> Option<String> {
-    value
-        .get(key)
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|entry| !entry.is_empty())
-        .map(str::to_string)
-}
-
-fn normalize_severity(value: &Value, default: &str) -> String {
-    let severity = value
-        .get("severity")
-        .and_then(Value::as_str)
-        .unwrap_or(default);
-    if severity == "warning" {
-        "warning".to_string()
-    } else {
-        "error".to_string()
-    }
-}
-
-fn normalize_line(value: &Value, key: &str) -> Option<u64> {
-    value
-        .get(key)
-        .and_then(Value::as_u64)
-        .filter(|line| *line > 0)
-}
-
-fn normalize_problem(value: &Value, defaults: ProblemDefaults<'_>) -> Option<WorkflowProblem> {
-    let message = value
-        .get("message")
-        .and_then(Value::as_str)
-        .unwrap_or(defaults.message)
-        .trim()
-        .to_string();
-    if message.is_empty() {
-        return None;
-    }
-
-    let raw = value
-        .get("raw")
-        .and_then(Value::as_str)
-        .unwrap_or(message.as_str())
-        .trim()
-        .to_string();
-
-    Some(WorkflowProblem {
-        id: value
-            .get("id")
-            .and_then(Value::as_str)
-            .unwrap_or(defaults.id)
-            .to_string(),
-        source_path: value
-            .get("sourcePath")
-            .and_then(Value::as_str)
-            .or_else(|| value.get("file").and_then(Value::as_str))
-            .unwrap_or(defaults.source_path)
-            .to_string(),
-        line: normalize_line(value, "line").or(defaults.line),
-        column: normalize_line(value, "column").or(defaults.column),
-        severity: normalize_severity(value, defaults.severity),
-        message,
-        origin: value
-            .get("origin")
-            .and_then(Value::as_str)
-            .unwrap_or(defaults.origin)
-            .to_string(),
-        actionable: value
-            .get("actionable")
-            .and_then(Value::as_bool)
-            .unwrap_or(defaults.actionable),
-        raw,
-    })
-}
-
-#[derive(Debug, Clone, Copy)]
-struct ProblemDefaults<'a> {
-    id: &'a str,
-    source_path: &'a str,
-    line: Option<u64>,
-    column: Option<u64>,
-    severity: &'a str,
-    message: &'a str,
-    origin: &'a str,
-    actionable: bool,
-}
-
-fn push_problem(problems: &mut Vec<WorkflowProblem>, value: &Value, defaults: ProblemDefaults<'_>) {
-    if let Some(problem) = normalize_problem(value, defaults) {
-        problems.push(problem);
-    }
-}
-
-fn finalize_problems(mut problems: Vec<WorkflowProblem>) -> Vec<Value> {
-    problems.sort_by(|left, right| {
-        left.source_path
-            .cmp(&right.source_path)
-            .then_with(|| {
-                left.line
-                    .unwrap_or(u64::MAX)
-                    .cmp(&right.line.unwrap_or(u64::MAX))
-            })
-            .then_with(|| left.severity_rank().cmp(&right.severity_rank()))
-            .then_with(|| left.message.cmp(&right.message))
-    });
-
-    let mut seen = std::collections::HashSet::new();
-    problems
-        .into_iter()
-        .filter(|problem| seen.insert(problem.signature()))
-        .map(WorkflowProblem::into_value)
-        .collect()
-}
-
-fn count_problems(problems: &[Value]) -> (usize, usize) {
-    problems
-        .iter()
-        .fold((0usize, 0usize), |(errors, warnings), problem| {
-            if problem
-                .get("severity")
-                .and_then(Value::as_str)
-                .unwrap_or("error")
-                == "warning"
-            {
-                (errors, warnings + 1)
-            } else {
-                (errors + 1, warnings)
-            }
-        })
-}
-
-fn resolve_markdown_problems(
-    file_path: &str,
-    markdown_state: &Value,
-    markdown_draft_problems: &Value,
-    source_content: &str,
-) -> Vec<Value> {
-    let mut problems = Vec::new();
-
-    let draft_problems = if let Some(problems) = markdown_draft_problems.as_array() {
-        problems.clone()
-    } else if source_content.trim().is_empty() {
-        Vec::new()
-    } else {
-        extract_markdown_draft_problems(file_path, source_content).unwrap_or_default()
-    };
-
-    for problem in draft_problems {
-        push_problem(
-            &mut problems,
-            &problem,
-            ProblemDefaults {
-                id: "",
-                source_path: file_path,
-                line: None,
-                column: None,
-                severity: "warning",
-                message: "",
-                origin: "draft",
-                actionable: true,
-            },
-        );
-    }
-
-    for (index, problem) in markdown_state
-        .get("problems")
-        .and_then(Value::as_array)
-        .cloned()
-        .unwrap_or_default()
-        .into_iter()
-        .enumerate()
-    {
-        let default_id = format!("markdown:{file_path}:{index}");
-        push_problem(
-            &mut problems,
-            &problem,
-            ProblemDefaults {
-                id: &default_id,
-                source_path: file_path,
-                line: None,
-                column: None,
-                severity: "error",
-                message: "",
-                origin: "preview",
-                actionable: true,
-            },
-        );
-    }
-
-    finalize_problems(problems)
-}
-
-fn resolve_latex_artifact_path(params: &DocumentWorkflowStateResolveParams) -> String {
-    let explicit = params.artifact_path.trim();
-    if !explicit.is_empty() {
-        return explicit.to_string();
-    }
-
-    let preview_path = string_at(&params.latex_state, "previewPath").trim();
-    if !preview_path.is_empty() {
-        return preview_path.to_string();
-    }
-
-    let pdf_path = string_at(&params.latex_state, "pdfPath").trim();
-    if !pdf_path.is_empty() {
-        return pdf_path.to_string();
-    }
-
-    String::new()
-}
-
-fn resolve_latex_project_graph(
-    file_path: &str,
-    params: &DocumentWorkflowStateResolveParams,
-) -> Value {
-    let source_content = params.source_content.trim();
-    let content_overrides = if source_content.is_empty() {
-        std::collections::HashMap::new()
-    } else {
-        std::collections::HashMap::from([(file_path.to_string(), source_content.to_string())])
-    };
-
-    resolve_graph_value(&LatexProjectGraphParams {
-        source_path: file_path.to_string(),
-        workspace_path: params.workspace_path.clone(),
-        flat_files: Vec::new(),
-        include_hidden: true,
-        content_overrides,
-    })
-    .unwrap_or(Value::Null)
-}
-
-fn resolve_latex_problems(
-    file_path: &str,
-    params: &DocumentWorkflowStateResolveParams,
-) -> Vec<Value> {
-    let mut problems = Vec::new();
-    let latex_project_graph = resolve_latex_project_graph(file_path, params);
-
-    for (severity, key) in [("error", "errors"), ("warning", "warnings")] {
-        for (index, problem) in params
-            .latex_state
-            .get(key)
-            .and_then(Value::as_array)
-            .cloned()
-            .unwrap_or_default()
-            .into_iter()
-            .enumerate()
-        {
-            let target_path = problem
-                .get("file")
-                .and_then(Value::as_str)
-                .unwrap_or(file_path);
-            let default_id = format!("latex:{severity}:{target_path}:{index}");
-            push_problem(
-                &mut problems,
-                &problem,
-                ProblemDefaults {
-                    id: &default_id,
-                    source_path: file_path,
-                    line: None,
-                    column: None,
-                    severity,
-                    message: "",
-                    origin: "compile",
-                    actionable: true,
-                },
-            );
-        }
-    }
-
-    for (index, problem) in params
-        .latex_lint_diagnostics
-        .as_array()
-        .cloned()
-        .unwrap_or_default()
-        .into_iter()
-        .enumerate()
-    {
-        let lint_path = problem
-            .get("file")
-            .and_then(Value::as_str)
-            .unwrap_or(file_path);
-        let line = normalize_line(&problem, "line");
-        let default_id = format!("latex:lint:{lint_path}:{}:{index}", line.unwrap_or(0));
-        push_problem(
-            &mut problems,
-            &problem,
-            ProblemDefaults {
-                id: &default_id,
-                source_path: file_path,
-                line,
-                column: None,
-                severity: "warning",
-                message: "",
-                origin: "lint",
-                actionable: true,
-            },
-        );
-    }
-
-    let unresolved_refs = latex_project_graph
-        .get("unresolvedRefs")
-        .and_then(Value::as_array)
-        .cloned()
-        .unwrap_or_default();
-    for entry in unresolved_refs {
-        let entry_path = entry
-            .get("filePath")
-            .and_then(Value::as_str)
-            .unwrap_or(file_path);
-        let key = entry.get("key").and_then(Value::as_str).unwrap_or_default();
-        let line = normalize_line(&entry, "line");
-        let default_id = format!("latex:ref:{entry_path}:{key}:{}", line.unwrap_or(0));
-        push_problem(
-            &mut problems,
-            &json!({
-                "id": default_id,
-                "sourcePath": entry_path,
-                "line": line,
-                "severity": "warning",
-                "origin": "project",
-                "actionable": true,
-                "message": format!("Unknown label: {key}"),
-                "raw": key,
-            }),
-            ProblemDefaults {
-                id: "",
-                source_path: file_path,
-                line,
-                column: None,
-                severity: "warning",
-                message: "",
-                origin: "project",
-                actionable: true,
-            },
-        );
-    }
-
-    let unresolved_citations = latex_project_graph
-        .get("unresolvedCitations")
-        .and_then(Value::as_array)
-        .cloned()
-        .unwrap_or_default();
-    for entry in unresolved_citations {
-        let entry_path = entry
-            .get("filePath")
-            .and_then(Value::as_str)
-            .unwrap_or(file_path);
-        let key = entry.get("key").and_then(Value::as_str).unwrap_or_default();
-        let line = normalize_line(&entry, "line");
-        let default_id = format!("latex:cite:{entry_path}:{key}:{}", line.unwrap_or(0));
-        push_problem(
-            &mut problems,
-            &json!({
-                "id": default_id,
-                "sourcePath": entry_path,
-                "line": line,
-                "severity": "warning",
-                "origin": "project",
-                "actionable": true,
-                "message": format!("Unknown citation key: {key}"),
-                "raw": key,
-            }),
-            ProblemDefaults {
-                id: "",
-                source_path: file_path,
-                line,
-                column: None,
-                severity: "warning",
-                message: "",
-                origin: "project",
-                actionable: true,
-            },
-        );
-    }
-
-    finalize_problems(problems)
-}
-
-fn basename_label(path: &str) -> String {
-    let normalized = path.trim().replace('\\', "/");
-    if normalized.is_empty() {
-        return String::new();
-    }
-    normalized
-        .rsplit('/')
-        .next()
-        .unwrap_or_default()
-        .to_string()
-}
-
-fn resolve_python_problems(file_path: &str, python_state: &Value) -> Vec<Value> {
-    let mut problems = Vec::new();
-
-    for (severity, key) in [("error", "errors"), ("warning", "warnings")] {
-        for (index, problem) in python_state
-            .get(key)
-            .and_then(Value::as_array)
-            .cloned()
-            .unwrap_or_default()
-            .into_iter()
-            .enumerate()
-        {
-            let default_id = format!("python:{severity}:{file_path}:{index}");
-            push_problem(
-                &mut problems,
-                &problem,
-                ProblemDefaults {
-                    id: &default_id,
-                    source_path: file_path,
-                    line: None,
-                    column: None,
-                    severity,
-                    message: "",
-                    origin: "compile",
-                    actionable: true,
-                },
-            );
-        }
-    }
-
-    finalize_problems(problems)
-}
-
-fn build_resolved_state(
-    ui_state: Value,
-    artifact_path: String,
-    problems: Vec<Value>,
-    status: Value,
+fn build_ui_state(
+    kind: &str,
+    phase: &str,
+    preview_kind: Option<&str>,
+    error_count: usize,
+    warning_count: usize,
+    can_reveal_preview: bool,
+    can_open_pdf: bool,
+    primary_action: &str,
 ) -> Value {
     json!({
-        "uiState": ui_state,
-        "artifactPath": artifact_path,
-        "problems": problems,
-        "status": status,
+        "kind": kind,
+        "previewKind": preview_kind,
+        "phase": phase,
+        "errorCount": error_count,
+        "warningCount": warning_count,
+        "canShowProblems": error_count > 0 || warning_count > 0,
+        "canRevealPreview": can_reveal_preview,
+        "canOpenPdf": can_open_pdf,
+        "forwardSync": "precise",
+        "backwardSync": true,
+        "primaryAction": primary_action,
     })
 }
 
-fn resolve_markdown_state(params: &DocumentWorkflowStateResolveParams) -> Value {
-    let file_path = params.file_path.as_str();
-    let problems = resolve_markdown_problems(
-        file_path,
-        &params.markdown_state,
-        &params.markdown_draft_problems,
-        &params.source_content,
-    );
-    let (error_count, warning_count) = count_problems(&problems);
+fn resolve_markdown_ui_state(params: &DocumentWorkflowUiResolveParams) -> Value {
+    let (error_count, warning_count) = count_markdown_problems(&params.markdown_state);
     let preview_visible = bool_at(&params.preview_state, "previewVisible");
     let markdown_status = string_at(&params.markdown_state, "status");
 
@@ -598,33 +99,22 @@ fn resolve_markdown_state(params: &DocumentWorkflowStateResolveParams) -> Value 
         "idle"
     };
 
-    build_resolved_state(
-        json!({
-            "kind": "markdown",
-            "previewKind": "html",
-            "phase": phase,
-            "errorCount": error_count,
-            "warningCount": warning_count,
-            "canShowProblems": error_count > 0 || warning_count > 0,
-            "canRevealPreview": true,
-            "canOpenPdf": false,
-            "forwardSync": "precise",
-            "backwardSync": true,
-            "primaryAction": "refresh",
-        }),
-        String::new(),
-        problems,
-        json!({
-            "phase": phase,
-        }),
+    build_ui_state(
+        "markdown",
+        phase,
+        Some("html"),
+        error_count,
+        warning_count,
+        true,
+        false,
+        "refresh",
     )
 }
 
-fn resolve_latex_state(params: &DocumentWorkflowStateResolveParams) -> Value {
-    let file_path = params.file_path.as_str();
-    let artifact_path = resolve_latex_artifact_path(params);
-    let problems = resolve_latex_problems(file_path, params);
-    let (error_count, warning_count) = count_problems(&problems);
+fn resolve_latex_ui_state(params: &DocumentWorkflowUiResolveParams) -> Value {
+    let error_count = array_len(params.latex_state.get("errors"));
+    let warning_count = array_len(params.latex_state.get("warnings"));
+    let artifact_ready = !params.artifact_path.trim().is_empty();
     let compile_status = string_at(&params.latex_state, "status");
     let queue_phase = string_at(&params.queue_state, "phase");
     let preview_kind = string_at(&params.preview_state, "previewKind");
@@ -635,44 +125,36 @@ fn resolve_latex_state(params: &DocumentWorkflowStateResolveParams) -> Value {
         "queued"
     } else if compile_status == "error" {
         "error"
-    } else if !artifact_path.is_empty() || compile_status == "success" {
+    } else if artifact_ready || compile_status == "success" {
         "ready"
     } else {
         "idle"
     };
 
-    build_resolved_state(
-        json!({
-            "kind": "latex",
-            "previewKind": if preview_kind.is_empty() { Value::Null } else { Value::String(preview_kind.to_string()) },
-            "phase": phase,
-            "errorCount": error_count,
-            "warningCount": warning_count,
-            "canShowProblems": error_count > 0 || warning_count > 0,
-            "canRevealPreview": false,
-            "canOpenPdf": !artifact_path.is_empty(),
-            "backwardSync": true,
-            "primaryAction": "compile",
-        }),
-        artifact_path,
-        problems,
-        json!({
-            "phase": phase,
-            "durationMs": u64_at(&params.latex_state, "durationMs"),
-            "pendingCount": u64_at(&params.queue_state, "pendingCount"),
-            "hasCustomArgs": !string_at(&params.latex_state, "buildExtraArgs").trim().is_empty()
-                || !string_at(&params.queue_state, "buildExtraArgs").trim().is_empty(),
-        }),
+    build_ui_state(
+        "latex",
+        phase,
+        if preview_kind.is_empty() {
+            None
+        } else {
+            Some(preview_kind)
+        },
+        error_count,
+        warning_count,
+        false,
+        artifact_ready,
+        "compile",
     )
 }
 
-fn resolve_python_state(params: &DocumentWorkflowStateResolveParams) -> Value {
-    let file_path = params.file_path.as_str();
-    let problems = resolve_python_problems(file_path, &params.python_state);
-    let (error_count, warning_count) = count_problems(&problems);
+fn resolve_python_ui_state(params: &DocumentWorkflowUiResolveParams) -> Value {
+    let error_count = array_len(params.python_state.get("errors"));
+    let warning_count = array_len(params.python_state.get("warnings"));
     let status = string_at(&params.python_state, "status");
 
-    let phase = if status == "compiling" || status == "running" {
+    let phase = if status == "compiling" {
+        "compiling"
+    } else if status == "running" {
         "running"
     } else if status == "error" {
         "error"
@@ -682,345 +164,19 @@ fn resolve_python_state(params: &DocumentWorkflowStateResolveParams) -> Value {
         "idle"
     };
 
-    let interpreter_version = string_at(&params.python_state, "interpreterVersion");
-    let interpreter_path = string_at(&params.python_state, "interpreterPath");
-
-    build_resolved_state(
-        json!({
-            "kind": "python",
-            "previewKind": "terminal",
-            "phase": phase,
-            "errorCount": error_count,
-            "warningCount": warning_count,
-            "canShowProblems": error_count > 0 || warning_count > 0,
-            "canRevealPreview": true,
-            "canOpenPdf": false,
-            "backwardSync": false,
-            "primaryAction": "run",
-        }),
-        String::new(),
-        problems,
-        json!({
-            "phase": phase,
-            "durationMs": u64_at(&params.python_state, "durationMs"),
-            "interpreterVersion": interpreter_version,
-            "interpreterLabel": basename_label(interpreter_path),
-        }),
+    build_ui_state(
+        "python",
+        phase,
+        Some("terminal"),
+        error_count,
+        warning_count,
+        true,
+        false,
+        "run",
     )
 }
 
-fn normalize_preview_kind_for_kind(kind: &str, preview_kind: &str) -> Option<String> {
-    match (kind, preview_kind.trim()) {
-        ("markdown", "html") => Some("html".to_string()),
-        ("latex", "pdf") => Some("pdf".to_string()),
-        ("python", "terminal") => Some("terminal".to_string()),
-        _ => None,
-    }
-}
-
-fn default_preview_kind_for_kind(kind: &str) -> Option<&'static str> {
-    match kind {
-        "markdown" => Some("html"),
-        "python" => Some("terminal"),
-        _ => None,
-    }
-}
-
-fn resolve_preferred_preview_kind(kind: &str, preview_prefs: &Value) -> Option<String> {
-    let preferred = preview_prefs
-        .get(kind)
-        .and_then(|value| value.get("preferredPreview"))
-        .and_then(Value::as_str)
-        .unwrap_or_default();
-
-    normalize_preview_kind_for_kind(kind, preferred)
-        .or_else(|| default_preview_kind_for_kind(kind).map(str::to_string))
-}
-
-fn resolve_workspace_preview_request_kind(
-    file_path: &str,
-    kind: &str,
-    workspace_preview_requests: &Value,
-) -> Option<String> {
-    workspace_preview_requests
-        .get(file_path)
-        .and_then(Value::as_str)
-        .and_then(|preview_kind| normalize_preview_kind_for_kind(kind, preview_kind))
-}
-
-fn resolve_requested_preview_kind(
-    file_path: &str,
-    kind: &str,
-    params: &DocumentWorkflowContextResolveParams,
-) -> Option<String> {
-    if let Some(workspace_request) =
-        resolve_workspace_preview_request_kind(file_path, kind, &params.workspace_preview_requests)
-    {
-        return Some(workspace_request);
-    }
-
-    let active_file = string_at(&params.session, "activeFile");
-    if active_file == file_path {
-        if let Some(session_preview_kind) = optional_string_at(&params.session, "previewKind")
-            .and_then(|preview_kind| normalize_preview_kind_for_kind(kind, &preview_kind))
-        {
-            return Some(session_preview_kind);
-        }
-    }
-
-    resolve_preferred_preview_kind(kind, &params.preview_prefs)
-}
-
-fn resolve_preview_requested(
-    file_path: &str,
-    requested_preview_kind: Option<&str>,
-    session: &Value,
-) -> bool {
-    let active_source_path = optional_string_at(session, "previewSourcePath")
-        .or_else(|| optional_string_at(session, "activeFile"))
-        .unwrap_or_default();
-    if active_source_path != file_path {
-        return false;
-    }
-    if string_at(session, "state") != "workspace-preview" {
-        return false;
-    }
-    if let Some(requested_preview_kind) = requested_preview_kind {
-        let session_preview_kind = string_at(session, "previewKind").trim();
-        if !session_preview_kind.is_empty() && session_preview_kind != requested_preview_kind {
-            return false;
-        }
-    }
-    true
-}
-
-fn resolve_hidden_by_user(file_path: &str, workspace_preview_visibility: &Value) -> bool {
-    workspace_preview_visibility
-        .get(file_path)
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        == "hidden"
-}
-
-fn default_latex_preview_target_path(source_path: &str) -> String {
-    let normalized = source_path.trim();
-    let lower = normalized.to_ascii_lowercase();
-    if lower.ends_with(".tex") {
-        format!("{}.pdf", &normalized[..normalized.len() - 4])
-    } else if lower.ends_with(".latex") {
-        format!("{}.pdf", &normalized[..normalized.len() - 6])
-    } else {
-        String::new()
-    }
-}
-
-fn resolve_context_artifact_path(
-    kind: &str,
-    params: &DocumentWorkflowContextResolveParams,
-) -> String {
-    if kind != "latex" {
-        return String::new();
-    }
-
-    optional_string_at(&params.latex_state, "previewPath")
-        .or_else(|| optional_string_at(&params.latex_state, "pdfPath"))
-        .or_else(|| {
-            let persisted = params.persisted_artifact_path.trim();
-            if persisted.is_empty() {
-                None
-            } else {
-                Some(persisted.to_string())
-            }
-        })
-        .unwrap_or_default()
-}
-
-fn resolve_preview_target_path(file_path: &str, kind: &str, artifact_path: &str) -> String {
-    match kind {
-        "markdown" => format!("preview:{file_path}"),
-        "latex" => {
-            if !artifact_path.trim().is_empty() {
-                artifact_path.trim().to_string()
-            } else {
-                default_latex_preview_target_path(file_path)
-            }
-        }
-        _ => String::new(),
-    }
-}
-
-fn resolve_workflow_status_text(workflow_state: &Value) -> String {
-    let ui_state = workflow_state.get("uiState").unwrap_or(&Value::Null);
-    let status = workflow_state.get("status").unwrap_or(&Value::Null);
-    let kind = string_at(ui_state, "kind");
-    let phase = string_at(status, "phase");
-
-    match kind {
-        "markdown" => match phase {
-            "rendering" => "Rendering...".to_string(),
-            "error" => "Preview failed".to_string(),
-            _ => String::new(),
-        },
-        "latex" => {
-            let suffix = if status.get("hasCustomArgs").and_then(Value::as_bool) == Some(true) {
-                Some("Custom args")
-            } else {
-                None
-            };
-            let base = match phase {
-                "compiling" => {
-                    let pending_count = u64_at(status, "pendingCount");
-                    if pending_count > 0 {
-                        format!("Compiling... · Queued +{pending_count}")
-                    } else {
-                        "Compiling...".to_string()
-                    }
-                }
-                "queued" => "Queued".to_string(),
-                "ready" => {
-                    let duration_ms = u64_at(status, "durationMs");
-                    if duration_ms == 0 {
-                        "Compiled".to_string()
-                    } else if duration_ms < 1000 {
-                        format!("{duration_ms}ms")
-                    } else {
-                        format!("{:.1}s", duration_ms as f64 / 1000.0)
-                    }
-                }
-                _ => String::new(),
-            };
-            if base.is_empty() {
-                String::new()
-            } else if let Some(suffix) = suffix {
-                format!("{base} · {suffix}")
-            } else {
-                base
-            }
-        }
-        "python" => match phase {
-            "running" => "Running...".to_string(),
-            "error" => "Run failed".to_string(),
-            "ready" => {
-                let duration_ms = u64_at(status, "durationMs");
-                let duration = if duration_ms == 0 {
-                    "Ready".to_string()
-                } else if duration_ms < 1000 {
-                    format!("{duration_ms}ms")
-                } else {
-                    format!("{:.1}s", duration_ms as f64 / 1000.0)
-                };
-                if let Some(version) = optional_string_at(status, "interpreterVersion") {
-                    format!("{duration} · Python {version}")
-                } else if let Some(interpreter_label) =
-                    optional_string_at(status, "interpreterLabel")
-                {
-                    format!("{duration} · {interpreter_label}")
-                } else {
-                    duration
-                }
-            }
-            _ => String::new(),
-        },
-        _ => String::new(),
-    }
-}
-
-fn resolve_workflow_status_tone(workflow_state: &Value) -> String {
-    let ui_state = workflow_state.get("uiState").unwrap_or(&Value::Null);
-    let kind = string_at(ui_state, "kind");
-    let phase = string_at(ui_state, "phase");
-    let export_phase = string_at(ui_state, "exportPhase");
-
-    if kind == "markdown" {
-        if export_phase == "exporting" || phase == "rendering" {
-            return "running".to_string();
-        }
-        if phase == "error" {
-            return "error".to_string();
-        }
-        if export_phase == "error" {
-            return "warning".to_string();
-        }
-        if phase == "ready" || export_phase == "ready" {
-            return "success".to_string();
-        }
-        return "muted".to_string();
-    }
-
-    match phase {
-        "running" | "compiling" | "rendering" => "running".to_string(),
-        "queued" => "warning".to_string(),
-        "error" => "error".to_string(),
-        "ready" => "success".to_string(),
-        _ => "muted".to_string(),
-    }
-}
-
-pub async fn resolve_document_workflow_context(
-    params: &DocumentWorkflowContextResolveParams,
-) -> Result<Value, String> {
-    let file_path = params.file_path.trim();
-    if file_path.is_empty() {
-        return Ok(Value::Null);
-    }
-
-    let Some(kind) = get_document_workflow_kind(file_path) else {
-        return Ok(Value::Null);
-    };
-
-    let requested_preview_kind = resolve_requested_preview_kind(file_path, kind, params);
-    let artifact_path = resolve_context_artifact_path(kind, params);
-    let preview_state =
-        document_workspace_preview_state_resolve(DocumentWorkspacePreviewStateResolveParams {
-            path: file_path.to_string(),
-            source_path: String::new(),
-            workflow_kind: kind.to_string(),
-            workflow_preview_kind: requested_preview_kind.clone().unwrap_or_default(),
-            preview_kind: requested_preview_kind.clone().unwrap_or_default(),
-            resolved_target_path: resolve_preview_target_path(file_path, kind, &artifact_path),
-            target_resolution: String::new(),
-            hidden_by_user: resolve_hidden_by_user(file_path, &params.workspace_preview_visibility),
-            preview_requested: resolve_preview_requested(
-                file_path,
-                requested_preview_kind.as_deref(),
-                &params.session,
-            ),
-            artifact_ready: !artifact_path.is_empty(),
-        })
-        .await?;
-
-    let workflow_state = resolve_document_workflow_state(&DocumentWorkflowStateResolveParams {
-        file_path: params.file_path.clone(),
-        preview_state: preview_state.clone(),
-        markdown_state: params.markdown_state.clone(),
-        markdown_draft_problems: params.markdown_draft_problems.clone(),
-        latex_state: params.latex_state.clone(),
-        latex_lint_diagnostics: params.latex_lint_diagnostics.clone(),
-        workspace_path: params.workspace_path.clone(),
-        source_content: params.source_content.clone(),
-        python_state: params.python_state.clone(),
-        queue_state: params.queue_state.clone(),
-        artifact_path,
-    });
-
-    Ok(json!({
-        "workflowState": workflow_state,
-        "previewState": preview_state,
-        "workflowUiState": workflow_state.get("uiState").cloned().unwrap_or(Value::Null),
-        "artifactPath": workflow_state.get("artifactPath").and_then(Value::as_str).unwrap_or_default(),
-        "statusText": resolve_workflow_status_text(&workflow_state),
-        "statusTone": resolve_workflow_status_tone(&workflow_state),
-        "previewKind": preview_state.get("previewKind").cloned().unwrap_or(Value::Null),
-        "previewMode": preview_state.get("previewMode").cloned().unwrap_or(Value::Null),
-        "previewAvailable": preview_state.get("previewVisible").and_then(Value::as_bool).unwrap_or(false),
-        "previewVisible": preview_state.get("previewVisible").and_then(Value::as_bool).unwrap_or(false),
-        "previewTargetPath": preview_state.get("previewTargetPath").and_then(Value::as_str).unwrap_or_default(),
-        "targetResolution": preview_state.get("targetResolution").cloned().unwrap_or(Value::Null),
-        "nativePreviewSupported": params.native_preview_supported,
-    }))
-}
-
-pub fn resolve_document_workflow_state(params: &DocumentWorkflowStateResolveParams) -> Value {
+pub fn resolve_document_workflow_ui_state(params: &DocumentWorkflowUiResolveParams) -> Value {
     let file_path = params.file_path.trim();
     if file_path.is_empty() {
         return Value::Null;
@@ -1031,38 +187,28 @@ pub fn resolve_document_workflow_state(params: &DocumentWorkflowStateResolvePara
     };
 
     match kind {
-        "markdown" => resolve_markdown_state(params),
-        "latex" => resolve_latex_state(params),
-        "python" => resolve_python_state(params),
+        "markdown" => resolve_markdown_ui_state(params),
+        "latex" => resolve_latex_ui_state(params),
+        "python" => resolve_python_ui_state(params),
         _ => Value::Null,
     }
 }
 
 #[tauri::command]
-pub async fn document_workflow_state_resolve(
-    params: DocumentWorkflowStateResolveParams,
+pub async fn document_workflow_ui_resolve(
+    params: DocumentWorkflowUiResolveParams,
 ) -> Result<Value, String> {
-    Ok(resolve_document_workflow_state(&params))
-}
-
-#[tauri::command]
-pub async fn document_workflow_context_resolve(
-    params: DocumentWorkflowContextResolveParams,
-) -> Result<Value, String> {
-    resolve_document_workflow_context(&params).await
+    Ok(resolve_document_workflow_ui_state(&params))
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        document_workflow_context_resolve, document_workflow_state_resolve,
-        DocumentWorkflowContextResolveParams, DocumentWorkflowStateResolveParams,
-    };
+    use super::{document_workflow_ui_resolve, DocumentWorkflowUiResolveParams};
     use serde_json::{json, Value};
 
     #[tokio::test]
-    async fn resolves_markdown_state_from_preview_and_render_state() {
-        let value = document_workflow_state_resolve(DocumentWorkflowStateResolveParams {
+    async fn resolves_markdown_ui_state_from_preview_and_render_state() {
+        let value = document_workflow_ui_resolve(DocumentWorkflowUiResolveParams {
             file_path: "/tmp/test.md".to_string(),
             preview_state: json!({
                 "previewVisible": true,
@@ -1071,261 +217,75 @@ mod tests {
             markdown_state: json!({
                 "status": "ready",
                 "problems": [
-                    { "severity": "warning", "message": "Preview warning" }
+                    { "severity": "warning" }
                 ]
             }),
-            markdown_draft_problems: json!([
-                { "severity": "error", "message": "Draft error", "line": 4 }
-            ]),
             latex_state: Value::Null,
-            latex_lint_diagnostics: Value::Null,
-            workspace_path: String::new(),
-            source_content: String::new(),
             python_state: Value::Null,
             queue_state: Value::Null,
             artifact_path: String::new(),
         })
         .await
-        .expect("resolve markdown state");
+        .expect("resolve markdown ui");
 
+        assert_eq!(value.get("kind").and_then(Value::as_str), Some("markdown"));
+        assert_eq!(value.get("phase").and_then(Value::as_str), Some("ready"));
+        assert_eq!(value.get("warningCount").and_then(Value::as_u64), Some(1));
         assert_eq!(
-            value
-                .get("uiState")
-                .and_then(|ui_state| ui_state.get("kind"))
-                .and_then(Value::as_str),
-            Some("markdown")
-        );
-        assert_eq!(
-            value
-                .get("uiState")
-                .and_then(|ui_state| ui_state.get("phase"))
-                .and_then(Value::as_str),
-            Some("ready")
-        );
-        assert_eq!(
-            value
-                .get("uiState")
-                .and_then(|ui_state| ui_state.get("errorCount"))
-                .and_then(Value::as_u64),
-            Some(1)
-        );
-        assert_eq!(
-            value
-                .get("uiState")
-                .and_then(|ui_state| ui_state.get("warningCount"))
-                .and_then(Value::as_u64),
-            Some(1)
-        );
-        assert_eq!(
-            value
-                .get("problems")
-                .and_then(Value::as_array)
-                .map(|problems| problems.len()),
-            Some(2)
+            value.get("canRevealPreview").and_then(Value::as_bool),
+            Some(true)
         );
     }
 
     #[tokio::test]
-    async fn resolves_latex_state_from_compile_lint_and_project_inputs() {
-        let value = document_workflow_state_resolve(DocumentWorkflowStateResolveParams {
+    async fn resolves_latex_ui_state_from_compile_inputs() {
+        let value = document_workflow_ui_resolve(DocumentWorkflowUiResolveParams {
             file_path: "/tmp/test.tex".to_string(),
             preview_state: json!({
                 "previewVisible": false,
                 "previewKind": "pdf",
             }),
             markdown_state: Value::Null,
-            markdown_draft_problems: Value::Null,
             latex_state: json!({
                 "status": "success",
-                "durationMs": 1420,
-                "buildExtraArgs": "--shell-escape",
                 "errors": [],
-                "warnings": [{ "message": "Compile warning" }],
-                "previewPath": "/tmp/test.pdf",
+                "warnings": [{ "message": "warn" }],
             }),
-            latex_lint_diagnostics: json!([
-                { "file": "/tmp/test.tex", "line": 8, "severity": "warning", "message": "Lint warning" }
-            ]),
-            workspace_path: String::new(),
-            source_content: "\\ref{fig:missing}\n".to_string(),
             python_state: Value::Null,
             queue_state: json!({
                 "phase": "idle"
             }),
-            artifact_path: String::new(),
+            artifact_path: "/tmp/test.pdf".to_string(),
         })
         .await
-        .expect("resolve latex state");
+        .expect("resolve latex ui");
 
-        assert_eq!(
-            value
-                .get("uiState")
-                .and_then(|ui_state| ui_state.get("kind"))
-                .and_then(Value::as_str),
-            Some("latex")
-        );
-        assert_eq!(
-            value.get("artifactPath").and_then(Value::as_str),
-            Some("/tmp/test.pdf")
-        );
-        assert_eq!(
-            value
-                .get("uiState")
-                .and_then(|ui_state| ui_state.get("warningCount"))
-                .and_then(Value::as_u64),
-            Some(3)
-        );
-        assert_eq!(
-            value
-                .get("status")
-                .and_then(|status| status.get("hasCustomArgs"))
-                .and_then(Value::as_bool),
-            Some(true)
-        );
+        assert_eq!(value.get("kind").and_then(Value::as_str), Some("latex"));
+        assert_eq!(value.get("phase").and_then(Value::as_str), Some("ready"));
+        assert_eq!(value.get("canOpenPdf").and_then(Value::as_bool), Some(true));
+        assert_eq!(value.get("warningCount").and_then(Value::as_u64), Some(1));
     }
 
     #[tokio::test]
-    async fn resolves_python_state_with_warning_counts_and_runtime_meta() {
-        let value = document_workflow_state_resolve(DocumentWorkflowStateResolveParams {
+    async fn resolves_python_ui_state_from_compile_inputs() {
+        let value = document_workflow_ui_resolve(DocumentWorkflowUiResolveParams {
             file_path: "/tmp/test.py".to_string(),
             preview_state: Value::Null,
             markdown_state: Value::Null,
-            markdown_draft_problems: Value::Null,
             latex_state: Value::Null,
-            latex_lint_diagnostics: Value::Null,
-            workspace_path: String::new(),
-            source_content: String::new(),
             python_state: json!({
-                "status": "success",
-                "errors": [],
-                "warnings": [{ "message": "Runtime warning" }],
-                "durationMs": 320,
-                "interpreterPath": "/usr/bin/python3",
-                "interpreterVersion": "3.12.2"
+                "status": "error",
+                "errors": [{ "message": "SyntaxError" }],
+                "warnings": [],
             }),
             queue_state: Value::Null,
             artifact_path: String::new(),
         })
         .await
-        .expect("resolve python state");
+        .expect("resolve python ui");
 
-        assert_eq!(
-            value
-                .get("uiState")
-                .and_then(|ui_state| ui_state.get("kind"))
-                .and_then(Value::as_str),
-            Some("python")
-        );
-        assert_eq!(
-            value
-                .get("uiState")
-                .and_then(|ui_state| ui_state.get("warningCount"))
-                .and_then(Value::as_u64),
-            Some(1)
-        );
-        assert_eq!(
-            value
-                .get("status")
-                .and_then(|status| status.get("interpreterLabel"))
-                .and_then(Value::as_str),
-            Some("python3")
-        );
-    }
-
-    #[tokio::test]
-    async fn resolves_markdown_context_with_status_tone_and_preview_state() {
-        let value = document_workflow_context_resolve(DocumentWorkflowContextResolveParams {
-            file_path: "/tmp/test.md".to_string(),
-            preview_prefs: json!({
-                "markdown": { "preferredPreview": "html" }
-            }),
-            session: json!({
-                "activeFile": "/tmp/test.md",
-                "previewSourcePath": "/tmp/test.md",
-                "previewKind": "html",
-                "state": "workspace-preview"
-            }),
-            workspace_preview_requests: json!({
-                "/tmp/test.md": "html"
-            }),
-            workspace_preview_visibility: json!({}),
-            markdown_state: json!({
-                "status": "ready",
-                "problems": []
-            }),
-            markdown_draft_problems: json!([]),
-            latex_state: Value::Null,
-            latex_lint_diagnostics: Value::Null,
-            workspace_path: String::new(),
-            source_content: String::new(),
-            python_state: Value::Null,
-            queue_state: Value::Null,
-            persisted_artifact_path: String::new(),
-            native_preview_supported: true,
-        })
-        .await
-        .expect("resolve markdown context");
-
-        assert_eq!(
-            value.get("previewVisible").and_then(Value::as_bool),
-            Some(true)
-        );
-        assert_eq!(
-            value.get("statusTone").and_then(Value::as_str),
-            Some("success")
-        );
-        assert_eq!(
-            value
-                .get("workflowUiState")
-                .and_then(|ui_state| ui_state.get("kind"))
-                .and_then(Value::as_str),
-            Some("markdown")
-        );
-    }
-
-    #[tokio::test]
-    async fn resolves_latex_context_with_preview_target_and_status_text() {
-        let value = document_workflow_context_resolve(DocumentWorkflowContextResolveParams {
-            file_path: "/tmp/test.tex".to_string(),
-            preview_prefs: Value::Null,
-            session: json!({
-                "activeFile": "/tmp/test.tex",
-                "previewSourcePath": "/tmp/test.tex",
-                "previewKind": "pdf",
-                "state": "workspace-preview"
-            }),
-            workspace_preview_requests: Value::Null,
-            workspace_preview_visibility: Value::Null,
-            markdown_state: Value::Null,
-            markdown_draft_problems: Value::Null,
-            latex_state: json!({
-                "status": "compiling",
-                "previewPath": "/tmp/test.pdf",
-            }),
-            latex_lint_diagnostics: json!([]),
-            workspace_path: String::new(),
-            source_content: String::new(),
-            python_state: Value::Null,
-            queue_state: json!({
-                "pendingCount": 2
-            }),
-            persisted_artifact_path: String::new(),
-            native_preview_supported: true,
-        })
-        .await
-        .expect("resolve latex context");
-
-        assert_eq!(
-            value.get("previewTargetPath").and_then(Value::as_str),
-            Some("/tmp/test.pdf")
-        );
-        assert_eq!(
-            value.get("statusText").and_then(Value::as_str),
-            Some("Compiling... · Queued +2")
-        );
-        assert_eq!(
-            value.get("statusTone").and_then(Value::as_str),
-            Some("running")
-        );
+        assert_eq!(value.get("kind").and_then(Value::as_str), Some("python"));
+        assert_eq!(value.get("phase").and_then(Value::as_str), Some("error"));
+        assert_eq!(value.get("errorCount").and_then(Value::as_u64), Some(1));
     }
 }

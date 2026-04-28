@@ -286,8 +286,14 @@ import { useI18n } from '../../i18n'
 import { getReferenceTypeLabelKey } from '../../domains/references/referencePresentation.js'
 import { useEditorStore } from '../../stores/editor'
 import { useReferencesStore } from '../../stores/references'
+import { useToastStore } from '../../stores/toast'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { revealPathInFileManager } from '../../services/fileTreeSystem'
+import {
+  hydrateReferenceFromCsl,
+  lookupByDoi,
+  searchByMetadata,
+} from '../../services/references/crossref.js'
 import UiButton from '../shared/ui/UiButton.vue'
 import UiInput from '../shared/ui/UiInput.vue'
 import UiTextarea from '../shared/ui/UiTextarea.vue'
@@ -295,6 +301,7 @@ import UiTextarea from '../shared/ui/UiTextarea.vue'
 const { t } = useI18n()
 const editorStore = useEditorStore()
 const referencesStore = useReferencesStore()
+const toastStore = useToastStore()
 const workspace = useWorkspaceStore()
 
 const ratingOptions = [1, 2, 3, 4, 5]
@@ -554,6 +561,70 @@ async function removeTag(tag = '') {
   const normalizedTarget = normalizeText(tag).toLowerCase()
   draft.tags = draft.tags.filter((item) => normalizeText(item).toLowerCase() !== normalizedTarget)
   await updateSelectedReference({ tags: [...draft.tags] })
+}
+
+async function handleRefreshMetadata() {
+  const reference = selectedReference.value
+  if (!reference?.id) return
+
+  try {
+    let csl = null
+    const identifier = String(reference.identifier || '').trim()
+
+    if (/^10\.\d{4,9}\//i.test(identifier)) {
+      csl = await lookupByDoi(identifier)
+    }
+
+    if (!csl) {
+      const match = await searchByMetadata(
+        reference.title,
+        Array.isArray(reference.authors) ? reference.authors[0] || '' : '',
+        reference.year
+      )
+      csl = match?.csl || null
+    }
+
+    if (!csl) {
+      toastStore.show(t('No metadata match found'), {
+        type: 'error',
+        duration: 3200,
+      })
+      return
+    }
+
+    const refreshed = await hydrateReferenceFromCsl(csl, {
+      id: reference.id,
+      citationKey: reference.citationKey,
+      pdfPath: reference.pdfPath,
+      fulltextPath: reference.fulltextPath,
+      collections: reference.collections,
+      tags: reference.tags,
+      notes: reference.notes,
+      annotations: reference.annotations,
+      rating: reference.rating,
+      hasPdf: reference.hasPdf,
+      hasFullText: reference.hasFullText,
+    })
+
+    await referencesStore.updateReference(workspace.globalConfigDir, reference.id, {
+      ...refreshed,
+      _source: reference._source,
+      _zoteroKey: reference._zoteroKey,
+      _zoteroLibrary: reference._zoteroLibrary,
+      _importMethod: reference._importMethod,
+      _pushedByApp: reference._pushedByApp,
+      _appPushPending: reference._appPushPending,
+    })
+    
+    // 手动刷新以体现服务端数据拉取结果
+    syncDraft(selectedReference.value)
+    
+  } catch (error) {
+    toastStore.show(error?.message || t('Failed to refresh metadata'), {
+      type: 'error',
+      duration: 3600,
+    })
+  }
 }
 
 async function handleOpenPdf() {

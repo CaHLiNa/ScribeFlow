@@ -3,11 +3,7 @@ import {
   buildLatexLintProblems,
   buildLatexProjectProblemsSync,
 } from '../../latex/diagnostics.js'
-
-function buildDefaultLatexPreviewPath(sourcePath = '') {
-  const normalized = String(sourcePath || '').trim()
-  return normalized.replace(/\.(tex|latex)$/i, '.pdf')
-}
+import { resolveCachedLatexPreviewPath } from '../../latex/root.js'
 
 function resolveKnownLatexArtifactPath(sourcePath, context = {}) {
   const state = latexCompileAdapter.stateForFile(sourcePath, context) || null
@@ -136,7 +132,7 @@ const latexPreviewAdapter = {
   getTargetPath(sourcePath, context) {
     return (
       resolveKnownLatexArtifactPath(sourcePath, context) ||
-      buildDefaultLatexPreviewPath(sourcePath) ||
+      resolveCachedLatexPreviewPath(sourcePath) ||
       ''
     )
   },
@@ -187,7 +183,7 @@ const latexCompileAdapter = {
   getArtifactPath(filePath, context) {
     return (
       resolveKnownLatexArtifactPath(filePath, context) ||
-      buildDefaultLatexPreviewPath(filePath) ||
+      resolveCachedLatexPreviewPath(filePath) ||
       ''
     )
   },

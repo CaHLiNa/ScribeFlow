@@ -1,5 +1,5 @@
 import { Compartment, Text } from '@codemirror/state'
-import { ViewPlugin } from '@codemirror/view'
+import { EditorView, ViewPlugin } from '@codemirror/view'
 import { unifiedMergeView, getChunks } from '@codemirror/merge'
 
 // Compartment for dynamically toggling the merge view

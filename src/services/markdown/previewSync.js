@@ -1,4 +1,4 @@
-import { normalizeFsPath } from '../../utils/path.js'
+import { normalizeFsPath } from '../documentIntelligence/workspaceGraph.js'
 
 const pendingForwardSync = new Map()
 export const MARKDOWN_FORWARD_SYNC_EVENT = 'markdown-forward-sync-location'

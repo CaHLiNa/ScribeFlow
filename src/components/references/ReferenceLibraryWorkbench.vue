@@ -156,6 +156,7 @@
 
 <script setup>
 import { computed, ref } from 'vue'
+import { invoke } from '@tauri-apps/api/core'
 import { open, save } from '@tauri-apps/plugin-dialog'
 import { 
   IconFileText, 
@@ -171,11 +172,7 @@ import { useUxStatusStore } from '../../stores/uxStatus'
 import { useI18n } from '../../i18n'
 import { useReferencesStore } from '../../stores/references'
 import { useSurfaceContextMenu } from '../../composables/useSurfaceContextMenu.js'
-import {
-  readWorkspaceTextFile,
-  renameWorkspacePath,
-  saveWorkspaceTextFile,
-} from '../../services/fileStoreIO'
+import { readWorkspaceTextFile, renameWorkspacePath } from '../../services/fileStoreIO'
 import {
   hydrateReferenceFromCsl,
   lookupByDoi,
@@ -446,7 +443,10 @@ async function handleExportReferenceBibTeX(reference = {}) {
   if (!target) return
 
   try {
-    await saveWorkspaceTextFile(String(target), content)
+    await invoke('write_file', {
+      path: String(target),
+      content,
+    })
     uxStatusStore.success(t('Exported BibTeX'), { duration: 2200 })
   } catch (error) {
     toastStore.show(error?.message || t('Failed to export BibTeX'), {
@@ -466,7 +466,10 @@ async function handleDetailedExport(reference = {}) {
   if (!target) return
 
   try {
-    await saveWorkspaceTextFile(String(target), buildReferenceJsonExport(reference))
+    await invoke('write_file', {
+      path: String(target),
+      content: buildReferenceJsonExport(reference),
+    })
     uxStatusStore.success(t('Detailed export saved'), { duration: 2200 })
   } catch (error) {
     toastStore.show(error?.message || t('Failed to export reference details'), {
@@ -663,7 +666,10 @@ async function handleExportBibTeX() {
   if (!target) return
 
   try {
-    await saveWorkspaceTextFile(String(target), content)
+    await invoke('write_file', {
+      path: String(target),
+      content,
+    })
     uxStatusStore.success(t('Exported BibTeX'), { duration: 2200 })
   } catch (error) {
     toastStore.show(error?.message || t('Failed to export BibTeX'), {

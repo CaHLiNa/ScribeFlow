@@ -256,25 +256,6 @@ fn fallback_asset_name() -> String {
     format!("reference-{timestamp}")
 }
 
-fn resolve_reference_fulltext(source_path: &str, extracted_text: Option<&str>) -> String {
-    let provided_text = extracted_text.unwrap_or_default().trim().to_string();
-    if !provided_text.is_empty() {
-        return provided_text;
-    }
-
-    let source = Path::new(source_path.trim());
-    let extension = source
-        .extension()
-        .and_then(|value| value.to_str())
-        .unwrap_or_default()
-        .to_lowercase();
-    if extension != "pdf" {
-        return String::new();
-    }
-
-    pdf_extract::extract_text(source).unwrap_or_default().trim().to_string()
-}
-
 fn store_reference_asset(params: &ReferenceAssetStoreParams) -> Result<Value, String> {
     let normalized_source = params.source_path.trim();
     if params.global_config_dir.trim().is_empty() || normalized_source.is_empty() {
@@ -310,8 +291,7 @@ fn store_reference_asset(params: &ReferenceAssetStoreParams) -> Result<Value, St
     }
 
     let mut fulltext_path = String::new();
-    let extracted_text =
-        resolve_reference_fulltext(normalized_source, params.extracted_text.as_deref());
+    let extracted_text = params.extracted_text.clone().unwrap_or_default();
     if !extracted_text.trim().is_empty() {
         fs::write(&dest_text_path, extracted_text).map_err(|error| error.to_string())?;
         fulltext_path = dest_text_path.to_string_lossy().to_string();

@@ -1,23 +1,12 @@
 import { defineStore } from 'pinia'
+import { invoke } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
 import { useFilesStore } from './files'
 import { useWorkspaceStore } from './workspace'
-import {
-  checkLatexCompilers,
-  checkLatexTools,
-  cancelLatexRuntime,
-  downloadTectonic,
-  executeLatexCompile,
-  formatLatexDocument,
-  listenLatexCompileStream,
-  listenLatexRuntimeCompileRequested,
-  listenTectonicDownloadProgress,
-  resolveLatexRuntimeChange,
-  resolveLatexRuntimeSource,
-  scheduleLatexRuntime,
-} from '../services/latex/runtime.js'
-import {
-  stableContentFingerprint,
-} from '../services/latex/projectGraph'
+import { t } from '../i18n'
+import { resolveCachedLatexRootPath } from '../services/latex/root'
+import { stableContentFingerprint } from '../services/latex/projectGraph'
+import { basenamePath } from '../utils/path'
 import {
   createLatexPreferenceState,
   loadLatexPreferences as loadLatexPreferencesFromRust,
@@ -38,63 +27,70 @@ const LATEX_PREFERENCE_KEYS = [
   'customSystemTexPath',
 ]
 
-function normalizeLatexRuntimePath(path = '') {
-  return String(path || '').trim()
+function fileNameForLog(texPath = '') {
+  return basenamePath(texPath) || texPath
 }
 
-function resolveLatexTargetPathFromState(storeState = {}, texPath = '') {
-  const normalizedPath = normalizeLatexRuntimePath(texPath)
-  if (!normalizedPath) return ''
-
-  const directCompileTarget = normalizeLatexRuntimePath(
-    storeState.compileState?.[normalizedPath]?.compileTargetPath,
-  )
-  if (directCompileTarget) return directCompileTarget
-
-  const directQueueTarget = normalizeLatexRuntimePath(
-    storeState.buildQueueState?.[normalizedPath]?.targetPath,
-  )
-  if (directQueueTarget) return directQueueTarget
-
-  for (const [statePath, state] of Object.entries(storeState.compileState || {})) {
-    if (normalizeLatexRuntimePath(state?.linkedSourcePath) !== normalizedPath) continue
-    return normalizeLatexRuntimePath(state?.compileTargetPath || statePath)
-  }
-
-  for (const queueState of Object.values(storeState.buildQueueState || {})) {
-    if (normalizeLatexRuntimePath(queueState?.sourcePath) !== normalizedPath) continue
-    const targetPath = normalizeLatexRuntimePath(queueState?.targetPath)
-    if (targetPath) return targetPath
-  }
-
-  return normalizedPath
+function formatIssue(issue) {
+  const line = issue?.line ? `L${issue.line}: ` : ''
+  return `${line}${issue?.message || ''}`.trim()
 }
 
-function buildFallbackLatexTerminalText(texPath, message = '') {
-  const normalizedPath = String(texPath || '').trim() || 'unknown.tex'
-  const normalizedMessage = String(message || '').trim() || 'LaTeX runtime failed.'
-  return [
-    `[LaTeX] ${normalizedPath}`,
-    'Compilation failed',
-    'Errors: 1',
-    'Warnings: 0',
-    '',
-    'Errors',
-    `- ${normalizedMessage}`,
-    '',
-    '----- Full log -----',
-    normalizedMessage,
-    '',
-  ].join('\n')
+function buildLatexTerminalOutput(
+  texPath,
+  result,
+  { includeRawLog = true } = {},
+) {
+  const errors = Array.isArray(result.errors) ? result.errors : []
+  const warnings = Array.isArray(result.warnings) ? result.warnings : []
+  const lines = [
+    `[LaTeX] ${fileNameForLog(texPath)}`,
+    result.compiler_backend
+      ? `${t('Compiler')}: ${result.compiler_backend}`
+      : null,
+    result.command_preview
+      ? `${t('Command')}: ${result.command_preview}`
+      : null,
+    result.requested_program
+      ? `${t('Magic comment')}: % !TEX program = ${result.requested_program} (${result.requested_program_applied ? t('applied') : t('detected but not applied')})`
+      : null,
+    result.success
+      ? t('Compilation succeeded in {duration}', {
+          duration: `${result.duration_ms || 0}ms`,
+        })
+      : t('Compilation failed'),
+    `${t('Errors')}: ${errors.length}`,
+    `${t('Warnings')}: ${warnings.length}`,
+  ].filter(Boolean)
+
+  if (errors.length > 0) {
+    lines.push('')
+    lines.push(t('Errors'))
+    for (const issue of errors) {
+      lines.push(`- ${formatIssue(issue)}`)
+    }
+  }
+
+  if (warnings.length > 0) {
+    lines.push('')
+    lines.push(t('Warnings'))
+    for (const issue of warnings) {
+      lines.push(`- ${formatIssue(issue)}`)
+    }
+  }
+
+  const rawLog = String(result.log || '').trim()
+  if (includeRawLog && rawLog) {
+    lines.push('')
+    lines.push(`----- ${t('Full log')} -----`)
+    lines.push(rawLog)
+  }
+
+  return `${lines.join('\n')}\n`
 }
 
 function pushLatexLogToTerminal(texPath, result) {
   if (typeof window === 'undefined') return
-  const text = String(
-    result?.terminalText ||
-    buildFallbackLatexTerminalText(texPath, result?.log || result?.message || ''),
-  )
-  if (!text.trim()) return
   const shouldOpenTerminal =
     !result.success ||
     (Array.isArray(result.errors) && result.errors.length > 0)
@@ -103,7 +99,9 @@ function pushLatexLogToTerminal(texPath, result) {
       detail: {
         key: 'latex-log',
         label: 'LaTeX',
-        text,
+        text: buildLatexTerminalOutput(texPath, result, {
+          includeRawLog: false,
+        }),
         clear: false,
         open: shouldOpenTerminal,
         status: result.success ? 'success' : 'error',
@@ -143,7 +141,8 @@ async function ensureLatexStreamListener() {
     return
   }
 
-  latexStreamUnlistenPromise = listenLatexCompileStream((payload) => {
+  latexStreamUnlistenPromise = listen('latex-compile-stream', (event) => {
+    const payload = event.payload || {}
     pushLatexStreamToTerminal({
       texPath: payload.texPath,
       line: payload.line,
@@ -163,125 +162,121 @@ async function ensureLatexRuntimeCompileRequestListener() {
     return
   }
 
-  latexRuntimeCompileRequestUnlistenPromise = listenLatexRuntimeCompileRequested((payload) => {
-    const latexStore = useLatexStore()
-    const sourcePath = String(payload.sourcePath || '')
-    const targetPath = String(payload.targetPath || sourcePath)
-    if (!sourcePath) return
-    void latexStore.compile(sourcePath, {
-      reason: String(payload.reason || 'save'),
-      targetPath,
-    })
-  })
+  latexRuntimeCompileRequestUnlistenPromise = listen(
+    'latex-runtime-compile-requested',
+    (event) => {
+      const payload = event.payload || {}
+      const latexStore = useLatexStore()
+      const sourcePath = String(payload.sourcePath || '')
+      const targetPath = String(payload.targetPath || sourcePath)
+      if (!sourcePath) return
+      void latexStore.compile(sourcePath, {
+        reason: String(payload.reason || 'save'),
+        targetPath,
+      })
+    },
+  )
 
   await latexRuntimeCompileRequestUnlistenPromise
 }
 
-function buildLatexRuntimeContentOverrides(sourcePath, options = {}) {
-  const normalizedSourcePath = String(sourcePath || '').trim()
-  if (!normalizedSourcePath) return {}
-
-  if (options.sourceContent === undefined) {
-    return options.contentOverrides && typeof options.contentOverrides === 'object'
-      ? options.contentOverrides
-      : {}
-  }
-
-  return {
-    ...(options.contentOverrides && typeof options.contentOverrides === 'object'
-      ? options.contentOverrides
-      : {}),
-    [normalizedSourcePath]: options.sourceContent,
-  }
-}
-
-function normalizeLatexCompileRequestValue(sourcePath, value = null) {
-  const normalizedSourcePath = String(sourcePath || '').trim()
-  const resolvedRootPath = String(
-    value?.rootPath || value?.sourcePath || normalizedSourcePath,
-  )
-  return {
-    sourcePath: String(value?.sourcePath || normalizedSourcePath),
-    rootPath: resolvedRootPath,
-    previewPath: String(
-      value?.previewPath ||
-      `${resolvedRootPath.replace(/\.(tex|latex)$/i, '')}.pdf`,
-    ),
-  }
-}
-
-function normalizeLatexLintStateValue(nextState = null) {
-  return {
-    status: String(nextState?.status || 'unavailable'),
-    diagnostics: Array.isArray(nextState?.diagnostics)
-      ? nextState.diagnostics
-      : [],
-    error: nextState?.error || null,
-    updatedAt: Number(nextState?.updatedAt || Date.now()),
-  }
-}
-
-async function resolveLatexRuntimeSourceFromRust(sourcePath, options = {}) {
+async function resolveLatexCompileRequestFromRust(sourcePath, options = {}) {
+  const filesStore = useFilesStore()
   const workspaceStore = useWorkspaceStore()
   const normalizedSourcePath = String(sourcePath || '').trim()
   if (!normalizedSourcePath) return null
 
-  const contentOverrides = buildLatexRuntimeContentOverrides(
-    normalizedSourcePath,
-    options,
-  )
-  const latexStore = useLatexStore()
-  const resolved = await resolveLatexRuntimeSource({
-    sourcePath: normalizedSourcePath,
-    workspacePath: workspaceStore.path || '',
-    contentOverrides,
-    sourceContent:
-      typeof options.sourceContent === 'string' ? options.sourceContent : null,
-    customSystemTexPath:
-      String(latexStore.customSystemTexPath || '').trim() || null,
+  const contentOverrides =
+    options.sourceContent === undefined
+      ? options.contentOverrides || {}
+      : {
+          ...(options.contentOverrides || {}),
+          [normalizedSourcePath]: options.sourceContent,
+        }
+
+  const flatFiles = await filesStore.ensureFlatFilesReady().catch(() => [])
+  const resolved = await invoke('latex_compile_request_resolve', {
+    params: {
+      sourcePath: normalizedSourcePath,
+      flatFiles: Array.isArray(flatFiles)
+        ? flatFiles
+            .map((entry) => String(entry?.path || entry || ''))
+            .filter(Boolean)
+        : [],
+      contentOverrides,
+    },
   }).catch(() => null)
 
-  const compileRequest = normalizeLatexCompileRequestValue(
-    normalizedSourcePath,
-    resolved?.compileRequest,
-  )
-
+  const rootPath = String(resolved?.rootPath || normalizedSourcePath)
   return {
-    ...compileRequest,
-    lintState: normalizeLatexLintStateValue(resolved?.lintState || null),
+    filesStore,
+    workspaceStore,
+    sourcePath: String(resolved?.sourcePath || normalizedSourcePath),
+    rootPath,
+    previewPath: String(
+      resolved?.previewPath || `${rootPath.replace(/\.(tex|latex)$/i, '')}.pdf`,
+    ),
     contentOverrides,
   }
 }
 
-async function resolveLatexRuntimeChangeFromRust(changedPath, options = {}) {
-  const workspaceStore = useWorkspaceStore()
+async function resolveLatexCompileTargetsFromRust(changedPath, options = {}) {
+  const filesStore = useFilesStore()
   const normalizedChangedPath = String(changedPath || '').trim()
-  if (!normalizedChangedPath) return null
+  if (!normalizedChangedPath) return []
 
-  const contentOverrides = buildLatexRuntimeContentOverrides(
-    normalizedChangedPath,
-    options,
-  )
-  const latexStore = useLatexStore()
-  const resolved = await resolveLatexRuntimeChange({
-    changedPath: normalizedChangedPath,
-    workspacePath: workspaceStore.path || '',
-    contentOverrides,
-    sourceContent:
-      typeof options.sourceContent === 'string' ? options.sourceContent : null,
-    customSystemTexPath:
-      String(latexStore.customSystemTexPath || '').trim() || null,
+  const contentOverrides =
+    options.sourceContent === undefined
+      ? options.contentOverrides || {}
+      : {
+          ...(options.contentOverrides || {}),
+          [normalizedChangedPath]: options.sourceContent,
+        }
+
+  const flatFiles = await filesStore.ensureFlatFilesReady().catch(() => [])
+  const targets = await invoke('latex_compile_targets_resolve', {
+    params: {
+      changedPath: normalizedChangedPath,
+      flatFiles: Array.isArray(flatFiles)
+        ? flatFiles
+            .map((entry) => String(entry?.path || entry || ''))
+            .filter(Boolean)
+        : [],
+      contentOverrides,
+    },
+  }).catch(() => [])
+
+  return Array.isArray(targets)
+    ? targets
+        .filter((entry) => entry && typeof entry === 'object')
+        .map((entry) => ({
+          sourcePath: String(entry.sourcePath || normalizedChangedPath),
+          rootPath: String(
+            entry.rootPath || entry.sourcePath || normalizedChangedPath,
+          ),
+          previewPath: String(
+            entry.previewPath ||
+              `${String(entry.rootPath || entry.sourcePath || normalizedChangedPath).replace(/\.(tex|latex)$/i, '')}.pdf`,
+          ),
+        }))
+        .filter((entry) => entry.rootPath)
+    : []
+}
+
+async function resolveLatexLintStateFromRust(texPath, options = {}) {
+  const filesStore = useFilesStore()
+  const workspaceStore = useWorkspaceStore()
+  const sourceContent =
+    options.sourceContent ?? filesStore.fileContents?.[texPath] ?? null
+  return invoke('latex_runtime_lint_resolve', {
+    params: {
+      texPath,
+      content: sourceContent,
+      customSystemTexPath:
+        String(useLatexStore().customSystemTexPath || '').trim() || null,
+      workspacePath: workspaceStore.path || null,
+    },
   }).catch(() => null)
-
-  return {
-    targets: Array.isArray(resolved?.targets)
-      ? resolved.targets
-          .filter((entry) => entry && typeof entry === 'object')
-          .map((entry) => normalizeLatexCompileRequestValue(normalizedChangedPath, entry))
-          .filter((entry) => entry.rootPath)
-      : [],
-    lintState: normalizeLatexLintStateValue(resolved?.lintState || null),
-  }
 }
 
 export const useLatexStore = defineStore('latex', {
@@ -314,36 +309,32 @@ export const useLatexStore = defineStore('latex', {
 
   getters: {
     stateForFile: (state) => (texPath) => {
-      const targetPath = resolveLatexTargetPathFromState(state, texPath)
       return (
         state.compileState[texPath] ||
-        state.compileState[targetPath] ||
+        state.compileState[resolveCachedLatexRootPath(texPath)] ||
         null
       )
     },
 
     isCompiling: (state) => (texPath) => {
-      const targetPath = resolveLatexTargetPathFromState(state, texPath)
       const s =
         state.compileState[texPath] ||
-        state.compileState[targetPath]
+        state.compileState[resolveCachedLatexRootPath(texPath)]
       return s?.status === 'compiling'
     },
 
     errorsForFile: (state) => (texPath) => {
-      const targetPath = resolveLatexTargetPathFromState(state, texPath)
       return (
         state.compileState[texPath]?.errors ||
-        state.compileState[targetPath]?.errors ||
+        state.compileState[resolveCachedLatexRootPath(texPath)]?.errors ||
         []
       )
     },
 
     warningsForFile: (state) => (texPath) => {
-      const targetPath = resolveLatexTargetPathFromState(state, texPath)
       return (
         state.compileState[texPath]?.warnings ||
-        state.compileState[targetPath]?.warnings ||
+        state.compileState[resolveCachedLatexRootPath(texPath)]?.warnings ||
         []
       )
     },
@@ -370,10 +361,9 @@ export const useLatexStore = defineStore('latex', {
     hasLatexFormatter: (state) => state.latexindentInstalled,
 
     queueStateForFile: (state) => (texPath) => {
-      const targetPath = resolveLatexTargetPathFromState(state, texPath)
       return (
         state.buildQueueState[texPath] ||
-        state.buildQueueState[targetPath] ||
+        state.buildQueueState[resolveCachedLatexRootPath(texPath)] ||
         null
       )
     },
@@ -467,20 +457,16 @@ export const useLatexStore = defineStore('latex', {
       this.buildQueueState = nextState
     },
 
-    applyLintState(filePath, nextState = null) {
-      if (!filePath) return []
-      this.lintState[filePath] = normalizeLatexLintStateValue(nextState)
-      return this.lintState[filePath]?.diagnostics || []
-    },
-
     async resolveScheduleRequest(sourcePath, targetPath, options = {}) {
       const buildOptions = this.currentBuildOptions()
-      return scheduleLatexRuntime({
-        sourcePath,
-        targetPath,
-        reason: options.reason || 'save',
-        buildExtraArgs: buildOptions.buildExtraArgs,
-        now: Date.now(),
+      return invoke('latex_runtime_schedule', {
+        params: {
+          sourcePath,
+          targetPath,
+          reason: options.reason || 'save',
+          buildExtraArgs: buildOptions.buildExtraArgs,
+          now: Date.now(),
+        },
       })
     },
 
@@ -493,11 +479,13 @@ export const useLatexStore = defineStore('latex', {
     },
 
     async resolveCompileRequest(texPath, options = {}) {
-      const resolved = await resolveLatexRuntimeSourceFromRust(
+      const resolved = await resolveLatexCompileRequestFromRust(
         texPath,
         options,
       )
       return {
+        filesStore: resolved?.filesStore || useFilesStore(),
+        workspaceStore: resolved?.workspaceStore || useWorkspaceStore(),
         project: resolved
           ? {
               sourcePath: resolved.sourcePath,
@@ -512,14 +500,13 @@ export const useLatexStore = defineStore('latex', {
     async scheduleAutoCompile(texPath, options = {}) {
       if (!texPath) return
 
-      const resolved = await resolveLatexRuntimeSourceFromRust(
+      void this.refreshLint(texPath, options).catch(() => {})
+      if (!this.autoCompile) return
+
+      const { compileTargetPath } = await this.resolveCompileRequest(
         texPath,
         options,
       )
-      this.applyLintState(texPath, resolved?.lintState)
-      if (!this.autoCompile) return
-
-      const compileTargetPath = resolved?.rootPath || texPath
       this.scheduleCompileTarget(texPath, compileTargetPath || texPath, options)
     },
 
@@ -546,35 +533,33 @@ export const useLatexStore = defineStore('latex', {
       this.cancelAutoCompile(texPath)
 
       try {
-        const filesStore = useFilesStore()
+        const { filesStore, project, compileTargetPath } =
+          await this.resolveCompileRequest(texPath, options)
+        const targetKey = compileTargetPath || texPath
         const sourceContent =
           typeof options.sourceContent === 'string'
             ? options.sourceContent
             : filesStore.fileContents?.[texPath]
-        const { project, compileTargetPath } =
-          await this.resolveCompileRequest(texPath, {
-            ...options,
-            sourceContent,
-          })
-        const targetKey = compileTargetPath || texPath
         const sourceFingerprint =
           typeof sourceContent === 'string'
             ? stableContentFingerprint(sourceContent)
             : ''
         const buildOptions = this.currentBuildOptions()
-        const compileExecution = await executeLatexCompile({
-          texPath,
-          targetPath: targetKey,
-          projectRootPath:
-            project?.rootPath || compileTargetPath || targetKey,
-          projectPreviewPath: project?.previewPath || '',
-          reason: options.reason || 'manual',
-          buildExtraArgs: buildOptions.buildExtraArgs,
-          now: Date.now(),
-          compilerPreference: this.compilerPreference || null,
-          enginePreference: this.enginePreference || null,
-          customSystemTexPath: this.customSystemTexPath || null,
-          customTectonicPath: null,
+        const compileExecution = await invoke('latex_runtime_compile_execute', {
+          params: {
+            texPath,
+            targetPath: targetKey,
+            projectRootPath:
+              project?.rootPath || compileTargetPath || targetKey,
+            projectPreviewPath: project?.previewPath || '',
+            reason: options.reason || 'manual',
+            buildExtraArgs: buildOptions.buildExtraArgs,
+            now: Date.now(),
+            compilerPreference: this.compilerPreference || null,
+            enginePreference: this.enginePreference || null,
+            customSystemTexPath: this.customSystemTexPath || null,
+            customTectonicPath: null,
+          },
         })
         if (sourceFingerprint) {
           if (
@@ -627,25 +612,18 @@ export const useLatexStore = defineStore('latex', {
         )
         pushLatexLogToTerminal(
           texPath,
-          {
-            ...(compileExecution?.result || {
-              success: false,
-              duration_ms: 0,
-              errors: [
-                {
-                  line: null,
-                  message: 'LaTeX runtime returned no result.',
-                  severity: 'error',
-                },
-              ],
-              warnings: [],
-              log: 'LaTeX runtime returned no result.',
-            }),
-            terminalText: String(
-              compileExecution?.sourceState?.terminalText ||
-              compileExecution?.targetState?.terminalText ||
-              '',
-            ),
+          compileExecution?.result || {
+            success: false,
+            duration_ms: 0,
+            errors: [
+              {
+                line: null,
+                message: 'LaTeX runtime returned no result.',
+                severity: 'error',
+              },
+            ],
+            warnings: [],
+            log: 'LaTeX runtime returned no result.',
           },
         )
 
@@ -658,14 +636,12 @@ export const useLatexStore = defineStore('latex', {
         const targetKey =
           this.compileState[texPath]?.compileTargetPath ||
           options.targetPath ||
-          resolveLatexTargetPathFromState(this, texPath) ||
+          resolveCachedLatexRootPath(texPath) ||
           texPath
         this.applyCompileStatePatch(texPath, {
           status: 'error',
           errors: [{ line: null, message: err, severity: 'error' }],
           warnings: [],
-          terminalText: buildFallbackLatexTerminalText(texPath, err),
-          terminalTextFull: buildFallbackLatexTerminalText(texPath, err),
         })
         this.clearBuildQueueState(targetKey)
         pushLatexLogToTerminal(texPath, {
@@ -674,7 +650,6 @@ export const useLatexStore = defineStore('latex', {
           errors: [{ line: null, message: err, severity: 'error' }],
           warnings: [],
           log: String(err || ''),
-          terminalText: buildFallbackLatexTerminalText(texPath, err),
         })
       }
     },
@@ -706,10 +681,14 @@ export const useLatexStore = defineStore('latex', {
     },
 
     cancelAutoCompile(texPath) {
-      const rootPath = resolveLatexTargetPathFromState(this, texPath)
+      const rootPath = resolveCachedLatexRootPath(texPath)
       const targetPaths = [texPath, rootPath].filter(Boolean)
       if (targetPaths.length > 0) {
-        void cancelLatexRuntime(targetPaths).catch(() => {})
+        void invoke('latex_runtime_cancel', {
+          params: {
+            targetPaths,
+          },
+        }).catch(() => {})
       }
       for (const key of targetPaths) {
         if (
@@ -725,16 +704,15 @@ export const useLatexStore = defineStore('latex', {
       delete this.lintState[texPath]
       this.cancelAutoCompile(texPath)
       this.clearBuildQueueState(texPath)
-      this.clearBuildQueueState(resolveLatexTargetPathFromState(this, texPath))
+      this.clearBuildQueueState(resolveCachedLatexRootPath(texPath))
     },
 
     async scheduleAutoBuildForPath(filePath, options = {}) {
       if (!filePath) return []
-      const resolved = await resolveLatexRuntimeChangeFromRust(
+      const targets = await resolveLatexCompileTargetsFromRust(
         filePath,
         options,
-      ).catch(() => null)
-      const targets = resolved?.targets || []
+      ).catch(() => [])
       if (!Array.isArray(targets) || targets.length === 0) {
         return []
       }
@@ -743,7 +721,10 @@ export const useLatexStore = defineStore('latex', {
         (target) => target.rootPath || target.sourcePath || filePath,
       )
       if (!this.autoCompile) {
-        this.applyLintState(filePath, resolved?.lintState)
+        const lowerPath = String(filePath).toLowerCase()
+        if (lowerPath.endsWith('.tex') || lowerPath.endsWith('.latex')) {
+          void this.refreshLint(filePath, options).catch(() => {})
+        }
         return targetPaths
       }
 
@@ -758,14 +739,6 @@ export const useLatexStore = defineStore('latex', {
       return targetPaths
     },
 
-    async warmupSource(texPath, options = {}) {
-      if (!texPath) return null
-      const resolved = await resolveLatexRuntimeSourceFromRust(texPath, options)
-        .catch(() => null)
-      this.applyLintState(texPath, resolved?.lintState)
-      return resolved
-    },
-
     openCompileLog(texPath) {
       if (typeof window === 'undefined') return
       const state = this.compileState[texPath]
@@ -776,10 +749,16 @@ export const useLatexStore = defineStore('latex', {
           detail: {
             key: 'latex-log',
             label: 'LaTeX',
-            text: String(
-              state.terminalTextFull ||
-              state.terminalText ||
-              buildFallbackLatexTerminalText(texPath, state.log || ''),
+            text: buildLatexTerminalOutput(
+              texPath,
+              {
+                success: state.status === 'success',
+                errors: state.errors || [],
+                warnings: state.warnings || [],
+                log: state.log || '',
+                duration_ms: state.durationMs || 0,
+              },
+              { includeRawLog: true },
             ),
             clear: true,
             open: true,
@@ -805,7 +784,7 @@ export const useLatexStore = defineStore('latex', {
         return
       this.checkingCompilers = true
       try {
-        const result = await checkLatexCompilers({
+        const result = await invoke('check_latex_compilers', {
           customSystemTexPath: this.customSystemTexPath || null,
           customTectonicPath: null,
         })
@@ -834,7 +813,7 @@ export const useLatexStore = defineStore('latex', {
         return
       this.checkingTools = true
       try {
-        const result = await checkLatexTools({
+        const result = await invoke('check_latex_tools', {
           customSystemTexPath: this.customSystemTexPath || null,
         })
         this.chktexInstalled = result.chktex?.installed === true
@@ -854,15 +833,21 @@ export const useLatexStore = defineStore('latex', {
 
     async refreshLint(texPath, options = {}) {
       if (!texPath) return []
-      const resolved = await resolveLatexRuntimeSourceFromRust(
-        texPath,
-        options,
-      )
-      return this.applyLintState(texPath, resolved?.lintState)
+      const nextState = await resolveLatexLintStateFromRust(texPath, options)
+      this.lintState[texPath] = {
+        status: String(nextState?.status || 'unavailable'),
+        diagnostics: Array.isArray(nextState?.diagnostics)
+          ? nextState.diagnostics
+          : [],
+        error: nextState?.error || null,
+        updatedAt: Number(nextState?.updatedAt || Date.now()),
+      }
+
+      return this.lintState[texPath]?.diagnostics || []
     },
 
     async formatDocument(texPath, content) {
-      return await formatLatexDocument({
+      return await invoke('format_latex_document', {
         texPath,
         content,
         customSystemTexPath: this.customSystemTexPath || null,
@@ -878,12 +863,12 @@ export const useLatexStore = defineStore('latex', {
       this.downloadProgress = 0
       this.downloadError = null
 
-      const unlisten = await listenTectonicDownloadProgress((payload) => {
-        this.downloadProgress = payload.percent
+      const unlisten = await listen('tectonic-download-progress', (event) => {
+        this.downloadProgress = event.payload.percent
       })
 
       try {
-        const path = await downloadTectonic()
+        const path = await invoke('download_tectonic')
         this.tectonicInstalled = true
         this.tectonicPath = path
         await this.checkCompilers(true)

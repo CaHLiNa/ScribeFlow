@@ -1,5 +1,6 @@
 import { useEditorStore } from '../stores/editor'
 import { useFilesStore } from '../stores/files'
+import { useWorkspaceStore } from '../stores/workspace'
 import { discardEditorPaths } from '../domains/editor/editorDiscardRuntime'
 
 export async function confirmUnsavedChanges(paths = []) {

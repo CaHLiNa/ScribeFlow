@@ -11,6 +11,7 @@ const LATEX_SECTION_COMMANDS = [
   'paragraph',
   'subparagraph',
 ]
+const LATEX_SECTION_RE = /^\\(part|chapter|section|subsection|subsubsection|paragraph|subparagraph)\b/
 const LATEX_ENV_RE = /\\(begin){(.*?)}|\\(begingroup)[%\s\\]|\\(end){(.*?)}|\\(endgroup)[%\s\\]|^%\s*#?([rR]egion)|^%\s*#?([eE]ndregion)/gm
 
 function extname(path = '') {

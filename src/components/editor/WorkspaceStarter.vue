@@ -139,8 +139,8 @@ async function createTemplateDraft(template) {
     new CustomEvent('app:begin-new-file', {
       detail: {
         ext: template.ext,
-        templateId: template.id,
         suggestedName: template.filename,
+        initialContent: template.content,
       },
     })
   )

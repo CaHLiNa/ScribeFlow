@@ -25,7 +25,7 @@
             :key="template.id"
             type="button"
             class="context-menu-item"
-            @click.stop="$emit('create', { ext: template.ext, templateId: template.id, suggestedName: template.filename })"
+            @click.stop="$emit('create', { ext: template.ext, suggestedName: template.filename, initialContent: template.content })"
           >
             <component :is="template.ext === '.tex' ? IconMath : IconFileText" :size="14" :stroke-width="1.5" />
             <span class="flex-1">{{ template.label }}</span>

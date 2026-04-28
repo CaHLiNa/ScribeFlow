@@ -101,6 +101,10 @@ import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { useLatexStore } from '../../stores/latex'
 import { useReferencesStore } from '../../stores/references'
 import { isDraftPath, isMarkdown, isLatex, isLatexEditorFile } from '../../utils/fileTypes'
+import {
+  getCachedLatexProjectGraph,
+  resolveLatexProjectGraph,
+} from '../../services/latex/projectGraph'
 import { revealLatexSourceLocation } from '../../services/latex/previewSync.js'
 import {
   MARKDOWN_BACKWARD_SYNC_EVENT,
@@ -322,9 +326,17 @@ function scheduleLatexWarmup(content = '') {
     latexWarmupHandle = null
     try {
       await latexStore.checkTools()
-      await latexStore.warmupSource(props.filePath, {
-        sourceContent: content,
-      })
+      await Promise.allSettled([
+        latexStore.refreshLint(props.filePath, {
+          sourceContent: content,
+        }),
+        getCachedLatexProjectGraph(props.filePath)
+          ? Promise.resolve()
+          : resolveLatexProjectGraph(props.filePath, {
+              filesStore: files,
+              workspacePath: workspace.path,
+            }),
+      ])
     } catch {
       // Warmup failures should not block editor startup.
     }
@@ -837,40 +849,40 @@ function handleDocumentChanged(content) {
 }
 
 async function loadLanguageExtension() {
+  const { languages } = await import('@codemirror/language-data')
   const ext = basenamePath(props.filePath).split('.').pop()?.toLowerCase() || ''
   if (isMd) {
     const { markdown, markdownLanguage } = await import('@codemirror/lang-markdown')
-    return markdown({ base: markdownLanguage })
+    return markdown({ base: markdownLanguage, codeLanguages: languages })
   }
   if (isLatexEditor) {
     const { altalsLatexLanguage, ensureLatexTextmateReady } = await import('../../editor/latexLanguage')
     await ensureLatexTextmateReady()
     return altalsLatexLanguage
   }
-
-  if (ext === 'py' || ext === 'pyw') {
-    const { python } = await import('@codemirror/lang-python')
-    return python()
+  if (ext === 'm') {
+    const octave = languages.find((lang) => lang.name === 'Octave')
+    if (octave) {
+      return octave.load()
+    }
   }
 
-  if (['js', 'mjs', 'cjs', 'jsx', 'ts', 'tsx', 'json'].includes(ext)) {
-    const { javascript } = await import('@codemirror/lang-javascript')
-    return javascript({
-      jsx: ext === 'jsx' || ext === 'tsx',
-      typescript: ext === 'ts' || ext === 'tsx',
-    })
-  }
+  const matched = languages.filter((lang) => {
+    const name = basenamePath(props.filePath)
+    if (lang.filename && lang.filename.test(name)) return true
+    if (lang.extensions) {
+      const dot = name.lastIndexOf('.')
+      if (dot > 0) {
+        const ext = name.substring(dot + 1)
+        return lang.extensions.includes(ext)
+      }
+    }
+    return false
+  })
 
-  if (ext === 'html' || ext === 'htm') {
-    const { html } = await import('@codemirror/lang-html')
-    return html()
+  if (matched.length > 0) {
+    return matched[0].load()
   }
-
-  if (ext === 'css' || ext === 'scss') {
-    const { css } = await import('@codemirror/lang-css')
-    return css()
-  }
-
   return null
 }
 
@@ -1074,6 +1086,7 @@ onMounted(async () => {
         override:[
           createLatexCompletionSource({
             filePath: props.filePath,
+            filesStore: files,
             workspacePath: workspace.path,
           }),
         ],

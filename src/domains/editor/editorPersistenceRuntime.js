@@ -1,8 +1,7 @@
 import {
   loadRecentFiles,
-  recordRecentFileOpen,
-  renameRecentFilePath,
   loadState,
+  saveRecentFiles,
   saveState,
 } from '../../services/editorPersistence.js'
 
@@ -32,21 +31,19 @@ function buildEditorStateKey(payload = {}) {
   return JSON.stringify(payload)
 }
 
+export function buildRecentFilesAfterOpen(recentFiles = [], path = '') {
+  const nextRecentFiles = recentFiles.filter((entry) => entry.path !== path)
+  nextRecentFiles.unshift({ path, openedAt: Date.now() })
+  if (nextRecentFiles.length > 20) nextRecentFiles.length = 20
+  return nextRecentFiles
+}
+
 export async function loadRecentFilesForWorkspace(workspaceDataDir, workspacePath) {
   return loadRecentFiles(workspaceDataDir, workspacePath)
 }
 
-export async function recordRecentFileOpenForWorkspace(workspaceDataDir, recentFiles = [], path = '') {
-  return recordRecentFileOpen(workspaceDataDir, recentFiles, path)
-}
-
-export async function renameRecentFilePathForWorkspace(
-  workspaceDataDir,
-  recentFiles = [],
-  oldPath = '',
-  newPath = '',
-) {
-  return renameRecentFilePath(workspaceDataDir, recentFiles, oldPath, newPath)
+export async function persistRecentFilesForWorkspace(workspaceDataDir, workspacePath, recentFiles = []) {
+  return saveRecentFiles(workspaceDataDir, workspacePath, recentFiles)
 }
 
 export function scheduleEditorStateSave({

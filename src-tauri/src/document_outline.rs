@@ -13,11 +13,7 @@ pub struct DocumentOutlineResolveParams {
     #[serde(default)]
     pub content: String,
     #[serde(default)]
-    pub workspace_path: String,
-    #[serde(default)]
     pub flat_files: Vec<String>,
-    #[serde(default = "default_include_hidden")]
-    pub include_hidden: bool,
     #[serde(default)]
     pub content_overrides: HashMap<String, String>,
 }
@@ -48,10 +44,6 @@ pub struct DocumentOutlineItem {
 
 fn normalize_path(path: &str) -> String {
     path.trim().replace('\\', "/")
-}
-
-fn default_include_hidden() -> bool {
-    true
 }
 
 fn lower_path(path: &str) -> String {
@@ -201,9 +193,7 @@ fn latex_outline_items(
 
     let graph = resolve_graph_value(&LatexProjectGraphParams {
         source_path: normalized_path.to_string(),
-        workspace_path: params.workspace_path.clone(),
         flat_files: params.flat_files.clone(),
-        include_hidden: params.include_hidden,
         content_overrides,
     })
     .unwrap_or(Value::Null);

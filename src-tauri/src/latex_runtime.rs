@@ -1,17 +1,12 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
-use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, State};
 
 use crate::latex::{CompileResult, LatexError, LatexState};
 use crate::latex_compile::compile_latex_with_preference;
-use crate::latex_project_graph::{
-    resolve_affected_root_targets_internal, resolve_graph_value, LatexAffectedRootsParams,
-    LatexProjectGraphParams,
-};
 use crate::latex_tools::find_chktex;
 
 const LATEX_RUNTIME_COMPILE_REQUESTED_EVENT: &str = "latex-runtime-compile-requested";
@@ -152,40 +147,6 @@ pub struct LatexLintResolveParams {
     pub workspace_path: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LatexRuntimeSourceResolveParams {
-    #[serde(default)]
-    pub source_path: String,
-    #[serde(default)]
-    pub workspace_path: String,
-    #[serde(default = "default_include_hidden")]
-    pub include_hidden: bool,
-    #[serde(default)]
-    pub content_overrides: HashMap<String, String>,
-    #[serde(default)]
-    pub source_content: Option<String>,
-    #[serde(default)]
-    pub custom_system_tex_path: Option<String>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LatexRuntimeChangeResolveParams {
-    #[serde(default)]
-    pub changed_path: String,
-    #[serde(default)]
-    pub workspace_path: String,
-    #[serde(default = "default_include_hidden")]
-    pub include_hidden: bool,
-    #[serde(default)]
-    pub content_overrides: HashMap<String, String>,
-    #[serde(default)]
-    pub source_content: Option<String>,
-    #[serde(default)]
-    pub custom_system_tex_path: Option<String>,
-}
-
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct LatexCompileStartResult {
@@ -233,10 +194,6 @@ struct LatexLintStateResult {
     diagnostics: Vec<LatexError>,
     error: Option<String>,
     updated_at: u64,
-}
-
-fn default_include_hidden() -> bool {
-    true
 }
 
 fn runtime_key(target_path: &str, tex_path: &str) -> String {
@@ -347,91 +304,7 @@ fn build_compiling_state(
     value
 }
 
-fn basename_path(path: &str) -> String {
-    Path::new(path)
-        .file_name()
-        .and_then(|value| value.to_str())
-        .unwrap_or(path)
-        .to_string()
-}
-
-fn format_terminal_issue(issue: &LatexError) -> String {
-    let prefix = issue
-        .line
-        .map(|line| format!("L{line}: "))
-        .unwrap_or_default();
-    format!("{prefix}{}", issue.message.trim()).trim().to_string()
-}
-
-fn build_terminal_text(display_path: &str, result: &CompileResult, include_raw_log: bool) -> String {
-    let mut lines = vec![format!("[LaTeX] {}", basename_path(display_path))];
-
-    if let Some(compiler_backend) = result.compiler_backend.as_ref() {
-        if !compiler_backend.trim().is_empty() {
-            lines.push(format!("Compiler: {compiler_backend}"));
-        }
-    }
-    if let Some(command_preview) = result.command_preview.as_ref() {
-        if !command_preview.trim().is_empty() {
-            lines.push(format!("Command: {command_preview}"));
-        }
-    }
-    if let Some(requested_program) = result.requested_program.as_ref() {
-        if !requested_program.trim().is_empty() {
-            lines.push(format!(
-                "Magic comment: % !TEX program = {} ({})",
-                requested_program,
-                if result.requested_program_applied {
-                    "applied"
-                } else {
-                    "detected but not applied"
-                }
-            ));
-        }
-    }
-
-    lines.push(if result.success {
-        format!("Compilation succeeded in {}ms", result.duration_ms)
-    } else {
-        "Compilation failed".to_string()
-    });
-    lines.push(format!("Errors: {}", result.errors.len()));
-    lines.push(format!("Warnings: {}", result.warnings.len()));
-
-    if !result.errors.is_empty() {
-        lines.push(String::new());
-        lines.push("Errors".to_string());
-        lines.extend(
-            result
-                .errors
-                .iter()
-                .map(|issue| format!("- {}", format_terminal_issue(issue))),
-        );
-    }
-
-    if !result.warnings.is_empty() {
-        lines.push(String::new());
-        lines.push("Warnings".to_string());
-        lines.extend(
-            result
-                .warnings
-                .iter()
-                .map(|issue| format!("- {}", format_terminal_issue(issue))),
-        );
-    }
-
-    let raw_log = result.log.trim();
-    if include_raw_log && !raw_log.is_empty() {
-        lines.push(String::new());
-        lines.push("----- Full log -----".to_string());
-        lines.push(raw_log.to_string());
-    }
-
-    format!("{}\n", lines.join("\n"))
-}
-
 fn build_finished_state(
-    display_path: &str,
     target_path: &str,
     project_root_path: &str,
     project_preview_path: &str,
@@ -453,8 +326,6 @@ fn build_finished_state(
         "projectRootPath": project_root_path,
         "previewPath": if project_preview_path.is_empty() { result.pdf_path.clone() } else { Some(project_preview_path.to_string()) },
         "buildExtraArgs": build_extra_args,
-        "terminalText": build_terminal_text(display_path, result, false),
-        "terminalTextFull": build_terminal_text(display_path, result, true),
     });
 
     if let Some(linked_source_path) = linked_source_path {
@@ -499,106 +370,6 @@ fn build_lint_state_result(
         updated_at: current_time_ms(),
     })
     .unwrap_or(Value::Null)
-}
-
-fn normalize_runtime_path(path: &str) -> String {
-    path.trim().replace('\\', "/")
-}
-
-fn is_latex_source_path(path: &str) -> bool {
-    let normalized = normalize_runtime_path(path).to_ascii_lowercase();
-    normalized.ends_with(".tex") || normalized.ends_with(".latex")
-}
-
-fn is_bibliography_path(path: &str) -> bool {
-    normalize_runtime_path(path)
-        .to_ascii_lowercase()
-        .ends_with(".bib")
-}
-
-fn build_preview_path(path: &str) -> String {
-    let normalized = normalize_runtime_path(path);
-    if let Some(stripped) = normalized
-        .strip_suffix(".tex")
-        .or_else(|| normalized.strip_suffix(".latex"))
-    {
-        return format!("{stripped}.pdf");
-    }
-    normalized
-}
-
-fn merge_content_overrides(
-    path: &str,
-    source_content: Option<&String>,
-    content_overrides: &HashMap<String, String>,
-) -> HashMap<String, String> {
-    let mut merged = content_overrides.clone();
-    let normalized_path = normalize_runtime_path(path);
-    if !normalized_path.is_empty() {
-        if let Some(source_content) = source_content {
-            merged.insert(normalized_path, source_content.clone());
-        }
-    }
-    merged
-}
-
-fn build_compile_request_value(source_path: &str, graph: Option<&Value>) -> Value {
-    if let Some(graph) = graph {
-        return json!({
-            "sourcePath": graph.get("sourcePath").cloned().unwrap_or(Value::String(normalize_runtime_path(source_path))),
-            "rootPath": graph.get("rootPath").cloned().unwrap_or(Value::String(normalize_runtime_path(source_path))),
-            "previewPath": graph.get("previewPath").cloned().unwrap_or(Value::String(build_preview_path(source_path))),
-        });
-    }
-
-    let normalized = normalize_runtime_path(source_path);
-    json!({
-        "sourcePath": normalized,
-        "rootPath": normalize_runtime_path(source_path),
-        "previewPath": build_preview_path(source_path),
-    })
-}
-
-fn build_project_graph_params(
-    source_path: &str,
-    workspace_path: &str,
-    include_hidden: bool,
-    content_overrides: HashMap<String, String>,
-) -> LatexProjectGraphParams {
-    LatexProjectGraphParams {
-        source_path: normalize_runtime_path(source_path),
-        workspace_path: normalize_runtime_path(workspace_path),
-        flat_files: Vec::new(),
-        include_hidden,
-        content_overrides,
-    }
-}
-
-async fn resolve_lint_state_internal(
-    tex_path: &str,
-    content: Option<String>,
-    custom_system_tex_path: Option<String>,
-    workspace_path: Option<String>,
-) -> Value {
-    if tex_path.trim().is_empty() {
-        return build_lint_state_result("unavailable", Vec::new(), None);
-    }
-
-    if find_chktex(custom_system_tex_path.as_deref()).is_none() {
-        return build_lint_state_result("unavailable", Vec::new(), None);
-    }
-
-    match crate::latex::run_chktex(
-        tex_path.to_string(),
-        content,
-        custom_system_tex_path,
-        workspace_path,
-    )
-    .await
-    {
-        Ok(diagnostics) => build_lint_state_result("ready", diagnostics, None),
-        Err(error) => build_lint_state_result("error", Vec::new(), Some(error)),
-    }
 }
 
 fn schedule_compile_request(
@@ -735,114 +506,25 @@ pub async fn latex_runtime_cancel(
 
 #[tauri::command]
 pub async fn latex_runtime_lint_resolve(params: LatexLintResolveParams) -> Result<Value, String> {
-    Ok(
-        resolve_lint_state_internal(
-            &params.tex_path,
-            params.content,
-            params.custom_system_tex_path,
-            params.workspace_path,
-        )
-        .await,
+    if params.tex_path.trim().is_empty() {
+        return Ok(build_lint_state_result("unavailable", Vec::new(), None));
+    }
+
+    if find_chktex(params.custom_system_tex_path.as_deref()).is_none() {
+        return Ok(build_lint_state_result("unavailable", Vec::new(), None));
+    }
+
+    match crate::latex::run_chktex(
+        params.tex_path,
+        params.content,
+        params.custom_system_tex_path,
+        params.workspace_path,
     )
-}
-
-#[tauri::command]
-pub async fn latex_runtime_source_resolve(
-    params: LatexRuntimeSourceResolveParams,
-) -> Result<Value, String> {
-    let normalized_source = normalize_runtime_path(&params.source_path);
-    if normalized_source.is_empty() {
-        return Ok(Value::Null);
+    .await
+    {
+        Ok(diagnostics) => Ok(build_lint_state_result("ready", diagnostics, None)),
+        Err(error) => Ok(build_lint_state_result("error", Vec::new(), Some(error))),
     }
-
-    let content_overrides = merge_content_overrides(
-        &normalized_source,
-        params.source_content.as_ref(),
-        &params.content_overrides,
-    );
-    let graph = if is_latex_source_path(&normalized_source) {
-        resolve_graph_value(&build_project_graph_params(
-            &normalized_source,
-            &params.workspace_path,
-            params.include_hidden,
-            content_overrides.clone(),
-        ))
-    } else {
-        None
-    };
-    let compile_request = build_compile_request_value(&normalized_source, graph.as_ref());
-    let lint_state = if is_latex_source_path(&normalized_source) {
-        resolve_lint_state_internal(
-            &normalized_source,
-            params.source_content,
-            params.custom_system_tex_path,
-            Some(normalize_runtime_path(&params.workspace_path)),
-        )
-        .await
-    } else {
-        build_lint_state_result("unavailable", Vec::new(), None)
-    };
-
-    Ok(json!({
-        "compileRequest": compile_request,
-        "lintState": lint_state,
-    }))
-}
-
-#[tauri::command]
-pub async fn latex_runtime_change_resolve(
-    params: LatexRuntimeChangeResolveParams,
-) -> Result<Value, String> {
-    let normalized_changed = normalize_runtime_path(&params.changed_path);
-    if normalized_changed.is_empty() {
-        return Ok(json!({
-            "targets": [],
-            "lintState": build_lint_state_result("unavailable", Vec::new(), None),
-        }));
-    }
-
-    let content_overrides = merge_content_overrides(
-        &normalized_changed,
-        params.source_content.as_ref(),
-        &params.content_overrides,
-    );
-
-    let targets = if is_latex_source_path(&normalized_changed) {
-        let graph = resolve_graph_value(&build_project_graph_params(
-            &normalized_changed,
-            &params.workspace_path,
-            params.include_hidden,
-            content_overrides.clone(),
-        ));
-        vec![build_compile_request_value(&normalized_changed, graph.as_ref())]
-    } else if is_bibliography_path(&normalized_changed) {
-        resolve_affected_root_targets_internal(&LatexAffectedRootsParams {
-            changed_path: normalized_changed.clone(),
-            workspace_path: normalize_runtime_path(&params.workspace_path),
-            flat_files: Vec::new(),
-            include_hidden: params.include_hidden,
-            content_overrides: content_overrides.clone(),
-        })
-    } else {
-        Vec::new()
-    };
-
-    let lint_state = if is_latex_source_path(&normalized_changed) {
-        resolve_lint_state_internal(
-            &normalized_changed,
-            params.source_content,
-            params.custom_system_tex_path,
-            Some(normalize_runtime_path(&params.workspace_path)),
-        )
-        .await
-    } else {
-        build_lint_state_result("unavailable", Vec::new(), None)
-    };
-
-    Ok(json!({
-        "targets": targets,
-        "lintState": lint_state,
-    }))
 }
 
 #[tauri::command]
@@ -982,7 +664,6 @@ pub async fn latex_runtime_compile_finish(
 
     Ok(serde_json::to_value(LatexCompileFinishResult {
         source_state: build_finished_state(
-            &params.tex_path,
             &params.target_path,
             &params.project_root_path,
             &params.project_preview_path,
@@ -992,7 +673,6 @@ pub async fn latex_runtime_compile_finish(
             None,
         ),
         target_state: build_finished_state(
-            &params.target_path,
             &params.target_path,
             &params.project_root_path,
             &params.project_preview_path,
@@ -1139,13 +819,7 @@ pub async fn latex_runtime_compile_execute(
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        latex_runtime_change_resolve, latex_runtime_source_resolve, normalize_queue_state,
-        runtime_key, LatexQueueStateInput, LatexRuntimeChangeResolveParams,
-        LatexRuntimeSourceResolveParams,
-    };
-    use serde_json::Value;
-    use std::collections::HashMap;
+    use super::{normalize_queue_state, runtime_key, LatexQueueStateInput};
 
     #[test]
     fn runtime_key_prefers_target_path() {
@@ -1191,78 +865,5 @@ mod tests {
         assert_eq!(next.phase, "queued");
         assert_eq!(next.pending_count, 0);
         assert_eq!(next.updated_at, 99);
-    }
-
-    #[tokio::test]
-    async fn source_resolve_returns_compile_request_and_project_graph() {
-        let source_path = "/tmp/chapter.tex".to_string();
-        let root_path = "/tmp/main.tex".to_string();
-        let value = latex_runtime_source_resolve(LatexRuntimeSourceResolveParams {
-            source_path: source_path.clone(),
-            workspace_path: String::new(),
-            include_hidden: true,
-            content_overrides: HashMap::from([
-                (
-                    source_path.clone(),
-                    "% !TEX root = main.tex\n\\section{Chapter}\n".to_string(),
-                ),
-                (
-                    root_path.clone(),
-                    "\\documentclass{article}\n\\begin{document}\n\\input{chapter}\n\\end{document}\n"
-                        .to_string(),
-                ),
-            ]),
-            source_content: None,
-            custom_system_tex_path: None,
-        })
-        .await
-        .expect("source resolve");
-
-        assert_eq!(
-            value.get("compileRequest")
-                .and_then(|compile_request| compile_request.get("rootPath"))
-                .and_then(Value::as_str),
-            Some("/tmp/main.tex")
-        );
-        assert!(
-            value.get("lintState")
-                .and_then(|lint_state| lint_state.get("status"))
-                .and_then(Value::as_str)
-                .is_some()
-        );
-    }
-
-    #[tokio::test]
-    async fn change_resolve_returns_single_target_for_latex_source() {
-        let source_path = "/tmp/main.tex".to_string();
-        let value = latex_runtime_change_resolve(LatexRuntimeChangeResolveParams {
-            changed_path: source_path.clone(),
-            workspace_path: String::new(),
-            include_hidden: true,
-            content_overrides: HashMap::from([(
-                source_path.clone(),
-                "\\documentclass{article}\n\\begin{document}\nHello\n\\end{document}\n"
-                    .to_string(),
-            )]),
-            source_content: None,
-            custom_system_tex_path: None,
-        })
-        .await
-        .expect("change resolve");
-
-        assert_eq!(
-            value.get("targets")
-                .and_then(Value::as_array)
-                .map(|targets| targets.len()),
-            Some(1)
-        );
-        assert_eq!(
-            value.get("targets")
-                .and_then(Value::as_array)
-                .and_then(|targets| targets.first())
-                .and_then(|target| target.get("rootPath"))
-                .and_then(Value::as_str),
-            Some("/tmp/main.tex")
-        );
     }
 }

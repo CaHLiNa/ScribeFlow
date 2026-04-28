@@ -1,4 +1,5 @@
 import { onMounted, onUnmounted, ref } from 'vue'
+import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useWorkspaceStore } from '../../stores/workspace'
@@ -18,7 +19,6 @@ import {
 } from '../../services/workspacePermissions'
 import { confirmUnsavedChanges } from '../../services/unsavedChanges'
 import { syncNow } from '../../services/references/zoteroSync.js'
-import { pathExists } from '../../services/pathExists.js'
 import { basenamePath } from '../../utils/path'
 import { isTauriDesktopRuntime } from '../../platform'
 
@@ -299,7 +299,7 @@ export function useWorkspaceLifecycle() {
 
     try {
       const restoredWorkspace = await activateWorkspaceBookmark(lastWorkspace)
-      const exists = await pathExists(restoredWorkspace)
+      const exists = await invoke('path_exists', { path: restoredWorkspace })
       if (exists) {
         await openWorkspace(restoredWorkspace, {
           skipBookmarkActivation: true,

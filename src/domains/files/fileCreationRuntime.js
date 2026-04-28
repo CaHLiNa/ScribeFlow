@@ -2,7 +2,6 @@ import { dirnamePath } from '../../utils/path'
 
 export function createFileCreationRuntime({
   createWorkspaceFile,
-  createWorkspaceDocumentFile,
   duplicateWorkspacePath,
   createWorkspaceFolder,
   copyExternalWorkspaceFile,
@@ -27,21 +26,6 @@ export function createFileCreationRuntime({
       return result.path
     } catch (error) {
       onCreateFileError?.(dirPath, name, error)
-      return null
-    }
-  }
-
-  async function createDocumentFile(dirPath, options = {}) {
-    try {
-      const result = await createWorkspaceDocumentFile?.(dirPath, options)
-      if (!result?.ok) {
-        showCreateExistsError?.(result?.path, options.suggestedName)
-        return null
-      }
-      await syncTreeAfterMutation?.({ expandPath: dirPath })
-      return result.path
-    } catch (error) {
-      onCreateFileError?.(dirPath, options.suggestedName || options.ext || 'document', error)
       return null
     }
   }
@@ -85,7 +69,6 @@ export function createFileCreationRuntime({
 
   return {
     createFile,
-    createDocumentFile,
     duplicatePath,
     createFolder,
     copyExternalFile,

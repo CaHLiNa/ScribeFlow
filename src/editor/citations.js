@@ -1,5 +1,5 @@
 import { syntaxTree } from '@codemirror/language'
-import { Decoration, ViewPlugin } from '@codemirror/view'
+import { Decoration, EditorView, ViewPlugin } from '@codemirror/view'
 
 function isInCodeContext(state, from, to) {
   let inCode = false
@@ -25,7 +25,7 @@ function isInCodeContext(state, from, to) {
   return inCode
 }
 
-const CITATION_GROUP_RE = /\[([^\]]*@[a-zA-Z][\w.-]*[^\]]*)\]/g
+const CITATION_GROUP_RE = /\[([^\[\]]*@[a-zA-Z][\w.-]*[^\[\]]*)\]/g
 const CITE_KEY_RE = /@([a-zA-Z][\w.-]*)/g
 
 function citationDecorations(getByKey) {
@@ -168,3 +168,4 @@ export function citationsExtension(referencesStore, callbacks) {
 }
 
 export { CITE_KEY_RE, CITATION_GROUP_RE }
+
