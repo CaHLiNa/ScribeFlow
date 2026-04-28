@@ -7,9 +7,6 @@ export {
 
 export {
   resolveLatexProjectGraph,
-  resolveLatexProjectContext,
-  resolveLatexOutlineItems,
   buildRelativeLatexInputPath,
-  resolveLatexAffectedRootTargets,
   resolveLatexCompileTargetsForChange,
 } from './projectGraphRuntime.js'

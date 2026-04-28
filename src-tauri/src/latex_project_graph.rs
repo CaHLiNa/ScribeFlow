@@ -1164,15 +1164,6 @@ pub async fn latex_compile_request_resolve(
 }
 
 #[tauri::command]
-pub async fn latex_affected_root_targets_resolve(
-    params: LatexAffectedRootsParams,
-) -> Result<Value, String> {
-    Ok(Value::Array(resolve_affected_root_targets_internal(
-        &params,
-    )))
-}
-
-#[tauri::command]
 pub async fn latex_compile_targets_resolve(
     params: LatexAffectedRootsParams,
 ) -> Result<Value, String> {

@@ -1,5 +1,5 @@
 import { normalizeProblems } from '../documentIntelligence/diagnostics.js'
-import { getCachedLatexProjectGraph, resolveLatexProjectContext } from './projectGraph.js'
+import { getCachedLatexProjectGraph, resolveLatexProjectGraph } from './projectGraph.js'
 
 function deriveProjectWarnings(project = null) {
   if (!project) return { unresolvedRefs: [], unresolvedCitations: [] }
@@ -50,7 +50,7 @@ export function buildLatexProjectProblemsSync(sourcePath) {
 }
 
 export async function buildLatexProjectProblems(sourcePath, options = {}) {
-  const project = await resolveLatexProjectContext(sourcePath, options)
+  const project = await resolveLatexProjectGraph(sourcePath, options)
   return normalizeProblems(buildProjectWarnings(sourcePath, project))
 }
 

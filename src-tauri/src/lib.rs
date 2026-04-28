@@ -527,7 +527,6 @@ pub fn run() {
             latex_project_graph::latex_project_graph_resolve,
             latex_project_graph::latex_compile_request_resolve,
             latex_project_graph::latex_compile_targets_resolve,
-            latex_project_graph::latex_affected_root_targets_resolve,
             latex_runtime::latex_runtime_compile_start,
             latex_runtime::latex_runtime_cancel,
             latex_runtime::latex_runtime_compile_execute,
