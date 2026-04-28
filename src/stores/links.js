@@ -183,7 +183,7 @@ export const useLinksStore = defineStore('links', {
           let content = filesStore.fileContents[file.path]
           if (content == null) {
             content = await readWorkspaceTextFileUnbounded(file.path)
-            filesStore._setCachedFileContent(file.path, content)
+            filesStore.fileContents[file.path] = content
           }
           await this._indexFile(file.path, content)
         } catch (e) {

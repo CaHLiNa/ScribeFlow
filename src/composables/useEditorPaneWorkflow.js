@@ -27,59 +27,6 @@ export function useEditorPaneWorkflow(options) {
     }
   }
 
-  function buildFallbackWorkflowUiState(adapter) {
-    const kind = adapter?.kind || ''
-    if (kind === 'markdown') {
-      return {
-        kind: 'markdown',
-        previewKind: 'html',
-        phase: 'idle',
-        errorCount: 0,
-        warningCount: 0,
-        canShowProblems: false,
-        canRevealPreview: true,
-        canOpenPdf: false,
-        forwardSync: 'precise',
-        backwardSync: true,
-        primaryAction: 'refresh',
-      }
-    }
-    if (kind === 'latex') {
-      return {
-        kind: 'latex',
-        previewKind: 'pdf',
-        phase: 'idle',
-        errorCount: 0,
-        warningCount: 0,
-        canShowProblems: false,
-        canRevealPreview: false,
-        canOpenPdf: false,
-        backwardSync: true,
-        primaryAction: 'compile',
-      }
-    }
-    if (kind === 'python') {
-      return {
-        kind: 'python',
-        previewKind: 'terminal',
-        phase: 'idle',
-        errorCount: 0,
-        warningCount: 0,
-        canShowProblems: false,
-        canRevealPreview: true,
-        canOpenPdf: false,
-        backwardSync: false,
-        primaryAction: 'run',
-      }
-    }
-    return null
-  }
-
-  const activeDocumentAdapter = computed(() => (
-    activeTabRef.value && !isDraftPath(activeTabRef.value) ? getDocumentAdapterForFile(activeTabRef.value) : null
-  ))
-  const fallbackWorkflowUiState = computed(() => buildFallbackWorkflowUiState(activeDocumentAdapter.value))
-
   const documentBuildContext = computed(() => (
     activeTabRef.value && !isDraftPath(activeTabRef.value)
       ? workflowStore.buildAdapterContext(activeTabRef.value, buildWorkflowOptions({
@@ -88,7 +35,10 @@ export function useEditorPaneWorkflow(options) {
       }))
       : null
   ))
-  const workflowUiState = computed(() => documentBuildContext.value?.workflowUiState || fallbackWorkflowUiState.value)
+  const activeDocumentAdapter = computed(() => (
+    activeTabRef.value && !isDraftPath(activeTabRef.value) ? getDocumentAdapterForFile(activeTabRef.value) : null
+  ))
+  const workflowUiState = computed(() => documentBuildContext.value?.workflowUiState || null)
   const documentPreviewState = computed(() => documentBuildContext.value?.previewState || null)
   const workspacePreviewState = computed(() => (
     documentBuildContext.value?.workspacePreviewState || documentPreviewState.value || null
