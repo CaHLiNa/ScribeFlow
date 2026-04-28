@@ -176,7 +176,9 @@
   width: 0;
   overflow: visible;
   opacity: 0;
-  transition: opacity 140ms ease;
+  transition:
+    width 260ms cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 140ms ease;
 }
 
 .workbench-inline-dock-resize-slot.is-visible {
@@ -207,18 +209,63 @@
   border-left: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
   background: color-mix(in srgb, var(--shell-editor-surface) 86%, var(--surface-base) 14%);
   opacity: 1;
-  transition: opacity 120ms ease;
+  transform: translateX(0);
+  will-change: width, opacity, transform;
+  transition:
+    width 260ms cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 200ms ease,
+    transform 260ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-left-color 160ms ease,
+    background-color 160ms ease;
+}
+
+.workbench-inline-dock-region > .inline-dock {
+  opacity: 1;
+  transform: translateX(0);
+  transition:
+    opacity 200ms ease,
+    transform 260ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.workbench-inline-dock-region.is-open > .inline-dock {
+  transition-delay: 24ms;
 }
 
 .workbench-inline-dock-region.is-collapsed {
   opacity: 0;
+  transform: translateX(10px);
   pointer-events: none;
   border-left-color: transparent;
+}
+
+.workbench-inline-dock-region.is-collapsed > .inline-dock {
+  opacity: 0;
+  transform: translateX(10px);
+  transition-delay: 0ms;
 }
 
 .workbench-inline-dock-region.is-resizing {
   transition: none;
   user-select: none;
+}
+
+.workbench-inline-dock-region.is-resizing > .inline-dock,
+.workbench-inline-dock-region.is-resizing .inline-dock * {
+  transition: none !important;
+}
+
+body.scribeflow-shell-resizing .workbench-inline-dock-resize-slot,
+body.scribeflow-shell-resizing .workbench-inline-dock-region,
+body.scribeflow-shell-resizing .workbench-inline-dock-region > .inline-dock {
+  transition: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workbench-inline-dock-resize-slot,
+  .workbench-inline-dock-region,
+  .workbench-inline-dock-region > .inline-dock {
+    transition: none !important;
+  }
 }
 
 .cm-editor.cm-focused {
@@ -254,6 +301,8 @@
   background: transparent !important;
   border-right: none !important; 
   color: var(--text-muted) !important;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .cm-lineNumbers .cm-gutterElement {
@@ -264,6 +313,8 @@
   text-align: right;
   font-family: var(--font-mono);
   font-size: 0.85em;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .cm-activeLineGutter {

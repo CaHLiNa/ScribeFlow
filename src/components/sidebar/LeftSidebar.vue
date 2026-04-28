@@ -141,7 +141,7 @@ defineExpose({
 
 <style scoped>
 .left-shell-sidebar {
-  --sidebar-shell-top: 34px;
+  --sidebar-shell-top: 44px;
   --sidebar-shell-inline: 12px;
   --sidebar-shell-bottom: 2px;
   display: flex;

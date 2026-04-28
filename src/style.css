@@ -52,8 +52,6 @@ select,
   -webkit-user-select: text;
 }
 
-.cm-editor,
-.cm-editor *,
 .cm-content,
 .cm-line,
 .text-editor-host,

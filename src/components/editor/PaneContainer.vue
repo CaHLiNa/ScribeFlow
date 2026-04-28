@@ -46,7 +46,7 @@
       :style="{ width: isDocumentDockOpen ? `${documentDockWidth}px` : '0px' }"
     >
       <DocumentDock
-        v-if="isDocumentDockOpen && dockContextPath"
+        v-if="shouldRenderDocumentDock && dockContextPath"
         :file-path="dockContextPath"
         :pane-id="renderNode.id"
         :preview-state="documentPreviewState"
@@ -60,6 +60,7 @@
 <script setup>
 import { computed, defineAsyncComponent, ref, watch } from 'vue'
 import { ROOT_PANE_ID } from '../../domains/editor/paneTreeLayout.js'
+import { useDelayedRender } from '../../composables/useDelayedRender.js'
 import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { useEditorStore } from '../../stores/editor'
 import { isNewTab, isPreviewPath } from '../../utils/fileTypes'
@@ -121,6 +122,10 @@ const dockContextPath = computed(
     editorStore.activeDocumentDockTab ||
     editorStore.documentDockTabs?.[0] ||
     ''
+)
+const shouldRenderDocumentDock = useDelayedRender(
+  () => isDocumentDockOpen.value && !!dockContextPath.value,
+  { delayMs: 280 }
 )
 
 watch(

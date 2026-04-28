@@ -4,10 +4,11 @@
       <div class="document-dock__tabs inline-dock__tabs" role="tablist" :aria-label="t('Document sidebar')">
         <div
           v-if="hasPreview"
-          class="document-dock__preview-tab inline-dock__tab"
+          class="document-dock__preview-tab document-dock__preview-tab--icon inline-dock__tab"
           :class="{ 'is-active': activeDockKey === PREVIEW_DOCK_KEY }"
           role="tab"
           :aria-selected="activeDockKey === PREVIEW_DOCK_KEY"
+          :aria-label="documentLabel"
           tabindex="0"
           :title="documentLabel"
           @click="activatePreviewTab"
@@ -21,9 +22,9 @@
               :size="15"
               :stroke-width="1.8"
             />
-            <span>{{ documentLabel }}</span>
           </div>
           <button
+            v-if="activeDockKey === PREVIEW_DOCK_KEY"
             type="button"
             class="document-dock__tab-close inline-dock__tab-close"
             :title="t('Hide preview')"
@@ -257,5 +258,45 @@ watch(
 .document-dock {
   flex: 0 0 auto;
   width: 100%;
+}
+
+.document-dock__preview-tab--icon {
+  flex: 0 0 30px;
+  justify-content: center;
+  width: 30px;
+  min-width: 30px;
+  max-width: 30px;
+  height: 28px;
+  padding: 0;
+  border-radius: 6px;
+}
+
+.document-dock__preview-tab--icon .document-dock__preview-label {
+  flex: 0 0 auto;
+  justify-content: center;
+  gap: 0;
+}
+
+.document-dock__preview-tab--icon .document-dock__preview-icon {
+  opacity: 1;
+  transform: none;
+}
+
+.document-dock__preview-tab--icon:hover .document-dock__preview-icon,
+.document-dock__preview-tab--icon:focus-within .document-dock__preview-icon {
+  opacity: 1;
+  transform: none;
+}
+
+.document-dock__preview-tab--icon .document-dock__tab-close {
+  left: 50%;
+  width: 22px;
+  height: 22px;
+  transform: translate(-50%, -50%) scale(0.94);
+}
+
+.document-dock__preview-tab--icon:hover .document-dock__tab-close,
+.document-dock__preview-tab--icon:focus-within .document-dock__tab-close {
+  transform: translate(-50%, -50%) scale(1);
 }
 </style>

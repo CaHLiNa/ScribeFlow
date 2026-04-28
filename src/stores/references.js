@@ -566,7 +566,7 @@ export const useReferencesStore = defineStore('references', {
     },
 
     async updateReference(projectRoot = '', referenceId = '', updates = {}, options = {}) {
-      const { persist = true } = options
+      const { persist = true, preferredSelectedReferenceId = undefined } = options
       const mutation = await applyReferenceMutation({
         snapshot: this.buildLibrarySnapshotPayload(),
         action: {
@@ -576,7 +576,10 @@ export const useReferencesStore = defineStore('references', {
         },
       })
       if (mutation?.result?.changed !== true) return false
-      const selectedReferenceId = String(mutation?.result?.selectedReferenceId || this.selectedReferenceId || '')
+      const selectedReferenceId =
+        preferredSelectedReferenceId !== undefined
+          ? String(preferredSelectedReferenceId || '')
+          : String(this.selectedReferenceId || mutation?.result?.selectedReferenceId || '')
 
       await this.commitLibrarySnapshot(
         projectRoot,

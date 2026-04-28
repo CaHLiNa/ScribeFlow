@@ -91,6 +91,7 @@
             :class="{
               'has-left-sidebar': leftSidebarVisible,
               'has-right-sidebar': rightRailOpen,
+              'is-workspace-surface-shell': workspace.isWorkspaceSurface,
               'is-empty-workspace-shell': !workspace.isOpen,
             }"
           >
@@ -481,7 +482,12 @@ useAppTeardown({
 :global(body.altals-shell-resizing) .app-shell-region-right,
 :global(body.altals-shell-resizing) .app-shell-sidebar,
 :global(body.altals-shell-resizing) .app-shell-sidebar-left,
-:global(body.altals-shell-resizing) .app-shell-sidebar-right {
+:global(body.altals-shell-resizing) .app-shell-sidebar-right,
+:global(body.scribeflow-shell-resizing) .app-shell-region-left,
+:global(body.scribeflow-shell-resizing) .app-shell-region-right,
+:global(body.scribeflow-shell-resizing) .app-shell-sidebar,
+:global(body.scribeflow-shell-resizing) .app-shell-sidebar-left,
+:global(body.scribeflow-shell-resizing) .app-shell-sidebar-right {
   transition: none !important;
 }
 
@@ -565,6 +571,10 @@ useAppTeardown({
 
 .app-shell-main-card.is-empty-workspace-shell {
   padding-top: 0;
+}
+
+.app-shell-main-card.is-workspace-surface-shell {
+  padding-top: 44px;
 }
 
 .app-shell-main-card.has-left-sidebar {

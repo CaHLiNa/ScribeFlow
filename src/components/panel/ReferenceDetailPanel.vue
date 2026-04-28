@@ -31,20 +31,22 @@
             :rows="2"
             shell-class="inspector-input-title"
             :placeholder="t('Title')"
+            @update:model-value="markDraftDirty('title')"
             @focus="setActiveDraftField('title')"
             @blur="handleFieldBlur('title', commitTitle)"
           />
+          <div v-if="heroMetaItems.length > 0" class="inspector-hero-meta">
+            <span v-for="item in heroMetaItems" :key="item" class="inspector-hero-meta-item">
+              {{ item }}
+            </span>
+          </div>
         </div>
       </div>
 
       <!-- ==========================================
-           Level 2: 引用 (Citation)
+           Level 2: Metadata & Files
       =========================================== -->
-      <div class="inspector-section">
-        <div class="inspector-section-header">
-          <span>{{ t('Citation') }}</span>
-        </div>
-        
+      <div class="inspector-section inspector-section--metadata">
         <div class="inspector-kv-grid">
           <div class="kv-label">{{ t('Authors') }}</div>
           <div class="kv-value">
@@ -52,6 +54,7 @@
               v-model="draft.authorsText"
               variant="ghost"
               size="sm"
+              @update:model-value="markDraftDirty('authorsText')"
               @focus="setActiveDraftField('authorsText')"
               @blur="handleFieldBlur('authorsText', commitAuthors)"
               @keydown.enter.prevent="$event.target.blur()"
@@ -65,6 +68,7 @@
               variant="ghost"
               size="sm"
               monospace
+              @update:model-value="markDraftDirty('citationKey')"
               @focus="setActiveDraftField('citationKey')"
               @blur="handleFieldBlur('citationKey', commitCitationKey)"
               @keydown.enter.prevent="$event.target.blur()"
@@ -77,6 +81,7 @@
               v-model="draft.year"
               variant="ghost"
               size="sm"
+              @update:model-value="markDraftDirty('year')"
               @focus="setActiveDraftField('year')"
               @blur="handleFieldBlur('year', commitYear)"
               @keydown.enter.prevent="$event.target.blur()"
@@ -89,6 +94,7 @@
               v-model="draft.source"
               variant="ghost"
               size="sm"
+              @update:model-value="markDraftDirty('source')"
               @focus="setActiveDraftField('source')"
               @blur="handleFieldBlur('source', () => commitTextField('source'))"
               @keydown.enter.prevent="$event.target.blur()"
@@ -102,6 +108,7 @@
               variant="ghost"
               size="sm"
               monospace
+              @update:model-value="markDraftDirty('identifier')"
               @focus="setActiveDraftField('identifier')"
               @blur="handleFieldBlur('identifier', () => commitTextField('identifier'))"
               @keydown.enter.prevent="$event.target.blur()"
@@ -115,6 +122,7 @@
                 v-model="draft.volume"
                 variant="ghost"
                 size="sm"
+                @update:model-value="markDraftDirty('volume')"
                 @focus="setActiveDraftField('volume')"
                 @blur="handleFieldBlur('volume', () => commitTextField('volume'))"
                 @keydown.enter.prevent="$event.target.blur()"
@@ -126,6 +134,7 @@
                 v-model="draft.issue"
                 variant="ghost"
                 size="sm"
+                @update:model-value="markDraftDirty('issue')"
                 @focus="setActiveDraftField('issue')"
                 @blur="handleFieldBlur('issue', () => commitTextField('issue'))"
                 @keydown.enter.prevent="$event.target.blur()"
@@ -137,24 +146,14 @@
                 v-model="draft.pages"
                 variant="ghost"
                 size="sm"
+                @update:model-value="markDraftDirty('pages')"
                 @focus="setActiveDraftField('pages')"
                 @blur="handleFieldBlur('pages', () => commitTextField('pages'))"
                 @keydown.enter.prevent="$event.target.blur()"
               />
             </div>
           </div>
-        </div>
-      </div>
 
-      <!-- ==========================================
-           Level 3: 文库 (Library)
-      =========================================== -->
-      <div class="inspector-section">
-        <div class="inspector-section-header">
-          <span>{{ t('Library') }}</span>
-        </div>
-        
-        <div class="inspector-kv-grid">
           <div class="kv-label">{{ t('Rating') }}</div>
           <div class="kv-value inspector-rating">
             <button v-for="value in ratingOptions" :key="value" class="rating-star" :class="{ 'is-active': value <= draft.rating }" @click="setRating(value)">
@@ -187,24 +186,43 @@
               variant="ghost"
               size="sm"
               :placeholder="t('Add tag')"
+              @update:model-value="markDraftDirty('tagInput')"
               @focus="setActiveDraftField('tagInput')"
               @blur="handleTagInputBlur"
               @keydown.enter.prevent="addTag"
               @keydown="handleTagInputKeydown"
             />
           </div>
+
+          <div class="kv-label align-top">{{ t('Files') }}</div>
+          <div class="kv-value kv-value--file-actions">
+            <div class="inspector-file-actions">
+              <UiButton variant="secondary" size="sm" :disabled="!canOpenPdf" @click="handlePreviewPdf">
+                <template #leading><IconFileText :size="14"/></template> {{ t('Preview') }}
+              </UiButton>
+              <UiButton variant="secondary" size="sm" :disabled="!canOpenPdf" @click="handleOpenPdfInEditor">
+                <template #leading><IconExternalLink :size="14"/></template> {{ t('Open in Editor') }}
+              </UiButton>
+              <UiButton variant="secondary" size="sm" :disabled="!canOpenPdf" @click="handleRevealPdf">
+                <template #leading><IconFolder :size="14"/></template> Finder
+              </UiButton>
+              <UiButton variant="secondary" size="sm" @click="handleAttachPdf">
+                <template #leading><IconRefresh :size="14"/></template> {{ t('Replace') }}
+              </UiButton>
+            </div>
+          </div>
         </div>
       </div>
 
       <!-- ==========================================
-           Level 4: 内容 (Content)
+           Level 3: 内容 (Content)
       =========================================== -->
       <div class="inspector-section">
         <div class="inspector-section-header">
           <span>{{ t('Content') }}</span>
         </div>
 
-        <details class="inspector-details" open>
+        <details class="inspector-details">
           <summary class="inspector-details-summary">
             <IconChevronRight :size="14" class="disclosure-icon" /> {{ t('Abstract') }}
           </summary>
@@ -213,6 +231,7 @@
               v-model="draft.abstract"
               variant="ghost"
               :rows="5"
+              @update:model-value="markDraftDirty('abstract')"
               @focus="setActiveDraftField('abstract')"
               @blur="handleFieldBlur('abstract', () => commitTextField('abstract', { multiline: true }))"
             />
@@ -228,35 +247,12 @@
               v-model="draft.note"
               variant="ghost"
               :rows="4"
+              @update:model-value="markDraftDirty('note')"
               @focus="setActiveDraftField('note')"
               @blur="handleFieldBlur('note', commitNote)"
             />
           </div>
         </details>
-      </div>
-
-      <!-- ==========================================
-           Level 5: 文件 & 链接 (Files & Links)
-      =========================================== -->
-      <div class="inspector-section">
-        <div class="inspector-section-header">
-          <span>{{ t('Files') }}</span>
-        </div>
-        
-        <div class="inspector-file-actions">
-          <UiButton variant="secondary" size="sm" :disabled="!canOpenPdf" @click="handlePreviewPdf">
-            <template #leading><IconFileText :size="14"/></template> {{ t('Preview') }}
-          </UiButton>
-          <UiButton variant="secondary" size="sm" :disabled="!canOpenPdf" @click="handleOpenPdfInEditor">
-            <template #leading><IconExternalLink :size="14"/></template> {{ t('Open in Editor') }}
-          </UiButton>
-          <UiButton variant="secondary" size="sm" :disabled="!canOpenPdf" @click="handleRevealPdf">
-            <template #leading><IconFolder :size="14"/></template> Finder
-          </UiButton>
-          <UiButton variant="secondary" size="sm" @click="handleAttachPdf">
-            <template #leading><IconRefresh :size="14"/></template> {{ t('Replace') }}
-          </UiButton>
-        </div>
       </div>
 
       <div v-if="citedInFiles.length > 0" class="inspector-section">
@@ -275,7 +271,7 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import {
   IconChevronRight,
   IconExternalLink,
@@ -330,6 +326,9 @@ const draft = reactive({
 
 const tagInput = ref('')
 const activeDraftField = ref('')
+const draftReferenceId = ref('')
+const dirtyDraftFields = new Set()
+let referenceUpdateQueue = Promise.resolve()
 
 const selectedReference = computed(() => referencesStore.selectedReference)
 const availableCollections = computed(() => referencesStore.collections)
@@ -340,6 +339,13 @@ const selectedReferenceTypeLabel = computed(() =>
 )
 const selectedReferencePdfPath = computed(() => String(selectedReference.value?.pdfPath || '').trim())
 const canOpenPdf = computed(() => selectedReferencePdfPath.value.length > 0)
+const heroMetaItems = computed(() =>
+  [
+    draft.year ? String(draft.year) : '',
+    draft.source ? String(draft.source) : '',
+    draft.citationKey ? String(draft.citationKey) : '',
+  ].filter(Boolean)
+)
 const citedInFiles = computed(() => {
   const citationKey = String(selectedReference.value?.citationKey || '').trim()
   if (!citationKey) return []
@@ -349,6 +355,12 @@ const citedInFiles = computed(() => {
 watch(
   () => selectedReference.value,
   (reference, oldRef) => {
+    if (oldRef?.id && oldRef.id !== reference?.id) {
+      void flushDirtyDraftForReference(oldRef, {
+        preferredSelectedReferenceId: reference?.id || oldRef.id,
+      })
+    }
+
     if (!reference) {
       syncDraft(null)
       clearActiveDraftField()
@@ -363,6 +375,10 @@ watch(
   },
   { immediate: true }
 )
+
+onBeforeUnmount(() => {
+  void flushDirtyDraftForReference(selectedReference.value)
+})
 
 function buildDraftSnapshot(reference = null) {
   return {
@@ -386,6 +402,7 @@ function buildDraftSnapshot(reference = null) {
 function syncDraft(reference = null, options = {}) {
   const { preserveField = '' } = options
   const snapshot = buildDraftSnapshot(reference)
+  draftReferenceId.value = String(reference?.id || '')
 
   if (preserveField !== 'title') draft.title = snapshot.title
   if (preserveField !== 'authorsText') draft.authorsText = snapshot.authorsText
@@ -410,6 +427,12 @@ function setActiveDraftField(field = '') {
   activeDraftField.value = field
 }
 
+function markDraftDirty(field = '') {
+  if (field) {
+    dirtyDraftFields.add(field)
+  }
+}
+
 function clearActiveDraftField(field = '') {
   if (!field || activeDraftField.value === field) {
     activeDraftField.value = ''
@@ -418,6 +441,9 @@ function clearActiveDraftField(field = '') {
 
 async function handleFieldBlur(field = '', commit) {
   try {
+    if (field && !dirtyDraftFields.has(field)) {
+      return
+    }
     if (typeof commit === 'function') {
       await commit()
     }
@@ -470,19 +496,110 @@ function collectionLabel(value = '') {
   return resolveCollection(value)?.label || String(value || '').trim()
 }
 
-async function updateSelectedReference(updates = {}) {
-  if (!selectedReference.value?.id) return false
-  return referencesStore.updateReference(workspace.globalConfigDir, selectedReference.value.id, updates)
+function enqueueReferenceUpdate(referenceId = '', updates = {}, options = {}) {
+  const normalizedReferenceId = normalizeText(referenceId)
+  if (!normalizedReferenceId || !updates || Object.keys(updates).length === 0) {
+    return Promise.resolve(false)
+  }
+
+  const run = () =>
+    referencesStore.updateReference(
+      workspace.globalConfigDir,
+      normalizedReferenceId,
+      updates,
+      options
+    )
+
+  referenceUpdateQueue = referenceUpdateQueue.catch(() => false).then(run)
+  return referenceUpdateQueue
+}
+
+function buildDirtyDraftUpdates(fields = new Set()) {
+  const updates = {}
+
+  if (fields.has('title')) {
+    updates.title = String(draft.title || '').trim()
+    draft.title = updates.title
+  }
+  if (fields.has('authorsText')) {
+    const authors = normalizeAuthors(draft.authorsText)
+    draft.authorsText = authors.join('; ')
+    updates.authors = authors
+    updates.authorLine = authors.join('; ')
+  }
+  if (fields.has('citationKey')) {
+    updates.citationKey = normalizeText(draft.citationKey)
+    draft.citationKey = updates.citationKey
+  }
+  if (fields.has('year')) {
+    const trimmed = normalizeText(draft.year)
+    const year = trimmed ? Number.parseInt(trimmed, 10) : null
+    draft.year = Number.isFinite(year) ? String(year) : ''
+    updates.year = Number.isFinite(year) ? year : null
+  }
+
+  for (const field of ['source', 'identifier', 'volume', 'issue', 'pages']) {
+    if (fields.has(field)) {
+      updates[field] = normalizeText(draft[field])
+      draft[field] = updates[field]
+    }
+  }
+
+  if (fields.has('abstract')) {
+    updates.abstract = String(draft.abstract || '').trim()
+    draft.abstract = updates.abstract
+  }
+  if (fields.has('note')) {
+    draft.note = String(draft.note || '').trim()
+    updates.notes = draft.note ? [draft.note] : []
+  }
+  if (fields.has('tagInput') && normalizeTagValues(tagInput.value).length > 0) {
+    const existing = new Set(draft.tags.map((tag) => normalizeText(tag).toLowerCase()))
+    for (const tag of normalizeTagValues(tagInput.value)) {
+      const normalized = tag.toLowerCase()
+      if (!existing.has(normalized)) {
+        existing.add(normalized)
+        draft.tags.push(tag)
+      }
+    }
+    tagInput.value = ''
+    updates.tags = [...draft.tags]
+  }
+
+  return updates
+}
+
+async function flushDirtyDraftForReference(reference = null, options = {}) {
+  const referenceId = normalizeText(reference?.id || draftReferenceId.value)
+  if (!referenceId || dirtyDraftFields.size === 0) return false
+
+  const fields = new Set(dirtyDraftFields)
+  fields.forEach((field) => dirtyDraftFields.delete(field))
+  const updates = buildDirtyDraftUpdates(fields)
+  if (Object.keys(updates).length === 0) return false
+
+  return enqueueReferenceUpdate(referenceId, updates, {
+    preferredSelectedReferenceId:
+      options.preferredSelectedReferenceId ?? selectedReference.value?.id ?? referenceId,
+  })
+}
+
+async function updateSelectedReference(updates = {}, options = {}) {
+  const referenceId = normalizeText(options.referenceId || draftReferenceId.value || selectedReference.value?.id)
+  if (!referenceId) return false
+  return enqueueReferenceUpdate(referenceId, updates, options)
 }
 
 async function commitTitle() {
   draft.title = String(draft.title || '').trim()
+  dirtyDraftFields.delete('title')
   await updateSelectedReference({ title: draft.title })
 }
 
 async function commitAuthors() {
   const authors = normalizeAuthors(draft.authorsText)
   draft.authorsText = authors.join('; ')
+  dirtyDraftFields.delete('authorsText')
   await updateSelectedReference({
     authors,
     authorLine: authors.join('; '),
@@ -491,6 +608,7 @@ async function commitAuthors() {
 
 async function commitCitationKey() {
   draft.citationKey = normalizeText(draft.citationKey)
+  dirtyDraftFields.delete('citationKey')
   await updateSelectedReference({ citationKey: draft.citationKey })
 }
 
@@ -498,6 +616,7 @@ async function commitYear() {
   const trimmed = normalizeText(draft.year)
   const year = trimmed ? Number.parseInt(trimmed, 10) : null
   draft.year = Number.isFinite(year) ? String(year) : ''
+  dirtyDraftFields.delete('year')
   await updateSelectedReference({ year: Number.isFinite(year) ? year : null })
 }
 
@@ -505,11 +624,13 @@ async function commitTextField(field, options = {}) {
   const { multiline = false } = options
   const value = multiline ? String(draft[field] || '').trim() : normalizeText(draft[field])
   draft[field] = value
+  dirtyDraftFields.delete(field)
   await updateSelectedReference({ [field]: value })
 }
 
 async function commitNote() {
   draft.note = String(draft.note || '').trim()
+  dirtyDraftFields.delete('note')
   await updateSelectedReference({
     notes: draft.note ? [draft.note] : [],
   })
@@ -543,6 +664,7 @@ async function addTag(event) {
   }
 
   tagInput.value = ''
+  dirtyDraftFields.delete('tagInput')
   await updateSelectedReference({ tags: [...draft.tags] })
 }
 
@@ -558,6 +680,7 @@ async function handleTagInputBlur(event) {
       await addTag(event)
     }
   } finally {
+    dirtyDraftFields.delete('tagInput')
     clearActiveDraftField('tagInput')
   }
 }
@@ -674,6 +797,7 @@ async function handleAttachPdf() {
   background: transparent;
   color: var(--text-primary);
   font-size: 13px;
+  font-family: var(--font-ui);
 }
 
 .reference-inspector__empty {
@@ -687,28 +811,30 @@ async function handleAttachPdf() {
 .reference-inspector__scroll {
   flex: 1;
   overflow-y: auto;
-  padding: 12px 10px 32px; /* 减小左右 padding 释放更多空间给右侧值区域 */
+  padding: 10px 16px 28px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
 }
 
 /* ==========================================
    Level 1: Hero (类型, 标题)
 ========================================== */
 .inspector-section--hero {
-  gap: 8px !important;
+  gap: 7px !important;
+  padding: 2px 0 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 42%, transparent);
 }
 
 .inspector-section-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 11px;
+  font-size: 11.5px;
   font-weight: 600;
   color: var(--text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.02em;
   user-select: none;
 }
 
@@ -743,7 +869,7 @@ async function handleAttachPdf() {
 .inspector-hero-content {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 6px;
 }
 
 :deep(.ui-input-shell--ghost),
@@ -757,15 +883,44 @@ async function handleAttachPdf() {
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 68%, transparent);
 }
 
+:deep(.reference-inspector .ui-textarea-control),
+:deep(.ui-textarea-control) {
+  resize: none;
+}
+
 :deep(.inspector-input-title .ui-textarea-control) {
-  font-family: var(--font-display);
-  font-size: 19px;
-  font-weight: 700;
-  line-height: 1.35;
-  letter-spacing: -0.01em;
+  font-family: var(--font-ui);
+  font-size: 16px;
+  font-weight: 650;
+  line-height: 1.32;
+  letter-spacing: 0;
   color: var(--text-primary);
-  min-height: 0;
+  min-height: 42px;
   padding-block: 2px;
+}
+
+.inspector-hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  min-width: 0;
+}
+
+.inspector-hero-meta-item {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  min-width: 0;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--surface-hover) 36%, transparent);
+  color: var(--text-muted);
+  font-size: 11.5px;
+  line-height: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ==========================================
@@ -774,20 +929,23 @@ async function handleAttachPdf() {
 .inspector-section {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
-/* 极致压缩左侧列宽，给右侧留足展示区 */
+.inspector-section--metadata {
+  gap: 0;
+}
+
 .inspector-kv-grid {
   display: grid;
-  grid-template-columns: 56px minmax(0, 1fr);
-  row-gap: 4px;
-  column-gap: 10px;
+  grid-template-columns: 68px minmax(0, 1fr);
+  row-gap: 3px;
+  column-gap: 12px;
   align-items: center;
 }
 
 .kv-label {
-  text-align: right;
+  text-align: left;
   font-size: 12px;
   color: var(--text-muted);
   user-select: none;
@@ -801,7 +959,7 @@ async function handleAttachPdf() {
   min-height: 24px;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: flex-start;
 }
 
 /* 强行约束最大宽度，超长文本会被截断并隐入输入框滑动中 */
@@ -810,6 +968,11 @@ async function handleAttachPdf() {
   width: 100%;
   display: flex;
   align-items: center;
+  overflow: hidden;
+}
+
+.kv-value--file-actions {
+  align-items: flex-start;
   overflow: visible;
 }
 
@@ -819,11 +982,11 @@ async function handleAttachPdf() {
 .kv-value--inline-triple {
   display: flex;
   align-items: center;
-  gap: 6px; /* 极小间距 */
+  gap: 6px;
 }
 
 .triple-cell {
-  flex: 0 1 36px; /* 缩小框的最小宽度 */
+  flex: 0 1 42px;
   min-width: 0;
 }
 
@@ -842,6 +1005,7 @@ async function handleAttachPdf() {
 ========================================== */
 .inspector-rating {
   gap: 4px;
+  overflow: visible;
 }
 
 .rating-star {
@@ -866,9 +1030,10 @@ async function handleAttachPdf() {
 .token-area {
   flex-direction: column;
   align-items: flex-start;
-  align-self: flex-start; /* 锁定顶部基准线，确保和左侧 label 完美平齐 */
+  align-self: flex-start;
   gap: 4px;
   min-height: 24px;
+  overflow: visible;
 }
 
 .token-area--readonly {
@@ -972,7 +1137,11 @@ details[open] .disclosure-icon {
 
 .inspector-details-body {
   padding-top: 6px;
-  padding-left: 18px; 
+  padding-left: 18px;
+}
+
+.inspector-details-body :deep(.ui-textarea-control) {
+  min-height: 84px;
 }
 
 /* ==========================================
@@ -982,6 +1151,7 @@ details[open] .disclosure-icon {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
+  width: 100%;
 }
 
 .inspector-file-actions :deep(.ui-button) {

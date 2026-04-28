@@ -171,7 +171,7 @@
       :style="{ width: referenceDetailOpen ? `${referenceDetailDockWidth}px` : '0px' }"
     >
       <section
-        v-if="referenceDetailOpen"
+        v-if="shouldRenderReferenceDetailDock"
         class="reference-workbench__detail-shell inline-dock"
         :aria-label="t('Details')"
       >
@@ -270,7 +270,7 @@
 </template>
 
 <script setup>
-import { computed, defineAsyncComponent, nextTick, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { 
   IconFileText, 
   IconPlus, 
@@ -285,6 +285,7 @@ import { useToastStore } from '../../stores/toast'
 import { useUxStatusStore } from '../../stores/uxStatus'
 import { useI18n } from '../../i18n'
 import { useReferencesStore } from '../../stores/references'
+import { useDelayedRender } from '../../composables/useDelayedRender.js'
 import { useSurfaceContextMenu } from '../../composables/useSurfaceContextMenu.js'
 import { renameWorkspacePath, writeTextFile } from '../../services/fileStoreIO'
 import { openNativeDialog, saveNativeDialog } from '../../services/nativeDialog.js'
@@ -330,6 +331,7 @@ const workbenchRef = ref(null)
 const detailResizeStartWidth = ref(null)
 const activeReferenceDockTab = ref(REFERENCE_DETAILS_TAB)
 const referencePdfTabOpen = ref(false)
+let referenceDockCloseResetTimer = null
 const {
   menuVisible,
   menuX,
@@ -348,6 +350,10 @@ const canPreviewSelectedReferencePdf = computed(() => selectedReferencePdfPath.v
 const showReferencePdfTab = computed(() => referencePdfTabOpen.value && canPreviewSelectedReferencePdf.value)
 const referenceDetailDockWidth = computed(() =>
   Math.max(REFERENCE_DETAIL_MIN_WIDTH, Number(props.referenceDetailWidth) || 0)
+)
+const shouldRenderReferenceDetailDock = useDelayedRender(
+  () => props.referenceDetailOpen,
+  { delayMs: 280 }
 )
 const pdfTabLabel = computed(() => t('PDF'))
 const sortKey = computed({
@@ -399,6 +405,17 @@ function activateReferencePdfTab() {
 }
 
 function closeReferencePdfTab() {
+  referencePdfTabOpen.value = false
+  activeReferenceDockTab.value = REFERENCE_DETAILS_TAB
+}
+
+function clearReferenceDockCloseResetTimer() {
+  if (referenceDockCloseResetTimer === null) return
+  window.clearTimeout(referenceDockCloseResetTimer)
+  referenceDockCloseResetTimer = null
+}
+
+function resetReferenceDockTabs() {
   referencePdfTabOpen.value = false
   activeReferenceDockTab.value = REFERENCE_DETAILS_TAB
 }
@@ -470,9 +487,13 @@ function handleReferenceDetailResizeSnap() {
 watch(
   () => props.referenceDetailOpen,
   (isOpen) => {
+    clearReferenceDockCloseResetTimer()
     if (isOpen) return
-    referencePdfTabOpen.value = false
-    activeReferenceDockTab.value = REFERENCE_DETAILS_TAB
+
+    referenceDockCloseResetTimer = window.setTimeout(() => {
+      referenceDockCloseResetTimer = null
+      resetReferenceDockTabs()
+    }, 280)
   }
 )
 
@@ -489,8 +510,7 @@ watch(
 watch(
   () => selectedReference.value?.id || '',
   () => {
-    referencePdfTabOpen.value = false
-    activeReferenceDockTab.value = REFERENCE_DETAILS_TAB
+    resetReferenceDockTabs()
   }
 )
 
@@ -503,6 +523,10 @@ watch(
   },
   { immediate: true }
 )
+
+onBeforeUnmount(() => {
+  clearReferenceDockCloseResetTimer()
+})
 
 function referenceIsInCollection(reference = {}, collectionKey = '') {
   const collection = availableCollections.value.find((item) => item.key === collectionKey)
@@ -968,6 +992,8 @@ async function handleExportBibTeX() {
 }
 
 .reference-workbench__detail-shell {
+  --inline-dock-toolbar-height: 28px;
+  --inline-dock-control-height: 24px;
   width: 100%;
 }
 
@@ -981,12 +1007,12 @@ async function handleExportBibTeX() {
 }
 
 .reference-workbench__detail-tab--icon {
-  flex: 0 0 28px;
+  flex: 0 0 26px;
   justify-content: center;
-  width: 28px;
-  min-width: 28px;
-  max-width: 28px;
-  height: 26px;
+  width: 26px;
+  min-width: 26px;
+  max-width: 26px;
+  height: 24px;
   padding: 0;
   border-radius: 5px;
 }
@@ -1087,7 +1113,7 @@ async function handleExportBibTeX() {
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
-  padding: 0 0 20px; /* 顶部不要留白，让表头直接吸顶 */
+  padding: 0 0 20px;
 }
 
 .reference-workbench__table-head,
@@ -1104,10 +1130,10 @@ async function handleExportBibTeX() {
   position: sticky;
   top: 0;
   z-index: 2;
-  height: 28px; /* Finder 原生列表视图表头高度 */
+  height: 28px;
   padding: 0 16px;
   border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
-  background: var(--panel-surface); /* 同步颜色 */
+  background: var(--panel-surface);
   color: var(--text-muted);
   font-size: 11.5px;
   font-weight: 500;

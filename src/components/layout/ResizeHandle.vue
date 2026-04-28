@@ -85,7 +85,8 @@ function startDrag(e) {
   opacity: 1;
   transition:
     opacity 140ms ease,
-    background-color 140ms ease;
+    background-color 140ms ease,
+    width 140ms ease;
 }
 
 .resize-handle.horizontal {
@@ -107,7 +108,23 @@ function startDrag(e) {
   opacity: 1;
   transition:
     opacity 140ms ease,
-    background-color 140ms ease;
+    background-color 140ms ease,
+    height 140ms ease;
+}
+
+.resize-handle:hover::before {
+  opacity: 1;
+  background: color-mix(in srgb, var(--accent) 18%, var(--workbench-divider-soft));
+}
+
+.resize-handle.vertical:hover::before,
+.resize-handle.vertical.dragging::before {
+  width: 2px;
+}
+
+.resize-handle.horizontal:hover::before,
+.resize-handle.horizontal.dragging::before {
+  height: 2px;
 }
 
 .resize-handle.dragging::before {
