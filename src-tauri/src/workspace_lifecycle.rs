@@ -16,7 +16,7 @@ use crate::fs_tree_runtime::{
     FsTreeLoadWorkspaceStateParams, FsTreeRestoreCachedExpandedStateParams,
     FsTreeWorkspaceStateResult,
 };
-use crate::references_runtime::{references_scan_workspace_styles, CitationStyleScanParams};
+use crate::references_runtime::{references_scan_workspace_styles_scoped, CitationStyleScanParams};
 use crate::references_zotero::{references_zotero_config_load, ZoteroConfigPathParams};
 use crate::security::{clear_allowed_roots_internal, set_allowed_roots_internal, WorkspaceScopeState};
 use chrono::Utc;
@@ -636,6 +636,7 @@ pub async fn workspace_lifecycle_resolve_bootstrap_plan(
 #[tauri::command]
 pub async fn workspace_lifecycle_load_bootstrap_data(
     params: WorkspaceLifecycleLoadBootstrapDataParams,
+    scope_state: State<'_, WorkspaceScopeState>,
 ) -> Result<WorkspaceBootstrapHydratedData, String> {
     let references_snapshot = references_library_load_workspace(ReferenceLibraryLoadWorkspaceParams {
         global_config_dir: params.global_config_dir.clone(),
@@ -644,9 +645,12 @@ pub async fn workspace_lifecycle_load_bootstrap_data(
     })
     .await?;
 
-    let reference_styles = references_scan_workspace_styles(CitationStyleScanParams {
-        workspace_path: params.workspace_path.clone(),
-    })
+    let reference_styles = references_scan_workspace_styles_scoped(
+        CitationStyleScanParams {
+            workspace_path: params.workspace_path.clone(),
+        },
+        Some(scope_state.inner()),
+    )
     .await?;
 
     let zotero_config = references_zotero_config_load(ZoteroConfigPathParams {
