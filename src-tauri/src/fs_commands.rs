@@ -35,9 +35,25 @@ pub struct WorkspaceCreateFileResult {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct WorkspaceCreateDirResult {
+    pub ok: bool,
+    pub path: String,
+    pub code: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct WorkspaceRenameResult {
     pub ok: bool,
     pub code: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceDeleteResult {
+    pub ok: bool,
+    pub path: String,
+    pub is_dir: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -206,6 +222,36 @@ fn default_file_content(name: &str, initial_content: &str) -> String {
         );
     }
     String::new()
+}
+
+fn workspace_create_dir_blocking(path: &Path) -> Result<WorkspaceCreateDirResult, String> {
+    if path.exists() {
+        return Ok(WorkspaceCreateDirResult {
+            ok: false,
+            path: path.to_string_lossy().to_string(),
+            code: Some("exists".to_string()),
+        });
+    }
+    fs::create_dir_all(path).map_err(|e| e.to_string())?;
+    Ok(WorkspaceCreateDirResult {
+        ok: true,
+        path: path.to_string_lossy().to_string(),
+        code: None,
+    })
+}
+
+fn workspace_delete_path_blocking(path: &Path) -> Result<WorkspaceDeleteResult, String> {
+    let is_dir = path.is_dir();
+    if is_dir {
+        fs::remove_dir_all(path).map_err(|e| e.to_string())?;
+    } else {
+        fs::remove_file(path).map_err(|e| e.to_string())?;
+    }
+    Ok(WorkspaceDeleteResult {
+        ok: true,
+        path: path.to_string_lossy().to_string(),
+        is_dir,
+    })
 }
 
 fn image_preview_cache_path(source_path: &Path, max_size: u32) -> Result<PathBuf, String> {
@@ -561,6 +607,18 @@ pub async fn create_dir(
 }
 
 #[tauri::command]
+pub async fn workspace_create_dir(
+    dir_path: String,
+    name: String,
+    scope_state: tauri::State<'_, WorkspaceScopeState>,
+) -> Result<WorkspaceCreateDirResult, String> {
+    let full_path = format!("{}/{}", dir_path.trim_end_matches('/'), name);
+    let resolved =
+        security::ensure_allowed_mutation_path(scope_state.inner(), Path::new(&full_path))?;
+    run_blocking(move || workspace_create_dir_blocking(&resolved)).await
+}
+
+#[tauri::command]
 pub async fn workspace_rename_path(
     old_path: String,
     new_path: String,
@@ -587,19 +645,12 @@ pub async fn workspace_rename_path(
 }
 
 #[tauri::command]
-pub async fn delete_path(
+pub async fn workspace_delete_path(
     path: String,
     scope_state: tauri::State<'_, WorkspaceScopeState>,
-) -> Result<(), String> {
+) -> Result<WorkspaceDeleteResult, String> {
     let resolved = security::ensure_allowed_mutation_path(scope_state.inner(), Path::new(&path))?;
-    run_blocking(move || {
-        if resolved.is_dir() {
-            fs::remove_dir_all(&resolved).map_err(|e| e.to_string())
-        } else {
-            fs::remove_file(&resolved).map_err(|e| e.to_string())
-        }
-    })
-    .await
+    run_blocking(move || workspace_delete_path_blocking(&resolved)).await
 }
 
 #[tauri::command]
@@ -847,7 +898,9 @@ pub async fn get_home_dir() -> Result<String, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::path_status_internal;
+    use super::{
+        path_status_internal, workspace_create_dir_blocking, workspace_delete_path_blocking,
+    };
     use std::fs;
 
     #[test]
@@ -873,6 +926,33 @@ mod tests {
         assert!(!missing_status.is_dir);
         assert_eq!(missing_status.size, None);
         assert_eq!(missing_status.modified, None);
+
+        fs::remove_dir_all(temp_dir).ok();
+    }
+
+    #[test]
+    fn workspace_create_dir_and_delete_return_typed_results() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "scribeflow-workspace-dir-{}",
+            uuid::Uuid::new_v4()
+        ));
+        fs::create_dir_all(&temp_dir).expect("create temp dir");
+        let dir_path = temp_dir.join("folder");
+
+        let created = workspace_create_dir_blocking(&dir_path).expect("create workspace dir");
+        assert!(created.ok);
+        assert_eq!(created.path, dir_path.to_string_lossy().to_string());
+        assert_eq!(created.code, None);
+
+        let duplicate = workspace_create_dir_blocking(&dir_path).expect("duplicate folder result");
+        assert!(!duplicate.ok);
+        assert_eq!(duplicate.code.as_deref(), Some("exists"));
+
+        let deleted = workspace_delete_path_blocking(&dir_path).expect("delete workspace dir");
+        assert!(deleted.ok);
+        assert!(deleted.is_dir);
+        assert_eq!(deleted.path, dir_path.to_string_lossy().to_string());
+        assert!(!dir_path.exists());
 
         fs::remove_dir_all(temp_dir).ok();
     }

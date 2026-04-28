@@ -91,7 +91,8 @@ export function createFileMutationRuntime({
   async function deletePath(path) {
     addDeletingPath?.(path)
     try {
-      await removeWorkspacePath?.(path)
+      const result = await removeWorkspacePath?.(path)
+      if (result && result.ok === false) return false
       await syncTreeAfterMutation?.()
       deleteFileContent?.(path)
       deleteFileLoadError?.(path)

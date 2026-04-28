@@ -26,9 +26,7 @@ export async function duplicateWorkspacePath(path) {
 }
 
 export async function createWorkspaceFolder(dirPath, name) {
-  const fullPath = `${dirPath}/${name}`
-  await invoke('create_dir', { path: fullPath })
-  return fullPath
+  return invoke('workspace_create_dir', { dirPath, name })
 }
 
 export async function renameWorkspacePath(oldPath, newPath) {
@@ -44,5 +42,5 @@ export async function copyExternalWorkspaceFile(srcPath, destDir) {
 }
 
 export async function deleteWorkspacePath(path) {
-  await invoke('delete_path', { path })
+  return invoke('workspace_delete_path', { path })
 }

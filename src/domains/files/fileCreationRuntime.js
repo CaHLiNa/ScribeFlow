@@ -44,7 +44,12 @@ export function createFileCreationRuntime({
 
   async function createFolder(dirPath, name) {
     try {
-      const fullPath = await createWorkspaceFolder?.(dirPath, name)
+      const result = await createWorkspaceFolder?.(dirPath, name)
+      if (!result?.ok) {
+        showCreateExistsError?.(result?.path, name)
+        return null
+      }
+      const fullPath = result.path
       await syncTreeAfterMutation?.({ expandPath: dirPath })
       addExpandedDir?.(fullPath)
       await ensureDirLoaded?.(fullPath, { force: true })
