@@ -566,7 +566,6 @@ pub fn run() {
             latex::format_latex_document,
             latex::synctex_forward,
             latex::synctex_backward,
-            latex::read_latex_synctex,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

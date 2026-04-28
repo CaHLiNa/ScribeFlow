@@ -1,6 +1,4 @@
 import { invoke } from '@tauri-apps/api/core'
-import { requestLatexWorkshopForwardSync } from '../latex/latexWorkshopSynctex.js'
-import { requestLatexWorkshopBackwardSync } from '../latex/latexWorkshopSynctex.js'
 
 function normalizeLatexForwardRecord(record = {}) {
   const page = Number(record.page || 0)
@@ -16,6 +14,7 @@ function normalizeLatexForwardRecord(record = {}) {
   const nextRecord = {
     page,
     indicator: record.indicator !== false,
+    strictLine: record.strictLine !== false,
   }
 
   if (Number.isFinite(x) && Number.isFinite(y)) {
@@ -44,10 +43,12 @@ function normalizeLatexForwardSyncResult(result) {
       .map((record) => normalizeLatexForwardRecord(record))
       .filter(Boolean)
     if (records.length === 0) return null
+    const strictLine = records.every((record) => record.strictLine !== false)
     return {
       mode: 'rects',
       records,
       record: records[0],
+      strictLine,
     }
   }
 
@@ -63,12 +64,14 @@ function normalizeLatexForwardSyncResult(result) {
       mode: 'rects',
       records: [record],
       record,
+      strictLine: record.strictLine !== false,
     }
   }
   return {
     mode: 'point',
     record,
     records: [record],
+    strictLine: record.strictLine !== false,
   }
 }
 
@@ -94,26 +97,14 @@ export async function requestLatexPdfBackwardSync(options = {}) {
       x,
       y,
     })
-    if (result) {
-      return {
-        ...result,
-        strictLine: true,
-      }
-    }
+    return result
+      ? {
+          ...result,
+          strictLine: result.strictLine !== false,
+        }
+      : null
   } catch {
-    // Fall back to local parsing when SyncTeX binary is unavailable.
-  }
-
-  const fallbackResult = await requestLatexWorkshopBackwardSync({
-    synctexPath,
-    page,
-    x,
-    y,
-  })
-  if (!fallbackResult) return null
-  return {
-    ...fallbackResult,
-    strictLine: false,
+    return null
   }
 }
 
@@ -133,26 +124,8 @@ export async function requestLatexPdfForwardSync(options = {}) {
       line,
       column: Number.isInteger(column) && column > 0 ? column : 1,
     })
-    const normalizedResult = normalizeLatexForwardSyncResult(result)
-    if (normalizedResult) {
-      return {
-        ...normalizedResult,
-        strictLine: true,
-      }
-    }
+    return normalizeLatexForwardSyncResult(result)
   } catch {
-    // Fall back to local parsing when SyncTeX binary is unavailable.
-  }
-
-  const fallbackResult = await requestLatexWorkshopForwardSync({
-    synctexPath,
-    filePath,
-    line,
-    column,
-  })
-  if (!fallbackResult) return null
-  return {
-    ...fallbackResult,
-    strictLine: false,
+    return null
   }
 }

@@ -146,6 +146,7 @@ What is not fully cleaned up:
 - UI-layer direct Tauri API usage has been removed from `app/`, `components/`, `composables/`, and `i18n/`, and a repo guard now enforces that boundary for both `@tauri-apps/api/core` and `@tauri-apps/api/event`.
 - The same boundary tightening now covers selected main-path stores: `workspace`, `files`, `links`, `latex`, and `references`, so Tauri event listeners also stay inside `services/*`.
 - Remaining bridge calls are now concentrated in `services/*`, and several previously broad bridge files have started to split into narrower runtime slices.
+- SyncTeX fallback parsing now resolves in Rust, and the old frontend `latexWorkshopSynctex*` parser/runtime files have been removed from the active bridge path.
 - The repo still carries light traces of earlier scope, even after the desktop-focused slim-down.
 
 ## Debt Map
@@ -159,7 +160,7 @@ What is not fully cleaned up:
 ### Boundary Debt
 
 - Bridge conventions now hold across UI layers, i18n entrypoints, and the main product-facing stores
-- `workspacePreferences`, `workspacePermissions`, `references/zoteroSync`, `references/referenceLibraryIO`, `references/referenceImport`, `references/referenceAssets`, `references/crossref`, `references/citationFormatter`, `editorPersistence`, `workspaceRecents`, `workspaceTreeRuntime`, `latex/runtime`, `latexPreferences`, `latex/latexWorkshopSynctex`, `latex/projectGraph`, and `pdf/artifactPreview` now route through narrower sub-services, and `references/referenceAssets` is now a thinner Rust-backed bridge, but other bridge-heavy service modules still aggregate multiple Rust command families and should be split further when it reduces coupling
+- `workspacePreferences`, `workspacePermissions`, `references/zoteroSync`, `references/referenceLibraryIO`, `references/referenceImport`, `references/referenceAssets`, `references/crossref`, `references/citationFormatter`, `editorPersistence`, `workspaceRecents`, `workspaceTreeRuntime`, `latex/runtime`, `latexPreferences`, `latex/projectGraph`, `pdf/latexPdfSync`, and `pdf/artifactPreview` now route through narrower Rust-backed bridges, but other bridge-heavy service modules still aggregate multiple Rust command families and should be split further when it reduces coupling
 
 ### Scope Debt
 

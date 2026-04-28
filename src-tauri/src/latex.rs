@@ -402,13 +402,16 @@ pub async fn synctex_backward(
     if let Some(pdf_path) = derive_pdf_path_from_synctex_path(&synctex_path) {
         if let Some(binary) = find_synctex(None) {
             if let Ok(result) = run_synctex_edit_cli(&binary, &pdf_path, page, x, y) {
-                return Ok(result);
+                return Ok(append_synctex_strict_line(result, true));
             }
         }
     }
 
-    let data = parse_synctex_gz(&synctex_path)?;
-    backward_sync(&data, page, x, y)
+    let data = read_synctex_nodes(&synctex_path)?;
+    Ok(append_synctex_strict_line(
+        backward_sync(&data, page, x, y)?,
+        false,
+    ))
 }
 
 #[tauri::command]
@@ -431,41 +434,23 @@ pub async fn synctex_forward(
     let pdf_path = derive_pdf_path_from_synctex_path(&synctex_path)
         .ok_or_else(|| "Could not derive PDF path from SyncTeX file.".to_string())?;
 
-    let binary = find_synctex(None).ok_or_else(|| {
-        "SyncTeX binary is unavailable. Forward SyncTeX will fall back to the frontend parser."
-            .to_string()
-    })?;
-
-    run_synctex_view_cli(
-        &binary,
-        normalized_file_path,
-        &pdf_path,
-        line.max(1),
-        column.max(1),
-    )
-}
-
-#[tauri::command]
-pub async fn read_latex_synctex(path: String) -> Result<String, String> {
-    let normalized = Path::new(&path);
-    if !normalized.exists() {
-        return Err("SyncTeX file not found.".to_string());
+    if let Some(binary) = find_synctex(None) {
+        if let Ok(result) = run_synctex_view_cli(
+            &binary,
+            normalized_file_path,
+            &pdf_path,
+            line.max(1),
+            column.max(1),
+        ) {
+            return Ok(append_synctex_strict_line(result, true));
+        }
     }
 
-    if path.ends_with(".gz") {
-        use std::io::Read;
-
-        let file =
-            std::fs::File::open(normalized).map_err(|e| format!("Cannot open synctex: {}", e))?;
-        let mut decoder = flate2::read::GzDecoder::new(file);
-        let mut content = String::new();
-        decoder
-            .read_to_string(&mut content)
-            .map_err(|e| format!("Cannot decompress synctex: {}", e))?;
-        return Ok(content);
-    }
-
-    std::fs::read_to_string(normalized).map_err(|e| format!("Cannot read synctex: {}", e))
+    let data = read_synctex_nodes(&synctex_path)?;
+    Ok(append_synctex_strict_line(
+        forward_sync(&data, normalized_file_path, line.max(1))?,
+        false,
+    ))
 }
 
 const SYNCTEX_SCALED_POINT_TO_BIG_POINT: f64 = 72.0 / 72.27 / 65536.0;
@@ -487,6 +472,103 @@ fn synctex_scaled_to_big_point(value: f64) -> f64 {
     value * SYNCTEX_SCALED_POINT_TO_BIG_POINT
 }
 
+fn normalize_synctex_path(path: &str) -> String {
+    path.trim().replace('\\', "/")
+}
+
+fn split_normalized_path_segments(value: &str) -> Vec<String> {
+    normalize_synctex_path(value)
+        .to_lowercase()
+        .split('/')
+        .filter(|segment| !segment.is_empty())
+        .map(|segment| segment.to_string())
+        .collect()
+}
+
+fn score_synctex_input_path(input_path: &str, file_path: &str) -> i32 {
+    let normalized_input_path = normalize_synctex_path(input_path).to_lowercase();
+    let normalized_file_path = normalize_synctex_path(file_path).to_lowercase();
+    if normalized_input_path.is_empty() || normalized_file_path.is_empty() {
+        return -1;
+    }
+    if normalized_input_path == normalized_file_path {
+        return 10_000;
+    }
+
+    let input_segments = split_normalized_path_segments(&normalized_input_path);
+    let file_segments = split_normalized_path_segments(&normalized_file_path);
+    if input_segments.is_empty() || file_segments.is_empty() {
+        return -1;
+    }
+    if input_segments.last() != file_segments.last() {
+        return -1;
+    }
+
+    let mut trailing_matches = 0usize;
+    while trailing_matches < input_segments.len()
+        && trailing_matches < file_segments.len()
+        && input_segments[input_segments.len() - 1 - trailing_matches]
+            == file_segments[file_segments.len() - 1 - trailing_matches]
+    {
+        trailing_matches += 1;
+    }
+
+    100 + (trailing_matches as i32) * 25
+}
+
+fn resolve_forward_input_file_path(nodes: &[SyncNode], file_path: &str) -> String {
+    let mut best_path = String::new();
+    let mut best_score = -1;
+
+    for node in nodes {
+        let score = score_synctex_input_path(&node.file, file_path);
+        if score > best_score {
+            best_path = node.file.clone();
+            best_score = score;
+        }
+    }
+
+    if best_score >= 125 {
+        best_path
+    } else {
+        String::new()
+    }
+}
+
+fn resolve_forward_line_candidate(line_numbers: &[u32], requested_line: u32) -> u32 {
+    if line_numbers.is_empty() {
+        return 0;
+    }
+    if line_numbers.contains(&requested_line) {
+        return requested_line;
+    }
+    if let Some(next_line) = line_numbers.iter().copied().find(|line| *line >= requested_line) {
+        return next_line;
+    }
+    *line_numbers.last().unwrap_or(&0)
+}
+
+fn append_synctex_strict_line(
+    value: serde_json::Value,
+    strict_line: bool,
+) -> serde_json::Value {
+    match value {
+        serde_json::Value::Object(mut map) => {
+            map.insert(
+                "strictLine".to_string(),
+                serde_json::Value::Bool(strict_line),
+            );
+            serde_json::Value::Object(map)
+        }
+        serde_json::Value::Array(items) => serde_json::Value::Array(
+            items.into_iter()
+                .map(|item| append_synctex_strict_line(item, strict_line))
+                .collect(),
+        ),
+        other => other,
+    }
+}
+
 fn derive_pdf_path_from_synctex_path(synctex_path: &str) -> Option<String> {
     if let Some(path) = synctex_path.strip_suffix(".synctex.gz") {
         return Some(format!("{path}.pdf"));
@@ -504,7 +586,7 @@ fn parse_synctex_edit_output(output: &str) -> Result<serde_json::Value, String> 
     for raw_line in output.lines() {
         let trimmed = raw_line.trim();
         if let Some(value) = trimmed.strip_prefix("Input:") {
-            input = Some(value.trim().to_string());
+            input = Some(normalize_synctex_path(value));
         } else if let Some(value) = trimmed.strip_prefix("Line:") {
             line = value.trim().parse::<u32>().ok();
         }
@@ -766,7 +848,7 @@ fn parse_synctex_content(content: &str) -> Vec<SyncNode> {
 
         nodes.push(SyncNode {
             kind,
-            file: file.clone(),
+            file: normalize_synctex_path(file),
             line: source_line,
             page: current_page,
             x,
@@ -779,17 +861,30 @@ fn parse_synctex_content(content: &str) -> Vec<SyncNode> {
     nodes
 }
 
-fn parse_synctex_gz(path: &str) -> Result<Vec<SyncNode>, String> {
+fn read_synctex_content(path: &str) -> Result<String, String> {
     use std::io::Read;
 
-    let file = std::fs::File::open(path).map_err(|e| format!("Cannot open synctex: {}", e))?;
-    let mut decoder = flate2::read::GzDecoder::new(file);
-    let mut content = String::new();
-    decoder
-        .read_to_string(&mut content)
-        .map_err(|e| format!("Cannot decompress synctex: {}", e))?;
+    let normalized = Path::new(path);
+    if !normalized.exists() {
+        return Err("SyncTeX file not found.".to_string());
+    }
 
-    Ok(parse_synctex_content(&content))
+    if path.ends_with(".gz") {
+        let file =
+            std::fs::File::open(normalized).map_err(|e| format!("Cannot open synctex: {}", e))?;
+        let mut decoder = flate2::read::GzDecoder::new(file);
+        let mut content = String::new();
+        decoder
+            .read_to_string(&mut content)
+            .map_err(|e| format!("Cannot decompress synctex: {}", e))?;
+        return Ok(content);
+    }
+
+    std::fs::read_to_string(normalized).map_err(|e| format!("Cannot read synctex: {}", e))
+}
+
+fn read_synctex_nodes(path: &str) -> Result<Vec<SyncNode>, String> {
+    Ok(parse_synctex_content(&read_synctex_content(path)?))
 }
 
 fn backward_sync(
@@ -815,16 +910,103 @@ fn backward_sync(
 
     match best {
         Some(node) => Ok(serde_json::json!({
-            "file": node.file,
+            "file": normalize_synctex_path(&node.file),
             "line": node.line,
+            "column": 0,
         })),
         None => Err("No SyncTeX match found at this position.".to_string()),
     }
 }
 
+fn forward_sync(nodes: &[SyncNode], file_path: &str, line: u32) -> Result<serde_json::Value, String> {
+    let normalized_file_path = normalize_synctex_path(file_path);
+    let requested_line = line.max(1);
+    if normalized_file_path.is_empty() {
+        return Err("Source file path is required for forward SyncTeX.".to_string());
+    }
+
+    let input_file_path = resolve_forward_input_file_path(nodes, &normalized_file_path);
+    if input_file_path.is_empty() {
+        return Err("No SyncTeX input file matched the requested source path.".to_string());
+    }
+
+    let mut line_numbers = nodes
+        .iter()
+        .filter(|node| node.file == input_file_path && node.line > 0)
+        .map(|node| node.line)
+        .collect::<Vec<_>>();
+    line_numbers.sort_unstable();
+    line_numbers.dedup();
+
+    let resolved_line = resolve_forward_line_candidate(&line_numbers, requested_line);
+    if resolved_line == 0 {
+        return Err("No SyncTeX line mapping was found for the requested source file.".to_string());
+    }
+
+    let mut page_bounds: HashMap<u32, (f64, f64, f64, f64)> = HashMap::new();
+    for node in nodes
+        .iter()
+        .filter(|node| node.file == input_file_path && node.line == resolved_line && node.page > 0)
+    {
+        let left = node.x;
+        let right = if node.width > 0.0 {
+            node.x + node.width
+        } else {
+            node.x
+        };
+        let bottom = node.y;
+        let top = if node.height > 0.0 {
+            node.y - node.height
+        } else {
+            node.y
+        };
+
+        page_bounds
+            .entry(node.page)
+            .and_modify(|bounds| {
+                bounds.0 = bounds.0.min(left);
+                bounds.1 = bounds.1.max(right);
+                bounds.2 = bounds.2.min(top);
+                bounds.3 = bounds.3.max(bottom);
+            })
+            .or_insert((left, right, top, bottom));
+    }
+
+    if page_bounds.is_empty() {
+        return Err("No SyncTeX PDF location was found for the requested source line.".to_string());
+    }
+
+    let mut pages = page_bounds.into_iter().collect::<Vec<_>>();
+    pages.sort_by_key(|(page, _)| *page);
+
+    let mut records = pages
+        .into_iter()
+        .map(|(page, (left, right, top, bottom))| {
+            let width = (right - left).max(0.0);
+            let height = (bottom - top).max(0.0);
+            serde_json::json!({
+                "page": page,
+                "x": left,
+                "y": bottom,
+                "h": left,
+                "v": bottom,
+                "W": width,
+                "H": height,
+                "indicator": true,
+            })
+        })
+        .collect::<Vec<_>>();
+
+    if records.len() == 1 {
+        return Ok(records.remove(0));
+    }
+
+    Ok(serde_json::Value::Array(records))
+}
+
 #[cfg(test)]
 mod tests {
-    use super::parse_synctex_view_output;
+    use super::{forward_sync, parse_synctex_content, parse_synctex_view_output};
 
     #[test]
     fn parse_synctex_view_output_supports_rectangle_records() {
@@ -871,5 +1053,27 @@ SyncTeX result end
         assert!(parsed.is_object());
         assert_eq!(parsed["page"].as_u64(), Some(2));
         assert_eq!(parsed["indicator"].as_bool(), Some(true));
+    }
+
+    #[test]
+    fn forward_sync_matches_trailing_path_and_uses_next_line_when_needed() {
+        let content = r#"SyncTeX Version:1
+Input:1:/tmp/project/sections/intro.tex
+X Offset:0
+Y Offset:0
+{1
+h1,12:65536,131072:32768,16384
+}
+"#;
+
+        let nodes = parse_synctex_content(content);
+        let parsed = forward_sync(&nodes, "/Users/me/work/intro.tex", 11)
+            .expect("should resolve fallback forward sync");
+
+        assert!(parsed.is_object());
+        assert_eq!(parsed["page"].as_u64(), Some(1));
+        assert_eq!(parsed["indicator"].as_bool(), Some(true));
+        assert!(parsed["W"].as_f64().unwrap_or_default() > 0.0);
+        assert!(parsed["H"].as_f64().unwrap_or_default() > 0.0);
     }
 }
