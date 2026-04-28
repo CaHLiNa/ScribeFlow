@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
 
 export function resolveLatexCompileRequest(params = {}) {
   return invoke('latex_compile_request_resolve', {
@@ -96,4 +97,16 @@ export function formatLatexDocument(params = {}) {
 
 export function downloadTectonicBinary() {
   return invoke('download_tectonic')
+}
+
+export function listenLatexCompileStream(handler) {
+  return listen('latex-compile-stream', handler)
+}
+
+export function listenLatexRuntimeCompileRequested(handler) {
+  return listen('latex-runtime-compile-requested', handler)
+}
+
+export function listenTectonicDownloadProgress(handler) {
+  return listen('tectonic-download-progress', handler)
 }

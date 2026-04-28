@@ -3,7 +3,7 @@ import { join, relative } from 'node:path'
 
 const repoRoot = new URL('..', import.meta.url).pathname
 const srcRoot = join(repoRoot, 'src')
-const disallowedImport = '@tauri-apps/api/core'
+const disallowedImports = ['@tauri-apps/api/', '@tauri-apps/plugin-']
 
 function walk(dir) {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -18,12 +18,13 @@ const violations = walk(srcRoot)
   .filter((path) => {
     const rel = relative(repoRoot, path)
     if (rel.startsWith('src/services/')) return false
-    return readFileSync(path, 'utf8').includes(disallowedImport)
+    const source = readFileSync(path, 'utf8')
+    return disallowedImports.some((importPath) => source.includes(importPath))
   })
   .map((path) => relative(repoRoot, path))
 
 if (violations.length > 0) {
-  console.error('UI bridge boundary violation: move @tauri-apps/api/core usage into src/services/.')
+  console.error('UI bridge boundary violation: move Tauri API/plugin usage into src/services/.')
   for (const violation of violations) {
     console.error(`- ${violation}`)
   }

@@ -1,5 +1,4 @@
 import { defineStore } from 'pinia'
-import { listen } from '@tauri-apps/api/event'
 import { useFilesStore } from './files'
 import { useWorkspaceStore } from './workspace'
 import { t } from '../i18n'
@@ -12,6 +11,9 @@ import {
   downloadTectonicBinary,
   executeLatexRuntimeCompile,
   formatLatexDocument,
+  listenLatexCompileStream,
+  listenLatexRuntimeCompileRequested,
+  listenTectonicDownloadProgress,
   resolveLatexCompileRequest,
   resolveLatexCompileTargets,
   resolveLatexLintState,
@@ -152,7 +154,7 @@ async function ensureLatexStreamListener() {
     return
   }
 
-  latexStreamUnlistenPromise = listen('latex-compile-stream', (event) => {
+  latexStreamUnlistenPromise = listenLatexCompileStream((event) => {
     const payload = event.payload || {}
     pushLatexStreamToTerminal({
       texPath: payload.texPath,
@@ -173,8 +175,7 @@ async function ensureLatexRuntimeCompileRequestListener() {
     return
   }
 
-  latexRuntimeCompileRequestUnlistenPromise = listen(
-    'latex-runtime-compile-requested',
+  latexRuntimeCompileRequestUnlistenPromise = listenLatexRuntimeCompileRequested(
     (event) => {
       const payload = event.payload || {}
       const latexStore = useLatexStore()
@@ -855,7 +856,7 @@ export const useLatexStore = defineStore('latex', {
       this.downloadProgress = 0
       this.downloadError = null
 
-      const unlisten = await listen('tectonic-download-progress', (event) => {
+      const unlisten = await listenTectonicDownloadProgress((event) => {
         this.downloadProgress = event.payload.percent
       })
 
