@@ -40,6 +40,7 @@
             'is-workspace-left-region': workspace.isWorkspaceSurface,
           }"
           :style="{
+            '--app-shell-sidebar-width': `${leftSidebarWidth}px`,
             width: leftSidebarVisible ? `${leftSidebarWidth}px` : '0px',
           }"
         >
@@ -53,7 +54,7 @@
             data-sidebar="left"
             :aria-hidden="leftSidebarVisible ? 'false' : 'true'"
             :style="{
-              width: '100%',
+              width: 'var(--app-shell-sidebar-width)',
             }"
           >
             <KeepAlive :max="2">
@@ -403,6 +404,14 @@ useAppTeardown({
 <style scoped>
 .app-shell-root {
   background: var(--app-canvas);
+  --shell-panel-motion-duration: 620ms;
+  --shell-panel-fade-duration: 360ms;
+  --shell-panel-surface-duration: 260ms;
+  --shell-panel-motion-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --inline-dock-motion-duration: var(--shell-panel-motion-duration);
+  --inline-dock-fade-duration: var(--shell-panel-fade-duration);
+  --inline-dock-surface-duration: var(--shell-panel-surface-duration);
+  --inline-dock-motion-ease: var(--shell-panel-motion-ease);
 }
 
 .app-shell-root.is-mac-vibrant {
@@ -440,7 +449,9 @@ useAppTeardown({
 .app-shell-topbar,
 .app-shell-region-left,
 .app-shell-region-right {
-  transition: opacity 0.25s ease-out, width 260ms cubic-bezier(0.16, 1, 0.3, 1);
+  transition:
+    opacity var(--shell-panel-fade-duration) ease-out,
+    width var(--shell-panel-motion-duration) var(--shell-panel-motion-ease);
 }
 
 /* 在打字时，侧边栏和顶栏在 1.5 秒后优雅地淡出到 8% 不透明度 */
@@ -448,7 +459,9 @@ useAppTeardown({
 .app-shell-root.is-zen-mode .app-shell-region-left:not(:hover),
 .app-shell-root.is-zen-mode .app-shell-region-right:not(:hover) {
   opacity: 0.08;
-  transition: opacity 1.5s ease-out 1.5s, width 260ms cubic-bezier(0.16, 1, 0.3, 1);
+  transition:
+    opacity 1.5s ease-out 1.5s,
+    width var(--shell-panel-motion-duration) var(--shell-panel-motion-ease);
 }
 
 .app-shell-topbar {
@@ -506,7 +519,8 @@ useAppTeardown({
 
 .app-shell-sidebar {
   contain: layout paint;
-  min-width: 100%;
+  flex: 0 0 var(--app-shell-sidebar-width, 100%);
+  min-width: var(--app-shell-sidebar-width, 100%);
   height: 100%;
   border: none;
   border-radius: 0;
@@ -516,9 +530,9 @@ useAppTeardown({
   opacity: 1;
   transform: translateX(0);
   transition:
-    opacity 200ms ease,
-    transform 260ms cubic-bezier(0.16, 1, 0.3, 1),
-    background-color 160ms ease;
+    opacity var(--shell-panel-fade-duration) ease,
+    transform var(--shell-panel-motion-duration) var(--shell-panel-motion-ease),
+    background-color var(--shell-panel-surface-duration) ease;
 }
 
 .app-shell-sidebar-left.is-collapsed {
@@ -533,8 +547,8 @@ useAppTeardown({
 
 .app-shell-sidebar-left {
   transition:
-    transform 260ms cubic-bezier(0.16, 1, 0.3, 1),
-    background-color 160ms ease;
+    transform var(--shell-panel-motion-duration) var(--shell-panel-motion-ease),
+    background-color var(--shell-panel-surface-duration) ease;
 }
 
 .app-shell-sidebar-left.is-open,
@@ -575,11 +589,11 @@ useAppTeardown({
   overflow: hidden;
   z-index: 2;
   transition:
-    margin-left 260ms cubic-bezier(0.16, 1, 0.3, 1),
-    padding-left 260ms cubic-bezier(0.16, 1, 0.3, 1),
-    margin-right 260ms cubic-bezier(0.16, 1, 0.3, 1),
-    padding-right 260ms cubic-bezier(0.16, 1, 0.3, 1),
-    border-radius 260ms cubic-bezier(0.16, 1, 0.3, 1);
+    margin-left var(--shell-panel-motion-duration) var(--shell-panel-motion-ease),
+    padding-left var(--shell-panel-motion-duration) var(--shell-panel-motion-ease),
+    margin-right var(--shell-panel-motion-duration) var(--shell-panel-motion-ease),
+    padding-right var(--shell-panel-motion-duration) var(--shell-panel-motion-ease),
+    border-radius var(--shell-panel-motion-duration) var(--shell-panel-motion-ease);
 }
 
 .app-shell-main-card.is-empty-workspace-shell {
@@ -612,8 +626,8 @@ useAppTeardown({
   overflow: visible;
   opacity: 0;
   transition:
-    width 260ms cubic-bezier(0.16, 1, 0.3, 1),
-    opacity 140ms ease;
+    width var(--shell-panel-motion-duration) var(--shell-panel-motion-ease),
+    opacity var(--shell-panel-surface-duration) ease;
 }
 
 .app-shell-resize-slot.is-visible {
@@ -641,6 +655,14 @@ useAppTeardown({
 
 .app-shell-resize-handle-right {
   right: -14px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-shell-root {
+    --shell-panel-motion-duration: 1ms;
+    --shell-panel-fade-duration: 1ms;
+    --shell-panel-surface-duration: 1ms;
+  }
 }
 </style>
 --- END OF FILE src/App.vue ---

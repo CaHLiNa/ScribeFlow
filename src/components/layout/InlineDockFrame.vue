@@ -29,7 +29,10 @@
     ]"
     :aria-hidden="open ? 'false' : 'true'"
     :aria-label="ariaLabel || undefined"
-    :style="{ width: open ? `${width}px` : '0px' }"
+    :style="{
+      '--inline-dock-current-width': `${width}px`,
+      width: open ? `${width}px` : '0px',
+    }"
   >
     <slot v-if="shouldRenderContent" />
   </aside>
@@ -47,7 +50,7 @@ const props = defineProps({
   renderActive: { type: Boolean, default: true },
   resizing: { type: Boolean, default: false },
   width: { type: Number, default: 360 },
-  closeDelayMs: { type: Number, default: 280 },
+  closeDelayMs: { type: Number, default: 680 },
   regionClass: { type: [String, Array, Object], default: '' },
   resizeSlotClass: { type: [String, Array, Object], default: '' },
   resizeHandleClass: { type: [String, Array, Object], default: '' },
