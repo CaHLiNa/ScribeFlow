@@ -34,8 +34,7 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
     workspacePreviewRequests: {},
     latexArtifactPaths: {},
     latexPreviewStates: {},
-    resolvedWorkspacePreviewStates: {},
-    resolvedWorkflowStates: {},
+    resolvedWorkflowContexts: {},
     _isReconciling: false,
     _lastTrigger: null,
     _persistentStateHydrated: false,
@@ -199,14 +198,6 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
       return this._getDocumentWorkflowBuildRuntime().getProblemsForFile(filePath, options)
     },
 
-    getUiStateForFile(filePath, options = {}) {
-      return this._getDocumentWorkflowBuildRuntime().getUiStateForFile(filePath, options)
-    },
-
-    getStatusTextForFile(filePath, options = {}) {
-      return this._getDocumentWorkflowBuildRuntime().getStatusTextForFile(filePath, options)
-    },
-
     getArtifactPathForFile(filePath, options = {}) {
       return this._getDocumentWorkflowBuildRuntime().getArtifactPathForFile(filePath, options)
     },
@@ -320,13 +311,11 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
     cleanup() {
       this.applyPersistentState(createDefaultDocumentWorkflowPersistentState())
       this.markdownPreviewState = {}
-      this.resolvedWorkspacePreviewStates = {}
-      this.resolvedWorkflowStates = {}
+      this.resolvedWorkflowContexts = {}
       this._isReconciling = false
       this._lastTrigger = null
       this._persistentStateHydrated = false
-      this._resolvedWorkspacePreviewStateInflight?.clear?.()
-      this._resolvedWorkflowStateInflight?.clear?.()
+      this._resolvedWorkflowContextInflight?.clear?.()
     },
   },
 })

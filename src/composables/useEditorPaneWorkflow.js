@@ -1,7 +1,6 @@
 import { computed, watch } from 'vue'
 import { isDraftPath, isLatex } from '../utils/fileTypes.js'
 import { getDocumentAdapterForFile } from '../services/documentWorkflow/adapters/index.js'
-import { getDocumentWorkflowStatusTone } from '../domains/document/documentWorkflowBuildRuntime.js'
 
 export function useEditorPaneWorkflow(options) {
   const {
@@ -28,14 +27,6 @@ export function useEditorPaneWorkflow(options) {
     }
   }
 
-  const workflowUiState = computed(() => (
-    activeTabRef.value && !isDraftPath(activeTabRef.value)
-      ? workflowStore.getUiStateForFile(activeTabRef.value, buildWorkflowOptions())
-      : null
-  ))
-  const activeDocumentAdapter = computed(() => (
-    activeTabRef.value && !isDraftPath(activeTabRef.value) ? getDocumentAdapterForFile(activeTabRef.value) : null
-  ))
   const documentBuildContext = computed(() => (
     activeTabRef.value && !isDraftPath(activeTabRef.value)
       ? workflowStore.buildAdapterContext(activeTabRef.value, buildWorkflowOptions({
@@ -44,19 +35,17 @@ export function useEditorPaneWorkflow(options) {
       }))
       : null
   ))
+  const activeDocumentAdapter = computed(() => (
+    activeTabRef.value && !isDraftPath(activeTabRef.value) ? getDocumentAdapterForFile(activeTabRef.value) : null
+  ))
+  const workflowUiState = computed(() => documentBuildContext.value?.workflowUiState || null)
   const documentPreviewState = computed(() => documentBuildContext.value?.previewState || null)
   const workspacePreviewState = computed(() => (
     documentBuildContext.value?.workspacePreviewState || documentPreviewState.value || null
   ))
   const showDocumentHeader = computed(() => !!activeTabRef.value && !!workflowUiState.value)
-  const workflowStatusText = computed(() => {
-    if (!activeTabRef.value || !workflowUiState.value) return ''
-    return workflowStore.getStatusTextForFile(activeTabRef.value, buildWorkflowOptions({
-      adapter: activeDocumentAdapter.value,
-      workflowOnly: false,
-    }))
-  })
-  const workflowStatusTone = computed(() => getDocumentWorkflowStatusTone(workflowUiState.value))
+  const workflowStatusText = computed(() => documentBuildContext.value?.statusText || '')
+  const workflowStatusTone = computed(() => documentBuildContext.value?.statusTone || 'muted')
 
   async function handleCompileTex() {
     if (!activeTabRef.value || !isLatex(activeTabRef.value)) return

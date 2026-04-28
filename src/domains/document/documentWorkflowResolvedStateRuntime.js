@@ -1,48 +1,13 @@
-import { resolveDocumentWorkflowState as resolveDocumentWorkflowStateFromBackend } from '../../services/documentWorkflow/workflowUiStateBridge.js'
-import { resolveDocumentWorkspacePreviewState as resolveDocumentWorkspacePreviewStateFromBackend } from '../../services/documentWorkflow/workspacePreviewStateBridge.js'
+import { invokeDocumentWorkflowBridge } from '../../services/documentWorkflow/invokeBridge.js'
 
 export const documentWorkflowResolvedStateActions = {
-  buildResolvedWorkspacePreviewStateKey(request = {}) {
-    return JSON.stringify({
-      path: String(request.path || ''),
-      sourcePath: String(request.sourcePath || ''),
-      workflowKind: String(request.workflowKind || ''),
-      workflowPreviewKind: String(request.workflowPreviewKind || ''),
-      previewKind: String(request.previewKind || ''),
-      resolvedTargetPath: String(request.resolvedTargetPath || ''),
-      targetResolution: String(request.targetResolution || ''),
-      hiddenByUser: request.hiddenByUser === true,
-      previewRequested: request.previewRequested === true,
-      artifactReady: request.artifactReady === true,
-    })
-  },
-
-  getResolvedWorkspacePreviewState(filePath, request = {}) {
-    const normalizedPath = String(filePath || '')
-    if (!normalizedPath) return null
-    const entry = this.resolvedWorkspacePreviewStates[normalizedPath] || null
-    if (!entry) return null
-    const key = this.buildResolvedWorkspacePreviewStateKey(request)
-    return entry.key === key ? entry.state : null
-  },
-
-  setResolvedWorkspacePreviewState(filePath, request = {}, state = null) {
-    const normalizedPath = String(filePath || '')
-    if (!normalizedPath) return
-    this.resolvedWorkspacePreviewStates = {
-      ...this.resolvedWorkspacePreviewStates,
-      [normalizedPath]: {
-        key: this.buildResolvedWorkspacePreviewStateKey(request),
-        state,
-      },
-    }
-  },
-
-  buildResolvedWorkflowStateKey(request = {}) {
+  buildResolvedWorkflowContextKey(request = {}) {
     return JSON.stringify({
       filePath: String(request.filePath || ''),
-      artifactPath: String(request.artifactPath || ''),
-      previewState: request.previewState || null,
+      previewPrefs: request.previewPrefs || null,
+      session: request.session || null,
+      workspacePreviewRequests: request.workspacePreviewRequests || null,
+      workspacePreviewVisibility: request.workspacePreviewVisibility || null,
       markdownState: request.markdownState || null,
       markdownDraftProblems: request.markdownDraftProblems || null,
       latexState: request.latexState || null,
@@ -51,101 +16,66 @@ export const documentWorkflowResolvedStateActions = {
       sourceContent: String(request.sourceContent || ''),
       pythonState: request.pythonState || null,
       queueState: request.queueState || null,
+      persistedArtifactPath: String(request.persistedArtifactPath || ''),
+      nativePreviewSupported: request.nativePreviewSupported !== false,
     })
   },
 
-  getResolvedWorkflowState(filePath, request = {}) {
+  getResolvedWorkflowContext(filePath, request = {}) {
     const normalizedPath = String(filePath || '')
     if (!normalizedPath) return null
-    const entry = this.resolvedWorkflowStates[normalizedPath] || null
+    const entry = this.resolvedWorkflowContexts[normalizedPath] || null
     if (!entry) return null
-    const key = this.buildResolvedWorkflowStateKey(request)
-    return entry.key === key ? entry.state : null
+    const key = this.buildResolvedWorkflowContextKey(request)
+    return entry.key === key ? entry.context : null
   },
 
-  setResolvedWorkflowState(filePath, request = {}, state = null) {
+  setResolvedWorkflowContext(filePath, request = {}, context = null) {
     const normalizedPath = String(filePath || '')
     if (!normalizedPath) return
-    this.resolvedWorkflowStates = {
-      ...this.resolvedWorkflowStates,
+    this.resolvedWorkflowContexts = {
+      ...this.resolvedWorkflowContexts,
       [normalizedPath]: {
-        key: this.buildResolvedWorkflowStateKey(request),
-        state,
+        key: this.buildResolvedWorkflowContextKey(request),
+        context,
       },
     }
   },
 
-  async refreshResolvedWorkflowState(filePath, request = {}) {
+  async refreshResolvedWorkflowContext(filePath, request = {}) {
     const normalizedPath = String(filePath || '')
     if (!normalizedPath) return null
 
-    if (!this._resolvedWorkflowStateInflight) {
-      this._resolvedWorkflowStateInflight = new Map()
+    if (!this._resolvedWorkflowContextInflight) {
+      this._resolvedWorkflowContextInflight = new Map()
     }
 
-    const key = this.buildResolvedWorkflowStateKey(request)
+    const key = this.buildResolvedWorkflowContextKey(request)
     const inflightKey = `${normalizedPath}::${key}`
-    if (this._resolvedWorkflowStateInflight.has(inflightKey)) {
-      return this._resolvedWorkflowStateInflight.get(inflightKey)
+    if (this._resolvedWorkflowContextInflight.has(inflightKey)) {
+      return this._resolvedWorkflowContextInflight.get(inflightKey)
     }
 
-    const task = resolveDocumentWorkflowStateFromBackend(request)
-      .then((state) => {
-        this.setResolvedWorkflowState(normalizedPath, request, state)
-        return state
+    const task = invokeDocumentWorkflowBridge('document_workflow_context_resolve', request)
+      .then((context) => {
+        this.setResolvedWorkflowContext(normalizedPath, request, context)
+        return context
       })
       .catch(() => null)
       .finally(() => {
-        this._resolvedWorkflowStateInflight.delete(inflightKey)
+        this._resolvedWorkflowContextInflight.delete(inflightKey)
       })
 
-    this._resolvedWorkflowStateInflight.set(inflightKey, task)
+    this._resolvedWorkflowContextInflight.set(inflightKey, task)
     return task
   },
 
-  ensureResolvedWorkflowState(filePath, request = {}) {
+  ensureResolvedWorkflowContext(filePath, request = {}) {
     const normalizedPath = String(filePath || '')
     if (!normalizedPath) return null
-    const cached = this.getResolvedWorkflowState(normalizedPath, request)
+    const cached = this.getResolvedWorkflowContext(normalizedPath, request)
     if (cached) return cached
-    void this.refreshResolvedWorkflowState(normalizedPath, request)
-    return null
-  },
-
-  async refreshResolvedWorkspacePreviewState(filePath, request = {}) {
-    const normalizedPath = String(filePath || '')
-    if (!normalizedPath) return null
-
-    if (!this._resolvedWorkspacePreviewStateInflight) {
-      this._resolvedWorkspacePreviewStateInflight = new Map()
-    }
-
-    const key = this.buildResolvedWorkspacePreviewStateKey(request)
-    const inflightKey = `${normalizedPath}::${key}`
-    if (this._resolvedWorkspacePreviewStateInflight.has(inflightKey)) {
-      return this._resolvedWorkspacePreviewStateInflight.get(inflightKey)
-    }
-
-    const task = resolveDocumentWorkspacePreviewStateFromBackend(request)
-      .then((state) => {
-        this.setResolvedWorkspacePreviewState(normalizedPath, request, state)
-        return state
-      })
-      .catch(() => null)
-      .finally(() => {
-        this._resolvedWorkspacePreviewStateInflight.delete(inflightKey)
-      })
-
-    this._resolvedWorkspacePreviewStateInflight.set(inflightKey, task)
-    return task
-  },
-
-  ensureResolvedWorkspacePreviewState(filePath, request = {}) {
-    const normalizedPath = String(filePath || '')
-    if (!normalizedPath) return null
-    const cached = this.getResolvedWorkspacePreviewState(normalizedPath, request)
-    if (cached) return cached
-    void this.refreshResolvedWorkspacePreviewState(normalizedPath, request)
+    void this.refreshResolvedWorkflowContext(normalizedPath, request)
     return null
   },
 }

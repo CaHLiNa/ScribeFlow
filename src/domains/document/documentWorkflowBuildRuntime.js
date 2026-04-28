@@ -12,249 +12,6 @@ function resolveDocumentAdapter(filePath, options = {}) {
   return getDocumentAdapterForWorkflow(filePath)
 }
 
-function resolvePreferredPreviewKind(adapter, options = {}, workflowStore = null) {
-  if (!adapter) return null
-  if (options.previewKind) return options.previewKind
-
-  const getPreferredPreviewKind = (
-    options.getPreferredPreviewKind
-    || workflowStore?.getPreferredPreviewKind?.bind(workflowStore)
-  )
-  return getPreferredPreviewKind?.(adapter.kind) || adapter.preview?.defaultKind || null
-}
-
-function normalizePreviewKind(adapter, previewKind) {
-  if (!adapter || !previewKind) return null
-  const supportedKinds = Array.isArray(adapter.preview?.supportedKinds)
-    ? adapter.preview.supportedKinds
-    : []
-  return supportedKinds.includes(previewKind) ? previewKind : adapter.preview?.defaultKind || null
-}
-
-function resolveRequestedPreviewKind(filePath, adapter, options = {}, workflowStore = null) {
-  if (!adapter) return null
-
-  const session = options.session || workflowStore?.session || {}
-  const preferredPreviewKind = resolvePreferredPreviewKind(adapter, options, workflowStore)
-  const workspacePreviewRequest = normalizePreviewKind(
-    adapter,
-    options.workspacePreviewRequest || workflowStore?.getWorkspacePreviewRequestForFile?.(filePath),
-  )
-
-  if (workspacePreviewRequest) {
-    return workspacePreviewRequest
-  }
-
-  if (session.activeFile === filePath) {
-    const sessionPreviewKind = normalizePreviewKind(adapter, session.previewKind)
-    return sessionPreviewKind || preferredPreviewKind
-  }
-  return normalizePreviewKind(adapter, preferredPreviewKind)
-}
-
-function resolveResolvedPreviewTargetPath(filePath, adapter, context, options = {}) {
-  if (options.resolvedTargetPath || options.previewTargetPath) {
-    return options.resolvedTargetPath || options.previewTargetPath || ''
-  }
-  return adapter?.preview?.getTargetPath?.(filePath, context, options) || ''
-}
-
-function resolveArtifactPath(filePath, adapter, context, options = {}) {
-  if (!adapter || !filePath) return ''
-  if (typeof options.artifactPath === 'string') return options.artifactPath
-  if (adapter.kind === 'latex') {
-    const latexState = context.latexStore?.stateForFile?.(filePath) || null
-    return (
-      latexState?.previewPath ||
-      latexState?.pdfPath ||
-      context.workflowStore?.getLatexArtifactPathForFile?.(filePath) ||
-      ''
-    )
-  }
-  return ''
-}
-
-function resolveNativePreviewSupported(filePath, adapter, context, requestedPreviewKind, options = {}) {
-  void filePath
-  void context
-  void requestedPreviewKind
-  if (typeof options.nativePreviewSupported === 'boolean') {
-    return options.nativePreviewSupported
-  }
-  return true
-}
-
-function resolveArtifactReady(filePath, adapter, context) {
-  return Boolean(resolveArtifactPath(filePath, adapter, context))
-}
-
-function resolvePreviewRequested(filePath, requestedPreviewKind, options = {}, workflowStore = null) {
-  const session = options.session || workflowStore?.session || {}
-  const activeSourcePath = session.previewSourcePath || session.activeFile || ''
-  if (!activeSourcePath || activeSourcePath !== filePath) return false
-  if (session.state !== 'workspace-preview') return false
-  if (requestedPreviewKind && session.previewKind && session.previewKind !== requestedPreviewKind) {
-    return false
-  }
-  return true
-}
-
-function buildPreviewStateRequest(filePath, adapter, context, options = {}) {
-  if (!adapter) return null
-
-  const requestedPreviewKind = resolveRequestedPreviewKind(filePath, adapter, options, context.workflowStore)
-  return {
-    path: filePath,
-    sourcePath: options.sourcePath || '',
-    workflowKind: adapter.kind,
-    workflowPreviewKind: requestedPreviewKind || '',
-    previewKind: requestedPreviewKind,
-    resolvedTargetPath: resolveResolvedPreviewTargetPath(filePath, adapter, context, options),
-    targetResolution: options.targetResolution || '',
-    previewRequested: resolvePreviewRequested(
-      filePath,
-      requestedPreviewKind,
-      options,
-      context.workflowStore,
-    ),
-    artifactReady: resolveArtifactReady(filePath, adapter, context),
-    hiddenByUser: context.workflowStore?.isWorkspacePreviewHiddenForFile?.(filePath) === true,
-  }
-}
-
-function resolvePreviewState(filePath, adapter, context, options = {}) {
-  if (!adapter) return null
-
-  const request = buildPreviewStateRequest(filePath, adapter, context, options)
-  return context.workflowStore?.ensureResolvedWorkspacePreviewState?.(filePath, request) || null
-}
-
-function buildWorkflowStateRequest(filePath, adapter, context, options = {}, previewState = null) {
-  if (!adapter) return null
-
-  return {
-    filePath,
-    artifactPath: resolveArtifactPath(filePath, adapter, context, options),
-    previewState,
-    markdownState: adapter.kind === 'markdown'
-      ? context.workflowStore?.markdownPreviewState?.[filePath] || {}
-      : null,
-    markdownDraftProblems: adapter.kind === 'markdown'
-      ? buildMarkdownDraftProblems(
-        filePath,
-        context.filesStore?.fileContents?.[filePath] || '',
-      )
-      : null,
-    latexState: adapter.kind === 'latex'
-      ? context.latexStore?.stateForFile?.(filePath) || {}
-      : null,
-    latexLintDiagnostics: adapter.kind === 'latex'
-      ? context.latexStore?.lintDiagnosticsForFile?.(filePath) || []
-      : null,
-    workspacePath: adapter.kind === 'latex'
-      ? context.workspace?.path || ''
-      : '',
-    sourceContent: adapter.kind === 'latex'
-      ? context.filesStore?.fileContents?.[filePath] || ''
-      : '',
-    pythonState: adapter.kind === 'python'
-      ? context.pythonStore?.stateForFile?.(filePath) || {}
-      : null,
-    queueState: adapter.kind === 'latex'
-      ? context.latexStore?.queueStateForFile?.(filePath) || {}
-      : null,
-  }
-}
-
-function resolveWorkflowState(filePath, adapter, context, options = {}, previewState = null) {
-  if (!adapter) return null
-  const request = buildWorkflowStateRequest(filePath, adapter, context, options, previewState)
-  return context.workflowStore?.ensureResolvedWorkflowState?.(filePath, request) || null
-}
-
-function appendStatusSuffix(base = '', suffixes = []) {
-  const normalizedBase = String(base || '').trim()
-  if (!normalizedBase) return ''
-  const normalizedSuffixes = (Array.isArray(suffixes) ? suffixes : [])
-    .map((entry) => String(entry || '').trim())
-    .filter(Boolean)
-  return normalizedSuffixes.length > 0
-    ? `${normalizedBase} · ${normalizedSuffixes.join(' · ')}`
-    : normalizedBase
-}
-
-function formatResolvedWorkflowStatus(summary = null, context = {}) {
-  const uiState = summary?.uiState || null
-  const status = summary?.status || {}
-  const t = context.t || ((value) => value)
-  if (!uiState) return ''
-
-  if (uiState.kind === 'markdown') {
-    if (status.phase === 'rendering') return t('Rendering...')
-    if (status.phase === 'error') return t('Preview failed')
-    return ''
-  }
-
-  if (uiState.kind === 'latex') {
-    const suffixes = status.hasCustomArgs ? [t('Custom args')] : []
-    if (status.phase === 'compiling') {
-      const base = Number(status.pendingCount || 0) > 0
-        ? `${t('Compiling...')} · ${t('Queued +{count}', { count: Number(status.pendingCount || 0) })}`
-        : t('Compiling...')
-      return appendStatusSuffix(base, suffixes)
-    }
-    if (status.phase === 'queued') {
-      return appendStatusSuffix(t('Queued'), suffixes)
-    }
-    if (status.phase !== 'ready') return ''
-
-    const durationMs = Number(status.durationMs || 0)
-    const durationText = durationMs <= 0
-      ? t('Compiled')
-      : durationMs < 1000
-        ? `${durationMs}ms`
-        : `${(durationMs / 1000).toFixed(1)}s`
-    return appendStatusSuffix(durationText, suffixes)
-  }
-
-  if (uiState.kind === 'python') {
-    if (status.phase === 'running') return t('Running...')
-    if (status.phase === 'error') return t('Run failed')
-    if (status.phase !== 'ready') return ''
-
-    const durationMs = Number(status.durationMs || 0)
-    const durationText = durationMs > 0
-      ? durationMs < 1000
-        ? `${durationMs}ms`
-        : `${(durationMs / 1000).toFixed(1)}s`
-      : t('Ready')
-    const version = String(status.interpreterVersion || '').trim()
-    if (version) {
-      return `${durationText} · Python ${version}`
-    }
-    const interpreterLabel = String(status.interpreterLabel || '').trim()
-    return interpreterLabel ? `${durationText} · ${interpreterLabel}` : durationText
-  }
-
-  return ''
-}
-
-export function getDocumentWorkflowStatusTone(uiState = null) {
-  if (!uiState) return 'muted'
-  if (uiState.kind === 'markdown') {
-    if (uiState.exportPhase === 'exporting' || uiState.phase === 'rendering') return 'running'
-    if (uiState.phase === 'error') return 'error'
-    if (uiState.exportPhase === 'error') return 'warning'
-    if (uiState.phase === 'ready' || uiState.exportPhase === 'ready') return 'success'
-    return 'muted'
-  }
-  if (uiState.phase === 'running' || uiState.phase === 'compiling' || uiState.phase === 'rendering') return 'running'
-  if (uiState.phase === 'queued') return 'warning'
-  if (uiState.phase === 'error') return 'error'
-  if (uiState.phase === 'ready') return 'success'
-  return 'muted'
-}
-
 export function createDocumentWorkflowBuildRuntime({
   getWorkflowStore,
   getEditorStore,
@@ -277,6 +34,51 @@ export function createDocumentWorkflowBuildRuntime({
     }
   }
 
+  function buildWorkflowContextRequest(filePath, adapter, context, options = {}) {
+    const workflowStore = context.workflowStore || null
+    return {
+      filePath,
+      previewPrefs: workflowStore?.previewPrefs || {},
+      session: workflowStore?.session || {},
+      workspacePreviewRequests: workflowStore?.workspacePreviewRequests || {},
+      workspacePreviewVisibility: workflowStore?.workspacePreviewVisibility || {},
+      markdownState: adapter.kind === 'markdown'
+        ? workflowStore?.markdownPreviewState?.[filePath] || {}
+        : null,
+      markdownDraftProblems: adapter.kind === 'markdown'
+        ? buildMarkdownDraftProblems(filePath, context.filesStore?.fileContents?.[filePath] || '')
+        : null,
+      latexState: adapter.kind === 'latex'
+        ? context.latexStore?.stateForFile?.(filePath) || {}
+        : null,
+      latexLintDiagnostics: adapter.kind === 'latex'
+        ? context.latexStore?.lintDiagnosticsForFile?.(filePath) || []
+        : null,
+      workspacePath: adapter.kind === 'latex'
+        ? context.workspace?.path || ''
+        : '',
+      sourceContent: adapter.kind === 'latex'
+        ? context.filesStore?.fileContents?.[filePath] || ''
+        : '',
+      pythonState: adapter.kind === 'python'
+        ? context.pythonStore?.stateForFile?.(filePath) || {}
+        : null,
+      queueState: adapter.kind === 'latex'
+        ? context.latexStore?.queueStateForFile?.(filePath) || {}
+        : null,
+      persistedArtifactPath: adapter.kind === 'latex'
+        ? workflowStore?.getLatexArtifactPathForFile?.(filePath) || ''
+        : '',
+      nativePreviewSupported: options.nativePreviewSupported !== false,
+    }
+  }
+
+  function resolveWorkflowContext(filePath, adapter, context, options = {}) {
+    if (!adapter) return null
+    const request = buildWorkflowContextRequest(filePath, adapter, context, options)
+    return context.workflowStore?.ensureResolvedWorkflowContext?.(filePath, request) || null
+  }
+
   function buildAdapterContext(filePath, options = {}) {
     const context = resolveBaseContext(options)
     const adapter = resolveDocumentAdapter(filePath, options)
@@ -284,6 +86,8 @@ export function createDocumentWorkflowBuildRuntime({
       return {
         ...context,
         adapter: null,
+        workflowState: null,
+        workflowUiState: null,
         previewState: null,
         workspacePreviewState: null,
         previewKind: null,
@@ -292,41 +96,42 @@ export function createDocumentWorkflowBuildRuntime({
         previewVisible: false,
         previewTargetPath: '',
         targetResolution: null,
+        artifactPath: '',
+        artifactReady: false,
+        nativePreviewSupported: true,
+        statusText: '',
+        statusTone: 'muted',
       }
     }
 
-    const previewState = resolvePreviewState(filePath, adapter, context, options)
-    const workflowState = resolveWorkflowState(filePath, adapter, context, options, previewState)
-    const uiState = workflowState?.uiState || null
+    const resolved = resolveWorkflowContext(filePath, adapter, context, options)
+    const workflowState = resolved?.workflowState || null
+    const previewState = resolved?.previewState || null
+    const workflowUiState = resolved?.workflowUiState || workflowState?.uiState || null
     const artifactPath = String(
+      resolved?.artifactPath ||
       workflowState?.artifactPath ||
-      resolveArtifactPath(filePath, adapter, context, options) ||
       '',
     )
-    const artifactReady = !!artifactPath
-    const nativePreviewSupported = resolveNativePreviewSupported(
-      filePath,
-      adapter,
-      context,
-      previewState?.previewKind || null,
-      options,
-    )
+
     return {
       ...context,
       adapter,
       workflowState,
-      workflowUiState: uiState,
+      workflowUiState,
       previewState,
       workspacePreviewState: previewState,
-      previewKind: uiState?.previewKind || previewState?.previewKind || null,
-      previewMode: previewState?.previewMode || null,
-      previewAvailable: previewState?.previewVisible === true,
-      previewVisible: previewState?.previewVisible === true,
-      previewTargetPath: previewState?.previewTargetPath || '',
-      targetResolution: previewState?.targetResolution || null,
+      previewKind: resolved?.previewKind ?? previewState?.previewKind ?? null,
+      previewMode: resolved?.previewMode ?? previewState?.previewMode ?? null,
+      previewAvailable: resolved?.previewAvailable === true,
+      previewVisible: resolved?.previewVisible === true,
+      previewTargetPath: resolved?.previewTargetPath || previewState?.previewTargetPath || '',
+      targetResolution: resolved?.targetResolution ?? previewState?.targetResolution ?? null,
       artifactPath,
-      artifactReady,
-      nativePreviewSupported,
+      artifactReady: !!artifactPath,
+      nativePreviewSupported: resolved?.nativePreviewSupported !== false,
+      statusText: String(resolved?.statusText || ''),
+      statusTone: String(resolved?.statusTone || 'muted'),
     }
   }
 
@@ -338,15 +143,6 @@ export function createDocumentWorkflowBuildRuntime({
   function getProblemsForFile(filePath, options = {}) {
     const context = buildAdapterContext(filePath, options)
     return context.workflowState?.problems || []
-  }
-
-  function getUiStateForFile(filePath, options = {}) {
-    return buildAdapterContext(filePath, options).workflowUiState || null
-  }
-
-  function getStatusTextForFile(filePath, options = {}) {
-    const context = buildAdapterContext(filePath, options)
-    return formatResolvedWorkflowStatus(context.workflowState, context)
   }
 
   function getArtifactPathForFile(filePath, options = {}) {
@@ -361,10 +157,7 @@ export function createDocumentWorkflowBuildRuntime({
     buildAdapterContext,
     openLogForFile,
     getProblemsForFile,
-    getUiStateForFile,
-    getStatusTextForFile,
     getArtifactPathForFile,
     getWorkspacePreviewStateForFile,
-    getStatusTone: getDocumentWorkflowStatusTone,
   }
 }
