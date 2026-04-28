@@ -39,6 +39,7 @@ import {
 } from '../services/workspaceRecents'
 import {
   createWorkbenchDockPageContract,
+  dockPageDefinitionsForSurface,
   dockPageIdsForSurface,
   loadWorkbenchDockPageContract,
 } from '../services/workbenchDockPages'
@@ -161,6 +162,10 @@ export const useWorkspaceStore = defineStore('workspace', {
       state.globalConfigDir ? `${state.globalConfigDir}/claude-hooks` : null,
     legacyProjectDir: (state) => (state.path ? `${state.path}/.project` : null),
     legacyClaudeDir: (state) => (state.path ? `${state.path}/.claude` : null),
+    documentDockPageDefinitions: (state) =>
+      dockPageDefinitionsForSurface(state.dockPageContract, 'document'),
+    referenceDockPageDefinitions: (state) =>
+      dockPageDefinitionsForSurface(state.dockPageContract, 'reference'),
     documentDockPageIds: (state) => dockPageIdsForSurface(state.dockPageContract, 'document'),
     referenceDockPageIds: (state) => dockPageIdsForSurface(state.dockPageContract, 'reference'),
   },

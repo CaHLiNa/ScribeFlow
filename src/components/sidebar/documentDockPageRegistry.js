@@ -1,5 +1,6 @@
 import { defineAsyncComponent } from 'vue'
 import {
+  IconAlertTriangle,
   IconBraces,
   IconBrandCss3,
   IconBrandHtml5,
@@ -24,6 +25,7 @@ import {
 } from '@tabler/icons-vue'
 import {
   DOCUMENT_DOCK_FILE_PAGE,
+  DOCUMENT_DOCK_PROBLEMS_PAGE,
   DOCUMENT_DOCK_PREVIEW_PAGE,
   documentDockFileKey,
 } from '../../domains/editor/documentDockPages.js'
@@ -34,6 +36,7 @@ import { basenamePath } from '../../utils/path.js'
 
 const DocumentPreviewDock = defineAsyncComponent(() => import('./DocumentPreviewDock.vue'))
 const DocumentDockFileSurface = defineAsyncComponent(() => import('./DocumentDockFileSurface.vue'))
+const DocumentProblemsPanel = defineAsyncComponent(() => import('./DocumentProblemsPanel.vue'))
 
 const ICON_COMPONENTS = {
   IconFile,
@@ -57,6 +60,7 @@ const ICON_COMPONENTS = {
   IconMath,
   IconNotebook,
   IconBook2,
+  IconAlertTriangle,
 }
 
 function previewIconForMode(previewMode = '') {
@@ -102,6 +106,31 @@ export const documentDockPageRegistry = createInlineDockPageRegistry([
           documentDockResizing: context.documentDockResizing,
         },
         immersive,
+      }
+    },
+  },
+  {
+    id: DOCUMENT_DOCK_PROBLEMS_PAGE,
+    resolve(context = {}) {
+      const count = Number(context.problemCount || 0)
+      const label = count > 0
+        ? `${context.t?.('Problems') || 'Problems'} (${count})`
+        : context.t?.('Problems') || 'Problems'
+
+      return {
+        key: DOCUMENT_DOCK_PROBLEMS_PAGE,
+        type: DOCUMENT_DOCK_PROBLEMS_PAGE,
+        icon: IconAlertTriangle,
+        title: label,
+        ariaLabel: label,
+        tabClass: 'document-dock__preview-tab document-dock__preview-tab--icon',
+        labelClass: 'document-dock__preview-label',
+        iconClass: 'document-dock__preview-icon',
+        closeable: false,
+        component: DocumentProblemsPanel,
+        componentProps: {
+          filePath: context.filePath,
+        },
       }
     },
   },

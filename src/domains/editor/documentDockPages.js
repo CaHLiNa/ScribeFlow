@@ -1,4 +1,5 @@
 export const DOCUMENT_DOCK_PREVIEW_PAGE = 'preview'
+export const DOCUMENT_DOCK_PROBLEMS_PAGE = 'problems'
 export const DOCUMENT_DOCK_FILE_PAGE = 'file'
 
 const DOCUMENT_DOCK_FILE_PREFIX = 'file:'

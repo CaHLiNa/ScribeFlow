@@ -3,15 +3,39 @@ function normalizePageList(value) {
   return Array.isArray(value) ? value : [value]
 }
 
-function normalizePage(page = {}, definition = {}) {
+function lifecycleDefinitionsFromContext(context = {}) {
+  const definitions = Array.isArray(context.pageDefinitions) ? context.pageDefinitions : []
+  return new Map(
+    definitions
+      .map((definition) => [
+        String(definition?.id || '').trim(),
+        {
+          closeable: definition?.closeable === true,
+          dynamic: definition?.dynamic === true,
+          fallbackPage: String(definition?.fallbackPage || '').trim(),
+          permanent: definition?.permanent === true,
+        },
+      ])
+      .filter(([id]) => id)
+  )
+}
+
+function normalizePage(page = {}, definition = {}, lifecycle = null) {
   const key = String(page.key || '').trim()
   if (!key) return null
+  const pageCloseable = Object.prototype.hasOwnProperty.call(page, 'closeable')
+    ? page.closeable === true
+    : definition.defaults?.closeable === true
+  const closeable = lifecycle ? lifecycle.closeable && pageCloseable : pageCloseable
 
   return {
     ...definition.defaults,
     ...page,
     key,
     type: String(page.type || definition.type || definition.id || '').trim(),
+    closeable,
+    fallbackPage: lifecycle?.fallbackPage || page.fallbackPage || definition.defaults?.fallbackPage || '',
+    lifecycle,
   }
 }
 
@@ -31,13 +55,14 @@ export function createInlineDockPageRegistry(definitions = []) {
 
   function resolvePages(context = {}) {
     const allowedPageIds = allowedPageIdsFromContext(context)
+    const lifecycleDefinitions = lifecycleDefinitionsFromContext(context)
     const definitions = allowedPageIds.size > 0
       ? normalizedDefinitions.filter((definition) => allowedPageIds.has(definition.id))
       : normalizedDefinitions
 
     return definitions.flatMap((definition) =>
       normalizePageList(definition.resolve(context))
-        .map((page) => normalizePage(page, definition))
+        .map((page) => normalizePage(page, definition, lifecycleDefinitions.get(definition.id)))
         .filter(Boolean)
     )
   }

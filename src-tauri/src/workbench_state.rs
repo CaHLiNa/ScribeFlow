@@ -23,7 +23,9 @@ const DEFAULT_SETTINGS_INSPECTOR_PANEL: &str = "";
 const DEFAULT_DOCUMENT_DOCK_PAGE: &str = "preview";
 const DEFAULT_REFERENCE_DOCK_PAGE: &str = "details";
 const DOCUMENT_DOCK_FILE_PAGE: &str = "file";
+const DOCUMENT_DOCK_PROBLEMS_PAGE: &str = "problems";
 const REFERENCE_DOCK_PDF_PAGE: &str = "pdf";
+const REFERENCE_DOCK_CITED_IN_PAGE: &str = "cited-in";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -69,6 +71,8 @@ pub struct WorkbenchDockPageDefinition {
     pub id: String,
     pub permanent: bool,
     pub dynamic: bool,
+    pub closeable: bool,
+    pub fallback_page: String,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -254,6 +258,7 @@ pub fn normalize_workbench_inspector_panel(surface: &str, panel: &str) -> String
 pub fn normalize_document_dock_page(value: &str) -> String {
     match value.trim() {
         DOCUMENT_DOCK_FILE_PAGE => DOCUMENT_DOCK_FILE_PAGE.to_string(),
+        DOCUMENT_DOCK_PROBLEMS_PAGE => DOCUMENT_DOCK_PROBLEMS_PAGE.to_string(),
         _ => DEFAULT_DOCUMENT_DOCK_PAGE.to_string(),
     }
 }
@@ -261,15 +266,24 @@ pub fn normalize_document_dock_page(value: &str) -> String {
 pub fn normalize_reference_dock_page(value: &str) -> String {
     match value.trim() {
         REFERENCE_DOCK_PDF_PAGE => REFERENCE_DOCK_PDF_PAGE.to_string(),
+        REFERENCE_DOCK_CITED_IN_PAGE => REFERENCE_DOCK_CITED_IN_PAGE.to_string(),
         _ => DEFAULT_REFERENCE_DOCK_PAGE.to_string(),
     }
 }
 
-fn dock_page_definition(id: &str, permanent: bool, dynamic: bool) -> WorkbenchDockPageDefinition {
+fn dock_page_definition(
+    id: &str,
+    permanent: bool,
+    dynamic: bool,
+    closeable: bool,
+    fallback_page: &str,
+) -> WorkbenchDockPageDefinition {
     WorkbenchDockPageDefinition {
         id: id.to_string(),
         permanent,
         dynamic,
+        closeable,
+        fallback_page: fallback_page.to_string(),
     }
 }
 
@@ -278,15 +292,53 @@ pub fn workbench_dock_page_contract() -> WorkbenchDockPageContract {
         document: WorkbenchDockSurfaceContract {
             default_page: DEFAULT_DOCUMENT_DOCK_PAGE.to_string(),
             pages: vec![
-                dock_page_definition(DEFAULT_DOCUMENT_DOCK_PAGE, true, false),
-                dock_page_definition(DOCUMENT_DOCK_FILE_PAGE, false, true),
+                dock_page_definition(
+                    DEFAULT_DOCUMENT_DOCK_PAGE,
+                    true,
+                    false,
+                    true,
+                    DOCUMENT_DOCK_FILE_PAGE,
+                ),
+                dock_page_definition(
+                    DOCUMENT_DOCK_PROBLEMS_PAGE,
+                    true,
+                    false,
+                    false,
+                    DEFAULT_DOCUMENT_DOCK_PAGE,
+                ),
+                dock_page_definition(
+                    DOCUMENT_DOCK_FILE_PAGE,
+                    false,
+                    true,
+                    true,
+                    DEFAULT_DOCUMENT_DOCK_PAGE,
+                ),
             ],
         },
         reference: WorkbenchDockSurfaceContract {
             default_page: DEFAULT_REFERENCE_DOCK_PAGE.to_string(),
             pages: vec![
-                dock_page_definition(DEFAULT_REFERENCE_DOCK_PAGE, true, false),
-                dock_page_definition(REFERENCE_DOCK_PDF_PAGE, false, true),
+                dock_page_definition(
+                    DEFAULT_REFERENCE_DOCK_PAGE,
+                    true,
+                    false,
+                    false,
+                    DEFAULT_REFERENCE_DOCK_PAGE,
+                ),
+                dock_page_definition(
+                    REFERENCE_DOCK_CITED_IN_PAGE,
+                    true,
+                    false,
+                    false,
+                    DEFAULT_REFERENCE_DOCK_PAGE,
+                ),
+                dock_page_definition(
+                    REFERENCE_DOCK_PDF_PAGE,
+                    false,
+                    true,
+                    true,
+                    DEFAULT_REFERENCE_DOCK_PAGE,
+                ),
             ],
         },
     }
@@ -494,15 +546,24 @@ mod tests {
 
         assert_eq!(contract.document.default_page, "preview");
         assert_eq!(contract.reference.default_page, "details");
-        assert_eq!(document_page_ids, vec!["preview", "file"]);
-        assert_eq!(reference_page_ids, vec!["details", "pdf"]);
+        assert_eq!(document_page_ids, vec!["preview", "problems", "file"]);
+        assert_eq!(reference_page_ids, vec!["details", "cited-in", "pdf"]);
+        assert_eq!(contract.document.pages[0].fallback_page, "file");
+        assert!(contract.document.pages[0].closeable);
+        assert_eq!(contract.document.pages[1].fallback_page, "preview");
+        assert!(!contract.document.pages[1].closeable);
+        assert_eq!(contract.reference.pages[1].fallback_page, "details");
+        assert!(!contract.reference.pages[1].closeable);
+        assert!(contract.reference.pages[2].closeable);
     }
 
     #[test]
     fn dock_page_normalization_falls_back_to_contract_defaults() {
         assert_eq!(normalize_document_dock_page("file"), "file");
+        assert_eq!(normalize_document_dock_page("problems"), "problems");
         assert_eq!(normalize_document_dock_page("unknown"), "preview");
         assert_eq!(normalize_reference_dock_page("pdf"), "pdf");
+        assert_eq!(normalize_reference_dock_page("cited-in"), "cited-in");
         assert_eq!(normalize_reference_dock_page("unknown"), "details");
     }
 

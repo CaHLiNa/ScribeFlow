@@ -434,10 +434,6 @@ useAppTeardown({
   border-right: none;
 }
 
-.app-shell-root.is-mac-vibrant :deep(.right-shell-sidebar) {
-  border-left-color: color-mix(in srgb, var(--border) 52%, transparent);
-}
-
 /* =========================================================================
    Zen Mode (Focus Fade-out Transitions)
 ========================================================================= */

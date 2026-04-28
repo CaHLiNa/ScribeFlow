@@ -1,12 +1,14 @@
 import { defineAsyncComponent } from 'vue'
-import { IconFileText, IconFileTypePdf } from '@tabler/icons-vue'
+import { IconFileText, IconFileTypePdf, IconQuote } from '@tabler/icons-vue'
 import {
+  REFERENCE_DOCK_CITED_IN_PAGE,
   REFERENCE_DOCK_DETAILS_PAGE,
   REFERENCE_DOCK_PDF_PAGE,
 } from '../../domains/references/referenceDockPages.js'
 import { createInlineDockPageRegistry } from '../../domains/workbench/inlineDockPageRegistry.js'
 
 const ReferenceDetailPanel = defineAsyncComponent(() => import('../panel/ReferenceDetailPanel.vue'))
+const ReferenceCitedInPanel = defineAsyncComponent(() => import('./ReferenceCitedInPanel.vue'))
 const DocumentDockFileSurface = defineAsyncComponent(() => import('../sidebar/DocumentDockFileSurface.vue'))
 
 export const referenceDockPageRegistry = createInlineDockPageRegistry([
@@ -29,6 +31,33 @@ export const referenceDockPageRegistry = createInlineDockPageRegistry([
         componentClass: 'reference-workbench__detail-panel',
         componentEvents: {
           'open-pdf-preview': context.openPdfPreview,
+        },
+      }
+    },
+  },
+  {
+    id: REFERENCE_DOCK_CITED_IN_PAGE,
+    resolve(context = {}) {
+      const count = Number(context.citedInCount || 0)
+      const label = count > 0
+        ? `${context.t?.('Cited In') || 'Cited In'} (${count})`
+        : context.t?.('Cited In') || 'Cited In'
+
+      return {
+        key: REFERENCE_DOCK_CITED_IN_PAGE,
+        type: REFERENCE_DOCK_CITED_IN_PAGE,
+        icon: IconQuote,
+        title: label,
+        ariaLabel: label,
+        tabClass:
+          'reference-workbench__detail-tab reference-workbench__detail-tab--icon reference-workbench__detail-tab--cited-in',
+        labelClass: 'reference-workbench__detail-tab-label',
+        iconClass: 'reference-workbench__detail-tab-icon',
+        closeable: false,
+        component: ReferenceCitedInPanel,
+        componentClass: 'reference-workbench__detail-panel',
+        componentProps: {
+          reference: context.selectedReference,
         },
       }
     },

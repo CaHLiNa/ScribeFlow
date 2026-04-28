@@ -232,6 +232,7 @@ import {
 import { basenamePath, dirnamePath } from '../../utils/path'
 import { findInlineDockPage } from '../../domains/workbench/inlineDockPageRegistry.js'
 import {
+  REFERENCE_DOCK_CITED_IN_PAGE,
   REFERENCE_DOCK_DETAILS_PAGE,
   REFERENCE_DOCK_PDF_PAGE,
 } from '../../domains/references/referenceDockPages.js'
@@ -279,6 +280,14 @@ const {
 const filteredReferences = computed(() => referencesStore.filteredReferences)
 const selectedReference = computed(() => referencesStore.selectedReference)
 const selectedReferencePdfPath = computed(() => String(selectedReference.value?.pdfPath || '').trim())
+const selectedReferenceCitationKey = computed(() =>
+  String(selectedReference.value?.citationKey || '').trim()
+)
+const selectedReferenceCitedInFiles = computed(() => {
+  if (!selectedReferenceCitationKey.value) return []
+  const files = referencesStore.citedIn[selectedReferenceCitationKey.value]
+  return Array.isArray(files) ? files : []
+})
 const canPreviewSelectedReferencePdf = computed(() => selectedReferencePdfPath.value.length > 0)
 const showReferencePdfTab = computed(
   () => referencesStore.selectedReferencePdfTabOpen && canPreviewSelectedReferencePdf.value
@@ -286,7 +295,9 @@ const showReferencePdfTab = computed(
 const referenceDockPages = computed(() =>
   referenceDockPageRegistry.resolvePages({
     allowedPageIds: workspace.referenceDockPageIds,
+    citedInCount: selectedReferenceCitedInFiles.value.length,
     openPdfPreview: activateReferencePdfTab,
+    pageDefinitions: workspace.referenceDockPageDefinitions,
     referenceDetailResizing: props.referenceDetailResizing,
     selectedReference: selectedReference.value,
     selectedReferencePdfPath: selectedReferencePdfPath.value,
@@ -298,6 +309,9 @@ const activeReferenceDockKey = computed(() => {
   const activePage = String(workspace.referenceDockActivePage || REFERENCE_DOCK_DETAILS_PAGE)
   if (activePage === REFERENCE_DOCK_PDF_PAGE && showReferencePdfTab.value) {
     return REFERENCE_DOCK_PDF_PAGE
+  }
+  if (activePage === REFERENCE_DOCK_CITED_IN_PAGE) {
+    return REFERENCE_DOCK_CITED_IN_PAGE
   }
   return REFERENCE_DOCK_DETAILS_PAGE
 })
@@ -361,6 +375,10 @@ function activateReferenceDockPage(page = {}) {
   }
   if (page.type === REFERENCE_DOCK_PDF_PAGE) {
     activateReferencePdfTab()
+    return
+  }
+  if (page.type === REFERENCE_DOCK_CITED_IN_PAGE) {
+    void workspace.setReferenceDockActivePage(REFERENCE_DOCK_CITED_IN_PAGE)
   }
 }
 

@@ -4,15 +4,17 @@ const FALLBACK_DOCK_PAGE_CONTRACT = Object.freeze({
   document: {
     defaultPage: 'preview',
     pages: [
-      { id: 'preview', permanent: true, dynamic: false },
-      { id: 'file', permanent: false, dynamic: true },
+      { id: 'preview', permanent: true, dynamic: false, closeable: true, fallbackPage: 'file' },
+      { id: 'problems', permanent: true, dynamic: false, closeable: false, fallbackPage: 'preview' },
+      { id: 'file', permanent: false, dynamic: true, closeable: true, fallbackPage: 'preview' },
     ],
   },
   reference: {
     defaultPage: 'details',
     pages: [
-      { id: 'details', permanent: true, dynamic: false },
-      { id: 'pdf', permanent: false, dynamic: true },
+      { id: 'details', permanent: true, dynamic: false, closeable: false, fallbackPage: 'details' },
+      { id: 'cited-in', permanent: true, dynamic: false, closeable: false, fallbackPage: 'details' },
+      { id: 'pdf', permanent: false, dynamic: true, closeable: true, fallbackPage: 'details' },
     ],
   },
 })
@@ -25,6 +27,8 @@ function normalizePageDefinition(page = {}) {
     id,
     permanent: page.permanent === true,
     dynamic: page.dynamic === true,
+    closeable: page.closeable === true,
+    fallbackPage: String(page.fallbackPage || '').trim(),
   }
 }
 
@@ -38,10 +42,14 @@ function normalizeSurfaceContract(value = {}, fallback = {}) {
   const defaultPage = pages.some((page) => page.id === requestedDefault)
     ? requestedDefault
     : fallbackDefault
+  const pageIds = new Set(pages.map((page) => page.id))
 
   return {
     defaultPage,
-    pages,
+    pages: pages.map((page) => ({
+      ...page,
+      fallbackPage: pageIds.has(page.fallbackPage) ? page.fallbackPage : defaultPage,
+    })),
   }
 }
 
@@ -60,4 +68,9 @@ export async function loadWorkbenchDockPageContract() {
 export function dockPageIdsForSurface(contract = {}, surface = '') {
   const pages = contract?.[surface]?.pages
   return Array.isArray(pages) ? pages.map((page) => page.id).filter(Boolean) : []
+}
+
+export function dockPageDefinitionsForSurface(contract = {}, surface = '') {
+  const pages = contract?.[surface]?.pages
+  return Array.isArray(pages) ? pages.filter((page) => page?.id) : []
 }

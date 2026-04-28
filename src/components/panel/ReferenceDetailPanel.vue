@@ -255,17 +255,6 @@
         </details>
       </div>
 
-      <div v-if="citedInFiles.length > 0" class="inspector-section">
-        <div class="inspector-section-header">
-          <span>{{ t('Cited In') }}</span>
-        </div>
-        <div class="inspector-links">
-          <button v-for="path in citedInFiles" :key="path" class="inspector-link-btn" @click="editorStore.openFile(path)">
-            {{ getRelativePath(path) }}
-          </button>
-        </div>
-      </div>
-
     </div>
   </section>
 </template>
@@ -346,12 +335,6 @@ const heroMetaItems = computed(() =>
     draft.citationKey ? String(draft.citationKey) : '',
   ].filter(Boolean)
 )
-const citedInFiles = computed(() => {
-  const citationKey = String(selectedReference.value?.citationKey || '').trim()
-  if (!citationKey) return []
-  return referencesStore.citedIn[citationKey] || []
-})
-
 watch(
   () => selectedReference.value,
   (reference, oldRef) => {
@@ -468,12 +451,6 @@ function normalizeTagValues(value = '') {
     .split(/[,\n;]+/g)
     .map((part) => normalizeText(part).replace(/^#/, ''))
     .filter(Boolean)
-}
-
-function getRelativePath(path = '') {
-  const workspacePath = String(workspace.path || '').trim()
-  if (!workspacePath || !String(path).startsWith(workspacePath)) return path
-  return String(path).slice(workspacePath.length + 1)
 }
 
 function resolveCollection(value = '') {
@@ -1157,29 +1134,6 @@ details[open] .disclosure-icon {
 .inspector-file-actions :deep(.ui-button) {
   border-radius: 6px;
   box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-}
-
-.inspector-links {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.inspector-link-btn {
-  background: transparent;
-  border: none;
-  color: var(--accent);
-  text-align: left;
-  padding: 4px 6px;
-  margin-left: -6px;
-  font-size: 12.5px;
-  cursor: pointer;
-  border-radius: 4px;
-}
-
-.inspector-link-btn:hover {
-  background: color-mix(in srgb, var(--surface-hover) 15%, transparent);
-  text-decoration: underline;
 }
 
 /* ==========================================

@@ -28,6 +28,7 @@
 import { computed } from 'vue'
 import {
   DOCUMENT_DOCK_FILE_PAGE,
+  DOCUMENT_DOCK_PROBLEMS_PAGE,
   DOCUMENT_DOCK_PREVIEW_PAGE,
   documentDockFileKey,
 } from '../../domains/editor/documentDockPages.js'
@@ -47,8 +48,6 @@ const props = defineProps({
   documentDockResizing: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['close'])
-
 const workflowStore = useDocumentWorkflowStore()
 const editorStore = useEditorStore()
 const workspace = useWorkspaceStore()
@@ -56,6 +55,7 @@ const { t } = useI18n()
 
 const hasPreview = computed(() => props.previewState?.previewVisible === true)
 const comparisonTabs = computed(() => editorStore.documentDockTabs || [])
+const documentProblems = computed(() => workflowStore.getProblemsForFile(props.filePath, { t }))
 const previewMode = computed(() => props.previewState?.previewMode || null)
 const documentLabel = computed(() => basenamePath(props.filePath) || props.filePath)
 const dockPages = computed(() =>
@@ -66,7 +66,9 @@ const dockPages = computed(() =>
     documentLabel: documentLabel.value,
     filePath: props.filePath,
     hasPreview: hasPreview.value,
+    pageDefinitions: workspace.documentDockPageDefinitions,
     paneId: props.paneId,
+    problemCount: documentProblems.value.length,
     previewMode: previewMode.value,
     previewState: props.previewState,
     t,
@@ -80,6 +82,10 @@ const activeDockKey = computed(() => {
     return DOCUMENT_DOCK_PREVIEW_PAGE
   }
 
+  if (activePage === DOCUMENT_DOCK_PROBLEMS_PAGE) {
+    return DOCUMENT_DOCK_PROBLEMS_PAGE
+  }
+
   if (
     activePage === DOCUMENT_DOCK_FILE_PAGE &&
     editorStore.activeDocumentDockTab &&
@@ -89,7 +95,9 @@ const activeDockKey = computed(() => {
   }
 
   if (hasPreview.value) return DOCUMENT_DOCK_PREVIEW_PAGE
-  return comparisonTabs.value.length > 0 ? documentDockFileKey(comparisonTabs.value[0]) : ''
+  return comparisonTabs.value.length > 0
+    ? documentDockFileKey(comparisonTabs.value[0])
+    : DOCUMENT_DOCK_PROBLEMS_PAGE
 })
 const activeDockPage = computed(() => findInlineDockPage(dockPages.value, activeDockKey.value))
 const usesImmersivePreview = computed(() => activeDockPage.value?.immersive === true)
@@ -103,6 +111,11 @@ function activateDockPage(page = {}) {
   if (page.type === DOCUMENT_DOCK_FILE_PAGE && page.path) {
     editorStore.setActiveDocumentDockFile(page.path)
     void workspace.setDocumentDockActivePage(DOCUMENT_DOCK_FILE_PAGE)
+    return
+  }
+
+  if (page.type === DOCUMENT_DOCK_PROBLEMS_PAGE) {
+    void workspace.setDocumentDockActivePage(DOCUMENT_DOCK_PROBLEMS_PAGE)
   }
 }
 
@@ -112,7 +125,8 @@ function closePreview() {
     void workspace.setDocumentDockActivePage(DOCUMENT_DOCK_FILE_PAGE)
     return
   }
-  emit('close')
+  void workspace.openDocumentDock()
+  void workspace.setDocumentDockActivePage(DOCUMENT_DOCK_PROBLEMS_PAGE)
 }
 
 function closeFilePage(page = {}) {
@@ -124,7 +138,7 @@ function closeFilePage(page = {}) {
   editorStore.closeDocumentDockFile(path)
 
   if (!hasPreview.value && onlyComparisonTab) {
-    emit('close')
+    void workspace.setDocumentDockActivePage(DOCUMENT_DOCK_PROBLEMS_PAGE)
     return
   }
 
