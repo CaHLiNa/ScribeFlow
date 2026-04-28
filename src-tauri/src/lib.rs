@@ -513,7 +513,7 @@ pub fn run() {
             document_workflow_action::document_workflow_action_resolve,
             document_workflow_controller::document_workflow_controller_execute,
             document_workflow_session::document_workflow_session_load,
-            document_workflow_session::document_workflow_session_save,
+            document_workflow_session::document_workflow_session_mutate,
             document_workflow_ui_state::document_workflow_state_resolve,
             document_workspace_preview::document_workspace_preview_mutate,
             document_workspace_preview_state::document_workspace_preview_state_resolve,

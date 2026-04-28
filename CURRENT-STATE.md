@@ -89,6 +89,7 @@ Current state:
 - Markdown, LaTeX, and Python are routed through shared workflow state and preview/build actions.
 - Preview preference, preview visibility, artifact path resolution, and workspace preview state are unified.
 - Rust now resolves the workflow summary contract itself: `uiState`, normalized `problems`, runtime-backed `artifactPath`, and status metadata for Markdown / LaTeX / Python.
+- Document-workflow session persistence now mutates through Rust as well: preview prefs/bindings, workspace preview visibility/requests, and persisted LaTeX preview artifacts no longer rely on a frontend save queue or JS-side path reconciliation loop.
 - Frontend document adapters have been reduced to thin preview/compile bridges instead of owning their own workflow diagnostics and state-derivation layers.
 
 Interpretation:
@@ -162,6 +163,7 @@ What is not fully cleaned up:
 - `documentOutline` follows the same direction now: the frontend no longer gathers workspace flat files for outline resolution, and Rust can derive the needed workspace file set from `workspacePath`.
 - Workspace document template creation now follows the same Rust-first boundary: Rust owns template body text, extension normalization, unique file naming, and directory creation, while the frontend only passes `templateId`, `ext`, and display-facing labels.
 - `editorPersistence` is narrower now too: recent-file open/rename policy no longer lives in Pinia/service helpers, and the frontend only forwards the current list plus path events into Rust persistence.
+- `documentWorkflow/session` has tightened on the same axis: the old frontend persistence queue, preview-binding save choreography, and LaTeX artifact path cleanup loop have been collapsed into Rust session mutation/load commands, while the frontend keeps only live state projection and editor-side effects.
 - `latex/previewSync` has now shed most of its non-UI authority too: moved-file path repair and in-editor selection matching resolve in Rust commands, while the frontend side only waits for views and applies the final editor focus.
 - `documentWorkflow` has now crossed the same boundary: the old adapter-local workflow derivation for Markdown / LaTeX / Python has been collapsed into a Rust summary resolver, and the deleted `latex/diagnostics.js` mapping layer no longer sits between runtime state and workflow UI.
 - `TextEditor` no longer warms LaTeX project graph and lint through separate frontend-side orchestration; the store now asks Rust for a source snapshot and only applies the returned state.
@@ -180,6 +182,7 @@ What is not fully cleaned up:
 - Bridge conventions now hold across UI layers, i18n entrypoints, and the main product-facing stores
 - The old frontend typed-file creation loop has been removed from `FileTree.vue`; template file creation no longer depends on JS-side `pathExists` probing or JS-owned initial document bodies.
 - The old frontend recent-files normalization/update path has also been removed from the active editor store flow; JS now delegates open and rename events to Rust instead of owning recents ordering and timestamp mutation.
+- The old frontend document-workflow session save queue and JS-side LaTeX preview artifact reconciliation path have also been removed from the active runtime flow; session mutations now persist through Rust instead of frontend debounce/orchestration helpers.
 - `workspacePreferences`, `workspacePermissions`, `references/zoteroSync`, `references/referenceLibraryIO`, `references/referenceImport`, `references/referenceAssets`, `references/crossref`, `references/citationFormatter`, `editorPersistence`, `workspaceRecents`, `workspaceTreeRuntime`, `latex/runtime`, `latexPreferences`, `latex/projectGraph`, `pdf/latexPdfSync`, `pdf/artifactPreview`, and the `documentWorkflow` summary path now route through narrower Rust-backed bridges, but other bridge-heavy service modules still aggregate multiple Rust command families and should be split further when it reduces coupling
 - The old frontend bridge entrypoints for standalone LaTeX compile-request and compile-target resolution have been removed from the active command surface; the remaining JS cache around project graph exists mainly for editor-time autocomplete reuse, not as a policy authority
 - The old frontend project-graph cache layer has now been removed from the active path entirely; project-relative autocomplete policy and workflow-level unresolved ref/citation diagnostics both resolve in Rust instead

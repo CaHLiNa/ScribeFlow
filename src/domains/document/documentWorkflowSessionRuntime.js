@@ -1,8 +1,7 @@
-import { pathExists } from '../../services/pathExists.js'
 import {
-  createDocumentWorkflowPersistentState,
+  createDocumentWorkflowPersistentState as createDocumentWorkflowPersistentStateFromBridge,
   loadDocumentWorkflowSessionState,
-  saveDocumentWorkflowSessionState,
+  mutateDocumentWorkflowSessionState,
 } from '../../services/documentWorkflow/sessionStateBridge.js'
 import {
   createWorkflowPreviewPath,
@@ -13,7 +12,7 @@ import { previewSourcePathFromPath } from '../../utils/fileTypes.js'
 import { resolveDocumentPreviewCloseEffect } from './documentWorkspacePreviewRuntime.js'
 
 export function createDefaultDocumentWorkflowPersistentState() {
-  return createDocumentWorkflowPersistentState()
+  return createDocumentWorkflowPersistentStateFromBridge()
 }
 
 export function createDefaultDocumentWorkflowPreviewPrefs() {
@@ -22,6 +21,21 @@ export function createDefaultDocumentWorkflowPreviewPrefs() {
 
 export function createDefaultDocumentWorkflowSession() {
   return createDefaultDocumentWorkflowPersistentState().session
+}
+
+async function persistDocumentWorkflowStateMutation(store, mutation, payload = {}) {
+  const workspace = store._getWorkspaceStore?.() || null
+  if (!workspace?.workspaceDataDir) return null
+
+  const state = await mutateDocumentWorkflowSessionState(
+    workspace.workspaceDataDir,
+    store.snapshotPersistentState(),
+    mutation,
+    payload,
+  )
+  store.applyPersistentState(state)
+  store._persistentStateHydrated = true
+  return state
 }
 
 export const documentWorkflowSessionActions = {
@@ -71,40 +85,19 @@ export const documentWorkflowSessionActions = {
 
     const state = await loadDocumentWorkflowSessionState(workspace.workspaceDataDir)
     this.applyPersistentState(state)
-    await this.reconcileLatexPreviewStates()
     this._persistentStateHydrated = true
     return this.snapshotPersistentState()
   },
 
-  queuePersistentStateSave() {
-    const workspace = this._getWorkspaceStore?.() || null
-    if (!workspace?.workspaceDataDir) return
-
-    clearTimeout(this._persistentStateSaveTimer)
-    this._persistentStateSaveRevision = (this._persistentStateSaveRevision || 0) + 1
-    const revision = this._persistentStateSaveRevision
-    this._persistentStateSaveTimer = setTimeout(() => {
-      void this.persistPersistentStateImmediate(revision)
-    }, 80)
+  async persistDocumentWorkflowStateMutation(mutation, payload = {}) {
+    return persistDocumentWorkflowStateMutation(this, mutation, payload)
   },
 
-  async persistPersistentStateImmediate(expectedRevision = null) {
-    const workspace = this._getWorkspaceStore?.() || null
-    if (!workspace?.workspaceDataDir) return null
-
-    clearTimeout(this._persistentStateSaveTimer)
-    this._persistentStateSaveTimer = null
-
-    const revision = expectedRevision ?? ((this._persistentStateSaveRevision || 0) + 1)
-    this._persistentStateSaveRevision = revision
-    const snapshot = this.snapshotPersistentState()
-    const state = await saveDocumentWorkflowSessionState(workspace.workspaceDataDir, snapshot)
-
-    if (this._persistentStateSaveRevision === revision) {
-      this.applyPersistentState(state)
-    }
-    this._persistentStateHydrated = true
-    return state
+  async persistPreviewPreference(kind, previewKind) {
+    return this.persistDocumentWorkflowStateMutation('set-preview-preference', {
+      kind,
+      previewKind,
+    })
   },
 
   getPreviewBinding(previewPath) {
@@ -118,72 +111,24 @@ export const documentWorkflowSessionActions = {
       const detail = event?.detail || {}
       const sourcePath = String(detail.texPath || '').trim()
       const targetPath = String(detail.compileTargetPath || '').trim()
-      const nextPreviewState = {
-        artifactPath: String(detail.previewPath || detail.pdfPath || detail.pdf_path || '').trim(),
+      if (!sourcePath && !targetPath) return
+
+      void this.persistDocumentWorkflowStateMutation('apply-latex-compile-result', {
+        sourcePath,
+        targetPath,
+        previewPath: String(detail.previewPath || detail.pdfPath || detail.pdf_path || '').trim(),
         synctexPath: String(detail.synctexPath || detail.synctex_path || '').trim(),
-        compileTargetPath: targetPath,
         lastCompiled: Number(detail.lastCompiled || 0),
         sourceFingerprint: String(detail.sourceFingerprint || '').trim(),
-      }
-      if (sourcePath) {
-        this.setLatexPreviewStateForFile(sourcePath, nextPreviewState)
-      }
-      if (targetPath && targetPath !== sourcePath) {
-        this.setLatexPreviewStateForFile(targetPath, nextPreviewState)
-      }
+      })
     })
   },
 
-  setLatexPreviewStateForFile(filePath, state = {}) {
-    const normalizedFilePath = String(filePath || '').trim()
-    if (!normalizedFilePath) return
-
-    const normalizedState = {
-      artifactPath: String(state.artifactPath || '').trim(),
-      synctexPath: String(state.synctexPath || '').trim(),
-      compileTargetPath: String(state.compileTargetPath || '').trim(),
-      lastCompiled: Number(state.lastCompiled || 0),
-      sourceFingerprint: String(state.sourceFingerprint || '').trim(),
-    }
-    const hasRuntimeState = Boolean(
-      normalizedState.artifactPath
-      || normalizedState.synctexPath
-      || normalizedState.compileTargetPath
-      || normalizedState.lastCompiled
-      || normalizedState.sourceFingerprint
-    )
-
-    const nextArtifactPaths = { ...(this.latexArtifactPaths || {}) }
-    const nextPreviewStates = { ...(this.latexPreviewStates || {}) }
-
-    if (!hasRuntimeState) {
-      if (!nextArtifactPaths[normalizedFilePath] && !nextPreviewStates[normalizedFilePath]) return
-      delete nextArtifactPaths[normalizedFilePath]
-      delete nextPreviewStates[normalizedFilePath]
-    } else {
-      const previousArtifactPath = String(nextArtifactPaths[normalizedFilePath] || '')
-      const previousState = nextPreviewStates[normalizedFilePath] || null
-      const unchanged =
-        previousArtifactPath === normalizedState.artifactPath
-        && previousState
-        && previousState.artifactPath === normalizedState.artifactPath
-        && previousState.synctexPath === normalizedState.synctexPath
-        && previousState.compileTargetPath === normalizedState.compileTargetPath
-        && Number(previousState.lastCompiled || 0) === normalizedState.lastCompiled
-        && previousState.sourceFingerprint === normalizedState.sourceFingerprint
-      if (unchanged) return
-
-      if (normalizedState.artifactPath) {
-        nextArtifactPaths[normalizedFilePath] = normalizedState.artifactPath
-      } else {
-        delete nextArtifactPaths[normalizedFilePath]
-      }
-      nextPreviewStates[normalizedFilePath] = normalizedState
-    }
-
-    this.latexArtifactPaths = nextArtifactPaths
-    this.latexPreviewStates = nextPreviewStates
-    this.queuePersistentStateSave()
+  async setLatexPreviewStateForFile(filePath, state = {}) {
+    return this.persistDocumentWorkflowStateMutation('set-latex-preview-state', {
+      filePath,
+      state,
+    })
   },
 
   getLatexArtifactPathForFile(filePath) {
@@ -192,7 +137,7 @@ export const documentWorkflowSessionActions = {
     return String(
       this.latexPreviewStates?.[normalizedFilePath]?.artifactPath
       || this.latexArtifactPaths?.[normalizedFilePath]
-      || ''
+      || '',
     )
   },
 
@@ -201,7 +146,11 @@ export const documentWorkflowSessionActions = {
     if (!normalizedFilePath) return null
 
     const previewState = this.latexPreviewStates?.[normalizedFilePath] || null
-    const artifactPath = String(previewState?.artifactPath || this.latexArtifactPaths?.[normalizedFilePath] || '')
+    const artifactPath = String(
+      previewState?.artifactPath
+      || this.latexArtifactPaths?.[normalizedFilePath]
+      || '',
+    )
     if (!artifactPath && !previewState) return null
 
     return {
@@ -215,112 +164,40 @@ export const documentWorkflowSessionActions = {
     }
   },
 
-  async reconcileLatexPreviewStates() {
-    const sourcePaths = Array.from(new Set([
-      ...Object.keys(this.latexArtifactPaths || {}),
-      ...Object.keys(this.latexPreviewStates || {}),
-    ]))
-    if (sourcePaths.length === 0) {
-      return {
-        latexArtifactPaths: this.latexArtifactPaths || {},
-        latexPreviewStates: this.latexPreviewStates || {},
-      }
-    }
-
-    const keptEntries = await Promise.all(sourcePaths.map(async (sourcePath) => {
-      const previewState = this.latexPreviewStates?.[sourcePath] || null
-      const artifactPath = String(previewState?.artifactPath || this.latexArtifactPaths?.[sourcePath] || '')
-      if (!artifactPath || !(await pathExists(artifactPath))) {
-        return null
-      }
-
-      const synctexPath = String(previewState?.synctexPath || '')
-      const hasSynctexPath = synctexPath ? await pathExists(synctexPath) : false
-
-      return [
-        sourcePath,
-        artifactPath,
-        {
-          artifactPath,
-          synctexPath: hasSynctexPath ? synctexPath : '',
-          compileTargetPath: String(previewState?.compileTargetPath || ''),
-          lastCompiled: Number(previewState?.lastCompiled || 0),
-          sourceFingerprint: String(previewState?.sourceFingerprint || ''),
-        },
-      ]
-    }))
-
-    const nextArtifactPaths = Object.fromEntries(
-      keptEntries
-        .filter(Boolean)
-        .map(([sourcePath, artifactPath]) => [sourcePath, artifactPath])
-    )
-    const nextPreviewStates = Object.fromEntries(
-      keptEntries
-        .filter(Boolean)
-        .map(([sourcePath, , previewState]) => [sourcePath, previewState])
-    )
-
-    const artifactPathsUnchanged = JSON.stringify(nextArtifactPaths) === JSON.stringify(this.latexArtifactPaths || {})
-    const previewStatesUnchanged = JSON.stringify(nextPreviewStates) === JSON.stringify(this.latexPreviewStates || {})
-    if (artifactPathsUnchanged && previewStatesUnchanged) {
-      return {
-        latexArtifactPaths: nextArtifactPaths,
-        latexPreviewStates: nextPreviewStates,
-      }
-    }
-
-    this.latexArtifactPaths = nextArtifactPaths
-    this.latexPreviewStates = nextPreviewStates
-    this.queuePersistentStateSave()
-    return {
-      latexArtifactPaths: nextArtifactPaths,
-      latexPreviewStates: nextPreviewStates,
-    }
+  async bindPreview({
+    previewPath,
+    sourcePath,
+    previewKind,
+    kind,
+    paneId = null,
+    detachOnClose = true,
+  }) {
+    return this.persistDocumentWorkflowStateMutation('bind-preview', {
+      previewPath,
+      sourcePath,
+      previewKind,
+      kind,
+      paneId,
+      detachOnClose,
+    })
   },
 
-  bindPreview({ previewPath, sourcePath, previewKind, kind, paneId = null, detachOnClose = true }) {
-    if (!previewPath || !sourcePath) return
-    this.previewBindings = {
-      ...this.previewBindings,
-      [previewPath]: {
-        previewPath,
-        sourcePath,
-        previewKind,
-        kind,
-        paneId,
-        detachOnClose,
-      },
-    }
-    this.queuePersistentStateSave()
+  async unbindPreview(previewPath) {
+    return this.persistDocumentWorkflowStateMutation('unbind-preview', {
+      previewPath,
+    })
   },
 
-  unbindPreview(previewPath) {
-    if (!previewPath || !this.previewBindings[previewPath]) return
-    const next = { ...this.previewBindings }
-    delete next[previewPath]
-    this.previewBindings = next
-    this.queuePersistentStateSave()
+  async markDetached(sourcePath) {
+    return this.persistDocumentWorkflowStateMutation('mark-detached', {
+      sourcePath,
+    })
   },
 
-  markDetached(sourcePath) {
-    if (!sourcePath) return
-    this.session.detachedSources = {
-      ...this.session.detachedSources,
-      [sourcePath]: true,
-    }
-    if (this.session.previewSourcePath === sourcePath) {
-      this.session.state = 'detached-by-user'
-    }
-    this.queuePersistentStateSave()
-  },
-
-  clearDetached(sourcePath) {
-    if (!sourcePath || !this.session.detachedSources[sourcePath]) return
-    const next = { ...this.session.detachedSources }
-    delete next[sourcePath]
-    this.session.detachedSources = next
-    this.queuePersistentStateSave()
+  async clearDetached(sourcePath) {
+    return this.persistDocumentWorkflowStateMutation('clear-detached', {
+      sourcePath,
+    })
   },
 
   setMarkdownPreviewState(sourcePath, state) {
@@ -345,25 +222,18 @@ export const documentWorkflowSessionActions = {
     return this.workspacePreviewVisibility[filePath] === 'hidden'
   },
 
-  setWorkspacePreviewVisibility(filePath, visibility = 'visible') {
-    if (!filePath) return
-    this.workspacePreviewVisibility = {
-      ...this.workspacePreviewVisibility,
-      [filePath]: visibility === 'hidden' ? 'hidden' : 'visible',
-    }
-    this.queuePersistentStateSave()
+  async setWorkspacePreviewVisibility(filePath, visibility = 'visible') {
+    return this.persistDocumentWorkflowStateMutation(
+      'set-workspace-preview-visibility',
+      { filePath, visibility },
+    )
   },
 
-  setWorkspacePreviewRequestForFile(filePath, previewKind = null) {
-    if (!filePath) return
-    const next = { ...this.workspacePreviewRequests }
-    if (previewKind) {
-      next[filePath] = previewKind
-    } else {
-      delete next[filePath]
-    }
-    this.workspacePreviewRequests = next
-    this.queuePersistentStateSave()
+  async setWorkspacePreviewRequestForFile(filePath, previewKind = null) {
+    return this.persistDocumentWorkflowStateMutation(
+      'set-workspace-preview-request',
+      { filePath, previewKind },
+    )
   },
 
   getWorkspacePreviewRequestForFile(filePath) {
@@ -379,14 +249,20 @@ export const documentWorkflowSessionActions = {
 
   getSourcePathForPreview(previewPath) {
     const binding = this.getPreviewBinding(previewPath)
-    return binding?.sourcePath || previewSourcePathFromPath(previewPath) || (isDocumentWorkflowSource(previewPath) ? previewPath : null)
+    return (
+      binding?.sourcePath
+      || previewSourcePathFromPath(previewPath)
+      || (isDocumentWorkflowSource(previewPath) ? previewPath : null)
+    )
   },
 
   findPreviewBindingForSource(sourcePath, previewKind = null) {
-    return Object.values(this.previewBindings).find(binding => (
-      binding.sourcePath === sourcePath
-      && (!previewKind || binding.previewKind === previewKind)
-    )) || null
+    return (
+      Object.values(this.previewBindings).find((binding) => (
+        binding.sourcePath === sourcePath
+        && (!previewKind || binding.previewKind === previewKind)
+      )) || null
+    )
   },
 
   hasPreviewForSource(sourcePath, previewKind = null) {
@@ -402,14 +278,14 @@ export const documentWorkflowSessionActions = {
     return false
   },
 
-  handlePreviewClosed(previewPath) {
+  async handlePreviewClosed(previewPath) {
     const effect = resolveDocumentPreviewCloseEffect(previewPath, {
       previewBinding: this.getPreviewBinding(previewPath),
     })
     if (effect.sourcePath && effect.markDetached) {
-      this.markDetached(effect.sourcePath)
+      await this.markDetached(effect.sourcePath)
     }
-    this.unbindPreview(previewPath)
+    await this.unbindPreview(previewPath)
   },
 
   getOpenPreviewPathForSource(sourcePath, previewKind = null) {
@@ -421,7 +297,10 @@ export const documentWorkflowSessionActions = {
       && this.session.previewPaneId
       && (!previewKind || this.session.previewKind === previewKind)
     ) {
-      return this.getPreviewPathForSource(sourcePath, previewKind || this.session.previewKind)
+      return this.getPreviewPathForSource(
+        sourcePath,
+        previewKind || this.session.previewKind,
+      )
     }
     return null
   },
@@ -433,11 +312,7 @@ export const documentWorkflowSessionActions = {
     return createWorkflowPreviewPath(sourcePath, kind, resolvedKind)
   },
 
-  setSessionState(payload) {
-    this.session = {
-      ...this.session,
-      ...payload,
-    }
-    this.queuePersistentStateSave()
+  async setSessionState(payload) {
+    return this.persistDocumentWorkflowStateMutation('set-session-state', payload)
   },
 }

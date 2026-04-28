@@ -52,10 +52,17 @@ export async function loadDocumentWorkflowSessionState(workspaceDataDir = '') {
   return state
 }
 
-export async function saveDocumentWorkflowSessionState(workspaceDataDir = '', state = {}) {
-  const normalized = await invokeDocumentWorkflowBridge('document_workflow_session_save', {
+export async function mutateDocumentWorkflowSessionState(
+  workspaceDataDir = '',
+  state = {},
+  mutation = '',
+  payload = {},
+) {
+  const normalized = await invokeDocumentWorkflowBridge('document_workflow_session_mutate', {
     workspaceDataDir: String(workspaceDataDir || ''),
     state,
+    mutation: String(mutation || ''),
+    payload,
   })
 
   clearLegacyPreviewPrefs()

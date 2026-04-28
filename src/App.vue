@@ -311,7 +311,7 @@ async function toggleSplitPane() {
   if (result.choice === 'cancel') return
 
   for (const tab of secondaryPane.tabs ||[]) {
-    workflowStore.handlePreviewClosed(tab)
+    void workflowStore.handlePreviewClosed(tab)
   }
 
   editorStore.collapsePane(secondaryPane.id)
