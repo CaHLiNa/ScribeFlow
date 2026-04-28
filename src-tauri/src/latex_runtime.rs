@@ -167,8 +167,6 @@ pub struct LatexRuntimeSourceResolveParams {
     pub source_content: Option<String>,
     #[serde(default)]
     pub custom_system_tex_path: Option<String>,
-    #[serde(default)]
-    pub include_project_graph: bool,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -788,11 +786,6 @@ pub async fn latex_runtime_source_resolve(
     Ok(json!({
         "compileRequest": compile_request,
         "lintState": lint_state,
-        "projectGraph": if params.include_project_graph {
-            graph.unwrap_or(Value::Null)
-        } else {
-            Value::Null
-        },
     }))
 }
 
@@ -1221,7 +1214,6 @@ mod tests {
             ]),
             source_content: None,
             custom_system_tex_path: None,
-            include_project_graph: true,
         })
         .await
         .expect("source resolve");
@@ -1229,12 +1221,6 @@ mod tests {
         assert_eq!(
             value.get("compileRequest")
                 .and_then(|compile_request| compile_request.get("rootPath"))
-                .and_then(Value::as_str),
-            Some("/tmp/main.tex")
-        );
-        assert_eq!(
-            value.get("projectGraph")
-                .and_then(|project_graph| project_graph.get("rootPath"))
                 .and_then(Value::as_str),
             Some("/tmp/main.tex")
         );

@@ -2,6 +2,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 
 use crate::document_workflow::get_document_workflow_kind;
+use crate::latex_project_graph::{resolve_graph_value, LatexProjectGraphParams};
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -19,7 +20,9 @@ pub struct DocumentWorkflowStateResolveParams {
     #[serde(default)]
     pub latex_lint_diagnostics: Value,
     #[serde(default)]
-    pub latex_project_graph: Value,
+    pub workspace_path: String,
+    #[serde(default)]
+    pub source_content: String,
     #[serde(default)]
     pub python_state: Value,
     #[serde(default)]
@@ -284,8 +287,30 @@ fn resolve_latex_artifact_path(params: &DocumentWorkflowStateResolveParams) -> S
     String::new()
 }
 
+fn resolve_latex_project_graph(
+    file_path: &str,
+    params: &DocumentWorkflowStateResolveParams,
+) -> Value {
+    let source_content = params.source_content.trim();
+    let content_overrides = if source_content.is_empty() {
+        std::collections::HashMap::new()
+    } else {
+        std::collections::HashMap::from([(file_path.to_string(), source_content.to_string())])
+    };
+
+    resolve_graph_value(&LatexProjectGraphParams {
+        source_path: file_path.to_string(),
+        workspace_path: params.workspace_path.clone(),
+        flat_files: Vec::new(),
+        include_hidden: true,
+        content_overrides,
+    })
+    .unwrap_or(Value::Null)
+}
+
 fn resolve_latex_problems(file_path: &str, params: &DocumentWorkflowStateResolveParams) -> Vec<Value> {
     let mut problems = Vec::new();
+    let latex_project_graph = resolve_latex_project_graph(file_path, params);
 
     for (severity, key) in [("error", "errors"), ("warning", "warnings")] {
         for (index, problem) in params
@@ -352,8 +377,7 @@ fn resolve_latex_problems(file_path: &str, params: &DocumentWorkflowStateResolve
         );
     }
 
-    let unresolved_refs = params
-        .latex_project_graph
+    let unresolved_refs = latex_project_graph
         .get("unresolvedRefs")
         .and_then(Value::as_array)
         .cloned()
@@ -394,8 +418,7 @@ fn resolve_latex_problems(file_path: &str, params: &DocumentWorkflowStateResolve
         );
     }
 
-    let unresolved_citations = params
-        .latex_project_graph
+    let unresolved_citations = latex_project_graph
         .get("unresolvedCitations")
         .and_then(Value::as_array)
         .cloned()
@@ -679,7 +702,8 @@ mod tests {
             ]),
             latex_state: Value::Null,
             latex_lint_diagnostics: Value::Null,
-            latex_project_graph: Value::Null,
+            workspace_path: String::new(),
+            source_content: String::new(),
             python_state: Value::Null,
             queue_state: Value::Null,
             artifact_path: String::new(),
@@ -745,12 +769,8 @@ mod tests {
             latex_lint_diagnostics: json!([
                 { "file": "/tmp/test.tex", "line": 8, "severity": "warning", "message": "Lint warning" }
             ]),
-            latex_project_graph: json!({
-                "unresolvedRefs": [
-                    { "filePath": "/tmp/test.tex", "key": "fig:missing", "line": 12 }
-                ],
-                "unresolvedCitations": []
-            }),
+            workspace_path: String::new(),
+            source_content: "\\ref{fig:missing}\n".to_string(),
             python_state: Value::Null,
             queue_state: json!({
                 "phase": "idle"
@@ -798,7 +818,8 @@ mod tests {
             markdown_draft_problems: Value::Null,
             latex_state: Value::Null,
             latex_lint_diagnostics: Value::Null,
-            latex_project_graph: Value::Null,
+            workspace_path: String::new(),
+            source_content: String::new(),
             python_state: json!({
                 "status": "success",
                 "errors": [],

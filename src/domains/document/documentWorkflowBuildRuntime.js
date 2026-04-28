@@ -3,7 +3,6 @@ import {
   getDocumentAdapterForWorkflow,
 } from '../../services/documentWorkflow/adapters/index.js'
 import { buildMarkdownDraftProblems } from '../../services/markdown/diagnostics.js'
-import { getCachedLatexProjectGraph } from '../../services/latex/projectGraph.js'
 
 function resolveDocumentAdapter(filePath, options = {}) {
   if (options.adapter) return options.adapter
@@ -152,9 +151,12 @@ function buildWorkflowStateRequest(filePath, adapter, context, options = {}, pre
     latexLintDiagnostics: adapter.kind === 'latex'
       ? context.latexStore?.lintDiagnosticsForFile?.(filePath) || []
       : null,
-    latexProjectGraph: adapter.kind === 'latex'
-      ? getCachedLatexProjectGraph(filePath)
-      : null,
+    workspacePath: adapter.kind === 'latex'
+      ? context.workspace?.path || ''
+      : '',
+    sourceContent: adapter.kind === 'latex'
+      ? context.filesStore?.fileContents?.[filePath] || ''
+      : '',
     pythonState: adapter.kind === 'python'
       ? context.pythonStore?.stateForFile?.(filePath) || {}
       : null,

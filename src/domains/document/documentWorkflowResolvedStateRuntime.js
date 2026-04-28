@@ -47,7 +47,8 @@ export const documentWorkflowResolvedStateActions = {
       markdownDraftProblems: request.markdownDraftProblems || null,
       latexState: request.latexState || null,
       latexLintDiagnostics: request.latexLintDiagnostics || null,
-      latexProjectGraph: request.latexProjectGraph || null,
+      workspacePath: String(request.workspacePath || ''),
+      sourceContent: String(request.sourceContent || ''),
       pythonState: request.pythonState || null,
       queueState: request.queueState || null,
     })

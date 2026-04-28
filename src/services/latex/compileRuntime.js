@@ -24,7 +24,6 @@ export async function resolveLatexRuntimeSource(params = {}) {
         : {},
       sourceContent: typeof params.sourceContent === 'string' ? params.sourceContent : null,
       customSystemTexPath: params.customSystemTexPath || null,
-      includeProjectGraph: params.includeProjectGraph === true,
     },
   })
 }

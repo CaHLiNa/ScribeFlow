@@ -16,8 +16,6 @@ import {
   scheduleLatexRuntime,
 } from '../services/latex/runtime.js'
 import {
-  buildLatexProjectGraphCacheKey,
-  cacheLatexProjectGraph,
   stableContentFingerprint,
 } from '../services/latex/projectGraph'
 import {
@@ -223,16 +221,6 @@ function normalizeLatexLintStateValue(nextState = null) {
   }
 }
 
-function warmLatexProjectGraphCache(sourcePath, workspacePath, contentOverrides = {}, graph = null) {
-  const normalizedSourcePath = String(sourcePath || '').trim()
-  if (!normalizedSourcePath || !graph || typeof graph !== 'object') return
-  const cacheKey = buildLatexProjectGraphCacheKey(normalizedSourcePath, {
-    workspacePath,
-    contentOverrides,
-  })
-  cacheLatexProjectGraph(normalizedSourcePath, cacheKey, graph)
-}
-
 async function resolveLatexRuntimeSourceFromRust(sourcePath, options = {}) {
   const workspaceStore = useWorkspaceStore()
   const normalizedSourcePath = String(sourcePath || '').trim()
@@ -251,26 +239,16 @@ async function resolveLatexRuntimeSourceFromRust(sourcePath, options = {}) {
       typeof options.sourceContent === 'string' ? options.sourceContent : null,
     customSystemTexPath:
       String(latexStore.customSystemTexPath || '').trim() || null,
-    includeProjectGraph: options.includeProjectGraph === true,
   }).catch(() => null)
 
   const compileRequest = normalizeLatexCompileRequestValue(
     normalizedSourcePath,
     resolved?.compileRequest,
   )
-  if (options.includeProjectGraph === true) {
-    warmLatexProjectGraphCache(
-      normalizedSourcePath,
-      workspaceStore.path || '',
-      contentOverrides,
-      resolved?.projectGraph || null,
-    )
-  }
 
   return {
     ...compileRequest,
     lintState: normalizeLatexLintStateValue(resolved?.lintState || null),
-    projectGraph: resolved?.projectGraph || null,
     contentOverrides,
   }
 }
@@ -782,10 +760,8 @@ export const useLatexStore = defineStore('latex', {
 
     async warmupSource(texPath, options = {}) {
       if (!texPath) return null
-      const resolved = await resolveLatexRuntimeSourceFromRust(texPath, {
-        ...options,
-        includeProjectGraph: true,
-      }).catch(() => null)
+      const resolved = await resolveLatexRuntimeSourceFromRust(texPath, options)
+        .catch(() => null)
       this.applyLintState(texPath, resolved?.lintState)
       return resolved
     },
