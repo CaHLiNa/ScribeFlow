@@ -275,7 +275,6 @@ import { computed, defineComponent, nextTick, onMounted, onUnmounted, ref, watch
 
 import { useDocumentState } from '@embedpdf/core/vue'
 import { MatchFlag, Rotation, transformRect } from '@embedpdf/models'
-import { writeText as writeClipboardText } from '@tauri-apps/plugin-clipboard-manager'
 import {
   IconColumns2,
   IconChevronDown,
@@ -299,6 +298,7 @@ import { useI18n } from '../../i18n'
 import { useSurfaceContextMenu } from '../../composables/useSurfaceContextMenu.js'
 import { encodePdfArrayBufferToBase64 } from '../../services/pdf/embedPdfAdapter.js'
 import { writePdfArtifactBase64 } from '../../services/pdf/artifactPreview.js'
+import { writeNativeClipboardText } from '../../services/nativeClipboard.js'
 import {
   normalizeWorkspacePdfViewerLastScale,
   normalizeWorkspacePdfViewerSpreadMode,
@@ -1194,7 +1194,7 @@ async function copyTextToClipboard(text = '') {
   }
 
   try {
-    await writeClipboardText(text)
+    await writeNativeClipboardText(text)
     return
   } catch {
     // Fall through to execCommand fallback.

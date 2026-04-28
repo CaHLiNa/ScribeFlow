@@ -35,9 +35,9 @@
 
 <script setup>
 import { computed, ref, watch, nextTick, onBeforeUnmount } from 'vue'
-import { readText as readClipboardText } from '@tauri-apps/plugin-clipboard-manager'
 import { useI18n } from '../../i18n'
 import { useTransientOverlayDismiss } from '../../composables/useTransientOverlayDismiss'
+import { readNativeClipboardText } from '../../services/nativeClipboard.js'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -115,7 +115,7 @@ function copy() {
 async function paste() {
   if (props.view) {
     try {
-      const text = await readClipboardText()
+      const text = await readNativeClipboardText()
       if (typeof text === 'string') {
         const selection = props.view.state.selection.main
         const from = selection?.from ?? 0
