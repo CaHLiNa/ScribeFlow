@@ -45,6 +45,42 @@ ScribeFlow 是一个本地优先的桌面学术研究工作台。主产品是 Ta
 - Vue 层负责渲染、交互、短期状态和 Rust command 调用
 - 不新增新的前端 backend center
 
+### 3.1 Rustification 迁移纪律
+
+- 不追求“理论上完全无风险”的 Rust 化；目标是把风险压到最低，并且让回退边界始终清楚
+- 先冻结 contract，再做 Rust 化；默认不得随手改变：
+  - Tauri command 名称
+  - command 参数 / 返回 JSON shape
+  - store getter / action 的输入输出
+  - session / preference 持久化结构
+  - preview / sync 事件名与 payload
+  - `package.json` 依赖集合
+- 优先 Rust 化 leaf capability，不先动 shared workflow；优先顺序：
+  - 文件创建 / 只读解析 / diagnostics / autocomplete 数据 / preview target resolve
+  - 默认不要先动 `TextEditor.vue`、`EditorPane.vue`、`PaneContainer.vue`、`App.vue`、`src/stores/documentWorkflow.js`
+- 一次 phase 只迁一个 seam；不要把 runtime、bridge、store、editor UI、session persistence 混在同一提交里一起迁
+- 允许 Rust 和旧 JS 并行一段时间；新 Rust 实现先做 parity compare，不先立刻删旧 JS
+- JS bridge 可以保留，但必须保持“薄桥”性质；Rust 上位时，前端可见的数据 shape 默认不变
+- 如果一个 Rustification phase 需要同时改 `package.json`、command surface、shared store，默认拆 phase，而不是强行一起提交
+- `documentWorkflow` 视为 shared layer，默认冻结；未先证明 parity，不得把 Markdown / LaTeX / Python 的共享编排层一起改掉
+- `TextEditor` / `EditorPane` / `PaneContainer` / app shell 不得与共享 runtime 迁移同 phase 改动；必须拆开验证
+- 删除旧 JS 之前，先证明新 Rust 路径在当前功能面上和旧实现一致；没有 parity 证据，不得把旧实现当作“可删除”
+- 对桌面主路径，默认不信任 HMR；每个 Rustification step 验收时，至少要看一次干净重启后的新实例，不只看热更新窗口
+- 如果回退，只回退当前 seam；不要为了修一个 leaf 问题把 shared workflow、editor shell、runtime registry 一起拖回旧状态
+
+### 3.2 Rustification 验收清单
+
+- 每个 Rustification step 至少确认这些真实行为没有被带坏：
+  - 打开 `.md`
+  - 打开 `.tex`
+  - 打开 `.py`
+  - toolbar 是否仍然出现
+  - Markdown preview toggle
+  - LaTeX compile
+  - Python run / terminal preview
+  - 切文件 / 关 tab / 重启后恢复
+- 没做完上述关键路径检查前，不得宣称“Rust 化完成”
+
 默认模块职责：
 
 - `src/app`：桌面编排
