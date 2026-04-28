@@ -13,7 +13,7 @@ export const documentWorkflowResolvedStateActions = {
       latexState: request.latexState || null,
       latexLintDiagnostics: request.latexLintDiagnostics || null,
       workspacePath: String(request.workspacePath || ''),
-      sourceContent: String(request.sourceContent || ''),
+      sourceRevision: Number(request.sourceRevision || 0),
       pythonState: request.pythonState || null,
       queueState: request.queueState || null,
       persistedArtifactPath: String(request.persistedArtifactPath || ''),

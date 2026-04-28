@@ -141,6 +141,7 @@ export const useFilesStore = defineStore('files', {
     expandedDirs: new Set(),
     lastWorkspaceSnapshot: null,
     fileContents: {}, // cache: path → content
+    fileContentRevisions: {}, // cache: path -> incrementing revision
     fileLoadErrors: {}, // cache: path -> { code, message, detail, raw, ... }
     draftFiles: {},
     transientCreatedFiles: new Set(), // new files that can be discarded before first explicit save
@@ -213,6 +214,24 @@ export const useFilesStore = defineStore('files', {
     _setFileLoadError(path, error) {
       if (!path) return
       this.fileLoadErrors[path] = parseFileReadError(path, error)
+    },
+
+    _bumpFileContentRevision(path) {
+      if (!path) return
+      const nextRevision = Number(this.fileContentRevisions[path] || 0) + 1
+      this.fileContentRevisions[path] = nextRevision
+    },
+
+    _setCachedFileContent(path, content) {
+      if (!path) return
+      this.fileContents[path] = content
+      this._bumpFileContentRevision(path)
+    },
+
+    _deleteCachedFileContent(path) {
+      if (!path || !(path in this.fileContents)) return
+      delete this.fileContents[path]
+      this._bumpFileContentRevision(path)
     },
 
     _clearFileLoadError(path) {
@@ -322,9 +341,7 @@ export const useFilesStore = defineStore('files', {
           readTextFile: (path, maxBytes) => readWorkspaceTextFile(path, maxBytes),
           saveTextFile: (path, content) => saveWorkspaceTextFile(path, content),
           isBinaryPath: (path) => isBinaryFile(path),
-          setFileContent: (path, content) => {
-            this.fileContents[path] = content
-          },
+          setFileContent: (path, content) => this._setCachedFileContent(path, content),
           clearFileLoadError: (path) => this._clearFileLoadError(path),
           setFileLoadError: (path, error) => this._setFileLoadError(path, error),
           syncSavedMarkdownLinks: (path) => syncSavedMarkdownLinks(path),
@@ -393,12 +410,8 @@ export const useFilesStore = defineStore('files', {
           handleDeletedPathEffects: (path) => handleDeletedPathEffects(path),
           hasFileContent: (path) => path in this.fileContents,
           getFileContent: (path) => this.fileContents[path],
-          setFileContent: (path, value) => {
-            this.fileContents[path] = value
-          },
-          deleteFileContent: (path) => {
-            delete this.fileContents[path]
-          },
+          setFileContent: (path, value) => this._setCachedFileContent(path, value),
+          deleteFileContent: (path) => this._deleteCachedFileContent(path),
           hasFileLoadError: (path) => path in this.fileLoadErrors,
           getFileLoadError: (path) => this.fileLoadErrors[path],
           setFileLoadError: (path, value) => {
@@ -722,8 +735,7 @@ export const useFilesStore = defineStore('files', {
     },
 
     clearInMemoryFileContent(path) {
-      if (!path || !(path in this.fileContents)) return
-      delete this.fileContents[path]
+      this._deleteCachedFileContent(path)
     },
 
     createDraftFile(options = {}) {
@@ -737,7 +749,7 @@ export const useFilesStore = defineStore('files', {
         suggestedName,
         ext,
       }
-      this.fileContents[path] = initialContent
+      this._setCachedFileContent(path, initialContent)
       this._clearFileLoadError(path)
       return path
     },
@@ -880,6 +892,7 @@ export const useFilesStore = defineStore('files', {
       this.lastWorkspaceSnapshot = null
       this.expandedDirs = new Set()
       this.fileContents = {}
+      this.fileContentRevisions = {}
       this.fileLoadErrors = {}
       this.draftFiles = {}
       this.transientCreatedFiles = new Set()

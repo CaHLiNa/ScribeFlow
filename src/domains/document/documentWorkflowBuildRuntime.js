@@ -57,6 +57,9 @@ export function createDocumentWorkflowBuildRuntime({
       sourceContent: adapter.kind === 'markdown' || adapter.kind === 'latex'
         ? context.filesStore?.fileContents?.[filePath] || ''
         : '',
+      sourceRevision: adapter.kind === 'markdown' || adapter.kind === 'latex'
+        ? Number(context.filesStore?.fileContentRevisions?.[filePath] || 0)
+        : 0,
       pythonState: adapter.kind === 'python'
         ? context.pythonStore?.stateForFile?.(filePath) || {}
         : null,
