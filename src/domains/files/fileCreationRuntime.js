@@ -33,7 +33,9 @@ export function createFileCreationRuntime({
   async function duplicatePath(path) {
     const dir = dirnamePath(path)
     try {
-      const newPath = await duplicateWorkspacePath?.(path)
+      const result = await duplicateWorkspacePath?.(path)
+      if (!result?.ok) return null
+      const newPath = result.path
       await syncTreeAfterMutation?.({ expandPath: dir })
       return newPath
     } catch (error) {
@@ -64,6 +66,7 @@ export function createFileCreationRuntime({
   async function copyExternalFile(srcPath, destDir) {
     try {
       const result = await copyExternalWorkspaceFile?.(srcPath, destDir)
+      if (!result?.ok) return null
       await syncTreeAfterMutation?.({ expandPath: destDir })
       return result
     } catch (error) {

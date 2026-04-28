@@ -58,6 +58,14 @@ pub struct WorkspaceDeleteResult {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct WorkspaceDuplicateResult {
+    pub ok: bool,
+    pub path: String,
+    pub is_dir: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct WorkspaceMoveResult {
     pub ok: bool,
     pub dest_path: String,
@@ -66,6 +74,7 @@ pub struct WorkspaceMoveResult {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkspaceCopyExternalResult {
+    pub ok: bool,
     pub path: String,
     pub is_dir: bool,
 }
@@ -250,6 +259,24 @@ fn workspace_delete_path_blocking(path: &Path) -> Result<WorkspaceDeleteResult, 
     Ok(WorkspaceDeleteResult {
         ok: true,
         path: path.to_string_lossy().to_string(),
+        is_dir,
+    })
+}
+
+fn workspace_duplicate_path_blocking(path: &Path) -> Result<WorkspaceDuplicateResult, String> {
+    let parent = path
+        .parent()
+        .ok_or_else(|| "Cannot resolve parent directory".to_string())?;
+    let is_dir = is_directory_internal(path);
+    let new_path = resolve_unique_copy_destination(path, parent, is_dir);
+    if is_dir {
+        copy_dir_recursive(path, &new_path).map_err(|e| e.to_string())?;
+    } else {
+        fs::copy(path, &new_path).map_err(|e| e.to_string())?;
+    }
+    Ok(WorkspaceDuplicateResult {
+        ok: true,
+        path: new_path.to_string_lossy().to_string(),
         is_dir,
     })
 }
@@ -657,22 +684,9 @@ pub async fn workspace_delete_path(
 pub async fn workspace_duplicate_path(
     path: String,
     scope_state: tauri::State<'_, WorkspaceScopeState>,
-) -> Result<String, String> {
+) -> Result<WorkspaceDuplicateResult, String> {
     let resolved = security::ensure_allowed_mutation_path(scope_state.inner(), Path::new(&path))?;
-    run_blocking(move || {
-        let parent = resolved
-            .parent()
-            .ok_or_else(|| "Cannot resolve parent directory".to_string())?;
-        let is_dir = is_directory_internal(&resolved);
-        let new_path = resolve_unique_copy_destination(&resolved, parent, is_dir);
-        if is_dir {
-            copy_dir_recursive(&resolved, &new_path).map_err(|e| e.to_string())?;
-        } else {
-            fs::copy(&resolved, &new_path).map_err(|e| e.to_string())?;
-        }
-        Ok(new_path.to_string_lossy().to_string())
-    })
-    .await
+    run_blocking(move || workspace_duplicate_path_blocking(&resolved)).await
 }
 
 #[tauri::command]
@@ -731,6 +745,7 @@ pub async fn workspace_copy_external_path(
             fs::copy(&src, &dest_path).map_err(|e| e.to_string())?;
         }
         Ok(WorkspaceCopyExternalResult {
+            ok: true,
             path: dest_path.to_string_lossy().to_string(),
             is_dir,
         })
@@ -900,6 +915,7 @@ pub async fn get_home_dir() -> Result<String, String> {
 mod tests {
     use super::{
         path_status_internal, workspace_create_dir_blocking, workspace_delete_path_blocking,
+        workspace_duplicate_path_blocking,
     };
     use std::fs;
 
@@ -953,6 +969,29 @@ mod tests {
         assert!(deleted.is_dir);
         assert_eq!(deleted.path, dir_path.to_string_lossy().to_string());
         assert!(!dir_path.exists());
+
+        fs::remove_dir_all(temp_dir).ok();
+    }
+
+    #[test]
+    fn workspace_duplicate_returns_typed_result() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "scribeflow-workspace-duplicate-{}",
+            uuid::Uuid::new_v4()
+        ));
+        fs::create_dir_all(&temp_dir).expect("create temp dir");
+        let file_path = temp_dir.join("note.md");
+        fs::write(&file_path, "hello").expect("write source file");
+
+        let duplicated =
+            workspace_duplicate_path_blocking(&file_path).expect("duplicate workspace file");
+        assert!(duplicated.ok);
+        assert!(!duplicated.is_dir);
+        assert_ne!(duplicated.path, file_path.to_string_lossy().to_string());
+        assert_eq!(
+            fs::read_to_string(&duplicated.path).expect("read duplicated file"),
+            "hello"
+        );
 
         fs::remove_dir_all(temp_dir).ok();
     }
