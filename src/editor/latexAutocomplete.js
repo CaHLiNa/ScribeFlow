@@ -3,13 +3,10 @@
  *
  * Provides:
  * - static command and environment snippets
- * - project-aware citation completions
- * - project-aware label/reference completions
- * - project-aware input/include/bibliography file completions
+ * - project-aware completions resolved from the Rust runtime
  */
 
-import { resolveLatexProjectGraph, buildRelativeLatexInputPath } from '../services/latex/projectGraph.js'
-import { extnamePath, stripExtension, uniqueBy } from '../services/documentIntelligence/workspaceGraph.js'
+import { resolveLatexProjectCompletion } from '../services/latex/projectGraph.js'
 
 const SECTION_COMMANDS = [
   { label: '\\section{}', type: 'keyword', detail: 'Section heading', apply: '\\section{$}' },
@@ -191,77 +188,6 @@ function staticCommandCompletion(context) {
   }
 }
 
-function buildSimpleCompletionItems(values = [], detail = '', type = 'text') {
-  return uniqueBy(values.filter(Boolean))
-    .map(value => ({
-      label: String(value),
-      type,
-      detail,
-    }))
-}
-
-function matchTrailingCommand(textBefore = '', pattern) {
-  const match = textBefore.match(pattern)
-  if (!match) return null
-  const full = match[0] || ''
-  const body = match[1] || ''
-  const query = body.split(',').pop()?.trimStart() || ''
-  return {
-    query,
-    fromDistance: query.length,
-    fullMatch: full,
-    body,
-  }
-}
-
-function citationCompletionContext(textBefore = '') {
-  return matchTrailingCommand(
-    textBefore,
-    /\\(?:[A-Za-z]*cite[A-Za-z]*|nocite)\*?(?:\[[^\]]*\])?(?:\[[^\]]*\])?\{([^}]*)$/,
-  )
-}
-
-function referenceCompletionContext(textBefore = '') {
-  return matchTrailingCommand(
-    textBefore,
-    /\\(?:ref|eqref|pageref|autoref|cref|Cref)\{([^}]*)$/,
-  )
-}
-
-function inputCompletionContext(textBefore = '') {
-  const addBib = textBefore.match(/\\addbibresource(?:\[[^\]]*\])?\{([^}]*)$/)
-  if (addBib) return { type: 'bib-resource', ...matchTrailingCommand(textBefore, /\\addbibresource(?:\[[^\]]*\])?\{([^}]*)$/) }
-
-  const bibliography = textBefore.match(/\\bibliography\{([^}]*)$/)
-  if (bibliography) return { type: 'bib-list', ...matchTrailingCommand(textBefore, /\\bibliography\{([^}]*)$/) }
-
-  const include = textBefore.match(/\\(?:input|include|subfile)\{([^}]*)$/)
-  if (include) return { type: 'tex-file', ...matchTrailingCommand(textBefore, /\\(?:input|include|subfile)\{([^}]*)$/) }
-
-  return null
-}
-
-function buildFilteredResult(context, values = [], detail = '', type = 'text') {
-  if (!Array.isArray(values) || values.length === 0) return null
-  const { pos } = context
-  const line = context.state.doc.lineAt(pos)
-  const textBefore = line.text.substring(0, pos - line.from)
-  const completionContext = citationCompletionContext(textBefore)
-    || referenceCompletionContext(textBefore)
-    || inputCompletionContext(textBefore)
-  if (!completionContext) return null
-
-  const query = completionContext.query || ''
-  const options = buildSimpleCompletionItems(values, detail, type)
-    .filter(option => option.label.toLowerCase().includes(query.toLowerCase()))
-
-  if (options.length === 0) return null
-  return {
-    from: pos - completionContext.fromDistance,
-    options,
-  }
-}
-
 async function projectAwareCompletion(context, options = {}) {
   const { state, pos } = context
   const line = state.doc.lineAt(pos)
@@ -269,58 +195,24 @@ async function projectAwareCompletion(context, options = {}) {
   const filePath = options.filePath || ''
   if (!filePath) return null
 
-  const citeContext = citationCompletionContext(textBefore)
-  const refContext = referenceCompletionContext(textBefore)
-  const fileContext = inputCompletionContext(textBefore)
-  if (!citeContext && !refContext && !fileContext) return null
-
   const contentOverrides = {
     ...(options.contentOverrides || {}),
     [filePath]: context.state.doc.toString(),
   }
-  const graph = await resolveLatexProjectGraph(filePath, {
-    ...options,
+
+  const resolved = await resolveLatexProjectCompletion({
+    filePath,
+    workspacePath: options.workspacePath || '',
+    lineTextBeforeCursor: textBefore,
     contentOverrides,
   }).catch(() => null)
-  if (!graph) return null
-
-  if (citeContext) {
-    const values = uniqueBy(graph.bibKeys || [])
-    return buildFilteredResult(context, values, 'Citation key', 'variable')
+  if (!resolved || typeof resolved !== 'object') return null
+  const optionsList = Array.isArray(resolved.options) ? resolved.options : []
+  if (optionsList.length === 0) return null
+  return {
+    from: pos - Number(resolved.fromDistance || 0),
+    options: optionsList,
   }
-
-  if (refContext) {
-    const values = uniqueBy((graph.labels || []).map(label => label.key))
-    return buildFilteredResult(context, values, 'Document label', 'constant')
-  }
-
-  if (fileContext?.type === 'tex-file') {
-    const values = uniqueBy(
-      (graph.projectPaths || [])
-        .filter(path => path !== filePath && ['.tex', '.latex'].includes(extnamePath(path)))
-        .map(path => buildRelativeLatexInputPath(filePath, path)),
-    )
-    return buildFilteredResult(context, values, 'Project file', 'file')
-  }
-
-  if (fileContext?.type === 'bib-resource') {
-    const values = uniqueBy(
-      (graph.bibliographyFiles || [])
-        .map(path => buildRelativeLatexInputPath(filePath, path) + (extnamePath(path) === '.bib' ? '.bib' : ''))
-        .map(value => value.replace(/\.bib\.bib$/i, '.bib')),
-    )
-    return buildFilteredResult(context, values, 'Bibliography file', 'file')
-  }
-
-  if (fileContext?.type === 'bib-list') {
-    const values = uniqueBy(
-      (graph.bibliographyFiles || [])
-        .map(path => stripExtension(buildRelativeLatexInputPath(filePath, path))),
-    )
-    return buildFilteredResult(context, values, 'Bibliography file', 'file')
-  }
-
-  return null
 }
 
 export function latexCommandCompletionSource(context) {

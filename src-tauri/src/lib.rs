@@ -524,7 +524,7 @@ pub fn run() {
             python_runtime::python_runtime_detect,
             python_runtime::python_runtime_list,
             python_runtime::python_runtime_compile,
-            latex_project_graph::latex_project_graph_resolve,
+            latex_project_graph::latex_project_completion_resolve,
             latex_runtime::latex_runtime_compile_start,
             latex_runtime::latex_runtime_cancel,
             latex_runtime::latex_runtime_compile_execute,

@@ -103,6 +103,7 @@ Current state:
 - LaTeX support includes compiler detection, runtime scheduling, diagnostics, logs, SyncTeX, formatting, and Tectonic download flow.
 - LaTeX source warmup, compile-request resolution, change-target resolution, and lint state now resolve through Rust runtime snapshot/change commands instead of frontend file-discovery helpers.
 - LaTeX terminal/log text is now also assembled in Rust compile state instead of being reformatted inside the frontend store before every terminal dispatch.
+- LaTeX project-aware autocomplete now resolves from Rust too: citation keys, labels, include targets, and bibliography file suggestions no longer depend on frontend graph-walking logic.
 - Python support includes interpreter detection, preference persistence, runtime listing, and compile state tracking.
 
 Interpretation:
@@ -155,10 +156,12 @@ What is not fully cleaned up:
 - `latex/root` fallback helpers have also been removed from the active path; compile target fallback now prefers existing runtime state, and the remaining project-graph cache is narrower instead of acting as a general root/preview authority.
 - `latex/runtime` has tightened further now: editor warmup, compile-request lookup, change-target lookup, and lint refresh no longer ask the frontend to prepare flat file lists before invoking Rust.
 - `latex/runtime` now also owns terminal/log text assembly for completed compile state, so the frontend store only forwards runtime-produced text to the terminal surface instead of rebuilding that output itself.
+- `latex/projectGraph` has tightened further now too: the old frontend autocomplete path no longer resolves graph data, relative include paths, or bibliography target suggestions in JS, and the dedicated `projectGraphRuntime.js` bridge file has been removed from the active path.
 - `documentOutline` follows the same direction now: the frontend no longer gathers workspace flat files for outline resolution, and Rust can derive the needed workspace file set from `workspacePath`.
 - `latex/previewSync` has now shed most of its non-UI authority too: moved-file path repair and in-editor selection matching resolve in Rust commands, while the frontend side only waits for views and applies the final editor focus.
 - `documentWorkflow` has now crossed the same boundary: the old adapter-local workflow derivation for Markdown / LaTeX / Python has been collapsed into a Rust summary resolver, and the deleted `latex/diagnostics.js` mapping layer no longer sits between runtime state and workflow UI.
 - `TextEditor` no longer warms LaTeX project graph and lint through separate frontend-side orchestration; the store now asks Rust for a source snapshot and only applies the returned state.
+- The same Rust autocomplete move also fixed a deeper path-policy bug: relative include and magic-root paths containing `..` are now normalized in Rust before graph traversal, instead of silently breaking editor-time project discovery.
 - The repo still carries light traces of earlier scope, even after the desktop-focused slim-down.
 
 ## Debt Map
@@ -174,6 +177,7 @@ What is not fully cleaned up:
 - Bridge conventions now hold across UI layers, i18n entrypoints, and the main product-facing stores
 - `workspacePreferences`, `workspacePermissions`, `references/zoteroSync`, `references/referenceLibraryIO`, `references/referenceImport`, `references/referenceAssets`, `references/crossref`, `references/citationFormatter`, `editorPersistence`, `workspaceRecents`, `workspaceTreeRuntime`, `latex/runtime`, `latexPreferences`, `latex/projectGraph`, `pdf/latexPdfSync`, `pdf/artifactPreview`, and the `documentWorkflow` summary path now route through narrower Rust-backed bridges, but other bridge-heavy service modules still aggregate multiple Rust command families and should be split further when it reduces coupling
 - The old frontend bridge entrypoints for standalone LaTeX compile-request and compile-target resolution have been removed from the active command surface; the remaining JS cache around project graph exists mainly for editor-time autocomplete reuse, not as a policy authority
+- The frontend project-graph cache now exists only as a passive reuse layer fed by Rust-owned warmup/completion paths; it is no longer responsible for deriving autocomplete suggestions or project-relative path policy
 
 ### Scope Debt
 

@@ -37,6 +37,21 @@ pub struct LatexAffectedRootsParams {
     pub content_overrides: HashMap<String, String>,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LatexProjectCompletionParams {
+    #[serde(default)]
+    pub file_path: String,
+    #[serde(default)]
+    pub workspace_path: String,
+    #[serde(default)]
+    pub line_text_before_cursor: String,
+    #[serde(default = "default_include_hidden")]
+    pub include_hidden: bool,
+    #[serde(default)]
+    pub content_overrides: HashMap<String, String>,
+}
+
 #[derive(Debug, Clone)]
 struct FileRecord {
     content: String,
@@ -94,8 +109,78 @@ fn basename_path(path: &str) -> String {
         .to_string()
 }
 
+fn relative_path_between(from_file_path: &str, target_path: &str) -> String {
+    let from_dir = dirname_path(from_file_path);
+    let normalized_from = normalize_fs_path(&from_dir);
+    let from_parts = normalized_from
+        .split('/')
+        .filter(|segment| !segment.is_empty())
+        .collect::<Vec<_>>();
+    let normalized_target = normalize_fs_path(target_path);
+    let target_parts = normalized_target
+        .split('/')
+        .filter(|segment| !segment.is_empty())
+        .collect::<Vec<_>>();
+
+    let mut common = 0usize;
+    while common < from_parts.len()
+        && common < target_parts.len()
+        && from_parts[common] == target_parts[common]
+    {
+        common += 1;
+    }
+
+    let upward = from_parts.len().saturating_sub(common);
+    let remainder = target_parts[common..].join("/");
+    if upward == 0 {
+        return remainder;
+    }
+    format!("{}{remainder}", "../".repeat(upward))
+        .trim_end_matches('/')
+        .to_string()
+}
+
 fn resolve_relative_path(base_dir: &str, raw_path: &str) -> String {
-    normalize_fs_path(&Path::new(base_dir).join(raw_path).to_string_lossy())
+    use std::path::Component;
+
+    let joined = Path::new(base_dir).join(raw_path);
+    let mut parts = Vec::new();
+    let mut prefix = String::new();
+    let mut absolute = false;
+
+    for component in joined.components() {
+        match component {
+            Component::Prefix(value) => {
+                prefix = value.as_os_str().to_string_lossy().to_string();
+            }
+            Component::RootDir => {
+                absolute = true;
+            }
+            Component::CurDir => {}
+            Component::ParentDir => {
+                if !parts.is_empty() {
+                    parts.pop();
+                }
+            }
+            Component::Normal(value) => {
+                parts.push(value.to_string_lossy().to_string());
+            }
+        }
+    }
+
+    let path = if !prefix.is_empty() {
+        if parts.is_empty() {
+            format!("{prefix}/")
+        } else {
+            format!("{prefix}/{}", parts.join("/"))
+        }
+    } else if absolute {
+        format!("/{}", parts.join("/"))
+    } else {
+        parts.join("/")
+    };
+
+    normalize_fs_path(&path)
 }
 
 fn normalize_title(value: &str) -> String {
@@ -213,6 +298,50 @@ fn resolve_existing_path(candidates: &[String], available_paths: &HashSet<String
         .find(|candidate| available_paths.contains(*candidate))
         .cloned()
         .unwrap_or_else(|| candidates.first().cloned().unwrap_or_default())
+}
+
+fn utf16_len(text: &str) -> usize {
+    text.encode_utf16().count()
+}
+
+fn trim_start_spaces(text: &str) -> String {
+    text.trim_start_matches(char::is_whitespace).to_string()
+}
+
+fn completion_match(text_before: &str, pattern: &str) -> Option<(String, usize)> {
+    let regex = Regex::new(pattern).ok()?;
+    let captures = regex.captures(text_before)?;
+    let body = captures.get(1).map(|value| value.as_str()).unwrap_or_default();
+    let query = trim_start_spaces(body.split(',').last().unwrap_or_default());
+    Some((query.clone(), utf16_len(&query)))
+}
+
+fn build_completion_options(
+    values: Vec<String>,
+    query: &str,
+    detail: &str,
+    option_type: &str,
+) -> Vec<Value> {
+    let query_lower = query.to_lowercase();
+    let mut seen = HashSet::new();
+    let mut options = Vec::new();
+
+    for value in values {
+        let normalized = value.trim().to_string();
+        if normalized.is_empty() || !seen.insert(normalized.clone()) {
+            continue;
+        }
+        if !query_lower.is_empty() && !normalized.to_lowercase().contains(&query_lower) {
+            continue;
+        }
+        options.push(json!({
+            "label": normalized,
+            "type": option_type,
+            "detail": detail,
+        }));
+    }
+
+    options
 }
 
 fn parse_bibliography_targets(
@@ -956,6 +1085,13 @@ pub(crate) fn resolve_graph_value(params: &LatexProjectGraphParams) -> Option<Va
         .cloned()
         .collect::<HashSet<_>>();
     available_paths.insert(normalized_source.clone());
+    available_paths.extend(
+        params
+            .content_overrides
+            .keys()
+            .map(|path| normalize_fs_path(path))
+            .filter(|path| matches!(extname_path(path).as_str(), ".tex" | ".latex" | ".bib")),
+    );
 
     let latex_files = available_paths
         .iter()
@@ -1197,14 +1333,149 @@ pub(crate) fn resolve_affected_root_targets_internal(params: &LatexAffectedRoots
     affected.into_values().collect()
 }
 
+fn resolve_completion_value(params: &LatexProjectCompletionParams) -> Option<Value> {
+    let normalized_file = normalize_fs_path(&params.file_path);
+    if normalized_file.is_empty() {
+        return None;
+    }
+
+    let text_before = params.line_text_before_cursor.as_str();
+    let citation_context = completion_match(
+        text_before,
+        r"\\(?:[A-Za-z]*cite[A-Za-z]*|nocite)\*?(?:\[[^\]]*\])?(?:\[[^\]]*\])?\{([^}]*)$",
+    )
+    .map(|(query, from_distance)| ("citation", query, from_distance));
+    let reference_context = completion_match(
+        text_before,
+        r"\\(?:ref|eqref|pageref|autoref|cref|Cref)\{([^}]*)$",
+    )
+    .map(|(query, from_distance)| ("reference", query, from_distance));
+    let addbib_context = completion_match(
+        text_before,
+        r"\\addbibresource(?:\[[^\]]*\])?\{([^}]*)$",
+    )
+    .map(|(query, from_distance)| ("bib-resource", query, from_distance));
+    let bibliography_context = completion_match(
+        text_before,
+        r"\\bibliography\{([^}]*)$",
+    )
+    .map(|(query, from_distance)| ("bib-list", query, from_distance));
+    let include_context = completion_match(
+        text_before,
+        r"\\(?:input|include|subfile)\{([^}]*)$",
+    )
+    .map(|(query, from_distance)| ("tex-file", query, from_distance));
+
+    let Some((context_kind, query, from_distance)) = citation_context
+        .or(reference_context)
+        .or(addbib_context)
+        .or(bibliography_context)
+        .or(include_context)
+    else {
+        return None;
+    };
+
+    let graph = resolve_graph_value(&LatexProjectGraphParams {
+        source_path: normalized_file.clone(),
+        workspace_path: params.workspace_path.clone(),
+        flat_files: Vec::new(),
+        include_hidden: params.include_hidden,
+        content_overrides: params.content_overrides.clone(),
+    })?;
+
+    let values = match context_kind {
+        "citation" => graph
+            .get("bibKeys")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|value| value.as_str().map(ToString::to_string))
+            .collect::<Vec<_>>(),
+        "reference" => graph
+            .get("labels")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|value| {
+                value
+                    .get("key")
+                    .and_then(Value::as_str)
+                    .map(ToString::to_string)
+            })
+            .collect::<Vec<_>>(),
+        "tex-file" => graph
+            .get("projectPaths")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|value| value.as_str().map(ToString::to_string))
+            .filter(|path| path != &normalized_file && matches!(extname_path(path).as_str(), ".tex" | ".latex"))
+            .map(|path| strip_extension(&relative_path_between(&normalized_file, &path)))
+            .collect::<Vec<_>>(),
+        "bib-resource" => graph
+            .get("bibliographyFiles")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|value| value.as_str().map(ToString::to_string))
+            .map(|path| {
+                let relative = strip_extension(&relative_path_between(&normalized_file, &path));
+                if extname_path(&path) == ".bib" {
+                    format!("{relative}.bib")
+                } else {
+                    relative
+                }
+            })
+            .map(|value| value.replace(".bib.bib", ".bib"))
+            .collect::<Vec<_>>(),
+        "bib-list" => graph
+            .get("bibliographyFiles")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|value| value.as_str().map(ToString::to_string))
+            .map(|path| strip_extension(&relative_path_between(&normalized_file, &path)))
+            .collect::<Vec<_>>(),
+        _ => Vec::new(),
+    };
+
+    let (detail, option_type) = match context_kind {
+        "citation" => ("Citation key", "variable"),
+        "reference" => ("Document label", "constant"),
+        "tex-file" => ("Project file", "file"),
+        "bib-resource" | "bib-list" => ("Bibliography file", "file"),
+        _ => ("", "text"),
+    };
+
+    let options = build_completion_options(values, &query, detail, option_type);
+    if options.is_empty() {
+        return None;
+    }
+
+    Some(json!({
+        "fromDistance": from_distance,
+        "options": options,
+    }))
+}
+
 #[tauri::command]
-pub async fn latex_project_graph_resolve(params: LatexProjectGraphParams) -> Result<Value, String> {
-    Ok(resolve_graph_value(&params).unwrap_or(Value::Null))
+pub async fn latex_project_completion_resolve(
+    params: LatexProjectCompletionParams,
+) -> Result<Value, String> {
+    Ok(resolve_completion_value(&params).unwrap_or(Value::Null))
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_sections, resolve_graph_value, LatexProjectGraphParams};
+    use super::{
+        latex_project_completion_resolve, parse_sections, resolve_graph_value,
+        LatexProjectCompletionParams, LatexProjectGraphParams,
+    };
     use serde_json::Value;
     use std::collections::HashMap;
 
@@ -1245,6 +1516,84 @@ mod tests {
         assert_eq!(
             outline_items[0].get("line").and_then(Value::as_u64),
             Some(2)
+        );
+    }
+
+    #[tokio::test]
+    async fn completion_resolve_returns_citation_keys() {
+        let source_path = "/tmp/main.tex".to_string();
+        let bib_path = "/tmp/refs/library.bib".to_string();
+        let value = latex_project_completion_resolve(LatexProjectCompletionParams {
+            file_path: source_path.clone(),
+            workspace_path: String::new(),
+            line_text_before_cursor: "\\cite{alp".to_string(),
+            include_hidden: true,
+            content_overrides: HashMap::from([
+                (
+                    source_path.clone(),
+                    "\\documentclass{article}\n\\begin{document}\n\\bibliography{refs/library}\n\\end{document}\n"
+                        .to_string(),
+                ),
+                (
+                    bib_path,
+                    "@article{alpha2024,\n  title={Alpha}\n}\n@article{beta2024,\n  title={Beta}\n}\n"
+                        .to_string(),
+                ),
+            ]),
+        })
+        .await
+        .expect("completion resolve");
+
+        let options = value
+            .get("options")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        assert_eq!(value.get("fromDistance").and_then(Value::as_u64), Some(3));
+        assert_eq!(options.len(), 1);
+        assert_eq!(
+            options[0].get("label").and_then(Value::as_str),
+            Some("alpha2024")
+        );
+    }
+
+    #[tokio::test]
+    async fn completion_resolve_returns_relative_project_files() {
+        let source_path = "/tmp/chapters/intro.tex".to_string();
+        let root_path = "/tmp/main.tex".to_string();
+        let methods_path = "/tmp/chapters/methods.tex".to_string();
+        let value = latex_project_completion_resolve(LatexProjectCompletionParams {
+            file_path: source_path.clone(),
+            workspace_path: String::new(),
+            line_text_before_cursor: "\\input{meth".to_string(),
+            include_hidden: true,
+            content_overrides: HashMap::from([
+                (
+                    source_path.clone(),
+                    "% !TEX root = ../main.tex\n\\section{Intro}\n".to_string(),
+                ),
+                (
+                    root_path,
+                    "\\documentclass{article}\n\\begin{document}\n\\input{chapters/intro}\n\\input{chapters/methods}\n\\end{document}\n"
+                        .to_string(),
+                ),
+                (
+                    methods_path,
+                    "\\section{Methods}\n".to_string(),
+                ),
+            ]),
+        })
+        .await
+        .expect("completion resolve");
+
+        let options = value
+            .get("options")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        assert_eq!(
+            options[0].get("label").and_then(Value::as_str),
+            Some("methods")
         );
     }
 }
