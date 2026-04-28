@@ -65,7 +65,7 @@ const props = defineProps({
   topbarWorkflowTargetSelector: { type: String, default: '' },
 })
 
-const emit = defineEmits(['cursor-change', 'editor-stats', 'selection-change'])
+defineEmits(['cursor-change', 'editor-stats', 'selection-change'])
 const editorStore = useEditorStore()
 const splitContainer = ref(null)
 const splitMotionKey = computed(() => `pane-split:${props.node?.id || 'root'}`)

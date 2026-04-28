@@ -1,6 +1,6 @@
 function cloneRootEntries(entries = []) {
   return entries.map((entry) => {
-    const { children, ...rest } = entry
+    const { children: _children, ...rest } = entry
     return { ...rest }
   })
 }

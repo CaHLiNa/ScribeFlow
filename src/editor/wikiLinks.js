@@ -1,4 +1,4 @@
-import { EditorView, Decoration, ViewPlugin } from '@codemirror/view'
+import { Decoration, ViewPlugin } from '@codemirror/view'
 import { syntaxTree } from '@codemirror/language'
 // autocompletion is combined in TextEditor.vue — we just export the raw source
 

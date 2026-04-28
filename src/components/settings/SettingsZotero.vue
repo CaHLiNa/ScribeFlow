@@ -189,18 +189,6 @@ const collectionOptions = ref([])
 const syncSummary = ref('')
 
 const citationStyle = computed(() => referencesStore.citationStyle || 'apa')
-const markdownCitationFormatOptions = computed(() => [
-  { value: 'bracketed', label: '[@key]' },
-  { value: 'bare', label: '@key' },
-])
-const latexCitationCommandOptions = computed(() => [
-  { value: 'cite', label: '\\cite{}' },
-  { value: 'citep', label: '\\citep{}' },
-  { value: 'citet', label: '\\citet{}' },
-  { value: 'parencite', label: '\\parencite{}' },
-  { value: 'textcite', label: '\\textcite{}' },
-  { value: 'autocite', label: '\\autocite{}' },
-])
 
 // 防御性 computed：确保不会由于 referencesStore 尚未初始化而崩溃
 const citationStyleOptions = computed(() => {

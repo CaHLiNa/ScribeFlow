@@ -28,8 +28,8 @@ export function toWorkspaceProtocolUrl(filePath, workspace, options = {}) {
   const globalRoot = normalizePath(workspace?.globalConfigDir || '')
   const { version = '' } = options
 
-  let scope = ''
-  let relativePath = ''
+  let scope
+  let relativePath
 
   if (isWithinRoot(normalizedFilePath, workspaceRoot)) {
     scope = 'workspace'

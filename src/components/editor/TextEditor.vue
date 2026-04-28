@@ -849,40 +849,40 @@ function handleDocumentChanged(content) {
 }
 
 async function loadLanguageExtension() {
-  const { languages } = await import('@codemirror/language-data')
   const ext = basenamePath(props.filePath).split('.').pop()?.toLowerCase() || ''
   if (isMd) {
     const { markdown, markdownLanguage } = await import('@codemirror/lang-markdown')
-    return markdown({ base: markdownLanguage, codeLanguages: languages })
+    return markdown({ base: markdownLanguage })
   }
   if (isLatexEditor) {
     const { altalsLatexLanguage, ensureLatexTextmateReady } = await import('../../editor/latexLanguage')
     await ensureLatexTextmateReady()
     return altalsLatexLanguage
   }
-  if (ext === 'm') {
-    const octave = languages.find((lang) => lang.name === 'Octave')
-    if (octave) {
-      return octave.load()
-    }
+
+  if (ext === 'py' || ext === 'pyw') {
+    const { python } = await import('@codemirror/lang-python')
+    return python()
   }
 
-  const matched = languages.filter((lang) => {
-    const name = basenamePath(props.filePath)
-    if (lang.filename && lang.filename.test(name)) return true
-    if (lang.extensions) {
-      const dot = name.lastIndexOf('.')
-      if (dot > 0) {
-        const ext = name.substring(dot + 1)
-        return lang.extensions.includes(ext)
-      }
-    }
-    return false
-  })
-
-  if (matched.length > 0) {
-    return matched[0].load()
+  if (['js', 'mjs', 'cjs', 'jsx', 'ts', 'tsx', 'json'].includes(ext)) {
+    const { javascript } = await import('@codemirror/lang-javascript')
+    return javascript({
+      jsx: ext === 'jsx' || ext === 'tsx',
+      typescript: ext === 'ts' || ext === 'tsx',
+    })
   }
+
+  if (ext === 'html' || ext === 'htm') {
+    const { html } = await import('@codemirror/lang-html')
+    return html()
+  }
+
+  if (ext === 'css' || ext === 'scss') {
+    const { css } = await import('@codemirror/lang-css')
+    return css()
+  }
+
   return null
 }
 

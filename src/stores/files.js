@@ -1,5 +1,4 @@
 import { defineStore } from 'pinia'
-import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { save as saveDialog } from '@tauri-apps/plugin-dialog'
 import { nanoid } from './utils'
@@ -23,6 +22,16 @@ import {
   renameWorkspacePath as renameWorkspaceEntry,
   saveWorkspaceTextFile,
 } from '../services/fileStoreIO'
+import {
+  loadWorkspaceTreeState as loadWorkspaceTreeStateFromRust,
+  noteWorkspaceTreeActivity as noteWorkspaceTreeActivityFromRust,
+  readDirShallow,
+  restoreCachedExpandedTreeState as restoreCachedExpandedTreeStateFromRust,
+  revealWorkspaceTreeState as revealWorkspaceTreeStateFromRust,
+  setWorkspaceTreeVisibility,
+  startWorkspaceTreeWatch,
+  stopWorkspaceTreeWatch,
+} from '../services/workspaceTreeRuntime'
 import {
   buildFlatFilesStatePatch,
   buildRestoredCachedTreeState,
@@ -51,38 +60,32 @@ const WORKSPACE_TREE_REFRESH_REQUESTED_EVENT = 'workspace-tree-refresh-requested
 
 async function loadWorkspaceTreeState(currentTree = [], extraDirs = []) {
   const workspace = useWorkspaceStore()
-  return invoke('fs_tree_load_workspace_state', {
-    params: {
-      workspacePath: workspace.path || '',
-      currentTree,
-      extraDirs,
-      includeHidden: workspace.fileTreeShowHidden !== false,
-    },
+  return loadWorkspaceTreeStateFromRust({
+    workspacePath: workspace.path || '',
+    currentTree,
+    extraDirs,
+    includeHidden: workspace.fileTreeShowHidden !== false,
   })
 }
 
 async function revealWorkspaceTreeState(targetPath = '', currentTree = []) {
   const workspace = useWorkspaceStore()
-  return invoke('fs_tree_reveal_workspace_state', {
-    params: {
-      workspacePath: workspace.path || '',
-      targetPath,
-      currentTree,
-      includeHidden: workspace.fileTreeShowHidden !== false,
-    },
+  return revealWorkspaceTreeStateFromRust({
+    workspacePath: workspace.path || '',
+    targetPath,
+    currentTree,
+    includeHidden: workspace.fileTreeShowHidden !== false,
   })
 }
 
 async function restoreCachedExpandedTreeState(currentTree = [], cachedRootExpandedDirs = [], maxDirs = 6) {
   const workspace = useWorkspaceStore()
-  return invoke('fs_tree_restore_cached_expanded_state', {
-    params: {
-      workspacePath: workspace.path || '',
-      currentTree,
-      cachedRootExpandedDirs,
-      maxDirs,
-      includeHidden: workspace.fileTreeShowHidden !== false,
-    },
+  return restoreCachedExpandedTreeStateFromRust({
+    workspacePath: workspace.path || '',
+    currentTree,
+    cachedRootExpandedDirs,
+    maxDirs,
+    includeHidden: workspace.fileTreeShowHidden !== false,
   })
 }
 
@@ -95,23 +98,6 @@ function findTreeEntry(entries = [], targetPath) {
     }
   }
   return null
-}
-
-async function mapWithConcurrency(items, limit, mapper) {
-  const results = new Array(items.length)
-  let nextIndex = 0
-
-  async function worker() {
-    while (nextIndex < items.length) {
-      const currentIndex = nextIndex
-      nextIndex += 1
-      results[currentIndex] = await mapper(items[currentIndex], currentIndex)
-    }
-  }
-
-  const workers = Array.from({ length: Math.min(limit, items.length) }, () => worker())
-  await Promise.all(workers)
-  return results
 }
 
 function formatBytes(bytes = 0) {
@@ -261,7 +247,7 @@ export const useFilesStore = defineStore('files', {
       }
       this._nativeWatcherUnlisten = null
       if (this._nativeWatcherActive) {
-        invoke('workspace_tree_watch_stop').catch(() => {})
+        stopWorkspaceTreeWatch().catch(() => {})
       }
       this._nativeWatcherActive = false
     },
@@ -277,22 +263,16 @@ export const useFilesStore = defineStore('files', {
     _notifyTreeVisibility(visible) {
       const workspacePath = useWorkspaceStore().path
       if (!workspacePath) return
-      void invoke('workspace_tree_watch_set_visibility', {
-        params: {
-          path: workspacePath,
-          visible: visible === true,
-        },
+      void setWorkspaceTreeVisibility({
+        path: workspacePath,
+        visible: visible === true,
       }).catch(() => {})
     },
 
     noteTreeActivity() {
       const workspacePath = useWorkspaceStore().path
       if (!workspacePath) return
-      void invoke('workspace_tree_watch_note_activity', {
-        params: {
-          path: workspacePath,
-        },
-      }).catch(() => {})
+      void noteWorkspaceTreeActivityFromRust(workspacePath).catch(() => {})
     },
 
     _setupActivityHooks() {
@@ -316,7 +296,7 @@ export const useFilesStore = defineStore('files', {
       if (!workspacePath || !isTauriDesktopRuntime()) return
 
       try {
-        await invoke('workspace_tree_watch_start', { path: workspacePath })
+        await startWorkspaceTreeWatch(workspacePath)
         this._nativeWatcherActive = true
         this._nativeWatcherUnlisten = await listen(WORKSPACE_TREE_REFRESH_REQUESTED_EVENT, (event) => {
           const payload = event.payload || {}
@@ -589,8 +569,7 @@ export const useFilesStore = defineStore('files', {
           return findTreeEntry(snapshot?.tree || [], path)?.children || []
         }
 
-        const children = await invoke('read_dir_shallow', {
-          path,
+        const children = await readDirShallow(path, {
           includeHidden: useWorkspaceStore().fileTreeShowHidden !== false,
         })
         const entry = findTreeEntry(this.tree ?? [], path)
@@ -649,12 +628,12 @@ export const useFilesStore = defineStore('files', {
       }
 
       const refreshLoop = async () => {
-        let latestTree = this.tree ?? []
+        let latestTree
         do {
           this._treeRefreshQueued = false
           latestTree = await refreshVisibleTreeOnce()
         } while (this._treeRefreshQueued)
-        return latestTree
+        return latestTree ?? this.tree ?? []
       }
 
       this._treeRefreshPromise = refreshLoop()
@@ -795,7 +774,7 @@ export const useFilesStore = defineStore('files', {
       const draftName = this.getDraftSuggestedName(draftPath) || 'Untitled.md'
       const defaultPath = workspaceRoot ? `${workspaceRoot}/${draftName}` : draftName
 
-      let selectedPath = null
+      let selectedPath
       try {
         selectedPath = await saveDialog({
           title: t('Save'),

@@ -1,5 +1,4 @@
 import { defineStore } from 'pinia'
-import { invoke } from '@tauri-apps/api/core'
 import {
   applyWorkspaceFontSizes,
   createWorkspacePreferenceState,
@@ -33,6 +32,13 @@ import {
   loadWorkspaceLifecycleState as loadWorkspaceLifecycleStateFromRust,
   saveWorkspaceLifecycleState as saveWorkspaceLifecycleStateToRust,
 } from '../services/workspaceRecents'
+import {
+  getGlobalConfigDir,
+  loadWorkspaceBootstrapData as loadWorkspaceBootstrapDataFromRust,
+  prepareWorkspaceClose,
+  prepareWorkspaceOpen,
+  resolveWorkspaceBootstrapPlan as resolveWorkspaceBootstrapPlanFromRust,
+} from '../services/workspaceRuntime'
 
 const WORKSPACE_PREFERENCE_KEYS = [
   'primarySurface',
@@ -151,7 +157,7 @@ export const useWorkspaceStore = defineStore('workspace', {
       if (this.globalConfigDir) return this.globalConfigDir
 
       try {
-        this.globalConfigDir = await invoke('get_global_config_dir')
+        this.globalConfigDir = await getGlobalConfigDir()
       } catch {
         this.globalConfigDir = ''
       }
@@ -239,12 +245,7 @@ export const useWorkspaceStore = defineStore('workspace', {
     },
 
     async openWorkspace(path) {
-      const prepared = await invoke('workspace_lifecycle_prepare_open', {
-        params: {
-          globalConfigDir: this.globalConfigDir || '',
-          path,
-        },
-      })
+      const prepared = await prepareWorkspaceOpen(this.globalConfigDir || '', path)
 
       this.path = String(prepared?.path || path || '')
       this.globalConfigDir = String(prepared?.globalConfigDir || this.globalConfigDir || '')
@@ -263,30 +264,23 @@ export const useWorkspaceStore = defineStore('workspace', {
     },
 
     async resolveWorkspaceBootstrapPlan(options = {}) {
-      return invoke('workspace_lifecycle_resolve_bootstrap_plan', {
-        params: {
-          hasCachedTree: options.hasCachedTree === true,
-          restoreEditorSession: options.restoreEditorSession !== false,
-        },
-      })
+      return resolveWorkspaceBootstrapPlanFromRust(options)
     },
 
     async loadWorkspaceBootstrapData(options = {}) {
-      return invoke('workspace_lifecycle_load_bootstrap_data', {
-        params: {
-          globalConfigDir: this.globalConfigDir || '',
-          workspaceDataDir: this.workspaceDataDir || '',
-          workspacePath: this.path || '',
-          legacyWorkspaceDataDir: options.legacyWorkspaceDataDir || this.workspaceDataDir || '',
-          legacyProjectRoot: options.legacyProjectRoot || this.path || '',
-          restoreEditorSession: options.restoreEditorSession !== false,
-          currentTree: Array.isArray(options.currentTree) ? options.currentTree : [],
-          cachedRootExpandedDirs: Array.isArray(options.cachedRootExpandedDirs)
-            ? options.cachedRootExpandedDirs
-            : [],
-          includeHidden: options.includeHidden !== false,
-          hasCachedTree: options.hasCachedTree === true,
-        },
+      return loadWorkspaceBootstrapDataFromRust({
+        globalConfigDir: this.globalConfigDir || '',
+        workspaceDataDir: this.workspaceDataDir || '',
+        workspacePath: this.path || '',
+        legacyWorkspaceDataDir: options.legacyWorkspaceDataDir || this.workspaceDataDir || '',
+        legacyProjectRoot: options.legacyProjectRoot || this.path || '',
+        restoreEditorSession: options.restoreEditorSession !== false,
+        currentTree: Array.isArray(options.currentTree) ? options.currentTree : [],
+        cachedRootExpandedDirs: Array.isArray(options.cachedRootExpandedDirs)
+          ? options.cachedRootExpandedDirs
+          : [],
+        includeHidden: options.includeHidden !== false,
+        hasCachedTree: options.hasCachedTree === true,
       })
     },
 
@@ -307,7 +301,7 @@ export const useWorkspaceStore = defineStore('workspace', {
     async closeWorkspace() {
       this._workspaceBootstrapGeneration += 1
       this._workspaceBootstrapPromise = null
-      await invoke('workspace_lifecycle_prepare_close').catch(() => {})
+      await prepareWorkspaceClose().catch(() => {})
       await this.cleanup()
       await this.openWorkspaceSurface()
       await this.persistLifecycleState({ lastWorkspace: '' })

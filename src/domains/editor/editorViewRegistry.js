@@ -1,5 +1,3 @@
-import { getViewerType } from '../../utils/fileTypes'
-
 function buildEditorViewKey(paneId, path) {
   return `${paneId}:${path}`
 }

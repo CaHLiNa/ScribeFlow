@@ -167,7 +167,6 @@ import { useFilesStore } from './stores/files'
 import { useEditorStore } from './stores/editor'
 import { useDocumentWorkflowStore } from './stores/documentWorkflow'
 import { useLinksStore } from './stores/links'
-import { useLatexStore } from './stores/latex'
 import { useReferencesStore } from './stores/references'
 
 import ResizeHandle from './components/layout/ResizeHandle.vue'
@@ -205,7 +204,6 @@ const filesStore = useFilesStore()
 const editorStore = useEditorStore()
 const workflowStore = useDocumentWorkflowStore()
 const linksStore = useLinksStore()
-const latexStore = useLatexStore()
 const referencesStore = useReferencesStore()
 const { t } = useI18n()
 const isMacDesktop = isMac && isTauriDesktopRuntime

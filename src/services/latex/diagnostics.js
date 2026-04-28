@@ -1,25 +1,6 @@
 import { normalizeProblems } from '../documentIntelligence/diagnostics.js'
 import { getCachedLatexProjectGraph, resolveLatexProjectContext } from './projectGraph.js'
 
-function buildLineOffsets(text = '') {
-  const offsets = [0]
-  for (let index = 0; index < text.length; index += 1) {
-    if (text[index] === '\n') offsets.push(index + 1)
-  }
-  return offsets
-}
-
-function offsetToLine(lineOffsets = [], offset = 0) {
-  let low = 0
-  let high = lineOffsets.length - 1
-  while (low <= high) {
-    const mid = Math.floor((low + high) / 2)
-    if (lineOffsets[mid] <= offset) low = mid + 1
-    else high = mid - 1
-  }
-  return Math.max(1, high + 1)
-}
-
 function deriveProjectWarnings(project = null) {
   if (!project) return { unresolvedRefs: [], unresolvedCitations: [] }
   if (Array.isArray(project.unresolvedRefs) || Array.isArray(project.unresolvedCitations)) {

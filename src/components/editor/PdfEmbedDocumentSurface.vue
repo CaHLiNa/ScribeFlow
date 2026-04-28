@@ -338,7 +338,7 @@ const ZOOM_MENU_PRESET_VALUES = ['0.5', '0.75', '1', '1.25', '1.5', '2']
 const { t } = useI18n()
 const workspace = useWorkspaceStore()
 const toastStore = useToastStore()
-const documentState = useDocumentState(() => props.documentId)
+useDocumentState(() => props.documentId)
 const zoom = useZoom(() => props.documentId)
 const spread = useSpread(() => props.documentId)
 const scroll = useScroll(() => props.documentId)

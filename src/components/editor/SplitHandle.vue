@@ -18,7 +18,7 @@ const props = defineProps({
 const emit = defineEmits(['resize', 'resize-start', 'resize-end'])
 const dragging = ref(false)
 
-function startDrag(e) {
+function startDrag() {
   dragging.value = true
   emit('resize-start')
   setShellResizeActive(true, { source: 'split-handle', direction: props.direction })

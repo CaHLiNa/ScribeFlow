@@ -1,11 +1,22 @@
 import { defineStore } from 'pinia'
-import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { useFilesStore } from './files'
 import { useWorkspaceStore } from './workspace'
 import { t } from '../i18n'
 import { resolveCachedLatexRootPath } from '../services/latex/root'
+import {
+  checkLatexCompilers,
+  checkLatexTools,
+  cancelLatexRuntime,
+  downloadTectonic,
+  executeLatexCompile,
+  formatLatexDocument,
+  resolveLatexCompileRequest,
+  resolveLatexLintState,
+  scheduleLatexRuntime,
+} from '../services/latex/runtime.js'
 import { stableContentFingerprint } from '../services/latex/projectGraph'
+import { resolveLatexCompileTargetsForChange } from '../services/latex/projectGraph.js'
 import { basenamePath } from '../utils/path'
 import {
   createLatexPreferenceState,
@@ -195,16 +206,14 @@ async function resolveLatexCompileRequestFromRust(sourcePath, options = {}) {
         }
 
   const flatFiles = await filesStore.ensureFlatFilesReady().catch(() => [])
-  const resolved = await invoke('latex_compile_request_resolve', {
-    params: {
-      sourcePath: normalizedSourcePath,
-      flatFiles: Array.isArray(flatFiles)
-        ? flatFiles
-            .map((entry) => String(entry?.path || entry || ''))
-            .filter(Boolean)
-        : [],
-      contentOverrides,
-    },
+  const resolved = await resolveLatexCompileRequest({
+    sourcePath: normalizedSourcePath,
+    flatFiles: Array.isArray(flatFiles)
+      ? flatFiles
+          .map((entry) => String(entry?.path || entry || ''))
+          .filter(Boolean)
+      : [],
+    contentOverrides,
   }).catch(() => null)
 
   const rootPath = String(resolved?.rootPath || normalizedSourcePath)
@@ -234,9 +243,9 @@ async function resolveLatexCompileTargetsFromRust(changedPath, options = {}) {
         }
 
   const flatFiles = await filesStore.ensureFlatFilesReady().catch(() => [])
-  const targets = await invoke('latex_compile_targets_resolve', {
-    params: {
-      changedPath: normalizedChangedPath,
+  const targets = await resolveLatexCompileTargetsForChange(
+    normalizedChangedPath,
+    {
       flatFiles: Array.isArray(flatFiles)
         ? flatFiles
             .map((entry) => String(entry?.path || entry || ''))
@@ -244,7 +253,7 @@ async function resolveLatexCompileTargetsFromRust(changedPath, options = {}) {
         : [],
       contentOverrides,
     },
-  }).catch(() => [])
+  ).catch(() => [])
 
   return Array.isArray(targets)
     ? targets
@@ -268,14 +277,12 @@ async function resolveLatexLintStateFromRust(texPath, options = {}) {
   const workspaceStore = useWorkspaceStore()
   const sourceContent =
     options.sourceContent ?? filesStore.fileContents?.[texPath] ?? null
-  return invoke('latex_runtime_lint_resolve', {
-    params: {
-      texPath,
-      content: sourceContent,
-      customSystemTexPath:
-        String(useLatexStore().customSystemTexPath || '').trim() || null,
-      workspacePath: workspaceStore.path || null,
-    },
+  return resolveLatexLintState({
+    texPath,
+    content: sourceContent,
+    customSystemTexPath:
+      String(useLatexStore().customSystemTexPath || '').trim() || null,
+    workspacePath: workspaceStore.path || null,
   }).catch(() => null)
 }
 
@@ -459,14 +466,12 @@ export const useLatexStore = defineStore('latex', {
 
     async resolveScheduleRequest(sourcePath, targetPath, options = {}) {
       const buildOptions = this.currentBuildOptions()
-      return invoke('latex_runtime_schedule', {
-        params: {
-          sourcePath,
-          targetPath,
-          reason: options.reason || 'save',
-          buildExtraArgs: buildOptions.buildExtraArgs,
-          now: Date.now(),
-        },
+      return scheduleLatexRuntime({
+        sourcePath,
+        targetPath,
+        reason: options.reason || 'save',
+        buildExtraArgs: buildOptions.buildExtraArgs,
+        now: Date.now(),
       })
     },
 
@@ -545,21 +550,19 @@ export const useLatexStore = defineStore('latex', {
             ? stableContentFingerprint(sourceContent)
             : ''
         const buildOptions = this.currentBuildOptions()
-        const compileExecution = await invoke('latex_runtime_compile_execute', {
-          params: {
-            texPath,
-            targetPath: targetKey,
-            projectRootPath:
-              project?.rootPath || compileTargetPath || targetKey,
-            projectPreviewPath: project?.previewPath || '',
-            reason: options.reason || 'manual',
-            buildExtraArgs: buildOptions.buildExtraArgs,
-            now: Date.now(),
-            compilerPreference: this.compilerPreference || null,
-            enginePreference: this.enginePreference || null,
-            customSystemTexPath: this.customSystemTexPath || null,
-            customTectonicPath: null,
-          },
+        const compileExecution = await executeLatexCompile({
+          texPath,
+          targetPath: targetKey,
+          projectRootPath:
+            project?.rootPath || compileTargetPath || targetKey,
+          projectPreviewPath: project?.previewPath || '',
+          reason: options.reason || 'manual',
+          buildExtraArgs: buildOptions.buildExtraArgs,
+          now: Date.now(),
+          compilerPreference: this.compilerPreference || null,
+          enginePreference: this.enginePreference || null,
+          customSystemTexPath: this.customSystemTexPath || null,
+          customTectonicPath: null,
         })
         if (sourceFingerprint) {
           if (
@@ -684,11 +687,7 @@ export const useLatexStore = defineStore('latex', {
       const rootPath = resolveCachedLatexRootPath(texPath)
       const targetPaths = [texPath, rootPath].filter(Boolean)
       if (targetPaths.length > 0) {
-        void invoke('latex_runtime_cancel', {
-          params: {
-            targetPaths,
-          },
-        }).catch(() => {})
+        void cancelLatexRuntime(targetPaths).catch(() => {})
       }
       for (const key of targetPaths) {
         if (
@@ -784,7 +783,7 @@ export const useLatexStore = defineStore('latex', {
         return
       this.checkingCompilers = true
       try {
-        const result = await invoke('check_latex_compilers', {
+        const result = await checkLatexCompilers({
           customSystemTexPath: this.customSystemTexPath || null,
           customTectonicPath: null,
         })
@@ -813,7 +812,7 @@ export const useLatexStore = defineStore('latex', {
         return
       this.checkingTools = true
       try {
-        const result = await invoke('check_latex_tools', {
+        const result = await checkLatexTools({
           customSystemTexPath: this.customSystemTexPath || null,
         })
         this.chktexInstalled = result.chktex?.installed === true
@@ -847,7 +846,7 @@ export const useLatexStore = defineStore('latex', {
     },
 
     async formatDocument(texPath, content) {
-      return await invoke('format_latex_document', {
+      return await formatLatexDocument({
         texPath,
         content,
         customSystemTexPath: this.customSystemTexPath || null,
@@ -868,7 +867,7 @@ export const useLatexStore = defineStore('latex', {
       })
 
       try {
-        const path = await invoke('download_tectonic')
+        const path = await downloadTectonic()
         this.tectonicInstalled = true
         this.tectonicPath = path
         await this.checkCompilers(true)
