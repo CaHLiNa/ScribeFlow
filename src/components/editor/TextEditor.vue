@@ -67,6 +67,7 @@ import {
 import { Prec } from '@codemirror/state'
 import { EditorView, keymap } from '@codemirror/view'
 import { hoverTooltip } from '@codemirror/view'
+import { autocompletion } from '@codemirror/autocomplete'
 import {
   createEditorExtensions,
   createEditorState,
@@ -1024,8 +1025,7 @@ onMounted(async () => {
   )
 
   if (isMd) {
-    const [{ autocompletion }, { createMarkdownDraftEditorExtensions }] = await Promise.all([
-      import('@codemirror/autocomplete'),
+    const [{ createMarkdownDraftEditorExtensions }] = await Promise.all([
       import('../../editor/markdownDraftAssist'),
     ])
     const completionSources = [createMarkdownDraftSnippetSource(t)]
@@ -1085,11 +1085,9 @@ onMounted(async () => {
 
   if (isLatexEditor) {
     const [
-      { autocompletion },
       { createLatexCompletionSource },
       { createLatexTextmateHighlightExtension },
     ] = await Promise.all([
-      import('@codemirror/autocomplete'),
       import('../../editor/latexAutocomplete'),
       import('../../editor/latexLanguage'),
     ])

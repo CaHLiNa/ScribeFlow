@@ -49,7 +49,7 @@ Current baseline on 2026-04-29:
 - Vite build passed
 - Bundle budget check passed
 - Rust check passed
-- Rust tests passed: 127 tests
+- Rust tests passed: 128 tests
 
 Desktop main-path feel, visual quality, layout behavior and interaction quality are intentionally user-owned manual checks. Do not propose automating them again.
 
@@ -168,6 +168,7 @@ Done:
 
 - added `npm run check:bundle` as a post-build budget guard for JS, CSS and WASM assets
 - raised Vite's generic chunk warning limit to 750 KiB so the known PDF worker does not hide actionable regressions behind repeated generic warnings
+- removed the redundant dynamic import of CodeMirror autocomplete from `TextEditor.vue`; build output no longer reports the autocomplete static/dynamic import warning
 
 ## Explicit Non-Goals
 
