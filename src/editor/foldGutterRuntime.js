@@ -6,7 +6,6 @@ import {
   foldEffect,
   foldState,
   language,
-  syntaxTree,
   unfoldEffect,
 } from '@codemirror/language'
 
@@ -70,19 +69,74 @@ export function createFoldGutterExtension() {
     class {
       constructor(view) {
         this.markers = this.buildMarkers(view)
+        this.activeLineNumbers = collectActiveLineNumbers(view.state)
+        this.rebuildHandle = null
+        this.rebuildHandleKind = null
       }
 
       update(update) {
+        const nextActiveLineNumbers = collectActiveLineNumbers(update.state)
+        const activeLinesChanged =
+          nextActiveLineNumbers.size !== this.activeLineNumbers.size ||
+          [...nextActiveLineNumbers].some((lineNumber) => !this.activeLineNumbers.has(lineNumber))
+
         if (
-          update.docChanged ||
           update.viewportChanged ||
-          update.selectionSet ||
+          activeLinesChanged ||
           update.startState.facet(language) !== update.state.facet(language) ||
-          syntaxTree(update.startState) !== syntaxTree(update.state) ||
           update.startState.field(foldState, false) !== update.state.field(foldState, false)
         ) {
+          this.activeLineNumbers = nextActiveLineNumbers
           this.markers = this.buildMarkers(update.view)
+          this.clearRebuildHandle()
+          return
         }
+
+        if (update.docChanged) {
+          this.markers = this.markers.map(update.changes)
+          this.scheduleRebuild(update.view)
+        }
+      }
+
+      clearRebuildHandle() {
+        if (this.rebuildHandle == null || typeof window === 'undefined') return
+        if (this.rebuildHandleKind === 'idle' && typeof window.cancelIdleCallback === 'function') {
+          window.cancelIdleCallback(this.rebuildHandle)
+        } else {
+          window.clearTimeout(this.rebuildHandle)
+        }
+        this.rebuildHandle = null
+        this.rebuildHandleKind = null
+      }
+
+      scheduleRebuild(view) {
+        this.clearRebuildHandle()
+
+        const rebuild = () => {
+          this.rebuildHandle = null
+          this.rebuildHandleKind = null
+          this.activeLineNumbers = collectActiveLineNumbers(view.state)
+          this.markers = this.buildMarkers(view)
+          view.dispatch({})
+        }
+
+        if (typeof window === 'undefined') {
+          rebuild()
+          return
+        }
+
+        if (typeof window.requestIdleCallback === 'function') {
+          this.rebuildHandle = window.requestIdleCallback(rebuild, { timeout: 240 })
+          this.rebuildHandleKind = 'idle'
+          return
+        }
+
+        this.rebuildHandle = window.setTimeout(rebuild, 240)
+        this.rebuildHandleKind = 'timeout'
+      }
+
+      destroy() {
+        this.clearRebuildHandle()
       }
 
       buildMarkers(view) {

@@ -524,12 +524,13 @@ export function createLatexTextmateHighlightExtension() {
         this.view = view
         this.themeMode = getResolvedLatexThemeMode(view)
         this.decorations = buildLatexTextmateDecorations(view.state, this.themeMode)
+        this.rebuildHandle = null
+        this.rebuildHandleKind = null
         this.handleWorkspaceThemeUpdated = () => {
           const nextThemeMode = getResolvedLatexThemeMode(this.view)
           if (nextThemeMode === this.themeMode) return
           this.themeMode = nextThemeMode
-          this.decorations = buildLatexTextmateDecorations(this.view.state, this.themeMode)
-          this.view.dispatch({})
+          this.scheduleRebuild(0)
         }
 
         if (typeof window !== 'undefined') {
@@ -537,15 +538,56 @@ export function createLatexTextmateHighlightExtension() {
         }
       }
 
+      clearRebuildHandle() {
+        if (this.rebuildHandle == null || typeof window === 'undefined') return
+        if (this.rebuildHandleKind === 'idle' && typeof window.cancelIdleCallback === 'function') {
+          window.cancelIdleCallback(this.rebuildHandle)
+        } else {
+          window.clearTimeout(this.rebuildHandle)
+        }
+        this.rebuildHandle = null
+        this.rebuildHandleKind = null
+      }
+
+      scheduleRebuild(timeout = 360) {
+        this.clearRebuildHandle()
+
+        const rebuild = () => {
+          this.rebuildHandle = null
+          this.rebuildHandleKind = null
+          this.decorations = buildLatexTextmateDecorations(this.view.state, this.themeMode)
+          this.view.dispatch({})
+        }
+
+        if (typeof window === 'undefined') {
+          rebuild()
+          return
+        }
+
+        if (typeof window.requestIdleCallback === 'function') {
+          this.rebuildHandle = window.requestIdleCallback(rebuild, { timeout })
+          this.rebuildHandleKind = 'idle'
+          return
+        }
+
+        this.rebuildHandle = window.setTimeout(rebuild, timeout)
+        this.rebuildHandleKind = 'timeout'
+      }
+
       update(update) {
         const nextThemeMode = getResolvedLatexThemeMode(update.view)
-        if (update.docChanged || nextThemeMode !== this.themeMode) {
+        if (update.docChanged) {
+          this.decorations = this.decorations.map(update.changes)
+          this.scheduleRebuild()
+        }
+        if (nextThemeMode !== this.themeMode) {
           this.themeMode = nextThemeMode
-          this.decorations = buildLatexTextmateDecorations(update.state, this.themeMode)
+          this.scheduleRebuild(0)
         }
       }
 
       destroy() {
+        this.clearRebuildHandle()
         if (typeof window !== 'undefined') {
           window.removeEventListener('workspace-theme-updated', this.handleWorkspaceThemeUpdated)
         }
