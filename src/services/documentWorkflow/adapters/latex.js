@@ -202,12 +202,6 @@ const latexCompileAdapter = {
     if (!context.latexStore) return null
     if (!(await this.ensureReady(filePath, context, options))) return null
 
-    const compileRequest = context.latexStore.resolveCompileRequest
-      ? await context.latexStore.resolveCompileRequest(filePath, options).catch(() => null)
-      : null
-    const bibTargetPath = compileRequest?.compileTargetPath || filePath
-    await context.referencesStore?.syncBibFileForTex?.(bibTargetPath).catch(() => '')
-
     await context.latexStore.compile(filePath, options)
     return this.stateForFile(filePath, context)
   },

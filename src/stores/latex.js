@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { useFilesStore } from './files'
+import { useReferencesStore } from './references'
 import { useWorkspaceStore } from './workspace'
 import { t } from '../i18n'
 import { resolveCachedLatexRootPath } from '../services/latex/root'
@@ -536,6 +537,7 @@ export const useLatexStore = defineStore('latex', {
         const { filesStore, project, compileTargetPath } =
           await this.resolveCompileRequest(texPath, options)
         const targetKey = compileTargetPath || texPath
+        await useReferencesStore().syncBibFileForTex(targetKey).catch(() => '')
         const sourceContent =
           typeof options.sourceContent === 'string'
             ? options.sourceContent

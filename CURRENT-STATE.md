@@ -106,6 +106,7 @@ First seam:
 - Existing manually maintained `references.bib` files are not overwritten unless they already contain the ScribeFlow auto-generated marker.
 - When the compile target already declares `\bibliography{...}`, ScribeFlow writes the selected document reference pool to that declared `.bib` file instead of forcing `references.bib`.
 - LaTeX Problems now warn when a cited key exists in the global reference library but has not been added to the current document reference pool, so the generated `.bib` will not silently omit it.
+- LaTeX `.bib` sync now runs inside `latexStore.compile()`, so manual compile, auto build and runtime-request compile share the same compile-target reference pool instead of only syncing through the document workflow adapter.
 
 ### Phase 3: Leaf Rustification
 
