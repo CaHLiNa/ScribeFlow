@@ -351,7 +351,7 @@ export const useReferencesStore = defineStore('references', {
     async syncBibFileForTex(texPath = '') {
       const normalizedTexPath = String(texPath || '').trim()
       if (!normalizedTexPath || this.references.length === 0) return ''
-      return writeReferenceBibFile(normalizedTexPath, this.references)
+      return writeReferenceBibFile(normalizedTexPath, this.references, this.citationStyle)
     },
 
     async importBibTeXContent(projectRoot = '', content = '') {

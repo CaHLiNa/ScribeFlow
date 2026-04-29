@@ -1238,7 +1238,7 @@ pub async fn references_import_from_text(
     Ok(Value::Array(Vec::new()))
 }
 
-fn export_bibtex_content(references: &[Value]) -> String {
+pub(crate) fn export_bibtex_content(references: &[Value]) -> String {
     let entries = references
         .iter()
         .map(reference_record_to_csl)

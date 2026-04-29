@@ -36,11 +36,12 @@ export function scanWorkspaceCitationStyles(workspacePath = '') {
   })
 }
 
-export function writeReferenceBibFile(texPath = '', references = []) {
+export function writeReferenceBibFile(texPath = '', references = [], citationStyle = 'apa') {
   return invoke('references_write_bib_file', {
     params: {
       texPath: String(texPath || ''),
       references: Array.isArray(references) ? references : [],
+      citationStyle: String(citationStyle || 'apa'),
     },
   })
 }
