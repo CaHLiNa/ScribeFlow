@@ -86,7 +86,11 @@ fn collect_loaded_directory_paths(entries: &[FileEntry], paths: &mut Vec<String>
     }
 }
 
-fn collect_loaded_dirs(entries: &[FileEntry], workspace_path: &str, extra_dirs: &[String]) -> Vec<String> {
+fn collect_loaded_dirs(
+    entries: &[FileEntry],
+    workspace_path: &str,
+    extra_dirs: &[String],
+) -> Vec<String> {
     let mut paths = Vec::new();
     collect_loaded_directory_paths(entries, &mut paths);
     for dir in extra_dirs {
@@ -165,7 +169,8 @@ fn read_workspace_snapshot_state(
 ) -> Result<FsTreeWorkspaceStateResult, String> {
     let loaded_dirs = collect_loaded_dirs(current_tree, workspace_path, extra_dirs);
     let loaded_set: HashSet<String> = loaded_dirs.iter().cloned().collect();
-    let snapshot = build_workspace_tree_snapshot(Path::new(workspace_path), &loaded_set, include_hidden)?;
+    let snapshot =
+        build_workspace_tree_snapshot(Path::new(workspace_path), &loaded_set, include_hidden)?;
     Ok(build_workspace_state_result(snapshot, Vec::new()))
 }
 
@@ -230,9 +235,7 @@ pub async fn fs_tree_restore_cached_expanded_state(
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        collect_loaded_dirs, filter_cached_root_expanded_dirs, list_ancestor_dir_paths,
-    };
+    use super::{collect_loaded_dirs, filter_cached_root_expanded_dirs, list_ancestor_dir_paths};
     use crate::fs_tree::FileEntry;
 
     fn entry(path: &str, is_dir: bool, children: Option<Vec<FileEntry>>) -> FileEntry {

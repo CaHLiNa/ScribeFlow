@@ -22,8 +22,12 @@ fn remove_file_if_exists(path: &Path) -> Result<bool, String> {
     if !path.exists() {
         return Ok(false);
     }
-    fs::remove_file(path)
-        .map_err(|error| format!("Failed to remove legacy AI file {}: {error}", path.display()))?;
+    fs::remove_file(path).map_err(|error| {
+        format!(
+            "Failed to remove legacy AI file {}: {error}",
+            path.display()
+        )
+    })?;
     Ok(true)
 }
 
@@ -120,8 +124,7 @@ mod tests {
         fs::create_dir_all(root.join("ai-session-overlays")).expect("create overlays dir");
         fs::create_dir_all(root.join("research-tasks")).expect("create tasks dir");
         fs::create_dir_all(root.join("research-evidence")).expect("create evidence dir");
-        fs::create_dir_all(root.join("research-verifications"))
-            .expect("create verifications dir");
+        fs::create_dir_all(root.join("research-verifications")).expect("create verifications dir");
 
         let removed = run_legacy_ai_cleanup_in_root(&root).expect("run cleanup");
         assert_eq!(removed, 5);

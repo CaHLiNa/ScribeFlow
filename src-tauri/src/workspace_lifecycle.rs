@@ -7,18 +7,20 @@ use crate::editor_session_runtime::{
     editor_recent_files_load, editor_session_load, EditorRecentFilesLoadParams,
     EditorSessionLoadParams, RecentFileEntry,
 };
-use crate::references_backend::{
-    references_library_load_workspace, ReferenceLibraryLoadWorkspaceParams,
-};
 use crate::fs_tree::FileEntry;
 use crate::fs_tree_runtime::{
     fs_tree_load_workspace_state, fs_tree_restore_cached_expanded_state,
     FsTreeLoadWorkspaceStateParams, FsTreeRestoreCachedExpandedStateParams,
     FsTreeWorkspaceStateResult,
 };
+use crate::references_backend::{
+    references_library_load_workspace, ReferenceLibraryLoadWorkspaceParams,
+};
 use crate::references_runtime::{references_scan_workspace_styles_scoped, CitationStyleScanParams};
 use crate::references_zotero::{references_zotero_config_load, ZoteroConfigPathParams};
-use crate::security::{clear_allowed_roots_internal, set_allowed_roots_internal, WorkspaceScopeState};
+use crate::security::{
+    clear_allowed_roots_internal, set_allowed_roots_internal, WorkspaceScopeState,
+};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -385,8 +387,7 @@ fn prune_missing_workspace_lifecycle_state(
         .recent_workspaces
         .retain(|entry| PathBuf::from(&entry.path).is_dir());
 
-    if !normalized.last_workspace.is_empty()
-        && !PathBuf::from(&normalized.last_workspace).is_dir()
+    if !normalized.last_workspace.is_empty() && !PathBuf::from(&normalized.last_workspace).is_dir()
     {
         normalized.last_workspace = String::new();
     }
@@ -567,10 +568,8 @@ pub async fn workspace_lifecycle_record_opened(
         &params.global_config_dir,
         WorkspaceLifecycleState::default(),
     )?;
-    let normalized = prune_missing_workspace_lifecycle_state(record_workspace_opened(
-        state,
-        &params.path,
-    ));
+    let normalized =
+        prune_missing_workspace_lifecycle_state(record_workspace_opened(state, &params.path));
     write_workspace_lifecycle_state(&params.global_config_dir, &normalized)?;
     Ok(WorkspaceBootstrapState::from(normalized))
 }
@@ -609,10 +608,7 @@ pub async fn workspace_lifecycle_prepare_open(
         &global_config_dir,
         WorkspaceLifecycleState::default(),
     )?;
-    let normalized = prune_missing_workspace_lifecycle_state(record_workspace_opened(
-        state,
-        &path,
-    ));
+    let normalized = prune_missing_workspace_lifecycle_state(record_workspace_opened(state, &path));
     write_workspace_lifecycle_state(&global_config_dir, &normalized)?;
 
     Ok(WorkspaceOpenState {
@@ -638,12 +634,13 @@ pub async fn workspace_lifecycle_load_bootstrap_data(
     params: WorkspaceLifecycleLoadBootstrapDataParams,
     scope_state: State<'_, WorkspaceScopeState>,
 ) -> Result<WorkspaceBootstrapHydratedData, String> {
-    let references_snapshot = references_library_load_workspace(ReferenceLibraryLoadWorkspaceParams {
-        global_config_dir: params.global_config_dir.clone(),
-        legacy_workspace_data_dir: params.legacy_workspace_data_dir,
-        legacy_project_root: params.legacy_project_root,
-    })
-    .await?;
+    let references_snapshot =
+        references_library_load_workspace(ReferenceLibraryLoadWorkspaceParams {
+            global_config_dir: params.global_config_dir.clone(),
+            legacy_workspace_data_dir: params.legacy_workspace_data_dir,
+            legacy_project_root: params.legacy_project_root,
+        })
+        .await?;
 
     let reference_styles = references_scan_workspace_styles_scoped(
         CitationStyleScanParams {
@@ -658,13 +655,12 @@ pub async fn workspace_lifecycle_load_bootstrap_data(
     })
     .await?;
 
-    let document_workflow_state = document_workflow_session_load(
-        DocumentWorkflowPersistentStateLoadParams {
+    let document_workflow_state =
+        document_workflow_session_load(DocumentWorkflowPersistentStateLoadParams {
             workspace_data_dir: params.workspace_data_dir.clone(),
             legacy_state: DocumentWorkflowPersistentState::default(),
-        },
-    )
-    .await?;
+        })
+        .await?;
 
     let recent_files = editor_recent_files_load(EditorRecentFilesLoadParams {
         workspace_data_dir: params.workspace_data_dir.clone(),
@@ -730,8 +726,8 @@ mod tests {
         build_workspace_bootstrap_plan, hash_workspace_path, normalize_workspace_lifecycle_state,
         prune_missing_workspace_lifecycle_state, record_workspace_opened,
         resolve_claude_config_dir, resolve_workspace_data_dir, workspace_lifecycle_load,
-        workspace_lifecycle_save, RecentWorkspaceEntry,
-        WorkspaceLifecycleLoadParams, WorkspaceLifecycleSaveParams, WorkspaceLifecycleState,
+        workspace_lifecycle_save, RecentWorkspaceEntry, WorkspaceLifecycleLoadParams,
+        WorkspaceLifecycleSaveParams, WorkspaceLifecycleState,
     };
     use std::fs;
 
@@ -894,7 +890,9 @@ mod tests {
         assert!(!plan.block_on_initial_tree_load);
         assert_eq!(plan.background_window_ms, 600);
         assert_eq!(
-            plan.tasks.iter().find(|task| task.key == "workspace.loadBootstrapData"),
+            plan.tasks
+                .iter()
+                .find(|task| task.key == "workspace.loadBootstrapData"),
             Some(&super::WorkspaceBootstrapTask {
                 key: "workspace.loadBootstrapData".to_string(),
                 delay_ms: 0,
@@ -902,7 +900,10 @@ mod tests {
                 await_tree_load: false,
             })
         );
-        assert!(plan.tasks.iter().all(|task| task.key != "editor.restoreEditorState"));
+        assert!(plan
+            .tasks
+            .iter()
+            .all(|task| task.key != "editor.restoreEditorState"));
     }
 
     #[test]
@@ -911,7 +912,9 @@ mod tests {
 
         assert!(plan.block_on_initial_tree_load);
         assert_eq!(
-            plan.tasks.iter().find(|task| task.key == "workspace.loadBootstrapData"),
+            plan.tasks
+                .iter()
+                .find(|task| task.key == "workspace.loadBootstrapData"),
             Some(&super::WorkspaceBootstrapTask {
                 key: "workspace.loadBootstrapData".to_string(),
                 delay_ms: 0,
@@ -919,11 +922,13 @@ mod tests {
                 await_tree_load: false,
             })
         );
-        assert!(
-            plan.tasks
-                .iter()
-                .all(|task| task.key != "editor.restoreEditorState")
-        );
-        assert!(plan.tasks.iter().all(|task| task.key != "files.restoreCachedExpandedDirs"));
+        assert!(plan
+            .tasks
+            .iter()
+            .all(|task| task.key != "editor.restoreEditorState"));
+        assert!(plan
+            .tasks
+            .iter()
+            .all(|task| task.key != "files.restoreCachedExpandedDirs"));
     }
 }

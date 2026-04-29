@@ -40,7 +40,11 @@ pub(crate) fn title_similarity(left: &str, right: &str) -> f64 {
     }
 }
 
-pub(crate) fn merge_library_entries(primary: &[Value], secondary: &[Value], field: &str) -> Vec<Value> {
+pub(crate) fn merge_library_entries(
+    primary: &[Value],
+    secondary: &[Value],
+    field: &str,
+) -> Vec<Value> {
     let mut merged = Vec::new();
     let mut seen = HashSet::new();
 
@@ -140,7 +144,10 @@ pub(crate) fn merge_library_snapshots(current: &Value, legacy: &Value) -> Value 
     })
 }
 
-pub(crate) fn find_duplicate_reference_internal(existing: &[Value], candidate: &Value) -> Option<Value> {
+pub(crate) fn find_duplicate_reference_internal(
+    existing: &[Value],
+    candidate: &Value,
+) -> Option<Value> {
     let candidate_citation_key = normalized(candidate.get("citationKey"));
     let candidate_identifier = normalized(candidate.get("identifier"));
     let candidate_title = normalized(candidate.get("title"));
@@ -180,7 +187,10 @@ pub(crate) fn find_duplicate_reference_internal(existing: &[Value], candidate: &
     })
 }
 
-pub(crate) fn merge_imported_references_internal(existing: &[Value], imported: &[Value]) -> Vec<Value> {
+pub(crate) fn merge_imported_references_internal(
+    existing: &[Value],
+    imported: &[Value],
+) -> Vec<Value> {
     let mut merged = existing.to_vec();
     for candidate in imported {
         if find_duplicate_reference_internal(&merged, candidate).is_none() {

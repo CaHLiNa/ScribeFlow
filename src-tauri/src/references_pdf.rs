@@ -177,8 +177,7 @@ mod tests {
         let txt_path = temp_dir.join("paper.txt");
         fs::write(&txt_path, "not a pdf").expect("write txt");
 
-        let error =
-            validate_reference_pdf_path(&txt_path).expect_err("non-pdf should be rejected");
+        let error = validate_reference_pdf_path(&txt_path).expect_err("non-pdf should be rejected");
         assert_eq!(error, "Reference PDF source must be a .pdf file.");
 
         fs::remove_dir_all(temp_dir).ok();

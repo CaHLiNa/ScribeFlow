@@ -128,10 +128,7 @@ fn path_status_internal(path: &Path) -> PathStatusResult {
         exists: metadata.is_some(),
         is_dir,
         is_file,
-        size: metadata
-            .as_ref()
-            .filter(|_| is_file)
-            .map(fs::Metadata::len),
+        size: metadata.as_ref().filter(|_| is_file).map(fs::Metadata::len),
         modified,
     }
 }
@@ -409,8 +406,8 @@ fn convert_postscript_to_pdf(path: &Path) -> Result<PathBuf, String> {
 
     let source = path.to_string_lossy().to_string();
     let output_path = pdf_path.to_string_lossy().to_string();
-    let ps2pdf =
-        find_ps2pdf().ok_or_else(|| "ps2pdf is not installed or not available on PATH.".to_string())?;
+    let ps2pdf = find_ps2pdf()
+        .ok_or_else(|| "ps2pdf is not installed or not available on PATH.".to_string())?;
     let output = background_command(&ps2pdf)
         .args([&source, &output_path])
         .output()
@@ -453,13 +450,17 @@ fn render_image_preview_blocking(path: &Path, max_size: u32) -> Result<ImagePrev
 }
 
 #[cfg(not(target_os = "macos"))]
-fn render_image_preview_blocking(_path: &Path, _max_size: u32) -> Result<ImagePreviewResult, String> {
+fn render_image_preview_blocking(
+    _path: &Path,
+    _max_size: u32,
+) -> Result<ImagePreviewResult, String> {
     Err("Generated image previews are only available on macOS.".to_string())
 }
 
 #[cfg(target_os = "macos")]
 fn render_tiff_preview(path: &Path, max_size: u32) -> Result<ImagePreviewResult, String> {
-    let reader = ImageReader::open(path).map_err(|error| format!("Failed to open image: {error}"))?;
+    let reader =
+        ImageReader::open(path).map_err(|error| format!("Failed to open image: {error}"))?;
     let dynamic = reader
         .with_guessed_format()
         .map_err(|error| format!("Failed to detect image format: {error}"))?
@@ -858,7 +859,18 @@ fn open_path_in_default_app_blocking(target: &Path) -> Result<(), String> {
         }
         let prefer_preview = matches!(
             ext.as_str(),
-            "eps" | "ps" | "pdf" | "png" | "jpg" | "jpeg" | "gif" | "bmp" | "webp" | "svg" | "tif" | "tiff"
+            "eps"
+                | "ps"
+                | "pdf"
+                | "png"
+                | "jpg"
+                | "jpeg"
+                | "gif"
+                | "bmp"
+                | "webp"
+                | "svg"
+                | "tif"
+                | "tiff"
         );
 
         if prefer_preview {
@@ -934,19 +946,17 @@ mod tests {
     use super::{
         path_status_internal, workspace_create_dir_blocking, workspace_delete_path_blocking,
         workspace_duplicate_path_blocking, workspace_external_path_internal,
-        workspace_path_status_internal,
-        workspace_read_file_base64_blocking, workspace_read_text_file_blocking,
-        workspace_write_file_base64_blocking, workspace_write_text_file_blocking,
+        workspace_path_status_internal, workspace_read_file_base64_blocking,
+        workspace_read_text_file_blocking, workspace_write_file_base64_blocking,
+        workspace_write_text_file_blocking,
     };
     use crate::security::{set_allowed_roots_internal, WorkspaceScopeState};
     use std::fs;
 
     #[test]
     fn path_status_reports_existing_file_and_missing_path() {
-        let temp_dir = std::env::temp_dir().join(format!(
-            "scribeflow-path-status-{}",
-            uuid::Uuid::new_v4()
-        ));
+        let temp_dir =
+            std::env::temp_dir().join(format!("scribeflow-path-status-{}", uuid::Uuid::new_v4()));
         fs::create_dir_all(&temp_dir).expect("create temp dir");
         let file_path = temp_dir.join("note.md");
         fs::write(&file_path, "hello").expect("write temp file");
@@ -995,8 +1005,9 @@ mod tests {
         assert!(file_status.is_file);
         assert!(!file_status.is_dir);
 
-        let missing_status = workspace_path_status_internal(&state, &workspace_dir.join("missing.md"))
-            .expect("missing workspace path status");
+        let missing_status =
+            workspace_path_status_internal(&state, &workspace_dir.join("missing.md"))
+                .expect("missing workspace path status");
         assert!(!missing_status.exists);
         assert!(!missing_status.is_file);
         assert!(!missing_status.is_dir);
@@ -1048,10 +1059,8 @@ mod tests {
 
     #[test]
     fn workspace_create_dir_and_delete_return_typed_results() {
-        let temp_dir = std::env::temp_dir().join(format!(
-            "scribeflow-workspace-dir-{}",
-            uuid::Uuid::new_v4()
-        ));
+        let temp_dir =
+            std::env::temp_dir().join(format!("scribeflow-workspace-dir-{}", uuid::Uuid::new_v4()));
         fs::create_dir_all(&temp_dir).expect("create temp dir");
         let dir_path = temp_dir.join("folder");
 

@@ -228,7 +228,10 @@ fn extract_year_from_text(value: &str) -> Option<i64> {
     value
         .split(|ch: char| !ch.is_ascii_digit())
         .find_map(|part| match part.len() {
-            4 => part.parse::<i64>().ok().filter(|year| (1000..=2999).contains(year)),
+            4 => part
+                .parse::<i64>()
+                .ok()
+                .filter(|year| (1000..=2999).contains(year)),
             _ => None,
         })
 }
@@ -286,7 +289,8 @@ fn build_author_names_from_csl(item: &Value) -> Vec<String> {
 }
 
 fn sanitize_citation_key_component(value: &str) -> String {
-    value.chars()
+    value
+        .chars()
         .filter(|ch| ch.is_ascii_alphanumeric())
         .collect::<String>()
         .to_lowercase()
@@ -897,17 +901,21 @@ async fn perform_sync(params: ZoteroSyncParams) -> Result<Value, String> {
             .and_then(|versions| versions.get(&version_key))
             .and_then(Value::as_i64)
             .unwrap_or(0);
-        let effective_since_version =
-            if since_version > 0
-                && (!has_local_references_for_library(&references, &version_key)
-                    || library_needs_metadata_refresh(&references, &version_key))
-            {
-                0
-            } else {
-                since_version
-            };
-        let (items, last_version) =
-            fetch_all_items(&api_key, &library_type, &library_id, effective_since_version).await?;
+        let effective_since_version = if since_version > 0
+            && (!has_local_references_for_library(&references, &version_key)
+                || library_needs_metadata_refresh(&references, &version_key))
+        {
+            0
+        } else {
+            since_version
+        };
+        let (items, last_version) = fetch_all_items(
+            &api_key,
+            &library_type,
+            &library_id,
+            effective_since_version,
+        )
+        .await?;
         if let Some(versions) = config
             .get_mut("lastSyncVersions")
             .and_then(Value::as_object_mut)
@@ -1359,7 +1367,10 @@ mod tests {
 
     #[test]
     fn generated_key_detection_flags_zotero_identifiers() {
-        assert!(looks_like_generated_citation_key("16788433/Q6ZQTSEA", "Q6ZQTSEA"));
+        assert!(looks_like_generated_citation_key(
+            "16788433/Q6ZQTSEA",
+            "Q6ZQTSEA"
+        ));
         assert!(looks_like_generated_citation_key("Q6ZQTSEA", "Q6ZQTSEA"));
         assert!(!looks_like_generated_citation_key("qin2024", "Q6ZQTSEA"));
     }

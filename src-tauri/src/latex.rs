@@ -200,7 +200,8 @@ pub async fn format_latex_document(
         "latexindent not found. Install it with your TeX distribution.".to_string()
     })?;
 
-    let resolved = security::ensure_allowed_workspace_path(scope_state.inner(), Path::new(&tex_path))?;
+    let resolved =
+        security::ensure_allowed_workspace_path(scope_state.inner(), Path::new(&tex_path))?;
     let tex = resolved.as_path();
     let dir = tex.parent().ok_or("Invalid tex path")?;
 
@@ -398,10 +399,8 @@ pub async fn workspace_synctex_backward(
     y: f64,
     scope_state: tauri::State<'_, WorkspaceScopeState>,
 ) -> Result<serde_json::Value, String> {
-    let synctex = security::ensure_allowed_workspace_path(
-        scope_state.inner(),
-        Path::new(&synctex_path),
-    )?;
+    let synctex =
+        security::ensure_allowed_workspace_path(scope_state.inner(), Path::new(&synctex_path))?;
     if !synctex.exists() {
         return Err("SyncTeX file not found. Recompile with SyncTeX enabled.".to_string());
     }
@@ -427,10 +426,8 @@ pub async fn workspace_synctex_forward(
     column: u32,
     scope_state: tauri::State<'_, WorkspaceScopeState>,
 ) -> Result<serde_json::Value, String> {
-    let synctex = security::ensure_allowed_workspace_path(
-        scope_state.inner(),
-        Path::new(&synctex_path),
-    )?;
+    let synctex =
+        security::ensure_allowed_workspace_path(scope_state.inner(), Path::new(&synctex_path))?;
     if !synctex.exists() {
         return Err("SyncTeX file not found. Recompile with SyncTeX enabled.".to_string());
     }

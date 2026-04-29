@@ -214,9 +214,11 @@ fn resolve_scoped_optional_path(
     if trimmed.is_empty() {
         return Ok(String::new());
     }
-    Ok(security::ensure_allowed_workspace_path(scope_state, std::path::Path::new(trimmed))?
-        .to_string_lossy()
-        .to_string())
+    Ok(
+        security::ensure_allowed_workspace_path(scope_state, std::path::Path::new(trimmed))?
+            .to_string_lossy()
+            .to_string(),
+    )
 }
 
 fn queue_state_to_value(state: &LatexQueueStateInput) -> Value {

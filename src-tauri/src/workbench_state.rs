@@ -555,7 +555,10 @@ mod tests {
 
         assert_eq!(contract.document.default_page, "preview");
         assert_eq!(contract.reference.default_page, "details");
-        assert_eq!(document_page_ids, vec!["preview", "references", "problems", "file"]);
+        assert_eq!(
+            document_page_ids,
+            vec!["preview", "references", "problems", "file"]
+        );
         assert_eq!(reference_page_ids, vec!["details", "cited-in", "pdf"]);
         assert_eq!(contract.document.pages[0].fallback_page, "file");
         assert!(contract.document.pages[0].closeable);

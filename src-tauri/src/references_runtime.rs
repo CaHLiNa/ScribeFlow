@@ -1122,8 +1122,7 @@ mod tests {
 
         let manual_tex_path = workspace_dir.join("manual.tex");
         let manual_bib_path = bib_dir.join("manual.bib");
-        fs::write(&manual_tex_path, "\\addbibresource{bib/manual.bib}")
-            .expect("write manual tex");
+        fs::write(&manual_tex_path, "\\addbibresource{bib/manual.bib}").expect("write manual tex");
         fs::write(
             &manual_bib_path,
             "@article{manual2024,\n  title = {Manual Bibliography}\n}\n",

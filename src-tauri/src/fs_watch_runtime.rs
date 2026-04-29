@@ -118,7 +118,8 @@ impl WorkspaceTreeSchedulerState {
         }
 
         let now = current_time_ms();
-        let interval_ms = if now.saturating_sub(self.last_activity_at_ms) <= TREE_ACTIVITY_WINDOW_MS {
+        let interval_ms = if now.saturating_sub(self.last_activity_at_ms) <= TREE_ACTIVITY_WINDOW_MS
+        {
             ACTIVE_TREE_POLL_INTERVAL_MS
         } else {
             IDLE_TREE_POLL_INTERVAL_MS
