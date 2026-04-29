@@ -1,5 +1,9 @@
-import { isImage, relativePath } from '../utils/fileTypes'
+import { isBibFile, isImage, relativePath } from '../utils/fileTypes'
 import { basenamePath, stripExtension } from '../utils/path'
+
+function stripBibExtension(path = '') {
+  return String(path || '').replace(/\.bib$/i, '')
+}
 
 export function parseCitationGroup(text) {
   const inner = text.slice(1, -1)
@@ -31,6 +35,7 @@ export function buildInsertText(paths, options) {
       return isImage(path) ? `![${nameNoExt}](${relPath})` : `[${fileName}](${relPath})`
     }
     if (isLatexFile) {
+      if (isBibFile(path)) return `\\bibliography{${stripBibExtension(relPath)}}`
       return isImage(path) ? `\\includegraphics{${relPath}}` : `\\input{${relPath}}`
     }
     return relPath
