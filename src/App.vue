@@ -404,10 +404,10 @@ useAppTeardown({
 <style scoped>
 .app-shell-root {
   background: var(--app-canvas);
-  --shell-panel-motion-duration: 620ms;
-  --shell-panel-fade-duration: 360ms;
-  --shell-panel-surface-duration: 260ms;
-  --shell-panel-motion-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --shell-panel-motion-duration: 390ms;
+  --shell-panel-fade-duration: 210ms;
+  --shell-panel-surface-duration: 180ms;
+  --shell-panel-motion-ease: cubic-bezier(0.3, 0, 0.2, 1);
   --inline-dock-motion-duration: var(--shell-panel-motion-duration);
   --inline-dock-fade-duration: var(--shell-panel-fade-duration);
   --inline-dock-surface-duration: var(--shell-panel-surface-duration);
@@ -553,7 +553,7 @@ useAppTeardown({
 
 .app-shell-sidebar-left.is-open,
 .app-shell-sidebar-right.is-open {
-  transition-delay: 24ms;
+  transition-delay: 8ms;
 }
 
 .app-shell-sidebar.is-collapsed {

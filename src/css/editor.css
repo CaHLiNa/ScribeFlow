@@ -177,8 +177,8 @@
   overflow: visible;
   opacity: 0;
   transition:
-    width var(--inline-dock-motion-duration, 620ms) var(--inline-dock-motion-ease, cubic-bezier(0.4, 0, 0.2, 1)),
-    opacity var(--inline-dock-surface-duration, 260ms) ease;
+    width var(--inline-dock-motion-duration, 390ms) var(--inline-dock-motion-ease, cubic-bezier(0.3, 0, 0.2, 1)),
+    opacity var(--inline-dock-surface-duration, 180ms) ease;
 }
 
 .workbench-inline-dock-resize-slot.is-visible {
@@ -213,11 +213,11 @@
   transform: translateX(0);
   will-change: width, opacity, transform;
   transition:
-    width var(--inline-dock-motion-duration, 620ms) var(--inline-dock-motion-ease, cubic-bezier(0.4, 0, 0.2, 1)),
-    opacity var(--inline-dock-fade-duration, 360ms) ease,
-    transform var(--inline-dock-motion-duration, 620ms) var(--inline-dock-motion-ease, cubic-bezier(0.4, 0, 0.2, 1)),
-    border-left-color var(--inline-dock-surface-duration, 260ms) ease,
-    background-color var(--inline-dock-surface-duration, 260ms) ease;
+    width var(--inline-dock-motion-duration, 390ms) var(--inline-dock-motion-ease, cubic-bezier(0.3, 0, 0.2, 1)),
+    opacity var(--inline-dock-fade-duration, 210ms) ease,
+    transform var(--inline-dock-motion-duration, 390ms) var(--inline-dock-motion-ease, cubic-bezier(0.3, 0, 0.2, 1)),
+    border-left-color var(--inline-dock-surface-duration, 180ms) ease,
+    background-color var(--inline-dock-surface-duration, 180ms) ease;
 }
 
 .workbench-inline-dock-region > .inline-dock {
@@ -227,12 +227,12 @@
   opacity: 1;
   transform: translateX(0);
   transition:
-    opacity var(--inline-dock-fade-duration, 360ms) ease,
-    transform var(--inline-dock-motion-duration, 620ms) var(--inline-dock-motion-ease, cubic-bezier(0.4, 0, 0.2, 1));
+    opacity var(--inline-dock-fade-duration, 210ms) ease,
+    transform var(--inline-dock-motion-duration, 390ms) var(--inline-dock-motion-ease, cubic-bezier(0.3, 0, 0.2, 1));
 }
 
 .workbench-inline-dock-region.is-open > .inline-dock {
-  transition-delay: 24ms;
+  transition-delay: 8ms;
 }
 
 .workbench-inline-dock-region.is-collapsed {
