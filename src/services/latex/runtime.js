@@ -36,6 +36,17 @@ export function resolveLatexLintState(params = {}) {
   })
 }
 
+export function resolveLatexSyncTarget(params = {}) {
+  return invoke('latex_sync_target_resolve', {
+    params: {
+      reportedFile: String(params.reportedFile || ''),
+      sourcePath: String(params.sourcePath || ''),
+      compileTargetPath: String(params.compileTargetPath || ''),
+      workspacePath: String(params.workspacePath || ''),
+    },
+  })
+}
+
 export function scheduleLatexRuntime(params = {}) {
   return invoke('latex_runtime_schedule', {
     params: {

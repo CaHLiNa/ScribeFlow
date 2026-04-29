@@ -6,6 +6,7 @@ import {
 } from '../documentIntelligence/workspaceGraph.js'
 import { workspacePathExists } from '../pathExists.js'
 import { readWorkspaceFlatFiles } from '../workspaceSnapshotIO.js'
+import { resolveLatexSyncTarget } from './runtime.js'
 
 const VIEW_WAIT_TIMEOUT_MS = 1500
 const WORKSPACE_TEX_PATH_CACHE = new Map()
@@ -132,7 +133,7 @@ async function resolveMovedAbsoluteLatexPath(reportedFile = '', options = {}) {
   return normalizedReported
 }
 
-export async function resolveLatexSyncTargetPath(reportedFile = '', options = {}) {
+async function resolveLatexSyncTargetPathFallback(reportedFile = '', options = {}) {
   const normalizedReported = collapseFsPathSegments(reportedFile)
   const normalizedCompileTargetPath = normalizeFsPath(options.compileTargetPath || '')
   const normalizedSourcePath = normalizeFsPath(options.sourcePath || '')
@@ -163,6 +164,18 @@ export async function resolveLatexSyncTargetPath(reportedFile = '', options = {}
   }
 
   return normalizedReported
+}
+
+export async function resolveLatexSyncTargetPath(reportedFile = '', options = {}) {
+  const resolved = await resolveLatexSyncTarget({
+    reportedFile,
+    sourcePath: options.sourcePath || '',
+    compileTargetPath: options.compileTargetPath || '',
+    workspacePath: options.workspacePath || '',
+  }).catch(() => null)
+  const resolvedPath = normalizeFsPath(resolved?.path || '')
+  if (resolvedPath) return resolvedPath
+  return resolveLatexSyncTargetPathFallback(reportedFile, options)
 }
 
 export async function waitForLatexEditorView(editorStore, targetPath, timeoutMs = VIEW_WAIT_TIMEOUT_MS) {

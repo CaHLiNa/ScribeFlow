@@ -23,6 +23,7 @@ mod latex_diagnostics;
 mod latex_preferences;
 mod latex_project_graph;
 mod latex_runtime;
+mod latex_sync_target;
 mod latex_tools;
 mod legacy_cleanup;
 mod markdown_runtime;
@@ -564,6 +565,7 @@ pub fn run() {
             latex::check_latex_tools,
             latex::download_tectonic,
             latex::format_latex_document,
+            latex_sync_target::latex_sync_target_resolve,
             latex::workspace_synctex_forward,
             latex::workspace_synctex_backward,
             latex::workspace_read_latex_synctex,
