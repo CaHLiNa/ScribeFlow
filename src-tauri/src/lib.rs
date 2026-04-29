@@ -517,6 +517,7 @@ pub fn run() {
             editor_session_runtime::editor_session_save,
             editor_session_runtime::editor_recent_files_load,
             editor_session_runtime::editor_recent_files_save,
+            markdown_runtime::markdown_extract_diagnostics,
             markdown_runtime::markdown_extract_headings,
             python_preferences::python_preferences_load,
             python_preferences::python_preferences_save,

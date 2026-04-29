@@ -47,7 +47,7 @@ Current baseline on 2026-04-29:
 - UI bridge boundary check passed
 - Vite build passed
 - Rust check passed
-- Rust tests passed: 120 tests
+- Rust tests passed: 123 tests
 
 Desktop main-path feel, visual quality, layout behavior and interaction quality are intentionally user-owned manual checks. Do not propose automating them again.
 
@@ -122,10 +122,11 @@ Done:
 - document reference panel now reads LaTeX citation keys from the Rust LaTeX project graph instead of using a frontend regex parser.
 - the old frontend-only LaTeX citation key extractor has been removed from the editor citation module.
 - an unused exported Markdown citation-group parser was removed from drag/drop text insertion helpers.
+- Markdown draft diagnostics now have a staged Rust runtime command `markdown_extract_diagnostics` with parity-focused tests and a thin frontend bridge.
 
 Current seam:
 
-- read-only LaTeX citation extraction for document reference workflows.
+- staged read-only Markdown diagnostics runtime extraction; UI integration is deferred because the current Markdown adapter exposes synchronous problem getters.
 
 Frozen by default:
 

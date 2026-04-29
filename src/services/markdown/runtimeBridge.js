@@ -5,3 +5,10 @@ export async function extractMarkdownHeadingItems(content = '') {
     content: String(content || ''),
   })
 }
+
+export async function extractMarkdownDraftProblems(content = '', sourcePath = '') {
+  return invoke('markdown_extract_diagnostics', {
+    content: String(content || ''),
+    sourcePath: String(sourcePath || ''),
+  })
+}
