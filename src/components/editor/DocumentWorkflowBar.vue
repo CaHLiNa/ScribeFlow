@@ -134,7 +134,6 @@ const showPrimaryAction = computed(() => !!props.uiState && props.uiState.kind !
 const primaryActionBusy = computed(() =>
   props.uiState?.phase === 'running' ||
   props.uiState?.phase === 'compiling' ||
-  props.uiState?.phase === 'queued' ||
   props.uiState?.phase === 'rendering'
 )
 

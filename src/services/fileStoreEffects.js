@@ -12,7 +12,20 @@ export async function handleExternalFileChanges(filesStore, changedPaths) {
 
   for (const changedPath of changedPaths) {
     if (openFiles.has(changedPath)) {
-      await filesStore.reloadFile(changedPath)
+      const wasDirty = editorStore.isFileDirty?.(changedPath) === true
+      if (wasDirty) {
+        continue
+      }
+      const content = await filesStore.reloadFile(changedPath)
+      if (typeof content === 'string') {
+        const views = editorStore.getEditorViewsForPath?.(changedPath) || []
+        for (const view of views) {
+          if (typeof view?.altalsApplyExternalContent === 'function') {
+            await view.altalsApplyExternalContent(content)
+          }
+        }
+        editorStore.clearFileDirty?.(changedPath)
+      }
     }
 
     if (changedPath.endsWith('.md')) {

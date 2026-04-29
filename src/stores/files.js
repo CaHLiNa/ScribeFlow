@@ -5,6 +5,7 @@ import { TEXT_FILE_READ_LIMIT_BYTES } from '../domains/files/workspaceTextFileLi
 import { readWorkspaceTreeSnapshot } from '../services/workspaceSnapshotIO'
 import {
   handleDeletedPathEffects,
+  handleExternalFileChanges,
   handleMovedPathEffects,
   handleRenamedPathEffects,
   syncSavedMarkdownLinks,
@@ -315,6 +316,10 @@ export const useFilesStore = defineStore('files', {
           if (!activeWorkspacePath) return
           if (String(payload.workspacePath || '') !== String(activeWorkspacePath || '')) return
           if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
+          const changedPaths = Array.isArray(payload.changedPaths) ? payload.changedPaths : []
+          void handleExternalFileChanges(this, changedPaths).catch(() => {
+            // File may have been removed or the editor may have closed during the watch event.
+          })
           void this.refreshVisibleTree({
             suppressErrors: true,
             reason: String(payload.reason || 'fs-watch'),
