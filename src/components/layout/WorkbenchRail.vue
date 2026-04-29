@@ -34,7 +34,7 @@
     <div class="workbench-rail-center">
       <div class="workbench-rail-title-target">
         <div
-          v-if="leftSidebarAvailable && leftSidebarPanel === 'references'"
+          v-show="leftSidebarAvailable && leftSidebarPanel === 'references'"
           ref="workspaceTitleWrapRef"
           class="workbench-rail-workspace-title"
           data-window-drag-ignore="true"
@@ -99,21 +99,19 @@
           </div>
         </div>
 
-        <template v-else>
-          <div
-            v-show="showDocumentTitleTarget"
-            :id="documentTitleTargetId"
-            class="workbench-rail-title-slot"
-          ></div>
-          <div
-            v-if="currentDocumentLabel && !preferExternalDocumentTitle"
-            class="workbench-rail-document-title"
-            :title="currentDocumentLabel"
-            :aria-label="currentDocumentLabel"
-          >
-            <span class="workbench-rail-document-title-label">{{ currentDocumentLabel }}</span>
-          </div>
-        </template>
+        <div
+          v-show="showDocumentTitleTarget && leftSidebarPanel !== 'references'"
+          :id="documentTitleTargetId"
+          class="workbench-rail-title-slot"
+        ></div>
+        <div
+          v-if="currentDocumentLabel && !preferExternalDocumentTitle && leftSidebarPanel !== 'references'"
+          class="workbench-rail-document-title"
+          :title="currentDocumentLabel"
+          :aria-label="currentDocumentLabel"
+        >
+          <span class="workbench-rail-document-title-label">{{ currentDocumentLabel }}</span>
+        </div>
       </div>
     </div>
 
