@@ -177,7 +177,7 @@ Done:
 
 ### Phase 5: Heavy Runtime Loading Contract
 
-Status: planned.
+Status: completed.
 
 Goal:
 
@@ -202,6 +202,14 @@ Current baseline:
 - `onig-*.wasm`: about 462 KiB / 512 KiB budget
 - largest ordinary app JS chunk: about 330 KiB / 500 KiB budget
 - `preview-*.js`: about 265 KiB after the constrained Markdown highlighter change
+
+Final verified bundle readings:
+
+- `pdfium-Dpd2ZUYs.wasm`: 4518.33 KiB / 5120.00 KiB budget
+- `worker-engine-B_bbnxZw.js`: 682.73 KiB / 750.00 KiB budget
+- `onig-CwjCXqnP.wasm`: 462.06 KiB / 512.00 KiB budget
+- largest ordinary app JS chunk `index-Jxbfzmm9.js`: 330.37 KiB / 500.00 KiB budget
+- `preview-BlIFeQX_.js`: 264.78 KiB / 500.00 KiB budget
 
 Primary areas:
 
@@ -260,6 +268,7 @@ Done:
 - Step 2 completed: `scripts/check-pdf-runtime-boundary.mjs` now guards `@embedpdf/*`, `usePdfiumEngine`, and the PDF preview component import chain so PDFium / EmbedPDF stay behind async PDF preview surfaces and `src/services/pdf/*`.
 - Step 3 completed: `scripts/check-textmate-runtime-boundary.mjs` now guards `vscode-textmate`, `vscode-oniguruma`, `onig.wasm`, TextMate grammar/theme imports, and static `latexLanguage` imports so TextMate stays behind the LaTeX editor dynamic import seam.
 - Step 4 completed: `TextEditor.vue` now resolves the LaTeX language path before importing `@codemirror/language-data`, while Markdown still loads language-data for fenced-code support and generic code files still use CodeMirror language-data matching.
+- Step 5 completed: `npm run verify` passes with `guard:ui-bridges`, `guard:pdf-runtime`, `guard:textmate-runtime`, Vite build, bundle budget check, Rust check, and Rust tests.
 
 Non-goals:
 
