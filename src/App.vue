@@ -25,7 +25,7 @@
         :left-sidebar-panel="workspace.leftSidebarPanel"
         :right-sidebar-available="supportsRightSidebar"
         :right-sidebar-open="rightRailOpen"
-        @open-reference-library="toggleReferenceLibrary"
+        @select-workbench-panel="selectWorkbenchPanel"
         @toggle-left-sidebar="workspace.toggleLeftSidebar()"
         @toggle-right-sidebar="toggleRightDock"
       />
@@ -265,11 +265,11 @@ const currentDocumentLabel = computed(() => {
   return basenamePath(activePath) || activePath
 })
 
-function toggleReferenceLibrary() {
-  const nextPanel = workspace.leftSidebarPanel === 'references' ? 'files' : 'references'
-  workspace.setLeftSidebarPanel(nextPanel)
+async function selectWorkbenchPanel(panel) {
+  await workspace.openWorkspaceSurface()
+  await workspace.setLeftSidebarPanel(panel)
   if (!workspace.leftSidebarOpen) {
-    workspace.toggleLeftSidebar()
+    await workspace.toggleLeftSidebar()
   }
 }
 

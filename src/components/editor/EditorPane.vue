@@ -52,6 +52,8 @@
             class="document-tabs-menu document-tabs-menu--rail"
             data-window-drag-ignore="true"
           >
+            <div class="document-tabs-menu-section-label">{{ t('Open Documents') }}</div>
+
             <div class="document-tabs-menu-list">
               <div
                 v-for="tab in tabs"
@@ -113,6 +115,60 @@
 
             <div class="document-tabs-menu-separator"></div>
 
+            <div class="document-tabs-menu-section-label">{{ t('Workspace') }}</div>
+
+            <button
+              type="button"
+              class="document-tabs-menu-command"
+              :class="{ 'is-active': workspace.leftSidebarPanel !== 'references' }"
+              @click="openDocumentAreaFromMenu"
+            >
+              <span class="document-tabs-menu-glyph" aria-hidden="true">
+                <svg
+                  v-if="workspace.leftSidebarPanel !== 'references'"
+                  class="document-tabs-menu-check"
+                  width="12"
+                  height="12"
+                  viewBox="0 0 12 12"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M2.25 6.1 4.8 8.6 9.75 3.6" />
+                </svg>
+              </span>
+              <span class="document-tabs-menu-command-label">{{ t('Document Area') }}</span>
+            </button>
+
+            <button
+              type="button"
+              class="document-tabs-menu-command"
+              :class="{ 'is-active': workspace.leftSidebarPanel === 'references' }"
+              @click="openReferenceLibraryFromMenu"
+            >
+              <span class="document-tabs-menu-glyph" aria-hidden="true">
+                <svg
+                  v-if="workspace.leftSidebarPanel === 'references'"
+                  class="document-tabs-menu-check"
+                  width="12"
+                  height="12"
+                  viewBox="0 0 12 12"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M2.25 6.1 4.8 8.6 9.75 3.6" />
+                </svg>
+              </span>
+              <span class="document-tabs-menu-command-label">{{ t('Reference Library') }}</span>
+            </button>
+
+            <div class="document-tabs-menu-separator"></div>
+
             <button type="button" class="document-tabs-menu-create" @click="createTabFromMenu">
               <svg
                 class="document-tabs-menu-create-icon"
@@ -165,6 +221,8 @@
             </div>
 
             <div v-if="tabsMenuOpen" class="document-tabs-menu">
+              <div class="document-tabs-menu-section-label">{{ t('Open Documents') }}</div>
+
               <div class="document-tabs-menu-list">
                 <div
                   v-for="tab in tabs"
@@ -223,6 +281,60 @@
                   </button>
                 </div>
               </div>
+
+              <div class="document-tabs-menu-separator"></div>
+
+              <div class="document-tabs-menu-section-label">{{ t('Workspace') }}</div>
+
+              <button
+                type="button"
+                class="document-tabs-menu-command"
+                :class="{ 'is-active': workspace.leftSidebarPanel !== 'references' }"
+                @click="openDocumentAreaFromMenu"
+              >
+                <span class="document-tabs-menu-glyph" aria-hidden="true">
+                  <svg
+                    v-if="workspace.leftSidebarPanel !== 'references'"
+                    class="document-tabs-menu-check"
+                    width="12"
+                    height="12"
+                    viewBox="0 0 12 12"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M2.25 6.1 4.8 8.6 9.75 3.6" />
+                  </svg>
+                </span>
+                <span class="document-tabs-menu-command-label">{{ t('Document Area') }}</span>
+              </button>
+
+              <button
+                type="button"
+                class="document-tabs-menu-command"
+                :class="{ 'is-active': workspace.leftSidebarPanel === 'references' }"
+                @click="openReferenceLibraryFromMenu"
+              >
+                <span class="document-tabs-menu-glyph" aria-hidden="true">
+                  <svg
+                    v-if="workspace.leftSidebarPanel === 'references'"
+                    class="document-tabs-menu-check"
+                    width="12"
+                    height="12"
+                    viewBox="0 0 12 12"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M2.25 6.1 4.8 8.6 9.75 3.6" />
+                  </svg>
+                </span>
+                <span class="document-tabs-menu-command-label">{{ t('Reference Library') }}</span>
+              </button>
 
               <div class="document-tabs-menu-separator"></div>
 
@@ -562,6 +674,24 @@ function selectTabFromMenu(path) {
   closeTabsMenu()
 }
 
+async function openDocumentAreaFromMenu() {
+  closeTabsMenu()
+  await workspace.openWorkspaceSurface()
+  await workspace.setLeftSidebarPanel('files')
+  if (!workspace.leftSidebarOpen) {
+    await workspace.toggleLeftSidebar()
+  }
+}
+
+async function openReferenceLibraryFromMenu() {
+  closeTabsMenu()
+  await workspace.openWorkspaceSurface()
+  await workspace.setLeftSidebarPanel('references')
+  if (!workspace.leftSidebarOpen) {
+    await workspace.toggleLeftSidebar()
+  }
+}
+
 async function closeTabFromMenu(path) {
   if (!path) return
   const closed = await closeTab(path)
@@ -807,6 +937,14 @@ onUnmounted(() => {
   overflow: auto;
 }
 
+.document-tabs-menu-section-label {
+  padding: 4px 9px 5px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
 .document-tabs-menu-item {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -888,6 +1026,39 @@ onUnmounted(() => {
   height: 1px;
   margin: 4px 0;
   background: color-mix(in srgb, var(--border-subtle) 60%, transparent);
+}
+
+.document-tabs-menu-command {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 26px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.document-tabs-menu-command:hover {
+  background: var(--surface-hover);
+}
+
+.document-tabs-menu-command.is-active {
+  font-weight: 600;
+}
+
+.document-tabs-menu-command-label {
+  min-width: 0;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .document-tabs-menu-create {
