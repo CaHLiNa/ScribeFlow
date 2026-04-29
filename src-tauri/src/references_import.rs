@@ -53,6 +53,17 @@ pub struct ReferenceBibtexExportParams {
     pub references: Vec<Value>,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReferenceExportFileParams {
+    #[serde(default)]
+    pub file_path: String,
+    #[serde(default)]
+    pub export_kind: String,
+    #[serde(default)]
+    pub references: Vec<Value>,
+}
+
 fn normalize_whitespace(value: &str) -> String {
     value
         .split_whitespace()
@@ -121,7 +132,10 @@ fn extract_year_from_text(value: &str) -> Option<i64> {
     value
         .split(|ch: char| !ch.is_ascii_digit())
         .find_map(|part| match part.len() {
-            4 => part.parse::<i64>().ok().filter(|year| (1000..=2999).contains(year)),
+            4 => part
+                .parse::<i64>()
+                .ok()
+                .filter(|year| (1000..=2999).contains(year)),
             _ => None,
         })
 }
@@ -154,7 +168,8 @@ fn extract_csl_year(csl: &Value) -> Option<i64> {
 }
 
 fn sanitize_citation_key_component(value: &str) -> String {
-    value.chars()
+    value
+        .chars()
         .filter(|ch| ch.is_ascii_alphanumeric())
         .collect::<String>()
         .to_lowercase()
@@ -837,10 +852,16 @@ fn normalize_reference_import_file_format(
 
 fn read_reference_import_file(path: &Path, format: &str) -> Result<(String, String), String> {
     if !path.exists() {
-        return Err(format!("Reference import file not found: {}", path.display()));
+        return Err(format!(
+            "Reference import file not found: {}",
+            path.display()
+        ));
     }
     if !path.is_file() {
-        return Err(format!("Reference import path is not a file: {}", path.display()));
+        return Err(format!(
+            "Reference import path is not a file: {}",
+            path.display()
+        ));
     }
 
     let metadata = fs::metadata(path).map_err(|error| error.to_string())?;
@@ -883,6 +904,53 @@ fn csl_type_to_bibtex_type(value: &str) -> &'static str {
 
 fn escape_bibtex(value: &str) -> String {
     value.replace('\n', " ").trim().to_string()
+}
+
+fn validate_reference_export_target(path: &Path, export_kind: &str) -> Result<(), String> {
+    if path.as_os_str().is_empty() {
+        return Err("Export path is required.".to_string());
+    }
+    let parent = path
+        .parent()
+        .ok_or_else(|| "Export path must include a parent directory.".to_string())?;
+    if !parent.exists() || !parent.is_dir() {
+        return Err("Export directory does not exist.".to_string());
+    }
+    let extension = path
+        .extension()
+        .and_then(|value| value.to_str())
+        .map(|value| value.to_ascii_lowercase())
+        .unwrap_or_default();
+    match export_kind {
+        "bibtex" if extension == "bib" => Ok(()),
+        "reference-json" if extension == "json" => Ok(()),
+        "bibtex" => Err("BibTeX exports must use a .bib file.".to_string()),
+        "reference-json" => Err("Detailed reference exports must use a .json file.".to_string()),
+        _ => Err("Unsupported reference export kind.".to_string()),
+    }
+}
+
+fn serialize_reference_json_export(references: &[Value]) -> Result<String, String> {
+    let value = references.first().cloned().unwrap_or(Value::Null);
+    serde_json::to_string_pretty(&value)
+        .map_err(|error| format!("Failed to serialize reference export: {error}"))
+}
+
+fn write_reference_export_file_internal(
+    path: &Path,
+    export_kind: &str,
+    references: &[Value],
+) -> Result<(), String> {
+    validate_reference_export_target(path, export_kind)?;
+    let content = match export_kind {
+        "bibtex" => export_bibtex_content(references),
+        "reference-json" => serialize_reference_json_export(references)?,
+        _ => return Err("Unsupported reference export kind.".to_string()),
+    };
+    if content.len() as u64 > MAX_REFERENCE_IMPORT_FILE_BYTES {
+        return Err("Reference export is too large.".to_string());
+    }
+    fs::write(path, content).map_err(|error| error.to_string())
 }
 
 fn reference_record_to_csl(reference: &Value) -> Value {
@@ -1171,12 +1239,8 @@ pub async fn references_import_from_text(
     Ok(Value::Array(Vec::new()))
 }
 
-#[tauri::command]
-pub async fn references_export_bibtex(
-    params: ReferenceBibtexExportParams,
-) -> Result<String, String> {
-    let entries = params
-        .references
+fn export_bibtex_content(references: &[Value]) -> String {
+    let entries = references
         .iter()
         .map(reference_record_to_csl)
         .filter_map(|csl| {
@@ -1261,13 +1325,27 @@ pub async fn references_export_bibtex(
                 ));
             }
             Some(format!(
-                "@{}{key},\n{}\n}}",
+                "@{}{{{key},\n{}\n}}",
                 csl_type_to_bibtex_type(&trim_string(csl.get("type"))),
                 fields.join(",\n")
             ))
         })
         .collect::<Vec<_>>();
-    Ok(entries.join("\n\n"))
+    entries.join("\n\n")
+}
+
+#[tauri::command]
+pub async fn references_export_bibtex(
+    params: ReferenceBibtexExportParams,
+) -> Result<String, String> {
+    Ok(export_bibtex_content(&params.references))
+}
+
+#[tauri::command]
+pub async fn references_write_export_file(params: ReferenceExportFileParams) -> Result<(), String> {
+    let file_path = params.file_path.trim().to_string();
+    let export_kind = params.export_kind.trim().to_ascii_lowercase();
+    write_reference_export_file_internal(Path::new(&file_path), &export_kind, &params.references)
 }
 
 trait StringExt {
@@ -1291,7 +1369,11 @@ impl StringExt for String {
 
 #[cfg(test)]
 mod tests {
-    use super::{references_import_parse_file, ReferenceImportFileParams};
+    use super::{
+        export_bibtex_content, references_import_parse_file, write_reference_export_file_internal,
+        ReferenceImportFileParams,
+    };
+    use serde_json::json;
     use std::fs;
 
     #[tokio::test]
@@ -1344,6 +1426,39 @@ mod tests {
         .expect_err("unsupported file should be rejected");
 
         assert_eq!(error, "Unsupported reference import file type.");
+
+        fs::remove_dir_all(temp_dir).ok();
+    }
+
+    #[test]
+    fn exports_valid_bibtex_entry_header() {
+        let content = export_bibtex_content(&[json!({
+            "id": "ref-1",
+            "citationKey": "lovelace2024",
+            "typeKey": "journal-article",
+            "title": "Analytical Engines",
+            "authors": ["Ada Lovelace"],
+            "year": 2024,
+            "source": "Computing"
+        })]);
+
+        assert!(content.starts_with("@article{lovelace2024,"));
+        assert!(content.contains("  title = {Analytical Engines}"));
+    }
+
+    #[test]
+    fn reference_export_file_rejects_wrong_extension() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "scribeflow-reference-export-reject-{}",
+            uuid::Uuid::new_v4()
+        ));
+        fs::create_dir_all(&temp_dir).expect("create temp dir");
+        let target = temp_dir.join("references.txt");
+
+        let error = write_reference_export_file_internal(&target, "bibtex", &[])
+            .expect_err("wrong export extension should be rejected");
+
+        assert_eq!(error, "BibTeX exports must use a .bib file.");
 
         fs::remove_dir_all(temp_dir).ok();
     }

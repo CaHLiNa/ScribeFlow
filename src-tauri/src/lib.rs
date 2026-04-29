@@ -477,6 +477,7 @@ pub fn run() {
             references_import::references_import_detect_format,
             references_import::references_import_from_text,
             references_import::references_export_bibtex,
+            references_import::references_write_export_file,
             references_pdf::references_pdf_extract_text,
             references_pdf::references_pdf_extract_metadata,
             references_runtime::references_find_duplicate,

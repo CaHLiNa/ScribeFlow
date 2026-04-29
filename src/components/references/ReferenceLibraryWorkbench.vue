@@ -223,8 +223,12 @@ import { useUxStatusStore } from '../../stores/uxStatus'
 import { useI18n } from '../../i18n'
 import { useReferencesStore } from '../../stores/references'
 import { useSurfaceContextMenu } from '../../composables/useSurfaceContextMenu.js'
-import { renameWorkspacePath, writeTextFile } from '../../services/fileStoreIO'
+import { renameWorkspacePath } from '../../services/fileStoreIO'
 import { openNativeDialog, saveNativeDialog } from '../../services/nativeDialog.js'
+import {
+  writeReferenceBibTeXExport,
+  writeReferenceJsonExport,
+} from '../../services/references/bibtexExport.js'
 import {
   hydrateReferenceFromCsl,
   lookupByDoi,
@@ -559,10 +563,6 @@ function referenceIsInCollection(reference = {}, collectionKey = '') {
   })
 }
 
-function buildReferenceJsonExport(reference = {}) {
-  return JSON.stringify(reference, null, 2)
-}
-
 function normalizeFilenameSegment(value = '', fallback = 'reference') {
   const normalized = String(value || '')
     .trim()
@@ -741,8 +741,7 @@ async function handleRefreshReferenceMetadata(reference = {}) {
 }
 
 async function handleExportReferenceBibTeX(reference = {}) {
-  const content = await getReferenceBibTeX(reference)
-  if (!content) return
+  if (!reference?.id) return
 
   const target = await saveNativeDialog({
     title: t('Export BibTeX'),
@@ -753,7 +752,7 @@ async function handleExportReferenceBibTeX(reference = {}) {
   if (!target) return
 
   try {
-    await writeTextFile(String(target), content)
+    await writeReferenceBibTeXExport(String(target), [reference])
     uxStatusStore.success(t('Exported BibTeX'), { duration: 2200 })
   } catch (error) {
     toastStore.show(error?.message || t('Failed to export BibTeX'), {
@@ -773,7 +772,7 @@ async function handleDetailedExport(reference = {}) {
   if (!target) return
 
   try {
-    await writeTextFile(String(target), buildReferenceJsonExport(reference))
+    await writeReferenceJsonExport(String(target), reference)
     uxStatusStore.success(t('Detailed export saved'), { duration: 2200 })
   } catch (error) {
     toastStore.show(error?.message || t('Failed to export reference details'), {
@@ -960,9 +959,8 @@ async function handleImportPdf() {
 }
 
 async function handleExportBibTeX() {
-  const content = await referencesStore.exportBibTeXAsync(
-    filteredReferences.value.map((reference) => reference.id)
-  )
+  const references = filteredReferences.value
+  if (!references.length) return
   const target = await saveNativeDialog({
     title: t('Export BibTeX'),
     defaultPath: 'references.bib',
@@ -972,7 +970,7 @@ async function handleExportBibTeX() {
   if (!target) return
 
   try {
-    await writeTextFile(String(target), content)
+    await writeReferenceBibTeXExport(String(target), references)
     uxStatusStore.success(t('Exported BibTeX'), { duration: 2200 })
   } catch (error) {
     toastStore.show(error?.message || t('Failed to export BibTeX'), {
