@@ -62,6 +62,8 @@ let pendingLeftSidebarWidth = leftSidebarWidth.value
 let pendingRightSidebarWidth = rightSidebarWidth.value
 let pendingDocumentDockWidth = documentDockWidth.value
 let pendingReferenceDockWidth = referenceDockWidth.value
+let leftSidebarResizeStartWidth = leftSidebarWidth.value
+let rightSidebarResizeStartWidth = rightSidebarWidth.value
 const LEFT_SIDEBAR_WIDTH_MOTION_KEY = 'workbench:left-sidebar-width'
 const RIGHT_SIDEBAR_WIDTH_MOTION_KEY = 'workbench:right-sidebar-width'
 const DOCUMENT_DOCK_WIDTH_MOTION_KEY = 'workbench:document-dock-width'
@@ -386,7 +388,11 @@ function setBottomPanelHeight(value) {
 }
 
 function onLeftResize(event) {
-  scheduleLeftSidebarWidth(event.x, { persist: false })
+  const delta = Number(event?.dx)
+  const nextWidth = Number.isFinite(delta)
+    ? leftSidebarResizeStartWidth + delta
+    : event?.x
+  commitLeftSidebarWidth(nextWidth, { persist: false })
 }
 
 function onBottomResize(event) {
@@ -394,7 +400,11 @@ function onBottomResize(event) {
 }
 
 function onRightResize(event) {
-  scheduleRightSidebarWidth(window.innerWidth - event.x, { persist: false })
+  const delta = Number(event?.dx)
+  const nextWidth = Number.isFinite(delta)
+    ? rightSidebarResizeStartWidth - delta
+    : window.innerWidth - event.x
+  commitRightSidebarWidth(nextWidth, { persist: false })
   rightSidebarPreSnapWidth.value = null
 }
 
@@ -466,6 +476,8 @@ function onRightResizeSnap() {
 }
 
 function startLeftSidebarResize() {
+  flushWorkbenchMotionCommit(LEFT_SIDEBAR_WIDTH_MOTION_KEY)
+  leftSidebarResizeStartWidth = leftSidebarWidth.value
   isLeftSidebarResizing.value = true
 }
 
@@ -476,6 +488,8 @@ function endLeftSidebarResize() {
 }
 
 function startRightSidebarResize() {
+  flushWorkbenchMotionCommit(RIGHT_SIDEBAR_WIDTH_MOTION_KEY)
+  rightSidebarResizeStartWidth = rightSidebarWidth.value
   isRightSidebarResizing.value = true
 }
 

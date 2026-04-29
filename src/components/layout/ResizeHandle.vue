@@ -130,5 +130,6 @@ function startDrag(e) {
 .resize-handle.dragging::before {
   opacity: 1;
   background: color-mix(in srgb, var(--accent) 24%, transparent);
+  transition: none;
 }
 </style>
