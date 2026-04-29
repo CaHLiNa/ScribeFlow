@@ -77,10 +77,10 @@
       </div>
     </div>
 
-    <div class="document-references-panel__section">
+    <div v-if="hasSearchQuery" class="document-references-panel__section">
       <div class="document-references-panel__section-title">
-        <IconPlus :size="14" :stroke-width="1.9" />
-        <span>{{ t('Library Search') }}</span>
+        <IconSearch :size="14" :stroke-width="1.9" />
+        <span>{{ t('Search results') }}</span>
       </div>
 
       <div v-if="availableResults.length" class="document-references-panel__list scrollbar-hidden">
@@ -110,7 +110,7 @@
       </div>
 
       <div v-else class="document-references-panel__empty">
-        {{ query.trim() ? t('No matching unselected references.') : t('Type to search the global library.') }}
+        {{ t('No matching unselected references.') }}
       </div>
     </div>
   </section>
@@ -121,7 +121,6 @@ import { computed, ref } from 'vue'
 import {
   IconAlertTriangle,
   IconBook2,
-  IconPlus,
   IconSearch,
   IconX,
 } from '@tabler/icons-vue'
@@ -141,6 +140,7 @@ const referencesStore = useReferencesStore()
 const workspace = useWorkspaceStore()
 const { t } = useI18n()
 const query = ref('')
+const hasSearchQuery = computed(() => query.value.trim().length > 0)
 
 const documentContent = computed(() =>
   typeof filesStore.fileContents?.[props.filePath] === 'string'
