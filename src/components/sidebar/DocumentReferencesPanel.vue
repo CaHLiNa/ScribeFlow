@@ -1,12 +1,12 @@
 <template>
-  <section class="document-references-panel" aria-label="Document references">
+  <section class="document-references-panel" :aria-label="t('Document references')">
     <div class="document-references-panel__search">
       <IconSearch :size="14" :stroke-width="1.9" />
       <input
         v-model="query"
         class="document-references-panel__search-input"
         type="search"
-        placeholder="Search library"
+        :placeholder="t('Search library')"
         autocomplete="off"
         spellcheck="false"
       />
@@ -15,7 +15,7 @@
     <div v-if="missingCitations.length" class="document-references-panel__missing">
       <div class="document-references-panel__section-title">
         <IconAlertTriangle :size="14" :stroke-width="1.9" />
-        <span>Missing from this document</span>
+        <span>{{ t('Missing from this document') }}</span>
       </div>
       <div class="document-references-panel__missing-list">
         <div
@@ -30,9 +30,9 @@
             class="document-references-panel__mini-action"
             @click="addReference(entry.reference.id)"
           >
-            Add
+            {{ t('Add') }}
           </button>
-          <span v-else class="document-references-panel__muted">Not in library</span>
+          <span v-else class="document-references-panel__muted">{{ t('Not in library') }}</span>
         </div>
       </div>
     </div>
@@ -40,7 +40,7 @@
     <div class="document-references-panel__section">
       <div class="document-references-panel__section-title">
         <IconBook2 :size="14" :stroke-width="1.9" />
-        <span>Document References</span>
+        <span>{{ t('Document References') }}</span>
         <span class="document-references-panel__count">{{ selectedReferences.length }}</span>
       </div>
 
@@ -63,8 +63,8 @@
           <button
             type="button"
             class="document-references-panel__icon-action"
-            title="Remove"
-            aria-label="Remove reference"
+            :title="t('Remove')"
+            :aria-label="t('Remove reference')"
             @click="removeReference(reference.id)"
           >
             <IconX :size="14" :stroke-width="2" />
@@ -73,14 +73,14 @@
       </div>
 
       <div v-else class="document-references-panel__empty">
-        Search the library and add references for this .tex file.
+        {{ t('Search the library and add references for this .tex file.') }}
       </div>
     </div>
 
     <div class="document-references-panel__section">
       <div class="document-references-panel__section-title">
         <IconPlus :size="14" :stroke-width="1.9" />
-        <span>Library Search</span>
+        <span>{{ t('Library Search') }}</span>
       </div>
 
       <div v-if="availableResults.length" class="document-references-panel__list scrollbar-hidden">
@@ -104,13 +104,13 @@
             class="document-references-panel__mini-action"
             @click="addReference(reference.id)"
           >
-            Add
+            {{ t('Add') }}
           </button>
         </article>
       </div>
 
       <div v-else class="document-references-panel__empty">
-        {{ query.trim() ? 'No matching unselected references.' : 'Type to search the global library.' }}
+        {{ query.trim() ? t('No matching unselected references.') : t('Type to search the global library.') }}
       </div>
     </div>
   </section>
@@ -126,6 +126,7 @@ import {
   IconX,
 } from '@tabler/icons-vue'
 import { extractLatexCitationKeys } from '../../editor/latexCitations.js'
+import { useI18n } from '../../i18n'
 import { useFilesStore } from '../../stores/files'
 import { useReferencesStore } from '../../stores/references'
 import { useWorkspaceStore } from '../../stores/workspace'
@@ -138,6 +139,7 @@ const props = defineProps({
 const filesStore = useFilesStore()
 const referencesStore = useReferencesStore()
 const workspace = useWorkspaceStore()
+const { t } = useI18n()
 const query = ref('')
 
 const documentContent = computed(() =>
@@ -167,7 +169,7 @@ const availableResults = computed(() => {
 
 function formatAuthors(reference = {}) {
   const authors = Array.isArray(reference.authors) ? reference.authors : []
-  if (authors.length === 0) return reference.authorLine || 'Unknown'
+  if (authors.length === 0) return reference.authorLine || t('Unknown')
   if (authors.length === 1) return authors[0]
   return `${authors[0]} et al.`
 }

@@ -982,8 +982,8 @@ onMounted(async () => {
                   `
                 }
                 const message = isLatexEditor
-                  ? `Not selected for this document: ${k}`
-                  : `Unknown reference: ${k}`
+                  ? t('Not selected for this document: {key}', { key: k })
+                  : t('Unknown reference: {key}', { key: k })
                 return `<div class="cit-hover-item"><div class="cit-hover-meta">${message}</div></div>`
               }).join('<div class="cit-hover-separator"></div>')
 
