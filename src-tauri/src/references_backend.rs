@@ -4,11 +4,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::references_merge::merge_library_snapshots;
 use crate::references_pdf::validate_reference_pdf_path;
 use crate::references_snapshot::{
-    bool_value, build_default_snapshot, clone_array, is_effectively_empty_snapshot,
-    normalize_reference_record, normalize_snapshot, trim_string, StringExt,
+    build_default_snapshot, clone_array, normalize_reference_record, normalize_snapshot,
+    trim_string, StringExt,
 };
 
 const REFERENCES_DIRNAME: &str = "references";
@@ -20,20 +19,12 @@ const REFERENCE_LIBRARY_FILENAME: &str = "library.json";
 #[serde(rename_all = "camelCase")]
 pub struct ReferenceLibraryReadParams {
     pub global_config_dir: String,
-    #[serde(default)]
-    pub legacy_workspace_data_dir: String,
-    #[serde(default)]
-    pub legacy_project_root: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReferenceLibraryLoadWorkspaceParams {
     pub global_config_dir: String,
-    #[serde(default)]
-    pub legacy_workspace_data_dir: String,
-    #[serde(default)]
-    pub legacy_project_root: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -70,15 +61,6 @@ pub struct ReferenceAssetRenameParams {
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ReferenceAssetsMigrateParams {
-    #[serde(default)]
-    pub global_config_dir: String,
-    #[serde(default)]
-    pub references: Vec<Value>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct ReferenceSnapshotNormalizeParams {
     #[serde(default)]
     pub snapshot: Value,
@@ -107,43 +89,10 @@ fn reference_library_file(global_config_dir: &str) -> Option<PathBuf> {
     references_dir(global_config_dir).map(|dir| dir.join(REFERENCE_LIBRARY_FILENAME))
 }
 
-fn legacy_reference_library_candidates(
-    legacy_project_root: &str,
-    legacy_workspace_data_dir: &str,
-) -> Vec<PathBuf> {
-    let mut candidates = Vec::new();
-    for root in [legacy_project_root, legacy_workspace_data_dir] {
-        let normalized = normalize_root(root);
-        if normalized.is_empty() {
-            continue;
-        }
-        candidates.push(
-            Path::new(&normalized)
-                .join(REFERENCES_DIRNAME)
-                .join(REFERENCE_LIBRARY_FILENAME),
-        );
-    }
-    candidates
-}
-
 fn read_snapshot_from_file(path: &Path) -> Result<Value, String> {
     let content = fs::read_to_string(path).map_err(|error| error.to_string())?;
     let parsed: Value = serde_json::from_str(&content).map_err(|error| error.to_string())?;
     Ok(normalize_snapshot(&parsed))
-}
-
-fn read_first_existing_legacy_snapshot(
-    legacy_project_root: &str,
-    legacy_workspace_data_dir: &str,
-) -> Result<Option<Value>, String> {
-    for candidate in
-        legacy_reference_library_candidates(legacy_project_root, legacy_workspace_data_dir)
-    {
-        if candidate.exists() {
-            return read_snapshot_from_file(&candidate).map(Some);
-        }
-    }
-    Ok(None)
 }
 
 fn write_snapshot_to_file(path: &Path, snapshot: &Value) -> Result<(), String> {
@@ -162,20 +111,7 @@ pub(crate) fn write_library_snapshot(
     let Some(library_file) = reference_library_file(global_config_dir) else {
         return Ok(normalize_snapshot(snapshot));
     };
-    let existing_snapshot = if library_file.exists() {
-        read_snapshot_from_file(&library_file).ok()
-    } else {
-        None
-    };
-
-    let mut normalized = normalize_snapshot(snapshot);
-    if let Some(existing_snapshot) = existing_snapshot {
-        if bool_value(existing_snapshot.get("legacyMigrationComplete")) {
-            if let Some(map) = normalized.as_object_mut() {
-                map.insert("legacyMigrationComplete".to_string(), Value::Bool(true));
-            }
-        }
-    }
+    let normalized = normalize_snapshot(snapshot);
 
     write_snapshot_to_file(&library_file, &normalized)?;
     Ok(normalized)
@@ -187,28 +123,9 @@ fn load_or_create_snapshot(params: &ReferenceLibraryReadParams) -> Result<Value,
     };
 
     if library_file.exists() {
-        let project_snapshot = read_snapshot_from_file(&library_file)?;
-        let should_attempt_legacy_migration =
-            !bool_value(project_snapshot.get("legacyMigrationComplete"))
-                && is_effectively_empty_snapshot(&project_snapshot);
-
-        let snapshot = if should_attempt_legacy_migration {
-            match read_first_existing_legacy_snapshot(
-                &params.legacy_project_root,
-                &params.legacy_workspace_data_dir,
-            )? {
-                Some(legacy_snapshot) => {
-                    merge_library_snapshots(&project_snapshot, &legacy_snapshot)
-                }
-                None => project_snapshot,
-            }
-        } else {
-            project_snapshot
-        };
-
+        let snapshot = read_snapshot_from_file(&library_file)?;
         let normalized = json!({
             "version": 2,
-            "legacyMigrationComplete": true,
             "citationStyle": trim_string(snapshot.get("citationStyle")).if_empty_then(|| "apa".to_string()),
             "documentReferenceSelections": snapshot.get("documentReferenceSelections").cloned().unwrap_or_else(|| json!({})),
             "collections": clone_array(snapshot.get("collections")),
@@ -219,27 +136,7 @@ fn load_or_create_snapshot(params: &ReferenceLibraryReadParams) -> Result<Value,
         return Ok(normalized);
     }
 
-    if let Some(legacy_snapshot) = read_first_existing_legacy_snapshot(
-        &params.legacy_project_root,
-        &params.legacy_workspace_data_dir,
-    )? {
-        let migrated = json!({
-            "version": 2,
-            "legacyMigrationComplete": true,
-            "citationStyle": trim_string(legacy_snapshot.get("citationStyle")).if_empty_then(|| "apa".to_string()),
-            "documentReferenceSelections": legacy_snapshot.get("documentReferenceSelections").cloned().unwrap_or_else(|| json!({})),
-            "collections": clone_array(legacy_snapshot.get("collections")),
-            "tags": clone_array(legacy_snapshot.get("tags")),
-            "references": clone_array(legacy_snapshot.get("references")),
-        });
-        write_snapshot_to_file(&library_file, &migrated)?;
-        return Ok(migrated);
-    }
-
-    let mut initial = build_default_snapshot();
-    if let Some(map) = initial.as_object_mut() {
-        map.insert("legacyMigrationComplete".to_string(), Value::Bool(true));
-    }
+    let initial = build_default_snapshot();
     write_snapshot_to_file(&library_file, &initial)?;
     Ok(initial)
 }
@@ -454,50 +351,6 @@ fn rename_reference_asset(params: &ReferenceAssetRenameParams) -> Result<Value, 
     Ok(normalize_reference_record(&Value::Object(map)))
 }
 
-fn migrate_reference_assets_values(
-    global_config_dir: &str,
-    references: &[Value],
-) -> Result<Vec<Value>, String> {
-    if global_config_dir.trim().is_empty() || references.is_empty() {
-        return Ok(references.to_vec());
-    }
-    let Some(references_dir) = references_dir(global_config_dir) else {
-        return Ok(references.to_vec());
-    };
-    let pdfs_dir = references_dir.join(PDFS_DIRNAME);
-    let pdfs_root = normalize_root(&pdfs_dir.to_string_lossy());
-    let mut migrated = Vec::new();
-
-    for reference in references {
-        let normalized_reference = normalize_reference_record(reference);
-        let pdf_path = trim_string(normalized_reference.get("pdfPath"));
-        let fulltext_path = trim_string(normalized_reference.get("fulltextPath"));
-        if pdf_path.is_empty()
-            || normalize_root(&pdf_path) == pdfs_root
-            || normalize_root(&pdf_path).starts_with(&format!("{pdfs_root}/"))
-        {
-            migrated.push(normalized_reference);
-            continue;
-        }
-
-        let next = store_reference_asset(&ReferenceAssetStoreParams {
-            global_config_dir: global_config_dir.to_string(),
-            reference: normalized_reference.clone(),
-            source_path: pdf_path.clone(),
-            extracted_text: None,
-            existing_fulltext_source_path: if fulltext_path.is_empty() {
-                None
-            } else {
-                Some(fulltext_path)
-            },
-        })
-        .unwrap_or(normalized_reference);
-        migrated.push(next);
-    }
-
-    Ok(migrated)
-}
-
 #[tauri::command]
 pub async fn references_library_read_or_create(
     params: ReferenceLibraryReadParams,
@@ -509,32 +362,9 @@ pub async fn references_library_read_or_create(
 pub async fn references_library_load_workspace(
     params: ReferenceLibraryLoadWorkspaceParams,
 ) -> Result<Value, String> {
-    let snapshot = load_or_create_snapshot(&ReferenceLibraryReadParams {
-        global_config_dir: params.global_config_dir.clone(),
-        legacy_workspace_data_dir: params.legacy_workspace_data_dir,
-        legacy_project_root: params.legacy_project_root,
-    })?;
-
-    let migrated_references = migrate_reference_assets_values(
-        &params.global_config_dir,
-        snapshot
-            .get("references")
-            .and_then(Value::as_array)
-            .map(Vec::as_slice)
-            .unwrap_or(&[]),
-    )?;
-
-    let next_snapshot = json!({
-        "version": snapshot.get("version").and_then(Value::as_u64).unwrap_or(2),
-        "legacyMigrationComplete": true,
-        "citationStyle": trim_string(snapshot.get("citationStyle")).if_empty_then(|| "apa".to_string()),
-        "documentReferenceSelections": snapshot.get("documentReferenceSelections").cloned().unwrap_or_else(|| json!({})),
-        "collections": clone_array(snapshot.get("collections")),
-        "tags": clone_array(snapshot.get("tags")),
-        "references": migrated_references,
-    });
-
-    write_library_snapshot(&params.global_config_dir, &next_snapshot)
+    load_or_create_snapshot(&ReferenceLibraryReadParams {
+        global_config_dir: params.global_config_dir,
+    })
 }
 
 #[tauri::command]
@@ -552,16 +382,6 @@ pub async fn references_asset_store(params: ReferenceAssetStoreParams) -> Result
 #[tauri::command]
 pub async fn references_asset_rename(params: ReferenceAssetRenameParams) -> Result<Value, String> {
     rename_reference_asset(&params)
-}
-
-#[tauri::command]
-pub async fn references_assets_migrate(
-    params: ReferenceAssetsMigrateParams,
-) -> Result<Value, String> {
-    Ok(Value::Array(migrate_reference_assets_values(
-        &params.global_config_dir,
-        &params.references,
-    )?))
 }
 
 #[tauri::command]
@@ -589,7 +409,7 @@ mod tests {
     use std::fs;
 
     #[test]
-    fn snapshot_normalization_builds_tag_registry_and_drops_fixture_refs() {
+    fn snapshot_normalization_builds_tag_registry() {
         let normalized = normalize_snapshot(&json!({
             "citationStyle": "apa",
             "documentReferenceSelections": {
@@ -617,7 +437,7 @@ mod tests {
 
         assert_eq!(
             normalized["references"].as_array().map(|v| v.len()),
-            Some(1)
+            Some(2)
         );
         assert_eq!(
             normalized["collections"].as_array().map(|v| v.len()),

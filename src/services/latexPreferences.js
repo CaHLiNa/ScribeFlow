@@ -1,16 +1,4 @@
 import { invoke } from '@tauri-apps/api/core'
-import { clearStorageKeys, readStorageSnapshot } from './bridgeStorage.js'
-
-const LEGACY_LATEX_PREFERENCE_KEYS = [
-  'latex.compilerPreference',
-  'latex.enginePreference',
-  'latex.autoCompile',
-  'latex.formatOnSave',
-  'latex.buildRecipe',
-  'latex.buildExtraArgs',
-  'latex.customSystemTexPath',
-  'latex.customLatexmkPath',
-]
 
 export function createLatexPreferenceState() {
   return {
@@ -21,14 +9,6 @@ export function createLatexPreferenceState() {
     buildExtraArgs: '',
     customSystemTexPath: '',
   }
-}
-
-function readLegacyLatexPreferenceSnapshot() {
-  return readStorageSnapshot(LEGACY_LATEX_PREFERENCE_KEYS)
-}
-
-function clearLegacyLatexPreferenceStorage() {
-  clearStorageKeys(LEGACY_LATEX_PREFERENCE_KEYS)
 }
 
 function normalizeCompilerPreference(value) {
@@ -54,11 +34,9 @@ export async function loadLatexPreferences(globalConfigDir = '') {
   const preferences = await invoke('latex_preferences_load', {
     params: {
       globalConfigDir: String(globalConfigDir || ''),
-      legacyPreferences: readLegacyLatexPreferenceSnapshot(),
     },
   })
 
-  clearLegacyLatexPreferenceStorage()
   return {
     ...createLatexPreferenceState(),
     ...preferences,
@@ -76,7 +54,6 @@ export async function saveLatexPreferences(
     },
   })
 
-  clearLegacyLatexPreferenceStorage()
   return {
     ...createLatexPreferenceState(),
     ...normalized,

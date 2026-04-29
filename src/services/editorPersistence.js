@@ -1,8 +1,4 @@
 import { invoke } from '@tauri-apps/api/core'
-import {
-  clearStorageKeys,
-  readStorageJson,
-} from './bridgeStorage.js'
 
 const STATE_VERSION = 1
 
@@ -28,7 +24,6 @@ function createEmptyState() {
       activeTab: null,
     },
     activePaneId: 'pane-root',
-    legacyPreviewPaths: [],
     documentDockTabs: [],
     activeDocumentDockTab: '',
     lastContextPath: '',
@@ -42,9 +37,6 @@ export async function saveState(workspaceDataDir, paneTree, activePaneId, option
       workspaceDataDir,
       paneTree,
       activePaneId,
-      legacyPreviewPaths: Array.isArray(options.legacyPreviewPaths)
-        ? options.legacyPreviewPaths
-        : Array.from(options.legacyPreviewPaths || []),
       documentDockTabs: Array.isArray(options.documentDockTabs)
         ? options.documentDockTabs
         : Array.from(options.documentDockTabs || []),
@@ -65,10 +57,6 @@ export async function loadState(workspaceDataDir) {
   return loaded && typeof loaded === 'object' ? loaded : null
 }
 
-function recentFilesStorageKey(workspacePath = '') {
-  return `recentFiles:${workspacePath}`
-}
-
 function normalizeRecentFiles(recentFiles = []) {
   const seen = new Set()
   const normalized = []
@@ -85,30 +73,18 @@ function normalizeRecentFiles(recentFiles = []) {
   return normalized
 }
 
-function readLegacyRecentFiles(workspacePath = '') {
-  if (!workspacePath) return []
-  return normalizeRecentFiles(readStorageJson(recentFilesStorageKey(workspacePath), []))
-}
-
-function clearLegacyRecentFiles(workspacePath = '') {
-  if (!workspacePath) return
-  clearStorageKeys([recentFilesStorageKey(workspacePath)])
-}
-
-export async function loadRecentFiles(workspaceDataDir = '', workspacePath = '') {
+export async function loadRecentFiles(workspaceDataDir = '') {
   if (!workspaceDataDir) return []
 
   const recentFiles = await invoke('editor_recent_files_load', {
     params: {
       workspaceDataDir,
-      legacyRecentFiles: readLegacyRecentFiles(workspacePath),
     },
   })
-  clearLegacyRecentFiles(workspacePath)
   return normalizeRecentFiles(recentFiles)
 }
 
-export async function saveRecentFiles(workspaceDataDir = '', workspacePath = '', recentFiles = []) {
+export async function saveRecentFiles(workspaceDataDir = '', _workspacePath = '', recentFiles = []) {
   const normalized = normalizeRecentFiles(recentFiles)
   if (!workspaceDataDir) return normalized
 
@@ -118,7 +94,6 @@ export async function saveRecentFiles(workspaceDataDir = '', workspacePath = '',
       recentFiles: normalized,
     },
   })
-  clearLegacyRecentFiles(workspacePath)
   return normalizeRecentFiles(saved)
 }
 

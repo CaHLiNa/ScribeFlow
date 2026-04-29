@@ -14,7 +14,6 @@ export async function loadSavedLocalePreference(defaultPreference = 'system') {
   const preferences = await invoke('workspace_preferences_load', {
     params: {
       globalConfigDir: String(globalConfigDir || ''),
-      legacyPreferences: {},
     },
   })
   return preferences?.preferredLocale || defaultPreference

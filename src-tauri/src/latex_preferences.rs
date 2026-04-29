@@ -1,6 +1,5 @@
 use crate::app_dirs;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 
@@ -41,8 +40,6 @@ struct LatexPreferencesFile {
 pub struct LatexPreferencesLoadParams {
     #[serde(default)]
     pub global_config_dir: String,
-    #[serde(default)]
-    pub legacy_preferences: HashMap<String, String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -167,61 +164,6 @@ fn normalize_custom_system_tex_path(value: &str) -> String {
     value.trim().to_string()
 }
 
-fn parse_legacy_bool(value: Option<&String>, fallback: bool) -> bool {
-    value
-        .map(|item| {
-            matches!(
-                item.trim().to_lowercase().as_str(),
-                "true" | "1" | "yes" | "on"
-            )
-        })
-        .unwrap_or(fallback)
-}
-
-fn build_preferences_from_legacy_snapshot(
-    snapshot: &HashMap<String, String>,
-) -> Option<LatexPreferences> {
-    if snapshot.is_empty() {
-        return None;
-    }
-
-    let compiler_preference = normalize_compiler_preference(
-        snapshot
-            .get("latex.compilerPreference")
-            .map(String::as_str)
-            .unwrap_or(DEFAULT_COMPILER_PREFERENCE),
-    );
-
-    Some(LatexPreferences {
-        compiler_preference: compiler_preference.clone(),
-        engine_preference: normalize_engine_preference(
-            &compiler_preference,
-            snapshot
-                .get("latex.enginePreference")
-                .map(String::as_str)
-                .unwrap_or(DEFAULT_ENGINE_PREFERENCE),
-        ),
-        auto_compile: parse_legacy_bool(snapshot.get("latex.autoCompile"), DEFAULT_AUTO_COMPILE),
-        format_on_save: parse_legacy_bool(
-            snapshot.get("latex.formatOnSave"),
-            DEFAULT_FORMAT_ON_SAVE,
-        ),
-        build_extra_args: normalize_build_extra_args(
-            snapshot
-                .get("latex.buildExtraArgs")
-                .map(String::as_str)
-                .unwrap_or_default(),
-        ),
-        custom_system_tex_path: normalize_custom_system_tex_path(
-            snapshot
-                .get("latex.customSystemTexPath")
-                .or_else(|| snapshot.get("latex.customLatexmkPath"))
-                .map(String::as_str)
-                .unwrap_or_default(),
-        ),
-    })
-}
-
 pub fn normalize_latex_preferences(preferences: LatexPreferences) -> LatexPreferences {
     let compiler_preference = normalize_compiler_preference(&preferences.compiler_preference);
 
@@ -248,14 +190,6 @@ pub async fn latex_preferences_load(
         return Ok(normalize_latex_preferences(current));
     }
 
-    if let Some(legacy_preferences) =
-        build_preferences_from_legacy_snapshot(&params.legacy_preferences)
-    {
-        let normalized = normalize_latex_preferences(legacy_preferences);
-        write_latex_preferences(&params.global_config_dir, &normalized)?;
-        return Ok(normalized);
-    }
-
     let defaults = LatexPreferences::default();
     write_latex_preferences(&params.global_config_dir, &defaults)?;
     Ok(defaults)
@@ -272,11 +206,7 @@ pub async fn latex_preferences_save(
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        latex_preferences_load, latex_preferences_save, LatexPreferences,
-        LatexPreferencesLoadParams, LatexPreferencesSaveParams,
-    };
-    use std::collections::HashMap;
+    use super::{latex_preferences_save, LatexPreferences, LatexPreferencesSaveParams};
     use std::fs;
 
     #[tokio::test]
@@ -308,33 +238,4 @@ mod tests {
         fs::remove_dir_all(temp_dir).ok();
     }
 
-    #[tokio::test]
-    async fn migrates_legacy_local_storage_snapshot() {
-        let temp_dir =
-            std::env::temp_dir().join(format!("scribeflow-latex-prefs-{}", uuid::Uuid::new_v4()));
-        fs::create_dir_all(&temp_dir).expect("create temp dir");
-        let mut legacy_preferences = HashMap::new();
-        legacy_preferences.insert("latex.compilerPreference".to_string(), "system".to_string());
-        legacy_preferences.insert("latex.enginePreference".to_string(), "xelatex".to_string());
-        legacy_preferences.insert("latex.autoCompile".to_string(), "true".to_string());
-        legacy_preferences.insert(
-            "latex.buildExtraArgs".to_string(),
-            "  -interaction=nonstopmode  ".to_string(),
-        );
-
-        let loaded = latex_preferences_load(LatexPreferencesLoadParams {
-            global_config_dir: temp_dir.to_string_lossy().to_string(),
-            legacy_preferences,
-        })
-        .await
-        .expect("load latex preferences");
-
-        assert_eq!(loaded.compiler_preference, "system");
-        assert_eq!(loaded.engine_preference, "xelatex");
-        assert!(!loaded.auto_compile);
-        assert!(!loaded.format_on_save);
-        assert_eq!(loaded.build_extra_args, "-interaction=nonstopmode");
-
-        fs::remove_dir_all(temp_dir).ok();
-    }
 }

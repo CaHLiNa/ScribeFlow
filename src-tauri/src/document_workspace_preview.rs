@@ -73,7 +73,6 @@ pub async fn document_workspace_preview_mutate(
                     "type": "workspace-preview",
                     "filePath": file_path,
                     "previewKind": preview_kind,
-                    "legacyReadOnly": false,
                 },
                 "requestValue": request_value,
                 "visibility": "visible",
@@ -94,7 +93,6 @@ pub async fn document_workspace_preview_mutate(
             "result": {
                 "type": "workspace-preview-hidden",
                 "filePath": file_path,
-                "legacyReadOnly": false,
             },
             "requestValue": Value::Null,
             "visibility": "hidden",

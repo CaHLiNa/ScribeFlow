@@ -514,7 +514,6 @@ export const useEditorStore = defineStore('editor', {
         workspaceDataDir: useWorkspaceStore().workspaceDataDir,
         paneTree: this.paneTree,
         activePaneId: this.activePaneId,
-        legacyPreviewPaths: this.legacyPreviewPaths,
         documentDockTabs: this.documentDockTabs,
         activeDocumentDockTab: this.activeDocumentDockTab,
         lastContextPath: this.lastContextPath,
@@ -526,7 +525,6 @@ export const useEditorStore = defineStore('editor', {
         workspaceDataDir: useWorkspaceStore().workspaceDataDir,
         paneTree: this.paneTree,
         activePaneId: this.activePaneId,
-        legacyPreviewPaths: this.legacyPreviewPaths,
         documentDockTabs: this.documentDockTabs,
         activeDocumentDockTab: this.activeDocumentDockTab,
         lastContextPath: this.lastContextPath,
@@ -541,7 +539,6 @@ export const useEditorStore = defineStore('editor', {
       this.restoreGeneration += 1
       this.paneTree = state.paneTree || createEmptyEditorRuntimeState().paneTree
       this.activePaneId = state.activePaneId || ROOT_PANE_ID
-      this.legacyPreviewPaths = new Set(state.legacyPreviewPaths || [])
       this.documentDockTabs = Array.isArray(state.documentDockTabs) ? state.documentDockTabs : []
       this.activeDocumentDockTab = this.documentDockTabs.includes(state.activeDocumentDockTab)
         ? state.activeDocumentDockTab
@@ -559,7 +556,6 @@ export const useEditorStore = defineStore('editor', {
       this.restoreGeneration += 1
       this.paneTree = state.paneTree || createEmptyEditorRuntimeState().paneTree
       this.activePaneId = state.activePaneId || ROOT_PANE_ID
-      this.legacyPreviewPaths = new Set(state.legacyPreviewPaths || [])
       this.documentDockTabs = Array.isArray(state.documentDockTabs) ? state.documentDockTabs : []
       this.activeDocumentDockTab = this.documentDockTabs.includes(state.activeDocumentDockTab)
         ? state.activeDocumentDockTab

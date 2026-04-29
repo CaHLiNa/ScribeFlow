@@ -27,7 +27,6 @@ export function deriveRestoredEditorRuntimeState({
   return {
     paneTree,
     activePaneId,
-    legacyPreviewPaths: new Set(state?.legacyPreviewPaths || []),
     lastContextPath: contextLeaf?.activeTab || null,
   }
 }

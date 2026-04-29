@@ -45,8 +45,6 @@ pub struct CapturedWorkspaceBookmark {
 pub struct WorkspaceBookmarkCaptureParams {
     #[serde(default)]
     pub path: String,
-    #[serde(default)]
-    pub legacy_bookmarks: HashMap<String, String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -54,8 +52,6 @@ pub struct WorkspaceBookmarkCaptureParams {
 pub struct WorkspaceBookmarkActivateParams {
     #[serde(default)]
     pub path: String,
-    #[serde(default)]
-    pub legacy_bookmarks: HashMap<String, String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -142,32 +138,8 @@ fn write_workspace_bookmarks(bookmarks: &WorkspaceBookmarkFile) -> Result<(), St
     fs::write(path, serialized).map_err(|error| error.to_string())
 }
 
-fn merge_legacy_workspace_bookmarks(
-    current: &mut WorkspaceBookmarkFile,
-    legacy_bookmarks: HashMap<String, String>,
-) {
-    for (path, bookmark) in normalize_bookmark_map(legacy_bookmarks) {
-        current.bookmarks.entry(path).or_insert(bookmark);
-    }
-}
-
-fn load_workspace_bookmarks_with_legacy(
-    legacy_bookmarks: HashMap<String, String>,
-) -> Result<WorkspaceBookmarkFile, String> {
-    let mut current = read_workspace_bookmarks()?;
-    let before = current.bookmarks.len();
-    merge_legacy_workspace_bookmarks(&mut current, legacy_bookmarks);
-    if current.bookmarks.len() != before {
-        write_workspace_bookmarks(&current)?;
-    }
-    Ok(current)
-}
-
-fn get_workspace_bookmark(
-    path: &str,
-    legacy_bookmarks: HashMap<String, String>,
-) -> Result<Option<String>, String> {
-    let bookmarks = load_workspace_bookmarks_with_legacy(legacy_bookmarks)?;
+fn get_workspace_bookmark(path: &str) -> Result<Option<String>, String> {
+    let bookmarks = read_workspace_bookmarks()?;
     Ok(bookmarks
         .bookmarks
         .get(&normalize_workspace_path(path))
@@ -247,7 +219,7 @@ pub fn macos_capture_workspace_bookmark(
     params: WorkspaceBookmarkCaptureParams,
 ) -> Result<CapturedWorkspaceBookmark, String> {
     let normalized_path = normalize_workspace_path(&params.path);
-    let mut bookmarks = load_workspace_bookmarks_with_legacy(params.legacy_bookmarks)?;
+    let mut bookmarks = read_workspace_bookmarks()?;
     let url = workspace_url_from_path(&normalized_path)?;
     let bookmark = create_bookmark_for_url(&url)?;
     bookmarks
@@ -336,7 +308,7 @@ pub fn macos_activate_workspace_bookmark_for_path(
     state: tauri::State<'_, WorkspaceAccessState>,
 ) -> Result<ActivatedWorkspaceBookmark, String> {
     let normalized_path = normalize_workspace_path(&params.path);
-    let Some(bookmark) = get_workspace_bookmark(&normalized_path, params.legacy_bookmarks)? else {
+    let Some(bookmark) = get_workspace_bookmark(&normalized_path)? else {
         return Ok(ActivatedWorkspaceBookmark {
             path: normalized_path,
             bookmark: None,

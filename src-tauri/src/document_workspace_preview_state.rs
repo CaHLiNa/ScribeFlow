@@ -82,7 +82,6 @@ fn create_preview_state(overrides: Value) -> Value {
         "previewMode": null,
         "targetResolution": null,
         "reason": "unsupported-file",
-        "legacyReadOnly": false,
         "allowPreviewCreation": false,
         "sourcePath": "",
         "previewTargetPath": "",
@@ -153,9 +152,8 @@ pub async fn document_workspace_preview_state_resolve(
             "previewVisible": true,
             "previewKind": "html",
             "previewMode": "markdown",
-            "targetResolution": "legacy",
-            "reason": "legacy-preview-tab",
-            "legacyReadOnly": true,
+            "targetResolution": "preview-path",
+            "reason": "preview-tab",
             "allowPreviewCreation": false,
             "sourcePath": source_path,
             "previewFilePath": path,
@@ -184,7 +182,6 @@ pub async fn document_workspace_preview_state_resolve(
             "previewMode": "markdown",
             "targetResolution": "not-needed",
             "reason": "workspace-markdown",
-            "legacyReadOnly": false,
             "allowPreviewCreation": true,
             "sourcePath": path,
             "previewFilePath": format!("preview:{path}"),
@@ -212,7 +209,6 @@ pub async fn document_workspace_preview_state_resolve(
             } else {
                 Value::String("source-only".to_string())
             },
-            "legacyReadOnly": false,
             "allowPreviewCreation": true,
             "sourcePath": path,
             "previewFilePath": if terminal_preview_requested && !params.hidden_by_user { Value::String(path.clone()) } else { Value::String(String::new()) },
@@ -243,7 +239,6 @@ pub async fn document_workspace_preview_state_resolve(
         } else {
             Value::String("source-only".to_string())
         },
-        "legacyReadOnly": false,
         "allowPreviewCreation": artifact_ready,
         "sourcePath": path,
         "previewTargetPath": if artifact_ready { Value::String(resolved_target_path.clone()) } else { Value::String(String::new()) },

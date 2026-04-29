@@ -354,7 +354,7 @@
         />
         <MarkdownPreview
           v-else-if="activeTab && viewerType === 'markdown-preview'"
-          :key="`legacy-preview:${activeTab}:${editorStore.restoreGeneration}`"
+          :key="`markdown-preview:${activeTab}:${editorStore.restoreGeneration}`"
           :filePath="activeTab"
           :paneId="paneId"
         />

@@ -13,7 +13,6 @@ function buildEditorStatePayload({
   workspaceDataDir,
   paneTree,
   activePaneId,
-  legacyPreviewPaths,
   documentDockTabs,
   activeDocumentDockTab,
   lastContextPath,
@@ -22,9 +21,6 @@ function buildEditorStatePayload({
     workspaceDataDir,
     paneTree,
     activePaneId,
-    legacyPreviewPaths: Array.isArray(legacyPreviewPaths)
-      ? legacyPreviewPaths
-      : Array.from(legacyPreviewPaths || []),
     documentDockTabs: Array.isArray(documentDockTabs)
       ? documentDockTabs
       : Array.from(documentDockTabs || []),
@@ -56,7 +52,6 @@ export function scheduleEditorStateSave({
   workspaceDataDir,
   paneTree,
   activePaneId,
-  legacyPreviewPaths,
   documentDockTabs,
   activeDocumentDockTab,
   lastContextPath,
@@ -66,7 +61,6 @@ export function scheduleEditorStateSave({
     workspaceDataDir,
     paneTree,
     activePaneId,
-    legacyPreviewPaths,
     documentDockTabs,
     activeDocumentDockTab,
     lastContextPath,
@@ -80,7 +74,6 @@ export function scheduleEditorStateSave({
   clearTimeout(saveStateTimer)
   saveStateTimer = setTimeout(() => {
     void saveState(payload.workspaceDataDir, payload.paneTree, payload.activePaneId, {
-      legacyPreviewPaths: payload.legacyPreviewPaths,
       documentDockTabs: payload.documentDockTabs,
       activeDocumentDockTab: payload.activeDocumentDockTab,
       lastContextPath: payload.lastContextPath,
@@ -102,7 +95,6 @@ export async function flushEditorStateSave({
   workspaceDataDir,
   paneTree,
   activePaneId,
-  legacyPreviewPaths,
   documentDockTabs,
   activeDocumentDockTab,
   lastContextPath,
@@ -111,7 +103,6 @@ export async function flushEditorStateSave({
     workspaceDataDir,
     paneTree,
     activePaneId,
-    legacyPreviewPaths,
     documentDockTabs,
     activeDocumentDockTab,
     lastContextPath,
@@ -124,7 +115,6 @@ export async function flushEditorStateSave({
     return null
   }
   const result = await saveState(payload.workspaceDataDir, payload.paneTree, payload.activePaneId, {
-    legacyPreviewPaths: payload.legacyPreviewPaths,
     documentDockTabs: payload.documentDockTabs,
     activeDocumentDockTab: payload.activeDocumentDockTab,
     lastContextPath: payload.lastContextPath,
@@ -148,7 +138,6 @@ export async function loadEditorStateSnapshot(workspaceDataDir) {
       workspaceDataDir,
       paneTree: state.paneTree,
       activePaneId: state.activePaneId,
-      legacyPreviewPaths: state.legacyPreviewPaths,
       documentDockTabs: state.documentDockTabs,
       activeDocumentDockTab: state.activeDocumentDockTab,
       lastContextPath: state.lastContextPath,

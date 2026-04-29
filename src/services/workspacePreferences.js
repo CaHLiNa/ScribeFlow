@@ -1,8 +1,4 @@
 import { invoke } from '@tauri-apps/api/core'
-import {
-  clearStorageKeys,
-  readStorageSnapshot,
-} from './bridgeStorage.js'
 
 const THEME_CLASSES = [
   'theme-light',
@@ -45,45 +41,6 @@ const DEFAULT_MARKDOWN_CITATION_FORMAT = 'bracketed'
 const DEFAULT_LATEX_CITATION_COMMAND = 'cite'
 const DEFAULT_CITATION_INSERT_ADDS_SPACE = false
 const SYSTEM_THEME_MEDIA = '(prefers-color-scheme: dark)'
-
-const LEGACY_WORKSPACE_PREFERENCE_KEYS = [
-  'primarySurface',
-  'leftSidebarOpen',
-  'leftSidebarPanel',
-  'rightSidebarOpen',
-  'rightSidebarPanel',
-  'documentDockOpen',
-  'referenceDockOpen',
-  'documentDockActivePage',
-  'referenceDockActivePage',
-  'autoSave',
-  'softWrap',
-  'wrapColumn',
-  'editorFontSize',
-  'uiFontSize',
-  'preferredLocale',
-  'markdownPreviewSync',
-  'editorSpellcheck',
-  'editorLineNumbers',
-  'editorHighlightActiveLine',
-  'fileTreeShowHidden',
-  'fileTreeSortMode',
-  'fileTreeFoldDirectories',
-  'uiFont',
-  'markdownFont',
-  'latexFont',
-  'proseFont',
-  'pdfViewerZoomMode',
-  'pdfViewerSpreadMode',
-  'pdfViewerLastScale',
-  'pdfViewerPageThemeMode',
-  'markdownCitationFormat',
-  'latexCitationCommand',
-  'citationInsertAddsSpace',
-  'pdfCustomPageForegroundMode',
-  'pdfCustomPageForeground',
-  'theme',
-]
 
 export const EDITOR_FONT_SIZE_PRESETS = [12, 13, 14, 15, 16, 18]
 export const WORKSPACE_FONT_PRESETS = [
@@ -132,14 +89,6 @@ function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value))
 }
 
-function readLegacyWorkspacePreferenceSnapshot() {
-  return readStorageSnapshot(LEGACY_WORKSPACE_PREFERENCE_KEYS)
-}
-
-export function clearLegacyWorkspacePreferenceStorage() {
-  clearStorageKeys(LEGACY_WORKSPACE_PREFERENCE_KEYS)
-}
-
 export function createWorkspacePreferenceState() {
   return {
     primarySurface: 'workspace',
@@ -179,15 +128,11 @@ export function createWorkspacePreferenceState() {
 }
 
 export async function loadWorkspacePreferences(globalConfigDir = '') {
-  const preferences = await invoke('workspace_preferences_load', {
+  return invoke('workspace_preferences_load', {
     params: {
       globalConfigDir: String(globalConfigDir || ''),
-      legacyPreferences: readLegacyWorkspacePreferenceSnapshot(),
     },
   })
-
-  clearLegacyWorkspacePreferenceStorage()
-  return preferences
 }
 
 export async function saveWorkspacePreferences(globalConfigDir = '', preferences = {}) {
@@ -198,7 +143,6 @@ export async function saveWorkspacePreferences(globalConfigDir = '', preferences
     },
   })
 
-  clearLegacyWorkspacePreferenceStorage()
   return normalized
 }
 

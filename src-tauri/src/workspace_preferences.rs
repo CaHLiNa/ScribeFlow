@@ -2,7 +2,6 @@ use crate::process_utils::background_command;
 use crate::workbench_state::{normalize_workbench_state, WorkbenchState};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
@@ -135,8 +134,6 @@ struct WorkspacePreferencesFile {
 pub struct WorkspacePreferencesLoadParams {
     #[serde(default)]
     pub global_config_dir: String,
-    #[serde(default)]
-    pub legacy_preferences: HashMap<String, String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -154,26 +151,6 @@ fn default_workspace_preferences_version() -> u32 {
 
 fn default_auto_save() -> bool {
     true
-}
-
-fn default_primary_surface() -> String {
-    WorkbenchState::default().primary_surface
-}
-
-fn default_left_sidebar_open() -> bool {
-    WorkbenchState::default().left_sidebar_open
-}
-
-fn default_left_sidebar_panel() -> String {
-    WorkbenchState::default().left_sidebar_panel
-}
-
-fn default_right_sidebar_open() -> bool {
-    WorkbenchState::default().right_sidebar_open
-}
-
-fn default_right_sidebar_panel() -> String {
-    WorkbenchState::default().right_sidebar_panel
 }
 
 fn default_soft_wrap() -> bool {
@@ -608,128 +585,6 @@ fn normalize_workspace_preferences(preferences: WorkspacePreferences) -> Workspa
     }
 }
 
-fn legacy_string(snapshot: &HashMap<String, String>, key: &str) -> Option<String> {
-    snapshot
-        .get(key)
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
-}
-
-fn legacy_number(snapshot: &HashMap<String, String>, key: &str, fallback: i64) -> i64 {
-    snapshot
-        .get(key)
-        .and_then(|value| value.trim().parse::<i64>().ok())
-        .filter(|value| *value > 0)
-        .unwrap_or(fallback)
-}
-
-fn legacy_boolean(snapshot: &HashMap<String, String>, key: &str, fallback: bool) -> bool {
-    match snapshot.get(key) {
-        Some(value) => value != "false",
-        None => fallback,
-    }
-}
-
-fn legacy_true_only_boolean(snapshot: &HashMap<String, String>, key: &str, fallback: bool) -> bool {
-    snapshot
-        .get(key)
-        .map(|value| value == "true")
-        .unwrap_or(fallback)
-}
-
-fn migrate_legacy_preferences(snapshot: &HashMap<String, String>) -> WorkspacePreferences {
-    let mut preferences = WorkspacePreferences::default();
-    let default_workbench = WorkbenchState::default();
-
-    preferences.workbench.primary_surface =
-        legacy_string(snapshot, "primarySurface").unwrap_or_else(default_primary_surface);
-    preferences.workbench.left_sidebar_open =
-        legacy_boolean(snapshot, "leftSidebarOpen", default_left_sidebar_open());
-    preferences.workbench.left_sidebar_panel =
-        legacy_string(snapshot, "leftSidebarPanel").unwrap_or_else(default_left_sidebar_panel);
-    preferences.workbench.right_sidebar_open =
-        legacy_true_only_boolean(snapshot, "rightSidebarOpen", default_right_sidebar_open());
-    preferences.workbench.right_sidebar_panel =
-        legacy_string(snapshot, "rightSidebarPanel").unwrap_or_else(default_right_sidebar_panel);
-    preferences.workbench.document_dock_open = legacy_true_only_boolean(
-        snapshot,
-        "documentDockOpen",
-        default_workbench.document_dock_open,
-    );
-    preferences.workbench.reference_dock_open = legacy_true_only_boolean(
-        snapshot,
-        "referenceDockOpen",
-        default_workbench.reference_dock_open,
-    );
-    preferences.workbench.document_dock_active_page =
-        legacy_string(snapshot, "documentDockActivePage")
-            .unwrap_or(default_workbench.document_dock_active_page);
-    preferences.workbench.reference_dock_active_page =
-        legacy_string(snapshot, "referenceDockActivePage")
-            .unwrap_or(default_workbench.reference_dock_active_page);
-
-    preferences.auto_save = legacy_boolean(snapshot, "autoSave", default_auto_save());
-    preferences.soft_wrap = legacy_boolean(snapshot, "softWrap", default_soft_wrap());
-    preferences.wrap_column = legacy_number(snapshot, "wrapColumn", default_wrap_column());
-    preferences.editor_font_size =
-        legacy_number(snapshot, "editorFontSize", default_editor_font_size());
-    preferences.ui_font_size = legacy_number(snapshot, "uiFontSize", default_ui_font_size());
-    preferences.ui_font = legacy_string(snapshot, "uiFont").unwrap_or_else(default_ui_font);
-    preferences.markdown_font = legacy_string(snapshot, "markdownFont")
-        .or_else(|| legacy_string(snapshot, "proseFont"))
-        .unwrap_or_else(default_markdown_font);
-    preferences.latex_font =
-        legacy_string(snapshot, "latexFont").unwrap_or_else(default_latex_font);
-    preferences.preferred_locale =
-        legacy_string(snapshot, "preferredLocale").unwrap_or_else(default_preferred_locale);
-    preferences.markdown_preview_sync = legacy_boolean(
-        snapshot,
-        "markdownPreviewSync",
-        default_markdown_preview_sync(),
-    );
-    preferences.editor_spellcheck =
-        legacy_true_only_boolean(snapshot, "editorSpellcheck", default_editor_spellcheck());
-    preferences.editor_line_numbers =
-        legacy_boolean(snapshot, "editorLineNumbers", default_editor_line_numbers());
-    preferences.editor_highlight_active_line = legacy_boolean(
-        snapshot,
-        "editorHighlightActiveLine",
-        default_editor_highlight_active_line(),
-    );
-    preferences.file_tree_show_hidden = legacy_boolean(
-        snapshot,
-        "fileTreeShowHidden",
-        default_file_tree_show_hidden(),
-    );
-    preferences.file_tree_sort_mode =
-        legacy_string(snapshot, "fileTreeSortMode").unwrap_or_else(default_file_tree_sort_mode);
-    preferences.file_tree_fold_directories = legacy_boolean(
-        snapshot,
-        "fileTreeFoldDirectories",
-        default_file_tree_fold_directories(),
-    );
-    preferences.pdf_viewer_zoom_mode =
-        legacy_string(snapshot, "pdfViewerZoomMode").unwrap_or_else(default_pdf_viewer_zoom_mode);
-    preferences.pdf_viewer_spread_mode = legacy_string(snapshot, "pdfViewerSpreadMode")
-        .unwrap_or_else(default_pdf_viewer_spread_mode);
-    preferences.pdf_viewer_last_scale =
-        legacy_string(snapshot, "pdfViewerLastScale").unwrap_or_else(default_pdf_viewer_last_scale);
-    preferences.pdf_viewer_page_theme_mode = legacy_string(snapshot, "pdfViewerPageThemeMode")
-        .unwrap_or_else(default_pdf_viewer_page_theme_mode);
-    preferences.markdown_citation_format = legacy_string(snapshot, "markdownCitationFormat")
-        .unwrap_or_else(default_markdown_citation_format);
-    preferences.latex_citation_command = legacy_string(snapshot, "latexCitationCommand")
-        .unwrap_or_else(default_latex_citation_command);
-    preferences.citation_insert_adds_space = legacy_true_only_boolean(
-        snapshot,
-        "citationInsertAddsSpace",
-        default_citation_insert_adds_space(),
-    );
-    preferences.theme = legacy_string(snapshot, "theme").unwrap_or_else(default_theme);
-
-    normalize_workspace_preferences(preferences)
-}
-
 #[tauri::command]
 pub async fn workspace_preferences_load(
     params: WorkspacePreferencesLoadParams,
@@ -737,7 +592,7 @@ pub async fn workspace_preferences_load(
     let loaded = read_workspace_preferences(&params.global_config_dir)?;
     let normalized = normalize_workspace_preferences(match loaded.clone() {
         Some(preferences) => preferences,
-        None => migrate_legacy_preferences(&params.legacy_preferences),
+        None => WorkspacePreferences::default(),
     });
 
     if loaded.as_ref() != Some(&normalized) {
@@ -764,25 +619,8 @@ pub async fn workspace_preferences_list_system_fonts() -> Result<Vec<String>, St
 #[cfg(test)]
 mod tests {
     use super::{
-        migrate_legacy_preferences, normalize_workspace_preferences,
-        should_expose_system_font_family, WorkspacePreferences,
+        normalize_workspace_preferences, should_expose_system_font_family, WorkspacePreferences,
     };
-
-    #[test]
-    fn legacy_migration_maps_old_theme_ids() {
-        let legacy = std::collections::HashMap::from([
-            ("theme".to_string(), "monokai".to_string()),
-            ("leftSidebarPanel".to_string(), "references".to_string()),
-            ("referenceDockOpen".to_string(), "true".to_string()),
-            ("referenceDockActivePage".to_string(), "pdf".to_string()),
-        ]);
-
-        let migrated = migrate_legacy_preferences(&legacy);
-        assert_eq!(migrated.theme, "dark");
-        assert_eq!(migrated.workbench.left_sidebar_panel, "references");
-        assert!(migrated.workbench.reference_dock_open);
-        assert_eq!(migrated.workbench.reference_dock_active_page, "pdf");
-    }
 
     #[test]
     fn normalization_clamps_numbers_and_colors() {
@@ -828,18 +666,6 @@ mod tests {
         });
 
         assert_eq!(normalized.markdown_font, "system:PingFang SC");
-    }
-
-    #[test]
-    fn legacy_migration_maps_old_prose_font_to_markdown_font() {
-        let legacy = std::collections::HashMap::from([(
-            "proseFont".to_string(),
-            "system: New York".to_string(),
-        )]);
-
-        let migrated = migrate_legacy_preferences(&legacy);
-        assert_eq!(migrated.markdown_font, "system:New York");
-        assert_eq!(migrated.latex_font, "mono");
     }
 
     #[test]

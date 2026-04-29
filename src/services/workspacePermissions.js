@@ -1,28 +1,9 @@
 import { invoke } from '@tauri-apps/api/core'
 import { isMac } from '../platform'
-import {
-  clearStorageKeys,
-  readStorageJson,
-} from './bridgeStorage.js'
-
-const BOOKMARKS_KEY = 'workspaceBookmarks'
 
 function normalizeWorkspacePath(path = '') {
   const trimmed = String(path || '').trim().replace(/\/+$/, '')
   return trimmed || '/'
-}
-
-function readBookmarks() {
-  const parsed = readStorageJson(BOOKMARKS_KEY, {})
-  return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}
-}
-
-function writeBookmarks(bookmarks) {
-  writeStorageJson(BOOKMARKS_KEY, bookmarks)
-}
-
-function clearLegacyBookmarks() {
-  clearStorageKeys([BOOKMARKS_KEY])
 }
 
 export function removeWorkspaceBookmark(path) {
@@ -31,7 +12,7 @@ export function removeWorkspaceBookmark(path) {
     params: {
       path: normalizeWorkspacePath(path),
     },
-  }).then(clearLegacyBookmarks).catch((error) => {
+  }).catch((error) => {
     console.warn('[workspace-permissions] Failed to remove workspace bookmark:', error)
   })
 }
@@ -43,10 +24,8 @@ export async function captureWorkspaceBookmark(path) {
     const result = await invoke('macos_capture_workspace_bookmark', {
       params: {
         path: normalizedPath,
-        legacyBookmarks: readBookmarks(),
       },
     })
-    clearLegacyBookmarks()
     return normalizeWorkspacePath(result?.path || normalizedPath)
   } catch (error) {
     console.warn('[workspace-permissions] Failed to create workspace bookmark:', error)
@@ -62,10 +41,8 @@ export async function activateWorkspaceBookmark(path) {
     const result = await invoke('macos_activate_workspace_bookmark_for_path', {
       params: {
         path: normalizedPath,
-        legacyBookmarks: readBookmarks(),
       },
     })
-    clearLegacyBookmarks()
     return normalizeWorkspacePath(result?.path || normalizedPath)
   } catch (error) {
     console.warn('[workspace-permissions] Failed to activate workspace bookmark:', error)

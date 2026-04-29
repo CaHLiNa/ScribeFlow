@@ -1067,7 +1067,6 @@ async fn perform_sync(params: ZoteroSyncParams) -> Result<Value, String> {
 fn build_synced_snapshot(snapshot: &Value, sync_result: &Value) -> Value {
     json!({
         "version": snapshot.get("version").and_then(Value::as_u64).unwrap_or(2),
-        "legacyMigrationComplete": snapshot.get("legacyMigrationComplete").and_then(Value::as_bool).unwrap_or(true),
         "citationStyle": trim_string(snapshot.get("citationStyle")),
         "documentReferenceSelections": snapshot.get("documentReferenceSelections").cloned().unwrap_or_else(|| json!({})),
         "collections": snapshot.get("collections").cloned().unwrap_or(Value::Array(Vec::new())),

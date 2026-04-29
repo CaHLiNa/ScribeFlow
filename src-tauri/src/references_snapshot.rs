@@ -1,13 +1,6 @@
 use serde_json::{json, Value};
 use std::collections::HashSet;
 
-const LEGACY_REFERENCE_FIXTURE_IDS: &[&str] = &["ref-1", "ref-2", "ref-3"];
-const LEGACY_REFERENCE_FIXTURE_TITLES: &[&str] = &[
-    "CBF-based safety design for adaptive control of uncertain nonlinear strict-feedback systems",
-    "Constraint-aware planning for long-horizon safe robot adaptation",
-    "Verification-friendly policy updates under barrier-certified constraints",
-];
-
 pub(crate) trait StringExt {
     fn if_empty_then<F>(self, fallback: F) -> String
     where
@@ -251,13 +244,6 @@ pub(crate) fn normalize_reference_record(reference: &Value) -> Value {
     Value::Object(map)
 }
 
-fn is_legacy_fixture_reference(reference: &Value) -> bool {
-    let id = trim_string(reference.get("id"));
-    let title = trim_string(reference.get("title"));
-    LEGACY_REFERENCE_FIXTURE_IDS.contains(&id.as_str())
-        && LEGACY_REFERENCE_FIXTURE_TITLES.contains(&title.as_str())
-}
-
 fn normalize_document_reference_selections(value: Option<&Value>, references: &[Value]) -> Value {
     let valid_reference_ids: HashSet<String> = references
         .iter()
@@ -307,7 +293,6 @@ pub(crate) fn normalize_snapshot(raw: &Value) -> Value {
             references
                 .iter()
                 .map(normalize_reference_record)
-                .filter(|reference| !is_legacy_fixture_reference(reference))
                 .collect()
         })
         .unwrap_or_default();
@@ -319,7 +304,6 @@ pub(crate) fn normalize_snapshot(raw: &Value) -> Value {
 
     json!({
         "version": raw.get("version").and_then(Value::as_u64).unwrap_or(2),
-        "legacyMigrationComplete": bool_value(raw.get("legacyMigrationComplete")),
         "citationStyle": trim_string(raw.get("citationStyle")).if_empty_then(|| "apa".to_string()),
         "documentReferenceSelections": document_reference_selections,
         "collections": collections,
@@ -331,31 +315,12 @@ pub(crate) fn normalize_snapshot(raw: &Value) -> Value {
 pub(crate) fn build_default_snapshot() -> Value {
     json!({
         "version": 2,
-        "legacyMigrationComplete": false,
         "citationStyle": "apa",
         "documentReferenceSelections": {},
         "collections": [],
         "tags": [],
         "references": [],
     })
-}
-
-pub(crate) fn is_effectively_empty_snapshot(snapshot: &Value) -> bool {
-    snapshot
-        .get("references")
-        .and_then(Value::as_array)
-        .map(|entries| entries.is_empty())
-        .unwrap_or(true)
-        && snapshot
-            .get("collections")
-            .and_then(Value::as_array)
-            .map(|entries| entries.is_empty())
-            .unwrap_or(true)
-        && snapshot
-            .get("tags")
-            .and_then(Value::as_array)
-            .map(|entries| entries.is_empty())
-            .unwrap_or(true)
 }
 
 fn extract_year_from_date_parts(value: Option<&Value>) -> Option<i64> {

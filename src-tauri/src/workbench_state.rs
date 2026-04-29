@@ -101,10 +101,7 @@ struct WorkbenchLayoutFile {
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct WorkbenchLayoutLoadParams {
-    #[serde(default)]
-    pub legacy_state: WorkbenchLayoutState,
-}
+pub struct WorkbenchLayoutLoadParams {}
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -357,17 +354,8 @@ pub fn normalize_workbench_state(state: WorkbenchState) -> WorkbenchState {
     let primary_surface = normalize_workbench_surface(&state.primary_surface);
     let left_sidebar_panel =
         normalize_workbench_sidebar_panel(&primary_surface, &state.left_sidebar_panel);
-    let legacy_right_sidebar_open = state.right_sidebar_open;
-    let mut document_dock_open = state.document_dock_open;
-    let mut reference_dock_open = state.reference_dock_open;
-
-    if legacy_right_sidebar_open && !document_dock_open && !reference_dock_open {
-        if left_sidebar_panel == "references" {
-            reference_dock_open = true;
-        } else {
-            document_dock_open = true;
-        }
-    }
+    let document_dock_open = state.document_dock_open;
+    let reference_dock_open = state.reference_dock_open;
 
     WorkbenchState {
         primary_surface: primary_surface.clone(),
@@ -470,12 +458,12 @@ pub async fn workbench_dock_page_contract_load() -> Result<WorkbenchDockPageCont
 
 #[tauri::command]
 pub async fn workbench_layout_load(
-    params: WorkbenchLayoutLoadParams,
+    _params: WorkbenchLayoutLoadParams,
 ) -> Result<WorkbenchLayoutState, String> {
     if let Some(current) = read_workbench_layout_state()? {
         return Ok(normalize_workbench_layout_state(current));
     }
-    write_workbench_layout_state(params.legacy_state)
+    write_workbench_layout_state(WorkbenchLayoutState::default())
 }
 
 #[tauri::command]
@@ -531,8 +519,8 @@ mod tests {
         assert_eq!(normalized.primary_surface, "settings");
         assert_eq!(normalized.left_sidebar_panel, "files");
         assert_eq!(normalized.right_sidebar_panel, "");
-        assert!(normalized.document_dock_open);
-        assert!(normalized.right_sidebar_open);
+        assert!(!normalized.document_dock_open);
+        assert!(!normalized.right_sidebar_open);
         assert_eq!(normalized.document_dock_active_page, "preview");
         assert_eq!(normalized.reference_dock_active_page, "pdf");
     }

@@ -65,14 +65,3 @@ export async function renameReferencePdfAsset(
   })
   return renamed && typeof renamed === 'object' ? renamed : reference
 }
-
-export async function migrateReferenceAssets(globalConfigDir = '', references = []) {
-  if (!globalConfigDir || !Array.isArray(references) || references.length === 0) return references
-  const migrated = await invoke('references_assets_migrate', {
-    params: {
-      globalConfigDir,
-      references,
-    },
-  })
-  return Array.isArray(migrated) ? migrated : references
-}

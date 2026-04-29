@@ -161,8 +161,6 @@ export const useWorkspaceStore = defineStore('workspace', {
     claudeDir: (state) => state.claudeConfigDir || null,
     claudeHooksDir: (state) =>
       state.globalConfigDir ? `${state.globalConfigDir}/claude-hooks` : null,
-    legacyProjectDir: (state) => (state.path ? `${state.path}/.project` : null),
-    legacyClaudeDir: (state) => (state.path ? `${state.path}/.claude` : null),
     documentDockPageDefinitions: (state) =>
       dockPageDefinitionsForSurface(state.dockPageContract, 'document'),
     referenceDockPageDefinitions: (state) =>
@@ -336,8 +334,6 @@ export const useWorkspaceStore = defineStore('workspace', {
         globalConfigDir: this.globalConfigDir || '',
         workspaceDataDir: this.workspaceDataDir || '',
         workspacePath: this.path || '',
-        legacyWorkspaceDataDir: options.legacyWorkspaceDataDir || this.workspaceDataDir || '',
-        legacyProjectRoot: options.legacyProjectRoot || this.path || '',
         restoreEditorSession: options.restoreEditorSession !== false,
         currentTree: Array.isArray(options.currentTree) ? options.currentTree : [],
         cachedRootExpandedDirs: Array.isArray(options.cachedRootExpandedDirs)

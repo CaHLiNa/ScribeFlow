@@ -88,8 +88,6 @@ struct DocumentWorkflowPersistentStateFile {
 pub struct DocumentWorkflowPersistentStateLoadParams {
     #[serde(default)]
     pub workspace_data_dir: String,
-    #[serde(default)]
-    pub legacy_state: DocumentWorkflowPersistentState,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -424,7 +422,9 @@ pub async fn document_workflow_session_load(
         return Ok(normalize_document_workflow_persistent_state(current));
     }
 
-    let normalized = normalize_document_workflow_persistent_state(params.legacy_state);
+    let normalized = normalize_document_workflow_persistent_state(
+        DocumentWorkflowPersistentState::default(),
+    );
     write_document_workflow_session_state(&params.workspace_data_dir, &normalized)?;
     Ok(normalized)
 }
@@ -512,7 +512,7 @@ mod tests {
     }
 
     #[test]
-    fn migrates_legacy_latex_artifact_paths_into_preview_states() {
+    fn normalizes_latex_artifact_paths_into_preview_states() {
         let normalized =
             normalize_document_workflow_persistent_state(DocumentWorkflowPersistentState {
                 preview_prefs: HashMap::new(),
@@ -600,7 +600,6 @@ mod tests {
 
         let loaded = document_workflow_session_load(DocumentWorkflowPersistentStateLoadParams {
             workspace_data_dir: temp_dir.to_string_lossy().to_string(),
-            legacy_state: DocumentWorkflowPersistentState::default(),
         })
         .await
         .expect("load document workflow session");

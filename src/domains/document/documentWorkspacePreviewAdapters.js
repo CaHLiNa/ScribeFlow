@@ -19,8 +19,8 @@ export function resolveWorkspacePreviewSourcePath(filePath, options = {}) {
     readPreviewBinding(filePath, options.workflowStore, options.previewKind)?.sourcePath || ''
   if (bindingSourcePath) return bindingSourcePath
 
-  const legacySourcePath = previewSourcePathFromPath(filePath)
-  if (legacySourcePath) return legacySourcePath
+  const previewSourcePath = previewSourcePathFromPath(filePath)
+  if (previewSourcePath) return previewSourcePath
 
   if (options.acceptSourceFile !== false && options.matchesSourcePath?.(filePath)) {
     return filePath

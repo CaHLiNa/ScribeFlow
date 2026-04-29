@@ -1,10 +1,8 @@
 import { invoke } from '@tauri-apps/api/core'
 
-export function loadWorkbenchLayout(legacyState = {}) {
+export function loadWorkbenchLayout() {
   return invoke('workbench_layout_load', {
-    params: {
-      legacyState,
-    },
+    params: {},
   })
 }
 

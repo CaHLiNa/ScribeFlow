@@ -152,8 +152,6 @@ export function useWorkspaceLifecycle() {
         switch (task?.key) {
           case 'workspace.loadBootstrapData':
             bootstrapData = await workspace.loadWorkspaceBootstrapData({
-              legacyWorkspaceDataDir: workspace.workspaceDataDir,
-              legacyProjectRoot: workspace.path,
               restoreEditorSession,
               currentTree: filesStore.tree || [],
               cachedRootExpandedDirs,

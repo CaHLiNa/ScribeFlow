@@ -1,7 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
 import {
-  LEGACY_REFERENCE_FIXTURE_IDS,
-  LEGACY_REFERENCE_FIXTURE_TITLES,
   REFERENCE_COLLECTIONS,
   REFERENCE_FIXTURES,
   REFERENCE_TAGS,
@@ -12,32 +10,8 @@ import {
 
 export const REFERENCE_LIBRARY_FILENAME = 'library.json'
 
-export function resolveLegacyReferencesDataDir(workspaceDataDir = '') {
-  const base = String(workspaceDataDir || '').trim().replace(/\/+$/, '')
-  if (!base) return ''
-  return `${base}/references`
-}
-
 export function resolveReferencesDataDir(projectRoot = '') {
   return resolveGlobalReferencesDir(projectRoot)
-}
-
-export function resolveLegacyReferenceLibraryFile(workspaceDataDir = '') {
-  const dir = resolveLegacyReferencesDataDir(workspaceDataDir)
-  if (!dir) return ''
-  return `${dir}/${REFERENCE_LIBRARY_FILENAME}`
-}
-
-export function resolveProjectLegacyReferencesDataDir(projectRoot = '') {
-  const base = String(projectRoot || '').trim().replace(/\/+$/, '')
-  if (!base) return ''
-  return `${base}/references`
-}
-
-export function resolveProjectLegacyReferenceLibraryFile(projectRoot = '') {
-  const dir = resolveProjectLegacyReferencesDataDir(projectRoot)
-  if (!dir) return ''
-  return `${dir}/${REFERENCE_LIBRARY_FILENAME}`
 }
 
 export function resolveReferenceLibraryFile(globalConfigDir = '') {
@@ -46,20 +20,9 @@ export function resolveReferenceLibraryFile(globalConfigDir = '') {
   return `${dir}/${REFERENCE_LIBRARY_FILENAME}`
 }
 
-function isLegacyFixtureReference(reference = {}) {
-  const referenceId = String(reference.id || '').trim()
-  const title = String(reference.title || '').trim()
-
-  return (
-    LEGACY_REFERENCE_FIXTURE_IDS.includes(referenceId) &&
-    LEGACY_REFERENCE_FIXTURE_TITLES.includes(title)
-  )
-}
-
 export function buildDefaultReferenceLibrarySnapshot() {
   return {
     version: 2,
-    legacyMigrationComplete: false,
     citationStyle: 'apa',
     documentReferenceSelections: {},
     collections: REFERENCE_COLLECTIONS,
@@ -92,14 +55,11 @@ function normalizeDocumentReferenceSelections(value = {}) {
 export function normalizeReferenceLibrarySnapshot(raw = {}) {
   return {
     version: Number(raw?.version) || 2,
-    legacyMigrationComplete: raw?.legacyMigrationComplete === true,
     citationStyle: String(raw?.citationStyle || 'apa').trim() || 'apa',
     documentReferenceSelections: normalizeDocumentReferenceSelections(raw?.documentReferenceSelections),
     collections: Array.isArray(raw?.collections) ? raw.collections : [],
     tags: Array.isArray(raw?.tags) ? raw.tags : [],
-    references: Array.isArray(raw?.references)
-      ? raw.references.filter((reference) => !isLegacyFixtureReference(reference))
-      : [],
+    references: Array.isArray(raw?.references) ? raw.references : [],
   }
 }
 
@@ -123,8 +83,7 @@ export async function normalizeReferenceRecordWithBackend(reference = {}) {
   return normalized && typeof normalized === 'object' ? normalized : {}
 }
 
-export async function readOrCreateReferenceLibrarySnapshot(globalConfigDir = '', options = {}) {
-  const { legacyWorkspaceDataDir = '', legacyProjectRoot = '' } = options
+export async function readOrCreateReferenceLibrarySnapshot(globalConfigDir = '') {
   const referencesDir = resolveReferencesDataDir(globalConfigDir)
   const libraryFile = resolveReferenceLibraryFile(globalConfigDir)
   if (!referencesDir || !libraryFile) {
@@ -134,8 +93,6 @@ export async function readOrCreateReferenceLibrarySnapshot(globalConfigDir = '',
   const backendSnapshot = await invoke('references_library_load_workspace', {
     params: {
       globalConfigDir,
-      legacyWorkspaceDataDir,
-      legacyProjectRoot,
     },
   })
 

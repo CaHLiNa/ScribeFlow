@@ -25,7 +25,6 @@ mod latex_project_graph;
 mod latex_runtime;
 mod latex_sync_target;
 mod latex_tools;
-mod legacy_cleanup;
 mod markdown_runtime;
 mod process_utils;
 mod python_preferences;
@@ -406,10 +405,6 @@ pub fn run() {
     #[cfg(unix)]
     enrich_path();
 
-    if let Err(error) = legacy_cleanup::run_legacy_cleanup_once() {
-        eprintln!("Failed to complete one-time legacy cleanup: {error}");
-    }
-
     let builder = tauri::Builder::default()
         .register_uri_scheme_protocol("scribeflow-workspace", |ctx, request| {
             handle_workspace_protocol(ctx.app_handle(), request)
@@ -473,7 +468,6 @@ pub fn run() {
             references_backend::references_record_normalize,
             references_backend::references_asset_store,
             references_backend::references_asset_rename,
-            references_backend::references_assets_migrate,
             references_citation::references_citation_render,
             references_import::references_crossref_lookup_by_doi,
             references_import::references_crossref_search_by_metadata,

@@ -4,10 +4,6 @@ import {
   scheduleWorkbenchMotionCommit,
 } from '../domains/workbench/workbenchMotionRuntime.js'
 import {
-  clearStorageKeys,
-  readStorageValue,
-} from '../services/bridgeStorage.js'
-import {
   loadWorkbenchLayout,
   saveWorkbenchLayout,
 } from '../services/workbenchLayout.js'
@@ -37,14 +33,6 @@ const SHELL_CHROME_BUTTON_SIZE = 30
 const SHELL_CHROME_BUTTON_GAP = 4
 const SHELL_CHROME_HORIZONTAL_PADDING = 16
 
-const LAYOUT_STORAGE_KEYS = [
-  'leftSidebarWidth',
-  'rightSidebarWidth',
-  'documentDockWidth',
-  'referenceDockWidth',
-  'bottomPanelHeight',
-]
-
 const leftSidebarWidth = ref(DEFAULT_LEFT_SIDEBAR_WIDTH)
 const rightSidebarWidth = ref(DEFAULT_RIGHT_SIDEBAR_WIDTH)
 const documentDockWidth = ref(DEFAULT_DOCUMENT_DOCK_WIDTH)
@@ -71,34 +59,20 @@ function clamp(value, minimum, maximum) {
   return Math.min(Math.max(value, minimum), maximum)
 }
 
-function readNumberFromStorage(key, fallback) {
-  const raw = readStorageValue(key, '')
-  if (!raw) return fallback
-  const parsed = parseInt(raw, 10)
-  return Number.isFinite(parsed) ? parsed : fallback
-}
-
-function clearLegacyLayoutStorage() {
-  clearStorageKeys(LAYOUT_STORAGE_KEYS)
-}
-
-function readLegacyLayoutState() {
+function defaultLayoutState() {
   return {
-    leftSidebarWidth: readNumberFromStorage('leftSidebarWidth', DEFAULT_LEFT_SIDEBAR_WIDTH),
-    rightSidebarWidth: readNumberFromStorage('rightSidebarWidth', DEFAULT_RIGHT_SIDEBAR_WIDTH),
-    documentDockWidth: readNumberFromStorage('documentDockWidth', DEFAULT_DOCUMENT_DOCK_WIDTH),
-    referenceDockWidth: readNumberFromStorage('referenceDockWidth', DEFAULT_REFERENCE_DOCK_WIDTH),
-    bottomPanelHeight: readNumberFromStorage('bottomPanelHeight', DEFAULT_BOTTOM_PANEL_HEIGHT),
+    leftSidebarWidth: DEFAULT_LEFT_SIDEBAR_WIDTH,
+    rightSidebarWidth: DEFAULT_RIGHT_SIDEBAR_WIDTH,
+    documentDockWidth: DEFAULT_DOCUMENT_DOCK_WIDTH,
+    referenceDockWidth: DEFAULT_REFERENCE_DOCK_WIDTH,
+    bottomPanelHeight: DEFAULT_BOTTOM_PANEL_HEIGHT,
   }
 }
 
 async function loadWorkbenchLayoutState() {
-  const legacyState = readLegacyLayoutState()
-
-  const state = await loadWorkbenchLayout(legacyState)
-  clearLegacyLayoutStorage()
+  const state = await loadWorkbenchLayout()
   return {
-    ...legacyState,
+    ...defaultLayoutState(),
     ...(state || {}),
   }
 }
@@ -112,7 +86,6 @@ async function saveWorkbenchLayoutState() {
     bottomPanelHeight: bottomPanelHeight.value,
   }
   const saved = await saveWorkbenchLayout(state)
-  clearLegacyLayoutStorage()
   return saved || state
 }
 
@@ -488,7 +461,7 @@ function cleanupAppShellLayout() {
 
 export function useAppShellLayout() {
   onMounted(async () => {
-    const layoutState = await loadWorkbenchLayoutState().catch(() => readLegacyLayoutState())
+    const layoutState = await loadWorkbenchLayoutState().catch(() => defaultLayoutState())
     leftSidebarWidth.value = normalizeSidebarWidth(
       layoutState.leftSidebarWidth,
       DEFAULT_LEFT_SIDEBAR_WIDTH

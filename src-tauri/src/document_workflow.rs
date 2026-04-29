@@ -160,7 +160,7 @@ mod tests {
     use serde_json::{json, Value};
 
     #[test]
-    fn resolves_markdown_preview_without_legacy_pane_result() {
+    fn resolves_markdown_preview_without_pane_result() {
         let value = document_workflow_reconcile_value(DocumentWorkflowReconcileParams {
             active_file: "/tmp/demo.md".to_string(),
             active_pane_id: "pane-1".to_string(),

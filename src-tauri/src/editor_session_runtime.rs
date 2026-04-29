@@ -29,8 +29,6 @@ pub struct EditorSessionSaveParams {
     #[serde(default)]
     pub active_pane_id: String,
     #[serde(default)]
-    pub legacy_preview_paths: Vec<String>,
-    #[serde(default)]
     pub document_dock_tabs: Vec<String>,
     #[serde(default)]
     pub active_document_dock_tab: String,
@@ -61,8 +59,6 @@ struct RecentFilesFile {
 pub struct EditorRecentFilesLoadParams {
     #[serde(default)]
     pub workspace_data_dir: String,
-    #[serde(default)]
-    pub legacy_recent_files: Vec<RecentFileEntry>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -230,14 +226,6 @@ fn find_context_leaf(node: &Value) -> Option<Value> {
         .and_then(|children| children.iter().find_map(find_context_leaf))
 }
 
-fn normalize_legacy_preview_paths(paths: &[String]) -> HashSet<String> {
-    paths
-        .iter()
-        .map(|path| path.trim().to_string())
-        .filter(|path| is_preview_path(path))
-        .collect()
-}
-
 fn is_valid_tab_path(path: &str) -> bool {
     if path.is_empty() || is_removed_virtual_tab_path(path) || is_virtual_draft_tab(path) {
         return false;
@@ -255,16 +243,13 @@ fn is_valid_tab_path(path: &str) -> bool {
     !target_path.is_empty() && Path::new(&target_path).exists()
 }
 
-fn normalize_tabs_for_save(
-    tabs: &[Value],
-    preserved_legacy_preview_paths: &HashSet<String>,
-) -> Vec<String> {
+fn normalize_tabs_for_save(tabs: &[Value]) -> Vec<String> {
     tabs.iter()
         .filter_map(Value::as_str)
         .filter(|tab| {
             !is_virtual_draft_tab(tab)
                 && !is_removed_virtual_tab_path(tab)
-                && (!is_preview_path(tab) || preserved_legacy_preview_paths.contains(*tab))
+                && !is_preview_path(tab)
         })
         .map(|tab| tab.to_string())
         .collect()
@@ -314,17 +299,13 @@ fn normalize_document_dock_tabs_for_load(tabs: &[Value]) -> Vec<String> {
     normalized
 }
 
-fn serialize_leaf_for_save(
-    node: &Value,
-    preserved_legacy_preview_paths: &HashSet<String>,
-) -> Option<Value> {
+fn serialize_leaf_for_save(node: &Value) -> Option<Value> {
     let tabs = normalize_tabs_for_save(
         &node
             .get("tabs")
             .and_then(Value::as_array)
             .cloned()
             .unwrap_or_default(),
-        preserved_legacy_preview_paths,
     );
     if tabs.is_empty() {
         return None;
@@ -370,16 +351,13 @@ fn serialize_leaf_for_load(node: &Value) -> Option<Value> {
     ))
 }
 
-fn serialize_pane_tree_for_save(
-    node: &Value,
-    preserved_legacy_preview_paths: &HashSet<String>,
-) -> Option<Value> {
+fn serialize_pane_tree_for_save(node: &Value) -> Option<Value> {
     if node.is_null() {
         return None;
     }
 
     if node.get("type").and_then(Value::as_str) == Some("leaf") {
-        return serialize_leaf_for_save(node, preserved_legacy_preview_paths);
+        return serialize_leaf_for_save(node);
     }
 
     if node.get("type").and_then(Value::as_str) == Some("split") {
@@ -389,9 +367,7 @@ fn serialize_pane_tree_for_save(
             .cloned()
             .unwrap_or_default()
             .into_iter()
-            .filter_map(|child| {
-                serialize_pane_tree_for_save(&child, preserved_legacy_preview_paths)
-            })
+            .filter_map(|child| serialize_pane_tree_for_save(&child))
             .collect::<Vec<_>>();
 
         if children.is_empty() {
@@ -432,11 +408,9 @@ fn build_persisted_editor_state(
     pane_tree: &Value,
     active_pane_id: &str,
     last_context_path: &str,
-    legacy_preview_paths: &[String],
     document_dock_tabs: &[String],
     active_document_dock_tab: &str,
 ) -> Value {
-    let preserved = normalize_legacy_preview_paths(legacy_preview_paths);
     let normalized_document_dock_tabs = normalize_document_dock_tabs_for_save(document_dock_tabs);
     let normalized_active_document_dock_tab = if normalized_document_dock_tabs
         .iter()
@@ -451,7 +425,7 @@ fn build_persisted_editor_state(
     };
     json!({
         "version": STATE_VERSION,
-        "paneTree": serialize_pane_tree_for_save(pane_tree, &preserved),
+        "paneTree": serialize_pane_tree_for_save(pane_tree),
         "activePaneId": active_pane_id,
         "documentDockTabs": normalized_document_dock_tabs,
         "activeDocumentDockTab": normalized_active_document_dock_tab,
@@ -465,11 +439,6 @@ fn normalize_loaded_editor_state(state: &Value) -> Value {
     let mut all_tabs = Vec::new();
     collect_all_tabs(&pane_tree, &mut all_tabs);
     let open_tabs = all_tabs.iter().cloned().collect::<HashSet<_>>();
-    let legacy_preview_paths = all_tabs
-        .iter()
-        .filter(|tab| is_preview_path(tab))
-        .cloned()
-        .collect::<Vec<_>>();
     let document_dock_tabs = normalize_document_dock_tabs_for_load(
         &state
             .get("documentDockTabs")
@@ -548,7 +517,6 @@ fn normalize_loaded_editor_state(state: &Value) -> Value {
         "version": STATE_VERSION,
         "paneTree": pane_tree,
         "activePaneId": active_pane_id,
-        "legacyPreviewPaths": legacy_preview_paths,
         "documentDockTabs": document_dock_tabs,
         "activeDocumentDockTab": active_document_dock_tab,
         "lastContextPath": last_context_path,
@@ -638,7 +606,6 @@ pub async fn editor_session_save(params: EditorSessionSaveParams) -> Result<Valu
         &params.pane_tree,
         &params.active_pane_id,
         &params.last_context_path,
-        &params.legacy_preview_paths,
         &params.document_dock_tabs,
         &params.active_document_dock_tab,
     );
@@ -684,7 +651,7 @@ pub async fn editor_recent_files_load(
         return Ok(current);
     }
 
-    write_recent_files(workspace_data_dir, &params.legacy_recent_files)
+    Ok(Vec::new())
 }
 
 #[tauri::command]
@@ -708,7 +675,7 @@ mod tests {
     use std::fs;
 
     #[test]
-    fn save_state_filters_removed_virtual_tabs() {
+    fn save_state_filters_removed_and_preview_tabs() {
         let state = build_persisted_editor_state(
             &json!({
                 "type": "leaf",
@@ -718,7 +685,6 @@ mod tests {
             }),
             "pane-root",
             "/tmp/a.md",
-            &["preview:/tmp/a.md".to_string()],
             &[],
             "",
         );
@@ -727,30 +693,7 @@ mod tests {
             .as_array()
             .cloned()
             .unwrap_or_default();
-        assert_eq!(tabs.len(), 3);
-    }
-
-    #[test]
-    fn save_state_drops_preview_tabs_without_legacy_preservation() {
-        let state = build_persisted_editor_state(
-            &json!({
-                "type": "leaf",
-                "id": "pane-root",
-                "tabs": ["preview:/tmp/a.md", "/tmp/a.md"],
-                "activeTab": "/tmp/a.md"
-            }),
-            "pane-root",
-            "/tmp/a.md",
-            &[],
-            &[],
-            "",
-        );
-
-        let tabs = state["paneTree"]["tabs"]
-            .as_array()
-            .cloned()
-            .unwrap_or_default();
-        assert_eq!(tabs, vec![json!("/tmp/a.md")]);
+        assert_eq!(tabs, vec![json!("newtab:1"), json!("/tmp/a.md")]);
     }
 
     #[test]
@@ -777,7 +720,7 @@ mod tests {
     }
 
     #[test]
-    fn load_state_keeps_legacy_preview_paths_out_of_context() {
+    fn load_state_keeps_preview_paths_out_of_context() {
         let file_path = std::env::temp_dir().join("scribeflow-editor-session-preview.md");
         fs::write(&file_path, "# preview").expect("write temp file");
         let file_path = file_path.to_string_lossy().to_string();
@@ -795,13 +738,6 @@ mod tests {
             "lastContextPath": preview_path
         }));
 
-        assert_eq!(
-            state["legacyPreviewPaths"]
-                .as_array()
-                .cloned()
-                .unwrap_or_default(),
-            vec![json!(format!("preview:{file_path}"))]
-        );
         assert_eq!(state["lastContextPath"].as_str(), Some(file_path.as_str()));
     }
 
@@ -820,7 +756,6 @@ mod tests {
             }),
             "pane-root",
             &file_path,
-            &[],
             &[file_path.clone(), "preview:/tmp/ignored.md".to_string()],
             &file_path,
         );

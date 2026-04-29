@@ -114,8 +114,6 @@ struct WorkspaceLifecycleFile {
 pub struct WorkspaceLifecycleLoadParams {
     #[serde(default)]
     pub global_config_dir: String,
-    #[serde(default)]
-    pub legacy_state: WorkspaceLifecycleState,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -163,10 +161,6 @@ pub struct WorkspaceLifecycleLoadBootstrapDataParams {
     pub workspace_data_dir: String,
     #[serde(default)]
     pub workspace_path: String,
-    #[serde(default)]
-    pub legacy_workspace_data_dir: String,
-    #[serde(default)]
-    pub legacy_project_root: String,
     #[serde(default = "default_restore_editor_session")]
     pub restore_editor_session: bool,
     #[serde(default)]
@@ -432,9 +426,8 @@ fn write_workspace_lifecycle_state(
     fs::write(path, serialized).map_err(|error| error.to_string())
 }
 
-fn load_or_migrate_workspace_lifecycle_state(
+fn load_workspace_lifecycle_state(
     global_config_dir: &str,
-    legacy_state: WorkspaceLifecycleState,
 ) -> Result<WorkspaceLifecycleState, String> {
     if let Some(current) = read_workspace_lifecycle_state(global_config_dir)? {
         let normalized = prune_missing_workspace_lifecycle_state(current);
@@ -442,7 +435,7 @@ fn load_or_migrate_workspace_lifecycle_state(
         return Ok(normalized);
     }
 
-    let normalized = prune_missing_workspace_lifecycle_state(legacy_state);
+    let normalized = WorkspaceLifecycleState::default();
     write_workspace_lifecycle_state(global_config_dir, &normalized)?;
     Ok(normalized)
 }
@@ -547,8 +540,7 @@ fn write_workspace_bootstrap_file(
 pub async fn workspace_lifecycle_load(
     params: WorkspaceLifecycleLoadParams,
 ) -> Result<WorkspaceBootstrapState, String> {
-    load_or_migrate_workspace_lifecycle_state(&params.global_config_dir, params.legacy_state)
-        .map(WorkspaceBootstrapState::from)
+    load_workspace_lifecycle_state(&params.global_config_dir).map(WorkspaceBootstrapState::from)
 }
 
 #[tauri::command]
@@ -564,10 +556,7 @@ pub async fn workspace_lifecycle_save(
 pub async fn workspace_lifecycle_record_opened(
     params: WorkspaceLifecycleRecordOpenedParams,
 ) -> Result<WorkspaceBootstrapState, String> {
-    let state = load_or_migrate_workspace_lifecycle_state(
-        &params.global_config_dir,
-        WorkspaceLifecycleState::default(),
-    )?;
+    let state = load_workspace_lifecycle_state(&params.global_config_dir)?;
     let normalized =
         prune_missing_workspace_lifecycle_state(record_workspace_opened(state, &params.path));
     write_workspace_lifecycle_state(&params.global_config_dir, &normalized)?;
@@ -604,10 +593,7 @@ pub async fn workspace_lifecycle_prepare_open(
         Some(&claude_config_dir),
     )?;
 
-    let state = load_or_migrate_workspace_lifecycle_state(
-        &global_config_dir,
-        WorkspaceLifecycleState::default(),
-    )?;
+    let state = load_workspace_lifecycle_state(&global_config_dir)?;
     let normalized = prune_missing_workspace_lifecycle_state(record_workspace_opened(state, &path));
     write_workspace_lifecycle_state(&global_config_dir, &normalized)?;
 
@@ -637,8 +623,6 @@ pub async fn workspace_lifecycle_load_bootstrap_data(
     let references_snapshot =
         references_library_load_workspace(ReferenceLibraryLoadWorkspaceParams {
             global_config_dir: params.global_config_dir.clone(),
-            legacy_workspace_data_dir: params.legacy_workspace_data_dir,
-            legacy_project_root: params.legacy_project_root,
         })
         .await?;
 
@@ -658,13 +642,11 @@ pub async fn workspace_lifecycle_load_bootstrap_data(
     let document_workflow_state =
         document_workflow_session_load(DocumentWorkflowPersistentStateLoadParams {
             workspace_data_dir: params.workspace_data_dir.clone(),
-            legacy_state: DocumentWorkflowPersistentState::default(),
         })
         .await?;
 
     let recent_files = editor_recent_files_load(EditorRecentFilesLoadParams {
         workspace_data_dir: params.workspace_data_dir.clone(),
-        legacy_recent_files: Vec::new(),
     })
     .await?;
 
@@ -844,7 +826,6 @@ mod tests {
 
         let loaded = workspace_lifecycle_load(WorkspaceLifecycleLoadParams {
             global_config_dir: temp_dir.to_string_lossy().to_string(),
-            legacy_state: WorkspaceLifecycleState::default(),
         })
         .await
         .expect("load lifecycle");
