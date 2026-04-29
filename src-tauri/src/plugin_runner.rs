@@ -70,6 +70,57 @@ fn build_pdf_translate_args(
     ]
 }
 
+fn redact_settings_json_for_log(raw: &str) -> String {
+    let Ok(mut value) = serde_json::from_str::<Value>(raw) else {
+        return "<redacted-settings>".to_string();
+    };
+    redact_sensitive_json_value(&mut value);
+    value.to_string()
+}
+
+fn redact_sensitive_json_value(value: &mut Value) {
+    match value {
+        Value::Object(map) => {
+            for (key, child) in map.iter_mut() {
+                let normalized = key.to_ascii_lowercase();
+                if normalized.contains("key")
+                    || normalized.contains("token")
+                    || normalized.contains("secret")
+                    || normalized.contains("password")
+                    || normalized.contains("authorization")
+                {
+                    *child = Value::String("<redacted>".to_string());
+                } else {
+                    redact_sensitive_json_value(child);
+                }
+            }
+        }
+        Value::Array(items) => {
+            for item in items {
+                redact_sensitive_json_value(item);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn redact_plugin_args_for_log(args: &[String]) -> Vec<String> {
+    let mut redacted = Vec::with_capacity(args.len());
+    let mut redact_next_settings = false;
+    for arg in args {
+        if redact_next_settings {
+            redacted.push(redact_settings_json_for_log(arg));
+            redact_next_settings = false;
+            continue;
+        }
+        redacted.push(arg.clone());
+        if arg == "--settings-json" {
+            redact_next_settings = true;
+        }
+    }
+    redacted
+}
+
 #[tauri::command]
 pub async fn plugin_runtime_detect(
     params: PluginRuntimeDetectParams,
@@ -203,10 +254,11 @@ pub async fn plugin_job_start(
             Ok(output) => {
                 let stdout = String::from_utf8_lossy(&output.stdout);
                 let stderr = String::from_utf8_lossy(&output.stderr);
+                let logged_args = redact_plugin_args_for_log(&args);
                 let log = format!(
                     "$ {} {}\n\n[stdout]\n{}\n\n[stderr]\n{}",
                     command,
-                    args.join(" "),
+                    logged_args.join(" "),
                     stdout,
                     stderr
                 );
@@ -251,7 +303,7 @@ pub async fn plugin_job_start(
 
 #[cfg(test)]
 mod tests {
-    use super::build_pdf_translate_args;
+    use super::{build_pdf_translate_args, redact_plugin_args_for_log};
     use std::path::Path;
 
     #[test]
@@ -275,5 +327,29 @@ mod tests {
                 "{\"targetLanguage\":\"zh\"}".to_string()
             ]
         );
+    }
+
+    #[test]
+    fn redacts_secret_values_from_logged_plugin_settings() {
+        let args = vec![
+            "--capability".to_string(),
+            "pdf.translate".to_string(),
+            "--settings-json".to_string(),
+            serde_json::json!({
+                "apiKey": "sk-secret",
+                "nested": {
+                    "accessToken": "token-secret",
+                    "model": "gpt-4o-mini"
+                }
+            })
+            .to_string(),
+        ];
+
+        let redacted = redact_plugin_args_for_log(&args);
+        let rendered = redacted.join(" ");
+        assert!(!rendered.contains("sk-secret"));
+        assert!(!rendered.contains("token-secret"));
+        assert!(rendered.contains("gpt-4o-mini"));
+        assert!(rendered.contains("<redacted>"));
     }
 }
