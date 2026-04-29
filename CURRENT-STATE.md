@@ -108,6 +108,7 @@ First seam:
 - LaTeX Problems now warn when a cited key exists in the global reference library but has not been added to the current document reference pool, so the generated `.bib` will not silently omit it.
 - LaTeX `.bib` sync now runs inside `latexStore.compile()`, so manual compile, auto build and runtime-request compile share the same compile-target reference pool instead of only syncing through the document workflow adapter.
 - LaTeX citation hover and autocomplete now keep using the resolved root-file reference scope while editing subfiles, and citation hover renders imported reference metadata as DOM text instead of interpolated HTML.
+- BibLaTeX `\addbibresource{...}` declarations now use the same selected document reference pool and manual-file overwrite guard as BibTeX `\bibliography{...}` declarations.
 
 ### Phase 3: Leaf Rustification
 
