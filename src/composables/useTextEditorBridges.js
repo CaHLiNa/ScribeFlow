@@ -12,6 +12,10 @@ export function useTextEditorBridges(options) {
     isLatexFile,
   } = options
 
+  // Guard flag: set when the Pinia update originated from this editor's own
+  // keystroke, so the watcher skips the expensive toString + diff cycle.
+  let skipNextWatch = false
+
   let dropOverlay = null
   let dropCursor = null
   let draggedFilePaths = []
@@ -104,8 +108,19 @@ export function useTextEditorBridges(options) {
   watch(
     () => files.fileContents[filePath],
     (newContent) => {
+      // Skip if this update originated from our own editor keystroke.
+      if (skipNextWatch) {
+        skipNextWatch = false
+        return
+      }
       const view = getView()
       if (!view || newContent === undefined) return
+
+      // Quick length check to avoid O(n) toString when content is identical.
+      if (view.state.doc.length === newContent.length) {
+        const currentContent = view.state.doc.toString()
+        if (currentContent === newContent) return
+      }
 
       const currentContent = view.state.doc.toString()
       const change = computeMinimalChange(currentContent, newContent)
@@ -128,5 +143,9 @@ export function useTextEditorBridges(options) {
 
   return {
     showMergeViewIfNeeded,
+    /** Call before setInMemoryFileContent when the change came from this editor. */
+    markEditorChange() {
+      skipNextWatch = true
+    },
   }
 }

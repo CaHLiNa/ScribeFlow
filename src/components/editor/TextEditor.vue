@@ -212,7 +212,7 @@ const citPalette = reactive({
 
 const getView = () => view
 
-const { showMergeViewIfNeeded } = useTextEditorBridges({
+const { showMergeViewIfNeeded, markEditorChange } = useTextEditorBridges({
   filePath: runtimeFilePath,
   editorContainer,
   getView,
@@ -404,16 +404,18 @@ async function refreshLatexReferenceScopePath(content = '') {
   return latexReferenceScopePath.value
 }
 
-function scheduleLatexReferenceScopeRefresh(content = '', delay = 180) {
+function scheduleLatexReferenceScopeRefresh(content = '', delay = 180, contentGetter = null) {
   if (!supportsLatexRuntime) return
   clearLatexReferenceScopeTimer()
   if (typeof window === 'undefined' || delay <= 0) {
-    void refreshLatexReferenceScopePath(content)
+    const resolved = contentGetter ? contentGetter() : content
+    void refreshLatexReferenceScopePath(resolved)
     return
   }
   latexReferenceScopeTimer = window.setTimeout(() => {
     latexReferenceScopeTimer = null
-    void refreshLatexReferenceScopePath(content)
+    const resolved = contentGetter ? contentGetter() : content
+    void refreshLatexReferenceScopePath(resolved)
   }, delay)
 }
 
@@ -975,13 +977,32 @@ async function persistEditorContent(content, options = {}) {
   return true
 }
 
-function handleDocumentChanged(content) {
-  files.setInMemoryFileContent(props.filePath, content)
-  if (content === lastPersistedContent) {
-    editorStore.clearFileDirty(props.filePath)
-    return
+let contentSyncTimer = null
+
+function handleDocumentChanged(contentOrDoc) {
+  // Dirty flag: only set on first change after save (no-op if already dirty).
+  // This is cheap — Set.has + Set.add are O(1).
+  // Fast path: if already dirty, skip the string comparison entirely.
+  if (!editorStore.isFileDirty(props.filePath)) {
+    // contentOrDoc may be a Text object (deferred toString) — only convert
+    // when we actually need to compare against lastPersistedContent.
+    const str = typeof contentOrDoc === 'string' ? contentOrDoc : contentOrDoc.toString()
+    if (str === lastPersistedContent) {
+      editorStore.clearFileDirty(props.filePath)
+    } else {
+      editorStore.markFileDirty(props.filePath)
+    }
   }
-  editorStore.markFileDirty(props.filePath)
+
+  // Debounce the Pinia reactive update to avoid triggering watchers
+  // (MarkdownPreview, useTextEditorBridges) on every keystroke.
+  // The CodeMirror view is the source of truth; this is just a cache sync.
+  clearTimeout(contentSyncTimer)
+  contentSyncTimer = setTimeout(() => {
+    const content = typeof contentOrDoc === 'string' ? contentOrDoc : contentOrDoc.toString()
+    markEditorChange()
+    files.setInMemoryFileContent(props.filePath, content)
+  }, 200)
 }
 
 async function loadLanguageExtension() {
@@ -1076,8 +1097,10 @@ onMounted(async () => {
       if (isMd && update.viewportChanged) {
         scheduleMarkdownViewportPreviewSync(update.view)
       }
+      // scheduleLatexReferenceScopeRefresh already debounces internally,
+      // but toString() is O(n) — lazily compute it only when the timer fires.
       if (isLatexEditor && update.docChanged) {
-        scheduleLatexReferenceScopeRefresh(update.state.doc.toString())
+        scheduleLatexReferenceScopeRefresh(null, 180, () => update.view.state.doc.toString())
       }
     }),
   ]
@@ -1525,6 +1548,15 @@ function deactivateEditorRuntime() {
   pendingContextMenuState = null
   clearContextMenuRestoreHandles()
   detachEditorRuntimeListeners()
+  // Flush pending content sync before deactivating.
+  if (contentSyncTimer != null) {
+    clearTimeout(contentSyncTimer)
+    contentSyncTimer = null
+    if (view) {
+      markEditorChange()
+      files.setInMemoryFileContent(props.filePath, view.state.doc.toString())
+    }
+  }
   editorStore.unregisterEditorView(props.paneId, props.filePath)
 }
 
@@ -1884,6 +1916,10 @@ onUnmounted(() => {
   deactivateEditorRuntime()
   clearLatexWarmupHandle()
   clearLatexReferenceScopeTimer()
+  if (contentSyncTimer != null) {
+    clearTimeout(contentSyncTimer)
+    contentSyncTimer = null
+  }
   if (markdownPreviewSyncTimer != null) {
     window.clearTimeout(markdownPreviewSyncTimer)
     markdownPreviewSyncTimer = null

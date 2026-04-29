@@ -111,7 +111,9 @@ function autoSaveExtension(onSave) {
 function documentChangeExtension(onDocChanged) {
   return EditorView.updateListener.of((update) => {
     if (!update.docChanged) return
-    onDocChanged(update.state.doc.toString())
+    // Pass a getter to defer O(n) toString() until actually needed
+    // (the handler debounces the expensive Pinia update).
+    onDocChanged(update.view.state.doc)
   })
 }
 
@@ -136,24 +138,72 @@ function cursorPositionExtension(onCursorChange) {
 /**
  * Create editor stats listener extension.
  * Reports word count, char count, and selection stats.
+ * Uses incremental Text API instead of full toString() for performance.
  */
 function editorStatsExtension(onStats) {
+  let debounceTimer = null
+
+  function computeStats(state) {
+    const doc = state.doc
+    let words = 0
+    let chars = 0
+    let inWord = false
+
+    for (let i = 1; i <= doc.lines; i++) {
+      const lineText = doc.line(i).text
+      for (let j = 0; j < lineText.length; j++) {
+        const ch = lineText.charCodeAt(j)
+        const isSpace = ch === 32 || ch === 9 || ch === 10 || ch === 13
+        if (isSpace) {
+          inWord = false
+        } else {
+          chars++
+          if (!inWord) {
+            words++
+            inWord = true
+          }
+        }
+      }
+      // Newline between lines counts as whitespace
+      if (i < doc.lines) inWord = false
+    }
+
+    const sel = state.selection.main
+    let selWords = 0
+    let selChars = 0
+    if (sel.from !== sel.to) {
+      const selText = state.sliceDoc(sel.from, sel.to)
+      let selInWord = false
+      for (let j = 0; j < selText.length; j++) {
+        const ch = selText.charCodeAt(j)
+        const isSpace = ch === 32 || ch === 9 || ch === 10 || ch === 13
+        if (isSpace) {
+          selInWord = false
+        } else {
+          selChars++
+          if (!selInWord) {
+            selWords++
+            selInWord = true
+          }
+        }
+      }
+    }
+
+    return { words, chars, selWords, selChars }
+  }
+
   return EditorView.updateListener.of((update) => {
     if (update.docChanged || update.selectionSet || update.startState === update.state) {
-      const text = update.state.doc.toString()
-      const words = text.trim() ? text.trim().split(/\s+/).length : 0
-      const chars = text.replace(/\s/g, '').length
-
-      const sel = update.state.selection.main
-      let selWords = 0
-      let selChars = 0
-      if (sel.from !== sel.to) {
-        const selText = update.state.sliceDoc(sel.from, sel.to)
-        selWords = selText.trim() ? selText.trim().split(/\s+/).length : 0
-        selChars = selText.replace(/\s/g, '').length
+      // Debounce doc-changed stats to avoid O(n) work on every keystroke.
+      // Selection-only changes are cheap enough to run immediately.
+      if (update.docChanged) {
+        clearTimeout(debounceTimer)
+        debounceTimer = setTimeout(() => {
+          onStats(computeStats(update.view.state))
+        }, 200)
+      } else {
+        onStats(computeStats(update.state))
       }
-
-      onStats({ words, chars, selWords, selChars })
     }
   })
 }
