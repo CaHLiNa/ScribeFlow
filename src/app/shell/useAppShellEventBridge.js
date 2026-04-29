@@ -98,6 +98,8 @@ export function useAppShellEventBridge({
       if (pane.activeTab) {
         const result = await confirmUnsavedChanges([pane.activeTab])
         if (result.choice === 'cancel') return
+        await workflowStore?.hideWorkspacePreviewForFile?.(pane.activeTab)?.catch(() => null)
+        workflowStore?.handlePreviewClosed?.(pane.activeTab)
         editorStore.closeTab(pane.id, pane.activeTab)
       } else {
         const parent = editorStore.findParent(editorStore.paneTree, pane.id)

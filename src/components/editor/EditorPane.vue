@@ -646,6 +646,7 @@ function handleOpenExternalPdf() {
 async function closeTab(path) {
   const result = await confirmUnsavedChanges([path])
   if (result.choice === 'cancel') return false
+  await workflowStore.hideWorkspacePreviewForFile(path).catch(() => null)
   workflowStore.handlePreviewClosed(path)
   editorStore.closeTab(props.paneId, path)
   return true
