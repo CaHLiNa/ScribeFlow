@@ -102,11 +102,14 @@ ScribeFlow 是一个本地优先的桌面学术研究工作台。主产品是 Ta
 
 最小验证基线：
 
+- `npm run verify`
 - `npm run build`
 - `npm run check:rust`
 - `npm run test:rust`
 
-如果改动影响桌面主路径，优先补真实 Tauri smoke；做不到时要明确说明缺口。
+桌面主路径、视觉质量、布局手感和交互体验由用户手工判断。不要再建议新增自动化 Tauri smoke、自动化视觉评审、自动化交互验收或相关 checklist；这类验证不作为 Codex 后续工作建议。
+
+可以继续关注可量化工程项，例如 bundle size、chunk 拆分、构建耗时、Rust test 覆盖和 bridge boundary guard。
 
 ## 6. Git 规则
 

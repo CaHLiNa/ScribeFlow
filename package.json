@@ -8,6 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "check": "npm run build",
+    "verify": "npm run guard:ui-bridges && npm run build && npm run check:rust && npm run test:rust",
     "guard:ui-bridges": "node scripts/check-ui-bridges.mjs",
     "version:bump": "node scripts/bump-version.mjs",
     "release:check-version": "node scripts/check-release-version.mjs",
