@@ -1,21 +1,17 @@
-import { visit } from 'unist-util-visit'
 import { normalizeProblems } from '../documentIntelligence/diagnostics.js'
-import { parseMarkdownDraft } from './parser.js'
 
 const RAW_HTML_MESSAGE = 'Raw HTML may not migrate cleanly to LaTeX export.'
-function nodePosition(node) {
-  return {
-    line: Number.isInteger(node?.position?.start?.line) ? node.position.start.line : null,
-    column: Number.isInteger(node?.position?.start?.column) ? node.position.start.column : null,
-  }
-}
+const FENCE_RE = /^\s*(```|~~~)/
+const HEADING_RE = /^(#{1,6})\s+\S/
+const HTML_RE = /<([A-Za-z][\w:-]*)(?:\s|>|\/>)/
+const FOOTNOTE_DEFINITION_RE = /^\s*\[\^([^\]\s]+)\]:/
+const FOOTNOTE_REFERENCE_RE = /\[\^([^\]\s]+)\]/g
 
-function createProblem(sourcePath, node, problem = {}) {
-  const position = nodePosition(node)
+function createProblem(sourcePath, line, column, problem = {}) {
   return {
     sourcePath,
-    line: position.line,
-    column: position.column,
+    line,
+    column,
     severity: problem.severity || 'warning',
     message: problem.message || '',
     origin: 'draft',
@@ -24,66 +20,70 @@ function createProblem(sourcePath, node, problem = {}) {
   }
 }
 
-function collectHeadingDiagnostics(tree, sourcePath) {
+function collectLightweightDiagnostics(sourcePath, content = '') {
   const problems = []
+  const lines = String(content || '').split(/\r?\n/)
   let previousLevel = 0
+  let inFence = false
+  const footnoteDefinitions = new Set()
+  const seenFootnoteDefinitions = new Set()
+  const footnoteReferences = []
 
-  visit(tree, 'heading', (node) => {
-    const level = Math.max(1, Number(node?.depth) || 1)
-    if (previousLevel > 0 && level > previousLevel + 1) {
-      problems.push(createProblem(sourcePath, node, {
-        message: `Heading level jumps from ${previousLevel} to ${level}.`,
+  lines.forEach((line, index) => {
+    const lineNumber = index + 1
+    if (FENCE_RE.test(line)) {
+      inFence = !inFence
+      return
+    }
+    if (inFence) return
+
+    const heading = line.match(HEADING_RE)
+    if (heading) {
+      const level = heading[1].length
+      if (previousLevel > 0 && level > previousLevel + 1) {
+        problems.push(createProblem(sourcePath, lineNumber, 1, {
+          message: `Heading level jumps from ${previousLevel} to ${level}.`,
+        }))
+      }
+      previousLevel = level
+    }
+
+    const html = line.match(HTML_RE)
+    if (html) {
+      problems.push(createProblem(sourcePath, lineNumber, html.index + 1, {
+        message: RAW_HTML_MESSAGE,
+        raw: line.trim(),
       }))
     }
-    previousLevel = level
-  })
 
-  return problems
-}
-
-function collectHtmlDiagnostics(tree, sourcePath) {
-  const problems = []
-  visit(tree, 'html', (node) => {
-    const raw = String(node?.value || '').trim()
-    if (!raw) return
-    problems.push(createProblem(sourcePath, node, {
-      message: RAW_HTML_MESSAGE,
-      raw,
-    }))
-  })
-  return problems
-}
-
-function collectFootnoteDiagnostics(tree, sourcePath) {
-  const problems = []
-  const definitions = new Map()
-  const references = []
-
-  visit(tree, (node) => {
-    if (node?.type === 'footnoteDefinition') {
-      const id = String(node.identifier || '').trim()
-      if (!id) return
-      if (definitions.has(id)) {
-        problems.push(createProblem(sourcePath, node, {
+    const definition = line.match(FOOTNOTE_DEFINITION_RE)
+    if (definition) {
+      const id = definition[1].trim()
+      footnoteDefinitions.add(id)
+      if (seenFootnoteDefinitions.has(id)) {
+        problems.push(createProblem(sourcePath, lineNumber, definition.index + 1, {
           message: `Duplicate footnote definition: [^${id}].`,
           severity: 'warning',
         }))
-        return
       }
-      definitions.set(id, node)
-      return
+      seenFootnoteDefinitions.add(id)
     }
 
-    if (node?.type === 'footnoteReference') {
-      const id = String(node.identifier || '').trim()
+    FOOTNOTE_REFERENCE_RE.lastIndex = 0
+    let match
+    while ((match = FOOTNOTE_REFERENCE_RE.exec(line)) !== null) {
+      const id = String(match[1] || '').trim()
       if (!id) return
-      references.push({ id, node })
+      const isDefinition = Boolean(definition && definition[1].trim() === id && match.index === definition.index)
+      if (!isDefinition) {
+        footnoteReferences.push({ id, line: lineNumber, column: match.index + 1 })
+      }
     }
   })
 
-  for (const reference of references) {
-    if (definitions.has(reference.id)) continue
-    problems.push(createProblem(sourcePath, reference.node, {
+  for (const reference of footnoteReferences) {
+    if (footnoteDefinitions.has(reference.id)) continue
+    problems.push(createProblem(sourcePath, reference.line, reference.column, {
       message: `Footnote [^${reference.id}] has no matching definition.`,
       severity: 'error',
     }))
@@ -94,12 +94,7 @@ function collectFootnoteDiagnostics(tree, sourcePath) {
 
 export function buildMarkdownDraftProblems(sourcePath, content = '', options = {}) {
   void options
-  const tree = parseMarkdownDraft(content)
-  const problems = [
-    ...collectHeadingDiagnostics(tree, sourcePath),
-    ...collectHtmlDiagnostics(tree, sourcePath),
-    ...collectFootnoteDiagnostics(tree, sourcePath),
-  ]
+  const problems = collectLightweightDiagnostics(sourcePath, content)
 
   return normalizeProblems(problems, {
     sourcePath,
