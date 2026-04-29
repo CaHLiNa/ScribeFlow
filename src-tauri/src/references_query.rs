@@ -203,9 +203,64 @@ fn record_citation_usage(usage: &mut BTreeMap<String, Vec<String>>, key: &str, p
     }
 }
 
-fn build_citation_usage_index(file_contents: &Value) -> Value {
+fn normalize_snippet_text(value: &str) -> String {
+    value.trim().chars().take(220).collect::<String>()
+}
+
+fn citation_line_snippet(content: &str, byte_index: usize) -> (usize, String) {
+    let mut safe_index = byte_index.min(content.len());
+    while safe_index > 0 && !content.is_char_boundary(safe_index) {
+        safe_index -= 1;
+    }
+
+    let line = content[..safe_index]
+        .bytes()
+        .filter(|byte| *byte == b'\n')
+        .count()
+        + 1;
+    let line_start = content[..safe_index]
+        .rfind('\n')
+        .map(|index| index + 1)
+        .unwrap_or(0);
+    let line_end = content[safe_index..]
+        .find('\n')
+        .map(|index| safe_index + index)
+        .unwrap_or(content.len());
+
+    (line, normalize_snippet_text(&content[line_start..line_end]))
+}
+
+fn record_citation_detail(
+    details: &mut BTreeMap<String, Vec<Value>>,
+    key: &str,
+    path: &str,
+    content: &str,
+    byte_index: usize,
+) {
+    let normalized_key = key.trim();
+    if normalized_key.is_empty() || path.trim().is_empty() {
+        return;
+    }
+
+    let (line, snippet) = citation_line_snippet(content, byte_index);
+    let entry = details.entry(normalized_key.to_string()).or_default();
+    if entry.iter().any(|existing| {
+        trim_string(existing.get("path")) == path
+            && existing.get("line").and_then(Value::as_u64) == Some(line as u64)
+    }) {
+        return;
+    }
+
+    entry.push(json!({
+        "path": path,
+        "line": line,
+        "snippet": snippet,
+    }));
+}
+
+fn build_citation_usage(file_contents: &Value) -> (Value, Value) {
     let Some(file_contents) = file_contents.as_object() else {
-        return Value::Object(Map::new());
+        return (Value::Object(Map::new()), Value::Object(Map::new()));
     };
 
     let markdown_citation_re =
@@ -216,6 +271,7 @@ fn build_citation_usage_index(file_contents: &Value) -> Value {
     let latex_key_re = regex_lite::Regex::new(r"([a-zA-Z][\w.-]*)").ok();
 
     let mut usage: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    let mut details: BTreeMap<String, Vec<Value>> = BTreeMap::new();
 
     for (path, content) in file_contents {
         let Some(content) = content.as_str() else {
@@ -234,6 +290,13 @@ fn build_citation_usage_index(file_contents: &Value) -> Value {
                         let Some(key) = key_match.get(1) else {
                             continue;
                         };
+                        record_citation_detail(
+                            &mut details,
+                            key.as_str(),
+                            path,
+                            content,
+                            group.start() + key.start(),
+                        );
                         record_citation_usage(&mut usage, key.as_str(), path);
                     }
                 }
@@ -246,6 +309,13 @@ fn build_citation_usage_index(file_contents: &Value) -> Value {
                     let normalized_key = key
                         .as_str()
                         .trim_end_matches(|ch| matches!(ch, '.' | ',' | ';' | ':' | ')'));
+                    record_citation_detail(
+                        &mut details,
+                        normalized_key,
+                        path,
+                        content,
+                        key.start(),
+                    );
                     record_citation_usage(&mut usage, normalized_key, path);
                 }
             }
@@ -285,6 +355,13 @@ fn build_citation_usage_index(file_contents: &Value) -> Value {
                         let Some(key) = key_match.get(1) else {
                             continue;
                         };
+                        record_citation_detail(
+                            &mut details,
+                            key.as_str(),
+                            path,
+                            content,
+                            cursor + 1 + key.start(),
+                        );
                         record_citation_usage(&mut usage, key.as_str(), path);
                     }
                 }
@@ -299,7 +376,11 @@ fn build_citation_usage_index(file_contents: &Value) -> Value {
             Value::Array(paths.into_iter().map(Value::String).collect()),
         );
     }
-    Value::Object(result)
+    let mut detail_result = Map::new();
+    for (key, entries) in details {
+        detail_result.insert(key, Value::Array(entries));
+    }
+    (Value::Object(result), Value::Object(detail_result))
 }
 
 fn normalize_sort_key(sort_key: &str) -> String {
@@ -443,6 +524,9 @@ pub async fn references_query_resolve(
             .unwrap_or_default()
     };
 
+    let (citation_usage_index, citation_usage_details) =
+        build_citation_usage(&params.file_contents);
+
     Ok(json!({
         "query": {
             "selectedSectionKey": selected_section_key,
@@ -459,7 +543,8 @@ pub async fn references_query_resolve(
         "sortedReferences": sorted_references,
         "filteredReferences": filtered_references,
         "selectedReferenceId": selected_reference_id,
-        "citationUsageIndex": build_citation_usage_index(&params.file_contents),
+        "citationUsageIndex": citation_usage_index,
+        "citationUsageDetails": citation_usage_details,
     }))
 }
 
@@ -527,7 +612,7 @@ mod tests {
             references: vec![],
             file_contents: json!({
                 "/tmp/a.md":"See [@alpha2024; @beta2022]. Bare mention @gamma2025.",
-                "/tmp/b.tex":"\\\\cite{alpha2024}\\n\\\\cite[see][p. 2]{gamma2025}\\n\\\\textcite*{delta2026}"
+                "/tmp/b.tex":"\\\\cite{alpha2024}\n\\\\cite[see][p. 2]{gamma2025}\n\\\\textcite*{delta2026}"
             }),
             ..ReferencesQueryResolveParams::default()
         })
@@ -558,6 +643,18 @@ mod tests {
                 .map(|v| v.len()),
             Some(1)
         );
+        assert_eq!(
+            result["citationUsageDetails"]["gamma2025"][0]["line"].as_u64(),
+            Some(1)
+        );
+        assert_eq!(
+            result["citationUsageDetails"]["gamma2025"][1]["line"].as_u64(),
+            Some(2)
+        );
+        assert!(result["citationUsageDetails"]["delta2026"][0]["snippet"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("\\\\textcite*{delta2026}"));
     }
 
     #[tokio::test]

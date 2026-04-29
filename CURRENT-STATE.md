@@ -53,7 +53,7 @@ Current baseline on 2026-04-29:
 - Vite build passed
 - Bundle budget check passed
 - Rust check passed
-- Rust tests passed: 128 tests
+- Rust tests passed: 130 tests
 
 Desktop main-path feel, visual quality, layout behavior and interaction quality are intentionally user-owned manual checks. Do not propose automating them again.
 
@@ -112,6 +112,7 @@ First seam:
 - Reference usage indexing now covers Markdown bare `@key` citations and LaTeX starred / optional-argument citation commands, so the "Cited In" panel no longer misses common citation forms.
 - LaTeX project citation parsing now treats `\nocite{*}` as an include-all directive instead of a missing citation key.
 - Editor citation decorations, hover cards and click-to-edit now recognize the same Markdown bare citations and LaTeX starred / optional-argument citation forms; editing LaTeX citations preserves optional arguments instead of rewriting them to plain `\cite{...}`.
+- Reference "Cited In" now shows citation line numbers and source snippets for Markdown / LaTeX usages, while keeping the old file-level usage index for compatibility; clicking a usage opens the source file and highlights the cited line when an editor view is available.
 
 ### Phase 3: Leaf Rustification
 

@@ -124,6 +124,7 @@ function buildDefaultResolvedQueryState(state = {}) {
     sortedReferences: Array.isArray(state.references) ? state.references : [],
     filteredReferences: Array.isArray(state.references) ? state.references : [],
     citationUsageIndex: {},
+    citationUsageDetails: {},
   }
 }
 
@@ -202,6 +203,10 @@ export const useReferencesStore = defineStore('references', {
 
     citedIn() {
       return this.resolvedQueryState?.citationUsageIndex || {}
+    },
+
+    citedDetails() {
+      return this.resolvedQueryState?.citationUsageDetails || {}
     },
 
     citedKeys() {

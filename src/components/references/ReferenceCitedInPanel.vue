@@ -5,20 +5,20 @@
       <span>{{ t('No citation key') }}</span>
     </div>
 
-    <div v-else-if="citedInFiles.length === 0" class="reference-cited-in-panel__empty">
+    <div v-else-if="citedEntries.length === 0" class="reference-cited-in-panel__empty">
       <IconQuote :size="18" :stroke-width="1.8" />
       <span>{{ t('No citations found') }}</span>
     </div>
 
     <div v-else class="reference-cited-in-panel__list scrollbar-hidden" role="list">
       <button
-        v-for="path in citedInFiles"
-        :key="path"
+        v-for="entry in citedEntries"
+        :key="`${entry.path}:${entry.line || 0}:${entry.snippet}`"
         type="button"
         class="reference-cited-in-panel__item"
         role="listitem"
-        :title="path"
-        @click="openCitationSource(path)"
+        :title="entry.snippet || entry.path"
+        @click="openCitationSource(entry)"
       >
         <IconFileText
           class="reference-cited-in-panel__item-icon"
@@ -26,8 +26,16 @@
           :stroke-width="1.8"
         />
         <span class="reference-cited-in-panel__item-copy">
-          <span class="reference-cited-in-panel__item-title">{{ basenamePath(path) || path }}</span>
-          <span class="reference-cited-in-panel__item-path">{{ getRelativePath(path) }}</span>
+          <span class="reference-cited-in-panel__item-title">
+            <span>{{ basenamePath(entry.path) || entry.path }}</span>
+            <span v-if="entry.line" class="reference-cited-in-panel__item-line">
+              {{ t('Ln {line}', { line: entry.line }) }}
+            </span>
+          </span>
+          <span v-if="entry.snippet" class="reference-cited-in-panel__item-snippet">
+            {{ entry.snippet }}
+          </span>
+          <span class="reference-cited-in-panel__item-path">{{ getRelativePath(entry.path) }}</span>
         </span>
       </button>
     </div>
@@ -35,12 +43,13 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, nextTick } from 'vue'
 import { IconFileText, IconQuote } from '@tabler/icons-vue'
 import { useI18n } from '../../i18n'
 import { useEditorStore } from '../../stores/editor'
 import { useReferencesStore } from '../../stores/references'
 import { useWorkspaceStore } from '../../stores/workspace'
+import { focusEditorLineWithHighlight } from '../../editor/revealHighlight'
 import { basenamePath } from '../../utils/path'
 
 const props = defineProps({
@@ -53,10 +62,23 @@ const referencesStore = useReferencesStore()
 const workspace = useWorkspaceStore()
 
 const citationKey = computed(() => String(props.reference?.citationKey || '').trim())
-const citedInFiles = computed(() => {
+const citedEntries = computed(() => {
   if (!citationKey.value) return []
+  const details = referencesStore.citedDetails[citationKey.value]
+  if (Array.isArray(details) && details.length) {
+    return details
+      .map((entry) => ({
+        path: String(entry?.path || '').trim(),
+        line: Number.isInteger(Number(entry?.line)) ? Number(entry.line) : 0,
+        snippet: String(entry?.snippet || '').trim(),
+      }))
+      .filter((entry) => entry.path)
+  }
+
   const files = referencesStore.citedIn[citationKey.value]
-  return Array.isArray(files) ? files : []
+  return Array.isArray(files)
+    ? files.map((path) => ({ path, line: 0, snippet: '' })).filter((entry) => entry.path)
+    : []
 })
 
 function getRelativePath(path = '') {
@@ -65,9 +87,33 @@ function getRelativePath(path = '') {
   return String(path).slice(workspacePath.length + 1)
 }
 
-function openCitationSource(path = '') {
+function waitForEditorView(path = '') {
+  return new Promise((resolve) => {
+    let attempts = 0
+    const check = async () => {
+      const view = editorStore.getAnyEditorView(path)
+      if (view || attempts >= 10) {
+        resolve(view || null)
+        return
+      }
+      attempts += 1
+      await nextTick()
+      window.setTimeout(check, 16)
+    }
+    void check()
+  })
+}
+
+async function openCitationSource(entry = {}) {
+  const path = String(entry?.path || '').trim()
   if (!path) return
   editorStore.openFile(path)
+  const line = Number(entry?.line || 0)
+  if (!Number.isInteger(line) || line < 1) return
+  const view = await waitForEditorView(path)
+  if (view) {
+    focusEditorLineWithHighlight(view, line, { durationMs: 1800 })
+  }
 }
 </script>
 
@@ -137,6 +183,7 @@ function openCitationSource(path = '') {
 }
 
 .reference-cited-in-panel__item-title,
+.reference-cited-in-panel__item-snippet,
 .reference-cited-in-panel__item-path {
   min-width: 0;
   overflow: hidden;
@@ -145,9 +192,25 @@ function openCitationSource(path = '') {
 }
 
 .reference-cited-in-panel__item-title {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
   color: var(--text-primary);
   font-size: 12.5px;
   font-weight: 600;
+}
+
+.reference-cited-in-panel__item-line {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.reference-cited-in-panel__item-snippet {
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
 }
 
 .reference-cited-in-panel__item-path {
