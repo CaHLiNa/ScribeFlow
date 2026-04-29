@@ -15,12 +15,13 @@
           <span class="inspector-type-label">{{ selectedReferenceTypeLabel }}</span>
           <button
             type="button"
-            class="inspector-icon-btn"
-            :disabled="!canOpenPdf"
-            :title="t('Open PDF')"
-            @click="handlePreviewPdf"
+            class="inspector-icon-btn inspector-icon-btn--save"
+            :class="{ 'has-changes': hasDraftChanges }"
+            :disabled="!hasDraftChanges"
+            :title="t('Save')"
+            @click="saveDraftChanges"
           >
-            <IconFileText :size="16" :stroke-width="1.5" />
+            <IconDeviceFloppy :size="16" :stroke-width="1.6" />
           </button>
         </div>
         
@@ -154,14 +155,6 @@
             </div>
           </div>
 
-          <div class="kv-label">{{ t('Rating') }}</div>
-          <div class="kv-value inspector-rating">
-            <button v-for="value in ratingOptions" :key="value" class="rating-star" :class="{ 'is-active': value <= draft.rating }" @click="setRating(value)">
-              <IconStar :size="16" :stroke-width="1.5" />
-            </button>
-            <span class="rating-text">{{ draft.rating }} / 5</span>
-          </div>
-
           <div class="kv-label align-top">{{ t('Collections') }}</div>
           <div class="kv-value token-area token-area--readonly">
             <div v-if="draft.collections.length > 0" class="token-list">
@@ -263,11 +256,11 @@
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import {
   IconChevronRight,
+  IconDeviceFloppy,
   IconExternalLink,
   IconFileText,
   IconFolder,
   IconRefresh,
-  IconStar,
   IconX
 } from '@tabler/icons-vue'
 import { useI18n } from '../../i18n'
@@ -289,8 +282,6 @@ const toastStore = useToastStore()
 const workspace = useWorkspaceStore()
 const emit = defineEmits(['open-pdf-preview'])
 
-const ratingOptions = [1, 2, 3, 4, 5]
-
 const draft = reactive({
   title: '',
   authorsText: '',
@@ -303,7 +294,6 @@ const draft = reactive({
   pages: '',
   abstract: '',
   note: '',
-  rating: 0,
   collections: [],
   tags: [],
 })
@@ -330,11 +320,27 @@ const heroMetaItems = computed(() =>
     draft.citationKey ? String(draft.citationKey) : '',
   ].filter(Boolean)
 )
+const editableDraftFields = [
+  'title',
+  'authorsText',
+  'citationKey',
+  'year',
+  'source',
+  'identifier',
+  'volume',
+  'issue',
+  'pages',
+  'abstract',
+  'note',
+]
+const hasDraftChanges = computed(() =>
+  editableDraftFields.some((field) => hasDraftFieldChanged(field, selectedReference.value))
+)
 watch(
   () => selectedReference.value,
   (reference, oldRef) => {
     if (oldRef?.id && oldRef.id !== reference?.id) {
-      void flushDirtyDraftForReference(oldRef, {
+      void saveDraftChangesForReference(oldRef, {
         preferredSelectedReferenceId: reference?.id || oldRef.id,
       })
     }
@@ -355,7 +361,7 @@ watch(
 )
 
 onBeforeUnmount(() => {
-  void flushDirtyDraftForReference(selectedReference.value)
+  void saveDraftChangesForReference(selectedReference.value)
 })
 
 function buildDraftSnapshot(reference = null) {
@@ -371,7 +377,6 @@ function buildDraftSnapshot(reference = null) {
     pages: String(reference?.pages || ''),
     abstract: String(reference?.abstract || ''),
     note: Array.isArray(reference?.notes) ? reference.notes.join('\n\n') : '',
-    rating: Number(reference?.rating || 0) || 0,
     collections: normalizeCollectionMemberships(reference?.collections || []),
     tags: Array.isArray(reference?.tags) ? [...reference.tags] : [],
   }
@@ -393,7 +398,6 @@ function syncDraft(reference = null, options = {}) {
   if (preserveField !== 'pages') draft.pages = snapshot.pages
   if (preserveField !== 'abstract') draft.abstract = snapshot.abstract
   if (preserveField !== 'note') draft.note = snapshot.note
-  draft.rating = snapshot.rating
   draft.collections = snapshot.collections
   draft.tags = snapshot.tags
   if (preserveField !== 'tagInput') {
@@ -419,7 +423,7 @@ function clearActiveDraftField(field = '') {
 
 async function handleFieldBlur(field = '', commit) {
   try {
-    if (field && !dirtyDraftFields.has(field)) {
+    if (field && !dirtyDraftFields.has(field) && !hasDraftFieldChanged(field, selectedReference.value)) {
       return
     }
     if (typeof commit === 'function') {
@@ -468,19 +472,51 @@ function collectionLabel(value = '') {
   return resolveCollection(value)?.label || String(value || '').trim()
 }
 
+function normalizeDraftFieldForCompare(field = '', value = '') {
+  if (field === 'authorsText') return normalizeAuthors(value).join('; ')
+  if (field === 'year') {
+    const trimmed = normalizeText(value)
+    const year = trimmed ? Number.parseInt(trimmed, 10) : null
+    return Number.isFinite(year) ? String(year) : ''
+  }
+  return String(value || '').trim()
+}
+
+function hasDraftFieldChanged(field = '', reference = null) {
+  if (!reference?.id) return false
+  const snapshot = buildDraftSnapshot(reference)
+  return normalizeDraftFieldForCompare(field, draft[field]) !== normalizeDraftFieldForCompare(field, snapshot[field])
+}
+
+function formatReferenceSaveError(error) {
+  if (error?.message) return error.message
+  if (typeof error === 'string' && error.trim()) return error.trim()
+  const text = String(error || '').trim()
+  if (text && text !== '[object Object]') return text
+  try {
+    const serialized = JSON.stringify(error)
+    if (serialized && serialized !== '{}') return serialized
+  } catch {
+    // fall through to generic message
+  }
+  return t('Failed to save reference details')
+}
+
 function enqueueReferenceUpdate(referenceId = '', updates = {}, options = {}) {
   const normalizedReferenceId = normalizeText(referenceId)
   if (!normalizedReferenceId || !updates || Object.keys(updates).length === 0) {
     return Promise.resolve(false)
   }
 
-  const run = () =>
-    referencesStore.updateReference(
-      workspace.globalConfigDir,
+  const run = async () => {
+    const storageRoot = await workspace.ensureGlobalConfigDir()
+    return referencesStore.updateReference(
+      storageRoot,
       normalizedReferenceId,
       updates,
       options
     )
+  }
 
   referenceUpdateQueue = referenceUpdateQueue.catch(() => false).then(run)
   return referenceUpdateQueue
@@ -556,6 +592,38 @@ async function flushDirtyDraftForReference(reference = null, options = {}) {
   })
 }
 
+async function saveDraftChanges() {
+  return saveDraftChangesForReference(selectedReference.value)
+}
+
+async function saveDraftChangesForReference(reference = null, options = {}) {
+  try {
+    const referenceId = normalizeText(reference?.id || draftReferenceId.value)
+    if (!referenceId) return false
+
+    const changedFields = new Set(
+      editableDraftFields.filter((field) => hasDraftFieldChanged(field, reference))
+    )
+    dirtyDraftFields.forEach((field) => changedFields.add(field))
+    if (changedFields.size === 0) return false
+
+    changedFields.forEach((field) => dirtyDraftFields.delete(field))
+    const updates = buildDirtyDraftUpdates(changedFields)
+    if (Object.keys(updates).length === 0) return false
+
+    return await enqueueReferenceUpdate(referenceId, updates, {
+      preferredSelectedReferenceId: options.preferredSelectedReferenceId ?? referenceId,
+    })
+  } catch (error) {
+    console.error('[references] Failed to save reference details', error)
+    toastStore.show(formatReferenceSaveError(error), {
+      type: 'error',
+      duration: 3600,
+    })
+    return false
+  }
+}
+
 async function updateSelectedReference(updates = {}, options = {}) {
   const referenceId = normalizeText(options.referenceId || draftReferenceId.value || selectedReference.value?.id)
   if (!referenceId) return false
@@ -606,11 +674,6 @@ async function commitNote() {
   await updateSelectedReference({
     notes: draft.note ? [draft.note] : [],
   })
-}
-
-async function setRating(value = 0) {
-  draft.rating = value
-  await updateSelectedReference({ rating: value })
 }
 
 async function removeCollection(value = '') {
@@ -797,6 +860,16 @@ async function handleAttachPdf() {
   color: var(--text-primary);
 }
 
+.inspector-icon-btn--save.has-changes {
+  background: var(--button-primary-bg);
+  color: var(--button-primary-text);
+}
+
+.inspector-icon-btn--save.has-changes:hover:not(:disabled) {
+  background: var(--button-primary-bg-hover);
+  color: var(--button-primary-text);
+}
+
 .inspector-icon-btn:disabled {
   opacity: 0.3;
   cursor: default;
@@ -937,32 +1010,8 @@ async function handleAttachPdf() {
 }
 
 /* ==========================================
-   评级、文集、标签 (Tokens)
+   文集、标签 (Tokens)
 ========================================== */
-.inspector-rating {
-  gap: 4px;
-  overflow: visible;
-}
-
-.rating-star {
-  background: none;
-  border: none;
-  color: color-mix(in srgb, var(--text-muted) 40%, transparent);
-  cursor: pointer;
-  padding: 0;
-  display: flex;
-}
-
-.rating-star.is-active {
-  color: var(--warning); 
-}
-
-.rating-text {
-  margin-left: 6px;
-  font-size: 12px;
-  color: var(--text-muted);
-}
-
 .token-area {
   flex-direction: column;
   align-items: flex-start;

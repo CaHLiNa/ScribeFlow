@@ -199,6 +199,7 @@ fn build_tag_registry(existing_tags: &[Value], references: &[Value]) -> Vec<Valu
 
 pub(crate) fn normalize_reference_record(reference: &Value) -> Value {
     let mut map = reference.as_object().cloned().unwrap_or_default();
+    map.remove("rating");
     let authors = string_array(map.get("authors"));
     let author_line = trim_string(map.get("authorLine")).if_empty_then(|| {
         authors
@@ -476,7 +477,6 @@ pub(crate) fn csl_to_reference_record(csl: &Value) -> Value {
         "fulltextPath": trim_string(csl.get("_textPath")).if_empty_then(|| trim_string(csl.get("fulltextPath"))),
         "collections": csl.get("_collections").cloned().unwrap_or(Value::Array(Vec::new())),
         "tags": csl.get("_tags").cloned().unwrap_or(Value::Array(Vec::new())),
-        "rating": 0,
         "abstract": trim_string(csl.get("abstract")),
         "notes": [],
         "annotations": [],

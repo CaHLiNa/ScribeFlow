@@ -97,7 +97,6 @@ export function cslToReferenceRecord(csl = {}, overrides = {}) {
     fulltextPath,
     collections,
     tags,
-    rating: Number(overrides.rating || 0) || 0,
     abstract: normalizeWhitespace(csl.abstract || overrides.abstract || ''),
     notes: Array.isArray(overrides.notes) ? overrides.notes : [],
     annotations: Array.isArray(overrides.annotations) ? overrides.annotations : [],

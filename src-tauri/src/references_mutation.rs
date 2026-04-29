@@ -19,26 +19,41 @@ pub struct ReferencesMutationApplyParams {
 pub enum ReferencesMutationAction {
     AddReference {
         reference: Value,
-        #[serde(default)]
+        #[serde(default, alias = "markForZoteroPush")]
         mark_for_zotero_push: bool,
     },
     UpdateReference {
+        #[serde(alias = "referenceId")]
         reference_id: String,
         #[serde(default)]
         updates: Value,
     },
-    RemoveReference { reference_id: String },
-    CreateCollection { label: String },
+    RemoveReference {
+        #[serde(alias = "referenceId")]
+        reference_id: String,
+    },
+    CreateCollection {
+        label: String,
+    },
     RenameCollection {
+        #[serde(alias = "collectionKey")]
         collection_key: String,
+        #[serde(alias = "nextLabel")]
         next_label: String,
     },
-    RemoveCollection { collection_key: String },
-    ToggleReferenceCollection {
-        reference_id: String,
+    RemoveCollection {
+        #[serde(alias = "collectionKey")]
         collection_key: String,
     },
-    MergeImportedReferences { imported: Vec<Value> },
+    ToggleReferenceCollection {
+        #[serde(alias = "referenceId")]
+        reference_id: String,
+        #[serde(alias = "collectionKey")]
+        collection_key: String,
+    },
+    MergeImportedReferences {
+        imported: Vec<Value>,
+    },
 }
 
 fn normalize_collection_label(label: &str) -> String {
@@ -54,8 +69,7 @@ fn build_collection_key(label: &str) -> String {
     let mut pending_separator = false;
 
     for ch in label.trim().chars().flat_map(|ch| ch.to_lowercase()) {
-        let is_allowed =
-            ch.is_ascii_alphanumeric() || ('\u{4e00}'..='\u{9fa5}').contains(&ch);
+        let is_allowed = ch.is_ascii_alphanumeric() || ('\u{4e00}'..='\u{9fa5}').contains(&ch);
         if is_allowed {
             if pending_separator && !slug.is_empty() {
                 slug.push('-');
@@ -146,7 +160,10 @@ fn normalized_snapshot_with(
     normalize_snapshot(&Value::Object(next))
 }
 
-fn resolve_imported_selection_reference(merged_references: &[Value], imported: &[Value]) -> Option<Value> {
+fn resolve_imported_selection_reference(
+    merged_references: &[Value],
+    imported: &[Value],
+) -> Option<Value> {
     if imported.is_empty() {
         return None;
     }
@@ -163,8 +180,7 @@ fn resolve_imported_selection_reference(merged_references: &[Value], imported: &
         .cloned()
         .or_else(|| {
             merged_references.iter().find_map(|reference| {
-                find_duplicate_reference_internal(imported, reference)
-                    .map(|_| reference.clone())
+                find_duplicate_reference_internal(imported, reference).map(|_| reference.clone())
             })
         })
 }
@@ -372,8 +388,7 @@ fn apply_remove_collection(snapshot: &Value, collection_key: &str) -> Value {
                 .filter(|value| {
                     let normalized_value =
                         normalize_collection_membership_value(value.as_str().unwrap_or_default());
-                    normalized_value
-                        != normalize_collection_membership_value(&collection_key_value)
+                    normalized_value != normalize_collection_membership_value(&collection_key_value)
                         && normalized_value
                             != normalize_collection_membership_value(&collection_label_value)
                 })
@@ -443,9 +458,13 @@ fn apply_toggle_reference_collection(
                     let normalized_value =
                         normalize_collection_membership_value(value.as_str().unwrap_or_default());
                     normalized_value
-                        != normalize_collection_membership_value(&trim_string(collection.get("key")))
+                        != normalize_collection_membership_value(&trim_string(
+                            collection.get("key"),
+                        ))
                         && normalized_value
-                            != normalize_collection_membership_value(&trim_string(collection.get("label")))
+                            != normalize_collection_membership_value(&trim_string(
+                                collection.get("label"),
+                            ))
                 })
                 .collect::<Vec<_>>();
 
@@ -544,7 +563,8 @@ fn apply_update_reference(snapshot: &Value, reference_id: &str, updates: &Value)
 
     let Some(reference_index) = references
         .iter()
-        .position(|reference| trim_string(reference.get("id")) == reference_id) else {
+        .position(|reference| trim_string(reference.get("id")) == reference_id)
+    else {
         return json!({
             "snapshot": normalize_snapshot(snapshot),
             "result": {
@@ -652,7 +672,9 @@ pub async fn references_mutation_apply(
         ReferencesMutationAction::ToggleReferenceCollection {
             reference_id,
             collection_key,
-        } => apply_toggle_reference_collection(&normalized_snapshot, &reference_id, &collection_key),
+        } => {
+            apply_toggle_reference_collection(&normalized_snapshot, &reference_id, &collection_key)
+        }
         ReferencesMutationAction::MergeImportedReferences { imported } => {
             apply_merge_imported_references(&normalized_snapshot, &imported)
         }
@@ -663,7 +685,9 @@ pub async fn references_mutation_apply(
 
 #[cfg(test)]
 mod tests {
-    use super::{references_mutation_apply, ReferencesMutationAction, ReferencesMutationApplyParams};
+    use super::{
+        references_mutation_apply, ReferencesMutationAction, ReferencesMutationApplyParams,
+    };
     use serde_json::json;
 
     fn sample_snapshot() -> serde_json::Value {
@@ -683,6 +707,88 @@ mod tests {
                 }
             ]
         })
+    }
+
+    #[test]
+    fn mutation_params_accept_frontend_camel_case_fields() {
+        let update_params: ReferencesMutationApplyParams = serde_json::from_value(json!({
+            "snapshot": sample_snapshot(),
+            "action": {
+                "type": "updateReference",
+                "referenceId": "ref-1",
+                "updates": { "year": 2025 }
+            }
+        }))
+        .expect("deserialize updateReference action from frontend payload");
+        match update_params.action {
+            ReferencesMutationAction::UpdateReference {
+                reference_id,
+                updates,
+            } => {
+                assert_eq!(reference_id, "ref-1");
+                assert_eq!(updates["year"].as_i64(), Some(2025));
+            }
+            _ => panic!("expected updateReference action"),
+        }
+
+        let add_params: ReferencesMutationApplyParams = serde_json::from_value(json!({
+            "snapshot": sample_snapshot(),
+            "action": {
+                "type": "addReference",
+                "reference": { "id": "ref-2", "title": "New Reference" },
+                "markForZoteroPush": true
+            }
+        }))
+        .expect("deserialize addReference action from frontend payload");
+        match add_params.action {
+            ReferencesMutationAction::AddReference {
+                mark_for_zotero_push,
+                ..
+            } => {
+                assert!(mark_for_zotero_push);
+            }
+            _ => panic!("expected addReference action"),
+        }
+
+        let rename_params: ReferencesMutationApplyParams = serde_json::from_value(json!({
+            "snapshot": sample_snapshot(),
+            "action": {
+                "type": "renameCollection",
+                "collectionKey": "reading",
+                "nextLabel": "Reading Queue"
+            }
+        }))
+        .expect("deserialize renameCollection action from frontend payload");
+        match rename_params.action {
+            ReferencesMutationAction::RenameCollection {
+                collection_key,
+                next_label,
+            } => {
+                assert_eq!(collection_key, "reading");
+                assert_eq!(next_label, "Reading Queue");
+            }
+            _ => panic!("expected renameCollection action"),
+        }
+
+        let toggle_params: ReferencesMutationApplyParams = serde_json::from_value(json!({
+            "snapshot": sample_snapshot(),
+            "action": {
+                "type": "toggleReferenceCollection",
+                "referenceId": "ref-1",
+                "collectionKey": "reading"
+            }
+        }))
+        .expect("deserialize toggleReferenceCollection action from frontend payload");
+        match toggle_params.action {
+            ReferencesMutationAction::ToggleReferenceCollection {
+                reference_id,
+                collection_key,
+            } => {
+                assert_eq!(reference_id, "ref-1");
+                assert_eq!(collection_key, "reading");
+            }
+            _ => panic!("expected toggleReferenceCollection action"),
+        }
     }
 
     #[tokio::test]
@@ -839,7 +945,9 @@ mod tests {
             Some("journal-article")
         );
         assert_eq!(
-            result["snapshot"]["tags"].as_array().map(|items| items.len()),
+            result["snapshot"]["tags"]
+                .as_array()
+                .map(|items| items.len()),
             Some(2)
         );
     }

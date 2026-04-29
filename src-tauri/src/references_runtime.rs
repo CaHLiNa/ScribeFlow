@@ -123,7 +123,6 @@ fn reference_metadata_refresh_overrides(reference: &Value) -> Value {
         "tags",
         "notes",
         "annotations",
-        "rating",
         "hasPdf",
         "hasFullText",
         "_source",
@@ -821,7 +820,6 @@ mod tests {
             "tags": ["keep"],
             "notes": [{ "id": "note-1", "body": "Local note" }],
             "annotations": [{ "id": "annotation-1" }],
-            "rating": 4,
             "hasPdf": true,
             "hasFullText": true,
             "_source": "zotero",
@@ -851,7 +849,7 @@ mod tests {
         assert_eq!(refreshed["tags"].as_array().map(Vec::len), Some(1));
         assert_eq!(refreshed["notes"].as_array().map(Vec::len), Some(1));
         assert_eq!(refreshed["annotations"].as_array().map(Vec::len), Some(1));
-        assert_eq!(refreshed["rating"].as_i64(), Some(4));
+        assert!(refreshed.get("rating").is_none());
         assert_eq!(refreshed["hasPdf"].as_bool(), Some(true));
         assert_eq!(refreshed["hasFullText"].as_bool(), Some(true));
         assert_eq!(refreshed["_source"].as_str(), Some("zotero"));

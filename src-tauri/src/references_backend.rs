@@ -625,12 +625,14 @@ mod tests {
             "title": "A Title",
             "authors": ["Ada Lovelace"],
             "pdfPath": "/tmp/a.pdf",
+            "rating": 4,
             "tags": [{ "label": "Control" }, "AI"]
         }));
 
         assert_eq!(normalized["typeKey"].as_str(), Some("journal-article"));
         assert_eq!(normalized["hasPdf"].as_bool(), Some(true));
         assert_eq!(normalized["tags"].as_array().map(|v| v.len()), Some(2));
+        assert!(normalized.get("rating").is_none());
     }
 
     #[test]

@@ -270,7 +270,6 @@ fn csl_to_reference_record(csl: &Value) -> Value {
         "fulltextPath": fulltext_path,
         "collections": csl.get("_collections").cloned().unwrap_or(Value::Array(Vec::new())),
         "tags": csl.get("_tags").cloned().unwrap_or(Value::Array(Vec::new())),
-        "rating": 0,
         "abstract": trim_string(csl.get("abstract")),
         "notes": [],
         "annotations": [],
