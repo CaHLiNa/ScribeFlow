@@ -50,7 +50,9 @@
             <div class="citation-palette-line2">@{{ reference.citationKey || reference.id }}</div>
           </button>
         </template>
-        <div v-else class="citation-palette-empty">{{ query ? '没有匹配文献' : '文献库为空' }}</div>
+        <div v-else class="citation-palette-empty">
+          {{ query ? t('No matching references') : t('No references available') }}
+        </div>
       </div>
 
       <div v-if="isEdit && !showImport" class="citation-palette-add">
@@ -58,7 +60,7 @@
           ref="addInputEl"
           v-model="addQuery"
           class="citation-palette-add-input"
-          placeholder="搜索并加入当前引用组"
+          :placeholder="t('Search and add to this citation group')"
           autocomplete="off"
           autocorrect="off"
           autocapitalize="off"
@@ -86,13 +88,13 @@
       </div>
 
       <div v-if="showImport" class="citation-palette-import">
-        <div class="citation-palette-import-title">导入新文献</div>
+        <div class="citation-palette-import-title">{{ t('Import new reference') }}</div>
         <textarea
           ref="importTextEl"
           v-model="importText"
           class="citation-palette-import-textarea"
           rows="3"
-          placeholder="粘贴 DOI、BibTeX、RIS 或标题"
+          :placeholder="t('Paste DOI, BibTeX, RIS, or title')"
           @keydown.meta.enter="doImport"
           @keydown.ctrl.enter="doImport"
           @keydown.stop
@@ -105,12 +107,12 @@
             class="citation-palette-action"
             :disabled="importLoading || !importText.trim()"
             @mousedown.prevent="doImport"
-          >{{ importLoading ? '导入中...' : '导入' }}</button>
+          >{{ importLoading ? t('Importing...') : t('Import') }}</button>
         </div>
       </div>
 
       <button type="button" class="citation-palette-footer" @mousedown.prevent="toggleImport">
-        <span>{{ showImport ? '返回搜索' : '导入新文献…' }}</span>
+        <span>{{ showImport ? t('Back to search') : t('Import new reference...') }}</span>
         <span v-if="!showImport">+</span>
       </button>
     </div>
@@ -119,6 +121,7 @@
 
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { useI18n } from '../../i18n'
 import { useReferencesStore } from '../../stores/references'
 import { useWorkspaceStore } from '../../stores/workspace'
 
@@ -135,6 +138,7 @@ const props = defineProps({
 
 const emit = defineEmits(['insert', 'update', 'close'])
 
+const { t } = useI18n()
 const referencesStore = useReferencesStore()
 const workspace = useWorkspaceStore()
 
@@ -310,11 +314,11 @@ async function doImport() {
     const key = selectedReference?.citationKey || selectedReference?.id || ''
 
     if (importedCount === 0 && !key) {
-      importStatus.value = '没有找到可导入的文献'
+      importStatus.value = t('No importable reference found')
     } else {
       importStatus.value = importedCount > 0
-        ? `已导入 ${importedCount} 条文献`
-        : '已定位到现有文献'
+        ? t('Imported {count} references', { count: importedCount })
+        : t('Matched existing reference')
     }
 
     if (key) {
@@ -336,7 +340,7 @@ async function doImport() {
       }
     }
   } catch (error) {
-    importError.value = error?.message || '导入失败'
+    importError.value = error?.message || t('Import failed')
   } finally {
     importLoading.value = false
   }
@@ -397,7 +401,6 @@ onUnmounted(() => {
 })
 </script>
 
-/* START OF FILE src/components/editor/CitationPalette.vue (只替换 style 部分) */
 <style scoped>
 .citation-palette-backdrop {
   position: fixed;
@@ -425,7 +428,6 @@ onUnmounted(() => {
   box-shadow: 0 12px 36px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.05);
 }
 
-/* 列表容器：增加微小的内边距，让选中的圆角背景不贴边 */
 .citation-palette-results,
 .citation-palette-entries,
 .citation-palette-add-results,
@@ -437,9 +439,9 @@ onUnmounted(() => {
 .citation-palette-item,
 .citation-palette-entry {
   width: 100%;
-  padding: 6px 10px; /* 大幅收紧上下间距 */
-  border: 0; /* 彻底移除下划线分割 */
-  border-radius: 6px; /* 选中时呈现圆角块 */
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 6px;
   margin-bottom: 1px;
   background: transparent;
   text-align: left;
@@ -450,12 +452,10 @@ onUnmounted(() => {
   margin-bottom: 0;
 }
 
-/* 柔和的原生高亮色，替换掉死黑 */
 .citation-palette-item.is-active {
   background: var(--list-active-bg);
 }
 
-/* 选中时不再反转所有文字颜色，只需让主要文本变亮/清晰 */
 .citation-palette-item.is-active .citation-palette-title,
 .citation-palette-item.is-active .citation-palette-author {
   color: var(--list-active-fg);
