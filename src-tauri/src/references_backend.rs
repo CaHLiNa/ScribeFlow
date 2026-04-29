@@ -60,6 +60,16 @@ pub struct ReferenceAssetStoreParams {
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ReferenceAssetRenameParams {
+    pub global_config_dir: String,
+    #[serde(default)]
+    pub reference: Value,
+    #[serde(default)]
+    pub next_base_name: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ReferenceAssetsMigrateParams {
     #[serde(default)]
     pub global_config_dir: String,
@@ -263,6 +273,28 @@ fn extract_reference_pdf_text_lossy(path: &Path) -> String {
     pdf_extract::extract_text(path).unwrap_or_default()
 }
 
+fn path_is_inside_dir(path: &Path, dir: &Path) -> bool {
+    let normalized_path = normalize_root(&path.to_string_lossy());
+    let normalized_dir = normalize_root(&dir.to_string_lossy());
+    !normalized_path.is_empty()
+        && !normalized_dir.is_empty()
+        && normalized_path.starts_with(&format!("{normalized_dir}/"))
+}
+
+fn path_stem(path: &Path) -> String {
+    path.file_stem()
+        .and_then(|value| value.to_str())
+        .unwrap_or_default()
+        .to_string()
+}
+
+fn path_extension_suffix(path: &Path, fallback: &str) -> String {
+    path.extension()
+        .and_then(|value| value.to_str())
+        .map(|value| format!(".{}", value.to_lowercase()))
+        .unwrap_or_else(|| fallback.to_string())
+}
+
 fn store_reference_asset(params: &ReferenceAssetStoreParams) -> Result<Value, String> {
     let normalized_source = params.source_path.trim();
     if params.global_config_dir.trim().is_empty() || normalized_source.is_empty() {
@@ -337,6 +369,85 @@ fn store_reference_asset(params: &ReferenceAssetStoreParams) -> Result<Value, St
     map.insert(
         "hasFullText".to_string(),
         Value::Bool(!fulltext_path.is_empty()),
+    );
+    Ok(normalize_reference_record(&Value::Object(map)))
+}
+
+fn rename_reference_asset(params: &ReferenceAssetRenameParams) -> Result<Value, String> {
+    let reference = normalize_reference_record(&params.reference);
+    let normalized_pdf_path = trim_string(reference.get("pdfPath"));
+    if params.global_config_dir.trim().is_empty() || normalized_pdf_path.is_empty() {
+        return Ok(reference);
+    }
+
+    let Some(references_dir) = references_dir(&params.global_config_dir) else {
+        return Ok(reference);
+    };
+    let pdfs_dir = references_dir.join(PDFS_DIRNAME);
+    let fulltext_dir = references_dir.join(FULLTEXT_DIRNAME);
+    let pdf_path = Path::new(&normalized_pdf_path);
+    validate_reference_pdf_path(pdf_path)?;
+    if !path_is_inside_dir(pdf_path, &pdfs_dir) {
+        return Err("Reference PDF asset is outside the managed references directory.".to_string());
+    }
+
+    let old_base_name = path_stem(pdf_path);
+    let next_base_name =
+        sanitize_asset_segment(&params.next_base_name).if_empty_then(|| old_base_name.clone());
+    if next_base_name == old_base_name {
+        return Ok(reference);
+    }
+
+    let pdf_parent = pdf_path
+        .parent()
+        .ok_or_else(|| "Reference PDF asset has no parent directory.".to_string())?;
+    let next_pdf_path = pdf_parent.join(format!(
+        "{}{}",
+        next_base_name,
+        path_extension_suffix(pdf_path, ".pdf")
+    ));
+    if next_pdf_path != pdf_path && next_pdf_path.exists() {
+        return Err("A file with this name already exists.".to_string());
+    }
+
+    fs::rename(pdf_path, &next_pdf_path).map_err(|error| error.to_string())?;
+
+    let mut next_fulltext_path = trim_string(reference.get("fulltextPath"));
+    if !next_fulltext_path.is_empty() {
+        let fulltext_path = Path::new(&next_fulltext_path);
+        if fulltext_path.exists()
+            && path_is_inside_dir(fulltext_path, &fulltext_dir)
+            && path_stem(fulltext_path) == old_base_name
+        {
+            if let Some(fulltext_parent) = fulltext_path.parent() {
+                let candidate = fulltext_parent.join(format!(
+                    "{}{}",
+                    next_base_name,
+                    path_extension_suffix(fulltext_path, ".txt")
+                ));
+                if candidate == fulltext_path {
+                    next_fulltext_path = candidate.to_string_lossy().to_string();
+                } else if !candidate.exists() {
+                    fs::rename(fulltext_path, &candidate).map_err(|error| error.to_string())?;
+                    next_fulltext_path = candidate.to_string_lossy().to_string();
+                }
+            }
+        }
+    }
+
+    let mut map = reference.as_object().cloned().unwrap_or_default();
+    map.insert(
+        "pdfPath".to_string(),
+        Value::String(next_pdf_path.to_string_lossy().to_string()),
+    );
+    map.insert(
+        "fulltextPath".to_string(),
+        Value::String(next_fulltext_path.clone()),
+    );
+    map.insert("hasPdf".to_string(), Value::Bool(true));
+    map.insert(
+        "hasFullText".to_string(),
+        Value::Bool(!next_fulltext_path.is_empty()),
     );
     Ok(normalize_reference_record(&Value::Object(map)))
 }
@@ -436,6 +547,11 @@ pub async fn references_asset_store(params: ReferenceAssetStoreParams) -> Result
 }
 
 #[tauri::command]
+pub async fn references_asset_rename(params: ReferenceAssetRenameParams) -> Result<Value, String> {
+    rename_reference_asset(&params)
+}
+
+#[tauri::command]
 pub async fn references_assets_migrate(
     params: ReferenceAssetsMigrateParams,
 ) -> Result<Value, String> {
@@ -462,8 +578,8 @@ pub async fn references_record_normalize(
 #[cfg(test)]
 mod tests {
     use super::{
-        normalize_reference_record, normalize_snapshot, store_reference_asset,
-        ReferenceAssetStoreParams,
+        normalize_reference_record, normalize_snapshot, rename_reference_asset,
+        store_reference_asset, ReferenceAssetRenameParams, ReferenceAssetStoreParams,
     };
     use serde_json::json;
     use std::fs;
@@ -551,6 +667,57 @@ mod tests {
         );
         assert_eq!(stored["hasPdf"].as_bool(), Some(true));
         assert_eq!(stored["hasFullText"].as_bool(), Some(true));
+
+        fs::remove_dir_all(temp_dir).ok();
+    }
+
+    #[test]
+    fn asset_rename_updates_pdf_and_matching_fulltext_paths() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "scribeflow-reference-asset-rename-{}",
+            uuid::Uuid::new_v4()
+        ));
+        let global_config_dir = temp_dir.join("config");
+        let source_pdf = temp_dir.join("source.pdf");
+        fs::create_dir_all(&temp_dir).expect("create temp dir");
+        fs::write(&source_pdf, b"%PDF-1.4\n%%EOF").expect("write source pdf");
+
+        let stored = store_reference_asset(&ReferenceAssetStoreParams {
+            global_config_dir: global_config_dir.to_string_lossy().to_string(),
+            reference: json!({
+                "id": "ref-1",
+                "citationKey": "Ada 2024",
+                "title": "A Title"
+            }),
+            source_path: source_pdf.to_string_lossy().to_string(),
+            extracted_text: Some("Extracted full text".to_string()),
+            existing_fulltext_source_path: None,
+        })
+        .expect("store asset");
+        let old_pdf_path = stored["pdfPath"].as_str().expect("old pdf").to_string();
+        let old_fulltext_path = stored["fulltextPath"]
+            .as_str()
+            .expect("old fulltext")
+            .to_string();
+
+        let renamed = rename_reference_asset(&ReferenceAssetRenameParams {
+            global_config_dir: global_config_dir.to_string_lossy().to_string(),
+            reference: stored,
+            next_base_name: "Grace Hopper".to_string(),
+        })
+        .expect("rename asset");
+
+        let next_pdf_path = renamed["pdfPath"].as_str().expect("next pdf");
+        let next_fulltext_path = renamed["fulltextPath"].as_str().expect("next fulltext");
+        assert!(next_pdf_path.ends_with("/references/pdfs/grace-hopper.pdf"));
+        assert!(next_fulltext_path.ends_with("/references/fulltext/grace-hopper.txt"));
+        assert!(!std::path::Path::new(&old_pdf_path).exists());
+        assert!(!std::path::Path::new(&old_fulltext_path).exists());
+        assert!(std::path::Path::new(next_pdf_path).exists());
+        assert_eq!(
+            fs::read_to_string(next_fulltext_path).expect("read renamed fulltext"),
+            "Extracted full text"
+        );
 
         fs::remove_dir_all(temp_dir).ok();
     }

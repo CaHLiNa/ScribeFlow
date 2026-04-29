@@ -50,6 +50,22 @@ export async function storeReferencePdf(globalConfigDir = '', reference = {}, so
   return storeReferencePdfWithOptions(globalConfigDir, reference, sourcePath)
 }
 
+export async function renameReferencePdfAsset(
+  globalConfigDir = '',
+  reference = {},
+  nextBaseName = ''
+) {
+  if (!globalConfigDir || !reference?.id) return reference
+  const renamed = await invoke('references_asset_rename', {
+    params: {
+      globalConfigDir,
+      reference,
+      nextBaseName,
+    },
+  })
+  return renamed && typeof renamed === 'object' ? renamed : reference
+}
+
 export async function migrateReferenceAssets(globalConfigDir = '', references = []) {
   if (!globalConfigDir || !Array.isArray(references) || references.length === 0) return references
   const migrated = await invoke('references_assets_migrate', {

@@ -468,6 +468,7 @@ pub fn run() {
             references_backend::references_snapshot_normalize,
             references_backend::references_record_normalize,
             references_backend::references_asset_store,
+            references_backend::references_asset_rename,
             references_backend::references_assets_migrate,
             references_citation::references_citation_render,
             references_import::references_crossref_lookup_by_doi,

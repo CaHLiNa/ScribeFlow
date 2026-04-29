@@ -8,7 +8,10 @@ import {
   setUserCitationStyles,
 } from '../services/references/citationStyleRegistry.js'
 import { exportReferencesToBibTeX } from '../services/references/bibtexExport.js'
-import { storeReferencePdf } from '../services/references/referenceAssets.js'
+import {
+  renameReferencePdfAsset as renameReferencePdfAssetWithBackend,
+  storeReferencePdf,
+} from '../services/references/referenceAssets.js'
 import {
   REFERENCE_COLLECTIONS,
   REFERENCE_FIXTURES,
@@ -692,6 +695,27 @@ export const useReferencesStore = defineStore('references', {
         projectRoot,
         this.references[referenceIndex],
         sourcePath
+      )
+
+      await this.commitLibrarySnapshot(projectRoot, {
+        ...this.buildLibrarySnapshotPayload(),
+        references: this.references.map((candidate, index) =>
+          index === referenceIndex ? updatedReference : candidate
+        ),
+      }, {
+        preferredSelectedReferenceId: referenceId,
+      })
+      return updatedReference
+    },
+
+    async renameReferencePdfAsset(projectRoot = '', referenceId = '', nextBaseName = '') {
+      const referenceIndex = this.references.findIndex((reference) => reference.id === referenceId)
+      if (referenceIndex === -1) return null
+
+      const updatedReference = await renameReferencePdfAssetWithBackend(
+        projectRoot,
+        this.references[referenceIndex],
+        nextBaseName
       )
 
       await this.commitLibrarySnapshot(projectRoot, {

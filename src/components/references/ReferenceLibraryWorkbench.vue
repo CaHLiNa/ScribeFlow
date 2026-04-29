@@ -223,7 +223,6 @@ import { useUxStatusStore } from '../../stores/uxStatus'
 import { useI18n } from '../../i18n'
 import { useReferencesStore } from '../../stores/references'
 import { useSurfaceContextMenu } from '../../composables/useSurfaceContextMenu.js'
-import { renameWorkspacePath } from '../../services/fileStoreIO'
 import { openNativeDialog, saveNativeDialog } from '../../services/nativeDialog.js'
 import {
   writeReferenceBibTeXExport,
@@ -234,7 +233,6 @@ import {
   lookupByDoi,
   searchByMetadata,
 } from '../../services/references/crossref.js'
-import { basenamePath, dirnamePath } from '../../utils/path'
 import {
   findInlineDockPage,
   resolveInlineDockActivePageKey,
@@ -577,42 +575,6 @@ async function getReferenceBibTeX(reference = {}) {
   return referencesStore.exportBibTeXAsync([reference.id])
 }
 
-function getPdfRenameTarget(reference = {}, nextBaseName = '') {
-  const currentPath = String(reference?.pdfPath || '').trim()
-  if (!currentPath) return null
-
-  const filename = basenamePath(currentPath)
-  const extensionIndex = filename.lastIndexOf('.')
-  const extension = extensionIndex >= 0 ? filename.slice(extensionIndex) : ''
-  const dir = dirnamePath(currentPath)
-  const baseName = normalizeFilenameSegment(nextBaseName, filename.replace(/\.[^.]+$/, ''))
-
-  return {
-    oldPath: currentPath,
-    newPath: `${dir}/${baseName}${extension}`,
-    nextBaseName: baseName,
-    oldBaseName: filename.replace(/\.[^.]+$/, ''),
-  }
-}
-
-function getFulltextRenameTarget(reference = {}, oldBaseName = '', nextBaseName = '') {
-  const currentPath = String(reference?.fulltextPath || '').trim()
-  if (!currentPath) return null
-
-  const filename = basenamePath(currentPath)
-  const extensionIndex = filename.lastIndexOf('.')
-  const extension = extensionIndex >= 0 ? filename.slice(extensionIndex) : ''
-  const currentBaseName = extensionIndex >= 0 ? filename.slice(0, extensionIndex) : filename
-
-  if (currentBaseName !== oldBaseName) return null
-
-  const dir = dirnamePath(currentPath)
-  return {
-    oldPath: currentPath,
-    newPath: `${dir}/${nextBaseName}${extension}`,
-  }
-}
-
 async function copyTextToClipboard(text = '', successMessage = t('Copied to clipboard')) {
   if (!text) return
   if (typeof navigator?.clipboard?.writeText !== 'function') {
@@ -627,8 +589,7 @@ async function copyTextToClipboard(text = '', successMessage = t('Copied to clip
 }
 
 async function handleRenameReferencePdf(reference = {}) {
-  const renameTarget = getPdfRenameTarget(reference, '')
-  if (!renameTarget?.oldPath) {
+  if (!String(reference?.pdfPath || '').trim()) {
     toastStore.show(t('No PDF attached'), {
       type: 'error',
       duration: 2800,
@@ -636,45 +597,19 @@ async function handleRenameReferencePdf(reference = {}) {
     return
   }
 
-  const nextName = window.prompt(t('Rename PDF'), renameTarget.oldBaseName)
+  const defaultName = normalizeFilenameSegment(reference.citationKey || reference.title, 'reference')
+  const nextName = window.prompt(t('Rename PDF'), defaultName)
   if (nextName == null) return
 
-  const normalizedBaseName = normalizeFilenameSegment(nextName, renameTarget.oldBaseName)
-  if (!normalizedBaseName || normalizedBaseName === renameTarget.oldBaseName) return
-
-  const nextPdfTarget = getPdfRenameTarget(reference, normalizedBaseName)
-  const nextFulltextTarget = getFulltextRenameTarget(
-    reference,
-    renameTarget.oldBaseName,
-    normalizedBaseName
-  )
+  const normalizedBaseName = normalizeFilenameSegment(nextName, defaultName)
+  if (!normalizedBaseName || normalizedBaseName === defaultName) return
 
   try {
-    const pdfResult = await renameWorkspacePath(nextPdfTarget.oldPath, nextPdfTarget.newPath)
-    if (!pdfResult?.ok) {
-      throw new Error(
-        pdfResult?.code === 'exists' ? t('A file with this name already exists') : t('Failed to rename PDF')
-      )
-    }
-
-    let nextFulltextPath = reference.fulltextPath
-    if (nextFulltextTarget) {
-      const fulltextResult = await renameWorkspacePath(
-        nextFulltextTarget.oldPath,
-        nextFulltextTarget.newPath
-      )
-      if (!fulltextResult?.ok && fulltextResult?.code !== 'exists') {
-        throw new Error(t('Failed to rename PDF'))
-      }
-      if (fulltextResult?.ok) {
-        nextFulltextPath = nextFulltextTarget.newPath
-      }
-    }
-
-    await referencesStore.updateReference(workspace.globalConfigDir, reference.id, {
-      pdfPath: nextPdfTarget.newPath,
-      fulltextPath: nextFulltextPath,
-    })
+    await referencesStore.renameReferencePdfAsset(
+      workspace.globalConfigDir,
+      reference.id,
+      normalizedBaseName
+    )
   } catch (error) {
     toastStore.show(error?.message || t('Failed to rename PDF'), {
       type: 'error',
