@@ -613,10 +613,10 @@ useAppTeardown({
 }
 
 .app-shell-main-card.has-left-sidebar {
-  margin-left: -6px;
-  padding-left: 6px;
-  border-top-left-radius: 10px;
-  border-bottom-left-radius: 10px;
+  margin-left: 0;
+  padding-left: 0;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
 }
 
 .app-shell-main-card.has-right-sidebar {
