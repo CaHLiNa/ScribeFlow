@@ -61,10 +61,32 @@ export function buildDefaultReferenceLibrarySnapshot() {
     version: 2,
     legacyMigrationComplete: false,
     citationStyle: 'apa',
+    documentReferenceSelections: {},
     collections: REFERENCE_COLLECTIONS,
     tags: REFERENCE_TAGS,
     references: REFERENCE_FIXTURES,
   }
+}
+
+function normalizeDocumentReferenceSelections(value = {}) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+
+  return Object.fromEntries(
+    Object.entries(value)
+      .map(([path, referenceIds]) => {
+        const normalizedPath = String(path || '').trim()
+        if (!normalizedPath || !Array.isArray(referenceIds)) return null
+        const ids = Array.from(
+          new Set(
+            referenceIds
+              .map((referenceId) => String(referenceId || '').trim())
+              .filter(Boolean)
+          )
+        )
+        return ids.length > 0 ? [normalizedPath, ids] : null
+      })
+      .filter(Boolean)
+  )
 }
 
 export function normalizeReferenceLibrarySnapshot(raw = {}) {
@@ -72,6 +94,7 @@ export function normalizeReferenceLibrarySnapshot(raw = {}) {
     version: Number(raw?.version) || 2,
     legacyMigrationComplete: raw?.legacyMigrationComplete === true,
     citationStyle: String(raw?.citationStyle || 'apa').trim() || 'apa',
+    documentReferenceSelections: normalizeDocumentReferenceSelections(raw?.documentReferenceSelections),
     collections: Array.isArray(raw?.collections) ? raw.collections : [],
     tags: Array.isArray(raw?.tags) ? raw.tags : [],
     references: Array.isArray(raw?.references)

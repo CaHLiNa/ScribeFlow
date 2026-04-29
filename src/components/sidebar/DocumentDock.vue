@@ -30,6 +30,7 @@ import {
   DOCUMENT_DOCK_FILE_PAGE,
   DOCUMENT_DOCK_PROBLEMS_PAGE,
   DOCUMENT_DOCK_PREVIEW_PAGE,
+  DOCUMENT_DOCK_REFERENCES_PAGE,
   documentDockFileKey,
 } from '../../domains/editor/documentDockPages.js'
 import {
@@ -101,7 +102,7 @@ const hasDockTabs = computed(() => dockPages.value.length > 0)
 const activeDockKey = computed(() => {
   return resolveInlineDockActivePageKey(dockPages.value, workspace.documentDockActivePage, {
     defaultType: workspace.documentDockDefaultPage || DOCUMENT_DOCK_PREVIEW_PAGE,
-    fallbackTypes: [DOCUMENT_DOCK_FILE_PAGE, DOCUMENT_DOCK_PROBLEMS_PAGE],
+    fallbackTypes: [DOCUMENT_DOCK_REFERENCES_PAGE, DOCUMENT_DOCK_FILE_PAGE, DOCUMENT_DOCK_PROBLEMS_PAGE],
     preferredKeysByType: documentDockPreferredKeysByType(),
   })
 })
@@ -177,6 +178,11 @@ function activateDockPage(page = {}) {
 
   if (page.type === DOCUMENT_DOCK_PROBLEMS_PAGE) {
     void workspace.setDocumentDockActivePage(DOCUMENT_DOCK_PROBLEMS_PAGE)
+    return
+  }
+
+  if (page.type === DOCUMENT_DOCK_REFERENCES_PAGE) {
+    void workspace.setDocumentDockActivePage(DOCUMENT_DOCK_REFERENCES_PAGE)
   }
 }
 

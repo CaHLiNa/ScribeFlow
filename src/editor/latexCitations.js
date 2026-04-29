@@ -169,4 +169,26 @@ export function latexCitationsExtension(referencesStore, callbacks) {
   return { extensions }
 }
 
+export function extractLatexCitationKeys(content = '') {
+  const keys = []
+  const seen = new Set()
+  const citationRe = new RegExp(
+    `\\\\(?:${CITE_CMDS})\\*?(?:\\[[^\\]]*\\])*(?:\\{[^}]*\\})?\\{([^}]*)\\}`,
+    'g'
+  )
+
+  let match
+  while ((match = citationRe.exec(String(content || ''))) !== null) {
+    const rawKeys = String(match[1] || '').split(',')
+    for (const rawKey of rawKeys) {
+      const key = rawKey.trim()
+      if (!key || key === '*' || seen.has(key)) continue
+      seen.add(key)
+      keys.push(key)
+    }
+  }
+
+  return keys
+}
+
 export { CITE_CMDS, LATEX_CITE_RE }

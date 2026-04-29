@@ -1061,6 +1061,7 @@ fn build_synced_snapshot(snapshot: &Value, sync_result: &Value) -> Value {
         "version": snapshot.get("version").and_then(Value::as_u64).unwrap_or(2),
         "legacyMigrationComplete": snapshot.get("legacyMigrationComplete").and_then(Value::as_bool).unwrap_or(true),
         "citationStyle": trim_string(snapshot.get("citationStyle")),
+        "documentReferenceSelections": snapshot.get("documentReferenceSelections").cloned().unwrap_or_else(|| json!({})),
         "collections": snapshot.get("collections").cloned().unwrap_or(Value::Array(Vec::new())),
         "tags": snapshot.get("tags").cloned().unwrap_or(Value::Array(Vec::new())),
         "references": sync_result.get("references").cloned().unwrap_or(Value::Array(Vec::new())),

@@ -64,6 +64,32 @@ function resolveCollection(collections = [], collectionKey = '') {
   )
 }
 
+function normalizeDocumentReferenceSelectionsForReferences(value = {}, references = []) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+  const validReferenceIds = new Set(
+    (Array.isArray(references) ? references : [])
+      .map((reference) => String(reference?.id || '').trim())
+      .filter(Boolean)
+  )
+
+  return Object.fromEntries(
+    Object.entries(value)
+      .map(([texPath, referenceIds]) => {
+        const normalizedTexPath = String(texPath || '').trim()
+        if (!normalizedTexPath || !Array.isArray(referenceIds)) return null
+        const ids = Array.from(
+          new Set(
+            referenceIds
+              .map((referenceId) => String(referenceId || '').trim())
+              .filter((referenceId) => validReferenceIds.has(referenceId))
+          )
+        )
+        return ids.length > 0 ? [normalizedTexPath, ids] : null
+      })
+      .filter(Boolean)
+  )
+}
+
 async function shouldMarkReferenceForZoteroPush() {
   try {
     const config = await loadZoteroConfig()
@@ -108,6 +134,7 @@ export const useReferencesStore = defineStore('references', {
     collections: REFERENCE_COLLECTIONS,
     tags: REFERENCE_TAGS,
     references: REFERENCE_FIXTURES,
+    documentReferenceSelections: {},
     citationStyle: 'apa',
     selectedSectionKey: 'all',
     selectedSourceKey: '',
@@ -187,6 +214,7 @@ export const useReferencesStore = defineStore('references', {
       return {
         version: 2,
         citationStyle: this.citationStyle,
+        documentReferenceSelections: this.documentReferenceSelections,
         collections: this.collections,
         tags: this.tags,
         references: this.references,
@@ -275,6 +303,10 @@ export const useReferencesStore = defineStore('references', {
       this.collections = Array.isArray(normalized.collections) ? normalized.collections : []
       this.tags = Array.isArray(normalized.tags) ? normalized.tags : []
       this.references = Array.isArray(normalized.references) ? normalized.references : []
+      this.documentReferenceSelections = normalizeDocumentReferenceSelectionsForReferences(
+        normalized.documentReferenceSelections,
+        this.references
+      )
       this.citationStyle = String(normalized.citationStyle || 'apa')
       if (!resolveCollection(this.collections, this.selectedCollectionKey)) {
         this.selectedCollectionKey = ''
@@ -350,8 +382,12 @@ export const useReferencesStore = defineStore('references', {
 
     async syncBibFileForTex(texPath = '') {
       const normalizedTexPath = String(texPath || '').trim()
-      if (!normalizedTexPath || this.references.length === 0) return ''
-      return writeReferenceBibFile(normalizedTexPath, this.references, this.citationStyle)
+      if (!normalizedTexPath) return ''
+      return writeReferenceBibFile(
+        normalizedTexPath,
+        this.documentReferencesForTex(normalizedTexPath),
+        this.citationStyle
+      )
     },
 
     async importBibTeXContent(projectRoot = '', content = '') {
@@ -596,6 +632,92 @@ export const useReferencesStore = defineStore('references', {
       )
     },
 
+    getDocumentReferenceIds(texPath = '') {
+      const normalizedTexPath = String(texPath || '').trim()
+      if (!normalizedTexPath) return []
+      return Array.isArray(this.documentReferenceSelections[normalizedTexPath])
+        ? this.documentReferenceSelections[normalizedTexPath]
+        : []
+    },
+
+    documentReferencesForTex(texPath = '') {
+      const selectedIds = new Set(this.getDocumentReferenceIds(texPath))
+      if (selectedIds.size === 0) return []
+      return this.references.filter((reference) => selectedIds.has(String(reference.id || '')))
+    },
+
+    getDocumentReferenceByKey(texPath = '', referenceKey = '') {
+      const normalized = String(referenceKey || '').trim()
+      if (!normalized) return null
+      return (
+        this.documentReferencesForTex(texPath).find(
+          (reference) => reference.citationKey === normalized || reference.id === normalized
+        ) || null
+      )
+    },
+
+    isReferenceSelectedForTex(texPath = '', referenceIdOrKey = '') {
+      const normalized = String(referenceIdOrKey || '').trim()
+      if (!normalized) return false
+      return this.documentReferencesForTex(texPath).some(
+        (reference) => reference.id === normalized || reference.citationKey === normalized
+      )
+    },
+
+    searchAvailableReferencesForDocument(texPath = '', query = '') {
+      const selectedIds = new Set(this.getDocumentReferenceIds(texPath))
+      return this.searchRefs(query)
+        .filter((reference) => !selectedIds.has(String(reference.id || '')))
+    },
+
+    async setDocumentReferenceIds(projectRoot = '', texPath = '', referenceIds = []) {
+      const normalizedTexPath = String(texPath || '').trim()
+      if (!normalizedTexPath) return false
+      const validReferenceIds = new Set(this.references.map((reference) => String(reference.id || '')))
+      const ids = Array.from(
+        new Set(
+          (Array.isArray(referenceIds) ? referenceIds : [])
+            .map((referenceId) => String(referenceId || '').trim())
+            .filter((referenceId) => validReferenceIds.has(referenceId))
+        )
+      )
+      const nextSelections = { ...this.documentReferenceSelections }
+      if (ids.length > 0) {
+        nextSelections[normalizedTexPath] = ids
+      } else {
+        delete nextSelections[normalizedTexPath]
+      }
+      await this.commitLibrarySnapshot(projectRoot, {
+        ...this.buildLibrarySnapshotPayload(),
+        documentReferenceSelections: nextSelections,
+      }, {
+        preferredSelectedReferenceId: this.selectedReferenceId,
+      })
+      return true
+    },
+
+    async addDocumentReference(projectRoot = '', texPath = '', referenceId = '') {
+      const normalizedReferenceId = String(referenceId || '').trim()
+      if (!normalizedReferenceId || !this.references.some((reference) => reference.id === normalizedReferenceId)) {
+        return false
+      }
+      const ids = this.getDocumentReferenceIds(texPath)
+      if (ids.includes(normalizedReferenceId)) return false
+      return this.setDocumentReferenceIds(projectRoot, texPath, [...ids, normalizedReferenceId])
+    },
+
+    async removeDocumentReference(projectRoot = '', texPath = '', referenceId = '') {
+      const normalizedReferenceId = String(referenceId || '').trim()
+      if (!normalizedReferenceId) return false
+      const ids = this.getDocumentReferenceIds(texPath)
+      if (!ids.includes(normalizedReferenceId)) return false
+      return this.setDocumentReferenceIds(
+        projectRoot,
+        texPath,
+        ids.filter((id) => id !== normalizedReferenceId)
+      )
+    },
+
     searchRefs(query = '') {
       const normalizedQuery = String(query || '').trim().toLowerCase()
       if (!normalizedQuery) return this.sortedLibrary
@@ -806,6 +928,7 @@ export const useReferencesStore = defineStore('references', {
       this.collections = REFERENCE_COLLECTIONS
       this.tags = REFERENCE_TAGS
       this.references = REFERENCE_FIXTURES
+      this.documentReferenceSelections = {}
       this.citationStyle = 'apa'
       this.selectedSectionKey = 'all'
       this.selectedSourceKey = ''

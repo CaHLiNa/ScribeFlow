@@ -274,6 +274,15 @@ async function projectAwareCompletion(context, options = {}) {
   const fileContext = inputCompletionContext(textBefore)
   if (!citeContext && !refContext && !fileContext) return null
 
+  if (citeContext && options.referencesStore && typeof options.referencesStore.documentReferencesForTex === 'function') {
+    const values = uniqueBy(
+      options.referencesStore
+        .documentReferencesForTex(filePath)
+        .map((reference) => reference.citationKey || reference.id)
+    )
+    return buildFilteredResult(context, values, 'Document citation key', 'variable')
+  }
+
   const contentOverrides = {
     ...(options.contentOverrides || {}),
     [filePath]: context.state.doc.toString(),

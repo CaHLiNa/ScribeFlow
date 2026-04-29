@@ -27,6 +27,7 @@ import {
   DOCUMENT_DOCK_FILE_PAGE,
   DOCUMENT_DOCK_PROBLEMS_PAGE,
   DOCUMENT_DOCK_PREVIEW_PAGE,
+  DOCUMENT_DOCK_REFERENCES_PAGE,
   documentDockFileKey,
 } from '../../domains/editor/documentDockPages.js'
 import { createInlineDockPageRegistry } from '../../domains/workbench/inlineDockPageRegistry.js'
@@ -37,6 +38,7 @@ import { basenamePath } from '../../utils/path.js'
 const DocumentPreviewDock = defineAsyncComponent(() => import('./DocumentPreviewDock.vue'))
 const DocumentDockFileSurface = defineAsyncComponent(() => import('./DocumentDockFileSurface.vue'))
 const DocumentProblemsPanel = defineAsyncComponent(() => import('./DocumentProblemsPanel.vue'))
+const DocumentReferencesPanel = defineAsyncComponent(() => import('./DocumentReferencesPanel.vue'))
 
 const ICON_COMPONENTS = {
   IconFile,
@@ -106,6 +108,31 @@ export const documentDockPageRegistry = createInlineDockPageRegistry([
           documentDockResizing: context.documentDockResizing,
         },
         immersive,
+      }
+    },
+  },
+  {
+    id: DOCUMENT_DOCK_REFERENCES_PAGE,
+    resolve(context = {}) {
+      if (getDocumentWorkflowKind(context.filePath) !== 'latex') return null
+
+      const label = context.t?.('References') || 'References'
+      return {
+        key: DOCUMENT_DOCK_REFERENCES_PAGE,
+        type: DOCUMENT_DOCK_REFERENCES_PAGE,
+        icon: IconBook2,
+        title: label,
+        ariaLabel: label,
+        tabClass: 'document-dock__preview-tab document-dock__preview-tab--icon',
+        labelClass: 'document-dock__preview-label',
+        iconClass: 'document-dock__preview-icon',
+        closeClass: 'document-dock__tab-close',
+        closeable: false,
+        component: DocumentReferencesPanel,
+        componentProps: {
+          filePath: context.filePath,
+          paneId: context.paneId,
+        },
       }
     },
   },

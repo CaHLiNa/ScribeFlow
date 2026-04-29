@@ -45,6 +45,8 @@
     :query="citPalette.query"
     :cites="citPalette.cites"
     :latex-command="citPalette.latexCommand"
+    :document-path="isLatexEditor ? props.filePath : ''"
+    :reference-scope="isLatexEditor ? 'document' : 'library'"
     @insert="onCitInsert"
     @update="onCitUpdate"
     @close="onCitClose"
@@ -624,6 +626,13 @@ function buildLatexCitationInsertText(key, latexCommand = null) {
   return citPalette.insideBrackets ? key : `\\${command}{${key}}`
 }
 
+function resolveCitationReference(key = '') {
+  if (isLatexEditor) {
+    return referencesStore.getDocumentReferenceByKey(props.filePath, key)
+  }
+  return referencesStore.getByKey(key)
+}
+
 function openCitationPaletteAtCursor() {
   if (!view) return
 
@@ -960,7 +969,7 @@ onMounted(async () => {
               dom.className = "cm-citation-hover-card"
 
               const refsHtml = keys.map(k => {
-                const ref = referencesStore.getByKey(k)
+                const ref = resolveCitationReference(k)
                 if (ref) {
                   const author = Array.isArray(ref.authors) && ref.authors.length > 0 
                     ? (ref.authors[0] + (ref.authors.length > 1 ? ' et al.' : '')) 
@@ -972,7 +981,10 @@ onMounted(async () => {
                     </div>
                   `
                 }
-                return `<div class="cit-hover-item"><div class="cit-hover-meta">Unknown reference: ${k}</div></div>`
+                const message = isLatexEditor
+                  ? `Not selected for this document: ${k}`
+                  : `Unknown reference: ${k}`
+                return `<div class="cit-hover-item"><div class="cit-hover-meta">${message}</div></div>`
               }).join('<div class="cit-hover-separator"></div>')
 
               dom.innerHTML = refsHtml
@@ -1057,7 +1069,9 @@ onMounted(async () => {
     ])
     extraExtensions.push(createLatexTextmateHighlightExtension())
     extraExtensions.push(
-      ...latexCitationsExtension(referencesStore, {
+      ...latexCitationsExtension({
+        getByKey: (key) => referencesStore.getDocumentReferenceByKey(props.filePath, key),
+      }, {
         isOpen: () => citPalette.show,
         onOpen: ({ x, y, query, triggerFrom, triggerTo, insideBrackets, latexCommand }) => {
           citPalette.show = true
@@ -1089,6 +1103,7 @@ onMounted(async () => {
             filePath: props.filePath,
             filesStore: files,
             workspacePath: workspace.path,
+            referencesStore,
           }),
         ],
         activateOnTyping: true,

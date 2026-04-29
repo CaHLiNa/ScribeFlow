@@ -5,6 +5,7 @@ const FALLBACK_DOCK_PAGE_CONTRACT = Object.freeze({
     defaultPage: 'preview',
     pages: [
       { id: 'preview', permanent: true, dynamic: false, closeable: true, fallbackPage: 'file' },
+      { id: 'references', permanent: true, dynamic: false, closeable: false, fallbackPage: 'preview' },
       { id: 'problems', permanent: false, dynamic: true, closeable: true, fallbackPage: 'preview' },
       { id: 'file', permanent: false, dynamic: true, closeable: true, fallbackPage: 'preview' },
     ],

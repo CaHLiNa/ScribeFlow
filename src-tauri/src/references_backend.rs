@@ -210,6 +210,7 @@ fn load_or_create_snapshot(params: &ReferenceLibraryReadParams) -> Result<Value,
             "version": 2,
             "legacyMigrationComplete": true,
             "citationStyle": trim_string(snapshot.get("citationStyle")).if_empty_then(|| "apa".to_string()),
+            "documentReferenceSelections": snapshot.get("documentReferenceSelections").cloned().unwrap_or_else(|| json!({})),
             "collections": clone_array(snapshot.get("collections")),
             "tags": clone_array(snapshot.get("tags")),
             "references": clone_array(snapshot.get("references")),
@@ -226,6 +227,7 @@ fn load_or_create_snapshot(params: &ReferenceLibraryReadParams) -> Result<Value,
             "version": 2,
             "legacyMigrationComplete": true,
             "citationStyle": trim_string(legacy_snapshot.get("citationStyle")).if_empty_then(|| "apa".to_string()),
+            "documentReferenceSelections": legacy_snapshot.get("documentReferenceSelections").cloned().unwrap_or_else(|| json!({})),
             "collections": clone_array(legacy_snapshot.get("collections")),
             "tags": clone_array(legacy_snapshot.get("tags")),
             "references": clone_array(legacy_snapshot.get("references")),
@@ -526,6 +528,7 @@ pub async fn references_library_load_workspace(
         "version": snapshot.get("version").and_then(Value::as_u64).unwrap_or(2),
         "legacyMigrationComplete": true,
         "citationStyle": trim_string(snapshot.get("citationStyle")).if_empty_then(|| "apa".to_string()),
+        "documentReferenceSelections": snapshot.get("documentReferenceSelections").cloned().unwrap_or_else(|| json!({})),
         "collections": clone_array(snapshot.get("collections")),
         "tags": clone_array(snapshot.get("tags")),
         "references": migrated_references,
@@ -589,6 +592,11 @@ mod tests {
     fn snapshot_normalization_builds_tag_registry_and_drops_fixture_refs() {
         let normalized = normalize_snapshot(&json!({
             "citationStyle": "apa",
+            "documentReferenceSelections": {
+                "/workspace/main.tex": ["custom-1", "missing", "custom-1"],
+                "": ["custom-1"],
+                "/workspace/empty.tex": []
+            },
             "collections": [{ "key": "reading", "label": "Reading" }],
             "tags": [{ "key": "seed", "label": "Seed" }],
             "references": [
@@ -616,6 +624,11 @@ mod tests {
             Some(1)
         );
         assert_eq!(normalized["tags"].as_array().map(|v| v.len()), Some(3));
+        assert_eq!(
+            normalized["documentReferenceSelections"]["/workspace/main.tex"],
+            json!(["custom-1"])
+        );
+        assert!(normalized["documentReferenceSelections"]["/workspace/empty.tex"].is_null());
     }
 
     #[test]

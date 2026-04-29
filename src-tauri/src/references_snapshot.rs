@@ -258,6 +258,46 @@ fn is_legacy_fixture_reference(reference: &Value) -> bool {
         && LEGACY_REFERENCE_FIXTURE_TITLES.contains(&title.as_str())
 }
 
+fn normalize_document_reference_selections(value: Option<&Value>, references: &[Value]) -> Value {
+    let valid_reference_ids: HashSet<String> = references
+        .iter()
+        .map(|reference| trim_string(reference.get("id")))
+        .filter(|id| !id.is_empty())
+        .collect();
+    let mut normalized = serde_json::Map::new();
+
+    if let Some(entries) = value.and_then(Value::as_object) {
+        for (path, reference_ids) in entries {
+            let normalized_path = path.trim();
+            if normalized_path.is_empty() {
+                continue;
+            }
+
+            let mut seen = HashSet::new();
+            let ids = reference_ids
+                .as_array()
+                .map(|entries| {
+                    entries
+                        .iter()
+                        .filter_map(Value::as_str)
+                        .map(str::trim)
+                        .filter(|id| !id.is_empty())
+                        .filter(|id| valid_reference_ids.contains(*id))
+                        .filter(|id| seen.insert((*id).to_string()))
+                        .map(|id| Value::String(id.to_string()))
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+
+            if !ids.is_empty() {
+                normalized.insert(normalized_path.to_string(), Value::Array(ids));
+            }
+        }
+    }
+
+    Value::Object(normalized)
+}
+
 pub(crate) fn normalize_snapshot(raw: &Value) -> Value {
     let collections = normalize_collection_entries(raw.get("collections"));
     let references: Vec<Value> = raw
@@ -272,11 +312,14 @@ pub(crate) fn normalize_snapshot(raw: &Value) -> Value {
         })
         .unwrap_or_default();
     let tags = build_tag_registry(&clone_array(raw.get("tags")), &references);
+    let document_reference_selections =
+        normalize_document_reference_selections(raw.get("documentReferenceSelections"), &references);
 
     json!({
         "version": raw.get("version").and_then(Value::as_u64).unwrap_or(2),
         "legacyMigrationComplete": bool_value(raw.get("legacyMigrationComplete")),
         "citationStyle": trim_string(raw.get("citationStyle")).if_empty_then(|| "apa".to_string()),
+        "documentReferenceSelections": document_reference_selections,
         "collections": collections,
         "tags": tags,
         "references": references,
@@ -288,6 +331,7 @@ pub(crate) fn build_default_snapshot() -> Value {
         "version": 2,
         "legacyMigrationComplete": false,
         "citationStyle": "apa",
+        "documentReferenceSelections": {},
         "collections": [],
         "tags": [],
         "references": [],

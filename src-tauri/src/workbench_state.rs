@@ -24,6 +24,7 @@ const DEFAULT_DOCUMENT_DOCK_PAGE: &str = "preview";
 const DEFAULT_REFERENCE_DOCK_PAGE: &str = "details";
 const DOCUMENT_DOCK_FILE_PAGE: &str = "file";
 const DOCUMENT_DOCK_PROBLEMS_PAGE: &str = "problems";
+const DOCUMENT_DOCK_REFERENCES_PAGE: &str = "references";
 const REFERENCE_DOCK_PDF_PAGE: &str = "pdf";
 const REFERENCE_DOCK_CITED_IN_PAGE: &str = "cited-in";
 
@@ -259,6 +260,7 @@ pub fn normalize_document_dock_page(value: &str) -> String {
     match value.trim() {
         DOCUMENT_DOCK_FILE_PAGE => DOCUMENT_DOCK_FILE_PAGE.to_string(),
         DOCUMENT_DOCK_PROBLEMS_PAGE => DOCUMENT_DOCK_PROBLEMS_PAGE.to_string(),
+        DOCUMENT_DOCK_REFERENCES_PAGE => DOCUMENT_DOCK_REFERENCES_PAGE.to_string(),
         _ => DEFAULT_DOCUMENT_DOCK_PAGE.to_string(),
     }
 }
@@ -298,6 +300,13 @@ pub fn workbench_dock_page_contract() -> WorkbenchDockPageContract {
                     false,
                     true,
                     DOCUMENT_DOCK_FILE_PAGE,
+                ),
+                dock_page_definition(
+                    DOCUMENT_DOCK_REFERENCES_PAGE,
+                    true,
+                    false,
+                    false,
+                    DEFAULT_DOCUMENT_DOCK_PAGE,
                 ),
                 dock_page_definition(
                     DOCUMENT_DOCK_PROBLEMS_PAGE,
@@ -546,14 +555,18 @@ mod tests {
 
         assert_eq!(contract.document.default_page, "preview");
         assert_eq!(contract.reference.default_page, "details");
-        assert_eq!(document_page_ids, vec!["preview", "problems", "file"]);
+        assert_eq!(document_page_ids, vec!["preview", "references", "problems", "file"]);
         assert_eq!(reference_page_ids, vec!["details", "cited-in", "pdf"]);
         assert_eq!(contract.document.pages[0].fallback_page, "file");
         assert!(contract.document.pages[0].closeable);
         assert_eq!(contract.document.pages[1].fallback_page, "preview");
-        assert!(!contract.document.pages[1].permanent);
-        assert!(contract.document.pages[1].dynamic);
-        assert!(contract.document.pages[1].closeable);
+        assert!(contract.document.pages[1].permanent);
+        assert!(!contract.document.pages[1].dynamic);
+        assert!(!contract.document.pages[1].closeable);
+        assert_eq!(contract.document.pages[2].fallback_page, "preview");
+        assert!(!contract.document.pages[2].permanent);
+        assert!(contract.document.pages[2].dynamic);
+        assert!(contract.document.pages[2].closeable);
         assert_eq!(contract.reference.pages[1].fallback_page, "details");
         assert!(!contract.reference.pages[1].permanent);
         assert!(contract.reference.pages[1].dynamic);
@@ -565,6 +578,7 @@ mod tests {
     fn dock_page_normalization_falls_back_to_contract_defaults() {
         assert_eq!(normalize_document_dock_page("file"), "file");
         assert_eq!(normalize_document_dock_page("problems"), "problems");
+        assert_eq!(normalize_document_dock_page("references"), "references");
         assert_eq!(normalize_document_dock_page("unknown"), "preview");
         assert_eq!(normalize_reference_dock_page("pdf"), "pdf");
         assert_eq!(normalize_reference_dock_page("cited-in"), "cited-in");

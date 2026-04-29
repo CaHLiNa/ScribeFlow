@@ -129,6 +129,8 @@ const props = defineProps({
   query: { type: String, default: '' },
   cites: { type: Array, default: () => [] },
   latexCommand: { type: String, default: null },
+  documentPath: { type: String, default: '' },
+  referenceScope: { type: String, default: 'library' },
 })
 
 const emit = defineEmits(['insert', 'update', 'close'])
@@ -152,6 +154,9 @@ const importStatus = ref('')
 
 const isInsert = computed(() => internalMode.value === 'insert')
 const isEdit = computed(() => internalMode.value === 'edit')
+const isDocumentScoped = computed(
+  () => props.referenceScope === 'document' && props.documentPath.trim()
+)
 
 watch(() => props.mode, (value) => {
   internalMode.value = value
@@ -166,22 +171,35 @@ watch(
 )
 
 const filteredResults = computed(() => {
-  if (!props.query?.trim()) return referencesStore.sortedLibrary.slice(0, 20)
-  return referencesStore.searchRefs(props.query.trim()).slice(0, 20)
+  const documentReferences = isDocumentScoped.value
+    ? referencesStore.documentReferencesForTex(props.documentPath)
+    : null
+  if (!props.query?.trim()) {
+    return (documentReferences || referencesStore.sortedLibrary).slice(0, 20)
+  }
+  const normalizedQuery = props.query.trim().toLowerCase()
+  if (!documentReferences) return referencesStore.searchRefs(props.query.trim()).slice(0, 20)
+  return documentReferences
+    .filter((reference) => referenceMatchesQuery(reference, normalizedQuery))
+    .slice(0, 20)
 })
 
 const editEntries = computed(() =>
   editCites.value.map((cite) => ({
     ...cite,
-    reference: referencesStore.getByKey(cite.key),
+    reference: resolveReferenceByKey(cite.key),
   }))
 )
 
 const addResults = computed(() => {
   if (!addQuery.value.trim()) return []
   const existingKeys = new Set(editCites.value.map((cite) => cite.key))
-  return referencesStore
-    .searchRefs(addQuery.value.trim())
+  const normalizedQuery = addQuery.value.trim().toLowerCase()
+  const pool = isDocumentScoped.value
+    ? referencesStore.documentReferencesForTex(props.documentPath)
+    : referencesStore.searchRefs(addQuery.value.trim())
+  return pool
+    .filter((reference) => referenceMatchesQuery(reference, normalizedQuery))
     .filter((reference) => !existingKeys.has(reference.citationKey || reference.id))
     .slice(0, 10)
 })
@@ -205,6 +223,28 @@ function formatAuthor(reference = {}) {
   if (authors.length === 1) return authors[0]
   if (authors.length === 2) return `${authors[0]} & ${authors[1]}`
   return `${authors[0]} et al.`
+}
+
+function referenceMatchesQuery(reference = {}, normalizedQuery = '') {
+  if (!normalizedQuery) return true
+  const haystack = [
+    reference.title,
+    ...(Array.isArray(reference.authors) ? reference.authors : []),
+    reference.authorLine,
+    reference.source,
+    reference.citationKey,
+    reference.identifier,
+    reference.pages,
+    ...(Array.isArray(reference.tags) ? reference.tags : []),
+  ].filter(Boolean).join(' ').toLowerCase()
+  return haystack.includes(normalizedQuery)
+}
+
+function resolveReferenceByKey(key = '') {
+  if (isDocumentScoped.value) {
+    return referencesStore.getDocumentReferenceByKey(props.documentPath, key)
+  }
+  return referencesStore.getByKey(key)
 }
 
 function selectResult(key, stayOpen = false) {
@@ -279,6 +319,13 @@ async function doImport() {
 
     if (key) {
       importText.value = ''
+      if (isDocumentScoped.value && selectedReference?.id) {
+        await referencesStore.addDocumentReference(
+          workspace.globalConfigDir,
+          props.documentPath,
+          selectedReference.id
+        )
+      }
       if (isInsert.value) {
         emit('insert', { keys: [key], stayOpen: false, latexCommand: props.latexCommand })
       } else {
