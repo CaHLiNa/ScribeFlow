@@ -317,7 +317,7 @@ fn parse_citations(content: &str, file_path: &str) -> Vec<Value> {
             .unwrap_or_default()
             .split(',')
             .map(strip_tex_quotes)
-            .filter(|value| !value.is_empty())
+            .filter(|value| !value.is_empty() && value != "*")
             .collect::<Vec<_>>();
         for key in keys {
             out.push(json!({
@@ -1232,6 +1232,18 @@ mod tests {
         );
         assert_eq!(citations[0].get("offset").and_then(Value::as_u64), Some(3));
         assert_eq!(citations[0].get("line").and_then(Value::as_u64), Some(2));
+    }
+
+    #[test]
+    fn citations_ignore_nocite_star() {
+        let content = "\\nocite{*}\n\\nocite{alpha2024}\n";
+        let citations = parse_citations(content, "/tmp/main.tex");
+
+        assert_eq!(citations.len(), 1);
+        assert_eq!(
+            citations[0].get("key").and_then(Value::as_str),
+            Some("alpha2024")
+        );
     }
 
     #[test]
