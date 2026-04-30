@@ -186,6 +186,7 @@ Current behavior:
 - view items can carry `commandId`, `description`, `collapsibleState`, and nested `children`
 - `contributes.menus["view/title"]` can add title-bar actions for the active extension view
 - `contributes.menus["view/item/context"]` can add item-level actions for resolved tree items
+- sidebar view data now refreshes automatically after extension command execution, in addition to explicit refresh actions
 
 This is now a real extension-owned navigation surface with extension-provided view data, but it is still not a full VS Code `TreeView`/custom webview API.
 

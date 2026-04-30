@@ -111,6 +111,7 @@ const toastStore = useToastStore()
 const title = computed(() => t(props.container?.title || props.container?.id || 'Extension'))
 const extensionName = computed(() => props.container?.extensionName || props.container?.extensionId || '')
 const views = computed(() => extensionsStore.viewsForContainer(props.container?.id, props.context))
+const refreshTick = computed(() => extensionsStore.currentViewRefreshTick)
 const viewTitleActions = computed(() => {
   const firstView = views.value[0] || {}
   return extensionsStore.viewTitleActionsForView(firstView, props.context)
@@ -125,6 +126,10 @@ watch(
   },
   { immediate: true }
 )
+
+watch(refreshTick, () => {
+  void refreshViews()
+})
 
 function resolvedViewRecord(view = {}) {
   return extensionsStore.resolvedViewFor(`${view.extensionId}:${view.id}`)

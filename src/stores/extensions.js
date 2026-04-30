@@ -84,6 +84,7 @@ export const useExtensionsStore = defineStore('extensions', {
     enabledExtensionIds: [],
     extensionConfig: {},
     resolvedViews: {},
+    viewRefreshTick: 0,
     loadingRegistry: false,
     loadingTasks: false,
     settingsHydrated: false,
@@ -223,6 +224,7 @@ export const useExtensionsStore = defineStore('extensions', {
         )
     },
     resolvedViewFor: (state) => (viewKey = '') => state.resolvedViews[String(viewKey || '').trim()] || null,
+    currentViewRefreshTick: (state) => state.viewRefreshTick,
     recentTasks(state) {
       return [...state.tasks].slice(0, 8)
     },
@@ -385,6 +387,7 @@ export const useExtensionsStore = defineStore('extensions', {
           ...(settings && typeof settings === 'object' ? settings : {}),
         },
       }))
+      this.viewRefreshTick += 1
       await this.refreshTasks().catch(() => {})
       return task
     },
@@ -413,6 +416,9 @@ export const useExtensionsStore = defineStore('extensions', {
       })
       this.resolvedViews[`${extensionId}:${viewId}`] = resolved
       return resolved
+    },
+    requestViewRefresh() {
+      this.viewRefreshTick += 1
     },
     async cancelTask(taskId = '') {
       const task = normalizeTask(await cancelExtensionTaskWithBackend(taskId))
