@@ -52,6 +52,14 @@ function createExtensionApi(registry) {
         };
       },
     },
+    workspaceState: {
+      get(key) {
+        return registry.workspaceState.get(String(key || "").trim());
+      },
+      update(key, value) {
+        registry.workspaceState.set(String(key || "").trim(), value);
+      },
+    },
   };
 }
 
@@ -68,6 +76,7 @@ function createActivationContext(api, payload = {}) {
     commands: api.commands,
     capabilities: api.capabilities,
     views: api.views,
+    workspaceState: api.workspaceState,
   };
 }
 
@@ -104,6 +113,7 @@ async function ensureActivated(request) {
     commands: new Map(),
     capabilities: new Map(),
     views: new Map(),
+    workspaceState: new Map(),
     subscriptions: [],
   };
   const api = createExtensionApi(record);
@@ -208,15 +218,23 @@ async function handleResolveView(params = {}) {
           ? result.title.trim()
           : viewId,
       items: Array.isArray(result?.items)
-        ? result.items.map((item, index) => ({
-            id: String(item?.id || `${viewId}:${index}`),
-            label: String(item?.label || item?.title || item?.id || `Item ${index + 1}`),
-            description: String(item?.description || ""),
-            commandId: String(item?.commandId || item?.command || ""),
-          }))
+        ? normalizeViewItems(result.items, viewId)
         : [],
     },
   };
+}
+
+function normalizeViewItems(items = [], viewId = "") {
+  return items.map((item, index) => ({
+    id: String(item?.id || `${viewId}:${index}`),
+    label: String(item?.label || item?.title || item?.id || `Item ${index + 1}`),
+    description: String(item?.description || ""),
+    commandId: String(item?.commandId || item?.command || ""),
+    collapsibleState: String(item?.collapsibleState || item?.collapsible_state || ""),
+    children: Array.isArray(item?.children)
+      ? normalizeViewItems(item.children, `${viewId}:${index}`)
+      : [],
+  }))
 }
 
 async function dispatchRequest(request) {

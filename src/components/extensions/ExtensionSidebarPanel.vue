@@ -1,8 +1,13 @@
 <template>
   <div class="extension-sidebar-panel">
     <div class="extension-sidebar-panel__header">
-      <div class="extension-sidebar-panel__title">{{ title }}</div>
-      <div class="extension-sidebar-panel__meta">{{ extensionName }}</div>
+      <div class="extension-sidebar-panel__header-main">
+        <div class="extension-sidebar-panel__title">{{ title }}</div>
+        <div class="extension-sidebar-panel__meta">{{ extensionName }}</div>
+      </div>
+      <button type="button" class="extension-sidebar-panel__refresh" @click="refreshViews">
+        {{ t('Refresh') }}
+      </button>
     </div>
 
     <div v-if="views.length === 0" class="extension-sidebar-panel__empty">
@@ -26,16 +31,40 @@
           {{ t('No extension view items found') }}
         </div>
 
-        <button
-          v-for="item in resolvedItems(view)"
-          :key="`${view.extensionId}:${view.id}:${item.id}`"
-          type="button"
-          class="extension-sidebar-panel__view"
-          @click="runItemCommand(view, item)"
-        >
-          <div class="extension-sidebar-panel__view-title">{{ item.label }}</div>
-          <div v-if="item.description" class="extension-sidebar-panel__view-meta">{{ item.description }}</div>
-        </button>
+        <div class="extension-sidebar-panel__tree">
+          <template v-for="item in resolvedItems(view)" :key="`${view.extensionId}:${view.id}:${item.id}`">
+            <button
+              type="button"
+              class="extension-sidebar-panel__view"
+              :class="{ 'is-parent': hasChildren(item) }"
+              @click="runItemCommand(view, item)"
+            >
+              <div class="extension-sidebar-panel__view-row">
+                <span v-if="hasChildren(item)" class="extension-sidebar-panel__chevron">
+                  {{ item.collapsibleState === 'expanded' ? '▾' : '▸' }}
+                </span>
+                <div class="extension-sidebar-panel__view-title">{{ item.label }}</div>
+              </div>
+              <div v-if="item.description" class="extension-sidebar-panel__view-meta">{{ item.description }}</div>
+            </button>
+
+            <div
+              v-if="hasChildren(item) && item.collapsibleState === 'expanded'"
+              class="extension-sidebar-panel__children"
+            >
+              <button
+                v-for="child in item.children"
+                :key="`${view.extensionId}:${view.id}:${item.id}:${child.id}`"
+                type="button"
+                class="extension-sidebar-panel__view is-child"
+                @click="runItemCommand(view, child)"
+              >
+                <div class="extension-sidebar-panel__view-title">{{ child.label }}</div>
+                <div v-if="child.description" class="extension-sidebar-panel__view-meta">{{ child.description }}</div>
+              </button>
+            </div>
+          </template>
+        </div>
       </section>
     </div>
   </div>
@@ -83,6 +112,10 @@ function resolvedItems(view = {}) {
   return Array.isArray(resolvedViewRecord(view)?.items) ? resolvedViewRecord(view).items : []
 }
 
+function hasChildren(item = {}) {
+  return Array.isArray(item.children) && item.children.length > 0
+}
+
 function fallbackCommandForView(view = {}, item = {}) {
   const itemCommandId = String(item?.commandId || '').trim()
   const extension = extensionsStore.registry.find((entry) => entry.id === view.extensionId)
@@ -112,6 +145,12 @@ async function runItemCommand(view = {}, item = {}) {
     })
   }
 }
+
+async function refreshViews() {
+  for (const view of views.value) {
+    await extensionsStore.resolveView(view, props.target).catch(() => {})
+  }
+}
 </script>
 
 <style scoped>
@@ -126,10 +165,18 @@ async function runItemCommand(view = {}, item = {}) {
 
 .extension-sidebar-panel__header {
   display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 8px;
+}
+
+.extension-sidebar-panel__header-main {
+  display: flex;
   min-width: 0;
+  flex: 1 1 auto;
   flex-direction: column;
   gap: 2px;
-  padding: 0 8px;
 }
 
 .extension-sidebar-panel__title {
@@ -152,6 +199,12 @@ async function runItemCommand(view = {}, item = {}) {
   gap: 6px;
   overflow-y: auto;
   padding: 0 6px 8px;
+}
+
+.extension-sidebar-panel__tree {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .extension-sidebar-panel__section {
@@ -183,8 +236,30 @@ async function runItemCommand(view = {}, item = {}) {
   cursor: pointer;
 }
 
+.extension-sidebar-panel__view.is-parent {
+  padding-bottom: 8px;
+}
+
+.extension-sidebar-panel__view.is-child {
+  margin-left: 18px;
+}
+
 .extension-sidebar-panel__view:hover {
   background: var(--surface-hover);
+}
+
+.extension-sidebar-panel__view-row {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.extension-sidebar-panel__chevron {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  font-size: 11px;
 }
 
 .extension-sidebar-panel__view-title {
@@ -193,7 +268,22 @@ async function runItemCommand(view = {}, item = {}) {
   font-weight: 600;
 }
 
+.extension-sidebar-panel__children {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 .extension-sidebar-panel__empty {
   padding: 0 10px;
+}
+
+.extension-sidebar-panel__refresh {
+  flex: 0 0 auto;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11px;
+  cursor: pointer;
 }
 </style>

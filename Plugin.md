@@ -183,6 +183,7 @@ Current behavior:
 - each contributed view is filtered by the shared `when` context
 - extensions can now register view providers through `activate(context)` using `context.views.registerViewProvider(viewId, provider)`
 - the sidebar resolves real view items from the extension host instead of rendering only static manifest metadata
+- view items can carry `commandId`, `description`, `collapsibleState`, and nested `children`
 
 This is now a real extension-owned navigation surface with extension-provided view data, but it is still not a full VS Code `TreeView`/custom webview API.
 

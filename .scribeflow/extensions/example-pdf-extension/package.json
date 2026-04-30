@@ -20,6 +20,11 @@
         "command": "scribeflow.pdf.translate",
         "title": "Translate",
         "category": "PDF"
+      },
+      {
+        "command": "examplePdfExtension.toggleTranslateGroup",
+        "title": "Toggle Translate Group",
+        "category": "PDF"
       }
     ],
     "viewsContainers": {

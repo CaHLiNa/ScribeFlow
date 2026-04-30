@@ -142,6 +142,10 @@ pub struct ExtensionHostViewItem {
     pub description: String,
     #[serde(default)]
     pub command_id: String,
+    #[serde(default)]
+    pub collapsible_state: String,
+    #[serde(default)]
+    pub children: Vec<ExtensionHostViewItem>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

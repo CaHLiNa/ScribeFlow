@@ -19,7 +19,7 @@ Current desktop paths:
 - inspect where references are cited in the workspace
 - configure editor, workspace, PDF, citation, environment, Zotero, extensions and update settings
 - discover local extension packages, enable or disable them, configure contributed settings and run contributed commands from menus, command palette and manifest keybindings
-- render extension-contributed sidebar containers in the workspace mode menu and resolve sidebar view items from the extension host
+- render extension-contributed sidebar containers in the workspace mode menu and resolve hierarchical sidebar view items from the extension host
 
 ## Architecture
 

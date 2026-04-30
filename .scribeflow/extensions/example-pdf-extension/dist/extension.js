@@ -18,16 +18,37 @@ export async function activate(context) {
   context.views.registerViewProvider("examplePdfExtension.translateView", async (payload) => {
     const targetPath = String(payload?.targetPath || "")
     const label = targetPath ? targetPath.split(/[\\/]/).pop() : "Current PDF"
+    const expanded = Boolean(context.workspaceState.get("examplePdfExtension.translateView.expanded"))
     return {
       title: "Translate PDF",
       items: [
         {
-          id: "translate-current-pdf",
-          label,
-          description: "Run the PDF translation command for the current target.",
-          commandId: "scribeflow.pdf.translate",
+          id: "translate-group",
+          label: "Translation Actions",
+          description: expanded ? "Expanded" : "Collapsed",
+          commandId: "examplePdfExtension.toggleTranslateGroup",
+          collapsibleState: expanded ? "expanded" : "collapsed",
+          children: expanded
+            ? [
+                {
+                  id: "translate-current-pdf",
+                  label,
+                  description: "Run the PDF translation command for the current target.",
+                  commandId: "scribeflow.pdf.translate",
+                },
+              ]
+            : [],
         },
       ],
+    }
+  })
+
+  context.commands.registerCommand("examplePdfExtension.toggleTranslateGroup", async () => {
+    const expanded = Boolean(context.workspaceState.get("examplePdfExtension.translateView.expanded"))
+    context.workspaceState.update("examplePdfExtension.translateView.expanded", !expanded)
+    return {
+      message: "example-pdf-extension toggled sidebar group",
+      progressLabel: "Example view state updated",
     }
   })
 }
