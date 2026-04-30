@@ -1279,6 +1279,7 @@
   "Manifest": "清单",
   "Entrypoint": "入口",
   "Commands": "命令",
+  "Keybindings": "快捷键",
   "Activation Events": "激活事件",
   "Cancel": "取消",
   "Log": "日志",

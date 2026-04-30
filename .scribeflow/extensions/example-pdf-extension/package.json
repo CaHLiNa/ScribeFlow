@@ -29,6 +29,13 @@
         }
       ]
     },
+    "keybindings": [
+      {
+        "command": "scribeflow.pdf.translate",
+        "key": "mod+alt+t",
+        "when": "resource.kind == pdf"
+      }
+    ],
     "capabilities": [
       {
         "id": "pdf.translate",

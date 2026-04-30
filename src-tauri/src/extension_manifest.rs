@@ -113,6 +113,8 @@ pub struct ExtensionContributions {
     #[serde(default)]
     pub commands: Vec<ExtensionCommandContribution>,
     #[serde(default)]
+    pub keybindings: Vec<ExtensionKeybindingContribution>,
+    #[serde(default)]
     pub configuration: ExtensionConfigurationContribution,
     #[serde(default)]
     pub menus: BTreeMap<String, Vec<ExtensionMenuContribution>>,
@@ -129,6 +131,23 @@ pub struct ExtensionCommandContribution {
     pub title: String,
     #[serde(default)]
     pub category: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionKeybindingContribution {
+    #[serde(default)]
+    pub command: String,
+    #[serde(default)]
+    pub key: String,
+    #[serde(default)]
+    pub mac: String,
+    #[serde(default)]
+    pub win: String,
+    #[serde(default)]
+    pub linux: String,
+    #[serde(default)]
+    pub when: String,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -391,6 +410,29 @@ pub fn validate_extension_manifest(manifest: &ExtensionManifest) -> ExtensionVal
         }
     }
 
+    for keybinding in &manifest.contributes.keybindings {
+        let command = keybinding.command.trim();
+        if command.is_empty() {
+            errors.push("Contributed keybinding command is required".to_string());
+        } else if !manifest
+            .contributes
+            .commands
+            .iter()
+            .any(|contributed| contributed.command.trim() == command)
+        {
+            errors.push(format!(
+                "Contributed keybinding command is not declared by this extension: {command}"
+            ));
+        }
+        if keybinding.key.trim().is_empty()
+            && keybinding.mac.trim().is_empty()
+            && keybinding.win.trim().is_empty()
+            && keybinding.linux.trim().is_empty()
+        {
+            errors.push(format!("Contributed keybinding requires a key: {command}"));
+        }
+    }
+
     for capability in &manifest.contributes.capabilities {
         if capability.id.trim().is_empty() {
             errors.push("Contributed capability id is required".to_string());
@@ -478,6 +520,11 @@ mod tests {
                         "title": "Translate",
                         "category": "PDF"
                     }],
+                    "keybindings": [{
+                        "command": "scribeflow.pdf.translate",
+                        "key": "mod+alt+t",
+                        "when": "resource.kind == pdf"
+                    }],
                     "menus": {
                         "pdf.preview.actions": [{
                             "command": "scribeflow.pdf.translate",
@@ -509,6 +556,7 @@ mod tests {
         assert!(result.ok, "{:?}", result.errors);
         assert_eq!(manifest.runtime.runtime_type, "extensionHost");
         assert_eq!(manifest.capabilities, vec!["pdf.translate".to_string()]);
+        assert_eq!(manifest.contributes.keybindings[0].key, "mod+alt+t");
     }
 
     #[test]
@@ -577,5 +625,17 @@ mod tests {
             .errors
             .iter()
             .any(|error| error.contains("Contributed capability is not declared")));
+    }
+
+    #[test]
+    fn rejects_keybinding_for_unknown_command() {
+        let mut manifest = valid_manifest();
+        manifest.contributes.keybindings[0].command = "missing.command".to_string();
+        let result = validate_extension_manifest(&manifest);
+        assert!(!result.ok);
+        assert!(result
+            .errors
+            .iter()
+            .any(|error| error.contains("keybinding command is not declared")));
     }
 }

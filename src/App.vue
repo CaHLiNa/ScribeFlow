@@ -140,6 +140,7 @@ import { useLinksStore } from './stores/links'
 import { useLatexStore } from './stores/latex'
 import { useReferencesStore } from './stores/references'
 import { useExtensionsStore } from './stores/extensions'
+import { useToastStore } from './stores/toast'
 
 import ResizeHandle from './components/layout/ResizeHandle.vue'
 import WorkbenchRail from './components/layout/WorkbenchRail.vue'
@@ -150,6 +151,13 @@ import {
   getReferenceSectionLabelKey,
   getReferenceSourceLabelKey,
 } from './domains/references/referencePresentation.js'
+import {
+  buildSurfaceContext,
+} from './domains/extensions/extensionContributionRegistry'
+import {
+  eventMatchesKeybinding,
+  isEditableKeybindingTarget,
+} from './domains/extensions/extensionKeybindings'
 import { useAppShellLayout } from './composables/useAppShellLayout'
 import { useAppShellEventBridge } from './app/shell/useAppShellEventBridge'
 import { applyAppWindowConstraints } from './app/shell/useAppWindowConstraints'
@@ -157,7 +165,7 @@ import { useAppTeardown } from './app/teardown/useAppTeardown'
 import { useWorkspaceLifecycle } from './app/workspace/useWorkspaceLifecycle'
 import { isNewTab, isPreviewPath, previewSourcePathFromPath } from './utils/fileTypes'
 import { basenamePath } from './utils/path'
-import { isMac, isTauriDesktopRuntime } from './platform'
+import { isLinux, isMac, isTauriDesktopRuntime, isWindows } from './platform'
 
 const LeftSidebar = defineAsyncComponent(() => import('./components/sidebar/LeftSidebar.vue'))
 const SettingsSidebar = defineAsyncComponent(
@@ -178,6 +186,7 @@ const linksStore = useLinksStore()
 const latexStore = useLatexStore()
 const referencesStore = useReferencesStore()
 const extensionsStore = useExtensionsStore()
+const toastStore = useToastStore()
 const { t } = useI18n()
 const isMacDesktop = isMac && isTauriDesktopRuntime
 
@@ -292,6 +301,15 @@ const commandPaletteTarget = computed(() => {
     path: normalizedPath,
   }
 })
+const extensionCommandContext = computed(() =>
+  buildSurfaceContext(commandPaletteTarget.value, {
+    workbench: {
+      surface: workspace.isSettingsSurface ? 'settings' : 'workspace',
+      panel: workspace.leftSidebarPanel || '',
+      hasWorkspace: workspace.isOpen,
+    },
+  })
+)
 
 async function selectWorkbenchPanel(panel) {
   await workspace.openWorkspaceSurface()
@@ -347,11 +365,34 @@ function isCommandPaletteShortcut(event) {
   return (event.metaKey || event.ctrlKey) && event.shiftKey && event.key?.toLowerCase() === 'p'
 }
 
-function handleGlobalKeydown(event) {
-  if (!isCommandPaletteShortcut(event)) return
+async function handleGlobalKeydown(event) {
+  if (event.defaultPrevented) return
+  if (isCommandPaletteShortcut(event)) {
+    event.preventDefault()
+    event.stopPropagation()
+    commandPaletteVisible.value = true
+    return
+  }
+
+  if (event.repeat) return
+  if (commandPaletteVisible.value || isEditableKeybindingTarget(event.target)) return
+  const keybinding = extensionsStore
+    .keybindingsForContext(extensionCommandContext.value)
+    .find((candidate) =>
+      eventMatchesKeybinding(event, candidate, { isMac, isWindows, isLinux })
+    )
+  if (!keybinding) return
   event.preventDefault()
   event.stopPropagation()
-  commandPaletteVisible.value = true
+  try {
+    await extensionsStore.executeCommand(keybinding, commandPaletteTarget.value)
+    toastStore.show(t('Extension task started'), { type: 'success', duration: 2400 })
+  } catch (error) {
+    toastStore.show(error?.message || String(error || t('Failed to start extension task')), {
+      type: 'error',
+      duration: 4200,
+    })
+  }
 }
 
 onMounted(() => {

@@ -50,6 +50,10 @@
                   <span class="extension-meta-value">{{ commandSummary(extension) }}</span>
                 </div>
                 <div class="extension-meta-item">
+                  <span class="extension-meta-label">{{ t('Keybindings') }}</span>
+                  <span class="extension-meta-value">{{ keybindingSummary(extension) }}</span>
+                </div>
+                <div class="extension-meta-item">
                   <span class="extension-meta-label">{{ t('Permissions') }}</span>
                   <span class="extension-meta-value">{{ permissionSummary(extension) }}</span>
                 </div>
@@ -190,6 +194,17 @@ function commandSummary(extension = {}) {
   const commands = Array.isArray(extension.contributedCommands) ? extension.contributedCommands : []
   if (!commands.length) return t('Not configured')
   return commands.map((command) => command.commandId).join(' · ')
+}
+
+function keybindingSummary(extension = {}) {
+  const keybindings = Array.isArray(extension.contributedKeybindings)
+    ? extension.contributedKeybindings
+    : []
+  if (!keybindings.length) return t('Not configured')
+  return keybindings
+    .map((keybinding) => keybinding.mac || keybinding.key || keybinding.win || keybinding.linux)
+    .filter(Boolean)
+    .join(' · ')
 }
 
 function shortSettingKey(key = '') {

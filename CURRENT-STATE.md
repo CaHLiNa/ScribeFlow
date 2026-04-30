@@ -18,7 +18,7 @@ Current desktop paths:
 - sync selected document references into LaTeX bibliography files
 - inspect where references are cited in the workspace
 - configure editor, workspace, PDF, citation, environment, Zotero, extensions and update settings
-- discover local extension packages, enable or disable them, configure contributed settings and run contributed commands
+- discover local extension packages, enable or disable them, configure contributed settings and run contributed commands from menus, command palette and manifest keybindings
 
 ## Architecture
 
@@ -33,9 +33,10 @@ Current desktop paths:
 Boundary rules:
 
 - Vue components, stores, domains and composables do not import Tauri APIs directly.
-- Tauri `invoke`, plugin calls and event bridges belong in `src/services`.
+- Tauri `invoke`, Tauri plugin calls and event bridges belong in `src/services`.
 - Rust owns filesystem authority, persisted app state, reference normalization, compile/runtime execution and workspace-scoped security checks.
 - Rust owns extension discovery, manifest validation, extension host startup, command execution, task state and artifact access.
+- Vue owns extension command palette, contributed menu rendering and contributed keybinding dispatch through the `src/services` bridge.
 - JS remains a thin bridge and UI coordination layer, not a second backend.
 
 ## Verification

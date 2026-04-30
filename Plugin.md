@@ -14,7 +14,10 @@ The platform model follows the VS Code direction:
 - extension code exports `activate(context)`
 - activation is driven by `activationEvents`
 - extensions register commands and capability providers through the host API
+- command palette, contributed menus and contributed keybindings all execute extension commands
 - product UI calls contributed actions/providers, not package-specific runtime code
+
+Contributed commands and capabilities are also valid activation triggers, matching the modern VS Code behavior where command contributions do not need duplicate `onCommand:*` entries just to become runnable.
 
 The old direct runner model is not a supported compatibility layer. If a future PDF translator, OCR tool, LLM workflow, or reference enrichment package is added, it must be shaped as a ScribeFlow extension package and run through the extension host boundary.
 
@@ -69,6 +72,13 @@ Minimum shape:
         }
       ]
     },
+    "keybindings": [
+      {
+        "command": "scribeflow.pdf.translate",
+        "key": "mod+alt+t",
+        "when": "resource.kind == pdf"
+      }
+    ],
     "capabilities": [
       {
         "id": "pdf.translate"
@@ -139,6 +149,8 @@ Current frontend extension modules:
 - `src/services/extensions/extensionTasks.js`
 - `src/services/extensions/extensionArtifacts.js`
 - `src/stores/extensions.js`
+- `src/domains/extensions/extensionContributionRegistry.js`
+- `src/domains/extensions/extensionKeybindings.js`
 - `src/components/extensions/ExtensionActionButtons.vue`
 - `src/components/extensions/ExtensionCommandButton.vue`
 - `src/components/extensions/ExtensionCommandPalette.vue`
@@ -185,6 +197,8 @@ Product-facing language is extension-first:
 - Registry action: Refresh Extension Registry
 - Runtime operation: extension task
 - Package concept: extension
+- Command launcher: extension command palette
+- Shortcut contribution: extension keybinding
 
 Avoid user-facing text such as plugin jobs, installed plugins, plugin action, plugin virtual environment, or plugin-local server for ScribeFlow-owned extension features.
 

@@ -69,6 +69,34 @@ function normalizeMenus(extensionId = '', manifest = {}, commandById = new Map()
     .filter((entry) => entry.surface && entry.commandId && commandById.has(entry.commandId))
 }
 
+function normalizeKeybindings(extensionId = '', manifest = {}, commandById = new Map()) {
+  const keybindings = Array.isArray(manifest?.contributes?.keybindings)
+    ? manifest.contributes.keybindings
+    : []
+  return keybindings
+    .map((entry) => {
+      const commandId = normalizeId(entry?.command)
+      const command = commandById.get(commandId)
+      return {
+        id: `${extensionId}:keybinding:${commandId}:${normalizeId(entry?.key || entry?.mac || entry?.win || entry?.linux)}`,
+        extensionId,
+        commandId,
+        title: command?.title || commandId,
+        category: command?.category || '',
+        key: normalizeId(entry?.key),
+        mac: normalizeId(entry?.mac),
+        win: normalizeId(entry?.win),
+        linux: normalizeId(entry?.linux),
+        when: normalizeId(entry?.when),
+      }
+    })
+    .filter((entry) =>
+      entry.commandId &&
+      commandById.has(entry.commandId) &&
+      (entry.key || entry.mac || entry.win || entry.linux)
+    )
+}
+
 function normalizeConfiguration(manifest = {}) {
   const properties = manifest?.contributes?.configuration?.properties &&
     typeof manifest.contributes.configuration.properties === 'object'
@@ -100,10 +128,12 @@ export function normalizeExtensionContributions(extension = {}) {
   const commands = normalizeCommands(extensionId, manifest)
   const commandById = new Map(commands.map((command) => [command.commandId, command]))
   const menus = normalizeMenus(extensionId, manifest, commandById)
+  const keybindings = normalizeKeybindings(extensionId, manifest, commandById)
   return {
     commands,
     commandById,
     menus,
+    keybindings,
     configuration: normalizeConfiguration(manifest),
     capabilities: normalizeCapabilities(manifest),
   }

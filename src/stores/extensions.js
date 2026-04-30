@@ -49,6 +49,7 @@ function normalizeExtension(extension = {}) {
     capabilities: Array.isArray(extension.capabilities) ? extension.capabilities.map(normalizeCapability).filter(Boolean) : [],
     contributedCommands: contributions.commands,
     contributedMenus: contributions.menus,
+    contributedKeybindings: contributions.keybindings,
     contributedCapabilities: contributions.capabilities,
     warnings: Array.isArray(extension.warnings) ? extension.warnings : [],
     errors: Array.isArray(extension.errors) ? extension.errors : [],
@@ -104,6 +105,20 @@ export const useExtensionsStore = defineStore('extensions', {
             )
             .map((action) => ({
               ...action,
+              extensionId: extension.id,
+              extensionName: extension.name,
+            }))
+        )
+    },
+    keybindingsForContext: (state) => (context = {}) => {
+      const enabled = new Set(state.enabledExtensionIds.map(normalizeExtensionId))
+      return state.registry
+        .filter((extension) => enabled.has(extension.id) && extension.status === 'available')
+        .flatMap((extension) =>
+          (extension.contributedKeybindings || [])
+            .filter((keybinding) => matchesWhenClause(keybinding.when, context))
+            .map((keybinding) => ({
+              ...keybinding,
               extensionId: extension.id,
               extensionName: extension.name,
             }))

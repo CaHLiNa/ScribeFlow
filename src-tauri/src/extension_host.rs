@@ -220,10 +220,28 @@ pub fn should_activate_for_event(manifest: &ExtensionManifest, activation_event:
     if target.is_empty() {
         return true;
     }
-    manifest
+    if manifest
         .activation_events
         .iter()
-        .any(|event| event.trim() == target)
+        .any(|event| event.trim() == "*" || event.trim() == target)
+    {
+        return true;
+    }
+    if let Some(command) = target.strip_prefix("onCommand:") {
+        return manifest
+            .contributes
+            .commands
+            .iter()
+            .any(|contribution| contribution.command.trim() == command);
+    }
+    if let Some(capability) = target.strip_prefix("onCapability:") {
+        return manifest
+            .contributes
+            .capabilities
+            .iter()
+            .any(|contribution| contribution.id.trim() == capability);
+    }
+    false
 }
 
 pub fn build_extension_invocation_envelope(
@@ -515,9 +533,9 @@ mod tests {
     }
 
     #[test]
-    fn activation_event_match_is_exact() {
+    fn activation_event_matches_explicit_and_contributed_events() {
         let entry = canonical_entry();
-        let manifest = entry.manifest.expect("manifest");
+        let mut manifest = entry.manifest.expect("manifest");
         assert!(should_activate_for_event(
             &manifest,
             "onCommand:scribeflow.pdf.translate"
@@ -525,6 +543,15 @@ mod tests {
         assert!(!should_activate_for_event(
             &manifest,
             "onSurface:pdf.preview.actions"
+        ));
+        manifest.activation_events.clear();
+        assert!(should_activate_for_event(
+            &manifest,
+            "onCommand:scribeflow.pdf.translate"
+        ));
+        assert!(should_activate_for_event(
+            &manifest,
+            "onCapability:pdf.translate"
         ));
     }
 
