@@ -26,6 +26,19 @@ function normalizeCapability(value = '') {
 }
 
 function normalizePlugin(plugin = {}) {
+  const uiActions = Array.isArray(plugin?.manifest?.ui?.actions)
+    ? plugin.manifest.ui.actions
+        .map((action) => ({
+          id: String(action?.id || '').trim(),
+          pluginId: normalizePluginId(plugin.id),
+          surface: String(action?.surface || '').trim(),
+          capability: normalizeCapability(action?.capability),
+          label: String(action?.label || '').trim(),
+          icon: String(action?.icon || '').trim(),
+        }))
+        .filter((action) => action.id && action.surface && action.capability)
+    : []
+
   return {
     ...plugin,
     id: normalizePluginId(plugin.id),
@@ -40,6 +53,7 @@ function normalizePlugin(plugin = {}) {
     settingsSchema: plugin?.manifest?.settingsSchema && typeof plugin.manifest.settingsSchema === 'object'
       ? plugin.manifest.settingsSchema
       : {},
+    uiActions,
   }
 }
 
@@ -65,6 +79,7 @@ export const usePluginsStore = defineStore('plugins', {
     loadingRegistry: false,
     loadingJobs: false,
     settingsHydrated: false,
+    settingsFileExists: false,
     lastError: '',
   }),
 
@@ -94,6 +109,22 @@ export const usePluginsStore = defineStore('plugins', {
           plugin.capabilities.includes(normalizedCapability)
       )
       return providers.find((plugin) => plugin.id === preferredId) || providers[0] || null
+    },
+    actionsForSurface: (state) => (surface = '') => {
+      const normalizedSurface = String(surface || '').trim()
+      if (!normalizedSurface) return []
+      const enabled = new Set(state.enabledPluginIds.map(normalizePluginId))
+      return state.registry
+        .filter((plugin) => enabled.has(plugin.id) && plugin.status === 'available')
+        .flatMap((plugin) =>
+          (plugin.uiActions || [])
+            .filter((action) => action.surface === normalizedSurface)
+            .map((action) => ({
+              ...action,
+              pluginId: plugin.id,
+              pluginName: plugin.name,
+            }))
+        )
     },
     recentJobs(state) {
       return [...state.jobs].slice(0, 8)
@@ -147,6 +178,7 @@ export const usePluginsStore = defineStore('plugins', {
       this.pluginConfig = settings?.pluginConfig && typeof settings.pluginConfig === 'object'
         ? { ...settings.pluginConfig }
         : {}
+      this.settingsFileExists = Boolean(settings?.settingsExists)
       this.settingsHydrated = true
       return this.snapshotSettings()
     },
@@ -168,6 +200,7 @@ export const usePluginsStore = defineStore('plugins', {
       this.pluginConfig = saved?.pluginConfig && typeof saved.pluginConfig === 'object'
         ? { ...saved.pluginConfig }
         : {}
+      this.settingsFileExists = true
       this.settingsHydrated = true
       return this.snapshotSettings()
     },
@@ -183,7 +216,7 @@ export const usePluginsStore = defineStore('plugins', {
         if (!this.settingsHydrated) {
           await this.hydrateSettings()
         }
-        if (this.enabledPluginIds.length === 0) {
+        if (!this.settingsFileExists && this.enabledPluginIds.length === 0) {
           const availableIds = this.registry
             .filter((plugin) => plugin.status === 'available')
             .map((plugin) => plugin.id)
@@ -264,6 +297,34 @@ export const usePluginsStore = defineStore('plugins', {
         globalConfigDir,
         workspaceRoot: workspace.path || '',
         pluginId: provider.id,
+        capability,
+        target,
+        settings: {
+          ...providerSettings,
+          ...(settings && typeof settings === 'object' ? settings : {}),
+        },
+      }))
+      await this.refreshJobs().catch(() => {})
+      return job
+    },
+
+    async startPluginAction(action = {}, target = {}, settings = {}) {
+      const pluginId = normalizePluginId(action.pluginId)
+      const capability = normalizeCapability(action.capability)
+      const provider = this.registry.find((plugin) => plugin.id === pluginId)
+      if (!provider || provider.status !== 'available') {
+        throw new Error(`Plugin action is not available: ${pluginId || capability}`)
+      }
+      if (!provider.capabilities.includes(capability)) {
+        throw new Error(`Plugin ${pluginId} does not provide ${capability}`)
+      }
+      const workspace = useWorkspaceStore()
+      const globalConfigDir = await workspace.ensureGlobalConfigDir()
+      const providerSettings = this.configForPlugin(provider)
+      const job = normalizeJob(await startPluginJob({
+        globalConfigDir,
+        workspaceRoot: workspace.path || '',
+        pluginId,
         capability,
         target,
         settings: {

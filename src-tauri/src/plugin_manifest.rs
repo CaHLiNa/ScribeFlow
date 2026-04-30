@@ -41,6 +41,8 @@ pub struct PluginManifest {
     pub inputs: BTreeMap<String, PluginInputDefinition>,
     #[serde(default)]
     pub outputs: BTreeMap<String, PluginOutputDefinition>,
+    #[serde(default)]
+    pub ui: PluginUiContributions,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -120,6 +122,28 @@ pub struct PluginSettingOption {
     pub value: Value,
     #[serde(default)]
     pub label: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginUiContributions {
+    #[serde(default)]
+    pub actions: Vec<PluginUiAction>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginUiAction {
+    #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    pub surface: String,
+    #[serde(default)]
+    pub capability: String,
+    #[serde(default)]
+    pub label: String,
+    #[serde(default)]
+    pub icon: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -263,6 +287,25 @@ pub fn validate_plugin_manifest(manifest: &PluginManifest) -> PluginValidationRe
         }
     }
 
+    for action in &manifest.ui.actions {
+        if action.id.trim().is_empty() {
+            errors.push("UI action id is required".to_string());
+        }
+        if action.surface.trim().is_empty() {
+            errors.push("UI action surface is required".to_string());
+        }
+        if !manifest
+            .capabilities
+            .iter()
+            .any(|capability| capability == &action.capability)
+        {
+            errors.push(format!(
+                "UI action capability is not provided by this plugin: {}",
+                action.capability
+            ));
+        }
+    }
+
     match manifest.runtime.runtime_type.trim() {
         "cli" => {
             if !is_safe_cli_command_name(&manifest.runtime.command) {
@@ -374,6 +417,15 @@ mod tests {
                     "mediaType": "application/pdf",
                     "required": false
                 }
+            },
+            "ui": {
+                "actions": [{
+                    "id": "translate-pdf",
+                    "surface": "pdf.preview.actions",
+                    "capability": "pdf.translate",
+                    "label": "Translate",
+                    "icon": "bolt"
+                }]
             }
         }))
         .expect("valid manifest json")
@@ -451,5 +503,16 @@ mod tests {
         assert!(result
             .errors
             .contains(&"cli.command must be a safe executable name".to_string()));
+    }
+
+    #[test]
+    fn rejects_ui_action_for_missing_capability() {
+        let mut manifest = valid_manifest();
+        manifest.ui.actions[0].capability = "document.summarize".to_string();
+        let result = validate_plugin_manifest(&manifest);
+        assert!(!result.ok);
+        assert!(result.errors.iter().any(|error| {
+            error.contains("UI action capability is not provided by this plugin")
+        }));
     }
 }

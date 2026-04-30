@@ -118,6 +118,24 @@ Required fields:
     "type": "cli",
     "command": "bin/scribeflow-pdf-translator"
   },
+  "ui": {
+    "actions": [
+      {
+        "id": "translate-pdf-preview",
+        "surface": "pdf.preview.actions",
+        "capability": "pdf.translate",
+        "label": "Translate",
+        "icon": "bolt"
+      },
+      {
+        "id": "translate-reference-pdf",
+        "surface": "reference.pdf.actions",
+        "capability": "pdf.translate",
+        "label": "Translate",
+        "icon": "bolt"
+      }
+    ]
+  },
   "permissions": {
     "readWorkspaceFiles": true,
     "readReferenceLibrary": true,
@@ -215,8 +233,9 @@ Only `pdf.translate` needs a full v1 end-to-end path. The others can be register
 Capability rules:
 
 - A plugin may declare multiple capabilities.
-- A UI surface must request a capability, not a specific plugin id.
-- If multiple enabled plugins provide one capability, the user chooses a default provider.
+- A plugin may declare UI actions for stable host surfaces through `ui.actions`.
+- Host surfaces render enabled plugin actions; translation-specific labels, icons and capability bindings belong to the plugin manifest.
+- Generic capability buttons may still request a default provider by capability, but product-specific actions should come from plugin `ui.actions`.
 - Capability invocation receives a typed input envelope and returns a job id.
 
 Example invocation envelope:
@@ -475,6 +494,7 @@ Create:
   - Registry state.
   - Enabled plugin ids.
   - Default provider per capability.
+  - UI actions contributed by enabled plugin manifests.
   - Active and recent jobs.
 
 - `src/components/settings/SettingsPlugins.vue`
@@ -490,6 +510,9 @@ Create:
 - `src/components/plugins/PluginCapabilityButton.vue`
   - Reusable action button for a capability on a target.
 
+- `src/components/plugins/PluginActionButtons.vue`
+  - Generic host renderer for plugin-contributed actions on a named surface.
+
 Modify:
 
 - `src/components/settings/settingsSections.js`
@@ -499,10 +522,10 @@ Modify:
   - Route settings section to `SettingsPlugins.vue`.
 
 - `src/components/panel/ReferenceDetailPanel.vue`
-  - Add `pdf.translate` action only when a reference has a PDF and at least one enabled provider.
+  - Expose the `reference.pdf.actions` surface when a reference has a PDF.
 
 - `src/components/editor/PdfArtifactPreview.vue`
-  - Add a translate action for currently opened PDFs after registry state exists.
+  - Expose the `pdf.preview.actions` surface for currently opened PDFs.
 
 - `src/services/references/referenceAssets.js`
   - Add read-only helpers for related plugin artifacts only if reference artifact linking is stored in reference metadata.
@@ -764,24 +787,26 @@ Steps:
 - [ ] Run `npm run build`.
 - [ ] Commit with `feat(plugin): add plugin settings UI`.
 
-### Task 9: Wire PDF Translation Entry
+### Task 9: Wire Plugin Action Surfaces
 
 **Files:**
 
 - Create: `src/components/plugins/PluginCapabilityButton.vue`
+- Create: `src/components/plugins/PluginActionButtons.vue`
 - Modify: `src/components/panel/ReferenceDetailPanel.vue`
 - Modify: `src/components/editor/PdfArtifactPreview.vue`
 
 Steps:
 
 - [ ] Add reusable capability button.
-- [ ] Show Translate PDF in reference detail when a PDF exists.
-- [ ] Show Translate PDF in `src/components/editor/PdfArtifactPreview.vue` when the PDF path is available.
-- [ ] Start `pdf.translate` job with reference id and PDF path.
+- [ ] Add generic plugin action renderer for manifest-contributed actions.
+- [ ] Show enabled actions for `reference.pdf.actions` when a reference PDF exists.
+- [ ] Show enabled actions for `pdf.preview.actions` when the PDF path is available.
+- [ ] Start the action's declared capability job with reference id and PDF path.
 - [ ] Show job progress and artifacts.
 - [ ] Open output PDF through existing PDF preview path.
 - [ ] Run `npm run build`.
-- [ ] Commit with `feat(plugin): add pdf translation action`.
+- [ ] Commit with `feat(plugin): add plugin action surfaces`.
 
 ### Task 10: Add Seed Plugin Package
 

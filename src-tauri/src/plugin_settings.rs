@@ -18,6 +18,14 @@ pub struct PluginSettings {
     pub plugin_config: BTreeMap<String, Value>,
 }
 
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginSettingsLoadResult {
+    #[serde(flatten)]
+    pub settings: PluginSettings,
+    pub settings_exists: bool,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PluginSettingsLoadParams {
@@ -102,6 +110,18 @@ pub fn load_plugin_settings(global_config_dir: &str) -> Result<PluginSettings, S
     Ok(normalize_settings(parsed))
 }
 
+pub fn load_plugin_settings_with_state(
+    global_config_dir: &str,
+) -> Result<PluginSettingsLoadResult, String> {
+    let path = settings_file(global_config_dir)?;
+    let settings_exists = path.exists();
+    let settings = load_plugin_settings(global_config_dir)?;
+    Ok(PluginSettingsLoadResult {
+        settings,
+        settings_exists,
+    })
+}
+
 pub fn save_plugin_settings(
     global_config_dir: &str,
     settings: PluginSettings,
@@ -120,8 +140,8 @@ pub fn save_plugin_settings(
 #[tauri::command]
 pub async fn plugin_settings_load(
     params: PluginSettingsLoadParams,
-) -> Result<PluginSettings, String> {
-    load_plugin_settings(&params.global_config_dir)
+) -> Result<PluginSettingsLoadResult, String> {
+    load_plugin_settings_with_state(&params.global_config_dir)
 }
 
 #[tauri::command]
@@ -133,7 +153,9 @@ pub async fn plugin_settings_save(
 
 #[cfg(test)]
 mod tests {
-    use super::{load_plugin_settings, save_plugin_settings, PluginSettings};
+    use super::{
+        load_plugin_settings, load_plugin_settings_with_state, save_plugin_settings, PluginSettings,
+    };
     use std::collections::BTreeMap;
     use std::fs;
 
@@ -178,6 +200,18 @@ mod tests {
             load_plugin_settings(&root.to_string_lossy()).expect("load"),
             saved
         );
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn load_result_marks_missing_settings_file() {
+        let root = std::env::temp_dir().join(format!(
+            "scribeflow-plugin-settings-missing-{}",
+            uuid::Uuid::new_v4()
+        ));
+        let loaded = load_plugin_settings_with_state(&root.to_string_lossy()).expect("load");
+        assert!(!loaded.settings_exists);
+        assert!(loaded.settings.enabled_plugin_ids.is_empty());
         fs::remove_dir_all(root).ok();
     }
 }

@@ -199,12 +199,10 @@
               <UiButton variant="secondary" size="sm" :disabled="!canOpenPdf" @click="handleRevealPdf">
                 <template #leading><IconFolder :size="14"/></template> Finder
               </UiButton>
-              <PluginCapabilityButton
+              <PluginActionButtons
                 v-if="canOpenPdf"
-                capability="pdf.translate"
-                :target="pdfTranslateTarget"
-                :settings="pdfTranslateSettings"
-                :label="t('Translate')"
+                surface="reference.pdf.actions"
+                :target="pdfPluginActionTarget"
               />
               <UiButton variant="secondary" size="sm" @click="handleAttachPdf">
                 <template #leading><IconRefresh :size="14"/></template> {{ t('Replace') }}
@@ -260,7 +258,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import {
   IconChevronRight,
   IconDeviceFloppy,
@@ -274,7 +272,6 @@ import { useI18n } from '../../i18n'
 import { getReferenceTypeLabelKey } from '../../domains/references/referencePresentation.js'
 import { useEditorStore } from '../../stores/editor'
 import { useReferencesStore } from '../../stores/references'
-import { usePluginsStore } from '../../stores/plugins'
 import { useToastStore } from '../../stores/toast'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { revealPathInFileManager } from '../../services/fileTreeSystem'
@@ -282,12 +279,11 @@ import { openNativeDialog } from '../../services/nativeDialog.js'
 import UiButton from '../shared/ui/UiButton.vue'
 import UiInput from '../shared/ui/UiInput.vue'
 import UiTextarea from '../shared/ui/UiTextarea.vue'
-import PluginCapabilityButton from '../plugins/PluginCapabilityButton.vue'
+import PluginActionButtons from '../plugins/PluginActionButtons.vue'
 
 const { t } = useI18n()
 const editorStore = useEditorStore()
 const referencesStore = useReferencesStore()
-const pluginsStore = usePluginsStore()
 const toastStore = useToastStore()
 const workspace = useWorkspaceStore()
 const emit = defineEmits(['open-pdf-preview'])
@@ -323,12 +319,10 @@ const selectedReferenceTypeLabel = computed(() =>
 )
 const selectedReferencePdfPath = computed(() => String(selectedReference.value?.pdfPath || '').trim())
 const canOpenPdf = computed(() => selectedReferencePdfPath.value.length > 0)
-const pdfTranslateTarget = computed(() => ({
+const pdfPluginActionTarget = computed(() => ({
   kind: 'referencePdf',
   referenceId: String(selectedReference.value?.id || ''),
   path: selectedReferencePdfPath.value,
-}))
-const pdfTranslateSettings = computed(() => ({
 }))
 const heroMetaItems = computed(() =>
   [
@@ -379,11 +373,6 @@ watch(
 
 onBeforeUnmount(() => {
   void saveDraftChangesForReference(selectedReference.value)
-})
-
-onMounted(() => {
-  void pluginsStore.refreshRegistry().catch(() => {})
-  void pluginsStore.refreshJobs().catch(() => {})
 })
 
 function buildDraftSnapshot(reference = null) {

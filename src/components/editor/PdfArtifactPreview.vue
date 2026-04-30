@@ -1,14 +1,11 @@
 <template>
   <div ref="previewHostRef" class="pdf-artifact-preview-host">
-    <div class="pdf-plugin-actions">
-      <PluginCapabilityButton
-        capability="pdf.translate"
-        :target="pdfTranslateTarget"
-        :settings="pdfTranslateSettings"
-        :disabled="!artifactPath"
-        :label="t('Translate')"
-      />
-    </div>
+    <PluginActionButtons
+      class="pdf-plugin-actions"
+      surface="pdf.preview.actions"
+      :target="pdfPluginActionTarget"
+      :disabled="!artifactPath"
+    />
     <component
       :is="PdfEmbedSurface"
       :sourcePath="sourcePath"
@@ -37,12 +34,10 @@ import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useLatexStore } from '../../stores/latex.js'
 import { useDocumentWorkflowStore } from '../../stores/documentWorkflow.js'
 import { useWorkspaceStore } from '../../stores/workspace.js'
-import { usePluginsStore } from '../../stores/plugins.js'
-import { useI18n } from '../../i18n'
 import { dispatchLatexBackwardSync } from '../../services/latex/pdfPreviewSync.js'
 import { resolvePdfPreviewRevision } from '../../domains/document/pdfPreviewSessionRuntime.js'
 import PdfEmbedSurface from './PdfEmbedSurface.vue'
-import PluginCapabilityButton from '../plugins/PluginCapabilityButton.vue'
+import PluginActionButtons from '../plugins/PluginActionButtons.vue'
 
 const PDF_PREVIEW_THEME_TOKEN_NAMES = [
   '--surface-base',
@@ -73,8 +68,6 @@ defineEmits(['open-external'])
 const workspace = useWorkspaceStore()
 const latexStore = useLatexStore()
 const workflowStore = useDocumentWorkflowStore()
-const pluginsStore = usePluginsStore()
-const { t } = useI18n()
 const previewHostRef = ref(null)
 const resolvedTheme = ref(readResolvedTheme())
 const themeTokens = ref(capturePdfPreviewThemeTokens())
@@ -112,12 +105,10 @@ const effectivePdfViewerSpreadMode = computed(() =>
 const effectivePdfViewerLastScale = computed(() =>
   props.compactToolbar ? '' : workspace.pdfViewerLastScale
 )
-const pdfTranslateTarget = computed(() => ({
+const pdfPluginActionTarget = computed(() => ({
   kind: props.kind === 'latex' ? 'documentPdf' : 'pdf',
   referenceId: '',
   path: props.artifactPath,
-}))
-const pdfTranslateSettings = computed(() => ({
 }))
 
 function refreshThemeTokens() {
@@ -191,8 +182,6 @@ function handleWorkspaceThemeUpdated() {
 }
 
 onMounted(() => {
-  void pluginsStore.refreshRegistry().catch(() => {})
-  void pluginsStore.refreshJobs().catch(() => {})
   window.addEventListener('workspace-theme-updated', handleWorkspaceThemeUpdated)
   void scheduleThemeSnapshot()
 })

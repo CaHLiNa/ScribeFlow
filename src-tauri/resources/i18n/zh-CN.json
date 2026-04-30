@@ -1282,6 +1282,7 @@
   "Log": "日志",
   "Translate": "翻译",
   "Translate PDF": "翻译 PDF",
+  "Run plugin action": "运行插件操作",
   "Plugin job started": "插件任务已开始",
   "Failed to start plugin job": "插件任务启动失败",
   "Not configured": "未配置",
