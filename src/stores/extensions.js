@@ -50,6 +50,8 @@ function normalizeExtension(extension = {}) {
     contributedCommands: contributions.commands,
     contributedMenus: contributions.menus,
     contributedKeybindings: contributions.keybindings,
+    contributedViewContainers: contributions.viewContainers,
+    contributedViews: contributions.views,
     contributedCapabilities: contributions.capabilities,
     warnings: Array.isArray(extension.warnings) ? extension.warnings : [],
     errors: Array.isArray(extension.errors) ? extension.errors : [],
@@ -144,6 +146,37 @@ export const useExtensionsStore = defineStore('extensions', {
               extensionName: extension.name,
             }))
         })
+    },
+    sidebarViewContainers(state) {
+      const enabled = new Set(state.enabledExtensionIds.map(normalizeExtensionId))
+      return state.registry
+        .filter((extension) => enabled.has(extension.id) && extension.status === 'available')
+        .flatMap((extension) =>
+          (extension.contributedViewContainers || []).map((container) => ({
+            ...container,
+            extensionId: extension.id,
+            extensionName: extension.name,
+          }))
+        )
+    },
+    viewsForContainer: (state) => (containerId = '', context = {}) => {
+      const normalizedContainerId = String(containerId || '').trim()
+      if (!normalizedContainerId) return []
+      const enabled = new Set(state.enabledExtensionIds.map(normalizeExtensionId))
+      return state.registry
+        .filter((extension) => enabled.has(extension.id) && extension.status === 'available')
+        .flatMap((extension) =>
+          (extension.contributedViews || [])
+            .filter((view) =>
+              view.containerId === normalizedContainerId &&
+              matchesWhenClause(view.when, context)
+            )
+            .map((view) => ({
+              ...view,
+              extensionId: extension.id,
+              extensionName: extension.name,
+            }))
+        )
     },
     recentTasks(state) {
       return [...state.tasks].slice(0, 8)

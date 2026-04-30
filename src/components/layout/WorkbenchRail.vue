@@ -77,10 +77,12 @@
             <button
               type="button"
               class="workbench-mode-menu-item is-active"
+              :class="{ 'is-active': leftSidebarPanel === 'references' }"
               @click="selectWorkbenchPanel('references')"
             >
               <span class="workbench-mode-menu-glyph" aria-hidden="true">
                 <svg
+                  v-if="leftSidebarPanel === 'references'"
                   class="workbench-mode-menu-check"
                   width="12"
                   height="12"
@@ -95,6 +97,33 @@
                 </svg>
               </span>
               <span class="workbench-mode-menu-label">{{ t('Reference Library') }}</span>
+            </button>
+
+            <button
+              v-for="container in sidebarViewContainers"
+              :key="container.panelId"
+              type="button"
+              class="workbench-mode-menu-item"
+              :class="{ 'is-active': leftSidebarPanel === container.panelId }"
+              @click="selectWorkbenchPanel(container.panelId)"
+            >
+              <span class="workbench-mode-menu-glyph" aria-hidden="true">
+                <svg
+                  v-if="leftSidebarPanel === container.panelId"
+                  class="workbench-mode-menu-check"
+                  width="12"
+                  height="12"
+                  viewBox="0 0 12 12"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M2.25 6.1 4.8 8.6 9.75 3.6" />
+                </svg>
+              </span>
+              <span class="workbench-mode-menu-label">{{ t(container.title || container.id) }}</span>
             </button>
           </div>
         </div>
@@ -150,6 +179,7 @@ import {
 import UiButton from '../shared/ui/UiButton.vue'
 import { isMac, isTauriDesktopRuntime, modKey } from '../../platform'
 import { useI18n } from '../../i18n'
+import { useExtensionsStore } from '../../stores/extensions'
 import {
   isNativeWindowFullscreen,
   onNativeWindowResized,
@@ -176,6 +206,8 @@ const emit = defineEmits([
 ])
 
 const { t } = useI18n()
+const extensionsStore = useExtensionsStore()
+const sidebarViewContainers = computed(() => extensionsStore.sidebarViewContainers)
 
 const TOPBAR_HEIGHT = 42
 const DEFAULT_SIDE_PADDING = 12

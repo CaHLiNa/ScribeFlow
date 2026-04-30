@@ -21,6 +21,23 @@
         "category": "PDF"
       }
     ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "examplePdfExtension.tools",
+          "title": "PDF Tools"
+        }
+      ]
+    },
+    "views": {
+      "examplePdfExtension.tools": [
+        {
+          "id": "examplePdfExtension.translateView",
+          "name": "Translate PDF",
+          "when": "resourceExtname == .pdf || resource.kind == pdf"
+        }
+      ]
+    },
     "menus": {
       "commandPalette": [
         {
@@ -39,7 +56,7 @@
       {
         "command": "scribeflow.pdf.translate",
         "key": "mod+alt+t",
-        "when": "resource.kind == pdf"
+        "when": "resourceExtname == .pdf || resource.kind == pdf"
       }
     ],
     "capabilities": [

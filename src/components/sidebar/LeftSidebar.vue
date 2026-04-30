@@ -52,7 +52,16 @@
       </div>
     </template>
 
-    <ReferencesSidebarPanel v-else @open-settings="$emit('open-settings')" />
+    <ReferencesSidebarPanel
+      v-else-if="workspace.leftSidebarPanel === 'references'"
+      @open-settings="$emit('open-settings')"
+    />
+    <ExtensionSidebarPanel
+      v-else-if="activeExtensionContainer"
+      :container="activeExtensionContainer"
+      :context="extensionContext"
+      :target="extensionTarget"
+    />
   </div>
 </template>
 
@@ -60,11 +69,15 @@
 import { ref, computed, nextTick, watch } from 'vue'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useEditorStore } from '../../stores/editor'
+import { useReferencesStore } from '../../stores/references'
+import { useExtensionsStore } from '../../stores/extensions'
 import { useI18n } from '../../i18n'
 import { isNewTab } from '../../utils/fileTypes'
+import { buildExtensionContext } from '../../domains/extensions/extensionContext.js'
 import FileTree from './FileTree.vue'
 import ReferencesSidebarPanel from './ReferencesSidebarPanel.vue'
 import OutlinePanel from '../panel/OutlinePanel.vue'
+import ExtensionSidebarPanel from '../extensions/ExtensionSidebarPanel.vue'
 import UiButton from '../shared/ui/UiButton.vue'
 
 defineEmits([
@@ -76,11 +89,18 @@ defineEmits([
 
 const workspace = useWorkspaceStore()
 const editorStore = useEditorStore()
+const referencesStore = useReferencesStore()
+const extensionsStore = useExtensionsStore()
 const { t } = useI18n()
 const fileTreeRef = ref(null)
 const documentSidebarMode = ref('files')
 const lastDocumentTab = ref(null)
 const fileTreeHeadingLabel = computed(() => '')
+const activeExtensionContainer = computed(() =>
+  extensionsStore.sidebarViewContainers.find(
+    (container) => container.panelId === workspace.leftSidebarPanel
+  ) || null
+)
 const documentTab = computed(() => {
   const active = editorStore.activeTab
   if (active && !isNewTab(active)) {
@@ -88,6 +108,32 @@ const documentTab = computed(() => {
   }
   return lastDocumentTab.value
 })
+const extensionTarget = computed(() => {
+  if (workspace.leftSidebarPanel === 'references' && referencesStore.selectedReference?.pdfPath) {
+    return {
+      kind: 'referencePdf',
+      referenceId: String(referencesStore.selectedReference.id || ''),
+      path: String(referencesStore.selectedReference.pdfPath || ''),
+    }
+  }
+  const activePath = editorStore.activeTab || ''
+  return {
+    kind: activePath.toLowerCase().endsWith('.pdf') ? 'pdf' : 'workspace',
+    referenceId: '',
+    path: activePath,
+  }
+})
+const extensionContext = computed(() =>
+  buildExtensionContext(extensionTarget.value, {
+    workbench: {
+      surface: workspace.isSettingsSurface ? 'settings' : 'workspace',
+      panel: workspace.leftSidebarPanel || '',
+      activeView: workspace.leftSidebarPanel || 'files',
+      hasWorkspace: workspace.isOpen,
+      workspaceFolder: workspace.path || '',
+    },
+  })
+)
 
 watch(
   () => editorStore.activeTab,

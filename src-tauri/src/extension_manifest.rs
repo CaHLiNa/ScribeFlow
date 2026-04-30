@@ -115,6 +115,10 @@ pub struct ExtensionContributions {
     #[serde(default)]
     pub keybindings: Vec<ExtensionKeybindingContribution>,
     #[serde(default)]
+    pub views_containers: ExtensionViewsContainersContribution,
+    #[serde(default)]
+    pub views: BTreeMap<String, Vec<ExtensionViewContribution>>,
+    #[serde(default)]
     pub configuration: ExtensionConfigurationContribution,
     #[serde(default)]
     pub menus: BTreeMap<String, Vec<ExtensionMenuContribution>>,
@@ -148,6 +152,37 @@ pub struct ExtensionKeybindingContribution {
     pub linux: String,
     #[serde(default)]
     pub when: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionViewsContainersContribution {
+    #[serde(default)]
+    pub activitybar: Vec<ExtensionViewContainerContribution>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionViewContainerContribution {
+    #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    pub title: String,
+    #[serde(default)]
+    pub icon: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionViewContribution {
+    #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub when: String,
+    #[serde(default)]
+    pub contextual_title: String,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -456,6 +491,48 @@ pub fn validate_extension_manifest(manifest: &ExtensionManifest) -> ExtensionVal
         }
     }
 
+    for container in &manifest.contributes.views_containers.activitybar {
+        if container.id.trim().is_empty() {
+            errors.push("Contributed view container id is required".to_string());
+        }
+        if container.title.trim().is_empty() {
+            errors.push(format!(
+                "Contributed view container title is required: {}",
+                container.id
+            ));
+        }
+    }
+
+    for (container_id, views) in &manifest.contributes.views {
+        let normalized_container_id = container_id.trim();
+        if normalized_container_id.is_empty() {
+            errors.push("Contributed views container id is required".to_string());
+            continue;
+        }
+        if !manifest
+            .contributes
+            .views_containers
+            .activitybar
+            .iter()
+            .any(|container| container.id.trim() == normalized_container_id)
+        {
+            errors.push(format!(
+                "Contributed views container is not declared by this extension: {normalized_container_id}"
+            ));
+        }
+
+        for view in views {
+            if view.id.trim().is_empty() {
+                errors.push(format!(
+                    "Contributed view id is required for container: {normalized_container_id}"
+                ));
+            }
+            if view.name.trim().is_empty() {
+                errors.push(format!("Contributed view name is required: {}", view.id));
+            }
+        }
+    }
+
     for capability in &manifest.contributes.capabilities {
         if capability.id.trim().is_empty() {
             errors.push("Contributed capability id is required".to_string());
@@ -543,6 +620,19 @@ mod tests {
                         "title": "Translate",
                         "category": "PDF"
                     }],
+                    "viewsContainers": {
+                        "activitybar": [{
+                            "id": "examplePdfExtension.tools",
+                            "title": "PDF Tools"
+                        }]
+                    },
+                    "views": {
+                        "examplePdfExtension.tools": [{
+                            "id": "examplePdfExtension.translateView",
+                            "name": "Translate PDF",
+                            "when": "resource.kind == pdf"
+                        }]
+                    },
                     "keybindings": [{
                         "command": "scribeflow.pdf.translate",
                         "key": "mod+alt+t",
@@ -580,6 +670,14 @@ mod tests {
         assert_eq!(manifest.runtime.runtime_type, "extensionHost");
         assert_eq!(manifest.capabilities, vec!["pdf.translate".to_string()]);
         assert_eq!(manifest.contributes.keybindings[0].key, "mod+alt+t");
+        assert_eq!(
+            manifest.contributes.views_containers.activitybar[0].id,
+            "examplePdfExtension.tools"
+        );
+        assert_eq!(
+            manifest.contributes.views["examplePdfExtension.tools"][0].id,
+            "examplePdfExtension.translateView"
+        );
     }
 
     #[test]
@@ -679,5 +777,25 @@ mod tests {
             .errors
             .iter()
             .any(|error| error.contains("menu command is not declared")));
+    }
+
+    #[test]
+    fn rejects_views_for_unknown_container() {
+        let mut manifest = valid_manifest();
+        let views = manifest
+            .contributes
+            .views
+            .remove("examplePdfExtension.tools")
+            .expect("views");
+        manifest
+            .contributes
+            .views
+            .insert("missing.container".to_string(), views);
+        let result = validate_extension_manifest(&manifest);
+        assert!(!result.ok);
+        assert!(result
+            .errors
+            .iter()
+            .any(|error| error.contains("views container is not declared")));
     }
 }

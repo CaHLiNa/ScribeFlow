@@ -19,6 +19,7 @@ It combines a Vue frontend with a Rust runtime for workspace files, editor state
 - Inspect where references are cited in the workspace
 - Configure editor, workspace, PDF, citation, environment, Zotero, extensions and update settings
 - Discover local extension packages, configure them and run contributed menu, palette and keybinding commands with shared `when` context
+- Switch into extension-contributed sidebar containers from the workspace mode menu
 
 ## Requirements
 

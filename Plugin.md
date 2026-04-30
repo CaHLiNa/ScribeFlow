@@ -64,6 +64,23 @@ Minimum shape:
         "title": "Translate"
       }
     ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "examplePdfExtension.tools",
+          "title": "PDF Tools"
+        }
+      ]
+    },
+    "views": {
+      "examplePdfExtension.tools": [
+        {
+          "id": "examplePdfExtension.translateView",
+          "name": "Translate PDF",
+          "when": "resourceExtname == .pdf || resource.kind == pdf"
+        }
+      ]
+    },
     "menus": {
       "commandPalette": [
         {
@@ -152,7 +169,23 @@ Supported context keys include:
 
 Supported boolean syntax currently includes `&&`, `||`, `!key`, `key == value` and `key != value`.
 
-## 6. Rust Modules
+## 6. View Containers
+
+Extensions can now contribute left-sidebar containers through:
+
+- `contributes.viewsContainers.activitybar`
+- `contributes.views`
+
+Current behavior:
+
+- each contributed container becomes a workspace sidebar target with panel id `extension:<containerId>`
+- the workspace mode menu surfaces those containers beside `Document Area` and `Reference Library`
+- each contributed view is filtered by the shared `when` context
+- the current sidebar rendering is intentionally minimal and command-first: clicking a contributed view runs the extension's first contributed command
+
+This is a real extension-owned navigation surface, but not yet a full VS Code `TreeView`/custom webview API.
+
+## 7. Rust Modules
 
 Current extension platform modules:
 
@@ -167,7 +200,7 @@ Current extension platform modules:
 
 No ScribeFlow-owned `plugin_*` Rust modules should exist.
 
-## 7. Frontend Modules
+## 8. Frontend Modules
 
 Current frontend extension modules:
 
@@ -182,12 +215,13 @@ Current frontend extension modules:
 - `src/components/extensions/ExtensionActionButtons.vue`
 - `src/components/extensions/ExtensionCommandButton.vue`
 - `src/components/extensions/ExtensionCommandPalette.vue`
+- `src/components/extensions/ExtensionSidebarPanel.vue`
 - `src/components/extensions/ExtensionTaskPanel.vue`
 - `src/components/settings/SettingsExtensions.vue`
 
 No ScribeFlow-owned `src/services/plugins`, `src/stores/plugins.js`, or `src/components/plugins` path should exist.
 
-## 8. Host Protocol
+## 9. Host Protocol
 
 Rust sends camelCase request payloads to the Node host:
 
@@ -207,7 +241,7 @@ The Node host returns typed responses:
 
 The field name must remain `extensionId` end to end. Do not reintroduce `pluginId` aliases in the host protocol.
 
-## 9. Test Structure
+## 10. Test Structure
 
 `extension_host.rs` keeps test and non-test runtime paths separated:
 
@@ -217,7 +251,7 @@ The field name must remain `extensionId` end to end. Do not reintroduce `pluginI
 
 This split is intentional. It keeps the production extension host real while keeping unit tests deterministic and warning-free.
 
-## 10. Product Language
+## 11. Product Language
 
 Product-facing language is extension-first:
 
@@ -227,6 +261,7 @@ Product-facing language is extension-first:
 - Package concept: extension
 - Command launcher: extension command palette
 - Shortcut contribution: extension keybinding
+- Sidebar contribution: extension view container
 
 Avoid user-facing text such as plugin jobs, installed plugins, plugin action, plugin virtual environment, or plugin-local server for ScribeFlow-owned extension features.
 
@@ -239,7 +274,7 @@ Third-party package names and framework APIs can still contain the word `plugin`
 
 Those are external API names and should not be mechanically renamed.
 
-## 11. Verification
+## 12. Verification
 
 Primary gate:
 

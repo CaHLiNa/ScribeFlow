@@ -54,6 +54,10 @@
                   <span class="extension-meta-value">{{ keybindingSummary(extension) }}</span>
                 </div>
                 <div class="extension-meta-item">
+                  <span class="extension-meta-label">{{ t('Views') }}</span>
+                  <span class="extension-meta-value">{{ viewSummary(extension) }}</span>
+                </div>
+                <div class="extension-meta-item">
                   <span class="extension-meta-label">{{ t('Permissions') }}</span>
                   <span class="extension-meta-value">{{ permissionSummary(extension) }}</span>
                 </div>
@@ -205,6 +209,20 @@ function keybindingSummary(extension = {}) {
     .map((keybinding) => keybinding.mac || keybinding.key || keybinding.win || keybinding.linux)
     .filter(Boolean)
     .join(' · ')
+}
+
+function viewSummary(extension = {}) {
+  const containers = Array.isArray(extension.contributedViewContainers)
+    ? extension.contributedViewContainers
+    : []
+  const views = Array.isArray(extension.contributedViews)
+    ? extension.contributedViews
+    : []
+  if (!containers.length && !views.length) return t('Not configured')
+  return [
+    ...containers.map((container) => container.title || container.id),
+    ...views.map((view) => view.title || view.id),
+  ].join(' · ')
 }
 
 function shortSettingKey(key = '') {
