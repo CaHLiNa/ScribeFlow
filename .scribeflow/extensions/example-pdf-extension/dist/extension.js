@@ -14,6 +14,22 @@ export async function activate(context) {
       capability: "pdf.translate",
     })
   })
+
+  context.views.registerViewProvider("examplePdfExtension.translateView", async (payload) => {
+    const targetPath = String(payload?.targetPath || "")
+    const label = targetPath ? targetPath.split(/[\\/]/).pop() : "Current PDF"
+    return {
+      title: "Translate PDF",
+      items: [
+        {
+          id: "translate-current-pdf",
+          label,
+          description: "Run the PDF translation command for the current target.",
+          commandId: "scribeflow.pdf.translate",
+        },
+      ],
+    }
+  })
 }
 
 export async function deactivate() {}

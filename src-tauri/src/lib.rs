@@ -18,6 +18,7 @@ mod extension_permissions;
 mod extension_registry;
 mod extension_settings;
 mod extension_tasks;
+mod extension_views;
 mod fs_commands;
 mod fs_io;
 mod fs_tree;
@@ -484,6 +485,7 @@ pub fn run() {
             extension_host::extension_host_status,
             extension_host::extension_host_activate,
             extension_commands::extension_command_execute,
+            extension_views::extension_view_resolve,
             extension_tasks::extension_task_list,
             extension_tasks::extension_task_get,
             extension_tasks::extension_task_cancel,

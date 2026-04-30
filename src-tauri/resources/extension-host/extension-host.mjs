@@ -39,6 +39,19 @@ function createExtensionApi(registry) {
         return await provider(payload);
       },
     },
+    views: {
+      registerViewProvider(viewId, provider) {
+        const id = String(viewId || "").trim();
+        if (id && typeof provider === "function") {
+          registry.views.set(id, provider);
+        }
+        return {
+          dispose() {
+            registry.views.delete(id);
+          },
+        };
+      },
+    },
   };
 }
 
@@ -54,6 +67,7 @@ function createActivationContext(api, payload = {}) {
     },
     commands: api.commands,
     capabilities: api.capabilities,
+    views: api.views,
   };
 }
 
@@ -89,6 +103,7 @@ async function ensureActivated(request) {
     resolvedMain,
     commands: new Map(),
     capabilities: new Map(),
+    views: new Map(),
     subscriptions: [],
   };
   const api = createExtensionApi(record);
@@ -176,6 +191,34 @@ async function handleExecuteCommand(params = {}) {
   };
 }
 
+async function handleResolveView(params = {}) {
+  const record = await ensureActivated(params);
+  const viewId = String(params.viewId || "").trim();
+  const provider = record.views.get(viewId);
+  if (!provider) {
+    throw new Error(`View provider not registered: ${viewId}`);
+  }
+  const result = await provider(params.envelope || {});
+  return {
+    kind: "ResolveView",
+    payload: {
+      viewId,
+      title:
+        typeof result?.title === "string" && result.title.trim()
+          ? result.title.trim()
+          : viewId,
+      items: Array.isArray(result?.items)
+        ? result.items.map((item, index) => ({
+            id: String(item?.id || `${viewId}:${index}`),
+            label: String(item?.label || item?.title || item?.id || `Item ${index + 1}`),
+            description: String(item?.description || ""),
+            commandId: String(item?.commandId || item?.command || ""),
+          }))
+        : [],
+    },
+  };
+}
+
 async function dispatchRequest(request) {
   if (!request || typeof request !== "object") {
     throw new Error("Invalid extension host request");
@@ -188,6 +231,9 @@ async function dispatchRequest(request) {
   }
   if (request.method === "ExecuteCommand") {
     return await handleExecuteCommand(request.params || {});
+  }
+  if (request.method === "ResolveView") {
+    return await handleResolveView(request.params || {});
   }
   throw new Error(`Unknown extension host method: ${String(request.method || "")}`);
 }

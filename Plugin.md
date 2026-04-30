@@ -181,9 +181,10 @@ Current behavior:
 - each contributed container becomes a workspace sidebar target with panel id `extension:<containerId>`
 - the workspace mode menu surfaces those containers beside `Document Area` and `Reference Library`
 - each contributed view is filtered by the shared `when` context
-- the current sidebar rendering is intentionally minimal and command-first: clicking a contributed view runs the extension's first contributed command
+- extensions can now register view providers through `activate(context)` using `context.views.registerViewProvider(viewId, provider)`
+- the sidebar resolves real view items from the extension host instead of rendering only static manifest metadata
 
-This is a real extension-owned navigation surface, but not yet a full VS Code `TreeView`/custom webview API.
+This is now a real extension-owned navigation surface with extension-provided view data, but it is still not a full VS Code `TreeView`/custom webview API.
 
 ## 7. Rust Modules
 
@@ -218,6 +219,7 @@ Current frontend extension modules:
 - `src/components/extensions/ExtensionSidebarPanel.vue`
 - `src/components/extensions/ExtensionTaskPanel.vue`
 - `src/components/settings/SettingsExtensions.vue`
+- `src/services/extensions/extensionViews.js`
 
 No ScribeFlow-owned `src/services/plugins`, `src/stores/plugins.js`, or `src/components/plugins` path should exist.
 
@@ -262,6 +264,7 @@ Product-facing language is extension-first:
 - Command launcher: extension command palette
 - Shortcut contribution: extension keybinding
 - Sidebar contribution: extension view container
+- View runtime: extension view provider
 
 Avoid user-facing text such as plugin jobs, installed plugins, plugin action, plugin virtual environment, or plugin-local server for ScribeFlow-owned extension features.
 

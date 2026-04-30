@@ -11,7 +11,8 @@
   "extensionKind": ["workspace"],
   "activationEvents": [
     "onCapability:pdf.translate",
-    "onCommand:scribeflow.pdf.translate"
+    "onCommand:scribeflow.pdf.translate",
+    "onView:examplePdfExtension.translateView"
   ],
   "contributes": {
     "commands": [

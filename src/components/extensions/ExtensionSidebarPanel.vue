@@ -10,24 +10,39 @@
     </div>
 
     <div v-else class="extension-sidebar-panel__views">
-      <button
+      <section
         v-for="view in views"
         :key="`${view.extensionId}:${view.id}`"
-        type="button"
-        class="extension-sidebar-panel__view"
-        @click="runFirstCommand(view)"
+        class="extension-sidebar-panel__section"
       >
-        <div class="extension-sidebar-panel__view-title">
-          {{ t(view.contextualTitle || view.title || view.id) }}
+        <div class="extension-sidebar-panel__section-header">
+          <div class="extension-sidebar-panel__view-title">
+            {{ t(resolvedViewTitle(view)) }}
+          </div>
+          <div class="extension-sidebar-panel__view-meta">{{ view.id }}</div>
         </div>
-        <div class="extension-sidebar-panel__view-meta">{{ view.id }}</div>
-      </button>
+
+        <div v-if="resolvedItems(view).length === 0" class="extension-sidebar-panel__empty">
+          {{ t('No extension view items found') }}
+        </div>
+
+        <button
+          v-for="item in resolvedItems(view)"
+          :key="`${view.extensionId}:${view.id}:${item.id}`"
+          type="button"
+          class="extension-sidebar-panel__view"
+          @click="runItemCommand(view, item)"
+        >
+          <div class="extension-sidebar-panel__view-title">{{ item.label }}</div>
+          <div v-if="item.description" class="extension-sidebar-panel__view-meta">{{ item.description }}</div>
+        </button>
+      </section>
     </div>
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import { useI18n } from '../../i18n'
 import { useExtensionsStore } from '../../stores/extensions'
 import { useToastStore } from '../../stores/toast'
@@ -46,14 +61,40 @@ const title = computed(() => t(props.container?.title || props.container?.id || 
 const extensionName = computed(() => props.container?.extensionName || props.container?.extensionId || '')
 const views = computed(() => extensionsStore.viewsForContainer(props.container?.id, props.context))
 
-function fallbackCommandForView(view = {}) {
+watch(
+  views,
+  (nextViews) => {
+    for (const view of nextViews) {
+      void extensionsStore.resolveView(view, props.target).catch(() => {})
+    }
+  },
+  { immediate: true }
+)
+
+function resolvedViewRecord(view = {}) {
+  return extensionsStore.resolvedViewFor(`${view.extensionId}:${view.id}`)
+}
+
+function resolvedViewTitle(view = {}) {
+  return resolvedViewRecord(view)?.title || view.contextualTitle || view.title || view.id
+}
+
+function resolvedItems(view = {}) {
+  return Array.isArray(resolvedViewRecord(view)?.items) ? resolvedViewRecord(view).items : []
+}
+
+function fallbackCommandForView(view = {}, item = {}) {
+  const itemCommandId = String(item?.commandId || '').trim()
   const extension = extensionsStore.registry.find((entry) => entry.id === view.extensionId)
   if (!extension) return null
+  if (itemCommandId) {
+    return (extension.contributedCommands || []).find((command) => command.commandId === itemCommandId) || null
+  }
   return (extension.contributedCommands || [])[0] || null
 }
 
-async function runFirstCommand(view = {}) {
-  const command = fallbackCommandForView(view)
+async function runItemCommand(view = {}, item = {}) {
+  const command = fallbackCommandForView(view, item)
   if (!command) {
     toastStore.show(t('No extension commands found'), { type: 'error', duration: 3200 })
     return
@@ -111,6 +152,20 @@ async function runFirstCommand(view = {}) {
   gap: 6px;
   overflow-y: auto;
   padding: 0 6px 8px;
+}
+
+.extension-sidebar-panel__section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.extension-sidebar-panel__section-header {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 4px;
 }
 
 .extension-sidebar-panel__view {

@@ -18,6 +18,9 @@ import {
   revealExtensionArtifact as revealExtensionArtifactWithBackend,
 } from '../services/extensions/extensionArtifacts'
 import {
+  resolveExtensionView,
+} from '../services/extensions/extensionViews'
+import {
   matchesWhenClause,
   normalizeExtensionContributions,
 } from '../domains/extensions/extensionContributionRegistry'
@@ -78,6 +81,7 @@ export const useExtensionsStore = defineStore('extensions', {
     tasks: [],
     enabledExtensionIds: [],
     extensionConfig: {},
+    resolvedViews: {},
     loadingRegistry: false,
     loadingTasks: false,
     settingsHydrated: false,
@@ -178,6 +182,7 @@ export const useExtensionsStore = defineStore('extensions', {
             }))
         )
     },
+    resolvedViewFor: (state) => (viewKey = '') => state.resolvedViews[String(viewKey || '').trim()] || null,
     recentTasks(state) {
       return [...state.tasks].slice(0, 8)
     },
@@ -342,6 +347,32 @@ export const useExtensionsStore = defineStore('extensions', {
       }))
       await this.refreshTasks().catch(() => {})
       return task
+    },
+    async resolveView(view = {}, target = {}, settings = {}) {
+      const extensionId = normalizeExtensionId(view.extensionId)
+      const viewId = String(view.id || '').trim()
+      if (!extensionId || !viewId) {
+        throw new Error('Extension view is incomplete')
+      }
+      const workspace = useWorkspaceStore()
+      const globalConfigDir = await workspace.ensureGlobalConfigDir()
+      const extension = this.registry.find((entry) => entry.id === extensionId)
+      const extensionSettings = extension ? this.configForExtension(extension) : {}
+      const resolved = await resolveExtensionView({
+        globalConfigDir,
+        workspaceRoot: workspace.path || '',
+        extensionId,
+        viewId,
+        commandId: String(view.commandId || ''),
+        targetKind: String(target?.kind || ''),
+        targetPath: String(target?.path || ''),
+        settings: {
+          ...extensionSettings,
+          ...(settings && typeof settings === 'object' ? settings : {}),
+        },
+      })
+      this.resolvedViews[`${extensionId}:${viewId}`] = resolved
+      return resolved
     },
     async cancelTask(taskId = '') {
       const task = normalizeTask(await cancelExtensionTaskWithBackend(taskId))

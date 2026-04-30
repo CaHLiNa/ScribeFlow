@@ -115,6 +115,14 @@ pub enum ExtensionHostRequest {
         command_id: String,
         envelope: ExtensionHostInvocationEnvelope,
     },
+    ResolveView {
+        activation_event: String,
+        extension_path: String,
+        manifest_path: String,
+        main_entry: String,
+        view_id: String,
+        envelope: ExtensionHostInvocationEnvelope,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -126,11 +134,33 @@ pub struct ExtensionHostCapabilityResult {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionHostViewItem {
+    pub id: String,
+    pub label: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub command_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionHostViewResolveResult {
+    pub view_id: String,
+    #[serde(default)]
+    pub title: String,
+    #[serde(default)]
+    pub items: Vec<ExtensionHostViewItem>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", tag = "kind", content = "payload")]
 pub enum ExtensionHostResponse {
     Activate(ExtensionHostActivationResult),
     InvokeCapability(ExtensionHostCapabilityResult),
     ExecuteCommand(ExtensionHostCapabilityResult),
+    ResolveView(ExtensionHostViewResolveResult),
     Error { message: String },
 }
 
@@ -423,6 +453,13 @@ fn handle_extension_host_request(request: ExtensionHostRequest) -> ExtensionHost
             ),
             progress_label: "Accepted by extension host".to_string(),
         }),
+        ExtensionHostRequest::ResolveView {
+            view_id, envelope, ..
+        } => ExtensionHostResponse::ResolveView(ExtensionHostViewResolveResult {
+            view_id,
+            title: envelope.extension_id.clone(),
+            items: Vec::new(),
+        }),
     }
 }
 
@@ -619,6 +656,32 @@ mod tests {
             ExtensionHostResponse::ExecuteCommand(result) => {
                 assert!(result.accepted);
                 assert!(result.message.contains("scribeflow.pdf.translate"));
+            }
+            _ => panic!("unexpected response"),
+        }
+    }
+
+    #[test]
+    fn sidecar_request_handler_accepts_view_resolution() {
+        let response = handle_extension_host_request(ExtensionHostRequest::ResolveView {
+            activation_event: "onView:examplePdfExtension.translateView".to_string(),
+            extension_path: "/tmp/ext".to_string(),
+            manifest_path: "/tmp/ext/package.json".to_string(),
+            main_entry: "./dist/extension.js".to_string(),
+            view_id: "examplePdfExtension.translateView".to_string(),
+            envelope: build_extension_invocation_envelope(
+                "",
+                "extension-1",
+                "",
+                "",
+                "referencePdf",
+                "/tmp/paper.pdf",
+                &serde_json::json!({"targetLang": "zh-CN"}),
+            ),
+        });
+        match response {
+            ExtensionHostResponse::ResolveView(result) => {
+                assert_eq!(result.view_id, "examplePdfExtension.translateView");
             }
             _ => panic!("unexpected response"),
         }

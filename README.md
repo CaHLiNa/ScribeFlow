@@ -20,6 +20,7 @@ It combines a Vue frontend with a Rust runtime for workspace files, editor state
 - Configure editor, workspace, PDF, citation, environment, Zotero, extensions and update settings
 - Discover local extension packages, configure them and run contributed menu, palette and keybinding commands with shared `when` context
 - Switch into extension-contributed sidebar containers from the workspace mode menu
+- Render extension-provided sidebar view items through the extension host
 
 ## Requirements
 
