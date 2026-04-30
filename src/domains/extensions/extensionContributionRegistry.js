@@ -1,3 +1,5 @@
+import { buildExtensionContext } from './extensionContext.js'
+
 function normalizeId(value = '') {
   return String(value || '').trim()
 }
@@ -178,25 +180,16 @@ export function matchesWhenClause(when = '', context = {}) {
   const normalized = normalizeId(when)
   if (!normalized) return true
   return normalized
-    .split('&&')
-    .map((clause) => clause.trim())
-    .every((clause) => evaluateClause(clause, context))
+    .split('||')
+    .map((group) => group.trim())
+    .some((group) =>
+      group
+        .split('&&')
+        .map((clause) => clause.trim())
+        .every((clause) => evaluateClause(clause, context))
+    )
 }
 
 export function buildSurfaceContext(target = {}, extra = {}) {
-  const kind = normalizeId(target?.kind)
-  const path = normalizeId(target?.path)
-  const resourceKind = kind.toLowerCase().includes('pdf') || path.toLowerCase().endsWith('.pdf')
-    ? 'pdf'
-    : kind
-  return {
-    ...extra,
-    resource: {
-      kind: resourceKind,
-      path,
-      targetKind: kind,
-      referenceId: normalizeId(target?.referenceId),
-      ...(extra?.resource && typeof extra.resource === 'object' ? extra.resource : {}),
-    },
-  }
+  return buildExtensionContext(target, extra)
 }

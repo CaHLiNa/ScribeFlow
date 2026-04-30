@@ -122,6 +122,7 @@
     <ExtensionCommandPalette
       :visible="commandPaletteVisible"
       :target="commandPaletteTarget"
+      :context="extensionCommandContext"
       @close="commandPaletteVisible = false"
     />
 
@@ -306,7 +307,9 @@ const extensionCommandContext = computed(() =>
     workbench: {
       surface: workspace.isSettingsSurface ? 'settings' : 'workspace',
       panel: workspace.leftSidebarPanel || '',
+      activeView: workspace.isSettingsSurface ? 'settings' : workspace.leftSidebarPanel || 'files',
       hasWorkspace: workspace.isOpen,
+      workspaceFolder: workspace.path || '',
     },
   })
 )

@@ -22,6 +22,12 @@
       }
     ],
     "menus": {
+      "commandPalette": [
+        {
+          "command": "scribeflow.pdf.translate",
+          "when": "resourceExtname == .pdf || resource.kind == pdf"
+        }
+      ],
       "pdf.preview.actions": [
         {
           "command": "scribeflow.pdf.translate",

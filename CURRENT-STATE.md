@@ -1,6 +1,6 @@
 # ScribeFlow Current State
 
-Last updated: 2026-04-29
+Last updated: 2026-04-30
 
 ## Product
 
@@ -36,7 +36,7 @@ Boundary rules:
 - Tauri `invoke`, Tauri plugin calls and event bridges belong in `src/services`.
 - Rust owns filesystem authority, persisted app state, reference normalization, compile/runtime execution and workspace-scoped security checks.
 - Rust owns extension discovery, manifest validation, extension host startup, command execution, task state and artifact access.
-- Vue owns extension command palette, contributed menu rendering and contributed keybinding dispatch through the `src/services` bridge.
+- Vue owns extension command palette, contributed menu rendering, contributed keybinding dispatch and shared extension `when` context evaluation through the `src/services` bridge.
 - JS remains a thin bridge and UI coordination layer, not a second backend.
 
 ## Verification
@@ -65,7 +65,7 @@ Current baseline:
 - Vite build passes
 - bundle budget passes
 - Rust check passes
-- Rust tests pass: 127 tests
+- Rust tests pass: 147 tests
 
 Desktop feel, visual layout and interaction quality are user-owned manual checks.
 

@@ -59,6 +59,7 @@ import UiModalShell from '../shared/ui/UiModalShell.vue'
 const props = defineProps({
   visible: { type: Boolean, default: false },
   target: { type: Object, default: () => ({}) },
+  context: { type: Object, default: () => ({}) },
 })
 
 const emit = defineEmits(['close', 'executed'])
@@ -72,16 +73,7 @@ const inputRef = ref(null)
 const busy = ref(false)
 
 const availableCommands = computed(() => {
-  const enabled = new Set(extensionsStore.enabledExtensionIds)
-  return extensionsStore.registry
-    .filter((extension) => enabled.has(extension.id) && extension.status === 'available')
-    .flatMap((extension) =>
-      (extension.contributedCommands || []).map((command) => ({
-        ...command,
-        extensionId: extension.id,
-        extensionName: extension.name || extension.id,
-      }))
-    )
+  return extensionsStore.commandPaletteCommandsForContext(props.context)
 })
 
 const filteredCommands = computed(() => {

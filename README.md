@@ -18,7 +18,7 @@ It combines a Vue frontend with a Rust runtime for workspace files, editor state
 - Sync selected document references into LaTeX bibliography files
 - Inspect where references are cited in the workspace
 - Configure editor, workspace, PDF, citation, environment, Zotero, extensions and update settings
-- Discover local extension packages, configure them and run contributed menu, palette and keybinding commands
+- Discover local extension packages, configure them and run contributed menu, palette and keybinding commands with shared `when` context
 
 ## Requirements
 

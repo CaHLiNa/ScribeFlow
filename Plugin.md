@@ -65,6 +65,12 @@ Minimum shape:
       }
     ],
     "menus": {
+      "commandPalette": [
+        {
+          "command": "scribeflow.pdf.translate",
+          "when": "resourceExtname == .pdf || resource.kind == pdf"
+        }
+      ],
       "pdf.preview.actions": [
         {
           "command": "scribeflow.pdf.translate",
@@ -125,7 +131,28 @@ Vue remains the UI layer:
 - shows task progress, logs, and artifacts
 - never imports Tauri APIs outside `src/services`
 
-## 5. Rust Modules
+## 5. Context Keys
+
+Menus, command palette entries and keybindings share one `when` context model.
+
+Supported context keys include:
+
+- `resource.kind` and `resourceKind`
+- `resource.path` and `resourcePath`
+- `resource.extname` and `resourceExtname`
+- `resource.filename` and `resourceFilename`
+- `resource.langId` and `resourceLangId`
+- `resource.scheme` and `resourceScheme`
+- `resource.referenceId`
+- `resourceIsPdf`, `resourceIsMarkdown`, `resourceIsLatex`, `resourceIsPython`
+- `activeView`
+- `workbench.surface`
+- `workbench.panel`
+- `workspaceFolder`
+
+Supported boolean syntax currently includes `&&`, `||`, `!key`, `key == value` and `key != value`.
+
+## 6. Rust Modules
 
 Current extension platform modules:
 
@@ -140,7 +167,7 @@ Current extension platform modules:
 
 No ScribeFlow-owned `plugin_*` Rust modules should exist.
 
-## 6. Frontend Modules
+## 7. Frontend Modules
 
 Current frontend extension modules:
 
@@ -149,6 +176,7 @@ Current frontend extension modules:
 - `src/services/extensions/extensionTasks.js`
 - `src/services/extensions/extensionArtifacts.js`
 - `src/stores/extensions.js`
+- `src/domains/extensions/extensionContext.js`
 - `src/domains/extensions/extensionContributionRegistry.js`
 - `src/domains/extensions/extensionKeybindings.js`
 - `src/components/extensions/ExtensionActionButtons.vue`
@@ -159,7 +187,7 @@ Current frontend extension modules:
 
 No ScribeFlow-owned `src/services/plugins`, `src/stores/plugins.js`, or `src/components/plugins` path should exist.
 
-## 7. Host Protocol
+## 8. Host Protocol
 
 Rust sends camelCase request payloads to the Node host:
 
@@ -179,7 +207,7 @@ The Node host returns typed responses:
 
 The field name must remain `extensionId` end to end. Do not reintroduce `pluginId` aliases in the host protocol.
 
-## 8. Test Structure
+## 9. Test Structure
 
 `extension_host.rs` keeps test and non-test runtime paths separated:
 
@@ -189,7 +217,7 @@ The field name must remain `extensionId` end to end. Do not reintroduce `pluginI
 
 This split is intentional. It keeps the production extension host real while keeping unit tests deterministic and warning-free.
 
-## 9. Product Language
+## 10. Product Language
 
 Product-facing language is extension-first:
 
@@ -211,7 +239,7 @@ Third-party package names and framework APIs can still contain the word `plugin`
 
 Those are external API names and should not be mechanically renamed.
 
-## 10. Verification
+## 11. Verification
 
 Primary gate:
 

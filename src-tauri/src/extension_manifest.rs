@@ -433,6 +433,29 @@ pub fn validate_extension_manifest(manifest: &ExtensionManifest) -> ExtensionVal
         }
     }
 
+    for (surface, menu_entries) in &manifest.contributes.menus {
+        if surface.trim().is_empty() {
+            errors.push("Contributed menu surface is required".to_string());
+        }
+        for menu_entry in menu_entries {
+            let command = menu_entry.command.trim();
+            if command.is_empty() {
+                errors.push(format!(
+                    "Contributed menu command is required for surface: {surface}"
+                ));
+            } else if !manifest
+                .contributes
+                .commands
+                .iter()
+                .any(|contributed| contributed.command.trim() == command)
+            {
+                errors.push(format!(
+                    "Contributed menu command is not declared by this extension: {command}"
+                ));
+            }
+        }
+    }
+
     for capability in &manifest.contributes.capabilities {
         if capability.id.trim().is_empty() {
             errors.push("Contributed capability id is required".to_string());
@@ -637,5 +660,24 @@ mod tests {
             .errors
             .iter()
             .any(|error| error.contains("keybinding command is not declared")));
+    }
+
+    #[test]
+    fn rejects_menu_for_unknown_command() {
+        let mut manifest = valid_manifest();
+        manifest
+            .contributes
+            .menus
+            .get_mut("pdf.preview.actions")
+            .expect("menu")
+            .get_mut(0)
+            .expect("menu entry")
+            .command = "missing.command".to_string();
+        let result = validate_extension_manifest(&manifest);
+        assert!(!result.ok);
+        assert!(result
+            .errors
+            .iter()
+            .any(|error| error.contains("menu command is not declared")));
     }
 }

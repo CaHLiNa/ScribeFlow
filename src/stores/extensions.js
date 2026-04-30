@@ -124,6 +124,27 @@ export const useExtensionsStore = defineStore('extensions', {
             }))
         )
     },
+    commandPaletteCommandsForContext: (state) => (context = {}) => {
+      const enabled = new Set(state.enabledExtensionIds.map(normalizeExtensionId))
+      return state.registry
+        .filter((extension) => enabled.has(extension.id) && extension.status === 'available')
+        .flatMap((extension) => {
+          const paletteMenus = (extension.contributedMenus || [])
+            .filter((menu) => menu.surface === 'commandPalette')
+          return (extension.contributedCommands || [])
+            .filter((command) => {
+              const commandMenus = paletteMenus
+                .filter((menu) => menu.commandId === command.commandId)
+              if (commandMenus.length === 0) return true
+              return commandMenus.some((menu) => matchesWhenClause(menu.when, context))
+            })
+            .map((command) => ({
+              ...command,
+              extensionId: extension.id,
+              extensionName: extension.name,
+            }))
+        })
+    },
     recentTasks(state) {
       return [...state.tasks].slice(0, 8)
     },
