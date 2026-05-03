@@ -196,16 +196,13 @@
   --overlay-backdrop: color-mix(in srgb, black 40%, transparent);
   --focus-ring: color-mix(in srgb, var(--accent) 30%, transparent);
 
-  /* macOS Vibrancy & Shell adjustments */
-  --sidebar-shell-surface: rgba(28, 28, 30, 0.65);
-  --sidebar-shell-blur: 40px;
-  --sidebar-shell-saturate: 1.5;
+  --sidebar-shell-surface: #1e1e1e;
 
   --app-canvas: #000000;
   --app-canvas-glow: rgba(255, 255, 255, 0.03);
   --chrome-surface: #1e1e1e;
   --chrome-border: color-mix(in srgb, var(--border) 40%, transparent);
-  --panel-surface: rgba(30, 30, 30, 0.85);
+  --panel-surface: #1e1e1e;
   --panel-elevated: color-mix(in srgb, #1e1e1e 98%, transparent);
   --panel-border: color-mix(in srgb, var(--border) 50%, transparent);
   --panel-shadow: 0 12px 32px rgba(0, 0, 0, 0.3);
@@ -246,8 +243,6 @@
   --list-active-bg: rgba(255, 255, 255, 0.12);
   --list-active-fg: var(--text-primary);
 
-  --sidebar-vibrant-surface: linear-gradient(180deg, rgba(30, 30, 30, 0.58) 0%, rgba(26, 26, 26, 0.64) 100%);
-  --sidebar-vibrant-border: rgba(255, 255, 255, 0.035);
   --workbench-divider: color-mix(in srgb, var(--border) 50%, transparent);
   --workbench-divider-soft: color-mix(in srgb, var(--border) 25%, transparent);
   --button-primary-bg: #f4f4f2;
@@ -453,7 +448,7 @@
   --app-canvas-glow: rgba(17, 17, 17, 0.012);
   --chrome-surface: #eef1f3;
   --chrome-border: color-mix(in srgb, var(--border) 50%, transparent);
-  --panel-surface: rgba(255, 255, 255, 0.85);
+  --panel-surface: #ffffff;
   --panel-elevated: color-mix(in srgb, white 98%, transparent);
   --panel-border: color-mix(in srgb, var(--border) 68%, transparent);
   --panel-shadow: 0 12px 28px rgba(17, 17, 17, 0.06);
@@ -483,7 +478,7 @@
   --workspace-paper-muted: #f5f7f8;
   --workspace-ink: #171719;
 
-  --sidebar-shell-surface: rgba(240, 240, 240, 0.65);
+  --sidebar-shell-surface: #f6f6f7;
   --sidebar-input-surface: color-mix(in srgb, var(--panel-surface) 28%, transparent);
   --sidebar-input-border: color-mix(in srgb, black 6%, transparent);
 
@@ -492,8 +487,6 @@
   --list-active-bg: rgba(0, 0, 0, 0.08);
   --list-active-fg: var(--text-primary);
 
-  --sidebar-vibrant-surface: linear-gradient(180deg, rgba(250, 250, 250, 0.6) 0%, rgba(245, 245, 245, 0.7) 100%);
-  --sidebar-vibrant-border: rgba(0, 0, 0, 0.035);
   --workbench-divider: color-mix(in srgb, var(--border) 40%, transparent);
   --workbench-divider-soft: color-mix(in srgb, var(--border) 20%, transparent);
   --button-primary-bg: #111111;

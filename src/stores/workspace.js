@@ -68,13 +68,25 @@ const WORKSPACE_PREFERENCE_KEYS = [
   'theme',
 ]
 
-function snapshotWorkspacePreferences(store) {
-  return Object.fromEntries(WORKSPACE_PREFERENCE_KEYS.map((key) => [key, store[key]]))
-}
-
 function normalizeSettingsSectionValue(section = '') {
   const normalized = String(section || '').trim()
   return normalized || 'general'
+}
+
+function normalizePersistedPrimarySurface(_surface = '') {
+  return 'workspace'
+}
+
+function restoreTransientSettingsSurface(store, section = null) {
+  store.primarySurface = 'settings'
+  store.settingsOpen = true
+  store.settingsSection = normalizeSettingsSectionValue(section || store.settingsSection || 'general')
+}
+
+function snapshotWorkspacePreferences(store) {
+  const preferences = Object.fromEntries(WORKSPACE_PREFERENCE_KEYS.map((key) => [key, store[key]]))
+  preferences.primarySurface = normalizePersistedPrimarySurface()
+  return preferences
 }
 
 function patchTouchesDockPreference(patch = {}) {
@@ -165,6 +177,7 @@ export const useWorkspaceStore = defineStore('workspace', {
         ...snapshotWorkspacePreferences(this),
         ...preferences,
       }
+      next.primarySurface = normalizePersistedPrimarySurface(next.primarySurface)
 
       for (const key of WORKSPACE_PREFERENCE_KEYS) {
         this[key] = next[key]
@@ -243,6 +256,15 @@ export const useWorkspaceStore = defineStore('workspace', {
     async persistWorkspacePreferencesPatch(patch = {}) {
       const globalConfigDir = await this.ensureGlobalConfigDir()
       const previous = snapshotWorkspacePreferences(this)
+      const previousSettingsSurface = this.settingsOpen
+        ? {
+            open: true,
+            section: this.settingsSection,
+          }
+        : {
+            open: false,
+            section: null,
+          }
       const optimistic = patchTouchesDockPreference(patch)
         ? normalizeDockPreferenceSnapshot(previous, patch)
         : {
@@ -251,15 +273,24 @@ export const useWorkspaceStore = defineStore('workspace', {
           }
 
       this.applyWorkspacePreferenceState(optimistic)
+      if (previousSettingsSurface.open) {
+        restoreTransientSettingsSurface(this, previousSettingsSurface.section)
+      }
       this._preferencesHydrated = true
 
       try {
         const preferences = await saveWorkspacePreferencesToRust(globalConfigDir, optimistic)
         this.applyWorkspacePreferenceState(preferences)
+        if (previousSettingsSurface.open) {
+          restoreTransientSettingsSurface(this, previousSettingsSurface.section)
+        }
         this._preferencesHydrated = true
         return preferences
       } catch (error) {
         this.applyWorkspacePreferenceState(previous)
+        if (previousSettingsSurface.open) {
+          restoreTransientSettingsSurface(this, previousSettingsSurface.section)
+        }
         throw error
       }
     },
@@ -379,7 +410,7 @@ export const useWorkspaceStore = defineStore('workspace', {
     },
 
     async setPrimarySurface(surface) {
-      const nextSurface = String(surface || '').trim() || 'workspace'
+      const nextSurface = normalizePersistedPrimarySurface(surface)
       const preferences = await this.persistPreferences({
         primarySurface: nextSurface,
       })
@@ -473,14 +504,13 @@ export const useWorkspaceStore = defineStore('workspace', {
     },
 
     openSettings(section = null) {
-      this.settingsSection = normalizeSettingsSectionValue(
-        section || this.settingsSection || 'general'
-      )
-      return this.setPrimarySurface('settings')
+      restoreTransientSettingsSurface(this, section)
     },
 
     closeSettings() {
-      return this.openWorkspaceSurface()
+      this.primarySurface = 'workspace'
+      this.settingsOpen = false
+      this.settingsSection = null
     },
 
     setSettingsSection(section) {

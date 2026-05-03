@@ -64,13 +64,8 @@ const activeSection = computed(() => normalizeSettingsSectionId(workspace.settin
   min-height: 0;
   overflow: hidden;
   padding: 28px 14px 18px 10px;
-  background: var(
-    --sidebar-shell-surface,
-    color-mix(in srgb, var(--panel-surface) 56%, transparent)
-  );
+  background: var(--sidebar-shell-surface, var(--surface-raised));
   box-shadow: none;
-  backdrop-filter: blur(var(--sidebar-shell-blur, 18px))
-    saturate(var(--sidebar-shell-saturate, 1.08));
 }
 
 .settings-sidebar-shell > * {

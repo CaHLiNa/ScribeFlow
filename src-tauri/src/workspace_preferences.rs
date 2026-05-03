@@ -669,6 +669,19 @@ mod tests {
     }
 
     #[test]
+    fn normalization_does_not_restore_settings_as_primary_surface() {
+        let normalized = normalize_workspace_preferences(WorkspacePreferences {
+            workbench: crate::workbench_state::WorkbenchState {
+                primary_surface: "settings".to_string(),
+                ..crate::workbench_state::WorkbenchState::default()
+            },
+            ..WorkspacePreferences::default()
+        });
+
+        assert_eq!(normalized.workbench.primary_surface, "workspace");
+    }
+
+    #[test]
     fn hides_internal_or_fallback_font_families() {
         assert!(!should_expose_system_font_family(".Beirut PUA"));
         assert!(!should_expose_system_font_family(

@@ -4,12 +4,11 @@
   "identifier": "com.scribeflow.desktop",
   "build": {
     "frontendDist": "../dist",
-    "devUrl": "http://localhost:1420",
+    "devUrl": "http://127.0.0.1:1420",
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build"
   },
   "app": {
-    "macOSPrivateApi": true,
     "windows": [
       {
         "title": "ScribeFlow",
@@ -19,7 +18,9 @@
         "minHeight": 720,
         "resizable": true,
         "fullscreen": false,
-        "decorations": true
+        "decorations": true,
+        "transparent": false,
+        "backgroundColor": "#eef2f5"
       }
     ],
     "security": {

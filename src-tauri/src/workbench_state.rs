@@ -228,11 +228,8 @@ fn default_inspector_panel_for_surface(surface: &str) -> &'static str {
     }
 }
 
-pub fn normalize_workbench_surface(value: &str) -> String {
-    match value.trim() {
-        SETTINGS_SURFACE => SETTINGS_SURFACE.to_string(),
-        _ => WORKSPACE_SURFACE.to_string(),
-    }
+pub fn normalize_workbench_surface(_value: &str) -> String {
+    WORKSPACE_SURFACE.to_string()
 }
 
 pub fn normalize_workbench_sidebar_panel(surface: &str, panel: &str) -> String {
@@ -511,7 +508,7 @@ mod tests {
         );
         assert_eq!(
             normalize_workbench_sidebar_panel("settings", "references"),
-            "files"
+            "references"
         );
         assert_eq!(
             normalize_workbench_sidebar_panel("workspace", "extension:example.tools"),
@@ -523,12 +520,12 @@ mod tests {
     fn inspector_panel_is_cleared_on_settings_surface() {
         assert_eq!(
             normalize_workbench_inspector_panel("settings", "outline"),
-            ""
+            "dock"
         );
     }
 
     #[test]
-    fn state_normalization_uses_surface_specific_defaults() {
+    fn state_normalization_treats_settings_as_transient_surface() {
         let normalized = normalize_workbench_state(WorkbenchState {
             primary_surface: "settings".to_string(),
             left_sidebar_open: true,
@@ -541,9 +538,9 @@ mod tests {
             reference_dock_active_page: "pdf".to_string(),
         });
 
-        assert_eq!(normalized.primary_surface, "settings");
-        assert_eq!(normalized.left_sidebar_panel, "files");
-        assert_eq!(normalized.right_sidebar_panel, "");
+        assert_eq!(normalized.primary_surface, "workspace");
+        assert_eq!(normalized.left_sidebar_panel, "references");
+        assert_eq!(normalized.right_sidebar_panel, "dock");
         assert!(!normalized.document_dock_open);
         assert!(!normalized.right_sidebar_open);
         assert_eq!(normalized.document_dock_active_page, "preview");

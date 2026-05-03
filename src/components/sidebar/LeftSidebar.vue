@@ -154,13 +154,8 @@ defineExpose({
   overflow: hidden;
   gap: 8px;
   padding: var(--sidebar-shell-top) var(--sidebar-shell-inline) var(--sidebar-shell-bottom);
-  background: var(
-    --sidebar-shell-surface,
-    color-mix(in srgb, var(--panel-surface) 56%, transparent)
-  );
+  background: var(--sidebar-shell-surface, var(--surface-raised));
   box-shadow: none;
-  backdrop-filter: blur(var(--sidebar-shell-blur, 18px))
-    saturate(var(--sidebar-shell-saturate, 1.08));
 }
 
 .left-shell-sidebar__content {
