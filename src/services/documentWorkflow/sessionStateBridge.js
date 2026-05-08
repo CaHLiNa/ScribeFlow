@@ -146,5 +146,6 @@ export async function applyDocumentWorkflowSessionMutation(state = {}, mutation 
     sourcePath: normalizeString(mutation?.sourcePath),
     visibility: normalizeString(mutation?.visibility),
     previewKind: normalizeString(mutation?.previewKind),
+    sessionPatch: mutation?.sessionPatch && typeof mutation.sessionPatch === 'object' ? mutation.sessionPatch : {},
   })
 }

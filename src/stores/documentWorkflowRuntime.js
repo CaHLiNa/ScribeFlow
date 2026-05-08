@@ -65,7 +65,7 @@ export function createDocumentWorkflowRuntime({
     }
 
     if (plan.sessionState && typeof plan.sessionState === 'object') {
-      setSessionState?.(plan.sessionState)
+      await setSessionState?.(plan.sessionState)
     }
 
     if (typeof plan.markDetachedSourcePath === 'string' && plan.markDetachedSourcePath) {

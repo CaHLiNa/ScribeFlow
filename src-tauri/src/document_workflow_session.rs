@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{json, Map, Value};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -163,6 +163,8 @@ pub struct DocumentWorkflowSessionMutationApplyParams {
     pub visibility: String,
     #[serde(default)]
     pub preview_kind: String,
+    #[serde(default)]
+    pub session_patch: Value,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -397,6 +399,60 @@ fn normalize_session(session: DocumentWorkflowSession) -> DocumentWorkflowSessio
         state: normalize_session_state_name(&session.state),
         detached_sources: normalize_detached_sources(session.detached_sources),
     }
+}
+
+fn patch_string_field(target: &mut String, patch: &Map<String, Value>, key: &str) {
+    if let Some(value) = patch.get(key) {
+        *target = value.as_str().map(str::to_string).unwrap_or_default();
+    }
+}
+
+fn patch_detached_sources(
+    target: &mut HashMap<String, bool>,
+    patch: &Map<String, Value>,
+    key: &str,
+) {
+    let Some(value) = patch.get(key) else {
+        return;
+    };
+    let Some(values) = value.as_object() else {
+        target.clear();
+        return;
+    };
+    *target = values
+        .iter()
+        .filter_map(|(path, detached)| {
+            let normalized_path = normalize_path(path);
+            if normalized_path.is_empty() || detached.as_bool() != Some(true) {
+                None
+            } else {
+                Some((normalized_path, true))
+            }
+        })
+        .collect();
+}
+
+fn apply_session_patch(
+    session: DocumentWorkflowSession,
+    patch: Value,
+) -> (DocumentWorkflowSession, bool) {
+    let mut next = session.clone();
+    let Some(values) = patch.as_object() else {
+        return (normalize_session(next), false);
+    };
+
+    patch_string_field(&mut next.active_file, values, "activeFile");
+    patch_string_field(&mut next.active_kind, values, "activeKind");
+    patch_string_field(&mut next.source_pane_id, values, "sourcePaneId");
+    patch_string_field(&mut next.preview_pane_id, values, "previewPaneId");
+    patch_string_field(&mut next.preview_kind, values, "previewKind");
+    patch_string_field(&mut next.preview_source_path, values, "previewSourcePath");
+    patch_string_field(&mut next.state, values, "state");
+    patch_detached_sources(&mut next.detached_sources, values, "detachedSources");
+
+    let normalized = normalize_session(next);
+    let changed = normalized != normalize_session(session);
+    (normalized, changed)
 }
 
 fn normalize_workspace_preview_visibility(
@@ -786,6 +842,12 @@ pub fn apply_document_workflow_session_mutation(
                 }
             }
         }
+        "set-session-state" => {
+            let (next_session, changed) =
+                apply_session_patch(state.session.clone(), params.session_patch);
+            state.session = next_session;
+            changed
+        }
         _ => false,
     };
 
@@ -943,7 +1005,7 @@ mod tests {
         DocumentWorkflowSessionMutationApplyParams, DocumentWorkflowWorkspacePreviewApplyParams,
     };
     use crate::security::{set_allowed_roots_internal, WorkspaceScopeState};
-    use serde_json::Value;
+    use serde_json::{json, Value};
     use std::collections::HashMap;
     use std::fs;
 
@@ -1409,6 +1471,7 @@ mod tests {
                 file_path: String::new(),
                 visibility: String::new(),
                 preview_kind: String::new(),
+                session_patch: Value::Null,
             });
 
         assert!(marked.changed);
@@ -1426,6 +1489,7 @@ mod tests {
                 file_path: String::new(),
                 visibility: String::new(),
                 preview_kind: String::new(),
+                session_patch: Value::Null,
             });
 
         assert!(cleared.changed);
@@ -1446,6 +1510,7 @@ mod tests {
                 visibility: "hidden".to_string(),
                 source_path: String::new(),
                 preview_kind: String::new(),
+                session_patch: Value::Null,
             });
 
         assert!(hidden.changed);
@@ -1466,6 +1531,7 @@ mod tests {
                 visibility: "unexpected".to_string(),
                 source_path: String::new(),
                 preview_kind: String::new(),
+                session_patch: Value::Null,
             });
 
         assert!(visible.changed);
@@ -1489,6 +1555,7 @@ mod tests {
                 preview_kind: " html ".to_string(),
                 source_path: String::new(),
                 visibility: String::new(),
+                session_patch: Value::Null,
             });
 
         assert!(requested.changed);
@@ -1509,6 +1576,7 @@ mod tests {
                 preview_kind: String::new(),
                 source_path: String::new(),
                 visibility: String::new(),
+                session_patch: Value::Null,
             });
 
         assert!(cleared.changed);
@@ -1516,6 +1584,57 @@ mod tests {
             .state
             .workspace_preview_requests
             .contains_key("/tmp/main.md"));
+    }
+
+    #[test]
+    fn applies_session_state_patch_with_rust_normalization() {
+        let result =
+            apply_document_workflow_session_mutation(DocumentWorkflowSessionMutationApplyParams {
+                state: DocumentWorkflowPersistentState {
+                    session: DocumentWorkflowSession {
+                        active_file: "/tmp/old.md".to_string(),
+                        active_kind: "markdown".to_string(),
+                        source_pane_id: "source-a".to_string(),
+                        detached_sources: HashMap::from([
+                            ("/tmp/old.md".to_string(), true),
+                            ("/tmp/false.md".to_string(), false),
+                        ]),
+                        ..DocumentWorkflowSession::default()
+                    },
+                    ..DocumentWorkflowPersistentState::default()
+                },
+                intent: "set-session-state".to_string(),
+                session_patch: json!({
+                    "activeFile": " /tmp/main.tex ",
+                    "activeKind": "latex",
+                    "previewKind": "pdf",
+                    "state": "workspace-preview",
+                    "detachedSources": {
+                        " /tmp/main.tex ": true,
+                        "/tmp/ignored.tex": false
+                    }
+                }),
+                source_path: String::new(),
+                file_path: String::new(),
+                visibility: String::new(),
+                preview_kind: String::new(),
+            });
+
+        assert!(result.changed);
+        assert_eq!(result.state.session.active_file, "/tmp/main.tex");
+        assert_eq!(result.state.session.active_kind, "latex");
+        assert_eq!(result.state.session.source_pane_id, "source-a");
+        assert_eq!(result.state.session.preview_kind, "pdf");
+        assert_eq!(result.state.session.state, "workspace-preview");
+        assert_eq!(
+            result.state.session.detached_sources.get("/tmp/main.tex"),
+            Some(&true)
+        );
+        assert!(!result
+            .state
+            .session
+            .detached_sources
+            .contains_key("/tmp/ignored.tex"));
     }
 
     #[test]

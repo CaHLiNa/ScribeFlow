@@ -366,11 +366,10 @@ export const documentWorkflowSessionActions = {
     return createWorkflowPreviewPath(sourcePath, kind, resolvedKind)
   },
 
-  setSessionState(payload) {
-    this.session = {
-      ...this.session,
-      ...payload,
-    }
-    this.queuePersistentStateSave()
+  async setSessionState(payload) {
+    await this.applySessionMutation({
+      intent: 'set-session-state',
+      sessionPatch: payload,
+    })
   },
 }
