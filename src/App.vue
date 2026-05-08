@@ -173,6 +173,8 @@ import { useAppTeardown } from './app/teardown/useAppTeardown'
 import { useWorkspaceLifecycle } from './app/workspace/useWorkspaceLifecycle'
 import { isNewTab, isPreviewPath, previewSourcePathFromPath } from './utils/fileTypes'
 import { basenamePath } from './utils/path'
+import { isMac } from './platform'
+import { syncMacosWindowTransparency } from './services/macosWindowTransparency.js'
 
 const LeftSidebar = defineAsyncComponent(() => import('./components/sidebar/LeftSidebar.vue'))
 const SettingsSidebar = defineAsyncComponent(
@@ -372,6 +374,9 @@ const {
 })
 
 onMounted(() => {
+  if (isMac) {
+    void syncMacosWindowTransparency()
+  }
   window.addEventListener('editor-typing', handleEditorTyping)
   window.addEventListener('mousemove', handleMouseMoveBreakZen)
 })
@@ -475,6 +480,13 @@ useAppTeardown({
   min-height: 0;
 }
 
+:global(html.is-tauri-macos) .app-shell-root,
+:global(html.is-tauri-macos) .app-shell-workspace,
+:global(html.is-tauri-macos) .app-shell-workbench {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
 /* =========================================================================
    Zen Mode (Focus Fade-out Transitions)
 ========================================================================= */
@@ -518,12 +530,31 @@ useAppTeardown({
 }
 
 .app-shell-region-left {
-  background: transparent;
+  background:
+    linear-gradient(
+      to bottom,
+      color-mix(in srgb, white 5%, transparent),
+      color-mix(in srgb, black 4%, transparent)
+    ),
+    color-mix(in srgb, var(--sidebar-shell-surface) 52%, transparent);
+  border-right: 1px solid color-mix(in srgb, var(--border) 48%, transparent);
+  box-shadow:
+    inset -1px 0 0 color-mix(in srgb, white 12%, transparent),
+    inset 1px 0 0 color-mix(in srgb, white 6%, transparent),
+    1px 0 18px color-mix(in srgb, black 12%, transparent);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
   will-change: width;
 }
 
 .app-shell-region-left.is-workspace-left-region {
-  background: transparent;
+  background:
+    linear-gradient(
+      to bottom,
+      color-mix(in srgb, white 5%, transparent),
+      color-mix(in srgb, black 4%, transparent)
+    ),
+    color-mix(in srgb, var(--sidebar-shell-surface) 52%, transparent);
 }
 
 .app-shell-region-main {
@@ -641,7 +672,7 @@ useAppTeardown({
 }
 
 .app-shell-main-card.is-workspace-surface-shell {
-  padding-top: 44px;
+  padding-top: 36px;
 }
 
 .app-shell-main-card.has-left-sidebar {

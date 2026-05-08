@@ -1,4 +1,13 @@
+#[cfg(target_os = "macos")]
+use objc2_app_kit::{
+    NSColor, NSTitlebarSeparatorStyle, NSWindow, NSWindowButton, NSWindowStyleMask,
+    NSWindowTitleVisibility,
+};
+#[cfg(target_os = "macos")]
+use objc2_foundation::NSPoint;
 use tauri::menu::{AboutMetadata, Menu, MenuItem, SubmenuBuilder};
+#[cfg(target_os = "macos")]
+use tauri::window::{Color, Effect, EffectState, EffectsBuilder};
 use tauri::{AppHandle, Manager, Runtime};
 
 const MENU_OPEN_FOLDER: &str = "menu-open-folder";
@@ -6,6 +15,81 @@ const MENU_CLOSE_FOLDER: &str = "menu-close-folder";
 const MENU_NEW_FILE: &str = "menu-new-file";
 const MENU_OPEN_SETTINGS: &str = "menu-open-settings";
 const MENU_TOGGLE_LEFT_SIDEBAR: &str = "menu-toggle-left-sidebar";
+#[cfg(target_os = "macos")]
+const TITLEBAR_BUTTON_VERTICAL_OFFSET: f64 = 4.0;
+
+#[cfg(target_os = "macos")]
+pub fn sync_window_transparency<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
+    let app_handle = app.clone();
+    app.run_on_main_thread(move || {
+        let Some(window) = app_handle
+            .get_webview_window("main")
+            .or_else(|| app_handle.webview_windows().into_values().next())
+        else {
+            return;
+        };
+
+        let Ok(ns_window_ptr) = window.ns_window() else {
+            return;
+        };
+
+        let ns_window: &NSWindow = unsafe { &*ns_window_ptr.cast() };
+        let clear = NSColor::clearColor();
+        let style_mask = ns_window.styleMask() | NSWindowStyleMask::FullSizeContentView;
+        ns_window.setStyleMask(style_mask);
+        ns_window.setTitleVisibility(NSWindowTitleVisibility::Hidden);
+        ns_window.setTitlebarAppearsTransparent(true);
+        ns_window.setHasShadow(false);
+        ns_window.setOpaque(false);
+        ns_window.setBackgroundColor(Some(&clear));
+        ns_window.setTitlebarSeparatorStyle(NSTitlebarSeparatorStyle::None);
+        align_standard_window_buttons(ns_window);
+
+        let _ = window.set_background_color(Some(Color(0, 0, 0, 0)));
+        let _ = window.set_effects(
+            EffectsBuilder::new()
+                .effect(Effect::Sidebar)
+                .state(EffectState::Active)
+                .build(),
+        );
+    })
+    .map_err(|error| error.to_string())
+}
+
+#[cfg(target_os = "macos")]
+fn align_standard_window_buttons(ns_window: &NSWindow) {
+    for button_kind in [
+        NSWindowButton::CloseButton,
+        NSWindowButton::MiniaturizeButton,
+        NSWindowButton::ZoomButton,
+    ] {
+        let Some(button) = ns_window.standardWindowButton(button_kind) else {
+            continue;
+        };
+        let frame = button.frame();
+        button.setFrameOrigin(NSPoint::new(
+            frame.origin.x,
+            frame.origin.y - TITLEBAR_BUTTON_VERTICAL_OFFSET,
+        ));
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn sync_window_transparency<R: Runtime>(_app: AppHandle<R>) -> Result<(), String> {
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+#[tauri::command]
+pub fn macos_sync_window_transparency<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
+    sync_window_transparency(app)
+}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+pub fn macos_sync_window_transparency() -> Result<(), String> {
+    Ok(())
+}
 
 fn detect_is_chinese_locale() -> bool {
     sys_locale::get_locale()

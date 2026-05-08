@@ -154,7 +154,7 @@ defineExpose({
   overflow: hidden;
   gap: 8px;
   padding: var(--sidebar-shell-top) var(--sidebar-shell-inline) var(--sidebar-shell-bottom);
-  background: var(--sidebar-shell-surface, var(--surface-raised));
+  background: transparent;
   box-shadow: none;
 }
 
@@ -179,7 +179,7 @@ defineExpose({
   margin: 0 4px;
   padding: 1px;
   border-radius: 7px;
-  background: color-mix(in srgb, var(--sidebar-item-hover) 72%, transparent);
+  background: transparent;
 }
 
 .left-shell-sidebar__switcher-button {

@@ -311,6 +311,7 @@ fn main() -> Result<(), String> {
     let saved_settings = extension_settings_load_with_state_for_probe(
         &global_config_dir_text,
         &workspace_root_text,
+        true,
     )?;
     let saved_config = saved_settings
         .settings
@@ -469,6 +470,7 @@ fn main() -> Result<(), String> {
     let saved_settings_b = extension_settings_load_with_state_for_probe(
         &global_config_dir_text,
         &workspace_root_b_text,
+        true,
     )?;
     let saved_config_b = saved_settings_b
         .settings

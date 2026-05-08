@@ -150,6 +150,7 @@ pub fn run() {
             extension_task_state
                 .inner()
                 .bind_app_handle(app.handle().clone());
+            let _ = macos_shell::sync_window_transparency(app.handle().clone());
             Ok(())
         })
         .menu(|app| macos_shell::build_app_menu(app))
@@ -308,6 +309,7 @@ pub fn run() {
             workspace_access::macos_capture_workspace_bookmark,
             workspace_access::macos_activate_workspace_bookmark,
             workspace_access::macos_activate_workspace_bookmark_for_path,
+            macos_shell::macos_sync_window_transparency,
             workspace_access::macos_release_workspace_access,
             workspace_access::workspace_bookmark_remove,
             workspace_lifecycle::workspace_lifecycle_load,

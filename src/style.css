@@ -30,6 +30,123 @@ body,
   -webkit-font-smoothing: antialiased;
 }
 
+html.is-macos {
+  --app-canvas: transparent;
+}
+
+html.is-macos,
+html.is-macos body,
+html.is-macos #app,
+html.is-tauri-macos,
+html.is-tauri-macos body,
+html.is-tauri-macos #app {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+html.is-macos body,
+html.is-tauri-macos body {
+  background-color: transparent !important;
+}
+
+html.is-macos .app-shell-root,
+html.is-macos .app-shell-workspace,
+html.is-macos .app-shell-workbench,
+html.is-macos .left-shell-sidebar,
+html.is-macos .left-shell-sidebar__content,
+html.is-macos .file-tree-shell,
+html.is-macos .file-tree-body,
+html.is-macos .file-tree-scroll,
+html.is-macos .references-sidebar-panel,
+html.is-macos .references-sidebar-panel__content,
+html.is-macos .outline-panel,
+html.is-tauri-macos .app-shell-root,
+html.is-tauri-macos .app-shell-workspace,
+html.is-tauri-macos .app-shell-workbench,
+html.is-tauri-macos .left-shell-sidebar,
+html.is-tauri-macos .left-shell-sidebar__content,
+html.is-tauri-macos .file-tree-shell,
+html.is-tauri-macos .file-tree-body,
+html.is-tauri-macos .file-tree-scroll,
+html.is-tauri-macos .references-sidebar-panel,
+html.is-tauri-macos .references-sidebar-panel__content,
+html.is-tauri-macos .outline-panel {
+  background: transparent !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+html.is-macos .app-shell-region-left,
+html.is-tauri-macos .app-shell-region-left {
+  background:
+    linear-gradient(
+      to bottom,
+      color-mix(in srgb, white 5%, transparent),
+      color-mix(in srgb, black 4%, transparent)
+    ),
+    color-mix(in srgb, var(--sidebar-shell-surface) 52%, transparent) !important;
+  background-color: color-mix(in srgb, var(--sidebar-shell-surface) 52%, transparent) !important;
+  border-right: 1px solid color-mix(in srgb, var(--border) 48%, transparent) !important;
+  box-shadow:
+    inset -1px 0 0 color-mix(in srgb, white 12%, transparent),
+    inset 1px 0 0 color-mix(in srgb, white 6%, transparent),
+    1px 0 18px color-mix(in srgb, black 12%, transparent) !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+html.is-macos .app-shell-sidebar-left,
+html.is-tauri-macos .app-shell-sidebar-left {
+  background: transparent !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+html.is-macos .app-shell-sidebar-left .ui-button,
+html.is-macos .app-shell-sidebar-left .ui-button:hover:not(:disabled),
+html.is-macos .app-shell-sidebar-left .ui-button:active:not(:disabled),
+html.is-macos .app-shell-sidebar-left .ui-button.is-active,
+html.is-macos .app-shell-sidebar-left .ui-list-row,
+html.is-macos .app-shell-sidebar-left .ui-list-row:hover,
+html.is-macos .app-shell-sidebar-left .ui-list-row.is-active,
+html.is-macos .app-shell-sidebar-left .ui-list-row.active,
+html.is-macos .app-shell-sidebar-left .file-tree-item-row:hover,
+html.is-macos .app-shell-sidebar-left .file-tree-item-row.is-active-row,
+html.is-macos .app-shell-sidebar-left .file-tree-item-row.is-selected-row,
+html.is-macos .app-shell-sidebar-left .left-shell-sidebar__switcher-button:hover:not(:disabled),
+html.is-macos .app-shell-sidebar-left .left-shell-sidebar__switcher-button.is-active,
+html.is-macos .app-shell-sidebar-left .references-sidebar-panel__row:hover,
+html.is-macos .app-shell-sidebar-left .references-sidebar-panel__row.is-active,
+html.is-macos .app-shell-sidebar-left .references-sidebar-panel__footer-button:hover:not(:disabled),
+html.is-macos .app-shell-sidebar-left .outline-panel-row:hover,
+html.is-macos .app-shell-sidebar-left .outline-panel-row.is-active,
+html.is-tauri-macos .app-shell-sidebar-left .ui-button,
+html.is-tauri-macos .app-shell-sidebar-left .ui-button:hover:not(:disabled),
+html.is-tauri-macos .app-shell-sidebar-left .ui-button:active:not(:disabled),
+html.is-tauri-macos .app-shell-sidebar-left .ui-button.is-active,
+html.is-tauri-macos .app-shell-sidebar-left .ui-list-row,
+html.is-tauri-macos .app-shell-sidebar-left .ui-list-row:hover,
+html.is-tauri-macos .app-shell-sidebar-left .ui-list-row.is-active,
+html.is-tauri-macos .app-shell-sidebar-left .ui-list-row.active,
+html.is-tauri-macos .app-shell-sidebar-left .file-tree-item-row:hover,
+html.is-tauri-macos .app-shell-sidebar-left .file-tree-item-row.is-active-row,
+html.is-tauri-macos .app-shell-sidebar-left .file-tree-item-row.is-selected-row,
+html.is-tauri-macos .app-shell-sidebar-left .left-shell-sidebar__switcher-button:hover:not(:disabled),
+html.is-tauri-macos .app-shell-sidebar-left .left-shell-sidebar__switcher-button.is-active,
+html.is-tauri-macos .app-shell-sidebar-left .references-sidebar-panel__row:hover,
+html.is-tauri-macos .app-shell-sidebar-left .references-sidebar-panel__row.is-active,
+html.is-tauri-macos .app-shell-sidebar-left .references-sidebar-panel__footer-button:hover:not(:disabled),
+html.is-tauri-macos .app-shell-sidebar-left .outline-panel-row:hover,
+html.is-tauri-macos .app-shell-sidebar-left .outline-panel-row.is-active {
+  background: transparent !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+
 body,
 #app {
   user-select: none;

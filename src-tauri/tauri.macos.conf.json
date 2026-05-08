@@ -1,17 +1,14 @@
 {
   "app": {
+    "macOSPrivateApi": true,
     "windows": [
       {
-        "title": "ScribeFlow",
-        "width": 1120,
-        "height": 720,
-        "minWidth": 1120,
-        "minHeight": 720,
-        "resizable": true,
-        "fullscreen": false,
         "decorations": true,
-        "transparent": false,
-        "backgroundColor": "#eef2f5"
+        "shadow": false,
+        "transparent": true,
+        "backgroundColor": "#00000000",
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true
       }
     ]
   }

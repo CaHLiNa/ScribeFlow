@@ -9,6 +9,7 @@
     "beforeBuildCommand": "npm run build"
   },
   "app": {
+    "macOSPrivateApi": true,
     "windows": [
       {
         "title": "ScribeFlow",
@@ -19,8 +20,9 @@
         "resizable": true,
         "fullscreen": false,
         "decorations": true,
-        "transparent": false,
-        "backgroundColor": "#eef2f5"
+        "shadow": false,
+        "transparent": true,
+        "backgroundColor": "#00000000"
       }
     ],
     "security": {

@@ -3,8 +3,17 @@
 export const isMac = /Mac|iPhone|iPad/.test(navigator.platform)
 export const isWindows = /Win/.test(navigator.platform)
 export const isLinux = !isMac && !isWindows
-export const isTauriDesktopRuntime =
-  typeof window !== 'undefined' && !!window.__TAURI_INTERNALS__
+
+export function detectTauriDesktopRuntime() {
+  if (typeof window === 'undefined') return false
+  return !!(
+    globalThis.isTauri ||
+    window.__TAURI_INTERNALS__?.invoke ||
+    window.__TAURI__?.core?.invoke
+  )
+}
+
+export const isTauriDesktopRuntime = detectTauriDesktopRuntime()
 
 // Check the platform's primary modifier key (Cmd on macOS, Ctrl on Windows/Linux)
 export function isMod(e) {
