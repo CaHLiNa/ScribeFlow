@@ -56,7 +56,7 @@ function normalizeLatexPreviewStates(value = {}) {
   )
 }
 
-function normalizeDocumentWorkflowPersistentState(state = {}) {
+export function normalizeDocumentWorkflowPersistentState(state = {}) {
   const defaults = createDocumentWorkflowPersistentState()
   const session = state?.session || {}
 

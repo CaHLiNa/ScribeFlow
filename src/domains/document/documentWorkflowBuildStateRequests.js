@@ -24,7 +24,7 @@ export function resolveRequestedPreviewKind(filePath, adapter, options = {}, wor
   const preferredPreviewKind = resolvePreferredPreviewKind(adapter, options, workflowStore)
   const workspacePreviewRequest = normalizePreviewKind(
     adapter,
-    options.workspacePreviewRequest || workflowStore?.getWorkspacePreviewRequestForFile?.(filePath),
+    options.workspacePreviewRequest,
   )
 
   if (workspacePreviewRequest) {
@@ -70,21 +70,11 @@ export function resolveArtifactReady(filePath, adapter, context) {
   return false
 }
 
-function resolvePreviewRequested(filePath, requestedPreviewKind, options = {}, workflowStore = null) {
-  const session = options.session || workflowStore?.session || {}
-  const activeSourcePath = session.previewSourcePath || session.activeFile || ''
-  if (!activeSourcePath || activeSourcePath !== filePath) return false
-  if (session.state !== 'workspace-preview') return false
-  if (requestedPreviewKind && session.previewKind && session.previewKind !== requestedPreviewKind) {
-    return false
-  }
-  return true
-}
-
 export function buildPreviewStateRequest(filePath, adapter, context, options = {}) {
   if (!adapter) return null
 
   const requestedPreviewKind = resolveRequestedPreviewKind(filePath, adapter, options, context.workflowStore)
+  const persistentState = context.workflowStore?.snapshotPersistentState?.() || {}
   return {
     path: filePath,
     sourcePath: options.sourcePath || '',
@@ -93,14 +83,10 @@ export function buildPreviewStateRequest(filePath, adapter, context, options = {
     previewKind: requestedPreviewKind,
     resolvedTargetPath: resolveResolvedPreviewTargetPath(filePath, adapter, context, options),
     targetResolution: options.targetResolution || '',
-    previewRequested: resolvePreviewRequested(
-      filePath,
-      requestedPreviewKind,
-      options,
-      context.workflowStore,
-    ),
+    previewRequested: options.previewRequested === true,
     artifactReady: resolveArtifactReady(filePath, adapter, context),
-    hiddenByUser: context.workflowStore?.isWorkspacePreviewHiddenForFile?.(filePath) === true,
+    hiddenByUser: options.hiddenByUser === true,
+    state: persistentState,
   }
 }
 

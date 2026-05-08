@@ -16,6 +16,8 @@ export function buildResolvedMarkdownDraftProblemsKey(request = {}) {
 }
 
 export function buildResolvedWorkspacePreviewStateKey(request = {}) {
+  const state = request.state || {}
+  const session = state.session || {}
   return JSON.stringify({
     path: String(request.path || ''),
     sourcePath: String(request.sourcePath || ''),
@@ -27,6 +29,14 @@ export function buildResolvedWorkspacePreviewStateKey(request = {}) {
     hiddenByUser: request.hiddenByUser === true,
     previewRequested: request.previewRequested === true,
     artifactReady: request.artifactReady === true,
+    session: {
+      activeFile: String(session.activeFile || ''),
+      previewKind: String(session.previewKind || ''),
+      previewSourcePath: String(session.previewSourcePath || ''),
+      state: String(session.state || ''),
+    },
+    workspacePreviewVisibility: state.workspacePreviewVisibility || {},
+    workspacePreviewRequests: state.workspacePreviewRequests || {},
   })
 }
 

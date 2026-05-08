@@ -1,4 +1,5 @@
 import { invokeDocumentWorkflowBridge } from './invokeBridge.js'
+import { normalizeDocumentWorkflowPersistentState } from './sessionStateBridge.js'
 
 export async function resolveDocumentWorkspacePreviewState(params = {}) {
   return invokeDocumentWorkflowBridge('document_workspace_preview_state_resolve', {
@@ -12,5 +13,6 @@ export async function resolveDocumentWorkspacePreviewState(params = {}) {
     hiddenByUser: params.hiddenByUser === true,
     previewRequested: params.previewRequested === true,
     artifactReady: params.artifactReady === true,
+    state: normalizeDocumentWorkflowPersistentState(params.state || {}),
   })
 }
