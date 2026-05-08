@@ -110,6 +110,13 @@ pub struct DocumentWorkflowLatexPreviewReconcileParams {
     pub state: DocumentWorkflowPersistentState,
 }
 
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct DocumentWorkflowLatexPreviewReconcileResult {
+    pub state: DocumentWorkflowPersistentState,
+    pub changed: bool,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DocumentWorkflowLatexPreviewApplyParams {
@@ -641,6 +648,22 @@ pub fn reconcile_document_workflow_latex_preview_state(
     normalized
 }
 
+pub fn reconcile_document_workflow_latex_preview_state_with_change(
+    state: DocumentWorkflowPersistentState,
+    scope_state: &WorkspaceScopeState,
+) -> DocumentWorkflowLatexPreviewReconcileResult {
+    let normalized = normalize_document_workflow_persistent_state(state);
+    let reconciled =
+        reconcile_document_workflow_latex_preview_state(normalized.clone(), scope_state);
+    let changed = normalized.latex_artifact_paths != reconciled.latex_artifact_paths
+        || normalized.latex_preview_states != reconciled.latex_preview_states;
+
+    DocumentWorkflowLatexPreviewReconcileResult {
+        state: reconciled,
+        changed,
+    }
+}
+
 fn normalize_latex_preview_state(
     state: DocumentWorkflowLatexPreviewState,
 ) -> DocumentWorkflowLatexPreviewState {
@@ -955,8 +978,8 @@ pub async fn document_workflow_session_save(
 pub async fn document_workflow_latex_preview_reconcile(
     params: DocumentWorkflowLatexPreviewReconcileParams,
     scope_state: tauri::State<'_, WorkspaceScopeState>,
-) -> Result<DocumentWorkflowPersistentState, String> {
-    Ok(reconcile_document_workflow_latex_preview_state(
+) -> Result<DocumentWorkflowLatexPreviewReconcileResult, String> {
+    Ok(reconcile_document_workflow_latex_preview_state_with_change(
         params.state,
         scope_state.inner(),
     ))
@@ -997,12 +1020,14 @@ mod tests {
         apply_document_workflow_session_mutation, apply_document_workflow_workspace_preview_state,
         document_workflow_session_load, document_workflow_session_save,
         normalize_document_workflow_persistent_state,
-        reconcile_document_workflow_latex_preview_state, DocumentWorkflowLatexPreviewApplyParams,
-        DocumentWorkflowLatexPreviewState, DocumentWorkflowPersistentState,
-        DocumentWorkflowPersistentStateLoadParams, DocumentWorkflowPersistentStateSaveParams,
-        DocumentWorkflowPreviewBinding, DocumentWorkflowPreviewBindingApplyParams,
-        DocumentWorkflowPreviewPreference, DocumentWorkflowSession,
-        DocumentWorkflowSessionMutationApplyParams, DocumentWorkflowWorkspacePreviewApplyParams,
+        reconcile_document_workflow_latex_preview_state,
+        reconcile_document_workflow_latex_preview_state_with_change,
+        DocumentWorkflowLatexPreviewApplyParams, DocumentWorkflowLatexPreviewState,
+        DocumentWorkflowPersistentState, DocumentWorkflowPersistentStateLoadParams,
+        DocumentWorkflowPersistentStateSaveParams, DocumentWorkflowPreviewBinding,
+        DocumentWorkflowPreviewBindingApplyParams, DocumentWorkflowPreviewPreference,
+        DocumentWorkflowSession, DocumentWorkflowSessionMutationApplyParams,
+        DocumentWorkflowWorkspacePreviewApplyParams,
     };
     use crate::security::{set_allowed_roots_internal, WorkspaceScopeState};
     use serde_json::{json, Value};
@@ -1249,6 +1274,57 @@ mod tests {
 
         fs::remove_dir_all(workspace_root).ok();
         fs::remove_dir_all(outside_root).ok();
+    }
+
+    #[test]
+    fn reports_latex_preview_reconcile_changed_state() {
+        let workspace_root = std::env::temp_dir().join(format!(
+            "scribeflow-document-workflow-preview-changed-{}",
+            uuid::Uuid::new_v4()
+        ));
+        fs::create_dir_all(&workspace_root).expect("create workspace root");
+        let source_path = workspace_root.join("main.tex");
+        let artifact_path = workspace_root.join("main.pdf");
+        let stale_source_path = workspace_root.join("stale.tex");
+        let stale_artifact_path = workspace_root.join("stale.pdf");
+        fs::write(&artifact_path, "%PDF").expect("write artifact");
+
+        let scope = WorkspaceScopeState::default();
+        set_allowed_roots_internal(&scope, &workspace_root.to_string_lossy(), None, None, None)
+            .expect("set workspace scope");
+
+        let reconciled = reconcile_document_workflow_latex_preview_state_with_change(
+            DocumentWorkflowPersistentState {
+                preview_prefs: HashMap::new(),
+                session: DocumentWorkflowSession::default(),
+                preview_bindings: Vec::new(),
+                workspace_preview_visibility: HashMap::new(),
+                workspace_preview_requests: HashMap::new(),
+                latex_artifact_paths: HashMap::from([
+                    (
+                        source_path.to_string_lossy().to_string(),
+                        artifact_path.to_string_lossy().to_string(),
+                    ),
+                    (
+                        stale_source_path.to_string_lossy().to_string(),
+                        stale_artifact_path.to_string_lossy().to_string(),
+                    ),
+                ]),
+                latex_preview_states: HashMap::new(),
+            },
+            &scope,
+        );
+
+        assert!(reconciled.changed);
+        assert_eq!(reconciled.state.latex_artifact_paths.len(), 1);
+
+        let unchanged = reconcile_document_workflow_latex_preview_state_with_change(
+            reconciled.state.clone(),
+            &scope,
+        );
+        assert!(!unchanged.changed);
+
+        fs::remove_dir_all(workspace_root).ok();
     }
 
     #[test]

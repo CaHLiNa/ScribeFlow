@@ -182,20 +182,18 @@ export const documentWorkflowSessionActions = {
 
   async reconcileLatexPreviewStates() {
     const reconciled = await reconcileDocumentWorkflowLatexPreviewState(this.snapshotPersistentState())
-    const nextArtifactPaths = reconciled?.latexArtifactPaths || {}
-    const nextPreviewStates = reconciled?.latexPreviewStates || {}
+    const nextState = reconciled?.state || {}
+    const nextArtifactPaths = nextState?.latexArtifactPaths || {}
+    const nextPreviewStates = nextState?.latexPreviewStates || {}
 
-    const artifactPathsUnchanged = JSON.stringify(nextArtifactPaths) === JSON.stringify(this.latexArtifactPaths || {})
-    const previewStatesUnchanged = JSON.stringify(nextPreviewStates) === JSON.stringify(this.latexPreviewStates || {})
-    if (artifactPathsUnchanged && previewStatesUnchanged) {
+    if (!reconciled?.changed) {
       return {
         latexArtifactPaths: nextArtifactPaths,
         latexPreviewStates: nextPreviewStates,
       }
     }
 
-    this.latexArtifactPaths = nextArtifactPaths
-    this.latexPreviewStates = nextPreviewStates
+    this.applyPersistentState(nextState)
     this.queuePersistentStateSave()
     return {
       latexArtifactPaths: nextArtifactPaths,
