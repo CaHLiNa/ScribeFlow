@@ -201,6 +201,7 @@ const railLeftPadding = computed(() => {
 })
 
 const railStyle = computed(() => ({
+  height: `${TOPBAR_HEIGHT}px`,
   minHeight: `${TOPBAR_HEIGHT}px`,
   paddingLeft: `${railLeftPadding.value}px`,
   paddingRight: `${DEFAULT_SIDE_PADDING}px`,
@@ -285,7 +286,7 @@ onMounted(async () => {
   await syncNativeWindowChromeState()
   try {
     unlistenWindowResize = await onNativeWindowResized(() => {
-      syncNativeWindowChromeState()
+      void syncNativeWindowChromeState()
     })
   } catch {
     unlistenWindowResize = null
@@ -313,9 +314,10 @@ onUnmounted(() => {
   gap: 0;
   flex: 0 0 auto;
   min-width: 0;
+  max-height: 36px;
   margin: 0;
-  padding-top: 1px;
-  padding-bottom: 1px;
+  padding-top: 0;
+  padding-bottom: 0;
   border-bottom: 0;
   border-radius: 0;
   background: transparent;
