@@ -632,10 +632,6 @@ function handleContextMenu(event) {
   color: var(--workspace-ink);
 }
 
-html.is-markdown-font-maple .md-preview-content {
-  font-feature-settings: var(--font-maple-features);
-}
-
 :deep(.md-preview-source-anchor-active) {
   animation: md-preview-source-flash 1.2s ease;
 }
