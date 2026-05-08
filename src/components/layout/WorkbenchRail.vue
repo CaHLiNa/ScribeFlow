@@ -202,10 +202,10 @@ const railLeftPadding = computed(() => {
 })
 
 const railStyle = computed(() => ({
+  '--rail-left-offset': `${railLeftPadding.value}px`,
+  '--rail-right-offset': `${DEFAULT_SIDE_PADDING}px`,
   height: `${TOPBAR_HEIGHT}px`,
   minHeight: `${TOPBAR_HEIGHT}px`,
-  paddingLeft: `${railLeftPadding.value}px`,
-  paddingRight: `${DEFAULT_SIDE_PADDING}px`,
 }))
 
 async function syncNativeWindowChromeState() {
@@ -315,10 +315,7 @@ onUnmounted(() => {
   --top-chrome-control-radius: 6px;
   --top-chrome-drag-height: 18px;
   position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0;
+  display: block;
   flex: 0 0 auto;
   min-width: 0;
   max-height: 36px;
@@ -352,9 +349,11 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   flex: 0 0 auto;
-  position: relative;
+  position: absolute;
+  top: 50%;
   z-index: 2;
   pointer-events: auto;
+  transform: translateY(-50%);
 }
 
 .workbench-rail-center {
@@ -548,11 +547,13 @@ onUnmounted(() => {
 }
 
 .workbench-rail-side-left {
+  left: var(--rail-left-offset);
   justify-content: flex-start;
   gap: 4px;
 }
 
 .workbench-rail-side-right {
+  right: var(--rail-right-offset);
   justify-content: flex-end;
 }
 
