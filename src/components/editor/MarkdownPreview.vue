@@ -632,6 +632,10 @@ function handleContextMenu(event) {
   color: var(--workspace-ink);
 }
 
+html.is-markdown-font-maple .md-preview-content {
+  font-style: italic;
+}
+
 :deep(.md-preview-source-anchor-active) {
   animation: md-preview-source-flash 1.2s ease;
 }
@@ -689,44 +693,85 @@ function handleContextMenu(event) {
 
 .md-preview-content p { margin: 1.2em 0; }
 
-/* 隐没的超链接气泡悬浮质感 */
 .md-preview-content a {
   color: var(--hl-link);
-  text-decoration: none;
-  padding: 2px 4px;
-  margin: 0 -4px;
-  border-radius: 4px;
-  transition: background 0.15s ease, color 0.15s ease;
+  text-decoration-line: underline;
+  text-decoration-thickness: 0.08em;
+  text-underline-offset: 0.18em;
+  text-decoration-color: color-mix(in srgb, var(--hl-link) 58%, transparent);
+  padding: 1px 5px;
+  margin: 0 -3px;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--hl-link) 7%, transparent);
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--hl-link) 28%, transparent);
+  font-weight: 520;
+  transition:
+    background 0.15s ease,
+    box-shadow 0.15s ease,
+    color 0.15s ease,
+    text-decoration-color 0.15s ease;
 }
 .md-preview-content a:hover {
-  background: color-mix(in srgb, var(--hl-link) 15%, transparent);
+  background: color-mix(in srgb, var(--hl-link) 16%, transparent);
+  box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--hl-link) 42%, transparent);
+  text-decoration-color: var(--hl-link);
 }
 
-.md-preview-content strong { font-weight: 600; color: var(--workspace-ink); }
-.md-preview-content em { font-style: italic; }
+.md-preview-content strong {
+  color: color-mix(in srgb, var(--workspace-ink) 88%, var(--hl-heading) 12%);
+  font-weight: 760;
+  letter-spacing: 0;
+}
+.md-preview-content em {
+  color: color-mix(in srgb, var(--workspace-ink) 78%, var(--hl-emphasis, var(--hl-link)) 22%);
+  font-style: italic;
+  background: color-mix(in srgb, var(--hl-emphasis, var(--hl-link)) 8%, transparent);
+  border-radius: 4px;
+  padding: 0 3px;
+  margin: 0 -1px;
+}
 .md-preview-content del { text-decoration: line-through; opacity: 0.6; }
 
 .md-preview-content code {
   font-family: var(--font-mono, 'SF Mono', 'Fira Code', monospace);
-  font-size: 0.85em;
-  padding: 0.2em 0.4em;
-  border-radius: 4px;
-  background: var(--surface-raised);
-  color: var(--workspace-ink);
-  border: 1px solid var(--border-subtle); 
+  font-size: 0.86em;
+  padding: 0.16em 0.42em;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--hl-code, var(--hl-link)) 10%, var(--surface-raised));
+  color: color-mix(in srgb, var(--hl-code, var(--hl-link)) 72%, var(--workspace-ink));
+  border: 1px solid color-mix(in srgb, var(--hl-code, var(--hl-link)) 28%, var(--border-subtle));
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--hl-code, var(--hl-link)) 18%, transparent);
 }
 
 .md-preview-content pre {
-  margin: 1.5em 0;
-  padding: 16px 20px;
-  border-radius: 8px;
-  background: var(--surface-raised);
-  border: 1px solid var(--border-subtle);
+  position: relative;
+  margin: 1.7em 0;
+  padding: 18px 20px 18px 22px;
+  border-radius: 9px;
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--hl-code, var(--hl-link)) 16%, transparent),
+      transparent 28px
+    ),
+    color-mix(in srgb, var(--surface-raised) 94%, var(--workspace-paper));
+  border: 1px solid color-mix(in srgb, var(--hl-code, var(--hl-link)) 22%, var(--border-subtle));
+  border-left: 4px solid color-mix(in srgb, var(--hl-code, var(--hl-link)) 62%, var(--border-strong));
+  box-shadow:
+    0 10px 28px color-mix(in srgb, black 10%, transparent),
+    inset 0 1px 0 color-mix(in srgb, white 8%, transparent);
   overflow-x: auto;
   font-size: 0.85em;
   line-height: 1.6;
 }
-.md-preview-content pre code { padding: 0; background: none; font-size: 1em; color: var(--workspace-ink); border: none; }
+.md-preview-content pre code {
+  padding: 0;
+  background: none;
+  font-size: 1em;
+  color: color-mix(in srgb, var(--workspace-ink) 88%, var(--hl-code, var(--hl-link)) 12%);
+  border: none;
+  box-shadow: none;
+}
 
 .md-preview-content blockquote {
   margin: 1.5em 0;
@@ -760,19 +805,36 @@ function handleContextMenu(event) {
 .md-preview-content td { border: 1px solid var(--border-subtle); padding: 12px 16px; text-align: left; vertical-align: top; }
 .md-preview-content th { background: color-mix(in srgb, var(--surface-raised) 50%, transparent); font-weight: 600; }
 
-.md-preview-content img { max-width: 100%; border-radius: 8px; margin: 1.5em 0; border: 1px solid var(--border-subtle); }
+.md-preview-content img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 1.8em auto;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--border-subtle) 72%, transparent);
+  background: color-mix(in srgb, var(--surface-raised) 84%, transparent);
+  box-shadow:
+    0 12px 32px color-mix(in srgb, black 13%, transparent),
+    0 0 0 6px color-mix(in srgb, var(--surface-raised) 42%, transparent);
+}
 
 .md-preview-content .md-preview-wikilink {
   color: var(--hl-link);
   cursor: pointer;
   text-decoration: none;
-  padding: 2px 4px;
-  margin: 0 -4px;
-  border-radius: 4px;
-  transition: background 0.15s ease;
+  padding: 1px 6px;
+  margin: 0 -3px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--hl-link) 10%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hl-link) 28%, transparent);
+  font-weight: 560;
+  transition:
+    background 0.15s ease,
+    box-shadow 0.15s ease;
 }
 .md-preview-content .md-preview-wikilink:hover {
-  background: color-mix(in srgb, var(--hl-link) 15%, transparent);
+  background: color-mix(in srgb, var(--hl-link) 18%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hl-link) 46%, transparent);
 }
 
 .md-preview-content .footnotes {

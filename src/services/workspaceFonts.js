@@ -38,12 +38,20 @@ function applyWorkspaceFontVariable(cssVariable, name, fallback = 'inter') {
   return nextFont
 }
 
+function syncMarkdownFontClass(name) {
+  if (typeof document === 'undefined') return
+  const normalized = String(name || '').toLowerCase()
+  document.documentElement.classList.toggle('is-markdown-font-maple', normalized.includes('maple'))
+}
+
 export function setWorkspaceUiFont(name) {
   return applyWorkspaceFontVariable('--font-ui', name, 'inter')
 }
 
 export function setWorkspaceMarkdownFont(name) {
-  return applyWorkspaceFontVariable('--font-markdown', name, 'inter')
+  const nextFont = applyWorkspaceFontVariable('--font-markdown', name, 'inter')
+  syncMarkdownFontClass(nextFont)
+  return nextFont
 }
 
 export function setWorkspaceLatexFont(name) {
