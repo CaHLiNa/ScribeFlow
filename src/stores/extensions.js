@@ -400,11 +400,13 @@ export const useExtensionsStore = defineStore('extensions', {
       return container
     },
 
-    async hydrateSettings(force = false) {
+    async hydrateSettings(force = false, options = {}) {
       if (!force && this.settingsHydrated) return this.snapshotSettings()
       const workspace = useWorkspaceStore()
       const globalConfigDir = await workspace.ensureGlobalConfigDir()
-      const settings = await loadExtensionSettings(globalConfigDir, workspace.path || '')
+      const settings = await loadExtensionSettings(globalConfigDir, workspace.path || '', {
+        hydrateSecrets: options?.hydrateSecrets === true,
+      })
       this.enabledExtensionIds = Array.isArray(settings?.enabledExtensionIds)
         ? settings.enabledExtensionIds.map(normalizeExtensionId).filter(Boolean)
         : []
@@ -455,7 +457,6 @@ export const useExtensionsStore = defineStore('extensions', {
             await this.persistSettings({ enabledExtensionIds: availableIds })
           }
         }
-        await this.activateEnabledExtensions().catch(() => {})
         await this.refreshHostSummary().catch(() => {})
         return this.registry
       } catch (error) {

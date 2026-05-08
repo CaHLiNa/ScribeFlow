@@ -18,11 +18,12 @@ export async function validateExtensionManifest(manifest = {}) {
   })
 }
 
-export async function loadExtensionSettings(globalConfigDir = '', workspaceRoot = '') {
+export async function loadExtensionSettings(globalConfigDir = '', workspaceRoot = '', options = {}) {
   return invoke('extension_settings_load', {
     params: {
       globalConfigDir: String(globalConfigDir || ''),
       workspaceRoot: String(workspaceRoot || ''),
+      hydrateSecrets: options?.hydrateSecrets === true,
     },
   })
 }

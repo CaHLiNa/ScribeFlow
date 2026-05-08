@@ -53,6 +53,8 @@ pub struct ExtensionSettingsLoadParams {
     pub global_config_dir: String,
     #[serde(default)]
     pub workspace_root: String,
+    #[serde(default)]
+    pub hydrate_secrets: bool,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -343,13 +345,31 @@ pub fn load_extension_settings(
     Ok(normalized)
 }
 
+pub fn load_redacted_extension_settings(
+    global_config_dir: &str,
+) -> Result<ExtensionSettings, String> {
+    let path = settings_file(global_config_dir)?;
+    if !path.exists() {
+        return Ok(ExtensionSettings::default());
+    }
+    let content = fs::read_to_string(&path).map_err(|error| error.to_string())?;
+    let parsed = serde_json::from_str::<ExtensionSettings>(&content)
+        .map_err(|error| format!("Failed to parse extension settings: {error}"))?;
+    Ok(normalize_settings(parsed))
+}
+
 pub fn load_extension_settings_with_state(
     global_config_dir: &str,
     workspace_root: &str,
+    hydrate_secrets: bool,
 ) -> Result<ExtensionSettingsLoadResult, String> {
     let path = settings_file(global_config_dir)?;
     let settings_exists = path.exists();
-    let settings = load_extension_settings(global_config_dir, workspace_root)?;
+    let settings = if hydrate_secrets {
+        load_extension_settings(global_config_dir, workspace_root)?
+    } else {
+        load_redacted_extension_settings(global_config_dir)?
+    };
     Ok(ExtensionSettingsLoadResult {
         settings,
         settings_exists,
@@ -462,7 +482,11 @@ pub fn save_extension_runtime_state_snapshot(
 pub async fn extension_settings_load(
     params: ExtensionSettingsLoadParams,
 ) -> Result<ExtensionSettingsLoadResult, String> {
-    load_extension_settings_with_state(&params.global_config_dir, &params.workspace_root)
+    load_extension_settings_with_state(
+        &params.global_config_dir,
+        &params.workspace_root,
+        params.hydrate_secrets,
+    )
 }
 
 #[tauri::command]
@@ -594,7 +618,8 @@ mod tests {
             "scribeflow-extension-settings-missing-{}",
             uuid::Uuid::new_v4()
         ));
-        let loaded = load_extension_settings_with_state(&root.to_string_lossy(), "").expect("load");
+        let loaded =
+            load_extension_settings_with_state(&root.to_string_lossy(), "", false).expect("load");
         assert!(!loaded.settings_exists);
         assert!(loaded.settings.enabled_extension_ids.is_empty());
         fs::remove_dir_all(root).ok();
@@ -720,6 +745,21 @@ mod tests {
             )
             .expect("keychain opaque credential"),
             Some("opaque-secret".to_string())
+        );
+
+        let redacted = load_extension_settings_with_state(&root.to_string_lossy(), "", false)
+            .expect("load redacted");
+        assert_eq!(
+            redacted
+                .settings
+                .extension_config
+                .get("example-pdf-extension"),
+            Some(&serde_json::json!({
+                "apiKey": "",
+                "targetLang": "zh-CN",
+                "serviceToken": "",
+                "opaqueCredential": ""
+            }))
         );
 
         let loaded = load_extension_settings(&root.to_string_lossy(), "").expect("load");
