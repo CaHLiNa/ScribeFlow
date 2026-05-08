@@ -86,7 +86,12 @@ This runs bridge guards, runtime boundary guards, Vite build, bundle budget chec
 Individual checks:
 
 ```sh
+npm run verify:quick
+npm run verify:extensions
+npm run verify:build
+npm run verify:rust
 npm run guard:ui-bridges
+npm run guard:js-layer-boundaries
 npm run guard:pdf-runtime
 npm run guard:textmate-runtime
 npm run check:bundle

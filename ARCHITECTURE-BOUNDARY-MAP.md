@@ -123,18 +123,11 @@ Service files with direct Tauri or plugin usage:
 Guard status:
 
 - `scripts/check-ui-bridges.mjs` fails if any non-service frontend file imports Tauri APIs or Tauri plugins.
-- `scripts/check-js-layer-boundaries.mjs` reports domain modules that still import service/store modules. This is currently a warning because several existing document/editor domain modules are legacy mixed coordination surfaces scheduled for later phases.
+- `scripts/check-js-layer-boundaries.mjs` fails if any `src/domains/**` module imports service/store modules or Tauri APIs.
 
 ## Domain Boundary Debt
 
-Current `src/domains/**` modules with service dependencies:
-
-| File | Current dependency | Cleanup direction |
-| --- | --- | --- |
-| `src/domains/editor/editorPersistenceRuntime.js` | `src/services/editorPersistence.js` | Frozen editor-adjacent debt; preserve behavior until a separate editor/session phase. |
-| `src/domains/editor/editorRestoreRuntime.js` | `src/services/editorPersistence.js` | Frozen editor-adjacent debt; do not change during this reorganization unless payload compatibility is proven externally. |
-
-No `src/domains/**` file currently imports `@tauri-apps/**` directly.
+No `src/domains/**` file currently imports `src/services/**`, `src/stores/**`, or `@tauri-apps/**` directly.
 
 ## Service Inventory
 
@@ -285,6 +278,7 @@ Components over 500 lines:
 
 ## Phase 1 Verification Targets
 
+- `npm run verify:quick`
 - `npm run guard:ui-bridges`
 - `npm run guard:js-layer-boundaries`
 - `npm run build`

@@ -1,5 +1,8 @@
 import { defineStore } from 'pinia'
 import { useWorkspaceStore } from './workspace'
+import { useEditorStore } from './editor'
+import { useReferencesStore } from './references'
+import { useExtensionWindowUiStore } from './extensionWindowUi'
 import {
   listExtensions,
   loadExtensionSettings,
@@ -504,7 +507,6 @@ export const useExtensionsStore = defineStore('extensions', {
       const id = normalizeExtensionId(extensionId)
       const normalizedWorkspaceRoot = normalizeWorkspaceRoot(workspaceRoot)
       if (!id || !normalizedWorkspaceRoot) return this.hostStatus
-      const { useExtensionWindowUiStore } = await import('./extensionWindowUi')
       const extensionWindowUi = useExtensionWindowUiStore()
       const pendingRequestExtensionId = normalizeExtensionId(extensionWindowUi.pendingRequest?.extensionId || '')
       const pendingRequestWorkspaceRoot = normalizeWorkspaceRoot(extensionWindowUi.pendingRequest?.workspaceRoot || '')
@@ -583,7 +585,6 @@ export const useExtensionsStore = defineStore('extensions', {
       if (enabled) {
         await this.activateExtension(id, '').catch(() => {})
       } else {
-        const { useExtensionWindowUiStore } = await import('./extensionWindowUi')
         const extensionWindowUi = useExtensionWindowUiStore()
         const workspace = useWorkspaceStore()
         const workspaceRoot = workspace.path || ''
@@ -1117,7 +1118,6 @@ export const useExtensionsStore = defineStore('extensions', {
       }
 
       if (action === 'open-tab' && target.path) {
-        const { useEditorStore } = await import('./editor')
         return useEditorStore().openFile(target.path)
       }
 
@@ -1134,8 +1134,6 @@ export const useExtensionsStore = defineStore('extensions', {
       }
 
       if (action === 'open-reference' && target.referenceId) {
-        const { useWorkspaceStore } = await import('./workspace')
-        const { useReferencesStore } = await import('./references')
         const workspaceStore = useWorkspaceStore()
         const referencesStore = useReferencesStore()
         referencesStore.selectReference(target.referenceId)

@@ -1,4 +1,3 @@
-import { findInvalidTabs } from '../../services/editorPersistence.js'
 import {
   findFirstLeaf,
   findLeaf,
@@ -34,6 +33,7 @@ export function deriveRestoredEditorRuntimeState({
 export async function validateRestoredEditorTabs({
   workspaceDataDir,
   paneTree,
+  findInvalidTabs,
   isStillCurrent,
   closeInvalidTab,
   isActivePaneMissing,

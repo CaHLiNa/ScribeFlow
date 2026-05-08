@@ -163,9 +163,20 @@ npm run verify
 
 It runs:
 
+- `npm run verify:quick`
+- `npm run verify:extensions`
+- `npm run verify:build`
+- `npm run verify:rust`
+
+The quick gate includes:
+
 - `npm run guard:ui-bridges`
+- `npm run guard:js-layer-boundaries`
 - `npm run guard:pdf-runtime`
 - `npm run guard:textmate-runtime`
+
+The extension gate includes:
+
 - `npm run probe:extension-host`
 - `npm run probe:extension-markdown-host`
 - `npm run probe:extension-view-result-entries`

@@ -22,13 +22,9 @@ import {
 } from '../domains/editor/paneTabs'
 import {
   buildRecentFilesAfterOpen,
-  cancelEditorStateSave,
-  flushEditorStateSave,
-  loadEditorStateSnapshot,
-  loadRecentFilesForWorkspace,
-  persistRecentFilesForWorkspace,
-  scheduleEditorStateSave,
+  createEditorPersistenceRuntime,
 } from '../domains/editor/editorPersistenceRuntime'
+import * as editorPersistence from '../services/editorPersistence'
 import {
   getAnyRegisteredEditorView,
   getRegisteredEditorView,
@@ -64,6 +60,8 @@ function isContextCandidatePath(path) {
 function createNewTabPath() {
   return `newtab:${nanoid()}`
 }
+
+const editorPersistenceRuntime = createEditorPersistenceRuntime(editorPersistence)
 
 export const useEditorStore = defineStore('editor', {
   state: () => ({
@@ -496,7 +494,7 @@ export const useEditorStore = defineStore('editor', {
     },
 
     async loadRecentFiles(workspacePath) {
-      this.recentFiles = await loadRecentFilesForWorkspace(useWorkspaceStore().workspaceDataDir, workspacePath)
+      this.recentFiles = await editorPersistenceRuntime.loadRecentFilesForWorkspace(useWorkspaceStore().workspaceDataDir, workspacePath)
     },
 
     applyRecentFilesSnapshot(recentFiles = []) {
@@ -506,11 +504,11 @@ export const useEditorStore = defineStore('editor', {
 
     _persistRecentFiles() {
       const workspace = useWorkspaceStore()
-      void persistRecentFilesForWorkspace(workspace.workspaceDataDir, workspace.path, this.recentFiles)
+      void editorPersistenceRuntime.persistRecentFilesForWorkspace(workspace.workspaceDataDir, workspace.path, this.recentFiles)
     },
 
     saveEditorState() {
-      scheduleEditorStateSave({
+      editorPersistenceRuntime.scheduleEditorStateSave({
         workspaceDataDir: useWorkspaceStore().workspaceDataDir,
         paneTree: this.paneTree,
         activePaneId: this.activePaneId,
@@ -521,7 +519,7 @@ export const useEditorStore = defineStore('editor', {
     },
 
     async saveEditorStateImmediate() {
-      await flushEditorStateSave({
+      await editorPersistenceRuntime.flushEditorStateSave({
         workspaceDataDir: useWorkspaceStore().workspaceDataDir,
         paneTree: this.paneTree,
         activePaneId: this.activePaneId,
@@ -533,7 +531,7 @@ export const useEditorStore = defineStore('editor', {
 
     async restoreEditorState() {
       const workspace = useWorkspaceStore()
-      const state = await loadEditorStateSnapshot(workspace.workspaceDataDir)
+      const state = await editorPersistenceRuntime.loadEditorStateSnapshot(workspace.workspaceDataDir)
       if (!state) return false
 
       this.restoreGeneration += 1
@@ -567,7 +565,7 @@ export const useEditorStore = defineStore('editor', {
     },
 
     cleanup() {
-      cancelEditorStateSave()
+      editorPersistenceRuntime.cancelEditorStateSave()
       destroyEditorRuntimeViews(this.editorViews)
       Object.assign(this, createEmptyEditorRuntimeState({
         restoreGeneration: this.restoreGeneration + 1,

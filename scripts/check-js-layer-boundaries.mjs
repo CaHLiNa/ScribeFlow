@@ -49,13 +49,13 @@ if (hardViolations.length > 0) {
 }
 
 if (legacyViolations.length > 0) {
-  console.warn(
-    'JS layer boundary warning: src/domains still imports service/store modules. See ARCHITECTURE-BOUNDARY-MAP.md for the migration snapshot.',
+  console.error(
+    'JS layer boundary violation: src/domains must not import service/store modules.',
   )
   for (const violation of legacyViolations) {
-    console.warn(`- ${violation.file} imports ${violation.importPath}`)
+    console.error(`- ${violation.file} imports ${violation.importPath}`)
   }
-  process.exit(0)
+  process.exit(1)
 }
 
 console.log('JS layer boundary check passed.')
