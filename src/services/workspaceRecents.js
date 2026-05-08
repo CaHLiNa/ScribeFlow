@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import { getGlobalConfigDir as getAppGlobalConfigDir } from './appDirs.js'
+import { isNativeDesktopRuntime } from './runtimeGuard.js'
 
 export function createWorkspaceLifecycleState() {
   return {
@@ -12,6 +13,7 @@ export function createWorkspaceLifecycleState() {
 }
 
 export async function loadWorkspaceLifecycleState(globalConfigDir = '') {
+  if (!isNativeDesktopRuntime()) return createWorkspaceLifecycleState()
   return invoke('workspace_lifecycle_load', {
     params: {
       globalConfigDir: String(globalConfigDir || ''),
@@ -20,6 +22,12 @@ export async function loadWorkspaceLifecycleState(globalConfigDir = '') {
 }
 
 export async function saveWorkspaceLifecycleState(globalConfigDir = '', state = {}) {
+  if (!isNativeDesktopRuntime()) {
+    return {
+      ...createWorkspaceLifecycleState(),
+      ...state,
+    }
+  }
   const normalized = await invoke('workspace_lifecycle_save', {
     params: {
       globalConfigDir: String(globalConfigDir || ''),
@@ -35,6 +43,9 @@ export async function getGlobalConfigDir() {
 }
 
 export async function prepareWorkspaceOpen(globalConfigDir = '', path = '') {
+  if (!isNativeDesktopRuntime()) {
+    throw new Error('Opening a workspace requires the Tauri desktop runtime.')
+  }
   return invoke('workspace_lifecycle_prepare_open', {
     params: {
       globalConfigDir: String(globalConfigDir || ''),
@@ -44,6 +55,9 @@ export async function prepareWorkspaceOpen(globalConfigDir = '', path = '') {
 }
 
 export async function resolveWorkspaceBootstrapPlan(options = {}) {
+  if (!isNativeDesktopRuntime()) {
+    return { tasks: [], backgroundWindowMs: 0, ...options }
+  }
   return invoke('workspace_lifecycle_resolve_bootstrap_plan', {
     params: {
       hasCachedTree: options.hasCachedTree === true,
@@ -53,6 +67,9 @@ export async function resolveWorkspaceBootstrapPlan(options = {}) {
 }
 
 export async function loadWorkspaceBootstrapData(params = {}) {
+  if (!isNativeDesktopRuntime()) {
+    throw new Error('Loading workspace bootstrap data requires the Tauri desktop runtime.')
+  }
   return invoke('workspace_lifecycle_load_bootstrap_data', {
     params: {
       globalConfigDir: String(params.globalConfigDir || ''),
@@ -70,5 +87,6 @@ export async function loadWorkspaceBootstrapData(params = {}) {
 }
 
 export async function prepareWorkspaceClose() {
+  if (!isNativeDesktopRuntime()) return
   return invoke('workspace_lifecycle_prepare_close')
 }

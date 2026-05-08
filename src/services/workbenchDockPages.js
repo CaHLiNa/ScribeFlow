@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
+import { isNativeDesktopRuntime } from './runtimeGuard.js'
 
 const FALLBACK_DOCK_PAGE_CONTRACT = Object.freeze({
   document: {
@@ -63,6 +64,7 @@ export function createWorkbenchDockPageContract(value = {}) {
 }
 
 export async function loadWorkbenchDockPageContract() {
+  if (!isNativeDesktopRuntime()) return createWorkbenchDockPageContract()
   const contract = await invoke('workbench_dock_page_contract_load')
   return createWorkbenchDockPageContract(contract)
 }

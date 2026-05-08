@@ -21,6 +21,7 @@ import { onNativeWindowFocusChanged } from '../../services/nativeWindow.js'
 import { pickWorkspaceDirectory } from '../../services/workspacePicker.js'
 import { basenamePath } from '../../utils/path'
 import { isTauriDesktopRuntime } from '../../platform'
+import { showWebDevRuntimeNotice } from '../../services/devModeNotice.js'
 
 export function useWorkspaceLifecycle() {
   const workspace = useWorkspaceStore()
@@ -99,6 +100,10 @@ export function useWorkspaceLifecycle() {
   }
 
   async function pickWorkspace() {
+    if (!isTauriDesktop) {
+      showWebDevRuntimeNotice()
+      return
+    }
     const selected = await pickWorkspaceDirectory(t('Open Workspace'))
 
     if (selected) {

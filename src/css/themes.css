@@ -197,7 +197,6 @@
   --focus-ring: color-mix(in srgb, var(--accent) 30%, transparent);
 
   --sidebar-shell-surface: #1e1e1e;
-
   --app-canvas: #000000;
   --app-canvas-glow: rgba(255, 255, 255, 0.03);
   --chrome-surface: #1e1e1e;

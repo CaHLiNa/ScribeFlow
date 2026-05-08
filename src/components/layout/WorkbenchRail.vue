@@ -179,7 +179,7 @@ const emit = defineEmits([
 ])
 
 const { t } = useI18n()
-const TOPBAR_HEIGHT = 42
+const TOPBAR_HEIGHT = 36
 const DEFAULT_SIDE_PADDING = 12
 const MAC_TRAFFIC_LIGHT_SAFE_PADDING = 68
 const FULLSCREEN_LEFT_PADDING = 12
@@ -340,7 +340,7 @@ onUnmounted(() => {
 }
 
 .workbench-rail--mac .workbench-rail-side {
-  transform: translateY(-5px);
+  transform: translateY(-2px);
 }
 
 .workbench-rail-side {
@@ -367,7 +367,7 @@ onUnmounted(() => {
 }
 
 .workbench-rail--mac .workbench-rail-center {
-  transform: translate(-50%, calc(-50% - 5px));
+  transform: translate(-50%, calc(-50% - 6px));
 }
 
 .workbench-rail-title-target {
@@ -624,7 +624,7 @@ onUnmounted(() => {
   }
 
   .workbench-rail {
-    min-height: 42px;
+    min-height: 36px;
   }
 }
 </style>

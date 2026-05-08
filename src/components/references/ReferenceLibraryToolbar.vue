@@ -76,8 +76,8 @@ const { t } = useI18n()
   height: 31px;
   min-height: 31px;
   padding: 0 12px;
-  border-bottom: 1px solid var(--workbench-divider-soft);
-  background: var(--shell-editor-surface);
+  border-bottom: 1px solid color-mix(in srgb, var(--workbench-divider-soft) 72%, transparent);
+  background: transparent;
   overflow: hidden;
 }
 

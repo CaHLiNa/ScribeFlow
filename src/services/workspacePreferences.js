@@ -1,7 +1,9 @@
 import { invoke } from '@tauri-apps/api/core'
 import { FALLBACK_SYSTEM_FONT_FAMILIES } from '../domains/settings/workspacePreferencePresentation.js'
+import { isNativeDesktopRuntime } from './runtimeGuard.js'
 
 export async function loadWorkspacePreferences(globalConfigDir = '') {
+  if (!isNativeDesktopRuntime()) return {}
   return invoke('workspace_preferences_load', {
     params: {
       globalConfigDir: String(globalConfigDir || ''),
@@ -10,6 +12,7 @@ export async function loadWorkspacePreferences(globalConfigDir = '') {
 }
 
 export async function saveWorkspacePreferences(globalConfigDir = '', preferences = {}) {
+  if (!isNativeDesktopRuntime()) return preferences
   const normalized = await invoke('workspace_preferences_save', {
     params: {
       globalConfigDir: String(globalConfigDir || ''),
@@ -21,6 +24,7 @@ export async function saveWorkspacePreferences(globalConfigDir = '', preferences
 }
 
 export async function normalizeWorkbenchState(state = {}) {
+  if (!isNativeDesktopRuntime()) return state
   return invoke('workbench_state_normalize', {
     params: {
       primarySurface: String(state.primarySurface || ''),

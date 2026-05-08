@@ -73,7 +73,7 @@ const activeSectionComponent = computed(
   display: flex;
   align-items: flex-start;
   justify-content: center; /* 标题与内容同步居中 */
-  padding: 32px 0 16px;
+  padding: 20px 0 16px;
 }
 
 .settings-header-title {
