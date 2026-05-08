@@ -1,7 +1,7 @@
 #[cfg(target_os = "macos")]
 use objc2_app_kit::{
-    NSColor, NSTitlebarSeparatorStyle, NSWindow, NSWindowButton, NSWindowStyleMask,
-    NSWindowTitleVisibility,
+    NSAnimationContext, NSColor, NSTitlebarSeparatorStyle, NSWindow, NSWindowButton,
+    NSWindowStyleMask, NSWindowTitleVisibility,
 };
 #[cfg(target_os = "macos")]
 use objc2_foundation::NSPoint;
@@ -60,6 +60,11 @@ pub fn sync_window_transparency<R: Runtime>(app: AppHandle<R>) -> Result<(), Str
 fn align_standard_window_buttons(ns_window: &NSWindow) {
     let baselines = TITLEBAR_BUTTON_BASELINES.get_or_init(|| Mutex::new(HashMap::new()));
 
+    NSAnimationContext::beginGrouping();
+    let animation_context = NSAnimationContext::currentContext();
+    animation_context.setDuration(0.0);
+    animation_context.setAllowsImplicitAnimation(false);
+
     for button_kind in [
         NSWindowButton::CloseButton,
         NSWindowButton::MiniaturizeButton,
@@ -80,6 +85,8 @@ fn align_standard_window_buttons(ns_window: &NSWindow) {
             baseline_y - TITLEBAR_BUTTON_VERTICAL_OFFSET,
         ));
     }
+
+    NSAnimationContext::endGrouping();
 }
 
 #[cfg(not(target_os = "macos"))]

@@ -192,7 +192,6 @@ const workspaceMenuOpen = ref(false)
 const workspaceTitleWrapRef = ref(null)
 let unlistenWindowResize = null
 let removeDragGuards = null
-let macosChromeSyncTimer = null
 
 const railLeftPadding = computed(() => {
   if (!isMac || !isTauriDesktop) {
@@ -219,17 +218,6 @@ async function syncNativeWindowChromeState() {
     nextFullscreen = false
   }
   isNativeFullscreen.value = nextFullscreen
-  if (isMac && wasFullscreen && !nextFullscreen) {
-    scheduleMacosWindowChromeSync()
-  }
-}
-
-function scheduleMacosWindowChromeSync() {
-  window.clearTimeout(macosChromeSyncTimer)
-  macosChromeSyncTimer = window.setTimeout(() => {
-    macosChromeSyncTimer = null
-    void syncMacosWindowTransparency()
-  }, 220)
 }
 
 async function handleWindowDragStart(event) {
@@ -302,6 +290,9 @@ onMounted(async () => {
   await syncNativeWindowChromeState()
   try {
     unlistenWindowResize = await onNativeWindowResized(() => {
+      if (isMac && isNativeFullscreen.value) {
+        void syncMacosWindowTransparency()
+      }
       void syncNativeWindowChromeState()
     })
   } catch {
@@ -313,8 +304,6 @@ onUnmounted(() => {
   document.removeEventListener('mousedown', handleDocumentPointerDown)
   document.removeEventListener('keydown', handleDocumentEscape)
   endWindowDragGuard()
-  window.clearTimeout(macosChromeSyncTimer)
-  macosChromeSyncTimer = null
   unlistenWindowResize?.()
   unlistenWindowResize = null
 })
