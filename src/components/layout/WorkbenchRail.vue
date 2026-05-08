@@ -158,6 +158,7 @@ import {
   onNativeWindowResized,
   startNativeWindowDrag,
 } from '../../services/nativeWindow.js'
+import { syncMacosWindowTransparency } from '../../services/macosWindowTransparency.js'
 
 defineProps({
   tabsTargetId: { type: String, default: 'app-shell-topbar-tabs' },
@@ -191,6 +192,7 @@ const workspaceMenuOpen = ref(false)
 const workspaceTitleWrapRef = ref(null)
 let unlistenWindowResize = null
 let removeDragGuards = null
+let macosChromeSyncTimer = null
 
 const railLeftPadding = computed(() => {
   if (!isMac || !isTauriDesktop) {
@@ -209,11 +211,25 @@ const railStyle = computed(() => ({
 
 async function syncNativeWindowChromeState() {
   if (!isTauriDesktop) return
+  const wasFullscreen = isNativeFullscreen.value
+  let nextFullscreen = false
   try {
-    isNativeFullscreen.value = await isNativeWindowFullscreen()
+    nextFullscreen = await isNativeWindowFullscreen()
   } catch {
-    isNativeFullscreen.value = false
+    nextFullscreen = false
   }
+  isNativeFullscreen.value = nextFullscreen
+  if (isMac && wasFullscreen && !nextFullscreen) {
+    scheduleMacosWindowChromeSync()
+  }
+}
+
+function scheduleMacosWindowChromeSync() {
+  window.clearTimeout(macosChromeSyncTimer)
+  macosChromeSyncTimer = window.setTimeout(() => {
+    macosChromeSyncTimer = null
+    void syncMacosWindowTransparency()
+  }, 220)
 }
 
 async function handleWindowDragStart(event) {
@@ -297,6 +313,8 @@ onUnmounted(() => {
   document.removeEventListener('mousedown', handleDocumentPointerDown)
   document.removeEventListener('keydown', handleDocumentEscape)
   endWindowDragGuard()
+  window.clearTimeout(macosChromeSyncTimer)
+  macosChromeSyncTimer = null
   unlistenWindowResize?.()
   unlistenWindowResize = null
 })
