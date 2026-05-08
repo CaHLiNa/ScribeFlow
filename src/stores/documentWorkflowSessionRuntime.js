@@ -1,4 +1,5 @@
 import {
+  applyDocumentWorkflowLatexPreviewState,
   createDocumentWorkflowPersistentState,
   loadDocumentWorkflowSessionState,
   reconcileDocumentWorkflowLatexPreviewState,
@@ -125,64 +126,26 @@ export const documentWorkflowSessionActions = {
         lastCompiled: Number(detail.lastCompiled || 0),
         sourceFingerprint: String(detail.sourceFingerprint || '').trim(),
       }
-      if (sourcePath) {
-        this.setLatexPreviewStateForFile(sourcePath, nextPreviewState)
-      }
-      if (targetPath && targetPath !== sourcePath) {
-        this.setLatexPreviewStateForFile(targetPath, nextPreviewState)
-      }
+      void (async () => {
+        if (sourcePath) {
+          await this.setLatexPreviewStateForFile(sourcePath, nextPreviewState)
+        }
+        if (targetPath && targetPath !== sourcePath) {
+          await this.setLatexPreviewStateForFile(targetPath, nextPreviewState)
+        }
+      })()
     })
   },
 
-  setLatexPreviewStateForFile(filePath, state = {}) {
-    const normalizedFilePath = String(filePath || '').trim()
-    if (!normalizedFilePath) return
-
-    const normalizedState = {
-      artifactPath: String(state.artifactPath || '').trim(),
-      synctexPath: String(state.synctexPath || '').trim(),
-      compileTargetPath: String(state.compileTargetPath || '').trim(),
-      lastCompiled: Number(state.lastCompiled || 0),
-      sourceFingerprint: String(state.sourceFingerprint || '').trim(),
-    }
-    const hasRuntimeState = Boolean(
-      normalizedState.artifactPath
-      || normalizedState.synctexPath
-      || normalizedState.compileTargetPath
-      || normalizedState.lastCompiled
-      || normalizedState.sourceFingerprint
+  async setLatexPreviewStateForFile(filePath, state = {}) {
+    const applied = await applyDocumentWorkflowLatexPreviewState(
+      this.snapshotPersistentState(),
+      filePath,
+      state,
     )
+    if (!applied?.changed) return
 
-    const nextArtifactPaths = { ...(this.latexArtifactPaths || {}) }
-    const nextPreviewStates = { ...(this.latexPreviewStates || {}) }
-
-    if (!hasRuntimeState) {
-      if (!nextArtifactPaths[normalizedFilePath] && !nextPreviewStates[normalizedFilePath]) return
-      delete nextArtifactPaths[normalizedFilePath]
-      delete nextPreviewStates[normalizedFilePath]
-    } else {
-      const previousArtifactPath = String(nextArtifactPaths[normalizedFilePath] || '')
-      const previousState = nextPreviewStates[normalizedFilePath] || null
-      const unchanged =
-        previousArtifactPath === normalizedState.artifactPath
-        && previousState
-        && previousState.artifactPath === normalizedState.artifactPath
-        && previousState.synctexPath === normalizedState.synctexPath
-        && previousState.compileTargetPath === normalizedState.compileTargetPath
-        && Number(previousState.lastCompiled || 0) === normalizedState.lastCompiled
-        && previousState.sourceFingerprint === normalizedState.sourceFingerprint
-      if (unchanged) return
-
-      if (normalizedState.artifactPath) {
-        nextArtifactPaths[normalizedFilePath] = normalizedState.artifactPath
-      } else {
-        delete nextArtifactPaths[normalizedFilePath]
-      }
-      nextPreviewStates[normalizedFilePath] = normalizedState
-    }
-
-    this.latexArtifactPaths = nextArtifactPaths
-    this.latexPreviewStates = nextPreviewStates
+    this.applyPersistentState(applied.state)
     this.queuePersistentStateSave()
   },
 

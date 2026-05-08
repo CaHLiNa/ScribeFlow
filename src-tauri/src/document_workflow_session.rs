@@ -110,6 +110,24 @@ pub struct DocumentWorkflowLatexPreviewReconcileParams {
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct DocumentWorkflowLatexPreviewApplyParams {
+    #[serde(default)]
+    pub state: DocumentWorkflowPersistentState,
+    #[serde(default)]
+    pub file_path: String,
+    #[serde(default)]
+    pub preview_state: DocumentWorkflowLatexPreviewState,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct DocumentWorkflowLatexPreviewApplyResult {
+    pub state: DocumentWorkflowPersistentState,
+    pub changed: bool,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DocumentWorkflowWorkspacePreviewApplyParams {
     #[serde(default)]
     pub state: DocumentWorkflowPersistentState,
@@ -521,6 +539,81 @@ pub fn reconcile_document_workflow_latex_preview_state(
     normalized
 }
 
+fn normalize_latex_preview_state(
+    state: DocumentWorkflowLatexPreviewState,
+) -> DocumentWorkflowLatexPreviewState {
+    DocumentWorkflowLatexPreviewState {
+        artifact_path: normalize_path(&state.artifact_path),
+        synctex_path: normalize_path(&state.synctex_path),
+        compile_target_path: normalize_path(&state.compile_target_path),
+        last_compiled: state.last_compiled,
+        source_fingerprint: normalize_path(&state.source_fingerprint),
+    }
+}
+
+fn has_latex_preview_runtime_state(state: &DocumentWorkflowLatexPreviewState) -> bool {
+    !state.artifact_path.is_empty()
+        || !state.synctex_path.is_empty()
+        || !state.compile_target_path.is_empty()
+        || state.last_compiled != 0
+        || !state.source_fingerprint.is_empty()
+}
+
+pub fn apply_document_workflow_latex_preview_state(
+    params: DocumentWorkflowLatexPreviewApplyParams,
+) -> DocumentWorkflowLatexPreviewApplyResult {
+    let mut state = normalize_document_workflow_persistent_state(params.state);
+    let file_path = normalize_path(&params.file_path);
+    if file_path.is_empty() {
+        return DocumentWorkflowLatexPreviewApplyResult {
+            state,
+            changed: false,
+        };
+    }
+
+    let preview_state = normalize_latex_preview_state(params.preview_state);
+    if !has_latex_preview_runtime_state(&preview_state) {
+        let removed_artifact = state.latex_artifact_paths.remove(&file_path).is_some();
+        let removed_state = state.latex_preview_states.remove(&file_path).is_some();
+        return DocumentWorkflowLatexPreviewApplyResult {
+            state: normalize_document_workflow_persistent_state(state),
+            changed: removed_artifact || removed_state,
+        };
+    }
+
+    let previous_artifact_path = state
+        .latex_artifact_paths
+        .get(&file_path)
+        .cloned()
+        .unwrap_or_default();
+    let previous_state = state.latex_preview_states.get(&file_path);
+    let unchanged = previous_artifact_path == preview_state.artifact_path
+        && previous_state
+            .map(|state| state == &preview_state)
+            .unwrap_or(false);
+
+    if unchanged {
+        return DocumentWorkflowLatexPreviewApplyResult {
+            state,
+            changed: false,
+        };
+    }
+
+    if preview_state.artifact_path.is_empty() {
+        state.latex_artifact_paths.remove(&file_path);
+    } else {
+        state
+            .latex_artifact_paths
+            .insert(file_path.clone(), preview_state.artifact_path.clone());
+    }
+    state.latex_preview_states.insert(file_path, preview_state);
+
+    DocumentWorkflowLatexPreviewApplyResult {
+        state: normalize_document_workflow_persistent_state(state),
+        changed: true,
+    }
+}
+
 pub fn apply_document_workflow_workspace_preview_state(
     params: DocumentWorkflowWorkspacePreviewApplyParams,
 ) -> DocumentWorkflowWorkspacePreviewApplyResult {
@@ -627,6 +720,13 @@ pub async fn document_workflow_latex_preview_reconcile(
 }
 
 #[tauri::command]
+pub async fn document_workflow_latex_preview_apply(
+    params: DocumentWorkflowLatexPreviewApplyParams,
+) -> Result<DocumentWorkflowLatexPreviewApplyResult, String> {
+    Ok(apply_document_workflow_latex_preview_state(params))
+}
+
+#[tauri::command]
 pub async fn document_workflow_workspace_preview_apply(
     params: DocumentWorkflowWorkspacePreviewApplyParams,
 ) -> Result<DocumentWorkflowWorkspacePreviewApplyResult, String> {
@@ -636,12 +736,13 @@ pub async fn document_workflow_workspace_preview_apply(
 #[cfg(test)]
 mod tests {
     use super::{
+        apply_document_workflow_latex_preview_state,
         apply_document_workflow_workspace_preview_state, document_workflow_session_load,
         document_workflow_session_save, normalize_document_workflow_persistent_state,
-        reconcile_document_workflow_latex_preview_state, DocumentWorkflowLatexPreviewState,
-        DocumentWorkflowPersistentState, DocumentWorkflowPersistentStateLoadParams,
-        DocumentWorkflowPersistentStateSaveParams, DocumentWorkflowPreviewBinding,
-        DocumentWorkflowPreviewPreference, DocumentWorkflowSession,
+        reconcile_document_workflow_latex_preview_state, DocumentWorkflowLatexPreviewApplyParams,
+        DocumentWorkflowLatexPreviewState, DocumentWorkflowPersistentState,
+        DocumentWorkflowPersistentStateLoadParams, DocumentWorkflowPersistentStateSaveParams,
+        DocumentWorkflowPreviewBinding, DocumentWorkflowPreviewPreference, DocumentWorkflowSession,
         DocumentWorkflowWorkspacePreviewApplyParams,
     };
     use crate::security::{set_allowed_roots_internal, WorkspaceScopeState};
@@ -889,6 +990,102 @@ mod tests {
 
         fs::remove_dir_all(workspace_root).ok();
         fs::remove_dir_all(outside_root).ok();
+    }
+
+    #[test]
+    fn applies_latex_preview_state_to_persistent_maps() {
+        let result =
+            apply_document_workflow_latex_preview_state(DocumentWorkflowLatexPreviewApplyParams {
+                state: DocumentWorkflowPersistentState::default(),
+                file_path: " /tmp/main.tex ".to_string(),
+                preview_state: DocumentWorkflowLatexPreviewState {
+                    artifact_path: " /tmp/main.pdf ".to_string(),
+                    synctex_path: " /tmp/main.synctex.gz ".to_string(),
+                    compile_target_path: " /tmp/root.tex ".to_string(),
+                    last_compiled: 42,
+                    source_fingerprint: " fp:123 ".to_string(),
+                },
+            });
+
+        assert!(result.changed);
+        assert_eq!(
+            result
+                .state
+                .latex_artifact_paths
+                .get("/tmp/main.tex")
+                .map(String::as_str),
+            Some("/tmp/main.pdf")
+        );
+        assert_eq!(
+            result
+                .state
+                .latex_preview_states
+                .get("/tmp/main.tex")
+                .map(|state| state.source_fingerprint.as_str()),
+            Some("fp:123")
+        );
+    }
+
+    #[test]
+    fn clears_latex_preview_state_when_runtime_state_is_empty() {
+        let result =
+            apply_document_workflow_latex_preview_state(DocumentWorkflowLatexPreviewApplyParams {
+                state: DocumentWorkflowPersistentState {
+                    latex_artifact_paths: HashMap::from([(
+                        "/tmp/main.tex".to_string(),
+                        "/tmp/main.pdf".to_string(),
+                    )]),
+                    latex_preview_states: HashMap::from([(
+                        "/tmp/main.tex".to_string(),
+                        DocumentWorkflowLatexPreviewState {
+                            artifact_path: "/tmp/main.pdf".to_string(),
+                            ..DocumentWorkflowLatexPreviewState::default()
+                        },
+                    )]),
+                    ..DocumentWorkflowPersistentState::default()
+                },
+                file_path: "/tmp/main.tex".to_string(),
+                preview_state: DocumentWorkflowLatexPreviewState::default(),
+            });
+
+        assert!(result.changed);
+        assert!(!result
+            .state
+            .latex_artifact_paths
+            .contains_key("/tmp/main.tex"));
+        assert!(!result
+            .state
+            .latex_preview_states
+            .contains_key("/tmp/main.tex"));
+    }
+
+    #[test]
+    fn applying_same_latex_preview_state_reports_unchanged() {
+        let preview_state = DocumentWorkflowLatexPreviewState {
+            artifact_path: "/tmp/main.pdf".to_string(),
+            synctex_path: "/tmp/main.synctex.gz".to_string(),
+            compile_target_path: "/tmp/root.tex".to_string(),
+            last_compiled: 42,
+            source_fingerprint: "fp:123".to_string(),
+        };
+        let result =
+            apply_document_workflow_latex_preview_state(DocumentWorkflowLatexPreviewApplyParams {
+                state: DocumentWorkflowPersistentState {
+                    latex_artifact_paths: HashMap::from([(
+                        "/tmp/main.tex".to_string(),
+                        "/tmp/main.pdf".to_string(),
+                    )]),
+                    latex_preview_states: HashMap::from([(
+                        "/tmp/main.tex".to_string(),
+                        preview_state.clone(),
+                    )]),
+                    ..DocumentWorkflowPersistentState::default()
+                },
+                file_path: "/tmp/main.tex".to_string(),
+                preview_state,
+            });
+
+        assert!(!result.changed);
     }
 
     #[test]

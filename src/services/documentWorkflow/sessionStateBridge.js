@@ -107,3 +107,17 @@ export async function reconcileDocumentWorkflowLatexPreviewState(state = {}) {
     state: normalizeDocumentWorkflowPersistentState(state),
   })
 }
+
+export async function applyDocumentWorkflowLatexPreviewState(state = {}, filePath = '', previewState = {}) {
+  return invokeDocumentWorkflowBridge('document_workflow_latex_preview_apply', {
+    state: normalizeDocumentWorkflowPersistentState(state),
+    filePath: normalizeString(filePath),
+    previewState: {
+      artifactPath: normalizeString(previewState?.artifactPath),
+      synctexPath: normalizeString(previewState?.synctexPath),
+      compileTargetPath: normalizeString(previewState?.compileTargetPath),
+      lastCompiled: Number(previewState?.lastCompiled || 0),
+      sourceFingerprint: normalizeString(previewState?.sourceFingerprint),
+    },
+  })
+}
