@@ -214,4 +214,19 @@ defineExpose({
 .left-shell-sidebar__content :deep(.file-tree-scroll) {
   padding-top: 0;
 }
+
+.left-shell-sidebar__content :deep(.file-tree-scroll),
+.left-shell-sidebar__content :deep(.references-sidebar-panel__content),
+.left-shell-sidebar__content :deep(.outline-panel-scroll) {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.left-shell-sidebar__content :deep(.file-tree-scroll::-webkit-scrollbar),
+.left-shell-sidebar__content :deep(.references-sidebar-panel__content::-webkit-scrollbar),
+.left-shell-sidebar__content :deep(.outline-panel-scroll::-webkit-scrollbar) {
+  display: none;
+  width: 0;
+  height: 0;
+}
 </style>
