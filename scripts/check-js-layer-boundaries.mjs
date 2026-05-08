@@ -5,6 +5,18 @@ const repoRoot = new URL('..', import.meta.url).pathname
 const domainsRoot = join(repoRoot, 'src', 'domains')
 const importPattern =
   /(?:import\s+(?:[^'"]+\s+from\s+)?|export\s+[^'"]+\s+from\s+|import\s*\()\s*['"]([^'"]+)['"]/g
+const referenceRuntimePatterns = [
+  {
+    pattern: /\b(?:cslToReferenceRecord|referenceRecordToCsl|buildAuthorNamesFromCsl)\b/,
+    message:
+      'Reference CSL/record canonical conversion belongs in Rust references runtime, not src/domains.',
+  },
+  {
+    pattern: /\b(?:REFERENCE_TO_CSL_TYPE|CSL_TO_REFERENCE_TYPE)\b/,
+    message:
+      'Reference type mapping belongs in Rust references runtime, not src/domains.',
+  },
+]
 
 function walk(dir) {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -39,6 +51,17 @@ const hardViolations = violations.filter((violation) =>
 const legacyViolations = violations.filter(
   (violation) => !violation.importPath.startsWith('@tauri-apps/'),
 )
+const referenceRuntimeViolations = walk(join(domainsRoot, 'references'))
+  .filter((path) => path.endsWith('.js') || path.endsWith('.vue'))
+  .flatMap((path) => {
+    const source = readFileSync(path, 'utf8')
+    return referenceRuntimePatterns
+      .filter(({ pattern }) => pattern.test(source))
+      .map(({ message }) => ({
+        file: relative(repoRoot, path),
+        message,
+      }))
+  })
 
 if (hardViolations.length > 0) {
   console.error('JS layer boundary violation: src/domains must not import Tauri APIs.')
@@ -54,6 +77,14 @@ if (legacyViolations.length > 0) {
   )
   for (const violation of legacyViolations) {
     console.error(`- ${violation.file} imports ${violation.importPath}`)
+  }
+  process.exit(1)
+}
+
+if (referenceRuntimeViolations.length > 0) {
+  console.error('JS layer boundary violation: reference canonical runtime must stay in Rust.')
+  for (const violation of referenceRuntimeViolations) {
+    console.error(`- ${violation.file}: ${violation.message}`)
   }
   process.exit(1)
 }
