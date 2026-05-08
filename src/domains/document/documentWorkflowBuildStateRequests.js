@@ -9,35 +9,6 @@ function resolvePreferredPreviewKind(adapter, options = {}, workflowStore = null
   return getPreferredPreviewKind?.(adapter.kind) || adapter.preview?.defaultKind || null
 }
 
-function normalizePreviewKind(adapter, previewKind) {
-  if (!adapter || !previewKind) return null
-  const supportedKinds = Array.isArray(adapter.preview?.supportedKinds)
-    ? adapter.preview.supportedKinds
-    : []
-  return supportedKinds.includes(previewKind) ? previewKind : adapter.preview?.defaultKind || null
-}
-
-export function resolveRequestedPreviewKind(filePath, adapter, options = {}, workflowStore = null) {
-  if (!adapter) return null
-
-  const session = options.session || workflowStore?.session || {}
-  const preferredPreviewKind = resolvePreferredPreviewKind(adapter, options, workflowStore)
-  const workspacePreviewRequest = normalizePreviewKind(
-    adapter,
-    options.workspacePreviewRequest,
-  )
-
-  if (workspacePreviewRequest) {
-    return workspacePreviewRequest
-  }
-
-  if (session.activeFile === filePath) {
-    const sessionPreviewKind = normalizePreviewKind(adapter, session.previewKind)
-    return sessionPreviewKind || preferredPreviewKind
-  }
-  return normalizePreviewKind(adapter, preferredPreviewKind)
-}
-
 function resolveResolvedPreviewTargetPath(filePath, adapter, context, options = {}) {
   if (options.resolvedTargetPath || options.previewTargetPath) {
     return options.resolvedTargetPath || options.previewTargetPath || ''
@@ -73,18 +44,26 @@ export function resolveArtifactReady(filePath, adapter, context) {
 export function buildPreviewStateRequest(filePath, adapter, context, options = {}) {
   if (!adapter) return null
 
-  const requestedPreviewKind = resolveRequestedPreviewKind(filePath, adapter, options, context.workflowStore)
+  const previewMetadata = adapter.preview || {}
+  const supportedPreviewKinds = Array.isArray(previewMetadata.supportedKinds)
+    ? previewMetadata.supportedKinds
+    : []
   const persistentState = context.workflowStore?.snapshotPersistentState?.() || {}
   return {
     path: filePath,
     sourcePath: options.sourcePath || '',
     workflowKind: adapter.kind,
-    workflowPreviewKind: requestedPreviewKind || '',
-    previewKind: requestedPreviewKind,
+    workflowPreviewKind: options.workflowPreviewKind || previewMetadata.defaultKind || '',
+    defaultPreviewKind: previewMetadata.defaultKind || '',
+    preferredPreviewKind: resolvePreferredPreviewKind(adapter, options, context.workflowStore) || '',
+    previewKind: options.previewKind || '',
+    workspacePreviewRequest: options.workspacePreviewRequest || '',
+    supportedPreviewKinds,
     resolvedTargetPath: resolveResolvedPreviewTargetPath(filePath, adapter, context, options),
+    artifactPath: resolveExpectedPreviewTargetPath(filePath, adapter, context, options),
     targetResolution: options.targetResolution || '',
     previewRequested: options.previewRequested === true,
-    artifactReady: resolveArtifactReady(filePath, adapter, context),
+    artifactReady: options.artifactReady === true,
     hiddenByUser: options.hiddenByUser === true,
     state: persistentState,
   }

@@ -20,7 +20,17 @@ pub struct DocumentWorkspacePreviewStateResolveParams {
     #[serde(default)]
     pub preview_kind: String,
     #[serde(default)]
+    pub default_preview_kind: String,
+    #[serde(default)]
+    pub preferred_preview_kind: String,
+    #[serde(default)]
+    pub workspace_preview_request: String,
+    #[serde(default)]
+    pub supported_preview_kinds: Vec<String>,
+    #[serde(default)]
     pub resolved_target_path: String,
+    #[serde(default)]
+    pub artifact_path: String,
     #[serde(default)]
     pub target_resolution: String,
     #[serde(default)]
@@ -192,16 +202,109 @@ fn normalize_preview_kind(value: &str) -> String {
     }
 }
 
+fn first_non_empty(values: Vec<String>) -> String {
+    values
+        .into_iter()
+        .find(|value| !value.trim().is_empty())
+        .unwrap_or_default()
+}
+
+fn supported_preview_kinds_for_kind(workflow_kind: &str) -> Vec<&'static str> {
+    match workflow_kind {
+        "markdown" => vec!["html"],
+        "latex" => vec!["pdf"],
+        "python" => vec!["terminal"],
+        _ => Vec::new(),
+    }
+}
+
+fn normalize_supported_preview_kind(
+    value: &str,
+    supported_preview_kinds: &[String],
+    workflow_kind: &str,
+) -> String {
+    let normalized = normalize_preview_kind(value);
+    if normalized.is_empty() {
+        return String::new();
+    }
+
+    let explicit_supported = supported_preview_kinds
+        .iter()
+        .map(|kind| normalize_preview_kind(kind))
+        .any(|kind| kind == normalized);
+    if explicit_supported {
+        return normalized;
+    }
+
+    if supported_preview_kinds.is_empty()
+        && supported_preview_kinds_for_kind(workflow_kind)
+            .iter()
+            .any(|kind| *kind == normalized)
+    {
+        return normalized;
+    }
+
+    String::new()
+}
+
+fn default_preview_kind_for_params(
+    params: &DocumentWorkspacePreviewStateResolveParams,
+    workflow_kind: &str,
+) -> String {
+    first_non_empty(vec![
+        normalize_supported_preview_kind(
+            &params.default_preview_kind,
+            &params.supported_preview_kinds,
+            workflow_kind,
+        ),
+        normalize_supported_preview_kind(
+            &params.workflow_preview_kind,
+            &params.supported_preview_kinds,
+            workflow_kind,
+        ),
+        supported_preview_kinds_for_kind(workflow_kind)
+            .first()
+            .copied()
+            .unwrap_or_default()
+            .to_string(),
+    ])
+}
+
+fn fallback_preview_kind_for_params(
+    params: &DocumentWorkspacePreviewStateResolveParams,
+    workflow_kind: &str,
+) -> String {
+    first_non_empty(vec![
+        normalize_supported_preview_kind(
+            &params.preview_kind,
+            &params.supported_preview_kinds,
+            workflow_kind,
+        ),
+        normalize_supported_preview_kind(
+            &params.preferred_preview_kind,
+            &params.supported_preview_kinds,
+            workflow_kind,
+        ),
+        default_preview_kind_for_params(params, workflow_kind),
+    ])
+}
+
 fn resolve_requested_preview_kind(
     params: &DocumentWorkspacePreviewStateResolveParams,
     state: &DocumentWorkflowPersistentState,
     path: &str,
+    workflow_kind: &str,
 ) -> String {
-    let fallback = if !params.preview_kind.trim().is_empty() {
-        params.preview_kind.trim()
-    } else {
-        params.workflow_preview_kind.trim()
-    };
+    let fallback = fallback_preview_kind_for_params(params, workflow_kind);
+
+    let explicit_request = normalize_supported_preview_kind(
+        &params.workspace_preview_request,
+        &params.supported_preview_kinds,
+        workflow_kind,
+    );
+    if !explicit_request.is_empty() {
+        return explicit_request;
+    }
 
     if state.session.state == "workspace-preview"
         && active_workspace_preview_source_path(state) == path
@@ -211,13 +314,17 @@ fn resolve_requested_preview_kind(
             .get(path)
             .map(String::as_str)
             .unwrap_or_default();
-        let normalized_request = normalize_preview_kind(requested);
+        let normalized_request = normalize_supported_preview_kind(
+            requested,
+            &params.supported_preview_kinds,
+            workflow_kind,
+        );
         if !normalized_request.is_empty() {
             return normalized_request;
         }
     }
 
-    normalize_preview_kind(fallback)
+    fallback
 }
 
 #[tauri::command]
@@ -258,12 +365,17 @@ pub async fn document_workspace_preview_state_resolve(
     };
 
     let persistent_state = normalize_document_workflow_persistent_state(params.state.clone());
-    let requested_preview_kind = resolve_requested_preview_kind(&params, &persistent_state, &path);
+    let requested_preview_kind =
+        resolve_requested_preview_kind(&params, &persistent_state, &path, kind);
     let hidden_by_user = resolve_hidden_by_user(&params, &persistent_state, &path);
     let preview_requested =
         resolve_preview_requested(&params, &persistent_state, &path, &requested_preview_kind);
     let resolved_target_path = normalize_path(&params.resolved_target_path);
-    let artifact_ready = params.artifact_ready || resolved_target_exists(&resolved_target_path);
+    let artifact_path = normalize_path(&params.artifact_path);
+    let artifact_ready = params.artifact_ready
+        || !artifact_path.is_empty()
+        || resolved_target_exists(&artifact_path)
+        || resolved_target_exists(&resolved_target_path);
 
     if kind == "markdown" {
         let state = create_preview_state(json!({

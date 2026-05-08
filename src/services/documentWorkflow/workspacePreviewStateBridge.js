@@ -8,7 +8,14 @@ export async function resolveDocumentWorkspacePreviewState(params = {}) {
     workflowKind: String(params.workflowKind || ''),
     workflowPreviewKind: String(params.workflowPreviewKind || ''),
     previewKind: String(params.previewKind || ''),
+    defaultPreviewKind: String(params.defaultPreviewKind || ''),
+    preferredPreviewKind: String(params.preferredPreviewKind || ''),
+    workspacePreviewRequest: String(params.workspacePreviewRequest || ''),
+    supportedPreviewKinds: Array.isArray(params.supportedPreviewKinds)
+      ? params.supportedPreviewKinds.map((kind) => String(kind || ''))
+      : [],
     resolvedTargetPath: String(params.resolvedTargetPath || ''),
+    artifactPath: String(params.artifactPath || ''),
     targetResolution: String(params.targetResolution || ''),
     hiddenByUser: params.hiddenByUser === true,
     previewRequested: params.previewRequested === true,
