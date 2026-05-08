@@ -137,3 +137,14 @@ export async function applyDocumentWorkflowPreviewBindingState(state = {}, inten
     previewPath: normalizeString(previewPath),
   })
 }
+
+export async function applyDocumentWorkflowSessionMutation(state = {}, mutation = {}) {
+  return invokeDocumentWorkflowBridge('document_workflow_session_mutation_apply', {
+    state: normalizeDocumentWorkflowPersistentState(state),
+    intent: normalizeString(mutation?.intent),
+    filePath: normalizeString(mutation?.filePath),
+    sourcePath: normalizeString(mutation?.sourcePath),
+    visibility: normalizeString(mutation?.visibility),
+    previewKind: normalizeString(mutation?.previewKind),
+  })
+}

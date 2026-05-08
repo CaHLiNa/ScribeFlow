@@ -56,7 +56,7 @@ export function createDocumentWorkflowRuntime({
     }
 
     if (typeof plan.clearDetachedSourcePath === 'string' && plan.clearDetachedSourcePath) {
-      clearDetached?.(plan.clearDetachedSourcePath)
+      await clearDetached?.(plan.clearDetachedSourcePath)
     }
 
     const binding = normalizeBinding(plan.bindPreview)
@@ -69,7 +69,7 @@ export function createDocumentWorkflowRuntime({
     }
 
     if (typeof plan.markDetachedSourcePath === 'string' && plan.markDetachedSourcePath) {
-      markDetached?.(plan.markDetachedSourcePath)
+      await markDetached?.(plan.markDetachedSourcePath)
     }
 
     if (typeof plan.unbindPreviewPath === 'string' && plan.unbindPreviewPath) {

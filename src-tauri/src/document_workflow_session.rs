@@ -150,6 +150,30 @@ pub struct DocumentWorkflowPreviewBindingApplyResult {
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct DocumentWorkflowSessionMutationApplyParams {
+    #[serde(default)]
+    pub state: DocumentWorkflowPersistentState,
+    #[serde(default)]
+    pub intent: String,
+    #[serde(default)]
+    pub file_path: String,
+    #[serde(default)]
+    pub source_path: String,
+    #[serde(default)]
+    pub visibility: String,
+    #[serde(default)]
+    pub preview_kind: String,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct DocumentWorkflowSessionMutationApplyResult {
+    pub state: DocumentWorkflowPersistentState,
+    pub changed: bool,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DocumentWorkflowWorkspacePreviewApplyParams {
     #[serde(default)]
     pub state: DocumentWorkflowPersistentState,
@@ -690,6 +714,87 @@ pub fn apply_document_workflow_preview_binding_state(
     }
 }
 
+pub fn apply_document_workflow_session_mutation(
+    params: DocumentWorkflowSessionMutationApplyParams,
+) -> DocumentWorkflowSessionMutationApplyResult {
+    let mut state = normalize_document_workflow_persistent_state(params.state);
+
+    let changed = match params.intent.trim() {
+        "mark-detached" => {
+            let source_path = normalize_path(&params.source_path);
+            if source_path.is_empty() {
+                false
+            } else {
+                let previous_detached = state
+                    .session
+                    .detached_sources
+                    .insert(source_path.clone(), true);
+                let mut changed = previous_detached != Some(true);
+                if state.session.preview_source_path == source_path
+                    && state.session.state != "detached-by-user"
+                {
+                    state.session.state = "detached-by-user".to_string();
+                    changed = true;
+                }
+                changed
+            }
+        }
+        "clear-detached" => {
+            let source_path = normalize_path(&params.source_path);
+            if source_path.is_empty() {
+                false
+            } else {
+                state
+                    .session
+                    .detached_sources
+                    .remove(&source_path)
+                    .is_some()
+            }
+        }
+        "set-workspace-preview-visibility" => {
+            let file_path = normalize_path(&params.file_path);
+            if file_path.is_empty() {
+                false
+            } else {
+                let visibility = if params.visibility.trim() == "hidden" {
+                    "hidden".to_string()
+                } else {
+                    "visible".to_string()
+                };
+                state
+                    .workspace_preview_visibility
+                    .insert(file_path, visibility.clone())
+                    != Some(visibility)
+            }
+        }
+        "set-workspace-preview-request" => {
+            let file_path = normalize_path(&params.file_path);
+            if file_path.is_empty() {
+                false
+            } else {
+                let preview_kind = normalize_preview_kind(&params.preview_kind);
+                if preview_kind.is_empty() {
+                    state
+                        .workspace_preview_requests
+                        .remove(&file_path)
+                        .is_some()
+                } else {
+                    state
+                        .workspace_preview_requests
+                        .insert(file_path, preview_kind.clone())
+                        != Some(preview_kind)
+                }
+            }
+        }
+        _ => false,
+    };
+
+    DocumentWorkflowSessionMutationApplyResult {
+        state: normalize_document_workflow_persistent_state(state),
+        changed,
+    }
+}
+
 pub fn apply_document_workflow_workspace_preview_state(
     params: DocumentWorkflowWorkspacePreviewApplyParams,
 ) -> DocumentWorkflowWorkspacePreviewApplyResult {
@@ -810,6 +915,13 @@ pub async fn document_workflow_preview_binding_apply(
 }
 
 #[tauri::command]
+pub async fn document_workflow_session_mutation_apply(
+    params: DocumentWorkflowSessionMutationApplyParams,
+) -> Result<DocumentWorkflowSessionMutationApplyResult, String> {
+    Ok(apply_document_workflow_session_mutation(params))
+}
+
+#[tauri::command]
 pub async fn document_workflow_workspace_preview_apply(
     params: DocumentWorkflowWorkspacePreviewApplyParams,
 ) -> Result<DocumentWorkflowWorkspacePreviewApplyResult, String> {
@@ -820,14 +932,15 @@ pub async fn document_workflow_workspace_preview_apply(
 mod tests {
     use super::{
         apply_document_workflow_latex_preview_state, apply_document_workflow_preview_binding_state,
-        apply_document_workflow_workspace_preview_state, document_workflow_session_load,
-        document_workflow_session_save, normalize_document_workflow_persistent_state,
+        apply_document_workflow_session_mutation, apply_document_workflow_workspace_preview_state,
+        document_workflow_session_load, document_workflow_session_save,
+        normalize_document_workflow_persistent_state,
         reconcile_document_workflow_latex_preview_state, DocumentWorkflowLatexPreviewApplyParams,
         DocumentWorkflowLatexPreviewState, DocumentWorkflowPersistentState,
         DocumentWorkflowPersistentStateLoadParams, DocumentWorkflowPersistentStateSaveParams,
         DocumentWorkflowPreviewBinding, DocumentWorkflowPreviewBindingApplyParams,
         DocumentWorkflowPreviewPreference, DocumentWorkflowSession,
-        DocumentWorkflowWorkspacePreviewApplyParams,
+        DocumentWorkflowSessionMutationApplyParams, DocumentWorkflowWorkspacePreviewApplyParams,
     };
     use crate::security::{set_allowed_roots_internal, WorkspaceScopeState};
     use serde_json::Value;
@@ -1277,6 +1390,132 @@ mod tests {
             result.state.preview_bindings[0].preview_path,
             "preview:/tmp/other.md"
         );
+    }
+
+    #[test]
+    fn applies_detached_source_session_mutations() {
+        let marked =
+            apply_document_workflow_session_mutation(DocumentWorkflowSessionMutationApplyParams {
+                state: DocumentWorkflowPersistentState {
+                    session: DocumentWorkflowSession {
+                        preview_source_path: "/tmp/main.md".to_string(),
+                        state: "workspace-preview".to_string(),
+                        ..DocumentWorkflowSession::default()
+                    },
+                    ..DocumentWorkflowPersistentState::default()
+                },
+                intent: "mark-detached".to_string(),
+                source_path: " /tmp/main.md ".to_string(),
+                file_path: String::new(),
+                visibility: String::new(),
+                preview_kind: String::new(),
+            });
+
+        assert!(marked.changed);
+        assert_eq!(
+            marked.state.session.detached_sources.get("/tmp/main.md"),
+            Some(&true)
+        );
+        assert_eq!(marked.state.session.state, "detached-by-user");
+
+        let cleared =
+            apply_document_workflow_session_mutation(DocumentWorkflowSessionMutationApplyParams {
+                state: marked.state,
+                intent: "clear-detached".to_string(),
+                source_path: "/tmp/main.md".to_string(),
+                file_path: String::new(),
+                visibility: String::new(),
+                preview_kind: String::new(),
+            });
+
+        assert!(cleared.changed);
+        assert!(!cleared
+            .state
+            .session
+            .detached_sources
+            .contains_key("/tmp/main.md"));
+    }
+
+    #[test]
+    fn applies_workspace_preview_visibility_mutation() {
+        let hidden =
+            apply_document_workflow_session_mutation(DocumentWorkflowSessionMutationApplyParams {
+                state: DocumentWorkflowPersistentState::default(),
+                intent: "set-workspace-preview-visibility".to_string(),
+                file_path: " /tmp/main.md ".to_string(),
+                visibility: "hidden".to_string(),
+                source_path: String::new(),
+                preview_kind: String::new(),
+            });
+
+        assert!(hidden.changed);
+        assert_eq!(
+            hidden
+                .state
+                .workspace_preview_visibility
+                .get("/tmp/main.md")
+                .map(String::as_str),
+            Some("hidden")
+        );
+
+        let visible =
+            apply_document_workflow_session_mutation(DocumentWorkflowSessionMutationApplyParams {
+                state: hidden.state,
+                intent: "set-workspace-preview-visibility".to_string(),
+                file_path: "/tmp/main.md".to_string(),
+                visibility: "unexpected".to_string(),
+                source_path: String::new(),
+                preview_kind: String::new(),
+            });
+
+        assert!(visible.changed);
+        assert_eq!(
+            visible
+                .state
+                .workspace_preview_visibility
+                .get("/tmp/main.md")
+                .map(String::as_str),
+            Some("visible")
+        );
+    }
+
+    #[test]
+    fn applies_workspace_preview_request_mutation() {
+        let requested =
+            apply_document_workflow_session_mutation(DocumentWorkflowSessionMutationApplyParams {
+                state: DocumentWorkflowPersistentState::default(),
+                intent: "set-workspace-preview-request".to_string(),
+                file_path: " /tmp/main.md ".to_string(),
+                preview_kind: " html ".to_string(),
+                source_path: String::new(),
+                visibility: String::new(),
+            });
+
+        assert!(requested.changed);
+        assert_eq!(
+            requested
+                .state
+                .workspace_preview_requests
+                .get("/tmp/main.md")
+                .map(String::as_str),
+            Some("html")
+        );
+
+        let cleared =
+            apply_document_workflow_session_mutation(DocumentWorkflowSessionMutationApplyParams {
+                state: requested.state,
+                intent: "set-workspace-preview-request".to_string(),
+                file_path: "/tmp/main.md".to_string(),
+                preview_kind: String::new(),
+                source_path: String::new(),
+                visibility: String::new(),
+            });
+
+        assert!(cleared.changed);
+        assert!(!cleared
+            .state
+            .workspace_preview_requests
+            .contains_key("/tmp/main.md"));
     }
 
     #[test]

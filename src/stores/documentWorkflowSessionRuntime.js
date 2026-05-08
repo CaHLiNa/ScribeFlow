@@ -1,6 +1,7 @@
 import {
   applyDocumentWorkflowLatexPreviewState,
   applyDocumentWorkflowPreviewBindingState,
+  applyDocumentWorkflowSessionMutation,
   createDocumentWorkflowPersistentState,
   loadDocumentWorkflowSessionState,
   reconcileDocumentWorkflowLatexPreviewState,
@@ -235,24 +236,29 @@ export const documentWorkflowSessionActions = {
     this.queuePersistentStateSave()
   },
 
-  markDetached(sourcePath) {
-    if (!sourcePath) return
-    this.session.detachedSources = {
-      ...this.session.detachedSources,
-      [sourcePath]: true,
-    }
-    if (this.session.previewSourcePath === sourcePath) {
-      this.session.state = 'detached-by-user'
-    }
+  async applySessionMutation(mutation = {}) {
+    const applied = await applyDocumentWorkflowSessionMutation(
+      this.snapshotPersistentState(),
+      mutation,
+    )
+    if (!applied?.changed) return
+
+    this.applyPersistentState(applied.state)
     this.queuePersistentStateSave()
   },
 
-  clearDetached(sourcePath) {
-    if (!sourcePath || !this.session.detachedSources[sourcePath]) return
-    const next = { ...this.session.detachedSources }
-    delete next[sourcePath]
-    this.session.detachedSources = next
-    this.queuePersistentStateSave()
+  async markDetached(sourcePath) {
+    await this.applySessionMutation({
+      intent: 'mark-detached',
+      sourcePath,
+    })
+  },
+
+  async clearDetached(sourcePath) {
+    await this.applySessionMutation({
+      intent: 'clear-detached',
+      sourcePath,
+    })
   },
 
   setMarkdownPreviewState(sourcePath, state) {
@@ -277,25 +283,20 @@ export const documentWorkflowSessionActions = {
     return this.workspacePreviewVisibility[filePath] === 'hidden'
   },
 
-  setWorkspacePreviewVisibility(filePath, visibility = 'visible') {
-    if (!filePath) return
-    this.workspacePreviewVisibility = {
-      ...this.workspacePreviewVisibility,
-      [filePath]: visibility === 'hidden' ? 'hidden' : 'visible',
-    }
-    this.queuePersistentStateSave()
+  async setWorkspacePreviewVisibility(filePath, visibility = 'visible') {
+    await this.applySessionMutation({
+      intent: 'set-workspace-preview-visibility',
+      filePath,
+      visibility,
+    })
   },
 
-  setWorkspacePreviewRequestForFile(filePath, previewKind = null) {
-    if (!filePath) return
-    const next = { ...this.workspacePreviewRequests }
-    if (previewKind) {
-      next[filePath] = previewKind
-    } else {
-      delete next[filePath]
-    }
-    this.workspacePreviewRequests = next
-    this.queuePersistentStateSave()
+  async setWorkspacePreviewRequestForFile(filePath, previewKind = null) {
+    await this.applySessionMutation({
+      intent: 'set-workspace-preview-request',
+      filePath,
+      previewKind,
+    })
   },
 
   getWorkspacePreviewRequestForFile(filePath) {
@@ -339,7 +340,7 @@ export const documentWorkflowSessionActions = {
       previewBinding: this.getPreviewBinding(previewPath),
     })
     if (effect.sourcePath && effect.markDetached) {
-      this.markDetached(effect.sourcePath)
+      await this.markDetached(effect.sourcePath)
     }
     await this.unbindPreview(previewPath)
   },
