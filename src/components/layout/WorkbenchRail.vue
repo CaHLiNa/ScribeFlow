@@ -339,10 +339,6 @@ onUnmounted(() => {
   opacity: 1;
 }
 
-.workbench-rail--mac .workbench-rail-side {
-  transform: translateY(-2px);
-}
-
 .workbench-rail-side {
   display: inline-flex;
   align-items: center;
@@ -364,10 +360,6 @@ onUnmounted(() => {
   min-width: 0;
   pointer-events: auto;
   transform: translate(-50%, -50%);
-}
-
-.workbench-rail--mac .workbench-rail-center {
-  transform: translate(-50%, calc(-50% - 6px));
 }
 
 .workbench-rail-title-target {

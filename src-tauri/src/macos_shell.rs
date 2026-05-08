@@ -5,6 +5,10 @@ use objc2_app_kit::{
 };
 #[cfg(target_os = "macos")]
 use objc2_foundation::NSPoint;
+#[cfg(target_os = "macos")]
+use std::collections::HashMap;
+#[cfg(target_os = "macos")]
+use std::sync::{Mutex, OnceLock};
 use tauri::menu::{AboutMetadata, Menu, MenuItem, SubmenuBuilder};
 #[cfg(target_os = "macos")]
 use tauri::window::Color;
@@ -17,6 +21,8 @@ const MENU_OPEN_SETTINGS: &str = "menu-open-settings";
 const MENU_TOGGLE_LEFT_SIDEBAR: &str = "menu-toggle-left-sidebar";
 #[cfg(target_os = "macos")]
 const TITLEBAR_BUTTON_VERTICAL_OFFSET: f64 = 4.0;
+#[cfg(target_os = "macos")]
+static TITLEBAR_BUTTON_BASELINES: OnceLock<Mutex<HashMap<usize, f64>>> = OnceLock::new();
 
 #[cfg(target_os = "macos")]
 pub fn sync_window_transparency<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
@@ -52,6 +58,8 @@ pub fn sync_window_transparency<R: Runtime>(app: AppHandle<R>) -> Result<(), Str
 
 #[cfg(target_os = "macos")]
 fn align_standard_window_buttons(ns_window: &NSWindow) {
+    let baselines = TITLEBAR_BUTTON_BASELINES.get_or_init(|| Mutex::new(HashMap::new()));
+
     for button_kind in [
         NSWindowButton::CloseButton,
         NSWindowButton::MiniaturizeButton,
@@ -61,9 +69,15 @@ fn align_standard_window_buttons(ns_window: &NSWindow) {
             continue;
         };
         let frame = button.frame();
+        let button_key = (&*button as *const _) as usize;
+        let baseline_y = baselines
+            .lock()
+            .map(|mut values| *values.entry(button_key).or_insert(frame.origin.y))
+            .unwrap_or(frame.origin.y);
+
         button.setFrameOrigin(NSPoint::new(
             frame.origin.x,
-            frame.origin.y - TITLEBAR_BUTTON_VERTICAL_OFFSET,
+            baseline_y - TITLEBAR_BUTTON_VERTICAL_OFFSET,
         ));
     }
 }
