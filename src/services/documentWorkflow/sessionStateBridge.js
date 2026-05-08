@@ -121,3 +121,19 @@ export async function applyDocumentWorkflowLatexPreviewState(state = {}, filePat
     },
   })
 }
+
+export async function applyDocumentWorkflowPreviewBindingState(state = {}, intent = '', binding = {}, previewPath = '') {
+  return invokeDocumentWorkflowBridge('document_workflow_preview_binding_apply', {
+    state: normalizeDocumentWorkflowPersistentState(state),
+    intent: normalizeString(intent),
+    binding: {
+      previewPath: normalizeString(binding?.previewPath),
+      sourcePath: normalizeString(binding?.sourcePath),
+      previewKind: normalizeString(binding?.previewKind),
+      kind: normalizeString(binding?.kind),
+      paneId: normalizeString(binding?.paneId),
+      detachOnClose: binding?.detachOnClose !== false,
+    },
+    previewPath: normalizeString(previewPath),
+  })
+}

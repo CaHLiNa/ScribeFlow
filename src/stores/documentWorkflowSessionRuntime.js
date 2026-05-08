@@ -1,5 +1,6 @@
 import {
   applyDocumentWorkflowLatexPreviewState,
+  applyDocumentWorkflowPreviewBindingState,
   createDocumentWorkflowPersistentState,
   loadDocumentWorkflowSessionState,
   reconcileDocumentWorkflowLatexPreviewState,
@@ -201,11 +202,11 @@ export const documentWorkflowSessionActions = {
     }
   },
 
-  bindPreview({ previewPath, sourcePath, previewKind, kind, paneId = null, detachOnClose = true }) {
-    if (!previewPath || !sourcePath) return
-    this.previewBindings = {
-      ...this.previewBindings,
-      [previewPath]: {
+  async bindPreview({ previewPath, sourcePath, previewKind, kind, paneId = null, detachOnClose = true }) {
+    const applied = await applyDocumentWorkflowPreviewBindingState(
+      this.snapshotPersistentState(),
+      'bind',
+      {
         previewPath,
         sourcePath,
         previewKind,
@@ -213,15 +214,24 @@ export const documentWorkflowSessionActions = {
         paneId,
         detachOnClose,
       },
-    }
+      '',
+    )
+    if (!applied?.changed) return
+
+    this.applyPersistentState(applied.state)
     this.queuePersistentStateSave()
   },
 
-  unbindPreview(previewPath) {
-    if (!previewPath || !this.previewBindings[previewPath]) return
-    const next = { ...this.previewBindings }
-    delete next[previewPath]
-    this.previewBindings = next
+  async unbindPreview(previewPath) {
+    const applied = await applyDocumentWorkflowPreviewBindingState(
+      this.snapshotPersistentState(),
+      'unbind',
+      {},
+      previewPath,
+    )
+    if (!applied?.changed) return
+
+    this.applyPersistentState(applied.state)
     this.queuePersistentStateSave()
   },
 
@@ -324,14 +334,14 @@ export const documentWorkflowSessionActions = {
     return false
   },
 
-  handlePreviewClosed(previewPath) {
+  async handlePreviewClosed(previewPath) {
     const effect = resolveDocumentPreviewCloseEffect(previewPath, {
       previewBinding: this.getPreviewBinding(previewPath),
     })
     if (effect.sourcePath && effect.markDetached) {
       this.markDetached(effect.sourcePath)
     }
-    this.unbindPreview(previewPath)
+    await this.unbindPreview(previewPath)
   },
 
   getOpenPreviewPathForSource(sourcePath, previewKind = null) {

@@ -4,8 +4,10 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::document_workflow_preview_binding::normalize_preview_binding_set;
 pub use crate::document_workflow_preview_binding::DocumentWorkflowPreviewBinding;
+use crate::document_workflow_preview_binding::{
+    normalize_preview_binding, normalize_preview_binding_set,
+};
 use crate::security::{self, WorkspaceScopeState};
 
 const DOCUMENT_WORKFLOW_SESSION_VERSION: u32 = 3;
@@ -122,6 +124,26 @@ pub struct DocumentWorkflowLatexPreviewApplyParams {
 #[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct DocumentWorkflowLatexPreviewApplyResult {
+    pub state: DocumentWorkflowPersistentState,
+    pub changed: bool,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DocumentWorkflowPreviewBindingApplyParams {
+    #[serde(default)]
+    pub state: DocumentWorkflowPersistentState,
+    #[serde(default)]
+    pub intent: String,
+    #[serde(default)]
+    pub binding: DocumentWorkflowPreviewBinding,
+    #[serde(default)]
+    pub preview_path: String,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct DocumentWorkflowPreviewBindingApplyResult {
     pub state: DocumentWorkflowPersistentState,
     pub changed: bool,
 }
@@ -614,6 +636,60 @@ pub fn apply_document_workflow_latex_preview_state(
     }
 }
 
+pub fn apply_document_workflow_preview_binding_state(
+    params: DocumentWorkflowPreviewBindingApplyParams,
+) -> DocumentWorkflowPreviewBindingApplyResult {
+    let mut state = normalize_document_workflow_persistent_state(params.state);
+
+    let changed = match params.intent.trim() {
+        "bind" => {
+            let Some(next_binding) = normalize_preview_binding(params.binding) else {
+                return DocumentWorkflowPreviewBindingApplyResult {
+                    state,
+                    changed: false,
+                };
+            };
+
+            let mut replaced = false;
+            let mut changed = false;
+            for binding in &mut state.preview_bindings {
+                if binding.preview_path == next_binding.preview_path {
+                    if binding != &next_binding {
+                        *binding = next_binding.clone();
+                        changed = true;
+                    }
+                    replaced = true;
+                    break;
+                }
+            }
+
+            if !replaced {
+                state.preview_bindings.push(next_binding);
+                changed = true;
+            }
+            changed
+        }
+        "unbind" => {
+            let preview_path = normalize_path(&params.preview_path);
+            if preview_path.is_empty() {
+                false
+            } else {
+                let previous_len = state.preview_bindings.len();
+                state
+                    .preview_bindings
+                    .retain(|binding| binding.preview_path != preview_path);
+                state.preview_bindings.len() != previous_len
+            }
+        }
+        _ => false,
+    };
+
+    DocumentWorkflowPreviewBindingApplyResult {
+        state: normalize_document_workflow_persistent_state(state),
+        changed,
+    }
+}
+
 pub fn apply_document_workflow_workspace_preview_state(
     params: DocumentWorkflowWorkspacePreviewApplyParams,
 ) -> DocumentWorkflowWorkspacePreviewApplyResult {
@@ -727,6 +803,13 @@ pub async fn document_workflow_latex_preview_apply(
 }
 
 #[tauri::command]
+pub async fn document_workflow_preview_binding_apply(
+    params: DocumentWorkflowPreviewBindingApplyParams,
+) -> Result<DocumentWorkflowPreviewBindingApplyResult, String> {
+    Ok(apply_document_workflow_preview_binding_state(params))
+}
+
+#[tauri::command]
 pub async fn document_workflow_workspace_preview_apply(
     params: DocumentWorkflowWorkspacePreviewApplyParams,
 ) -> Result<DocumentWorkflowWorkspacePreviewApplyResult, String> {
@@ -736,13 +819,14 @@ pub async fn document_workflow_workspace_preview_apply(
 #[cfg(test)]
 mod tests {
     use super::{
-        apply_document_workflow_latex_preview_state,
+        apply_document_workflow_latex_preview_state, apply_document_workflow_preview_binding_state,
         apply_document_workflow_workspace_preview_state, document_workflow_session_load,
         document_workflow_session_save, normalize_document_workflow_persistent_state,
         reconcile_document_workflow_latex_preview_state, DocumentWorkflowLatexPreviewApplyParams,
         DocumentWorkflowLatexPreviewState, DocumentWorkflowPersistentState,
         DocumentWorkflowPersistentStateLoadParams, DocumentWorkflowPersistentStateSaveParams,
-        DocumentWorkflowPreviewBinding, DocumentWorkflowPreviewPreference, DocumentWorkflowSession,
+        DocumentWorkflowPreviewBinding, DocumentWorkflowPreviewBindingApplyParams,
+        DocumentWorkflowPreviewPreference, DocumentWorkflowSession,
         DocumentWorkflowWorkspacePreviewApplyParams,
     };
     use crate::security::{set_allowed_roots_internal, WorkspaceScopeState};
@@ -1086,6 +1170,113 @@ mod tests {
             });
 
         assert!(!result.changed);
+    }
+
+    #[test]
+    fn applies_preview_binding_state_by_preview_path() {
+        let result = apply_document_workflow_preview_binding_state(
+            DocumentWorkflowPreviewBindingApplyParams {
+                state: DocumentWorkflowPersistentState::default(),
+                intent: "bind".to_string(),
+                binding: DocumentWorkflowPreviewBinding {
+                    preview_path: " preview:/tmp/main.md ".to_string(),
+                    source_path: " /tmp/main.md ".to_string(),
+                    preview_kind: "html".to_string(),
+                    kind: "markdown".to_string(),
+                    pane_id: " pane-preview ".to_string(),
+                    detach_on_close: true,
+                },
+                preview_path: String::new(),
+            },
+        );
+
+        assert!(result.changed);
+        assert_eq!(result.state.preview_bindings.len(), 1);
+        assert_eq!(
+            result.state.preview_bindings[0].preview_path,
+            "preview:/tmp/main.md"
+        );
+        assert_eq!(result.state.preview_bindings[0].source_path, "/tmp/main.md");
+        assert_eq!(result.state.preview_bindings[0].pane_id, "pane-preview");
+    }
+
+    #[test]
+    fn replacing_preview_binding_reports_changed_only_when_value_differs() {
+        let existing = DocumentWorkflowPreviewBinding {
+            preview_path: "preview:/tmp/main.md".to_string(),
+            source_path: "/tmp/main.md".to_string(),
+            preview_kind: "html".to_string(),
+            kind: "markdown".to_string(),
+            pane_id: "pane-a".to_string(),
+            detach_on_close: true,
+        };
+
+        let unchanged = apply_document_workflow_preview_binding_state(
+            DocumentWorkflowPreviewBindingApplyParams {
+                state: DocumentWorkflowPersistentState {
+                    preview_bindings: vec![existing.clone()],
+                    ..DocumentWorkflowPersistentState::default()
+                },
+                intent: "bind".to_string(),
+                binding: existing.clone(),
+                preview_path: String::new(),
+            },
+        );
+        assert!(!unchanged.changed);
+
+        let changed = apply_document_workflow_preview_binding_state(
+            DocumentWorkflowPreviewBindingApplyParams {
+                state: unchanged.state,
+                intent: "bind".to_string(),
+                binding: DocumentWorkflowPreviewBinding {
+                    pane_id: "pane-b".to_string(),
+                    ..existing
+                },
+                preview_path: String::new(),
+            },
+        );
+        assert!(changed.changed);
+        assert_eq!(changed.state.preview_bindings.len(), 1);
+        assert_eq!(changed.state.preview_bindings[0].pane_id, "pane-b");
+    }
+
+    #[test]
+    fn unbinds_preview_binding_from_persistent_state() {
+        let result = apply_document_workflow_preview_binding_state(
+            DocumentWorkflowPreviewBindingApplyParams {
+                state: DocumentWorkflowPersistentState {
+                    preview_bindings: vec![
+                        DocumentWorkflowPreviewBinding {
+                            preview_path: "preview:/tmp/main.md".to_string(),
+                            source_path: "/tmp/main.md".to_string(),
+                            preview_kind: "html".to_string(),
+                            kind: "markdown".to_string(),
+                            pane_id: "pane-a".to_string(),
+                            detach_on_close: true,
+                        },
+                        DocumentWorkflowPreviewBinding {
+                            preview_path: "preview:/tmp/other.md".to_string(),
+                            source_path: "/tmp/other.md".to_string(),
+                            preview_kind: "html".to_string(),
+                            kind: "markdown".to_string(),
+                            pane_id: "pane-b".to_string(),
+                            detach_on_close: true,
+                        },
+                    ],
+                    ..DocumentWorkflowPersistentState::default()
+                },
+                intent: "unbind".to_string(),
+                binding: DocumentWorkflowPreviewBinding::default(),
+                preview_path: " preview:/tmp/main.md ".to_string(),
+            },
+        );
+
+        assert!(result.changed);
+        assert_eq!(result.state.preview_bindings.len(), 1);
+        assert_eq!(
+            result.state.preview_bindings[0].preview_path,
+            "preview:/tmp/other.md"
+        );
     }
 
     #[test]
