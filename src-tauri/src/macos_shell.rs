@@ -1,14 +1,7 @@
 #[cfg(target_os = "macos")]
 use objc2_app_kit::{
-    NSAnimationContext, NSColor, NSTitlebarSeparatorStyle, NSWindow, NSWindowButton,
-    NSWindowStyleMask, NSWindowTitleVisibility,
+    NSColor, NSTitlebarSeparatorStyle, NSWindow, NSWindowStyleMask, NSWindowTitleVisibility,
 };
-#[cfg(target_os = "macos")]
-use objc2_foundation::NSPoint;
-#[cfg(target_os = "macos")]
-use std::collections::HashMap;
-#[cfg(target_os = "macos")]
-use std::sync::{Mutex, OnceLock};
 use tauri::menu::{AboutMetadata, Menu, MenuItem, SubmenuBuilder};
 #[cfg(target_os = "macos")]
 use tauri::window::Color;
@@ -19,10 +12,6 @@ const MENU_CLOSE_FOLDER: &str = "menu-close-folder";
 const MENU_NEW_FILE: &str = "menu-new-file";
 const MENU_OPEN_SETTINGS: &str = "menu-open-settings";
 const MENU_TOGGLE_LEFT_SIDEBAR: &str = "menu-toggle-left-sidebar";
-#[cfg(target_os = "macos")]
-const TITLEBAR_BUTTON_VERTICAL_OFFSET: f64 = 4.0;
-#[cfg(target_os = "macos")]
-static TITLEBAR_BUTTON_BASELINES: OnceLock<Mutex<HashMap<usize, f64>>> = OnceLock::new();
 
 #[cfg(target_os = "macos")]
 pub fn sync_window_transparency<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
@@ -49,44 +38,10 @@ pub fn sync_window_transparency<R: Runtime>(app: AppHandle<R>) -> Result<(), Str
         ns_window.setOpaque(false);
         ns_window.setBackgroundColor(Some(&clear));
         ns_window.setTitlebarSeparatorStyle(NSTitlebarSeparatorStyle::None);
-        align_standard_window_buttons(ns_window);
 
         let _ = window.set_background_color(Some(Color(0, 0, 0, 0)));
     })
     .map_err(|error| error.to_string())
-}
-
-#[cfg(target_os = "macos")]
-fn align_standard_window_buttons(ns_window: &NSWindow) {
-    let baselines = TITLEBAR_BUTTON_BASELINES.get_or_init(|| Mutex::new(HashMap::new()));
-
-    NSAnimationContext::beginGrouping();
-    let animation_context = NSAnimationContext::currentContext();
-    animation_context.setDuration(0.0);
-    animation_context.setAllowsImplicitAnimation(false);
-
-    for button_kind in [
-        NSWindowButton::CloseButton,
-        NSWindowButton::MiniaturizeButton,
-        NSWindowButton::ZoomButton,
-    ] {
-        let Some(button) = ns_window.standardWindowButton(button_kind) else {
-            continue;
-        };
-        let frame = button.frame();
-        let button_key = (&*button as *const _) as usize;
-        let baseline_y = baselines
-            .lock()
-            .map(|mut values| *values.entry(button_key).or_insert(frame.origin.y))
-            .unwrap_or(frame.origin.y);
-
-        button.setFrameOrigin(NSPoint::new(
-            frame.origin.x,
-            baseline_y - TITLEBAR_BUTTON_VERTICAL_OFFSET,
-        ));
-    }
-
-    NSAnimationContext::endGrouping();
 }
 
 #[cfg(not(target_os = "macos"))]

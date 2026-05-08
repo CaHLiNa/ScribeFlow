@@ -20,6 +20,12 @@
         "resizable": true,
         "fullscreen": false,
         "decorations": true,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "trafficLightPosition": {
+          "x": 14,
+          "y": 20
+        },
         "shadow": false,
         "transparent": true,
         "backgroundColor": "#00000000"
