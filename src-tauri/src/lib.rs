@@ -7,7 +7,6 @@ mod document_workflow_controller;
 mod document_workflow_preview_binding;
 mod document_workflow_session;
 mod document_workflow_ui_state;
-mod document_workspace_preview;
 mod document_workspace_preview_state;
 mod editor_session_runtime;
 mod extension_artifacts;
@@ -275,8 +274,8 @@ pub fn run() {
             document_workflow_session::document_workflow_latex_preview_reconcile,
             document_workflow_session::document_workflow_session_load,
             document_workflow_session::document_workflow_session_save,
+            document_workflow_session::document_workflow_workspace_preview_apply,
             document_workflow_ui_state::document_workflow_ui_resolve,
-            document_workspace_preview::document_workspace_preview_mutate,
             document_workspace_preview_state::document_workspace_preview_state_resolve,
             editor_session_runtime::editor_session_load,
             editor_session_runtime::editor_session_save,

@@ -1,7 +1,8 @@
 import { invokeDocumentWorkflowBridge } from './invokeBridge.js'
 
-export async function mutateDocumentWorkspacePreview(params = {}) {
-  return invokeDocumentWorkflowBridge('document_workspace_preview_mutate', {
+export async function applyDocumentWorkspacePreviewState(params = {}) {
+  return invokeDocumentWorkflowBridge('document_workflow_workspace_preview_apply', {
+    state: params.state || {},
     intent: String(params.intent || ''),
     filePath: String(params.filePath || ''),
     kind: String(params.kind || ''),
@@ -9,6 +10,5 @@ export async function mutateDocumentWorkspacePreview(params = {}) {
     preferredPreviewKind: String(params.preferredPreviewKind || ''),
     persistPreference: params.persistPreference !== false,
     sourcePaneId: String(params.sourcePaneId || ''),
-    currentSession: params.currentSession || null,
   })
 }

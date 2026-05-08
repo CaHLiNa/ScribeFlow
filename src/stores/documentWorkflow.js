@@ -23,7 +23,7 @@ import {
 } from './documentWorkflowSessionRuntime.js'
 import { documentWorkflowResolvedStateActions } from './documentWorkflowResolvedStateActions.js'
 import { openLocalPath } from '../services/localFileOpen.js'
-import { mutateDocumentWorkspacePreview } from '../services/documentWorkflow/workspacePreviewBridge.js'
+import { applyDocumentWorkspacePreviewState } from '../services/documentWorkflow/workspacePreviewBridge.js'
 
 export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
   state: () => ({
@@ -221,7 +221,8 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
       const previewKind = options.previewKind || this.getPreferredPreviewKind(kind)
       const preferredPreviewKind = this.getPreferredPreviewKind(kind)
 
-      const mutation = await mutateDocumentWorkspacePreview({
+      const mutation = await applyDocumentWorkspacePreviewState({
+        state: this.snapshotPersistentState(),
         intent: 'show',
         filePath,
         kind,
@@ -229,26 +230,12 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
         preferredPreviewKind,
         persistPreference: options.persistPreference !== false,
         sourcePaneId: options.sourcePaneId,
-        currentSession: this.session,
       })
 
       if (!mutation || typeof mutation !== 'object') return null
-
-      if (mutation.persistedPreviewKind) {
-        this.setPreferredPreviewKind(kind, String(mutation.persistedPreviewKind))
-      }
-      this.setWorkspacePreviewRequestForFile(
-        filePath,
-        typeof mutation.requestValue === 'string' ? mutation.requestValue : null,
-      )
-      if (typeof mutation.visibility === 'string') {
-        this.setWorkspacePreviewVisibility(filePath, mutation.visibility)
-      }
-      if (typeof mutation.clearDetachedSourcePath === 'string' && mutation.clearDetachedSourcePath) {
-        this.clearDetached(mutation.clearDetachedSourcePath)
-      }
-      if (mutation.sessionState && typeof mutation.sessionState === 'object') {
-        this.setSessionState(mutation.sessionState)
+      if (mutation.state && typeof mutation.state === 'object') {
+        this.applyPersistentState(mutation.state)
+        this.queuePersistentStateSave()
       }
 
       return mutation.result || null
@@ -258,21 +245,17 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
       const kind = getDocumentWorkflowKind(filePath)
       if (!kind) return null
 
-      const mutation = await mutateDocumentWorkspacePreview({
+      const mutation = await applyDocumentWorkspacePreviewState({
+        state: this.snapshotPersistentState(),
         intent: 'hide',
         filePath,
         kind,
-        currentSession: this.session,
       })
 
       if (!mutation || typeof mutation !== 'object') return null
-
-      this.setWorkspacePreviewRequestForFile(filePath, null)
-      if (typeof mutation.visibility === 'string') {
-        this.setWorkspacePreviewVisibility(filePath, mutation.visibility)
-      }
-      if (mutation.sessionState && typeof mutation.sessionState === 'object') {
-        this.setSessionState(mutation.sessionState)
+      if (mutation.state && typeof mutation.state === 'object') {
+        this.applyPersistentState(mutation.state)
+        this.queuePersistentStateSave()
       }
 
       return mutation.result || null

@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -107,8 +108,40 @@ pub struct DocumentWorkflowLatexPreviewReconcileParams {
     pub state: DocumentWorkflowPersistentState,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DocumentWorkflowWorkspacePreviewApplyParams {
+    #[serde(default)]
+    pub state: DocumentWorkflowPersistentState,
+    #[serde(default)]
+    pub intent: String,
+    #[serde(default)]
+    pub file_path: String,
+    #[serde(default)]
+    pub kind: String,
+    #[serde(default)]
+    pub preview_kind: String,
+    #[serde(default)]
+    pub preferred_preview_kind: String,
+    #[serde(default = "default_persist_preference")]
+    pub persist_preference: bool,
+    #[serde(default)]
+    pub source_pane_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct DocumentWorkflowWorkspacePreviewApplyResult {
+    pub state: DocumentWorkflowPersistentState,
+    pub result: Value,
+}
+
 fn default_document_workflow_session_version() -> u32 {
     DOCUMENT_WORKFLOW_SESSION_VERSION
+}
+
+fn default_persist_preference() -> bool {
+    true
 }
 
 fn default_session_state() -> String {
@@ -488,6 +521,77 @@ pub fn reconcile_document_workflow_latex_preview_state(
     normalized
 }
 
+pub fn apply_document_workflow_workspace_preview_state(
+    params: DocumentWorkflowWorkspacePreviewApplyParams,
+) -> DocumentWorkflowWorkspacePreviewApplyResult {
+    let mut state = normalize_document_workflow_persistent_state(params.state);
+    let file_path = normalize_path(&params.file_path);
+    let kind = normalize_workflow_kind(&params.kind);
+    let preview_kind = normalize_preview_kind(&params.preview_kind);
+
+    let result = match params.intent.trim() {
+        "show" if !file_path.is_empty() && !kind.is_empty() && !preview_kind.is_empty() => {
+            if params.persist_preference {
+                state.preview_prefs.insert(
+                    kind.clone(),
+                    DocumentWorkflowPreviewPreference {
+                        preferred_preview: preview_kind.clone(),
+                    },
+                );
+            }
+
+            if preview_kind == normalize_preview_kind(&params.preferred_preview_kind) {
+                state.workspace_preview_requests.remove(&file_path);
+            } else {
+                state
+                    .workspace_preview_requests
+                    .insert(file_path.clone(), preview_kind.clone());
+            }
+
+            state
+                .workspace_preview_visibility
+                .insert(file_path.clone(), "visible".to_string());
+            state.session.detached_sources.remove(&file_path);
+
+            let source_pane_id = if params.source_pane_id.trim().is_empty() {
+                state.session.source_pane_id.clone()
+            } else {
+                normalize_path(&params.source_pane_id)
+            };
+            state.session.active_file = file_path.clone();
+            state.session.active_kind = kind;
+            state.session.source_pane_id = source_pane_id;
+            state.session.preview_pane_id = String::new();
+            state.session.preview_kind = preview_kind.clone();
+            state.session.preview_source_path = file_path.clone();
+            state.session.state = "workspace-preview".to_string();
+
+            json!({
+                "type": "workspace-preview",
+                "filePath": file_path,
+                "previewKind": preview_kind,
+            })
+        }
+        "hide" if !file_path.is_empty() => {
+            state.workspace_preview_requests.remove(&file_path);
+            state
+                .workspace_preview_visibility
+                .insert(file_path.clone(), "hidden".to_string());
+
+            json!({
+                "type": "workspace-preview-hidden",
+                "filePath": file_path,
+            })
+        }
+        _ => Value::Null,
+    };
+
+    DocumentWorkflowWorkspacePreviewApplyResult {
+        state: normalize_document_workflow_persistent_state(state),
+        result,
+    }
+}
+
 #[tauri::command]
 pub async fn document_workflow_session_load(
     params: DocumentWorkflowPersistentStateLoadParams,
@@ -522,17 +626,26 @@ pub async fn document_workflow_latex_preview_reconcile(
     ))
 }
 
+#[tauri::command]
+pub async fn document_workflow_workspace_preview_apply(
+    params: DocumentWorkflowWorkspacePreviewApplyParams,
+) -> Result<DocumentWorkflowWorkspacePreviewApplyResult, String> {
+    Ok(apply_document_workflow_workspace_preview_state(params))
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        document_workflow_session_load, document_workflow_session_save,
-        normalize_document_workflow_persistent_state,
+        apply_document_workflow_workspace_preview_state, document_workflow_session_load,
+        document_workflow_session_save, normalize_document_workflow_persistent_state,
         reconcile_document_workflow_latex_preview_state, DocumentWorkflowLatexPreviewState,
         DocumentWorkflowPersistentState, DocumentWorkflowPersistentStateLoadParams,
         DocumentWorkflowPersistentStateSaveParams, DocumentWorkflowPreviewBinding,
         DocumentWorkflowPreviewPreference, DocumentWorkflowSession,
+        DocumentWorkflowWorkspacePreviewApplyParams,
     };
     use crate::security::{set_allowed_roots_internal, WorkspaceScopeState};
+    use serde_json::Value;
     use std::collections::HashMap;
     use std::fs;
 
@@ -776,5 +889,86 @@ mod tests {
 
         fs::remove_dir_all(workspace_root).ok();
         fs::remove_dir_all(outside_root).ok();
+    }
+
+    #[test]
+    fn applies_workspace_preview_show_and_hide_to_persistent_state() {
+        let result = apply_document_workflow_workspace_preview_state(
+            DocumentWorkflowWorkspacePreviewApplyParams {
+                state: DocumentWorkflowPersistentState {
+                    preview_prefs: HashMap::new(),
+                    session: DocumentWorkflowSession {
+                        source_pane_id: "pane-source".to_string(),
+                        detached_sources: HashMap::from([("/tmp/main.md".to_string(), true)]),
+                        ..DocumentWorkflowSession::default()
+                    },
+                    preview_bindings: Vec::new(),
+                    workspace_preview_visibility: HashMap::new(),
+                    workspace_preview_requests: HashMap::new(),
+                    latex_artifact_paths: HashMap::new(),
+                    latex_preview_states: HashMap::new(),
+                },
+                intent: "show".to_string(),
+                file_path: "/tmp/main.md".to_string(),
+                kind: "markdown".to_string(),
+                preview_kind: "html".to_string(),
+                preferred_preview_kind: "html".to_string(),
+                persist_preference: true,
+                source_pane_id: String::new(),
+            },
+        );
+
+        assert_eq!(
+            result.result.get("type").and_then(Value::as_str),
+            Some("workspace-preview")
+        );
+        assert_eq!(result.state.session.active_file, "/tmp/main.md");
+        assert_eq!(result.state.session.source_pane_id, "pane-source");
+        assert_eq!(
+            result.state.session.detached_sources.get("/tmp/main.md"),
+            None
+        );
+        assert_eq!(
+            result
+                .state
+                .workspace_preview_visibility
+                .get("/tmp/main.md")
+                .map(String::as_str),
+            Some("visible")
+        );
+        assert_eq!(
+            result.state.workspace_preview_requests.get("/tmp/main.md"),
+            None
+        );
+
+        let hidden = apply_document_workflow_workspace_preview_state(
+            DocumentWorkflowWorkspacePreviewApplyParams {
+                state: result.state,
+                intent: "hide".to_string(),
+                file_path: "/tmp/main.md".to_string(),
+                kind: "markdown".to_string(),
+                preview_kind: String::new(),
+                preferred_preview_kind: String::new(),
+                persist_preference: true,
+                source_pane_id: String::new(),
+            },
+        );
+
+        assert_eq!(
+            hidden.result.get("type").and_then(Value::as_str),
+            Some("workspace-preview-hidden")
+        );
+        assert_eq!(
+            hidden
+                .state
+                .workspace_preview_visibility
+                .get("/tmp/main.md")
+                .map(String::as_str),
+            Some("hidden")
+        );
+        assert_eq!(
+            hidden.state.workspace_preview_requests.get("/tmp/main.md"),
+            None
+        );
     }
 }
