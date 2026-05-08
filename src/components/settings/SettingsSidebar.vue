@@ -64,7 +64,7 @@ const activeSection = computed(() => normalizeSettingsSectionId(workspace.settin
   min-height: 0;
   overflow: hidden;
   padding: 28px 14px 18px 10px;
-  background: var(--sidebar-shell-surface, var(--surface-raised));
+  background: transparent;
   box-shadow: none;
 }
 

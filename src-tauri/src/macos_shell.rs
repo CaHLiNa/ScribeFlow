@@ -7,7 +7,7 @@ use objc2_app_kit::{
 use objc2_foundation::NSPoint;
 use tauri::menu::{AboutMetadata, Menu, MenuItem, SubmenuBuilder};
 #[cfg(target_os = "macos")]
-use tauri::window::{Color, Effect, EffectState, EffectsBuilder};
+use tauri::window::Color;
 use tauri::{AppHandle, Manager, Runtime};
 
 const MENU_OPEN_FOLDER: &str = "menu-open-folder";
@@ -46,12 +46,6 @@ pub fn sync_window_transparency<R: Runtime>(app: AppHandle<R>) -> Result<(), Str
         align_standard_window_buttons(ns_window);
 
         let _ = window.set_background_color(Some(Color(0, 0, 0, 0)));
-        let _ = window.set_effects(
-            EffectsBuilder::new()
-                .effect(Effect::Sidebar)
-                .state(EffectState::Active)
-                .build(),
-        );
     })
     .map_err(|error| error.to_string())
 }

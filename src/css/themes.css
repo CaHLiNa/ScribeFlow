@@ -197,6 +197,10 @@
   --focus-ring: color-mix(in srgb, var(--accent) 30%, transparent);
 
   --sidebar-shell-surface: #1e1e1e;
+  --sidebar-glass-surface: rgba(18, 18, 18, 0.76);
+  --sidebar-glass-highlight: rgba(255, 255, 255, 0.045);
+  --sidebar-glass-border: rgba(255, 255, 255, 0.11);
+  --sidebar-glass-shadow: rgba(0, 0, 0, 0.22);
   --app-canvas: #000000;
   --app-canvas-glow: rgba(255, 255, 255, 0.03);
   --chrome-surface: #1e1e1e;
@@ -478,6 +482,10 @@
   --workspace-ink: #171719;
 
   --sidebar-shell-surface: #f6f6f7;
+  --sidebar-glass-surface: rgba(246, 246, 247, 0.76);
+  --sidebar-glass-highlight: rgba(255, 255, 255, 0.42);
+  --sidebar-glass-border: rgba(0, 0, 0, 0.1);
+  --sidebar-glass-shadow: rgba(17, 17, 17, 0.07);
   --sidebar-input-surface: color-mix(in srgb, var(--panel-surface) 28%, transparent);
   --sidebar-input-border: color-mix(in srgb, black 6%, transparent);
 

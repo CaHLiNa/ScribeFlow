@@ -53,6 +53,7 @@ html.is-macos .app-shell-root,
 html.is-macos .app-shell-workspace,
 html.is-macos .app-shell-workbench,
 html.is-macos .left-shell-sidebar,
+html.is-macos .settings-sidebar-shell,
 html.is-macos .left-shell-sidebar__content,
 html.is-macos .file-tree-shell,
 html.is-macos .file-tree-body,
@@ -64,6 +65,7 @@ html.is-tauri-macos .app-shell-root,
 html.is-tauri-macos .app-shell-workspace,
 html.is-tauri-macos .app-shell-workbench,
 html.is-tauri-macos .left-shell-sidebar,
+html.is-tauri-macos .settings-sidebar-shell,
 html.is-tauri-macos .left-shell-sidebar__content,
 html.is-tauri-macos .file-tree-shell,
 html.is-tauri-macos .file-tree-body,
@@ -81,20 +83,28 @@ html.is-tauri-macos .outline-panel {
 html.is-macos .app-shell-region-left,
 html.is-tauri-macos .app-shell-region-left {
   background:
-    linear-gradient(
-      to bottom,
-      color-mix(in srgb, white 5%, transparent),
-      color-mix(in srgb, black 4%, transparent)
-    ),
-    color-mix(in srgb, var(--sidebar-shell-surface) 52%, transparent) !important;
-  background-color: color-mix(in srgb, var(--sidebar-shell-surface) 52%, transparent) !important;
-  border-right: 1px solid color-mix(in srgb, var(--border) 48%, transparent) !important;
+    linear-gradient(to bottom, var(--sidebar-glass-highlight), transparent 44%),
+    var(--sidebar-glass-surface) !important;
+  background-color: var(--sidebar-glass-surface) !important;
+  border-right: 1px solid var(--sidebar-glass-border) !important;
   box-shadow:
-    inset -1px 0 0 color-mix(in srgb, white 12%, transparent),
-    inset 1px 0 0 color-mix(in srgb, white 6%, transparent),
-    1px 0 18px color-mix(in srgb, black 12%, transparent) !important;
+    inset -1px 0 0 var(--sidebar-glass-highlight),
+    1px 0 16px var(--sidebar-glass-shadow) !important;
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;
+}
+
+html.is-macos.theme-dark .app-shell-region-left,
+html.is-tauri-macos.theme-dark .app-shell-region-left,
+html.is-tauri-macos[data-theme-resolved='dark'] .app-shell-region-left {
+  background:
+    linear-gradient(to bottom, var(--sidebar-glass-highlight), transparent 44%),
+    var(--sidebar-glass-surface) !important;
+  background-color: var(--sidebar-glass-surface) !important;
+  border-right-color: var(--sidebar-glass-border) !important;
+  box-shadow:
+    inset -1px 0 0 var(--sidebar-glass-highlight),
+    1px 0 16px var(--sidebar-glass-shadow) !important;
 }
 
 html.is-macos .app-shell-sidebar-left,

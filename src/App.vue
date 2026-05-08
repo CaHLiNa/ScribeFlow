@@ -531,17 +531,12 @@ useAppTeardown({
 
 .app-shell-region-left {
   background:
-    linear-gradient(
-      to bottom,
-      color-mix(in srgb, white 5%, transparent),
-      color-mix(in srgb, black 4%, transparent)
-    ),
-    color-mix(in srgb, var(--sidebar-shell-surface) 52%, transparent);
-  border-right: 1px solid color-mix(in srgb, var(--border) 48%, transparent);
+    linear-gradient(to bottom, var(--sidebar-glass-highlight), transparent 44%),
+    var(--sidebar-glass-surface);
+  border-right: 1px solid var(--sidebar-glass-border);
   box-shadow:
-    inset -1px 0 0 color-mix(in srgb, white 12%, transparent),
-    inset 1px 0 0 color-mix(in srgb, white 6%, transparent),
-    1px 0 18px color-mix(in srgb, black 12%, transparent);
+    inset -1px 0 0 var(--sidebar-glass-highlight),
+    1px 0 16px var(--sidebar-glass-shadow);
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
   will-change: width;
@@ -549,12 +544,19 @@ useAppTeardown({
 
 .app-shell-region-left.is-workspace-left-region {
   background:
-    linear-gradient(
-      to bottom,
-      color-mix(in srgb, white 5%, transparent),
-      color-mix(in srgb, black 4%, transparent)
-    ),
-    color-mix(in srgb, var(--sidebar-shell-surface) 52%, transparent);
+    linear-gradient(to bottom, var(--sidebar-glass-highlight), transparent 44%),
+    var(--sidebar-glass-surface);
+}
+
+:global(html.is-tauri-macos.theme-dark) .app-shell-region-left,
+:global(html.is-tauri-macos[data-theme-resolved='dark']) .app-shell-region-left {
+  background:
+    linear-gradient(to bottom, var(--sidebar-glass-highlight), transparent 44%),
+    var(--sidebar-glass-surface);
+  border-right-color: var(--sidebar-glass-border);
+  box-shadow:
+    inset -1px 0 0 var(--sidebar-glass-highlight),
+    1px 0 16px var(--sidebar-glass-shadow);
 }
 
 .app-shell-region-main {
