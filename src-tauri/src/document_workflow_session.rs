@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 
 use crate::document_workflow_preview_binding::normalize_preview_binding_set;
 pub use crate::document_workflow_preview_binding::DocumentWorkflowPreviewBinding;
+use crate::security::{self, WorkspaceScopeState};
 
 const DOCUMENT_WORKFLOW_SESSION_VERSION: u32 = 3;
 const DEFAULT_SESSION_STATE: &str = "inactive";
@@ -95,6 +96,13 @@ pub struct DocumentWorkflowPersistentStateLoadParams {
 pub struct DocumentWorkflowPersistentStateSaveParams {
     #[serde(default)]
     pub workspace_data_dir: String,
+    #[serde(default)]
+    pub state: DocumentWorkflowPersistentState,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DocumentWorkflowLatexPreviewReconcileParams {
     #[serde(default)]
     pub state: DocumentWorkflowPersistentState,
 }
@@ -414,6 +422,72 @@ pub fn normalize_document_workflow_persistent_state(
     }
 }
 
+fn workspace_path_exists(scope_state: &WorkspaceScopeState, path: &str) -> bool {
+    let normalized = normalize_path(path);
+    if normalized.is_empty() {
+        return false;
+    }
+    security::ensure_allowed_workspace_path(scope_state, Path::new(&normalized))
+        .map(|resolved| resolved.exists())
+        .unwrap_or(false)
+}
+
+pub fn reconcile_document_workflow_latex_preview_state(
+    state: DocumentWorkflowPersistentState,
+    scope_state: &WorkspaceScopeState,
+) -> DocumentWorkflowPersistentState {
+    let mut normalized = normalize_document_workflow_persistent_state(state);
+    let source_paths = normalized
+        .latex_artifact_paths
+        .keys()
+        .chain(normalized.latex_preview_states.keys())
+        .cloned()
+        .collect::<std::collections::BTreeSet<_>>();
+
+    let mut next_artifact_paths = HashMap::new();
+    let mut next_preview_states = HashMap::new();
+
+    for source_path in source_paths {
+        let Some(preview_state) = normalized.latex_preview_states.get(&source_path).cloned() else {
+            continue;
+        };
+        let artifact_path = if preview_state.artifact_path.is_empty() {
+            normalized
+                .latex_artifact_paths
+                .get(&source_path)
+                .cloned()
+                .unwrap_or_default()
+        } else {
+            preview_state.artifact_path.clone()
+        };
+        if artifact_path.is_empty() || !workspace_path_exists(scope_state, &artifact_path) {
+            continue;
+        }
+
+        let synctex_path = if workspace_path_exists(scope_state, &preview_state.synctex_path) {
+            preview_state.synctex_path
+        } else {
+            String::new()
+        };
+
+        next_artifact_paths.insert(source_path.clone(), artifact_path.clone());
+        next_preview_states.insert(
+            source_path,
+            DocumentWorkflowLatexPreviewState {
+                artifact_path,
+                synctex_path,
+                compile_target_path: preview_state.compile_target_path,
+                last_compiled: preview_state.last_compiled,
+                source_fingerprint: preview_state.source_fingerprint,
+            },
+        );
+    }
+
+    normalized.latex_artifact_paths = next_artifact_paths;
+    normalized.latex_preview_states = next_preview_states;
+    normalized
+}
+
 #[tauri::command]
 pub async fn document_workflow_session_load(
     params: DocumentWorkflowPersistentStateLoadParams,
@@ -437,15 +511,28 @@ pub async fn document_workflow_session_save(
     Ok(normalized)
 }
 
+#[tauri::command]
+pub async fn document_workflow_latex_preview_reconcile(
+    params: DocumentWorkflowLatexPreviewReconcileParams,
+    scope_state: tauri::State<'_, WorkspaceScopeState>,
+) -> Result<DocumentWorkflowPersistentState, String> {
+    Ok(reconcile_document_workflow_latex_preview_state(
+        params.state,
+        scope_state.inner(),
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
         document_workflow_session_load, document_workflow_session_save,
-        normalize_document_workflow_persistent_state, DocumentWorkflowLatexPreviewState,
+        normalize_document_workflow_persistent_state,
+        reconcile_document_workflow_latex_preview_state, DocumentWorkflowLatexPreviewState,
         DocumentWorkflowPersistentState, DocumentWorkflowPersistentStateLoadParams,
         DocumentWorkflowPersistentStateSaveParams, DocumentWorkflowPreviewBinding,
         DocumentWorkflowPreviewPreference, DocumentWorkflowSession,
     };
+    use crate::security::{set_allowed_roots_internal, WorkspaceScopeState};
     use std::collections::HashMap;
     use std::fs;
 
@@ -605,5 +692,89 @@ mod tests {
 
         assert_eq!(saved, loaded);
         fs::remove_dir_all(temp_dir).ok();
+    }
+
+    #[test]
+    fn reconciles_latex_preview_paths_against_workspace_scope() {
+        let workspace_root = std::env::temp_dir().join(format!(
+            "scribeflow-document-workflow-preview-{}",
+            uuid::Uuid::new_v4()
+        ));
+        let outside_root = std::env::temp_dir().join(format!(
+            "scribeflow-document-workflow-preview-outside-{}",
+            uuid::Uuid::new_v4()
+        ));
+        fs::create_dir_all(&workspace_root).expect("create workspace root");
+        fs::create_dir_all(&outside_root).expect("create outside root");
+        let source_path = workspace_root.join("main.tex");
+        let artifact_path = workspace_root.join("main.pdf");
+        let missing_source_path = workspace_root.join("missing.tex");
+        let missing_artifact_path = workspace_root.join("missing.pdf");
+        let outside_source_path = workspace_root.join("outside.tex");
+        let outside_artifact_path = outside_root.join("outside.pdf");
+        fs::write(&source_path, "\\documentclass{article}").expect("write source");
+        fs::write(&artifact_path, "%PDF").expect("write artifact");
+        fs::write(&outside_artifact_path, "%PDF").expect("write outside artifact");
+
+        let scope = WorkspaceScopeState::default();
+        set_allowed_roots_internal(&scope, &workspace_root.to_string_lossy(), None, None, None)
+            .expect("set workspace scope");
+
+        let reconciled = reconcile_document_workflow_latex_preview_state(
+            DocumentWorkflowPersistentState {
+                preview_prefs: HashMap::new(),
+                session: DocumentWorkflowSession::default(),
+                preview_bindings: Vec::new(),
+                workspace_preview_visibility: HashMap::new(),
+                workspace_preview_requests: HashMap::new(),
+                latex_artifact_paths: HashMap::from([
+                    (
+                        source_path.to_string_lossy().to_string(),
+                        artifact_path.to_string_lossy().to_string(),
+                    ),
+                    (
+                        missing_source_path.to_string_lossy().to_string(),
+                        missing_artifact_path.to_string_lossy().to_string(),
+                    ),
+                    (
+                        outside_source_path.to_string_lossy().to_string(),
+                        outside_artifact_path.to_string_lossy().to_string(),
+                    ),
+                ]),
+                latex_preview_states: HashMap::from([(
+                    source_path.to_string_lossy().to_string(),
+                    DocumentWorkflowLatexPreviewState {
+                        artifact_path: artifact_path.to_string_lossy().to_string(),
+                        synctex_path: workspace_root
+                            .join("missing.synctex.gz")
+                            .to_string_lossy()
+                            .to_string(),
+                        compile_target_path: source_path.to_string_lossy().to_string(),
+                        last_compiled: 42,
+                        source_fingerprint: "fp:123".to_string(),
+                    },
+                )]),
+            },
+            &scope,
+        );
+
+        assert_eq!(reconciled.latex_artifact_paths.len(), 1);
+        assert_eq!(
+            reconciled
+                .latex_artifact_paths
+                .get(&source_path.to_string_lossy().to_string())
+                .map(String::as_str),
+            Some(artifact_path.to_string_lossy().as_ref())
+        );
+        assert_eq!(
+            reconciled
+                .latex_preview_states
+                .get(&source_path.to_string_lossy().to_string())
+                .map(|state| state.synctex_path.as_str()),
+            Some("")
+        );
+
+        fs::remove_dir_all(workspace_root).ok();
+        fs::remove_dir_all(outside_root).ok();
     }
 }

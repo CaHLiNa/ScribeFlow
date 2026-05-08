@@ -272,6 +272,7 @@ pub fn run() {
             document_outline::document_outline_resolve,
             document_workflow_action::document_workflow_action_resolve,
             document_workflow_controller::document_workflow_controller_execute,
+            document_workflow_session::document_workflow_latex_preview_reconcile,
             document_workflow_session::document_workflow_session_load,
             document_workflow_session::document_workflow_session_save,
             document_workflow_ui_state::document_workflow_ui_resolve,

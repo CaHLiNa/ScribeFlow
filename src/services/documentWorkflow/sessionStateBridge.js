@@ -101,3 +101,9 @@ export async function saveDocumentWorkflowSessionState(workspaceDataDir = '', st
     state: normalizeDocumentWorkflowPersistentState(state),
   })
 }
+
+export async function reconcileDocumentWorkflowLatexPreviewState(state = {}) {
+  return invokeDocumentWorkflowBridge('document_workflow_latex_preview_reconcile', {
+    state: normalizeDocumentWorkflowPersistentState(state),
+  })
+}

@@ -1,7 +1,7 @@
-import { workspacePathExists } from '../services/pathStatus.js'
 import {
   createDocumentWorkflowPersistentState,
   loadDocumentWorkflowSessionState,
+  reconcileDocumentWorkflowLatexPreviewState,
   saveDocumentWorkflowSessionState,
 } from '../services/documentWorkflow/sessionStateBridge.js'
 import {
@@ -216,50 +216,9 @@ export const documentWorkflowSessionActions = {
   },
 
   async reconcileLatexPreviewStates() {
-    const sourcePaths = Array.from(new Set([
-      ...Object.keys(this.latexArtifactPaths || {}),
-      ...Object.keys(this.latexPreviewStates || {}),
-    ]))
-    if (sourcePaths.length === 0) {
-      return {
-        latexArtifactPaths: this.latexArtifactPaths || {},
-        latexPreviewStates: this.latexPreviewStates || {},
-      }
-    }
-
-    const keptEntries = await Promise.all(sourcePaths.map(async (sourcePath) => {
-      const previewState = this.latexPreviewStates?.[sourcePath] || null
-      const artifactPath = String(previewState?.artifactPath || this.latexArtifactPaths?.[sourcePath] || '')
-      if (!artifactPath || !(await workspacePathExists(artifactPath))) {
-        return null
-      }
-
-      const synctexPath = String(previewState?.synctexPath || '')
-      const hasSynctexPath = synctexPath ? await workspacePathExists(synctexPath) : false
-
-      return [
-        sourcePath,
-        artifactPath,
-        {
-          artifactPath,
-          synctexPath: hasSynctexPath ? synctexPath : '',
-          compileTargetPath: String(previewState?.compileTargetPath || ''),
-          lastCompiled: Number(previewState?.lastCompiled || 0),
-          sourceFingerprint: String(previewState?.sourceFingerprint || ''),
-        },
-      ]
-    }))
-
-    const nextArtifactPaths = Object.fromEntries(
-      keptEntries
-        .filter(Boolean)
-        .map(([sourcePath, artifactPath]) => [sourcePath, artifactPath])
-    )
-    const nextPreviewStates = Object.fromEntries(
-      keptEntries
-        .filter(Boolean)
-        .map(([sourcePath, , previewState]) => [sourcePath, previewState])
-    )
+    const reconciled = await reconcileDocumentWorkflowLatexPreviewState(this.snapshotPersistentState())
+    const nextArtifactPaths = reconciled?.latexArtifactPaths || {}
+    const nextPreviewStates = reconciled?.latexPreviewStates || {}
 
     const artifactPathsUnchanged = JSON.stringify(nextArtifactPaths) === JSON.stringify(this.latexArtifactPaths || {})
     const previewStatesUnchanged = JSON.stringify(nextPreviewStates) === JSON.stringify(this.latexPreviewStates || {})
