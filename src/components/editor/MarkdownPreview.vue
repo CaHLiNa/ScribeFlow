@@ -633,7 +633,7 @@ function handleContextMenu(event) {
 }
 
 html.is-markdown-font-maple .md-preview-content {
-  font-style: italic;
+  font-feature-settings: var(--font-maple-features);
 }
 
 :deep(.md-preview-source-anchor-active) {

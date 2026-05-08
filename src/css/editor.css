@@ -291,6 +291,10 @@ body.scribeflow-shell-resizing .workbench-inline-dock-region > .inline-dock {
   color: var(--workspace-ink);
 }
 
+html.is-markdown-font-maple .cm-prose-file .cm-content {
+  font-feature-settings: var(--font-maple-features);
+}
+
 .cm-latex-file .cm-content {
   max-width: var(--editor-wrap-column, none);
   margin: 0;
