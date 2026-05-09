@@ -1,11 +1,13 @@
 import { defineStore } from 'pinia'
 import { useWorkspaceStore } from './workspace'
 import { useFilesStore } from './files'
-import { extractMarkdownHeadingTexts } from '../services/markdown/parser.js'
-import { extractMarkdownWikiLinks } from '../services/markdown/runtimeBridge.js'
+import {
+  extractMarkdownWikiLinks,
+  resolveMarkdownLinkIndex,
+} from '../services/markdown/runtimeBridge.js'
 import { filterWorkspaceFlatFilesByExtension } from '../domains/files/workspaceSnapshotFlatFilesRuntime.js'
 import { readWorkspaceTextFile } from '../services/fileStoreIO'
-import { basenamePath, dirnamePath } from '../utils/path'
+import { basenamePath } from '../utils/path'
 
 // --- Pure helpers ---
 
@@ -13,17 +15,9 @@ function normalizeName(name) {
   return name.toLowerCase().replace(/[-_\s]+/g, ' ').trim()
 }
 
-export function parseHeadings(content) {
-  return extractMarkdownHeadingTexts(content)
-}
-
 function fileNameFromPath(path) {
   const name = basenamePath(path)
   return name.replace(/\.md$/, '')
-}
-
-function dirFromPath(path) {
-  return dirnamePath(path)
 }
 
 export const useLinksStore = defineStore('links', {
@@ -72,45 +66,6 @@ export const useLinksStore = defineStore('links', {
       return filterWorkspaceFlatFilesByExtension(snapshot, ['.md'])
     },
 
-    resolveLink(target, fromPath) {
-      if (!target) return null
-      const workspace = useWorkspaceStore()
-      const normalized = normalizeName(target)
-
-      // 1. Exact filename match (case-insensitive, .md stripped)
-      const candidates = this.nameMap[normalized]
-      if (!candidates || candidates.length === 0) {
-        // 2. Check if target contains path separator for disambiguation
-        if (target.includes('/')) {
-          const normTarget = target.replace(/\.md$/, '')
-          for (const [, paths] of Object.entries(this.nameMap)) {
-            for (const p of paths) {
-              const rel = workspace.path ? p.replace(workspace.path + '/', '') : p
-              if (rel.replace(/\.md$/, '').endsWith(normTarget)) {
-                return { path: p, heading: null }
-              }
-            }
-          }
-        }
-        return null
-      }
-
-      if (candidates.length === 1) {
-        return { path: candidates[0], heading: null }
-      }
-
-      // Ambiguous: prefer same directory, then shortest path
-      const fromDir = fromPath ? dirFromPath(fromPath) : ''
-      const sameDir = candidates.filter(p => dirFromPath(p) === fromDir)
-      if (sameDir.length > 0) {
-        return { path: sameDir[0], heading: null }
-      }
-
-      // Shortest path
-      const sorted = [...candidates].sort((a, b) => a.length - b.length)
-      return { path: sorted[0], heading: null }
-    },
-
     async fullScan() {
       const workspace = useWorkspaceStore()
       const filesStore = useFilesStore()
@@ -119,16 +74,25 @@ export const useLinksStore = defineStore('links', {
       const scanGeneration = ++this._scanGeneration
       const workspacePath = workspace.path
 
-      // Reset
-      this.forwardLinks = {}
-      this.backlinks = {}
-      this.nameMap = {}
-      this.headings = {}
+      await this._refreshIndexFromWorkspace({
+        filesStore,
+        workspace,
+        workspacePath,
+        scanGeneration,
+      })
 
-      // Get all md files
+      this.initialized = true
+    },
+
+    async _refreshIndexFromWorkspace({
+      filesStore = useFilesStore(),
+      workspace = useWorkspaceStore(),
+      workspacePath = workspace.path,
+      scanGeneration = this._scanGeneration,
+    } = {}) {
       const mdFiles = this._getWorkspaceMarkdownFiles(filesStore)
 
-      // Read all files and build indices
+      const indexFiles = []
       for (const file of mdFiles) {
         if (scanGeneration !== this._scanGeneration || workspace.path !== workspacePath) {
           return
@@ -139,19 +103,25 @@ export const useLinksStore = defineStore('links', {
             content = await readWorkspaceTextFile(file.path)
             filesStore.fileContents[file.path] = content
           }
-          await this._indexFile(file.path, content)
+          indexFiles.push({ path: file.path, content })
         } catch (e) {
           console.warn('Failed to index file:', file.path, e)
         }
       }
 
-      // Build backlinks from forward links
       if (scanGeneration !== this._scanGeneration || workspace.path !== workspacePath) {
         return
       }
-      this._rebuildBacklinks()
 
-      this.initialized = true
+      const index = await resolveMarkdownLinkIndex(workspacePath, indexFiles)
+      if (scanGeneration !== this._scanGeneration || workspace.path !== workspacePath) {
+        return
+      }
+
+      this.forwardLinks = index.forwardLinks || {}
+      this.backlinks = index.backlinks || {}
+      this.nameMap = index.nameMap || {}
+      this.headings = index.headings || {}
     },
 
     async updateFile(path) {
@@ -159,17 +129,19 @@ export const useLinksStore = defineStore('links', {
       if (!this.initialized) return
 
       try {
+        const workspace = useWorkspaceStore()
+        const filesStore = useFilesStore()
+        if (!workspace.path) return
+        await filesStore.readWorkspaceSnapshot().catch(() => filesStore.ensureFlatFilesReady())
         const content = await readWorkspaceTextFile(path)
-        // Remove old index for this file
-        this._removeFileFromIndex(path)
-        // Re-index
-        await this._indexFile(path, content)
-        // Rebuild backlinks
-        this._rebuildBacklinks()
+        filesStore.fileContents[path] = content
+        await this._refreshIndexFromWorkspace({
+          filesStore,
+          workspace,
+          workspacePath: workspace.path,
+        })
       } catch (e) {
-        // File may have been deleted
-        this._removeFileFromIndex(path)
-        this._rebuildBacklinks()
+        await this.fullScan()
       }
     },
 
@@ -183,13 +155,7 @@ export const useLinksStore = defineStore('links', {
       const newName = fileNameFromPath(newPath)
 
       if (oldName === newName) {
-        // Just a move, not a rename — update indices only
-        this._removeFileFromIndex(oldPath)
-        try {
-          const content = await readWorkspaceTextFile(newPath)
-          await this._indexFile(newPath, content)
-        } catch (e) { /* ignore */ }
-        this._rebuildBacklinks()
+        await this.fullScan()
         return
       }
 
@@ -229,96 +195,12 @@ export const useLinksStore = defineStore('links', {
         }
       }
 
-      // Re-index the renamed file
-      this._removeFileFromIndex(oldPath)
-      try {
-        const content = await readWorkspaceTextFile(newPath)
-        await this._indexFile(newPath, content)
-      } catch (e) { /* ignore */ }
-
-      // Full rebuild of backlinks since many files may have changed
-      this._rebuildBacklinks()
+      await this.fullScan()
     },
 
     handleDelete(path) {
-      this._removeFileFromIndex(path)
-      this._rebuildBacklinks()
-    },
-
-    // --- Internal helpers ---
-
-    async _indexFile(path, content) {
-      // Name map
-      const name = fileNameFromPath(path)
-      const normalized = normalizeName(name)
-      if (!this.nameMap[normalized]) {
-        this.nameMap[normalized] = []
-      }
-      if (!this.nameMap[normalized].includes(path)) {
-        this.nameMap[normalized].push(path)
-      }
-
-      // Headings
-      this.headings[path] = await parseHeadings(content)
-
-      this.forwardLinks[path] = await extractMarkdownWikiLinks(content)
-    },
-
-    _removeFileFromIndex(path) {
-      const name = fileNameFromPath(path)
-      const normalized = normalizeName(name)
-
-      // Remove from nameMap
-      if (this.nameMap[normalized]) {
-        this.nameMap[normalized] = this.nameMap[normalized].filter(p => p !== path)
-        if (this.nameMap[normalized].length === 0) {
-          delete this.nameMap[normalized]
-        }
-      }
-
-      // Remove headings
-      delete this.headings[path]
-
-      // Remove forward links
-      delete this.forwardLinks[path]
-
-      // Remove from backlinks
-      delete this.backlinks[path]
-    },
-
-    _rebuildBacklinks() {
-      // Clear all backlinks
-      this.backlinks = {}
-
-      for (const [sourcePath, links] of Object.entries(this.forwardLinks)) {
-        for (const link of links) {
-          const resolved = this.resolveLink(link.target, sourcePath)
-          if (!resolved) continue
-
-          const targetPath = resolved.path
-          if (!this.backlinks[targetPath]) {
-            this.backlinks[targetPath] = []
-          }
-
-          // Compute line number and context
-          const filesStore = useFilesStore()
-          const content = filesStore.fileContents[sourcePath] || ''
-          const beforeLink = content.substring(0, link.from)
-          const lineNumber = (beforeLink.match(/\n/g) || []).length + 1
-          // Get the full line as context
-          const lineStart = beforeLink.lastIndexOf('\n') + 1
-          const lineEnd = content.indexOf('\n', link.to)
-          const context = content.substring(lineStart, lineEnd === -1 ? content.length : lineEnd).trim()
-
-          this.backlinks[targetPath].push({
-            sourcePath,
-            sourceName: fileNameFromPath(sourcePath),
-            linkText: link.display || link.target,
-            lineNumber,
-            context,
-          })
-        }
-      }
+      if (!path.endsWith('.md')) return
+      void this.fullScan()
     },
 
     cleanup() {

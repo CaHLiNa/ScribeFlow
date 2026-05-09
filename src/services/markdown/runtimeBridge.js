@@ -19,3 +19,18 @@ export async function extractMarkdownWikiLinks(content = '') {
   })
   return Array.isArray(links) ? links : []
 }
+
+export async function resolveMarkdownLinkIndex(workspacePath = '', files = []) {
+  const result = await invoke('markdown_link_index_resolve', {
+    workspacePath: String(workspacePath || ''),
+    files: Array.isArray(files)
+      ? files.map((file) => ({
+        path: String(file?.path || ''),
+        content: String(file?.content || ''),
+      }))
+      : [],
+  })
+  return result && typeof result === 'object'
+    ? result
+    : { forwardLinks: {}, backlinks: {}, nameMap: {}, headings: {} }
+}

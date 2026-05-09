@@ -1,7 +1,7 @@
 use markdown::mdast::Node;
 use markdown::unist::Position;
 use markdown::{to_mdast, Constructs, ParseOptions};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -40,6 +40,32 @@ pub struct MarkdownWikiLinkItem {
     pub raw: String,
 }
 
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct MarkdownLinkIndexFileInput {
+    pub path: String,
+    pub content: String,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct MarkdownBacklinkItem {
+    pub source_path: String,
+    pub source_name: String,
+    pub link_text: String,
+    pub line_number: usize,
+    pub context: String,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct MarkdownLinkIndexResult {
+    pub forward_links: HashMap<String, Vec<MarkdownWikiLinkItem>>,
+    pub backlinks: HashMap<String, Vec<MarkdownBacklinkItem>>,
+    pub name_map: HashMap<String, Vec<String>>,
+    pub headings: HashMap<String, Vec<MarkdownHeadingItem>>,
+}
+
 fn markdown_parse_options() -> ParseOptions {
     let constructs = Constructs {
         gfm_autolink_literal: true,
@@ -63,6 +89,74 @@ fn normalize_source_path(source_path: Option<String>) -> String {
     source_path.unwrap_or_default()
 }
 
+fn normalize_markdown_link_name(value: &str) -> String {
+    let mut normalized = String::new();
+    let mut previous_separator = false;
+    for character in value.to_lowercase().chars() {
+        if character == '-' || character == '_' || character.is_whitespace() {
+            if !previous_separator && !normalized.is_empty() {
+                normalized.push(' ');
+                previous_separator = true;
+            }
+        } else {
+            normalized.push(character);
+            previous_separator = false;
+        }
+    }
+    normalized.trim().to_string()
+}
+
+fn basename_path(path: &str) -> String {
+    normalize_path_separators(path)
+        .rsplit('/')
+        .next()
+        .unwrap_or_default()
+        .to_string()
+}
+
+fn dirname_path(path: &str) -> String {
+    let normalized = normalize_path_separators(path);
+    normalized
+        .rsplit_once('/')
+        .map(|(dir, _)| dir.to_string())
+        .unwrap_or_default()
+}
+
+fn normalize_path_separators(path: &str) -> String {
+    path.trim().replace('\\', "/")
+}
+
+fn file_name_from_path(path: &str) -> String {
+    let basename = basename_path(path);
+    basename
+        .strip_suffix(".md")
+        .unwrap_or(&basename)
+        .to_string()
+}
+
+fn relative_workspace_path<'a>(path: &'a str, workspace_path: &str) -> &'a str {
+    if workspace_path.is_empty() {
+        return path;
+    }
+    path.strip_prefix(workspace_path)
+        .and_then(|rest| rest.strip_prefix('/'))
+        .unwrap_or(path)
+}
+
+fn byte_offset_for_utf16_offset(text: &str, utf16_offset: usize) -> usize {
+    if utf16_offset == 0 {
+        return 0;
+    }
+    let mut units = 0usize;
+    for (byte_index, character) in text.char_indices() {
+        if units >= utf16_offset {
+            return byte_index;
+        }
+        units += character.len_utf16();
+    }
+    text.len()
+}
+
 fn utf16_offset_for_byte_offset(text: &str, byte_offset: usize) -> usize {
     let mut safe_offset = byte_offset.min(text.len());
     while safe_offset > 0 && !text.is_char_boundary(safe_offset) {
@@ -70,6 +164,26 @@ fn utf16_offset_for_byte_offset(text: &str, byte_offset: usize) -> usize {
     }
 
     text[..safe_offset].encode_utf16().count()
+}
+
+fn line_context_for_utf16_range(content: &str, from: usize, to: usize) -> (usize, String) {
+    let from_byte = byte_offset_for_utf16_offset(content, from).min(content.len());
+    let to_byte = byte_offset_for_utf16_offset(content, to).min(content.len());
+    let before_link = &content[..from_byte];
+    let line_number = before_link
+        .chars()
+        .filter(|character| *character == '\n')
+        .count()
+        + 1;
+    let line_start = before_link.rfind('\n').map(|index| index + 1).unwrap_or(0);
+    let line_end = content[to_byte..]
+        .find('\n')
+        .map(|relative| to_byte + relative)
+        .unwrap_or(content.len());
+    (
+        line_number,
+        content[line_start..line_end].trim().to_string(),
+    )
 }
 
 fn problem_position(position: Option<&Position>) -> (Option<usize>, Option<usize>) {
@@ -531,6 +645,139 @@ pub(crate) fn extract_markdown_wiki_links(
     Ok(items)
 }
 
+fn resolve_markdown_link_target(
+    target: &str,
+    from_path: &str,
+    workspace_path: &str,
+    name_map: &HashMap<String, Vec<String>>,
+) -> Option<String> {
+    if target.trim().is_empty() {
+        return None;
+    }
+
+    let normalized = normalize_markdown_link_name(target);
+    let Some(candidates) = name_map.get(&normalized) else {
+        if target.contains('/') {
+            let normalized_target = target.strip_suffix(".md").unwrap_or(target);
+            for paths in name_map.values() {
+                for path in paths {
+                    let relative = relative_workspace_path(path, workspace_path);
+                    if relative
+                        .strip_suffix(".md")
+                        .unwrap_or(relative)
+                        .ends_with(normalized_target)
+                    {
+                        return Some(path.clone());
+                    }
+                }
+            }
+        }
+        return None;
+    };
+
+    if candidates.len() == 1 {
+        return candidates.first().cloned();
+    }
+
+    let from_dir = dirname_path(from_path);
+    if let Some(candidate) = candidates
+        .iter()
+        .find(|candidate| dirname_path(candidate) == from_dir)
+    {
+        return Some(candidate.clone());
+    }
+
+    candidates
+        .iter()
+        .min_by_key(|candidate| candidate.len())
+        .cloned()
+}
+
+fn build_markdown_backlinks(
+    files: &[MarkdownLinkIndexFileInput],
+    workspace_path: &str,
+    forward_links: &HashMap<String, Vec<MarkdownWikiLinkItem>>,
+    name_map: &HashMap<String, Vec<String>>,
+) -> HashMap<String, Vec<MarkdownBacklinkItem>> {
+    let content_by_path: HashMap<String, &str> = files
+        .iter()
+        .map(|file| (normalize_path_separators(&file.path), file.content.as_str()))
+        .collect();
+    let mut backlinks: HashMap<String, Vec<MarkdownBacklinkItem>> = HashMap::new();
+
+    for (source_path, links) in forward_links {
+        let content = content_by_path
+            .get(source_path)
+            .copied()
+            .unwrap_or_default();
+        for link in links {
+            let Some(target_path) =
+                resolve_markdown_link_target(&link.target, source_path, workspace_path, name_map)
+            else {
+                continue;
+            };
+            let (line_number, context) = line_context_for_utf16_range(content, link.from, link.to);
+            backlinks
+                .entry(target_path)
+                .or_default()
+                .push(MarkdownBacklinkItem {
+                    source_path: source_path.clone(),
+                    source_name: file_name_from_path(source_path),
+                    link_text: link
+                        .display
+                        .clone()
+                        .filter(|value| !value.is_empty())
+                        .unwrap_or_else(|| link.target.clone()),
+                    line_number,
+                    context,
+                });
+        }
+    }
+
+    backlinks
+}
+
+pub(crate) fn resolve_markdown_link_index(
+    workspace_path: &str,
+    files: Vec<MarkdownLinkIndexFileInput>,
+) -> Result<MarkdownLinkIndexResult, String> {
+    let normalized_workspace_path = normalize_path_separators(workspace_path);
+    let mut result = MarkdownLinkIndexResult::default();
+
+    for file in &files {
+        let normalized_path = normalize_path_separators(&file.path);
+        if normalized_path.is_empty() {
+            continue;
+        }
+
+        let name = file_name_from_path(&normalized_path);
+        let normalized_name = normalize_markdown_link_name(&name);
+        if !normalized_name.is_empty() {
+            let paths = result.name_map.entry(normalized_name).or_default();
+            if !paths.iter().any(|path| path == &normalized_path) {
+                paths.push(normalized_path.clone());
+            }
+        }
+
+        result.headings.insert(
+            normalized_path.clone(),
+            extract_markdown_headings(&file.content)?,
+        );
+        result
+            .forward_links
+            .insert(normalized_path, extract_markdown_wiki_links(&file.content)?);
+    }
+
+    result.backlinks = build_markdown_backlinks(
+        &files,
+        &normalized_workspace_path,
+        &result.forward_links,
+        &result.name_map,
+    );
+
+    Ok(result)
+}
+
 #[tauri::command]
 pub async fn markdown_extract_headings(
     content: String,
@@ -553,10 +800,19 @@ pub async fn markdown_extract_wiki_links(
     extract_markdown_wiki_links(&content)
 }
 
+#[tauri::command]
+pub async fn markdown_link_index_resolve(
+    workspace_path: Option<String>,
+    files: Vec<MarkdownLinkIndexFileInput>,
+) -> Result<MarkdownLinkIndexResult, String> {
+    resolve_markdown_link_index(&normalize_source_path(workspace_path), files)
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
         extract_markdown_diagnostics, extract_markdown_headings, extract_markdown_wiki_links,
+        resolve_markdown_link_index, MarkdownLinkIndexFileInput,
     };
 
     #[test]
@@ -614,5 +870,61 @@ mod tests {
         assert_eq!(links[0].display.as_deref(), Some("读"));
         assert_eq!(links[0].raw, "Note#Intro|读");
         assert_eq!(links[0].from, 3);
+    }
+
+    #[test]
+    fn resolves_markdown_link_index_with_backlinks_and_ambiguous_names() {
+        let files = vec![
+            MarkdownLinkIndexFileInput {
+                path: "/workspace/notes/Index.md".to_string(),
+                content: "# Home\n链接 [[Topic|主题]] 和 [[nested/Topic]].\n".to_string(),
+            },
+            MarkdownLinkIndexFileInput {
+                path: "/workspace/notes/Topic.md".to_string(),
+                content: "## Local Topic\n".to_string(),
+            },
+            MarkdownLinkIndexFileInput {
+                path: "/workspace/notes/nested/Topic.md".to_string(),
+                content: "# Nested Topic\n".to_string(),
+            },
+        ];
+
+        let index = resolve_markdown_link_index("/workspace/notes", files).unwrap();
+
+        assert_eq!(
+            index.name_map.get("topic").cloned().unwrap_or_default(),
+            vec![
+                "/workspace/notes/Topic.md".to_string(),
+                "/workspace/notes/nested/Topic.md".to_string()
+            ]
+        );
+        assert_eq!(
+            index
+                .headings
+                .get("/workspace/notes/Topic.md")
+                .and_then(|headings| headings.first())
+                .map(|heading| heading.text.as_str()),
+            Some("Local Topic")
+        );
+        assert_eq!(
+            index
+                .backlinks
+                .get("/workspace/notes/Topic.md")
+                .and_then(|links| links.first())
+                .map(|link| (
+                    link.source_name.as_str(),
+                    link.link_text.as_str(),
+                    link.line_number
+                )),
+            Some(("Index", "主题", 2))
+        );
+        assert_eq!(
+            index
+                .backlinks
+                .get("/workspace/notes/nested/Topic.md")
+                .and_then(|links| links.first())
+                .map(|link| link.context.as_str()),
+            Some("链接 [[Topic|主题]] 和 [[nested/Topic]].")
+        );
     }
 }

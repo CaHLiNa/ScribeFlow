@@ -290,6 +290,7 @@ pub fn run() {
             markdown_runtime::markdown_extract_diagnostics,
             markdown_runtime::markdown_extract_headings,
             markdown_runtime::markdown_extract_wiki_links,
+            markdown_runtime::markdown_link_index_resolve,
             python_preferences::python_preferences_load,
             python_preferences::python_preferences_save,
             python_runtime::python_runtime_detect,
