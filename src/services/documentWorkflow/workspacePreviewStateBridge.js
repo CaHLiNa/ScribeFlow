@@ -10,7 +10,6 @@ export async function resolveDocumentWorkspacePreviewState(params = {}) {
     workspacePreviewRequest: String(params.workspacePreviewRequest || ''),
     resolvedTargetPath: String(params.resolvedTargetPath || ''),
     artifactPath: String(params.artifactPath || ''),
-    targetResolution: String(params.targetResolution || ''),
     hiddenByUser: params.hiddenByUser === true,
     previewRequested: params.previewRequested === true,
     state: normalizeDocumentWorkflowPersistentState(params.state || {}),

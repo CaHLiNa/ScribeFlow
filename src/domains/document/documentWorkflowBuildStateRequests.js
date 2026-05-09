@@ -22,7 +22,6 @@ export function buildPreviewStateRequest(filePath, adapter, context, options = {
     workspacePreviewRequest: options.workspacePreviewRequest || '',
     resolvedTargetPath: resolveResolvedPreviewTargetPath(filePath, adapter, context, options),
     artifactPath: resolveExpectedPreviewTargetPath(filePath, adapter, context, options),
-    targetResolution: options.targetResolution || '',
     previewRequested: options.previewRequested === true,
     hiddenByUser: options.hiddenByUser === true,
     state: persistentState,

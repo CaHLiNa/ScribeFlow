@@ -40,7 +40,6 @@ export function buildResolvedWorkspacePreviewStateKey(request = {}) {
     workspacePreviewRequest: String(request.workspacePreviewRequest || ''),
     resolvedTargetPath: String(request.resolvedTargetPath || ''),
     artifactPath: String(request.artifactPath || ''),
-    targetResolution: String(request.targetResolution || ''),
     hiddenByUser: request.hiddenByUser === true,
     previewRequested: request.previewRequested === true,
     session: {
