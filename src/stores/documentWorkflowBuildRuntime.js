@@ -5,8 +5,6 @@ import {
 import {
   buildPreviewStateRequest,
   buildWorkflowUiStateRequest,
-  resolveArtifactReady,
-  resolveNativePreviewSupported,
 } from '../domains/document/documentWorkflowBuildStateRequests.js'
 
 function getDocumentWorkflowStatusTone(uiState = null) {
@@ -78,14 +76,6 @@ export function createDocumentWorkflowBuildRuntime({
 
     const previewState = resolvePreviewState(filePath, adapter, context, options)
     const uiState = resolveWorkflowUiState(filePath, adapter, context, options, previewState)
-    const artifactReady = resolveArtifactReady(filePath, adapter, context)
-    const nativePreviewSupported = resolveNativePreviewSupported(
-      filePath,
-      adapter,
-      context,
-      previewState?.previewKind || null,
-      options,
-    )
     return {
       ...context,
       adapter,
@@ -98,8 +88,6 @@ export function createDocumentWorkflowBuildRuntime({
       previewVisible: previewState?.previewVisible === true,
       previewTargetPath: previewState?.previewTargetPath || '',
       targetResolution: previewState?.targetResolution || null,
-      artifactReady,
-      nativePreviewSupported,
     }
   }
 

@@ -49,7 +49,6 @@ export function buildResolvedWorkspacePreviewStateKey(request = {}) {
     targetResolution: String(request.targetResolution || ''),
     hiddenByUser: request.hiddenByUser === true,
     previewRequested: request.previewRequested === true,
-    artifactReady: request.artifactReady === true,
     session: {
       activeFile: String(session.activeFile || ''),
       previewKind: String(session.previewKind || ''),

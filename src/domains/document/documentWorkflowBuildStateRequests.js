@@ -21,26 +21,6 @@ function resolveExpectedPreviewTargetPath(filePath, adapter, context, options = 
   return adapter?.compile?.getArtifactPath?.(filePath, context, options) || ''
 }
 
-export function resolveNativePreviewSupported(_filePath, _adapter, _context, _requestedPreviewKind, options = {}) {
-  if (typeof options.nativePreviewSupported === 'boolean') {
-    return options.nativePreviewSupported
-  }
-  return true
-}
-
-export function resolveArtifactReady(filePath, adapter, context) {
-  if (!adapter || !filePath) return false
-  if (adapter.kind === 'latex') {
-    const latexState = context.latexStore?.stateForFile?.(filePath) || null
-    return Boolean(
-      latexState?.pdfPath
-      || latexState?.previewPath
-      || context.workflowStore?.getLatexArtifactPathForFile?.(filePath),
-    )
-  }
-  return false
-}
-
 export function buildPreviewStateRequest(filePath, adapter, context, options = {}) {
   if (!adapter) return null
 
@@ -63,7 +43,6 @@ export function buildPreviewStateRequest(filePath, adapter, context, options = {
     artifactPath: resolveExpectedPreviewTargetPath(filePath, adapter, context, options),
     targetResolution: options.targetResolution || '',
     previewRequested: options.previewRequested === true,
-    artifactReady: options.artifactReady === true,
     hiddenByUser: options.hiddenByUser === true,
     state: persistentState,
   }
