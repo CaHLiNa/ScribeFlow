@@ -33,6 +33,15 @@ pub struct DocumentWorkflowLatexProblemsResolveParams {
     pub state: Value,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DocumentWorkflowPythonProblemsResolveParams {
+    #[serde(default)]
+    pub source_path: String,
+    #[serde(default)]
+    pub state: Value,
+}
+
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct DocumentWorkflowProblem {
@@ -44,6 +53,17 @@ pub struct DocumentWorkflowProblem {
     pub message: String,
     pub origin: String,
     pub actionable: bool,
+    pub raw: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WorkflowRuntimeIssue {
+    pub line: Option<u32>,
+    pub column: Option<u32>,
+    #[serde(default)]
+    pub message: String,
+    #[serde(default)]
     pub raw: String,
 }
 
@@ -254,6 +274,56 @@ pub fn resolve_latex_workflow_problems(
         .collect()
 }
 
+fn runtime_issues_at(state: &Value, key: &str) -> Vec<WorkflowRuntimeIssue> {
+    state
+        .get(key)
+        .cloned()
+        .and_then(|value| serde_json::from_value::<Vec<WorkflowRuntimeIssue>>(value).ok())
+        .unwrap_or_default()
+}
+
+fn build_python_workflow_problem(
+    source_path: &str,
+    severity: &str,
+    problem: &WorkflowRuntimeIssue,
+    index: usize,
+) -> DocumentWorkflowProblem {
+    DocumentWorkflowProblem {
+        id: format!("python:{severity}:{source_path}:{index}"),
+        source_path: source_path.to_string(),
+        line: problem.line,
+        column: problem.column,
+        severity: severity.to_string(),
+        message: problem.message.clone(),
+        origin: "compile".to_string(),
+        actionable: true,
+        raw: if problem.raw.is_empty() {
+            problem.message.clone()
+        } else {
+            problem.raw.clone()
+        },
+    }
+}
+
+pub fn resolve_python_workflow_problems(
+    params: &DocumentWorkflowPythonProblemsResolveParams,
+) -> Vec<DocumentWorkflowProblem> {
+    let source_path = normalize_fs_path(&params.source_path);
+    let errors = runtime_issues_at(&params.state, "errors");
+    let warnings = runtime_issues_at(&params.state, "warnings");
+
+    errors
+        .iter()
+        .enumerate()
+        .map(|(index, problem)| {
+            build_python_workflow_problem(&source_path, "error", problem, index)
+        })
+        .chain(warnings.iter().enumerate().map(|(index, problem)| {
+            build_python_workflow_problem(&source_path, "warning", problem, index)
+        }))
+        .collect()
+}
+
 fn build_ui_state(
     kind: &str,
     phase: &str,
@@ -403,11 +473,19 @@ pub async fn document_workflow_latex_problems_resolve(
     Ok(resolve_latex_workflow_problems(&params))
 }
 
+#[tauri::command]
+pub async fn document_workflow_python_problems_resolve(
+    params: DocumentWorkflowPythonProblemsResolveParams,
+) -> Result<Vec<DocumentWorkflowProblem>, String> {
+    Ok(resolve_python_workflow_problems(&params))
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        document_workflow_latex_problems_resolve, document_workflow_ui_resolve,
-        DocumentWorkflowLatexProblemsResolveParams, DocumentWorkflowUiResolveParams,
+        document_workflow_latex_problems_resolve, document_workflow_python_problems_resolve,
+        document_workflow_ui_resolve, DocumentWorkflowLatexProblemsResolveParams,
+        DocumentWorkflowPythonProblemsResolveParams, DocumentWorkflowUiResolveParams,
     };
     use serde_json::{json, Value};
 
@@ -535,5 +613,41 @@ mod tests {
         assert_eq!(value.get("kind").and_then(Value::as_str), Some("python"));
         assert_eq!(value.get("phase").and_then(Value::as_str), Some("error"));
         assert_eq!(value.get("errorCount").and_then(Value::as_u64), Some(1));
+    }
+
+    #[tokio::test]
+    async fn resolves_python_compile_problems() {
+        let problems = document_workflow_python_problems_resolve(
+            DocumentWorkflowPythonProblemsResolveParams {
+                source_path: "/tmp/project/script.py".to_string(),
+                state: json!({
+                    "errors": [
+                        {
+                            "line": 7,
+                            "column": 2,
+                            "message": "SyntaxError",
+                            "raw": ""
+                        }
+                    ],
+                    "warnings": [
+                        {
+                            "line": 9,
+                            "message": "Runtime warning",
+                            "raw": "warning: detail"
+                        }
+                    ]
+                }),
+            },
+        )
+        .await
+        .expect("resolve python problems");
+
+        assert_eq!(problems.len(), 2);
+        assert_eq!(problems[0].id, "python:error:/tmp/project/script.py:0");
+        assert_eq!(problems[0].source_path, "/tmp/project/script.py");
+        assert_eq!(problems[0].severity, "error");
+        assert_eq!(problems[0].raw, "SyntaxError");
+        assert_eq!(problems[1].severity, "warning");
+        assert_eq!(problems[1].raw, "warning: detail");
     }
 }

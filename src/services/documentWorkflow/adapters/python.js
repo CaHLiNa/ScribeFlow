@@ -4,22 +4,6 @@ function isPythonFile(filePath = '') {
   return filePath.toLowerCase().endsWith('.py')
 }
 
-function buildPythonWorkflowProblems(sourcePath, state = {}) {
-  return Array.isArray(state?.errors)
-    ? state.errors.map((problem, index) => ({
-      id: `python:error:${sourcePath}:${index}`,
-      sourcePath,
-      line: problem.line ?? null,
-      column: problem.column ?? null,
-      severity: 'error',
-      message: problem.message || '',
-      origin: 'compile',
-      actionable: true,
-      raw: problem.raw || problem.message || '',
-    }))
-    : []
-}
-
 function formatPythonCompileDuration(state = {}, context = {}) {
   const t = context.t || ((value) => value)
   if (state?.status === 'running') return t('Running...')
@@ -52,7 +36,12 @@ const pythonCompileAdapter = {
   },
 
   getDiagnostics(filePath, context) {
-    return buildPythonWorkflowProblems(filePath, this.stateForFile(filePath, context) || {})
+    const request = {
+      sourcePath: filePath,
+      state: this.stateForFile(filePath, context) || {},
+    }
+    const problems = context.workflowStore?.ensureResolvedPythonProblems?.(filePath, request)
+    return Array.isArray(problems) ? problems : []
   },
 
   getArtifactPath() {

@@ -279,6 +279,7 @@ pub fn run() {
             document_workflow_session::document_workflow_session_save,
             document_workflow_session::document_workflow_workspace_preview_apply,
             document_workflow_ui_state::document_workflow_latex_problems_resolve,
+            document_workflow_ui_state::document_workflow_python_problems_resolve,
             document_workflow_ui_state::document_workflow_ui_resolve,
             document_workspace_preview_state::document_workspace_preview_state_resolve,
             editor_session_runtime::editor_session_load,

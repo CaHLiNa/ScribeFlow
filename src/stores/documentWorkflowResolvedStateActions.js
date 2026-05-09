@@ -1,17 +1,20 @@
 import {
   buildResolvedLatexProblemsKey,
   buildResolvedMarkdownDraftProblemsKey,
+  buildResolvedPythonProblemsKey,
   buildResolvedWorkspacePreviewStateKey,
   buildResolvedWorkflowUiStateKey,
 } from '../domains/document/documentWorkflowResolvedStateKeys.js'
 import { resolveDocumentWorkflowUiState as resolveDocumentWorkflowUiStateFromBackend } from '../services/documentWorkflow/workflowUiStateBridge.js'
 import { resolveDocumentWorkspacePreviewState as resolveDocumentWorkspacePreviewStateFromBackend } from '../services/documentWorkflow/workspacePreviewStateBridge.js'
 import { resolveDocumentWorkflowLatexProblems as resolveDocumentWorkflowLatexProblemsFromBackend } from '../services/documentWorkflow/latexProblemsBridge.js'
+import { resolveDocumentWorkflowPythonProblems as resolveDocumentWorkflowPythonProblemsFromBackend } from '../services/documentWorkflow/pythonProblemsBridge.js'
 import { extractMarkdownDraftProblems } from '../services/markdown/runtimeBridge.js'
 
 export const documentWorkflowResolvedStateActions = {
   buildResolvedLatexProblemsKey,
   buildResolvedMarkdownDraftProblemsKey,
+  buildResolvedPythonProblemsKey,
   buildResolvedWorkspacePreviewStateKey,
   buildResolvedWorkflowUiStateKey,
 
@@ -133,6 +136,65 @@ export const documentWorkflowResolvedStateActions = {
     const cached = this.getResolvedLatexProblems(normalizedPath, request)
     if (cached) return cached
     void this.refreshResolvedLatexProblems(normalizedPath, request)
+    return null
+  },
+
+  getResolvedPythonProblems(filePath, request = {}) {
+    const normalizedPath = String(filePath || '')
+    if (!normalizedPath) return null
+    const entry = this.resolvedPythonProblems?.[normalizedPath] || null
+    if (!entry) return null
+    const key = this.buildResolvedPythonProblemsKey(request)
+    return entry.key === key ? entry.problems : null
+  },
+
+  setResolvedPythonProblems(filePath, request = {}, problems = []) {
+    const normalizedPath = String(filePath || '')
+    if (!normalizedPath) return
+    this.resolvedPythonProblems = {
+      ...this.resolvedPythonProblems,
+      [normalizedPath]: {
+        key: this.buildResolvedPythonProblemsKey(request),
+        problems: Array.isArray(problems) ? problems : [],
+      },
+    }
+  },
+
+  async refreshResolvedPythonProblems(filePath, request = {}) {
+    const normalizedPath = String(filePath || '')
+    if (!normalizedPath) return null
+
+    if (!this._resolvedPythonProblemsInflight) {
+      this._resolvedPythonProblemsInflight = new Map()
+    }
+
+    const key = this.buildResolvedPythonProblemsKey(request)
+    const inflightKey = `${normalizedPath}::${key}`
+    if (this._resolvedPythonProblemsInflight.has(inflightKey)) {
+      return this._resolvedPythonProblemsInflight.get(inflightKey)
+    }
+
+    const task = resolveDocumentWorkflowPythonProblemsFromBackend(request)
+      .then((problems) => {
+        const normalized = Array.isArray(problems) ? problems : []
+        this.setResolvedPythonProblems(normalizedPath, request, normalized)
+        return normalized
+      })
+      .catch(() => null)
+      .finally(() => {
+        this._resolvedPythonProblemsInflight.delete(inflightKey)
+      })
+
+    this._resolvedPythonProblemsInflight.set(inflightKey, task)
+    return task
+  },
+
+  ensureResolvedPythonProblems(filePath, request = {}) {
+    const normalizedPath = String(filePath || '')
+    if (!normalizedPath) return null
+    const cached = this.getResolvedPythonProblems(normalizedPath, request)
+    if (cached) return cached
+    void this.refreshResolvedPythonProblems(normalizedPath, request)
     return null
   },
 
