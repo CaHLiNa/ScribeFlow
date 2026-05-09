@@ -36,10 +36,7 @@ export function buildResolvedWorkspacePreviewStateKey(request = {}) {
     path: String(request.path || ''),
     sourcePath: String(request.sourcePath || ''),
     workflowKind: String(request.workflowKind || ''),
-    workflowPreviewKind: String(request.workflowPreviewKind || ''),
     previewKind: String(request.previewKind || ''),
-    defaultPreviewKind: String(request.defaultPreviewKind || ''),
-    preferredPreviewKind: String(request.preferredPreviewKind || ''),
     workspacePreviewRequest: String(request.workspacePreviewRequest || ''),
     supportedPreviewKinds: Array.isArray(request.supportedPreviewKinds)
       ? request.supportedPreviewKinds

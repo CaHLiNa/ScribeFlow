@@ -6,10 +6,7 @@ export async function resolveDocumentWorkspacePreviewState(params = {}) {
     path: String(params.path || ''),
     sourcePath: String(params.sourcePath || ''),
     workflowKind: String(params.workflowKind || ''),
-    workflowPreviewKind: String(params.workflowPreviewKind || ''),
     previewKind: String(params.previewKind || ''),
-    defaultPreviewKind: String(params.defaultPreviewKind || ''),
-    preferredPreviewKind: String(params.preferredPreviewKind || ''),
     workspacePreviewRequest: String(params.workspacePreviewRequest || ''),
     supportedPreviewKinds: Array.isArray(params.supportedPreviewKinds)
       ? params.supportedPreviewKinds.map((kind) => String(kind || ''))

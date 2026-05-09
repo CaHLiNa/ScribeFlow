@@ -1,14 +1,3 @@
-function resolvePreferredPreviewKind(adapter, options = {}, workflowStore = null) {
-  if (!adapter) return null
-  if (options.previewKind) return options.previewKind
-
-  const getPreferredPreviewKind = (
-    options.getPreferredPreviewKind
-    || workflowStore?.getPreferredPreviewKind?.bind(workflowStore)
-  )
-  return getPreferredPreviewKind?.(adapter.kind) || adapter.preview?.defaultKind || null
-}
-
 function resolveResolvedPreviewTargetPath(filePath, adapter, context, options = {}) {
   if (options.resolvedTargetPath || options.previewTargetPath) {
     return options.resolvedTargetPath || options.previewTargetPath || ''
@@ -33,9 +22,6 @@ export function buildPreviewStateRequest(filePath, adapter, context, options = {
     path: filePath,
     sourcePath: options.sourcePath || '',
     workflowKind: adapter.kind,
-    workflowPreviewKind: options.workflowPreviewKind || previewMetadata.defaultKind || '',
-    defaultPreviewKind: previewMetadata.defaultKind || '',
-    preferredPreviewKind: resolvePreferredPreviewKind(adapter, options, context.workflowStore) || '',
     previewKind: options.previewKind || '',
     workspacePreviewRequest: options.workspacePreviewRequest || '',
     supportedPreviewKinds,
