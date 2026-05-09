@@ -334,10 +334,12 @@ fn build_ui_state(
     can_open_pdf: bool,
     primary_action: &str,
 ) -> Value {
+    let status_tone = resolve_workflow_status_tone(kind, phase);
     json!({
         "kind": kind,
         "previewKind": preview_kind,
         "phase": phase,
+        "statusTone": status_tone,
         "errorCount": error_count,
         "warningCount": warning_count,
         "canShowProblems": error_count > 0 || warning_count > 0,
@@ -347,6 +349,25 @@ fn build_ui_state(
         "backwardSync": true,
         "primaryAction": primary_action,
     })
+}
+
+fn resolve_workflow_status_tone(kind: &str, phase: &str) -> &'static str {
+    if kind == "markdown" {
+        return match phase {
+            "rendering" => "running",
+            "error" => "error",
+            "ready" => "success",
+            _ => "muted",
+        };
+    }
+
+    match phase {
+        "running" | "compiling" | "rendering" => "running",
+        "queued" => "warning",
+        "error" => "error",
+        "ready" => "success",
+        _ => "muted",
+    }
 }
 
 fn resolve_markdown_ui_state(params: &DocumentWorkflowUiResolveParams) -> Value {
@@ -484,8 +505,9 @@ pub async fn document_workflow_python_problems_resolve(
 mod tests {
     use super::{
         document_workflow_latex_problems_resolve, document_workflow_python_problems_resolve,
-        document_workflow_ui_resolve, DocumentWorkflowLatexProblemsResolveParams,
-        DocumentWorkflowPythonProblemsResolveParams, DocumentWorkflowUiResolveParams,
+        document_workflow_ui_resolve, resolve_workflow_status_tone,
+        DocumentWorkflowLatexProblemsResolveParams, DocumentWorkflowPythonProblemsResolveParams,
+        DocumentWorkflowUiResolveParams,
     };
     use serde_json::{json, Value};
 
@@ -513,6 +535,10 @@ mod tests {
 
         assert_eq!(value.get("kind").and_then(Value::as_str), Some("markdown"));
         assert_eq!(value.get("phase").and_then(Value::as_str), Some("ready"));
+        assert_eq!(
+            value.get("statusTone").and_then(Value::as_str),
+            Some("success")
+        );
         assert_eq!(value.get("warningCount").and_then(Value::as_u64), Some(1));
         assert_eq!(
             value.get("canRevealPreview").and_then(Value::as_bool),
@@ -545,6 +571,10 @@ mod tests {
 
         assert_eq!(value.get("kind").and_then(Value::as_str), Some("latex"));
         assert_eq!(value.get("phase").and_then(Value::as_str), Some("ready"));
+        assert_eq!(
+            value.get("statusTone").and_then(Value::as_str),
+            Some("success")
+        );
         assert_eq!(value.get("canOpenPdf").and_then(Value::as_bool), Some(true));
         assert_eq!(value.get("warningCount").and_then(Value::as_u64), Some(1));
     }
@@ -612,7 +642,23 @@ mod tests {
 
         assert_eq!(value.get("kind").and_then(Value::as_str), Some("python"));
         assert_eq!(value.get("phase").and_then(Value::as_str), Some("error"));
+        assert_eq!(
+            value.get("statusTone").and_then(Value::as_str),
+            Some("error")
+        );
         assert_eq!(value.get("errorCount").and_then(Value::as_u64), Some(1));
+    }
+
+    #[test]
+    fn resolves_workflow_status_tones_in_rust() {
+        assert_eq!(
+            resolve_workflow_status_tone("markdown", "rendering"),
+            "running"
+        );
+        assert_eq!(resolve_workflow_status_tone("markdown", "ready"), "success");
+        assert_eq!(resolve_workflow_status_tone("latex", "queued"), "warning");
+        assert_eq!(resolve_workflow_status_tone("python", "running"), "running");
+        assert_eq!(resolve_workflow_status_tone("python", "idle"), "muted");
     }
 
     #[tokio::test]

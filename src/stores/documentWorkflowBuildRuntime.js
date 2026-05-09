@@ -8,7 +8,10 @@ import {
   resolveArtifactReady,
   resolveNativePreviewSupported,
 } from '../domains/document/documentWorkflowBuildStateRequests.js'
-import { getDocumentWorkflowStatusTone } from '../domains/document/documentWorkflowStatusTone.js'
+
+function getDocumentWorkflowStatusTone(uiState = null) {
+  return uiState?.statusTone || 'muted'
+}
 
 function resolveDocumentAdapter(filePath, options = {}) {
   if (options.adapter) return options.adapter
