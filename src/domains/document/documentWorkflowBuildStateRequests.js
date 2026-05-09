@@ -13,10 +13,6 @@ function resolveExpectedPreviewTargetPath(filePath, adapter, context, options = 
 export function buildPreviewStateRequest(filePath, adapter, context, options = {}) {
   if (!adapter) return null
 
-  const previewMetadata = adapter.preview || {}
-  const supportedPreviewKinds = Array.isArray(previewMetadata.supportedKinds)
-    ? previewMetadata.supportedKinds
-    : []
   const persistentState = context.workflowStore?.snapshotPersistentState?.() || {}
   return {
     path: filePath,
@@ -24,7 +20,6 @@ export function buildPreviewStateRequest(filePath, adapter, context, options = {
     workflowKind: adapter.kind,
     previewKind: options.previewKind || '',
     workspacePreviewRequest: options.workspacePreviewRequest || '',
-    supportedPreviewKinds,
     resolvedTargetPath: resolveResolvedPreviewTargetPath(filePath, adapter, context, options),
     artifactPath: resolveExpectedPreviewTargetPath(filePath, adapter, context, options),
     targetResolution: options.targetResolution || '',

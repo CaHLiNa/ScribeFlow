@@ -8,9 +8,6 @@ export async function resolveDocumentWorkspacePreviewState(params = {}) {
     workflowKind: String(params.workflowKind || ''),
     previewKind: String(params.previewKind || ''),
     workspacePreviewRequest: String(params.workspacePreviewRequest || ''),
-    supportedPreviewKinds: Array.isArray(params.supportedPreviewKinds)
-      ? params.supportedPreviewKinds.map((kind) => String(kind || ''))
-      : [],
     resolvedTargetPath: String(params.resolvedTargetPath || ''),
     artifactPath: String(params.artifactPath || ''),
     targetResolution: String(params.targetResolution || ''),
