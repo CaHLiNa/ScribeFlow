@@ -5,6 +5,7 @@ import {
   createDocumentWorkflowPersistentState,
   loadDocumentWorkflowSessionState,
   reconcileDocumentWorkflowLatexPreviewState,
+  resolveDocumentWorkflowPreviewCloseEffect,
   saveDocumentWorkflowSessionState,
 } from '../services/documentWorkflow/sessionStateBridge.js'
 import {
@@ -13,7 +14,6 @@ import {
   isDocumentWorkflowSource,
 } from '../services/documentWorkflow/policy.js'
 import { previewSourcePathFromPath } from '../utils/fileTypes.js'
-import { resolveDocumentPreviewCloseEffect } from '../domains/document/documentWorkspacePreviewRuntime.js'
 
 export function createDefaultDocumentWorkflowPersistentState() {
   return createDocumentWorkflowPersistentState()
@@ -334,9 +334,10 @@ export const documentWorkflowSessionActions = {
   },
 
   async handlePreviewClosed(previewPath) {
-    const effect = resolveDocumentPreviewCloseEffect(previewPath, {
-      previewBinding: this.getPreviewBinding(previewPath),
-    })
+    const effect = await resolveDocumentWorkflowPreviewCloseEffect(
+      previewPath,
+      this.getPreviewBinding(previewPath),
+    )
     if (effect.sourcePath && effect.markDetached) {
       await this.markDetached(effect.sourcePath)
     }

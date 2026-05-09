@@ -138,6 +138,23 @@ export async function applyDocumentWorkflowPreviewBindingState(state = {}, inten
   })
 }
 
+export async function resolveDocumentWorkflowPreviewCloseEffect(previewPath = '', previewBinding = null) {
+  const binding = previewBinding && typeof previewBinding === 'object'
+    ? {
+        previewPath: normalizeString(previewBinding.previewPath),
+        sourcePath: normalizeString(previewBinding.sourcePath),
+        previewKind: normalizeString(previewBinding.previewKind),
+        kind: normalizeString(previewBinding.kind),
+        paneId: normalizeString(previewBinding.paneId),
+        detachOnClose: previewBinding.detachOnClose !== false,
+      }
+    : null
+  return invokeDocumentWorkflowBridge('document_workflow_preview_close_effect_resolve', {
+    previewPath: normalizeString(previewPath),
+    previewBinding: binding,
+  })
+}
+
 export async function applyDocumentWorkflowSessionMutation(state = {}, mutation = {}) {
   return invokeDocumentWorkflowBridge('document_workflow_session_mutation_apply', {
     state: normalizeDocumentWorkflowPersistentState(state),

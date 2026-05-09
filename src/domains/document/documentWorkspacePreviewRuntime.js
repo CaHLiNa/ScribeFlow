@@ -1,7 +1,6 @@
 import {
   isLatex,
   isMarkdown,
-  previewSourcePathFromPath,
 } from '../../utils/fileTypes.js'
 
 function getWorkspaceDocumentKind(path = '', workflowUiState = null) {
@@ -31,14 +30,5 @@ export function resolveDocumentWorkspaceTextRoute(options = {}) {
     previewTargetPath: useWorkspaceSurface ? documentPreviewState?.previewTargetPath || '' : '',
     previewFilePath: useWorkspaceSurface ? documentPreviewState?.previewFilePath || '' : '',
     toolbarTargetVisible: false,
-  }
-}
-
-export function resolveDocumentPreviewCloseEffect(previewPath, options = {}) {
-  const sourcePath =
-    options.previewBinding?.sourcePath || previewSourcePathFromPath(previewPath) || null
-  return {
-    sourcePath,
-    markDetached: options.previewBinding?.detachOnClose === true,
   }
 }

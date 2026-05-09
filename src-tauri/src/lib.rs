@@ -274,6 +274,7 @@ pub fn run() {
             document_workflow_session::document_workflow_latex_preview_apply,
             document_workflow_session::document_workflow_latex_preview_reconcile,
             document_workflow_session::document_workflow_preview_binding_apply,
+            document_workflow_session::document_workflow_preview_close_effect_resolve,
             document_workflow_session::document_workflow_session_mutation_apply,
             document_workflow_session::document_workflow_session_load,
             document_workflow_session::document_workflow_session_save,

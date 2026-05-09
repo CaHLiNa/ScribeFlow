@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::document_workflow::get_document_workflow_kind;
 pub use crate::document_workflow_preview_binding::DocumentWorkflowPreviewBinding;
 use crate::document_workflow_preview_binding::{
     normalize_preview_binding, normalize_preview_binding_set,
@@ -209,6 +210,22 @@ pub struct DocumentWorkflowWorkspacePreviewApplyResult {
     pub result: Value,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DocumentWorkflowPreviewCloseEffectResolveParams {
+    #[serde(default)]
+    pub preview_path: String,
+    #[serde(default)]
+    pub preview_binding: Option<DocumentWorkflowPreviewBinding>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct DocumentWorkflowPreviewCloseEffect {
+    pub source_path: Option<String>,
+    pub mark_detached: bool,
+}
+
 fn default_document_workflow_session_version() -> u32 {
     DOCUMENT_WORKFLOW_SESSION_VERSION
 }
@@ -315,6 +332,13 @@ fn write_document_workflow_session_state(
 
 fn normalize_path(value: &str) -> String {
     value.trim().to_string()
+}
+
+fn preview_source_path_from_path(path: &str) -> String {
+    normalize_path(path)
+        .strip_prefix("preview:")
+        .unwrap_or_default()
+        .to_string()
 }
 
 fn normalize_workflow_kind(value: &str) -> String {
@@ -951,6 +975,45 @@ pub fn apply_document_workflow_workspace_preview_state(
     }
 }
 
+pub fn resolve_document_workflow_preview_close_effect(
+    params: DocumentWorkflowPreviewCloseEffectResolveParams,
+) -> DocumentWorkflowPreviewCloseEffect {
+    let preview_path = normalize_path(&params.preview_path);
+    let binding = params.preview_binding.and_then(normalize_preview_binding);
+    let bound_source_path = binding
+        .as_ref()
+        .map(|binding| normalize_path(&binding.source_path))
+        .filter(|source_path| !source_path.is_empty());
+    let preview_source_path = preview_source_path_from_path(&preview_path);
+    let workflow_source_path = if get_document_workflow_kind(&preview_path).is_some() {
+        preview_path
+    } else {
+        String::new()
+    };
+
+    DocumentWorkflowPreviewCloseEffect {
+        source_path: bound_source_path
+            .or_else(|| {
+                if preview_source_path.is_empty() {
+                    None
+                } else {
+                    Some(preview_source_path)
+                }
+            })
+            .or_else(|| {
+                if workflow_source_path.is_empty() {
+                    None
+                } else {
+                    Some(workflow_source_path)
+                }
+            }),
+        mark_detached: binding
+            .as_ref()
+            .map(|binding| binding.detach_on_close)
+            .unwrap_or(false),
+    }
+}
+
 #[tauri::command]
 pub async fn document_workflow_session_load(
     params: DocumentWorkflowPersistentStateLoadParams,
@@ -1013,6 +1076,13 @@ pub async fn document_workflow_workspace_preview_apply(
     Ok(apply_document_workflow_workspace_preview_state(params))
 }
 
+#[tauri::command]
+pub async fn document_workflow_preview_close_effect_resolve(
+    params: DocumentWorkflowPreviewCloseEffectResolveParams,
+) -> Result<DocumentWorkflowPreviewCloseEffect, String> {
+    Ok(resolve_document_workflow_preview_close_effect(params))
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
@@ -1022,10 +1092,11 @@ mod tests {
         normalize_document_workflow_persistent_state,
         reconcile_document_workflow_latex_preview_state,
         reconcile_document_workflow_latex_preview_state_with_change,
-        DocumentWorkflowLatexPreviewApplyParams, DocumentWorkflowLatexPreviewState,
-        DocumentWorkflowPersistentState, DocumentWorkflowPersistentStateLoadParams,
-        DocumentWorkflowPersistentStateSaveParams, DocumentWorkflowPreviewBinding,
-        DocumentWorkflowPreviewBindingApplyParams, DocumentWorkflowPreviewPreference,
+        resolve_document_workflow_preview_close_effect, DocumentWorkflowLatexPreviewApplyParams,
+        DocumentWorkflowLatexPreviewState, DocumentWorkflowPersistentState,
+        DocumentWorkflowPersistentStateLoadParams, DocumentWorkflowPersistentStateSaveParams,
+        DocumentWorkflowPreviewBinding, DocumentWorkflowPreviewBindingApplyParams,
+        DocumentWorkflowPreviewCloseEffectResolveParams, DocumentWorkflowPreviewPreference,
         DocumentWorkflowSession, DocumentWorkflowSessionMutationApplyParams,
         DocumentWorkflowWorkspacePreviewApplyParams,
     };
@@ -1660,6 +1731,37 @@ mod tests {
             .state
             .workspace_preview_requests
             .contains_key("/tmp/main.md"));
+    }
+
+    #[test]
+    fn resolves_preview_close_effect_from_binding() {
+        let effect = resolve_document_workflow_preview_close_effect(
+            DocumentWorkflowPreviewCloseEffectResolveParams {
+                preview_path: "preview:/tmp/ignored.md".to_string(),
+                preview_binding: Some(DocumentWorkflowPreviewBinding {
+                    preview_path: "preview:/tmp/main.md".to_string(),
+                    source_path: "/tmp/main.md".to_string(),
+                    detach_on_close: true,
+                    ..DocumentWorkflowPreviewBinding::default()
+                }),
+            },
+        );
+
+        assert_eq!(effect.source_path.as_deref(), Some("/tmp/main.md"));
+        assert!(effect.mark_detached);
+    }
+
+    #[test]
+    fn resolves_preview_close_effect_from_preview_path() {
+        let effect = resolve_document_workflow_preview_close_effect(
+            DocumentWorkflowPreviewCloseEffectResolveParams {
+                preview_path: "preview:/tmp/main.md".to_string(),
+                preview_binding: None,
+            },
+        );
+
+        assert_eq!(effect.source_path.as_deref(), Some("/tmp/main.md"));
+        assert!(!effect.mark_detached);
     }
 
     #[test]
