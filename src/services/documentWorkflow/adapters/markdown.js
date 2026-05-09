@@ -4,12 +4,6 @@ function isMarkdownWorkflowSource(filePath = '') {
   return isMarkdown(filePath)
 }
 
-function summarizeProblems(problems = []) {
-  const errorCount = problems.filter(problem => problem.severity === 'error').length
-  const warningCount = problems.filter(problem => problem.severity === 'warning').length
-  return { errorCount, warningCount }
-}
-
 function resolveMarkdownDraftProblems(sourcePath, content = '', context = {}) {
   const request = {
     sourcePath,
@@ -34,36 +28,6 @@ export function buildMarkdownWorkflowProblems(sourcePath, state = {}) {
       raw: problem.raw,
     }))
     : []
-}
-
-export function buildMarkdownWorkflowUiState({
-  previewAvailable = false,
-  draftProblems = [],
-  htmlState = {},
-}) {
-  const problems = [
-    ...draftProblems,
-    ...buildMarkdownWorkflowProblems('', htmlState),
-  ]
-  const { errorCount, warningCount } = summarizeProblems(problems)
-
-  let phase = 'idle'
-  if (htmlState?.status === 'rendering') phase = 'rendering'
-  else if (htmlState?.status === 'error') phase = 'error'
-  else if (previewAvailable || htmlState?.status === 'ready') phase = 'ready'
-
-  return {
-    kind: 'markdown',
-    previewKind: 'html',
-    phase,
-    errorCount,
-    warningCount,
-    canShowProblems: errorCount > 0 || warningCount > 0,
-    canRevealPreview: true,
-    forwardSync: 'precise',
-    backwardSync: true,
-    primaryAction: 'refresh',
-  }
 }
 
 export function buildMarkdownWorkflowStatusText({
@@ -130,18 +94,5 @@ export const markdownDocumentAdapter = {
       ...draftProblems,
       ...buildMarkdownWorkflowProblems(filePath, context.workflowStore?.markdownPreviewState?.[filePath] || {}),
     ]
-  },
-
-  getUiState(filePath, context = {}) {
-    const draftProblems = resolveMarkdownDraftProblems(
-      filePath,
-      context.filesStore?.fileContents?.[filePath] || '',
-      context,
-    )
-    return buildMarkdownWorkflowUiState({
-      previewAvailable: !!context.previewAvailable,
-      draftProblems,
-      htmlState: context.workflowStore?.markdownPreviewState?.[filePath] || {},
-    })
   },
 }

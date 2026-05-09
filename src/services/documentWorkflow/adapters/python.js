@@ -80,29 +80,4 @@ export const pythonDocumentAdapter = {
   getProblems(filePath, context = {}) {
     return pythonCompileAdapter.getDiagnostics(filePath, context)
   },
-
-  getUiState(filePath, context = {}) {
-    const problems = this.getProblems(filePath, context)
-    const errorCount = problems.filter((problem) => problem.severity === 'error').length
-    const warningCount = problems.filter((problem) => problem.severity === 'warning').length
-    const state = pythonCompileAdapter.stateForFile(filePath, context) || {}
-
-    let phase = 'idle'
-    if (state?.status === 'running') phase = 'running'
-    else if (state?.status === 'error') phase = 'error'
-    else if (state?.status === 'success') phase = 'ready'
-
-    return {
-      kind: 'python',
-      previewKind: 'terminal',
-      phase,
-      errorCount,
-      warningCount,
-      canShowProblems: errorCount > 0 || warningCount > 0,
-      canRevealPreview: true,
-      canOpenPdf: false,
-      backwardSync: false,
-      primaryAction: 'run',
-    }
-  },
 }

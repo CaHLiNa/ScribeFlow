@@ -5,10 +5,7 @@ import {
   buildLatexProjectProblemsSync,
 } from '../../latex/diagnostics.js'
 import { resolveCachedLatexPreviewPath } from '../../latex/root.js'
-import {
-  buildLatexWorkflowUiState,
-  formatLatexCompileDuration,
-} from '../../../domains/document/latexWorkflowPresentation.js'
+import { formatLatexCompileDuration } from '../../../domains/document/latexWorkflowPresentation.js'
 
 function resolveKnownLatexArtifactPath(sourcePath, context = {}) {
   const state = latexCompileAdapter.stateForFile(sourcePath, context) || null
@@ -132,19 +129,5 @@ export const latexDocumentAdapter = {
       ...buildLatexDocumentReferenceProblemsSync(filePath, context.referencesStore),
       ...buildLatexLintProblems(filePath, lintDiagnostics),
     ]
-  },
-
-  getUiState(filePath, context = {}) {
-    const problems = this.getProblems(filePath, context)
-    const queueState = context.latexStore?.queueStateForFile?.(filePath) || null
-    return buildLatexWorkflowUiState(
-      latexCompileAdapter.stateForFile(filePath, context) || {},
-      {
-        artifactReady: context.artifactReady === true,
-        previewKind: context.previewKind || null,
-        problems,
-        queuePhase: queueState?.phase || null,
-      },
-    )
   },
 }
