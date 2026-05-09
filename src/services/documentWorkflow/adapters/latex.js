@@ -6,7 +6,6 @@ import {
 } from '../../latex/diagnostics.js'
 import { resolveCachedLatexPreviewPath } from '../../latex/root.js'
 import {
-  buildLatexWorkflowProblems,
   buildLatexWorkflowUiState,
   formatLatexCompileDuration,
 } from '../../../domains/document/latexWorkflowPresentation.js'
@@ -87,10 +86,12 @@ const latexCompileAdapter = {
   },
 
   getDiagnostics(filePath, context) {
-    return buildLatexWorkflowProblems(
-      filePath,
-      this.stateForFile(filePath, context) || {},
-    )
+    const request = {
+      sourcePath: filePath,
+      state: this.stateForFile(filePath, context) || {},
+    }
+    const problems = context.workflowStore?.ensureResolvedLatexProblems?.(filePath, request)
+    return Array.isArray(problems) ? problems : []
   },
 
   getArtifactPath(filePath, context) {

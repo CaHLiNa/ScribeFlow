@@ -1,13 +1,16 @@
 import {
+  buildResolvedLatexProblemsKey,
   buildResolvedMarkdownDraftProblemsKey,
   buildResolvedWorkspacePreviewStateKey,
   buildResolvedWorkflowUiStateKey,
 } from '../domains/document/documentWorkflowResolvedStateKeys.js'
 import { resolveDocumentWorkflowUiState as resolveDocumentWorkflowUiStateFromBackend } from '../services/documentWorkflow/workflowUiStateBridge.js'
 import { resolveDocumentWorkspacePreviewState as resolveDocumentWorkspacePreviewStateFromBackend } from '../services/documentWorkflow/workspacePreviewStateBridge.js'
+import { resolveDocumentWorkflowLatexProblems as resolveDocumentWorkflowLatexProblemsFromBackend } from '../services/documentWorkflow/latexProblemsBridge.js'
 import { extractMarkdownDraftProblems } from '../services/markdown/runtimeBridge.js'
 
 export const documentWorkflowResolvedStateActions = {
+  buildResolvedLatexProblemsKey,
   buildResolvedMarkdownDraftProblemsKey,
   buildResolvedWorkspacePreviewStateKey,
   buildResolvedWorkflowUiStateKey,
@@ -71,6 +74,65 @@ export const documentWorkflowResolvedStateActions = {
     const cached = this.getResolvedMarkdownDraftProblems(normalizedPath, request)
     if (cached) return cached
     void this.refreshResolvedMarkdownDraftProblems(normalizedPath, request)
+    return null
+  },
+
+  getResolvedLatexProblems(filePath, request = {}) {
+    const normalizedPath = String(filePath || '')
+    if (!normalizedPath) return null
+    const entry = this.resolvedLatexProblems?.[normalizedPath] || null
+    if (!entry) return null
+    const key = this.buildResolvedLatexProblemsKey(request)
+    return entry.key === key ? entry.problems : null
+  },
+
+  setResolvedLatexProblems(filePath, request = {}, problems = []) {
+    const normalizedPath = String(filePath || '')
+    if (!normalizedPath) return
+    this.resolvedLatexProblems = {
+      ...this.resolvedLatexProblems,
+      [normalizedPath]: {
+        key: this.buildResolvedLatexProblemsKey(request),
+        problems: Array.isArray(problems) ? problems : [],
+      },
+    }
+  },
+
+  async refreshResolvedLatexProblems(filePath, request = {}) {
+    const normalizedPath = String(filePath || '')
+    if (!normalizedPath) return null
+
+    if (!this._resolvedLatexProblemsInflight) {
+      this._resolvedLatexProblemsInflight = new Map()
+    }
+
+    const key = this.buildResolvedLatexProblemsKey(request)
+    const inflightKey = `${normalizedPath}::${key}`
+    if (this._resolvedLatexProblemsInflight.has(inflightKey)) {
+      return this._resolvedLatexProblemsInflight.get(inflightKey)
+    }
+
+    const task = resolveDocumentWorkflowLatexProblemsFromBackend(request)
+      .then((problems) => {
+        const normalized = Array.isArray(problems) ? problems : []
+        this.setResolvedLatexProblems(normalizedPath, request, normalized)
+        return normalized
+      })
+      .catch(() => null)
+      .finally(() => {
+        this._resolvedLatexProblemsInflight.delete(inflightKey)
+      })
+
+    this._resolvedLatexProblemsInflight.set(inflightKey, task)
+    return task
+  },
+
+  ensureResolvedLatexProblems(filePath, request = {}) {
+    const normalizedPath = String(filePath || '')
+    if (!normalizedPath) return null
+    const cached = this.getResolvedLatexProblems(normalizedPath, request)
+    if (cached) return cached
+    void this.refreshResolvedLatexProblems(normalizedPath, request)
     return null
   },
 

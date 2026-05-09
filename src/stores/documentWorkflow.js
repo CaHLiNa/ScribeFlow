@@ -36,6 +36,7 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
     latexArtifactPaths: {},
     latexPreviewStates: {},
     resolvedMarkdownDraftProblems: {},
+    resolvedLatexProblems: {},
     resolvedWorkspacePreviewStates: {},
     resolvedWorkflowUiStates: {},
     _isReconciling: false,

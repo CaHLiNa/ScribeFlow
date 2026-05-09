@@ -15,6 +15,13 @@ export function buildResolvedMarkdownDraftProblemsKey(request = {}) {
   })
 }
 
+export function buildResolvedLatexProblemsKey(request = {}) {
+  return JSON.stringify({
+    sourcePath: String(request.sourcePath || ''),
+    state: request.state || null,
+  })
+}
+
 export function buildResolvedWorkspacePreviewStateKey(request = {}) {
   const state = request.state || {}
   const session = state.session || {}
