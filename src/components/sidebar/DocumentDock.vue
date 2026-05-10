@@ -25,7 +25,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, ref, toRef, watch } from 'vue'
 import {
   DOCUMENT_DOCK_FILE_PAGE,
   DOCUMENT_DOCK_PROBLEMS_PAGE,
@@ -45,7 +45,7 @@ import { useExtensionsStore } from '../../stores/extensions'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useI18n } from '../../i18n'
 import { getDocumentWorkflowKind } from '../../services/documentWorkflow/policy.js'
-import { basenamePath } from '../../utils/path'
+import { useBasename } from '../../composables/useFileMetadata.js'
 import { buildExtensionContext } from '../../domains/extensions/extensionContext.js'
 import InlineDockTabBar from '../layout/InlineDockTabBar.vue'
 import { documentDockPageRegistry } from './documentDockPageRegistry.js'
@@ -84,7 +84,8 @@ const hasProblemsPage = computed(
     dismissedProblemsRevealToken.value !== props.problemsRevealToken
 )
 const previewMode = computed(() => props.previewState?.previewMode || null)
-const documentLabel = computed(() => basenamePath(props.filePath) || props.filePath)
+const documentBasename = useBasename(toRef(props, 'filePath'))
+const documentLabel = computed(() => documentBasename.value || props.filePath)
 const pluginTarget = computed(() => ({
   kind: String(props.filePath || '').toLowerCase().endsWith('.pdf') ? 'pdf' : 'workspace',
   referenceId: '',

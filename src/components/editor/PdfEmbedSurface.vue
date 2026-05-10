@@ -75,6 +75,7 @@ import { usePdfiumEngine } from '@embedpdf/engines/vue'
 import pdfiumWasmUrl from '@embedpdf/pdfium/pdfium.wasm?url'
 import { DocumentContent } from '@embedpdf/plugin-document-manager/vue'
 
+import { basenamePath } from '../../services/pathUtils.js'
 import { useI18n } from '../../i18n'
 import UiButton from '../shared/ui/UiButton.vue'
 import {
@@ -97,7 +98,6 @@ import {
 } from '../../domains/document/pdfPreviewSessionRuntime.js'
 import { resolveLatexSyncTargetPath } from '../../services/latex/previewSync.js'
 import { resolveExistingLatexSynctexPath } from '../../services/latex/synctex.js'
-import { basenamePath } from '../../utils/path.js'
 import PdfEmbedDocumentSurface from './PdfEmbedDocumentSurface.vue'
 
 const props = defineProps({
@@ -216,7 +216,9 @@ function captureCurrentViewState() {
 
 async function loadPdfDocument(options = {}) {
   const artifactPath = String(props.artifactPath || '').trim()
-  const nextDocumentName = basenamePath(artifactPath) || 'document.pdf'
+  const nextDocumentName = artifactPath
+    ? await basenamePath(artifactPath).catch(() => 'document.pdf') || 'document.pdf'
+    : 'document.pdf'
   loadToken += 1
   const currentToken = loadToken
   previewLoadPending.value = true

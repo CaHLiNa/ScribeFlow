@@ -1,48 +1,29 @@
-import {
-  formatCitation,
-  formatCslBibliography,
-  formatBibliography,
-  formatInlineCitation,
-  formatReference,
-} from './citationFormatter.js'
+import { invoke } from '@tauri-apps/api/core'
 
-const BUILTIN_STYLES = [
-  { id: 'apa', name: 'APA 7th Edition', category: 'Author-date', fast: true },
-  { id: 'chicago', name: 'Chicago Author-Date', category: 'Author-date', fast: true },
-  { id: 'harvard', name: 'Harvard', category: 'Author-date', fast: true },
-  { id: 'ieee', name: 'IEEE', category: 'Numeric', fast: true },
-  { id: 'vancouver', name: 'Vancouver', category: 'Numeric', fast: true },
-]
-
-let userStyles = []
-
-export function getAvailableCitationStyles() {
-  return [...BUILTIN_STYLES, ...userStyles]
+export async function getAvailableCitationStyles() {
+  return invoke('citation_style_list_available')
 }
 
-export function getCitationStyleInfo(styleId = '') {
-  return getAvailableCitationStyles().find((style) => style.id === styleId) || null
+export async function getCitationStyleInfo(styleId = '') {
+  return invoke('citation_style_get_info', { styleId })
 }
 
-export function normalizeCitationStyle(styleId = '') {
-  const normalized = String(styleId || '').trim()
-  if (!normalized) return 'apa'
-  return getCitationStyleInfo(normalized)?.id || 'apa'
+export async function normalizeCitationStyle(styleId = '') {
+  return invoke('citation_style_normalize', { styleId })
 }
 
-export function setUserCitationStyles(styles = []) {
-  userStyles = styles.map((style) => ({
-    ...style,
-    fast: false,
-    isCustom: true,
-  }))
+export function setUserCitationStyles() {
+  // User styles are now managed on the Rust side
 }
 
-export function getCitationStyleName(styleId = '') {
-  return getCitationStyleInfo(normalizeCitationStyle(styleId))?.name || 'APA 7th Edition'
+export async function getCitationStyleName(styleId = '') {
+  const normalized = await normalizeCitationStyle(styleId)
+  const info = await getCitationStyleInfo(normalized)
+  return info?.name || 'APA 7th Edition'
 }
 
 export async function getCitationFormatter(styleId = 'apa', workspacePath = '') {
+  const { formatReference, formatInlineCitation, formatCslBibliography } = await import('./citationFormatter.js')
   return {
     isAsync: true,
     formatReference: async (csl, number) => formatReference(csl, styleId, number, workspacePath),
@@ -58,6 +39,7 @@ export async function formatCitationWithStyle(
   number,
   workspacePath = ''
 ) {
+  const { formatCitation } = await import('./citationFormatter.js')
   if (mode === 'inline') {
     return formatCitation(styleId, 'inline', reference, number, workspacePath)
   }
@@ -65,5 +47,6 @@ export async function formatCitationWithStyle(
 }
 
 export async function formatBibliographyWithStyle(styleId = 'apa', references = [], workspacePath = '') {
+  const { formatBibliography } = await import('./citationFormatter.js')
   return formatBibliography(styleId, references, workspacePath)
 }

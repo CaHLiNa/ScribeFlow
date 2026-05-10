@@ -40,7 +40,7 @@ export function createFileMutationRuntime({
         return false
       }
 
-      const targetDir = dirnamePath(newPath)
+      const targetDir = await dirnamePath(newPath)
       await syncTreeAfterMutation?.({ expandPath: targetDir })
 
       moveCachedValue(oldPath, newPath, {
@@ -71,7 +71,7 @@ export function createFileMutationRuntime({
   }
 
   async function movePath(srcPath, destDir) {
-    const name = basenamePath(srcPath)
+    const name = await basenamePath(srcPath)
     let destPath = `${destDir}/${name}`
     if (srcPath === destPath) return true
 

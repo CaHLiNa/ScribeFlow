@@ -4,7 +4,7 @@ import {
   buildResolvedPythonProblemsKey,
   buildResolvedWorkspacePreviewStateKey,
   buildResolvedWorkflowUiStateKey,
-} from '../domains/document/documentWorkflowResolvedStateKeys.js'
+} from '../services/documentWorkflow/cacheKeysBridge.js'
 import { resolveDocumentWorkflowUiState as resolveDocumentWorkflowUiStateFromBackend } from '../services/documentWorkflow/workflowUiStateBridge.js'
 import { resolveDocumentWorkspacePreviewState as resolveDocumentWorkspacePreviewStateFromBackend } from '../services/documentWorkflow/workspacePreviewStateBridge.js'
 import { resolveDocumentWorkflowLatexProblems as resolveDocumentWorkflowLatexProblemsFromBackend } from '../services/documentWorkflow/latexProblemsBridge.js'

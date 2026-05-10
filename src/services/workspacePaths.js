@@ -1,44 +1,33 @@
-import { dirnamePath, normalizeFsPath } from '../utils/path'
+import { invoke } from '@tauri-apps/api/core'
 import { getHomeDir } from './appDirs.js'
 
 let cachedHomeDir = undefined
 
 export async function hashWorkspacePath(value = '') {
-  const bytes = new TextEncoder().encode(String(value || ''))
-  const digest = await crypto.subtle.digest('SHA-256', bytes)
-  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('')
+  return invoke('workspace_paths_hash', { value: String(value || '') })
 }
 
-export function resolveWorkspaceDataDir(globalConfigDir = '', workspaceId = '') {
-  if (!globalConfigDir || !workspaceId) return ''
-  return `${globalConfigDir}/workspaces/${workspaceId}`
+export async function resolveWorkspaceDataDir(globalConfigDir = '', workspaceId = '') {
+  return invoke('workspace_paths_resolve_data_dir', { globalConfigDir, workspaceId })
 }
 
-export function resolveClaudeConfigDir(globalConfigDir = '') {
-  const normalized = normalizeFsPath(globalConfigDir).replace(/\/+$/, '')
-  if (!normalized) return ''
-  const parentDir = dirnamePath(normalized)
-  if (!parentDir || parentDir === '.') return ''
-  return `${parentDir}/.claude`
+export async function resolveClaudeConfigDir(globalConfigDir = '') {
+  return invoke('workspace_paths_resolve_claude_config_dir', { globalConfigDir })
 }
 
-export function resolveSkillPath(projectDir = '', rawPath = '') {
-  const value = String(rawPath || '').trim()
-  if (!projectDir || !value) return value
-  if (value.startsWith('/')) return value
-  if (value.startsWith('.project/')) return `${projectDir}/${value.slice('.project/'.length)}`
-  return `${projectDir}/${value.replace(/^\.\//, '')}`
+export async function resolveSkillPath(projectDir = '', rawPath = '') {
+  return invoke('workspace_paths_resolve_skill_path', { projectDir, rawPath })
 }
 
-export function normalizePathValue(value = '') {
-  const normalized = normalizeFsPath(value).replace(/\/+$/, '')
-  return normalized || '/'
+export async function normalizePathValue(value = '') {
+  return invoke('workspace_paths_normalize_value', { value })
 }
 
 export async function getHomeDirCached() {
   if (cachedHomeDir !== undefined) return cachedHomeDir
   try {
-    cachedHomeDir = normalizePathValue(await getHomeDir())
+    const raw = await getHomeDir()
+    cachedHomeDir = await normalizePathValue(raw)
   } catch {
     cachedHomeDir = ''
   }

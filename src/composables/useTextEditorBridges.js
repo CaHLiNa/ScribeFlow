@@ -107,7 +107,7 @@ export function useTextEditorBridges(options) {
 
   watch(
     () => files.fileContents[filePath],
-    (newContent) => {
+    async (newContent) => {
       // Skip if this update originated from our own editor keystroke.
       if (skipNextWatch) {
         skipNextWatch = false
@@ -123,7 +123,7 @@ export function useTextEditorBridges(options) {
       }
 
       const currentContent = view.state.doc.toString()
-      const change = computeMinimalChange(currentContent, newContent)
+      const change = await computeMinimalChange(currentContent, newContent)
       if (change) {
         view.dispatch({ changes: change })
       }

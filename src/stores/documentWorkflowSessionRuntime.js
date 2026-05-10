@@ -308,9 +308,9 @@ export const documentWorkflowSessionActions = {
     return previewKind
   },
 
-  getSourcePathForPreview(previewPath) {
+  async getSourcePathForPreview(previewPath) {
     const binding = this.getPreviewBinding(previewPath)
-    return binding?.sourcePath || previewSourcePathFromPath(previewPath) || (isDocumentWorkflowSource(previewPath) ? previewPath : null)
+    return binding?.sourcePath || (await previewSourcePathFromPath(previewPath)) || (isDocumentWorkflowSource(previewPath) ? previewPath : null)
   },
 
   findPreviewBindingForSource(sourcePath, previewKind = null) {

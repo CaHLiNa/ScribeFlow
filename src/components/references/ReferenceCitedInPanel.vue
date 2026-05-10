@@ -27,7 +27,7 @@
         />
         <span class="reference-cited-in-panel__item-copy">
           <span class="reference-cited-in-panel__item-title">
-            <span>{{ basenamePath(entry.path) || entry.path }}</span>
+            <span>{{ entryBasename(entry.path) }}</span>
             <span v-if="entry.line" class="reference-cited-in-panel__item-line">
               {{ t('Ln {line}', { line: entry.line }) }}
             </span>
@@ -43,14 +43,14 @@
 </template>
 
 <script setup>
-import { computed, nextTick } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
+import { basenamePath } from '../../services/pathUtils.js'
 import { IconFileText, IconQuote } from '@tabler/icons-vue'
 import { useI18n } from '../../i18n'
 import { useEditorStore } from '../../stores/editor'
 import { useReferencesStore } from '../../stores/references'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { focusEditorLineWithHighlight } from '../../editor/revealHighlight'
-import { basenamePath } from '../../utils/path'
 
 const props = defineProps({
   reference: { type: Object, default: null },
@@ -85,6 +85,27 @@ function getRelativePath(path = '') {
   const workspacePath = String(workspace.path || '').trim()
   if (!workspacePath || !String(path).startsWith(workspacePath)) return path
   return String(path).slice(workspacePath.length + 1)
+}
+
+const basenameMap = ref({})
+
+watch(citedEntries, async (entries) => {
+  const nextMap = {}
+  await Promise.all(
+    entries.map(async (entry) => {
+      if (!entry.path) return
+      try {
+        nextMap[entry.path] = await basenamePath(entry.path)
+      } catch {
+        nextMap[entry.path] = entry.path
+      }
+    })
+  )
+  basenameMap.value = nextMap
+}, { immediate: true })
+
+function entryBasename(path) {
+  return basenameMap.value[path] || path
 }
 
 function waitForEditorView(path = '') {

@@ -98,22 +98,6 @@ function findTreeEntry(entries = [], targetPath) {
   return null
 }
 
-async function mapWithConcurrency(items, limit, mapper) {
-  const results = new Array(items.length)
-  let nextIndex = 0
-
-  async function worker() {
-    while (nextIndex < items.length) {
-      const currentIndex = nextIndex
-      nextIndex += 1
-      results[currentIndex] = await mapper(items[currentIndex], currentIndex)
-    }
-  }
-
-  const workers = Array.from({ length: Math.min(limit, items.length) }, () => worker())
-  await Promise.all(workers)
-  return results
-}
 
 function formatBytes(bytes = 0) {
   if (!Number.isFinite(bytes) || bytes <= 0) return '0 B'
@@ -123,7 +107,7 @@ function formatBytes(bytes = 0) {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`
 }
 
-function parseFileReadError(path, error) {
+async function parseFileReadError(path, error) {
   const raw = typeof error === 'string' ? error : String(error || 'Unknown error')
   const tooLargeMatch = raw.match(/^FILE_TOO_LARGE:(\d+):(\d+)$/)
   if (tooLargeMatch) {
@@ -139,7 +123,7 @@ function parseFileReadError(path, error) {
     }
   }
 
-  const name = path ? basenamePath(path) : 'file'
+  const name = path ? await basenamePath(path) : 'file'
   return {
     code: 'READ_FAILED',
     raw,
@@ -237,9 +221,9 @@ export const useFilesStore = defineStore('files', {
       return snapshot
     },
 
-    _setFileLoadError(path, error) {
+    async _setFileLoadError(path, error) {
       if (!path) return
-      this.fileLoadErrors[path] = parseFileReadError(path, error)
+      this.fileLoadErrors[path] = await parseFileReadError(path, error)
     },
 
     _clearFileLoadError(path) {
@@ -350,7 +334,7 @@ export const useFilesStore = defineStore('files', {
         this._fileContentRuntime = createFileContentRuntime({
           readTextFile: (path, maxBytes) => readWorkspaceTextFile(path, maxBytes),
           saveTextFile: (path, content) => saveWorkspaceTextFile(path, content),
-          isBinaryPath: (path) => isBinaryFile(path),
+          isBinaryPath: async (path) => isBinaryFile(path),
           setFileContent: (path, content) => {
             this.fileContents[path] = content
           },
@@ -440,8 +424,8 @@ export const useFilesStore = defineStore('files', {
           removeDeletingPath: (path) => {
             this.deletingPaths.delete(path)
           },
-          showRenameExistsError: (newPath) => {
-            const name = basenamePath(newPath)
+          showRenameExistsError: async (newPath) => {
+            const name = await basenamePath(newPath)
             useToastStore().showOnce(`rename:${newPath}`, `"${name}" already exists`, {
               type: 'error',
               duration: 4000,
@@ -771,7 +755,7 @@ export const useFilesStore = defineStore('files', {
       if (!draftPath || !targetPath) return false
       const saved = await this._getFileContentRuntime().saveFile(targetPath, content)
       if (!saved) return false
-      const targetDir = dirnamePath(targetPath)
+      const targetDir = await dirnamePath(targetPath)
       await this.syncTreeAfterMutation({ expandPath: targetDir })
       this.clearDraftFile(draftPath)
       return true

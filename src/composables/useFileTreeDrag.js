@@ -37,14 +37,14 @@ export function useFileTreeDrag(options) {
     return null
   }
 
-  function onDragStart({ path, event }) {
+  async function onDragStart({ path, event }) {
     if (selectedPaths.has(path)) {
       draggedPaths = [...selectedPaths]
     } else {
       draggedPaths = [path]
     }
 
-    const names = draggedPaths.map((itemPath) => basenamePath(itemPath))
+    const names = await Promise.all(draggedPaths.map((itemPath) => basenamePath(itemPath)))
     dragGhostLabel.value = names.length === 1 ? names[0] : `${names.length} items`
     dragGhostVisible.value = true
     dragGhostX.value = event.clientX

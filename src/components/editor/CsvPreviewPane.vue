@@ -38,9 +38,9 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, toRef, watch } from 'vue'
 import { useFilesStore } from '../../stores/files'
-import { basenamePath } from '../../utils/path'
+import { useBasename } from '../../composables/useFileMetadata'
 import { useI18n } from '../../i18n'
 
 const props = defineProps({
@@ -51,7 +51,8 @@ const filesStore = useFilesStore()
 const { t } = useI18n()
 const rows = ref([])
 
-const fileName = computed(() => basenamePath(props.filePath) || props.filePath)
+const fileBasename = useBasename(toRef(props, 'filePath'))
+const fileName = computed(() => fileBasename.value || props.filePath)
 const loadError = computed(() => filesStore.getFileLoadError(props.filePath))
 const headerRow = computed(() => rows.value[0] || [])
 const bodyRows = computed(() => rows.value.slice(1))

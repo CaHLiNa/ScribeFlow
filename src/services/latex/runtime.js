@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
-import { normalizeLatexCompileExecution } from '../../domains/latex/latexCompileResult.js'
+import { normalizeLatexCompileExecution } from './compileNormalize.js'
 
 export function resolveLatexCompileRequest(params = {}) {
   return invoke('latex_compile_request_resolve', {

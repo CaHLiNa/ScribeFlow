@@ -23,9 +23,9 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, toRef, watch } from 'vue'
 import { useWorkspaceStore } from '../../stores/workspace'
-import { basenamePath } from '../../utils/path'
+import { useBasename } from '../../composables/useFileMetadata'
 import { toWorkspaceProtocolUrl } from '../../utils/workspaceProtocol'
 import { openLocalPath } from '../../services/localFileOpen'
 import { isTauriDesktopRuntime } from '../../platform'
@@ -41,7 +41,8 @@ const { t } = useI18n()
 const previewUrl = ref('')
 const previewError = ref('')
 
-const fileName = computed(() => basenamePath(props.filePath) || props.filePath)
+const fileBasename = useBasename(toRef(props, 'filePath'))
+const fileName = computed(() => fileBasename.value || props.filePath)
 const fileExt = computed(() => {
   const dot = fileName.value.lastIndexOf('.')
   return dot > 0 ? fileName.value.slice(dot + 1).toLowerCase() : ''

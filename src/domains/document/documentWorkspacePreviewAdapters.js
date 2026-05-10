@@ -11,7 +11,7 @@ function normalizePath(value) {
   return typeof value === 'string' ? value.trim() : ''
 }
 
-export function resolveWorkspacePreviewSourcePath(filePath, options = {}) {
+export async function resolveWorkspacePreviewSourcePath(filePath, options = {}) {
   const explicitSourcePath = normalizePath(options.sourcePath || options.workflowSourcePath)
   if (explicitSourcePath) return explicitSourcePath
 
@@ -19,18 +19,18 @@ export function resolveWorkspacePreviewSourcePath(filePath, options = {}) {
     readPreviewBinding(filePath, options.workflowStore, options.previewKind)?.sourcePath || ''
   if (bindingSourcePath) return bindingSourcePath
 
-  const previewSourcePath = previewSourcePathFromPath(filePath)
+  const previewSourcePath = await previewSourcePathFromPath(filePath)
   if (previewSourcePath) return previewSourcePath
 
-  if (options.acceptSourceFile !== false && options.matchesSourcePath?.(filePath)) {
+  if (options.acceptSourceFile !== false && (await options.matchesSourcePath?.(filePath))) {
     return filePath
   }
 
   return ''
 }
 
-export function resolveMarkdownPreviewInput(filePath, options = {}) {
-  const sourcePath = resolveWorkspacePreviewSourcePath(filePath, {
+export async function resolveMarkdownPreviewInput(filePath, options = {}) {
+  const sourcePath = await resolveWorkspacePreviewSourcePath(filePath, {
     ...options,
     previewKind: 'html',
     matchesSourcePath: isMarkdown,

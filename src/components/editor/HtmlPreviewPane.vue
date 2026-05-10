@@ -27,9 +27,9 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, toRef } from 'vue'
 import { useWorkspaceStore } from '../../stores/workspace'
-import { basenamePath } from '../../utils/path'
+import { useBasename } from '../../composables/useFileMetadata'
 import { toWorkspaceProtocolUrl } from '../../utils/workspaceProtocol'
 import { openLocalPath } from '../../services/localFileOpen'
 import { isTauriDesktopRuntime } from '../../platform'
@@ -42,7 +42,8 @@ const props = defineProps({
 const workspace = useWorkspaceStore()
 const { t } = useI18n()
 
-const fileName = computed(() => basenamePath(props.filePath) || props.filePath)
+const fileBasename = useBasename(toRef(props, 'filePath'))
+const fileName = computed(() => fileBasename.value || props.filePath)
 const fileUrl = computed(() =>
   (isTauriDesktopRuntime
     ? toWorkspaceProtocolUrl(props.filePath, workspace, {

@@ -56,7 +56,7 @@ import { useWorkspaceStore } from '../../stores/workspace'
 import { buildExtensionCommandHostState } from '../../domains/extensions/extensionCommandHostState'
 import { buildExtensionProgressPresentation } from '../../domains/extensions/extensionProgressPresentation'
 import { describeExtensionHostStatePresentation } from '../../domains/extensions/extensionRuntimeBlockPresentation'
-import { basenamePath } from '../../utils/path'
+import { useBasename } from '../../composables/useFileMetadata'
 import ExtensionBlockedActionButton from './ExtensionBlockedActionButton.vue'
 
 const props = defineProps({
@@ -75,8 +75,9 @@ const busy = ref(false)
 const targetPath = computed(() =>
   String(props.presentation?.target?.path || props.target?.path || '').trim()
 )
+const targetBasename = useBasename(targetPath)
 const activeFilename = computed(() =>
-  String(props.presentation?.target?.label || basenamePath(targetPath.value) || '').trim()
+  String(props.presentation?.target?.label || targetBasename.value || '').trim()
 )
 const emptyLabel = computed(() =>
   String(props.presentation?.target?.emptyLabel || '').trim() || t('No active PDF')

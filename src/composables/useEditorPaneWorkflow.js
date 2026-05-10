@@ -1,5 +1,5 @@
 import { computed, ref, watch } from 'vue'
-import { isDraftPath, isLatex } from '../utils/fileTypes.js'
+import { isLatex } from '../utils/fileTypes.js'
 import { getDocumentAdapterForFile } from '../services/documentWorkflow/adapters/index.js'
 
 export function useEditorPaneWorkflow(options) {
@@ -28,7 +28,7 @@ export function useEditorPaneWorkflow(options) {
   }
 
   const resolvedWorkflowUiState = computed(() => (
-    activeTabRef.value && !isDraftPath(activeTabRef.value)
+    activeTabRef.value && !activeTabRef.value.startsWith('draft:')
       ? workflowStore.getUiStateForFile(activeTabRef.value, buildWorkflowOptions())
       : null
   ))
@@ -38,7 +38,7 @@ export function useEditorPaneWorkflow(options) {
   watch(
     [activeTabRef, resolvedWorkflowUiState],
     ([activePath, nextState]) => {
-      const nextPath = activePath && !isDraftPath(activePath) ? activePath : ''
+      const nextPath = activePath && !activePath.startsWith('draft:') ? activePath : ''
       if (nextPath !== stableWorkflowPath.value) {
         stableWorkflowPath.value = nextPath
         stableWorkflowUiState.value = nextState || null
@@ -56,10 +56,10 @@ export function useEditorPaneWorkflow(options) {
 
   const workflowUiState = computed(() => stableWorkflowUiState.value)
   const activeDocumentAdapter = computed(() => (
-    activeTabRef.value && !isDraftPath(activeTabRef.value) ? getDocumentAdapterForFile(activeTabRef.value) : null
+    activeTabRef.value && !activeTabRef.value.startsWith('draft:') ? getDocumentAdapterForFile(activeTabRef.value) : null
   ))
   const documentBuildContext = computed(() => (
-    activeTabRef.value && !isDraftPath(activeTabRef.value)
+    activeTabRef.value && !activeTabRef.value.startsWith('draft:')
       ? workflowStore.buildAdapterContext(activeTabRef.value, buildWorkflowOptions({
         adapter: activeDocumentAdapter.value,
         workflowOnly: false,
@@ -81,7 +81,7 @@ export function useEditorPaneWorkflow(options) {
   const workflowStatusTone = computed(() => workflowUiState.value?.statusTone || 'muted')
 
   async function handleCompileTex() {
-    if (!activeTabRef.value || !isLatex(activeTabRef.value)) return
+    if (!activeTabRef.value || !(await isLatex(activeTabRef.value))) return
     await workflowStore.runBuildForFile(activeTabRef.value, buildWorkflowOptions({
       adapter: activeDocumentAdapter.value,
       workflowOnly: false,

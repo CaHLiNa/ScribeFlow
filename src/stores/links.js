@@ -5,7 +5,7 @@ import {
   extractMarkdownWikiLinks,
   resolveMarkdownLinkIndex,
 } from '../services/markdown/runtimeBridge.js'
-import { filterWorkspaceFlatFilesByExtension } from '../domains/files/workspaceSnapshotFlatFilesRuntime.js'
+import { filterWorkspaceFlatFilesByExtension } from '../services/workspaceSnapshot.js'
 import { readWorkspaceTextFile } from '../services/fileStoreIO'
 import { basenamePath } from '../utils/path'
 
@@ -15,8 +15,8 @@ function normalizeName(name) {
   return name.toLowerCase().replace(/[-_\s]+/g, ' ').trim()
 }
 
-function fileNameFromPath(path) {
-  const name = basenamePath(path)
+async function fileNameFromPath(path) {
+  const name = await basenamePath(path)
   return name.replace(/\.md$/, '')
 }
 
@@ -52,7 +52,7 @@ export const useLinksStore = defineStore('links', {
       const names = []
       for (const [name, paths] of Object.entries(state.nameMap)) {
         for (const p of paths) {
-          names.push({ name: fileNameFromPath(p), path: p, normalized: name })
+          names.push({ name: p.replace(/^.*\//, '').replace(/\.md$/, ''), path: p, normalized: name })
         }
       }
       return names
@@ -151,8 +151,8 @@ export const useLinksStore = defineStore('links', {
       if (!workspace.path) return
       await filesStore.readWorkspaceSnapshot().catch(() => filesStore.ensureFlatFilesReady())
 
-      const oldName = fileNameFromPath(oldPath)
-      const newName = fileNameFromPath(newPath)
+      const oldName = await fileNameFromPath(oldPath)
+      const newName = await fileNameFromPath(newPath)
 
       if (oldName === newName) {
         await this.fullScan()

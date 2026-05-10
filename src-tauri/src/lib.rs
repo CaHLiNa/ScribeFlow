@@ -1,8 +1,12 @@
 mod app_dirs;
 mod app_update;
+mod citation_style_registry;
+mod content_fingerprint;
+mod diagnostics_normalize;
 mod document_outline;
 mod document_workflow;
 mod document_workflow_action;
+mod document_workflow_cache_keys;
 mod document_workflow_controller;
 mod document_workflow_preview_binding;
 mod document_workflow_session;
@@ -10,6 +14,8 @@ mod document_workflow_ui_state;
 mod document_workspace_preview_state;
 mod editor_session_runtime;
 mod extension_artifacts;
+mod file_tree_display;
+mod file_types;
 mod extension_capability_contract;
 mod extension_commands;
 mod extension_host;
@@ -30,6 +36,7 @@ mod i18n_runtime;
 mod keychain;
 mod latex;
 mod latex_compile;
+mod latex_compile_normalize;
 mod latex_diagnostics;
 mod latex_preferences;
 mod latex_project_graph;
@@ -39,6 +46,7 @@ mod latex_tools;
 #[cfg(target_os = "macos")]
 mod macos_shell;
 mod markdown_runtime;
+mod path_utils;
 mod process_utils;
 mod python_preferences;
 mod python_runtime;
@@ -54,11 +62,14 @@ mod references_snapshot;
 mod references_zotero;
 mod references_zotero_account;
 mod security;
+mod text_diff;
 mod workbench_state;
 mod workspace_access;
 mod workspace_lifecycle;
 mod workspace_preferences;
+mod workspace_paths;
 mod workspace_protocol;
+mod workspace_protocol_url;
 
 pub use extension_artifacts::ExtensionArtifact;
 pub use extension_commands::record_extension_result_for_probe as extension_command_record_result_for_probe;
@@ -343,6 +354,45 @@ pub fn run() {
             latex_sync_target::latex_sync_target_resolve,
             latex::workspace_synctex_forward,
             latex::workspace_synctex_backward,
+            // Path and file type utilities.
+            path_utils::path_utils_normalize,
+            path_utils::path_utils_dirname,
+            path_utils::path_utils_basename,
+            path_utils::path_utils_strip_extension,
+            path_utils::path_utils_join,
+            path_utils::path_utils_resolve_relative,
+            path_utils::path_utils_relative_between,
+            file_types::file_types_classify,
+            file_types::file_types_get_viewer_type,
+            file_types::file_types_get_icon_name,
+            file_types::file_types_get_mime_type,
+            // Content fingerprint and text diff.
+            content_fingerprint::content_fingerprint_fnv1a,
+            content_fingerprint::content_fingerprint_sha256,
+            text_diff::text_diff_compute_minimal_change,
+            // Workspace paths and protocol URL.
+            workspace_paths::workspace_paths_hash,
+            workspace_paths::workspace_paths_resolve_data_dir,
+            workspace_paths::workspace_paths_resolve_claude_config_dir,
+            workspace_paths::workspace_paths_resolve_skill_path,
+            workspace_paths::workspace_paths_normalize_value,
+            workspace_protocol_url::workspace_protocol_url_resolve,
+            // Diagnostics and normalization.
+            diagnostics_normalize::diagnostics_normalize_problems,
+            latex_compile_normalize::latex_compile_result_normalize,
+            latex_compile_normalize::latex_compile_execution_normalize,
+            // Document workflow cache keys.
+            document_workflow_cache_keys::document_workflow_build_resolved_state_key,
+            // File tree display and snapshot.
+            file_tree_display::file_tree_display_apply_preferences,
+            file_tree_display::workspace_snapshot_list_flat_files,
+            file_tree_display::workspace_snapshot_filter_by_extension,
+            file_tree_display::workspace_snapshot_count_by_extension,
+            file_tree_display::workspace_snapshot_filter_existing_recent,
+            // Citation style registry.
+            citation_style_registry::citation_style_normalize,
+            citation_style_registry::citation_style_get_info,
+            citation_style_registry::citation_style_list_available,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

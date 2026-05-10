@@ -45,11 +45,10 @@
 </template>
 
 <script setup>
-import { computed, defineAsyncComponent } from 'vue'
+import { computed, defineAsyncComponent, toRef } from 'vue'
 import { useEditorStore } from '../../stores/editor.js'
 import { useI18n } from '../../i18n'
-import { getViewerType } from '../../utils/fileTypes.js'
-import { basenamePath } from '../../utils/path.js'
+import { useViewerType, useBasename } from '../../composables/useFileMetadata.js'
 import { openLocalPath } from '../../services/localFileOpen.js'
 
 const EditorTextWorkspaceSurface = defineAsyncComponent(
@@ -71,8 +70,9 @@ const editorStore = useEditorStore()
 const { t } = useI18n()
 
 const dockPaneId = computed(() => `${props.paneId}:document-dock`)
-const viewerType = computed(() => getViewerType(props.filePath))
-const fileLabel = computed(() => basenamePath(props.filePath) || props.filePath)
+const viewerType = useViewerType(toRef(props, 'filePath'))
+const fileBasename = useBasename(toRef(props, 'filePath'))
+const fileLabel = computed(() => fileBasename.value || props.filePath)
 
 function openFileExternal() {
   if (!props.filePath) return

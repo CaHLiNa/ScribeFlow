@@ -24,7 +24,7 @@
 import { computed } from 'vue'
 
 import { usePythonStore } from '../../stores/python.js'
-import { basenamePath } from '../../utils/path.js'
+import { useBasename } from '../../composables/useFileMetadata.js'
 import { useI18n } from '../../i18n'
 
 const props = defineProps({
@@ -37,7 +37,8 @@ const { t } = useI18n()
 
 const resolvedSourcePath = computed(() => String(props.sourcePath || props.filePath || ''))
 const compileState = computed(() => pythonStore.stateForFile(resolvedSourcePath.value) || null)
-const fileLabel = computed(() => basenamePath(resolvedSourcePath.value) || resolvedSourcePath.value)
+const fileBasename = useBasename(resolvedSourcePath)
+const fileLabel = computed(() => fileBasename.value || resolvedSourcePath.value)
 
 const commandText = computed(() => {
   const commandPreview = String(compileState.value?.commandPreview || '').trim()

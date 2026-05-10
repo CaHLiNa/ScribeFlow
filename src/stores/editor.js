@@ -45,16 +45,16 @@ import {
   destroyEditorRuntimeViews,
 } from '../domains/editor/editorCleanupRuntime'
 import { createEditorOpenRoutingRuntime } from '../domains/editor/editorOpenRoutingRuntime'
-import { filterExistingRecentFiles } from '../domains/files/workspaceSnapshotFlatFilesRuntime'
+import { filterExistingRecentFiles } from '../services/workspaceSnapshot.js'
 
-function isLauncherTab(path) {
+async function isLauncherTab(path) {
   return isNewTab(path)
 }
 
-function isContextCandidatePath(path) {
+async function isContextCandidatePath(path) {
   return !!path
-    && !isLauncherTab(path)
-    && !isPreviewPath(path)
+    && !(await isLauncherTab(path))
+    && !(await isPreviewPath(path))
 }
 
 function createNewTabPath() {
@@ -106,24 +106,6 @@ export const useEditorStore = defineStore('editor', {
       const filesStore = useFilesStore()
       return filterExistingRecentFiles(state.recentFiles, filesStore.lastWorkspaceSnapshot).slice(0, 5)
     },
-
-    preferredContextPath(state) {
-      const activePane = this.findPane(state.paneTree, state.activePaneId)
-      if (isContextCandidatePath(activePane?.activeTab)) {
-        return activePane.activeTab
-      }
-
-      if (isContextCandidatePath(state.lastContextPath) && this.findPaneWithTab(state.lastContextPath)) {
-        return state.lastContextPath
-      }
-
-      const openLeaf = this._findLeaf((node) => isContextCandidatePath(node.activeTab))
-      if (isContextCandidatePath(openLeaf?.activeTab)) {
-        return openLeaf.activeTab
-      }
-
-      return state.recentFiles.find((entry) => isContextCandidatePath(entry.path))?.path || null
-    },
   },
 
   actions: {
@@ -152,8 +134,8 @@ export const useEditorStore = defineStore('editor', {
       return findLeaf(this.paneTree, predicate)
     },
 
-    _rememberContextPath(path) {
-      if (!isContextCandidatePath(path)) return
+    async _rememberContextPath(path) {
+      if (!(await isContextCandidatePath(path))) return
       this.lastContextPath = path
     },
 
@@ -196,14 +178,14 @@ export const useEditorStore = defineStore('editor', {
       return this._getEditorOpenRoutingRuntime().openFileInPane(path, paneId, options)
     },
 
-    openDocumentDockFile(path) {
-      if (!path || isLauncherTab(path) || isPreviewPath(path)) return false
+    async openDocumentDockFile(path) {
+      if (!path || (await isLauncherTab(path)) || (await isPreviewPath(path))) return false
       if (!this.documentDockTabs.includes(path)) {
         this.documentDockTabs.push(path)
       }
       this.activeDocumentDockTab = path
       this.recordFileOpen(path)
-      this._rememberContextPath(path)
+      await this._rememberContextPath(path)
       this.saveEditorState()
       return true
     },
@@ -230,8 +212,8 @@ export const useEditorStore = defineStore('editor', {
       return true
     },
 
-    _revealInTree(path) {
-      if (!path || isLauncherTab(path) || isPreviewPath(path)) return
+    async _revealInTree(path) {
+      if (!path || (await isLauncherTab(path)) || (await isPreviewPath(path))) return
       const workspace = useWorkspaceStore()
       const filesStore = useFilesStore()
       if (!workspace.path || !String(path).startsWith(workspace.path)) return
@@ -452,8 +434,8 @@ export const useEditorStore = defineStore('editor', {
       return getRegisteredEditorViewsForPath(this.editorViews, path)
     },
 
-    recordFileOpen(path) {
-      if (!path || isLauncherTab(path) || isPreviewPath(path)) return
+    async recordFileOpen(path) {
+      if (!path || (await isLauncherTab(path)) || (await isPreviewPath(path))) return
       this.recentFiles = buildRecentFilesAfterOpen(this.recentFiles, path)
       this._persistRecentFiles()
     },
@@ -529,6 +511,44 @@ export const useEditorStore = defineStore('editor', {
       })
     },
 
+    async getPreferredContextPath() {
+      const activePane = this.findPane(this.paneTree, this.activePaneId)
+      if (await isContextCandidatePath(activePane?.activeTab)) {
+        return activePane.activeTab
+      }
+
+      if ((await isContextCandidatePath(this.lastContextPath)) && this.findPaneWithTab(this.lastContextPath)) {
+        return this.lastContextPath
+      }
+
+      const leaves = []
+      const walk = (node) => {
+        if (!node) return
+        if (node.type === 'leaf') {
+          leaves.push(node)
+          return
+        }
+        for (const child of node.children || []) {
+          walk(child)
+        }
+      }
+      walk(this.paneTree)
+
+      for (const node of leaves) {
+        if (await isContextCandidatePath(node.activeTab)) {
+          return node.activeTab
+        }
+      }
+
+      for (const entry of this.recentFiles) {
+        if (await isContextCandidatePath(entry.path)) {
+          return entry.path
+        }
+      }
+
+      return null
+    },
+
     async restoreEditorState() {
       const workspace = useWorkspaceStore()
       const state = await editorPersistenceRuntime.loadEditorStateSnapshot(workspace.workspaceDataDir)
@@ -541,14 +561,14 @@ export const useEditorStore = defineStore('editor', {
       this.activeDocumentDockTab = this.documentDockTabs.includes(state.activeDocumentDockTab)
         ? state.activeDocumentDockTab
         : this.documentDockTabs[0] || null
-      this.lastContextPath = isContextCandidatePath(state.lastContextPath)
+      this.lastContextPath = (await isContextCandidatePath(state.lastContextPath))
         ? state.lastContextPath
         : null
 
       return true
     },
 
-    applyEditorSessionState(state = null) {
+    async applyEditorSessionState(state = null) {
       if (!state || typeof state !== 'object') return false
 
       this.restoreGeneration += 1
@@ -558,7 +578,7 @@ export const useEditorStore = defineStore('editor', {
       this.activeDocumentDockTab = this.documentDockTabs.includes(state.activeDocumentDockTab)
         ? state.activeDocumentDockTab
         : this.documentDockTabs[0] || null
-      this.lastContextPath = isContextCandidatePath(state.lastContextPath)
+      this.lastContextPath = (await isContextCandidatePath(state.lastContextPath))
         ? state.lastContextPath
         : null
       return true

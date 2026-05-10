@@ -134,7 +134,7 @@ export function useFileTreeRows(options) {
     }
   }
 
-  function handleArrowLeft() {
+  async function handleArrowLeft() {
     const currentPath = lastSelectedPath || (selectedPaths.size > 0 ? [...selectedPaths][0] : null)
     if (!currentPath) return
 
@@ -144,7 +144,7 @@ export function useFileTreeRows(options) {
       return
     }
 
-    const parentPath = dirnamePath(currentPath)
+    const parentPath = await dirnamePath(currentPath)
     if (parentPath && parentPath !== workspace.path && parentPath.startsWith(workspace.path)) {
       selectSinglePath(parentPath)
     }
@@ -220,7 +220,7 @@ export function useFileTreeRows(options) {
     }
     if (event.key === 'ArrowLeft') {
       event.preventDefault()
-      handleArrowLeft()
+      await handleArrowLeft()
       return
     }
     if (event.key === ' ') {

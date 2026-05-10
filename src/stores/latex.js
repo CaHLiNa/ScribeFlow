@@ -41,8 +41,8 @@ const LATEX_PREFERENCE_KEYS = [
   'customSystemTexPath',
 ]
 
-function fileNameForLog(texPath = '') {
-  return basenamePath(texPath) || texPath
+async function fileNameForLog(texPath = '') {
+  return (await basenamePath(texPath)) || texPath
 }
 
 function formatIssue(issue) {
@@ -50,7 +50,7 @@ function formatIssue(issue) {
   return `${line}${issue?.message || ''}`.trim()
 }
 
-function buildLatexTerminalOutput(
+async function buildLatexTerminalOutput(
   texPath,
   result,
   { includeRawLog = true } = {},
@@ -58,7 +58,7 @@ function buildLatexTerminalOutput(
   const errors = Array.isArray(result.errors) ? result.errors : []
   const warnings = Array.isArray(result.warnings) ? result.warnings : []
   const lines = [
-    `[LaTeX] ${fileNameForLog(texPath)}`,
+    `[LaTeX] ${await fileNameForLog(texPath)}`,
     result.compiler_backend
       ? `${t('Compiler')}: ${result.compiler_backend}`
       : null,
@@ -103,7 +103,7 @@ function buildLatexTerminalOutput(
   return `${lines.join('\n')}\n`
 }
 
-function pushLatexLogToTerminal(texPath, result) {
+async function pushLatexLogToTerminal(texPath, result) {
   if (typeof window === 'undefined') return
   const shouldOpenTerminal =
     !result.success ||
@@ -113,7 +113,7 @@ function pushLatexLogToTerminal(texPath, result) {
       detail: {
         key: 'latex-log',
         label: 'LaTeX',
-        text: buildLatexTerminalOutput(texPath, result, {
+        text: await buildLatexTerminalOutput(texPath, result, {
           includeRawLog: false,
         }),
         clear: false,
@@ -653,7 +653,7 @@ export const useLatexStore = defineStore('latex', {
             },
           }),
         )
-        pushLatexLogToTerminal(
+        await pushLatexLogToTerminal(
           texPath,
           compileExecution?.result || {
             success: false,
@@ -687,7 +687,7 @@ export const useLatexStore = defineStore('latex', {
           warnings: [],
         })
         this.clearBuildQueueState(targetKey)
-        pushLatexLogToTerminal(texPath, {
+        await pushLatexLogToTerminal(texPath, {
           success: false,
           duration_ms: 0,
           errors: [{ line: null, message: err, severity: 'error' }],
@@ -762,7 +762,7 @@ export const useLatexStore = defineStore('latex', {
       return targetPaths
     },
 
-    openCompileLog(texPath) {
+    async openCompileLog(texPath) {
       if (typeof window === 'undefined') return
       const state = this.compileState[texPath]
       if (!state) return
@@ -772,7 +772,7 @@ export const useLatexStore = defineStore('latex', {
           detail: {
             key: 'latex-log',
             label: 'LaTeX',
-            text: buildLatexTerminalOutput(
+            text: await buildLatexTerminalOutput(
               texPath,
               {
                 success: state.status === 'success',

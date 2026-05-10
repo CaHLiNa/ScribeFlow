@@ -31,7 +31,7 @@ export function createFileCreationRuntime({
   }
 
   async function duplicatePath(path) {
-    const dir = dirnamePath(path)
+    const dir = await dirnamePath(path)
     try {
       const result = await duplicateWorkspacePath?.(path)
       if (!result?.ok) return null
