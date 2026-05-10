@@ -45,16 +45,16 @@ import {
   destroyEditorRuntimeViews,
 } from '../domains/editor/editorCleanupRuntime'
 import { createEditorOpenRoutingRuntime } from '../domains/editor/editorOpenRoutingRuntime'
-import { filterExistingRecentFiles } from '../services/workspaceSnapshot.js'
+import { filterExistingRecentFiles } from '../domains/files/workspaceSnapshotFlatFilesRuntime.js'
 
-async function isLauncherTab(path) {
+function isLauncherTab(path) {
   return isNewTab(path)
 }
 
-async function isContextCandidatePath(path) {
+function isContextCandidatePath(path) {
   return !!path
-    && !(await isLauncherTab(path))
-    && !(await isPreviewPath(path))
+    && !isLauncherTab(path)
+    && !isPreviewPath(path)
 }
 
 function createNewTabPath() {
@@ -134,8 +134,8 @@ export const useEditorStore = defineStore('editor', {
       return findLeaf(this.paneTree, predicate)
     },
 
-    async _rememberContextPath(path) {
-      if (!(await isContextCandidatePath(path))) return
+    _rememberContextPath(path) {
+      if (!isContextCandidatePath(path)) return
       this.lastContextPath = path
     },
 
@@ -178,14 +178,14 @@ export const useEditorStore = defineStore('editor', {
       return this._getEditorOpenRoutingRuntime().openFileInPane(path, paneId, options)
     },
 
-    async openDocumentDockFile(path) {
-      if (!path || (await isLauncherTab(path)) || (await isPreviewPath(path))) return false
+    openDocumentDockFile(path) {
+      if (!path || isLauncherTab(path) || isPreviewPath(path)) return false
       if (!this.documentDockTabs.includes(path)) {
         this.documentDockTabs.push(path)
       }
       this.activeDocumentDockTab = path
       this.recordFileOpen(path)
-      await this._rememberContextPath(path)
+      this._rememberContextPath(path)
       this.saveEditorState()
       return true
     },
@@ -212,8 +212,8 @@ export const useEditorStore = defineStore('editor', {
       return true
     },
 
-    async _revealInTree(path) {
-      if (!path || (await isLauncherTab(path)) || (await isPreviewPath(path))) return
+    _revealInTree(path) {
+      if (!path || isLauncherTab(path) || isPreviewPath(path)) return
       const workspace = useWorkspaceStore()
       const filesStore = useFilesStore()
       if (!workspace.path || !String(path).startsWith(workspace.path)) return
@@ -434,8 +434,8 @@ export const useEditorStore = defineStore('editor', {
       return getRegisteredEditorViewsForPath(this.editorViews, path)
     },
 
-    async recordFileOpen(path) {
-      if (!path || (await isLauncherTab(path)) || (await isPreviewPath(path))) return
+    recordFileOpen(path) {
+      if (!path || isLauncherTab(path) || isPreviewPath(path)) return
       this.recentFiles = buildRecentFilesAfterOpen(this.recentFiles, path)
       this._persistRecentFiles()
     },
@@ -511,13 +511,13 @@ export const useEditorStore = defineStore('editor', {
       })
     },
 
-    async getPreferredContextPath() {
+    getPreferredContextPath() {
       const activePane = this.findPane(this.paneTree, this.activePaneId)
-      if (await isContextCandidatePath(activePane?.activeTab)) {
+      if (isContextCandidatePath(activePane?.activeTab)) {
         return activePane.activeTab
       }
 
-      if ((await isContextCandidatePath(this.lastContextPath)) && this.findPaneWithTab(this.lastContextPath)) {
+      if (isContextCandidatePath(this.lastContextPath) && this.findPaneWithTab(this.lastContextPath)) {
         return this.lastContextPath
       }
 
@@ -535,13 +535,13 @@ export const useEditorStore = defineStore('editor', {
       walk(this.paneTree)
 
       for (const node of leaves) {
-        if (await isContextCandidatePath(node.activeTab)) {
+        if (isContextCandidatePath(node.activeTab)) {
           return node.activeTab
         }
       }
 
       for (const entry of this.recentFiles) {
-        if (await isContextCandidatePath(entry.path)) {
+        if (isContextCandidatePath(entry.path)) {
           return entry.path
         }
       }
@@ -561,14 +561,14 @@ export const useEditorStore = defineStore('editor', {
       this.activeDocumentDockTab = this.documentDockTabs.includes(state.activeDocumentDockTab)
         ? state.activeDocumentDockTab
         : this.documentDockTabs[0] || null
-      this.lastContextPath = (await isContextCandidatePath(state.lastContextPath))
+      this.lastContextPath = isContextCandidatePath(state.lastContextPath)
         ? state.lastContextPath
         : null
 
       return true
     },
 
-    async applyEditorSessionState(state = null) {
+    applyEditorSessionState(state = null) {
       if (!state || typeof state !== 'object') return false
 
       this.restoreGeneration += 1
@@ -578,7 +578,7 @@ export const useEditorStore = defineStore('editor', {
       this.activeDocumentDockTab = this.documentDockTabs.includes(state.activeDocumentDockTab)
         ? state.activeDocumentDockTab
         : this.documentDockTabs[0] || null
-      this.lastContextPath = (await isContextCandidatePath(state.lastContextPath))
+      this.lastContextPath = isContextCandidatePath(state.lastContextPath)
         ? state.lastContextPath
         : null
       return true

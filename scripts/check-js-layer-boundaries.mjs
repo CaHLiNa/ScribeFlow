@@ -17,6 +17,10 @@ const referenceRuntimePatterns = [
       'Reference type mapping belongs in Rust references runtime, not src/domains.',
   },
 ]
+const synchronousDomainRuntimeFiles = [
+  'src/domains/files/fileTreeDisplayRuntime.js',
+  'src/domains/files/workspaceSnapshotFlatFilesRuntime.js',
+]
 
 function walk(dir) {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -62,6 +66,32 @@ const referenceRuntimeViolations = walk(join(domainsRoot, 'references'))
         message,
       }))
   })
+const syncRuntimeAsyncBridgeViolations = synchronousDomainRuntimeFiles
+  .map((relativePath) => {
+    const path = join(repoRoot, relativePath)
+    const source = readFileSync(path, 'utf8')
+    const forbiddenPatterns = [
+      {
+        pattern: /\basync\s+function\b|\bexport\s+async\s+function\b/,
+        message: 'must expose synchronous helpers for computed/getter call sites',
+      },
+      {
+        pattern: /\bimport\s*\([^)]*\)|\binvoke\s*\(/,
+        message: 'must not call async bridge APIs',
+      },
+      {
+        pattern: /@tauri-apps\/api|\/services\//,
+        message: 'must not import service or Tauri bridge modules',
+      },
+    ]
+    return forbiddenPatterns
+      .filter(({ pattern }) => pattern.test(source))
+      .map(({ message }) => ({
+        file: relativePath,
+        message,
+      }))
+  })
+  .flat()
 
 if (hardViolations.length > 0) {
   console.error('JS layer boundary violation: src/domains must not import Tauri APIs.')
@@ -84,6 +114,14 @@ if (legacyViolations.length > 0) {
 if (referenceRuntimeViolations.length > 0) {
   console.error('JS layer boundary violation: reference canonical runtime must stay in Rust.')
   for (const violation of referenceRuntimeViolations) {
+    console.error(`- ${violation.file}: ${violation.message}`)
+  }
+  process.exit(1)
+}
+
+if (syncRuntimeAsyncBridgeViolations.length > 0) {
+  console.error('JS layer boundary violation: synchronous domain runtimes must stay sync.')
+  for (const violation of syncRuntimeAsyncBridgeViolations) {
     console.error(`- ${violation.file}: ${violation.message}`)
   }
   process.exit(1)

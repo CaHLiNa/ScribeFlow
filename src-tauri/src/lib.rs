@@ -14,7 +14,6 @@ mod document_workflow_ui_state;
 mod document_workspace_preview_state;
 mod editor_session_runtime;
 mod extension_artifacts;
-mod file_tree_display;
 mod file_types;
 mod extension_capability_contract;
 mod extension_commands;
@@ -383,12 +382,6 @@ pub fn run() {
             latex_compile_normalize::latex_compile_execution_normalize,
             // Document workflow cache keys.
             document_workflow_cache_keys::document_workflow_build_resolved_state_key,
-            // File tree display and snapshot.
-            file_tree_display::file_tree_display_apply_preferences,
-            file_tree_display::workspace_snapshot_list_flat_files,
-            file_tree_display::workspace_snapshot_filter_by_extension,
-            file_tree_display::workspace_snapshot_count_by_extension,
-            file_tree_display::workspace_snapshot_filter_existing_recent,
             // Citation style registry.
             citation_style_registry::citation_style_normalize,
             citation_style_registry::citation_style_get_info,

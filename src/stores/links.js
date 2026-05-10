@@ -5,7 +5,7 @@ import {
   extractMarkdownWikiLinks,
   resolveMarkdownLinkIndex,
 } from '../services/markdown/runtimeBridge.js'
-import { filterWorkspaceFlatFilesByExtension } from '../services/workspaceSnapshot.js'
+import { filterWorkspaceFlatFilesByExtension } from '../domains/files/workspaceSnapshotFlatFilesRuntime.js'
 import { readWorkspaceTextFile } from '../services/fileStoreIO'
 import { basenamePath } from '../utils/path'
 

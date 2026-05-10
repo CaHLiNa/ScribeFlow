@@ -155,13 +155,13 @@
 
 <script setup>
 import { ref, reactive, computed, nextTick, watch, onBeforeUnmount } from 'vue'
-import { basenamePath, dirnamePath } from '../../services/pathUtils.js'
+import { basenamePath, dirnamePath } from '../../utils/path'
 import { useFilesStore } from '../../stores/files'
 import { useEditorStore } from '../../stores/editor'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { DOCUMENT_DOCK_FILE_PAGE } from '../../domains/editor/documentDockPages.js'
-import { applyFileTreeDisplayPreferences } from '../../services/fileTreeDisplay.js'
-import { listWorkspaceFlatFileEntries } from '../../services/workspaceSnapshot.js'
+import { applyFileTreeDisplayPreferences } from '../../domains/files/fileTreeDisplayRuntime.js'
+import { listWorkspaceFlatFileEntries } from '../../domains/files/workspaceSnapshotFlatFilesRuntime.js'
 import { listWorkspaceDocumentTemplates } from '../../domains/workspace/workspaceTemplateRuntime'
 import FileTreeFooter from './FileTreeFooter.vue'
 import FileTreeHeader from './FileTreeHeader.vue'
@@ -547,7 +547,7 @@ function handleContextCreate({ ext, isDir, suggestedName = '', initialContent = 
 async function handleDuplicate(entry) {
   const newPath = await files.duplicatePath(entry.path)
   if (newPath) {
-    const newName = await basenamePath(newPath)
+    const newName = basenamePath(newPath)
     if (!entry.is_dir) {
       workspace.openWorkspaceSurface()
       editor.openFile(newPath)
@@ -627,7 +627,7 @@ async function finishRename() {
       if (renaming.autoExtension && !name.includes('.')) {
         name = name + renaming.autoExtension
       }
-      const dir = await dirnamePath(renaming.originalPath)
+      const dir = dirnamePath(renaming.originalPath)
       const newPath = `${dir}/${name}`
       if (newPath !== renaming.originalPath) {
         await files.renamePath(renaming.originalPath, newPath)
@@ -662,7 +662,7 @@ async function handleDeleteSelected() {
   if (paths.length === 0) return
   const msg =
     paths.length === 1
-      ? t('Delete "{name}"?', { name: await basenamePath(paths[0]) })
+      ? t('Delete "{name}"?', { name: basenamePath(paths[0]) })
       : t('Delete {count} items?', { count: paths.length })
   const yes = await askNativeDialog(msg, { title: t('Confirm Delete'), kind: 'warning' })
   if (yes) {
@@ -693,7 +693,7 @@ defineExpose({
           targetDir = entry.path
           files.expandedDirs.add(targetDir)
         } else {
-          targetDir = await dirnamePath(selectedPath)
+          targetDir = dirnamePath(selectedPath)
         }
       }
     }
@@ -715,7 +715,7 @@ defineExpose({
           targetDir = entry.path
           files.expandedDirs.add(targetDir)
         } else {
-          targetDir = await dirnamePath(selectedPath)
+          targetDir = dirnamePath(selectedPath)
         }
       }
     }
