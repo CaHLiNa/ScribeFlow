@@ -17,6 +17,7 @@ if (!globalThis.crypto) {
 const vite = await createServer({
   server: { middlewareMode: true, hmr: false, ws: false },
   appType: 'custom',
+  optimizeDeps: { noDiscovery: true },
   logLevel: 'error',
   customLogger: createLogger('error', {
     customConsole: {

@@ -12,7 +12,7 @@ import {
   createWorkflowPreviewPath,
   getDocumentWorkflowKind,
   isDocumentWorkflowSource,
-} from '../services/documentWorkflow/policy.js'
+} from '../domains/document/documentWorkflowPolicy.js'
 import { previewSourcePathFromPath } from '../utils/fileTypes.js'
 
 export function createDefaultDocumentWorkflowPersistentState() {

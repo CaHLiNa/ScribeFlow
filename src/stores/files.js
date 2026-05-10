@@ -334,7 +334,7 @@ export const useFilesStore = defineStore('files', {
         this._fileContentRuntime = createFileContentRuntime({
           readTextFile: (path, maxBytes) => readWorkspaceTextFile(path, maxBytes),
           saveTextFile: (path, content) => saveWorkspaceTextFile(path, content),
-          isBinaryPath: async (path) => isBinaryFile(path),
+          isBinaryPath: (path) => isBinaryFile(path),
           setFileContent: (path, content) => {
             this.fileContents[path] = content
           },

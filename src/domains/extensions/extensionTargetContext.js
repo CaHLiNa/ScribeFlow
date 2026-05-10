@@ -1,6 +1,6 @@
 import { isPreviewPath, previewSourcePathFromPath } from '../../utils/fileTypes'
 
-export async function resolveExtensionTargetContext({
+export function resolveExtensionTargetContext({
   workspaceLeftSidebarPanel = '',
   selectedReference = null,
   activeTab = '',
@@ -14,8 +14,8 @@ export async function resolveExtensionTargetContext({
   }
 
   const normalizedActiveTab = String(activeTab || '').trim()
-  const sourcePath = (await isPreviewPath(normalizedActiveTab))
-    ? await previewSourcePathFromPath(normalizedActiveTab)
+  const sourcePath = isPreviewPath(normalizedActiveTab)
+    ? previewSourcePathFromPath(normalizedActiveTab)
     : normalizedActiveTab
   const normalizedPath = String(sourcePath || '').trim()
   return {

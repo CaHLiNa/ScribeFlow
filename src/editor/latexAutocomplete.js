@@ -9,7 +9,8 @@
  */
 
 import { resolveLatexProjectGraph, buildRelativeLatexInputPath } from '../services/latex/projectGraph.js'
-import { extnamePath, stripExtension, uniqueBy } from '../services/documentIntelligence/workspaceGraph.js'
+import { extnamePath, stripExtension } from '../services/documentIntelligence/workspaceGraph.js'
+import { uniqueBy } from '../utils/collections.js'
 
 const SECTION_COMMANDS = [
   { label: '\\section{}', type: 'keyword', detail: 'Section heading', apply: '\\section{$}' },

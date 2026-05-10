@@ -1,10 +1,10 @@
 import { isNewTab } from '../../utils/fileTypes.js'
 
-async function isLauncherTab(path) {
+function isLauncherTab(path) {
   return isNewTab(path)
 }
 
-export async function activateOrOpenPaneTab(pane, path, options = {}) {
+export function activateOrOpenPaneTab(pane, path, options = {}) {
   if (!pane || pane.type !== 'leaf' || !path) return false
 
   if (pane.tabs.includes(path)) {
@@ -14,7 +14,7 @@ export async function activateOrOpenPaneTab(pane, path, options = {}) {
 
   const shouldReplaceLauncher = options.replaceLauncher !== false
     && pane.activeTab
-    && (await isLauncherTab(pane.activeTab))
+    && isLauncherTab(pane.activeTab)
 
   if (shouldReplaceLauncher) {
     const idx = pane.tabs.indexOf(pane.activeTab)

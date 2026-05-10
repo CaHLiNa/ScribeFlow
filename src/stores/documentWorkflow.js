@@ -9,7 +9,7 @@ import {
   getDocumentWorkflowKind,
   getPreferredWorkflowPreviewKind,
   isDocumentWorkflowSource,
-} from '../services/documentWorkflow/policy.js'
+} from '../domains/document/documentWorkflowPolicy.js'
 import { getDocumentAdapterByKind } from '../services/documentWorkflow/adapters/index.js'
 import { createDocumentWorkflowRuntime } from './documentWorkflowRuntime.js'
 import { createDocumentWorkflowBuildRuntime } from './documentWorkflowBuildRuntime.js'

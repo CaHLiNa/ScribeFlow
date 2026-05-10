@@ -1,5 +1,14 @@
-import { normalizeProblems } from '../documentIntelligence/diagnostics.js'
 import { getCachedLatexProjectGraph, resolveLatexProjectContext } from './projectGraph.js'
+
+function deduplicateProblems(problems) {
+  const seen = new Set()
+  return problems.filter((p) => {
+    const sig = `${p.sourcePath}::${p.line || 0}::${p.severity}::${p.message}`
+    if (seen.has(sig)) return false
+    seen.add(sig)
+    return true
+  })
+}
 
 function deriveProjectWarnings(project = null) {
   if (!project) return { unresolvedRefs: [], unresolvedCitations: [] }
@@ -46,12 +55,12 @@ function buildProjectWarnings(sourcePath, project = null) {
 
 export function buildLatexProjectProblemsSync(sourcePath) {
   const project = getCachedLatexProjectGraph(sourcePath)
-  return normalizeProblems(buildProjectWarnings(sourcePath, project))
+  return deduplicateProblems(buildProjectWarnings(sourcePath, project))
 }
 
 export async function buildLatexProjectProblems(sourcePath, options = {}) {
   const project = await resolveLatexProjectContext(sourcePath, options)
-  return normalizeProblems(buildProjectWarnings(sourcePath, project))
+  return deduplicateProblems(buildProjectWarnings(sourcePath, project))
 }
 
 export function buildLatexDocumentReferenceProblemsSync(sourcePath, referencesStore = null) {
@@ -71,41 +80,45 @@ export function buildLatexDocumentReferenceProblemsSync(sourcePath, referencesSt
   )
   const seen = new Set()
 
-  return normalizeProblems(
-    citations
-      .map((citation) => {
-        const key = String(citation?.key || '').trim()
-        const filePath = citation?.filePath || sourcePath
-        const signature = `${filePath}:${key}:${citation?.line || 0}:${citation?.offset || 0}`
-        if (!key || selectedKeys.has(key) || seen.has(signature)) return null
-        if (typeof referencesStore.getByKey === 'function' && !referencesStore.getByKey(key)) return null
-        seen.add(signature)
-        return {
-          id: `latex:document-reference:${signature}`,
-          sourcePath: filePath,
-          line: citation?.line ?? null,
-          column: null,
-          severity: 'warning',
-          origin: 'project',
-          actionable: true,
-          message: `Citation key is not in this document's reference list: ${key}`,
-          raw: key,
-        }
-      })
-      .filter(Boolean)
-  )
+  return citations
+    .map((citation) => {
+      const key = String(citation?.key || '').trim()
+      const filePath = citation?.filePath || sourcePath
+      const signature = `${filePath}:${key}:${citation?.line || 0}:${citation?.offset || 0}`
+      if (!key || selectedKeys.has(key) || seen.has(signature)) return null
+      if (typeof referencesStore.getByKey === 'function' && !referencesStore.getByKey(key)) return null
+      seen.add(signature)
+      return {
+        id: `latex:document-reference:${signature}`,
+        sourcePath: filePath,
+        line: citation?.line ?? null,
+        column: null,
+        severity: 'warning',
+        origin: 'project',
+        actionable: true,
+        message: `Citation key is not in this document's reference list: ${key}`,
+        raw: key,
+      }
+    })
+    .filter(Boolean)
 }
 
 export function buildLatexLintProblems(sourcePath, diagnostics = []) {
-  return normalizeProblems((Array.isArray(diagnostics) ? diagnostics : []).map((problem, index) => ({
-    id: `latex:lint:${problem.file || sourcePath}:${problem.line || 0}:${index}`,
-    sourcePath: problem.file || sourcePath,
-    line: problem.line ?? null,
-    column: problem.column ?? null,
-    severity: problem.severity === 'error' ? 'error' : 'warning',
-    origin: 'lint',
-    actionable: true,
-    message: problem.message || '',
-    raw: problem.raw || problem.message || '',
-  })))
+  const normalized = String(sourcePath || '').trim().replace(/\\/g, '/')
+  const problems = (Array.isArray(diagnostics) ? diagnostics : []).map((d, index) => {
+    const file = String(d.file || '').trim().replace(/\\/g, '/') || normalized
+    const severity = d.severity === 'error' ? 'error' : 'warning'
+    return {
+      id: `latex:lint:${file}:${d.line || 0}:${index}`,
+      sourcePath: file,
+      line: d.line ?? null,
+      column: d.column ?? null,
+      severity,
+      origin: 'lint',
+      actionable: true,
+      message: String(d.message || ''),
+      raw: String(d.raw || d.message || ''),
+    }
+  })
+  return deduplicateProblems(problems)
 }

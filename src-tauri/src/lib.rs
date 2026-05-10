@@ -39,11 +39,13 @@ mod latex_compile_normalize;
 mod latex_diagnostics;
 mod latex_preferences;
 mod latex_project_graph;
+mod latex_project_diagnostics;
 mod latex_runtime;
 mod latex_sync_target;
 mod latex_tools;
 #[cfg(target_os = "macos")]
 mod macos_shell;
+mod markdown_preview;
 mod markdown_runtime;
 mod path_utils;
 mod process_utils;
@@ -141,6 +143,7 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .manage(latex::LatexState::default())
         .manage(latex_runtime::LatexRuntimeState::default())
+        .manage(latex_project_graph::LatexProjectGraphCacheState::default())
         .manage(fs_watch_runtime::WorkspaceTreeWatchState::default())
         .manage(security::WorkspaceScopeState::default())
         .manage(workspace_access::WorkspaceAccessState::default())
@@ -206,6 +209,8 @@ pub fn run() {
             fs_tree_runtime::fs_tree_reveal_workspace_state,
             fs_tree_runtime::fs_tree_restore_cached_expanded_state,
             document_workflow::document_workflow_reconcile,
+            document_workflow::document_workflow_policy_resolve,
+            document_workflow::document_workflow_infer_preview_kind,
             keychain::keychain_set,
             keychain::keychain_get,
             keychain::keychain_delete,
@@ -301,12 +306,18 @@ pub fn run() {
             markdown_runtime::markdown_extract_headings,
             markdown_runtime::markdown_extract_wiki_links,
             markdown_runtime::markdown_link_index_resolve,
+            markdown_preview::markdown_preview_render,
             python_preferences::python_preferences_load,
             python_preferences::python_preferences_save,
             python_runtime::python_runtime_detect,
             python_runtime::python_runtime_list,
             python_runtime::python_runtime_compile,
             latex_project_graph::latex_project_graph_resolve,
+            latex_project_graph::latex_project_graph_get_cached,
+            latex_project_graph::latex_project_graph_get_cached_root_path,
+            latex_project_graph::latex_project_graph_get_cached_preview_path,
+            latex_project_diagnostics::latex_diagnostics_build_project_problems,
+            latex_project_diagnostics::latex_diagnostics_build_lint_problems,
             latex_project_graph::latex_compile_request_resolve,
             latex_project_graph::latex_compile_targets_resolve,
             latex_project_graph::latex_affected_root_targets_resolve,

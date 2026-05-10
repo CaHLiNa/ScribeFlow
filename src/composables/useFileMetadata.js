@@ -1,5 +1,5 @@
-import { basenamePath, dirnamePath } from '../services/pathUtils.js'
-import { classify, getFileIconName } from '../services/fileTypes.js'
+import { basenamePath, dirnamePath } from '../utils/path.js'
+import { classify, getFileIconName } from '../utils/fileTypes.js'
 import { ref, watch } from 'vue'
 
 export function useFileMetadata(pathRef) {
@@ -7,21 +7,16 @@ export function useFileMetadata(pathRef) {
   const dirname = ref('')
   const classification = ref(null)
 
-  watch(pathRef, async (path) => {
+  watch(pathRef, (path) => {
     if (!path) {
       basename.value = ''
       dirname.value = ''
       classification.value = null
       return
     }
-    const [b, d, c] = await Promise.all([
-      basenamePath(path),
-      dirnamePath(path),
-      classify(path),
-    ])
-    basename.value = b
-    dirname.value = d
-    classification.value = c
+    basename.value = basenamePath(path)
+    dirname.value = dirnamePath(path)
+    classification.value = classify(path)
   }, { immediate: true })
 
   return { basename, dirname, classification }
@@ -29,36 +24,36 @@ export function useFileMetadata(pathRef) {
 
 export function useBasename(pathRef) {
   const basename = ref('')
-  watch(pathRef, async (path) => {
+  watch(pathRef, (path) => {
     if (!path) { basename.value = ''; return }
-    basename.value = await basenamePath(path)
+    basename.value = basenamePath(path)
   }, { immediate: true })
   return basename
 }
 
 export function useDirname(pathRef) {
   const dirname = ref('')
-  watch(pathRef, async (path) => {
+  watch(pathRef, (path) => {
     if (!path) { dirname.value = ''; return }
-    dirname.value = await dirnamePath(path)
+    dirname.value = dirnamePath(path)
   }, { immediate: true })
   return dirname
 }
 
 export function useFileClassification(pathRef) {
   const classification = ref(null)
-  watch(pathRef, async (path) => {
+  watch(pathRef, (path) => {
     if (!path) { classification.value = null; return }
-    classification.value = await classify(path)
+    classification.value = classify(path)
   }, { immediate: true })
   return classification
 }
 
 export function useViewerType(pathRef) {
   const viewerType = ref('unsupported-binary')
-  watch(pathRef, async (path) => {
+  watch(pathRef, (path) => {
     if (!path) { viewerType.value = 'unsupported-binary'; return }
-    const c = await classify(path)
+    const c = classify(path)
     viewerType.value = c.viewerType
   }, { immediate: true })
   return viewerType
@@ -66,9 +61,9 @@ export function useViewerType(pathRef) {
 
 export function useFileIconName(fileNameRef) {
   const iconName = ref('IconFile')
-  watch(fileNameRef, async (fileName) => {
+  watch(fileNameRef, (fileName) => {
     if (!fileName) { iconName.value = 'IconFile'; return }
-    iconName.value = await getFileIconName(fileName)
+    iconName.value = getFileIconName(fileName)
   }, { immediate: true })
   return iconName
 }

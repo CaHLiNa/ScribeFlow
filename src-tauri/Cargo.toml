@@ -41,6 +41,8 @@ hayagriva = { version = "0.9.1", features = ["csl-json"] }
 pathdiff = "0.2"
 urlencoding = "2"
 markdown = "1"
+pulldown-cmark = { version = "0.12", features = ["simd"] }
+syntect = { version = "5", default-features = false, features = ["default-syntaxes", "default-themes", "html", "regex-fancy"] }
 notify = "6"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "bmp", "ico", "webp", "tiff"] }
 sha2 = "0.10"

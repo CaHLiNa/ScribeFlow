@@ -4,10 +4,53 @@ use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::fs;
 use std::path::Path;
+use std::sync::Mutex;
 use tauri::State;
 
+use crate::content_fingerprint::fnv1a;
 use crate::fs_tree;
 use crate::security::{self, WorkspaceScopeState};
+
+#[derive(Debug, Clone)]
+pub(crate) struct CachedGraphEntry {
+    pub(crate) key: String,
+    pub(crate) graph: Value,
+}
+
+#[derive(Debug, Default)]
+pub struct LatexProjectGraphCacheState {
+    pub(crate) cache: Mutex<HashMap<String, CachedGraphEntry>>,
+}
+
+fn build_cache_key(params: &LatexProjectGraphParams) -> String {
+    let mut override_entries: Vec<(String, String)> = params
+        .content_overrides
+        .iter()
+        .map(|(path, content)| (normalize_fs_path(path), fnv1a(content)))
+        .filter(|(path, _)| !path.is_empty())
+        .collect();
+    override_entries.sort_by(|a, b| a.0.cmp(&b.0));
+
+    let mut flat_files: Vec<String> = params
+        .flat_files
+        .iter()
+        .map(|p| normalize_fs_path(p))
+        .filter(|p| !p.is_empty())
+        .collect();
+    flat_files.sort();
+
+    format!(
+        "{}|{}|{}|{}",
+        normalize_fs_path(&params.source_path),
+        normalize_fs_path(&params.workspace_path),
+        flat_files.join(","),
+        override_entries
+            .iter()
+            .map(|(p, f)| format!("{p}={f}"))
+            .collect::<Vec<_>>()
+            .join(",")
+    )
+}
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1200,9 +1243,79 @@ fn resolve_affected_root_targets_internal(params: &LatexAffectedRootsParams) -> 
 pub async fn latex_project_graph_resolve(
     params: LatexProjectGraphParams,
     scope_state: State<'_, WorkspaceScopeState>,
+    cache_state: State<'_, LatexProjectGraphCacheState>,
 ) -> Result<Value, String> {
     let params = graph_params_with_workspace_files(params, scope_state.inner())?;
-    Ok(resolve_graph_value(&params).unwrap_or(Value::Null))
+    let normalized_source = normalize_fs_path(&params.source_path);
+    let uses_workspace_discovery = params.flat_files.is_empty() && !params.workspace_path.is_empty();
+    let cache_key = build_cache_key(&params);
+
+    if !uses_workspace_discovery {
+        if let Ok(cache) = cache_state.cache.lock() {
+            if let Some(entry) = cache.get(&normalized_source) {
+                if entry.key == cache_key {
+                    return Ok(entry.graph.clone());
+                }
+            }
+        }
+    }
+
+    let graph = resolve_graph_value(&params).unwrap_or(Value::Null);
+
+    if !uses_workspace_discovery && !graph.is_null() {
+        if let Ok(mut cache) = cache_state.cache.lock() {
+            cache.insert(
+                normalized_source,
+                CachedGraphEntry {
+                    key: cache_key,
+                    graph: graph.clone(),
+                },
+            );
+        }
+    }
+
+    Ok(graph)
+}
+
+#[tauri::command]
+pub fn latex_project_graph_get_cached(
+    source_path: String,
+    cache_state: State<'_, LatexProjectGraphCacheState>,
+) -> Result<Value, String> {
+    let normalized = normalize_fs_path(&source_path);
+    let cache = cache_state.cache.lock().map_err(|e| e.to_string())?;
+    Ok(cache
+        .get(&normalized)
+        .map(|entry| entry.graph.clone())
+        .unwrap_or(Value::Null))
+}
+
+#[tauri::command]
+pub fn latex_project_graph_get_cached_root_path(
+    source_path: String,
+    cache_state: State<'_, LatexProjectGraphCacheState>,
+) -> Result<Value, String> {
+    let normalized = normalize_fs_path(&source_path);
+    let cache = cache_state.cache.lock().map_err(|e| e.to_string())?;
+    Ok(cache
+        .get(&normalized)
+        .and_then(|entry| entry.graph.get("rootPath").cloned())
+        .unwrap_or_else(|| Value::String(normalized)))
+}
+
+#[tauri::command]
+pub fn latex_project_graph_get_cached_preview_path(
+    source_path: String,
+    cache_state: State<'_, LatexProjectGraphCacheState>,
+) -> Result<Value, String> {
+    let normalized = normalize_fs_path(&source_path);
+    let cache = cache_state.cache.lock().map_err(|e| e.to_string())?;
+    let preview = cache
+        .get(&normalized)
+        .and_then(|entry| entry.graph.get("previewPath").cloned());
+    Ok(preview.unwrap_or_else(|| {
+        Value::String(format!("{}.pdf", strip_extension(&normalized)))
+    }))
 }
 
 fn resolve_compile_request_value(params: &LatexProjectGraphParams) -> Value {

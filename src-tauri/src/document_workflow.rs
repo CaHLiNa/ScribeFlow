@@ -1,5 +1,6 @@
 use serde::Deserialize;
 use serde_json::{json, Value};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -54,24 +55,37 @@ pub(crate) fn get_document_workflow_kind(path: &str) -> Option<&'static str> {
     None
 }
 
+fn supported_preview_kinds(kind: &str) -> &'static [&'static str] {
+    match kind {
+        "markdown" => &["html"],
+        "latex" => &["pdf"],
+        "python" => &[],
+        _ => &[],
+    }
+}
+
+fn default_preview_kind(kind: &str) -> Option<&'static str> {
+    match kind {
+        "markdown" => Some("html"),
+        _ => None,
+    }
+}
+
 pub(crate) fn preferred_preview_kind(kind: &str, prefs: &Value) -> Option<&'static str> {
     let preferred = prefs
         .get(kind)
         .and_then(|value| value.get("preferredPreview"))
         .and_then(Value::as_str)
         .unwrap_or_default();
-    match kind {
-        "markdown" => {
-            if preferred == "html" || preferred.is_empty() {
-                Some("html")
-            } else {
-                Some("html")
-            }
-        }
-        "latex" => None,
-        "python" => None,
-        _ => None,
+    let supported = supported_preview_kinds(kind);
+    if !preferred.is_empty() && supported.iter().any(|k| *k == preferred) {
+        return match preferred {
+            "html" => Some("html"),
+            "pdf" => Some("pdf"),
+            _ => default_preview_kind(kind),
+        };
     }
+    default_preview_kind(kind)
 }
 
 pub(crate) fn create_workflow_preview_path(
@@ -86,6 +100,72 @@ pub(crate) fn create_workflow_preview_path(
         ("markdown", Some("html")) => Some(format!("preview:{source_path}")),
         _ => None,
     }
+}
+
+fn infer_workflow_preview_kind(source_path: &str, preview_path: &str) -> Option<&'static str> {
+    if source_path.is_empty() || preview_path.is_empty() {
+        return None;
+    }
+    let kind = get_document_workflow_kind(source_path)?;
+    match kind {
+        "markdown" => {
+            let expected = format!("preview:{source_path}");
+            if preview_path == expected {
+                Some("html")
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}
+
+#[tauri::command]
+pub fn document_workflow_policy_resolve(
+    file_path: String,
+    preview_prefs: HashMap<String, Value>,
+) -> Result<Value, String> {
+    let prefs_value = serde_json::to_value(&preview_prefs).unwrap_or_default();
+    let kind = get_document_workflow_kind(&file_path);
+
+    match kind {
+        None => Ok(json!({
+            "kind": null,
+            "supportsPreview": false,
+            "supportsCompile": false,
+            "previewPath": null,
+            "preferredPreviewKind": null,
+            "supportedPreviewKinds": [],
+            "defaultPreviewKind": null,
+        })),
+        Some(k) => {
+            let supported = supported_preview_kinds(k);
+            let preferred = preferred_preview_kind(k, &prefs_value);
+            let preview_path = create_workflow_preview_path(&file_path, k, preferred);
+            let supports_compile = k == "latex" || k == "python";
+
+            Ok(json!({
+                "kind": k,
+                "supportsPreview": !supported.is_empty(),
+                "supportsCompile": supports_compile,
+                "previewPath": preview_path,
+                "preferredPreviewKind": preferred,
+                "supportedPreviewKinds": supported,
+                "defaultPreviewKind": default_preview_kind(k),
+            }))
+        }
+    }
+}
+
+#[tauri::command]
+pub fn document_workflow_infer_preview_kind(
+    source_path: String,
+    preview_path: String,
+) -> Result<Value, String> {
+    Ok(match infer_workflow_preview_kind(&source_path, &preview_path) {
+        Some(kind) => Value::String(kind.to_string()),
+        None => Value::Null,
+    })
 }
 
 pub(crate) fn document_workflow_reconcile_value(params: DocumentWorkflowReconcileParams) -> Value {

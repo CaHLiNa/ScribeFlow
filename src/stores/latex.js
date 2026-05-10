@@ -4,7 +4,7 @@ import { useReferencesStore } from './references'
 import { useWorkspaceStore } from './workspace'
 import { t } from '../i18n'
 import { resolveCachedLatexRootPath } from '../services/latex/root'
-import { stableContentFingerprint } from '../services/latex/projectGraph'
+import { stableContentFingerprint } from '../utils/collections'
 import {
   cancelLatexRuntime,
   checkLatexCompilers,

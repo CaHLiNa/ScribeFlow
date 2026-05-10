@@ -34,7 +34,7 @@
 <script setup>
 import { computed, defineAsyncComponent } from 'vue'
 import { useI18n } from '../../i18n'
-import { getDocumentWorkflowKind } from '../../services/documentWorkflow/policy.js'
+import { getDocumentWorkflowKind } from '../../domains/document/documentWorkflowPolicy.js'
 import { openLocalPath } from '../../services/localFileOpen'
 
 const MarkdownPreview = defineAsyncComponent(() => import('../editor/MarkdownPreview.vue'))

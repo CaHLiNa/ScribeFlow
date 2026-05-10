@@ -34,7 +34,7 @@ import {
 } from '../../domains/editor/documentDockPages.js'
 import { buildExtensionPluginContainerPresentation } from '../../domains/extensions/extensionPluginContainerPresentation.js'
 import { createInlineDockPageRegistry } from '../../domains/workbench/inlineDockPageRegistry.js'
-import { getDocumentWorkflowKind } from '../../services/documentWorkflow/policy.js'
+import { getDocumentWorkflowKind } from '../../domains/document/documentWorkflowPolicy.js'
 import { getFileIconName } from '../../utils/fileTypes.js'
 import { basenamePath } from '../../utils/path.js'
 

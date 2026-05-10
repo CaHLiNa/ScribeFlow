@@ -165,6 +165,7 @@ export const useReferencesStore = defineStore('references', {
     zoteroSyncErrorType: '',
     zoteroMutationError: '',
     importInFlight: false,
+    availableCitationStylesList: [],
   }),
 
   getters: {
@@ -203,7 +204,7 @@ export const useReferencesStore = defineStore('references', {
     },
 
     availableCitationStyles() {
-      return getAvailableCitationStyles()
+      return this.availableCitationStylesList
     },
 
     citedIn() {
@@ -357,6 +358,7 @@ export const useReferencesStore = defineStore('references', {
         const snapshot = await readOrCreateReferenceLibrarySnapshot(storageRoot, options)
         await this.applyLibrarySnapshot(snapshot)
         await this.loadWorkspaceCitationStyles()
+        this.availableCitationStylesList = await getAvailableCitationStyles().catch(() => [])
       } catch (error) {
         this.loadError = error?.message || t('Failed to load reference library')
         await this.applyLibrarySnapshot(buildDefaultReferenceLibrarySnapshot())
@@ -598,9 +600,10 @@ export const useReferencesStore = defineStore('references', {
       await this.syncResolvedQueryState()
     },
 
-    setCitationStyle(style = 'apa') {
+    async setCitationStyle(style = 'apa') {
       const normalized = String(style || '').trim()
-      this.citationStyle = normalized && getCitationStyleInfo(normalized) ? normalized : 'apa'
+      const info = normalized ? await getCitationStyleInfo(normalized) : null
+      this.citationStyle = info ? normalized : 'apa'
     },
 
     selectReference(referenceId) {
