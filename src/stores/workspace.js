@@ -34,7 +34,6 @@ import {
 } from '../services/workbenchDockPages'
 
 const WORKSPACE_PREFERENCE_KEYS = [
-  'primarySurface',
   'leftSidebarOpen',
   'leftSidebarPanel',
   'rightSidebarOpen',
@@ -73,8 +72,13 @@ function normalizeSettingsSectionValue(section = '') {
   return normalized || 'general'
 }
 
-function normalizePersistedPrimarySurface(_surface = '') {
-  return 'workspace'
+function normalizeActivePrimarySurface(surface = '') {
+  return String(surface || '').trim() === 'settings' ? 'settings' : 'workspace'
+}
+
+function normalizeLeftSidebarPanel(panel = '') {
+  const normalized = String(panel || '').trim()
+  return normalized === 'references' ? 'references' : 'files'
 }
 
 function restoreTransientSettingsSurface(store, section = null) {
@@ -84,9 +88,7 @@ function restoreTransientSettingsSurface(store, section = null) {
 }
 
 function snapshotWorkspacePreferences(store) {
-  const preferences = Object.fromEntries(WORKSPACE_PREFERENCE_KEYS.map((key) => [key, store[key]]))
-  preferences.primarySurface = normalizePersistedPrimarySurface()
-  return preferences
+  return Object.fromEntries(WORKSPACE_PREFERENCE_KEYS.map((key) => [key, store[key]]))
 }
 
 function patchTouchesDockPreference(patch = {}) {
@@ -177,19 +179,12 @@ export const useWorkspaceStore = defineStore('workspace', {
         ...snapshotWorkspacePreferences(this),
         ...preferences,
       }
-      next.primarySurface = normalizePersistedPrimarySurface(next.primarySurface)
+      next.leftSidebarPanel = normalizeLeftSidebarPanel(next.leftSidebarPanel)
 
       for (const key of WORKSPACE_PREFERENCE_KEYS) {
         this[key] = next[key]
       }
       this.softWrap = true
-
-      this.settingsOpen = this.primarySurface === 'settings'
-      if (!this.settingsOpen) {
-        this.settingsSection = null
-      } else if (!this.settingsSection) {
-        this.settingsSection = normalizeSettingsSectionValue('general')
-      }
     },
 
     applyWorkspaceLifecycleState(state = {}) {
@@ -399,7 +394,7 @@ export const useWorkspaceStore = defineStore('workspace', {
 
     setLeftSidebarPanel(panel) {
       return this.persistPreferences({
-        leftSidebarPanel: String(panel || ''),
+        leftSidebarPanel: normalizeLeftSidebarPanel(panel),
       })
     },
 
@@ -410,12 +405,12 @@ export const useWorkspaceStore = defineStore('workspace', {
     },
 
     async setPrimarySurface(surface) {
-      const nextSurface = normalizePersistedPrimarySurface(surface)
-      const preferences = await this.persistPreferences({
-        primarySurface: nextSurface,
-      })
-      this.settingsOpen = preferences.primarySurface === 'settings'
-      if (!this.settingsOpen) {
+      const nextSurface = normalizeActivePrimarySurface(surface)
+      this.primarySurface = nextSurface
+      this.settingsOpen = nextSurface === 'settings'
+      if (this.settingsOpen) {
+        this.settingsSection = normalizeSettingsSectionValue(this.settingsSection || 'general')
+      } else {
         this.settingsSection = null
       }
     },

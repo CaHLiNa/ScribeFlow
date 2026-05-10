@@ -53,6 +53,7 @@
     "probe:extension-plugin-container-presentation-contract": "node scripts/probe-extension-plugin-container-presentation-contract.mjs",
     "probe:settings-extensions-capability-card-contract": "node scripts/probe-settings-extensions-capability-card-contract.mjs",
     "probe:extension-workspace-switch-refresh-contract": "node scripts/probe-extension-workspace-switch-refresh-contract.mjs",
+    "probe:workspace-sidebar-panel-normalization": "node scripts/probe-workspace-sidebar-panel-normalization.mjs",
     "probe:extension-enable-activation": "node scripts/probe-extension-enable-activation.mjs",
     "probe:extension-deactivation-host": "node scripts/probe-extension-deactivation-host.mjs",
     "probe:extension-runtime-restart-store-contract": "node scripts/probe-extension-runtime-restart-store-contract.mjs",

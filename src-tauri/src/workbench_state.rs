@@ -18,7 +18,6 @@ const MAX_BOTTOM_PANEL_HEIGHT: i64 = 600;
 
 const DEFAULT_WORKSPACE_SIDEBAR_PANEL: &str = "files";
 const DEFAULT_SETTINGS_SIDEBAR_PANEL: &str = "files";
-const EXTENSION_SIDEBAR_PANEL_PREFIX: &str = "extension:";
 const DEFAULT_WORKSPACE_INSPECTOR_PANEL: &str = "dock";
 const DEFAULT_SETTINGS_INSPECTOR_PANEL: &str = "";
 const DEFAULT_DOCUMENT_DOCK_PAGE: &str = "preview";
@@ -235,12 +234,6 @@ pub fn normalize_workbench_surface(_value: &str) -> String {
 pub fn normalize_workbench_sidebar_panel(surface: &str, panel: &str) -> String {
     let normalized_surface = normalize_workbench_surface(surface);
     let normalized_panel = panel.trim();
-    if normalized_surface == WORKSPACE_SURFACE
-        && normalized_panel.starts_with(EXTENSION_SIDEBAR_PANEL_PREFIX)
-        && normalized_panel.len() > EXTENSION_SIDEBAR_PANEL_PREFIX.len()
-    {
-        return normalized_panel.to_string();
-    }
     if allowed_sidebar_panels(&normalized_surface).contains(&normalized_panel) {
         normalized_panel.to_string()
     } else {
@@ -512,7 +505,7 @@ mod tests {
         );
         assert_eq!(
             normalize_workbench_sidebar_panel("workspace", "extension:example.tools"),
-            "extension:example.tools"
+            "files"
         );
     }
 
