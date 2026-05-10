@@ -1,9 +1,9 @@
 use pulldown_cmark::{CodeBlockKind, Event, Options, Parser, Tag, TagEnd};
 use serde::Deserialize;
+use std::sync::LazyLock;
 use syntect::highlighting::ThemeSet;
 use syntect::html::highlighted_html_for_string;
 use syntect::parsing::SyntaxSet;
-use std::sync::LazyLock;
 
 mod latex_to_mathml;
 
@@ -23,8 +23,12 @@ pub struct MarkdownPreviewOptions {
     pub highlight_theme: String,
 }
 
-fn default_true() -> bool { true }
-fn default_theme() -> String { "InspiredGitHub".to_string() }
+fn default_true() -> bool {
+    true
+}
+fn default_theme() -> String {
+    "InspiredGitHub".to_string()
+}
 
 impl Default for MarkdownPreviewOptions {
     fn default() -> Self {
@@ -54,9 +58,10 @@ fn highlight_code(code: &str, lang: &str, theme_name: &str) -> String {
     let syntax = SYNTAX_SET
         .find_syntax_by_token(resolved)
         .unwrap_or_else(|| SYNTAX_SET.find_syntax_plain_text());
-    let theme = THEME_SET.themes.get(theme_name).unwrap_or_else(|| {
-        THEME_SET.themes.values().next().unwrap()
-    });
+    let theme = THEME_SET
+        .themes
+        .get(theme_name)
+        .unwrap_or_else(|| THEME_SET.themes.values().next().unwrap());
     match highlighted_html_for_string(code, &SYNTAX_SET, syntax, theme) {
         Ok(html) => html,
         Err(_) => format!("<pre><code>{}</code></pre>", escape_html(code)),
@@ -150,7 +155,38 @@ pub fn markdown_preview_render(
 }
 
 fn offset_to_line(content: &str, offset: usize) -> usize {
-    content[..offset.min(content.len())].matches('\n').count() + 1
+    content[..safe_byte_offset(content, offset)]
+        .matches('\n')
+        .count()
+        + 1
+}
+
+fn safe_byte_offset(content: &str, offset: usize) -> usize {
+    let mut safe_offset = offset.min(content.len());
+    while safe_offset > 0 && !content.is_char_boundary(safe_offset) {
+        safe_offset -= 1;
+    }
+    safe_offset
+}
+
+fn utf16_offset_for_byte_offset(content: &str, offset: usize) -> usize {
+    content[..safe_byte_offset(content, offset)]
+        .encode_utf16()
+        .count()
+}
+
+fn source_anchor_for_range(
+    kind: &'static str,
+    content: &str,
+    range: &std::ops::Range<usize>,
+) -> SourceAnchor {
+    SourceAnchor {
+        kind,
+        start_line: offset_to_line(content, range.start),
+        end_line: offset_to_line(content, range.end),
+        start_offset: utf16_offset_for_byte_offset(content, range.start),
+        end_offset: utf16_offset_for_byte_offset(content, range.end),
+    }
 }
 
 fn render_events(
@@ -161,6 +197,7 @@ fn render_events(
 ) {
     let mut code_buf = String::new();
     let mut code_lang = String::new();
+    let mut code_anchor_attrs = String::new();
     let mut in_code_block = false;
 
     for (event, range) in events {
@@ -168,13 +205,7 @@ fn render_events(
             Event::Start(tag) => {
                 let anchor = if opts.source_anchors {
                     if let (Some(kind), Some(r)) = (tag_to_source_kind(tag), range) {
-                        Some(SourceAnchor {
-                            kind,
-                            start_line: offset_to_line(content, r.start),
-                            end_line: offset_to_line(content, r.end),
-                            start_offset: r.start,
-                            end_offset: r.end,
-                        })
+                        Some(source_anchor_for_range(kind, content, r))
                     } else {
                         None
                     }
@@ -192,12 +223,17 @@ fn render_events(
                     Tag::CodeBlock(kind) => {
                         in_code_block = true;
                         code_buf.clear();
+                        code_anchor_attrs = attrs;
                         code_lang = match kind {
-                            CodeBlockKind::Fenced(lang) => lang.split_whitespace().next().unwrap_or("").to_string(),
+                            CodeBlockKind::Fenced(lang) => {
+                                lang.split_whitespace().next().unwrap_or("").to_string()
+                            }
                             CodeBlockKind::Indented => String::new(),
                         };
                     }
-                    Tag::List(Some(start)) => html.push_str(&format!("<ol start=\"{start}\"{attrs}>")),
+                    Tag::List(Some(start)) => {
+                        html.push_str(&format!("<ol start=\"{start}\"{attrs}>"))
+                    }
                     Tag::List(None) => html.push_str(&format!("<ul{attrs}>")),
                     Tag::Item => html.push_str(&format!("<li{attrs}>")),
                     Tag::Table(_) => html.push_str(&format!("<table{attrs}>")),
@@ -207,14 +243,18 @@ fn render_events(
                     Tag::Emphasis => html.push_str("<em>"),
                     Tag::Strong => html.push_str("<strong>"),
                     Tag::Strikethrough => html.push_str("<del>"),
-                    Tag::Link { dest_url, title, .. } => {
+                    Tag::Link {
+                        dest_url, title, ..
+                    } => {
                         html.push_str(&format!("<a href=\"{}\"", escape_html(dest_url)));
                         if !title.is_empty() {
                             html.push_str(&format!(" title=\"{}\"", escape_html(title)));
                         }
                         html.push('>');
                     }
-                    Tag::Image { dest_url, title, .. } => {
+                    Tag::Image {
+                        dest_url, title, ..
+                    } => {
                         html.push_str(&format!("<img src=\"{}\"", escape_html(dest_url)));
                         if !title.is_empty() {
                             html.push_str(&format!(" title=\"{}\"", escape_html(title)));
@@ -222,7 +262,10 @@ fn render_events(
                         html.push_str(" alt=\"");
                     }
                     Tag::FootnoteDefinition(label) => {
-                        html.push_str(&format!("<div class=\"footnote-definition\"{attrs} id=\"fn-{}\">", escape_html(label)));
+                        html.push_str(&format!(
+                            "<div class=\"footnote-definition\"{attrs} id=\"fn-{}\">",
+                            escape_html(label)
+                        ));
                     }
                     _ => {}
                 }
@@ -233,17 +276,31 @@ fn render_events(
                 TagEnd::BlockQuote(_) => html.push_str("</blockquote>"),
                 TagEnd::CodeBlock => {
                     in_code_block = false;
+                    if !code_anchor_attrs.is_empty() {
+                        html.push_str(&format!("<div{}>", code_anchor_attrs));
+                    }
                     if opts.highlight_code && !code_lang.is_empty() {
-                        html.push_str(&highlight_code(&code_buf, &code_lang, &opts.highlight_theme));
+                        html.push_str(&highlight_code(
+                            &code_buf,
+                            &code_lang,
+                            &opts.highlight_theme,
+                        ));
                     } else {
                         html.push_str("<pre><code");
                         if !code_lang.is_empty() {
-                            html.push_str(&format!(" class=\"language-{}\"", escape_html(&code_lang)));
+                            html.push_str(&format!(
+                                " class=\"language-{}\"",
+                                escape_html(&code_lang)
+                            ));
                         }
                         html.push('>');
                         html.push_str(&escape_html(&code_buf));
                         html.push_str("</code></pre>");
                     }
+                    if !code_anchor_attrs.is_empty() {
+                        html.push_str("</div>");
+                    }
+                    code_anchor_attrs.clear();
                 }
                 TagEnd::List(true) => html.push_str("</ol>"),
                 TagEnd::List(false) => html.push_str("</ul>"),
@@ -281,8 +338,8 @@ fn render_events(
                             kind: "thematicBreak",
                             start_line: offset_to_line(content, r.start),
                             end_line: offset_to_line(content, r.end),
-                            start_offset: r.start,
-                            end_offset: r.end,
+                            start_offset: utf16_offset_for_byte_offset(content, r.start),
+                            end_offset: utf16_offset_for_byte_offset(content, r.end),
                         };
                         html.push_str(&format!("<hr{} />", anchor.attrs()));
                     } else {
@@ -294,7 +351,11 @@ fn render_events(
             }
             Event::Html(raw) | Event::InlineHtml(raw) => html.push_str(raw),
             Event::FootnoteReference(label) => {
-                html.push_str(&format!("<sup class=\"footnote-ref\"><a href=\"#fn-{}\">{}</a></sup>", escape_html(label), escape_html(label)));
+                html.push_str(&format!(
+                    "<sup class=\"footnote-ref\"><a href=\"#fn-{}\">{}</a></sup>",
+                    escape_html(label),
+                    escape_html(label)
+                ));
             }
             Event::TaskListMarker(checked) => {
                 if *checked {
@@ -307,16 +368,55 @@ fn render_events(
                 if opts.render_math {
                     html.push_str(&render_math_to_mathml(latex, false));
                 } else {
-                    html.push_str(&format!("<code class=\"math-inline\">{}</code>", escape_html(latex)));
+                    html.push_str(&format!(
+                        "<code class=\"math-inline\">{}</code>",
+                        escape_html(latex)
+                    ));
                 }
             }
             Event::DisplayMath(latex) => {
                 if opts.render_math {
                     html.push_str(&render_math_to_mathml(latex, true));
                 } else {
-                    html.push_str(&format!("<pre class=\"math-display\"><code>{}</code></pre>", escape_html(latex)));
+                    html.push_str(&format!(
+                        "<pre class=\"math-display\"><code>{}</code></pre>",
+                        escape_html(latex)
+                    ));
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{markdown_preview_render, MarkdownPreviewOptions};
+
+    fn render(content: &str) -> String {
+        markdown_preview_render(content.to_string(), Some(MarkdownPreviewOptions::default()))
+            .expect("render markdown preview")
+    }
+
+    #[test]
+    fn preview_source_anchor_offsets_use_utf16_positions() {
+        let html = render("前言\n## 标题\n正文\n");
+
+        assert!(html.contains("data-source-kind=\"heading\""));
+        assert!(html.contains("data-source-start-line=\"2\""));
+        assert!(html.contains("data-source-start-offset=\"3\""));
+        assert!(
+            !html.contains("data-source-start-offset=\"7\""),
+            "preview anchors must not expose pulldown byte offsets to CodeMirror"
+        );
+    }
+
+    #[test]
+    fn preview_code_blocks_keep_source_anchors() {
+        let html = render("前言\n```rust\nfn main() {}\n```\n");
+
+        assert!(html.contains("data-source-kind=\"code\""));
+        assert!(html.contains("data-source-start-line=\"2\""));
+        assert!(html.contains("data-source-start-offset=\"3\""));
+        assert!(html.contains("<pre"));
     }
 }
