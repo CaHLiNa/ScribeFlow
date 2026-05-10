@@ -94,6 +94,7 @@
     "probe:extension-window-message-severity": "node scripts/probe-extension-window-message-severity.mjs",
     "probe:extension-inputbox-contract": "node scripts/probe-extension-inputbox-contract.mjs",
     "probe:extension-quickpick-contract": "node scripts/probe-extension-quickpick-contract.mjs",
+    "probe:markdown-preview-source-contract": "node scripts/probe-markdown-preview-source-contract.mjs",
     "check:bundle": "node scripts/check-bundle-budget.mjs",
     "version:bump": "node scripts/bump-version.mjs",
     "release:check-version": "node scripts/check-release-version.mjs",

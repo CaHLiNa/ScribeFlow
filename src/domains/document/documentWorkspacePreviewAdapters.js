@@ -1,5 +1,3 @@
-import { isMarkdown, previewSourcePathFromPath } from '../../utils/fileTypes.js'
-
 function readPreviewBinding(filePath, workflowStore, previewKind = null) {
   const binding = workflowStore?.getPreviewBinding?.(filePath) || null
   if (!binding?.sourcePath) return null
@@ -7,11 +5,27 @@ function readPreviewBinding(filePath, workflowStore, previewKind = null) {
   return binding
 }
 
+function getExtension(filePath) {
+  const name = String(filePath || '').split(/[\\/]/).pop() || ''
+  const index = name.lastIndexOf('.')
+  return index > 0 ? name.slice(index + 1).toLowerCase() : ''
+}
+
+function isMarkdownSourcePath(filePath) {
+  return ['md', 'markdown', 'qmd', 'rmd'].includes(getExtension(filePath))
+}
+
+function previewSourcePathFromPreviewPath(filePath) {
+  return typeof filePath === 'string' && filePath.startsWith('preview:')
+    ? filePath.slice('preview:'.length)
+    : ''
+}
+
 function normalizePath(value) {
   return typeof value === 'string' ? value.trim() : ''
 }
 
-export async function resolveWorkspacePreviewSourcePath(filePath, options = {}) {
+export function resolveWorkspacePreviewSourcePath(filePath, options = {}) {
   const explicitSourcePath = normalizePath(options.sourcePath || options.workflowSourcePath)
   if (explicitSourcePath) return explicitSourcePath
 
@@ -19,21 +33,21 @@ export async function resolveWorkspacePreviewSourcePath(filePath, options = {}) 
     readPreviewBinding(filePath, options.workflowStore, options.previewKind)?.sourcePath || ''
   if (bindingSourcePath) return bindingSourcePath
 
-  const previewSourcePath = await previewSourcePathFromPath(filePath)
+  const previewSourcePath = previewSourcePathFromPreviewPath(filePath)
   if (previewSourcePath) return previewSourcePath
 
-  if (options.acceptSourceFile !== false && (await options.matchesSourcePath?.(filePath))) {
+  if (options.acceptSourceFile !== false && options.matchesSourcePath?.(filePath) === true) {
     return filePath
   }
 
   return ''
 }
 
-export async function resolveMarkdownPreviewInput(filePath, options = {}) {
-  const sourcePath = await resolveWorkspacePreviewSourcePath(filePath, {
+export function resolveMarkdownPreviewInput(filePath, options = {}) {
+  const sourcePath = resolveWorkspacePreviewSourcePath(filePath, {
     ...options,
     previewKind: 'html',
-    matchesSourcePath: isMarkdown,
+    matchesSourcePath: isMarkdownSourcePath,
   })
 
   return {
