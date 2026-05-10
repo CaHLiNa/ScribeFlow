@@ -165,6 +165,7 @@ import {
   buildSurfaceContext,
 } from './domains/extensions/extensionContributionRegistry'
 import { resolveExtensionTargetContext } from './domains/extensions/extensionTargetContext'
+import { resolvePaneDocumentDockOpen } from './domains/editor/paneDocumentDockRuntime.js'
 import { useAppShellLayout } from './composables/useAppShellLayout'
 import { useAppShellEventBridge } from './app/shell/useAppShellEventBridge'
 import { useAppExtensionRuntimeBridge } from './app/shell/useAppExtensionRuntimeBridge'
@@ -214,21 +215,26 @@ const activeDocumentPreviewState = computed(() => {
 })
 const activeDocumentPreviewOpen = computed(
   () =>
+    workspace.isOpen &&
     workspace.isWorkspaceSurface &&
     workspace.leftSidebarPanel !== 'references' &&
     activeDocumentPreviewState.value?.previewVisible === true
 )
 const referenceDetailOpen = computed(
   () =>
+    workspace.isOpen &&
     workspace.isWorkspaceSurface &&
     workspace.leftSidebarPanel === 'references' &&
     workspace.referenceDockOpen
 )
 const documentInternalDockOpen = computed(
-  () =>
-    workspace.isWorkspaceSurface &&
-    workspace.leftSidebarPanel !== 'references' &&
-    (workspace.documentDockOpen || activeDocumentPreviewOpen.value)
+  () => resolvePaneDocumentDockOpen({
+    hasWorkspace: workspace.isOpen,
+    isWorkspaceSurface: workspace.isWorkspaceSurface,
+    isReferencePanel: workspace.leftSidebarPanel === 'references',
+    documentDockOpen: workspace.documentDockOpen,
+    activeDocumentPreviewOpen: activeDocumentPreviewOpen.value,
+  })
 )
 const rightRailOpen = computed(
   () => supportsRightSidebar.value && (documentInternalDockOpen.value || referenceDetailOpen.value)

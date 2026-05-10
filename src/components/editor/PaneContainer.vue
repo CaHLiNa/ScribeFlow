@@ -54,13 +54,17 @@
 <script setup>
 import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { DOCUMENT_DOCK_PROBLEMS_PAGE } from '../../domains/editor/documentDockPages.js'
+import {
+  isWorkspaceDocumentPath,
+  resolvePaneDockContextPath,
+  resolvePaneDocumentTab,
+} from '../../domains/editor/paneDocumentDockRuntime.js'
 import { ROOT_PANE_ID } from '../../domains/editor/paneTreeLayout.js'
 import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { useEditorStore } from '../../stores/editor'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { getDocumentWorkflowKind } from '../../domains/document/documentWorkflowPolicy.js'
 import { resolveCachedLatexRootPath } from '../../services/latex/root.js'
-import { isNewTab, isPreviewPath } from '../../utils/fileTypes'
 import { useI18n } from '../../i18n'
 import InlineDockFrame from '../layout/InlineDockFrame.vue'
 import EditorPane from './EditorPane.vue'
@@ -106,11 +110,11 @@ const renderNode = computed(() => {
   }
 })
 const documentTab = computed(() => {
-  const active = editorStore.activeTab
-  if (active && !isNewTab(active) && !isPreviewPath(active)) {
-    return active
-  }
-  return lastDocumentTab.value
+  return resolvePaneDocumentTab({
+    activeTab: editorStore.activeTab,
+    lastDocumentTab: lastDocumentTab.value,
+    workspacePath: workspace.path,
+  })
 })
 const documentPreviewState = computed(() => {
   if (!documentTab.value) return null
@@ -121,21 +125,34 @@ const isDocumentDockOpen = computed(() => props.documentDockOpen || documentPrev
 const documentDockLayoutLocked = computed(() =>
   props.documentDockResizing || documentDockMotionActive.value
 )
-const dockContextPath = computed(
-  () =>
-    documentTab.value ||
-    editorStore.activeDocumentDockTab ||
-    editorStore.documentDockTabs?.[0] ||
-    ''
+const dockContextPath = computed(() =>
+  resolvePaneDockContextPath({
+    documentTab: documentTab.value,
+    activeDocumentDockTab: editorStore.activeDocumentDockTab,
+    documentDockTabs: editorStore.documentDockTabs,
+    workspacePath: workspace.path,
+  })
 )
 watch(
   () => editorStore.activeTab,
   (tab) => {
-    if (tab && !isNewTab(tab) && !isPreviewPath(tab)) {
+    if (isWorkspaceDocumentPath(tab, workspace.path)) {
       lastDocumentTab.value = tab
     }
   },
   { flush: 'post', immediate: true }
+)
+watch(
+  () => [workspace.path, editorStore.restoreGeneration],
+  () => {
+    if (!isWorkspaceDocumentPath(lastDocumentTab.value, workspace.path)) {
+      lastDocumentTab.value = null
+    }
+    if (!isWorkspaceDocumentPath(documentProblemsRevealPath.value, workspace.path)) {
+      documentProblemsRevealPath.value = ''
+    }
+  },
+  { flush: 'sync' }
 )
 watch(
   () => props.documentDockOpen,
