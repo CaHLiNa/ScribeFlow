@@ -49,6 +49,14 @@ pub struct ZoteroCollectionsParams {
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ZoteroRemoteLibrariesWithAccountParams {
+    #[serde(default)]
+    pub global_config_dir: String,
+    pub user_id: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ZoteroSyncParams {
     pub global_config_dir: String,
     pub api_key: String,
@@ -197,6 +205,15 @@ fn zotero_delete_with_account_params_from_payload(params: Value) -> ZoteroDelete
     ZoteroDeleteWithAccountParams {
         global_config_dir: string_payload_field(&params, "globalConfigDir", "global_config_dir"),
         reference: object_payload_field(&params, "reference", "reference"),
+    }
+}
+
+fn zotero_remote_libraries_with_account_params_from_payload(
+    params: Value,
+) -> ZoteroRemoteLibrariesWithAccountParams {
+    ZoteroRemoteLibrariesWithAccountParams {
+        global_config_dir: string_payload_field(&params, "globalConfigDir", "global_config_dir"),
+        user_id: scalar_string(command_payload_field(&params, "userId", "user_id")),
     }
 }
 
@@ -1226,10 +1243,14 @@ pub async fn references_zotero_validate_api_key(
 pub async fn references_zotero_fetch_user_groups(
     params: ZoteroUserGroupsParams,
 ) -> Result<Value, String> {
+    fetch_user_groups_with_key(&params.api_key, &params.user_id).await
+}
+
+async fn fetch_user_groups_with_key(api_key: &str, user_id: &str) -> Result<Value, String> {
     let response = zotero_api(
-        params.api_key.trim(),
+        api_key.trim(),
         reqwest::Method::GET,
-        &format!("/users/{}/groups", params.user_id.trim()),
+        &format!("/users/{}/groups", user_id.trim()),
         &[],
         None,
     )
@@ -1246,7 +1267,7 @@ pub async fn references_zotero_fetch_user_groups(
                 "name": trim_string(group.get("data").and_then(|data| data.get("name"))),
                 "owner": scalar_string(group.get("data").and_then(|data| data.get("owner"))),
                 "canWrite": trim_string(group.get("meta").and_then(|meta| meta.get("library")).and_then(|library| library.get("libraryEditing"))) != "admins"
-                    || scalar_string(group.get("data").and_then(|data| data.get("owner"))) == params.user_id.trim(),
+                    || scalar_string(group.get("data").and_then(|data| data.get("owner"))) == user_id.trim(),
             })
         })
         .collect::<Vec<_>>();
@@ -1257,13 +1278,21 @@ pub async fn references_zotero_fetch_user_groups(
 pub async fn references_zotero_fetch_collections(
     params: ZoteroCollectionsParams,
 ) -> Result<Value, String> {
-    let prefix = if params.library_type.trim() == "group" {
-        format!("/groups/{}", params.library_id.trim())
+    fetch_collections_with_key(&params.api_key, &params.library_type, &params.library_id).await
+}
+
+async fn fetch_collections_with_key(
+    api_key: &str,
+    library_type: &str,
+    library_id: &str,
+) -> Result<Value, String> {
+    let prefix = if library_type.trim() == "group" {
+        format!("/groups/{}", library_id.trim())
     } else {
-        format!("/users/{}", params.library_id.trim())
+        format!("/users/{}", library_id.trim())
     };
     let response = zotero_api(
-        params.api_key.trim(),
+        api_key.trim(),
         reqwest::Method::GET,
         &format!("{prefix}/collections"),
         &[],
@@ -1289,6 +1318,57 @@ pub async fn references_zotero_fetch_collections(
         })
         .collect::<Vec<_>>();
     Ok(Value::Array(collections))
+}
+
+#[tauri::command]
+pub async fn references_zotero_remote_libraries_with_account(
+    params: Value,
+) -> Result<Value, String> {
+    let params = zotero_remote_libraries_with_account_params_from_payload(params);
+    let user_id = params.user_id.trim();
+    if user_id.is_empty() {
+        return Ok(Value::Null);
+    }
+
+    let global_config_dir = if params.global_config_dir.trim().is_empty() {
+        crate::app_dirs::data_root_dir()?
+            .to_string_lossy()
+            .to_string()
+    } else {
+        params.global_config_dir
+    };
+    let api_key = load_zotero_api_key_string(&global_config_dir)?;
+    if api_key.trim().is_empty() {
+        return Ok(Value::Null);
+    }
+
+    let groups = fetch_user_groups_with_key(&api_key, user_id).await?;
+    let normalized_groups = groups.as_array().cloned().unwrap_or_default();
+    let user_collections = fetch_collections_with_key(&api_key, "user", user_id).await?;
+    let mut group_collections = Vec::new();
+
+    for group in &normalized_groups {
+        let group_id = scalar_string(group.get("id"));
+        if group_id.is_empty() {
+            group_collections.push(json!({
+                "group": group,
+                "collections": [],
+            }));
+            continue;
+        }
+
+        let collections = fetch_collections_with_key(&api_key, "group", &group_id).await?;
+        group_collections.push(json!({
+            "group": group,
+            "collections": collections.as_array().cloned().unwrap_or_default(),
+        }));
+    }
+
+    Ok(json!({
+        "groups": normalized_groups,
+        "userCollections": user_collections.as_array().cloned().unwrap_or_default(),
+        "groupCollections": group_collections,
+    }))
 }
 
 #[tauri::command]
@@ -1474,10 +1554,12 @@ mod tests {
         looks_like_generated_citation_key, references_zotero_delete_item_with_account,
         references_zotero_sync_persist, references_zotero_sync_persist_typed,
         references_zotero_sync_persist_with_account,
-        zotero_delete_with_account_params_from_payload, zotero_sync_persist_params_from_payload,
+        zotero_delete_with_account_params_from_payload,
+        zotero_remote_libraries_with_account_params_from_payload,
+        zotero_sync_persist_params_from_payload,
         zotero_sync_persist_with_account_params_from_payload, ZoteroSyncPersistParams,
     };
-    use serde_json::json;
+    use serde_json::{json, Value};
 
     #[test]
     fn extract_items_array_supports_top_level_array_payload() {
@@ -1659,6 +1741,31 @@ mod tests {
         assert_eq!(invalid.reference, json!({}));
     }
 
+    #[test]
+    fn zotero_remote_libraries_with_account_params_normalize_raw_payloads() {
+        let params = zotero_remote_libraries_with_account_params_from_payload(json!({
+            "globalConfigDir": " /tmp/config ",
+            "userId": 16788433,
+            "apiKey": "ignored-by-account-command"
+        }));
+        assert_eq!(params.global_config_dir, "/tmp/config");
+        assert_eq!(params.user_id, "16788433");
+
+        let snake_params = zotero_remote_libraries_with_account_params_from_payload(json!({
+            "global_config_dir": " /tmp/snake-config ",
+            "user_id": " 42 "
+        }));
+        assert_eq!(snake_params.global_config_dir, "/tmp/snake-config");
+        assert_eq!(snake_params.user_id, "42");
+
+        let invalid = zotero_remote_libraries_with_account_params_from_payload(json!({
+            "globalConfigDir": 42,
+            "userId": []
+        }));
+        assert_eq!(invalid.global_config_dir, "");
+        assert_eq!(invalid.user_id, "");
+    }
+
     #[tokio::test]
     async fn sync_persist_returns_canonical_skipped_result() {
         let skipped_without_api_key = references_zotero_sync_persist(json!({
@@ -1742,6 +1849,36 @@ mod tests {
         }))
         .await
         .expect("delete with account should no-op when api key is not stored");
+    }
+
+    #[tokio::test]
+    async fn remote_libraries_with_account_handles_empty_user_in_rust() {
+        let result = super::references_zotero_remote_libraries_with_account(json!({
+            "globalConfigDir": "/tmp/ignored",
+            "userId": " "
+        }))
+        .await
+        .expect("empty user should skip remote library discovery");
+
+        assert_eq!(result, Value::Null);
+    }
+
+    #[tokio::test]
+    async fn remote_libraries_with_account_loads_api_key_in_rust() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "scribeflow-zotero-remote-libraries-account-{}",
+            uuid::Uuid::new_v4()
+        ));
+
+        let result = super::references_zotero_remote_libraries_with_account(json!({
+            "globalConfigDir": temp_dir.to_string_lossy().to_string(),
+            "apiKey": "ignored-by-account-command",
+            "userId": "16788433"
+        }))
+        .await
+        .expect("remote libraries should skip when api key is not stored");
+
+        assert_eq!(result, Value::Null);
     }
 
     #[test]

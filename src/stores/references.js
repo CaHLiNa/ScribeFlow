@@ -46,10 +46,9 @@ import {
 import {
   deleteFromZotero,
   disconnectZotero as disconnectZoteroWithBackend,
-  fetchCollections,
-  fetchUserGroups,
   loadZoteroApiKey,
   loadZoteroConfig,
+  loadRemoteLibraries,
   saveZoteroConfig,
   storeZoteroApiKey,
   syncNow as syncZoteroNowWithBackend,
@@ -1033,24 +1032,17 @@ export const useReferencesStore = defineStore('references', {
       const userId = String(config?.userId || '').trim()
       if (!userId) return null
 
-      const apiKey = await loadZoteroApiKey()
-      if (!apiKey) return null
-
-      const groups = await fetchUserGroups(apiKey, userId)
-      const normalizedGroups = Array.isArray(groups) ? groups : []
-      const userCollections = await fetchCollections(apiKey, 'user', userId)
-      const groupCollections = []
-
-      for (const group of normalizedGroups) {
-        groupCollections.push({
-          group,
-          collections: await fetchCollections(apiKey, 'group', group.id),
-        })
-      }
+      const libraries = await loadRemoteLibraries(userId)
+      if (!libraries || typeof libraries !== 'object') return null
+      const normalizedGroups = Array.isArray(libraries.groups) ? libraries.groups : []
+      const userCollections = Array.isArray(libraries.userCollections) ? libraries.userCollections : []
+      const groupCollections = Array.isArray(libraries.groupCollections)
+        ? libraries.groupCollections
+        : []
 
       return {
         groups: normalizedGroups,
-        userCollections: Array.isArray(userCollections) ? userCollections : [],
+        userCollections,
         groupCollections: groupCollections.map((entry) => ({
           group: entry.group,
           collections: Array.isArray(entry.collections) ? entry.collections : [],

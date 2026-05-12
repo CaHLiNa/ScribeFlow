@@ -86,6 +86,14 @@ export async function fetchCollections(apiKey = '', libraryType = 'user', librar
   })
 }
 
+export async function loadRemoteLibraries(userId = '') {
+  return invoke('references_zotero_remote_libraries_with_account', {
+    params: {
+      userId,
+    },
+  })
+}
+
 export async function deleteFromZotero(reference = {}) {
   await invoke('references_zotero_delete_item_with_account', {
     params: {

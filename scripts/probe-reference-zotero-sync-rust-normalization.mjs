@@ -65,10 +65,42 @@ try {
       return null
     }
 
+    if (cmd === 'references_zotero_remote_libraries_with_account') {
+      return {
+        groups: [
+          {
+            id: 'group-1',
+            name: 'Research Group',
+          },
+        ],
+        userCollections: [
+          {
+            key: 'user-collection',
+            name: 'User Collection',
+          },
+        ],
+        groupCollections: [
+          {
+            group: {
+              id: 'group-1',
+              name: 'Research Group',
+            },
+            collections: [
+              {
+                key: 'group-collection',
+                name: 'Group Collection',
+              },
+            ],
+          },
+        ],
+      }
+    }
+
     throw new Error(`Unexpected IPC command: ${cmd}`)
   })
 
-  const { deleteFromZotero, syncNow } = await vite.ssrLoadModule('/src/services/references/zoteroSync.js')
+  const { deleteFromZotero, loadRemoteLibraries, syncNow } =
+    await vite.ssrLoadModule('/src/services/references/zoteroSync.js')
 
   const snapshot = {
     version: 2,
@@ -139,6 +171,49 @@ try {
       _zoteroKey: ' Q6ZQTSEA ',
       _zoteroLibrary: ' user/16788433 ',
     },
+  })
+
+  const libraries = await loadRemoteLibraries(42)
+
+  assert.deepEqual(libraries, {
+    groups: [
+      {
+        id: 'group-1',
+        name: 'Research Group',
+      },
+    ],
+    userCollections: [
+      {
+        key: 'user-collection',
+        name: 'User Collection',
+      },
+    ],
+    groupCollections: [
+      {
+        group: {
+          id: 'group-1',
+          name: 'Research Group',
+        },
+        collections: [
+          {
+            key: 'group-collection',
+            name: 'Group Collection',
+          },
+        ],
+      },
+    ],
+  })
+  assert.deepEqual(
+    calls.map((call) => call.cmd),
+    [
+      'references_zotero_sync_persist_with_account',
+      'references_zotero_sync_persist_with_account',
+      'references_zotero_delete_item_with_account',
+      'references_zotero_remote_libraries_with_account',
+    ],
+  )
+  assert.deepEqual(calls[3].args.params, {
+    userId: 42,
   })
 
   console.log('reference zotero sync rust normalization probe passed')

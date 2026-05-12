@@ -280,6 +280,7 @@ pub fn run() {
             references_zotero::references_zotero_validate_api_key,
             references_zotero::references_zotero_fetch_user_groups,
             references_zotero::references_zotero_fetch_collections,
+            references_zotero::references_zotero_remote_libraries_with_account,
             references_zotero::references_zotero_sync,
             references_zotero::references_zotero_sync_persist,
             references_zotero::references_zotero_sync_persist_with_account,
