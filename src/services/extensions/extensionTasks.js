@@ -3,7 +3,7 @@ import { invoke } from '@tauri-apps/api/core'
 export async function listExtensionTasks(workspaceRoot = '') {
   const tasks = await invoke('extension_task_list', {
     params: {
-      workspaceRoot: String(workspaceRoot || ''),
+      workspaceRoot,
     },
   })
   return Array.isArray(tasks) ? tasks : []
@@ -12,7 +12,7 @@ export async function listExtensionTasks(workspaceRoot = '') {
 export async function getExtensionTask(taskId = '') {
   return invoke('extension_task_get', {
     params: {
-      taskId: String(taskId || ''),
+      taskId,
     },
   })
 }
@@ -20,7 +20,7 @@ export async function getExtensionTask(taskId = '') {
 export async function cancelExtensionTask(taskId = '') {
   return invoke('extension_task_cancel', {
     params: {
-      taskId: String(taskId || ''),
+      taskId,
     },
   })
 }
@@ -28,8 +28,8 @@ export async function cancelExtensionTask(taskId = '') {
 export async function cancelExtensionTasksForExtension(extensionId = '', workspaceRoot = '') {
   const tasks = await invoke('extension_task_cancel_extension', {
     params: {
-      extensionId: String(extensionId || ''),
-      workspaceRoot: String(workspaceRoot || ''),
+      extensionId,
+      workspaceRoot,
     },
   })
   return Array.isArray(tasks) ? tasks : []

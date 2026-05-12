@@ -987,6 +987,35 @@ pub struct ExtensionTaskListParams {
     pub workspace_root: String,
 }
 
+fn task_param_string(params: &Value, camel_key: &str, snake_key: &str) -> String {
+    params
+        .get(camel_key)
+        .or_else(|| params.get(snake_key))
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .trim()
+        .to_string()
+}
+
+fn task_get_params_from_payload(params: Value) -> ExtensionTaskGetParams {
+    ExtensionTaskGetParams {
+        task_id: task_param_string(&params, "taskId", "task_id"),
+    }
+}
+
+fn task_extension_params_from_payload(params: Value) -> ExtensionTaskExtensionParams {
+    ExtensionTaskExtensionParams {
+        extension_id: task_param_string(&params, "extensionId", "extension_id"),
+        workspace_root: task_param_string(&params, "workspaceRoot", "workspace_root"),
+    }
+}
+
+fn task_list_params_from_payload(params: Value) -> ExtensionTaskListParams {
+    ExtensionTaskListParams {
+        workspace_root: task_param_string(&params, "workspaceRoot", "workspace_root"),
+    }
+}
+
 fn list_tasks_for_workspace(
     tasks_root: &Path,
     workspace_root: &str,
@@ -1002,23 +1031,24 @@ fn list_tasks_for_workspace(
 }
 
 #[tauri::command]
-pub async fn extension_task_list(
-    params: ExtensionTaskListParams,
-) -> Result<Vec<ExtensionTask>, String> {
+pub async fn extension_task_list(params: Value) -> Result<Vec<ExtensionTask>, String> {
+    let params = task_list_params_from_payload(params);
     list_tasks_for_workspace(&tasks_dir()?, &params.workspace_root)
 }
 
 #[tauri::command]
-pub async fn extension_task_get(params: ExtensionTaskGetParams) -> Result<ExtensionTask, String> {
+pub async fn extension_task_get(params: Value) -> Result<ExtensionTask, String> {
+    let params = task_get_params_from_payload(params);
     get_task(&params.task_id)
 }
 
 #[tauri::command]
 pub async fn extension_task_cancel(
-    params: ExtensionTaskGetParams,
+    params: Value,
     runtime_state: tauri::State<'_, ExtensionTaskRuntimeState>,
     extension_host_state: tauri::State<'_, crate::extension_host::ExtensionHostState>,
 ) -> Result<ExtensionTask, String> {
+    let params = task_get_params_from_payload(params);
     cancel_task_for_runtime(
         &params.task_id,
         runtime_state.inner(),
@@ -1028,10 +1058,11 @@ pub async fn extension_task_cancel(
 
 #[tauri::command]
 pub async fn extension_task_cancel_extension(
-    params: ExtensionTaskExtensionParams,
+    params: Value,
     runtime_state: tauri::State<'_, ExtensionTaskRuntimeState>,
     extension_host_state: tauri::State<'_, crate::extension_host::ExtensionHostState>,
 ) -> Result<Vec<ExtensionTask>, String> {
+    let params = task_extension_params_from_payload(params);
     cancel_active_tasks_for_extension(
         &params.extension_id,
         &params.workspace_root,
@@ -1045,16 +1076,58 @@ mod tests {
     use super::{
         active_tasks_for_extension_in_dir, apply_task_update_in_dir,
         cancel_active_tasks_for_extension_in_dir, create_task_in_dir, list_tasks_from_dir,
-        recover_interrupted_tasks_in_dir, update_task_in_dir, ExtensionTaskArtifactPatch,
-        ExtensionTaskOutputPatch, ExtensionTaskRuntimeState, ExtensionTaskTarget,
-        ExtensionTaskUpdatePatch,
+        recover_interrupted_tasks_in_dir, task_extension_params_from_payload,
+        task_get_params_from_payload, task_list_params_from_payload, update_task_in_dir,
+        ExtensionTaskArtifactPatch, ExtensionTaskOutputPatch, ExtensionTaskRuntimeState,
+        ExtensionTaskTarget, ExtensionTaskUpdatePatch,
     };
+    use serde_json::json;
     use std::fs;
 
     fn temp_tasks_root(prefix: &str) -> std::path::PathBuf {
         let root = std::env::temp_dir().join(format!("{prefix}-{}", uuid::Uuid::new_v4()));
         fs::create_dir_all(&root).expect("temp tasks root");
         root
+    }
+
+    #[test]
+    fn extension_task_params_normalize_raw_payloads() {
+        let get_params = task_get_params_from_payload(json!({
+            "taskId": " task-1 "
+        }));
+        assert_eq!(get_params.task_id, "task-1");
+
+        let snake_get_params = task_get_params_from_payload(json!({
+            "task_id": " task-2 "
+        }));
+        assert_eq!(snake_get_params.task_id, "task-2");
+
+        let missing_get_params = task_get_params_from_payload(json!({
+            "taskId": 42
+        }));
+        assert_eq!(missing_get_params.task_id, "");
+
+        let list_params = task_list_params_from_payload(json!({
+            "workspaceRoot": " /tmp/workspace-a "
+        }));
+        assert_eq!(list_params.workspace_root, "/tmp/workspace-a");
+
+        let extension_params = task_extension_params_from_payload(json!({
+            "extensionId": " example-pdf-extension ",
+            "workspaceRoot": " /tmp/workspace-b "
+        }));
+        assert_eq!(extension_params.extension_id, "example-pdf-extension");
+        assert_eq!(extension_params.workspace_root, "/tmp/workspace-b");
+
+        let snake_extension_params = task_extension_params_from_payload(json!({
+            "extension_id": " example-markdown-extension ",
+            "workspace_root": " /tmp/workspace-c "
+        }));
+        assert_eq!(
+            snake_extension_params.extension_id,
+            "example-markdown-extension"
+        );
+        assert_eq!(snake_extension_params.workspace_root, "/tmp/workspace-c");
     }
 
     #[test]
