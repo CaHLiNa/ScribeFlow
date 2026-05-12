@@ -338,6 +338,17 @@ fn extension_host_resolve_host_call_params_from_payload(
     }
 }
 
+fn extension_host_notify_view_selection_params_from_payload(
+    params: Value,
+) -> ExtensionHostNotifyViewSelectionParams {
+    ExtensionHostNotifyViewSelectionParams {
+        extension_id: host_param_string(&params, "extensionId", "extension_id"),
+        workspace_root: host_param_string(&params, "workspaceRoot", "workspace_root"),
+        view_id: host_param_string(&params, "viewId", "view_id"),
+        item_handle: host_param_string(&params, "itemHandle", "item_handle"),
+    }
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ExtensionHostActivationState {
@@ -2860,9 +2871,10 @@ pub async fn extension_host_update_settings(
 
 #[tauri::command]
 pub async fn extension_host_notify_view_selection(
-    params: ExtensionHostNotifyViewSelectionParams,
+    params: Value,
     state: tauri::State<'_, ExtensionHostState>,
 ) -> Result<ExtensionHostViewSelectionAcknowledgement, String> {
+    let params = extension_host_notify_view_selection_params_from_payload(params);
     let extension_id = params.extension_id.trim().to_string();
     let view_id = params.view_id.trim().to_string();
     if extension_id.is_empty() || view_id.is_empty() {
@@ -2890,6 +2902,7 @@ mod tests {
         extension_host_activate_params_from_payload,
         extension_host_cancel_window_inputs_params_from_payload,
         extension_host_deactivate_params_from_payload,
+        extension_host_notify_view_selection_params_from_payload,
         extension_host_resolve_host_call_params_from_payload,
         extension_host_update_settings_params_from_payload, handle_extension_host_request,
         should_activate_for_event, ExtensionHostRequest, ExtensionHostResponse, ExtensionHostState,
@@ -3022,6 +3035,30 @@ mod tests {
                 "settings": ["not", "an", "object"]
             }));
         assert_eq!(invalid_settings.settings, serde_json::json!({}));
+
+        let selection =
+            extension_host_notify_view_selection_params_from_payload(serde_json::json!({
+                "extensionId": " example-pdf-extension ",
+                "workspaceRoot": " /tmp/workspace ",
+                "viewId": " examplePdfExtension.tools ",
+                "itemHandle": 42
+            }));
+        assert_eq!(selection.extension_id, "example-pdf-extension");
+        assert_eq!(selection.workspace_root, "/tmp/workspace");
+        assert_eq!(selection.view_id, "examplePdfExtension.tools");
+        assert_eq!(selection.item_handle, "");
+
+        let snake_selection =
+            extension_host_notify_view_selection_params_from_payload(serde_json::json!({
+                "extension_id": " example-markdown-extension ",
+                "workspace_root": " /tmp/workspace-snake ",
+                "view_id": " exampleMarkdownExtension.notes ",
+                "item_handle": " item-1 "
+            }));
+        assert_eq!(snake_selection.extension_id, "example-markdown-extension");
+        assert_eq!(snake_selection.workspace_root, "/tmp/workspace-snake");
+        assert_eq!(snake_selection.view_id, "exampleMarkdownExtension.notes");
+        assert_eq!(snake_selection.item_handle, "item-1");
     }
 
     #[test]
