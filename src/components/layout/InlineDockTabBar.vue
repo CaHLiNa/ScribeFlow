@@ -5,7 +5,13 @@
         v-for="page in pages"
         :key="page.key"
         class="inline-dock__tab"
-        :class="[page.tabClass, { 'is-active': page.key === activeKey }]"
+        :class="[
+          page.tabClass,
+          {
+            'is-active': page.key === activeKey,
+            'has-close-action': canClosePage(page),
+          },
+        ]"
         role="tab"
         :aria-selected="page.key === activeKey"
         :aria-label="page.ariaLabel || page.title || page.label"
@@ -27,7 +33,7 @@
           <span v-if="page.label">{{ page.label }}</span>
         </div>
         <button
-          v-if="page.closeable && (!page.closeWhenActiveOnly || page.key === activeKey)"
+          v-if="canClosePage(page)"
           type="button"
           class="inline-dock__tab-close"
           :class="page.closeClass"
@@ -46,7 +52,7 @@
 import { IconX } from '@tabler/icons-vue'
 import { useI18n } from '../../i18n'
 
-defineProps({
+const props = defineProps({
   activeKey: { type: String, default: '' },
   ariaLabel: { type: String, default: '' },
   pages: { type: Array, default: () => [] },
@@ -58,4 +64,8 @@ defineEmits(['activate', 'close'])
 
 const { t } = useI18n()
 const closeLabel = t('Close')
+
+function canClosePage(page = {}) {
+  return page.closeable === true && (!page.closeWhenActiveOnly || page.key === props.activeKey)
+}
 </script>
