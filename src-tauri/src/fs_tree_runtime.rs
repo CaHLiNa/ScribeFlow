@@ -128,6 +128,24 @@ fn default_display_sort_mode() -> String {
     "name".to_string()
 }
 
+fn normalize_display_sort_mode(value: &str) -> String {
+    if value.trim().eq_ignore_ascii_case("modified") {
+        "modified".to_string()
+    } else {
+        default_display_sort_mode()
+    }
+}
+
+fn normalize_display_preferences(
+    preferences: FsTreeDisplayPreferences,
+) -> FsTreeDisplayPreferences {
+    FsTreeDisplayPreferences {
+        show_hidden: preferences.show_hidden,
+        sort_mode: normalize_display_sort_mode(&preferences.sort_mode),
+        fold_directories: preferences.fold_directories,
+    }
+}
+
 fn collect_loaded_directory_paths(entries: &[FileEntry], paths: &mut Vec<String>) {
     for entry in entries {
         if !entry.is_dir {
@@ -320,12 +338,13 @@ fn read_workspace_snapshot_state(
 ) -> Result<FsTreeWorkspaceStateResult, String> {
     let loaded_dirs = collect_loaded_dirs(current_tree, workspace_path, extra_dirs);
     let loaded_set: HashSet<String> = loaded_dirs.iter().cloned().collect();
+    let display_preferences = normalize_display_preferences(display_preferences.clone());
     let snapshot =
         build_workspace_tree_snapshot(Path::new(workspace_path), &loaded_set, include_hidden)?;
     Ok(build_workspace_state_result(
         snapshot,
         Vec::new(),
-        display_preferences,
+        &display_preferences,
     ))
 }
 
@@ -395,11 +414,9 @@ pub async fn fs_tree_restore_cached_expanded_state(
 pub async fn fs_tree_resolve_display_state(
     params: FsTreeResolveDisplayStateParams,
 ) -> Result<FsTreeDisplayStateResult, String> {
+    let display_preferences = normalize_display_preferences(params.display_preferences);
     Ok(FsTreeDisplayStateResult {
-        display_tree: apply_file_tree_display_preferences(
-            &params.tree,
-            &params.display_preferences,
-        ),
+        display_tree: apply_file_tree_display_preferences(&params.tree, &display_preferences),
     })
 }
 
@@ -407,7 +424,7 @@ pub async fn fs_tree_resolve_display_state(
 mod tests {
     use super::{
         apply_file_tree_display_preferences, collect_loaded_dirs, filter_cached_root_expanded_dirs,
-        list_ancestor_dir_paths, FsTreeDisplayPreferences,
+        list_ancestor_dir_paths, normalize_display_preferences, FsTreeDisplayPreferences,
     };
     use crate::fs_tree::FileEntry;
 
@@ -533,6 +550,32 @@ mod tests {
                 .map(|entry| entry.name.as_str())
                 .collect::<Vec<_>>(),
             vec!["dir", "newer.md", "older.md"]
+        );
+    }
+
+    #[test]
+    fn normalizes_display_preferences_before_display_resolution() {
+        assert_eq!(
+            normalize_display_preferences(FsTreeDisplayPreferences {
+                show_hidden: false,
+                sort_mode: "recent".to_string(),
+                fold_directories: true,
+            }),
+            FsTreeDisplayPreferences {
+                show_hidden: false,
+                sort_mode: "name".to_string(),
+                fold_directories: true,
+            }
+        );
+
+        assert_eq!(
+            normalize_display_preferences(FsTreeDisplayPreferences {
+                show_hidden: true,
+                sort_mode: " MODIFIED ".to_string(),
+                fold_directories: false,
+            })
+            .sort_mode,
+            "modified"
         );
     }
 

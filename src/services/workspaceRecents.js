@@ -82,11 +82,7 @@ export async function loadWorkspaceBootstrapData(params = {}) {
         : [],
       includeHidden: params.includeHidden !== false,
       hasCachedTree: params.hasCachedTree === true,
-      displayPreferences: {
-        showHidden: params.displayPreferences?.showHidden !== false,
-        sortMode: String(params.displayPreferences?.sortMode || 'name'),
-        foldDirectories: params.displayPreferences?.foldDirectories === true,
-      },
+      displayPreferences: params.displayPreferences || {},
     },
   })
 }

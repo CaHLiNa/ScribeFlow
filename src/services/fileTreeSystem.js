@@ -8,7 +8,7 @@ export function loadWorkspaceTreeState(params = {}) {
       currentTree: Array.isArray(params.currentTree) ? params.currentTree : [],
       extraDirs: Array.isArray(params.extraDirs) ? params.extraDirs : [],
       includeHidden: params.includeHidden !== false,
-      displayPreferences: normalizeDisplayPreferences(params.displayPreferences),
+      displayPreferences: params.displayPreferences || {},
     },
   })
 }
@@ -20,7 +20,7 @@ export function revealWorkspaceTreeState(params = {}) {
       targetPath: String(params.targetPath || ''),
       currentTree: Array.isArray(params.currentTree) ? params.currentTree : [],
       includeHidden: params.includeHidden !== false,
-      displayPreferences: normalizeDisplayPreferences(params.displayPreferences),
+      displayPreferences: params.displayPreferences || {},
     },
   })
 }
@@ -35,7 +35,7 @@ export function restoreCachedExpandedTreeState(params = {}) {
         : [],
       maxDirs: Number.isFinite(params.maxDirs) ? params.maxDirs : 6,
       includeHidden: params.includeHidden !== false,
-      displayPreferences: normalizeDisplayPreferences(params.displayPreferences),
+      displayPreferences: params.displayPreferences || {},
     },
   })
 }
@@ -44,17 +44,9 @@ export function resolveFileTreeDisplayState(params = {}) {
   return invoke('fs_tree_resolve_display_state', {
     params: {
       tree: Array.isArray(params.tree) ? params.tree : [],
-      displayPreferences: normalizeDisplayPreferences(params.displayPreferences),
+      displayPreferences: params.displayPreferences || {},
     },
   })
-}
-
-function normalizeDisplayPreferences(preferences = {}) {
-  return {
-    showHidden: preferences.showHidden !== false,
-    sortMode: String(preferences.sortMode || 'name'),
-    foldDirectories: preferences.foldDirectories === true,
-  }
 }
 
 export function startWorkspaceTreeWatch(path) {
