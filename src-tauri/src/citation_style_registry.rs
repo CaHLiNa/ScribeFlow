@@ -1,4 +1,5 @@
 use serde::Serialize;
+use serde_json::Value;
 
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -34,7 +35,8 @@ fn find_style(style_id: &str) -> Option<CitationStyleInfo> {
 }
 
 #[tauri::command]
-pub async fn citation_style_normalize(style_id: String) -> Result<String, String> {
+pub async fn citation_style_normalize(params: Value) -> Result<String, String> {
+    let style_id = citation_style_params_from_payload(params);
     let normalized = style_id.trim().to_string();
     if normalized.is_empty() {
         return Ok("apa".to_string());
@@ -46,11 +48,46 @@ pub async fn citation_style_normalize(style_id: String) -> Result<String, String
 }
 
 #[tauri::command]
-pub async fn citation_style_get_info(style_id: String) -> Result<Option<CitationStyleInfo>, String> {
+pub async fn citation_style_get_info(params: Value) -> Result<Option<CitationStyleInfo>, String> {
+    let style_id = citation_style_params_from_payload(params);
     Ok(find_style(&style_id))
 }
 
 #[tauri::command]
 pub async fn citation_style_list_available() -> Result<Vec<CitationStyleInfo>, String> {
     Ok(get_builtin_styles())
+}
+
+fn payload_field<'a>(params: &'a Value, key: &str) -> Option<&'a Value> {
+    params.as_object().and_then(|object| object.get(key))
+}
+
+fn string_payload_field(params: &Value, key: &str) -> String {
+    payload_field(params, key)
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string()
+}
+
+fn citation_style_params_from_payload(params: Value) -> String {
+    string_payload_field(&params, "styleId")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::citation_style_params_from_payload;
+    use serde_json::json;
+
+    #[test]
+    fn citation_style_params_normalize_raw_payloads() {
+        assert_eq!(
+            citation_style_params_from_payload(json!({ "styleId": " ieee " })),
+            " ieee "
+        );
+        assert_eq!(
+            citation_style_params_from_payload(json!({ "styleId": 42 })),
+            ""
+        );
+        assert_eq!(citation_style_params_from_payload(json!(false)), "");
+    }
 }

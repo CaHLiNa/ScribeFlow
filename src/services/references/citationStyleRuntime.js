@@ -5,9 +5,9 @@ export async function getAvailableCitationStyles() {
 }
 
 export async function getCitationStyleInfo(styleId = '') {
-  return invoke('citation_style_get_info', { styleId })
+  return invoke('citation_style_get_info', { params: { styleId } })
 }
 
 export async function normalizeCitationStyle(styleId = '') {
-  return invoke('citation_style_normalize', { styleId })
+  return invoke('citation_style_normalize', { params: { styleId } })
 }
