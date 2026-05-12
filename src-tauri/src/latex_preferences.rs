@@ -1,5 +1,6 @@
 use crate::app_dirs;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::fs;
 use std::path::PathBuf;
 
@@ -89,6 +90,52 @@ fn default_auto_compile() -> bool {
 
 fn default_format_on_save() -> bool {
     DEFAULT_FORMAT_ON_SAVE
+}
+
+fn command_payload_field<'a>(
+    params: &'a Value,
+    camel_key: &str,
+    snake_key: &str,
+) -> Option<&'a Value> {
+    params
+        .as_object()
+        .and_then(|object| object.get(camel_key).or_else(|| object.get(snake_key)))
+}
+
+fn string_payload_field(params: &Value, camel_key: &str, snake_key: &str) -> String {
+    command_payload_field(params, camel_key, snake_key)
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .trim()
+        .to_string()
+}
+
+fn preferences_payload_field(params: &Value) -> LatexPreferences {
+    command_payload_field(params, "preferences", "preferences")
+        .cloned()
+        .and_then(|value| serde_json::from_value(value).ok())
+        .unwrap_or_default()
+}
+
+fn latex_preferences_load_params_from_payload(params: Value) -> LatexPreferencesLoadParams {
+    LatexPreferencesLoadParams {
+        global_config_dir: string_payload_field(&params, "globalConfigDir", "global_config_dir"),
+    }
+}
+
+fn latex_preferences_save_params_from_payload(params: Value) -> LatexPreferencesSaveParams {
+    LatexPreferencesSaveParams {
+        global_config_dir: string_payload_field(&params, "globalConfigDir", "global_config_dir"),
+        preferences: preferences_payload_field(&params),
+    }
+}
+
+fn latex_preferences_normalize_params_from_payload(
+    params: Value,
+) -> LatexPreferencesNormalizeParams {
+    LatexPreferencesNormalizeParams {
+        preferences: preferences_payload_field(&params),
+    }
 }
 
 fn normalize_root(path: &str) -> String {
@@ -189,8 +236,7 @@ pub fn normalize_latex_preferences(preferences: LatexPreferences) -> LatexPrefer
     }
 }
 
-#[tauri::command]
-pub async fn latex_preferences_load(
+pub async fn latex_preferences_load_typed(
     params: LatexPreferencesLoadParams,
 ) -> Result<LatexPreferences, String> {
     if let Some(current) = read_latex_preferences(&params.global_config_dir)? {
@@ -203,7 +249,11 @@ pub async fn latex_preferences_load(
 }
 
 #[tauri::command]
-pub async fn latex_preferences_save(
+pub async fn latex_preferences_load(params: Value) -> Result<LatexPreferences, String> {
+    latex_preferences_load_typed(latex_preferences_load_params_from_payload(params)).await
+}
+
+pub async fn latex_preferences_save_typed(
     params: LatexPreferencesSaveParams,
 ) -> Result<LatexPreferences, String> {
     let normalized = normalize_latex_preferences(params.preferences);
@@ -212,18 +262,30 @@ pub async fn latex_preferences_save(
 }
 
 #[tauri::command]
-pub async fn latex_preferences_normalize(
+pub async fn latex_preferences_save(params: Value) -> Result<LatexPreferences, String> {
+    latex_preferences_save_typed(latex_preferences_save_params_from_payload(params)).await
+}
+
+pub async fn latex_preferences_normalize_typed(
     params: LatexPreferencesNormalizeParams,
 ) -> Result<LatexPreferences, String> {
     Ok(normalize_latex_preferences(params.preferences))
 }
 
+#[tauri::command]
+pub async fn latex_preferences_normalize(params: Value) -> Result<LatexPreferences, String> {
+    latex_preferences_normalize_typed(latex_preferences_normalize_params_from_payload(params)).await
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        latex_preferences_normalize, latex_preferences_save, LatexPreferences,
+        latex_preferences_load_params_from_payload, latex_preferences_normalize,
+        latex_preferences_normalize_params_from_payload, latex_preferences_save,
+        latex_preferences_save_params_from_payload, LatexPreferences,
         LatexPreferencesNormalizeParams, LatexPreferencesSaveParams,
     };
+    use serde_json::json;
     use std::fs;
 
     #[tokio::test]
@@ -231,7 +293,28 @@ mod tests {
         let temp_dir =
             std::env::temp_dir().join(format!("scribeflow-latex-prefs-{}", uuid::Uuid::new_v4()));
         fs::create_dir_all(&temp_dir).expect("create temp dir");
-        let saved = latex_preferences_save(LatexPreferencesSaveParams {
+        let saved = latex_preferences_save(json!({
+            "globalConfigDir": temp_dir.to_string_lossy().to_string(),
+            "preferences": {
+                "compilerPreference": "tectonic",
+                "enginePreference": "xelatex",
+                "autoCompile": true,
+                "formatOnSave": true,
+                "buildExtraArgs": "  -interaction=nonstopmode  ",
+                "customSystemTexPath": " /Library/TeX/texbin/latexmk "
+            }
+        }))
+        .await
+        .expect("save latex preferences");
+
+        assert_eq!(saved.compiler_preference, "tectonic");
+        assert_eq!(saved.engine_preference, "auto");
+        assert!(!saved.auto_compile);
+        assert!(!saved.format_on_save);
+        assert_eq!(saved.build_extra_args, "-interaction=nonstopmode");
+        assert_eq!(saved.custom_system_tex_path, "/Library/TeX/texbin/latexmk");
+
+        let typed_saved = super::latex_preferences_save_typed(LatexPreferencesSaveParams {
             global_config_dir: temp_dir.to_string_lossy().to_string(),
             preferences: LatexPreferences {
                 compiler_preference: "tectonic".to_string(),
@@ -243,30 +326,33 @@ mod tests {
             },
         })
         .await
-        .expect("save latex preferences");
+        .expect("save typed latex preferences");
 
-        assert_eq!(saved.compiler_preference, "tectonic");
-        assert_eq!(saved.engine_preference, "auto");
-        assert!(!saved.auto_compile);
-        assert!(!saved.format_on_save);
-        assert_eq!(saved.build_extra_args, "-interaction=nonstopmode");
-        assert_eq!(saved.custom_system_tex_path, "/Library/TeX/texbin/latexmk");
+        assert_eq!(typed_saved.compiler_preference, "tectonic");
+        assert_eq!(typed_saved.engine_preference, "auto");
+        assert!(!typed_saved.auto_compile);
+        assert!(!typed_saved.format_on_save);
+        assert_eq!(typed_saved.build_extra_args, "-interaction=nonstopmode");
+        assert_eq!(
+            typed_saved.custom_system_tex_path,
+            "/Library/TeX/texbin/latexmk"
+        );
 
         fs::remove_dir_all(temp_dir).ok();
     }
 
     #[tokio::test]
     async fn normalize_command_returns_canonical_latex_preferences_without_writing() {
-        let normalized = latex_preferences_normalize(LatexPreferencesNormalizeParams {
-            preferences: LatexPreferences {
-                compiler_preference: " tectonic ".to_string(),
-                engine_preference: "xelatex".to_string(),
-                auto_compile: true,
-                format_on_save: true,
-                build_extra_args: "  --keep-logs  ".to_string(),
-                custom_system_tex_path: " /Library/TeX/texbin ".to_string(),
-            },
-        })
+        let normalized = latex_preferences_normalize(json!({
+            "preferences": {
+                "compilerPreference": " tectonic ",
+                "enginePreference": "xelatex",
+                "autoCompile": true,
+                "formatOnSave": true,
+                "buildExtraArgs": "  --keep-logs  ",
+                "customSystemTexPath": " /Library/TeX/texbin "
+            }
+        }))
         .await
         .expect("latex preference normalize command should return normalized state");
 
@@ -276,5 +362,84 @@ mod tests {
         assert!(!normalized.format_on_save);
         assert_eq!(normalized.build_extra_args, "--keep-logs");
         assert_eq!(normalized.custom_system_tex_path, "/Library/TeX/texbin");
+
+        let typed_normalized =
+            super::latex_preferences_normalize_typed(LatexPreferencesNormalizeParams {
+                preferences: LatexPreferences {
+                    compiler_preference: " tectonic ".to_string(),
+                    engine_preference: "xelatex".to_string(),
+                    auto_compile: true,
+                    format_on_save: true,
+                    build_extra_args: "  --keep-logs  ".to_string(),
+                    custom_system_tex_path: " /Library/TeX/texbin ".to_string(),
+                },
+            })
+            .await
+            .expect("typed latex preference normalize command should return normalized state");
+
+        assert_eq!(typed_normalized.compiler_preference, "tectonic");
+        assert_eq!(typed_normalized.engine_preference, "auto");
+        assert!(!typed_normalized.auto_compile);
+        assert!(!typed_normalized.format_on_save);
+        assert_eq!(typed_normalized.build_extra_args, "--keep-logs");
+        assert_eq!(
+            typed_normalized.custom_system_tex_path,
+            "/Library/TeX/texbin"
+        );
+    }
+
+    #[test]
+    fn latex_preferences_params_normalize_raw_payloads() {
+        let load_params = latex_preferences_load_params_from_payload(json!({
+            "globalConfigDir": " /tmp/config/ "
+        }));
+        assert_eq!(load_params.global_config_dir, "/tmp/config/");
+
+        let snake_load_params = latex_preferences_load_params_from_payload(json!({
+            "global_config_dir": " /tmp/snake-config "
+        }));
+        assert_eq!(snake_load_params.global_config_dir, "/tmp/snake-config");
+
+        let invalid_load_params = latex_preferences_load_params_from_payload(json!({
+            "globalConfigDir": 42
+        }));
+        assert_eq!(invalid_load_params.global_config_dir, "");
+
+        let save_params = latex_preferences_save_params_from_payload(json!({
+            "globalConfigDir": " /tmp/config ",
+            "preferences": {
+                "compilerPreference": " tectonic ",
+                "enginePreference": "xelatex",
+                "autoCompile": true,
+                "formatOnSave": true,
+                "buildExtraArgs": "  --keep-logs  ",
+                "customSystemTexPath": " /Library/TeX/texbin "
+            }
+        }));
+        assert_eq!(save_params.global_config_dir, "/tmp/config");
+        assert_eq!(save_params.preferences.compiler_preference, " tectonic ");
+        assert_eq!(save_params.preferences.engine_preference, "xelatex");
+        assert!(save_params.preferences.auto_compile);
+        assert!(save_params.preferences.format_on_save);
+        assert_eq!(save_params.preferences.build_extra_args, "  --keep-logs  ");
+        assert_eq!(
+            save_params.preferences.custom_system_tex_path,
+            " /Library/TeX/texbin "
+        );
+
+        let default_save_params = latex_preferences_save_params_from_payload(json!({
+            "preferences": "not-an-object"
+        }));
+        assert_eq!(default_save_params.preferences, LatexPreferences::default());
+
+        let normalize_params = latex_preferences_normalize_params_from_payload(json!({
+            "preferences": {
+                "compilerPreference": " AUTO "
+            }
+        }));
+        assert_eq!(normalize_params.preferences.compiler_preference, " AUTO ");
+
+        let non_object = latex_preferences_normalize_params_from_payload(json!(false));
+        assert_eq!(non_object.preferences, LatexPreferences::default());
     }
 }

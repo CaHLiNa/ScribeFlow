@@ -69,8 +69,19 @@ try {
       return normalizeLatexPreferencePayload(args?.params?.preferences || {})
     }
 
+    if (cmd === 'latex_preferences_load') {
+      return {
+        compilerPreference: 'auto',
+        enginePreference: 'auto',
+        autoCompile: false,
+        formatOnSave: false,
+        buildExtraArgs: '',
+        customSystemTexPath: '',
+      }
+    }
+
     if (cmd === 'latex_preferences_save') {
-      return args?.params?.preferences || {}
+      return normalizeLatexPreferencePayload(args?.params?.preferences || {})
     }
 
     throw new Error(`Unexpected IPC command: ${cmd}`)
@@ -78,11 +89,34 @@ try {
 
   const { useWorkspaceStore } = await vite.ssrLoadModule('/src/stores/workspace.js')
   const { useLatexStore } = await vite.ssrLoadModule('/src/stores/latex.js')
+  const {
+    loadLatexPreferences,
+    saveLatexPreferences,
+  } = await vite.ssrLoadModule('/src/services/latexPreferences.js')
   const pinia = createPinia()
   const workspace = useWorkspaceStore(pinia)
   const latex = useLatexStore(pinia)
   workspace.globalConfigDir = '/tmp/scribeflow-global-config'
   workspace.ensureGlobalConfigDir = async () => '/tmp/scribeflow-global-config'
+
+  await loadLatexPreferences(42)
+  const saved = await saveLatexPreferences(42, {
+    compilerPreference: ' tectonic ',
+    enginePreference: 'xelatex',
+    autoCompile: true,
+    formatOnSave: true,
+    buildExtraArgs: '  --keep-logs  ',
+    customSystemTexPath: ' /Library/TeX/texbin ',
+  })
+
+  assert.deepEqual(saved, {
+    compilerPreference: 'tectonic',
+    enginePreference: 'auto',
+    autoCompile: false,
+    formatOnSave: false,
+    buildExtraArgs: '--keep-logs',
+    customSystemTexPath: '/Library/TeX/texbin',
+  })
 
   await latex.persistPreferences({
     compilerPreference: ' tectonic ',
@@ -102,14 +136,31 @@ try {
 
   assert.deepEqual(
     calls.map((call) => call.cmd),
-    ['latex_preferences_normalize', 'latex_preferences_save'],
+    [
+      'latex_preferences_load',
+      'latex_preferences_save',
+      'latex_preferences_normalize',
+      'latex_preferences_save',
+    ],
   )
-  assert.equal(calls[1].args.params.preferences.compilerPreference, 'tectonic')
-  assert.equal(calls[1].args.params.preferences.enginePreference, 'auto')
-  assert.equal(calls[1].args.params.preferences.autoCompile, false)
-  assert.equal(calls[1].args.params.preferences.formatOnSave, false)
-  assert.equal(calls[1].args.params.preferences.buildExtraArgs, '--keep-logs')
-  assert.equal(calls[1].args.params.preferences.customSystemTexPath, '/Library/TeX/texbin')
+  assert.deepEqual(calls[0].args.params, { globalConfigDir: 42 })
+  assert.deepEqual(calls[1].args.params, {
+    globalConfigDir: 42,
+    preferences: {
+      compilerPreference: ' tectonic ',
+      enginePreference: 'xelatex',
+      autoCompile: true,
+      formatOnSave: true,
+      buildExtraArgs: '  --keep-logs  ',
+      customSystemTexPath: ' /Library/TeX/texbin ',
+    },
+  })
+  assert.equal(calls[3].args.params.preferences.compilerPreference, 'tectonic')
+  assert.equal(calls[3].args.params.preferences.enginePreference, 'auto')
+  assert.equal(calls[3].args.params.preferences.autoCompile, false)
+  assert.equal(calls[3].args.params.preferences.formatOnSave, false)
+  assert.equal(calls[3].args.params.preferences.buildExtraArgs, '--keep-logs')
+  assert.equal(calls[3].args.params.preferences.customSystemTexPath, '/Library/TeX/texbin')
 
   console.log('latex preferences rust normalization probe passed')
 } finally {

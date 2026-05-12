@@ -16,16 +16,11 @@ export async function loadLatexPreferences(globalConfigDir = '') {
   if (!isNativeDesktopRuntime()) {
     return createLatexPreferenceState()
   }
-  const preferences = await invoke('latex_preferences_load', {
+  return invoke('latex_preferences_load', {
     params: {
-      globalConfigDir: String(globalConfigDir || ''),
+      globalConfigDir,
     },
   })
-
-  return {
-    ...createLatexPreferenceState(),
-    ...preferences,
-  }
 }
 
 export async function normalizeLatexPreferences(preferences = {}) {
@@ -35,16 +30,11 @@ export async function normalizeLatexPreferences(preferences = {}) {
       ...preferences,
     }
   }
-  const normalized = await invoke('latex_preferences_normalize', {
+  return invoke('latex_preferences_normalize', {
     params: {
       preferences,
     },
   })
-
-  return {
-    ...createLatexPreferenceState(),
-    ...normalized,
-  }
 }
 
 export async function saveLatexPreferences(
@@ -57,15 +47,10 @@ export async function saveLatexPreferences(
       ...preferences,
     }
   }
-  const normalized = await invoke('latex_preferences_save', {
+  return invoke('latex_preferences_save', {
     params: {
-      globalConfigDir: String(globalConfigDir || ''),
+      globalConfigDir,
       preferences,
     },
   })
-
-  return {
-    ...createLatexPreferenceState(),
-    ...normalized,
-  }
 }
