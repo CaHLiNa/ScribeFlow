@@ -278,6 +278,7 @@ pub fn run() {
             references_zotero_account::references_zotero_disconnect,
             references_zotero::references_zotero_config_load,
             references_zotero::references_zotero_config_save,
+            references_zotero::references_zotero_connect_account,
             references_zotero::references_zotero_validate_api_key,
             references_zotero::references_zotero_fetch_user_groups,
             references_zotero::references_zotero_fetch_collections,

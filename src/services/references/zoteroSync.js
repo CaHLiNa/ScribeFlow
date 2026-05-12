@@ -40,6 +40,17 @@ export async function loadZoteroAccountState() {
   }
 }
 
+export async function connectZoteroAccount(apiKey = '') {
+  const globalConfigDir = await getGlobalConfigDir()
+  const config = await invoke('references_zotero_connect_account', {
+    params: {
+      globalConfigDir,
+      apiKey,
+    },
+  })
+  return config && typeof config === 'object' ? config : {}
+}
+
 export async function clearZoteroApiKey() {
   const globalConfigDir = await getGlobalConfigDir()
   await invoke('references_zotero_api_key_clear', {

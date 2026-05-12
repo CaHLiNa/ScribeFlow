@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
 use crate::references_backend::write_library_snapshot;
-use crate::references_zotero_account::load_zotero_api_key_string;
+use crate::references_zotero_account::{load_zotero_api_key_string, store_zotero_api_key_string};
 
 const ZOTERO_API_BASE: &str = "https://api.zotero.org";
 const ZOTERO_USER_AGENT: &str = "ScribeFlow-Desktop/1.0";
@@ -29,6 +29,14 @@ pub struct ZoteroConfigSaveParams {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ZoteroApiKeyParams {
+    pub api_key: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ZoteroConnectAccountParams {
+    pub global_config_dir: String,
+    #[serde(default)]
     pub api_key: String,
 }
 
@@ -259,6 +267,16 @@ fn merge_preserving_hidden_fields(existing: Option<Value>, next: Option<Value>) 
         }
         (None, Some(next)) => Some(sanitize_zotero_config(&next)),
     }
+}
+
+fn build_zotero_connected_config(identity: &Value) -> Value {
+    json!({
+        "userId": scalar_string(identity.get("userID")),
+        "username": trim_string(identity.get("username")),
+        "autoSync": true,
+        "_groups": [],
+        "pushTarget": Value::Null,
+    })
 }
 
 fn write_zotero_config_raw(
@@ -1225,8 +1243,12 @@ pub async fn references_zotero_config_save(
 pub async fn references_zotero_validate_api_key(
     params: ZoteroApiKeyParams,
 ) -> Result<Value, String> {
+    validate_zotero_api_key(&params.api_key).await
+}
+
+async fn validate_zotero_api_key(api_key: &str) -> Result<Value, String> {
     let response = zotero_api(
-        params.api_key.trim(),
+        api_key.trim(),
         reqwest::Method::GET,
         "/keys/current",
         &[],
@@ -1237,6 +1259,20 @@ pub async fn references_zotero_validate_api_key(
         "userID": scalar_string(response.body.get("userID")),
         "username": trim_string(response.body.get("username")),
     }))
+}
+
+#[tauri::command]
+pub async fn references_zotero_connect_account(
+    params: ZoteroConnectAccountParams,
+) -> Result<Value, String> {
+    let api_key = params.api_key.trim().to_string();
+    let identity = validate_zotero_api_key(&api_key).await?;
+    store_zotero_api_key_string(&params.global_config_dir, &api_key)?;
+
+    let config = build_zotero_connected_config(&identity);
+    let existing = read_zotero_config_raw(&params.global_config_dir)?;
+    let merged = merge_preserving_hidden_fields(existing, Some(config));
+    write_zotero_config_raw(&params.global_config_dir, merged)
 }
 
 #[tauri::command]
@@ -1549,7 +1585,7 @@ impl StringExt for String {
 #[cfg(test)]
 mod tests {
     use super::{
-        build_citation_key, extract_csl_year, extract_items_array,
+        build_citation_key, build_zotero_connected_config, extract_csl_year, extract_items_array,
         has_local_references_for_library, library_needs_metadata_refresh,
         looks_like_generated_citation_key, references_zotero_delete_item_with_account,
         references_zotero_sync_persist, references_zotero_sync_persist_typed,
@@ -1764,6 +1800,25 @@ mod tests {
         }));
         assert_eq!(invalid.global_config_dir, "");
         assert_eq!(invalid.user_id, "");
+    }
+
+    #[test]
+    fn zotero_connected_config_is_built_in_rust() {
+        let config = build_zotero_connected_config(&json!({
+            "userID": 16788433,
+            "username": " researcher "
+        }));
+
+        assert_eq!(
+            config,
+            json!({
+                "userId": "16788433",
+                "username": "researcher",
+                "autoSync": true,
+                "_groups": [],
+                "pushTarget": null
+            })
+        );
     }
 
     #[tokio::test]

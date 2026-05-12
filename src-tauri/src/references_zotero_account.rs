@@ -89,6 +89,14 @@ fn merge_key_fallback(global_config_dir: &str, api_key: &str) -> Result<(), Stri
     write_zotero_config_raw(global_config_dir, Some(Value::Object(config)))
 }
 
+pub(crate) fn store_zotero_api_key_string(
+    global_config_dir: &str,
+    api_key: &str,
+) -> Result<(), String> {
+    merge_key_fallback(global_config_dir, api_key)?;
+    keychain_set(api_key.trim()).or_else(|_| Ok(()))
+}
+
 fn clear_key_fallback(global_config_dir: &str) -> Result<(), String> {
     let Some(existing) = read_zotero_config_raw(global_config_dir)? else {
         return Ok(());
@@ -149,8 +157,7 @@ pub async fn references_zotero_account_state_load(
 pub async fn references_zotero_api_key_store(
     params: ZoteroAccountStoreParams,
 ) -> Result<(), String> {
-    merge_key_fallback(&params.global_config_dir, &params.api_key)?;
-    keychain_set(params.api_key.trim()).or_else(|_| Ok(()))
+    store_zotero_api_key_string(&params.global_config_dir, &params.api_key)
 }
 
 #[tauri::command]

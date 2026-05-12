@@ -44,15 +44,14 @@ import {
   writeReferenceBibFile,
 } from '../services/references/referenceRuntime.js'
 import {
+  connectZoteroAccount,
   deleteFromZotero,
   disconnectZotero as disconnectZoteroWithBackend,
   loadZoteroAccountState,
   loadZoteroConfig,
   loadRemoteLibraries,
   saveZoteroConfig,
-  storeZoteroApiKey,
   syncNow as syncZoteroNowWithBackend,
-  validateApiKey,
 } from '../services/references/zoteroSync.js'
 import {
   REFERENCE_DOCK_DETAILS_PAGE,
@@ -990,19 +989,7 @@ export const useReferencesStore = defineStore('references', {
     },
 
     async connectZotero(apiKey = '') {
-      const normalizedApiKey = String(apiKey || '').trim()
-      const identity = await validateApiKey(normalizedApiKey)
-      await storeZoteroApiKey(normalizedApiKey)
-
-      const config = {
-        userId: String(identity?.userID || ''),
-        username: identity?.username || '',
-        autoSync: true,
-        _groups: [],
-        pushTarget: null,
-      }
-      await saveZoteroConfig(config)
-      return config
+      return connectZoteroAccount(apiKey)
     },
 
     async disconnectZotero() {

@@ -110,14 +110,32 @@ try {
       }
     }
 
+    if (cmd === 'references_zotero_connect_account') {
+      return {
+        userId: '16788433',
+        username: 'researcher',
+        autoSync: true,
+        _groups: [],
+        pushTarget: null,
+      }
+    }
+
     if (cmd === 'references_zotero_api_key_load') {
       throw new Error('Settings account state must not load the raw Zotero API key into JS')
+    }
+
+    if (
+      cmd === 'references_zotero_validate_api_key' ||
+      cmd === 'references_zotero_api_key_store' ||
+      cmd === 'references_zotero_config_save'
+    ) {
+      throw new Error('Zotero connect must run as a single Rust account workflow command')
     }
 
     throw new Error(`Unexpected IPC command: ${cmd}`)
   })
 
-  const { deleteFromZotero, loadRemoteLibraries, loadZoteroAccountState, syncNow } =
+  const { connectZoteroAccount, deleteFromZotero, loadRemoteLibraries, loadZoteroAccountState, syncNow } =
     await vite.ssrLoadModule('/src/services/references/zoteroSync.js')
 
   const snapshot = {
@@ -259,6 +277,41 @@ try {
   })
   assert.equal(
     calls.some((call) => call.cmd === 'references_zotero_api_key_load'),
+    false,
+  )
+
+  const connectedConfig = await connectZoteroAccount(' zotero-secret ')
+
+  assert.deepEqual(connectedConfig, {
+    userId: '16788433',
+    username: 'researcher',
+    autoSync: true,
+    _groups: [],
+    pushTarget: null,
+  })
+  assert.deepEqual(
+    calls.map((call) => call.cmd),
+    [
+      'references_zotero_sync_persist_with_account',
+      'references_zotero_sync_persist_with_account',
+      'references_zotero_delete_item_with_account',
+      'references_zotero_remote_libraries_with_account',
+      'get_global_config_dir',
+      'references_zotero_account_state_load',
+      'get_global_config_dir',
+      'references_zotero_connect_account',
+    ],
+  )
+  assert.deepEqual(calls[7].args.params, {
+    globalConfigDir: '/tmp/global-config',
+    apiKey: ' zotero-secret ',
+  })
+  assert.equal(
+    calls.some((call) => (
+      call.cmd === 'references_zotero_validate_api_key' ||
+      call.cmd === 'references_zotero_api_key_store' ||
+      call.cmd === 'references_zotero_config_save'
+    )),
     false,
   )
 
