@@ -26,7 +26,7 @@ pub struct PythonRuntimeListResult {
     pub selection_valid: bool,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct PythonCompileIssue {
     pub line: Option<u32>,
@@ -39,6 +39,7 @@ pub struct PythonCompileIssue {
 #[serde(rename_all = "camelCase")]
 pub struct PythonCompileResult {
     pub success: bool,
+    pub interpreter: PythonRuntimeInfo,
     pub interpreter_path: String,
     pub interpreter_version: String,
     pub command_preview: String,
@@ -109,6 +110,64 @@ fn not_found_runtime() -> PythonRuntimeInfo {
         path: String::new(),
         version: String::new(),
         source: String::new(),
+    }
+}
+
+fn normalize_runtime_info(runtime: Option<PythonRuntimeInfo>) -> PythonRuntimeInfo {
+    runtime
+        .map(|runtime| PythonRuntimeInfo {
+            found: runtime.found,
+            path: runtime.path.trim().to_string(),
+            version: runtime.version.trim().to_string(),
+            source: runtime.source.trim().to_string(),
+        })
+        .unwrap_or_else(not_found_runtime)
+}
+
+fn normalize_compile_issue(issue: PythonCompileIssue) -> PythonCompileIssue {
+    PythonCompileIssue {
+        line: issue.line,
+        column: issue.column,
+        message: issue.message.trim().to_string(),
+        raw: issue.raw.trim().to_string(),
+    }
+}
+
+fn normalize_runtime_list_result(result: PythonRuntimeListResult) -> PythonRuntimeListResult {
+    PythonRuntimeListResult {
+        interpreters: result
+            .interpreters
+            .into_iter()
+            .map(|runtime| normalize_runtime_info(Some(runtime)))
+            .collect(),
+        selected_interpreter: Some(normalize_runtime_info(result.selected_interpreter)),
+        resolved_interpreter: Some(normalize_runtime_info(result.resolved_interpreter)),
+        selection_valid: result.selection_valid,
+    }
+}
+
+fn normalize_compile_result(result: PythonCompileResult) -> PythonCompileResult {
+    let interpreter = normalize_runtime_info(Some(result.interpreter));
+    PythonCompileResult {
+        success: result.success,
+        interpreter_path: interpreter.path.clone(),
+        interpreter_version: interpreter.version.clone(),
+        interpreter,
+        command_preview: result.command_preview,
+        duration_ms: result.duration_ms,
+        stdout: result.stdout,
+        stderr: result.stderr,
+        exit_code: result.exit_code,
+        errors: result
+            .errors
+            .into_iter()
+            .map(normalize_compile_issue)
+            .collect(),
+        warnings: result
+            .warnings
+            .into_iter()
+            .map(normalize_compile_issue)
+            .collect(),
     }
 }
 
@@ -410,16 +469,19 @@ fn parse_compile_issue(stderr: &str) -> Vec<PythonCompileIssue> {
 
 #[tauri::command]
 pub async fn python_runtime_detect() -> Result<PythonRuntimeInfo, String> {
-    Ok(resolve_python_runtime_list("auto")
-        .await
-        .resolved_interpreter
-        .unwrap_or_else(not_found_runtime))
+    Ok(normalize_runtime_info(
+        resolve_python_runtime_list("auto")
+            .await
+            .resolved_interpreter,
+    ))
 }
 
 #[tauri::command]
 pub async fn python_runtime_list(params: Value) -> Result<PythonRuntimeListResult, String> {
     let params = python_runtime_list_params_from_payload(params);
-    Ok(resolve_python_runtime_list(&params.interpreter_path).await)
+    Ok(normalize_runtime_list_result(
+        resolve_python_runtime_list(&params.interpreter_path).await,
+    ))
 }
 
 #[tauri::command]
@@ -451,10 +513,11 @@ pub async fn python_runtime_compile(params: Value) -> Result<PythonCompileResult
     let exit_code = output.status.code().unwrap_or(-1);
     let command_preview = format!("{} {}", invocation.display_path, file_path);
 
-    Ok(PythonCompileResult {
+    Ok(normalize_compile_result(PythonCompileResult {
         success,
-        interpreter_path: info.path.clone(),
-        interpreter_version: info.version,
+        interpreter: info,
+        interpreter_path: String::new(),
+        interpreter_version: String::new(),
         command_preview,
         duration_ms,
         stdout: if success { stdout } else { String::new() },
@@ -466,14 +529,17 @@ pub async fn python_runtime_compile(params: Value) -> Result<PythonCompileResult
             parse_compile_issue(&stderr)
         },
         warnings: vec![],
-    })
+    }))
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        merge_selected_runtime, normalize_interpreter_request, python_compile_params_from_payload,
-        python_runtime_list_params_from_payload, PythonRuntimeInfo,
+        merge_selected_runtime, normalize_compile_issue, normalize_compile_result,
+        normalize_interpreter_request, normalize_runtime_info, normalize_runtime_list_result,
+        not_found_runtime, python_compile_params_from_payload,
+        python_runtime_list_params_from_payload, PythonCompileIssue, PythonCompileResult,
+        PythonRuntimeInfo, PythonRuntimeListResult,
     };
     use serde_json::json;
 
@@ -529,5 +595,84 @@ mod tests {
 
         assert_eq!(runtimes.first(), Some(&selected));
         assert_eq!(runtimes.len(), 2);
+    }
+
+    #[test]
+    fn python_runtime_result_normalization_stays_in_rust() {
+        assert_eq!(normalize_runtime_info(None), not_found_runtime());
+        assert_eq!(
+            normalize_runtime_info(Some(PythonRuntimeInfo {
+                found: true,
+                path: " /usr/bin/python3 ".to_string(),
+                version: " 3.13.0 ".to_string(),
+                source: " python3 ".to_string(),
+            })),
+            PythonRuntimeInfo {
+                found: true,
+                path: "/usr/bin/python3".to_string(),
+                version: "3.13.0".to_string(),
+                source: "python3".to_string(),
+            }
+        );
+
+        let list_result = normalize_runtime_list_result(PythonRuntimeListResult {
+            interpreters: vec![PythonRuntimeInfo {
+                found: true,
+                path: " /usr/bin/python3 ".to_string(),
+                version: " 3.13.0 ".to_string(),
+                source: " python3 ".to_string(),
+            }],
+            selected_interpreter: None,
+            resolved_interpreter: None,
+            selection_valid: false,
+        });
+
+        assert_eq!(list_result.interpreters[0].path, "/usr/bin/python3");
+        assert_eq!(list_result.selected_interpreter, Some(not_found_runtime()));
+        assert_eq!(list_result.resolved_interpreter, Some(not_found_runtime()));
+
+        assert_eq!(
+            normalize_compile_issue(PythonCompileIssue {
+                line: Some(12),
+                column: None,
+                message: " SyntaxError ".to_string(),
+                raw: " raw stderr ".to_string(),
+            }),
+            PythonCompileIssue {
+                line: Some(12),
+                column: None,
+                message: "SyntaxError".to_string(),
+                raw: "raw stderr".to_string(),
+            }
+        );
+
+        let compile_result = normalize_compile_result(PythonCompileResult {
+            success: true,
+            interpreter: PythonRuntimeInfo {
+                found: true,
+                path: " /usr/bin/python3 ".to_string(),
+                version: " 3.13.0 ".to_string(),
+                source: " python3 ".to_string(),
+            },
+            interpreter_path: " stale ".to_string(),
+            interpreter_version: " stale ".to_string(),
+            command_preview: "python3 script.py".to_string(),
+            duration_ms: 7,
+            stdout: "ok".to_string(),
+            stderr: String::new(),
+            exit_code: 0,
+            errors: vec![PythonCompileIssue {
+                line: None,
+                column: None,
+                message: " warning ".to_string(),
+                raw: " raw ".to_string(),
+            }],
+            warnings: vec![],
+        });
+
+        assert_eq!(compile_result.interpreter.path, "/usr/bin/python3");
+        assert_eq!(compile_result.interpreter_path, "/usr/bin/python3");
+        assert_eq!(compile_result.interpreter_version, "3.13.0");
+        assert_eq!(compile_result.errors[0].message, "warning");
     }
 }

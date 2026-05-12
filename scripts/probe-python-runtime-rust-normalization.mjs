@@ -44,20 +44,17 @@ try {
     calls.push({ cmd, args })
 
     if (cmd === 'python_runtime_list') {
-      const interpreterPath = normalizeString(args?.params?.interpreterPath)
-      const runtime = interpreterPath
-        ? {
-            found: true,
-            path: interpreterPath,
-            version: '3.13.0',
-            source: interpreterPath,
-          }
-        : null
+      const runtime = {
+        found: true,
+        path: ' /usr/bin/python3 ',
+        version: ' 3.13.0 ',
+        source: ' python_runtime_list ',
+      }
       return {
-        interpreters: runtime ? [runtime] : [],
+        interpreters: [runtime],
         selectedInterpreter: runtime,
         resolvedInterpreter: runtime,
-        selectionValid: Boolean(runtime),
+        selectionValid: true,
       }
     }
 
@@ -65,14 +62,20 @@ try {
       const filePath = normalizeString(args?.params?.filePath)
       const interpreterPath = normalizeString(args?.params?.interpreterPath)
       return {
-        success: Boolean(filePath),
-        errors: filePath ? [] : [{ message: 'missing path' }],
-        warnings: [],
+        success: true,
+        errors: [{ message: ' rust-owned raw error ' }],
+        warnings: [{ message: ' rust-owned raw warning ' }],
         stdout: filePath ? 'ok' : '',
         stderr: '',
         commandPreview: `${interpreterPath || 'python3'} ${filePath}`,
-        exitCode: filePath ? 0 : 1,
+        exitCode: 0,
         durationMs: 1,
+        interpreter: {
+          found: true,
+          path: ' /usr/bin/python3 ',
+          version: ' 3.13.0 ',
+          source: ' python_runtime_compile ',
+        },
         interpreterPath,
         interpreterVersion: interpreterPath ? '3.13.0' : '',
       }
@@ -99,9 +102,23 @@ try {
     filePath: '/tmp/script.py',
     interpreterPath: '/usr/bin/python3',
   })
-  assert.deepEqual(listResult.interpreters, [])
-  assert.equal(compileResult.success, false)
+  assert.deepEqual(listResult.interpreters, [
+    {
+      found: true,
+      path: ' /usr/bin/python3 ',
+      version: ' 3.13.0 ',
+      source: ' python_runtime_list ',
+    },
+  ])
+  assert.equal(compileResult.success, true)
+  assert.deepEqual(compileResult.errors, [{ message: ' rust-owned raw error ' }])
   assert.equal(validCompileResult.success, true)
+  assert.deepEqual(validCompileResult.interpreter, {
+    found: true,
+    path: ' /usr/bin/python3 ',
+    version: ' 3.13.0 ',
+    source: ' python_runtime_compile ',
+  })
   assert.equal(validCompileResult.interpreterPath, '/usr/bin/python3')
 
   console.log('python runtime rust normalization probe passed')

@@ -9,7 +9,6 @@ import {
 import {
   compilePythonFile,
   listPythonRuntimes,
-  normalizePythonInterpreter,
 } from '../services/pythonRuntime'
 
 function createInterpreterState() {
@@ -186,12 +185,7 @@ export const usePythonStore = defineStore('python', {
           normalizedPath,
           this.interpreterPreference === 'auto' ? '' : this.interpreterPreference,
         )
-        this.interpreter = normalizePythonInterpreter({
-          found: true,
-          path: String(result?.interpreterPath || this.interpreter.path || ''),
-          version: String(result?.interpreterVersion || this.interpreter.version || ''),
-          source: String(result?.interpreterPath || ''),
-        })
+        this.interpreter = result.interpreter
 
         const nextState = {
           status: result?.success ? 'success' : 'error',
