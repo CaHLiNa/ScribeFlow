@@ -1,4 +1,5 @@
 use serde::Serialize;
+use serde_json::Value;
 
 use crate::path_utils::{basename_path, dirname_path, normalize_path};
 
@@ -14,9 +15,8 @@ const DOCX_EXTS: &[&str] = &["docx"];
 const LATEX_EDITOR_EXTS: &[&str] = &["tex", "latex", "cls", "sty"];
 const GENERAL_TEXT_EXTS: &[&str] = &[
     "bib", "c", "cpp", "css", "cjs", "go", "h", "java", "jl", "js", "json", "jsx", "kt", "lua",
-    "m", "markdown", "md", "mjs", "php", "py", "qmd", "r", "rb", "rmd", "rs", "scss", "sh",
-    "sql", "svelte", "toml", "ts", "tsx", "txt", "vue", "xml", "yaml", "yml", "zig", "zsh",
-    "bash",
+    "m", "markdown", "md", "mjs", "php", "py", "qmd", "r", "rb", "rmd", "rs", "scss", "sh", "sql",
+    "svelte", "toml", "ts", "tsx", "txt", "vue", "xml", "yaml", "yml", "zig", "zsh", "bash",
 ];
 
 fn get_ext(path: &str) -> String {
@@ -28,15 +28,40 @@ fn get_ext(path: &str) -> String {
 }
 
 fn is_supported_text_ext(ext: &str) -> bool {
-    GENERAL_TEXT_EXTS.contains(&ext) || LATEX_EDITOR_EXTS.contains(&ext) || is_latex_aux_text_ext(ext)
+    GENERAL_TEXT_EXTS.contains(&ext)
+        || LATEX_EDITOR_EXTS.contains(&ext)
+        || is_latex_aux_text_ext(ext)
 }
 
 fn is_latex_aux_text_ext(ext: &str) -> bool {
     matches!(
         ext,
-        "aux" | "acn" | "acr" | "alg" | "bcf" | "bbl" | "blg" | "fdb_latexmk" | "fls"
-            | "glg" | "glo" | "gls" | "idx" | "ilg" | "ind" | "ist" | "lof" | "log"
-            | "lot" | "nav" | "out" | "run.xml" | "snm" | "synctex" | "toc" | "vrb"
+        "aux"
+            | "acn"
+            | "acr"
+            | "alg"
+            | "bcf"
+            | "bbl"
+            | "blg"
+            | "fdb_latexmk"
+            | "fls"
+            | "glg"
+            | "glo"
+            | "gls"
+            | "idx"
+            | "ilg"
+            | "ind"
+            | "ist"
+            | "lof"
+            | "log"
+            | "lot"
+            | "nav"
+            | "out"
+            | "run.xml"
+            | "snm"
+            | "synctex"
+            | "toc"
+            | "vrb"
     )
 }
 
@@ -121,7 +146,11 @@ fn get_icon_name_inner(file_name: &str) -> String {
     }
 
     // Strip leading dot for dotfiles
-    let stripped = if name.starts_with('.') { &name[1..] } else { &name };
+    let stripped = if name.starts_with('.') {
+        &name[1..]
+    } else {
+        &name
+    };
     if let Some(icon) = ext_to_icon(stripped) {
         return icon.to_string();
     }
@@ -147,9 +176,7 @@ fn ext_to_icon(ext: &str) -> Option<&'static str> {
         "ts" | "tsx" => Some("IconBrandTypescript"),
         "py" => Some("IconBrandPython"),
         "m" | "rs" | "go" | "java" | "c" | "cpp" | "h" | "rb" | "php" | "swift" | "kt"
-        | "svelte" | "yaml" | "yml" | "toml" | "xml" | "jl" | "lua" | "zig" => {
-            Some("IconFileCode")
-        }
+        | "svelte" | "yaml" | "yml" | "toml" | "xml" | "jl" | "lua" | "zig" => Some("IconFileCode"),
         "html" => Some("IconBrandHtml5"),
         "css" | "scss" => Some("IconBrandCss3"),
         "vue" => Some("IconBrandVue"),
@@ -243,24 +270,77 @@ fn classify_inner(path: &str) -> FileTypeClassification {
 
 // --- Tauri commands ---
 
+fn payload_field<'a>(params: &'a Value, key: &str) -> Option<&'a Value> {
+    params.as_object().and_then(|object| object.get(key))
+}
+
+fn string_payload_field(params: &Value, key: &str) -> String {
+    payload_field(params, key)
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string()
+}
+
+fn path_params_from_payload(params: Value) -> String {
+    string_payload_field(&params, "path")
+}
+
+fn file_name_params_from_payload(params: Value) -> String {
+    string_payload_field(&params, "fileName")
+}
+
 #[tauri::command]
-pub async fn file_types_classify(path: String) -> Result<FileTypeClassification, String> {
+pub async fn file_types_classify(params: Value) -> Result<FileTypeClassification, String> {
+    let path = path_params_from_payload(params);
     Ok(classify_inner(&path))
 }
 
 #[tauri::command]
-pub async fn file_types_get_viewer_type(path: String) -> Result<String, String> {
+pub async fn file_types_get_viewer_type(params: Value) -> Result<String, String> {
+    let path = path_params_from_payload(params);
     Ok(get_viewer_type_inner(&path))
 }
 
 #[tauri::command]
-pub async fn file_types_get_icon_name(file_name: String) -> Result<String, String> {
+pub async fn file_types_get_icon_name(params: Value) -> Result<String, String> {
+    let file_name = file_name_params_from_payload(params);
     Ok(get_icon_name_inner(&file_name))
 }
 
 #[tauri::command]
-pub async fn file_types_get_mime_type(path: String) -> Result<String, String> {
+pub async fn file_types_get_mime_type(params: Value) -> Result<String, String> {
+    let path = path_params_from_payload(params);
     Ok(get_mime_type_inner(&path))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{file_name_params_from_payload, path_params_from_payload};
+    use serde_json::json;
+
+    #[test]
+    fn file_types_params_normalize_raw_payloads() {
+        assert_eq!(
+            path_params_from_payload(json!({
+                "path": " /tmp/workspace/Paper.PDF "
+            })),
+            " /tmp/workspace/Paper.PDF "
+        );
+        assert_eq!(path_params_from_payload(json!({ "path": 42 })), "");
+        assert_eq!(path_params_from_payload(json!(false)), "");
+
+        assert_eq!(
+            file_name_params_from_payload(json!({
+                "fileName": " Figure.PNG "
+            })),
+            " Figure.PNG "
+        );
+        assert_eq!(
+            file_name_params_from_payload(json!({ "fileName": null })),
+            ""
+        );
+        assert_eq!(file_name_params_from_payload(json!([])), "");
+    }
 }
 
 // Public helpers for other modules

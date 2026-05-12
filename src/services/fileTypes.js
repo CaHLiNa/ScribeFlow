@@ -1,19 +1,19 @@
 import { invoke } from '@tauri-apps/api/core'
 
 export async function classify(path) {
-  return invoke('file_types_classify', { path })
+  return invoke('file_types_classify', { params: { path } })
 }
 
 export async function getViewerType(path) {
-  return invoke('file_types_get_viewer_type', { path })
+  return invoke('file_types_get_viewer_type', { params: { path } })
 }
 
 export async function getFileIconName(fileName) {
-  return invoke('file_types_get_icon_name', { fileName })
+  return invoke('file_types_get_icon_name', { params: { fileName } })
 }
 
 export async function getMimeType(path) {
-  return invoke('file_types_get_mime_type', { path })
+  return invoke('file_types_get_mime_type', { params: { path } })
 }
 
 export async function isNewTab(path) {
