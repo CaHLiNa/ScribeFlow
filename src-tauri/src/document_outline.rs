@@ -9,18 +9,12 @@ use crate::latex_project_graph::{
 use crate::markdown_runtime::{extract_markdown_headings, MarkdownHeadingItem};
 use crate::security::WorkspaceScopeState;
 
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone)]
 pub struct DocumentOutlineResolveParams {
-    #[serde(default)]
     pub file_path: String,
-    #[serde(default)]
     pub content: String,
-    #[serde(default)]
     pub workspace_path: String,
-    #[serde(default)]
     pub flat_files: Vec<String>,
-    #[serde(default)]
     pub content_overrides: HashMap<String, String>,
 }
 
@@ -50,6 +44,99 @@ pub struct DocumentOutlineItem {
 
 fn normalize_path(path: &str) -> String {
     path.trim().replace('\\', "/")
+}
+
+fn payload_field<'a>(params: &'a Value, camel_key: &str, snake_key: &str) -> Option<&'a Value> {
+    params
+        .as_object()
+        .and_then(|object| object.get(camel_key).or_else(|| object.get(snake_key)))
+}
+
+fn string_payload_field(params: &Value, camel_key: &str, snake_key: &str) -> String {
+    payload_field(params, camel_key, snake_key)
+        .and_then(Value::as_str)
+        .map(normalize_path)
+        .unwrap_or_default()
+}
+
+fn raw_string_payload_field(params: &Value, camel_key: &str, snake_key: &str) -> String {
+    payload_field(params, camel_key, snake_key)
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string()
+}
+
+fn flat_file_path_from_value(value: &Value) -> Option<String> {
+    if let Some(path) = value.as_str() {
+        let path = normalize_path(path);
+        return (!path.is_empty()).then_some(path);
+    }
+
+    value
+        .as_object()
+        .and_then(|object| object.get("path").and_then(Value::as_str))
+        .map(normalize_path)
+        .filter(|path| !path.is_empty())
+}
+
+fn flat_files_payload_field(params: &Value, camel_key: &str, snake_key: &str) -> Vec<String> {
+    payload_field(params, camel_key, snake_key)
+        .and_then(Value::as_array)
+        .map(|entries| {
+            entries
+                .iter()
+                .filter_map(flat_file_path_from_value)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn first_non_empty_flat_files_payload(params: &Value) -> Vec<String> {
+    [
+        ("flatFiles", "flat_files"),
+        ("snapshotFlatFiles", "snapshot_flat_files"),
+        ("cachedFlatFiles", "cached_flat_files"),
+    ]
+    .into_iter()
+    .map(|(camel_key, snake_key)| flat_files_payload_field(params, camel_key, snake_key))
+    .find(|entries| !entries.is_empty())
+    .unwrap_or_default()
+}
+
+fn content_overrides_payload_field(
+    params: &Value,
+    camel_key: &str,
+    snake_key: &str,
+) -> HashMap<String, String> {
+    payload_field(params, camel_key, snake_key)
+        .and_then(Value::as_object)
+        .map(|object| {
+            object
+                .iter()
+                .filter_map(|(path, content)| {
+                    let path = normalize_path(path);
+                    if path.is_empty() {
+                        return None;
+                    }
+                    content.as_str().map(|content| (path, content.to_string()))
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn document_outline_params_from_payload(params: Value) -> DocumentOutlineResolveParams {
+    DocumentOutlineResolveParams {
+        file_path: string_payload_field(&params, "filePath", "file_path"),
+        content: raw_string_payload_field(&params, "content", "content"),
+        workspace_path: string_payload_field(&params, "workspacePath", "workspace_path"),
+        flat_files: first_non_empty_flat_files_payload(&params),
+        content_overrides: content_overrides_payload_field(
+            &params,
+            "contentOverrides",
+            "content_overrides",
+        ),
+    }
 }
 
 fn lower_path(path: &str) -> String {
@@ -228,9 +315,10 @@ fn latex_outline_items(
 
 #[tauri::command]
 pub async fn document_outline_resolve(
-    params: DocumentOutlineResolveParams,
+    params: Value,
     scope_state: State<'_, WorkspaceScopeState>,
 ) -> Result<Vec<DocumentOutlineItem>, String> {
+    let params = document_outline_params_from_payload(params);
     let normalized_path = normalize_path(&params.file_path);
     if normalized_path.is_empty() {
         return Ok(Vec::new());
@@ -252,7 +340,8 @@ pub async fn document_outline_resolve(
 
 #[cfg(test)]
 mod tests {
-    use super::{enrich_outline_tree, DocumentOutlineItem};
+    use super::{document_outline_params_from_payload, enrich_outline_tree, DocumentOutlineItem};
+    use serde_json::json;
 
     fn item(kind: &str, text: &str, display_level: u8, offset: usize) -> DocumentOutlineItem {
         DocumentOutlineItem {
@@ -297,5 +386,93 @@ mod tests {
         );
         assert!(!enriched[4].is_tree_node);
         assert!(enriched[4].ancestor_keys.is_empty());
+    }
+
+    #[test]
+    fn document_outline_params_normalize_raw_payloads() {
+        let params = document_outline_params_from_payload(json!({
+            "filePath": " /workspace/main.md ",
+            "content": "  # Title keeps spaces  ",
+            "workspacePath": 42,
+            "flatFiles": [
+                " /workspace/main.md ",
+                { "path": " /workspace/chapter.tex " },
+                { "path": 42 },
+                "",
+                false
+            ],
+            "snapshotFlatFiles": [
+                " /workspace/snapshot.md "
+            ],
+            "cachedFlatFiles": [
+                " /workspace/cached.md "
+            ],
+            "contentOverrides": {
+                " /workspace/main.md ": "  override keeps spaces  ",
+                "": "ignored",
+                "/workspace/invalid.md": false
+            }
+        }));
+
+        assert_eq!(params.file_path, "/workspace/main.md");
+        assert_eq!(params.content, "  # Title keeps spaces  ");
+        assert_eq!(params.workspace_path, "");
+        assert_eq!(
+            params.flat_files,
+            vec!["/workspace/main.md", "/workspace/chapter.tex"]
+        );
+        assert_eq!(
+            params
+                .content_overrides
+                .get("/workspace/main.md")
+                .map(String::as_str),
+            Some("  override keeps spaces  ")
+        );
+        assert!(!params
+            .content_overrides
+            .contains_key("/workspace/invalid.md"));
+
+        let snapshot_params = document_outline_params_from_payload(json!({
+            "file_path": " /workspace/snake.tex ",
+            "content": false,
+            "workspace_path": " /workspace ",
+            "flat_files": false,
+            "snapshot_flat_files": [
+                { "path": " /workspace/snapshot.tex " }
+            ],
+            "cached_flat_files": [
+                " /workspace/cached.tex "
+            ],
+            "content_overrides": {
+                " /workspace/snake.tex ": "snake body"
+            }
+        }));
+        assert_eq!(snapshot_params.file_path, "/workspace/snake.tex");
+        assert_eq!(snapshot_params.content, "");
+        assert_eq!(snapshot_params.workspace_path, "/workspace");
+        assert_eq!(snapshot_params.flat_files, vec!["/workspace/snapshot.tex"]);
+        assert_eq!(
+            snapshot_params
+                .content_overrides
+                .get("/workspace/snake.tex")
+                .map(String::as_str),
+            Some("snake body")
+        );
+
+        let cached_params = document_outline_params_from_payload(json!({
+            "filePath": " /workspace/cached.md ",
+            "flatFiles": [],
+            "snapshotFlatFiles": [],
+            "cachedFlatFiles": [
+                " /workspace/cached.md "
+            ]
+        }));
+        assert_eq!(cached_params.flat_files, vec!["/workspace/cached.md"]);
+
+        let non_object = document_outline_params_from_payload(json!(42));
+        assert_eq!(non_object.file_path, "");
+        assert_eq!(non_object.content, "");
+        assert!(non_object.flat_files.is_empty());
+        assert!(non_object.content_overrides.is_empty());
     }
 }
