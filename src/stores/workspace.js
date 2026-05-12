@@ -355,6 +355,11 @@ export const useWorkspaceStore = defineStore('workspace', {
           : [],
         includeHidden: options.includeHidden !== false,
         hasCachedTree: options.hasCachedTree === true,
+        displayPreferences: {
+          showHidden: this.fileTreeShowHidden !== false,
+          sortMode: this.fileTreeSortMode || 'name',
+          foldDirectories: this.fileTreeFoldDirectories === true,
+        },
       })
     },
 

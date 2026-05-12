@@ -9,7 +9,7 @@ use crate::editor_session_runtime::{
 };
 use crate::fs_tree::FileEntry;
 use crate::fs_tree_runtime::{
-    fs_tree_load_workspace_state, fs_tree_restore_cached_expanded_state,
+    fs_tree_load_workspace_state, fs_tree_restore_cached_expanded_state, FsTreeDisplayPreferences,
     FsTreeLoadWorkspaceStateParams, FsTreeRestoreCachedExpandedStateParams,
     FsTreeWorkspaceStateResult,
 };
@@ -171,6 +171,8 @@ pub struct WorkspaceLifecycleLoadBootstrapDataParams {
     pub include_hidden: bool,
     #[serde(default)]
     pub has_cached_tree: bool,
+    #[serde(default)]
+    pub display_preferences: FsTreeDisplayPreferences,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -669,6 +671,7 @@ pub async fn workspace_lifecycle_load_bootstrap_data(
                 cached_root_expanded_dirs: params.cached_root_expanded_dirs,
                 max_dirs: 6,
                 include_hidden: params.include_hidden,
+                display_preferences: params.display_preferences.clone(),
             })
             .await?,
         )
@@ -679,6 +682,7 @@ pub async fn workspace_lifecycle_load_bootstrap_data(
                 current_tree: params.current_tree,
                 extra_dirs: Vec::new(),
                 include_hidden: params.include_hidden,
+                display_preferences: params.display_preferences.clone(),
             })
             .await?,
         )

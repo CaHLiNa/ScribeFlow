@@ -17,6 +17,8 @@ pub struct FileEntry {
     pub is_dir: bool,
     pub children: Option<Vec<FileEntry>>,
     pub modified: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub display_name: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -101,6 +103,7 @@ fn collect_snapshot_entries(
                 is_dir: true,
                 children,
                 modified: None,
+                display_name: None,
             });
             continue;
         }
@@ -111,6 +114,7 @@ fn collect_snapshot_entries(
             is_dir: false,
             children: None,
             modified: file_modified_timestamp(&metadata, false),
+            display_name: None,
         };
         flat_files.push(file_entry.clone());
         entries.push(file_entry);

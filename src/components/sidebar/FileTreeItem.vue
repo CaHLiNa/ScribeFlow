@@ -61,7 +61,7 @@
       </template>
       <template v-else>
         <span class="file-tree-item-label truncate">
-          {{ entry.name }}
+          {{ entry.display_name || entry.name }}
         </span>
       </template>
     </div>

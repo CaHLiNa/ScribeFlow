@@ -1,5 +1,6 @@
 use crate::fs_tree::{build_workspace_tree_snapshot, FileEntry, WorkspaceTreeSnapshot};
 use serde::{Deserialize, Serialize};
+use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::path::Path;
 use tokio::task;
@@ -25,6 +26,8 @@ pub struct FsTreeLoadWorkspaceStateParams {
     pub extra_dirs: Vec<String>,
     #[serde(default = "default_include_hidden")]
     pub include_hidden: bool,
+    #[serde(default)]
+    pub display_preferences: FsTreeDisplayPreferences,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -38,6 +41,8 @@ pub struct FsTreeRevealWorkspaceStateParams {
     pub current_tree: Vec<FileEntry>,
     #[serde(default = "default_include_hidden")]
     pub include_hidden: bool,
+    #[serde(default)]
+    pub display_preferences: FsTreeDisplayPreferences,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -53,6 +58,8 @@ pub struct FsTreeRestoreCachedExpandedStateParams {
     pub max_dirs: usize,
     #[serde(default = "default_include_hidden")]
     pub include_hidden: bool,
+    #[serde(default)]
+    pub display_preferences: FsTreeDisplayPreferences,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -60,10 +67,49 @@ pub struct FsTreeRestoreCachedExpandedStateParams {
 pub struct FsTreeWorkspaceStateResult {
     #[serde(default)]
     pub tree: Vec<FileEntry>,
+    #[serde(default, rename = "displayTree")]
+    pub display_tree: Vec<FileEntry>,
     #[serde(default, rename = "flatFiles")]
     pub flat_files: Vec<FileEntry>,
     #[serde(default)]
     pub expanded_dirs: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct FsTreeDisplayPreferences {
+    #[serde(default = "default_display_show_hidden")]
+    pub show_hidden: bool,
+    #[serde(default = "default_display_sort_mode")]
+    pub sort_mode: String,
+    #[serde(default)]
+    pub fold_directories: bool,
+}
+
+impl Default for FsTreeDisplayPreferences {
+    fn default() -> Self {
+        Self {
+            show_hidden: default_display_show_hidden(),
+            sort_mode: default_display_sort_mode(),
+            fold_directories: false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FsTreeResolveDisplayStateParams {
+    #[serde(default)]
+    pub tree: Vec<FileEntry>,
+    #[serde(default)]
+    pub display_preferences: FsTreeDisplayPreferences,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FsTreeDisplayStateResult {
+    #[serde(default, rename = "displayTree")]
+    pub display_tree: Vec<FileEntry>,
 }
 
 fn default_include_hidden() -> bool {
@@ -72,6 +118,14 @@ fn default_include_hidden() -> bool {
 
 fn default_cached_expanded_dir_limit() -> usize {
     6
+}
+
+fn default_display_show_hidden() -> bool {
+    true
+}
+
+fn default_display_sort_mode() -> String {
+    "name".to_string()
 }
 
 fn collect_loaded_directory_paths(entries: &[FileEntry], paths: &mut Vec<String>) {
@@ -153,12 +207,108 @@ fn filter_cached_root_expanded_dirs(
 fn build_workspace_state_result(
     snapshot: WorkspaceTreeSnapshot,
     expanded_dirs: Vec<String>,
+    display_preferences: &FsTreeDisplayPreferences,
 ) -> FsTreeWorkspaceStateResult {
+    let display_tree = apply_file_tree_display_preferences(&snapshot.tree, display_preferences);
     FsTreeWorkspaceStateResult {
         tree: snapshot.tree,
+        display_tree,
         flat_files: snapshot.flat_files,
         expanded_dirs,
     }
+}
+
+fn normalized_entry_name(entry: &FileEntry) -> String {
+    entry
+        .display_name
+        .as_deref()
+        .unwrap_or(&entry.name)
+        .trim()
+        .to_string()
+}
+
+fn is_hidden_display_entry(entry: &FileEntry) -> bool {
+    normalized_entry_name(entry).starts_with('.')
+}
+
+fn compare_display_entries(
+    left: &FileEntry,
+    right: &FileEntry,
+    preferences: &FsTreeDisplayPreferences,
+) -> Ordering {
+    if left.is_dir != right.is_dir {
+        return if left.is_dir {
+            Ordering::Less
+        } else {
+            Ordering::Greater
+        };
+    }
+
+    if preferences.sort_mode == "modified" && !left.is_dir && !right.is_dir {
+        let left_modified = left.modified.unwrap_or(0);
+        let right_modified = right.modified.unwrap_or(0);
+        if left_modified != right_modified {
+            return right_modified.cmp(&left_modified);
+        }
+    }
+
+    normalized_entry_name(left)
+        .to_lowercase()
+        .cmp(&normalized_entry_name(right).to_lowercase())
+}
+
+fn fold_single_child_directory(entry: FileEntry) -> FileEntry {
+    if !entry.is_dir || entry.children.is_none() {
+        return entry;
+    }
+
+    let mut segments = Vec::new();
+    let mut current = entry;
+    let name = current.name.trim();
+    if !name.is_empty() {
+        segments.push(name.to_string());
+    }
+
+    while let Some(children) = &current.children {
+        if children.len() != 1 || !children[0].is_dir {
+            break;
+        }
+        current = children[0].clone();
+        let name = normalized_entry_name(&current);
+        if !name.is_empty() {
+            segments.push(name);
+        }
+    }
+
+    if !segments.is_empty() {
+        current.display_name = Some(segments.join("/"));
+    }
+    current
+}
+
+fn apply_file_tree_display_preferences(
+    entries: &[FileEntry],
+    preferences: &FsTreeDisplayPreferences,
+) -> Vec<FileEntry> {
+    let mut display_entries = entries
+        .iter()
+        .filter(|entry| preferences.show_hidden || !is_hidden_display_entry(entry))
+        .map(|entry| {
+            let mut next_entry = entry.clone();
+            if let Some(children) = &entry.children {
+                next_entry.children =
+                    Some(apply_file_tree_display_preferences(children, preferences));
+            }
+            if preferences.fold_directories {
+                fold_single_child_directory(next_entry)
+            } else {
+                next_entry
+            }
+        })
+        .collect::<Vec<_>>();
+
+    display_entries.sort_by(|left, right| compare_display_entries(left, right, preferences));
+    display_entries
 }
 
 fn read_workspace_snapshot_state(
@@ -166,12 +316,17 @@ fn read_workspace_snapshot_state(
     current_tree: &[FileEntry],
     extra_dirs: &[String],
     include_hidden: bool,
+    display_preferences: &FsTreeDisplayPreferences,
 ) -> Result<FsTreeWorkspaceStateResult, String> {
     let loaded_dirs = collect_loaded_dirs(current_tree, workspace_path, extra_dirs);
     let loaded_set: HashSet<String> = loaded_dirs.iter().cloned().collect();
     let snapshot =
         build_workspace_tree_snapshot(Path::new(workspace_path), &loaded_set, include_hidden)?;
-    Ok(build_workspace_state_result(snapshot, Vec::new()))
+    Ok(build_workspace_state_result(
+        snapshot,
+        Vec::new(),
+        display_preferences,
+    ))
 }
 
 #[tauri::command]
@@ -184,6 +339,7 @@ pub async fn fs_tree_load_workspace_state(
             &params.current_tree,
             &params.extra_dirs,
             params.include_hidden,
+            &params.display_preferences,
         )
     })
     .await
@@ -200,6 +356,7 @@ pub async fn fs_tree_reveal_workspace_state(
             &params.current_tree,
             &ancestor_dirs,
             params.include_hidden,
+            &params.display_preferences,
         )?;
         result.expanded_dirs = ancestor_dirs;
         Ok(result)
@@ -222,6 +379,7 @@ pub async fn fs_tree_restore_cached_expanded_state(
             &params.current_tree,
             &expanded_dirs,
             params.include_hidden,
+            &params.display_preferences,
         )?;
         let current_root_dirs = collect_root_dir_paths(&result.tree);
         result.expanded_dirs = expanded_dirs
@@ -233,9 +391,24 @@ pub async fn fs_tree_restore_cached_expanded_state(
     .await
 }
 
+#[tauri::command]
+pub async fn fs_tree_resolve_display_state(
+    params: FsTreeResolveDisplayStateParams,
+) -> Result<FsTreeDisplayStateResult, String> {
+    Ok(FsTreeDisplayStateResult {
+        display_tree: apply_file_tree_display_preferences(
+            &params.tree,
+            &params.display_preferences,
+        ),
+    })
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{collect_loaded_dirs, filter_cached_root_expanded_dirs, list_ancestor_dir_paths};
+    use super::{
+        apply_file_tree_display_preferences, collect_loaded_dirs, filter_cached_root_expanded_dirs,
+        list_ancestor_dir_paths, FsTreeDisplayPreferences,
+    };
     use crate::fs_tree::FileEntry;
 
     fn entry(path: &str, is_dir: bool, children: Option<Vec<FileEntry>>) -> FileEntry {
@@ -245,6 +418,14 @@ mod tests {
             is_dir,
             children,
             modified: None,
+            display_name: None,
+        }
+    }
+
+    fn file_entry(path: &str, modified: u64) -> FileEntry {
+        FileEntry {
+            modified: Some(modified),
+            ..entry(path, false, None)
         }
     }
 
@@ -297,5 +478,123 @@ mod tests {
             ),
             vec!["/tmp/ws/b".to_string(), "/tmp/ws/a".to_string()]
         );
+    }
+
+    #[test]
+    fn resolves_display_tree_with_hidden_filter_and_name_sort() {
+        let entries = vec![
+            file_entry("/tmp/ws/zeta.md", 1),
+            file_entry("/tmp/ws/.hidden.md", 2),
+            entry(
+                "/tmp/ws/alpha",
+                true,
+                Some(vec![file_entry("/tmp/ws/alpha/note.md", 3)]),
+            ),
+        ];
+
+        let display = apply_file_tree_display_preferences(
+            &entries,
+            &FsTreeDisplayPreferences {
+                show_hidden: false,
+                sort_mode: "name".to_string(),
+                fold_directories: false,
+            },
+        );
+
+        assert_eq!(
+            display
+                .iter()
+                .map(|entry| entry.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["alpha", "zeta.md"]
+        );
+    }
+
+    #[test]
+    fn resolves_display_tree_modified_sort_after_directories() {
+        let entries = vec![
+            file_entry("/tmp/ws/older.md", 1),
+            entry("/tmp/ws/dir", true, None),
+            file_entry("/tmp/ws/newer.md", 5),
+        ];
+
+        let display = apply_file_tree_display_preferences(
+            &entries,
+            &FsTreeDisplayPreferences {
+                show_hidden: true,
+                sort_mode: "modified".to_string(),
+                fold_directories: false,
+            },
+        );
+
+        assert_eq!(
+            display
+                .iter()
+                .map(|entry| entry.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["dir", "newer.md", "older.md"]
+        );
+    }
+
+    #[test]
+    fn folds_single_child_directories_into_display_name() {
+        let entries = vec![entry(
+            "/tmp/ws/alpha",
+            true,
+            Some(vec![entry(
+                "/tmp/ws/alpha/beta",
+                true,
+                Some(vec![file_entry("/tmp/ws/alpha/beta/note.md", 1)]),
+            )]),
+        )];
+
+        let display = apply_file_tree_display_preferences(
+            &entries,
+            &FsTreeDisplayPreferences {
+                show_hidden: true,
+                sort_mode: "name".to_string(),
+                fold_directories: true,
+            },
+        );
+
+        assert_eq!(display[0].path, "/tmp/ws/alpha/beta");
+        assert_eq!(display[0].display_name.as_deref(), Some("alpha/beta"));
+        assert_eq!(
+            display[0]
+                .children
+                .as_ref()
+                .and_then(|children| children.first())
+                .map(|entry| entry.name.as_str()),
+            Some("note.md")
+        );
+    }
+
+    #[test]
+    fn folds_nested_single_child_directory_display_names() {
+        let entries = vec![entry(
+            "/tmp/ws/alpha",
+            true,
+            Some(vec![entry(
+                "/tmp/ws/alpha/beta",
+                true,
+                Some(vec![entry(
+                    "/tmp/ws/alpha/beta/gamma",
+                    true,
+                    Some(vec![file_entry("/tmp/ws/alpha/beta/gamma/note.md", 1)]),
+                )]),
+            )]),
+        )];
+
+        let display = apply_file_tree_display_preferences(
+            &entries,
+            &FsTreeDisplayPreferences {
+                show_hidden: true,
+                sort_mode: "name".to_string(),
+                fold_directories: true,
+            },
+        );
+
+        assert_eq!(display[0].path, "/tmp/ws/alpha/beta/gamma");
+        assert_eq!(display[0].display_name.as_deref(), Some("alpha/beta/gamma"));
     }
 }

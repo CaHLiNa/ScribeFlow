@@ -208,6 +208,7 @@ pub fn run() {
             fs_tree_runtime::fs_tree_load_workspace_state,
             fs_tree_runtime::fs_tree_reveal_workspace_state,
             fs_tree_runtime::fs_tree_restore_cached_expanded_state,
+            fs_tree_runtime::fs_tree_resolve_display_state,
             document_workflow::document_workflow_reconcile,
             document_workflow::document_workflow_policy_resolve,
             document_workflow::document_workflow_infer_preview_kind,

@@ -42,6 +42,7 @@ import {
   listenWorkspaceTreeRefreshRequests,
   loadWorkspaceTreeState as loadWorkspaceTreeStateFromRust,
   noteWorkspaceTreeWatchActivity,
+  resolveFileTreeDisplayState,
   restoreCachedExpandedTreeState as restoreCachedExpandedTreeStateFromRust,
   revealWorkspaceTreeState as revealWorkspaceTreeStateFromRust,
   setWorkspaceTreeWatchVisibility,
@@ -53,6 +54,7 @@ function readWorkspaceSnapshot(path, loadedDirs = []) {
   const workspace = useWorkspaceStore()
   return readWorkspaceTreeSnapshot(path, loadedDirs, {
     includeHidden: workspace.fileTreeShowHidden !== false,
+    displayPreferences: resolveFileTreeDisplayPreferences(workspace),
   })
 }
 
@@ -63,6 +65,7 @@ async function loadWorkspaceTreeState(currentTree = [], extraDirs = []) {
     currentTree,
     extraDirs,
     includeHidden: workspace.fileTreeShowHidden !== false,
+    displayPreferences: resolveFileTreeDisplayPreferences(workspace),
   })
 }
 
@@ -73,6 +76,7 @@ async function revealWorkspaceTreeState(targetPath = '', currentTree = []) {
     targetPath,
     currentTree,
     includeHidden: workspace.fileTreeShowHidden !== false,
+    displayPreferences: resolveFileTreeDisplayPreferences(workspace),
   })
 }
 
@@ -84,7 +88,16 @@ async function restoreCachedExpandedTreeState(currentTree = [], cachedRootExpand
     cachedRootExpandedDirs,
     maxDirs,
     includeHidden: workspace.fileTreeShowHidden !== false,
+    displayPreferences: resolveFileTreeDisplayPreferences(workspace),
   })
+}
+
+function resolveFileTreeDisplayPreferences(workspace = useWorkspaceStore()) {
+  return {
+    showHidden: workspace.fileTreeShowHidden !== false,
+    sortMode: workspace.fileTreeSortMode || 'name',
+    foldDirectories: workspace.fileTreeFoldDirectories === true,
+  }
 }
 
 function findTreeEntry(entries = [], targetPath) {
@@ -146,6 +159,7 @@ function showFileOperationError(operation, filePath, error, key = '') {
 export const useFilesStore = defineStore('files', {
   state: () => ({
     tree: [],
+    displayTree: [],
     flatFilesCache: [],
     flatFilesReady: false,
     treeCacheByWorkspace: {},
@@ -169,6 +183,7 @@ export const useFilesStore = defineStore('files', {
   getters: {
     // Flat list of all files for search
     flatFiles: (state) => state.flatFilesCache,
+    fileTreeDisplayEntries: (state) => state.displayTree,
     getFileLoadError: (state) => (path) => state.fileLoadErrors[path] || null,
   },
 
@@ -184,6 +199,7 @@ export const useFilesStore = defineStore('files', {
 
     _setTree(tree = [], workspacePath = null, options = {}) {
       Object.assign(this, buildTreeStatePatch(tree, options))
+      this.displayTree = Array.isArray(options.displayTree) ? options.displayTree : tree
       this._cacheWorkspaceSnapshot(workspacePath)
     },
 
@@ -191,6 +207,7 @@ export const useFilesStore = defineStore('files', {
       Object.assign(this, buildFlatFilesStatePatch(flatFiles))
       this.lastWorkspaceSnapshot = {
         tree: this.tree,
+        displayTree: this.displayTree,
         flatFiles,
       }
       this._cacheWorkspaceSnapshot(workspacePath)
@@ -200,8 +217,10 @@ export const useFilesStore = defineStore('files', {
       const treePatch = buildTreeStatePatch(snapshot?.tree || [], { preserveFlatFiles: true })
       const flatFilesPatch = buildFlatFilesStatePatch(snapshot?.flatFiles || [])
       Object.assign(this, treePatch, flatFilesPatch)
+      this.displayTree = Array.isArray(snapshot?.displayTree) ? snapshot.displayTree : (snapshot?.tree || [])
       this.lastWorkspaceSnapshot = {
         tree: snapshot?.tree || [],
+        displayTree: this.displayTree,
         flatFiles: snapshot?.flatFiles || [],
       }
       this._cacheWorkspaceSnapshot(workspacePath)
@@ -240,6 +259,7 @@ export const useFilesStore = defineStore('files', {
       const patch = buildRestoredCachedTreeState(this.treeCacheByWorkspace[workspacePath])
       if (!patch) return false
       Object.assign(this, patch)
+      this.displayTree = patch.tree || []
       return true
     },
 
@@ -249,6 +269,22 @@ export const useFilesStore = defineStore('files', {
       this.expandedDirs = new Set(snapshot?.expandedDirs || [])
       this._cacheWorkspaceSnapshot(targetWorkspace)
       return this.tree
+    },
+
+    async refreshFileTreeDisplayState() {
+      const result = await resolveFileTreeDisplayState({
+        tree: this.tree ?? [],
+        displayPreferences: resolveFileTreeDisplayPreferences(),
+      })
+      this.displayTree = Array.isArray(result?.displayTree) ? result.displayTree : (this.tree ?? [])
+      this.lastWorkspaceSnapshot = {
+        ...(this.lastWorkspaceSnapshot || {}),
+        tree: this.tree,
+        displayTree: this.displayTree,
+        flatFiles: this.flatFilesCache,
+      }
+      this._cacheWorkspaceSnapshot()
+      return this.displayTree
     },
 
     _teardownNativeWatcher() {
@@ -865,6 +901,7 @@ export const useFilesStore = defineStore('files', {
       this.tree = []
       this.flatFilesCache = []
       this.flatFilesReady = false
+      this.displayTree = []
       this.lastWorkspaceSnapshot = null
       this.expandedDirs = new Set()
       this.fileContents = {}

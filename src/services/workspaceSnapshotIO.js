@@ -6,9 +6,11 @@ export async function readWorkspaceTreeSnapshot(path, loadedDirs = [], options =
     currentTree: [],
     extraDirs: Array.isArray(loadedDirs) ? loadedDirs : [],
     includeHidden: options.includeHidden !== false,
+    displayPreferences: options.displayPreferences || {},
   })
   return {
     tree: Array.isArray(snapshot?.tree) ? snapshot.tree : [],
+    displayTree: Array.isArray(snapshot?.displayTree) ? snapshot.displayTree : [],
     flatFiles: Array.isArray(snapshot?.flatFiles) ? snapshot.flatFiles : [],
   }
 }

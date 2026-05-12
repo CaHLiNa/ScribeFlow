@@ -23,7 +23,6 @@ const referenceRuntimePatterns = [
   },
 ]
 const synchronousDomainRuntimeFiles = [
-  'src/domains/files/fileTreeDisplayRuntime.js',
   'src/domains/files/workspaceSnapshotFlatFilesRuntime.js',
 ]
 

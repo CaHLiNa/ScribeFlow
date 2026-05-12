@@ -160,7 +160,6 @@ import { useFilesStore } from '../../stores/files'
 import { useEditorStore } from '../../stores/editor'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { DOCUMENT_DOCK_FILE_PAGE } from '../../domains/editor/documentDockPages.js'
-import { applyFileTreeDisplayPreferences } from '../../domains/files/fileTreeDisplayRuntime.js'
 import { listWorkspaceFlatFileEntries } from '../../domains/files/workspaceSnapshotFlatFilesRuntime.js'
 import { listWorkspaceDocumentTemplates } from '../../domains/workspace/workspaceTemplateRuntime'
 import FileTreeFooter from './FileTreeFooter.vue'
@@ -212,12 +211,22 @@ const workspaceSnapshot = computed(
   () => files.lastWorkspaceSnapshot || { flatFiles: files.flatFiles }
 )
 const workspaceFlatFiles = computed(() => listWorkspaceFlatFileEntries(workspaceSnapshot.value))
-const fileTreeDisplayEntries = computed(() =>
-  applyFileTreeDisplayPreferences(files.tree, {
-    showHidden: workspace.fileTreeShowHidden,
-    sortMode: workspace.fileTreeSortMode,
-    foldDirectories: workspace.fileTreeFoldDirectories,
-  })
+const fileTreeDisplayEntries = computed(() => files.fileTreeDisplayEntries)
+
+watch(
+  () => workspace.fileTreeShowHidden,
+  () => {
+    if (!workspace.path) return
+    void files.loadFileTree({ suppressErrors: true, keepCurrentTreeOnError: true })
+  }
+)
+
+watch(
+  () => [workspace.fileTreeSortMode, workspace.fileTreeFoldDirectories],
+  () => {
+    if (!workspace.path) return
+    void files.refreshFileTreeDisplayState().catch(() => {})
+  }
 )
 
 const treeContainer = ref(null)
