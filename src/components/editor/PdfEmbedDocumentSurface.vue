@@ -290,6 +290,9 @@ const COMPACT_FIT_WIDTH_MAX_RETRIES = 8
 let compactFitWidthRevealRetryCount = 0
 const COMPACT_FIT_WIDTH_REVEAL_MAX_RETRIES = 10
 let compactFitWidthPendingAfterResize = false
+let initialPaintRefreshFrame = 0
+let initialPaintRefreshRetryCount = 0
+const INITIAL_PAINT_REFRESH_MAX_RETRIES = 8
 
 const hasSearchResults = computed(() => Number(search.state.value?.total || 0) > 0)
 const isMatchCaseEnabled = computed(() =>
@@ -796,6 +799,52 @@ function applyZoomValue(scaleValue) {
 function applyViewerPreferences() {
   spread.provides.value?.setSpreadMode(resolvePreferredSpreadMode())
   applyZoomValue(resolvePreferredZoomValue())
+}
+
+function cancelInitialPaintRefresh() {
+  if (typeof window === 'undefined') return
+  if (initialPaintRefreshFrame) {
+    window.cancelAnimationFrame(initialPaintRefreshFrame)
+    initialPaintRefreshFrame = 0
+  }
+  initialPaintRefreshRetryCount = 0
+}
+
+function scheduleInitialPaintRefresh() {
+  if (typeof window === 'undefined') return
+  if (initialPaintRefreshFrame) return
+
+  const documentId = props.documentId
+  initialPaintRefreshFrame = window.requestAnimationFrame(() => {
+    initialPaintRefreshFrame = window.requestAnimationFrame(() => {
+      initialPaintRefreshFrame = 0
+      if (documentId !== props.documentId) return
+
+      const viewportMetrics = viewportCapability.value
+        ?.forDocument(props.documentId)
+        ?.getMetrics?.()
+      const viewportWidth = Number(viewportMetrics?.clientWidth || 0)
+      const viewportHeight = Number(viewportMetrics?.clientHeight || 0)
+      const readyForPaint =
+        pageBindings.size > 0 &&
+        Number.isFinite(viewportWidth) &&
+        Number.isFinite(viewportHeight) &&
+        viewportWidth > 0 &&
+        viewportHeight > 0
+
+      if (!readyForPaint) {
+        initialPaintRefreshRetryCount += 1
+        if (initialPaintRefreshRetryCount <= INITIAL_PAINT_REFRESH_MAX_RETRIES) {
+          scheduleInitialPaintRefresh()
+        }
+        return
+      }
+
+      initialPaintRefreshRetryCount = 0
+      applyZoomValue(resolveScaleValueFromZoomState() || resolvePreferredZoomValue())
+      scheduleViewStateEmission()
+    })
+  })
 }
 
 function persistRememberedZoomScale(scaleValue) {
@@ -1626,6 +1675,7 @@ watch(
     initialLayoutHandled.value = false
     clearForwardSyncHighlight()
     lastHandledForwardSyncRequestId = 0
+    cancelInitialPaintRefresh()
     selectionActive.value = false
     selectedText.value = ''
     suppressSearchWatch = true
@@ -1792,7 +1842,9 @@ watch(
       if (event.documentId !== documentId) return
 
       if (pendingRestoreState.value) {
-        void restoreViewState(pendingRestoreState.value)
+        void restoreViewState(pendingRestoreState.value).then(() => {
+          scheduleInitialPaintRefresh()
+        })
         return
       }
 
@@ -1800,6 +1852,7 @@ watch(
         applyViewerPreferences()
         initialLayoutHandled.value = true
         clearScheduledLayoutNudge()
+        scheduleInitialPaintRefresh()
         if (props.compactToolbar) {
           scheduleCompactFitWidth()
           revealCompactFitWidthAfterPaint()
@@ -1832,6 +1885,7 @@ watch(
 onUnmounted(() => {
   clearScheduledLayoutNudge()
   cancelCompactFitWidthFrame()
+  cancelInitialPaintRefresh()
   pageBindings.clear()
   clearSearchDebounceTimer()
   clearForwardSyncHighlight()
