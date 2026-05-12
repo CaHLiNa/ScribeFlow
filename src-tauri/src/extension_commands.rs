@@ -75,6 +75,78 @@ pub struct ExtensionCapabilityInvokeParams {
     pub item_handle: String,
 }
 
+fn command_param_string(params: &Value, camel_key: &str, snake_key: &str) -> String {
+    params
+        .as_object()
+        .and_then(|object| object.get(camel_key).or_else(|| object.get(snake_key)))
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .trim()
+        .to_string()
+}
+
+fn command_param_object(params: &Value, camel_key: &str, snake_key: &str) -> Value {
+    params
+        .as_object()
+        .and_then(|object| object.get(camel_key).or_else(|| object.get(snake_key)))
+        .filter(|value| value.is_object())
+        .cloned()
+        .unwrap_or_else(|| serde_json::json!({}))
+}
+
+fn target_string_field(target: &Value, camel_key: &str, snake_key: &str) -> String {
+    target
+        .as_object()
+        .and_then(|object| object.get(camel_key).or_else(|| object.get(snake_key)))
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .trim()
+        .to_string()
+}
+
+fn command_param_target(params: &Value) -> ExtensionTaskTarget {
+    let target = params
+        .as_object()
+        .and_then(|object| object.get("target"))
+        .filter(|value| value.is_object())
+        .cloned()
+        .unwrap_or_else(|| serde_json::json!({}));
+
+    ExtensionTaskTarget {
+        kind: target_string_field(&target, "kind", "kind"),
+        reference_id: target_string_field(&target, "referenceId", "reference_id"),
+        path: target_string_field(&target, "path", "path"),
+    }
+}
+
+fn extension_command_execute_params_from_payload(params: Value) -> ExtensionCommandExecuteParams {
+    ExtensionCommandExecuteParams {
+        global_config_dir: command_param_string(&params, "globalConfigDir", "global_config_dir"),
+        workspace_root: command_param_string(&params, "workspaceRoot", "workspace_root"),
+        extension_id: command_param_string(&params, "extensionId", "extension_id"),
+        command_id: command_param_string(&params, "commandId", "command_id"),
+        target: command_param_target(&params),
+        settings: command_param_object(&params, "settings", "settings"),
+        item_id: command_param_string(&params, "itemId", "item_id"),
+        item_handle: command_param_string(&params, "itemHandle", "item_handle"),
+    }
+}
+
+fn extension_capability_invoke_params_from_payload(
+    params: Value,
+) -> ExtensionCapabilityInvokeParams {
+    ExtensionCapabilityInvokeParams {
+        global_config_dir: command_param_string(&params, "globalConfigDir", "global_config_dir"),
+        workspace_root: command_param_string(&params, "workspaceRoot", "workspace_root"),
+        extension_id: command_param_string(&params, "extensionId", "extension_id"),
+        capability_id: command_param_string(&params, "capabilityId", "capability_id"),
+        target: command_param_target(&params),
+        settings: command_param_object(&params, "settings", "settings"),
+        item_id: command_param_string(&params, "itemId", "item_id"),
+        item_handle: command_param_string(&params, "itemHandle", "item_handle"),
+    }
+}
+
 fn extension_dir_from_manifest_path(path: &str) -> String {
     Path::new(path)
         .parent()
@@ -282,11 +354,12 @@ pub fn record_extension_result_for_probe(
 
 #[tauri::command]
 pub async fn extension_command_execute(
-    params: ExtensionCommandExecuteParams,
+    params: Value,
     _scope_state: tauri::State<'_, WorkspaceScopeState>,
     task_runtime_state: tauri::State<'_, crate::extension_tasks::ExtensionTaskRuntimeState>,
     extension_host_state: tauri::State<'_, crate::extension_host::ExtensionHostState>,
 ) -> Result<ExtensionCommandExecutionResult, String> {
+    let params = extension_command_execute_params_from_payload(params);
     let command_id = params.command_id.trim().to_string();
     if command_id.is_empty() {
         return Err("Extension command id is required".to_string());
@@ -431,11 +504,12 @@ pub async fn extension_command_execute(
 
 #[tauri::command]
 pub async fn extension_capability_invoke(
-    params: ExtensionCapabilityInvokeParams,
+    params: Value,
     _scope_state: tauri::State<'_, WorkspaceScopeState>,
     task_runtime_state: tauri::State<'_, crate::extension_tasks::ExtensionTaskRuntimeState>,
     extension_host_state: tauri::State<'_, crate::extension_host::ExtensionHostState>,
 ) -> Result<ExtensionCommandExecutionResult, String> {
+    let params = extension_capability_invoke_params_from_payload(params);
     let capability_id = params.capability_id.trim().to_string();
     if capability_id.is_empty() {
         return Err("Extension capability id is required".to_string());
@@ -594,7 +668,9 @@ mod tests {
     use super::{
         activation_result_registers_capability, activation_result_registers_command,
         capability_is_available_for_execution, command_is_available_for_execution,
-        manifest_declares_capability, manifest_declares_command, normalize_artifacts,
+        extension_capability_invoke_params_from_payload,
+        extension_command_execute_params_from_payload, manifest_declares_capability,
+        manifest_declares_command, normalize_artifacts,
     };
     use crate::extension_artifacts::ExtensionArtifact;
     use crate::extension_capability_contract::{
@@ -632,6 +708,111 @@ mod tests {
             registered_menu_actions: Vec::new(),
             registered_view_details: Vec::new(),
         }
+    }
+
+    #[test]
+    fn extension_command_params_normalize_raw_payloads() {
+        let params = extension_command_execute_params_from_payload(serde_json::json!({
+            "globalConfigDir": " /tmp/global-config ",
+            "workspaceRoot": " /tmp/workspace ",
+            "extensionId": " example-pdf-extension ",
+            "commandId": " scribeflow.pdf.translate ",
+            "itemId": 42,
+            "itemHandle": " handle-1 ",
+            "target": {
+                "kind": " workspace ",
+                "referenceId": " ref-1 ",
+                "path": " /tmp/paper.pdf "
+            },
+            "settings": {
+                "targetLang": "zh"
+            }
+        }));
+
+        assert_eq!(params.global_config_dir, "/tmp/global-config");
+        assert_eq!(params.workspace_root, "/tmp/workspace");
+        assert_eq!(params.extension_id, "example-pdf-extension");
+        assert_eq!(params.command_id, "scribeflow.pdf.translate");
+        assert_eq!(params.item_id, "");
+        assert_eq!(params.item_handle, "handle-1");
+        assert_eq!(params.target.kind, "workspace");
+        assert_eq!(params.target.reference_id, "ref-1");
+        assert_eq!(params.target.path, "/tmp/paper.pdf");
+        assert_eq!(params.settings["targetLang"], "zh");
+
+        let snake_params = extension_command_execute_params_from_payload(serde_json::json!({
+            "global_config_dir": " /tmp/global-snake ",
+            "workspace_root": " /tmp/workspace-snake ",
+            "extension_id": " example-markdown-extension ",
+            "command_id": " document.summarize ",
+            "item_id": " item-1 ",
+            "item_handle": " handle-2 ",
+            "target": {
+                "reference_id": " ref-2 "
+            },
+            "settings": ["not", "an", "object"]
+        }));
+
+        assert_eq!(snake_params.global_config_dir, "/tmp/global-snake");
+        assert_eq!(snake_params.workspace_root, "/tmp/workspace-snake");
+        assert_eq!(snake_params.extension_id, "example-markdown-extension");
+        assert_eq!(snake_params.command_id, "document.summarize");
+        assert_eq!(snake_params.item_id, "item-1");
+        assert_eq!(snake_params.item_handle, "handle-2");
+        assert_eq!(snake_params.target.reference_id, "ref-2");
+        assert_eq!(snake_params.settings, serde_json::json!({}));
+
+        let fallback_params = extension_command_execute_params_from_payload(serde_json::json!(42));
+        assert_eq!(fallback_params.command_id, "");
+        assert_eq!(fallback_params.target, ExtensionTaskTarget::default());
+        assert_eq!(fallback_params.settings, serde_json::json!({}));
+    }
+
+    #[test]
+    fn extension_capability_params_normalize_raw_payloads() {
+        let params = extension_capability_invoke_params_from_payload(serde_json::json!({
+            "globalConfigDir": " /tmp/global-config ",
+            "workspaceRoot": " /tmp/workspace ",
+            "extensionId": " example-pdf-extension ",
+            "capabilityId": " pdf.translate ",
+            "itemId": " item-1 ",
+            "itemHandle": null,
+            "target": {
+                "kind": " workspace ",
+                "reference_id": " ref-1 ",
+                "path": " /tmp/paper.pdf "
+            },
+            "settings": {
+                "targetLang": "zh"
+            }
+        }));
+
+        assert_eq!(params.global_config_dir, "/tmp/global-config");
+        assert_eq!(params.workspace_root, "/tmp/workspace");
+        assert_eq!(params.extension_id, "example-pdf-extension");
+        assert_eq!(params.capability_id, "pdf.translate");
+        assert_eq!(params.item_id, "item-1");
+        assert_eq!(params.item_handle, "");
+        assert_eq!(params.target.kind, "workspace");
+        assert_eq!(params.target.reference_id, "ref-1");
+        assert_eq!(params.target.path, "/tmp/paper.pdf");
+        assert_eq!(params.settings["targetLang"], "zh");
+
+        let snake_params = extension_capability_invoke_params_from_payload(serde_json::json!({
+            "global_config_dir": " /tmp/global-snake ",
+            "workspace_root": " /tmp/workspace-snake ",
+            "extension_id": " example-markdown-extension ",
+            "capability_id": " document.summarize ",
+            "target": "not an object",
+            "settings": "not an object"
+        }));
+
+        assert_eq!(snake_params.global_config_dir, "/tmp/global-snake");
+        assert_eq!(snake_params.workspace_root, "/tmp/workspace-snake");
+        assert_eq!(snake_params.extension_id, "example-markdown-extension");
+        assert_eq!(snake_params.capability_id, "document.summarize");
+        assert_eq!(snake_params.target, ExtensionTaskTarget::default());
+        assert_eq!(snake_params.settings, serde_json::json!({}));
     }
 
     #[test]
