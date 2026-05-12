@@ -4,23 +4,23 @@ import { getHomeDir } from './appDirs.js'
 let cachedHomeDir = undefined
 
 export async function hashWorkspacePath(value = '') {
-  return invoke('workspace_paths_hash', { value: String(value || '') })
+  return invoke('workspace_paths_hash', { params: { value } })
 }
 
 export async function resolveWorkspaceDataDir(globalConfigDir = '', workspaceId = '') {
-  return invoke('workspace_paths_resolve_data_dir', { globalConfigDir, workspaceId })
+  return invoke('workspace_paths_resolve_data_dir', { params: { globalConfigDir, workspaceId } })
 }
 
 export async function resolveClaudeConfigDir(globalConfigDir = '') {
-  return invoke('workspace_paths_resolve_claude_config_dir', { globalConfigDir })
+  return invoke('workspace_paths_resolve_claude_config_dir', { params: { globalConfigDir } })
 }
 
 export async function resolveSkillPath(projectDir = '', rawPath = '') {
-  return invoke('workspace_paths_resolve_skill_path', { projectDir, rawPath })
+  return invoke('workspace_paths_resolve_skill_path', { params: { projectDir, rawPath } })
 }
 
 export async function normalizePathValue(value = '') {
-  return invoke('workspace_paths_normalize_value', { value })
+  return invoke('workspace_paths_normalize_value', { params: { value } })
 }
 
 export async function getHomeDirCached() {
