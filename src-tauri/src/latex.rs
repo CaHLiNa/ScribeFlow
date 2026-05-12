@@ -1,5 +1,6 @@
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::collections::HashMap;
 use std::io::Write;
 use std::path::Path;
@@ -32,6 +33,68 @@ impl Default for LatexState {
         Self {
             compiling: Mutex::new(HashMap::new()),
         }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct SynctexBackwardParams {
+    synctex_path: String,
+    page: Option<u32>,
+    x: Option<f64>,
+    y: Option<f64>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct SynctexForwardParams {
+    synctex_path: String,
+    file_path: String,
+    line: Option<u32>,
+    column: u32,
+}
+
+fn payload_field<'a>(params: &'a Value, key: &str) -> Option<&'a Value> {
+    params.as_object().and_then(|object| object.get(key))
+}
+
+fn string_payload_field(params: &Value, key: &str) -> String {
+    payload_field(params, key)
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .trim()
+        .to_string()
+}
+
+fn finite_number_payload_field(params: &Value, key: &str) -> Option<f64> {
+    let value = payload_field(params, key)?;
+    let number = value
+        .as_f64()
+        .or_else(|| value.as_str().and_then(|text| text.trim().parse().ok()))?;
+    number.is_finite().then_some(number)
+}
+
+fn positive_u32_payload_field(params: &Value, key: &str) -> Option<u32> {
+    let number = finite_number_payload_field(params, key)?;
+    if number.fract() != 0.0 || number < 1.0 || number > u32::MAX as f64 {
+        return None;
+    }
+    Some(number as u32)
+}
+
+fn synctex_backward_params_from_payload(params: Value) -> SynctexBackwardParams {
+    SynctexBackwardParams {
+        synctex_path: string_payload_field(&params, "synctexPath"),
+        page: positive_u32_payload_field(&params, "page"),
+        x: finite_number_payload_field(&params, "x"),
+        y: finite_number_payload_field(&params, "y"),
+    }
+}
+
+fn synctex_forward_params_from_payload(params: Value) -> SynctexForwardParams {
+    SynctexForwardParams {
+        synctex_path: string_payload_field(&params, "synctexPath"),
+        file_path: string_payload_field(&params, "filePath"),
+        line: positive_u32_payload_field(&params, "line"),
+        column: positive_u32_payload_field(&params, "column").unwrap_or(1),
     }
 }
 
@@ -393,14 +456,24 @@ pub async fn download_tectonic(app: tauri::AppHandle) -> Result<String, String> 
 
 #[tauri::command]
 pub async fn workspace_synctex_backward(
-    synctex_path: String,
-    page: u32,
-    x: f64,
-    y: f64,
+    params: Value,
     scope_state: tauri::State<'_, WorkspaceScopeState>,
-) -> Result<serde_json::Value, String> {
-    let synctex =
-        security::ensure_allowed_workspace_path(scope_state.inner(), Path::new(&synctex_path))?;
+) -> Result<Option<serde_json::Value>, String> {
+    let params = synctex_backward_params_from_payload(params);
+    let Some(page) = params.page else {
+        return Ok(None);
+    };
+    let (Some(x), Some(y)) = (params.x, params.y) else {
+        return Ok(None);
+    };
+    if params.synctex_path.is_empty() {
+        return Ok(None);
+    }
+
+    let synctex = security::ensure_allowed_workspace_path(
+        scope_state.inner(),
+        Path::new(&params.synctex_path),
+    )?;
     if !synctex.exists() {
         return Err("SyncTeX file not found. Recompile with SyncTeX enabled.".to_string());
     }
@@ -409,53 +482,53 @@ pub async fn workspace_synctex_backward(
     if let Some(pdf_path) = derive_pdf_path_from_synctex_path(&resolved_synctex_path) {
         if let Some(binary) = find_synctex(None) {
             if let Ok(result) = run_synctex_edit_cli(&binary, &pdf_path, page, x, y) {
-                return Ok(result);
+                return Ok(Some(normalize_synctex_backward_result(result)));
             }
         }
     }
 
     let data = parse_synctex_file(&resolved_synctex_path)?;
-    backward_sync(&data, page, x, y)
+    backward_sync(&data, page, x, y).map(|result| Some(normalize_synctex_backward_result(result)))
 }
 
 #[tauri::command]
 pub async fn workspace_synctex_forward(
-    synctex_path: String,
-    file_path: String,
-    line: u32,
-    column: u32,
+    params: Value,
     scope_state: tauri::State<'_, WorkspaceScopeState>,
-) -> Result<serde_json::Value, String> {
-    let synctex =
-        security::ensure_allowed_workspace_path(scope_state.inner(), Path::new(&synctex_path))?;
+) -> Result<Option<serde_json::Value>, String> {
+    let params = synctex_forward_params_from_payload(params);
+    let Some(line) = params.line else {
+        return Ok(None);
+    };
+    if params.synctex_path.is_empty() || params.file_path.is_empty() {
+        return Ok(None);
+    }
+
+    let synctex = security::ensure_allowed_workspace_path(
+        scope_state.inner(),
+        Path::new(&params.synctex_path),
+    )?;
     if !synctex.exists() {
         return Err("SyncTeX file not found. Recompile with SyncTeX enabled.".to_string());
     }
 
-    if file_path.trim().is_empty() {
-        return Err("Source file path is required for forward SyncTeX.".to_string());
-    }
     let normalized_file_path =
-        security::ensure_allowed_workspace_path(scope_state.inner(), Path::new(&file_path))?;
+        security::ensure_allowed_workspace_path(scope_state.inner(), Path::new(&params.file_path))?;
     let resolved_synctex_path = synctex.to_string_lossy().to_string();
     let resolved_file_path = normalized_file_path.to_string_lossy().to_string();
 
     if let Some(pdf_path) = derive_pdf_path_from_synctex_path(&resolved_synctex_path) {
         if let Some(binary) = find_synctex(None) {
-            if let Ok(result) = run_synctex_view_cli(
-                &binary,
-                &resolved_file_path,
-                &pdf_path,
-                line.max(1),
-                column.max(1),
-            ) {
-                return Ok(result);
+            if let Ok(result) =
+                run_synctex_view_cli(&binary, &resolved_file_path, &pdf_path, line, params.column)
+            {
+                return Ok(normalize_synctex_forward_result(result));
             }
         }
     }
 
     let data = parse_synctex_file(&resolved_synctex_path)?;
-    forward_sync(&data, &resolved_file_path, line.max(1))
+    forward_sync(&data, &resolved_file_path, line).map(normalize_synctex_forward_result)
 }
 
 const SYNCTEX_SCALED_POINT_TO_BIG_POINT: f64 = 72.0 / 72.27 / 65536.0;
@@ -535,6 +608,132 @@ fn push_synctex_view_record(
     }
 
     current.clear();
+}
+
+fn value_strict_line(value: &serde_json::Value) -> bool {
+    value
+        .get("strictLine")
+        .or_else(|| value.get("strict_line"))
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false)
+}
+
+fn finite_value_number(value: Option<&serde_json::Value>) -> Option<f64> {
+    let number = value.and_then(serde_json::Value::as_f64)?;
+    number.is_finite().then_some(number)
+}
+
+fn normalize_synctex_backward_result(result: serde_json::Value) -> serde_json::Value {
+    let mut result = match result {
+        serde_json::Value::Object(object) => object,
+        _ => return serde_json::Value::Null,
+    };
+    let strict_line = result
+        .get("strictLine")
+        .or_else(|| result.get("strict_line"))
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false);
+    result.remove("strict_line");
+    result.insert(
+        "strictLine".to_string(),
+        serde_json::Value::Bool(strict_line),
+    );
+    serde_json::Value::Object(result)
+}
+
+fn normalize_synctex_forward_record(record: serde_json::Value) -> Option<serde_json::Value> {
+    let object = record.as_object()?;
+    let page = object.get("page").and_then(serde_json::Value::as_u64)?;
+    if page == 0 || page > u32::MAX as u64 {
+        return None;
+    }
+
+    let x = finite_value_number(object.get("x"));
+    let y = finite_value_number(object.get("y"));
+    let h = finite_value_number(object.get("h"));
+    let v = finite_value_number(object.get("v"));
+    let width = finite_value_number(object.get("W"));
+    let height = finite_value_number(object.get("H"));
+
+    let has_point = x.is_some() && y.is_some();
+    let has_rect = h.is_some() && v.is_some() && width.is_some() && height.is_some();
+    if !has_point && !has_rect {
+        return None;
+    }
+
+    let mut normalized = serde_json::Map::new();
+    normalized.insert(
+        "page".to_string(),
+        serde_json::Value::Number(serde_json::Number::from(page)),
+    );
+    normalized.insert(
+        "indicator".to_string(),
+        serde_json::Value::Bool(
+            object
+                .get("indicator")
+                .and_then(serde_json::Value::as_bool)
+                .unwrap_or(true),
+        ),
+    );
+
+    if let (Some(x), Some(y)) = (x, y) {
+        normalized.insert("x".to_string(), serde_json::json!(x));
+        normalized.insert("y".to_string(), serde_json::json!(y));
+    }
+
+    if let (Some(h), Some(v), Some(width), Some(height)) = (h, v, width, height) {
+        normalized.insert("h".to_string(), serde_json::json!(h));
+        normalized.insert("v".to_string(), serde_json::json!(v));
+        normalized.insert("W".to_string(), serde_json::json!(width));
+        normalized.insert("H".to_string(), serde_json::json!(height));
+
+        if !normalized.contains_key("x") || !normalized.contains_key("y") {
+            normalized.insert("x".to_string(), serde_json::json!(h));
+            normalized.insert("y".to_string(), serde_json::json!(v));
+        }
+    }
+
+    Some(serde_json::Value::Object(normalized))
+}
+
+fn normalized_synctex_forward_mode(record: &serde_json::Value) -> &'static str {
+    let has_rect = finite_value_number(record.get("h")).is_some()
+        && finite_value_number(record.get("v")).is_some()
+        && finite_value_number(record.get("W")).is_some()
+        && finite_value_number(record.get("H")).is_some();
+    if has_rect {
+        "rects"
+    } else {
+        "point"
+    }
+}
+
+fn normalize_synctex_forward_result(result: serde_json::Value) -> Option<serde_json::Value> {
+    let strict_line = match &result {
+        serde_json::Value::Array(records) => records.iter().any(value_strict_line),
+        value => value_strict_line(value),
+    };
+
+    let records: Vec<serde_json::Value> = match result {
+        serde_json::Value::Array(records) => records
+            .into_iter()
+            .filter_map(normalize_synctex_forward_record)
+            .collect(),
+        value => normalize_synctex_forward_record(value)
+            .into_iter()
+            .collect(),
+    };
+
+    let Some(record) = records.first().cloned() else {
+        return None;
+    };
+
+    Some(serde_json::json!({
+        "mode": if records.len() > 1 { "rects" } else { normalized_synctex_forward_mode(&record) },
+        "records": records,
+        "record": record,
+        "strictLine": strict_line,
+    }))
 }
 
 fn parse_synctex_view_output(output: &str) -> Result<serde_json::Value, String> {
@@ -952,7 +1151,12 @@ fn forward_sync(
 
 #[cfg(test)]
 mod tests {
-    use super::{forward_sync, parse_synctex_content, parse_synctex_view_output};
+    use super::{
+        forward_sync, normalize_synctex_backward_result, normalize_synctex_forward_result,
+        parse_synctex_content, parse_synctex_view_output, synctex_backward_params_from_payload,
+        synctex_forward_params_from_payload,
+    };
+    use serde_json::json;
 
     #[test]
     fn parse_synctex_view_output_supports_rectangle_records() {
@@ -1032,5 +1236,104 @@ x1,4:65536,65536
 "#;
         let nodes = parse_synctex_content(content);
         assert!(forward_sync(&nodes, "/workspace/project/other.tex", 4).is_err());
+    }
+
+    #[test]
+    fn synctex_params_normalize_raw_payloads() {
+        let backward = synctex_backward_params_from_payload(json!({
+            "synctexPath": " /tmp/main.synctex.gz ",
+            "page": "2",
+            "x": "72.5",
+            "y": 144
+        }));
+        assert_eq!(backward.synctex_path, "/tmp/main.synctex.gz");
+        assert_eq!(backward.page, Some(2));
+        assert_eq!(backward.x, Some(72.5));
+        assert_eq!(backward.y, Some(144.0));
+
+        let invalid_backward = synctex_backward_params_from_payload(json!({
+            "synctexPath": false,
+            "page": 0,
+            "x": "NaN",
+            "y": null
+        }));
+        assert_eq!(invalid_backward.synctex_path, "");
+        assert_eq!(invalid_backward.page, None);
+        assert_eq!(invalid_backward.x, None);
+        assert_eq!(invalid_backward.y, None);
+
+        let forward = synctex_forward_params_from_payload(json!({
+            "synctexPath": " /tmp/main.synctex.gz ",
+            "filePath": " /tmp/chapter/main.tex ",
+            "line": "9",
+            "column": 0
+        }));
+        assert_eq!(forward.synctex_path, "/tmp/main.synctex.gz");
+        assert_eq!(forward.file_path, "/tmp/chapter/main.tex");
+        assert_eq!(forward.line, Some(9));
+        assert_eq!(forward.column, 1);
+    }
+
+    #[test]
+    fn synctex_results_normalize_to_frontend_contract_in_rust() {
+        let backward = normalize_synctex_backward_result(json!({
+            "file": "chapter/main.tex",
+            "line": 12,
+            "strict_line": true
+        }));
+        assert_eq!(backward["strictLine"].as_bool(), Some(true));
+        assert!(backward.get("strict_line").is_none());
+
+        let point = normalize_synctex_forward_result(json!({
+            "page": 2,
+            "x": 18.5,
+            "y": 24.25,
+            "strict_line": true
+        }))
+        .expect("point result should normalize");
+        assert_eq!(point["mode"].as_str(), Some("point"));
+        assert_eq!(point["strictLine"].as_bool(), Some(true));
+        assert_eq!(point["record"]["indicator"].as_bool(), Some(true));
+        assert_eq!(point["records"].as_array().map(Vec::len), Some(1));
+
+        let rects = normalize_synctex_forward_result(json!([
+            {
+                "page": 3,
+                "h": 70.0,
+                "v": 150.0,
+                "W": 80.0,
+                "H": 12.0,
+                "indicator": false,
+                "strictLine": false
+            },
+            {
+                "page": 0,
+                "x": 10,
+                "y": 10
+            },
+            {
+                "page": 4,
+                "x": 90.0,
+                "y": 200.0,
+                "h": 88.0,
+                "v": 206.0,
+                "W": 64.0,
+                "H": 10.0,
+                "strict_line": true
+            }
+        ]))
+        .expect("rect result should normalize");
+
+        assert_eq!(rects["mode"].as_str(), Some("rects"));
+        assert_eq!(rects["strictLine"].as_bool(), Some(true));
+        let records = rects["records"].as_array().expect("records array");
+        assert_eq!(records.len(), 2);
+        assert_eq!(records[0]["indicator"].as_bool(), Some(false));
+        assert_eq!(records[0]["x"].as_f64(), Some(70.0));
+        assert_eq!(records[0]["y"].as_f64(), Some(150.0));
+        assert_eq!(
+            normalize_synctex_forward_result(json!({"page": 1, "x": "bad"})),
+            None
+        );
     }
 }
