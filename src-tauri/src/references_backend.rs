@@ -38,6 +38,7 @@ pub struct ReferenceLibraryWriteParams {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReferenceAssetStoreParams {
+    #[serde(default)]
     pub global_config_dir: String,
     #[serde(default)]
     pub reference: Value,
@@ -52,6 +53,7 @@ pub struct ReferenceAssetStoreParams {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReferenceAssetRenameParams {
+    #[serde(default)]
     pub global_config_dir: String,
     #[serde(default)]
     pub reference: Value,
@@ -75,6 +77,52 @@ pub struct ReferenceRecordNormalizeParams {
 
 fn normalize_root(path: &str) -> String {
     path.trim().trim_end_matches('/').to_string()
+}
+
+fn payload_field<'a>(params: &'a Value, key: &str) -> Option<&'a Value> {
+    params.as_object().and_then(|object| object.get(key))
+}
+
+fn string_payload_field(params: &Value, key: &str) -> String {
+    payload_field(params, key)
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string()
+}
+
+fn object_payload_field(params: &Value, key: &str) -> Value {
+    payload_field(params, key)
+        .filter(|value| value.is_object())
+        .cloned()
+        .unwrap_or_else(|| json!({}))
+}
+
+fn reference_asset_store_params_from_payload(params: Value) -> ReferenceAssetStoreParams {
+    let extracted_text = payload_field(&params, "extractedText").and_then(|value| {
+        value
+            .as_str()
+            .filter(|text| !text.trim().is_empty())
+            .map(ToString::to_string)
+    });
+
+    ReferenceAssetStoreParams {
+        global_config_dir: string_payload_field(&params, "globalConfigDir"),
+        reference: object_payload_field(&params, "reference"),
+        source_path: string_payload_field(&params, "sourcePath"),
+        extracted_text,
+        existing_fulltext_source_path: Some(string_payload_field(
+            &params,
+            "existingFulltextSourcePath",
+        )),
+    }
+}
+
+fn reference_asset_rename_params_from_payload(params: Value) -> ReferenceAssetRenameParams {
+    ReferenceAssetRenameParams {
+        global_config_dir: string_payload_field(&params, "globalConfigDir"),
+        reference: object_payload_field(&params, "reference"),
+        next_base_name: string_payload_field(&params, "nextBaseName"),
+    }
 }
 
 fn references_dir(global_config_dir: &str) -> Option<PathBuf> {
@@ -382,13 +430,13 @@ pub async fn references_library_write(
 }
 
 #[tauri::command]
-pub async fn references_asset_store(params: ReferenceAssetStoreParams) -> Result<Value, String> {
-    store_reference_asset(&params)
+pub async fn references_asset_store(params: Value) -> Result<Value, String> {
+    store_reference_asset(&reference_asset_store_params_from_payload(params))
 }
 
 #[tauri::command]
-pub async fn references_asset_rename(params: ReferenceAssetRenameParams) -> Result<Value, String> {
-    rename_reference_asset(&params)
+pub async fn references_asset_rename(params: Value) -> Result<Value, String> {
+    rename_reference_asset(&reference_asset_rename_params_from_payload(params))
 }
 
 #[tauri::command]
@@ -408,9 +456,9 @@ pub async fn references_record_normalize(
 #[cfg(test)]
 mod tests {
     use super::{
-        normalize_reference_record, normalize_snapshot, rename_reference_asset,
-        store_reference_asset, write_library_snapshot, ReferenceAssetRenameParams,
-        ReferenceAssetStoreParams,
+        normalize_reference_record, normalize_snapshot, reference_asset_rename_params_from_payload,
+        reference_asset_store_params_from_payload, rename_reference_asset, store_reference_asset,
+        write_library_snapshot, ReferenceAssetRenameParams, ReferenceAssetStoreParams,
     };
     use serde_json::{json, Value};
     use std::fs;
@@ -513,6 +561,34 @@ mod tests {
         );
 
         fs::remove_dir_all(temp_dir).ok();
+    }
+
+    #[test]
+    fn asset_params_normalize_raw_payloads() {
+        let store_params = reference_asset_store_params_from_payload(json!({
+            "globalConfigDir": false,
+            "reference": "not-a-reference",
+            "sourcePath": 42,
+            "extractedText": "  ",
+            "existingFulltextSourcePath": "/tmp/source.txt"
+        }));
+        assert_eq!(store_params.global_config_dir, "");
+        assert_eq!(store_params.reference, json!({}));
+        assert_eq!(store_params.source_path, "");
+        assert_eq!(store_params.extracted_text, None);
+        assert_eq!(
+            store_params.existing_fulltext_source_path,
+            Some("/tmp/source.txt".to_string())
+        );
+
+        let rename_params = reference_asset_rename_params_from_payload(json!({
+            "globalConfigDir": "/tmp/config",
+            "reference": null,
+            "nextBaseName": 99
+        }));
+        assert_eq!(rename_params.global_config_dir, "/tmp/config");
+        assert_eq!(rename_params.reference, json!({}));
+        assert_eq!(rename_params.next_base_name, "");
     }
 
     #[test]
