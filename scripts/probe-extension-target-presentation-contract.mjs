@@ -47,8 +47,13 @@ const taskPanelSource = readFileSync(
   new URL('../src/components/extensions/ExtensionTaskPanel.vue', import.meta.url),
   'utf8',
 )
+const taskPresentationSource = readFileSync(
+  new URL('../src/domains/extensions/extensionTaskPresentation.js', import.meta.url),
+  'utf8',
+)
 
-assert.match(taskPanelSource, /buildExtensionTargetSummary/)
+assert.match(taskPanelSource, /buildExtensionTaskPresentation/)
+assert.match(taskPresentationSource, /buildExtensionTargetSummary/)
 assert.doesNotMatch(taskPanelSource, /if\s*\(\s*target\.path\s*\)/)
 assert.doesNotMatch(taskPanelSource, /ref:\$\{target\.referenceId\}/)
 

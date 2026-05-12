@@ -4,30 +4,48 @@
       {{ t('No extension tasks yet') }}
     </div>
 
-    <section v-if="timeline.running.length > 0" class="extension-task-group">
-      <div class="extension-task-group__title">{{ t('Running') }}</div>
-      <div v-for="task in timeline.running" :key="task.id" class="extension-task-row">
+    <section
+      v-for="group in taskGroups"
+      :key="group.id"
+      v-show="group.rows.length > 0"
+      class="extension-task-group"
+    >
+      <div class="extension-task-group__title">{{ t(group.titleKey) }}</div>
+      <div v-for="row in group.rows" :key="row.id" class="extension-task-row">
         <div class="extension-task-main">
           <div class="extension-task-title">
-            <span>{{ taskTitle(task) }}</span>
-            <span class="extension-task-state" :class="`is-${task.state}`">{{ taskStateLabel(task) }}</span>
+            <span>{{ t(row.presentation.titleKey) }}</span>
+            <ExtensionStatusPill
+              :label="t(row.presentation.status.labelKey)"
+              :tone-class="row.presentation.status.toneClass"
+            />
           </div>
-          <div class="extension-task-meta">
-            {{ taskMeta(task) }}
+          <div v-if="row.presentation.facts.length > 0" class="extension-task-facts">
+            <ExtensionSummaryCard
+              v-for="fact in row.presentation.facts"
+              :key="fact.id"
+              :title="t(fact.labelKey)"
+              :value="t(fact.valueKey, fact.params)"
+            />
           </div>
-          <div class="extension-task-time">{{ taskTimeSummary(task) }}</div>
-          <div v-if="taskProgressSummary(task)" class="extension-task-progress">
-            {{ taskProgressSummary(task) }}
+          <div class="extension-task-time">{{ taskTimeSummary(row.task) }}</div>
+          <div v-if="row.presentation.progress.available" class="extension-task-progress">
+            {{ taskProgressSummary(row.presentation.progress) }}
           </div>
-          <div v-if="taskResultEntries(task).length > 0" class="extension-task-results">
-            <div class="extension-task-results__title">{{ t('Results') }}</div>
+          <div v-if="row.presentation.results.entries.length > 0" class="extension-task-results">
+            <div class="extension-task-results__header">
+              <div class="extension-task-results__title">{{ t('Results') }}</div>
+              <div class="extension-task-results__summary">
+                {{ resultSummaryLabel(row.presentation.results) }}
+              </div>
+            </div>
             <button
-              v-for="entry in taskResultEntries(task)"
+              v-for="entry in row.presentation.results.entries"
               :key="entry.id"
               type="button"
               class="extension-task-results__entry"
-              :class="{ 'is-active': activeResultEntry(task)?.id === entry.id }"
-              @click="selectResultEntry(task, entry)"
+              :class="{ 'is-active': activeResultEntry(row)?.id === entry.id }"
+              @click="selectResultEntry(row, entry)"
             >
               <span class="extension-task-results__entry-label">{{ t(entry.label) }}</span>
               <span v-if="entry.description" class="extension-task-results__entry-description">
@@ -36,69 +54,18 @@
             </button>
           </div>
           <ExtensionResultPreview
-            v-if="activeResultEntry(task)"
-            :entry="activeResultEntry(task)"
+            v-if="activeResultEntry(row)"
+            :entry="activeResultEntry(row)"
             :busy-action-key="resultActionBusyKey"
             @run-action="openResultEntry"
           />
         </div>
         <div class="extension-task-actions">
           <UiButton
-            v-if="task.state === 'running' || task.state === 'queued'"
+            v-if="row.task.state === 'running' || row.task.state === 'queued'"
             variant="secondary"
             size="sm"
-            @click="extensionsStore.cancelTask(task.id)"
-          >
-            {{ t('Cancel') }}
-          </UiButton>
-        </div>
-      </div>
-    </section>
-
-    <section v-if="timeline.recent.length > 0" class="extension-task-group">
-      <div class="extension-task-group__title">{{ t('Recent Extension Tasks') }}</div>
-      <div v-for="task in timeline.recent" :key="task.id" class="extension-task-row">
-        <div class="extension-task-main">
-          <div class="extension-task-title">
-            <span>{{ taskTitle(task) }}</span>
-            <span class="extension-task-state" :class="`is-${task.state}`">{{ taskStateLabel(task) }}</span>
-          </div>
-          <div class="extension-task-meta">
-            {{ taskMeta(task) }}
-          </div>
-          <div class="extension-task-time">{{ taskTimeSummary(task) }}</div>
-          <div v-if="taskProgressSummary(task)" class="extension-task-progress">
-            {{ taskProgressSummary(task) }}
-          </div>
-          <div v-if="taskResultEntries(task).length > 0" class="extension-task-results">
-            <div class="extension-task-results__title">{{ t('Results') }}</div>
-            <button
-              v-for="entry in taskResultEntries(task)"
-              :key="entry.id"
-              type="button"
-              class="extension-task-results__entry"
-              :class="{ 'is-active': activeResultEntry(task)?.id === entry.id }"
-              @click="selectResultEntry(task, entry)"
-            >
-              <span class="extension-task-results__entry-label">{{ t(entry.label) }}</span>
-              <span v-if="entry.description" class="extension-task-results__entry-description">
-                {{ t(entry.description) }}
-              </span>
-            </button>
-          </div>
-          <ExtensionResultPreview
-            v-if="activeResultEntry(task)"
-            :entry="activeResultEntry(task)"
-            :busy-action-key="resultActionBusyKey"
-            @run-action="openResultEntry"
-          />
-        </div>
-        <div class="extension-task-actions">
-          <UiButton
-            v-if="task.state === 'running' || task.state === 'queued'"
-            variant="secondary"
-            size="sm"
-            @click="extensionsStore.cancelTask(task.id)"
+            @click="extensionsStore.cancelTask(row.task.id)"
           >
             {{ t('Cancel') }}
           </UiButton>
@@ -114,11 +81,9 @@ import { useI18n, formatRelativeFromNow } from '../../i18n'
 import { useExtensionsStore } from '../../stores/extensions'
 import UiButton from '../shared/ui/UiButton.vue'
 import ExtensionResultPreview from './ExtensionResultPreview.vue'
-import {
-  buildExtensionTaskResultEntries,
-  titleCaseKey,
-} from '../../domains/extensions/extensionResultEntries'
-import { buildExtensionTargetSummary } from '../../domains/extensions/extensionTargetPresentation.js'
+import ExtensionStatusPill from './ExtensionStatusPill.vue'
+import ExtensionSummaryCard from './ExtensionSummaryCard.vue'
+import { buildExtensionTaskPresentation } from '../../domains/extensions/extensionTaskPresentation.js'
 
 const { t } = useI18n()
 const extensionsStore = useExtensionsStore()
@@ -129,23 +94,28 @@ const props = defineProps({
 })
 const timeline = computed(() => extensionsStore.taskTimelineForExtension(props.extensionId))
 
-function taskEntries(task = {}) {
-  return buildExtensionTaskResultEntries(task)
+function buildTaskRow(task = {}) {
+  return {
+    id: String(task.id || ''),
+    task,
+    presentation: buildExtensionTaskPresentation(task),
+  }
 }
 
-function activeResultEntry(task = {}) {
-  const entries = taskEntries(task)
+const taskGroups = computed(() => [
+  { id: 'running', titleKey: 'Running', rows: timeline.value.running.map(buildTaskRow) },
+  { id: 'recent', titleKey: 'Recent Extension Tasks', rows: timeline.value.recent.map(buildTaskRow) },
+])
+
+function activeResultEntry(row = {}) {
+  const entries = row?.presentation?.results?.entries || []
   if (entries.length === 0) return null
-  const selectedId = activeResultEntryIds.value[String(task.id || '')]
+  const selectedId = activeResultEntryIds.value[String(row.id || '')]
   return entries.find((entry) => entry.id === selectedId) || entries[0] || null
 }
 
-function taskResultEntries(task = {}) {
-  return taskEntries(task)
-}
-
-function selectResultEntry(task = {}, entry = {}) {
-  const taskId = String(task.id || '')
+function selectResultEntry(row = {}, entry = {}) {
+  const taskId = String(row.id || '')
   if (!taskId) return
   activeResultEntryIds.value = {
     ...activeResultEntryIds.value,
@@ -173,67 +143,25 @@ async function openResultEntry(entry = {}) {
   }
 }
 
-function taskTitle(task = {}) {
-  const explicit = String(task.commandId || task.capability || '').trim()
-  if (!explicit) return t('Extension task')
-  if (explicit === 'retainPdf.refreshView') return t('RetainPDF')
-  const normalized = titleCaseKey(explicit)
-  return t(normalized)
+function taskProgressSummary(progress = {}) {
+  return t(progress.valueKey, {
+    ...progress.params,
+    label: t(progress.labelKey),
+  })
 }
 
-function canonicalTaskStatusKey(value = '') {
-  switch (String(value || '').trim().toLowerCase()) {
-    case 'queued':
-      return 'Queued'
-    case 'running':
-      return 'Running'
-    case 'succeeded':
-    case 'completed':
-      return 'Completed'
-    case 'failed':
-      return 'Failed'
-    case 'cancelled':
-    case 'canceled':
-      return 'Cancelled'
-    default:
-      return ''
-  }
-}
-
-function renderTaskStatusLabel(value = '') {
-  const raw = String(value || '').trim()
-  if (!raw) return ''
-  const canonical = canonicalTaskStatusKey(raw)
-  return canonical ? t(canonical) : t(raw)
-}
-
-function taskStateLabel(task = {}) {
-  return renderTaskStatusLabel(task?.progress?.label || task?.state) || t('Completed')
-}
-
-function taskTargetLabel(task = {}) {
-  const presentation = buildExtensionTargetSummary(task?.target || {})
-  if (presentation.available) {
-    return t(presentation.textKey, presentation.params)
-  }
-  return String(presentation.kind || '').trim()
-}
-
-function taskMeta(task = {}) {
+function resultSummaryLabel(results = {}) {
   const parts = []
-  const targetLabel = taskTargetLabel(task)
-  if (targetLabel) parts.push(targetLabel)
-  return parts.filter(Boolean).join(' · ')
-}
-
-function taskProgressSummary(task = {}) {
-  const label = renderTaskStatusLabel(task?.progress?.label)
-  const current = Number(task?.progress?.current || 0)
-  const total = Number(task?.progress?.total || 0)
-  if (total > 0) {
-    return `${label || t('Progress')}: ${current}/${total}`
+  if (results.artifactCount > 0) {
+    parts.push(t('{count} artifacts', { count: results.artifactCount }))
   }
-  return label && label !== taskStateLabel(task) ? label : ''
+  if (results.outputCount > 0) {
+    parts.push(t('{count} outputs', { count: results.outputCount }))
+  }
+  if (results.actionCount > 0) {
+    parts.push(t('{count} actions', { count: results.actionCount }))
+  }
+  return parts.join(' · ') || t('{count} entries', { count: results.entryCount || 0 })
 }
 
 function taskTimeSummary(task = {}) {
@@ -310,28 +238,16 @@ function taskTimeSummary(task = {}) {
 .extension-task-title {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
   font-size: 13px;
   color: var(--text-primary);
 }
 
-.extension-task-state {
-  font-size: 11px;
-  color: var(--text-muted);
-}
-
-.extension-task-state.is-succeeded {
-  color: var(--success);
-}
-
-.extension-task-state.is-failed {
-  color: var(--error);
-}
-
-.extension-task-meta {
-  font-size: 12px;
-  color: var(--text-secondary);
-  overflow-wrap: anywhere;
+.extension-task-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+  gap: 6px;
 }
 
 .extension-task-progress {
@@ -350,12 +266,26 @@ function taskTimeSummary(task = {}) {
   gap: 6px;
 }
 
+.extension-task-results__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .extension-task-results__title {
   color: var(--text-secondary);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.02em;
   text-transform: uppercase;
+}
+
+.extension-task-results__summary {
+  color: var(--text-muted);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+  text-align: right;
 }
 
 .extension-task-results__entry {
