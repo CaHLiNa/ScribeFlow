@@ -94,9 +94,26 @@ fn str_field(value: &Value, key: &str) -> Option<String> {
 
 #[tauri::command]
 pub async fn diagnostics_normalize_problems(
-    problems: Vec<Value>,
-    defaults: Value,
+    params: Value,
 ) -> Result<Vec<NormalizedProblem>, String> {
+    let (problems, defaults) = diagnostics_params_from_payload(params);
+    Ok(normalize_problems(problems, defaults))
+}
+
+fn diagnostics_params_from_payload(params: Value) -> (Vec<Value>, Value) {
+    let problems = params
+        .get("problems")
+        .and_then(|value| value.as_array())
+        .cloned()
+        .unwrap_or_default();
+    let defaults = params
+        .get("defaults")
+        .cloned()
+        .unwrap_or_else(|| Value::Object(Default::default()));
+    (problems, defaults)
+}
+
+fn normalize_problems(problems: Vec<Value>, defaults: Value) -> Vec<NormalizedProblem> {
     let mut seen = HashSet::new();
     let mut result = Vec::new();
 
@@ -143,5 +160,95 @@ pub async fn diagnostics_normalize_problems(
         a.message.cmp(&b.message)
     });
 
-    Ok(result)
+    result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{diagnostics_params_from_payload, normalize_problems};
+    use serde_json::json;
+
+    #[test]
+    fn diagnostics_params_normalize_raw_payloads() {
+        let (problems, defaults) = diagnostics_params_from_payload(json!({
+            "problems": [
+                {
+                    "sourcePath": " /tmp/main.tex ",
+                    "line": 2,
+                    "column": 4,
+                    "message": " Missing brace ",
+                    "severity": "warning",
+                    "origin": "latex",
+                    "actionable": false,
+                    "raw": " raw log "
+                },
+                {
+                    "sourcePath": " /tmp/main.tex ",
+                    "line": 2,
+                    "column": 4,
+                    "message": " Missing brace ",
+                    "severity": "warning",
+                    "origin": "latex"
+                },
+                {
+                    "message": ""
+                }
+            ],
+            "defaults": {
+                "sourcePath": "/tmp/fallback.tex",
+                "message": " fallback message ",
+                "severity": "error",
+                "origin": "compile"
+            }
+        }));
+
+        assert_eq!(problems.len(), 3);
+        assert_eq!(defaults["sourcePath"], "/tmp/fallback.tex");
+
+        let normalized = normalize_problems(problems, defaults);
+        assert_eq!(normalized.len(), 2);
+        assert_eq!(normalized[0].source_path, " /tmp/main.tex ");
+        assert_eq!(normalized[0].line, Some(2));
+        assert_eq!(normalized[0].column, Some(4));
+        assert_eq!(normalized[0].message, "Missing brace");
+        assert_eq!(normalized[0].severity, "warning");
+        assert_eq!(normalized[0].origin, "latex");
+        assert!(!normalized[0].actionable);
+        assert_eq!(normalized[0].raw, "raw log");
+        assert_eq!(normalized[1].source_path, "/tmp/fallback.tex");
+        assert_eq!(normalized[1].message, "fallback message");
+        assert_eq!(normalized[1].severity, "error");
+        assert_eq!(normalized[1].origin, "compile");
+
+        let (fallback_problems, fallback_defaults) = diagnostics_params_from_payload(json!({
+            "problems": [
+                {
+                    "sourcePath": 42,
+                    "line": 0,
+                    "column": false,
+                    "message": null,
+                    "severity": "info"
+                }
+            ],
+            "defaults": {
+                "sourcePath": "/tmp/default.tex",
+                "message": " default diagnostic ",
+                "severity": "warning",
+                "raw": " default raw "
+            }
+        }));
+        let fallback_normalized = normalize_problems(fallback_problems, fallback_defaults);
+        assert_eq!(fallback_normalized.len(), 1);
+        assert_eq!(fallback_normalized[0].source_path, "/tmp/default.tex");
+        assert_eq!(fallback_normalized[0].line, None);
+        assert_eq!(fallback_normalized[0].column, None);
+        assert_eq!(fallback_normalized[0].message, "default diagnostic");
+        assert_eq!(fallback_normalized[0].severity, "warning");
+        assert_eq!(fallback_normalized[0].raw, "default raw");
+
+        let (invalid_problems, invalid_defaults) = diagnostics_params_from_payload(json!(false));
+        assert!(invalid_problems.is_empty());
+        assert_eq!(invalid_defaults, json!({}));
+        assert!(normalize_problems(invalid_problems, invalid_defaults).is_empty());
+    }
 }
