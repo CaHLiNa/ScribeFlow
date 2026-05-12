@@ -1,26 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import { getGlobalConfigDir } from '../appDirs.js'
 
-export async function storeZoteroApiKey(apiKey = '') {
-  const globalConfigDir = await getGlobalConfigDir()
-  await invoke('references_zotero_api_key_store', {
-    params: {
-      globalConfigDir,
-      apiKey,
-    },
-  })
-}
-
-export async function loadZoteroApiKey() {
-  const globalConfigDir = await getGlobalConfigDir()
-  const value = await invoke('references_zotero_api_key_load', {
-    params: {
-      globalConfigDir,
-    },
-  })
-  return typeof value === 'string' && value.trim() ? value : null
-}
-
 export async function loadZoteroAccountState() {
   const globalConfigDir = await getGlobalConfigDir()
   const state = await invoke('references_zotero_account_state_load', {
@@ -85,33 +65,6 @@ export async function saveZoteroConfig(config = null, globalConfigDir = null) {
     params: {
       globalConfigDir: resolvedDir,
       config,
-    },
-  })
-}
-
-export async function validateApiKey(apiKey = '') {
-  return invoke('references_zotero_validate_api_key', {
-    params: {
-      apiKey,
-    },
-  })
-}
-
-export async function fetchUserGroups(apiKey = '', userId = '') {
-  return invoke('references_zotero_fetch_user_groups', {
-    params: {
-      apiKey,
-      userId,
-    },
-  })
-}
-
-export async function fetchCollections(apiKey = '', libraryType = 'user', libraryId = '') {
-  return invoke('references_zotero_fetch_collections', {
-    params: {
-      apiKey,
-      libraryType,
-      libraryId,
     },
   })
 }
