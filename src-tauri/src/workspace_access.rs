@@ -1,5 +1,6 @@
 use crate::app_dirs;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
@@ -90,6 +91,39 @@ fn normalize_workspace_path(path: &str) -> String {
     } else {
         trimmed.to_string()
     }
+}
+
+fn string_payload_field(params: &Value, key: &str) -> String {
+    params
+        .as_object()
+        .and_then(|object| object.get(key))
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string()
+}
+
+fn workspace_bookmark_capture_params_from_payload(params: Value) -> WorkspaceBookmarkCaptureParams {
+    WorkspaceBookmarkCaptureParams {
+        path: string_payload_field(&params, "path"),
+    }
+}
+
+fn workspace_bookmark_activate_params_from_payload(
+    params: Value,
+) -> WorkspaceBookmarkActivateParams {
+    WorkspaceBookmarkActivateParams {
+        path: string_payload_field(&params, "path"),
+    }
+}
+
+fn workspace_bookmark_remove_params_from_payload(params: Value) -> WorkspaceBookmarkRemoveParams {
+    WorkspaceBookmarkRemoveParams {
+        path: string_payload_field(&params, "path"),
+    }
+}
+
+fn workspace_access_path_from_payload(path: Value) -> String {
+    path.as_str().unwrap_or_default().to_string()
 }
 
 fn normalize_bookmark_map(bookmarks: HashMap<String, String>) -> HashMap<String, String> {
@@ -214,8 +248,7 @@ pub fn macos_create_workspace_bookmark(_path: String) -> Result<String, String> 
 }
 
 #[cfg(target_os = "macos")]
-#[tauri::command]
-pub fn macos_capture_workspace_bookmark(
+pub fn macos_capture_workspace_bookmark_typed(
     params: WorkspaceBookmarkCaptureParams,
 ) -> Result<CapturedWorkspaceBookmark, String> {
     let normalized_path = normalize_workspace_path(&params.path);
@@ -232,11 +265,20 @@ pub fn macos_capture_workspace_bookmark(
     })
 }
 
+#[cfg(target_os = "macos")]
+#[tauri::command]
+pub fn macos_capture_workspace_bookmark(
+    params: Value,
+) -> Result<CapturedWorkspaceBookmark, String> {
+    macos_capture_workspace_bookmark_typed(workspace_bookmark_capture_params_from_payload(params))
+}
+
 #[cfg(not(target_os = "macos"))]
 #[tauri::command]
 pub fn macos_capture_workspace_bookmark(
-    params: WorkspaceBookmarkCaptureParams,
+    params: Value,
 ) -> Result<CapturedWorkspaceBookmark, String> {
+    let params = workspace_bookmark_capture_params_from_payload(params);
     Err(format!(
         "Security-scoped bookmarks are only available on macOS: {}",
         normalize_workspace_path(&params.path)
@@ -302,8 +344,7 @@ pub fn macos_activate_workspace_bookmark(
 }
 
 #[cfg(target_os = "macos")]
-#[tauri::command]
-pub fn macos_activate_workspace_bookmark_for_path(
+pub fn macos_activate_workspace_bookmark_for_path_typed(
     params: WorkspaceBookmarkActivateParams,
     state: tauri::State<'_, WorkspaceAccessState>,
 ) -> Result<ActivatedWorkspaceBookmark, String> {
@@ -321,12 +362,25 @@ pub fn macos_activate_workspace_bookmark_for_path(
     Ok(activated)
 }
 
+#[cfg(target_os = "macos")]
+#[tauri::command]
+pub fn macos_activate_workspace_bookmark_for_path(
+    params: Value,
+    state: tauri::State<'_, WorkspaceAccessState>,
+) -> Result<ActivatedWorkspaceBookmark, String> {
+    macos_activate_workspace_bookmark_for_path_typed(
+        workspace_bookmark_activate_params_from_payload(params),
+        state,
+    )
+}
+
 #[cfg(not(target_os = "macos"))]
 #[tauri::command]
 pub fn macos_activate_workspace_bookmark_for_path(
-    params: WorkspaceBookmarkActivateParams,
+    params: Value,
     _state: tauri::State<'_, WorkspaceAccessState>,
 ) -> Result<ActivatedWorkspaceBookmark, String> {
+    let params = workspace_bookmark_activate_params_from_payload(params);
     Ok(ActivatedWorkspaceBookmark {
         path: normalize_workspace_path(&params.path),
         bookmark: None,
@@ -334,8 +388,7 @@ pub fn macos_activate_workspace_bookmark_for_path(
 }
 
 #[cfg(target_os = "macos")]
-#[tauri::command]
-pub fn macos_release_workspace_access(
+pub fn macos_release_workspace_access_typed(
     path: String,
     state: tauri::State<'_, WorkspaceAccessState>,
 ) -> Result<(), String> {
@@ -347,17 +400,28 @@ pub fn macos_release_workspace_access(
     Ok(())
 }
 
+#[cfg(target_os = "macos")]
+#[tauri::command]
+pub fn macos_release_workspace_access(
+    path: Value,
+    state: tauri::State<'_, WorkspaceAccessState>,
+) -> Result<(), String> {
+    macos_release_workspace_access_typed(workspace_access_path_from_payload(path), state)
+}
+
 #[cfg(not(target_os = "macos"))]
 #[tauri::command]
 pub fn macos_release_workspace_access(
-    _path: String,
+    path: Value,
     _state: tauri::State<'_, WorkspaceAccessState>,
 ) -> Result<(), String> {
+    let _ = normalize_workspace_path(&workspace_access_path_from_payload(path));
     Ok(())
 }
 
 #[tauri::command]
-pub fn workspace_bookmark_remove(params: WorkspaceBookmarkRemoveParams) -> Result<(), String> {
+pub fn workspace_bookmark_remove(params: Value) -> Result<(), String> {
+    let params = workspace_bookmark_remove_params_from_payload(params);
     let mut bookmarks = read_workspace_bookmarks()?;
     bookmarks
         .bookmarks
@@ -368,9 +432,13 @@ pub fn workspace_bookmark_remove(params: WorkspaceBookmarkRemoveParams) -> Resul
 #[cfg(test)]
 mod tests {
     use super::{
-        normalize_bookmark_map, normalize_workspace_path, WorkspaceBookmarkFile,
+        normalize_bookmark_map, normalize_workspace_path, workspace_access_path_from_payload,
+        workspace_bookmark_activate_params_from_payload,
+        workspace_bookmark_capture_params_from_payload,
+        workspace_bookmark_remove_params_from_payload, WorkspaceBookmarkFile,
         WORKSPACE_BOOKMARKS_VERSION,
     };
+    use serde_json::json;
     use std::collections::HashMap;
 
     #[test]
@@ -390,5 +458,32 @@ mod tests {
         let file = WorkspaceBookmarkFile::default();
         assert_eq!(file.version, WORKSPACE_BOOKMARKS_VERSION);
         assert!(file.bookmarks.is_empty());
+    }
+
+    #[test]
+    fn workspace_bookmark_params_normalize_raw_payloads() {
+        let capture_params = workspace_bookmark_capture_params_from_payload(json!({
+            "path": 42
+        }));
+        assert_eq!(capture_params.path, "");
+
+        let activate_params = workspace_bookmark_activate_params_from_payload(json!({
+            "path": " /tmp/demo/ "
+        }));
+        assert_eq!(normalize_workspace_path(&activate_params.path), "/tmp/demo");
+
+        let remove_params = workspace_bookmark_remove_params_from_payload(json!({
+            "path": " /tmp/remove-me/// "
+        }));
+        assert_eq!(
+            normalize_workspace_path(&remove_params.path),
+            "/tmp/remove-me"
+        );
+
+        assert_eq!(
+            workspace_access_path_from_payload(json!(" /tmp/release-me/ ")),
+            " /tmp/release-me/ "
+        );
+        assert_eq!(workspace_access_path_from_payload(json!(false)), "");
     }
 }

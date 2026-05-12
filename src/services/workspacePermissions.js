@@ -1,16 +1,11 @@
 import { invoke } from '@tauri-apps/api/core'
 import { isMac } from '../platform'
 
-function normalizeWorkspacePath(path = '') {
-  const trimmed = String(path || '').trim().replace(/\/+$/, '')
-  return trimmed || '/'
-}
-
 export function removeWorkspaceBookmark(path) {
   if (!path) return
   void invoke('workspace_bookmark_remove', {
     params: {
-      path: normalizeWorkspacePath(path),
+      path,
     },
   }).catch((error) => {
     console.warn('[workspace-permissions] Failed to remove workspace bookmark:', error)
@@ -20,40 +15,38 @@ export function removeWorkspaceBookmark(path) {
 export async function captureWorkspaceBookmark(path) {
   if (!isMac || !path) return path
   try {
-    const normalizedPath = normalizeWorkspacePath(path)
     const result = await invoke('macos_capture_workspace_bookmark', {
       params: {
-        path: normalizedPath,
+        path,
       },
     })
-    return normalizeWorkspacePath(result?.path || normalizedPath)
+    return result?.path || path
   } catch (error) {
     console.warn('[workspace-permissions] Failed to create workspace bookmark:', error)
-    return normalizeWorkspacePath(path)
+    return path
   }
 }
 
 export async function activateWorkspaceBookmark(path) {
-  const normalizedPath = normalizeWorkspacePath(path)
-  if (!isMac || !normalizedPath) return normalizedPath
+  if (!isMac || !path) return path
 
   try {
     const result = await invoke('macos_activate_workspace_bookmark_for_path', {
       params: {
-        path: normalizedPath,
+        path,
       },
     })
-    return normalizeWorkspacePath(result?.path || normalizedPath)
+    return result?.path || path
   } catch (error) {
     console.warn('[workspace-permissions] Failed to activate workspace bookmark:', error)
-    return normalizedPath
+    return path
   }
 }
 
 export async function releaseWorkspaceBookmark(path) {
   if (!isMac || !path) return
   try {
-    await invoke('macos_release_workspace_access', { path: normalizeWorkspacePath(path) })
+    await invoke('macos_release_workspace_access', { path })
   } catch (error) {
     console.warn('[workspace-permissions] Failed to release workspace bookmark:', error)
   }
