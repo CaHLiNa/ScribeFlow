@@ -6,51 +6,30 @@ export async function loadExtensionHostStatus() {
 
 export async function activateExtensionHost(payload = {}) {
   return invoke('extension_host_activate', {
-    params: {
-      globalConfigDir: String(payload.globalConfigDir || ''),
-      workspaceRoot: String(payload.workspaceRoot || ''),
-      extensionId: String(payload.extensionId || ''),
-      activationEvent: String(payload.activationEvent || ''),
-    },
+    params: payload ?? {},
   })
 }
 
 export async function deactivateExtensionHost(payload = {}) {
   return invoke('extension_host_deactivate', {
-    params: {
-      extensionId: String(payload.extensionId || ''),
-      workspaceRoot: String(payload.workspaceRoot || ''),
-    },
+    params: payload ?? {},
   })
 }
 
 export async function cancelExtensionWindowInputs(payload = {}) {
   return invoke('extension_host_cancel_window_inputs', {
-    params: {
-      extensionId: String(payload.extensionId || ''),
-      workspaceRoot: String(payload.workspaceRoot || ''),
-    },
+    params: payload ?? {},
   })
 }
 
 export async function updateExtensionHostSettings(payload = {}) {
   return invoke('extension_host_update_settings', {
-    params: {
-      globalConfigDir: String(payload.globalConfigDir || ''),
-      workspaceRoot: String(payload.workspaceRoot || ''),
-      extensionId: String(payload.extensionId || ''),
-      settings: payload.settings || {},
-    },
+    params: payload ?? {},
   })
 }
 
 export async function resolveExtensionHostCall(payload = {}) {
   return invoke('extension_host_resolve_host_call', {
-    params: {
-      requestId: String(payload.requestId || ''),
-      accepted: payload.accepted !== false,
-      result: payload.result,
-      error: String(payload.error || ''),
-    },
+    params: payload ?? {},
   })
 }

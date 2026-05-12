@@ -254,6 +254,90 @@ pub struct ExtensionHostActivateParams {
     pub activation_event: String,
 }
 
+fn host_param_string(params: &Value, camel_key: &str, snake_key: &str) -> String {
+    params
+        .as_object()
+        .and_then(|object| object.get(camel_key).or_else(|| object.get(snake_key)))
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .trim()
+        .to_string()
+}
+
+fn host_param_object(params: &Value, camel_key: &str, snake_key: &str) -> Value {
+    params
+        .as_object()
+        .and_then(|object| object.get(camel_key).or_else(|| object.get(snake_key)))
+        .filter(|value| value.is_object())
+        .cloned()
+        .unwrap_or_else(|| Value::Object(Default::default()))
+}
+
+fn host_param_value(params: &Value, camel_key: &str, snake_key: &str) -> Value {
+    params
+        .as_object()
+        .and_then(|object| object.get(camel_key).or_else(|| object.get(snake_key)))
+        .cloned()
+        .unwrap_or(Value::Null)
+}
+
+fn host_param_accepted_default_true(params: &Value) -> bool {
+    !matches!(
+        params
+            .as_object()
+            .and_then(|object| object.get("accepted"))
+            .and_then(Value::as_bool),
+        Some(false)
+    )
+}
+
+fn extension_host_activate_params_from_payload(params: Value) -> ExtensionHostActivateParams {
+    ExtensionHostActivateParams {
+        global_config_dir: host_param_string(&params, "globalConfigDir", "global_config_dir"),
+        workspace_root: host_param_string(&params, "workspaceRoot", "workspace_root"),
+        extension_id: host_param_string(&params, "extensionId", "extension_id"),
+        activation_event: host_param_string(&params, "activationEvent", "activation_event"),
+    }
+}
+
+fn extension_host_deactivate_params_from_payload(params: Value) -> ExtensionHostDeactivateParams {
+    ExtensionHostDeactivateParams {
+        extension_id: host_param_string(&params, "extensionId", "extension_id"),
+        workspace_root: host_param_string(&params, "workspaceRoot", "workspace_root"),
+    }
+}
+
+fn extension_host_cancel_window_inputs_params_from_payload(
+    params: Value,
+) -> ExtensionHostCancelWindowInputsParams {
+    ExtensionHostCancelWindowInputsParams {
+        extension_id: host_param_string(&params, "extensionId", "extension_id"),
+        workspace_root: host_param_string(&params, "workspaceRoot", "workspace_root"),
+    }
+}
+
+fn extension_host_update_settings_params_from_payload(
+    params: Value,
+) -> ExtensionHostUpdateSettingsParams {
+    ExtensionHostUpdateSettingsParams {
+        global_config_dir: host_param_string(&params, "globalConfigDir", "global_config_dir"),
+        workspace_root: host_param_string(&params, "workspaceRoot", "workspace_root"),
+        extension_id: host_param_string(&params, "extensionId", "extension_id"),
+        settings: host_param_object(&params, "settings", "settings"),
+    }
+}
+
+fn extension_host_resolve_host_call_params_from_payload(
+    params: Value,
+) -> ExtensionHostResolveHostCallParams {
+    ExtensionHostResolveHostCallParams {
+        request_id: host_param_string(&params, "requestId", "request_id"),
+        accepted: host_param_accepted_default_true(&params),
+        result: host_param_value(&params, "result", "result"),
+        error: host_param_string(&params, "error", "error"),
+    }
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ExtensionHostActivationState {
@@ -2639,9 +2723,10 @@ pub async fn extension_host_status(
 
 #[tauri::command]
 pub async fn extension_host_activate(
-    params: ExtensionHostActivateParams,
+    params: Value,
     state: tauri::State<'_, ExtensionHostState>,
 ) -> Result<ExtensionHostActivationResult, String> {
+    let params = extension_host_activate_params_from_payload(params);
     let entry = find_extension_entry(
         &params.global_config_dir,
         &params.workspace_root,
@@ -2658,9 +2743,10 @@ pub async fn extension_host_activate(
 
 #[tauri::command]
 pub async fn extension_host_deactivate(
-    params: ExtensionHostDeactivateParams,
+    params: Value,
     state: tauri::State<'_, ExtensionHostState>,
 ) -> Result<ExtensionHostDeactivationAcknowledgement, String> {
+    let params = extension_host_deactivate_params_from_payload(params);
     let extension_id = params.extension_id.trim().to_ascii_lowercase();
     let workspace_root = params.workspace_root.trim().to_string();
     if extension_id.is_empty() {
@@ -2691,9 +2777,10 @@ pub async fn extension_host_deactivate(
 
 #[tauri::command]
 pub async fn extension_host_cancel_window_inputs(
-    params: ExtensionHostCancelWindowInputsParams,
+    params: Value,
     state: tauri::State<'_, ExtensionHostState>,
 ) -> Result<ExtensionHostCancelWindowInputsResult, String> {
+    let params = extension_host_cancel_window_inputs_params_from_payload(params);
     cancel_window_inputs_for_extension_for_probe(
         state.inner(),
         &params.extension_id,
@@ -2711,17 +2798,19 @@ pub async fn extension_host_respond_ui_request(
 
 #[tauri::command]
 pub async fn extension_host_resolve_host_call(
-    params: ExtensionHostResolveHostCallParams,
+    params: Value,
     state: tauri::State<'_, ExtensionHostState>,
 ) -> Result<ExtensionHostCallAcknowledgement, String> {
+    let params = extension_host_resolve_host_call_params_from_payload(params);
     resolve_extension_host_call(state.inner(), params)
 }
 
 #[tauri::command]
 pub async fn extension_host_update_settings(
-    params: ExtensionHostUpdateSettingsParams,
+    params: Value,
     state: tauri::State<'_, ExtensionHostState>,
 ) -> Result<ExtensionHostSettingsUpdateAcknowledgement, String> {
+    let params = extension_host_update_settings_params_from_payload(params);
     let extension_id = params.extension_id.trim().to_ascii_lowercase();
     if extension_id.is_empty() {
         return Err("Extension id is required".to_string());
@@ -2798,8 +2887,12 @@ pub async fn extension_host_notify_view_selection(
 mod tests {
     use super::{
         activate_extension, build_extension_invocation_envelope, ensure_extension_pdf_path_allowed,
-        handle_extension_host_request, should_activate_for_event, ExtensionHostRequest,
-        ExtensionHostResponse, ExtensionHostState,
+        extension_host_activate_params_from_payload,
+        extension_host_cancel_window_inputs_params_from_payload,
+        extension_host_deactivate_params_from_payload,
+        extension_host_resolve_host_call_params_from_payload,
+        extension_host_update_settings_params_from_payload, handle_extension_host_request,
+        should_activate_for_event, ExtensionHostRequest, ExtensionHostResponse, ExtensionHostState,
     };
     use crate::extension_manifest::{
         parse_extension_manifest_str, ExtensionManifest, CANONICAL_EXTENSION_MANIFEST_FILENAME,
@@ -2853,6 +2946,117 @@ mod tests {
             manifest: Some(manifest),
             manifest_format: "package.json".to_string(),
         }
+    }
+
+    #[test]
+    fn extension_host_params_normalize_raw_payloads() {
+        let activate = extension_host_activate_params_from_payload(serde_json::json!({
+            "globalConfigDir": " /tmp/global-config ",
+            "workspaceRoot": " /tmp/workspace ",
+            "extensionId": " example-pdf-extension ",
+            "activationEvent": " onCommand:scribeflow.pdf.translate "
+        }));
+        assert_eq!(activate.global_config_dir, "/tmp/global-config");
+        assert_eq!(activate.workspace_root, "/tmp/workspace");
+        assert_eq!(activate.extension_id, "example-pdf-extension");
+        assert_eq!(
+            activate.activation_event,
+            "onCommand:scribeflow.pdf.translate"
+        );
+
+        let snake_activate = extension_host_activate_params_from_payload(serde_json::json!({
+            "global_config_dir": " /tmp/global-snake ",
+            "workspace_root": " /tmp/workspace-snake ",
+            "extension_id": " example-markdown-extension ",
+            "activation_event": " onCommand:document.summarize "
+        }));
+        assert_eq!(snake_activate.global_config_dir, "/tmp/global-snake");
+        assert_eq!(snake_activate.workspace_root, "/tmp/workspace-snake");
+        assert_eq!(snake_activate.extension_id, "example-markdown-extension");
+        assert_eq!(
+            snake_activate.activation_event,
+            "onCommand:document.summarize"
+        );
+
+        let fallback_activate = extension_host_activate_params_from_payload(serde_json::json!({
+            "globalConfigDir": 42,
+            "workspaceRoot": null,
+            "extensionId": false,
+            "activationEvent": ["not", "a", "string"]
+        }));
+        assert_eq!(fallback_activate.global_config_dir, "");
+        assert_eq!(fallback_activate.workspace_root, "");
+        assert_eq!(fallback_activate.extension_id, "");
+        assert_eq!(fallback_activate.activation_event, "");
+
+        let deactivate = extension_host_deactivate_params_from_payload(serde_json::json!({
+            "extensionId": " Example-PDF-Extension ",
+            "workspaceRoot": " /tmp/workspace "
+        }));
+        assert_eq!(deactivate.extension_id, "Example-PDF-Extension");
+        assert_eq!(deactivate.workspace_root, "/tmp/workspace");
+
+        let cancel_inputs =
+            extension_host_cancel_window_inputs_params_from_payload(serde_json::json!({
+                "extension_id": " example-pdf-extension ",
+                "workspace_root": " /tmp/workspace "
+            }));
+        assert_eq!(cancel_inputs.extension_id, "example-pdf-extension");
+        assert_eq!(cancel_inputs.workspace_root, "/tmp/workspace");
+
+        let settings = extension_host_update_settings_params_from_payload(serde_json::json!({
+            "globalConfigDir": " /tmp/global-config ",
+            "workspaceRoot": " /tmp/workspace ",
+            "extensionId": " example-pdf-extension ",
+            "settings": {
+                "targetLang": "zh-CN"
+            }
+        }));
+        assert_eq!(settings.global_config_dir, "/tmp/global-config");
+        assert_eq!(settings.workspace_root, "/tmp/workspace");
+        assert_eq!(settings.extension_id, "example-pdf-extension");
+        assert_eq!(settings.settings["targetLang"], "zh-CN");
+
+        let invalid_settings =
+            extension_host_update_settings_params_from_payload(serde_json::json!({
+                "settings": ["not", "an", "object"]
+            }));
+        assert_eq!(invalid_settings.settings, serde_json::json!({}));
+    }
+
+    #[test]
+    fn extension_host_call_resolution_params_preserve_default_acceptance() {
+        let default_accept =
+            extension_host_resolve_host_call_params_from_payload(serde_json::json!({
+                "requestId": " request-1 ",
+                "result": {
+                    "ok": true
+                },
+                "error": false
+            }));
+        assert_eq!(default_accept.request_id, "request-1");
+        assert!(default_accept.accepted);
+        assert_eq!(default_accept.result["ok"], true);
+        assert_eq!(default_accept.error, "");
+
+        let explicit_reject =
+            extension_host_resolve_host_call_params_from_payload(serde_json::json!({
+                "request_id": " request-2 ",
+                "accepted": false,
+                "result": null,
+                "error": " denied "
+            }));
+        assert_eq!(explicit_reject.request_id, "request-2");
+        assert!(!explicit_reject.accepted);
+        assert!(explicit_reject.result.is_null());
+        assert_eq!(explicit_reject.error, "denied");
+
+        let non_object =
+            extension_host_resolve_host_call_params_from_payload(serde_json::json!(false));
+        assert_eq!(non_object.request_id, "");
+        assert!(non_object.accepted);
+        assert!(non_object.result.is_null());
+        assert_eq!(non_object.error, "");
     }
 
     #[test]
