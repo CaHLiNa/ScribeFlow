@@ -101,31 +101,14 @@ export async function deleteFromZotero(reference = {}) {
 }
 
 export async function syncNow(projectRoot = '', options = {}) {
-  const [config, apiKey] = await Promise.all([
-    loadZoteroConfig(projectRoot),
-    loadZoteroApiKey(),
-  ])
-  if (!config || !apiKey) {
-    return { skipped: true, imported: 0, linked: 0, updated: 0 }
-  }
+  const apiKey = await loadZoteroApiKey()
 
-  const result = await invoke('references_zotero_sync_persist', {
+  return invoke('references_zotero_sync_persist', {
     params: {
       globalConfigDir: projectRoot,
       apiKey,
-      snapshot: options?.snapshot && typeof options.snapshot === 'object'
-        ? options.snapshot
-        : {},
-      selectedReferenceId: String(options?.selectedReferenceId || ''),
+      snapshot: options?.snapshot,
+      selectedReferenceId: options?.selectedReferenceId,
     },
   })
-
-  return {
-    snapshot: result?.snapshot || {},
-    selectedReferenceId: String(result?.selectedReferenceId || ''),
-    lastSyncTime: result?.lastSyncTime || '',
-    imported: Number(result?.imported || 0),
-    linked: Number(result?.linked || 0),
-    updated: Number(result?.updated || 0),
-  }
 }

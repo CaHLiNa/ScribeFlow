@@ -115,6 +115,44 @@ fn normalize_root(path: &str) -> String {
     path.trim().trim_end_matches('/').to_string()
 }
 
+fn command_payload_field<'a>(
+    params: &'a Value,
+    camel_key: &str,
+    snake_key: &str,
+) -> Option<&'a Value> {
+    params
+        .as_object()
+        .and_then(|object| object.get(camel_key).or_else(|| object.get(snake_key)))
+}
+
+fn string_payload_field(params: &Value, camel_key: &str, snake_key: &str) -> String {
+    command_payload_field(params, camel_key, snake_key)
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .trim()
+        .to_string()
+}
+
+fn snapshot_payload_field(params: &Value) -> Value {
+    command_payload_field(params, "snapshot", "snapshot")
+        .filter(|value| value.is_object())
+        .cloned()
+        .unwrap_or_else(|| json!({}))
+}
+
+fn zotero_sync_persist_params_from_payload(params: Value) -> ZoteroSyncPersistParams {
+    ZoteroSyncPersistParams {
+        global_config_dir: string_payload_field(&params, "globalConfigDir", "global_config_dir"),
+        api_key: string_payload_field(&params, "apiKey", "api_key"),
+        snapshot: snapshot_payload_field(&params),
+        selected_reference_id: string_payload_field(
+            &params,
+            "selectedReferenceId",
+            "selected_reference_id",
+        ),
+    }
+}
+
 fn zotero_config_path(global_config_dir: &str) -> Option<PathBuf> {
     let root = normalize_root(global_config_dir);
     if root.is_empty() {
@@ -1075,6 +1113,32 @@ fn build_synced_snapshot(snapshot: &Value, sync_result: &Value) -> Value {
     })
 }
 
+fn non_negative_i64_field(value: Option<&Value>) -> i64 {
+    match value {
+        Some(Value::Number(number)) => number.as_i64().unwrap_or(0).max(0),
+        Some(Value::String(text)) => text.trim().parse::<i64>().unwrap_or(0).max(0),
+        _ => 0,
+    }
+}
+
+fn canonical_zotero_sync_persist_result(
+    snapshot: Value,
+    selected_reference_id: String,
+    last_sync_time: String,
+    imported: i64,
+    linked: i64,
+    updated: i64,
+) -> Value {
+    json!({
+        "snapshot": snapshot,
+        "selectedReferenceId": selected_reference_id.trim(),
+        "lastSyncTime": last_sync_time.trim(),
+        "imported": imported.max(0),
+        "linked": linked.max(0),
+        "updated": updated.max(0),
+    })
+}
+
 #[tauri::command]
 pub async fn references_zotero_config_load(
     params: ZoteroConfigPathParams,
@@ -1185,10 +1249,26 @@ pub async fn references_zotero_sync(params: ZoteroSyncParams) -> Result<Value, S
     perform_sync(params).await
 }
 
-#[tauri::command]
-pub async fn references_zotero_sync_persist(
+pub async fn references_zotero_sync_persist_typed(
     params: ZoteroSyncPersistParams,
 ) -> Result<Value, String> {
+    if params.global_config_dir.trim().is_empty() || params.api_key.trim().is_empty() {
+        return Ok(json!({
+            "skipped": true,
+            "imported": 0,
+            "linked": 0,
+            "updated": 0,
+        }));
+    }
+    if read_zotero_config_raw(&params.global_config_dir)?.is_none() {
+        return Ok(json!({
+            "skipped": true,
+            "imported": 0,
+            "linked": 0,
+            "updated": 0,
+        }));
+    }
+
     let references = params
         .snapshot
         .get("references")
@@ -1214,14 +1294,19 @@ pub async fn references_zotero_sync_persist(
         &build_synced_snapshot(&params.snapshot, &sync_result),
     )?;
 
-    Ok(json!({
-        "snapshot": persisted_snapshot,
-        "selectedReferenceId": sync_result.get("selectedReferenceId").cloned().unwrap_or(Value::String(String::new())),
-        "imported": sync_result.get("imported").cloned().unwrap_or(Value::from(0)),
-        "linked": sync_result.get("linked").cloned().unwrap_or(Value::from(0)),
-        "updated": sync_result.get("updated").cloned().unwrap_or(Value::from(0)),
-        "lastSyncTime": sync_result.get("lastSyncTime").cloned().unwrap_or(Value::String(String::new())),
-    }))
+    Ok(canonical_zotero_sync_persist_result(
+        persisted_snapshot,
+        trim_string(sync_result.get("selectedReferenceId")),
+        trim_string(sync_result.get("lastSyncTime")),
+        non_negative_i64_field(sync_result.get("imported")),
+        non_negative_i64_field(sync_result.get("linked")),
+        non_negative_i64_field(sync_result.get("updated")),
+    ))
+}
+
+#[tauri::command]
+pub async fn references_zotero_sync_persist(params: Value) -> Result<Value, String> {
+    references_zotero_sync_persist_typed(zotero_sync_persist_params_from_payload(params)).await
 }
 
 #[tauri::command]
@@ -1287,7 +1372,9 @@ mod tests {
     use super::{
         build_citation_key, extract_csl_year, extract_items_array,
         has_local_references_for_library, library_needs_metadata_refresh,
-        looks_like_generated_citation_key,
+        looks_like_generated_citation_key, references_zotero_sync_persist,
+        references_zotero_sync_persist_typed, zotero_sync_persist_params_from_payload,
+        ZoteroSyncPersistParams,
     };
     use serde_json::json;
 
@@ -1372,6 +1459,82 @@ mod tests {
         ));
         assert!(looks_like_generated_citation_key("Q6ZQTSEA", "Q6ZQTSEA"));
         assert!(!looks_like_generated_citation_key("qin2024", "Q6ZQTSEA"));
+    }
+
+    #[test]
+    fn zotero_sync_persist_params_normalize_raw_payloads() {
+        let params = zotero_sync_persist_params_from_payload(json!({
+            "globalConfigDir": " /tmp/config/ ",
+            "apiKey": " secret ",
+            "snapshot": {
+                "references": [
+                    { "id": "ref-a" }
+                ]
+            },
+            "selectedReferenceId": " ref-a "
+        }));
+
+        assert_eq!(params.global_config_dir, "/tmp/config/");
+        assert_eq!(params.api_key, "secret");
+        assert_eq!(params.snapshot["references"].as_array().unwrap().len(), 1);
+        assert_eq!(params.selected_reference_id, "ref-a");
+
+        let snake_params = zotero_sync_persist_params_from_payload(json!({
+            "global_config_dir": " /tmp/snake-config ",
+            "api_key": " snake-secret ",
+            "snapshot": "not-an-object",
+            "selected_reference_id": " snake-ref "
+        }));
+
+        assert_eq!(snake_params.global_config_dir, "/tmp/snake-config");
+        assert_eq!(snake_params.api_key, "snake-secret");
+        assert_eq!(snake_params.snapshot, json!({}));
+        assert_eq!(snake_params.selected_reference_id, "snake-ref");
+
+        let invalid = zotero_sync_persist_params_from_payload(json!(false));
+        assert_eq!(invalid.global_config_dir, "");
+        assert_eq!(invalid.api_key, "");
+        assert_eq!(invalid.snapshot, json!({}));
+        assert_eq!(invalid.selected_reference_id, "");
+    }
+
+    #[tokio::test]
+    async fn sync_persist_returns_canonical_skipped_result() {
+        let skipped_without_api_key = references_zotero_sync_persist(json!({
+            "globalConfigDir": 42,
+            "apiKey": " ",
+            "snapshot": "not-an-object",
+            "selectedReferenceId": 42
+        }))
+        .await
+        .expect("sync persist without api key should skip");
+
+        assert_eq!(skipped_without_api_key["skipped"], true);
+        assert_eq!(skipped_without_api_key["imported"], 0);
+        assert_eq!(skipped_without_api_key["linked"], 0);
+        assert_eq!(skipped_without_api_key["updated"], 0);
+
+        let temp_dir =
+            std::env::temp_dir().join(format!("scribeflow-zotero-sync-{}", uuid::Uuid::new_v4()));
+        let skipped_without_config =
+            references_zotero_sync_persist_typed(ZoteroSyncPersistParams {
+                global_config_dir: temp_dir.to_string_lossy().to_string(),
+                api_key: "secret".to_string(),
+                snapshot: json!({
+                    "references": [
+                        { "id": "ref-a" }
+                    ],
+                    "selectedReferenceId": "ref-a"
+                }),
+                selected_reference_id: " ref-a ".to_string(),
+            })
+            .await
+            .expect("sync persist without config should skip");
+
+        assert_eq!(skipped_without_config["skipped"], true);
+        assert_eq!(skipped_without_config["imported"], 0);
+        assert_eq!(skipped_without_config["linked"], 0);
+        assert_eq!(skipped_without_config["updated"], 0);
     }
 
     #[test]
