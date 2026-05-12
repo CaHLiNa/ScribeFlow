@@ -33,6 +33,53 @@ pub struct ReferencesQueryResolveParams {
     pub file_contents: Value,
 }
 
+fn string_payload_field(params: &Value, key: &str) -> String {
+    params
+        .as_object()
+        .and_then(|object| object.get(key))
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string()
+}
+
+fn array_payload_field(params: &Value, key: &str) -> Vec<Value> {
+    params
+        .as_object()
+        .and_then(|object| object.get(key))
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default()
+}
+
+fn object_payload_field(params: &Value, key: &str) -> Value {
+    params
+        .as_object()
+        .and_then(|object| object.get(key))
+        .filter(|value| value.is_object())
+        .cloned()
+        .unwrap_or_else(|| json!({}))
+}
+
+fn references_query_params_from_payload(params: Value) -> ReferencesQueryResolveParams {
+    ReferencesQueryResolveParams {
+        library_sections: array_payload_field(&params, "librarySections"),
+        source_sections: array_payload_field(&params, "sourceSections"),
+        collections: array_payload_field(&params, "collections"),
+        tags: array_payload_field(&params, "tags"),
+        references: array_payload_field(&params, "references"),
+        selected_section_key: string_payload_field(&params, "selectedSectionKey"),
+        selected_source_key: string_payload_field(&params, "selectedSourceKey"),
+        selected_collection_key: string_payload_field(&params, "selectedCollectionKey"),
+        selected_tag_key: string_payload_field(&params, "selectedTagKey"),
+        sort_key: string_payload_field(&params, "sortKey"),
+        preferred_selected_reference_id: string_payload_field(
+            &params,
+            "preferredSelectedReferenceId",
+        ),
+        file_contents: object_payload_field(&params, "fileContents"),
+    }
+}
+
 fn normalize_collection_membership_value(value: &str) -> String {
     value.trim().to_lowercase()
 }
@@ -392,8 +439,7 @@ fn normalize_sort_key(sort_key: &str) -> String {
     }
 }
 
-#[tauri::command]
-pub async fn references_query_resolve(
+pub async fn references_query_resolve_resolved(
     params: ReferencesQueryResolveParams,
 ) -> Result<Value, String> {
     let selected_section_key = params
@@ -548,14 +594,22 @@ pub async fn references_query_resolve(
     }))
 }
 
+#[tauri::command]
+pub async fn references_query_resolve(params: Value) -> Result<Value, String> {
+    references_query_resolve_resolved(references_query_params_from_payload(params)).await
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{references_query_resolve, ReferencesQueryResolveParams};
+    use super::{
+        references_query_params_from_payload, references_query_resolve_resolved,
+        ReferencesQueryResolveParams,
+    };
     use serde_json::{json, Value};
 
     #[tokio::test]
     async fn resolves_filtered_references_and_counts() {
-        let result = references_query_resolve(ReferencesQueryResolveParams {
+        let result = references_query_resolve_resolved(ReferencesQueryResolveParams {
             library_sections: vec![json!({"key":"all"}), json!({"key":"missing-pdf"})],
             source_sections: vec![json!({"key":"zotero"}), json!({"key":"manual"})],
             collections: vec![json!({"key":"reading","label":"Reading"})],
@@ -608,7 +662,7 @@ mod tests {
 
     #[tokio::test]
     async fn builds_citation_usage_index_from_workspace_files() {
-        let result = references_query_resolve(ReferencesQueryResolveParams {
+        let result = references_query_resolve_resolved(ReferencesQueryResolveParams {
             references: vec![],
             file_contents: json!({
                 "/tmp/a.md":"See [@alpha2024; @beta2022]. Bare mention @gamma2025.",
@@ -659,7 +713,7 @@ mod tests {
 
     #[tokio::test]
     async fn falls_back_to_first_filtered_reference_when_selected_is_hidden() {
-        let result = references_query_resolve(ReferencesQueryResolveParams {
+        let result = references_query_resolve_resolved(ReferencesQueryResolveParams {
             library_sections: vec![json!({"key":"all"})],
             source_sections: vec![json!({"key":"zotero"}), json!({"key":"manual"})],
             references: vec![
@@ -684,5 +738,40 @@ mod tests {
         .expect("resolve query with fallback selection");
 
         assert_eq!(result["selectedReferenceId"].as_str(), Some("b"));
+    }
+
+    #[test]
+    fn references_query_params_normalize_raw_payload() {
+        let params = references_query_params_from_payload(json!({
+            "librarySections": "not-an-array",
+            "sourceSections": [{"key": "manual"}],
+            "collections": null,
+            "tags": [{"key": "ai"}],
+            "references": [{"id": "ref-a"}],
+            "selectedSectionKey": 12,
+            "selectedSourceKey": "manual",
+            "selectedCollectionKey": false,
+            "selectedTagKey": "ai",
+            "sortKey": "title-asc",
+            "preferredSelectedReferenceId": ["ref-a"],
+            "fileContents": "not-an-object"
+        }));
+
+        assert!(params.library_sections.is_empty());
+        assert_eq!(params.source_sections.len(), 1);
+        assert!(params.collections.is_empty());
+        assert_eq!(params.tags.len(), 1);
+        assert_eq!(params.references.len(), 1);
+        assert_eq!(params.selected_section_key, "");
+        assert_eq!(params.selected_source_key, "manual");
+        assert_eq!(params.selected_collection_key, "");
+        assert_eq!(params.selected_tag_key, "ai");
+        assert_eq!(params.sort_key, "title-asc");
+        assert_eq!(params.preferred_selected_reference_id, "");
+        assert_eq!(params.file_contents, json!({}));
+
+        let defaults = references_query_params_from_payload(Value::Null);
+        assert!(defaults.references.is_empty());
+        assert_eq!(defaults.file_contents, json!({}));
     }
 }
