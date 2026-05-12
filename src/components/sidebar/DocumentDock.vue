@@ -311,20 +311,20 @@ async function closeDockPage(page = {}) {
 
 :deep(.document-dock__preview-tab--icon .document-dock__preview-icon) {
   opacity: 1;
-  transform: none;
+  transform: scale(1);
 }
 
 :deep(.document-dock__preview-tab--icon:hover .document-dock__preview-icon),
 :deep(.document-dock__preview-tab--icon:focus-within .document-dock__preview-icon) {
-  opacity: 1;
-  transform: none;
+  opacity: 0;
+  transform: scale(0.86);
 }
 
 :deep(.document-dock__preview-tab--icon .document-dock__tab-close) {
   left: 50%;
   width: 22px;
   height: 22px;
-  transform: translate(-50%, -50%) scale(0.94);
+  transform: translate(-50%, -50%) scale(0.86);
 }
 
 :deep(.document-dock__preview-tab--icon:hover .document-dock__tab-close),
