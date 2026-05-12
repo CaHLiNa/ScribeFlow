@@ -62,7 +62,7 @@ export async function detectPythonRuntime() {
 export async function listPythonRuntimes(interpreterPath = '') {
   const result = await invoke('python_runtime_list', {
     params: {
-      interpreterPath: String(interpreterPath || ''),
+      interpreterPath,
     },
   })
   return normalizeRuntimeListResult(result)
@@ -71,8 +71,8 @@ export async function listPythonRuntimes(interpreterPath = '') {
 export async function compilePythonFile(filePath, interpreterPath = '') {
   const result = await invoke('python_runtime_compile', {
     params: {
-      filePath: String(filePath || ''),
-      interpreterPath: String(interpreterPath || ''),
+      filePath,
+      interpreterPath,
     },
   })
   return normalizeCompileResult(result)

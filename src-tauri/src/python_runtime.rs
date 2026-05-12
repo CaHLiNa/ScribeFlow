@@ -1,6 +1,7 @@
 use crate::process_utils::background_tokio_command;
 use regex_lite::Regex;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::collections::HashSet;
 use std::path::Path;
 use std::time::Instant;
@@ -63,6 +64,28 @@ pub struct PythonCompileParams {
 pub struct PythonRuntimeListParams {
     #[serde(default)]
     pub interpreter_path: String,
+}
+
+fn string_payload_field(params: &Value, key: &str) -> String {
+    params
+        .as_object()
+        .and_then(|object| object.get(key))
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string()
+}
+
+fn python_runtime_list_params_from_payload(params: Value) -> PythonRuntimeListParams {
+    PythonRuntimeListParams {
+        interpreter_path: string_payload_field(&params, "interpreterPath"),
+    }
+}
+
+fn python_compile_params_from_payload(params: Value) -> PythonCompileParams {
+    PythonCompileParams {
+        file_path: string_payload_field(&params, "filePath"),
+        interpreter_path: string_payload_field(&params, "interpreterPath"),
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -394,16 +417,14 @@ pub async fn python_runtime_detect() -> Result<PythonRuntimeInfo, String> {
 }
 
 #[tauri::command]
-pub async fn python_runtime_list(
-    params: PythonRuntimeListParams,
-) -> Result<PythonRuntimeListResult, String> {
+pub async fn python_runtime_list(params: Value) -> Result<PythonRuntimeListResult, String> {
+    let params = python_runtime_list_params_from_payload(params);
     Ok(resolve_python_runtime_list(&params.interpreter_path).await)
 }
 
 #[tauri::command]
-pub async fn python_runtime_compile(
-    params: PythonCompileParams,
-) -> Result<PythonCompileResult, String> {
+pub async fn python_runtime_compile(params: Value) -> Result<PythonCompileResult, String> {
+    let params = python_compile_params_from_payload(params);
     let file_path = params.file_path.trim().to_string();
     if file_path.is_empty() {
         return Err("Missing Python file path.".to_string());
@@ -450,7 +471,11 @@ pub async fn python_runtime_compile(
 
 #[cfg(test)]
 mod tests {
-    use super::{merge_selected_runtime, normalize_interpreter_request, PythonRuntimeInfo};
+    use super::{
+        merge_selected_runtime, normalize_interpreter_request, python_compile_params_from_payload,
+        python_runtime_list_params_from_payload, PythonRuntimeInfo,
+    };
+    use serde_json::json;
 
     fn runtime(path: &str, version: &str) -> PythonRuntimeInfo {
         PythonRuntimeInfo {
@@ -466,6 +491,33 @@ mod tests {
         assert_eq!(normalize_interpreter_request(""), "auto");
         assert_eq!(normalize_interpreter_request("  "), "auto");
         assert_eq!(normalize_interpreter_request("AUTO"), "auto");
+    }
+
+    #[test]
+    fn python_runtime_params_normalize_raw_payloads() {
+        let list_params = python_runtime_list_params_from_payload(json!({
+            "interpreterPath": 42
+        }));
+        assert_eq!(list_params.interpreter_path, "");
+
+        let list_params = python_runtime_list_params_from_payload(json!({
+            "interpreterPath": " /opt/homebrew/bin/python3 "
+        }));
+        assert_eq!(list_params.interpreter_path, " /opt/homebrew/bin/python3 ");
+
+        let compile_params = python_compile_params_from_payload(json!({
+            "filePath": 42,
+            "interpreterPath": null
+        }));
+        assert_eq!(compile_params.file_path, "");
+        assert_eq!(compile_params.interpreter_path, "");
+
+        let compile_params = python_compile_params_from_payload(json!({
+            "filePath": "/tmp/script.py",
+            "interpreterPath": "/usr/bin/python3"
+        }));
+        assert_eq!(compile_params.file_path, "/tmp/script.py");
+        assert_eq!(compile_params.interpreter_path, "/usr/bin/python3");
     }
 
     #[test]
