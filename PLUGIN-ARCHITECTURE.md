@@ -270,6 +270,7 @@ Product rule:
 - Settings is a plugin management surface, not the normal operational work surface
 - a normal plugin should map to one document right-sidebar tab/container
 - document and PDF actions should route users into that plugin-owned sidebar tab instead of into Settings
+- right-sidebar context copy, including active file/reference target summaries, should come from shared presentation contracts rather than per-component string branching
 
 Do not model every UI surface through generic manifest contribution tables unless there is a strong need.
 
@@ -328,7 +329,7 @@ Translation-oriented boundary:
 Verification-oriented note:
 
 - plugin contracts should be treated as real only when covered by `npm run verify`
-- the current gate includes host activation, capability schema, activation guards, permission guards, sidebar routing, result-entry derivation, direct-view host behavior, host crash recovery, window prompt interruption cleanup, bundle budget, Rust check, and Rust tests
+- the current gate includes host activation, capability schema, activation guards, permission guards, sidebar routing, right-sidebar target presentation, result-entry derivation, direct-view host behavior, host crash recovery, window prompt interruption cleanup, bundle budget, Rust check, and Rust tests
 - the current gate includes host activation, capability schema, activation guards, permission guards, secure settings bridge behavior, runtime settings snapshot-change semantics, process bridge exec/spawn/wait semantics, reference and PDF host-call semantics, workspace/documents/invocation surface semantics, command and menu runtime registration semantics, sidebar routing, result-entry derivation, direct-view host behavior, host crash recovery, window prompt interruption cleanup, tree-view controller selection and reveal semantics, quick-pick request-result semantics, quick-pick multi-select roundtrips, state persistence restore, window message severity routing, input box request-result semantics, bundle budget, Rust check, and Rust tests
 - probes should be preferred over prose whenever a contract can drift silently
 

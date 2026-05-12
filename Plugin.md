@@ -186,6 +186,7 @@ Current usage rule:
 - Settings is for discovery, lifecycle control, permissions and configuration
 - normal plugin workflows should run from the document right sidebar after setup
 - plugin-owned PDF/document actions should focus the matching plugin right-sidebar tab by default
+- document right-sidebar target summaries are shared presentation output, so active path/reference context copy should not drift across plugin surfaces
 
 ## 6. Current Gap
 

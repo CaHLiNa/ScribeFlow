@@ -232,11 +232,13 @@ Tasks:
 - settle one canonical mapping
 - plugin container = right-sidebar tab identity
 - plugin view = runtime-rendered sub-surface inside the plugin container
+- plugin target summary = shared presentation output for active path/reference context
 - remove ambiguous naming where it causes UI confusion or accidental architecture drift
 
 Primary files:
 
 - `src/stores/extensions.js`
+- `src/domains/extensions/extensionTargetPresentation.js`
 - `src/domains/extensions/extensionContributionRegistry.js`
 - `src/components/sidebar/DocumentPluginsPanel.vue`
 - `src/components/extensions/ExtensionSidebarPanel.vue`
