@@ -139,7 +139,7 @@
 </template>
 
 <script setup>
-import { ref, computed, defineAsyncComponent, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, defineAsyncComponent, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useWorkspaceStore } from './stores/workspace'
 import { useFilesStore } from './stores/files'
 import { useEditorStore } from './stores/editor'
@@ -172,7 +172,7 @@ import { useAppExtensionRuntimeBridge } from './app/shell/useAppExtensionRuntime
 import { applyAppWindowConstraints } from './app/shell/useAppWindowConstraints'
 import { useAppTeardown } from './app/teardown/useAppTeardown'
 import { useWorkspaceLifecycle } from './app/workspace/useWorkspaceLifecycle'
-import { isNewTab, isPreviewPath, previewSourcePathFromPath } from './utils/fileTypes'
+import { isNewTab, isPdf, isPreviewPath, previewSourcePathFromPath } from './utils/fileTypes'
 import { basenamePath } from './utils/path'
 import { isMac } from './platform'
 import { syncMacosWindowTransparency } from './services/macosWindowTransparency.js'
@@ -366,6 +366,12 @@ function handleMouseMoveBreakZen() {
   }
 }
 
+function clearZenMode() {
+  if (isZenMode.value) {
+    isZenMode.value = false
+  }
+}
+
 const {
   handleExtensionWindowPromptCancel,
   handleExtensionWindowPromptSubmit,
@@ -386,6 +392,27 @@ onMounted(() => {
   window.addEventListener('editor-typing', handleEditorTyping)
   window.addEventListener('mousemove', handleMouseMoveBreakZen)
 })
+
+watch(
+  [
+    () => editorStore.activeTab,
+    () => activeDocumentPreviewState.value?.previewMode,
+    () => workspace.leftSidebarPanel,
+    () => workspace.documentDockOpen,
+    () => workspace.referenceDockOpen,
+  ],
+  ([activeTab, previewMode, leftSidebarPanel]) => {
+    if (
+      isPdf(activeTab) ||
+      isPreviewPath(activeTab) ||
+      previewMode === 'pdf-artifact' ||
+      leftSidebarPanel === 'references'
+    ) {
+      clearZenMode()
+    }
+  },
+  { flush: 'post' }
+)
 
 onBeforeUnmount(() => {
   window.removeEventListener('editor-typing', handleEditorTyping)

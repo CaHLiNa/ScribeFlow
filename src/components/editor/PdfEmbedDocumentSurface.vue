@@ -293,6 +293,9 @@ let compactFitWidthPendingAfterResize = false
 let initialPaintRefreshFrame = 0
 let initialPaintRefreshRetryCount = 0
 const INITIAL_PAINT_REFRESH_MAX_RETRIES = 8
+let initialViewportUnlockFrame = 0
+let initialViewportUnlockRetryCount = 0
+const INITIAL_VIEWPORT_UNLOCK_MAX_RETRIES = 24
 
 const hasSearchResults = computed(() => Number(search.state.value?.total || 0) > 0)
 const isMatchCaseEnabled = computed(() =>
@@ -844,6 +847,54 @@ function scheduleInitialPaintRefresh() {
       applyZoomValue(resolveScaleValueFromZoomState() || resolvePreferredZoomValue())
       scheduleViewStateEmission()
     })
+  })
+}
+
+function cancelInitialViewportUnlock() {
+  if (typeof window === 'undefined') return
+  if (initialViewportUnlockFrame) {
+    window.cancelAnimationFrame(initialViewportUnlockFrame)
+    initialViewportUnlockFrame = 0
+  }
+  initialViewportUnlockRetryCount = 0
+}
+
+function scheduleInitialViewportUnlock() {
+  if (typeof window === 'undefined') {
+    applyViewerPreferences()
+    return
+  }
+  if (initialLayoutHandled.value || initialViewportUnlockFrame) return
+
+  const documentId = props.documentId
+  initialViewportUnlockFrame = window.requestAnimationFrame(() => {
+    initialViewportUnlockFrame = 0
+    if (documentId !== props.documentId || initialLayoutHandled.value) return
+
+    const viewportScope = viewportCapability.value?.forDocument(props.documentId)
+    const viewportMetrics = viewportScope?.getMetrics?.()
+    const viewportWidth = Number(viewportMetrics?.clientWidth || 0)
+    const viewportHeight = Number(viewportMetrics?.clientHeight || 0)
+    const readyForZoom =
+      Number.isFinite(viewportWidth) &&
+      Number.isFinite(viewportHeight) &&
+      viewportWidth > 0 &&
+      viewportHeight > 0
+
+    if (!readyForZoom) {
+      initialViewportUnlockRetryCount += 1
+      if (initialViewportUnlockRetryCount <= INITIAL_VIEWPORT_UNLOCK_MAX_RETRIES) {
+        scheduleInitialViewportUnlock()
+      }
+      return
+    }
+
+    initialViewportUnlockRetryCount = 0
+    spread.provides.value?.setSpreadMode(resolvePreferredSpreadMode())
+    applyZoomValue(
+      String(pendingRestoreState.value?.scaleValue || '').trim() ||
+      resolvePreferredZoomValue()
+    )
   })
 }
 
@@ -1676,6 +1727,7 @@ watch(
     clearForwardSyncHighlight()
     lastHandledForwardSyncRequestId = 0
     cancelInitialPaintRefresh()
+    cancelInitialViewportUnlock()
     selectionActive.value = false
     selectedText.value = ''
     suppressSearchWatch = true
@@ -1685,6 +1737,7 @@ watch(
     if (!props.compactToolbar) {
       scheduleInitialLayoutNudge()
     }
+    scheduleInitialViewportUnlock()
   }
 )
 
@@ -1699,6 +1752,15 @@ watch(
     if (compactToolbar) {
       scheduleCompactFitWidth()
     }
+  },
+  { immediate: true, flush: 'post' }
+)
+
+watch(
+  [viewportCapability, () => props.documentId, () => pendingRestoreState.value],
+  () => {
+    if (initialLayoutHandled.value) return
+    scheduleInitialViewportUnlock()
   },
   { immediate: true, flush: 'post' }
 )
@@ -1851,6 +1913,7 @@ watch(
       if (!initialLayoutHandled.value) {
         applyViewerPreferences()
         initialLayoutHandled.value = true
+        cancelInitialViewportUnlock()
         clearScheduledLayoutNudge()
         scheduleInitialPaintRefresh()
         if (props.compactToolbar) {
@@ -1886,6 +1949,7 @@ onUnmounted(() => {
   clearScheduledLayoutNudge()
   cancelCompactFitWidthFrame()
   cancelInitialPaintRefresh()
+  cancelInitialViewportUnlock()
   pageBindings.clear()
   clearSearchDebounceTimer()
   clearForwardSyncHighlight()
