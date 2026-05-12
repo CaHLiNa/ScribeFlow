@@ -149,6 +149,143 @@ pub struct LatexLintResolveParams {
     pub workspace_path: Option<String>,
 }
 
+fn payload_field<'a>(params: &'a Value, camel_key: &str, snake_key: &str) -> Option<&'a Value> {
+    params
+        .as_object()
+        .and_then(|object| object.get(camel_key).or_else(|| object.get(snake_key)))
+}
+
+fn string_payload_field(params: &Value, camel_key: &str, snake_key: &str) -> String {
+    payload_field(params, camel_key, snake_key)
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .trim()
+        .to_string()
+}
+
+fn optional_string_payload_field(
+    params: &Value,
+    camel_key: &str,
+    snake_key: &str,
+) -> Option<String> {
+    let value = string_payload_field(params, camel_key, snake_key);
+    if value.is_empty() {
+        None
+    } else {
+        Some(value)
+    }
+}
+
+fn optional_raw_string_payload_field(
+    params: &Value,
+    camel_key: &str,
+    snake_key: &str,
+) -> Option<String> {
+    payload_field(params, camel_key, snake_key)
+        .and_then(Value::as_str)
+        .map(str::to_string)
+}
+
+fn u64_payload_field(params: &Value, camel_key: &str, snake_key: &str) -> u64 {
+    payload_field(params, camel_key, snake_key)
+        .and_then(Value::as_u64)
+        .filter(|value| *value > 0)
+        .unwrap_or_else(current_time_ms)
+}
+
+fn queue_state_payload_field(params: &Value) -> Option<LatexQueueStateInput> {
+    payload_field(params, "queueState", "queue_state")
+        .cloned()
+        .and_then(|value| serde_json::from_value::<LatexQueueStateInput>(value).ok())
+}
+
+fn latex_schedule_params_from_payload(params: Value) -> LatexScheduleParams {
+    let reason = string_payload_field(&params, "reason", "reason");
+    LatexScheduleParams {
+        source_path: string_payload_field(&params, "sourcePath", "source_path"),
+        target_path: string_payload_field(&params, "targetPath", "target_path"),
+        reason: if reason.is_empty() {
+            "save".to_string()
+        } else {
+            reason
+        },
+        build_extra_args: string_payload_field(&params, "buildExtraArgs", "build_extra_args"),
+        now: u64_payload_field(&params, "now", "now"),
+        queue_state: queue_state_payload_field(&params),
+    }
+}
+
+fn latex_runtime_cancel_params_from_payload(params: Value) -> LatexRuntimeCancelParams {
+    let target_paths = payload_field(&params, "targetPaths", "target_paths")
+        .and_then(Value::as_array)
+        .map(|paths| {
+            paths
+                .iter()
+                .filter_map(Value::as_str)
+                .map(str::trim)
+                .filter(|path| !path.is_empty())
+                .map(str::to_string)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+
+    LatexRuntimeCancelParams { target_paths }
+}
+
+fn latex_lint_resolve_params_from_payload(params: Value) -> LatexLintResolveParams {
+    LatexLintResolveParams {
+        tex_path: string_payload_field(&params, "texPath", "tex_path"),
+        content: optional_raw_string_payload_field(&params, "content", "content"),
+        custom_system_tex_path: optional_string_payload_field(
+            &params,
+            "customSystemTexPath",
+            "custom_system_tex_path",
+        ),
+        workspace_path: optional_string_payload_field(&params, "workspacePath", "workspace_path"),
+    }
+}
+
+fn latex_compile_execute_params_from_payload(params: Value) -> LatexCompileExecuteParams {
+    let reason = string_payload_field(&params, "reason", "reason");
+    LatexCompileExecuteParams {
+        tex_path: string_payload_field(&params, "texPath", "tex_path"),
+        target_path: string_payload_field(&params, "targetPath", "target_path"),
+        project_root_path: string_payload_field(&params, "projectRootPath", "project_root_path"),
+        project_preview_path: string_payload_field(
+            &params,
+            "projectPreviewPath",
+            "project_preview_path",
+        ),
+        reason: if reason.is_empty() {
+            "manual".to_string()
+        } else {
+            reason
+        },
+        build_extra_args: string_payload_field(&params, "buildExtraArgs", "build_extra_args"),
+        now: u64_payload_field(&params, "now", "now"),
+        compiler_preference: optional_string_payload_field(
+            &params,
+            "compilerPreference",
+            "compiler_preference",
+        ),
+        engine_preference: optional_string_payload_field(
+            &params,
+            "enginePreference",
+            "engine_preference",
+        ),
+        custom_system_tex_path: optional_string_payload_field(
+            &params,
+            "customSystemTexPath",
+            "custom_system_tex_path",
+        ),
+        custom_tectonic_path: optional_string_payload_field(
+            &params,
+            "customTectonicPath",
+            "custom_tectonic_path",
+        ),
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct LatexCompileStartResult {
@@ -434,8 +571,9 @@ fn emit_compile_request_now(app: &AppHandle, source_path: &str, target_path: &st
 pub async fn latex_runtime_schedule(
     app: AppHandle,
     state: State<'_, LatexRuntimeState>,
-    params: LatexScheduleParams,
+    params: Value,
 ) -> Result<Value, String> {
+    let params = latex_schedule_params_from_payload(params);
     let key = runtime_key(&params.target_path, &params.source_path);
     let (queue_state, generation, should_debounce) = {
         let mut guard = state
@@ -498,8 +636,9 @@ pub async fn latex_runtime_schedule(
 #[tauri::command]
 pub async fn latex_runtime_cancel(
     state: State<'_, LatexRuntimeState>,
-    params: LatexRuntimeCancelParams,
+    params: Value,
 ) -> Result<(), String> {
+    let params = latex_runtime_cancel_params_from_payload(params);
     let mut guard = state
         .queue
         .lock()
@@ -523,9 +662,10 @@ pub async fn latex_runtime_cancel(
 
 #[tauri::command]
 pub async fn latex_runtime_lint_resolve(
-    params: LatexLintResolveParams,
+    params: Value,
     scope_state: State<'_, WorkspaceScopeState>,
 ) -> Result<Value, String> {
+    let params = latex_lint_resolve_params_from_payload(params);
     latex_runtime_lint_resolve_scoped(params, Some(scope_state.inner())).await
 }
 
@@ -758,9 +898,10 @@ pub async fn latex_runtime_compile_execute(
     app: AppHandle,
     runtime_state: State<'_, LatexRuntimeState>,
     latex_state: State<'_, LatexState>,
-    params: LatexCompileExecuteParams,
+    params: Value,
     scope_state: State<'_, WorkspaceScopeState>,
 ) -> Result<Value, String> {
+    let params = latex_compile_execute_params_from_payload(params);
     let params = LatexCompileExecuteParams {
         tex_path: resolve_scoped_optional_path(scope_state.inner(), &params.tex_path)?,
         target_path: resolve_scoped_optional_path(scope_state.inner(), &params.target_path)?,
@@ -878,9 +1019,12 @@ pub async fn latex_runtime_compile_execute(
 #[cfg(test)]
 mod tests {
     use super::{
+        latex_compile_execute_params_from_payload, latex_lint_resolve_params_from_payload,
+        latex_runtime_cancel_params_from_payload, latex_schedule_params_from_payload,
         normalize_queue_state, resolve_scoped_optional_path, runtime_key, LatexQueueStateInput,
     };
     use crate::security::{set_allowed_roots_internal, WorkspaceScopeState};
+    use serde_json::json;
     use std::fs;
 
     #[test]
@@ -927,6 +1071,101 @@ mod tests {
         assert_eq!(next.phase, "queued");
         assert_eq!(next.pending_count, 0);
         assert_eq!(next.updated_at, 99);
+    }
+
+    #[test]
+    fn latex_runtime_params_normalize_raw_payloads() {
+        let schedule = latex_schedule_params_from_payload(json!({
+            "sourcePath": " /workspace/chapter.tex ",
+            "targetPath": " /workspace/main.tex ",
+            "reason": false,
+            "buildExtraArgs": " --keep-logs ",
+            "now": "soon",
+            "queueState": {
+                "targetPath": " /workspace/old-main.tex ",
+                "sourcePath": " /workspace/old-source.tex ",
+                "pendingCount": 2,
+                "phase": "running"
+            }
+        }));
+        assert_eq!(schedule.source_path, "/workspace/chapter.tex");
+        assert_eq!(schedule.target_path, "/workspace/main.tex");
+        assert_eq!(schedule.reason, "save");
+        assert_eq!(schedule.build_extra_args, "--keep-logs");
+        assert!(schedule.now > 0);
+        let queue_state = schedule
+            .queue_state
+            .expect("queue state should deserialize");
+        assert_eq!(queue_state.pending_count, 2);
+        assert_eq!(queue_state.phase, "running");
+
+        let snake_schedule = latex_schedule_params_from_payload(json!({
+            "source_path": " /workspace/snake.tex ",
+            "target_path": " /workspace/snake-main.tex ",
+            "build_extra_args": " --synctex=1 ",
+            "now": 123
+        }));
+        assert_eq!(snake_schedule.source_path, "/workspace/snake.tex");
+        assert_eq!(snake_schedule.target_path, "/workspace/snake-main.tex");
+        assert_eq!(snake_schedule.reason, "save");
+        assert_eq!(snake_schedule.build_extra_args, "--synctex=1");
+        assert_eq!(snake_schedule.now, 123);
+
+        let lint = latex_lint_resolve_params_from_payload(json!({
+            "texPath": 42,
+            "content": "  \\documentclass{article}  ",
+            "customSystemTexPath": " /Library/TeX/texbin ",
+            "workspacePath": false
+        }));
+        assert_eq!(lint.tex_path, "");
+        assert_eq!(
+            lint.content.as_deref(),
+            Some("  \\documentclass{article}  ")
+        );
+        assert_eq!(
+            lint.custom_system_tex_path.as_deref(),
+            Some("/Library/TeX/texbin")
+        );
+        assert_eq!(lint.workspace_path, None);
+
+        let compile = latex_compile_execute_params_from_payload(json!({
+            "texPath": " /workspace/chapter.tex ",
+            "targetPath": null,
+            "projectRootPath": " /workspace/main.tex ",
+            "projectPreviewPath": " /workspace/main.pdf ",
+            "reason": "",
+            "buildExtraArgs": ["--keep-logs"],
+            "now": 0,
+            "compilerPreference": " system ",
+            "enginePreference": " xelatex ",
+            "customSystemTexPath": " /Library/TeX/texbin ",
+            "customTectonicPath": false
+        }));
+        assert_eq!(compile.tex_path, "/workspace/chapter.tex");
+        assert_eq!(compile.target_path, "");
+        assert_eq!(compile.project_root_path, "/workspace/main.tex");
+        assert_eq!(compile.project_preview_path, "/workspace/main.pdf");
+        assert_eq!(compile.reason, "manual");
+        assert_eq!(compile.build_extra_args, "");
+        assert!(compile.now > 0);
+        assert_eq!(compile.compiler_preference.as_deref(), Some("system"));
+        assert_eq!(compile.engine_preference.as_deref(), Some("xelatex"));
+        assert_eq!(
+            compile.custom_system_tex_path.as_deref(),
+            Some("/Library/TeX/texbin")
+        );
+        assert_eq!(compile.custom_tectonic_path, None);
+
+        let cancel = latex_runtime_cancel_params_from_payload(json!({
+            "targetPaths": [" /workspace/main.tex ", 42, "", " /workspace/other.tex "]
+        }));
+        assert_eq!(
+            cancel.target_paths,
+            vec!["/workspace/main.tex", "/workspace/other.tex"]
+        );
+        assert!(latex_runtime_cancel_params_from_payload(json!(false))
+            .target_paths
+            .is_empty());
     }
 
     #[test]

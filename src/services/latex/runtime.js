@@ -31,10 +31,10 @@ export function resolveLatexCompileTargets(params = {}) {
 export function resolveLatexLintState(params = {}) {
   return invoke('latex_runtime_lint_resolve', {
     params: {
-      texPath: String(params.texPath || ''),
-      content: params.content ?? null,
-      customSystemTexPath: params.customSystemTexPath || null,
-      workspacePath: params.workspacePath || null,
+      texPath: params.texPath,
+      content: params.content,
+      customSystemTexPath: params.customSystemTexPath,
+      workspacePath: params.workspacePath,
     },
   })
 }
@@ -61,11 +61,11 @@ export function resolveLatexExistingSynctex(params = {}) {
 export function scheduleLatexRuntime(params = {}) {
   return invoke('latex_runtime_schedule', {
     params: {
-      sourcePath: String(params.sourcePath || ''),
-      targetPath: String(params.targetPath || ''),
-      reason: String(params.reason || 'save'),
-      buildExtraArgs: String(params.buildExtraArgs || ''),
-      now: Number(params.now || Date.now()),
+      sourcePath: params.sourcePath,
+      targetPath: params.targetPath,
+      reason: params.reason,
+      buildExtraArgs: params.buildExtraArgs,
+      now: params.now,
     },
   })
 }
@@ -73,17 +73,17 @@ export function scheduleLatexRuntime(params = {}) {
 export async function executeLatexRuntimeCompile(params = {}) {
   const execution = await invoke('latex_runtime_compile_execute', {
     params: {
-      texPath: String(params.texPath || ''),
-      targetPath: String(params.targetPath || ''),
-      projectRootPath: String(params.projectRootPath || ''),
-      projectPreviewPath: String(params.projectPreviewPath || ''),
-      reason: String(params.reason || 'manual'),
-      buildExtraArgs: String(params.buildExtraArgs || ''),
-      now: Number(params.now || Date.now()),
-      compilerPreference: params.compilerPreference || null,
-      enginePreference: params.enginePreference || null,
-      customSystemTexPath: params.customSystemTexPath || null,
-      customTectonicPath: params.customTectonicPath || null,
+      texPath: params.texPath,
+      targetPath: params.targetPath,
+      projectRootPath: params.projectRootPath,
+      projectPreviewPath: params.projectPreviewPath,
+      reason: params.reason,
+      buildExtraArgs: params.buildExtraArgs,
+      now: params.now,
+      compilerPreference: params.compilerPreference,
+      enginePreference: params.enginePreference,
+      customSystemTexPath: params.customSystemTexPath,
+      customTectonicPath: params.customTectonicPath,
     },
   })
   return normalizeLatexCompileExecution(execution)
@@ -92,7 +92,7 @@ export async function executeLatexRuntimeCompile(params = {}) {
 export function cancelLatexRuntime(targetPaths = []) {
   return invoke('latex_runtime_cancel', {
     params: {
-      targetPaths: Array.isArray(targetPaths) ? targetPaths : [],
+      targetPaths,
     },
   })
 }
