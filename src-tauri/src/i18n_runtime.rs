@@ -1,4 +1,5 @@
 use serde::Serialize;
+use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
@@ -19,6 +20,22 @@ pub struct I18nRuntimePayload {
 pub struct I18nRuntimeLoadParams {
     #[serde(default)]
     preferred_locale: String,
+}
+
+fn string_payload_field(params: &Value, camel_key: &str, snake_key: &str) -> String {
+    params
+        .as_object()
+        .and_then(|object| object.get(camel_key).or_else(|| object.get(snake_key)))
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .trim()
+        .to_string()
+}
+
+fn i18n_runtime_load_params_from_payload(params: Value) -> I18nRuntimeLoadParams {
+    I18nRuntimeLoadParams {
+        preferred_locale: string_payload_field(&params, "preferredLocale", "preferred_locale"),
+    }
 }
 
 pub fn normalize_locale(value: &str) -> String {
@@ -70,11 +87,10 @@ fn load_aliases() -> &'static HashMap<String, String> {
 }
 
 #[tauri::command]
-pub async fn i18n_runtime_load(
-    params: Option<I18nRuntimeLoadParams>,
-) -> Result<I18nRuntimePayload, String> {
+pub async fn i18n_runtime_load(params: Value) -> Result<I18nRuntimePayload, String> {
+    let params = i18n_runtime_load_params_from_payload(params);
     let system_locale = detect_system_locale();
-    let locale = resolve_effective_locale(&params.unwrap_or_default().preferred_locale);
+    let locale = resolve_effective_locale(&params.preferred_locale);
 
     let messages = if locale == "zh-CN" {
         load_messages().clone()
@@ -88,4 +104,30 @@ pub async fn i18n_runtime_load(
         aliases: load_aliases().clone(),
         messages,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::i18n_runtime_load_params_from_payload;
+
+    #[test]
+    fn i18n_runtime_params_normalize_raw_payloads() {
+        let params = i18n_runtime_load_params_from_payload(serde_json::json!({
+            "preferredLocale": " zh-CN "
+        }));
+        assert_eq!(params.preferred_locale, "zh-CN");
+
+        let snake_params = i18n_runtime_load_params_from_payload(serde_json::json!({
+            "preferred_locale": " en-US "
+        }));
+        assert_eq!(snake_params.preferred_locale, "en-US");
+
+        let fallback_params = i18n_runtime_load_params_from_payload(serde_json::json!({
+            "preferredLocale": 42
+        }));
+        assert_eq!(fallback_params.preferred_locale, "");
+
+        let non_object = i18n_runtime_load_params_from_payload(serde_json::json!(false));
+        assert_eq!(non_object.preferred_locale, "");
+    }
 }

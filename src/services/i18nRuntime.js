@@ -14,7 +14,7 @@ export async function loadI18nRuntime(preferredLocale = 'system') {
   }
   return invoke('i18n_runtime_load', {
     params: {
-      preferredLocale: String(preferredLocale || 'system'),
+      preferredLocale,
     },
   })
 }
@@ -24,7 +24,7 @@ export async function loadSavedLocalePreference(defaultPreference = 'system') {
   const globalConfigDir = await getGlobalConfigDir()
   const preferences = await invoke('workspace_preferences_load', {
     params: {
-      globalConfigDir: String(globalConfigDir || ''),
+      globalConfigDir,
     },
   })
   return preferences?.preferredLocale || defaultPreference
