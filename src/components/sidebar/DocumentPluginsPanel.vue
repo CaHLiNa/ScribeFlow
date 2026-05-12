@@ -67,6 +67,7 @@ import { useExtensionHostStatusPresentation } from '../../composables/useExtensi
 import { buildExtensionContext } from '../../domains/extensions/extensionContext.js'
 import { buildExtensionHostStatusSurface } from '../../domains/extensions/extensionHostStatusSurface'
 import { buildExtensionPluginContainerPresentation } from '../../domains/extensions/extensionPluginContainerPresentation.js'
+import { buildExtensionTargetSummary } from '../../domains/extensions/extensionTargetPresentation.js'
 import ExtensionCountBadge from '../extensions/ExtensionCountBadge.vue'
 import ExtensionDocumentActionPanel from '../extensions/ExtensionDocumentActionPanel.vue'
 import ExtensionHostStatusSurface from '../extensions/ExtensionHostStatusSurface.vue'
@@ -212,22 +213,12 @@ const {
   triggerRecoveryAction,
 } = useExtensionHostStatusPresentation(() => hostStatusSurface.value)
 
-const targetSummary = computed(() => {
-  const target = resolvedTarget.value
-  if (target.referenceId && target.path) {
-    return t('Target: {path} · ref:{referenceId}', {
-      path: target.path,
-      referenceId: target.referenceId,
-    })
-  }
-  if (target.path) {
-    return t('Target: {path}', { path: target.path })
-  }
-  if (target.referenceId) {
-    return t('Target reference: {referenceId}', { referenceId: target.referenceId })
-  }
-  return ''
-})
+const targetSummaryPresentation = computed(() => buildExtensionTargetSummary(resolvedTarget.value))
+const targetSummary = computed(() =>
+  targetSummaryPresentation.value.available
+    ? t(targetSummaryPresentation.value.textKey, targetSummaryPresentation.value.params)
+    : ''
+)
 
 const hostDiagnosticSummary = computed(() => {
   return hostStatusPresentation.value.summaryText
