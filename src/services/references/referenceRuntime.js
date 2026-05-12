@@ -18,7 +18,7 @@ export function resolveReferenceQuery(params = {}) {
 export function scanWorkspaceCitationStyles(workspacePath = '') {
   return invoke('references_scan_workspace_styles', {
     params: {
-      workspacePath: String(workspacePath || ''),
+      workspacePath,
     },
   })
 }
@@ -26,9 +26,9 @@ export function scanWorkspaceCitationStyles(workspacePath = '') {
 export function writeReferenceBibFile(texPath = '', references = [], citationStyle = 'apa') {
   return invoke('references_write_bib_file', {
     params: {
-      texPath: String(texPath || ''),
-      references: Array.isArray(references) ? references : [],
-      citationStyle: String(citationStyle || 'apa'),
+      texPath,
+      references,
+      citationStyle,
     },
   })
 }

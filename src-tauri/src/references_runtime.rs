@@ -79,6 +79,38 @@ pub struct ReferenceMetadataRefreshParams {
     pub reference: Value,
 }
 
+fn string_payload_field(params: &Value, key: &str) -> String {
+    params
+        .as_object()
+        .and_then(|object| object.get(key))
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string()
+}
+
+fn array_payload_field(params: &Value, key: &str) -> Vec<Value> {
+    params
+        .as_object()
+        .and_then(|object| object.get(key))
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default()
+}
+
+fn citation_style_scan_params_from_payload(params: Value) -> CitationStyleScanParams {
+    CitationStyleScanParams {
+        workspace_path: string_payload_field(&params, "workspacePath"),
+    }
+}
+
+fn reference_bib_file_params_from_payload(params: Value) -> ReferenceBibFileParams {
+    ReferenceBibFileParams {
+        tex_path: string_payload_field(&params, "texPath"),
+        references: array_payload_field(&params, "references"),
+        citation_style: string_payload_field(&params, "citationStyle"),
+    }
+}
+
 fn sanitize_bibliography_target(value: &str) -> String {
     value
         .trim()
@@ -637,10 +669,14 @@ pub async fn references_import_pdf(params: ReferencePdfImportParams) -> Result<V
 
 #[tauri::command]
 pub async fn references_scan_workspace_styles(
-    params: CitationStyleScanParams,
+    params: Value,
     scope_state: tauri::State<'_, WorkspaceScopeState>,
 ) -> Result<Value, String> {
-    references_scan_workspace_styles_scoped(params, Some(scope_state.inner())).await
+    references_scan_workspace_styles_scoped(
+        citation_style_scan_params_from_payload(params),
+        Some(scope_state.inner()),
+    )
+    .await
 }
 
 pub(crate) async fn references_scan_workspace_styles_scoped(
@@ -684,10 +720,14 @@ pub(crate) async fn references_scan_workspace_styles_scoped(
 
 #[tauri::command]
 pub async fn references_write_bib_file(
-    params: ReferenceBibFileParams,
+    params: Value,
     scope_state: tauri::State<'_, WorkspaceScopeState>,
 ) -> Result<String, String> {
-    references_write_bib_file_scoped(params, Some(scope_state.inner())).await
+    references_write_bib_file_scoped(
+        reference_bib_file_params_from_payload(params),
+        Some(scope_state.inner()),
+    )
+    .await
 }
 
 async fn references_write_bib_file_scoped(
@@ -774,6 +814,7 @@ pub async fn references_refresh_metadata(
 #[cfg(test)]
 mod tests {
     use super::{
+        citation_style_scan_params_from_payload, reference_bib_file_params_from_payload,
         reference_metadata_refresh_overrides, references_record_from_csl,
         references_scan_workspace_styles_scoped, references_write_bib_file_scoped,
         refreshed_reference_from_csl, CitationStyleScanParams, ReferenceBibFileParams,
@@ -859,6 +900,37 @@ mod tests {
         assert_eq!(refreshed["_importMethod"].as_str(), Some("zotero"));
         assert_eq!(refreshed["_pushedByApp"].as_bool(), Some(true));
         assert_eq!(refreshed["_appPushPending"].as_bool(), Some(false));
+    }
+
+    #[test]
+    fn reference_runtime_file_params_normalize_raw_payloads() {
+        let scan_params = citation_style_scan_params_from_payload(json!({
+            "workspacePath": 42
+        }));
+        assert_eq!(scan_params.workspace_path, "");
+
+        let scan_params = citation_style_scan_params_from_payload(json!({
+            "workspacePath": "/tmp/workspace"
+        }));
+        assert_eq!(scan_params.workspace_path, "/tmp/workspace");
+
+        let bib_params = reference_bib_file_params_from_payload(json!({
+            "texPath": 42,
+            "references": "not-an-array",
+            "citationStyle": null
+        }));
+        assert_eq!(bib_params.tex_path, "");
+        assert!(bib_params.references.is_empty());
+        assert_eq!(bib_params.citation_style, "");
+
+        let bib_params = reference_bib_file_params_from_payload(json!({
+            "texPath": "/tmp/main.tex",
+            "references": [{ "id": "ref-a" }],
+            "citationStyle": "ieee"
+        }));
+        assert_eq!(bib_params.tex_path, "/tmp/main.tex");
+        assert_eq!(bib_params.references.len(), 1);
+        assert_eq!(bib_params.citation_style, "ieee");
     }
 
     #[test]
