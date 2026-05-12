@@ -4,63 +4,66 @@
       <div class="extension-result-preview__title-wrap">
         <div class="extension-result-preview__eyebrow">{{ t('Preview') }}</div>
         <div class="extension-result-preview__title">
-          {{ previewTitle }}
+          {{ t(previewPresentation.previewTitleKey) }}
         </div>
       </div>
-      <div v-if="toolbarActions.length > 0" class="extension-result-preview__actions">
+      <div v-if="previewPresentation.toolbarActions.length > 0" class="extension-result-preview__actions">
         <ExtensionBlockedActionButton
-          v-for="action in toolbarActions"
+          v-for="action in previewPresentation.toolbarActions"
           :key="action.id"
           :blocked="action.blocked"
           :loading="isActionBusy(action.entry)"
-          :blocked-label="action.blockedLabel"
-          :blocked-message="action.blockedMessage"
-          :label="action.label"
-          :title="action.label"
+          :blocked-label="t(action.blockedLabelKey)"
+          :blocked-message="t(action.blockedMessageKey, action.blockedMessageParams)"
+          :label="t(action.labelKey)"
+          :title="t(action.labelKey)"
           @click="$emit('run-action', action.entry)"
         />
       </div>
     </div>
 
-    <div v-if="isPdfPreview" class="extension-result-preview__body">
+    <div v-if="previewPresentation.isPdfPreview" class="extension-result-preview__body">
       <PdfArtifactPreview
         pane-id="extension-preview"
-        :source-path="previewPath"
-        :artifact-path="previewPath"
+        :source-path="previewPresentation.previewPath"
+        :artifact-path="previewPresentation.previewPath"
         kind="pdf"
         compact-toolbar
       />
     </div>
 
-    <div v-else-if="isImagePreview" class="extension-result-preview__body">
-      <ImagePreviewPane :file-path="previewPath" />
+    <div v-else-if="previewPresentation.isImagePreview" class="extension-result-preview__body">
+      <ImagePreviewPane :file-path="previewPresentation.previewPath" />
     </div>
 
-    <div v-else-if="isHtmlPreview" class="extension-result-preview__body">
+    <div v-else-if="previewPresentation.isHtmlPreview" class="extension-result-preview__body">
       <iframe
-        v-if="htmlPreviewContent"
+        v-if="previewPresentation.htmlPreviewContent"
         class="extension-result-preview__html-frame"
-        :srcdoc="htmlPreviewContent"
+        :srcdoc="previewPresentation.htmlPreviewContent"
         sandbox="allow-forms allow-modals allow-popups allow-same-origin allow-scripts"
         referrerpolicy="no-referrer"
       ></iframe>
-      <HtmlPreviewPane v-else :file-path="previewPath" />
+      <HtmlPreviewPane v-else :file-path="previewPresentation.previewPath" />
     </div>
 
-    <div v-else-if="isTextPreview" class="extension-result-preview__body extension-result-preview__body--text">
+    <div v-else-if="previewPresentation.isTextPreview" class="extension-result-preview__body extension-result-preview__body--text">
       <div v-if="textPreviewLoading" class="extension-result-preview__empty">
         {{ t('Loading text preview...') }}
       </div>
       <pre v-else class="extension-result-preview__text">{{ textPreviewContent }}</pre>
     </div>
 
-    <div v-else-if="toolbarActions.length > 0" class="extension-result-preview__empty extension-result-preview__empty--actionable">
-      <div class="extension-result-preview__empty-title">{{ t('This result provides actions instead of an inline preview.') }}</div>
-      <div class="extension-result-preview__empty-copy">{{ t('Use the actions above to continue.') }}</div>
+    <div
+      v-else-if="previewPresentation.emptyState?.kind === 'actionable'"
+      class="extension-result-preview__empty extension-result-preview__empty--actionable"
+    >
+      <div class="extension-result-preview__empty-title">{{ t(previewPresentation.emptyState.titleKey) }}</div>
+      <div class="extension-result-preview__empty-copy">{{ t(previewPresentation.emptyState.bodyKey) }}</div>
     </div>
 
     <div v-else class="extension-result-preview__empty">
-      {{ t('Preview unavailable for this result entry.') }}
+      {{ t(previewPresentation.emptyState?.titleKey || 'Preview unavailable for this result entry.') }}
     </div>
   </section>
 </template>
@@ -72,8 +75,10 @@ import { readWorkspaceTextFile } from '../../services/fileStoreIO'
 import { readExtensionArtifactText } from '../../services/extensions/extensionArtifacts'
 import { loadExtensionTextPreviewContent } from '../../services/extensions/extensionTextPreview'
 import { useExtensionsStore } from '../../stores/extensions'
-import { buildExtensionActionSurfaceState } from '../../domains/extensions/extensionActionSurfaceState'
-import { describeExtensionRuntimeBlockPresentation } from '../../domains/extensions/extensionRuntimeBlockPresentation'
+import {
+  actionKeyForResultEntry,
+  buildExtensionResultPreviewPresentation,
+} from '../../domains/extensions/extensionResultPreviewPresentation.js'
 import ExtensionBlockedActionButton from './ExtensionBlockedActionButton.vue'
 
 const PdfArtifactPreview = defineAsyncComponent(() => import('../editor/PdfArtifactPreview.vue'))
@@ -90,95 +95,28 @@ defineEmits(['run-action'])
 const { t } = useI18n()
 const extensionsStore = useExtensionsStore()
 
-const previewMode = computed(() => String(props.entry?.previewMode || '').trim().toLowerCase())
-const previewPath = computed(() => String(props.entry?.previewPath || props.entry?.path || '').trim())
-const previewTitle = computed(() =>
-  String(props.entry?.previewTitle || props.entry?.label || t('Result Preview'))
-)
 const textPreviewLoading = ref(false)
 const textPreviewContent = ref('')
-const htmlPreviewContent = computed(() => String(props.entry?.payload?.html || '').trim())
-const hasReferenceTarget = computed(() =>
-  Boolean(String(props.entry?.referenceId || props.entry?.reference_id || '').trim())
-)
-const toolbarActions = computed(() => {
-  const actions = []
-  const baseEntry = props.entry || {}
-  const primaryAction = String(baseEntry.action || '').trim().toLowerCase()
-  if (baseEntry.path || baseEntry.previewPath || ['copy-text', 'copy-path', 'execute-command', 'open-reference'].includes(primaryAction)) {
-    const primaryState = buildExtensionActionSurfaceState({
-      hostDiagnostics: hostDiagnostics.value,
-      resultEntry: baseEntry,
-    })
-    const blockPresentation = describeExtensionRuntimeBlockPresentation(primaryState.runtimeBlock, t)
-    actions.push({
-      id: 'primary',
-      label: labelForAction(baseEntry),
-      entry: baseEntry,
-      blocked: primaryState.resultEntryBlocked,
-      blockedLabel: blockPresentation.label,
-      blockedMessage: blockPresentation.message,
-    })
-  }
-  if (primaryAction !== 'reveal' && baseEntry.path) {
-    actions.push({
-      id: 'reveal',
-      label: t('Reveal'),
-      entry: { ...baseEntry, action: 'reveal' },
-    })
-  }
-  if (primaryAction !== 'copy-path' && baseEntry.path) {
-    actions.push({
-      id: 'copy-path',
-      label: t('Copy Path'),
-      entry: { ...baseEntry, action: 'copy-path' },
-    })
-  }
-  if (primaryAction !== 'open-reference' && hasReferenceTarget.value) {
-    actions.push({
-      id: 'open-reference',
-      label: t('Open Reference'),
-      entry: { ...baseEntry, action: 'open-reference' },
-    })
-  }
-  return actions
-})
 const hostDiagnostics = computed(() => {
   const extensionId = String(props.entry?.extensionId || props.entry?.extension_id || '').trim().toLowerCase()
   return extensionId ? extensionsStore.hostDiagnosticsFor(extensionId) : {}
 })
-
-const isPdfPreview = computed(() =>
-  previewMode.value === 'pdf' ||
-  String(props.entry?.mediaType || '').toLowerCase() === 'application/pdf' ||
-  previewPath.value.toLowerCase().endsWith('.pdf')
-)
-
-const isImagePreview = computed(() =>
-  previewMode.value === 'image' ||
-  /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(previewPath.value)
-)
-
-const isHtmlPreview = computed(() =>
-  previewMode.value === 'html' ||
-  /\.html?$/i.test(previewPath.value)
-)
-
-const isTextPreview = computed(() =>
-  previewMode.value === 'text' ||
-  /\.(txt|md|markdown|json|log|csv|tex|py|bib)$/i.test(previewPath.value)
+const previewPresentation = computed(() =>
+  buildExtensionResultPreviewPresentation(props.entry || {}, {
+    hostDiagnostics: hostDiagnostics.value,
+  })
 )
 
 async function loadTextPreview() {
-  textPreviewContent.value = String(props.entry?.payload?.text || '')
-  if (!isTextPreview.value) return
+  textPreviewContent.value = previewPresentation.value.inlineText
+  if (!previewPresentation.value.isTextPreview) return
   if (textPreviewContent.value) return
-  if (!previewPath.value) return
+  if (!previewPresentation.value.previewPath) return
   textPreviewLoading.value = true
   try {
     textPreviewContent.value = await loadExtensionTextPreviewContent({
-      inlineText: props.entry?.payload?.text || '',
-      previewPath: previewPath.value,
+      inlineText: previewPresentation.value.inlineText,
+      previewPath: previewPresentation.value.previewPath,
       maxBytes: 4000,
       readWorkspaceText: readWorkspaceTextFile,
       readArtifactText: readExtensionArtifactText,
@@ -192,40 +130,19 @@ onMounted(() => {
   void loadTextPreview()
 })
 
-watch([previewPath, previewMode], () => {
-  void loadTextPreview()
-})
-
-function labelForAction(entry = {}) {
-  switch (String(entry?.action || '').trim().toLowerCase()) {
-    case 'copy-text':
-      return t('Copy')
-    case 'copy-path':
-      return t('Copy Path')
-    case 'execute-command':
-      return t('Run')
-    case 'open-tab':
-      return t('Open Tab')
-    case 'open-reference':
-      return t('Open Reference')
-    case 'reveal':
-      return t('Reveal')
-    default:
-      return t('Open')
-  }
-}
-
-function actionKeyForEntry(entry = {}) {
-  return [
-    String(entry?.id || '').trim(),
-    String(entry?.action || '').trim().toLowerCase(),
-    String(entry?.path || entry?.targetPath || '').trim(),
-    String(entry?.referenceId || entry?.reference_id || '').trim(),
-  ].join('::')
-}
+watch(
+  () => [
+    previewPresentation.value.previewPath,
+    previewPresentation.value.previewMode,
+    previewPresentation.value.inlineText,
+  ],
+  () => {
+    void loadTextPreview()
+  },
+)
 
 function isActionBusy(entry = {}) {
-  return actionKeyForEntry(entry) === String(props.busyActionKey || '').trim()
+  return actionKeyForResultEntry(entry) === String(props.busyActionKey || '').trim()
 }
 </script>
 

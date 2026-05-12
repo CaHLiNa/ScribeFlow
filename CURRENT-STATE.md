@@ -147,6 +147,7 @@ Current plugin lifecycle contract:
 - plugin container presentation is now shared too: document-dock plugin tabs and document-plugin page headers now derive label/title/description/badge data from one shared container-presentation helper instead of separately reading first-view state and recomputing title-plus-badge strings
 - plugin target summary presentation is now shared too: document-plugin page headers derive path/reference target copy from one pure presentation helper, keeping right-sidebar context wording probe-backed and outside component-local branching
 - extension task presentation is now shared too: right-sidebar task rows derive title, status tone, progress copy, target facts, result counts and artifact counts from one pure presentation helper instead of duplicating running/recent UI branches
+- extension result preview presentation is now shared too: result preview surfaces derive preview mode, toolbar actions, blocked-action copy, busy keys and action-only empty states from one pure presentation helper instead of keeping action branching inside the Vue preview component
 - settings capability cards now consume shared status pieces too: blocked capability badges render through the shared blocked-status chip, blocked capability run actions render through the shared blocked-action button, and ready/unavailable capability states now render through the shared status-pill component instead of keeping a local fifth status shell
 - failed extension tasks now keep structured results as a first-class runtime contract: if a command/capability ends with `taskState: failed`, persisted task records still retain the failure artifact/output snapshot and the failure-specific progress label instead of collapsing to error text only
 - failed extension tasks are now probe-backed at the frontend result-flow layer too: recent failed tasks still generate previewable result entries, preserve the failure summary card, and keep rerun/log follow-up actions wired through the store
@@ -297,6 +298,7 @@ Current baseline:
 - extension plugin container presentation contract probe passes
 - extension target presentation contract probe passes
 - extension task presentation contract probe passes
+- extension result preview presentation contract probe passes
 - settings extensions capability card contract probe passes
 - extension workspace switch refresh contract probe passes
 - extension enable activation probe passes
