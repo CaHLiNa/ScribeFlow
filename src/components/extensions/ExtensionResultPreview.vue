@@ -148,8 +148,10 @@ function isActionBusy(entry = {}) {
 
 <style scoped>
 .extension-result-preview {
+  container-type: inline-size;
   display: flex;
-  min-height: 260px;
+  min-height: 220px;
+  max-height: min(520px, 70vh);
   flex-direction: column;
   gap: 10px;
   border: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
@@ -160,7 +162,7 @@ function isActionBusy(entry = {}) {
 
 .extension-result-preview__header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
 }
@@ -168,7 +170,9 @@ function isActionBusy(entry = {}) {
 .extension-result-preview__actions {
   display: inline-flex;
   flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 6px;
+  flex: 0 1 auto;
 }
 
 .extension-result-preview__title-wrap {
@@ -199,6 +203,7 @@ function isActionBusy(entry = {}) {
   flex: 1 1 auto;
   overflow: hidden;
   border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-base) 92%, transparent);
 }
 
 .extension-result-preview__body--text {
@@ -210,6 +215,7 @@ function isActionBusy(entry = {}) {
   align-items: flex-start;
   justify-content: center;
   gap: 4px;
+  min-height: 180px;
   border: 1px dashed color-mix(in srgb, var(--border) 36%, transparent);
   border-radius: 8px;
   background: color-mix(in srgb, var(--surface-base) 92%, transparent);
@@ -258,11 +264,23 @@ function isActionBusy(entry = {}) {
 
 .extension-result-preview__empty {
   display: flex;
-  min-height: 120px;
+  min-height: 180px;
+  flex: 1 1 auto;
   align-items: center;
   justify-content: center;
   color: var(--text-muted);
   font-size: 12px;
   text-align: center;
+}
+
+@container (max-width: 360px) {
+  .extension-result-preview__header {
+    flex-direction: column;
+  }
+
+  .extension-result-preview__actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
 }
 </style>

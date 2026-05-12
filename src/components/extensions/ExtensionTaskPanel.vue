@@ -190,6 +190,7 @@ function taskTimeSummary(task = {}) {
 
 <style scoped>
 .extension-task-panel {
+  container-type: inline-size;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -229,10 +230,11 @@ function taskTimeSummary(task = {}) {
 }
 
 .extension-task-main {
+  flex: 1 1 auto;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 8px;
 }
 
 .extension-task-title {
@@ -242,6 +244,11 @@ function taskTimeSummary(task = {}) {
   gap: 8px;
   font-size: 13px;
   color: var(--text-primary);
+}
+
+.extension-task-title > span:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .extension-task-facts {
@@ -271,6 +278,7 @@ function taskTimeSummary(task = {}) {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  min-width: 0;
 }
 
 .extension-task-results__title {
@@ -282,6 +290,7 @@ function taskTimeSummary(task = {}) {
 }
 
 .extension-task-results__summary {
+  min-width: 0;
   color: var(--text-muted);
   font-size: 11px;
   overflow-wrap: anywhere;
@@ -290,6 +299,8 @@ function taskTimeSummary(task = {}) {
 
 .extension-task-results__entry {
   display: flex;
+  width: 100%;
+  min-height: 42px;
   flex-direction: column;
   gap: 2px;
   align-items: flex-start;
@@ -300,11 +311,24 @@ function taskTimeSummary(task = {}) {
   color: var(--text-primary);
   cursor: pointer;
   text-align: left;
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease;
 }
 
 .extension-task-results__entry.is-active {
   border-color: color-mix(in srgb, var(--accent) 48%, var(--border));
   background: color-mix(in srgb, var(--accent) 10%, var(--surface-raised));
+}
+
+.extension-task-results__entry:hover {
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--border));
+  background: color-mix(in srgb, var(--surface-hover) 70%, var(--surface-raised));
+}
+
+.extension-task-results__entry:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent);
+  outline-offset: 2px;
 }
 
 .extension-task-results__entry-label {
@@ -323,5 +347,15 @@ function taskTimeSummary(task = {}) {
   align-items: center;
   gap: 6px;
   flex: 0 0 auto;
+}
+
+@container (max-width: 360px) {
+  .extension-task-row {
+    flex-direction: column;
+  }
+
+  .extension-task-actions {
+    align-self: flex-end;
+  }
 }
 </style>
