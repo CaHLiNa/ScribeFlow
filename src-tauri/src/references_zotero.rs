@@ -88,6 +88,14 @@ pub struct ZoteroDeleteParams {
     pub reference: Value,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ZoteroDeleteWithAccountParams {
+    pub global_config_dir: String,
+    #[serde(default)]
+    pub reference: Value,
+}
+
 #[derive(Debug)]
 struct ZoteroApiResponse {
     status: u16,
@@ -151,6 +159,13 @@ fn snapshot_payload_field(params: &Value) -> Value {
         .unwrap_or_else(|| json!({}))
 }
 
+fn object_payload_field(params: &Value, camel_key: &str, snake_key: &str) -> Value {
+    command_payload_field(params, camel_key, snake_key)
+        .filter(|value| value.is_object())
+        .cloned()
+        .unwrap_or_else(|| json!({}))
+}
+
 fn zotero_sync_persist_params_from_payload(params: Value) -> ZoteroSyncPersistParams {
     ZoteroSyncPersistParams {
         global_config_dir: string_payload_field(&params, "globalConfigDir", "global_config_dir"),
@@ -175,6 +190,13 @@ fn zotero_sync_persist_with_account_params_from_payload(
             "selectedReferenceId",
             "selected_reference_id",
         ),
+    }
+}
+
+fn zotero_delete_with_account_params_from_payload(params: Value) -> ZoteroDeleteWithAccountParams {
+    ZoteroDeleteWithAccountParams {
+        global_config_dir: string_payload_field(&params, "globalConfigDir", "global_config_dir"),
+        reference: object_payload_field(&params, "reference", "reference"),
     }
 }
 
@@ -1357,6 +1379,10 @@ pub async fn references_zotero_sync_persist_with_account(params: Value) -> Resul
 
 #[tauri::command]
 pub async fn references_zotero_delete_item(params: ZoteroDeleteParams) -> Result<(), String> {
+    references_zotero_delete_item_typed(params).await
+}
+
+async fn references_zotero_delete_item_typed(params: ZoteroDeleteParams) -> Result<(), String> {
     let Some(config) = read_zotero_config_raw(&params.global_config_dir)? else {
         return Ok(());
     };
@@ -1394,6 +1420,33 @@ pub async fn references_zotero_delete_item(params: ZoteroDeleteParams) -> Result
     Ok(())
 }
 
+pub async fn references_zotero_delete_item_with_account_typed(
+    params: ZoteroDeleteWithAccountParams,
+) -> Result<(), String> {
+    let global_config_dir = if params.global_config_dir.trim().is_empty() {
+        crate::app_dirs::data_root_dir()?
+            .to_string_lossy()
+            .to_string()
+    } else {
+        params.global_config_dir
+    };
+    let api_key = load_zotero_api_key_string(&global_config_dir)?;
+    references_zotero_delete_item_typed(ZoteroDeleteParams {
+        global_config_dir,
+        api_key,
+        reference: params.reference,
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn references_zotero_delete_item_with_account(params: Value) -> Result<(), String> {
+    references_zotero_delete_item_with_account_typed(
+        zotero_delete_with_account_params_from_payload(params),
+    )
+    .await
+}
+
 trait StringExt {
     fn if_empty_then<F>(self, fallback: F) -> String
     where
@@ -1418,9 +1471,10 @@ mod tests {
     use super::{
         build_citation_key, extract_csl_year, extract_items_array,
         has_local_references_for_library, library_needs_metadata_refresh,
-        looks_like_generated_citation_key, references_zotero_sync_persist,
-        references_zotero_sync_persist_typed, references_zotero_sync_persist_with_account,
-        zotero_sync_persist_params_from_payload,
+        looks_like_generated_citation_key, references_zotero_delete_item_with_account,
+        references_zotero_sync_persist, references_zotero_sync_persist_typed,
+        references_zotero_sync_persist_with_account,
+        zotero_delete_with_account_params_from_payload, zotero_sync_persist_params_from_payload,
         zotero_sync_persist_with_account_params_from_payload, ZoteroSyncPersistParams,
     };
     use serde_json::json;
@@ -1572,6 +1626,39 @@ mod tests {
         assert_eq!(invalid.selected_reference_id, "");
     }
 
+    #[test]
+    fn zotero_delete_with_account_params_normalize_raw_payloads() {
+        let params = zotero_delete_with_account_params_from_payload(json!({
+            "globalConfigDir": " /tmp/config/ ",
+            "apiKey": "ignored-by-account-command",
+            "reference": {
+                "_zoteroKey": " Q6ZQTSEA ",
+                "_zoteroLibrary": " user/16788433 "
+            }
+        }));
+
+        assert_eq!(params.global_config_dir, "/tmp/config/");
+        assert_eq!(params.reference["_zoteroKey"], " Q6ZQTSEA ");
+        assert_eq!(params.reference["_zoteroLibrary"], " user/16788433 ");
+
+        let snake_params = zotero_delete_with_account_params_from_payload(json!({
+            "global_config_dir": " /tmp/snake-config ",
+            "api_key": "ignored-by-account-command",
+            "reference": {
+                "_zoteroKey": "ABCD1234"
+            }
+        }));
+        assert_eq!(snake_params.global_config_dir, "/tmp/snake-config");
+        assert_eq!(snake_params.reference["_zoteroKey"], "ABCD1234");
+
+        let invalid = zotero_delete_with_account_params_from_payload(json!({
+            "globalConfigDir": 42,
+            "reference": "not-an-object"
+        }));
+        assert_eq!(invalid.global_config_dir, "");
+        assert_eq!(invalid.reference, json!({}));
+    }
+
     #[tokio::test]
     async fn sync_persist_returns_canonical_skipped_result() {
         let skipped_without_api_key = references_zotero_sync_persist(json!({
@@ -1636,6 +1723,25 @@ mod tests {
         assert_eq!(skipped_without_stored_key["imported"], 0);
         assert_eq!(skipped_without_stored_key["linked"], 0);
         assert_eq!(skipped_without_stored_key["updated"], 0);
+    }
+
+    #[tokio::test]
+    async fn delete_item_with_account_loads_api_key_in_rust() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "scribeflow-zotero-delete-account-{}",
+            uuid::Uuid::new_v4()
+        ));
+
+        references_zotero_delete_item_with_account(json!({
+            "globalConfigDir": temp_dir.to_string_lossy().to_string(),
+            "apiKey": "ignored-by-account-command",
+            "reference": {
+                "_zoteroKey": " Q6ZQTSEA ",
+                "_zoteroLibrary": " user/16788433 "
+            }
+        }))
+        .await
+        .expect("delete with account should no-op when api key is not stored");
     }
 
     #[test]

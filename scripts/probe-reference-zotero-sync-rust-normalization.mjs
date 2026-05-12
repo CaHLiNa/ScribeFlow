@@ -61,10 +61,14 @@ try {
           }
     }
 
+    if (cmd === 'references_zotero_delete_item_with_account') {
+      return null
+    }
+
     throw new Error(`Unexpected IPC command: ${cmd}`)
   })
 
-  const { syncNow } = await vite.ssrLoadModule('/src/services/references/zoteroSync.js')
+  const { deleteFromZotero, syncNow } = await vite.ssrLoadModule('/src/services/references/zoteroSync.js')
 
   const snapshot = {
     version: 2,
@@ -115,6 +119,26 @@ try {
     globalConfigDir: '/tmp/project-root',
     snapshot: 'not-an-object',
     selectedReferenceId: null,
+  })
+
+  await deleteFromZotero({
+    _zoteroKey: ' Q6ZQTSEA ',
+    _zoteroLibrary: ' user/16788433 ',
+  })
+
+  assert.deepEqual(
+    calls.map((call) => call.cmd),
+    [
+      'references_zotero_sync_persist_with_account',
+      'references_zotero_sync_persist_with_account',
+      'references_zotero_delete_item_with_account',
+    ],
+  )
+  assert.deepEqual(calls[2].args.params, {
+    reference: {
+      _zoteroKey: ' Q6ZQTSEA ',
+      _zoteroLibrary: ' user/16788433 ',
+    },
   })
 
   console.log('reference zotero sync rust normalization probe passed')

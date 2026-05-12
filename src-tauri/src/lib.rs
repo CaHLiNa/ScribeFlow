@@ -284,6 +284,7 @@ pub fn run() {
             references_zotero::references_zotero_sync_persist,
             references_zotero::references_zotero_sync_persist_with_account,
             references_zotero::references_zotero_delete_item,
+            references_zotero::references_zotero_delete_item_with_account,
             // Document workflow, preview state, editor session, Markdown, Python, and LaTeX.
             document_outline::document_outline_resolve,
             document_workflow_action::document_workflow_action_resolve,

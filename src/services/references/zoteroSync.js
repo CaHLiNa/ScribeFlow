@@ -87,14 +87,8 @@ export async function fetchCollections(apiKey = '', libraryType = 'user', librar
 }
 
 export async function deleteFromZotero(reference = {}) {
-  const globalConfigDir = await getGlobalConfigDir()
-  const apiKey = await loadZoteroApiKey()
-  if (!apiKey) return
-
-  await invoke('references_zotero_delete_item', {
+  await invoke('references_zotero_delete_item_with_account', {
     params: {
-      globalConfigDir,
-      apiKey,
       reference,
     },
   })
