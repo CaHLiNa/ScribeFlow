@@ -338,6 +338,20 @@ fn extension_host_resolve_host_call_params_from_payload(
     }
 }
 
+fn extension_host_respond_ui_request_params_from_payload(
+    params: Value,
+) -> ExtensionHostRespondUiRequestParams {
+    ExtensionHostRespondUiRequestParams {
+        request_id: host_param_string(&params, "requestId", "request_id"),
+        cancelled: params
+            .as_object()
+            .and_then(|object| object.get("cancelled"))
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
+        result: host_param_value(&params, "result", "result"),
+    }
+}
+
 fn extension_host_notify_view_selection_params_from_payload(
     params: Value,
 ) -> ExtensionHostNotifyViewSelectionParams {
@@ -2801,9 +2815,10 @@ pub async fn extension_host_cancel_window_inputs(
 
 #[tauri::command]
 pub async fn extension_host_respond_ui_request(
-    params: ExtensionHostRespondUiRequestParams,
+    params: Value,
     state: tauri::State<'_, ExtensionHostState>,
 ) -> Result<ExtensionHostRespondUiRequestResult, String> {
+    let params = extension_host_respond_ui_request_params_from_payload(params);
     respond_extension_host_ui_request(state.inner(), params)
 }
 
@@ -2904,6 +2919,7 @@ mod tests {
         extension_host_deactivate_params_from_payload,
         extension_host_notify_view_selection_params_from_payload,
         extension_host_resolve_host_call_params_from_payload,
+        extension_host_respond_ui_request_params_from_payload,
         extension_host_update_settings_params_from_payload, handle_extension_host_request,
         should_activate_for_event, ExtensionHostRequest, ExtensionHostResponse, ExtensionHostState,
     };
@@ -3094,6 +3110,43 @@ mod tests {
         assert!(non_object.accepted);
         assert!(non_object.result.is_null());
         assert_eq!(non_object.error, "");
+    }
+
+    #[test]
+    fn extension_host_ui_response_params_normalize_raw_payloads() {
+        let confirmed = extension_host_respond_ui_request_params_from_payload(serde_json::json!({
+            "requestId": " request-ui-1 ",
+            "cancelled": false,
+            "result": {
+                "selected": "alpha"
+            }
+        }));
+        assert_eq!(confirmed.request_id, "request-ui-1");
+        assert!(!confirmed.cancelled);
+        assert_eq!(confirmed.result["selected"], "alpha");
+
+        let cancelled = extension_host_respond_ui_request_params_from_payload(serde_json::json!({
+            "request_id": " request-ui-2 ",
+            "cancelled": true,
+            "result": ["alpha", "beta"]
+        }));
+        assert_eq!(cancelled.request_id, "request-ui-2");
+        assert!(cancelled.cancelled);
+        assert_eq!(cancelled.result[0], "alpha");
+
+        let fallback = extension_host_respond_ui_request_params_from_payload(serde_json::json!({
+            "requestId": 42,
+            "cancelled": "true"
+        }));
+        assert_eq!(fallback.request_id, "");
+        assert!(!fallback.cancelled);
+        assert!(fallback.result.is_null());
+
+        let non_object =
+            extension_host_respond_ui_request_params_from_payload(serde_json::json!(false));
+        assert_eq!(non_object.request_id, "");
+        assert!(!non_object.cancelled);
+        assert!(non_object.result.is_null());
     }
 
     #[test]
