@@ -1,6 +1,6 @@
 # ScribeFlow Architecture Boundary Map
 
-> Snapshot date: 2026-05-02.
+> Snapshot date: 2026-05-12.
 > Purpose: make current mixed responsibilities visible before deeper runtime/module cleanup.
 
 ## Target Layer Contract
@@ -139,53 +139,53 @@ Components over 500 lines:
 
 | File | Lines | Classification |
 | --- | ---: | --- |
-| `src/components/editor/CitationPalette.vue` | 715 | Editor-adjacent UI; avoid during global cleanup unless citation UI phase is opened. |
-| `src/components/editor/EditorPane.vue` | 1086 | Frozen editor file. |
-| `src/components/editor/MarkdownPreview.vue` | 802 | Preview UI with document runtime wiring; Phase 6/8 candidate. |
+| `src/components/editor/CitationPalette.vue` | 714 | Editor-adjacent UI; avoid during global cleanup unless citation UI phase is opened. |
+| `src/components/editor/EditorPane.vue` | 1085 | Frozen editor file. |
+| `src/components/editor/MarkdownPreview.vue` | 859 | Preview UI with document runtime wiring; Phase 6/8 candidate. |
 | `src/components/editor/PdfEmbedDocumentSurface.vue` | 2030 | PDF/document runtime UI; Phase 8 extracted toolbar/search chrome while retaining embedpdf runtime authority. |
 | `src/components/editor/PdfEmbedToolbar.vue` | 531 | PDF toolbar/search presentation; emits zoom/page/search/spread intent to parent. |
-| `src/components/editor/TextEditor.vue` | 1962 | Frozen editor file. |
+| `src/components/editor/TextEditor.vue` | 1961 | Frozen editor file. |
 | `src/components/editor/WorkspaceStarter.vue` | 73 | Workspace starter coordinator; Phase 8 extracted empty-state hero and template grid presentation. |
-| `src/components/editor/WorkspaceStarterEmptyState.vue` | 383 | No-workspace hero presentation; emits open-folder intent. |
+| `src/components/editor/WorkspaceStarterEmptyState.vue` | 414 | No-workspace hero presentation; emits open-folder intent. |
 | `src/components/editor/WorkspaceTemplateGrid.vue` | 310 | Current-workspace template card presentation; emits create-template intent. |
-| `src/components/extensions/ExtensionSidebarPanel.vue` | 660 | Extension panel shell; Phase 8 extracted per-view rendering. |
+| `src/components/extensions/ExtensionSidebarPanel.vue` | 654 | Extension panel shell; Phase 8 extracted per-view rendering. |
 | `src/components/extensions/ExtensionSidebarViewSection.vue` | 232 | Extension view section presentation for status, results, preview, and tree root. |
-| `src/components/layout/WorkbenchRail.vue` | 631 | Layout UI; Phase 4/8 candidate after workbench state contracts settle. |
+| `src/components/layout/WorkbenchRail.vue` | 632 | Layout UI; Phase 4/8 candidate after workbench state contracts settle. |
 | `src/components/panel/ReferenceDetailPanel.vue` | 654 | Reference detail draft orchestration; Phase 8 extracted hero/metadata/content presentation. |
 | `src/components/panel/ReferenceDetailContentSection.vue` | 132 | Reference abstract and notes disclosure presentation. |
 | `src/components/panel/ReferenceDetailHero.vue` | 164 | Reference detail title/save hero presentation. |
 | `src/components/panel/ReferenceDetailMetadataSection.vue` | 391 | Reference metadata, tags, collections, and file action presentation. |
-| `src/components/references/ReferenceLibraryWorkbench.vue` | 844 | Reference workbench orchestration; Phase 8 extracted toolbar/table presentation. |
+| `src/components/references/ReferenceLibraryWorkbench.vue` | 860 | Reference workbench orchestration; Phase 8 extracted toolbar/table presentation. |
 | `src/components/references/ReferenceLibraryTable.vue` | 237 | Reference library table presentation and sort header events. |
 | `src/components/references/ReferenceLibraryToolbar.vue` | 131 | Reference library toolbar presentation. |
-| `src/components/settings/Settings.vue` | 543 | Settings shell UI; Phase 4/8 candidate. |
-| `src/components/settings/SettingsExtensions.vue` | 779 | Extension settings shell; Phase 8 extracted list/options UI and pure settings grouping. |
+| `src/components/settings/Settings.vue` | 542 | Settings shell UI; Phase 4/8 candidate. |
+| `src/components/settings/SettingsExtensions.vue` | 789 | Extension settings shell; Phase 8 extracted list/options UI and pure settings grouping. |
 | `src/components/settings/SettingsExtensionList.vue` | 120 | Extension loaded-list presentation. |
 | `src/components/settings/SettingsExtensionOptions.vue` | 214 | Extension settings/action form presentation. |
-| `src/components/sidebar/FileTree.vue` | 787 | File tree orchestration plus mutation commands; Phase 8 extracted header/footer/menu chrome. |
+| `src/components/sidebar/FileTree.vue` | 791 | File tree orchestration plus mutation commands; Phase 8 extracted header/footer/menu chrome. |
 | `src/components/sidebar/FileTreeFooter.vue` | 117 | File tree footer controls. |
 | `src/components/sidebar/FileTreeHeader.vue` | 94 | File tree header controls. |
 | `src/components/sidebar/FileTreeNewMenu.vue` | 93 | File tree document-template create menu. |
 | `src/components/sidebar/FileTreeWorkspaceMenu.vue` | 108 | File tree workspace actions menu. |
-| `src/App.vue` | 735 | App shell composition; extension runtime event bridge extracted to `src/app/shell/useAppExtensionRuntimeBridge.js`. |
+| `src/App.vue` | 746 | App shell composition; extension runtime event bridge extracted to `src/app/shell/useAppExtensionRuntimeBridge.js`. |
 
 ## Store Responsibility Snapshot
 
 | Store | Lines | Current role | Boundary risk |
 | --- | ---: | --- | --- |
-| `src/stores/documentWorkflow.js` | 338 | Document workflow UI state and runtime orchestration | Needs store/domain/service separation after runtime contracts settle. |
-| `src/stores/editor.js` | 579 | Frozen editor shell/session state | Do not edit during this reorganization. |
-| `src/stores/extensionWindowUi.js` | 82 | Extension prompt window UI state | Low; keep UI-only. |
-| `src/stores/extensions.js` | 1149 | Extension registry, host state, tasks, prompts, views, commands | Medium; Phase 7 extracted deterministic presentation/state helpers and kept host authority in Rust. |
-| `src/stores/files.js` | 946 | File tree, watcher lifecycle calls, mutation orchestration, draft files | High; Phase 3 should keep path/mutation authority Rust-owned and store UI-only orchestration. |
-| `src/stores/latex.js` | 923 | LaTeX preferences, build scheduling, compile state, logs | High; Phase 6 should keep compile planning/execution Rust-owned. |
-| `src/stores/links.js` | 333 | Markdown heading/link index and backlinks | Medium; decide whether parsing/indexing is UI helper or Rust document intelligence. |
+| `src/stores/documentWorkflow.js` | 323 | Document workflow UI state and runtime orchestration | Needs store/domain/service separation after runtime contracts settle. |
+| `src/stores/editor.js` | 596 | Frozen editor shell/session state | Do not edit during this reorganization. |
+| `src/stores/extensionWindowUi.js` | 81 | Extension prompt window UI state | Low; keep UI-only. |
+| `src/stores/extensions.js` | 1163 | Extension registry, host state, tasks, prompts, views, commands | Medium; Phase 7 extracted deterministic presentation/state helpers and kept host authority in Rust. |
+| `src/stores/files.js` | 933 | File tree, watcher lifecycle calls, mutation orchestration, draft files | High; Phase 3 should keep path/mutation authority Rust-owned and store UI-only orchestration. |
+| `src/stores/latex.js` | 907 | LaTeX preferences, build scheduling, compile state, logs | High; Phase 6 should keep compile planning/execution Rust-owned. |
+| `src/stores/links.js` | 215 | Markdown heading/link index and backlinks | Medium; decide whether parsing/indexing is UI helper or Rust document intelligence. |
 | `src/stores/python.js` | 225 | Python preferences, environment error state, and compile/run state | Medium; runtime resolution should remain Rust-owned. |
-| `src/stores/references.js` | 935 | Reference selection, collections, import, persistence, mutation orchestration | High; Phase 5 should keep normalization/merge/persistence Rust-owned. |
-| `src/stores/toast.js` | 48 | Toast UI | Low. |
-| `src/stores/utils.js` | 10 | Store utilities | Low. |
+| `src/stores/references.js` | 1099 | Reference selection, collections, import, persistence, mutation orchestration | High; Phase 5 should keep normalization/merge/persistence Rust-owned. |
+| `src/stores/toast.js` | 47 | Toast UI | Low. |
+| `src/stores/utils.js` | 9 | Store utilities | Low. |
 | `src/stores/uxStatus.js` | 77 | Status/toast UI | Low. |
-| `src/stores/workspace.js` | 659 | Workspace lifecycle, preferences, layout, settings, shell state | High; Phase 3/4 should keep lifecycle and persisted settings Rust-owned. |
+| `src/stores/workspace.js` | 688 | Workspace lifecycle, preferences, layout, settings, shell state | High; Phase 3/4 should keep lifecycle and persisted settings Rust-owned. |
 
 ## Primary Store Responsibility Notes
 

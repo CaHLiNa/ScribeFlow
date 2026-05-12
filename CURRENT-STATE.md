@@ -1,6 +1,6 @@
 # ScribeFlow Current State
 
-Last updated: 2026-05-02
+Last updated: 2026-05-12
 
 ## Product
 
@@ -338,7 +338,14 @@ Current baseline:
 - Vite build passes
 - bundle budget passes
 - Rust check passes
-- Rust tests pass: 187 tests
+- Rust tests pass: 225 tests
+
+Isolated desktop startup baseline:
+
+- `npm run tauri:dev:isolated` starts Vite on `http://127.0.0.1:1420/`
+- the Tauri process launches `target/debug/scribeflow`
+- Rust app-dir logs confirm `get_global_config_dir=/private/tmp/scribeflow-tauri-dev`
+- no manual workspace smoke was performed as part of this baseline refresh
 
 Desktop feel, visual layout and interaction quality are user-owned manual checks.
 
