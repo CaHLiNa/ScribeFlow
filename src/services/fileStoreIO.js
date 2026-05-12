@@ -24,25 +24,37 @@ export async function createWorkspaceFile(dirPath, name, options = {}) {
 }
 
 export async function duplicateWorkspacePath(path) {
-  return invoke('workspace_duplicate_path', { path })
+  return invoke('workspace_duplicate_path', {
+    params: { path },
+  })
 }
 
 export async function createWorkspaceFolder(dirPath, name) {
-  return invoke('workspace_create_dir', { dirPath, name })
+  return invoke('workspace_create_dir', {
+    params: { dirPath, name },
+  })
 }
 
 export async function renameWorkspacePath(oldPath, newPath) {
-  return invoke('workspace_rename_path', { oldPath, newPath })
+  return invoke('workspace_rename_path', {
+    params: { oldPath, newPath },
+  })
 }
 
 export async function moveWorkspacePath(srcPath, destDir) {
-  return invoke('workspace_move_path', { srcPath, destDir })
+  return invoke('workspace_move_path', {
+    params: { srcPath, destDir },
+  })
 }
 
 export async function copyExternalWorkspaceFile(srcPath, destDir) {
-  return invoke('workspace_copy_external_path', { srcPath, destDir })
+  return invoke('workspace_copy_external_path', {
+    params: { srcPath, destDir },
+  })
 }
 
 export async function deleteWorkspacePath(path) {
-  return invoke('workspace_delete_path', { path })
+  return invoke('workspace_delete_path', {
+    params: { path },
+  })
 }

@@ -175,6 +175,31 @@ fn workspace_create_file_params_from_payload(params: Value) -> (String, String, 
     )
 }
 
+fn workspace_create_dir_params_from_payload(params: Value) -> (String, String) {
+    (
+        string_payload_field(&params, "dirPath", "dir_path"),
+        string_payload_field(&params, "name", "name"),
+    )
+}
+
+fn workspace_rename_path_params_from_payload(params: Value) -> (String, String) {
+    (
+        string_payload_field(&params, "oldPath", "old_path"),
+        string_payload_field(&params, "newPath", "new_path"),
+    )
+}
+
+fn workspace_single_path_params_from_payload(params: Value) -> String {
+    string_payload_field(&params, "path", "path")
+}
+
+fn workspace_move_path_params_from_payload(params: Value) -> (String, String) {
+    (
+        string_payload_field(&params, "srcPath", "src_path"),
+        string_payload_field(&params, "destDir", "dest_dir"),
+    )
+}
+
 fn missing_path_status(path: String) -> PathStatusResult {
     PathStatusResult {
         path,
@@ -687,10 +712,10 @@ pub async fn workspace_create_file(
 
 #[tauri::command]
 pub async fn workspace_create_dir(
-    dir_path: String,
-    name: String,
+    params: Value,
     scope_state: tauri::State<'_, WorkspaceScopeState>,
 ) -> Result<WorkspaceCreateDirResult, String> {
+    let (dir_path, name) = workspace_create_dir_params_from_payload(params);
     let full_path = format!("{}/{}", dir_path.trim_end_matches('/'), name);
     let resolved =
         security::ensure_allowed_mutation_path(scope_state.inner(), Path::new(&full_path))?;
@@ -699,10 +724,10 @@ pub async fn workspace_create_dir(
 
 #[tauri::command]
 pub async fn workspace_rename_path(
-    old_path: String,
-    new_path: String,
+    params: Value,
     scope_state: tauri::State<'_, WorkspaceScopeState>,
 ) -> Result<WorkspaceRenameResult, String> {
+    let (old_path, new_path) = workspace_rename_path_params_from_payload(params);
     let resolved_old =
         security::ensure_allowed_mutation_path(scope_state.inner(), Path::new(&old_path))?;
     let resolved_new =
@@ -725,28 +750,30 @@ pub async fn workspace_rename_path(
 
 #[tauri::command]
 pub async fn workspace_delete_path(
-    path: String,
+    params: Value,
     scope_state: tauri::State<'_, WorkspaceScopeState>,
 ) -> Result<WorkspaceDeleteResult, String> {
+    let path = workspace_single_path_params_from_payload(params);
     let resolved = security::ensure_allowed_mutation_path(scope_state.inner(), Path::new(&path))?;
     run_blocking(move || workspace_delete_path_blocking(&resolved)).await
 }
 
 #[tauri::command]
 pub async fn workspace_duplicate_path(
-    path: String,
+    params: Value,
     scope_state: tauri::State<'_, WorkspaceScopeState>,
 ) -> Result<WorkspaceDuplicateResult, String> {
+    let path = workspace_single_path_params_from_payload(params);
     let resolved = security::ensure_allowed_mutation_path(scope_state.inner(), Path::new(&path))?;
     run_blocking(move || workspace_duplicate_path_blocking(&resolved)).await
 }
 
 #[tauri::command]
 pub async fn workspace_move_path(
-    src_path: String,
-    dest_dir: String,
+    params: Value,
     scope_state: tauri::State<'_, WorkspaceScopeState>,
 ) -> Result<WorkspaceMoveResult, String> {
+    let (src_path, dest_dir) = workspace_move_path_params_from_payload(params);
     let resolved_src =
         security::ensure_allowed_mutation_path(scope_state.inner(), Path::new(&src_path))?;
     let resolved_dest_dir =
@@ -773,10 +800,10 @@ pub async fn workspace_move_path(
 
 #[tauri::command]
 pub async fn workspace_copy_external_path(
-    src_path: String,
-    dest_dir: String,
+    params: Value,
     scope_state: tauri::State<'_, WorkspaceScopeState>,
 ) -> Result<WorkspaceCopyExternalResult, String> {
+    let (src_path, dest_dir) = workspace_move_path_params_from_payload(params);
     let resolved_dest_dir =
         security::ensure_allowed_mutation_path(scope_state.inner(), Path::new(&dest_dir))?;
     run_blocking(move || {
@@ -1009,10 +1036,12 @@ pub async fn get_home_dir() -> Result<String, String> {
 mod tests {
     use super::{
         path_status_internal, path_status_path_from_payload, workspace_create_dir_blocking,
-        workspace_create_file_params_from_payload, workspace_delete_path_blocking,
-        workspace_duplicate_path_blocking, workspace_external_path_internal,
+        workspace_create_dir_params_from_payload, workspace_create_file_params_from_payload,
+        workspace_delete_path_blocking, workspace_duplicate_path_blocking,
+        workspace_external_path_internal, workspace_move_path_params_from_payload,
         workspace_open_path_from_payload, workspace_path_status_internal,
         workspace_read_file_base64_blocking, workspace_read_text_file_blocking,
+        workspace_rename_path_params_from_payload, workspace_single_path_params_from_payload,
         workspace_write_file_base64_blocking, workspace_write_text_file_blocking,
     };
     use crate::security::{set_allowed_roots_internal, WorkspaceScopeState};
@@ -1179,6 +1208,71 @@ mod tests {
         assert_eq!(non_object_dir_path, "");
         assert_eq!(non_object_name, "");
         assert_eq!(non_object_initial_content, "");
+    }
+
+    #[test]
+    fn workspace_path_mutation_params_normalize_raw_payloads() {
+        let (dir_path, name) = workspace_create_dir_params_from_payload(json!({
+            "dirPath": " /tmp/workspace ",
+            "name": " folder "
+        }));
+        assert_eq!(dir_path, "/tmp/workspace");
+        assert_eq!(name, "folder");
+
+        let (snake_dir_path, snake_name) = workspace_create_dir_params_from_payload(json!({
+            "dir_path": " /tmp/snake ",
+            "name": " nested "
+        }));
+        assert_eq!(snake_dir_path, "/tmp/snake");
+        assert_eq!(snake_name, "nested");
+
+        let (old_path, new_path) = workspace_rename_path_params_from_payload(json!({
+            "oldPath": " /tmp/workspace/old.md ",
+            "newPath": " /tmp/workspace/new.md "
+        }));
+        assert_eq!(old_path, "/tmp/workspace/old.md");
+        assert_eq!(new_path, "/tmp/workspace/new.md");
+
+        let (snake_old_path, snake_new_path) = workspace_rename_path_params_from_payload(json!({
+            "old_path": " /tmp/workspace/snake-old.md ",
+            "new_path": " /tmp/workspace/snake-new.md "
+        }));
+        assert_eq!(snake_old_path, "/tmp/workspace/snake-old.md");
+        assert_eq!(snake_new_path, "/tmp/workspace/snake-new.md");
+
+        assert_eq!(
+            workspace_single_path_params_from_payload(json!({
+                "path": " /tmp/workspace/note.md "
+            })),
+            "/tmp/workspace/note.md"
+        );
+
+        let (src_path, dest_dir) = workspace_move_path_params_from_payload(json!({
+            "srcPath": " /tmp/workspace/note.md ",
+            "destDir": " /tmp/workspace/archive "
+        }));
+        assert_eq!(src_path, "/tmp/workspace/note.md");
+        assert_eq!(dest_dir, "/tmp/workspace/archive");
+
+        let (snake_src_path, snake_dest_dir) = workspace_move_path_params_from_payload(json!({
+            "src_path": " /tmp/workspace/snake.md ",
+            "dest_dir": " /tmp/workspace/snake-archive "
+        }));
+        assert_eq!(snake_src_path, "/tmp/workspace/snake.md");
+        assert_eq!(snake_dest_dir, "/tmp/workspace/snake-archive");
+
+        let (bad_dir_path, bad_name) = workspace_create_dir_params_from_payload(json!({
+            "dirPath": false,
+            "name": 42
+        }));
+        assert_eq!(bad_dir_path, "");
+        assert_eq!(bad_name, "");
+        assert_eq!(workspace_single_path_params_from_payload(json!(false)), "");
+
+        let (non_object_src_path, non_object_dest_dir) =
+            workspace_move_path_params_from_payload(json!(42));
+        assert_eq!(non_object_src_path, "");
+        assert_eq!(non_object_dest_dir, "");
     }
 
     #[test]
