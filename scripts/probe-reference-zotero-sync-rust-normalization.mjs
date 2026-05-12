@@ -96,10 +96,28 @@ try {
       }
     }
 
+    if (cmd === 'get_global_config_dir') {
+      return '/tmp/global-config'
+    }
+
+    if (cmd === 'references_zotero_account_state_load') {
+      return {
+        config: {
+          userId: '16788433',
+          username: 'researcher',
+        },
+        hasApiKey: true,
+      }
+    }
+
+    if (cmd === 'references_zotero_api_key_load') {
+      throw new Error('Settings account state must not load the raw Zotero API key into JS')
+    }
+
     throw new Error(`Unexpected IPC command: ${cmd}`)
   })
 
-  const { deleteFromZotero, loadRemoteLibraries, syncNow } =
+  const { deleteFromZotero, loadRemoteLibraries, loadZoteroAccountState, syncNow } =
     await vite.ssrLoadModule('/src/services/references/zoteroSync.js')
 
   const snapshot = {
@@ -215,6 +233,34 @@ try {
   assert.deepEqual(calls[3].args.params, {
     userId: 42,
   })
+
+  const accountState = await loadZoteroAccountState()
+
+  assert.deepEqual(accountState, {
+    config: {
+      userId: '16788433',
+      username: 'researcher',
+    },
+    hasApiKey: true,
+  })
+  assert.deepEqual(
+    calls.map((call) => call.cmd),
+    [
+      'references_zotero_sync_persist_with_account',
+      'references_zotero_sync_persist_with_account',
+      'references_zotero_delete_item_with_account',
+      'references_zotero_remote_libraries_with_account',
+      'get_global_config_dir',
+      'references_zotero_account_state_load',
+    ],
+  )
+  assert.deepEqual(calls[5].args.params, {
+    globalConfigDir: '/tmp/global-config',
+  })
+  assert.equal(
+    calls.some((call) => call.cmd === 'references_zotero_api_key_load'),
+    false,
+  )
 
   console.log('reference zotero sync rust normalization probe passed')
 } finally {

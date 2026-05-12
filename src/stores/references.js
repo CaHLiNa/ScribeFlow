@@ -46,7 +46,7 @@ import {
 import {
   deleteFromZotero,
   disconnectZotero as disconnectZoteroWithBackend,
-  loadZoteroApiKey,
+  loadZoteroAccountState,
   loadZoteroConfig,
   loadRemoteLibraries,
   saveZoteroConfig,
@@ -1014,13 +1014,10 @@ export const useReferencesStore = defineStore('references', {
     },
 
     async loadZoteroSettingsState() {
-      const [config, apiKey] = await Promise.all([
-        loadZoteroConfig(),
-        loadZoteroApiKey(),
-      ])
+      const state = await loadZoteroAccountState()
       return {
-        config: config || {},
-        hasApiKey: Boolean(apiKey),
+        config: state?.config || {},
+        hasApiKey: Boolean(state?.hasApiKey),
       }
     },
 

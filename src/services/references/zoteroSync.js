@@ -21,6 +21,25 @@ export async function loadZoteroApiKey() {
   return typeof value === 'string' && value.trim() ? value : null
 }
 
+export async function loadZoteroAccountState() {
+  const globalConfigDir = await getGlobalConfigDir()
+  const state = await invoke('references_zotero_account_state_load', {
+    params: {
+      globalConfigDir,
+    },
+  })
+  if (!state || typeof state !== 'object') {
+    return {
+      config: {},
+      hasApiKey: false,
+    }
+  }
+  return {
+    config: state.config && typeof state.config === 'object' ? state.config : {},
+    hasApiKey: Boolean(state.hasApiKey),
+  }
+}
+
 export async function clearZoteroApiKey() {
   const globalConfigDir = await getGlobalConfigDir()
   await invoke('references_zotero_api_key_clear', {

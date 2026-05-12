@@ -1,5 +1,5 @@
 use serde::Deserialize;
-use serde_json::{Map, Value};
+use serde_json::{json, Map, Value};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -99,6 +99,23 @@ fn clear_key_fallback(global_config_dir: &str) -> Result<(), String> {
     write_zotero_config_raw(global_config_dir, Some(Value::Object(map)))
 }
 
+fn sanitize_zotero_config(config: &Value) -> Value {
+    let mut map = config.as_object().cloned().unwrap_or_default();
+    map.remove("_apiKeyFallback");
+    map.remove("_credentialStorage");
+    Value::Object(map)
+}
+
+fn build_zotero_account_state(config: Option<Value>, api_key: &str) -> Value {
+    json!({
+        "config": config
+            .as_ref()
+            .map(sanitize_zotero_config)
+            .unwrap_or_else(|| json!({})),
+        "hasApiKey": !api_key.trim().is_empty(),
+    })
+}
+
 pub(crate) fn load_zotero_api_key_string(global_config_dir: &str) -> Result<String, String> {
     if let Some(value) = keychain_get()? {
         let trimmed = value.trim();
@@ -117,6 +134,15 @@ pub(crate) fn load_zotero_api_key_string(global_config_dir: &str) -> Result<Stri
                 .map(ToString::to_string)
         })
         .unwrap_or_default())
+}
+
+#[tauri::command]
+pub async fn references_zotero_account_state_load(
+    params: ZoteroAccountPathParams,
+) -> Result<Value, String> {
+    let config = read_zotero_config_raw(&params.global_config_dir)?;
+    let api_key = load_zotero_api_key_string(&params.global_config_dir)?;
+    Ok(build_zotero_account_state(config, &api_key))
 }
 
 #[tauri::command]
@@ -151,4 +177,102 @@ pub async fn references_zotero_api_key_clear(
 pub async fn references_zotero_disconnect(params: ZoteroAccountPathParams) -> Result<(), String> {
     let _ = keychain_delete();
     write_zotero_config_raw(&params.global_config_dir, None)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        build_zotero_account_state, keychain_delete, references_zotero_account_state_load,
+        write_zotero_config_raw, ZoteroAccountPathParams,
+    };
+    use serde_json::json;
+    use std::fs;
+
+    fn temp_config_dir(prefix: &str) -> String {
+        std::env::temp_dir()
+            .join(format!("{prefix}-{}", uuid::Uuid::new_v4()))
+            .to_string_lossy()
+            .to_string()
+    }
+
+    #[test]
+    fn account_state_hides_secret_fields() {
+        let state = build_zotero_account_state(
+            Some(json!({
+                "userId": "16788433",
+                "username": "researcher",
+                "_apiKeyFallback": "secret",
+                "_credentialStorage": "mirrored-file-fallback"
+            })),
+            " secret ",
+        );
+
+        assert_eq!(
+            state,
+            json!({
+                "config": {
+                    "userId": "16788433",
+                    "username": "researcher"
+                },
+                "hasApiKey": true
+            })
+        );
+    }
+
+    #[tokio::test]
+    async fn account_state_load_uses_fallback_key_without_exposing_it() {
+        let global_config_dir = temp_config_dir("scribeflow-zotero-account-state");
+        let _ = keychain_delete();
+        write_zotero_config_raw(
+            &global_config_dir,
+            Some(json!({
+                "userId": "16788433",
+                "autoSync": true,
+                "_apiKeyFallback": "fallback-secret",
+                "_credentialStorage": "mirrored-file-fallback"
+            })),
+        )
+        .expect("write test zotero config");
+
+        let state = references_zotero_account_state_load(ZoteroAccountPathParams {
+            global_config_dir: global_config_dir.clone(),
+        })
+        .await
+        .expect("load zotero account state");
+
+        assert_eq!(
+            state,
+            json!({
+                "config": {
+                    "userId": "16788433",
+                    "autoSync": true
+                },
+                "hasApiKey": true
+            })
+        );
+
+        let _ = fs::remove_dir_all(global_config_dir);
+    }
+
+    #[tokio::test]
+    async fn account_state_load_returns_empty_config_without_key() {
+        let global_config_dir = temp_config_dir("scribeflow-zotero-empty-account-state");
+        let _ = keychain_delete();
+
+        let state = references_zotero_account_state_load(ZoteroAccountPathParams {
+            global_config_dir: global_config_dir.clone(),
+        })
+        .await
+        .expect("load empty zotero account state");
+
+        assert_eq!(
+            state,
+            json!({
+                "config": {},
+                "hasApiKey": false
+            })
+        );
+
+        let _ = fs::remove_dir_all(global_config_dir);
+    }
 }
