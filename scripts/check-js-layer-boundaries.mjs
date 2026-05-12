@@ -12,6 +12,11 @@ const referenceRuntimePatterns = [
       'Reference CSL/record canonical conversion belongs in Rust references runtime, not src/domains.',
   },
   {
+    pattern: /\bnormalizeReferenceRecord\b/,
+    message:
+      'Canonical reference record normalization belongs in Rust references runtime, not src/domains.',
+  },
+  {
     pattern: /\b(?:REFERENCE_TO_CSL_TYPE|CSL_TO_REFERENCE_TYPE)\b/,
     message:
       'Reference type mapping belongs in Rust references runtime, not src/domains.',

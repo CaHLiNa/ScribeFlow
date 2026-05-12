@@ -12,7 +12,7 @@ function normalizeWorkspacePath(workspacePath = '') {
 }
 
 async function formatFromReference(style = 'apa', mode = 'reference', reference = {}, number, workspacePath = '') {
-  const effectiveStyle = normalizeCitationStyle(style)
+  const effectiveStyle = await normalizeCitationStyle(style)
   return invoke('references_citation_render', {
     params: {
       style: effectiveStyle,
@@ -35,7 +35,7 @@ async function formatFromCsl(
   locale = 'en-GB',
   workspacePath = ''
 ) {
-  const effectiveStyle = normalizeCitationStyle(style)
+  const effectiveStyle = await normalizeCitationStyle(style)
   return invoke('references_citation_render', {
     params: {
       style: effectiveStyle,
@@ -67,7 +67,7 @@ export async function formatCitation(style = 'apa', mode = 'reference', referenc
 }
 
 export async function formatBibliography(style = 'apa', references = [], workspacePath = '') {
-  const effectiveStyle = normalizeCitationStyle(style)
+  const effectiveStyle = await normalizeCitationStyle(style)
   return invoke('references_citation_render', {
     params: {
       style: effectiveStyle,

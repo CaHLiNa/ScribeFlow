@@ -56,31 +56,3 @@ export function getReferenceTypeLabelKey(typeKey = '') {
   const normalizedTypeKey = normalizeReferenceTypeKey(typeKey)
   return REFERENCE_TYPE_LABEL_KEYS[normalizedTypeKey] || REFERENCE_TYPE_LABEL_KEYS.other
 }
-
-export function normalizeReferenceRecord(reference = {}) {
-  const {
-    _pushedByApp,
-    _appPushPending,
-    ...rest
-  } = reference
-  const authors = Array.isArray(reference.authors) ? reference.authors : []
-  const pdfPath = String(reference.pdfPath || '').trim()
-  const fulltextPath = String(reference.fulltextPath || '').trim()
-
-  return {
-    ...rest,
-    authors,
-    authorLine: String(reference.authorLine || authors.join('; ')),
-    collections: Array.isArray(reference.collections) ? reference.collections : [],
-    tags: Array.isArray(reference.tags) ? reference.tags : [],
-    notes: Array.isArray(reference.notes) ? reference.notes : [],
-    annotations: Array.isArray(reference.annotations) ? reference.annotations : [],
-    pdfPath,
-    fulltextPath,
-    hasPdf: pdfPath ? true : reference.hasPdf === true,
-    hasFullText: fulltextPath ? true : reference.hasFullText === true,
-    typeKey: normalizeReferenceTypeKey(reference.typeKey || reference.typeLabel),
-    _pushedByApp: _pushedByApp === true,
-    _appPushPending: _appPushPending === true,
-  }
-}
