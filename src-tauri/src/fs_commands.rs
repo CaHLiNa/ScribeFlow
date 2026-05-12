@@ -142,6 +142,39 @@ fn path_status_path_from_payload(path: Value) -> String {
     path.as_str().unwrap_or_default().trim().to_string()
 }
 
+fn command_payload_field<'a>(
+    params: &'a Value,
+    camel_key: &str,
+    snake_key: &str,
+) -> Option<&'a Value> {
+    params
+        .as_object()
+        .and_then(|object| object.get(camel_key).or_else(|| object.get(snake_key)))
+}
+
+fn string_payload_field(params: &Value, camel_key: &str, snake_key: &str) -> String {
+    command_payload_field(params, camel_key, snake_key)
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .trim()
+        .to_string()
+}
+
+fn initial_content_payload_field(params: &Value) -> String {
+    command_payload_field(params, "initialContent", "initial_content")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string()
+}
+
+fn workspace_create_file_params_from_payload(params: Value) -> (String, String, String) {
+    (
+        string_payload_field(&params, "dirPath", "dir_path"),
+        string_payload_field(&params, "name", "name"),
+        initial_content_payload_field(&params),
+    )
+}
+
 fn missing_path_status(path: String) -> PathStatusResult {
     PathStatusResult {
         path,
@@ -631,15 +664,14 @@ pub async fn workspace_write_file_base64(
 
 #[tauri::command]
 pub async fn workspace_create_file(
-    dir_path: String,
-    name: String,
-    initial_content: Option<String>,
+    params: Value,
     scope_state: tauri::State<'_, WorkspaceScopeState>,
 ) -> Result<WorkspaceCreateFileResult, String> {
+    let (dir_path, name, initial_content) = workspace_create_file_params_from_payload(params);
     let full_path = format!("{}/{}", dir_path.trim_end_matches('/'), name);
     let resolved =
         security::ensure_allowed_mutation_path(scope_state.inner(), Path::new(&full_path))?;
-    let content = default_file_content(&name, initial_content.unwrap_or_default().trim());
+    let content = default_file_content(&name, initial_content.trim());
     run_blocking(move || {
         if resolved.exists() {
             return Err("File already exists".to_string());
@@ -977,11 +1009,11 @@ pub async fn get_home_dir() -> Result<String, String> {
 mod tests {
     use super::{
         path_status_internal, path_status_path_from_payload, workspace_create_dir_blocking,
-        workspace_delete_path_blocking, workspace_duplicate_path_blocking,
-        workspace_external_path_internal, workspace_open_path_from_payload,
-        workspace_path_status_internal, workspace_read_file_base64_blocking,
-        workspace_read_text_file_blocking, workspace_write_file_base64_blocking,
-        workspace_write_text_file_blocking,
+        workspace_create_file_params_from_payload, workspace_delete_path_blocking,
+        workspace_duplicate_path_blocking, workspace_external_path_internal,
+        workspace_open_path_from_payload, workspace_path_status_internal,
+        workspace_read_file_base64_blocking, workspace_read_text_file_blocking,
+        workspace_write_file_base64_blocking, workspace_write_text_file_blocking,
     };
     use crate::security::{set_allowed_roots_internal, WorkspaceScopeState};
     use serde_json::json;
@@ -1109,6 +1141,44 @@ mod tests {
         );
         assert_eq!(path_status_path_from_payload(json!(42)), "");
         assert_eq!(path_status_path_from_payload(json!(null)), "");
+    }
+
+    #[test]
+    fn workspace_create_file_params_normalize_raw_payloads() {
+        let (dir_path, name, initial_content) = workspace_create_file_params_from_payload(json!({
+            "dirPath": " /tmp/workspace ",
+            "name": " note.tex ",
+            "initialContent": "  body keeps spaces  "
+        }));
+        assert_eq!(dir_path, "/tmp/workspace");
+        assert_eq!(name, "note.tex");
+        assert_eq!(initial_content, "  body keeps spaces  ");
+
+        let (snake_dir_path, snake_name, snake_initial_content) =
+            workspace_create_file_params_from_payload(json!({
+                "dir_path": " /tmp/snake ",
+                "name": " snake.md ",
+                "initial_content": "snake body"
+            }));
+        assert_eq!(snake_dir_path, "/tmp/snake");
+        assert_eq!(snake_name, "snake.md");
+        assert_eq!(snake_initial_content, "snake body");
+
+        let (fallback_dir_path, fallback_name, fallback_initial_content) =
+            workspace_create_file_params_from_payload(json!({
+                "dirPath": false,
+                "name": 42,
+                "initialContent": null
+            }));
+        assert_eq!(fallback_dir_path, "");
+        assert_eq!(fallback_name, "");
+        assert_eq!(fallback_initial_content, "");
+
+        let (non_object_dir_path, non_object_name, non_object_initial_content) =
+            workspace_create_file_params_from_payload(json!(42));
+        assert_eq!(non_object_dir_path, "");
+        assert_eq!(non_object_name, "");
+        assert_eq!(non_object_initial_content, "");
     }
 
     #[test]

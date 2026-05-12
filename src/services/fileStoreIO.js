@@ -15,9 +15,11 @@ export async function writeTextFile(path, content) {
 
 export async function createWorkspaceFile(dirPath, name, options = {}) {
   return invoke('workspace_create_file', {
-    dirPath,
-    name,
-    initialContent: typeof options.initialContent === 'string' ? options.initialContent : '',
+    params: {
+      dirPath,
+      name,
+      initialContent: options?.initialContent,
+    },
   })
 }
 
