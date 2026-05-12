@@ -309,6 +309,7 @@ pub fn run() {
             markdown_runtime::markdown_link_index_resolve,
             markdown_preview::markdown_preview_render,
             python_preferences::python_preferences_load,
+            python_preferences::python_preferences_normalize,
             python_preferences::python_preferences_save,
             python_runtime::python_runtime_detect,
             python_runtime::python_runtime_list,

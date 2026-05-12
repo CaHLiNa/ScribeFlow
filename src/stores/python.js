@@ -3,6 +3,7 @@ import { useWorkspaceStore } from './workspace'
 import {
   createPythonPreferenceState,
   loadPythonPreferences as loadPythonPreferencesFromRust,
+  normalizePythonPreferences as normalizePythonPreferencesWithRust,
   savePythonPreferences as savePythonPreferencesToRust,
 } from '../services/pythonPreferences'
 import {
@@ -90,11 +91,17 @@ export const usePythonStore = defineStore('python', {
         ...patch,
       }
 
-      this.applyPreferenceState(optimistic)
+      const normalizedOptimistic =
+        await normalizePythonPreferencesWithRust(optimistic)
+
+      this.applyPreferenceState(normalizedOptimistic)
       this._preferencesHydrated = true
 
       try {
-        const preferences = await savePythonPreferencesToRust(globalConfigDir, optimistic)
+        const preferences = await savePythonPreferencesToRust(
+          globalConfigDir,
+          normalizedOptimistic,
+        )
         this.applyPreferenceState(preferences)
         this.preferenceError = ''
         this._preferencesHydrated = true
@@ -108,7 +115,7 @@ export const usePythonStore = defineStore('python', {
 
     async setInterpreterPreference(preference) {
       await this.persistPreferences({
-        interpreterPreference: String(preference || '').trim() || 'auto',
+        interpreterPreference: preference,
       })
       await this.checkInterpreter(true)
     },

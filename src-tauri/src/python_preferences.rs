@@ -38,6 +38,13 @@ pub struct PythonPreferencesSaveParams {
     pub preferences: PythonPreferences,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PythonPreferencesNormalizeParams {
+    #[serde(default)]
+    pub preferences: PythonPreferences,
+}
+
 impl Default for PythonPreferences {
     fn default() -> Self {
         Self {
@@ -143,11 +150,19 @@ pub async fn python_preferences_save(
     Ok(normalized)
 }
 
+#[tauri::command]
+pub async fn python_preferences_normalize(
+    params: PythonPreferencesNormalizeParams,
+) -> Result<PythonPreferences, String> {
+    Ok(normalize_python_preferences(params.preferences))
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        python_preferences_load, python_preferences_save, PythonPreferences,
-        PythonPreferencesLoadParams, PythonPreferencesSaveParams,
+        python_preferences_load, python_preferences_normalize, python_preferences_save,
+        PythonPreferences, PythonPreferencesLoadParams, PythonPreferencesNormalizeParams,
+        PythonPreferencesSaveParams,
     };
     use std::fs;
 
@@ -169,6 +184,32 @@ mod tests {
         assert_eq!(saved.interpreter_preference, "/opt/homebrew/bin/python3");
 
         fs::remove_dir_all(temp_dir).ok();
+    }
+
+    #[tokio::test]
+    async fn normalize_command_returns_canonical_python_preferences_without_writing() {
+        let normalized = python_preferences_normalize(PythonPreferencesNormalizeParams {
+            preferences: PythonPreferences {
+                interpreter_preference: " /opt/homebrew/bin/python3 ".to_string(),
+            },
+        })
+        .await
+        .expect("python preference normalize command should return normalized state");
+
+        assert_eq!(
+            normalized.interpreter_preference,
+            "/opt/homebrew/bin/python3"
+        );
+
+        let defaulted = python_preferences_normalize(PythonPreferencesNormalizeParams {
+            preferences: PythonPreferences {
+                interpreter_preference: " AUTO ".to_string(),
+            },
+        })
+        .await
+        .expect("python preference normalize command should preserve auto default");
+
+        assert_eq!(defaulted.interpreter_preference, "auto");
     }
 
     #[tokio::test]
