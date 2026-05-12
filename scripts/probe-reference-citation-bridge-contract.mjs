@@ -37,13 +37,9 @@ try {
   const calls = []
   mockIPC(async (cmd, args) => {
     calls.push([cmd, args])
-    if (cmd === 'citation_style_normalize') {
-      await Promise.resolve()
-      return 'ieee'
-    }
     if (cmd === 'references_citation_render') {
-      assert.equal(args?.params?.style, 'ieee')
-      assert.equal(args?.params?.workspacePath, '/tmp/workspace')
+      assert.equal(args?.params?.style, 'IEEE')
+      assert.equal(args?.params?.workspacePath, ' /tmp/workspace ')
       return '[1]'
     }
     throw new Error(`Unexpected IPC command: ${cmd}`)
@@ -55,18 +51,15 @@ try {
     'inline',
     { id: 'ref-1', citationKey: 'demo2026', title: 'Demo' },
     1,
-    '/tmp/workspace',
+    ' /tmp/workspace ',
   )
 
   assert.equal(rendered, '[1]')
-  assert.deepEqual(calls.map(([cmd]) => cmd), [
-    'citation_style_normalize',
-    'references_citation_render',
-  ])
+  assert.deepEqual(calls.map(([cmd]) => cmd), ['references_citation_render'])
 
   console.log(JSON.stringify({
     ok: true,
-    normalizedStyle: calls[1]?.[1]?.params?.style,
+    rawStyle: calls[0]?.[1]?.params?.style,
     rendered,
   }, null, 2))
 } finally {

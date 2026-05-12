@@ -1,28 +1,16 @@
 import { invoke } from '@tauri-apps/api/core'
-import { normalizeCitationStyle } from './citationStyleRuntime.js'
-
-const FAST_STYLE_IDS = new Set(['apa', 'chicago', 'harvard', 'ieee', 'vancouver'])
-
-export function isFastCitationStyle(style = 'apa') {
-  return FAST_STYLE_IDS.has(String(style || '').trim())
-}
-
-function normalizeWorkspacePath(workspacePath = '') {
-  return String(workspacePath || '').trim()
-}
 
 async function formatFromReference(style = 'apa', mode = 'reference', reference = {}, number, workspacePath = '') {
-  const effectiveStyle = await normalizeCitationStyle(style)
   return invoke('references_citation_render', {
     params: {
-      style: effectiveStyle,
+      style,
       mode,
       reference,
       references: mode === 'bibliography' ? [reference] : [],
       cslItems: [],
       number,
       locale: 'en-GB',
-      workspacePath: normalizeWorkspacePath(workspacePath),
+      workspacePath,
     },
   })
 }
@@ -35,17 +23,16 @@ async function formatFromCsl(
   locale = 'en-GB',
   workspacePath = ''
 ) {
-  const effectiveStyle = await normalizeCitationStyle(style)
   return invoke('references_citation_render', {
     params: {
-      style: effectiveStyle,
+      style,
       mode,
       reference: null,
       references: [],
       cslItems,
       number,
       locale,
-      workspacePath: normalizeWorkspacePath(workspacePath),
+      workspacePath,
     },
   })
 }
@@ -67,17 +54,16 @@ export async function formatCitation(style = 'apa', mode = 'reference', referenc
 }
 
 export async function formatBibliography(style = 'apa', references = [], workspacePath = '') {
-  const effectiveStyle = await normalizeCitationStyle(style)
   return invoke('references_citation_render', {
     params: {
-      style: effectiveStyle,
+      style,
       mode: 'bibliography',
       reference: null,
       references,
       cslItems: [],
       number: null,
       locale: 'en-GB',
-      workspacePath: normalizeWorkspacePath(workspacePath),
+      workspacePath,
     },
   })
 }

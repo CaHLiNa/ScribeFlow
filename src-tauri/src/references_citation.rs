@@ -2,51 +2,108 @@ use hayagriva::citationberg::{LocaleFile, Style};
 use hayagriva::{
     BibliographyDriver, BibliographyRequest, BufWriteFormat, CitationItem, CitationRequest,
 };
-use serde::Deserialize;
 use serde_json::Value;
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::references_snapshot::{csl_to_reference_record, reference_record_to_csl};
 
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct CitationCslFormatParams {
-    #[serde(default)]
-    pub style_id: String,
-    #[serde(default)]
-    pub mode: String,
-    #[serde(default)]
-    pub csl_items: Vec<Value>,
-    #[serde(default)]
-    pub locale: String,
-    #[serde(default)]
-    pub workspace_path: String,
+    style_id: String,
+    mode: String,
+    csl_items: Vec<Value>,
+    locale: String,
+    workspace_path: String,
 }
 
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CitationRenderParams {
-    #[serde(default)]
     pub style: String,
-    #[serde(default)]
     pub mode: String,
-    #[serde(default)]
     pub reference: Value,
-    #[serde(default)]
     pub references: Vec<Value>,
-    #[serde(default)]
     pub csl_items: Vec<Value>,
-    #[serde(default)]
     pub number: Option<usize>,
-    #[serde(default)]
     pub locale: String,
-    #[serde(default)]
     pub workspace_path: String,
 }
 
 fn is_fast_style(style: &str) -> bool {
     matches!(style, "apa" | "chicago" | "harvard" | "ieee" | "vancouver")
+}
+
+fn normalize_citation_style(style: &str) -> String {
+    let normalized = style.trim().to_lowercase();
+    if is_fast_style(&normalized) {
+        normalized
+    } else {
+        "apa".to_string()
+    }
+}
+
+fn normalize_citation_mode(mode: &str) -> String {
+    match mode.trim() {
+        "inline" => "inline".to_string(),
+        "bibliography" => "bibliography".to_string(),
+        _ => "reference".to_string(),
+    }
+}
+
+fn payload_field<'a>(params: &'a Value, keys: &[&str]) -> Option<&'a Value> {
+    let object = params.as_object()?;
+    keys.iter().find_map(|key| object.get(*key))
+}
+
+fn string_payload_field(params: &Value, keys: &[&str]) -> String {
+    payload_field(params, keys)
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .trim()
+        .to_string()
+}
+
+fn array_payload_field(params: &Value, keys: &[&str]) -> Vec<Value> {
+    payload_field(params, keys)
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default()
+}
+
+fn number_payload_field(params: &Value, keys: &[&str]) -> Option<usize> {
+    let value = payload_field(params, keys)?;
+    if let Some(number) = value.as_u64() {
+        return usize::try_from(number).ok();
+    }
+    let number = value.as_f64()?;
+    if !number.is_finite() || number.fract() != 0.0 || number < 0.0 || number > usize::MAX as f64 {
+        return None;
+    }
+    Some(number as usize)
+}
+
+fn references_citation_render_params_from_payload(params: Value) -> CitationRenderParams {
+    let reference = payload_field(&params, &["reference"])
+        .cloned()
+        .unwrap_or(Value::Null);
+    let locale = string_payload_field(&params, &["locale"]);
+    CitationRenderParams {
+        style: normalize_citation_style(&string_payload_field(
+            &params,
+            &["style", "styleId", "style_id"],
+        )),
+        mode: normalize_citation_mode(&string_payload_field(&params, &["mode"])),
+        reference,
+        references: array_payload_field(&params, &["references"]),
+        csl_items: array_payload_field(&params, &["cslItems", "csl_items"]),
+        number: number_payload_field(&params, &["number"]),
+        locale: if locale.is_empty() {
+            "en-GB".to_string()
+        } else {
+            locale
+        },
+        workspace_path: string_payload_field(&params, &["workspacePath", "workspace_path"]),
+    }
 }
 
 fn trim_string(value: Option<&Value>) -> String {
@@ -651,9 +708,10 @@ async fn render_csl_items(params: CitationCslFormatParams) -> Result<String, Str
 }
 
 #[tauri::command]
-pub async fn references_citation_render(params: CitationRenderParams) -> Result<String, String> {
-    let style = params.style.trim();
-    let mode = params.mode.trim();
+pub async fn references_citation_render(params: Value) -> Result<String, String> {
+    let params = references_citation_render_params_from_payload(params);
+    let style = params.style.as_str();
+    let mode = params.mode.as_str();
     let fallback_reference = if params.reference.is_null() && !params.csl_items.is_empty() {
         csl_to_reference_record(&params.csl_items[0])
     } else {
@@ -707,4 +765,68 @@ pub async fn references_citation_render(params: CitationRenderParams) -> Result<
         workspace_path: params.workspace_path,
     })
     .await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{references_citation_render_params_from_payload, CitationRenderParams};
+    use serde_json::{json, Value};
+
+    #[test]
+    fn citation_render_params_normalize_raw_payloads() {
+        let params = references_citation_render_params_from_payload(json!({
+            "style": " IEEE ",
+            "mode": " inline ",
+            "reference": {
+                "id": "ref-1"
+            },
+            "references": false,
+            "cslItems": [
+                { "id": "csl-1" }
+            ],
+            "number": 3,
+            "locale": " fr-FR ",
+            "workspacePath": " /tmp/workspace "
+        }));
+
+        assert_eq!(
+            params,
+            CitationRenderParams {
+                style: "ieee".to_string(),
+                mode: "inline".to_string(),
+                reference: json!({ "id": "ref-1" }),
+                references: Vec::new(),
+                csl_items: vec![json!({ "id": "csl-1" })],
+                number: Some(3),
+                locale: "fr-FR".to_string(),
+                workspace_path: "/tmp/workspace".to_string(),
+            }
+        );
+
+        let params = references_citation_render_params_from_payload(json!({
+            "style_id": "unknown",
+            "mode": "unknown",
+            "reference": false,
+            "references": [{ "id": "ref-2" }],
+            "csl_items": false,
+            "number": 2.5,
+            "locale": "",
+            "workspace_path": 42
+        }));
+
+        assert_eq!(params.style, "apa");
+        assert_eq!(params.mode, "reference");
+        assert_eq!(params.reference, Value::Bool(false));
+        assert_eq!(params.references, vec![json!({ "id": "ref-2" })]);
+        assert_eq!(params.csl_items, Vec::<Value>::new());
+        assert_eq!(params.number, None);
+        assert_eq!(params.locale, "en-GB");
+        assert_eq!(params.workspace_path, "");
+
+        let params = references_citation_render_params_from_payload(json!(false));
+        assert_eq!(params.style, "apa");
+        assert_eq!(params.mode, "reference");
+        assert_eq!(params.reference, Value::Null);
+        assert_eq!(params.locale, "en-GB");
+    }
 }
