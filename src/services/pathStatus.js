@@ -1,7 +1,8 @@
 import { invoke } from '@tauri-apps/api/core'
 
 function normalizePathStatus(path = '', status = {}) {
-  const normalizedPath = String(status?.path || path || '')
+  const hasStatusPath = Object.prototype.hasOwnProperty.call(status || {}, 'path')
+  const normalizedPath = hasStatusPath ? String(status?.path || '') : String(path || '')
   const exists = status?.exists === true
   return {
     path: normalizedPath,
@@ -14,24 +15,20 @@ function normalizePathStatus(path = '', status = {}) {
 }
 
 export async function getPathStatus(path = '') {
-  const normalizedPath = String(path || '').trim()
-  if (!normalizedPath) return normalizePathStatus('')
   try {
-    const status = await invoke('path_status', { path: normalizedPath })
-    return normalizePathStatus(normalizedPath, status)
+    const status = await invoke('path_status', { path })
+    return normalizePathStatus(path, status)
   } catch {
-    return normalizePathStatus(normalizedPath)
+    return normalizePathStatus(path)
   }
 }
 
 export async function getWorkspacePathStatus(path = '') {
-  const normalizedPath = String(path || '').trim()
-  if (!normalizedPath) return normalizePathStatus('')
   try {
-    const status = await invoke('workspace_path_status', { path: normalizedPath })
-    return normalizePathStatus(normalizedPath, status)
+    const status = await invoke('workspace_path_status', { path })
+    return normalizePathStatus(path, status)
   } catch {
-    return normalizePathStatus(normalizedPath)
+    return normalizePathStatus(path)
   }
 }
 

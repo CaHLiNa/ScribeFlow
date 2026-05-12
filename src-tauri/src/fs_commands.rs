@@ -138,6 +138,21 @@ fn workspace_open_path_from_payload(path: Value) -> String {
     path.as_str().unwrap_or_default().trim().to_string()
 }
 
+fn path_status_path_from_payload(path: Value) -> String {
+    path.as_str().unwrap_or_default().trim().to_string()
+}
+
+fn missing_path_status(path: String) -> PathStatusResult {
+    PathStatusResult {
+        path,
+        exists: false,
+        is_dir: false,
+        is_file: false,
+        size: None,
+        modified: None,
+    }
+}
+
 fn workspace_path_status_internal(
     scope_state: &WorkspaceScopeState,
     path: &Path,
@@ -759,15 +774,23 @@ pub async fn workspace_copy_external_path(
 }
 
 #[tauri::command]
-pub async fn path_status(path: String) -> Result<PathStatusResult, String> {
+pub async fn path_status(path: Value) -> Result<PathStatusResult, String> {
+    let path = path_status_path_from_payload(path);
+    if path.is_empty() {
+        return Ok(missing_path_status(path));
+    }
     Ok(path_status_internal(Path::new(&path)))
 }
 
 #[tauri::command]
 pub async fn workspace_path_status(
-    path: String,
+    path: Value,
     scope_state: tauri::State<'_, WorkspaceScopeState>,
 ) -> Result<PathStatusResult, String> {
+    let path = path_status_path_from_payload(path);
+    if path.is_empty() {
+        return Ok(missing_path_status(path));
+    }
     workspace_path_status_internal(scope_state.inner(), Path::new(&path))
 }
 
@@ -953,11 +976,12 @@ pub async fn get_home_dir() -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        path_status_internal, workspace_create_dir_blocking, workspace_delete_path_blocking,
-        workspace_duplicate_path_blocking, workspace_external_path_internal,
-        workspace_open_path_from_payload, workspace_path_status_internal,
-        workspace_read_file_base64_blocking, workspace_read_text_file_blocking,
-        workspace_write_file_base64_blocking, workspace_write_text_file_blocking,
+        path_status_internal, path_status_path_from_payload, workspace_create_dir_blocking,
+        workspace_delete_path_blocking, workspace_duplicate_path_blocking,
+        workspace_external_path_internal, workspace_open_path_from_payload,
+        workspace_path_status_internal, workspace_read_file_base64_blocking,
+        workspace_read_text_file_blocking, workspace_write_file_base64_blocking,
+        workspace_write_text_file_blocking,
     };
     use crate::security::{set_allowed_roots_internal, WorkspaceScopeState};
     use serde_json::json;
@@ -1075,6 +1099,16 @@ mod tests {
         );
         assert_eq!(workspace_open_path_from_payload(json!(42)), "");
         assert_eq!(workspace_open_path_from_payload(json!(null)), "");
+    }
+
+    #[test]
+    fn path_status_params_normalize_raw_payloads() {
+        assert_eq!(
+            path_status_path_from_payload(json!(" /tmp/workspace/note.md ")),
+            "/tmp/workspace/note.md"
+        );
+        assert_eq!(path_status_path_from_payload(json!(42)), "");
+        assert_eq!(path_status_path_from_payload(json!(null)), "");
     }
 
     #[test]
