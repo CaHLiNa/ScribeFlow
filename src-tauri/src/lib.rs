@@ -14,7 +14,6 @@ mod document_workflow_ui_state;
 mod document_workspace_preview_state;
 mod editor_session_runtime;
 mod extension_artifacts;
-mod file_types;
 mod extension_capability_contract;
 mod extension_commands;
 mod extension_host;
@@ -26,6 +25,7 @@ mod extension_secret_settings;
 mod extension_settings;
 mod extension_tasks;
 mod extension_views;
+mod file_types;
 mod fs_commands;
 mod fs_io;
 mod fs_tree;
@@ -38,8 +38,8 @@ mod latex_compile;
 mod latex_compile_normalize;
 mod latex_diagnostics;
 mod latex_preferences;
-mod latex_project_graph;
 mod latex_project_diagnostics;
+mod latex_project_graph;
 mod latex_runtime;
 mod latex_sync_target;
 mod latex_tools;
@@ -67,8 +67,8 @@ mod text_diff;
 mod workbench_state;
 mod workspace_access;
 mod workspace_lifecycle;
-mod workspace_preferences;
 mod workspace_paths;
+mod workspace_preferences;
 mod workspace_protocol;
 mod workspace_protocol_url;
 
@@ -282,6 +282,7 @@ pub fn run() {
             references_zotero::references_zotero_fetch_collections,
             references_zotero::references_zotero_sync,
             references_zotero::references_zotero_sync_persist,
+            references_zotero::references_zotero_sync_persist_with_account,
             references_zotero::references_zotero_delete_item,
             // Document workflow, preview state, editor session, Markdown, Python, and LaTeX.
             document_outline::document_outline_resolve,

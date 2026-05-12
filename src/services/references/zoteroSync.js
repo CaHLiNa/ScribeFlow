@@ -101,12 +101,9 @@ export async function deleteFromZotero(reference = {}) {
 }
 
 export async function syncNow(projectRoot = '', options = {}) {
-  const apiKey = await loadZoteroApiKey()
-
-  return invoke('references_zotero_sync_persist', {
+  return invoke('references_zotero_sync_persist_with_account', {
     params: {
       globalConfigDir: projectRoot,
-      apiKey,
       snapshot: options?.snapshot,
       selectedReferenceId: options?.selectedReferenceId,
     },

@@ -35,21 +35,13 @@ try {
   mockWindows('main')
 
   const calls = []
-  let apiKeyValue = ' secret '
+  let shouldSkip = false
 
   mockIPC(async (cmd, args) => {
     calls.push({ cmd, args })
 
-    if (cmd === 'get_global_config_dir') {
-      return 42
-    }
-
-    if (cmd === 'references_zotero_api_key_load') {
-      return apiKeyValue
-    }
-
-    if (cmd === 'references_zotero_sync_persist') {
-      return apiKeyValue
+    if (cmd === 'references_zotero_sync_persist_with_account') {
+      return !shouldSkip
         ? {
             snapshot: {
               version: 2,
@@ -95,7 +87,7 @@ try {
     updated: 2,
   })
 
-  apiKeyValue = null
+  shouldSkip = true
   const skipped = await syncNow('/tmp/project-root', {
     snapshot: 'not-an-object',
     selectedReferenceId: null,
@@ -110,25 +102,17 @@ try {
   assert.deepEqual(
     calls.map((call) => call.cmd),
     [
-      'get_global_config_dir',
-      'references_zotero_api_key_load',
-      'references_zotero_sync_persist',
-      'get_global_config_dir',
-      'references_zotero_api_key_load',
-      'references_zotero_sync_persist',
+      'references_zotero_sync_persist_with_account',
+      'references_zotero_sync_persist_with_account',
     ],
   )
-  assert.deepEqual(calls[1].args.params, { globalConfigDir: 42 })
-  assert.deepEqual(calls[2].args.params, {
+  assert.deepEqual(calls[0].args.params, {
     globalConfigDir: '/tmp/project-root',
-    apiKey: ' secret ',
     snapshot,
     selectedReferenceId: 42,
   })
-  assert.deepEqual(calls[4].args.params, { globalConfigDir: 42 })
-  assert.deepEqual(calls[5].args.params, {
+  assert.deepEqual(calls[1].args.params, {
     globalConfigDir: '/tmp/project-root',
-    apiKey: null,
     snapshot: 'not-an-object',
     selectedReferenceId: null,
   })

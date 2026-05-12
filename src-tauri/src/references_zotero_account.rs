@@ -3,8 +3,9 @@ use serde_json::{Map, Value};
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::keychain;
+
 const ZOTERO_KEYCHAIN_KEY: &str = "zotero-api-key";
-const SERVICE_NAME: &str = "ScribeFlow";
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -61,30 +62,16 @@ fn write_zotero_config_raw(global_config_dir: &str, config: Option<Value>) -> Re
     Ok(())
 }
 
-fn keychain_entry() -> Result<keyring::Entry, String> {
-    keyring::Entry::new(SERVICE_NAME, ZOTERO_KEYCHAIN_KEY).map_err(|error| error.to_string())
-}
-
 fn keychain_set(value: &str) -> Result<(), String> {
-    let entry = keychain_entry()?;
-    entry.set_password(value).map_err(|error| error.to_string())
+    keychain::keychain_set_entry(ZOTERO_KEYCHAIN_KEY, value)
 }
 
 fn keychain_get() -> Result<Option<String>, String> {
-    let entry = keychain_entry()?;
-    match entry.get_password() {
-        Ok(value) => Ok(Some(value)),
-        Err(keyring::Error::NoEntry) => Ok(None),
-        Err(error) => Err(error.to_string()),
-    }
+    keychain::keychain_get_entry(ZOTERO_KEYCHAIN_KEY)
 }
 
 fn keychain_delete() -> Result<(), String> {
-    let entry = keychain_entry()?;
-    match entry.delete_credential() {
-        Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
-        Err(error) => Err(error.to_string()),
-    }
+    keychain::keychain_delete_entry(ZOTERO_KEYCHAIN_KEY)
 }
 
 fn merge_key_fallback(global_config_dir: &str, api_key: &str) -> Result<(), String> {
@@ -112,6 +99,26 @@ fn clear_key_fallback(global_config_dir: &str) -> Result<(), String> {
     write_zotero_config_raw(global_config_dir, Some(Value::Object(map)))
 }
 
+pub(crate) fn load_zotero_api_key_string(global_config_dir: &str) -> Result<String, String> {
+    if let Some(value) = keychain_get()? {
+        let trimmed = value.trim();
+        if !trimmed.is_empty() {
+            return Ok(trimmed.to_string());
+        }
+    }
+
+    Ok(read_zotero_config_raw(global_config_dir)?
+        .and_then(|config| {
+            config
+                .get("_apiKeyFallback")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(ToString::to_string)
+        })
+        .unwrap_or_default())
+}
+
 #[tauri::command]
 pub async fn references_zotero_api_key_store(
     params: ZoteroAccountStoreParams,
@@ -124,25 +131,11 @@ pub async fn references_zotero_api_key_store(
 pub async fn references_zotero_api_key_load(
     params: ZoteroAccountPathParams,
 ) -> Result<Value, String> {
-    if let Some(value) = keychain_get()? {
-        if !value.trim().is_empty() {
-            return Ok(Value::String(value));
-        }
-    }
-    let fallback = read_zotero_config_raw(&params.global_config_dir)?
-        .and_then(|config| {
-            config
-                .get("_apiKeyFallback")
-                .and_then(Value::as_str)
-                .map(str::trim)
-                .filter(|value| !value.is_empty())
-                .map(ToString::to_string)
-        })
-        .unwrap_or_default();
-    if fallback.is_empty() {
+    let api_key = load_zotero_api_key_string(&params.global_config_dir)?;
+    if api_key.is_empty() {
         Ok(Value::Null)
     } else {
-        Ok(Value::String(fallback))
+        Ok(Value::String(api_key))
     }
 }
 

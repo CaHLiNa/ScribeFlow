@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
 use crate::references_backend::write_library_snapshot;
+use crate::references_zotero_account::load_zotero_api_key_string;
 
 const ZOTERO_API_BASE: &str = "https://api.zotero.org";
 const ZOTERO_USER_AGENT: &str = "ScribeFlow-Desktop/1.0";
@@ -62,6 +63,16 @@ pub struct ZoteroSyncParams {
 pub struct ZoteroSyncPersistParams {
     pub global_config_dir: String,
     pub api_key: String,
+    #[serde(default)]
+    pub snapshot: Value,
+    #[serde(default)]
+    pub selected_reference_id: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ZoteroSyncPersistWithAccountParams {
+    pub global_config_dir: String,
     #[serde(default)]
     pub snapshot: Value,
     #[serde(default)]
@@ -144,6 +155,20 @@ fn zotero_sync_persist_params_from_payload(params: Value) -> ZoteroSyncPersistPa
     ZoteroSyncPersistParams {
         global_config_dir: string_payload_field(&params, "globalConfigDir", "global_config_dir"),
         api_key: string_payload_field(&params, "apiKey", "api_key"),
+        snapshot: snapshot_payload_field(&params),
+        selected_reference_id: string_payload_field(
+            &params,
+            "selectedReferenceId",
+            "selected_reference_id",
+        ),
+    }
+}
+
+fn zotero_sync_persist_with_account_params_from_payload(
+    params: Value,
+) -> ZoteroSyncPersistWithAccountParams {
+    ZoteroSyncPersistWithAccountParams {
+        global_config_dir: string_payload_field(&params, "globalConfigDir", "global_config_dir"),
         snapshot: snapshot_payload_field(&params),
         selected_reference_id: string_payload_field(
             &params,
@@ -1309,6 +1334,27 @@ pub async fn references_zotero_sync_persist(params: Value) -> Result<Value, Stri
     references_zotero_sync_persist_typed(zotero_sync_persist_params_from_payload(params)).await
 }
 
+pub async fn references_zotero_sync_persist_with_account_typed(
+    params: ZoteroSyncPersistWithAccountParams,
+) -> Result<Value, String> {
+    let api_key = load_zotero_api_key_string(&params.global_config_dir)?;
+    references_zotero_sync_persist_typed(ZoteroSyncPersistParams {
+        global_config_dir: params.global_config_dir,
+        api_key,
+        snapshot: params.snapshot,
+        selected_reference_id: params.selected_reference_id,
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn references_zotero_sync_persist_with_account(params: Value) -> Result<Value, String> {
+    references_zotero_sync_persist_with_account_typed(
+        zotero_sync_persist_with_account_params_from_payload(params),
+    )
+    .await
+}
+
 #[tauri::command]
 pub async fn references_zotero_delete_item(params: ZoteroDeleteParams) -> Result<(), String> {
     let Some(config) = read_zotero_config_raw(&params.global_config_dir)? else {
@@ -1373,8 +1419,9 @@ mod tests {
         build_citation_key, extract_csl_year, extract_items_array,
         has_local_references_for_library, library_needs_metadata_refresh,
         looks_like_generated_citation_key, references_zotero_sync_persist,
-        references_zotero_sync_persist_typed, zotero_sync_persist_params_from_payload,
-        ZoteroSyncPersistParams,
+        references_zotero_sync_persist_typed, references_zotero_sync_persist_with_account,
+        zotero_sync_persist_params_from_payload,
+        zotero_sync_persist_with_account_params_from_payload, ZoteroSyncPersistParams,
     };
     use serde_json::json;
 
@@ -1498,6 +1545,33 @@ mod tests {
         assert_eq!(invalid.selected_reference_id, "");
     }
 
+    #[test]
+    fn zotero_sync_persist_with_account_params_normalize_raw_payloads() {
+        let params = zotero_sync_persist_with_account_params_from_payload(json!({
+            "globalConfigDir": " /tmp/config/ ",
+            "apiKey": "ignored-by-account-command",
+            "snapshot": {
+                "references": [
+                    { "id": "ref-a" }
+                ]
+            },
+            "selectedReferenceId": " ref-a "
+        }));
+
+        assert_eq!(params.global_config_dir, "/tmp/config/");
+        assert_eq!(params.snapshot["references"].as_array().unwrap().len(), 1);
+        assert_eq!(params.selected_reference_id, "ref-a");
+
+        let invalid = zotero_sync_persist_with_account_params_from_payload(json!({
+            "globalConfigDir": 42,
+            "snapshot": "not-an-object",
+            "selectedReferenceId": 42
+        }));
+        assert_eq!(invalid.global_config_dir, "");
+        assert_eq!(invalid.snapshot, json!({}));
+        assert_eq!(invalid.selected_reference_id, "");
+    }
+
     #[tokio::test]
     async fn sync_persist_returns_canonical_skipped_result() {
         let skipped_without_api_key = references_zotero_sync_persist(json!({
@@ -1535,6 +1609,33 @@ mod tests {
         assert_eq!(skipped_without_config["imported"], 0);
         assert_eq!(skipped_without_config["linked"], 0);
         assert_eq!(skipped_without_config["updated"], 0);
+    }
+
+    #[tokio::test]
+    async fn sync_persist_with_account_loads_api_key_in_rust() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "scribeflow-zotero-sync-account-{}",
+            uuid::Uuid::new_v4()
+        ));
+
+        let skipped_without_stored_key = references_zotero_sync_persist_with_account(json!({
+            "globalConfigDir": temp_dir.to_string_lossy().to_string(),
+            "apiKey": "ignored-by-account-command",
+            "snapshot": {
+                "references": [
+                    { "id": "ref-a" }
+                ],
+                "selectedReferenceId": "ref-a"
+            },
+            "selectedReferenceId": " ref-a "
+        }))
+        .await
+        .expect("sync persist with account should skip when api key is not stored");
+
+        assert_eq!(skipped_without_stored_key["skipped"], true);
+        assert_eq!(skipped_without_stored_key["imported"], 0);
+        assert_eq!(skipped_without_stored_key["linked"], 0);
+        assert_eq!(skipped_without_stored_key["updated"], 0);
     }
 
     #[test]
