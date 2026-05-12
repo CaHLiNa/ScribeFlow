@@ -145,15 +145,6 @@ pub struct WorkspaceLifecyclePrepareOpenParams {
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct WorkspaceLifecycleResolveBootstrapPlanParams {
-    #[serde(default)]
-    pub has_cached_tree: bool,
-    #[serde(default = "default_restore_editor_session")]
-    pub restore_editor_session: bool,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct WorkspaceLifecycleLoadBootstrapDataParams {
     #[serde(default)]
     pub global_config_dir: String,
@@ -514,6 +505,14 @@ fn build_workspace_bootstrap_plan(has_cached_tree: bool) -> WorkspaceBootstrapPl
     }
 }
 
+fn resolve_bootstrap_has_cached_tree(params: &Value) -> bool {
+    params
+        .as_object()
+        .and_then(|object| object.get("hasCachedTree"))
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+}
+
 fn write_workspace_bootstrap_file(
     workspace_data_dir: &str,
     workspace_id: &str,
@@ -611,10 +610,11 @@ pub async fn workspace_lifecycle_prepare_open(
 
 #[tauri::command]
 pub async fn workspace_lifecycle_resolve_bootstrap_plan(
-    params: WorkspaceLifecycleResolveBootstrapPlanParams,
+    params: Value,
 ) -> Result<WorkspaceBootstrapPlan, String> {
-    let _ = params.restore_editor_session;
-    Ok(build_workspace_bootstrap_plan(params.has_cached_tree))
+    Ok(build_workspace_bootstrap_plan(
+        resolve_bootstrap_has_cached_tree(&params),
+    ))
 }
 
 #[tauri::command]
@@ -711,10 +711,11 @@ mod tests {
     use super::{
         build_workspace_bootstrap_plan, hash_workspace_path, normalize_workspace_lifecycle_state,
         prune_missing_workspace_lifecycle_state, record_workspace_opened,
-        resolve_claude_config_dir, resolve_workspace_data_dir, workspace_lifecycle_load,
-        workspace_lifecycle_save, RecentWorkspaceEntry, WorkspaceLifecycleLoadParams,
-        WorkspaceLifecycleSaveParams, WorkspaceLifecycleState,
+        resolve_bootstrap_has_cached_tree, resolve_claude_config_dir, resolve_workspace_data_dir,
+        workspace_lifecycle_load, workspace_lifecycle_save, RecentWorkspaceEntry,
+        WorkspaceLifecycleLoadParams, WorkspaceLifecycleSaveParams, WorkspaceLifecycleState,
     };
+    use serde_json::json;
     use std::fs;
 
     #[test]
@@ -889,6 +890,18 @@ mod tests {
             .tasks
             .iter()
             .all(|task| task.key != "editor.restoreEditorState"));
+    }
+
+    #[test]
+    fn resolves_bootstrap_plan_params_from_raw_payload() {
+        assert!(resolve_bootstrap_has_cached_tree(&json!({
+            "hasCachedTree": true,
+            "restoreEditorSession": "not-a-bool"
+        })));
+        assert!(!resolve_bootstrap_has_cached_tree(&json!({
+            "hasCachedTree": "true"
+        })));
+        assert!(!resolve_bootstrap_has_cached_tree(&json!(null)));
     }
 
     #[test]

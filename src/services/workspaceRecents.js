@@ -59,10 +59,7 @@ export async function resolveWorkspaceBootstrapPlan(options = {}) {
     return { tasks: [], backgroundWindowMs: 0, ...options }
   }
   return invoke('workspace_lifecycle_resolve_bootstrap_plan', {
-    params: {
-      hasCachedTree: options.hasCachedTree === true,
-      restoreEditorSession: options.restoreEditorSession !== false,
-    },
+    params: options || {},
   })
 }
 
