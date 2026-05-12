@@ -78,7 +78,7 @@ try {
     }
 
     if (cmd === 'latex_compile_execution_normalize') {
-      return args?.execution
+      return args?.params?.execution
     }
 
     throw new Error(`Unexpected IPC command: ${cmd}`)
@@ -154,6 +154,18 @@ try {
     enginePreference: false,
     customSystemTexPath: null,
     customTectonicPath: undefined,
+  })
+  assert.deepEqual(calls[3].args.params.execution, {
+    sourceState: {},
+    targetState: {},
+    queueState: null,
+    result: {
+      success: false,
+      errors: [],
+      warnings: [],
+      log: '',
+      durationMs: 0,
+    },
   })
   assert.deepEqual(calls[4].args.params, { targetPaths: 42 })
 

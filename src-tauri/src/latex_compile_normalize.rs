@@ -81,12 +81,34 @@ fn normalize_issue(issue: &Value) -> Value {
 }
 
 #[tauri::command]
-pub async fn latex_compile_result_normalize(result: Value) -> Result<Value, String> {
+pub async fn latex_compile_result_normalize(params: Value) -> Result<Value, String> {
+    let result = result_from_payload(params);
     Ok(normalize_result(&result))
 }
 
 #[tauri::command]
-pub async fn latex_compile_execution_normalize(execution: Value) -> Result<Value, String> {
+pub async fn latex_compile_execution_normalize(params: Value) -> Result<Value, String> {
+    let execution = execution_from_payload(params);
+    Ok(normalize_execution(&execution))
+}
+
+fn payload_field(params: Value, key: &str) -> Value {
+    params
+        .as_object()
+        .and_then(|object| object.get(key))
+        .cloned()
+        .unwrap_or_else(|| Value::Object(Default::default()))
+}
+
+fn result_from_payload(params: Value) -> Value {
+    payload_field(params, "result")
+}
+
+fn execution_from_payload(params: Value) -> Value {
+    payload_field(params, "execution")
+}
+
+fn normalize_execution(execution: &Value) -> Value {
     let result = execution
         .get("result")
         .cloned()
@@ -111,12 +133,12 @@ pub async fn latex_compile_execution_normalize(execution: Value) -> Result<Value
         .cloned()
         .unwrap_or(Value::Null);
 
-    Ok(serde_json::json!({
+    serde_json::json!({
         "sourceState": source_state,
         "targetState": target_state,
         "queueState": queue_state,
         "result": normalized_result,
-    }))
+    })
 }
 
 fn normalize_result(result: &Value) -> Value {
@@ -138,8 +160,11 @@ fn normalize_result(result: &Value) -> Value {
         .or_else(|| result.get("requestedProgram"))
         .cloned()
         .unwrap_or(Value::Null);
-    let requested_program_applied =
-        bool_or(result, &["requested_program_applied", "requestedProgramApplied"], false);
+    let requested_program_applied = bool_or(
+        result,
+        &["requested_program_applied", "requestedProgramApplied"],
+        false,
+    );
 
     let errors = result
         .get("errors")
@@ -195,4 +220,77 @@ fn normalize_result(result: &Value) -> Value {
         "requested_program_applied": requested_program_applied,
         "requestedProgramApplied": requested_program_applied,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        execution_from_payload, normalize_execution, normalize_result, result_from_payload,
+    };
+    use serde_json::json;
+
+    #[test]
+    fn latex_compile_normalize_params_normalize_raw_payloads() {
+        let result = result_from_payload(json!({
+            "result": {
+                "success": true,
+                "pdfPath": " /tmp/out.pdf ",
+                "durationMs": 42,
+                "errors": [{
+                    "file": "/tmp/main.tex",
+                    "line": 12,
+                    "column": 4,
+                    "message": " Missing brace ",
+                    "severity": " warning ",
+                    "raw": "raw log"
+                }]
+            }
+        }));
+        let normalized_result = normalize_result(&result);
+        assert_eq!(normalized_result["success"], true);
+        assert_eq!(normalized_result["pdfPath"], " /tmp/out.pdf ");
+        assert_eq!(normalized_result["durationMs"], 42.0);
+        assert_eq!(normalized_result["errors"][0]["message"], "Missing brace");
+        assert_eq!(normalized_result["errors"][0]["severity"], "warning");
+
+        let missing_result = result_from_payload(json!({
+            "result": 42
+        }));
+        let normalized_missing_result = normalize_result(&missing_result);
+        assert_eq!(normalized_missing_result["success"], false);
+        assert_eq!(normalized_missing_result["pdfPath"], "");
+        assert_eq!(normalized_missing_result["errors"], json!([]));
+
+        let execution = execution_from_payload(json!({
+            "execution": {
+                "sourceState": {"path": "/tmp/main.tex"},
+                "targetState": {"path": "/tmp/main.pdf"},
+                "queueState": false,
+                "result": {
+                    "success": true,
+                    "synctex_path": "/tmp/main.synctex.gz"
+                }
+            }
+        }));
+        let normalized_execution = normalize_execution(&execution);
+        assert_eq!(
+            normalized_execution["sourceState"],
+            json!({"path": "/tmp/main.tex"})
+        );
+        assert_eq!(
+            normalized_execution["targetState"],
+            json!({"path": "/tmp/main.pdf"})
+        );
+        assert_eq!(normalized_execution["queueState"], json!(null));
+        assert_eq!(
+            normalized_execution["result"]["synctexPath"],
+            "/tmp/main.synctex.gz"
+        );
+
+        let default_execution = execution_from_payload(json!(null));
+        let normalized_default_execution = normalize_execution(&default_execution);
+        assert_eq!(normalized_default_execution["sourceState"], json!({}));
+        assert_eq!(normalized_default_execution["targetState"], json!({}));
+        assert_eq!(normalized_default_execution["queueState"], json!(null));
+    }
 }
