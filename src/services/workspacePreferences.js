@@ -6,7 +6,7 @@ export async function loadWorkspacePreferences(globalConfigDir = '') {
   if (!isNativeDesktopRuntime()) return {}
   return invoke('workspace_preferences_load', {
     params: {
-      globalConfigDir: String(globalConfigDir || ''),
+      globalConfigDir,
     },
   })
 }
@@ -15,7 +15,7 @@ export async function saveWorkspacePreferences(globalConfigDir = '', preferences
   if (!isNativeDesktopRuntime()) return preferences
   const normalized = await invoke('workspace_preferences_save', {
     params: {
-      globalConfigDir: String(globalConfigDir || ''),
+      globalConfigDir,
       preferences,
     },
   })

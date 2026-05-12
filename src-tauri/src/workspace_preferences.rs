@@ -156,6 +156,40 @@ fn default_workspace_preferences_version() -> u32 {
     WORKSPACE_PREFERENCES_VERSION
 }
 
+fn string_payload_field(params: &Value, key: &str) -> String {
+    params
+        .as_object()
+        .and_then(|object| object.get(key))
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string()
+}
+
+fn json_payload_field<T>(params: &Value, key: &str) -> T
+where
+    T: for<'de> Deserialize<'de> + Default,
+{
+    params
+        .as_object()
+        .and_then(|object| object.get(key))
+        .cloned()
+        .and_then(|value| serde_json::from_value(value).ok())
+        .unwrap_or_default()
+}
+
+fn workspace_preferences_load_params_from_payload(params: Value) -> WorkspacePreferencesLoadParams {
+    WorkspacePreferencesLoadParams {
+        global_config_dir: string_payload_field(&params, "globalConfigDir"),
+    }
+}
+
+fn workspace_preferences_save_params_from_payload(params: Value) -> WorkspacePreferencesSaveParams {
+    WorkspacePreferencesSaveParams {
+        global_config_dir: string_payload_field(&params, "globalConfigDir"),
+        preferences: json_payload_field(&params, "preferences"),
+    }
+}
+
 fn default_auto_save() -> bool {
     true
 }
@@ -592,8 +626,7 @@ fn normalize_workspace_preferences(preferences: WorkspacePreferences) -> Workspa
     }
 }
 
-#[tauri::command]
-pub async fn workspace_preferences_load(
+pub async fn workspace_preferences_load_typed(
     params: WorkspacePreferencesLoadParams,
 ) -> Result<WorkspacePreferences, String> {
     let loaded = read_workspace_preferences(&params.global_config_dir)?;
@@ -610,12 +643,21 @@ pub async fn workspace_preferences_load(
 }
 
 #[tauri::command]
-pub async fn workspace_preferences_save(
+pub async fn workspace_preferences_load(params: Value) -> Result<WorkspacePreferences, String> {
+    workspace_preferences_load_typed(workspace_preferences_load_params_from_payload(params)).await
+}
+
+pub async fn workspace_preferences_save_typed(
     params: WorkspacePreferencesSaveParams,
 ) -> Result<WorkspacePreferences, String> {
     let normalized = normalize_workspace_preferences(params.preferences);
     write_workspace_preferences(&params.global_config_dir, &normalized)?;
     Ok(normalized)
+}
+
+#[tauri::command]
+pub async fn workspace_preferences_save(params: Value) -> Result<WorkspacePreferences, String> {
+    workspace_preferences_save_typed(workspace_preferences_save_params_from_payload(params)).await
 }
 
 #[tauri::command]
@@ -633,8 +675,11 @@ pub async fn workspace_preferences_list_system_fonts() -> Result<Vec<String>, St
 #[cfg(test)]
 mod tests {
     use super::{
-        normalize_workspace_preferences, should_expose_system_font_family, WorkspacePreferences,
+        normalize_workspace_preferences, should_expose_system_font_family,
+        workspace_preferences_load_params_from_payload,
+        workspace_preferences_save_params_from_payload, WorkspacePreferences,
     };
+    use serde_json::json;
 
     #[test]
     fn normalization_clamps_numbers_and_colors() {
@@ -670,6 +715,33 @@ mod tests {
         assert_eq!(normalized.pdf_viewer_page_theme_mode, "theme");
         assert_eq!(normalized.markdown_citation_format, "bracketed");
         assert_eq!(normalized.latex_citation_command, "cite");
+    }
+
+    #[test]
+    fn workspace_preferences_params_normalize_raw_payloads() {
+        let load_params = workspace_preferences_load_params_from_payload(json!({
+            "globalConfigDir": 42
+        }));
+        assert_eq!(load_params.global_config_dir, "");
+
+        let save_params = workspace_preferences_save_params_from_payload(json!({
+            "globalConfigDir": "/tmp/config",
+            "preferences": "not-an-object"
+        }));
+        assert_eq!(save_params.global_config_dir, "/tmp/config");
+        assert_eq!(save_params.preferences, WorkspacePreferences::default());
+
+        let save_params = workspace_preferences_save_params_from_payload(json!({
+            "globalConfigDir": "/tmp/config",
+            "preferences": {
+                "editorFontSize": 19,
+                "fileTreeSortMode": "modified",
+                "pdfViewerZoomMode": "page-fit"
+            }
+        }));
+        assert_eq!(save_params.preferences.editor_font_size, 19);
+        assert_eq!(save_params.preferences.file_tree_sort_mode, "modified");
+        assert_eq!(save_params.preferences.pdf_viewer_zoom_mode, "page-fit");
     }
 
     #[tokio::test]
