@@ -90,6 +90,10 @@ try {
       return args?.params?.preferences || {}
     }
 
+    if (cmd === 'workspace_preferences_list_system_fonts') {
+      return [' Rust Font ', '', 'LastResort']
+    }
+
     throw new Error(`Unexpected IPC command: ${cmd}`)
   })
 
@@ -99,12 +103,14 @@ try {
   workspace.ensureGlobalConfigDir = async () => '/tmp/scribeflow-global-config'
 
   const {
+    loadWorkspaceSystemFontFamilies,
     loadWorkspacePreferences,
     saveWorkspacePreferences,
   } = await vite.ssrLoadModule('/src/services/workspacePreferences.js')
 
   await loadWorkspacePreferences(42)
   await saveWorkspacePreferences(42, { editorFontSize: 16 })
+  const fonts = await loadWorkspaceSystemFontFamilies()
 
   await workspace.persistWorkspacePreferencesPatch({
     editorFontSize: 50,
@@ -127,6 +133,7 @@ try {
     [
       'workspace_preferences_load',
       'workspace_preferences_save',
+      'workspace_preferences_list_system_fonts',
       'workspace_preferences_normalize',
       'workspace_preferences_save',
     ],
@@ -136,9 +143,10 @@ try {
     globalConfigDir: 42,
     preferences: { editorFontSize: 16 },
   })
-  assert.equal(calls[3].args.params.preferences.editorFontSize, 20)
-  assert.equal(calls[3].args.params.preferences.pdfViewerZoomMode, 'page-width')
-  assert.equal(calls[3].args.params.preferences.pdfViewerLastScale, '2')
+  assert.deepEqual(fonts, [' Rust Font ', '', 'LastResort'])
+  assert.equal(calls[4].args.params.preferences.editorFontSize, 20)
+  assert.equal(calls[4].args.params.preferences.pdfViewerZoomMode, 'page-width')
+  assert.equal(calls[4].args.params.preferences.pdfViewerLastScale, '2')
 
   workspace.documentDockOpen = false
   workspace.referenceDockOpen = false
@@ -152,8 +160,8 @@ try {
   assert.equal(workspace.documentDockOpen, false)
   assert.equal(workspace.referenceDockOpen, true)
   assert.equal(workspace.rightSidebarOpen, true)
-  assert.equal(calls[5].args.params.preferences.referenceDockOpen, true)
-  assert.equal(calls[5].args.params.preferences.rightSidebarOpen, true)
+  assert.equal(calls[6].args.params.preferences.referenceDockOpen, true)
+  assert.equal(calls[6].args.params.preferences.rightSidebarOpen, true)
 
   console.log('workspace preferences rust normalization probe passed')
 } finally {

@@ -198,7 +198,10 @@ function fontSelectOptions(currentValue = '') {
 }
 
 onMounted(async () => {
-  systemFontFamilies.value = await loadWorkspaceSystemFontFamilies()
+  const fonts = await loadWorkspaceSystemFontFamilies()
+  if (Array.isArray(fonts) && fonts.length > 0) {
+    systemFontFamilies.value = fonts
+  }
 })
 </script>
 

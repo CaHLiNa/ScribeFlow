@@ -31,6 +31,18 @@ const DEFAULT_PDF_VIEWER_PAGE_THEME_MODE: &str = "theme";
 const DEFAULT_MARKDOWN_CITATION_FORMAT: &str = "bracketed";
 const DEFAULT_LATEX_CITATION_COMMAND: &str = "cite";
 const DEFAULT_CITATION_INSERT_ADDS_SPACE: bool = false;
+const DEFAULT_SYSTEM_FONT_FAMILIES: &[&str] = &[
+    "PingFang SC",
+    "SF Pro Text",
+    "New York",
+    "Songti SC",
+    "Kaiti SC",
+    "Helvetica Neue",
+    "Avenir Next",
+    "Times New Roman",
+    "Georgia",
+    "Menlo",
+];
 static SYSTEM_FONT_FAMILIES_CACHE: OnceLock<Vec<String>> = OnceLock::new();
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -488,6 +500,36 @@ fn should_expose_system_font_family(name: &str) -> bool {
     !lowered.contains("fallback") && !lowered.contains("lastresort")
 }
 
+fn default_system_font_families() -> Vec<String> {
+    DEFAULT_SYSTEM_FONT_FAMILIES
+        .iter()
+        .map(|family| (*family).to_string())
+        .collect()
+}
+
+fn normalize_system_font_families(fonts: Vec<String>) -> Vec<String> {
+    let mut families = Vec::<String>::new();
+
+    for family in fonts {
+        let normalized = family.trim();
+        if !should_expose_system_font_family(normalized)
+            || families
+                .iter()
+                .any(|item| item.eq_ignore_ascii_case(normalized))
+        {
+            continue;
+        }
+        families.push(normalized.to_string());
+    }
+
+    if families.is_empty() {
+        return default_system_font_families();
+    }
+
+    sort_system_font_families(&mut families);
+    families
+}
+
 #[cfg(target_os = "macos")]
 fn load_macos_system_font_families() -> Result<Vec<String>, String> {
     let output = background_command("system_profiler")
@@ -574,7 +616,8 @@ fn read_system_font_families() -> Result<Vec<String>, String> {
         return Ok(cached.clone());
     }
 
-    let fonts = load_macos_system_font_families()?;
+    let fonts = load_macos_system_font_families().unwrap_or_default();
+    let fonts = normalize_system_font_families(fonts);
     let _ = SYSTEM_FONT_FAMILIES_CACHE.set(fonts.clone());
     Ok(fonts)
 }
@@ -675,8 +718,8 @@ pub async fn workspace_preferences_list_system_fonts() -> Result<Vec<String>, St
 #[cfg(test)]
 mod tests {
     use super::{
-        normalize_workspace_preferences, should_expose_system_font_family,
-        workspace_preferences_load_params_from_payload,
+        normalize_system_font_families, normalize_workspace_preferences,
+        should_expose_system_font_family, workspace_preferences_load_params_from_payload,
         workspace_preferences_save_params_from_payload, WorkspacePreferences,
     };
     use serde_json::json;
@@ -798,5 +841,41 @@ mod tests {
         ));
         assert!(!should_expose_system_font_family("LastResort"));
         assert!(should_expose_system_font_family("PingFang SC"));
+    }
+
+    #[test]
+    fn system_font_families_normalize_in_rust() {
+        let normalized = normalize_system_font_families(vec![
+            " Menlo ".to_string(),
+            "lastresort".to_string(),
+            "PingFang SC".to_string(),
+            "menlo".to_string(),
+            ".Hidden".to_string(),
+            "".to_string(),
+        ]);
+
+        assert_eq!(normalized, vec!["PingFang SC", "Menlo"]);
+
+        let fallback = normalize_system_font_families(vec![
+            "LastResort".to_string(),
+            ".Hidden".to_string(),
+            " ".to_string(),
+        ]);
+
+        assert_eq!(
+            fallback,
+            vec![
+                "PingFang SC",
+                "SF Pro Text",
+                "New York",
+                "Songti SC",
+                "Kaiti SC",
+                "Helvetica Neue",
+                "Avenir Next",
+                "Times New Roman",
+                "Georgia",
+                "Menlo"
+            ]
+        );
     }
 }
