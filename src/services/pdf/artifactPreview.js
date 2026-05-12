@@ -1,10 +1,9 @@
 import { invoke } from '@tauri-apps/api/core'
 
 export async function readPdfArtifactBase64(filePath) {
-  const normalizedPath = String(filePath || '').trim()
-  if (!normalizedPath) return ''
-
-  return invoke('workspace_read_file_base64', { path: normalizedPath })
+  return invoke('workspace_read_file_base64', {
+    params: { path: filePath },
+  })
 }
 
 export async function requestLatexPdfBackwardSync(options = {}) {
@@ -135,12 +134,7 @@ export async function requestLatexPdfForwardSync(options = {}) {
 }
 
 export async function writePdfArtifactBase64(filePath, data) {
-  const normalizedPath = String(filePath || '').trim()
-  const normalizedData = String(data || '')
-  if (!normalizedPath || !normalizedData) return
-
   return invoke('workspace_write_file_base64', {
-    path: normalizedPath,
-    data: normalizedData,
+    params: { path: filePath, data },
   })
 }

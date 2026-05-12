@@ -16,6 +16,8 @@ use crate::process_utils::background_command;
 use crate::security;
 use crate::security::WorkspaceScopeState;
 
+const DEFAULT_TEXT_FILE_READ_LIMIT_BYTES: u64 = 10 * 1024 * 1024;
+
 async fn run_blocking<F, T>(operation: F) -> Result<T, String>
 where
     F: FnOnce() -> Result<T, String> + Send + 'static,
@@ -165,6 +167,53 @@ fn initial_content_payload_field(params: &Value) -> String {
         .and_then(Value::as_str)
         .unwrap_or_default()
         .to_string()
+}
+
+fn raw_string_payload_field(params: &Value, camel_key: &str, snake_key: &str) -> String {
+    command_payload_field(params, camel_key, snake_key)
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string()
+}
+
+fn optional_u64_payload_field(
+    params: &Value,
+    camel_key: &str,
+    snake_key: &str,
+    default_value: Option<u64>,
+) -> Option<u64> {
+    match command_payload_field(params, camel_key, snake_key) {
+        Some(Value::Number(number)) => number.as_u64().or(default_value),
+        Some(Value::String(raw)) => raw.trim().parse::<u64>().ok().or(default_value),
+        Some(Value::Null) | None => default_value,
+        _ => default_value,
+    }
+}
+
+fn workspace_read_text_file_params_from_payload(params: Value) -> (String, Option<u64>) {
+    (
+        string_payload_field(&params, "path", "path"),
+        optional_u64_payload_field(
+            &params,
+            "maxBytes",
+            "max_bytes",
+            Some(DEFAULT_TEXT_FILE_READ_LIMIT_BYTES),
+        ),
+    )
+}
+
+fn workspace_write_text_file_params_from_payload(params: Value) -> (String, String) {
+    (
+        string_payload_field(&params, "path", "path"),
+        raw_string_payload_field(&params, "content", "content"),
+    )
+}
+
+fn workspace_write_file_base64_params_from_payload(params: Value) -> (String, String) {
+    (
+        string_payload_field(&params, "path", "path"),
+        raw_string_payload_field(&params, "data", "data"),
+    )
 }
 
 fn workspace_create_file_params_from_payload(params: Value) -> (String, String, String) {
@@ -650,39 +699,52 @@ pub async fn workspace_render_image_preview(
 
 #[tauri::command]
 pub async fn workspace_read_text_file(
-    path: String,
-    max_bytes: Option<u64>,
+    params: Value,
     scope_state: tauri::State<'_, WorkspaceScopeState>,
 ) -> Result<String, String> {
+    let (path, max_bytes) = workspace_read_text_file_params_from_payload(params);
+    if path.is_empty() {
+        return Err("Path is required".to_string());
+    }
     let resolved = security::ensure_allowed_workspace_path(scope_state.inner(), Path::new(&path))?;
     run_blocking(move || workspace_read_text_file_blocking(&resolved, max_bytes)).await
 }
 
 #[tauri::command]
 pub async fn workspace_write_text_file(
-    path: String,
-    content: String,
+    params: Value,
     scope_state: tauri::State<'_, WorkspaceScopeState>,
 ) -> Result<(), String> {
+    let (path, content) = workspace_write_text_file_params_from_payload(params);
+    if path.is_empty() {
+        return Err("Path is required".to_string());
+    }
     let resolved = security::ensure_allowed_mutation_path(scope_state.inner(), Path::new(&path))?;
     run_blocking(move || workspace_write_text_file_blocking(&resolved, &content)).await
 }
 
 #[tauri::command]
 pub async fn workspace_read_file_base64(
-    path: String,
+    params: Value,
     scope_state: tauri::State<'_, WorkspaceScopeState>,
 ) -> Result<String, String> {
+    let path = workspace_single_path_params_from_payload(params);
+    if path.is_empty() {
+        return Ok(String::new());
+    }
     let resolved = security::ensure_allowed_workspace_path(scope_state.inner(), Path::new(&path))?;
     run_blocking(move || workspace_read_file_base64_blocking(&resolved)).await
 }
 
 #[tauri::command]
 pub async fn workspace_write_file_base64(
-    path: String,
-    data: String,
+    params: Value,
     scope_state: tauri::State<'_, WorkspaceScopeState>,
 ) -> Result<(), String> {
+    let (path, data) = workspace_write_file_base64_params_from_payload(params);
+    if path.is_empty() || data.is_empty() {
+        return Ok(());
+    }
     let resolved = security::ensure_allowed_mutation_path(scope_state.inner(), Path::new(&path))?;
     run_blocking(move || workspace_write_file_base64_blocking(&resolved, &data)).await
 }
@@ -1041,8 +1103,10 @@ mod tests {
         workspace_external_path_internal, workspace_move_path_params_from_payload,
         workspace_open_path_from_payload, workspace_path_status_internal,
         workspace_read_file_base64_blocking, workspace_read_text_file_blocking,
-        workspace_rename_path_params_from_payload, workspace_single_path_params_from_payload,
-        workspace_write_file_base64_blocking, workspace_write_text_file_blocking,
+        workspace_read_text_file_params_from_payload, workspace_rename_path_params_from_payload,
+        workspace_single_path_params_from_payload, workspace_write_file_base64_blocking,
+        workspace_write_file_base64_params_from_payload, workspace_write_text_file_blocking,
+        workspace_write_text_file_params_from_payload, DEFAULT_TEXT_FILE_READ_LIMIT_BYTES,
     };
     use crate::security::{set_allowed_roots_internal, WorkspaceScopeState};
     use serde_json::json;
@@ -1170,6 +1234,58 @@ mod tests {
         );
         assert_eq!(path_status_path_from_payload(json!(42)), "");
         assert_eq!(path_status_path_from_payload(json!(null)), "");
+    }
+
+    #[test]
+    fn workspace_file_io_params_normalize_raw_payloads() {
+        let (read_path, read_limit) = workspace_read_text_file_params_from_payload(json!({
+            "path": " /tmp/workspace/note.md ",
+            "maxBytes": "64"
+        }));
+        assert_eq!(read_path, "/tmp/workspace/note.md");
+        assert_eq!(read_limit, Some(64));
+
+        let (snake_read_path, snake_read_limit) =
+            workspace_read_text_file_params_from_payload(json!({
+                "path": " /tmp/workspace/snake.md ",
+                "max_bytes": 128
+            }));
+        assert_eq!(snake_read_path, "/tmp/workspace/snake.md");
+        assert_eq!(snake_read_limit, Some(128));
+
+        let (default_limit_path, default_limit) =
+            workspace_read_text_file_params_from_payload(json!({
+                "path": " /tmp/workspace/default.md ",
+                "maxBytes": false
+            }));
+        assert_eq!(default_limit_path, "/tmp/workspace/default.md");
+        assert_eq!(default_limit, Some(DEFAULT_TEXT_FILE_READ_LIMIT_BYTES));
+
+        let (write_path, content) = workspace_write_text_file_params_from_payload(json!({
+            "path": " /tmp/workspace/write.md ",
+            "content": "  body keeps spaces  "
+        }));
+        assert_eq!(write_path, "/tmp/workspace/write.md");
+        assert_eq!(content, "  body keeps spaces  ");
+
+        let (base64_path, base64_data) = workspace_write_file_base64_params_from_payload(json!({
+            "path": " /tmp/workspace/artifact.pdf ",
+            "data": " AAECA/8= "
+        }));
+        assert_eq!(base64_path, "/tmp/workspace/artifact.pdf");
+        assert_eq!(base64_data, " AAECA/8= ");
+
+        let (bad_write_path, bad_content) = workspace_write_text_file_params_from_payload(json!({
+            "path": false,
+            "content": 42
+        }));
+        assert_eq!(bad_write_path, "");
+        assert_eq!(bad_content, "");
+
+        let (non_object_path, non_object_limit) =
+            workspace_read_text_file_params_from_payload(json!(42));
+        assert_eq!(non_object_path, "");
+        assert_eq!(non_object_limit, Some(DEFAULT_TEXT_FILE_READ_LIMIT_BYTES));
     }
 
     #[test]
