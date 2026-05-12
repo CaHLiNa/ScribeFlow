@@ -101,5 +101,5 @@ export async function isRmdOrQmd() {
 }
 
 export async function relativePath(fromFile, toFile) {
-  return invoke('path_utils_relative_between', { fromFile, toFile })
+  return invoke('path_utils_relative_between', { params: { fromFile, toFile } })
 }

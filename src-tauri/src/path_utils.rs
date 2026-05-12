@@ -1,4 +1,5 @@
 use serde::Serialize;
+use serde_json::Value;
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -38,7 +39,10 @@ pub fn basename_path(file_path: &str) -> String {
         return format!("{}/", without_trailing);
     }
 
-    let parts: Vec<&str> = without_trailing.split('/').filter(|s| !s.is_empty()).collect();
+    let parts: Vec<&str> = without_trailing
+        .split('/')
+        .filter(|s| !s.is_empty())
+        .collect();
     parts.last().unwrap_or(&without_trailing).to_string()
 }
 
@@ -52,8 +56,11 @@ pub fn dirname_path(file_path: &str) -> String {
     }
 
     // Windows drive root
-    let re_drive_root =
-        normalized.len() <= 3 && normalized.as_bytes().first().map_or(false, |b| b.is_ascii_alphabetic());
+    let re_drive_root = normalized.len() <= 3
+        && normalized
+            .as_bytes()
+            .first()
+            .map_or(false, |b| b.is_ascii_alphabetic());
     if re_drive_root && normalized.as_bytes().get(1) == Some(&b':') {
         let rest = &normalized[2..];
         if rest.is_empty() || rest == "/" {
@@ -195,7 +202,10 @@ pub fn relative_between(from_file: &str, to_file: &str) -> String {
     let to_parts: Vec<&str> = normalized_to.split('/').collect();
 
     let mut common = 0;
-    while common < from_parts.len() && common < to_parts.len() && from_parts[common] == to_parts[common] {
+    while common < from_parts.len()
+        && common < to_parts.len()
+        && from_parts[common] == to_parts[common]
+    {
         common += 1;
     }
 
@@ -211,38 +221,158 @@ pub fn relative_between(from_file: &str, to_file: &str) -> String {
 
 // --- Tauri commands ---
 
+fn payload_field<'a>(params: &'a Value, key: &str) -> Option<&'a Value> {
+    params.as_object().and_then(|object| object.get(key))
+}
+
+fn string_payload_field(params: &Value, key: &str) -> String {
+    payload_field(params, key)
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string()
+}
+
+fn string_array_payload_field(params: &Value, key: &str) -> Vec<String> {
+    payload_field(params, key)
+        .and_then(Value::as_array)
+        .map(|entries| {
+            entries
+                .iter()
+                .filter_map(Value::as_str)
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn normalize_params_from_payload(params: Value) -> String {
+    string_payload_field(&params, "value")
+}
+
+fn file_path_params_from_payload(params: Value) -> String {
+    string_payload_field(&params, "filePath")
+}
+
+fn resolve_relative_params_from_payload(params: Value) -> (String, String) {
+    (
+        string_payload_field(&params, "baseDir"),
+        string_payload_field(&params, "target"),
+    )
+}
+
+fn join_params_from_payload(params: Value) -> Vec<String> {
+    string_array_payload_field(&params, "segments")
+}
+
+fn relative_between_params_from_payload(params: Value) -> (String, String) {
+    (
+        string_payload_field(&params, "fromFile"),
+        string_payload_field(&params, "toFile"),
+    )
+}
+
 #[tauri::command]
-pub async fn path_utils_normalize(value: String) -> Result<String, String> {
+pub async fn path_utils_normalize(params: Value) -> Result<String, String> {
+    let value = normalize_params_from_payload(params);
     Ok(normalize_path(&value))
 }
 
 #[tauri::command]
-pub async fn path_utils_dirname(file_path: String) -> Result<String, String> {
+pub async fn path_utils_dirname(params: Value) -> Result<String, String> {
+    let file_path = file_path_params_from_payload(params);
     Ok(dirname_path(&file_path))
 }
 
 #[tauri::command]
-pub async fn path_utils_basename(file_path: String) -> Result<String, String> {
+pub async fn path_utils_basename(params: Value) -> Result<String, String> {
+    let file_path = file_path_params_from_payload(params);
     Ok(basename_path(&file_path))
 }
 
 #[tauri::command]
-pub async fn path_utils_strip_extension(file_path: String) -> Result<String, String> {
+pub async fn path_utils_strip_extension(params: Value) -> Result<String, String> {
+    let file_path = file_path_params_from_payload(params);
     Ok(strip_extension(&file_path))
 }
 
 #[tauri::command]
-pub async fn path_utils_join(segments: Vec<String>) -> Result<String, String> {
+pub async fn path_utils_join(params: Value) -> Result<String, String> {
+    let segments = join_params_from_payload(params);
     let refs: Vec<&str> = segments.iter().map(|s| s.as_str()).collect();
     Ok(join_path(&refs))
 }
 
 #[tauri::command]
-pub async fn path_utils_resolve_relative(base_dir: String, target: String) -> Result<String, String> {
+pub async fn path_utils_resolve_relative(params: Value) -> Result<String, String> {
+    let (base_dir, target) = resolve_relative_params_from_payload(params);
     Ok(resolve_relative(&base_dir, &target))
 }
 
 #[tauri::command]
-pub async fn path_utils_relative_between(from_file: String, to_file: String) -> Result<String, String> {
+pub async fn path_utils_relative_between(params: Value) -> Result<String, String> {
+    let (from_file, to_file) = relative_between_params_from_payload(params);
     Ok(relative_between(&from_file, &to_file))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        file_path_params_from_payload, join_params_from_payload, normalize_params_from_payload,
+        relative_between_params_from_payload, resolve_relative_params_from_payload,
+    };
+    use serde_json::json;
+
+    #[test]
+    fn path_utils_params_normalize_raw_payloads() {
+        assert_eq!(
+            normalize_params_from_payload(json!({
+                "value": "  /tmp/workspace\\note.md  "
+            })),
+            "  /tmp/workspace\\note.md  "
+        );
+
+        assert_eq!(
+            file_path_params_from_payload(json!({
+                "filePath": " /tmp/workspace/note.md "
+            })),
+            " /tmp/workspace/note.md "
+        );
+        assert_eq!(
+            file_path_params_from_payload(json!({
+                "filePath": 42
+            })),
+            ""
+        );
+
+        let (base_dir, target) = resolve_relative_params_from_payload(json!({
+            "baseDir": false,
+            "target": " ../paper.tex "
+        }));
+        assert_eq!(base_dir, "");
+        assert_eq!(target, " ../paper.tex ");
+
+        assert_eq!(
+            join_params_from_payload(json!({
+                "segments": [
+                    " /tmp ",
+                    42,
+                    " workspace ",
+                    false,
+                    "note.md"
+                ]
+            })),
+            vec![" /tmp ", " workspace ", "note.md"]
+        );
+
+        let (from_file, to_file) = relative_between_params_from_payload(json!({
+            "fromFile": " /tmp/workspace/main.tex ",
+            "toFile": null
+        }));
+        assert_eq!(from_file, " /tmp/workspace/main.tex ");
+        assert_eq!(to_file, "");
+
+        let (missing_from, missing_to) = relative_between_params_from_payload(json!(false));
+        assert_eq!(missing_from, "");
+        assert_eq!(missing_to, "");
+    }
 }
