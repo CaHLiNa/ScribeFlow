@@ -320,8 +320,12 @@ async function closeDockPage(page = {}) {
   transform: scale(1);
 }
 
-:deep(.document-dock__preview-tab--icon.has-close-action:hover .document-dock__preview-icon),
 :deep(.document-dock__preview-tab--icon.has-close-action:focus-within .document-dock__preview-icon) {
+  opacity: 1;
+  transform: scale(1);
+}
+
+:deep(.document-dock__preview-tab--icon.has-close-action:hover .document-dock__preview-icon) {
   opacity: 0;
   transform: scale(0.86);
 }
@@ -333,8 +337,15 @@ async function closeDockPage(page = {}) {
   transform: translate(-50%, -50%) scale(0.86);
 }
 
-:deep(.document-dock__preview-tab--icon:hover .document-dock__tab-close),
 :deep(.document-dock__preview-tab--icon:focus-within .document-dock__tab-close) {
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -50%) scale(0.86);
+}
+
+:deep(.document-dock__preview-tab--icon.has-close-action:hover .document-dock__tab-close) {
+  opacity: 1;
+  pointer-events: auto;
   transform: translate(-50%, -50%) scale(1);
 }
 </style>
