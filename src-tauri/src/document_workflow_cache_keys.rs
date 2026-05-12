@@ -56,8 +56,14 @@ fn build_python_key(request: &Value) -> String {
 }
 
 fn build_preview_key(request: &Value) -> String {
-    let state = request.get("state").cloned().unwrap_or_else(|| Value::Object(Default::default()));
-    let session = state.get("session").cloned().unwrap_or_else(|| Value::Object(Default::default()));
+    let state = request
+        .get("state")
+        .cloned()
+        .unwrap_or_else(|| Value::Object(Default::default()));
+    let session = state
+        .get("session")
+        .cloned()
+        .unwrap_or_else(|| Value::Object(Default::default()));
 
     serde_json::json!({
         "path": str_val(request, "path"),

@@ -162,10 +162,12 @@ pub fn document_workflow_infer_preview_kind(
     source_path: String,
     preview_path: String,
 ) -> Result<Value, String> {
-    Ok(match infer_workflow_preview_kind(&source_path, &preview_path) {
-        Some(kind) => Value::String(kind.to_string()),
-        None => Value::Null,
-    })
+    Ok(
+        match infer_workflow_preview_kind(&source_path, &preview_path) {
+            Some(kind) => Value::String(kind.to_string()),
+            None => Value::Null,
+        },
+    )
 }
 
 pub(crate) fn document_workflow_reconcile_value(params: DocumentWorkflowReconcileParams) -> Value {

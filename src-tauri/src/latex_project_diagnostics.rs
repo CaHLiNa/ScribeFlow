@@ -16,7 +16,10 @@ fn build_project_warnings(source_path: &str, graph: &Value) -> Vec<NormalizedPro
     if let Some(unresolved_refs) = graph.get("unresolvedRefs").and_then(Value::as_array) {
         for entry in unresolved_refs {
             let key = entry.get("key").and_then(Value::as_str).unwrap_or_default();
-            let file_path = entry.get("filePath").and_then(Value::as_str).unwrap_or(source_path);
+            let file_path = entry
+                .get("filePath")
+                .and_then(Value::as_str)
+                .unwrap_or(source_path);
             let line = entry.get("line").and_then(Value::as_u64).map(|v| v as u32);
             problems.push(NormalizedProblem {
                 id: format!("latex:ref:{}:{}:{}", file_path, key, line.unwrap_or(0)),
@@ -35,7 +38,10 @@ fn build_project_warnings(source_path: &str, graph: &Value) -> Vec<NormalizedPro
     if let Some(unresolved_citations) = graph.get("unresolvedCitations").and_then(Value::as_array) {
         for entry in unresolved_citations {
             let key = entry.get("key").and_then(Value::as_str).unwrap_or_default();
-            let file_path = entry.get("filePath").and_then(Value::as_str).unwrap_or(source_path);
+            let file_path = entry
+                .get("filePath")
+                .and_then(Value::as_str)
+                .unwrap_or(source_path);
             let line = entry.get("line").and_then(Value::as_u64).map(|v| v as u32);
             problems.push(NormalizedProblem {
                 id: format!("latex:cite:{}:{}:{}", file_path, key, line.unwrap_or(0)),
@@ -59,7 +65,13 @@ fn deduplicate_problems(problems: Vec<NormalizedProblem>) -> Vec<NormalizedProbl
     problems
         .into_iter()
         .filter(|p| {
-            let sig = format!("{}::{}::{}::{}", p.source_path, p.line.unwrap_or(0), p.severity, p.message);
+            let sig = format!(
+                "{}::{}::{}::{}",
+                p.source_path,
+                p.line.unwrap_or(0),
+                p.severity,
+                p.message
+            );
             seen.insert(sig)
         })
         .collect()
@@ -106,10 +118,23 @@ pub fn latex_diagnostics_build_lint_problems(
         .iter()
         .enumerate()
         .map(|(index, problem)| {
-            let file = if problem.file.is_empty() { normalized.clone() } else { normalize_fs_path(&problem.file) };
-            let severity = if problem.severity == "error" { "error" } else { "warning" };
+            let file = if problem.file.is_empty() {
+                normalized.clone()
+            } else {
+                normalize_fs_path(&problem.file)
+            };
+            let severity = if problem.severity == "error" {
+                "error"
+            } else {
+                "warning"
+            };
             NormalizedProblem {
-                id: format!("latex:lint:{}:{}:{}", file, problem.line.unwrap_or(0), index),
+                id: format!(
+                    "latex:lint:{}:{}:{}",
+                    file,
+                    problem.line.unwrap_or(0),
+                    index
+                ),
                 source_path: file,
                 line: problem.line,
                 column: problem.column,
@@ -117,7 +142,11 @@ pub fn latex_diagnostics_build_lint_problems(
                 origin: "lint".to_string(),
                 actionable: true,
                 message: problem.message.clone(),
-                raw: if problem.raw.is_empty() { problem.message.clone() } else { problem.raw.clone() },
+                raw: if problem.raw.is_empty() {
+                    problem.message.clone()
+                } else {
+                    problem.raw.clone()
+                },
             }
         })
         .collect();

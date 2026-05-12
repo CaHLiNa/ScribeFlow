@@ -5,7 +5,9 @@ pub fn convert(latex: &str, display: bool) -> Result<String, String> {
     if display {
         Ok(format!("<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"block\"><mrow>{inner}</mrow></math>"))
     } else {
-        Ok(format!("<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mrow>{inner}</mrow></math>"))
+        Ok(format!(
+            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mrow>{inner}</mrow></math>"
+        ))
     }
 }
 #[derive(Debug, Clone, PartialEq)]
@@ -35,7 +37,12 @@ fn tokenize(input: &str) -> Vec<Token> {
                     } else if next.is_alphabetic() {
                         let mut cmd = String::new();
                         while let Some(&c) = chars.peek() {
-                            if c.is_alphabetic() { cmd.push(c); chars.next(); } else { break; }
+                            if c.is_alphabetic() {
+                                cmd.push(c);
+                                chars.next();
+                            } else {
+                                break;
+                            }
                         }
                         tokens.push(Token::Command(cmd));
                     } else {
@@ -44,17 +51,37 @@ fn tokenize(input: &str) -> Vec<Token> {
                     }
                 }
             }
-            '^' => { chars.next(); tokens.push(Token::Sup); }
-            '_' => { chars.next(); tokens.push(Token::Sub); }
-            '{' => { chars.next(); tokens.push(Token::OpenBrace); }
-            '}' => { chars.next(); tokens.push(Token::CloseBrace); }
-            '&' => { chars.next(); tokens.push(Token::Ampersand); }
-            ' ' | '\t' | '\n' | '\r' => { chars.next(); tokens.push(Token::Space); }
+            '^' => {
+                chars.next();
+                tokens.push(Token::Sup);
+            }
+            '_' => {
+                chars.next();
+                tokens.push(Token::Sub);
+            }
+            '{' => {
+                chars.next();
+                tokens.push(Token::OpenBrace);
+            }
+            '}' => {
+                chars.next();
+                tokens.push(Token::CloseBrace);
+            }
+            '&' => {
+                chars.next();
+                tokens.push(Token::Ampersand);
+            }
+            ' ' | '\t' | '\n' | '\r' => {
+                chars.next();
+                tokens.push(Token::Space);
+            }
             _ => {
                 chars.next();
                 let mut text = ch.to_string();
                 while let Some(&c) = chars.peek() {
-                    if "\\^_{}& \t\n\r".contains(c) { break; }
+                    if "\\^_{}& \t\n\r".contains(c) {
+                        break;
+                    }
                     text.push(c);
                     chars.next();
                 }
@@ -86,10 +113,14 @@ struct ParseState<'a> {
 }
 
 impl<'a> ParseState<'a> {
-    fn peek(&self) -> Option<&Token> { self.tokens.get(self.pos) }
+    fn peek(&self) -> Option<&Token> {
+        self.tokens.get(self.pos)
+    }
     fn next(&mut self) -> Option<&Token> {
         let t = self.tokens.get(self.pos);
-        if t.is_some() { self.pos += 1; }
+        if t.is_some() {
+            self.pos += 1;
+        }
         t
     }
 }
@@ -104,13 +135,17 @@ fn parse_sequence(state: &mut ParseState, in_group: bool) -> Result<Vec<MathNode
     while let Some(token) = state.peek() {
         match token {
             Token::CloseBrace => {
-                if in_group { break; }
+                if in_group {
+                    break;
+                }
                 state.next();
             }
             Token::OpenBrace => {
                 state.next();
                 let inner = parse_sequence(state, true)?;
-                if state.peek() == Some(&Token::CloseBrace) { state.next(); }
+                if state.peek() == Some(&Token::CloseBrace) {
+                    state.next();
+                }
                 nodes.push(MathNode::Group(inner));
             }
             Token::Sup => {
@@ -120,7 +155,11 @@ fn parse_sequence(state: &mut ParseState, in_group: bool) -> Result<Vec<MathNode
                 if state.peek() == Some(&Token::Sub) {
                     state.next();
                     let sub = parse_single_node(state)?;
-                    nodes.push(MathNode::SubSup(Box::new(base), Box::new(sub), Box::new(sup)));
+                    nodes.push(MathNode::SubSup(
+                        Box::new(base),
+                        Box::new(sub),
+                        Box::new(sup),
+                    ));
                 } else {
                     nodes.push(MathNode::Sup(Box::new(base), Box::new(sup)));
                 }
@@ -132,7 +171,11 @@ fn parse_sequence(state: &mut ParseState, in_group: bool) -> Result<Vec<MathNode
                 if state.peek() == Some(&Token::Sup) {
                     state.next();
                     let sup = parse_single_node(state)?;
-                    nodes.push(MathNode::SubSup(Box::new(base), Box::new(sub), Box::new(sup)));
+                    nodes.push(MathNode::SubSup(
+                        Box::new(base),
+                        Box::new(sub),
+                        Box::new(sup),
+                    ));
                 } else {
                     nodes.push(MathNode::Sub(Box::new(base), Box::new(sub)));
                 }
@@ -148,8 +191,13 @@ fn parse_sequence(state: &mut ParseState, in_group: bool) -> Result<Vec<MathNode
                 state.next();
                 nodes.push(classify_text(&t));
             }
-            Token::Space => { state.next(); nodes.push(MathNode::Space); }
-            Token::Ampersand | Token::Newline => { state.next(); }
+            Token::Space => {
+                state.next();
+                nodes.push(MathNode::Space);
+            }
+            Token::Ampersand | Token::Newline => {
+                state.next();
+            }
         }
     }
     Ok(nodes)
@@ -160,7 +208,9 @@ fn parse_single_node(state: &mut ParseState) -> Result<MathNode, String> {
         Some(Token::OpenBrace) => {
             state.next();
             let inner = parse_sequence(state, true)?;
-            if state.peek() == Some(&Token::CloseBrace) { state.next(); }
+            if state.peek() == Some(&Token::CloseBrace) {
+                state.next();
+            }
             Ok(MathNode::Group(inner))
         }
         Some(Token::Command(cmd)) => {
@@ -255,23 +305,39 @@ fn parse_command(state: &mut ParseState, cmd: &str) -> Result<MathNode, String> 
 
 fn greek_letter(cmd: &str) -> Option<&'static str> {
     match cmd {
-        "alpha" => Some("\u{03B1}"), "beta" => Some("\u{03B2}"),
-        "gamma" => Some("\u{03B3}"), "delta" => Some("\u{03B4}"),
-        "epsilon" | "varepsilon" => Some("\u{03B5}"), "zeta" => Some("\u{03B6}"),
-        "eta" => Some("\u{03B7}"), "theta" | "vartheta" => Some("\u{03B8}"),
-        "iota" => Some("\u{03B9}"), "kappa" => Some("\u{03BA}"),
-        "lambda" => Some("\u{03BB}"), "mu" => Some("\u{03BC}"),
-        "nu" => Some("\u{03BD}"), "xi" => Some("\u{03BE}"),
-        "pi" | "varpi" => Some("\u{03C0}"), "rho" | "varrho" => Some("\u{03C1}"),
-        "sigma" | "varsigma" => Some("\u{03C3}"), "tau" => Some("\u{03C4}"),
-        "upsilon" => Some("\u{03C5}"), "phi" | "varphi" => Some("\u{03C6}"),
-        "chi" => Some("\u{03C7}"), "psi" => Some("\u{03C8}"),
+        "alpha" => Some("\u{03B1}"),
+        "beta" => Some("\u{03B2}"),
+        "gamma" => Some("\u{03B3}"),
+        "delta" => Some("\u{03B4}"),
+        "epsilon" | "varepsilon" => Some("\u{03B5}"),
+        "zeta" => Some("\u{03B6}"),
+        "eta" => Some("\u{03B7}"),
+        "theta" | "vartheta" => Some("\u{03B8}"),
+        "iota" => Some("\u{03B9}"),
+        "kappa" => Some("\u{03BA}"),
+        "lambda" => Some("\u{03BB}"),
+        "mu" => Some("\u{03BC}"),
+        "nu" => Some("\u{03BD}"),
+        "xi" => Some("\u{03BE}"),
+        "pi" | "varpi" => Some("\u{03C0}"),
+        "rho" | "varrho" => Some("\u{03C1}"),
+        "sigma" | "varsigma" => Some("\u{03C3}"),
+        "tau" => Some("\u{03C4}"),
+        "upsilon" => Some("\u{03C5}"),
+        "phi" | "varphi" => Some("\u{03C6}"),
+        "chi" => Some("\u{03C7}"),
+        "psi" => Some("\u{03C8}"),
         "omega" => Some("\u{03C9}"),
-        "Gamma" => Some("\u{0393}"), "Delta" => Some("\u{0394}"),
-        "Theta" => Some("\u{0398}"), "Lambda" => Some("\u{039B}"),
-        "Xi" => Some("\u{039E}"), "Pi" => Some("\u{03A0}"),
-        "Sigma" => Some("\u{03A3}"), "Upsilon" => Some("\u{03A5}"),
-        "Phi" => Some("\u{03A6}"), "Psi" => Some("\u{03A8}"),
+        "Gamma" => Some("\u{0393}"),
+        "Delta" => Some("\u{0394}"),
+        "Theta" => Some("\u{0398}"),
+        "Lambda" => Some("\u{039B}"),
+        "Xi" => Some("\u{039E}"),
+        "Pi" => Some("\u{03A0}"),
+        "Sigma" => Some("\u{03A3}"),
+        "Upsilon" => Some("\u{03A5}"),
+        "Phi" => Some("\u{03A6}"),
+        "Psi" => Some("\u{03A8}"),
         "Omega" => Some("\u{03A9}"),
         _ => None,
     }
@@ -289,7 +355,10 @@ fn classify_text(t: &str) -> MathNode {
 
 fn extract_text(node: &MathNode) -> String {
     match node {
-        MathNode::Identifier(s) | MathNode::Number(s) | MathNode::Operator(s) | MathNode::Text(s) => s.clone(),
+        MathNode::Identifier(s)
+        | MathNode::Number(s)
+        | MathNode::Operator(s)
+        | MathNode::Text(s) => s.clone(),
         MathNode::Group(nodes) => nodes.iter().map(extract_text).collect::<Vec<_>>().join(""),
         _ => String::new(),
     }
@@ -310,7 +379,11 @@ fn escape_xml(text: &str) -> String {
 }
 
 fn nodes_to_mathml(nodes: &[MathNode]) -> String {
-    nodes.iter().map(node_to_mathml).collect::<Vec<_>>().join("")
+    nodes
+        .iter()
+        .map(node_to_mathml)
+        .collect::<Vec<_>>()
+        .join("")
 }
 
 fn node_to_mathml(node: &MathNode) -> String {
@@ -321,16 +394,33 @@ fn node_to_mathml(node: &MathNode) -> String {
         MathNode::Space => "<mspace width=\"1em\"/>".to_string(),
         MathNode::Text(s) => format!("<mtext>{}</mtext>", escape_xml(s)),
         MathNode::Sup(base, sup) => {
-            format!("<msup>{}{}</msup>", node_to_mathml(base), node_to_mathml(sup))
+            format!(
+                "<msup>{}{}</msup>",
+                node_to_mathml(base),
+                node_to_mathml(sup)
+            )
         }
         MathNode::Sub(base, sub) => {
-            format!("<msub>{}{}</msub>", node_to_mathml(base), node_to_mathml(sub))
+            format!(
+                "<msub>{}{}</msub>",
+                node_to_mathml(base),
+                node_to_mathml(sub)
+            )
         }
         MathNode::SubSup(base, sub, sup) => {
-            format!("<msubsup>{}{}{}</msubsup>", node_to_mathml(base), node_to_mathml(sub), node_to_mathml(sup))
+            format!(
+                "<msubsup>{}{}{}</msubsup>",
+                node_to_mathml(base),
+                node_to_mathml(sub),
+                node_to_mathml(sup)
+            )
         }
         MathNode::Frac(num, den) => {
-            format!("<mfrac>{}{}</mfrac>", node_to_mathml(num), node_to_mathml(den))
+            format!(
+                "<mfrac>{}{}</mfrac>",
+                node_to_mathml(num),
+                node_to_mathml(den)
+            )
         }
         MathNode::Sqrt(inner) => {
             format!("<msqrt>{}</msqrt>", node_to_mathml(inner))
