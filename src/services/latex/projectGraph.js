@@ -50,10 +50,10 @@ export async function resolveLatexProjectGraph(sourcePath, options = {}) {
 
   const graph = await invoke('latex_project_graph_resolve', {
     params: {
-      sourcePath: normalizedSource,
+      sourcePath,
       workspacePath,
       flatFiles,
-      contentOverrides: options.contentOverrides || {},
+      contentOverrides: options.contentOverrides,
     },
   }).catch(() => null)
 

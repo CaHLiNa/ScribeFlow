@@ -11,6 +11,90 @@ use crate::content_fingerprint::fnv1a;
 use crate::fs_tree;
 use crate::security::{self, WorkspaceScopeState};
 
+fn payload_field<'a>(params: &'a Value, camel_key: &str, snake_key: &str) -> Option<&'a Value> {
+    params
+        .as_object()
+        .and_then(|object| object.get(camel_key).or_else(|| object.get(snake_key)))
+}
+
+fn string_payload_field(params: &Value, camel_key: &str, snake_key: &str) -> String {
+    payload_field(params, camel_key, snake_key)
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .trim()
+        .to_string()
+}
+
+fn string_array_payload_field(params: &Value, camel_key: &str, snake_key: &str) -> Vec<String> {
+    payload_field(params, camel_key, snake_key)
+        .and_then(Value::as_array)
+        .map(|entries| {
+            entries
+                .iter()
+                .filter_map(|entry| {
+                    if let Some(path) = entry.as_str() {
+                        return Some(path);
+                    }
+                    entry
+                        .as_object()
+                        .and_then(|object| object.get("path").and_then(Value::as_str))
+                })
+                .map(str::trim)
+                .filter(|path| !path.is_empty())
+                .map(str::to_string)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default()
+}
+
+fn content_overrides_payload_field(
+    params: &Value,
+    camel_key: &str,
+    snake_key: &str,
+) -> HashMap<String, String> {
+    payload_field(params, camel_key, snake_key)
+        .and_then(Value::as_object)
+        .map(|object| {
+            object
+                .iter()
+                .filter_map(|(path, content)| {
+                    let path = normalize_fs_path(path);
+                    if path.is_empty() {
+                        return None;
+                    }
+                    content.as_str().map(|content| (path, content.to_string()))
+                })
+                .collect::<HashMap<_, _>>()
+        })
+        .unwrap_or_default()
+}
+
+fn latex_project_graph_params_from_payload(params: Value) -> LatexProjectGraphParams {
+    LatexProjectGraphParams {
+        source_path: string_payload_field(&params, "sourcePath", "source_path"),
+        workspace_path: string_payload_field(&params, "workspacePath", "workspace_path"),
+        flat_files: string_array_payload_field(&params, "flatFiles", "flat_files"),
+        content_overrides: content_overrides_payload_field(
+            &params,
+            "contentOverrides",
+            "content_overrides",
+        ),
+    }
+}
+
+fn latex_affected_roots_params_from_payload(params: Value) -> LatexAffectedRootsParams {
+    LatexAffectedRootsParams {
+        changed_path: string_payload_field(&params, "changedPath", "changed_path"),
+        workspace_path: string_payload_field(&params, "workspacePath", "workspace_path"),
+        flat_files: string_array_payload_field(&params, "flatFiles", "flat_files"),
+        content_overrides: content_overrides_payload_field(
+            &params,
+            "contentOverrides",
+            "content_overrides",
+        ),
+    }
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct CachedGraphEntry {
     pub(crate) key: String,
@@ -1241,13 +1325,15 @@ fn resolve_affected_root_targets_internal(params: &LatexAffectedRootsParams) -> 
 
 #[tauri::command]
 pub async fn latex_project_graph_resolve(
-    params: LatexProjectGraphParams,
+    params: Value,
     scope_state: State<'_, WorkspaceScopeState>,
     cache_state: State<'_, LatexProjectGraphCacheState>,
 ) -> Result<Value, String> {
+    let params = latex_project_graph_params_from_payload(params);
     let params = graph_params_with_workspace_files(params, scope_state.inner())?;
     let normalized_source = normalize_fs_path(&params.source_path);
-    let uses_workspace_discovery = params.flat_files.is_empty() && !params.workspace_path.is_empty();
+    let uses_workspace_discovery =
+        params.flat_files.is_empty() && !params.workspace_path.is_empty();
     let cache_key = build_cache_key(&params);
 
     if !uses_workspace_discovery {
@@ -1313,9 +1399,7 @@ pub fn latex_project_graph_get_cached_preview_path(
     let preview = cache
         .get(&normalized)
         .and_then(|entry| entry.graph.get("previewPath").cloned());
-    Ok(preview.unwrap_or_else(|| {
-        Value::String(format!("{}.pdf", strip_extension(&normalized)))
-    }))
+    Ok(preview.unwrap_or_else(|| Value::String(format!("{}.pdf", strip_extension(&normalized)))))
 }
 
 fn resolve_compile_request_value(params: &LatexProjectGraphParams) -> Value {
@@ -1336,18 +1420,20 @@ fn resolve_compile_request_value(params: &LatexProjectGraphParams) -> Value {
 
 #[tauri::command]
 pub async fn latex_compile_request_resolve(
-    params: LatexProjectGraphParams,
+    params: Value,
     scope_state: State<'_, WorkspaceScopeState>,
 ) -> Result<Value, String> {
+    let params = latex_project_graph_params_from_payload(params);
     let params = graph_params_with_workspace_files(params, scope_state.inner())?;
     Ok(resolve_compile_request_value(&params))
 }
 
 #[tauri::command]
 pub async fn latex_affected_root_targets_resolve(
-    params: LatexAffectedRootsParams,
+    params: Value,
     scope_state: State<'_, WorkspaceScopeState>,
 ) -> Result<Value, String> {
+    let params = latex_affected_roots_params_from_payload(params);
     let params = affected_roots_params_with_workspace_files(params, scope_state.inner())?;
     Ok(Value::Array(resolve_affected_root_targets_internal(
         &params,
@@ -1356,9 +1442,10 @@ pub async fn latex_affected_root_targets_resolve(
 
 #[tauri::command]
 pub async fn latex_compile_targets_resolve(
-    params: LatexAffectedRootsParams,
+    params: Value,
     scope_state: State<'_, WorkspaceScopeState>,
 ) -> Result<Value, String> {
+    let params = latex_affected_roots_params_from_payload(params);
     let params = affected_roots_params_with_workspace_files(params, scope_state.inner())?;
     let normalized_changed = normalize_fs_path(&params.changed_path);
     if normalized_changed.is_empty() {
@@ -1387,11 +1474,12 @@ pub async fn latex_compile_targets_resolve(
 #[cfg(test)]
 mod tests {
     use super::{
-        graph_params_with_workspace_files, parse_citations, parse_sections, resolve_graph_value,
-        LatexProjectGraphParams,
+        graph_params_with_workspace_files, latex_affected_roots_params_from_payload,
+        latex_project_graph_params_from_payload, parse_citations, parse_sections,
+        resolve_graph_value, LatexProjectGraphParams,
     };
     use crate::security::{set_allowed_roots_internal, WorkspaceScopeState};
-    use serde_json::Value;
+    use serde_json::{json, Value};
     use std::collections::HashMap;
     use std::fs;
     use std::path::PathBuf;
@@ -1475,6 +1563,84 @@ mod tests {
             outline_items[0].get("line").and_then(Value::as_u64),
             Some(2)
         );
+    }
+
+    #[test]
+    fn latex_project_graph_params_normalize_raw_payloads() {
+        let params = latex_project_graph_params_from_payload(json!({
+            "sourcePath": " /workspace/chapter.tex ",
+            "workspacePath": 42,
+            "flatFiles": [
+                " /workspace/main.tex ",
+                { "path": " /workspace/refs.bib " },
+                { "path": 42 },
+                "",
+                false
+            ],
+            "contentOverrides": {
+                " /workspace/chapter.tex ": "  body keeps spaces  ",
+                "": "ignored",
+                "/workspace/invalid.tex": false
+            }
+        }));
+
+        assert_eq!(params.source_path, "/workspace/chapter.tex");
+        assert_eq!(params.workspace_path, "");
+        assert_eq!(
+            params.flat_files,
+            vec!["/workspace/main.tex", "/workspace/refs.bib"]
+        );
+        assert_eq!(
+            params
+                .content_overrides
+                .get("/workspace/chapter.tex")
+                .map(String::as_str),
+            Some("  body keeps spaces  ")
+        );
+        assert!(!params
+            .content_overrides
+            .contains_key("/workspace/invalid.tex"));
+
+        let snake_params = latex_project_graph_params_from_payload(json!({
+            "source_path": " /workspace/snake.tex ",
+            "workspace_path": " /workspace ",
+            "flat_files": [{ "path": " /workspace/snake.tex " }],
+            "content_overrides": {
+                "/workspace/snake.tex": "snake body"
+            }
+        }));
+        assert_eq!(snake_params.source_path, "/workspace/snake.tex");
+        assert_eq!(snake_params.workspace_path, "/workspace");
+        assert_eq!(snake_params.flat_files, vec!["/workspace/snake.tex"]);
+        assert_eq!(
+            snake_params
+                .content_overrides
+                .get("/workspace/snake.tex")
+                .map(String::as_str),
+            Some("snake body")
+        );
+
+        let affected = latex_affected_roots_params_from_payload(json!({
+            "changedPath": " /workspace/refs.bib ",
+            "workspacePath": " /workspace ",
+            "flatFiles": [
+                " /workspace/main.tex ",
+                { "path": " /workspace/refs.bib " }
+            ],
+            "contentOverrides": false
+        }));
+        assert_eq!(affected.changed_path, "/workspace/refs.bib");
+        assert_eq!(affected.workspace_path, "/workspace");
+        assert_eq!(
+            affected.flat_files,
+            vec!["/workspace/main.tex", "/workspace/refs.bib"]
+        );
+        assert!(affected.content_overrides.is_empty());
+
+        let non_object = latex_project_graph_params_from_payload(json!(false));
+        assert_eq!(non_object.source_path, "");
+        assert!(non_object.flat_files.is_empty());
+        assert!(non_object.content_overrides.is_empty());
     }
 
     #[test]

@@ -5,12 +5,10 @@ import { normalizeLatexCompileExecution } from './compileNormalize.js'
 export function resolveLatexCompileRequest(params = {}) {
   return invoke('latex_compile_request_resolve', {
     params: {
-      sourcePath: String(params.sourcePath || ''),
-      workspacePath: String(params.workspacePath || ''),
-      flatFiles: Array.isArray(params.flatFiles) ? params.flatFiles : [],
-      contentOverrides: params.contentOverrides && typeof params.contentOverrides === 'object'
-        ? params.contentOverrides
-        : {},
+      sourcePath: params.sourcePath,
+      workspacePath: params.workspacePath,
+      flatFiles: params.flatFiles,
+      contentOverrides: params.contentOverrides,
     },
   })
 }
@@ -18,12 +16,10 @@ export function resolveLatexCompileRequest(params = {}) {
 export function resolveLatexCompileTargets(params = {}) {
   return invoke('latex_compile_targets_resolve', {
     params: {
-      changedPath: String(params.changedPath || ''),
-      workspacePath: String(params.workspacePath || ''),
-      flatFiles: Array.isArray(params.flatFiles) ? params.flatFiles : [],
-      contentOverrides: params.contentOverrides && typeof params.contentOverrides === 'object'
-        ? params.contentOverrides
-        : {},
+      changedPath: params.changedPath,
+      workspacePath: params.workspacePath,
+      flatFiles: params.flatFiles,
+      contentOverrides: params.contentOverrides,
     },
   })
 }
