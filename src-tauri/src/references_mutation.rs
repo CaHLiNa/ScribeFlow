@@ -1,16 +1,20 @@
 use serde::Deserialize;
 use serde_json::{json, Value};
 
+use crate::app_dirs;
 use crate::references_merge::{
     find_duplicate_reference_internal, merge_imported_references_internal,
 };
 use crate::references_snapshot::{normalize_reference_record, normalize_snapshot, trim_string};
+use crate::references_zotero::zotero_config_has_push_target;
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReferencesMutationApplyParams {
     #[serde(default)]
     pub snapshot: Value,
+    #[serde(default)]
+    pub global_config_dir: String,
     pub action: ReferencesMutationAction,
 }
 
@@ -53,6 +57,8 @@ pub enum ReferencesMutationAction {
     },
     MergeImportedReferences {
         imported: Vec<Value>,
+        #[serde(default, alias = "markForZoteroPush")]
+        mark_for_zotero_push: bool,
     },
     SetDocumentReferenceIds {
         #[serde(alias = "texPath")]
@@ -521,6 +527,20 @@ fn apply_merge_imported_references(snapshot: &Value, imported: &[Value]) -> Valu
     })
 }
 
+fn mark_references_for_zotero_push(imported: &[Value], should_mark: bool) -> Vec<Value> {
+    imported
+        .iter()
+        .map(|reference| {
+            if !should_mark {
+                return reference.clone();
+            }
+            let mut map = reference.as_object().cloned().unwrap_or_default();
+            map.insert("_appPushPending".to_string(), Value::Bool(true));
+            Value::Object(map)
+        })
+        .collect()
+}
+
 fn apply_add_reference(snapshot: &Value, reference: &Value, mark_for_zotero_push: bool) -> Value {
     let references = normalize_snapshot_references(snapshot);
     let mut candidate = reference.as_object().cloned().unwrap_or_default();
@@ -694,6 +714,25 @@ fn apply_set_document_reference_ids(
     })
 }
 
+fn resolve_global_config_dir(global_config_dir: &str) -> Result<String, String> {
+    let trimmed = global_config_dir.trim();
+    if !trimmed.is_empty() {
+        return Ok(trimmed.to_string());
+    }
+
+    Ok(app_dirs::data_root_dir()?.to_string_lossy().to_string())
+}
+
+fn should_mark_for_zotero_push(global_config_dir: &str, requested: bool) -> Result<bool, String> {
+    if !requested {
+        return Ok(false);
+    }
+
+    Ok(zotero_config_has_push_target(&resolve_global_config_dir(
+        global_config_dir,
+    )?)?)
+}
+
 #[tauri::command]
 pub async fn references_mutation_apply(
     params: ReferencesMutationApplyParams,
@@ -703,7 +742,19 @@ pub async fn references_mutation_apply(
         ReferencesMutationAction::AddReference {
             reference,
             mark_for_zotero_push,
-        } => apply_add_reference(&normalized_snapshot, &reference, mark_for_zotero_push),
+        } => {
+            let should_mark =
+                should_mark_for_zotero_push(&params.global_config_dir, mark_for_zotero_push)?;
+            apply_add_reference(
+                &normalized_snapshot,
+                &reference,
+                should_mark
+                    || reference
+                        .get("_appPushPending")
+                        .and_then(Value::as_bool)
+                        .unwrap_or(false),
+            )
+        }
         ReferencesMutationAction::UpdateReference {
             reference_id,
             updates,
@@ -727,7 +778,13 @@ pub async fn references_mutation_apply(
         } => {
             apply_toggle_reference_collection(&normalized_snapshot, &reference_id, &collection_key)
         }
-        ReferencesMutationAction::MergeImportedReferences { imported } => {
+        ReferencesMutationAction::MergeImportedReferences {
+            imported,
+            mark_for_zotero_push,
+        } => {
+            let should_mark =
+                should_mark_for_zotero_push(&params.global_config_dir, mark_for_zotero_push)?;
+            let imported = mark_references_for_zotero_push(&imported, should_mark);
             apply_merge_imported_references(&normalized_snapshot, &imported)
         }
         ReferencesMutationAction::SetDocumentReferenceIds {
@@ -745,6 +802,7 @@ mod tests {
         references_mutation_apply, ReferencesMutationAction, ReferencesMutationApplyParams,
     };
     use serde_json::json;
+    use std::fs;
 
     fn sample_snapshot() -> serde_json::Value {
         json!({
@@ -849,6 +907,7 @@ mod tests {
         let document_reference_params: ReferencesMutationApplyParams =
             serde_json::from_value(json!({
                 "snapshot": sample_snapshot(),
+                "globalConfigDir": "/tmp/scribeflow-config",
                 "action": {
                     "type": "setDocumentReferenceIds",
                     "texPath": "/workspace/main.tex",
@@ -856,6 +915,10 @@ mod tests {
                 }
             }))
             .expect("deserialize setDocumentReferenceIds action from frontend payload");
+        assert_eq!(
+            document_reference_params.global_config_dir,
+            "/tmp/scribeflow-config"
+        );
         match document_reference_params.action {
             ReferencesMutationAction::SetDocumentReferenceIds {
                 tex_path,
@@ -872,6 +935,7 @@ mod tests {
     async fn create_collection_returns_existing_duplicate() {
         let result = references_mutation_apply(ReferencesMutationApplyParams {
             snapshot: sample_snapshot(),
+            global_config_dir: String::new(),
             action: ReferencesMutationAction::CreateCollection {
                 label: "reading".to_string(),
             },
@@ -890,6 +954,7 @@ mod tests {
     async fn remove_collection_updates_memberships() {
         let result = references_mutation_apply(ReferencesMutationApplyParams {
             snapshot: sample_snapshot(),
+            global_config_dir: String::new(),
             action: ReferencesMutationAction::RemoveCollection {
                 collection_key: "reading".to_string(),
             },
@@ -916,6 +981,7 @@ mod tests {
     async fn merge_imported_references_selects_existing_duplicate() {
         let result = references_mutation_apply(ReferencesMutationApplyParams {
             snapshot: sample_snapshot(),
+            global_config_dir: String::new(),
             action: ReferencesMutationAction::MergeImportedReferences {
                 imported: vec![json!({
                     "id": "imported-1",
@@ -925,6 +991,7 @@ mod tests {
                     "collections": [],
                     "tags": ["Control"]
                 })],
+                mark_for_zotero_push: false,
             },
         })
         .await
@@ -936,6 +1003,56 @@ mod tests {
             Some("ref-1")
         );
         assert_eq!(result["result"]["reusedExisting"].as_bool(), Some(true));
+    }
+
+    #[tokio::test]
+    async fn merge_imported_references_marks_zotero_push_pending_from_rust_config() {
+        let config_dir = std::env::temp_dir().join(format!(
+            "scribeflow-reference-mutation-zotero-{}",
+            uuid::Uuid::new_v4()
+        ));
+        fs::create_dir_all(&config_dir).expect("create config dir");
+        fs::write(
+            config_dir.join("zotero.json"),
+            r#"{
+  "pushTarget": {
+    "libraryType": "user",
+    "libraryId": "16788433",
+    "collectionKey": "papers"
+  }
+}"#,
+        )
+        .expect("write zotero config");
+
+        let result = references_mutation_apply(ReferencesMutationApplyParams {
+            snapshot: sample_snapshot(),
+            global_config_dir: config_dir.to_string_lossy().to_string(),
+            action: ReferencesMutationAction::MergeImportedReferences {
+                imported: vec![json!({
+                    "id": "imported-2",
+                    "title": "New Imported Reference",
+                    "year": 2026,
+                    "citationKey": "new2026",
+                    "collections": [],
+                    "tags": []
+                })],
+                mark_for_zotero_push: true,
+            },
+        })
+        .await
+        .expect("merge imported references");
+
+        let imported = result["snapshot"]["references"]
+            .as_array()
+            .and_then(|references| {
+                references
+                    .iter()
+                    .find(|reference| reference["id"].as_str() == Some("imported-2"))
+            })
+            .expect("imported reference");
+        assert_eq!(imported["_appPushPending"].as_bool(), Some(true));
+
+        let _ = fs::remove_dir_all(config_dir);
     }
 
     #[tokio::test]
@@ -958,6 +1075,7 @@ mod tests {
         });
         let result = references_mutation_apply(ReferencesMutationApplyParams {
             snapshot,
+            global_config_dir: String::new(),
             action: ReferencesMutationAction::ToggleReferenceCollection {
                 reference_id: "ref-1".to_string(),
                 collection_key: "reading".to_string(),
@@ -978,6 +1096,7 @@ mod tests {
     async fn add_reference_detects_duplicate_and_selects_existing() {
         let result = references_mutation_apply(ReferencesMutationApplyParams {
             snapshot: sample_snapshot(),
+            global_config_dir: String::new(),
             action: ReferencesMutationAction::AddReference {
                 reference: json!({
                     "id": "new-ref",
@@ -1005,6 +1124,7 @@ mod tests {
     async fn update_reference_normalizes_and_keeps_selection() {
         let result = references_mutation_apply(ReferencesMutationApplyParams {
             snapshot: sample_snapshot(),
+            global_config_dir: String::new(),
             action: ReferencesMutationAction::UpdateReference {
                 reference_id: "ref-1".to_string(),
                 updates: json!({
@@ -1033,6 +1153,7 @@ mod tests {
     async fn update_reference_preserves_content_fields() {
         let result = references_mutation_apply(ReferencesMutationApplyParams {
             snapshot: sample_snapshot(),
+            global_config_dir: String::new(),
             action: ReferencesMutationAction::UpdateReference {
                 reference_id: "ref-1".to_string(),
                 updates: json!({
@@ -1056,6 +1177,7 @@ mod tests {
     async fn remove_reference_drops_entry() {
         let result = references_mutation_apply(ReferencesMutationApplyParams {
             snapshot: sample_snapshot(),
+            global_config_dir: String::new(),
             action: ReferencesMutationAction::RemoveReference {
                 reference_id: "ref-1".to_string(),
             },
@@ -1076,6 +1198,7 @@ mod tests {
     async fn set_document_reference_ids_prunes_invalid_and_empty_entries() {
         let result = references_mutation_apply(ReferencesMutationApplyParams {
             snapshot: sample_snapshot(),
+            global_config_dir: String::new(),
             action: ReferencesMutationAction::SetDocumentReferenceIds {
                 tex_path: "/workspace/main.tex".to_string(),
                 reference_ids: vec![
@@ -1096,6 +1219,7 @@ mod tests {
 
         let cleared = references_mutation_apply(ReferencesMutationApplyParams {
             snapshot: result["snapshot"].clone(),
+            global_config_dir: String::new(),
             action: ReferencesMutationAction::SetDocumentReferenceIds {
                 tex_path: "/workspace/main.tex".to_string(),
                 reference_ids: vec![],

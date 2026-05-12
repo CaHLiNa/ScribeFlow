@@ -253,6 +253,19 @@ fn read_zotero_config_raw(global_config_dir: &str) -> Result<Option<Value>, Stri
     Ok(Some(parsed))
 }
 
+pub(crate) fn zotero_config_has_push_target(global_config_dir: &str) -> Result<bool, String> {
+    let Some(config) = read_zotero_config_raw(global_config_dir)? else {
+        return Ok(false);
+    };
+    let Some(push_target) = config.get("pushTarget") else {
+        return Ok(false);
+    };
+
+    let library_type = trim_string(push_target.get("libraryType"));
+    let library_id = trim_string(push_target.get("libraryId"));
+    Ok(!library_type.is_empty() && !library_id.is_empty())
+}
+
 fn sanitize_zotero_config(config: &Value) -> Value {
     let mut map = config.as_object().cloned().unwrap_or_default();
     map.remove("_apiKeyFallback");

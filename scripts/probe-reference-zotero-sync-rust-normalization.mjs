@@ -121,16 +121,83 @@ try {
       }
     }
 
+    if (cmd === 'references_mutation_apply') {
+      const action = args?.params?.action || {}
+      if (action.type === 'addReference') {
+        return {
+          snapshot: {
+            version: 2,
+            references: [
+              {
+                ...action.reference,
+                _appPushPending: action.markForZoteroPush === true,
+              },
+            ],
+          },
+          result: {
+            changed: true,
+            duplicate: false,
+            selectedReferenceId: action.reference?.id || '',
+          },
+        }
+      }
+
+      if (action.type === 'mergeImportedReferences') {
+        return {
+          snapshot: {
+            version: 2,
+            references: Array.isArray(action.imported) ? action.imported : [],
+          },
+          result: {
+            importedCount: Array.isArray(action.imported) ? action.imported.length : 0,
+            selectedReferenceId: action.imported?.[0]?.id || '',
+            reusedExisting: false,
+          },
+        }
+      }
+    }
+
+    if (cmd === 'references_snapshot_normalize') {
+      return args?.params?.snapshot || {
+        version: 2,
+        references: [],
+      }
+    }
+
+    if (cmd === 'references_library_write') {
+      return args?.params?.snapshot || {
+        version: 2,
+        references: [],
+      }
+    }
+
+    if (cmd === 'references_query_resolve') {
+      const params = args?.params || {}
+      const references = Array.isArray(params.references) ? params.references : []
+      return {
+        query: {},
+        sectionCounts: {},
+        sourceCounts: {},
+        collectionCounts: {},
+        tagCounts: {},
+        sortedReferences: references,
+        filteredReferences: references,
+        citationUsageIndex: {},
+        citationUsageDetails: {},
+      }
+    }
+
     if (cmd === 'references_zotero_api_key_load') {
       throw new Error('Settings account state must not load the raw Zotero API key into JS')
     }
 
     if (
+      cmd === 'references_zotero_config_load' ||
       cmd === 'references_zotero_validate_api_key' ||
       cmd === 'references_zotero_api_key_store' ||
       cmd === 'references_zotero_config_save'
     ) {
-      throw new Error('Zotero connect must run as a single Rust account workflow command')
+      throw new Error('Zotero account and mutation decisions must run in Rust workflows')
     }
 
     throw new Error(`Unexpected IPC command: ${cmd}`)
@@ -380,10 +447,82 @@ try {
   })
   assert.equal(
     calls.some((call) => (
+      call.cmd === 'references_zotero_config_load' ||
       call.cmd === 'references_zotero_validate_api_key' ||
       call.cmd === 'references_zotero_api_key_store' ||
       call.cmd === 'references_zotero_config_save'
     )),
+    false,
+  )
+
+  const addResult = await referencesStore.addReference('', {
+    id: 'manual-ref',
+    title: 'Manual Reference',
+  }, { persist: false })
+  assert.equal(addResult?.id, 'manual-ref')
+
+  const importResult = await referencesStore.importParsedReferences('', [
+    {
+      id: 'imported-ref',
+      title: 'Imported Reference',
+    },
+  ])
+  assert.equal(importResult.importedCount, 1)
+  assert.deepEqual(
+    calls
+      .filter((call) => call.cmd === 'references_mutation_apply')
+      .map((call) => call.args.params),
+    [
+      {
+        globalConfigDir: '',
+        snapshot: {
+          version: 2,
+          citationStyle: 'apa',
+          documentReferenceSelections: {},
+          collections: [],
+          tags: [],
+          references: [],
+        },
+        action: {
+          type: 'addReference',
+          reference: {
+            id: 'manual-ref',
+            title: 'Manual Reference',
+          },
+          markForZoteroPush: true,
+        },
+      },
+      {
+        globalConfigDir: '',
+        snapshot: {
+          version: 2,
+          citationStyle: 'apa',
+          documentReferenceSelections: {},
+          collections: [],
+          tags: [],
+          references: [
+            {
+              id: 'manual-ref',
+              title: 'Manual Reference',
+              _appPushPending: true,
+            },
+          ],
+        },
+        action: {
+          type: 'mergeImportedReferences',
+          imported: [
+            {
+              id: 'imported-ref',
+              title: 'Imported Reference',
+            },
+          ],
+          markForZoteroPush: true,
+        },
+      },
+    ],
+  )
+  assert.equal(
+    calls.some((call) => call.cmd === 'references_zotero_config_load'),
     false,
   )
 
