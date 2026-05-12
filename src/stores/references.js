@@ -1013,25 +1013,7 @@ export const useReferencesStore = defineStore('references', {
     },
 
     async loadZoteroRemoteLibraries(config = {}) {
-      const userId = String(config?.userId || '').trim()
-      if (!userId) return null
-
-      const libraries = await loadRemoteLibraries(userId)
-      if (!libraries || typeof libraries !== 'object') return null
-      const normalizedGroups = Array.isArray(libraries.groups) ? libraries.groups : []
-      const userCollections = Array.isArray(libraries.userCollections) ? libraries.userCollections : []
-      const groupCollections = Array.isArray(libraries.groupCollections)
-        ? libraries.groupCollections
-        : []
-
-      return {
-        groups: normalizedGroups,
-        userCollections,
-        groupCollections: groupCollections.map((entry) => ({
-          group: entry.group,
-          collections: Array.isArray(entry.collections) ? entry.collections : [],
-        })),
-      }
+      return loadRemoteLibraries(config)
     },
 
     async formatReferenceCitationAsync(referenceId = '', mode = 'reference', number) {

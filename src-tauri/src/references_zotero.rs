@@ -182,6 +182,10 @@ fn object_payload_field(params: &Value, camel_key: &str, snake_key: &str) -> Val
         .unwrap_or_else(|| json!({}))
 }
 
+fn config_payload_field(params: &Value) -> Value {
+    object_payload_field(params, "config", "config")
+}
+
 fn zotero_sync_persist_params_from_payload(params: Value) -> ZoteroSyncPersistParams {
     ZoteroSyncPersistParams {
         global_config_dir: string_payload_field(&params, "globalConfigDir", "global_config_dir"),
@@ -219,9 +223,13 @@ fn zotero_delete_with_account_params_from_payload(params: Value) -> ZoteroDelete
 fn zotero_remote_libraries_with_account_params_from_payload(
     params: Value,
 ) -> ZoteroRemoteLibrariesWithAccountParams {
+    let config = config_payload_field(&params);
+    let user_id = scalar_string(command_payload_field(&params, "userId", "user_id"))
+        .if_empty_then(|| scalar_string(config.get("userId").or_else(|| config.get("user_id"))));
+
     ZoteroRemoteLibrariesWithAccountParams {
         global_config_dir: string_payload_field(&params, "globalConfigDir", "global_config_dir"),
-        user_id: scalar_string(command_payload_field(&params, "userId", "user_id")),
+        user_id,
     }
 }
 
@@ -1403,7 +1411,17 @@ pub async fn references_zotero_remote_libraries_with_account(
     Ok(json!({
         "groups": normalized_groups,
         "userCollections": user_collections.as_array().cloned().unwrap_or_default(),
-        "groupCollections": group_collections,
+        "groupCollections": group_collections
+            .into_iter()
+            .map(|entry| json!({
+                "group": entry.get("group").cloned().unwrap_or(Value::Null),
+                "collections": entry
+                    .get("collections")
+                    .and_then(Value::as_array)
+                    .cloned()
+                    .unwrap_or_default(),
+            }))
+            .collect::<Vec<_>>(),
     }))
 }
 
@@ -1793,6 +1811,16 @@ mod tests {
         }));
         assert_eq!(snake_params.global_config_dir, "/tmp/snake-config");
         assert_eq!(snake_params.user_id, "42");
+
+        let config_params = zotero_remote_libraries_with_account_params_from_payload(json!({
+            "globalConfigDir": " /tmp/config ",
+            "config": {
+                "userId": " 16788433 ",
+                "username": "researcher"
+            }
+        }));
+        assert_eq!(config_params.global_config_dir, "/tmp/config");
+        assert_eq!(config_params.user_id, "16788433");
 
         let invalid = zotero_remote_libraries_with_account_params_from_payload(json!({
             "globalConfigDir": 42,

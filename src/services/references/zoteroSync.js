@@ -69,10 +69,12 @@ export async function saveZoteroConfig(config = null, globalConfigDir = null) {
   })
 }
 
-export async function loadRemoteLibraries(userId = '') {
+export async function loadRemoteLibraries(config = {}) {
+  const globalConfigDir = await getGlobalConfigDir()
   return invoke('references_zotero_remote_libraries_with_account', {
     params: {
-      userId,
+      globalConfigDir,
+      config,
     },
   })
 }

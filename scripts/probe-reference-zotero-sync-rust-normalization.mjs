@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { webcrypto } from 'node:crypto'
+import { createPinia, setActivePinia } from 'pinia'
 import { createLogger, createServer } from 'vite'
 
 if (!globalThis.window) {
@@ -137,6 +138,10 @@ try {
 
   const { connectZoteroAccount, deleteFromZotero, loadRemoteLibraries, loadZoteroAccountState, syncNow } =
     await vite.ssrLoadModule('/src/services/references/zoteroSync.js')
+  const { useReferencesStore } = await vite.ssrLoadModule('/src/stores/references.js')
+
+  const pinia = createPinia()
+  setActivePinia(pinia)
 
   const snapshot = {
     version: 2,
@@ -209,7 +214,10 @@ try {
     },
   })
 
-  const libraries = await loadRemoteLibraries(42)
+  const libraries = await loadRemoteLibraries({
+    userId: ' 42 ',
+    username: 'researcher',
+  })
 
   assert.deepEqual(libraries, {
     groups: [
@@ -245,11 +253,69 @@ try {
       'references_zotero_sync_persist_with_account',
       'references_zotero_sync_persist_with_account',
       'references_zotero_delete_item_with_account',
+      'get_global_config_dir',
       'references_zotero_remote_libraries_with_account',
     ],
   )
-  assert.deepEqual(calls[3].args.params, {
-    userId: 42,
+  assert.deepEqual(calls[4].args.params, {
+    globalConfigDir: '/tmp/global-config',
+    config: {
+      userId: ' 42 ',
+      username: 'researcher',
+    },
+  })
+
+  const referencesStore = useReferencesStore(pinia)
+  const librariesFromStore = await referencesStore.loadZoteroRemoteLibraries({
+    userId: '16788433',
+    username: 'researcher',
+  })
+  assert.deepEqual(librariesFromStore, {
+    groups: [
+      {
+        id: 'group-1',
+        name: 'Research Group',
+      },
+    ],
+    userCollections: [
+      {
+        key: 'user-collection',
+        name: 'User Collection',
+      },
+    ],
+    groupCollections: [
+      {
+        group: {
+          id: 'group-1',
+          name: 'Research Group',
+        },
+        collections: [
+          {
+            key: 'group-collection',
+            name: 'Group Collection',
+          },
+        ],
+      },
+    ],
+  })
+  assert.deepEqual(
+    calls.map((call) => call.cmd),
+    [
+      'references_zotero_sync_persist_with_account',
+      'references_zotero_sync_persist_with_account',
+      'references_zotero_delete_item_with_account',
+      'get_global_config_dir',
+      'references_zotero_remote_libraries_with_account',
+      'get_global_config_dir',
+      'references_zotero_remote_libraries_with_account',
+    ],
+  )
+  assert.deepEqual(calls[6].args.params, {
+    globalConfigDir: '/tmp/global-config',
+    config: {
+      userId: '16788433',
+      username: 'researcher',
+    },
   })
 
   const accountState = await loadZoteroAccountState()
@@ -267,12 +333,15 @@ try {
       'references_zotero_sync_persist_with_account',
       'references_zotero_sync_persist_with_account',
       'references_zotero_delete_item_with_account',
+      'get_global_config_dir',
+      'references_zotero_remote_libraries_with_account',
+      'get_global_config_dir',
       'references_zotero_remote_libraries_with_account',
       'get_global_config_dir',
       'references_zotero_account_state_load',
     ],
   )
-  assert.deepEqual(calls[5].args.params, {
+  assert.deepEqual(calls[8].args.params, {
     globalConfigDir: '/tmp/global-config',
   })
   assert.equal(
@@ -295,6 +364,9 @@ try {
       'references_zotero_sync_persist_with_account',
       'references_zotero_sync_persist_with_account',
       'references_zotero_delete_item_with_account',
+      'get_global_config_dir',
+      'references_zotero_remote_libraries_with_account',
+      'get_global_config_dir',
       'references_zotero_remote_libraries_with_account',
       'get_global_config_dir',
       'references_zotero_account_state_load',
@@ -302,7 +374,7 @@ try {
       'references_zotero_connect_account',
     ],
   )
-  assert.deepEqual(calls[7].args.params, {
+  assert.deepEqual(calls[10].args.params, {
     globalConfigDir: '/tmp/global-config',
     apiKey: ' zotero-secret ',
   })
