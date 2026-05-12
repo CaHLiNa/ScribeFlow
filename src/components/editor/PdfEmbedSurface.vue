@@ -215,14 +215,17 @@ function captureCurrentViewState() {
 }
 
 async function loadPdfDocument(options = {}) {
-  const artifactPath = String(props.artifactPath || '').trim()
-  const nextDocumentName = artifactPath
-    ? await basenamePath(artifactPath).catch(() => 'document.pdf') || 'document.pdf'
-    : 'document.pdf'
   loadToken += 1
   const currentToken = loadToken
   previewLoadPending.value = true
   previewLoadError.value = ''
+
+  const artifactPath = String(props.artifactPath || '').trim()
+  const nextDocumentName = artifactPath
+    ? await basenamePath(artifactPath).catch(() => 'document.pdf') || 'document.pdf'
+    : 'document.pdf'
+
+  if (currentToken !== loadToken) return
 
   if (!artifactPath) {
     documentBuffer.value = null

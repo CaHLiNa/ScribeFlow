@@ -196,6 +196,7 @@ const emit = defineEmits([
 
 const SEARCH_DEBOUNCE_MS = 140
 const ZOOM_MENU_PRESET_VALUES = ['0.5', '0.75', '1', '1.25', '1.5', '2']
+const ZOOM_BUTTON_SCALE_VALUES = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2]
 
 const { t } = useI18n()
 const workspace = useWorkspaceStore()
@@ -797,6 +798,16 @@ function applyViewerPreferences() {
   applyZoomValue(resolvePreferredZoomValue())
 }
 
+function persistRememberedZoomScale(scaleValue) {
+  const normalizedScale = normalizeWorkspacePdfViewerLastScale(scaleValue)
+  if (!normalizedScale) return
+
+  void workspace.persistPreferences({
+    pdfViewerZoomMode: 'remember-last',
+    pdfViewerLastScale: normalizedScale,
+  }).catch(() => {})
+}
+
 function cancelCompactFitWidthFrame() {
   if (typeof window === 'undefined') return
   if (compactFitWidthFrame) {
@@ -1056,11 +1067,14 @@ function zoomBy(direction = 1) {
   const currentZoomLevel = Number(zoom.state.value?.currentZoomLevel || 1)
   const safeCurrentZoomLevel =
     Number.isFinite(currentZoomLevel) && currentZoomLevel > 0 ? currentZoomLevel : 1
-  const multiplier = direction > 0 ? 1.1 : 0.9
-  const nextZoomLevel = clamp(safeCurrentZoomLevel * multiplier, 0.25, 2)
+  const stepThreshold = 0.001
+  const nextZoomLevel = direction > 0
+    ? ZOOM_BUTTON_SCALE_VALUES.find((value) => value > safeCurrentZoomLevel + stepThreshold) || 2
+    : [...ZOOM_BUTTON_SCALE_VALUES].reverse().find((value) => value < safeCurrentZoomLevel - stepThreshold) || 0.25
+  const normalizedZoomLevel = clamp(nextZoomLevel, 0.25, 2)
 
-  zoom.provides.value?.requestZoom(nextZoomLevel)
-  void workspace.setPdfViewerZoomMode('remember-last').catch(() => {})
+  zoom.provides.value?.requestZoom(normalizedZoomLevel)
+  persistRememberedZoomScale(String(normalizedZoomLevel))
 }
 
 function setPreferredZoomMode(mode = 'page-width') {
@@ -1079,7 +1093,7 @@ function handleZoomMenuSelection(value = 'page-width') {
   }
 
   if (!applyZoomValue(normalizedValue)) return
-  void workspace.setPdfViewerZoomMode('remember-last').catch(() => {})
+  persistRememberedZoomScale(normalizedValue)
 }
 
 function setPreferredSpreadMode(mode = 'single') {
