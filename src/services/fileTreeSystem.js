@@ -3,49 +3,25 @@ import { listen } from '@tauri-apps/api/event'
 
 export function loadWorkspaceTreeState(params = {}) {
   return invoke('fs_tree_load_workspace_state', {
-    params: {
-      workspacePath: String(params.workspacePath || ''),
-      currentTree: Array.isArray(params.currentTree) ? params.currentTree : [],
-      extraDirs: Array.isArray(params.extraDirs) ? params.extraDirs : [],
-      includeHidden: params.includeHidden !== false,
-      displayPreferences: params.displayPreferences || {},
-    },
+    params: params || {},
   })
 }
 
 export function revealWorkspaceTreeState(params = {}) {
   return invoke('fs_tree_reveal_workspace_state', {
-    params: {
-      workspacePath: String(params.workspacePath || ''),
-      targetPath: String(params.targetPath || ''),
-      currentTree: Array.isArray(params.currentTree) ? params.currentTree : [],
-      includeHidden: params.includeHidden !== false,
-      displayPreferences: params.displayPreferences || {},
-    },
+    params: params || {},
   })
 }
 
 export function restoreCachedExpandedTreeState(params = {}) {
   return invoke('fs_tree_restore_cached_expanded_state', {
-    params: {
-      workspacePath: String(params.workspacePath || ''),
-      currentTree: Array.isArray(params.currentTree) ? params.currentTree : [],
-      cachedRootExpandedDirs: Array.isArray(params.cachedRootExpandedDirs)
-        ? params.cachedRootExpandedDirs
-        : [],
-      maxDirs: Number.isFinite(params.maxDirs) ? params.maxDirs : 6,
-      includeHidden: params.includeHidden !== false,
-      displayPreferences: params.displayPreferences || {},
-    },
+    params: params || {},
   })
 }
 
 export function resolveFileTreeDisplayState(params = {}) {
   return invoke('fs_tree_resolve_display_state', {
-    params: {
-      tree: Array.isArray(params.tree) ? params.tree : [],
-      displayPreferences: params.displayPreferences || {},
-    },
+    params: params || {},
   })
 }
 

@@ -9,9 +9,9 @@ use crate::editor_session_runtime::{
 };
 use crate::fs_tree::FileEntry;
 use crate::fs_tree_runtime::{
-    fs_tree_load_workspace_state, fs_tree_restore_cached_expanded_state, FsTreeDisplayPreferences,
-    FsTreeLoadWorkspaceStateParams, FsTreeRestoreCachedExpandedStateParams,
-    FsTreeWorkspaceStateResult,
+    fs_tree_load_workspace_state_resolved, fs_tree_restore_cached_expanded_state_resolved,
+    FsTreeDisplayPreferences, FsTreeLoadWorkspaceStateParams,
+    FsTreeRestoreCachedExpandedStateParams, FsTreeWorkspaceStateResult,
 };
 use crate::references_backend::{
     references_library_load_workspace, ReferenceLibraryLoadWorkspaceParams,
@@ -716,19 +716,21 @@ pub async fn workspace_lifecycle_load_bootstrap_data(
         None
     } else if params.has_cached_tree {
         Some(
-            fs_tree_restore_cached_expanded_state(FsTreeRestoreCachedExpandedStateParams {
-                workspace_path: params.workspace_path.clone(),
-                current_tree: params.current_tree,
-                cached_root_expanded_dirs: params.cached_root_expanded_dirs,
-                max_dirs: 6,
-                include_hidden: params.include_hidden,
-                display_preferences: params.display_preferences.clone(),
-            })
+            fs_tree_restore_cached_expanded_state_resolved(
+                FsTreeRestoreCachedExpandedStateParams {
+                    workspace_path: params.workspace_path.clone(),
+                    current_tree: params.current_tree,
+                    cached_root_expanded_dirs: params.cached_root_expanded_dirs,
+                    max_dirs: 6,
+                    include_hidden: params.include_hidden,
+                    display_preferences: params.display_preferences.clone(),
+                },
+            )
             .await?,
         )
     } else {
         Some(
-            fs_tree_load_workspace_state(FsTreeLoadWorkspaceStateParams {
+            fs_tree_load_workspace_state_resolved(FsTreeLoadWorkspaceStateParams {
                 workspace_path: params.workspace_path.clone(),
                 current_tree: params.current_tree,
                 extra_dirs: Vec::new(),

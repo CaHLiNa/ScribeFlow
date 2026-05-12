@@ -1,5 +1,6 @@
 use crate::fs_tree::{build_workspace_tree_snapshot, FileEntry, WorkspaceTreeSnapshot};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::path::Path;
@@ -143,6 +144,84 @@ fn normalize_display_preferences(
         show_hidden: preferences.show_hidden,
         sort_mode: normalize_display_sort_mode(&preferences.sort_mode),
         fold_directories: preferences.fold_directories,
+    }
+}
+
+fn string_payload_field(params: &Value, key: &str) -> String {
+    params
+        .as_object()
+        .and_then(|object| object.get(key))
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string()
+}
+
+fn bool_payload_field(params: &Value, key: &str, default: bool) -> bool {
+    params
+        .as_object()
+        .and_then(|object| object.get(key))
+        .and_then(Value::as_bool)
+        .unwrap_or(default)
+}
+
+fn json_payload_field<T>(params: &Value, key: &str) -> T
+where
+    T: for<'de> Deserialize<'de> + Default,
+{
+    params
+        .as_object()
+        .and_then(|object| object.get(key))
+        .cloned()
+        .and_then(|value| serde_json::from_value(value).ok())
+        .unwrap_or_default()
+}
+
+fn usize_payload_field(params: &Value, key: &str, default: usize) -> usize {
+    params
+        .as_object()
+        .and_then(|object| object.get(key))
+        .cloned()
+        .and_then(|value| serde_json::from_value::<usize>(value).ok())
+        .unwrap_or(default)
+}
+
+fn load_workspace_state_params_from_payload(params: Value) -> FsTreeLoadWorkspaceStateParams {
+    FsTreeLoadWorkspaceStateParams {
+        workspace_path: string_payload_field(&params, "workspacePath"),
+        current_tree: json_payload_field(&params, "currentTree"),
+        extra_dirs: json_payload_field(&params, "extraDirs"),
+        include_hidden: bool_payload_field(&params, "includeHidden", default_include_hidden()),
+        display_preferences: json_payload_field(&params, "displayPreferences"),
+    }
+}
+
+fn reveal_workspace_state_params_from_payload(params: Value) -> FsTreeRevealWorkspaceStateParams {
+    FsTreeRevealWorkspaceStateParams {
+        workspace_path: string_payload_field(&params, "workspacePath"),
+        target_path: string_payload_field(&params, "targetPath"),
+        current_tree: json_payload_field(&params, "currentTree"),
+        include_hidden: bool_payload_field(&params, "includeHidden", default_include_hidden()),
+        display_preferences: json_payload_field(&params, "displayPreferences"),
+    }
+}
+
+fn restore_cached_expanded_state_params_from_payload(
+    params: Value,
+) -> FsTreeRestoreCachedExpandedStateParams {
+    FsTreeRestoreCachedExpandedStateParams {
+        workspace_path: string_payload_field(&params, "workspacePath"),
+        current_tree: json_payload_field(&params, "currentTree"),
+        cached_root_expanded_dirs: json_payload_field(&params, "cachedRootExpandedDirs"),
+        max_dirs: usize_payload_field(&params, "maxDirs", default_cached_expanded_dir_limit()),
+        include_hidden: bool_payload_field(&params, "includeHidden", default_include_hidden()),
+        display_preferences: json_payload_field(&params, "displayPreferences"),
+    }
+}
+
+fn resolve_display_state_params_from_payload(params: Value) -> FsTreeResolveDisplayStateParams {
+    FsTreeResolveDisplayStateParams {
+        tree: json_payload_field(&params, "tree"),
+        display_preferences: json_payload_field(&params, "displayPreferences"),
     }
 }
 
@@ -348,8 +427,7 @@ fn read_workspace_snapshot_state(
     ))
 }
 
-#[tauri::command]
-pub async fn fs_tree_load_workspace_state(
+pub async fn fs_tree_load_workspace_state_resolved(
     params: FsTreeLoadWorkspaceStateParams,
 ) -> Result<FsTreeWorkspaceStateResult, String> {
     run_blocking(move || {
@@ -365,7 +443,13 @@ pub async fn fs_tree_load_workspace_state(
 }
 
 #[tauri::command]
-pub async fn fs_tree_reveal_workspace_state(
+pub async fn fs_tree_load_workspace_state(
+    params: Value,
+) -> Result<FsTreeWorkspaceStateResult, String> {
+    fs_tree_load_workspace_state_resolved(load_workspace_state_params_from_payload(params)).await
+}
+
+pub async fn fs_tree_reveal_workspace_state_resolved(
     params: FsTreeRevealWorkspaceStateParams,
 ) -> Result<FsTreeWorkspaceStateResult, String> {
     run_blocking(move || {
@@ -384,7 +468,14 @@ pub async fn fs_tree_reveal_workspace_state(
 }
 
 #[tauri::command]
-pub async fn fs_tree_restore_cached_expanded_state(
+pub async fn fs_tree_reveal_workspace_state(
+    params: Value,
+) -> Result<FsTreeWorkspaceStateResult, String> {
+    fs_tree_reveal_workspace_state_resolved(reveal_workspace_state_params_from_payload(params))
+        .await
+}
+
+pub async fn fs_tree_restore_cached_expanded_state_resolved(
     params: FsTreeRestoreCachedExpandedStateParams,
 ) -> Result<FsTreeWorkspaceStateResult, String> {
     run_blocking(move || {
@@ -411,22 +502,44 @@ pub async fn fs_tree_restore_cached_expanded_state(
 }
 
 #[tauri::command]
-pub async fn fs_tree_resolve_display_state(
+pub async fn fs_tree_restore_cached_expanded_state(
+    params: Value,
+) -> Result<FsTreeWorkspaceStateResult, String> {
+    fs_tree_restore_cached_expanded_state_resolved(
+        restore_cached_expanded_state_params_from_payload(params),
+    )
+    .await
+}
+
+pub fn fs_tree_resolve_display_state_resolved(
     params: FsTreeResolveDisplayStateParams,
-) -> Result<FsTreeDisplayStateResult, String> {
+) -> FsTreeDisplayStateResult {
     let display_preferences = normalize_display_preferences(params.display_preferences);
-    Ok(FsTreeDisplayStateResult {
+    FsTreeDisplayStateResult {
         display_tree: apply_file_tree_display_preferences(&params.tree, &display_preferences),
-    })
+    }
+}
+
+#[tauri::command]
+pub async fn fs_tree_resolve_display_state(
+    params: Value,
+) -> Result<FsTreeDisplayStateResult, String> {
+    Ok(fs_tree_resolve_display_state_resolved(
+        resolve_display_state_params_from_payload(params),
+    ))
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
         apply_file_tree_display_preferences, collect_loaded_dirs, filter_cached_root_expanded_dirs,
-        list_ancestor_dir_paths, normalize_display_preferences, FsTreeDisplayPreferences,
+        list_ancestor_dir_paths, load_workspace_state_params_from_payload,
+        normalize_display_preferences, resolve_display_state_params_from_payload,
+        restore_cached_expanded_state_params_from_payload,
+        reveal_workspace_state_params_from_payload, FsTreeDisplayPreferences,
     };
     use crate::fs_tree::FileEntry;
+    use serde_json::json;
 
     fn entry(path: &str, is_dir: bool, children: Option<Vec<FileEntry>>) -> FileEntry {
         FileEntry {
@@ -577,6 +690,63 @@ mod tests {
             .sort_mode,
             "modified"
         );
+    }
+
+    #[test]
+    fn fs_tree_state_params_normalize_raw_payloads() {
+        let current_tree = vec![entry("/tmp/ws/root", true, None)];
+
+        let load_params = load_workspace_state_params_from_payload(json!({
+            "workspacePath": 12,
+            "currentTree": current_tree,
+            "extraDirs": "not-an-array",
+            "includeHidden": "yes",
+            "displayPreferences": {
+                "showHidden": false,
+                "sortMode": " MODIFIED ",
+                "foldDirectories": true
+            }
+        }));
+
+        assert_eq!(load_params.workspace_path, "");
+        assert_eq!(load_params.current_tree.len(), 1);
+        assert!(load_params.extra_dirs.is_empty());
+        assert!(load_params.include_hidden);
+        assert_eq!(load_params.display_preferences.sort_mode, " MODIFIED ");
+        assert!(load_params.display_preferences.fold_directories);
+
+        let reveal_params = reveal_workspace_state_params_from_payload(json!({
+            "workspacePath": "/tmp/ws",
+            "targetPath": 99,
+            "currentTree": "not-a-tree",
+            "includeHidden": false
+        }));
+
+        assert_eq!(reveal_params.workspace_path, "/tmp/ws");
+        assert_eq!(reveal_params.target_path, "");
+        assert!(reveal_params.current_tree.is_empty());
+        assert!(!reveal_params.include_hidden);
+
+        let restore_params = restore_cached_expanded_state_params_from_payload(json!({
+            "workspacePath": "/tmp/ws",
+            "currentTree": [],
+            "cachedRootExpandedDirs": "not-an-array",
+            "maxDirs": "wide-open",
+            "includeHidden": null
+        }));
+
+        assert_eq!(restore_params.workspace_path, "/tmp/ws");
+        assert!(restore_params.cached_root_expanded_dirs.is_empty());
+        assert_eq!(restore_params.max_dirs, 6);
+        assert!(restore_params.include_hidden);
+
+        let display_params = resolve_display_state_params_from_payload(json!({
+            "tree": "not-a-tree",
+            "displayPreferences": "not-preferences"
+        }));
+
+        assert!(display_params.tree.is_empty());
+        assert_eq!(display_params.display_preferences.sort_mode, "name");
     }
 
     #[test]

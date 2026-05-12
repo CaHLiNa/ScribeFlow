@@ -2,11 +2,11 @@ import { loadWorkspaceTreeState } from './fileTreeSystem.js'
 
 export async function readWorkspaceTreeSnapshot(path, loadedDirs = [], options = {}) {
   const snapshot = await loadWorkspaceTreeState({
-    workspacePath: String(path || ''),
+    workspacePath: path,
     currentTree: [],
-    extraDirs: Array.isArray(loadedDirs) ? loadedDirs : [],
-    includeHidden: options.includeHidden !== false,
-    displayPreferences: options.displayPreferences || {},
+    extraDirs: loadedDirs,
+    includeHidden: options.includeHidden,
+    displayPreferences: options.displayPreferences,
   })
   return {
     tree: Array.isArray(snapshot?.tree) ? snapshot.tree : [],
