@@ -145,6 +145,13 @@ pub struct WorkspacePreferencesSaveParams {
     pub preferences: WorkspacePreferences,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspacePreferencesNormalizeParams {
+    #[serde(default)]
+    pub preferences: WorkspacePreferences,
+}
+
 fn default_workspace_preferences_version() -> u32 {
     WORKSPACE_PREFERENCES_VERSION
 }
@@ -612,6 +619,13 @@ pub async fn workspace_preferences_save(
 }
 
 #[tauri::command]
+pub async fn workspace_preferences_normalize(
+    params: WorkspacePreferencesNormalizeParams,
+) -> Result<WorkspacePreferences, String> {
+    Ok(normalize_workspace_preferences(params.preferences))
+}
+
+#[tauri::command]
 pub async fn workspace_preferences_list_system_fonts() -> Result<Vec<String>, String> {
     read_system_font_families()
 }
@@ -656,6 +670,29 @@ mod tests {
         assert_eq!(normalized.pdf_viewer_page_theme_mode, "theme");
         assert_eq!(normalized.markdown_citation_format, "bracketed");
         assert_eq!(normalized.latex_citation_command, "cite");
+    }
+
+    #[tokio::test]
+    async fn normalize_command_returns_canonical_preferences_without_writing() {
+        let normalized =
+            super::workspace_preferences_normalize(super::WorkspacePreferencesNormalizeParams {
+                preferences: WorkspacePreferences {
+                    editor_font_size: 50,
+                    file_tree_sort_mode: "recent".to_string(),
+                    pdf_viewer_zoom_mode: "weird".to_string(),
+                    pdf_viewer_spread_mode: "spread".to_string(),
+                    pdf_viewer_last_scale: "4.25".to_string(),
+                    ..WorkspacePreferences::default()
+                },
+            })
+            .await
+            .expect("preferences normalize command should return normalized state");
+
+        assert_eq!(normalized.editor_font_size, 20);
+        assert_eq!(normalized.file_tree_sort_mode, "name");
+        assert_eq!(normalized.pdf_viewer_zoom_mode, "page-width");
+        assert_eq!(normalized.pdf_viewer_spread_mode, "single");
+        assert_eq!(normalized.pdf_viewer_last_scale, "2");
     }
 
     #[test]

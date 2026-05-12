@@ -23,6 +23,15 @@ export async function saveWorkspacePreferences(globalConfigDir = '', preferences
   return normalized
 }
 
+export async function normalizeWorkspacePreferences(preferences = {}) {
+  if (!isNativeDesktopRuntime()) return preferences
+  return invoke('workspace_preferences_normalize', {
+    params: {
+      preferences,
+    },
+  })
+}
+
 export async function normalizeWorkbenchState(state = {}) {
   if (!isNativeDesktopRuntime()) return state
   return invoke('workbench_state_normalize', {

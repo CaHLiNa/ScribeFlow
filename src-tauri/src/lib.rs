@@ -353,6 +353,7 @@ pub fn run() {
             workbench_state::workbench_layout_load,
             workbench_state::workbench_layout_save,
             workspace_preferences::workspace_preferences_load,
+            workspace_preferences::workspace_preferences_normalize,
             workspace_preferences::workspace_preferences_save,
             workspace_preferences::workspace_preferences_list_system_fonts,
             // Legacy LaTeX tools and SyncTeX compatibility commands.

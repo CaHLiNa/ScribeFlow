@@ -11,6 +11,7 @@ import {
 } from '../services/workspaceFonts.js'
 import {
   loadWorkspacePreferences as loadWorkspacePreferencesFromRust,
+  normalizeWorkspacePreferences as normalizeWorkspacePreferencesWithRust,
   saveWorkspacePreferences as saveWorkspacePreferencesToRust,
 } from '../services/workspacePreferences'
 import { restoreWorkspaceTheme } from '../services/workspaceTheme.js'
@@ -91,38 +92,6 @@ function snapshotWorkspacePreferences(store) {
   return Object.fromEntries(WORKSPACE_PREFERENCE_KEYS.map((key) => [key, store[key]]))
 }
 
-function patchTouchesDockPreference(patch = {}) {
-  return Object.prototype.hasOwnProperty.call(patch, 'rightSidebarOpen') ||
-    Object.prototype.hasOwnProperty.call(patch, 'documentDockOpen') ||
-    Object.prototype.hasOwnProperty.call(patch, 'referenceDockOpen') ||
-    Object.prototype.hasOwnProperty.call(patch, 'leftSidebarPanel')
-}
-
-function normalizeDockPreferenceSnapshot(previous = {}, patch = {}) {
-  const next = {
-    ...previous,
-    ...patch,
-  }
-
-  if (
-    Object.prototype.hasOwnProperty.call(patch, 'rightSidebarOpen') &&
-    !Object.prototype.hasOwnProperty.call(patch, 'documentDockOpen') &&
-    !Object.prototype.hasOwnProperty.call(patch, 'referenceDockOpen')
-  ) {
-    const isOpen = patch.rightSidebarOpen === true
-    if (next.leftSidebarPanel === 'references') {
-      next.referenceDockOpen = isOpen
-    } else {
-      next.documentDockOpen = isOpen
-    }
-  }
-
-  next.documentDockOpen = next.documentDockOpen === true
-  next.referenceDockOpen = next.referenceDockOpen === true
-  next.rightSidebarOpen = next.documentDockOpen || next.referenceDockOpen
-  return next
-}
-
 const WORKSPACE_LIFECYCLE_KEYS = [
   'recentWorkspaces',
   'lastWorkspace',
@@ -130,6 +99,10 @@ const WORKSPACE_LIFECYCLE_KEYS = [
   'reopenLastWorkspaceOnLaunch',
   'reopenLastSessionOnLaunch',
 ]
+
+async function normalizeWorkspacePreferenceSnapshot(preferences = {}) {
+  return normalizeWorkspacePreferencesWithRust(preferences)
+}
 
 function snapshotWorkspaceLifecycleState(store) {
   return Object.fromEntries(WORKSPACE_LIFECYCLE_KEYS.map((key) => [key, store[key]]))
@@ -260,21 +233,20 @@ export const useWorkspaceStore = defineStore('workspace', {
             open: false,
             section: null,
           }
-      const optimistic = patchTouchesDockPreference(patch)
-        ? normalizeDockPreferenceSnapshot(previous, patch)
-        : {
-            ...previous,
-            ...patch,
-          }
+      const optimistic = {
+        ...previous,
+        ...patch,
+      }
+      const normalizedOptimistic = await normalizeWorkspacePreferenceSnapshot(optimistic)
 
-      this.applyWorkspacePreferenceState(optimistic)
+      this.applyWorkspacePreferenceState(normalizedOptimistic)
       if (previousSettingsSurface.open) {
         restoreTransientSettingsSurface(this, previousSettingsSurface.section)
       }
       this._preferencesHydrated = true
 
       try {
-        const preferences = await saveWorkspacePreferencesToRust(globalConfigDir, optimistic)
+        const preferences = await saveWorkspacePreferencesToRust(globalConfigDir, normalizedOptimistic)
         this.applyWorkspacePreferenceState(preferences)
         if (previousSettingsSurface.open) {
           restoreTransientSettingsSurface(this, previousSettingsSurface.section)

@@ -362,11 +362,12 @@ pub fn workbench_dock_page_contract() -> WorkbenchDockPageContract {
 }
 
 pub fn normalize_workbench_state(state: WorkbenchState) -> WorkbenchState {
+    let source_surface = state.primary_surface.trim().to_string();
     let primary_surface = normalize_workbench_surface(&state.primary_surface);
     let left_sidebar_panel =
         normalize_workbench_sidebar_panel(&primary_surface, &state.left_sidebar_panel);
-    let document_dock_open = state.document_dock_open;
-    let reference_dock_open = state.reference_dock_open;
+    let (document_dock_open, reference_dock_open) =
+        normalize_dock_open_state(&source_surface, &left_sidebar_panel, &state);
 
     WorkbenchState {
         primary_surface: primary_surface.clone(),
@@ -383,6 +384,26 @@ pub fn normalize_workbench_state(state: WorkbenchState) -> WorkbenchState {
         reference_dock_active_page: normalize_reference_dock_page(
             &state.reference_dock_active_page,
         ),
+    }
+}
+
+fn normalize_dock_open_state(
+    source_surface: &str,
+    left_sidebar_panel: &str,
+    state: &WorkbenchState,
+) -> (bool, bool) {
+    if source_surface.eq_ignore_ascii_case(SETTINGS_SURFACE)
+        || state.document_dock_open
+        || state.reference_dock_open
+        || !state.right_sidebar_open
+    {
+        return (state.document_dock_open, state.reference_dock_open);
+    }
+
+    if left_sidebar_panel == "references" {
+        (false, true)
+    } else {
+        (true, false)
     }
 }
 
@@ -538,6 +559,33 @@ mod tests {
         assert!(!normalized.right_sidebar_open);
         assert_eq!(normalized.document_dock_active_page, "preview");
         assert_eq!(normalized.reference_dock_active_page, "pdf");
+    }
+
+    #[test]
+    fn state_normalization_maps_legacy_right_sidebar_flag_to_active_dock() {
+        let document_dock = normalize_workbench_state(WorkbenchState {
+            left_sidebar_panel: "files".to_string(),
+            right_sidebar_open: true,
+            document_dock_open: false,
+            reference_dock_open: false,
+            ..WorkbenchState::default()
+        });
+
+        assert!(document_dock.document_dock_open);
+        assert!(!document_dock.reference_dock_open);
+        assert!(document_dock.right_sidebar_open);
+
+        let reference_dock = normalize_workbench_state(WorkbenchState {
+            left_sidebar_panel: "references".to_string(),
+            right_sidebar_open: true,
+            document_dock_open: false,
+            reference_dock_open: false,
+            ..WorkbenchState::default()
+        });
+
+        assert!(!reference_dock.document_dock_open);
+        assert!(reference_dock.reference_dock_open);
+        assert!(reference_dock.right_sidebar_open);
     }
 
     #[test]
