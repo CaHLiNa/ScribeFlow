@@ -1,5 +1,6 @@
 use crate::app_dirs;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::fs;
 use std::path::PathBuf;
 
@@ -59,6 +60,52 @@ fn default_python_preferences_version() -> u32 {
 
 fn default_interpreter_preference() -> String {
     DEFAULT_INTERPRETER_PREFERENCE.to_string()
+}
+
+fn command_payload_field<'a>(
+    params: &'a Value,
+    camel_key: &str,
+    snake_key: &str,
+) -> Option<&'a Value> {
+    params
+        .as_object()
+        .and_then(|object| object.get(camel_key).or_else(|| object.get(snake_key)))
+}
+
+fn string_payload_field(params: &Value, camel_key: &str, snake_key: &str) -> String {
+    command_payload_field(params, camel_key, snake_key)
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .trim()
+        .to_string()
+}
+
+fn preferences_payload_field(params: &Value) -> PythonPreferences {
+    command_payload_field(params, "preferences", "preferences")
+        .cloned()
+        .and_then(|value| serde_json::from_value(value).ok())
+        .unwrap_or_default()
+}
+
+fn python_preferences_load_params_from_payload(params: Value) -> PythonPreferencesLoadParams {
+    PythonPreferencesLoadParams {
+        global_config_dir: string_payload_field(&params, "globalConfigDir", "global_config_dir"),
+    }
+}
+
+fn python_preferences_save_params_from_payload(params: Value) -> PythonPreferencesSaveParams {
+    PythonPreferencesSaveParams {
+        global_config_dir: string_payload_field(&params, "globalConfigDir", "global_config_dir"),
+        preferences: preferences_payload_field(&params),
+    }
+}
+
+fn python_preferences_normalize_params_from_payload(
+    params: Value,
+) -> PythonPreferencesNormalizeParams {
+    PythonPreferencesNormalizeParams {
+        preferences: preferences_payload_field(&params),
+    }
 }
 
 fn normalize_root(path: &str) -> String {
@@ -128,8 +175,7 @@ pub fn normalize_python_preferences(preferences: PythonPreferences) -> PythonPre
     }
 }
 
-#[tauri::command]
-pub async fn python_preferences_load(
+pub async fn python_preferences_load_typed(
     params: PythonPreferencesLoadParams,
 ) -> Result<PythonPreferences, String> {
     if let Some(current) = read_python_preferences(&params.global_config_dir)? {
@@ -142,7 +188,11 @@ pub async fn python_preferences_load(
 }
 
 #[tauri::command]
-pub async fn python_preferences_save(
+pub async fn python_preferences_load(params: Value) -> Result<PythonPreferences, String> {
+    python_preferences_load_typed(python_preferences_load_params_from_payload(params)).await
+}
+
+pub async fn python_preferences_save_typed(
     params: PythonPreferencesSaveParams,
 ) -> Result<PythonPreferences, String> {
     let normalized = normalize_python_preferences(params.preferences);
@@ -151,19 +201,31 @@ pub async fn python_preferences_save(
 }
 
 #[tauri::command]
-pub async fn python_preferences_normalize(
+pub async fn python_preferences_save(params: Value) -> Result<PythonPreferences, String> {
+    python_preferences_save_typed(python_preferences_save_params_from_payload(params)).await
+}
+
+pub async fn python_preferences_normalize_typed(
     params: PythonPreferencesNormalizeParams,
 ) -> Result<PythonPreferences, String> {
     Ok(normalize_python_preferences(params.preferences))
 }
 
+#[tauri::command]
+pub async fn python_preferences_normalize(params: Value) -> Result<PythonPreferences, String> {
+    python_preferences_normalize_typed(python_preferences_normalize_params_from_payload(params))
+        .await
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        python_preferences_load, python_preferences_normalize, python_preferences_save,
-        PythonPreferences, PythonPreferencesLoadParams, PythonPreferencesNormalizeParams,
-        PythonPreferencesSaveParams,
+        python_preferences_load, python_preferences_load_params_from_payload,
+        python_preferences_normalize, python_preferences_normalize_params_from_payload,
+        python_preferences_save, python_preferences_save_params_from_payload, PythonPreferences,
+        PythonPreferencesNormalizeParams, PythonPreferencesSaveParams,
     };
+    use serde_json::json;
     use std::fs;
 
     #[tokio::test]
@@ -172,27 +234,41 @@ mod tests {
             std::env::temp_dir().join(format!("scribeflow-python-prefs-{}", uuid::Uuid::new_v4()));
         fs::create_dir_all(&temp_dir).expect("create temp dir");
 
-        let saved = python_preferences_save(PythonPreferencesSaveParams {
+        let saved = python_preferences_save(json!({
+            "globalConfigDir": temp_dir.to_string_lossy().to_string(),
+            "preferences": {
+                "interpreterPreference": " /opt/homebrew/bin/python3 "
+            }
+        }))
+        .await
+        .expect("save python preferences");
+
+        assert_eq!(saved.interpreter_preference, "/opt/homebrew/bin/python3");
+
+        let typed_saved = super::python_preferences_save_typed(PythonPreferencesSaveParams {
             global_config_dir: temp_dir.to_string_lossy().to_string(),
             preferences: PythonPreferences {
                 interpreter_preference: " /opt/homebrew/bin/python3 ".to_string(),
             },
         })
         .await
-        .expect("save python preferences");
+        .expect("save typed python preferences");
 
-        assert_eq!(saved.interpreter_preference, "/opt/homebrew/bin/python3");
+        assert_eq!(
+            typed_saved.interpreter_preference,
+            "/opt/homebrew/bin/python3"
+        );
 
         fs::remove_dir_all(temp_dir).ok();
     }
 
     #[tokio::test]
     async fn normalize_command_returns_canonical_python_preferences_without_writing() {
-        let normalized = python_preferences_normalize(PythonPreferencesNormalizeParams {
-            preferences: PythonPreferences {
-                interpreter_preference: " /opt/homebrew/bin/python3 ".to_string(),
-            },
-        })
+        let normalized = python_preferences_normalize(json!({
+            "preferences": {
+                "interpreterPreference": " /opt/homebrew/bin/python3 "
+            }
+        }))
         .await
         .expect("python preference normalize command should return normalized state");
 
@@ -201,15 +277,29 @@ mod tests {
             "/opt/homebrew/bin/python3"
         );
 
-        let defaulted = python_preferences_normalize(PythonPreferencesNormalizeParams {
-            preferences: PythonPreferences {
-                interpreter_preference: " AUTO ".to_string(),
-            },
-        })
+        let defaulted = python_preferences_normalize(json!({
+            "preferences": {
+                "interpreterPreference": " AUTO "
+            }
+        }))
         .await
         .expect("python preference normalize command should preserve auto default");
 
         assert_eq!(defaulted.interpreter_preference, "auto");
+
+        let typed_normalized =
+            super::python_preferences_normalize_typed(PythonPreferencesNormalizeParams {
+                preferences: PythonPreferences {
+                    interpreter_preference: " /opt/homebrew/bin/python3 ".to_string(),
+                },
+            })
+            .await
+            .expect("typed python preference normalize command should return normalized state");
+
+        assert_eq!(
+            typed_normalized.interpreter_preference,
+            "/opt/homebrew/bin/python3"
+        );
     }
 
     #[tokio::test]
@@ -218,14 +308,65 @@ mod tests {
             std::env::temp_dir().join(format!("scribeflow-python-prefs-{}", uuid::Uuid::new_v4()));
         fs::create_dir_all(&temp_dir).expect("create temp dir");
 
-        let loaded = python_preferences_load(PythonPreferencesLoadParams {
-            global_config_dir: temp_dir.to_string_lossy().to_string(),
-        })
+        let loaded = python_preferences_load(json!({
+            "globalConfigDir": temp_dir.to_string_lossy().to_string()
+        }))
         .await
         .expect("load python preferences");
 
         assert_eq!(loaded.interpreter_preference, "auto");
 
         fs::remove_dir_all(temp_dir).ok();
+    }
+
+    #[test]
+    fn python_preferences_params_normalize_raw_payloads() {
+        let load_params = python_preferences_load_params_from_payload(json!({
+            "globalConfigDir": " /tmp/config/ "
+        }));
+        assert_eq!(load_params.global_config_dir, "/tmp/config/");
+
+        let snake_load_params = python_preferences_load_params_from_payload(json!({
+            "global_config_dir": " /tmp/snake-config "
+        }));
+        assert_eq!(snake_load_params.global_config_dir, "/tmp/snake-config");
+
+        let invalid_load_params = python_preferences_load_params_from_payload(json!({
+            "globalConfigDir": 42
+        }));
+        assert_eq!(invalid_load_params.global_config_dir, "");
+
+        let save_params = python_preferences_save_params_from_payload(json!({
+            "globalConfigDir": " /tmp/config ",
+            "preferences": {
+                "interpreterPreference": " /opt/homebrew/bin/python3 "
+            }
+        }));
+        assert_eq!(save_params.global_config_dir, "/tmp/config");
+        assert_eq!(
+            save_params.preferences.interpreter_preference,
+            " /opt/homebrew/bin/python3 "
+        );
+
+        let default_save_params = python_preferences_save_params_from_payload(json!({
+            "preferences": "not-an-object"
+        }));
+        assert_eq!(
+            default_save_params.preferences,
+            PythonPreferences::default()
+        );
+
+        let normalize_params = python_preferences_normalize_params_from_payload(json!({
+            "preferences": {
+                "interpreterPreference": " AUTO "
+            }
+        }));
+        assert_eq!(
+            normalize_params.preferences.interpreter_preference,
+            " AUTO "
+        );
+
+        let non_object = python_preferences_normalize_params_from_payload(json!(false));
+        assert_eq!(non_object.preferences, PythonPreferences::default());
     }
 }

@@ -7,41 +7,26 @@ export function createPythonPreferenceState() {
 }
 
 export async function loadPythonPreferences(globalConfigDir = '') {
-  const preferences = await invoke('python_preferences_load', {
+  return invoke('python_preferences_load', {
     params: {
-      globalConfigDir: String(globalConfigDir || ''),
+      globalConfigDir,
     },
   })
-
-  return {
-    ...createPythonPreferenceState(),
-    ...preferences,
-  }
 }
 
 export async function normalizePythonPreferences(preferences = {}) {
-  const normalized = await invoke('python_preferences_normalize', {
+  return invoke('python_preferences_normalize', {
     params: {
       preferences,
     },
   })
-
-  return {
-    ...createPythonPreferenceState(),
-    ...normalized,
-  }
 }
 
 export async function savePythonPreferences(globalConfigDir = '', preferences = {}) {
-  const normalized = await invoke('python_preferences_save', {
+  return invoke('python_preferences_save', {
     params: {
-      globalConfigDir: String(globalConfigDir || ''),
+      globalConfigDir,
       preferences,
     },
   })
-
-  return {
-    ...createPythonPreferenceState(),
-    ...normalized,
-  }
 }
