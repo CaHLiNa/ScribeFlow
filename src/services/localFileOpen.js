@@ -3,15 +3,15 @@ import { useToastStore } from '../stores/toast'
 import { t } from '../i18n'
 
 export async function openLocalPath(path) {
-  const targetPath = String(path || '').trim()
-  if (!targetPath) return false
+  if (!path) return false
 
   try {
-    await invoke('workspace_open_path_in_default_app', { path: targetPath })
+    await invoke('workspace_open_path_in_default_app', { path })
     return true
   } catch (error) {
+    const displayPath = typeof path === 'string' ? path : ''
     useToastStore().showOnce(
-      `open-local:${targetPath}`,
+      `open-local:${displayPath || 'unknown'}`,
       t('Failed to open file: {error}', {
         error: error?.message || String(error || ''),
       }),

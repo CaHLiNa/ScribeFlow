@@ -2,6 +2,7 @@ use base64::{engine::general_purpose::STANDARD, Engine};
 use image::codecs::png::PngEncoder;
 use image::{ColorType, GenericImageView, ImageEncoder, ImageReader};
 use serde::Serialize;
+use serde_json::Value;
 use std::collections::hash_map::DefaultHasher;
 use std::fs;
 use std::hash::{Hash, Hasher};
@@ -131,6 +132,10 @@ fn path_status_internal(path: &Path) -> PathStatusResult {
         size: metadata.as_ref().filter(|_| is_file).map(fs::Metadata::len),
         modified,
     }
+}
+
+fn workspace_open_path_from_payload(path: Value) -> String {
+    path.as_str().unwrap_or_default().trim().to_string()
 }
 
 fn workspace_path_status_internal(
@@ -920,9 +925,13 @@ fn open_path_in_default_app_blocking(target: &Path) -> Result<(), String> {
 
 #[tauri::command]
 pub async fn workspace_open_path_in_default_app(
-    path: String,
+    path: Value,
     scope_state: tauri::State<'_, WorkspaceScopeState>,
 ) -> Result<(), String> {
+    let path = workspace_open_path_from_payload(path);
+    if path.is_empty() {
+        return Err("Cannot open an empty workspace path".to_string());
+    }
     let resolved = workspace_external_path_internal(scope_state.inner(), Path::new(&path))?;
     run_blocking(move || open_path_in_default_app_blocking(&resolved)).await
 }
@@ -946,11 +955,12 @@ mod tests {
     use super::{
         path_status_internal, workspace_create_dir_blocking, workspace_delete_path_blocking,
         workspace_duplicate_path_blocking, workspace_external_path_internal,
-        workspace_path_status_internal, workspace_read_file_base64_blocking,
-        workspace_read_text_file_blocking, workspace_write_file_base64_blocking,
-        workspace_write_text_file_blocking,
+        workspace_open_path_from_payload, workspace_path_status_internal,
+        workspace_read_file_base64_blocking, workspace_read_text_file_blocking,
+        workspace_write_file_base64_blocking, workspace_write_text_file_blocking,
     };
     use crate::security::{set_allowed_roots_internal, WorkspaceScopeState};
+    use serde_json::json;
     use std::fs;
 
     #[test]
@@ -1055,6 +1065,16 @@ mod tests {
 
         fs::remove_dir_all(workspace_dir).ok();
         fs::remove_dir_all(outside_dir).ok();
+    }
+
+    #[test]
+    fn workspace_open_path_params_normalize_raw_payloads() {
+        assert_eq!(
+            workspace_open_path_from_payload(json!(" /tmp/workspace/note.md ")),
+            "/tmp/workspace/note.md"
+        );
+        assert_eq!(workspace_open_path_from_payload(json!(42)), "");
+        assert_eq!(workspace_open_path_from_payload(json!(null)), "");
     }
 
     #[test]
