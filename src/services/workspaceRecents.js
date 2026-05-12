@@ -16,7 +16,7 @@ export async function loadWorkspaceLifecycleState(globalConfigDir = '') {
   if (!isNativeDesktopRuntime()) return createWorkspaceLifecycleState()
   return invoke('workspace_lifecycle_load', {
     params: {
-      globalConfigDir: String(globalConfigDir || ''),
+      globalConfigDir,
     },
   })
 }
@@ -30,7 +30,7 @@ export async function saveWorkspaceLifecycleState(globalConfigDir = '', state = 
   }
   const normalized = await invoke('workspace_lifecycle_save', {
     params: {
-      globalConfigDir: String(globalConfigDir || ''),
+      globalConfigDir,
       state,
     },
   })
@@ -48,8 +48,8 @@ export async function prepareWorkspaceOpen(globalConfigDir = '', path = '') {
   }
   return invoke('workspace_lifecycle_prepare_open', {
     params: {
-      globalConfigDir: String(globalConfigDir || ''),
-      path: String(path || ''),
+      globalConfigDir,
+      path,
     },
   })
 }

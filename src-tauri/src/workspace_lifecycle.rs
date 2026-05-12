@@ -522,6 +522,37 @@ fn string_payload_field(params: &Value, key: &str) -> String {
         .to_string()
 }
 
+fn workspace_lifecycle_load_params_from_payload(params: Value) -> WorkspaceLifecycleLoadParams {
+    WorkspaceLifecycleLoadParams {
+        global_config_dir: string_payload_field(&params, "globalConfigDir"),
+    }
+}
+
+fn workspace_lifecycle_save_params_from_payload(params: Value) -> WorkspaceLifecycleSaveParams {
+    WorkspaceLifecycleSaveParams {
+        global_config_dir: string_payload_field(&params, "globalConfigDir"),
+        state: json_payload_field(&params, "state"),
+    }
+}
+
+fn workspace_lifecycle_record_opened_params_from_payload(
+    params: Value,
+) -> WorkspaceLifecycleRecordOpenedParams {
+    WorkspaceLifecycleRecordOpenedParams {
+        global_config_dir: string_payload_field(&params, "globalConfigDir"),
+        path: string_payload_field(&params, "path"),
+    }
+}
+
+fn workspace_lifecycle_prepare_open_params_from_payload(
+    params: Value,
+) -> WorkspaceLifecyclePrepareOpenParams {
+    WorkspaceLifecyclePrepareOpenParams {
+        global_config_dir: string_payload_field(&params, "globalConfigDir"),
+        path: string_payload_field(&params, "path"),
+    }
+}
+
 fn bool_payload_field(params: &Value, key: &str, default: bool) -> bool {
     params
         .as_object()
@@ -586,15 +617,18 @@ fn write_workspace_bootstrap_file(
     .map_err(|error| error.to_string())
 }
 
-#[tauri::command]
-pub async fn workspace_lifecycle_load(
+pub async fn workspace_lifecycle_load_typed(
     params: WorkspaceLifecycleLoadParams,
 ) -> Result<WorkspaceBootstrapState, String> {
     load_workspace_lifecycle_state(&params.global_config_dir).map(WorkspaceBootstrapState::from)
 }
 
 #[tauri::command]
-pub async fn workspace_lifecycle_save(
+pub async fn workspace_lifecycle_load(params: Value) -> Result<WorkspaceBootstrapState, String> {
+    workspace_lifecycle_load_typed(workspace_lifecycle_load_params_from_payload(params)).await
+}
+
+pub async fn workspace_lifecycle_save_typed(
     params: WorkspaceLifecycleSaveParams,
 ) -> Result<WorkspaceBootstrapState, String> {
     let normalized = prune_missing_workspace_lifecycle_state(params.state);
@@ -603,7 +637,11 @@ pub async fn workspace_lifecycle_save(
 }
 
 #[tauri::command]
-pub async fn workspace_lifecycle_record_opened(
+pub async fn workspace_lifecycle_save(params: Value) -> Result<WorkspaceBootstrapState, String> {
+    workspace_lifecycle_save_typed(workspace_lifecycle_save_params_from_payload(params)).await
+}
+
+pub async fn workspace_lifecycle_record_opened_typed(
     params: WorkspaceLifecycleRecordOpenedParams,
 ) -> Result<WorkspaceBootstrapState, String> {
     let state = load_workspace_lifecycle_state(&params.global_config_dir)?;
@@ -614,7 +652,16 @@ pub async fn workspace_lifecycle_record_opened(
 }
 
 #[tauri::command]
-pub async fn workspace_lifecycle_prepare_open(
+pub async fn workspace_lifecycle_record_opened(
+    params: Value,
+) -> Result<WorkspaceBootstrapState, String> {
+    workspace_lifecycle_record_opened_typed(workspace_lifecycle_record_opened_params_from_payload(
+        params,
+    ))
+    .await
+}
+
+pub async fn workspace_lifecycle_prepare_open_typed(
     params: WorkspaceLifecyclePrepareOpenParams,
     scope_state: State<'_, WorkspaceScopeState>,
 ) -> Result<WorkspaceOpenState, String> {
@@ -655,6 +702,18 @@ pub async fn workspace_lifecycle_prepare_open(
         claude_config_dir,
         lifecycle: WorkspaceBootstrapState::from(normalized),
     })
+}
+
+#[tauri::command]
+pub async fn workspace_lifecycle_prepare_open(
+    params: Value,
+    scope_state: State<'_, WorkspaceScopeState>,
+) -> Result<WorkspaceOpenState, String> {
+    workspace_lifecycle_prepare_open_typed(
+        workspace_lifecycle_prepare_open_params_from_payload(params),
+        scope_state,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -766,8 +825,12 @@ mod tests {
         load_bootstrap_data_params_from_payload, normalize_workspace_lifecycle_state,
         prune_missing_workspace_lifecycle_state, record_workspace_opened,
         resolve_bootstrap_has_cached_tree, resolve_claude_config_dir, resolve_workspace_data_dir,
-        workspace_lifecycle_load, workspace_lifecycle_save, RecentWorkspaceEntry,
-        WorkspaceLifecycleLoadParams, WorkspaceLifecycleSaveParams, WorkspaceLifecycleState,
+        workspace_lifecycle_load_params_from_payload, workspace_lifecycle_load_typed,
+        workspace_lifecycle_prepare_open_params_from_payload,
+        workspace_lifecycle_record_opened_params_from_payload,
+        workspace_lifecycle_save_params_from_payload, workspace_lifecycle_save_typed,
+        RecentWorkspaceEntry, WorkspaceLifecycleLoadParams, WorkspaceLifecycleSaveParams,
+        WorkspaceLifecycleState,
     };
     use serde_json::json;
     use std::fs;
@@ -866,7 +929,7 @@ mod tests {
         let workspace_dir = temp_dir.join("demo");
         fs::create_dir_all(&workspace_dir).expect("create workspace dir");
 
-        let saved = workspace_lifecycle_save(WorkspaceLifecycleSaveParams {
+        let saved = workspace_lifecycle_save_typed(WorkspaceLifecycleSaveParams {
             global_config_dir: temp_dir.to_string_lossy().to_string(),
             state: WorkspaceLifecycleState {
                 recent_workspaces: vec![RecentWorkspaceEntry {
@@ -883,7 +946,7 @@ mod tests {
         .await
         .expect("save lifecycle");
 
-        let loaded = workspace_lifecycle_load(WorkspaceLifecycleLoadParams {
+        let loaded = workspace_lifecycle_load_typed(WorkspaceLifecycleLoadParams {
             global_config_dir: temp_dir.to_string_lossy().to_string(),
         })
         .await
@@ -956,6 +1019,57 @@ mod tests {
             "hasCachedTree": "true"
         })));
         assert!(!resolve_bootstrap_has_cached_tree(&json!(null)));
+    }
+
+    #[test]
+    fn lifecycle_command_params_normalize_raw_payloads() {
+        let load_params = workspace_lifecycle_load_params_from_payload(json!({
+            "globalConfigDir": 42
+        }));
+        assert_eq!(load_params.global_config_dir, "");
+
+        let save_params = workspace_lifecycle_save_params_from_payload(json!({
+            "globalConfigDir": "/tmp/config",
+            "state": "not-an-object"
+        }));
+        assert_eq!(save_params.global_config_dir, "/tmp/config");
+        assert_eq!(save_params.state, WorkspaceLifecycleState::default());
+
+        let save_params = workspace_lifecycle_save_params_from_payload(json!({
+            "globalConfigDir": "/tmp/config",
+            "state": {
+                "recentWorkspaces": [
+                    {
+                        "path": "/tmp/workspace",
+                        "name": "Workspace",
+                        "lastOpened": "2026-05-12T00:00:00Z"
+                    }
+                ],
+                "lastWorkspace": "/tmp/workspace",
+                "setupComplete": true,
+                "reopenLastWorkspaceOnLaunch": false,
+                "reopenLastSessionOnLaunch": false
+            }
+        }));
+        assert_eq!(save_params.state.recent_workspaces.len(), 1);
+        assert_eq!(save_params.state.last_workspace, "/tmp/workspace");
+        assert!(save_params.state.setup_complete);
+        assert!(!save_params.state.reopen_last_workspace_on_launch);
+        assert!(!save_params.state.reopen_last_session_on_launch);
+
+        let record_params = workspace_lifecycle_record_opened_params_from_payload(json!({
+            "globalConfigDir": null,
+            "path": 42
+        }));
+        assert_eq!(record_params.global_config_dir, "");
+        assert_eq!(record_params.path, "");
+
+        let open_params = workspace_lifecycle_prepare_open_params_from_payload(json!({
+            "globalConfigDir": "/tmp/config",
+            "path": "/tmp/workspace"
+        }));
+        assert_eq!(open_params.global_config_dir, "/tmp/config");
+        assert_eq!(open_params.path, "/tmp/workspace");
     }
 
     #[test]
