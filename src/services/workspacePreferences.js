@@ -35,17 +35,7 @@ export async function normalizeWorkspacePreferences(preferences = {}) {
 export async function normalizeWorkbenchState(state = {}) {
   if (!isNativeDesktopRuntime()) return state
   return invoke('workbench_state_normalize', {
-    params: {
-      primarySurface: String(state.primarySurface || ''),
-      leftSidebarOpen: state.leftSidebarOpen !== false,
-      leftSidebarPanel: String(state.leftSidebarPanel || ''),
-      rightSidebarOpen: state.rightSidebarOpen === true,
-      rightSidebarPanel: String(state.rightSidebarPanel || ''),
-      documentDockOpen: state.documentDockOpen === true,
-      referenceDockOpen: state.referenceDockOpen === true,
-      documentDockActivePage: String(state.documentDockActivePage || ''),
-      referenceDockActivePage: String(state.referenceDockActivePage || ''),
-    },
+    params: state || {},
   })
 }
 

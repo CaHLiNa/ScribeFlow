@@ -1,5 +1,6 @@
 use crate::app_dirs;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::fs;
 use std::path::PathBuf;
 
@@ -387,6 +388,44 @@ pub fn normalize_workbench_state(state: WorkbenchState) -> WorkbenchState {
     }
 }
 
+fn workbench_state_from_payload(payload: Value) -> WorkbenchState {
+    let Some(object) = payload.as_object() else {
+        return WorkbenchState::default();
+    };
+
+    let string_value = |key: &str, default: fn() -> String| {
+        object
+            .get(key)
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .unwrap_or_else(default)
+    };
+    let bool_value = |key: &str, default: fn() -> bool| {
+        object
+            .get(key)
+            .and_then(Value::as_bool)
+            .unwrap_or_else(default)
+    };
+
+    WorkbenchState {
+        primary_surface: string_value("primarySurface", default_primary_surface),
+        left_sidebar_open: bool_value("leftSidebarOpen", default_left_sidebar_open),
+        left_sidebar_panel: string_value("leftSidebarPanel", default_left_sidebar_panel),
+        right_sidebar_open: bool_value("rightSidebarOpen", default_right_sidebar_open),
+        right_sidebar_panel: string_value("rightSidebarPanel", default_right_sidebar_panel),
+        document_dock_open: bool_value("documentDockOpen", default_document_dock_open),
+        reference_dock_open: bool_value("referenceDockOpen", default_reference_dock_open),
+        document_dock_active_page: string_value(
+            "documentDockActivePage",
+            default_document_dock_active_page,
+        ),
+        reference_dock_active_page: string_value(
+            "referenceDockActivePage",
+            default_reference_dock_active_page,
+        ),
+    }
+}
+
 fn normalize_dock_open_state(
     source_surface: &str,
     left_sidebar_panel: &str,
@@ -479,8 +518,10 @@ fn write_workbench_layout_state(
 }
 
 #[tauri::command]
-pub async fn workbench_state_normalize(params: WorkbenchState) -> Result<WorkbenchState, String> {
-    Ok(normalize_workbench_state(params))
+pub async fn workbench_state_normalize(params: Value) -> Result<WorkbenchState, String> {
+    Ok(normalize_workbench_state(workbench_state_from_payload(
+        params,
+    )))
 }
 
 #[tauri::command]
@@ -511,8 +552,9 @@ mod tests {
         normalize_document_dock_page, normalize_reference_dock_page,
         normalize_workbench_inspector_panel, normalize_workbench_layout_state,
         normalize_workbench_sidebar_panel, normalize_workbench_state, workbench_dock_page_contract,
-        WorkbenchLayoutState, WorkbenchState,
+        workbench_state_from_payload, WorkbenchLayoutState, WorkbenchState,
     };
+    use serde_json::json;
 
     #[test]
     fn sidebar_panel_falls_back_by_surface() {
@@ -559,6 +601,34 @@ mod tests {
         assert!(!normalized.right_sidebar_open);
         assert_eq!(normalized.document_dock_active_page, "preview");
         assert_eq!(normalized.reference_dock_active_page, "pdf");
+    }
+
+    #[test]
+    fn state_payload_normalization_keeps_bridge_payload_raw() {
+        let normalized = normalize_workbench_state(workbench_state_from_payload(json!({
+            "primarySurface": "settings",
+            "leftSidebarOpen": "not-a-bool",
+            "leftSidebarPanel": "references",
+            "rightSidebarOpen": "legacy-open",
+            "rightSidebarPanel": "outline",
+            "documentDockOpen": "yes",
+            "referenceDockOpen": null,
+            "documentDockActivePage": "extension:example.tools",
+            "referenceDockActivePage": "missing"
+        })));
+
+        assert_eq!(normalized.primary_surface, "workspace");
+        assert!(normalized.left_sidebar_open);
+        assert_eq!(normalized.left_sidebar_panel, "references");
+        assert!(!normalized.right_sidebar_open);
+        assert_eq!(normalized.right_sidebar_panel, "dock");
+        assert!(!normalized.document_dock_open);
+        assert!(!normalized.reference_dock_open);
+        assert_eq!(
+            normalized.document_dock_active_page,
+            "extension:example.tools"
+        );
+        assert_eq!(normalized.reference_dock_active_page, "details");
     }
 
     #[test]
