@@ -51,6 +51,13 @@ pub struct LatexPreferencesSaveParams {
     pub preferences: LatexPreferences,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LatexPreferencesNormalizeParams {
+    #[serde(default)]
+    pub preferences: LatexPreferences,
+}
+
 impl Default for LatexPreferences {
     fn default() -> Self {
         Self {
@@ -204,9 +211,19 @@ pub async fn latex_preferences_save(
     Ok(normalized)
 }
 
+#[tauri::command]
+pub async fn latex_preferences_normalize(
+    params: LatexPreferencesNormalizeParams,
+) -> Result<LatexPreferences, String> {
+    Ok(normalize_latex_preferences(params.preferences))
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{latex_preferences_save, LatexPreferences, LatexPreferencesSaveParams};
+    use super::{
+        latex_preferences_normalize, latex_preferences_save, LatexPreferences,
+        LatexPreferencesNormalizeParams, LatexPreferencesSaveParams,
+    };
     use std::fs;
 
     #[tokio::test]
@@ -236,5 +253,28 @@ mod tests {
         assert_eq!(saved.custom_system_tex_path, "/Library/TeX/texbin/latexmk");
 
         fs::remove_dir_all(temp_dir).ok();
+    }
+
+    #[tokio::test]
+    async fn normalize_command_returns_canonical_latex_preferences_without_writing() {
+        let normalized = latex_preferences_normalize(LatexPreferencesNormalizeParams {
+            preferences: LatexPreferences {
+                compiler_preference: " tectonic ".to_string(),
+                engine_preference: "xelatex".to_string(),
+                auto_compile: true,
+                format_on_save: true,
+                build_extra_args: "  --keep-logs  ".to_string(),
+                custom_system_tex_path: " /Library/TeX/texbin ".to_string(),
+            },
+        })
+        .await
+        .expect("latex preference normalize command should return normalized state");
+
+        assert_eq!(normalized.compiler_preference, "tectonic");
+        assert_eq!(normalized.engine_preference, "auto");
+        assert!(!normalized.auto_compile);
+        assert!(!normalized.format_on_save);
+        assert_eq!(normalized.build_extra_args, "--keep-logs");
+        assert_eq!(normalized.custom_system_tex_path, "/Library/TeX/texbin");
     }
 }

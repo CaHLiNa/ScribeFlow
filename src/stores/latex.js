@@ -24,6 +24,7 @@ import { basenamePath } from '../utils/path'
 import {
   createLatexPreferenceState,
   loadLatexPreferences as loadLatexPreferencesFromRust,
+  normalizeLatexPreferences as normalizeLatexPreferencesWithRust,
   saveLatexPreferences as saveLatexPreferencesToRust,
 } from '../services/latexPreferences.js'
 
@@ -419,13 +420,16 @@ export const useLatexStore = defineStore('latex', {
         ...patch,
       }
 
-      this.applyPreferenceState(optimistic)
+      const normalizedOptimistic =
+        await normalizeLatexPreferencesWithRust(optimistic)
+
+      this.applyPreferenceState(normalizedOptimistic)
       this._preferencesHydrated = true
 
       try {
         const preferences = await saveLatexPreferencesToRust(
           globalConfigDir,
-          optimistic,
+          normalizedOptimistic,
         )
         this.applyPreferenceState(preferences)
         this._preferencesHydrated = true

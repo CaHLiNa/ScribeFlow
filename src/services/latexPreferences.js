@@ -12,25 +12,6 @@ export function createLatexPreferenceState() {
   }
 }
 
-function normalizeCompilerPreference(value) {
-  const normalized = String(value || '')
-    .trim()
-    .toLowerCase()
-  return ['auto', 'system', 'tectonic'].includes(normalized)
-    ? normalized
-    : 'auto'
-}
-
-function normalizeEnginePreference(compilerPreference, value) {
-  if (compilerPreference === 'tectonic') return 'auto'
-  const normalized = String(value || '')
-    .trim()
-    .toLowerCase()
-  return ['auto', 'xelatex', 'pdflatex', 'lualatex'].includes(normalized)
-    ? normalized
-    : 'auto'
-}
-
 export async function loadLatexPreferences(globalConfigDir = '') {
   if (!isNativeDesktopRuntime()) {
     return createLatexPreferenceState()
@@ -44,6 +25,25 @@ export async function loadLatexPreferences(globalConfigDir = '') {
   return {
     ...createLatexPreferenceState(),
     ...preferences,
+  }
+}
+
+export async function normalizeLatexPreferences(preferences = {}) {
+  if (!isNativeDesktopRuntime()) {
+    return {
+      ...createLatexPreferenceState(),
+      ...preferences,
+    }
+  }
+  const normalized = await invoke('latex_preferences_normalize', {
+    params: {
+      preferences,
+    },
+  })
+
+  return {
+    ...createLatexPreferenceState(),
+    ...normalized,
   }
 }
 

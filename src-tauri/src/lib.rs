@@ -330,6 +330,7 @@ pub fn run() {
             latex_runtime::latex_runtime_compile_finish,
             latex_runtime::latex_runtime_compile_fail,
             latex_preferences::latex_preferences_load,
+            latex_preferences::latex_preferences_normalize,
             latex_preferences::latex_preferences_save,
             // Workspace security, access, lifecycle, workbench state, and preferences.
             security::workspace_set_allowed_roots,
