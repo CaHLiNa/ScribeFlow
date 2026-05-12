@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
-import { normalizeCitationStyle } from './citationStyleRegistry.js'
+import { normalizeCitationStyle } from './citationStyleRuntime.js'
 
 const FAST_STYLE_IDS = new Set(['apa', 'chicago', 'harvard', 'ieee', 'vancouver'])
 
