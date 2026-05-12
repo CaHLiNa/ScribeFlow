@@ -4,8 +4,8 @@ import { locale } from '../../i18n'
 export async function listExtensions(globalConfigDir = '', workspaceRoot = '') {
   const extensions = await invoke('extension_registry_list', {
     params: {
-      globalConfigDir: String(globalConfigDir || ''),
-      workspaceRoot: String(workspaceRoot || ''),
+      globalConfigDir,
+      workspaceRoot,
       locale: locale.value,
     },
   })
@@ -21,9 +21,9 @@ export async function validateExtensionManifest(manifest = {}) {
 export async function loadExtensionSettings(globalConfigDir = '', workspaceRoot = '', options = {}) {
   return invoke('extension_settings_load', {
     params: {
-      globalConfigDir: String(globalConfigDir || ''),
-      workspaceRoot: String(workspaceRoot || ''),
-      hydrateSecrets: options?.hydrateSecrets === true,
+      globalConfigDir,
+      workspaceRoot,
+      hydrateSecrets: options?.hydrateSecrets,
     },
   })
 }
@@ -31,8 +31,8 @@ export async function loadExtensionSettings(globalConfigDir = '', workspaceRoot 
 export async function saveExtensionSettings(globalConfigDir = '', workspaceRoot = '', settings = {}) {
   return invoke('extension_settings_save', {
     params: {
-      globalConfigDir: String(globalConfigDir || ''),
-      workspaceRoot: String(workspaceRoot || ''),
+      globalConfigDir,
+      workspaceRoot,
       settings,
     },
   })

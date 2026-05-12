@@ -23,6 +23,24 @@ pub struct ExtensionRegistryListParams {
     pub locale: String,
 }
 
+fn registry_param_string(params: &Value, camel_key: &str, snake_key: &str) -> String {
+    params
+        .as_object()
+        .and_then(|object| object.get(camel_key).or_else(|| object.get(snake_key)))
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .trim()
+        .to_string()
+}
+
+fn extension_registry_list_params_from_payload(params: Value) -> ExtensionRegistryListParams {
+    ExtensionRegistryListParams {
+        global_config_dir: registry_param_string(&params, "globalConfigDir", "global_config_dir"),
+        workspace_root: registry_param_string(&params, "workspaceRoot", "workspace_root"),
+        locale: registry_param_string(&params, "locale", "locale"),
+    }
+}
+
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ExtensionRegistryEntry {
@@ -299,15 +317,17 @@ pub fn find_extension_entry(
 }
 
 #[tauri::command]
-pub async fn extension_registry_list(
-    params: ExtensionRegistryListParams,
-) -> Result<Vec<ExtensionRegistryEntry>, String> {
+pub async fn extension_registry_list(params: Value) -> Result<Vec<ExtensionRegistryEntry>, String> {
+    let params = extension_registry_list_params_from_payload(params);
     list_extension_registry(&params)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{list_extension_registry, ExtensionRegistryListParams};
+    use super::{
+        extension_registry_list_params_from_payload, list_extension_registry,
+        ExtensionRegistryListParams,
+    };
     use crate::extension_manifest::CANONICAL_EXTENSION_MANIFEST_FILENAME;
     use std::fs;
 
@@ -343,6 +363,32 @@ mod tests {
             .to_string(),
         )
         .expect("write manifest");
+    }
+
+    #[test]
+    fn registry_list_params_normalize_raw_payloads() {
+        let params = extension_registry_list_params_from_payload(serde_json::json!({
+            "globalConfigDir": " /tmp/global-config ",
+            "workspaceRoot": " /tmp/workspace ",
+            "locale": " zh-CN "
+        }));
+        assert_eq!(params.global_config_dir, "/tmp/global-config");
+        assert_eq!(params.workspace_root, "/tmp/workspace");
+        assert_eq!(params.locale, "zh-CN");
+
+        let snake_params = extension_registry_list_params_from_payload(serde_json::json!({
+            "global_config_dir": " /tmp/global-snake ",
+            "workspace_root": " /tmp/workspace-snake ",
+            "locale": 42
+        }));
+        assert_eq!(snake_params.global_config_dir, "/tmp/global-snake");
+        assert_eq!(snake_params.workspace_root, "/tmp/workspace-snake");
+        assert_eq!(snake_params.locale, "");
+
+        let fallback_params = extension_registry_list_params_from_payload(serde_json::json!(false));
+        assert_eq!(fallback_params.global_config_dir, "");
+        assert_eq!(fallback_params.workspace_root, "");
+        assert_eq!(fallback_params.locale, "");
     }
 
     #[test]

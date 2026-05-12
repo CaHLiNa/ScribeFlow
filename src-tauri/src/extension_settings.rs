@@ -68,6 +68,52 @@ pub struct ExtensionSettingsSaveParams {
     pub settings: ExtensionSettings,
 }
 
+fn settings_param_string(params: &Value, camel_key: &str, snake_key: &str) -> String {
+    params
+        .as_object()
+        .and_then(|object| object.get(camel_key).or_else(|| object.get(snake_key)))
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .trim()
+        .to_string()
+}
+
+fn settings_param_bool(params: &Value, camel_key: &str, snake_key: &str, default: bool) -> bool {
+    params
+        .as_object()
+        .and_then(|object| object.get(camel_key).or_else(|| object.get(snake_key)))
+        .and_then(Value::as_bool)
+        .unwrap_or(default)
+}
+
+fn settings_param_json<T>(params: &Value, camel_key: &str, snake_key: &str) -> T
+where
+    T: for<'de> Deserialize<'de> + Default,
+{
+    params
+        .as_object()
+        .and_then(|object| object.get(camel_key).or_else(|| object.get(snake_key)))
+        .cloned()
+        .and_then(|value| serde_json::from_value(value).ok())
+        .unwrap_or_default()
+}
+
+fn extension_settings_load_params_from_payload(params: Value) -> ExtensionSettingsLoadParams {
+    ExtensionSettingsLoadParams {
+        global_config_dir: settings_param_string(&params, "globalConfigDir", "global_config_dir"),
+        workspace_root: settings_param_string(&params, "workspaceRoot", "workspace_root"),
+        hydrate_secrets: settings_param_bool(&params, "hydrateSecrets", "hydrate_secrets", false),
+    }
+}
+
+fn extension_settings_save_params_from_payload(params: Value) -> ExtensionSettingsSaveParams {
+    ExtensionSettingsSaveParams {
+        global_config_dir: settings_param_string(&params, "globalConfigDir", "global_config_dir"),
+        workspace_root: settings_param_string(&params, "workspaceRoot", "workspace_root"),
+        settings: settings_param_json(&params, "settings", "settings"),
+    }
+}
+
 fn normalize_root(path: &str) -> String {
     path.trim().trim_end_matches('/').to_string()
 }
@@ -479,9 +525,8 @@ pub fn save_extension_runtime_state_snapshot(
 }
 
 #[tauri::command]
-pub async fn extension_settings_load(
-    params: ExtensionSettingsLoadParams,
-) -> Result<ExtensionSettingsLoadResult, String> {
+pub async fn extension_settings_load(params: Value) -> Result<ExtensionSettingsLoadResult, String> {
+    let params = extension_settings_load_params_from_payload(params);
     load_extension_settings_with_state(
         &params.global_config_dir,
         &params.workspace_root,
@@ -490,9 +535,8 @@ pub async fn extension_settings_load(
 }
 
 #[tauri::command]
-pub async fn extension_settings_save(
-    params: ExtensionSettingsSaveParams,
-) -> Result<ExtensionSettings, String> {
+pub async fn extension_settings_save(params: Value) -> Result<ExtensionSettings, String> {
+    let params = extension_settings_save_params_from_payload(params);
     save_extension_settings(
         &params.global_config_dir,
         &params.workspace_root,
@@ -503,6 +547,7 @@ pub async fn extension_settings_save(
 #[cfg(test)]
 mod tests {
     use super::{
+        extension_settings_load_params_from_payload, extension_settings_save_params_from_payload,
         load_extension_runtime_state_snapshot, load_extension_settings,
         load_extension_settings_with_state, save_extension_runtime_state_snapshot,
         save_extension_settings, ExtensionRuntimeStateSnapshot, ExtensionSettings,
@@ -571,6 +616,63 @@ mod tests {
             serde_json::to_string_pretty(&manifest).expect("workspace manifest json"),
         )
         .expect("write workspace manifest");
+    }
+
+    #[test]
+    fn extension_settings_params_normalize_raw_payloads() {
+        let load_params = extension_settings_load_params_from_payload(serde_json::json!({
+            "globalConfigDir": " /tmp/global-config ",
+            "workspaceRoot": " /tmp/workspace ",
+            "hydrateSecrets": true
+        }));
+        assert_eq!(load_params.global_config_dir, "/tmp/global-config");
+        assert_eq!(load_params.workspace_root, "/tmp/workspace");
+        assert!(load_params.hydrate_secrets);
+
+        let snake_load_params = extension_settings_load_params_from_payload(serde_json::json!({
+            "global_config_dir": " /tmp/global-snake ",
+            "workspace_root": " /tmp/workspace-snake ",
+            "hydrate_secrets": "true"
+        }));
+        assert_eq!(snake_load_params.global_config_dir, "/tmp/global-snake");
+        assert_eq!(snake_load_params.workspace_root, "/tmp/workspace-snake");
+        assert!(!snake_load_params.hydrate_secrets);
+
+        let save_params = extension_settings_save_params_from_payload(serde_json::json!({
+            "globalConfigDir": 42,
+            "workspaceRoot": null,
+            "settings": {
+                "enabledExtensionIds": [" Example-Pdf-Extension "],
+                "extensionConfig": {
+                    " Example-Pdf-Extension ": {
+                        "targetLang": "zh-CN"
+                    }
+                }
+            }
+        }));
+        assert_eq!(save_params.global_config_dir, "");
+        assert_eq!(save_params.workspace_root, "");
+        assert_eq!(
+            save_params.settings.enabled_extension_ids,
+            vec![" Example-Pdf-Extension ".to_string()]
+        );
+        assert_eq!(
+            save_params
+                .settings
+                .extension_config
+                .get(" Example-Pdf-Extension ")
+                .and_then(|config| config.get("targetLang")),
+            Some(&serde_json::json!("zh-CN"))
+        );
+
+        let fallback_save =
+            extension_settings_save_params_from_payload(serde_json::json!({"settings": false}));
+        assert_eq!(fallback_save.settings, ExtensionSettings::default());
+
+        let non_object = extension_settings_load_params_from_payload(serde_json::json!(false));
+        assert_eq!(non_object.global_config_dir, "");
+        assert_eq!(non_object.workspace_root, "");
+        assert!(!non_object.hydrate_secrets);
     }
 
     #[test]
