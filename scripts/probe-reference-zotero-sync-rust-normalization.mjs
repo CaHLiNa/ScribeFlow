@@ -187,6 +187,10 @@ try {
       }
     }
 
+    if (cmd === 'references_zotero_config_save') {
+      return args?.params?.config || {}
+    }
+
     if (cmd === 'references_zotero_api_key_load') {
       throw new Error('Settings account state must not load the raw Zotero API key into JS')
     }
@@ -194,8 +198,7 @@ try {
     if (
       cmd === 'references_zotero_config_load' ||
       cmd === 'references_zotero_validate_api_key' ||
-      cmd === 'references_zotero_api_key_store' ||
-      cmd === 'references_zotero_config_save'
+      cmd === 'references_zotero_api_key_store'
     ) {
       throw new Error('Zotero account and mutation decisions must run in Rust workflows')
     }
@@ -203,8 +206,14 @@ try {
     throw new Error(`Unexpected IPC command: ${cmd}`)
   })
 
-  const { connectZoteroAccount, deleteFromZotero, loadRemoteLibraries, loadZoteroAccountState, syncNow } =
-    await vite.ssrLoadModule('/src/services/references/zoteroSync.js')
+  const {
+    connectZoteroAccount,
+    deleteFromZotero,
+    loadRemoteLibraries,
+    loadZoteroAccountState,
+    saveZoteroConfig,
+    syncNow,
+  } = await vite.ssrLoadModule('/src/services/references/zoteroSync.js')
   const { useReferencesStore } = await vite.ssrLoadModule('/src/stores/references.js')
 
   const pinia = createPinia()
@@ -449,11 +458,34 @@ try {
     calls.some((call) => (
       call.cmd === 'references_zotero_config_load' ||
       call.cmd === 'references_zotero_validate_api_key' ||
-      call.cmd === 'references_zotero_api_key_store' ||
-      call.cmd === 'references_zotero_config_save'
+      call.cmd === 'references_zotero_api_key_store'
     )),
     false,
   )
+
+  await saveZoteroConfig({
+    userId: '16788433',
+    autoSync: false,
+    pushTarget: {
+      libraryType: 'group',
+      libraryId: '42',
+      collectionKey: 'papers',
+    },
+  })
+  assert.equal(calls.at(-2).cmd, 'get_global_config_dir')
+  assert.equal(calls.at(-1).cmd, 'references_zotero_config_save')
+  assert.deepEqual(calls.at(-1).args.params, {
+    globalConfigDir: '/tmp/global-config',
+    config: {
+      userId: '16788433',
+      autoSync: false,
+      pushTarget: {
+        libraryType: 'group',
+        libraryId: '42',
+        collectionKey: 'papers',
+      },
+    },
+  })
 
   const addResult = await referencesStore.addReference('', {
     id: 'manual-ref',

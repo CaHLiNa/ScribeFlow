@@ -273,20 +273,141 @@ fn sanitize_zotero_config(config: &Value) -> Value {
     Value::Object(map)
 }
 
+fn normalize_zotero_group_entry(group: &Value) -> Option<Value> {
+    let id = scalar_string(group.get("id"))
+        .if_empty_then(|| scalar_string(group.get("groupId")))
+        .if_empty_then(|| scalar_string(group.get("libraryId")));
+    if id.is_empty() {
+        return None;
+    }
+
+    let mut normalized = group.as_object().cloned().unwrap_or_default();
+    normalized.insert("id".to_string(), Value::String(id));
+    normalized.insert(
+        "name".to_string(),
+        Value::String(trim_string(group.get("name"))),
+    );
+    if let Some(owner) = group
+        .get("owner")
+        .map(|value| scalar_string(Some(value)))
+        .filter(|owner| !owner.is_empty())
+    {
+        normalized.insert("owner".to_string(), Value::String(owner));
+    }
+    if let Some(can_write) = group.get("canWrite").and_then(Value::as_bool) {
+        normalized.insert("canWrite".to_string(), Value::Bool(can_write));
+    }
+    Some(Value::Object(normalized))
+}
+
+fn normalize_zotero_groups(config: &Value) -> Value {
+    let mut seen = HashSet::new();
+    let groups = config
+        .get("_groups")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|group| normalize_zotero_group_entry(&group))
+        .filter(|group| {
+            let id = scalar_string(group.get("id"));
+            !id.is_empty() && seen.insert(id)
+        })
+        .collect::<Vec<_>>();
+    Value::Array(groups)
+}
+
+fn normalize_zotero_push_target(value: Option<&Value>) -> Value {
+    let Some(push_target) = value else {
+        return Value::Null;
+    };
+    let library_type = trim_string(push_target.get("libraryType")).to_lowercase();
+    let library_id = scalar_string(push_target.get("libraryId"));
+    if library_id.is_empty() || (library_type != "user" && library_type != "group") {
+        return Value::Null;
+    }
+
+    json!({
+        "libraryType": library_type,
+        "libraryId": library_id,
+        "collectionKey": trim_string(push_target.get("collectionKey")),
+    })
+}
+
+fn normalize_zotero_last_sync_versions(value: Option<&Value>) -> Value {
+    let Some(versions) = value.and_then(Value::as_object) else {
+        return Value::Object(Map::new());
+    };
+
+    Value::Object(
+        versions
+            .iter()
+            .filter_map(|(key, value)| {
+                let normalized_key = key.trim();
+                if normalized_key.is_empty() {
+                    return None;
+                }
+                let version = match value {
+                    Value::Number(number) => number.as_i64().unwrap_or(0),
+                    Value::String(text) => text.trim().parse::<i64>().unwrap_or(0),
+                    _ => 0,
+                };
+                Some((normalized_key.to_string(), Value::from(version.max(0))))
+            })
+            .collect(),
+    )
+}
+
+fn normalize_zotero_config_for_save(config: &Value) -> Value {
+    let mut map = config.as_object().cloned().unwrap_or_default();
+    map.remove("_apiKeyFallback");
+    map.remove("_credentialStorage");
+
+    map.insert(
+        "userId".to_string(),
+        Value::String(scalar_string(
+            map.get("userId").or_else(|| map.get("userID")),
+        )),
+    );
+    map.remove("userID");
+    map.insert(
+        "username".to_string(),
+        Value::String(trim_string(map.get("username"))),
+    );
+    map.insert(
+        "autoSync".to_string(),
+        Value::Bool(map.get("autoSync").and_then(Value::as_bool).unwrap_or(true)),
+    );
+    map.insert(
+        "_groups".to_string(),
+        normalize_zotero_groups(&Value::Object(map.clone())),
+    );
+    map.insert(
+        "pushTarget".to_string(),
+        normalize_zotero_push_target(map.get("pushTarget")),
+    );
+    map.insert(
+        "lastSyncVersions".to_string(),
+        normalize_zotero_last_sync_versions(map.get("lastSyncVersions")),
+    );
+
+    Value::Object(map)
+}
+
 fn merge_preserving_hidden_fields(existing: Option<Value>, next: Option<Value>) -> Option<Value> {
     match (existing, next) {
         (_, None) => None,
         (Some(existing), Some(next)) => {
             let mut merged = existing.as_object().cloned().unwrap_or_default();
-            let sanitized = sanitize_zotero_config(&next);
-            if let Some(next_map) = sanitized.as_object() {
+            let normalized = normalize_zotero_config_for_save(&next);
+            if let Some(next_map) = normalized.as_object() {
                 for (key, value) in next_map {
                     merged.insert(key.clone(), value.clone());
                 }
             }
             Some(Value::Object(merged))
         }
-        (None, Some(next)) => Some(sanitize_zotero_config(&next)),
+        (None, Some(next)) => Some(normalize_zotero_config_for_save(&next)),
     }
 }
 
@@ -1618,9 +1739,9 @@ mod tests {
     use super::{
         build_citation_key, build_zotero_connected_config, extract_csl_year, extract_items_array,
         has_local_references_for_library, library_needs_metadata_refresh,
-        looks_like_generated_citation_key, references_zotero_delete_item_with_account,
-        references_zotero_sync_persist, references_zotero_sync_persist_typed,
-        references_zotero_sync_persist_with_account,
+        looks_like_generated_citation_key, merge_preserving_hidden_fields,
+        references_zotero_delete_item_with_account, references_zotero_sync_persist,
+        references_zotero_sync_persist_typed, references_zotero_sync_persist_with_account,
         zotero_delete_with_account_params_from_payload,
         zotero_remote_libraries_with_account_params_from_payload,
         zotero_sync_persist_params_from_payload,
@@ -1858,6 +1979,80 @@ mod tests {
                 "autoSync": true,
                 "_groups": [],
                 "pushTarget": null
+            })
+        );
+    }
+
+    #[test]
+    fn zotero_config_save_normalizes_settings_payload_in_rust() {
+        let merged = merge_preserving_hidden_fields(
+            Some(json!({
+                "_apiKeyFallback": "secret",
+                "_credentialStorage": "mirrored-file-fallback",
+                "lastSyncVersions": {
+                    "user/old": 12
+                }
+            })),
+            Some(json!({
+                "userID": 16788433,
+                "username": " researcher ",
+                "autoSync": null,
+                "_apiKeyFallback": "leaked",
+                "_credentialStorage": "leaked",
+                "_groups": [
+                    {
+                        "id": " 42 ",
+                        "name": " Group A ",
+                        "owner": 16788433,
+                        "canWrite": true
+                    },
+                    {
+                        "id": "42",
+                        "name": "Duplicate Group"
+                    },
+                    {
+                        "name": "Missing id"
+                    }
+                ],
+                "pushTarget": {
+                    "libraryType": " GROUP ",
+                    "libraryId": 42,
+                    "collectionKey": " papers "
+                },
+                "lastSyncVersions": {
+                    " user/16788433 ": "8",
+                    "group/42": -1,
+                    "": 99
+                }
+            })),
+        )
+        .expect("merged zotero config");
+
+        assert_eq!(
+            merged,
+            json!({
+                "_apiKeyFallback": "secret",
+                "_credentialStorage": "mirrored-file-fallback",
+                "userId": "16788433",
+                "username": "researcher",
+                "autoSync": true,
+                "_groups": [
+                    {
+                        "id": "42",
+                        "name": "Group A",
+                        "owner": "16788433",
+                        "canWrite": true
+                    }
+                ],
+                "pushTarget": {
+                    "libraryType": "group",
+                    "libraryId": "42",
+                    "collectionKey": "papers"
+                },
+                "lastSyncVersions": {
+                    "user/16788433": 8,
+                    "group/42": 0
+                }
             })
         );
     }
