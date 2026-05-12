@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { buildExtensionTargetSummary } from '../src/domains/extensions/extensionTargetPresentation.js'
 
 const pdfReferenceTarget = buildExtensionTargetSummary({
@@ -42,6 +43,15 @@ assert.equal(emptyTarget.available, false)
 assert.equal(emptyTarget.textKey, '')
 assert.deepEqual(emptyTarget.params, {})
 
+const taskPanelSource = readFileSync(
+  new URL('../src/components/extensions/ExtensionTaskPanel.vue', import.meta.url),
+  'utf8',
+)
+
+assert.match(taskPanelSource, /buildExtensionTargetSummary/)
+assert.doesNotMatch(taskPanelSource, /if\s*\(\s*target\.path\s*\)/)
+assert.doesNotMatch(taskPanelSource, /ref:\$\{target\.referenceId\}/)
+
 console.log(JSON.stringify({
   ok: true,
   summary: {
@@ -49,5 +59,6 @@ console.log(JSON.stringify({
     file: fileTarget.textKey,
     referenceOnly: referenceOnlyTarget.textKey,
     emptyAvailable: emptyTarget.available,
+    taskPanelConsumesSharedPresentation: true,
   },
 }, null, 2))

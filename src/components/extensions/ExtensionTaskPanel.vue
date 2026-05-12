@@ -118,6 +118,7 @@ import {
   buildExtensionTaskResultEntries,
   titleCaseKey,
 } from '../../domains/extensions/extensionResultEntries'
+import { buildExtensionTargetSummary } from '../../domains/extensions/extensionTargetPresentation.js'
 
 const { t } = useI18n()
 const extensionsStore = useExtensionsStore()
@@ -211,11 +212,11 @@ function taskStateLabel(task = {}) {
 }
 
 function taskTargetLabel(task = {}) {
-  const target = task?.target || {}
-  if (target.path) return target.path.split('/').pop() || target.path
-  if (target.referenceId) return `ref:${target.referenceId}`
-  if (target.kind) return target.kind
-  return ''
+  const presentation = buildExtensionTargetSummary(task?.target || {})
+  if (presentation.available) {
+    return t(presentation.textKey, presentation.params)
+  }
+  return String(presentation.kind || '').trim()
 }
 
 function taskMeta(task = {}) {
