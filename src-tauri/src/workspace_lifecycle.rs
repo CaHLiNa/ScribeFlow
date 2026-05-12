@@ -513,6 +513,55 @@ fn resolve_bootstrap_has_cached_tree(params: &Value) -> bool {
         .unwrap_or(false)
 }
 
+fn string_payload_field(params: &Value, key: &str) -> String {
+    params
+        .as_object()
+        .and_then(|object| object.get(key))
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string()
+}
+
+fn bool_payload_field(params: &Value, key: &str, default: bool) -> bool {
+    params
+        .as_object()
+        .and_then(|object| object.get(key))
+        .and_then(Value::as_bool)
+        .unwrap_or(default)
+}
+
+fn json_payload_field<T>(params: &Value, key: &str) -> T
+where
+    T: for<'de> Deserialize<'de> + Default,
+{
+    params
+        .as_object()
+        .and_then(|object| object.get(key))
+        .cloned()
+        .and_then(|value| serde_json::from_value(value).ok())
+        .unwrap_or_default()
+}
+
+fn load_bootstrap_data_params_from_payload(
+    params: Value,
+) -> WorkspaceLifecycleLoadBootstrapDataParams {
+    WorkspaceLifecycleLoadBootstrapDataParams {
+        global_config_dir: string_payload_field(&params, "globalConfigDir"),
+        workspace_data_dir: string_payload_field(&params, "workspaceDataDir"),
+        workspace_path: string_payload_field(&params, "workspacePath"),
+        restore_editor_session: bool_payload_field(
+            &params,
+            "restoreEditorSession",
+            default_restore_editor_session(),
+        ),
+        current_tree: json_payload_field(&params, "currentTree"),
+        cached_root_expanded_dirs: json_payload_field(&params, "cachedRootExpandedDirs"),
+        include_hidden: bool_payload_field(&params, "includeHidden", default_include_hidden()),
+        has_cached_tree: bool_payload_field(&params, "hasCachedTree", false),
+        display_preferences: json_payload_field(&params, "displayPreferences"),
+    }
+}
+
 fn write_workspace_bootstrap_file(
     workspace_data_dir: &str,
     workspace_id: &str,
@@ -619,9 +668,11 @@ pub async fn workspace_lifecycle_resolve_bootstrap_plan(
 
 #[tauri::command]
 pub async fn workspace_lifecycle_load_bootstrap_data(
-    params: WorkspaceLifecycleLoadBootstrapDataParams,
+    params: Value,
     scope_state: State<'_, WorkspaceScopeState>,
 ) -> Result<WorkspaceBootstrapHydratedData, String> {
+    let params = load_bootstrap_data_params_from_payload(params);
+
     let references_snapshot =
         references_library_load_workspace(ReferenceLibraryLoadWorkspaceParams {
             global_config_dir: params.global_config_dir.clone(),
@@ -709,7 +760,8 @@ pub async fn workspace_lifecycle_prepare_close(
 #[cfg(test)]
 mod tests {
     use super::{
-        build_workspace_bootstrap_plan, hash_workspace_path, normalize_workspace_lifecycle_state,
+        build_workspace_bootstrap_plan, hash_workspace_path,
+        load_bootstrap_data_params_from_payload, normalize_workspace_lifecycle_state,
         prune_missing_workspace_lifecycle_state, record_workspace_opened,
         resolve_bootstrap_has_cached_tree, resolve_claude_config_dir, resolve_workspace_data_dir,
         workspace_lifecycle_load, workspace_lifecycle_save, RecentWorkspaceEntry,
@@ -902,6 +954,51 @@ mod tests {
             "hasCachedTree": "true"
         })));
         assert!(!resolve_bootstrap_has_cached_tree(&json!(null)));
+    }
+
+    #[test]
+    fn load_bootstrap_data_params_normalize_raw_payload() {
+        let params = load_bootstrap_data_params_from_payload(json!({
+            "globalConfigDir": 42,
+            "workspaceDataDir": "/tmp/workspace-data",
+            "workspacePath": "/tmp/workspace",
+            "restoreEditorSession": "no",
+            "currentTree": [
+                {
+                    "name": "note.md",
+                    "path": "/tmp/workspace/note.md",
+                    "is_dir": false,
+                    "children": null,
+                    "modified": 1
+                }
+            ],
+            "cachedRootExpandedDirs": "not-an-array",
+            "includeHidden": null,
+            "hasCachedTree": "yes",
+            "displayPreferences": {
+                "showHidden": false,
+                "sortMode": " MODIFIED ",
+                "foldDirectories": true
+            }
+        }));
+
+        assert_eq!(params.global_config_dir, "");
+        assert_eq!(params.workspace_data_dir, "/tmp/workspace-data");
+        assert_eq!(params.workspace_path, "/tmp/workspace");
+        assert!(params.restore_editor_session);
+        assert_eq!(params.current_tree.len(), 1);
+        assert_eq!(params.current_tree[0].name, "note.md");
+        assert!(params.cached_root_expanded_dirs.is_empty());
+        assert!(params.include_hidden);
+        assert!(!params.has_cached_tree);
+        assert_eq!(params.display_preferences.sort_mode, " MODIFIED ");
+        assert!(params.display_preferences.fold_directories);
+
+        let defaults = load_bootstrap_data_params_from_payload(json!(null));
+        assert!(defaults.restore_editor_session);
+        assert!(defaults.include_hidden);
+        assert!(defaults.current_tree.is_empty());
+        assert!(defaults.cached_root_expanded_dirs.is_empty());
     }
 
     #[test]

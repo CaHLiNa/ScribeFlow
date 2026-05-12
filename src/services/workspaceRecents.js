@@ -68,19 +68,7 @@ export async function loadWorkspaceBootstrapData(params = {}) {
     throw new Error('Loading workspace bootstrap data requires the Tauri desktop runtime.')
   }
   return invoke('workspace_lifecycle_load_bootstrap_data', {
-    params: {
-      globalConfigDir: String(params.globalConfigDir || ''),
-      workspaceDataDir: String(params.workspaceDataDir || ''),
-      workspacePath: String(params.workspacePath || ''),
-      restoreEditorSession: params.restoreEditorSession !== false,
-      currentTree: Array.isArray(params.currentTree) ? params.currentTree : [],
-      cachedRootExpandedDirs: Array.isArray(params.cachedRootExpandedDirs)
-        ? params.cachedRootExpandedDirs
-        : [],
-      includeHidden: params.includeHidden !== false,
-      hasCachedTree: params.hasCachedTree === true,
-      displayPreferences: params.displayPreferences || {},
-    },
+    params: params || {},
   })
 }
 
