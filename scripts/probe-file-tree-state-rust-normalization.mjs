@@ -77,11 +77,25 @@ try {
   mockWindows('main')
 
   const calls = []
+  const snapshotResult = {
+    tree: { rustTree: true },
+    displayTree: { rustDisplayTree: true },
+    flatFiles: { rustFlatFiles: true },
+    expandedDirs: { rustExpandedDirs: true },
+  }
+  const flatFilesResult = {
+    tree: [],
+    displayTree: [],
+    flatFiles: { rustFlatFilesOnly: true },
+    expandedDirs: [],
+  }
 
   mockIPC(async (cmd, args) => {
     calls.push({ cmd, args })
 
     if (cmd === 'fs_tree_load_workspace_state') {
+      if (args?.params?.workspacePath === 42) return snapshotResult
+      if (args?.params?.workspacePath === '/tmp/ws-flat') return flatFilesResult
       return buildTreeResult({
         ...args?.params,
         workspacePath: normalizeString(args?.params?.workspacePath),
@@ -134,7 +148,9 @@ try {
     restoreCachedExpandedTreeState,
     resolveFileTreeDisplayState,
   } = await vite.ssrLoadModule('/src/services/fileTreeSystem.js')
-  const { readWorkspaceTreeSnapshot } = await vite.ssrLoadModule('/src/services/workspaceSnapshotIO.js')
+  const { readWorkspaceFlatFiles, readWorkspaceTreeSnapshot } = await vite.ssrLoadModule(
+    '/src/services/workspaceSnapshotIO.js',
+  )
 
   const rawTree = [
     {
@@ -193,9 +209,13 @@ try {
   }
   const displayResult = await resolveFileTreeDisplayState(displayParams)
 
-  await readWorkspaceTreeSnapshot(42, 'not-an-array', {
+  const treeSnapshot = await readWorkspaceTreeSnapshot(42, 'not-an-array', {
     includeHidden: 'yes',
     displayPreferences: 'not-preferences',
+  })
+  const flatFiles = await readWorkspaceFlatFiles('/tmp/ws-flat', {
+    includeHidden: false,
+    displayPreferences: { sortMode: 'modified' },
   })
   await loadWorkspaceTreeState(false)
   await revealWorkspaceTreeState(null)
@@ -207,6 +227,7 @@ try {
     'fs_tree_reveal_workspace_state',
     'fs_tree_restore_cached_expanded_state',
     'fs_tree_resolve_display_state',
+    'fs_tree_load_workspace_state',
     'fs_tree_load_workspace_state',
     'fs_tree_load_workspace_state',
     'fs_tree_reveal_workspace_state',
@@ -224,11 +245,20 @@ try {
     includeHidden: 'yes',
     displayPreferences: 'not-preferences',
   })
-  assert.equal(calls[5].args.params, false)
-  assert.equal(calls[6].args.params, null)
-  assert.equal(calls[7].args.params, 0)
-  assert.equal(calls[8].args.params, 'raw-display-params')
+  assert.deepEqual(calls[5].args.params, {
+    workspacePath: '/tmp/ws-flat',
+    currentTree: [],
+    extraDirs: [],
+    includeHidden: false,
+    displayPreferences: { sortMode: 'modified' },
+  })
+  assert.equal(calls[6].args.params, false)
+  assert.equal(calls[7].args.params, null)
+  assert.equal(calls[8].args.params, 0)
+  assert.equal(calls[9].args.params, 'raw-display-params')
   assert.deepEqual(displayResult.displayTree.map((entry) => entry.name), ['alpha.md', 'zeta.md'])
+  assert.equal(treeSnapshot, snapshotResult)
+  assert.equal(flatFiles, flatFilesResult.flatFiles)
 
   console.log('file tree state rust normalization probe passed')
 } finally {
