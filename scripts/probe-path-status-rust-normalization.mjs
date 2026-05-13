@@ -35,21 +35,30 @@ try {
   mockWindows('main')
 
   const calls = []
+  const pathStatusResult = {
+    path: '/tmp/scribeflow-path.md',
+    exists: true,
+    isDir: false,
+    isFile: true,
+    size: 12,
+    modified: 34,
+    rustOwned: true,
+  }
+  const missingWorkspaceStatus = {
+    path: '',
+    exists: false,
+    isDir: false,
+    isFile: false,
+    size: null,
+    modified: null,
+    rustOwned: true,
+  }
 
   mockIPC(async (cmd, args) => {
     calls.push({ cmd, args })
 
-    if (cmd === 'path_status' || cmd === 'workspace_path_status') {
-      const path = typeof args?.path === 'string' ? args.path.trim() : ''
-      return {
-        path,
-        exists: Boolean(path),
-        isDir: false,
-        isFile: Boolean(path),
-        size: 12,
-        modified: 34,
-      }
-    }
+    if (cmd === 'path_status') return pathStatusResult
+    if (cmd === 'workspace_path_status') return missingWorkspaceStatus
 
     throw new Error(`Unexpected IPC command: ${cmd}`)
   })
@@ -68,10 +77,8 @@ try {
   )
   assert.deepEqual(calls[0].args, { path: ' /tmp/scribeflow-path.md ' })
   assert.deepEqual(calls[1].args, { path: 42 })
-  assert.equal(fileStatus.path, '/tmp/scribeflow-path.md')
-  assert.equal(fileStatus.exists, true)
-  assert.equal(numericStatus.path, '')
-  assert.equal(numericStatus.exists, false)
+  assert.deepEqual(fileStatus, pathStatusResult)
+  assert.deepEqual(numericStatus, missingWorkspaceStatus)
 
   console.log('path status rust normalization probe passed')
 } finally {
