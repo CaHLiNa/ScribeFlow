@@ -18,8 +18,20 @@ function resolveEmbedPdfSpreadMode(value) {
 }
 
 function resolveEmbedPdfZoomLevel(options = {}) {
+  const initialScaleValue = String(options.initialViewState?.scaleValue || '').trim().toLowerCase()
   const zoomMode = String(options.pdfViewerZoomMode || '').trim().toLowerCase()
   const lastScale = String(options.pdfViewerLastScale || '').trim().toLowerCase()
+
+  if (initialScaleValue) {
+    if (initialScaleValue === 'page-fit') return ZoomMode.FitPage
+    if (initialScaleValue === 'page-width') return ZoomMode.FitWidth
+    if (initialScaleValue === 'auto') return ZoomMode.Automatic
+
+    const numericInitialScale = Number(initialScaleValue)
+    if (Number.isFinite(numericInitialScale) && numericInitialScale > 0) {
+      return numericInitialScale
+    }
+  }
 
   if (zoomMode === 'page-fit') return ZoomMode.FitPage
   if (zoomMode === 'remember-last' && lastScale) {

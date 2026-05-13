@@ -199,6 +199,7 @@ const plugins = computed(() =>
   buildEmbedPdfPluginRegistrations({
     documentBuffer: documentBuffer.value,
     documentName: documentName.value,
+    initialViewState: pendingRestoreState.value,
     pdfViewerZoomMode: props.pdfViewerZoomMode,
     pdfViewerSpreadMode: props.pdfViewerSpreadMode,
     pdfViewerLastScale: props.pdfViewerLastScale,
