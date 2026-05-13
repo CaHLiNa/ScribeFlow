@@ -71,7 +71,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 
 import { EmbedPDF } from '@embedpdf/core/vue'
-import { createPdfiumEngine } from '@embedpdf/engines/pdfium-direct-engine'
+import { WebWorkerEngine } from '@embedpdf/engines'
 import pdfiumWasmUrl from '@embedpdf/pdfium/pdfium.wasm?url'
 import { DocumentContent } from '@embedpdf/plugin-document-manager/vue'
 
@@ -104,29 +104,36 @@ const sharedPdfEngine = ref(null)
 const sharedPdfEngineLoading = ref(false)
 const sharedPdfEngineError = ref(null)
 let sharedPdfEnginePromise = null
-let sharedPdfEngineWasmUrl = ''
+let sharedPdfWorker = null
 
 async function ensureSharedPdfEngine(wasmUrl = '') {
-  const normalizedUrl = String(wasmUrl || '').trim()
-  if (!normalizedUrl) {
+  if (!String(wasmUrl || '').trim()) {
     const nextError = new Error('Missing pdfium wasm url')
     sharedPdfEngineError.value = nextError
     throw nextError
   }
 
-  if (sharedPdfEngine.value && sharedPdfEngineWasmUrl === normalizedUrl) {
+  if (sharedPdfEngine.value) {
     return sharedPdfEngine.value
   }
 
-  if (sharedPdfEnginePromise && sharedPdfEngineWasmUrl === normalizedUrl) {
+  if (sharedPdfEnginePromise) {
     return sharedPdfEnginePromise
   }
 
-  sharedPdfEngineWasmUrl = normalizedUrl
   sharedPdfEngineLoading.value = true
   sharedPdfEngineError.value = null
 
-  sharedPdfEnginePromise = createPdfiumEngine(normalizedUrl)
+  sharedPdfEnginePromise = Promise.resolve()
+    .then(() => {
+      if (!sharedPdfWorker) {
+        sharedPdfWorker = new Worker(new URL('./PdfPreviewEngine.worker.js', import.meta.url), {
+          type: 'module',
+        })
+      }
+      const engine = new WebWorkerEngine(sharedPdfWorker)
+      return engine.readyTask.toPromise().then(() => engine)
+    })
     .then((engine) => {
       sharedPdfEngine.value = engine
       sharedPdfEngineLoading.value = false
@@ -136,6 +143,10 @@ async function ensureSharedPdfEngine(wasmUrl = '') {
       sharedPdfEngine.value = null
       sharedPdfEngineLoading.value = false
       sharedPdfEnginePromise = null
+      if (sharedPdfWorker) {
+        sharedPdfWorker.terminate()
+        sharedPdfWorker = null
+      }
       sharedPdfEngineError.value = error instanceof Error
         ? error
         : new Error(String(error || 'Failed to initialize PDF engine'))
