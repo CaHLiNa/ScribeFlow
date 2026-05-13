@@ -84,7 +84,7 @@ import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { useFilesStore } from '../../stores/files'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { isWorkspaceDocumentPath } from '../../domains/editor/paneDocumentDockRuntime.js'
-import { isMarkdown, isLatex, getViewerType } from '../../utils/fileTypes'
+import { isMarkdown, isLatex, getViewerType, isPreviewPath, previewSourcePathFromPath } from '../../utils/fileTypes'
 import { resolveDocumentOutlineItems } from '../../services/documentOutline/runtime'
 import { useI18n } from '../../i18n'
 
@@ -111,6 +111,12 @@ function outlineTypeForPath(path) {
 }
 
 function resolveOutlinePath(path, workspacePath) {
+  if (isPreviewPath(path)) {
+    const sourcePath = previewSourcePathFromPath(path)
+    return isWorkspaceDocumentPath(sourcePath, workspacePath) && outlineTypeForPath(sourcePath)
+      ? sourcePath
+      : null
+  }
   if (!isWorkspaceDocumentPath(path, workspacePath)) return null
   if (outlineTypeForPath(path)) return path
 

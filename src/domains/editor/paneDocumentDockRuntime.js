@@ -1,4 +1,4 @@
-import { isNewTab, isPreviewPath } from '../../utils/fileTypes.js'
+import { isNewTab, isPreviewPath, previewSourcePathFromPath } from '../../utils/fileTypes.js'
 import { normalizeFsPath } from '../../utils/path.js'
 
 function normalizeWorkspaceBoundaryPath(path = '') {
@@ -34,6 +34,20 @@ export function resolvePaneDocumentTab({
 } = {}) {
   if (isWorkspaceDocumentPath(activeTab, workspacePath)) return activeTab
   if (isWorkspaceDocumentPath(lastDocumentTab, workspacePath)) return lastDocumentTab
+  return null
+}
+
+export function resolveActiveWorkspaceDocumentTab({
+  activeTab = null,
+  workspacePath = '',
+} = {}) {
+  if (isWorkspaceDocumentPath(activeTab, workspacePath)) return activeTab
+
+  if (isPreviewPath(activeTab)) {
+    const sourcePath = previewSourcePathFromPath(activeTab)
+    if (isWorkspaceDocumentPath(sourcePath, workspacePath)) return sourcePath
+  }
+
   return null
 }
 

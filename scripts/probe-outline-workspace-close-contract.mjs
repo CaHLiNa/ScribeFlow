@@ -24,6 +24,7 @@ try {
   const { useEditorStore } = await vite.ssrLoadModule('/src/stores/editor.js')
   const {
     isWorkspaceDocumentPath,
+    resolveActiveWorkspaceDocumentTab,
     resolvePaneDocumentTab,
   } = await vite.ssrLoadModule('/src/domains/editor/paneDocumentDockRuntime.js')
   const { ROOT_PANE_ID } = await vite.ssrLoadModule('/src/domains/editor/paneTreeLayout.js')
@@ -49,6 +50,37 @@ try {
     resolvePaneDocumentTab({
       activeTab: editor.activeTab,
       lastDocumentTab: documentPath,
+      workspacePath: workspace.path,
+    }),
+    documentPath,
+  )
+  assert.equal(
+    resolveActiveWorkspaceDocumentTab({
+      activeTab: editor.activeTab,
+      workspacePath: workspace.path,
+    }),
+    documentPath,
+  )
+
+  editor.openNewTab(ROOT_PANE_ID)
+
+  assert.equal(resolvePaneDocumentTab({
+    activeTab: editor.activeTab,
+    lastDocumentTab: documentPath,
+    workspacePath: workspace.path,
+  }), documentPath)
+  assert.equal(
+    resolveActiveWorkspaceDocumentTab({
+      activeTab: editor.activeTab,
+      workspacePath: workspace.path,
+    }),
+    null,
+  )
+
+  editor.setActiveTab(ROOT_PANE_ID, documentPath)
+  assert.equal(
+    resolveActiveWorkspaceDocumentTab({
+      activeTab: `preview:${documentPath}`,
       workspacePath: workspace.path,
     }),
     documentPath,

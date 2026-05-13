@@ -46,7 +46,7 @@
         <OutlinePanel
           v-show="documentSidebarMode === 'outline'"
           embedded
-          :overrideActiveFile="documentTab"
+          :overrideActiveFile="activeDocumentTab"
           class="left-shell-sidebar__outline"
         />
       </div>
@@ -60,12 +60,11 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, watch } from 'vue'
+import { ref, computed, nextTick } from 'vue'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useEditorStore } from '../../stores/editor'
 import { useI18n } from '../../i18n'
-import { resolvePaneDocumentTab, isWorkspaceDocumentPath } from '../../domains/editor/paneDocumentDockRuntime.js'
-import { isNewTab } from '../../utils/fileTypes'
+import { resolveActiveWorkspaceDocumentTab } from '../../domains/editor/paneDocumentDockRuntime.js'
 import FileTree from './FileTree.vue'
 import ReferencesSidebarPanel from './ReferencesSidebarPanel.vue'
 import OutlinePanel from '../panel/OutlinePanel.vue'
@@ -83,32 +82,12 @@ const editorStore = useEditorStore()
 const { t } = useI18n()
 const fileTreeRef = ref(null)
 const documentSidebarMode = ref('files')
-const lastDocumentTab = ref(null)
 const fileTreeHeadingLabel = computed(() => '')
-const documentTab = computed(() => {
-  return resolvePaneDocumentTab({
+const activeDocumentTab = computed(() =>
+  resolveActiveWorkspaceDocumentTab({
     activeTab: editorStore.activeTab,
-    lastDocumentTab: lastDocumentTab.value,
     workspacePath: workspace.path,
   })
-})
-watch(
-  () => editorStore.activeTab,
-  (tab) => {
-    if (!isNewTab(tab) && isWorkspaceDocumentPath(tab, workspace.path)) {
-      lastDocumentTab.value = tab
-    }
-  },
-  { flush: 'post', immediate: true }
-)
-watch(
-  () => [workspace.path, editorStore.restoreGeneration],
-  () => {
-    if (!isWorkspaceDocumentPath(lastDocumentTab.value, workspace.path)) {
-      lastDocumentTab.value = null
-    }
-  },
-  { flush: 'sync' }
 )
 
 async function focusFileTree(method, ...args) {
