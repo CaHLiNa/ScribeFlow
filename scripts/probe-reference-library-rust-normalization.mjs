@@ -46,24 +46,23 @@ try {
   mockWindows('main')
 
   const calls = []
+  const normalizeResult = 'rust-owned-snapshot-normalize'
+  const loadResult = 'rust-owned-library-load'
+  const writeResult = 'rust-owned-library-write'
 
   mockIPC(async (cmd, args) => {
     calls.push({ cmd, args })
 
     if (cmd === 'references_snapshot_normalize') {
-      return args?.params?.snapshot && typeof args.params.snapshot === 'object'
-        ? args.params.snapshot
-        : defaultSnapshot()
+      return normalizeResult
     }
 
     if (cmd === 'references_library_load_workspace') {
-      return defaultSnapshot()
+      return loadResult
     }
 
     if (cmd === 'references_library_write') {
-      return args?.params?.snapshot && typeof args.params.snapshot === 'object'
-        ? args.params.snapshot
-        : defaultSnapshot()
+      return writeResult
     }
 
     throw new Error(`Unexpected IPC command: ${cmd}`)
@@ -75,9 +74,9 @@ try {
     writeReferenceLibrarySnapshot,
   } = await vite.ssrLoadModule('/src/services/references/referenceLibraryIO.js')
 
-  await normalizeReferenceLibrarySnapshotWithBackend(false)
-  await readOrCreateReferenceLibrarySnapshot(false)
-  await writeReferenceLibrarySnapshot(42, 'not-a-snapshot')
+  const normalized = await normalizeReferenceLibrarySnapshotWithBackend(false)
+  const loaded = await readOrCreateReferenceLibrarySnapshot(false)
+  const written = await writeReferenceLibrarySnapshot(42, 'not-a-snapshot')
 
   assert.deepEqual(calls.map((call) => call.cmd), [
     'references_snapshot_normalize',
@@ -90,6 +89,9 @@ try {
     globalConfigDir: 42,
     snapshot: 'not-a-snapshot',
   })
+  assert.strictEqual(normalized, normalizeResult)
+  assert.strictEqual(loaded, loadResult)
+  assert.strictEqual(written, writeResult)
 
   console.log('reference library rust normalization probe passed')
 } finally {
