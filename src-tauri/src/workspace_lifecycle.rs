@@ -1,7 +1,6 @@
 use crate::app_dirs;
 use crate::document_workflow_session::{
     document_workflow_session_load, DocumentWorkflowPersistentState,
-    DocumentWorkflowPersistentStateLoadParams,
 };
 use crate::editor_session_runtime::{
     editor_recent_files_load, editor_session_load, EditorRecentFilesLoadParams,
@@ -23,7 +22,7 @@ use crate::security::{
 };
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::collections::HashSet;
 use std::fs;
@@ -750,11 +749,10 @@ pub async fn workspace_lifecycle_load_bootstrap_data(
     })
     .await?;
 
-    let document_workflow_state =
-        document_workflow_session_load(DocumentWorkflowPersistentStateLoadParams {
-            workspace_data_dir: params.workspace_data_dir.clone(),
-        })
-        .await?;
+    let document_workflow_state = document_workflow_session_load(json!({
+        "workspaceDataDir": params.workspace_data_dir.clone(),
+    }))
+    .await?;
 
     let recent_files = editor_recent_files_load(EditorRecentFilesLoadParams {
         workspace_data_dir: params.workspace_data_dir.clone(),

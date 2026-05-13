@@ -256,6 +256,10 @@ fn bool_payload_field(params: &Value, keys: &[&str], default: bool) -> bool {
         .unwrap_or(default)
 }
 
+fn value_payload_field(params: &Value, keys: &[&str], default: Value) -> Value {
+    payload_field(params, keys).cloned().unwrap_or(default)
+}
+
 fn persistent_state_payload_field(
     params: &Value,
     keys: &[&str],
@@ -264,6 +268,117 @@ fn persistent_state_payload_field(
         .cloned()
         .and_then(|value| serde_json::from_value::<DocumentWorkflowPersistentState>(value).ok())
         .unwrap_or_default()
+}
+
+fn latex_preview_state_payload_field(
+    params: &Value,
+    keys: &[&str],
+) -> DocumentWorkflowLatexPreviewState {
+    payload_field(params, keys)
+        .cloned()
+        .and_then(|value| serde_json::from_value::<DocumentWorkflowLatexPreviewState>(value).ok())
+        .unwrap_or_default()
+}
+
+fn preview_binding_payload_field(params: &Value, keys: &[&str]) -> DocumentWorkflowPreviewBinding {
+    payload_field(params, keys)
+        .cloned()
+        .and_then(|value| serde_json::from_value::<DocumentWorkflowPreviewBinding>(value).ok())
+        .unwrap_or_default()
+}
+
+fn optional_preview_binding_payload_field(
+    params: &Value,
+    keys: &[&str],
+) -> Option<DocumentWorkflowPreviewBinding> {
+    payload_field(params, keys)
+        .cloned()
+        .and_then(|value| serde_json::from_value::<DocumentWorkflowPreviewBinding>(value).ok())
+}
+
+fn document_workflow_session_load_params_from_payload(
+    params: Value,
+) -> DocumentWorkflowPersistentStateLoadParams {
+    DocumentWorkflowPersistentStateLoadParams {
+        workspace_data_dir: string_payload_field(
+            &params,
+            &["workspaceDataDir", "workspace_data_dir"],
+        ),
+    }
+}
+
+fn document_workflow_session_save_params_from_payload(
+    params: Value,
+) -> DocumentWorkflowPersistentStateSaveParams {
+    DocumentWorkflowPersistentStateSaveParams {
+        workspace_data_dir: string_payload_field(
+            &params,
+            &["workspaceDataDir", "workspace_data_dir"],
+        ),
+        state: persistent_state_payload_field(&params, &["state"]),
+    }
+}
+
+fn document_workflow_latex_preview_reconcile_params_from_payload(
+    params: Value,
+) -> DocumentWorkflowLatexPreviewReconcileParams {
+    DocumentWorkflowLatexPreviewReconcileParams {
+        state: persistent_state_payload_field(&params, &["state"]),
+    }
+}
+
+fn document_workflow_latex_preview_apply_params_from_payload(
+    params: Value,
+) -> DocumentWorkflowLatexPreviewApplyParams {
+    DocumentWorkflowLatexPreviewApplyParams {
+        state: persistent_state_payload_field(&params, &["state"]),
+        file_path: string_payload_field(&params, &["filePath", "file_path"]),
+        preview_state: latex_preview_state_payload_field(
+            &params,
+            &["previewState", "preview_state"],
+        ),
+    }
+}
+
+fn document_workflow_preview_binding_apply_params_from_payload(
+    params: Value,
+) -> DocumentWorkflowPreviewBindingApplyParams {
+    DocumentWorkflowPreviewBindingApplyParams {
+        state: persistent_state_payload_field(&params, &["state"]),
+        intent: string_payload_field(&params, &["intent"]),
+        binding: preview_binding_payload_field(&params, &["binding"]),
+        preview_path: string_payload_field(&params, &["previewPath", "preview_path"]),
+    }
+}
+
+fn document_workflow_session_mutation_apply_params_from_payload(
+    params: Value,
+) -> DocumentWorkflowSessionMutationApplyParams {
+    DocumentWorkflowSessionMutationApplyParams {
+        state: persistent_state_payload_field(&params, &["state"]),
+        intent: string_payload_field(&params, &["intent"]),
+        file_path: string_payload_field(&params, &["filePath", "file_path"]),
+        source_path: string_payload_field(&params, &["sourcePath", "source_path"]),
+        visibility: string_payload_field(&params, &["visibility"]),
+        preview_kind: string_payload_field(&params, &["previewKind", "preview_kind"]),
+        session_patch: value_payload_field(
+            &params,
+            &["sessionPatch", "session_patch"],
+            Value::Object(Default::default()),
+        ),
+    }
+}
+
+fn document_workflow_preview_close_effect_params_from_payload(
+    params: Value,
+) -> DocumentWorkflowPreviewCloseEffectResolveParams {
+    DocumentWorkflowPreviewCloseEffectResolveParams {
+        preview_path: string_payload_field(&params, &["previewPath", "preview_path"]),
+        preview_binding: optional_preview_binding_payload_field(
+            &params,
+            &["previewBinding", "preview_binding"],
+        ),
+    }
 }
 
 fn document_workflow_workspace_preview_apply_params_from_payload(
@@ -1066,8 +1181,9 @@ pub fn resolve_document_workflow_preview_close_effect(
 
 #[tauri::command]
 pub async fn document_workflow_session_load(
-    params: DocumentWorkflowPersistentStateLoadParams,
+    params: Value,
 ) -> Result<DocumentWorkflowPersistentState, String> {
+    let params = document_workflow_session_load_params_from_payload(params);
     if let Some(current) = read_document_workflow_session_state(&params.workspace_data_dir)? {
         return Ok(normalize_document_workflow_persistent_state(current));
     }
@@ -1080,8 +1196,9 @@ pub async fn document_workflow_session_load(
 
 #[tauri::command]
 pub async fn document_workflow_session_save(
-    params: DocumentWorkflowPersistentStateSaveParams,
+    params: Value,
 ) -> Result<DocumentWorkflowPersistentState, String> {
+    let params = document_workflow_session_save_params_from_payload(params);
     let normalized = normalize_document_workflow_persistent_state(params.state);
     write_document_workflow_session_state(&params.workspace_data_dir, &normalized)?;
     Ok(normalized)
@@ -1089,9 +1206,10 @@ pub async fn document_workflow_session_save(
 
 #[tauri::command]
 pub async fn document_workflow_latex_preview_reconcile(
-    params: DocumentWorkflowLatexPreviewReconcileParams,
+    params: Value,
     scope_state: tauri::State<'_, WorkspaceScopeState>,
 ) -> Result<DocumentWorkflowLatexPreviewReconcileResult, String> {
+    let params = document_workflow_latex_preview_reconcile_params_from_payload(params);
     Ok(reconcile_document_workflow_latex_preview_state_with_change(
         params.state,
         scope_state.inner(),
@@ -1100,22 +1218,25 @@ pub async fn document_workflow_latex_preview_reconcile(
 
 #[tauri::command]
 pub async fn document_workflow_latex_preview_apply(
-    params: DocumentWorkflowLatexPreviewApplyParams,
+    params: Value,
 ) -> Result<DocumentWorkflowLatexPreviewApplyResult, String> {
+    let params = document_workflow_latex_preview_apply_params_from_payload(params);
     Ok(apply_document_workflow_latex_preview_state(params))
 }
 
 #[tauri::command]
 pub async fn document_workflow_preview_binding_apply(
-    params: DocumentWorkflowPreviewBindingApplyParams,
+    params: Value,
 ) -> Result<DocumentWorkflowPreviewBindingApplyResult, String> {
+    let params = document_workflow_preview_binding_apply_params_from_payload(params);
     Ok(apply_document_workflow_preview_binding_state(params))
 }
 
 #[tauri::command]
 pub async fn document_workflow_session_mutation_apply(
-    params: DocumentWorkflowSessionMutationApplyParams,
+    params: Value,
 ) -> Result<DocumentWorkflowSessionMutationApplyResult, String> {
+    let params = document_workflow_session_mutation_apply_params_from_payload(params);
     Ok(apply_document_workflow_session_mutation(params))
 }
 
@@ -1129,8 +1250,9 @@ pub async fn document_workflow_workspace_preview_apply(
 
 #[tauri::command]
 pub async fn document_workflow_preview_close_effect_resolve(
-    params: DocumentWorkflowPreviewCloseEffectResolveParams,
+    params: Value,
 ) -> Result<DocumentWorkflowPreviewCloseEffect, String> {
+    let params = document_workflow_preview_close_effect_params_from_payload(params);
     Ok(resolve_document_workflow_preview_close_effect(params))
 }
 
@@ -1139,15 +1261,24 @@ mod tests {
     use super::{
         apply_document_workflow_latex_preview_state, apply_document_workflow_preview_binding_state,
         apply_document_workflow_session_mutation, apply_document_workflow_workspace_preview_state,
+        document_workflow_latex_preview_apply,
+        document_workflow_latex_preview_apply_params_from_payload,
+        document_workflow_latex_preview_reconcile_params_from_payload,
+        document_workflow_preview_binding_apply,
+        document_workflow_preview_binding_apply_params_from_payload,
+        document_workflow_preview_close_effect_params_from_payload,
+        document_workflow_preview_close_effect_resolve, document_workflow_session_load,
+        document_workflow_session_load_params_from_payload,
+        document_workflow_session_mutation_apply,
+        document_workflow_session_mutation_apply_params_from_payload,
+        document_workflow_session_save, document_workflow_session_save_params_from_payload,
         document_workflow_workspace_preview_apply,
         document_workflow_workspace_preview_apply_params_from_payload,
-        document_workflow_session_load, document_workflow_session_save,
         normalize_document_workflow_persistent_state,
         reconcile_document_workflow_latex_preview_state,
         reconcile_document_workflow_latex_preview_state_with_change,
         resolve_document_workflow_preview_close_effect, DocumentWorkflowLatexPreviewApplyParams,
         DocumentWorkflowLatexPreviewState, DocumentWorkflowPersistentState,
-        DocumentWorkflowPersistentStateLoadParams, DocumentWorkflowPersistentStateSaveParams,
         DocumentWorkflowPreviewBinding, DocumentWorkflowPreviewBindingApplyParams,
         DocumentWorkflowPreviewCloseEffectResolveParams, DocumentWorkflowPreviewPreference,
         DocumentWorkflowSession, DocumentWorkflowSessionMutationApplyParams,
@@ -1252,68 +1383,242 @@ mod tests {
         ));
         fs::create_dir_all(&temp_dir).expect("create temp dir");
 
-        let saved = document_workflow_session_save(DocumentWorkflowPersistentStateSaveParams {
-            workspace_data_dir: temp_dir.to_string_lossy().to_string(),
-            state: DocumentWorkflowPersistentState {
-                preview_prefs: HashMap::from([(
-                    "markdown".to_string(),
-                    DocumentWorkflowPreviewPreference {
-                        preferred_preview: "html".to_string(),
-                    },
-                )]),
-                session: DocumentWorkflowSession {
-                    active_file: "/tmp/demo.md".to_string(),
-                    active_kind: "markdown".to_string(),
-                    source_pane_id: "pane-1".to_string(),
-                    preview_pane_id: "pane-2".to_string(),
-                    preview_kind: "html".to_string(),
-                    preview_source_path: "/tmp/demo.md".to_string(),
-                    state: "ready".to_string(),
-                    detached_sources: HashMap::new(),
+        let saved = document_workflow_session_save(json!({
+            "workspaceDataDir": temp_dir.to_string_lossy().to_string(),
+            "state": {
+                "previewPrefs": {
+                    "markdown": {
+                        "preferredPreview": "html"
+                    }
                 },
-                preview_bindings: vec![DocumentWorkflowPreviewBinding {
-                    preview_path: "preview:/tmp/demo.md".to_string(),
-                    source_path: "/tmp/demo.md".to_string(),
-                    preview_kind: "html".to_string(),
-                    kind: "markdown".to_string(),
-                    pane_id: "pane-2".to_string(),
-                    detach_on_close: true,
+                "session": {
+                    "activeFile": "/tmp/demo.md",
+                    "activeKind": "markdown",
+                    "sourcePaneId": "pane-1",
+                    "previewPaneId": "pane-2",
+                    "previewKind": "html",
+                    "previewSourcePath": "/tmp/demo.md",
+                    "state": "ready",
+                    "detachedSources": {}
+                },
+                "previewBindings": [{
+                    "previewPath": "preview:/tmp/demo.md",
+                    "sourcePath": "/tmp/demo.md",
+                    "previewKind": "html",
+                    "kind": "markdown",
+                    "paneId": "pane-2",
+                    "detachOnClose": true
                 }],
-                workspace_preview_visibility: HashMap::from([(
-                    "/tmp/demo.md".to_string(),
-                    "visible".to_string(),
-                )]),
-                workspace_preview_requests: HashMap::from([(
-                    "/tmp/demo.md".to_string(),
-                    "html".to_string(),
-                )]),
-                latex_artifact_paths: HashMap::from([(
-                    "/tmp/main.tex".to_string(),
-                    "/tmp/main.pdf".to_string(),
-                )]),
-                latex_preview_states: HashMap::from([(
-                    "/tmp/main.tex".to_string(),
-                    DocumentWorkflowLatexPreviewState {
-                        artifact_path: "/tmp/main.pdf".to_string(),
-                        synctex_path: "/tmp/main.synctex.gz".to_string(),
-                        compile_target_path: "/tmp/main.tex".to_string(),
-                        last_compiled: 42,
-                        source_fingerprint: "fp:123".to_string(),
-                    },
-                )]),
-            },
-        })
+                "workspacePreviewVisibility": {
+                    "/tmp/demo.md": "visible"
+                },
+                "workspacePreviewRequests": {
+                    "/tmp/demo.md": "html"
+                },
+                "latexArtifactPaths": {
+                    "/tmp/main.tex": "/tmp/main.pdf"
+                },
+                "latexPreviewStates": {
+                    "/tmp/main.tex": {
+                        "artifactPath": "/tmp/main.pdf",
+                        "synctexPath": "/tmp/main.synctex.gz",
+                        "compileTargetPath": "/tmp/main.tex",
+                        "lastCompiled": 42,
+                        "sourceFingerprint": "fp:123"
+                    }
+                }
+            }
+        }))
         .await
         .expect("save document workflow session");
 
-        let loaded = document_workflow_session_load(DocumentWorkflowPersistentStateLoadParams {
-            workspace_data_dir: temp_dir.to_string_lossy().to_string(),
-        })
+        let loaded = document_workflow_session_load(json!({
+            "workspace_data_dir": temp_dir.to_string_lossy().to_string()
+        }))
         .await
         .expect("load document workflow session");
 
         assert_eq!(saved, loaded);
         fs::remove_dir_all(temp_dir).ok();
+    }
+
+    #[test]
+    fn session_command_params_normalize_raw_payloads() {
+        let load = document_workflow_session_load_params_from_payload(json!({
+            "workspace_data_dir": "/tmp/scribeflow-data"
+        }));
+        assert_eq!(load.workspace_data_dir, "/tmp/scribeflow-data");
+
+        let save = document_workflow_session_save_params_from_payload(json!({
+            "workspaceDataDir": "/tmp/scribeflow-data",
+            "state": {
+                "session": {
+                    "activeFile": "/tmp/demo.md",
+                    "state": "ready"
+                },
+                "previewBindings": [{
+                    "previewPath": "preview:/tmp/demo.md",
+                    "sourcePath": "/tmp/demo.md",
+                    "previewKind": "html",
+                    "kind": "markdown"
+                }]
+            }
+        }));
+        assert_eq!(save.workspace_data_dir, "/tmp/scribeflow-data");
+        assert_eq!(save.state.session.active_file, "/tmp/demo.md");
+        assert_eq!(save.state.session.state, "ready");
+        assert_eq!(save.state.preview_bindings.len(), 1);
+
+        let invalid_load = document_workflow_session_load_params_from_payload(json!(false));
+        assert!(invalid_load.workspace_data_dir.is_empty());
+
+        let invalid_save = document_workflow_session_save_params_from_payload(json!({
+            "workspaceDataDir": false,
+            "state": "not-a-state"
+        }));
+        assert!(invalid_save.workspace_data_dir.is_empty());
+        assert_eq!(
+            invalid_save.state,
+            DocumentWorkflowPersistentState::default()
+        );
+    }
+
+    #[test]
+    fn latex_preview_command_params_normalize_raw_payloads() {
+        let reconcile = document_workflow_latex_preview_reconcile_params_from_payload(json!({
+            "state": {
+                "session": {
+                    "activeFile": "/tmp/main.tex"
+                }
+            }
+        }));
+        assert_eq!(reconcile.state.session.active_file, "/tmp/main.tex");
+
+        let apply = document_workflow_latex_preview_apply_params_from_payload(json!({
+            "state": {
+                "latexArtifactPaths": {
+                    "/tmp/old.tex": "/tmp/old.pdf"
+                }
+            },
+            "file_path": "/tmp/main.tex",
+            "previewState": {
+                "artifactPath": "/tmp/main.pdf",
+                "synctexPath": "/tmp/main.synctex.gz",
+                "compileTargetPath": "/tmp/root.tex",
+                "lastCompiled": 42,
+                "sourceFingerprint": "fp:main"
+            }
+        }));
+        assert_eq!(apply.file_path, "/tmp/main.tex");
+        assert_eq!(
+            apply
+                .state
+                .latex_artifact_paths
+                .get("/tmp/old.tex")
+                .map(String::as_str),
+            Some("/tmp/old.pdf")
+        );
+        assert_eq!(apply.preview_state.artifact_path, "/tmp/main.pdf");
+        assert_eq!(apply.preview_state.source_fingerprint, "fp:main");
+
+        let invalid = document_workflow_latex_preview_apply_params_from_payload(json!(null));
+        assert_eq!(invalid.state, DocumentWorkflowPersistentState::default());
+        assert!(invalid.file_path.is_empty());
+        assert_eq!(
+            invalid.preview_state,
+            DocumentWorkflowLatexPreviewState::default()
+        );
+    }
+
+    #[test]
+    fn preview_binding_command_params_normalize_raw_payloads() {
+        let params = document_workflow_preview_binding_apply_params_from_payload(json!({
+            "state": {
+                "previewBindings": []
+            },
+            "intent": "bind",
+            "binding": {
+                "previewPath": "preview:/tmp/main.md",
+                "sourcePath": "/tmp/main.md",
+                "previewKind": "html",
+                "kind": "markdown",
+                "paneId": "pane-preview",
+                "detachOnClose": false
+            },
+            "preview_path": "preview:/tmp/fallback.md"
+        }));
+
+        assert_eq!(params.intent, "bind");
+        assert_eq!(params.binding.preview_path, "preview:/tmp/main.md");
+        assert_eq!(params.binding.source_path, "/tmp/main.md");
+        assert_eq!(params.binding.pane_id, "pane-preview");
+        assert!(!params.binding.detach_on_close);
+        assert_eq!(params.preview_path, "preview:/tmp/fallback.md");
+
+        let invalid = document_workflow_preview_binding_apply_params_from_payload(json!({
+            "intent": false,
+            "binding": "not-a-binding",
+            "previewPath": false
+        }));
+        assert!(invalid.intent.is_empty());
+        assert_eq!(invalid.binding, DocumentWorkflowPreviewBinding::default());
+        assert!(invalid.preview_path.is_empty());
+    }
+
+    #[test]
+    fn session_mutation_command_params_normalize_raw_payloads() {
+        let params = document_workflow_session_mutation_apply_params_from_payload(json!({
+            "state": {
+                "session": {
+                    "previewSourcePath": "/tmp/main.md",
+                    "state": "workspace-preview"
+                }
+            },
+            "intent": "set-session-state",
+            "file_path": "/tmp/main.md",
+            "sourcePath": "/tmp/source.md",
+            "visibility": "hidden",
+            "preview_kind": "html",
+            "sessionPatch": ["raw-session-patch"]
+        }));
+
+        assert_eq!(params.state.session.preview_source_path, "/tmp/main.md");
+        assert_eq!(params.intent, "set-session-state");
+        assert_eq!(params.file_path, "/tmp/main.md");
+        assert_eq!(params.source_path, "/tmp/source.md");
+        assert_eq!(params.visibility, "hidden");
+        assert_eq!(params.preview_kind, "html");
+        assert_eq!(params.session_patch, json!(["raw-session-patch"]));
+
+        let missing_patch = document_workflow_session_mutation_apply_params_from_payload(json!({
+            "intent": "set-session-state"
+        }));
+        assert_eq!(
+            missing_patch.session_patch,
+            Value::Object(Default::default())
+        );
+    }
+
+    #[test]
+    fn preview_close_effect_command_params_normalize_raw_payloads() {
+        let params = document_workflow_preview_close_effect_params_from_payload(json!({
+            "preview_path": "preview:/tmp/ignored.md",
+            "previewBinding": {
+                "previewPath": "preview:/tmp/main.md",
+                "sourcePath": "/tmp/main.md",
+                "detachOnClose": false
+            }
+        }));
+
+        assert_eq!(params.preview_path, "preview:/tmp/ignored.md");
+        let binding = params.preview_binding.expect("preview binding");
+        assert_eq!(binding.preview_path, "preview:/tmp/main.md");
+        assert_eq!(binding.source_path, "/tmp/main.md");
+        assert!(!binding.detach_on_close);
+
+        let invalid = document_workflow_preview_close_effect_params_from_payload(json!(false));
+        assert!(invalid.preview_path.is_empty());
+        assert!(invalid.preview_binding.is_none());
     }
 
     #[test]
@@ -1547,6 +1852,51 @@ mod tests {
         assert!(!result.changed);
     }
 
+    #[tokio::test]
+    async fn latex_preview_apply_command_accepts_raw_payloads() {
+        let result = document_workflow_latex_preview_apply(json!({
+            "state": {
+                "latexArtifactPaths": {
+                    "/tmp/old.tex": "/tmp/old.pdf"
+                }
+            },
+            "file_path": " /tmp/main.tex ",
+            "previewState": {
+                "artifactPath": " /tmp/main.pdf ",
+                "synctexPath": " /tmp/main.synctex.gz ",
+                "compileTargetPath": " /tmp/root.tex ",
+                "lastCompiled": 42,
+                "sourceFingerprint": " fp:main "
+            }
+        }))
+        .await
+        .expect("apply raw latex preview payload");
+
+        assert!(result.changed);
+        assert_eq!(
+            result
+                .state
+                .latex_artifact_paths
+                .get("/tmp/main.tex")
+                .map(String::as_str),
+            Some("/tmp/main.pdf")
+        );
+        assert_eq!(
+            result
+                .state
+                .latex_preview_states
+                .get("/tmp/main.tex")
+                .map(|state| state.source_fingerprint.as_str()),
+            Some("fp:main")
+        );
+
+        let invalid = document_workflow_latex_preview_apply(json!(false))
+            .await
+            .expect("apply invalid latex preview payload");
+        assert!(!invalid.changed);
+        assert_eq!(invalid.state, DocumentWorkflowPersistentState::default());
+    }
+
     #[test]
     fn applies_preview_binding_state_by_preview_path() {
         let result = apply_document_workflow_preview_binding_state(
@@ -1652,6 +2002,42 @@ mod tests {
             result.state.preview_bindings[0].preview_path,
             "preview:/tmp/other.md"
         );
+    }
+
+    #[tokio::test]
+    async fn preview_binding_apply_command_accepts_raw_payloads() {
+        let result = document_workflow_preview_binding_apply(json!({
+            "state": {},
+            "intent": "bind",
+            "binding": {
+                "previewPath": " preview:/tmp/main.md ",
+                "sourcePath": " /tmp/main.md ",
+                "previewKind": "html",
+                "kind": "markdown",
+                "paneId": " pane-preview ",
+                "detachOnClose": true
+            }
+        }))
+        .await
+        .expect("apply raw preview binding payload");
+
+        assert!(result.changed);
+        assert_eq!(result.state.preview_bindings.len(), 1);
+        assert_eq!(
+            result.state.preview_bindings[0].preview_path,
+            "preview:/tmp/main.md"
+        );
+        assert_eq!(result.state.preview_bindings[0].source_path, "/tmp/main.md");
+        assert_eq!(result.state.preview_bindings[0].pane_id, "pane-preview");
+
+        let invalid = document_workflow_preview_binding_apply(json!({
+            "intent": "bind",
+            "binding": "not-a-binding"
+        }))
+        .await
+        .expect("apply invalid preview binding payload");
+        assert!(!invalid.changed);
+        assert_eq!(invalid.state, DocumentWorkflowPersistentState::default());
     }
 
     #[test]
@@ -1786,6 +2172,35 @@ mod tests {
             .contains_key("/tmp/main.md"));
     }
 
+    #[tokio::test]
+    async fn session_mutation_apply_command_accepts_raw_payloads() {
+        let result = document_workflow_session_mutation_apply(json!({
+            "state": {
+                "session": {
+                    "previewSourcePath": "/tmp/main.md",
+                    "state": "workspace-preview"
+                }
+            },
+            "intent": "mark-detached",
+            "source_path": " /tmp/main.md "
+        }))
+        .await
+        .expect("apply raw session mutation payload");
+
+        assert!(result.changed);
+        assert_eq!(
+            result.state.session.detached_sources.get("/tmp/main.md"),
+            Some(&true)
+        );
+        assert_eq!(result.state.session.state, "detached-by-user");
+
+        let invalid = document_workflow_session_mutation_apply(json!(null))
+            .await
+            .expect("apply invalid session mutation payload");
+        assert!(!invalid.changed);
+        assert_eq!(invalid.state, DocumentWorkflowPersistentState::default());
+    }
+
     #[test]
     fn resolves_preview_close_effect_from_binding() {
         let effect = resolve_document_workflow_preview_close_effect(
@@ -1815,6 +2230,29 @@ mod tests {
 
         assert_eq!(effect.source_path.as_deref(), Some("/tmp/main.md"));
         assert!(!effect.mark_detached);
+    }
+
+    #[tokio::test]
+    async fn preview_close_effect_command_accepts_raw_payloads() {
+        let effect = document_workflow_preview_close_effect_resolve(json!({
+            "preview_path": "preview:/tmp/ignored.md",
+            "previewBinding": {
+                "previewPath": "preview:/tmp/main.md",
+                "sourcePath": "/tmp/main.md",
+                "detachOnClose": true
+            }
+        }))
+        .await
+        .expect("resolve raw preview close payload");
+
+        assert_eq!(effect.source_path.as_deref(), Some("/tmp/main.md"));
+        assert!(effect.mark_detached);
+
+        let invalid = document_workflow_preview_close_effect_resolve(json!(false))
+            .await
+            .expect("resolve invalid preview close payload");
+        assert_eq!(invalid.source_path, None);
+        assert!(!invalid.mark_detached);
     }
 
     #[test]

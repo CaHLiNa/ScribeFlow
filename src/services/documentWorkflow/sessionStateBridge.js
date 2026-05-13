@@ -27,55 +27,55 @@ export function createDocumentWorkflowPersistentState() {
 
 export async function loadDocumentWorkflowSessionState(workspaceDataDir = '') {
   return invokeDocumentWorkflowBridge('document_workflow_session_load', {
-    workspaceDataDir: String(workspaceDataDir || ''),
+    workspaceDataDir,
   })
 }
 
 export async function saveDocumentWorkflowSessionState(workspaceDataDir = '', state = {}) {
   return invokeDocumentWorkflowBridge('document_workflow_session_save', {
-    workspaceDataDir: String(workspaceDataDir || ''),
-    state: state || {},
+    workspaceDataDir,
+    state,
   })
 }
 
 export async function reconcileDocumentWorkflowLatexPreviewState(state = {}) {
   return invokeDocumentWorkflowBridge('document_workflow_latex_preview_reconcile', {
-    state: state || {},
+    state,
   })
 }
 
 export async function applyDocumentWorkflowLatexPreviewState(state = {}, filePath = '', previewState = {}) {
   return invokeDocumentWorkflowBridge('document_workflow_latex_preview_apply', {
-    state: state || {},
-    filePath: String(filePath || ''),
-    previewState: previewState || {},
+    state,
+    filePath,
+    previewState,
   })
 }
 
 export async function applyDocumentWorkflowPreviewBindingState(state = {}, intent = '', binding = {}, previewPath = '') {
   return invokeDocumentWorkflowBridge('document_workflow_preview_binding_apply', {
-    state: state || {},
-    intent: String(intent || ''),
-    binding: binding || {},
-    previewPath: String(previewPath || ''),
+    state,
+    intent,
+    binding,
+    previewPath,
   })
 }
 
 export async function resolveDocumentWorkflowPreviewCloseEffect(previewPath = '', previewBinding = null) {
   return invokeDocumentWorkflowBridge('document_workflow_preview_close_effect_resolve', {
-    previewPath: String(previewPath || ''),
-    previewBinding: previewBinding && typeof previewBinding === 'object' ? previewBinding : null,
+    previewPath,
+    previewBinding,
   })
 }
 
 export async function applyDocumentWorkflowSessionMutation(state = {}, mutation = {}) {
   return invokeDocumentWorkflowBridge('document_workflow_session_mutation_apply', {
-    state: state || {},
-    intent: String(mutation?.intent || ''),
-    filePath: String(mutation?.filePath || ''),
-    sourcePath: String(mutation?.sourcePath || ''),
-    visibility: String(mutation?.visibility || ''),
-    previewKind: String(mutation?.previewKind || ''),
-    sessionPatch: mutation?.sessionPatch && typeof mutation.sessionPatch === 'object' ? mutation.sessionPatch : {},
+    state,
+    intent: mutation?.intent,
+    filePath: mutation?.filePath,
+    sourcePath: mutation?.sourcePath,
+    visibility: mutation?.visibility,
+    previewKind: mutation?.previewKind,
+    sessionPatch: mutation?.sessionPatch,
   })
 }
