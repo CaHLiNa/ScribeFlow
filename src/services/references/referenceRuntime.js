@@ -2,11 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 
 export async function applyReferenceMutation(params = {}) {
   return invoke('references_mutation_apply', {
-    params: {
-      globalConfigDir: typeof params.globalConfigDir === 'string' ? params.globalConfigDir : '',
-      snapshot: params.snapshot && typeof params.snapshot === 'object' ? params.snapshot : {},
-      action: params.action && typeof params.action === 'object' ? params.action : { type: '' },
-    },
+    params: params || {},
   })
 }
 

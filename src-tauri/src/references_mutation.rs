@@ -5,7 +5,9 @@ use crate::app_dirs;
 use crate::references_merge::{
     find_duplicate_reference_internal, merge_imported_references_internal,
 };
-use crate::references_snapshot::{normalize_reference_record, normalize_snapshot, trim_string};
+use crate::references_snapshot::{
+    build_default_snapshot, normalize_reference_record, normalize_snapshot, trim_string,
+};
 use crate::references_zotero::zotero_config_has_push_target;
 
 #[derive(Debug, Clone, Deserialize)]
@@ -21,6 +23,7 @@ pub struct ReferencesMutationApplyParams {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum ReferencesMutationAction {
+    Noop,
     AddReference {
         reference: Value,
         #[serde(default, alias = "markForZoteroPush")]
@@ -66,6 +69,40 @@ pub enum ReferencesMutationAction {
         #[serde(default, alias = "referenceIds")]
         reference_ids: Vec<String>,
     },
+}
+
+fn payload_field<'a>(params: &'a Value, key: &str) -> Option<&'a Value> {
+    params.as_object().and_then(|object| object.get(key))
+}
+
+fn string_payload_field(params: &Value, key: &str) -> String {
+    payload_field(params, key)
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string()
+}
+
+fn snapshot_payload_field(params: &Value) -> Value {
+    payload_field(params, "snapshot")
+        .filter(|value| value.is_object())
+        .cloned()
+        .unwrap_or_else(build_default_snapshot)
+}
+
+fn mutation_action_payload_field(params: &Value) -> ReferencesMutationAction {
+    payload_field(params, "action")
+        .filter(|value| value.is_object())
+        .cloned()
+        .and_then(|value| serde_json::from_value(value).ok())
+        .unwrap_or(ReferencesMutationAction::Noop)
+}
+
+fn references_mutation_apply_params_from_payload(params: Value) -> ReferencesMutationApplyParams {
+    ReferencesMutationApplyParams {
+        snapshot: snapshot_payload_field(&params),
+        global_config_dir: string_payload_field(&params, "globalConfigDir"),
+        action: mutation_action_payload_field(&params),
+    }
 }
 
 fn normalize_collection_label(label: &str) -> String {
@@ -734,11 +771,21 @@ fn should_mark_for_zotero_push(global_config_dir: &str, requested: bool) -> Resu
 }
 
 #[tauri::command]
-pub async fn references_mutation_apply(
+pub async fn references_mutation_apply(params: Value) -> Result<Value, String> {
+    references_mutation_apply_typed(references_mutation_apply_params_from_payload(params)).await
+}
+
+pub(crate) async fn references_mutation_apply_typed(
     params: ReferencesMutationApplyParams,
 ) -> Result<Value, String> {
     let normalized_snapshot = normalize_snapshot(&params.snapshot);
     let result = match params.action {
+        ReferencesMutationAction::Noop => json!({
+            "snapshot": normalized_snapshot,
+            "result": {
+                "changed": false,
+            },
+        }),
         ReferencesMutationAction::AddReference {
             reference,
             mark_for_zotero_push,
@@ -799,7 +846,8 @@ pub async fn references_mutation_apply(
 #[cfg(test)]
 mod tests {
     use super::{
-        references_mutation_apply, ReferencesMutationAction, ReferencesMutationApplyParams,
+        references_mutation_apply, references_mutation_apply_params_from_payload,
+        references_mutation_apply_typed, ReferencesMutationAction, ReferencesMutationApplyParams,
     };
     use serde_json::json;
     use std::fs;
@@ -825,15 +873,14 @@ mod tests {
 
     #[test]
     fn mutation_params_accept_frontend_camel_case_fields() {
-        let update_params: ReferencesMutationApplyParams = serde_json::from_value(json!({
+        let update_params = references_mutation_apply_params_from_payload(json!({
             "snapshot": sample_snapshot(),
             "action": {
                 "type": "updateReference",
                 "referenceId": "ref-1",
                 "updates": { "year": 2025 }
             }
-        }))
-        .expect("deserialize updateReference action from frontend payload");
+        }));
         match update_params.action {
             ReferencesMutationAction::UpdateReference {
                 reference_id,
@@ -845,15 +892,14 @@ mod tests {
             _ => panic!("expected updateReference action"),
         }
 
-        let add_params: ReferencesMutationApplyParams = serde_json::from_value(json!({
+        let add_params = references_mutation_apply_params_from_payload(json!({
             "snapshot": sample_snapshot(),
             "action": {
                 "type": "addReference",
                 "reference": { "id": "ref-2", "title": "New Reference" },
                 "markForZoteroPush": true
             }
-        }))
-        .expect("deserialize addReference action from frontend payload");
+        }));
         match add_params.action {
             ReferencesMutationAction::AddReference {
                 mark_for_zotero_push,
@@ -864,15 +910,14 @@ mod tests {
             _ => panic!("expected addReference action"),
         }
 
-        let rename_params: ReferencesMutationApplyParams = serde_json::from_value(json!({
+        let rename_params = references_mutation_apply_params_from_payload(json!({
             "snapshot": sample_snapshot(),
             "action": {
                 "type": "renameCollection",
                 "collectionKey": "reading",
                 "nextLabel": "Reading Queue"
             }
-        }))
-        .expect("deserialize renameCollection action from frontend payload");
+        }));
         match rename_params.action {
             ReferencesMutationAction::RenameCollection {
                 collection_key,
@@ -884,15 +929,14 @@ mod tests {
             _ => panic!("expected renameCollection action"),
         }
 
-        let toggle_params: ReferencesMutationApplyParams = serde_json::from_value(json!({
+        let toggle_params = references_mutation_apply_params_from_payload(json!({
             "snapshot": sample_snapshot(),
             "action": {
                 "type": "toggleReferenceCollection",
                 "referenceId": "ref-1",
                 "collectionKey": "reading"
             }
-        }))
-        .expect("deserialize toggleReferenceCollection action from frontend payload");
+        }));
         match toggle_params.action {
             ReferencesMutationAction::ToggleReferenceCollection {
                 reference_id,
@@ -904,17 +948,15 @@ mod tests {
             _ => panic!("expected toggleReferenceCollection action"),
         }
 
-        let document_reference_params: ReferencesMutationApplyParams =
-            serde_json::from_value(json!({
-                "snapshot": sample_snapshot(),
-                "globalConfigDir": "/tmp/scribeflow-config",
-                "action": {
-                    "type": "setDocumentReferenceIds",
-                    "texPath": "/workspace/main.tex",
-                    "referenceIds": ["ref-1"]
-                }
-            }))
-            .expect("deserialize setDocumentReferenceIds action from frontend payload");
+        let document_reference_params = references_mutation_apply_params_from_payload(json!({
+            "snapshot": sample_snapshot(),
+            "globalConfigDir": "/tmp/scribeflow-config",
+            "action": {
+                "type": "setDocumentReferenceIds",
+                "texPath": "/workspace/main.tex",
+                "referenceIds": ["ref-1"]
+            }
+        }));
         assert_eq!(
             document_reference_params.global_config_dir,
             "/tmp/scribeflow-config"
@@ -932,8 +974,50 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn mutation_params_normalize_raw_payloads() {
+        let invalid_params = references_mutation_apply_params_from_payload(json!({
+            "globalConfigDir": false,
+            "snapshot": "not-a-snapshot",
+            "action": "not-an-action",
+        }));
+        assert_eq!(invalid_params.global_config_dir, "");
+        assert_eq!(
+            invalid_params.snapshot,
+            crate::references_snapshot::build_default_snapshot()
+        );
+        assert!(matches!(
+            invalid_params.action,
+            ReferencesMutationAction::Noop
+        ));
+
+        let incomplete_action = references_mutation_apply_params_from_payload(json!({
+            "snapshot": sample_snapshot(),
+            "action": {
+                "type": "updateReference",
+                "referenceId": 42,
+            },
+        }));
+        assert!(matches!(
+            incomplete_action.action,
+            ReferencesMutationAction::Noop
+        ));
+
+        let result = references_mutation_apply(json!({
+            "snapshot": "not-a-snapshot",
+            "action": { "type": "unknownAction" },
+        }))
+        .await
+        .expect("apply no-op mutation");
+        assert_eq!(result["result"]["changed"].as_bool(), Some(false));
+        assert_eq!(
+            result["snapshot"],
+            crate::references_snapshot::build_default_snapshot()
+        );
+    }
+
+    #[tokio::test]
     async fn create_collection_returns_existing_duplicate() {
-        let result = references_mutation_apply(ReferencesMutationApplyParams {
+        let result = references_mutation_apply_typed(ReferencesMutationApplyParams {
             snapshot: sample_snapshot(),
             global_config_dir: String::new(),
             action: ReferencesMutationAction::CreateCollection {
@@ -952,7 +1036,7 @@ mod tests {
 
     #[tokio::test]
     async fn remove_collection_updates_memberships() {
-        let result = references_mutation_apply(ReferencesMutationApplyParams {
+        let result = references_mutation_apply_typed(ReferencesMutationApplyParams {
             snapshot: sample_snapshot(),
             global_config_dir: String::new(),
             action: ReferencesMutationAction::RemoveCollection {
@@ -979,7 +1063,7 @@ mod tests {
 
     #[tokio::test]
     async fn merge_imported_references_selects_existing_duplicate() {
-        let result = references_mutation_apply(ReferencesMutationApplyParams {
+        let result = references_mutation_apply_typed(ReferencesMutationApplyParams {
             snapshot: sample_snapshot(),
             global_config_dir: String::new(),
             action: ReferencesMutationAction::MergeImportedReferences {
@@ -1024,7 +1108,7 @@ mod tests {
         )
         .expect("write zotero config");
 
-        let result = references_mutation_apply(ReferencesMutationApplyParams {
+        let result = references_mutation_apply_typed(ReferencesMutationApplyParams {
             snapshot: sample_snapshot(),
             global_config_dir: config_dir.to_string_lossy().to_string(),
             action: ReferencesMutationAction::MergeImportedReferences {
@@ -1073,7 +1157,7 @@ mod tests {
                 }
             ]
         });
-        let result = references_mutation_apply(ReferencesMutationApplyParams {
+        let result = references_mutation_apply_typed(ReferencesMutationApplyParams {
             snapshot,
             global_config_dir: String::new(),
             action: ReferencesMutationAction::ToggleReferenceCollection {
@@ -1094,7 +1178,7 @@ mod tests {
 
     #[tokio::test]
     async fn add_reference_detects_duplicate_and_selects_existing() {
-        let result = references_mutation_apply(ReferencesMutationApplyParams {
+        let result = references_mutation_apply_typed(ReferencesMutationApplyParams {
             snapshot: sample_snapshot(),
             global_config_dir: String::new(),
             action: ReferencesMutationAction::AddReference {
@@ -1122,7 +1206,7 @@ mod tests {
 
     #[tokio::test]
     async fn update_reference_normalizes_and_keeps_selection() {
-        let result = references_mutation_apply(ReferencesMutationApplyParams {
+        let result = references_mutation_apply_typed(ReferencesMutationApplyParams {
             snapshot: sample_snapshot(),
             global_config_dir: String::new(),
             action: ReferencesMutationAction::UpdateReference {
@@ -1151,7 +1235,7 @@ mod tests {
 
     #[tokio::test]
     async fn update_reference_preserves_content_fields() {
-        let result = references_mutation_apply(ReferencesMutationApplyParams {
+        let result = references_mutation_apply_typed(ReferencesMutationApplyParams {
             snapshot: sample_snapshot(),
             global_config_dir: String::new(),
             action: ReferencesMutationAction::UpdateReference {
@@ -1175,7 +1259,7 @@ mod tests {
 
     #[tokio::test]
     async fn remove_reference_drops_entry() {
-        let result = references_mutation_apply(ReferencesMutationApplyParams {
+        let result = references_mutation_apply_typed(ReferencesMutationApplyParams {
             snapshot: sample_snapshot(),
             global_config_dir: String::new(),
             action: ReferencesMutationAction::RemoveReference {
@@ -1196,7 +1280,7 @@ mod tests {
 
     #[tokio::test]
     async fn set_document_reference_ids_prunes_invalid_and_empty_entries() {
-        let result = references_mutation_apply(ReferencesMutationApplyParams {
+        let result = references_mutation_apply_typed(ReferencesMutationApplyParams {
             snapshot: sample_snapshot(),
             global_config_dir: String::new(),
             action: ReferencesMutationAction::SetDocumentReferenceIds {
@@ -1217,7 +1301,7 @@ mod tests {
             json!(["ref-1"])
         );
 
-        let cleared = references_mutation_apply(ReferencesMutationApplyParams {
+        let cleared = references_mutation_apply_typed(ReferencesMutationApplyParams {
             snapshot: result["snapshot"].clone(),
             global_config_dir: String::new(),
             action: ReferencesMutationAction::SetDocumentReferenceIds {

@@ -506,7 +506,6 @@ try {
       .map((call) => call.args.params),
     [
       {
-        globalConfigDir: '',
         snapshot: {
           version: 2,
           citationStyle: 'apa',
@@ -525,7 +524,6 @@ try {
         },
       },
       {
-        globalConfigDir: '',
         snapshot: {
           version: 2,
           citationStyle: 'apa',
