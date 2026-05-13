@@ -3,25 +3,25 @@ import { listen } from '@tauri-apps/api/event'
 
 export function loadWorkspaceTreeState(params = {}) {
   return invoke('fs_tree_load_workspace_state', {
-    params: params || {},
+    params,
   })
 }
 
 export function revealWorkspaceTreeState(params = {}) {
   return invoke('fs_tree_reveal_workspace_state', {
-    params: params || {},
+    params,
   })
 }
 
 export function restoreCachedExpandedTreeState(params = {}) {
   return invoke('fs_tree_restore_cached_expanded_state', {
-    params: params || {},
+    params,
   })
 }
 
 export function resolveFileTreeDisplayState(params = {}) {
   return invoke('fs_tree_resolve_display_state', {
-    params: params || {},
+    params,
   })
 }
 

@@ -57,6 +57,7 @@ function normalizeDisplayPreferences(value) {
 }
 
 function buildTreeResult(params = {}) {
+  params = params && typeof params === 'object' ? params : {}
   const preferences = normalizeDisplayPreferences(params.displayPreferences)
   const tree = normalizeArray(params.currentTree)
   const extraDirs = normalizeArray(params.extraDirs)
@@ -196,6 +197,10 @@ try {
     includeHidden: 'yes',
     displayPreferences: 'not-preferences',
   })
+  await loadWorkspaceTreeState(false)
+  await revealWorkspaceTreeState(null)
+  await restoreCachedExpandedTreeState(0)
+  await resolveFileTreeDisplayState('raw-display-params')
 
   assert.deepEqual(calls.map((call) => call.cmd), [
     'fs_tree_load_workspace_state',
@@ -203,6 +208,10 @@ try {
     'fs_tree_restore_cached_expanded_state',
     'fs_tree_resolve_display_state',
     'fs_tree_load_workspace_state',
+    'fs_tree_load_workspace_state',
+    'fs_tree_reveal_workspace_state',
+    'fs_tree_restore_cached_expanded_state',
+    'fs_tree_resolve_display_state',
   ])
   assert.deepEqual(calls[0].args.params, loadParams)
   assert.deepEqual(calls[1].args.params, revealParams)
@@ -215,6 +224,10 @@ try {
     includeHidden: 'yes',
     displayPreferences: 'not-preferences',
   })
+  assert.equal(calls[5].args.params, false)
+  assert.equal(calls[6].args.params, null)
+  assert.equal(calls[7].args.params, 0)
+  assert.equal(calls[8].args.params, 'raw-display-params')
   assert.deepEqual(displayResult.displayTree.map((entry) => entry.name), ['alpha.md', 'zeta.md'])
 
   console.log('file tree state rust normalization probe passed')
