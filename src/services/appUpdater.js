@@ -1,7 +1,6 @@
 import { getVersion } from '@tauri-apps/api/app'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
-import { compareVersions, selectInstallerAsset } from '../domains/settings/appUpdatePresentation.js'
 import { openExternalHttpUrl } from './externalLinks.js'
 const RELEASES_URL = 'https://github.com/CaHLiNa/ScribeFlow/releases'
 const RELEASES_LATEST_API_URL = 'https://api.github.com/repos/CaHLiNa/ScribeFlow/releases/latest'
@@ -28,20 +27,10 @@ export async function checkForAppUpdates(currentVersion = '') {
   }
 
   const payload = await response.json()
-  const latestVersion = String(payload?.tag_name || payload?.name || '').trim()
-  if (!latestVersion) {
-    throw new Error('Latest release version is unavailable.')
-  }
-  const installerAsset = selectInstallerAsset(payload?.assets || [])
-
-  return {
-    latestVersion,
-    releaseUrl: String(payload?.html_url || RELEASES_URL),
-    publishedAt: payload?.published_at || '',
-    installerAsset,
-    hasUpdate:
-      !!currentVersion && compareVersions(currentVersion, latestVersion) < 0,
-  }
+  return invoke('app_update_release_resolve', {
+    currentVersion,
+    payload,
+  })
 }
 
 export function onAppUpdateDownloadProgress(handler) {

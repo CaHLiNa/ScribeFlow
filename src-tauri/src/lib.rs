@@ -190,6 +190,7 @@ pub fn run() {
             fs_watch_runtime::workspace_tree_watch_set_visibility,
             fs_watch_runtime::workspace_tree_watch_stop,
             app_update::app_update_download_asset,
+            app_update::app_update_release_resolve,
             app_update::app_update_reveal_download,
             fs_commands::workspace_render_image_preview,
             fs_commands::workspace_read_file_base64,
