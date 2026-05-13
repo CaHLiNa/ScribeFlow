@@ -42,6 +42,59 @@ pub struct DocumentWorkflowPythonProblemsResolveParams {
     pub state: Value,
 }
 
+fn payload_field<'a>(params: &'a Value, keys: &[&str]) -> Option<&'a Value> {
+    let object = params.as_object()?;
+    keys.iter().find_map(|key| object.get(*key))
+}
+
+fn string_payload_field(params: &Value, keys: &[&str]) -> String {
+    payload_field(params, keys)
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string()
+}
+
+fn value_payload_field(params: &Value, keys: &[&str], default: Value) -> Value {
+    payload_field(params, keys).cloned().unwrap_or(default)
+}
+
+fn objectish_payload_field(params: &Value, keys: &[&str]) -> Value {
+    match payload_field(params, keys) {
+        Some(value @ (Value::Object(_) | Value::Array(_))) => value.clone(),
+        _ => Value::Object(Default::default()),
+    }
+}
+
+fn document_workflow_ui_params_from_payload(params: Value) -> DocumentWorkflowUiResolveParams {
+    DocumentWorkflowUiResolveParams {
+        file_path: string_payload_field(&params, &["filePath", "file_path"]),
+        preview_state: value_payload_field(&params, &["previewState", "preview_state"], Value::Null),
+        markdown_state: value_payload_field(&params, &["markdownState", "markdown_state"], Value::Null),
+        latex_state: value_payload_field(&params, &["latexState", "latex_state"], Value::Null),
+        python_state: value_payload_field(&params, &["pythonState", "python_state"], Value::Null),
+        queue_state: value_payload_field(&params, &["queueState", "queue_state"], Value::Null),
+        artifact_path: string_payload_field(&params, &["artifactPath", "artifact_path"]),
+    }
+}
+
+fn document_workflow_latex_problems_params_from_payload(
+    params: Value,
+) -> DocumentWorkflowLatexProblemsResolveParams {
+    DocumentWorkflowLatexProblemsResolveParams {
+        source_path: string_payload_field(&params, &["sourcePath", "source_path"]),
+        state: objectish_payload_field(&params, &["state"]),
+    }
+}
+
+fn document_workflow_python_problems_params_from_payload(
+    params: Value,
+) -> DocumentWorkflowPythonProblemsResolveParams {
+    DocumentWorkflowPythonProblemsResolveParams {
+        source_path: string_payload_field(&params, &["sourcePath", "source_path"]),
+        state: objectish_payload_field(&params, &["state"]),
+    }
+}
+
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct DocumentWorkflowProblem {
@@ -481,39 +534,130 @@ pub fn resolve_document_workflow_ui_state(params: &DocumentWorkflowUiResolvePara
 }
 
 #[tauri::command]
-pub async fn document_workflow_ui_resolve(
-    params: DocumentWorkflowUiResolveParams,
-) -> Result<Value, String> {
+pub async fn document_workflow_ui_resolve(params: Value) -> Result<Value, String> {
+    let params = document_workflow_ui_params_from_payload(params);
     Ok(resolve_document_workflow_ui_state(&params))
 }
 
 #[tauri::command]
 pub async fn document_workflow_latex_problems_resolve(
-    params: DocumentWorkflowLatexProblemsResolveParams,
+    params: Value,
 ) -> Result<Vec<DocumentWorkflowProblem>, String> {
+    let params = document_workflow_latex_problems_params_from_payload(params);
     Ok(resolve_latex_workflow_problems(&params))
 }
 
 #[tauri::command]
 pub async fn document_workflow_python_problems_resolve(
-    params: DocumentWorkflowPythonProblemsResolveParams,
+    params: Value,
 ) -> Result<Vec<DocumentWorkflowProblem>, String> {
+    let params = document_workflow_python_problems_params_from_payload(params);
     Ok(resolve_python_workflow_problems(&params))
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
+        document_workflow_latex_problems_params_from_payload,
         document_workflow_latex_problems_resolve, document_workflow_python_problems_resolve,
-        document_workflow_ui_resolve, resolve_workflow_status_tone,
+        document_workflow_python_problems_params_from_payload,
+        document_workflow_ui_params_from_payload, document_workflow_ui_resolve,
+        resolve_document_workflow_ui_state, resolve_latex_workflow_problems,
+        resolve_python_workflow_problems, resolve_workflow_status_tone,
         DocumentWorkflowLatexProblemsResolveParams, DocumentWorkflowPythonProblemsResolveParams,
         DocumentWorkflowUiResolveParams,
     };
     use serde_json::{json, Value};
 
+    #[test]
+    fn document_workflow_ui_params_normalize_raw_payloads() {
+        let params = document_workflow_ui_params_from_payload(json!({
+            "file_path": "/tmp/raw.py",
+            "preview_state": false,
+            "markdownState": "invalid",
+            "latex_state": {
+                "status": "success"
+            },
+            "pythonState": null,
+            "queue_state": ["queued"],
+            "artifact_path": "/tmp/raw.pdf"
+        }));
+
+        assert_eq!(params.file_path, "/tmp/raw.py");
+        assert_eq!(params.preview_state, Value::Bool(false));
+        assert_eq!(params.markdown_state, Value::String("invalid".to_string()));
+        assert_eq!(
+            params.latex_state.get("status").and_then(Value::as_str),
+            Some("success")
+        );
+        assert_eq!(params.python_state, Value::Null);
+        assert!(params.queue_state.is_array());
+        assert_eq!(params.artifact_path, "/tmp/raw.pdf");
+
+        let invalid = document_workflow_ui_params_from_payload(json!(false));
+        assert!(invalid.file_path.is_empty());
+        assert_eq!(invalid.preview_state, Value::Null);
+        assert_eq!(invalid.markdown_state, Value::Null);
+    }
+
+    #[test]
+    fn document_workflow_problem_params_normalize_raw_payloads() {
+        let latex_params = document_workflow_latex_problems_params_from_payload(json!({
+            "source_path": "/tmp/main.tex",
+            "state": "invalid"
+        }));
+        assert_eq!(latex_params.source_path, "/tmp/main.tex");
+        assert_eq!(latex_params.state, json!({}));
+
+        let python_params = document_workflow_python_problems_params_from_payload(json!({
+            "sourcePath": "/tmp/main.py",
+            "state": [
+                { "message": "kept for rust normalization" }
+            ]
+        }));
+        assert_eq!(python_params.source_path, "/tmp/main.py");
+        assert!(python_params.state.is_array());
+    }
+
     #[tokio::test]
-    async fn resolves_markdown_ui_state_from_preview_and_render_state() {
-        let value = document_workflow_ui_resolve(DocumentWorkflowUiResolveParams {
+    async fn document_workflow_commands_accept_raw_payloads() {
+        let value = document_workflow_ui_resolve(json!({
+            "file_path": "/tmp/test.py",
+            "python_state": {
+                "status": "success",
+                "errors": [],
+                "warnings": []
+            }
+        }))
+        .await
+        .expect("resolve ui from raw payload");
+
+        assert_eq!(value.get("kind").and_then(Value::as_str), Some("python"));
+        assert_eq!(value.get("phase").and_then(Value::as_str), Some("ready"));
+
+        let problems = document_workflow_python_problems_resolve(json!({
+            "source_path": "/tmp/test.py",
+            "state": {
+                "errors": [
+                    { "message": "SyntaxError", "raw": "" }
+                ]
+            }
+        }))
+        .await
+        .expect("resolve problems from raw payload");
+
+        assert_eq!(problems.len(), 1);
+        assert_eq!(problems[0].id, "python:error:/tmp/test.py:0");
+
+        let invalid_latex = document_workflow_latex_problems_resolve(json!(null))
+            .await
+            .expect("resolve invalid latex payload");
+        assert!(invalid_latex.is_empty());
+    }
+
+    #[test]
+    fn resolves_markdown_ui_state_from_preview_and_render_state() {
+        let value = resolve_document_workflow_ui_state(&DocumentWorkflowUiResolveParams {
             file_path: "/tmp/test.md".to_string(),
             preview_state: json!({
                 "previewVisible": true,
@@ -529,9 +673,7 @@ mod tests {
             python_state: Value::Null,
             queue_state: Value::Null,
             artifact_path: String::new(),
-        })
-        .await
-        .expect("resolve markdown ui");
+        });
 
         assert_eq!(value.get("kind").and_then(Value::as_str), Some("markdown"));
         assert_eq!(value.get("phase").and_then(Value::as_str), Some("ready"));
@@ -546,9 +688,9 @@ mod tests {
         );
     }
 
-    #[tokio::test]
-    async fn resolves_latex_ui_state_from_compile_inputs() {
-        let value = document_workflow_ui_resolve(DocumentWorkflowUiResolveParams {
+    #[test]
+    fn resolves_latex_ui_state_from_compile_inputs() {
+        let value = resolve_document_workflow_ui_state(&DocumentWorkflowUiResolveParams {
             file_path: "/tmp/test.tex".to_string(),
             preview_state: json!({
                 "previewVisible": false,
@@ -565,9 +707,7 @@ mod tests {
                 "phase": "idle"
             }),
             artifact_path: "/tmp/test.pdf".to_string(),
-        })
-        .await
-        .expect("resolve latex ui");
+        });
 
         assert_eq!(value.get("kind").and_then(Value::as_str), Some("latex"));
         assert_eq!(value.get("phase").and_then(Value::as_str), Some("ready"));
@@ -579,10 +719,10 @@ mod tests {
         assert_eq!(value.get("warningCount").and_then(Value::as_u64), Some(1));
     }
 
-    #[tokio::test]
-    async fn resolves_latex_compile_problems_with_source_paths() {
+    #[test]
+    fn resolves_latex_compile_problems_with_source_paths() {
         let problems =
-            document_workflow_latex_problems_resolve(DocumentWorkflowLatexProblemsResolveParams {
+            resolve_latex_workflow_problems(&DocumentWorkflowLatexProblemsResolveParams {
                 source_path: "/tmp/project/main.tex".to_string(),
                 state: json!({
                     "compileTargetPath": "/tmp/project/build/main.tex",
@@ -606,9 +746,7 @@ mod tests {
                         }
                     ],
                 }),
-            })
-            .await
-            .expect("resolve latex problems");
+            });
 
         assert_eq!(problems.len(), 2);
         assert_eq!(
@@ -622,9 +760,9 @@ mod tests {
         assert_eq!(problems[1].raw, "LaTeX Warning");
     }
 
-    #[tokio::test]
-    async fn resolves_python_ui_state_from_compile_inputs() {
-        let value = document_workflow_ui_resolve(DocumentWorkflowUiResolveParams {
+    #[test]
+    fn resolves_python_ui_state_from_compile_inputs() {
+        let value = resolve_document_workflow_ui_state(&DocumentWorkflowUiResolveParams {
             file_path: "/tmp/test.py".to_string(),
             preview_state: Value::Null,
             markdown_state: Value::Null,
@@ -636,9 +774,7 @@ mod tests {
             }),
             queue_state: Value::Null,
             artifact_path: String::new(),
-        })
-        .await
-        .expect("resolve python ui");
+        });
 
         assert_eq!(value.get("kind").and_then(Value::as_str), Some("python"));
         assert_eq!(value.get("phase").and_then(Value::as_str), Some("error"));
@@ -661,10 +797,10 @@ mod tests {
         assert_eq!(resolve_workflow_status_tone("python", "idle"), "muted");
     }
 
-    #[tokio::test]
-    async fn resolves_python_compile_problems() {
-        let problems = document_workflow_python_problems_resolve(
-            DocumentWorkflowPythonProblemsResolveParams {
+    #[test]
+    fn resolves_python_compile_problems() {
+        let problems =
+            resolve_python_workflow_problems(&DocumentWorkflowPythonProblemsResolveParams {
                 source_path: "/tmp/project/script.py".to_string(),
                 state: json!({
                     "errors": [
@@ -683,10 +819,7 @@ mod tests {
                         }
                     ]
                 }),
-            },
-        )
-        .await
-        .expect("resolve python problems");
+            });
 
         assert_eq!(problems.len(), 2);
         assert_eq!(problems[0].id, "python:error:/tmp/project/script.py:0");
