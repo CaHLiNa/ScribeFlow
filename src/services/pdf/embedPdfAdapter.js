@@ -37,11 +37,57 @@ function resolveEmbedPdfZoomLevel(options = {}) {
 }
 
 export function decodePdfBase64ToArrayBuffer(base64 = '') {
-  const binary = atob(String(base64 || ''))
+  const binary = atob(normalizeBase64Payload(base64))
   const bytes = new Uint8Array(binary.length)
   for (let index = 0; index < binary.length; index += 1) {
     bytes[index] = binary.charCodeAt(index)
   }
+  return bytes.buffer
+}
+
+function normalizeBase64Payload(base64 = '') {
+  return String(base64 || '').replace(/\s/g, '')
+}
+
+function base64DecodedByteLength(base64 = '') {
+  const normalized = normalizeBase64Payload(base64)
+  if (!normalized) return 0
+
+  const padding = normalized.endsWith('==') ? 2 : normalized.endsWith('=') ? 1 : 0
+  return Math.max(0, Math.floor((normalized.length * 3) / 4) - padding)
+}
+
+function nextDecodeTurn() {
+  if (typeof requestAnimationFrame === 'function') {
+    return new Promise(resolve => requestAnimationFrame(() => resolve()))
+  }
+
+  return new Promise(resolve => setTimeout(resolve, 0))
+}
+
+export async function decodePdfBase64ToArrayBufferAsync(base64 = '', options = {}) {
+  const normalized = normalizeBase64Payload(base64)
+  if (!normalized) return new ArrayBuffer(0)
+
+  const chunkChars = Math.max(
+    4,
+    Math.floor(Number(options.chunkChars || 262_144) / 4) * 4,
+  )
+  const bytes = new Uint8Array(base64DecodedByteLength(normalized))
+  let offset = 0
+
+  for (let index = 0; index < normalized.length; index += chunkChars) {
+    const binary = atob(normalized.slice(index, index + chunkChars))
+    for (let byteIndex = 0; byteIndex < binary.length; byteIndex += 1) {
+      bytes[offset] = binary.charCodeAt(byteIndex)
+      offset += 1
+    }
+
+    if (index + chunkChars < normalized.length) {
+      await nextDecodeTurn()
+    }
+  }
+
   return bytes.buffer
 }
 

@@ -25,6 +25,10 @@ import { documentWorkflowResolvedStateActions } from './documentWorkflowResolved
 import { openLocalPath } from '../services/localFileOpen.js'
 import { applyDocumentWorkspacePreviewState } from '../services/documentWorkflow/workspacePreviewBridge.js'
 
+function normalizeDocumentWorkflowPath(value = '') {
+  return String(value || '').trim().replace(/\\/g, '/')
+}
+
 export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
   state: () => ({
     previewPrefs: createDefaultDocumentWorkflowPreviewPrefs(),
@@ -217,11 +221,101 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
       return this._getDocumentWorkflowBuildRuntime().getWorkspacePreviewStateForFile(filePath, options)
     },
 
+    applyOptimisticWorkspacePreviewForFile(filePath, {
+      kind = '',
+      previewKind = '',
+      preferredPreviewKind = '',
+      sourcePaneId = '',
+      persistPreference = true,
+    } = {}) {
+      const normalizedPath = normalizeDocumentWorkflowPath(filePath)
+      const normalizedKind = String(kind || '').trim()
+      const normalizedPreviewKind = String(previewKind || '').trim()
+      if (!normalizedPath || !normalizedKind || !normalizedPreviewKind) return
+      if (normalizedKind !== 'latex' || normalizedPreviewKind !== 'pdf') return
+
+      const nextPreviewPrefs = persistPreference === false
+        ? this.previewPrefs
+        : {
+            ...this.previewPrefs,
+            [normalizedKind]: {
+              preferredPreview: normalizedPreviewKind,
+            },
+          }
+      const nextWorkspacePreviewRequests = { ...(this.workspacePreviewRequests || {}) }
+      if (normalizedPreviewKind === String(preferredPreviewKind || '').trim()) {
+        delete nextWorkspacePreviewRequests[normalizedPath]
+      } else {
+        nextWorkspacePreviewRequests[normalizedPath] = normalizedPreviewKind
+      }
+
+      const nextWorkspacePreviewVisibility = {
+        ...(this.workspacePreviewVisibility || {}),
+        [normalizedPath]: 'visible',
+      }
+      const nextDetachedSources = { ...(this.session?.detachedSources || {}) }
+      delete nextDetachedSources[normalizedPath]
+
+      this.previewPrefs = nextPreviewPrefs
+      this.workspacePreviewRequests = nextWorkspacePreviewRequests
+      this.workspacePreviewVisibility = nextWorkspacePreviewVisibility
+      this.session = {
+        ...this.session,
+        activeFile: normalizedPath,
+        activeKind: normalizedKind,
+        sourcePaneId: sourcePaneId ? normalizeDocumentWorkflowPath(sourcePaneId) : this.session.sourcePaneId,
+        previewPaneId: '',
+        previewKind: normalizedPreviewKind,
+        previewSourcePath: normalizedPath,
+        state: 'workspace-preview',
+        detachedSources: nextDetachedSources,
+      }
+
+      const artifactPath = normalizeDocumentWorkflowPath(this.getArtifactPathForFile(normalizedPath, {
+        workflowOnly: false,
+      }))
+      if (!artifactPath) return
+
+      const request = {
+        path: normalizedPath,
+        sourcePath: '',
+        workflowKind: normalizedKind,
+        previewKind: '',
+        workspacePreviewRequest: '',
+        resolvedTargetPath: artifactPath,
+        artifactPath,
+        previewRequested: false,
+        hiddenByUser: false,
+        state: this.snapshotPersistentState(),
+      }
+
+      this.setResolvedWorkspacePreviewState(normalizedPath, request, {
+        useWorkspace: true,
+        previewVisible: true,
+        previewKind: normalizedPreviewKind,
+        previewMode: 'pdf-artifact',
+        targetResolution: 'resolved',
+        reason: 'workspace-latex-pdf',
+        allowPreviewCreation: true,
+        sourcePath: normalizedPath,
+        previewTargetPath: artifactPath,
+        previewFilePath: artifactPath,
+      })
+    },
+
     async showWorkspacePreviewForFile(filePath, options = {}) {
       const kind = getDocumentWorkflowKind(filePath)
       if (!kind) return null
       const previewKind = options.previewKind || this.getPreferredPreviewKind(kind)
       const preferredPreviewKind = this.getPreferredPreviewKind(kind)
+
+      this.applyOptimisticWorkspacePreviewForFile(filePath, {
+        kind,
+        previewKind,
+        preferredPreviewKind,
+        sourcePaneId: options.sourcePaneId,
+        persistPreference: options.persistPreference !== false,
+      })
 
       const mutation = await applyDocumentWorkspacePreviewState({
         state: this.snapshotPersistentState(),

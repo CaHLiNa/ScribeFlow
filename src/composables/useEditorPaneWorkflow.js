@@ -2,6 +2,37 @@ import { computed, ref, watch } from 'vue'
 import { isLatex } from '../utils/fileTypes.js'
 import { getDocumentAdapterForFile } from '../services/documentWorkflow/adapters/index.js'
 
+let pdfPreviewPreloadPromise = null
+
+function scheduleIdleTask(task) {
+  if (typeof window === 'undefined') return
+
+  if (typeof window.requestIdleCallback === 'function') {
+    window.requestIdleCallback(task, { timeout: 1200 })
+    return
+  }
+
+  window.setTimeout(task, 0)
+}
+
+function preloadPdfPreviewSurface() {
+  if (typeof window === 'undefined') return Promise.resolve(null)
+  if (pdfPreviewPreloadPromise) return pdfPreviewPreloadPromise
+
+  pdfPreviewPreloadPromise = new Promise((resolve) => {
+    scheduleIdleTask(() => {
+      import('../components/editor/PdfArtifactPreview.vue')
+        .then(resolve)
+        .catch((error) => {
+          pdfPreviewPreloadPromise = null
+          resolve(null)
+        })
+    })
+  })
+
+  return pdfPreviewPreloadPromise
+}
+
 export function useEditorPaneWorkflow(options) {
   const {
     paneIdRef,
@@ -55,6 +86,17 @@ export function useEditorPaneWorkflow(options) {
   )
 
   const workflowUiState = computed(() => stableWorkflowUiState.value)
+
+  watch(
+    workflowUiState,
+    (nextState) => {
+      if (nextState?.kind === 'latex') {
+        preloadPdfPreviewSurface()
+      }
+    },
+    { immediate: true },
+  )
+
   const activeDocumentAdapter = computed(() => (
     activeTabRef.value && !activeTabRef.value.startsWith('draft:') ? getDocumentAdapterForFile(activeTabRef.value) : null
   ))

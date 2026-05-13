@@ -89,7 +89,7 @@ import {
 } from '../../services/latex/pdfPreviewSync.js'
 import {
   buildEmbedPdfPluginRegistrations,
-  decodePdfBase64ToArrayBuffer,
+  decodePdfBase64ToArrayBufferAsync,
 } from '../../services/pdf/embedPdfAdapter.js'
 import {
   createPdfPreviewSessionState,
@@ -240,7 +240,9 @@ async function loadPdfDocument(options = {}) {
     const base64 = await readPdfArtifactBase64(artifactPath)
     if (currentToken !== loadToken) return
 
-    const nextDocumentBuffer = decodePdfBase64ToArrayBuffer(base64)
+    const nextDocumentBuffer = await decodePdfBase64ToArrayBufferAsync(base64)
+    if (currentToken !== loadToken) return
+
     documentBuffer.value = nextDocumentBuffer
     documentName.value = nextDocumentName
     pendingRestoreState.value = options.restoreState ? { ...options.restoreState } : null
