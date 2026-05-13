@@ -2,13 +2,13 @@ import { invoke } from '@tauri-apps/api/core'
 
 export async function applyReferenceMutation(params = {}) {
   return invoke('references_mutation_apply', {
-    params: params || {},
+    params,
   })
 }
 
 export function resolveReferenceQuery(params = {}) {
   return invoke('references_query_resolve', {
-    params: params || {},
+    params,
   })
 }
 

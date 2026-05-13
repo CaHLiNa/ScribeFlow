@@ -52,7 +52,7 @@ try {
     calls.push({ cmd, args })
 
     if (cmd === 'references_query_resolve') {
-      const params = args?.params || {}
+      const params = args?.params && typeof args.params === 'object' ? args.params : {}
       const references = normalizeArray(params.references)
       const selectedReferenceId = normalizeString(params.preferredSelectedReferenceId)
       return {
@@ -105,7 +105,7 @@ try {
   assert.deepEqual(result.filteredReferences.map((reference) => reference.id), ['ref-a'])
 
   const defaultResult = await resolveReferenceQuery(null)
-  assert.deepEqual(calls[1].args.params, {})
+  assert.equal(calls[1].args.params, null)
   assert.deepEqual(defaultResult.filteredReferences, [])
 
   console.log('reference query rust normalization probe passed')

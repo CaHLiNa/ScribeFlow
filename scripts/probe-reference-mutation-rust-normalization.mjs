@@ -69,7 +69,7 @@ try {
     snapshot: 'not-a-snapshot',
     action: 'not-an-action',
   })
-  assert.deepEqual(calls[1].args.params, {})
+  assert.equal(calls[1].args.params, null)
 
   console.log('reference mutation rust normalization probe passed')
 } finally {
