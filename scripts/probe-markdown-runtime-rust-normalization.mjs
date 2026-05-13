@@ -35,6 +35,8 @@ try {
   mockWindows('main')
 
   const calls = []
+  const wikiLinksResult = { items: [{ target: 'Topic' }], rustOwned: true }
+  const linkIndexResult = 'rust-owned-link-index'
 
   mockIPC(async (cmd, args) => {
     calls.push({ cmd, args })
@@ -46,15 +48,10 @@ try {
       return []
     }
     if (cmd === 'markdown_extract_wiki_links') {
-      return [{ target: 'Topic' }]
+      return wikiLinksResult
     }
     if (cmd === 'markdown_link_index_resolve') {
-      return {
-        forwardLinks: {},
-        backlinks: {},
-        nameMap: {},
-        headings: {},
-      }
+      return linkIndexResult
     }
 
     throw new Error(`Unexpected IPC command: ${cmd}`)
@@ -94,13 +91,8 @@ try {
       'loose-entry',
     ],
   })
-  assert.deepEqual(links, [{ target: 'Topic' }])
-  assert.deepEqual(index, {
-    forwardLinks: {},
-    backlinks: {},
-    nameMap: {},
-    headings: {},
-  })
+  assert.strictEqual(links, wikiLinksResult)
+  assert.strictEqual(index, linkIndexResult)
 
   console.log('markdown runtime rust normalization probe passed')
 } finally {
