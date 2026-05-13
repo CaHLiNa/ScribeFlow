@@ -25,12 +25,11 @@ export async function renameReferencePdfAsset(
   reference = {},
   nextBaseName = ''
 ) {
-  const renamed = await invoke('references_asset_rename', {
+  return invoke('references_asset_rename', {
     params: {
       globalConfigDir,
       reference,
       nextBaseName,
     },
   })
-  return renamed && typeof renamed === 'object' ? renamed : reference
 }

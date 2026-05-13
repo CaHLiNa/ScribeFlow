@@ -35,6 +35,7 @@ try {
   mockWindows('main')
 
   const calls = []
+  const renameResult = 'rust-owned-asset-rename'
 
   mockIPC(async (cmd, args) => {
     calls.push({ cmd, args })
@@ -43,7 +44,7 @@ try {
       return args?.params?.reference || {}
     }
     if (cmd === 'references_asset_rename') {
-      return args?.params?.reference || {}
+      return renameResult
     }
 
     throw new Error(`Unexpected IPC command: ${cmd}`)
@@ -62,7 +63,7 @@ try {
     ' /tmp/source.pdf ',
     { existingFulltextSourcePath: ' /tmp/source.txt ' },
   )
-  await renameReferencePdfAsset('', null, null)
+  const renamed = await renameReferencePdfAsset('', null, null)
 
   assert.deepEqual(calls.map((call) => call.cmd), [
     'references_asset_store',
@@ -86,6 +87,7 @@ try {
     reference: null,
     nextBaseName: null,
   })
+  assert.strictEqual(renamed, renameResult)
 
   console.log('reference asset rust normalization probe passed')
 } finally {
