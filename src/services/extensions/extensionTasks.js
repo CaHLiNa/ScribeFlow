@@ -1,12 +1,11 @@
 import { invoke } from '@tauri-apps/api/core'
 
 export async function listExtensionTasks(workspaceRoot = '') {
-  const tasks = await invoke('extension_task_list', {
+  return invoke('extension_task_list', {
     params: {
       workspaceRoot,
     },
   })
-  return Array.isArray(tasks) ? tasks : []
 }
 
 export async function getExtensionTask(taskId = '') {
@@ -26,11 +25,10 @@ export async function cancelExtensionTask(taskId = '') {
 }
 
 export async function cancelExtensionTasksForExtension(extensionId = '', workspaceRoot = '') {
-  const tasks = await invoke('extension_task_cancel_extension', {
+  return invoke('extension_task_cancel_extension', {
     params: {
       extensionId,
       workspaceRoot,
     },
   })
-  return Array.isArray(tasks) ? tasks : []
 }

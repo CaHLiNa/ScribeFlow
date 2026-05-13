@@ -35,12 +35,20 @@ try {
   mockWindows('main')
 
   const calls = []
+  const listedTasks = {
+    items: [{ id: 'task-a', state: 'running' }],
+    rustOwned: true,
+  }
+  const cancelledExtensionTasks = {
+    items: [{ id: 'task-d', state: 'cancelled' }],
+    rustOwned: true,
+  }
 
   mockIPC(async (cmd, args) => {
     calls.push({ cmd, args })
 
     if (cmd === 'extension_task_list') {
-      return [{ id: 'task-a', state: 'running' }]
+      return listedTasks
     }
 
     if (cmd === 'extension_task_get') {
@@ -52,7 +60,7 @@ try {
     }
 
     if (cmd === 'extension_task_cancel_extension') {
-      return [{ id: 'task-d', state: 'cancelled' }]
+      return cancelledExtensionTasks
     }
 
     throw new Error(`Unexpected IPC command: ${cmd}`)
@@ -73,10 +81,10 @@ try {
     ' /tmp/workspace-b ',
   )
 
-  assert.deepEqual(listed.map((entry) => entry.id), ['task-a'])
+  assert.equal(listed, listedTasks)
   assert.equal(task.id, 'task-b')
   assert.equal(cancelled.state, 'cancelled')
-  assert.deepEqual(cancelledForExtension.map((entry) => entry.id), ['task-d'])
+  assert.equal(cancelledForExtension, cancelledExtensionTasks)
   assert.deepEqual(
     calls.map((call) => call.cmd),
     [
