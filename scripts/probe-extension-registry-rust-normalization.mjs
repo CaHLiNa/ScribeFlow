@@ -35,12 +35,19 @@ try {
   mockWindows('main')
 
   const calls = []
+  const registryEntries = {
+    items: [{
+      id: 'example-pdf-extension',
+      status: 'available',
+    }],
+    rustOwned: true,
+  }
 
   mockIPC(async (cmd, args) => {
     calls.push({ cmd, args })
 
     if (cmd === 'extension_registry_list') {
-      return []
+      return registryEntries
     }
     if (cmd === 'extension_settings_load') {
       return {
@@ -65,7 +72,7 @@ try {
     saveExtensionSettings,
   } = await vite.ssrLoadModule('/src/services/extensions/extensionRegistry.js')
 
-  await listExtensions(42, null)
+  const listed = await listExtensions(42, null)
   await loadExtensionSettings(42, false, { hydrateSecrets: 'true' })
   await saveExtensionSettings(42, null, false)
   await saveExtensionSettings(' /tmp/global ', ' /tmp/workspace ', {
@@ -86,6 +93,7 @@ try {
       'extension_settings_save',
     ],
   )
+  assert.equal(listed, registryEntries)
   assert.deepEqual(calls[0].args, {
     params: {
       globalConfigDir: 42,

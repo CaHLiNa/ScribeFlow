@@ -2,14 +2,13 @@ import { invoke } from '@tauri-apps/api/core'
 import { locale } from '../../i18n'
 
 export async function listExtensions(globalConfigDir = '', workspaceRoot = '') {
-  const extensions = await invoke('extension_registry_list', {
+  return invoke('extension_registry_list', {
     params: {
       globalConfigDir,
       workspaceRoot,
       locale: locale.value,
     },
   })
-  return Array.isArray(extensions) ? extensions : []
 }
 
 export async function validateExtensionManifest(manifest = {}) {
