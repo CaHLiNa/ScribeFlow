@@ -212,19 +212,12 @@ async function resolveLatexCompileRequestFromRust(sourcePath, options = {}) {
   const normalizedSourcePath = String(sourcePath || '').trim()
   if (!normalizedSourcePath) return null
 
-  const contentOverrides =
-    options.sourceContent === undefined
-      ? options.contentOverrides || {}
-      : {
-          ...(options.contentOverrides || {}),
-          [normalizedSourcePath]: options.sourceContent,
-        }
-
   const resolved = await resolveLatexCompileRequest({
     sourcePath: normalizedSourcePath,
     workspacePath: workspaceStore.path,
     flatFiles: cachedFlatFilePaths(filesStore),
-    contentOverrides,
+    contentOverrides: options.contentOverrides,
+    sourceContent: options.sourceContent,
   }).catch(() => null)
 
   const rootPath = String(resolved?.rootPath || normalizedSourcePath)
@@ -236,7 +229,7 @@ async function resolveLatexCompileRequestFromRust(sourcePath, options = {}) {
     previewPath: String(
       resolved?.previewPath || `${rootPath.replace(/\.(tex|latex)$/i, '')}.pdf`,
     ),
-    contentOverrides,
+    contentOverrides: options.contentOverrides || {},
   }
 }
 
@@ -246,19 +239,12 @@ async function resolveLatexCompileTargetsFromRust(changedPath, options = {}) {
   const normalizedChangedPath = String(changedPath || '').trim()
   if (!normalizedChangedPath) return []
 
-  const contentOverrides =
-    options.sourceContent === undefined
-      ? options.contentOverrides || {}
-      : {
-          ...(options.contentOverrides || {}),
-          [normalizedChangedPath]: options.sourceContent,
-        }
-
   const targets = await resolveLatexCompileTargets({
     changedPath: normalizedChangedPath,
     workspacePath: workspaceStore.path,
     flatFiles: cachedFlatFilePaths(filesStore),
-    contentOverrides,
+    contentOverrides: options.contentOverrides,
+    sourceContent: options.sourceContent,
   }).catch(() => [])
 
   return Array.isArray(targets)

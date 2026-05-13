@@ -54,6 +54,7 @@ export async function resolveLatexProjectGraph(sourcePath, options = {}) {
       workspacePath,
       flatFiles,
       contentOverrides: options.contentOverrides,
+      sourceContent: options.sourceContent,
     },
   }).catch(() => null)
 
@@ -70,16 +71,8 @@ export async function resolveLatexOutlineItems(sourcePath, options = {}) {
   const normalizedSource = normalizeFsPath(sourcePath)
   if (!normalizedSource) return []
 
-  const contentOverrides = options.sourceContent === undefined
-    ? (options.contentOverrides || {})
-    : {
-        ...(options.contentOverrides || {}),
-        [normalizedSource]: options.sourceContent,
-      }
-
   const graph = await resolveLatexProjectGraph(normalizedSource, {
     ...options,
-    contentOverrides,
   }).catch(() => null)
 
   return Array.isArray(graph?.outlineItems) ? graph.outlineItems : []

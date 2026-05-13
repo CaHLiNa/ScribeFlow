@@ -9,6 +9,7 @@ export function resolveLatexCompileRequest(params = {}) {
       workspacePath: params.workspacePath,
       flatFiles: params.flatFiles,
       contentOverrides: params.contentOverrides,
+      sourceContent: params.sourceContent,
     },
   })
 }
@@ -20,6 +21,7 @@ export function resolveLatexCompileTargets(params = {}) {
       workspacePath: params.workspacePath,
       flatFiles: params.flatFiles,
       contentOverrides: params.contentOverrides,
+      sourceContent: params.sourceContent,
     },
   })
 }

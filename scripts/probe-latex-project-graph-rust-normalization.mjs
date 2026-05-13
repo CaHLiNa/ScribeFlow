@@ -80,12 +80,14 @@ try {
     workspacePath: false,
     flatFiles: 17,
     contentOverrides: null,
+    sourceContent: false,
   })
   await resolveLatexCompileTargets({
     changedPath: 42,
     workspacePath: false,
     flatFiles: 17,
     contentOverrides: null,
+    sourceContent: false,
   })
   await resolveLatexProjectGraph(' /tmp/chapter.tex ', {
     workspacePath: ' /tmp/workspace ',
@@ -96,6 +98,7 @@ try {
     contentOverrides: {
       ' /tmp/chapter.tex ': '  body keeps spaces  ',
     },
+    sourceContent: 'fresh source wins',
   })
 
   assert.deepEqual(
@@ -111,12 +114,14 @@ try {
     workspacePath: false,
     flatFiles: 17,
     contentOverrides: null,
+    sourceContent: false,
   })
   assert.deepEqual(calls[1].args.params, {
     changedPath: 42,
     workspacePath: false,
     flatFiles: 17,
     contentOverrides: null,
+    sourceContent: false,
   })
   assert.deepEqual(calls[2].args.params, {
     sourcePath: ' /tmp/chapter.tex ',
@@ -128,6 +133,7 @@ try {
     contentOverrides: {
       ' /tmp/chapter.tex ': '  body keeps spaces  ',
     },
+    sourceContent: 'fresh source wins',
   })
 
   console.log('latex project graph rust normalization probe passed')

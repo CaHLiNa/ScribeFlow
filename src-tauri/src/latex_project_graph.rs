@@ -69,29 +69,57 @@ fn content_overrides_payload_field(
         .unwrap_or_default()
 }
 
+fn source_content_payload_field(params: &Value) -> Option<String> {
+    payload_field(params, "sourceContent", "source_content")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+}
+
+fn merge_source_content_override(
+    content_overrides: &mut HashMap<String, String>,
+    target_path: &str,
+    source_content: Option<String>,
+) {
+    let target_path = normalize_fs_path(target_path);
+    if target_path.is_empty() {
+        return;
+    }
+    if let Some(source_content) = source_content {
+        content_overrides.insert(target_path, source_content);
+    }
+}
+
 fn latex_project_graph_params_from_payload(params: Value) -> LatexProjectGraphParams {
+    let source_path = string_payload_field(&params, "sourcePath", "source_path");
+    let mut content_overrides =
+        content_overrides_payload_field(&params, "contentOverrides", "content_overrides");
+    merge_source_content_override(
+        &mut content_overrides,
+        &source_path,
+        source_content_payload_field(&params),
+    );
     LatexProjectGraphParams {
-        source_path: string_payload_field(&params, "sourcePath", "source_path"),
+        source_path,
         workspace_path: string_payload_field(&params, "workspacePath", "workspace_path"),
         flat_files: string_array_payload_field(&params, "flatFiles", "flat_files"),
-        content_overrides: content_overrides_payload_field(
-            &params,
-            "contentOverrides",
-            "content_overrides",
-        ),
+        content_overrides,
     }
 }
 
 fn latex_affected_roots_params_from_payload(params: Value) -> LatexAffectedRootsParams {
+    let changed_path = string_payload_field(&params, "changedPath", "changed_path");
+    let mut content_overrides =
+        content_overrides_payload_field(&params, "contentOverrides", "content_overrides");
+    merge_source_content_override(
+        &mut content_overrides,
+        &changed_path,
+        source_content_payload_field(&params),
+    );
     LatexAffectedRootsParams {
-        changed_path: string_payload_field(&params, "changedPath", "changed_path"),
+        changed_path,
         workspace_path: string_payload_field(&params, "workspacePath", "workspace_path"),
         flat_files: string_array_payload_field(&params, "flatFiles", "flat_files"),
-        content_overrides: content_overrides_payload_field(
-            &params,
-            "contentOverrides",
-            "content_overrides",
-        ),
+        content_overrides,
     }
 }
 
@@ -1578,10 +1606,11 @@ mod tests {
                 false
             ],
             "contentOverrides": {
-                " /workspace/chapter.tex ": "  body keeps spaces  ",
+                " /workspace/chapter.tex ": "stale body",
                 "": "ignored",
                 "/workspace/invalid.tex": false
-            }
+            },
+            "sourceContent": "  body keeps spaces  "
         }));
 
         assert_eq!(params.source_path, "/workspace/chapter.tex");
@@ -1627,7 +1656,8 @@ mod tests {
                 " /workspace/main.tex ",
                 { "path": " /workspace/refs.bib " }
             ],
-            "contentOverrides": false
+            "contentOverrides": false,
+            "sourceContent": "bib driven body"
         }));
         assert_eq!(affected.changed_path, "/workspace/refs.bib");
         assert_eq!(affected.workspace_path, "/workspace");
@@ -1635,7 +1665,13 @@ mod tests {
             affected.flat_files,
             vec!["/workspace/main.tex", "/workspace/refs.bib"]
         );
-        assert!(affected.content_overrides.is_empty());
+        assert_eq!(
+            affected
+                .content_overrides
+                .get("/workspace/refs.bib")
+                .map(String::as_str),
+            Some("bib driven body")
+        );
 
         let non_object = latex_project_graph_params_from_payload(json!(false));
         assert_eq!(non_object.source_path, "");
