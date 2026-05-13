@@ -11,6 +11,33 @@ if (!globalThis.crypto) {
   globalThis.crypto = webcrypto
 }
 
+if (!globalThis.CustomEvent) {
+  globalThis.CustomEvent = class CustomEvent {
+    constructor(type, init = {}) {
+      this.type = type
+      this.detail = init.detail
+    }
+  }
+}
+
+if (typeof globalThis.dispatchEvent !== 'function') {
+  globalThis.dispatchEvent = () => true
+}
+
+if (!globalThis.document) {
+  const classNames = new Set()
+  globalThis.document = {
+    documentElement: {
+      dataset: {},
+      classList: {
+        add: (...names) => names.forEach((name) => classNames.add(name)),
+        remove: (...names) => names.forEach((name) => classNames.delete(name)),
+        contains: (name) => classNames.has(name),
+      },
+    },
+  }
+}
+
 const vite = await createServer({
   server: { middlewareMode: true, hmr: false, ws: false },
   appType: 'custom',
@@ -65,6 +92,11 @@ function normalizePreferencePayload(preferences = {}) {
     pdfViewerPageThemeMode: String(preferences.pdfViewerPageThemeMode || '').trim().toLowerCase() === 'light'
       ? 'light'
       : 'theme',
+    theme: String(preferences.theme || '').trim().toLowerCase() === 'monokai'
+      ? 'dark'
+      : ['system', 'light', 'dark'].includes(String(preferences.theme || '').trim().toLowerCase())
+        ? String(preferences.theme || '').trim().toLowerCase()
+        : 'system',
   }
 }
 
@@ -119,6 +151,7 @@ try {
     pdfViewerSpreadMode: 'spread',
     pdfViewerLastScale: '4.25',
     pdfViewerPageThemeMode: 'custom',
+    theme: 'monokai',
   })
 
   assert.equal(workspace.editorFontSize, 20)
@@ -127,6 +160,7 @@ try {
   assert.equal(workspace.pdfViewerSpreadMode, 'single')
   assert.equal(workspace.pdfViewerLastScale, '2')
   assert.equal(workspace.pdfViewerPageThemeMode, 'theme')
+  assert.equal(workspace.theme, 'dark')
 
   assert.deepEqual(
     calls.map((call) => call.cmd),
@@ -147,6 +181,13 @@ try {
   assert.equal(calls[4].args.params.preferences.editorFontSize, 20)
   assert.equal(calls[4].args.params.preferences.pdfViewerZoomMode, 'page-width')
   assert.equal(calls[4].args.params.preferences.pdfViewerLastScale, '2')
+  assert.equal(calls[4].args.params.preferences.theme, 'dark')
+
+  workspace.restoreTheme()
+  assert.equal(workspace.theme, 'dark')
+  assert.equal(document.documentElement.dataset.themePreference, 'dark')
+  assert.equal(document.documentElement.classList.contains('theme-dark'), true)
+  assert.equal(document.documentElement.classList.contains('theme-monokai'), false)
 
   workspace.documentDockOpen = false
   workspace.referenceDockOpen = false

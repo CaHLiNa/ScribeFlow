@@ -2,12 +2,6 @@ const THEME_CLASSES = [
   'theme-light',
   'theme-dark',
   'theme-system',
-  'theme-monokai',
-  'theme-nord',
-  'theme-solarized',
-  'theme-humane',
-  'theme-one-light',
-  'theme-dracula',
 ]
 
 const SYSTEM_THEME_MEDIA = '(prefers-color-scheme: dark)'
@@ -18,17 +12,10 @@ let removeSystemThemeListener = null
 
 function normalizeWorkspaceThemeId(value) {
   switch (String(value || '').trim().toLowerCase()) {
-    case 'light':
-    case 'solarized':
-    case 'humane':
-    case 'one-light':
-      return 'light'
     case 'dark':
-    case 'default':
-    case 'dracula':
-    case 'monokai':
-    case 'nord':
       return 'dark'
+    case 'light':
+      return 'light'
     case 'system':
     default:
       return 'system'

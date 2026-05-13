@@ -761,6 +761,26 @@ mod tests {
     }
 
     #[test]
+    fn theme_alias_compatibility_stays_in_rust() {
+        let dark_alias = normalize_workspace_preferences(WorkspacePreferences {
+            theme: "monokai".to_string(),
+            ..WorkspacePreferences::default()
+        });
+        let light_alias = normalize_workspace_preferences(WorkspacePreferences {
+            theme: "one-light".to_string(),
+            ..WorkspacePreferences::default()
+        });
+        let invalid = normalize_workspace_preferences(WorkspacePreferences {
+            theme: "unknown-theme".to_string(),
+            ..WorkspacePreferences::default()
+        });
+
+        assert_eq!(dark_alias.theme, "dark");
+        assert_eq!(light_alias.theme, "light");
+        assert_eq!(invalid.theme, "system");
+    }
+
+    #[test]
     fn workspace_preferences_params_normalize_raw_payloads() {
         let load_params = workspace_preferences_load_params_from_payload(json!({
             "globalConfigDir": 42
