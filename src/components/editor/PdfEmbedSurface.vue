@@ -145,6 +145,10 @@ async function ensureSharedPdfEngine(wasmUrl = '') {
   return sharedPdfEnginePromise
 }
 
+if (typeof window !== 'undefined') {
+  void ensureSharedPdfEngine(pdfiumWasmUrl).catch(() => {})
+}
+
 const props = defineProps({
   sourcePath: { type: String, required: true },
   artifactPath: { type: String, required: true },
