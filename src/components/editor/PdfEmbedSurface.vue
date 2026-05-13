@@ -122,7 +122,7 @@ const emit = defineEmits(['open-external', 'backward-sync'])
 const { t } = useI18n()
 const { engine, isLoading: engineLoading, error: engineError } = usePdfiumEngine({
   wasmUrl: pdfiumWasmUrl,
-  worker: false,
+  worker: true,
 })
 
 const documentBuffer = ref(null)

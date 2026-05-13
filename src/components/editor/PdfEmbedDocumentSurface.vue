@@ -960,6 +960,9 @@ function revealCompactFitWidthAfterPaint() {
 
 function scheduleCompactFitWidth(options = {}) {
   if (!props.compactToolbar || typeof window === 'undefined') return
+  if (!compactFitWidthReady.value) {
+    compactFitWidthReady.value = true
+  }
   if (props.deferCompactResizeFit && options.force !== true) {
     compactFitWidthPendingAfterResize = true
     return
@@ -1770,6 +1773,9 @@ watch(
   (deferFit) => {
     if (deferFit) {
       compactFitWidthPendingAfterResize = true
+      if (!compactFitWidthReady.value) {
+        compactFitWidthReady.value = true
+      }
       cancelCompactFitWidthFrame()
       return
     }
@@ -2067,8 +2073,7 @@ onMounted(() => {
 }
 
 .pdf-artifact-preview__surface.is-compact-fit-pending .pdf-artifact-preview__viewport {
-  visibility: hidden;
-  pointer-events: none;
+  opacity: 0.999;
 }
 
 .pdf-artifact-preview__surface.is-compact-toolbar .pdf-artifact-preview__thumbnails {
