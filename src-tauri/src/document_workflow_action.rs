@@ -16,6 +16,38 @@ pub struct DocumentWorkflowActionResolveParams {
     pub artifact_path: String,
 }
 
+fn payload_field<'a>(params: &'a Value, keys: &[&str]) -> Option<&'a Value> {
+    let object = params.as_object()?;
+    keys.iter().find_map(|key| object.get(*key))
+}
+
+fn string_payload_field(params: &Value, keys: &[&str]) -> String {
+    payload_field(params, keys)
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string()
+}
+
+fn value_payload_field(params: &Value, keys: &[&str], default: Value) -> Value {
+    payload_field(params, keys).cloned().unwrap_or(default)
+}
+
+fn document_workflow_action_params_from_payload(
+    params: Value,
+) -> DocumentWorkflowActionResolveParams {
+    DocumentWorkflowActionResolveParams {
+        file_path: string_payload_field(&params, &["filePath", "file_path"]),
+        intent: string_payload_field(&params, &["intent"]),
+        ui_state: value_payload_field(&params, &["uiState", "ui_state"], Value::Null),
+        preview_state: value_payload_field(
+            &params,
+            &["previewState", "preview_state"],
+            Value::Null,
+        ),
+        artifact_path: string_payload_field(&params, &["artifactPath", "artifact_path"]),
+    }
+}
+
 fn normalize_mode(preview_kind: &str) -> Option<&'static str> {
     match preview_kind {
         "html" => Some("markdown"),
@@ -175,19 +207,22 @@ fn resolve_python_action(intent: &str, preview_state: &Value) -> Value {
 }
 
 #[tauri::command]
-pub async fn document_workflow_action_resolve(
-    params: DocumentWorkflowActionResolveParams,
-) -> Result<Value, String> {
+pub async fn document_workflow_action_resolve(params: Value) -> Result<Value, String> {
+    let params = document_workflow_action_params_from_payload(params);
+    Ok(resolve_document_workflow_action(&params))
+}
+
+pub fn resolve_document_workflow_action(params: &DocumentWorkflowActionResolveParams) -> Value {
     if params.file_path.trim().is_empty() {
-        return Ok(build_noop());
+        return build_noop();
     }
 
     let ui_kind = resolve_ui_kind(&params.ui_state);
     if ui_kind.is_empty() || ui_kind == "text" {
-        return Ok(build_noop());
+        return build_noop();
     }
 
-    let plan = match ui_kind.as_str() {
+    match ui_kind.as_str() {
         "markdown" => resolve_markdown_action(&params.intent, &params.preview_state),
         "latex" => resolve_latex_action(
             &params.intent,
@@ -197,19 +232,76 @@ pub async fn document_workflow_action_resolve(
         ),
         "python" => resolve_python_action(&params.intent, &params.preview_state),
         _ => build_noop(),
-    };
-
-    Ok(plan)
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{document_workflow_action_resolve, DocumentWorkflowActionResolveParams};
+    use super::{
+        document_workflow_action_params_from_payload, document_workflow_action_resolve,
+        resolve_document_workflow_action, DocumentWorkflowActionResolveParams,
+    };
     use serde_json::{json, Value};
 
+    #[test]
+    fn document_workflow_action_params_normalize_raw_payloads() {
+        let params = document_workflow_action_params_from_payload(json!({
+            "file_path": "/tmp/raw.tex",
+            "intent": "reveal-pdf",
+            "ui_state": {
+                "kind": "latex"
+            },
+            "previewState": false,
+            "artifact_path": "/tmp/raw.pdf"
+        }));
+
+        assert_eq!(params.file_path, "/tmp/raw.tex");
+        assert_eq!(params.intent, "reveal-pdf");
+        assert_eq!(
+            params.ui_state.get("kind").and_then(Value::as_str),
+            Some("latex")
+        );
+        assert_eq!(params.preview_state, Value::Bool(false));
+        assert_eq!(params.artifact_path, "/tmp/raw.pdf");
+
+        let invalid = document_workflow_action_params_from_payload(json!(false));
+        assert!(invalid.file_path.is_empty());
+        assert!(invalid.intent.is_empty());
+        assert_eq!(invalid.ui_state, Value::Null);
+        assert_eq!(invalid.preview_state, Value::Null);
+    }
+
     #[tokio::test]
-    async fn resolves_latex_pdf_preview_to_build_then_reveal_when_artifact_missing() {
-        let value = document_workflow_action_resolve(DocumentWorkflowActionResolveParams {
+    async fn document_workflow_action_command_accepts_raw_payloads() {
+        let value = document_workflow_action_resolve(json!({
+            "file_path": "/tmp/test.py",
+            "intent": "primary-action",
+            "ui_state": {
+                "kind": "python"
+            },
+            "preview_state": false
+        }))
+        .await
+        .expect("resolve raw action payload");
+
+        assert_eq!(
+            value.get("actionType").and_then(Value::as_str),
+            Some("run-build")
+        );
+
+        let invalid = document_workflow_action_resolve(json!(null))
+            .await
+            .expect("resolve invalid action payload");
+
+        assert_eq!(
+            invalid.get("actionType").and_then(Value::as_str),
+            Some("noop")
+        );
+    }
+
+    #[test]
+    fn resolves_latex_pdf_preview_to_build_then_reveal_when_artifact_missing() {
+        let value = resolve_document_workflow_action(&DocumentWorkflowActionResolveParams {
             file_path: "/tmp/test.tex".to_string(),
             intent: "reveal-pdf".to_string(),
             ui_state: json!({
@@ -221,9 +313,7 @@ mod tests {
                 "previewMode": "",
             }),
             artifact_path: String::new(),
-        })
-        .await
-        .expect("resolve latex action");
+        });
 
         assert_eq!(
             value.get("actionType").and_then(Value::as_str),
@@ -245,9 +335,9 @@ mod tests {
         );
     }
 
-    #[tokio::test]
-    async fn resolves_latex_open_output_to_build_then_open_when_artifact_missing() {
-        let value = document_workflow_action_resolve(DocumentWorkflowActionResolveParams {
+    #[test]
+    fn resolves_latex_open_output_to_build_then_open_when_artifact_missing() {
+        let value = resolve_document_workflow_action(&DocumentWorkflowActionResolveParams {
             file_path: "/tmp/test.tex".to_string(),
             intent: "open-output".to_string(),
             ui_state: json!({
@@ -256,9 +346,7 @@ mod tests {
             }),
             preview_state: Value::Null,
             artifact_path: String::new(),
-        })
-        .await
-        .expect("resolve latex open output action");
+        });
 
         assert_eq!(
             value.get("actionType").and_then(Value::as_str),
@@ -273,9 +361,9 @@ mod tests {
         );
     }
 
-    #[tokio::test]
-    async fn resolves_python_primary_action_to_build() {
-        let value = document_workflow_action_resolve(DocumentWorkflowActionResolveParams {
+    #[test]
+    fn resolves_python_primary_action_to_build() {
+        let value = resolve_document_workflow_action(&DocumentWorkflowActionResolveParams {
             file_path: "/tmp/test.py".to_string(),
             intent: "primary-action".to_string(),
             ui_state: json!({
@@ -284,9 +372,7 @@ mod tests {
             }),
             preview_state: Value::Null,
             artifact_path: String::new(),
-        })
-        .await
-        .expect("resolve python action");
+        });
 
         assert_eq!(
             value.get("actionType").and_then(Value::as_str),
