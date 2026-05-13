@@ -81,6 +81,24 @@ fn trim_string(value: Option<&Value>) -> String {
         .unwrap_or_default()
 }
 
+fn payload_field<'a>(params: &'a Value, key: &str) -> Option<&'a Value> {
+    params.as_object().and_then(|object| object.get(key))
+}
+
+fn string_payload_field(params: &Value, key: &str) -> String {
+    payload_field(params, key)
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string()
+}
+
+fn reference_import_text_params_from_payload(params: Value) -> ReferenceImportTextParams {
+    ReferenceImportTextParams {
+        content: string_payload_field(&params, "content"),
+        format: string_payload_field(&params, "format"),
+    }
+}
+
 fn normalize_reference_type_key(value: &str) -> String {
     match value.trim().to_lowercase().as_str() {
         "article" | "article-journal" | "journal-article" | "journal article" | "期刊论文" => {
@@ -1153,9 +1171,8 @@ pub async fn references_crossref_search_by_metadata(
 }
 
 #[tauri::command]
-pub async fn references_import_parse_text(
-    params: ReferenceImportTextParams,
-) -> Result<Value, String> {
+pub async fn references_import_parse_text(params: Value) -> Result<Value, String> {
+    let params = reference_import_text_params_from_payload(params);
     Ok(Value::Array(parse_reference_import_text(
         &params.content,
         &params.format,
@@ -1163,9 +1180,8 @@ pub async fn references_import_parse_text(
 }
 
 #[tauri::command]
-pub async fn references_import_detect_format(
-    params: ReferenceImportTextParams,
-) -> Result<String, String> {
+pub async fn references_import_detect_format(params: Value) -> Result<String, String> {
+    let params = reference_import_text_params_from_payload(params);
     Ok(detect_reference_import_format(&params.content))
 }
 
@@ -1187,9 +1203,8 @@ pub async fn references_import_parse_file(
 }
 
 #[tauri::command]
-pub async fn references_import_from_text(
-    params: ReferenceImportTextParams,
-) -> Result<Value, String> {
+pub async fn references_import_from_text(params: Value) -> Result<Value, String> {
+    let params = reference_import_text_params_from_payload(params);
     let trimmed = params.content.trim();
     if trimmed.is_empty() {
         return Ok(Value::Array(Vec::new()));
@@ -1369,8 +1384,9 @@ impl StringExt for String {
 #[cfg(test)]
 mod tests {
     use super::{
-        export_bibtex_content, references_import_parse_file, write_reference_export_file_internal,
-        ReferenceImportFileParams,
+        export_bibtex_content, reference_import_text_params_from_payload,
+        references_import_from_text, references_import_parse_file,
+        write_reference_export_file_internal, ReferenceImportFileParams,
     };
     use serde_json::json;
     use std::fs;
@@ -1427,6 +1443,35 @@ mod tests {
         assert_eq!(error, "Unsupported reference import file type.");
 
         fs::remove_dir_all(temp_dir).ok();
+    }
+
+    #[test]
+    fn import_text_params_normalize_raw_payloads() {
+        let params = reference_import_text_params_from_payload(json!({
+            "content": 42,
+            "format": false,
+        }));
+        assert_eq!(params.content, "");
+        assert_eq!(params.format, "");
+
+        let params = reference_import_text_params_from_payload(json!({
+            "content": "  @article{lovelace2024}  ",
+            "format": "bibtex",
+        }));
+        assert_eq!(params.content, "  @article{lovelace2024}  ");
+        assert_eq!(params.format, "bibtex");
+    }
+
+    #[tokio::test]
+    async fn import_from_text_handles_blank_payload_in_rust() {
+        let imported = references_import_from_text(json!({
+            "content": "   ",
+            "format": "auto",
+        }))
+        .await
+        .expect("blank import should be handled");
+
+        assert_eq!(imported, json!([]));
     }
 
     #[test]
