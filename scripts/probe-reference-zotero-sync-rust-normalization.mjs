@@ -37,6 +37,9 @@ try {
 
   const calls = []
   let shouldSkip = false
+  const accountStateResult = 'rust-owned-zotero-account-state'
+  const connectedConfigResult = 'rust-owned-zotero-connected-config'
+  const loadedConfigResult = 'rust-owned-zotero-config-load'
 
   mockIPC(async (cmd, args) => {
     calls.push({ cmd, args })
@@ -102,23 +105,11 @@ try {
     }
 
     if (cmd === 'references_zotero_account_state_load') {
-      return {
-        config: {
-          userId: '16788433',
-          username: 'researcher',
-        },
-        hasApiKey: true,
-      }
+      return accountStateResult
     }
 
     if (cmd === 'references_zotero_connect_account') {
-      return {
-        userId: '16788433',
-        username: 'researcher',
-        autoSync: true,
-        _groups: [],
-        pushTarget: null,
-      }
+      return connectedConfigResult
     }
 
     if (cmd === 'references_mutation_apply') {
@@ -191,12 +182,15 @@ try {
       return args?.params?.config || {}
     }
 
+    if (cmd === 'references_zotero_config_load') {
+      return loadedConfigResult
+    }
+
     if (cmd === 'references_zotero_api_key_load') {
       throw new Error('Settings account state must not load the raw Zotero API key into JS')
     }
 
     if (
-      cmd === 'references_zotero_config_load' ||
       cmd === 'references_zotero_validate_api_key' ||
       cmd === 'references_zotero_api_key_store'
     ) {
@@ -211,6 +205,7 @@ try {
     deleteFromZotero,
     loadRemoteLibraries,
     loadZoteroAccountState,
+    loadZoteroConfig,
     saveZoteroConfig,
     syncNow,
   } = await vite.ssrLoadModule('/src/services/references/zoteroSync.js')
@@ -396,13 +391,7 @@ try {
 
   const accountState = await loadZoteroAccountState()
 
-  assert.deepEqual(accountState, {
-    config: {
-      userId: '16788433',
-      username: 'researcher',
-    },
-    hasApiKey: true,
-  })
+  assert.strictEqual(accountState, accountStateResult)
   assert.deepEqual(
     calls.map((call) => call.cmd),
     [
@@ -427,13 +416,7 @@ try {
 
   const connectedConfig = await connectZoteroAccount(' zotero-secret ')
 
-  assert.deepEqual(connectedConfig, {
-    userId: '16788433',
-    username: 'researcher',
-    autoSync: true,
-    _groups: [],
-    pushTarget: null,
-  })
+  assert.strictEqual(connectedConfig, connectedConfigResult)
   assert.deepEqual(
     calls.map((call) => call.cmd),
     [
@@ -555,6 +538,13 @@ try {
     calls.some((call) => call.cmd === 'references_zotero_config_load'),
     false,
   )
+
+  const loadedConfig = await loadZoteroConfig('/tmp/global-config')
+  assert.strictEqual(loadedConfig, loadedConfigResult)
+  assert.equal(calls.at(-1).cmd, 'references_zotero_config_load')
+  assert.deepEqual(calls.at(-1).args.params, {
+    globalConfigDir: '/tmp/global-config',
+  })
 
   console.log('reference zotero sync rust normalization probe passed')
 } finally {

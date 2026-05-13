@@ -3,32 +3,21 @@ import { getGlobalConfigDir } from '../appDirs.js'
 
 export async function loadZoteroAccountState() {
   const globalConfigDir = await getGlobalConfigDir()
-  const state = await invoke('references_zotero_account_state_load', {
+  return invoke('references_zotero_account_state_load', {
     params: {
       globalConfigDir,
     },
   })
-  if (!state || typeof state !== 'object') {
-    return {
-      config: {},
-      hasApiKey: false,
-    }
-  }
-  return {
-    config: state.config && typeof state.config === 'object' ? state.config : {},
-    hasApiKey: Boolean(state.hasApiKey),
-  }
 }
 
 export async function connectZoteroAccount(apiKey = '') {
   const globalConfigDir = await getGlobalConfigDir()
-  const config = await invoke('references_zotero_connect_account', {
+  return invoke('references_zotero_connect_account', {
     params: {
       globalConfigDir,
       apiKey,
     },
   })
-  return config && typeof config === 'object' ? config : {}
 }
 
 export async function clearZoteroApiKey() {
@@ -51,12 +40,11 @@ export async function disconnectZotero() {
 
 export async function loadZoteroConfig(globalConfigDir = null) {
   const resolvedDir = globalConfigDir || await getGlobalConfigDir()
-  const config = await invoke('references_zotero_config_load', {
+  return invoke('references_zotero_config_load', {
     params: {
       globalConfigDir: resolvedDir,
     },
   })
-  return config && typeof config === 'object' ? config : null
 }
 
 export async function saveZoteroConfig(config = null, globalConfigDir = null) {
