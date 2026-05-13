@@ -2,6 +2,7 @@ use markdown::mdast::Node;
 use markdown::unist::Position;
 use markdown::{to_mdast, Constructs, ParseOptions};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -87,6 +88,56 @@ fn markdown_parse_options() -> ParseOptions {
 
 fn normalize_source_path(source_path: Option<String>) -> String {
     source_path.unwrap_or_default()
+}
+
+fn payload_field<'a>(params: &'a Value, camel_key: &str, snake_key: &str) -> Option<&'a Value> {
+    params
+        .as_object()
+        .and_then(|object| object.get(camel_key).or_else(|| object.get(snake_key)))
+}
+
+fn raw_string_payload_field(params: &Value, camel_key: &str, snake_key: &str) -> String {
+    payload_field(params, camel_key, snake_key)
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string()
+}
+
+fn string_payload_field(params: &Value, camel_key: &str, snake_key: &str) -> String {
+    raw_string_payload_field(params, camel_key, snake_key)
+        .trim()
+        .to_string()
+}
+
+fn markdown_content_params_from_payload(params: Value) -> String {
+    raw_string_payload_field(&params, "content", "content")
+}
+
+fn markdown_diagnostics_params_from_payload(params: Value) -> (String, String) {
+    (
+        raw_string_payload_field(&params, "content", "content"),
+        string_payload_field(&params, "sourcePath", "source_path"),
+    )
+}
+
+fn markdown_link_index_params_from_payload(
+    params: Value,
+) -> (String, Vec<MarkdownLinkIndexFileInput>) {
+    let workspace_path = string_payload_field(&params, "workspacePath", "workspace_path");
+    let files = payload_field(&params, "files", "files")
+        .and_then(Value::as_array)
+        .map(|entries| {
+            entries
+                .iter()
+                .map(|entry| MarkdownLinkIndexFileInput {
+                    path: string_payload_field(entry, "path", "path"),
+                    content: raw_string_payload_field(entry, "content", "content"),
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+
+    (workspace_path, files)
 }
 
 fn normalize_markdown_link_name(value: &str) -> String {
@@ -779,41 +830,42 @@ pub(crate) fn resolve_markdown_link_index(
 }
 
 #[tauri::command]
-pub async fn markdown_extract_headings(
-    content: String,
-) -> Result<Vec<MarkdownHeadingItem>, String> {
+pub async fn markdown_extract_headings(params: Value) -> Result<Vec<MarkdownHeadingItem>, String> {
+    let content = markdown_content_params_from_payload(params);
     extract_markdown_headings(&content)
 }
 
 #[tauri::command]
 pub async fn markdown_extract_diagnostics(
-    content: String,
-    source_path: Option<String>,
+    params: Value,
 ) -> Result<Vec<MarkdownDiagnosticItem>, String> {
-    extract_markdown_diagnostics(&normalize_source_path(source_path), &content)
+    let (content, source_path) = markdown_diagnostics_params_from_payload(params);
+    extract_markdown_diagnostics(&normalize_source_path(Some(source_path)), &content)
 }
 
 #[tauri::command]
 pub async fn markdown_extract_wiki_links(
-    content: String,
+    params: Value,
 ) -> Result<Vec<MarkdownWikiLinkItem>, String> {
+    let content = markdown_content_params_from_payload(params);
     extract_markdown_wiki_links(&content)
 }
 
 #[tauri::command]
-pub async fn markdown_link_index_resolve(
-    workspace_path: Option<String>,
-    files: Vec<MarkdownLinkIndexFileInput>,
-) -> Result<MarkdownLinkIndexResult, String> {
-    resolve_markdown_link_index(&normalize_source_path(workspace_path), files)
+pub async fn markdown_link_index_resolve(params: Value) -> Result<MarkdownLinkIndexResult, String> {
+    let (workspace_path, files) = markdown_link_index_params_from_payload(params);
+    resolve_markdown_link_index(&normalize_source_path(Some(workspace_path)), files)
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
         extract_markdown_diagnostics, extract_markdown_headings, extract_markdown_wiki_links,
-        resolve_markdown_link_index, MarkdownLinkIndexFileInput,
+        markdown_content_params_from_payload, markdown_diagnostics_params_from_payload,
+        markdown_link_index_params_from_payload, resolve_markdown_link_index,
+        MarkdownLinkIndexFileInput,
     };
+    use serde_json::json;
 
     #[test]
     fn uses_utf16_offsets_for_non_ascii_markdown() {
@@ -926,5 +978,50 @@ mod tests {
                 .map(|link| link.context.as_str()),
             Some("链接 [[Topic|主题]] 和 [[nested/Topic]].")
         );
+    }
+
+    #[test]
+    fn markdown_runtime_params_normalize_raw_payloads() {
+        assert_eq!(
+            markdown_content_params_from_payload(json!({ "content": "  # Title  " })),
+            "  # Title  "
+        );
+        assert_eq!(
+            markdown_content_params_from_payload(json!({ "content": 42 })),
+            ""
+        );
+
+        let (content, source_path) = markdown_diagnostics_params_from_payload(json!({
+            "content": "  Text[^missing]  ",
+            "sourcePath": " notes\\draft.md "
+        }));
+        assert_eq!(content, "  Text[^missing]  ");
+        assert_eq!(source_path, "notes\\draft.md");
+
+        let (workspace_path, files) = markdown_link_index_params_from_payload(json!({
+            "workspace_path": " /workspace/notes ",
+            "files": [
+                {
+                    "path": " /workspace/notes/Index.md ",
+                    "content": " [[Topic]] "
+                },
+                {
+                    "path": 42,
+                    "content": false
+                }
+            ]
+        }));
+
+        assert_eq!(workspace_path, "/workspace/notes");
+        assert_eq!(files.len(), 2);
+        assert_eq!(files[0].path, "/workspace/notes/Index.md");
+        assert_eq!(files[0].content, " [[Topic]] ");
+        assert_eq!(files[1].path, "");
+        assert_eq!(files[1].content, "");
+
+        let (missing_workspace, missing_files) =
+            markdown_link_index_params_from_payload(json!(false));
+        assert_eq!(missing_workspace, "");
+        assert!(missing_files.is_empty());
     }
 }
