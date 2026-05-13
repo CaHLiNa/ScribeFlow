@@ -141,6 +141,7 @@
     "probe:extension-quickpick-contract": "node scripts/probe-extension-quickpick-contract.mjs",
     "probe:markdown-preview-source-contract": "node scripts/probe-markdown-preview-source-contract.mjs",
     "probe:pane-document-dock-workspace-contract": "node scripts/probe-pane-document-dock-workspace-contract.mjs",
+    "probe:outline-workspace-close-contract": "node scripts/probe-outline-workspace-close-contract.mjs",
     "probe:sync-domain-contracts": "node scripts/probe-sync-domain-contracts.mjs",
     "probe:reference-citation-bridge-contract": "node scripts/probe-reference-citation-bridge-contract.mjs",
     "probe:extension-target-presentation-contract": "node scripts/probe-extension-target-presentation-contract.mjs",

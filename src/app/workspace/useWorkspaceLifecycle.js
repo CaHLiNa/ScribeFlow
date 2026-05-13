@@ -262,6 +262,7 @@ export function useWorkspaceLifecycle() {
     const closingWorkspacePath = workspace.path
 
     await editorStore.saveEditorStateImmediate()
+    workspace.beginWorkspaceClose()
     editorStore.cleanup()
     filesStore.cleanup()
     linksStore.cleanup()

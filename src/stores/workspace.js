@@ -350,14 +350,22 @@ export const useWorkspaceStore = defineStore('workspace', {
     },
 
     async closeWorkspace() {
-      this._workspaceBootstrapGeneration += 1
-      this._workspaceBootstrapPromise = null
+      this.beginWorkspaceClose()
       await prepareWorkspaceClose().catch(() => {})
       await this.cleanup()
       await this.openWorkspaceSurface()
       await this.persistLifecycleState({ lastWorkspace: '' })
       this.path = null
       this.globalConfigDir = ''
+      this.workspaceId = ''
+      this.workspaceDataDir = ''
+      this.claudeConfigDir = ''
+    },
+
+    beginWorkspaceClose() {
+      this._workspaceBootstrapGeneration += 1
+      this._workspaceBootstrapPromise = null
+      this.path = null
       this.workspaceId = ''
       this.workspaceDataDir = ''
       this.claudeConfigDir = ''

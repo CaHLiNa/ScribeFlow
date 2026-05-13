@@ -83,6 +83,7 @@ import { useEditorStore } from '../../stores/editor'
 import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { useFilesStore } from '../../stores/files'
 import { useWorkspaceStore } from '../../stores/workspace'
+import { isWorkspaceDocumentPath } from '../../domains/editor/paneDocumentDockRuntime.js'
 import { isMarkdown, isLatex, getViewerType } from '../../utils/fileTypes'
 import { resolveDocumentOutlineItems } from '../../services/documentOutline/runtime'
 import { useI18n } from '../../i18n'
@@ -109,20 +110,29 @@ function outlineTypeForPath(path) {
   return null
 }
 
-function resolveOutlinePath(path) {
-  if (!path) return null
+function resolveOutlinePath(path, workspacePath) {
+  if (!isWorkspaceDocumentPath(path, workspacePath)) return null
   if (outlineTypeForPath(path)) return path
 
   const sourcePath = workflowStore.getSourcePathForPreview(path)
-  if (outlineTypeForPath(sourcePath)) return sourcePath
-  return path
+  if (isWorkspaceDocumentPath(sourcePath, workspacePath) && outlineTypeForPath(sourcePath)) return sourcePath
+  return isWorkspaceDocumentPath(path, workspacePath) ? path : null
 }
 
-const activeFile = computed(() => resolveOutlinePath(props.overrideActiveFile || editorStore.activeTab))
+const activeFile = computed(() => {
+  if (!workspaceStore.isOpen) return null
+  return resolveOutlinePath(props.overrideActiveFile || editorStore.activeTab, workspaceStore.path)
+})
 const fileType = computed(() => outlineTypeForPath(activeFile.value))
 const hasOutlineSupport = computed(() => fileType.value !== null)
 const outlineItems = ref([])
 let outlineRequestId = 0
+
+function resetDocumentOutline() {
+  outlineRequestId += 1
+  outlineItems.value = []
+  collapsedHeadings.value = {}
+}
 
 function currentDocumentText(path) {
   const view = editorStore.getAnyEditorView(path)
@@ -265,6 +275,16 @@ watch(
   () =>[activeFile.value, fileType.value, currentDocumentText(activeFile.value || '')],
   () => { void refreshDocumentOutline() },
   { immediate: true }
+)
+
+watch(
+  () => [workspaceStore.isOpen, workspaceStore.path, editorStore.restoreGeneration],
+  () => {
+    if (!workspaceStore.isOpen || !isWorkspaceDocumentPath(activeFile.value, workspaceStore.path)) {
+      resetDocumentOutline()
+    }
+  },
+  { flush: 'sync' }
 )
 
 watch(

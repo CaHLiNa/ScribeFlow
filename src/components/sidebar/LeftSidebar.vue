@@ -64,6 +64,7 @@ import { ref, computed, nextTick, watch } from 'vue'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useEditorStore } from '../../stores/editor'
 import { useI18n } from '../../i18n'
+import { resolvePaneDocumentTab, isWorkspaceDocumentPath } from '../../domains/editor/paneDocumentDockRuntime.js'
 import { isNewTab } from '../../utils/fileTypes'
 import FileTree from './FileTree.vue'
 import ReferencesSidebarPanel from './ReferencesSidebarPanel.vue'
@@ -85,20 +86,29 @@ const documentSidebarMode = ref('files')
 const lastDocumentTab = ref(null)
 const fileTreeHeadingLabel = computed(() => '')
 const documentTab = computed(() => {
-  const active = editorStore.activeTab
-  if (active && !isNewTab(active)) {
-    return active
-  }
-  return lastDocumentTab.value
+  return resolvePaneDocumentTab({
+    activeTab: editorStore.activeTab,
+    lastDocumentTab: lastDocumentTab.value,
+    workspacePath: workspace.path,
+  })
 })
 watch(
   () => editorStore.activeTab,
   (tab) => {
-    if (tab && !isNewTab(tab)) {
+    if (!isNewTab(tab) && isWorkspaceDocumentPath(tab, workspace.path)) {
       lastDocumentTab.value = tab
     }
   },
   { flush: 'post', immediate: true }
+)
+watch(
+  () => [workspace.path, editorStore.restoreGeneration],
+  () => {
+    if (!isWorkspaceDocumentPath(lastDocumentTab.value, workspace.path)) {
+      lastDocumentTab.value = null
+    }
+  },
+  { flush: 'sync' }
 )
 
 async function focusFileTree(method, ...args) {
