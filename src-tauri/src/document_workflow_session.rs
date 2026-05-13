@@ -238,6 +238,56 @@ fn default_session_state() -> String {
     DEFAULT_SESSION_STATE.to_string()
 }
 
+fn payload_field<'a>(params: &'a Value, keys: &[&str]) -> Option<&'a Value> {
+    let object = params.as_object()?;
+    keys.iter().find_map(|key| object.get(*key))
+}
+
+fn string_payload_field(params: &Value, keys: &[&str]) -> String {
+    payload_field(params, keys)
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string()
+}
+
+fn bool_payload_field(params: &Value, keys: &[&str], default: bool) -> bool {
+    payload_field(params, keys)
+        .and_then(Value::as_bool)
+        .unwrap_or(default)
+}
+
+fn persistent_state_payload_field(
+    params: &Value,
+    keys: &[&str],
+) -> DocumentWorkflowPersistentState {
+    payload_field(params, keys)
+        .cloned()
+        .and_then(|value| serde_json::from_value::<DocumentWorkflowPersistentState>(value).ok())
+        .unwrap_or_default()
+}
+
+fn document_workflow_workspace_preview_apply_params_from_payload(
+    params: Value,
+) -> DocumentWorkflowWorkspacePreviewApplyParams {
+    DocumentWorkflowWorkspacePreviewApplyParams {
+        state: persistent_state_payload_field(&params, &["state"]),
+        intent: string_payload_field(&params, &["intent"]),
+        file_path: string_payload_field(&params, &["filePath", "file_path"]),
+        kind: string_payload_field(&params, &["kind"]),
+        preview_kind: string_payload_field(&params, &["previewKind", "preview_kind"]),
+        preferred_preview_kind: string_payload_field(
+            &params,
+            &["preferredPreviewKind", "preferred_preview_kind"],
+        ),
+        persist_preference: bool_payload_field(
+            &params,
+            &["persistPreference", "persist_preference"],
+            true,
+        ),
+        source_pane_id: string_payload_field(&params, &["sourcePaneId", "source_pane_id"]),
+    }
+}
+
 impl Default for DocumentWorkflowSession {
     fn default() -> Self {
         Self {
@@ -1071,8 +1121,9 @@ pub async fn document_workflow_session_mutation_apply(
 
 #[tauri::command]
 pub async fn document_workflow_workspace_preview_apply(
-    params: DocumentWorkflowWorkspacePreviewApplyParams,
+    params: Value,
 ) -> Result<DocumentWorkflowWorkspacePreviewApplyResult, String> {
+    let params = document_workflow_workspace_preview_apply_params_from_payload(params);
     Ok(apply_document_workflow_workspace_preview_state(params))
 }
 
@@ -1088,6 +1139,8 @@ mod tests {
     use super::{
         apply_document_workflow_latex_preview_state, apply_document_workflow_preview_binding_state,
         apply_document_workflow_session_mutation, apply_document_workflow_workspace_preview_state,
+        document_workflow_workspace_preview_apply,
+        document_workflow_workspace_preview_apply_params_from_payload,
         document_workflow_session_load, document_workflow_session_save,
         normalize_document_workflow_persistent_state,
         reconcile_document_workflow_latex_preview_state,
@@ -1894,5 +1947,90 @@ mod tests {
             hidden.state.workspace_preview_requests.get("/tmp/main.md"),
             None
         );
+    }
+
+    #[test]
+    fn workspace_preview_apply_params_normalize_raw_payloads() {
+        let params = document_workflow_workspace_preview_apply_params_from_payload(json!({
+            "state": {
+                "session": {
+                    "sourcePaneId": "pane-source"
+                },
+                "workspacePreviewVisibility": {
+                    "/tmp/demo.md": "hidden"
+                }
+            },
+            "intent": "show",
+            "file_path": "/tmp/demo.md",
+            "kind": "markdown",
+            "previewKind": "html",
+            "preferred_preview_kind": "html",
+            "persistPreference": false,
+            "source_pane_id": "pane-override"
+        }));
+
+        assert_eq!(params.intent, "show");
+        assert_eq!(params.file_path, "/tmp/demo.md");
+        assert_eq!(params.kind, "markdown");
+        assert_eq!(params.preview_kind, "html");
+        assert_eq!(params.preferred_preview_kind, "html");
+        assert!(!params.persist_preference);
+        assert_eq!(params.source_pane_id, "pane-override");
+        assert_eq!(params.state.session.source_pane_id, "pane-source");
+        assert_eq!(
+            params
+                .state
+                .workspace_preview_visibility
+                .get("/tmp/demo.md")
+                .map(String::as_str),
+            Some("hidden")
+        );
+
+        let invalid = document_workflow_workspace_preview_apply_params_from_payload(json!(false));
+        assert!(invalid.intent.is_empty());
+        assert!(invalid.file_path.is_empty());
+        assert!(invalid.kind.is_empty());
+        assert!(invalid.preview_kind.is_empty());
+        assert!(invalid.persist_preference);
+        assert_eq!(invalid.state, DocumentWorkflowPersistentState::default());
+    }
+
+    #[tokio::test]
+    async fn workspace_preview_apply_command_accepts_raw_payloads() {
+        let result = document_workflow_workspace_preview_apply(json!({
+            "state": {
+                "session": {
+                    "sourcePaneId": "pane-source"
+                }
+            },
+            "intent": "show",
+            "file_path": "/tmp/raw.md",
+            "kind": "markdown",
+            "preview_kind": "html",
+            "preferredPreviewKind": "html"
+        }))
+        .await
+        .expect("apply raw workspace preview payload");
+
+        assert_eq!(
+            result.result.get("type").and_then(Value::as_str),
+            Some("workspace-preview")
+        );
+        assert_eq!(result.state.session.active_file, "/tmp/raw.md");
+        assert_eq!(result.state.session.source_pane_id, "pane-source");
+        assert_eq!(
+            result
+                .state
+                .workspace_preview_visibility
+                .get("/tmp/raw.md")
+                .map(String::as_str),
+            Some("visible")
+        );
+
+        let invalid = document_workflow_workspace_preview_apply(json!(null))
+            .await
+            .expect("apply invalid workspace preview payload");
+        assert_eq!(invalid.result, Value::Null);
+        assert_eq!(invalid.state, DocumentWorkflowPersistentState::default());
     }
 }
