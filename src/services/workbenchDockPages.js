@@ -1,25 +1,9 @@
 import { invoke } from '@tauri-apps/api/core'
 import { isNativeDesktopRuntime } from './runtimeGuard.js'
 
-const FALLBACK_DOCK_PAGE_CONTRACT = Object.freeze({
-  document: {
-    defaultPage: 'preview',
-    pages: [
-      { id: 'preview', permanent: true, dynamic: false, closeable: true, fallbackPage: 'file' },
-      { id: 'references', permanent: true, dynamic: false, closeable: false, fallbackPage: 'preview' },
-      { id: 'extension:', permanent: false, dynamic: true, closeable: false, fallbackPage: 'preview' },
-      { id: 'problems', permanent: false, dynamic: true, closeable: true, fallbackPage: 'preview' },
-      { id: 'file', permanent: false, dynamic: true, closeable: true, fallbackPage: 'preview' },
-    ],
-  },
-  reference: {
-    defaultPage: 'details',
-    pages: [
-      { id: 'details', permanent: true, dynamic: false, closeable: false, fallbackPage: 'details' },
-      { id: 'cited-in', permanent: false, dynamic: true, closeable: false, fallbackPage: 'details' },
-      { id: 'pdf', permanent: false, dynamic: true, closeable: true, fallbackPage: 'details' },
-    ],
-  },
+const EMPTY_DOCK_PAGE_CONTRACT = Object.freeze({
+  document: { defaultPage: '', pages: [] },
+  reference: { defaultPage: '', pages: [] },
 })
 
 function normalizePageDefinition(page = {}) {
@@ -35,31 +19,21 @@ function normalizePageDefinition(page = {}) {
   }
 }
 
-function normalizeSurfaceContract(value = {}, fallback = {}) {
-  const fallbackPages = Array.isArray(fallback.pages) ? fallback.pages : []
-  const pages = (Array.isArray(value?.pages) ? value.pages : fallbackPages)
+function normalizeSurfaceContract(value = {}) {
+  const pages = (Array.isArray(value?.pages) ? value.pages : [])
     .map(normalizePageDefinition)
     .filter(Boolean)
-  const fallbackDefault = String(fallback.defaultPage || fallbackPages[0]?.id || '').trim()
-  const requestedDefault = String(value?.defaultPage || '').trim()
-  const defaultPage = pages.some((page) => page.id === requestedDefault)
-    ? requestedDefault
-    : fallbackDefault
-  const pageIds = new Set(pages.map((page) => page.id))
 
   return {
-    defaultPage,
-    pages: pages.map((page) => ({
-      ...page,
-      fallbackPage: pageIds.has(page.fallbackPage) ? page.fallbackPage : defaultPage,
-    })),
+    defaultPage: String(value?.defaultPage || '').trim(),
+    pages,
   }
 }
 
 export function createWorkbenchDockPageContract(value = {}) {
   return {
-    document: normalizeSurfaceContract(value.document, FALLBACK_DOCK_PAGE_CONTRACT.document),
-    reference: normalizeSurfaceContract(value.reference, FALLBACK_DOCK_PAGE_CONTRACT.reference),
+    document: normalizeSurfaceContract(value.document || EMPTY_DOCK_PAGE_CONTRACT.document),
+    reference: normalizeSurfaceContract(value.reference || EMPTY_DOCK_PAGE_CONTRACT.reference),
   }
 }
 
