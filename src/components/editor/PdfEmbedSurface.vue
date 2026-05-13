@@ -71,7 +71,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 
 import { EmbedPDF } from '@embedpdf/core/vue'
-import { usePdfiumEngine } from '@embedpdf/engines/vue'
+import { createPdfiumEngine } from '@embedpdf/engines/pdfium-direct-engine'
 import pdfiumWasmUrl from '@embedpdf/pdfium/pdfium.wasm?url'
 import { DocumentContent } from '@embedpdf/plugin-document-manager/vue'
 
@@ -100,6 +100,51 @@ import { resolveLatexSyncTargetPath } from '../../services/latex/previewSync.js'
 import { resolveExistingLatexSynctexPath } from '../../services/latex/synctex.js'
 import PdfEmbedDocumentSurface from './PdfEmbedDocumentSurface.vue'
 
+const sharedPdfEngine = ref(null)
+const sharedPdfEngineLoading = ref(false)
+const sharedPdfEngineError = ref(null)
+let sharedPdfEnginePromise = null
+let sharedPdfEngineWasmUrl = ''
+
+async function ensureSharedPdfEngine(wasmUrl = '') {
+  const normalizedUrl = String(wasmUrl || '').trim()
+  if (!normalizedUrl) {
+    const nextError = new Error('Missing pdfium wasm url')
+    sharedPdfEngineError.value = nextError
+    throw nextError
+  }
+
+  if (sharedPdfEngine.value && sharedPdfEngineWasmUrl === normalizedUrl) {
+    return sharedPdfEngine.value
+  }
+
+  if (sharedPdfEnginePromise && sharedPdfEngineWasmUrl === normalizedUrl) {
+    return sharedPdfEnginePromise
+  }
+
+  sharedPdfEngineWasmUrl = normalizedUrl
+  sharedPdfEngineLoading.value = true
+  sharedPdfEngineError.value = null
+
+  sharedPdfEnginePromise = createPdfiumEngine(normalizedUrl)
+    .then((engine) => {
+      sharedPdfEngine.value = engine
+      sharedPdfEngineLoading.value = false
+      return engine
+    })
+    .catch((error) => {
+      sharedPdfEngine.value = null
+      sharedPdfEngineLoading.value = false
+      sharedPdfEnginePromise = null
+      sharedPdfEngineError.value = error instanceof Error
+        ? error
+        : new Error(String(error || 'Failed to initialize PDF engine'))
+      throw sharedPdfEngineError.value
+    })
+
+  return sharedPdfEnginePromise
+}
+
 const props = defineProps({
   sourcePath: { type: String, required: true },
   artifactPath: { type: String, required: true },
@@ -120,10 +165,9 @@ const props = defineProps({
 const emit = defineEmits(['open-external', 'backward-sync'])
 
 const { t } = useI18n()
-const { engine, isLoading: engineLoading, error: engineError } = usePdfiumEngine({
-  wasmUrl: pdfiumWasmUrl,
-  worker: false,
-})
+const engine = sharedPdfEngine
+const engineLoading = sharedPdfEngineLoading
+const engineError = sharedPdfEngineError
 
 const documentBuffer = ref(null)
 const documentName = ref('')
@@ -403,6 +447,7 @@ watch(
 )
 
 onMounted(() => {
+  void ensureSharedPdfEngine(pdfiumWasmUrl).catch(() => {})
   window.addEventListener(LATEX_FORWARD_SYNC_EVENT, handleWindowForwardSync)
   const pendingRequest = readPendingLatexForwardSync()
   if (pendingRequest) {
