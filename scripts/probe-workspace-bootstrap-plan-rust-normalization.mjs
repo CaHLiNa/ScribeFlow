@@ -30,6 +30,7 @@ const vite = await createServer({
 let clearTauriMocks = () => {}
 
 function resolvePlan(payload = {}) {
+  payload = payload && typeof payload === 'object' ? payload : {}
   const hasCachedTree = payload?.hasCachedTree === true
   return {
     blockOnInitialTreeLoad: !hasCachedTree,
@@ -86,14 +87,18 @@ try {
     hasCachedTree: true,
     restoreEditorSession: false,
   })
+  const invalidPlan = await resolveWorkspaceBootstrapPlan(false)
 
   assert.deepEqual(calls.map((call) => call.cmd), [
     'workspace_lifecycle_resolve_bootstrap_plan',
     'workspace_lifecycle_resolve_bootstrap_plan',
+    'workspace_lifecycle_resolve_bootstrap_plan',
   ])
   assert.deepEqual(calls[0].args.params, rawOptions)
+  assert.equal(calls[2].args.params, false)
   assert.equal(uncachedPlan.blockOnInitialTreeLoad, true)
   assert.equal(cachedPlan.blockOnInitialTreeLoad, false)
+  assert.equal(invalidPlan.blockOnInitialTreeLoad, true)
   assert.deepEqual(
     uncachedPlan.tasks.map((task) => task.key),
     ['workspace.loadBootstrapData', 'references.zoteroAutoSync', 'files.startWatching'],

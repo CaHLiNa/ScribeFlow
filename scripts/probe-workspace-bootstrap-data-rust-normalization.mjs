@@ -30,6 +30,7 @@ const vite = await createServer({
 let clearTauriMocks = () => {}
 
 function normalizeBootstrapParams(params = {}) {
+  params = params && typeof params === 'object' ? params : {}
   return {
     globalConfigDir: typeof params.globalConfigDir === 'string' ? params.globalConfigDir : '',
     workspaceDataDir: typeof params.workspaceDataDir === 'string' ? params.workspaceDataDir : '',
@@ -109,11 +110,18 @@ try {
   }
 
   const result = await loadWorkspaceBootstrapData(rawParams)
+  const invalidResult = await loadWorkspaceBootstrapData(null)
 
-  assert.deepEqual(calls.map((call) => call.cmd), ['workspace_lifecycle_load_bootstrap_data'])
+  assert.deepEqual(calls.map((call) => call.cmd), [
+    'workspace_lifecycle_load_bootstrap_data',
+    'workspace_lifecycle_load_bootstrap_data',
+  ])
   assert.deepEqual(calls[0].args.params, rawParams)
+  assert.equal(calls[1].args.params, null)
   assert.deepEqual(result.editorSessionState, { restored: true })
   assert.deepEqual(result.fileTreeState.flatFiles.map((entry) => entry.name), ['note.md'])
+  assert.deepEqual(invalidResult.editorSessionState, { restored: true })
+  assert.equal(invalidResult.fileTreeState, null)
 
   console.log('workspace bootstrap data rust normalization probe passed')
 } finally {

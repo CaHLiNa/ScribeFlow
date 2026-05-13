@@ -59,7 +59,7 @@ export async function resolveWorkspaceBootstrapPlan(options = {}) {
     return { tasks: [], backgroundWindowMs: 0, ...options }
   }
   return invoke('workspace_lifecycle_resolve_bootstrap_plan', {
-    params: options || {},
+    params: options,
   })
 }
 
@@ -68,7 +68,7 @@ export async function loadWorkspaceBootstrapData(params = {}) {
     throw new Error('Loading workspace bootstrap data requires the Tauri desktop runtime.')
   }
   return invoke('workspace_lifecycle_load_bootstrap_data', {
-    params: params || {},
+    params,
   })
 }
 
