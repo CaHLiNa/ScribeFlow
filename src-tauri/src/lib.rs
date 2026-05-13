@@ -25,6 +25,7 @@ mod extension_secret_settings;
 mod extension_settings;
 mod extension_tasks;
 mod extension_views;
+mod external_links;
 mod file_types;
 mod fs_commands;
 mod fs_io;
@@ -192,6 +193,7 @@ pub fn run() {
             app_update::app_update_download_asset,
             app_update::app_update_release_resolve,
             app_update::app_update_reveal_download,
+            external_links::external_http_url_resolve,
             fs_commands::workspace_render_image_preview,
             fs_commands::workspace_read_file_base64,
             fs_commands::workspace_write_file_base64,

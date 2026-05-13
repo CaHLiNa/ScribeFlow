@@ -1,3 +1,6 @@
+import { invoke } from '@tauri-apps/api/core'
+import { isNativeDesktopRuntime } from './runtimeGuard.js'
+
 const EXTERNAL_HTTP_PROTOCOLS = new Set(['http:', 'https:'])
 
 function getElementFromTarget(target) {
@@ -10,13 +13,27 @@ function getElementFromTarget(target) {
 export function normalizeExternalHttpUrl(value, base = undefined) {
   if (!value || typeof value !== 'string') return null
   try {
-    const fallbackBase = typeof window !== 'undefined' ? window.location.href : 'http://localhost/'
+    const fallbackBase =
+      typeof window !== 'undefined' && typeof window.location?.href === 'string'
+        ? window.location.href
+        : 'http://localhost/'
     const url = new URL(value, base || fallbackBase)
     if (!EXTERNAL_HTTP_PROTOCOLS.has(url.protocol)) return null
     return url.toString()
   } catch {
     return null
   }
+}
+
+export async function resolveExternalHttpUrl(value, base = undefined) {
+  if (!isNativeDesktopRuntime()) return normalizeExternalHttpUrl(value, base)
+  const normalized = await invoke('external_http_url_resolve', {
+    params: {
+      url: value,
+      base,
+    },
+  })
+  return normalized || null
 }
 
 export function resolveExternalHttpAnchor(target, base = undefined) {
@@ -32,7 +49,7 @@ export function resolveExternalHttpAnchor(target, base = undefined) {
 }
 
 export async function openExternalHttpUrl(url, base = undefined) {
-  const normalized = normalizeExternalHttpUrl(url, base)
+  const normalized = await resolveExternalHttpUrl(url, base)
   if (!normalized) return false
   const { open } = await import('@tauri-apps/plugin-shell')
   await open(normalized)
