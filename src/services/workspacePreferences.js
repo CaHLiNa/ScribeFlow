@@ -34,7 +34,7 @@ export async function normalizeWorkspacePreferences(preferences = {}) {
 export async function normalizeWorkbenchState(state = {}) {
   if (!isNativeDesktopRuntime()) return state
   return invoke('workbench_state_normalize', {
-    params: state || {},
+    params: state,
   })
 }
 

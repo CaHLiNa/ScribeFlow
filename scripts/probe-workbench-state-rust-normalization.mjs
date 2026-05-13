@@ -51,6 +51,7 @@ function normalizeReferenceDockPage(value = '') {
 }
 
 function normalizeWorkbenchPayload(payload = {}) {
+  payload = payload && typeof payload === 'object' ? payload : {}
   const sourceSurface = stringField(payload, 'primarySurface', 'workspace')
   const leftSidebarPanel = stringField(payload, 'leftSidebarPanel', 'files').trim()
   const normalizedLeftSidebarPanel = ['files', 'references'].includes(leftSidebarPanel)
@@ -99,7 +100,7 @@ try {
     calls.push({ cmd, args })
 
     if (cmd === 'workbench_state_normalize') {
-      return normalizeWorkbenchPayload(args?.params || {})
+      return normalizeWorkbenchPayload(args?.params)
     }
 
     throw new Error(`Unexpected IPC command: ${cmd}`)
@@ -120,9 +121,14 @@ try {
   }
 
   const normalized = await normalizeWorkbenchState(rawState)
+  const invalidNormalized = await normalizeWorkbenchState(false)
 
-  assert.deepEqual(calls.map((call) => call.cmd), ['workbench_state_normalize'])
+  assert.deepEqual(calls.map((call) => call.cmd), [
+    'workbench_state_normalize',
+    'workbench_state_normalize',
+  ])
   assert.deepEqual(calls[0].args.params, rawState)
+  assert.equal(calls[1].args.params, false)
   assert.deepEqual(normalized, {
     primarySurface: 'workspace',
     leftSidebarOpen: true,
@@ -132,6 +138,17 @@ try {
     documentDockOpen: false,
     referenceDockOpen: false,
     documentDockActivePage: 'extension:example.tools',
+    referenceDockActivePage: 'details',
+  })
+  assert.deepEqual(invalidNormalized, {
+    primarySurface: 'workspace',
+    leftSidebarOpen: true,
+    leftSidebarPanel: 'files',
+    rightSidebarOpen: false,
+    rightSidebarPanel: 'dock',
+    documentDockOpen: false,
+    referenceDockOpen: false,
+    documentDockActivePage: 'preview',
     referenceDockActivePage: 'details',
   })
 
