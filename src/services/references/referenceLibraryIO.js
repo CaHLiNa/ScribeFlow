@@ -28,10 +28,6 @@ export async function normalizeReferenceLibrarySnapshotWithBackend(snapshot = {}
 }
 
 export async function readOrCreateReferenceLibrarySnapshot(globalConfigDir = '') {
-  if (!String(globalConfigDir || '').trim()) {
-    return buildDefaultReferenceLibrarySnapshot()
-  }
-
   const backendSnapshot = await invoke('references_library_load_workspace', {
     params: {
       globalConfigDir,

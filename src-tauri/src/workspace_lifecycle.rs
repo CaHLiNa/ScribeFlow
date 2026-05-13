@@ -14,7 +14,7 @@ use crate::fs_tree_runtime::{
     FsTreeRestoreCachedExpandedStateParams, FsTreeWorkspaceStateResult,
 };
 use crate::references_backend::{
-    references_library_load_workspace, ReferenceLibraryLoadWorkspaceParams,
+    references_library_load_workspace_typed, ReferenceLibraryLoadWorkspaceParams,
 };
 use crate::references_runtime::{references_scan_workspace_styles_scoped, CitationStyleScanParams};
 use crate::references_zotero::{references_zotero_config_load, ZoteroConfigPathParams};
@@ -733,10 +733,9 @@ pub async fn workspace_lifecycle_load_bootstrap_data(
     let params = load_bootstrap_data_params_from_payload(params);
 
     let references_snapshot =
-        references_library_load_workspace(ReferenceLibraryLoadWorkspaceParams {
+        references_library_load_workspace_typed(ReferenceLibraryLoadWorkspaceParams {
             global_config_dir: params.global_config_dir.clone(),
-        })
-        .await?;
+        })?;
 
     let reference_styles = references_scan_workspace_styles_scoped(
         CitationStyleScanParams {

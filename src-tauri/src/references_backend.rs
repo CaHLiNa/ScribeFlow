@@ -15,19 +15,19 @@ const PDFS_DIRNAME: &str = "pdfs";
 const FULLTEXT_DIRNAME: &str = "fulltext";
 const REFERENCE_LIBRARY_FILENAME: &str = "library.json";
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ReferenceLibraryReadParams {
     pub global_config_dir: String,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ReferenceLibraryLoadWorkspaceParams {
     pub global_config_dir: String,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ReferenceLibraryWriteParams {
     pub global_config_dir: String,
@@ -61,7 +61,7 @@ pub struct ReferenceAssetRenameParams {
     pub next_base_name: String,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ReferenceSnapshotNormalizeParams {
     #[serde(default)]
@@ -95,6 +95,42 @@ fn object_payload_field(params: &Value, key: &str) -> Value {
         .filter(|value| value.is_object())
         .cloned()
         .unwrap_or_else(|| json!({}))
+}
+
+fn snapshot_payload_field(params: &Value) -> Value {
+    payload_field(params, "snapshot")
+        .filter(|value| value.is_object())
+        .cloned()
+        .unwrap_or_else(build_default_snapshot)
+}
+
+fn reference_library_read_params_from_payload(params: Value) -> ReferenceLibraryReadParams {
+    ReferenceLibraryReadParams {
+        global_config_dir: string_payload_field(&params, "globalConfigDir"),
+    }
+}
+
+fn reference_library_load_workspace_params_from_payload(
+    params: Value,
+) -> ReferenceLibraryLoadWorkspaceParams {
+    ReferenceLibraryLoadWorkspaceParams {
+        global_config_dir: string_payload_field(&params, "globalConfigDir"),
+    }
+}
+
+fn reference_library_write_params_from_payload(params: Value) -> ReferenceLibraryWriteParams {
+    ReferenceLibraryWriteParams {
+        global_config_dir: string_payload_field(&params, "globalConfigDir"),
+        snapshot: snapshot_payload_field(&params),
+    }
+}
+
+fn reference_snapshot_normalize_params_from_payload(
+    params: Value,
+) -> ReferenceSnapshotNormalizeParams {
+    ReferenceSnapshotNormalizeParams {
+        snapshot: snapshot_payload_field(&params),
+    }
 }
 
 fn reference_asset_store_params_from_payload(params: Value) -> ReferenceAssetStoreParams {
@@ -193,6 +229,14 @@ fn load_or_create_snapshot(params: &ReferenceLibraryReadParams) -> Result<Value,
 pub(crate) fn load_reference_library_snapshot(global_config_dir: &str) -> Result<Value, String> {
     load_or_create_snapshot(&ReferenceLibraryReadParams {
         global_config_dir: global_config_dir.to_string(),
+    })
+}
+
+pub(crate) fn references_library_load_workspace_typed(
+    params: ReferenceLibraryLoadWorkspaceParams,
+) -> Result<Value, String> {
+    load_or_create_snapshot(&ReferenceLibraryReadParams {
+        global_config_dir: params.global_config_dir,
     })
 }
 
@@ -407,25 +451,20 @@ fn rename_reference_asset(params: &ReferenceAssetRenameParams) -> Result<Value, 
 }
 
 #[tauri::command]
-pub async fn references_library_read_or_create(
-    params: ReferenceLibraryReadParams,
-) -> Result<Value, String> {
-    load_or_create_snapshot(&params)
+pub async fn references_library_read_or_create(params: Value) -> Result<Value, String> {
+    load_or_create_snapshot(&reference_library_read_params_from_payload(params))
 }
 
 #[tauri::command]
-pub async fn references_library_load_workspace(
-    params: ReferenceLibraryLoadWorkspaceParams,
-) -> Result<Value, String> {
-    load_or_create_snapshot(&ReferenceLibraryReadParams {
-        global_config_dir: params.global_config_dir,
-    })
+pub async fn references_library_load_workspace(params: Value) -> Result<Value, String> {
+    references_library_load_workspace_typed(reference_library_load_workspace_params_from_payload(
+        params,
+    ))
 }
 
 #[tauri::command]
-pub async fn references_library_write(
-    params: ReferenceLibraryWriteParams,
-) -> Result<Value, String> {
+pub async fn references_library_write(params: Value) -> Result<Value, String> {
+    let params = reference_library_write_params_from_payload(params);
     write_library_snapshot(&params.global_config_dir, &params.snapshot)
 }
 
@@ -440,9 +479,8 @@ pub async fn references_asset_rename(params: Value) -> Result<Value, String> {
 }
 
 #[tauri::command]
-pub async fn references_snapshot_normalize(
-    params: ReferenceSnapshotNormalizeParams,
-) -> Result<Value, String> {
+pub async fn references_snapshot_normalize(params: Value) -> Result<Value, String> {
+    let params = reference_snapshot_normalize_params_from_payload(params);
     Ok(normalize_snapshot(&params.snapshot))
 }
 
@@ -457,8 +495,12 @@ pub async fn references_record_normalize(
 mod tests {
     use super::{
         normalize_reference_record, normalize_snapshot, reference_asset_rename_params_from_payload,
-        reference_asset_store_params_from_payload, rename_reference_asset, store_reference_asset,
-        write_library_snapshot, ReferenceAssetRenameParams, ReferenceAssetStoreParams,
+        reference_asset_store_params_from_payload,
+        reference_library_load_workspace_params_from_payload,
+        reference_library_read_params_from_payload, reference_library_write_params_from_payload,
+        reference_snapshot_normalize_params_from_payload, rename_reference_asset,
+        store_reference_asset, write_library_snapshot, ReferenceAssetRenameParams,
+        ReferenceAssetStoreParams,
     };
     use serde_json::{json, Value};
     use std::fs;
@@ -589,6 +631,43 @@ mod tests {
         assert_eq!(rename_params.global_config_dir, "/tmp/config");
         assert_eq!(rename_params.reference, json!({}));
         assert_eq!(rename_params.next_base_name, "");
+    }
+
+    #[test]
+    fn library_params_normalize_raw_payloads() {
+        let read_params = reference_library_read_params_from_payload(json!({
+            "globalConfigDir": false,
+        }));
+        assert_eq!(read_params.global_config_dir, "");
+
+        let load_params = reference_library_load_workspace_params_from_payload(json!({
+            "globalConfigDir": " /tmp/config/ ",
+        }));
+        assert_eq!(load_params.global_config_dir, " /tmp/config/ ");
+
+        let write_params = reference_library_write_params_from_payload(json!({
+            "globalConfigDir": 42,
+            "snapshot": "not-a-snapshot",
+        }));
+        assert_eq!(write_params.global_config_dir, "");
+        assert_eq!(
+            write_params.snapshot,
+            crate::references_snapshot::build_default_snapshot()
+        );
+
+        let normalize_params = reference_snapshot_normalize_params_from_payload(json!({
+            "snapshot": {
+                "citationStyle": "ieee",
+                "references": [{ "id": "ref-a", "title": "Alpha" }]
+            },
+        }));
+        assert_eq!(normalize_params.snapshot["citationStyle"], "ieee");
+        assert_eq!(
+            normalize_params.snapshot["references"]
+                .as_array()
+                .map(Vec::len),
+            Some(1)
+        );
     }
 
     #[test]
