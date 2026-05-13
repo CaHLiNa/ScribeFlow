@@ -46,6 +46,69 @@ fn default_reconcile_after_close() -> bool {
     true
 }
 
+fn payload_field<'a>(params: &'a Value, keys: &[&str]) -> Option<&'a Value> {
+    let object = params.as_object()?;
+    keys.iter().find_map(|key| object.get(*key))
+}
+
+fn string_payload_field(params: &Value, keys: &[&str]) -> String {
+    payload_field(params, keys)
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string()
+}
+
+fn bool_payload_field(params: &Value, keys: &[&str], default: bool) -> bool {
+    payload_field(params, keys)
+        .and_then(Value::as_bool)
+        .unwrap_or(default)
+}
+
+fn objectish_payload_field(params: &Value, keys: &[&str]) -> Value {
+    match payload_field(params, keys) {
+        Some(value @ Value::Object(_)) => value.clone(),
+        _ => Value::Object(Default::default()),
+    }
+}
+
+fn value_array_payload_field(params: &Value, keys: &[&str]) -> Vec<Value> {
+    payload_field(params, keys)
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default()
+}
+
+fn document_workflow_controller_params_from_payload(
+    params: Value,
+) -> DocumentWorkflowControllerParams {
+    DocumentWorkflowControllerParams {
+        operation: string_payload_field(&params, &["operation"]),
+        active_file: string_payload_field(&params, &["activeFile", "active_file"]),
+        active_pane_id: string_payload_field(&params, &["activePaneId", "active_pane_id"]),
+        trigger: string_payload_field(&params, &["trigger"]),
+        preview_prefs: objectish_payload_field(&params, &["previewPrefs", "preview_prefs"]),
+        preview_bindings: value_array_payload_field(
+            &params,
+            &["previewBindings", "preview_bindings"],
+        ),
+        session: objectish_payload_field(&params, &["session"]),
+        force: bool_payload_field(&params, &["force"], false),
+        preview_kind_override: string_payload_field(
+            &params,
+            &["previewKindOverride", "preview_kind_override"],
+        ),
+        source_path: string_payload_field(&params, &["sourcePath", "source_path"]),
+        preview_kind: string_payload_field(&params, &["previewKind", "preview_kind"]),
+        source_pane_id: string_payload_field(&params, &["sourcePaneId", "source_pane_id"]),
+        activate_preview: bool_payload_field(&params, &["activatePreview", "activate_preview"], false),
+        reconcile_after_close: bool_payload_field(
+            &params,
+            &["reconcileAfterClose", "reconcile_after_close"],
+            true,
+        ),
+    }
+}
+
 fn normalize_path(path: &str) -> String {
     path.trim().to_string()
 }
@@ -298,9 +361,8 @@ fn execute_ensure_or_reveal(params: &DocumentWorkflowControllerParams) -> Value 
 }
 
 #[tauri::command]
-pub async fn document_workflow_controller_execute(
-    params: DocumentWorkflowControllerParams,
-) -> Result<Value, String> {
+pub async fn document_workflow_controller_execute(params: Value) -> Result<Value, String> {
+    let params = document_workflow_controller_params_from_payload(params);
     let operation = params.operation.trim();
     let result = match operation {
         "reconcile" => execute_reconcile(&params),
@@ -313,26 +375,92 @@ pub async fn document_workflow_controller_execute(
 
 #[cfg(test)]
 mod tests {
-    use super::{document_workflow_controller_execute, DocumentWorkflowControllerParams};
+    use super::{document_workflow_controller_execute, document_workflow_controller_params_from_payload};
     use serde_json::{json, Value};
+
+    #[test]
+    fn controller_params_normalize_raw_payloads() {
+        let params = document_workflow_controller_params_from_payload(json!({
+            "operation": "close-preview",
+            "active_file": "/tmp/active.md",
+            "activePaneId": "pane-active",
+            "trigger": "manual",
+            "preview_prefs": {
+                "markdown": {
+                    "preferredPreview": "html"
+                }
+            },
+            "previewBindings": [
+                {
+                    "previewPath": "preview:/tmp/demo.md",
+                    "sourcePath": "/tmp/demo.md"
+                },
+                false
+            ],
+            "session": {
+                "previewSourcePath": "/tmp/demo.md"
+            },
+            "force": true,
+            "previewKindOverride": "html",
+            "source_path": "/tmp/demo.md",
+            "preview_kind": "html",
+            "sourcePaneId": "pane-source",
+            "activate_preview": true,
+            "reconcileAfterClose": false
+        }));
+
+        assert_eq!(params.operation, "close-preview");
+        assert_eq!(params.active_file, "/tmp/active.md");
+        assert_eq!(params.active_pane_id, "pane-active");
+        assert_eq!(params.trigger, "manual");
+        assert_eq!(
+            params
+                .preview_prefs
+                .get("markdown")
+                .and_then(|value| value.get("preferredPreview"))
+                .and_then(Value::as_str),
+            Some("html")
+        );
+        assert_eq!(params.preview_bindings.len(), 2);
+        assert_eq!(
+            params.session.get("previewSourcePath").and_then(Value::as_str),
+            Some("/tmp/demo.md")
+        );
+        assert!(params.force);
+        assert_eq!(params.preview_kind_override, "html");
+        assert_eq!(params.source_path, "/tmp/demo.md");
+        assert_eq!(params.preview_kind, "html");
+        assert_eq!(params.source_pane_id, "pane-source");
+        assert!(params.activate_preview);
+        assert!(!params.reconcile_after_close);
+
+        let invalid = document_workflow_controller_params_from_payload(json!(false));
+        assert!(invalid.operation.is_empty());
+        assert!(invalid.active_file.is_empty());
+        assert_eq!(invalid.preview_prefs, Value::Object(Default::default()));
+        assert!(invalid.preview_bindings.is_empty());
+        assert_eq!(invalid.session, Value::Object(Default::default()));
+        assert!(!invalid.force);
+        assert!(!invalid.activate_preview);
+        assert!(invalid.reconcile_after_close);
+    }
 
     #[tokio::test]
     async fn preview_close_marks_detached_when_binding_requires_it() {
-        let plan = document_workflow_controller_execute(DocumentWorkflowControllerParams {
-            operation: "close-preview".to_string(),
-            source_path: "/tmp/demo.md".to_string(),
-            preview_kind: "html".to_string(),
-            preview_bindings: vec![json!({
+        let plan = document_workflow_controller_execute(json!({
+            "operation": "close-preview",
+            "source_path": "/tmp/demo.md",
+            "preview_kind": "html",
+            "previewBindings": [{
                 "previewPath": "preview:/tmp/demo.md",
                 "sourcePath": "/tmp/demo.md",
                 "previewKind": "html",
                 "kind": "markdown",
                 "paneId": "pane-2",
                 "detachOnClose": true,
-            })],
-            reconcile_after_close: false,
-            ..DocumentWorkflowControllerParams::default()
-        })
+            }],
+            "reconcileAfterClose": false
+        }))
         .await
         .expect("execute close preview");
 
@@ -348,13 +476,12 @@ mod tests {
 
     #[tokio::test]
     async fn detached_preview_reopen_clears_detached_source() {
-        let plan = document_workflow_controller_execute(DocumentWorkflowControllerParams {
-            operation: "ensure-preview".to_string(),
-            source_path: "/tmp/demo.md".to_string(),
-            source_pane_id: "pane-1".to_string(),
-            preview_kind: "html".to_string(),
-            ..DocumentWorkflowControllerParams::default()
-        })
+        let plan = document_workflow_controller_execute(json!({
+            "operation": "ensure-preview",
+            "sourcePath": "/tmp/demo.md",
+            "source_pane_id": "pane-1",
+            "previewKind": "html"
+        }))
         .await
         .expect("execute ensure preview");
 
