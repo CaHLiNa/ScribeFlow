@@ -77,6 +77,22 @@ try {
       return null
     }
 
+    if (cmd === 'latex_sync_target_resolve') {
+      return {
+        path: typeof args?.params?.reportedFile === 'string'
+          ? args.params.reportedFile.trim()
+          : '',
+      }
+    }
+
+    if (cmd === 'latex_existing_synctex_resolve') {
+      return {
+        path: typeof args?.params?.pdfPath === 'string'
+          ? args.params.pdfPath.trim()
+          : '',
+      }
+    }
+
     if (cmd === 'latex_compile_execution_normalize') {
       return args?.params?.execution
     }
@@ -89,6 +105,8 @@ try {
     resolveLatexLintState,
     executeLatexRuntimeCompile,
     cancelLatexRuntime,
+    resolveLatexSyncTarget,
+    resolveLatexExistingSynctex,
   } = await vite.ssrLoadModule('/src/services/latex/runtime.js')
 
   await scheduleLatexRuntime({
@@ -118,6 +136,15 @@ try {
     customTectonicPath: undefined,
   })
   await cancelLatexRuntime(42)
+  await resolveLatexSyncTarget({
+    reportedFile: ['chapter/main.tex'],
+    sourcePath: 42,
+    compileTargetPath: ' /tmp/main.tex ',
+    workspacePath: null,
+  })
+  await resolveLatexExistingSynctex({
+    pdfPath: false,
+  })
 
   assert.deepEqual(
     calls.map((call) => call.cmd),
@@ -127,6 +154,8 @@ try {
       'latex_runtime_compile_execute',
       'latex_compile_execution_normalize',
       'latex_runtime_cancel',
+      'latex_sync_target_resolve',
+      'latex_existing_synctex_resolve',
     ],
   )
   assert.deepEqual(calls[0].args.params, {
@@ -168,6 +197,13 @@ try {
     },
   })
   assert.deepEqual(calls[4].args.params, { targetPaths: 42 })
+  assert.deepEqual(calls[5].args.params, {
+    reportedFile: ['chapter/main.tex'],
+    sourcePath: 42,
+    compileTargetPath: ' /tmp/main.tex ',
+    workspacePath: null,
+  })
+  assert.deepEqual(calls[6].args.params, { pdfPath: false })
 
   console.log('latex runtime rust normalization probe passed')
 } finally {

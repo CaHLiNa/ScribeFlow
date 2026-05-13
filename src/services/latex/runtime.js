@@ -38,10 +38,10 @@ export function resolveLatexLintState(params = {}) {
 export function resolveLatexSyncTarget(params = {}) {
   return invoke('latex_sync_target_resolve', {
     params: {
-      reportedFile: String(params.reportedFile || ''),
-      sourcePath: String(params.sourcePath || ''),
-      compileTargetPath: String(params.compileTargetPath || ''),
-      workspacePath: String(params.workspacePath || ''),
+      reportedFile: params.reportedFile,
+      sourcePath: params.sourcePath,
+      compileTargetPath: params.compileTargetPath,
+      workspacePath: params.workspacePath,
     },
   })
 }
@@ -49,7 +49,7 @@ export function resolveLatexSyncTarget(params = {}) {
 export function resolveLatexExistingSynctex(params = {}) {
   return invoke('latex_existing_synctex_resolve', {
     params: {
-      pdfPath: String(params.pdfPath || ''),
+      pdfPath: params.pdfPath,
     },
   })
 }

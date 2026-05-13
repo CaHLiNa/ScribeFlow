@@ -2,6 +2,7 @@ use crate::fs_tree::build_workspace_tree_snapshot;
 use crate::security;
 use crate::security::WorkspaceScopeState;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::collections::HashSet;
 use std::path::Path;
 
@@ -29,6 +30,41 @@ pub struct LatexSyncTargetResolveResult {
 pub struct LatexExistingSynctexResolveParams {
     #[serde(default)]
     pub pdf_path: String,
+}
+
+fn payload_field<'a>(params: &'a Value, camel_key: &str, snake_key: &str) -> Option<&'a Value> {
+    params
+        .as_object()
+        .and_then(|object| object.get(camel_key).or_else(|| object.get(snake_key)))
+}
+
+fn string_payload_field(params: &Value, camel_key: &str, snake_key: &str) -> String {
+    payload_field(params, camel_key, snake_key)
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .trim()
+        .to_string()
+}
+
+fn latex_sync_target_resolve_params_from_payload(params: Value) -> LatexSyncTargetResolveParams {
+    LatexSyncTargetResolveParams {
+        reported_file: string_payload_field(&params, "reportedFile", "reported_file"),
+        source_path: string_payload_field(&params, "sourcePath", "source_path"),
+        compile_target_path: string_payload_field(
+            &params,
+            "compileTargetPath",
+            "compile_target_path",
+        ),
+        workspace_path: string_payload_field(&params, "workspacePath", "workspace_path"),
+    }
+}
+
+fn latex_existing_synctex_resolve_params_from_payload(
+    params: Value,
+) -> LatexExistingSynctexResolveParams {
+    LatexExistingSynctexResolveParams {
+        pdf_path: string_payload_field(&params, "pdfPath", "pdf_path"),
+    }
 }
 
 fn normalize_fs_path(value: &str) -> String {
@@ -347,9 +383,10 @@ pub(crate) fn resolve_latex_sync_target_path(
 
 #[tauri::command]
 pub async fn latex_sync_target_resolve(
-    params: LatexSyncTargetResolveParams,
+    params: Value,
     scope_state: tauri::State<'_, WorkspaceScopeState>,
 ) -> Result<LatexSyncTargetResolveResult, String> {
+    let params = latex_sync_target_resolve_params_from_payload(params);
     Ok(LatexSyncTargetResolveResult {
         path: resolve_latex_sync_target_path(scope_state.inner(), &params),
     })
@@ -357,9 +394,10 @@ pub async fn latex_sync_target_resolve(
 
 #[tauri::command]
 pub async fn latex_existing_synctex_resolve(
-    params: LatexExistingSynctexResolveParams,
+    params: Value,
     scope_state: tauri::State<'_, WorkspaceScopeState>,
 ) -> Result<LatexSyncTargetResolveResult, String> {
+    let params = latex_existing_synctex_resolve_params_from_payload(params);
     let path = build_latex_synctex_candidates(&params.pdf_path)
         .into_iter()
         .find(|candidate| workspace_path_exists_for_sync(scope_state.inner(), candidate))
@@ -370,10 +408,12 @@ pub async fn latex_existing_synctex_resolve(
 #[cfg(test)]
 mod tests {
     use super::{
-        build_latex_synctex_candidates, resolve_latex_sync_target_path,
+        build_latex_synctex_candidates, latex_existing_synctex_resolve_params_from_payload,
+        latex_sync_target_resolve_params_from_payload, resolve_latex_sync_target_path,
         workspace_path_exists_for_sync, LatexSyncTargetResolveParams,
     };
     use crate::security::{set_allowed_roots_internal, WorkspaceScopeState};
+    use serde_json::json;
     use std::fs;
 
     #[test]
@@ -439,6 +479,43 @@ mod tests {
             vec!["/tmp/main.synctex.gz", "/tmp/main.synctex"]
         );
         assert!(build_latex_synctex_candidates("/tmp/main.tex").is_empty());
+    }
+
+    #[test]
+    fn latex_sync_target_params_normalize_raw_payloads() {
+        let params = latex_sync_target_resolve_params_from_payload(json!({
+            "reportedFile": " chapter\\main.tex ",
+            "sourcePath": 42,
+            "compileTargetPath": " /workspace/main.tex ",
+            "workspacePath": false
+        }));
+
+        assert_eq!(params.reported_file, "chapter\\main.tex");
+        assert_eq!(params.source_path, "");
+        assert_eq!(params.compile_target_path, "/workspace/main.tex");
+        assert_eq!(params.workspace_path, "");
+
+        let snake_params = latex_sync_target_resolve_params_from_payload(json!({
+            "reported_file": " chapter/main.tex ",
+            "source_path": " /workspace/chapter/main.tex ",
+            "compile_target_path": null,
+            "workspace_path": " /workspace "
+        }));
+
+        assert_eq!(snake_params.reported_file, "chapter/main.tex");
+        assert_eq!(snake_params.source_path, "/workspace/chapter/main.tex");
+        assert_eq!(snake_params.compile_target_path, "");
+        assert_eq!(snake_params.workspace_path, "/workspace");
+
+        let existing = latex_existing_synctex_resolve_params_from_payload(json!({
+            "pdfPath": " /workspace/main.pdf "
+        }));
+        assert_eq!(existing.pdf_path, "/workspace/main.pdf");
+
+        let invalid_existing = latex_existing_synctex_resolve_params_from_payload(json!({
+            "pdfPath": 42
+        }));
+        assert_eq!(invalid_existing.pdf_path, "");
     }
 
     #[test]
