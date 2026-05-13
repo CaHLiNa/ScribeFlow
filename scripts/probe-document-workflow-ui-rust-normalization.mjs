@@ -35,6 +35,8 @@ try {
   mockWindows('main')
 
   const calls = []
+  const latexProblemsResult = 'rust-owned-latex-problems'
+  const pythonProblemsResult = 'rust-owned-python-problems'
 
   mockIPC(async (cmd, args) => {
     calls.push({ cmd, args })
@@ -48,23 +50,11 @@ try {
     }
 
     if (cmd === 'document_workflow_latex_problems_resolve') {
-      return [
-        {
-          id: 'latex:error:/tmp/main.tex:0',
-          sourcePath: '/tmp/main.tex',
-          line: null,
-          column: null,
-          severity: 'error',
-          message: 'Missing brace',
-          origin: 'compile',
-          actionable: true,
-          raw: 'Missing brace',
-        },
-      ]
+      return latexProblemsResult
     }
 
     if (cmd === 'document_workflow_python_problems_resolve') {
-      return 'not-an-array'
+      return pythonProblemsResult
     }
 
     throw new Error(`Unexpected IPC command: ${cmd}`)
@@ -106,8 +96,8 @@ try {
   assert.deepEqual(calls[1].args.params, latexParams)
   assert.equal(calls[2].args.params, false)
   assert.equal(uiState.rawArtifactPath, uiParams.artifactPath)
-  assert.equal(latexProblems[0].id, 'latex:error:/tmp/main.tex:0')
-  assert.deepEqual(pythonProblems, [])
+  assert.strictEqual(latexProblems, latexProblemsResult)
+  assert.strictEqual(pythonProblems, pythonProblemsResult)
 
   console.log('document workflow ui rust normalization probe passed')
 } finally {
