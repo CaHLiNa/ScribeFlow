@@ -52,16 +52,41 @@ struct SynctexForwardParams {
     column: u32,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+struct LatexToolCheckParams {
+    custom_system_tex_path: Option<String>,
+    custom_tectonic_path: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct LatexFormatDocumentParams {
+    tex_path: String,
+    content: String,
+    custom_system_tex_path: Option<String>,
+}
+
 fn payload_field<'a>(params: &'a Value, key: &str) -> Option<&'a Value> {
     params.as_object().and_then(|object| object.get(key))
 }
 
-fn string_payload_field(params: &Value, key: &str) -> String {
+fn raw_string_payload_field(params: &Value, key: &str) -> String {
     payload_field(params, key)
         .and_then(Value::as_str)
         .unwrap_or_default()
-        .trim()
         .to_string()
+}
+
+fn string_payload_field(params: &Value, key: &str) -> String {
+    raw_string_payload_field(params, key).trim().to_string()
+}
+
+fn optional_string_payload_field(params: &Value, key: &str) -> Option<String> {
+    let value = string_payload_field(params, key);
+    if value.is_empty() {
+        None
+    } else {
+        Some(value)
+    }
 }
 
 fn finite_number_payload_field(params: &Value, key: &str) -> Option<f64> {
@@ -95,6 +120,21 @@ fn synctex_forward_params_from_payload(params: Value) -> SynctexForwardParams {
         file_path: string_payload_field(&params, "filePath"),
         line: positive_u32_payload_field(&params, "line"),
         column: positive_u32_payload_field(&params, "column").unwrap_or(1),
+    }
+}
+
+fn latex_tool_check_params_from_payload(params: Value) -> LatexToolCheckParams {
+    LatexToolCheckParams {
+        custom_system_tex_path: optional_string_payload_field(&params, "customSystemTexPath"),
+        custom_tectonic_path: optional_string_payload_field(&params, "customTectonicPath"),
+    }
+}
+
+fn latex_format_document_params_from_payload(params: Value) -> LatexFormatDocumentParams {
+    LatexFormatDocumentParams {
+        tex_path: string_payload_field(&params, "texPath"),
+        content: raw_string_payload_field(&params, "content"),
+        custom_system_tex_path: optional_string_payload_field(&params, "customSystemTexPath"),
     }
 }
 
@@ -164,26 +204,25 @@ pub async fn compile_latex(
 #[tauri::command]
 pub async fn check_latex_compilers(
     _app: tauri::AppHandle,
-    custom_system_tex_path: Option<String>,
-    custom_tectonic_path: Option<String>,
+    params: Value,
 ) -> Result<LatexCompilerStatus, String> {
+    let params = latex_tool_check_params_from_payload(params);
     Ok(LatexCompilerStatus {
         tectonic: binary_status(crate::latex_tools::find_tectonic(
-            custom_tectonic_path.as_deref(),
+            params.custom_tectonic_path.as_deref(),
         )),
         system_tex: binary_status(crate::latex_tools::find_system_tex(
-            custom_system_tex_path.as_deref(),
+            params.custom_system_tex_path.as_deref(),
         )),
     })
 }
 
 #[tauri::command]
-pub async fn check_latex_tools(
-    custom_system_tex_path: Option<String>,
-) -> Result<LatexToolStatus, String> {
-    let chktex = find_chktex(custom_system_tex_path.as_deref());
+pub async fn check_latex_tools(params: Value) -> Result<LatexToolStatus, String> {
+    let params = latex_tool_check_params_from_payload(params);
+    let chktex = find_chktex(params.custom_system_tex_path.as_deref());
     eprintln!("[latex] check_latex_tools chktex={:?}", chktex);
-    let latexindent = match find_latexindent(custom_system_tex_path.as_deref()) {
+    let latexindent = match find_latexindent(params.custom_system_tex_path.as_deref()) {
         Some(path) if latexindent_is_healthy(&path).await => Some(path),
         _ => None,
     };
@@ -254,17 +293,17 @@ pub async fn run_chktex(
 
 #[tauri::command]
 pub async fn format_latex_document(
-    tex_path: String,
-    content: String,
-    custom_system_tex_path: Option<String>,
+    params: Value,
     scope_state: tauri::State<'_, WorkspaceScopeState>,
 ) -> Result<String, String> {
-    let latexindent = find_latexindent(custom_system_tex_path.as_deref()).ok_or_else(|| {
-        "latexindent not found. Install it with your TeX distribution.".to_string()
-    })?;
+    let params = latex_format_document_params_from_payload(params);
+    let latexindent =
+        find_latexindent(params.custom_system_tex_path.as_deref()).ok_or_else(|| {
+            "latexindent not found. Install it with your TeX distribution.".to_string()
+        })?;
 
     let resolved =
-        security::ensure_allowed_workspace_path(scope_state.inner(), Path::new(&tex_path))?;
+        security::ensure_allowed_workspace_path(scope_state.inner(), Path::new(&params.tex_path))?;
     let tex = resolved.as_path();
     let dir = tex.parent().ok_or("Invalid tex path")?;
 
@@ -275,7 +314,7 @@ pub async fn format_latex_document(
     command.arg(format!("-g={}", latexindent_null_path()));
     command.arg("-");
 
-    let (status, stdout, stderr) = run_command_with_stdin(command, content).await?;
+    let (status, stdout, stderr) = run_command_with_stdin(command, params.content).await?;
     if status.success() {
         return Ok(stdout);
     }
@@ -1152,9 +1191,10 @@ fn forward_sync(
 #[cfg(test)]
 mod tests {
     use super::{
-        forward_sync, normalize_synctex_backward_result, normalize_synctex_forward_result,
-        parse_synctex_content, parse_synctex_view_output, synctex_backward_params_from_payload,
-        synctex_forward_params_from_payload,
+        forward_sync, latex_format_document_params_from_payload,
+        latex_tool_check_params_from_payload, normalize_synctex_backward_result,
+        normalize_synctex_forward_result, parse_synctex_content, parse_synctex_view_output,
+        synctex_backward_params_from_payload, synctex_forward_params_from_payload,
     };
     use serde_json::json;
 
@@ -1272,6 +1312,44 @@ x1,4:65536,65536
         assert_eq!(forward.file_path, "/tmp/chapter/main.tex");
         assert_eq!(forward.line, Some(9));
         assert_eq!(forward.column, 1);
+    }
+
+    #[test]
+    fn latex_tool_and_format_params_normalize_raw_payloads() {
+        let tools = latex_tool_check_params_from_payload(json!({
+            "customSystemTexPath": " /Library/TeX/texbin ",
+            "customTectonicPath": false
+        }));
+        assert_eq!(
+            tools.custom_system_tex_path.as_deref(),
+            Some("/Library/TeX/texbin")
+        );
+        assert_eq!(tools.custom_tectonic_path, None);
+
+        let missing_tools = latex_tool_check_params_from_payload(json!(null));
+        assert_eq!(missing_tools.custom_system_tex_path, None);
+        assert_eq!(missing_tools.custom_tectonic_path, None);
+
+        let format = latex_format_document_params_from_payload(json!({
+            "texPath": " /workspace/main.tex ",
+            "content": "  \\begin{document}\\end{document}  ",
+            "customSystemTexPath": " /Library/TeX/texbin "
+        }));
+        assert_eq!(format.tex_path, "/workspace/main.tex");
+        assert_eq!(format.content, "  \\begin{document}\\end{document}  ");
+        assert_eq!(
+            format.custom_system_tex_path.as_deref(),
+            Some("/Library/TeX/texbin")
+        );
+
+        let invalid_format = latex_format_document_params_from_payload(json!({
+            "texPath": 42,
+            "content": false,
+            "customSystemTexPath": ""
+        }));
+        assert_eq!(invalid_format.tex_path, "");
+        assert_eq!(invalid_format.content, "");
+        assert_eq!(invalid_format.custom_system_tex_path, None);
     }
 
     #[test]

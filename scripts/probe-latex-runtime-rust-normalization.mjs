@@ -93,6 +93,24 @@ try {
       }
     }
 
+    if (cmd === 'check_latex_compilers') {
+      return {
+        tectonic: { installed: false, path: null },
+        systemTex: { installed: false, path: null },
+      }
+    }
+
+    if (cmd === 'check_latex_tools') {
+      return {
+        chktex: { installed: false, path: null },
+        latexindent: { installed: false, path: null },
+      }
+    }
+
+    if (cmd === 'format_latex_document') {
+      return args?.params?.content || ''
+    }
+
     if (cmd === 'latex_compile_execution_normalize') {
       return args?.params?.execution
     }
@@ -107,6 +125,9 @@ try {
     cancelLatexRuntime,
     resolveLatexSyncTarget,
     resolveLatexExistingSynctex,
+    checkLatexCompilers,
+    checkLatexTools,
+    formatLatexDocument,
   } = await vite.ssrLoadModule('/src/services/latex/runtime.js')
 
   await scheduleLatexRuntime({
@@ -145,6 +166,18 @@ try {
   await resolveLatexExistingSynctex({
     pdfPath: false,
   })
+  await checkLatexCompilers({
+    customSystemTexPath: false,
+    customTectonicPath: ['tectonic'],
+  })
+  await checkLatexTools({
+    customSystemTexPath: 42,
+  })
+  await formatLatexDocument({
+    texPath: ['main.tex'],
+    content: false,
+    customSystemTexPath: null,
+  })
 
   assert.deepEqual(
     calls.map((call) => call.cmd),
@@ -156,6 +189,9 @@ try {
       'latex_runtime_cancel',
       'latex_sync_target_resolve',
       'latex_existing_synctex_resolve',
+      'check_latex_compilers',
+      'check_latex_tools',
+      'format_latex_document',
     ],
   )
   assert.deepEqual(calls[0].args.params, {
@@ -204,6 +240,16 @@ try {
     workspacePath: null,
   })
   assert.deepEqual(calls[6].args.params, { pdfPath: false })
+  assert.deepEqual(calls[7].args.params, {
+    customSystemTexPath: false,
+    customTectonicPath: ['tectonic'],
+  })
+  assert.deepEqual(calls[8].args.params, { customSystemTexPath: 42 })
+  assert.deepEqual(calls[9].args.params, {
+    texPath: ['main.tex'],
+    content: false,
+    customSystemTexPath: null,
+  })
 
   console.log('latex runtime rust normalization probe passed')
 } finally {

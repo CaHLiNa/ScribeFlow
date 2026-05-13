@@ -95,22 +95,28 @@ export function cancelLatexRuntime(targetPaths = []) {
 
 export function checkLatexCompilers(params = {}) {
   return invoke('check_latex_compilers', {
-    customSystemTexPath: params.customSystemTexPath || null,
-    customTectonicPath: params.customTectonicPath || null,
+    params: {
+      customSystemTexPath: params.customSystemTexPath,
+      customTectonicPath: params.customTectonicPath,
+    },
   })
 }
 
 export function checkLatexTools(params = {}) {
   return invoke('check_latex_tools', {
-    customSystemTexPath: params.customSystemTexPath || null,
+    params: {
+      customSystemTexPath: params.customSystemTexPath,
+    },
   })
 }
 
 export function formatLatexDocument(params = {}) {
   return invoke('format_latex_document', {
-    texPath: String(params.texPath || ''),
-    content: String(params.content || ''),
-    customSystemTexPath: params.customSystemTexPath || null,
+    params: {
+      texPath: params.texPath,
+      content: params.content,
+      customSystemTexPath: params.customSystemTexPath,
+    },
   })
 }
 
