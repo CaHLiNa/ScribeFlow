@@ -61,45 +61,34 @@
           {{ citationCoverageStatus }}
         </div>
       </div>
-      <div class="document-references-panel__coverage-stats">
-        <span
-          v-for="stat in citationCoverageStats"
-          :key="stat.key"
-          class="document-references-panel__coverage-stat"
-          :class="`is-${stat.key}`"
-        >
-          <strong>{{ stat.value }}</strong>
-          <span>{{ stat.label }}</span>
+
+      <div v-if="missingCitationPreview.length" class="document-references-panel__missing-preview">
+        <span class="document-references-panel__missing-keys">{{ missingCitationPreviewText }}</span>
+        <span v-if="hiddenMissingCitationCount > 0" class="document-references-panel__missing-more">
+          +{{ hiddenMissingCitationCount }}
         </span>
       </div>
-    </div>
 
-    <div v-if="missingCitations.length" class="document-references-panel__missing">
-      <div class="document-references-panel__missing-list scrollbar-hidden">
-        <div
-          v-for="entry in missingCitations"
-          :key="entry.key"
-          class="document-references-panel__missing-item"
+      <div v-if="linkableMissingCitations.length" class="document-references-panel__linkable">
+        <button
+          type="button"
+          class="document-references-panel__link-action"
+          :title="t('Link matching references')"
+          :aria-label="t('Link matching references')"
+          @click="addLinkableMissingCitations"
         >
-          <span class="document-references-panel__key">@{{ entry.key }}</span>
-          <button
-            v-if="entry.reference"
-            type="button"
-            class="document-references-panel__mini-action"
-            @click="addReference(entry.reference.id)"
-          >
-            {{ t('Add') }}
-          </button>
-        </div>
+          {{ t('Link {count} matching references', { count: linkableMissingCitations.length }) }}
+        </button>
       </div>
     </div>
 
     <div
       class="document-references-panel__section document-references-panel__section--selected"
+      :class="{ 'is-empty': selectedReferences.length === 0 }"
     >
       <div class="document-references-panel__section-title">
         <IconBook2 :size="14" :stroke-width="1.9" />
-        <span>{{ t('Document References') }}</span>
+        <span>{{ t('Added references') }}</span>
         <span class="document-references-panel__count">{{ selectedReferences.length }}</span>
       </div>
 
@@ -132,7 +121,7 @@
       </div>
 
       <div v-else class="document-references-panel__empty">
-        {{ t('Search the library and add references for this .tex file.') }}
+        {{ t('Search above to link references.') }}
       </div>
     </div>
 
@@ -170,7 +159,6 @@
         </article>
       </div>
     </div>
-
   </section>
 </template>
 
@@ -226,6 +214,16 @@ const missingCitations = computed(() =>
     reference: referencesStore.getByKey(key),
   }))
 )
+const missingCitationPreview = computed(() => missingCitations.value.slice(0, 5))
+const missingCitationPreviewText = computed(() =>
+  missingCitationPreview.value.map((entry) => `@${entry.key}`).join(', ')
+)
+const hiddenMissingCitationCount = computed(() =>
+  Math.max(0, missingCitations.value.length - missingCitationPreview.value.length)
+)
+const linkableMissingCitations = computed(() =>
+  missingCitations.value.filter((entry) => entry.reference).slice(0, 2)
+)
 const citationCoverageTone = computed(() => {
   if (citationCoverage.value.counts.missing > 0) return 'is-warning'
   if (citationCoverage.value.counts.unused > 0) return 'is-muted'
@@ -245,19 +243,6 @@ const citationCoverageStatus = computed(() => {
   }
   if (counts.cited > 0) return t('All cited keys are linked')
   return t('No citations detected')
-})
-const citationCoverageStats = computed(() => {
-  const counts = citationCoverage.value.counts
-  const stats = [
-    { key: 'cited', label: t('Cited'), value: counts.cited },
-    { key: 'linked', label: t('Linked'), value: counts.linked },
-  ]
-
-  if (counts.unused > 0) {
-    stats.push({ key: 'unused', label: t('Unused'), value: counts.unused })
-  }
-
-  return stats
 })
 const availableResults = computed(() => {
   const normalizedQuery = query.value.trim()
@@ -318,6 +303,14 @@ async function addReference(referenceId = '') {
   await referencesStore.addDocumentReference(workspace.globalConfigDir, documentReferencePath.value, referenceId)
 }
 
+async function addLinkableMissingCitations() {
+  for (const entry of linkableMissingCitations.value) {
+    if (entry.reference?.id) {
+      await addReference(entry.reference.id)
+    }
+  }
+}
+
 async function removeReference(referenceId = '') {
   await referencesStore.removeDocumentReference(workspace.globalConfigDir, documentReferencePath.value, referenceId)
 }
@@ -339,7 +332,7 @@ onUnmounted(() => {
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   min-width: 0;
   min-height: 0;
   color: var(--text-primary);
@@ -404,7 +397,6 @@ onUnmounted(() => {
   padding: 10px 12px;
 }
 
-.document-references-panel__missing,
 .document-references-panel__unused,
 .document-references-panel__section {
   display: flex;
@@ -417,7 +409,7 @@ onUnmounted(() => {
   display: flex;
   flex: 0 0 auto;
   flex-direction: column;
-  gap: 7px;
+  gap: 5px;
   padding: 0 0 9px;
   border-bottom: 1px solid color-mix(in srgb, var(--border) 42%, transparent);
 }
@@ -432,8 +424,10 @@ onUnmounted(() => {
 .document-references-panel__coverage-main,
 .document-references-panel__coverage-heading,
 .document-references-panel__coverage-status,
-.document-references-panel__coverage-stats,
-.document-references-panel__coverage-stat {
+.document-references-panel__missing-preview,
+.document-references-panel__missing-keys,
+.document-references-panel__linkable,
+.document-references-panel__link-action {
   min-width: 0;
 }
 
@@ -466,42 +460,16 @@ onUnmounted(() => {
   line-height: 1.3;
 }
 
-.document-references-panel__coverage-stats {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.document-references-panel__coverage-stat {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 4px;
-  min-height: 20px;
-  padding: 2px 7px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--surface-hover) 34%, transparent);
-  color: var(--text-muted);
-  font-size: 10.5px;
-  line-height: 1;
-}
-
-.document-references-panel__coverage-stat.is-missing {
-  color: color-mix(in srgb, var(--warning) 78%, var(--text-muted));
-}
-
-.document-references-panel__coverage-stat strong {
-  color: var(--text-primary);
-  font-size: 11.5px;
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
-}
-
 .document-references-panel__section {
   min-height: 0;
 }
 
 .document-references-panel__section--selected {
   flex: 1 1 auto;
+}
+
+.document-references-panel__section--selected.is-empty {
+  flex: 0 0 auto;
 }
 
 .document-references-panel__section-title {
@@ -520,26 +488,72 @@ onUnmounted(() => {
   font-variant-numeric: tabular-nums;
 }
 
-.document-references-panel__missing {
-  padding: 0 0 8px;
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 36%, transparent);
-}
-
-.document-references-panel__missing-list,
 .document-references-panel__list {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
   min-height: 0;
   overflow-y: auto;
 }
 
-.document-references-panel__missing-list {
-  max-height: 152px;
-  gap: 2px;
+.document-references-panel__list {
+  flex-direction: column;
+  gap: 4px;
 }
 
-.document-references-panel__missing-item,
+.document-references-panel__missing-preview {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 11.5px;
+  line-height: 1.35;
+}
+
+.document-references-panel__missing-keys {
+  display: block;
+  overflow: hidden;
+  color: color-mix(in srgb, var(--text-muted) 82%, transparent);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.document-references-panel__missing-more {
+  flex: 0 0 auto;
+  color: color-mix(in srgb, var(--text-muted) 82%, transparent);
+}
+
+.document-references-panel__linkable {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-top: 1px;
+}
+
+.document-references-panel__link-action {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 650;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.document-references-panel__link-action:hover,
+.document-references-panel__link-action:focus-visible {
+  color: var(--text-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  outline: none;
+}
+
 .document-references-panel__reference {
   display: flex;
   align-items: flex-start;
@@ -553,19 +567,6 @@ onUnmounted(() => {
 
 .document-references-panel__reference--unused {
   background: color-mix(in srgb, var(--surface-muted) 34%, transparent);
-}
-
-.document-references-panel__missing-item {
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  min-height: 24px;
-  padding: 2px 4px;
-  background: transparent;
-}
-
-.document-references-panel__missing-item:hover {
-  background: color-mix(in srgb, var(--surface-hover) 32%, transparent);
 }
 
 .document-references-panel__reference-body {
@@ -642,6 +643,6 @@ onUnmounted(() => {
 }
 
 .document-references-panel__empty {
-  padding: 9px 2px;
+  padding: 2px 0 0 20px;
 }
 </style>
