@@ -46,6 +46,34 @@
       </div>
     </div>
 
+    <div class="document-references-panel__coverage" :class="citationCoverageTone">
+      <div class="document-references-panel__coverage-heading">
+        <component :is="citationCoverageIcon" :size="14" :stroke-width="1.9" />
+        <span>{{ t('Citation coverage') }}</span>
+      </div>
+      <div class="document-references-panel__coverage-status">
+        {{ citationCoverageStatus }}
+      </div>
+      <div class="document-references-panel__coverage-stats">
+        <span class="document-references-panel__coverage-stat">
+          <strong>{{ citationCoverage.counts.cited }}</strong>
+          <span>{{ t('Cited') }}</span>
+        </span>
+        <span class="document-references-panel__coverage-stat">
+          <strong>{{ citationCoverage.counts.linked }}</strong>
+          <span>{{ t('Linked') }}</span>
+        </span>
+        <span class="document-references-panel__coverage-stat">
+          <strong>{{ citationCoverage.counts.missing }}</strong>
+          <span>{{ t('Missing') }}</span>
+        </span>
+        <span class="document-references-panel__coverage-stat">
+          <strong>{{ citationCoverage.counts.unused }}</strong>
+          <span>{{ t('Unused') }}</span>
+        </span>
+      </div>
+    </div>
+
     <div
       class="document-references-panel__section document-references-panel__section--selected"
     >
@@ -88,6 +116,41 @@
       </div>
     </div>
 
+    <div v-if="unusedReferences.length" class="document-references-panel__unused">
+      <div class="document-references-panel__section-title">
+        <IconBook2 :size="14" :stroke-width="1.9" />
+        <span>{{ t('Not cited in source') }}</span>
+        <span class="document-references-panel__count">{{ unusedReferences.length }}</span>
+      </div>
+      <div class="document-references-panel__list scrollbar-hidden">
+        <article
+          v-for="reference in unusedReferences"
+          :key="reference.id"
+          class="document-references-panel__reference document-references-panel__reference--unused"
+        >
+          <div class="document-references-panel__reference-body">
+            <div class="document-references-panel__reference-title">
+              {{ reference.title || reference.citationKey || reference.id }}
+            </div>
+            <div class="document-references-panel__reference-meta">
+              <span>{{ formatAuthors(reference) }}</span>
+              <span v-if="reference.year">{{ reference.year }}</span>
+            </div>
+            <div class="document-references-panel__key">@{{ reference.citationKey || reference.id }}</div>
+          </div>
+          <button
+            type="button"
+            class="document-references-panel__icon-action"
+            :title="t('Remove')"
+            :aria-label="t('Remove reference')"
+            @click="removeReference(reference.id)"
+          >
+            <IconX :size="14" :stroke-width="2" />
+          </button>
+        </article>
+      </div>
+    </div>
+
     <div v-if="missingCitations.length" class="document-references-panel__missing">
       <div class="document-references-panel__section-title">
         <IconAlertTriangle :size="14" :stroke-width="1.9" />
@@ -120,6 +183,7 @@ import { computed, onUnmounted, ref, watch } from 'vue'
 import {
   IconAlertTriangle,
   IconBook2,
+  IconCircleCheck,
   IconSearch,
   IconX,
 } from '@tabler/icons-vue'
@@ -128,6 +192,7 @@ import { useFilesStore } from '../../stores/files'
 import { useReferencesStore } from '../../stores/references'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { resolveLatexReferenceContext } from '../../services/latex/root.js'
+import { buildDocumentCitationCoverage } from '../../domains/references/documentCitationCoverage.js'
 
 const props = defineProps({
   filePath: { type: String, required: true },
@@ -152,17 +217,39 @@ const documentContent = computed(() =>
 )
 const documentReferencePath = computed(() => referenceScopePath.value || props.filePath)
 const selectedReferences = computed(() => referencesStore.documentReferencesForTex(documentReferencePath.value))
-const selectedCitationKeys = computed(
-  () => new Set(selectedReferences.value.map((reference) => reference.citationKey || reference.id))
+const citationCoverage = computed(() =>
+  buildDocumentCitationCoverage({
+    citedKeys: citedKeys.value,
+    selectedReferences: selectedReferences.value,
+  })
 )
+const unusedReferences = computed(() => citationCoverage.value.unusedReferences)
 const missingCitations = computed(() =>
-  citedKeys.value
-    .filter((key) => !selectedCitationKeys.value.has(key))
-    .map((key) => ({
-      key,
-      reference: referencesStore.getByKey(key),
-    }))
+  citationCoverage.value.missingCitationKeys.map((key) => ({
+    key,
+    reference: referencesStore.getByKey(key),
+  }))
 )
+const citationCoverageTone = computed(() => {
+  if (citationCoverage.value.counts.missing > 0) return 'is-warning'
+  if (citationCoverage.value.counts.unused > 0) return 'is-muted'
+  if (citationCoverage.value.counts.cited > 0) return 'is-good'
+  return 'is-muted'
+})
+const citationCoverageIcon = computed(() =>
+  citationCoverage.value.counts.missing > 0 ? IconAlertTriangle : IconCircleCheck
+)
+const citationCoverageStatus = computed(() => {
+  const counts = citationCoverage.value.counts
+  if (counts.missing > 0) {
+    return t('{count} citation keys need library links', { count: counts.missing })
+  }
+  if (counts.unused > 0) {
+    return t('{count} selected references are not cited', { count: counts.unused })
+  }
+  if (counts.cited > 0) return t('All cited keys are linked')
+  return t('No citations detected')
+})
 const availableResults = computed(() => {
   const normalizedQuery = query.value.trim()
   if (!normalizedQuery) return []
@@ -309,11 +396,79 @@ onUnmounted(() => {
 }
 
 .document-references-panel__missing,
+.document-references-panel__unused,
 .document-references-panel__section {
   display: flex;
   flex-direction: column;
   gap: 7px;
   min-width: 0;
+}
+
+.document-references-panel__coverage {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 8px;
+  padding: 9px 10px;
+  border: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-muted) 34%, transparent);
+}
+
+.document-references-panel__coverage.is-warning {
+  border-color: color-mix(in srgb, var(--warning) 46%, var(--border));
+}
+
+.document-references-panel__coverage.is-good {
+  border-color: color-mix(in srgb, var(--success) 42%, var(--border));
+}
+
+.document-references-panel__coverage-heading,
+.document-references-panel__coverage-status,
+.document-references-panel__coverage-stats,
+.document-references-panel__coverage-stat {
+  min-width: 0;
+}
+
+.document-references-panel__coverage-heading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.document-references-panel__coverage-status {
+  color: var(--text-muted);
+  font-size: 11.5px;
+  line-height: 1.25;
+}
+
+.document-references-panel__coverage-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.document-references-panel__coverage-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--surface-hover) 36%, transparent);
+  color: var(--text-muted);
+  font-size: 10.5px;
+  line-height: 1.15;
+}
+
+.document-references-panel__coverage-stat strong {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
 }
 
 .document-references-panel__section {
@@ -359,6 +514,10 @@ onUnmounted(() => {
   padding: 7px 8px;
   border-radius: 7px;
   background: color-mix(in srgb, var(--surface-hover) 28%, transparent);
+}
+
+.document-references-panel__reference--unused {
+  background: color-mix(in srgb, var(--surface-muted) 34%, transparent);
 }
 
 .document-references-panel__missing-item {
