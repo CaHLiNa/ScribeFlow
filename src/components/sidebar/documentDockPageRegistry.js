@@ -110,6 +110,7 @@ export const documentDockPageRegistry = createInlineDockPageRegistry([
           previewState: context.previewState,
           compactPdfToolbar: immersive,
           documentDockResizing: context.documentDockResizing,
+          documentDockMotionActive: context.documentDockMotionActive,
         },
         immersive,
       }

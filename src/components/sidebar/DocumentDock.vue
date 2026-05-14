@@ -55,6 +55,7 @@ const props = defineProps({
   paneId: { type: String, required: true },
   previewState: { type: Object, default: null },
   documentDockResizing: { type: Boolean, default: false },
+  documentDockMotionActive: { type: Boolean, default: false },
   problemsRevealPath: { type: String, default: '' },
   problemsRevealToken: { type: Number, default: 0 },
 })
@@ -137,6 +138,7 @@ const dockPages = computed(() =>
     allowedPageIds: allowedDocumentDockPageIds.value,
     comparisonTabs: comparisonTabs.value,
     documentDockResizing: props.documentDockResizing,
+    documentDockMotionActive: props.documentDockMotionActive,
     documentLabel: documentLabel.value,
     filePath: props.filePath,
     hasPreview: hasPreview.value,

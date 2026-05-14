@@ -33,6 +33,10 @@ function resolveEmbedPdfZoomLevel(options = {}) {
     }
   }
 
+  if (options.preferEmbedPdfDefaultZoom === true) {
+    return null
+  }
+
   if (zoomMode === 'page-fit') return ZoomMode.FitPage
   if (zoomMode === 'remember-last' && lastScale) {
     if (lastScale === 'page-fit') return ZoomMode.FitPage
@@ -147,9 +151,13 @@ export function buildEmbedPdfPluginRegistrations(options = {}) {
     createPluginRegistration(SpreadPluginPackage, {
       defaultSpreadMode: resolveEmbedPdfSpreadMode(options.pdfViewerSpreadMode),
     }),
-    createPluginRegistration(ZoomPluginPackage, {
-      defaultZoomLevel: resolveEmbedPdfZoomLevel(options),
-    }),
+    createPluginRegistration(ZoomPluginPackage, (() => {
+      const defaultZoomLevel = resolveEmbedPdfZoomLevel(options)
+      if (defaultZoomLevel === null || defaultZoomLevel === undefined) {
+        return {}
+      }
+      return { defaultZoomLevel }
+    })()),
     createPluginRegistration(ExportPluginPackage, {
       defaultFileName: documentName,
     }),

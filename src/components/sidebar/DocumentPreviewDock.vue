@@ -16,6 +16,7 @@
         :kind="previewKindLabel"
         :compact-toolbar="compactPdfToolbar"
         :defer-compact-resize-fit="documentDockResizing"
+        :defer-surface-mount="documentDockMotionActive"
         @open-external="openPreviewTarget"
       />
       <PythonTerminalPreview
@@ -47,6 +48,7 @@ const props = defineProps({
   previewState: { type: Object, default: null },
   compactPdfToolbar: { type: Boolean, default: false },
   documentDockResizing: { type: Boolean, default: false },
+  documentDockMotionActive: { type: Boolean, default: false },
 })
 
 const { t } = useI18n()

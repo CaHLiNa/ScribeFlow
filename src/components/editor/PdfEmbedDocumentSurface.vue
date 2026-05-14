@@ -1573,7 +1573,10 @@ async function restoreViewState(state) {
   if (!scrollScope || !viewportScope) return false
 
   spread.provides.value?.setSpreadMode(resolvePreferredSpreadMode())
-  applyZoomValue(String(state.scaleValue || '').trim() || resolvePreferredZoomValue())
+  const restoreScaleValue = String(state.scaleValue || '').trim()
+  if (restoreScaleValue) {
+    applyZoomValue(restoreScaleValue)
+  }
 
   await nextTick()
   if (currentRevision !== restoreRevision) return false

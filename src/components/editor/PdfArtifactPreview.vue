@@ -8,6 +8,7 @@
     />
     <component
       :is="PdfEmbedSurface"
+      v-if="surfaceMountReady"
       :sourcePath="sourcePath"
       :artifactPath="artifactPath"
       :previewRevision="previewRevision"
@@ -25,11 +26,12 @@
       @open-external="$emit('open-external')"
       @backward-sync="handleBackwardSync"
     />
+    <div v-else class="pdf-artifact-preview-host__deferred-surface" aria-hidden="true"></div>
   </div>
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 
 import { useLatexStore } from '../../stores/latex.js'
 import { useDocumentWorkflowStore } from '../../stores/documentWorkflow.js'
@@ -61,6 +63,7 @@ const props = defineProps({
   kind: { type: String, required: true },
   compactToolbar: { type: Boolean, default: false },
   deferCompactResizeFit: { type: Boolean, default: false },
+  deferSurfaceMount: { type: Boolean, default: false },
 })
 
 defineEmits(['open-external'])
@@ -69,6 +72,7 @@ const workspace = useWorkspaceStore()
 const latexStore = useLatexStore()
 const workflowStore = useDocumentWorkflowStore()
 const previewHostRef = ref(null)
+const surfaceMountReady = ref(props.deferSurfaceMount !== true)
 const resolvedTheme = ref(readResolvedTheme())
 const themeTokens = ref(capturePdfPreviewThemeTokens())
 
@@ -177,6 +181,19 @@ function handleBackwardSync(detail) {
   dispatchLatexBackwardSync(window, detail)
 }
 
+watch(
+  () => props.deferSurfaceMount,
+  (deferSurfaceMount) => {
+    if (!deferSurfaceMount) {
+      surfaceMountReady.value = true
+      return
+    }
+
+    surfaceMountReady.value = false
+  },
+  { immediate: true }
+)
+
 function handleWorkspaceThemeUpdated() {
   void scheduleThemeSnapshot()
 }
@@ -201,6 +218,13 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
   min-height: 0;
+}
+
+.pdf-artifact-preview-host__deferred-surface {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  background: var(--shell-preview-surface, var(--shell-editor-surface));
 }
 
 .pdf-extension-actions {

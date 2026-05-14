@@ -200,6 +200,7 @@ const plugins = computed(() =>
     documentBuffer: documentBuffer.value,
     documentName: documentName.value,
     initialViewState: pendingRestoreState.value,
+    preferEmbedPdfDefaultZoom: true,
     pdfViewerZoomMode: props.pdfViewerZoomMode,
     pdfViewerSpreadMode: props.pdfViewerSpreadMode,
     pdfViewerLastScale: props.pdfViewerLastScale,

@@ -16,6 +16,7 @@
       kind="pdf"
       compact-toolbar
       :defer-compact-resize-fit="documentDockResizing"
+      :defer-surface-mount="documentDockMotionActive"
       @open-external="openFileExternal"
     />
     <CsvPreviewPane
@@ -64,6 +65,7 @@ const props = defineProps({
   filePath: { type: String, required: true },
   paneId: { type: String, required: true },
   documentDockResizing: { type: Boolean, default: false },
+  documentDockMotionActive: { type: Boolean, default: false },
 })
 
 const editorStore = useEditorStore()

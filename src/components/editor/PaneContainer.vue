@@ -43,6 +43,7 @@
         :pane-id="renderNode.id"
         :preview-state="documentPreviewState"
         :document-dock-resizing="documentDockLayoutLocked"
+        :document-dock-motion-active="documentDockMotionActive"
         :problems-reveal-path="documentProblemsRevealPath"
         :problems-reveal-token="documentProblemsRevealToken"
         @close="$emit('inline-dock-close')"
