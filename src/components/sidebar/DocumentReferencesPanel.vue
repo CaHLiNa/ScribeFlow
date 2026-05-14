@@ -75,11 +75,6 @@
     </div>
 
     <div v-if="missingCitations.length" class="document-references-panel__missing">
-      <div class="document-references-panel__section-title">
-        <IconAlertTriangle :size="14" :stroke-width="1.9" />
-        <span>{{ t('Unlinked citations') }}</span>
-        <span class="document-references-panel__count">{{ missingCitations.length }}</span>
-      </div>
       <div class="document-references-panel__missing-list scrollbar-hidden">
         <div
           v-for="entry in missingCitations"
@@ -95,7 +90,6 @@
           >
             {{ t('Add') }}
           </button>
-          <span v-else class="document-references-panel__missing-badge">{{ t('Not in library') }}</span>
         </div>
       </div>
     </div>
@@ -258,10 +252,6 @@ const citationCoverageStats = computed(() => {
     { key: 'cited', label: t('Cited'), value: counts.cited },
     { key: 'linked', label: t('Linked'), value: counts.linked },
   ]
-
-  if (counts.cited > 0 || counts.missing > 0) {
-    stats.push({ key: 'missing', label: t('Missing'), value: counts.missing })
-  }
 
   if (counts.unused > 0) {
     stats.push({ key: 'unused', label: t('Unused'), value: counts.unused })
@@ -531,8 +521,7 @@ onUnmounted(() => {
 }
 
 .document-references-panel__missing {
-  gap: 5px;
-  padding-bottom: 8px;
+  padding: 0 0 8px;
   border-bottom: 1px solid color-mix(in srgb, var(--border) 36%, transparent);
 }
 
@@ -547,7 +536,7 @@ onUnmounted(() => {
 
 .document-references-panel__missing-list {
   max-height: 152px;
-  gap: 1px;
+  gap: 2px;
 }
 
 .document-references-panel__missing-item,
@@ -570,8 +559,8 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  min-height: 26px;
-  padding: 3px 4px;
+  min-height: 24px;
+  padding: 2px 4px;
   background: transparent;
 }
 
@@ -598,7 +587,6 @@ onUnmounted(() => {
 
 .document-references-panel__reference-meta,
 .document-references-panel__key,
-.document-references-panel__missing-badge,
 .document-references-panel__muted,
 .document-references-panel__empty {
   color: var(--text-muted);
@@ -615,12 +603,6 @@ onUnmounted(() => {
 
 .document-references-panel__key {
   overflow-wrap: anywhere;
-}
-
-.document-references-panel__missing-badge {
-  flex: 0 0 auto;
-  font-size: 10.5px;
-  white-space: nowrap;
 }
 
 .document-references-panel__mini-action,
