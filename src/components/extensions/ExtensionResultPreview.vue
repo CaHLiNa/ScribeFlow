@@ -41,7 +41,7 @@
         v-if="previewPresentation.htmlPreviewContent"
         class="extension-result-preview__html-frame"
         :srcdoc="previewPresentation.htmlPreviewContent"
-        sandbox="allow-forms allow-modals allow-popups allow-same-origin allow-scripts"
+        sandbox="allow-forms allow-modals allow-popups"
         referrerpolicy="no-referrer"
       ></iframe>
       <HtmlPreviewPane v-else :file-path="previewPresentation.previewPath" />

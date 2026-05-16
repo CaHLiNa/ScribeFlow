@@ -14,7 +14,7 @@
       v-if="fileUrl"
       class="html-preview-frame"
       :src="fileUrl"
-      sandbox="allow-forms allow-modals allow-popups allow-same-origin allow-scripts"
+      sandbox="allow-forms allow-modals allow-popups"
       referrerpolicy="no-referrer"
     ></iframe>
     <div v-else class="html-preview-empty">
