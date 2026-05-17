@@ -96,6 +96,7 @@ Current editor stability contract:
 - Markdown preview renders are lifecycle-versioned: delayed render timers, async file reads and async preview renders cannot commit HTML, preview status or pending scroll sync after unmount or after a newer render request supersedes them
 - Markdown preview-to-source reveal requests are lifecycle-versioned: stale double-click/context-menu reveals and unmounted preview surfaces cannot finish a delayed editor-view wait by stealing focus or selection after a newer reveal request
 - LaTeX PDF-to-source reveal requests are lifecycle-versioned: stale reverse-sync requests and deactivated editor runtimes cannot finish a delayed editor-view wait by stealing focus or selection after the PDF preview revision changes or a newer reveal request supersedes them
+- LaTeX source-to-PDF forward-sync requests are lifecycle-versioned: stale source cursor requests and remounted PDF documents cannot finish delayed scroll/highlight frame waits by writing obsolete overlay or queued sync state after a newer forward-sync request supersedes them
 - these are timing and restore-state guards only; they do not restore cursor/selection, change session payload shape, or introduce automatic reveal/scroll behavior
 
 Current plugin result contract:

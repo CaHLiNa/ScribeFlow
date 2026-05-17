@@ -165,6 +165,10 @@ import {
   normalizeWorkspacePdfViewerSpreadMode,
   normalizeWorkspacePdfViewerZoomMode,
 } from '../../domains/settings/workspacePreferencePresentation.js'
+import {
+  createPdfForwardSyncLifecycle,
+  waitForPdfForwardSyncFrames,
+} from '../../editor/pdfForwardSyncTiming.js'
 import { useToastStore } from '../../stores/toast.js'
 import { useWorkspaceStore } from '../../stores/workspace.js'
 import { basenamePath } from '../../utils/path.js'
@@ -238,6 +242,7 @@ const toolbarRef = ref(null)
 const currentContextMenuReverseSyncDetail = ref(null)
 const forwardSyncOverlays = ref([])
 const queuedForwardSyncRequest = ref(null)
+const pdfForwardSyncLifecycle = createPdfForwardSyncLifecycle()
 const shouldUseDarkPageTheme = computed(() =>
   String(props.pdfViewerPageThemeMode || '').trim().toLowerCase() !== 'light'
   && String(props.resolvedTheme || '').trim().toLowerCase() === 'dark'
@@ -443,6 +448,7 @@ function resolveDocumentPageMeta(pageNumber) {
 }
 
 function clearForwardSyncHighlight() {
+  pdfForwardSyncLifecycle.cancelPending()
   forwardSyncOverlays.value = []
   queuedForwardSyncRequest.value = null
   if (forwardSyncHighlightTimer && typeof window !== 'undefined') {
@@ -1520,7 +1526,11 @@ async function handlePageDoubleClick(pageLayout, payload = {}) {
   emit('reverse-sync-request', detail)
 }
 
-async function applyForwardSyncRequest(request = null) {
+async function applyForwardSyncRequest(request = null, options = {}) {
+  const lifecycle = options.lifecycle || null
+  const token = options.token || null
+  if (lifecycle?.isCancelled?.(token)) return false
+
   const requestId = Number(request?.requestId || 0)
   if (!Number.isInteger(requestId) || requestId < 1) return false
 
@@ -1538,6 +1548,7 @@ async function applyForwardSyncRequest(request = null) {
 
   const pageCoordinates = resolveForwardSyncPageCoordinates(focusRecord, pageMeta)
   if (!pageCoordinates) return false
+  if (lifecycle?.isCancelled?.(token)) return false
 
   scrollScope.scrollToPage({
     pageNumber,
@@ -1547,17 +1558,21 @@ async function applyForwardSyncRequest(request = null) {
   })
 
   await nextTick()
-  if (typeof window !== 'undefined') {
-    await new Promise((resolve) => window.requestAnimationFrame(resolve))
-    await new Promise((resolve) => window.requestAnimationFrame(resolve))
+  if (lifecycle?.isCancelled?.(token)) return false
+  if (typeof window !== 'undefined' || lifecycle?.waitFrame) {
+    const framesCompleted = await waitForPdfForwardSyncFrames(lifecycle, token, 2)
+    if (!framesCompleted) return false
   }
+  if (lifecycle?.isCancelled?.(token)) return false
 
   const overlayEntries = buildForwardSyncOverlayEntries(request)
   if (overlayEntries.length === 0) {
+    if (lifecycle?.isCancelled?.(token)) return false
     queuedForwardSyncRequest.value = request
     return false
   }
 
+  if (lifecycle?.isCancelled?.(token)) return false
   forwardSyncOverlays.value = overlayEntries
   scheduleForwardSyncHighlightClear()
   scheduleViewStateEmission()
@@ -1733,7 +1748,14 @@ watch(
       return
     }
 
-    void applyForwardSyncRequest(nextRequest).then((applied) => {
+    const token = pdfForwardSyncLifecycle.begin()
+    if (!token) return
+
+    void applyForwardSyncRequest(nextRequest, {
+      lifecycle: pdfForwardSyncLifecycle,
+      token,
+    }).then((applied) => {
+      if (pdfForwardSyncLifecycle.isCancelled(token)) return
       if (applied) {
         lastHandledForwardSyncRequestId = requestId
         queuedForwardSyncRequest.value = null
@@ -1867,7 +1889,13 @@ watch(
       }
       if (queuedForwardSyncRequest.value) {
         const queuedRequest = queuedForwardSyncRequest.value
-        void applyForwardSyncRequest(queuedRequest).then((applied) => {
+        const token = pdfForwardSyncLifecycle.begin()
+        if (!token) return
+        void applyForwardSyncRequest(queuedRequest, {
+          lifecycle: pdfForwardSyncLifecycle,
+          token,
+        }).then((applied) => {
+          if (pdfForwardSyncLifecycle.isCancelled(token)) return
           if (!applied) return
           lastHandledForwardSyncRequestId = Number(queuedRequest?.requestId || 0)
           queuedForwardSyncRequest.value = null
@@ -1896,6 +1924,7 @@ onUnmounted(() => {
   pageBindings.clear()
   clearSearchDebounceTimer()
   clearForwardSyncHighlight()
+  pdfForwardSyncLifecycle.dispose()
 
   if (scheduledViewStateFrame && typeof window !== 'undefined') {
     window.cancelAnimationFrame(scheduledViewStateFrame)
