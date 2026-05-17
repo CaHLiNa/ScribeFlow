@@ -2,6 +2,7 @@ mod app_dirs;
 mod app_update;
 mod citation_style_registry;
 mod content_fingerprint;
+mod desktop_main_path_runtime_probe;
 mod diagnostics_normalize;
 mod document_outline;
 mod document_workflow;
@@ -73,6 +74,7 @@ mod workspace_preferences;
 mod workspace_protocol;
 mod workspace_protocol_url;
 
+pub use desktop_main_path_runtime_probe::run_desktop_main_path_runtime_contract_probe;
 pub use extension_artifacts::ExtensionArtifact;
 pub use extension_commands::record_extension_result_for_probe as extension_command_record_result_for_probe;
 pub use extension_host::{

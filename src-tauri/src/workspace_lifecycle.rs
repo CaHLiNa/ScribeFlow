@@ -660,9 +660,9 @@ pub async fn workspace_lifecycle_record_opened(
     .await
 }
 
-pub async fn workspace_lifecycle_prepare_open_typed(
+pub(crate) async fn workspace_lifecycle_prepare_open_with_scope(
     params: WorkspaceLifecyclePrepareOpenParams,
-    scope_state: State<'_, WorkspaceScopeState>,
+    scope_state: &WorkspaceScopeState,
 ) -> Result<WorkspaceOpenState, String> {
     let global_config_dir = resolve_global_config_dir(&params.global_config_dir)?
         .to_string_lossy()
@@ -682,7 +682,7 @@ pub async fn workspace_lifecycle_prepare_open_typed(
     write_workspace_bootstrap_file(&workspace_data_dir, &workspace_id, &path)?;
 
     set_allowed_roots_internal(
-        scope_state.inner(),
+        scope_state,
         &path,
         Some(&workspace_data_dir),
         Some(&global_config_dir),
@@ -701,6 +701,13 @@ pub async fn workspace_lifecycle_prepare_open_typed(
         claude_config_dir,
         lifecycle: WorkspaceBootstrapState::from(normalized),
     })
+}
+
+pub async fn workspace_lifecycle_prepare_open_typed(
+    params: WorkspaceLifecyclePrepareOpenParams,
+    scope_state: State<'_, WorkspaceScopeState>,
+) -> Result<WorkspaceOpenState, String> {
+    workspace_lifecycle_prepare_open_with_scope(params, scope_state.inner()).await
 }
 
 #[tauri::command]

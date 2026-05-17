@@ -198,6 +198,9 @@ The quick gate includes:
 - `npm run guard:js-layer-boundaries`
 - `npm run guard:pdf-runtime`
 - `npm run guard:textmate-runtime`
+- `npm run probe:desktop-main-path-runtime-contract`
+
+`probe:desktop-main-path-runtime-contract` creates an isolated temporary workspace and runs a Rust-backed main-path contract through workspace open/bootstrap, scoped file tree loading, Markdown heading extraction, Markdown preview action/state resolution, LaTeX graph/preview planning, Python file execution, reference library mutation/persistence/query/citation rendering, workspace extension discovery, and workspace close scope cleanup. It is a runtime contract smoke, not a replacement for user-judged desktop visual or interaction review.
 
 The extension gate includes:
 
