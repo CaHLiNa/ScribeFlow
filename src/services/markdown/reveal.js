@@ -8,14 +8,33 @@ function clampOffset(state, offset) {
 }
 
 export async function waitForMarkdownEditorView(editorStore, targetPath, timeoutMs = VIEW_WAIT_TIMEOUT_MS) {
+  if (timeoutMs && typeof timeoutMs === 'object') {
+    return waitForMarkdownEditorViewWithLifecycle(editorStore, targetPath, timeoutMs)
+  }
+  return waitForMarkdownEditorViewWithLifecycle(editorStore, targetPath, {
+    timeoutMs,
+  })
+}
+
+export async function waitForMarkdownEditorViewWithLifecycle(editorStore, targetPath, options = {}) {
+  const timeoutMs = Number(options.timeoutMs || VIEW_WAIT_TIMEOUT_MS)
+  const lifecycle = options.lifecycle || null
+  const token = options.token || null
   const startedAt = Date.now()
   let targetView = editorStore?.getAnyEditorView?.(targetPath) || null
 
   while (!targetView && Date.now() - startedAt < timeoutMs) {
-    await new Promise((resolve) => window.setTimeout(resolve, 16))
+    if (lifecycle?.isCancelled?.(token)) return null
+    if (lifecycle?.wait) {
+      await lifecycle.wait(16)
+    } else {
+      await new Promise((resolve) => window.setTimeout(resolve, 16))
+    }
+    if (lifecycle?.isCancelled?.(token)) return null
     targetView = editorStore?.getAnyEditorView?.(targetPath) || null
   }
 
+  if (lifecycle?.isCancelled?.(token)) return null
   return targetView
 }
 
@@ -59,6 +78,10 @@ export function focusMarkdownSourceLocation(targetView, location, options = {}) 
 export async function revealMarkdownSourceLocation(editorStore, location, options = {}) {
   const targetPath = String(location?.filePath || '')
   if (!targetPath) return false
+  const lifecycle = options.lifecycle || null
+  const token = options.token || null
+
+  if (lifecycle?.isCancelled?.(token)) return false
 
   const targetPaneId = String(options.paneId || '')
   if (targetPaneId && editorStore?.findPane?.(editorStore.paneTree, targetPaneId)) {
@@ -66,12 +89,18 @@ export async function revealMarkdownSourceLocation(editorStore, location, option
   } else {
     editorStore?.openFile?.(targetPath)
   }
-  const targetView = await waitForMarkdownEditorView(
+  if (lifecycle?.isCancelled?.(token)) return false
+  const targetView = await waitForMarkdownEditorViewWithLifecycle(
     editorStore,
     targetPath,
-    Number(options.timeoutMs || VIEW_WAIT_TIMEOUT_MS),
+    {
+      timeoutMs: Number(options.timeoutMs || VIEW_WAIT_TIMEOUT_MS),
+      lifecycle,
+      token,
+    },
   )
   if (!targetView) return false
+  if (lifecycle?.isCancelled?.(token)) return false
 
   return focusMarkdownSourceLocation(targetView, location, options)
 }

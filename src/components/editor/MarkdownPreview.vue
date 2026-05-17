@@ -42,6 +42,7 @@ import { resolveMarkdownPreviewInput } from '../../domains/document/documentWork
 import SurfaceContextMenu from '../shared/SurfaceContextMenu.vue'
 import { useSurfaceContextMenu } from '../../composables/useSurfaceContextMenu.js'
 import { createMarkdownPreviewRenderLifecycle } from '../../editor/markdownPreviewRenderTiming.js'
+import { createMarkdownRevealLifecycle } from '../../editor/markdownRevealTiming.js'
 import {
   MARKDOWN_FORWARD_SYNC_EVENT,
   dispatchMarkdownBackwardSync,
@@ -89,6 +90,7 @@ let flashTimer = null
 let previewScrollSyncFrame = null
 let suppressPreviewScrollSyncUntil = 0
 const previewRenderLifecycle = createMarkdownPreviewRenderLifecycle()
+const previewRevealLifecycle = createMarkdownRevealLifecycle()
 
 function isRenderCurrent(token, sourcePath) {
   return previewRenderLifecycle.isCurrent(token) && sourcePath === resolvedSourcePath.value
@@ -248,9 +250,13 @@ function getPreferredSourcePaneId() {
 
 async function revealSourceLocation(location = null) {
   if (!location) return
+  const token = previewRevealLifecycle.begin()
+  if (!token) return
   await revealMarkdownSourceLocation(editorStore, location, {
     center: true,
+    lifecycle: previewRevealLifecycle,
     paneId: getPreferredSourcePaneId(),
+    token,
   })
 }
 
@@ -433,6 +439,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   previewRenderLifecycle.dispose()
+  previewRevealLifecycle.dispose()
   renderTimer = null
   clearPendingMarkdownForwardSync(resolvedSourcePath.value)
   containerEl.value?.removeEventListener('scroll', handlePreviewScroll)
