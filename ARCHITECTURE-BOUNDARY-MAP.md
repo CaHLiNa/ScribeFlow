@@ -181,7 +181,7 @@ Components over 500 lines:
 | `src/stores/latex.js` | 907 | LaTeX preferences, build scheduling, compile state, logs | High; Phase 6 should keep compile planning/execution Rust-owned. |
 | `src/stores/links.js` | 215 | Markdown heading/link index and backlinks | Medium; decide whether parsing/indexing is UI helper or Rust document intelligence. |
 | `src/stores/python.js` | 225 | Python preferences, environment error state, and compile/run state | Medium; runtime resolution should remain Rust-owned. |
-| `src/stores/references.js` | 1099 | Reference selection, collections, import, persistence, mutation orchestration | High; Phase 5 should keep normalization/merge/persistence Rust-owned. |
+| `src/stores/references.js` | 1017 | Reference selection, collections, import, persistence, mutation orchestration | High; Phase 5 should keep normalization/merge/persistence Rust-owned. |
 | `src/stores/toast.js` | 47 | Toast UI | Low. |
 | `src/stores/utils.js` | 9 | Store utilities | Low. |
 | `src/stores/uxStatus.js` | 77 | Status/toast UI | Low. |
@@ -228,6 +228,7 @@ Components over 500 lines:
 - 2026-05-03: Reference removal still commits the local library snapshot first, but best-effort Zotero remote delete failures are no longer swallowed. `src/services/references/zoteroSync.js` propagates delete invoke failures, `src/stores/references.js` records them in `zoteroMutationError`, and `ReferenceLibraryWorkbench.vue` surfaces them through the existing reference workbench status area.
 - 2026-05-18: PDF reference import no longer performs duplicate add-or-attach policy in `src/stores/references.js`. The store asks Rust `references_mutation_apply` for `importPdfReference`, lets `src-tauri/src/references_mutation.rs` choose the canonical new-or-duplicate reference id, then stores the PDF asset against that canonical record and writes the normalized update through the existing `updateReference` mutation. `scripts/probe-reference-pdf-import-authority-contract.mjs` guards that the store does not call the legacy duplicate/merge service path for PDF import.
 - 2026-05-18: Reference detail draft snapshot creation, editable field list, authors/tags/collection normalization, hero meta derivation, PDF action-target shaping, draft comparison, and dirty update derivation moved from `ReferenceDetailPanel.vue` into `src/domains/references/referenceDetailDraft.js`. The panel still owns local draft lifecycle, blur/save timing, queued store updates, native PDF attach/reveal/open side effects, and toast error presentation.
+- 2026-05-18: Reference store selection/query fallback helpers moved from `src/stores/references.js` into `src/domains/references/referenceStoreState.js`. Pinia still owns async service orchestration, workspace-aware storage-root fallback, loading/error lifecycle, and snapshot application, while deterministic collection/tag matching, document-reference selection shape fallback, and default resolved-query state now live in a pure domain module. `scripts/probe-reference-store-state-contract.mjs` guards both the helper behavior and the store/domain boundary.
 
 ## Document Runtime Cleanup Log
 

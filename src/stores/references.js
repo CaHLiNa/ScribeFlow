@@ -55,31 +55,14 @@ import {
   REFERENCE_DOCK_DETAILS_PAGE,
   REFERENCE_DOCK_PDF_PAGE,
 } from '../domains/references/referenceDockPages.js'
+import {
+  buildDefaultResolvedQueryState,
+  normalizeTagKey,
+  resolveCollection,
+  resolveDocumentReferenceSelections,
+  resolveTag,
+} from '../domains/references/referenceStoreState.js'
 import { classifyZoteroSyncError } from '../domains/references/zoteroSyncPresentation.js'
-
-function normalizeCollectionMembershipValue(value = '') {
-  return String(value || '').trim().toLowerCase()
-}
-
-function normalizeTagKey(value = '') {
-  return String(value || '').trim().toLowerCase()
-}
-
-function resolveCollection(collections = [], collectionKey = '') {
-  const normalizedKey = normalizeCollectionMembershipValue(collectionKey)
-  if (!normalizedKey) return null
-
-  return (
-    collections.find((collection) => normalizeCollectionMembershipValue(collection.key) === normalizedKey) ||
-    collections.find((collection) => normalizeCollectionMembershipValue(collection.label) === normalizedKey) ||
-    null
-  )
-}
-
-function resolveDocumentReferenceSelections(value = {}) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
-  return value
-}
 
 async function resolveReferenceStorageRoot(projectRoot = '') {
   const normalizedRoot = String(projectRoot || '').trim()
@@ -92,27 +75,6 @@ async function resolveReferenceStorageRoot(projectRoot = '') {
 function resolveReferenceWorkspacePath() {
   const workspace = useWorkspaceStore()
   return String(workspace.projectDir || workspace.path || '').trim()
-}
-
-function buildDefaultResolvedQueryState(state = {}) {
-  return {
-    query: {
-      selectedSectionKey: state.selectedSectionKey || 'all',
-      selectedSourceKey: state.selectedSourceKey || '',
-      selectedCollectionKey: state.selectedCollectionKey || '',
-      selectedTagKey: state.selectedTagKey || '',
-      sortKey: state.sortKey || 'year-desc',
-      selectedReferenceId: state.selectedReferenceId || '',
-    },
-    sectionCounts: {},
-    sourceCounts: {},
-    collectionCounts: {},
-    tagCounts: {},
-    sortedReferences: Array.isArray(state.references) ? state.references : [],
-    filteredReferences: Array.isArray(state.references) ? state.references : [],
-    citationUsageIndex: {},
-    citationUsageDetails: {},
-  }
 }
 
 export const useReferencesStore = defineStore('references', {
@@ -166,8 +128,7 @@ export const useReferencesStore = defineStore('references', {
 
     tagCounts: (state) => state.resolvedQueryState?.tagCounts || {},
 
-    selectedTag: (state) =>
-      state.tags.find((tag) => normalizeTagKey(tag.key) === normalizeTagKey(state.selectedTagKey)) || null,
+    selectedTag: (state) => resolveTag(state.tags, state.selectedTagKey),
 
     filteredReferences: (state) => state.resolvedQueryState?.filteredReferences || [],
 
@@ -306,7 +267,7 @@ export const useReferencesStore = defineStore('references', {
       if (!resolveCollection(this.collections, this.selectedCollectionKey)) {
         this.selectedCollectionKey = ''
       }
-      if (!this.tags.some((tag) => normalizeTagKey(tag.key) === normalizeTagKey(this.selectedTagKey))) {
+      if (!resolveTag(this.tags, this.selectedTagKey)) {
         this.selectedTagKey = ''
       }
       if (!this.sourceSections.some((section) => section.key === this.selectedSourceKey)) {
@@ -558,7 +519,7 @@ export const useReferencesStore = defineStore('references', {
 
     async setSelectedTag(tagKey = '') {
       const normalized = normalizeTagKey(tagKey)
-      const exists = this.tags.some((tag) => normalizeTagKey(tag.key) === normalized)
+      const exists = Boolean(resolveTag(this.tags, normalized))
       this.selectedTagKey = exists ? normalized : ''
       this.selectedSectionKey = 'all'
       this.selectedSourceKey = ''
