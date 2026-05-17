@@ -274,6 +274,7 @@ Acceptance:
 
 - clicking a plugin-owned PDF action opens or focuses the correct plugin tab
 - the plugin tab resolves the active PDF/reference context immediately
+- document-action plugin tabs use the same container header, target summary, and host runtime diagnostic surface as normal plugin tabs
 
 ### Phase 4: Add Plugin-Grade Preview Patterns
 

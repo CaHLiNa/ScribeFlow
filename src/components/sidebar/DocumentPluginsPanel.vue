@@ -5,6 +5,32 @@
     </div>
 
     <div v-else-if="usesDocumentActionPanel" class="document-plugin-page__shell">
+      <div class="document-plugin-page__meta">
+        <div class="document-plugin-page__title-row">
+          <div class="document-plugin-page__title">{{ containerTitle }}</div>
+          <ExtensionCountBadge
+            v-if="containerBadge != null"
+            :value="containerBadge"
+            :title="containerBadgeTooltip"
+          />
+        </div>
+        <div v-if="containerDescription" class="document-plugin-page__description">
+          {{ containerDescription }}
+        </div>
+        <div v-if="targetSummary" class="document-plugin-page__target">
+          {{ targetSummary }}
+        </div>
+        <ExtensionHostStatusSurface
+          v-if="hostDiagnosticSummary"
+          :title="t('Host Runtime')"
+          :description="hostDiagnosticSummary"
+          :tone-class="hostDiagnosticToneClass"
+          :recovery-action="recoveryAction"
+          compact
+          @recover="void triggerRecoveryAction()"
+        />
+      </div>
+
       <div class="document-plugin-page__content">
         <div class="document-plugin-page__stack">
           <ExtensionDocumentActionPanel

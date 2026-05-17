@@ -31,6 +31,17 @@ try {
   workspace.path = '/tmp/workspace'
 
   const extensions = useExtensionsStore(pinia)
+  extensions.hostSummary = {
+    available: true,
+    runtime: 'node-extension-host-persistent',
+    activatedExtensions: [],
+    activeRuntimeSlots: [{
+      extensionId: 'retain-pdf',
+      workspaceRoot: '/tmp/other-workspace',
+      active: true,
+    }],
+    pendingPromptOwner: null,
+  }
   extensions.enabledExtensionIds = ['retain-pdf']
   extensions.registry = [{
     id: 'retain-pdf',
@@ -147,6 +158,10 @@ try {
 
   const html = await renderToString(app)
   assert.match(html, /paper\.pdf/)
+  assert.match(html, /RetainPDF/)
+  assert.match(html, /Target: \/tmp\/workspace\/paper\.pdf/)
+  assert.match(html, /Host Runtime/)
+  assert.match(html, /Runtime activated but no active slot is attached to this workspace/)
   assert.match(html, /Translate/)
   assert.doesNotMatch(html, /disabled/)
   assert.match(html, /Plugin Tasks/)
@@ -159,6 +174,9 @@ try {
     ok: true,
     summary: {
       hasTarget: html.includes('paper.pdf'),
+      hasContainerHeader: html.includes('RetainPDF'),
+      hasTargetSummary: html.includes('Target: /tmp/workspace/paper.pdf'),
+      hasHostDiagnostic: html.includes('Runtime activated but no active slot is attached to this workspace'),
       hasTranslateButton: html.includes('Translate'),
       hasTaskPanel: html.includes('Plugin Tasks'),
       hasRunningTask: html.includes('Running'),
