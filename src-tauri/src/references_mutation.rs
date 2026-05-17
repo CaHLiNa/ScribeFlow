@@ -63,6 +63,11 @@ pub enum ReferencesMutationAction {
         #[serde(default, alias = "markForZoteroPush")]
         mark_for_zotero_push: bool,
     },
+    ImportPdfReference {
+        reference: Value,
+        #[serde(default, alias = "markForZoteroPush")]
+        mark_for_zotero_push: bool,
+    },
     SetDocumentReferenceIds {
         #[serde(alias = "texPath")]
         tex_path: String,
@@ -564,6 +569,74 @@ fn apply_merge_imported_references(snapshot: &Value, imported: &[Value]) -> Valu
     })
 }
 
+fn apply_import_pdf_reference(
+    snapshot: &Value,
+    reference: &Value,
+    mark_for_zotero_push: bool,
+) -> Value {
+    let references = normalize_snapshot_references(snapshot);
+    let mut candidate = reference.as_object().cloned().unwrap_or_default();
+    if mark_for_zotero_push {
+        candidate.insert("_appPushPending".to_string(), Value::Bool(true));
+    }
+    let normalized_candidate = normalize_reference_record(&Value::Object(candidate));
+    let candidate_pdf_path = trim_string(normalized_candidate.get("pdfPath"));
+    let candidate_fulltext_path = trim_string(normalized_candidate.get("fulltextPath"));
+
+    if let Some(duplicate) = find_duplicate_reference_internal(&references, &normalized_candidate) {
+        let duplicate_id = trim_string(duplicate.get("id"));
+        let attached_pdf = !candidate_pdf_path.is_empty();
+        let attached_fulltext = !candidate_fulltext_path.is_empty();
+        let next_references = references
+            .into_iter()
+            .map(|reference| {
+                if trim_string(reference.get("id")) != duplicate_id {
+                    return reference;
+                }
+
+                let mut next_reference = reference.as_object().cloned().unwrap_or_default();
+                if attached_pdf {
+                    next_reference
+                        .insert("pdfPath".to_string(), Value::String(candidate_pdf_path.clone()));
+                    next_reference.insert("hasPdf".to_string(), Value::Bool(true));
+                }
+                if attached_fulltext {
+                    next_reference.insert(
+                        "fulltextPath".to_string(),
+                        Value::String(candidate_fulltext_path.clone()),
+                    );
+                    next_reference.insert("hasFullText".to_string(), Value::Bool(true));
+                }
+                normalize_reference_record(&Value::Object(next_reference))
+            })
+            .collect::<Vec<_>>();
+
+        return json!({
+            "snapshot": normalized_snapshot_with(snapshot, None, Some(next_references)),
+            "result": {
+                "changed": attached_pdf || attached_fulltext,
+                "duplicate": true,
+                "selectedReferenceId": duplicate_id,
+                "attachedPdf": attached_pdf,
+            },
+        });
+    }
+
+    let mut next_references = references;
+    let selected_reference_id = trim_string(normalized_candidate.get("id"));
+    next_references.push(normalized_candidate);
+
+    json!({
+        "snapshot": normalized_snapshot_with(snapshot, None, Some(next_references)),
+        "result": {
+            "changed": true,
+            "duplicate": false,
+            "selectedReferenceId": selected_reference_id,
+            "attachedPdf": !candidate_pdf_path.is_empty(),
+        },
+    })
+}
+
 fn mark_references_for_zotero_push(imported: &[Value], should_mark: bool) -> Vec<Value> {
     imported
         .iter()
@@ -834,6 +907,14 @@ pub(crate) async fn references_mutation_apply_typed(
             let imported = mark_references_for_zotero_push(&imported, should_mark);
             apply_merge_imported_references(&normalized_snapshot, &imported)
         }
+        ReferencesMutationAction::ImportPdfReference {
+            reference,
+            mark_for_zotero_push,
+        } => {
+            let should_mark =
+                should_mark_for_zotero_push(&params.global_config_dir, mark_for_zotero_push)?;
+            apply_import_pdf_reference(&normalized_snapshot, &reference, should_mark)
+        }
         ReferencesMutationAction::SetDocumentReferenceIds {
             tex_path,
             reference_ids,
@@ -970,6 +1051,25 @@ mod tests {
                 assert_eq!(reference_ids, vec!["ref-1".to_string()]);
             }
             _ => panic!("expected setDocumentReferenceIds action"),
+        }
+
+        let pdf_import_params = references_mutation_apply_params_from_payload(json!({
+            "snapshot": sample_snapshot(),
+            "action": {
+                "type": "importPdfReference",
+                "reference": { "id": "ref-pdf", "title": "PDF Reference" },
+                "markForZoteroPush": true
+            }
+        }));
+        match pdf_import_params.action {
+            ReferencesMutationAction::ImportPdfReference {
+                reference,
+                mark_for_zotero_push,
+            } => {
+                assert_eq!(reference["id"].as_str(), Some("ref-pdf"));
+                assert!(mark_for_zotero_push);
+            }
+            _ => panic!("expected importPdfReference action"),
         }
     }
 
@@ -1201,6 +1301,83 @@ mod tests {
         assert_eq!(
             result["result"]["selectedReferenceId"].as_str(),
             Some("ref-1")
+        );
+    }
+
+    #[tokio::test]
+    async fn import_pdf_reference_attaches_asset_to_duplicate_in_rust() {
+        let result = references_mutation_apply_typed(ReferencesMutationApplyParams {
+            snapshot: sample_snapshot(),
+            global_config_dir: String::new(),
+            action: ReferencesMutationAction::ImportPdfReference {
+                reference: json!({
+                    "id": "imported-pdf",
+                    "title": "Adaptive Control",
+                    "year": 2024,
+                    "citationKey": "ada2024",
+                    "pdfPath": "/tmp/managed-pdf/ada2024.pdf",
+                    "fulltextPath": "/tmp/managed-fulltext/ada2024.txt"
+                }),
+                mark_for_zotero_push: false,
+            },
+        })
+        .await
+        .expect("import pdf reference");
+
+        assert_eq!(result["result"]["changed"].as_bool(), Some(true));
+        assert_eq!(result["result"]["duplicate"].as_bool(), Some(true));
+        assert_eq!(result["result"]["attachedPdf"].as_bool(), Some(true));
+        assert_eq!(
+            result["result"]["selectedReferenceId"].as_str(),
+            Some("ref-1")
+        );
+        assert_eq!(
+            result["snapshot"]["references"][0]["pdfPath"].as_str(),
+            Some("/tmp/managed-pdf/ada2024.pdf")
+        );
+        assert_eq!(
+            result["snapshot"]["references"][0]["fulltextPath"].as_str(),
+            Some("/tmp/managed-fulltext/ada2024.txt")
+        );
+        assert_eq!(
+            result["snapshot"]["references"]
+                .as_array()
+                .map(|items| items.len()),
+            Some(1)
+        );
+    }
+
+    #[tokio::test]
+    async fn import_pdf_reference_adds_new_record_in_rust() {
+        let result = references_mutation_apply_typed(ReferencesMutationApplyParams {
+            snapshot: sample_snapshot(),
+            global_config_dir: String::new(),
+            action: ReferencesMutationAction::ImportPdfReference {
+                reference: json!({
+                    "id": "imported-pdf",
+                    "title": "New PDF Reference",
+                    "year": 2026,
+                    "citationKey": "newpdf2026",
+                    "pdfPath": "/tmp/managed-pdf/newpdf2026.pdf"
+                }),
+                mark_for_zotero_push: false,
+            },
+        })
+        .await
+        .expect("import pdf reference");
+
+        assert_eq!(result["result"]["changed"].as_bool(), Some(true));
+        assert_eq!(result["result"]["duplicate"].as_bool(), Some(false));
+        assert_eq!(result["result"]["attachedPdf"].as_bool(), Some(true));
+        assert_eq!(
+            result["result"]["selectedReferenceId"].as_str(),
+            Some("imported-pdf")
+        );
+        assert_eq!(
+            result["snapshot"]["references"]
+                .as_array()
+                .map(|items| items.len()),
+            Some(2)
         );
     }
 

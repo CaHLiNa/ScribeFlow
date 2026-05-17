@@ -30,7 +30,6 @@ import {
   writeReferenceLibrarySnapshot,
 } from '../services/references/referenceLibraryIO.js'
 import {
-  findDuplicateReference,
   importReferenceFromPdf,
   importReferencesFromText,
   parseReferenceImportFile,
@@ -845,15 +844,10 @@ export const useReferencesStore = defineStore('references', {
         sourcePath
       )
 
-      await this.commitLibrarySnapshot(projectRoot, {
-        ...this.buildLibrarySnapshotPayload(),
-        references: this.references.map((candidate, index) =>
-          index === referenceIndex ? updatedReference : candidate
-        ),
-      }, {
+      await this.updateReference(projectRoot, referenceId, updatedReference, {
         preferredSelectedReferenceId: referenceId,
       })
-      return updatedReference
+      return this.references.find((reference) => reference.id === referenceId) || updatedReference
     },
 
     async renameReferencePdfAsset(projectRoot = '', referenceId = '', nextBaseName = '') {
@@ -866,15 +860,10 @@ export const useReferencesStore = defineStore('references', {
         nextBaseName
       )
 
-      await this.commitLibrarySnapshot(projectRoot, {
-        ...this.buildLibrarySnapshotPayload(),
-        references: this.references.map((candidate, index) =>
-          index === referenceIndex ? updatedReference : candidate
-        ),
-      }, {
+      await this.updateReference(projectRoot, referenceId, updatedReference, {
         preferredSelectedReferenceId: referenceId,
       })
-      return updatedReference
+      return this.references.find((reference) => reference.id === referenceId) || updatedReference
     },
 
     async importReferencePdf(projectRoot = '', sourcePath = '') {
@@ -883,14 +872,42 @@ export const useReferencesStore = defineStore('references', {
         const importedReference = await importReferenceFromPdf(sourcePath)
         if (!importedReference) return null
 
-        const duplicate = await findDuplicateReference(this.references, importedReference)
-        if (duplicate?.id) {
-          return this.attachReferencePdf(projectRoot, duplicate.id, sourcePath)
-        }
+        const importMutation = await applyReferenceMutation({
+          globalConfigDir: projectRoot,
+          snapshot: this.buildLibrarySnapshotPayload(),
+          action: {
+            type: 'importPdfReference',
+            reference: importedReference,
+            markForZoteroPush: true,
+          },
+        })
 
-        const hydratedReference = await storeReferencePdf(projectRoot, importedReference, sourcePath)
-        await this.addReference(projectRoot, hydratedReference)
-        return hydratedReference
+        const selectedReferenceId = String(importMutation?.result?.selectedReferenceId || '')
+        const importedSnapshot = importMutation?.snapshot || this.buildLibrarySnapshotPayload()
+        const targetReference = Array.isArray(importedSnapshot?.references)
+          ? importedSnapshot.references.find((reference) => reference.id === selectedReferenceId)
+          : null
+        if (!selectedReferenceId || !targetReference) return null
+
+        const hydratedReference = await storeReferencePdf(projectRoot, targetReference, sourcePath)
+        const assetMutation = await applyReferenceMutation({
+          globalConfigDir: projectRoot,
+          snapshot: importedSnapshot,
+          action: {
+            type: 'updateReference',
+            referenceId: selectedReferenceId,
+            updates: hydratedReference,
+          },
+        })
+
+        await this.commitLibrarySnapshot(
+          projectRoot,
+          assetMutation?.snapshot || importedSnapshot,
+          { preferredSelectedReferenceId: selectedReferenceId }
+        )
+        return selectedReferenceId
+          ? this.references.find((reference) => reference.id === selectedReferenceId) || null
+          : null
       } finally {
         this.importInFlight = false
       }
