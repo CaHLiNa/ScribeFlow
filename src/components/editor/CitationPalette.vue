@@ -1,6 +1,6 @@
 <template>
   <Teleport to="body">
-    <div v-if="isEdit" class="citation-palette-backdrop" @mousedown.prevent="emit('close')"></div>
+    <div v-if="isEdit" class="citation-palette-backdrop" @mousedown.prevent="closePalette"></div>
     <div ref="paletteEl" class="citation-palette" :style="paletteStyle">
       <div v-if="isEdit && editEntries.length" class="citation-palette-entries">
         <div v-for="(entry, index) in editEntries" :key="`${entry.key}-${index}`" class="citation-palette-entry">
@@ -165,6 +165,8 @@ const importText = ref('')
 const importLoading = ref(false)
 const importError = ref('')
 const importStatus = ref('')
+let paletteActionVersion = 0
+let paletteDisposed = false
 
 const isInsert = computed(() => internalMode.value === 'insert')
 const isEdit = computed(() => internalMode.value === 'edit')
@@ -180,16 +182,45 @@ const documentReferenceIdSet = computed(
 )
 
 watch(() => props.mode, (value) => {
+  cancelPaletteActions()
   internalMode.value = value
 })
 
 watch(
   () => props.cites,
   (value) => {
+    cancelPaletteActions()
     editCites.value = value.map((cite) => ({ ...cite }))
   },
   { deep: true }
 )
+
+function beginPaletteAction() {
+  if (paletteDisposed) return null
+  paletteActionVersion += 1
+  return { version: paletteActionVersion }
+}
+
+function cancelPaletteActions() {
+  if (paletteDisposed) return
+  paletteActionVersion += 1
+  importLoading.value = false
+}
+
+function isPaletteActionCurrent(token) {
+  return Boolean(token && !paletteDisposed && token.version === paletteActionVersion)
+}
+
+async function focusWhenActionCurrent(targetRef, token) {
+  await nextTick()
+  if (!isPaletteActionCurrent(token)) return
+  targetRef.value?.focus()
+}
+
+function closePalette() {
+  cancelPaletteActions()
+  emit('close')
+}
 
 function withDocumentScopeMeta(reference = {}) {
   if (!isDocumentScoped.value) return reference
@@ -313,41 +344,61 @@ async function ensureReferenceInDocument(reference = {}) {
   )
 }
 
-async function selectResult(reference, stayOpen = false) {
+function citationKeyForReference(reference = {}) {
   const key = String(reference?.citationKey || reference?.id || '').trim()
+  return key
+}
+
+async function selectResult(reference, stayOpen = false) {
+  const key = citationKeyForReference(reference)
   if (!key) return
+  const token = beginPaletteAction()
+  if (!token) return
   const ready = await ensureReferenceInDocument(reference)
-  if (!ready) return
+  if (!isPaletteActionCurrent(token) || !ready) return
   emit('insert', { keys: [key], stayOpen, latexCommand: props.latexCommand })
 }
 
-async function addToGroup(reference) {
-  const key = String(reference?.citationKey || reference?.id || '').trim()
-  if (!key) return
+function appendReferenceToGroup(reference = {}) {
+  const key = citationKeyForReference(reference)
+  if (!key) return false
   if (editCites.value.some((cite) => cite.key === key)) {
-    return
+    return false
   }
-  const ready = await ensureReferenceInDocument(reference)
-  if (!ready) return
   editCites.value.push({ key, locator: '', prefix: '' })
   addQuery.value = ''
   addSelectedIdx.value = 0
   emit('update', { cites: editCites.value.map((cite) => ({ ...cite })) })
+  return true
+}
+
+async function addToGroup(reference) {
+  const key = citationKeyForReference(reference)
+  if (!key) return
+  const token = beginPaletteAction()
+  if (!token) return
+  if (editCites.value.some((cite) => cite.key === key)) return
+  const ready = await ensureReferenceInDocument(reference)
+  if (!isPaletteActionCurrent(token) || !ready) return
+  appendReferenceToGroup(reference)
 }
 
 function removeFromGroup(index) {
+  cancelPaletteActions()
   editCites.value.splice(index, 1)
   emit('update', { cites: editCites.value.map((cite) => ({ ...cite })) })
-  if (editCites.value.length === 0) emit('close')
+  if (editCites.value.length === 0) closePalette()
 }
 
 function updateLocator(index, value) {
+  cancelPaletteActions()
   editCites.value[index].locator = value
   emit('update', { cites: editCites.value.map((cite) => ({ ...cite })) })
 }
 
 function moveUp(index) {
   if (index <= 0) return
+  cancelPaletteActions()
   const current = editCites.value[index]
   const previous = editCites.value[index - 1]
   editCites.value.splice(index - 1, 2, current, previous)
@@ -356,6 +407,7 @@ function moveUp(index) {
 
 function moveDown(index) {
   if (index >= editCites.value.length - 1) return
+  cancelPaletteActions()
   const current = editCites.value[index]
   const next = editCites.value[index + 1]
   editCites.value.splice(index, 2, next, current)
@@ -363,14 +415,22 @@ function moveDown(index) {
 }
 
 function toggleImport() {
+  const token = beginPaletteAction()
+  if (!token) return
   showImport.value = !showImport.value
   importError.value = ''
   importStatus.value = ''
-  if (showImport.value) nextTick(() => importTextEl.value?.focus())
+  if (showImport.value) {
+    void focusWhenActionCurrent(importTextEl, token)
+  } else if (isEdit.value) {
+    void focusWhenActionCurrent(addInputEl, token)
+  }
 }
 
 async function doImport() {
   if (!importText.value.trim() || importLoading.value) return
+  const token = beginPaletteAction()
+  if (!token) return
   importLoading.value = true
   importError.value = ''
   importStatus.value = ''
@@ -379,6 +439,7 @@ async function doImport() {
       workspace.globalConfigDir,
       importText.value
     )
+    if (!isPaletteActionCurrent(token)) return
     const importedCount = Number(result?.importedCount || 0)
     const selectedReference = result?.selectedReference || null
     const key = selectedReference?.citationKey || selectedReference?.id || ''
@@ -399,20 +460,24 @@ async function doImport() {
           props.documentPath,
           selectedReference.id
         )
+        if (!isPaletteActionCurrent(token)) return
       }
       if (isInsert.value) {
         emit('insert', { keys: [key], stayOpen: false, latexCommand: props.latexCommand })
       } else {
-        await addToGroup(selectedReference)
+        if (!isPaletteActionCurrent(token)) return
+        appendReferenceToGroup(selectedReference)
         showImport.value = false
-        await nextTick()
-        addInputEl.value?.focus()
+        await focusWhenActionCurrent(addInputEl, token)
       }
     }
   } catch (error) {
+    if (!isPaletteActionCurrent(token)) return
     importError.value = error?.message || t('Import failed')
   } finally {
-    importLoading.value = false
+    if (isPaletteActionCurrent(token)) {
+      importLoading.value = false
+    }
   }
 }
 
@@ -442,7 +507,7 @@ function handleDocKeydown(event) {
     }
   } else if (event.key === 'Escape') {
     event.preventDefault()
-    emit('close')
+    closePalette()
   }
 }
 
@@ -461,16 +526,21 @@ function handleAddKeydown(event) {
     if (selected) void addToGroup(selected)
   } else if (event.key === 'Escape') {
     event.preventDefault()
-    emit('close')
+    closePalette()
   }
 }
 
 onMounted(() => {
   document.addEventListener('keydown', handleDocKeydown, true)
-  if (isEdit.value) nextTick(() => addInputEl.value?.focus())
+  if (isEdit.value) {
+    const token = beginPaletteAction()
+    if (token) void focusWhenActionCurrent(addInputEl, token)
+  }
 })
 
 onUnmounted(() => {
+  paletteDisposed = true
+  paletteActionVersion += 1
   document.removeEventListener('keydown', handleDocKeydown, true)
 })
 </script>
