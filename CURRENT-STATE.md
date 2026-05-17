@@ -86,6 +86,12 @@ Plugin architecture direction:
 - Obsidian-style plugin model with Rust authority retained
 - current platform contract is runtime-first for local owner-authored plugins; remaining work is additive host API growth rather than a direction reset
 
+Current editor stability contract:
+
+- external file-content sync is guarded by request version, active editor view identity, current store content and unchanged editor document text before applying an async text-diff patch
+- local editor cache updates invalidate pending external sync patches so delayed file-content watcher work cannot replay over newer cursor, selection or typed document state
+- this is a timing guard only; it does not restore cursor/selection, change session payload shape, or introduce automatic reveal/scroll behavior
+
 Current plugin result contract:
 
 - plugin runtime can return `resultEntries`, `artifacts`, and `outputs` from task, capability, and view flows

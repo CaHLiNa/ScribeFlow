@@ -2,6 +2,51 @@ import { onMounted, onUnmounted, watch } from 'vue'
 import { buildInsertText } from '../editor/textEditorInteractions'
 import { computeMinimalChange } from '../utils/textDiff'
 
+export function createExternalContentSyncController({
+  getView,
+  getCurrentFileContent,
+  computeChange = computeMinimalChange,
+} = {}) {
+  let syncVersion = 0
+
+  function invalidatePendingSync() {
+    syncVersion += 1
+  }
+
+  async function syncExternalContent(newContent) {
+    const view = getView?.()
+    if (!view || newContent === undefined) return false
+
+    const targetContent = String(newContent)
+    const doc = view.state?.doc
+    if (!doc) return false
+
+    if (doc.length === targetContent.length) {
+      const currentContent = doc.toString()
+      if (currentContent === targetContent) return false
+    }
+
+    const currentContent = doc.toString()
+    const requestVersion = ++syncVersion
+    const change = await computeChange(currentContent, targetContent)
+    const latestView = getView?.()
+    if (requestVersion !== syncVersion || latestView !== view) return false
+    if (getCurrentFileContent && getCurrentFileContent() !== newContent) return false
+    if (latestView.state?.doc?.toString() !== currentContent) return false
+
+    if (change) {
+      latestView.dispatch({ changes: change })
+      return true
+    }
+    return false
+  }
+
+  return {
+    invalidatePendingSync,
+    syncExternalContent,
+  }
+}
+
 export function useTextEditorBridges(options) {
   const {
     filePath,
@@ -15,6 +60,10 @@ export function useTextEditorBridges(options) {
   // Guard flag: set when the Pinia update originated from this editor's own
   // keystroke, so the watcher skips the expensive toString + diff cycle.
   let skipNextWatch = false
+  const externalContentSync = createExternalContentSyncController({
+    getView,
+    getCurrentFileContent: () => files.fileContents[filePath],
+  })
 
   let dropOverlay = null
   let dropCursor = null
@@ -113,20 +162,7 @@ export function useTextEditorBridges(options) {
         skipNextWatch = false
         return
       }
-      const view = getView()
-      if (!view || newContent === undefined) return
-
-      // Quick length check to avoid O(n) toString when content is identical.
-      if (view.state.doc.length === newContent.length) {
-        const currentContent = view.state.doc.toString()
-        if (currentContent === newContent) return
-      }
-
-      const currentContent = view.state.doc.toString()
-      const change = await computeMinimalChange(currentContent, newContent)
-      if (change) {
-        view.dispatch({ changes: change })
-      }
+      await externalContentSync.syncExternalContent(newContent)
     },
   )
 
@@ -145,6 +181,7 @@ export function useTextEditorBridges(options) {
     showMergeViewIfNeeded,
     /** Call before setInMemoryFileContent when the change came from this editor. */
     markEditorChange() {
+      externalContentSync.invalidatePendingSync()
       skipNextWatch = true
     },
   }
