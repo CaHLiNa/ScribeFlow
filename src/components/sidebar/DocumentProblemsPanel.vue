@@ -52,7 +52,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onUnmounted, watch } from 'vue'
 import {
   IconAlertTriangle,
   IconCircleCheck,
@@ -62,6 +62,7 @@ import {
 import { useI18n } from '../../i18n'
 import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { useEditorStore } from '../../stores/editor'
+import { createLatexRevealLifecycle } from '../../editor/latexRevealTiming.js'
 import { revealLatexSourceLocation } from '../../services/latex/previewSync.js'
 
 const props = defineProps({
@@ -72,6 +73,8 @@ const props = defineProps({
 const { t } = useI18n()
 const editorStore = useEditorStore()
 const workflowStore = useDocumentWorkflowStore()
+const problemRevealLifecycle = createLatexRevealLifecycle()
+let pendingProblemFocusPath = ''
 
 const problems = computed(() =>
   workflowStore.getProblemsForFile(props.filePath, { t })
@@ -107,8 +110,12 @@ async function handleProblemClick(problem = {}) {
   const sourcePath = String(problem.sourcePath || '').trim()
   const line = Number(problem.line || 0)
   const column = Number(problem.column || 0)
+  const token = problemRevealLifecycle.begin()
+  if (!token) return
+  pendingProblemFocusPath = ''
 
   if (sourcePath && Number.isInteger(line) && line > 0) {
+    pendingProblemFocusPath = sourcePath
     const revealed = await revealLatexSourceLocation(
       editorStore,
       {
@@ -119,17 +126,45 @@ async function handleProblemClick(problem = {}) {
       {
         paneId: props.paneId,
         center: true,
+        lifecycle: problemRevealLifecycle,
+        token,
       }
     )
+    if (!problemRevealLifecycle.isCurrent(token)) return
+    pendingProblemFocusPath = ''
     if (revealed) {
       workflowStore.focusProblem(problem)
       return
     }
   }
 
+  if (!problemRevealLifecycle.isCurrent(token)) return
+  pendingProblemFocusPath = ''
   if (sourcePath && sourcePath !== props.filePath) editorStore.openFile(sourcePath)
   workflowStore.focusProblem(problem)
 }
+
+watch(
+  () => props.filePath,
+  () => {
+    pendingProblemFocusPath = ''
+    problemRevealLifecycle.cancelPending()
+  }
+)
+
+watch(
+  () => editorStore.activeTab,
+  (path) => {
+    if (pendingProblemFocusPath && path === pendingProblemFocusPath) return
+    pendingProblemFocusPath = ''
+    problemRevealLifecycle.cancelPending()
+  }
+)
+
+onUnmounted(() => {
+  pendingProblemFocusPath = ''
+  problemRevealLifecycle.dispose()
+})
 </script>
 
 <style scoped>
