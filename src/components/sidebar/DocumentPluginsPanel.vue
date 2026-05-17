@@ -5,12 +5,20 @@
     </div>
 
     <div v-else-if="usesDocumentActionPanel" class="document-plugin-page__shell">
-      <ExtensionDocumentActionPanel
-        :container="container"
-        :presentation="documentActionPresentation"
-        :target="resolvedTarget"
-        :title="containerTitle"
-      />
+      <div class="document-plugin-page__content">
+        <div class="document-plugin-page__stack">
+          <ExtensionDocumentActionPanel
+            :container="container"
+            :presentation="documentActionPresentation"
+            :target="resolvedTarget"
+            :title="containerTitle"
+          />
+        </div>
+        <section v-if="extensionTasks.length > 0" class="document-plugin-page__tasks">
+          <div class="document-plugin-page__section-title">{{ t('Plugin Tasks') }}</div>
+          <ExtensionTaskPanel :extension-id="container.extensionId" />
+        </section>
+      </div>
     </div>
 
     <div v-else class="document-plugin-page__shell">

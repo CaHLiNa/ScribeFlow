@@ -25,6 +25,7 @@ Current desktop paths:
 - render plugin surfaces as document right sidebar tabs, resolve tree roots and child nodes from the plugin host, support reveal and selection events, and surface host-rendered quick input flows for plugins
 - enforce one activitybar view container per plugin so each normal plugin maps to one document right sidebar tab/container
 - route PDF actions, command invocations and view reveal requests into the matching plugin-owned right sidebar tab by default
+- keep document-action plugin tasks visible inside that same right sidebar tab so running progress, cancellation and result entries stay reachable after an action starts
 - expose thicker runtime APIs for plugins through `context.workspace`, `context.documents`, `context.invocation`, `context.references`, `context.pdf` and `context.process`
 - allow process-driven plugins to `spawn` local workers and explicitly `wait` for completion through the Rust-backed host bridge
 - support `context.window.showQuickPick(..., { canPickMany: true })` end-to-end so plugin quick-pick flows can return multi-select arrays instead of only single values
