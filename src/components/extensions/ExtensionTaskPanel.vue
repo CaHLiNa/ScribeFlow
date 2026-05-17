@@ -29,8 +29,27 @@
             />
           </div>
           <div class="extension-task-time">{{ taskTimeSummary(row.task) }}</div>
-          <div v-if="row.presentation.progress.available" class="extension-task-progress">
-            {{ taskProgressSummary(row.presentation.progress) }}
+          <div
+            v-if="row.presentation.progress.available"
+            class="extension-task-progress"
+            :class="row.presentation.progress.visual.toneClass"
+          >
+            <div class="extension-task-progress__row">
+              <span>{{ taskProgressSummary(row.presentation.progress) }}</span>
+              <span v-if="row.presentation.progress.visual.total > 0" class="extension-task-progress__count">
+                {{ row.presentation.progress.visual.current }}/{{ row.presentation.progress.visual.total }}
+              </span>
+            </div>
+            <div
+              v-if="row.presentation.progress.visual.total > 0"
+              class="extension-task-progress__track"
+              role="progressbar"
+              :aria-valuemin="0"
+              :aria-valuemax="row.presentation.progress.visual.total"
+              :aria-valuenow="row.presentation.progress.visual.current"
+            >
+              <span :style="{ width: row.presentation.progress.visual.width }"></span>
+            </div>
           </div>
           <div v-if="row.presentation.results.entries.length > 0" class="extension-task-results">
             <div class="extension-task-results__header">
@@ -258,8 +277,52 @@ function taskTimeSummary(task = {}) {
 }
 
 .extension-task-progress {
-  font-size: 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   color: var(--text-muted);
+  font-size: 11px;
+}
+
+.extension-task-progress__row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.extension-task-progress__count {
+  flex: 0 0 auto;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.extension-task-progress__track {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-hover) 70%, transparent);
+}
+
+.extension-task-progress__track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 160ms ease;
+}
+
+.extension-task-progress.is-success .extension-task-progress__track span {
+  background: var(--success);
+}
+
+.extension-task-progress.is-error .extension-task-progress__track span {
+  background: var(--error);
 }
 
 .extension-task-time {

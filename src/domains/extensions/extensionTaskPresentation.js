@@ -1,4 +1,5 @@
 import { buildExtensionTaskResultEntries, titleCaseKey } from './extensionResultEntries.js'
+import { buildExtensionProgressPresentation } from './extensionProgressPresentation.js'
 import { buildExtensionTargetSummary } from './extensionTargetPresentation.js'
 
 function normalizeText(value = '') {
@@ -70,12 +71,17 @@ export function taskProgressPresentation(task = {}) {
   const label = normalizeText(task?.progress?.label)
   const current = Number(task?.progress?.current || 0)
   const total = Number(task?.progress?.total || 0)
+  const visual = buildExtensionProgressPresentation({
+    ...(task?.progress || {}),
+    state: task?.state || task?.progress?.state || '',
+  })
   if (total > 0) {
     return {
       available: true,
       labelKey: canonicalTaskStatusKey(label) || label || 'Progress',
       params: { current, total },
-      valueKey: '{label}: {current}/{total}',
+      valueKey: '{label}',
+      visual,
     }
   }
 
@@ -86,6 +92,7 @@ export function taskProgressPresentation(task = {}) {
     labelKey,
     params: {},
     valueKey: labelKey,
+    visual,
   }
 }
 

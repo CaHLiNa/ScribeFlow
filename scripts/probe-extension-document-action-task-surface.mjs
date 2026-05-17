@@ -167,6 +167,9 @@ try {
   assert.match(html, /Plugin Tasks/)
   assert.match(html, /Running/)
   assert.match(html, /Translating/)
+  assert.match(html, /role="progressbar"/)
+  assert.match(html, /aria-valuenow="1"/)
+  assert.match(html, /style="width:50%;"/)
   assert.match(html, /Translated Text/)
   assert.match(html, /Cancel/)
 
@@ -180,6 +183,7 @@ try {
       hasTranslateButton: html.includes('Translate'),
       hasTaskPanel: html.includes('Plugin Tasks'),
       hasRunningTask: html.includes('Running'),
+      hasTaskProgressBar: html.includes('role="progressbar"') && html.includes('aria-valuenow="1"'),
       hasResultEntry: html.includes('Translated Text'),
     },
   }, null, 2))

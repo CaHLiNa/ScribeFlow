@@ -42,8 +42,10 @@ assert.equal(presentation.titleKey, 'Scribeflow Pdf Translate')
 assert.equal(presentation.status.labelKey, 'Completed')
 assert.equal(presentation.status.toneClass, 'is-success')
 assert.equal(presentation.progress.available, true)
-assert.equal(presentation.progress.valueKey, '{label}: {current}/{total}')
+assert.equal(presentation.progress.valueKey, '{label}')
 assert.deepEqual(presentation.progress.params, { current: 2, total: 2 })
+assert.equal(presentation.progress.visual.width, '100%')
+assert.equal(presentation.progress.visual.toneClass, 'is-success')
 assert.deepEqual(
   presentation.facts.map((fact) => [fact.id, fact.labelKey, fact.valueKey]),
   [
@@ -80,6 +82,7 @@ console.log(JSON.stringify({
     titleKey: presentation.titleKey,
     factIds: presentation.facts.map((fact) => fact.id),
     resultEntryIds: presentation.results.entries.map((entry) => entry.id),
+    progressWidth: presentation.progress.visual.width,
     runningTone: running.status.toneClass,
   },
 }, null, 2))
