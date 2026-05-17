@@ -130,6 +130,7 @@ import {
 } from '../../services/latex/pdfPreviewSync.js'
 import { basenamePath, dirnamePath } from '../../utils/path'
 import { createFoldingExtension } from '../../editor/foldingRuntime'
+import { createEditorMarkdownSyncTimingController } from '../../editor/markdownSyncTiming.js'
 import EditorContextMenu from './EditorContextMenu.vue'
 import CitationPalette from './CitationPalette.vue'
 import { useTextEditorBridges } from '../../composables/useTextEditorBridges'
@@ -160,8 +161,6 @@ let backwardSyncHandler = null
 let latexSourceDoubleClickHandler = null
 let markdownCursorRequestHandler = null
 let markdownBackwardSyncHandler = null
-let markdownPreviewSyncTimer = null
-let markdownPreviewScrollSyncFrame = null
 let editorRuntimeActive = false
 let pendingContextMenuState = null
 let contextMenuRestoreFrame = null
@@ -172,6 +171,7 @@ let latexWarmupHandle = null
 let latexReferenceScopeTimer = null
 let lastPersistedContent = ''
 let suppressMarkdownPreviewScrollSyncUntil = 0
+const markdownSyncTiming = createEditorMarkdownSyncTimingController()
 
 const isDraftFile = isDraftPath(props.filePath)
 const isMd = isMarkdown(props.filePath)
@@ -1547,6 +1547,7 @@ function deactivateEditorRuntime() {
   ctxMenu.show = false
   pendingContextMenuState = null
   clearContextMenuRestoreHandles()
+  markdownSyncTiming.cancelAll()
   detachEditorRuntimeListeners()
   // Flush pending content sync before deactivating.
   if (contentSyncTimer != null) {
@@ -1707,21 +1708,17 @@ function handleLatexCitationClick(event) {
 }
 
 function scheduleMarkdownSelectionPreviewSync(selection) {
+  markdownSyncTiming.cancelSelection()
   if (!isMd || !view) return
   if (workspace.markdownPreviewSync) return
   if (!hasActiveMarkdownPreviewTarget()) return
   if ((selection?.from ?? 0) !== (selection?.to ?? 0)) return
 
-  if (markdownPreviewSyncTimer != null) {
-    window.clearTimeout(markdownPreviewSyncTimer)
-    markdownPreviewSyncTimer = null
-  }
-
   const pos = Number(selection?.head ?? -1)
   if (!Number.isInteger(pos) || pos < 0) return
 
-  markdownPreviewSyncTimer = window.setTimeout(() => {
-    markdownPreviewSyncTimer = null
+  markdownSyncTiming.scheduleSelection(() => {
+    if (!editorRuntimeActive || !view) return
     const location = getMarkdownSyncLocation(pos)
     if (!location) return
 
@@ -1759,18 +1756,14 @@ function getMarkdownViewportSyncLocation(targetView = view) {
 }
 
 function scheduleMarkdownViewportPreviewSync(targetView = view) {
+  markdownSyncTiming.cancelViewport()
   if (!isMd || !targetView) return
   if (workspace.markdownPreviewSync !== true) return
   if (!hasActiveMarkdownPreviewTarget()) return
   if (isMarkdownPreviewScrollSyncSuppressed()) return
 
-  if (markdownPreviewScrollSyncFrame != null) {
-    window.cancelAnimationFrame(markdownPreviewScrollSyncFrame)
-    markdownPreviewScrollSyncFrame = null
-  }
-
-  markdownPreviewScrollSyncFrame = window.requestAnimationFrame(() => {
-    markdownPreviewScrollSyncFrame = null
+  markdownSyncTiming.scheduleViewport(() => {
+    if (!editorRuntimeActive || !view) return
     if (isMarkdownPreviewScrollSyncSuppressed()) return
     const location = getMarkdownViewportSyncLocation(targetView)
     if (!location) return
@@ -1860,14 +1853,7 @@ watch(
 watch(
   () => workspace.markdownPreviewSync,
   (enabled) => {
-    if (markdownPreviewSyncTimer != null) {
-      window.clearTimeout(markdownPreviewSyncTimer)
-      markdownPreviewSyncTimer = null
-    }
-    if (markdownPreviewScrollSyncFrame != null) {
-      window.cancelAnimationFrame(markdownPreviewScrollSyncFrame)
-      markdownPreviewScrollSyncFrame = null
-    }
+    markdownSyncTiming.cancelAll()
 
     if (!isMd || !view || !hasActiveMarkdownPreviewTarget()) return
 
@@ -1920,14 +1906,7 @@ onUnmounted(() => {
     clearTimeout(contentSyncTimer)
     contentSyncTimer = null
   }
-  if (markdownPreviewSyncTimer != null) {
-    window.clearTimeout(markdownPreviewSyncTimer)
-    markdownPreviewSyncTimer = null
-  }
-  if (markdownPreviewScrollSyncFrame != null) {
-    window.cancelAnimationFrame(markdownPreviewScrollSyncFrame)
-    markdownPreviewScrollSyncFrame = null
-  }
+  markdownSyncTiming.cancelAll()
   if (view) {
     view.destroy()
     view = null
