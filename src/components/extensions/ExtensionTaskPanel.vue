@@ -58,19 +58,29 @@
                 {{ resultSummaryLabel(row.presentation.results) }}
               </div>
             </div>
-            <button
-              v-for="entry in row.presentation.results.entries"
-              :key="entry.id"
-              type="button"
-              class="extension-task-results__entry"
-              :class="{ 'is-active': activeResultEntry(row)?.id === entry.id }"
-              @click="selectResultEntry(row, entry)"
+            <div
+              v-for="group in row.presentation.results.groups"
+              :key="group.id"
+              class="extension-task-results__group"
             >
-              <span class="extension-task-results__entry-label">{{ t(entry.label) }}</span>
-              <span v-if="entry.description" class="extension-task-results__entry-description">
-                {{ t(entry.description) }}
-              </span>
-            </button>
+              <div class="extension-task-results__group-title">
+                <span>{{ t(group.titleKey) }}</span>
+                <span>{{ group.count }}</span>
+              </div>
+              <button
+                v-for="entry in group.entries"
+                :key="entry.id"
+                type="button"
+                class="extension-task-results__entry"
+                :class="{ 'is-active': activeResultEntry(row)?.id === entry.id }"
+                @click="selectResultEntry(row, entry)"
+              >
+                <span class="extension-task-results__entry-label">{{ t(entry.label) }}</span>
+                <span v-if="entry.description" class="extension-task-results__entry-description">
+                  {{ t(entry.description) }}
+                </span>
+              </button>
+            </div>
           </div>
           <ExtensionResultPreview
             v-if="activeResultEntry(row)"
@@ -358,6 +368,24 @@ function taskTimeSummary(task = {}) {
   font-size: 11px;
   overflow-wrap: anywhere;
   text-align: right;
+}
+
+.extension-task-results__group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.extension-task-results__group-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
 }
 
 .extension-task-results__entry {

@@ -98,19 +98,38 @@ export function taskProgressPresentation(task = {}) {
 
 export function taskResultSummaryPresentation(task = {}) {
   const entries = buildExtensionTaskResultEntries(task)
+  const previewEntries = entries.filter((entry) => normalizeText(entry?.previewMode || entry?.preview_mode))
+  const actionEntries = entries.filter((entry) => !normalizeText(entry?.previewMode || entry?.preview_mode))
   const artifactCount = Array.isArray(task?.artifacts) ? task.artifacts.length : 0
   const outputCount = Array.isArray(task?.outputs) ? task.outputs.length : 0
   const actionCount = entries.filter((entry) =>
     normalizeText(entry?.action).toLowerCase() === 'execute-command'
   ).length
+  const groups = [
+    {
+      id: 'previews',
+      titleKey: 'Previews',
+      entries: previewEntries,
+      count: previewEntries.length,
+    },
+    {
+      id: 'actions',
+      titleKey: 'Actions',
+      entries: actionEntries,
+      count: actionEntries.length,
+    },
+  ].filter((group) => group.entries.length > 0)
 
   return {
     entries,
+    groups,
     entryCount: entries.length,
     artifactCount,
     outputCount,
     actionCount,
-    hasPreviewableEntry: entries.some((entry) => normalizeText(entry?.previewMode)),
+    previewCount: previewEntries.length,
+    actionEntryCount: actionEntries.length,
+    hasPreviewableEntry: previewEntries.length > 0,
   }
 }
 

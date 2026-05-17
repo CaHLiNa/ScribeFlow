@@ -170,6 +170,8 @@ try {
   assert.match(html, /role="progressbar"/)
   assert.match(html, /aria-valuenow="1"/)
   assert.match(html, /style="width:50%;"/)
+  assert.match(html, /Previews/)
+  assert.match(html, /Actions/)
   assert.match(html, /Translated Text/)
   assert.match(html, /Cancel/)
 
@@ -184,6 +186,7 @@ try {
       hasTaskPanel: html.includes('Plugin Tasks'),
       hasRunningTask: html.includes('Running'),
       hasTaskProgressBar: html.includes('role="progressbar"') && html.includes('aria-valuenow="1"'),
+      hasGroupedTaskResults: html.includes('Previews') && html.includes('Actions'),
       hasResultEntry: html.includes('Translated Text'),
     },
   }, null, 2))
