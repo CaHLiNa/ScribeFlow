@@ -131,6 +131,7 @@ import {
 import { basenamePath, dirnamePath } from '../../utils/path'
 import { createFoldingExtension } from '../../editor/foldingRuntime'
 import { createEditorMarkdownSyncTimingController } from '../../editor/markdownSyncTiming.js'
+import { createEditorContextMenuRestoreController } from '../../editor/contextMenuRestoreTiming.js'
 import { createLatexRevealLifecycle } from '../../editor/latexRevealTiming.js'
 import EditorContextMenu from './EditorContextMenu.vue'
 import CitationPalette from './CitationPalette.vue'
@@ -164,8 +165,6 @@ let markdownCursorRequestHandler = null
 let markdownBackwardSyncHandler = null
 let editorRuntimeActive = false
 let pendingContextMenuState = null
-let contextMenuRestoreFrame = null
-let contextMenuRestoreTimeout = null
 let latexNormalizedSaveContent = null
 let latexFormatOnSaveInFlight = false
 let latexWarmupHandle = null
@@ -173,6 +172,7 @@ let latexReferenceScopeTimer = null
 let lastPersistedContent = ''
 let suppressMarkdownPreviewScrollSyncUntil = 0
 const markdownSyncTiming = createEditorMarkdownSyncTimingController()
+const contextMenuRestoreTiming = createEditorContextMenuRestoreController()
 const latexRevealLifecycle = createLatexRevealLifecycle()
 
 const isDraftFile = isDraftPath(props.filePath)
@@ -228,32 +228,19 @@ function isContextMenuMouseGesture(event) {
 }
 
 function clearContextMenuRestoreHandles() {
-  if (contextMenuRestoreFrame !== null && typeof window !== 'undefined') {
-    window.cancelAnimationFrame(contextMenuRestoreFrame)
-    contextMenuRestoreFrame = null
-  }
-  if (contextMenuRestoreTimeout !== null && typeof window !== 'undefined') {
-    window.clearTimeout(contextMenuRestoreTimeout)
-    contextMenuRestoreTimeout = null
-  }
+  contextMenuRestoreTiming.cancelPending()
 }
 
 function restoreContextMenuSelection(selection) {
-  if (!view || !selection || selection.eq(view.state.selection)) return
+  if (!editorRuntimeActive || !view || !selection || selection.eq(view.state.selection)) return
   view.dispatch({ selection })
 }
 
 function scheduleContextMenuSelectionRestore(selection) {
   clearContextMenuRestoreHandles()
   if (!selection || typeof window === 'undefined') return
-
-  contextMenuRestoreFrame = window.requestAnimationFrame(() => {
-    contextMenuRestoreFrame = null
+  contextMenuRestoreTiming.scheduleRestore(() => {
     restoreContextMenuSelection(selection)
-    contextMenuRestoreTimeout = window.setTimeout(() => {
-      contextMenuRestoreTimeout = null
-      restoreContextMenuSelection(selection)
-    }, 0)
   })
 }
 
@@ -269,6 +256,7 @@ function resolveContextMenuClickPos(event) {
 }
 
 function handleContextMenuMouseDown(event) {
+  clearContextMenuRestoreHandles()
   if (!view) {
     pendingContextMenuState = null
     return
@@ -314,6 +302,7 @@ function closeContextMenu() {
   ctxMenu.show = false
   ctxMenu.showMarkdownFormatTable = false
   ctxMenu.requestId += 1
+  clearContextMenuRestoreHandles()
 }
 
 function handleContextMenuPasteUnavailable() {
@@ -1916,6 +1905,7 @@ onUnmounted(() => {
     contentSyncTimer = null
   }
   markdownSyncTiming.cancelAll()
+  contextMenuRestoreTiming.dispose()
   latexRevealLifecycle.dispose()
   if (view) {
     view.destroy()

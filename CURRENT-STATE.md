@@ -97,6 +97,8 @@ Current editor stability contract:
 - Markdown preview-to-source reveal requests are lifecycle-versioned: stale double-click/context-menu reveals and unmounted preview surfaces cannot finish a delayed editor-view wait by stealing focus or selection after a newer reveal request
 - LaTeX PDF-to-source reveal requests are lifecycle-versioned: stale reverse-sync requests and deactivated editor runtimes cannot finish a delayed editor-view wait by stealing focus or selection after the PDF preview revision changes or a newer reveal request supersedes them
 - LaTeX source-to-PDF forward-sync requests are lifecycle-versioned: stale source cursor requests and remounted PDF documents cannot finish delayed scroll/highlight frame waits by writing obsolete overlay or queued sync state after a newer forward-sync request supersedes them
+- PDF restore requests are lifecycle-versioned: stale restore-state requests and remounted PDF documents cannot finish delayed frame waits by writing obsolete scroll position, view-state emissions or initial paint refresh after the document id or restore payload changes
+- editor context-menu selection restore is lifecycle-scoped: delayed frame/timeout selection restores are cancelled by newer context-menu gestures, menu close, editor deactivation and editor unmount, so an old context-menu request cannot write stale cursor or selection after a newer event
 - these are timing and restore-state guards only; they do not restore cursor/selection, change session payload shape, or introduce automatic reveal/scroll behavior
 
 Current plugin result contract:
