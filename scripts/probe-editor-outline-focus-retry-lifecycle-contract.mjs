@@ -50,11 +50,11 @@ function createManualScheduler() {
 }
 
 try {
-  const { createOutlineFocusRetryLifecycle } =
-    await vite.ssrLoadModule('/src/editor/outlineFocusRetryTiming.js')
+  const { createEditorFocusRetryLifecycle } =
+    await vite.ssrLoadModule('/src/editor/editorFocusRetryTiming.js')
 
   const supersedeScheduler = createManualScheduler()
-  const supersedeLifecycle = createOutlineFocusRetryLifecycle({
+  const supersedeLifecycle = createEditorFocusRetryLifecycle({
     scheduler: supersedeScheduler,
     maxAttempts: 3,
     retryDelayMs: 40,
@@ -77,8 +77,26 @@ try {
   assert.deepEqual(firstAttempts, [])
   assert.deepEqual(secondAttempts, [1])
 
+  const staleTokenScheduler = createManualScheduler()
+  const staleTokenLifecycle = createEditorFocusRetryLifecycle({
+    scheduler: staleTokenScheduler,
+    maxAttempts: 3,
+  })
+  const staleToken = staleTokenLifecycle.begin()
+  staleTokenLifecycle.scheduleRetry(staleToken, () => {}, 0)
+  const currentToken = staleTokenLifecycle.begin()
+  const currentAttempts = []
+  staleTokenLifecycle.scheduleRetry(currentToken, (attempt) => {
+    currentAttempts.push(attempt)
+  }, 0)
+  assert.equal(staleTokenLifecycle.scheduleRetry(staleToken, () => {}, 0), null)
+  assert.deepEqual(staleTokenScheduler.cancelled, [1])
+  assert.equal(staleTokenScheduler.pendingCount(), 1)
+  assert.equal(staleTokenScheduler.flush(), true)
+  assert.deepEqual(currentAttempts, [1])
+
   const cancelScheduler = createManualScheduler()
-  const cancelLifecycle = createOutlineFocusRetryLifecycle({
+  const cancelLifecycle = createEditorFocusRetryLifecycle({
     scheduler: cancelScheduler,
   })
   const cancelToken = cancelLifecycle.begin()
@@ -93,16 +111,18 @@ try {
   assert.deepEqual(cancelledAttempts, [])
 
   const limitScheduler = createManualScheduler()
-  const limitLifecycle = createOutlineFocusRetryLifecycle({
+  const limitLifecycle = createEditorFocusRetryLifecycle({
     scheduler: limitScheduler,
     maxAttempts: 2,
   })
   const limitToken = limitLifecycle.begin()
+  assert.equal(limitLifecycle.canRetry(limitToken, 1), true)
+  assert.equal(limitLifecycle.canRetry(limitToken, 2), false)
   assert.equal(limitLifecycle.scheduleRetry(limitToken, () => {}, 2), null)
   assert.equal(limitScheduler.pendingCount(), 0)
 
   const disposedScheduler = createManualScheduler()
-  const disposedLifecycle = createOutlineFocusRetryLifecycle({
+  const disposedLifecycle = createEditorFocusRetryLifecycle({
     scheduler: disposedScheduler,
   })
   const disposedToken = disposedLifecycle.begin()
@@ -117,8 +137,13 @@ try {
   const componentSource = await readFile('src/components/panel/OutlinePanel.vue', 'utf8')
   assert.match(
     componentSource,
-    /createOutlineFocusRetryLifecycle\(\)/,
-    'OutlinePanel must create an outline focus retry lifecycle controller'
+    /import \{ createEditorFocusRetryLifecycle \} from '..\/..\/editor\/editorFocusRetryTiming\.js'/,
+    'OutlinePanel must import the shared editor focus retry lifecycle controller'
+  )
+  assert.match(
+    componentSource,
+    /createEditorFocusRetryLifecycle\(\)/,
+    'OutlinePanel must create a shared editor focus retry lifecycle controller'
   )
   assert.match(
     componentSource,
@@ -145,6 +170,7 @@ try {
     ok: true,
     summary: {
       supersededRetryCancelled: true,
+      staleTokenCannotCancelCurrentRetry: true,
       cancelPendingStopsRetry: true,
       attemptLimitStopsRetry: true,
       disposeStopsRetry: true,

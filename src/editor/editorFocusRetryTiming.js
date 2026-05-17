@@ -6,7 +6,7 @@ function defaultClearTimeout(handle) {
   globalThis.clearTimeout?.(handle)
 }
 
-export function createOutlineFocusRetryLifecycle({
+export function createEditorFocusRetryLifecycle({
   scheduler = {},
   maxAttempts = 20,
   retryDelayMs = 40,
@@ -47,17 +47,22 @@ export function createOutlineFocusRetryLifecycle({
   }
 
   function scheduleRetry(token, callback, attempts) {
-    clearScheduledRetry()
     if (!isCurrent(token)) return null
-    if (attempts >= attemptLimit) return null
-
+    const attemptCount = Math.max(0, Number(attempts) || 0)
+    clearScheduledRetry()
+    if (attemptCount >= attemptLimit) return null
     handle = (scheduler.setTimeout || defaultSetTimeout)(() => {
       handle = null
       if (!isCurrent(token)) return
-      callback?.(attempts + 1)
+      callback?.(attemptCount + 1)
     }, delayMs)
 
     return handle
+  }
+
+  function canRetry(token, attempts) {
+    const attemptCount = Math.max(0, Number(attempts) || 0)
+    return isCurrent(token) && attemptCount < attemptLimit
   }
 
   return {
@@ -66,6 +71,7 @@ export function createOutlineFocusRetryLifecycle({
     cancelPending,
     dispose,
     isCurrent,
+    canRetry,
     getState() {
       return {
         disposed,

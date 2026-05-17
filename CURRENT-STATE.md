@@ -101,6 +101,7 @@ Current editor stability contract:
 - editor context-menu selection restore is lifecycle-scoped: delayed frame/timeout selection restores are cancelled by newer context-menu gestures, menu close, editor deactivation and editor unmount, so an old context-menu request cannot write stale cursor or selection after a newer event
 - editor reveal highlight clearing is lifecycle-scoped: delayed highlight-clear timers are superseded by newer highlights and cancelled on editor runtime deactivation or CodeMirror view destroy, so a closed pane cannot receive a stale decoration clear dispatch
 - outline-to-editor focus retries are lifecycle-scoped: pending delayed retries are superseded by newer outline navigation, cancelled when the active file changes away from the pending target, and disposed on panel unmount, so stale outline clicks cannot focus or highlight a later editor view
+- reference cited-in source focus retries are lifecycle-scoped: pending delayed retries are superseded by newer source clicks, cancelled when the citation key, workspace or active tab changes away from the pending target, and disposed on panel unmount, so stale reference clicks cannot focus or highlight a later editor view
 - these are timing and restore-state guards only; they do not restore cursor/selection, change session payload shape, or introduce automatic reveal/scroll behavior
 
 Current plugin result contract:

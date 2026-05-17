@@ -43,7 +43,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { basenamePath } from '../../services/pathUtils.js'
 import { IconFileText, IconQuote } from '@tabler/icons-vue'
 import { useI18n } from '../../i18n'
@@ -51,6 +51,7 @@ import { useEditorStore } from '../../stores/editor'
 import { useReferencesStore } from '../../stores/references'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { focusEditorLineWithHighlight } from '../../editor/revealHighlight'
+import { createEditorFocusRetryLifecycle } from '../../editor/editorFocusRetryTiming.js'
 
 const props = defineProps({
   reference: { type: Object, default: null },
@@ -60,6 +61,11 @@ const { t } = useI18n()
 const editorStore = useEditorStore()
 const referencesStore = useReferencesStore()
 const workspace = useWorkspaceStore()
+const citationFocusRetryLifecycle = createEditorFocusRetryLifecycle({
+  maxAttempts: 10,
+  retryDelayMs: 16,
+})
+let pendingCitationFocusPath = ''
 
 const citationKey = computed(() => String(props.reference?.citationKey || '').trim())
 const citedEntries = computed(() => {
@@ -108,34 +114,66 @@ function entryBasename(path) {
   return basenameMap.value[path] || path
 }
 
-function waitForEditorView(path = '') {
-  return new Promise((resolve) => {
-    let attempts = 0
-    const check = async () => {
-      const view = editorStore.getAnyEditorView(path)
-      if (view || attempts >= 10) {
-        resolve(view || null)
-        return
-      }
-      attempts += 1
-      await nextTick()
-      window.setTimeout(check, 16)
-    }
-    void check()
-  })
-}
+async function focusCitationSourceWhenReady(path = '', line = 0, token, attempts = 0) {
+  if (!citationFocusRetryLifecycle.isCurrent(token)) return
 
-async function openCitationSource(entry = {}) {
-  const path = String(entry?.path || '').trim()
-  if (!path) return
-  editorStore.openFile(path)
-  const line = Number(entry?.line || 0)
-  if (!Number.isInteger(line) || line < 1) return
-  const view = await waitForEditorView(path)
+  const view = editorStore.getAnyEditorView(path)
   if (view) {
     focusEditorLineWithHighlight(view, line, { durationMs: 1800 })
+    if (citationFocusRetryLifecycle.isCurrent(token)) {
+      pendingCitationFocusPath = ''
+    }
+    return
   }
+
+  if (!citationFocusRetryLifecycle.canRetry(token, attempts)) {
+    pendingCitationFocusPath = ''
+    return
+  }
+
+  await nextTick()
+  citationFocusRetryLifecycle.scheduleRetry(token, (nextAttempts) => {
+    void focusCitationSourceWhenReady(path, line, token, nextAttempts)
+  }, attempts)
 }
+
+function openCitationSource(entry = {}) {
+  const path = String(entry?.path || '').trim()
+  if (!path) return
+  const token = citationFocusRetryLifecycle.begin()
+  if (!token) return
+  pendingCitationFocusPath = path
+  editorStore.openFile(path)
+  const line = Number(entry?.line || 0)
+  if (!Number.isInteger(line) || line < 1) {
+    pendingCitationFocusPath = ''
+    citationFocusRetryLifecycle.cancelPending()
+    return
+  }
+  void focusCitationSourceWhenReady(path, line, token)
+}
+
+watch(
+  () => [citationKey.value, workspace.path],
+  () => {
+    pendingCitationFocusPath = ''
+    citationFocusRetryLifecycle.cancelPending()
+  }
+)
+
+watch(
+  () => editorStore.activeTab,
+  (path) => {
+    if (pendingCitationFocusPath && path === pendingCitationFocusPath) return
+    pendingCitationFocusPath = ''
+    citationFocusRetryLifecycle.cancelPending()
+  }
+)
+
+onUnmounted(() => {
+  pendingCitationFocusPath = ''
+  citationFocusRetryLifecycle.dispose()
+})
 </script>
 
 <style scoped>

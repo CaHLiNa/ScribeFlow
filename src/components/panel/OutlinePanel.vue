@@ -79,7 +79,7 @@
 <script setup>
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { focusEditorRangeWithHighlight } from '../../editor/revealHighlight'
-import { createOutlineFocusRetryLifecycle } from '../../editor/outlineFocusRetryTiming.js'
+import { createEditorFocusRetryLifecycle } from '../../editor/editorFocusRetryTiming.js'
 import { useEditorStore } from '../../stores/editor'
 import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { useFilesStore } from '../../stores/files'
@@ -102,7 +102,7 @@ const filesStore = useFilesStore()
 const workspaceStore = useWorkspaceStore()
 const { t } = useI18n()
 const collapsedHeadings = ref({})
-const outlineFocusRetryLifecycle = createOutlineFocusRetryLifecycle()
+const outlineFocusRetryLifecycle = createEditorFocusRetryLifecycle()
 let pendingOutlineFocusPath = ''
 
 function outlineTypeForPath(path) {
