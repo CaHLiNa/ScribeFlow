@@ -59,7 +59,7 @@ What is already formalized:
 
 - Settings is a management surface, not the primary plugin work surface
 - every normal plugin maps to one right-sidebar tab/container, and manifest validation now enforces a single activitybar container per plugin
-- PDF actions, command invocations, and view reveal requests already route into the matching plugin tab by default
+- PDF actions, command invocations, capability invocations, and view reveal requests already route into the matching plugin tab by default
 
 What still needs tightening:
 

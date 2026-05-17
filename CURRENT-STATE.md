@@ -24,7 +24,7 @@ Current desktop paths:
 - restart the persistent extension host automatically after a host-process crash so the next activation or command request can recover without restarting the desktop app
 - render plugin surfaces as document right sidebar tabs, resolve tree roots and child nodes from the plugin host, support reveal and selection events, and surface host-rendered quick input flows for plugins
 - enforce one activitybar view container per plugin so each normal plugin maps to one document right sidebar tab/container
-- route PDF actions, command invocations and view reveal requests into the matching plugin-owned right sidebar tab by default
+- route PDF actions, command invocations, capability invocations and view reveal requests into the matching plugin-owned right sidebar tab by default
 - keep document-action plugin tasks visible inside that same right sidebar tab so running progress, cancellation and result entries stay reachable after an action starts
 - expose thicker runtime APIs for plugins through `context.workspace`, `context.documents`, `context.invocation`, `context.references`, `context.pdf` and `context.process`
 - allow process-driven plugins to `spawn` local workers and explicitly `wait` for completion through the Rust-backed host bridge
@@ -137,6 +137,7 @@ Current plugin lifecycle contract:
 - lifecycle state contract is now probe-backed: persisted extension settings, `globalState`, and same-workspace `workspaceState` survive through `deactivate -> reactivate -> host crash recovery`, while `workspaceState` remains isolated across workspace roots
 - nested capability contract is now probe-backed: `context.capabilities.invoke(...)` preserves the callee result payload, surfaces nested capability failures as catchable plugin exceptions, unions nested `changedViews` with host-tracked `views.refresh(...)` requests, and now propagates that aggregated refresh set through the top-level capability invocation result
 - capability orchestration is now probe-backed as a first-class runtime contract: one capability provider can combine `tasks.update(...)`, `views.updateView(...)`, and `views.refresh(...)` in the same request, and the host preserves the running-task snapshot, pushed view state, and top-level `changedViews` refresh set together
+- top-level capability invocations now share the command-style right-sidebar routing contract: the matching plugin tab is opened and focused with the active PDF/reference target before host activation and capability invocation, and changed views still refresh the opened sidebar surface
 - extension task cancellation is now probe-backed as a first-class runtime contract: cancelling a running extension task reuses the formal task API, preserves the persisted `cancelled` terminal state, and clears spawned-process ownership from the runtime registry
 - extension task cancellation is also probe-backed at the store/UI contract layer: after a cancel response returns, the frontend timeline moves the task out of the running bucket, preserves the `cancelled` terminal snapshot in recent tasks, and keeps the last running output payload visible
 - disabling an extension now also closes its task contract instead of only removing execution entrypoints: active `running`/`queued` tasks for that extension are cancelled through the Rust runtime, spawned-process ownership is reaped, persisted `cancelled` snapshots remain inspectable, and unrelated extensions keep their task ownership untouched
@@ -263,6 +264,7 @@ The extension gate includes:
 - `npm run probe:extension-lifecycle-state-contract`
 - `npm run probe:extension-capability-invoke-contract`
 - `npm run probe:extension-capability-orchestration-contract`
+- `npm run probe:extension-capability-sidebar-routing`
 - `npm run probe:extension-sidebar-routing`
 - `npm run probe:extension-text-preview-fallback`
 - `npm run probe:extension-artifact-preview-entries`

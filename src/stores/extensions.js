@@ -758,6 +758,7 @@ export const useExtensionsStore = defineStore('extensions', {
           commandId: capabilityId,
         })
       }
+      await this.routeActionToSidebar(action, target).catch(() => {})
       await this.activateExtension(extensionId, `onCapability:${capabilityId}`).catch(() => {})
       const postActivationBlock = runtimeBlockDescriptorFor({
         extensionId,
