@@ -159,7 +159,7 @@ Components over 500 lines:
 | `src/components/references/ReferenceLibraryTable.vue` | 237 | Reference library table presentation and sort header events. |
 | `src/components/references/ReferenceLibraryToolbar.vue` | 131 | Reference library toolbar presentation. |
 | `src/components/settings/Settings.vue` | 542 | Settings shell UI; Phase 4/8 candidate. |
-| `src/components/settings/SettingsExtensions.vue` | 789 | Extension settings shell; Phase 8 extracted list/options UI and pure settings grouping. |
+| `src/components/settings/SettingsExtensions.vue` | 791 | Extension settings shell; Phase 8 extracted list/options UI, pure settings grouping, and secure setting draft derivation. |
 | `src/components/settings/SettingsExtensionList.vue` | 120 | Extension loaded-list presentation. |
 | `src/components/settings/SettingsExtensionOptions.vue` | 214 | Extension settings/action form presentation. |
 | `src/components/sidebar/FileTree.vue` | 791 | File tree orchestration plus mutation commands; Phase 8 extracted header/footer/menu chrome. |
@@ -250,6 +250,7 @@ Components over 500 lines:
 - 2026-05-02: Extension menu, keybinding, command palette, sidebar container, view, view-title action, and view-item action derivation moved from Pinia getters into `src/domains/extensions/extensionStoreState.js`. The store getters now pass registry, enabled ids, runtime registry, and context into pure helpers while keeping Pinia state ownership local.
 - 2026-05-02: Removed the extension result-entry compatibility shims from `src/services/extensions`. Components and probes now import deterministic artifact/task/result presentation helpers from `src/domains/extensions/extensionResultEntries.js`, leaving `src/services/extensions/**` focused on Tauri command/event bridge files.
 - 2026-05-03: Extension registry and task refresh sequencing is centralized in `extensionsStore.refreshRegistryAndTasks()`. `SettingsExtensions.vue` and `ExtensionActionButtons.vue` no longer duplicate registry/task service sequences, while registry/task refresh failures are recorded in store state and surfaced through existing settings toast/inline status paths.
+- 2026-05-18: Extension setting draft key normalization, draft-value precedence, and persisted secure-setting display policy moved from `SettingsExtensions.vue` into pure helper `src/domains/extensions/extensionSettingDrafts.js`. The settings component still owns debounce/lifecycle timing and calls `extensionsStore.setExtensionConfigValue`, while secure storage persistence stays in the existing extension settings service/Rust bridge.
 - 2026-05-03: Phase 7 verification passed with full `npm run verify`. The only escalation needed was for `probe:retain-pdf-extension`, which writes generated runtime files under `~/.scribeflow/extensions/retain-pdf/.runtime`; no code regression was found.
 - 2026-05-03: Extension sidebar tone class normalization moved from `ExtensionSidebarPanel.vue` into `src/domains/extensions/extensionToneClass.js`, keeping status/summary tone-to-class derivation as a pure extension domain helper.
 - 2026-05-03: Extension document action progress state, width, and tone class derivation moved from `ExtensionDocumentActionPanel.vue` into `src/domains/extensions/extensionProgressPresentation.js`.

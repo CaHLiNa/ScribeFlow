@@ -78,6 +78,12 @@ import {
   buildExtensionSettingGroups,
   buildExtensionSettingsActionGroups,
 } from '../../domains/extensions/extensionSettingsGroups'
+import {
+  extensionSettingDraftKey,
+  extensionSettingDraftValue,
+  hasPersistedSecureExtensionSetting,
+  parseExtensionSettingDraftKey,
+} from '../../domains/extensions/extensionSettingDrafts'
 
 const { t } = useI18n()
 const extensionsStore = useExtensionsStore()
@@ -110,31 +116,28 @@ function settingValue(extension = {}, key = '') {
   return extensionsStore.configForExtension(extension)?.[key]
 }
 
-function settingDraftKey(extensionId = '', key = '') {
-  return `${String(extensionId || '').trim().toLowerCase()}::${String(key || '').trim()}`
-}
-
 function settingDraftValue(extension = {}, key = '') {
-  const draftKey = settingDraftKey(extension.id, key)
-  if (Object.prototype.hasOwnProperty.call(settingDrafts, draftKey)) {
-    return settingDrafts[draftKey]
-  }
-  if (Object.prototype.hasOwnProperty.call(savedSecureSettingDrafts, draftKey)) {
-    return savedSecureSettingDrafts[draftKey]
-  }
-  return settingValue(extension, key)
+  return extensionSettingDraftValue({
+    extension,
+    key,
+    settingDrafts,
+    savedSecureSettingDrafts,
+    persistedValue: settingValue(extension, key),
+  })
 }
 
 function hasPersistedSecureSetting(extension = {}, key = '') {
-  const setting = extension?.settingsSchema?.[key]
-  if (setting?.secureStorage !== true) return false
-  return String(settingValue(extension, key) ?? '').trim().length > 0
+  return hasPersistedSecureExtensionSetting({
+    extension,
+    key,
+    persistedValue: settingValue(extension, key),
+  })
 }
 
 async function persistSettingDraft(extensionId = '', key = '') {
   const normalizedExtensionId = String(extensionId || '').trim().toLowerCase()
   const normalizedKey = String(key || '').trim()
-  const draftKey = settingDraftKey(normalizedExtensionId, normalizedKey)
+  const draftKey = extensionSettingDraftKey(normalizedExtensionId, normalizedKey)
   if (!normalizedExtensionId || !normalizedKey) return
   if (settingSaveTimers.has(draftKey)) {
     clearTimeout(settingSaveTimers.get(draftKey))
@@ -168,7 +171,7 @@ async function persistSettingDraft(extensionId = '', key = '') {
 function updateSettingDraft(extensionId = '', key = '', value = '') {
   const normalizedExtensionId = String(extensionId || '').trim().toLowerCase()
   const normalizedKey = String(key || '').trim()
-  const draftKey = settingDraftKey(normalizedExtensionId, normalizedKey)
+  const draftKey = extensionSettingDraftKey(normalizedExtensionId, normalizedKey)
   if (!normalizedExtensionId || !normalizedKey) return
   delete savedSecureSettingDrafts[draftKey]
   settingDrafts[draftKey] = value
@@ -358,8 +361,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   for (const draftKey of Object.keys(settingDrafts)) {
-    const [extensionId, ...keyParts] = draftKey.split('::')
-    const key = keyParts.join('::')
+    const { extensionId, key } = parseExtensionSettingDraftKey(draftKey)
     void persistSettingDraft(extensionId, key)
   }
   for (const timer of settingSaveTimers.values()) {
