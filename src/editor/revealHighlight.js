@@ -1,10 +1,18 @@
 import { StateEffect, StateField } from '@codemirror/state'
-import { Decoration, EditorView } from '@codemirror/view'
+import { Decoration, EditorView, ViewPlugin } from '@codemirror/view'
 
 const setRevealHighlightEffect = StateEffect.define()
 const clearRevealHighlightEffect = StateEffect.define()
 
 const revealHighlightTimers = new WeakMap()
+
+function defaultSetTimeout(callback, delay) {
+  return globalThis.setTimeout?.(callback, delay)
+}
+
+function defaultClearTimeout(handle) {
+  globalThis.clearTimeout?.(handle)
+}
 
 function buildRevealHighlightDecorations(state, pos = null) {
   if (!Number.isInteger(pos)) return Decoration.none
@@ -57,7 +65,14 @@ const revealHighlightField = StateField.define({
 })
 
 export function createRevealHighlightExtension() {
-  return [revealHighlightField]
+  return [
+    revealHighlightField,
+    ViewPlugin.define((view) => ({
+      destroy() {
+        cancelRevealHighlight(view)
+      },
+    })),
+  ]
 }
 
 function clearRevealHighlight(view) {
@@ -67,6 +82,23 @@ function clearRevealHighlight(view) {
   } catch {
     // Ignore stale view errors when a pane closes during the timeout window.
   }
+}
+
+function clearRevealHighlightTimer(view) {
+  const pending = revealHighlightTimers.get(view)
+  if (!pending) return false
+  ;(pending.scheduler.clearTimeout || defaultClearTimeout)(pending.handle)
+  revealHighlightTimers.delete(view)
+  return true
+}
+
+export function cancelRevealHighlight(view, options = {}) {
+  if (!view) return false
+  const cancelled = clearRevealHighlightTimer(view)
+  if (options.clearDecorations === true) {
+    clearRevealHighlight(view)
+  }
+  return cancelled
 }
 
 export function focusEditorRangeWithHighlight(view, from, to = from, options = {}) {
@@ -92,20 +124,21 @@ export function focusEditorRangeWithHighlight(view, from, to = from, options = {
     view.focus()
   }
 
-  const existingTimer = revealHighlightTimers.get(view)
-  if (existingTimer) {
-    window.clearTimeout(existingTimer)
-  }
+  clearRevealHighlightTimer(view)
 
   const durationMs = Math.max(250, Number(options.durationMs || 1400))
-  const timerId = window.setTimeout(() => {
-    if (revealHighlightTimers.get(view) === timerId) {
+  const scheduler = options.scheduler || {}
+  const timerId = (scheduler.setTimeout || defaultSetTimeout)(() => {
+    const pending = revealHighlightTimers.get(view)
+    if (pending?.handle === timerId) {
       revealHighlightTimers.delete(view)
+      clearRevealHighlight(view)
     }
-    clearRevealHighlight(view)
   }, durationMs)
 
-  revealHighlightTimers.set(view, timerId)
+  if (timerId != null) {
+    revealHighlightTimers.set(view, { handle: timerId, scheduler })
+  }
   return true
 }
 

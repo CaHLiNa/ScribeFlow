@@ -99,6 +99,7 @@ Current editor stability contract:
 - LaTeX source-to-PDF forward-sync requests are lifecycle-versioned: stale source cursor requests and remounted PDF documents cannot finish delayed scroll/highlight frame waits by writing obsolete overlay or queued sync state after a newer forward-sync request supersedes them
 - PDF restore requests are lifecycle-versioned: stale restore-state requests and remounted PDF documents cannot finish delayed frame waits by writing obsolete scroll position, view-state emissions or initial paint refresh after the document id or restore payload changes
 - editor context-menu selection restore is lifecycle-scoped: delayed frame/timeout selection restores are cancelled by newer context-menu gestures, menu close, editor deactivation and editor unmount, so an old context-menu request cannot write stale cursor or selection after a newer event
+- editor reveal highlight clearing is lifecycle-scoped: delayed highlight-clear timers are superseded by newer highlights and cancelled on editor runtime deactivation or CodeMirror view destroy, so a closed pane cannot receive a stale decoration clear dispatch
 - these are timing and restore-state guards only; they do not restore cursor/selection, change session payload shape, or introduce automatic reveal/scroll behavior
 
 Current plugin result contract:

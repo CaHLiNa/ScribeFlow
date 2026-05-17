@@ -80,7 +80,7 @@ import {
   activeLineCompartment,
   activeLineExtension,
 } from '../../editor/setup'
-import { createRevealHighlightExtension } from '../../editor/revealHighlight'
+import { cancelRevealHighlight, createRevealHighlightExtension } from '../../editor/revealHighlight'
 import {
   captureContextMenuState,
   normalizeContextMenuClickPos,
@@ -1544,6 +1544,7 @@ function deactivateEditorRuntime() {
   ctxMenu.show = false
   pendingContextMenuState = null
   clearContextMenuRestoreHandles()
+  cancelRevealHighlight(view, { clearDecorations: true })
   markdownSyncTiming.cancelAll()
   latexRevealLifecycle.cancelPending()
   detachEditorRuntimeListeners()
