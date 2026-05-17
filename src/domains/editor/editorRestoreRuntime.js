@@ -6,6 +6,31 @@ import {
   ROOT_PANE_ID,
 } from './paneTreeLayout.js'
 
+function collectPaneTabs(node, tabs = []) {
+  if (!node) return tabs
+  if (node.type === 'leaf') {
+    for (const tab of node.tabs || []) {
+      if (typeof tab === 'string' && tab) tabs.push(tab)
+    }
+    return tabs
+  }
+  for (const child of node.children || []) {
+    collectPaneTabs(child, tabs)
+  }
+  return tabs
+}
+
+function normalizeDocumentDockTabs(tabs = []) {
+  const seen = new Set()
+  const normalized = []
+  for (const tab of Array.isArray(tabs) ? tabs : []) {
+    if (typeof tab !== 'string' || !tab || seen.has(tab)) continue
+    seen.add(tab)
+    normalized.push(tab)
+  }
+  return normalized
+}
+
 export function deriveRestoredEditorRuntimeState({
   state,
   isContextCandidatePath,
@@ -18,15 +43,34 @@ export function deriveRestoredEditorRuntimeState({
   const fallbackLeaf = findFirstLeaf(paneTree)
   const activePaneId = restoredActivePane?.id || fallbackLeaf?.id || ROOT_PANE_ID
   const activePane = findPane(paneTree, activePaneId)
+  const documentDockTabs = normalizeDocumentDockTabs(state?.documentDockTabs)
+  const activeDocumentDockTab = documentDockTabs.includes(state?.activeDocumentDockTab)
+    ? state.activeDocumentDockTab
+    : documentDockTabs[0] || null
+  const contextCandidates = new Set([
+    ...collectPaneTabs(paneTree),
+    ...documentDockTabs,
+  ].filter((path) => isContextCandidatePath?.(path)))
 
   const contextLeaf = isContextCandidatePath?.(activePane?.activeTab)
     ? activePane
     : findLeaf(paneTree, (node) => isContextCandidatePath?.(node.activeTab))
+  const restoredLastContextPath = isContextCandidatePath?.(state?.lastContextPath) &&
+    contextCandidates.has(state.lastContextPath)
+    ? state.lastContextPath
+    : null
+  const dockContextPath = isContextCandidatePath?.(activeDocumentDockTab)
+    ? activeDocumentDockTab
+    : null
+  const paneContextPath = contextLeaf?.activeTab || null
+  const fallbackContextPath = [...contextCandidates][0] || null
 
   return {
     paneTree,
     activePaneId,
-    lastContextPath: contextLeaf?.activeTab || null,
+    documentDockTabs,
+    activeDocumentDockTab,
+    lastContextPath: restoredLastContextPath || dockContextPath || paneContextPath || fallbackContextPath,
   }
 }
 

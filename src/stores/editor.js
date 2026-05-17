@@ -45,6 +45,7 @@ import {
   destroyEditorRuntimeViews,
 } from '../domains/editor/editorCleanupRuntime'
 import { createEditorOpenRoutingRuntime } from '../domains/editor/editorOpenRoutingRuntime'
+import { deriveRestoredEditorRuntimeState } from '../domains/editor/editorRestoreRuntime'
 import { filterExistingRecentFiles } from '../domains/files/workspaceSnapshotFlatFilesRuntime.js'
 
 function isLauncherTab(path) {
@@ -554,16 +555,13 @@ export const useEditorStore = defineStore('editor', {
       const state = await editorPersistenceRuntime.loadEditorStateSnapshot(workspace.workspaceDataDir)
       if (!state) return false
 
+      const restored = deriveRestoredEditorRuntimeState({ state, isContextCandidatePath })
       this.restoreGeneration += 1
-      this.paneTree = state.paneTree || createEmptyEditorRuntimeState().paneTree
-      this.activePaneId = state.activePaneId || ROOT_PANE_ID
-      this.documentDockTabs = Array.isArray(state.documentDockTabs) ? state.documentDockTabs : []
-      this.activeDocumentDockTab = this.documentDockTabs.includes(state.activeDocumentDockTab)
-        ? state.activeDocumentDockTab
-        : this.documentDockTabs[0] || null
-      this.lastContextPath = isContextCandidatePath(state.lastContextPath)
-        ? state.lastContextPath
-        : null
+      this.paneTree = restored.paneTree
+      this.activePaneId = restored.activePaneId
+      this.documentDockTabs = restored.documentDockTabs
+      this.activeDocumentDockTab = restored.activeDocumentDockTab
+      this.lastContextPath = restored.lastContextPath
 
       return true
     },
@@ -571,16 +569,13 @@ export const useEditorStore = defineStore('editor', {
     applyEditorSessionState(state = null) {
       if (!state || typeof state !== 'object') return false
 
+      const restored = deriveRestoredEditorRuntimeState({ state, isContextCandidatePath })
       this.restoreGeneration += 1
-      this.paneTree = state.paneTree || createEmptyEditorRuntimeState().paneTree
-      this.activePaneId = state.activePaneId || ROOT_PANE_ID
-      this.documentDockTabs = Array.isArray(state.documentDockTabs) ? state.documentDockTabs : []
-      this.activeDocumentDockTab = this.documentDockTabs.includes(state.activeDocumentDockTab)
-        ? state.activeDocumentDockTab
-        : this.documentDockTabs[0] || null
-      this.lastContextPath = isContextCandidatePath(state.lastContextPath)
-        ? state.lastContextPath
-        : null
+      this.paneTree = restored.paneTree
+      this.activePaneId = restored.activePaneId
+      this.documentDockTabs = restored.documentDockTabs
+      this.activeDocumentDockTab = restored.activeDocumentDockTab
+      this.lastContextPath = restored.lastContextPath
       return true
     },
 
