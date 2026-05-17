@@ -149,3 +149,96 @@ export function buildReferenceExportDefaultPath(
   const normalizedExtension = String(extension || '').trim().replace(/^\.+/, '')
   return normalizedExtension ? `${basename}.${normalizedExtension}` : basename
 }
+
+export function buildReferenceContextMenuGroups({
+  reference = {},
+  collections = [],
+  translate = (key) => key,
+} = {}) {
+  const referenceId = String(reference?.id || '').trim()
+  const normalizedCollections = Array.isArray(collections) ? collections : []
+  const t = typeof translate === 'function' ? translate : (key) => key
+
+  return [
+    {
+      key: 'reference-maintenance',
+      items: [
+        {
+          key: `rename-pdf:${referenceId}`,
+          label: t('Rename PDF'),
+          disabled: !resolveReferencePdfPath(reference),
+          actionId: 'rename-pdf',
+          referenceId,
+        },
+        {
+          key: `refresh-metadata:${referenceId}`,
+          label: t('Refresh Metadata'),
+          actionId: 'refresh-metadata',
+          referenceId,
+        },
+      ],
+    },
+    {
+      key: 'reference-collections',
+      items: [
+        {
+          key: `collections:${referenceId}`,
+          label: t('Collections'),
+          children: normalizedCollections.length
+            ? normalizedCollections.map((collection) => ({
+                key: `collection:${referenceId}:${collection.key}`,
+                label: collection.label,
+                checked: referenceIsInCollection(reference, collection.key, normalizedCollections),
+                actionId: 'toggle-collection',
+                referenceId,
+                collectionKey: collection.key,
+              }))
+            : [
+                {
+                  key: `collections-empty:${referenceId}`,
+                  label: t('No collections yet'),
+                  disabled: true,
+                  actionId: 'noop',
+                  referenceId,
+                },
+              ],
+        },
+      ],
+    },
+    {
+      key: 'reference-exports',
+      items: [
+        {
+          key: `export-bibtex:${referenceId}`,
+          label: t('Export BibTeX...'),
+          actionId: 'export-bibtex',
+          referenceId,
+        },
+        {
+          key: `export-detailed:${referenceId}`,
+          label: t('Detailed Export...'),
+          actionId: 'export-detailed',
+          referenceId,
+        },
+        {
+          key: `copy-bibtex:${referenceId}`,
+          label: t('Copy BibTeX'),
+          actionId: 'copy-bibtex',
+          referenceId,
+        },
+      ],
+    },
+    {
+      key: 'reference-actions',
+      items: [
+        {
+          key: `delete:${referenceId}`,
+          label: t('Delete'),
+          danger: true,
+          actionId: 'delete',
+          referenceId,
+        },
+      ],
+    },
+  ]
+}

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import {
   REFERENCE_WORKBENCH_DETAIL_CLOSE_RESET_DELAY_MS,
+  buildReferenceContextMenuGroups,
   buildReferenceDetailResizeConstraints,
   buildReferenceDetailResizePayload,
   buildReferenceExportDefaultPath,
@@ -123,6 +124,66 @@ assert.equal(
   'A - B.json',
 )
 
+const contextMenuGroups = buildReferenceContextMenuGroups({
+  reference: {
+    id: 'ref-1',
+    title: 'Reference Title',
+    citationKey: 'ref2026',
+    pdfPath: '/tmp/paper.pdf',
+    collections: ['Methods'],
+  },
+  collections,
+  translate: (key) => `t:${key}`,
+})
+assert.deepEqual(
+  contextMenuGroups.map((group) => group.key),
+  [
+    'reference-maintenance',
+    'reference-collections',
+    'reference-exports',
+    'reference-actions',
+  ],
+)
+assert.deepEqual(
+  contextMenuGroups[0].items.map((item) => [item.actionId, item.disabled]),
+  [
+    ['rename-pdf', false],
+    ['refresh-metadata', undefined],
+  ],
+)
+assert.equal(contextMenuGroups[1].items[0].label, 't:Collections')
+assert.deepEqual(
+  contextMenuGroups[1].items[0].children.map((item) => ({
+    actionId: item.actionId,
+    collectionKey: item.collectionKey,
+    checked: item.checked,
+  })),
+  [
+    { actionId: 'toggle-collection', collectionKey: 'methods', checked: true },
+    { actionId: 'toggle-collection', collectionKey: 'ml', checked: false },
+  ],
+)
+assert.equal(contextMenuGroups[2].items[0].actionId, 'export-bibtex')
+assert.equal(contextMenuGroups[2].items[1].actionId, 'export-detailed')
+assert.equal(contextMenuGroups[2].items[2].actionId, 'copy-bibtex')
+assert.equal(contextMenuGroups[3].items[0].danger, true)
+
+const emptyCollectionMenuGroups = buildReferenceContextMenuGroups({
+  reference: { id: 'ref-2', pdfPath: '' },
+  collections: [],
+  translate: (key) => key,
+})
+assert.equal(emptyCollectionMenuGroups[0].items[0].disabled, true)
+assert.deepEqual(emptyCollectionMenuGroups[1].items[0].children, [
+  {
+    key: 'collections-empty:ref-2',
+    label: 'No collections yet',
+    disabled: true,
+    actionId: 'noop',
+    referenceId: 'ref-2',
+  },
+])
+
 const workbenchSource = await readFile('src/components/references/ReferenceLibraryWorkbench.vue', 'utf8')
 
 assert.match(
@@ -145,6 +206,11 @@ assert.match(
   /buildReferenceExportDefaultPath/,
   'ReferenceLibraryWorkbench must delegate export filename fallback to the reference domain',
 )
+assert.match(
+  workbenchSource,
+  /buildReferenceContextMenuGroups/,
+  'ReferenceLibraryWorkbench must delegate context-menu presentation to the reference domain',
+)
 assert.doesNotMatch(
   workbenchSource,
   /const REFERENCE_DETAIL_MIN_WIDTH|const REFERENCE_LIST_MIN_WIDTH|const REFERENCE_DETAIL_MAX_CONTAINER_RATIO/,
@@ -155,6 +221,11 @@ assert.doesNotMatch(
   /function normalizeFilenameSegment|function referenceIsInCollection/,
   'ReferenceLibraryWorkbench must not own deterministic filename or collection-membership helpers',
 )
+assert.doesNotMatch(
+  workbenchSource,
+  /key: 'reference-maintenance'|key: 'reference-collections'|key: 'reference-exports'|key: 'reference-actions'/,
+  'ReferenceLibraryWorkbench must not own reference context-menu group construction inline',
+)
 
 console.log(JSON.stringify({
   ok: true,
@@ -163,6 +234,7 @@ console.log(JSON.stringify({
     sortTogglesDerived: true,
     referencePathAndCitationStateDerived: true,
     collectionMembershipDerived: true,
+    contextMenuGroupsDerived: true,
     exportFilenameFallbackDerived: true,
     componentUsesDomainHelper: true,
   },

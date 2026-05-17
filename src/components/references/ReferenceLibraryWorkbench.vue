@@ -134,11 +134,11 @@ import {
 } from '../../domains/references/referenceDockPages.js'
 import {
   REFERENCE_WORKBENCH_DETAIL_CLOSE_RESET_DELAY_MS,
+  buildReferenceContextMenuGroups,
   buildReferenceDetailResizeConstraints,
   buildReferenceDetailResizePayload,
   buildReferenceExportDefaultPath,
   normalizeReferenceFilenameSegment,
-  referenceIsInCollection,
   resolveNextReferenceSortKey,
   resolveReferenceCitedInFiles,
   resolveReferenceDetailDockWidth,
@@ -537,89 +537,67 @@ async function handleCopyReferenceBibTeX(reference = {}) {
 function openReferenceContextMenu(event, reference) {
   referencesStore.selectReference(reference.id)
 
-  const groups = [
-    {
-      key: 'reference-maintenance',
-      items: [
-        {
-          key: `rename-pdf:${reference.id}`,
-          label: t('Rename PDF'),
-          disabled: !resolveReferencePdfPath(reference),
-          action: () => handleRenameReferencePdf(reference),
-        },
-        {
-          key: `refresh-metadata:${reference.id}`,
-          label: t('Refresh Metadata'),
-          action: () => handleRefreshReferenceMetadata(reference),
-        },
-      ],
-    },
-    {
-      key: 'reference-collections',
-      items: [
-        {
-          key: `collections:${reference.id}`,
-          label: t('Collections'),
-          children: availableCollections.value.length
-            ? availableCollections.value.map((collection) => ({
-                key: `collection:${reference.id}:${collection.key}`,
-                label: collection.label,
-                checked: referenceIsInCollection(reference, collection.key, availableCollections.value),
-                action: () =>
-                  referencesStore.toggleReferenceCollection(
-                    workspace.globalConfigDir,
-                    reference.id,
-                    collection.key
-                  ),
-              }))
-            : [
-                {
-                  key: `collections-empty:${reference.id}`,
-                  label: t('No collections yet'),
-                  disabled: true,
-                },
-              ],
-        },
-      ],
-    },
-    {
-      key: 'reference-exports',
-      items: [
-        {
-          key: `export-bibtex:${reference.id}`,
-          label: t('Export BibTeX...'),
-          action: () => handleExportReferenceBibTeX(reference),
-        },
-        {
-          key: `export-detailed:${reference.id}`,
-          label: t('Detailed Export...'),
-          action: () => handleDetailedExport(reference),
-        },
-        {
-          key: `copy-bibtex:${reference.id}`,
-          label: t('Copy BibTeX'),
-          action: () => handleCopyReferenceBibTeX(reference),
-        },
-      ],
-    },
-    {
-      key: 'reference-actions',
-      items: [
-        {
-          key: `delete:${reference.id}`,
-          label: t('Delete'),
-          danger: true,
-          action: () => referencesStore.removeReference(workspace.globalConfigDir, reference.id),
-        },
-      ],
-    },
-  ]
-
   openSurfaceContextMenu({
     x: event.clientX,
     y: event.clientY,
-    groups,
+    groups: bindReferenceContextMenuActions(
+      buildReferenceContextMenuGroups({
+        reference,
+        collections: availableCollections.value,
+        translate: t,
+      }),
+      reference
+    ),
   })
+}
+
+function bindReferenceContextMenuActions(groups = [], reference = {}) {
+  const bindItem = (item = {}) => {
+    const nextItem = { ...item }
+    if (nextItem.actionId && nextItem.actionId !== 'noop') {
+      nextItem.action = () => handleReferenceContextMenuAction(nextItem, reference)
+    }
+    if (Array.isArray(nextItem.children)) {
+      nextItem.children = nextItem.children.map(bindItem)
+    }
+    return nextItem
+  }
+
+  return (Array.isArray(groups) ? groups : []).map((group) => ({
+    ...group,
+    items: Array.isArray(group?.items) ? group.items.map(bindItem) : [],
+  }))
+}
+
+function handleReferenceContextMenuAction(item = {}, reference = {}) {
+  const referenceId = String(item.referenceId || reference?.id || '').trim()
+  if (!referenceId) return
+
+  if (item.actionId === 'rename-pdf') {
+    return handleRenameReferencePdf(reference)
+  }
+  if (item.actionId === 'refresh-metadata') {
+    return handleRefreshReferenceMetadata(reference)
+  }
+  if (item.actionId === 'toggle-collection') {
+    return referencesStore.toggleReferenceCollection(
+      workspace.globalConfigDir,
+      referenceId,
+      item.collectionKey
+    )
+  }
+  if (item.actionId === 'export-bibtex') {
+    return handleExportReferenceBibTeX(reference)
+  }
+  if (item.actionId === 'export-detailed') {
+    return handleDetailedExport(reference)
+  }
+  if (item.actionId === 'copy-bibtex') {
+    return handleCopyReferenceBibTeX(reference)
+  }
+  if (item.actionId === 'delete') {
+    return referencesStore.removeReference(workspace.globalConfigDir, referenceId)
+  }
 }
 
 function handleManualImport(importedCount = 0) {
