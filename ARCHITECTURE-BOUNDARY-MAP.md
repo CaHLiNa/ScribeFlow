@@ -150,7 +150,7 @@ Components over 500 lines:
 | `src/components/editor/WorkspaceTemplateGrid.vue` | 310 | Current-workspace template card presentation; emits create-template intent. |
 | `src/components/extensions/ExtensionSidebarPanel.vue` | 654 | Extension panel shell; Phase 8 extracted per-view rendering. |
 | `src/components/extensions/ExtensionSidebarViewSection.vue` | 232 | Extension view section presentation for status, results, preview, and tree root. |
-| `src/components/layout/WorkbenchRail.vue` | 632 | Layout UI; Phase 4/8 candidate after workbench state contracts settle. |
+| `src/components/layout/WorkbenchRail.vue` | 624 | Layout UI; topbar style and workspace mode-item derivation now live in the workbench domain while native drag/listener orchestration stays in the component. |
 | `src/components/panel/ReferenceDetailPanel.vue` | 654 | Reference detail draft orchestration; Phase 8 extracted hero/metadata/content presentation. |
 | `src/components/panel/ReferenceDetailContentSection.vue` | 132 | Reference abstract and notes disclosure presentation. |
 | `src/components/panel/ReferenceDetailHero.vue` | 164 | Reference detail title/save hero presentation. |
@@ -264,6 +264,10 @@ Components over 500 lines:
 - 2026-05-03: Zotero settings option-tree, push-target, and selected-group presentation helpers moved from `SettingsZotero.vue` into `src/domains/references/zoteroSettingsPresentation.js`.
 - 2026-05-03: Zotero settings load and remote-library refresh failures now surface through the existing `SettingsZotero.vue` inline error state instead of only logging to the console.
 - 2026-05-03: Zotero sync orchestration no longer passes the Pinia reference store into `src/services/references/zoteroSync.js`. The service now accepts explicit snapshot/selected-reference DTOs and returns a normalized sync result, while `src/stores/references.js` owns applying snapshots plus sync status/error UI state; `src/app/workspace/useWorkspaceLifecycle.js` routes auto-sync through `referencesStore.syncZoteroNow()`.
+
+## Workbench Shell Cleanup Log
+
+- 2026-05-18: `WorkbenchRail.vue` no longer owns deterministic topbar padding/style derivation or workspace mode menu item state inline. `src/domains/workbench/workbenchRailPresentation.js` now derives macOS/fullscreen rail style and file/reference mode items, while the component keeps native window fullscreen checks, drag handling, outside-click/Escape listeners, and emitted user intent.
 
 ## Rust Runtime Cleanup Log
 

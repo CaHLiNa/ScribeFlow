@@ -34,7 +34,7 @@
     <div class="workbench-rail-center">
       <div class="workbench-rail-title-target">
         <div
-          v-show="leftSidebarAvailable && leftSidebarPanel === 'references'"
+          v-show="railTitleState.showReferenceTitle"
           ref="workspaceTitleWrapRef"
           class="workbench-rail-workspace-title"
           data-window-drag-ignore="true"
@@ -66,23 +66,16 @@
             <div class="workbench-mode-menu-section-label">{{ t('Workspace') }}</div>
 
             <button
+              v-for="item in workspaceModeItems"
+              :key="item.id"
               type="button"
               class="workbench-mode-menu-item"
-              @click="selectWorkbenchPanel('files')"
-            >
-              <span class="workbench-mode-menu-glyph" aria-hidden="true"></span>
-              <span class="workbench-mode-menu-label">{{ t('Document Area') }}</span>
-            </button>
-
-            <button
-              type="button"
-              class="workbench-mode-menu-item is-active"
-              :class="{ 'is-active': leftSidebarPanel === 'references' }"
-              @click="selectWorkbenchPanel('references')"
+              :class="{ 'is-active': item.active }"
+              @click="selectWorkbenchPanel(item.id)"
             >
               <span class="workbench-mode-menu-glyph" aria-hidden="true">
                 <svg
-                  v-if="leftSidebarPanel === 'references'"
+                  v-if="item.active"
                   class="workbench-mode-menu-check"
                   width="12"
                   height="12"
@@ -96,24 +89,24 @@
                   <path d="M2.25 6.1 4.8 8.6 9.75 3.6" />
                 </svg>
               </span>
-              <span class="workbench-mode-menu-label">{{ t('Reference Library') }}</span>
+              <span class="workbench-mode-menu-label">{{ item.label }}</span>
             </button>
 
           </div>
         </div>
 
         <div
-          v-show="showDocumentTitleTarget && leftSidebarPanel !== 'references'"
+          v-show="railTitleState.showDocumentTitleSlot"
           :id="documentTitleTargetId"
           class="workbench-rail-title-slot"
         ></div>
         <div
-          v-if="currentDocumentLabel && !preferExternalDocumentTitle && leftSidebarPanel !== 'references'"
+          v-if="railTitleState.showInlineDocumentTitle"
           class="workbench-rail-document-title"
-          :title="currentDocumentLabel"
-          :aria-label="currentDocumentLabel"
+          :title="railTitleState.documentTitleLabel"
+          :aria-label="railTitleState.documentTitleLabel"
         >
-          <span class="workbench-rail-document-title-label">{{ currentDocumentLabel }}</span>
+          <span class="workbench-rail-document-title-label">{{ railTitleState.documentTitleLabel }}</span>
         </div>
       </div>
     </div>
@@ -159,8 +152,13 @@ import {
   startNativeWindowDrag,
 } from '../../services/nativeWindow.js'
 import { syncMacosWindowTransparency } from '../../services/macosWindowTransparency.js'
+import {
+  buildWorkbenchRailModeItems,
+  buildWorkbenchRailTitleState,
+  resolveWorkbenchRailStyle,
+} from '../../domains/workbench/workbenchRailPresentation.js'
 
-defineProps({
+const props = defineProps({
   tabsTargetId: { type: String, default: 'app-shell-topbar-tabs' },
   documentTitleTargetId: { type: String, default: 'app-shell-topbar-document-title' },
   currentDocumentLabel: { type: String, default: '' },
@@ -180,10 +178,6 @@ const emit = defineEmits([
 ])
 
 const { t } = useI18n()
-const TOPBAR_HEIGHT = 36
-const DEFAULT_SIDE_PADDING = 12
-const MAC_TRAFFIC_LIGHT_SAFE_PADDING = 68
-const FULLSCREEN_LEFT_PADDING = 12
 const isTauriDesktop = isTauriDesktopRuntime
 const WINDOW_DRAGGING_CLASS = 'window-dragging'
 
@@ -193,20 +187,28 @@ const workspaceTitleWrapRef = ref(null)
 let unlistenWindowResize = null
 let removeDragGuards = null
 
-const railLeftPadding = computed(() => {
-  if (!isMac || !isTauriDesktop) {
-    return DEFAULT_SIDE_PADDING
-  }
-
-  return isNativeFullscreen.value ? FULLSCREEN_LEFT_PADDING : MAC_TRAFFIC_LIGHT_SAFE_PADDING
-})
-
-const railStyle = computed(() => ({
-  '--rail-left-offset': `${railLeftPadding.value}px`,
-  '--rail-right-offset': `${DEFAULT_SIDE_PADDING}px`,
-  height: `${TOPBAR_HEIGHT}px`,
-  minHeight: `${TOPBAR_HEIGHT}px`,
-}))
+const railStyle = computed(() =>
+  resolveWorkbenchRailStyle({
+    isMac,
+    isTauriDesktop,
+    isNativeFullscreen: isNativeFullscreen.value,
+  })
+)
+const workspaceModeItems = computed(() =>
+  buildWorkbenchRailModeItems({
+    activePanel: props.leftSidebarPanel,
+    t,
+  })
+)
+const railTitleState = computed(() =>
+  buildWorkbenchRailTitleState({
+    currentDocumentLabel: props.currentDocumentLabel,
+    leftSidebarAvailable: props.leftSidebarAvailable,
+    leftSidebarPanel: props.leftSidebarPanel,
+    preferExternalDocumentTitle: props.preferExternalDocumentTitle,
+    showDocumentTitleTarget: props.showDocumentTitleTarget,
+  })
+)
 
 async function syncNativeWindowChromeState() {
   if (!isTauriDesktop) return
