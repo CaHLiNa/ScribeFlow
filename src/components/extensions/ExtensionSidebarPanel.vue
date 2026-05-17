@@ -31,7 +31,7 @@
     <div v-else class="extension-sidebar-panel__views">
       <ExtensionSidebarViewSection
         v-for="view in views"
-        :key="`${view.extensionId}:${view.id}`"
+        :key="resolvedViewKey(view)"
         :view="view"
         :context="props.context"
         :expanded-item-keys="expandedItemKeys"
@@ -68,8 +68,20 @@ import { useI18n } from '../../i18n'
 import { useExtensionsStore } from '../../stores/extensions'
 import { useToastStore } from '../../stores/toast'
 import { describeExtensionCommandError } from '../../domains/extensions/extensionCommandHostState'
-import { buildExtensionActionSurfaceState } from '../../domains/extensions/extensionActionSurfaceState'
-import { describeExtensionRuntimeBlockPresentation } from '../../domains/extensions/extensionRuntimeBlockPresentation'
+import {
+  buildExtensionSidebarHeaderActionsState,
+  extensionSidebarViewKey,
+  isExtensionSidebarActiveResultEntry,
+  isExtensionSidebarTreeItemExpandable,
+  isExtensionSidebarTreeItemExpanded,
+  resolveExtensionSidebarActiveResultEntry,
+  resolveExtensionSidebarItemExpansionKey,
+  resolveExtensionSidebarPanelExtensionName,
+  resolveExtensionSidebarPanelTitle,
+  resolveExtensionSidebarResultActionKey,
+  resolveExtensionSidebarResultActionMessageKey,
+  resolveExtensionSidebarViewPresentation,
+} from '../../domains/extensions/extensionSidebarPresentation'
 import { normalizeExtensionToneClass } from '../../domains/extensions/extensionToneClass'
 import ExtensionBlockedActionButton from './ExtensionBlockedActionButton.vue'
 import ExtensionSidebarViewSection from './ExtensionSidebarViewSection.vue'
@@ -86,8 +98,13 @@ const toastStore = useToastStore()
 const activeResultEntryKeys = ref({})
 const resultActionBusyKey = ref('')
 
-const title = computed(() => t(props.container?.title || props.container?.id || 'Extension'))
-const extensionName = computed(() => props.container?.extensionName || props.container?.extensionId || '')
+const title = computed(() =>
+  resolveExtensionSidebarPanelTitle({
+    container: props.container,
+    translate: t,
+  })
+)
+const extensionName = computed(() => resolveExtensionSidebarPanelExtensionName(props.container))
 const views = computed(() => extensionsStore.viewsForContainer(props.container?.id, props.context))
 const expandedItemKeys = ref({})
 const hostDiagnostics = computed(() =>
@@ -95,39 +112,26 @@ const hostDiagnostics = computed(() =>
     ? extensionsStore.hostDiagnosticsFor(props.container.extensionId)
     : {}
 )
-const runtimeBlock = computed(() =>
-  buildExtensionActionSurfaceState({
-    hostDiagnostics: hostDiagnostics.value,
-  }).runtimeBlock
-)
 const viewTitleActions = computed(() => {
   const firstView = views.value[0] || {}
   return extensionsStore.viewTitleActionsForView(firstView, props.context)
 })
 const viewTitleActionsWithState = computed(() =>
-  viewTitleActions.value.map((action) => {
-    const state = buildExtensionActionSurfaceState({
-      hostDiagnostics: hostDiagnostics.value,
-      headerAction: action,
-    })
-    const blockPresentation = describeExtensionRuntimeBlockPresentation(state.runtimeBlock, t)
-    return {
-      ...action,
-      blocked: state.headerActionBlocked,
-      blockedLabel: blockPresentation.label,
-      blockedMessage: blockPresentation.message,
-    }
+  buildExtensionSidebarHeaderActionsState({
+    actions: viewTitleActions.value,
+    hostDiagnostics: hostDiagnostics.value,
+    translate: t,
   })
 )
 const resolvedViewRefreshTokens = computed(() =>
   views.value.map((view) => ({
-    key: `${view.extensionId}:${view.id}`,
-    token: extensionsStore.viewRefreshTickFor(`${view.extensionId}:${view.id}`),
+    key: resolvedViewKey(view),
+    token: extensionsStore.viewRefreshTickFor(resolvedViewKey(view)),
   }))
 )
 const viewControllerTokens = computed(() =>
   views.value.map((view) => {
-    const key = `${view.extensionId}:${view.id}`
+    const key = resolvedViewKey(view)
     const controller = extensionsStore.viewControllerStateFor(key) || {}
     return {
       key,
@@ -154,7 +158,7 @@ watch(resolvedViewRefreshTokens, (next, previous = []) => {
   const previousTokens = new Map(previous.map((entry) => [entry.key, entry.token]))
   const changedViews = next
     .filter((entry) => previousTokens.has(entry.key) && previousTokens.get(entry.key) !== entry.token)
-    .map((entry) => views.value.find((view) => `${view.extensionId}:${view.id}` === entry.key))
+    .map((entry) => views.value.find((view) => resolvedViewKey(view) === entry.key))
     .filter(Boolean)
 
   for (const view of changedViews) {
@@ -172,7 +176,7 @@ watch(viewControllerTokens, (next, previous = []) => {
         || previousEntry.focusedHandle !== entry.focusedHandle
         || previousEntry.revealedPathHandles !== entry.revealedPathHandles
     })
-    .map((entry) => views.value.find((view) => `${view.extensionId}:${view.id}` === entry.key))
+    .map((entry) => views.value.find((view) => resolvedViewKey(view) === entry.key))
     .filter(Boolean)
 
   for (const view of changedViews) {
@@ -180,69 +184,78 @@ watch(viewControllerTokens, (next, previous = []) => {
   }
 }, { immediate: true })
 
+function resolvedViewKey(view = {}) {
+  return extensionSidebarViewKey(view)
+}
+
 function resolvedViewRecord(view = {}) {
-  return extensionsStore.resolvedViewFor(`${view.extensionId}:${view.id}`)
+  return extensionsStore.resolvedViewFor(resolvedViewKey(view))
+}
+
+function resolvedViewPresentation(view = {}) {
+  return resolveExtensionSidebarViewPresentation({
+    view,
+    viewState: extensionsStore.viewStateFor(resolvedViewKey(view)),
+    resolvedView: resolvedViewRecord(view),
+  })
 }
 
 function resolvedViewTitle(view = {}) {
-  return extensionsStore.viewStateFor(`${view.extensionId}:${view.id}`)?.title
-    || resolvedViewRecord(view)?.title
-    || view.contextualTitle
-    || view.title
-    || view.id
+  return resolvedViewPresentation(view).title
 }
 
 function resolvedViewDescription(view = {}) {
-  return extensionsStore.viewStateFor(`${view.extensionId}:${view.id}`)?.description || ''
+  return resolvedViewPresentation(view).description
 }
 
 function resolvedViewMessage(view = {}) {
-  return extensionsStore.viewStateFor(`${view.extensionId}:${view.id}`)?.message || ''
+  return resolvedViewPresentation(view).message
 }
 
 function resolvedViewStatusLabel(view = {}) {
-  return extensionsStore.viewStateFor(`${view.extensionId}:${view.id}`)?.statusLabel || ''
+  return resolvedViewPresentation(view).statusLabel
 }
 
 function resolvedViewStatusTone(view = {}) {
-  return extensionsStore.viewStateFor(`${view.extensionId}:${view.id}`)?.statusTone || ''
+  return resolvedViewPresentation(view).statusTone
 }
 
 function resolvedViewActionLabel(view = {}) {
-  return extensionsStore.viewStateFor(`${view.extensionId}:${view.id}`)?.actionLabel || ''
+  return resolvedViewPresentation(view).actionLabel
 }
 
 function resolvedViewBadge(view = {}) {
-  return extensionsStore.viewStateFor(`${view.extensionId}:${view.id}`)?.badgeValue
+  return resolvedViewPresentation(view).badgeValue
 }
 
 function resolvedViewBadgeTooltip(view = {}) {
-  return extensionsStore.viewStateFor(`${view.extensionId}:${view.id}`)?.badgeTooltip || ''
+  return resolvedViewPresentation(view).badgeTooltip
 }
 
 function resolvedViewSections(view = {}) {
-  const sections = extensionsStore.viewStateFor(`${view.extensionId}:${view.id}`)?.sections
-  return Array.isArray(sections) ? sections : []
+  return resolvedViewPresentation(view).sections
 }
 
 function resolvedViewResults(view = {}) {
-  const entries = extensionsStore.viewStateFor(`${view.extensionId}:${view.id}`)?.resultEntries
-  return Array.isArray(entries) ? entries : []
+  return resolvedViewPresentation(view).resultEntries
 }
 
 function viewResultStateKey(view = {}) {
-  return `${view.extensionId}:${view.id}`
+  return resolvedViewKey(view)
 }
 
 function activeResultEntry(view = {}) {
-  const entries = resolvedViewResults(view)
-  if (entries.length === 0) return null
-  const selectedId = activeResultEntryKeys.value[viewResultStateKey(view)]
-  return entries.find((entry) => entry.id === selectedId) || entries[0] || null
+  return resolveExtensionSidebarActiveResultEntry({
+    resultEntries: resolvedViewResults(view),
+    selectedEntryId: activeResultEntryKeys.value[viewResultStateKey(view)],
+  })
 }
 
 function isActiveResultEntry(view = {}, entry = {}) {
-  return activeResultEntry(view)?.id === entry?.id
+  return isExtensionSidebarActiveResultEntry({
+    activeEntry: activeResultEntry(view),
+    entry,
+  })
 }
 
 function selectResultEntry(view = {}, entry = {}) {
@@ -254,42 +267,35 @@ function selectResultEntry(view = {}, entry = {}) {
 }
 
 function resolvedItems(view = {}) {
-  return extensionsStore.resolvedViewChildrenFor(`${view.extensionId}:${view.id}`, '')
+  return extensionsStore.resolvedViewChildrenFor(resolvedViewKey(view), '')
 }
 
 function resolvedChildItems(view = {}, item = {}) {
   return extensionsStore.resolvedViewChildrenFor(
-    `${view.extensionId}:${view.id}`,
+    resolvedViewKey(view),
     item.handle || item.id,
   )
 }
 
 function viewControllerState(view = {}) {
-  return extensionsStore.viewControllerStateFor(`${view.extensionId}:${view.id}`) || {}
+  return extensionsStore.viewControllerStateFor(resolvedViewKey(view)) || {}
 }
 
 function isExpandable(item = {}) {
-  const state = String(item?.collapsibleState || '')
-  return state && state !== 'none'
+  return isExtensionSidebarTreeItemExpandable(item)
 }
 
 function itemExpansionKey(view = {}, item = {}) {
-  return `${view.extensionId}:${view.id}:${item.handle || item.id}`
+  return resolveExtensionSidebarItemExpansionKey(view, item)
 }
 
 function isItemExpanded(view = {}, item = {}) {
-  const key = itemExpansionKey(view, item)
-  if (expandedItemKeys.value[key] != null) {
-    return Boolean(expandedItemKeys.value[key])
-  }
-  const controller = viewControllerState(view)
-  if (Array.isArray(controller.revealedPathHandles)) {
-    const handle = String(item?.handle || item?.id || '')
-    if (handle && controller.revealedPathHandles.includes(handle)) {
-      return true
-    }
-  }
-  return String(item?.collapsibleState || '') === 'expanded'
+  return isExtensionSidebarTreeItemExpanded({
+    view,
+    item,
+    expandedItemKeys: expandedItemKeys.value,
+    controllerState: viewControllerState(view),
+  })
 }
 
 async function loadExpandedChildren(view = {}, items = []) {
@@ -315,7 +321,7 @@ function fallbackCommandForView(view = {}, item = {}) {
 
 async function runItemCommand(view = {}, item = {}) {
   await extensionsStore.notifyViewSelection(view, item?.handle || item?.id || '').catch(() => {})
-  extensionsStore.setViewControllerState(`${view.extensionId}:${view.id}`, {
+  extensionsStore.setViewControllerState(resolvedViewKey(view), {
     selectedHandle: String(item?.handle || item?.id || ''),
     focusedHandle: String(item?.handle || item?.id || ''),
   })
@@ -401,7 +407,7 @@ async function toggleItemExpansion(view = {}, item = {}) {
 function markExpandedForHandle(view = {}, handle = '', expanded = true) {
   const normalizedHandle = String(handle || '').trim()
   if (!normalizedHandle) return
-  const key = `${view.extensionId}:${view.id}:${normalizedHandle}`
+  const key = resolveExtensionSidebarItemExpansionKey(view, { handle: normalizedHandle })
   expandedItemKeys.value = {
     ...expandedItemKeys.value,
     [key]: Boolean(expanded),
@@ -414,7 +420,7 @@ async function ensureItemChainLoaded(view = {}, handles = []) {
     const normalized = String(handle || '').trim()
     if (!normalized) continue
     const existingChildren = extensionsStore.resolvedViewChildrenFor(
-      `${view.extensionId}:${view.id}`,
+      resolvedViewKey(view),
       parentHandle,
     )
     const exists = existingChildren.some((item) => String(item?.handle || item?.id || '') === normalized)
@@ -441,27 +447,12 @@ const statusToneClass = normalizeExtensionToneClass
 const summaryToneClass = normalizeExtensionToneClass
 
 function describeResultAction(entry = {}) {
-  const action = String(entry?.action || '').trim().toLowerCase()
-  switch (action) {
-    case 'copy-text':
-    case 'copy-path':
-      return t('Copied to clipboard')
-    case 'open-reference':
-      return t('Opened reference')
-    case 'execute-command':
-      return t('Extension task started')
-    default:
-      return ''
-  }
+  const messageKey = resolveExtensionSidebarResultActionMessageKey(entry)
+  return messageKey ? t(messageKey) : ''
 }
 
 function resultActionKey(entry = {}) {
-  return [
-    String(entry?.id || '').trim(),
-    String(entry?.action || '').trim().toLowerCase(),
-    String(entry?.path || entry?.targetPath || '').trim(),
-    String(entry?.referenceId || entry?.reference_id || '').trim(),
-  ].join('::')
+  return resolveExtensionSidebarResultActionKey(entry)
 }
 
 async function openResultEntry(entry = {}) {
