@@ -212,3 +212,141 @@ function isTechnicalSetting(key = '') {
     normalized.includes('model')
 }
 </script>
+
+<style scoped>
+.extensions-group-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.extension-options-title {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  flex: 1 1 auto;
+}
+
+.extension-options-title .extension-card-icon-button {
+  margin: 0 0 0 4px;
+}
+
+.extension-card-icon-button {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.extension-card-icon-button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--sidebar-item-hover) 70%, transparent);
+  color: var(--text-primary);
+}
+
+.extension-card-icon-button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 65%, transparent);
+  outline-offset: 2px;
+}
+
+.extension-card-icon-button:disabled {
+  cursor: default;
+  opacity: 0.38;
+}
+
+.extension-empty-row {
+  padding: 16px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.extension-setting-row {
+  min-height: 52px;
+}
+
+.extension-setting-copy {
+  gap: 2px;
+}
+
+.extension-setting-label-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.extension-setting-control {
+  width: min(100%, var(--settings-select-width, 280px));
+}
+
+.extension-setting-control.is-wide {
+  width: min(100%, 360px);
+}
+
+.extension-action-row {
+  min-height: 52px;
+}
+
+.extension-action-hint {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.extension-action-control {
+  justify-content: flex-end;
+}
+
+.extension-setting-textarea {
+  width: 100%;
+  min-height: 86px;
+  resize: vertical;
+  box-sizing: border-box;
+  border: 1px solid color-mix(in srgb, var(--border-subtle) 88%, transparent);
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: color-mix(in srgb, var(--surface-base) 86%, transparent);
+  color: var(--text-primary);
+  font: 12px/1.45 var(--font-mono);
+  outline: none;
+}
+
+.extension-setting-textarea:focus {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent),
+    0 0 0 1px var(--accent);
+}
+
+@media (max-width: 720px) {
+  .extension-setting-row {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .extension-setting-control {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .extension-action-control {
+    width: 100%;
+  }
+
+  .extension-action-control :deep(.ui-button) {
+    width: 100%;
+  }
+}
+</style>

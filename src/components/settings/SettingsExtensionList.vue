@@ -127,6 +127,58 @@ function hasOptions(extension = {}) {
 </script>
 
 <style scoped>
+.extensions-group-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.extensions-group-heading .settings-group-title {
+  margin-bottom: 8px;
+  flex: 1 1 auto;
+}
+
+.extensions-page-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 4px 8px 0;
+  flex: 0 0 auto;
+}
+
+.extensions-page-icon-button {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.extensions-page-icon-button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--sidebar-item-hover) 70%, transparent);
+  color: var(--text-primary);
+}
+
+.extensions-page-icon-button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 65%, transparent);
+  outline-offset: 2px;
+}
+
+.extensions-page-icon-button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
 .extension-empty-row {
   padding: 16px;
   color: var(--text-muted);
@@ -135,5 +187,138 @@ function hasOptions(extension = {}) {
 
 .extension-empty-row.is-error {
   color: var(--error);
+}
+
+.extension-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
+}
+
+.extension-card:last-child {
+  border-bottom: none;
+}
+
+.extension-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 16px 18px;
+}
+
+.extension-copy {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.extension-title-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.extension-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.extension-status,
+.extension-scope {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 0 7px;
+  border-radius: 6px;
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1;
+}
+
+.extension-status.is-available {
+  color: var(--success);
+}
+
+.extension-status.is-invalid,
+.extension-status.is-blocked {
+  color: var(--error);
+}
+
+.extension-status.is-missingRuntime {
+  color: var(--warning, #a56a00);
+}
+
+.extension-status.is-disabled {
+  color: var(--text-muted);
+}
+
+.extension-description,
+.extension-message {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.extension-message.is-error {
+  color: var(--error);
+}
+
+.extension-controls {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding-top: 0;
+}
+
+.extension-card-icon-button {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.extension-card-icon-button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--sidebar-item-hover) 70%, transparent);
+  color: var(--text-primary);
+}
+
+.extension-card-icon-button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 65%, transparent);
+  outline-offset: 2px;
+}
+
+.extension-card-icon-button:disabled {
+  cursor: default;
+  opacity: 0.38;
+}
+
+@media (max-width: 720px) {
+  .extension-header {
+    flex-direction: column;
+  }
+
+  .extension-controls {
+    width: 100%;
+    justify-content: space-between;
+  }
 }
 </style>
