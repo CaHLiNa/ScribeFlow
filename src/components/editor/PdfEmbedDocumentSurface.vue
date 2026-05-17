@@ -169,6 +169,10 @@ import {
   createPdfForwardSyncLifecycle,
   waitForPdfForwardSyncFrames,
 } from '../../editor/pdfForwardSyncTiming.js'
+import {
+  createPdfRestoreLifecycle,
+  waitForPdfRestoreFrames,
+} from '../../editor/pdfRestoreTiming.js'
 import { useToastStore } from '../../stores/toast.js'
 import { useWorkspaceStore } from '../../stores/workspace.js'
 import { basenamePath } from '../../utils/path.js'
@@ -243,6 +247,7 @@ const currentContextMenuReverseSyncDetail = ref(null)
 const forwardSyncOverlays = ref([])
 const queuedForwardSyncRequest = ref(null)
 const pdfForwardSyncLifecycle = createPdfForwardSyncLifecycle()
+const pdfRestoreLifecycle = createPdfRestoreLifecycle()
 const shouldUseDarkPageTheme = computed(() =>
   String(props.pdfViewerPageThemeMode || '').trim().toLowerCase() !== 'light'
   && String(props.resolvedTheme || '').trim().toLowerCase() === 'dark'
@@ -993,6 +998,19 @@ function scheduleViewStateEmission() {
   })
 }
 
+function cancelPendingPdfRestore() {
+  restoreRevision += 1
+  pdfRestoreLifecycle.cancelPending()
+}
+
+function isPdfRestoreCancelled(currentRevision, documentId, lifecycle, token) {
+  return (
+    currentRevision !== restoreRevision
+    || documentId !== props.documentId
+    || lifecycle?.isCancelled?.(token)
+  )
+}
+
 function clearScheduledLayoutNudge() {
   if (typeof window === 'undefined') return
   if (scheduledLayoutNudgeFrame) {
@@ -1579,12 +1597,16 @@ async function applyForwardSyncRequest(request = null, options = {}) {
   return true
 }
 
-async function restoreViewState(state) {
+async function restoreViewState(state, options = {}) {
+  const lifecycle = options.lifecycle || null
+  const token = options.token || null
   const currentRevision = ++restoreRevision
+  const restoreDocumentId = props.documentId
   if (!state) return false
+  if (isPdfRestoreCancelled(currentRevision, restoreDocumentId, lifecycle, token)) return false
 
   const scrollScope = scroll.provides.value
-  const viewportScope = viewportCapability.value?.forDocument(props.documentId)
+  const viewportScope = viewportCapability.value?.forDocument(restoreDocumentId)
   if (!scrollScope || !viewportScope) return false
 
   spread.provides.value?.setSpreadMode(resolvePreferredSpreadMode())
@@ -1594,14 +1616,14 @@ async function restoreViewState(state) {
   }
 
   await nextTick()
-  if (currentRevision !== restoreRevision) return false
+  if (isPdfRestoreCancelled(currentRevision, restoreDocumentId, lifecycle, token)) return false
 
-  if (typeof window !== 'undefined') {
-    await new Promise((resolve) => window.requestAnimationFrame(resolve))
-    await new Promise((resolve) => window.requestAnimationFrame(resolve))
+  if (typeof window !== 'undefined' || lifecycle?.waitFrame) {
+    const framesCompleted = await waitForPdfRestoreFrames(lifecycle, token, 2)
+    if (!framesCompleted) return false
   }
 
-  if (currentRevision !== restoreRevision) return false
+  if (isPdfRestoreCancelled(currentRevision, restoreDocumentId, lifecycle, token)) return false
 
   const pageNumber = Math.max(1, Number(state.pageNumber || 1))
   scrollScope.scrollToPage({
@@ -1610,13 +1632,14 @@ async function restoreViewState(state) {
   })
 
   await nextTick()
-  if (currentRevision !== restoreRevision) return false
+  if (isPdfRestoreCancelled(currentRevision, restoreDocumentId, lifecycle, token)) return false
 
-  if (typeof window !== 'undefined') {
-    await new Promise((resolve) => window.requestAnimationFrame(resolve))
+  if (typeof window !== 'undefined' || lifecycle?.waitFrame) {
+    const frameCompleted = await waitForPdfRestoreFrames(lifecycle, token, 1)
+    if (!frameCompleted) return false
   }
 
-  if (currentRevision !== restoreRevision) return false
+  if (isPdfRestoreCancelled(currentRevision, restoreDocumentId, lifecycle, token)) return false
 
   const pageElement = resolvePageBinding(pageNumber)?.element
   const pageTop = Number(pageElement?.offsetTop || 0)
@@ -1635,7 +1658,7 @@ async function restoreViewState(state) {
   })
 
   await nextTick()
-  if (currentRevision !== restoreRevision) return false
+  if (isPdfRestoreCancelled(currentRevision, restoreDocumentId, lifecycle, token)) return false
 
   scheduleViewStateEmission()
   initialLayoutHandled.value = true
@@ -1646,6 +1669,7 @@ async function restoreViewState(state) {
 watch(
   () => props.restoreState,
   (nextState) => {
+    cancelPendingPdfRestore()
     pendingRestoreState.value = nextState ? { ...nextState } : null
   },
   { immediate: true }
@@ -1689,6 +1713,7 @@ watch(
 watch(
   () => props.documentId,
   () => {
+    cancelPendingPdfRestore()
     clearScheduledLayoutNudge()
     pageBindings.clear()
     currentContextMenuReverseSyncDetail.value = null
@@ -1872,7 +1897,13 @@ watch(
       if (event.documentId !== documentId) return
 
       if (pendingRestoreState.value) {
-        void restoreViewState(pendingRestoreState.value).then(() => {
+        const token = pdfRestoreLifecycle.begin()
+        if (!token) return
+        void restoreViewState(pendingRestoreState.value, {
+          lifecycle: pdfRestoreLifecycle,
+          token,
+        }).then(() => {
+          if (pdfRestoreLifecycle.isCancelled(token)) return
           scheduleInitialPaintRefresh()
         })
         return
@@ -1925,6 +1956,8 @@ onUnmounted(() => {
   clearSearchDebounceTimer()
   clearForwardSyncHighlight()
   pdfForwardSyncLifecycle.dispose()
+  restoreRevision += 1
+  pdfRestoreLifecycle.dispose()
 
   if (scheduledViewStateFrame && typeof window !== 'undefined') {
     window.cancelAnimationFrame(scheduledViewStateFrame)
