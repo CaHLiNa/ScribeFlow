@@ -79,6 +79,7 @@
 <script setup>
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { focusEditorRangeWithHighlight } from '../../editor/revealHighlight'
+import { createOutlineFocusRetryLifecycle } from '../../editor/outlineFocusRetryTiming.js'
 import { useEditorStore } from '../../stores/editor'
 import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { useFilesStore } from '../../stores/files'
@@ -101,6 +102,8 @@ const filesStore = useFilesStore()
 const workspaceStore = useWorkspaceStore()
 const { t } = useI18n()
 const collapsedHeadings = ref({})
+const outlineFocusRetryLifecycle = createOutlineFocusRetryLifecycle()
+let pendingOutlineFocusPath = ''
 
 function outlineTypeForPath(path) {
   if (!path) return null
@@ -195,17 +198,22 @@ const activeOutlineItemKey = computed(() => {
   return activeItem ? outlineItemKey(activeItem) : ''
 })
 
-function focusTextOffset(path, offset, attempts = 0) {
+function focusTextOffset(path, offset, token, attempts = 0) {
+  if (!outlineFocusRetryLifecycle.isCurrent(token)) return
   const targetView = editorStore.getAnyEditorView(path)
   if (!targetView) {
-    if (attempts < 20) {
-      window.setTimeout(() => focusTextOffset(path, offset, attempts + 1), 40)
-    }
+    outlineFocusRetryLifecycle.scheduleRetry(token, (nextAttempts) => {
+      focusTextOffset(path, offset, token, nextAttempts)
+    }, attempts)
     return
   }
 
+  if (!outlineFocusRetryLifecycle.isCurrent(token)) return
   const pos = Math.min(Number(offset) || 0, targetView.state.doc.length)
   focusEditorRangeWithHighlight(targetView, pos, pos, { center: true })
+  if (outlineFocusRetryLifecycle.isCurrent(token)) {
+    pendingOutlineFocusPath = ''
+  }
 }
 
 function navigateToOutlineItem(item) {
@@ -216,9 +224,11 @@ function navigateToOutlineItem(item) {
   const targetPath = item.filePath || path
 
   if (ft === 'markdown' || ft === 'latex') {
+    const token = outlineFocusRetryLifecycle.begin()
+    pendingOutlineFocusPath = targetPath
     const targetPaneId = editorStore.findPaneWithTab(targetPath)?.id || editorStore.activePaneId
     editorStore.openFileInPane(targetPath, targetPaneId, { activatePane: true })
-    focusTextOffset(targetPath, item.offset)
+    focusTextOffset(targetPath, item.offset, token)
   }
 }
 
@@ -284,6 +294,15 @@ watch(
 )
 
 watch(
+  () => activeFile.value,
+  (path) => {
+    if (pendingOutlineFocusPath && path === pendingOutlineFocusPath) return
+    pendingOutlineFocusPath = ''
+    outlineFocusRetryLifecycle.cancelPending()
+  }
+)
+
+watch(
   () => [workspaceStore.isOpen, workspaceStore.path, editorStore.restoreGeneration],
   () => {
     if (!workspaceStore.isOpen || !isWorkspaceDocumentPath(activeFile.value, workspaceStore.path)) {
@@ -305,6 +324,11 @@ watch(
   },
   { immediate: true }
 )
+
+onUnmounted(() => {
+  pendingOutlineFocusPath = ''
+  outlineFocusRetryLifecycle.dispose()
+})
 </script>
 
 <style scoped>
