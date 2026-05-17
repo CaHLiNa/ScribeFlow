@@ -60,6 +60,21 @@
 <script setup>
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useI18n } from '../../i18n'
+import {
+  REFERENCE_DETAIL_EDITABLE_FIELDS,
+  buildReferenceDetailDirtyUpdates,
+  buildReferenceDetailDraftSnapshot,
+  buildReferenceDetailHeroMetaItems,
+  buildReferenceDetailPdfExtensionTarget,
+  hasReferenceDetailDraftFieldChanged,
+  normalizeReferenceDetailAuthors,
+  normalizeReferenceDetailCollectionMemberships,
+  normalizeReferenceDetailTagValues,
+  normalizeReferenceDetailText,
+  resolveReferenceDetailCollection,
+  resolveReferenceDetailCollectionLabel,
+  resolveReferenceDetailPdfPath,
+} from '../../domains/references/referenceDetailDraft.js'
 import { getReferenceTypeLabelKey } from '../../domains/references/referencePresentation.js'
 import { useEditorStore } from '../../stores/editor'
 import { useReferencesStore } from '../../stores/references'
@@ -107,33 +122,13 @@ const selectedReferenceTypeLabel = computed(() =>
     ? t(getReferenceTypeLabelKey(selectedReference.value.typeKey || selectedReference.value.typeLabel))
     : ''
 )
-const selectedReferencePdfPath = computed(() => String(selectedReference.value?.pdfPath || '').trim())
+const selectedReferencePdfPath = computed(() => resolveReferenceDetailPdfPath(selectedReference.value))
 const canOpenPdf = computed(() => selectedReferencePdfPath.value.length > 0)
-const pdfExtensionActionTarget = computed(() => ({
-  kind: 'referencePdf',
-  referenceId: String(selectedReference.value?.id || ''),
-  path: selectedReferencePdfPath.value,
-}))
-const heroMetaItems = computed(() =>
-  [
-    draft.year ? String(draft.year) : '',
-    draft.source ? String(draft.source) : '',
-    draft.citationKey ? String(draft.citationKey) : '',
-  ].filter(Boolean)
+const pdfExtensionActionTarget = computed(() =>
+  buildReferenceDetailPdfExtensionTarget(selectedReference.value)
 )
-const editableDraftFields = [
-  'title',
-  'authorsText',
-  'citationKey',
-  'year',
-  'source',
-  'identifier',
-  'volume',
-  'issue',
-  'pages',
-  'abstract',
-  'note',
-]
+const heroMetaItems = computed(() => buildReferenceDetailHeroMetaItems(draft))
+const editableDraftFields = REFERENCE_DETAIL_EDITABLE_FIELDS
 const hasDraftChanges = computed(() =>
   editableDraftFields.some((field) => hasDraftFieldChanged(field, selectedReference.value))
 )
@@ -166,21 +161,7 @@ onBeforeUnmount(() => {
 })
 
 function buildDraftSnapshot(reference = null) {
-  return {
-    title: String(reference?.title || ''),
-    authorsText: Array.isArray(reference?.authors) ? reference.authors.join('; ') : '',
-    citationKey: String(reference?.citationKey || ''),
-    year: reference?.year != null && reference?.year !== '' ? String(reference.year) : '',
-    source: String(reference?.source || ''),
-    identifier: String(reference?.identifier || ''),
-    volume: String(reference?.volume || ''),
-    issue: String(reference?.issue || ''),
-    pages: String(reference?.pages || ''),
-    abstract: String(reference?.abstract || ''),
-    note: Array.isArray(reference?.notes) ? reference.notes.join('\n\n') : '',
-    collections: normalizeCollectionMemberships(reference?.collections || []),
-    tags: Array.isArray(reference?.tags) ? [...reference.tags] : [],
-  }
+  return buildReferenceDetailDraftSnapshot(reference, availableCollections.value)
 }
 
 function syncDraft(reference = null, options = {}) {
@@ -260,58 +241,25 @@ async function handleFieldBlur(field = '', commit) {
   }
 }
 
-function normalizeText(value = '') {
-  return String(value || '').trim()
-}
-
-function normalizeAuthors(value = '') {
-  return String(value || '')
-    .split(/[\n;]+/g)
-    .map((part) => normalizeText(part))
-    .filter(Boolean)
-}
-
-function normalizeTagValues(value = '') {
-  return String(value || '')
-    .split(/[,\n;]+/g)
-    .map((part) => normalizeText(part).replace(/^#/, ''))
-    .filter(Boolean)
-}
-
 function resolveCollection(value = '') {
-  const normalized = normalizeText(value).toLowerCase()
-  if (!normalized) return null
-  return (
-    availableCollections.value.find((collection) => String(collection.key || '').trim().toLowerCase() === normalized)
-    || availableCollections.value.find((collection) => String(collection.label || '').trim().toLowerCase() === normalized)
-    || null
-  )
+  return resolveReferenceDetailCollection(availableCollections.value, value)
 }
 
 function normalizeCollectionMemberships(values = []) {
-  return (Array.isArray(values) ? values : [])
-    .map((value) => resolveCollection(value)?.key || String(value || '').trim())
-    .filter(Boolean)
+  return normalizeReferenceDetailCollectionMemberships(availableCollections.value, values)
 }
 
 function collectionLabel(value = '') {
-  return resolveCollection(value)?.label || String(value || '').trim()
-}
-
-function normalizeDraftFieldForCompare(field = '', value = '') {
-  if (field === 'authorsText') return normalizeAuthors(value).join('; ')
-  if (field === 'year') {
-    const trimmed = normalizeText(value)
-    const year = trimmed ? Number.parseInt(trimmed, 10) : null
-    return Number.isFinite(year) ? String(year) : ''
-  }
-  return String(value || '').trim()
+  return resolveReferenceDetailCollectionLabel(availableCollections.value, value)
 }
 
 function hasDraftFieldChanged(field = '', reference = null) {
-  if (!reference?.id) return false
-  const snapshot = buildDraftSnapshot(reference)
-  return normalizeDraftFieldForCompare(field, draft[field]) !== normalizeDraftFieldForCompare(field, snapshot[field])
+  return hasReferenceDetailDraftFieldChanged({
+    field,
+    draft,
+    reference,
+    collections: availableCollections.value,
+  })
 }
 
 function formatReferenceSaveError(error) {
@@ -329,7 +277,7 @@ function formatReferenceSaveError(error) {
 }
 
 function enqueueReferenceUpdate(referenceId = '', updates = {}, options = {}) {
-  const normalizedReferenceId = normalizeText(referenceId)
+  const normalizedReferenceId = normalizeReferenceDetailText(referenceId)
   if (!normalizedReferenceId || !updates || Object.keys(updates).length === 0) {
     return Promise.resolve(false)
   }
@@ -349,62 +297,31 @@ function enqueueReferenceUpdate(referenceId = '', updates = {}, options = {}) {
 }
 
 function buildDirtyDraftUpdates(fields = new Set()) {
-  const updates = {}
-
-  if (fields.has('title')) {
-    updates.title = String(draft.title || '').trim()
-    draft.title = updates.title
-  }
-  if (fields.has('authorsText')) {
-    const authors = normalizeAuthors(draft.authorsText)
-    draft.authorsText = authors.join('; ')
-    updates.authors = authors
-    updates.authorLine = authors.join('; ')
-  }
-  if (fields.has('citationKey')) {
-    updates.citationKey = normalizeText(draft.citationKey)
-    draft.citationKey = updates.citationKey
-  }
-  if (fields.has('year')) {
-    const trimmed = normalizeText(draft.year)
-    const year = trimmed ? Number.parseInt(trimmed, 10) : null
-    draft.year = Number.isFinite(year) ? String(year) : ''
-    updates.year = Number.isFinite(year) ? year : null
-  }
-
-  for (const field of ['source', 'identifier', 'volume', 'issue', 'pages']) {
-    if (fields.has(field)) {
-      updates[field] = normalizeText(draft[field])
-      draft[field] = updates[field]
-    }
-  }
-
-  if (fields.has('abstract')) {
-    updates.abstract = String(draft.abstract || '').trim()
-    draft.abstract = updates.abstract
-  }
-  if (fields.has('note')) {
-    draft.note = String(draft.note || '').trim()
-    updates.notes = draft.note ? [draft.note] : []
-  }
-  if (fields.has('tagInput') && normalizeTagValues(tagInput.value).length > 0) {
-    const existing = new Set(draft.tags.map((tag) => normalizeText(tag).toLowerCase()))
-    for (const tag of normalizeTagValues(tagInput.value)) {
-      const normalized = tag.toLowerCase()
-      if (!existing.has(normalized)) {
-        existing.add(normalized)
-        draft.tags.push(tag)
-      }
-    }
+  const result = buildReferenceDetailDirtyUpdates({
+    draft,
+    tagInput: tagInput.value,
+    fields,
+  })
+  applyDraftValues(result.draft)
+  if (result.clearTagInput) {
     tagInput.value = ''
-    updates.tags = [...draft.tags]
   }
+  return result.updates
+}
 
-  return updates
+function applyDraftValues(values = {}) {
+  for (const field of editableDraftFields) {
+    if (Object.prototype.hasOwnProperty.call(values, field)) {
+      draft[field] = values[field]
+    }
+  }
+  if (Object.prototype.hasOwnProperty.call(values, 'tags')) {
+    draft.tags = values.tags
+  }
 }
 
 async function flushDirtyDraftForReference(reference = null, options = {}) {
-  const referenceId = normalizeText(reference?.id || draftReferenceId.value)
+  const referenceId = normalizeReferenceDetailText(reference?.id || draftReferenceId.value)
   if (!referenceId || dirtyDraftFields.size === 0) return false
 
   const fields = new Set(dirtyDraftFields)
@@ -424,7 +341,7 @@ async function saveDraftChanges() {
 
 async function saveDraftChangesForReference(reference = null, options = {}) {
   try {
-    const referenceId = normalizeText(reference?.id || draftReferenceId.value)
+    const referenceId = normalizeReferenceDetailText(reference?.id || draftReferenceId.value)
     if (!referenceId) return false
 
     const changedFields = new Set(
@@ -451,7 +368,9 @@ async function saveDraftChangesForReference(reference = null, options = {}) {
 }
 
 async function updateSelectedReference(updates = {}, options = {}) {
-  const referenceId = normalizeText(options.referenceId || draftReferenceId.value || selectedReference.value?.id)
+  const referenceId = normalizeReferenceDetailText(
+    options.referenceId || draftReferenceId.value || selectedReference.value?.id
+  )
   if (!referenceId) return false
   return enqueueReferenceUpdate(referenceId, updates, options)
 }
@@ -463,7 +382,7 @@ async function commitTitle() {
 }
 
 async function commitAuthors() {
-  const authors = normalizeAuthors(draft.authorsText)
+  const authors = normalizeReferenceDetailAuthors(draft.authorsText)
   draft.authorsText = authors.join('; ')
   dirtyDraftFields.delete('authorsText')
   await updateSelectedReference({
@@ -473,13 +392,13 @@ async function commitAuthors() {
 }
 
 async function commitCitationKey() {
-  draft.citationKey = normalizeText(draft.citationKey)
+  draft.citationKey = normalizeReferenceDetailText(draft.citationKey)
   dirtyDraftFields.delete('citationKey')
   await updateSelectedReference({ citationKey: draft.citationKey })
 }
 
 async function commitYear() {
-  const trimmed = normalizeText(draft.year)
+  const trimmed = normalizeReferenceDetailText(draft.year)
   const year = trimmed ? Number.parseInt(trimmed, 10) : null
   draft.year = Number.isFinite(year) ? String(year) : ''
   dirtyDraftFields.delete('year')
@@ -488,7 +407,9 @@ async function commitYear() {
 
 async function commitTextField(field, options = {}) {
   const { multiline = false } = options
-  const value = multiline ? String(draft[field] || '').trim() : normalizeText(draft[field])
+  const value = multiline
+    ? String(draft[field] || '').trim()
+    : normalizeReferenceDetailText(draft[field])
   draft[field] = value
   dirtyDraftFields.delete(field)
   await updateSelectedReference({ [field]: value })
@@ -503,7 +424,7 @@ async function commitNote() {
 }
 
 async function removeCollection(value = '') {
-  const target = resolveCollection(value)?.key || normalizeText(value)
+  const target = resolveCollection(value)?.key || normalizeReferenceDetailText(value)
   draft.collections = normalizeCollectionMemberships(draft.collections).filter(
     (item) => item !== target
   )
@@ -512,10 +433,12 @@ async function removeCollection(value = '') {
 
 async function addTag(event) {
   event?.preventDefault?.()
-  const nextTags = normalizeTagValues(tagInput.value)
+  const nextTags = normalizeReferenceDetailTagValues(tagInput.value)
   if (nextTags.length === 0) return
 
-  const existing = new Set(draft.tags.map((tag) => normalizeText(tag).toLowerCase()))
+  const existing = new Set(
+    draft.tags.map((tag) => normalizeReferenceDetailText(tag).toLowerCase())
+  )
   for (const tag of nextTags) {
     const normalized = tag.toLowerCase()
     if (!existing.has(normalized)) {
@@ -537,7 +460,7 @@ function handleTagInputKeydown(event) {
 
 async function handleTagInputBlur(event) {
   try {
-    if (normalizeTagValues(tagInput.value).length > 0) {
+    if (normalizeReferenceDetailTagValues(tagInput.value).length > 0) {
       await addTag(event)
     }
   } finally {
@@ -547,8 +470,10 @@ async function handleTagInputBlur(event) {
 }
 
 async function removeTag(tag = '') {
-  const normalizedTarget = normalizeText(tag).toLowerCase()
-  draft.tags = draft.tags.filter((item) => normalizeText(item).toLowerCase() !== normalizedTarget)
+  const normalizedTarget = normalizeReferenceDetailText(tag).toLowerCase()
+  draft.tags = draft.tags.filter(
+    (item) => normalizeReferenceDetailText(item).toLowerCase() !== normalizedTarget
+  )
   await updateSelectedReference({ tags: [...draft.tags] })
 }
 

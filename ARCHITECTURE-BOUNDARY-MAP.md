@@ -151,7 +151,7 @@ Components over 500 lines:
 | `src/components/extensions/ExtensionSidebarPanel.vue` | 645 | Extension panel shell; Phase 8 extracted per-view rendering and deterministic sidebar presentation helpers. |
 | `src/components/extensions/ExtensionSidebarViewSection.vue` | 232 | Extension view section presentation for status, results, preview, and tree root. |
 | `src/components/layout/WorkbenchRail.vue` | 624 | Layout UI; topbar style and workspace mode-item derivation now live in the workbench domain while native drag/listener orchestration stays in the component. |
-| `src/components/panel/ReferenceDetailPanel.vue` | 654 | Reference detail draft orchestration; Phase 8 extracted hero/metadata/content presentation. |
+| `src/components/panel/ReferenceDetailPanel.vue` | 579 | Reference detail draft orchestration; Phase 8 extracted hero/metadata/content presentation and pure draft normalization helpers. |
 | `src/components/panel/ReferenceDetailContentSection.vue` | 132 | Reference abstract and notes disclosure presentation. |
 | `src/components/panel/ReferenceDetailHero.vue` | 164 | Reference detail title/save hero presentation. |
 | `src/components/panel/ReferenceDetailMetadataSection.vue` | 391 | Reference metadata, tags, collections, and file action presentation. |
@@ -227,6 +227,7 @@ Components over 500 lines:
 - 2026-05-02: `src/services/references/citationFormatter.js` no longer imports the workspace Pinia store to discover workspace path. Workspace context is passed by callers as a DTO field, keeping citation services as Rust bridge wrappers around `references_citation_render` instead of hidden store-aware orchestration.
 - 2026-05-03: Reference removal still commits the local library snapshot first, but best-effort Zotero remote delete failures are no longer swallowed. `src/services/references/zoteroSync.js` propagates delete invoke failures, `src/stores/references.js` records them in `zoteroMutationError`, and `ReferenceLibraryWorkbench.vue` surfaces them through the existing reference workbench status area.
 - 2026-05-18: PDF reference import no longer performs duplicate add-or-attach policy in `src/stores/references.js`. The store asks Rust `references_mutation_apply` for `importPdfReference`, lets `src-tauri/src/references_mutation.rs` choose the canonical new-or-duplicate reference id, then stores the PDF asset against that canonical record and writes the normalized update through the existing `updateReference` mutation. `scripts/probe-reference-pdf-import-authority-contract.mjs` guards that the store does not call the legacy duplicate/merge service path for PDF import.
+- 2026-05-18: Reference detail draft snapshot creation, editable field list, authors/tags/collection normalization, hero meta derivation, PDF action-target shaping, draft comparison, and dirty update derivation moved from `ReferenceDetailPanel.vue` into `src/domains/references/referenceDetailDraft.js`. The panel still owns local draft lifecycle, blur/save timing, queued store updates, native PDF attach/reveal/open side effects, and toast error presentation.
 
 ## Document Runtime Cleanup Log
 
