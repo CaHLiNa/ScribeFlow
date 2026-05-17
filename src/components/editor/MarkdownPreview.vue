@@ -41,6 +41,7 @@ import { revealMarkdownSourceLocation } from '../../services/markdown/reveal.js'
 import { resolveMarkdownPreviewInput } from '../../domains/document/documentWorkspacePreviewAdapters.js'
 import SurfaceContextMenu from '../shared/SurfaceContextMenu.vue'
 import { useSurfaceContextMenu } from '../../composables/useSurfaceContextMenu.js'
+import { createMarkdownPreviewRenderLifecycle } from '../../editor/markdownPreviewRenderTiming.js'
 import {
   MARKDOWN_FORWARD_SYNC_EVENT,
   dispatchMarkdownBackwardSync,
@@ -87,6 +88,11 @@ const renderedHtml = ref('')
 let flashTimer = null
 let previewScrollSyncFrame = null
 let suppressPreviewScrollSyncUntil = 0
+const previewRenderLifecycle = createMarkdownPreviewRenderLifecycle()
+
+function isRenderCurrent(token, sourcePath) {
+  return previewRenderLifecycle.isCurrent(token) && sourcePath === resolvedSourcePath.value
+}
 
 function getSourceAnchors() {
   return[
@@ -330,35 +336,47 @@ async function copySelectedPreviewText() {
   document.execCommand('copy')
 }
 
-async function doRender() {
-  if (loadError.value) {
+async function doRender(token = previewRenderLifecycle.startRender()) {
+  if (!token) return
+  const sourcePath = resolvedSourcePath.value
+  const currentLoadError = filesStore.getFileLoadError(sourcePath)
+  if (currentLoadError) {
+    if (!isRenderCurrent(token, sourcePath)) return
     renderedHtml.value = ''
     return
   }
-  let md = filesStore.fileContents[resolvedSourcePath.value]
+  let md = filesStore.fileContents[sourcePath]
   if (md === undefined) return
-  workflowStore.setMarkdownPreviewState(resolvedSourcePath.value, {
+  if (!isRenderCurrent(token, sourcePath)) return
+  workflowStore.setMarkdownPreviewState(sourcePath, {
     status: 'rendering',
     problems:[],
   })
 
   try {
     const result = renderPreview(md)
-    renderedHtml.value = result instanceof Promise ? await result : result
+    if (!isRenderCurrent(token, sourcePath)) return
+    const nextHtml = result instanceof Promise ? await result : result
+    if (!isRenderCurrent(token, sourcePath)) return
+    renderedHtml.value = nextHtml
+    if (!isRenderCurrent(token, sourcePath)) return
     await nextTick()
+    if (!isRenderCurrent(token, sourcePath)) return
     flushPendingForwardSync()
-    workflowStore.setMarkdownPreviewState(resolvedSourcePath.value, {
+    if (!isRenderCurrent(token, sourcePath)) return
+    workflowStore.setMarkdownPreviewState(sourcePath, {
       status: 'ready',
       problems:[],
     })
   } catch (error) {
+    if (!isRenderCurrent(token, sourcePath)) return
     renderedHtml.value = ''
-    workflowStore.setMarkdownPreviewState(resolvedSourcePath.value, {
+    workflowStore.setMarkdownPreviewState(sourcePath, {
       status: 'error',
       problems:[
         {
-          id: `markdown-preview:${resolvedSourcePath.value}`,
-          sourcePath: resolvedSourcePath.value,
+          id: `markdown-preview:${sourcePath}`,
+          sourcePath,
           line: null,
           column: null,
           severity: 'error',
@@ -375,12 +393,14 @@ async function doRender() {
 watch(
   () => filesStore.fileContents[resolvedSourcePath.value],
   () => {
-    clearTimeout(renderTimer)
-    renderTimer = setTimeout(doRender, 300)
+    renderTimer = previewRenderLifecycle.scheduleRender((token) => {
+      void doRender(token)
+    }, 300)
   }
 )
 
 watch(loadError, (nextError) => {
+  previewRenderLifecycle.cancelPending()
   if (nextError) {
     renderedHtml.value = ''
   }
@@ -396,18 +416,24 @@ watch(
 )
 
 onMounted(async () => {
-  let content = filesStore.fileContents[resolvedSourcePath.value]
+  const token = previewRenderLifecycle.startRender()
+  if (!token) return
+  const sourcePath = resolvedSourcePath.value
+  let content = filesStore.fileContents[sourcePath]
   if (content === undefined) {
-    content = await filesStore.readFile(resolvedSourcePath.value)
+    content = await filesStore.readFile(sourcePath)
   }
-  if (content === null && loadError.value) return
+  if (!isRenderCurrent(token, sourcePath)) return
+  if (content === null && filesStore.getFileLoadError(sourcePath)) return
 
-  doRender()
+  void doRender(token)
   containerEl.value?.addEventListener('scroll', handlePreviewScroll, { passive: true })
   window.addEventListener(MARKDOWN_FORWARD_SYNC_EVENT, handleForwardSyncRequest)
 })
 
 onUnmounted(() => {
+  previewRenderLifecycle.dispose()
+  renderTimer = null
   clearPendingMarkdownForwardSync(resolvedSourcePath.value)
   containerEl.value?.removeEventListener('scroll', handlePreviewScroll)
   window.removeEventListener(MARKDOWN_FORWARD_SYNC_EVENT, handleForwardSyncRequest)

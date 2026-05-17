@@ -93,6 +93,7 @@ Current editor stability contract:
 - restored editor session state is normalized before mounting panes or document dock tabs: stale active pane ids, duplicate dock tabs, invalid active dock tabs and out-of-surface `lastContextPath` values fall back to mounted editor/dock context
 - Markdown preview sync timers are lifecycle-scoped: pending selection timeouts and viewport animation frames are invalidated on editor deactivate/unmount and superseded by later cursor/scroll changes before dispatching preview sync events
 - Markdown pending forward-sync locations are source-scoped and cleared when a preview surface unmounts, so later remounts cannot consume stale reveal/scroll intent
+- Markdown preview renders are lifecycle-versioned: delayed render timers, async file reads and async preview renders cannot commit HTML, preview status or pending scroll sync after unmount or after a newer render request supersedes them
 - these are timing and restore-state guards only; they do not restore cursor/selection, change session payload shape, or introduce automatic reveal/scroll behavior
 
 Current plugin result contract:
