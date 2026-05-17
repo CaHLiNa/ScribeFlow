@@ -15,7 +15,10 @@
 import { computed, defineAsyncComponent } from 'vue'
 import { useI18n } from '../../i18n'
 import { useWorkspaceStore } from '../../stores/workspace'
-import { SETTINGS_SECTION_DEFINITIONS, normalizeSettingsSectionId } from './settingsSections.js'
+import {
+  resolveSettingsSectionId,
+  resolveSettingsSectionMeta,
+} from '../../domains/settings/settingsSections.js'
 
 const SettingsGeneral = defineAsyncComponent(() => import('./SettingsGeneral.vue'))
 const SettingsEditor = defineAsyncComponent(() => import('./SettingsEditor.vue'))
@@ -27,13 +30,6 @@ const SettingsExtensions = defineAsyncComponent(() => import('./SettingsExtensio
 const workspace = useWorkspaceStore()
 const { t } = useI18n()
 
-const sections = computed(() =>
-  SETTINGS_SECTION_DEFINITIONS.map((item) => ({
-    ...item,
-    label: t(item.labelKey),
-  }))
-)
-
 const sectionComponents = {
   general: SettingsGeneral,
   editor: SettingsEditor,
@@ -44,13 +40,14 @@ const sectionComponents = {
 }
 
 const activeSection = computed(() =>
-  sectionComponents[normalizeSettingsSectionId(workspace.settingsSection)]
-    ? normalizeSettingsSectionId(workspace.settingsSection)
-    : 'general'
+  resolveSettingsSectionId(workspace.settingsSection)
 )
 
 const activeSectionMeta = computed(
-  () => sections.value.find((item) => item.id === activeSection.value) || sections.value[0]
+  () => resolveSettingsSectionMeta({
+    sectionId: activeSection.value,
+    translate: t,
+  }).activeSectionMeta
 )
 
 const activeSectionLabel = computed(() => activeSectionMeta.value?.label ?? t('Settings'))

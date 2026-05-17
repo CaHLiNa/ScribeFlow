@@ -158,7 +158,7 @@ Components over 500 lines:
 | `src/components/references/ReferenceLibraryWorkbench.vue` | 860 | Reference workbench orchestration; Phase 8 extracted toolbar/table presentation. |
 | `src/components/references/ReferenceLibraryTable.vue` | 237 | Reference library table presentation and sort header events. |
 | `src/components/references/ReferenceLibraryToolbar.vue` | 131 | Reference library toolbar presentation. |
-| `src/components/settings/Settings.vue` | 542 | Settings shell UI; Phase 4/8 candidate. |
+| `src/components/settings/Settings.vue` | 539 | Settings shell UI; section identity, label/description keys, aliases, and active fallback now live in the settings domain. |
 | `src/components/settings/SettingsExtensions.vue` | 791 | Extension settings shell; Phase 8 extracted list/options UI, pure settings grouping, and secure setting draft derivation. |
 | `src/components/settings/SettingsExtensionList.vue` | 120 | Extension loaded-list presentation. |
 | `src/components/settings/SettingsExtensionOptions.vue` | 214 | Extension settings/action form presentation. |
@@ -217,6 +217,7 @@ Components over 500 lines:
 
 - 2026-05-02: `src/stores/workspace.js` now sends persisted setting patch values to `workspace_preferences_save` without pre-normalizing wrap, booleans, file tree modes, PDF modes, citation settings, or locale in JS. Rust `workspace_preferences.rs` remains the persisted schema/default/normalization authority, and the store consumes the normalized preferences returned by Rust. `src/services/workspacePreferences.js` keeps DOM/UI helpers for font, theme, and PDF preview display normalization only.
 - 2026-05-03: Workspace preference defaults, font presets, system-font encoding, PDF viewer display normalization, and font-stack helpers moved from `src/services/workspacePreferences.js` into `src/domains/settings/workspacePreferencePresentation.js`. DOM font variable side effects now live in `src/services/workspaceFonts.js`, theme class/listener side effects live in `src/services/workspaceTheme.js`, and `workspacePreferences.js` stays below the 150-line review threshold as a Tauri preference/workbench bridge plus system-font listing surface.
+- 2026-05-18: Settings section definitions and route fallback policy moved from component-local `src/components/settings/settingsSections.js` into `src/domains/settings/settingsSections.js`. `Settings.vue` and `SettingsSidebar.vue` now derive section labels/active state through the domain helper while keeping async component registry and Tabler icon registry in Vue. `src/stores/workspace.js` also uses the same domain fallback so legacy `environment` settings actions resolve to the canonical `system` section instead of relying on UI fallback.
 
 ## Reference Authority Cleanup Log
 

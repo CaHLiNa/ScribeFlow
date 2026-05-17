@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import {
   createWorkspacePreferenceState,
 } from '../domains/settings/workspacePreferencePresentation.js'
+import { resolveSettingsSectionId } from '../domains/settings/settingsSections.js'
 import {
   applyWorkspaceFontSizes,
   setWorkspaceEditorFontSize,
@@ -68,11 +69,6 @@ const WORKSPACE_PREFERENCE_KEYS = [
   'theme',
 ]
 
-function normalizeSettingsSectionValue(section = '') {
-  const normalized = String(section || '').trim()
-  return normalized || 'general'
-}
-
 function normalizeActivePrimarySurface(surface = '') {
   return String(surface || '').trim() === 'settings' ? 'settings' : 'workspace'
 }
@@ -85,7 +81,7 @@ function normalizeLeftSidebarPanel(panel = '') {
 function restoreTransientSettingsSurface(store, section = null) {
   store.primarySurface = 'settings'
   store.settingsOpen = true
-  store.settingsSection = normalizeSettingsSectionValue(section || store.settingsSection || 'general')
+  store.settingsSection = resolveSettingsSectionId(section || store.settingsSection || 'general')
 }
 
 function snapshotWorkspacePreferences(store) {
@@ -394,7 +390,7 @@ export const useWorkspaceStore = defineStore('workspace', {
       this.primarySurface = nextSurface
       this.settingsOpen = nextSurface === 'settings'
       if (this.settingsOpen) {
-        this.settingsSection = normalizeSettingsSectionValue(this.settingsSection || 'general')
+        this.settingsSection = resolveSettingsSectionId(this.settingsSection || 'general')
       } else {
         this.settingsSection = null
       }
@@ -494,7 +490,7 @@ export const useWorkspaceStore = defineStore('workspace', {
     },
 
     setSettingsSection(section) {
-      this.settingsSection = normalizeSettingsSectionValue(section)
+      this.settingsSection = resolveSettingsSectionId(section)
     },
 
     setWrapColumn(value) {

@@ -36,23 +36,43 @@
 
 <script setup>
 import { computed } from 'vue'
-import { IconArrowLeft } from '@tabler/icons-vue'
+import {
+  IconAdjustmentsHorizontal,
+  IconArrowLeft,
+  IconBooks,
+  IconCpu,
+  IconEdit,
+  IconPuzzle,
+  IconRefresh,
+} from '@tabler/icons-vue'
 import { useI18n } from '../../i18n'
 import { useWorkspaceStore } from '../../stores/workspace'
 import UiButton from '../shared/ui/UiButton.vue'
-import { SETTINGS_SECTION_DEFINITIONS, normalizeSettingsSectionId } from './settingsSections.js'
+import {
+  buildSettingsSectionItems,
+  resolveSettingsSectionId,
+} from '../../domains/settings/settingsSections.js'
 
 const workspace = useWorkspaceStore()
 const { t } = useI18n()
 
+const sectionIconRegistry = {
+  adjustments: IconAdjustmentsHorizontal,
+  books: IconBooks,
+  cpu: IconCpu,
+  edit: IconEdit,
+  puzzle: IconPuzzle,
+  refresh: IconRefresh,
+}
+
 const sections = computed(() =>
-  SETTINGS_SECTION_DEFINITIONS.map((item) => ({
-    ...item,
-    label: t(item.labelKey),
-  }))
+  buildSettingsSectionItems({
+    translate: t,
+    iconRegistry: sectionIconRegistry,
+  })
 )
 
-const activeSection = computed(() => normalizeSettingsSectionId(workspace.settingsSection))
+const activeSection = computed(() => resolveSettingsSectionId(workspace.settingsSection))
 </script>
 
 <style scoped>
