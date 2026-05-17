@@ -160,6 +160,18 @@ import { useFilesStore } from '../../stores/files'
 import { useEditorStore } from '../../stores/editor'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { DOCUMENT_DOCK_FILE_PAGE } from '../../domains/editor/documentDockPages.js'
+import {
+  appendTypedFileExtension,
+  buildFileTreeRenameState,
+  buildTypedFileNameCandidate,
+  deriveTypedFileNameCandidates,
+  listFileTreeRecentWorkspaces,
+  resetFileTreeRenameState,
+  resolveFileTreeWorkspaceName,
+  resolveNewMenuStyle,
+  resolveWorkspaceMenuPosition,
+  resolveWorkspaceMenuStyle,
+} from '../../domains/files/fileTreePresentation.js'
 import { listWorkspaceFlatFileEntries } from '../../domains/files/workspaceSnapshotFlatFilesRuntime.js'
 import { listWorkspaceDocumentTemplates } from '../../domains/workspace/workspaceTemplateRuntime'
 import FileTreeFooter from './FileTreeFooter.vue'
@@ -202,11 +214,14 @@ const documentTemplates = computed(() => listWorkspaceDocumentTemplates(t))
 
 const workspacePathRef = computed(() => workspace.path || '')
 const workspaceBasename = useBasename(workspacePathRef)
-const workspaceName = computed(() => {
-  if (!workspace.path) return t('Explorer')
-  return workspaceBasename.value || t('Explorer')
-})
-const recentWorkspaces = computed(() => workspace.recentWorkspaces.slice(0, 5))
+const workspaceName = computed(() =>
+  resolveFileTreeWorkspaceName({
+    workspacePath: workspace.path,
+    workspaceBasename: workspaceBasename.value,
+    translate: t,
+  })
+)
+const recentWorkspaces = computed(() => listFileTreeRecentWorkspaces(workspace.recentWorkspaces))
 const workspaceSnapshot = computed(
   () => files.lastWorkspaceSnapshot || { flatFiles: files.flatFiles }
 )
@@ -340,10 +355,7 @@ function showContextMenuOnEmpty(event) {
 }
 
 const workspaceMenuReference = computed(() => resolveFloatingReference(workspaceMenuAnchorEl.value))
-const workspaceMenuStyle = computed(() => ({
-  right: `${workspaceMenuPosition.right}px`,
-  bottom: `${workspaceMenuPosition.bottom}px`,
-}))
+const workspaceMenuStyle = computed(() => resolveWorkspaceMenuStyle(workspaceMenuPosition))
 
 function toggleWorkspaceMenu(anchorEl = null) {
   if (anchorEl) {
@@ -369,14 +381,11 @@ async function calculateNewMenuPosition(anchor) {
   const menuRect = menuEl.getBoundingClientRect()
   const vh = window.innerHeight || document.documentElement.clientHeight
 
-  let top = rect.bottom + 4
-  let left = rect.left
-
-  if (top + menuRect.height > vh) {
-    top = Math.max(8, rect.top - menuRect.height - 4)
-  }
-
-  newMenuStyle.value = { top: `${top}px`, left: `${left}px` }
+  newMenuStyle.value = resolveNewMenuStyle({
+    anchorRect: rect,
+    menuRect,
+    viewportHeight: vh,
+  })
 }
 
 function toggleNewMenu(anchorEl = null) {
@@ -413,8 +422,14 @@ function updateWorkspaceMenuPosition() {
   const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0
   const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0
 
-  workspaceMenuPosition.right = Math.max(8, viewportWidth - rect.right)
-  workspaceMenuPosition.bottom = Math.max(8, viewportHeight - rect.top + 2)
+  Object.assign(
+    workspaceMenuPosition,
+    resolveWorkspaceMenuPosition({
+      anchorRect: rect,
+      viewportWidth,
+      viewportHeight,
+    })
+  )
 }
 
 function handleWorkspaceMenuDocumentPointerDown(event) {
@@ -489,22 +504,34 @@ async function createTypedFile(dir, ext, options = {}) {
     files.expandedDirs.add(dir)
   }
 
-  const preferredName =
-    typeof options.suggestedName === 'string' && options.suggestedName.trim()
-      ? options.suggestedName.trim()
-      : `${t('Untitled')}${ext}`
-  const normalizedName = preferredName.endsWith(ext) ? preferredName : `${preferredName}${ext}`
-  const baseName = normalizedName.endsWith(ext)
-    ? normalizedName.slice(0, normalizedName.length - ext.length)
-    : normalizedName
-  let name = `${baseName}${ext}`
-  let i = 2
+  const fileNameParams = {
+    suggestedName: options.suggestedName,
+    extension: ext,
+    fallbackBaseName: t('Untitled'),
+  }
+
+  let name = ''
+  let candidateIndex = 0
+  for (const [index, candidate] of deriveTypedFileNameCandidates(fileNameParams).entries()) {
+    candidateIndex = index
+    name = candidate
+    if (
+      !workspaceFlatFiles.value.some((f) => f.name === name) &&
+      !(await workspacePathExists(`${dir}/${name}`))
+    ) {
+      break
+    }
+  }
+
   while (
     workspaceFlatFiles.value.some((f) => f.name === name) ||
     (await workspacePathExists(`${dir}/${name}`))
   ) {
-    name = `${baseName} ${i}${ext}`
-    i++
+    candidateIndex += 1
+    name = buildTypedFileNameCandidate({
+      ...fileNameParams,
+      index: candidateIndex,
+    })
   }
 
   const path = await files.createFile(dir, name, {
@@ -571,13 +598,15 @@ function startInlineCreate(dir, isDir) {
     files.expandedDirs.add(dir)
   }
 
-  renaming.active = true
-  renaming.isNew = true
-  renaming.isDir = isDir
-  renaming.autoExtension = ''
-  renaming.parentDir = dir
-  renaming.value = isDir ? t('new-folder') : ''
-  renaming.originalPath = ''
+  Object.assign(
+    renaming,
+    buildFileTreeRenameState({
+      isNew: true,
+      isDir,
+      parentDir: dir,
+      value: isDir ? t('new-folder') : '',
+    })
+  )
 
   nextTick(() => {
     if (dir === workspace.path && renameInput.value) {
@@ -592,12 +621,7 @@ function startInlineTypedFileCreate(dir, ext = '.md') {
 }
 
 function handleRename(entry) {
-  renaming.active = true
-  renaming.isNew = false
-  renaming.autoExtension = ''
-  renaming.value = entry.name
-  renaming.originalPath = entry.path
-  renaming.parentDir = ''
+  Object.assign(renaming, buildFileTreeRenameState({ entry }))
 }
 
 function onStartRenameInput() {
@@ -617,9 +641,7 @@ async function finishRename() {
 
     if (renaming.isNew) {
       // Auto-append extension if user omits it (for typed file creation)
-      if (renaming.autoExtension && !name.includes('.')) {
-        name = name + renaming.autoExtension
-      }
+      name = appendTypedFileExtension(name, renaming.autoExtension)
 
       if (renaming.isDir) {
         await files.createFolder(renaming.parentDir, name)
@@ -633,9 +655,7 @@ async function finishRename() {
       }
     } else if (renaming.originalPath) {
       // Auto-append extension if user omits it (for typed file rename after creation)
-      if (renaming.autoExtension && !name.includes('.')) {
-        name = name + renaming.autoExtension
-      }
+      name = appendTypedFileExtension(name, renaming.autoExtension)
       const dir = dirnamePath(renaming.originalPath)
       const newPath = `${dir}/${name}`
       if (newPath !== renaming.originalPath) {
@@ -651,9 +671,7 @@ async function finishRename() {
 }
 
 function cancelRename() {
-  renaming.active = false
-  renaming.value = ''
-  renaming.originalPath = ''
+  Object.assign(renaming, resetFileTreeRenameState())
 }
 
 async function handleDelete(entry) {
