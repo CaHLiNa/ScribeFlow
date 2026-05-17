@@ -132,6 +132,19 @@ import {
   REFERENCE_DOCK_DETAILS_PAGE,
   REFERENCE_DOCK_PDF_PAGE,
 } from '../../domains/references/referenceDockPages.js'
+import {
+  REFERENCE_WORKBENCH_DETAIL_CLOSE_RESET_DELAY_MS,
+  buildReferenceDetailResizeConstraints,
+  buildReferenceDetailResizePayload,
+  buildReferenceExportDefaultPath,
+  normalizeReferenceFilenameSegment,
+  referenceIsInCollection,
+  resolveNextReferenceSortKey,
+  resolveReferenceCitedInFiles,
+  resolveReferenceDetailDockWidth,
+  resolveReferencePdfPath,
+  shouldReconcileReferenceDetailWidth,
+} from '../../domains/references/referenceWorkbenchPresentation.js'
 import ReferenceAddDialog from './ReferenceAddDialog.vue'
 import ReferenceLibraryTable from './ReferenceLibraryTable.vue'
 import ReferenceLibraryToolbar from './ReferenceLibraryToolbar.vue'
@@ -158,10 +171,6 @@ const referencesStore = useReferencesStore()
 const workspace = useWorkspaceStore()
 const toastStore = useToastStore()
 const uxStatusStore = useUxStatusStore()
-const REFERENCE_DETAIL_MIN_WIDTH = 420
-const REFERENCE_LIST_MIN_WIDTH = 520
-const REFERENCE_DETAIL_MAX_CONTAINER_RATIO = 0.52
-const REFERENCE_DOCK_CLOSE_RESET_DELAY_MS = 680
 const showAddDialog = ref(false)
 const workbenchRef = ref(null)
 const referenceDetailMotionActive = ref(false)
@@ -178,15 +187,13 @@ const {
 
 const filteredReferences = computed(() => referencesStore.filteredReferences)
 const selectedReference = computed(() => referencesStore.selectedReference)
-const selectedReferencePdfPath = computed(() => String(selectedReference.value?.pdfPath || '').trim())
+const selectedReferencePdfPath = computed(() => resolveReferencePdfPath(selectedReference.value))
 const selectedReferenceCitationKey = computed(() =>
   String(selectedReference.value?.citationKey || '').trim()
 )
-const selectedReferenceCitedInFiles = computed(() => {
-  if (!selectedReferenceCitationKey.value) return []
-  const files = referencesStore.citedIn[selectedReferenceCitationKey.value]
-  return Array.isArray(files) ? files : []
-})
+const selectedReferenceCitedInFiles = computed(() =>
+  resolveReferenceCitedInFiles(referencesStore.citedIn, selectedReferenceCitationKey.value)
+)
 const hasSelectedReferenceCitations = computed(() => selectedReferenceCitedInFiles.value.length > 0)
 const canPreviewSelectedReferencePdf = computed(() => selectedReferencePdfPath.value.length > 0)
 const showReferencePdfTab = computed(
@@ -213,9 +220,7 @@ const activeReferenceDockKey = computed(() => {
 const activeReferenceDockPage = computed(() =>
   findInlineDockPage(referenceDockPages.value, activeReferenceDockKey.value)
 )
-const referenceDetailDockWidth = computed(() =>
-  Math.max(REFERENCE_DETAIL_MIN_WIDTH, Number(props.referenceDetailWidth) || 0)
-)
+const referenceDetailDockWidth = computed(() => resolveReferenceDetailDockWidth(props.referenceDetailWidth))
 const referenceDetailLayoutLocked = computed(() =>
   props.referenceDetailResizing || referenceDetailMotionActive.value
 )
@@ -226,15 +231,15 @@ const sortKey = computed({
 const availableCollections = computed(() => referencesStore.collections)
 
 function toggleTitleSort() {
-  referencesStore.setSortKey(sortKey.value === 'title-asc' ? 'title-desc' : 'title-asc')
+  referencesStore.setSortKey(resolveNextReferenceSortKey(sortKey.value, 'title'))
 }
 
 function toggleAuthorSort() {
-  referencesStore.setSortKey(sortKey.value === 'author-asc' ? 'author-desc' : 'author-asc')
+  referencesStore.setSortKey(resolveNextReferenceSortKey(sortKey.value, 'author'))
 }
 
 function toggleYearSort() {
-  referencesStore.setSortKey(sortKey.value === 'year-desc' ? 'year-asc' : 'year-desc')
+  referencesStore.setSortKey(resolveNextReferenceSortKey(sortKey.value, 'year'))
 }
 
 function handleReferenceRowClick(reference = {}) {
@@ -316,36 +321,20 @@ function resolveReferenceWorkbenchWidth() {
   return workbenchRef.value?.getBoundingClientRect?.().width || 0
 }
 
-function resolveReferenceDetailMaxWidth(containerWidth = resolveReferenceWorkbenchWidth()) {
-  const normalizedContainerWidth = Number(containerWidth)
-  if (!Number.isFinite(normalizedContainerWidth) || normalizedContainerWidth <= 0) {
-    return Number.MAX_SAFE_INTEGER
-  }
-
-  const maxByListWidth = Math.floor(normalizedContainerWidth - REFERENCE_LIST_MIN_WIDTH)
-  const maxByRatio = Math.floor(normalizedContainerWidth * REFERENCE_DETAIL_MAX_CONTAINER_RATIO)
-  return Math.max(REFERENCE_DETAIL_MIN_WIDTH, Math.min(maxByListWidth, maxByRatio))
-}
-
 function emitReferenceDetailResize(width, containerWidth = resolveReferenceWorkbenchWidth()) {
-  emit('inline-dock-resize', {
+  emit('inline-dock-resize', buildReferenceDetailResizePayload({
     width,
     containerWidth,
-    minDockWidth: REFERENCE_DETAIL_MIN_WIDTH,
-    minMainWidth: REFERENCE_LIST_MIN_WIDTH,
-    maxContainerRatio: REFERENCE_DETAIL_MAX_CONTAINER_RATIO,
-  })
+  }))
 }
 
 function clampReferenceDetailWidthToList() {
-  if (!props.referenceDetailOpen) return
-
   const containerWidth = resolveReferenceWorkbenchWidth()
-  const maxWidth = resolveReferenceDetailMaxWidth(containerWidth)
-  if (
-    props.referenceDetailWidth >= REFERENCE_DETAIL_MIN_WIDTH &&
-    props.referenceDetailWidth <= maxWidth
-  ) {
+  if (!shouldReconcileReferenceDetailWidth({
+    isOpen: props.referenceDetailOpen,
+    width: props.referenceDetailWidth,
+    containerWidth,
+  })) {
     return
   }
 
@@ -361,12 +350,9 @@ function handleReferenceDetailResizeEnd() {
 }
 
 function handleReferenceDetailResizeSnap(event = {}) {
-  emit('inline-dock-resize-snap', {
+  emit('inline-dock-resize-snap', buildReferenceDetailResizeConstraints({
     containerWidth: event.containerWidth || resolveReferenceWorkbenchWidth(),
-    minDockWidth: REFERENCE_DETAIL_MIN_WIDTH,
-    minMainWidth: REFERENCE_LIST_MIN_WIDTH,
-    maxContainerRatio: REFERENCE_DETAIL_MAX_CONTAINER_RATIO,
-  })
+  }))
 }
 
 watch(
@@ -378,7 +364,7 @@ watch(
     referenceDockCloseResetTimer = window.setTimeout(() => {
       referenceDockCloseResetTimer = null
       resetReferenceDockTabs()
-    }, REFERENCE_DOCK_CLOSE_RESET_DELAY_MS)
+    }, REFERENCE_WORKBENCH_DETAIL_CLOSE_RESET_DELAY_MS)
   }
 )
 
@@ -427,28 +413,6 @@ onBeforeUnmount(() => {
   clearReferenceDockCloseResetTimer()
 })
 
-function referenceIsInCollection(reference = {}, collectionKey = '') {
-  const collection = availableCollections.value.find((item) => item.key === collectionKey)
-  if (!collection) return false
-
-  const memberships = Array.isArray(reference.collections) ? reference.collections : []
-  const normalizedKey = String(collection.key || '').trim().toLowerCase()
-  const normalizedLabel = String(collection.label || '').trim().toLowerCase()
-  return memberships.some((value) => {
-    const normalizedValue = String(value || '').trim().toLowerCase()
-    return normalizedValue === normalizedKey || normalizedValue === normalizedLabel
-  })
-}
-
-function normalizeFilenameSegment(value = '', fallback = 'reference') {
-  const normalized = String(value || '')
-    .trim()
-    .replace(/[\\/:*?"<>|]+/g, '-')
-    .replace(/\s+/g, ' ')
-    .replace(/^-+|-+$/g, '')
-  return normalized || fallback
-}
-
 async function getReferenceBibTeX(reference = {}) {
   if (!reference?.id) return ''
   return referencesStore.exportBibTeXAsync([reference.id])
@@ -476,11 +440,11 @@ async function handleRenameReferencePdf(reference = {}) {
     return
   }
 
-  const defaultName = normalizeFilenameSegment(reference.citationKey || reference.title, 'reference')
+  const defaultName = normalizeReferenceFilenameSegment(reference.citationKey || reference.title, 'reference')
   const nextName = window.prompt(t('Rename PDF'), defaultName)
   if (nextName == null) return
 
-  const normalizedBaseName = normalizeFilenameSegment(nextName, defaultName)
+  const normalizedBaseName = normalizeReferenceFilenameSegment(nextName, defaultName)
   if (!normalizedBaseName || normalizedBaseName === defaultName) return
 
   try {
@@ -522,7 +486,7 @@ async function handleExportReferenceBibTeX(reference = {}) {
 
   const target = await saveNativeDialog({
     title: t('Export BibTeX'),
-    defaultPath: `${normalizeFilenameSegment(reference.citationKey || reference.title, 'reference')}.bib`,
+    defaultPath: buildReferenceExportDefaultPath(reference, { extension: 'bib' }),
     filters: [{ name: 'BibTeX', extensions: ['bib'] }],
   })
 
@@ -542,7 +506,7 @@ async function handleExportReferenceBibTeX(reference = {}) {
 async function handleDetailedExport(reference = {}) {
   const target = await saveNativeDialog({
     title: t('Detailed Export'),
-    defaultPath: `${normalizeFilenameSegment(reference.citationKey || reference.title, 'reference')}.json`,
+    defaultPath: buildReferenceExportDefaultPath(reference, { extension: 'json' }),
     filters: [{ name: 'JSON', extensions: ['json'] }],
   })
 
@@ -580,7 +544,7 @@ function openReferenceContextMenu(event, reference) {
         {
           key: `rename-pdf:${reference.id}`,
           label: t('Rename PDF'),
-          disabled: !String(reference.pdfPath || '').trim(),
+          disabled: !resolveReferencePdfPath(reference),
           action: () => handleRenameReferencePdf(reference),
         },
         {
@@ -600,7 +564,7 @@ function openReferenceContextMenu(event, reference) {
             ? availableCollections.value.map((collection) => ({
                 key: `collection:${reference.id}:${collection.key}`,
                 label: collection.label,
-                checked: referenceIsInCollection(reference, collection.key),
+                checked: referenceIsInCollection(reference, collection.key, availableCollections.value),
                 action: () =>
                   referencesStore.toggleReferenceCollection(
                     workspace.globalConfigDir,
