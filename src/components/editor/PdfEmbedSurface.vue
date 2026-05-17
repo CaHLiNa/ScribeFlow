@@ -96,6 +96,7 @@ import {
   resolvePdfPreviewSessionTransition,
   snapshotPdfPreviewViewState,
 } from '../../domains/document/pdfPreviewSessionRuntime.js'
+import { createLatexRevealLifecycle } from '../../editor/latexRevealTiming.js'
 import { resolveLatexSyncTargetPath } from '../../services/latex/previewSync.js'
 import { resolveExistingLatexSynctexPath } from '../../services/latex/synctex.js'
 import PdfEmbedDocumentSurface from './PdfEmbedDocumentSurface.vue'
@@ -194,6 +195,7 @@ const previewLoadError = ref('')
 const embedViewerKey = ref(0)
 const previewSessionState = createPdfPreviewSessionState()
 const queuedForwardSyncLocation = ref(null)
+const latexRevealLifecycle = createLatexRevealLifecycle()
 
 const plugins = computed(() =>
   buildEmbedPdfPluginRegistrations({
@@ -330,8 +332,11 @@ function handleRestoreStateConsumed() {
 
 async function handleReverseSyncRequest(detail = {}) {
   if (props.kind !== 'latex') return
+  const token = latexRevealLifecycle.begin()
+  if (!token) return
 
   const synctexPath = await resolveEffectiveSynctexPath()
+  if (latexRevealLifecycle.isCancelled(token)) return
   if (!synctexPath) return
 
   try {
@@ -341,6 +346,7 @@ async function handleReverseSyncRequest(detail = {}) {
       x: Number(detail.pos?.[0]),
       y: Number(detail.pos?.[1]),
     })
+    if (latexRevealLifecycle.isCancelled(token)) return
 
     if (result?.file && result?.line) {
       const resolvedFile = await resolveLatexSyncTargetPath(result.file, {
@@ -348,6 +354,7 @@ async function handleReverseSyncRequest(detail = {}) {
         compileTargetPath: props.compileState?.compileTargetPath || '',
         workspacePath: props.workspacePath || '',
       })
+      if (latexRevealLifecycle.isCancelled(token)) return
       emit('backward-sync', {
         ...result,
         file: resolvedFile || result.file,
@@ -449,6 +456,7 @@ async function handlePreviewRevisionChange(nextRevision, previousRevision, optio
 watch(
   () => props.previewRevision,
   (nextRevision, previousRevision) => {
+    latexRevealLifecycle.cancelPending()
     resolvedSynctexPathCache = ''
     void handlePreviewRevisionChange(nextRevision, previousRevision, { forceInitialLoad: true })
   },
@@ -473,6 +481,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  latexRevealLifecycle.dispose()
   window.removeEventListener(LATEX_FORWARD_SYNC_EVENT, handleWindowForwardSync)
 })
 </script>

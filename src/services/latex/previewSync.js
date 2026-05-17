@@ -17,14 +17,33 @@ export async function resolveLatexSyncTargetPath(reportedFile = '', options = {}
 }
 
 export async function waitForLatexEditorView(editorStore, targetPath, timeoutMs = VIEW_WAIT_TIMEOUT_MS) {
+  if (timeoutMs && typeof timeoutMs === 'object') {
+    return waitForLatexEditorViewWithLifecycle(editorStore, targetPath, timeoutMs)
+  }
+  return waitForLatexEditorViewWithLifecycle(editorStore, targetPath, {
+    timeoutMs,
+  })
+}
+
+export async function waitForLatexEditorViewWithLifecycle(editorStore, targetPath, options = {}) {
+  const timeoutMs = Number(options.timeoutMs || VIEW_WAIT_TIMEOUT_MS)
+  const lifecycle = options.lifecycle || null
+  const token = options.token || null
   const startedAt = Date.now()
   let targetView = editorStore?.getAnyEditorView?.(targetPath) || null
 
   while (!targetView && Date.now() - startedAt < timeoutMs) {
-    await new Promise(resolve => window.setTimeout(resolve, 16))
+    if (lifecycle?.isCancelled?.(token)) return null
+    if (lifecycle?.wait) {
+      await lifecycle.wait(16)
+    } else {
+      await new Promise(resolve => window.setTimeout(resolve, 16))
+    }
+    if (lifecycle?.isCancelled?.(token)) return null
     targetView = editorStore?.getAnyEditorView?.(targetPath) || null
   }
 
+  if (lifecycle?.isCancelled?.(token)) return null
   return targetView
 }
 
@@ -32,6 +51,10 @@ export async function revealLatexSourceLocation(editorStore, location, options =
   const targetPath = normalizeFsPath(location?.filePath || '')
   const line = Number(location?.line || 0)
   if (!targetPath || !Number.isInteger(line) || line < 1) return false
+  const lifecycle = options.lifecycle || null
+  const token = options.token || null
+
+  if (lifecycle?.isCancelled?.(token)) return false
 
   const existingPaneId = editorStore?.findPaneWithTab?.(targetPath)?.id || ''
   const preferredPaneId = String(existingPaneId || options.paneId || editorStore?.activePaneId || '')
@@ -40,13 +63,19 @@ export async function revealLatexSourceLocation(editorStore, location, options =
   } else {
     editorStore?.openFile?.(targetPath)
   }
+  if (lifecycle?.isCancelled?.(token)) return false
 
-  const targetView = await waitForLatexEditorView(
+  const targetView = await waitForLatexEditorViewWithLifecycle(
     editorStore,
     targetPath,
-    Number(options.timeoutMs || VIEW_WAIT_TIMEOUT_MS),
+    {
+      timeoutMs: Number(options.timeoutMs || VIEW_WAIT_TIMEOUT_MS),
+      lifecycle,
+      token,
+    },
   )
   if (!targetView) return false
+  if (lifecycle?.isCancelled?.(token)) return false
 
   const resolvedSelection = resolveLatexEditorSelectionFromContext(targetView, location)
   if (resolvedSelection?.from != null) {

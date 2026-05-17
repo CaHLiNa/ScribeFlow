@@ -131,6 +131,7 @@ import {
 import { basenamePath, dirnamePath } from '../../utils/path'
 import { createFoldingExtension } from '../../editor/foldingRuntime'
 import { createEditorMarkdownSyncTimingController } from '../../editor/markdownSyncTiming.js'
+import { createLatexRevealLifecycle } from '../../editor/latexRevealTiming.js'
 import EditorContextMenu from './EditorContextMenu.vue'
 import CitationPalette from './CitationPalette.vue'
 import { useTextEditorBridges } from '../../composables/useTextEditorBridges'
@@ -172,6 +173,7 @@ let latexReferenceScopeTimer = null
 let lastPersistedContent = ''
 let suppressMarkdownPreviewScrollSyncUntil = 0
 const markdownSyncTiming = createEditorMarkdownSyncTimingController()
+const latexRevealLifecycle = createLatexRevealLifecycle()
 
 const isDraftFile = isDraftPath(props.filePath)
 const isMd = isMarkdown(props.filePath)
@@ -1378,6 +1380,8 @@ function ensureLatexWindowHandlers() {
 
   if (!backwardSyncHandler) {
     backwardSyncHandler = async (event) => {
+      const token = latexRevealLifecycle.begin()
+      if (!token) return
       const { file, line, column, textBeforeSelection, textAfterSelection, strictLine } =
         event.detail || {}
       const normalizedFile = String(file || '').replace(/\\/g, '/')
@@ -1401,6 +1405,8 @@ function ensureLatexWindowHandlers() {
           await revealLatexSourceLocation(editorStore, location, {
             paneId: props.paneId,
             center: true,
+            lifecycle: latexRevealLifecycle,
+            token,
           })
           return
         }
@@ -1409,6 +1415,8 @@ function ensureLatexWindowHandlers() {
         await revealLatexSourceLocation(editorStore, location, {
           paneId: props.paneId,
           center: true,
+          lifecycle: latexRevealLifecycle,
+          token,
         })
       }
     }
@@ -1548,6 +1556,7 @@ function deactivateEditorRuntime() {
   pendingContextMenuState = null
   clearContextMenuRestoreHandles()
   markdownSyncTiming.cancelAll()
+  latexRevealLifecycle.cancelPending()
   detachEditorRuntimeListeners()
   // Flush pending content sync before deactivating.
   if (contentSyncTimer != null) {
@@ -1907,6 +1916,7 @@ onUnmounted(() => {
     contentSyncTimer = null
   }
   markdownSyncTiming.cancelAll()
+  latexRevealLifecycle.dispose()
   if (view) {
     view.destroy()
     view = null
