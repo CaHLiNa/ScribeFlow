@@ -408,6 +408,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  clearPendingMarkdownForwardSync(resolvedSourcePath.value)
   containerEl.value?.removeEventListener('scroll', handlePreviewScroll)
   window.removeEventListener(MARKDOWN_FORWARD_SYNC_EVENT, handleForwardSyncRequest)
   if (flashTimer) {

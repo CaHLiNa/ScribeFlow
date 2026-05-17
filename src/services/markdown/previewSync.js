@@ -34,7 +34,7 @@ export function clearPendingMarkdownForwardSync(detail = null) {
     return
   }
 
-  const sourcePath = normalizeFsPath(detail.sourcePath || '')
+  const sourcePath = normalizeFsPath(typeof detail === 'string' ? detail : detail.sourcePath || '')
   if (!sourcePath) return
   pendingForwardSync.delete(sourcePath)
 }

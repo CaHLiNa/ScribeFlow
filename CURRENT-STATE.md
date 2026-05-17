@@ -92,6 +92,7 @@ Current editor stability contract:
 - local editor cache updates invalidate pending external sync patches so delayed file-content watcher work cannot replay over newer cursor, selection or typed document state
 - restored editor session state is normalized before mounting panes or document dock tabs: stale active pane ids, duplicate dock tabs, invalid active dock tabs and out-of-surface `lastContextPath` values fall back to mounted editor/dock context
 - Markdown preview sync timers are lifecycle-scoped: pending selection timeouts and viewport animation frames are invalidated on editor deactivate/unmount and superseded by later cursor/scroll changes before dispatching preview sync events
+- Markdown pending forward-sync locations are source-scoped and cleared when a preview surface unmounts, so later remounts cannot consume stale reveal/scroll intent
 - these are timing and restore-state guards only; they do not restore cursor/selection, change session payload shape, or introduce automatic reveal/scroll behavior
 
 Current plugin result contract:
