@@ -138,16 +138,6 @@ export function buildReferenceImportInputState(importedReferences = []) {
   }
 }
 
-export function buildReferenceRemoveTargetState(references = [], referenceId = '') {
-  const normalizedReferenceId = String(referenceId || '').trim()
-  const targetReference = resolveReferenceById(references, normalizedReferenceId)
-  return {
-    canRemove: Boolean(targetReference),
-    referenceId: normalizedReferenceId,
-    targetReference,
-  }
-}
-
 export function resolveReferenceCitationStyleId(style = '', hasStyle = false) {
   const normalizedStyle = String(style || '').trim()
   return normalizedStyle && hasStyle ? normalizedStyle : 'apa'

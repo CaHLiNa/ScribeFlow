@@ -97,6 +97,16 @@ assert.match(
   /mutation\?\.result\?\.preferredSelectedReferenceId \|\| ''/,
   'removeReference must consume Rust-returned preferred selection for snapshot commit',
 )
+assert.match(
+  extractActionSource(storeSource, 'removeReference'),
+  /mutation\?\.result\?\.zoteroDeleteReference[\s\S]*deleteFromZotero\(zoteroDeleteReference\)/,
+  'removeReference must consume the Rust-returned Zotero delete target',
+)
+assert.doesNotMatch(
+  extractActionSource(storeSource, 'removeReference'),
+  /_pushedByApp|_zoteroKey|buildReferenceRemoveTargetState|targetState\./,
+  'removeReference must not inline remove-target lookup or Zotero side-effect gating',
+)
 
 const importPdfSource = extractActionSource(storeSource, 'importReferencePdf')
 assert.match(

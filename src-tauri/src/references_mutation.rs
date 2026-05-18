@@ -141,6 +141,14 @@ fn resolve_remove_preferred_selected_reference_id(
     }
 }
 
+fn reference_requires_zotero_delete(reference: &Value) -> bool {
+    reference
+        .get("_pushedByApp")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+        && !trim_string(reference.get("_zoteroKey")).is_empty()
+}
+
 fn normalize_collection_label(label: &str) -> String {
     label.trim().to_lowercase()
 }
@@ -840,13 +848,12 @@ fn apply_remove_reference(
         });
     }
 
-    let next_references = references
+    let removed_reference = references
         .iter()
-        .filter(|reference| trim_string(reference.get("id")) != reference_id)
-        .cloned()
-        .collect::<Vec<_>>();
+        .find(|reference| trim_string(reference.get("id")) == reference_id)
+        .cloned();
 
-    if next_references.len() == references.len() {
+    let Some(removed_reference) = removed_reference else {
         return json!({
             "snapshot": normalize_snapshot(snapshot),
             "result": {
@@ -854,12 +861,25 @@ fn apply_remove_reference(
                 "preferredSelectedReferenceId": normalize_selected_reference_id(selected_reference_id),
             },
         });
-    }
+    };
+
+    let next_references = references
+        .iter()
+        .filter(|reference| trim_string(reference.get("id")) != reference_id)
+        .cloned()
+        .collect::<Vec<_>>();
+    let zotero_delete_reference = if reference_requires_zotero_delete(&removed_reference) {
+        removed_reference.clone()
+    } else {
+        Value::Null
+    };
 
     json!({
         "snapshot": normalized_snapshot_with(snapshot, None, Some(next_references)),
         "result": {
             "removed": true,
+            "removedReference": removed_reference,
+            "zoteroDeleteReference": zotero_delete_reference,
             "preferredSelectedReferenceId": resolve_remove_preferred_selected_reference_id(
                 selected_reference_id,
                 reference_id,
@@ -1616,6 +1636,11 @@ mod tests {
 
         assert_eq!(result["result"]["removed"].as_bool(), Some(true));
         assert_eq!(
+            result["result"]["removedReference"]["id"].as_str(),
+            Some("ref-1")
+        );
+        assert!(result["result"]["zoteroDeleteReference"].is_null());
+        assert_eq!(
             result["result"]["preferredSelectedReferenceId"].as_str(),
             Some("")
         );
@@ -1624,6 +1649,58 @@ mod tests {
                 .as_array()
                 .map(|items| items.len()),
             Some(0)
+        );
+    }
+
+    #[tokio::test]
+    async fn remove_reference_returns_zotero_delete_target_from_rust() {
+        let result = references_mutation_apply_typed(ReferencesMutationApplyParams {
+            snapshot: json!({
+                "version": 2,
+                "references": [
+                    {
+                        "id": "ref-1",
+                        "title": "Pushed Reference",
+                        "_pushedByApp": true,
+                        "_zoteroKey": " Q6ZQTSEA ",
+                        "_zoteroLibrary": "user/16788433"
+                    },
+                    {
+                        "id": "ref-2",
+                        "title": "Local Reference",
+                        "_pushedByApp": true,
+                        "_zoteroKey": ""
+                    }
+                ],
+                "collections": [],
+                "tags": [],
+                "documentReferenceSelections": {}
+            }),
+            global_config_dir: String::new(),
+            selected_reference_id: "ref-2".to_string(),
+            action: ReferencesMutationAction::RemoveReference {
+                reference_id: " ref-1 ".to_string(),
+            },
+        })
+        .await
+        .expect("remove reference");
+
+        assert_eq!(result["result"]["removed"].as_bool(), Some(true));
+        assert_eq!(
+            result["result"]["removedReference"]["id"].as_str(),
+            Some("ref-1")
+        );
+        assert_eq!(
+            result["result"]["zoteroDeleteReference"]["id"].as_str(),
+            Some("ref-1")
+        );
+        assert_eq!(
+            result["result"]["zoteroDeleteReference"]["_zoteroKey"].as_str(),
+            Some(" Q6ZQTSEA ")
+        );
+        assert_eq!(
+            result["result"]["preferredSelectedReferenceId"].as_str(),
+            Some("ref-2")
         );
     }
 

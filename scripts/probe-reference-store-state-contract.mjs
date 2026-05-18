@@ -6,7 +6,6 @@ import {
   buildDocumentReferenceIdsMutationState,
   buildReferenceEmptyImportResult,
   buildReferenceImportInputState,
-  buildReferenceRemoveTargetState,
   resolveReferenceCitationStyleId,
   resolveReferenceWorkspaceCitationStyles,
   buildRemoveDocumentReferenceMutationState,
@@ -151,16 +150,6 @@ assert.deepEqual(buildReferenceImportInputState('not-array'), {
   canImport: false,
   importedReferences: [],
   emptyResult: buildReferenceEmptyImportResult(),
-})
-assert.deepEqual(buildReferenceRemoveTargetState(references, ' ref-2 '), {
-  canRemove: true,
-  referenceId: 'ref-2',
-  targetReference: references[1],
-})
-assert.deepEqual(buildReferenceRemoveTargetState(references, 'missing'), {
-  canRemove: false,
-  referenceId: 'missing',
-  targetReference: null,
 })
 assert.equal(resolveReferenceCitationStyleId(' ieee ', true), 'ieee')
 assert.equal(resolveReferenceCitationStyleId(' ieee ', false), 'apa')
@@ -711,10 +700,10 @@ assert.match(
   /buildReferenceSnapshotApplyState/,
   'references store must delegate snapshot apply state reconciliation',
 )
-assert.match(
-  storeSource,
+assert.doesNotMatch(
+  domainSource,
   /buildReferenceRemoveTargetState/,
-  'references store must delegate remove-reference target state mapping',
+  'referenceStoreState must not retain migrated remove-reference target helper',
 )
 assert.match(
   storeSource,
@@ -917,6 +906,16 @@ assert.match(
   'removeReference must consume Rust-returned removed and preferred-selection outcome',
 )
 assert.match(
+  actionSource('removeReference'),
+  /const zoteroDeleteReference = mutation\?\.result\?\.zoteroDeleteReference[\s\S]*deleteFromZotero\(zoteroDeleteReference\)/,
+  'removeReference must consume Rust-returned Zotero delete target',
+)
+assert.doesNotMatch(
+  actionSource('removeReference'),
+  /buildReferenceRemoveTargetState|targetState\.|resolveReferenceById\(this\.references|String\(referenceId \|\| ''\)\.trim\(\)|_pushedByApp|_zoteroKey/,
+  'removeReference must not inline target lookup or Zotero delete side-effect gating',
+)
+assert.match(
   actionSource('toggleReferenceCollection'),
   /mutation\?\.result\?\.changed !== true[\s\S]*return mutation\?\.result\?\.toggledOn === true/,
   'toggleReferenceCollection must consume the Rust-returned toggle outcome',
@@ -1098,7 +1097,7 @@ console.log(JSON.stringify({
     rustAddReferenceOutcomeConsumed: true,
     metadataRefreshTargetStateDerived: true,
     rustPdfAssetTargetResolution: true,
-    removeReferenceTargetStateDerived: true,
+    rustRemoveReferenceTargetState: true,
     rustRemoveReferenceOutcomeConsumed: true,
     rustUpdateReferenceOutcomeConsumed: true,
     rustPdfImportTargetAndResult: true,

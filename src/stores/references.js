@@ -60,7 +60,6 @@ import {
   buildDocumentReferenceIdsMutationState,
   buildReferenceEmptyImportResult,
   buildReferenceImportInputState,
-  buildReferenceRemoveTargetState,
   resolveReferenceCitationStyleId,
   resolveReferenceWorkspaceCitationStyles,
   buildRemoveDocumentReferenceMutationState,
@@ -641,15 +640,12 @@ export const useReferencesStore = defineStore('references', {
     },
 
     async removeReference(projectRoot = '', referenceId = '') {
-      const targetState = buildReferenceRemoveTargetState(this.references, referenceId)
-      if (!targetState.canRemove) return false
-
       const mutation = await applyReferenceMutation({
         snapshot: this.buildLibrarySnapshotPayload(),
         selectedReferenceId: this.selectedReferenceId,
         action: {
           type: 'removeReference',
-          referenceId: targetState.referenceId,
+          referenceId,
         },
       })
       if (mutation?.result?.removed !== true) return false
@@ -658,8 +654,9 @@ export const useReferencesStore = defineStore('references', {
         preferredSelectedReferenceId: mutation?.result?.preferredSelectedReferenceId || '',
       })
 
-      if (targetState.targetReference._pushedByApp && targetState.targetReference._zoteroKey) {
-        deleteFromZotero(targetState.targetReference)
+      const zoteroDeleteReference = mutation?.result?.zoteroDeleteReference
+      if (zoteroDeleteReference && typeof zoteroDeleteReference === 'object') {
+        deleteFromZotero(zoteroDeleteReference)
           .then(() => {
             this.zoteroMutationError = ''
           })
