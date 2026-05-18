@@ -10,8 +10,6 @@ import {
   buildReferenceDockPdfResetState,
   buildReferenceDockPdfSnapshotState,
   buildReferenceQuerySelectionState,
-  buildReferenceSnapshotApplyState,
-  buildReferenceSnapshotSelectionState,
   buildReferenceStoreCleanupState,
   buildReferenceStoreInitialState,
   hasReferenceById,
@@ -363,40 +361,6 @@ assert.equal(buildReferenceQuerySelectionState({}, {
   selectedReferenceId: 'current-ref',
 }).selectedReferenceId, 'current-ref')
 
-assert.deepEqual(buildReferenceSnapshotSelectionState({
-  collections,
-  tags,
-  sourceSections: [{ key: 'manual' }, { key: 'zotero' }],
-  references,
-  selectedCollectionKey: 'machine learning',
-  selectedTagKey: 'theory',
-  selectedSourceKey: 'zotero',
-  selectedReferenceId: 'ref-2',
-}), {
-  selectedCollectionKey: 'machine learning',
-  selectedTagKey: 'theory',
-  selectedSourceKey: 'zotero',
-  selectedReferenceId: 'ref-2',
-})
-assert.deepEqual(buildReferenceSnapshotSelectionState({
-  collections,
-  tags,
-  sourceSections: [{ key: 'manual' }],
-  references,
-  selectedCollectionKey: 'missing',
-  selectedTagKey: 'missing',
-  selectedSourceKey: 'zotero',
-  selectedReferenceId: 'missing',
-}), {
-  selectedCollectionKey: '',
-  selectedTagKey: '',
-  selectedSourceKey: '',
-  selectedReferenceId: '',
-})
-assert.equal(buildReferenceSnapshotSelectionState({
-  references,
-  preferredSelectedReferenceId: 'external-ref',
-}).selectedReferenceId, 'external-ref')
 assert.deepEqual(buildReferenceLibrarySnapshotPayload({
   citationStyle: 'ieee',
   documentReferenceSelections,
@@ -493,51 +457,9 @@ assert.deepEqual(buildReferenceStoreCleanupState({
   zoteroMutationError: '',
   importInFlight: false,
 })
-assert.deepEqual(buildReferenceSnapshotApplyState({
-  collections,
-  tags,
-  sourceSections: [{ key: 'manual' }, { key: 'zotero' }],
-  references,
-  selectedCollectionKey: 'missing',
-  selectedTagKey: 'theory',
-  selectedSourceKey: 'zotero',
-  selectedReferenceId: 'missing',
-  referenceDockPdfOpen: true,
-  referenceDockPdfReferenceId: 'ref-2',
-  referenceDockActivePage: 'pdf',
-}, {
-  citationStyle: '',
-  documentReferenceSelections: ['bad-shape'],
-  collections: 'bad-shape',
-  tags,
-  references,
-}, {
-  defaultSnapshot: {
-    citationStyle: 'apa',
-    documentReferenceSelections,
-    collections: [],
-    tags: [],
-    references: [],
-  },
-  preferredSelectedReferenceId: 'ref-1',
-}), {
-  collections: [],
-  tags,
-  references,
-  documentReferenceSelections: {},
-  citationStyle: 'apa',
-  selectedCollectionKey: '',
-  selectedTagKey: 'theory',
-  selectedSourceKey: 'zotero',
-  selectedReferenceId: 'ref-1',
-  dockPdfState: {
-    referenceDockPdfOpen: true,
-    referenceDockPdfReferenceId: 'ref-2',
-    shouldFallbackToDetails: true,
-  },
-})
 const storeSource = await readFile('src/stores/references.js', 'utf8')
 const domainSource = await readFile('src/domains/references/referenceStoreState.js', 'utf8')
+const libraryIoSource = await readFile('src/services/references/referenceLibraryIO.js', 'utf8')
 const actionSource = (actionName) => {
   const pattern = new RegExp(`(?:async\\s+)?${actionName}\\([^)]*\\) \\{[\\s\\S]*?\\n    \\},`)
   const match = storeSource.match(pattern)
@@ -614,9 +536,34 @@ assert.match(
   'selectReference must reconcile the raw selected-reference intent through Rust query normalization',
 )
 assert.match(
+  actionSource('applyLibrarySnapshot'),
+  /normalizeReferenceLibrarySnapshotWithBackend\(snapshot\)/,
+  'applyLibrarySnapshot must delegate snapshot normalization to Rust when applying raw snapshots',
+)
+assert.match(
+  actionSource('applyLibrarySnapshot'),
+  /await this\.refreshResolvedQueryState\(\)/,
+  'applyLibrarySnapshot must hydrate selection and filters through Rust query normalization',
+)
+assert.match(
+  actionSource('applyLibrarySnapshot'),
+  /buildReferenceDockPdfSnapshotState/,
+  'applyLibrarySnapshot may keep PDF dock reconciliation as a UI helper',
+)
+assert.doesNotMatch(
   storeSource,
-  /buildReferenceSnapshotApplyState/,
-  'references store must delegate snapshot apply state reconciliation',
+  /buildReferenceSnapshotApplyState|buildReferenceSnapshotSelectionState|buildDefaultReferenceLibrarySnapshot/,
+  'references store must not use JS snapshot apply/default helpers before Rust normalization',
+)
+assert.doesNotMatch(
+  domainSource,
+  /buildReferenceSnapshotApplyState|buildReferenceSnapshotSelectionState/,
+  'referenceStoreState must not retain snapshot apply or selection reconciliation helpers',
+)
+assert.doesNotMatch(
+  libraryIoSource,
+  /buildDefaultReferenceLibrarySnapshot|version:\s*2|citationStyle:\s*'apa'|documentReferenceSelections:\s*\{\}/,
+  'reference library IO service must not hardcode the default snapshot shape in JS',
 )
 assert.doesNotMatch(
   domainSource,
@@ -640,8 +587,8 @@ assert.match(
 )
 assert.match(
   storeSource,
-  /buildReferenceSnapshotApplyState/,
-  'references store must delegate PDF dock snapshot reconciliation through snapshot apply state',
+  /buildReferenceDockPdfSnapshotState/,
+  'references store must delegate PDF dock snapshot reconciliation to a UI helper',
 )
 assert.match(
   storeSource,
@@ -650,8 +597,8 @@ assert.match(
 )
 assert.match(
   storeSource,
-  /buildReferenceSnapshotApplyState/,
-  'references store must delegate document-reference selection shape fallback through snapshot apply state',
+  /normalizeReferenceLibrarySnapshotWithBackend/,
+  'references store must delegate document-reference selection shape fallback to Rust snapshot normalization',
 )
 assert.match(
   storeSource,
@@ -1020,7 +967,7 @@ console.log(JSON.stringify({
     defaultQueryStateDerived: true,
     resolvedQueryHydrationDerived: true,
     rustQuerySelectionIntentNormalization: true,
-    snapshotSelectionDerived: true,
+    rustSnapshotApplyNormalization: true,
     rustMutationPreferredSelectionConsumed: true,
     pdfDockStateDerived: true,
     storeLifecycleStateDerived: true,

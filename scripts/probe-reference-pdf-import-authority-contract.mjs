@@ -145,6 +145,18 @@ try {
       }
     }
 
+    if (cmd === 'references_snapshot_normalize') {
+      const snapshot = args?.params?.snapshot || {}
+      return {
+        version: 2,
+        citationStyle: snapshot.citationStyle || 'apa',
+        documentReferenceSelections: snapshot.documentReferenceSelections || {},
+        collections: Array.isArray(snapshot.collections) ? snapshot.collections : [],
+        tags: Array.isArray(snapshot.tags) ? snapshot.tags : [],
+        references: Array.isArray(snapshot.references) ? snapshot.references : [],
+      }
+    }
+
     if (cmd === 'references_asset_store') {
       assert.deepEqual(args?.params?.reference, {})
       assert.equal(args?.params?.referenceId, 'ref-1')

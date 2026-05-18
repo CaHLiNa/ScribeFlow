@@ -24,7 +24,6 @@ import {
   REFERENCE_TAGS,
 } from '../services/references/referenceLibraryFixtures.js'
 import {
-  buildDefaultReferenceLibrarySnapshot,
   normalizeReferenceLibrarySnapshotWithBackend,
   readOrCreateReferenceLibrarySnapshot,
   writeReferenceLibrarySnapshot,
@@ -62,6 +61,7 @@ import {
   buildReferenceDockPdfCloseState,
   buildReferenceDockPdfOpenState,
   buildReferenceDockPdfResetState,
+  buildReferenceDockPdfSnapshotState,
   isReferenceDockPdfSelected,
   isReferenceSelectedForDocument,
   buildReferenceStoreCleanupState,
@@ -75,7 +75,6 @@ import {
   resolveReferenceCitationUsageKeys,
   resolveReferenceResolvedQueryState,
   resolveSelectedReference,
-  buildReferenceSnapshotApplyState,
   buildReferenceQuerySelectionState,
   searchReferences,
 } from '../domains/references/referenceStoreState.js'
@@ -191,7 +190,10 @@ export const useReferencesStore = defineStore('references', {
       } else {
         nextSnapshot = await normalizeReferenceLibrarySnapshotWithBackend(snapshot)
       }
-      await this.applyLibrarySnapshot(nextSnapshot, { preferredSelectedReferenceId })
+      await this.applyLibrarySnapshot(nextSnapshot, {
+        preferredSelectedReferenceId,
+        normalized: true,
+      })
       return nextSnapshot
     },
 
@@ -224,7 +226,7 @@ export const useReferencesStore = defineStore('references', {
       this.selectedReferenceId = selection.selectedReferenceId
     },
 
-    async syncResolvedQueryState() {
+    syncPendingResolvedQueryState() {
       this.resolvedQueryState = buildDefaultResolvedQueryState({
         librarySections: this.librarySections,
         sourceSections: this.sourceSections,
@@ -238,6 +240,10 @@ export const useReferencesStore = defineStore('references', {
         sortKey: this.sortKey,
         selectedReferenceId: this.selectedReferenceId,
       })
+    },
+
+    async syncResolvedQueryState() {
+      this.syncPendingResolvedQueryState()
       await this.refreshResolvedQueryState()
     },
 
@@ -246,25 +252,27 @@ export const useReferencesStore = defineStore('references', {
     },
 
     async applyLibrarySnapshot(snapshot = {}, options = {}) {
-      const { preferredSelectedReferenceId = null } = options
-      const snapshotState = buildReferenceSnapshotApplyState({
+      const {
+        normalized = false,
+        preferredSelectedReferenceId = null,
+      } = options
+      const normalizedSnapshot = normalized
+        ? snapshot
+        : await normalizeReferenceLibrarySnapshotWithBackend(snapshot)
+      this.collections = normalizedSnapshot?.collections || []
+      this.tags = normalizedSnapshot?.tags || []
+      this.references = normalizedSnapshot?.references || []
+      this.documentReferenceSelections = normalizedSnapshot?.documentReferenceSelections || {}
+      this.citationStyle = normalizedSnapshot?.citationStyle || 'apa'
+      if (preferredSelectedReferenceId !== null && preferredSelectedReferenceId !== undefined) {
+        this.selectedReferenceId = String(preferredSelectedReferenceId || '')
+      }
+      this.syncPendingResolvedQueryState()
+      await this.refreshResolvedQueryState()
+      const dockPdfState = buildReferenceDockPdfSnapshotState({
         ...this.$state,
         referenceDockActivePage: useWorkspaceStore().referenceDockActivePage,
-      }, snapshot, {
-        defaultSnapshot: buildDefaultReferenceLibrarySnapshot(),
-        preferredSelectedReferenceId,
       })
-      this.collections = snapshotState.collections
-      this.tags = snapshotState.tags
-      this.references = snapshotState.references
-      this.documentReferenceSelections = snapshotState.documentReferenceSelections
-      this.citationStyle = snapshotState.citationStyle
-      this.selectedCollectionKey = snapshotState.selectedCollectionKey
-      this.selectedTagKey = snapshotState.selectedTagKey
-      this.selectedSourceKey = snapshotState.selectedSourceKey
-      this.selectedReferenceId = snapshotState.selectedReferenceId
-      await this.syncResolvedQueryState()
-      const dockPdfState = snapshotState.dockPdfState
       this.referenceDockPdfOpen = dockPdfState.referenceDockPdfOpen
       this.referenceDockPdfReferenceId = dockPdfState.referenceDockPdfReferenceId
       if (dockPdfState.shouldFallbackToDetails) {
@@ -280,12 +288,12 @@ export const useReferencesStore = defineStore('references', {
       try {
         const storageRoot = await resolveReferenceStorageRoot(projectRoot)
         const snapshot = await readOrCreateReferenceLibrarySnapshot(storageRoot, options)
-        await this.applyLibrarySnapshot(snapshot)
+        await this.applyLibrarySnapshot(snapshot, { normalized: true })
         await this.loadWorkspaceCitationStyles()
         this.availableCitationStylesList = await getAvailableCitationStyles().catch(() => [])
       } catch (error) {
         this.loadError = error?.message || t('Failed to load reference library')
-        await this.applyLibrarySnapshot(buildDefaultReferenceLibrarySnapshot())
+        await this.applyLibrarySnapshot({})
         setUserCitationStyles([])
       } finally {
         this.isLoading = false
@@ -817,10 +825,10 @@ export const useReferencesStore = defineStore('references', {
           return syncState.counts
         }
 
-        await this.applyLibrarySnapshot(syncState.snapshot)
-        if (syncState.selectedReferenceId) {
-          this.selectedReferenceId = syncState.selectedReferenceId
-        }
+        await this.applyLibrarySnapshot(syncState.snapshot, {
+          normalized: true,
+          preferredSelectedReferenceId: syncState.selectedReferenceId || null,
+        })
 
         this.zoteroSyncStatus = syncState.zoteroSyncStatus
         this.zoteroSyncLastSyncTime = syncState.zoteroSyncLastSyncTime

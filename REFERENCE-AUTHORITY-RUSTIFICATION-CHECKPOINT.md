@@ -71,7 +71,7 @@ should shrink as Rust APIs return complete state:
 | --- | --- | --- |
 | Query hydration fallback | `resolveReferenceResolvedQueryState`, `buildReferenceQuerySelectionState`, `buildDefaultResolvedQueryState` | Rust query always returns a complete resolved-query DTO; JS only maps field casing and empty UI defaults. |
 | Store bootstrap UI state | `buildReferenceStoreInitialState`, `buildReferenceStoreCleanupState` | Rust-backed load/close lifecycle returns canonical library defaults; JS keeps only loading/error/Zotero UI flags. |
-| Snapshot apply bridge | `buildReferenceSnapshotApplyState`, `buildReferenceSnapshotSelectionState` | Rust snapshot/query result returns normalized selection, pruned filters, and canonical document-reference selections. |
+| Snapshot apply bridge | `applyLibrarySnapshot()` orchestration plus PDF dock UI reconciliation | Raw snapshot normalization now goes through `references_snapshot_normalize`, and selection/filter hydration goes through `references_query_resolve`; JS keeps only field assignment, loading/error orchestration and PDF dock UI state. |
 | Library snapshot write DTO | `buildReferenceLibrarySnapshotPayload` | Persisted snapshot payload is built in Rust or by a service adapter with no schema policy. |
 | Store seed internals | `resolveReferenceStoreSeed`, `buildReferenceStoreResetQueryState` | Deleted once initial/cleanup/query defaults are Rust-returned. |
 | Citation style display fallback | `resolveReferenceCitationStyleId`, `resolveReferenceWorkspaceCitationStyles` | Keep only if it remains a UI fallback around a Rust-normalized style registry result. |
@@ -157,8 +157,9 @@ Zotero, search, or snapshot policy and should move back to Rust contracts:
    - JS store keeps only view filters, loading/error flags and dock/tab state that
      has no persisted reference meaning.
    - Status: sidebar/sort selection validity now comes from
-     `references_query_resolve`; lifecycle/default snapshot adapters are the
-     remaining selection-related JS cleanup area.
+     `references_query_resolve`; raw snapshot apply normalization now comes from
+     `references_snapshot_normalize`. Initial/cleanup/default query adapters are
+     the remaining selection-related JS cleanup area.
 
 6. Shrink `referenceStoreState.js`
    - Remove migrated helpers.
@@ -189,7 +190,7 @@ For each migration slice:
   target resolution, PDF import target/result shaping and Zotero
   skipped/success result classification have moved to Rust.
 - Remaining query work is now narrower: selection-id UI affordances,
-  lifecycle/default snapshot adapters, and residual key-normalization helpers
+  initial/cleanup/default query adapters, and residual key-normalization helpers
   still need either Rust DTOs or explicit UI-only classification.
 - UI dock/sidebar helpers are lower risk and can remain while they stay
   presentation-only.

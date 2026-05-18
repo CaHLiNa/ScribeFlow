@@ -368,57 +368,6 @@ export function buildReferenceStoreCleanupState(state = {}, defaults = {}) {
   }
 }
 
-export function buildReferenceSnapshotApplyState(state = {}, snapshot = {}, options = {}) {
-  const defaultSnapshot = options?.defaultSnapshot && typeof options.defaultSnapshot === 'object'
-    ? options.defaultSnapshot
-    : {
-        citationStyle: 'apa',
-        documentReferenceSelections: {},
-        collections: [],
-        tags: [],
-        references: [],
-      }
-  const normalized = {
-    ...defaultSnapshot,
-    ...(snapshot && typeof snapshot === 'object' && !Array.isArray(snapshot) ? snapshot : {}),
-  }
-  const collections = Array.isArray(normalized.collections) ? normalized.collections : []
-  const tags = Array.isArray(normalized.tags) ? normalized.tags : []
-  const references = Array.isArray(normalized.references) ? normalized.references : []
-  const documentReferenceSelections = resolveDocumentReferenceSelections(normalized.documentReferenceSelections)
-  const citationStyle = String(normalized.citationStyle || 'apa')
-  const selection = buildReferenceSnapshotSelectionState({
-    collections,
-    tags,
-    sourceSections: state.sourceSections,
-    references,
-    selectedCollectionKey: state.selectedCollectionKey,
-    selectedTagKey: state.selectedTagKey,
-    selectedSourceKey: state.selectedSourceKey,
-    selectedReferenceId: state.selectedReferenceId,
-    preferredSelectedReferenceId: options.preferredSelectedReferenceId,
-  })
-
-  return {
-    collections,
-    tags,
-    references,
-    documentReferenceSelections,
-    citationStyle,
-    selectedCollectionKey: selection.selectedCollectionKey,
-    selectedTagKey: selection.selectedTagKey,
-    selectedSourceKey: selection.selectedSourceKey,
-    selectedReferenceId: selection.selectedReferenceId,
-    dockPdfState: buildReferenceDockPdfSnapshotState({
-      references,
-      selectedReferenceId: selection.selectedReferenceId,
-      referenceDockPdfOpen: state.referenceDockPdfOpen,
-      referenceDockPdfReferenceId: state.referenceDockPdfReferenceId,
-      referenceDockActivePage: state.referenceDockActivePage,
-    }),
-  }
-}
-
 export function buildReferenceQuerySelectionState(resolvedQueryState = {}, currentState = {}) {
   const query = resolvedQueryState?.query && typeof resolvedQueryState.query === 'object'
     ? resolvedQueryState.query
@@ -435,32 +384,6 @@ export function buildReferenceQuerySelectionState(resolvedQueryState = {}, curre
       currentState?.selectedReferenceId ||
       ''
     ),
-  }
-}
-
-export function buildReferenceSnapshotSelectionState(state = {}) {
-  const preferredSelectedReferenceId = state.preferredSelectedReferenceId
-  const nextSelectedReferenceId =
-    preferredSelectedReferenceId !== null && preferredSelectedReferenceId !== undefined
-      ? String(preferredSelectedReferenceId || '')
-      : (Array.isArray(state.references) ? state.references : [])
-          .some((reference) => String(reference?.id || '') === String(state.selectedReferenceId || ''))
-        ? String(state.selectedReferenceId || '')
-        : ''
-
-  return {
-    selectedCollectionKey: resolveCollection(state.collections, state.selectedCollectionKey)
-      ? String(state.selectedCollectionKey || '')
-      : '',
-    selectedTagKey: resolveTag(state.tags, state.selectedTagKey)
-      ? String(state.selectedTagKey || '')
-      : '',
-    selectedSourceKey: resolveReferenceSectionKey(
-      state.sourceSections,
-      state.selectedSourceKey,
-      ''
-    ),
-    selectedReferenceId: nextSelectedReferenceId,
   }
 }
 

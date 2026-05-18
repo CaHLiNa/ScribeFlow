@@ -1,16 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
 
-export function buildDefaultReferenceLibrarySnapshot() {
-  return {
-    version: 2,
-    citationStyle: 'apa',
-    documentReferenceSelections: {},
-    collections: [],
-    tags: [],
-    references: [],
-  }
-}
-
 export async function normalizeReferenceLibrarySnapshotWithBackend(snapshot = {}) {
   return invoke('references_snapshot_normalize', {
     params: {
