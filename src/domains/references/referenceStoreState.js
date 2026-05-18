@@ -164,6 +164,31 @@ export function resolveAvailableDocumentReferences(
     .filter((reference) => !selectedIds.has(String(reference?.id || '')))
 }
 
+export function resolveReferenceResolvedQueryState(resolved = null, fallbackState = {}) {
+  return resolved && typeof resolved === 'object' && !Array.isArray(resolved)
+    ? resolved
+    : buildDefaultResolvedQueryState(fallbackState)
+}
+
+export function buildReferenceQuerySelectionState(resolvedQueryState = {}, currentState = {}) {
+  const query = resolvedQueryState?.query && typeof resolvedQueryState.query === 'object'
+    ? resolvedQueryState.query
+    : {}
+  return {
+    selectedSectionKey: String(query.selectedSectionKey || 'all'),
+    selectedSourceKey: String(query.selectedSourceKey || ''),
+    selectedCollectionKey: String(query.selectedCollectionKey || ''),
+    selectedTagKey: String(query.selectedTagKey || ''),
+    sortKey: normalizeReferenceSortKey(query.sortKey),
+    selectedReferenceId: String(
+      resolvedQueryState?.selectedReferenceId ||
+      query.selectedReferenceId ||
+      currentState?.selectedReferenceId ||
+      ''
+    ),
+  }
+}
+
 export function buildDefaultResolvedQueryState(state = {}) {
   const references = Array.isArray(state.references) ? state.references : []
   return {

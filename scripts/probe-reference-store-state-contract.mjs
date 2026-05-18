@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import {
   buildDefaultResolvedQueryState,
+  buildReferenceQuerySelectionState,
   hasReferenceById,
   isReferenceSelectedForDocument,
   normalizeCollectionMembershipValue,
@@ -15,6 +16,7 @@ import {
   resolveDocumentReferenceSelections,
   resolveReferenceByKey,
   resolveReferenceById,
+  resolveReferenceResolvedQueryState,
   resolveReferenceSectionKey,
   resolveReferencesForExport,
   resolveTag,
@@ -165,6 +167,49 @@ assert.deepEqual(buildDefaultResolvedQueryState({ references: 'not-array' }), {
   citationUsageDetails: {},
 })
 
+const fallbackResolvedQueryState = resolveReferenceResolvedQueryState(null, {
+  references,
+  selectedReferenceId: 'ref-3',
+  sortKey: 'invalid',
+})
+assert.equal(fallbackResolvedQueryState.query.selectedReferenceId, 'ref-3')
+assert.equal(fallbackResolvedQueryState.query.sortKey, 'year-desc')
+assert.deepEqual(fallbackResolvedQueryState.filteredReferences, references)
+
+const explicitResolvedQueryState = {
+  selectedReferenceId: 'root-ref',
+  query: {
+    selectedSectionKey: 'recent',
+    selectedSourceKey: 'zotero',
+    selectedCollectionKey: 'methods',
+    selectedTagKey: 'theory',
+    sortKey: 'invalid',
+    selectedReferenceId: 'query-ref',
+  },
+}
+assert.equal(
+  resolveReferenceResolvedQueryState(explicitResolvedQueryState, { references }),
+  explicitResolvedQueryState,
+)
+assert.deepEqual(buildReferenceQuerySelectionState(explicitResolvedQueryState, {
+  selectedReferenceId: 'current-ref',
+}), {
+  selectedSectionKey: 'recent',
+  selectedSourceKey: 'zotero',
+  selectedCollectionKey: 'methods',
+  selectedTagKey: 'theory',
+  sortKey: 'year-desc',
+  selectedReferenceId: 'root-ref',
+})
+assert.equal(buildReferenceQuerySelectionState({
+  query: { selectedReferenceId: 'query-ref' },
+}, {
+  selectedReferenceId: 'current-ref',
+}).selectedReferenceId, 'query-ref')
+assert.equal(buildReferenceQuerySelectionState({}, {
+  selectedReferenceId: 'current-ref',
+}).selectedReferenceId, 'current-ref')
+
 const storeSource = await readFile('src/stores/references.js', 'utf8')
 
 assert.match(
@@ -176,6 +221,16 @@ assert.match(
   storeSource,
   /buildDefaultResolvedQueryState/,
   'references store must use the domain helper for default resolved query state',
+)
+assert.match(
+  storeSource,
+  /resolveReferenceResolvedQueryState/,
+  'references store must delegate resolved query fallback',
+)
+assert.match(
+  storeSource,
+  /buildReferenceQuerySelectionState/,
+  'references store must delegate resolved query selection hydration',
 )
 assert.match(
   storeSource,
@@ -249,7 +304,7 @@ assert.match(
 )
 assert.doesNotMatch(
   storeSource,
-  /function normalizeCollectionMembershipValue|function normalizeTagKey|function resolveCollection|function resolveDocumentReferenceSelections|function buildDefaultResolvedQueryState|const selectedIds = new Set\(this\.getDocumentReferenceIds|const normalizedQuery = String\(query \|\| ''\)\.trim\(\)\.toLowerCase\(\)|haystack\.includes\(normalizedQuery\)|referenceIds\s*\.map\(\(referenceId\) => this\.references\.find|this\.references\.some\(\(reference\) => reference\.id|this\.(?:librarySections|sourceSections)\.some\(\(section\) => section\.key|\[\s*'year-desc'[\s\S]*'author-desc'[\s\S]*\]\.includes\(value\)/,
+  /function normalizeCollectionMembershipValue|function normalizeTagKey|function resolveCollection|function resolveDocumentReferenceSelections|function buildDefaultResolvedQueryState|const selectedIds = new Set\(this\.getDocumentReferenceIds|const normalizedQuery = String\(query \|\| ''\)\.trim\(\)\.toLowerCase\(\)|haystack\.includes\(normalizedQuery\)|referenceIds\s*\.map\(\(referenceId\) => this\.references\.find|this\.references\.some\(\(reference\) => reference\.id|this\.(?:librarySections|sourceSections)\.some\(\(section\) => section\.key|\[\s*'year-desc'[\s\S]*'author-desc'[\s\S]*\]\.includes\(value\)|const query = this\.resolvedQueryState\?\.query|query\.selectedReferenceId|query\.selectedSectionKey/,
   'references store must not redefine deterministic state helpers inline',
 )
 assert.match(
@@ -267,6 +322,7 @@ console.log(JSON.stringify({
     referenceSearchDerived: true,
     exportSelectionDerived: true,
     defaultQueryStateDerived: true,
+    resolvedQueryHydrationDerived: true,
     storeUsesDomainHelper: true,
     exactIdPresenceDerived: true,
     sectionAndSortKeyValidationDerived: true,

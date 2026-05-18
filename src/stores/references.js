@@ -69,9 +69,11 @@ import {
   resolveDocumentReferenceSelections,
   resolveReferenceByKey,
   resolveReferenceById,
+  resolveReferenceResolvedQueryState,
   resolveReferenceSectionKey,
   resolveReferencesForExport,
   resolveTag,
+  buildReferenceQuerySelectionState,
   searchReferences,
 } from '../domains/references/referenceStoreState.js'
 import { classifyZoteroSyncError } from '../domains/references/zoteroSyncPresentation.js'
@@ -264,21 +266,14 @@ export const useReferencesStore = defineStore('references', {
         fileContents,
       })
 
-      this.resolvedQueryState = resolved && typeof resolved === 'object'
-        ? resolved
-        : buildDefaultResolvedQueryState(this.$state)
-      const query = this.resolvedQueryState?.query || {}
-      this.selectedSectionKey = String(query.selectedSectionKey || 'all')
-      this.selectedSourceKey = String(query.selectedSourceKey || '')
-      this.selectedCollectionKey = String(query.selectedCollectionKey || '')
-      this.selectedTagKey = String(query.selectedTagKey || '')
-      this.sortKey = String(query.sortKey || 'year-desc')
-      this.selectedReferenceId = String(
-        this.resolvedQueryState?.selectedReferenceId ||
-        query.selectedReferenceId ||
-        this.selectedReferenceId ||
-        ''
-      )
+      this.resolvedQueryState = resolveReferenceResolvedQueryState(resolved, this.$state)
+      const selection = buildReferenceQuerySelectionState(this.resolvedQueryState, this.$state)
+      this.selectedSectionKey = selection.selectedSectionKey
+      this.selectedSourceKey = selection.selectedSourceKey
+      this.selectedCollectionKey = selection.selectedCollectionKey
+      this.selectedTagKey = selection.selectedTagKey
+      this.sortKey = selection.sortKey
+      this.selectedReferenceId = selection.selectedReferenceId
     },
 
     async syncResolvedQueryState() {
