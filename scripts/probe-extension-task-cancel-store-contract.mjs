@@ -70,17 +70,31 @@ try {
     if (cmd === 'extension_task_list') {
       return []
     }
+    if (cmd === 'extension_artifact_open') {
+      return { ok: true }
+    }
     throw new Error(`Unexpected IPC command: ${cmd}`)
   }, { shouldMockEvents: true })
 
   const { useExtensionsStore } = await vite.ssrLoadModule('/src/stores/extensions.js')
   const { useWorkspaceStore } = await vite.ssrLoadModule('/src/stores/workspace.js')
+  const { buildExtensionTaskResultEntries } = await vite.ssrLoadModule('/src/domains/extensions/extensionResultEntries.js')
 
   const pinia = createPinia()
   setActivePinia(pinia)
   const workspace = useWorkspaceStore(pinia)
   workspace.path = '/tmp/workspace'
   const extensions = useExtensionsStore(pinia)
+  const executedCommands = []
+  extensions.executeCommand = async (action = {}, target = {}, settings = {}) => {
+    executedCommands.push({
+      extensionId: String(action.extensionId || ''),
+      commandId: String(action.commandId || ''),
+      target,
+      settings,
+    })
+    return { ok: true }
+  }
 
   extensions.upsertTask({
     id: 'task-succeeded',
@@ -136,12 +150,39 @@ try {
   assert.equal(afterTimeline.recent[0].outputs[0]?.text, 'worker active')
   assert.equal(afterTimeline.recent[0].logPath, '/tmp/cancelled-task.log')
 
+  const cancelledEntries = buildExtensionTaskResultEntries(afterTimeline.recent[0])
+  assert.deepEqual(
+    cancelledEntries.map((entry) => [entry.id, entry.action, entry.previewMode, entry.previewTitle || '']),
+    [
+      ['summary:running', 'open', 'text', 'Running Summary'],
+      ['task-running:log', 'open', 'text', 'Task Log'],
+      ['task-running:rerun', 'execute-command', undefined, ''],
+    ],
+  )
+
+  await extensions.runResultEntryAction(cancelledEntries.find((entry) => entry.id === 'task-running:log'), afterTimeline.recent[0].target)
+  await extensions.runResultEntryAction(cancelledEntries.find((entry) => entry.id === 'task-running:rerun'), afterTimeline.recent[0].target)
+
   assert.ok(
     ipcCalls.some(([cmd, args]) =>
       cmd === 'extension_task_cancel' &&
       args?.params?.taskId === 'task-running'
     ),
   )
+  assert.ok(
+    ipcCalls.some(([cmd, args]) =>
+      cmd === 'extension_artifact_open' &&
+      args?.params?.path === '/tmp/cancelled-task.log'
+    ),
+  )
+  assert.deepEqual(executedCommands, [
+    {
+      extensionId: 'example-pdf-extension',
+      commandId: 'scribeflow.pdf.translate',
+      target: { kind: 'pdf', referenceId: '', path: '/tmp/paper-a.pdf' },
+      settings: {},
+    },
+  ])
 
   console.log(JSON.stringify({
     ok: true,
@@ -150,6 +191,8 @@ try {
       cancelledProgressLabel: cancelledTask.progress.label,
       recentTaskIds: afterTimeline.recent.map((task) => task.id),
       preservedOutputText: afterTimeline.recent[0].outputs[0]?.text || '',
+      cancelledEntryIds: cancelledEntries.map((entry) => entry.id),
+      rerunCommandId: executedCommands[0]?.commandId || '',
     },
   }, null, 2))
 } finally {

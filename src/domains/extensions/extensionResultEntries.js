@@ -196,11 +196,6 @@ export function buildExtensionTaskResultEntries(task = {}) {
     artifacts: task?.artifacts,
     outputs: task?.outputs,
   })
-  const state = normalizeText(task?.state).toLowerCase()
-  if (state === 'failed' || state === 'cancelled') {
-    return entries
-  }
-
   const taskEntries = []
   const logEntry = buildTaskLogEntry(task)
   if (logEntry && !hasEquivalentTaskLogEntry(explicitEntries, task)) {

@@ -85,6 +85,36 @@ assert.equal(running.status.labelKey, 'Analyzing')
 assert.equal(running.status.toneClass, 'is-warning')
 assert.equal(running.progress.available, false)
 
+const failed = buildExtensionTaskPresentation({
+  id: 'task-failed',
+  extensionId: 'example-pdf-extension',
+  commandId: 'scribeflow.pdf.translate',
+  state: 'failed',
+  target: {
+    kind: 'pdf',
+    path: '/tmp/paper.pdf',
+  },
+  outputs: [
+    {
+      id: 'failure-summary',
+      type: 'inlineText',
+      title: 'Failure Summary',
+      text: 'worker stderr',
+    },
+  ],
+  logPath: '/tmp/extension-task.log',
+})
+
+assert.equal(failed.status.labelKey, 'Failed')
+assert.equal(failed.status.toneClass, 'is-error')
+assert.deepEqual(
+  failed.results.groups.map((group) => [group.id, group.entries.map((entry) => entry.id)]),
+  [
+    ['previews', ['failure-summary', 'task-failed:log']],
+    ['actions', ['task-failed:rerun']],
+  ],
+)
+
 console.log(JSON.stringify({
   ok: true,
   summary: {
@@ -94,5 +124,6 @@ console.log(JSON.stringify({
     resultGroups: presentation.results.groups.map((group) => `${group.id}:${group.count}`),
     progressWidth: presentation.progress.visual.width,
     runningTone: running.status.toneClass,
+    failedGroups: failed.results.groups.map((group) => `${group.id}:${group.count}`),
   },
 }, null, 2))

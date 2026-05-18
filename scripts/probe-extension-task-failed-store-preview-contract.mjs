@@ -172,14 +172,30 @@ try {
         previewMode: 'text',
         previewTitle: 'Failure Summary',
       },
+      {
+        id: 'task-failed:log',
+        action: 'open',
+        previewMode: 'text',
+        previewTitle: 'Task Log',
+      },
+      {
+        id: 'task-failed:rerun',
+        action: 'execute-command',
+        previewMode: undefined,
+        previewTitle: '',
+      },
     ],
   )
 
   const summaryEntry = resultEntries.find((entry) => entry.id === 'failure-summary')
   const artifactEntry = resultEntries.find((entry) => entry.id === 'failure-log')
+  const taskLogEntry = resultEntries.find((entry) => entry.id === 'task-failed:log')
+  const rerunEntry = resultEntries.find((entry) => entry.id === 'task-failed:rerun')
 
   await extensions.runResultEntryAction(summaryEntry, failedTask.target)
   await extensions.runResultEntryAction(artifactEntry, failedTask.target)
+  await extensions.runResultEntryAction(taskLogEntry, failedTask.target)
+  await extensions.runResultEntryAction(rerunEntry, failedTask.target)
 
   assert.ok(
     ipcCalls.some(([cmd, args]) =>
@@ -187,7 +203,26 @@ try {
       args?.params?.path === '/tmp/failure.log'
     ),
   )
-  assert.equal(executedCommands.length, 0)
+  assert.ok(
+    ipcCalls.some(([cmd, args]) =>
+      cmd === 'extension_artifact_open' &&
+      args?.params?.path === '/tmp/extension-task.log'
+    ),
+  )
+  assert.deepEqual(executedCommands, [
+    {
+      extensionId: 'example-pdf-extension',
+      commandId: 'scribeflow.pdf.translate',
+      target: {
+        kind: 'pdf',
+        referenceId: 'ref-123',
+        path: '/tmp/paper-a.pdf',
+      },
+      settings: {
+        'examplePdfExtension.targetLang': 'zh-CN',
+      },
+    },
+  ])
 
   console.log(JSON.stringify({
     ok: true,
@@ -195,6 +230,7 @@ try {
       recentTaskIds: timeline.recent.map((task) => task.id),
       resultEntryIds: resultEntries.map((entry) => entry.id),
       failurePreviewTitle: summaryEntry?.previewTitle || '',
+      rerunCommandId: executedCommands[0]?.commandId || '',
     },
   }, null, 2))
 } finally {
