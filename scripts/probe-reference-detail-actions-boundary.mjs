@@ -26,7 +26,7 @@ assert.doesNotMatch(
 )
 assert.match(
   panelSource,
-  /syncDraft[\s\S]*saveDraftChangesForReference[\s\S]*enqueueReferenceUpdate[\s\S]*commitTitle[\s\S]*commitAuthors[\s\S]*addTag/,
+  /syncDraft[\s\S]*saveDraftChangesForReference[\s\S]*enqueueReferenceUpdate[\s\S]*updateSelectedReference[\s\S]*commitTitle[\s\S]*commitAuthors/,
   'ReferenceDetailPanel must keep draft lifecycle and save queue orchestration',
 )
 

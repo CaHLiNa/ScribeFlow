@@ -67,17 +67,14 @@ import {
   buildReferenceDetailHeroMetaItems,
   hasReferenceDetailDraftFieldChanged,
   normalizeReferenceDetailAuthors,
-  normalizeReferenceDetailCollectionMemberships,
-  normalizeReferenceDetailTagValues,
   normalizeReferenceDetailText,
-  resolveReferenceDetailCollection,
-  resolveReferenceDetailCollectionLabel,
 } from '../../domains/references/referenceDetailDraft.js'
 import { getReferenceTypeLabelKey } from '../../domains/references/referencePresentation.js'
+import { useReferenceDetailActions } from '../../composables/references/useReferenceDetailActions.js'
+import { useReferenceDetailTokenActions } from '../../composables/references/useReferenceDetailTokenActions.js'
 import { useReferencesStore } from '../../stores/references'
 import { useToastStore } from '../../stores/toast'
 import { useWorkspaceStore } from '../../stores/workspace'
-import { useReferenceDetailActions } from '../../composables/references/useReferenceDetailActions.js'
 import ReferenceDetailContentSection from './ReferenceDetailContentSection.vue'
 import ReferenceDetailHero from './ReferenceDetailHero.vue'
 import ReferenceDetailMetadataSection from './ReferenceDetailMetadataSection.vue'
@@ -125,6 +122,23 @@ const {
   handleRevealPdf,
   pdfExtensionActionTarget,
 } = useReferenceDetailActions({ selectedReference, emit })
+const {
+  addTag,
+  collectionLabel,
+  handleTagInputBlur,
+  handleTagInputKeydown,
+  removeCollection,
+  removeTag,
+  updateTagInput,
+} = useReferenceDetailTokenActions({
+  availableCollections,
+  clearActiveDraftField,
+  clearDraftDirtyField,
+  draft,
+  markDraftDirty,
+  tagInput,
+  updateSelectedReference,
+})
 const heroMetaItems = computed(() => buildReferenceDetailHeroMetaItems(draft))
 const editableDraftFields = REFERENCE_DETAIL_EDITABLE_FIELDS
 const hasDraftChanges = computed(() =>
@@ -195,15 +209,16 @@ function markDraftDirty(field = '') {
   }
 }
 
+function clearDraftDirtyField(field = '') {
+  if (field) {
+    dirtyDraftFields.delete(field)
+  }
+}
+
 function updateDraftField(field = '', value = '') {
   if (!Object.prototype.hasOwnProperty.call(draft, field)) return
   draft[field] = value
   markDraftDirty(field)
-}
-
-function updateTagInput(value = '') {
-  tagInput.value = value
-  markDraftDirty('tagInput')
 }
 
 function handleMetadataFieldBlur(field = '') {
@@ -237,18 +252,6 @@ async function handleFieldBlur(field = '', commit) {
   } finally {
     clearActiveDraftField(field)
   }
-}
-
-function resolveCollection(value = '') {
-  return resolveReferenceDetailCollection(availableCollections.value, value)
-}
-
-function normalizeCollectionMemberships(values = []) {
-  return normalizeReferenceDetailCollectionMemberships(availableCollections.value, values)
-}
-
-function collectionLabel(value = '') {
-  return resolveReferenceDetailCollectionLabel(availableCollections.value, value)
 }
 
 function hasDraftFieldChanged(field = '', reference = null) {
@@ -419,60 +422,6 @@ async function commitNote() {
   await updateSelectedReference({
     notes: draft.note ? [draft.note] : [],
   })
-}
-
-async function removeCollection(value = '') {
-  const target = resolveCollection(value)?.key || normalizeReferenceDetailText(value)
-  draft.collections = normalizeCollectionMemberships(draft.collections).filter(
-    (item) => item !== target
-  )
-  await updateSelectedReference({ collections: [...draft.collections] })
-}
-
-async function addTag(event) {
-  event?.preventDefault?.()
-  const nextTags = normalizeReferenceDetailTagValues(tagInput.value)
-  if (nextTags.length === 0) return
-
-  const existing = new Set(
-    draft.tags.map((tag) => normalizeReferenceDetailText(tag).toLowerCase())
-  )
-  for (const tag of nextTags) {
-    const normalized = tag.toLowerCase()
-    if (!existing.has(normalized)) {
-      existing.add(normalized)
-      draft.tags.push(tag)
-    }
-  }
-
-  tagInput.value = ''
-  dirtyDraftFields.delete('tagInput')
-  await updateSelectedReference({ tags: [...draft.tags] })
-}
-
-function handleTagInputKeydown(event) {
-  if (event.key === ',') {
-    void addTag(event)
-  }
-}
-
-async function handleTagInputBlur(event) {
-  try {
-    if (normalizeReferenceDetailTagValues(tagInput.value).length > 0) {
-      await addTag(event)
-    }
-  } finally {
-    dirtyDraftFields.delete('tagInput')
-    clearActiveDraftField('tagInput')
-  }
-}
-
-async function removeTag(tag = '') {
-  const normalizedTarget = normalizeReferenceDetailText(tag).toLowerCase()
-  draft.tags = draft.tags.filter(
-    (item) => normalizeReferenceDetailText(item).toLowerCase() !== normalizedTarget
-  )
-  await updateSelectedReference({ tags: [...draft.tags] })
 }
 
 </script>
