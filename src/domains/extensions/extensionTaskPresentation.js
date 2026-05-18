@@ -77,6 +77,22 @@ export function taskGroupPresentation({ id = '', titleKey = '', tasks = [] } = {
   }
 }
 
+export function taskDetailPresentation(task = {}, results = taskResultSummaryPresentation(task), progress = taskProgressPresentation(task)) {
+  const row = taskRowPresentation(task)
+  const state = row.state
+  const hasResults = Number(results?.entryCount || 0) > 0
+  const hasProgress = Boolean(progress?.available)
+  const available = hasResults || hasProgress
+  const terminalNeedsAttention = state === 'failed' || state === 'cancelled' || state === 'canceled'
+  return {
+    available,
+    collapsible: available && !row.active,
+    defaultExpanded: available && (row.active || terminalNeedsAttention || !row.terminal),
+    expandLabelKey: 'Show Details',
+    collapseLabelKey: 'Hide Details',
+  }
+}
+
 export function taskTitleKey(task = {}) {
   const explicit = normalizeText(task.commandId || task.command_id || task.capability)
   if (!explicit) return 'Extension task'
@@ -262,6 +278,7 @@ export function buildExtensionTaskPresentation(task = {}) {
   const progress = taskProgressPresentation(task)
   const results = taskResultSummaryPresentation(task)
   const quickActions = taskQuickActionsPresentation(task, results)
+  const details = taskDetailPresentation(task, results, progress)
   return {
     id: normalizeText(task?.id),
     titleKey: taskTitleKey(task),
@@ -270,6 +287,7 @@ export function buildExtensionTaskPresentation(task = {}) {
     progress,
     results,
     quickActions,
+    details,
     facts: taskFactsPresentation(task),
   }
 }

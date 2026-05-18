@@ -39,65 +39,76 @@
             />
           </div>
           <div class="extension-task-time">{{ taskTimeSummary(row.task) }}</div>
-          <div
-            v-if="row.presentation.progress.available"
-            class="extension-task-progress"
-            :class="row.presentation.progress.visual.toneClass"
+          <button
+            v-if="row.presentation.details.collapsible"
+            type="button"
+            class="extension-task-detail-toggle"
+            :aria-expanded="taskDetailsExpanded(row) ? 'true' : 'false'"
+            @click="toggleTaskDetails(row)"
           >
-            <div class="extension-task-progress__row">
-              <span>{{ taskProgressSummary(row.presentation.progress) }}</span>
-              <span v-if="row.presentation.progress.visual.total > 0" class="extension-task-progress__count">
-                {{ row.presentation.progress.visual.current }}/{{ row.presentation.progress.visual.total }}
-              </span>
-            </div>
+            {{ t(taskDetailsExpanded(row) ? row.presentation.details.collapseLabelKey : row.presentation.details.expandLabelKey) }}
+          </button>
+          <div v-if="taskDetailsExpanded(row)" class="extension-task-details">
             <div
-              v-if="row.presentation.progress.visual.total > 0"
-              class="extension-task-progress__track"
-              role="progressbar"
-              :aria-valuemin="0"
-              :aria-valuemax="row.presentation.progress.visual.total"
-              :aria-valuenow="row.presentation.progress.visual.current"
+              v-if="row.presentation.progress.available"
+              class="extension-task-progress"
+              :class="row.presentation.progress.visual.toneClass"
             >
-              <span :style="{ width: row.presentation.progress.visual.width }"></span>
-            </div>
-          </div>
-          <div v-if="row.presentation.results.entries.length > 0" class="extension-task-results">
-            <div class="extension-task-results__header">
-              <div class="extension-task-results__title">{{ t('Results') }}</div>
-              <div class="extension-task-results__summary">
-                {{ resultSummaryLabel(row.presentation.results) }}
-              </div>
-            </div>
-            <div
-              v-for="group in row.presentation.results.groups"
-              :key="group.id"
-              class="extension-task-results__group"
-            >
-              <div class="extension-task-results__group-title">
-                <span>{{ t(group.titleKey) }}</span>
-                <span>{{ group.count }}</span>
-              </div>
-              <button
-                v-for="entry in group.entries"
-                :key="entry.id"
-                type="button"
-                class="extension-task-results__entry"
-                :class="{ 'is-active': activeResultEntry(row)?.id === entry.id }"
-                @click="selectResultEntry(row, entry)"
-              >
-                <span class="extension-task-results__entry-label">{{ t(entry.label) }}</span>
-                <span v-if="entry.description" class="extension-task-results__entry-description">
-                  {{ t(entry.description) }}
+              <div class="extension-task-progress__row">
+                <span>{{ taskProgressSummary(row.presentation.progress) }}</span>
+                <span v-if="row.presentation.progress.visual.total > 0" class="extension-task-progress__count">
+                  {{ row.presentation.progress.visual.current }}/{{ row.presentation.progress.visual.total }}
                 </span>
-              </button>
+              </div>
+              <div
+                v-if="row.presentation.progress.visual.total > 0"
+                class="extension-task-progress__track"
+                role="progressbar"
+                :aria-valuemin="0"
+                :aria-valuemax="row.presentation.progress.visual.total"
+                :aria-valuenow="row.presentation.progress.visual.current"
+              >
+                <span :style="{ width: row.presentation.progress.visual.width }"></span>
+              </div>
             </div>
+            <div v-if="row.presentation.results.entries.length > 0" class="extension-task-results">
+              <div class="extension-task-results__header">
+                <div class="extension-task-results__title">{{ t('Results') }}</div>
+                <div class="extension-task-results__summary">
+                  {{ resultSummaryLabel(row.presentation.results) }}
+                </div>
+              </div>
+              <div
+                v-for="group in row.presentation.results.groups"
+                :key="group.id"
+                class="extension-task-results__group"
+              >
+                <div class="extension-task-results__group-title">
+                  <span>{{ t(group.titleKey) }}</span>
+                  <span>{{ group.count }}</span>
+                </div>
+                <button
+                  v-for="entry in group.entries"
+                  :key="entry.id"
+                  type="button"
+                  class="extension-task-results__entry"
+                  :class="{ 'is-active': activeResultEntry(row)?.id === entry.id }"
+                  @click="selectResultEntry(row, entry)"
+                >
+                  <span class="extension-task-results__entry-label">{{ t(entry.label) }}</span>
+                  <span v-if="entry.description" class="extension-task-results__entry-description">
+                    {{ t(entry.description) }}
+                  </span>
+                </button>
+              </div>
+            </div>
+            <ExtensionResultPreview
+              v-if="activeResultEntry(row)"
+              :entry="activeResultEntry(row)"
+              :busy-action-key="resultActionBusyKey"
+              @run-action="openResultEntry"
+            />
           </div>
-          <ExtensionResultPreview
-            v-if="activeResultEntry(row)"
-            :entry="activeResultEntry(row)"
-            :busy-action-key="resultActionBusyKey"
-            @run-action="openResultEntry"
-          />
         </div>
         <div v-if="row.presentation.quickActions.length > 0" class="extension-task-actions">
           <UiButton
@@ -133,6 +144,7 @@ const { t } = useI18n()
 const extensionsStore = useExtensionsStore()
 const resultActionBusyKey = ref('')
 const activeResultEntryIds = ref({})
+const taskDetailExpansionOverrides = ref({})
 const props = defineProps({
   extensionId: { type: String, default: '' },
 })
@@ -160,15 +172,41 @@ function buildTaskGroup(id = '', titleKey = '', tasks = []) {
 }
 
 function activeResultEntry(row = {}) {
+  if (!taskDetailsExpanded(row)) return null
   const entries = row?.presentation?.results?.entries || []
   if (entries.length === 0) return null
   const selectedId = activeResultEntryIds.value[String(row.id || '')]
   return entries.find((entry) => entry.id === selectedId) || entries[0] || null
 }
 
+function taskDetailsExpanded(row = {}) {
+  const taskId = String(row.id || '')
+  if (!row?.presentation?.details?.available) return false
+  if (!row.presentation.details.collapsible) return true
+  if (taskId && taskDetailExpansionOverrides.value[taskId] != null) {
+    return Boolean(taskDetailExpansionOverrides.value[taskId])
+  }
+  return Boolean(row.presentation.details.defaultExpanded)
+}
+
+function toggleTaskDetails(row = {}) {
+  const taskId = String(row.id || '')
+  if (!taskId || !row?.presentation?.details?.collapsible) return
+  taskDetailExpansionOverrides.value = {
+    ...taskDetailExpansionOverrides.value,
+    [taskId]: !taskDetailsExpanded(row),
+  }
+}
+
 function selectResultEntry(row = {}, entry = {}) {
   const taskId = String(row.id || '')
   if (!taskId) return
+  if (row?.presentation?.details?.collapsible && !taskDetailsExpanded(row)) {
+    taskDetailExpansionOverrides.value = {
+      ...taskDetailExpansionOverrides.value,
+      [taskId]: true,
+    }
+  }
   activeResultEntryIds.value = {
     ...activeResultEntryIds.value,
     [taskId]: String(entry?.id || ''),
@@ -214,6 +252,9 @@ async function runQuickAction(row = {}, action = {}) {
   const entry = resultEntryById(row, action?.entryId)
   if (!entry) return
   if (action?.kind === 'select-entry') {
+    if (row?.presentation?.details?.collapsible && !taskDetailsExpanded(row)) {
+      toggleTaskDetails(row)
+    }
     selectResultEntry(row, entry)
     return
   }
@@ -384,6 +425,36 @@ function taskTimeSummary(task = {}) {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
   gap: 6px;
+}
+
+.extension-task-detail-toggle {
+  width: fit-content;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.extension-task-detail-toggle:hover {
+  color: var(--text-primary);
+}
+
+.extension-task-detail-toggle:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.extension-task-details {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .extension-task-progress {

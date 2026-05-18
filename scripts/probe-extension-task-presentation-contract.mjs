@@ -50,6 +50,13 @@ assert.deepEqual(presentation.row, {
   active: false,
   terminal: true,
 })
+assert.deepEqual(presentation.details, {
+  available: true,
+  collapsible: true,
+  defaultExpanded: false,
+  expandLabelKey: 'Show Details',
+  collapseLabelKey: 'Hide Details',
+})
 assert.equal(presentation.progress.available, true)
 assert.equal(presentation.progress.valueKey, '{label}')
 assert.deepEqual(presentation.progress.params, { current: 2, total: 2 })
@@ -93,6 +100,9 @@ assert.equal(running.titleKey, 'Document Summarize')
 assert.equal(running.status.labelKey, 'Analyzing')
 assert.equal(running.status.toneClass, 'is-warning')
 assert.equal(running.row.active, true)
+assert.equal(running.details.available, false)
+assert.equal(running.details.collapsible, false)
+assert.equal(running.details.defaultExpanded, false)
 assert.equal(running.progress.available, false)
 
 const failed = buildExtensionTaskPresentation({
@@ -118,6 +128,8 @@ const failed = buildExtensionTaskPresentation({
 assert.equal(failed.status.labelKey, 'Failed')
 assert.equal(failed.status.toneClass, 'is-error')
 assert.equal(failed.row.toneClass, 'is-error')
+assert.equal(failed.details.collapsible, true)
+assert.equal(failed.details.defaultExpanded, true)
 assert.deepEqual(
   failed.results.groups.map((group) => [group.id, group.entries.map((entry) => entry.id)]),
   [
@@ -171,6 +183,8 @@ console.log(JSON.stringify({
     resultGroups: presentation.results.groups.map((group) => `${group.id}:${group.count}`),
     progressWidth: presentation.progress.visual.width,
     runningTone: running.status.toneClass,
+    completedDetailsDefaultExpanded: presentation.details.defaultExpanded,
+    failedDetailsDefaultExpanded: failed.details.defaultExpanded,
     failedGroups: failed.results.groups.map((group) => `${group.id}:${group.count}`),
     failedQuickActions: failed.quickActions.map((action) => action.id),
     runningGroup: `${runningGroup.toneClass}:${runningGroup.countLabelKey}`,

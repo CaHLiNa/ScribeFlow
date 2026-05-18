@@ -173,6 +173,33 @@ try {
     ],
     logPath: '/tmp/workspace/retain-pdf.log',
   })
+  extensions.upsertTask({
+    id: 'task-succeeded',
+    extensionId: 'retain-pdf',
+    workspaceRoot: '/tmp/workspace',
+    commandId: 'retainPdf.translateCurrent',
+    state: 'succeeded',
+    createdAt: '2026-05-12T08:00:00Z',
+    startedAt: '2026-05-12T08:00:05Z',
+    finishedAt: '2026-05-12T08:01:00Z',
+    progress: {
+      label: 'Completed',
+      current: 1,
+      total: 1,
+    },
+    target: {
+      kind: 'pdf',
+      path: '/tmp/workspace/paper.pdf',
+    },
+    outputs: [
+      {
+        id: 'succeeded-summary',
+        type: 'inlineText',
+        title: 'Succeeded Summary',
+        text: 'Worker completed',
+      },
+    ],
+  })
 
   const app = createSSRApp({
     render() {
@@ -206,6 +233,9 @@ try {
   assert.match(html, /Task Log/)
   assert.match(html, /Run Again/)
   assert.match(html, /Cancel/)
+  assert.match(html, /Show Details/)
+  assert.match(html, /Hide Details/)
+  assert.doesNotMatch(html, /Succeeded Summary/)
   assert.match(html, /class="[^"]*(extension-task-group__title[^"]*is-warning|is-warning[^"]*extension-task-group__title)[^"]*"/)
   assert.match(html, /class="[^"]*(extension-task-group__title[^"]*is-error|is-error[^"]*extension-task-group__title)[^"]*"/)
   assert.match(html, /class="[^"]*(extension-task-row[^"]*is-warning|is-warning[^"]*extension-task-row)[^"]*"/)
@@ -226,6 +256,8 @@ try {
       hasResultEntry: html.includes('Translated Text'),
       hasTerminalQuickActions: html.includes('Task Log') && html.includes('Run Again'),
       hasTaskGroupCounts: html.includes('1 task'),
+      hasCollapsedRecentSuccess: html.includes('Show Details') && !html.includes('Succeeded Summary'),
+      hasExpandedFailedDetails: html.includes('Hide Details') && html.includes('Failed Summary'),
       hasTaskToneClasses:
         /class="[^"]*(extension-task-row[^"]*is-warning|is-warning[^"]*extension-task-row)[^"]*"/.test(html) &&
         /class="[^"]*(extension-task-row[^"]*is-error|is-error[^"]*extension-task-row)[^"]*"/.test(html),
