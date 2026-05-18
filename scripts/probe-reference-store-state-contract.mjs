@@ -2,11 +2,18 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import {
   buildDefaultResolvedQueryState,
+  isReferenceSelectedForDocument,
   normalizeCollectionMembershipValue,
   normalizeTagKey,
+  resolveAvailableDocumentReferences,
   resolveCollection,
+  resolveDocumentReferenceByKey,
+  resolveDocumentReferenceIds,
+  resolveDocumentReferences,
   resolveDocumentReferenceSelections,
+  resolveReferenceByKey,
   resolveTag,
+  searchReferences,
 } from '../src/domains/references/referenceStoreState.js'
 
 assert.equal(normalizeCollectionMembershipValue('  Methods  '), 'methods')
@@ -39,9 +46,52 @@ assert.deepEqual(resolveDocumentReferenceSelections(null), {})
 assert.deepEqual(resolveDocumentReferenceSelections(['ref-1']), {})
 
 const references = [
-  { id: 'ref-1' },
-  { id: 'ref-2' },
+  {
+    id: 'ref-1',
+    title: 'Graph Neural Networks',
+    authors: ['Ada Lovelace'],
+    citationKey: 'lovelace2024',
+    tags: ['graph'],
+  },
+  {
+    id: 'ref-2',
+    title: 'Bayesian Methods',
+    authorLine: 'Grace Hopper',
+    citationKey: 'hopper2025',
+    source: 'Journal of Tests',
+  },
+  {
+    id: 'ref-3',
+    title: 'Unused Reference',
+    citationKey: 'unused2026',
+  },
 ]
+const documentReferenceSelections = {
+  'paper.tex': ['ref-1', 'ref-2'],
+}
+assert.deepEqual(resolveDocumentReferenceIds(documentReferenceSelections, ' paper.tex '), ['ref-1', 'ref-2'])
+assert.deepEqual(resolveDocumentReferenceIds(documentReferenceSelections, ''), [])
+assert.deepEqual(resolveDocumentReferences(documentReferenceSelections, references, 'paper.tex'), [
+  references[0],
+  references[1],
+])
+assert.deepEqual(resolveDocumentReferences(documentReferenceSelections, references, 'missing.tex'), [])
+assert.deepEqual(resolveReferenceByKey(references, 'lovelace2024'), references[0])
+assert.deepEqual(resolveReferenceByKey(references, 'ref-2'), references[1])
+assert.equal(resolveReferenceByKey(references, 'missing'), null)
+assert.deepEqual(resolveDocumentReferenceByKey(documentReferenceSelections, references, 'paper.tex', 'hopper2025'), references[1])
+assert.equal(resolveDocumentReferenceByKey(documentReferenceSelections, references, 'paper.tex', 'unused2026'), null)
+assert.equal(isReferenceSelectedForDocument(documentReferenceSelections, references, 'paper.tex', 'ref-1'), true)
+assert.equal(isReferenceSelectedForDocument(documentReferenceSelections, references, 'paper.tex', 'unused2026'), false)
+assert.deepEqual(searchReferences(references, 'grace'), [references[1]])
+assert.deepEqual(searchReferences(references, 'graph'), [references[0]])
+assert.deepEqual(searchReferences(references, ''), references)
+assert.deepEqual(resolveAvailableDocumentReferences(documentReferenceSelections, references, 'paper.tex', ''), [
+  references[2],
+])
+assert.deepEqual(resolveAvailableDocumentReferences(documentReferenceSelections, references, 'paper.tex', 'unused'), [
+  references[2],
+])
 assert.deepEqual(buildDefaultResolvedQueryState({
   references,
   selectedSectionKey: 'recent',
@@ -106,6 +156,36 @@ assert.match(
 )
 assert.match(
   storeSource,
+  /resolveDocumentReferenceIds/,
+  'references store must delegate document-reference id resolution',
+)
+assert.match(
+  storeSource,
+  /resolveDocumentReferences/,
+  'references store must delegate selected document-reference resolution',
+)
+assert.match(
+  storeSource,
+  /resolveDocumentReferenceByKey/,
+  'references store must delegate document-reference key lookup',
+)
+assert.match(
+  storeSource,
+  /isReferenceSelectedForDocument/,
+  'references store must delegate document-reference selection checks',
+)
+assert.match(
+  storeSource,
+  /resolveAvailableDocumentReferences/,
+  'references store must delegate available-reference search filtering',
+)
+assert.match(
+  storeSource,
+  /searchReferences/,
+  'references store must delegate reference search rules',
+)
+assert.match(
+  storeSource,
   /resolveCollection/,
   'references store must delegate collection matching',
 )
@@ -116,7 +196,7 @@ assert.match(
 )
 assert.doesNotMatch(
   storeSource,
-  /function normalizeCollectionMembershipValue|function normalizeTagKey|function resolveCollection|function resolveDocumentReferenceSelections|function buildDefaultResolvedQueryState/,
+  /function normalizeCollectionMembershipValue|function normalizeTagKey|function resolveCollection|function resolveDocumentReferenceSelections|function buildDefaultResolvedQueryState|const selectedIds = new Set\(this\.getDocumentReferenceIds|const normalizedQuery = String\(query \|\| ''\)\.trim\(\)\.toLowerCase\(\)|haystack\.includes\(normalizedQuery\)/,
   'references store must not redefine deterministic state helpers inline',
 )
 assert.match(
@@ -130,6 +210,8 @@ console.log(JSON.stringify({
   summary: {
     collectionAndTagMatchingDerived: true,
     documentSelectionFallbackDerived: true,
+    documentReferenceLookupDerived: true,
+    referenceSearchDerived: true,
     defaultQueryStateDerived: true,
     storeUsesDomainHelper: true,
     storageRootRemainsStoreScoped: true,

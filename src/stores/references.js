@@ -57,10 +57,17 @@ import {
 } from '../domains/references/referenceDockPages.js'
 import {
   buildDefaultResolvedQueryState,
+  isReferenceSelectedForDocument,
   normalizeTagKey,
+  resolveAvailableDocumentReferences,
   resolveCollection,
+  resolveDocumentReferenceByKey,
+  resolveDocumentReferenceIds,
+  resolveDocumentReferences,
   resolveDocumentReferenceSelections,
+  resolveReferenceByKey,
   resolveTag,
+  searchReferences,
 } from '../domains/references/referenceStoreState.js'
 import { classifyZoteroSyncError } from '../domains/references/zoteroSyncPresentation.js'
 
@@ -566,51 +573,42 @@ export const useReferencesStore = defineStore('references', {
     },
 
     getByKey(referenceKey = '') {
-      const normalized = String(referenceKey || '').trim()
-      if (!normalized) return null
-      return (
-        this.references.find(
-          (reference) => reference.citationKey === normalized || reference.id === normalized
-        ) || null
-      )
+      return resolveReferenceByKey(this.references, referenceKey)
     },
 
     getDocumentReferenceIds(texPath = '') {
-      const normalizedTexPath = String(texPath || '').trim()
-      if (!normalizedTexPath) return []
-      return Array.isArray(this.documentReferenceSelections[normalizedTexPath])
-        ? this.documentReferenceSelections[normalizedTexPath]
-        : []
+      return resolveDocumentReferenceIds(this.documentReferenceSelections, texPath)
     },
 
     documentReferencesForTex(texPath = '') {
-      const selectedIds = new Set(this.getDocumentReferenceIds(texPath))
-      if (selectedIds.size === 0) return []
-      return this.references.filter((reference) => selectedIds.has(String(reference.id || '')))
+      return resolveDocumentReferences(this.documentReferenceSelections, this.references, texPath)
     },
 
     getDocumentReferenceByKey(texPath = '', referenceKey = '') {
-      const normalized = String(referenceKey || '').trim()
-      if (!normalized) return null
-      return (
-        this.documentReferencesForTex(texPath).find(
-          (reference) => reference.citationKey === normalized || reference.id === normalized
-        ) || null
+      return resolveDocumentReferenceByKey(
+        this.documentReferenceSelections,
+        this.references,
+        texPath,
+        referenceKey
       )
     },
 
     isReferenceSelectedForTex(texPath = '', referenceIdOrKey = '') {
-      const normalized = String(referenceIdOrKey || '').trim()
-      if (!normalized) return false
-      return this.documentReferencesForTex(texPath).some(
-        (reference) => reference.id === normalized || reference.citationKey === normalized
+      return isReferenceSelectedForDocument(
+        this.documentReferenceSelections,
+        this.references,
+        texPath,
+        referenceIdOrKey
       )
     },
 
     searchAvailableReferencesForDocument(texPath = '', query = '') {
-      const selectedIds = new Set(this.getDocumentReferenceIds(texPath))
-      return this.searchRefs(query)
-        .filter((reference) => !selectedIds.has(String(reference.id || '')))
+      return resolveAvailableDocumentReferences(
+        this.documentReferenceSelections,
+        this.sortedLibrary,
+        texPath,
+        query
+      )
     },
 
     async setDocumentReferenceIds(projectRoot = '', texPath = '', referenceIds = []) {
@@ -653,21 +651,7 @@ export const useReferencesStore = defineStore('references', {
     },
 
     searchRefs(query = '') {
-      const normalizedQuery = String(query || '').trim().toLowerCase()
-      if (!normalizedQuery) return this.sortedLibrary
-      return this.sortedLibrary.filter((reference) => {
-        const haystack = [
-          reference.title,
-          ...(Array.isArray(reference.authors) ? reference.authors : []),
-          reference.authorLine,
-          reference.source,
-          reference.citationKey,
-          reference.identifier,
-          reference.pages,
-          ...(Array.isArray(reference.tags) ? reference.tags : []),
-        ].filter(Boolean).join(' ').toLowerCase()
-        return haystack.includes(normalizedQuery)
-      })
+      return searchReferences(this.sortedLibrary, query)
     },
 
     async addReference(projectRoot = '', reference = {}, options = {}) {
