@@ -62,7 +62,6 @@ import {
   buildReferenceImportInputState,
   buildReferenceMetadataRefreshTargetState,
   buildReferenceRemoveTargetState,
-  buildReferenceZoteroSyncResultState,
   resolveReferenceCitationStyleId,
   resolveReferenceWorkspaceCitationStyles,
   buildRemoveDocumentReferenceMutationState,
@@ -813,9 +812,7 @@ export const useReferencesStore = defineStore('references', {
           selectedReferenceId: this.selectedReferenceId,
         })
 
-        const syncState = buildReferenceZoteroSyncResultState(result, {
-          fallbackLastSyncTime: new Date().toISOString(),
-        })
+        const syncState = result || {}
         if (syncState.skipped) {
           this.zoteroSyncStatus = syncState.zoteroSyncStatus
           this.zoteroSyncLastSyncTime = syncState.zoteroSyncLastSyncTime

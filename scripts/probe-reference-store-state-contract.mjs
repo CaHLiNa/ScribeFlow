@@ -8,7 +8,6 @@ import {
   buildReferenceImportInputState,
   buildReferenceMetadataRefreshTargetState,
   buildReferenceRemoveTargetState,
-  buildReferenceZoteroSyncResultState,
   resolveReferenceCitationStyleId,
   resolveReferenceWorkspaceCitationStyles,
   buildRemoveDocumentReferenceMutationState,
@@ -184,44 +183,6 @@ assert.equal(resolveReferenceCitationStyleId(' ieee ', false), 'apa')
 assert.equal(resolveReferenceCitationStyleId('  ', true), 'apa')
 assert.deepEqual(resolveReferenceWorkspaceCitationStyles([{ id: 'ieee' }]), [{ id: 'ieee' }])
 assert.deepEqual(resolveReferenceWorkspaceCitationStyles('not-array'), [])
-assert.deepEqual(buildReferenceZoteroSyncResultState({
-  imported: '2',
-  linked: '1',
-  selectedReferenceId: ' ref-2 ',
-  snapshot: { references },
-  lastSyncTime: '2026-05-18T07:30:00.000Z',
-}, {
-  fallbackLastSyncTime: 'fallback-time',
-}), {
-  skipped: false,
-  snapshot: { references },
-  selectedReferenceId: 'ref-2',
-  zoteroSyncStatus: 'synced',
-  zoteroSyncLastSyncTime: '2026-05-18T07:30:00.000Z',
-  counts: {
-    imported: 2,
-    linked: 1,
-    updated: 0,
-  },
-})
-assert.deepEqual(buildReferenceZoteroSyncResultState({
-  skipped: true,
-  imported: '3',
-}), {
-  skipped: true,
-  snapshot: {},
-  selectedReferenceId: '',
-  zoteroSyncStatus: 'disconnected',
-  zoteroSyncLastSyncTime: '',
-  counts: {
-    imported: 3,
-    linked: 0,
-    updated: 0,
-  },
-})
-assert.equal(buildReferenceZoteroSyncResultState({}, {
-  fallbackLastSyncTime: 'fallback-time',
-}).zoteroSyncLastSyncTime, 'fallback-time')
 assert.deepEqual(resolveDocumentReferenceByKey(documentReferenceSelections, references, 'paper.tex', 'hopper2025'), references[1])
 assert.equal(resolveDocumentReferenceByKey(documentReferenceSelections, references, 'paper.tex', 'unused2026'), null)
 assert.equal(isReferenceSelectedForDocument(documentReferenceSelections, references, 'paper.tex', 'ref-1'), true)
@@ -997,10 +958,15 @@ assert.doesNotMatch(
   /buildReferenceUpdateMutationCommitState|buildReferenceUpdateMutationResultState|buildReferenceRemoveMutationCommitState|buildReferenceRemoveMutationResultState|buildReferenceCollectionMutationResultState|buildReferenceRemoveCollectionMutationResultState|buildReferenceDocumentIdsMutationResultState|buildReferenceToggleCollectionMutationResultState/,
   'referenceStoreState must not retain migrated mutation outcome or commit-selection helpers',
 )
-assert.match(
-  storeSource,
+assert.doesNotMatch(
+  domainSource,
   /buildReferenceZoteroSyncResultState/,
-  'references store must delegate Zotero sync result state mapping',
+  'referenceStoreState must not retain migrated Zotero sync result helper',
+)
+assert.match(
+  actionSource('syncZoteroNow'),
+  /const syncState = result \|\| \{\}/,
+  'syncZoteroNow must consume Rust-returned Zotero sync state directly',
 )
 assert.match(
   storeSource,
@@ -1061,7 +1027,7 @@ for (const actionName of ['attachReferencePdf', 'renameReferencePdfAsset']) {
 }
 assert.doesNotMatch(
   actionSource('syncZoteroNow'),
-  /result\?\.skipped === true|Number\(result\?\.(?:imported|linked|updated) \|\| 0\)|this\.zoteroSyncStatus = 'synced'|this\.zoteroSyncStatus = 'disconnected'/,
+  /buildReferenceZoteroSyncResultState|result\?\.skipped === true|Number\(result\?\.(?:imported|linked|updated) \|\| 0\)|this\.zoteroSyncStatus = 'synced'|this\.zoteroSyncStatus = 'disconnected'|new Date\(\)\.toISOString\(\)|fallbackLastSyncTime/,
   'syncZoteroNow must not inline Zotero sync result state mapping',
 )
 assert.doesNotMatch(
@@ -1152,7 +1118,7 @@ console.log(JSON.stringify({
     rustDocumentIdsMutationOutcomeConsumed: true,
     rustToggleCollectionOutcomeConsumed: true,
     citationStyleStateDerived: true,
-    zoteroSyncResultStateDerived: true,
+    rustZoteroSyncResultState: true,
     defaultQueryStateDerived: true,
     resolvedQueryHydrationDerived: true,
     sidebarSelectionDerived: true,

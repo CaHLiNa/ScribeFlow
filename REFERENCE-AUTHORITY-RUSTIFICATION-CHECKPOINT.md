@@ -88,7 +88,7 @@ Zotero, search, or snapshot policy and should move back to Rust contracts:
 | Import input preflight | `buildReferenceEmptyImportResult`, `buildReferenceImportInputState` | Rust should eventually expose import-intent/preflight defaults if empty-state semantics stop being purely UI-local. |
 | Mutation target preflight | `buildReferenceRemoveTargetState` | Rust mutation/result APIs should eventually expose enough target state for UI/Zotero side-effect gating without JS performing canonical lookup. |
 | PDF import and assets | `buildReferenceMetadataRefreshTargetState` | Rust should own target validation, PDF import outcome, asset attachment/rename, and post-mutation selected reference. PDF asset attach/rename target resolution has moved to `references_backend.rs`, and PDF import target/result shaping has moved to `references_mutation.rs` plus Rust asset target resolution. |
-| Zotero sync result | `buildReferenceZoteroSyncResultState` | Rust should own sync counts, skipped state, selected id, last-sync timestamp and error/result classification. |
+| Zotero sync result | None for skipped/success result classification | Rust now owns sync counts, skipped state, selected id, last-sync timestamp and skipped/success result classification. JS still owns local error presentation classification for thrown failures. |
 | Document-reference selection | `resolveDocumentReferenceSelections`, `resolveDocumentReferenceIds`, `resolveDocumentReferences`, `resolveDocumentReferenceByKey`, `isReferenceSelectedForDocument`, `resolveAvailableDocumentReferences`, `buildDocumentReferenceIdsMutationState`, `buildAddDocumentReferenceMutationState`, `buildRemoveDocumentReferenceMutationState` | Rust query/mutation commands should own TeX path normalization, selected id lists, dedupe and availability. |
 | Search and filtering | `searchReferences` | Rust query should own search matching once search participates in reference truth, citation insertion, or workspace-scale behavior. |
 
@@ -144,10 +144,12 @@ Zotero, search, or snapshot policy and should move back to Rust contracts:
      regressions.
 
 4. Zotero result and error authority
-   - Rust returns normalized sync status, counts, timestamp, selected id, skipped
-     state and categorized errors.
-   - JS store records UI state and surfaces errors without classifying sync
-     semantics.
+   - Status: Rust now returns normalized skipped/success sync status, counts,
+     timestamp, selected id and snapshot. JS store records the returned UI state
+     and applies snapshots without classifying sync semantics.
+   - Remaining: thrown error classification still lives in JS presentation code;
+     move canonical error type into Rust if error handling becomes part of the
+     reference authority contract.
 
 5. Persisted snapshot and lifecycle defaults
    - Rust returns canonical initial, cleanup, apply-snapshot and persisted-payload
@@ -178,9 +180,9 @@ For each migration slice:
 - `referenceStoreState.js` still contains too many canonical target, query and
   selection rules for the Rust-first target.
 - Generic mutation result shaping, citation-format target lookup, export target
-  validation, PDF asset attach/rename target resolution and PDF import
-  target/result shaping have moved to Rust, but Zotero result classification
-  still duplicates Rust-owned concepts in JS.
+  validation, PDF asset attach/rename target resolution, PDF import
+  target/result shaping and Zotero skipped/success result classification have
+  moved to Rust.
 - Query/search/document-reference presentation helpers are next because Rust
   already has `references_query.rs` and mutation support for the same canonical
   concepts.

@@ -1353,13 +1353,52 @@ fn canonical_zotero_sync_persist_result(
     linked: i64,
     updated: i64,
 ) -> Value {
+    let imported = imported.max(0);
+    let linked = linked.max(0);
+    let updated = updated.max(0);
+    let counts = json!({
+        "imported": imported,
+        "linked": linked,
+        "updated": updated,
+    });
+    let normalized_last_sync_time = if last_sync_time.trim().is_empty() {
+        chrono::Utc::now().to_rfc3339()
+    } else {
+        last_sync_time.trim().to_string()
+    };
+
     json!({
+        "skipped": false,
         "snapshot": snapshot,
         "selectedReferenceId": selected_reference_id.trim(),
-        "lastSyncTime": last_sync_time.trim(),
-        "imported": imported.max(0),
-        "linked": linked.max(0),
-        "updated": updated.max(0),
+        "lastSyncTime": normalized_last_sync_time,
+        "zoteroSyncStatus": "synced",
+        "zoteroSyncLastSyncTime": normalized_last_sync_time,
+        "counts": counts,
+        "imported": imported,
+        "linked": linked,
+        "updated": updated,
+    })
+}
+
+fn canonical_zotero_sync_skipped_result() -> Value {
+    let counts = json!({
+        "imported": 0,
+        "linked": 0,
+        "updated": 0,
+    });
+
+    json!({
+        "skipped": true,
+        "snapshot": {},
+        "selectedReferenceId": "",
+        "lastSyncTime": "",
+        "zoteroSyncStatus": "disconnected",
+        "zoteroSyncLastSyncTime": "",
+        "counts": counts,
+        "imported": 0,
+        "linked": 0,
+        "updated": 0,
     })
 }
 
@@ -1568,20 +1607,10 @@ pub async fn references_zotero_sync_persist_typed(
     params: ZoteroSyncPersistParams,
 ) -> Result<Value, String> {
     if params.global_config_dir.trim().is_empty() || params.api_key.trim().is_empty() {
-        return Ok(json!({
-            "skipped": true,
-            "imported": 0,
-            "linked": 0,
-            "updated": 0,
-        }));
+        return Ok(canonical_zotero_sync_skipped_result());
     }
     if read_zotero_config_raw(&params.global_config_dir)?.is_none() {
-        return Ok(json!({
-            "skipped": true,
-            "imported": 0,
-            "linked": 0,
-            "updated": 0,
-        }));
+        return Ok(canonical_zotero_sync_skipped_result());
     }
 
     let references = params
@@ -1737,11 +1766,12 @@ impl StringExt for String {
 #[cfg(test)]
 mod tests {
     use super::{
-        build_citation_key, build_zotero_connected_config, extract_csl_year, extract_items_array,
-        has_local_references_for_library, library_needs_metadata_refresh,
-        looks_like_generated_citation_key, merge_preserving_hidden_fields,
-        references_zotero_delete_item_with_account, references_zotero_sync_persist,
-        references_zotero_sync_persist_typed, references_zotero_sync_persist_with_account,
+        build_citation_key, build_zotero_connected_config, canonical_zotero_sync_persist_result,
+        extract_csl_year, extract_items_array, has_local_references_for_library,
+        library_needs_metadata_refresh, looks_like_generated_citation_key,
+        merge_preserving_hidden_fields, references_zotero_delete_item_with_account,
+        references_zotero_sync_persist, references_zotero_sync_persist_typed,
+        references_zotero_sync_persist_with_account,
         zotero_delete_with_account_params_from_payload,
         zotero_remote_libraries_with_account_params_from_payload,
         zotero_sync_persist_params_from_payload,
@@ -2069,6 +2099,15 @@ mod tests {
         .expect("sync persist without api key should skip");
 
         assert_eq!(skipped_without_api_key["skipped"], true);
+        assert_eq!(
+            skipped_without_api_key["zoteroSyncStatus"].as_str(),
+            Some("disconnected")
+        );
+        assert_eq!(
+            skipped_without_api_key["zoteroSyncLastSyncTime"].as_str(),
+            Some("")
+        );
+        assert_eq!(skipped_without_api_key["counts"]["imported"], 0);
         assert_eq!(skipped_without_api_key["imported"], 0);
         assert_eq!(skipped_without_api_key["linked"], 0);
         assert_eq!(skipped_without_api_key["updated"], 0);
@@ -2091,6 +2130,15 @@ mod tests {
             .expect("sync persist without config should skip");
 
         assert_eq!(skipped_without_config["skipped"], true);
+        assert_eq!(
+            skipped_without_config["zoteroSyncStatus"].as_str(),
+            Some("disconnected")
+        );
+        assert_eq!(
+            skipped_without_config["zoteroSyncLastSyncTime"].as_str(),
+            Some("")
+        );
+        assert_eq!(skipped_without_config["counts"]["updated"], 0);
         assert_eq!(skipped_without_config["imported"], 0);
         assert_eq!(skipped_without_config["linked"], 0);
         assert_eq!(skipped_without_config["updated"], 0);
@@ -2118,9 +2166,52 @@ mod tests {
         .expect("sync persist with account should skip when api key is not stored");
 
         assert_eq!(skipped_without_stored_key["skipped"], true);
+        assert_eq!(
+            skipped_without_stored_key["zoteroSyncStatus"].as_str(),
+            Some("disconnected")
+        );
+        assert_eq!(
+            skipped_without_stored_key["zoteroSyncLastSyncTime"].as_str(),
+            Some("")
+        );
+        assert_eq!(skipped_without_stored_key["counts"]["linked"], 0);
         assert_eq!(skipped_without_stored_key["imported"], 0);
         assert_eq!(skipped_without_stored_key["linked"], 0);
         assert_eq!(skipped_without_stored_key["updated"], 0);
+    }
+
+    #[test]
+    fn sync_persist_result_normalizes_frontend_sync_state_in_rust() {
+        let result = canonical_zotero_sync_persist_result(
+            json!({
+                "version": 2,
+                "references": [{ "id": "ref-a" }]
+            }),
+            " ref-a ".to_string(),
+            "2026-05-18T07:30:00Z ".to_string(),
+            2,
+            -1,
+            3,
+        );
+
+        assert_eq!(result["skipped"].as_bool(), Some(false));
+        assert_eq!(result["selectedReferenceId"].as_str(), Some("ref-a"));
+        assert_eq!(result["zoteroSyncStatus"].as_str(), Some("synced"));
+        assert_eq!(
+            result["zoteroSyncLastSyncTime"].as_str(),
+            Some("2026-05-18T07:30:00Z")
+        );
+        assert_eq!(
+            result["counts"],
+            json!({
+                "imported": 2,
+                "linked": 0,
+                "updated": 3,
+            })
+        );
+        assert_eq!(result["imported"].as_i64(), Some(2));
+        assert_eq!(result["linked"].as_i64(), Some(0));
+        assert_eq!(result["updated"].as_i64(), Some(3));
     }
 
     #[tokio::test]
