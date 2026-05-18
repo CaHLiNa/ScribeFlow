@@ -98,9 +98,32 @@ try {
     ],
   )
   assert.equal(timeline.recentLimit, 8)
+  assert.equal(timeline.recentCompactLimit, 8)
   assert.equal(timeline.recentVisibleCount, 8)
   assert.equal(timeline.recentTotalCount, 10)
   assert.equal(timeline.recentHiddenCount, 2)
+
+  const expandedTimeline = extensions.taskTimelineForExtension('example-pdf-extension', undefined, {
+    recentLimit: Number.MAX_SAFE_INTEGER,
+  })
+  assert.deepEqual(
+    expandedTimeline.recent.map((task) => task.id),
+    [
+      'task-succeeded',
+      'task-older-8',
+      'task-older-7',
+      'task-older-6',
+      'task-older-5',
+      'task-older-4',
+      'task-older-3',
+      'task-older-2',
+      'task-older-1',
+      'task-older-0',
+    ],
+  )
+  assert.equal(expandedTimeline.recentVisibleCount, 10)
+  assert.equal(expandedTimeline.recentTotalCount, 10)
+  assert.equal(expandedTimeline.recentHiddenCount, 0)
 
   assert.equal(timeline.running[0].createdAt, '2026-05-02T10:00:00Z')
   assert.equal(timeline.running[0].startedAt, '2026-05-02T10:00:05Z')
@@ -125,6 +148,7 @@ try {
       })),
       recentHiddenCount: timeline.recentHiddenCount,
       recentTotalCount: timeline.recentTotalCount,
+      expandedRecentCount: expandedTimeline.recentVisibleCount,
     },
   }, null, 2))
 } finally {

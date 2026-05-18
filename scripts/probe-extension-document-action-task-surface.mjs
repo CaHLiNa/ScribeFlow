@@ -258,6 +258,8 @@ try {
   assert.match(html, /Hide Details/)
   assert.doesNotMatch(html, /Succeeded Summary/)
   assert.match(html, /3 older tasks hidden/)
+  assert.match(html, /Show Older Tasks/)
+  assert.match(html, /aria-expanded="false"/)
   assert.match(html, /class="[^"]*(extension-task-group__title[^"]*is-warning|is-warning[^"]*extension-task-group__title)[^"]*"/)
   assert.match(html, /class="[^"]*(extension-task-group__title[^"]*is-error|is-error[^"]*extension-task-group__title)[^"]*"/)
   assert.match(html, /class="[^"]*(extension-task-row[^"]*is-warning|is-warning[^"]*extension-task-row)[^"]*"/)
@@ -280,7 +282,7 @@ try {
       hasTaskGroupCounts: html.includes('1 task'),
       hasCollapsedRecentSuccess: html.includes('Show Details') && !html.includes('Succeeded Summary'),
       hasExpandedFailedDetails: html.includes('Hide Details') && html.includes('Failed Summary'),
-      hasHiddenRecentFooter: html.includes('3 older tasks hidden'),
+      hasHiddenRecentFooter: html.includes('3 older tasks hidden') && html.includes('Show Older Tasks'),
       hasTaskToneClasses:
         /class="[^"]*(extension-task-row[^"]*is-warning|is-warning[^"]*extension-task-row)[^"]*"/.test(html) &&
         /class="[^"]*(extension-task-row[^"]*is-error|is-error[^"]*extension-task-row)[^"]*"/.test(html),

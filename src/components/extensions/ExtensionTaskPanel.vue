@@ -124,17 +124,27 @@
         </div>
       </div>
       <div
-        v-if="group.footer?.hasHidden"
+        v-if="group.footer?.canToggle"
         class="extension-task-group__footer"
       >
-        {{ t(group.footer.hiddenLabelKey, group.footer.hiddenParams) }}
+        <span>
+          {{ t(group.footer.expanded ? group.footer.expandedLabelKey : group.footer.hiddenLabelKey, group.footer.expanded ? group.footer.expandedParams : group.footer.hiddenParams) }}
+        </span>
+        <button
+          type="button"
+          class="extension-task-history-toggle"
+          :aria-expanded="group.footer.expanded ? 'true' : 'false'"
+          @click="toggleRecentHistory"
+        >
+          {{ t(group.footer.expanded ? group.footer.collapseLabelKey : group.footer.showAllLabelKey) }}
+        </button>
       </div>
     </section>
   </div>
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n, formatRelativeFromNow } from '../../i18n'
 import { useExtensionsStore } from '../../stores/extensions'
 import UiButton from '../shared/ui/UiButton.vue'
@@ -152,10 +162,15 @@ const extensionsStore = useExtensionsStore()
 const resultActionBusyKey = ref('')
 const activeResultEntryIds = ref({})
 const taskDetailExpansionOverrides = ref({})
+const recentHistoryExpanded = ref(false)
 const props = defineProps({
   extensionId: { type: String, default: '' },
 })
-const timeline = computed(() => extensionsStore.taskTimelineForExtension(props.extensionId))
+const timeline = computed(() =>
+  extensionsStore.taskTimelineForExtension(props.extensionId, undefined, {
+    recentLimit: recentHistoryExpanded.value ? Number.MAX_SAFE_INTEGER : undefined,
+  })
+)
 const timelinePresentation = computed(() => taskTimelinePresentation(timeline.value))
 
 function buildTaskRow(task = {}) {
@@ -206,6 +221,17 @@ function toggleTaskDetails(row = {}) {
     [taskId]: !taskDetailsExpanded(row),
   }
 }
+
+function toggleRecentHistory() {
+  recentHistoryExpanded.value = !recentHistoryExpanded.value
+}
+
+watch(
+  () => props.extensionId,
+  () => {
+    recentHistoryExpanded.value = false
+  },
+)
 
 function selectResultEntry(row = {}, entry = {}) {
   const taskId = String(row.id || '')
@@ -380,10 +406,42 @@ function taskTimeSummary(task = {}) {
 }
 
 .extension-task-group__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   padding: 8px 16px 0;
   color: var(--text-muted);
   font-size: 11px;
   line-height: 1.4;
+}
+
+.extension-task-group__footer > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.extension-task-history-toggle {
+  flex: 0 0 auto;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.extension-task-history-toggle:hover {
+  color: var(--text-primary);
+}
+
+.extension-task-history-toggle:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 .extension-task-empty {

@@ -183,8 +183,8 @@ export const useExtensionsStore = defineStore('extensions', {
       }
     },
     taskTimelineForExtension(state) {
-      return (extensionId = '', workspaceRoot = useWorkspaceStore().path || '') => {
-        return buildTaskTimeline(tasksForExtensionList(state.tasks, extensionId, workspaceRoot))
+      return (extensionId = '', workspaceRoot = useWorkspaceStore().path || '', options = {}) => {
+        return buildTaskTimeline(tasksForExtensionList(state.tasks, extensionId, workspaceRoot), options)
       }
     },
     defaultConfigForExtension: () => (extension = {}) => {

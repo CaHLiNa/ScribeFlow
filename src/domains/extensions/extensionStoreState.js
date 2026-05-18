@@ -106,6 +106,7 @@ export function normalizeTask(task = {}) {
 export const DEFAULT_EXTENSION_TASK_RECENT_LIMIT = 8
 
 function normalizeTaskLimit(value = DEFAULT_EXTENSION_TASK_RECENT_LIMIT) {
+  if (value == null || value === '') return DEFAULT_EXTENSION_TASK_RECENT_LIMIT
   const numeric = Number(value)
   return Number.isFinite(numeric) && numeric >= 0
     ? Math.floor(numeric)
@@ -166,6 +167,7 @@ export function buildTaskTimeline(tasks = [], options = {}) {
   return {
     running,
     recent: visibleRecent,
+    recentCompactLimit: DEFAULT_EXTENSION_TASK_RECENT_LIMIT,
     recentLimit,
     recentTotalCount: recent.length,
     recentVisibleCount: visibleRecent.length,

@@ -79,12 +79,23 @@ export function taskGroupPresentation({ id = '', titleKey = '', tasks = [] } = {
 
 export function taskTimelinePresentation(timeline = {}) {
   const hiddenRecentCount = Math.max(0, Number(timeline?.recentHiddenCount || 0))
+  const recentTotalCount = Math.max(0, Number(timeline?.recentTotalCount || 0))
+  const recentVisibleCount = Math.max(0, Number(timeline?.recentVisibleCount || 0))
+  const expanded = hiddenRecentCount === 0 && recentTotalCount > Number(timeline?.recentCompactLimit || 0)
   return {
     recent: {
       hasHidden: hiddenRecentCount > 0,
+      expanded,
+      canToggle: hiddenRecentCount > 0 || expanded,
       hiddenCount: hiddenRecentCount,
+      visibleCount: recentVisibleCount,
+      totalCount: recentTotalCount,
       hiddenLabelKey: hiddenRecentCount === 1 ? '{count} older task hidden' : '{count} older tasks hidden',
       hiddenParams: { count: hiddenRecentCount },
+      expandedLabelKey: recentTotalCount === 1 ? 'Showing {count} recent task' : 'Showing {count} recent tasks',
+      expandedParams: { count: recentTotalCount },
+      showAllLabelKey: 'Show Older Tasks',
+      collapseLabelKey: 'Collapse History',
     },
   }
 }

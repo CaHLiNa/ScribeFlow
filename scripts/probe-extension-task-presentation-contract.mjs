@@ -176,17 +176,38 @@ assert.equal(recentGroup.countLabelKey, '{count} tasks')
 assert.equal(recentGroup.toneClass, 'is-error')
 
 const timelinePresentation = taskTimelinePresentation({
+  recentCompactLimit: 8,
+  recentTotalCount: 11,
+  recentVisibleCount: 8,
   recentHiddenCount: 3,
 })
 assert.equal(timelinePresentation.recent.hasHidden, true)
+assert.equal(timelinePresentation.recent.canToggle, true)
+assert.equal(timelinePresentation.recent.expanded, false)
 assert.equal(timelinePresentation.recent.hiddenCount, 3)
+assert.equal(timelinePresentation.recent.visibleCount, 8)
+assert.equal(timelinePresentation.recent.totalCount, 11)
 assert.equal(timelinePresentation.recent.hiddenLabelKey, '{count} older tasks hidden')
 assert.deepEqual(timelinePresentation.recent.hiddenParams, { count: 3 })
+assert.equal(timelinePresentation.recent.showAllLabelKey, 'Show Older Tasks')
+assert.equal(timelinePresentation.recent.collapseLabelKey, 'Collapse History')
 
 const singleHiddenTimelinePresentation = taskTimelinePresentation({
   recentHiddenCount: 1,
 })
 assert.equal(singleHiddenTimelinePresentation.recent.hiddenLabelKey, '{count} older task hidden')
+
+const expandedTimelinePresentation = taskTimelinePresentation({
+  recentCompactLimit: 8,
+  recentTotalCount: 11,
+  recentVisibleCount: 11,
+  recentHiddenCount: 0,
+})
+assert.equal(expandedTimelinePresentation.recent.hasHidden, false)
+assert.equal(expandedTimelinePresentation.recent.canToggle, true)
+assert.equal(expandedTimelinePresentation.recent.expanded, true)
+assert.equal(expandedTimelinePresentation.recent.expandedLabelKey, 'Showing {count} recent tasks')
+assert.deepEqual(expandedTimelinePresentation.recent.expandedParams, { count: 11 })
 
 console.log(JSON.stringify({
   ok: true,
