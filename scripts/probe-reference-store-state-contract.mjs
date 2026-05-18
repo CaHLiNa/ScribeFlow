@@ -11,6 +11,7 @@ import {
   buildReferenceAddMutationResultState,
   buildReferenceCollectionMutationResultState,
   buildReferenceDocumentIdsMutationResultState,
+  buildReferenceJsonExportTargetState,
   buildReferenceMetadataRefreshTargetState,
   buildReferencePdfAssetResultState,
   buildReferencePdfAssetTargetState,
@@ -149,6 +150,14 @@ assert.deepEqual(resolveReferencesForExport(references, ['ref-3', 'missing', 're
   references[0],
 ])
 assert.deepEqual(resolveReferencesForExport('not-array', ['ref-1']), [])
+assert.deepEqual(buildReferenceJsonExportTargetState(references, ' ref-2 '), {
+  canExport: true,
+  reference: references[1],
+})
+assert.deepEqual(buildReferenceJsonExportTargetState(references, 'missing'), {
+  canExport: false,
+  reference: null,
+})
 assert.deepEqual(buildReferenceEmptyImportResult(), {
   importedCount: 0,
   selectedReferenceId: '',
@@ -1145,6 +1154,11 @@ assert.match(
 )
 assert.match(
   storeSource,
+  /buildReferenceJsonExportTargetState/,
+  'references store must delegate JSON export target state mapping',
+)
+assert.match(
+  storeSource,
   /buildReferenceImportInputState/,
   'references store must delegate import input state derivation',
 )
@@ -1334,6 +1348,11 @@ assert.doesNotMatch(
   /resolveReferenceById\(this\.references, referenceId\)|mutation\?\.result\?\.removed|const target =/,
   'removeReference must not inline target lookup or result state mapping',
 )
+assert.doesNotMatch(
+  actionSource('writeReferenceJsonExportFile'),
+  /resolveReferenceById\(this\.references, referenceId\)|const reference =/,
+  'writeReferenceJsonExportFile must not inline JSON export target lookup',
+)
 for (const actionName of ['setDocumentReferenceIds', 'addDocumentReference', 'removeDocumentReference']) {
   assert.doesNotMatch(
     actionSource(actionName),
@@ -1363,6 +1382,7 @@ console.log(JSON.stringify({
     documentReferenceLookupDerived: true,
     referenceSearchDerived: true,
     exportSelectionDerived: true,
+    jsonExportTargetStateDerived: true,
     importResultDerived: true,
     importMutationCommitStateDerived: true,
     addReferenceResultStateDerived: true,

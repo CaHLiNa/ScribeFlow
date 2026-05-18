@@ -65,6 +65,7 @@ import {
   buildReferenceAddMutationResultState,
   buildReferenceCollectionMutationResultState,
   buildReferenceDocumentIdsMutationResultState,
+  buildReferenceJsonExportTargetState,
   buildReferenceMetadataRefreshTargetState,
   buildReferencePdfAssetResultState,
   buildReferencePdfAssetTargetState,
@@ -807,12 +808,12 @@ export const useReferencesStore = defineStore('references', {
     },
 
     async writeReferenceJsonExportFile(filePath = '', referenceId = '') {
-      const reference = resolveReferenceById(this.references, referenceId)
-      if (!reference) {
+      const targetState = buildReferenceJsonExportTargetState(this.references, referenceId)
+      if (!targetState.canExport) {
         throw new Error(t('Reference not found'))
       }
 
-      await writeReferenceJsonExport(filePath, reference)
+      await writeReferenceJsonExport(filePath, targetState.reference)
       return true
     },
 

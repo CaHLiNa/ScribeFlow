@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import {
+  buildReferenceJsonExportTargetState,
   resolveReferenceById,
   resolveReferencesForExport,
 } from '../src/domains/references/referenceStoreState.js'
@@ -20,6 +21,14 @@ assert.deepEqual(resolveReferencesForExport(references, ['ref-3', 'missing', 're
 assert.deepEqual(resolveReferencesForExport('not-array', ['ref-1']), [])
 assert.deepEqual(resolveReferenceById(references, 'ref-2'), references[1])
 assert.equal(resolveReferenceById(references, 'hopper2025'), null)
+assert.deepEqual(buildReferenceJsonExportTargetState(references, 'ref-2'), {
+  canExport: true,
+  reference: references[1],
+})
+assert.deepEqual(buildReferenceJsonExportTargetState(references, 'missing'), {
+  canExport: false,
+  reference: null,
+})
 
 const storeSource = await readFile('src/stores/references.js', 'utf8')
 const domainSource = await readFile('src/domains/references/referenceStoreState.js', 'utf8')
@@ -44,8 +53,8 @@ assert.match(
 )
 assert.match(
   domainSource,
-  /export function resolveReferenceById/,
-  'exact-id reference lookup for JSON export must live in the pure reference domain',
+  /export function buildReferenceJsonExportTargetState/,
+  'JSON export target state must live in the pure reference domain',
 )
 
 const exportBibTeXSource = extractActionSource(storeSource, 'exportBibTeXAsync')
@@ -80,8 +89,8 @@ assert.match(
 const writeJsonSource = extractActionSource(storeSource, 'writeReferenceJsonExportFile')
 assert.match(
   writeJsonSource,
-  /const reference = resolveReferenceById\(this\.references, referenceId\)/,
-  'writeReferenceJsonExportFile must use exact-id lookup for JSON export',
+  /const targetState = buildReferenceJsonExportTargetState\(this\.references, referenceId\)/,
+  'writeReferenceJsonExportFile must use domain-derived JSON export target state',
 )
 assert.match(
   writeJsonSource,
@@ -90,13 +99,13 @@ assert.match(
 )
 assert.match(
   writeJsonSource,
-  /await writeReferenceJsonExport\(filePath, reference\)/,
+  /await writeReferenceJsonExport\(filePath, targetState\.reference\)/,
   'writeReferenceJsonExportFile must keep JSON writing in the export service',
 )
 
 assert.doesNotMatch(
   `${exportBibTeXSource}\n${writeBibTeXSource}\n${writeJsonSource}`,
-  /referenceIds\s*\.map|this\.references\.find\(/,
+  /referenceIds\s*\.map|this\.references\.find\(|resolveReferenceById\(this\.references/,
   'reference export actions must not duplicate selection or lookup rules inline',
 )
 
@@ -104,7 +113,7 @@ console.log(JSON.stringify({
   ok: true,
   summary: {
     exportSelectionDerived: true,
-    exactJsonExportLookupDerived: true,
+    jsonExportTargetStateDerived: true,
     exportServicesRemainIoBoundary: true,
     storeExportActionsAvoidDuplicateSelectionRules: true,
   },

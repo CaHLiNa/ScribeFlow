@@ -109,6 +109,14 @@ export function resolveReferencesForExport(references = [], referenceIds = []) {
     .filter(Boolean)
 }
 
+export function buildReferenceJsonExportTargetState(references = [], referenceId = '') {
+  const reference = resolveReferenceById(references, referenceId)
+  return {
+    canExport: Boolean(reference),
+    reference,
+  }
+}
+
 export function buildReferenceEmptyImportResult() {
   return {
     importedCount: 0,
