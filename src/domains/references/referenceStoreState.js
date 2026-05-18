@@ -152,6 +152,16 @@ export function buildReferencePdfImportTargetState(mutation = {}, fallbackSnapsh
   }
 }
 
+export function buildReferenceCollectionMutationResultState(mutation = {}) {
+  const collection = mutation?.result?.collection
+  return {
+    changed: mutation?.result?.changed === true,
+    collection: collection && typeof collection === 'object' && !Array.isArray(collection)
+      ? collection
+      : null,
+  }
+}
+
 export function buildReferenceZoteroSyncResultState(result = {}, options = {}) {
   const counts = {
     imported: Number(result?.imported || 0),

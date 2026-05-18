@@ -7,6 +7,7 @@ import {
   buildReferenceEmptyImportResult,
   buildReferenceImportInputState,
   buildReferenceImportMutationResultState,
+  buildReferenceCollectionMutationResultState,
   buildReferencePdfImportTargetState,
   buildReferenceZoteroSyncResultState,
   resolveReferenceCitationStyleId,
@@ -204,6 +205,24 @@ assert.deepEqual(buildReferencePdfImportTargetState({
     references,
   },
   targetReference: null,
+})
+assert.deepEqual(buildReferenceCollectionMutationResultState({
+  result: {
+    changed: true,
+    collection: collections[0],
+  },
+}), {
+  changed: true,
+  collection: collections[0],
+})
+assert.deepEqual(buildReferenceCollectionMutationResultState({
+  result: {
+    changed: 'yes',
+    collection: ['bad-shape'],
+  },
+}), {
+  changed: false,
+  collection: null,
 })
 assert.equal(resolveReferenceCitationStyleId(' ieee ', true), 'ieee')
 assert.equal(resolveReferenceCitationStyleId(' ieee ', false), 'apa')
@@ -953,6 +972,11 @@ assert.match(
 )
 assert.match(
   storeSource,
+  /buildReferenceCollectionMutationResultState/,
+  'references store must delegate collection mutation result state mapping',
+)
+assert.match(
+  storeSource,
   /buildReferenceZoteroSyncResultState/,
   'references store must delegate Zotero sync result state mapping',
 )
@@ -986,6 +1010,13 @@ assert.doesNotMatch(
   /String\(importMutation\?\.result\?\.selectedReferenceId \|\| ''\)|Array\.isArray\(importedSnapshot\?\.references\)|resolveReferenceById\(importedSnapshot\.references/,
   'importReferencePdf must not inline PDF import target state mapping',
 )
+for (const actionName of ['createCollection', 'renameCollection']) {
+  assert.doesNotMatch(
+    actionSource(actionName),
+    /mutation\?\.result\?\.collection && typeof mutation\.result\.collection === 'object'|mutation\?\.result\?\.changed/,
+    `${actionName} must not inline collection mutation result state mapping`,
+  )
+}
 assert.doesNotMatch(
   actionSource('syncZoteroNow'),
   /result\?\.skipped === true|Number\(result\?\.(?:imported|linked|updated) \|\| 0\)|this\.zoteroSyncStatus = 'synced'|this\.zoteroSyncStatus = 'disconnected'/,
@@ -1049,6 +1080,7 @@ console.log(JSON.stringify({
     exportSelectionDerived: true,
     importResultDerived: true,
     pdfImportTargetStateDerived: true,
+    collectionMutationResultStateDerived: true,
     citationStyleStateDerived: true,
     zoteroSyncResultStateDerived: true,
     defaultQueryStateDerived: true,

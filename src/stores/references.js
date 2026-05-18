@@ -61,6 +61,7 @@ import {
   buildReferenceEmptyImportResult,
   buildReferenceImportInputState,
   buildReferenceImportMutationResultState,
+  buildReferenceCollectionMutationResultState,
   buildReferencePdfImportTargetState,
   buildReferenceZoteroSyncResultState,
   resolveReferenceCitationStyleId,
@@ -391,12 +392,11 @@ export const useReferencesStore = defineStore('references', {
           label,
         },
       })
-      if (mutation?.result?.changed) {
+      const resultState = buildReferenceCollectionMutationResultState(mutation)
+      if (resultState.changed) {
         await commitReferenceMutationSnapshot(this, projectRoot, mutation)
       }
-      return mutation?.result?.collection && typeof mutation.result.collection === 'object'
-        ? mutation.result.collection
-        : null
+      return resultState.collection
     },
 
     async renameCollection(projectRoot = '', collectionKey = '', nextLabel = '') {
@@ -408,12 +408,11 @@ export const useReferencesStore = defineStore('references', {
           nextLabel,
         },
       })
-      if (mutation?.result?.changed) {
+      const resultState = buildReferenceCollectionMutationResultState(mutation)
+      if (resultState.changed) {
         await commitReferenceMutationSnapshot(this, projectRoot, mutation)
       }
-      return mutation?.result?.collection && typeof mutation.result.collection === 'object'
-        ? mutation.result.collection
-        : null
+      return resultState.collection
     },
 
     async removeCollection(projectRoot = '', collectionKey = '') {
