@@ -63,7 +63,6 @@ import {
   buildReferenceDockPdfCloseState,
   buildReferenceDockPdfOpenState,
   buildReferenceDockPdfResetState,
-  buildReferenceDockPdfSnapshotState,
   buildReferenceCollectionSelectionState,
   isReferenceDockPdfSelected,
   isReferenceSelectedForDocument,
@@ -74,13 +73,12 @@ import {
   resolveDocumentReferenceByKey,
   resolveDocumentReferenceIds,
   resolveDocumentReferences,
-  resolveDocumentReferenceSelections,
   resolveReferenceByKey,
   resolveReferenceById,
   resolveReferenceResolvedQueryState,
   resolveReferenceSelectionId,
   buildReferenceSectionSelectionState,
-  buildReferenceSnapshotSelectionState,
+  buildReferenceSnapshotApplyState,
   buildReferenceSortSelectionState,
   buildReferenceSourceSelectionState,
   buildReferenceTagSelectionState,
@@ -274,39 +272,24 @@ export const useReferencesStore = defineStore('references', {
 
     async applyLibrarySnapshot(snapshot = {}, options = {}) {
       const { preferredSelectedReferenceId = null } = options
-      const normalized = {
-        ...buildDefaultReferenceLibrarySnapshot(),
-        ...(snapshot && typeof snapshot === 'object' ? snapshot : {}),
-      }
-
-      this.collections = Array.isArray(normalized.collections) ? normalized.collections : []
-      this.tags = Array.isArray(normalized.tags) ? normalized.tags : []
-      this.references = Array.isArray(normalized.references) ? normalized.references : []
-      this.documentReferenceSelections = resolveDocumentReferenceSelections(normalized.documentReferenceSelections)
-      this.citationStyle = String(normalized.citationStyle || 'apa')
-      const selection = buildReferenceSnapshotSelectionState({
-        collections: this.collections,
-        tags: this.tags,
-        sourceSections: this.sourceSections,
-        references: this.references,
-        selectedCollectionKey: this.selectedCollectionKey,
-        selectedTagKey: this.selectedTagKey,
-        selectedSourceKey: this.selectedSourceKey,
-        selectedReferenceId: this.selectedReferenceId,
+      const snapshotState = buildReferenceSnapshotApplyState({
+        ...this.$state,
+        referenceDockActivePage: useWorkspaceStore().referenceDockActivePage,
+      }, snapshot, {
+        defaultSnapshot: buildDefaultReferenceLibrarySnapshot(),
         preferredSelectedReferenceId,
       })
-      this.selectedCollectionKey = selection.selectedCollectionKey
-      this.selectedTagKey = selection.selectedTagKey
-      this.selectedSourceKey = selection.selectedSourceKey
-      this.selectedReferenceId = selection.selectedReferenceId
+      this.collections = snapshotState.collections
+      this.tags = snapshotState.tags
+      this.references = snapshotState.references
+      this.documentReferenceSelections = snapshotState.documentReferenceSelections
+      this.citationStyle = snapshotState.citationStyle
+      this.selectedCollectionKey = snapshotState.selectedCollectionKey
+      this.selectedTagKey = snapshotState.selectedTagKey
+      this.selectedSourceKey = snapshotState.selectedSourceKey
+      this.selectedReferenceId = snapshotState.selectedReferenceId
       await this.syncResolvedQueryState()
-      const dockPdfState = buildReferenceDockPdfSnapshotState({
-        references: this.references,
-        selectedReferenceId: this.selectedReferenceId,
-        referenceDockPdfOpen: this.referenceDockPdfOpen,
-        referenceDockPdfReferenceId: this.referenceDockPdfReferenceId,
-        referenceDockActivePage: useWorkspaceStore().referenceDockActivePage,
-      })
+      const dockPdfState = snapshotState.dockPdfState
       this.referenceDockPdfOpen = dockPdfState.referenceDockPdfOpen
       this.referenceDockPdfReferenceId = dockPdfState.referenceDockPdfReferenceId
       if (dockPdfState.shouldFallbackToDetails) {

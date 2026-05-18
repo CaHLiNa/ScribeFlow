@@ -400,6 +400,57 @@ export function buildReferenceStoreCleanupState(state = {}, defaults = {}) {
   }
 }
 
+export function buildReferenceSnapshotApplyState(state = {}, snapshot = {}, options = {}) {
+  const defaultSnapshot = options?.defaultSnapshot && typeof options.defaultSnapshot === 'object'
+    ? options.defaultSnapshot
+    : {
+        citationStyle: 'apa',
+        documentReferenceSelections: {},
+        collections: [],
+        tags: [],
+        references: [],
+      }
+  const normalized = {
+    ...defaultSnapshot,
+    ...(snapshot && typeof snapshot === 'object' && !Array.isArray(snapshot) ? snapshot : {}),
+  }
+  const collections = Array.isArray(normalized.collections) ? normalized.collections : []
+  const tags = Array.isArray(normalized.tags) ? normalized.tags : []
+  const references = Array.isArray(normalized.references) ? normalized.references : []
+  const documentReferenceSelections = resolveDocumentReferenceSelections(normalized.documentReferenceSelections)
+  const citationStyle = String(normalized.citationStyle || 'apa')
+  const selection = buildReferenceSnapshotSelectionState({
+    collections,
+    tags,
+    sourceSections: state.sourceSections,
+    references,
+    selectedCollectionKey: state.selectedCollectionKey,
+    selectedTagKey: state.selectedTagKey,
+    selectedSourceKey: state.selectedSourceKey,
+    selectedReferenceId: state.selectedReferenceId,
+    preferredSelectedReferenceId: options.preferredSelectedReferenceId,
+  })
+
+  return {
+    collections,
+    tags,
+    references,
+    documentReferenceSelections,
+    citationStyle,
+    selectedCollectionKey: selection.selectedCollectionKey,
+    selectedTagKey: selection.selectedTagKey,
+    selectedSourceKey: selection.selectedSourceKey,
+    selectedReferenceId: selection.selectedReferenceId,
+    dockPdfState: buildReferenceDockPdfSnapshotState({
+      references,
+      selectedReferenceId: selection.selectedReferenceId,
+      referenceDockPdfOpen: state.referenceDockPdfOpen,
+      referenceDockPdfReferenceId: state.referenceDockPdfReferenceId,
+      referenceDockActivePage: state.referenceDockActivePage,
+    }),
+  }
+}
+
 export function buildReferenceQuerySelectionState(resolvedQueryState = {}, currentState = {}) {
   const query = resolvedQueryState?.query && typeof resolvedQueryState.query === 'object'
     ? resolvedQueryState.query

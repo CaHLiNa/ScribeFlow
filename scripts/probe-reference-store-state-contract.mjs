@@ -13,6 +13,7 @@ import {
   buildReferenceCollectionSelectionState,
   buildReferenceQuerySelectionState,
   buildReferenceSectionSelectionState,
+  buildReferenceSnapshotApplyState,
   buildReferenceSnapshotSelectionState,
   buildReferenceSortSelectionState,
   buildReferenceSourceSelectionState,
@@ -548,6 +549,49 @@ assert.deepEqual(buildReferenceStoreCleanupState({
   zoteroMutationError: '',
   importInFlight: false,
 })
+assert.deepEqual(buildReferenceSnapshotApplyState({
+  collections,
+  tags,
+  sourceSections: [{ key: 'manual' }, { key: 'zotero' }],
+  references,
+  selectedCollectionKey: 'missing',
+  selectedTagKey: 'theory',
+  selectedSourceKey: 'zotero',
+  selectedReferenceId: 'missing',
+  referenceDockPdfOpen: true,
+  referenceDockPdfReferenceId: 'ref-2',
+  referenceDockActivePage: 'pdf',
+}, {
+  citationStyle: '',
+  documentReferenceSelections: ['bad-shape'],
+  collections: 'bad-shape',
+  tags,
+  references,
+}, {
+  defaultSnapshot: {
+    citationStyle: 'apa',
+    documentReferenceSelections,
+    collections: [],
+    tags: [],
+    references: [],
+  },
+  preferredSelectedReferenceId: 'ref-1',
+}), {
+  collections: [],
+  tags,
+  references,
+  documentReferenceSelections: {},
+  citationStyle: 'apa',
+  selectedCollectionKey: '',
+  selectedTagKey: 'theory',
+  selectedSourceKey: 'zotero',
+  selectedReferenceId: 'ref-1',
+  dockPdfState: {
+    referenceDockPdfOpen: true,
+    referenceDockPdfReferenceId: 'ref-2',
+    shouldFallbackToDetails: true,
+  },
+})
 
 const storeSource = await readFile('src/stores/references.js', 'utf8')
 const actionSource = (actionName) => {
@@ -624,8 +668,8 @@ assert.match(
 )
 assert.match(
   storeSource,
-  /buildReferenceSnapshotSelectionState/,
-  'references store must delegate snapshot selection reconciliation',
+  /buildReferenceSnapshotApplyState/,
+  'references store must delegate snapshot apply state reconciliation',
 )
 assert.match(
   storeSource,
@@ -644,8 +688,8 @@ assert.match(
 )
 assert.match(
   storeSource,
-  /buildReferenceDockPdfSnapshotState/,
-  'references store must delegate PDF dock snapshot reconciliation',
+  /buildReferenceSnapshotApplyState/,
+  'references store must delegate PDF dock snapshot reconciliation through snapshot apply state',
 )
 assert.match(
   storeSource,
@@ -654,8 +698,8 @@ assert.match(
 )
 assert.match(
   storeSource,
-  /resolveDocumentReferenceSelections/,
-  'references store must delegate document-reference selection shape fallback',
+  /buildReferenceSnapshotApplyState/,
+  'references store must delegate document-reference selection shape fallback through snapshot apply state',
 )
 assert.match(
   storeSource,
@@ -729,7 +773,7 @@ assert.match(
 )
 assert.doesNotMatch(
   storeSource,
-  /function normalizeCollectionMembershipValue|function normalizeTagKey|function resolveCollection|function resolveDocumentReferenceSelections|function buildDefaultResolvedQueryState|version:\s*2|citationStyle:\s*'apa'|documentReferenceSelections:\s*\{\}|const selectedIds = new Set\(this\.getDocumentReferenceIds|const normalizedQuery = String\(query \|\| ''\)\.trim\(\)\.toLowerCase\(\)|haystack\.includes\(normalizedQuery\)|referenceIds\s*\.map\(\(referenceId\) => this\.references\.find|this\.references\.some\(\(reference\) => reference\.id|this\.(?:librarySections|sourceSections)\.some\(\(section\) => section\.key|resolveReferenceSectionKey|\[\s*'year-desc'[\s\S]*'author-desc'[\s\S]*\]\.includes\(value\)|const query = this\.resolvedQueryState\?\.query|query\.selectedReferenceId|query\.selectedSectionKey|const normalized = normalizeTagKey\(tagKey\)|this\.sortKey = normalizeReferenceSortKey\(value\)/,
+  /function normalizeCollectionMembershipValue|function normalizeTagKey|function resolveCollection|function resolveDocumentReferenceSelections|function buildDefaultResolvedQueryState|version:\s*2|citationStyle:\s*'apa'|documentReferenceSelections:\s*\{\}|Array\.isArray\(normalized\.(?:collections|tags|references)\)|String\(normalized\.citationStyle \|\| 'apa'\)|const selectedIds = new Set\(this\.getDocumentReferenceIds|const normalizedQuery = String\(query \|\| ''\)\.trim\(\)\.toLowerCase\(\)|haystack\.includes\(normalizedQuery\)|referenceIds\s*\.map\(\(referenceId\) => this\.references\.find|this\.references\.some\(\(reference\) => reference\.id|this\.(?:librarySections|sourceSections)\.some\(\(section\) => section\.key|resolveReferenceSectionKey|\[\s*'year-desc'[\s\S]*'author-desc'[\s\S]*\]\.includes\(value\)|const query = this\.resolvedQueryState\?\.query|query\.selectedReferenceId|query\.selectedSectionKey|const normalized = normalizeTagKey\(tagKey\)|this\.sortKey = normalizeReferenceSortKey\(value\)/,
   'references store must not redefine deterministic state helpers inline',
 )
 for (const actionName of ['setSelectedSource', 'setSelectedCollection', 'setSelectedTag']) {
