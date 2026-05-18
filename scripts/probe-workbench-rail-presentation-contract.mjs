@@ -113,6 +113,7 @@ assert.deepEqual(
 )
 
 const componentSource = await readFile('src/components/layout/WorkbenchRail.vue', 'utf8')
+const titleAreaSource = await readFile('src/components/layout/WorkbenchRailTitleArea.vue', 'utf8')
 assert.match(
   componentSource,
   /from '..\/..\/domains\/workbench\/workbenchRailPresentation\.js'/,
@@ -120,13 +121,18 @@ assert.match(
 )
 assert.match(
   componentSource,
-  /v-for="item in workspaceModeItems"/,
-  'WorkbenchRail mode menu must render from derived mode items',
+  /<WorkbenchRailTitleArea[\s\S]*:rail-title-state="railTitleState"[\s\S]*:workspace-mode-items="workspaceModeItems"/,
+  'WorkbenchRail must pass derived title state and mode items into WorkbenchRailTitleArea',
 )
 assert.match(
-  componentSource,
+  titleAreaSource,
+  /v-for="item in workspaceModeItems"/,
+  'WorkbenchRailTitleArea mode menu must render from derived mode items',
+)
+assert.match(
+  titleAreaSource,
   /railTitleState\.showReferenceTitle/,
-  'WorkbenchRail title visibility must render from derived title state',
+  'WorkbenchRailTitleArea title visibility must render from derived title state',
 )
 assert.doesNotMatch(
   componentSource,

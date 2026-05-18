@@ -174,6 +174,7 @@ Current plugin lifecycle contract:
 - extension task presentation is now shared too: right-sidebar task rows derive title, status tone, row tone, group counts, group tone, timeline density copy, detail collapse defaults, progress copy, progressbar metadata, target facts, result counts, artifact counts, preview/action result groups, and quick action affordances from pure presentation helpers instead of duplicating running/recent UI branches
 - extension task timelines now expose visible/hidden recent counts as a domain contract: document-plugin task panels render the newest recent tasks with a compact older-task footer when history is truncated, let users expand or collapse older task history in place, and keep action panels plus task rows on the same workspace-scoped timeline instead of drifting across separate recent-task slices
 - extension task surface ownership is now split at the Vue component boundary: `ExtensionTaskPanel.vue` keeps timeline/store orchestration and expansion/selection state, `ExtensionTaskRow.vue` owns row/detail/progress/result/action DOM and CSS, and `ExtensionTaskHistoryFooter.vue` owns truncated-history footer DOM and CSS
+- workbench rail title ownership is now split at the Vue component boundary: `WorkbenchRail.vue` keeps native fullscreen sync, window dragging, outside-click/Escape lifecycle, menu open state, and emitted shell intent, while `WorkbenchRailTitleArea.vue` owns center title slot, reference mode menu, inline document title, and title/menu scoped CSS
 - settings surface ownership is now split at the Vue component boundary: `Settings.vue` keeps active-section orchestration, `SettingsSurface.vue` owns the guarded settings shell/header/content slot and the shared settings row/group/control CSS, and duplicate settings-wide style blocks have been collapsed into one owner
 - file tree body ownership is now split at the Vue component boundary: `FileTree.vue` keeps keyboard, drag/drop, context-menu, mutation, and store orchestration, while `FileTreeBody.vue` owns scroll-body DOM, virtual row rendering, root inline-create input, drop/empty state chrome, and body scoped CSS
 - file tree overlay ownership is now split at the Vue component boundary too: `FileTree.vue` keeps menu state, positioning, document listeners, file mutation, and workspace/editor orchestration, while `FileTreeOverlays.vue` owns context-menu/workspace-menu/new-menu/drag-ghost composition and exposes only menu DOM accessors back to the coordinator
@@ -211,6 +212,7 @@ The quick gate includes:
 - `npm run guard:textmate-runtime`
 - `npm run probe:desktop-main-path-runtime-contract`
 - `npm run probe:settings-surface-style-ownership`
+- `npm run probe:workbench-rail-title-style-ownership`
 - `npm run probe:file-tree-body-style-ownership`
 - `npm run probe:file-tree-overlay-style-ownership`
 - `npm run probe:reference-workbench-detail-dock-style-ownership`

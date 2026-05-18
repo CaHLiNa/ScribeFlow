@@ -154,7 +154,8 @@ Components over 500 lines:
 | `src/components/extensions/ExtensionTaskPanel.vue` | 263 | Extension task timeline/store orchestration and expansion state; row/detail/result/footer chrome moved into child presentation components. |
 | `src/components/extensions/ExtensionTaskRow.vue` | 424 | Extension task row presentation for facts, details, progress, result preview, and quick actions. |
 | `src/components/extensions/ExtensionTaskHistoryFooter.vue` | 68 | Extension truncated-history footer presentation and expand/collapse affordance. |
-| `src/components/layout/WorkbenchRail.vue` | 624 | Layout UI; topbar style and workspace mode-item derivation now live in the workbench domain while native drag/listener orchestration stays in the component. |
+| `src/components/layout/WorkbenchRail.vue` | 378 | Layout UI; native fullscreen sync, window dragging, outside-click lifecycle, and emitted shell intent stay in the coordinator while title/menu chrome lives in `WorkbenchRailTitleArea.vue`. |
+| `src/components/layout/WorkbenchRailTitleArea.vue` | 304 | Workbench rail center title slot, reference mode menu, inline document title, and title/menu scoped presentation. |
 | `src/components/panel/ReferenceDetailPanel.vue` | 579 | Reference detail draft orchestration; Phase 8 extracted hero/metadata/content presentation and pure draft normalization helpers. |
 | `src/components/panel/ReferenceDetailContentSection.vue` | 132 | Reference abstract and notes disclosure presentation. |
 | `src/components/panel/ReferenceDetailHero.vue` | 164 | Reference detail title/save hero presentation. |
@@ -300,6 +301,7 @@ Components over 500 lines:
 ## Workbench Shell Cleanup Log
 
 - 2026-05-18: `WorkbenchRail.vue` no longer owns deterministic topbar padding/style derivation or workspace mode menu item state inline. `src/domains/workbench/workbenchRailPresentation.js` now derives macOS/fullscreen rail style and file/reference mode items, while the component keeps native window fullscreen checks, drag handling, outside-click/Escape listeners, and emitted user intent.
+- 2026-05-18: Workbench rail title/menu ownership is now split at the Vue component boundary. `WorkbenchRail.vue` keeps native window fullscreen sync, drag handling, outside-click/Escape listeners, menu open state, and emitted shell intent, while `WorkbenchRailTitleArea.vue` owns the center title target, reference mode menu, inline document title, and title/menu scoped styles. `scripts/probe-workbench-rail-title-style-ownership.mjs` guards that the title area stays presentation-only and out of native/listener/store authority.
 
 ## Rust Runtime Cleanup Log
 
