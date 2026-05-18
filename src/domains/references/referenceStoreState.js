@@ -145,6 +145,16 @@ export function buildReferenceAddMutationResultState(references = [], mutation =
   }
 }
 
+export function buildReferenceMetadataRefreshTargetState(references = [], referenceId = '') {
+  const normalizedReferenceId = String(referenceId || '').trim()
+  const reference = resolveReferenceById(references, normalizedReferenceId)
+  return {
+    canRefresh: Boolean(reference),
+    referenceId: normalizedReferenceId,
+    reference,
+  }
+}
+
 export function buildReferencePdfImportTargetState(mutation = {}, fallbackSnapshot = {}) {
   const selectedReferenceId = String(mutation?.result?.selectedReferenceId || '').trim()
   const importedSnapshot = mutation?.snapshot || fallbackSnapshot || {}

@@ -64,6 +64,7 @@ import {
   buildReferenceAddMutationResultState,
   buildReferenceCollectionMutationResultState,
   buildReferenceDocumentIdsMutationResultState,
+  buildReferenceMetadataRefreshTargetState,
   buildReferencePdfImportTargetState,
   buildReferenceRemoveCollectionMutationResultState,
   buildReferenceToggleCollectionMutationResultState,
@@ -638,15 +639,14 @@ export const useReferencesStore = defineStore('references', {
     },
 
     async refreshReferenceMetadata(projectRoot = '', referenceId = '') {
-      const normalizedReferenceId = String(referenceId || '').trim()
-      const reference = resolveReferenceById(this.references, normalizedReferenceId)
-      if (!reference) return null
+      const targetState = buildReferenceMetadataRefreshTargetState(this.references, referenceId)
+      if (!targetState.canRefresh) return null
 
-      const refreshed = await refreshReferenceMetadataWithBackend(reference)
+      const refreshed = await refreshReferenceMetadataWithBackend(targetState.reference)
       if (!refreshed || typeof refreshed !== 'object') return null
 
-      await this.updateReference(projectRoot, normalizedReferenceId, refreshed, {
-        preferredSelectedReferenceId: normalizedReferenceId,
+      await this.updateReference(projectRoot, targetState.referenceId, refreshed, {
+        preferredSelectedReferenceId: targetState.referenceId,
       })
       return refreshed
     },

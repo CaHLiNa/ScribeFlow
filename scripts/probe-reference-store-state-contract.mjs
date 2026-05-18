@@ -10,6 +10,7 @@ import {
   buildReferenceAddMutationResultState,
   buildReferenceCollectionMutationResultState,
   buildReferenceDocumentIdsMutationResultState,
+  buildReferenceMetadataRefreshTargetState,
   buildReferencePdfImportTargetState,
   buildReferenceRemoveCollectionMutationResultState,
   buildReferenceToggleCollectionMutationResultState,
@@ -194,6 +195,21 @@ assert.deepEqual(buildReferenceAddMutationResultState(references, {
 }), {
   selectedReferenceId: 'missing',
   selectedReference: null,
+})
+assert.deepEqual(buildReferenceMetadataRefreshTargetState(references, ' ref-2 '), {
+  canRefresh: true,
+  referenceId: 'ref-2',
+  reference: references[1],
+})
+assert.deepEqual(buildReferenceMetadataRefreshTargetState(references, 'missing'), {
+  canRefresh: false,
+  referenceId: 'missing',
+  reference: null,
+})
+assert.deepEqual(buildReferenceMetadataRefreshTargetState(references, '  '), {
+  canRefresh: false,
+  referenceId: '',
+  reference: null,
 })
 assert.deepEqual(buildReferencePdfImportTargetState({
   result: {
@@ -1038,6 +1054,11 @@ assert.match(
 )
 assert.match(
   storeSource,
+  /buildReferenceMetadataRefreshTargetState/,
+  'references store must delegate metadata refresh target state mapping',
+)
+assert.match(
+  storeSource,
   /buildReferencePdfImportTargetState/,
   'references store must delegate PDF import target state mapping',
 )
@@ -1100,6 +1121,11 @@ assert.doesNotMatch(
   actionSource('addReference'),
   /String\(mutation\?\.result\?\.selectedReferenceId \|\| ''\)|resolveReferenceById\(this\.references, selectedReferenceId\)/,
   'addReference must not inline add-reference mutation result mapping',
+)
+assert.doesNotMatch(
+  actionSource('refreshReferenceMetadata'),
+  /String\(referenceId \|\| ''\)\.trim\(\)|resolveReferenceById\(this\.references/,
+  'refreshReferenceMetadata must not inline metadata refresh target state mapping',
 )
 for (const actionName of ['createCollection', 'renameCollection']) {
   assert.doesNotMatch(
@@ -1186,6 +1212,7 @@ console.log(JSON.stringify({
     exportSelectionDerived: true,
     importResultDerived: true,
     addReferenceResultStateDerived: true,
+    metadataRefreshTargetStateDerived: true,
     pdfImportTargetStateDerived: true,
     collectionMutationResultStateDerived: true,
     removeCollectionResultStateDerived: true,
