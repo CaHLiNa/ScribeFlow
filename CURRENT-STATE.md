@@ -73,6 +73,13 @@ Boundary rules:
 - Tauri command payload shape changes must update Rust command handling, JS bridge DTO mapping, store call sites and regression verification in the same commit.
 - Editor core changes require a separate editor-specific phase; global module cleanup must not alter cursor, selection, reveal, scroll, CodeMirror behavior, editor session payloads or editor event timing.
 
+Current reference authority direction:
+
+- Reference cleanup is Rust-first: Rust owns reference truth, filesystem authority, persistence, mutation/result normalization, citation/render targets, imports, PDF assets and Zotero sync.
+- `src/domains/references/referenceStoreState.js` is now a checkpointed inventory of frontend-derived helper rules, not the default destination for additional reference behavior.
+- Future reference work should shrink JS to UI presentation, DTO compatibility, Tauri bridge wrappers and short-term Pinia coordination.
+- `REFERENCE-AUTHORITY-RUSTIFICATION-CHECKPOINT.md` records which helpers may remain UI-only, which are transitional, and which should migrate back to Rust runtime contracts.
+
 Allowed/disallowed examples:
 
 - Allowed: `ReferenceDetailPanel.vue` edits local draft state, `references.js` sends one mutation request through `referenceRuntime`, and Rust validates, normalizes and persists the reference.
