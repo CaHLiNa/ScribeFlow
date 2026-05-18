@@ -137,6 +137,15 @@ export function buildReferenceImportMutationResultState(references = [], mutatio
   }
 }
 
+export function resolveReferenceCitationStyleId(style = '', hasStyle = false) {
+  const normalizedStyle = String(style || '').trim()
+  return normalizedStyle && hasStyle ? normalizedStyle : 'apa'
+}
+
+export function resolveReferenceWorkspaceCitationStyles(styles = []) {
+  return Array.isArray(styles) ? styles : []
+}
+
 export function resolveDocumentReferenceByKey(
   documentReferenceSelections = {},
   references = [],

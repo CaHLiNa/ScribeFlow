@@ -61,6 +61,8 @@ import {
   buildReferenceEmptyImportResult,
   buildReferenceImportInputState,
   buildReferenceImportMutationResultState,
+  resolveReferenceCitationStyleId,
+  resolveReferenceWorkspaceCitationStyles,
   buildRemoveDocumentReferenceMutationState,
   buildReferenceLibrarySnapshotPayload,
   buildReferenceDockPdfCloseState,
@@ -311,7 +313,7 @@ export const useReferencesStore = defineStore('references', {
 
     async applyWorkspaceLibraryBootstrap(snapshot = {}, referenceStyles = []) {
       await this.applyLibrarySnapshot(snapshot)
-      setUserCitationStyles(Array.isArray(referenceStyles) ? referenceStyles : [])
+      setUserCitationStyles(resolveReferenceWorkspaceCitationStyles(referenceStyles))
       return this.buildLibrarySnapshotPayload()
     },
 
@@ -324,8 +326,7 @@ export const useReferencesStore = defineStore('references', {
       }
 
       const styles = await scanWorkspaceCitationStyles(workspacePath).catch(() => [])
-
-      const normalized = Array.isArray(styles) ? styles : []
+      const normalized = resolveReferenceWorkspaceCitationStyles(styles)
       setUserCitationStyles(normalized)
       return normalized
     },
@@ -474,7 +475,7 @@ export const useReferencesStore = defineStore('references', {
     async setCitationStyle(style = 'apa') {
       const normalized = String(style || '').trim()
       const info = normalized ? await getCitationStyleInfo(normalized) : null
-      this.citationStyle = info ? normalized : 'apa'
+      this.citationStyle = resolveReferenceCitationStyleId(normalized, Boolean(info))
     },
 
     selectReference(referenceId) {
