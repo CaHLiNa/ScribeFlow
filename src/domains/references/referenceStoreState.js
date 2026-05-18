@@ -204,61 +204,6 @@ export function resolveAvailableDocumentReferences(
     .filter((reference) => !selectedIds.has(String(reference?.id || '')))
 }
 
-export function buildDocumentReferenceIdsMutationState(texPath = '', referenceIds = []) {
-  const normalizedTexPath = String(texPath || '').trim()
-  return {
-    canMutate: Boolean(normalizedTexPath),
-    texPath: normalizedTexPath,
-    referenceIds: Array.isArray(referenceIds) ? referenceIds : [],
-  }
-}
-
-export function buildAddDocumentReferenceMutationState(
-  documentReferenceSelections = {},
-  references = [],
-  texPath = '',
-  referenceId = '',
-) {
-  const normalizedReferenceId = String(referenceId || '').trim()
-  const currentIds = resolveDocumentReferenceIds(documentReferenceSelections, texPath)
-  if (!hasReferenceById(references, normalizedReferenceId) || currentIds.includes(normalizedReferenceId)) {
-    return {
-      ...buildDocumentReferenceIdsMutationState(texPath, currentIds),
-      canMutate: false,
-      referenceId: normalizedReferenceId,
-    }
-  }
-
-  return {
-    ...buildDocumentReferenceIdsMutationState(texPath, [...currentIds, normalizedReferenceId]),
-    referenceId: normalizedReferenceId,
-  }
-}
-
-export function buildRemoveDocumentReferenceMutationState(
-  documentReferenceSelections = {},
-  texPath = '',
-  referenceId = '',
-) {
-  const normalizedReferenceId = String(referenceId || '').trim()
-  const currentIds = resolveDocumentReferenceIds(documentReferenceSelections, texPath)
-  if (!normalizedReferenceId || !currentIds.includes(normalizedReferenceId)) {
-    return {
-      ...buildDocumentReferenceIdsMutationState(texPath, currentIds),
-      canMutate: false,
-      referenceId: normalizedReferenceId,
-    }
-  }
-
-  return {
-    ...buildDocumentReferenceIdsMutationState(
-      texPath,
-      currentIds.filter((id) => id !== normalizedReferenceId)
-    ),
-    referenceId: normalizedReferenceId,
-  }
-}
-
 export function buildReferenceDockPdfOpenState(referenceId = '') {
   const normalizedReferenceId = String(referenceId || '').trim()
   return {

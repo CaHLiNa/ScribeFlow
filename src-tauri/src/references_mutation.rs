@@ -1,4 +1,4 @@
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
 use serde_json::{json, Value};
 
 use crate::app_dirs;
@@ -73,8 +73,24 @@ pub enum ReferencesMutationAction {
     SetDocumentReferenceIds {
         #[serde(alias = "texPath")]
         tex_path: String,
-        #[serde(default, alias = "referenceIds")]
+        #[serde(
+            default,
+            alias = "referenceIds",
+            deserialize_with = "deserialize_reference_ids"
+        )]
         reference_ids: Vec<String>,
+    },
+    AddDocumentReference {
+        #[serde(alias = "texPath")]
+        tex_path: String,
+        #[serde(alias = "referenceId")]
+        reference_id: String,
+    },
+    RemoveDocumentReference {
+        #[serde(alias = "texPath")]
+        tex_path: String,
+        #[serde(alias = "referenceId")]
+        reference_id: String,
     },
 }
 
@@ -102,6 +118,24 @@ fn mutation_action_payload_field(params: &Value) -> ReferencesMutationAction {
         .cloned()
         .and_then(|value| serde_json::from_value(value).ok())
         .unwrap_or(ReferencesMutationAction::Noop)
+}
+
+fn deserialize_reference_ids<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = Option::<Value>::deserialize(deserializer)?.unwrap_or(Value::Null);
+    let ids = value
+        .as_array()
+        .map(|entries| {
+            entries
+                .iter()
+                .filter_map(Value::as_str)
+                .map(str::to_string)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    Ok(ids)
 }
 
 fn references_mutation_apply_params_from_payload(params: Value) -> ReferencesMutationApplyParams {
@@ -893,43 +927,191 @@ fn apply_set_document_reference_ids(
     tex_path: &str,
     reference_ids: &[String],
 ) -> Value {
+    let (snapshot, changed, normalized_tex_path, ids) =
+        resolve_set_document_reference_ids(snapshot, tex_path, reference_ids);
+    json!({
+        "snapshot": snapshot,
+        "result": {
+            "changed": changed,
+            "texPath": normalized_tex_path,
+            "referenceIds": ids,
+        },
+    })
+}
+
+fn document_reference_ids(snapshot: &Value, tex_path: &str) -> Vec<String> {
     let normalized_tex_path = tex_path.trim();
     if normalized_tex_path.is_empty() {
-        return json!({
-            "snapshot": normalize_snapshot(snapshot),
-            "result": {
-                "changed": false,
-            },
-        });
+        return Vec::new();
     }
 
-    let mut next = snapshot.as_object().cloned().unwrap_or_default();
+    snapshot
+        .get("documentReferenceSelections")
+        .and_then(Value::as_object)
+        .and_then(|selections| selections.get(normalized_tex_path))
+        .and_then(Value::as_array)
+        .map(|ids| {
+            ids.iter()
+                .filter_map(Value::as_str)
+                .map(str::trim)
+                .filter(|id| !id.is_empty())
+                .map(str::to_string)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default()
+}
+
+fn normalize_document_reference_ids(snapshot: &Value, reference_ids: &[String]) -> Vec<String> {
+    let valid_reference_ids = normalize_snapshot_references(snapshot)
+        .iter()
+        .map(|reference| trim_string(reference.get("id")))
+        .filter(|id| !id.is_empty())
+        .collect::<Vec<_>>();
+    let mut ids = Vec::new();
+
+    for reference_id in reference_ids {
+        let normalized_reference_id = reference_id.trim();
+        if normalized_reference_id.is_empty()
+            || !valid_reference_ids
+                .iter()
+                .any(|id| id == normalized_reference_id)
+            || ids.iter().any(|id| id == normalized_reference_id)
+        {
+            continue;
+        }
+        ids.push(normalized_reference_id.to_string());
+    }
+
+    ids
+}
+
+fn resolve_set_document_reference_ids(
+    snapshot: &Value,
+    tex_path: &str,
+    reference_ids: &[String],
+) -> (Value, bool, String, Vec<String>) {
+    let normalized_snapshot = normalize_snapshot(snapshot);
+    let normalized_tex_path = tex_path.trim().to_string();
+    if normalized_tex_path.is_empty() {
+        return (normalized_snapshot, false, normalized_tex_path, Vec::new());
+    }
+
+    let ids = normalize_document_reference_ids(&normalized_snapshot, reference_ids);
+    let current_ids = document_reference_ids(&normalized_snapshot, &normalized_tex_path);
+    if current_ids == ids {
+        return (normalized_snapshot, false, normalized_tex_path, ids);
+    }
+
+    let mut next = normalized_snapshot.as_object().cloned().unwrap_or_default();
     let mut selections = next
         .get("documentReferenceSelections")
         .and_then(Value::as_object)
         .cloned()
         .unwrap_or_default();
-    let ids = reference_ids
-        .iter()
-        .map(|reference_id| reference_id.trim())
-        .filter(|reference_id| !reference_id.is_empty())
-        .map(|reference_id| Value::String(reference_id.to_string()))
-        .collect::<Vec<_>>();
 
     if ids.is_empty() {
-        selections.remove(normalized_tex_path);
+        selections.remove(&normalized_tex_path);
     } else {
-        selections.insert(normalized_tex_path.to_string(), Value::Array(ids));
+        selections.insert(
+            normalized_tex_path.clone(),
+            Value::Array(ids.iter().cloned().map(Value::String).collect()),
+        );
     }
     next.insert(
         "documentReferenceSelections".to_string(),
         Value::Object(selections),
     );
 
+    (
+        normalize_snapshot(&Value::Object(next)),
+        true,
+        normalized_tex_path,
+        ids,
+    )
+}
+
+fn reference_exists_by_id(snapshot: &Value, reference_id: &str) -> bool {
+    let normalized_reference_id = reference_id.trim();
+    if normalized_reference_id.is_empty() {
+        return false;
+    }
+
+    normalize_snapshot_references(snapshot)
+        .iter()
+        .any(|reference| trim_string(reference.get("id")) == normalized_reference_id)
+}
+
+fn apply_add_document_reference(snapshot: &Value, tex_path: &str, reference_id: &str) -> Value {
+    let normalized_snapshot = normalize_snapshot(snapshot);
+    let normalized_tex_path = tex_path.trim().to_string();
+    let normalized_reference_id = reference_id.trim().to_string();
+    let current_ids = document_reference_ids(&normalized_snapshot, &normalized_tex_path);
+
+    if normalized_tex_path.is_empty()
+        || normalized_reference_id.is_empty()
+        || !reference_exists_by_id(&normalized_snapshot, &normalized_reference_id)
+        || current_ids.iter().any(|id| id == &normalized_reference_id)
+    {
+        return json!({
+            "snapshot": normalized_snapshot,
+            "result": {
+                "changed": false,
+                "texPath": normalized_tex_path,
+                "referenceId": normalized_reference_id,
+                "referenceIds": current_ids,
+            },
+        });
+    }
+
+    let mut next_ids = current_ids;
+    next_ids.push(normalized_reference_id.clone());
+    let (snapshot, changed, normalized_tex_path, ids) =
+        resolve_set_document_reference_ids(&normalized_snapshot, &normalized_tex_path, &next_ids);
     json!({
-        "snapshot": normalize_snapshot(&Value::Object(next)),
+        "snapshot": snapshot,
         "result": {
-            "changed": true,
+            "changed": changed,
+            "texPath": normalized_tex_path,
+            "referenceId": normalized_reference_id,
+            "referenceIds": ids,
+        },
+    })
+}
+
+fn apply_remove_document_reference(snapshot: &Value, tex_path: &str, reference_id: &str) -> Value {
+    let normalized_snapshot = normalize_snapshot(snapshot);
+    let normalized_tex_path = tex_path.trim().to_string();
+    let normalized_reference_id = reference_id.trim().to_string();
+    let current_ids = document_reference_ids(&normalized_snapshot, &normalized_tex_path);
+
+    if normalized_tex_path.is_empty()
+        || normalized_reference_id.is_empty()
+        || !current_ids.iter().any(|id| id == &normalized_reference_id)
+    {
+        return json!({
+            "snapshot": normalized_snapshot,
+            "result": {
+                "changed": false,
+                "texPath": normalized_tex_path,
+                "referenceId": normalized_reference_id,
+                "referenceIds": current_ids,
+            },
+        });
+    }
+
+    let next_ids = current_ids
+        .into_iter()
+        .filter(|id| id != &normalized_reference_id)
+        .collect::<Vec<_>>();
+    let (snapshot, changed, normalized_tex_path, ids) =
+        resolve_set_document_reference_ids(&normalized_snapshot, &normalized_tex_path, &next_ids);
+    json!({
+        "snapshot": snapshot,
+        "result": {
+            "changed": changed,
+            "texPath": normalized_tex_path,
+            "referenceId": normalized_reference_id,
+            "referenceIds": ids,
         },
     })
 }
@@ -1036,6 +1218,14 @@ pub(crate) async fn references_mutation_apply_typed(
             tex_path,
             reference_ids,
         } => apply_set_document_reference_ids(&normalized_snapshot, &tex_path, &reference_ids),
+        ReferencesMutationAction::AddDocumentReference {
+            tex_path,
+            reference_id,
+        } => apply_add_document_reference(&normalized_snapshot, &tex_path, &reference_id),
+        ReferencesMutationAction::RemoveDocumentReference {
+            tex_path,
+            reference_id,
+        } => apply_remove_document_reference(&normalized_snapshot, &tex_path, &reference_id),
     };
 
     Ok(result)
@@ -1170,6 +1360,61 @@ mod tests {
                 assert_eq!(reference_ids, vec!["ref-1".to_string()]);
             }
             _ => panic!("expected setDocumentReferenceIds action"),
+        }
+
+        let invalid_document_reference_params =
+            references_mutation_apply_params_from_payload(json!({
+                "snapshot": sample_snapshot(),
+                "action": {
+                    "type": "setDocumentReferenceIds",
+                    "texPath": "/workspace/main.tex",
+                    "referenceIds": "not-array"
+                }
+            }));
+        match invalid_document_reference_params.action {
+            ReferencesMutationAction::SetDocumentReferenceIds { reference_ids, .. } => {
+                assert!(reference_ids.is_empty());
+            }
+            _ => panic!("expected setDocumentReferenceIds action"),
+        }
+
+        let add_document_reference_params = references_mutation_apply_params_from_payload(json!({
+            "snapshot": sample_snapshot(),
+            "action": {
+                "type": "addDocumentReference",
+                "texPath": "/workspace/main.tex",
+                "referenceId": "ref-1"
+            }
+        }));
+        match add_document_reference_params.action {
+            ReferencesMutationAction::AddDocumentReference {
+                tex_path,
+                reference_id,
+            } => {
+                assert_eq!(tex_path, "/workspace/main.tex");
+                assert_eq!(reference_id, "ref-1");
+            }
+            _ => panic!("expected addDocumentReference action"),
+        }
+
+        let remove_document_reference_params =
+            references_mutation_apply_params_from_payload(json!({
+                "snapshot": sample_snapshot(),
+                "action": {
+                    "type": "removeDocumentReference",
+                    "texPath": "/workspace/main.tex",
+                    "referenceId": "ref-1"
+                }
+            }));
+        match remove_document_reference_params.action {
+            ReferencesMutationAction::RemoveDocumentReference {
+                tex_path,
+                reference_id,
+            } => {
+                assert_eq!(tex_path, "/workspace/main.tex");
+                assert_eq!(reference_id, "ref-1");
+            }
+            _ => panic!("expected removeDocumentReference action"),
         }
 
         let pdf_import_params = references_mutation_apply_params_from_payload(json!({
@@ -1727,6 +1972,26 @@ mod tests {
             result["snapshot"]["documentReferenceSelections"]["/workspace/main.tex"],
             json!(["ref-1"])
         );
+        assert_eq!(result["result"]["changed"].as_bool(), Some(true));
+        assert_eq!(
+            result["result"]["texPath"].as_str(),
+            Some("/workspace/main.tex")
+        );
+        assert_eq!(result["result"]["referenceIds"], json!(["ref-1"]));
+
+        let unchanged = references_mutation_apply_typed(ReferencesMutationApplyParams {
+            snapshot: result["snapshot"].clone(),
+            global_config_dir: String::new(),
+            selected_reference_id: String::new(),
+            action: ReferencesMutationAction::SetDocumentReferenceIds {
+                tex_path: " /workspace/main.tex ".to_string(),
+                reference_ids: vec![" ref-1 ".to_string()],
+            },
+        })
+        .await
+        .expect("set same document reference ids");
+
+        assert_eq!(unchanged["result"]["changed"].as_bool(), Some(false));
 
         let cleared = references_mutation_apply_typed(ReferencesMutationApplyParams {
             snapshot: result["snapshot"].clone(),
@@ -1743,5 +2008,115 @@ mod tests {
         assert!(
             cleared["snapshot"]["documentReferenceSelections"]["/workspace/main.tex"].is_null()
         );
+        assert_eq!(cleared["result"]["changed"].as_bool(), Some(true));
+        assert_eq!(cleared["result"]["referenceIds"], json!([]));
+    }
+
+    #[tokio::test]
+    async fn add_document_reference_derives_next_ids_in_rust() {
+        let result = references_mutation_apply_typed(ReferencesMutationApplyParams {
+            snapshot: sample_snapshot(),
+            global_config_dir: String::new(),
+            selected_reference_id: "ref-1".to_string(),
+            action: ReferencesMutationAction::AddDocumentReference {
+                tex_path: " /workspace/main.tex ".to_string(),
+                reference_id: " ref-1 ".to_string(),
+            },
+        })
+        .await
+        .expect("add document reference");
+
+        assert_eq!(result["result"]["changed"].as_bool(), Some(true));
+        assert_eq!(
+            result["result"]["texPath"].as_str(),
+            Some("/workspace/main.tex")
+        );
+        assert_eq!(result["result"]["referenceId"].as_str(), Some("ref-1"));
+        assert_eq!(result["result"]["referenceIds"], json!(["ref-1"]));
+        assert_eq!(
+            result["snapshot"]["documentReferenceSelections"]["/workspace/main.tex"],
+            json!(["ref-1"])
+        );
+
+        let duplicate = references_mutation_apply_typed(ReferencesMutationApplyParams {
+            snapshot: result["snapshot"].clone(),
+            global_config_dir: String::new(),
+            selected_reference_id: String::new(),
+            action: ReferencesMutationAction::AddDocumentReference {
+                tex_path: "/workspace/main.tex".to_string(),
+                reference_id: "ref-1".to_string(),
+            },
+        })
+        .await
+        .expect("add duplicate document reference");
+
+        assert_eq!(duplicate["result"]["changed"].as_bool(), Some(false));
+        assert_eq!(duplicate["result"]["referenceIds"], json!(["ref-1"]));
+
+        let missing = references_mutation_apply_typed(ReferencesMutationApplyParams {
+            snapshot: duplicate["snapshot"].clone(),
+            global_config_dir: String::new(),
+            selected_reference_id: String::new(),
+            action: ReferencesMutationAction::AddDocumentReference {
+                tex_path: "/workspace/main.tex".to_string(),
+                reference_id: "missing".to_string(),
+            },
+        })
+        .await
+        .expect("add missing document reference");
+
+        assert_eq!(missing["result"]["changed"].as_bool(), Some(false));
+        assert_eq!(missing["result"]["referenceIds"], json!(["ref-1"]));
+    }
+
+    #[tokio::test]
+    async fn remove_document_reference_derives_next_ids_in_rust() {
+        let added = references_mutation_apply_typed(ReferencesMutationApplyParams {
+            snapshot: sample_snapshot(),
+            global_config_dir: String::new(),
+            selected_reference_id: String::new(),
+            action: ReferencesMutationAction::SetDocumentReferenceIds {
+                tex_path: "/workspace/main.tex".to_string(),
+                reference_ids: vec!["ref-1".to_string()],
+            },
+        })
+        .await
+        .expect("seed document references");
+
+        let result = references_mutation_apply_typed(ReferencesMutationApplyParams {
+            snapshot: added["snapshot"].clone(),
+            global_config_dir: String::new(),
+            selected_reference_id: String::new(),
+            action: ReferencesMutationAction::RemoveDocumentReference {
+                tex_path: " /workspace/main.tex ".to_string(),
+                reference_id: " ref-1 ".to_string(),
+            },
+        })
+        .await
+        .expect("remove document reference");
+
+        assert_eq!(result["result"]["changed"].as_bool(), Some(true));
+        assert_eq!(
+            result["result"]["texPath"].as_str(),
+            Some("/workspace/main.tex")
+        );
+        assert_eq!(result["result"]["referenceId"].as_str(), Some("ref-1"));
+        assert_eq!(result["result"]["referenceIds"], json!([]));
+        assert!(result["snapshot"]["documentReferenceSelections"]["/workspace/main.tex"].is_null());
+
+        let missing = references_mutation_apply_typed(ReferencesMutationApplyParams {
+            snapshot: result["snapshot"].clone(),
+            global_config_dir: String::new(),
+            selected_reference_id: String::new(),
+            action: ReferencesMutationAction::RemoveDocumentReference {
+                tex_path: "/workspace/main.tex".to_string(),
+                reference_id: "missing".to_string(),
+            },
+        })
+        .await
+        .expect("remove missing document reference");
+
+        assert_eq!(missing["result"]["changed"].as_bool(), Some(false));
+        assert_eq!(missing["result"]["referenceIds"], json!([]));
     }
 }

@@ -51,6 +51,8 @@ for (const actionName of [
   'renameCollection',
   'removeCollection',
   'setDocumentReferenceIds',
+  'addDocumentReference',
+  'removeDocumentReference',
   'addReference',
   'updateReference',
   'removeReference',
@@ -74,6 +76,8 @@ for (const actionName of [
   'renameCollection',
   'removeCollection',
   'setDocumentReferenceIds',
+  'addDocumentReference',
+  'removeDocumentReference',
   'addReference',
   'updateReference',
   'removeReference',
@@ -107,6 +111,19 @@ assert.doesNotMatch(
   /_pushedByApp|_zoteroKey|buildReferenceRemoveTargetState|targetState\./,
   'removeReference must not inline remove-target lookup or Zotero side-effect gating',
 )
+for (const actionName of ['setDocumentReferenceIds', 'addDocumentReference', 'removeDocumentReference']) {
+  const documentReferenceSource = extractActionSource(storeSource, actionName)
+  assert.match(
+    documentReferenceSource,
+    /mutation\?\.result\?\.changed !== true[\s\S]*return false[\s\S]*commitReferenceMutationSnapshot\(this, projectRoot, mutation,/,
+    `${actionName} must consume Rust-returned document-reference mutation outcome`,
+  )
+  assert.doesNotMatch(
+    documentReferenceSource,
+    /buildDocumentReferenceIdsMutationState|buildAddDocumentReferenceMutationState|buildRemoveDocumentReferenceMutationState|String\(texPath \|\| ''\)\.trim\(\)|String\(referenceId \|\| ''\)\.trim\(\)|resolveDocumentReferenceIds\(this\.documentReferenceSelections|\.includes\(|\.filter\(\(id\) => id !==/,
+    `${actionName} must not inline document-reference mutation derivation`,
+  )
+}
 
 const importPdfSource = extractActionSource(storeSource, 'importReferencePdf')
 assert.match(

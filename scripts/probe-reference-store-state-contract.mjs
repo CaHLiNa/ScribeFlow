@@ -1,14 +1,11 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import {
-  buildAddDocumentReferenceMutationState,
   buildDefaultResolvedQueryState,
-  buildDocumentReferenceIdsMutationState,
   buildReferenceEmptyImportResult,
   buildReferenceImportInputState,
   resolveReferenceCitationStyleId,
   resolveReferenceWorkspaceCitationStyles,
-  buildRemoveDocumentReferenceMutationState,
   buildReferenceLibrarySnapshotPayload,
   buildReferenceDockPdfCloseState,
   buildReferenceDockPdfOpenState,
@@ -169,59 +166,6 @@ assert.deepEqual(resolveAvailableDocumentReferences(documentReferenceSelections,
 assert.deepEqual(resolveAvailableDocumentReferences(documentReferenceSelections, references, 'paper.tex', 'unused'), [
   references[2],
 ])
-assert.deepEqual(buildDocumentReferenceIdsMutationState(' paper.tex ', ['ref-1']), {
-  canMutate: true,
-  texPath: 'paper.tex',
-  referenceIds: ['ref-1'],
-})
-assert.deepEqual(buildDocumentReferenceIdsMutationState('', ['ref-1']), {
-  canMutate: false,
-  texPath: '',
-  referenceIds: ['ref-1'],
-})
-assert.deepEqual(buildDocumentReferenceIdsMutationState('paper.tex', 'not-array'), {
-  canMutate: true,
-  texPath: 'paper.tex',
-  referenceIds: [],
-})
-assert.deepEqual(buildAddDocumentReferenceMutationState(
-  documentReferenceSelections,
-  references,
-  'paper.tex',
-  ' ref-3 ',
-), {
-  canMutate: true,
-  texPath: 'paper.tex',
-  referenceIds: ['ref-1', 'ref-2', 'ref-3'],
-  referenceId: 'ref-3',
-})
-assert.equal(buildAddDocumentReferenceMutationState(
-  documentReferenceSelections,
-  references,
-  'paper.tex',
-  'ref-2',
-).canMutate, false)
-assert.equal(buildAddDocumentReferenceMutationState(
-  documentReferenceSelections,
-  references,
-  'paper.tex',
-  'missing',
-).canMutate, false)
-assert.deepEqual(buildRemoveDocumentReferenceMutationState(
-  documentReferenceSelections,
-  'paper.tex',
-  ' ref-2 ',
-), {
-  canMutate: true,
-  texPath: 'paper.tex',
-  referenceIds: ['ref-1'],
-  referenceId: 'ref-2',
-})
-assert.equal(buildRemoveDocumentReferenceMutationState(
-  documentReferenceSelections,
-  'paper.tex',
-  'missing',
-).canMutate, false)
 assert.deepEqual(buildReferenceDockPdfOpenState(' ref-2 '), {
   canOpen: true,
   referenceDockPdfOpen: true,
@@ -740,20 +684,10 @@ assert.match(
   /resolveDocumentReferenceIds/,
   'references store must delegate document-reference id resolution',
 )
-assert.match(
-  storeSource,
-  /buildDocumentReferenceIdsMutationState/,
-  'references store must delegate document-reference set mutation state',
-)
-assert.match(
-  storeSource,
-  /buildAddDocumentReferenceMutationState/,
-  'references store must delegate document-reference add mutation state',
-)
-assert.match(
-  storeSource,
-  /buildRemoveDocumentReferenceMutationState/,
-  'references store must delegate document-reference remove mutation state',
+assert.doesNotMatch(
+  domainSource,
+  /buildDocumentReferenceIdsMutationState|buildAddDocumentReferenceMutationState|buildRemoveDocumentReferenceMutationState/,
+  'referenceStoreState must not retain migrated document-reference mutation derivation helpers',
 )
 assert.match(
   storeSource,
@@ -892,7 +826,7 @@ assert.match(
 )
 assert.match(
   actionSource('setDocumentReferenceIds'),
-  /return mutation\?\.result\?\.changed === true/,
+  /mutation\?\.result\?\.changed !== true[\s\S]*return false[\s\S]*commitReferenceMutationSnapshot\(this, projectRoot, mutation,/,
   'setDocumentReferenceIds must consume the Rust-returned document-reference mutation outcome',
 )
 assert.match(
@@ -925,6 +859,8 @@ for (const actionName of [
   'renameCollection',
   'removeCollection',
   'setDocumentReferenceIds',
+  'addDocumentReference',
+  'removeDocumentReference',
   'addReference',
   'updateReference',
   'removeReference',
@@ -1061,9 +997,14 @@ assert.doesNotMatch(
   'formatReferenceCitationAsync must not inline citation formatting target lookup',
 )
 for (const actionName of ['setDocumentReferenceIds', 'addDocumentReference', 'removeDocumentReference']) {
+  assert.match(
+    actionSource(actionName),
+    /mutation\?\.result\?\.changed !== true[\s\S]*return false[\s\S]*commitReferenceMutationSnapshot\(this, projectRoot, mutation,/,
+    `${actionName} must consume Rust-returned document-reference mutation outcome before committing`,
+  )
   assert.doesNotMatch(
     actionSource(actionName),
-    /String\(texPath \|\| ''\)\.trim\(\)|String\(referenceId \|\| ''\)\.trim\(\)|ids\.includes|ids\.filter\(\(id\) => id !==/,
+    /buildDocumentReferenceIdsMutationState|buildAddDocumentReferenceMutationState|buildRemoveDocumentReferenceMutationState|String\(texPath \|\| ''\)\.trim\(\)|String\(referenceId \|\| ''\)\.trim\(\)|ids\.includes|ids\.filter\(\(id\) => id !==|resolveDocumentReferenceIds\(this\.documentReferenceSelections/,
     `${actionName} must not inline document-reference mutation derivation`,
   )
 }
@@ -1086,7 +1027,7 @@ console.log(JSON.stringify({
     collectionAndTagMatchingDerived: true,
     documentSelectionFallbackDerived: true,
     selectedReferenceFallbackDerived: true,
-    documentReferenceMutationDerived: true,
+    rustDocumentReferenceMutationDerivation: true,
     documentReferenceLookupDerived: true,
     citationUsageKeysDerived: true,
     referenceSearchDerived: true,

@@ -55,14 +55,11 @@ import {
   REFERENCE_DOCK_DETAILS_PAGE,
 } from '../domains/references/referenceDockPages.js'
 import {
-  buildAddDocumentReferenceMutationState,
   buildDefaultResolvedQueryState,
-  buildDocumentReferenceIdsMutationState,
   buildReferenceEmptyImportResult,
   buildReferenceImportInputState,
   resolveReferenceCitationStyleId,
   resolveReferenceWorkspaceCitationStyles,
-  buildRemoveDocumentReferenceMutationState,
   buildReferenceLibrarySnapshotPayload,
   buildReferenceDockPdfCloseState,
   buildReferenceDockPdfOpenState,
@@ -538,42 +535,57 @@ export const useReferencesStore = defineStore('references', {
     },
 
     async setDocumentReferenceIds(projectRoot = '', texPath = '', referenceIds = []) {
-      const nextState = buildDocumentReferenceIdsMutationState(texPath, referenceIds)
-      if (!nextState.canMutate) return false
       const mutation = await applyReferenceMutation({
         snapshot: this.buildLibrarySnapshotPayload(),
         selectedReferenceId: this.selectedReferenceId,
         action: {
           type: 'setDocumentReferenceIds',
-          texPath: nextState.texPath,
-          referenceIds: nextState.referenceIds,
+          texPath,
+          referenceIds,
         },
       })
+      if (mutation?.result?.changed !== true) return false
+
       await commitReferenceMutationSnapshot(this, projectRoot, mutation, {
         preferredSelectedReferenceId: this.selectedReferenceId,
       })
-      return mutation?.result?.changed === true
+      return true
     },
 
     async addDocumentReference(projectRoot = '', texPath = '', referenceId = '') {
-      const nextState = buildAddDocumentReferenceMutationState(
-        this.documentReferenceSelections,
-        this.references,
-        texPath,
-        referenceId
-      )
-      if (!nextState.canMutate) return false
-      return this.setDocumentReferenceIds(projectRoot, nextState.texPath, nextState.referenceIds)
+      const mutation = await applyReferenceMutation({
+        snapshot: this.buildLibrarySnapshotPayload(),
+        selectedReferenceId: this.selectedReferenceId,
+        action: {
+          type: 'addDocumentReference',
+          texPath,
+          referenceId,
+        },
+      })
+      if (mutation?.result?.changed !== true) return false
+
+      await commitReferenceMutationSnapshot(this, projectRoot, mutation, {
+        preferredSelectedReferenceId: this.selectedReferenceId,
+      })
+      return true
     },
 
     async removeDocumentReference(projectRoot = '', texPath = '', referenceId = '') {
-      const nextState = buildRemoveDocumentReferenceMutationState(
-        this.documentReferenceSelections,
-        texPath,
-        referenceId
-      )
-      if (!nextState.canMutate) return false
-      return this.setDocumentReferenceIds(projectRoot, nextState.texPath, nextState.referenceIds)
+      const mutation = await applyReferenceMutation({
+        snapshot: this.buildLibrarySnapshotPayload(),
+        selectedReferenceId: this.selectedReferenceId,
+        action: {
+          type: 'removeDocumentReference',
+          texPath,
+          referenceId,
+        },
+      })
+      if (mutation?.result?.changed !== true) return false
+
+      await commitReferenceMutationSnapshot(this, projectRoot, mutation, {
+        preferredSelectedReferenceId: this.selectedReferenceId,
+      })
+      return true
     },
 
     searchRefs(query = '') {
