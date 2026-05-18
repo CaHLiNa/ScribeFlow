@@ -170,6 +170,31 @@ export function buildReferencePdfImportTargetState(mutation = {}, fallbackSnapsh
   }
 }
 
+export function buildReferencePdfAssetTargetState(references = [], referenceId = '') {
+  const normalizedReferenceId = String(referenceId || '').trim()
+  const targetReference = resolveReferenceById(references, normalizedReferenceId)
+  return {
+    canUpdate: Boolean(targetReference),
+    referenceId: normalizedReferenceId,
+    targetReference,
+  }
+}
+
+export function buildReferencePdfAssetResultState(
+  references = [],
+  referenceId = '',
+  fallbackReference = null,
+) {
+  const normalizedReferenceId = String(referenceId || '').trim()
+  const fallback = fallbackReference && typeof fallbackReference === 'object' && !Array.isArray(fallbackReference)
+    ? fallbackReference
+    : null
+  return {
+    referenceId: normalizedReferenceId,
+    reference: resolveReferenceById(references, normalizedReferenceId) || fallback,
+  }
+}
+
 export function buildReferenceCollectionMutationResultState(mutation = {}) {
   const collection = mutation?.result?.collection
   return {

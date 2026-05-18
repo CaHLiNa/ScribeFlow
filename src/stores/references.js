@@ -65,6 +65,8 @@ import {
   buildReferenceCollectionMutationResultState,
   buildReferenceDocumentIdsMutationResultState,
   buildReferenceMetadataRefreshTargetState,
+  buildReferencePdfAssetResultState,
+  buildReferencePdfAssetTargetState,
   buildReferencePdfImportTargetState,
   buildReferenceRemoveCollectionMutationResultState,
   buildReferenceToggleCollectionMutationResultState,
@@ -701,35 +703,43 @@ export const useReferencesStore = defineStore('references', {
     },
 
     async attachReferencePdf(projectRoot = '', referenceId = '', sourcePath = '') {
-      const reference = resolveReferenceById(this.references, referenceId)
-      if (!reference) return null
+      const targetState = buildReferencePdfAssetTargetState(this.references, referenceId)
+      if (!targetState.canUpdate) return null
 
       const updatedReference = await storeReferencePdf(
         projectRoot,
-        reference,
+        targetState.targetReference,
         sourcePath
       )
 
-      await this.updateReference(projectRoot, referenceId, updatedReference, {
-        preferredSelectedReferenceId: referenceId,
+      await this.updateReference(projectRoot, targetState.referenceId, updatedReference, {
+        preferredSelectedReferenceId: targetState.referenceId,
       })
-      return resolveReferenceById(this.references, referenceId) || updatedReference
+      return buildReferencePdfAssetResultState(
+        this.references,
+        targetState.referenceId,
+        updatedReference,
+      ).reference
     },
 
     async renameReferencePdfAsset(projectRoot = '', referenceId = '', nextBaseName = '') {
-      const reference = resolveReferenceById(this.references, referenceId)
-      if (!reference) return null
+      const targetState = buildReferencePdfAssetTargetState(this.references, referenceId)
+      if (!targetState.canUpdate) return null
 
       const updatedReference = await renameReferencePdfAssetWithBackend(
         projectRoot,
-        reference,
+        targetState.targetReference,
         nextBaseName
       )
 
-      await this.updateReference(projectRoot, referenceId, updatedReference, {
-        preferredSelectedReferenceId: referenceId,
+      await this.updateReference(projectRoot, targetState.referenceId, updatedReference, {
+        preferredSelectedReferenceId: targetState.referenceId,
       })
-      return resolveReferenceById(this.references, referenceId) || updatedReference
+      return buildReferencePdfAssetResultState(
+        this.references,
+        targetState.referenceId,
+        updatedReference,
+      ).reference
     },
 
     async importReferencePdf(projectRoot = '', sourcePath = '') {

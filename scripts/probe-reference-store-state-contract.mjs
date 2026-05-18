@@ -11,6 +11,8 @@ import {
   buildReferenceCollectionMutationResultState,
   buildReferenceDocumentIdsMutationResultState,
   buildReferenceMetadataRefreshTargetState,
+  buildReferencePdfAssetResultState,
+  buildReferencePdfAssetTargetState,
   buildReferencePdfImportTargetState,
   buildReferenceRemoveCollectionMutationResultState,
   buildReferenceToggleCollectionMutationResultState,
@@ -209,6 +211,33 @@ assert.deepEqual(buildReferenceMetadataRefreshTargetState(references, 'missing')
 assert.deepEqual(buildReferenceMetadataRefreshTargetState(references, '  '), {
   canRefresh: false,
   referenceId: '',
+  reference: null,
+})
+assert.deepEqual(buildReferencePdfAssetTargetState(references, ' ref-2 '), {
+  canUpdate: true,
+  referenceId: 'ref-2',
+  targetReference: references[1],
+})
+assert.deepEqual(buildReferencePdfAssetTargetState(references, 'missing'), {
+  canUpdate: false,
+  referenceId: 'missing',
+  targetReference: null,
+})
+assert.deepEqual(buildReferencePdfAssetTargetState(references, '  '), {
+  canUpdate: false,
+  referenceId: '',
+  targetReference: null,
+})
+assert.deepEqual(buildReferencePdfAssetResultState(references, ' ref-2 ', { id: 'fallback' }), {
+  referenceId: 'ref-2',
+  reference: references[1],
+})
+assert.deepEqual(buildReferencePdfAssetResultState(references, 'missing', { id: 'fallback' }), {
+  referenceId: 'missing',
+  reference: { id: 'fallback' },
+})
+assert.deepEqual(buildReferencePdfAssetResultState(references, 'missing', 'not-object'), {
+  referenceId: 'missing',
   reference: null,
 })
 assert.deepEqual(buildReferencePdfImportTargetState({
@@ -1059,6 +1088,16 @@ assert.match(
 )
 assert.match(
   storeSource,
+  /buildReferencePdfAssetTargetState/,
+  'references store must delegate PDF asset target state mapping',
+)
+assert.match(
+  storeSource,
+  /buildReferencePdfAssetResultState/,
+  'references store must delegate PDF asset result state mapping',
+)
+assert.match(
+  storeSource,
   /buildReferencePdfImportTargetState/,
   'references store must delegate PDF import target state mapping',
 )
@@ -1127,6 +1166,13 @@ assert.doesNotMatch(
   /String\(referenceId \|\| ''\)\.trim\(\)|resolveReferenceById\(this\.references/,
   'refreshReferenceMetadata must not inline metadata refresh target state mapping',
 )
+for (const actionName of ['attachReferencePdf', 'renameReferencePdfAsset']) {
+  assert.doesNotMatch(
+    actionSource(actionName),
+    /resolveReferenceById\(this\.references, referenceId\)|resolveReferenceById\(this\.references, targetState\.referenceId\)|\|\| updatedReference/,
+    `${actionName} must not inline PDF asset target/result state mapping`,
+  )
+}
 for (const actionName of ['createCollection', 'renameCollection']) {
   assert.doesNotMatch(
     actionSource(actionName),
@@ -1213,6 +1259,7 @@ console.log(JSON.stringify({
     importResultDerived: true,
     addReferenceResultStateDerived: true,
     metadataRefreshTargetStateDerived: true,
+    pdfAssetTargetAndResultStateDerived: true,
     pdfImportTargetStateDerived: true,
     collectionMutationResultStateDerived: true,
     removeCollectionResultStateDerived: true,
