@@ -156,6 +156,7 @@ Components over 500 lines:
 | `src/components/extensions/ExtensionTaskHistoryFooter.vue` | 68 | Extension truncated-history footer presentation and expand/collapse affordance. |
 | `src/components/layout/WorkbenchRail.vue` | 378 | Layout UI; native fullscreen sync, window dragging, outside-click lifecycle, and emitted shell intent stay in the coordinator while title/menu chrome lives in `WorkbenchRailTitleArea.vue`. |
 | `src/components/layout/WorkbenchRailTitleArea.vue` | 304 | Workbench rail center title slot, reference mode menu, inline document title, and title/menu scoped presentation. |
+| `src/components/layout/AppShellFrame.vue` | 391 | App shell frame presentation; owns topbar/left-sidebar/main-card/resize slot DOM and scoped shell styles while emitting layout/workbench intent to `App.vue`. |
 | `src/components/panel/ReferenceDetailPanel.vue` | 579 | Reference detail draft orchestration; Phase 8 extracted hero/metadata/content presentation and pure draft normalization helpers. |
 | `src/components/panel/ReferenceDetailContentSection.vue` | 132 | Reference abstract and notes disclosure presentation. |
 | `src/components/panel/ReferenceDetailHero.vue` | 164 | Reference detail title/save hero presentation. |
@@ -177,7 +178,7 @@ Components over 500 lines:
 | `src/components/sidebar/FileTreeNewMenu.vue` | 93 | File tree document-template create menu. |
 | `src/components/sidebar/FileTreeOverlays.vue` | 101 | File tree overlay presentation for context menu, workspace menu, new menu, and drag ghost; exposes menu elements for parent positioning/listener orchestration. |
 | `src/components/sidebar/FileTreeWorkspaceMenu.vue` | 108 | File tree workspace actions menu. |
-| `src/App.vue` | 746 | App shell composition; extension runtime event bridge extracted to `src/app/shell/useAppExtensionRuntimeBridge.js`. |
+| `src/App.vue` | 431 | App shell coordinator; store/workspace/extension/editor orchestration stays here while shell frame DOM and scoped styles live in `AppShellFrame.vue`. |
 
 ## Store Responsibility Snapshot
 
@@ -302,6 +303,7 @@ Components over 500 lines:
 
 - 2026-05-18: `WorkbenchRail.vue` no longer owns deterministic topbar padding/style derivation or workspace mode menu item state inline. `src/domains/workbench/workbenchRailPresentation.js` now derives macOS/fullscreen rail style and file/reference mode items, while the component keeps native window fullscreen checks, drag handling, outside-click/Escape listeners, and emitted user intent.
 - 2026-05-18: Workbench rail title/menu ownership is now split at the Vue component boundary. `WorkbenchRail.vue` keeps native window fullscreen sync, drag handling, outside-click/Escape listeners, menu open state, and emitted shell intent, while `WorkbenchRailTitleArea.vue` owns the center title target, reference mode menu, inline document title, and title/menu scoped styles. `scripts/probe-workbench-rail-title-style-ownership.mjs` guards that the title area stays presentation-only and out of native/listener/store authority.
+- 2026-05-18: App shell frame ownership is now split at the Vue component boundary. `App.vue` keeps store, workspace lifecycle, active workbench selection, extension prompt/palette orchestration, zen-mode listeners, and app teardown/event bridges, while `AppShellFrame.vue` owns the root shell/topbar/left-sidebar/main-card/resize-slot DOM and scoped shell styles. `scripts/probe-app-shell-frame-style-ownership.mjs` guards that the frame stays presentation-only and out of store/native/listener authority.
 
 ## Rust Runtime Cleanup Log
 

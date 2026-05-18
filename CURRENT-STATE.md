@@ -176,6 +176,7 @@ Current plugin lifecycle contract:
 - extension task surface ownership is now split at the Vue component boundary: `ExtensionTaskPanel.vue` keeps timeline/store orchestration and expansion/selection state, `ExtensionTaskRow.vue` owns row/detail/progress/result/action DOM and CSS, and `ExtensionTaskHistoryFooter.vue` owns truncated-history footer DOM and CSS
 - workbench rail title ownership is now split at the Vue component boundary: `WorkbenchRail.vue` keeps native fullscreen sync, window dragging, outside-click/Escape lifecycle, menu open state, and emitted shell intent, while `WorkbenchRailTitleArea.vue` owns center title slot, reference mode menu, inline document title, and title/menu scoped CSS
 - settings surface ownership is now split at the Vue component boundary: `Settings.vue` keeps active-section orchestration, `SettingsSurface.vue` owns the guarded settings shell/header/content slot and the shared settings row/group/control CSS, and duplicate settings-wide style blocks have been collapsed into one owner
+- app shell frame ownership is now split at the Vue component boundary: `App.vue` keeps store, workspace lifecycle, active workbench selection, extension prompt/palette orchestration, zen-mode listeners, and teardown/event bridges, while `AppShellFrame.vue` owns root shell/topbar/left-sidebar/main-card/resize-slot DOM and scoped shell CSS
 - file tree body ownership is now split at the Vue component boundary: `FileTree.vue` keeps keyboard, drag/drop, context-menu, mutation, and store orchestration, while `FileTreeBody.vue` owns scroll-body DOM, virtual row rendering, root inline-create input, drop/empty state chrome, and body scoped CSS
 - file tree overlay ownership is now split at the Vue component boundary too: `FileTree.vue` keeps menu state, positioning, document listeners, file mutation, and workspace/editor orchestration, while `FileTreeOverlays.vue` owns context-menu/workspace-menu/new-menu/drag-ghost composition and exposes only menu DOM accessors back to the coordinator
 - reference workbench detail dock ownership is now split at the Vue component boundary: `ReferenceLibraryWorkbench.vue` keeps reference selection, page activation, tab fallback, resize, import/export, and context-menu orchestration, while `ReferenceLibraryDetailDock.vue` owns the inline dock frame, tabbar, active page render slot, empty state, and detail tab scoped CSS
@@ -212,6 +213,7 @@ The quick gate includes:
 - `npm run guard:textmate-runtime`
 - `npm run probe:desktop-main-path-runtime-contract`
 - `npm run probe:settings-surface-style-ownership`
+- `npm run probe:app-shell-frame-style-ownership`
 - `npm run probe:workbench-rail-title-style-ownership`
 - `npm run probe:file-tree-body-style-ownership`
 - `npm run probe:file-tree-overlay-style-ownership`
