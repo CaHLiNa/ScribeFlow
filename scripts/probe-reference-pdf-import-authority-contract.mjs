@@ -169,6 +169,48 @@ try {
       }
     }
 
+    if (cmd === 'references_store_state_build') {
+      const snapshot = args?.params?.snapshot || {}
+      const state = args?.params?.state || {}
+      const references = Array.isArray(snapshot.references) ? snapshot.references : []
+      const preferredSelectedReferenceId = String(args?.params?.preferredSelectedReferenceId || '')
+      return {
+        snapshot,
+        librarySections: [{ key: 'all' }],
+        sourceSections: [{ key: 'zotero' }, { key: 'manual' }],
+        collections: Array.isArray(snapshot.collections) ? snapshot.collections : [],
+        tags: Array.isArray(snapshot.tags) ? snapshot.tags : [],
+        references,
+        documentReferenceSelections: snapshot.documentReferenceSelections || {},
+        citationStyle: snapshot.citationStyle || 'apa',
+        selectedSectionKey: state.selectedSectionKey || 'all',
+        selectedSourceKey: state.selectedSourceKey || '',
+        selectedCollectionKey: state.selectedCollectionKey || '',
+        selectedTagKey: state.selectedTagKey || '',
+        sortKey: state.sortKey || 'year-desc',
+        selectedReferenceId: preferredSelectedReferenceId,
+        resolvedQueryState: {
+          query: {
+            selectedSectionKey: state.selectedSectionKey || 'all',
+            selectedSourceKey: state.selectedSourceKey || '',
+            selectedCollectionKey: state.selectedCollectionKey || '',
+            selectedTagKey: state.selectedTagKey || '',
+            sortKey: state.sortKey || 'year-desc',
+            selectedReferenceId: preferredSelectedReferenceId,
+          },
+          sectionCounts: {},
+          sourceCounts: {},
+          collectionCounts: {},
+          tagCounts: {},
+          sortedReferences: references,
+          filteredReferences: references,
+          selectedReferenceId: preferredSelectedReferenceId,
+          citationUsageIndex: {},
+          citationUsageDetails: {},
+        },
+      }
+    }
+
     if (cmd === 'references_asset_store') {
       assert.deepEqual(args?.params?.reference, {})
       assert.equal(args?.params?.referenceId, 'ref-1')

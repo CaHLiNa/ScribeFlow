@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::references_pdf::validate_reference_pdf_path;
+use crate::references_query::{references_query_resolve_resolved, ReferencesQueryResolveParams};
 use crate::references_snapshot::{
     build_default_snapshot, clone_array, normalize_reference_record, normalize_snapshot,
     trim_string, StringExt,
@@ -87,6 +88,19 @@ pub struct ReferenceSnapshotPayloadBuildParams {
     pub state: Value,
 }
 
+#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ReferenceStoreStateBuildParams {
+    #[serde(default)]
+    pub snapshot: Value,
+    #[serde(default)]
+    pub state: Value,
+    #[serde(default)]
+    pub preferred_selected_reference_id: String,
+    #[serde(default)]
+    pub file_contents: Value,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReferenceRecordNormalizeParams {
@@ -139,6 +153,18 @@ fn snapshot_payload_field(params: &Value) -> Value {
         .unwrap_or_else(build_default_snapshot)
 }
 
+fn snapshot_or_state_payload_field(params: &Value) -> Value {
+    payload_field(params, "snapshot")
+        .filter(|value| value.is_object())
+        .cloned()
+        .or_else(|| {
+            payload_field(params, "state")
+                .filter(|value| value.is_object())
+                .cloned()
+        })
+        .unwrap_or_else(build_default_snapshot)
+}
+
 fn reference_library_read_params_from_payload(params: Value) -> ReferenceLibraryReadParams {
     ReferenceLibraryReadParams {
         global_config_dir: string_payload_field(&params, "globalConfigDir"),
@@ -176,6 +202,20 @@ fn reference_snapshot_payload_build_params_from_payload(
             .filter(|value| value.is_object())
             .cloned()
             .unwrap_or_else(build_default_snapshot),
+    }
+}
+
+fn reference_store_state_build_params_from_payload(
+    params: Value,
+) -> ReferenceStoreStateBuildParams {
+    ReferenceStoreStateBuildParams {
+        snapshot: snapshot_or_state_payload_field(&params),
+        state: object_payload_field(&params, "state"),
+        preferred_selected_reference_id: string_payload_field(
+            &params,
+            "preferredSelectedReferenceId",
+        ),
+        file_contents: object_payload_field(&params, "fileContents"),
     }
 }
 
@@ -541,6 +581,86 @@ fn rename_reference_asset(params: &ReferenceAssetRenameParams) -> Result<Value, 
     Ok(normalize_reference_record(&Value::Object(map)))
 }
 
+fn default_reference_library_sections() -> Vec<Value> {
+    vec![
+        json!({ "key": "all" }),
+        json!({ "key": "unfiled" }),
+        json!({ "key": "missing-identifier" }),
+        json!({ "key": "missing-pdf" }),
+    ]
+}
+
+fn default_reference_source_sections() -> Vec<Value> {
+    vec![json!({ "key": "zotero" }), json!({ "key": "manual" })]
+}
+
+fn query_string_field(query: &Value, key: &str) -> String {
+    query
+        .get(key)
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string()
+}
+
+async fn build_reference_store_state(
+    params: ReferenceStoreStateBuildParams,
+) -> Result<Value, String> {
+    let snapshot = normalize_snapshot(&params.snapshot);
+    let library_sections = default_reference_library_sections();
+    let source_sections = default_reference_source_sections();
+    let preferred_selected_reference_id = params
+        .preferred_selected_reference_id
+        .trim()
+        .to_string()
+        .if_empty_then(|| string_payload_field(&params.state, "selectedReferenceId"));
+
+    let resolved_query = references_query_resolve_resolved(ReferencesQueryResolveParams {
+        library_sections: library_sections.clone(),
+        source_sections: source_sections.clone(),
+        collections: clone_array(snapshot.get("collections")),
+        tags: clone_array(snapshot.get("tags")),
+        references: clone_array(snapshot.get("references")),
+        document_reference_selections: snapshot
+            .get("documentReferenceSelections")
+            .filter(|value| value.is_object())
+            .cloned()
+            .unwrap_or_else(|| json!({})),
+        selected_section_key: string_payload_field(&params.state, "selectedSectionKey"),
+        selected_source_key: string_payload_field(&params.state, "selectedSourceKey"),
+        selected_collection_key: string_payload_field(&params.state, "selectedCollectionKey"),
+        selected_tag_key: string_payload_field(&params.state, "selectedTagKey"),
+        sort_key: string_payload_field(&params.state, "sortKey"),
+        preferred_selected_reference_id,
+        file_contents: params.file_contents,
+    })
+    .await?;
+    let query = resolved_query
+        .get("query")
+        .filter(|value| value.is_object())
+        .cloned()
+        .unwrap_or_else(|| json!({}));
+    let selected_reference_id = trim_string(resolved_query.get("selectedReferenceId"))
+        .if_empty_then(|| query_string_field(&query, "selectedReferenceId"));
+
+    Ok(json!({
+        "snapshot": snapshot,
+        "librarySections": library_sections,
+        "sourceSections": source_sections,
+        "collections": clone_array(snapshot.get("collections")),
+        "tags": clone_array(snapshot.get("tags")),
+        "references": clone_array(snapshot.get("references")),
+        "documentReferenceSelections": snapshot.get("documentReferenceSelections").cloned().unwrap_or_else(|| json!({})),
+        "citationStyle": trim_string(snapshot.get("citationStyle")).if_empty_then(|| "apa".to_string()),
+        "selectedSectionKey": query_string_field(&query, "selectedSectionKey"),
+        "selectedSourceKey": query_string_field(&query, "selectedSourceKey"),
+        "selectedCollectionKey": query_string_field(&query, "selectedCollectionKey"),
+        "selectedTagKey": query_string_field(&query, "selectedTagKey"),
+        "sortKey": query_string_field(&query, "sortKey"),
+        "selectedReferenceId": selected_reference_id,
+        "resolvedQueryState": resolved_query,
+    }))
+}
+
 #[tauri::command]
 pub async fn references_library_read_or_create(params: Value) -> Result<Value, String> {
     load_or_create_snapshot(&reference_library_read_params_from_payload(params))
@@ -582,6 +702,11 @@ pub async fn references_snapshot_payload_build(params: Value) -> Result<Value, S
 }
 
 #[tauri::command]
+pub async fn references_store_state_build(params: Value) -> Result<Value, String> {
+    build_reference_store_state(reference_store_state_build_params_from_payload(params)).await
+}
+
+#[tauri::command]
 pub async fn references_record_normalize(
     params: ReferenceRecordNormalizeParams,
 ) -> Result<Value, String> {
@@ -591,14 +716,15 @@ pub async fn references_record_normalize(
 #[cfg(test)]
 mod tests {
     use super::{
-        normalize_reference_record, normalize_snapshot, reference_asset_rename_params_from_payload,
-        reference_asset_store_params_from_payload,
+        build_reference_store_state, normalize_reference_record, normalize_snapshot,
+        reference_asset_rename_params_from_payload, reference_asset_store_params_from_payload,
         reference_library_load_workspace_params_from_payload,
         reference_library_read_params_from_payload, reference_library_write_params_from_payload,
         reference_snapshot_normalize_params_from_payload,
-        reference_snapshot_payload_build_params_from_payload, rename_reference_asset,
+        reference_snapshot_payload_build_params_from_payload,
+        reference_store_state_build_params_from_payload, rename_reference_asset,
         store_reference_asset, write_library_snapshot, ReferenceAssetRenameParams,
-        ReferenceAssetStoreParams,
+        ReferenceAssetStoreParams, ReferenceStoreStateBuildParams,
     };
     use serde_json::{json, Value};
     use std::fs;
@@ -806,6 +932,112 @@ mod tests {
         assert_eq!(
             normalize_snapshot(&invalid_payload_params.state),
             crate::references_snapshot::build_default_snapshot()
+        );
+
+        let state_params = reference_store_state_build_params_from_payload(json!({
+            "snapshot": {
+                "citationStyle": "ieee",
+                "references": [{ "id": "ref-a", "title": "Alpha" }]
+            },
+            "state": {
+                "selectedSectionKey": "missing-pdf",
+                "sortKey": "title-asc"
+            },
+            "preferredSelectedReferenceId": "ref-a",
+            "fileContents": "not-an-object"
+        }));
+        assert_eq!(state_params.snapshot["citationStyle"], "ieee");
+        assert_eq!(
+            state_params.state["selectedSectionKey"].as_str(),
+            Some("missing-pdf")
+        );
+        assert_eq!(state_params.preferred_selected_reference_id, "ref-a");
+        assert_eq!(state_params.file_contents, json!({}));
+
+        let state_params_from_state = reference_store_state_build_params_from_payload(json!({
+            "state": {
+                "citationStyle": "chicago",
+                "references": [{ "id": "ref-b", "title": "Beta" }]
+            }
+        }));
+        assert_eq!(state_params_from_state.snapshot["citationStyle"], "chicago");
+    }
+
+    #[tokio::test]
+    async fn store_state_builder_returns_canonical_defaults_and_query_state() {
+        let built = build_reference_store_state(ReferenceStoreStateBuildParams {
+            snapshot: json!({
+                "citationStyle": "chicago",
+                "collections": [{ "key": "reading", "label": "Reading" }],
+                "tags": [{ "key": "seed", "label": "Seed" }],
+                "references": [
+                    {
+                        "id": "ref-a",
+                        "title": "Alpha",
+                        "year": 2024,
+                        "collections": ["Reading"],
+                        "tags": ["Seed"],
+                        "citationKey": "alpha2024"
+                    },
+                    {
+                        "id": "ref-b",
+                        "title": "Beta",
+                        "year": 2025,
+                        "citationKey": "beta2025",
+                        "pdfPath": "/tmp/beta.pdf"
+                    }
+                ],
+                "documentReferenceSelections": {
+                    "paper.tex": ["ref-a", "missing", "ref-a"]
+                }
+            }),
+            state: json!({
+                "selectedSectionKey": "missing-pdf",
+                "selectedCollectionKey": "reading",
+                "selectedTagKey": "seed",
+                "sortKey": "bad-sort",
+            }),
+            preferred_selected_reference_id: "ref-a".to_string(),
+            file_contents: json!({
+                "paper.tex": "\\cite{alpha2024}"
+            }),
+        })
+        .await
+        .expect("build reference store state");
+
+        assert_eq!(built["citationStyle"].as_str(), Some("chicago"));
+        assert_eq!(built["librarySections"].as_array().map(Vec::len), Some(4));
+        assert_eq!(
+            built["librarySections"][2]["key"].as_str(),
+            Some("missing-identifier")
+        );
+        assert_eq!(built["sourceSections"].as_array().map(Vec::len), Some(2));
+        assert_eq!(built["sourceSections"][0]["key"].as_str(), Some("zotero"));
+        assert_eq!(built["collections"][0]["key"].as_str(), Some("reading"));
+        assert_eq!(built["tags"][0]["key"].as_str(), Some("seed"));
+        assert_eq!(
+            built["documentReferenceSelections"]["paper.tex"],
+            json!(["ref-a"])
+        );
+        assert_eq!(built["selectedSectionKey"].as_str(), Some("missing-pdf"));
+        assert_eq!(built["selectedCollectionKey"].as_str(), Some("reading"));
+        assert_eq!(built["selectedTagKey"].as_str(), Some("seed"));
+        assert_eq!(built["sortKey"].as_str(), Some("year-desc"));
+        assert_eq!(built["selectedReferenceId"].as_str(), Some("ref-a"));
+        assert_eq!(
+            built["resolvedQueryState"]["query"]["selectedReferenceId"].as_str(),
+            Some("ref-a")
+        );
+        assert_eq!(
+            built["resolvedQueryState"]["documentReferenceState"]["byPath"]["paper.tex"]
+                ["referenceIds"],
+            json!(["ref-a"])
+        );
+        assert_eq!(
+            built["resolvedQueryState"]["citationUsageIndex"]["alpha2024"]
+                .as_array()
+                .map(Vec::len),
+            Some(1)
         );
     }
 

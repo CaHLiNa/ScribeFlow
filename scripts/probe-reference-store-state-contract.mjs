@@ -293,21 +293,21 @@ assert.deepEqual(buildReferenceStoreInitialState({
   tags,
   references,
 }), {
-  librarySections: sections,
-  sourceSections: [{ key: 'manual' }],
-  collections,
-  tags,
-  references,
+  librarySections: [],
+  sourceSections: [],
+  collections: [],
+  tags: [],
+  references: [],
   documentReferenceSelections: {},
-  citationStyle: 'apa',
-  selectedSectionKey: 'all',
+  citationStyle: '',
+  selectedSectionKey: '',
   selectedSourceKey: '',
   selectedCollectionKey: '',
   selectedTagKey: '',
-  selectedReferenceId: 'ref-1',
+  selectedReferenceId: '',
   referenceDockPdfOpen: false,
   referenceDockPdfReferenceId: '',
-  sortKey: 'year-desc',
+  sortKey: '',
   resolvedQueryState: null,
   isLoading: false,
   loadError: '',
@@ -322,6 +322,8 @@ assert.deepEqual(buildReferenceStoreInitialState({
 const storeSource = await readFile('src/stores/references.js', 'utf8')
 const domainSource = await readFile('src/domains/references/referenceStoreState.js', 'utf8')
 const libraryIoSource = await readFile('src/services/references/referenceLibraryIO.js', 'utf8')
+const backendSource = await readFile('src-tauri/src/references_backend.rs', 'utf8')
+const libSource = await readFile('src-tauri/src/lib.rs', 'utf8')
 const workspaceLifecycleSource = await readFile('src/app/workspace/useWorkspaceLifecycle.js', 'utf8')
 const actionSource = (actionName) => {
   const pattern = new RegExp(`(?:async\\s+)?${actionName}\\([^)]*\\) \\{[\\s\\S]*?\\n    \\},`)
@@ -348,7 +350,47 @@ assert.doesNotMatch(
 assert.match(
   storeSource,
   /buildReferenceStoreInitialState/,
-  'references store must delegate initial state assembly',
+  'references store must build only the synchronous UI shell through the reference domain',
+)
+assert.match(
+  storeSource,
+  /buildReferenceStoreStateWithBackend/,
+  'references store must delegate canonical initial/apply state assembly to the Rust bridge service',
+)
+assert.match(
+  storeSource,
+  /async buildStoreStateWithBackend\(/,
+  'references store must expose a Rust-backed state builder action',
+)
+assert.match(
+  storeSource,
+  /async hydrateStoreState\(\)[\s\S]*await this\.buildStoreStateWithBackend\(\{\}\)/,
+  'references store must hydrate canonical defaults through the Rust-backed state builder',
+)
+assert.match(
+  workspaceLifecycleSource,
+  /referencesStore\.hydrateStoreState\(\)/,
+  'app startup must hydrate reference canonical defaults through Rust before workspace open',
+)
+assert.doesNotMatch(
+  storeSource,
+  /referenceLibraryFixtures|REFERENCE_LIBRARY_SECTIONS|REFERENCE_SOURCE_SECTIONS|REFERENCE_FIXTURES|REFERENCE_COLLECTIONS|REFERENCE_TAGS/,
+  'references store must not import JS fixture/default library authority',
+)
+assert.match(
+  libraryIoSource,
+  /references_store_state_build/,
+  'reference library IO bridge must expose the Rust-backed store state builder command',
+)
+assert.match(
+  backendSource,
+  /references_store_state_build/,
+  'Rust backend must expose the store state builder command',
+)
+assert.match(
+  libSource,
+  /references_backend::references_store_state_build/,
+  'Tauri invoke handler must register the store state builder command',
 )
 assert.doesNotMatch(
   storeSource,
@@ -435,13 +477,13 @@ assert.match(
 )
 assert.match(
   actionSource('applyLibrarySnapshot'),
-  /normalizeReferenceLibrarySnapshotWithBackend\(snapshot\)/,
-  'applyLibrarySnapshot must delegate snapshot normalization to Rust when applying raw snapshots',
+  /buildStoreStateWithBackend\(snapshot,/,
+  'applyLibrarySnapshot must delegate snapshot normalization and query hydration to Rust state assembly',
 )
 assert.match(
   actionSource('applyLibrarySnapshot'),
-  /await this\.refreshResolvedQueryState\(\)/,
-  'applyLibrarySnapshot must hydrate selection and filters through Rust query normalization',
+  /applyBuiltStoreState\(builtState\)/,
+  'applyLibrarySnapshot must apply the Rust-built canonical store state',
 )
 assert.match(
   actionSource('applyLibrarySnapshot'),
@@ -495,8 +537,8 @@ assert.match(
 )
 assert.match(
   storeSource,
-  /normalizeReferenceLibrarySnapshotWithBackend/,
-  'references store must delegate document-reference selection shape fallback to Rust snapshot normalization',
+  /buildReferenceStoreStateWithBackend/,
+  'references store must delegate document-reference selection shape fallback to Rust store state assembly',
 )
 assert.match(
   storeSource,

@@ -193,27 +193,23 @@ export function resolveReferenceResolvedQueryState(resolved = null, fallbackStat
     : (fallbackState?.resolvedQueryState || null)
 }
 
-export function buildReferenceStoreInitialState(defaults = {}) {
+export function buildReferenceStoreInitialState() {
   return {
-    librarySections: Array.isArray(defaults.librarySections) ? defaults.librarySections : [],
-    sourceSections: Array.isArray(defaults.sourceSections) ? defaults.sourceSections : [],
-    collections: Array.isArray(defaults.collections) ? defaults.collections : [],
-    tags: Array.isArray(defaults.tags) ? defaults.tags : [],
-    references: Array.isArray(defaults.references) ? defaults.references : [],
-    documentReferenceSelections: defaults.documentReferenceSelections &&
-      typeof defaults.documentReferenceSelections === 'object' &&
-      !Array.isArray(defaults.documentReferenceSelections)
-      ? defaults.documentReferenceSelections
-      : {},
-    citationStyle: String(defaults.citationStyle || 'apa'),
-    selectedSectionKey: String(defaults.selectedSectionKey || 'all'),
-    selectedSourceKey: String(defaults.selectedSourceKey || ''),
-    selectedCollectionKey: String(defaults.selectedCollectionKey || ''),
-    selectedTagKey: String(defaults.selectedTagKey || ''),
-    selectedReferenceId: String(defaults.selectedReferenceId ?? defaults.references?.[0]?.id ?? ''),
+    librarySections: [],
+    sourceSections: [],
+    collections: [],
+    tags: [],
+    references: [],
+    documentReferenceSelections: {},
+    citationStyle: '',
+    selectedSectionKey: '',
+    selectedSourceKey: '',
+    selectedCollectionKey: '',
+    selectedTagKey: '',
+    selectedReferenceId: '',
     referenceDockPdfOpen: false,
     referenceDockPdfReferenceId: '',
-    sortKey: String(defaults.sortKey || 'year-desc'),
+    sortKey: '',
     resolvedQueryState: null,
     isLoading: false,
     loadError: '',

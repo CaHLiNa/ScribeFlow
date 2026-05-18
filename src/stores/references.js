@@ -17,14 +17,8 @@ import {
   storeReferencePdf,
 } from '../services/references/referenceAssets.js'
 import {
-  REFERENCE_COLLECTIONS,
-  REFERENCE_FIXTURES,
-  REFERENCE_LIBRARY_SECTIONS,
-  REFERENCE_SOURCE_SECTIONS,
-  REFERENCE_TAGS,
-} from '../services/references/referenceLibraryFixtures.js'
-import {
   buildReferenceLibrarySnapshotPayloadWithBackend,
+  buildReferenceStoreStateWithBackend,
   normalizeReferenceLibrarySnapshotWithBackend,
   readOrCreateReferenceLibrarySnapshot,
   writeReferenceLibrarySnapshot,
@@ -78,15 +72,6 @@ import {
 } from '../domains/references/referenceStoreState.js'
 import { classifyZoteroSyncError } from '../domains/references/zoteroSyncPresentation.js'
 
-const REFERENCE_STORE_DEFAULTS = {
-  librarySections: REFERENCE_LIBRARY_SECTIONS,
-  sourceSections: REFERENCE_SOURCE_SECTIONS,
-  collections: REFERENCE_COLLECTIONS,
-  tags: REFERENCE_TAGS,
-  references: REFERENCE_FIXTURES,
-  selectedReferenceId: REFERENCE_FIXTURES[0]?.id || '',
-}
-
 async function resolveReferenceStorageRoot(projectRoot = '') {
   const normalizedRoot = String(projectRoot || '').trim()
   if (normalizedRoot) return normalizedRoot
@@ -125,7 +110,7 @@ async function commitImportedReferences(store, projectRoot = '', importedReferen
 }
 
 export const useReferencesStore = defineStore('references', {
-  state: () => buildReferenceStoreInitialState(REFERENCE_STORE_DEFAULTS),
+  state: () => buildReferenceStoreInitialState(),
 
   getters: {
     sectionCounts: (state) => state.resolvedQueryState?.sectionCounts || {},
@@ -195,6 +180,42 @@ export const useReferencesStore = defineStore('references', {
       return nextSnapshot
     },
 
+    async buildStoreStateWithBackend(snapshot = {}, options = {}) {
+      const pinia = getActivePinia()
+      const fileContents = pinia?.state?.value?.files?.fileContents || {}
+      return buildReferenceStoreStateWithBackend({
+        snapshot,
+        state: this.$state,
+        preferredSelectedReferenceId: options.preferredSelectedReferenceId || '',
+        fileContents,
+      })
+    },
+
+    applyBuiltStoreState(builtState = {}) {
+      this.librarySections = builtState?.librarySections || []
+      this.sourceSections = builtState?.sourceSections || []
+      this.collections = builtState?.collections || []
+      this.tags = builtState?.tags || []
+      this.references = builtState?.references || []
+      this.documentReferenceSelections = builtState?.documentReferenceSelections || {}
+      this.citationStyle = builtState?.citationStyle || ''
+      this.selectedSectionKey = builtState?.selectedSectionKey || ''
+      this.selectedSourceKey = builtState?.selectedSourceKey || ''
+      this.selectedCollectionKey = builtState?.selectedCollectionKey || ''
+      this.selectedTagKey = builtState?.selectedTagKey || ''
+      this.sortKey = builtState?.sortKey || ''
+      this.selectedReferenceId = builtState?.selectedReferenceId || ''
+      this.resolvedQueryState = resolveReferenceResolvedQueryState(
+        builtState?.resolvedQueryState,
+        this.$state,
+      )
+    },
+
+    async hydrateStoreState() {
+      const builtState = await this.buildStoreStateWithBackend({})
+      this.applyBuiltStoreState(builtState)
+    },
+
     async refreshResolvedQueryState() {
       const pinia = getActivePinia()
       const fileContents = pinia?.state?.value?.files?.fileContents || {}
@@ -234,21 +255,12 @@ export const useReferencesStore = defineStore('references', {
 
     async applyLibrarySnapshot(snapshot = {}, options = {}) {
       const {
-        normalized = false,
         preferredSelectedReferenceId = null,
       } = options
-      const normalizedSnapshot = normalized
-        ? snapshot
-        : await normalizeReferenceLibrarySnapshotWithBackend(snapshot)
-      this.collections = normalizedSnapshot?.collections || []
-      this.tags = normalizedSnapshot?.tags || []
-      this.references = normalizedSnapshot?.references || []
-      this.documentReferenceSelections = normalizedSnapshot?.documentReferenceSelections || {}
-      this.citationStyle = normalizedSnapshot?.citationStyle || 'apa'
-      if (preferredSelectedReferenceId !== null && preferredSelectedReferenceId !== undefined) {
-        this.selectedReferenceId = String(preferredSelectedReferenceId || '')
-      }
-      await this.refreshResolvedQueryState()
+      const builtState = await this.buildStoreStateWithBackend(snapshot, {
+        preferredSelectedReferenceId,
+      })
+      this.applyBuiltStoreState(builtState)
       const dockPdfState = buildReferenceDockPdfSnapshotState({
         ...this.$state,
         referenceDockActivePage: useWorkspaceStore().referenceDockActivePage,

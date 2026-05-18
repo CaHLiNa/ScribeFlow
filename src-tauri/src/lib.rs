@@ -254,6 +254,7 @@ pub fn run() {
             references_backend::references_library_write,
             references_backend::references_snapshot_normalize,
             references_backend::references_snapshot_payload_build,
+            references_backend::references_store_state_build,
             references_backend::references_record_normalize,
             references_backend::references_asset_store,
             references_backend::references_asset_rename,

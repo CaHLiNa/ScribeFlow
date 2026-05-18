@@ -16,6 +16,12 @@ export async function buildReferenceLibrarySnapshotPayloadWithBackend(state = {}
   })
 }
 
+export async function buildReferenceStoreStateWithBackend(params = {}) {
+  return invoke('references_store_state_build', {
+    params,
+  })
+}
+
 export async function readOrCreateReferenceLibrarySnapshot(globalConfigDir = '') {
   return invoke('references_library_load_workspace', {
     params: {
