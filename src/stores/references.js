@@ -77,6 +77,42 @@ function resolveReferenceWorkspacePath() {
   return String(workspace.projectDir || workspace.path || '').trim()
 }
 
+async function commitImportedReferences(store, projectRoot = '', importedReferences = []) {
+  if (!Array.isArray(importedReferences) || importedReferences.length === 0) {
+    return {
+      importedCount: 0,
+      selectedReferenceId: '',
+      selectedReference: null,
+      reusedExisting: false,
+    }
+  }
+
+  const mutation = await applyReferenceMutation({
+    snapshot: store.buildLibrarySnapshotPayload(),
+    action: {
+      type: 'mergeImportedReferences',
+      imported: importedReferences,
+      markForZoteroPush: true,
+    },
+  })
+  const selectedReferenceId = String(mutation?.result?.selectedReferenceId || '')
+  await store.commitLibrarySnapshot(
+    projectRoot,
+    mutation?.snapshot || store.buildLibrarySnapshotPayload(),
+    { preferredSelectedReferenceId: selectedReferenceId }
+  )
+  const selectedReference = selectedReferenceId
+    ? store.references.find((reference) => reference.id === selectedReferenceId) || null
+    : null
+
+  return {
+    importedCount: Number(mutation?.result?.importedCount || 0),
+    selectedReferenceId,
+    selectedReference,
+    reusedExisting: mutation?.result?.reusedExisting === true,
+  }
+}
+
 export const useReferencesStore = defineStore('references', {
   state: () => ({
     librarySections: REFERENCE_LIBRARY_SECTIONS,
@@ -372,29 +408,7 @@ export const useReferencesStore = defineStore('references', {
       }
       this.importInFlight = true
       try {
-        const mutation = await applyReferenceMutation({
-          snapshot: this.buildLibrarySnapshotPayload(),
-          action: {
-            type: 'mergeImportedReferences',
-            imported: importedReferences,
-            markForZoteroPush: true,
-          },
-        })
-        const selectedReferenceId = String(mutation?.result?.selectedReferenceId || '')
-        await this.commitLibrarySnapshot(
-          projectRoot,
-          mutation?.snapshot || this.buildLibrarySnapshotPayload(),
-          { preferredSelectedReferenceId: selectedReferenceId }
-        )
-        const selectedReference = selectedReferenceId
-          ? this.references.find((reference) => reference.id === selectedReferenceId) || null
-          : null
-        return {
-          importedCount: Number(mutation?.result?.importedCount || 0),
-          selectedReferenceId,
-          selectedReference,
-          reusedExisting: mutation?.result?.reusedExisting === true,
-        }
+        return commitImportedReferences(this, projectRoot, importedReferences)
       } finally {
         this.importInFlight = false
       }
@@ -413,29 +427,7 @@ export const useReferencesStore = defineStore('references', {
           }
         }
 
-        const mutation = await applyReferenceMutation({
-          snapshot: this.buildLibrarySnapshotPayload(),
-          action: {
-            type: 'mergeImportedReferences',
-            imported: importedReferences,
-            markForZoteroPush: true,
-          },
-        })
-        const selectedReferenceId = String(mutation?.result?.selectedReferenceId || '')
-        await this.commitLibrarySnapshot(
-          projectRoot,
-          mutation?.snapshot || this.buildLibrarySnapshotPayload(),
-          { preferredSelectedReferenceId: selectedReferenceId }
-        )
-        const selectedReference = selectedReferenceId
-          ? this.references.find((reference) => reference.id === selectedReferenceId) || null
-          : null
-        return {
-          importedCount: Number(mutation?.result?.importedCount || 0),
-          selectedReferenceId,
-          selectedReference,
-          reusedExisting: mutation?.result?.reusedExisting === true,
-        }
+        return commitImportedReferences(this, projectRoot, importedReferences)
       } finally {
         this.importInFlight = false
       }
