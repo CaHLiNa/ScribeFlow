@@ -56,7 +56,10 @@ import {
   REFERENCE_DOCK_PDF_PAGE,
 } from '../domains/references/referenceDockPages.js'
 import {
+  buildAddDocumentReferenceMutationState,
   buildDefaultResolvedQueryState,
+  buildDocumentReferenceIdsMutationState,
+  buildRemoveDocumentReferenceMutationState,
   buildReferenceCollectionSelectionState,
   hasReferenceById,
   isReferenceSelectedForDocument,
@@ -612,14 +615,14 @@ export const useReferencesStore = defineStore('references', {
     },
 
     async setDocumentReferenceIds(projectRoot = '', texPath = '', referenceIds = []) {
-      const normalizedTexPath = String(texPath || '').trim()
-      if (!normalizedTexPath) return false
+      const nextState = buildDocumentReferenceIdsMutationState(texPath, referenceIds)
+      if (!nextState.canMutate) return false
       const mutation = await applyReferenceMutation({
         snapshot: this.buildLibrarySnapshotPayload(),
         action: {
           type: 'setDocumentReferenceIds',
-          texPath: normalizedTexPath,
-          referenceIds: Array.isArray(referenceIds) ? referenceIds : [],
+          texPath: nextState.texPath,
+          referenceIds: nextState.referenceIds,
         },
       })
       await commitReferenceMutationSnapshot(this, projectRoot, mutation, {
@@ -629,25 +632,24 @@ export const useReferencesStore = defineStore('references', {
     },
 
     async addDocumentReference(projectRoot = '', texPath = '', referenceId = '') {
-      const normalizedReferenceId = String(referenceId || '').trim()
-      if (!hasReferenceById(this.references, normalizedReferenceId)) {
-        return false
-      }
-      const ids = this.getDocumentReferenceIds(texPath)
-      if (ids.includes(normalizedReferenceId)) return false
-      return this.setDocumentReferenceIds(projectRoot, texPath, [...ids, normalizedReferenceId])
+      const nextState = buildAddDocumentReferenceMutationState(
+        this.documentReferenceSelections,
+        this.references,
+        texPath,
+        referenceId
+      )
+      if (!nextState.canMutate) return false
+      return this.setDocumentReferenceIds(projectRoot, nextState.texPath, nextState.referenceIds)
     },
 
     async removeDocumentReference(projectRoot = '', texPath = '', referenceId = '') {
-      const normalizedReferenceId = String(referenceId || '').trim()
-      if (!normalizedReferenceId) return false
-      const ids = this.getDocumentReferenceIds(texPath)
-      if (!ids.includes(normalizedReferenceId)) return false
-      return this.setDocumentReferenceIds(
-        projectRoot,
+      const nextState = buildRemoveDocumentReferenceMutationState(
+        this.documentReferenceSelections,
         texPath,
-        ids.filter((id) => id !== normalizedReferenceId)
+        referenceId
       )
+      if (!nextState.canMutate) return false
+      return this.setDocumentReferenceIds(projectRoot, nextState.texPath, nextState.referenceIds)
     },
 
     searchRefs(query = '') {

@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import {
+  buildAddDocumentReferenceMutationState,
   buildDefaultResolvedQueryState,
+  buildDocumentReferenceIdsMutationState,
+  buildRemoveDocumentReferenceMutationState,
   buildReferenceCollectionSelectionState,
   buildReferenceQuerySelectionState,
   buildReferenceSectionSelectionState,
@@ -128,6 +131,59 @@ assert.deepEqual(resolveAvailableDocumentReferences(documentReferenceSelections,
 assert.deepEqual(resolveAvailableDocumentReferences(documentReferenceSelections, references, 'paper.tex', 'unused'), [
   references[2],
 ])
+assert.deepEqual(buildDocumentReferenceIdsMutationState(' paper.tex ', ['ref-1']), {
+  canMutate: true,
+  texPath: 'paper.tex',
+  referenceIds: ['ref-1'],
+})
+assert.deepEqual(buildDocumentReferenceIdsMutationState('', ['ref-1']), {
+  canMutate: false,
+  texPath: '',
+  referenceIds: ['ref-1'],
+})
+assert.deepEqual(buildDocumentReferenceIdsMutationState('paper.tex', 'not-array'), {
+  canMutate: true,
+  texPath: 'paper.tex',
+  referenceIds: [],
+})
+assert.deepEqual(buildAddDocumentReferenceMutationState(
+  documentReferenceSelections,
+  references,
+  'paper.tex',
+  ' ref-3 ',
+), {
+  canMutate: true,
+  texPath: 'paper.tex',
+  referenceIds: ['ref-1', 'ref-2', 'ref-3'],
+  referenceId: 'ref-3',
+})
+assert.equal(buildAddDocumentReferenceMutationState(
+  documentReferenceSelections,
+  references,
+  'paper.tex',
+  'ref-2',
+).canMutate, false)
+assert.equal(buildAddDocumentReferenceMutationState(
+  documentReferenceSelections,
+  references,
+  'paper.tex',
+  'missing',
+).canMutate, false)
+assert.deepEqual(buildRemoveDocumentReferenceMutationState(
+  documentReferenceSelections,
+  'paper.tex',
+  ' ref-2 ',
+), {
+  canMutate: true,
+  texPath: 'paper.tex',
+  referenceIds: ['ref-1'],
+  referenceId: 'ref-2',
+})
+assert.equal(buildRemoveDocumentReferenceMutationState(
+  documentReferenceSelections,
+  'paper.tex',
+  'missing',
+).canMutate, false)
 assert.deepEqual(buildDefaultResolvedQueryState({
   references,
   selectedSectionKey: 'recent',
@@ -395,6 +451,21 @@ assert.match(
 )
 assert.match(
   storeSource,
+  /buildDocumentReferenceIdsMutationState/,
+  'references store must delegate document-reference set mutation state',
+)
+assert.match(
+  storeSource,
+  /buildAddDocumentReferenceMutationState/,
+  'references store must delegate document-reference add mutation state',
+)
+assert.match(
+  storeSource,
+  /buildRemoveDocumentReferenceMutationState/,
+  'references store must delegate document-reference remove mutation state',
+)
+assert.match(
+  storeSource,
   /resolveDocumentReferences/,
   'references store must delegate selected document-reference resolution',
 )
@@ -465,6 +536,13 @@ assert.doesNotMatch(
   /const normalizedReferenceId = String\(referenceId \|\| ''\)\.trim\(\)/,
   'selectReference must not inline selected-reference id validation',
 )
+for (const actionName of ['setDocumentReferenceIds', 'addDocumentReference', 'removeDocumentReference']) {
+  assert.doesNotMatch(
+    actionSource(actionName),
+    /String\(texPath \|\| ''\)\.trim\(\)|String\(referenceId \|\| ''\)\.trim\(\)|ids\.includes|ids\.filter\(\(id\) => id !==/,
+    `${actionName} must not inline document-reference mutation derivation`,
+  )
+}
 assert.match(
   storeSource,
   /async function resolveReferenceStorageRoot/,
@@ -476,6 +554,7 @@ console.log(JSON.stringify({
   summary: {
     collectionAndTagMatchingDerived: true,
     documentSelectionFallbackDerived: true,
+    documentReferenceMutationDerived: true,
     documentReferenceLookupDerived: true,
     referenceSearchDerived: true,
     exportSelectionDerived: true,
