@@ -9,7 +9,10 @@ import {
   buildReferenceImportMutationResultState,
   buildReferenceAddMutationResultState,
   buildReferenceCollectionMutationResultState,
+  buildReferenceDocumentIdsMutationResultState,
   buildReferencePdfImportTargetState,
+  buildReferenceRemoveCollectionMutationResultState,
+  buildReferenceToggleCollectionMutationResultState,
   buildReferenceZoteroSyncResultState,
   resolveReferenceCitationStyleId,
   resolveReferenceWorkspaceCitationStyles,
@@ -240,6 +243,52 @@ assert.deepEqual(buildReferenceCollectionMutationResultState({
 }), {
   changed: false,
   collection: null,
+})
+assert.deepEqual(buildReferenceRemoveCollectionMutationResultState({
+  result: {
+    removed: true,
+  },
+}), {
+  removed: true,
+})
+assert.deepEqual(buildReferenceRemoveCollectionMutationResultState({
+  result: {
+    removed: 'yes',
+  },
+}), {
+  removed: false,
+})
+assert.deepEqual(buildReferenceDocumentIdsMutationResultState({
+  result: {
+    changed: true,
+  },
+}), {
+  changed: true,
+})
+assert.deepEqual(buildReferenceDocumentIdsMutationResultState({
+  result: {
+    changed: 1,
+  },
+}), {
+  changed: false,
+})
+assert.deepEqual(buildReferenceToggleCollectionMutationResultState({
+  result: {
+    changed: true,
+    toggledOn: true,
+  },
+}), {
+  changed: true,
+  toggledOn: true,
+})
+assert.deepEqual(buildReferenceToggleCollectionMutationResultState({
+  result: {
+    changed: false,
+    toggledOn: 'yes',
+  },
+}), {
+  changed: false,
+  toggledOn: false,
 })
 assert.equal(resolveReferenceCitationStyleId(' ieee ', true), 'ieee')
 assert.equal(resolveReferenceCitationStyleId(' ieee ', false), 'apa')
@@ -999,6 +1048,21 @@ assert.match(
 )
 assert.match(
   storeSource,
+  /buildReferenceRemoveCollectionMutationResultState/,
+  'references store must delegate remove-collection mutation result state mapping',
+)
+assert.match(
+  storeSource,
+  /buildReferenceDocumentIdsMutationResultState/,
+  'references store must delegate document-reference id mutation result state mapping',
+)
+assert.match(
+  storeSource,
+  /buildReferenceToggleCollectionMutationResultState/,
+  'references store must delegate reference collection toggle result state mapping',
+)
+assert.match(
+  storeSource,
   /buildReferenceZoteroSyncResultState/,
   'references store must delegate Zotero sync result state mapping',
 )
@@ -1044,6 +1108,21 @@ for (const actionName of ['createCollection', 'renameCollection']) {
     `${actionName} must not inline collection mutation result state mapping`,
   )
 }
+assert.doesNotMatch(
+  actionSource('removeCollection'),
+  /mutation\?\.result\?\.removed/,
+  'removeCollection must not inline remove-collection mutation result state mapping',
+)
+assert.doesNotMatch(
+  actionSource('setDocumentReferenceIds'),
+  /mutation\?\.result\?\.changed/,
+  'setDocumentReferenceIds must not inline document-reference id mutation result state mapping',
+)
+assert.doesNotMatch(
+  actionSource('toggleReferenceCollection'),
+  /mutation\?\.result\?\.changed|mutation\?\.result\?\.toggledOn/,
+  'toggleReferenceCollection must not inline reference collection toggle result state mapping',
+)
 assert.doesNotMatch(
   actionSource('syncZoteroNow'),
   /result\?\.skipped === true|Number\(result\?\.(?:imported|linked|updated) \|\| 0\)|this\.zoteroSyncStatus = 'synced'|this\.zoteroSyncStatus = 'disconnected'/,
@@ -1109,6 +1188,9 @@ console.log(JSON.stringify({
     addReferenceResultStateDerived: true,
     pdfImportTargetStateDerived: true,
     collectionMutationResultStateDerived: true,
+    removeCollectionResultStateDerived: true,
+    documentIdsMutationResultStateDerived: true,
+    toggleCollectionResultStateDerived: true,
     citationStyleStateDerived: true,
     zoteroSyncResultStateDerived: true,
     defaultQueryStateDerived: true,

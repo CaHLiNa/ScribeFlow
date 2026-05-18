@@ -63,7 +63,10 @@ import {
   buildReferenceImportMutationResultState,
   buildReferenceAddMutationResultState,
   buildReferenceCollectionMutationResultState,
+  buildReferenceDocumentIdsMutationResultState,
   buildReferencePdfImportTargetState,
+  buildReferenceRemoveCollectionMutationResultState,
+  buildReferenceToggleCollectionMutationResultState,
   buildReferenceZoteroSyncResultState,
   resolveReferenceCitationStyleId,
   resolveReferenceWorkspaceCitationStyles,
@@ -424,7 +427,8 @@ export const useReferencesStore = defineStore('references', {
           collectionKey,
         },
       })
-      if (mutation?.result?.removed !== true) return false
+      const resultState = buildReferenceRemoveCollectionMutationResultState(mutation)
+      if (!resultState.removed) return false
 
       await commitReferenceMutationSnapshot(this, projectRoot, mutation, {
         preferredSelectedReferenceId: this.selectedReferenceId,
@@ -561,7 +565,7 @@ export const useReferencesStore = defineStore('references', {
       await commitReferenceMutationSnapshot(this, projectRoot, mutation, {
         preferredSelectedReferenceId: this.selectedReferenceId,
       })
-      return mutation?.result?.changed === true
+      return buildReferenceDocumentIdsMutationResultState(mutation).changed
     },
 
     async addDocumentReference(projectRoot = '', texPath = '', referenceId = '') {
@@ -687,12 +691,13 @@ export const useReferencesStore = defineStore('references', {
           collectionKey,
         },
       })
-      if (mutation?.result?.changed !== true) return false
+      const resultState = buildReferenceToggleCollectionMutationResultState(mutation)
+      if (!resultState.changed) return false
 
       await commitReferenceMutationSnapshot(this, projectRoot, mutation, {
         preferredSelectedReferenceId: this.selectedReferenceId,
       })
-      return mutation?.result?.toggledOn === true
+      return resultState.toggledOn
     },
 
     async attachReferencePdf(projectRoot = '', referenceId = '', sourcePath = '') {

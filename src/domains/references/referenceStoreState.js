@@ -170,6 +170,25 @@ export function buildReferenceCollectionMutationResultState(mutation = {}) {
   }
 }
 
+export function buildReferenceRemoveCollectionMutationResultState(mutation = {}) {
+  return {
+    removed: mutation?.result?.removed === true,
+  }
+}
+
+export function buildReferenceDocumentIdsMutationResultState(mutation = {}) {
+  return {
+    changed: mutation?.result?.changed === true,
+  }
+}
+
+export function buildReferenceToggleCollectionMutationResultState(mutation = {}) {
+  return {
+    changed: mutation?.result?.changed === true,
+    toggledOn: mutation?.result?.toggledOn === true,
+  }
+}
+
 export function buildReferenceZoteroSyncResultState(result = {}, options = {}) {
   const counts = {
     imported: Number(result?.imported || 0),
