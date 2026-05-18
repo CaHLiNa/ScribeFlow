@@ -120,22 +120,6 @@ export function resolveReferenceCitationUsageKeys(citationUsageIndex = {}) {
   return new Set(Object.keys(citationUsageIndex))
 }
 
-export function resolveReferencesForExport(references = [], referenceIds = []) {
-  const referenceList = Array.isArray(references) ? references : []
-  if (!Array.isArray(referenceIds) || referenceIds.length === 0) return referenceList
-  return referenceIds
-    .map((referenceId) => resolveReferenceById(referenceList, referenceId))
-    .filter(Boolean)
-}
-
-export function buildReferenceJsonExportTargetState(references = [], referenceId = '') {
-  const reference = resolveReferenceById(references, referenceId)
-  return {
-    canExport: Boolean(reference),
-    reference,
-  }
-}
-
 export function buildReferenceEmptyImportResult() {
   return {
     importedCount: 0,

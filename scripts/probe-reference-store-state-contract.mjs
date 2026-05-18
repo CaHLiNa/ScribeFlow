@@ -6,7 +6,6 @@ import {
   buildDocumentReferenceIdsMutationState,
   buildReferenceEmptyImportResult,
   buildReferenceImportInputState,
-  buildReferenceJsonExportTargetState,
   buildReferenceMetadataRefreshTargetState,
   buildReferencePdfAssetResultState,
   buildReferencePdfAssetTargetState,
@@ -50,7 +49,6 @@ import {
   resolveReferenceResolvedQueryState,
   resolveReferenceSelectionId,
   resolveReferenceSectionKey,
-  resolveReferencesForExport,
   resolveSelectedReference,
   resolveTag,
   searchReferences,
@@ -144,20 +142,6 @@ assert.deepEqual([...resolveReferenceCitationUsageKeys({
 })], ['lovelace2024', 'hopper2025'])
 assert.deepEqual([...resolveReferenceCitationUsageKeys(null)], [])
 assert.deepEqual([...resolveReferenceCitationUsageKeys(['lovelace2024'])], [])
-assert.deepEqual(resolveReferencesForExport(references, []), references)
-assert.deepEqual(resolveReferencesForExport(references, ['ref-3', 'missing', 'ref-1']), [
-  references[2],
-  references[0],
-])
-assert.deepEqual(resolveReferencesForExport('not-array', ['ref-1']), [])
-assert.deepEqual(buildReferenceJsonExportTargetState(references, ' ref-2 '), {
-  canExport: true,
-  reference: references[1],
-})
-assert.deepEqual(buildReferenceJsonExportTargetState(references, 'missing'), {
-  canExport: false,
-  reference: null,
-})
 assert.deepEqual(buildReferenceEmptyImportResult(), {
   importedCount: 0,
   selectedReferenceId: '',
@@ -944,15 +928,20 @@ assert.match(
   /resolveTag/,
   'references store must delegate tag matching',
 )
-assert.match(
-  storeSource,
-  /resolveReferencesForExport/,
-  'references store must delegate export reference-list resolution',
+assert.doesNotMatch(
+  domainSource,
+  /resolveReferencesForExport|buildReferenceJsonExportTargetState/,
+  'referenceStoreState must not retain migrated export target helpers',
 )
 assert.match(
   storeSource,
-  /buildReferenceJsonExportTargetState/,
-  'references store must delegate JSON export target state mapping',
+  /exportReferencesToBibTeX\(this\.references, referenceIds\)/,
+  'references store must delegate BibTeX export target resolution to Rust',
+)
+assert.match(
+  storeSource,
+  /writeReferenceJsonExport\(filePath, this\.references, referenceId\)/,
+  'references store must delegate JSON export target resolution to Rust',
 )
 assert.match(
   storeSource,
@@ -1102,7 +1091,7 @@ assert.match(
 )
 assert.doesNotMatch(
   storeSource,
-  /function normalizeCollectionMembershipValue|function normalizeTagKey|function resolveCollection|function resolveDocumentReferenceSelections|function buildDefaultResolvedQueryState|version:\s*2|citationStyle:\s*'apa'|documentReferenceSelections:\s*\{\}|Array\.isArray\(normalized\.(?:collections|tags|references)\)|Array\.isArray\(importedReferences\)|Array\.isArray\(referenceStyles\)|Array\.isArray\(styles\)|Array\.isArray\(importedSnapshot\?\.references\)|String\(normalized\.citationStyle \|\| 'apa'\)|const selectedIds = new Set\(this\.getDocumentReferenceIds|const normalizedQuery = String\(query \|\| ''\)\.trim\(\)\.toLowerCase\(\)|haystack\.includes\(normalizedQuery\)|referenceIds\s*\.map\(\(referenceId\) => this\.references\.find|this\.references\.some\(\(reference\) => reference\.id|this\.(?:librarySections|sourceSections)\.some\(\(section\) => section\.key|resolveReferenceSectionKey|\[\s*'year-desc'[\s\S]*'author-desc'[\s\S]*\]\.includes\(value\)|const query = this\.resolvedQueryState\?\.query|query\.selectedReferenceId|query\.selectedSectionKey|const normalized = normalizeTagKey\(tagKey\)|this\.sortKey = normalizeReferenceSortKey\(value\)|resolveReferenceById\(state\.references|this\.filteredReferences\[0\]|new Set\(Object\.keys\(this\.citedIn\)\)|buildReferenceImportMutationResultState\(this\.references|buildReferenceAddMutationResultState\(this\.references|buildReferenceImportMutationCommitState\(mutation\)|Number\(result\?\.imported \|\| 0\)|Number\(result\?\.linked \|\| 0\)|Number\(result\?\.updated \|\| 0\)/,
+  /function normalizeCollectionMembershipValue|function normalizeTagKey|function resolveCollection|function resolveDocumentReferenceSelections|function buildDefaultResolvedQueryState|version:\s*2|citationStyle:\s*'apa'|documentReferenceSelections:\s*\{\}|Array\.isArray\(normalized\.(?:collections|tags|references)\)|Array\.isArray\(importedReferences\)|Array\.isArray\(referenceStyles\)|Array\.isArray\(styles\)|Array\.isArray\(importedSnapshot\?\.references\)|String\(normalized\.citationStyle \|\| 'apa'\)|const selectedIds = new Set\(this\.getDocumentReferenceIds|const normalizedQuery = String\(query \|\| ''\)\.trim\(\)\.toLowerCase\(\)|haystack\.includes\(normalizedQuery\)|referenceIds\s*\.map\(\(referenceId\) => this\.references\.find|this\.references\.some\(\(reference\) => reference\.id|this\.(?:librarySections|sourceSections)\.some\(\(section\) => section\.key|resolveReferenceSectionKey|\[\s*'year-desc'[\s\S]*'author-desc'[\s\S]*\]\.includes\(value\)|const query = this\.resolvedQueryState\?\.query|query\.selectedReferenceId|query\.selectedSectionKey|const normalized = normalizeTagKey\(tagKey\)|this\.sortKey = normalizeReferenceSortKey\(value\)|resolveReferenceById\(state\.references|this\.filteredReferences\[0\]|new Set\(Object\.keys\(this\.citedIn\)\)|buildReferenceImportMutationResultState\(this\.references|buildReferenceAddMutationResultState\(this\.references|buildReferenceImportMutationCommitState\(mutation\)|Number\(result\?\.imported \|\| 0\)|Number\(result\?\.linked \|\| 0\)|Number\(result\?\.updated \|\| 0\)|resolveReferencesForExport\(this\.references|buildReferenceJsonExportTargetState\(this\.references/,
   'references store must not redefine deterministic state helpers inline',
 )
 assert.doesNotMatch(
@@ -1209,8 +1198,7 @@ console.log(JSON.stringify({
     documentReferenceLookupDerived: true,
     citationUsageKeysDerived: true,
     referenceSearchDerived: true,
-    exportSelectionDerived: true,
-    jsonExportTargetStateDerived: true,
+    rustExportTargetResolution: true,
     citationFormatTargetStateDerived: true,
     rustImportOutcomeConsumed: true,
     rustImportPreferredSelectionConsumed: true,

@@ -60,7 +60,6 @@ import {
   buildDocumentReferenceIdsMutationState,
   buildReferenceEmptyImportResult,
   buildReferenceImportInputState,
-  buildReferenceJsonExportTargetState,
   buildReferenceMetadataRefreshTargetState,
   buildReferencePdfAssetResultState,
   buildReferencePdfAssetTargetState,
@@ -95,7 +94,6 @@ import {
   buildReferenceSortSelectionState,
   buildReferenceSourceSelectionState,
   buildReferenceTagSelectionState,
-  resolveReferencesForExport,
   resolveTag,
   buildReferenceQuerySelectionState,
   searchReferences,
@@ -785,23 +783,22 @@ export const useReferencesStore = defineStore('references', {
     },
 
     async exportBibTeXAsync(referenceIds = []) {
-      const references = resolveReferencesForExport(this.references, referenceIds)
-      return exportReferencesToBibTeX(references)
+      return exportReferencesToBibTeX(this.references, referenceIds)
     },
 
     async writeBibTeXExportFile(filePath = '', referenceIds = []) {
-      const references = resolveReferencesForExport(this.references, referenceIds)
-      await writeReferenceBibTeXExport(filePath, references)
-      return references.length
+      return writeReferenceBibTeXExport(filePath, this.references, referenceIds)
     },
 
     async writeReferenceJsonExportFile(filePath = '', referenceId = '') {
-      const targetState = buildReferenceJsonExportTargetState(this.references, referenceId)
-      if (!targetState.canExport) {
-        throw new Error(t('Reference not found'))
+      try {
+        await writeReferenceJsonExport(filePath, this.references, referenceId)
+      } catch (error) {
+        if (String(error?.message || error) === 'Reference not found') {
+          throw new Error(t('Reference not found'))
+        }
+        throw error
       }
-
-      await writeReferenceJsonExport(filePath, targetState.reference)
       return true
     },
 

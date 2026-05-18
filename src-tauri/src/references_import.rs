@@ -51,6 +51,8 @@ pub struct ReferenceImportFileParams {
 pub struct ReferenceBibtexExportParams {
     #[serde(default)]
     pub references: Vec<Value>,
+    #[serde(default, alias = "reference_ids")]
+    pub reference_ids: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -62,6 +64,10 @@ pub struct ReferenceExportFileParams {
     pub export_kind: String,
     #[serde(default)]
     pub references: Vec<Value>,
+    #[serde(default, alias = "reference_ids")]
+    pub reference_ids: Vec<String>,
+    #[serde(default, alias = "reference_id")]
+    pub reference_id: String,
 }
 
 fn normalize_whitespace(value: &str) -> String {
@@ -953,11 +959,71 @@ fn serialize_reference_json_export(references: &[Value]) -> Result<String, Strin
         .map_err(|error| format!("Failed to serialize reference export: {error}"))
 }
 
+fn resolve_reference_by_id(references: &[Value], reference_id: &str) -> Option<Value> {
+    let normalized_reference_id = reference_id.trim();
+    if normalized_reference_id.is_empty() {
+        return None;
+    }
+
+    references
+        .iter()
+        .find(|reference| {
+            reference
+                .get("id")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .is_some_and(|id| id == normalized_reference_id)
+        })
+        .cloned()
+}
+
+fn resolve_references_for_export(references: &[Value], reference_ids: &[String]) -> Vec<Value> {
+    let normalized_ids = reference_ids
+        .iter()
+        .map(|reference_id| reference_id.trim())
+        .filter(|reference_id| !reference_id.is_empty())
+        .collect::<Vec<_>>();
+
+    if normalized_ids.is_empty() {
+        return references.to_vec();
+    }
+
+    normalized_ids
+        .into_iter()
+        .filter_map(|reference_id| resolve_reference_by_id(references, reference_id))
+        .collect()
+}
+
+fn resolve_json_reference_export(
+    references: &[Value],
+    reference_id: &str,
+    reference_ids: &[String],
+) -> Result<Vec<Value>, String> {
+    let explicit_id = reference_id.trim();
+    if !explicit_id.is_empty() {
+        return resolve_reference_by_id(references, explicit_id)
+            .map(|reference| vec![reference])
+            .ok_or_else(|| "Reference not found".to_string());
+    }
+
+    if let Some(first_id) = reference_ids
+        .iter()
+        .map(|reference_id| reference_id.trim())
+        .find(|reference_id| !reference_id.is_empty())
+    {
+        return resolve_reference_by_id(references, first_id)
+            .map(|reference| vec![reference])
+            .ok_or_else(|| "Reference not found".to_string());
+    }
+
+    Ok(references.first().cloned().into_iter().collect())
+}
+
 fn write_reference_export_file_internal(
     path: &Path,
     export_kind: &str,
     references: &[Value],
-) -> Result<(), String> {
+) -> Result<usize, String> {
     validate_reference_export_target(path, export_kind)?;
     let content = match export_kind {
         "bibtex" => export_bibtex_content(references),
@@ -967,7 +1033,8 @@ fn write_reference_export_file_internal(
     if content.len() as u64 > MAX_REFERENCE_IMPORT_FILE_BYTES {
         return Err("Reference export is too large.".to_string());
     }
-    fs::write(path, content).map_err(|error| error.to_string())
+    fs::write(path, content).map_err(|error| error.to_string())?;
+    Ok(references.len())
 }
 
 fn reference_record_to_csl(reference: &Value) -> Value {
@@ -1352,14 +1419,26 @@ pub(crate) fn export_bibtex_content(references: &[Value]) -> String {
 pub async fn references_export_bibtex(
     params: ReferenceBibtexExportParams,
 ) -> Result<String, String> {
-    Ok(export_bibtex_content(&params.references))
+    let references = resolve_references_for_export(&params.references, &params.reference_ids);
+    Ok(export_bibtex_content(&references))
 }
 
 #[tauri::command]
-pub async fn references_write_export_file(params: ReferenceExportFileParams) -> Result<(), String> {
+pub async fn references_write_export_file(
+    params: ReferenceExportFileParams,
+) -> Result<usize, String> {
     let file_path = params.file_path.trim().to_string();
     let export_kind = params.export_kind.trim().to_ascii_lowercase();
-    write_reference_export_file_internal(Path::new(&file_path), &export_kind, &params.references)
+    let references = match export_kind.as_str() {
+        "bibtex" => resolve_references_for_export(&params.references, &params.reference_ids),
+        "reference-json" => resolve_json_reference_export(
+            &params.references,
+            &params.reference_id,
+            &params.reference_ids,
+        )?,
+        _ => params.references,
+    };
+    write_reference_export_file_internal(Path::new(&file_path), &export_kind, &references)
 }
 
 trait StringExt {
@@ -1384,9 +1463,11 @@ impl StringExt for String {
 #[cfg(test)]
 mod tests {
     use super::{
-        export_bibtex_content, reference_import_text_params_from_payload,
-        references_import_from_text, references_import_parse_file,
-        write_reference_export_file_internal, ReferenceImportFileParams,
+        export_bibtex_content, reference_import_text_params_from_payload, references_export_bibtex,
+        references_import_from_text, references_import_parse_file, references_write_export_file,
+        resolve_json_reference_export, resolve_references_for_export,
+        write_reference_export_file_internal, ReferenceBibtexExportParams,
+        ReferenceExportFileParams, ReferenceImportFileParams,
     };
     use serde_json::json;
     use std::fs;
@@ -1503,6 +1584,103 @@ mod tests {
             .expect_err("wrong export extension should be rejected");
 
         assert_eq!(error, "BibTeX exports must use a .bib file.");
+
+        fs::remove_dir_all(temp_dir).ok();
+    }
+
+    #[test]
+    fn resolves_ordered_reference_export_targets_in_rust() {
+        let references = vec![
+            json!({ "id": "ref-1", "title": "Ada" }),
+            json!({ "id": "ref-2", "title": "Hopper" }),
+            json!({ "id": "ref-3", "title": "Turing" }),
+        ];
+
+        assert_eq!(resolve_references_for_export(&references, &[]), references);
+        assert_eq!(
+            resolve_references_for_export(
+                &references,
+                &[
+                    " ref-3 ".to_string(),
+                    "missing".to_string(),
+                    "ref-1".to_string(),
+                ],
+            ),
+            vec![references[2].clone(), references[0].clone()]
+        );
+    }
+
+    #[test]
+    fn resolves_json_reference_export_target_in_rust() {
+        let references = vec![
+            json!({ "id": "ref-1", "title": "Ada" }),
+            json!({ "id": "ref-2", "title": "Hopper" }),
+        ];
+
+        assert_eq!(
+            resolve_json_reference_export(&references, " ref-2 ", &[]).unwrap(),
+            vec![references[1].clone()]
+        );
+        assert_eq!(
+            resolve_json_reference_export(&references, "", &["ref-1".to_string()]).unwrap(),
+            vec![references[0].clone()]
+        );
+        assert_eq!(
+            resolve_json_reference_export(&references, "missing", &[]).unwrap_err(),
+            "Reference not found"
+        );
+    }
+
+    #[tokio::test]
+    async fn export_bibtex_command_resolves_reference_ids_in_rust() {
+        let content = references_export_bibtex(ReferenceBibtexExportParams {
+            references: vec![
+                json!({
+                    "id": "ref-1",
+                    "citationKey": "ada2024",
+                    "title": "Ada"
+                }),
+                json!({
+                    "id": "ref-2",
+                    "citationKey": "hopper2025",
+                    "title": "Hopper"
+                }),
+            ],
+            reference_ids: vec!["ref-2".to_string(), "missing".to_string()],
+        })
+        .await
+        .expect("export bibtex");
+
+        assert!(content.contains("{hopper2025,"));
+        assert!(!content.contains("{ada2024,"));
+    }
+
+    #[tokio::test]
+    async fn write_export_file_returns_rust_resolved_count() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "scribeflow-reference-export-count-{}",
+            uuid::Uuid::new_v4()
+        ));
+        fs::create_dir_all(&temp_dir).expect("create temp dir");
+        let target = temp_dir.join("references.bib");
+
+        let count = references_write_export_file(ReferenceExportFileParams {
+            file_path: target.to_string_lossy().to_string(),
+            export_kind: "bibtex".to_string(),
+            references: vec![
+                json!({ "id": "ref-1", "citationKey": "ada2024", "title": "Ada" }),
+                json!({ "id": "ref-2", "citationKey": "hopper2025", "title": "Hopper" }),
+            ],
+            reference_ids: vec!["ref-2".to_string(), "missing".to_string()],
+            reference_id: String::new(),
+        })
+        .await
+        .expect("write export file");
+
+        assert_eq!(count, 1);
+        let content = fs::read_to_string(&target).expect("read export file");
+        assert!(content.contains("{hopper2025,"));
+        assert!(!content.contains("{ada2024,"));
 
         fs::remove_dir_all(temp_dir).ok();
     }

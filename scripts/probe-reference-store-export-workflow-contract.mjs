@@ -1,37 +1,10 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
-import {
-  buildReferenceJsonExportTargetState,
-  resolveReferenceById,
-  resolveReferencesForExport,
-} from '../src/domains/references/referenceStoreState.js'
-
-const references = [
-  { id: 'ref-1', citationKey: 'ada2024', title: 'Ada' },
-  { id: 'ref-2', citationKey: 'hopper2025', title: 'Hopper' },
-  { id: 'ref-3', citationKey: 'turing2026', title: 'Turing' },
-]
-
-assert.deepEqual(resolveReferencesForExport(references), references)
-assert.deepEqual(resolveReferencesForExport(references, []), references)
-assert.deepEqual(resolveReferencesForExport(references, ['ref-3', 'missing', 'ref-1']), [
-  references[2],
-  references[0],
-])
-assert.deepEqual(resolveReferencesForExport('not-array', ['ref-1']), [])
-assert.deepEqual(resolveReferenceById(references, 'ref-2'), references[1])
-assert.equal(resolveReferenceById(references, 'hopper2025'), null)
-assert.deepEqual(buildReferenceJsonExportTargetState(references, 'ref-2'), {
-  canExport: true,
-  reference: references[1],
-})
-assert.deepEqual(buildReferenceJsonExportTargetState(references, 'missing'), {
-  canExport: false,
-  reference: null,
-})
 
 const storeSource = await readFile('src/stores/references.js', 'utf8')
 const domainSource = await readFile('src/domains/references/referenceStoreState.js', 'utf8')
+const serviceSource = await readFile('src/services/references/bibtexExport.js', 'utf8')
+const rustSource = await readFile('src-tauri/src/references_import.rs', 'utf8')
 
 function extractActionSource(source, actionName) {
   const start = source.indexOf(`async ${actionName}(`)
@@ -46,75 +19,75 @@ function extractActionSource(source, actionName) {
   return source.slice(start, Math.min(...endCandidates))
 }
 
-assert.match(
+assert.doesNotMatch(
   domainSource,
-  /export function resolveReferencesForExport/,
-  'reference export selection must live in the pure reference domain',
+  /export function resolveReferencesForExport|export function buildReferenceJsonExportTargetState/,
+  'referenceStoreState must not retain migrated export target helpers',
 )
 assert.match(
-  domainSource,
-  /export function buildReferenceJsonExportTargetState/,
-  'JSON export target state must live in the pure reference domain',
+  rustSource,
+  /fn resolve_references_for_export/,
+  'Rust import/export runtime must own ordered BibTeX export target resolution',
+)
+assert.match(
+  rustSource,
+  /fn resolve_json_reference_export/,
+  'Rust import/export runtime must own JSON export target validation',
+)
+assert.match(
+  rustSource,
+  /serde\(default, alias = "reference_ids"\)/,
+  'Rust export params must accept frontend camelCase and snake_case reference ids',
+)
+assert.match(
+  serviceSource,
+  /references_export_bibtex[\s\S]*referenceIds: Array\.isArray\(referenceIds\) \? referenceIds : \[\]/,
+  'BibTeX export bridge must pass referenceIds through instead of filtering locally',
+)
+assert.match(
+  serviceSource,
+  /references_write_export_file[\s\S]*referenceId/,
+  'JSON export bridge must pass referenceId through to Rust',
 )
 
 const exportBibTeXSource = extractActionSource(storeSource, 'exportBibTeXAsync')
 assert.match(
   exportBibTeXSource,
-  /const references = resolveReferencesForExport\(this\.references, referenceIds\)/,
-  'exportBibTeXAsync must reuse the shared export selection helper',
-)
-assert.match(
-  exportBibTeXSource,
-  /return exportReferencesToBibTeX\(references\)/,
-  'exportBibTeXAsync must keep serialization in the export service',
+  /return exportReferencesToBibTeX\(this\.references, referenceIds\)/,
+  'exportBibTeXAsync must pass references and reference ids to the Rust export bridge',
 )
 
 const writeBibTeXSource = extractActionSource(storeSource, 'writeBibTeXExportFile')
 assert.match(
   writeBibTeXSource,
-  /const references = resolveReferencesForExport\(this\.references, referenceIds\)/,
-  'writeBibTeXExportFile must reuse the shared export selection helper',
-)
-assert.match(
-  writeBibTeXSource,
-  /await writeReferenceBibTeXExport\(filePath, references\)/,
-  'writeBibTeXExportFile must keep file writing in the export service',
-)
-assert.match(
-  writeBibTeXSource,
-  /return references\.length/,
-  'writeBibTeXExportFile must preserve exported reference count semantics',
+  /return writeReferenceBibTeXExport\(filePath, this\.references, referenceIds\)/,
+  'writeBibTeXExportFile must return the Rust-exported reference count',
 )
 
 const writeJsonSource = extractActionSource(storeSource, 'writeReferenceJsonExportFile')
 assert.match(
   writeJsonSource,
-  /const targetState = buildReferenceJsonExportTargetState\(this\.references, referenceId\)/,
-  'writeReferenceJsonExportFile must use domain-derived JSON export target state',
+  /await writeReferenceJsonExport\(filePath, this\.references, referenceId\)/,
+  'writeReferenceJsonExportFile must pass the target id to the Rust export bridge',
 )
 assert.match(
   writeJsonSource,
-  /throw new Error\(t\('Reference not found'\)\)/,
-  'writeReferenceJsonExportFile must preserve missing-reference error semantics',
-)
-assert.match(
-  writeJsonSource,
-  /await writeReferenceJsonExport\(filePath, targetState\.reference\)/,
-  'writeReferenceJsonExportFile must keep JSON writing in the export service',
+  /String\(error\?\.message \|\| error\) === 'Reference not found'[\s\S]*throw new Error\(t\('Reference not found'\)\)/,
+  'writeReferenceJsonExportFile must preserve localized missing-reference error semantics',
 )
 
 assert.doesNotMatch(
   `${exportBibTeXSource}\n${writeBibTeXSource}\n${writeJsonSource}`,
-  /referenceIds\s*\.map|this\.references\.find\(|resolveReferenceById\(this\.references/,
+  /resolveReferencesForExport|buildReferenceJsonExportTargetState|referenceIds\s*\.map|this\.references\.find\(|resolveReferenceById\(this\.references/,
   'reference export actions must not duplicate selection or lookup rules inline',
 )
 
 console.log(JSON.stringify({
   ok: true,
   summary: {
-    exportSelectionDerived: true,
-    jsonExportTargetStateDerived: true,
-    exportServicesRemainIoBoundary: true,
+    rustExportTargetResolution: true,
+    exportServicesRemainThinBridge: true,
     storeExportActionsAvoidDuplicateSelectionRules: true,
+    missingJsonReferenceLocalized: true,
   },
 }, null, 2))
