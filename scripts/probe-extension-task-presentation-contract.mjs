@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict'
-import { buildExtensionTaskPresentation } from '../src/domains/extensions/extensionTaskPresentation.js'
+import {
+  buildExtensionTaskPresentation,
+  taskGroupPresentation,
+} from '../src/domains/extensions/extensionTaskPresentation.js'
 
 const task = {
   id: 'task-1',
@@ -41,6 +44,12 @@ assert.equal(presentation.id, 'task-1')
 assert.equal(presentation.titleKey, 'Scribeflow Pdf Translate')
 assert.equal(presentation.status.labelKey, 'Completed')
 assert.equal(presentation.status.toneClass, 'is-success')
+assert.deepEqual(presentation.row, {
+  state: 'succeeded',
+  toneClass: 'is-success',
+  active: false,
+  terminal: true,
+})
 assert.equal(presentation.progress.available, true)
 assert.equal(presentation.progress.valueKey, '{label}')
 assert.deepEqual(presentation.progress.params, { current: 2, total: 2 })
@@ -83,6 +92,7 @@ const running = buildExtensionTaskPresentation({
 assert.equal(running.titleKey, 'Document Summarize')
 assert.equal(running.status.labelKey, 'Analyzing')
 assert.equal(running.status.toneClass, 'is-warning')
+assert.equal(running.row.active, true)
 assert.equal(running.progress.available, false)
 
 const failed = buildExtensionTaskPresentation({
@@ -107,6 +117,7 @@ const failed = buildExtensionTaskPresentation({
 
 assert.equal(failed.status.labelKey, 'Failed')
 assert.equal(failed.status.toneClass, 'is-error')
+assert.equal(failed.row.toneClass, 'is-error')
 assert.deepEqual(
   failed.results.groups.map((group) => [group.id, group.entries.map((entry) => entry.id)]),
   [
@@ -128,6 +139,29 @@ assert.deepEqual(
   ],
 )
 
+const runningGroup = taskGroupPresentation({
+  id: 'running',
+  titleKey: 'Running',
+  tasks: [
+    { state: 'running' },
+  ],
+})
+assert.equal(runningGroup.count, 1)
+assert.equal(runningGroup.countLabelKey, '{count} task')
+assert.equal(runningGroup.toneClass, 'is-warning')
+
+const recentGroup = taskGroupPresentation({
+  id: 'recent',
+  titleKey: 'Recent Extension Tasks',
+  tasks: [
+    { state: 'succeeded' },
+    { state: 'failed' },
+  ],
+})
+assert.equal(recentGroup.count, 2)
+assert.equal(recentGroup.countLabelKey, '{count} tasks')
+assert.equal(recentGroup.toneClass, 'is-error')
+
 console.log(JSON.stringify({
   ok: true,
   summary: {
@@ -139,5 +173,7 @@ console.log(JSON.stringify({
     runningTone: running.status.toneClass,
     failedGroups: failed.results.groups.map((group) => `${group.id}:${group.count}`),
     failedQuickActions: failed.quickActions.map((action) => action.id),
+    runningGroup: `${runningGroup.toneClass}:${runningGroup.countLabelKey}`,
+    recentGroup: `${recentGroup.toneClass}:${recentGroup.countLabelKey}`,
   },
 }, null, 2))

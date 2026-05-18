@@ -10,6 +10,9 @@ function normalizeState(value = '') {
   return normalizeText(value).toLowerCase()
 }
 
+const ACTIVE_TASK_STATES = new Set(['queued', 'running'])
+const TERMINAL_TASK_STATES = new Set(['succeeded', 'completed', 'failed', 'cancelled', 'canceled'])
+
 export function canonicalTaskStatusKey(value = '') {
   switch (normalizeState(value)) {
     case 'queued':
@@ -44,6 +47,33 @@ export function taskStatusToneClass(value = '') {
       return 'is-warning'
     default:
       return ''
+  }
+}
+
+export function taskRowPresentation(task = {}) {
+  const state = normalizeState(task?.state)
+  return {
+    state,
+    toneClass: taskStatusToneClass(state),
+    active: ACTIVE_TASK_STATES.has(state),
+    terminal: TERMINAL_TASK_STATES.has(state),
+  }
+}
+
+export function taskGroupPresentation({ id = '', titleKey = '', tasks = [] } = {}) {
+  const taskList = Array.isArray(tasks) ? tasks : []
+  const rowStates = taskList.map(taskRowPresentation)
+  const errorCount = rowStates.filter((row) => row.toneClass === 'is-error').length
+  const activeCount = rowStates.filter((row) => row.active).length
+  const warningCount = rowStates.filter((row) => row.toneClass === 'is-warning').length
+  const count = taskList.length
+  return {
+    id: normalizeText(id),
+    titleKey: normalizeText(titleKey) || 'Extension Tasks',
+    count,
+    countLabelKey: count === 1 ? '{count} task' : '{count} tasks',
+    countParams: { count },
+    toneClass: errorCount > 0 ? 'is-error' : activeCount > 0 || warningCount > 0 ? 'is-warning' : '',
   }
 }
 
@@ -235,6 +265,7 @@ export function buildExtensionTaskPresentation(task = {}) {
   return {
     id: normalizeText(task?.id),
     titleKey: taskTitleKey(task),
+    row: taskRowPresentation(task),
     status,
     progress,
     results,

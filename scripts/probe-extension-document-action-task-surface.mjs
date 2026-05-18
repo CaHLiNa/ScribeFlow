@@ -194,6 +194,7 @@ try {
   assert.doesNotMatch(html, /disabled/)
   assert.match(html, /Plugin Tasks/)
   assert.match(html, /Running/)
+  assert.match(html, /1 task/)
   assert.match(html, /Translating/)
   assert.match(html, /role="progressbar"/)
   assert.match(html, /aria-valuenow="1"/)
@@ -205,6 +206,10 @@ try {
   assert.match(html, /Task Log/)
   assert.match(html, /Run Again/)
   assert.match(html, /Cancel/)
+  assert.match(html, /class="[^"]*(extension-task-group__title[^"]*is-warning|is-warning[^"]*extension-task-group__title)[^"]*"/)
+  assert.match(html, /class="[^"]*(extension-task-group__title[^"]*is-error|is-error[^"]*extension-task-group__title)[^"]*"/)
+  assert.match(html, /class="[^"]*(extension-task-row[^"]*is-warning|is-warning[^"]*extension-task-row)[^"]*"/)
+  assert.match(html, /class="[^"]*(extension-task-row[^"]*is-error|is-error[^"]*extension-task-row)[^"]*"/)
 
   console.log(JSON.stringify({
     ok: true,
@@ -220,6 +225,10 @@ try {
       hasGroupedTaskResults: html.includes('Previews') && html.includes('Actions'),
       hasResultEntry: html.includes('Translated Text'),
       hasTerminalQuickActions: html.includes('Task Log') && html.includes('Run Again'),
+      hasTaskGroupCounts: html.includes('1 task'),
+      hasTaskToneClasses:
+        /class="[^"]*(extension-task-row[^"]*is-warning|is-warning[^"]*extension-task-row)[^"]*"/.test(html) &&
+        /class="[^"]*(extension-task-row[^"]*is-error|is-error[^"]*extension-task-row)[^"]*"/.test(html),
     },
   }, null, 2))
 } finally {

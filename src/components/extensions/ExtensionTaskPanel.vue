@@ -10,8 +10,18 @@
       v-show="group.rows.length > 0"
       class="extension-task-group"
     >
-      <div class="extension-task-group__title">{{ t(group.titleKey) }}</div>
-      <div v-for="row in group.rows" :key="row.id" class="extension-task-row">
+      <div class="extension-task-group__title" :class="group.presentation.toneClass">
+        <span>{{ t(group.presentation.titleKey) }}</span>
+        <span class="extension-task-group__count">
+          {{ t(group.presentation.countLabelKey, group.presentation.countParams) }}
+        </span>
+      </div>
+      <div
+        v-for="row in group.rows"
+        :key="row.id"
+        class="extension-task-row"
+        :class="row.presentation.row.toneClass"
+      >
         <div class="extension-task-main">
           <div class="extension-task-title">
             <span>{{ t(row.presentation.titleKey) }}</span>
@@ -114,7 +124,10 @@ import UiButton from '../shared/ui/UiButton.vue'
 import ExtensionResultPreview from './ExtensionResultPreview.vue'
 import ExtensionStatusPill from './ExtensionStatusPill.vue'
 import ExtensionSummaryCard from './ExtensionSummaryCard.vue'
-import { buildExtensionTaskPresentation } from '../../domains/extensions/extensionTaskPresentation.js'
+import {
+  buildExtensionTaskPresentation,
+  taskGroupPresentation,
+} from '../../domains/extensions/extensionTaskPresentation.js'
 
 const { t } = useI18n()
 const extensionsStore = useExtensionsStore()
@@ -134,9 +147,17 @@ function buildTaskRow(task = {}) {
 }
 
 const taskGroups = computed(() => [
-  { id: 'running', titleKey: 'Running', rows: timeline.value.running.map(buildTaskRow) },
-  { id: 'recent', titleKey: 'Recent Extension Tasks', rows: timeline.value.recent.map(buildTaskRow) },
+  buildTaskGroup('running', 'Running', timeline.value.running),
+  buildTaskGroup('recent', 'Recent Extension Tasks', timeline.value.recent),
 ])
+
+function buildTaskGroup(id = '', titleKey = '', tasks = []) {
+  return {
+    id,
+    presentation: taskGroupPresentation({ id, titleKey, tasks }),
+    rows: tasks.map(buildTaskRow),
+  }
+}
 
 function activeResultEntry(row = {}) {
   const entries = row?.presentation?.results?.entries || []
@@ -272,12 +293,40 @@ function taskTimeSummary(task = {}) {
 }
 
 .extension-task-group__title {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   padding: 0 16px 8px;
   color: var(--text-secondary);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.02em;
   text-transform: uppercase;
+}
+
+.extension-task-group__title.is-warning {
+  color: var(--warning);
+}
+
+.extension-task-group__title.is-error {
+  color: var(--error);
+}
+
+.extension-task-group__count {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  text-transform: none;
+}
+
+.extension-task-group__title.is-warning .extension-task-group__count {
+  color: color-mix(in srgb, var(--warning) 72%, var(--text-muted));
+}
+
+.extension-task-group__title.is-error .extension-task-group__count {
+  color: color-mix(in srgb, var(--error) 72%, var(--text-muted));
 }
 
 .extension-task-empty {
@@ -293,6 +342,16 @@ function taskTimeSummary(task = {}) {
   gap: 16px;
   padding: 12px 16px;
   border-bottom: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
+}
+
+.extension-task-row.is-warning {
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--warning) 70%, var(--border));
+  background: color-mix(in srgb, var(--warning) 5%, transparent);
+}
+
+.extension-task-row.is-error {
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--error) 70%, var(--border));
+  background: color-mix(in srgb, var(--error) 5%, transparent);
 }
 
 .extension-task-row:last-child {
