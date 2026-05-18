@@ -5,6 +5,7 @@ import {
   buildDefaultResolvedQueryState,
   buildDocumentReferenceIdsMutationState,
   buildRemoveDocumentReferenceMutationState,
+  buildReferenceLibrarySnapshotPayload,
   buildReferenceDockPdfCloseState,
   buildReferenceDockPdfOpenState,
   buildReferenceDockPdfResetState,
@@ -15,6 +16,8 @@ import {
   buildReferenceSnapshotSelectionState,
   buildReferenceSortSelectionState,
   buildReferenceSourceSelectionState,
+  buildReferenceStoreCleanupState,
+  buildReferenceStoreInitialState,
   buildReferenceTagSelectionState,
   hasReferenceById,
   isReferenceDockPdfSelected,
@@ -449,6 +452,102 @@ assert.equal(buildReferenceSnapshotSelectionState({
   references,
   preferredSelectedReferenceId: 'external-ref',
 }).selectedReferenceId, 'external-ref')
+assert.deepEqual(buildReferenceLibrarySnapshotPayload({
+  citationStyle: 'ieee',
+  documentReferenceSelections,
+  collections,
+  tags,
+  references,
+}), {
+  version: 2,
+  citationStyle: 'ieee',
+  documentReferenceSelections,
+  collections,
+  tags,
+  references,
+})
+assert.deepEqual(buildReferenceStoreInitialState({
+  librarySections: sections,
+  sourceSections: [{ key: 'manual' }],
+  collections,
+  tags,
+  references,
+}), {
+  librarySections: sections,
+  sourceSections: [{ key: 'manual' }],
+  collections,
+  tags,
+  references,
+  documentReferenceSelections: {},
+  citationStyle: 'apa',
+  selectedSectionKey: 'all',
+  selectedSourceKey: '',
+  selectedCollectionKey: '',
+  selectedTagKey: '',
+  selectedReferenceId: 'ref-1',
+  referenceDockPdfOpen: false,
+  referenceDockPdfReferenceId: '',
+  sortKey: 'year-desc',
+  resolvedQueryState: buildDefaultResolvedQueryState({
+    librarySections: sections,
+    sourceSections: [{ key: 'manual' }],
+    collections,
+    tags,
+    references,
+    selectedSectionKey: 'all',
+    selectedSourceKey: '',
+    selectedCollectionKey: '',
+    selectedTagKey: '',
+    sortKey: 'year-desc',
+  }),
+  isLoading: false,
+  loadError: '',
+  zoteroSyncStatus: 'disconnected',
+  zoteroSyncLastSyncTime: '',
+  zoteroSyncError: '',
+  zoteroSyncErrorType: '',
+  zoteroMutationError: '',
+  importInFlight: false,
+  availableCitationStylesList: [],
+})
+assert.deepEqual(buildReferenceStoreCleanupState({
+  librarySections: [{ key: 'all' }, { key: 'recent' }],
+  sourceSections: [{ key: 'manual' }, { key: 'zotero' }],
+}, {
+  collections,
+  tags,
+  references,
+}), {
+  collections,
+  tags,
+  references,
+  documentReferenceSelections: {},
+  citationStyle: 'apa',
+  selectedSectionKey: 'all',
+  selectedSourceKey: '',
+  selectedCollectionKey: '',
+  selectedTagKey: '',
+  selectedReferenceId: 'ref-1',
+  referenceDockPdfOpen: false,
+  referenceDockPdfReferenceId: '',
+  sortKey: 'year-desc',
+  resolvedQueryState: buildDefaultResolvedQueryState({
+    librarySections: [{ key: 'all' }, { key: 'recent' }],
+    sourceSections: [{ key: 'manual' }, { key: 'zotero' }],
+    collections,
+    tags,
+    references,
+    selectedSectionKey: 'all',
+    selectedSourceKey: '',
+    selectedCollectionKey: '',
+    selectedTagKey: '',
+    sortKey: 'year-desc',
+  }),
+  isLoading: false,
+  loadError: '',
+  zoteroMutationError: '',
+  importInFlight: false,
+})
 
 const storeSource = await readFile('src/stores/references.js', 'utf8')
 const actionSource = (actionName) => {
@@ -467,6 +566,21 @@ assert.match(
   storeSource,
   /buildDefaultResolvedQueryState/,
   'references store must use the domain helper for default resolved query state',
+)
+assert.match(
+  storeSource,
+  /buildReferenceStoreInitialState/,
+  'references store must delegate initial state assembly',
+)
+assert.match(
+  storeSource,
+  /buildReferenceStoreCleanupState/,
+  'references store must delegate cleanup reset state assembly',
+)
+assert.match(
+  storeSource,
+  /buildReferenceLibrarySnapshotPayload/,
+  'references store must delegate library snapshot payload assembly',
 )
 assert.match(
   storeSource,
@@ -615,7 +729,7 @@ assert.match(
 )
 assert.doesNotMatch(
   storeSource,
-  /function normalizeCollectionMembershipValue|function normalizeTagKey|function resolveCollection|function resolveDocumentReferenceSelections|function buildDefaultResolvedQueryState|const selectedIds = new Set\(this\.getDocumentReferenceIds|const normalizedQuery = String\(query \|\| ''\)\.trim\(\)\.toLowerCase\(\)|haystack\.includes\(normalizedQuery\)|referenceIds\s*\.map\(\(referenceId\) => this\.references\.find|this\.references\.some\(\(reference\) => reference\.id|this\.(?:librarySections|sourceSections)\.some\(\(section\) => section\.key|resolveReferenceSectionKey|\[\s*'year-desc'[\s\S]*'author-desc'[\s\S]*\]\.includes\(value\)|const query = this\.resolvedQueryState\?\.query|query\.selectedReferenceId|query\.selectedSectionKey|const normalized = normalizeTagKey\(tagKey\)|this\.sortKey = normalizeReferenceSortKey\(value\)/,
+  /function normalizeCollectionMembershipValue|function normalizeTagKey|function resolveCollection|function resolveDocumentReferenceSelections|function buildDefaultResolvedQueryState|version:\s*2|citationStyle:\s*'apa'|documentReferenceSelections:\s*\{\}|const selectedIds = new Set\(this\.getDocumentReferenceIds|const normalizedQuery = String\(query \|\| ''\)\.trim\(\)\.toLowerCase\(\)|haystack\.includes\(normalizedQuery\)|referenceIds\s*\.map\(\(referenceId\) => this\.references\.find|this\.references\.some\(\(reference\) => reference\.id|this\.(?:librarySections|sourceSections)\.some\(\(section\) => section\.key|resolveReferenceSectionKey|\[\s*'year-desc'[\s\S]*'author-desc'[\s\S]*\]\.includes\(value\)|const query = this\.resolvedQueryState\?\.query|query\.selectedReferenceId|query\.selectedSectionKey|const normalized = normalizeTagKey\(tagKey\)|this\.sortKey = normalizeReferenceSortKey\(value\)/,
   'references store must not redefine deterministic state helpers inline',
 )
 for (const actionName of ['setSelectedSource', 'setSelectedCollection', 'setSelectedTag']) {
@@ -664,6 +778,8 @@ console.log(JSON.stringify({
     sidebarSelectionDerived: true,
     snapshotSelectionDerived: true,
     pdfDockStateDerived: true,
+    storeLifecycleStateDerived: true,
+    snapshotPayloadDerived: true,
     storeUsesDomainHelper: true,
     exactIdPresenceDerived: true,
     sectionAndSortKeyValidationDerived: true,

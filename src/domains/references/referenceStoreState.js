@@ -287,6 +287,119 @@ export function resolveReferenceResolvedQueryState(resolved = null, fallbackStat
     : buildDefaultResolvedQueryState(fallbackState)
 }
 
+function resolveReferenceStoreSeed(defaults = {}) {
+  const librarySections = Array.isArray(defaults.librarySections) ? defaults.librarySections : []
+  const sourceSections = Array.isArray(defaults.sourceSections) ? defaults.sourceSections : []
+  const collections = Array.isArray(defaults.collections) ? defaults.collections : []
+  const tags = Array.isArray(defaults.tags) ? defaults.tags : []
+  const references = Array.isArray(defaults.references) ? defaults.references : []
+  const selectedSectionKey = String(defaults.selectedSectionKey || 'all')
+  const selectedSourceKey = String(defaults.selectedSourceKey || '')
+  const selectedCollectionKey = String(defaults.selectedCollectionKey || '')
+  const selectedTagKey = String(defaults.selectedTagKey || '')
+  const sortKey = normalizeReferenceSortKey(defaults.sortKey)
+  const selectedReferenceId = String(defaults.selectedReferenceId ?? references[0]?.id ?? '')
+
+  return {
+    librarySections,
+    sourceSections,
+    collections,
+    tags,
+    references,
+    documentReferenceSelections: resolveDocumentReferenceSelections(defaults.documentReferenceSelections),
+    citationStyle: String(defaults.citationStyle || 'apa'),
+    selectedSectionKey,
+    selectedSourceKey,
+    selectedCollectionKey,
+    selectedTagKey,
+    selectedReferenceId,
+    referenceDockPdfOpen: false,
+    referenceDockPdfReferenceId: '',
+    sortKey,
+  }
+}
+
+function buildReferenceStoreResetQueryState(seed = {}) {
+  return buildDefaultResolvedQueryState({
+    librarySections: seed.librarySections,
+    sourceSections: seed.sourceSections,
+    collections: seed.collections,
+    tags: seed.tags,
+    references: seed.references,
+    selectedSectionKey: seed.selectedSectionKey,
+    selectedSourceKey: seed.selectedSourceKey,
+    selectedCollectionKey: seed.selectedCollectionKey,
+    selectedTagKey: seed.selectedTagKey,
+    sortKey: seed.sortKey,
+  })
+}
+
+export function buildReferenceLibrarySnapshotPayload(state = {}) {
+  return {
+    version: 2,
+    citationStyle: state.citationStyle,
+    documentReferenceSelections: state.documentReferenceSelections,
+    collections: state.collections,
+    tags: state.tags,
+    references: state.references,
+  }
+}
+
+export function buildReferenceStoreInitialState(defaults = {}) {
+  const seed = resolveReferenceStoreSeed(defaults)
+  return {
+    ...seed,
+    resolvedQueryState: buildReferenceStoreResetQueryState(seed),
+    isLoading: false,
+    loadError: '',
+    zoteroSyncStatus: 'disconnected',
+    zoteroSyncLastSyncTime: '',
+    zoteroSyncError: '',
+    zoteroSyncErrorType: '',
+    zoteroMutationError: '',
+    importInFlight: false,
+    availableCitationStylesList: [],
+  }
+}
+
+export function buildReferenceStoreCleanupState(state = {}, defaults = {}) {
+  const seed = resolveReferenceStoreSeed({
+    ...defaults,
+    librarySections: state.librarySections || defaults.librarySections,
+    sourceSections: state.sourceSections || defaults.sourceSections,
+  })
+  return {
+    collections: seed.collections,
+    tags: seed.tags,
+    references: seed.references,
+    documentReferenceSelections: {},
+    citationStyle: 'apa',
+    selectedSectionKey: 'all',
+    selectedSourceKey: '',
+    selectedCollectionKey: '',
+    selectedTagKey: '',
+    selectedReferenceId: String(seed.references[0]?.id || ''),
+    referenceDockPdfOpen: false,
+    referenceDockPdfReferenceId: '',
+    sortKey: 'year-desc',
+    resolvedQueryState: buildReferenceStoreResetQueryState({
+      ...seed,
+      documentReferenceSelections: {},
+      citationStyle: 'apa',
+      selectedSectionKey: 'all',
+      selectedSourceKey: '',
+      selectedCollectionKey: '',
+      selectedTagKey: '',
+      selectedReferenceId: String(seed.references[0]?.id || ''),
+      sortKey: 'year-desc',
+    }),
+    isLoading: false,
+    loadError: '',
+    zoteroMutationError: '',
+    importInFlight: false,
+  }
+}
+
 export function buildReferenceQuerySelectionState(resolvedQueryState = {}, currentState = {}) {
   const query = resolvedQueryState?.query && typeof resolvedQueryState.query === 'object'
     ? resolvedQueryState.query

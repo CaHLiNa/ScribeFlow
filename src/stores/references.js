@@ -59,6 +59,7 @@ import {
   buildDefaultResolvedQueryState,
   buildDocumentReferenceIdsMutationState,
   buildRemoveDocumentReferenceMutationState,
+  buildReferenceLibrarySnapshotPayload,
   buildReferenceDockPdfCloseState,
   buildReferenceDockPdfOpenState,
   buildReferenceDockPdfResetState,
@@ -66,6 +67,8 @@ import {
   buildReferenceCollectionSelectionState,
   isReferenceDockPdfSelected,
   isReferenceSelectedForDocument,
+  buildReferenceStoreCleanupState,
+  buildReferenceStoreInitialState,
   resolveAvailableDocumentReferences,
   resolveCollection,
   resolveDocumentReferenceByKey,
@@ -87,6 +90,15 @@ import {
   searchReferences,
 } from '../domains/references/referenceStoreState.js'
 import { classifyZoteroSyncError } from '../domains/references/zoteroSyncPresentation.js'
+
+const REFERENCE_STORE_DEFAULTS = {
+  librarySections: REFERENCE_LIBRARY_SECTIONS,
+  sourceSections: REFERENCE_SOURCE_SECTIONS,
+  collections: REFERENCE_COLLECTIONS,
+  tags: REFERENCE_TAGS,
+  references: REFERENCE_FIXTURES,
+  selectedReferenceId: REFERENCE_FIXTURES[0]?.id || '',
+}
 
 async function resolveReferenceStorageRoot(projectRoot = '') {
   const normalizedRoot = String(projectRoot || '').trim()
@@ -140,44 +152,7 @@ async function commitImportedReferences(store, projectRoot = '', importedReferen
 }
 
 export const useReferencesStore = defineStore('references', {
-  state: () => ({
-    librarySections: REFERENCE_LIBRARY_SECTIONS,
-    sourceSections: REFERENCE_SOURCE_SECTIONS,
-    collections: REFERENCE_COLLECTIONS,
-    tags: REFERENCE_TAGS,
-    references: REFERENCE_FIXTURES,
-    documentReferenceSelections: {},
-    citationStyle: 'apa',
-    selectedSectionKey: 'all',
-    selectedSourceKey: '',
-    selectedCollectionKey: '',
-    selectedTagKey: '',
-    selectedReferenceId: REFERENCE_FIXTURES[0]?.id || '',
-    referenceDockPdfOpen: false,
-    referenceDockPdfReferenceId: '',
-    sortKey: 'year-desc',
-    resolvedQueryState: buildDefaultResolvedQueryState({
-      librarySections: REFERENCE_LIBRARY_SECTIONS,
-      sourceSections: REFERENCE_SOURCE_SECTIONS,
-      collections: REFERENCE_COLLECTIONS,
-      tags: REFERENCE_TAGS,
-      references: REFERENCE_FIXTURES,
-      selectedSectionKey: 'all',
-      selectedSourceKey: '',
-      selectedCollectionKey: '',
-      selectedTagKey: '',
-      sortKey: 'year-desc',
-    }),
-    isLoading: false,
-    loadError: '',
-    zoteroSyncStatus: 'disconnected',
-    zoteroSyncLastSyncTime: '',
-    zoteroSyncError: '',
-    zoteroSyncErrorType: '',
-    zoteroMutationError: '',
-    importInFlight: false,
-    availableCitationStylesList: [],
-  }),
+  state: () => buildReferenceStoreInitialState(REFERENCE_STORE_DEFAULTS),
 
   getters: {
     sectionCounts: (state) => state.resolvedQueryState?.sectionCounts || {},
@@ -229,14 +204,7 @@ export const useReferencesStore = defineStore('references', {
 
   actions: {
     buildLibrarySnapshotPayload() {
-      return {
-        version: 2,
-        citationStyle: this.citationStyle,
-        documentReferenceSelections: this.documentReferenceSelections,
-        collections: this.collections,
-        tags: this.tags,
-        references: this.references,
-      }
+      return buildReferenceLibrarySnapshotPayload(this.$state)
     },
 
     async commitLibrarySnapshot(projectRoot = '', snapshot = {}, options = {}) {
@@ -939,35 +907,7 @@ export const useReferencesStore = defineStore('references', {
     },
 
     cleanup() {
-      this.collections = REFERENCE_COLLECTIONS
-      this.tags = REFERENCE_TAGS
-      this.references = REFERENCE_FIXTURES
-      this.documentReferenceSelections = {}
-      this.citationStyle = 'apa'
-      this.selectedSectionKey = 'all'
-      this.selectedSourceKey = ''
-      this.selectedCollectionKey = ''
-      this.selectedTagKey = ''
-      this.selectedReferenceId = REFERENCE_FIXTURES[0]?.id || ''
-      this.referenceDockPdfOpen = false
-      this.referenceDockPdfReferenceId = ''
-      this.sortKey = 'year-desc'
-      this.resolvedQueryState = buildDefaultResolvedQueryState({
-        librarySections: this.librarySections,
-        sourceSections: this.sourceSections,
-        collections: this.collections,
-        tags: this.tags,
-        references: this.references,
-        selectedSectionKey: this.selectedSectionKey,
-        selectedSourceKey: this.selectedSourceKey,
-        selectedCollectionKey: this.selectedCollectionKey,
-        selectedTagKey: this.selectedTagKey,
-        sortKey: this.sortKey,
-      })
-      this.isLoading = false
-      this.loadError = ''
-      this.zoteroMutationError = ''
-      this.importInFlight = false
+      Object.assign(this, buildReferenceStoreCleanupState(this.$state, REFERENCE_STORE_DEFAULTS))
     },
   },
 })
