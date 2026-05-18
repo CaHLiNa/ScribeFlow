@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import {
   buildDefaultResolvedQueryState,
+  hasReferenceById,
   isReferenceSelectedForDocument,
   normalizeCollectionMembershipValue,
   normalizeTagKey,
@@ -82,7 +83,11 @@ assert.deepEqual(resolveReferenceByKey(references, 'lovelace2024'), references[0
 assert.deepEqual(resolveReferenceByKey(references, 'ref-2'), references[1])
 assert.equal(resolveReferenceByKey(references, 'missing'), null)
 assert.deepEqual(resolveReferenceById(references, 'ref-2'), references[1])
+assert.deepEqual(resolveReferenceById(references, ' ref-2 '), references[1])
 assert.equal(resolveReferenceById(references, 'hopper2025'), null)
+assert.equal(hasReferenceById(references, ' ref-2 '), true)
+assert.equal(hasReferenceById(references, 'hopper2025'), false)
+assert.equal(hasReferenceById('not-array', 'ref-2'), false)
 assert.deepEqual(resolveReferencesForExport(references, []), references)
 assert.deepEqual(resolveReferencesForExport(references, ['ref-3', 'missing', 'ref-1']), [
   references[2],
@@ -214,9 +219,14 @@ assert.match(
   /resolveReferenceById/,
   'references store must delegate exact-id reference lookup for JSON export',
 )
+assert.match(
+  storeSource,
+  /hasReferenceById/,
+  'references store must delegate exact-id presence checks',
+)
 assert.doesNotMatch(
   storeSource,
-  /function normalizeCollectionMembershipValue|function normalizeTagKey|function resolveCollection|function resolveDocumentReferenceSelections|function buildDefaultResolvedQueryState|const selectedIds = new Set\(this\.getDocumentReferenceIds|const normalizedQuery = String\(query \|\| ''\)\.trim\(\)\.toLowerCase\(\)|haystack\.includes\(normalizedQuery\)|referenceIds\s*\.map\(\(referenceId\) => this\.references\.find/,
+  /function normalizeCollectionMembershipValue|function normalizeTagKey|function resolveCollection|function resolveDocumentReferenceSelections|function buildDefaultResolvedQueryState|const selectedIds = new Set\(this\.getDocumentReferenceIds|const normalizedQuery = String\(query \|\| ''\)\.trim\(\)\.toLowerCase\(\)|haystack\.includes\(normalizedQuery\)|referenceIds\s*\.map\(\(referenceId\) => this\.references\.find|this\.references\.some\(\(reference\) => reference\.id/,
   'references store must not redefine deterministic state helpers inline',
 )
 assert.match(
@@ -235,6 +245,7 @@ console.log(JSON.stringify({
     exportSelectionDerived: true,
     defaultQueryStateDerived: true,
     storeUsesDomainHelper: true,
+    exactIdPresenceDerived: true,
     storageRootRemainsStoreScoped: true,
   },
 }, null, 2))

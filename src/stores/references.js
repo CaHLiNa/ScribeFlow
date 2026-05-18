@@ -57,6 +57,7 @@ import {
 } from '../domains/references/referenceDockPages.js'
 import {
   buildDefaultResolvedQueryState,
+  hasReferenceById,
   isReferenceSelectedForDocument,
   normalizeTagKey,
   resolveAvailableDocumentReferences,
@@ -114,9 +115,7 @@ async function commitImportedReferences(store, projectRoot = '', importedReferen
   await commitReferenceMutationSnapshot(store, projectRoot, mutation, {
     preferredSelectedReferenceId: selectedReferenceId,
   })
-  const selectedReference = selectedReferenceId
-    ? store.references.find((reference) => reference.id === selectedReferenceId) || null
-    : null
+  const selectedReference = resolveReferenceById(store.references, selectedReferenceId)
 
   return {
     importedCount: Number(mutation?.result?.importedCount || 0),
@@ -183,7 +182,7 @@ export const useReferencesStore = defineStore('references', {
 
     selectedReference(state) {
       return (
-        state.references.find((reference) => reference.id === state.selectedReferenceId) ||
+        resolveReferenceById(state.references, state.selectedReferenceId) ||
         this.filteredReferences[0] ||
         null
       )
@@ -325,13 +324,13 @@ export const useReferencesStore = defineStore('references', {
 
       if (preferredSelectedReferenceId !== null && preferredSelectedReferenceId !== undefined) {
         this.selectedReferenceId = String(preferredSelectedReferenceId || '')
-      } else if (!this.references.some((reference) => reference.id === this.selectedReferenceId)) {
+      } else if (!hasReferenceById(this.references, this.selectedReferenceId)) {
         this.selectedReferenceId = ''
       }
       await this.syncResolvedQueryState()
       if (
         this.referenceDockPdfReferenceId &&
-        !this.references.some((reference) => reference.id === this.referenceDockPdfReferenceId)
+        !hasReferenceById(this.references, this.referenceDockPdfReferenceId)
       ) {
         this.closeReferenceDockPdf()
       } else {
@@ -553,8 +552,9 @@ export const useReferencesStore = defineStore('references', {
     },
 
     selectReference(referenceId) {
-      if (!this.references.some((reference) => reference.id === referenceId)) return
-      this.selectedReferenceId = referenceId
+      const normalizedReferenceId = String(referenceId || '').trim()
+      if (!hasReferenceById(this.references, normalizedReferenceId)) return
+      this.selectedReferenceId = normalizedReferenceId
     },
 
     openReferenceDockPdf(referenceId = this.selectedReferenceId) {
@@ -636,7 +636,7 @@ export const useReferencesStore = defineStore('references', {
 
     async addDocumentReference(projectRoot = '', texPath = '', referenceId = '') {
       const normalizedReferenceId = String(referenceId || '').trim()
-      if (!normalizedReferenceId || !this.references.some((reference) => reference.id === normalizedReferenceId)) {
+      if (!hasReferenceById(this.references, normalizedReferenceId)) {
         return false
       }
       const ids = this.getDocumentReferenceIds(texPath)
@@ -679,7 +679,7 @@ export const useReferencesStore = defineStore('references', {
         persist,
         preferredSelectedReferenceId: selectedReferenceId,
       })
-      return this.references.find((reference) => reference.id === selectedReferenceId) || null
+      return resolveReferenceById(this.references, selectedReferenceId)
     },
 
     async updateReference(projectRoot = '', referenceId = '', updates = {}, options = {}) {
@@ -707,7 +707,7 @@ export const useReferencesStore = defineStore('references', {
 
     async refreshReferenceMetadata(projectRoot = '', referenceId = '') {
       const normalizedReferenceId = String(referenceId || '').trim()
-      const reference = this.references.find((item) => item.id === normalizedReferenceId)
+      const reference = resolveReferenceById(this.references, normalizedReferenceId)
       if (!reference) return null
 
       const refreshed = await refreshReferenceMetadataWithBackend(reference)
@@ -720,7 +720,7 @@ export const useReferencesStore = defineStore('references', {
     },
 
     async removeReference(projectRoot = '', referenceId = '') {
-      const target = this.references.find((reference) => reference.id === referenceId)
+      const target = resolveReferenceById(this.references, referenceId)
       if (!target) return false
 
       const mutation = await applyReferenceMutation({
@@ -770,35 +770,35 @@ export const useReferencesStore = defineStore('references', {
     },
 
     async attachReferencePdf(projectRoot = '', referenceId = '', sourcePath = '') {
-      const referenceIndex = this.references.findIndex((reference) => reference.id === referenceId)
-      if (referenceIndex === -1) return null
+      const reference = resolveReferenceById(this.references, referenceId)
+      if (!reference) return null
 
       const updatedReference = await storeReferencePdf(
         projectRoot,
-        this.references[referenceIndex],
+        reference,
         sourcePath
       )
 
       await this.updateReference(projectRoot, referenceId, updatedReference, {
         preferredSelectedReferenceId: referenceId,
       })
-      return this.references.find((reference) => reference.id === referenceId) || updatedReference
+      return resolveReferenceById(this.references, referenceId) || updatedReference
     },
 
     async renameReferencePdfAsset(projectRoot = '', referenceId = '', nextBaseName = '') {
-      const referenceIndex = this.references.findIndex((reference) => reference.id === referenceId)
-      if (referenceIndex === -1) return null
+      const reference = resolveReferenceById(this.references, referenceId)
+      if (!reference) return null
 
       const updatedReference = await renameReferencePdfAssetWithBackend(
         projectRoot,
-        this.references[referenceIndex],
+        reference,
         nextBaseName
       )
 
       await this.updateReference(projectRoot, referenceId, updatedReference, {
         preferredSelectedReferenceId: referenceId,
       })
-      return this.references.find((reference) => reference.id === referenceId) || updatedReference
+      return resolveReferenceById(this.references, referenceId) || updatedReference
     },
 
     async importReferencePdf(projectRoot = '', sourcePath = '') {
@@ -820,7 +820,7 @@ export const useReferencesStore = defineStore('references', {
         const selectedReferenceId = String(importMutation?.result?.selectedReferenceId || '')
         const importedSnapshot = importMutation?.snapshot || this.buildLibrarySnapshotPayload()
         const targetReference = Array.isArray(importedSnapshot?.references)
-          ? importedSnapshot.references.find((reference) => reference.id === selectedReferenceId)
+          ? resolveReferenceById(importedSnapshot.references, selectedReferenceId)
           : null
         if (!selectedReferenceId || !targetReference) return null
 
@@ -840,7 +840,7 @@ export const useReferencesStore = defineStore('references', {
           preferredSelectedReferenceId: selectedReferenceId,
         })
         return selectedReferenceId
-          ? this.references.find((reference) => reference.id === selectedReferenceId) || null
+          ? resolveReferenceById(this.references, selectedReferenceId)
           : null
       } finally {
         this.importInFlight = false
@@ -940,7 +940,7 @@ export const useReferencesStore = defineStore('references', {
     },
 
     async formatReferenceCitationAsync(referenceId = '', mode = 'reference', number) {
-      const reference = this.references.find((candidate) => candidate.id === referenceId)
+      const reference = resolveReferenceById(this.references, referenceId)
       if (!reference) return ''
       return formatCitation(this.citationStyle, mode, reference, number, resolveReferenceWorkspacePath())
     },

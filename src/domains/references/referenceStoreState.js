@@ -63,11 +63,17 @@ export function resolveReferenceByKey(references = [], referenceKey = '') {
 }
 
 export function resolveReferenceById(references = [], referenceId = '') {
+  const normalizedId = String(referenceId || '').trim()
+  if (!normalizedId) return null
   return (
     (Array.isArray(references) ? references : []).find(
-      (reference) => reference?.id === referenceId,
+      (reference) => String(reference?.id || '') === normalizedId,
     ) || null
   )
+}
+
+export function hasReferenceById(references = [], referenceId = '') {
+  return Boolean(resolveReferenceById(references, referenceId))
 }
 
 export function resolveReferencesForExport(references = [], referenceIds = []) {
