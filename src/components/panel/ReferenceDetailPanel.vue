@@ -65,7 +65,6 @@ import {
   buildReferenceDetailDirtyUpdates,
   buildReferenceDetailDraftSnapshot,
   buildReferenceDetailHeroMetaItems,
-  buildReferenceDetailPdfExtensionTarget,
   hasReferenceDetailDraftFieldChanged,
   normalizeReferenceDetailAuthors,
   normalizeReferenceDetailCollectionMemberships,
@@ -73,21 +72,17 @@ import {
   normalizeReferenceDetailText,
   resolveReferenceDetailCollection,
   resolveReferenceDetailCollectionLabel,
-  resolveReferenceDetailPdfPath,
 } from '../../domains/references/referenceDetailDraft.js'
 import { getReferenceTypeLabelKey } from '../../domains/references/referencePresentation.js'
-import { useEditorStore } from '../../stores/editor'
 import { useReferencesStore } from '../../stores/references'
 import { useToastStore } from '../../stores/toast'
 import { useWorkspaceStore } from '../../stores/workspace'
-import { revealPathInFileManager } from '../../services/fileTreeSystem'
-import { openNativeDialog } from '../../services/nativeDialog.js'
+import { useReferenceDetailActions } from '../../composables/references/useReferenceDetailActions.js'
 import ReferenceDetailContentSection from './ReferenceDetailContentSection.vue'
 import ReferenceDetailHero from './ReferenceDetailHero.vue'
 import ReferenceDetailMetadataSection from './ReferenceDetailMetadataSection.vue'
 
 const { t } = useI18n()
-const editorStore = useEditorStore()
 const referencesStore = useReferencesStore()
 const toastStore = useToastStore()
 const workspace = useWorkspaceStore()
@@ -122,11 +117,14 @@ const selectedReferenceTypeLabel = computed(() =>
     ? t(getReferenceTypeLabelKey(selectedReference.value.typeKey || selectedReference.value.typeLabel))
     : ''
 )
-const selectedReferencePdfPath = computed(() => resolveReferenceDetailPdfPath(selectedReference.value))
-const canOpenPdf = computed(() => selectedReferencePdfPath.value.length > 0)
-const pdfExtensionActionTarget = computed(() =>
-  buildReferenceDetailPdfExtensionTarget(selectedReference.value)
-)
+const {
+  canOpenPdf,
+  handleAttachPdf,
+  handleOpenPdfInEditor,
+  handlePreviewPdf,
+  handleRevealPdf,
+  pdfExtensionActionTarget,
+} = useReferenceDetailActions({ selectedReference, emit })
 const heroMetaItems = computed(() => buildReferenceDetailHeroMetaItems(draft))
 const editableDraftFields = REFERENCE_DETAIL_EDITABLE_FIELDS
 const hasDraftChanges = computed(() =>
@@ -477,66 +475,6 @@ async function removeTag(tag = '') {
   await updateSelectedReference({ tags: [...draft.tags] })
 }
 
-async function handleRefreshMetadata() {
-  const reference = selectedReference.value
-  if (!reference?.id) return
-
-  try {
-    const refreshed = await referencesStore.refreshReferenceMetadata(
-      workspace.globalConfigDir,
-      reference.id
-    )
-    if (!refreshed) {
-      toastStore.show(t('No metadata match found'), {
-        type: 'error',
-        duration: 3200,
-      })
-      return
-    }
-    
-    // 手动刷新以体现服务端数据拉取结果
-    syncDraft(selectedReference.value)
-    
-  } catch (error) {
-    toastStore.show(error?.message || t('Failed to refresh metadata'), {
-      type: 'error',
-      duration: 3600,
-    })
-  }
-}
-
-function handlePreviewPdf() {
-  if (!canOpenPdf.value) return
-  emit('open-pdf-preview')
-}
-
-async function handleOpenPdfInEditor() {
-  if (!canOpenPdf.value) return
-  editorStore.openFile(selectedReferencePdfPath.value)
-  workspace.setLeftSidebarPanel('files')
-}
-
-async function handleRevealPdf() {
-  if (!canOpenPdf.value) return
-  await revealPathInFileManager({ path: selectedReferencePdfPath.value })
-}
-
-async function handleAttachPdf() {
-  if (!selectedReference.value?.id) return
-
-  const selected = await openNativeDialog({
-    multiple: false,
-    title: t('Attach PDF'),
-    filters: [{ name: 'PDF', extensions: ['pdf'] }],
-  })
-
-  if (!selected || Array.isArray(selected)) return
-  await referencesStore.attachReferencePdf(
-    workspace.globalConfigDir,
-    selectedReference.value.id,
-    String(selected)
-  )
-}
 </script>
 
 <style scoped>

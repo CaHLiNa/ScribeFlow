@@ -183,6 +183,7 @@ Current plugin lifecycle contract:
 - reference workbench detail dock ownership is now split at the Vue component boundary: `ReferenceLibraryWorkbench.vue` keeps reference selection, page activation, tab fallback, resize, import/export, and context-menu orchestration, while `ReferenceLibraryDetailDock.vue` owns the inline dock frame, tabbar, active page render slot, empty state, and detail tab scoped CSS
 - reference workbench main-list ownership is now split at the Vue component boundary too: `ReferenceLibraryWorkbench.vue` keeps import/export, selected-reference, context-menu, sort, and dock orchestration, while `ReferenceLibraryMain.vue` owns toolbar/status/empty/table composition and main-list scoped CSS
 - reference action workflow ownership is now split from the workbench coordinator: `ReferenceLibraryWorkbench.vue` keeps selection, dock page activation, resize/layout reconciliation, and shell composition, while `useReferenceLibraryActions.js` owns native import/export dialogs, clipboard copy, toast/status feedback, context-menu action binding, and reference store action dispatch
+- reference detail PDF action workflow ownership is now split from the detail coordinator: `ReferenceDetailPanel.vue` keeps draft lifecycle and save orchestration, while `useReferenceDetailActions.js` owns PDF preview/open/reveal/attach action side effects through the existing store/service boundary
 - extension result preview presentation is now shared too: result preview surfaces derive preview mode, toolbar actions, blocked-action copy, busy keys and action-only empty states from one pure presentation helper instead of keeping action branching inside the Vue preview component
 - settings capability cards now consume shared status pieces too: blocked capability badges render through the shared blocked-status chip, blocked capability run actions render through the shared blocked-action button, and ready/unavailable capability states now render through the shared status-pill component instead of keeping a local fifth status shell
 - failed extension tasks now keep structured results as a first-class runtime contract: if a command/capability ends with `taskState: failed`, persisted task records still retain the failure artifact/output snapshot and the failure-specific progress label instead of collapsing to error text only
@@ -220,6 +221,7 @@ The quick gate includes:
 - `npm run probe:file-tree-body-style-ownership`
 - `npm run probe:file-tree-overlay-style-ownership`
 - `npm run probe:file-tree-actions-boundary`
+- `npm run probe:reference-detail-actions-boundary`
 - `npm run probe:reference-workbench-detail-dock-style-ownership`
 - `npm run probe:reference-workbench-main-style-ownership`
 - `npm run probe:reference-library-actions-boundary`

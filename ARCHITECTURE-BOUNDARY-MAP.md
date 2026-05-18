@@ -1,6 +1,6 @@
 # ScribeFlow Architecture Boundary Map
 
-> Snapshot date: 2026-05-12.
+> Snapshot date: 2026-05-18.
 > Purpose: make current mixed responsibilities visible before deeper runtime/module cleanup.
 
 ## Target Layer Contract
@@ -8,7 +8,7 @@
 | Layer | Owns | Must Not Own |
 | --- | --- | --- |
 | Vue components | UI rendering, form drafts, local interaction state, loading/error/empty presentation | Tauri calls, filesystem authority, persisted schema decisions, runtime execution policy |
-| Composables | UI interaction helpers and component-level event wiring | Native bridge calls, backend policy, persisted state normalization |
+| Composables | UI interaction helpers, component-level event wiring, and action workflow coordination through stores/services | Direct Tauri API imports, backend policy, persisted state normalization, DOM shell ownership |
 | Pinia stores | Screen state, orchestration, loading/error lifecycle, calls into services | Filesystem validation, reference merge policy, runtime execution, persisted schema authority |
 | `src/domains` | Pure display rules, sorting, labels, deterministic UI state derivation | Tauri calls, service/store imports, persistence, process or filesystem authority |
 | `src/services` | Tauri/plugin bridge, native event subscription, DTO mapping | Long-lived business state, backend policy, duplicate frontend backend centers |
@@ -157,7 +157,7 @@ Components over 500 lines:
 | `src/components/layout/WorkbenchRail.vue` | 378 | Layout UI; native fullscreen sync, window dragging, outside-click lifecycle, and emitted shell intent stay in the coordinator while title/menu chrome lives in `WorkbenchRailTitleArea.vue`. |
 | `src/components/layout/WorkbenchRailTitleArea.vue` | 304 | Workbench rail center title slot, reference mode menu, inline document title, and title/menu scoped presentation. |
 | `src/components/layout/AppShellFrame.vue` | 391 | App shell frame presentation; owns topbar/left-sidebar/main-card/resize slot DOM and scoped shell styles while emitting layout/workbench intent to `App.vue`. |
-| `src/components/panel/ReferenceDetailPanel.vue` | 579 | Reference detail draft orchestration; Phase 8 extracted hero/metadata/content presentation and pure draft normalization helpers. |
+| `src/components/panel/ReferenceDetailPanel.vue` | 517 | Reference detail draft/save orchestration; presentation, pure draft helpers, and PDF action side-effect workflow now live outside the coordinator. |
 | `src/components/panel/ReferenceDetailContentSection.vue` | 132 | Reference abstract and notes disclosure presentation. |
 | `src/components/panel/ReferenceDetailHero.vue` | 164 | Reference detail title/save hero presentation. |
 | `src/components/panel/ReferenceDetailMetadataSection.vue` | 391 | Reference metadata, tags, collections, and file action presentation. |
@@ -167,6 +167,7 @@ Components over 500 lines:
 | `src/components/references/ReferenceLibraryMain.vue` | 105 | Reference library toolbar, status, empty state, and table composition presentation; emits user intent to the workbench coordinator. |
 | `src/components/references/ReferenceLibraryTable.vue` | 237 | Reference library table presentation and sort header events. |
 | `src/components/references/ReferenceLibraryToolbar.vue` | 131 | Reference library toolbar presentation. |
+| `src/composables/references/useReferenceDetailActions.js` | 65 | Reference detail PDF action workflow composable; owns preview/open/reveal/attach side effects through stores/services without draft/save or DOM authority. |
 | `src/components/settings/Settings.vue` | 51 | Settings section coordinator; active section routing stays domain-derived while shell/content chrome moved into `SettingsSurface.vue`. |
 | `src/components/settings/SettingsSurface.vue` | 261 | Settings surface/header/content presentation plus settings-wide row/group/control styling. |
 | `src/components/settings/SettingsExtensions.vue` | 382 | Extension settings shell; Phase 8 extracted list/options UI, pure settings grouping, secure setting draft derivation, and child scoped style ownership. |
@@ -247,7 +248,8 @@ Components over 500 lines:
 - 2026-05-18: Reference action workflow ownership is now split from the workbench coordinator. `ReferenceLibraryWorkbench.vue` keeps selection, reference dock page activation, resize/layout reconciliation, and shell composition, while `src/composables/references/useReferenceLibraryActions.js` owns native import/export dialogs, clipboard copy, toast/status feedback, context-menu action binding, and reference store action dispatch. `scripts/probe-reference-library-actions-boundary.mjs` guards that action side effects stay out of the workbench component and that the composable does not take over dock/resize or DOM composition authority.
 - 2026-05-03: Reference removal still commits the local library snapshot first, but best-effort Zotero remote delete failures are no longer swallowed. `src/services/references/zoteroSync.js` propagates delete invoke failures, `src/stores/references.js` records them in `zoteroMutationError`, and `ReferenceLibraryWorkbench.vue` surfaces them through the existing reference workbench status area.
 - 2026-05-18: PDF reference import no longer performs duplicate add-or-attach policy in `src/stores/references.js`. The store asks Rust `references_mutation_apply` for `importPdfReference`, lets `src-tauri/src/references_mutation.rs` choose the canonical new-or-duplicate reference id, then stores the PDF asset against that canonical record and writes the normalized update through the existing `updateReference` mutation. `scripts/probe-reference-pdf-import-authority-contract.mjs` guards that the store does not call the legacy duplicate/merge service path for PDF import.
-- 2026-05-18: Reference detail draft snapshot creation, editable field list, authors/tags/collection normalization, hero meta derivation, PDF action-target shaping, draft comparison, and dirty update derivation moved from `ReferenceDetailPanel.vue` into `src/domains/references/referenceDetailDraft.js`. The panel still owns local draft lifecycle, blur/save timing, queued store updates, native PDF attach/reveal/open side effects, and toast error presentation.
+- 2026-05-18: Reference detail draft snapshot creation, editable field list, authors/tags/collection normalization, hero meta derivation, PDF action-target shaping, draft comparison, and dirty update derivation moved from `ReferenceDetailPanel.vue` into `src/domains/references/referenceDetailDraft.js`. The panel still owns local draft lifecycle, blur/save timing, queued store updates, and toast save-error presentation.
+- 2026-05-18: Reference detail PDF action workflow ownership is now split from the detail coordinator. `ReferenceDetailPanel.vue` receives PDF action state and handlers from `src/composables/references/useReferenceDetailActions.js`, while the composable owns PDF preview emission, editor open, native reveal, attach dialog, and reference store dispatch through existing store/service boundaries. `scripts/probe-reference-detail-actions-boundary.mjs` guards that action side effects stay out of the detail panel and that the composable does not take over draft/save or DOM authority.
 - 2026-05-18: Reference store selection/query fallback helpers moved from `src/stores/references.js` into `src/domains/references/referenceStoreState.js`. Pinia still owns async service orchestration, workspace-aware storage-root fallback, loading/error lifecycle, and snapshot application, while deterministic collection/tag matching, document-reference selection shape fallback, and default resolved-query state now live in a pure domain module. `scripts/probe-reference-store-state-contract.mjs` guards both the helper behavior and the store/domain boundary.
 
 ## Document Runtime Cleanup Log
@@ -293,7 +295,7 @@ Components over 500 lines:
 - 2026-05-03: Extension document action progress state, width, and tone class derivation moved from `ExtensionDocumentActionPanel.vue` into `src/domains/extensions/extensionProgressPresentation.js`.
 - 2026-05-03: App update version comparison and installer asset selection moved from `src/services/appUpdater.js` into pure settings domain helper `src/domains/settings/appUpdatePresentation.js`. The updater service now stays below the 150-line review threshold and focuses on app version, GitHub fetch, Tauri download/reveal, external link, and progress event bridging.
 - 2026-05-03: Reference BibTeX and detailed JSON export writes moved from `ReferenceLibraryWorkbench.vue` into `src/stores/references.js` actions, leaving the component responsible for dialog and notification orchestration only.
-- 2026-05-18: Reference workbench sort toggles, PDF path fallback, cited-in file lookup, collection membership checks, detail dock resize constraints, close-reset delay, export filename fallback, and reference context-menu group presentation moved from `ReferenceLibraryWorkbench.vue` into `src/domains/references/referenceWorkbenchPresentation.js`. The component still owns native dialogs, clipboard writes, toast/status feedback, DOM width reads, dock page activation, menu action binding, and Pinia orchestration.
+- 2026-05-18: Reference workbench sort toggles, PDF path fallback, cited-in file lookup, collection membership checks, detail dock resize constraints, close-reset delay, export filename fallback, and reference context-menu group presentation moved from `ReferenceLibraryWorkbench.vue` into `src/domains/references/referenceWorkbenchPresentation.js`. After the follow-up action split, the component still owns DOM width reads, dock page activation, shell composition, selection, and Pinia state consumption, while native dialogs, clipboard writes, toast/status feedback, menu action binding, and reference store dispatch live in `src/composables/references/useReferenceLibraryActions.js`.
 - 2026-05-03: Zotero manual sync routing moved behind `referencesStore.syncZoteroNow()`, so `SettingsZotero.vue` no longer passes the references store into the Zotero service layer.
 - 2026-05-03: Removed unused LaTeX preference setters for build extra args and custom system TeX path from `src/stores/latex.js`; persisted fields remain readable for existing runtime requests, but deleted settings no longer leave callable store entry points.
 - 2026-05-03: Zotero connect/disconnect service sequences moved behind `referencesStore.connectZotero()` and `referencesStore.disconnectZotero()`, keeping `SettingsZotero.vue` focused on form state, option-tree UI, and messages.
