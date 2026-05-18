@@ -557,14 +557,17 @@ fn apply_merge_imported_references(snapshot: &Value, imported: &[Value]) -> Valu
         .as_ref()
         .map(|reference| trim_string(reference.get("id")))
         .unwrap_or_default();
+    let reused_existing = imported_count == 0 && selected_reference.is_some();
     let next_snapshot = normalized_snapshot_with(snapshot, None, Some(merged));
 
     json!({
         "snapshot": next_snapshot,
         "result": {
             "importedCount": imported_count,
-            "selectedReferenceId": selected_reference_id,
-            "reusedExisting": imported_count == 0 && selected_reference.is_some(),
+            "selectedReferenceId": selected_reference_id.clone(),
+            "selectedReference": selected_reference.unwrap_or(Value::Null),
+            "preferredSelectedReferenceId": selected_reference_id,
+            "reusedExisting": reused_existing,
         },
     })
 }
@@ -660,18 +663,22 @@ fn apply_add_reference(snapshot: &Value, reference: &Value, mark_for_zotero_push
     let normalized_candidate = normalize_reference_record(&Value::Object(candidate));
 
     if let Some(duplicate) = find_duplicate_reference_internal(&references, &normalized_candidate) {
+        let selected_reference_id = trim_string(duplicate.get("id"));
         return json!({
             "snapshot": normalize_snapshot(snapshot),
             "result": {
                 "changed": false,
                 "duplicate": true,
-                "selectedReferenceId": trim_string(duplicate.get("id")),
+                "selectedReferenceId": selected_reference_id.clone(),
+                "selectedReference": duplicate,
+                "preferredSelectedReferenceId": selected_reference_id,
             },
         });
     }
 
     let mut next_references = references;
     let selected_reference_id = trim_string(normalized_candidate.get("id"));
+    let selected_reference = normalized_candidate.clone();
     next_references.push(normalized_candidate);
 
     json!({
@@ -679,7 +686,9 @@ fn apply_add_reference(snapshot: &Value, reference: &Value, mark_for_zotero_push
         "result": {
             "changed": true,
             "duplicate": false,
-            "selectedReferenceId": selected_reference_id,
+            "selectedReferenceId": selected_reference_id.clone(),
+            "selectedReference": selected_reference,
+            "preferredSelectedReferenceId": selected_reference_id,
         },
     })
 }
@@ -1186,6 +1195,14 @@ mod tests {
             result["result"]["selectedReferenceId"].as_str(),
             Some("ref-1")
         );
+        assert_eq!(
+            result["result"]["preferredSelectedReferenceId"].as_str(),
+            Some("ref-1")
+        );
+        assert_eq!(
+            result["result"]["selectedReference"]["id"].as_str(),
+            Some("ref-1")
+        );
         assert_eq!(result["result"]["reusedExisting"].as_bool(), Some(true));
     }
 
@@ -1300,6 +1317,14 @@ mod tests {
         assert_eq!(result["result"]["duplicate"].as_bool(), Some(true));
         assert_eq!(
             result["result"]["selectedReferenceId"].as_str(),
+            Some("ref-1")
+        );
+        assert_eq!(
+            result["result"]["preferredSelectedReferenceId"].as_str(),
+            Some("ref-1")
+        );
+        assert_eq!(
+            result["result"]["selectedReference"]["id"].as_str(),
             Some("ref-1")
         );
     }

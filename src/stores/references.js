@@ -60,9 +60,6 @@ import {
   buildDocumentReferenceIdsMutationState,
   buildReferenceEmptyImportResult,
   buildReferenceImportInputState,
-  buildReferenceImportMutationCommitState,
-  buildReferenceImportMutationResultState,
-  buildReferenceAddMutationResultState,
   buildReferenceCollectionMutationResultState,
   buildReferenceCitationFormatTargetState,
   buildReferenceDocumentIdsMutationResultState,
@@ -155,9 +152,9 @@ async function commitImportedReferences(store, projectRoot = '', importedReferen
     },
   })
   await commitReferenceMutationSnapshot(store, projectRoot, mutation, {
-    ...buildReferenceImportMutationCommitState(mutation),
+    preferredSelectedReferenceId: mutation?.result?.preferredSelectedReferenceId || '',
   })
-  return buildReferenceImportMutationResultState(store.references, mutation)
+  return mutation?.result || importState.emptyResult
 }
 
 export const useReferencesStore = defineStore('references', {
@@ -612,13 +609,12 @@ export const useReferencesStore = defineStore('references', {
           markForZoteroPush,
         },
       })
-      const resultState = buildReferenceAddMutationResultState(this.references, mutation)
 
       await commitReferenceMutationSnapshot(this, projectRoot, mutation, {
         persist,
-        preferredSelectedReferenceId: resultState.selectedReferenceId,
+        preferredSelectedReferenceId: mutation?.result?.preferredSelectedReferenceId || '',
       })
-      return buildReferenceAddMutationResultState(this.references, mutation).selectedReference
+      return mutation?.result?.selectedReference || null
     },
 
     async updateReference(projectRoot = '', referenceId = '', updates = {}, options = {}) {

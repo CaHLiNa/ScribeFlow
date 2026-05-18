@@ -6,9 +6,6 @@ import {
   buildDocumentReferenceIdsMutationState,
   buildReferenceEmptyImportResult,
   buildReferenceImportInputState,
-  buildReferenceImportMutationCommitState,
-  buildReferenceImportMutationResultState,
-  buildReferenceAddMutationResultState,
   buildReferenceCitationFormatTargetState,
   buildReferenceCollectionMutationResultState,
   buildReferenceDocumentIdsMutationResultState,
@@ -193,58 +190,6 @@ assert.deepEqual(buildReferenceImportInputState('not-array'), {
   canImport: false,
   importedReferences: [],
   emptyResult: buildReferenceEmptyImportResult(),
-})
-assert.deepEqual(buildReferenceImportMutationResultState(references, {
-  result: {
-    importedCount: '2',
-    selectedReferenceId: 'ref-2',
-    reusedExisting: true,
-  },
-}), {
-  importedCount: 2,
-  selectedReferenceId: 'ref-2',
-  selectedReference: references[1],
-  reusedExisting: true,
-})
-assert.deepEqual(buildReferenceImportMutationResultState(references, {
-  result: {
-    selectedReferenceId: 'missing',
-  },
-}), {
-  importedCount: 0,
-  selectedReferenceId: 'missing',
-  selectedReference: null,
-  reusedExisting: false,
-})
-assert.deepEqual(buildReferenceImportMutationCommitState({
-  result: {
-    selectedReferenceId: 'ref-2',
-  },
-}), {
-  preferredSelectedReferenceId: 'ref-2',
-})
-assert.deepEqual(buildReferenceImportMutationCommitState({
-  result: {
-    selectedReferenceId: null,
-  },
-}), {
-  preferredSelectedReferenceId: '',
-})
-assert.deepEqual(buildReferenceAddMutationResultState(references, {
-  result: {
-    selectedReferenceId: 'ref-2',
-  },
-}), {
-  selectedReferenceId: 'ref-2',
-  selectedReference: references[1],
-})
-assert.deepEqual(buildReferenceAddMutationResultState(references, {
-  result: {
-    selectedReferenceId: 'missing',
-  },
-}), {
-  selectedReferenceId: 'missing',
-  selectedReference: null,
 })
 assert.deepEqual(buildReferenceMetadataRefreshTargetState(references, ' ref-2 '), {
   canRefresh: true,
@@ -980,6 +925,7 @@ assert.deepEqual(buildReferenceRemoveMutationCommitState({
 })
 
 const storeSource = await readFile('src/stores/references.js', 'utf8')
+const domainSource = await readFile('src/domains/references/referenceStoreState.js', 'utf8')
 const actionSource = (actionName) => {
   const pattern = new RegExp(`(?:async\\s+)?${actionName}\\([^)]*\\) \\{[\\s\\S]*?\\n    \\},`)
   const match = storeSource.match(pattern)
@@ -1194,18 +1140,23 @@ assert.match(
 )
 assert.match(
   storeSource,
-  /buildReferenceImportMutationResultState/,
-  'references store must delegate import mutation result mapping',
+  /return mutation\?\.result \|\| importState\.emptyResult/,
+  'references store must return Rust-returned import mutation outcome',
 )
 assert.match(
   storeSource,
-  /buildReferenceImportMutationCommitState/,
-  'references store must delegate import mutation commit selection',
+  /preferredSelectedReferenceId: mutation\?\.result\?\.preferredSelectedReferenceId \|\| ''/,
+  'references store must consume Rust-returned preferred selection for imports',
 )
 assert.match(
-  storeSource,
-  /buildReferenceAddMutationResultState/,
-  'references store must delegate add-reference mutation result mapping',
+  actionSource('addReference'),
+  /return mutation\?\.result\?\.selectedReference \|\| null/,
+  'references store must consume Rust-returned add-reference result',
+)
+assert.doesNotMatch(
+  domainSource,
+  /buildReferenceImportMutationResultState|buildReferenceImportMutationCommitState|buildReferenceAddMutationResultState/,
+  'referenceStoreState must not retain migrated import/add mutation result helpers',
 )
 assert.match(
   storeSource,
@@ -1284,7 +1235,7 @@ assert.match(
 )
 assert.doesNotMatch(
   storeSource,
-  /function normalizeCollectionMembershipValue|function normalizeTagKey|function resolveCollection|function resolveDocumentReferenceSelections|function buildDefaultResolvedQueryState|version:\s*2|citationStyle:\s*'apa'|documentReferenceSelections:\s*\{\}|Array\.isArray\(normalized\.(?:collections|tags|references)\)|Array\.isArray\(importedReferences\)|Array\.isArray\(referenceStyles\)|Array\.isArray\(styles\)|Array\.isArray\(importedSnapshot\?\.references\)|String\(normalized\.citationStyle \|\| 'apa'\)|const selectedIds = new Set\(this\.getDocumentReferenceIds|const normalizedQuery = String\(query \|\| ''\)\.trim\(\)\.toLowerCase\(\)|haystack\.includes\(normalizedQuery\)|referenceIds\s*\.map\(\(referenceId\) => this\.references\.find|this\.references\.some\(\(reference\) => reference\.id|this\.(?:librarySections|sourceSections)\.some\(\(section\) => section\.key|resolveReferenceSectionKey|\[\s*'year-desc'[\s\S]*'author-desc'[\s\S]*\]\.includes\(value\)|const query = this\.resolvedQueryState\?\.query|query\.selectedReferenceId|query\.selectedSectionKey|const normalized = normalizeTagKey\(tagKey\)|this\.sortKey = normalizeReferenceSortKey\(value\)|resolveReferenceById\(state\.references|this\.filteredReferences\[0\]|new Set\(Object\.keys\(this\.citedIn\)\)|Number\(mutation\?\.result\?\.importedCount \|\| 0\)|Number\(result\?\.imported \|\| 0\)|Number\(result\?\.linked \|\| 0\)|Number\(result\?\.updated \|\| 0\)|reusedExisting: mutation\?\.result\?\.reusedExisting === true/,
+  /function normalizeCollectionMembershipValue|function normalizeTagKey|function resolveCollection|function resolveDocumentReferenceSelections|function buildDefaultResolvedQueryState|version:\s*2|citationStyle:\s*'apa'|documentReferenceSelections:\s*\{\}|Array\.isArray\(normalized\.(?:collections|tags|references)\)|Array\.isArray\(importedReferences\)|Array\.isArray\(referenceStyles\)|Array\.isArray\(styles\)|Array\.isArray\(importedSnapshot\?\.references\)|String\(normalized\.citationStyle \|\| 'apa'\)|const selectedIds = new Set\(this\.getDocumentReferenceIds|const normalizedQuery = String\(query \|\| ''\)\.trim\(\)\.toLowerCase\(\)|haystack\.includes\(normalizedQuery\)|referenceIds\s*\.map\(\(referenceId\) => this\.references\.find|this\.references\.some\(\(reference\) => reference\.id|this\.(?:librarySections|sourceSections)\.some\(\(section\) => section\.key|resolveReferenceSectionKey|\[\s*'year-desc'[\s\S]*'author-desc'[\s\S]*\]\.includes\(value\)|const query = this\.resolvedQueryState\?\.query|query\.selectedReferenceId|query\.selectedSectionKey|const normalized = normalizeTagKey\(tagKey\)|this\.sortKey = normalizeReferenceSortKey\(value\)|resolveReferenceById\(state\.references|this\.filteredReferences\[0\]|new Set\(Object\.keys\(this\.citedIn\)\)|buildReferenceImportMutationResultState\(this\.references|buildReferenceAddMutationResultState\(this\.references|buildReferenceImportMutationCommitState\(mutation\)|Number\(result\?\.imported \|\| 0\)|Number\(result\?\.linked \|\| 0\)|Number\(result\?\.updated \|\| 0\)/,
   'references store must not redefine deterministic state helpers inline',
 )
 assert.doesNotMatch(
@@ -1421,9 +1372,9 @@ console.log(JSON.stringify({
     exportSelectionDerived: true,
     jsonExportTargetStateDerived: true,
     citationFormatTargetStateDerived: true,
-    importResultDerived: true,
-    importMutationCommitStateDerived: true,
-    addReferenceResultStateDerived: true,
+    rustImportOutcomeConsumed: true,
+    rustImportPreferredSelectionConsumed: true,
+    rustAddReferenceOutcomeConsumed: true,
     metadataRefreshTargetStateDerived: true,
     pdfAssetTargetAndResultStateDerived: true,
     removeReferenceTargetAndResultStateDerived: true,

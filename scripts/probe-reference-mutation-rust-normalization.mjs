@@ -42,7 +42,12 @@ try {
     if (cmd === 'references_mutation_apply') {
       return {
         snapshot: args?.params?.snapshot || {},
-        result: { changed: false },
+        result: {
+          changed: false,
+          preferredSelectedReferenceId: 'ref-rust',
+          selectedReferenceId: 'ref-rust',
+          selectedReference: { id: 'ref-rust', title: 'Rust Outcome' },
+        },
       }
     }
 

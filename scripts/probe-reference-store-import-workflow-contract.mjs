@@ -45,18 +45,18 @@ assert.match(
 )
 assert.match(
   helperSource,
-  /buildReferenceImportMutationCommitState\(mutation\)/,
-  'commitImportedReferences must delegate selected-reference restoration state to the reference domain',
+  /preferredSelectedReferenceId: mutation\?\.result\?\.preferredSelectedReferenceId \|\| ''/,
+  'commitImportedReferences must consume Rust-returned preferred selection without JS re-derivation',
 )
 assert.match(
   helperSource,
-  /buildReferenceImportMutationResultState\(store\.references, mutation\)/,
-  'commitImportedReferences must delegate import result mapping to the reference domain',
+  /return mutation\?\.result \|\| importState\.emptyResult/,
+  'commitImportedReferences must return the Rust mutation outcome without JS result reconstruction',
 )
 assert.doesNotMatch(
   helperSource,
-  /\.push\(|\.splice\(|new Set\(|findIndex\(|Array\.isArray\(importedReferences\)|String\(mutation\?\.result\?\.selectedReferenceId \|\| ''\)|Number\(mutation\?\.result\?\.importedCount \|\| 0\)|reusedExisting: mutation\?\.result\?\.reusedExisting === true|writeReferenceLibrarySnapshot|normalizeReferenceLibrarySnapshotWithBackend/,
-  'commitImportedReferences must not perform local merge, dedupe, commit selection, result mapping, or persistence policy itself',
+  /\.push\(|\.splice\(|new Set\(|findIndex\(|Array\.isArray\(importedReferences\)|buildReferenceImportMutationCommitState|buildReferenceImportMutationResultState|resolveReferenceById|writeReferenceLibrarySnapshot|normalizeReferenceLibrarySnapshotWithBackend/,
+  'commitImportedReferences must not perform local merge, dedupe, commit selection lookup, result lookup, or persistence policy itself',
 )
 
 for (const actionName of ['importParsedReferences', 'importResolvedReferenceText']) {
@@ -77,10 +77,11 @@ console.log(JSON.stringify({
   ok: true,
   summary: {
     sharedImportCommitWorkflow: true,
-    importResultMappingDerived: true,
-    importCommitSelectionDerived: true,
+    rustImportOutcomeConsumed: true,
+    rustImportPreferredSelectionConsumed: true,
     rustMutationRemainsMergeAuthority: true,
     snapshotCommitBoundaryPreserved: true,
+    rustReturnedOutcomeConsumed: true,
     importActionsAvoidDuplicateMergeHandling: true,
   },
 }, null, 2))

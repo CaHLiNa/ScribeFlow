@@ -162,30 +162,6 @@ export function buildReferenceImportInputState(importedReferences = []) {
   }
 }
 
-export function buildReferenceImportMutationResultState(references = [], mutation = {}) {
-  const selectedReferenceId = String(mutation?.result?.selectedReferenceId || '')
-  return {
-    importedCount: Number(mutation?.result?.importedCount || 0),
-    selectedReferenceId,
-    selectedReference: resolveReferenceById(references, selectedReferenceId),
-    reusedExisting: mutation?.result?.reusedExisting === true,
-  }
-}
-
-export function buildReferenceImportMutationCommitState(mutation = {}) {
-  return {
-    preferredSelectedReferenceId: String(mutation?.result?.selectedReferenceId || ''),
-  }
-}
-
-export function buildReferenceAddMutationResultState(references = [], mutation = {}) {
-  const selectedReferenceId = String(mutation?.result?.selectedReferenceId || '')
-  return {
-    selectedReferenceId,
-    selectedReference: resolveReferenceById(references, selectedReferenceId),
-  }
-}
-
 export function buildReferenceMetadataRefreshTargetState(references = [], referenceId = '') {
   const normalizedReferenceId = String(referenceId || '').trim()
   const reference = resolveReferenceById(references, normalizedReferenceId)

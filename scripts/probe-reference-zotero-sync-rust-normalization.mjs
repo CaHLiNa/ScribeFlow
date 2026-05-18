@@ -129,19 +129,27 @@ try {
             changed: true,
             duplicate: false,
             selectedReferenceId: action.reference?.id || '',
+            selectedReference: {
+              ...action.reference,
+              _appPushPending: action.markForZoteroPush === true,
+            },
+            preferredSelectedReferenceId: action.reference?.id || '',
           },
         }
       }
 
       if (action.type === 'mergeImportedReferences') {
+        const imported = Array.isArray(action.imported) ? action.imported : []
         return {
           snapshot: {
             version: 2,
-            references: Array.isArray(action.imported) ? action.imported : [],
+            references: imported,
           },
           result: {
-            importedCount: Array.isArray(action.imported) ? action.imported.length : 0,
-            selectedReferenceId: action.imported?.[0]?.id || '',
+            importedCount: imported.length,
+            selectedReferenceId: imported[0]?.id || '',
+            selectedReference: imported[0] || null,
+            preferredSelectedReferenceId: imported[0]?.id || '',
             reusedExisting: false,
           },
         }
