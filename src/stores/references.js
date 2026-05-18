@@ -96,10 +96,10 @@ import {
   resolveDocumentReferenceIds,
   resolveDocumentReferences,
   resolveReferenceByKey,
-  resolveReferenceById,
   resolveReferenceCitationUsageKeys,
   resolveReferenceResolvedQueryState,
   resolveReferenceSelectionId,
+  resolveSelectedReference,
   buildReferenceSectionSelectionState,
   buildReferenceSnapshotApplyState,
   buildReferenceSortSelectionState,
@@ -179,11 +179,7 @@ export const useReferencesStore = defineStore('references', {
     filteredReferences: (state) => state.resolvedQueryState?.filteredReferences || [],
 
     selectedReference(state) {
-      return (
-        resolveReferenceById(state.references, state.selectedReferenceId) ||
-        this.filteredReferences[0] ||
-        null
-      )
+      return resolveSelectedReference(state.references, state.selectedReferenceId, this.filteredReferences)
     },
 
     selectedReferencePdfTabOpen(state) {

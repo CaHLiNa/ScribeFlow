@@ -101,6 +101,18 @@ export function hasReferenceById(references = [], referenceId = '') {
   return Boolean(resolveReferenceById(references, referenceId))
 }
 
+export function resolveSelectedReference(
+  references = [],
+  selectedReferenceId = '',
+  fallbackReferences = [],
+) {
+  return (
+    resolveReferenceById(references, selectedReferenceId) ||
+    (Array.isArray(fallbackReferences) ? fallbackReferences[0] : null) ||
+    null
+  )
+}
+
 export function resolveReferenceCitationUsageKeys(citationUsageIndex = {}) {
   if (!citationUsageIndex || typeof citationUsageIndex !== 'object' || Array.isArray(citationUsageIndex)) {
     return new Set()

@@ -63,6 +63,7 @@ import {
   resolveReferenceSelectionId,
   resolveReferenceSectionKey,
   resolveReferencesForExport,
+  resolveSelectedReference,
   resolveTag,
   searchReferences,
 } from '../src/domains/references/referenceStoreState.js'
@@ -146,6 +147,9 @@ assert.equal(resolveReferenceById(references, 'hopper2025'), null)
 assert.equal(hasReferenceById(references, ' ref-2 '), true)
 assert.equal(hasReferenceById(references, 'hopper2025'), false)
 assert.equal(hasReferenceById('not-array', 'ref-2'), false)
+assert.deepEqual(resolveSelectedReference(references, ' ref-2 ', [references[0]]), references[1])
+assert.deepEqual(resolveSelectedReference(references, 'missing', [references[0]]), references[0])
+assert.equal(resolveSelectedReference(references, 'missing', []), null)
 assert.deepEqual([...resolveReferenceCitationUsageKeys({
   lovelace2024: ['paper.tex'],
   hopper2025: [],
@@ -1265,8 +1269,8 @@ assert.match(
 )
 assert.match(
   storeSource,
-  /resolveReferenceById/,
-  'references store must delegate exact-id reference lookup for JSON export',
+  /resolveSelectedReference/,
+  'references store must delegate selected-reference fallback lookup',
 )
 assert.match(
   storeSource,
@@ -1280,7 +1284,7 @@ assert.match(
 )
 assert.doesNotMatch(
   storeSource,
-  /function normalizeCollectionMembershipValue|function normalizeTagKey|function resolveCollection|function resolveDocumentReferenceSelections|function buildDefaultResolvedQueryState|version:\s*2|citationStyle:\s*'apa'|documentReferenceSelections:\s*\{\}|Array\.isArray\(normalized\.(?:collections|tags|references)\)|Array\.isArray\(importedReferences\)|Array\.isArray\(referenceStyles\)|Array\.isArray\(styles\)|Array\.isArray\(importedSnapshot\?\.references\)|String\(normalized\.citationStyle \|\| 'apa'\)|const selectedIds = new Set\(this\.getDocumentReferenceIds|const normalizedQuery = String\(query \|\| ''\)\.trim\(\)\.toLowerCase\(\)|haystack\.includes\(normalizedQuery\)|referenceIds\s*\.map\(\(referenceId\) => this\.references\.find|this\.references\.some\(\(reference\) => reference\.id|this\.(?:librarySections|sourceSections)\.some\(\(section\) => section\.key|resolveReferenceSectionKey|\[\s*'year-desc'[\s\S]*'author-desc'[\s\S]*\]\.includes\(value\)|const query = this\.resolvedQueryState\?\.query|query\.selectedReferenceId|query\.selectedSectionKey|const normalized = normalizeTagKey\(tagKey\)|this\.sortKey = normalizeReferenceSortKey\(value\)|new Set\(Object\.keys\(this\.citedIn\)\)|Number\(mutation\?\.result\?\.importedCount \|\| 0\)|Number\(result\?\.imported \|\| 0\)|Number\(result\?\.linked \|\| 0\)|Number\(result\?\.updated \|\| 0\)|reusedExisting: mutation\?\.result\?\.reusedExisting === true/,
+  /function normalizeCollectionMembershipValue|function normalizeTagKey|function resolveCollection|function resolveDocumentReferenceSelections|function buildDefaultResolvedQueryState|version:\s*2|citationStyle:\s*'apa'|documentReferenceSelections:\s*\{\}|Array\.isArray\(normalized\.(?:collections|tags|references)\)|Array\.isArray\(importedReferences\)|Array\.isArray\(referenceStyles\)|Array\.isArray\(styles\)|Array\.isArray\(importedSnapshot\?\.references\)|String\(normalized\.citationStyle \|\| 'apa'\)|const selectedIds = new Set\(this\.getDocumentReferenceIds|const normalizedQuery = String\(query \|\| ''\)\.trim\(\)\.toLowerCase\(\)|haystack\.includes\(normalizedQuery\)|referenceIds\s*\.map\(\(referenceId\) => this\.references\.find|this\.references\.some\(\(reference\) => reference\.id|this\.(?:librarySections|sourceSections)\.some\(\(section\) => section\.key|resolveReferenceSectionKey|\[\s*'year-desc'[\s\S]*'author-desc'[\s\S]*\]\.includes\(value\)|const query = this\.resolvedQueryState\?\.query|query\.selectedReferenceId|query\.selectedSectionKey|const normalized = normalizeTagKey\(tagKey\)|this\.sortKey = normalizeReferenceSortKey\(value\)|resolveReferenceById\(state\.references|this\.filteredReferences\[0\]|new Set\(Object\.keys\(this\.citedIn\)\)|Number\(mutation\?\.result\?\.importedCount \|\| 0\)|Number\(result\?\.imported \|\| 0\)|Number\(result\?\.linked \|\| 0\)|Number\(result\?\.updated \|\| 0\)|reusedExisting: mutation\?\.result\?\.reusedExisting === true/,
   'references store must not redefine deterministic state helpers inline',
 )
 assert.doesNotMatch(
@@ -1409,6 +1413,7 @@ console.log(JSON.stringify({
   summary: {
     collectionAndTagMatchingDerived: true,
     documentSelectionFallbackDerived: true,
+    selectedReferenceFallbackDerived: true,
     documentReferenceMutationDerived: true,
     documentReferenceLookupDerived: true,
     citationUsageKeysDerived: true,
