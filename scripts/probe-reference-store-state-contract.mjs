@@ -4,6 +4,9 @@ import {
   buildAddDocumentReferenceMutationState,
   buildDefaultResolvedQueryState,
   buildDocumentReferenceIdsMutationState,
+  buildReferenceEmptyImportResult,
+  buildReferenceImportInputState,
+  buildReferenceImportMutationResultState,
   buildRemoveDocumentReferenceMutationState,
   buildReferenceLibrarySnapshotPayload,
   buildReferenceDockPdfCloseState,
@@ -129,6 +132,44 @@ assert.deepEqual(resolveReferencesForExport(references, ['ref-3', 'missing', 're
   references[0],
 ])
 assert.deepEqual(resolveReferencesForExport('not-array', ['ref-1']), [])
+assert.deepEqual(buildReferenceEmptyImportResult(), {
+  importedCount: 0,
+  selectedReferenceId: '',
+  selectedReference: null,
+  reusedExisting: false,
+})
+assert.deepEqual(buildReferenceImportInputState([references[0]]), {
+  canImport: true,
+  importedReferences: [references[0]],
+  emptyResult: buildReferenceEmptyImportResult(),
+})
+assert.deepEqual(buildReferenceImportInputState('not-array'), {
+  canImport: false,
+  importedReferences: [],
+  emptyResult: buildReferenceEmptyImportResult(),
+})
+assert.deepEqual(buildReferenceImportMutationResultState(references, {
+  result: {
+    importedCount: '2',
+    selectedReferenceId: 'ref-2',
+    reusedExisting: true,
+  },
+}), {
+  importedCount: 2,
+  selectedReferenceId: 'ref-2',
+  selectedReference: references[1],
+  reusedExisting: true,
+})
+assert.deepEqual(buildReferenceImportMutationResultState(references, {
+  result: {
+    selectedReferenceId: 'missing',
+  },
+}), {
+  importedCount: 0,
+  selectedReferenceId: 'missing',
+  selectedReference: null,
+  reusedExisting: false,
+})
 assert.deepEqual(resolveDocumentReferenceByKey(documentReferenceSelections, references, 'paper.tex', 'hopper2025'), references[1])
 assert.equal(resolveDocumentReferenceByKey(documentReferenceSelections, references, 'paper.tex', 'unused2026'), null)
 assert.equal(isReferenceSelectedForDocument(documentReferenceSelections, references, 'paper.tex', 'ref-1'), true)
@@ -814,6 +855,21 @@ assert.match(
 )
 assert.match(
   storeSource,
+  /buildReferenceImportInputState/,
+  'references store must delegate import input state derivation',
+)
+assert.match(
+  storeSource,
+  /buildReferenceEmptyImportResult/,
+  'references store must delegate empty import result shape',
+)
+assert.match(
+  storeSource,
+  /buildReferenceImportMutationResultState/,
+  'references store must delegate import mutation result mapping',
+)
+assert.match(
+  storeSource,
   /resolveReferenceById/,
   'references store must delegate exact-id reference lookup for JSON export',
 )
@@ -824,7 +880,7 @@ assert.match(
 )
 assert.doesNotMatch(
   storeSource,
-  /function normalizeCollectionMembershipValue|function normalizeTagKey|function resolveCollection|function resolveDocumentReferenceSelections|function buildDefaultResolvedQueryState|version:\s*2|citationStyle:\s*'apa'|documentReferenceSelections:\s*\{\}|Array\.isArray\(normalized\.(?:collections|tags|references)\)|String\(normalized\.citationStyle \|\| 'apa'\)|const selectedIds = new Set\(this\.getDocumentReferenceIds|const normalizedQuery = String\(query \|\| ''\)\.trim\(\)\.toLowerCase\(\)|haystack\.includes\(normalizedQuery\)|referenceIds\s*\.map\(\(referenceId\) => this\.references\.find|this\.references\.some\(\(reference\) => reference\.id|this\.(?:librarySections|sourceSections)\.some\(\(section\) => section\.key|resolveReferenceSectionKey|\[\s*'year-desc'[\s\S]*'author-desc'[\s\S]*\]\.includes\(value\)|const query = this\.resolvedQueryState\?\.query|query\.selectedReferenceId|query\.selectedSectionKey|const normalized = normalizeTagKey\(tagKey\)|this\.sortKey = normalizeReferenceSortKey\(value\)/,
+  /function normalizeCollectionMembershipValue|function normalizeTagKey|function resolveCollection|function resolveDocumentReferenceSelections|function buildDefaultResolvedQueryState|version:\s*2|citationStyle:\s*'apa'|documentReferenceSelections:\s*\{\}|Array\.isArray\(normalized\.(?:collections|tags|references)\)|Array\.isArray\(importedReferences\)|String\(normalized\.citationStyle \|\| 'apa'\)|const selectedIds = new Set\(this\.getDocumentReferenceIds|const normalizedQuery = String\(query \|\| ''\)\.trim\(\)\.toLowerCase\(\)|haystack\.includes\(normalizedQuery\)|referenceIds\s*\.map\(\(referenceId\) => this\.references\.find|this\.references\.some\(\(reference\) => reference\.id|this\.(?:librarySections|sourceSections)\.some\(\(section\) => section\.key|resolveReferenceSectionKey|\[\s*'year-desc'[\s\S]*'author-desc'[\s\S]*\]\.includes\(value\)|const query = this\.resolvedQueryState\?\.query|query\.selectedReferenceId|query\.selectedSectionKey|const normalized = normalizeTagKey\(tagKey\)|this\.sortKey = normalizeReferenceSortKey\(value\)|Number\(mutation\?\.result\?\.importedCount \|\| 0\)|reusedExisting: mutation\?\.result\?\.reusedExisting === true/,
   'references store must not redefine deterministic state helpers inline',
 )
 for (const actionName of ['setSelectedSource', 'setSelectedCollection', 'setSelectedTag']) {
@@ -878,6 +934,7 @@ console.log(JSON.stringify({
     documentReferenceLookupDerived: true,
     referenceSearchDerived: true,
     exportSelectionDerived: true,
+    importResultDerived: true,
     defaultQueryStateDerived: true,
     resolvedQueryHydrationDerived: true,
     sidebarSelectionDerived: true,

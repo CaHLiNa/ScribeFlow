@@ -58,6 +58,9 @@ import {
   buildAddDocumentReferenceMutationState,
   buildDefaultResolvedQueryState,
   buildDocumentReferenceIdsMutationState,
+  buildReferenceEmptyImportResult,
+  buildReferenceImportInputState,
+  buildReferenceImportMutationResultState,
   buildRemoveDocumentReferenceMutationState,
   buildReferenceLibrarySnapshotPayload,
   buildReferenceDockPdfCloseState,
@@ -120,20 +123,14 @@ async function commitReferenceMutationSnapshot(store, projectRoot = '', mutation
 }
 
 async function commitImportedReferences(store, projectRoot = '', importedReferences = []) {
-  if (!Array.isArray(importedReferences) || importedReferences.length === 0) {
-    return {
-      importedCount: 0,
-      selectedReferenceId: '',
-      selectedReference: null,
-      reusedExisting: false,
-    }
-  }
+  const importState = buildReferenceImportInputState(importedReferences)
+  if (!importState.canImport) return importState.emptyResult
 
   const mutation = await applyReferenceMutation({
     snapshot: store.buildLibrarySnapshotPayload(),
     action: {
       type: 'mergeImportedReferences',
-      imported: importedReferences,
+      imported: importState.importedReferences,
       markForZoteroPush: true,
     },
   })
@@ -141,14 +138,7 @@ async function commitImportedReferences(store, projectRoot = '', importedReferen
   await commitReferenceMutationSnapshot(store, projectRoot, mutation, {
     preferredSelectedReferenceId: selectedReferenceId,
   })
-  const selectedReference = resolveReferenceById(store.references, selectedReferenceId)
-
-  return {
-    importedCount: Number(mutation?.result?.importedCount || 0),
-    selectedReferenceId,
-    selectedReference,
-    reusedExisting: mutation?.result?.reusedExisting === true,
-  }
+  return buildReferenceImportMutationResultState(store.references, mutation)
 }
 
 export const useReferencesStore = defineStore('references', {
@@ -365,13 +355,8 @@ export const useReferencesStore = defineStore('references', {
     },
 
     async importParsedReferences(projectRoot = '', importedReferences = []) {
-      if (importedReferences.length === 0) {
-        return {
-          importedCount: 0,
-          selectedReferenceId: '',
-          selectedReference: null,
-          reusedExisting: false,
-        }
+      if (!buildReferenceImportInputState(importedReferences).canImport) {
+        return buildReferenceEmptyImportResult()
       }
       this.importInFlight = true
       try {
@@ -385,13 +370,8 @@ export const useReferencesStore = defineStore('references', {
       this.importInFlight = true
       try {
         const importedReferences = await importReferencesFromText(content)
-        if (importedReferences.length === 0) {
-          return {
-            importedCount: 0,
-            selectedReferenceId: '',
-            selectedReference: null,
-            reusedExisting: false,
-          }
+        if (!buildReferenceImportInputState(importedReferences).canImport) {
+          return buildReferenceEmptyImportResult()
         }
 
         return commitImportedReferences(this, projectRoot, importedReferences)

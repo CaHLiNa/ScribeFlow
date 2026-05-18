@@ -109,6 +109,34 @@ export function resolveReferencesForExport(references = [], referenceIds = []) {
     .filter(Boolean)
 }
 
+export function buildReferenceEmptyImportResult() {
+  return {
+    importedCount: 0,
+    selectedReferenceId: '',
+    selectedReference: null,
+    reusedExisting: false,
+  }
+}
+
+export function buildReferenceImportInputState(importedReferences = []) {
+  const references = Array.isArray(importedReferences) ? importedReferences : []
+  return {
+    canImport: references.length > 0,
+    importedReferences: references,
+    emptyResult: buildReferenceEmptyImportResult(),
+  }
+}
+
+export function buildReferenceImportMutationResultState(references = [], mutation = {}) {
+  const selectedReferenceId = String(mutation?.result?.selectedReferenceId || '')
+  return {
+    importedCount: Number(mutation?.result?.importedCount || 0),
+    selectedReferenceId,
+    selectedReference: resolveReferenceById(references, selectedReferenceId),
+    reusedExisting: mutation?.result?.reusedExisting === true,
+  }
+}
+
 export function resolveDocumentReferenceByKey(
   documentReferenceSelections = {},
   references = [],

@@ -50,13 +50,13 @@ assert.match(
 )
 assert.match(
   helperSource,
-  /reusedExisting: mutation\?\.result\?\.reusedExisting === true/,
-  'commitImportedReferences must preserve duplicate-reuse result semantics',
+  /buildReferenceImportMutationResultState\(store\.references, mutation\)/,
+  'commitImportedReferences must delegate import result mapping to the reference domain',
 )
 assert.doesNotMatch(
   helperSource,
-  /\.push\(|\.splice\(|new Set\(|findIndex\(|writeReferenceLibrarySnapshot|normalizeReferenceLibrarySnapshotWithBackend/,
-  'commitImportedReferences must not perform local merge, dedupe, or persistence policy itself',
+  /\.push\(|\.splice\(|new Set\(|findIndex\(|Array\.isArray\(importedReferences\)|Number\(mutation\?\.result\?\.importedCount \|\| 0\)|reusedExisting: mutation\?\.result\?\.reusedExisting === true|writeReferenceLibrarySnapshot|normalizeReferenceLibrarySnapshotWithBackend/,
+  'commitImportedReferences must not perform local merge, dedupe, result mapping, or persistence policy itself',
 )
 
 for (const actionName of ['importParsedReferences', 'importResolvedReferenceText']) {
@@ -68,8 +68,8 @@ for (const actionName of ['importParsedReferences', 'importResolvedReferenceText
   )
   assert.doesNotMatch(
     actionSource,
-    /type: 'mergeImportedReferences'|markForZoteroPush: true|mutation\?\.result\?\.selectedReferenceId/,
-    `${actionName} must not duplicate imported-reference merge result handling inline`,
+    /type: 'mergeImportedReferences'|markForZoteroPush: true|mutation\?\.result\?\.selectedReferenceId|importedReferences\.length === 0|importedCount: 0/,
+    `${actionName} must not duplicate imported-reference merge or empty-result handling inline`,
   )
 }
 
@@ -77,6 +77,7 @@ console.log(JSON.stringify({
   ok: true,
   summary: {
     sharedImportCommitWorkflow: true,
+    importResultMappingDerived: true,
     rustMutationRemainsMergeAuthority: true,
     snapshotCommitBoundaryPreserved: true,
     importActionsAvoidDuplicateMergeHandling: true,
