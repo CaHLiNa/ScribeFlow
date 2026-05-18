@@ -168,6 +168,7 @@ Current plugin lifecycle contract:
 - sidebar panel status and summary shells are now shared too: view status pills and summary cards no longer keep their own local DOM/CSS contracts, and instead render through shared status-pill and summary-card components
 - extension count badges are now shared too: document-plugin page headers and sidebar view badges no longer keep separate count-badge chrome, and instead render through one shared count-badge component
 - plugin container presentation is now shared too: document-dock plugin tabs and document-plugin page headers now derive label/title/description/badge data from one shared container-presentation helper instead of separately reading first-view state and recomputing title-plus-badge strings
+- extension sidebar surface ownership is now split at the Vue component boundary: `ExtensionSidebarPanel.vue` keeps refresh/controller/result-action orchestration, `ExtensionSidebarHeader.vue` owns header action/refresh DOM and CSS, and `ExtensionSidebarViewSection.vue` owns section/result/tree DOM and CSS
 - plugin target summary presentation is now shared too: document-plugin page headers derive path/reference target copy from one pure presentation helper, keeping right-sidebar context wording probe-backed and outside component-local branching
 - document-action plugin panels now share that same right-sidebar header contract too: PDF action panels render the plugin container title, active target summary, and host runtime diagnostic surface before the action/task body instead of using a one-off button-only panel shape
 - extension task presentation is now shared too: right-sidebar task rows derive title, status tone, row tone, group counts, group tone, timeline density copy, detail collapse defaults, progress copy, progressbar metadata, target facts, result counts, artifact counts, preview/action result groups, and quick action affordances from pure presentation helpers instead of duplicating running/recent UI branches
@@ -271,6 +272,7 @@ The extension gate includes:
 - `npm run probe:extension-capability-sidebar-routing`
 - `npm run probe:extension-sidebar-routing`
 - `npm run probe:extension-document-action-task-surface`
+- `npm run probe:extension-sidebar-surface-style-ownership`
 - `npm run probe:extension-task-surface-style-ownership`
 - `npm run probe:extension-text-preview-fallback`
 - `npm run probe:extension-artifact-preview-entries`

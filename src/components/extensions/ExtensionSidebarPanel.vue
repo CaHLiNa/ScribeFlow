@@ -1,28 +1,12 @@
 <template>
   <div class="extension-sidebar-panel">
-    <div class="extension-sidebar-panel__header">
-      <div class="extension-sidebar-panel__header-main">
-        <div class="extension-sidebar-panel__title">{{ title }}</div>
-        <div class="extension-sidebar-panel__meta">{{ extensionName }}</div>
-      </div>
-      <div class="extension-sidebar-panel__header-actions">
-        <ExtensionBlockedActionButton
-          v-for="action in viewTitleActionsWithState"
-          :key="`${action.extensionId}:${action.commandId}`"
-          native
-          :extra-class="['extension-sidebar-panel__refresh', action.blocked ? 'is-blocked' : '']"
-          :blocked="action.blocked"
-          :blocked-label="action.blockedLabel"
-          :blocked-message="action.blockedMessage"
-          :label="t(action.title || action.commandId)"
-          :title="t(action.title || action.commandId)"
-          @click="runHeaderAction(action)"
-        />
-        <button type="button" class="extension-sidebar-panel__refresh" @click="refreshViews">
-          {{ t('Refresh') }}
-        </button>
-      </div>
-    </div>
+    <ExtensionSidebarHeader
+      :actions="viewTitleActionsWithState"
+      :extension-name="extensionName"
+      :title="title"
+      @refresh="refreshViews"
+      @run-action="runHeaderAction"
+    />
 
     <div v-if="views.length === 0" class="extension-sidebar-panel__empty">
       {{ t('No extension views found') }}
@@ -83,7 +67,7 @@ import {
   resolveExtensionSidebarViewPresentation,
 } from '../../domains/extensions/extensionSidebarPresentation'
 import { normalizeExtensionToneClass } from '../../domains/extensions/extensionToneClass'
-import ExtensionBlockedActionButton from './ExtensionBlockedActionButton.vue'
+import ExtensionSidebarHeader from './ExtensionSidebarHeader.vue'
 import ExtensionSidebarViewSection from './ExtensionSidebarViewSection.vue'
 
 const props = defineProps({
@@ -493,36 +477,6 @@ async function openResultEntry(entry = {}) {
   padding: 6px 2px 0;
 }
 
-.extension-sidebar-panel__header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 0 8px;
-}
-
-.extension-sidebar-panel__header-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.extension-sidebar-panel__header-main {
-  display: flex;
-  min-width: 0;
-  flex: 1 1 auto;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.extension-sidebar-panel__title {
-  color: var(--text-primary);
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.extension-sidebar-panel__meta,
-.extension-sidebar-panel__view-meta,
 .extension-sidebar-panel__empty {
   color: var(--text-muted);
   font-size: 11px;
@@ -537,109 +491,7 @@ async function openResultEntry(entry = {}) {
   padding: 0 6px 8px;
 }
 
-.extension-sidebar-panel__tree {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.extension-sidebar-panel__section {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.extension-sidebar-panel__section-header {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 2px;
-  padding: 0 4px;
-}
-
-.extension-sidebar-panel__view-message {
-  padding: 0 4px;
-  color: var(--text-muted);
-  font-size: 11px;
-}
-
-.extension-sidebar-panel__status {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 4px;
-}
-
-.extension-sidebar-panel__status-action {
-  color: var(--text-muted);
-  font-size: 11px;
-}
-
-.extension-sidebar-panel__summary {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 8px;
-  padding: 0 4px;
-}
-
-.extension-sidebar-panel__results {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 0 4px;
-}
-
-.extension-sidebar-panel__results-title {
-  color: var(--text-secondary);
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.extension-sidebar-panel__result-entry {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 3px;
-  border: 1px solid color-mix(in srgb, var(--border) 35%, transparent);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--surface-base) 82%, transparent);
-  padding: 10px;
-  text-align: left;
-  cursor: pointer;
-}
-
-.extension-sidebar-panel__result-entry.is-active {
-  border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
-  background: color-mix(in srgb, var(--accent) 10%, var(--surface-base));
-}
-
-.extension-sidebar-panel__result-entry:hover {
-  background: var(--surface-hover);
-}
-
-.extension-sidebar-panel__result-label {
-  color: var(--text-primary);
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.extension-sidebar-panel__result-description {
-  color: var(--text-muted);
-  font-size: 11px;
-  overflow-wrap: anywhere;
-}
-
 .extension-sidebar-panel__empty {
   padding: 0 10px;
 }
-
-.extension-sidebar-panel__refresh {
-  flex: 0 0 auto;
-  border: 0;
-  background: transparent;
-  color: var(--text-muted);
-  font-size: 11px;
-  cursor: pointer;
-}
-
 </style>
