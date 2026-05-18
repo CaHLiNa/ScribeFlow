@@ -64,6 +64,7 @@ import {
   buildReferenceImportMutationResultState,
   buildReferenceAddMutationResultState,
   buildReferenceCollectionMutationResultState,
+  buildReferenceCitationFormatTargetState,
   buildReferenceDocumentIdsMutationResultState,
   buildReferenceJsonExportTargetState,
   buildReferenceMetadataRefreshTargetState,
@@ -884,9 +885,9 @@ export const useReferencesStore = defineStore('references', {
     },
 
     async formatReferenceCitationAsync(referenceId = '', mode = 'reference', number) {
-      const reference = resolveReferenceById(this.references, referenceId)
-      if (!reference) return ''
-      return formatCitation(this.citationStyle, mode, reference, number, resolveReferenceWorkspacePath())
+      const targetState = buildReferenceCitationFormatTargetState(this.references, referenceId)
+      if (!targetState.canFormat) return ''
+      return formatCitation(this.citationStyle, mode, targetState.reference, number, resolveReferenceWorkspacePath())
     },
 
     cleanup() {

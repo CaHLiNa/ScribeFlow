@@ -9,6 +9,7 @@ import {
   buildReferenceImportMutationCommitState,
   buildReferenceImportMutationResultState,
   buildReferenceAddMutationResultState,
+  buildReferenceCitationFormatTargetState,
   buildReferenceCollectionMutationResultState,
   buildReferenceDocumentIdsMutationResultState,
   buildReferenceJsonExportTargetState,
@@ -156,6 +157,14 @@ assert.deepEqual(buildReferenceJsonExportTargetState(references, ' ref-2 '), {
 })
 assert.deepEqual(buildReferenceJsonExportTargetState(references, 'missing'), {
   canExport: false,
+  reference: null,
+})
+assert.deepEqual(buildReferenceCitationFormatTargetState(references, ' ref-2 '), {
+  canFormat: true,
+  reference: references[1],
+})
+assert.deepEqual(buildReferenceCitationFormatTargetState(references, 'missing'), {
+  canFormat: false,
   reference: null,
 })
 assert.deepEqual(buildReferenceEmptyImportResult(), {
@@ -1159,6 +1168,11 @@ assert.match(
 )
 assert.match(
   storeSource,
+  /buildReferenceCitationFormatTargetState/,
+  'references store must delegate citation formatting target state mapping',
+)
+assert.match(
+  storeSource,
   /buildReferenceImportInputState/,
   'references store must delegate import input state derivation',
 )
@@ -1353,6 +1367,11 @@ assert.doesNotMatch(
   /resolveReferenceById\(this\.references, referenceId\)|const reference =/,
   'writeReferenceJsonExportFile must not inline JSON export target lookup',
 )
+assert.doesNotMatch(
+  actionSource('formatReferenceCitationAsync'),
+  /resolveReferenceById\(this\.references, referenceId\)|const reference =/,
+  'formatReferenceCitationAsync must not inline citation formatting target lookup',
+)
 for (const actionName of ['setDocumentReferenceIds', 'addDocumentReference', 'removeDocumentReference']) {
   assert.doesNotMatch(
     actionSource(actionName),
@@ -1383,6 +1402,7 @@ console.log(JSON.stringify({
     referenceSearchDerived: true,
     exportSelectionDerived: true,
     jsonExportTargetStateDerived: true,
+    citationFormatTargetStateDerived: true,
     importResultDerived: true,
     importMutationCommitStateDerived: true,
     addReferenceResultStateDerived: true,
