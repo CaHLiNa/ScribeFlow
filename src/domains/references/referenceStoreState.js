@@ -1,67 +1,5 @@
 import { REFERENCE_DOCK_PDF_PAGE } from './referenceDockPages.js'
 
-export function normalizeCollectionMembershipValue(value = '') {
-  return String(value || '').trim().toLowerCase()
-}
-
-export function normalizeTagKey(value = '') {
-  return String(value || '').trim().toLowerCase()
-}
-
-const REFERENCE_SORT_KEYS = [
-  'year-desc',
-  'year-asc',
-  'title-asc',
-  'title-desc',
-  'author-asc',
-  'author-desc',
-]
-
-export function resolveReferenceSectionKey(sections = [], sectionKey = '', fallbackKey = '') {
-  const normalizedKey = String(sectionKey || '').trim()
-  if (!normalizedKey) return fallbackKey
-  const exists = (Array.isArray(sections) ? sections : []).some(
-    (section) => String(section?.key || '') === normalizedKey,
-  )
-  return exists ? normalizedKey : fallbackKey
-}
-
-export function normalizeReferenceSortKey(value = '') {
-  const normalizedKey = String(value || '').trim()
-  return REFERENCE_SORT_KEYS.includes(normalizedKey) ? normalizedKey : 'year-desc'
-}
-
-export function resolveCollection(collections = [], collectionKey = '') {
-  const normalizedKey = normalizeCollectionMembershipValue(collectionKey)
-  if (!normalizedKey) return null
-
-  return (
-    (Array.isArray(collections) ? collections : []).find(
-      (collection) => normalizeCollectionMembershipValue(collection?.key) === normalizedKey,
-    ) ||
-    (Array.isArray(collections) ? collections : []).find(
-      (collection) => normalizeCollectionMembershipValue(collection?.label) === normalizedKey,
-    ) ||
-    null
-  )
-}
-
-export function resolveTag(tags = [], tagKey = '') {
-  const normalizedKey = normalizeTagKey(tagKey)
-  if (!normalizedKey) return null
-
-  return (
-    (Array.isArray(tags) ? tags : []).find(
-      (tag) => normalizeTagKey(tag?.key) === normalizedKey,
-    ) || null
-  )
-}
-
-export function resolveDocumentReferenceSelections(value = {}) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
-  return value
-}
-
 function normalizeDocumentReferencePath(texPath = '') {
   const normalizedTexPath = String(texPath || '').trim()
   return normalizedTexPath
@@ -252,54 +190,7 @@ export function buildReferenceDockPdfSnapshotState(state = {}) {
 export function resolveReferenceResolvedQueryState(resolved = null, fallbackState = {}) {
   return resolved && typeof resolved === 'object' && !Array.isArray(resolved)
     ? resolved
-    : buildDefaultResolvedQueryState(fallbackState)
-}
-
-function resolveReferenceStoreSeed(defaults = {}) {
-  const librarySections = Array.isArray(defaults.librarySections) ? defaults.librarySections : []
-  const sourceSections = Array.isArray(defaults.sourceSections) ? defaults.sourceSections : []
-  const collections = Array.isArray(defaults.collections) ? defaults.collections : []
-  const tags = Array.isArray(defaults.tags) ? defaults.tags : []
-  const references = Array.isArray(defaults.references) ? defaults.references : []
-  const selectedSectionKey = String(defaults.selectedSectionKey || 'all')
-  const selectedSourceKey = String(defaults.selectedSourceKey || '')
-  const selectedCollectionKey = String(defaults.selectedCollectionKey || '')
-  const selectedTagKey = String(defaults.selectedTagKey || '')
-  const sortKey = normalizeReferenceSortKey(defaults.sortKey)
-  const selectedReferenceId = String(defaults.selectedReferenceId ?? references[0]?.id ?? '')
-
-  return {
-    librarySections,
-    sourceSections,
-    collections,
-    tags,
-    references,
-    documentReferenceSelections: resolveDocumentReferenceSelections(defaults.documentReferenceSelections),
-    citationStyle: String(defaults.citationStyle || 'apa'),
-    selectedSectionKey,
-    selectedSourceKey,
-    selectedCollectionKey,
-    selectedTagKey,
-    selectedReferenceId,
-    referenceDockPdfOpen: false,
-    referenceDockPdfReferenceId: '',
-    sortKey,
-  }
-}
-
-function buildReferenceStoreResetQueryState(seed = {}) {
-  return buildDefaultResolvedQueryState({
-    librarySections: seed.librarySections,
-    sourceSections: seed.sourceSections,
-    collections: seed.collections,
-    tags: seed.tags,
-    references: seed.references,
-    selectedSectionKey: seed.selectedSectionKey,
-    selectedSourceKey: seed.selectedSourceKey,
-    selectedCollectionKey: seed.selectedCollectionKey,
-    selectedTagKey: seed.selectedTagKey,
-    sortKey: seed.sortKey,
-  })
+    : (fallbackState?.resolvedQueryState || null)
 }
 
 export function buildReferenceLibrarySnapshotPayload(state = {}) {
@@ -314,10 +205,27 @@ export function buildReferenceLibrarySnapshotPayload(state = {}) {
 }
 
 export function buildReferenceStoreInitialState(defaults = {}) {
-  const seed = resolveReferenceStoreSeed(defaults)
   return {
-    ...seed,
-    resolvedQueryState: buildReferenceStoreResetQueryState(seed),
+    librarySections: Array.isArray(defaults.librarySections) ? defaults.librarySections : [],
+    sourceSections: Array.isArray(defaults.sourceSections) ? defaults.sourceSections : [],
+    collections: Array.isArray(defaults.collections) ? defaults.collections : [],
+    tags: Array.isArray(defaults.tags) ? defaults.tags : [],
+    references: Array.isArray(defaults.references) ? defaults.references : [],
+    documentReferenceSelections: defaults.documentReferenceSelections &&
+      typeof defaults.documentReferenceSelections === 'object' &&
+      !Array.isArray(defaults.documentReferenceSelections)
+      ? defaults.documentReferenceSelections
+      : {},
+    citationStyle: String(defaults.citationStyle || 'apa'),
+    selectedSectionKey: String(defaults.selectedSectionKey || 'all'),
+    selectedSourceKey: String(defaults.selectedSourceKey || ''),
+    selectedCollectionKey: String(defaults.selectedCollectionKey || ''),
+    selectedTagKey: String(defaults.selectedTagKey || ''),
+    selectedReferenceId: String(defaults.selectedReferenceId ?? defaults.references?.[0]?.id ?? ''),
+    referenceDockPdfOpen: false,
+    referenceDockPdfReferenceId: '',
+    sortKey: String(defaults.sortKey || 'year-desc'),
+    resolvedQueryState: null,
     isLoading: false,
     loadError: '',
     zoteroSyncStatus: 'disconnected',
@@ -339,34 +247,12 @@ export function buildReferenceQuerySelectionState(resolvedQueryState = {}, curre
     selectedSourceKey: String(query.selectedSourceKey || ''),
     selectedCollectionKey: String(query.selectedCollectionKey || ''),
     selectedTagKey: String(query.selectedTagKey || ''),
-    sortKey: normalizeReferenceSortKey(query.sortKey),
+    sortKey: String(query.sortKey || ''),
     selectedReferenceId: String(
       resolvedQueryState?.selectedReferenceId ||
       query.selectedReferenceId ||
       currentState?.selectedReferenceId ||
       ''
     ),
-  }
-}
-
-export function buildDefaultResolvedQueryState(state = {}) {
-  const references = Array.isArray(state.references) ? state.references : []
-  return {
-    query: {
-      selectedSectionKey: state.selectedSectionKey || 'all',
-      selectedSourceKey: state.selectedSourceKey || '',
-      selectedCollectionKey: state.selectedCollectionKey || '',
-      selectedTagKey: state.selectedTagKey || '',
-      sortKey: normalizeReferenceSortKey(state.sortKey),
-      selectedReferenceId: state.selectedReferenceId || '',
-    },
-    sectionCounts: {},
-    sourceCounts: {},
-    collectionCounts: {},
-    tagCounts: {},
-    sortedReferences: references,
-    filteredReferences: references,
-    citationUsageIndex: {},
-    citationUsageDetails: {},
   }
 }

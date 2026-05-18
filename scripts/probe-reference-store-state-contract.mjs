@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import {
-  buildDefaultResolvedQueryState,
   resolveReferenceCitationStyleId,
   resolveReferenceWorkspaceCitationStyles,
   buildReferenceLibrarySnapshotPayload,
@@ -14,63 +13,36 @@ import {
   hasReferenceById,
   isReferenceDockPdfSelected,
   isReferenceSelectedForDocument,
-  normalizeCollectionMembershipValue,
-  normalizeReferenceSortKey,
-  normalizeTagKey,
   resolveAvailableDocumentReferences,
-  resolveCollection,
   resolveDocumentReferenceByKey,
   resolveDocumentReferenceIds,
   resolveDocumentReferences,
-  resolveDocumentReferenceSelections,
   resolveReferenceByKey,
   resolveReferenceById,
   resolveReferenceCitationUsageKeys,
   resolveReferenceResolvedQueryState,
-  resolveReferenceSectionKey,
   resolveSelectedReference,
-  resolveTag,
   searchReferences,
 } from '../src/domains/references/referenceStoreState.js'
-
-assert.equal(normalizeCollectionMembershipValue('  Methods  '), 'methods')
-assert.equal(normalizeCollectionMembershipValue(null), '')
-assert.equal(normalizeTagKey('  Theory  '), 'theory')
-assert.equal(normalizeTagKey(undefined), '')
-assert.equal(normalizeReferenceSortKey(' title-asc '), 'title-asc')
-assert.equal(normalizeReferenceSortKey('invalid'), 'year-desc')
 
 const collections = [
   { key: 'methods', label: 'Methods' },
   { key: 'ml', label: 'Machine Learning' },
 ]
-assert.deepEqual(resolveCollection(collections, ' METHODS '), collections[0])
-assert.deepEqual(resolveCollection(collections, ' machine learning '), collections[1])
-assert.equal(resolveCollection(collections, 'missing'), null)
-assert.equal(resolveCollection('not-array', 'methods'), null)
 
 const tags = [
   { key: 'theory', label: 'Theory' },
   { key: 'pdf', label: 'PDF' },
 ]
-assert.deepEqual(resolveTag(tags, ' THEORY '), tags[0])
-assert.equal(resolveTag(tags, 'missing'), null)
-assert.equal(resolveTag('not-array', 'theory'), null)
 
 const sections = [
   { key: 'all', label: 'All' },
   { key: 'recent', label: 'Recent' },
 ]
-assert.equal(resolveReferenceSectionKey(sections, ' recent ', 'all'), 'recent')
-assert.equal(resolveReferenceSectionKey(sections, 'missing', 'all'), 'all')
-assert.equal(resolveReferenceSectionKey('not-array', 'recent', 'all'), 'all')
 
 const selections = {
   'paper.tex': ['ref-1', 'ref-2'],
 }
-assert.equal(resolveDocumentReferenceSelections(selections), selections)
-assert.deepEqual(resolveDocumentReferenceSelections(null), {})
-assert.deepEqual(resolveDocumentReferenceSelections(['ref-1']), {})
 
 const references = [
   {
@@ -271,60 +243,15 @@ assert.equal(buildReferenceDockPdfSnapshotState({
   selectedReferenceId: 'ref-2',
   referenceDockActivePage: 'pdf',
 }).shouldFallbackToDetails, false)
-assert.deepEqual(buildDefaultResolvedQueryState({
-  references,
-  selectedSectionKey: 'recent',
-  selectedSourceKey: 'zotero',
-  selectedCollectionKey: 'methods',
-  selectedTagKey: 'theory',
-  sortKey: 'title-asc',
-  selectedReferenceId: 'ref-2',
-}), {
-  query: {
-    selectedSectionKey: 'recent',
-    selectedSourceKey: 'zotero',
-    selectedCollectionKey: 'methods',
-    selectedTagKey: 'theory',
-    sortKey: 'title-asc',
-    selectedReferenceId: 'ref-2',
-  },
-  sectionCounts: {},
-  sourceCounts: {},
-  collectionCounts: {},
-  tagCounts: {},
-  sortedReferences: references,
-  filteredReferences: references,
-  citationUsageIndex: {},
-  citationUsageDetails: {},
-})
-assert.equal(buildDefaultResolvedQueryState({ sortKey: 'invalid' }).query.sortKey, 'year-desc')
-assert.deepEqual(buildDefaultResolvedQueryState({ references: 'not-array' }), {
-  query: {
-    selectedSectionKey: 'all',
-    selectedSourceKey: '',
-    selectedCollectionKey: '',
-    selectedTagKey: '',
-    sortKey: 'year-desc',
-    selectedReferenceId: '',
-  },
-  sectionCounts: {},
-  sourceCounts: {},
-  collectionCounts: {},
-  tagCounts: {},
-  sortedReferences: [],
-  filteredReferences: [],
-  citationUsageIndex: {},
-  citationUsageDetails: {},
-})
-
 const fallbackResolvedQueryState = resolveReferenceResolvedQueryState(null, {
   references,
   selectedReferenceId: 'ref-3',
   sortKey: 'invalid',
 })
-assert.equal(fallbackResolvedQueryState.query.selectedReferenceId, 'ref-3')
-assert.equal(fallbackResolvedQueryState.query.sortKey, 'year-desc')
-assert.deepEqual(fallbackResolvedQueryState.filteredReferences, references)
+assert.equal(fallbackResolvedQueryState, null)
+assert.deepEqual(resolveReferenceResolvedQueryState(null, {
+  resolvedQueryState,
+}), resolvedQueryState)
 
 const explicitResolvedQueryState = {
   selectedReferenceId: 'root-ref',
@@ -348,7 +275,7 @@ assert.deepEqual(buildReferenceQuerySelectionState(explicitResolvedQueryState, {
   selectedSourceKey: 'zotero',
   selectedCollectionKey: 'methods',
   selectedTagKey: 'theory',
-  sortKey: 'year-desc',
+  sortKey: 'invalid',
   selectedReferenceId: 'root-ref',
 })
 assert.equal(buildReferenceQuerySelectionState({
@@ -396,18 +323,7 @@ assert.deepEqual(buildReferenceStoreInitialState({
   referenceDockPdfOpen: false,
   referenceDockPdfReferenceId: '',
   sortKey: 'year-desc',
-  resolvedQueryState: buildDefaultResolvedQueryState({
-    librarySections: sections,
-    sourceSections: [{ key: 'manual' }],
-    collections,
-    tags,
-    references,
-    selectedSectionKey: 'all',
-    selectedSourceKey: '',
-    selectedCollectionKey: '',
-    selectedTagKey: '',
-    sortKey: 'year-desc',
-  }),
+  resolvedQueryState: null,
   isLoading: false,
   loadError: '',
   zoteroSyncStatus: 'disconnected',
@@ -434,10 +350,15 @@ assert.match(
   /from '..\/domains\/references\/referenceStoreState\.js'/,
   'references store must import deterministic state rules from the reference domain',
 )
-assert.match(
+assert.doesNotMatch(
   storeSource,
   /buildDefaultResolvedQueryState/,
-  'references store must use the domain helper for default resolved query state',
+  'references store must not build fallback/default query DTOs in JS',
+)
+assert.doesNotMatch(
+  domainSource,
+  /buildDefaultResolvedQueryState|resolveReferenceStoreSeed|buildReferenceStoreResetQueryState|normalizeCollectionMembershipValue|normalizeTagKey|normalizeReferenceSortKey|resolveCollection|resolveTag|resolveReferenceSectionKey|resolveDocumentReferenceSelections/,
+  'referenceStoreState must not retain migrated key normalization or default query adapters',
 )
 assert.match(
   storeSource,
@@ -946,7 +867,7 @@ console.log(JSON.stringify({
     rustToggleCollectionOutcomeConsumed: true,
     citationStyleStateDerived: true,
     rustZoteroSyncResultState: true,
-    defaultQueryStateDerived: true,
+    rustDefaultQueryState: true,
     resolvedQueryHydrationDerived: true,
     rustQuerySelectionIntentNormalization: true,
     rustSnapshotApplyNormalization: true,

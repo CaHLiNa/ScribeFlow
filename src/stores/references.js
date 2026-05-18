@@ -54,7 +54,6 @@ import {
   REFERENCE_DOCK_DETAILS_PAGE,
 } from '../domains/references/referenceDockPages.js'
 import {
-  buildDefaultResolvedQueryState,
   resolveReferenceCitationStyleId,
   resolveReferenceWorkspaceCitationStyles,
   buildReferenceLibrarySnapshotPayload,
@@ -225,24 +224,7 @@ export const useReferencesStore = defineStore('references', {
       this.selectedReferenceId = selection.selectedReferenceId
     },
 
-    syncPendingResolvedQueryState() {
-      this.resolvedQueryState = buildDefaultResolvedQueryState({
-        librarySections: this.librarySections,
-        sourceSections: this.sourceSections,
-        collections: this.collections,
-        tags: this.tags,
-        references: this.references,
-        selectedSectionKey: this.selectedSectionKey,
-        selectedSourceKey: this.selectedSourceKey,
-        selectedCollectionKey: this.selectedCollectionKey,
-        selectedTagKey: this.selectedTagKey,
-        sortKey: this.sortKey,
-        selectedReferenceId: this.selectedReferenceId,
-      })
-    },
-
     async syncResolvedQueryState() {
-      this.syncPendingResolvedQueryState()
       await this.refreshResolvedQueryState()
     },
 
@@ -266,7 +248,6 @@ export const useReferencesStore = defineStore('references', {
       if (preferredSelectedReferenceId !== null && preferredSelectedReferenceId !== undefined) {
         this.selectedReferenceId = String(preferredSelectedReferenceId || '')
       }
-      this.syncPendingResolvedQueryState()
       await this.refreshResolvedQueryState()
       const dockPdfState = buildReferenceDockPdfSnapshotState({
         ...this.$state,
