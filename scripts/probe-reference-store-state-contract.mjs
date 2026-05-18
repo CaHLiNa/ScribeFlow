@@ -105,25 +105,85 @@ const references = [
 const documentReferenceSelections = {
   'paper.tex': ['ref-1', 'ref-2'],
 }
-assert.deepEqual(resolveDocumentReferenceIds(documentReferenceSelections, ' paper.tex '), ['ref-1', 'ref-2'])
-assert.deepEqual(resolveDocumentReferenceIds(documentReferenceSelections, ''), [])
-assert.deepEqual(resolveDocumentReferences(documentReferenceSelections, references, 'paper.tex'), [
+const resolvedQueryState = {
+  sortedReferences: references,
+  filteredReferences: [references[0]],
+  selectedReference: references[1],
+  referenceLookup: {
+    byId: {
+      'ref-1': references[0],
+      'ref-2': references[1],
+      'ref-3': references[2],
+    },
+    byKey: {
+      lovelace2024: references[0],
+      'ref-1': references[0],
+      hopper2025: references[1],
+      'ref-2': references[1],
+      unused2026: references[2],
+      'ref-3': references[2],
+    },
+  },
+  referenceSearchIndex: {
+    'ref-1': 'graph neural networks ada lovelace lovelace2024 graph',
+    'ref-2': 'bayesian methods grace hopper journal of tests hopper2025',
+    'ref-3': 'unused reference unused2026',
+  },
+  documentReferenceState: {
+    byPath: {
+      'paper.tex': {
+        referenceIds: ['ref-1', 'ref-2'],
+        references: [references[0], references[1]],
+        referenceLookup: {
+          byKey: {
+            lovelace2024: references[0],
+            'ref-1': references[0],
+            hopper2025: references[1],
+            'ref-2': references[1],
+          },
+        },
+        referenceSearchIndex: {
+          'ref-3': 'unused reference unused2026',
+        },
+        availableReferences: [references[2]],
+      },
+    },
+    default: {
+      referenceIds: [],
+      references: [],
+      referenceLookup: { byKey: {} },
+      referenceSearchIndex: {
+        'ref-1': 'graph neural networks ada lovelace lovelace2024 graph',
+        'ref-2': 'bayesian methods grace hopper journal of tests hopper2025',
+        'ref-3': 'unused reference unused2026',
+      },
+      availableReferences: references,
+    },
+  },
+}
+assert.deepEqual(resolveDocumentReferenceIds(resolvedQueryState, ' paper.tex '), ['ref-1', 'ref-2'])
+assert.deepEqual(resolveDocumentReferenceIds(resolvedQueryState, ''), [])
+assert.deepEqual(resolveDocumentReferences(resolvedQueryState, 'paper.tex'), [
   references[0],
   references[1],
 ])
-assert.deepEqual(resolveDocumentReferences(documentReferenceSelections, references, 'missing.tex'), [])
-assert.deepEqual(resolveReferenceByKey(references, 'lovelace2024'), references[0])
-assert.deepEqual(resolveReferenceByKey(references, 'ref-2'), references[1])
-assert.equal(resolveReferenceByKey(references, 'missing'), null)
-assert.deepEqual(resolveReferenceById(references, 'ref-2'), references[1])
-assert.deepEqual(resolveReferenceById(references, ' ref-2 '), references[1])
-assert.equal(resolveReferenceById(references, 'hopper2025'), null)
-assert.equal(hasReferenceById(references, ' ref-2 '), true)
-assert.equal(hasReferenceById(references, 'hopper2025'), false)
-assert.equal(hasReferenceById('not-array', 'ref-2'), false)
-assert.deepEqual(resolveSelectedReference(references, ' ref-2 ', [references[0]]), references[1])
-assert.deepEqual(resolveSelectedReference(references, 'missing', [references[0]]), references[0])
-assert.equal(resolveSelectedReference(references, 'missing', []), null)
+assert.deepEqual(resolveDocumentReferences(resolvedQueryState, 'missing.tex'), [])
+assert.deepEqual(resolveReferenceByKey(resolvedQueryState, 'lovelace2024'), references[0])
+assert.deepEqual(resolveReferenceByKey(resolvedQueryState, 'ref-2'), references[1])
+assert.equal(resolveReferenceByKey(resolvedQueryState, 'missing'), null)
+assert.deepEqual(resolveReferenceById(resolvedQueryState, 'ref-2'), references[1])
+assert.deepEqual(resolveReferenceById(resolvedQueryState, ' ref-2 '), references[1])
+assert.equal(resolveReferenceById(resolvedQueryState, 'hopper2025'), null)
+assert.equal(hasReferenceById(resolvedQueryState, ' ref-2 '), true)
+assert.equal(hasReferenceById(resolvedQueryState, 'hopper2025'), false)
+assert.equal(hasReferenceById('not-object', 'ref-2'), false)
+assert.deepEqual(resolveSelectedReference(resolvedQueryState), references[1])
+assert.deepEqual(resolveSelectedReference({
+  filteredReferences: [references[0]],
+}), references[0])
+assert.equal(resolveSelectedReference({
+  filteredReferences: [],
+}), null)
 assert.deepEqual([...resolveReferenceCitationUsageKeys({
   lovelace2024: ['paper.tex'],
   hopper2025: [],
@@ -135,17 +195,20 @@ assert.equal(resolveReferenceCitationStyleId(' ieee ', false), 'apa')
 assert.equal(resolveReferenceCitationStyleId('  ', true), 'apa')
 assert.deepEqual(resolveReferenceWorkspaceCitationStyles([{ id: 'ieee' }]), [{ id: 'ieee' }])
 assert.deepEqual(resolveReferenceWorkspaceCitationStyles('not-array'), [])
-assert.deepEqual(resolveDocumentReferenceByKey(documentReferenceSelections, references, 'paper.tex', 'hopper2025'), references[1])
-assert.equal(resolveDocumentReferenceByKey(documentReferenceSelections, references, 'paper.tex', 'unused2026'), null)
-assert.equal(isReferenceSelectedForDocument(documentReferenceSelections, references, 'paper.tex', 'ref-1'), true)
-assert.equal(isReferenceSelectedForDocument(documentReferenceSelections, references, 'paper.tex', 'unused2026'), false)
-assert.deepEqual(searchReferences(references, 'grace'), [references[1]])
-assert.deepEqual(searchReferences(references, 'graph'), [references[0]])
-assert.deepEqual(searchReferences(references, ''), references)
-assert.deepEqual(resolveAvailableDocumentReferences(documentReferenceSelections, references, 'paper.tex', ''), [
+assert.deepEqual(resolveDocumentReferenceByKey(resolvedQueryState, 'paper.tex', 'hopper2025'), references[1])
+assert.equal(resolveDocumentReferenceByKey(resolvedQueryState, 'paper.tex', 'unused2026'), null)
+assert.equal(isReferenceSelectedForDocument(resolvedQueryState, 'paper.tex', 'ref-1'), true)
+assert.equal(isReferenceSelectedForDocument(resolvedQueryState, 'paper.tex', 'unused2026'), false)
+assert.deepEqual(searchReferences(resolvedQueryState, 'grace'), [references[1]])
+assert.deepEqual(searchReferences(resolvedQueryState, 'graph'), [references[0]])
+assert.deepEqual(searchReferences(resolvedQueryState, ''), references)
+assert.deepEqual(searchReferences({
+  sortedReferences: references,
+}, 'graph'), [])
+assert.deepEqual(resolveAvailableDocumentReferences(resolvedQueryState, 'paper.tex', ''), [
   references[2],
 ])
-assert.deepEqual(resolveAvailableDocumentReferences(documentReferenceSelections, references, 'paper.tex', 'unused'), [
+assert.deepEqual(resolveAvailableDocumentReferences(resolvedQueryState, 'paper.tex', 'unused'), [
   references[2],
 ])
 assert.deepEqual(buildReferenceDockPdfOpenState(' ref-2 '), {
@@ -698,13 +761,13 @@ assert.match(
 )
 assert.match(
   storeSource,
-  /resolveCollection/,
-  'references store must delegate collection matching',
+  /selectedCollection:\s*\(state\) => state\.resolvedQueryState\?\.selectedCollection \|\| null/,
+  'references store must consume Rust-returned selected collection',
 )
 assert.match(
   storeSource,
-  /resolveTag/,
-  'references store must delegate tag matching',
+  /selectedTag:\s*\(state\) => state\.resolvedQueryState\?\.selectedTag \|\| null/,
+  'references store must consume Rust-returned selected tag',
 )
 assert.doesNotMatch(
   domainSource,
@@ -881,8 +944,8 @@ assert.match(
 )
 assert.match(
   storeSource,
-  /resolveSelectedReference/,
-  'references store must delegate selected-reference fallback lookup',
+  /resolveSelectedReference\(state\.resolvedQueryState\)/,
+  'references store must consume Rust-returned selected-reference lookup state',
 )
 assert.match(
   storeSource,
@@ -896,7 +959,7 @@ assert.match(
 )
 assert.doesNotMatch(
   storeSource,
-  /function normalizeCollectionMembershipValue|function normalizeTagKey|function resolveCollection|function resolveDocumentReferenceSelections|function buildDefaultResolvedQueryState|version:\s*2|citationStyle:\s*'apa'|documentReferenceSelections:\s*\{\}|Array\.isArray\(normalized\.(?:collections|tags|references)\)|Array\.isArray\(importedReferences\)|Array\.isArray\(referenceStyles\)|Array\.isArray\(styles\)|Array\.isArray\(importedSnapshot\?\.references\)|String\(normalized\.citationStyle \|\| 'apa'\)|const selectedIds = new Set\(this\.getDocumentReferenceIds|const normalizedQuery = String\(query \|\| ''\)\.trim\(\)\.toLowerCase\(\)|haystack\.includes\(normalizedQuery\)|referenceIds\s*\.map\(\(referenceId\) => this\.references\.find|this\.references\.some\(\(reference\) => reference\.id|this\.(?:librarySections|sourceSections)\.some\(\(section\) => section\.key|resolveReferenceSectionKey|\[\s*'year-desc'[\s\S]*'author-desc'[\s\S]*\]\.includes\(value\)|const query = this\.resolvedQueryState\?\.query|query\.selectedReferenceId|query\.selectedSectionKey|const normalized = normalizeTagKey\(tagKey\)|this\.sortKey = normalizeReferenceSortKey\(value\)|resolveReferenceById\(state\.references|this\.filteredReferences\[0\]|new Set\(Object\.keys\(this\.citedIn\)\)|buildReferenceImportMutationResultState\(this\.references|buildReferenceAddMutationResultState\(this\.references|buildReferenceImportMutationCommitState\(mutation\)|Number\(result\?\.imported \|\| 0\)|Number\(result\?\.linked \|\| 0\)|Number\(result\?\.updated \|\| 0\)|resolveReferencesForExport\(this\.references|buildReferenceJsonExportTargetState\(this\.references/,
+  /function normalizeCollectionMembershipValue|function normalizeTagKey|function resolveCollection|function resolveDocumentReferenceSelections|function buildDefaultResolvedQueryState|version:\s*2|citationStyle:\s*'apa'|documentReferenceSelections:\s*\{\}|Array\.isArray\(normalized\.(?:collections|tags|references)\)|Array\.isArray\(importedReferences\)|Array\.isArray\(referenceStyles\)|Array\.isArray\(styles\)|Array\.isArray\(importedSnapshot\?\.references\)|String\(normalized\.citationStyle \|\| 'apa'\)|const selectedIds = new Set\(this\.getDocumentReferenceIds|const normalizedQuery = String\(query \|\| ''\)\.trim\(\)\.toLowerCase\(\)|haystack\.includes\(normalizedQuery\)|referenceIds\s*\.map\(\(referenceId\) => this\.references\.find|this\.references\.some\(\(reference\) => reference\.id|this\.(?:librarySections|sourceSections)\.some\(\(section\) => section\.key|resolveReferenceSectionKey|\[\s*'year-desc'[\s\S]*'author-desc'[\s\S]*\]\.includes\(value\)|const query = this\.resolvedQueryState\?\.query|query\.selectedReferenceId|query\.selectedSectionKey|const normalized = normalizeTagKey\(tagKey\)|this\.sortKey = normalizeReferenceSortKey\(value\)|resolveReferenceById\(state\.references|this\.filteredReferences\[0\]|new Set\(Object\.keys\(this\.citedIn\)\)|resolveCollection\(state\.collections|resolveTag\(state\.tags|resolveReferenceByKey\(this\.references|resolveDocumentReferenceIds\(this\.documentReferenceSelections|resolveDocumentReferences\(this\.documentReferenceSelections|resolveAvailableDocumentReferences\(this\.documentReferenceSelections|searchReferences\(this\.sortedLibrary|authors|authorLine|citationKey|identifier|pages|resolveReferenceByKey\(this\.references|buildReferenceImportMutationResultState\(this\.references|buildReferenceAddMutationResultState\(this\.references|buildReferenceImportMutationCommitState\(mutation\)|Number\(result\?\.imported \|\| 0\)|Number\(result\?\.linked \|\| 0\)|Number\(result\?\.updated \|\| 0\)|resolveReferencesForExport\(this\.references|buildReferenceJsonExportTargetState\(this\.references/,
   'references store must not redefine deterministic state helpers inline',
 )
 assert.doesNotMatch(

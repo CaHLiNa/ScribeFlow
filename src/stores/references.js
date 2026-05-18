@@ -68,7 +68,6 @@ import {
   buildReferenceStoreCleanupState,
   buildReferenceStoreInitialState,
   resolveAvailableDocumentReferences,
-  resolveCollection,
   resolveDocumentReferenceByKey,
   resolveDocumentReferenceIds,
   resolveDocumentReferences,
@@ -82,7 +81,6 @@ import {
   buildReferenceSortSelectionState,
   buildReferenceSourceSelectionState,
   buildReferenceTagSelectionState,
-  resolveTag,
   buildReferenceQuerySelectionState,
   searchReferences,
 } from '../domains/references/referenceStoreState.js'
@@ -144,16 +142,16 @@ export const useReferencesStore = defineStore('references', {
 
     collectionCounts: (state) => state.resolvedQueryState?.collectionCounts || {},
 
-    selectedCollection: (state) => resolveCollection(state.collections, state.selectedCollectionKey),
+    selectedCollection: (state) => state.resolvedQueryState?.selectedCollection || null,
 
     tagCounts: (state) => state.resolvedQueryState?.tagCounts || {},
 
-    selectedTag: (state) => resolveTag(state.tags, state.selectedTagKey),
+    selectedTag: (state) => state.resolvedQueryState?.selectedTag || null,
 
     filteredReferences: (state) => state.resolvedQueryState?.filteredReferences || [],
 
     selectedReference(state) {
-      return resolveSelectedReference(state.references, state.selectedReferenceId, this.filteredReferences)
+      return resolveSelectedReference(state.resolvedQueryState)
     },
 
     selectedReferencePdfTabOpen(state) {
@@ -211,6 +209,7 @@ export const useReferencesStore = defineStore('references', {
         collections: this.collections,
         tags: this.tags,
         references: this.references,
+        documentReferenceSelections: this.documentReferenceSelections,
         selectedSectionKey: this.selectedSectionKey,
         selectedSourceKey: this.selectedSourceKey,
         selectedCollectionKey: this.selectedCollectionKey,
@@ -486,21 +485,20 @@ export const useReferencesStore = defineStore('references', {
     },
 
     getByKey(referenceKey = '') {
-      return resolveReferenceByKey(this.references, referenceKey)
+      return resolveReferenceByKey(this.resolvedQueryState, referenceKey)
     },
 
     getDocumentReferenceIds(texPath = '') {
-      return resolveDocumentReferenceIds(this.documentReferenceSelections, texPath)
+      return resolveDocumentReferenceIds(this.resolvedQueryState, texPath)
     },
 
     documentReferencesForTex(texPath = '') {
-      return resolveDocumentReferences(this.documentReferenceSelections, this.references, texPath)
+      return resolveDocumentReferences(this.resolvedQueryState, texPath)
     },
 
     getDocumentReferenceByKey(texPath = '', referenceKey = '') {
       return resolveDocumentReferenceByKey(
-        this.documentReferenceSelections,
-        this.references,
+        this.resolvedQueryState,
         texPath,
         referenceKey
       )
@@ -508,8 +506,7 @@ export const useReferencesStore = defineStore('references', {
 
     isReferenceSelectedForTex(texPath = '', referenceIdOrKey = '') {
       return isReferenceSelectedForDocument(
-        this.documentReferenceSelections,
-        this.references,
+        this.resolvedQueryState,
         texPath,
         referenceIdOrKey
       )
@@ -517,8 +514,7 @@ export const useReferencesStore = defineStore('references', {
 
     searchAvailableReferencesForDocument(texPath = '', query = '') {
       return resolveAvailableDocumentReferences(
-        this.documentReferenceSelections,
-        this.sortedLibrary,
+        this.resolvedQueryState,
         texPath,
         query
       )
@@ -579,7 +575,7 @@ export const useReferencesStore = defineStore('references', {
     },
 
     searchRefs(query = '') {
-      return searchReferences(this.sortedLibrary, query)
+      return searchReferences(this.resolvedQueryState, query)
     },
 
     async addReference(projectRoot = '', reference = {}, options = {}) {

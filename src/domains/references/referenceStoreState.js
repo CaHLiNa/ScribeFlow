@@ -62,53 +62,59 @@ export function resolveDocumentReferenceSelections(value = {}) {
   return value
 }
 
-export function resolveDocumentReferenceIds(documentReferenceSelections = {}, texPath = '') {
+function normalizeDocumentReferencePath(texPath = '') {
   const normalizedTexPath = String(texPath || '').trim()
-  if (!normalizedTexPath) return []
-  return Array.isArray(documentReferenceSelections?.[normalizedTexPath])
-    ? documentReferenceSelections[normalizedTexPath]
-    : []
+  return normalizedTexPath
 }
 
-export function resolveDocumentReferences(documentReferenceSelections = {}, references = [], texPath = '') {
-  const selectedIds = new Set(resolveDocumentReferenceIds(documentReferenceSelections, texPath))
-  if (selectedIds.size === 0) return []
-  return (Array.isArray(references) ? references : [])
-    .filter((reference) => selectedIds.has(String(reference?.id || '')))
+function resolveDocumentReferenceEntry(resolvedQueryState = {}, texPath = '') {
+  const normalizedTexPath = normalizeDocumentReferencePath(texPath)
+  const state = resolvedQueryState?.documentReferenceState
+  if (!state || typeof state !== 'object' || Array.isArray(state)) return {}
+  if (!normalizedTexPath) return state.default || {}
+  return state.byPath?.[normalizedTexPath] || state.default || {}
 }
 
-export function resolveReferenceByKey(references = [], referenceKey = '') {
-  const normalizedKey = String(referenceKey || '').trim()
-  if (!normalizedKey) return null
-  return (
-    (Array.isArray(references) ? references : []).find(
-      (reference) => reference?.citationKey === normalizedKey || reference?.id === normalizedKey,
-    ) || null
-  )
+function resolveLookupEntry(lookup = {}, bucket = '', key = '') {
+  const normalizedKey = String(key || '').trim()
+  if (!normalizedKey || !lookup || typeof lookup !== 'object' || Array.isArray(lookup)) return null
+  const entries = lookup?.[bucket]
+  if (!entries || typeof entries !== 'object' || Array.isArray(entries)) return null
+  return entries[normalizedKey] || null
 }
 
-export function resolveReferenceById(references = [], referenceId = '') {
-  const normalizedId = String(referenceId || '').trim()
-  if (!normalizedId) return null
-  return (
-    (Array.isArray(references) ? references : []).find(
-      (reference) => String(reference?.id || '') === normalizedId,
-    ) || null
-  )
+export function resolveDocumentReferenceIds(resolvedQueryState = {}, texPath = '') {
+  const entry = resolveDocumentReferenceEntry(resolvedQueryState, texPath)
+  return Array.isArray(entry.referenceIds) ? entry.referenceIds : []
 }
 
-export function hasReferenceById(references = [], referenceId = '') {
-  return Boolean(resolveReferenceById(references, referenceId))
+export function resolveDocumentReferences(resolvedQueryState = {}, texPath = '') {
+  const entry = resolveDocumentReferenceEntry(resolvedQueryState, texPath)
+  return Array.isArray(entry.references) ? entry.references : []
+}
+
+export function resolveReferenceByKey(resolvedQueryState = {}, referenceKey = '') {
+  return resolveLookupEntry(resolvedQueryState?.referenceLookup, 'byKey', referenceKey)
+}
+
+export function resolveReferenceById(resolvedQueryState = {}, referenceId = '') {
+  return resolveLookupEntry(resolvedQueryState?.referenceLookup, 'byId', referenceId)
+}
+
+export function hasReferenceById(resolvedQueryState = {}, referenceId = '') {
+  return Boolean(resolveReferenceById(resolvedQueryState, referenceId))
 }
 
 export function resolveSelectedReference(
-  references = [],
-  selectedReferenceId = '',
-  fallbackReferences = [],
+  resolvedQueryState = {},
 ) {
   return (
-    resolveReferenceById(references, selectedReferenceId) ||
-    (Array.isArray(fallbackReferences) ? fallbackReferences[0] : null) ||
+    (resolvedQueryState?.selectedReference &&
+      typeof resolvedQueryState.selectedReference === 'object' &&
+      !Array.isArray(resolvedQueryState.selectedReference)
+      ? resolvedQueryState.selectedReference
+      : null) ||
+    (Array.isArray(resolvedQueryState?.filteredReferences) ? resolvedQueryState.filteredReferences[0] : null) ||
     null
   )
 }
@@ -130,60 +136,54 @@ export function resolveReferenceWorkspaceCitationStyles(styles = []) {
 }
 
 export function resolveDocumentReferenceByKey(
-  documentReferenceSelections = {},
-  references = [],
+  resolvedQueryState = {},
   texPath = '',
   referenceKey = '',
 ) {
-  return resolveReferenceByKey(
-    resolveDocumentReferences(documentReferenceSelections, references, texPath),
-    referenceKey,
-  )
+  const entry = resolveDocumentReferenceEntry(resolvedQueryState, texPath)
+  return resolveLookupEntry(entry.referenceLookup, 'byKey', referenceKey)
 }
 
 export function isReferenceSelectedForDocument(
-  documentReferenceSelections = {},
-  references = [],
+  resolvedQueryState = {},
   texPath = '',
   referenceIdOrKey = '',
 ) {
   return Boolean(resolveDocumentReferenceByKey(
-    documentReferenceSelections,
-    references,
+    resolvedQueryState,
     texPath,
     referenceIdOrKey,
   ))
 }
 
-export function searchReferences(references = [], query = '') {
+export function searchReferences(resolvedQueryState = {}, query = '') {
   const normalizedQuery = String(query || '').trim().toLowerCase()
-  const referenceList = Array.isArray(references) ? references : []
+  const referenceList = Array.isArray(resolvedQueryState?.sortedReferences)
+    ? resolvedQueryState.sortedReferences
+    : []
   if (!normalizedQuery) return referenceList
+  const searchIndex = resolvedQueryState?.referenceSearchIndex
+  if (!searchIndex || typeof searchIndex !== 'object' || Array.isArray(searchIndex)) return []
 
   return referenceList.filter((reference) => {
-    const haystack = [
-      reference?.title,
-      ...(Array.isArray(reference?.authors) ? reference.authors : []),
-      reference?.authorLine,
-      reference?.source,
-      reference?.citationKey,
-      reference?.identifier,
-      reference?.pages,
-      ...(Array.isArray(reference?.tags) ? reference.tags : []),
-    ].filter(Boolean).join(' ').toLowerCase()
-    return haystack.includes(normalizedQuery)
+    const searchText = String(searchIndex?.[String(reference?.id || '')] || '')
+    return searchText.includes(normalizedQuery)
   })
 }
 
 export function resolveAvailableDocumentReferences(
-  documentReferenceSelections = {},
-  references = [],
+  resolvedQueryState = {},
   texPath = '',
   query = '',
 ) {
-  const selectedIds = new Set(resolveDocumentReferenceIds(documentReferenceSelections, texPath))
-  return searchReferences(references, query)
-    .filter((reference) => !selectedIds.has(String(reference?.id || '')))
+  const entry = resolveDocumentReferenceEntry(resolvedQueryState, texPath)
+  const scopedState = {
+    sortedReferences: Array.isArray(entry.availableReferences)
+      ? entry.availableReferences
+      : [],
+    referenceSearchIndex: entry.referenceSearchIndex || {},
+  }
+  return searchReferences(scopedState, query)
 }
 
 export function buildReferenceDockPdfOpenState(referenceId = '') {
@@ -228,9 +228,12 @@ export function isReferenceDockPdfSelected(state = {}) {
 }
 
 export function buildReferenceDockPdfSnapshotState(state = {}) {
+  const hasDockReference = Array.isArray(state.references)
+    ? state.references.some((reference) => String(reference?.id || '') === String(state.referenceDockPdfReferenceId || ''))
+    : hasReferenceById(state.resolvedQueryState, state.referenceDockPdfReferenceId)
   if (
     state.referenceDockPdfReferenceId &&
-    !hasReferenceById(state.references, state.referenceDockPdfReferenceId)
+    !hasDockReference
   ) {
     return {
       ...buildReferenceDockPdfResetState(),
@@ -481,7 +484,8 @@ export function buildReferenceSortSelectionState(sortKey = '') {
 
 export function resolveReferenceSelectionId(references = [], referenceId = '', fallbackReferenceId = '') {
   const normalizedReferenceId = String(referenceId || '').trim()
-  return hasReferenceById(references, normalizedReferenceId)
+  const referenceList = Array.isArray(references) ? references : []
+  return referenceList.some((reference) => String(reference?.id || '') === normalizedReferenceId)
     ? normalizedReferenceId
     : String(fallbackReferenceId || '')
 }
@@ -491,7 +495,8 @@ export function buildReferenceSnapshotSelectionState(state = {}) {
   const nextSelectedReferenceId =
     preferredSelectedReferenceId !== null && preferredSelectedReferenceId !== undefined
       ? String(preferredSelectedReferenceId || '')
-      : hasReferenceById(state.references, state.selectedReferenceId)
+      : (Array.isArray(state.references) ? state.references : [])
+          .some((reference) => String(reference?.id || '') === String(state.selectedReferenceId || ''))
         ? String(state.selectedReferenceId || '')
         : ''
 

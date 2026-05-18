@@ -18,6 +18,8 @@ pub struct ReferencesQueryResolveParams {
     #[serde(default)]
     pub references: Vec<Value>,
     #[serde(default)]
+    pub document_reference_selections: Value,
+    #[serde(default)]
     pub selected_section_key: String,
     #[serde(default)]
     pub selected_source_key: String,
@@ -67,6 +69,7 @@ fn references_query_params_from_payload(params: Value) -> ReferencesQueryResolve
         collections: array_payload_field(&params, "collections"),
         tags: array_payload_field(&params, "tags"),
         references: array_payload_field(&params, "references"),
+        document_reference_selections: object_payload_field(&params, "documentReferenceSelections"),
         selected_section_key: string_payload_field(&params, "selectedSectionKey"),
         selected_source_key: string_payload_field(&params, "selectedSourceKey"),
         selected_collection_key: string_payload_field(&params, "selectedCollectionKey"),
@@ -86,6 +89,178 @@ fn normalize_collection_membership_value(value: &str) -> String {
 
 fn normalize_tag_key(value: &str) -> String {
     value.trim().to_lowercase()
+}
+
+fn normalize_reference_key(value: &str) -> String {
+    value.trim().to_string()
+}
+
+fn insert_reference_lookup_entry(map: &mut Map<String, Value>, key: &str, reference: &Value) {
+    let key = normalize_reference_key(key);
+    if key.is_empty() || map.contains_key(&key) {
+        return;
+    }
+
+    map.insert(key, reference.clone());
+}
+
+fn build_reference_lookup(references: &[Value]) -> Value {
+    let mut by_id = Map::new();
+    let mut by_key = Map::new();
+
+    for reference in references {
+        let id = trim_string(reference.get("id"));
+        let citation_key = trim_string(reference.get("citationKey"));
+        insert_reference_lookup_entry(&mut by_id, &id, reference);
+        insert_reference_lookup_entry(&mut by_key, &id, reference);
+        insert_reference_lookup_entry(&mut by_key, &citation_key, reference);
+    }
+
+    json!({
+        "byId": by_id,
+        "byKey": by_key,
+    })
+}
+
+fn reference_by_id(references: &[Value], reference_id: &str) -> Option<Value> {
+    let normalized_reference_id = normalize_reference_key(reference_id);
+    if normalized_reference_id.is_empty() {
+        return None;
+    }
+
+    references
+        .iter()
+        .find(|reference| trim_string(reference.get("id")) == normalized_reference_id)
+        .cloned()
+}
+
+fn string_array_values(value: Option<&Value>) -> Vec<String> {
+    value
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default()
+        .iter()
+        .filter_map(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
+        .collect()
+}
+
+fn reference_search_text(reference: &Value) -> String {
+    let mut parts = vec![
+        trim_string(reference.get("title")),
+        trim_string(reference.get("authorLine")),
+        trim_string(reference.get("source")),
+        trim_string(reference.get("citationKey")),
+        trim_string(reference.get("identifier")),
+        trim_string(reference.get("pages")),
+    ];
+    parts.extend(string_array_values(reference.get("authors")));
+    parts.extend(string_array_values(reference.get("tags")));
+    parts
+        .into_iter()
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_lowercase()
+}
+
+fn build_reference_search_index(references: &[Value]) -> Value {
+    let mut by_id = Map::new();
+    for reference in references {
+        let id = trim_string(reference.get("id"));
+        if id.is_empty() {
+            continue;
+        }
+        by_id.insert(id, Value::String(reference_search_text(reference)));
+    }
+    Value::Object(by_id)
+}
+
+fn build_document_reference_entry(
+    reference_ids: Vec<String>,
+    references: &[Value],
+    sorted_references: &[Value],
+) -> Value {
+    let selected_references = references
+        .iter()
+        .filter(|reference| {
+            reference_ids
+                .iter()
+                .any(|id| id == &trim_string(reference.get("id")))
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    let available_references = sorted_references
+        .iter()
+        .filter(|reference| {
+            !reference_ids
+                .iter()
+                .any(|id| id == &trim_string(reference.get("id")))
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+
+    json!({
+        "referenceIds": reference_ids,
+        "references": selected_references,
+        "referenceLookup": build_reference_lookup(&selected_references),
+        "referenceSearchIndex": build_reference_search_index(&available_references),
+        "availableReferences": available_references,
+    })
+}
+
+fn build_document_reference_state(
+    document_reference_selections: &Value,
+    references: &[Value],
+    sorted_references: &[Value],
+) -> Value {
+    let valid_ids = references
+        .iter()
+        .map(|reference| trim_string(reference.get("id")))
+        .filter(|id| !id.is_empty())
+        .collect::<Vec<_>>();
+    let mut by_path = Map::new();
+
+    if let Some(selections) = document_reference_selections.as_object() {
+        for (path, ids) in selections {
+            let normalized_path = path.trim();
+            if normalized_path.is_empty() {
+                continue;
+            }
+
+            let reference_ids = ids
+                .as_array()
+                .cloned()
+                .unwrap_or_default()
+                .iter()
+                .filter_map(Value::as_str)
+                .map(str::trim)
+                .filter(|id| !id.is_empty())
+                .filter(|id| valid_ids.iter().any(|valid_id| valid_id == id))
+                .fold(Vec::<String>::new(), |mut acc, id| {
+                    if !acc.iter().any(|existing| existing == id) {
+                        acc.push(id.to_string());
+                    }
+                    acc
+                });
+
+            if reference_ids.is_empty() {
+                continue;
+            }
+
+            by_path.insert(
+                normalized_path.to_string(),
+                build_document_reference_entry(reference_ids, references, sorted_references),
+            );
+        }
+    }
+
+    json!({
+        "byPath": by_path,
+        "default": build_document_reference_entry(Vec::new(), references, sorted_references),
+    })
 }
 
 fn reference_has_pdf(reference: &Value) -> bool {
@@ -460,6 +635,8 @@ pub async fn references_query_resolve_resolved(
         resolve_collection(&params.collections, &params.selected_collection_key)
             .and_then(|collection| Some(trim_string(collection.get("key"))))
             .unwrap_or_default();
+    let selected_collection =
+        resolve_collection(&params.collections, &selected_collection_key).unwrap_or(Value::Null);
 
     let selected_tag_key = {
         let normalized = normalize_tag_key(&params.selected_tag_key);
@@ -473,6 +650,12 @@ pub async fn references_query_resolve_resolved(
             String::new()
         }
     };
+    let selected_tag = params
+        .tags
+        .iter()
+        .find(|tag| normalize_tag_key(&trim_string(tag.get("key"))) == selected_tag_key)
+        .cloned()
+        .unwrap_or(Value::Null);
 
     let sort_key = normalize_sort_key(&params.sort_key);
 
@@ -569,9 +752,16 @@ pub async fn references_query_resolve_resolved(
             .map(|reference| trim_string(reference.get("id")))
             .unwrap_or_default()
     };
+    let selected_reference =
+        reference_by_id(&params.references, &selected_reference_id).unwrap_or(Value::Null);
 
     let (citation_usage_index, citation_usage_details) =
         build_citation_usage(&params.file_contents);
+    let document_reference_state = build_document_reference_state(
+        &params.document_reference_selections,
+        &params.references,
+        &sorted_references,
+    );
 
     Ok(json!({
         "query": {
@@ -589,6 +779,12 @@ pub async fn references_query_resolve_resolved(
         "sortedReferences": sorted_references,
         "filteredReferences": filtered_references,
         "selectedReferenceId": selected_reference_id,
+        "selectedReference": selected_reference,
+        "selectedCollection": selected_collection,
+        "selectedTag": selected_tag,
+        "referenceLookup": build_reference_lookup(&params.references),
+        "referenceSearchIndex": build_reference_search_index(&sorted_references),
+        "documentReferenceState": document_reference_state,
         "citationUsageIndex": citation_usage_index,
         "citationUsageDetails": citation_usage_details,
     }))
@@ -644,6 +840,7 @@ mod tests {
             sort_key: "year-desc".to_string(),
             preferred_selected_reference_id: "a".to_string(),
             file_contents: Value::Null,
+            document_reference_selections: json!({}),
         })
         .await
         .expect("resolve query");
@@ -658,6 +855,88 @@ mod tests {
         assert_eq!(result["collectionCounts"]["reading"].as_u64(), Some(1));
         assert_eq!(result["tagCounts"]["ai"].as_u64(), Some(1));
         assert_eq!(result["selectedReferenceId"].as_str(), Some("a"));
+        assert_eq!(result["selectedReference"]["id"].as_str(), Some("a"));
+        assert_eq!(
+            result["selectedCollection"]["key"].as_str(),
+            Some("reading")
+        );
+        assert_eq!(result["selectedTag"]["key"].as_str(), Some("ai"));
+        assert_eq!(
+            result["referenceLookup"]["byId"]["a"]["id"].as_str(),
+            Some("a")
+        );
+        assert_eq!(
+            result["referenceLookup"]["byKey"]["alpha2024"]["id"].as_str(),
+            Some("a")
+        );
+        assert!(result["referenceSearchIndex"]["a"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("ada lovelace"));
+    }
+
+    #[tokio::test]
+    async fn resolves_document_reference_lookup_state_in_rust() {
+        let result = references_query_resolve_resolved(ReferencesQueryResolveParams {
+            references: vec![
+                json!({
+                    "id":"ref-1",
+                    "title":"Graph Neural Networks",
+                    "authors":["Ada Lovelace"],
+                    "citationKey":"lovelace2024",
+                    "tags":["graph"],
+                    "year":2024,
+                }),
+                json!({
+                    "id":"ref-2",
+                    "title":"Bayesian Methods",
+                    "authorLine":"Grace Hopper",
+                    "citationKey":"hopper2025",
+                    "source":"Journal of Tests",
+                    "year":2025,
+                }),
+                json!({
+                    "id":"ref-3",
+                    "title":"Unused Reference",
+                    "citationKey":"unused2026",
+                    "year":2026,
+                }),
+            ],
+            document_reference_selections: json!({
+                " paper.tex ": ["ref-1", "missing", "ref-1", "ref-2"],
+                "": ["ref-3"]
+            }),
+            sort_key: "year-desc".to_string(),
+            ..ReferencesQueryResolveParams::default()
+        })
+        .await
+        .expect("resolve document reference state");
+
+        let entry = &result["documentReferenceState"]["byPath"]["paper.tex"];
+        assert_eq!(entry["referenceIds"], json!(["ref-1", "ref-2"]));
+        assert_eq!(entry["references"].as_array().map(Vec::len), Some(2));
+        assert_eq!(
+            entry["referenceLookup"]["byKey"]["hopper2025"]["id"].as_str(),
+            Some("ref-2")
+        );
+        assert!(entry["referenceSearchIndex"]["ref-3"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("unused reference"));
+        assert_eq!(
+            entry["availableReferences"]
+                .as_array()
+                .and_then(|items| items.first())
+                .and_then(|reference| reference.get("id"))
+                .and_then(Value::as_str),
+            Some("ref-3")
+        );
+        assert_eq!(
+            result["documentReferenceState"]["default"]["availableReferences"]
+                .as_array()
+                .map(Vec::len),
+            Some(3)
+        );
     }
 
     #[tokio::test]
@@ -748,6 +1027,7 @@ mod tests {
             "collections": null,
             "tags": [{"key": "ai"}],
             "references": [{"id": "ref-a"}],
+            "documentReferenceSelections": "not-an-object",
             "selectedSectionKey": 12,
             "selectedSourceKey": "manual",
             "selectedCollectionKey": false,
@@ -762,6 +1042,7 @@ mod tests {
         assert!(params.collections.is_empty());
         assert_eq!(params.tags.len(), 1);
         assert_eq!(params.references.len(), 1);
+        assert_eq!(params.document_reference_selections, json!({}));
         assert_eq!(params.selected_section_key, "");
         assert_eq!(params.selected_source_key, "manual");
         assert_eq!(params.selected_collection_key, "");

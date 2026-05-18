@@ -84,13 +84,13 @@ Zotero, search, or snapshot policy and should move back to Rust contracts:
 | Area | Helpers | Rust target |
 | --- | --- | --- |
 | Canonical key normalization | `normalizeCollectionMembershipValue`, `normalizeTagKey`, `normalizeReferenceSortKey`, `resolveCollection`, `resolveTag`, `resolveReferenceSectionKey` | `references_query.rs` and snapshot/query DTOs should own canonical keys and valid filter state. |
-| Reference lookup/selection targets | `resolveReferenceByKey`, `resolveReferenceById`, `hasReferenceById`, `resolveReferenceSelectionId` | Rust query commands should validate target ids and return normalized target state or clear errors. Citation-format target lookup has moved to `references_citation.rs`; export target resolution has moved to `references_import.rs`; metadata refresh target lookup has moved to `references_runtime.rs`. |
+| Reference lookup/selection targets | `resolveReferenceSelectionId` | Rust query now returns selected reference, collection/tag targets and reference lookup maps; citation-format target lookup has moved to `references_citation.rs`; export target resolution has moved to `references_import.rs`; metadata refresh target lookup has moved to `references_runtime.rs`. Remaining JS selection-id helper is a sync UI affordance for direct row selection. |
 | Import input preflight | None | Rust mutation now owns non-array/empty import intent fallback and the empty import result shape. |
 | Mutation target preflight | None for remove-reference target and Zotero delete side-effect gating | Rust mutation result now returns removed target state, `removedReference`, `zoteroDeleteReference`, removed flag and preferred selection without JS performing canonical lookup. |
 | PDF import and assets | None for metadata refresh, PDF asset attach/rename, and PDF import target/result shaping | Rust now owns metadata refresh target lookup, PDF asset attach/rename target resolution, PDF import target/result shaping, and post-mutation selected reference for those flows. |
 | Zotero sync result | None for skipped/success result classification | Rust now owns sync counts, skipped state, selected id, last-sync timestamp and skipped/success result classification. JS still owns local error presentation classification for thrown failures. |
-| Document-reference selection | `resolveDocumentReferenceSelections`, `resolveDocumentReferenceIds`, `resolveDocumentReferences`, `resolveDocumentReferenceByKey`, `isReferenceSelectedForDocument`, `resolveAvailableDocumentReferences` | Rust mutation now owns TeX path normalization, selected id list pruning, dedupe, add/remove duplicate guards and changed gating. Query/search availability helpers still need Rust-owned lookup/search contracts. |
-| Search and filtering | `searchReferences` | Rust query should own search matching once search participates in reference truth, citation insertion, or workspace-scale behavior. |
+| Document-reference selection | `resolveDocumentReferenceSelections` | Rust mutation owns TeX path normalization, selected id list pruning, dedupe, add/remove duplicate guards and changed gating. Rust query now returns document-reference selected ids/references/key lookup and available-reference targets; JS helpers only adapt the Rust DTO for existing synchronous editor APIs. |
+| Search and filtering | None for search field/index ownership | Rust query now owns the reference search index and document available-reference search index; JS performs only synchronous substring filtering over Rust-returned search text to preserve existing sync component APIs. |
 
 ## Migration Priority
 
@@ -185,8 +185,8 @@ For each migration slice:
   export target validation, PDF asset attach/rename
   target resolution, PDF import target/result shaping and Zotero
   skipped/success result classification have moved to Rust.
-- Query/search/document-reference lookup helpers are next because Rust
-  already has `references_query.rs` and mutation support for the same canonical
-  concepts.
+- Remaining query work is now narrower: selection-id UI affordances,
+  collection/tag/sidebar selection intent helpers, and lifecycle/default snapshot
+  adapters still need either Rust DTOs or explicit UI-only classification.
 - UI dock/sidebar helpers are lower risk and can remain while they stay
   presentation-only.
