@@ -43,7 +43,7 @@ assert.match(
 )
 assert.match(
   importSource,
-  /const importedSnapshot = importMutation\?\.snapshot \|\| this\.buildLibrarySnapshotPayload\(\)/,
+  /const importedSnapshot = importMutation\?\.snapshot \|\| await this\.buildLibrarySnapshotPayload\(\)/,
   'PDF import store action must use the Rust-returned imported snapshot',
 )
 assert.match(

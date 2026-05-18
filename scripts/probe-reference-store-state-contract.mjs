@@ -3,7 +3,6 @@ import { readFile } from 'node:fs/promises'
 import {
   resolveReferenceCitationStyleId,
   resolveReferenceWorkspaceCitationStyles,
-  buildReferenceLibrarySnapshotPayload,
   buildReferenceDockPdfCloseState,
   buildReferenceDockPdfOpenState,
   buildReferenceDockPdfResetState,
@@ -287,20 +286,6 @@ assert.equal(buildReferenceQuerySelectionState({}, {
   selectedReferenceId: 'current-ref',
 }).selectedReferenceId, 'current-ref')
 
-assert.deepEqual(buildReferenceLibrarySnapshotPayload({
-  citationStyle: 'ieee',
-  documentReferenceSelections,
-  collections,
-  tags,
-  references,
-}), {
-  version: 2,
-  citationStyle: 'ieee',
-  documentReferenceSelections,
-  collections,
-  tags,
-  references,
-})
 assert.deepEqual(buildReferenceStoreInitialState({
   librarySections: sections,
   sourceSections: [{ key: 'manual' }],
@@ -392,8 +377,18 @@ assert.match(
 )
 assert.match(
   storeSource,
-  /buildReferenceLibrarySnapshotPayload/,
-  'references store must delegate library snapshot payload assembly',
+  /buildReferenceLibrarySnapshotPayloadWithBackend/,
+  'references store must delegate persisted snapshot payload assembly to the Rust bridge service',
+)
+assert.match(
+  actionSource('buildLibrarySnapshotPayload'),
+  /async buildLibrarySnapshotPayload\(\)[\s\S]*buildReferenceLibrarySnapshotPayloadWithBackend\(this\.\$state\)/,
+  'references store snapshot payload builder must be an async Rust-backed bridge call',
+)
+assert.doesNotMatch(
+  domainSource,
+  /buildReferenceLibrarySnapshotPayload|version:\s*2|citationStyle:\s*state\.citationStyle|documentReferenceSelections:\s*state\.documentReferenceSelections/,
+  'referenceStoreState must not retain persisted snapshot payload schema assembly',
 )
 assert.match(
   storeSource,
@@ -625,7 +620,7 @@ assert.doesNotMatch(
 )
 assert.match(
   actionSource('importReferencePdf'),
-  /const importResult = importMutation\?\.result \|\| \{\}[\s\S]*const importedSnapshot = importMutation\?\.snapshot \|\| this\.buildLibrarySnapshotPayload\(\)/,
+  /const importResult = importMutation\?\.result \|\| \{\}[\s\S]*const importedSnapshot = importMutation\?\.snapshot \|\| await this\.buildLibrarySnapshotPayload\(\)/,
   'importReferencePdf must consume Rust-returned PDF import mutation result and snapshot',
 )
 assert.match(
@@ -874,7 +869,7 @@ console.log(JSON.stringify({
     rustMutationPreferredSelectionConsumed: true,
     pdfDockStateDerived: true,
     storeLifecycleStateDerived: true,
-    snapshotPayloadDerived: true,
+    rustSnapshotPayloadBuild: true,
     storeUsesDomainHelper: true,
     exactIdPresenceDerived: true,
     rustQuerySectionAndSortKeyValidation: true,

@@ -72,7 +72,7 @@ should shrink as Rust APIs return complete state:
 | Query hydration fallback | `resolveReferenceResolvedQueryState`, `buildReferenceQuerySelectionState` | Rust query returns the complete resolved-query DTO; JS only accepts returned DTOs and maps query fields back to store selection state. |
 | Store bootstrap UI state | `buildReferenceStoreInitialState` | Rust-backed load lifecycle returns canonical library defaults; JS keeps only loading/error/Zotero UI flags. Cleanup now routes through Rust snapshot/query normalization instead of a JS reset helper. |
 | Snapshot apply bridge | `applyLibrarySnapshot()` orchestration plus PDF dock UI reconciliation | Raw snapshot normalization now goes through `references_snapshot_normalize`, and selection/filter hydration goes through `references_query_resolve`; JS keeps only field assignment, loading/error orchestration and PDF dock UI state. |
-| Library snapshot write DTO | `buildReferenceLibrarySnapshotPayload` | Persisted snapshot payload is built in Rust or by a service adapter with no schema policy. |
+| Library snapshot write DTO | None | `references_snapshot_payload_build` now builds and normalizes persisted snapshot payloads from store state in Rust; JS keeps only a thin service call. |
 | Store seed internals | None | Deleted; initial query state is not synthesized in JS. |
 | Citation style display fallback | `resolveReferenceCitationStyleId`, `resolveReferenceWorkspaceCitationStyles` | Keep only if it remains a UI fallback around a Rust-normalized style registry result. |
 
@@ -159,8 +159,9 @@ Zotero, search, or snapshot policy and should move back to Rust contracts:
    - Status: sidebar/sort selection validity now comes from
      `references_query_resolve`; raw snapshot apply normalization now comes from
      `references_snapshot_normalize`. Cleanup now resets through the same Rust
-     snapshot/query path, and JS no longer builds default resolved-query DTOs.
-     Initial store shell and persisted snapshot payload assembly remain as the
+     snapshot/query path, JS no longer builds default resolved-query DTOs, and
+     persisted snapshot payload assembly now goes through
+     `references_snapshot_payload_build`. Initial store shell remains as the
      lifecycle defaults cleanup area.
 
 6. Shrink `referenceStoreState.js`
@@ -193,7 +194,6 @@ For each migration slice:
   skipped/success result classification have moved to Rust.
 - Remaining query work is now narrower: selection-id UI affordances and
   returned-query DTO mapping still need explicit UI-only classification.
-  Initial store shell and persisted snapshot payload assembly remain
-  transitional lifecycle helpers.
+  Initial store shell remains a transitional lifecycle helper.
 - UI dock/sidebar helpers are lower risk and can remain while they stay
   presentation-only.

@@ -80,6 +80,13 @@ pub struct ReferenceSnapshotNormalizeParams {
     pub snapshot: Value,
 }
 
+#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ReferenceSnapshotPayloadBuildParams {
+    #[serde(default)]
+    pub state: Value,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReferenceRecordNormalizeParams {
@@ -158,6 +165,17 @@ fn reference_snapshot_normalize_params_from_payload(
 ) -> ReferenceSnapshotNormalizeParams {
     ReferenceSnapshotNormalizeParams {
         snapshot: snapshot_payload_field(&params),
+    }
+}
+
+fn reference_snapshot_payload_build_params_from_payload(
+    params: Value,
+) -> ReferenceSnapshotPayloadBuildParams {
+    ReferenceSnapshotPayloadBuildParams {
+        state: payload_field(&params, "state")
+            .filter(|value| value.is_object())
+            .cloned()
+            .unwrap_or_else(build_default_snapshot),
     }
 }
 
@@ -558,6 +576,12 @@ pub async fn references_snapshot_normalize(params: Value) -> Result<Value, Strin
 }
 
 #[tauri::command]
+pub async fn references_snapshot_payload_build(params: Value) -> Result<Value, String> {
+    let params = reference_snapshot_payload_build_params_from_payload(params);
+    Ok(normalize_snapshot(&params.state))
+}
+
+#[tauri::command]
 pub async fn references_record_normalize(
     params: ReferenceRecordNormalizeParams,
 ) -> Result<Value, String> {
@@ -571,7 +595,8 @@ mod tests {
         reference_asset_store_params_from_payload,
         reference_library_load_workspace_params_from_payload,
         reference_library_read_params_from_payload, reference_library_write_params_from_payload,
-        reference_snapshot_normalize_params_from_payload, rename_reference_asset,
+        reference_snapshot_normalize_params_from_payload,
+        reference_snapshot_payload_build_params_from_payload, rename_reference_asset,
         store_reference_asset, write_library_snapshot, ReferenceAssetRenameParams,
         ReferenceAssetStoreParams,
     };
@@ -750,6 +775,37 @@ mod tests {
                 .as_array()
                 .map(Vec::len),
             Some(1)
+        );
+
+        let payload_params = reference_snapshot_payload_build_params_from_payload(json!({
+            "state": {
+                "citationStyle": "chicago",
+                "documentReferenceSelections": {
+                    "/workspace/main.tex": ["ref-a", "missing", "ref-a"]
+                },
+                "collections": [],
+                "tags": [],
+                "references": [{ "id": "ref-a", "title": "Alpha", "tags": ["Draft"] }],
+                "isLoading": true,
+                "resolvedQueryState": { "query": { "sortKey": "title-asc" } }
+            }
+        }));
+        let payload = normalize_snapshot(&payload_params.state);
+        assert_eq!(payload["version"], 2);
+        assert_eq!(payload["citationStyle"], "chicago");
+        assert_eq!(
+            payload["documentReferenceSelections"]["/workspace/main.tex"],
+            json!(["ref-a"])
+        );
+        assert!(payload.get("isLoading").is_none());
+        assert!(payload.get("resolvedQueryState").is_none());
+
+        let invalid_payload_params = reference_snapshot_payload_build_params_from_payload(json!({
+            "state": false
+        }));
+        assert_eq!(
+            normalize_snapshot(&invalid_payload_params.state),
+            crate::references_snapshot::build_default_snapshot()
         );
     }
 

@@ -8,6 +8,14 @@ export async function normalizeReferenceLibrarySnapshotWithBackend(snapshot = {}
   })
 }
 
+export async function buildReferenceLibrarySnapshotPayloadWithBackend(state = {}) {
+  return invoke('references_snapshot_payload_build', {
+    params: {
+      state,
+    },
+  })
+}
+
 export async function readOrCreateReferenceLibrarySnapshot(globalConfigDir = '') {
   return invoke('references_library_load_workspace', {
     params: {

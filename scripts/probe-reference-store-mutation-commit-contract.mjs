@@ -32,7 +32,7 @@ const helperSource = extractFunctionSource(
 
 assert.match(
   helperSource,
-  /mutation\?\.snapshot \|\| fallbackSnapshot \|\| store\.buildLibrarySnapshotPayload\(\)/,
+  /mutation\?\.snapshot \|\| fallbackSnapshot \|\| await store\.buildLibrarySnapshotPayload\(\)/,
   'commitReferenceMutationSnapshot must centralize mutation snapshot fallback handling',
 )
 assert.match(
@@ -145,7 +145,7 @@ assert.match(
 const persistSnapshotSource = extractActionSource(storeSource, 'persistLibrarySnapshot')
 assert.match(
   persistSnapshotSource,
-  /this\.commitLibrarySnapshot\(projectRoot, this\.buildLibrarySnapshotPayload\(\)\)/,
+  /this\.commitLibrarySnapshot\(projectRoot, await this\.buildLibrarySnapshotPayload\(\)\)/,
   'persistLibrarySnapshot should remain the direct local snapshot persistence entrypoint',
 )
 

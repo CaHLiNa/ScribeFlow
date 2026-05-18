@@ -47,6 +47,7 @@ try {
 
   const calls = []
   const normalizeResult = 'rust-owned-snapshot-normalize'
+  const payloadResult = 'rust-owned-snapshot-payload-build'
   const loadResult = 'rust-owned-library-load'
   const writeResult = 'rust-owned-library-write'
 
@@ -55,6 +56,10 @@ try {
 
     if (cmd === 'references_snapshot_normalize') {
       return normalizeResult
+    }
+
+    if (cmd === 'references_snapshot_payload_build') {
+      return payloadResult
     }
 
     if (cmd === 'references_library_load_workspace') {
@@ -69,27 +74,32 @@ try {
   })
 
   const {
+    buildReferenceLibrarySnapshotPayloadWithBackend,
     normalizeReferenceLibrarySnapshotWithBackend,
     readOrCreateReferenceLibrarySnapshot,
     writeReferenceLibrarySnapshot,
   } = await vite.ssrLoadModule('/src/services/references/referenceLibraryIO.js')
 
   const normalized = await normalizeReferenceLibrarySnapshotWithBackend(false)
+  const payload = await buildReferenceLibrarySnapshotPayloadWithBackend({ citationStyle: 'ieee' })
   const loaded = await readOrCreateReferenceLibrarySnapshot(false)
   const written = await writeReferenceLibrarySnapshot(42, 'not-a-snapshot')
 
   assert.deepEqual(calls.map((call) => call.cmd), [
     'references_snapshot_normalize',
+    'references_snapshot_payload_build',
     'references_library_load_workspace',
     'references_library_write',
   ])
   assert.deepEqual(calls[0].args.params, { snapshot: false })
-  assert.deepEqual(calls[1].args.params, { globalConfigDir: false })
-  assert.deepEqual(calls[2].args.params, {
+  assert.deepEqual(calls[1].args.params, { state: { citationStyle: 'ieee' } })
+  assert.deepEqual(calls[2].args.params, { globalConfigDir: false })
+  assert.deepEqual(calls[3].args.params, {
     globalConfigDir: 42,
     snapshot: 'not-a-snapshot',
   })
   assert.strictEqual(normalized, normalizeResult)
+  assert.strictEqual(payload, payloadResult)
   assert.strictEqual(loaded, loadResult)
   assert.strictEqual(written, writeResult)
 

@@ -193,17 +193,6 @@ export function resolveReferenceResolvedQueryState(resolved = null, fallbackStat
     : (fallbackState?.resolvedQueryState || null)
 }
 
-export function buildReferenceLibrarySnapshotPayload(state = {}) {
-  return {
-    version: 2,
-    citationStyle: state.citationStyle,
-    documentReferenceSelections: state.documentReferenceSelections,
-    collections: state.collections,
-    tags: state.tags,
-    references: state.references,
-  }
-}
-
 export function buildReferenceStoreInitialState(defaults = {}) {
   return {
     librarySections: Array.isArray(defaults.librarySections) ? defaults.librarySections : [],

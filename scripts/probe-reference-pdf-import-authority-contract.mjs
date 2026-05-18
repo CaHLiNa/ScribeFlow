@@ -157,6 +157,18 @@ try {
       }
     }
 
+    if (cmd === 'references_snapshot_payload_build') {
+      const state = args?.params?.state || {}
+      return {
+        version: 2,
+        citationStyle: state.citationStyle || 'apa',
+        documentReferenceSelections: state.documentReferenceSelections || {},
+        collections: Array.isArray(state.collections) ? state.collections : [],
+        tags: Array.isArray(state.tags) ? state.tags : [],
+        references: Array.isArray(state.references) ? state.references : [],
+      }
+    }
+
     if (cmd === 'references_asset_store') {
       assert.deepEqual(args?.params?.reference, {})
       assert.equal(args?.params?.referenceId, 'ref-1')
