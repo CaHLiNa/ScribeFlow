@@ -165,6 +165,7 @@ assert.deepEqual(resetFileTreeRenameState(), {
 })
 
 const fileTreeSource = await readFile('src/components/sidebar/FileTree.vue', 'utf8')
+const fileTreeActionsSource = await readFile('src/composables/files/useFileTreeActions.js', 'utf8')
 
 assert.match(
   fileTreeSource,
@@ -182,9 +183,19 @@ assert.match(
   'FileTree.vue must derive workspace menu positioning through the presentation helper',
 )
 assert.match(
-  fileTreeSource,
+  fileTreeActionsSource,
   /buildTypedFileNameCandidate/,
-  'FileTree.vue must keep typed file suffix fallback deterministic after the initial candidate list',
+  'File tree action workflow must keep typed file suffix fallback deterministic after the initial candidate list',
+)
+assert.match(
+  fileTreeActionsSource,
+  /deriveTypedFileNameCandidates/,
+  'File tree action workflow must derive typed file candidate names through the file domain',
+)
+assert.doesNotMatch(
+  fileTreeSource,
+  /buildTypedFileNameCandidate|deriveTypedFileNameCandidates|appendTypedFileExtension|buildFileTreeRenameState|resetFileTreeRenameState/,
+  'FileTree.vue must not directly own typed file candidate or rename-state presentation helpers',
 )
 assert.doesNotMatch(
   fileTreeSource,

@@ -179,6 +179,7 @@ Current plugin lifecycle contract:
 - app shell frame ownership is now split at the Vue component boundary: `App.vue` keeps store, workspace lifecycle, active workbench selection, extension prompt/palette orchestration, zen-mode listeners, and teardown/event bridges, while `AppShellFrame.vue` owns root shell/topbar/left-sidebar/main-card/resize-slot DOM and scoped shell CSS
 - file tree body ownership is now split at the Vue component boundary: `FileTree.vue` keeps keyboard, drag/drop, context-menu, mutation, and store orchestration, while `FileTreeBody.vue` owns scroll-body DOM, virtual row rendering, root inline-create input, drop/empty state chrome, and body scoped CSS
 - file tree overlay ownership is now split at the Vue component boundary too: `FileTree.vue` keeps menu state, positioning, document listeners, file mutation, and workspace/editor orchestration, while `FileTreeOverlays.vue` owns context-menu/workspace-menu/new-menu/drag-ghost composition and exposes only menu DOM accessors back to the coordinator
+- file tree action workflow ownership is now split from the file-tree coordinator: `FileTree.vue` keeps menu positioning, overlay lifecycle, virtual row wiring, keyboard dispatch, and drag/drop wiring, while `useFileTreeActions.js` owns inline create/rename/duplicate/delete/reveal/document-dock side effects and file/workspace/editor store dispatch
 - reference workbench detail dock ownership is now split at the Vue component boundary: `ReferenceLibraryWorkbench.vue` keeps reference selection, page activation, tab fallback, resize, import/export, and context-menu orchestration, while `ReferenceLibraryDetailDock.vue` owns the inline dock frame, tabbar, active page render slot, empty state, and detail tab scoped CSS
 - reference workbench main-list ownership is now split at the Vue component boundary too: `ReferenceLibraryWorkbench.vue` keeps import/export, selected-reference, context-menu, sort, and dock orchestration, while `ReferenceLibraryMain.vue` owns toolbar/status/empty/table composition and main-list scoped CSS
 - reference action workflow ownership is now split from the workbench coordinator: `ReferenceLibraryWorkbench.vue` keeps selection, dock page activation, resize/layout reconciliation, and shell composition, while `useReferenceLibraryActions.js` owns native import/export dialogs, clipboard copy, toast/status feedback, context-menu action binding, and reference store action dispatch
@@ -218,6 +219,7 @@ The quick gate includes:
 - `npm run probe:workbench-rail-title-style-ownership`
 - `npm run probe:file-tree-body-style-ownership`
 - `npm run probe:file-tree-overlay-style-ownership`
+- `npm run probe:file-tree-actions-boundary`
 - `npm run probe:reference-workbench-detail-dock-style-ownership`
 - `npm run probe:reference-workbench-main-style-ownership`
 - `npm run probe:reference-library-actions-boundary`
