@@ -176,6 +176,12 @@ export function buildReferencePdfImportTargetState(mutation = {}, fallbackSnapsh
   }
 }
 
+export function buildReferencePdfImportResultState(references = [], importTarget = {}) {
+  return {
+    selectedReference: resolveReferenceById(references, importTarget?.selectedReferenceId),
+  }
+}
+
 export function buildReferencePdfAssetTargetState(references = [], referenceId = '') {
   const normalizedReferenceId = String(referenceId || '').trim()
   const targetReference = resolveReferenceById(references, normalizedReferenceId)

@@ -14,6 +14,7 @@ import {
   buildReferenceMetadataRefreshTargetState,
   buildReferencePdfAssetResultState,
   buildReferencePdfAssetTargetState,
+  buildReferencePdfImportResultState,
   buildReferencePdfImportTargetState,
   buildReferenceRemoveCollectionMutationResultState,
   buildReferenceRemoveMutationResultState,
@@ -326,6 +327,16 @@ assert.deepEqual(buildReferencePdfImportTargetState({
     references,
   },
   targetReference: null,
+})
+assert.deepEqual(buildReferencePdfImportResultState(references, {
+  selectedReferenceId: 'ref-2',
+}), {
+  selectedReference: references[1],
+})
+assert.deepEqual(buildReferencePdfImportResultState(references, {
+  selectedReferenceId: 'missing',
+}), {
+  selectedReference: null,
 })
 assert.deepEqual(buildReferenceCollectionMutationResultState({
   result: {
@@ -1179,6 +1190,11 @@ assert.match(
 )
 assert.match(
   storeSource,
+  /buildReferencePdfImportResultState/,
+  'references store must delegate PDF import result state mapping',
+)
+assert.match(
+  storeSource,
   /buildReferenceCollectionMutationResultState/,
   'references store must delegate collection mutation result state mapping',
 )
@@ -1229,8 +1245,8 @@ assert.doesNotMatch(
 )
 assert.doesNotMatch(
   actionSource('importReferencePdf'),
-  /String\(importMutation\?\.result\?\.selectedReferenceId \|\| ''\)|Array\.isArray\(importedSnapshot\?\.references\)|resolveReferenceById\(importedSnapshot\.references/,
-  'importReferencePdf must not inline PDF import target state mapping',
+  /String\(importMutation\?\.result\?\.selectedReferenceId \|\| ''\)|Array\.isArray\(importedSnapshot\?\.references\)|resolveReferenceById\(importedSnapshot\.references|resolveReferenceById\(this\.references, importTarget\.selectedReferenceId\)/,
+  'importReferencePdf must not inline PDF import target/result state mapping',
 )
 assert.doesNotMatch(
   storeSource,
@@ -1355,6 +1371,7 @@ console.log(JSON.stringify({
     removeReferenceTargetAndResultStateDerived: true,
     updateReferenceResultStateDerived: true,
     pdfImportTargetStateDerived: true,
+    pdfImportResultStateDerived: true,
     collectionMutationResultStateDerived: true,
     removeCollectionResultStateDerived: true,
     documentIdsMutationResultStateDerived: true,

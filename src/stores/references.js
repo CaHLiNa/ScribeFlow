@@ -68,6 +68,7 @@ import {
   buildReferenceMetadataRefreshTargetState,
   buildReferencePdfAssetResultState,
   buildReferencePdfAssetTargetState,
+  buildReferencePdfImportResultState,
   buildReferencePdfImportTargetState,
   buildReferenceRemoveCollectionMutationResultState,
   buildReferenceRemoveMutationResultState,
@@ -788,7 +789,7 @@ export const useReferencesStore = defineStore('references', {
           fallbackSnapshot: importTarget.importedSnapshot,
           preferredSelectedReferenceId: importTarget.selectedReferenceId,
         })
-        return resolveReferenceById(this.references, importTarget.selectedReferenceId)
+        return buildReferencePdfImportResultState(this.references, importTarget).selectedReference
       } finally {
         this.importInFlight = false
       }
