@@ -13,86 +13,42 @@
     />
 
     <template v-if="!collapsed">
-      <div class="file-tree-body">
-        <!-- Tree -->
-        <div
-          ref="treeContainer"
-          class="file-tree-scroll outline-none"
-          tabindex="0"
-          @contextmenu.prevent="showContextMenuOnEmpty"
-          @keydown="handleTreeKeydown"
-          @mouseup="onTreeMouseUp"
-          @scroll="onTreeScroll"
-        >
-          <!-- Inline input for new file at root level -->
-          <div
-            v-if="renaming.active && renaming.isNew && renaming.parentDir === workspace.path"
-            class="file-tree-root-rename-row flex items-center py-0.5 px-1"
-          >
-            <UiInput
-              ref="renameInput"
-              v-model="renaming.value"
-              size="sm"
-              shell-class="file-tree-rename-input"
-              autocomplete="off"
-              autocorrect="off"
-              autocapitalize="off"
-              spellcheck="false"
-              @keydown.enter.stop="finishRename"
-              @keydown.escape.stop="cancelRename"
-              @blur="finishRename"
-            />
-          </div>
-
-          <div
-            v-if="visibleRows.length > 0"
-            class="relative"
-            :style="{ height: totalTreeHeight + 'px' }"
-          >
-            <div :style="{ transform: `translateY(${virtualOffset}px)` }">
-              <FileTreeItem
-                v-for="row in virtualRows"
-                :key="row.entry.path"
-                :entry="row.entry"
-                :depth="row.depth"
-                :renamingPath="renaming.active && !renaming.isNew ? renaming.originalPath : null"
-                :newItemParent="renaming.active && renaming.isNew ? renaming.parentDir : null"
-                :newItemValue="renaming.value"
-                :newItemIsDir="renaming.isDir"
-                :selectedPaths="selectedPaths"
-                :dragOverDir="dragOverDir"
-                :suppressChildren="true"
-                @open-file="openFile"
-                @select-file="onSelectFile"
-                @context-menu="showContextMenu"
-                @start-rename-input="onStartRenameInput"
-                @rename-input-change="(v) => (renaming.value = v)"
-                @rename-input-submit="finishRename"
-                @rename-input-cancel="cancelRename"
-                @drag-start="onDragStart"
-                @drag-over-dir="(dir) => (dragOverDir = dir)"
-                @drag-leave-dir="onDragLeaveDir"
-                @drop-on-dir="onDropOnDir"
-              />
-            </div>
-          </div>
-
-          <!-- External drop zone indicator (root level) -->
-          <div
-            v-if="externalDragOver"
-            class="file-tree-drop-indicator mx-2 my-1 py-2 rounded border-2 border-dashed text-center ui-sidebar-meta"
-          >
-            {{ t('Drop files here') }}
-          </div>
-
-          <div
-            v-if="visibleRows.length === 0 && !renaming.active"
-            class="file-tree-empty-state px-3 py-4 ui-sidebar-empty"
-          >
-            {{ t('No files yet') }}
-          </div>
-        </div>
-      </div>
+      <FileTreeBody
+        ref="fileTreeBody"
+        :drag-over-dir="dragOverDir"
+        :external-drag-over="externalDragOver"
+        :new-item-is-dir="renaming.isDir"
+        :new-item-parent="renaming.active && renaming.isNew ? renaming.parentDir : null"
+        :new-item-value="renaming.value"
+        :renaming-active="renaming.active"
+        :renaming-path="renaming.active && !renaming.isNew ? renaming.originalPath : null"
+        :root-new-active="renaming.active && renaming.isNew && renaming.parentDir === workspace.path"
+        :root-new-value="renaming.value"
+        :selected-paths="selectedPaths"
+        :total-tree-height="totalTreeHeight"
+        :virtual-offset="virtualOffset"
+        :virtual-rows="virtualRows"
+        :visible-row-count="visibleRows.length"
+        @context-menu-empty="showContextMenuOnEmpty"
+        @drag-leave-dir="onDragLeaveDir"
+        @drag-over-dir="(dir) => (dragOverDir = dir)"
+        @drag-start="onDragStart"
+        @drop-on-dir="onDropOnDir"
+        @open-file="openFile"
+        @rename-input-cancel="cancelRename"
+        @rename-input-change="(v) => (renaming.value = v)"
+        @rename-input-submit="finishRename"
+        @root-rename-cancel="cancelRename"
+        @root-rename-submit="finishRename"
+        @root-rename-value-change="(v) => (renaming.value = v)"
+        @select-file="onSelectFile"
+        @show-context-menu="showContextMenu"
+        @start-rename-input="onStartRenameInput"
+        @tree-keydown="handleTreeKeydown"
+        @tree-container-ready="setTreeContainer"
+        @tree-mouse-up="onTreeMouseUp"
+        @tree-scroll="onTreeScroll"
+      />
 
       <FileTreeFooter
         @open-folder="emit('open-folder')"
@@ -174,14 +130,13 @@ import {
 } from '../../domains/files/fileTreePresentation.js'
 import { listWorkspaceFlatFileEntries } from '../../domains/files/workspaceSnapshotFlatFilesRuntime.js'
 import { listWorkspaceDocumentTemplates } from '../../domains/workspace/workspaceTemplateRuntime'
+import FileTreeBody from './FileTreeBody.vue'
 import FileTreeFooter from './FileTreeFooter.vue'
 import FileTreeHeader from './FileTreeHeader.vue'
-import FileTreeItem from './FileTreeItem.vue'
 import FileTreeNewMenu from './FileTreeNewMenu.vue'
 import FileTreeWorkspaceMenu from './FileTreeWorkspaceMenu.vue'
 import { isMod } from '../../platform'
 import ContextMenu from './ContextMenu.vue'
-import UiInput from '../shared/ui/UiInput.vue'
 import { useI18n } from '../../i18n'
 import { revealPathInFileManager } from '../../services/fileTreeSystem'
 import { workspacePathExists } from '../../services/pathStatus.js'
@@ -245,7 +200,7 @@ watch(
 )
 
 const treeContainer = ref(null)
-const renameInput = ref(null)
+const fileTreeBody = ref(null)
 const workspaceMenuAnchorEl = ref(null)
 const workspaceMenuComponent = ref(null)
 const newMenuComponent = ref(null)
@@ -609,8 +564,8 @@ function startInlineCreate(dir, isDir) {
   )
 
   nextTick(() => {
-    if (dir === workspace.path && renameInput.value) {
-      renameInput.value.select()
+    if (dir === workspace.path) {
+      fileTreeBody.value?.selectRootRenameInput?.()
     }
   })
 }
@@ -626,6 +581,10 @@ function handleRename(entry) {
 
 function onStartRenameInput() {
   // Called by FileTreeItem when the inline input is mounted
+}
+
+function setTreeContainer(element) {
+  treeContainer.value = element
 }
 
 let isFinishing = false
@@ -760,59 +719,4 @@ defineExpose({
   min-height: 0;
   background: transparent;
 }
-
-.file-tree-body {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  min-height: 0;
-}
-
-.file-tree-scroll {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
-  padding: 4px 4px 4px;
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    transparent 0,
-    black 18px,
-    black calc(100% - 18px),
-    transparent 100%
-  );
-  mask-image: linear-gradient(
-    to bottom,
-    transparent 0,
-    black 18px,
-    black calc(100% - 18px),
-    transparent 100%
-  );
-  -webkit-mask-size: 100% 100%;
-  mask-size: 100% 100%;
-  -webkit-mask-repeat: no-repeat;
-  mask-repeat: no-repeat;
-}
-
-.file-tree-root-rename-row {
-  padding-left: 28px;
-}
-
-.file-tree-rename-input {
-  font-size: var(--sidebar-font-control);
-  border-color: color-mix(in srgb, var(--border) 48%, transparent);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--surface-base) 84%, transparent);
-}
-
-.file-tree-drop-indicator {
-  border-color: var(--accent);
-  color: var(--accent);
-  opacity: 0.6;
-}
-
-.file-tree-empty-state {
-  color: var(--text-muted);
-}
-
 </style>

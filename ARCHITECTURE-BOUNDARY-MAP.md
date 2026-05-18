@@ -167,7 +167,8 @@ Components over 500 lines:
 | `src/components/settings/SettingsExtensions.vue` | 382 | Extension settings shell; Phase 8 extracted list/options UI, pure settings grouping, secure setting draft derivation, and child scoped style ownership. |
 | `src/components/settings/SettingsExtensionList.vue` | 324 | Extension loaded-list presentation and scoped card/header/control styling. |
 | `src/components/settings/SettingsExtensionOptions.vue` | 352 | Extension settings/action form presentation and scoped option/action control styling. |
-| `src/components/sidebar/FileTree.vue` | 818 | File tree orchestration plus mutation commands; Phase 8 extracted header/footer/menu chrome and deterministic presentation helpers. |
+| `src/components/sidebar/FileTree.vue` | 723 | File tree orchestration plus mutation commands; header/footer/menu/body chrome and deterministic presentation helpers now live outside the coordinator. |
+| `src/components/sidebar/FileTreeBody.vue` | 196 | File tree scroll body presentation for virtual rows, root inline create, empty state, and drop indicator; exposes the real scroll container to parent orchestration. |
 | `src/components/sidebar/FileTreeFooter.vue` | 117 | File tree footer controls. |
 | `src/components/sidebar/FileTreeHeader.vue` | 94 | File tree header controls. |
 | `src/components/sidebar/FileTreeNewMenu.vue` | 93 | File tree document-template create menu. |
@@ -218,6 +219,7 @@ Components over 500 lines:
 - 2026-05-03: File creation/mutation runtime callbacks no longer rely on `console.error` for duplicate, create-folder, copy, rename, move, delete, or save failures. `src/stores/files.js` now routes those failures through the existing toast/status path via `formatFileError`, while Rust remains the mutation acceptance authority.
 - 2026-05-02: `src/services/workspaceRecents.js` no longer carries stale frontend recent-workspace normalization or record-opened policy. Lifecycle normalization, pruning, record-opened ordering, and max recent count remain owned by `src-tauri/src/workspace_lifecycle.rs` and its Rust tests.
 - 2026-05-18: `FileTree.vue` no longer owns deterministic workspace label fallback, recent-workspace display slicing, menu style math, typed-file candidate naming, extension append rules, or rename-state object construction inline. `src/domains/files/fileTreePresentation.js` now owns those pure presentation rules, while the component keeps DOM rect reads, event listener lifecycle, Pinia orchestration, `workspacePathExists` checks, and filesystem mutation calls.
+- 2026-05-18: File tree body component ownership is split too: `FileTree.vue` keeps keyboard, drag/drop, context-menu, mutation, and store orchestration, while `FileTreeBody.vue` owns the scroll container DOM, virtual row rendering, root inline-create input, external drop/empty states, and body scoped styles. `scripts/probe-file-tree-body-style-ownership.mjs` guards that the body stays presentation-only while still handing the real scroll element back to parent orchestration.
 
 ## Preferences/Settings Authority Cleanup Log
 
