@@ -451,6 +451,24 @@ export function buildReferenceSnapshotApplyState(state = {}, snapshot = {}, opti
   }
 }
 
+export function buildReferenceUpdateMutationCommitState(state = {}, mutation = {}, options = {}) {
+  return {
+    preferredSelectedReferenceId: options.preferredSelectedReferenceId !== undefined
+      ? String(options.preferredSelectedReferenceId || '')
+      : String(state.selectedReferenceId || mutation?.result?.selectedReferenceId || ''),
+  }
+}
+
+export function buildReferenceRemoveMutationCommitState(state = {}, referenceId = '') {
+  const selectedReferenceId = String(state.selectedReferenceId || '')
+  const normalizedReferenceId = String(referenceId || '').trim()
+  return {
+    preferredSelectedReferenceId: selectedReferenceId.trim() === normalizedReferenceId
+      ? ''
+      : selectedReferenceId,
+  }
+}
+
 export function buildReferenceQuerySelectionState(resolvedQueryState = {}, currentState = {}) {
   const query = resolvedQueryState?.query && typeof resolvedQueryState.query === 'object'
     ? resolvedQueryState.query

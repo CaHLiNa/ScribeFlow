@@ -81,7 +81,9 @@ import {
   buildReferenceSnapshotApplyState,
   buildReferenceSortSelectionState,
   buildReferenceSourceSelectionState,
+  buildReferenceRemoveMutationCommitState,
   buildReferenceTagSelectionState,
+  buildReferenceUpdateMutationCommitState,
   resolveReferencesForExport,
   resolveTag,
   buildReferenceQuerySelectionState,
@@ -637,14 +639,13 @@ export const useReferencesStore = defineStore('references', {
         },
       })
       if (mutation?.result?.changed !== true) return false
-      const selectedReferenceId =
-        preferredSelectedReferenceId !== undefined
-          ? String(preferredSelectedReferenceId || '')
-          : String(this.selectedReferenceId || mutation?.result?.selectedReferenceId || '')
+      const commitState = buildReferenceUpdateMutationCommitState(this.$state, mutation, {
+        preferredSelectedReferenceId,
+      })
 
       await commitReferenceMutationSnapshot(this, projectRoot, mutation, {
         persist,
-        preferredSelectedReferenceId: selectedReferenceId,
+        preferredSelectedReferenceId: commitState.preferredSelectedReferenceId,
       })
       return true
     },
@@ -675,12 +676,10 @@ export const useReferencesStore = defineStore('references', {
         },
       })
       if (mutation?.result?.removed !== true) return false
-      const preferredSelectedReferenceId = this.selectedReferenceId === referenceId
-        ? ''
-        : this.selectedReferenceId
+      const commitState = buildReferenceRemoveMutationCommitState(this.$state, referenceId)
 
       await commitReferenceMutationSnapshot(this, projectRoot, mutation, {
-        preferredSelectedReferenceId,
+        preferredSelectedReferenceId: commitState.preferredSelectedReferenceId,
       })
 
       if (target._pushedByApp && target._zoteroKey) {

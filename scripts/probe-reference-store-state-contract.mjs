@@ -17,9 +17,11 @@ import {
   buildReferenceSnapshotSelectionState,
   buildReferenceSortSelectionState,
   buildReferenceSourceSelectionState,
+  buildReferenceRemoveMutationCommitState,
   buildReferenceStoreCleanupState,
   buildReferenceStoreInitialState,
   buildReferenceTagSelectionState,
+  buildReferenceUpdateMutationCommitState,
   hasReferenceById,
   isReferenceDockPdfSelected,
   isReferenceSelectedForDocument,
@@ -592,6 +594,45 @@ assert.deepEqual(buildReferenceSnapshotApplyState({
     shouldFallbackToDetails: true,
   },
 })
+assert.deepEqual(buildReferenceUpdateMutationCommitState({
+  selectedReferenceId: 'ref-2',
+}, {
+  result: {
+    selectedReferenceId: 'ref-1',
+  },
+}), {
+  preferredSelectedReferenceId: 'ref-2',
+})
+assert.deepEqual(buildReferenceUpdateMutationCommitState({
+  selectedReferenceId: '',
+}, {
+  result: {
+    selectedReferenceId: 'ref-1',
+  },
+}), {
+  preferredSelectedReferenceId: 'ref-1',
+})
+assert.deepEqual(buildReferenceUpdateMutationCommitState({
+  selectedReferenceId: 'ref-2',
+}, {
+  result: {
+    selectedReferenceId: 'ref-1',
+  },
+}, {
+  preferredSelectedReferenceId: null,
+}), {
+  preferredSelectedReferenceId: '',
+})
+assert.deepEqual(buildReferenceRemoveMutationCommitState({
+  selectedReferenceId: ' ref-2 ',
+}, 'ref-2'), {
+  preferredSelectedReferenceId: '',
+})
+assert.deepEqual(buildReferenceRemoveMutationCommitState({
+  selectedReferenceId: 'ref-2',
+}, 'ref-1'), {
+  preferredSelectedReferenceId: 'ref-2',
+})
 
 const storeSource = await readFile('src/stores/references.js', 'utf8')
 const actionSource = (actionName) => {
@@ -670,6 +711,16 @@ assert.match(
   storeSource,
   /buildReferenceSnapshotApplyState/,
   'references store must delegate snapshot apply state reconciliation',
+)
+assert.match(
+  storeSource,
+  /buildReferenceUpdateMutationCommitState/,
+  'references store must delegate update mutation commit selection',
+)
+assert.match(
+  storeSource,
+  /buildReferenceRemoveMutationCommitState/,
+  'references store must delegate remove mutation commit selection',
 )
 assert.match(
   storeSource,
@@ -788,6 +839,16 @@ assert.doesNotMatch(
   /const normalizedReferenceId = String\(referenceId \|\| ''\)\.trim\(\)/,
   'selectReference must not inline selected-reference id validation',
 )
+assert.doesNotMatch(
+  actionSource('updateReference'),
+  /preferredSelectedReferenceId !== undefined[\s\S]*this\.selectedReferenceId \|\| mutation\?\.result\?\.selectedReferenceId/,
+  'updateReference must not inline mutation commit selection fallback',
+)
+assert.doesNotMatch(
+  actionSource('removeReference'),
+  /this\.selectedReferenceId === referenceId[\s\S]*\? ''[\s\S]*: this\.selectedReferenceId/,
+  'removeReference must not inline mutation commit selection fallback',
+)
 for (const actionName of ['setDocumentReferenceIds', 'addDocumentReference', 'removeDocumentReference']) {
   assert.doesNotMatch(
     actionSource(actionName),
@@ -821,6 +882,7 @@ console.log(JSON.stringify({
     resolvedQueryHydrationDerived: true,
     sidebarSelectionDerived: true,
     snapshotSelectionDerived: true,
+    mutationCommitSelectionDerived: true,
     pdfDockStateDerived: true,
     storeLifecycleStateDerived: true,
     snapshotPayloadDerived: true,
