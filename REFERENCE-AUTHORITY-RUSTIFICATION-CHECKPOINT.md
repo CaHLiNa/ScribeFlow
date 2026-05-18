@@ -86,8 +86,7 @@ Zotero, search, or snapshot policy and should move back to Rust contracts:
 | Canonical key normalization | `normalizeCollectionMembershipValue`, `normalizeTagKey`, `normalizeReferenceSortKey`, `resolveCollection`, `resolveTag`, `resolveReferenceSectionKey` | `references_query.rs` and snapshot/query DTOs should own canonical keys and valid filter state. |
 | Reference lookup/export targets | `resolveReferenceByKey`, `resolveReferenceById`, `hasReferenceById`, `resolveReferencesForExport`, `buildReferenceJsonExportTargetState`, `buildReferenceCitationFormatTargetState`, `resolveReferenceSelectionId` | Rust query/export/citation commands should validate target ids and return normalized target state or clear errors. |
 | Import input preflight | `buildReferenceEmptyImportResult`, `buildReferenceImportInputState` | Rust should eventually expose import-intent/preflight defaults if empty-state semantics stop being purely UI-local. |
-| Remaining mutation results | update/remove/collection/document/PDF result helpers listed below | `references_mutation_apply` should return complete normalized outcome DTOs and preferred selection hints. |
-| Update/remove/collection results | `buildReferenceRemoveTargetState`, `buildReferenceRemoveMutationResultState`, `buildReferenceUpdateMutationResultState`, `buildReferenceCollectionMutationResultState`, `buildReferenceRemoveCollectionMutationResultState`, `buildReferenceDocumentIdsMutationResultState`, `buildReferenceToggleCollectionMutationResultState`, `buildReferenceUpdateMutationCommitState`, `buildReferenceRemoveMutationCommitState` | Rust mutation result should own changed/removed/toggled flags, preferred selection and collection result shape. |
+| Mutation target preflight | `buildReferenceRemoveTargetState` | Rust mutation/result APIs should eventually expose enough target state for UI/Zotero side-effect gating without JS performing canonical lookup. |
 | PDF import and assets | `buildReferenceMetadataRefreshTargetState`, `buildReferencePdfImportTargetState`, `buildReferencePdfImportResultState`, `buildReferencePdfAssetTargetState`, `buildReferencePdfAssetResultState` | Rust should own target validation, PDF import outcome, asset attachment/rename, and post-mutation selected reference. |
 | Zotero sync result | `buildReferenceZoteroSyncResultState` | Rust should own sync counts, skipped state, selected id, last-sync timestamp and error/result classification. |
 | Document-reference selection | `resolveDocumentReferenceSelections`, `resolveDocumentReferenceIds`, `resolveDocumentReferences`, `resolveDocumentReferenceByKey`, `isReferenceSelectedForDocument`, `resolveAvailableDocumentReferences`, `buildDocumentReferenceIdsMutationState`, `buildAddDocumentReferenceMutationState`, `buildRemoveDocumentReferenceMutationState` | Rust query/mutation commands should own TeX path normalization, selected id lists, dedupe and availability. |
@@ -96,12 +95,13 @@ Zotero, search, or snapshot policy and should move back to Rust contracts:
 ## Migration Priority
 
 1. Mutation/import result contract
-   - Status: import/add outcome is partially migrated. Rust now returns imported
-     count, reused-existing state, selected-reference id, selected reference
-     payload and preferred selection for import/add flows, and JS consumes the
-     returned `mutation.result` directly.
-   - Remaining: add Rust outcome DTOs for update, remove, collection,
-     document-reference, import preflight and PDF import mutations.
+   - Status: import/add/update/remove/collection/document-reference/toggle
+     outcomes are migrated. Rust now returns imported count, reused-existing
+     state, changed/removed/toggled flags, collection payloads,
+     selected-reference payloads and preferred selection hints, and JS consumes
+     the returned `mutation.result` directly.
+   - Remaining: add Rust-owned target/preflight DTOs for import preflight,
+     remove target side effects and PDF import/asset mutations.
    - JS store should consume returned `snapshot`, `result`,
      `preferredSelectedReferenceId` and `selectedReferenceId` without
      re-deriving changed/removed/imported flags.
@@ -154,11 +154,13 @@ For each migration slice:
 
 ## Current Gap Summary
 
-- `referenceStoreState.js` currently contains too many canonical reference
-  rules for the Rust-first target.
-- Mutation/import/PDF/Zotero result shaping is the highest-risk duplication
-  because it can diverge from Rust `references_mutation_apply` and persistence.
-- Query/search/document-reference helpers are next because Rust already has
-  `references_query.rs` and mutation support for the same canonical concepts.
+- `referenceStoreState.js` still contains too many canonical target, query and
+  selection rules for the Rust-first target.
+- Generic mutation result shaping has moved to Rust, but PDF import/assets,
+  Zotero result classification and citation/export target validation still
+  duplicate Rust-owned concepts in JS.
+- Query/search/document-reference presentation helpers are next because Rust
+  already has `references_query.rs` and mutation support for the same canonical
+  concepts.
 - UI dock/sidebar helpers are lower risk and can remain while they stay
   presentation-only.

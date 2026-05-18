@@ -228,47 +228,6 @@ export function buildReferenceRemoveTargetState(references = [], referenceId = '
   }
 }
 
-export function buildReferenceRemoveMutationResultState(mutation = {}) {
-  return {
-    removed: mutation?.result?.removed === true,
-  }
-}
-
-export function buildReferenceUpdateMutationResultState(mutation = {}) {
-  return {
-    changed: mutation?.result?.changed === true,
-  }
-}
-
-export function buildReferenceCollectionMutationResultState(mutation = {}) {
-  const collection = mutation?.result?.collection
-  return {
-    changed: mutation?.result?.changed === true,
-    collection: collection && typeof collection === 'object' && !Array.isArray(collection)
-      ? collection
-      : null,
-  }
-}
-
-export function buildReferenceRemoveCollectionMutationResultState(mutation = {}) {
-  return {
-    removed: mutation?.result?.removed === true,
-  }
-}
-
-export function buildReferenceDocumentIdsMutationResultState(mutation = {}) {
-  return {
-    changed: mutation?.result?.changed === true,
-  }
-}
-
-export function buildReferenceToggleCollectionMutationResultState(mutation = {}) {
-  return {
-    changed: mutation?.result?.changed === true,
-    toggledOn: mutation?.result?.toggledOn === true,
-  }
-}
-
 export function buildReferenceZoteroSyncResultState(result = {}, options = {}) {
   const counts = {
     imported: Number(result?.imported || 0),
@@ -645,24 +604,6 @@ export function buildReferenceSnapshotApplyState(state = {}, snapshot = {}, opti
       referenceDockPdfReferenceId: state.referenceDockPdfReferenceId,
       referenceDockActivePage: state.referenceDockActivePage,
     }),
-  }
-}
-
-export function buildReferenceUpdateMutationCommitState(state = {}, mutation = {}, options = {}) {
-  return {
-    preferredSelectedReferenceId: options.preferredSelectedReferenceId !== undefined
-      ? String(options.preferredSelectedReferenceId || '')
-      : String(state.selectedReferenceId || mutation?.result?.selectedReferenceId || ''),
-  }
-}
-
-export function buildReferenceRemoveMutationCommitState(state = {}, referenceId = '') {
-  const selectedReferenceId = String(state.selectedReferenceId || '')
-  const normalizedReferenceId = String(referenceId || '').trim()
-  return {
-    preferredSelectedReferenceId: selectedReferenceId.trim() === normalizedReferenceId
-      ? ''
-      : selectedReferenceId,
   }
 }
 

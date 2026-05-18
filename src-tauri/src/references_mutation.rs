@@ -17,6 +17,8 @@ pub struct ReferencesMutationApplyParams {
     pub snapshot: Value,
     #[serde(default)]
     pub global_config_dir: String,
+    #[serde(default, alias = "selectedReferenceId")]
+    pub selected_reference_id: String,
     pub action: ReferencesMutationAction,
 }
 
@@ -106,7 +108,36 @@ fn references_mutation_apply_params_from_payload(params: Value) -> ReferencesMut
     ReferencesMutationApplyParams {
         snapshot: snapshot_payload_field(&params),
         global_config_dir: string_payload_field(&params, "globalConfigDir"),
+        selected_reference_id: string_payload_field(&params, "selectedReferenceId"),
         action: mutation_action_payload_field(&params),
+    }
+}
+
+fn normalize_selected_reference_id(value: &str) -> String {
+    value.trim().to_string()
+}
+
+fn resolve_preferred_selected_reference_id(
+    selected_reference_id: &str,
+    fallback_reference_id: &str,
+) -> String {
+    let selected_reference_id = normalize_selected_reference_id(selected_reference_id);
+    if selected_reference_id.is_empty() {
+        fallback_reference_id.trim().to_string()
+    } else {
+        selected_reference_id
+    }
+}
+
+fn resolve_remove_preferred_selected_reference_id(
+    selected_reference_id: &str,
+    removed_reference_id: &str,
+) -> String {
+    let selected_reference_id = normalize_selected_reference_id(selected_reference_id);
+    if selected_reference_id == removed_reference_id.trim() {
+        String::new()
+    } else {
+        selected_reference_id
     }
 }
 
@@ -599,8 +630,10 @@ fn apply_import_pdf_reference(
 
                 let mut next_reference = reference.as_object().cloned().unwrap_or_default();
                 if attached_pdf {
-                    next_reference
-                        .insert("pdfPath".to_string(), Value::String(candidate_pdf_path.clone()));
+                    next_reference.insert(
+                        "pdfPath".to_string(),
+                        Value::String(candidate_pdf_path.clone()),
+                    );
                     next_reference.insert("hasPdf".to_string(), Value::Bool(true));
                 }
                 if attached_fulltext {
@@ -693,7 +726,12 @@ fn apply_add_reference(snapshot: &Value, reference: &Value, mark_for_zotero_push
     })
 }
 
-fn apply_update_reference(snapshot: &Value, reference_id: &str, updates: &Value) -> Value {
+fn apply_update_reference(
+    snapshot: &Value,
+    reference_id: &str,
+    updates: &Value,
+    current_selected_reference_id: &str,
+) -> Value {
     let references = normalize_snapshot_references(snapshot);
     let reference_id = reference_id.trim();
     if reference_id.is_empty() {
@@ -702,6 +740,7 @@ fn apply_update_reference(snapshot: &Value, reference_id: &str, updates: &Value)
             "result": {
                 "changed": false,
                 "selectedReferenceId": "",
+                "preferredSelectedReferenceId": normalize_selected_reference_id(current_selected_reference_id),
             },
         });
     }
@@ -715,6 +754,7 @@ fn apply_update_reference(snapshot: &Value, reference_id: &str, updates: &Value)
             "result": {
                 "changed": false,
                 "selectedReferenceId": "",
+                "preferredSelectedReferenceId": normalize_selected_reference_id(current_selected_reference_id),
             },
         });
     };
@@ -729,7 +769,7 @@ fn apply_update_reference(snapshot: &Value, reference_id: &str, updates: &Value)
         }
     }
     let normalized_reference = normalize_reference_record(&Value::Object(merged_reference));
-    let selected_reference_id = trim_string(normalized_reference.get("id"));
+    let updated_reference_id = trim_string(normalized_reference.get("id"));
 
     let next_references = references
         .into_iter()
@@ -747,12 +787,20 @@ fn apply_update_reference(snapshot: &Value, reference_id: &str, updates: &Value)
         "snapshot": normalized_snapshot_with(snapshot, None, Some(next_references)),
         "result": {
             "changed": true,
-            "selectedReferenceId": selected_reference_id,
+            "selectedReferenceId": updated_reference_id,
+            "preferredSelectedReferenceId": resolve_preferred_selected_reference_id(
+                current_selected_reference_id,
+                &updated_reference_id,
+            ),
         },
     })
 }
 
-fn apply_remove_reference(snapshot: &Value, reference_id: &str) -> Value {
+fn apply_remove_reference(
+    snapshot: &Value,
+    reference_id: &str,
+    selected_reference_id: &str,
+) -> Value {
     let references = normalize_snapshot_references(snapshot);
     let reference_id = reference_id.trim();
     if reference_id.is_empty() {
@@ -760,6 +808,7 @@ fn apply_remove_reference(snapshot: &Value, reference_id: &str) -> Value {
             "snapshot": normalize_snapshot(snapshot),
             "result": {
                 "removed": false,
+                "preferredSelectedReferenceId": normalize_selected_reference_id(selected_reference_id),
             },
         });
     }
@@ -775,6 +824,7 @@ fn apply_remove_reference(snapshot: &Value, reference_id: &str) -> Value {
             "snapshot": normalize_snapshot(snapshot),
             "result": {
                 "removed": false,
+                "preferredSelectedReferenceId": normalize_selected_reference_id(selected_reference_id),
             },
         });
     }
@@ -783,6 +833,10 @@ fn apply_remove_reference(snapshot: &Value, reference_id: &str) -> Value {
         "snapshot": normalized_snapshot_with(snapshot, None, Some(next_references)),
         "result": {
             "removed": true,
+            "preferredSelectedReferenceId": resolve_remove_preferred_selected_reference_id(
+                selected_reference_id,
+                reference_id,
+            ),
         },
     })
 }
@@ -887,10 +941,17 @@ pub(crate) async fn references_mutation_apply_typed(
         ReferencesMutationAction::UpdateReference {
             reference_id,
             updates,
-        } => apply_update_reference(&normalized_snapshot, &reference_id, &updates),
-        ReferencesMutationAction::RemoveReference { reference_id } => {
-            apply_remove_reference(&normalized_snapshot, &reference_id)
-        }
+        } => apply_update_reference(
+            &normalized_snapshot,
+            &reference_id,
+            &updates,
+            &params.selected_reference_id,
+        ),
+        ReferencesMutationAction::RemoveReference { reference_id } => apply_remove_reference(
+            &normalized_snapshot,
+            &reference_id,
+            &params.selected_reference_id,
+        ),
         ReferencesMutationAction::CreateCollection { label } => {
             apply_create_collection(&normalized_snapshot, &label)
         }
@@ -1041,6 +1102,7 @@ mod tests {
         let document_reference_params = references_mutation_apply_params_from_payload(json!({
             "snapshot": sample_snapshot(),
             "globalConfigDir": "/tmp/scribeflow-config",
+            "selectedReferenceId": "ref-1",
             "action": {
                 "type": "setDocumentReferenceIds",
                 "texPath": "/workspace/main.tex",
@@ -1051,6 +1113,7 @@ mod tests {
             document_reference_params.global_config_dir,
             "/tmp/scribeflow-config"
         );
+        assert_eq!(document_reference_params.selected_reference_id, "ref-1");
         match document_reference_params.action {
             ReferencesMutationAction::SetDocumentReferenceIds {
                 tex_path,
@@ -1129,6 +1192,7 @@ mod tests {
         let result = references_mutation_apply_typed(ReferencesMutationApplyParams {
             snapshot: sample_snapshot(),
             global_config_dir: String::new(),
+            selected_reference_id: String::new(),
             action: ReferencesMutationAction::CreateCollection {
                 label: "reading".to_string(),
             },
@@ -1148,6 +1212,7 @@ mod tests {
         let result = references_mutation_apply_typed(ReferencesMutationApplyParams {
             snapshot: sample_snapshot(),
             global_config_dir: String::new(),
+            selected_reference_id: String::new(),
             action: ReferencesMutationAction::RemoveCollection {
                 collection_key: "reading".to_string(),
             },
@@ -1175,6 +1240,7 @@ mod tests {
         let result = references_mutation_apply_typed(ReferencesMutationApplyParams {
             snapshot: sample_snapshot(),
             global_config_dir: String::new(),
+            selected_reference_id: String::new(),
             action: ReferencesMutationAction::MergeImportedReferences {
                 imported: vec![json!({
                     "id": "imported-1",
@@ -1228,6 +1294,7 @@ mod tests {
         let result = references_mutation_apply_typed(ReferencesMutationApplyParams {
             snapshot: sample_snapshot(),
             global_config_dir: config_dir.to_string_lossy().to_string(),
+            selected_reference_id: String::new(),
             action: ReferencesMutationAction::MergeImportedReferences {
                 imported: vec![json!({
                     "id": "imported-2",
@@ -1277,6 +1344,7 @@ mod tests {
         let result = references_mutation_apply_typed(ReferencesMutationApplyParams {
             snapshot,
             global_config_dir: String::new(),
+            selected_reference_id: String::new(),
             action: ReferencesMutationAction::ToggleReferenceCollection {
                 reference_id: "ref-1".to_string(),
                 collection_key: "reading".to_string(),
@@ -1298,6 +1366,7 @@ mod tests {
         let result = references_mutation_apply_typed(ReferencesMutationApplyParams {
             snapshot: sample_snapshot(),
             global_config_dir: String::new(),
+            selected_reference_id: String::new(),
             action: ReferencesMutationAction::AddReference {
                 reference: json!({
                     "id": "new-ref",
@@ -1334,6 +1403,7 @@ mod tests {
         let result = references_mutation_apply_typed(ReferencesMutationApplyParams {
             snapshot: sample_snapshot(),
             global_config_dir: String::new(),
+            selected_reference_id: String::new(),
             action: ReferencesMutationAction::ImportPdfReference {
                 reference: json!({
                     "id": "imported-pdf",
@@ -1377,6 +1447,7 @@ mod tests {
         let result = references_mutation_apply_typed(ReferencesMutationApplyParams {
             snapshot: sample_snapshot(),
             global_config_dir: String::new(),
+            selected_reference_id: String::new(),
             action: ReferencesMutationAction::ImportPdfReference {
                 reference: json!({
                     "id": "imported-pdf",
@@ -1411,6 +1482,7 @@ mod tests {
         let result = references_mutation_apply_typed(ReferencesMutationApplyParams {
             snapshot: sample_snapshot(),
             global_config_dir: String::new(),
+            selected_reference_id: "ref-1".to_string(),
             action: ReferencesMutationAction::UpdateReference {
                 reference_id: "ref-1".to_string(),
                 updates: json!({
@@ -1423,6 +1495,10 @@ mod tests {
         .expect("update reference");
 
         assert_eq!(result["result"]["changed"].as_bool(), Some(true));
+        assert_eq!(
+            result["result"]["preferredSelectedReferenceId"].as_str(),
+            Some("ref-1")
+        );
         assert_eq!(
             result["snapshot"]["references"][0]["typeKey"].as_str(),
             Some("journal-article")
@@ -1440,6 +1516,7 @@ mod tests {
         let result = references_mutation_apply_typed(ReferencesMutationApplyParams {
             snapshot: sample_snapshot(),
             global_config_dir: String::new(),
+            selected_reference_id: String::new(),
             action: ReferencesMutationAction::UpdateReference {
                 reference_id: "ref-1".to_string(),
                 updates: json!({
@@ -1460,10 +1537,33 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn update_reference_selects_updated_record_when_nothing_is_selected() {
+        let result = references_mutation_apply_typed(ReferencesMutationApplyParams {
+            snapshot: sample_snapshot(),
+            global_config_dir: String::new(),
+            selected_reference_id: String::new(),
+            action: ReferencesMutationAction::UpdateReference {
+                reference_id: "ref-1".to_string(),
+                updates: json!({
+                    "title": "Updated Adaptive Control"
+                }),
+            },
+        })
+        .await
+        .expect("update reference");
+
+        assert_eq!(
+            result["result"]["preferredSelectedReferenceId"].as_str(),
+            Some("ref-1")
+        );
+    }
+
+    #[tokio::test]
     async fn remove_reference_drops_entry() {
         let result = references_mutation_apply_typed(ReferencesMutationApplyParams {
             snapshot: sample_snapshot(),
             global_config_dir: String::new(),
+            selected_reference_id: "ref-1".to_string(),
             action: ReferencesMutationAction::RemoveReference {
                 reference_id: "ref-1".to_string(),
             },
@@ -1472,6 +1572,10 @@ mod tests {
         .expect("remove reference");
 
         assert_eq!(result["result"]["removed"].as_bool(), Some(true));
+        assert_eq!(
+            result["result"]["preferredSelectedReferenceId"].as_str(),
+            Some("")
+        );
         assert_eq!(
             result["snapshot"]["references"]
                 .as_array()
@@ -1485,6 +1589,7 @@ mod tests {
         let result = references_mutation_apply_typed(ReferencesMutationApplyParams {
             snapshot: sample_snapshot(),
             global_config_dir: String::new(),
+            selected_reference_id: String::new(),
             action: ReferencesMutationAction::SetDocumentReferenceIds {
                 tex_path: "/workspace/main.tex".to_string(),
                 reference_ids: vec![
@@ -1506,6 +1611,7 @@ mod tests {
         let cleared = references_mutation_apply_typed(ReferencesMutationApplyParams {
             snapshot: result["snapshot"].clone(),
             global_config_dir: String::new(),
+            selected_reference_id: String::new(),
             action: ReferencesMutationAction::SetDocumentReferenceIds {
                 tex_path: "/workspace/main.tex".to_string(),
                 reference_ids: vec![],

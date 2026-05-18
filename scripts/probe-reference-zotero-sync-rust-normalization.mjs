@@ -505,6 +505,7 @@ try {
           tags: [],
           references: [],
         },
+        selectedReferenceId: '',
         action: {
           type: 'addReference',
           reference: {
@@ -529,6 +530,7 @@ try {
             },
           ],
         },
+        selectedReferenceId: 'manual-ref',
         action: {
           type: 'mergeImportedReferences',
           imported: [

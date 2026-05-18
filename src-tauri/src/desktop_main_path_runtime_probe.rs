@@ -285,6 +285,7 @@ async fn run_probe(root: &Path) -> Result<Value, String> {
         references_mutation::references_mutation_apply_typed(ReferencesMutationApplyParams {
             snapshot: empty_library,
             global_config_dir: path_string(&global_config_dir),
+            selected_reference_id: String::new(),
             action: ReferencesMutationAction::AddReference {
                 reference: json!({
                     "id": "ref-main-path",
@@ -302,6 +303,7 @@ async fn run_probe(root: &Path) -> Result<Value, String> {
         references_mutation::references_mutation_apply_typed(ReferencesMutationApplyParams {
             snapshot: added_reference["snapshot"].clone(),
             global_config_dir: path_string(&global_config_dir),
+            selected_reference_id: "ref-main-path".to_string(),
             action: ReferencesMutationAction::SetDocumentReferenceIds {
                 tex_path: path_string(&latex_path),
                 reference_ids: vec!["ref-main-path".to_string()],

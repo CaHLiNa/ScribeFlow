@@ -60,20 +60,14 @@ import {
   buildDocumentReferenceIdsMutationState,
   buildReferenceEmptyImportResult,
   buildReferenceImportInputState,
-  buildReferenceCollectionMutationResultState,
   buildReferenceCitationFormatTargetState,
-  buildReferenceDocumentIdsMutationResultState,
   buildReferenceJsonExportTargetState,
   buildReferenceMetadataRefreshTargetState,
   buildReferencePdfAssetResultState,
   buildReferencePdfAssetTargetState,
   buildReferencePdfImportResultState,
   buildReferencePdfImportTargetState,
-  buildReferenceRemoveCollectionMutationResultState,
-  buildReferenceRemoveMutationResultState,
   buildReferenceRemoveTargetState,
-  buildReferenceToggleCollectionMutationResultState,
-  buildReferenceUpdateMutationResultState,
   buildReferenceZoteroSyncResultState,
   resolveReferenceCitationStyleId,
   resolveReferenceWorkspaceCitationStyles,
@@ -101,9 +95,7 @@ import {
   buildReferenceSnapshotApplyState,
   buildReferenceSortSelectionState,
   buildReferenceSourceSelectionState,
-  buildReferenceRemoveMutationCommitState,
   buildReferenceTagSelectionState,
-  buildReferenceUpdateMutationCommitState,
   resolveReferencesForExport,
   resolveTag,
   buildReferenceQuerySelectionState,
@@ -145,6 +137,7 @@ async function commitImportedReferences(store, projectRoot = '', importedReferen
 
   const mutation = await applyReferenceMutation({
     snapshot: store.buildLibrarySnapshotPayload(),
+    selectedReferenceId: store.selectedReferenceId,
     action: {
       type: 'mergeImportedReferences',
       imported: importState.importedReferences,
@@ -394,44 +387,44 @@ export const useReferencesStore = defineStore('references', {
     async createCollection(projectRoot = '', label = '') {
       const mutation = await applyReferenceMutation({
         snapshot: this.buildLibrarySnapshotPayload(),
+        selectedReferenceId: this.selectedReferenceId,
         action: {
           type: 'createCollection',
           label,
         },
       })
-      const resultState = buildReferenceCollectionMutationResultState(mutation)
-      if (resultState.changed) {
+      if (mutation?.result?.changed === true) {
         await commitReferenceMutationSnapshot(this, projectRoot, mutation)
       }
-      return resultState.collection
+      return mutation?.result?.collection || null
     },
 
     async renameCollection(projectRoot = '', collectionKey = '', nextLabel = '') {
       const mutation = await applyReferenceMutation({
         snapshot: this.buildLibrarySnapshotPayload(),
+        selectedReferenceId: this.selectedReferenceId,
         action: {
           type: 'renameCollection',
           collectionKey,
           nextLabel,
         },
       })
-      const resultState = buildReferenceCollectionMutationResultState(mutation)
-      if (resultState.changed) {
+      if (mutation?.result?.changed === true) {
         await commitReferenceMutationSnapshot(this, projectRoot, mutation)
       }
-      return resultState.collection
+      return mutation?.result?.collection || null
     },
 
     async removeCollection(projectRoot = '', collectionKey = '') {
       const mutation = await applyReferenceMutation({
         snapshot: this.buildLibrarySnapshotPayload(),
+        selectedReferenceId: this.selectedReferenceId,
         action: {
           type: 'removeCollection',
           collectionKey,
         },
       })
-      const resultState = buildReferenceRemoveCollectionMutationResultState(mutation)
-      if (!resultState.removed) return false
+      if (mutation?.result?.removed !== true) return false
 
       await commitReferenceMutationSnapshot(this, projectRoot, mutation, {
         preferredSelectedReferenceId: this.selectedReferenceId,
@@ -559,6 +552,7 @@ export const useReferencesStore = defineStore('references', {
       if (!nextState.canMutate) return false
       const mutation = await applyReferenceMutation({
         snapshot: this.buildLibrarySnapshotPayload(),
+        selectedReferenceId: this.selectedReferenceId,
         action: {
           type: 'setDocumentReferenceIds',
           texPath: nextState.texPath,
@@ -568,7 +562,7 @@ export const useReferencesStore = defineStore('references', {
       await commitReferenceMutationSnapshot(this, projectRoot, mutation, {
         preferredSelectedReferenceId: this.selectedReferenceId,
       })
-      return buildReferenceDocumentIdsMutationResultState(mutation).changed
+      return mutation?.result?.changed === true
     },
 
     async addDocumentReference(projectRoot = '', texPath = '', referenceId = '') {
@@ -603,6 +597,7 @@ export const useReferencesStore = defineStore('references', {
       } = options
       const mutation = await applyReferenceMutation({
         snapshot: this.buildLibrarySnapshotPayload(),
+        selectedReferenceId: this.selectedReferenceId,
         action: {
           type: 'addReference',
           reference,
@@ -621,21 +616,20 @@ export const useReferencesStore = defineStore('references', {
       const { persist = true, preferredSelectedReferenceId = undefined } = options
       const mutation = await applyReferenceMutation({
         snapshot: this.buildLibrarySnapshotPayload(),
+        selectedReferenceId: this.selectedReferenceId,
         action: {
           type: 'updateReference',
           referenceId,
           updates,
         },
       })
-      const resultState = buildReferenceUpdateMutationResultState(mutation)
-      if (!resultState.changed) return false
-      const commitState = buildReferenceUpdateMutationCommitState(this.$state, mutation, {
-        preferredSelectedReferenceId,
-      })
+      if (mutation?.result?.changed !== true) return false
 
       await commitReferenceMutationSnapshot(this, projectRoot, mutation, {
         persist,
-        preferredSelectedReferenceId: commitState.preferredSelectedReferenceId,
+        preferredSelectedReferenceId: preferredSelectedReferenceId !== undefined
+          ? String(preferredSelectedReferenceId || '')
+          : mutation?.result?.preferredSelectedReferenceId || '',
       })
       return true
     },
@@ -659,17 +653,16 @@ export const useReferencesStore = defineStore('references', {
 
       const mutation = await applyReferenceMutation({
         snapshot: this.buildLibrarySnapshotPayload(),
+        selectedReferenceId: this.selectedReferenceId,
         action: {
           type: 'removeReference',
           referenceId: targetState.referenceId,
         },
       })
-      const resultState = buildReferenceRemoveMutationResultState(mutation)
-      if (!resultState.removed) return false
-      const commitState = buildReferenceRemoveMutationCommitState(this.$state, targetState.referenceId)
+      if (mutation?.result?.removed !== true) return false
 
       await commitReferenceMutationSnapshot(this, projectRoot, mutation, {
-        preferredSelectedReferenceId: commitState.preferredSelectedReferenceId,
+        preferredSelectedReferenceId: mutation?.result?.preferredSelectedReferenceId || '',
       })
 
       if (targetState.targetReference._pushedByApp && targetState.targetReference._zoteroKey) {
@@ -688,19 +681,19 @@ export const useReferencesStore = defineStore('references', {
     async toggleReferenceCollection(projectRoot = '', referenceId = '', collectionKey = '') {
       const mutation = await applyReferenceMutation({
         snapshot: this.buildLibrarySnapshotPayload(),
+        selectedReferenceId: this.selectedReferenceId,
         action: {
           type: 'toggleReferenceCollection',
           referenceId,
           collectionKey,
         },
       })
-      const resultState = buildReferenceToggleCollectionMutationResultState(mutation)
-      if (!resultState.changed) return false
+      if (mutation?.result?.changed !== true) return false
 
       await commitReferenceMutationSnapshot(this, projectRoot, mutation, {
         preferredSelectedReferenceId: this.selectedReferenceId,
       })
-      return resultState.toggledOn
+      return mutation?.result?.toggledOn === true
     },
 
     async attachReferencePdf(projectRoot = '', referenceId = '', sourcePath = '') {
@@ -752,6 +745,7 @@ export const useReferencesStore = defineStore('references', {
         const importMutation = await applyReferenceMutation({
           globalConfigDir: projectRoot,
           snapshot: this.buildLibrarySnapshotPayload(),
+          selectedReferenceId: this.selectedReferenceId,
           action: {
             type: 'importPdfReference',
             reference: importedReference,
@@ -773,6 +767,7 @@ export const useReferencesStore = defineStore('references', {
         const assetMutation = await applyReferenceMutation({
           globalConfigDir: projectRoot,
           snapshot: importTarget.importedSnapshot,
+          selectedReferenceId: this.selectedReferenceId,
           action: {
             type: 'updateReference',
             referenceId: importTarget.selectedReferenceId,

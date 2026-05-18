@@ -69,6 +69,35 @@ for (const actionName of [
   )
 }
 
+for (const actionName of [
+  'createCollection',
+  'renameCollection',
+  'removeCollection',
+  'setDocumentReferenceIds',
+  'addReference',
+  'updateReference',
+  'removeReference',
+  'toggleReferenceCollection',
+]) {
+  const actionSource = extractActionSource(storeSource, actionName)
+  assert.match(
+    actionSource,
+    /selectedReferenceId: this\.selectedReferenceId/,
+    `${actionName} must pass current selection to Rust mutation authority`,
+  )
+}
+
+assert.match(
+  extractActionSource(storeSource, 'updateReference'),
+  /mutation\?\.result\?\.preferredSelectedReferenceId \|\| ''/,
+  'updateReference must consume Rust-returned preferred selection for snapshot commit',
+)
+assert.match(
+  extractActionSource(storeSource, 'removeReference'),
+  /mutation\?\.result\?\.preferredSelectedReferenceId \|\| ''/,
+  'removeReference must consume Rust-returned preferred selection for snapshot commit',
+)
+
 const importPdfSource = extractActionSource(storeSource, 'importReferencePdf')
 assert.match(
   importPdfSource,

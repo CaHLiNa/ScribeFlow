@@ -45,6 +45,11 @@ assert.match(
 )
 assert.match(
   helperSource,
+  /selectedReferenceId: store\.selectedReferenceId/,
+  'commitImportedReferences must pass the current selection to Rust for mutation outcome selection',
+)
+assert.match(
+  helperSource,
   /preferredSelectedReferenceId: mutation\?\.result\?\.preferredSelectedReferenceId \|\| ''/,
   'commitImportedReferences must consume Rust-returned preferred selection without JS re-derivation',
 )

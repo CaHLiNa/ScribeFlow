@@ -7,19 +7,13 @@ import {
   buildReferenceEmptyImportResult,
   buildReferenceImportInputState,
   buildReferenceCitationFormatTargetState,
-  buildReferenceCollectionMutationResultState,
-  buildReferenceDocumentIdsMutationResultState,
   buildReferenceJsonExportTargetState,
   buildReferenceMetadataRefreshTargetState,
   buildReferencePdfAssetResultState,
   buildReferencePdfAssetTargetState,
   buildReferencePdfImportResultState,
   buildReferencePdfImportTargetState,
-  buildReferenceRemoveCollectionMutationResultState,
-  buildReferenceRemoveMutationResultState,
   buildReferenceRemoveTargetState,
-  buildReferenceToggleCollectionMutationResultState,
-  buildReferenceUpdateMutationResultState,
   buildReferenceZoteroSyncResultState,
   resolveReferenceCitationStyleId,
   resolveReferenceWorkspaceCitationStyles,
@@ -36,11 +30,9 @@ import {
   buildReferenceSnapshotSelectionState,
   buildReferenceSortSelectionState,
   buildReferenceSourceSelectionState,
-  buildReferenceRemoveMutationCommitState,
   buildReferenceStoreCleanupState,
   buildReferenceStoreInitialState,
   buildReferenceTagSelectionState,
-  buildReferenceUpdateMutationCommitState,
   hasReferenceById,
   isReferenceDockPdfSelected,
   isReferenceSelectedForDocument,
@@ -243,34 +235,6 @@ assert.deepEqual(buildReferenceRemoveTargetState(references, 'missing'), {
   referenceId: 'missing',
   targetReference: null,
 })
-assert.deepEqual(buildReferenceRemoveMutationResultState({
-  result: {
-    removed: true,
-  },
-}), {
-  removed: true,
-})
-assert.deepEqual(buildReferenceRemoveMutationResultState({
-  result: {
-    removed: 'yes',
-  },
-}), {
-  removed: false,
-})
-assert.deepEqual(buildReferenceUpdateMutationResultState({
-  result: {
-    changed: true,
-  },
-}), {
-  changed: true,
-})
-assert.deepEqual(buildReferenceUpdateMutationResultState({
-  result: {
-    changed: 1,
-  },
-}), {
-  changed: false,
-})
 assert.deepEqual(buildReferencePdfImportTargetState({
   result: {
     selectedReferenceId: ' ref-2 ',
@@ -311,70 +275,6 @@ assert.deepEqual(buildReferencePdfImportResultState(references, {
   selectedReferenceId: 'missing',
 }), {
   selectedReference: null,
-})
-assert.deepEqual(buildReferenceCollectionMutationResultState({
-  result: {
-    changed: true,
-    collection: collections[0],
-  },
-}), {
-  changed: true,
-  collection: collections[0],
-})
-assert.deepEqual(buildReferenceCollectionMutationResultState({
-  result: {
-    changed: 'yes',
-    collection: ['bad-shape'],
-  },
-}), {
-  changed: false,
-  collection: null,
-})
-assert.deepEqual(buildReferenceRemoveCollectionMutationResultState({
-  result: {
-    removed: true,
-  },
-}), {
-  removed: true,
-})
-assert.deepEqual(buildReferenceRemoveCollectionMutationResultState({
-  result: {
-    removed: 'yes',
-  },
-}), {
-  removed: false,
-})
-assert.deepEqual(buildReferenceDocumentIdsMutationResultState({
-  result: {
-    changed: true,
-  },
-}), {
-  changed: true,
-})
-assert.deepEqual(buildReferenceDocumentIdsMutationResultState({
-  result: {
-    changed: 1,
-  },
-}), {
-  changed: false,
-})
-assert.deepEqual(buildReferenceToggleCollectionMutationResultState({
-  result: {
-    changed: true,
-    toggledOn: true,
-  },
-}), {
-  changed: true,
-  toggledOn: true,
-})
-assert.deepEqual(buildReferenceToggleCollectionMutationResultState({
-  result: {
-    changed: false,
-    toggledOn: 'yes',
-  },
-}), {
-  changed: false,
-  toggledOn: false,
 })
 assert.equal(resolveReferenceCitationStyleId(' ieee ', true), 'ieee')
 assert.equal(resolveReferenceCitationStyleId(' ieee ', false), 'apa')
@@ -884,46 +784,6 @@ assert.deepEqual(buildReferenceSnapshotApplyState({
     shouldFallbackToDetails: true,
   },
 })
-assert.deepEqual(buildReferenceUpdateMutationCommitState({
-  selectedReferenceId: 'ref-2',
-}, {
-  result: {
-    selectedReferenceId: 'ref-1',
-  },
-}), {
-  preferredSelectedReferenceId: 'ref-2',
-})
-assert.deepEqual(buildReferenceUpdateMutationCommitState({
-  selectedReferenceId: '',
-}, {
-  result: {
-    selectedReferenceId: 'ref-1',
-  },
-}), {
-  preferredSelectedReferenceId: 'ref-1',
-})
-assert.deepEqual(buildReferenceUpdateMutationCommitState({
-  selectedReferenceId: 'ref-2',
-}, {
-  result: {
-    selectedReferenceId: 'ref-1',
-  },
-}, {
-  preferredSelectedReferenceId: null,
-}), {
-  preferredSelectedReferenceId: '',
-})
-assert.deepEqual(buildReferenceRemoveMutationCommitState({
-  selectedReferenceId: ' ref-2 ',
-}, 'ref-2'), {
-  preferredSelectedReferenceId: '',
-})
-assert.deepEqual(buildReferenceRemoveMutationCommitState({
-  selectedReferenceId: 'ref-2',
-}, 'ref-1'), {
-  preferredSelectedReferenceId: 'ref-2',
-})
-
 const storeSource = await readFile('src/stores/references.js', 'utf8')
 const domainSource = await readFile('src/domains/references/referenceStoreState.js', 'utf8')
 const actionSource = (actionName) => {
@@ -1005,28 +865,8 @@ assert.match(
 )
 assert.match(
   storeSource,
-  /buildReferenceUpdateMutationCommitState/,
-  'references store must delegate update mutation commit selection',
-)
-assert.match(
-  storeSource,
-  /buildReferenceUpdateMutationResultState/,
-  'references store must delegate update mutation result state mapping',
-)
-assert.match(
-  storeSource,
-  /buildReferenceRemoveMutationCommitState/,
-  'references store must delegate remove mutation commit selection',
-)
-assert.match(
-  storeSource,
   /buildReferenceRemoveTargetState/,
   'references store must delegate remove-reference target state mapping',
-)
-assert.match(
-  storeSource,
-  /buildReferenceRemoveMutationResultState/,
-  'references store must delegate remove-reference mutation result state mapping',
 )
 assert.match(
   storeSource,
@@ -1184,24 +1024,60 @@ assert.match(
   'references store must delegate PDF import result state mapping',
 )
 assert.match(
-  storeSource,
-  /buildReferenceCollectionMutationResultState/,
-  'references store must delegate collection mutation result state mapping',
+  actionSource('createCollection'),
+  /mutation\?\.result\?\.changed === true[\s\S]*return mutation\?\.result\?\.collection \|\| null/,
+  'createCollection must consume the Rust-returned collection mutation outcome',
 )
 assert.match(
-  storeSource,
-  /buildReferenceRemoveCollectionMutationResultState/,
-  'references store must delegate remove-collection mutation result state mapping',
+  actionSource('renameCollection'),
+  /mutation\?\.result\?\.changed === true[\s\S]*return mutation\?\.result\?\.collection \|\| null/,
+  'renameCollection must consume the Rust-returned collection mutation outcome',
 )
 assert.match(
-  storeSource,
-  /buildReferenceDocumentIdsMutationResultState/,
-  'references store must delegate document-reference id mutation result state mapping',
+  actionSource('removeCollection'),
+  /mutation\?\.result\?\.removed !== true/,
+  'removeCollection must consume the Rust-returned removal outcome',
 )
 assert.match(
-  storeSource,
-  /buildReferenceToggleCollectionMutationResultState/,
-  'references store must delegate reference collection toggle result state mapping',
+  actionSource('setDocumentReferenceIds'),
+  /return mutation\?\.result\?\.changed === true/,
+  'setDocumentReferenceIds must consume the Rust-returned document-reference mutation outcome',
+)
+assert.match(
+  actionSource('updateReference'),
+  /mutation\?\.result\?\.changed !== true[\s\S]*mutation\?\.result\?\.preferredSelectedReferenceId \|\| ''/,
+  'updateReference must consume Rust-returned changed and preferred-selection outcome',
+)
+assert.match(
+  actionSource('removeReference'),
+  /mutation\?\.result\?\.removed !== true[\s\S]*mutation\?\.result\?\.preferredSelectedReferenceId \|\| ''/,
+  'removeReference must consume Rust-returned removed and preferred-selection outcome',
+)
+assert.match(
+  actionSource('toggleReferenceCollection'),
+  /mutation\?\.result\?\.changed !== true[\s\S]*return mutation\?\.result\?\.toggledOn === true/,
+  'toggleReferenceCollection must consume the Rust-returned toggle outcome',
+)
+for (const actionName of [
+  'createCollection',
+  'renameCollection',
+  'removeCollection',
+  'setDocumentReferenceIds',
+  'addReference',
+  'updateReference',
+  'removeReference',
+  'toggleReferenceCollection',
+]) {
+  assert.match(
+    actionSource(actionName),
+    /selectedReferenceId: this\.selectedReferenceId/,
+    `${actionName} must pass current selection to Rust mutation authority`,
+  )
+}
+assert.doesNotMatch(
+  domainSource,
+  /buildReferenceUpdateMutationCommitState|buildReferenceUpdateMutationResultState|buildReferenceRemoveMutationCommitState|buildReferenceRemoveMutationResultState|buildReferenceCollectionMutationResultState|buildReferenceRemoveCollectionMutationResultState|buildReferenceDocumentIdsMutationResultState|buildReferenceToggleCollectionMutationResultState/,
+  'referenceStoreState must not retain migrated mutation outcome or commit-selection helpers',
 )
 assert.match(
   storeSource,
@@ -1265,28 +1141,6 @@ for (const actionName of ['attachReferencePdf', 'renameReferencePdfAsset']) {
     `${actionName} must not inline PDF asset target/result state mapping`,
   )
 }
-for (const actionName of ['createCollection', 'renameCollection']) {
-  assert.doesNotMatch(
-    actionSource(actionName),
-    /mutation\?\.result\?\.collection && typeof mutation\.result\.collection === 'object'|mutation\?\.result\?\.changed/,
-    `${actionName} must not inline collection mutation result state mapping`,
-  )
-}
-assert.doesNotMatch(
-  actionSource('removeCollection'),
-  /mutation\?\.result\?\.removed/,
-  'removeCollection must not inline remove-collection mutation result state mapping',
-)
-assert.doesNotMatch(
-  actionSource('setDocumentReferenceIds'),
-  /mutation\?\.result\?\.changed/,
-  'setDocumentReferenceIds must not inline document-reference id mutation result state mapping',
-)
-assert.doesNotMatch(
-  actionSource('toggleReferenceCollection'),
-  /mutation\?\.result\?\.changed|mutation\?\.result\?\.toggledOn/,
-  'toggleReferenceCollection must not inline reference collection toggle result state mapping',
-)
 assert.doesNotMatch(
   actionSource('syncZoteroNow'),
   /result\?\.skipped === true|Number\(result\?\.(?:imported|linked|updated) \|\| 0\)|this\.zoteroSyncStatus = 'synced'|this\.zoteroSyncStatus = 'disconnected'/,
@@ -1315,19 +1169,14 @@ assert.doesNotMatch(
   'updateReference must not inline mutation commit selection fallback',
 )
 assert.doesNotMatch(
-  actionSource('updateReference'),
-  /mutation\?\.result\?\.changed/,
-  'updateReference must not inline update mutation result state mapping',
-)
-assert.doesNotMatch(
   actionSource('removeReference'),
   /this\.selectedReferenceId === referenceId[\s\S]*\? ''[\s\S]*: this\.selectedReferenceId/,
   'removeReference must not inline mutation commit selection fallback',
 )
 assert.doesNotMatch(
   actionSource('removeReference'),
-  /resolveReferenceById\(this\.references, referenceId\)|mutation\?\.result\?\.removed|const target =/,
-  'removeReference must not inline target lookup or result state mapping',
+  /resolveReferenceById\(this\.references, referenceId\)|const target =/,
+  'removeReference must not inline target lookup',
 )
 assert.doesNotMatch(
   actionSource('writeReferenceJsonExportFile'),
@@ -1377,21 +1226,22 @@ console.log(JSON.stringify({
     rustAddReferenceOutcomeConsumed: true,
     metadataRefreshTargetStateDerived: true,
     pdfAssetTargetAndResultStateDerived: true,
-    removeReferenceTargetAndResultStateDerived: true,
-    updateReferenceResultStateDerived: true,
+    removeReferenceTargetStateDerived: true,
+    rustRemoveReferenceOutcomeConsumed: true,
+    rustUpdateReferenceOutcomeConsumed: true,
     pdfImportTargetStateDerived: true,
     pdfImportResultStateDerived: true,
-    collectionMutationResultStateDerived: true,
-    removeCollectionResultStateDerived: true,
-    documentIdsMutationResultStateDerived: true,
-    toggleCollectionResultStateDerived: true,
+    rustCollectionMutationOutcomeConsumed: true,
+    rustRemoveCollectionOutcomeConsumed: true,
+    rustDocumentIdsMutationOutcomeConsumed: true,
+    rustToggleCollectionOutcomeConsumed: true,
     citationStyleStateDerived: true,
     zoteroSyncResultStateDerived: true,
     defaultQueryStateDerived: true,
     resolvedQueryHydrationDerived: true,
     sidebarSelectionDerived: true,
     snapshotSelectionDerived: true,
-    mutationCommitSelectionDerived: true,
+    rustMutationPreferredSelectionConsumed: true,
     pdfDockStateDerived: true,
     storeLifecycleStateDerived: true,
     snapshotPayloadDerived: true,
