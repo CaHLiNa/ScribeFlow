@@ -97,6 +97,7 @@ import {
   resolveDocumentReferences,
   resolveReferenceByKey,
   resolveReferenceById,
+  resolveReferenceCitationUsageKeys,
   resolveReferenceResolvedQueryState,
   resolveReferenceSelectionId,
   buildReferenceSectionSelectionState,
@@ -206,7 +207,7 @@ export const useReferencesStore = defineStore('references', {
     },
 
     citedKeys() {
-      return new Set(Object.keys(this.citedIn))
+      return resolveReferenceCitationUsageKeys(this.citedIn)
     },
   },
 

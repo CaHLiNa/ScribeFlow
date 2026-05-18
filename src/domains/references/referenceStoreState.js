@@ -101,6 +101,13 @@ export function hasReferenceById(references = [], referenceId = '') {
   return Boolean(resolveReferenceById(references, referenceId))
 }
 
+export function resolveReferenceCitationUsageKeys(citationUsageIndex = {}) {
+  if (!citationUsageIndex || typeof citationUsageIndex !== 'object' || Array.isArray(citationUsageIndex)) {
+    return new Set()
+  }
+  return new Set(Object.keys(citationUsageIndex))
+}
+
 export function resolveReferencesForExport(references = [], referenceIds = []) {
   const referenceList = Array.isArray(references) ? references : []
   if (!Array.isArray(referenceIds) || referenceIds.length === 0) return referenceList
