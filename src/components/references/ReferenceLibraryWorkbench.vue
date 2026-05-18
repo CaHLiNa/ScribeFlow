@@ -52,49 +52,23 @@
       />
     </div>
 
-    <InlineDockFrame
+    <ReferenceLibraryDetailDock
+      :active-key="activeReferenceDockKey"
+      :active-page="activeReferenceDockPage"
       :aria-label="t('Details')"
-      :open="referenceDetailOpen"
-      :width="referenceDetailDockWidth"
-      :resizing="referenceDetailResizing"
-      region-class="reference-workbench__detail-dock"
-      resize-slot-class="reference-workbench__detail-resize-slot"
-      resize-handle-class="reference-workbench__detail-resize-handle"
       :get-container-width="resolveReferenceWorkbenchWidth"
+      :open="referenceDetailOpen"
+      :pages="referenceDockPages"
+      :resizing="referenceDetailResizing"
+      :width="referenceDetailDockWidth"
+      @activate-page="activateReferenceDockPage"
+      @close-page="closeReferenceDockPage"
       @motion-state-change="handleReferenceDetailMotionStateChange"
       @resize="handleReferenceDetailResize"
       @resize-start="handleReferenceDetailResizeStart"
       @resize-end="handleReferenceDetailResizeEnd"
       @resize-snap="handleReferenceDetailResizeSnap"
-    >
-      <section
-        class="reference-workbench__detail-shell inline-dock"
-        :aria-label="t('Details')"
-      >
-        <InlineDockTabBar
-          :active-key="activeReferenceDockKey"
-          :aria-label="t('Details')"
-          :pages="referenceDockPages"
-          tabbar-class="reference-workbench__detail-tabbar"
-          tabs-class="reference-workbench__detail-tabs"
-          @activate="activateReferenceDockPage"
-          @close="closeReferenceDockPage"
-        />
-
-        <div class="reference-workbench__detail-body inline-dock__body is-flush">
-          <component
-            :is="activeReferenceDockPage?.component"
-            v-if="activeReferenceDockPage?.component"
-            :class="activeReferenceDockPage?.componentClass"
-            v-bind="activeReferenceDockPage?.componentProps || {}"
-            v-on="activeReferenceDockPage?.componentEvents || {}"
-          />
-          <div v-else class="reference-workbench__detail-empty inline-dock__empty">
-            {{ t('No PDF attached') }}
-          </div>
-        </div>
-      </section>
-    </InlineDockFrame>
+    />
 
     <SurfaceContextMenu
       :visible="menuVisible"
@@ -146,10 +120,9 @@ import {
   shouldReconcileReferenceDetailWidth,
 } from '../../domains/references/referenceWorkbenchPresentation.js'
 import ReferenceAddDialog from './ReferenceAddDialog.vue'
+import ReferenceLibraryDetailDock from './ReferenceLibraryDetailDock.vue'
 import ReferenceLibraryTable from './ReferenceLibraryTable.vue'
 import ReferenceLibraryToolbar from './ReferenceLibraryToolbar.vue'
-import InlineDockFrame from '../layout/InlineDockFrame.vue'
-import InlineDockTabBar from '../layout/InlineDockTabBar.vue'
 import SurfaceContextMenu from '../shared/SurfaceContextMenu.vue'
 import { referenceDockPageRegistry } from './referenceDockPageRegistry.js'
 
@@ -721,68 +694,6 @@ async function handleExportBibTeX() {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-}
-
-.reference-workbench__detail-panel {
-  flex: 1 1 auto;
-  min-width: 0;
-  min-height: 0;
-}
-
-.reference-workbench__detail-shell {
-  --inline-dock-toolbar-height: 28px;
-  --inline-dock-control-height: 24px;
-  width: 100%;
-}
-
-:deep(.reference-workbench__detail-tabbar) {
-  padding: 0 8px;
-}
-
-:deep(.reference-workbench__detail-tabs) {
-  flex: 0 0 auto;
-  gap: 4px;
-}
-
-:deep(.reference-workbench__detail-tab--icon) {
-  flex: 0 0 26px;
-  justify-content: center;
-  width: 26px;
-  min-width: 26px;
-  max-width: 26px;
-  height: 24px;
-  padding: 0;
-  border-radius: 5px;
-}
-
-:deep(.reference-workbench__detail-tab--icon .reference-workbench__detail-tab-label) {
-  flex: 0 0 auto;
-  justify-content: center;
-  gap: 0;
-}
-
-:deep(.reference-workbench__detail-tab--details.inline-dock__tab:hover .reference-workbench__detail-tab-icon),
-:deep(.reference-workbench__detail-tab--details.inline-dock__tab:focus-within .reference-workbench__detail-tab-icon) {
-  opacity: 1;
-  transform: none;
-}
-
-:deep(.reference-workbench__detail-tab--icon .reference-workbench__detail-tab-close) {
-  left: 50%;
-  width: 22px;
-  height: 22px;
-  transform: translate(-50%, -50%) scale(0.94);
-}
-
-:deep(.reference-workbench__detail-tab--icon:hover .reference-workbench__detail-tab-close),
-:deep(.reference-workbench__detail-tab--icon:focus-within .reference-workbench__detail-tab-close) {
-  transform: translate(-50%, -50%) scale(1);
-}
-
-:deep(.reference-workbench__detail-tab--pdf:not(.is-active).inline-dock__tab:hover .reference-workbench__detail-tab-icon),
-:deep(.reference-workbench__detail-tab--pdf:not(.is-active).inline-dock__tab:focus-within .reference-workbench__detail-tab-icon) {
-  opacity: 1;
-  transform: none;
 }
 
 .reference-workbench__empty {
