@@ -56,55 +56,38 @@
         @toggle-workspace-menu="toggleWorkspaceMenu"
       />
 
-      <!-- Context menu -->
-      <ContextMenu
-        v-if="contextMenu.show"
-        :x="contextMenu.x"
-        :y="contextMenu.y"
-        :entry="contextMenu.entry"
-        :selectedCount="selectedPaths.size"
-        @close="contextMenu.show = false"
-        @create="handleContextCreate"
-        @rename="handleRename"
-        @duplicate="handleDuplicate"
-        @delete="handleDelete"
-        @delete-selected="handleDeleteSelected"
-        @reveal-in-finder="revealInFinder"
-        @open-in-document-dock="openInDocumentDock"
-      />
-
-      <!-- Workspace dropdown menu -->
-      <FileTreeWorkspaceMenu
-        ref="workspaceMenuComponent"
-        :open="workspaceMenuOpen"
-        :menu-style="workspaceMenuStyle"
+      <FileTreeOverlays
+        ref="fileTreeOverlays"
+        :context-menu-visible="contextMenu.show"
+        :context-menu-x="contextMenu.x"
+        :context-menu-y="contextMenu.y"
+        :context-menu-entry="contextMenu.entry"
+        :selected-count="selectedPaths.size"
+        :workspace-menu-open="workspaceMenuOpen"
+        :workspace-menu-style="workspaceMenuStyle"
         :recent-workspaces="recentWorkspaces"
-        @open-folder="handleWorkspaceMenuOpenFolder"
-        @open-settings="handleWorkspaceMenuOpenSettings"
-        @open-recent="handleWorkspaceMenuOpenRecent"
-        @close-folder="handleWorkspaceMenuCloseFolder"
-      />
-
-      <!-- "+ New" dropdown menu -->
-      <FileTreeNewMenu
-        ref="newMenuComponent"
-        :open="newMenuOpen"
-        :menu-style="newMenuStyle"
+        :new-menu-open="newMenuOpen"
+        :new-menu-style="newMenuStyle"
         :document-templates="documentTemplates"
-        @close="closeNewMenu"
-        @create="handleNewMenuCreate"
+        :drag-ghost-visible="dragGhostVisible"
+        :drag-ghost-x="dragGhostX"
+        :drag-ghost-y="dragGhostY"
+        :drag-ghost-label="dragGhostLabel"
+        @close-context-menu="contextMenu.show = false"
+        @context-create="handleContextCreate"
+        @context-rename="handleRename"
+        @context-duplicate="handleDuplicate"
+        @context-delete="handleDelete"
+        @context-delete-selected="handleDeleteSelected"
+        @context-reveal-in-finder="revealInFinder"
+        @context-open-in-document-dock="openInDocumentDock"
+        @workspace-open-folder="handleWorkspaceMenuOpenFolder"
+        @workspace-open-settings="handleWorkspaceMenuOpenSettings"
+        @workspace-open-recent="handleWorkspaceMenuOpenRecent"
+        @workspace-close-folder="handleWorkspaceMenuCloseFolder"
+        @new-menu-close="closeNewMenu"
+        @new-menu-create="handleNewMenuCreate"
       />
-
-      <!-- Drag ghost -->
-      <Teleport to="body">
-        <div
-          v-if="dragGhostVisible"
-          class="tab-ghost"
-          :style="{ left: dragGhostX + 'px', top: dragGhostY + 'px' }"
-        >
-          {{ dragGhostLabel }}
-        </div>
-      </Teleport>
     </template>
   </div>
 </template>
@@ -133,10 +116,8 @@ import { listWorkspaceDocumentTemplates } from '../../domains/workspace/workspac
 import FileTreeBody from './FileTreeBody.vue'
 import FileTreeFooter from './FileTreeFooter.vue'
 import FileTreeHeader from './FileTreeHeader.vue'
-import FileTreeNewMenu from './FileTreeNewMenu.vue'
-import FileTreeWorkspaceMenu from './FileTreeWorkspaceMenu.vue'
+import FileTreeOverlays from './FileTreeOverlays.vue'
 import { isMod } from '../../platform'
-import ContextMenu from './ContextMenu.vue'
 import { useI18n } from '../../i18n'
 import { revealPathInFileManager } from '../../services/fileTreeSystem'
 import { workspacePathExists } from '../../services/pathStatus.js'
@@ -201,9 +182,8 @@ watch(
 
 const treeContainer = ref(null)
 const fileTreeBody = ref(null)
+const fileTreeOverlays = ref(null)
 const workspaceMenuAnchorEl = ref(null)
-const workspaceMenuComponent = ref(null)
-const newMenuComponent = ref(null)
 const newMenuAnchorOverride = ref(null)
 const workspaceMenuOpen = ref(false)
 const newMenuOpen = ref(false)
@@ -329,7 +309,7 @@ const newMenuStyle = ref({ top: '0px', left: '0px' })
 async function calculateNewMenuPosition(anchor) {
   if (!anchor) return
   await nextTick()
-  const menuEl = newMenuComponent.value?.menuEl
+  const menuEl = fileTreeOverlays.value?.getNewMenuElement?.()
   if (!menuEl) return
 
   const rect = anchor.getBoundingClientRect()
@@ -392,7 +372,8 @@ function handleWorkspaceMenuDocumentPointerDown(event) {
   if (!(target instanceof Node)) return
 
   const anchor = workspaceMenuReference.value
-  if (workspaceMenuComponent.value?.menuEl?.contains(target) || anchor?.contains?.(target)) return
+  const menuEl = fileTreeOverlays.value?.getWorkspaceMenuElement?.()
+  if (menuEl?.contains(target) || anchor?.contains?.(target)) return
 
   closeWorkspaceMenu()
 }
