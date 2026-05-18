@@ -66,6 +66,8 @@ import {
   resolveDocumentReferences,
   resolveDocumentReferenceSelections,
   resolveReferenceByKey,
+  resolveReferenceById,
+  resolveReferencesForExport,
   resolveTag,
   searchReferences,
 } from '../domains/references/referenceStoreState.js'
@@ -846,28 +848,18 @@ export const useReferencesStore = defineStore('references', {
     },
 
     async exportBibTeXAsync(referenceIds = []) {
-      const references = Array.isArray(referenceIds) && referenceIds.length > 0
-        ? referenceIds
-            .map((referenceId) => this.references.find((reference) => reference.id === referenceId))
-            .filter(Boolean)
-        : this.references
-
+      const references = resolveReferencesForExport(this.references, referenceIds)
       return exportReferencesToBibTeX(references)
     },
 
     async writeBibTeXExportFile(filePath = '', referenceIds = []) {
-      const references = Array.isArray(referenceIds) && referenceIds.length > 0
-        ? referenceIds
-            .map((referenceId) => this.references.find((reference) => reference.id === referenceId))
-            .filter(Boolean)
-        : this.references
-
+      const references = resolveReferencesForExport(this.references, referenceIds)
       await writeReferenceBibTeXExport(filePath, references)
       return references.length
     },
 
     async writeReferenceJsonExportFile(filePath = '', referenceId = '') {
-      const reference = this.references.find((candidate) => candidate.id === referenceId)
+      const reference = resolveReferenceById(this.references, referenceId)
       if (!reference) {
         throw new Error(t('Reference not found'))
       }

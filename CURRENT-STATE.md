@@ -188,6 +188,7 @@ Current plugin lifecycle contract:
 - reference imported-reference commit workflow is now shared inside `src/stores/references.js`: BibTeX/file imports and resolved-text imports reuse the same snapshot commit/result mapping helper, while Rust `references_mutation_apply` remains the merge and duplicate policy authority
 - reference mutation snapshot commit workflow is now shared inside `src/stores/references.js`: collection, document-reference, reference-record, and PDF-asset update mutations reuse `commitReferenceMutationSnapshot()` for snapshot fallback plus commit options, while Rust `references_mutation_apply` remains the mutation policy authority
 - reference document selection lookup and search rules are now domain-derived too: `src/stores/references.js` keeps the public store API for editor/citation callers, while `referenceStoreState.js` owns selected-id resolution, reference key lookup, document-reference matching, free-text reference search and available-reference filtering
+- reference export selection rules are now domain-derived too: BibTeX export and JSON export actions in `src/stores/references.js` reuse `referenceStoreState.js` exact-id/export-list helpers while export serialization and file writing stay in `src/services/references/bibtexExport.js`
 - extension result preview presentation is now shared too: result preview surfaces derive preview mode, toolbar actions, blocked-action copy, busy keys and action-only empty states from one pure presentation helper instead of keeping action branching inside the Vue preview component
 - settings capability cards now consume shared status pieces too: blocked capability badges render through the shared blocked-status chip, blocked capability run actions render through the shared blocked-action button, and ready/unavailable capability states now render through the shared status-pill component instead of keeping a local fifth status shell
 - failed extension tasks now keep structured results as a first-class runtime contract: if a command/capability ends with `taskState: failed`, persisted task records still retain the failure artifact/output snapshot and the failure-specific progress label instead of collapsing to error text only
@@ -228,6 +229,7 @@ The quick gate includes:
 - `npm run probe:reference-store-state-contract`
 - `npm run probe:reference-store-import-workflow-contract`
 - `npm run probe:reference-store-mutation-commit-contract`
+- `npm run probe:reference-store-export-workflow-contract`
 - `npm run probe:reference-detail-actions-boundary`
 - `npm run probe:reference-detail-token-actions-boundary`
 - `npm run probe:reference-workbench-detail-dock-style-ownership`

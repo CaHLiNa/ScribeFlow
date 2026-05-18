@@ -62,6 +62,22 @@ export function resolveReferenceByKey(references = [], referenceKey = '') {
   )
 }
 
+export function resolveReferenceById(references = [], referenceId = '') {
+  return (
+    (Array.isArray(references) ? references : []).find(
+      (reference) => reference?.id === referenceId,
+    ) || null
+  )
+}
+
+export function resolveReferencesForExport(references = [], referenceIds = []) {
+  const referenceList = Array.isArray(references) ? references : []
+  if (!Array.isArray(referenceIds) || referenceIds.length === 0) return referenceList
+  return referenceIds
+    .map((referenceId) => resolveReferenceById(referenceList, referenceId))
+    .filter(Boolean)
+}
+
 export function resolveDocumentReferenceByKey(
   documentReferenceSelections = {},
   references = [],

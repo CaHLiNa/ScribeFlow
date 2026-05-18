@@ -12,6 +12,8 @@ import {
   resolveDocumentReferences,
   resolveDocumentReferenceSelections,
   resolveReferenceByKey,
+  resolveReferenceById,
+  resolveReferencesForExport,
   resolveTag,
   searchReferences,
 } from '../src/domains/references/referenceStoreState.js'
@@ -79,6 +81,14 @@ assert.deepEqual(resolveDocumentReferences(documentReferenceSelections, referenc
 assert.deepEqual(resolveReferenceByKey(references, 'lovelace2024'), references[0])
 assert.deepEqual(resolveReferenceByKey(references, 'ref-2'), references[1])
 assert.equal(resolveReferenceByKey(references, 'missing'), null)
+assert.deepEqual(resolveReferenceById(references, 'ref-2'), references[1])
+assert.equal(resolveReferenceById(references, 'hopper2025'), null)
+assert.deepEqual(resolveReferencesForExport(references, []), references)
+assert.deepEqual(resolveReferencesForExport(references, ['ref-3', 'missing', 'ref-1']), [
+  references[2],
+  references[0],
+])
+assert.deepEqual(resolveReferencesForExport('not-array', ['ref-1']), [])
 assert.deepEqual(resolveDocumentReferenceByKey(documentReferenceSelections, references, 'paper.tex', 'hopper2025'), references[1])
 assert.equal(resolveDocumentReferenceByKey(documentReferenceSelections, references, 'paper.tex', 'unused2026'), null)
 assert.equal(isReferenceSelectedForDocument(documentReferenceSelections, references, 'paper.tex', 'ref-1'), true)
@@ -194,9 +204,19 @@ assert.match(
   /resolveTag/,
   'references store must delegate tag matching',
 )
+assert.match(
+  storeSource,
+  /resolveReferencesForExport/,
+  'references store must delegate export reference-list resolution',
+)
+assert.match(
+  storeSource,
+  /resolveReferenceById/,
+  'references store must delegate exact-id reference lookup for JSON export',
+)
 assert.doesNotMatch(
   storeSource,
-  /function normalizeCollectionMembershipValue|function normalizeTagKey|function resolveCollection|function resolveDocumentReferenceSelections|function buildDefaultResolvedQueryState|const selectedIds = new Set\(this\.getDocumentReferenceIds|const normalizedQuery = String\(query \|\| ''\)\.trim\(\)\.toLowerCase\(\)|haystack\.includes\(normalizedQuery\)/,
+  /function normalizeCollectionMembershipValue|function normalizeTagKey|function resolveCollection|function resolveDocumentReferenceSelections|function buildDefaultResolvedQueryState|const selectedIds = new Set\(this\.getDocumentReferenceIds|const normalizedQuery = String\(query \|\| ''\)\.trim\(\)\.toLowerCase\(\)|haystack\.includes\(normalizedQuery\)|referenceIds\s*\.map\(\(referenceId\) => this\.references\.find/,
   'references store must not redefine deterministic state helpers inline',
 )
 assert.match(
@@ -212,6 +232,7 @@ console.log(JSON.stringify({
     documentSelectionFallbackDerived: true,
     documentReferenceLookupDerived: true,
     referenceSearchDerived: true,
+    exportSelectionDerived: true,
     defaultQueryStateDerived: true,
     storeUsesDomainHelper: true,
     storageRootRemainsStoreScoped: true,
