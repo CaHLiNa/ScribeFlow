@@ -61,8 +61,6 @@ import {
   buildReferenceEmptyImportResult,
   buildReferenceImportInputState,
   buildReferenceMetadataRefreshTargetState,
-  buildReferencePdfAssetResultState,
-  buildReferencePdfAssetTargetState,
   buildReferencePdfImportResultState,
   buildReferencePdfImportTargetState,
   buildReferenceRemoveTargetState,
@@ -694,43 +692,41 @@ export const useReferencesStore = defineStore('references', {
     },
 
     async attachReferencePdf(projectRoot = '', referenceId = '', sourcePath = '') {
-      const targetState = buildReferencePdfAssetTargetState(this.references, referenceId)
-      if (!targetState.canUpdate) return null
+      let updatedReference = null
+      try {
+        updatedReference = await storeReferencePdf(projectRoot, {}, sourcePath, {
+          references: this.references,
+          referenceId,
+        })
+      } catch (error) {
+        if (String(error?.message || error) === 'Reference not found') return null
+        throw error
+      }
 
-      const updatedReference = await storeReferencePdf(
-        projectRoot,
-        targetState.targetReference,
-        sourcePath
-      )
-
-      await this.updateReference(projectRoot, targetState.referenceId, updatedReference, {
-        preferredSelectedReferenceId: targetState.referenceId,
+      const targetReferenceId = updatedReference?.id || referenceId
+      const changed = await this.updateReference(projectRoot, targetReferenceId, updatedReference, {
+        preferredSelectedReferenceId: targetReferenceId,
       })
-      return buildReferencePdfAssetResultState(
-        this.references,
-        targetState.referenceId,
-        updatedReference,
-      ).reference
+      return changed ? updatedReference : null
     },
 
     async renameReferencePdfAsset(projectRoot = '', referenceId = '', nextBaseName = '') {
-      const targetState = buildReferencePdfAssetTargetState(this.references, referenceId)
-      if (!targetState.canUpdate) return null
+      let updatedReference = null
+      try {
+        updatedReference = await renameReferencePdfAssetWithBackend(projectRoot, {}, nextBaseName, {
+          references: this.references,
+          referenceId,
+        })
+      } catch (error) {
+        if (String(error?.message || error) === 'Reference not found') return null
+        throw error
+      }
 
-      const updatedReference = await renameReferencePdfAssetWithBackend(
-        projectRoot,
-        targetState.targetReference,
-        nextBaseName
-      )
-
-      await this.updateReference(projectRoot, targetState.referenceId, updatedReference, {
-        preferredSelectedReferenceId: targetState.referenceId,
+      const targetReferenceId = updatedReference?.id || referenceId
+      const changed = await this.updateReference(projectRoot, targetReferenceId, updatedReference, {
+        preferredSelectedReferenceId: targetReferenceId,
       })
-      return buildReferencePdfAssetResultState(
-        this.references,
-        targetState.referenceId,
-        updatedReference,
-      ).reference
+      return changed ? updatedReference : null
     },
 
     async importReferencePdf(projectRoot = '', sourcePath = '') {

@@ -61,9 +61,16 @@ try {
     ' /tmp/config/ ',
     { id: 'ref-a' },
     ' /tmp/source.pdf ',
-    { existingFulltextSourcePath: ' /tmp/source.txt ' },
+    {
+      existingFulltextSourcePath: ' /tmp/source.txt ',
+      references: [{ id: 'ref-a' }],
+      referenceId: ' ref-a ',
+    },
   )
-  const renamed = await renameReferencePdfAsset('', null, null)
+  const renamed = await renameReferencePdfAsset('', null, null, {
+    references: [{ id: 'ref-a' }],
+    referenceId: ' ref-a ',
+  })
 
   assert.deepEqual(calls.map((call) => call.cmd), [
     'references_asset_store',
@@ -73,18 +80,24 @@ try {
   assert.deepEqual(calls[0].args.params, {
     globalConfigDir: false,
     reference: 'not-a-reference',
+    references: [],
+    referenceId: '',
     sourcePath: 42,
     existingFulltextSourcePath: '',
   })
   assert.deepEqual(calls[1].args.params, {
     globalConfigDir: ' /tmp/config/ ',
     reference: { id: 'ref-a' },
+    references: [{ id: 'ref-a' }],
+    referenceId: ' ref-a ',
     sourcePath: ' /tmp/source.pdf ',
     existingFulltextSourcePath: ' /tmp/source.txt ',
   })
   assert.deepEqual(calls[2].args.params, {
     globalConfigDir: '',
     reference: null,
+    references: [{ id: 'ref-a' }],
+    referenceId: ' ref-a ',
     nextBaseName: null,
   })
   assert.strictEqual(renamed, renameResult)

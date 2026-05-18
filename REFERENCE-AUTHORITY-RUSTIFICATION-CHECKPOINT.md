@@ -36,7 +36,7 @@ JavaScript owns:
 | Rust module | Current authority |
 | --- | --- |
 | `references_snapshot.rs` | Canonical snapshot/reference normalization and persisted snapshot cleanup. |
-| `references_backend.rs` | Workspace library load/write, storage roots, asset store and rename. |
+| `references_backend.rs` | Workspace library load/write, storage roots, asset store/rename and PDF asset target resolution. |
 | `references_mutation.rs` | Add/update/remove, collection mutations, import merge, PDF import, document-reference ids, duplicate policy and Zotero push marking. |
 | `references_query.rs` | Query resolution, collection/tag matching, sorting, citation usage index and details. |
 | `references_import.rs` | Reference import parsing, import DTO normalization, and export target resolution/count reporting. |
@@ -87,7 +87,7 @@ Zotero, search, or snapshot policy and should move back to Rust contracts:
 | Reference lookup/selection targets | `resolveReferenceByKey`, `resolveReferenceById`, `hasReferenceById`, `resolveReferenceSelectionId` | Rust query commands should validate target ids and return normalized target state or clear errors. Citation-format target lookup has moved to `references_citation.rs`; export target resolution has moved to `references_import.rs`. |
 | Import input preflight | `buildReferenceEmptyImportResult`, `buildReferenceImportInputState` | Rust should eventually expose import-intent/preflight defaults if empty-state semantics stop being purely UI-local. |
 | Mutation target preflight | `buildReferenceRemoveTargetState` | Rust mutation/result APIs should eventually expose enough target state for UI/Zotero side-effect gating without JS performing canonical lookup. |
-| PDF import and assets | `buildReferenceMetadataRefreshTargetState`, `buildReferencePdfImportTargetState`, `buildReferencePdfImportResultState`, `buildReferencePdfAssetTargetState`, `buildReferencePdfAssetResultState` | Rust should own target validation, PDF import outcome, asset attachment/rename, and post-mutation selected reference. |
+| PDF import and assets | `buildReferenceMetadataRefreshTargetState`, `buildReferencePdfImportTargetState`, `buildReferencePdfImportResultState` | Rust should own target validation, PDF import outcome, asset attachment/rename, and post-mutation selected reference. PDF asset attach/rename target resolution has moved to `references_backend.rs`. |
 | Zotero sync result | `buildReferenceZoteroSyncResultState` | Rust should own sync counts, skipped state, selected id, last-sync timestamp and error/result classification. |
 | Document-reference selection | `resolveDocumentReferenceSelections`, `resolveDocumentReferenceIds`, `resolveDocumentReferences`, `resolveDocumentReferenceByKey`, `isReferenceSelectedForDocument`, `resolveAvailableDocumentReferences`, `buildDocumentReferenceIdsMutationState`, `buildAddDocumentReferenceMutationState`, `buildRemoveDocumentReferenceMutationState` | Rust query/mutation commands should own TeX path normalization, selected id lists, dedupe and availability. |
 | Search and filtering | `searchReferences` | Rust query should own search matching once search participates in reference truth, citation insertion, or workspace-scale behavior. |
@@ -128,11 +128,16 @@ Zotero, search, or snapshot policy and should move back to Rust contracts:
      adding future export formats.
 
 3. PDF asset and PDF import authority
-   - Rust owns PDF import target lookup, duplicate add-or-attach decision, asset
-     storage/rename target validation and returned selected reference.
+   - Status: PDF asset attach/rename target lookup now lives in
+     `references_backend.rs`. The store passes the current references snapshot
+     plus `referenceId` through `src/services/references/referenceAssets.js`,
+     and Rust resolves the target before doing filesystem asset store/rename.
+   - Remaining: Rust should own the full PDF import attachment result, imported
+     snapshot fallback and returned selected reference so `buildReferencePdfImportTargetState`
+     and `buildReferencePdfImportResultState` can be removed too.
    - JS store keeps dialog orchestration and loading/error UI only.
-   - Existing PDF import authority probe should be extended to catch JS target
-     derivation.
+   - Existing PDF import authority probe should be extended to catch the remaining
+     JS import target/result derivation.
 
 4. Zotero result and error authority
    - Rust returns normalized sync status, counts, timestamp, selected id, skipped
@@ -168,9 +173,10 @@ For each migration slice:
 
 - `referenceStoreState.js` still contains too many canonical target, query and
   selection rules for the Rust-first target.
-- Generic mutation result shaping, citation-format target lookup and export target
-  validation have moved to Rust, but PDF import/assets and Zotero result
-  classification still duplicate Rust-owned concepts in JS.
+- Generic mutation result shaping, citation-format target lookup, export target
+  validation and PDF asset attach/rename target resolution have moved to Rust,
+  but PDF import target/result shaping and Zotero result classification still
+  duplicate Rust-owned concepts in JS.
 - Query/search/document-reference presentation helpers are next because Rust
   already has `references_query.rs` and mutation support for the same canonical
   concepts.

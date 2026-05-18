@@ -43,11 +43,17 @@ pub struct ReferenceAssetStoreParams {
     #[serde(default)]
     pub reference: Value,
     #[serde(default)]
+    pub references: Vec<Value>,
+    #[serde(default, alias = "reference_id")]
+    pub reference_id: String,
+    #[serde(default)]
     pub source_path: String,
     #[serde(default)]
     pub extracted_text: Option<String>,
     #[serde(default)]
     pub existing_fulltext_source_path: Option<String>,
+    #[serde(skip)]
+    pub has_reference_list: bool,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -58,7 +64,13 @@ pub struct ReferenceAssetRenameParams {
     #[serde(default)]
     pub reference: Value,
     #[serde(default)]
+    pub references: Vec<Value>,
+    #[serde(default, alias = "reference_id")]
+    pub reference_id: String,
+    #[serde(default)]
     pub next_base_name: String,
+    #[serde(skip)]
+    pub has_reference_list: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]
@@ -95,6 +107,22 @@ fn object_payload_field(params: &Value, key: &str) -> Value {
         .filter(|value| value.is_object())
         .cloned()
         .unwrap_or_else(|| json!({}))
+}
+
+fn array_payload_field(params: &Value, key: &str) -> Vec<Value> {
+    payload_field(params, key)
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default()
+}
+
+fn string_payload_field_with_alias(params: &Value, key: &str, alias: &str) -> String {
+    let value = string_payload_field(params, key);
+    if value.is_empty() {
+        string_payload_field(params, alias)
+    } else {
+        value
+    }
 }
 
 fn snapshot_payload_field(params: &Value) -> Value {
@@ -140,24 +168,35 @@ fn reference_asset_store_params_from_payload(params: Value) -> ReferenceAssetSto
             .filter(|text| !text.trim().is_empty())
             .map(ToString::to_string)
     });
+    let references = array_payload_field(&params, "references");
+    let has_reference_list = !references.is_empty();
 
     ReferenceAssetStoreParams {
         global_config_dir: string_payload_field(&params, "globalConfigDir"),
         reference: object_payload_field(&params, "reference"),
+        references,
+        reference_id: string_payload_field_with_alias(&params, "referenceId", "reference_id"),
         source_path: string_payload_field(&params, "sourcePath"),
         extracted_text,
         existing_fulltext_source_path: Some(string_payload_field(
             &params,
             "existingFulltextSourcePath",
         )),
+        has_reference_list,
     }
 }
 
 fn reference_asset_rename_params_from_payload(params: Value) -> ReferenceAssetRenameParams {
+    let references = array_payload_field(&params, "references");
+    let has_reference_list = !references.is_empty();
+
     ReferenceAssetRenameParams {
         global_config_dir: string_payload_field(&params, "globalConfigDir"),
         reference: object_payload_field(&params, "reference"),
+        references,
+        reference_id: string_payload_field_with_alias(&params, "referenceId", "reference_id"),
         next_base_name: string_payload_field(&params, "nextBaseName"),
+        has_reference_list,
     }
 }
 
@@ -293,10 +332,38 @@ fn path_extension_suffix(path: &Path, fallback: &str) -> String {
         .unwrap_or_else(|| fallback.to_string())
 }
 
+fn resolve_reference_asset_target(
+    fallback_reference: &Value,
+    references: &[Value],
+    reference_id: &str,
+    has_reference_list: bool,
+) -> Result<Value, String> {
+    let normalized_reference_id = reference_id.trim();
+    if !normalized_reference_id.is_empty() {
+        return references
+            .iter()
+            .find(|reference| trim_string(reference.get("id")).as_str() == normalized_reference_id)
+            .cloned()
+            .ok_or_else(|| "Reference not found".to_string());
+    }
+
+    if has_reference_list {
+        return Err("Reference not found".to_string());
+    }
+
+    Ok(fallback_reference.clone())
+}
+
 fn store_reference_asset(params: &ReferenceAssetStoreParams) -> Result<Value, String> {
+    let reference = resolve_reference_asset_target(
+        &params.reference,
+        &params.references,
+        &params.reference_id,
+        params.has_reference_list,
+    )?;
     let normalized_source = params.source_path.trim();
     if params.global_config_dir.trim().is_empty() || normalized_source.is_empty() {
-        return Ok(normalize_reference_record(&params.reference));
+        return Ok(normalize_reference_record(&reference));
     }
     let source_path = Path::new(normalized_source);
     validate_reference_pdf_path(source_path)?;
@@ -309,7 +376,7 @@ fn store_reference_asset(params: &ReferenceAssetStoreParams) -> Result<Value, St
     fs::create_dir_all(&pdfs_dir).map_err(|error| error.to_string())?;
     fs::create_dir_all(&fulltext_dir).map_err(|error| error.to_string())?;
 
-    let reference = normalize_reference_record(&params.reference);
+    let reference = normalize_reference_record(&reference);
     let base_name = sanitize_asset_segment(
         &trim_string(reference.get("citationKey"))
             .if_empty_then(|| trim_string(reference.get("id")))
@@ -372,7 +439,13 @@ fn store_reference_asset(params: &ReferenceAssetStoreParams) -> Result<Value, St
 }
 
 fn rename_reference_asset(params: &ReferenceAssetRenameParams) -> Result<Value, String> {
-    let reference = normalize_reference_record(&params.reference);
+    let reference = resolve_reference_asset_target(
+        &params.reference,
+        &params.references,
+        &params.reference_id,
+        params.has_reference_list,
+    )?;
+    let reference = normalize_reference_record(&reference);
     let normalized_pdf_path = trim_string(reference.get("pdfPath"));
     if params.global_config_dir.trim().is_empty() || normalized_pdf_path.is_empty() {
         return Ok(reference);
@@ -610,12 +683,17 @@ mod tests {
         let store_params = reference_asset_store_params_from_payload(json!({
             "globalConfigDir": false,
             "reference": "not-a-reference",
+            "references": [{ "id": "ref-a" }],
+            "referenceId": " ref-a ",
             "sourcePath": 42,
             "extractedText": "  ",
             "existingFulltextSourcePath": "/tmp/source.txt"
         }));
         assert_eq!(store_params.global_config_dir, "");
         assert_eq!(store_params.reference, json!({}));
+        assert_eq!(store_params.references, vec![json!({ "id": "ref-a" })]);
+        assert_eq!(store_params.reference_id, " ref-a ");
+        assert_eq!(store_params.has_reference_list, true);
         assert_eq!(store_params.source_path, "");
         assert_eq!(store_params.extracted_text, None);
         assert_eq!(
@@ -626,10 +704,15 @@ mod tests {
         let rename_params = reference_asset_rename_params_from_payload(json!({
             "globalConfigDir": "/tmp/config",
             "reference": null,
+            "references": [{ "id": "ref-b" }],
+            "reference_id": " ref-b ",
             "nextBaseName": 99
         }));
         assert_eq!(rename_params.global_config_dir, "/tmp/config");
         assert_eq!(rename_params.reference, json!({}));
+        assert_eq!(rename_params.references, vec![json!({ "id": "ref-b" })]);
+        assert_eq!(rename_params.reference_id, " ref-b ");
+        assert_eq!(rename_params.has_reference_list, true);
         assert_eq!(rename_params.next_base_name, "");
     }
 
@@ -688,9 +771,12 @@ mod tests {
                 "citationKey": "Ada 2024",
                 "title": "A Title"
             }),
+            references: Vec::new(),
+            reference_id: String::new(),
             source_path: source_pdf.to_string_lossy().to_string(),
             extracted_text: Some("Extracted full text".to_string()),
             existing_fulltext_source_path: None,
+            has_reference_list: false,
         })
         .expect("store asset");
 
@@ -707,6 +793,58 @@ mod tests {
         assert_eq!(stored["hasFullText"].as_bool(), Some(true));
 
         fs::remove_dir_all(temp_dir).ok();
+    }
+
+    #[test]
+    fn asset_store_resolves_reference_id_in_rust() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "scribeflow-reference-asset-store-target-{}",
+            uuid::Uuid::new_v4()
+        ));
+        let global_config_dir = temp_dir.join("config");
+        let source_pdf = temp_dir.join("source.pdf");
+        fs::create_dir_all(&temp_dir).expect("create temp dir");
+        fs::write(&source_pdf, b"%PDF-1.4\n%%EOF").expect("write source pdf");
+
+        let stored = store_reference_asset(&ReferenceAssetStoreParams {
+            global_config_dir: global_config_dir.to_string_lossy().to_string(),
+            reference: json!({ "id": "fallback", "citationKey": "fallback" }),
+            references: vec![
+                json!({ "id": "ref-1", "citationKey": "ada2024", "title": "Ada" }),
+                json!({ "id": "ref-2", "citationKey": "hopper2025", "title": "Hopper" }),
+            ],
+            reference_id: " ref-2 ".to_string(),
+            source_path: source_pdf.to_string_lossy().to_string(),
+            extracted_text: Some("Extracted full text".to_string()),
+            existing_fulltext_source_path: None,
+            has_reference_list: true,
+        })
+        .expect("store asset by id");
+
+        assert_eq!(stored["id"].as_str(), Some("ref-2"));
+        assert!(stored["pdfPath"]
+            .as_str()
+            .expect("pdf path")
+            .ends_with("/references/pdfs/hopper2025.pdf"));
+
+        fs::remove_dir_all(temp_dir).ok();
+    }
+
+    #[test]
+    fn asset_store_rejects_missing_reference_id_in_rust() {
+        let error = store_reference_asset(&ReferenceAssetStoreParams {
+            global_config_dir: String::new(),
+            reference: json!({ "id": "fallback" }),
+            references: vec![json!({ "id": "ref-1" })],
+            reference_id: "missing".to_string(),
+            source_path: String::new(),
+            extracted_text: None,
+            existing_fulltext_source_path: None,
+            has_reference_list: true,
+        })
+        .expect_err("missing target should be rejected");
+
+        assert_eq!(error, "Reference not found");
     }
 
     #[test]
@@ -727,9 +865,12 @@ mod tests {
                 "citationKey": "Ada 2024",
                 "title": "A Title"
             }),
+            references: Vec::new(),
+            reference_id: String::new(),
             source_path: source_pdf.to_string_lossy().to_string(),
             extracted_text: Some("Extracted full text".to_string()),
             existing_fulltext_source_path: None,
+            has_reference_list: false,
         })
         .expect("store asset");
         let old_pdf_path = stored["pdfPath"].as_str().expect("old pdf").to_string();
@@ -741,7 +882,10 @@ mod tests {
         let renamed = rename_reference_asset(&ReferenceAssetRenameParams {
             global_config_dir: global_config_dir.to_string_lossy().to_string(),
             reference: stored,
+            references: Vec::new(),
+            reference_id: String::new(),
             next_base_name: "Grace Hopper".to_string(),
+            has_reference_list: false,
         })
         .expect("rename asset");
 
@@ -756,6 +900,52 @@ mod tests {
             fs::read_to_string(next_fulltext_path).expect("read renamed fulltext"),
             "Extracted full text"
         );
+
+        fs::remove_dir_all(temp_dir).ok();
+    }
+
+    #[test]
+    fn asset_rename_resolves_reference_id_in_rust() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "scribeflow-reference-asset-rename-target-{}",
+            uuid::Uuid::new_v4()
+        ));
+        let global_config_dir = temp_dir.join("config");
+        let source_pdf = temp_dir.join("source.pdf");
+        fs::create_dir_all(&temp_dir).expect("create temp dir");
+        fs::write(&source_pdf, b"%PDF-1.4\n%%EOF").expect("write source pdf");
+
+        let stored = store_reference_asset(&ReferenceAssetStoreParams {
+            global_config_dir: global_config_dir.to_string_lossy().to_string(),
+            reference: json!({
+                "id": "ref-1",
+                "citationKey": "Ada 2024",
+                "title": "A Title"
+            }),
+            references: Vec::new(),
+            reference_id: String::new(),
+            source_path: source_pdf.to_string_lossy().to_string(),
+            extracted_text: Some("Extracted full text".to_string()),
+            existing_fulltext_source_path: None,
+            has_reference_list: false,
+        })
+        .expect("store asset");
+
+        let renamed = rename_reference_asset(&ReferenceAssetRenameParams {
+            global_config_dir: global_config_dir.to_string_lossy().to_string(),
+            reference: json!({ "id": "fallback" }),
+            references: vec![stored],
+            reference_id: " ref-1 ".to_string(),
+            next_base_name: "Grace Hopper".to_string(),
+            has_reference_list: true,
+        })
+        .expect("rename asset by id");
+
+        assert_eq!(renamed["id"].as_str(), Some("ref-1"));
+        assert!(renamed["pdfPath"]
+            .as_str()
+            .expect("next pdf")
+            .ends_with("/references/pdfs/grace-hopper.pdf"));
 
         fs::remove_dir_all(temp_dir).ok();
     }

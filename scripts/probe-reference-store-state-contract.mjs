@@ -7,8 +7,6 @@ import {
   buildReferenceEmptyImportResult,
   buildReferenceImportInputState,
   buildReferenceMetadataRefreshTargetState,
-  buildReferencePdfAssetResultState,
-  buildReferencePdfAssetTargetState,
   buildReferencePdfImportResultState,
   buildReferencePdfImportTargetState,
   buildReferenceRemoveTargetState,
@@ -171,33 +169,6 @@ assert.deepEqual(buildReferenceMetadataRefreshTargetState(references, 'missing')
 assert.deepEqual(buildReferenceMetadataRefreshTargetState(references, '  '), {
   canRefresh: false,
   referenceId: '',
-  reference: null,
-})
-assert.deepEqual(buildReferencePdfAssetTargetState(references, ' ref-2 '), {
-  canUpdate: true,
-  referenceId: 'ref-2',
-  targetReference: references[1],
-})
-assert.deepEqual(buildReferencePdfAssetTargetState(references, 'missing'), {
-  canUpdate: false,
-  referenceId: 'missing',
-  targetReference: null,
-})
-assert.deepEqual(buildReferencePdfAssetTargetState(references, '  '), {
-  canUpdate: false,
-  referenceId: '',
-  targetReference: null,
-})
-assert.deepEqual(buildReferencePdfAssetResultState(references, ' ref-2 ', { id: 'fallback' }), {
-  referenceId: 'ref-2',
-  reference: references[1],
-})
-assert.deepEqual(buildReferencePdfAssetResultState(references, 'missing', { id: 'fallback' }), {
-  referenceId: 'missing',
-  reference: { id: 'fallback' },
-})
-assert.deepEqual(buildReferencePdfAssetResultState(references, 'missing', 'not-object'), {
-  referenceId: 'missing',
   reference: null,
 })
 assert.deepEqual(buildReferenceRemoveTargetState(references, ' ref-2 '), {
@@ -983,15 +954,20 @@ assert.match(
   /buildReferenceMetadataRefreshTargetState/,
   'references store must delegate metadata refresh target state mapping',
 )
-assert.match(
-  storeSource,
-  /buildReferencePdfAssetTargetState/,
-  'references store must delegate PDF asset target state mapping',
+assert.doesNotMatch(
+  domainSource,
+  /buildReferencePdfAssetTargetState|buildReferencePdfAssetResultState/,
+  'referenceStoreState must not retain migrated PDF asset target/result helpers',
 )
 assert.match(
   storeSource,
-  /buildReferencePdfAssetResultState/,
-  'references store must delegate PDF asset result state mapping',
+  /storeReferencePdf\(projectRoot, \{\}, sourcePath,[\s\S]*references: this\.references,[\s\S]*referenceId,/,
+  'references store must delegate PDF asset attach target lookup to Rust',
+)
+assert.match(
+  storeSource,
+  /renameReferencePdfAssetWithBackend\(projectRoot, \{\}, nextBaseName,[\s\S]*references: this\.references,[\s\S]*referenceId,/,
+  'references store must delegate PDF asset rename target lookup to Rust',
 )
 assert.match(
   storeSource,
@@ -1117,7 +1093,7 @@ assert.doesNotMatch(
 for (const actionName of ['attachReferencePdf', 'renameReferencePdfAsset']) {
   assert.doesNotMatch(
     actionSource(actionName),
-    /resolveReferenceById\(this\.references, referenceId\)|resolveReferenceById\(this\.references, targetState\.referenceId\)|\|\| updatedReference/,
+    /buildReferencePdfAssetTargetState|buildReferencePdfAssetResultState|resolveReferenceById\(this\.references|String\(referenceId \|\| ''\)\.trim\(\)/,
     `${actionName} must not inline PDF asset target/result state mapping`,
   )
 }
@@ -1204,7 +1180,7 @@ console.log(JSON.stringify({
     rustImportPreferredSelectionConsumed: true,
     rustAddReferenceOutcomeConsumed: true,
     metadataRefreshTargetStateDerived: true,
-    pdfAssetTargetAndResultStateDerived: true,
+    rustPdfAssetTargetResolution: true,
     removeReferenceTargetStateDerived: true,
     rustRemoveReferenceOutcomeConsumed: true,
     rustUpdateReferenceOutcomeConsumed: true,
