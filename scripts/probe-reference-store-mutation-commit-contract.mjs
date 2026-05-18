@@ -106,12 +106,12 @@ assert.match(
 )
 assert.match(
   importPdfSource,
-  /fallbackSnapshot: importTarget\.importedSnapshot/,
+  /fallbackSnapshot: importedSnapshot/,
   'importReferencePdf must preserve imported snapshot fallback for the asset update mutation',
 )
 assert.match(
   importPdfSource,
-  /snapshot: importTarget\.importedSnapshot/,
+  /snapshot: importedSnapshot/,
   'importReferencePdf must use the imported snapshot for the asset update mutation',
 )
 

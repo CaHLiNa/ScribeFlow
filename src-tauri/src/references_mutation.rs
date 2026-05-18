@@ -222,6 +222,19 @@ fn normalize_snapshot_references(snapshot: &Value) -> Vec<Value> {
         .unwrap_or_default()
 }
 
+fn resolve_reference_by_id(references: &[Value], reference_id: &str) -> Value {
+    let normalized_reference_id = reference_id.trim();
+    if normalized_reference_id.is_empty() {
+        return Value::Null;
+    }
+
+    references
+        .iter()
+        .find(|reference| trim_string(reference.get("id")) == normalized_reference_id)
+        .cloned()
+        .unwrap_or(Value::Null)
+}
+
 fn normalize_snapshot_collections(snapshot: &Value) -> Vec<Value> {
     snapshot
         .get("collections")
@@ -647,12 +660,20 @@ fn apply_import_pdf_reference(
             })
             .collect::<Vec<_>>();
 
+        let next_snapshot = normalized_snapshot_with(snapshot, None, Some(next_references));
+        let selected_reference = resolve_reference_by_id(
+            &normalize_snapshot_references(&next_snapshot),
+            &duplicate_id,
+        );
+
         return json!({
-            "snapshot": normalized_snapshot_with(snapshot, None, Some(next_references)),
+            "snapshot": next_snapshot,
             "result": {
                 "changed": attached_pdf || attached_fulltext,
                 "duplicate": true,
                 "selectedReferenceId": duplicate_id,
+                "selectedReference": selected_reference,
+                "preferredSelectedReferenceId": duplicate_id,
                 "attachedPdf": attached_pdf,
             },
         });
@@ -660,6 +681,7 @@ fn apply_import_pdf_reference(
 
     let mut next_references = references;
     let selected_reference_id = trim_string(normalized_candidate.get("id"));
+    let selected_reference = normalized_candidate.clone();
     next_references.push(normalized_candidate);
 
     json!({
@@ -668,6 +690,8 @@ fn apply_import_pdf_reference(
             "changed": true,
             "duplicate": false,
             "selectedReferenceId": selected_reference_id,
+            "selectedReference": selected_reference,
+            "preferredSelectedReferenceId": selected_reference_id,
             "attachedPdf": !candidate_pdf_path.is_empty(),
         },
     })
@@ -740,6 +764,7 @@ fn apply_update_reference(
             "result": {
                 "changed": false,
                 "selectedReferenceId": "",
+                "selectedReference": Value::Null,
                 "preferredSelectedReferenceId": normalize_selected_reference_id(current_selected_reference_id),
             },
         });
@@ -754,6 +779,7 @@ fn apply_update_reference(
             "result": {
                 "changed": false,
                 "selectedReferenceId": "",
+                "selectedReference": Value::Null,
                 "preferredSelectedReferenceId": normalize_selected_reference_id(current_selected_reference_id),
             },
         });
@@ -788,6 +814,7 @@ fn apply_update_reference(
         "result": {
             "changed": true,
             "selectedReferenceId": updated_reference_id,
+            "selectedReference": normalized_reference,
             "preferredSelectedReferenceId": resolve_preferred_selected_reference_id(
                 current_selected_reference_id,
                 &updated_reference_id,
@@ -1427,6 +1454,14 @@ mod tests {
             Some("ref-1")
         );
         assert_eq!(
+            result["result"]["preferredSelectedReferenceId"].as_str(),
+            Some("ref-1")
+        );
+        assert_eq!(
+            result["result"]["selectedReference"]["id"].as_str(),
+            Some("ref-1")
+        );
+        assert_eq!(
             result["snapshot"]["references"][0]["pdfPath"].as_str(),
             Some("/tmp/managed-pdf/ada2024.pdf")
         );
@@ -1467,6 +1502,14 @@ mod tests {
         assert_eq!(result["result"]["attachedPdf"].as_bool(), Some(true));
         assert_eq!(
             result["result"]["selectedReferenceId"].as_str(),
+            Some("imported-pdf")
+        );
+        assert_eq!(
+            result["result"]["preferredSelectedReferenceId"].as_str(),
+            Some("imported-pdf")
+        );
+        assert_eq!(
+            result["result"]["selectedReference"]["id"].as_str(),
             Some("imported-pdf")
         );
         assert_eq!(

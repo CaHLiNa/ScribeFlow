@@ -148,27 +148,6 @@ export function buildReferenceMetadataRefreshTargetState(references = [], refere
   }
 }
 
-export function buildReferencePdfImportTargetState(mutation = {}, fallbackSnapshot = {}) {
-  const selectedReferenceId = String(mutation?.result?.selectedReferenceId || '').trim()
-  const importedSnapshot = mutation?.snapshot || fallbackSnapshot || {}
-  const targetReference = Array.isArray(importedSnapshot?.references)
-    ? resolveReferenceById(importedSnapshot.references, selectedReferenceId)
-    : null
-
-  return {
-    canImport: Boolean(selectedReferenceId && targetReference),
-    selectedReferenceId,
-    importedSnapshot,
-    targetReference,
-  }
-}
-
-export function buildReferencePdfImportResultState(references = [], importTarget = {}) {
-  return {
-    selectedReference: resolveReferenceById(references, importTarget?.selectedReferenceId),
-  }
-}
-
 export function buildReferenceRemoveTargetState(references = [], referenceId = '') {
   const normalizedReferenceId = String(referenceId || '').trim()
   const targetReference = resolveReferenceById(references, normalizedReferenceId)

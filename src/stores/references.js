@@ -61,8 +61,6 @@ import {
   buildReferenceEmptyImportResult,
   buildReferenceImportInputState,
   buildReferenceMetadataRefreshTargetState,
-  buildReferencePdfImportResultState,
-  buildReferencePdfImportTargetState,
   buildReferenceRemoveTargetState,
   buildReferenceZoteroSyncResultState,
   resolveReferenceCitationStyleId,
@@ -746,33 +744,39 @@ export const useReferencesStore = defineStore('references', {
           },
         })
 
-        const importTarget = buildReferencePdfImportTargetState(
-          importMutation,
-          this.buildLibrarySnapshotPayload()
-        )
-        if (!importTarget.canImport) return null
+        const importResult = importMutation?.result || {}
+        const importedSnapshot = importMutation?.snapshot || this.buildLibrarySnapshotPayload()
+        const selectedReferenceId = importResult.selectedReferenceId || ''
+        if (!selectedReferenceId) return null
 
-        const hydratedReference = await storeReferencePdf(
-          projectRoot,
-          importTarget.targetReference,
-          sourcePath
-        )
+        let hydratedReference = null
+        try {
+          hydratedReference = await storeReferencePdf(projectRoot, {}, sourcePath, {
+            references: importedSnapshot?.references,
+            referenceId: selectedReferenceId,
+          })
+        } catch (error) {
+          if (String(error?.message || error) === 'Reference not found') return null
+          throw error
+        }
         const assetMutation = await applyReferenceMutation({
           globalConfigDir: projectRoot,
-          snapshot: importTarget.importedSnapshot,
+          snapshot: importedSnapshot,
           selectedReferenceId: this.selectedReferenceId,
           action: {
             type: 'updateReference',
-            referenceId: importTarget.selectedReferenceId,
+            referenceId: selectedReferenceId,
             updates: hydratedReference,
           },
         })
 
         await commitReferenceMutationSnapshot(this, projectRoot, assetMutation, {
-          fallbackSnapshot: importTarget.importedSnapshot,
-          preferredSelectedReferenceId: importTarget.selectedReferenceId,
+          fallbackSnapshot: importedSnapshot,
+          preferredSelectedReferenceId: assetMutation?.result?.preferredSelectedReferenceId ||
+            importResult.preferredSelectedReferenceId ||
+            selectedReferenceId,
         })
-        return buildReferencePdfImportResultState(this.references, importTarget).selectedReference
+        return assetMutation?.result?.selectedReference || hydratedReference
       } finally {
         this.importInFlight = false
       }

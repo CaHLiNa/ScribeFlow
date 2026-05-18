@@ -7,8 +7,6 @@ import {
   buildReferenceEmptyImportResult,
   buildReferenceImportInputState,
   buildReferenceMetadataRefreshTargetState,
-  buildReferencePdfImportResultState,
-  buildReferencePdfImportTargetState,
   buildReferenceRemoveTargetState,
   buildReferenceZoteroSyncResultState,
   resolveReferenceCitationStyleId,
@@ -180,47 +178,6 @@ assert.deepEqual(buildReferenceRemoveTargetState(references, 'missing'), {
   canRemove: false,
   referenceId: 'missing',
   targetReference: null,
-})
-assert.deepEqual(buildReferencePdfImportTargetState({
-  result: {
-    selectedReferenceId: ' ref-2 ',
-  },
-  snapshot: {
-    references,
-  },
-}, {
-  references: [references[0]],
-}), {
-  canImport: true,
-  selectedReferenceId: 'ref-2',
-  importedSnapshot: {
-    references,
-  },
-  targetReference: references[1],
-})
-assert.deepEqual(buildReferencePdfImportTargetState({
-  result: {
-    selectedReferenceId: 'missing',
-  },
-}, {
-  references,
-}), {
-  canImport: false,
-  selectedReferenceId: 'missing',
-  importedSnapshot: {
-    references,
-  },
-  targetReference: null,
-})
-assert.deepEqual(buildReferencePdfImportResultState(references, {
-  selectedReferenceId: 'ref-2',
-}), {
-  selectedReference: references[1],
-})
-assert.deepEqual(buildReferencePdfImportResultState(references, {
-  selectedReferenceId: 'missing',
-}), {
-  selectedReference: null,
 })
 assert.equal(resolveReferenceCitationStyleId(' ieee ', true), 'ieee')
 assert.equal(resolveReferenceCitationStyleId(' ieee ', false), 'apa')
@@ -969,15 +926,20 @@ assert.match(
   /renameReferencePdfAssetWithBackend\(projectRoot, \{\}, nextBaseName,[\s\S]*references: this\.references,[\s\S]*referenceId,/,
   'references store must delegate PDF asset rename target lookup to Rust',
 )
-assert.match(
-  storeSource,
-  /buildReferencePdfImportTargetState/,
-  'references store must delegate PDF import target state mapping',
+assert.doesNotMatch(
+  domainSource,
+  /buildReferencePdfImportTargetState|buildReferencePdfImportResultState/,
+  'referenceStoreState must not retain migrated PDF import target/result helpers',
 )
 assert.match(
-  storeSource,
-  /buildReferencePdfImportResultState/,
-  'references store must delegate PDF import result state mapping',
+  actionSource('importReferencePdf'),
+  /const importResult = importMutation\?\.result \|\| \{\}[\s\S]*const importedSnapshot = importMutation\?\.snapshot \|\| this\.buildLibrarySnapshotPayload\(\)/,
+  'importReferencePdf must consume Rust-returned PDF import mutation result and snapshot',
+)
+assert.match(
+  actionSource('importReferencePdf'),
+  /storeReferencePdf\(projectRoot, \{\}, sourcePath,[\s\S]*references: importedSnapshot\?\.references,[\s\S]*referenceId: selectedReferenceId,/,
+  'importReferencePdf must delegate imported PDF asset target lookup to Rust',
 )
 assert.match(
   actionSource('createCollection'),
@@ -1072,7 +1034,7 @@ assert.doesNotMatch(
 )
 assert.doesNotMatch(
   actionSource('importReferencePdf'),
-  /String\(importMutation\?\.result\?\.selectedReferenceId \|\| ''\)|Array\.isArray\(importedSnapshot\?\.references\)|resolveReferenceById\(importedSnapshot\.references|resolveReferenceById\(this\.references, importTarget\.selectedReferenceId\)/,
+  /buildReferencePdfImportTargetState|buildReferencePdfImportResultState|String\(importMutation\?\.result\?\.selectedReferenceId \|\| ''\)|Array\.isArray\(importedSnapshot\?\.references\)|resolveReferenceById\(importedSnapshot\.references|resolveReferenceById\(this\.references,|importTarget\./,
   'importReferencePdf must not inline PDF import target/result state mapping',
 )
 assert.doesNotMatch(
@@ -1184,8 +1146,7 @@ console.log(JSON.stringify({
     removeReferenceTargetStateDerived: true,
     rustRemoveReferenceOutcomeConsumed: true,
     rustUpdateReferenceOutcomeConsumed: true,
-    pdfImportTargetStateDerived: true,
-    pdfImportResultStateDerived: true,
+    rustPdfImportTargetAndResult: true,
     rustCollectionMutationOutcomeConsumed: true,
     rustRemoveCollectionOutcomeConsumed: true,
     rustDocumentIdsMutationOutcomeConsumed: true,

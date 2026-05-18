@@ -90,6 +90,13 @@ try {
             changed: false,
             duplicate: true,
             selectedReferenceId: 'ref-1',
+            selectedReference: {
+              id: 'ref-1',
+              title: 'Adaptive Control',
+              year: 2024,
+              citationKey: 'ada2024',
+            },
+            preferredSelectedReferenceId: 'ref-1',
             attachedPdf: false,
           },
         }
@@ -99,6 +106,14 @@ try {
         assert.equal(action.referenceId, 'ref-1')
         assert.equal(action.updates.id, 'ref-1')
         assert.equal(action.updates.pdfPath, '/tmp/config/references/pdfs/ada2024.pdf')
+        assert.deepEqual(args.params.snapshot.references, [
+          {
+            id: 'ref-1',
+            title: 'Adaptive Control',
+            year: 2024,
+            citationKey: 'ada2024',
+          },
+        ])
         return {
           snapshot: {
             ...args.params.snapshot,
@@ -116,15 +131,36 @@ try {
           result: {
             changed: true,
             selectedReferenceId: 'ref-1',
+            selectedReference: {
+              id: 'ref-1',
+              title: 'Adaptive Control',
+              year: 2024,
+              citationKey: 'ada2024',
+              pdfPath: '/tmp/config/references/pdfs/ada2024.pdf',
+              hasPdf: true,
+            },
+            preferredSelectedReferenceId: 'ref-1',
           },
         }
       }
     }
 
     if (cmd === 'references_asset_store') {
-      assert.equal(args?.params?.reference?.id, 'ref-1')
+      assert.deepEqual(args?.params?.reference, {})
+      assert.equal(args?.params?.referenceId, 'ref-1')
+      assert.deepEqual(args?.params?.references, [
+        {
+          id: 'ref-1',
+          title: 'Adaptive Control',
+          year: 2024,
+          citationKey: 'ada2024',
+        },
+      ])
       return {
-        ...args.params.reference,
+        id: 'ref-1',
+        title: 'Adaptive Control',
+        year: 2024,
+        citationKey: 'ada2024',
         pdfPath: '/tmp/config/references/pdfs/ada2024.pdf',
         hasPdf: true,
       }
@@ -186,7 +222,7 @@ try {
         .filter((call) => call.cmd === 'references_mutation_apply')
         .map((call) => call.args?.params?.action?.type),
       assetStoreReferenceId: calls.find((call) => call.cmd === 'references_asset_store')
-        ?.args?.params?.reference?.id,
+        ?.args?.params?.referenceId,
     },
   }, null, 2))
 } finally {
