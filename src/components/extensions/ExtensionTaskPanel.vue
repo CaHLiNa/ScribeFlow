@@ -89,14 +89,16 @@
             @run-action="openResultEntry"
           />
         </div>
-        <div class="extension-task-actions">
+        <div v-if="row.presentation.quickActions.length > 0" class="extension-task-actions">
           <UiButton
-            v-if="row.task.state === 'running' || row.task.state === 'queued'"
-            variant="secondary"
+            v-for="action in row.presentation.quickActions"
+            :key="action.id"
+            :variant="action.variant"
             size="sm"
-            @click="extensionsStore.cancelTask(row.task.id)"
+            :loading="quickActionBusyKey(row, action) === resultActionBusyKey"
+            @click="runQuickAction(row, action)"
           >
-            {{ t('Cancel') }}
+            {{ t(action.labelKey) }}
           </UiButton>
         </div>
       </div>
@@ -152,12 +154,51 @@ function selectResultEntry(row = {}, entry = {}) {
   }
 }
 
+function resultEntryById(row = {}, entryId = '') {
+  const id = String(entryId || '')
+  if (!id) return null
+  return (row?.presentation?.results?.entries || []).find((entry) => String(entry?.id || '') === id) || null
+}
+
 function resultActionKey(entry = {}) {
   return [
     String(entry?.id || '').trim(),
     String(entry?.action || '').trim().toLowerCase(),
     String(entry?.path || '').trim(),
   ].join('::')
+}
+
+function quickActionBusyKey(row = {}, action = {}) {
+  if (action?.kind === 'cancel') {
+    return ['task-action', row.id, action.id].join('::')
+  }
+  const entry = resultEntryById(row, action?.entryId)
+  return entry ? resultActionKey(entry) : ''
+}
+
+async function runQuickAction(row = {}, action = {}) {
+  if (action?.kind === 'cancel') {
+    const busyKey = quickActionBusyKey(row, action)
+    resultActionBusyKey.value = busyKey
+    try {
+      await extensionsStore.cancelTask(row.task.id)
+    } finally {
+      if (resultActionBusyKey.value === busyKey) {
+        resultActionBusyKey.value = ''
+      }
+    }
+    return
+  }
+
+  const entry = resultEntryById(row, action?.entryId)
+  if (!entry) return
+  if (action?.kind === 'select-entry') {
+    selectResultEntry(row, entry)
+    return
+  }
+  if (action?.kind === 'run-entry') {
+    await openResultEntry(entry)
+  }
 }
 
 async function openResultEntry(entry = {}) {

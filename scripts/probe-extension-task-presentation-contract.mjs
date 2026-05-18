@@ -114,6 +114,19 @@ assert.deepEqual(
     ['actions', ['task-failed:rerun']],
   ],
 )
+assert.deepEqual(
+  failed.quickActions.map((action) => [action.id, action.labelKey, action.kind, action.variant, action.entryId]),
+  [
+    ['open-log', 'Task Log', 'select-entry', 'secondary', 'task-failed:log'],
+    ['rerun', 'Run Again', 'run-entry', 'primary', 'task-failed:rerun'],
+  ],
+)
+assert.deepEqual(
+  running.quickActions.map((action) => [action.id, action.labelKey, action.kind, action.variant]),
+  [
+    ['cancel', 'Cancel', 'cancel', 'secondary'],
+  ],
+)
 
 console.log(JSON.stringify({
   ok: true,
@@ -125,5 +138,6 @@ console.log(JSON.stringify({
     progressWidth: presentation.progress.visual.width,
     runningTone: running.status.toneClass,
     failedGroups: failed.results.groups.map((group) => `${group.id}:${group.count}`),
+    failedQuickActions: failed.quickActions.map((action) => action.id),
   },
 }, null, 2))

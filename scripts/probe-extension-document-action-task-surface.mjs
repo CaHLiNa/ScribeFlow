@@ -145,6 +145,34 @@ try {
       },
     ],
   })
+  extensions.upsertTask({
+    id: 'task-failed',
+    extensionId: 'retain-pdf',
+    workspaceRoot: '/tmp/workspace',
+    commandId: 'retainPdf.translateCurrent',
+    state: 'failed',
+    createdAt: '2026-05-12T09:00:00Z',
+    startedAt: '2026-05-12T09:00:05Z',
+    finishedAt: '2026-05-12T09:01:00Z',
+    progress: {
+      label: 'Failed',
+      current: 1,
+      total: 1,
+    },
+    target: {
+      kind: 'pdf',
+      path: '/tmp/workspace/paper.pdf',
+    },
+    outputs: [
+      {
+        id: 'failed-summary',
+        type: 'inlineText',
+        title: 'Failed Summary',
+        text: 'Worker failed',
+      },
+    ],
+    logPath: '/tmp/workspace/retain-pdf.log',
+  })
 
   const app = createSSRApp({
     render() {
@@ -173,6 +201,9 @@ try {
   assert.match(html, /Previews/)
   assert.match(html, /Actions/)
   assert.match(html, /Translated Text/)
+  assert.match(html, /Failed Summary/)
+  assert.match(html, /Task Log/)
+  assert.match(html, /Run Again/)
   assert.match(html, /Cancel/)
 
   console.log(JSON.stringify({
@@ -188,6 +219,7 @@ try {
       hasTaskProgressBar: html.includes('role="progressbar"') && html.includes('aria-valuenow="1"'),
       hasGroupedTaskResults: html.includes('Previews') && html.includes('Actions'),
       hasResultEntry: html.includes('Translated Text'),
+      hasTerminalQuickActions: html.includes('Task Log') && html.includes('Run Again'),
     },
   }, null, 2))
 } finally {

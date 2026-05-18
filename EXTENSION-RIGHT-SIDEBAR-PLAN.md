@@ -304,7 +304,7 @@ Acceptance:
 
 - a non-trivial plugin can show more than a plain tree
 - plugin right-sidebar surfaces can host status and preview-oriented UX without core plugin special cases
-- task rows render semantic progressbar, result summary, grouped preview/action entry points, and terminal task log/rerun recovery affordances inside the right sidebar
+- task rows render semantic progressbar, result summary, grouped preview/action entry points, and direct terminal task log/rerun recovery affordances inside the right sidebar
 
 ### Phase 5: Prepare For PDF Translation Plugin Integration
 

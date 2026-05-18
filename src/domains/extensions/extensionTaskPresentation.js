@@ -173,16 +173,72 @@ export function taskFactsPresentation(task = {}) {
   return facts
 }
 
+export function taskQuickActionsPresentation(task = {}, results = taskResultSummaryPresentation(task)) {
+  const state = normalizeState(task?.state)
+  if (state === 'running' || state === 'queued') {
+    return [
+      {
+        id: 'cancel',
+        labelKey: 'Cancel',
+        kind: 'cancel',
+        variant: 'secondary',
+      },
+    ]
+  }
+
+  if (state !== 'failed' && state !== 'cancelled' && state !== 'canceled') {
+    return []
+  }
+
+  const actions = []
+  const entries = Array.isArray(results?.entries) ? results.entries : []
+  const logEntry = entries.find((entry) =>
+    normalizeText(entry?.previewMode || entry?.preview_mode) &&
+    [
+      entry?.id,
+      entry?.label,
+      entry?.previewTitle,
+      entry?.preview_title,
+    ].some((value) => normalizeText(value).toLowerCase().includes('log'))
+  )
+  if (logEntry) {
+    actions.push({
+      id: 'open-log',
+      labelKey: 'Task Log',
+      kind: 'select-entry',
+      variant: 'secondary',
+      entryId: normalizeText(logEntry.id),
+    })
+  }
+
+  const rerunEntry = entries.find((entry) =>
+    normalizeText(entry?.action).toLowerCase() === 'execute-command'
+  )
+  if (rerunEntry) {
+    actions.push({
+      id: 'rerun',
+      labelKey: 'Run Again',
+      kind: 'run-entry',
+      variant: 'primary',
+      entryId: normalizeText(rerunEntry.id),
+    })
+  }
+
+  return actions
+}
+
 export function buildExtensionTaskPresentation(task = {}) {
   const status = taskStatusPresentation(task)
   const progress = taskProgressPresentation(task)
   const results = taskResultSummaryPresentation(task)
+  const quickActions = taskQuickActionsPresentation(task, results)
   return {
     id: normalizeText(task?.id),
     titleKey: taskTitleKey(task),
     status,
     progress,
     results,
+    quickActions,
     facts: taskFactsPresentation(task),
   }
 }
