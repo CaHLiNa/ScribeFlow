@@ -7,6 +7,7 @@ import {
   buildReferenceEmptyImportResult,
   buildReferenceImportInputState,
   buildReferenceImportMutationResultState,
+  buildReferencePdfImportTargetState,
   buildReferenceZoteroSyncResultState,
   resolveReferenceCitationStyleId,
   resolveReferenceWorkspaceCitationStyles,
@@ -172,6 +173,37 @@ assert.deepEqual(buildReferenceImportMutationResultState(references, {
   selectedReferenceId: 'missing',
   selectedReference: null,
   reusedExisting: false,
+})
+assert.deepEqual(buildReferencePdfImportTargetState({
+  result: {
+    selectedReferenceId: ' ref-2 ',
+  },
+  snapshot: {
+    references,
+  },
+}, {
+  references: [references[0]],
+}), {
+  canImport: true,
+  selectedReferenceId: 'ref-2',
+  importedSnapshot: {
+    references,
+  },
+  targetReference: references[1],
+})
+assert.deepEqual(buildReferencePdfImportTargetState({
+  result: {
+    selectedReferenceId: 'missing',
+  },
+}, {
+  references,
+}), {
+  canImport: false,
+  selectedReferenceId: 'missing',
+  importedSnapshot: {
+    references,
+  },
+  targetReference: null,
 })
 assert.equal(resolveReferenceCitationStyleId(' ieee ', true), 'ieee')
 assert.equal(resolveReferenceCitationStyleId(' ieee ', false), 'apa')
@@ -916,6 +948,11 @@ assert.match(
 )
 assert.match(
   storeSource,
+  /buildReferencePdfImportTargetState/,
+  'references store must delegate PDF import target state mapping',
+)
+assert.match(
+  storeSource,
   /buildReferenceZoteroSyncResultState/,
   'references store must delegate Zotero sync result state mapping',
 )
@@ -941,8 +978,13 @@ assert.match(
 )
 assert.doesNotMatch(
   storeSource,
-  /function normalizeCollectionMembershipValue|function normalizeTagKey|function resolveCollection|function resolveDocumentReferenceSelections|function buildDefaultResolvedQueryState|version:\s*2|citationStyle:\s*'apa'|documentReferenceSelections:\s*\{\}|Array\.isArray\(normalized\.(?:collections|tags|references)\)|Array\.isArray\(importedReferences\)|Array\.isArray\(referenceStyles\)|Array\.isArray\(styles\)|String\(normalized\.citationStyle \|\| 'apa'\)|const selectedIds = new Set\(this\.getDocumentReferenceIds|const normalizedQuery = String\(query \|\| ''\)\.trim\(\)\.toLowerCase\(\)|haystack\.includes\(normalizedQuery\)|referenceIds\s*\.map\(\(referenceId\) => this\.references\.find|this\.references\.some\(\(reference\) => reference\.id|this\.(?:librarySections|sourceSections)\.some\(\(section\) => section\.key|resolveReferenceSectionKey|\[\s*'year-desc'[\s\S]*'author-desc'[\s\S]*\]\.includes\(value\)|const query = this\.resolvedQueryState\?\.query|query\.selectedReferenceId|query\.selectedSectionKey|const normalized = normalizeTagKey\(tagKey\)|this\.sortKey = normalizeReferenceSortKey\(value\)|Number\(mutation\?\.result\?\.importedCount \|\| 0\)|Number\(result\?\.imported \|\| 0\)|Number\(result\?\.linked \|\| 0\)|Number\(result\?\.updated \|\| 0\)|reusedExisting: mutation\?\.result\?\.reusedExisting === true/,
+  /function normalizeCollectionMembershipValue|function normalizeTagKey|function resolveCollection|function resolveDocumentReferenceSelections|function buildDefaultResolvedQueryState|version:\s*2|citationStyle:\s*'apa'|documentReferenceSelections:\s*\{\}|Array\.isArray\(normalized\.(?:collections|tags|references)\)|Array\.isArray\(importedReferences\)|Array\.isArray\(referenceStyles\)|Array\.isArray\(styles\)|Array\.isArray\(importedSnapshot\?\.references\)|String\(normalized\.citationStyle \|\| 'apa'\)|const selectedIds = new Set\(this\.getDocumentReferenceIds|const normalizedQuery = String\(query \|\| ''\)\.trim\(\)\.toLowerCase\(\)|haystack\.includes\(normalizedQuery\)|referenceIds\s*\.map\(\(referenceId\) => this\.references\.find|this\.references\.some\(\(reference\) => reference\.id|this\.(?:librarySections|sourceSections)\.some\(\(section\) => section\.key|resolveReferenceSectionKey|\[\s*'year-desc'[\s\S]*'author-desc'[\s\S]*\]\.includes\(value\)|const query = this\.resolvedQueryState\?\.query|query\.selectedReferenceId|query\.selectedSectionKey|const normalized = normalizeTagKey\(tagKey\)|this\.sortKey = normalizeReferenceSortKey\(value\)|Number\(mutation\?\.result\?\.importedCount \|\| 0\)|Number\(result\?\.imported \|\| 0\)|Number\(result\?\.linked \|\| 0\)|Number\(result\?\.updated \|\| 0\)|reusedExisting: mutation\?\.result\?\.reusedExisting === true/,
   'references store must not redefine deterministic state helpers inline',
+)
+assert.doesNotMatch(
+  actionSource('importReferencePdf'),
+  /String\(importMutation\?\.result\?\.selectedReferenceId \|\| ''\)|Array\.isArray\(importedSnapshot\?\.references\)|resolveReferenceById\(importedSnapshot\.references/,
+  'importReferencePdf must not inline PDF import target state mapping',
 )
 assert.doesNotMatch(
   actionSource('syncZoteroNow'),
@@ -1006,6 +1048,7 @@ console.log(JSON.stringify({
     referenceSearchDerived: true,
     exportSelectionDerived: true,
     importResultDerived: true,
+    pdfImportTargetStateDerived: true,
     citationStyleStateDerived: true,
     zoteroSyncResultStateDerived: true,
     defaultQueryStateDerived: true,

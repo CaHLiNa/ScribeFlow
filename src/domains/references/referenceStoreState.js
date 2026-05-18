@@ -137,6 +137,21 @@ export function buildReferenceImportMutationResultState(references = [], mutatio
   }
 }
 
+export function buildReferencePdfImportTargetState(mutation = {}, fallbackSnapshot = {}) {
+  const selectedReferenceId = String(mutation?.result?.selectedReferenceId || '').trim()
+  const importedSnapshot = mutation?.snapshot || fallbackSnapshot || {}
+  const targetReference = Array.isArray(importedSnapshot?.references)
+    ? resolveReferenceById(importedSnapshot.references, selectedReferenceId)
+    : null
+
+  return {
+    canImport: Boolean(selectedReferenceId && targetReference),
+    selectedReferenceId,
+    importedSnapshot,
+    targetReference,
+  }
+}
+
 export function buildReferenceZoteroSyncResultState(result = {}, options = {}) {
   const counts = {
     imported: Number(result?.imported || 0),

@@ -77,8 +77,13 @@ assert.match(
 )
 assert.match(
   importPdfSource,
-  /fallbackSnapshot: importedSnapshot/,
+  /fallbackSnapshot: importTarget\.importedSnapshot/,
   'importReferencePdf must preserve imported snapshot fallback for the asset update mutation',
+)
+assert.match(
+  importPdfSource,
+  /snapshot: importTarget\.importedSnapshot/,
+  'importReferencePdf must use the imported snapshot for the asset update mutation',
 )
 
 const persistSnapshotSource = extractActionSource(storeSource, 'persistLibrarySnapshot')

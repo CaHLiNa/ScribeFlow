@@ -61,6 +61,7 @@ import {
   buildReferenceEmptyImportResult,
   buildReferenceImportInputState,
   buildReferenceImportMutationResultState,
+  buildReferencePdfImportTargetState,
   buildReferenceZoteroSyncResultState,
   resolveReferenceCitationStyleId,
   resolveReferenceWorkspaceCitationStyles,
@@ -742,31 +743,32 @@ export const useReferencesStore = defineStore('references', {
           },
         })
 
-        const selectedReferenceId = String(importMutation?.result?.selectedReferenceId || '')
-        const importedSnapshot = importMutation?.snapshot || this.buildLibrarySnapshotPayload()
-        const targetReference = Array.isArray(importedSnapshot?.references)
-          ? resolveReferenceById(importedSnapshot.references, selectedReferenceId)
-          : null
-        if (!selectedReferenceId || !targetReference) return null
+        const importTarget = buildReferencePdfImportTargetState(
+          importMutation,
+          this.buildLibrarySnapshotPayload()
+        )
+        if (!importTarget.canImport) return null
 
-        const hydratedReference = await storeReferencePdf(projectRoot, targetReference, sourcePath)
+        const hydratedReference = await storeReferencePdf(
+          projectRoot,
+          importTarget.targetReference,
+          sourcePath
+        )
         const assetMutation = await applyReferenceMutation({
           globalConfigDir: projectRoot,
-          snapshot: importedSnapshot,
+          snapshot: importTarget.importedSnapshot,
           action: {
             type: 'updateReference',
-            referenceId: selectedReferenceId,
+            referenceId: importTarget.selectedReferenceId,
             updates: hydratedReference,
           },
         })
 
         await commitReferenceMutationSnapshot(this, projectRoot, assetMutation, {
-          fallbackSnapshot: importedSnapshot,
-          preferredSelectedReferenceId: selectedReferenceId,
+          fallbackSnapshot: importTarget.importedSnapshot,
+          preferredSelectedReferenceId: importTarget.selectedReferenceId,
         })
-        return selectedReferenceId
-          ? resolveReferenceById(this.references, selectedReferenceId)
-          : null
+        return resolveReferenceById(this.references, importTarget.selectedReferenceId)
       } finally {
         this.importInFlight = false
       }
