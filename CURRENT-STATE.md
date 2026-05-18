@@ -26,6 +26,7 @@ Current desktop paths:
 - enforce one activitybar view container per plugin so each normal plugin maps to one document right sidebar tab/container
 - route PDF actions, command invocations, capability invocations and view reveal requests into the matching plugin-owned right sidebar tab by default
 - keep document-action plugin tasks visible inside that same right sidebar tab so running progress, cancellation and result entries stay reachable after an action starts
+- split the right-sidebar task surface into a parent timeline/orchestration shell plus row and truncated-history footer presentation components with scoped style ownership guarded by a focused probe
 - expose thicker runtime APIs for plugins through `context.workspace`, `context.documents`, `context.invocation`, `context.references`, `context.pdf` and `context.process`
 - allow process-driven plugins to `spawn` local workers and explicitly `wait` for completion through the Rust-backed host bridge
 - support `context.window.showQuickPick(..., { canPickMany: true })` end-to-end so plugin quick-pick flows can return multi-select arrays instead of only single values
@@ -171,6 +172,7 @@ Current plugin lifecycle contract:
 - document-action plugin panels now share that same right-sidebar header contract too: PDF action panels render the plugin container title, active target summary, and host runtime diagnostic surface before the action/task body instead of using a one-off button-only panel shape
 - extension task presentation is now shared too: right-sidebar task rows derive title, status tone, row tone, group counts, group tone, timeline density copy, detail collapse defaults, progress copy, progressbar metadata, target facts, result counts, artifact counts, preview/action result groups, and quick action affordances from pure presentation helpers instead of duplicating running/recent UI branches
 - extension task timelines now expose visible/hidden recent counts as a domain contract: document-plugin task panels render the newest recent tasks with a compact older-task footer when history is truncated, let users expand or collapse older task history in place, and keep action panels plus task rows on the same workspace-scoped timeline instead of drifting across separate recent-task slices
+- extension task surface ownership is now split at the Vue component boundary: `ExtensionTaskPanel.vue` keeps timeline/store orchestration and expansion/selection state, `ExtensionTaskRow.vue` owns row/detail/progress/result/action DOM and CSS, and `ExtensionTaskHistoryFooter.vue` owns truncated-history footer DOM and CSS
 - extension result preview presentation is now shared too: result preview surfaces derive preview mode, toolbar actions, blocked-action copy, busy keys and action-only empty states from one pure presentation helper instead of keeping action branching inside the Vue preview component
 - settings capability cards now consume shared status pieces too: blocked capability badges render through the shared blocked-status chip, blocked capability run actions render through the shared blocked-action button, and ready/unavailable capability states now render through the shared status-pill component instead of keeping a local fifth status shell
 - failed extension tasks now keep structured results as a first-class runtime contract: if a command/capability ends with `taskState: failed`, persisted task records still retain the failure artifact/output snapshot and the failure-specific progress label instead of collapsing to error text only
@@ -268,6 +270,8 @@ The extension gate includes:
 - `npm run probe:extension-capability-orchestration-contract`
 - `npm run probe:extension-capability-sidebar-routing`
 - `npm run probe:extension-sidebar-routing`
+- `npm run probe:extension-document-action-task-surface`
+- `npm run probe:extension-task-surface-style-ownership`
 - `npm run probe:extension-text-preview-fallback`
 - `npm run probe:extension-artifact-preview-entries`
 - `npm run probe:extension-task-timeline`
