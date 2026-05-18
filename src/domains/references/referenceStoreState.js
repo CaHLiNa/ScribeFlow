@@ -138,16 +138,6 @@ export function buildReferenceImportInputState(importedReferences = []) {
   }
 }
 
-export function buildReferenceMetadataRefreshTargetState(references = [], referenceId = '') {
-  const normalizedReferenceId = String(referenceId || '').trim()
-  const reference = resolveReferenceById(references, normalizedReferenceId)
-  return {
-    canRefresh: Boolean(reference),
-    referenceId: normalizedReferenceId,
-    reference,
-  }
-}
-
 export function buildReferenceRemoveTargetState(references = [], referenceId = '') {
   const normalizedReferenceId = String(referenceId || '').trim()
   const targetReference = resolveReferenceById(references, normalizedReferenceId)

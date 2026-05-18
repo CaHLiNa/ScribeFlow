@@ -77,6 +77,10 @@ pub struct ReferenceFromCslParams {
 pub struct ReferenceMetadataRefreshParams {
     #[serde(default)]
     pub reference: Value,
+    #[serde(default)]
+    pub references: Vec<Value>,
+    #[serde(default, alias = "reference_id")]
+    pub reference_id: String,
 }
 
 fn string_payload_field(params: &Value, key: &str) -> String {
@@ -262,6 +266,25 @@ fn reference_record_from_csl_with_overrides(csl: &Value, overrides: &Value) -> V
 
 fn refreshed_reference_from_csl(reference: &Value, csl: &Value) -> Value {
     reference_record_from_csl_with_overrides(csl, &reference_metadata_refresh_overrides(reference))
+}
+
+fn resolve_reference_metadata_refresh_target(
+    params: &ReferenceMetadataRefreshParams,
+) -> Option<Value> {
+    let normalized_reference_id = params.reference_id.trim();
+    if !normalized_reference_id.is_empty() {
+        return params
+            .references
+            .iter()
+            .find(|reference| trim_string(reference.get("id")).as_str() == normalized_reference_id)
+            .map(normalize_reference_record);
+    }
+
+    if !params.reference.is_object() {
+        return None;
+    }
+
+    Some(normalize_reference_record(&params.reference))
 }
 
 fn crossref_to_csl(work: &Value) -> Value {
@@ -790,7 +813,9 @@ pub async fn references_record_from_csl(params: ReferenceFromCslParams) -> Resul
 pub async fn references_refresh_metadata(
     params: ReferenceMetadataRefreshParams,
 ) -> Result<Value, String> {
-    let reference = normalize_reference_record(&params.reference);
+    let Some(reference) = resolve_reference_metadata_refresh_target(&params) else {
+        return Ok(Value::Null);
+    };
     let identifier = normalize_doi(&trim_string(reference.get("identifier")));
 
     if looks_like_doi(&identifier) {
@@ -816,9 +841,10 @@ mod tests {
     use super::{
         citation_style_scan_params_from_payload, reference_bib_file_params_from_payload,
         reference_metadata_refresh_overrides, references_record_from_csl,
-        references_scan_workspace_styles_scoped, references_write_bib_file_scoped,
-        refreshed_reference_from_csl, CitationStyleScanParams, ReferenceBibFileParams,
-        ReferenceFromCslParams,
+        references_refresh_metadata, references_scan_workspace_styles_scoped,
+        references_write_bib_file_scoped, refreshed_reference_from_csl,
+        resolve_reference_metadata_refresh_target, CitationStyleScanParams, ReferenceBibFileParams,
+        ReferenceFromCslParams, ReferenceMetadataRefreshParams,
     };
     use crate::security::{set_allowed_roots_internal, WorkspaceScopeState};
     use serde_json::json;
@@ -900,6 +926,82 @@ mod tests {
         assert_eq!(refreshed["_importMethod"].as_str(), Some("zotero"));
         assert_eq!(refreshed["_pushedByApp"].as_bool(), Some(true));
         assert_eq!(refreshed["_appPushPending"].as_bool(), Some(false));
+    }
+
+    #[test]
+    fn metadata_refresh_resolves_reference_id_target_in_rust() {
+        let target = resolve_reference_metadata_refresh_target(&ReferenceMetadataRefreshParams {
+            reference: json!({
+                "id": "fallback",
+                "title": "Fallback",
+            }),
+            references: vec![
+                json!({
+                    "id": "ref-1",
+                    "title": "Alpha",
+                }),
+                json!({
+                    "id": "ref-2",
+                    "title": "Target",
+                    "authors": ["Ada Lovelace"],
+                    "rating": 5,
+                }),
+            ],
+            reference_id: " ref-2 ".to_string(),
+        })
+        .expect("target should resolve from references");
+
+        assert_eq!(target["id"].as_str(), Some("ref-2"));
+        assert_eq!(target["title"].as_str(), Some("Target"));
+        assert_eq!(target["authorLine"].as_str(), Some("Ada Lovelace"));
+        assert!(target.get("rating").is_none());
+    }
+
+    #[test]
+    fn metadata_refresh_returns_none_for_missing_reference_id_target() {
+        let target = resolve_reference_metadata_refresh_target(&ReferenceMetadataRefreshParams {
+            reference: json!({
+                "id": "fallback",
+                "title": "Fallback",
+            }),
+            references: vec![json!({
+                "id": "ref-1",
+                "title": "Alpha",
+            })],
+            reference_id: "missing".to_string(),
+        });
+
+        assert!(target.is_none());
+    }
+
+    #[test]
+    fn metadata_refresh_keeps_legacy_direct_reference_payload() {
+        let target = resolve_reference_metadata_refresh_target(&ReferenceMetadataRefreshParams {
+            reference: json!({
+                "id": "direct",
+                "title": "Direct",
+                "authors": ["Grace Hopper"],
+            }),
+            references: Vec::new(),
+            reference_id: String::new(),
+        })
+        .expect("direct payload should remain supported");
+
+        assert_eq!(target["id"].as_str(), Some("direct"));
+        assert_eq!(target["authorLine"].as_str(), Some("Grace Hopper"));
+    }
+
+    #[tokio::test]
+    async fn metadata_refresh_missing_reference_id_returns_null_without_lookup() {
+        let result = references_refresh_metadata(ReferenceMetadataRefreshParams {
+            reference: json!({ "id": "fallback", "title": "Fallback" }),
+            references: vec![json!({ "id": "ref-1", "title": "Alpha" })],
+            reference_id: "missing".to_string(),
+        })
+        .await
+        .expect("missing target should return null");
+
+        assert!(result.is_null());
     }
 
     #[test]

@@ -84,10 +84,10 @@ Zotero, search, or snapshot policy and should move back to Rust contracts:
 | Area | Helpers | Rust target |
 | --- | --- | --- |
 | Canonical key normalization | `normalizeCollectionMembershipValue`, `normalizeTagKey`, `normalizeReferenceSortKey`, `resolveCollection`, `resolveTag`, `resolveReferenceSectionKey` | `references_query.rs` and snapshot/query DTOs should own canonical keys and valid filter state. |
-| Reference lookup/selection targets | `resolveReferenceByKey`, `resolveReferenceById`, `hasReferenceById`, `resolveReferenceSelectionId` | Rust query commands should validate target ids and return normalized target state or clear errors. Citation-format target lookup has moved to `references_citation.rs`; export target resolution has moved to `references_import.rs`. |
+| Reference lookup/selection targets | `resolveReferenceByKey`, `resolveReferenceById`, `hasReferenceById`, `resolveReferenceSelectionId` | Rust query commands should validate target ids and return normalized target state or clear errors. Citation-format target lookup has moved to `references_citation.rs`; export target resolution has moved to `references_import.rs`; metadata refresh target lookup has moved to `references_runtime.rs`. |
 | Import input preflight | `buildReferenceEmptyImportResult`, `buildReferenceImportInputState` | Rust should eventually expose import-intent/preflight defaults if empty-state semantics stop being purely UI-local. |
 | Mutation target preflight | `buildReferenceRemoveTargetState` | Rust mutation/result APIs should eventually expose enough target state for UI/Zotero side-effect gating without JS performing canonical lookup. |
-| PDF import and assets | `buildReferenceMetadataRefreshTargetState` | Rust should own target validation, PDF import outcome, asset attachment/rename, and post-mutation selected reference. PDF asset attach/rename target resolution has moved to `references_backend.rs`, and PDF import target/result shaping has moved to `references_mutation.rs` plus Rust asset target resolution. |
+| PDF import and assets | None for metadata refresh, PDF asset attach/rename, and PDF import target/result shaping | Rust now owns metadata refresh target lookup, PDF asset attach/rename target resolution, PDF import target/result shaping, and post-mutation selected reference for those flows. |
 | Zotero sync result | None for skipped/success result classification | Rust now owns sync counts, skipped state, selected id, last-sync timestamp and skipped/success result classification. JS still owns local error presentation classification for thrown failures. |
 | Document-reference selection | `resolveDocumentReferenceSelections`, `resolveDocumentReferenceIds`, `resolveDocumentReferences`, `resolveDocumentReferenceByKey`, `isReferenceSelectedForDocument`, `resolveAvailableDocumentReferences`, `buildDocumentReferenceIdsMutationState`, `buildAddDocumentReferenceMutationState`, `buildRemoveDocumentReferenceMutationState` | Rust query/mutation commands should own TeX path normalization, selected id lists, dedupe and availability. |
 | Search and filtering | `searchReferences` | Rust query should own search matching once search participates in reference truth, citation insertion, or workspace-scale behavior. |
@@ -179,10 +179,10 @@ For each migration slice:
 
 - `referenceStoreState.js` still contains too many canonical target, query and
   selection rules for the Rust-first target.
-- Generic mutation result shaping, citation-format target lookup, export target
-  validation, PDF asset attach/rename target resolution, PDF import
-  target/result shaping and Zotero skipped/success result classification have
-  moved to Rust.
+- Generic mutation result shaping, citation-format target lookup, metadata
+  refresh target lookup, export target validation, PDF asset attach/rename
+  target resolution, PDF import target/result shaping and Zotero
+  skipped/success result classification have moved to Rust.
 - Query/search/document-reference presentation helpers are next because Rust
   already has `references_query.rs` and mutation support for the same canonical
   concepts.

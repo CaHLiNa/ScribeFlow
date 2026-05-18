@@ -6,7 +6,6 @@ import {
   buildDocumentReferenceIdsMutationState,
   buildReferenceEmptyImportResult,
   buildReferenceImportInputState,
-  buildReferenceMetadataRefreshTargetState,
   buildReferenceRemoveTargetState,
   resolveReferenceCitationStyleId,
   resolveReferenceWorkspaceCitationStyles,
@@ -152,21 +151,6 @@ assert.deepEqual(buildReferenceImportInputState('not-array'), {
   canImport: false,
   importedReferences: [],
   emptyResult: buildReferenceEmptyImportResult(),
-})
-assert.deepEqual(buildReferenceMetadataRefreshTargetState(references, ' ref-2 '), {
-  canRefresh: true,
-  referenceId: 'ref-2',
-  reference: references[1],
-})
-assert.deepEqual(buildReferenceMetadataRefreshTargetState(references, 'missing'), {
-  canRefresh: false,
-  referenceId: 'missing',
-  reference: null,
-})
-assert.deepEqual(buildReferenceMetadataRefreshTargetState(references, '  '), {
-  canRefresh: false,
-  referenceId: '',
-  reference: null,
 })
 assert.deepEqual(buildReferenceRemoveTargetState(references, ' ref-2 '), {
   canRemove: true,
@@ -867,10 +851,10 @@ assert.doesNotMatch(
   /buildReferenceImportMutationResultState|buildReferenceImportMutationCommitState|buildReferenceAddMutationResultState/,
   'referenceStoreState must not retain migrated import/add mutation result helpers',
 )
-assert.match(
-  storeSource,
+assert.doesNotMatch(
+  domainSource,
   /buildReferenceMetadataRefreshTargetState/,
-  'references store must delegate metadata refresh target state mapping',
+  'referenceStoreState must not retain migrated metadata refresh target helper',
 )
 assert.doesNotMatch(
   domainSource,
@@ -1015,8 +999,13 @@ assert.doesNotMatch(
 )
 assert.doesNotMatch(
   actionSource('refreshReferenceMetadata'),
-  /String\(referenceId \|\| ''\)\.trim\(\)|resolveReferenceById\(this\.references/,
+  /buildReferenceMetadataRefreshTargetState|String\(referenceId \|\| ''\)\.trim\(\)|resolveReferenceById\(this\.references|targetState\./,
   'refreshReferenceMetadata must not inline metadata refresh target state mapping',
+)
+assert.match(
+  actionSource('refreshReferenceMetadata'),
+  /refreshReferenceMetadataWithBackend\(\{[\s\S]*references: this\.references,[\s\S]*referenceId,/,
+  'refreshReferenceMetadata must pass references and referenceId to Rust for target resolution',
 )
 for (const actionName of ['attachReferencePdf', 'renameReferencePdfAsset']) {
   assert.doesNotMatch(

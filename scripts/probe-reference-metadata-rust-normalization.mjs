@@ -52,10 +52,23 @@ try {
   )
 
   const result = await refreshReferenceMetadata(false)
+  const targetResult = await refreshReferenceMetadata({
+    references: [{ id: 'ref-a', title: 'Alpha' }],
+    referenceId: ' ref-a ',
+  })
 
-  assert.deepEqual(calls.map((call) => call.cmd), ['references_refresh_metadata'])
+  assert.deepEqual(calls.map((call) => call.cmd), [
+    'references_refresh_metadata',
+    'references_refresh_metadata',
+  ])
   assert.deepEqual(calls[0].args.params, { reference: false })
+  assert.deepEqual(calls[1].args.params, {
+    reference: {},
+    references: [{ id: 'ref-a', title: 'Alpha' }],
+    referenceId: ' ref-a ',
+  })
   assert.strictEqual(result, refreshResult)
+  assert.strictEqual(targetResult, refreshResult)
 
   console.log('reference metadata rust normalization probe passed')
 } finally {

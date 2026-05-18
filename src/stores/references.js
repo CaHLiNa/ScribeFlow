@@ -60,7 +60,6 @@ import {
   buildDocumentReferenceIdsMutationState,
   buildReferenceEmptyImportResult,
   buildReferenceImportInputState,
-  buildReferenceMetadataRefreshTargetState,
   buildReferenceRemoveTargetState,
   resolveReferenceCitationStyleId,
   resolveReferenceWorkspaceCitationStyles,
@@ -627,14 +626,16 @@ export const useReferencesStore = defineStore('references', {
     },
 
     async refreshReferenceMetadata(projectRoot = '', referenceId = '') {
-      const targetState = buildReferenceMetadataRefreshTargetState(this.references, referenceId)
-      if (!targetState.canRefresh) return null
-
-      const refreshed = await refreshReferenceMetadataWithBackend(targetState.reference)
+      const refreshed = await refreshReferenceMetadataWithBackend({
+        references: this.references,
+        referenceId,
+      })
       if (!refreshed || typeof refreshed !== 'object') return null
+      const refreshedReferenceId = refreshed.id || ''
+      if (!refreshedReferenceId) return null
 
-      await this.updateReference(projectRoot, targetState.referenceId, refreshed, {
-        preferredSelectedReferenceId: targetState.referenceId,
+      await this.updateReference(projectRoot, refreshedReferenceId, refreshed, {
+        preferredSelectedReferenceId: refreshedReferenceId,
       })
       return refreshed
     },
