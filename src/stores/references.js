@@ -53,15 +53,18 @@ import {
 } from '../services/references/zoteroSync.js'
 import {
   REFERENCE_DOCK_DETAILS_PAGE,
-  REFERENCE_DOCK_PDF_PAGE,
 } from '../domains/references/referenceDockPages.js'
 import {
   buildAddDocumentReferenceMutationState,
   buildDefaultResolvedQueryState,
   buildDocumentReferenceIdsMutationState,
   buildRemoveDocumentReferenceMutationState,
+  buildReferenceDockPdfCloseState,
+  buildReferenceDockPdfOpenState,
+  buildReferenceDockPdfResetState,
+  buildReferenceDockPdfSnapshotState,
   buildReferenceCollectionSelectionState,
-  hasReferenceById,
+  isReferenceDockPdfSelected,
   isReferenceSelectedForDocument,
   resolveAvailableDocumentReferences,
   resolveCollection,
@@ -200,10 +203,7 @@ export const useReferencesStore = defineStore('references', {
     },
 
     selectedReferencePdfTabOpen(state) {
-      return (
-        state.referenceDockPdfOpen === true &&
-        String(state.referenceDockPdfReferenceId || '') === String(state.selectedReferenceId || '')
-      )
+      return isReferenceDockPdfSelected(state)
     },
 
     sortedLibrary() {
@@ -332,19 +332,17 @@ export const useReferencesStore = defineStore('references', {
       this.selectedSourceKey = selection.selectedSourceKey
       this.selectedReferenceId = selection.selectedReferenceId
       await this.syncResolvedQueryState()
-      if (
-        this.referenceDockPdfReferenceId &&
-        !hasReferenceById(this.references, this.referenceDockPdfReferenceId)
-      ) {
-        this.closeReferenceDockPdf()
-      } else {
+      const dockPdfState = buildReferenceDockPdfSnapshotState({
+        references: this.references,
+        selectedReferenceId: this.selectedReferenceId,
+        referenceDockPdfOpen: this.referenceDockPdfOpen,
+        referenceDockPdfReferenceId: this.referenceDockPdfReferenceId,
+        referenceDockActivePage: useWorkspaceStore().referenceDockActivePage,
+      })
+      this.referenceDockPdfOpen = dockPdfState.referenceDockPdfOpen
+      this.referenceDockPdfReferenceId = dockPdfState.referenceDockPdfReferenceId
+      if (dockPdfState.shouldFallbackToDetails) {
         const workspace = useWorkspaceStore()
-        if (
-          workspace.referenceDockActivePage !== REFERENCE_DOCK_PDF_PAGE ||
-          this.selectedReferencePdfTabOpen
-        ) {
-          return
-        }
         void workspace.setReferenceDockActivePage(REFERENCE_DOCK_DETAILS_PAGE)
       }
     },
@@ -555,24 +553,23 @@ export const useReferencesStore = defineStore('references', {
     },
 
     openReferenceDockPdf(referenceId = this.selectedReferenceId) {
-      const normalizedReferenceId = String(referenceId || '').trim()
-      if (!normalizedReferenceId) return false
-      this.referenceDockPdfOpen = true
-      this.referenceDockPdfReferenceId = normalizedReferenceId
+      const dockPdfState = buildReferenceDockPdfOpenState(referenceId)
+      if (!dockPdfState.canOpen) return false
+      this.referenceDockPdfOpen = dockPdfState.referenceDockPdfOpen
+      this.referenceDockPdfReferenceId = dockPdfState.referenceDockPdfReferenceId
       return true
     },
 
     closeReferenceDockPdf(referenceId = this.referenceDockPdfReferenceId) {
-      const normalizedReferenceId = String(referenceId || '').trim()
-      if (!normalizedReferenceId || normalizedReferenceId === this.referenceDockPdfReferenceId) {
-        this.referenceDockPdfOpen = false
-        this.referenceDockPdfReferenceId = ''
-      }
+      const dockPdfState = buildReferenceDockPdfCloseState(this.$state, referenceId)
+      this.referenceDockPdfOpen = dockPdfState.referenceDockPdfOpen
+      this.referenceDockPdfReferenceId = dockPdfState.referenceDockPdfReferenceId
     },
 
     resetReferenceDockTabs() {
-      this.referenceDockPdfOpen = false
-      this.referenceDockPdfReferenceId = ''
+      const dockPdfState = buildReferenceDockPdfResetState()
+      this.referenceDockPdfOpen = dockPdfState.referenceDockPdfOpen
+      this.referenceDockPdfReferenceId = dockPdfState.referenceDockPdfReferenceId
     },
 
     getByKey(referenceKey = '') {

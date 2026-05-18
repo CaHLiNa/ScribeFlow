@@ -1,3 +1,5 @@
+import { REFERENCE_DOCK_PDF_PAGE } from './referenceDockPages.js'
+
 export function normalizeCollectionMembershipValue(value = '') {
   return String(value || '').trim().toLowerCase()
 }
@@ -216,6 +218,66 @@ export function buildRemoveDocumentReferenceMutationState(
       currentIds.filter((id) => id !== normalizedReferenceId)
     ),
     referenceId: normalizedReferenceId,
+  }
+}
+
+export function buildReferenceDockPdfOpenState(referenceId = '') {
+  const normalizedReferenceId = String(referenceId || '').trim()
+  return {
+    canOpen: Boolean(normalizedReferenceId),
+    referenceDockPdfOpen: Boolean(normalizedReferenceId),
+    referenceDockPdfReferenceId: normalizedReferenceId,
+  }
+}
+
+export function buildReferenceDockPdfCloseState(state = {}, referenceId = '') {
+  const normalizedReferenceId = String(referenceId || '').trim()
+  const currentReferenceId = String(state.referenceDockPdfReferenceId || '')
+  if (normalizedReferenceId && normalizedReferenceId !== currentReferenceId) {
+    return {
+      changed: false,
+      referenceDockPdfOpen: state.referenceDockPdfOpen === true,
+      referenceDockPdfReferenceId: currentReferenceId,
+    }
+  }
+
+  return {
+    changed: currentReferenceId !== '' || state.referenceDockPdfOpen === true,
+    referenceDockPdfOpen: false,
+    referenceDockPdfReferenceId: '',
+  }
+}
+
+export function buildReferenceDockPdfResetState() {
+  return {
+    referenceDockPdfOpen: false,
+    referenceDockPdfReferenceId: '',
+  }
+}
+
+export function isReferenceDockPdfSelected(state = {}) {
+  return (
+    state.referenceDockPdfOpen === true &&
+    String(state.referenceDockPdfReferenceId || '') === String(state.selectedReferenceId || '')
+  )
+}
+
+export function buildReferenceDockPdfSnapshotState(state = {}) {
+  if (
+    state.referenceDockPdfReferenceId &&
+    !hasReferenceById(state.references, state.referenceDockPdfReferenceId)
+  ) {
+    return {
+      ...buildReferenceDockPdfResetState(),
+      shouldFallbackToDetails: false,
+    }
+  }
+
+  return {
+    referenceDockPdfOpen: state.referenceDockPdfOpen === true,
+    referenceDockPdfReferenceId: String(state.referenceDockPdfReferenceId || ''),
+    shouldFallbackToDetails: state.referenceDockActivePage === REFERENCE_DOCK_PDF_PAGE &&
+      !isReferenceDockPdfSelected(state),
   }
 }
 

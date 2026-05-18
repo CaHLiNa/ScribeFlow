@@ -5,6 +5,10 @@ import {
   buildDefaultResolvedQueryState,
   buildDocumentReferenceIdsMutationState,
   buildRemoveDocumentReferenceMutationState,
+  buildReferenceDockPdfCloseState,
+  buildReferenceDockPdfOpenState,
+  buildReferenceDockPdfResetState,
+  buildReferenceDockPdfSnapshotState,
   buildReferenceCollectionSelectionState,
   buildReferenceQuerySelectionState,
   buildReferenceSectionSelectionState,
@@ -13,6 +17,7 @@ import {
   buildReferenceSourceSelectionState,
   buildReferenceTagSelectionState,
   hasReferenceById,
+  isReferenceDockPdfSelected,
   isReferenceSelectedForDocument,
   normalizeCollectionMembershipValue,
   normalizeReferenceSortKey,
@@ -184,6 +189,75 @@ assert.equal(buildRemoveDocumentReferenceMutationState(
   'paper.tex',
   'missing',
 ).canMutate, false)
+assert.deepEqual(buildReferenceDockPdfOpenState(' ref-2 '), {
+  canOpen: true,
+  referenceDockPdfOpen: true,
+  referenceDockPdfReferenceId: 'ref-2',
+})
+assert.deepEqual(buildReferenceDockPdfOpenState('  '), {
+  canOpen: false,
+  referenceDockPdfOpen: false,
+  referenceDockPdfReferenceId: '',
+})
+assert.deepEqual(buildReferenceDockPdfCloseState({
+  referenceDockPdfOpen: true,
+  referenceDockPdfReferenceId: 'ref-2',
+}, 'other-ref'), {
+  changed: false,
+  referenceDockPdfOpen: true,
+  referenceDockPdfReferenceId: 'ref-2',
+})
+assert.deepEqual(buildReferenceDockPdfCloseState({
+  referenceDockPdfOpen: true,
+  referenceDockPdfReferenceId: 'ref-2',
+}, ' ref-2 '), {
+  changed: true,
+  referenceDockPdfOpen: false,
+  referenceDockPdfReferenceId: '',
+})
+assert.deepEqual(buildReferenceDockPdfResetState(), {
+  referenceDockPdfOpen: false,
+  referenceDockPdfReferenceId: '',
+})
+assert.equal(isReferenceDockPdfSelected({
+  referenceDockPdfOpen: true,
+  referenceDockPdfReferenceId: 'ref-2',
+  selectedReferenceId: 'ref-2',
+}), true)
+assert.equal(isReferenceDockPdfSelected({
+  referenceDockPdfOpen: true,
+  referenceDockPdfReferenceId: 'ref-2',
+  selectedReferenceId: 'ref-1',
+}), false)
+assert.deepEqual(buildReferenceDockPdfSnapshotState({
+  references,
+  referenceDockPdfOpen: true,
+  referenceDockPdfReferenceId: 'missing',
+  selectedReferenceId: 'ref-1',
+  referenceDockActivePage: 'pdf',
+}), {
+  referenceDockPdfOpen: false,
+  referenceDockPdfReferenceId: '',
+  shouldFallbackToDetails: false,
+})
+assert.deepEqual(buildReferenceDockPdfSnapshotState({
+  references,
+  referenceDockPdfOpen: true,
+  referenceDockPdfReferenceId: 'ref-2',
+  selectedReferenceId: 'ref-1',
+  referenceDockActivePage: 'pdf',
+}), {
+  referenceDockPdfOpen: true,
+  referenceDockPdfReferenceId: 'ref-2',
+  shouldFallbackToDetails: true,
+})
+assert.equal(buildReferenceDockPdfSnapshotState({
+  references,
+  referenceDockPdfOpen: true,
+  referenceDockPdfReferenceId: 'ref-2',
+  selectedReferenceId: 'ref-2',
+  referenceDockActivePage: 'pdf',
+}).shouldFallbackToDetails, false)
 assert.deepEqual(buildDefaultResolvedQueryState({
   references,
   selectedSectionKey: 'recent',
@@ -441,6 +515,31 @@ assert.match(
 )
 assert.match(
   storeSource,
+  /buildReferenceDockPdfOpenState/,
+  'references store must delegate PDF dock open state',
+)
+assert.match(
+  storeSource,
+  /buildReferenceDockPdfCloseState/,
+  'references store must delegate PDF dock close state',
+)
+assert.match(
+  storeSource,
+  /buildReferenceDockPdfResetState/,
+  'references store must delegate PDF dock reset state',
+)
+assert.match(
+  storeSource,
+  /buildReferenceDockPdfSnapshotState/,
+  'references store must delegate PDF dock snapshot reconciliation',
+)
+assert.match(
+  storeSource,
+  /isReferenceDockPdfSelected/,
+  'references store must delegate PDF dock selected-tab checks',
+)
+assert.match(
+  storeSource,
   /resolveDocumentReferenceSelections/,
   'references store must delegate document-reference selection shape fallback',
 )
@@ -511,11 +610,6 @@ assert.match(
 )
 assert.match(
   storeSource,
-  /hasReferenceById/,
-  'references store must delegate exact-id presence checks',
-)
-assert.match(
-  storeSource,
   /buildReferenceSortSelectionState/,
   'references store must delegate sort key validation',
 )
@@ -543,6 +637,13 @@ for (const actionName of ['setDocumentReferenceIds', 'addDocumentReference', 're
     `${actionName} must not inline document-reference mutation derivation`,
   )
 }
+for (const actionName of ['openReferenceDockPdf', 'closeReferenceDockPdf', 'resetReferenceDockTabs']) {
+  assert.doesNotMatch(
+    actionSource(actionName),
+    /String\(referenceId \|\| ''\)\.trim\(\)|this\.referenceDockPdfOpen = false\s*\n\s*this\.referenceDockPdfReferenceId = ''|this\.referenceDockPdfOpen = true/,
+    `${actionName} must not inline PDF dock state derivation`,
+  )
+}
 assert.match(
   storeSource,
   /async function resolveReferenceStorageRoot/,
@@ -562,6 +663,7 @@ console.log(JSON.stringify({
     resolvedQueryHydrationDerived: true,
     sidebarSelectionDerived: true,
     snapshotSelectionDerived: true,
+    pdfDockStateDerived: true,
     storeUsesDomainHelper: true,
     exactIdPresenceDerived: true,
     sectionAndSortKeyValidationDerived: true,
