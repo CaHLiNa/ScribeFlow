@@ -185,6 +185,7 @@ assert.deepEqual(emptyCollectionMenuGroups[1].items[0].children, [
 ])
 
 const workbenchSource = await readFile('src/components/references/ReferenceLibraryWorkbench.vue', 'utf8')
+const actionsSource = await readFile('src/composables/references/useReferenceLibraryActions.js', 'utf8')
 
 assert.match(
   workbenchSource,
@@ -202,14 +203,19 @@ assert.match(
   'ReferenceLibraryWorkbench must delegate resize payload constraints to the reference domain',
 )
 assert.match(
-  workbenchSource,
+  actionsSource,
   /buildReferenceExportDefaultPath/,
-  'ReferenceLibraryWorkbench must delegate export filename fallback to the reference domain',
+  'Reference action workflow must delegate export filename fallback to the reference domain',
 )
 assert.match(
-  workbenchSource,
+  actionsSource,
   /buildReferenceContextMenuGroups/,
-  'ReferenceLibraryWorkbench must delegate context-menu presentation to the reference domain',
+  'Reference action workflow must delegate context-menu presentation to the reference domain',
+)
+assert.doesNotMatch(
+  workbenchSource,
+  /buildReferenceExportDefaultPath|buildReferenceContextMenuGroups/,
+  'ReferenceLibraryWorkbench must not directly own export filename or context-menu group derivation',
 )
 assert.doesNotMatch(
   workbenchSource,
