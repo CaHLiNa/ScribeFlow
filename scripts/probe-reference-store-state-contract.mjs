@@ -5,6 +5,7 @@ import {
   hasReferenceById,
   isReferenceSelectedForDocument,
   normalizeCollectionMembershipValue,
+  normalizeReferenceSortKey,
   normalizeTagKey,
   resolveAvailableDocumentReferences,
   resolveCollection,
@@ -14,6 +15,7 @@ import {
   resolveDocumentReferenceSelections,
   resolveReferenceByKey,
   resolveReferenceById,
+  resolveReferenceSectionKey,
   resolveReferencesForExport,
   resolveTag,
   searchReferences,
@@ -23,6 +25,8 @@ assert.equal(normalizeCollectionMembershipValue('  Methods  '), 'methods')
 assert.equal(normalizeCollectionMembershipValue(null), '')
 assert.equal(normalizeTagKey('  Theory  '), 'theory')
 assert.equal(normalizeTagKey(undefined), '')
+assert.equal(normalizeReferenceSortKey(' title-asc '), 'title-asc')
+assert.equal(normalizeReferenceSortKey('invalid'), 'year-desc')
 
 const collections = [
   { key: 'methods', label: 'Methods' },
@@ -40,6 +44,14 @@ const tags = [
 assert.deepEqual(resolveTag(tags, ' THEORY '), tags[0])
 assert.equal(resolveTag(tags, 'missing'), null)
 assert.equal(resolveTag('not-array', 'theory'), null)
+
+const sections = [
+  { key: 'all', label: 'All' },
+  { key: 'recent', label: 'Recent' },
+]
+assert.equal(resolveReferenceSectionKey(sections, ' recent ', 'all'), 'recent')
+assert.equal(resolveReferenceSectionKey(sections, 'missing', 'all'), 'all')
+assert.equal(resolveReferenceSectionKey('not-array', 'recent', 'all'), 'all')
 
 const selections = {
   'paper.tex': ['ref-1', 'ref-2'],
@@ -133,6 +145,7 @@ assert.deepEqual(buildDefaultResolvedQueryState({
   citationUsageIndex: {},
   citationUsageDetails: {},
 })
+assert.equal(buildDefaultResolvedQueryState({ sortKey: 'invalid' }).query.sortKey, 'year-desc')
 assert.deepEqual(buildDefaultResolvedQueryState({ references: 'not-array' }), {
   query: {
     selectedSectionKey: 'all',
@@ -224,9 +237,19 @@ assert.match(
   /hasReferenceById/,
   'references store must delegate exact-id presence checks',
 )
+assert.match(
+  storeSource,
+  /resolveReferenceSectionKey/,
+  'references store must delegate section key validation',
+)
+assert.match(
+  storeSource,
+  /normalizeReferenceSortKey/,
+  'references store must delegate sort key validation',
+)
 assert.doesNotMatch(
   storeSource,
-  /function normalizeCollectionMembershipValue|function normalizeTagKey|function resolveCollection|function resolveDocumentReferenceSelections|function buildDefaultResolvedQueryState|const selectedIds = new Set\(this\.getDocumentReferenceIds|const normalizedQuery = String\(query \|\| ''\)\.trim\(\)\.toLowerCase\(\)|haystack\.includes\(normalizedQuery\)|referenceIds\s*\.map\(\(referenceId\) => this\.references\.find|this\.references\.some\(\(reference\) => reference\.id/,
+  /function normalizeCollectionMembershipValue|function normalizeTagKey|function resolveCollection|function resolveDocumentReferenceSelections|function buildDefaultResolvedQueryState|const selectedIds = new Set\(this\.getDocumentReferenceIds|const normalizedQuery = String\(query \|\| ''\)\.trim\(\)\.toLowerCase\(\)|haystack\.includes\(normalizedQuery\)|referenceIds\s*\.map\(\(referenceId\) => this\.references\.find|this\.references\.some\(\(reference\) => reference\.id|this\.(?:librarySections|sourceSections)\.some\(\(section\) => section\.key|\[\s*'year-desc'[\s\S]*'author-desc'[\s\S]*\]\.includes\(value\)/,
   'references store must not redefine deterministic state helpers inline',
 )
 assert.match(
@@ -246,6 +269,7 @@ console.log(JSON.stringify({
     defaultQueryStateDerived: true,
     storeUsesDomainHelper: true,
     exactIdPresenceDerived: true,
+    sectionAndSortKeyValidationDerived: true,
     storageRootRemainsStoreScoped: true,
   },
 }, null, 2))

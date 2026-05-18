@@ -59,6 +59,7 @@ import {
   buildDefaultResolvedQueryState,
   hasReferenceById,
   isReferenceSelectedForDocument,
+  normalizeReferenceSortKey,
   normalizeTagKey,
   resolveAvailableDocumentReferences,
   resolveCollection,
@@ -68,6 +69,7 @@ import {
   resolveDocumentReferenceSelections,
   resolveReferenceByKey,
   resolveReferenceById,
+  resolveReferenceSectionKey,
   resolveReferencesForExport,
   resolveTag,
   searchReferences,
@@ -318,9 +320,11 @@ export const useReferencesStore = defineStore('references', {
       if (!resolveTag(this.tags, this.selectedTagKey)) {
         this.selectedTagKey = ''
       }
-      if (!this.sourceSections.some((section) => section.key === this.selectedSourceKey)) {
-        this.selectedSourceKey = ''
-      }
+      this.selectedSourceKey = resolveReferenceSectionKey(
+        this.sourceSections,
+        this.selectedSourceKey,
+        ''
+      )
 
       if (preferredSelectedReferenceId !== null && preferredSelectedReferenceId !== undefined) {
         this.selectedReferenceId = String(preferredSelectedReferenceId || '')
@@ -495,8 +499,7 @@ export const useReferencesStore = defineStore('references', {
     },
 
     async setSelectedSection(sectionKey) {
-      const exists = this.librarySections.some((section) => section.key === sectionKey)
-      this.selectedSectionKey = exists ? sectionKey : 'all'
+      this.selectedSectionKey = resolveReferenceSectionKey(this.librarySections, sectionKey, 'all')
       this.selectedSourceKey = ''
       this.selectedCollectionKey = ''
       this.selectedTagKey = ''
@@ -504,8 +507,7 @@ export const useReferencesStore = defineStore('references', {
     },
 
     async setSelectedSource(sourceKey = '') {
-      const exists = this.sourceSections.some((section) => section.key === sourceKey)
-      this.selectedSourceKey = exists ? sourceKey : ''
+      this.selectedSourceKey = resolveReferenceSectionKey(this.sourceSections, sourceKey, '')
       this.selectedSectionKey = 'all'
       this.selectedCollectionKey = ''
       this.selectedTagKey = ''
@@ -532,16 +534,7 @@ export const useReferencesStore = defineStore('references', {
     },
 
     async setSortKey(value = '') {
-      this.sortKey = [
-        'year-desc',
-        'year-asc',
-        'title-asc',
-        'title-desc',
-        'author-asc',
-        'author-desc',
-      ].includes(value)
-        ? value
-        : 'year-desc'
+      this.sortKey = normalizeReferenceSortKey(value)
       await this.syncResolvedQueryState()
     },
 

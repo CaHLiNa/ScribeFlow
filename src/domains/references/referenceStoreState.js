@@ -6,6 +6,29 @@ export function normalizeTagKey(value = '') {
   return String(value || '').trim().toLowerCase()
 }
 
+const REFERENCE_SORT_KEYS = [
+  'year-desc',
+  'year-asc',
+  'title-asc',
+  'title-desc',
+  'author-asc',
+  'author-desc',
+]
+
+export function resolveReferenceSectionKey(sections = [], sectionKey = '', fallbackKey = '') {
+  const normalizedKey = String(sectionKey || '').trim()
+  if (!normalizedKey) return fallbackKey
+  const exists = (Array.isArray(sections) ? sections : []).some(
+    (section) => String(section?.key || '') === normalizedKey,
+  )
+  return exists ? normalizedKey : fallbackKey
+}
+
+export function normalizeReferenceSortKey(value = '') {
+  const normalizedKey = String(value || '').trim()
+  return REFERENCE_SORT_KEYS.includes(normalizedKey) ? normalizedKey : 'year-desc'
+}
+
 export function resolveCollection(collections = [], collectionKey = '') {
   const normalizedKey = normalizeCollectionMembershipValue(collectionKey)
   if (!normalizedKey) return null
@@ -149,7 +172,7 @@ export function buildDefaultResolvedQueryState(state = {}) {
       selectedSourceKey: state.selectedSourceKey || '',
       selectedCollectionKey: state.selectedCollectionKey || '',
       selectedTagKey: state.selectedTagKey || '',
-      sortKey: state.sortKey || 'year-desc',
+      sortKey: normalizeReferenceSortKey(state.sortKey),
       selectedReferenceId: state.selectedReferenceId || '',
     },
     sectionCounts: {},
