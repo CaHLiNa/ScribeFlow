@@ -211,6 +211,12 @@ export function buildReferenceRemoveMutationResultState(mutation = {}) {
   }
 }
 
+export function buildReferenceUpdateMutationResultState(mutation = {}) {
+  return {
+    changed: mutation?.result?.changed === true,
+  }
+}
+
 export function buildReferenceCollectionMutationResultState(mutation = {}) {
   const collection = mutation?.result?.collection
   return {

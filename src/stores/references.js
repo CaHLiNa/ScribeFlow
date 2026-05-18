@@ -72,6 +72,7 @@ import {
   buildReferenceRemoveMutationResultState,
   buildReferenceRemoveTargetState,
   buildReferenceToggleCollectionMutationResultState,
+  buildReferenceUpdateMutationResultState,
   buildReferenceZoteroSyncResultState,
   resolveReferenceCitationStyleId,
   resolveReferenceWorkspaceCitationStyles,
@@ -630,7 +631,8 @@ export const useReferencesStore = defineStore('references', {
           updates,
         },
       })
-      if (mutation?.result?.changed !== true) return false
+      const resultState = buildReferenceUpdateMutationResultState(mutation)
+      if (!resultState.changed) return false
       const commitState = buildReferenceUpdateMutationCommitState(this.$state, mutation, {
         preferredSelectedReferenceId,
       })

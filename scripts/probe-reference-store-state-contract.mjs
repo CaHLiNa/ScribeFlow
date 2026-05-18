@@ -18,6 +18,7 @@ import {
   buildReferenceRemoveMutationResultState,
   buildReferenceRemoveTargetState,
   buildReferenceToggleCollectionMutationResultState,
+  buildReferenceUpdateMutationResultState,
   buildReferenceZoteroSyncResultState,
   resolveReferenceCitationStyleId,
   resolveReferenceWorkspaceCitationStyles,
@@ -265,6 +266,20 @@ assert.deepEqual(buildReferenceRemoveMutationResultState({
   },
 }), {
   removed: false,
+})
+assert.deepEqual(buildReferenceUpdateMutationResultState({
+  result: {
+    changed: true,
+  },
+}), {
+  changed: true,
+})
+assert.deepEqual(buildReferenceUpdateMutationResultState({
+  result: {
+    changed: 1,
+  },
+}), {
+  changed: false,
 })
 assert.deepEqual(buildReferencePdfImportTargetState({
   result: {
@@ -994,6 +1009,11 @@ assert.match(
 )
 assert.match(
   storeSource,
+  /buildReferenceUpdateMutationResultState/,
+  'references store must delegate update mutation result state mapping',
+)
+assert.match(
+  storeSource,
   /buildReferenceRemoveMutationCommitState/,
   'references store must delegate remove mutation commit selection',
 )
@@ -1259,6 +1279,11 @@ assert.doesNotMatch(
   'updateReference must not inline mutation commit selection fallback',
 )
 assert.doesNotMatch(
+  actionSource('updateReference'),
+  /mutation\?\.result\?\.changed/,
+  'updateReference must not inline update mutation result state mapping',
+)
+assert.doesNotMatch(
   actionSource('removeReference'),
   /this\.selectedReferenceId === referenceId[\s\S]*\? ''[\s\S]*: this\.selectedReferenceId/,
   'removeReference must not inline mutation commit selection fallback',
@@ -1302,6 +1327,7 @@ console.log(JSON.stringify({
     metadataRefreshTargetStateDerived: true,
     pdfAssetTargetAndResultStateDerived: true,
     removeReferenceTargetAndResultStateDerived: true,
+    updateReferenceResultStateDerived: true,
     pdfImportTargetStateDerived: true,
     collectionMutationResultStateDerived: true,
     removeCollectionResultStateDerived: true,
