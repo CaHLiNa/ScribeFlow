@@ -40,8 +40,8 @@ assert.match(
 )
 assert.match(
   helperSource,
-  /store\.commitLibrarySnapshot\(/,
-  'commitImportedReferences must preserve the existing snapshot commit boundary',
+  /commitReferenceMutationSnapshot\(store, projectRoot, mutation,/,
+  'commitImportedReferences must preserve the shared mutation snapshot commit boundary',
 )
 assert.match(
   helperSource,

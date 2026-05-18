@@ -84,6 +84,12 @@ function resolveReferenceWorkspacePath() {
   return String(workspace.projectDir || workspace.path || '').trim()
 }
 
+async function commitReferenceMutationSnapshot(store, projectRoot = '', mutation = {}, options = {}) {
+  const { fallbackSnapshot = null, ...commitOptions } = options
+  const snapshot = mutation?.snapshot || fallbackSnapshot || store.buildLibrarySnapshotPayload()
+  return store.commitLibrarySnapshot(projectRoot, snapshot, commitOptions)
+}
+
 async function commitImportedReferences(store, projectRoot = '', importedReferences = []) {
   if (!Array.isArray(importedReferences) || importedReferences.length === 0) {
     return {
@@ -103,11 +109,9 @@ async function commitImportedReferences(store, projectRoot = '', importedReferen
     },
   })
   const selectedReferenceId = String(mutation?.result?.selectedReferenceId || '')
-  await store.commitLibrarySnapshot(
-    projectRoot,
-    mutation?.snapshot || store.buildLibrarySnapshotPayload(),
-    { preferredSelectedReferenceId: selectedReferenceId }
-  )
+  await commitReferenceMutationSnapshot(store, projectRoot, mutation, {
+    preferredSelectedReferenceId: selectedReferenceId,
+  })
   const selectedReference = selectedReferenceId
     ? store.references.find((reference) => reference.id === selectedReferenceId) || null
     : null
@@ -449,7 +453,7 @@ export const useReferencesStore = defineStore('references', {
         },
       })
       if (mutation?.result?.changed) {
-        await this.commitLibrarySnapshot(projectRoot, mutation.snapshot)
+        await commitReferenceMutationSnapshot(this, projectRoot, mutation)
       }
       return mutation?.result?.collection && typeof mutation.result.collection === 'object'
         ? mutation.result.collection
@@ -466,7 +470,7 @@ export const useReferencesStore = defineStore('references', {
         },
       })
       if (mutation?.result?.changed) {
-        await this.commitLibrarySnapshot(projectRoot, mutation.snapshot)
+        await commitReferenceMutationSnapshot(this, projectRoot, mutation)
       }
       return mutation?.result?.collection && typeof mutation.result.collection === 'object'
         ? mutation.result.collection
@@ -483,7 +487,7 @@ export const useReferencesStore = defineStore('references', {
       })
       if (mutation?.result?.removed !== true) return false
 
-      await this.commitLibrarySnapshot(projectRoot, mutation.snapshot, {
+      await commitReferenceMutationSnapshot(this, projectRoot, mutation, {
         preferredSelectedReferenceId: this.selectedReferenceId,
       })
       return true
@@ -622,7 +626,7 @@ export const useReferencesStore = defineStore('references', {
           referenceIds: Array.isArray(referenceIds) ? referenceIds : [],
         },
       })
-      await this.commitLibrarySnapshot(projectRoot, mutation?.snapshot || this.buildLibrarySnapshotPayload(), {
+      await commitReferenceMutationSnapshot(this, projectRoot, mutation, {
         preferredSelectedReferenceId: this.selectedReferenceId,
       })
       return mutation?.result?.changed === true
@@ -669,14 +673,10 @@ export const useReferencesStore = defineStore('references', {
       })
       const selectedReferenceId = String(mutation?.result?.selectedReferenceId || '')
 
-      await this.commitLibrarySnapshot(
-        projectRoot,
-        mutation?.snapshot || this.buildLibrarySnapshotPayload(),
-        {
-          persist,
-          preferredSelectedReferenceId: selectedReferenceId,
-        }
-      )
+      await commitReferenceMutationSnapshot(this, projectRoot, mutation, {
+        persist,
+        preferredSelectedReferenceId: selectedReferenceId,
+      })
       return this.references.find((reference) => reference.id === selectedReferenceId) || null
     },
 
@@ -696,14 +696,10 @@ export const useReferencesStore = defineStore('references', {
           ? String(preferredSelectedReferenceId || '')
           : String(this.selectedReferenceId || mutation?.result?.selectedReferenceId || '')
 
-      await this.commitLibrarySnapshot(
-        projectRoot,
-        mutation?.snapshot || this.buildLibrarySnapshotPayload(),
-        {
-          persist,
-          preferredSelectedReferenceId: selectedReferenceId,
-        }
-      )
+      await commitReferenceMutationSnapshot(this, projectRoot, mutation, {
+        persist,
+        preferredSelectedReferenceId: selectedReferenceId,
+      })
       return true
     },
 
@@ -737,7 +733,7 @@ export const useReferencesStore = defineStore('references', {
         ? ''
         : this.selectedReferenceId
 
-      await this.commitLibrarySnapshot(projectRoot, mutation.snapshot, {
+      await commitReferenceMutationSnapshot(this, projectRoot, mutation, {
         preferredSelectedReferenceId,
       })
 
@@ -765,7 +761,7 @@ export const useReferencesStore = defineStore('references', {
       })
       if (mutation?.result?.changed !== true) return false
 
-      await this.commitLibrarySnapshot(projectRoot, mutation.snapshot, {
+      await commitReferenceMutationSnapshot(this, projectRoot, mutation, {
         preferredSelectedReferenceId: this.selectedReferenceId,
       })
       return mutation?.result?.toggledOn === true
@@ -837,11 +833,10 @@ export const useReferencesStore = defineStore('references', {
           },
         })
 
-        await this.commitLibrarySnapshot(
-          projectRoot,
-          assetMutation?.snapshot || importedSnapshot,
-          { preferredSelectedReferenceId: selectedReferenceId }
-        )
+        await commitReferenceMutationSnapshot(this, projectRoot, assetMutation, {
+          fallbackSnapshot: importedSnapshot,
+          preferredSelectedReferenceId: selectedReferenceId,
+        })
         return selectedReferenceId
           ? this.references.find((reference) => reference.id === selectedReferenceId) || null
           : null
