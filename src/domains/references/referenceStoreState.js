@@ -189,6 +189,82 @@ export function buildReferenceQuerySelectionState(resolvedQueryState = {}, curre
   }
 }
 
+export function buildReferenceSectionSelectionState(state = {}, sectionKey = '') {
+  return {
+    selectedSectionKey: resolveReferenceSectionKey(state.librarySections, sectionKey, 'all'),
+    selectedSourceKey: '',
+    selectedCollectionKey: '',
+    selectedTagKey: '',
+  }
+}
+
+export function buildReferenceSourceSelectionState(state = {}, sourceKey = '') {
+  return {
+    selectedSectionKey: 'all',
+    selectedSourceKey: resolveReferenceSectionKey(state.sourceSections, sourceKey, ''),
+    selectedCollectionKey: '',
+    selectedTagKey: '',
+  }
+}
+
+export function buildReferenceCollectionSelectionState(state = {}, collectionKey = '') {
+  const collection = resolveCollection(state.collections, collectionKey)
+  return {
+    selectedSectionKey: 'all',
+    selectedSourceKey: '',
+    selectedCollectionKey: collection?.key || '',
+    selectedTagKey: '',
+  }
+}
+
+export function buildReferenceTagSelectionState(state = {}, tagKey = '') {
+  const normalizedTagKey = normalizeTagKey(tagKey)
+  return {
+    selectedSectionKey: 'all',
+    selectedSourceKey: '',
+    selectedCollectionKey: '',
+    selectedTagKey: resolveTag(state.tags, normalizedTagKey) ? normalizedTagKey : '',
+  }
+}
+
+export function buildReferenceSortSelectionState(sortKey = '') {
+  return {
+    sortKey: normalizeReferenceSortKey(sortKey),
+  }
+}
+
+export function resolveReferenceSelectionId(references = [], referenceId = '', fallbackReferenceId = '') {
+  const normalizedReferenceId = String(referenceId || '').trim()
+  return hasReferenceById(references, normalizedReferenceId)
+    ? normalizedReferenceId
+    : String(fallbackReferenceId || '')
+}
+
+export function buildReferenceSnapshotSelectionState(state = {}) {
+  const preferredSelectedReferenceId = state.preferredSelectedReferenceId
+  const nextSelectedReferenceId =
+    preferredSelectedReferenceId !== null && preferredSelectedReferenceId !== undefined
+      ? String(preferredSelectedReferenceId || '')
+      : hasReferenceById(state.references, state.selectedReferenceId)
+        ? String(state.selectedReferenceId || '')
+        : ''
+
+  return {
+    selectedCollectionKey: resolveCollection(state.collections, state.selectedCollectionKey)
+      ? String(state.selectedCollectionKey || '')
+      : '',
+    selectedTagKey: resolveTag(state.tags, state.selectedTagKey)
+      ? String(state.selectedTagKey || '')
+      : '',
+    selectedSourceKey: resolveReferenceSectionKey(
+      state.sourceSections,
+      state.selectedSourceKey,
+      ''
+    ),
+    selectedReferenceId: nextSelectedReferenceId,
+  }
+}
+
 export function buildDefaultResolvedQueryState(state = {}) {
   const references = Array.isArray(state.references) ? state.references : []
   return {

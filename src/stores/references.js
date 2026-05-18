@@ -57,10 +57,9 @@ import {
 } from '../domains/references/referenceDockPages.js'
 import {
   buildDefaultResolvedQueryState,
+  buildReferenceCollectionSelectionState,
   hasReferenceById,
   isReferenceSelectedForDocument,
-  normalizeReferenceSortKey,
-  normalizeTagKey,
   resolveAvailableDocumentReferences,
   resolveCollection,
   resolveDocumentReferenceByKey,
@@ -70,7 +69,12 @@ import {
   resolveReferenceByKey,
   resolveReferenceById,
   resolveReferenceResolvedQueryState,
-  resolveReferenceSectionKey,
+  resolveReferenceSelectionId,
+  buildReferenceSectionSelectionState,
+  buildReferenceSnapshotSelectionState,
+  buildReferenceSortSelectionState,
+  buildReferenceSourceSelectionState,
+  buildReferenceTagSelectionState,
   resolveReferencesForExport,
   resolveTag,
   buildReferenceQuerySelectionState,
@@ -309,23 +313,21 @@ export const useReferencesStore = defineStore('references', {
       this.references = Array.isArray(normalized.references) ? normalized.references : []
       this.documentReferenceSelections = resolveDocumentReferenceSelections(normalized.documentReferenceSelections)
       this.citationStyle = String(normalized.citationStyle || 'apa')
-      if (!resolveCollection(this.collections, this.selectedCollectionKey)) {
-        this.selectedCollectionKey = ''
-      }
-      if (!resolveTag(this.tags, this.selectedTagKey)) {
-        this.selectedTagKey = ''
-      }
-      this.selectedSourceKey = resolveReferenceSectionKey(
-        this.sourceSections,
-        this.selectedSourceKey,
-        ''
-      )
-
-      if (preferredSelectedReferenceId !== null && preferredSelectedReferenceId !== undefined) {
-        this.selectedReferenceId = String(preferredSelectedReferenceId || '')
-      } else if (!hasReferenceById(this.references, this.selectedReferenceId)) {
-        this.selectedReferenceId = ''
-      }
+      const selection = buildReferenceSnapshotSelectionState({
+        collections: this.collections,
+        tags: this.tags,
+        sourceSections: this.sourceSections,
+        references: this.references,
+        selectedCollectionKey: this.selectedCollectionKey,
+        selectedTagKey: this.selectedTagKey,
+        selectedSourceKey: this.selectedSourceKey,
+        selectedReferenceId: this.selectedReferenceId,
+        preferredSelectedReferenceId,
+      })
+      this.selectedCollectionKey = selection.selectedCollectionKey
+      this.selectedTagKey = selection.selectedTagKey
+      this.selectedSourceKey = selection.selectedSourceKey
+      this.selectedReferenceId = selection.selectedReferenceId
       await this.syncResolvedQueryState()
       if (
         this.referenceDockPdfReferenceId &&
@@ -494,42 +496,44 @@ export const useReferencesStore = defineStore('references', {
     },
 
     async setSelectedSection(sectionKey) {
-      this.selectedSectionKey = resolveReferenceSectionKey(this.librarySections, sectionKey, 'all')
-      this.selectedSourceKey = ''
-      this.selectedCollectionKey = ''
-      this.selectedTagKey = ''
+      const selection = buildReferenceSectionSelectionState(this.$state, sectionKey)
+      this.selectedSectionKey = selection.selectedSectionKey
+      this.selectedSourceKey = selection.selectedSourceKey
+      this.selectedCollectionKey = selection.selectedCollectionKey
+      this.selectedTagKey = selection.selectedTagKey
       await this.syncResolvedQueryState()
     },
 
     async setSelectedSource(sourceKey = '') {
-      this.selectedSourceKey = resolveReferenceSectionKey(this.sourceSections, sourceKey, '')
-      this.selectedSectionKey = 'all'
-      this.selectedCollectionKey = ''
-      this.selectedTagKey = ''
+      const selection = buildReferenceSourceSelectionState(this.$state, sourceKey)
+      this.selectedSectionKey = selection.selectedSectionKey
+      this.selectedSourceKey = selection.selectedSourceKey
+      this.selectedCollectionKey = selection.selectedCollectionKey
+      this.selectedTagKey = selection.selectedTagKey
       await this.syncResolvedQueryState()
     },
 
     async setSelectedCollection(collectionKey = '') {
-      const collection = resolveCollection(this.collections, collectionKey)
-      this.selectedCollectionKey = collection?.key || ''
-      this.selectedSectionKey = 'all'
-      this.selectedSourceKey = ''
-      this.selectedTagKey = ''
+      const selection = buildReferenceCollectionSelectionState(this.$state, collectionKey)
+      this.selectedSectionKey = selection.selectedSectionKey
+      this.selectedSourceKey = selection.selectedSourceKey
+      this.selectedCollectionKey = selection.selectedCollectionKey
+      this.selectedTagKey = selection.selectedTagKey
       await this.syncResolvedQueryState()
     },
 
     async setSelectedTag(tagKey = '') {
-      const normalized = normalizeTagKey(tagKey)
-      const exists = Boolean(resolveTag(this.tags, normalized))
-      this.selectedTagKey = exists ? normalized : ''
-      this.selectedSectionKey = 'all'
-      this.selectedSourceKey = ''
-      this.selectedCollectionKey = ''
+      const selection = buildReferenceTagSelectionState(this.$state, tagKey)
+      this.selectedSectionKey = selection.selectedSectionKey
+      this.selectedSourceKey = selection.selectedSourceKey
+      this.selectedCollectionKey = selection.selectedCollectionKey
+      this.selectedTagKey = selection.selectedTagKey
       await this.syncResolvedQueryState()
     },
 
     async setSortKey(value = '') {
-      this.sortKey = normalizeReferenceSortKey(value)
+      const selection = buildReferenceSortSelectionState(value)
+      this.sortKey = selection.sortKey
       await this.syncResolvedQueryState()
     },
 
@@ -540,9 +544,11 @@ export const useReferencesStore = defineStore('references', {
     },
 
     selectReference(referenceId) {
-      const normalizedReferenceId = String(referenceId || '').trim()
-      if (!hasReferenceById(this.references, normalizedReferenceId)) return
-      this.selectedReferenceId = normalizedReferenceId
+      this.selectedReferenceId = resolveReferenceSelectionId(
+        this.references,
+        referenceId,
+        this.selectedReferenceId
+      )
     },
 
     openReferenceDockPdf(referenceId = this.selectedReferenceId) {
