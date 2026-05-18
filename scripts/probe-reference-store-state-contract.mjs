@@ -7,6 +7,7 @@ import {
   buildReferenceEmptyImportResult,
   buildReferenceImportInputState,
   buildReferenceImportMutationResultState,
+  buildReferenceZoteroSyncResultState,
   resolveReferenceCitationStyleId,
   resolveReferenceWorkspaceCitationStyles,
   buildRemoveDocumentReferenceMutationState,
@@ -177,6 +178,44 @@ assert.equal(resolveReferenceCitationStyleId(' ieee ', false), 'apa')
 assert.equal(resolveReferenceCitationStyleId('  ', true), 'apa')
 assert.deepEqual(resolveReferenceWorkspaceCitationStyles([{ id: 'ieee' }]), [{ id: 'ieee' }])
 assert.deepEqual(resolveReferenceWorkspaceCitationStyles('not-array'), [])
+assert.deepEqual(buildReferenceZoteroSyncResultState({
+  imported: '2',
+  linked: '1',
+  selectedReferenceId: ' ref-2 ',
+  snapshot: { references },
+  lastSyncTime: '2026-05-18T07:30:00.000Z',
+}, {
+  fallbackLastSyncTime: 'fallback-time',
+}), {
+  skipped: false,
+  snapshot: { references },
+  selectedReferenceId: 'ref-2',
+  zoteroSyncStatus: 'synced',
+  zoteroSyncLastSyncTime: '2026-05-18T07:30:00.000Z',
+  counts: {
+    imported: 2,
+    linked: 1,
+    updated: 0,
+  },
+})
+assert.deepEqual(buildReferenceZoteroSyncResultState({
+  skipped: true,
+  imported: '3',
+}), {
+  skipped: true,
+  snapshot: {},
+  selectedReferenceId: '',
+  zoteroSyncStatus: 'disconnected',
+  zoteroSyncLastSyncTime: '',
+  counts: {
+    imported: 3,
+    linked: 0,
+    updated: 0,
+  },
+})
+assert.equal(buildReferenceZoteroSyncResultState({}, {
+  fallbackLastSyncTime: 'fallback-time',
+}).zoteroSyncLastSyncTime, 'fallback-time')
 assert.deepEqual(resolveDocumentReferenceByKey(documentReferenceSelections, references, 'paper.tex', 'hopper2025'), references[1])
 assert.equal(resolveDocumentReferenceByKey(documentReferenceSelections, references, 'paper.tex', 'unused2026'), null)
 assert.equal(isReferenceSelectedForDocument(documentReferenceSelections, references, 'paper.tex', 'ref-1'), true)
@@ -877,6 +916,11 @@ assert.match(
 )
 assert.match(
   storeSource,
+  /buildReferenceZoteroSyncResultState/,
+  'references store must delegate Zotero sync result state mapping',
+)
+assert.match(
+  storeSource,
   /resolveReferenceCitationStyleId/,
   'references store must delegate citation-style fallback state',
 )
@@ -897,8 +941,13 @@ assert.match(
 )
 assert.doesNotMatch(
   storeSource,
-  /function normalizeCollectionMembershipValue|function normalizeTagKey|function resolveCollection|function resolveDocumentReferenceSelections|function buildDefaultResolvedQueryState|version:\s*2|citationStyle:\s*'apa'|documentReferenceSelections:\s*\{\}|Array\.isArray\(normalized\.(?:collections|tags|references)\)|Array\.isArray\(importedReferences\)|Array\.isArray\(referenceStyles\)|Array\.isArray\(styles\)|String\(normalized\.citationStyle \|\| 'apa'\)|const selectedIds = new Set\(this\.getDocumentReferenceIds|const normalizedQuery = String\(query \|\| ''\)\.trim\(\)\.toLowerCase\(\)|haystack\.includes\(normalizedQuery\)|referenceIds\s*\.map\(\(referenceId\) => this\.references\.find|this\.references\.some\(\(reference\) => reference\.id|this\.(?:librarySections|sourceSections)\.some\(\(section\) => section\.key|resolveReferenceSectionKey|\[\s*'year-desc'[\s\S]*'author-desc'[\s\S]*\]\.includes\(value\)|const query = this\.resolvedQueryState\?\.query|query\.selectedReferenceId|query\.selectedSectionKey|const normalized = normalizeTagKey\(tagKey\)|this\.sortKey = normalizeReferenceSortKey\(value\)|Number\(mutation\?\.result\?\.importedCount \|\| 0\)|reusedExisting: mutation\?\.result\?\.reusedExisting === true/,
+  /function normalizeCollectionMembershipValue|function normalizeTagKey|function resolveCollection|function resolveDocumentReferenceSelections|function buildDefaultResolvedQueryState|version:\s*2|citationStyle:\s*'apa'|documentReferenceSelections:\s*\{\}|Array\.isArray\(normalized\.(?:collections|tags|references)\)|Array\.isArray\(importedReferences\)|Array\.isArray\(referenceStyles\)|Array\.isArray\(styles\)|String\(normalized\.citationStyle \|\| 'apa'\)|const selectedIds = new Set\(this\.getDocumentReferenceIds|const normalizedQuery = String\(query \|\| ''\)\.trim\(\)\.toLowerCase\(\)|haystack\.includes\(normalizedQuery\)|referenceIds\s*\.map\(\(referenceId\) => this\.references\.find|this\.references\.some\(\(reference\) => reference\.id|this\.(?:librarySections|sourceSections)\.some\(\(section\) => section\.key|resolveReferenceSectionKey|\[\s*'year-desc'[\s\S]*'author-desc'[\s\S]*\]\.includes\(value\)|const query = this\.resolvedQueryState\?\.query|query\.selectedReferenceId|query\.selectedSectionKey|const normalized = normalizeTagKey\(tagKey\)|this\.sortKey = normalizeReferenceSortKey\(value\)|Number\(mutation\?\.result\?\.importedCount \|\| 0\)|Number\(result\?\.imported \|\| 0\)|Number\(result\?\.linked \|\| 0\)|Number\(result\?\.updated \|\| 0\)|reusedExisting: mutation\?\.result\?\.reusedExisting === true/,
   'references store must not redefine deterministic state helpers inline',
+)
+assert.doesNotMatch(
+  actionSource('syncZoteroNow'),
+  /result\?\.skipped === true|Number\(result\?\.(?:imported|linked|updated) \|\| 0\)|this\.zoteroSyncStatus = 'synced'|this\.zoteroSyncStatus = 'disconnected'/,
+  'syncZoteroNow must not inline Zotero sync result state mapping',
 )
 assert.doesNotMatch(
   actionSource('setCitationStyle'),
@@ -958,6 +1007,7 @@ console.log(JSON.stringify({
     exportSelectionDerived: true,
     importResultDerived: true,
     citationStyleStateDerived: true,
+    zoteroSyncResultStateDerived: true,
     defaultQueryStateDerived: true,
     resolvedQueryHydrationDerived: true,
     sidebarSelectionDerived: true,

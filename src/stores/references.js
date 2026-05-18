@@ -61,6 +61,7 @@ import {
   buildReferenceEmptyImportResult,
   buildReferenceImportInputState,
   buildReferenceImportMutationResultState,
+  buildReferenceZoteroSyncResultState,
   resolveReferenceCitationStyleId,
   resolveReferenceWorkspaceCitationStyles,
   buildRemoveDocumentReferenceMutationState,
@@ -803,30 +804,25 @@ export const useReferencesStore = defineStore('references', {
           selectedReferenceId: this.selectedReferenceId,
         })
 
-        if (result?.skipped === true) {
-          this.zoteroSyncStatus = 'disconnected'
-          this.zoteroSyncLastSyncTime = ''
-          return {
-            imported: 0,
-            linked: 0,
-            updated: 0,
-          }
+        const syncState = buildReferenceZoteroSyncResultState(result, {
+          fallbackLastSyncTime: new Date().toISOString(),
+        })
+        if (syncState.skipped) {
+          this.zoteroSyncStatus = syncState.zoteroSyncStatus
+          this.zoteroSyncLastSyncTime = syncState.zoteroSyncLastSyncTime
+          return syncState.counts
         }
 
-        await this.applyLibrarySnapshot(result?.snapshot || {})
-        if (result?.selectedReferenceId) {
-          this.selectedReferenceId = result.selectedReferenceId
+        await this.applyLibrarySnapshot(syncState.snapshot)
+        if (syncState.selectedReferenceId) {
+          this.selectedReferenceId = syncState.selectedReferenceId
         }
 
-        this.zoteroSyncStatus = 'synced'
-        this.zoteroSyncLastSyncTime = result?.lastSyncTime || new Date().toISOString()
+        this.zoteroSyncStatus = syncState.zoteroSyncStatus
+        this.zoteroSyncLastSyncTime = syncState.zoteroSyncLastSyncTime
         this.zoteroSyncError = ''
         this.zoteroSyncErrorType = ''
-        return {
-          imported: Number(result?.imported || 0),
-          linked: Number(result?.linked || 0),
-          updated: Number(result?.updated || 0),
-        }
+        return syncState.counts
       } catch (error) {
         this.zoteroSyncStatus = 'error'
         this.zoteroSyncError = error?.message || String(error)

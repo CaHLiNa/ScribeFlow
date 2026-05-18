@@ -137,6 +137,34 @@ export function buildReferenceImportMutationResultState(references = [], mutatio
   }
 }
 
+export function buildReferenceZoteroSyncResultState(result = {}, options = {}) {
+  const counts = {
+    imported: Number(result?.imported || 0),
+    linked: Number(result?.linked || 0),
+    updated: Number(result?.updated || 0),
+  }
+
+  if (result?.skipped === true) {
+    return {
+      skipped: true,
+      snapshot: {},
+      selectedReferenceId: '',
+      zoteroSyncStatus: 'disconnected',
+      zoteroSyncLastSyncTime: '',
+      counts,
+    }
+  }
+
+  return {
+    skipped: false,
+    snapshot: result?.snapshot || {},
+    selectedReferenceId: String(result?.selectedReferenceId || '').trim(),
+    zoteroSyncStatus: 'synced',
+    zoteroSyncLastSyncTime: String(result?.lastSyncTime || options.fallbackLastSyncTime || ''),
+    counts,
+  }
+}
+
 export function resolveReferenceCitationStyleId(style = '', hasStyle = false) {
   const normalizedStyle = String(style || '').trim()
   return normalizedStyle && hasStyle ? normalizedStyle : 'apa'
