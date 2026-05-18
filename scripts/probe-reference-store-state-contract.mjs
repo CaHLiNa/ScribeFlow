@@ -15,6 +15,8 @@ import {
   buildReferencePdfAssetTargetState,
   buildReferencePdfImportTargetState,
   buildReferenceRemoveCollectionMutationResultState,
+  buildReferenceRemoveMutationResultState,
+  buildReferenceRemoveTargetState,
   buildReferenceToggleCollectionMutationResultState,
   buildReferenceZoteroSyncResultState,
   resolveReferenceCitationStyleId,
@@ -239,6 +241,30 @@ assert.deepEqual(buildReferencePdfAssetResultState(references, 'missing', { id: 
 assert.deepEqual(buildReferencePdfAssetResultState(references, 'missing', 'not-object'), {
   referenceId: 'missing',
   reference: null,
+})
+assert.deepEqual(buildReferenceRemoveTargetState(references, ' ref-2 '), {
+  canRemove: true,
+  referenceId: 'ref-2',
+  targetReference: references[1],
+})
+assert.deepEqual(buildReferenceRemoveTargetState(references, 'missing'), {
+  canRemove: false,
+  referenceId: 'missing',
+  targetReference: null,
+})
+assert.deepEqual(buildReferenceRemoveMutationResultState({
+  result: {
+    removed: true,
+  },
+}), {
+  removed: true,
+})
+assert.deepEqual(buildReferenceRemoveMutationResultState({
+  result: {
+    removed: 'yes',
+  },
+}), {
+  removed: false,
 })
 assert.deepEqual(buildReferencePdfImportTargetState({
   result: {
@@ -973,6 +999,16 @@ assert.match(
 )
 assert.match(
   storeSource,
+  /buildReferenceRemoveTargetState/,
+  'references store must delegate remove-reference target state mapping',
+)
+assert.match(
+  storeSource,
+  /buildReferenceRemoveMutationResultState/,
+  'references store must delegate remove-reference mutation result state mapping',
+)
+assert.match(
+  storeSource,
   /buildReferenceDockPdfOpenState/,
   'references store must delegate PDF dock open state',
 )
@@ -1227,6 +1263,11 @@ assert.doesNotMatch(
   /this\.selectedReferenceId === referenceId[\s\S]*\? ''[\s\S]*: this\.selectedReferenceId/,
   'removeReference must not inline mutation commit selection fallback',
 )
+assert.doesNotMatch(
+  actionSource('removeReference'),
+  /resolveReferenceById\(this\.references, referenceId\)|mutation\?\.result\?\.removed|const target =/,
+  'removeReference must not inline target lookup or result state mapping',
+)
 for (const actionName of ['setDocumentReferenceIds', 'addDocumentReference', 'removeDocumentReference']) {
   assert.doesNotMatch(
     actionSource(actionName),
@@ -1260,6 +1301,7 @@ console.log(JSON.stringify({
     addReferenceResultStateDerived: true,
     metadataRefreshTargetStateDerived: true,
     pdfAssetTargetAndResultStateDerived: true,
+    removeReferenceTargetAndResultStateDerived: true,
     pdfImportTargetStateDerived: true,
     collectionMutationResultStateDerived: true,
     removeCollectionResultStateDerived: true,

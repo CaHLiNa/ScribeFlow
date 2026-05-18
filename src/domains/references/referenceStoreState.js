@@ -195,6 +195,22 @@ export function buildReferencePdfAssetResultState(
   }
 }
 
+export function buildReferenceRemoveTargetState(references = [], referenceId = '') {
+  const normalizedReferenceId = String(referenceId || '').trim()
+  const targetReference = resolveReferenceById(references, normalizedReferenceId)
+  return {
+    canRemove: Boolean(targetReference),
+    referenceId: normalizedReferenceId,
+    targetReference,
+  }
+}
+
+export function buildReferenceRemoveMutationResultState(mutation = {}) {
+  return {
+    removed: mutation?.result?.removed === true,
+  }
+}
+
 export function buildReferenceCollectionMutationResultState(mutation = {}) {
   const collection = mutation?.result?.collection
   return {

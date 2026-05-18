@@ -69,6 +69,8 @@ import {
   buildReferencePdfAssetTargetState,
   buildReferencePdfImportTargetState,
   buildReferenceRemoveCollectionMutationResultState,
+  buildReferenceRemoveMutationResultState,
+  buildReferenceRemoveTargetState,
   buildReferenceToggleCollectionMutationResultState,
   buildReferenceZoteroSyncResultState,
   resolveReferenceCitationStyleId,
@@ -654,25 +656,26 @@ export const useReferencesStore = defineStore('references', {
     },
 
     async removeReference(projectRoot = '', referenceId = '') {
-      const target = resolveReferenceById(this.references, referenceId)
-      if (!target) return false
+      const targetState = buildReferenceRemoveTargetState(this.references, referenceId)
+      if (!targetState.canRemove) return false
 
       const mutation = await applyReferenceMutation({
         snapshot: this.buildLibrarySnapshotPayload(),
         action: {
           type: 'removeReference',
-          referenceId,
+          referenceId: targetState.referenceId,
         },
       })
-      if (mutation?.result?.removed !== true) return false
-      const commitState = buildReferenceRemoveMutationCommitState(this.$state, referenceId)
+      const resultState = buildReferenceRemoveMutationResultState(mutation)
+      if (!resultState.removed) return false
+      const commitState = buildReferenceRemoveMutationCommitState(this.$state, targetState.referenceId)
 
       await commitReferenceMutationSnapshot(this, projectRoot, mutation, {
         preferredSelectedReferenceId: commitState.preferredSelectedReferenceId,
       })
 
-      if (target._pushedByApp && target._zoteroKey) {
-        deleteFromZotero(target)
+      if (targetState.targetReference._pushedByApp && targetState.targetReference._zoteroKey) {
+        deleteFromZotero(targetState.targetReference)
           .then(() => {
             this.zoteroMutationError = ''
           })
