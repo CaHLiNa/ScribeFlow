@@ -74,6 +74,7 @@ import {
   runtimeBlockDescriptorFor,
   runtimeCapabilityIds,
   runtimeCommandIds,
+  tasksForExtensionList,
   targetHasValue,
   viewKeyMatchesExtension,
 } from '../domains/extensions/extensionStoreState.js'
@@ -183,7 +184,7 @@ export const useExtensionsStore = defineStore('extensions', {
     },
     taskTimelineForExtension(state) {
       return (extensionId = '', workspaceRoot = useWorkspaceStore().path || '') => {
-        return buildTaskTimeline(recentTasksForExtensionList(state.tasks, extensionId, workspaceRoot))
+        return buildTaskTimeline(tasksForExtensionList(state.tasks, extensionId, workspaceRoot))
       }
     },
     defaultConfigForExtension: () => (extension = {}) => {

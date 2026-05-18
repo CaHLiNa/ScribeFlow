@@ -181,7 +181,20 @@ const usesDocumentActionPanel = computed(() => {
   const mode = String(firstViewPresentation.value?.mode || firstView.value?.presentation || '').trim()
   return mode === 'documentAction'
 })
-const latestTask = computed(() => extensionTasks.value[0] || null)
+const extensionTaskTimeline = computed(() =>
+  container.value?.extensionId
+    ? extensionsStore.taskTimelineForExtension(container.value.extensionId)
+    : { running: [], recent: [] }
+)
+const extensionTasks = computed(() => [
+  ...extensionTaskTimeline.value.running,
+  ...extensionTaskTimeline.value.recent,
+])
+const latestTask = computed(() =>
+  extensionTaskTimeline.value.running[0] ||
+  extensionTaskTimeline.value.recent[0] ||
+  null
+)
 const documentActionPresentation = computed(() => {
   const base = firstViewPresentation.value && typeof firstViewPresentation.value === 'object'
     ? firstViewPresentation.value
@@ -228,11 +241,6 @@ const documentActionPresentation = computed(() => {
     },
   }
 })
-const extensionTasks = computed(() =>
-  container.value?.extensionId
-    ? extensionsStore.recentTasksForExtension(container.value.extensionId)
-    : []
-)
 const hostDiagnostics = computed(() =>
   container.value?.extensionId
     ? extensionsStore.hostDiagnosticsFor(container.value.extensionId, workspace.path || '')

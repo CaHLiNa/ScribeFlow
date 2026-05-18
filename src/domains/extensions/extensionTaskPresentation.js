@@ -77,6 +77,18 @@ export function taskGroupPresentation({ id = '', titleKey = '', tasks = [] } = {
   }
 }
 
+export function taskTimelinePresentation(timeline = {}) {
+  const hiddenRecentCount = Math.max(0, Number(timeline?.recentHiddenCount || 0))
+  return {
+    recent: {
+      hasHidden: hiddenRecentCount > 0,
+      hiddenCount: hiddenRecentCount,
+      hiddenLabelKey: hiddenRecentCount === 1 ? '{count} older task hidden' : '{count} older tasks hidden',
+      hiddenParams: { count: hiddenRecentCount },
+    },
+  }
+}
+
 export function taskDetailPresentation(task = {}, results = taskResultSummaryPresentation(task), progress = taskProgressPresentation(task)) {
   const row = taskRowPresentation(task)
   const state = row.state

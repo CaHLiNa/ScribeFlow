@@ -119,6 +119,27 @@ try {
       },
     },
   }
+  for (let index = 0; index < 9; index += 1) {
+    extensions.upsertTask({
+      id: `task-older-${index}`,
+      extensionId: 'retain-pdf',
+      workspaceRoot: '/tmp/workspace',
+      commandId: 'retainPdf.translateCurrent',
+      state: 'succeeded',
+      createdAt: `2026-05-12T0${index}:00:00Z`,
+      startedAt: `2026-05-12T0${index}:00:05Z`,
+      finishedAt: `2026-05-12T0${index}:01:00Z`,
+      progress: {
+        label: 'Completed',
+        current: 1,
+        total: 1,
+      },
+      target: {
+        kind: 'pdf',
+        path: '/tmp/workspace/paper.pdf',
+      },
+    })
+  }
   extensions.upsertTask({
     id: 'task-running',
     extensionId: 'retain-pdf',
@@ -236,6 +257,7 @@ try {
   assert.match(html, /Show Details/)
   assert.match(html, /Hide Details/)
   assert.doesNotMatch(html, /Succeeded Summary/)
+  assert.match(html, /3 older tasks hidden/)
   assert.match(html, /class="[^"]*(extension-task-group__title[^"]*is-warning|is-warning[^"]*extension-task-group__title)[^"]*"/)
   assert.match(html, /class="[^"]*(extension-task-group__title[^"]*is-error|is-error[^"]*extension-task-group__title)[^"]*"/)
   assert.match(html, /class="[^"]*(extension-task-row[^"]*is-warning|is-warning[^"]*extension-task-row)[^"]*"/)
@@ -258,6 +280,7 @@ try {
       hasTaskGroupCounts: html.includes('1 task'),
       hasCollapsedRecentSuccess: html.includes('Show Details') && !html.includes('Succeeded Summary'),
       hasExpandedFailedDetails: html.includes('Hide Details') && html.includes('Failed Summary'),
+      hasHiddenRecentFooter: html.includes('3 older tasks hidden'),
       hasTaskToneClasses:
         /class="[^"]*(extension-task-row[^"]*is-warning|is-warning[^"]*extension-task-row)[^"]*"/.test(html) &&
         /class="[^"]*(extension-task-row[^"]*is-error|is-error[^"]*extension-task-row)[^"]*"/.test(html),

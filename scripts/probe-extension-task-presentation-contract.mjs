@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import {
   buildExtensionTaskPresentation,
   taskGroupPresentation,
+  taskTimelinePresentation,
 } from '../src/domains/extensions/extensionTaskPresentation.js'
 
 const task = {
@@ -174,6 +175,19 @@ assert.equal(recentGroup.count, 2)
 assert.equal(recentGroup.countLabelKey, '{count} tasks')
 assert.equal(recentGroup.toneClass, 'is-error')
 
+const timelinePresentation = taskTimelinePresentation({
+  recentHiddenCount: 3,
+})
+assert.equal(timelinePresentation.recent.hasHidden, true)
+assert.equal(timelinePresentation.recent.hiddenCount, 3)
+assert.equal(timelinePresentation.recent.hiddenLabelKey, '{count} older tasks hidden')
+assert.deepEqual(timelinePresentation.recent.hiddenParams, { count: 3 })
+
+const singleHiddenTimelinePresentation = taskTimelinePresentation({
+  recentHiddenCount: 1,
+})
+assert.equal(singleHiddenTimelinePresentation.recent.hiddenLabelKey, '{count} older task hidden')
+
 console.log(JSON.stringify({
   ok: true,
   summary: {
@@ -189,5 +203,6 @@ console.log(JSON.stringify({
     failedQuickActions: failed.quickActions.map((action) => action.id),
     runningGroup: `${runningGroup.toneClass}:${runningGroup.countLabelKey}`,
     recentGroup: `${recentGroup.toneClass}:${recentGroup.countLabelKey}`,
+    timelineFooter: timelinePresentation.recent.hiddenLabelKey,
   },
 }, null, 2))

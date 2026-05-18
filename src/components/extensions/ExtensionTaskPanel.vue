@@ -123,6 +123,12 @@
           </UiButton>
         </div>
       </div>
+      <div
+        v-if="group.footer?.hasHidden"
+        class="extension-task-group__footer"
+      >
+        {{ t(group.footer.hiddenLabelKey, group.footer.hiddenParams) }}
+      </div>
     </section>
   </div>
 </template>
@@ -138,6 +144,7 @@ import ExtensionSummaryCard from './ExtensionSummaryCard.vue'
 import {
   buildExtensionTaskPresentation,
   taskGroupPresentation,
+  taskTimelinePresentation,
 } from '../../domains/extensions/extensionTaskPresentation.js'
 
 const { t } = useI18n()
@@ -149,6 +156,7 @@ const props = defineProps({
   extensionId: { type: String, default: '' },
 })
 const timeline = computed(() => extensionsStore.taskTimelineForExtension(props.extensionId))
+const timelinePresentation = computed(() => taskTimelinePresentation(timeline.value))
 
 function buildTaskRow(task = {}) {
   return {
@@ -167,6 +175,7 @@ function buildTaskGroup(id = '', titleKey = '', tasks = []) {
   return {
     id,
     presentation: taskGroupPresentation({ id, titleKey, tasks }),
+    footer: id === 'recent' ? timelinePresentation.value.recent : null,
     rows: tasks.map(buildTaskRow),
   }
 }
@@ -368,6 +377,13 @@ function taskTimeSummary(task = {}) {
 
 .extension-task-group__title.is-error .extension-task-group__count {
   color: color-mix(in srgb, var(--error) 72%, var(--text-muted));
+}
+
+.extension-task-group__footer {
+  padding: 8px 16px 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.4;
 }
 
 .extension-task-empty {

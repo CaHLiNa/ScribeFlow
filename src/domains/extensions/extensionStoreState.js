@@ -103,17 +103,29 @@ export function normalizeTask(task = {}) {
   }
 }
 
-export function recentTasksForExtensionList(tasks = [], extensionId = '', workspaceRoot = '') {
+export const DEFAULT_EXTENSION_TASK_RECENT_LIMIT = 8
+
+function normalizeTaskLimit(value = DEFAULT_EXTENSION_TASK_RECENT_LIMIT) {
+  const numeric = Number(value)
+  return Number.isFinite(numeric) && numeric >= 0
+    ? Math.floor(numeric)
+    : DEFAULT_EXTENSION_TASK_RECENT_LIMIT
+}
+
+export function tasksForExtensionList(tasks = [], extensionId = '', workspaceRoot = '') {
   const normalizedExtensionId = normalizeExtensionId(extensionId)
   const normalizedWorkspaceRoot = normalizeWorkspaceRoot(workspaceRoot)
-  const filtered = normalizedExtensionId
+  return normalizedExtensionId
     ? tasks.filter((task) => {
         if (task.extensionId !== normalizedExtensionId) return false
         if (!normalizedWorkspaceRoot) return true
         return normalizeWorkspaceRoot(task.workspaceRoot) === normalizedWorkspaceRoot
       })
     : tasks
-  return [...filtered].slice(0, 8)
+}
+
+export function recentTasksForExtensionList(tasks = [], extensionId = '', workspaceRoot = '') {
+  return [...tasksForExtensionList(tasks, extensionId, workspaceRoot)].slice(0, DEFAULT_EXTENSION_TASK_RECENT_LIMIT)
 }
 
 export function viewKeyMatchesExtension(viewKey = '', extensionId = '') {
@@ -139,7 +151,7 @@ export function panelIdMatchesExtension(registry = [], panelId = '', extensionId
   )
 }
 
-export function buildTaskTimeline(tasks = []) {
+export function buildTaskTimeline(tasks = [], options = {}) {
   const running = []
   const recent = []
   for (const task of tasks) {
@@ -149,7 +161,16 @@ export function buildTaskTimeline(tasks = []) {
       recent.push(task)
     }
   }
-  return { running, recent }
+  const recentLimit = normalizeTaskLimit(options.recentLimit)
+  const visibleRecent = recent.slice(0, recentLimit)
+  return {
+    running,
+    recent: visibleRecent,
+    recentLimit,
+    recentTotalCount: recent.length,
+    recentVisibleCount: visibleRecent.length,
+    recentHiddenCount: Math.max(0, recent.length - visibleRecent.length),
+  }
 }
 
 function enabledAvailableExtensions(registry = [], enabledExtensionIds = []) {
