@@ -53,6 +53,29 @@ export async function formatCitation(style = 'apa', mode = 'reference', referenc
   return formatFromReference(style, mode, reference, number, workspacePath)
 }
 
+export async function formatReferenceCitationById(
+  style = 'apa',
+  mode = 'reference',
+  references = [],
+  referenceId = '',
+  number,
+  workspacePath = ''
+) {
+  return invoke('references_citation_render', {
+    params: {
+      style,
+      mode,
+      reference: null,
+      referenceId,
+      references: Array.isArray(references) ? references : [],
+      cslItems: [],
+      number,
+      locale: 'en-GB',
+      workspacePath,
+    },
+  })
+}
+
 export async function formatBibliography(style = 'apa', references = [], workspacePath = '') {
   return invoke('references_citation_render', {
     params: {

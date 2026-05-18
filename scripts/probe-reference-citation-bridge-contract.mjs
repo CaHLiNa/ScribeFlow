@@ -45,8 +45,22 @@ try {
     throw new Error(`Unexpected IPC command: ${cmd}`)
   })
 
-  const { formatCitation } = await vite.ssrLoadModule('/src/services/references/citationFormatter.js')
-  const rendered = await formatCitation(
+  const {
+    formatCitation,
+    formatReferenceCitationById,
+  } = await vite.ssrLoadModule('/src/services/references/citationFormatter.js')
+  const rendered = await formatReferenceCitationById(
+    'IEEE',
+    'inline',
+    [
+      { id: 'ref-1', citationKey: 'demo2026', title: 'Demo' },
+      { id: 'ref-2', citationKey: 'target2026', title: 'Target' },
+    ],
+    ' ref-2 ',
+    1,
+    ' /tmp/workspace ',
+  )
+  const legacyRendered = await formatCitation(
     'IEEE',
     'inline',
     { id: 'ref-1', citationKey: 'demo2026', title: 'Demo' },
@@ -55,7 +69,22 @@ try {
   )
 
   assert.equal(rendered, '[1]')
-  assert.deepEqual(calls.map(([cmd]) => cmd), ['references_citation_render'])
+  assert.equal(legacyRendered, '[1]')
+  assert.deepEqual(calls.map(([cmd]) => cmd), [
+    'references_citation_render',
+    'references_citation_render',
+  ])
+  assert.equal(calls[0]?.[1]?.params?.referenceId, ' ref-2 ')
+  assert.deepEqual(calls[0]?.[1]?.params?.reference, null)
+  assert.deepEqual(calls[0]?.[1]?.params?.references, [
+    { id: 'ref-1', citationKey: 'demo2026', title: 'Demo' },
+    { id: 'ref-2', citationKey: 'target2026', title: 'Target' },
+  ])
+  assert.deepEqual(calls[1]?.[1]?.params?.reference, {
+    id: 'ref-1',
+    citationKey: 'demo2026',
+    title: 'Demo',
+  })
 
   console.log(JSON.stringify({
     ok: true,

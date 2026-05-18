@@ -6,7 +6,6 @@ import {
   buildDocumentReferenceIdsMutationState,
   buildReferenceEmptyImportResult,
   buildReferenceImportInputState,
-  buildReferenceCitationFormatTargetState,
   buildReferenceJsonExportTargetState,
   buildReferenceMetadataRefreshTargetState,
   buildReferencePdfAssetResultState,
@@ -157,14 +156,6 @@ assert.deepEqual(buildReferenceJsonExportTargetState(references, ' ref-2 '), {
 })
 assert.deepEqual(buildReferenceJsonExportTargetState(references, 'missing'), {
   canExport: false,
-  reference: null,
-})
-assert.deepEqual(buildReferenceCitationFormatTargetState(references, ' ref-2 '), {
-  canFormat: true,
-  reference: references[1],
-})
-assert.deepEqual(buildReferenceCitationFormatTargetState(references, 'missing'), {
-  canFormat: false,
   reference: null,
 })
 assert.deepEqual(buildReferenceEmptyImportResult(), {
@@ -965,8 +956,8 @@ assert.match(
 )
 assert.match(
   storeSource,
-  /buildReferenceCitationFormatTargetState/,
-  'references store must delegate citation formatting target state mapping',
+  /formatReferenceCitationById/,
+  'references store must delegate citation target lookup to the Rust citation bridge',
 )
 assert.match(
   storeSource,

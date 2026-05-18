@@ -1,7 +1,7 @@
 import { defineStore, getActivePinia } from 'pinia'
 import { t } from '../i18n/index.js'
 import { useWorkspaceStore } from './workspace.js'
-import { formatCitation } from '../services/references/citationFormatter.js'
+import { formatReferenceCitationById } from '../services/references/citationFormatter.js'
 import {
   getAvailableCitationStyles,
   getCitationStyleInfo,
@@ -60,7 +60,6 @@ import {
   buildDocumentReferenceIdsMutationState,
   buildReferenceEmptyImportResult,
   buildReferenceImportInputState,
-  buildReferenceCitationFormatTargetState,
   buildReferenceJsonExportTargetState,
   buildReferenceMetadataRefreshTargetState,
   buildReferencePdfAssetResultState,
@@ -873,9 +872,14 @@ export const useReferencesStore = defineStore('references', {
     },
 
     async formatReferenceCitationAsync(referenceId = '', mode = 'reference', number) {
-      const targetState = buildReferenceCitationFormatTargetState(this.references, referenceId)
-      if (!targetState.canFormat) return ''
-      return formatCitation(this.citationStyle, mode, targetState.reference, number, resolveReferenceWorkspacePath())
+      return formatReferenceCitationById(
+        this.citationStyle,
+        mode,
+        this.references,
+        referenceId,
+        number,
+        resolveReferenceWorkspacePath(),
+      )
     },
 
     cleanup() {

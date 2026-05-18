@@ -136,14 +136,6 @@ export function buildReferenceJsonExportTargetState(references = [], referenceId
   }
 }
 
-export function buildReferenceCitationFormatTargetState(references = [], referenceId = '') {
-  const reference = resolveReferenceById(references, referenceId)
-  return {
-    canFormat: Boolean(reference),
-    reference,
-  }
-}
-
 export function buildReferenceEmptyImportResult() {
   return {
     importedCount: 0,

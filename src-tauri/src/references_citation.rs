@@ -21,6 +21,7 @@ struct CitationCslFormatParams {
 pub struct CitationRenderParams {
     pub style: String,
     pub mode: String,
+    pub reference_id: String,
     pub reference: Value,
     pub references: Vec<Value>,
     pub csl_items: Vec<Value>,
@@ -93,6 +94,7 @@ fn references_citation_render_params_from_payload(params: Value) -> CitationRend
             &["style", "styleId", "style_id"],
         )),
         mode: normalize_citation_mode(&string_payload_field(&params, &["mode"])),
+        reference_id: string_payload_field(&params, &["referenceId", "reference_id"]),
         reference,
         references: array_payload_field(&params, &["references"]),
         csl_items: array_payload_field(&params, &["cslItems", "csl_items"]),
@@ -113,6 +115,23 @@ fn trim_string(value: Option<&Value>) -> String {
         .filter(|value| !value.is_empty())
         .unwrap_or_default()
         .to_string()
+}
+
+fn resolve_reference_render_target(references: &[Value], reference_id: &str) -> Option<Value> {
+    let normalized_reference_id = reference_id.trim();
+    if normalized_reference_id.is_empty() {
+        return None;
+    }
+    references
+        .iter()
+        .find(|reference| {
+            reference
+                .get("id")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .is_some_and(|id| id == normalized_reference_id)
+        })
+        .cloned()
 }
 
 fn get_year(reference: &Value) -> String {
@@ -712,12 +731,21 @@ pub async fn references_citation_render(params: Value) -> Result<String, String>
     let params = references_citation_render_params_from_payload(params);
     let style = params.style.as_str();
     let mode = params.mode.as_str();
-    let fallback_reference = if params.reference.is_null() && !params.csl_items.is_empty() {
-        csl_to_reference_record(&params.csl_items[0])
-    } else {
-        params.reference.clone()
+    let target_reference =
+        resolve_reference_render_target(&params.references, &params.reference_id);
+    if !params.reference_id.is_empty() && target_reference.is_none() {
+        return Ok(String::new());
+    }
+    let fallback_reference = match target_reference {
+        Some(reference) => reference,
+        None if params.reference.is_null() && !params.csl_items.is_empty() => {
+            csl_to_reference_record(&params.csl_items[0])
+        }
+        None => params.reference.clone(),
     };
-    let fallback_references = if params.references.is_empty() && !params.csl_items.is_empty() {
+    let fallback_references = if !params.reference_id.is_empty() && !fallback_reference.is_null() {
+        vec![fallback_reference.clone()]
+    } else if params.references.is_empty() && !params.csl_items.is_empty() {
         params
             .csl_items
             .iter()
@@ -726,7 +754,13 @@ pub async fn references_citation_render(params: Value) -> Result<String, String>
     } else {
         params.references.clone()
     };
-    let fallback_csl_items = if params.csl_items.is_empty() && !params.references.is_empty() {
+    let fallback_csl_items = if !params.reference_id.is_empty() {
+        if fallback_reference.is_null() {
+            Vec::new()
+        } else {
+            vec![reference_record_to_csl(&fallback_reference)]
+        }
+    } else if params.csl_items.is_empty() && !params.references.is_empty() {
         params
             .references
             .iter()
@@ -769,7 +803,10 @@ pub async fn references_citation_render(params: Value) -> Result<String, String>
 
 #[cfg(test)]
 mod tests {
-    use super::{references_citation_render_params_from_payload, CitationRenderParams};
+    use super::{
+        references_citation_render, references_citation_render_params_from_payload,
+        resolve_reference_render_target, CitationRenderParams,
+    };
     use serde_json::{json, Value};
 
     #[test]
@@ -794,6 +831,7 @@ mod tests {
             CitationRenderParams {
                 style: "ieee".to_string(),
                 mode: "inline".to_string(),
+                reference_id: String::new(),
                 reference: json!({ "id": "ref-1" }),
                 references: Vec::new(),
                 csl_items: vec![json!({ "id": "csl-1" })],
@@ -816,6 +854,7 @@ mod tests {
 
         assert_eq!(params.style, "apa");
         assert_eq!(params.mode, "reference");
+        assert_eq!(params.reference_id, "");
         assert_eq!(params.reference, Value::Bool(false));
         assert_eq!(params.references, vec![json!({ "id": "ref-2" })]);
         assert_eq!(params.csl_items, Vec::<Value>::new());
@@ -826,7 +865,81 @@ mod tests {
         let params = references_citation_render_params_from_payload(json!(false));
         assert_eq!(params.style, "apa");
         assert_eq!(params.mode, "reference");
+        assert_eq!(params.reference_id, "");
         assert_eq!(params.reference, Value::Null);
         assert_eq!(params.locale, "en-GB");
+    }
+
+    #[test]
+    fn citation_render_params_accept_camel_case_reference_id() {
+        let params = references_citation_render_params_from_payload(json!({
+            "style": "APA",
+            "mode": "reference",
+            "referenceId": " ref-2 ",
+            "references": [
+                { "id": "ref-1" },
+                { "id": "ref-2" }
+            ]
+        }));
+
+        assert_eq!(params.reference_id, "ref-2");
+        assert_eq!(params.references.len(), 2);
+        assert_eq!(
+            resolve_reference_render_target(&params.references, &params.reference_id),
+            Some(json!({ "id": "ref-2" }))
+        );
+    }
+
+    #[tokio::test]
+    async fn citation_render_resolves_reference_id_target_from_references() {
+        let rendered = references_citation_render(json!({
+            "style": "apa",
+            "mode": "reference",
+            "referenceId": " ref-2 ",
+            "references": [
+                {
+                    "id": "ref-1",
+                    "title": "Wrong Target",
+                    "authors": ["Ada Lovelace"],
+                    "year": 2024
+                },
+                {
+                    "id": "ref-2",
+                    "title": "Resolved Rust Target",
+                    "authors": ["Grace Hopper"],
+                    "year": 2025
+                }
+            ]
+        }))
+        .await
+        .unwrap();
+
+        assert!(rendered.contains("Resolved Rust Target"));
+        assert!(!rendered.contains("Wrong Target"));
+    }
+
+    #[tokio::test]
+    async fn citation_render_returns_empty_for_missing_reference_id_target() {
+        let rendered = references_citation_render(json!({
+            "style": "apa",
+            "mode": "reference",
+            "referenceId": "missing",
+            "reference": {
+                "id": "fallback",
+                "title": "Fallback Should Not Render"
+            },
+            "references": [
+                {
+                    "id": "ref-1",
+                    "title": "Existing Reference",
+                    "authors": ["Ada Lovelace"],
+                    "year": 2024
+                }
+            ]
+        }))
+        .await
+        .unwrap();
+
+        assert_eq!(rendered, "");
     }
 }

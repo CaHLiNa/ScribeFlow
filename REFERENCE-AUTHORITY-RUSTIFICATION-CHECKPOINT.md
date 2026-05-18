@@ -42,7 +42,7 @@ JavaScript owns:
 | `references_import.rs` | Reference import parsing and import DTO normalization. |
 | `references_pdf.rs` | PDF metadata/text extraction under workspace/runtime authority. |
 | `references_runtime.rs` | Reference command/runtime glue. |
-| `references_citation.rs` | Citation render command normalization. |
+| `references_citation.rs` | Citation render command normalization plus `referenceId` target lookup from the current reference snapshot. |
 | `references_zotero.rs` | Zotero sync and remote library flow. |
 | `references_zotero_account.rs` | Zotero account, config and secret handling. |
 
@@ -84,7 +84,7 @@ Zotero, search, or snapshot policy and should move back to Rust contracts:
 | Area | Helpers | Rust target |
 | --- | --- | --- |
 | Canonical key normalization | `normalizeCollectionMembershipValue`, `normalizeTagKey`, `normalizeReferenceSortKey`, `resolveCollection`, `resolveTag`, `resolveReferenceSectionKey` | `references_query.rs` and snapshot/query DTOs should own canonical keys and valid filter state. |
-| Reference lookup/export targets | `resolveReferenceByKey`, `resolveReferenceById`, `hasReferenceById`, `resolveReferencesForExport`, `buildReferenceJsonExportTargetState`, `buildReferenceCitationFormatTargetState`, `resolveReferenceSelectionId` | Rust query/export/citation commands should validate target ids and return normalized target state or clear errors. |
+| Reference lookup/export targets | `resolveReferenceByKey`, `resolveReferenceById`, `hasReferenceById`, `resolveReferencesForExport`, `buildReferenceJsonExportTargetState`, `resolveReferenceSelectionId` | Rust query/export commands should validate target ids and return normalized target state or clear errors. Citation-format target lookup has moved to `references_citation.rs`. |
 | Import input preflight | `buildReferenceEmptyImportResult`, `buildReferenceImportInputState` | Rust should eventually expose import-intent/preflight defaults if empty-state semantics stop being purely UI-local. |
 | Mutation target preflight | `buildReferenceRemoveTargetState` | Rust mutation/result APIs should eventually expose enough target state for UI/Zotero side-effect gating without JS performing canonical lookup. |
 | PDF import and assets | `buildReferenceMetadataRefreshTargetState`, `buildReferencePdfImportTargetState`, `buildReferencePdfImportResultState`, `buildReferencePdfAssetTargetState`, `buildReferencePdfAssetResultState` | Rust should own target validation, PDF import outcome, asset attachment/rename, and post-mutation selected reference. |
@@ -109,11 +109,14 @@ Zotero, search, or snapshot policy and should move back to Rust contracts:
      `referenceStoreState.js` reintroduces merge, dedupe or mutation-result policy.
 
 2. Citation/render target authority
-   - Move citation-format target validation and render-target lookup into
-     `references_citation.rs` or a Rust reference query command.
-   - JS service keeps camelCase DTO adaptation only.
-   - Probe target: missing ids, workspace path, style fallback and rendered output
-     are Rust-owned.
+   - Status: citation-format target validation and render-target lookup now live
+     in `references_citation.rs`. The store passes `referenceId` plus the current
+     `references` snapshot through `formatReferenceCitationById`, and missing
+     ids preserve the previous empty-output behavior.
+   - Remaining: keep citation output normalization in Rust and avoid adding
+     store/domain target lookup back when future style rendering paths change.
+   - Probe target: missing ids, workspace path, style fallback and rendered
+     output are Rust-owned.
 
 3. PDF asset and PDF import authority
    - Rust owns PDF import target lookup, duplicate add-or-attach decision, asset
@@ -156,9 +159,9 @@ For each migration slice:
 
 - `referenceStoreState.js` still contains too many canonical target, query and
   selection rules for the Rust-first target.
-- Generic mutation result shaping has moved to Rust, but PDF import/assets,
-  Zotero result classification and citation/export target validation still
-  duplicate Rust-owned concepts in JS.
+- Generic mutation result shaping and citation-format target lookup have moved to
+  Rust, but PDF import/assets, Zotero result classification and export target
+  validation still duplicate Rust-owned concepts in JS.
 - Query/search/document-reference presentation helpers are next because Rust
   already has `references_query.rs` and mutation support for the same canonical
   concepts.
