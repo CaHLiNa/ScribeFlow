@@ -1019,6 +1019,58 @@ mod tests {
         assert_eq!(result["selectedReferenceId"].as_str(), Some("b"));
     }
 
+    #[tokio::test]
+    async fn normalizes_raw_selection_intents_in_rust() {
+        let result = references_query_resolve_resolved(ReferencesQueryResolveParams {
+            library_sections: vec![json!({"key":"all"}), json!({"key":"missing-pdf"})],
+            source_sections: vec![json!({"key":"manual"}), json!({"key":"zotero"})],
+            collections: vec![json!({"key":"ml","label":"Machine Learning"})],
+            tags: vec![json!({"key":"theory","label":"Theory"})],
+            references: vec![json!({
+                "id":"ref-1",
+                "title":"Selected",
+                "collections":["ml"],
+                "tags":["Theory"],
+                "year":2026,
+                "_source":"manual",
+                "citationKey":"selected2026"
+            })],
+            selected_section_key: " missing-pdf ".to_string(),
+            selected_source_key: " manual ".to_string(),
+            selected_collection_key: " machine learning ".to_string(),
+            selected_tag_key: " THEORY ".to_string(),
+            sort_key: "bad-sort".to_string(),
+            preferred_selected_reference_id: "ref-1".to_string(),
+            ..ReferencesQueryResolveParams::default()
+        })
+        .await
+        .expect("resolve raw selection intent");
+
+        assert_eq!(
+            result["query"]["selectedSectionKey"].as_str(),
+            Some("missing-pdf")
+        );
+        assert_eq!(
+            result["query"]["selectedSourceKey"].as_str(),
+            Some("manual")
+        );
+        assert_eq!(
+            result["query"]["selectedCollectionKey"].as_str(),
+            Some("ml")
+        );
+        assert_eq!(result["query"]["selectedTagKey"].as_str(), Some("theory"));
+        assert_eq!(result["query"]["sortKey"].as_str(), Some("year-desc"));
+        assert_eq!(
+            result["query"]["selectedReferenceId"].as_str(),
+            Some("ref-1")
+        );
+        assert_eq!(
+            result["selectedCollection"]["key"].as_str(),
+            Some("ml")
+        );
+        assert_eq!(result["selectedTag"]["key"].as_str(), Some("theory"));
+    }
+
     #[test]
     fn references_query_params_normalize_raw_payload() {
         let params = references_query_params_from_payload(json!({

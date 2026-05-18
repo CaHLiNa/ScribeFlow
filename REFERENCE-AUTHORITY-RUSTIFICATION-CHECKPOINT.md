@@ -60,7 +60,7 @@ selection, or presentation affordances:
 | Citation UI display | `resolveReferenceCitationUsageKeys` | Converts a Rust query result into a Set for UI highlighting only. |
 | Selected row fallback | `resolveSelectedReference` | Acceptable as a getter fallback for visible rows; must not become persistence or query authority. |
 | PDF dock UI | `buildReferenceDockPdfOpenState`, `buildReferenceDockPdfCloseState`, `buildReferenceDockPdfResetState`, `isReferenceDockPdfSelected`, `buildReferenceDockPdfSnapshotState` | May own tab open/close/fallback UI state only. Reference existence should come from Rust-normalized snapshots. |
-| Sidebar UI selection | `buildReferenceSectionSelectionState`, `buildReferenceSourceSelectionState`, `buildReferenceCollectionSelectionState`, `buildReferenceTagSelectionState`, `buildReferenceSortSelectionState` | Keep only as user-intent shaping. Canonical collection/tag/sort validity should come from Rust query output or normalized snapshot data. |
+| Sidebar UI selection | Store-local raw intent fields plus mutually-exclusive UI filter clearing | JS may record user intent and clear incompatible filters. Canonical section/source/collection/tag/sort validity comes from Rust query output. |
 
 ### Transitional DTO And Bridge Helpers
 
@@ -83,8 +83,8 @@ Zotero, search, or snapshot policy and should move back to Rust contracts:
 
 | Area | Helpers | Rust target |
 | --- | --- | --- |
-| Canonical key normalization | `normalizeCollectionMembershipValue`, `normalizeTagKey`, `normalizeReferenceSortKey`, `resolveCollection`, `resolveTag`, `resolveReferenceSectionKey` | `references_query.rs` and snapshot/query DTOs should own canonical keys and valid filter state. |
-| Reference lookup/selection targets | `resolveReferenceSelectionId` | Rust query now returns selected reference, collection/tag targets and reference lookup maps; citation-format target lookup has moved to `references_citation.rs`; export target resolution has moved to `references_import.rs`; metadata refresh target lookup has moved to `references_runtime.rs`. Remaining JS selection-id helper is a sync UI affordance for direct row selection. |
+| Canonical key normalization | `normalizeCollectionMembershipValue`, `normalizeTagKey`, `normalizeReferenceSortKey`, `resolveCollection`, `resolveTag`, `resolveReferenceSectionKey` | `references_query.rs` now owns sidebar/sort query validity. Remaining JS usage is limited to lifecycle/snapshot/default adapters until those DTOs move fully to Rust. |
+| Reference lookup/selection targets | None for store row selection validation | Rust query now returns selected reference, collection/tag targets and reference lookup maps; citation-format target lookup has moved to `references_citation.rs`; export target resolution has moved to `references_import.rs`; metadata refresh target lookup has moved to `references_runtime.rs`. Store row selection uses Rust-returned lookup DTOs for immediate UI affordance, then reconciles through Rust query. |
 | Import input preflight | None | Rust mutation now owns non-array/empty import intent fallback and the empty import result shape. |
 | Mutation target preflight | None for remove-reference target and Zotero delete side-effect gating | Rust mutation result now returns removed target state, `removedReference`, `zoteroDeleteReference`, removed flag and preferred selection without JS performing canonical lookup. |
 | PDF import and assets | None for metadata refresh, PDF asset attach/rename, and PDF import target/result shaping | Rust now owns metadata refresh target lookup, PDF asset attach/rename target resolution, PDF import target/result shaping, and post-mutation selected reference for those flows. |
@@ -156,6 +156,9 @@ Zotero, search, or snapshot policy and should move back to Rust contracts:
      shapes.
    - JS store keeps only view filters, loading/error flags and dock/tab state that
      has no persisted reference meaning.
+   - Status: sidebar/sort selection validity now comes from
+     `references_query_resolve`; lifecycle/default snapshot adapters are the
+     remaining selection-related JS cleanup area.
 
 6. Shrink `referenceStoreState.js`
    - Remove migrated helpers.
@@ -186,7 +189,7 @@ For each migration slice:
   target resolution, PDF import target/result shaping and Zotero
   skipped/success result classification have moved to Rust.
 - Remaining query work is now narrower: selection-id UI affordances,
-  collection/tag/sidebar selection intent helpers, and lifecycle/default snapshot
-  adapters still need either Rust DTOs or explicit UI-only classification.
+  lifecycle/default snapshot adapters, and residual key-normalization helpers
+  still need either Rust DTOs or explicit UI-only classification.
 - UI dock/sidebar helpers are lower risk and can remain while they stay
   presentation-only.

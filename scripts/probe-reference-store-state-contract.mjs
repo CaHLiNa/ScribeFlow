@@ -9,16 +9,11 @@ import {
   buildReferenceDockPdfOpenState,
   buildReferenceDockPdfResetState,
   buildReferenceDockPdfSnapshotState,
-  buildReferenceCollectionSelectionState,
   buildReferenceQuerySelectionState,
-  buildReferenceSectionSelectionState,
   buildReferenceSnapshotApplyState,
   buildReferenceSnapshotSelectionState,
-  buildReferenceSortSelectionState,
-  buildReferenceSourceSelectionState,
   buildReferenceStoreCleanupState,
   buildReferenceStoreInitialState,
-  buildReferenceTagSelectionState,
   hasReferenceById,
   isReferenceDockPdfSelected,
   isReferenceSelectedForDocument,
@@ -35,7 +30,6 @@ import {
   resolveReferenceById,
   resolveReferenceCitationUsageKeys,
   resolveReferenceResolvedQueryState,
-  resolveReferenceSelectionId,
   resolveReferenceSectionKey,
   resolveSelectedReference,
   resolveTag,
@@ -369,74 +363,6 @@ assert.equal(buildReferenceQuerySelectionState({}, {
   selectedReferenceId: 'current-ref',
 }).selectedReferenceId, 'current-ref')
 
-assert.deepEqual(buildReferenceSectionSelectionState({
-  librarySections: sections,
-}, ' recent '), {
-  selectedSectionKey: 'recent',
-  selectedSourceKey: '',
-  selectedCollectionKey: '',
-  selectedTagKey: '',
-})
-assert.deepEqual(buildReferenceSectionSelectionState({
-  librarySections: sections,
-}, 'missing'), {
-  selectedSectionKey: 'all',
-  selectedSourceKey: '',
-  selectedCollectionKey: '',
-  selectedTagKey: '',
-})
-assert.deepEqual(buildReferenceSourceSelectionState({
-  sourceSections: [{ key: 'manual' }, { key: 'zotero' }],
-}, 'zotero'), {
-  selectedSectionKey: 'all',
-  selectedSourceKey: 'zotero',
-  selectedCollectionKey: '',
-  selectedTagKey: '',
-})
-assert.deepEqual(buildReferenceSourceSelectionState({
-  sourceSections: [{ key: 'manual' }],
-}, 'missing'), {
-  selectedSectionKey: 'all',
-  selectedSourceKey: '',
-  selectedCollectionKey: '',
-  selectedTagKey: '',
-})
-assert.deepEqual(buildReferenceCollectionSelectionState({
-  collections,
-}, 'Machine Learning'), {
-  selectedSectionKey: 'all',
-  selectedSourceKey: '',
-  selectedCollectionKey: 'ml',
-  selectedTagKey: '',
-})
-assert.deepEqual(buildReferenceCollectionSelectionState({
-  collections,
-}, 'missing'), {
-  selectedSectionKey: 'all',
-  selectedSourceKey: '',
-  selectedCollectionKey: '',
-  selectedTagKey: '',
-})
-assert.deepEqual(buildReferenceTagSelectionState({
-  tags,
-}, ' THEORY '), {
-  selectedSectionKey: 'all',
-  selectedSourceKey: '',
-  selectedCollectionKey: '',
-  selectedTagKey: 'theory',
-})
-assert.deepEqual(buildReferenceTagSelectionState({
-  tags,
-}, 'missing'), {
-  selectedSectionKey: 'all',
-  selectedSourceKey: '',
-  selectedCollectionKey: '',
-  selectedTagKey: '',
-})
-assert.deepEqual(buildReferenceSortSelectionState('author-asc'), { sortKey: 'author-asc' })
-assert.deepEqual(buildReferenceSortSelectionState('bad-sort'), { sortKey: 'year-desc' })
-assert.equal(resolveReferenceSelectionId(references, ' ref-2 ', 'ref-1'), 'ref-2')
-assert.equal(resolveReferenceSelectionId(references, 'missing', 'ref-1'), 'ref-1')
 assert.deepEqual(buildReferenceSnapshotSelectionState({
   collections,
   tags,
@@ -654,35 +580,38 @@ assert.match(
   /buildReferenceQuerySelectionState/,
   'references store must delegate resolved query selection hydration',
 )
-assert.match(
+assert.doesNotMatch(
   storeSource,
-  /buildReferenceSectionSelectionState/,
-  'references store must delegate sidebar section selection state',
+  /buildReference(?:Section|Source|Collection|Tag|Sort)SelectionState|resolveReferenceSelectionId/,
+  'references store must not use JS selection-validation helpers before Rust query normalization',
+)
+for (const actionName of [
+  'setSelectedSection',
+  'setSelectedSource',
+  'setSelectedCollection',
+  'setSelectedTag',
+  'setSortKey',
+]) {
+  assert.match(
+    actionSource(actionName),
+    /await this\.refreshResolvedQueryState\(\)/,
+    `${actionName} must send raw selection intent through Rust query normalization`,
+  )
+  assert.doesNotMatch(
+    actionSource(actionName),
+    /await this\.syncResolvedQueryState\(\)|resolveReferenceSectionKey|resolveCollection|resolveTag|normalizeReferenceSortKey|buildReference(?:Section|Source|Collection|Tag|Sort)SelectionState/,
+    `${actionName} must not pre-validate selection intent in JS`,
+  )
+}
+assert.match(
+  actionSource('selectReference'),
+  /resolveReferenceById\(\s*this\.resolvedQueryState,\s*this\.selectedReferenceId\s*\)/,
+  'selectReference must use Rust-returned lookup DTOs for synchronous UI affordance only',
 )
 assert.match(
-  storeSource,
-  /buildReferenceSourceSelectionState/,
-  'references store must delegate source selection state',
-)
-assert.match(
-  storeSource,
-  /buildReferenceCollectionSelectionState/,
-  'references store must delegate collection selection state',
-)
-assert.match(
-  storeSource,
-  /buildReferenceTagSelectionState/,
-  'references store must delegate tag selection state',
-)
-assert.match(
-  storeSource,
-  /buildReferenceSortSelectionState/,
-  'references store must delegate sort selection state',
-)
-assert.match(
-  storeSource,
-  /resolveReferenceSelectionId/,
-  'references store must delegate selected-reference id validation',
+  actionSource('selectReference'),
+  /void this\.refreshResolvedQueryState\(\)/,
+  'selectReference must reconcile the raw selected-reference intent through Rust query normalization',
 )
 assert.match(
   storeSource,
@@ -952,11 +881,6 @@ assert.match(
   /resolveReferenceCitationUsageKeys/,
   'references store must delegate citation usage key derivation',
 )
-assert.match(
-  storeSource,
-  /buildReferenceSortSelectionState/,
-  'references store must delegate sort key validation',
-)
 assert.doesNotMatch(
   storeSource,
   /function normalizeCollectionMembershipValue|function normalizeTagKey|function resolveCollection|function resolveDocumentReferenceSelections|function buildDefaultResolvedQueryState|version:\s*2|citationStyle:\s*'apa'|documentReferenceSelections:\s*\{\}|Array\.isArray\(normalized\.(?:collections|tags|references)\)|Array\.isArray\(importedReferences\)|Array\.isArray\(referenceStyles\)|Array\.isArray\(styles\)|Array\.isArray\(importedSnapshot\?\.references\)|String\(normalized\.citationStyle \|\| 'apa'\)|const selectedIds = new Set\(this\.getDocumentReferenceIds|const normalizedQuery = String\(query \|\| ''\)\.trim\(\)\.toLowerCase\(\)|haystack\.includes\(normalizedQuery\)|referenceIds\s*\.map\(\(referenceId\) => this\.references\.find|this\.references\.some\(\(reference\) => reference\.id|this\.(?:librarySections|sourceSections)\.some\(\(section\) => section\.key|resolveReferenceSectionKey|\[\s*'year-desc'[\s\S]*'author-desc'[\s\S]*\]\.includes\(value\)|const query = this\.resolvedQueryState\?\.query|query\.selectedReferenceId|query\.selectedSectionKey|const normalized = normalizeTagKey\(tagKey\)|this\.sortKey = normalizeReferenceSortKey\(value\)|resolveReferenceById\(state\.references|this\.filteredReferences\[0\]|new Set\(Object\.keys\(this\.citedIn\)\)|resolveCollection\(state\.collections|resolveTag\(state\.tags|resolveReferenceByKey\(this\.references|resolveDocumentReferenceIds\(this\.documentReferenceSelections|resolveDocumentReferences\(this\.documentReferenceSelections|resolveAvailableDocumentReferences\(this\.documentReferenceSelections|searchReferences\(this\.sortedLibrary|authors|authorLine|citationKey|identifier|pages|resolveReferenceByKey\(this\.references|buildReferenceImportMutationResultState\(this\.references|buildReferenceAddMutationResultState\(this\.references|buildReferenceImportMutationCommitState\(mutation\)|Number\(result\?\.imported \|\| 0\)|Number\(result\?\.linked \|\| 0\)|Number\(result\?\.updated \|\| 0\)|resolveReferencesForExport\(this\.references|buildReferenceJsonExportTargetState\(this\.references/,
@@ -1004,16 +928,16 @@ assert.doesNotMatch(
   /this\.citationStyle = info \? normalized : 'apa'/,
   'setCitationStyle must not inline citation-style fallback state',
 )
-for (const actionName of ['setSelectedSource', 'setSelectedCollection', 'setSelectedTag']) {
-  assert.doesNotMatch(
-    actionSource(actionName),
-    /this\.selectedSectionKey = 'all'[\s\S]*this\.selectedSourceKey = ''[\s\S]*this\.selectedCollectionKey = ''/,
-    `${actionName} must not inline sidebar selection reset rules`,
-  )
-}
+  for (const actionName of ['setSelectedSource', 'setSelectedCollection', 'setSelectedTag']) {
+    assert.doesNotMatch(
+      actionSource(actionName),
+      /resolveReferenceSectionKey|resolveCollection|resolveTag|normalizeTagKey|buildReference(?:Source|Collection|Tag)SelectionState/,
+      `${actionName} must not pre-validate sidebar selection intent in JS`,
+    )
+  }
 assert.doesNotMatch(
   actionSource('selectReference'),
-  /const normalizedReferenceId = String\(referenceId \|\| ''\)\.trim\(\)/,
+  /const normalizedReferenceId = String\(referenceId \|\| ''\)\.trim\(\)|this\.references\.some\(/,
   'selectReference must not inline selected-reference id validation',
 )
 assert.doesNotMatch(
@@ -1095,7 +1019,7 @@ console.log(JSON.stringify({
     rustZoteroSyncResultState: true,
     defaultQueryStateDerived: true,
     resolvedQueryHydrationDerived: true,
-    sidebarSelectionDerived: true,
+    rustQuerySelectionIntentNormalization: true,
     snapshotSelectionDerived: true,
     rustMutationPreferredSelectionConsumed: true,
     pdfDockStateDerived: true,
@@ -1103,7 +1027,7 @@ console.log(JSON.stringify({
     snapshotPayloadDerived: true,
     storeUsesDomainHelper: true,
     exactIdPresenceDerived: true,
-    sectionAndSortKeyValidationDerived: true,
+    rustQuerySectionAndSortKeyValidation: true,
     storageRootRemainsStoreScoped: true,
   },
 }, null, 2))
