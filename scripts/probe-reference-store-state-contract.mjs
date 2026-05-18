@@ -2,8 +2,6 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import {
   buildDefaultResolvedQueryState,
-  buildReferenceEmptyImportResult,
-  buildReferenceImportInputState,
   resolveReferenceCitationStyleId,
   resolveReferenceWorkspaceCitationStyles,
   buildReferenceLibrarySnapshotPayload,
@@ -132,22 +130,6 @@ assert.deepEqual([...resolveReferenceCitationUsageKeys({
 })], ['lovelace2024', 'hopper2025'])
 assert.deepEqual([...resolveReferenceCitationUsageKeys(null)], [])
 assert.deepEqual([...resolveReferenceCitationUsageKeys(['lovelace2024'])], [])
-assert.deepEqual(buildReferenceEmptyImportResult(), {
-  importedCount: 0,
-  selectedReferenceId: '',
-  selectedReference: null,
-  reusedExisting: false,
-})
-assert.deepEqual(buildReferenceImportInputState([references[0]]), {
-  canImport: true,
-  importedReferences: [references[0]],
-  emptyResult: buildReferenceEmptyImportResult(),
-})
-assert.deepEqual(buildReferenceImportInputState('not-array'), {
-  canImport: false,
-  importedReferences: [],
-  emptyResult: buildReferenceEmptyImportResult(),
-})
 assert.equal(resolveReferenceCitationStyleId(' ieee ', true), 'ieee')
 assert.equal(resolveReferenceCitationStyleId(' ieee ', false), 'apa')
 assert.equal(resolveReferenceCitationStyleId('  ', true), 'apa')
@@ -744,19 +726,19 @@ assert.match(
   /formatReferenceCitationById/,
   'references store must delegate citation target lookup to the Rust citation bridge',
 )
-assert.match(
-  storeSource,
-  /buildReferenceImportInputState/,
-  'references store must delegate import input state derivation',
+assert.doesNotMatch(
+  domainSource,
+  /buildReferenceImportInputState|buildReferenceEmptyImportResult/,
+  'referenceStoreState must not retain migrated import input preflight or empty-result helpers',
 )
 assert.match(
   storeSource,
-  /buildReferenceEmptyImportResult/,
-  'references store must delegate empty import result shape',
+  /mutation\?\.result\?\.emptyImport === true[\s\S]*return mutation\.result/,
+  'references store must consume Rust-returned empty import outcome',
 )
 assert.match(
   storeSource,
-  /return mutation\?\.result \|\| importState\.emptyResult/,
+  /return mutation\?\.result \|\| null/,
   'references store must return Rust-returned import mutation outcome',
 )
 assert.match(
@@ -771,7 +753,7 @@ assert.match(
 )
 assert.doesNotMatch(
   domainSource,
-  /buildReferenceImportMutationResultState|buildReferenceImportMutationCommitState|buildReferenceAddMutationResultState/,
+  /buildReferenceImportMutationResultState|buildReferenceImportMutationCommitState|buildReferenceAddMutationResultState|buildReferenceImportInputState|buildReferenceEmptyImportResult/,
   'referenceStoreState must not retain migrated import/add mutation result helpers',
 )
 assert.doesNotMatch(

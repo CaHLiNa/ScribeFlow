@@ -56,8 +56,6 @@ import {
 } from '../domains/references/referenceDockPages.js'
 import {
   buildDefaultResolvedQueryState,
-  buildReferenceEmptyImportResult,
-  buildReferenceImportInputState,
   resolveReferenceCitationStyleId,
   resolveReferenceWorkspaceCitationStyles,
   buildReferenceLibrarySnapshotPayload,
@@ -119,22 +117,21 @@ async function commitReferenceMutationSnapshot(store, projectRoot = '', mutation
 }
 
 async function commitImportedReferences(store, projectRoot = '', importedReferences = []) {
-  const importState = buildReferenceImportInputState(importedReferences)
-  if (!importState.canImport) return importState.emptyResult
-
   const mutation = await applyReferenceMutation({
     snapshot: store.buildLibrarySnapshotPayload(),
     selectedReferenceId: store.selectedReferenceId,
     action: {
       type: 'mergeImportedReferences',
-      imported: importState.importedReferences,
+      imported: importedReferences,
       markForZoteroPush: true,
     },
   })
+  if (mutation?.result?.emptyImport === true) return mutation.result
+
   await commitReferenceMutationSnapshot(store, projectRoot, mutation, {
     preferredSelectedReferenceId: mutation?.result?.preferredSelectedReferenceId || '',
   })
-  return mutation?.result || importState.emptyResult
+  return mutation?.result || null
 }
 
 export const useReferencesStore = defineStore('references', {
@@ -346,9 +343,6 @@ export const useReferencesStore = defineStore('references', {
     },
 
     async importParsedReferences(projectRoot = '', importedReferences = []) {
-      if (!buildReferenceImportInputState(importedReferences).canImport) {
-        return buildReferenceEmptyImportResult()
-      }
       this.importInFlight = true
       try {
         return commitImportedReferences(this, projectRoot, importedReferences)
@@ -361,10 +355,6 @@ export const useReferencesStore = defineStore('references', {
       this.importInFlight = true
       try {
         const importedReferences = await importReferencesFromText(content)
-        if (!buildReferenceImportInputState(importedReferences).canImport) {
-          return buildReferenceEmptyImportResult()
-        }
-
         return commitImportedReferences(this, projectRoot, importedReferences)
       } finally {
         this.importInFlight = false

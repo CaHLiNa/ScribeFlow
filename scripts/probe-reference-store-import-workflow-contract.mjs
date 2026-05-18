@@ -55,12 +55,17 @@ assert.match(
 )
 assert.match(
   helperSource,
-  /return mutation\?\.result \|\| importState\.emptyResult/,
+  /mutation\?\.result\?\.emptyImport === true[\s\S]*return mutation\.result/,
+  'commitImportedReferences must consume Rust-returned empty import outcome without committing',
+)
+assert.match(
+  helperSource,
+  /return mutation\?\.result \|\| null/,
   'commitImportedReferences must return the Rust mutation outcome without JS result reconstruction',
 )
 assert.doesNotMatch(
   helperSource,
-  /\.push\(|\.splice\(|new Set\(|findIndex\(|Array\.isArray\(importedReferences\)|buildReferenceImportMutationCommitState|buildReferenceImportMutationResultState|resolveReferenceById|writeReferenceLibrarySnapshot|normalizeReferenceLibrarySnapshotWithBackend/,
+  /\.push\(|\.splice\(|new Set\(|findIndex\(|Array\.isArray\(importedReferences\)|buildReferenceImportInputState|buildReferenceEmptyImportResult|buildReferenceImportMutationCommitState|buildReferenceImportMutationResultState|resolveReferenceById|writeReferenceLibrarySnapshot|normalizeReferenceLibrarySnapshotWithBackend|importedCount:\s*0|selectedReference:\s*null/,
   'commitImportedReferences must not perform local merge, dedupe, commit selection lookup, result lookup, or persistence policy itself',
 )
 
@@ -88,5 +93,6 @@ console.log(JSON.stringify({
     snapshotCommitBoundaryPreserved: true,
     rustReturnedOutcomeConsumed: true,
     importActionsAvoidDuplicateMergeHandling: true,
+    rustEmptyImportOutcomeConsumed: true,
   },
 }, null, 2))

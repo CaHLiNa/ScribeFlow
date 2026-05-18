@@ -85,7 +85,7 @@ Zotero, search, or snapshot policy and should move back to Rust contracts:
 | --- | --- | --- |
 | Canonical key normalization | `normalizeCollectionMembershipValue`, `normalizeTagKey`, `normalizeReferenceSortKey`, `resolveCollection`, `resolveTag`, `resolveReferenceSectionKey` | `references_query.rs` and snapshot/query DTOs should own canonical keys and valid filter state. |
 | Reference lookup/selection targets | `resolveReferenceByKey`, `resolveReferenceById`, `hasReferenceById`, `resolveReferenceSelectionId` | Rust query commands should validate target ids and return normalized target state or clear errors. Citation-format target lookup has moved to `references_citation.rs`; export target resolution has moved to `references_import.rs`; metadata refresh target lookup has moved to `references_runtime.rs`. |
-| Import input preflight | `buildReferenceEmptyImportResult`, `buildReferenceImportInputState` | Rust should eventually expose import-intent/preflight defaults if empty-state semantics stop being purely UI-local. |
+| Import input preflight | None | Rust mutation now owns non-array/empty import intent fallback and the empty import result shape. |
 | Mutation target preflight | None for remove-reference target and Zotero delete side-effect gating | Rust mutation result now returns removed target state, `removedReference`, `zoteroDeleteReference`, removed flag and preferred selection without JS performing canonical lookup. |
 | PDF import and assets | None for metadata refresh, PDF asset attach/rename, and PDF import target/result shaping | Rust now owns metadata refresh target lookup, PDF asset attach/rename target resolution, PDF import target/result shaping, and post-mutation selected reference for those flows. |
 | Zotero sync result | None for skipped/success result classification | Rust now owns sync counts, skipped state, selected id, last-sync timestamp and skipped/success result classification. JS still owns local error presentation classification for thrown failures. |
@@ -181,7 +181,7 @@ For each migration slice:
   selection rules for the Rust-first target.
 - Generic mutation result shaping, citation-format target lookup, metadata
   refresh target lookup, remove target/Zotero delete side-effect gating,
-  document-reference mutation derivation,
+  document-reference mutation derivation, import input preflight,
   export target validation, PDF asset attach/rename
   target resolution, PDF import target/result shaping and Zotero
   skipped/success result classification have moved to Rust.

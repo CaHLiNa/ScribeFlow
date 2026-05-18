@@ -120,24 +120,6 @@ export function resolveReferenceCitationUsageKeys(citationUsageIndex = {}) {
   return new Set(Object.keys(citationUsageIndex))
 }
 
-export function buildReferenceEmptyImportResult() {
-  return {
-    importedCount: 0,
-    selectedReferenceId: '',
-    selectedReference: null,
-    reusedExisting: false,
-  }
-}
-
-export function buildReferenceImportInputState(importedReferences = []) {
-  const references = Array.isArray(importedReferences) ? importedReferences : []
-  return {
-    canImport: references.length > 0,
-    importedReferences: references,
-    emptyResult: buildReferenceEmptyImportResult(),
-  }
-}
-
 export function resolveReferenceCitationStyleId(style = '', hasStyle = false) {
   const normalizedStyle = String(style || '').trim()
   return normalizedStyle && hasStyle ? normalizedStyle : 'apa'

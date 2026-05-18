@@ -61,6 +61,7 @@ pub enum ReferencesMutationAction {
         collection_key: String,
     },
     MergeImportedReferences {
+        #[serde(default, deserialize_with = "deserialize_value_array")]
         imported: Vec<Value>,
         #[serde(default, alias = "markForZoteroPush")]
         mark_for_zotero_push: bool,
@@ -136,6 +137,14 @@ where
         })
         .unwrap_or_default();
     Ok(ids)
+}
+
+fn deserialize_value_array<'de, D>(deserializer: D) -> Result<Vec<Value>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = Option::<Value>::deserialize(deserializer)?.unwrap_or(Value::Null);
+    Ok(value.as_array().cloned().unwrap_or_default())
 }
 
 fn references_mutation_apply_params_from_payload(params: Value) -> ReferencesMutationApplyParams {
@@ -635,6 +644,20 @@ fn apply_toggle_reference_collection(
 }
 
 fn apply_merge_imported_references(snapshot: &Value, imported: &[Value]) -> Value {
+    if imported.is_empty() {
+        return json!({
+            "snapshot": normalize_snapshot(snapshot),
+            "result": {
+                "emptyImport": true,
+                "importedCount": 0,
+                "selectedReferenceId": "",
+                "selectedReference": Value::Null,
+                "preferredSelectedReferenceId": "",
+                "reusedExisting": false,
+            },
+        });
+    }
+
     let references = normalize_snapshot_references(snapshot);
     let merged = merge_imported_references_internal(&references, imported);
     let imported_count = merged.len().saturating_sub(references.len());
@@ -1298,6 +1321,25 @@ mod tests {
             _ => panic!("expected addReference action"),
         }
 
+        let imported_params = references_mutation_apply_params_from_payload(json!({
+            "snapshot": sample_snapshot(),
+            "action": {
+                "type": "mergeImportedReferences",
+                "imported": "not-array",
+                "markForZoteroPush": true
+            }
+        }));
+        match imported_params.action {
+            ReferencesMutationAction::MergeImportedReferences {
+                imported,
+                mark_for_zotero_push,
+            } => {
+                assert!(imported.is_empty());
+                assert!(mark_for_zotero_push);
+            }
+            _ => panic!("expected mergeImportedReferences action"),
+        }
+
         let rename_params = references_mutation_apply_params_from_payload(json!({
             "snapshot": sample_snapshot(),
             "action": {
@@ -1562,6 +1604,35 @@ mod tests {
             Some("ref-1")
         );
         assert_eq!(result["result"]["reusedExisting"].as_bool(), Some(true));
+    }
+
+    #[tokio::test]
+    async fn merge_imported_references_returns_empty_import_result_from_rust() {
+        let result = references_mutation_apply_typed(ReferencesMutationApplyParams {
+            snapshot: sample_snapshot(),
+            global_config_dir: String::new(),
+            selected_reference_id: "ref-1".to_string(),
+            action: ReferencesMutationAction::MergeImportedReferences {
+                imported: vec![],
+                mark_for_zotero_push: true,
+            },
+        })
+        .await
+        .expect("merge empty imported references");
+
+        assert_eq!(result["result"]["emptyImport"].as_bool(), Some(true));
+        assert_eq!(result["result"]["importedCount"].as_u64(), Some(0));
+        assert_eq!(result["result"]["selectedReferenceId"].as_str(), Some(""));
+        assert!(result["result"]["selectedReference"].is_null());
+        assert_eq!(
+            result["result"]["preferredSelectedReferenceId"].as_str(),
+            Some("")
+        );
+        assert_eq!(result["result"]["reusedExisting"].as_bool(), Some(false));
+        assert_eq!(
+            result["snapshot"],
+            crate::references_snapshot::normalize_snapshot(&sample_snapshot())
+        );
     }
 
     #[tokio::test]
