@@ -64,7 +64,6 @@ import {
   buildReferenceDockPdfSnapshotState,
   isReferenceDockPdfSelected,
   isReferenceSelectedForDocument,
-  buildReferenceStoreCleanupState,
   buildReferenceStoreInitialState,
   resolveAvailableDocumentReferences,
   resolveDocumentReferenceByKey,
@@ -882,8 +881,23 @@ export const useReferencesStore = defineStore('references', {
       )
     },
 
-    cleanup() {
-      Object.assign(this, buildReferenceStoreCleanupState(this.$state, REFERENCE_STORE_DEFAULTS))
+    async cleanup() {
+      this.selectedSectionKey = ''
+      this.selectedSourceKey = ''
+      this.selectedCollectionKey = ''
+      this.selectedTagKey = ''
+      this.selectedReferenceId = ''
+      this.referenceDockPdfOpen = false
+      this.referenceDockPdfReferenceId = ''
+      this.sortKey = ''
+      this.isLoading = false
+      this.loadError = ''
+      this.zoteroMutationError = ''
+      this.importInFlight = false
+
+      await this.applyLibrarySnapshot({}, {
+        preferredSelectedReferenceId: '',
+      })
     },
   },
 })

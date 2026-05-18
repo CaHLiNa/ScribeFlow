@@ -10,7 +10,6 @@ import {
   buildReferenceDockPdfResetState,
   buildReferenceDockPdfSnapshotState,
   buildReferenceQuerySelectionState,
-  buildReferenceStoreCleanupState,
   buildReferenceStoreInitialState,
   hasReferenceById,
   isReferenceDockPdfSelected,
@@ -419,47 +418,10 @@ assert.deepEqual(buildReferenceStoreInitialState({
   importInFlight: false,
   availableCitationStylesList: [],
 })
-assert.deepEqual(buildReferenceStoreCleanupState({
-  librarySections: [{ key: 'all' }, { key: 'recent' }],
-  sourceSections: [{ key: 'manual' }, { key: 'zotero' }],
-}, {
-  collections,
-  tags,
-  references,
-}), {
-  collections,
-  tags,
-  references,
-  documentReferenceSelections: {},
-  citationStyle: 'apa',
-  selectedSectionKey: 'all',
-  selectedSourceKey: '',
-  selectedCollectionKey: '',
-  selectedTagKey: '',
-  selectedReferenceId: 'ref-1',
-  referenceDockPdfOpen: false,
-  referenceDockPdfReferenceId: '',
-  sortKey: 'year-desc',
-  resolvedQueryState: buildDefaultResolvedQueryState({
-    librarySections: [{ key: 'all' }, { key: 'recent' }],
-    sourceSections: [{ key: 'manual' }, { key: 'zotero' }],
-    collections,
-    tags,
-    references,
-    selectedSectionKey: 'all',
-    selectedSourceKey: '',
-    selectedCollectionKey: '',
-    selectedTagKey: '',
-    sortKey: 'year-desc',
-  }),
-  isLoading: false,
-  loadError: '',
-  zoteroMutationError: '',
-  importInFlight: false,
-})
 const storeSource = await readFile('src/stores/references.js', 'utf8')
 const domainSource = await readFile('src/domains/references/referenceStoreState.js', 'utf8')
 const libraryIoSource = await readFile('src/services/references/referenceLibraryIO.js', 'utf8')
+const workspaceLifecycleSource = await readFile('src/app/workspace/useWorkspaceLifecycle.js', 'utf8')
 const actionSource = (actionName) => {
   const pattern = new RegExp(`(?:async\\s+)?${actionName}\\([^)]*\\) \\{[\\s\\S]*?\\n    \\},`)
   const match = storeSource.match(pattern)
@@ -482,10 +444,30 @@ assert.match(
   /buildReferenceStoreInitialState/,
   'references store must delegate initial state assembly',
 )
-assert.match(
+assert.doesNotMatch(
   storeSource,
   /buildReferenceStoreCleanupState/,
-  'references store must delegate cleanup reset state assembly',
+  'references store must not use JS cleanup reset assembly before Rust snapshot/query normalization',
+)
+assert.doesNotMatch(
+  domainSource,
+  /buildReferenceStoreCleanupState/,
+  'referenceStoreState must not retain JS cleanup reset assembly',
+)
+assert.match(
+  actionSource('cleanup'),
+  /async cleanup\(\)/,
+  'references cleanup must be async so it can await Rust normalization',
+)
+assert.match(
+  actionSource('cleanup'),
+  /await this\.applyLibrarySnapshot\(\{\}, \{\s*preferredSelectedReferenceId: '',\s*\}\)/,
+  'references cleanup must reset through Rust snapshot normalization and query hydration',
+)
+assert.match(
+  workspaceLifecycleSource,
+  /await referencesStore\.cleanup\(\)/,
+  'workspace close must await Rust-backed reference cleanup before closing the workspace',
 )
 assert.match(
   storeSource,

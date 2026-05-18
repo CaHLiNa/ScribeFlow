@@ -267,7 +267,7 @@ export function useWorkspaceLifecycle() {
     filesStore.cleanup()
     linksStore.cleanup()
     latexStore.cleanup()
-    referencesStore.cleanup()
+    await referencesStore.cleanup()
     workflowStore.cleanup()
     await extensionsStore.teardownWorkspaceRuntimeSlots(closingWorkspacePath).catch(() => {})
     extensionsStore.resetWorkspaceSessionState()

@@ -330,44 +330,6 @@ export function buildReferenceStoreInitialState(defaults = {}) {
   }
 }
 
-export function buildReferenceStoreCleanupState(state = {}, defaults = {}) {
-  const seed = resolveReferenceStoreSeed({
-    ...defaults,
-    librarySections: state.librarySections || defaults.librarySections,
-    sourceSections: state.sourceSections || defaults.sourceSections,
-  })
-  return {
-    collections: seed.collections,
-    tags: seed.tags,
-    references: seed.references,
-    documentReferenceSelections: {},
-    citationStyle: 'apa',
-    selectedSectionKey: 'all',
-    selectedSourceKey: '',
-    selectedCollectionKey: '',
-    selectedTagKey: '',
-    selectedReferenceId: String(seed.references[0]?.id || ''),
-    referenceDockPdfOpen: false,
-    referenceDockPdfReferenceId: '',
-    sortKey: 'year-desc',
-    resolvedQueryState: buildReferenceStoreResetQueryState({
-      ...seed,
-      documentReferenceSelections: {},
-      citationStyle: 'apa',
-      selectedSectionKey: 'all',
-      selectedSourceKey: '',
-      selectedCollectionKey: '',
-      selectedTagKey: '',
-      selectedReferenceId: String(seed.references[0]?.id || ''),
-      sortKey: 'year-desc',
-    }),
-    isLoading: false,
-    loadError: '',
-    zoteroMutationError: '',
-    importInFlight: false,
-  }
-}
-
 export function buildReferenceQuerySelectionState(resolvedQueryState = {}, currentState = {}) {
   const query = resolvedQueryState?.query && typeof resolvedQueryState.query === 'object'
     ? resolvedQueryState.query
