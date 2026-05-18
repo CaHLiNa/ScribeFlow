@@ -9,48 +9,25 @@
     }"
     data-surface-context-guard="true"
   >
-    <div class="reference-workbench__main">
-      <ReferenceLibraryToolbar
-        :can-export="referencesStore.references.length > 0"
-        :import-in-flight="referencesStore.importInFlight"
-        :is-loading="referencesStore.isLoading"
-        @add="showAddDialog = true"
-        @export-bibtex="handleExportBibTeX"
-        @import-bibtex="handleImportBibTeX"
-        @import-pdf="handleImportPdf"
-      />
-
-      <div
-        v-if="referencesStore.zoteroMutationError"
-        class="reference-workbench__status ui-empty-copy is-error"
-      >
-        {{ referencesStore.zoteroMutationError }}
-      </div>
-
-      <div v-if="referencesStore.isLoading" class="reference-workbench__empty ui-empty-copy">
-        {{ t('Loading references...') }}
-      </div>
-
-      <div v-else-if="referencesStore.loadError" class="reference-workbench__empty ui-empty-copy">
-        {{ referencesStore.loadError }}
-      </div>
-
-      <div v-else-if="filteredReferences.length === 0" class="reference-workbench__empty ui-empty-copy">
-        {{ t('No references in this section yet.') }}
-      </div>
-
-      <ReferenceLibraryTable
-        v-else
-        :references="filteredReferences"
-        :selected-reference-id="selectedReference?.id"
-        :sort-key="sortKey"
-        @open-context-menu="openReferenceContextMenu"
-        @select-reference="handleReferenceRowClick"
-        @toggle-author-sort="toggleAuthorSort"
-        @toggle-title-sort="toggleTitleSort"
-        @toggle-year-sort="toggleYearSort"
-      />
-    </div>
+    <ReferenceLibraryMain
+      :can-export="referencesStore.references.length > 0"
+      :import-in-flight="referencesStore.importInFlight"
+      :is-loading="referencesStore.isLoading"
+      :load-error="referencesStore.loadError"
+      :references="filteredReferences"
+      :selected-reference-id="selectedReference?.id"
+      :sort-key="sortKey"
+      :zotero-mutation-error="referencesStore.zoteroMutationError"
+      @add="showAddDialog = true"
+      @export-bibtex="handleExportBibTeX"
+      @import-bibtex="handleImportBibTeX"
+      @import-pdf="handleImportPdf"
+      @open-context-menu="openReferenceContextMenu"
+      @select-reference="handleReferenceRowClick"
+      @toggle-author-sort="toggleAuthorSort"
+      @toggle-title-sort="toggleTitleSort"
+      @toggle-year-sort="toggleYearSort"
+    />
 
     <ReferenceLibraryDetailDock
       :active-key="activeReferenceDockKey"
@@ -121,8 +98,7 @@ import {
 } from '../../domains/references/referenceWorkbenchPresentation.js'
 import ReferenceAddDialog from './ReferenceAddDialog.vue'
 import ReferenceLibraryDetailDock from './ReferenceLibraryDetailDock.vue'
-import ReferenceLibraryTable from './ReferenceLibraryTable.vue'
-import ReferenceLibraryToolbar from './ReferenceLibraryToolbar.vue'
+import ReferenceLibraryMain from './ReferenceLibraryMain.vue'
 import SurfaceContextMenu from '../shared/SurfaceContextMenu.vue'
 import { referenceDockPageRegistry } from './referenceDockPageRegistry.js'
 
@@ -687,27 +663,4 @@ async function handleExportBibTeX() {
   background: transparent;
 }
 
-.reference-workbench__main {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.reference-workbench__empty {
-  padding: 24px;
-  text-align: center;
-}
-
-.reference-workbench__status {
-  padding: 10px 16px;
-  color: var(--text-muted);
-  font-size: 12px;
-}
-
-.reference-workbench__status.is-error {
-  color: var(--error);
-}
 </style>
