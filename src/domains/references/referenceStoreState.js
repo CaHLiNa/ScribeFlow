@@ -137,6 +137,14 @@ export function buildReferenceImportMutationResultState(references = [], mutatio
   }
 }
 
+export function buildReferenceAddMutationResultState(references = [], mutation = {}) {
+  const selectedReferenceId = String(mutation?.result?.selectedReferenceId || '')
+  return {
+    selectedReferenceId,
+    selectedReference: resolveReferenceById(references, selectedReferenceId),
+  }
+}
+
 export function buildReferencePdfImportTargetState(mutation = {}, fallbackSnapshot = {}) {
   const selectedReferenceId = String(mutation?.result?.selectedReferenceId || '').trim()
   const importedSnapshot = mutation?.snapshot || fallbackSnapshot || {}

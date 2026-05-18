@@ -7,6 +7,7 @@ import {
   buildReferenceEmptyImportResult,
   buildReferenceImportInputState,
   buildReferenceImportMutationResultState,
+  buildReferenceAddMutationResultState,
   buildReferenceCollectionMutationResultState,
   buildReferencePdfImportTargetState,
   buildReferenceZoteroSyncResultState,
@@ -174,6 +175,22 @@ assert.deepEqual(buildReferenceImportMutationResultState(references, {
   selectedReferenceId: 'missing',
   selectedReference: null,
   reusedExisting: false,
+})
+assert.deepEqual(buildReferenceAddMutationResultState(references, {
+  result: {
+    selectedReferenceId: 'ref-2',
+  },
+}), {
+  selectedReferenceId: 'ref-2',
+  selectedReference: references[1],
+})
+assert.deepEqual(buildReferenceAddMutationResultState(references, {
+  result: {
+    selectedReferenceId: 'missing',
+  },
+}), {
+  selectedReferenceId: 'missing',
+  selectedReference: null,
 })
 assert.deepEqual(buildReferencePdfImportTargetState({
   result: {
@@ -967,6 +984,11 @@ assert.match(
 )
 assert.match(
   storeSource,
+  /buildReferenceAddMutationResultState/,
+  'references store must delegate add-reference mutation result mapping',
+)
+assert.match(
+  storeSource,
   /buildReferencePdfImportTargetState/,
   'references store must delegate PDF import target state mapping',
 )
@@ -1009,6 +1031,11 @@ assert.doesNotMatch(
   actionSource('importReferencePdf'),
   /String\(importMutation\?\.result\?\.selectedReferenceId \|\| ''\)|Array\.isArray\(importedSnapshot\?\.references\)|resolveReferenceById\(importedSnapshot\.references/,
   'importReferencePdf must not inline PDF import target state mapping',
+)
+assert.doesNotMatch(
+  actionSource('addReference'),
+  /String\(mutation\?\.result\?\.selectedReferenceId \|\| ''\)|resolveReferenceById\(this\.references, selectedReferenceId\)/,
+  'addReference must not inline add-reference mutation result mapping',
 )
 for (const actionName of ['createCollection', 'renameCollection']) {
   assert.doesNotMatch(
@@ -1079,6 +1106,7 @@ console.log(JSON.stringify({
     referenceSearchDerived: true,
     exportSelectionDerived: true,
     importResultDerived: true,
+    addReferenceResultStateDerived: true,
     pdfImportTargetStateDerived: true,
     collectionMutationResultStateDerived: true,
     citationStyleStateDerived: true,

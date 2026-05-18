@@ -61,6 +61,7 @@ import {
   buildReferenceEmptyImportResult,
   buildReferenceImportInputState,
   buildReferenceImportMutationResultState,
+  buildReferenceAddMutationResultState,
   buildReferenceCollectionMutationResultState,
   buildReferencePdfImportTargetState,
   buildReferenceZoteroSyncResultState,
@@ -601,13 +602,13 @@ export const useReferencesStore = defineStore('references', {
           markForZoteroPush,
         },
       })
-      const selectedReferenceId = String(mutation?.result?.selectedReferenceId || '')
+      const resultState = buildReferenceAddMutationResultState(this.references, mutation)
 
       await commitReferenceMutationSnapshot(this, projectRoot, mutation, {
         persist,
-        preferredSelectedReferenceId: selectedReferenceId,
+        preferredSelectedReferenceId: resultState.selectedReferenceId,
       })
-      return resolveReferenceById(this.references, selectedReferenceId)
+      return buildReferenceAddMutationResultState(this.references, mutation).selectedReference
     },
 
     async updateReference(projectRoot = '', referenceId = '', updates = {}, options = {}) {
