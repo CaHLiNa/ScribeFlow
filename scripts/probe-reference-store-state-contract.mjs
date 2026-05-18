@@ -6,6 +6,7 @@ import {
   buildDocumentReferenceIdsMutationState,
   buildReferenceEmptyImportResult,
   buildReferenceImportInputState,
+  buildReferenceImportMutationCommitState,
   buildReferenceImportMutationResultState,
   buildReferenceAddMutationResultState,
   buildReferenceCollectionMutationResultState,
@@ -184,6 +185,20 @@ assert.deepEqual(buildReferenceImportMutationResultState(references, {
   selectedReferenceId: 'missing',
   selectedReference: null,
   reusedExisting: false,
+})
+assert.deepEqual(buildReferenceImportMutationCommitState({
+  result: {
+    selectedReferenceId: 'ref-2',
+  },
+}), {
+  preferredSelectedReferenceId: 'ref-2',
+})
+assert.deepEqual(buildReferenceImportMutationCommitState({
+  result: {
+    selectedReferenceId: null,
+  },
+}), {
+  preferredSelectedReferenceId: '',
 })
 assert.deepEqual(buildReferenceAddMutationResultState(references, {
   result: {
@@ -1134,6 +1149,11 @@ assert.match(
 )
 assert.match(
   storeSource,
+  /buildReferenceImportMutationCommitState/,
+  'references store must delegate import mutation commit selection',
+)
+assert.match(
+  storeSource,
   /buildReferenceAddMutationResultState/,
   'references store must delegate add-reference mutation result mapping',
 )
@@ -1211,6 +1231,11 @@ assert.doesNotMatch(
   actionSource('importReferencePdf'),
   /String\(importMutation\?\.result\?\.selectedReferenceId \|\| ''\)|Array\.isArray\(importedSnapshot\?\.references\)|resolveReferenceById\(importedSnapshot\.references/,
   'importReferencePdf must not inline PDF import target state mapping',
+)
+assert.doesNotMatch(
+  storeSource,
+  /async function commitImportedReferences[\s\S]*?const selectedReferenceId = String\(mutation\?\.result\?\.selectedReferenceId \|\| ''\)/,
+  'commitImportedReferences must not inline import mutation commit selection',
 )
 assert.doesNotMatch(
   actionSource('addReference'),
@@ -1323,6 +1348,7 @@ console.log(JSON.stringify({
     referenceSearchDerived: true,
     exportSelectionDerived: true,
     importResultDerived: true,
+    importMutationCommitStateDerived: true,
     addReferenceResultStateDerived: true,
     metadataRefreshTargetStateDerived: true,
     pdfAssetTargetAndResultStateDerived: true,

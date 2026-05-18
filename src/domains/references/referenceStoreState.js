@@ -137,6 +137,12 @@ export function buildReferenceImportMutationResultState(references = [], mutatio
   }
 }
 
+export function buildReferenceImportMutationCommitState(mutation = {}) {
+  return {
+    preferredSelectedReferenceId: String(mutation?.result?.selectedReferenceId || ''),
+  }
+}
+
 export function buildReferenceAddMutationResultState(references = [], mutation = {}) {
   const selectedReferenceId = String(mutation?.result?.selectedReferenceId || '')
   return {

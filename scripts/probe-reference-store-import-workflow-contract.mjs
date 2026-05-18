@@ -45,8 +45,8 @@ assert.match(
 )
 assert.match(
   helperSource,
-  /preferredSelectedReferenceId: selectedReferenceId/,
-  'commitImportedReferences must preserve selected-reference restoration after commit',
+  /buildReferenceImportMutationCommitState\(mutation\)/,
+  'commitImportedReferences must delegate selected-reference restoration state to the reference domain',
 )
 assert.match(
   helperSource,
@@ -55,8 +55,8 @@ assert.match(
 )
 assert.doesNotMatch(
   helperSource,
-  /\.push\(|\.splice\(|new Set\(|findIndex\(|Array\.isArray\(importedReferences\)|Number\(mutation\?\.result\?\.importedCount \|\| 0\)|reusedExisting: mutation\?\.result\?\.reusedExisting === true|writeReferenceLibrarySnapshot|normalizeReferenceLibrarySnapshotWithBackend/,
-  'commitImportedReferences must not perform local merge, dedupe, result mapping, or persistence policy itself',
+  /\.push\(|\.splice\(|new Set\(|findIndex\(|Array\.isArray\(importedReferences\)|String\(mutation\?\.result\?\.selectedReferenceId \|\| ''\)|Number\(mutation\?\.result\?\.importedCount \|\| 0\)|reusedExisting: mutation\?\.result\?\.reusedExisting === true|writeReferenceLibrarySnapshot|normalizeReferenceLibrarySnapshotWithBackend/,
+  'commitImportedReferences must not perform local merge, dedupe, commit selection, result mapping, or persistence policy itself',
 )
 
 for (const actionName of ['importParsedReferences', 'importResolvedReferenceText']) {
@@ -78,6 +78,7 @@ console.log(JSON.stringify({
   summary: {
     sharedImportCommitWorkflow: true,
     importResultMappingDerived: true,
+    importCommitSelectionDerived: true,
     rustMutationRemainsMergeAuthority: true,
     snapshotCommitBoundaryPreserved: true,
     importActionsAvoidDuplicateMergeHandling: true,

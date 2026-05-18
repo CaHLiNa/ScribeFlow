@@ -60,6 +60,7 @@ import {
   buildDocumentReferenceIdsMutationState,
   buildReferenceEmptyImportResult,
   buildReferenceImportInputState,
+  buildReferenceImportMutationCommitState,
   buildReferenceImportMutationResultState,
   buildReferenceAddMutationResultState,
   buildReferenceCollectionMutationResultState,
@@ -149,9 +150,8 @@ async function commitImportedReferences(store, projectRoot = '', importedReferen
       markForZoteroPush: true,
     },
   })
-  const selectedReferenceId = String(mutation?.result?.selectedReferenceId || '')
   await commitReferenceMutationSnapshot(store, projectRoot, mutation, {
-    preferredSelectedReferenceId: selectedReferenceId,
+    ...buildReferenceImportMutationCommitState(mutation),
   })
   return buildReferenceImportMutationResultState(store.references, mutation)
 }
