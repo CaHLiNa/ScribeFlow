@@ -7,10 +7,13 @@ import {
   buildReferenceDockPdfOpenState,
   buildReferenceDockPdfResetState,
   buildReferenceDockPdfSnapshotState,
-  buildReferenceQuerySelectionState,
   buildReferenceStoreInitialState,
-  hasReferenceById,
   isReferenceDockPdfSelected,
+  resolveReferenceCitationUsageKeys,
+} from '../src/domains/references/referenceStoreState.js'
+import {
+  buildReferenceQuerySelectionState,
+  hasReferenceById,
   isReferenceSelectedForDocument,
   resolveAvailableDocumentReferences,
   resolveDocumentReferenceByKey,
@@ -18,11 +21,10 @@ import {
   resolveDocumentReferences,
   resolveReferenceByKey,
   resolveReferenceById,
-  resolveReferenceCitationUsageKeys,
   resolveReferenceResolvedQueryState,
   resolveSelectedReference,
   searchReferences,
-} from '../src/domains/references/referenceStoreState.js'
+} from '../src/domains/references/referenceResolvedQueryDto.js'
 
 const collections = [
   { key: 'methods', label: 'Methods' },
@@ -321,6 +323,7 @@ assert.deepEqual(buildReferenceStoreInitialState({
 })
 const storeSource = await readFile('src/stores/references.js', 'utf8')
 const domainSource = await readFile('src/domains/references/referenceStoreState.js', 'utf8')
+const queryDtoSource = await readFile('src/domains/references/referenceResolvedQueryDto.js', 'utf8')
 const libraryIoSource = await readFile('src/services/references/referenceLibraryIO.js', 'utf8')
 const backendSource = await readFile('src-tauri/src/references_backend.rs', 'utf8')
 const libSource = await readFile('src-tauri/src/lib.rs', 'utf8')
@@ -335,7 +338,22 @@ const actionSource = (actionName) => {
 assert.match(
   storeSource,
   /from '..\/domains\/references\/referenceStoreState\.js'/,
-  'references store must import deterministic state rules from the reference domain',
+  'references store must import UI state rules from the reference domain',
+)
+assert.match(
+  storeSource,
+  /from '..\/domains\/references\/referenceResolvedQueryDto\.js'/,
+  'references store must read Rust-returned query DTOs through the explicit DTO reader module',
+)
+assert.match(
+  storeSource,
+  /import\s*\{[^}]*resolveReferenceCitationUsageKeys[^}]*\}\s*from '..\/domains\/references\/referenceStoreState\.js'/,
+  'citation usage display helpers must stay with UI state helpers',
+)
+assert.doesNotMatch(
+  storeSource,
+  /import\s*\{[^}]*resolveReferenceCitationUsageKeys[^}]*\}\s*from '..\/domains\/references\/referenceResolvedQueryDto\.js'/,
+  'referenceResolvedQueryDto must not export UI display helpers',
 )
 assert.doesNotMatch(
   storeSource,
@@ -346,6 +364,26 @@ assert.doesNotMatch(
   domainSource,
   /buildDefaultResolvedQueryState|resolveReferenceStoreSeed|buildReferenceStoreResetQueryState|normalizeCollectionMembershipValue|normalizeTagKey|normalizeReferenceSortKey|resolveCollection|resolveTag|resolveReferenceSectionKey|resolveDocumentReferenceSelections/,
   'referenceStoreState must not retain migrated key normalization or default query adapters',
+)
+assert.doesNotMatch(
+  domainSource,
+  /resolveDocumentReferenceEntry|resolveLookupEntry|resolveDocumentReferenceIds|resolveDocumentReferences|resolveReferenceByKey|resolveReferenceById|hasReferenceById|resolveSelectedReference|resolveDocumentReferenceByKey|isReferenceSelectedForDocument|searchReferences|resolveAvailableDocumentReferences|resolveReferenceResolvedQueryState|buildReferenceQuerySelectionState/,
+  'referenceStoreState must stay limited to UI state helpers and must not regain Rust query DTO readers',
+)
+assert.match(
+  queryDtoSource,
+  /resolveDocumentReferenceIds/,
+  'referenceResolvedQueryDto must expose document-reference DTO readers for synchronous editor APIs',
+)
+assert.match(
+  queryDtoSource,
+  /referenceSearchIndex/,
+  'referenceResolvedQueryDto may only filter against Rust-built search indexes',
+)
+assert.doesNotMatch(
+  queryDtoSource,
+  /authors|authorLine|citationKey|identifier|pages|haystack|references\.find|references\.some|this\.references|state\.references|buildReferenceSearchIndex|reference_search_text/,
+  'referenceResolvedQueryDto must not reconstruct search haystacks or scan canonical reference arrays',
 )
 assert.match(
   storeSource,

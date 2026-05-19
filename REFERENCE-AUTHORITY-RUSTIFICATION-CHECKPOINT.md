@@ -6,10 +6,13 @@ Snapshot date: 2026-05-18.
 
 This checkpoint resets the reference cleanup direction to Rust-first.
 
-`src/domains/references/referenceStoreState.js` is now treated as an inventory of
-frontend-derived rules that must be split deliberately. It is not the default
-destination for more reference behavior. Future reference work should move
-canonical rules toward `src-tauri/src` unless the rule is clearly UI-only.
+`src/domains/references/referenceStoreState.js` started as an inventory of
+frontend-derived rules and has now been split so it only keeps UI state/display
+helpers. Rust-returned query DTO readers live in
+`src/domains/references/referenceResolvedQueryDto.js`; they must remain readers
+of Rust-built lookup/search DTOs, not a new frontend query authority. Future
+reference work should move canonical rules toward `src-tauri/src` unless the
+rule is clearly UI-only.
 
 ## Rust-first Contract
 
@@ -48,7 +51,7 @@ JavaScript owns:
 
 ## Helper Inventory
 
-The current `referenceStoreState.js` helpers fall into three buckets.
+The current frontend reference helpers fall into three buckets.
 
 ### Keep As JS UI Helpers
 
@@ -58,7 +61,6 @@ selection, or presentation affordances:
 | Area | Helpers | Boundary |
 | --- | --- | --- |
 | Citation UI display | `resolveReferenceCitationUsageKeys` | Converts a Rust query result into a Set for UI highlighting only. |
-| Selected row fallback | `resolveSelectedReference` | Acceptable as a getter fallback for visible rows; must not become persistence or query authority. |
 | PDF dock UI | `buildReferenceDockPdfOpenState`, `buildReferenceDockPdfCloseState`, `buildReferenceDockPdfResetState`, `isReferenceDockPdfSelected`, `buildReferenceDockPdfSnapshotState` | May own tab open/close/fallback UI state only. Reference existence should come from Rust-normalized snapshots. |
 | Sidebar UI selection | Store-local raw intent fields plus mutually-exclusive UI filter clearing | JS may record user intent and clear incompatible filters. Canonical section/source/collection/tag/sort validity comes from Rust query output. |
 
@@ -69,7 +71,7 @@ should shrink as Rust APIs return complete state:
 
 | Area | Helpers | Exit condition |
 | --- | --- | --- |
-| Query hydration fallback | `resolveReferenceResolvedQueryState`, `buildReferenceQuerySelectionState` | Rust query returns the complete resolved-query DTO; JS only accepts returned DTOs and maps query fields back to store selection state. |
+| Query DTO readers | `referenceResolvedQueryDto.js`: `resolveReferenceResolvedQueryState`, `buildReferenceQuerySelectionState`, lookup/search/document-reference readers | Rust query returns the complete resolved-query DTO; JS only accepts returned lookup/search/document-reference DTOs and maps query fields back to store selection state for existing synchronous editor APIs. |
 | Store bootstrap UI state | `buildReferenceStoreInitialState` | Synchronous JS helper now only returns an empty Pinia UI shell. `references_store_state_build` returns canonical library/source defaults, normalized snapshot fields and initial query DTOs. |
 | Snapshot apply bridge | `applyLibrarySnapshot()` orchestration plus PDF dock UI reconciliation | Raw snapshot normalization and selection/filter hydration now go through `references_store_state_build`; JS keeps only field assignment, loading/error orchestration and PDF dock UI state. |
 | Library snapshot write DTO | None | `references_snapshot_payload_build` now builds and normalizes persisted snapshot payloads from store state in Rust; JS keeps only a thin service call. |
@@ -165,9 +167,14 @@ Zotero, search, or snapshot policy and should move back to Rust contracts:
      is the small JS assignment adapter around the Rust-built state.
 
 6. Shrink `referenceStoreState.js`
-   - Remove migrated helpers.
-   - Keep only UI helpers listed above plus explicit DTO adapters when necessary.
-   - Update probes so the remaining module cannot regain Rust-owned policy.
+   - Status: query/document-reference lookup/search DTO readers moved to
+     `referenceResolvedQueryDto.js`; `referenceStoreState.js` keeps only UI
+     state/display helpers and the initial Pinia UI shell.
+   - Remaining: keep shrinking or deleting transitional DTO readers as callers
+     move to async Rust query APIs or Rust returns more UI-ready command results.
+   - Probes now guard both that `referenceStoreState.js` cannot regain query
+     DTO readers and that `referenceResolvedQueryDto.js` cannot reconstruct
+     search haystacks or scan canonical reference arrays.
 
 ## Acceptance Criteria
 
@@ -184,8 +191,9 @@ For each migration slice:
 
 ## Current Gap Summary
 
-- `referenceStoreState.js` still contains too many canonical target, query and
-  selection rules for the Rust-first target.
+- `referenceStoreState.js` is now UI-only, but transitional Rust query DTO
+  readers still exist in `referenceResolvedQueryDto.js` for synchronous editor
+  and citation APIs.
 - Generic mutation result shaping, citation-format target lookup, metadata
   refresh target lookup, remove target/Zotero delete side-effect gating,
   document-reference mutation derivation, import input preflight,
@@ -193,7 +201,8 @@ For each migration slice:
   target resolution, PDF import target/result shaping and Zotero
   skipped/success result classification have moved to Rust.
 - Remaining query work is now narrower: selection-id UI affordances and
-  returned-query DTO mapping still need explicit UI-only classification.
+  returned-query DTO mapping are explicitly isolated as DTO readers, but should
+  keep shrinking as synchronous editor/citation APIs become Rust-query-backed.
   Initial store shell is UI-only; canonical defaults and query DTOs now come
   from `references_store_state_build`.
 - UI dock/sidebar helpers are lower risk and can remain while they stay

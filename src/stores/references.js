@@ -56,20 +56,23 @@ import {
   buildReferenceDockPdfResetState,
   buildReferenceDockPdfSnapshotState,
   isReferenceDockPdfSelected,
-  isReferenceSelectedForDocument,
   buildReferenceStoreInitialState,
+  resolveReferenceCitationUsageKeys,
+} from '../domains/references/referenceStoreState.js'
+import {
+  hasReferenceById,
+  isReferenceSelectedForDocument,
   resolveAvailableDocumentReferences,
   resolveDocumentReferenceByKey,
   resolveDocumentReferenceIds,
   resolveDocumentReferences,
   resolveReferenceByKey,
   resolveReferenceById,
-  resolveReferenceCitationUsageKeys,
   resolveReferenceResolvedQueryState,
   resolveSelectedReference,
   buildReferenceQuerySelectionState,
   searchReferences,
-} from '../domains/references/referenceStoreState.js'
+} from '../domains/references/referenceResolvedQueryDto.js'
 import { classifyZoteroSyncError } from '../domains/references/zoteroSyncPresentation.js'
 
 async function resolveReferenceStorageRoot(projectRoot = '') {
@@ -264,6 +267,7 @@ export const useReferencesStore = defineStore('references', {
       const dockPdfState = buildReferenceDockPdfSnapshotState({
         ...this.$state,
         referenceDockActivePage: useWorkspaceStore().referenceDockActivePage,
+        hasDockReference: hasReferenceById(this.resolvedQueryState, this.referenceDockPdfReferenceId),
       })
       this.referenceDockPdfOpen = dockPdfState.referenceDockPdfOpen
       this.referenceDockPdfReferenceId = dockPdfState.referenceDockPdfReferenceId

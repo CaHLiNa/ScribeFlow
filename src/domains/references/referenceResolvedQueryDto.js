@@ -1,0 +1,131 @@
+function normalizeDocumentReferencePath(texPath = '') {
+  return String(texPath || '').trim()
+}
+
+function resolveDocumentReferenceEntry(resolvedQueryState = {}, texPath = '') {
+  const normalizedTexPath = normalizeDocumentReferencePath(texPath)
+  const state = resolvedQueryState?.documentReferenceState
+  if (!state || typeof state !== 'object' || Array.isArray(state)) return {}
+  if (!normalizedTexPath) return state.default || {}
+  return state.byPath?.[normalizedTexPath] || state.default || {}
+}
+
+function resolveLookupEntry(lookup = {}, bucket = '', key = '') {
+  const normalizedKey = String(key || '').trim()
+  if (!normalizedKey || !lookup || typeof lookup !== 'object' || Array.isArray(lookup)) return null
+  const entries = lookup?.[bucket]
+  if (!entries || typeof entries !== 'object' || Array.isArray(entries)) return null
+  return entries[normalizedKey] || null
+}
+
+export function resolveDocumentReferenceIds(resolvedQueryState = {}, texPath = '') {
+  const entry = resolveDocumentReferenceEntry(resolvedQueryState, texPath)
+  return Array.isArray(entry.referenceIds) ? entry.referenceIds : []
+}
+
+export function resolveDocumentReferences(resolvedQueryState = {}, texPath = '') {
+  const entry = resolveDocumentReferenceEntry(resolvedQueryState, texPath)
+  return Array.isArray(entry.references) ? entry.references : []
+}
+
+export function resolveReferenceByKey(resolvedQueryState = {}, referenceKey = '') {
+  return resolveLookupEntry(resolvedQueryState?.referenceLookup, 'byKey', referenceKey)
+}
+
+export function resolveReferenceById(resolvedQueryState = {}, referenceId = '') {
+  return resolveLookupEntry(resolvedQueryState?.referenceLookup, 'byId', referenceId)
+}
+
+export function hasReferenceById(resolvedQueryState = {}, referenceId = '') {
+  return Boolean(resolveReferenceById(resolvedQueryState, referenceId))
+}
+
+export function resolveSelectedReference(
+  resolvedQueryState = {},
+) {
+  return (
+    (resolvedQueryState?.selectedReference &&
+      typeof resolvedQueryState.selectedReference === 'object' &&
+      !Array.isArray(resolvedQueryState.selectedReference)
+      ? resolvedQueryState.selectedReference
+      : null) ||
+    (Array.isArray(resolvedQueryState?.filteredReferences) ? resolvedQueryState.filteredReferences[0] : null) ||
+    null
+  )
+}
+
+export function resolveDocumentReferenceByKey(
+  resolvedQueryState = {},
+  texPath = '',
+  referenceKey = '',
+) {
+  const entry = resolveDocumentReferenceEntry(resolvedQueryState, texPath)
+  return resolveLookupEntry(entry.referenceLookup, 'byKey', referenceKey)
+}
+
+export function isReferenceSelectedForDocument(
+  resolvedQueryState = {},
+  texPath = '',
+  referenceIdOrKey = '',
+) {
+  return Boolean(resolveDocumentReferenceByKey(
+    resolvedQueryState,
+    texPath,
+    referenceIdOrKey,
+  ))
+}
+
+export function searchReferences(resolvedQueryState = {}, query = '') {
+  const normalizedQuery = String(query || '').trim().toLowerCase()
+  const referenceList = Array.isArray(resolvedQueryState?.sortedReferences)
+    ? resolvedQueryState.sortedReferences
+    : []
+  if (!normalizedQuery) return referenceList
+  const searchIndex = resolvedQueryState?.referenceSearchIndex
+  if (!searchIndex || typeof searchIndex !== 'object' || Array.isArray(searchIndex)) return []
+
+  return referenceList.filter((reference) => {
+    const searchText = String(searchIndex?.[String(reference?.id || '')] || '')
+    return searchText.includes(normalizedQuery)
+  })
+}
+
+export function resolveAvailableDocumentReferences(
+  resolvedQueryState = {},
+  texPath = '',
+  query = '',
+) {
+  const entry = resolveDocumentReferenceEntry(resolvedQueryState, texPath)
+  const scopedState = {
+    sortedReferences: Array.isArray(entry.availableReferences)
+      ? entry.availableReferences
+      : [],
+    referenceSearchIndex: entry.referenceSearchIndex || {},
+  }
+  return searchReferences(scopedState, query)
+}
+
+export function resolveReferenceResolvedQueryState(resolved = null, fallbackState = {}) {
+  return resolved && typeof resolved === 'object' && !Array.isArray(resolved)
+    ? resolved
+    : (fallbackState?.resolvedQueryState || null)
+}
+
+export function buildReferenceQuerySelectionState(resolvedQueryState = {}, currentState = {}) {
+  const query = resolvedQueryState?.query && typeof resolvedQueryState.query === 'object'
+    ? resolvedQueryState.query
+    : {}
+  return {
+    selectedSectionKey: String(query.selectedSectionKey || 'all'),
+    selectedSourceKey: String(query.selectedSourceKey || ''),
+    selectedCollectionKey: String(query.selectedCollectionKey || ''),
+    selectedTagKey: String(query.selectedTagKey || ''),
+    sortKey: String(query.sortKey || ''),
+    selectedReferenceId: String(
+      resolvedQueryState?.selectedReferenceId ||
+      query.selectedReferenceId ||
+      currentState?.selectedReferenceId ||
+      ''
+    ),
+  }
+}
