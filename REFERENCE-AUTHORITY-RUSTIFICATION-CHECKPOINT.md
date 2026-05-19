@@ -181,6 +181,8 @@ Zotero, search, or snapshot policy and should move back to Rust contracts:
      The extra `hasReferenceById` query DTO helper is gone; PDF dock stale-tab
      pruning uses the Rust-normalized snapshot in the UI dock helper instead of
      `referenceLookup.byId`.
+     The `resolveSelectedReference` DTO wrapper is gone too; the store consumes
+     Rust's returned `selectedReference` field directly.
    - Remaining: keep shrinking or deleting transitional DTO readers as callers
      move to async Rust query APIs or Rust returns more UI-ready command results.
    - Probes now guard both that `referenceStoreState.js` cannot regain query
@@ -206,7 +208,7 @@ For each migration slice:
 - `referenceStoreState.js` is now UI-only, but transitional Rust query lookup
   DTO readers still exist in `referenceResolvedQueryDto.js` for synchronous
   editor and citation APIs. The exact-id presence helper has been removed from
-  that DTO layer.
+  that DTO layer, and selected-reference access no longer has a DTO wrapper.
 - Generic mutation result shaping, citation-format target lookup, metadata
   refresh target lookup, remove target/Zotero delete side-effect gating,
   document-reference mutation derivation, import input preflight,

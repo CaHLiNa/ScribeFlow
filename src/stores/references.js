@@ -68,7 +68,6 @@ import {
   resolveReferenceByKey,
   resolveReferenceById,
   resolveReferenceResolvedQueryState,
-  resolveSelectedReference,
   buildReferenceQuerySelectionState,
 } from '../domains/references/referenceResolvedQueryDto.js'
 import { classifyZoteroSyncError } from '../domains/references/zoteroSyncPresentation.js'
@@ -138,7 +137,7 @@ export const useReferencesStore = defineStore('references', {
     filteredReferences: (state) => state.resolvedQueryState?.filteredReferences || [],
 
     selectedReference(state) {
-      return resolveSelectedReference(state.resolvedQueryState)
+      return state.resolvedQueryState?.selectedReference || null
     },
 
     selectedReferencePdfTabOpen(state) {

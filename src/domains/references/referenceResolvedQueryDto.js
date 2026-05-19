@@ -36,16 +36,6 @@ export function resolveReferenceById(resolvedQueryState = {}, referenceId = '') 
   return resolveLookupEntry(resolvedQueryState?.referenceLookup, 'byId', referenceId)
 }
 
-export function resolveSelectedReference(
-  resolvedQueryState = {},
-) {
-  return resolvedQueryState?.selectedReference &&
-    typeof resolvedQueryState.selectedReference === 'object' &&
-    !Array.isArray(resolvedQueryState.selectedReference)
-    ? resolvedQueryState.selectedReference
-    : null
-}
-
 export function resolveDocumentReferenceByKey(
   resolvedQueryState = {},
   texPath = '',

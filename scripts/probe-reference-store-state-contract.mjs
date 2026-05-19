@@ -20,7 +20,6 @@ import {
   resolveReferenceByKey,
   resolveReferenceById,
   resolveReferenceResolvedQueryState,
-  resolveSelectedReference,
 } from '../src/domains/references/referenceResolvedQueryDto.js'
 
 const collections = [
@@ -135,13 +134,6 @@ assert.equal(resolveReferenceByKey(resolvedQueryState, 'missing'), null)
 assert.deepEqual(resolveReferenceById(resolvedQueryState, 'ref-2'), references[1])
 assert.deepEqual(resolveReferenceById(resolvedQueryState, ' ref-2 '), references[1])
 assert.equal(resolveReferenceById(resolvedQueryState, 'hopper2025'), null)
-assert.deepEqual(resolveSelectedReference(resolvedQueryState), references[1])
-assert.equal(resolveSelectedReference({
-  filteredReferences: [references[0]],
-}), null, 'selected reference must come from the Rust-returned selectedReference DTO, not filtered-row fallback')
-assert.equal(resolveSelectedReference({
-  filteredReferences: [],
-}), null)
 assert.deepEqual([...resolveReferenceCitationUsageKeys({
   lovelace2024: ['paper.tex'],
   hopper2025: [],
@@ -363,6 +355,11 @@ assert.doesNotMatch(
   queryDtoSource,
   /hasReferenceById/,
   'referenceResolvedQueryDto must not expose extra exact-id presence helpers for UI dock reconciliation',
+)
+assert.doesNotMatch(
+  queryDtoSource,
+  /resolveSelectedReference/,
+  'referenceResolvedQueryDto must not wrap the Rust-returned selectedReference field',
 )
 assert.doesNotMatch(
   queryDtoSource,
@@ -837,8 +834,13 @@ assert.match(
 )
 assert.match(
   storeSource,
-  /resolveSelectedReference\(state\.resolvedQueryState\)/,
-  'references store must consume Rust-returned selected-reference lookup state',
+  /selectedReference\(state\)\s*\{[\s\S]*return state\.resolvedQueryState\?\.selectedReference \|\| null/,
+  'references store must consume the Rust-returned selectedReference field directly',
+)
+assert.doesNotMatch(
+  storeSource,
+  /resolveSelectedReference/,
+  'references store must not depend on a selectedReference DTO wrapper',
 )
 assert.match(
   storeSource,
@@ -991,6 +993,7 @@ console.log(JSON.stringify({
     rustSnapshotPayloadBuild: true,
     storeUsesDomainHelper: true,
     exactIdPresenceHelperRemoved: true,
+    selectedReferenceWrapperRemoved: true,
     rustQuerySectionAndSortKeyValidation: true,
     storageRootRemainsStoreScoped: true,
   },
