@@ -1,0 +1,3 @@
+dist/** linguist-generated=true
+src-tauri/resources/extension-host/extension-host.mjs linguist-generated=true
+.scribeflow/extensions/*/dist/extension.js linguist-generated=true

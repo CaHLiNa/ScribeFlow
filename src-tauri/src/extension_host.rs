@@ -47,7 +47,7 @@ pub const EXTENSION_WINDOW_MESSAGE_EVENT: &str = "extension-window-message";
 pub const EXTENSION_HOST_INTERRUPTED_EVENT: &str = "extension-host-interrupted";
 #[cfg(not(test))]
 const BUILTIN_NODE_HOST_RELATIVE_PATH: &str =
-    "src-tauri/resources/extension-host/extension-host.ts";
+    "src-tauri/resources/extension-host/extension-host.mjs";
 
 #[cfg(not(test))]
 #[derive(Default)]
@@ -1004,12 +1004,12 @@ fn resolve_builtin_node_host_script() -> Result<PathBuf, String> {
     let mut candidates = Vec::new();
     if let Ok(current_dir) = std::env::current_dir() {
         candidates.push(current_dir.join(BUILTIN_NODE_HOST_RELATIVE_PATH));
-        candidates.push(current_dir.join("resources/extension-host/extension-host.ts"));
+        candidates.push(current_dir.join("resources/extension-host/extension-host.mjs"));
     }
     if let Ok(current_exe) = std::env::current_exe() {
         for ancestor in current_exe.ancestors() {
             candidates.push(ancestor.join(BUILTIN_NODE_HOST_RELATIVE_PATH));
-            candidates.push(ancestor.join("resources/extension-host/extension-host.ts"));
+            candidates.push(ancestor.join("resources/extension-host/extension-host.mjs"));
         }
     }
 
@@ -1017,7 +1017,7 @@ fn resolve_builtin_node_host_script() -> Result<PathBuf, String> {
         app_dirs::data_root_dir()?
             .join("resources")
             .join("extension-host")
-            .join("extension-host.ts"),
+            .join("extension-host.mjs"),
     );
 
     for candidate in candidates {
@@ -1378,7 +1378,6 @@ fn ensure_extension_host_process(
     if process.child.is_none() {
         let node_host_script = resolve_builtin_node_host_script()?;
         let mut command = background_command("node");
-        command.arg("--experimental-strip-types");
         command.arg(node_host_script);
         command.stdin(Stdio::piped());
         command.stdout(Stdio::piped());

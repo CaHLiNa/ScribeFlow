@@ -52,6 +52,8 @@ ScribeFlow 是一个 local-first 的 Tauri 桌面学术写作与研究工作台�
 - 存量 `src/services/**/*.ts` 作为 feature-specific service wrappers / DTO adapters 存在，但它们只能通过 `tauriBridge.ts` 触达 native runtime，不能直接 import Tauri 或 plugins。
 - `appUpdater.ts`、filesystem/workspace/reference/extension/LaTeX/Python 等 service wrappers 已从 direct `invoke/listen` 切到 TypeScript bridge entrypoint。
 - `tsconfig.bridge.json` 严格覆盖 native bridge authority；`tsconfig.app.json` 覆盖全量 `src/**/*.ts` parse/module gate；`tsconfig.tools.json` 覆盖 `scripts/**/*.ts`、内置 extension host 和仓内示例 extension 入口。标准 `npm run verify` 会运行三者。
+- runtime TS 源码和可执行 runtime artifacts 是分层关系：`src-tauri/resources/extension-host/extension-host.mts`、`.scribeflow/extensions/*/dist/extension.ts` 是源码；`src-tauri/resources/extension-host/extension-host.mjs`、`.scribeflow/extensions/*/dist/extension.js` 是 `npm run build:extension-runtime` 生成并随仓库保留的 runtime/manifest contract。
+- Node engineering scripts 通过 `tsx scripts/*.ts` 执行；Rust extension host、plugin manifests 和 probe 子进程执行生成后的 `.mjs` / `.js` artifacts，不依赖 Node `--experimental-strip-types`。
 - boundary guards 已覆盖 `.ts` 和 `.vue` 文件，使后续 TypeScript work 仍受 UI bridge / layer boundary 约束。
 - `scripts/*.ts` 是 Node TypeScript 工程验证入口；它们可以 import/SSR load `src/**/*.ts`，但不属于 app frontend 源码。
 

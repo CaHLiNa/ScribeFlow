@@ -37,7 +37,7 @@ ScribeFlow 是一个 local-first 的 Tauri 2 桌面学术写作与研究工作�
 - `src/services`：TypeScript Tauri bridge、plugin/native event bridge、DTO compatibility、side-effect boundary
 - `src/stores`：Pinia screen state、orchestration、loading/error lifecycle、service calls
 - `src-tauri/src`：Rust backend/runtime authority
-- `scripts`：Node TypeScript boundary guards、runtime probes、bundle guard、release/version helpers
+- `scripts`：Node TypeScript boundary guards、runtime probes、bundle guard、runtime artifact build、release/version helpers
 
 `dist/`、`node_modules/`、`src-tauri/target/` 是生成物或依赖目录，不作为产品事实来源。
 
@@ -66,7 +66,9 @@ ScribeFlow 是一个 local-first 的 Tauri 2 桌面学术写作与研究工作�
 
 当前实现状态：
 
-- `src/`、`scripts/`、内置 extension host 和仓内示例 extension 入口均以 TypeScript 为源码形态；不要再新增 `.js` / `.mjs` 仓库源码文件。
+- `src/`、`scripts/`、内置 extension host 和仓内示例 extension 入口均以 TypeScript 为源码形态；不要再新增手写 `.js` / `.mjs` 仓库源码文件。
+- runtime 入口必须保持可直接执行的 generated artifacts：`src-tauri/resources/extension-host/extension-host.mjs` 和 `.scribeflow/extensions/*/dist/extension.js` 由 `npm run build:extension-runtime` 从 `.mts` / `.ts` 源码生成，并作为 Tauri runtime / plugin manifest contract 随仓库和打包资源存在。
+- `npm run dev`、`npm run build` 和标准验证前必须能重新生成这些 runtime artifacts；不要让 Rust host、plugin manifest 或 probe 直接依赖 Node 的 TypeScript strip-types 能力。
 - `src/services/tauriBridge.ts` 是唯一 direct Tauri/native plugin bridge authority。
 - 存量 `src/services/**/*.ts` 可以作为 feature-specific service wrappers / DTO adapters 存在，但必须通过 `tauriBridge.ts` 触达 native runtime。
 - 新增或大改 native bridge capability 时，优先落在 `tauriBridge.ts` 或 typed DTO adapter，并保持显式 command contract、`tsconfig.bridge.json` / `tsconfig.app.json` / `tsconfig.tools.json` 和 `npm run verify:bridge` 覆盖。

@@ -4,7 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 const repoRoot = process.cwd()
-const hostPath = path.join(repoRoot, 'src-tauri/resources/extension-host/extension-host.ts')
+const hostPath = path.join(repoRoot, 'src-tauri/resources/extension-host/extension-host.mjs')
 
 const extensionSource = `
 export async function activate(context) {
@@ -219,7 +219,7 @@ async function main() {
   }
   await writeFile(manifestPath, JSON.stringify(manifest, null, 2), 'utf8')
 
-  const child = spawn('node', ['--experimental-strip-types', hostPath], {
+  const child = spawn('node', [hostPath], {
     cwd: repoRoot,
     stdio: ['pipe', 'pipe', 'inherit'],
   })
