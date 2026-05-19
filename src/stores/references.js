@@ -61,7 +61,6 @@ import {
   resolveReferenceCitationUsageKeys,
 } from '../domains/references/referenceStoreState.js'
 import {
-  hasReferenceById,
   isReferenceSelectedForDocument,
   resolveDocumentReferenceByKey,
   resolveDocumentReferenceIds,
@@ -274,7 +273,6 @@ export const useReferencesStore = defineStore('references', {
       const dockPdfState = buildReferenceDockPdfSnapshotState({
         ...this.$state,
         referenceDockActivePage: useWorkspaceStore().referenceDockActivePage,
-        hasDockReference: hasReferenceById(this.resolvedQueryState, this.referenceDockPdfReferenceId),
       })
       this.referenceDockPdfOpen = dockPdfState.referenceDockPdfOpen
       this.referenceDockPdfReferenceId = dockPdfState.referenceDockPdfReferenceId

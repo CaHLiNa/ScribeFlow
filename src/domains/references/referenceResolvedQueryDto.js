@@ -36,10 +36,6 @@ export function resolveReferenceById(resolvedQueryState = {}, referenceId = '') 
   return resolveLookupEntry(resolvedQueryState?.referenceLookup, 'byId', referenceId)
 }
 
-export function hasReferenceById(resolvedQueryState = {}, referenceId = '') {
-  return Boolean(resolveReferenceById(resolvedQueryState, referenceId))
-}
-
 export function resolveSelectedReference(
   resolvedQueryState = {},
 ) {

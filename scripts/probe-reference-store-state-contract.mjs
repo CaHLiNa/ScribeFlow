@@ -13,7 +13,6 @@ import {
 } from '../src/domains/references/referenceStoreState.js'
 import {
   buildReferenceQuerySelectionState,
-  hasReferenceById,
   isReferenceSelectedForDocument,
   resolveDocumentReferenceByKey,
   resolveDocumentReferenceIds,
@@ -136,9 +135,6 @@ assert.equal(resolveReferenceByKey(resolvedQueryState, 'missing'), null)
 assert.deepEqual(resolveReferenceById(resolvedQueryState, 'ref-2'), references[1])
 assert.deepEqual(resolveReferenceById(resolvedQueryState, ' ref-2 '), references[1])
 assert.equal(resolveReferenceById(resolvedQueryState, 'hopper2025'), null)
-assert.equal(hasReferenceById(resolvedQueryState, ' ref-2 '), true)
-assert.equal(hasReferenceById(resolvedQueryState, 'hopper2025'), false)
-assert.equal(hasReferenceById('not-object', 'ref-2'), false)
 assert.deepEqual(resolveSelectedReference(resolvedQueryState), references[1])
 assert.equal(resolveSelectedReference({
   filteredReferences: [references[0]],
@@ -365,6 +361,11 @@ assert.match(
 )
 assert.doesNotMatch(
   queryDtoSource,
+  /hasReferenceById/,
+  'referenceResolvedQueryDto must not expose extra exact-id presence helpers for UI dock reconciliation',
+)
+assert.doesNotMatch(
+  queryDtoSource,
   /searchReferences|resolveAvailableDocumentReferences|referenceSearchIndex|normalizedQuery|\.includes\(/,
   'referenceResolvedQueryDto must not own reference search or available-reference filtering',
 )
@@ -560,6 +561,11 @@ assert.match(
   storeSource,
   /buildReferenceDockPdfSnapshotState/,
   'references store must delegate PDF dock snapshot reconciliation to a UI helper',
+)
+assert.doesNotMatch(
+  actionSource('applyLibrarySnapshot'),
+  /hasReferenceById|hasDockReference/,
+  'applyLibrarySnapshot must not use Rust query lookup DTOs for PDF dock stale-tab reconciliation',
 )
 assert.match(
   storeSource,
@@ -984,7 +990,7 @@ console.log(JSON.stringify({
     storeLifecycleStateDerived: true,
     rustSnapshotPayloadBuild: true,
     storeUsesDomainHelper: true,
-    exactIdPresenceDerived: true,
+    exactIdPresenceHelperRemoved: true,
     rustQuerySectionAndSortKeyValidation: true,
     storageRootRemainsStoreScoped: true,
   },
