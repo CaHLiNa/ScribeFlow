@@ -15,6 +15,10 @@ import {
   normalizeWorkspacePreferences as normalizeWorkspacePreferencesWithRust,
   saveWorkspacePreferences as saveWorkspacePreferencesToRust,
 } from '../services/workspacePreferences'
+import {
+  WORKBENCH_MODE_REFERENCES,
+  resolveWorkbenchMode,
+} from '../domains/workbench/workbenchShellPresentation.ts'
 import { restoreWorkspaceTheme } from '../services/workspaceTheme.ts'
 import { applyLocalePreference } from '../i18n'
 import {
@@ -76,6 +80,13 @@ function normalizeActivePrimarySurface(surface = '') {
 function normalizeLeftSidebarPanel(panel = '') {
   const normalized = String(panel || '').trim()
   return normalized === 'references' ? 'references' : 'files'
+}
+
+function isReferenceWorkbenchMode(store) {
+  return resolveWorkbenchMode({
+    isSettingsSurface: store.primarySurface === 'settings',
+    leftSidebarPanel: store.leftSidebarPanel,
+  }) === WORKBENCH_MODE_REFERENCES
 }
 
 function restoreTransientSettingsSurface(store, section = null) {
@@ -401,21 +412,21 @@ export const useWorkspaceStore = defineStore('workspace', {
     },
 
     toggleRightSidebar() {
-      if (this.leftSidebarPanel === 'references') {
+      if (isReferenceWorkbenchMode(this)) {
         return this.toggleReferenceDock()
       }
       return this.toggleDocumentDock()
     },
 
     openRightSidebar() {
-      if (this.leftSidebarPanel === 'references') {
+      if (isReferenceWorkbenchMode(this)) {
         return this.openReferenceDock()
       }
       return this.openDocumentDock()
     },
 
     closeRightSidebar() {
-      if (this.leftSidebarPanel === 'references') {
+      if (isReferenceWorkbenchMode(this)) {
         return this.closeReferenceDock()
       }
       return this.closeDocumentDock()

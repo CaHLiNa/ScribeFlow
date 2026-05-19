@@ -81,7 +81,7 @@ const activeSection = computed(() => resolveSettingsSectionId(workspace.settings
   height: 100%;
   min-height: 0;
   overflow: hidden;
-  padding: 28px 14px 18px 10px;
+  padding: 10px 14px 18px 10px;
   background: transparent;
   box-shadow: none;
 }

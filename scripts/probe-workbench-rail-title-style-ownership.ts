@@ -14,22 +14,22 @@ const titleAreaStyle = scopedStyleBlock(titleAreaSource)
 assert.match(
   railSource,
   /import WorkbenchRailTitleArea from '\.\/WorkbenchRailTitleArea\.vue'/,
-  'WorkbenchRail must render title/menu presentation through WorkbenchRailTitleArea',
+  'WorkbenchRail must render title presentation through WorkbenchRailTitleArea',
 )
 assert.match(
   railSource,
-  /<WorkbenchRailTitleArea[\s\S]*@select-workbench-panel="selectWorkbenchPanel"[\s\S]*@toggle-workspace-menu="toggleWorkspaceMenu"/,
-  'WorkbenchRail must keep title/menu user intent wired',
+  /<WorkbenchRailTitleArea[\s\S]*:rail-title-state="railTitleState"/,
+  'WorkbenchRail must pass title presentation state into WorkbenchRailTitleArea',
 )
 assert.match(
   railSource,
-  /workspaceTitleAreaRef\.value\?\.containsWorkspaceTitleTarget\?\.\(event\.target\)/,
-  'WorkbenchRail must use the title area exposed target boundary for outside-click handling',
+  /v-for="item in workbenchModeItems"/,
+  'WorkbenchRail must own first-class workbench mode navigation outside the title area',
 )
 assert.doesNotMatch(
   railSource,
-  /<div class="workbench-rail-center"|<div v-if="workspaceMenuOpen" class="workbench-mode-menu"/,
-  'WorkbenchRail must not render center title or mode menu DOM directly',
+  /workspaceMenuOpen|toggleWorkspaceMenu|selectWorkbenchPanel/,
+  'WorkbenchRail must not keep the old title-menu mode switcher orchestration',
 )
 
 for (const className of [
@@ -38,15 +38,8 @@ for (const className of [
   'workbench-rail-title-slot',
   'workbench-rail-document-title',
   'workbench-rail-document-title-label',
-  'workbench-rail-workspace-title',
-  'workbench-rail-workspace-title-button',
-  'workbench-rail-workspace-title-label',
-  'workbench-rail-workspace-title-chevron',
-  'workbench-mode-menu',
-  'workbench-mode-menu-section-label',
-  'workbench-mode-menu-item',
-  'workbench-mode-menu-glyph',
-  'workbench-mode-menu-label',
+  'workbench-rail-context-title',
+  'workbench-rail-context-title-label',
 ]) {
   assert.doesNotMatch(
     railStyle,
@@ -62,12 +55,12 @@ for (const className of [
 
 assert.match(
   titleAreaSource,
-  /containsWorkspaceTitleTarget\(target\)/,
-  'WorkbenchRailTitleArea must expose a narrow outside-click boundary method',
+  /railTitleState\.showContextTitle/,
+  'WorkbenchRailTitleArea must render context titles from presentation state',
 )
 assert.doesNotMatch(
   titleAreaSource,
-  /isNativeWindowFullscreen|onNativeWindowResized|startNativeWindowDrag|syncMacosWindowTransparency|useWorkspaceStore|useEditorStore|document\.addEventListener|window\.addEventListener/,
+  /isNativeWindowFullscreen|onNativeWindowResized|startNativeWindowDrag|syncMacosWindowTransparency|useWorkspaceStore|useEditorStore|document\.addEventListener|window\.addEventListener|workspaceMenuOpen|workbench-mode-menu/,
   'WorkbenchRailTitleArea must stay presentation-only and avoid native/listener/store authority',
 )
 
@@ -75,8 +68,8 @@ console.log(JSON.stringify({
   ok: true,
   summary: {
     railUsesTitleAreaComponent: true,
-    parentKeepsNativeAndMenuOrchestration: true,
-    titleAreaOwnsTitleAndModeMenuStyles: true,
+    parentKeepsNativeAndModeOrchestration: true,
+    titleAreaOwnsTitleStyles: true,
     titleAreaAvoidsNativeAuthority: true,
   },
 }, null, 2))

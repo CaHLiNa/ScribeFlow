@@ -12,17 +12,18 @@
       <WorkbenchRail
         v-if="isWorkspaceOpen"
         class="app-shell-topbar shrink-0"
+        :context-dock-available="contextDockAvailable"
+        :context-dock-label="contextDockLabel"
+        :context-dock-open="contextDockOpen"
         :current-document-label="currentDocumentLabel"
-        :prefer-external-document-title="isWorkspaceSurface && leftSidebarPanel !== 'references'"
-        :show-document-title-target="leftSidebarPanel !== 'references'"
+        :prefer-external-document-title="isWorkspaceSurface && workbenchMode === 'documents'"
+        :show-document-title-target="workbenchMode === 'documents'"
         :left-sidebar-available="isWorkspaceSurface"
         :left-sidebar-open="leftSidebarVisible"
-        :left-sidebar-panel="leftSidebarPanel"
-        :right-sidebar-available="supportsRightSidebar"
-        :right-sidebar-open="rightRailOpen"
-        @select-workbench-panel="$emit('select-workbench-panel', $event)"
+        :workbench-mode="workbenchMode"
+        @select-workbench-mode="$emit('select-workbench-mode', $event)"
         @toggle-left-sidebar="$emit('toggle-left-sidebar')"
-        @toggle-right-sidebar="$emit('toggle-right-sidebar')"
+        @toggle-context-dock="$emit('toggle-context-dock')"
       />
 
       <div class="app-shell-workbench flex flex-1 overflow-hidden">
@@ -74,7 +75,7 @@
             class="app-shell-main-card flex-1 overflow-hidden relative"
             :class="{
               'has-left-sidebar': leftSidebarVisible,
-              'has-right-sidebar': rightRailOpen,
+              'has-context-dock': contextDockOpen,
               'is-workspace-surface-shell': isWorkspaceSurface,
               'is-empty-workspace-shell': !isWorkspaceOpen,
             }"
@@ -97,23 +98,24 @@ defineEmits([
   'left-resize',
   'left-resize-end',
   'left-resize-start',
-  'select-workbench-panel',
+  'select-workbench-mode',
   'toggle-left-sidebar',
-  'toggle-right-sidebar',
+  'toggle-context-dock',
 ])
 
 defineProps({
+  contextDockAvailable: { type: Boolean, default: false },
+  contextDockLabel: { type: String, default: '' },
+  contextDockOpen: { type: Boolean, default: false },
   currentDocumentLabel: { type: String, default: '' },
   isLeftSidebarResizing: { type: Boolean, default: false },
   isRightSidebarResizing: { type: Boolean, default: false },
   isWorkspaceOpen: { type: Boolean, default: false },
   isWorkspaceSurface: { type: Boolean, default: false },
   isZenMode: { type: Boolean, default: false },
-  leftSidebarPanel: { type: String, default: 'files' },
   leftSidebarVisible: { type: Boolean, default: false },
   leftSidebarWidth: { type: Number, default: 280 },
-  rightRailOpen: { type: Boolean, default: false },
-  supportsRightSidebar: { type: Boolean, default: false },
+  workbenchMode: { type: String, default: 'documents' },
 })
 </script>
 
@@ -143,24 +145,20 @@ defineProps({
 }
 
 .app-shell-topbar,
-.app-shell-region-left,
-.app-shell-region-right {
+.app-shell-region-left {
   transition: opacity var(--shell-panel-fade-duration) ease-out;
 }
 
 .app-shell-root.is-zen-mode .app-shell-topbar:not(:hover),
-.app-shell-root.is-zen-mode .app-shell-region-left:not(:hover),
-.app-shell-root.is-zen-mode .app-shell-region-right:not(:hover) {
+.app-shell-root.is-zen-mode .app-shell-region-left:not(:hover) {
   opacity: 0.08;
   transition: opacity 1.5s ease-out 1.5s;
 }
 
 .app-shell-topbar {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
+  position: relative;
   z-index: 30;
+  flex: 0 0 auto;
   box-shadow: none;
 }
 
@@ -210,15 +208,9 @@ defineProps({
   overflow: visible;
 }
 
-.app-shell-region-right {
-  background: transparent;
-}
-
 .app-shell-root.is-shell-resizing .app-shell-region-left,
-.app-shell-root.is-shell-resizing .app-shell-region-right,
 .app-shell-root.is-shell-resizing .app-shell-sidebar,
 .app-shell-root.is-shell-resizing .app-shell-sidebar-left,
-.app-shell-root.is-shell-resizing .app-shell-sidebar-right,
 .app-shell-root.is-shell-resizing .app-shell-resize-slot,
 .app-shell-root.is-shell-resizing .app-shell-resize-handle {
   transition: none !important;
@@ -256,19 +248,13 @@ defineProps({
   transform: translateX(-6px);
 }
 
-.app-shell-sidebar-right.is-collapsed {
-  opacity: 0;
-  transform: translateX(10px);
-}
-
 .app-shell-sidebar-left {
   transition:
     transform var(--shell-panel-motion-duration) var(--shell-panel-motion-ease),
     background-color var(--shell-panel-surface-duration) ease;
 }
 
-.app-shell-sidebar-left.is-open,
-.app-shell-sidebar-right.is-open {
+.app-shell-sidebar-left.is-open {
   transition-delay: 8ms;
 }
 
@@ -297,7 +283,6 @@ defineProps({
 .app-shell-main-card {
   min-width: 0;
   box-sizing: border-box;
-  padding-top: 30px;
   border: none;
   border-radius: 0;
   background: var(--shell-editor-surface);
@@ -307,14 +292,6 @@ defineProps({
   transition: background-color var(--shell-panel-surface-duration) ease;
 }
 
-.app-shell-main-card.is-empty-workspace-shell {
-  padding-top: 0;
-}
-
-.app-shell-main-card.is-workspace-surface-shell {
-  padding-top: 36px;
-}
-
 .app-shell-main-card.has-left-sidebar {
   margin-left: 0;
   padding-left: 0;
@@ -322,7 +299,7 @@ defineProps({
   border-bottom-left-radius: 0;
 }
 
-.app-shell-main-card.has-right-sidebar {
+.app-shell-main-card.has-context-dock {
   margin-right: 0;
   padding-right: 0;
   border-top-right-radius: 0;

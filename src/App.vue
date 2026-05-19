@@ -8,17 +8,18 @@
     :is-workspace-open="workspace.isOpen"
     :is-workspace-surface="workspace.isWorkspaceSurface"
     :is-zen-mode="isZenMode"
-    :left-sidebar-panel="workspace.leftSidebarPanel"
+    :context-dock-available="contextDockState.available"
+    :context-dock-label="t(contextDockState.toggleLabelKey)"
+    :context-dock-open="contextDockState.open"
     :left-sidebar-visible="leftSidebarVisible"
     :left-sidebar-width="leftSidebarWidth"
-    :right-rail-open="rightRailOpen"
-    :supports-right-sidebar="supportsRightSidebar"
+    :workbench-mode="workbenchMode"
     @left-resize="onLeftResize"
     @left-resize-end="endLeftSidebarResize"
     @left-resize-start="startLeftSidebarResize"
-    @select-workbench-panel="selectWorkbenchPanel"
+    @select-workbench-mode="selectWorkbenchMode"
     @toggle-left-sidebar="workspace.toggleLeftSidebar()"
-    @toggle-right-sidebar="toggleRightDock"
+    @toggle-context-dock="toggleContextDock"
   >
     <template #left-sidebar>
       <KeepAlive :max="2">
@@ -75,7 +76,18 @@ import {
   getReferenceSectionLabelKey,
   getReferenceSourceLabelKey,
 } from './domains/references/referencePresentation.ts'
+import { resolveSettingsSectionMeta } from './domains/settings/settingsSections.ts'
 import { resolvePaneDocumentDockOpen } from './domains/editor/paneDocumentDockRuntime.ts'
+import {
+  CONTEXT_DOCK_REFERENCE,
+  WORKBENCH_MODE_DOCUMENTS,
+  WORKBENCH_MODE_REFERENCES,
+  WORKBENCH_MODE_SETTINGS,
+  leftSidebarPanelForWorkbenchMode,
+  normalizeWorkbenchMode,
+  resolveContextDockState,
+  resolveWorkbenchMode,
+} from './domains/workbench/workbenchShellPresentation.ts'
 import { useAppShellLayout } from './composables/useAppShellLayout'
 import { useAppShellEventBridge } from './app/shell/useAppShellEventBridge'
 import { applyAppWindowConstraints } from './app/shell/useAppWindowConstraints'
@@ -109,7 +121,12 @@ void applyAppWindowConstraints()
 
 const isZenMode = ref(false)
 
-const supportsRightSidebar = computed(() => workspace.isOpen && workspace.isWorkspaceSurface)
+const workbenchMode = computed(() =>
+  resolveWorkbenchMode({
+    isSettingsSurface: workspace.isSettingsSurface,
+    leftSidebarPanel: workspace.leftSidebarPanel,
+  })
+)
 const leftSidebarVisible = computed(
   () => workspace.isOpen && (workspace.isSettingsSurface || workspace.leftSidebarOpen)
 )
@@ -122,41 +139,47 @@ const activeDocumentPreviewOpen = computed(
   () =>
     workspace.isOpen &&
     workspace.isWorkspaceSurface &&
-    workspace.leftSidebarPanel !== 'references' &&
+    workbenchMode.value === WORKBENCH_MODE_DOCUMENTS &&
     activeDocumentPreviewState.value?.previewVisible === true
 )
 const referenceDetailOpen = computed(
   () =>
     workspace.isOpen &&
     workspace.isWorkspaceSurface &&
-    workspace.leftSidebarPanel === 'references' &&
+    workbenchMode.value === WORKBENCH_MODE_REFERENCES &&
     workspace.referenceDockOpen
 )
 const documentInternalDockOpen = computed(
   () => resolvePaneDocumentDockOpen({
     hasWorkspace: workspace.isOpen,
     isWorkspaceSurface: workspace.isWorkspaceSurface,
-    isReferencePanel: workspace.leftSidebarPanel === 'references',
+    isReferencePanel: workbenchMode.value === WORKBENCH_MODE_REFERENCES,
     documentDockOpen: workspace.documentDockOpen,
     activeDocumentPreviewOpen: activeDocumentPreviewOpen.value,
   })
 )
-const rightRailOpen = computed(
-  () => supportsRightSidebar.value && (documentInternalDockOpen.value || referenceDetailOpen.value)
+const contextDockState = computed(() =>
+  resolveContextDockState({
+    hasWorkspace: workspace.isOpen,
+    isWorkspaceSurface: workspace.isWorkspaceSurface,
+    workbenchMode: workbenchMode.value,
+    documentDockOpen: documentInternalDockOpen.value,
+    referenceDockOpen: referenceDetailOpen.value,
+  })
 )
 const activeWorkbenchComponent = computed(() => {
-  if (workspace.isSettingsSurface) return Settings
-  if (workspace.leftSidebarPanel === 'references') return ReferenceLibraryWorkbench
+  if (workbenchMode.value === WORKBENCH_MODE_SETTINGS) return Settings
+  if (workbenchMode.value === WORKBENCH_MODE_REFERENCES) return ReferenceLibraryWorkbench
   return PaneContainer
 })
 const activeWorkbenchCacheKey = computed(() => {
-  if (workspace.isSettingsSurface) return 'settings'
-  return `workspace:${workspace.leftSidebarPanel || 'files'}`
+  if (workbenchMode.value === WORKBENCH_MODE_SETTINGS) return WORKBENCH_MODE_SETTINGS
+  return `workspace:${workbenchMode.value}`
 })
 const activeWorkbenchProps = computed(() =>
-  workspace.isSettingsSurface
+  workbenchMode.value === WORKBENCH_MODE_SETTINGS
     ? {}
-    : workspace.leftSidebarPanel === 'references'
+    : workbenchMode.value === WORKBENCH_MODE_REFERENCES
       ? {
           referenceDetailOpen: referenceDetailOpen.value,
           referenceDetailWidth: referenceDockWidth.value,
@@ -172,8 +195,13 @@ const activeWorkbenchProps = computed(() =>
 )
 const activeWorkbenchClass = computed(() => 'h-full min-h-0 w-full')
 const currentDocumentLabel = computed(() => {
-  if (workspace.isSettingsSurface) return ''
-  if (workspace.leftSidebarPanel === 'references') {
+  if (workbenchMode.value === WORKBENCH_MODE_SETTINGS) {
+    return resolveSettingsSectionMeta({
+      sectionId: workspace.settingsSection,
+      translate: t,
+    }).activeSectionMeta?.label || t('Settings')
+  }
+  if (workbenchMode.value === WORKBENCH_MODE_REFERENCES) {
     if (referencesStore.selectedCollection?.label) {
       return referencesStore.selectedCollection.label
     }
@@ -202,19 +230,25 @@ const currentDocumentLabel = computed(() => {
   }
   return basenamePath(activePath) || activePath
 })
-async function selectWorkbenchPanel(panel) {
+async function selectWorkbenchMode(mode) {
+  const nextMode = normalizeWorkbenchMode(mode)
+  if (nextMode === WORKBENCH_MODE_SETTINGS) {
+    workspace.openSettings()
+    return
+  }
+
   await workspace.openWorkspaceSurface()
-  await workspace.setLeftSidebarPanel(panel)
+  await workspace.setLeftSidebarPanel(leftSidebarPanelForWorkbenchMode(nextMode))
   if (!workspace.leftSidebarOpen) {
     await workspace.toggleLeftSidebar()
   }
 }
 
-async function toggleRightDock() {
-  if (!supportsRightSidebar.value) return
+async function toggleContextDock() {
+  if (!contextDockState.value.available) return
 
-  if (workspace.leftSidebarPanel === 'references') {
-    workspace.toggleReferenceDock()
+  if (contextDockState.value.kind === CONTEXT_DOCK_REFERENCE) {
+    await workspace.toggleReferenceDock()
     return
   }
 
@@ -227,8 +261,8 @@ async function toggleRightDock() {
 }
 
 async function closeDocumentDock() {
-  if (workspace.leftSidebarPanel !== 'references' && workspace.documentDockOpen) {
-    workspace.closeDocumentDock()
+  if (workbenchMode.value === WORKBENCH_MODE_DOCUMENTS && workspace.documentDockOpen) {
+    await workspace.closeDocumentDock()
   }
 
   const activePath = editorStore.activeTab
@@ -270,16 +304,16 @@ watch(
   [
     () => editorStore.activeTab,
     () => activeDocumentPreviewState.value?.previewMode,
-    () => workspace.leftSidebarPanel,
+    () => workbenchMode.value,
     () => workspace.documentDockOpen,
     () => workspace.referenceDockOpen,
   ],
-  ([activeTab, previewMode, leftSidebarPanel]) => {
+  ([activeTab, previewMode, activeMode]) => {
     if (
       isPdf(activeTab) ||
       isPreviewPath(activeTab) ||
       previewMode === 'pdf-artifact' ||
-      leftSidebarPanel === 'references'
+      activeMode === WORKBENCH_MODE_REFERENCES
     ) {
       clearZenMode()
     }
@@ -322,7 +356,7 @@ function onSelectionChange(selection) {
 }
 
 function resolveActiveInlineDockLayoutControls() {
-  return workspace.leftSidebarPanel === 'references'
+  return contextDockState.value.kind === CONTEXT_DOCK_REFERENCE
     ? {
         setWidth: setReferenceDockWidth,
         snapWidth: snapReferenceDockWidth,

@@ -23,8 +23,8 @@ assert.match(
 )
 assert.match(
   appSource,
-  /<AppShellFrame[\s\S]*@select-workbench-panel="selectWorkbenchPanel"[\s\S]*@toggle-right-sidebar="toggleRightDock"/,
-  'App.vue must keep app-level workbench intent wired through AppShellFrame',
+  /<AppShellFrame[\s\S]*@select-workbench-mode="selectWorkbenchMode"[\s\S]*@toggle-context-dock="toggleContextDock"/,
+  'App.vue must keep app-level workbench mode and context dock intent wired through AppShellFrame',
 )
 assert.match(
   appSource,
@@ -91,6 +91,17 @@ for (const className of [
     `AppShellFrame.vue must own app shell scoped style .${className}`,
   )
 }
+
+assert.match(
+  frameSource,
+  /:context-dock-open="contextDockOpen"[\s\S]*@toggle-context-dock="\$emit\('toggle-context-dock'\)"/,
+  'AppShellFrame must expose context dock state and intent through presentation props/events',
+)
+assert.doesNotMatch(
+  frameStyle,
+  /padding-top:\s*(30|36)px|position:\s*absolute;\s*[\s\S]{0,80}z-index:\s*30/,
+  'AppShellFrame must not rely on old topbar absolute positioning or main-card padding offsets',
+)
 
 for (const selector of [
   '.app-shell-workbench',

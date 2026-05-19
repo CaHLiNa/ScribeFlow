@@ -29,33 +29,56 @@
         />
       </UiButton>
 
+      <div
+        v-if="workbenchModeItems.length"
+        class="workbench-mode-switcher"
+        role="tablist"
+        :aria-label="t('Workbench mode')"
+        data-window-drag-ignore="true"
+      >
+        <button
+          v-for="item in workbenchModeItems"
+          :key="item.id"
+          type="button"
+          class="workbench-mode-tab"
+          :class="{ 'is-active': item.active }"
+          :title="item.label"
+          :aria-label="item.label"
+          :aria-selected="item.active ? 'true' : 'false'"
+          role="tab"
+          @click="selectWorkbenchMode(item.id)"
+        >
+          <component
+            :is="modeIconFor(item.id)"
+            :size="15"
+            :stroke-width="1.75"
+            aria-hidden="true"
+          />
+          <span class="workbench-mode-tab__label">{{ item.label }}</span>
+        </button>
+      </div>
     </div>
 
     <WorkbenchRailTitleArea
-      ref="workspaceTitleAreaRef"
       :document-title-target-id="documentTitleTargetId"
       :rail-title-state="railTitleState"
-      :workspace-menu-open="workspaceMenuOpen"
-      :workspace-mode-items="workspaceModeItems"
-      @select-workbench-panel="selectWorkbenchPanel"
-      @toggle-workspace-menu="toggleWorkspaceMenu"
     />
 
     <div class="workbench-rail-side workbench-rail-side-right">
       <div class="workbench-rail-controls" data-window-drag-ignore="true">
         <UiButton
-          v-if="rightSidebarAvailable"
+          v-if="contextDockAvailable"
           class="workbench-rail-button"
           variant="ghost"
           size="icon-sm"
-          :active="rightSidebarOpen"
-          :title="t('Toggle right sidebar')"
-          :aria-label="t('Toggle right sidebar')"
+          :active="contextDockOpen"
+          :title="contextDockLabel || t('Toggle context dock')"
+          :aria-label="contextDockLabel || t('Toggle context dock')"
           data-window-drag-ignore="true"
-          @click="$emit('toggle-right-sidebar')"
+          @click="$emit('toggle-context-dock')"
         >
           <component
-            :is="rightSidebarOpen ? IconLayoutSidebarRightCollapse : IconLayoutSidebarRight"
+            :is="contextDockOpen ? IconLayoutSidebarRightCollapse : IconLayoutSidebarRight"
             :size="16"
             :stroke-width="1.75"
           />
@@ -68,10 +91,13 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import {
+  IconBook2,
+  IconFileText,
   IconLayoutSidebar,
   IconLayoutSidebarLeftCollapse,
   IconLayoutSidebarRight,
   IconLayoutSidebarRightCollapse,
+  IconSettings,
 } from '@tabler/icons-vue'
 import UiButton from '../shared/ui/UiButton.vue'
 import WorkbenchRailTitleArea from './WorkbenchRailTitleArea.vue'
@@ -88,24 +114,30 @@ import {
   buildWorkbenchRailTitleState,
   resolveWorkbenchRailStyle,
 } from '../../domains/workbench/workbenchRailPresentation.ts'
+import {
+  WORKBENCH_MODE_DOCUMENTS,
+  WORKBENCH_MODE_REFERENCES,
+  WORKBENCH_MODE_SETTINGS,
+} from '../../domains/workbench/workbenchShellPresentation.ts'
 
 const props = defineProps({
   tabsTargetId: { type: String, default: 'app-shell-topbar-tabs' },
   documentTitleTargetId: { type: String, default: 'app-shell-topbar-document-title' },
+  contextDockAvailable: { type: Boolean, default: true },
+  contextDockLabel: { type: String, default: '' },
+  contextDockOpen: { type: Boolean, default: false },
   currentDocumentLabel: { type: String, default: '' },
   preferExternalDocumentTitle: { type: Boolean, default: false },
   showDocumentTitleTarget: { type: Boolean, default: true },
   leftSidebarAvailable: { type: Boolean, default: true },
   leftSidebarOpen: { type: Boolean, default: true },
-  leftSidebarPanel: { type: String, default: 'files' },
-  rightSidebarAvailable: { type: Boolean, default: true },
-  rightSidebarOpen: { type: Boolean, default: false },
+  workbenchMode: { type: String, default: WORKBENCH_MODE_DOCUMENTS },
 })
 
 const emit = defineEmits([
   'toggle-left-sidebar',
-  'select-workbench-panel',
-  'toggle-right-sidebar',
+  'select-workbench-mode',
+  'toggle-context-dock',
 ])
 
 const { t } = useI18n()
@@ -113,10 +145,13 @@ const isTauriDesktop = isTauriDesktopRuntime
 const WINDOW_DRAGGING_CLASS = 'window-dragging'
 
 const isNativeFullscreen = ref(false)
-const workspaceMenuOpen = ref(false)
-const workspaceTitleAreaRef = ref(null)
 let unlistenWindowResize = null
 let removeDragGuards = null
+const modeIconRegistry = {
+  [WORKBENCH_MODE_DOCUMENTS]: IconFileText,
+  [WORKBENCH_MODE_REFERENCES]: IconBook2,
+  [WORKBENCH_MODE_SETTINGS]: IconSettings,
+}
 
 const railStyle = computed(() =>
   resolveWorkbenchRailStyle({
@@ -125,19 +160,18 @@ const railStyle = computed(() =>
     isNativeFullscreen: isNativeFullscreen.value,
   })
 )
-const workspaceModeItems = computed(() =>
+const workbenchModeItems = computed(() =>
   buildWorkbenchRailModeItems({
-    activePanel: props.leftSidebarPanel,
+    activeMode: props.workbenchMode,
     t,
   })
 )
 const railTitleState = computed(() =>
   buildWorkbenchRailTitleState({
     currentDocumentLabel: props.currentDocumentLabel,
-    leftSidebarAvailable: props.leftSidebarAvailable,
-    leftSidebarPanel: props.leftSidebarPanel,
     preferExternalDocumentTitle: props.preferExternalDocumentTitle,
     showDocumentTitleTarget: props.showDocumentTitleTarget,
+    workbenchMode: props.workbenchMode,
   })
 )
 
@@ -190,35 +224,15 @@ function endWindowDragGuard() {
   removeDragGuards = null
 }
 
-function toggleWorkspaceMenu() {
-  workspaceMenuOpen.value = !workspaceMenuOpen.value
+function modeIconFor(mode) {
+  return modeIconRegistry[mode] || IconFileText
 }
 
-function closeWorkspaceMenu() {
-  workspaceMenuOpen.value = false
-}
-
-function selectWorkbenchPanel(panel) {
-  closeWorkspaceMenu()
-  emit('select-workbench-panel', panel)
-}
-
-function handleDocumentPointerDown(event) {
-  if (!workspaceMenuOpen.value) return
-  if (workspaceTitleAreaRef.value?.containsWorkspaceTitleTarget?.(event.target)) return
-  closeWorkspaceMenu()
-}
-
-function handleDocumentEscape(event) {
-  if (event.key === 'Escape') {
-    closeWorkspaceMenu()
-  }
+function selectWorkbenchMode(mode) {
+  emit('select-workbench-mode', mode)
 }
 
 onMounted(async () => {
-  document.addEventListener('mousedown', handleDocumentPointerDown)
-  document.addEventListener('keydown', handleDocumentEscape)
-
   if (!isTauriDesktop) return
   await syncNativeWindowChromeState()
   try {
@@ -234,8 +248,6 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
-  document.removeEventListener('mousedown', handleDocumentPointerDown)
-  document.removeEventListener('keydown', handleDocumentEscape)
   endWindowDragGuard()
   unlistenWindowResize?.()
   unlistenWindowResize = null
@@ -248,13 +260,15 @@ onUnmounted(() => {
   --top-chrome-control-radius: 6px;
   --top-chrome-drag-height: 18px;
   position: relative;
-  display: block;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(140px, auto) minmax(52px, 1fr);
+  align-items: center;
+  gap: 8px;
   flex: 0 0 auto;
   min-width: 0;
   max-height: 36px;
   margin: 0;
-  padding-top: 0;
-  padding-bottom: 0;
+  padding: 0 var(--rail-right-offset) 0 var(--rail-left-offset);
   border-bottom: 0;
   border-radius: 0;
   background: transparent;
@@ -282,11 +296,10 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   flex: 0 0 auto;
-  position: absolute;
-  top: 50%;
+  position: relative;
   z-index: 2;
+  min-width: 0;
   pointer-events: auto;
-  transform: translateY(-50%);
 }
 
 :global(body.window-dragging) {
@@ -301,13 +314,11 @@ onUnmounted(() => {
 }
 
 .workbench-rail-side-left {
-  left: var(--rail-left-offset);
   justify-content: flex-start;
-  gap: 4px;
+  gap: 6px;
 }
 
 .workbench-rail-side-right {
-  right: var(--rail-right-offset);
   justify-content: flex-end;
 }
 
@@ -364,15 +375,74 @@ onUnmounted(() => {
   color: var(--text-secondary);
 }
 
+.workbench-mode-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  min-width: 0;
+  padding: 2px;
+  border: 1px solid color-mix(in srgb, var(--border) 36%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--surface-raised) 42%, transparent);
+}
+
+.workbench-mode-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-width: 0;
+  height: 24px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: color-mix(in srgb, var(--text-secondary) 86%, transparent);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background-color 140ms ease,
+    color 140ms ease;
+}
+
+.workbench-mode-tab:hover {
+  background: color-mix(in srgb, var(--surface-hover) 54%, transparent);
+  color: var(--text-primary);
+}
+
+.workbench-mode-tab.is-active {
+  background: var(--list-active-bg);
+  color: var(--text-primary);
+}
+
+.workbench-mode-tab__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 @media (max-width: 920px) {
   .workbench-rail {
     gap: 8px;
+  }
+
+  .workbench-mode-tab {
+    padding: 0 6px;
   }
 }
 
 @media (max-width: 720px) {
   .workbench-rail {
     min-height: 36px;
+  }
+
+  .workbench-mode-tab__label {
+    display: none;
   }
 }
 </style>

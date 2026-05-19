@@ -6,6 +6,17 @@ import {
   resolveWorkbenchRailLeftPadding,
   resolveWorkbenchRailStyle,
 } from '../src/domains/workbench/workbenchRailPresentation.ts'
+import {
+  CONTEXT_DOCK_DOCUMENT,
+  CONTEXT_DOCK_NONE,
+  CONTEXT_DOCK_REFERENCE,
+  WORKBENCH_MODE_DOCUMENTS,
+  WORKBENCH_MODE_REFERENCES,
+  WORKBENCH_MODE_SETTINGS,
+  leftSidebarPanelForWorkbenchMode,
+  resolveContextDockState,
+  resolveWorkbenchMode,
+} from '../src/domains/workbench/workbenchShellPresentation.ts'
 
 assert.equal(
   resolveWorkbenchRailLeftPadding({
@@ -55,61 +66,115 @@ assert.deepEqual(
 )
 
 const labels = {
-  'Document Area': 'Documents',
-  'Reference Library': 'References',
+  Documents: 'Documents',
+  References: 'References',
+  Settings: 'Settings',
 }
 assert.deepEqual(
   buildWorkbenchRailModeItems({
-    activePanel: 'references',
+    activeMode: WORKBENCH_MODE_REFERENCES,
     t: (key) => labels[key] || key,
   }),
   [
     {
-      id: 'files',
+      id: WORKBENCH_MODE_DOCUMENTS,
       label: 'Documents',
       active: false,
     },
     {
-      id: 'references',
+      id: WORKBENCH_MODE_REFERENCES,
       label: 'References',
       active: true,
+    },
+    {
+      id: WORKBENCH_MODE_SETTINGS,
+      label: 'Settings',
+      active: false,
     },
   ],
 )
 assert.equal(
-  buildWorkbenchRailModeItems({ activePanel: 'unknown' })
-    .some((item) => item.active),
-  false,
+  buildWorkbenchRailModeItems({ activeMode: 'unknown' })
+    .find((item) => item.id === WORKBENCH_MODE_DOCUMENTS)?.active,
+  true,
 )
 assert.deepEqual(
   buildWorkbenchRailTitleState({
     currentDocumentLabel: 'paper.md',
-    leftSidebarAvailable: true,
-    leftSidebarPanel: 'files',
     preferExternalDocumentTitle: false,
     showDocumentTitleTarget: true,
+    workbenchMode: WORKBENCH_MODE_DOCUMENTS,
   }),
   {
+    contextTitleLabel: '',
     documentTitleLabel: 'paper.md',
+    showContextTitle: false,
     showDocumentTitleSlot: true,
     showInlineDocumentTitle: true,
-    showReferenceTitle: false,
   },
 )
 assert.deepEqual(
   buildWorkbenchRailTitleState({
-    currentDocumentLabel: 'paper.md',
-    leftSidebarAvailable: true,
-    leftSidebarPanel: 'references',
+    currentDocumentLabel: 'All references',
     preferExternalDocumentTitle: false,
     showDocumentTitleTarget: true,
+    workbenchMode: WORKBENCH_MODE_REFERENCES,
   }),
   {
-    documentTitleLabel: 'paper.md',
+    contextTitleLabel: 'All references',
+    documentTitleLabel: 'All references',
+    showContextTitle: true,
     showDocumentTitleSlot: false,
     showInlineDocumentTitle: false,
-    showReferenceTitle: true,
   },
+)
+assert.equal(
+  resolveWorkbenchMode({ isSettingsSurface: true, leftSidebarPanel: 'references' }),
+  WORKBENCH_MODE_SETTINGS,
+)
+assert.equal(
+  resolveWorkbenchMode({ isSettingsSurface: false, leftSidebarPanel: 'references' }),
+  WORKBENCH_MODE_REFERENCES,
+)
+assert.equal(leftSidebarPanelForWorkbenchMode(WORKBENCH_MODE_REFERENCES), 'references')
+assert.equal(leftSidebarPanelForWorkbenchMode(WORKBENCH_MODE_SETTINGS), 'files')
+assert.deepEqual(
+  resolveContextDockState({
+    hasWorkspace: true,
+    isWorkspaceSurface: true,
+    workbenchMode: WORKBENCH_MODE_DOCUMENTS,
+    documentDockOpen: true,
+  }),
+  {
+    available: true,
+    kind: CONTEXT_DOCK_DOCUMENT,
+    open: true,
+    labelKey: 'Document context',
+    toggleLabelKey: 'Toggle document context',
+  },
+)
+assert.deepEqual(
+  resolveContextDockState({
+    hasWorkspace: true,
+    isWorkspaceSurface: true,
+    workbenchMode: WORKBENCH_MODE_REFERENCES,
+    referenceDockOpen: true,
+  }),
+  {
+    available: true,
+    kind: CONTEXT_DOCK_REFERENCE,
+    open: true,
+    labelKey: 'Reference detail',
+    toggleLabelKey: 'Toggle reference detail',
+  },
+)
+assert.equal(
+  resolveContextDockState({
+    hasWorkspace: true,
+    isWorkspaceSurface: false,
+    workbenchMode: WORKBENCH_MODE_SETTINGS,
+  }).kind,
+  CONTEXT_DOCK_NONE,
 )
 
 const componentSource = await readFile('src/components/layout/WorkbenchRail.vue', 'utf8')
@@ -121,18 +186,18 @@ assert.match(
 )
 assert.match(
   componentSource,
-  /<WorkbenchRailTitleArea[\s\S]*:rail-title-state="railTitleState"[\s\S]*:workspace-mode-items="workspaceModeItems"/,
-  'WorkbenchRail must pass derived title state and mode items into WorkbenchRailTitleArea',
+  /<WorkbenchRailTitleArea[\s\S]*:rail-title-state="railTitleState"/,
+  'WorkbenchRail must pass derived title state into WorkbenchRailTitleArea',
+)
+assert.match(
+  componentSource,
+  /v-for="item in workbenchModeItems"/,
+  'WorkbenchRail must render the first-class workbench mode switcher from derived mode items',
 )
 assert.match(
   titleAreaSource,
-  /v-for="item in workspaceModeItems"/,
-  'WorkbenchRailTitleArea mode menu must render from derived mode items',
-)
-assert.match(
-  titleAreaSource,
-  /railTitleState\.showReferenceTitle/,
-  'WorkbenchRailTitleArea title visibility must render from derived title state',
+  /railTitleState\.showContextTitle/,
+  'WorkbenchRailTitleArea context title visibility must render from derived title state',
 )
 assert.doesNotMatch(
   componentSource,
@@ -144,6 +209,11 @@ assert.doesNotMatch(
   /leftSidebarPanel === 'references'/,
   'WorkbenchRail must not duplicate active mode derivation in the template',
 )
+assert.doesNotMatch(
+  titleAreaSource,
+  /workspaceMenuOpen|workbench-mode-menu|Reference Library/,
+  'WorkbenchRailTitleArea must not hide primary workbench navigation behind the title menu',
+)
 
 console.log(JSON.stringify({
   ok: true,
@@ -153,6 +223,7 @@ console.log(JSON.stringify({
     railStyleDerived: true,
     modeItemsDerived: true,
     titleStateDerived: true,
+    contextDockStateDerived: true,
     componentUsesDomainHelper: true,
   },
 }, null, 2))

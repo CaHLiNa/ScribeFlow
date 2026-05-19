@@ -3,6 +3,10 @@ import { isMod } from '../../platform'
 import { getViewerType, isNewTab } from '../../utils/fileTypes'
 import { openExternalHttpUrl, resolveExternalHttpAnchor } from '../../services/externalLinks'
 import { confirmUnsavedChanges } from '../../services/unsavedChanges'
+import {
+  WORKBENCH_MODE_REFERENCES,
+  resolveWorkbenchMode,
+} from '../../domains/workbench/workbenchShellPresentation.ts'
 
 function preferredNewFileExtension(path = '') {
   if (path.endsWith('.tex') || path.endsWith('.latex')) return '.tex'
@@ -123,7 +127,11 @@ export function useAppShellEventBridge({
         event.preventDefault()
         return
       }
-      const currentDockOpen = workspace.leftSidebarPanel === 'references'
+      const currentWorkbenchMode = resolveWorkbenchMode({
+        isSettingsSurface: workspace.isSettingsSurface,
+        leftSidebarPanel: workspace.leftSidebarPanel,
+      })
+      const currentDockOpen = currentWorkbenchMode === WORKBENCH_MODE_REFERENCES
         ? workspace.referenceDockOpen
         : workspace.documentDockOpen
       if (currentDockOpen) {

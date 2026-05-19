@@ -1,3 +1,10 @@
+import {
+  WORKBENCH_MODE_DOCUMENTS,
+  WORKBENCH_MODE_REFERENCES,
+  WORKBENCH_MODE_SETTINGS,
+  normalizeWorkbenchMode,
+} from './workbenchShellPresentation.ts'
+
 const TOPBAR_HEIGHT = 36
 const DEFAULT_SIDE_PADDING = 12
 const MAC_TRAFFIC_LIGHT_SAFE_PADDING = 68
@@ -25,44 +32,52 @@ export function resolveWorkbenchRailStyle(options = {}) {
 }
 
 export function buildWorkbenchRailModeItems({
+  activeMode = '',
   activePanel = 'files',
   t = (key) => key,
 } = {}) {
-  const normalizedActivePanel = String(activePanel || '').trim() || 'files'
+  const normalizedActiveMode = activeMode
+    ? normalizeWorkbenchMode(activeMode)
+    : normalizeWorkbenchMode(activePanel)
   return [
     {
-      id: 'files',
-      label: t('Document Area'),
-      active: normalizedActivePanel === 'files',
+      id: WORKBENCH_MODE_DOCUMENTS,
+      label: t('Documents'),
+      active: normalizedActiveMode === WORKBENCH_MODE_DOCUMENTS,
     },
     {
-      id: 'references',
-      label: t('Reference Library'),
-      active: normalizedActivePanel === 'references',
+      id: WORKBENCH_MODE_REFERENCES,
+      label: t('References'),
+      active: normalizedActiveMode === WORKBENCH_MODE_REFERENCES,
+    },
+    {
+      id: WORKBENCH_MODE_SETTINGS,
+      label: t('Settings'),
+      active: normalizedActiveMode === WORKBENCH_MODE_SETTINGS,
     },
   ]
 }
 
 export function buildWorkbenchRailTitleState({
   currentDocumentLabel = '',
-  leftSidebarAvailable = true,
-  leftSidebarPanel = 'files',
   preferExternalDocumentTitle = false,
   showDocumentTitleTarget = true,
+  workbenchMode = WORKBENCH_MODE_DOCUMENTS,
 } = {}) {
-  const activePanel = String(leftSidebarPanel || '').trim() || 'files'
-  const isReferencePanel = leftSidebarAvailable && activePanel === 'references'
+  const normalizedMode = normalizeWorkbenchMode(workbenchMode)
+  const isDocumentMode = normalizedMode === WORKBENCH_MODE_DOCUMENTS
   const documentTitleLabel = String(currentDocumentLabel || '')
   const showInlineDocumentTitle = Boolean(
     documentTitleLabel &&
       !preferExternalDocumentTitle &&
-      !isReferencePanel
+      isDocumentMode
   )
 
   return {
+    contextTitleLabel: isDocumentMode ? '' : documentTitleLabel,
     documentTitleLabel,
-    showDocumentTitleSlot: Boolean(showDocumentTitleTarget && !isReferencePanel),
+    showContextTitle: Boolean(!isDocumentMode && documentTitleLabel),
+    showDocumentTitleSlot: Boolean(showDocumentTitleTarget && isDocumentMode),
     showInlineDocumentTitle,
-    showReferenceTitle: isReferencePanel,
   }
 }
