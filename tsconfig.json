@@ -1,0 +1,9 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./tsconfig.bridge.json" },
+    { "path": "./tsconfig.app.json" },
+    { "path": "./tsconfig.tools.json" },
+    { "path": "./tsconfig.extension-runtime.json" }
+  ]
+}
