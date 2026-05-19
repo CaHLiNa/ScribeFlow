@@ -8,6 +8,11 @@ function scopedStyleBlock(source = '') {
   return source.match(/<style scoped>[\s\S]*?<\/style>/)?.[0] || ''
 }
 
+function cssRuleBlock(source = '', selector = '') {
+  const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return source.match(new RegExp(`${escapedSelector}\\s*\\{([\\s\\S]*?)\\}`))?.[1] || ''
+}
+
 const appStyle = scopedStyleBlock(appSource)
 const frameStyle = scopedStyleBlock(frameSource)
 
@@ -87,11 +92,25 @@ for (const className of [
   )
 }
 
+for (const selector of [
+  '.app-shell-workbench',
+  '.app-shell-sidebar',
+  '.app-shell-main-card',
+]) {
+  const block = cssRuleBlock(frameStyle, selector)
+  assert.doesNotMatch(
+    block,
+    /transform\s*:\s*translateZ\(0\)|will-change\s*:\s*transform|will-change\s*:\s*[^;]*\btransform\b/,
+    `${selector} must not keep an idle compositor layer during native window resize`,
+  )
+}
+
 console.log(JSON.stringify({
   ok: true,
   summary: {
     appOwnsOrchestration: true,
     frameOwnsShellDomAndStyles: true,
     frameAvoidsRuntimeAuthority: true,
+    frameAvoidsIdleCompositorLayers: true,
   },
 }, null, 2))

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
 import { createLogger, createServer } from 'vite'
 
 const vite = await createServer({
@@ -17,6 +18,11 @@ const vite = await createServer({
     },
   }),
 })
+
+function cssRuleBlock(source = '', selector = '') {
+  const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return source.match(new RegExp(`${escapedSelector}\\s*\\{([\\s\\S]*?)\\}`))?.[1] || ''
+}
 
 try {
   const {
@@ -106,6 +112,19 @@ try {
     }),
     '/tmp/workspace/fallback.md',
   )
+
+  const editorCss = await readFile('src/css/editor.css', 'utf8')
+  for (const selector of [
+    '.workbench-inline-dock-region',
+    '.workbench-inline-dock-region > .inline-dock',
+  ]) {
+    const block = cssRuleBlock(editorCss, selector)
+    assert.doesNotMatch(
+      block,
+      /transform\s*:\s*translateX\(0\)|will-change\s*:\s*[^;]*\btransform\b/,
+      `${selector} must not keep an idle compositor layer during native window resize`,
+    )
+  }
 
   console.log('pane document dock workspace contract probe passed')
 } finally {

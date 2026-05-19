@@ -169,7 +169,6 @@ defineProps({
   gap: 0;
   padding: 0;
   background: var(--app-canvas);
-  transform: translateZ(0);
 }
 
 .app-shell-region {
@@ -245,9 +244,7 @@ defineProps({
   border-radius: 0;
   background: transparent;
   box-shadow: none;
-  will-change: opacity, transform;
   opacity: 1;
-  transform: translateX(0);
   transition:
     opacity var(--shell-panel-fade-duration) ease,
     transform var(--shell-panel-motion-duration) var(--shell-panel-motion-ease),
@@ -307,8 +304,6 @@ defineProps({
   box-shadow: none;
   overflow: hidden;
   z-index: 2;
-  transform: translateZ(0);
-  will-change: transform;
   transition: background-color var(--shell-panel-surface-duration) ease;
 }
 

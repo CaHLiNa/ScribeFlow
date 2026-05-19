@@ -210,8 +210,6 @@
   background: color-mix(in srgb, var(--shell-editor-surface) 86%, var(--surface-base) 14%);
   contain: layout paint;
   opacity: 1;
-  transform: translateX(0);
-  will-change: opacity, transform;
   transition:
     opacity var(--inline-dock-fade-duration, 210ms) ease,
     transform var(--inline-dock-motion-duration, 390ms) var(--inline-dock-motion-ease, cubic-bezier(0.3, 0, 0.2, 1)),
@@ -224,7 +222,6 @@
   width: var(--inline-dock-current-width, 100%);
   min-width: var(--inline-dock-current-width, 100%);
   opacity: 1;
-  transform: translateX(0);
   transition:
     opacity var(--inline-dock-fade-duration, 210ms) ease,
     transform var(--inline-dock-motion-duration, 390ms) var(--inline-dock-motion-ease, cubic-bezier(0.3, 0, 0.2, 1));
