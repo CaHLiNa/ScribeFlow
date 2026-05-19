@@ -2,87 +2,190 @@
 
 适用范围：整个仓库。
 
+## 协作基准
+
+- 全程用中文回答，专业术语保留 English。
+- 先读真实代码、`CURRENT-STATE.md` 和当前 `git status`，再判断改动范围。
+- 未验证，不说完成；未提交推送，不说已落到远端。
+- 用户给出明确方向时，默认直接实现、验证、提交、推送，不停在建议。
+- 不回滚用户已有修改；如果工作区有无关 dirty files，只 stage 本次任务相关文件。
+
+## 当前事实来源
+
+当前事实以以下来源为准：
+
+- `CURRENT-STATE.md`
+- 当前代码和 scripts
+- `package.json` scripts
+- `src-tauri/src` runtime implementation
+
+不要假设仓库里仍有旧 `docs/`、旧 `web/`、旧 sidecar 项目、旧 roadmap 文档或根 `README.md`。根目录长期文档应保持少量、当前、可验证；不要重新创建历史计划文档，除非用户明确要求。
+
 ## 当前仓形
 
-ScribeFlow 是一个精简后的 Tauri 桌面应用仓库。当前保留：
+ScribeFlow 是一个 local-first 的 Tauri 2 桌面学术写作与研究工作台。
 
-- `src/`：Vue frontend
-- `src-tauri/`：Tauri / Rust runtime
-- `scripts/`：工程验证、bundle guard、版本和发布辅助脚本
-- `.github/workflows/release-installers.yml`：桌面安装包发布 workflow
-- `package.json`、`vite.config.js`、`index.html`：frontend build contract
+主要代码边界：
 
-不要假设仓库里还有旧 `docs/`、旧 `web/` 或历史 sidecar 项目。历史说明文档已删除，当前事实以 `CURRENT-STATE.md`、`AGENTS.md` 和代码为准。
+- `src/app`：desktop lifecycle、workspace/session orchestration、shell wiring
+- `src/components`：Vue UI surfaces
+- `src/composables`：UI interaction helpers 和可复用 side-effect workflow glue
+- `src/domains`：纯 presentation rules、labels、sorting、deterministic state derivation
+- `src/editor`：CodeMirror/editor runtime helpers、TextMate grammar/theme vendoring
+- `src/services`：Tauri bridge、plugin/native event bridge、DTO compatibility、side-effect boundary
+- `src/stores`：Pinia screen state、orchestration、loading/error lifecycle、service calls
+- `src-tauri/src`：Rust runtime authority
+- `scripts`：boundary guards、runtime probes、bundle guard、release/version helpers
 
-## 产品目标
+`dist/`、`node_modules/`、`src-tauri/target/` 是生成物或依赖目录，不作为产品事实来源。
 
-ScribeFlow 是本地优先的桌面学术研究工作台。主路径是：
+## 产品主路径
 
-- 打开本地 workspace
-- 浏览和编辑 Markdown / LaTeX / Python 文件
+当前主路径不是单纯 editor，也不是单纯 reference manager，而是桌面研究工作台：
+
+- 打开、关闭、恢复本地 workspace
+- 浏览和修改 workspace 文件树
+- 恢复 editor tabs、document dock tabs 和 recent files
+- 编辑 Markdown、LaTeX、Python
 - 预览 Markdown、编译 LaTeX、查看 PDF、运行 Python
-- 管理 reference library
-- 从 PDF / BibTeX / Zotero 导入参考文献
-- 插入和追踪 Markdown / LaTeX citation
+- 管理 references，支持 BibTeX、PDF metadata、Zotero
+- 插入、同步、追踪 Markdown / LaTeX citations
+- 管理 extension/plugin lifecycle、settings、runtime commands 和 right-sidebar surfaces
+- 将 PDF actions、commands、capabilities、view reveal requests 默认路由到 plugin-owned document right sidebar tab
+- 支持 plugin task timeline、artifacts、outputs、result entries、host prompts、secure settings 和 workspace-scoped runtime state
 
 ## 架构边界
 
-- Rust 是 runtime authority，负责 filesystem、workspace access、持久化状态、reference normalization、LaTeX/Python runtime、PDF/reference asset handling 和安全边界。
-- Vue 负责 UI rendering、交互和短期界面状态。
-- `src/services` 是 Tauri bridge 和副作用边界。
-- `src/domains` 只放纯规则和状态转换。
-- `src/stores` 负责 Pinia coordination，不直接成为 backend。
+Rust 是 runtime authority，负责：
 
-硬规则：
+- filesystem、workspace access、path normalization、安全边界
+- persisted app/workspace/reference/plugin state
+- references normalization、query、mutation、import/export、PDF assets、Zotero sync
+- LaTeX/Python/Markdown runtime contracts
+- plugin discovery、manifest validation、permissions、extension host lifecycle
+- extension commands、capabilities、tasks、artifacts、outputs、views、secure settings
+- app update、workspace lifecycle、workbench state normalization
 
-- `src/components`、`src/stores`、`src/domains`、`src/composables` 不直接 import Tauri API。
-- Tauri `invoke`、plugin 调用和 native event bridge 只放在 `src/services`。
-- 不新增第二套 frontend backend center。
-- 不恢复旧 migration / localStorage / per-workspace historical data paths，除非用户明确要求做数据救援。
+Vue/JS 负责：
 
-Canonical layer table:
+- UI rendering、local interaction state、loading/error/empty states
+- Pinia screen coordination 和 service call orchestration
+- DTO compatibility、native/plugin event presentation
+- 纯 presentation/domain derivation
+
+Canonical layer 表：
 
 | Layer | 责任 |
 | --- | --- |
-| Vue UI | render surfaces, receive props, emit user intent, show loading/error/empty states |
+| Vue UI | render product surfaces, receive props, emit user intent, show loading/error/empty states |
 | JS bridge | `src/services` wraps Tauri commands, plugins, native events and DTO compatibility |
 | Pinia coordination | `src/stores` owns screen state, orchestration, loading/error lifecycle and service calls |
 | JS domains | `src/domains` owns pure presentation rules, labels, sorting and deterministic state derivation |
 | Rust runtime | `src-tauri/src` owns filesystem, workspace state, references, runtime execution, persistence, plugins and security |
 
-允许/禁止示例：
+硬规则：
 
-- 允许：`ReferenceDetailPanel.vue` 维护表单 draft 并发出 save intent，`references.js` 调用 `referenceRuntime.applyMutation`，Rust 校验、normalize 并持久化。
-- 禁止：Vue component 直接写入 normalized reference records 或自己决定 merge policy。
-- 允许：service wrapper 调用 `references_mutation_apply` 并做 camelCase DTO compatibility。
-- 禁止：service wrapper 执行应由 Rust 拥有的 reference merge、workspace security 或 persisted schema policy。
-- 允许：Pinia store 在 Rust 返回 normalized result 后更新 UI state。
-- 禁止：Pinia store 自己成为 filesystem、reference、LaTeX/Python 或 plugin host backend。
+- `src/components`、`src/stores`、`src/domains`、`src/composables` 不直接 import Tauri API。
+- Tauri `invoke`、Tauri plugin calls、native event bridge 只放在 `src/services`。
+- `src/services` 可以做 DTO compatibility，但不得成为第二套 backend。
+- Pinia store 不拥有 filesystem、reference merge、LaTeX/Python runtime、plugin host 或 persisted schema policy。
+- `src/domains` 不接触 native bridge、persistence、filesystem、process authority。
+- Rust 返回 normalized result 后，前端再更新 UI state。
+- 不恢复旧 localStorage / per-workspace migration path 作为 runtime authority；真实数据救援需要用户明确要求。
 
-Tauri command contract：
+## Reference 规则
 
-- 改 command 名称、参数 shape、返回 JSON shape、store action contract 或 persisted state shape，必须同一 commit 更新 bridge、store 调用和回归验证。
-- 没有 dedicated compatibility phase，不重命名现有 Tauri commands。
-- 需要兼容历史 persisted data 时，在 Rust 或 service DTO adapter 中显式写明 compatibility 边界。
+Reference 方向是 Rust-first：
 
-Editor freeze：
+- Rust 拥有 reference truth、snapshot normalization、query/search/filter、mutation outcome、import/export、PDF asset target resolution、citation formatting target lookup、Zotero sync result state。
+- JS 只保留 UI presentation、DTO readers、service bridge、Pinia coordination、临时 UI state。
+- `src/domains/references/referenceStoreState.js` 只适合 UI state/display helper，不放 canonical policy。
+- `referenceResolvedQueryDto.js` 只适配 Rust DTO 给现有同步 UI/API，不重新实现 Rust query policy。
 
-- 全局模块整理期间不编辑 `src/editor/**`、`src/components/editor/TextEditor.vue`、`src/components/editor/EditorPane.vue`、`src/components/editor/EditorTextRouteSurface.vue`、`src/components/editor/EditorTextWorkspaceSurface.vue`、`src/components/editor/PaneContainer.vue`、`src/composables/useTextEditorBridges.js`、`src/stores/editor.js`、`src/services/editorPersistence.js`、`src-tauri/src/editor_session_runtime.rs`。
-- editor 相关改动必须开独立 editor-specific phase，并先说明 cursor、selection、reveal、scroll、session payload 和 event timing 的验证方式。
+允许：
 
-## Rust-first 开发纪律
+- `ReferenceDetailPanel.vue` 维护 local draft 并发出 save intent。
+- `src/stores/references.js` 调用 `referenceRuntime` / `references_mutation_apply`，消费 Rust 返回的 snapshot/result。
+- service wrapper 处理 camelCase DTO compatibility。
+
+禁止：
+
+- Vue component 直接写 normalized reference records。
+- JS 重写 duplicate/merge/selection/export target/Zotero result policy。
+- store 或 service 变成 reference backend。
+
+## Plugin / Extension 规则
+
+当前 plugin model 是 runtime-first、Obsidian-style、local owner-authored plugin 模型，不是 VS Code marketplace clone。
+
+Rust/host 负责：
+
+- plugin discovery、manifest validation、permissions
+- persistent extension host lifecycle、crash recovery、workspace-scoped runtime slots
+- commands、capabilities、menus、views、treeviews、tasks、artifacts、outputs
+- secure settings、`globalState`、`workspaceState`
+- prompt isolation、prompt recovery、disable/cancel semantics
+- process bridge 和 PDF/reference bridge 的 permission enforcement
+
+前端负责：
+
+- Settings 中的 discovery/lifecycle/settings presentation
+- document right sidebar plugin tabs、task timeline、result preview、blocked/waiting status UI
+- command palette 和 action surface presentation
+
+不要把 Settings 做成 plugin workbench；plugin 的实际使用入口默认属于 document right sidebar。
+
+## Editor 规则
+
+Editor 不是普通 leaf surface。涉及以下区域时必须单独收口验证，不要和无关 refactor 混做：
+
+- `src/editor/**`
+- `src/components/editor/TextEditor.vue`
+- `src/components/editor/EditorPane.vue`
+- `src/components/editor/EditorTextRouteSurface.vue`
+- `src/components/editor/EditorTextWorkspaceSurface.vue`
+- `src/components/editor/PaneContainer.vue`
+- `src/composables/useTextEditorBridges.js`
+- `src/stores/editor.js`
+- `src/services/editorPersistence.js`
+- `src-tauri/src/editor_session_runtime.rs`
+
+Editor 相关改动必须说明并验证：
+
+- cursor、selection、reveal、scroll
+- session payload shape
+- async file-content sync timing
+- preview forward/reverse sync timing
+- CodeMirror view lifecycle
+
+这不是永久禁止编辑 editor，而是要求 editor work 独立、可验证、不能顺手混入其他迁移。
+
+## Tauri Command Contract
+
+改动以下任一项时，必须同一 commit 更新 Rust、service bridge、store call sites 和 probes/tests：
+
+- Tauri command 名称
+- 参数 shape
+- 返回 JSON shape
+- persisted state shape
+- store action contract
+- plugin host event payload
+- reference/runtime DTO contract
+
+没有 dedicated compatibility phase 时，不重命名现有 commands。需要兼容历史 persisted data 时，在 Rust normalizer 或 service DTO adapter 中明确写 compatibility boundary。
+
+## 开发纪律
 
 - 优先保持桌面主路径可运行。
-- 新 runtime capability 优先落在 Rust，前端保持 thin bridge。
-- 不随手改变 Tauri command 名称、参数 shape、返回 JSON shape、store action contract 或 persisted state shape。
-- `documentWorkflow`、editor shell、session persistence 和 UI chrome 是 shared layer；没有明确 phase，不和 leaf runtime migration 混在一起改。
-- 剩余 UI-local parser 不作为默认 Rustification 对象，例如 CodeMirror decorations、Markdown table editing、snippet trigger、CSV preview parsing 和 DOM preview transforms。
+- 新 runtime capability 优先落 Rust，前端保持 thin bridge。
+- UI-local parser 不默认 Rustification，例如 CodeMirror decorations、Markdown table editing、snippet trigger、CSV preview parsing、DOM preview transforms。
+- `documentWorkflow`、editor shell、session persistence、UI chrome 是 shared layer；没有明确任务，不和 leaf runtime migration 混改。
+- 前端改动要同时考虑 i18n、响应式、状态空值、loading/error/empty states。
+- 删除 UI/设置时，同时清理文案、store setter、持久化键、backend normalization 和 probes，避免只隐藏入口。
 
-## 验证规则
+## 验证
 
-未验证，不说完成。
-
-标准工程 gate：
+标准 gate：
 
 ```sh
 npm run verify
@@ -90,32 +193,39 @@ npm run verify
 
 它包含：
 
-- UI bridge boundary guard
-- PDF runtime boundary guard
-- TextMate runtime boundary guard
-- Vite build
-- bundle budget check
-- Rust check
-- Rust tests
+- `npm run verify:quick`
+- `npm run verify:extensions`
+- `npm run verify:build`
+- `npm run verify:rust`
 
-桌面手感、视觉布局和交互体验由用户手工判断；不要再建议新增自动化 Tauri smoke、自动化视觉评审或自动化交互验收。
+常用子 gate：
+
+- `npm run guard:ui-bridges`
+- `npm run guard:js-layer-boundaries`
+- `npm run guard:pdf-runtime`
+- `npm run guard:textmate-runtime`
+- `npm run check:bundle`
+- `npm run check:rust`
+- `npm run test:rust`
+
+`probe:desktop-main-path-runtime-contract` 是 runtime contract smoke，不替代用户对桌面手感、视觉布局和交互体验的判断。不要建议新增自动化 Tauri smoke、自动化视觉评审或自动化交互验收，除非用户明确改变规则。
 
 ## Git 规则
 
 - 提交信息使用 Conventional Commits。
 - 每次完成代码、文档、配置或数据结构修改后，默认提交并推送当前分支。
-- 提交前先看 `git status`，只 stage 本次任务相关文件。
+- 提交前先看 `git status --short --branch`。
+- 只 stage 本次任务相关文件；不要把无关 dirty files 捆进提交。
 - 推送前完成与改动风险匹配的验证。
 - 不执行破坏性 git 操作，除非用户明确要求。
-- 不回滚用户已有修改。
+- 不回滚用户已有修改；如果必须处理冲突，先说明具体冲突边界。
 
 ## 输出要求
-
-全程用中文回答，专业术语保留 English。
 
 完成任务时说明：
 
 1. 做了什么
 2. 改了哪些文件
 3. 如何验证
-4. 当前风险和下一步
+4. 是否已 commit/push
+5. 当前风险和下一步
