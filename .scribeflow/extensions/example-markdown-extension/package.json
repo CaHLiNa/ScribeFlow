@@ -7,7 +7,7 @@
   "engines": {
     "scribeflow": "^1.1.0"
   },
-  "main": "./dist/extension.js",
+  "main": "./dist/extension.ts",
   "extensionKind": ["workspace"],
   "activationEvents": [
     "onCapability:document.summarize",

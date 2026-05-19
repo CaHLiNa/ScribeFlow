@@ -4,55 +4,18 @@ import os from 'node:os'
 import path from 'node:path'
 
 const repoRoot = process.cwd()
-const hostPath = path.join(repoRoot, 'src-tauri/resources/extension-host/extension-host.mjs')
+const hostPath = path.join(repoRoot, 'src-tauri/resources/extension-host/extension-host.ts')
 
 const extensionSource = `
 export async function activate(context) {
-  context.commands.registerCommand('exampleQuickPickExtension.pickMany', async () => {
-    const selected = await context.window.showQuickPick([
-      {
-        id: 'alpha',
-        label: 'Alpha',
-        value: { id: 'alpha' },
-        picked: true,
-      },
-      {
-        id: 'beta',
-        label: 'Beta',
-        value: { id: 'beta' },
-      },
-      {
-        id: 'gamma',
-        label: 'Gamma',
-        value: { id: 'gamma' },
-        picked: true,
-      },
-    ], {
-      title: 'Pick many',
-      canPickMany: true,
-      placeholder: 'Choose references',
-    })
-
+  context.commands.registerCommand('exampleWindowMessageExtension.emitMessages', async () => {
+    await context.window.showInformationMessage('info message')
+    await context.window.showWarningMessage('warning message')
+    await context.window.showErrorMessage('error message')
     return {
-      message: 'multi-select completed',
-      progressLabel: 'Multi-select completed',
+      message: 'window messages emitted',
+      progressLabel: 'Window messages emitted',
       taskState: 'succeeded',
-      outputs: [
-        {
-          id: 'picked-count',
-          type: 'inlineText',
-          mediaType: 'text/plain',
-          title: 'Picked Count',
-          text: String(Array.isArray(selected) ? selected.length : 0),
-        },
-        {
-          id: 'picked-json',
-          type: 'inlineText',
-          mediaType: 'application/json',
-          title: 'Picked JSON',
-          text: JSON.stringify(selected),
-        },
-      ],
     }
   })
 }
@@ -66,8 +29,8 @@ function ensure(condition, message, details = null) {
 }
 
 async function main() {
-  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'scribeflow-quickpick-host-multi-'))
-  const extensionPath = path.join(tempRoot, 'example-quickpick-extension')
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'scribeflow-window-message-severity-'))
+  const extensionPath = path.join(tempRoot, 'example-window-message-extension')
   const manifestPath = path.join(extensionPath, 'package.json')
   const distDir = path.join(extensionPath, 'dist')
   const entryPath = path.join(distDir, 'extension.js')
@@ -75,19 +38,19 @@ async function main() {
   await import('node:fs/promises').then(({ mkdir }) => mkdir(distDir, { recursive: true }))
   await writeFile(entryPath, extensionSource, 'utf8')
   await writeFile(manifestPath, JSON.stringify({
-    name: 'example-quickpick-extension',
-    displayName: 'Example Quick Pick Extension',
+    name: 'example-window-message-extension',
+    displayName: 'Example Window Message Extension',
     version: '0.1.0',
     type: 'module',
     main: './dist/extension.js',
     activationEvents: [
-      'onCommand:exampleQuickPickExtension.pickMany',
+      'onCommand:exampleWindowMessageExtension.emitMessages',
     ],
     contributes: {
       commands: [
         {
-          command: 'exampleQuickPickExtension.pickMany',
-          title: 'Pick Many',
+          command: 'exampleWindowMessageExtension.emitMessages',
+          title: 'Emit Window Messages',
         },
       ],
     },
@@ -96,11 +59,12 @@ async function main() {
     },
   }, null, 2), 'utf8')
 
-  const child = spawn('node', [hostPath], {
+  const child = spawn('node', ['--experimental-strip-types', hostPath], {
     cwd: repoRoot,
     stdio: ['pipe', 'pipe', 'inherit'],
   })
 
+  const observed = []
   let currentResolve = null
 
   function send(method, params) {
@@ -131,13 +95,8 @@ async function main() {
       buffer = buffer.slice(newlineIndex + 1)
       if (line) {
         const message = JSON.parse(line)
-        if (message.kind === 'WindowInputRequested') {
-          send('RespondUiRequest', {
-            requestId: message.payload.requestId,
-            cancelled: false,
-            result: [{ id: 'alpha' }, { id: 'beta' }, { id: 'gamma' }],
-          })
-        } else if (isTerminal(message)) {
+        observed.push(message)
+        if (isTerminal(message)) {
           if (!currentResolve) {
             throw new Error(`unexpected terminal message without waiter: ${message.kind}`)
           }
@@ -170,8 +129,8 @@ async function main() {
 
   try {
     const activate = await call('Activate', {
-      extensionId: 'example-quickpick-extension',
-      activationEvent: 'onCommand:exampleQuickPickExtension.pickMany',
+      extensionId: 'example-window-message-extension',
+      activationEvent: 'onCommand:exampleWindowMessageExtension.emitMessages',
       extensionPath,
       manifestPath,
       mainEntry: './dist/extension.js',
@@ -185,44 +144,50 @@ async function main() {
     })
 
     const command = await call('ExecuteCommand', {
-      activationEvent: 'onCommand:exampleQuickPickExtension.pickMany',
+      activationEvent: 'onCommand:exampleWindowMessageExtension.emitMessages',
       extensionPath,
       manifestPath,
       mainEntry: './dist/extension.js',
-      commandId: 'exampleQuickPickExtension.pickMany',
+      commandId: 'exampleWindowMessageExtension.emitMessages',
       envelope: {
-        taskId: 'task-quickpick-multi',
-        extensionId: 'example-quickpick-extension',
+        taskId: 'task-window-message',
+        extensionId: 'example-window-message-extension',
         workspaceRoot: '/tmp/workspace',
         itemId: '',
         itemHandle: '',
         referenceId: '',
         capability: '',
-        commandId: 'exampleQuickPickExtension.pickMany',
+        commandId: 'exampleWindowMessageExtension.emitMessages',
         targetKind: 'workspace',
         targetPath: '/tmp/workspace',
         settingsJson: '{}',
       },
     })
 
-    const outputs = Array.isArray(command?.payload?.outputs) ? command.payload.outputs : []
-    const pickedCount = String(outputs.find((entry) => entry.id === 'picked-count')?.text || '')
-    const pickedJson = String(outputs.find((entry) => entry.id === 'picked-json')?.text || '')
+    const windowMessages = observed
+      .filter((entry) => entry.kind === 'WindowMessage')
+      .map((entry) => ({
+        severity: String(entry.payload?.severity || ''),
+        message: String(entry.payload?.message || ''),
+      }))
 
-    ensure(activate?.payload?.activated === true, 'quick pick multi-select extension did not activate', activate?.payload || {})
-    ensure(command?.payload?.accepted === true, 'multi-select quick pick command was not accepted', command?.payload || {})
-    ensure(pickedCount === '3', 'multi-select quick pick count drifted', command?.payload || {})
+    ensure(activate?.payload?.activated === true, 'window message extension did not activate', activate?.payload || {})
+    ensure(command?.payload?.accepted === true, 'window message command was not accepted', command?.payload || {})
+    ensure(windowMessages.length === 3, 'window message count drifted', { windowMessages })
     ensure(
-      pickedJson === JSON.stringify([{ id: 'alpha' }, { id: 'beta' }, { id: 'gamma' }]),
-      'multi-select quick pick payload drifted',
-      command?.payload || {},
+      JSON.stringify(windowMessages) === JSON.stringify([
+        { severity: 'info', message: 'info message' },
+        { severity: 'warning', message: 'warning message' },
+        { severity: 'error', message: 'error message' },
+      ]),
+      'window message severity ordering drifted',
+      { windowMessages },
     )
 
     console.log(JSON.stringify({
       ok: true,
       summary: {
-        pickedCount,
-        pickedJson,
+        windowMessages,
       },
     }, null, 2))
   } finally {

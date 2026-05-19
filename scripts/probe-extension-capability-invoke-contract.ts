@@ -4,56 +4,63 @@ import os from 'node:os'
 import path from 'node:path'
 
 const repoRoot = process.cwd()
-const hostPath = path.join(repoRoot, 'src-tauri/resources/extension-host/extension-host.mjs')
+const hostPath = path.join(repoRoot, 'src-tauri/resources/extension-host/extension-host.ts')
 
 const extensionSource = `
 export async function activate(context) {
-  context.commands.registerCommand('exampleExecuteCommandContractExtension.targetSuccess', async (label = 'default-label') => {
-    context.views.refresh('exampleExecuteCommandContractExtension.resultView')
+  context.capabilities.registerProvider('document.targetSuccess', async (payload = {}) => {
+    context.views.refresh('exampleCapabilityInvokeContractExtension.resultView')
     return {
-      message: 'target success executed',
-      progressLabel: 'Target success executed',
+      message: 'target success capability executed',
+      progressLabel: 'Target success capability executed',
       taskState: 'succeeded',
-      changedViews: ['exampleExecuteCommandContractExtension.manualView'],
+      changedViews: ['exampleCapabilityInvokeContractExtension.manualView'],
       outputs: [
         {
           id: 'target-success-output',
           type: 'inlineText',
           mediaType: 'text/plain',
           title: 'Target Success Output',
-          text: String(label || ''),
+          text: String(payload?.label || ''),
         },
       ],
     }
   })
 
-  context.commands.registerCommand('exampleExecuteCommandContractExtension.targetFailure', async () => {
-    throw new Error('target failure from nested command')
+  context.capabilities.registerProvider('document.targetFailure', async () => {
+    throw new Error('target failure from nested capability')
   })
 
-  context.commands.registerCommand('exampleExecuteCommandContractExtension.runner', async () => {
-    const success = await context.commands.executeCommand(
-      'exampleExecuteCommandContractExtension.targetSuccess',
-      'runner-called',
-    )
+  context.capabilities.registerProvider('document.runner', async () => {
+    const success = await context.capabilities.invoke('document.targetSuccess', {
+      label: 'runner-called',
+      kind: 'workspace',
+      path: '/tmp/workspace/runner.md',
+    })
 
     let failureMessage = ''
     try {
-      await context.commands.executeCommand('exampleExecuteCommandContractExtension.targetFailure')
+      await context.capabilities.invoke('document.targetFailure', {
+        kind: 'workspace',
+        path: '/tmp/workspace/runner.md',
+      })
     } catch (error) {
       failureMessage = error?.message || String(error)
     }
 
     let missingMessage = ''
     try {
-      await context.commands.executeCommand('exampleExecuteCommandContractExtension.missing')
+      await context.capabilities.invoke('document.missing', {
+        kind: 'workspace',
+        path: '/tmp/workspace/runner.md',
+      })
     } catch (error) {
       missingMessage = error?.message || String(error)
     }
 
     return {
-      message: 'runner executed',
-      progressLabel: 'Runner executed',
+      message: 'runner capability executed',
+      progressLabel: 'Runner capability executed',
       taskState: 'succeeded',
       outputs: [
         {
@@ -88,12 +95,12 @@ function ensure(condition, message, details = null) {
 }
 
 function isTerminal(message) {
-  return ['Activate', 'ExecuteCommand', 'Error'].includes(message.kind)
+  return ['Activate', 'InvokeCapability', 'Error'].includes(message.kind)
 }
 
 async function main() {
-  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'scribeflow-execute-command-contract-'))
-  const extensionPath = path.join(tempRoot, 'example-execute-command-contract-extension')
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'scribeflow-capability-invoke-contract-'))
+  const extensionPath = path.join(tempRoot, 'example-capability-invoke-contract-extension')
   const manifestPath = path.join(extensionPath, 'package.json')
   const distDir = path.join(extensionPath, 'dist')
   const entryPath = path.join(distDir, 'extension.js')
@@ -104,29 +111,33 @@ async function main() {
     manifestPath,
     JSON.stringify(
       {
-        name: 'example-execute-command-contract-extension',
-        displayName: 'Example Execute Command Contract Extension',
+        name: 'example-capability-invoke-contract-extension',
+        displayName: 'Example Capability Invoke Contract Extension',
         version: '0.1.0',
         type: 'module',
         main: './dist/extension.js',
         activationEvents: [
-          'onCommand:exampleExecuteCommandContractExtension.runner',
-          'onCommand:exampleExecuteCommandContractExtension.targetSuccess',
-          'onCommand:exampleExecuteCommandContractExtension.targetFailure',
+          'onCapability:document.runner',
+          'onCapability:document.targetSuccess',
+          'onCapability:document.targetFailure',
         ],
         contributes: {
-          commands: [
+          capabilities: [
             {
-              command: 'exampleExecuteCommandContractExtension.runner',
-              title: 'Runner Command',
+              id: 'document.runner',
+              inputs: {
+                document: {
+                  type: 'workspaceFile',
+                  required: true,
+                  extensions: ['.md'],
+                },
+              },
             },
             {
-              command: 'exampleExecuteCommandContractExtension.targetSuccess',
-              title: 'Target Success Command',
+              id: 'document.targetSuccess',
             },
             {
-              command: 'exampleExecuteCommandContractExtension.targetFailure',
-              title: 'Target Failure Command',
+              id: 'document.targetFailure',
             },
           ],
         },
@@ -140,7 +151,7 @@ async function main() {
     'utf8',
   )
 
-  const child = spawn('node', [hostPath], {
+  const child = spawn('node', ['--experimental-strip-types', hostPath], {
     cwd: repoRoot,
     stdio: ['pipe', 'pipe', 'inherit'],
   })
@@ -210,13 +221,26 @@ async function main() {
 
   try {
     const activate = await call('Activate', {
-      extensionId: 'example-execute-command-contract-extension',
-      activationEvent: 'onCommand:exampleExecuteCommandContractExtension.runner',
+      extensionId: 'example-capability-invoke-contract-extension',
+      activationEvent: 'onCapability:document.runner',
       extensionPath,
       manifestPath,
       mainEntry: './dist/extension.js',
       permissions: { readWorkspaceFiles: true },
-      capabilities: [],
+      capabilities: [
+        {
+          id: 'document.runner',
+          inputs: {
+            document: {
+              type: 'workspaceFile',
+              required: true,
+              extensions: ['.md'],
+            },
+          },
+        },
+        { id: 'document.targetSuccess' },
+        { id: 'document.targetFailure' },
+      ],
       activationState: {
         settings: {},
         globalState: {},
@@ -224,43 +248,53 @@ async function main() {
       },
     })
 
-    const runnerResponse = await call('ExecuteCommand', {
-      activationEvent: 'onCommand:exampleExecuteCommandContractExtension.runner',
+    const runnerResponse = await call('InvokeCapability', {
+      activationEvent: 'onCapability:document.runner',
       extensionPath,
       manifestPath,
       mainEntry: './dist/extension.js',
-      commandId: 'exampleExecuteCommandContractExtension.runner',
       envelope: {
-        taskId: 'task-execute-command-runner',
-        extensionId: 'example-execute-command-contract-extension',
+        taskId: 'task-capability-runner',
+        extensionId: 'example-capability-invoke-contract-extension',
         workspaceRoot: '/tmp/workspace',
-        commandId: 'exampleExecuteCommandContractExtension.runner',
+        commandId: '',
         itemId: '',
         itemHandle: '',
         referenceId: '',
-        capability: '',
+        capability: 'document.runner',
         targetKind: 'workspace',
-        targetPath: '/tmp/workspace/note.md',
+        targetPath: '/tmp/workspace/runner.md',
         settingsJson: '{}',
       },
     })
 
     const runnerSummary = parseRunnerSummary(runnerResponse)
+    const runnerChangedViews = Array.isArray(runnerResponse?.payload?.changedViews)
+      ? runnerResponse.payload.changedViews
+      : []
 
-    ensure(activate?.payload?.activated === true, 'executeCommand contract extension did not activate', activate?.payload || {})
+    ensure(activate?.payload?.activated === true, 'capability invoke contract extension did not activate', activate?.payload || {})
+    ensure(
+      JSON.stringify(runnerChangedViews) === JSON.stringify([
+        'exampleCapabilityInvokeContractExtension.manualView',
+        'exampleCapabilityInvokeContractExtension.resultView',
+      ]),
+      'top-level InvokeCapability changedViews contract drifted',
+      runnerResponse?.payload || {},
+    )
     ensure(
       JSON.stringify(runnerSummary) === JSON.stringify({
         successAccepted: null,
         successTaskState: 'succeeded',
         successOutputText: 'runner-called',
         successChangedViews: [
-          'exampleExecuteCommandContractExtension.manualView',
-          'exampleExecuteCommandContractExtension.resultView',
+          'exampleCapabilityInvokeContractExtension.manualView',
+          'exampleCapabilityInvokeContractExtension.resultView',
         ],
-        failureMessage: 'target failure from nested command',
-        missingMessage: 'Command not registered: exampleExecuteCommandContractExtension.missing',
+        failureMessage: 'target failure from nested capability',
+        missingMessage: 'No capability provider registered for document.missing',
       }),
-      'nested commands.executeCommand contract drifted',
+      'nested capabilities.invoke contract drifted',
       runnerSummary,
     )
 
@@ -269,6 +303,7 @@ async function main() {
         {
           ok: true,
           summary: {
+            runnerChangedViews,
             runnerSummary,
           },
         },

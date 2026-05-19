@@ -4,7 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 const repoRoot = process.cwd()
-const hostPath = path.join(repoRoot, 'src-tauri/resources/extension-host/extension-host.mjs')
+const hostPath = path.join(repoRoot, 'src-tauri/resources/extension-host/extension-host.ts')
 const extensionPath = process.env.SCRIBEFLOW_RETAIN_PDF_EXTENSION_PATH ||
   path.join(os.homedir(), '.scribeflow/extensions/retain-pdf')
 const manifestPath = path.join(extensionPath, 'package.json')
@@ -31,7 +31,7 @@ async function main() {
   const sourcePdf = path.join(tempWorkspace, 'paper.pdf')
   await writeFile(sourcePdf, '%PDF-1.4\n% probe\n', 'utf8')
 
-  const child = spawn('node', [hostPath], {
+  const child = spawn('node', ['--experimental-strip-types', hostPath], {
     cwd: repoRoot,
     stdio: ['pipe', 'pipe', 'inherit'],
   })

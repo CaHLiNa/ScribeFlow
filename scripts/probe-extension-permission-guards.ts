@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 const repoRoot = process.cwd();
-const hostPath = path.join(repoRoot, "src-tauri/resources/extension-host/extension-host.mjs");
+const hostPath = path.join(repoRoot, "src-tauri/resources/extension-host/extension-host.ts");
 const extensionPath = path.join(repoRoot, ".scribeflow/extensions/example-pdf-extension");
 const manifestPath = path.join(extensionPath, "package.json");
 
@@ -22,7 +22,7 @@ async function readManifestMetadata() {
 }
 
 function createProbeChild() {
-  const child = spawn("node", [hostPath], {
+  const child = spawn("node", ['--experimental-strip-types', hostPath], {
     cwd: repoRoot,
     stdio: ["pipe", "pipe", "inherit"],
   });

@@ -51,9 +51,9 @@ ScribeFlow 是一个 local-first 的 Tauri 桌面学术写作与研究工作台�
 - `src/services/tauriBridge.ts` 统一封装 Tauri `invoke`、native events、app version、clipboard、dialog、shell 和 window APIs。
 - 存量 `src/services/**/*.ts` 作为 feature-specific service wrappers / DTO adapters 存在，但它们只能通过 `tauriBridge.ts` 触达 native runtime，不能直接 import Tauri 或 plugins。
 - `appUpdater.ts`、filesystem/workspace/reference/extension/LaTeX/Python 等 service wrappers 已从 direct `invoke/listen` 切到 TypeScript bridge entrypoint。
-- `tsconfig.bridge.json` 严格覆盖 native bridge authority；`tsconfig.app.json` 覆盖全量 `src/**/*.ts` parse/module gate。标准 `npm run verify` 会运行两者。
+- `tsconfig.bridge.json` 严格覆盖 native bridge authority；`tsconfig.app.json` 覆盖全量 `src/**/*.ts` parse/module gate；`tsconfig.tools.json` 覆盖 `scripts/**/*.ts`、内置 extension host 和仓内示例 extension 入口。标准 `npm run verify` 会运行三者。
 - boundary guards 已覆盖 `.ts` 和 `.vue` 文件，使后续 TypeScript work 仍受 UI bridge / layer boundary 约束。
-- `scripts/*.mjs` 仍是 Node 工程验证入口；它们可以 import/SSR load `src/**/*.ts`，但不属于 app frontend 源码。
+- `scripts/*.ts` 是 Node TypeScript 工程验证入口；它们可以 import/SSR load `src/**/*.ts`，但不属于 app frontend 源码。
 
 - `src/app`：desktop lifecycle 和 shell orchestration
 - `src/components`：Vue UI surfaces
@@ -471,7 +471,7 @@ Desktop feel、visual layout 和 interaction quality 由用户手工判断。
 
 - PDFium / EmbedPDF 留在 PDF preview surfaces 和 `src/services/pdf/*` 后面。
 - TextMate / Oniguruma 留在 LaTeX editor dynamic import path 后面。
-- Ordinary JS chunks 保持在 `scripts/check-bundle-budget.mjs` 强制的 bundle budget 以下。
+- Ordinary JS chunks 保持在 `scripts/check-bundle-budget.ts` 强制的 bundle budget 以下。
 
 状态契约：
 

@@ -37,7 +37,7 @@ ScribeFlow 是一个 local-first 的 Tauri 2 桌面学术写作与研究工作�
 - `src/services`：TypeScript Tauri bridge、plugin/native event bridge、DTO compatibility、side-effect boundary
 - `src/stores`：Pinia screen state、orchestration、loading/error lifecycle、service calls
 - `src-tauri/src`：Rust backend/runtime authority
-- `scripts`：Node `.mjs` boundary guards、runtime probes、bundle guard、release/version helpers
+- `scripts`：Node TypeScript boundary guards、runtime probes、bundle guard、release/version helpers
 
 `dist/`、`node_modules/`、`src-tauri/target/` 是生成物或依赖目录，不作为产品事实来源。
 
@@ -66,10 +66,10 @@ ScribeFlow 是一个 local-first 的 Tauri 2 桌面学术写作与研究工作�
 
 当前实现状态：
 
-- `src/` 目前以 TypeScript + Vue SFC 为主；不要再新增 `.js` app 源码。
+- `src/`、`scripts/`、内置 extension host 和仓内示例 extension 入口均以 TypeScript 为源码形态；不要再新增 `.js` / `.mjs` 仓库源码文件。
 - `src/services/tauriBridge.ts` 是唯一 direct Tauri/native plugin bridge authority。
 - 存量 `src/services/**/*.ts` 可以作为 feature-specific service wrappers / DTO adapters 存在，但必须通过 `tauriBridge.ts` 触达 native runtime。
-- 新增或大改 native bridge capability 时，优先落在 `tauriBridge.ts` 或 typed DTO adapter，并保持显式 command contract、`tsconfig.bridge.json` / `tsconfig.app.json` 和 `npm run verify:bridge` 覆盖。
+- 新增或大改 native bridge capability 时，优先落在 `tauriBridge.ts` 或 typed DTO adapter，并保持显式 command contract、`tsconfig.bridge.json` / `tsconfig.app.json` / `tsconfig.tools.json` 和 `npm run verify:bridge` 覆盖。
 - 不能为了迁移 TypeScript，把 Rust authority 下沉到前端，或新增第二套 frontend backend center。
 
 Rust backend/runtime 负责：

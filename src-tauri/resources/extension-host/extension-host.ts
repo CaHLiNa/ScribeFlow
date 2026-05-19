@@ -1082,9 +1082,15 @@ function createActivationContext(api, payload = {}) {
 }
 
 async function loadExtensionModule(mainPath) {
-  const normalized = String(mainPath || "").trim();
+  let normalized = String(mainPath || "").trim();
   if (!normalized) {
     throw new Error("Extension main entrypoint is empty");
+  }
+  if (!fs.existsSync(normalized) && normalized.endsWith(".js")) {
+    const tsCandidate = `${normalized.slice(0, -3)}.ts`;
+    if (fs.existsSync(tsCandidate)) {
+      normalized = tsCandidate;
+    }
   }
   return await import(pathToFileURL(normalized).href);
 }
